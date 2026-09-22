@@ -5,7 +5,6 @@ import {
   buildScenarioDeck,
   chosen,
   constant,
-  coveredByEngineRule,
   dealIndirectDamage,
   defeatingPlayer,
   defineAbilities,
@@ -106,13 +105,11 @@ export const CROSSBONES_SET = defineAbilities({
     revealCard(chosen("top"), firstPlayer),
   ),
 
-  // Crossbones' Machine Gun — Attach to Crossbones (data). Uses (2 [per_hero] ammo counters) (data).
+  // Crossbones' Machine Gun — Attach to Crossbones (data). Uses (2[per_hero] ammo counters) is now parsed as the
+  // `uses` keyword with `countPerPlayer` (docs/phase7-wave3.md §1.3), so the card no longer emits a separate
+  // "-constant" ref for it — the engine reads the keyword directly.
   // [star] Forced Interrupt: When Crossbones attacks you, remove 1 ammo counter from this card and discard the top
   // card of the encounter deck → take indirect damage equal to the number of boost icons on the discarded card.
-  // The data emits a second ("-constant") ability ref alongside the forced interrupt with no separate printed
-  // text of its own (the "Uses" line is data, not a scripted constant) — an empty constant, like a keyword-only
-  // card's ref elsewhere in this pack (`04031b.jessica-drew-constant`, `spider-woman-kit.ts`).
-  "04064.crossbones-machine-gun-constant": coveredByEngineRule(),
   "04064.crossbones-machine-gun-forced-interrupt": forcedInterrupt(
     when.enemyAttacks("host", { againstYou: true }),
     removeCountersFrom(self, "ammo", 1),

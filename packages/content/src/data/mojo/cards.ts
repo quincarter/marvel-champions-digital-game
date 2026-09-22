@@ -876,16 +876,13 @@ export const MOJO_CARDS: readonly AnyCard[] = [
     icons: ["crisis"],
     boostIcons: 3,
     traits: [],
-    keywords: [],
+    keywords: [{ name: "hinder", value: 0, perPlayer: 2 }],
     text: {
       printed: "Hinder 2[per_hero].\nForced Interrupt: When Mojo would take any amount of damage, remove an equal amount of threat from here instead.",
       current: "Hinder 2[per_hero].\nForced Interrupt: When Mojo would take any amount of damage, remove an equal amount of threat from here instead.",
     },
     flavor: "\"They'll never recognize me.\" —Mojo",
-    abilities: [
-      { id: abilityId("39031.undercover-mojo-constant") },
-      { id: abilityId("39031.undercover-mojo-forced-interrupt") },
-    ],
+    abilities: [{ id: abilityId("39031.undercover-mojo-forced-interrupt") }],
   },
   {
     id: cardId("39032"),
@@ -1013,7 +1010,7 @@ export const MOJO_CARDS: readonly AnyCard[] = [
     icons: [],
     boostIcons: 2,
     traits: [],
-    keywords: [],
+    keywords: [{ name: "hinder", value: 0, perPlayer: 1 }],
     text: {
       printed: "Hinder 1[per_hero]. (When revealed, place 1[per_hero] threat here.)\nThreat cannot be removed from other schemes.\nHero Action: Spend X [mental] resources → remove X threat from this scheme.",
       current: "Hinder 1[per_hero]. (When revealed, place 1[per_hero] threat here.)\nThreat cannot be removed from other schemes.\nHero Action: Spend X [mental] resources → remove X threat from this scheme.",
@@ -1021,9 +1018,6 @@ export const MOJO_CARDS: readonly AnyCard[] = [
     flavor: "\"It seems the victim's luck ran out.\"\n\"I guess you could say he...lost his mojo.\" —Detectives Domo and Mojo",
     abilities: [
       { id: abilityId("39037.crime-scene-investigation-constant") },
-      {
-        id: abilityId("39037.crime-scene-investigation-constant-2"),
-      },
       { id: abilityId("39037.crime-scene-investigation-action") },
     ],
   },
@@ -1042,17 +1036,13 @@ export const MOJO_CARDS: readonly AnyCard[] = [
     icons: [],
     boostIcons: 3,
     traits: [],
-    keywords: [],
+    keywords: [{ name: "hinder", value: 0, perPlayer: 1 }],
     text: {
       printed: "Hinder 1[per_hero]. (When revealed, place 1[per_hero] threat here.)\nEach friendly character gets -2 ATK.\nHero Action: Spend X [energy] resources → remove X threat from this scheme.",
       current: "Hinder 1[per_hero]. (When revealed, place 1[per_hero] threat here.)\nEach friendly character gets -2 ATK.\nHero Action: Spend X [energy] resources → remove X threat from this scheme.",
     },
     flavor: "\"I hold both of me in contempt!\" —Judge Mojo",
-    abilities: [
-      { id: abilityId("39038.law-and-order-constant") },
-      { id: abilityId("39038.law-and-order-constant-2") },
-      { id: abilityId("39038.law-and-order-action") },
-    ],
+    abilities: [{ id: abilityId("39038.law-and-order-constant") }, { id: abilityId("39038.law-and-order-action") }],
   },
   {
     id: cardId("39039"),
@@ -1069,17 +1059,13 @@ export const MOJO_CARDS: readonly AnyCard[] = [
     icons: [],
     boostIcons: 2,
     traits: [],
-    keywords: [],
+    keywords: [{ name: "hinder", value: 0, perPlayer: 1 }],
     text: {
       printed: "Hinder 1[per_hero]. (When revealed, place 1[per_hero] threat here.)\nThe villain cannot take damage.\nHero Action: Spend X [physical] resources → remove X threat from this scheme.",
       current: "Hinder 1[per_hero]. (When revealed, place 1[per_hero] threat here.)\nThe villain cannot take damage.\nHero Action: Spend X [physical] resources → remove X threat from this scheme.",
     },
     flavor: "\"I was never here.\" —Boss Mojo",
-    abilities: [
-      { id: abilityId("39039.dragnet-constant") },
-      { id: abilityId("39039.dragnet-constant-2") },
-      { id: abilityId("39039.dragnet-action") },
-    ],
+    abilities: [{ id: abilityId("39039.dragnet-constant") }, { id: abilityId("39039.dragnet-action") }],
   },
   {
     id: cardId("39040"),
@@ -1115,6 +1101,7 @@ export const MOJO_CARDS: readonly AnyCard[] = [
     quantityInSet: 1,
     unique: false,
     images: { front: imageRef("/bundles/cards/39041.png") },
+    amplifyIcons: 1,
     encounterSetIds: [encounterSetId("fantasy")],
     boostIcons: 1,
     traits: [trait("SETTING"), trait("SHOW")],
@@ -1594,7 +1581,10 @@ export const MOJO_CARDS: readonly AnyCard[] = [
       current: "Treat the printed text box of each support you control as if it were blank (except for Traits).\nAlter-Ego Action: Exhaust your identity and each support you control → discard this obligation.",
     },
     flavor: "\"I'll never be like you!\"\n\"You're my clone!\" —X-23 and Wolverine",
-    abilities: [{ id: abilityId("39061.obligation") }],
+    abilities: [
+      { id: abilityId("39061.family-matters-constant") },
+      { id: abilityId("39061.family-matters-action") },
+    ],
   },
   {
     id: cardId("39062"),
@@ -1615,7 +1605,7 @@ export const MOJO_CARDS: readonly AnyCard[] = [
       current: "Increase the cost to play each of your upgrades by 2.\nAlter-Ego Action: Discard an upgrade you control or discard an upgrade from your hand. If you have more upgrades in your discard pile than in play, discard this obligation.",
     },
     flavor: "\"It's not my fault!\" —Hope Summers",
-    abilities: [{ id: abilityId("39062.obligation") }],
+    abilities: [{ id: abilityId("39062.growing-pains-constant") }, { id: abilityId("39062.growing-pains-action") }],
   },
   {
     id: cardId("39063"),
@@ -1636,7 +1626,10 @@ export const MOJO_CARDS: readonly AnyCard[] = [
       current: "Reduce your ally limit by 2.\nAlter-Ego Action: Exhaust 2 characters you control → shuffle an ally from your discard pile into your deck and discard this obligation.",
     },
     flavor: "\"I'll clean it up later.\" —Jubilee",
-    abilities: [{ id: abilityId("39063.obligation") }],
+    abilities: [
+      { id: abilityId("39063.the-odd-couple-constant") },
+      { id: abilityId("39063.the-odd-couple-action") },
+    ],
   },
   {
     id: cardId("39064"),
@@ -1656,7 +1649,10 @@ export const MOJO_CARDS: readonly AnyCard[] = [
       printed: "Each encounter card gains peril.\nAlter-Ego Action: Discard 3 cards from your hand and choose a player → the chosen player draws 1 card and you discard this obligation.",
       current: "Each encounter card gains peril.\nAlter-Ego Action: Discard 3 cards from your hand and choose a player → the chosen player draws 1 card and you discard this obligation.",
     },
-    abilities: [{ id: abilityId("39064.obligation") }],
+    abilities: [
+      { id: abilityId("39064.the-one-with-the-breakup-constant") },
+      { id: abilityId("39064.the-one-with-the-breakup-action") },
+    ],
   },
   {
     id: cardId("39065"),
