@@ -246,6 +246,20 @@ export const scaled = (
   ...(by.plus !== undefined ? { plus: by.plus } : {}),
   ...(by.max !== undefined ? { max: by.max } : {}),
 });
+/**
+ * The lowest/highest of two or more values: "remove that many growth counters (up to the number on Groot)" (Flora
+ * Colossus, `gmw` 16001a) is `min(eventAmount, countersOn(self, "growth"))`, evaluated fresh wherever it's read —
+ * so reading it again after an effect changes one of its inputs (e.g. removing the counters it just measured)
+ * gives a different answer. Sequence effects so anything computed from the pre-effect value reads it first.
+ */
+export const min = (...values: readonly [Amount, Amount, ...Amount[]]): ValueSpec => ({
+  kind: "min",
+  values: values.map(amount) as [ValueSpec, ...ValueSpec[]],
+});
+export const max = (...values: readonly [Amount, Amount, ...Amount[]]): ValueSpec => ({
+  kind: "max",
+  values: values.map(amount) as [ValueSpec, ...ValueSpec[]],
+});
 /** "N (M instead if …)". */
 export const ifElse = (condition: Predicate, then: Amount, otherwise: Amount): ValueSpec => ({
   kind: "conditional",

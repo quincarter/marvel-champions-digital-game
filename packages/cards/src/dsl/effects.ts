@@ -189,11 +189,23 @@ export const exhaust = (target: TargetRef): EffectSpec => ({ kind: "exhaust", ta
 export const ready = (target: TargetRef): EffectSpec => ({ kind: "ready", target });
 /** "Discard X" for a card in play. */
 export const discard = (target: TargetRef): EffectSpec => ({ kind: "discardFromPlay", target });
-export const addCounters = (counterType: string, n: Amount, target: TargetRef = self): EffectSpec => ({
+/**
+ * `opts.upTo`: "(to a maximum of 10)" (Growth Spurt, `gmw` 16001b; Drax's vengeance counters, `drax`) — places at
+ * most as many as bring the card to that total, locally to this effect (docs/phase7-wave3.md §3.10). `opts.bind`:
+ * `<bind>.amount` reports how many were actually placed.
+ */
+export const addCounters = (
+  counterType: string,
+  n: Amount,
+  target: TargetRef = self,
+  opts: { readonly upTo?: Amount; readonly bind?: string } = {},
+): EffectSpec => ({
   kind: "addCounters",
   target,
   counterType,
   amount: amount(n),
+  ...(opts.upTo !== undefined ? { upTo: amount(opts.upTo) } : {}),
+  ...(opts.bind !== undefined ? { bind: opts.bind } : {}),
 });
 export const surge = (): EffectSpec => ({ kind: "gainSurge" });
 

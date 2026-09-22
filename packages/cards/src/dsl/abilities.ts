@@ -559,8 +559,29 @@ export const on = {
       Object.keys(results).length ? { requireResults: results } : {},
     );
   },
-  /** "After X thwarts". */
-  thwarts: (by: Who): EventPattern => pattern("thwart", asSource(by)),
+  /** "After X thwarts"; `basic`: "X makes a **basic** thwart" (Entangling Vines, `gmw` 16008). */
+  thwarts: (by: Who, opts: { readonly basic?: boolean } = {}): EventPattern =>
+    pattern("thwart", asSource(by), opts.basic ? { attackKind: "basic" } : {}),
+  /**
+   * "When/After the player/villain phase begins" (Museum Ship, Nebula's Ship, Blazing Inferno, Sibling Rivalry,
+   * the Kree Fanatic's Ronan; docs/phase7-wave3.md §3.2). Interrupt and response windows both read this pattern;
+   * which one the ability resolves as is the builder (`interrupt`/`response`/`forcedResponse`) it's passed to.
+   */
+  phaseBeginning: (phase: "player" | "villain"): EventPattern => pattern("phaseBeginning", { eventIs: { phase } }),
+  /**
+   * "When/After the [player/villain] phase ends" / "When/After the round ends" (the villain phase's end *is* the
+   * round's end, RRG 1.8 "Villain Phase" p. 47 step 6b; docs/phase7-wave3.md §3.2): Rogue Vessel, the Collector's
+   * ∞ face, Regroup.
+   */
+  phaseEnding: (phase: "player" | "villain"): EventPattern => pattern("phaseEnding", { eventIs: { phase } }),
+  /**
+   * "After resolving step one of the villain phase" (docs/phase7-wave3.md §3.2): a response-only window, once per
+   * villain phase, regardless of how much threat step one placed or whether it placed any. Fixes the wave 2 bug
+   * the same doc section names — None Shall Pass 1B, Hunting Down Heroes, The Mad Doctor 2B previously matched
+   * every `threatPlaced` on the main scheme instead.
+   */
+  villainStepResolved: (step: "placeThreat" = "placeThreat"): EventPattern =>
+    pattern("villainStepResolved", { eventIs: { step } }),
   /**
    * "After [defender] defends (against an enemy attack)". `takingNoDamage`: "…and take no damage" — the attack must
    * have dealt the defender no damage, checked as part of the trigger condition, so the ability is never offered
