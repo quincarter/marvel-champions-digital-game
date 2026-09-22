@@ -1,3 +1,0 @@
-kind: Fixed
-body: "Client: the pending-choice sheet comes back when the engine answers one decision and raises the next in the same command (targets, triggers, the villain phase); it no longer sits faded out until the game is resumed"
-time: 2026-09-21T21:03:14.333616-04:00
