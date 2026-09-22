@@ -1,0 +1,545 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="design_doc_mode" content="canvas" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="" />
+<link href="https://fonts.googleapis.com/css2?family=Bangers&family=Public+Sans:ital,wght@0,400;0,600;0,700;0,800;1,400;1,800&display=swap" rel="stylesheet" />
+<style>
+html,body{margin:0;padding:0;background:#0E0C0A;}
+a{color:#C8102E;text-decoration:none;}
+a:hover{color:#8E0B20;}
+</style>
+<script src="./image-slot.js"></script>
+</helmet>
+
+<div style="background:#0E0C0A;font-family:'Public Sans',system-ui,sans-serif;padding:40px;display:flex;flex-direction:column;gap:36px;width:max-content">
+
+  <div style="display:flex;align-items:flex-end;gap:18px;color:#F4EFE3;max-width:1400px">
+    <div style="font-family:Bangers,cursive;font-size:46px;letter-spacing:1.5px;line-height:.9">CAMPAIGN — DESKTOP</div>
+    <div style="font-size:12px;font-weight:700;line-height:1.5;opacity:.6;padding-bottom:4px">1440 × 980. Same flow as <a href="./Campaign - Phone.dc.html">Phone</a> and <a href="./Campaign - Tablet.dc.html">Tablet</a>; wider art windows, 60px chrome to match <a href="./Screens - Desktop.dc.html">Screens - Desktop</a>.</div>
+  </div>
+
+  <div style="display:flex;flex-wrap:wrap;gap:36px;max-width:2200px">
+
+
+    <!-- 00b -->
+    <div id="d00b" style="display:flex;flex-direction:column;gap:9px">
+      <div style="display:flex;align-items:baseline;gap:9px;color:#F4EFE3"><span style="font-family:Bangers,cursive;font-size:22px;color:#C8102E">00b</span><span style="font-family:Bangers,cursive;font-size:20px;letter-spacing:.8px">THE SAGA</span><span style="font-size:10px;font-weight:800;letter-spacing:1.2px;text-transform:uppercase;opacity:.45">All campaigns · unlock in order</span></div>
+      <div data-screen-label="D-C00b The saga" style="width:1440px;height:980px;box-sizing:border-box;overflow:hidden;background:#F4EFE3;color:#14110E;display:flex;flex-direction:column">
+        <div style="flex:none;height:60px;background:#14110E;color:#F4EFE3;display:flex;align-items:center;gap:14px;padding:0 22px"><span style="font-family:Bangers,cursive;font-size:22px;padding:5px 11px;border:2px solid #F4EFE3">◂ TITLE</span><span style="font-family:Bangers,cursive;font-size:28px;letter-spacing:1px">THE SAGA</span><span style="flex:1"></span><span style="font-size:10px;font-weight:800;letter-spacing:1.1px;text-transform:uppercase;opacity:.55">{{ sagaCount }}</span></div>
+        <div style="flex:1;min-height:0;padding:18px;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.75fr);gap:18px">
+          <div style="border:3px solid #14110E;background:#14110E;color:#F4EFE3;box-shadow:0 0 0 3px #C8102E;display:flex;flex-direction:column;min-height:0">
+            <div style="flex:1;min-height:0;border-bottom:3px solid #14110E;position:relative;overflow:hidden"><img src="./art/red-skull.webp" alt="" style="width:100%;height:100%;object-fit:cover;object-position:50% 15%;display:block" /><span style="position:absolute;left:0;top:0;background:#F2B01E;color:#14110E;border-right:3px solid #14110E;border-bottom:3px solid #14110E;font-family:Bangers,cursive;font-size:20px;padding:4px 11px">VOL. 1</span></div>
+            <div style="padding:12px 14px 14px;display:flex;flex-direction:column;gap:8px">
+              <div style="display:flex;justify-content:space-between;font-size:10px;font-weight:800;letter-spacing:1px;text-transform:uppercase"><span style="color:#F2B01E">In progress · MC10</span><span style="opacity:.6">Issue 3 of 5</span></div>
+              <div style="font-family:Bangers,cursive;font-size:34px;line-height:.92;letter-spacing:.8px">THE RISE OF RED SKULL</div>
+              <div style="display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:5px"><div style="height:8px;background:#F4EFE3"></div><div style="height:8px;background:#F4EFE3"></div><div style="height:8px;background:#C8102E;box-shadow:0 0 0 2px #F4EFE3"></div><div style="height:8px;border:2px solid rgba(244,239,227,.35);box-sizing:border-box"></div><div style="height:8px;border:2px solid rgba(244,239,227,.35);box-sizing:border-box"></div></div>
+              <div style="display:flex;font-size:11px;font-weight:700;opacity:.7"><span>Hawkeye · Spider-Woman</span><span style="flex:1"></span><span>Standard ○ · Expert ○</span></div>
+              <a href="#d01" style="height:52px;background:#C8102E;border:3px solid #F4EFE3;color:#F4EFE3;display:flex;align-items:center;justify-content:center;font-family:Bangers,cursive;font-size:22px;letter-spacing:1.2px;margin-top:4px">CONTINUE ▸</a>
+            </div>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:12px;min-height:0">
+            <div style="display:flex;align-items:center;gap:8px"><span style="font-family:Bangers,cursive;font-size:18px;letter-spacing:.6px">NEXT IN THE SAGA</span><span style="flex:1;height:3px;background:#14110E"></span></div>
+            <div style="flex:1;min-height:0;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));grid-template-rows:repeat(2,minmax(0,1fr));gap:12px">
+              <sc-for list="{{ vols }}" as="v" hint-placeholder-count="8">
+                <div style="position:relative;border:3px solid #14110E;background:#14110E;color:#F4EFE3;display:flex;flex-direction:column;padding:10px 11px;background-image:radial-gradient(rgba(244,239,227,.1) 1px,transparent 1.1px);background-size:6px 6px">
+                  <span style="font-size:9px;font-weight:800;letter-spacing:1.2px;opacity:.55">{{ v.code }}</span>
+                  <span style="font-family:Bangers,cursive;font-size:60px;line-height:1;margin-top:auto;opacity:.9">VOL. {{ v.n }}</span>
+                  <span style="font-family:Bangers,cursive;font-size:22px;line-height:1.02;letter-spacing:.4px;min-height:36px;text-wrap:balance">{{ v.name }}</span>
+                  <span style="margin-top:8px;align-self:flex-start;font-size:8.5px;font-weight:800;letter-spacing:.9px;text-transform:uppercase;border:1.5px solid rgba(244,239,227,.45);padding:3px 6px">{{ v.lock }}</span>
+                  <sc-if value="{{ v.next }}" hint-placeholder-val="{{ false }}"><div style="position:absolute;inset:-3px;border:3px dashed #F2B01E;pointer-events:none"></div></sc-if>
+                </div>
+              </sc-for>
+            </div>
+            <div style="font-size:11px;line-height:1.45;opacity:.6">{{ sagaNote }}</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 01 -->
+    <div id="d01" style="display:flex;flex-direction:column;gap:9px">
+      <div style="display:flex;align-items:baseline;gap:9px;color:#F4EFE3"><span style="font-family:Bangers,cursive;font-size:22px;color:#C8102E">01</span><span style="font-family:Bangers,cursive;font-size:20px;letter-spacing:.8px">CAMPAIGN COVER</span></div>
+      <div data-screen-label="D-C01 Campaign cover" style="width:1440px;height:980px;box-sizing:border-box;overflow:hidden;background:#14110E;color:#F4EFE3;display:flex">
+        <div style="flex:1.25;min-width:0;position:relative;border-right:4px solid #F4EFE3"><img src="./art/red-skull.webp" alt="" style="width:100%;height:100%;object-fit:cover;object-position:50% 15%;display:block" />
+          <div style="position:absolute;left:20px;top:20px;font-family:Bangers,cursive;font-size:16px;padding:4px 10px;border:2px solid #F4EFE3;background:#14110E">◂ SAGA</div>
+          <div style="position:absolute;left:20px;bottom:20px;background:#F2B01E;color:#14110E;border:3px solid #14110E;padding:5px 10px;font-size:11px;font-weight:800;font-style:italic;letter-spacing:1px;text-transform:uppercase;transform:rotate(-2deg)">A story in five issues</div>
+        </div>
+        <div style="flex:1;min-width:0;padding:40px 34px 30px;display:flex;flex-direction:column;gap:16px;background-image:radial-gradient(rgba(244,239,227,.08) 1px,transparent 1.1px);background-size:7px 7px">
+          <span style="align-self:flex-start;font-size:9px;font-weight:800;letter-spacing:1.2px;text-transform:uppercase;border:2px solid #F4EFE3;padding:4px 7px">MC10 · Campaign box</span>
+          <div style="font-family:Bangers,cursive;font-size:92px;line-height:.84;letter-spacing:1.5px">THE RISE<br />OF RED SKULL</div>
+          <div style="font-size:13px;line-height:1.55;opacity:.8;text-wrap:pretty">Hydra has an Infinity Gem and a plan for the whole world. Every win carries forward. Every scar does too.</div>
+          <div style="display:flex;flex-direction:column;gap:6px;margin-top:auto">
+            <div style="display:flex;justify-content:space-between;font-size:10px;font-weight:800;letter-spacing:1.2px;text-transform:uppercase;opacity:.65"><span>Hawkeye · Spider-Woman</span><span>Issue 3 of 5</span></div>
+            <div style="display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:5px"><div style="height:9px;background:#F4EFE3"></div><div style="height:9px;background:#F4EFE3"></div><div style="height:9px;background:#C8102E;box-shadow:0 0 0 2px #F4EFE3"></div><div style="height:9px;border:2px solid rgba(244,239,227,.35);box-sizing:border-box"></div><div style="height:9px;border:2px solid rgba(244,239,227,.35);box-sizing:border-box"></div></div>
+          </div>
+          <div style="background:#C8102E;border:3px solid #F4EFE3;padding:14px 16px;display:flex;align-items:center;justify-content:space-between">
+            <div><div style="font-family:Bangers,cursive;font-size:26px;line-height:1;letter-spacing:.8px">READ ISSUE #3</div><div style="font-size:11px;font-weight:700;margin-top:3px">Taskmaster · “Welcome to Hydra City”</div></div>
+            <span style="font-family:Bangers,cursive;font-size:28px">▸</span>
+          </div>
+          <div style="display:flex;gap:10px">
+            <a href="#d-dossier" style="flex:1;border:3px solid #F4EFE3;padding:12px 14px;color:#F4EFE3;display:flex;flex-direction:column;gap:3px"><span style="font-family:Bangers,cursive;font-size:20px;letter-spacing:.8px;line-height:1">DOSSIER ▸</span><span style="font-size:9px;font-weight:800;letter-spacing:1px;text-transform:uppercase;opacity:.6">Campaign log · heroes &amp; world</span></a>
+            <a href="#d-run" style="flex:1;border:3px solid #F4EFE3;padding:12px 14px;color:#F4EFE3;display:flex;flex-direction:column;gap:3px"><span style="font-family:Bangers,cursive;font-size:20px;letter-spacing:.8px;line-height:1">ISSUES ▸</span><span style="font-size:9px;font-weight:800;letter-spacing:1px;text-transform:uppercase;opacity:.6">All 5 issues · reread</span></a>
+          </div>
+          <sc-if value="{{ expert }}" hint-placeholder-val="{{ false }}"><div style="border:3px solid #F2B01E;color:#F2B01E;padding:11px 14px;display:flex;align-items:center;justify-content:space-between"><span style="font-family:Bangers,cursive;font-size:20px;letter-spacing:.8px;line-height:1">EXPERT CAMPAIGN</span><span style="font-size:9px;font-weight:800;letter-spacing:1px;text-transform:uppercase">Scars carry over</span></div></sc-if>
+          <sc-if value="{{ notExpert }}" hint-placeholder-val="{{ true }}"><div style="border:3px solid rgba(244,239,227,.3);color:rgba(244,239,227,.5);padding:11px 14px;display:flex;align-items:center;justify-content:space-between"><span style="font-family:Bangers,cursive;font-size:20px;letter-spacing:.8px;line-height:1">EXPERT CAMPAIGN</span><span style="font-size:9px;font-weight:800;letter-spacing:1px;text-transform:uppercase">Finish standard to unlock</span></div></sc-if>
+        </div>
+      </div>
+    </div>
+
+    <!-- 02 -->
+    <div style="display:flex;flex-direction:column;gap:9px">
+      <div style="display:flex;align-items:baseline;gap:9px;color:#F4EFE3"><span style="font-family:Bangers,cursive;font-size:22px;color:#C8102E">02</span><span style="font-family:Bangers,cursive;font-size:20px;letter-spacing:.8px">SIGN THE ROSTER</span></div>
+      <div data-screen-label="D-C02 Sign the roster" style="width:1440px;height:980px;box-sizing:border-box;overflow:hidden;background:#F4EFE3;color:#14110E;display:flex;flex-direction:column">
+        <div style="flex:none;height:60px;background:#14110E;color:#F4EFE3;display:flex;align-items:center;gap:14px;padding:0 22px"><span style="font-family:Bangers,cursive;font-size:22px;padding:5px 11px;border:2px solid #F4EFE3">◂ COVER</span><span style="font-family:Bangers,cursive;font-size:28px;letter-spacing:1px">SIGN THE ROSTER</span></div>
+        <div style="flex:1;min-height:0;padding:18px 20px;display:flex;flex-direction:column;gap:16px">
+          <div style="align-self:flex-start;background:#F2B01E;border:3px solid #14110E;padding:8px 12px;font-size:12px;font-weight:800;font-style:italic;text-transform:uppercase;letter-spacing:.3px">Whoever signs here sees it through. All five issues. No substitutions.</div>
+          <div style="flex:1;min-height:0;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px">
+            <div style="border:3px solid #14110E;background:#fff;box-shadow:6px 6px 0 #14110E;display:flex;flex-direction:column"><div style="flex:1;min-height:0;border-bottom:3px solid #14110E;position:relative"><img src="./art/hawkeye.jpg" alt="" style="width:100%;height:100%;object-fit:cover;object-position:50% 15%;display:block" /><span style="position:absolute;left:8px;top:8px;background:#14110E;color:#F4EFE3;font-family:Bangers,cursive;font-size:17px;padding:2px 8px">#1</span></div><div style="padding:10px 12px"><div style="font-family:Bangers,cursive;font-size:24px;line-height:1">HAWKEYE</div><div style="font-size:11px;font-weight:700;opacity:.6;margin-top:2px">Leadership · starter deck</div></div></div>
+            <div style="border:3px solid #14110E;background:#fff;box-shadow:6px 6px 0 #14110E;display:flex;flex-direction:column"><div style="flex:1;min-height:0;border-bottom:3px solid #14110E;position:relative"><img src="./art/spider-woman.webp" alt="" style="width:100%;height:100%;object-fit:cover;object-position:50% 15%;display:block" /><span style="position:absolute;left:8px;top:8px;background:#14110E;color:#F4EFE3;font-family:Bangers,cursive;font-size:17px;padding:2px 8px">#2</span></div><div style="padding:10px 12px"><div style="font-family:Bangers,cursive;font-size:24px;line-height:1">SPIDER-WOMAN</div><div style="font-size:11px;font-weight:700;opacity:.6;margin-top:2px">Aggression + Justice</div></div></div>
+            <div style="border:3px dashed rgba(20,17,14,.35);display:flex;align-items:center;justify-content:center;font-family:Bangers,cursive;font-size:20px;letter-spacing:.6px;opacity:.5">+ SEAT #3</div>
+            <div style="border:3px dashed rgba(20,17,14,.35);display:flex;align-items:center;justify-content:center;font-family:Bangers,cursive;font-size:20px;letter-spacing:.6px;opacity:.5">+ SEAT #4</div>
+          </div>
+          <div style="border:3px solid #14110E;background:#EAE3D3;padding:10px 14px;display:flex;gap:26px;align-items:baseline;font-size:12px">
+            <span><b style="font-family:Bangers,cursive;font-size:16px;font-weight:400;letter-spacing:.5px">LOCKED</b> Hero identity, whole campaign.</span>
+            <span><b style="font-family:Bangers,cursive;font-size:16px;font-weight:400;letter-spacing:.5px;color:#1F7A4C">FREE</b> Aspects and deck, between issues.</span>
+            <span style="opacity:.65;font-size:11px">These two ship in the box, so their beats are written for them.</span>
+          </div>
+        </div>
+        <div style="flex:none;height:88px;background:#14110E;display:flex;align-items:center;justify-content:flex-end;padding:0 16px"><div style="width:420px;height:58px;background:#C8102E;border:3px solid #F4EFE3;color:#F4EFE3;display:flex;align-items:center;justify-content:center;font-family:Bangers,cursive;font-size:22px;letter-spacing:1.2px">SIGN &amp; OPEN ISSUE #1 ▸</div></div>
+      </div>
+    </div>
+
+    <!-- 03 -->
+    <div style="display:flex;flex-direction:column;gap:9px">
+      <div style="display:flex;align-items:baseline;gap:9px;color:#F4EFE3"><span style="font-family:Bangers,cursive;font-size:22px;color:#C8102E">03</span><span style="font-family:Bangers,cursive;font-size:20px;letter-spacing:.8px">ISSUE OPENER</span><span style="font-size:10px;font-weight:800;letter-spacing:1.2px;text-transform:uppercase;opacity:.45">Tap to reveal · live</span></div>
+      <div data-screen-label="D-C03 Issue opener" onClick="{{ advance }}" style="width:1440px;height:980px;box-sizing:border-box;overflow:hidden;background:#F4EFE3;color:#14110E;display:flex;flex-direction:column;cursor:pointer;background-image:radial-gradient(rgba(20,17,14,.1) 1px,transparent 1.1px);background-size:6px 6px">
+        <div style="flex:none;display:flex;align-items:flex-end;justify-content:space-between;padding:16px 18px 10px">
+          <div style="display:flex;align-items:baseline;gap:14px"><span style="font-size:10px;font-weight:800;letter-spacing:1.4px;text-transform:uppercase;opacity:.6">Issue #1 of 5</span><span style="font-family:Bangers,cursive;font-size:38px;line-height:.95;letter-spacing:1px">BLITZ ON THE MOUNTAIN</span></div>
+          <span style="font-size:10px;font-weight:800;letter-spacing:1px;text-transform:uppercase;border:2px solid #14110E;padding:5px 8px">Skip ▸▸</span>
+        </div>
+        <div style="flex:1;min-height:0;padding:0 18px 14px;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.5fr) minmax(0,.9fr);gap:10px">
+          <div style="border:3px solid #14110E;position:relative;overflow:hidden;background:#EAE3D3"><image-slot id="dc03-facility" shape="rect" placeholder="Panel art: mountain facility at night"></image-slot>
+            <div style="position:absolute;left:10px;right:10px;top:10px;background:#F2B01E;border:3px solid #14110E;padding:8px 10px;font-size:12px;font-weight:800;font-style:italic;line-height:1.35;text-transform:uppercase">The Adirondacks. 4 a.m. Under this mountain, S.H.I.E.L.D. builds weapons it swears it'll never use.</div>
+          </div>
+          <sc-if value="{{ np2 }}" hint-placeholder-val="{{ false }}"><div style="border:3px dashed rgba(20,17,14,.3);display:flex;align-items:center;justify-content:center;font-family:Bangers,cursive;font-size:22px;letter-spacing:1px;color:rgba(20,17,14,.35)">TAP ▸</div></sc-if>
+          <sc-if value="{{ p2 }}" hint-placeholder-val="{{ true }}">
+            <div style="border:3px solid #14110E;position:relative;overflow:hidden;background:#14110E"><img src="./art/crossbones.webp" alt="" style="width:100%;height:100%;object-fit:cover;object-position:50% 20%;display:block" />
+              <div style="position:absolute;right:14px;top:16px;max-width:260px;background:#fff;border:3px solid #14110E;border-radius:24px;padding:11px 15px;font-size:15px;font-weight:700;line-height:1.35">Knock knock, P.E.G.A.S.U.S. Hydra's here for the toys.
+                <div style="position:absolute;left:36px;bottom:-17px;width:24px;height:17px;background:#14110E;clip-path:polygon(0 0,100% 0,10% 100%)"></div><div style="position:absolute;left:40px;bottom:-10px;width:15px;height:13px;background:#fff;clip-path:polygon(0 0,100% 0,10% 100%)"></div>
+              </div>
+              <div style="position:absolute;left:14px;bottom:10px;font-family:Bangers,cursive;font-size:64px;line-height:1;color:#F2B01E;-webkit-text-stroke:2.5px #14110E;transform:rotate(-8deg)">KRA-KOOM!</div>
+            </div>
+          </sc-if>
+          <sc-if value="{{ np3 }}" hint-placeholder-val="{{ false }}"><div style="border:3px dashed rgba(20,17,14,.3);display:flex;align-items:center;justify-content:center;font-family:Bangers,cursive;font-size:22px;letter-spacing:1px;color:rgba(20,17,14,.35)">…</div></sc-if>
+          <sc-if value="{{ p3 }}" hint-placeholder-val="{{ true }}">
+            <div style="display:grid;grid-template-rows:minmax(0,1fr) minmax(0,1fr);gap:10px;min-height:0">
+              <div style="border:3px solid #14110E;position:relative;overflow:hidden;background:#14110E"><img src="./art/hawkeye.jpg" alt="" style="width:100%;height:100%;object-fit:cover;object-position:50% 15%;display:block" /><div style="position:absolute;left:8px;right:8px;bottom:8px;background:#fff;border:3px solid #14110E;border-radius:16px;padding:7px 10px;font-size:12px;font-weight:700;line-height:1.3">Two of us versus an army? I like those odds.</div></div>
+              <div style="border:3px solid #14110E;position:relative;overflow:hidden;background:#14110E"><img src="./art/spider-woman.webp" alt="" style="width:100%;height:100%;object-fit:cover;object-position:50% 15%;display:block" /><div style="position:absolute;left:8px;right:8px;bottom:8px;background:#fff;border:3px solid #14110E;border-radius:16px;padding:7px 10px;font-size:12px;font-weight:700;line-height:1.3">You like <i>all</i> odds, Clint.</div></div>
+            </div>
+          </sc-if>
+        </div>
+        <div style="flex:none;height:88px;background:#14110E;display:flex;align-items:center;justify-content:flex-end;padding:0 16px">
+          <sc-if value="{{ notDone }}" hint-placeholder-val="{{ false }}"><div style="width:420px;height:58px;border:3px solid #F4EFE3;color:#F4EFE3;display:flex;align-items:center;justify-content:center;gap:10px;font-family:Bangers,cursive;font-size:20px;letter-spacing:1.2px">TAP TO CONTINUE <span style="font-family:'Public Sans',sans-serif;font-size:10px;font-weight:800;opacity:.6">{{ stepLabel }}</span></div></sc-if>
+          <sc-if value="{{ done }}" hint-placeholder-val="{{ true }}"><div style="width:420px;height:58px;background:#C8102E;border:3px solid #F4EFE3;color:#F4EFE3;display:flex;align-items:center;justify-content:center;font-family:Bangers,cursive;font-size:22px;letter-spacing:1.2px">SUIT UP ▸</div></sc-if>
+        </div>
+      </div>
+    </div>
+
+    <!-- 04 -->
+    <div style="display:flex;flex-direction:column;gap:9px">
+      <div style="display:flex;align-items:baseline;gap:9px;color:#F4EFE3"><span style="font-family:Bangers,cursive;font-size:22px;color:#C8102E">04</span><span style="font-family:Bangers,cursive;font-size:20px;letter-spacing:.8px">STORY BEAT IN-GAME</span><span style="font-size:10px;font-weight:800;letter-spacing:1.2px;text-transform:uppercase;opacity:.45">Stage flip · auto-dismiss</span></div>
+      <div data-screen-label="D-C04 In-game beat" style="width:1440px;height:980px;box-sizing:border-box;overflow:hidden;background:#F4EFE3;color:#14110E;display:flex;flex-direction:column;position:relative">
+        <div style="flex:none;height:60px;background:#14110E;color:#F4EFE3;display:flex;align-items:center;gap:14px;padding:0 16px"><span style="font-family:Bangers,cursive;font-size:19px;letter-spacing:.8px;background:#C8102E;padding:3px 9px;line-height:1.1">ROUND 4</span><span style="font-family:Bangers,cursive;font-size:19px;letter-spacing:.8px">CROSSBONES II</span></div>
+        <div style="flex:1;min-height:0;padding:14px;display:grid;grid-template-columns:200px minmax(0,1fr);gap:12px;opacity:.3">
+          <div style="border:3px solid #14110E;background:#EAE3D3"></div>
+          <div style="display:grid;grid-template-rows:1fr 1fr 110px;gap:12px"><div style="border:3px solid #14110E;background:#fff"></div><div style="border:3px solid #14110E;background:#fff"></div><div style="border:3px solid #14110E;background:#EAE3D3"></div></div>
+        </div>
+        <div style="position:absolute;left:0;right:0;top:46px;bottom:0;display:flex;align-items:center;justify-content:center;gap:0">
+          <div style="position:relative;width:62%;height:62%">
+            <div style="position:absolute;inset:0;border:4px solid #14110E;background:#14110E;box-shadow:10px 10px 0 rgba(20,17,14,.45);transform:rotate(-1.2deg);overflow:hidden"><img src="./art/crossbones.webp" alt="" style="width:100%;height:100%;object-fit:cover;object-position:50% 20%;display:block" /><div style="position:absolute;left:0;top:0;background:#C8102E;color:#F4EFE3;border-right:3px solid #14110E;border-bottom:3px solid #14110E;padding:6px 12px;font-size:11px;font-weight:800;letter-spacing:1px;text-transform:uppercase">Stage II</div></div>
+            <div style="position:absolute;right:-110px;bottom:-26px;max-width:280px;background:#fff;border:3px solid #14110E;border-radius:26px;padding:13px 17px;font-size:18px;font-weight:800;line-height:1.3;box-shadow:5px 5px 0 #14110E">Warm-up's over. Now I stop playing nice.</div>
+            <div style="position:absolute;left:0;bottom:-44px;background:#14110E;color:#F4EFE3;padding:6px 12px;font-size:10px;font-weight:800;letter-spacing:1.1px;text-transform:uppercase">Piercing while armed · tap anywhere</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 05 -->
+    <div style="display:flex;flex-direction:column;gap:9px">
+      <div style="display:flex;align-items:baseline;gap:9px;color:#F4EFE3"><span style="font-family:Bangers,cursive;font-size:22px;color:#C8102E">05</span><span style="font-family:Bangers,cursive;font-size:20px;letter-spacing:.8px">AFTERMATH · TECH</span><span style="font-size:10px;font-weight:800;letter-spacing:1.2px;text-transform:uppercase;opacity:.45">After issue #1 · live</span></div>
+      <div data-screen-label="D-C05 Aftermath tech" style="width:1440px;height:980px;box-sizing:border-box;overflow:hidden;background:#14110E;color:#F4EFE3;display:flex">
+        <div style="flex:.9;min-width:0;position:relative;border-right:4px solid #F4EFE3"><image-slot id="dc05-lab" shape="rect" placeholder="Panel art: wrecked P.E.G.A.S.U.S. lab"></image-slot>
+          <div style="position:absolute;left:18px;top:18px;background:#1F7A4C;border:3px solid #F4EFE3;padding:5px 10px;font-family:Bangers,cursive;font-size:19px;letter-spacing:.8px">ISSUE #1 · WON</div>
+          <div style="position:absolute;left:18px;right:18px;bottom:22px;background:#fff;color:#14110E;border:3px solid #14110E;border-radius:22px;padding:12px 16px;box-shadow:5px 5px 0 #C8102E"><div style="font-size:10px;font-weight:800;letter-spacing:1.2px;text-transform:uppercase;color:#C8102E;margin-bottom:4px">S.H.I.E.L.D. quartermaster</div><div style="font-size:15px;font-weight:700;line-height:1.4">Crossbones got the Gem, not the prototypes. They're yours — one each. Don't make me regret it.</div></div>
+        </div>
+        <div style="flex:1.1;min-width:0;display:flex;flex-direction:column">
+          <div style="flex:1;min-height:0;padding:22px 20px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px">
+            <sc-for list="{{ seats }}" as="seat" hint-placeholder-count="2">
+              <div style="display:flex;flex-direction:column;gap:8px">
+                <div style="display:flex;align-items:baseline;gap:7px"><span style="font-family:Bangers,cursive;font-size:22px;letter-spacing:.6px">{{ seat.hero }}</span><span style="font-size:9px;font-weight:800;letter-spacing:1px;text-transform:uppercase;opacity:.55">takes one</span></div>
+                <sc-for list="{{ seat.options }}" as="o" hint-placeholder-count="4">
+                  <div onClick="{{ o.pick }}" style="position:relative;border:2.5px solid #F4EFE3;background:#221D18;padding:10px 12px;display:flex;flex-direction:column;gap:3px;cursor:pointer;min-height:64px;box-sizing:border-box">
+                    <span style="font-family:Bangers,cursive;font-size:18px;letter-spacing:.4px;line-height:1">{{ o.name }}</span><span style="font-size:11px;line-height:1.3;opacity:.7">{{ o.fx }}</span>
+                    <sc-if value="{{ o.sel }}" hint-placeholder-val="{{ false }}"><div style="position:absolute;inset:-2.5px;border:3px solid #F2B01E;box-shadow:0 0 0 2px #14110E;pointer-events:none"></div><span style="position:absolute;right:-3px;top:-9px;background:#F2B01E;color:#14110E;font-size:8px;font-weight:800;letter-spacing:.8px;padding:2px 5px;text-transform:uppercase">Yours</span></sc-if>
+                    <sc-if value="{{ o.taken }}" hint-placeholder-val="{{ false }}"><div style="position:absolute;inset:0;background:rgba(20,17,14,.78);display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:800;letter-spacing:1px;text-transform:uppercase;color:rgba(244,239,227,.7)">{{ o.takenBy }}</div></sc-if>
+                  </div>
+                </sc-for>
+              </div>
+            </sc-for>
+          </div>
+          <div style="flex:none;height:88px;border-top:3px solid #F4EFE3;display:flex;align-items:center;gap:14px;padding:0 16px 0 20px"><span style="flex:1;font-size:11px;line-height:1.4;opacity:.6">One of each exists. Single-use; spending one strikes it from the campaign.</span>
+            <sc-if value="{{ allPicked }}" hint-placeholder-val="{{ false }}"><div style="width:380px;height:58px;background:#C8102E;border:3px solid #F4EFE3;display:flex;align-items:center;justify-content:center;font-family:Bangers,cursive;font-size:22px;letter-spacing:1.2px">ON TO ISSUE #2 ▸</div></sc-if>
+            <sc-if value="{{ notAllPicked }}" hint-placeholder-val="{{ true }}"><div style="width:380px;height:58px;border:3px solid rgba(244,239,227,.35);color:rgba(244,239,227,.45);display:flex;align-items:center;justify-content:center;font-family:Bangers,cursive;font-size:20px;letter-spacing:1.2px">EACH HERO TAKES ONE</div></sc-if>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 06 -->
+    <div style="display:flex;flex-direction:column;gap:9px">
+      <div style="display:flex;align-items:baseline;gap:9px;color:#F4EFE3"><span style="font-family:Bangers,cursive;font-size:22px;color:#C8102E">06</span><span style="font-family:Bangers,cursive;font-size:20px;letter-spacing:.8px">AFTERMATH · CONDITION</span><span style="font-size:10px;font-weight:800;letter-spacing:1.2px;text-transform:uppercase;opacity:.45">After issue #2 · optional · live</span></div>
+      <div data-screen-label="D-C06 Aftermath condition" style="width:1440px;height:980px;box-sizing:border-box;overflow:hidden;background:#14110E;color:#F4EFE3;display:flex">
+        <div style="flex:.9;min-width:0;position:relative;border-right:4px solid #F4EFE3"><img src="./art/absorbing-man.jpg" alt="" style="width:100%;height:100%;object-fit:cover;object-position:50% 10%;display:block;filter:grayscale(.6) contrast(1.1)" />
+          <div style="position:absolute;left:18px;top:18px;display:flex;gap:10px;align-items:center"><span style="background:#1F7A4C;border:3px solid #F4EFE3;padding:5px 10px;font-family:Bangers,cursive;font-size:19px;letter-spacing:.8px">ISSUE #2 · WON</span><span style="background:#14110E;border:2px solid #F4EFE3;padding:4px 8px;font-size:9px;font-weight:800;letter-spacing:1px;text-transform:uppercase;transform:rotate(3deg)">Logged · 3 delay counters</span></div>
+          <div style="position:absolute;left:18px;right:18px;bottom:22px;background:#fff;color:#14110E;border:3px solid #14110E;border-radius:22px;padding:12px 16px;box-shadow:5px 5px 0 #C8102E"><div style="font-size:10px;font-weight:800;letter-spacing:1.2px;text-transform:uppercase;color:#C8102E;margin-bottom:4px">S.H.I.E.L.D. field surgeon</div><div style="font-size:15px;font-weight:700;line-height:1.4">Creel hit you hard enough to leave a mark. I can make the mark work for you. It doesn't come off.</div></div>
+        </div>
+        <div style="flex:1.1;min-width:0;display:flex;flex-direction:column">
+          <div style="flex:1;min-height:0;padding:22px 20px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px">
+            <sc-for list="{{ condSeats }}" as="seat" hint-placeholder-count="2">
+              <div style="display:flex;flex-direction:column;gap:8px">
+                <div style="display:flex;flex-direction:column;gap:2px"><span style="font-family:Bangers,cursive;font-size:22px;letter-spacing:.6px;line-height:1">{{ seat.hero }}</span><span style="font-size:11px;font-weight:800;color:#F2B01E">{{ seat.preview }}</span></div>
+                <sc-for list="{{ seat.options }}" as="o" hint-placeholder-count="4">
+                  <div onClick="{{ o.pick }}" style="position:relative;border:2.5px solid #F4EFE3;background:#221D18;padding:9px 12px;display:flex;flex-direction:column;gap:3px;cursor:pointer;min-height:58px;box-sizing:border-box">
+                    <span style="font-family:Bangers,cursive;font-size:18px;letter-spacing:.4px;line-height:1">{{ o.name }}</span><span style="font-size:11px;line-height:1.3;opacity:.7">{{ o.fx }}</span>
+                    <sc-if value="{{ o.sel }}" hint-placeholder-val="{{ false }}"><div style="position:absolute;inset:-2.5px;border:3px solid #F2B01E;box-shadow:0 0 0 2px #14110E;pointer-events:none"></div><span style="position:absolute;right:-3px;top:-9px;background:#F2B01E;color:#14110E;font-size:8px;font-weight:800;letter-spacing:.8px;padding:2px 5px;text-transform:uppercase">Yours</span></sc-if>
+                    <sc-if value="{{ o.taken }}" hint-placeholder-val="{{ false }}"><div style="position:absolute;inset:0;background:rgba(20,17,14,.78);display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:800;letter-spacing:1px;text-transform:uppercase;color:rgba(244,239,227,.7)">{{ o.takenBy }}</div></sc-if>
+                  </div>
+                </sc-for>
+                <div onClick="{{ seat.decline }}" style="position:relative;height:40px;border:2px dashed rgba(244,239,227,.4);display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:800;letter-spacing:1px;text-transform:uppercase;color:rgba(244,239,227,.7);cursor:pointer">No mark for me<sc-if value="{{ seat.declined }}" hint-placeholder-val="{{ false }}"><div style="position:absolute;inset:-2px;border:3px solid #F2B01E;pointer-events:none"></div></sc-if></div>
+              </div>
+            </sc-for>
+          </div>
+          <div style="flex:none;height:88px;border-top:3px solid #F4EFE3;display:flex;align-items:center;gap:14px;padding:0 16px 0 20px"><span style="flex:1;font-size:11px;line-height:1.4;opacity:.6">Permanent: starts attached every issue. Its Improved side can be earned in issue #4.</span>
+            <sc-if value="{{ condAllPicked }}" hint-placeholder-val="{{ false }}"><div style="width:380px;height:58px;background:#C8102E;border:3px solid #F4EFE3;display:flex;align-items:center;justify-content:center;font-family:Bangers,cursive;font-size:22px;letter-spacing:1.2px">ON TO ISSUE #3 ▸</div></sc-if>
+            <sc-if value="{{ condNotAllPicked }}" hint-placeholder-val="{{ true }}"><div style="width:380px;height:58px;border:3px solid rgba(244,239,227,.35);color:rgba(244,239,227,.45);display:flex;align-items:center;justify-content:center;font-family:Bangers,cursive;font-size:20px;letter-spacing:1.2px">EACH HERO DECIDES</div></sc-if>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 07 -->
+    <div id="d-run" style="display:flex;flex-direction:column;gap:9px">
+      <div style="display:flex;align-items:baseline;gap:9px;color:#F4EFE3"><span style="font-family:Bangers,cursive;font-size:22px;color:#C8102E">07</span><span style="font-family:Bangers,cursive;font-size:20px;letter-spacing:.8px">THE RUN</span></div>
+      <div data-screen-label="D-C07 The run" style="width:1440px;height:980px;box-sizing:border-box;overflow:hidden;background:#F4EFE3;color:#14110E;display:flex;flex-direction:column">
+        <div style="flex:none;height:60px;background:#14110E;color:#F4EFE3;display:flex;align-items:center;gap:14px;padding:0 22px"><span style="font-family:Bangers,cursive;font-size:22px;padding:5px 11px;border:2px solid #F4EFE3">◂ COVER</span><span style="font-family:Bangers,cursive;font-size:28px;letter-spacing:1px">THE RISE OF RED SKULL</span><span style="flex:1"></span><span style="font-size:10px;font-weight:800;letter-spacing:1.1px;text-transform:uppercase;opacity:.55">Issue 3 of 5</span></div>
+        <div style="flex:1;min-height:0;padding:20px;display:grid;grid-template-columns:minmax(0,.8fr) minmax(0,.8fr) minmax(0,1.6fr) minmax(0,.6fr) minmax(0,.6fr);gap:12px">
+          <div style="border:3px solid #14110E;background:#fff;display:flex;flex-direction:column"><div style="flex:1;min-height:0;border-bottom:3px solid #14110E;overflow:hidden"><img src="./art/crossbones.webp" alt="" style="width:100%;height:100%;object-fit:cover;object-position:50% 20%;display:block;filter:grayscale(1)" /></div><div style="padding:9px 10px;display:flex;flex-direction:column;gap:3px"><span style="font-size:9px;font-weight:800;letter-spacing:1px;text-transform:uppercase;opacity:.55">#1 · Crossbones</span><span style="font-family:Bangers,cursive;font-size:18px;line-height:1">BLITZ ON THE MOUNTAIN</span><span style="font-size:10px;font-weight:700;color:#1F7A4C">Won · 2 prototypes</span></div></div>
+          <div style="border:3px solid #14110E;background:#fff;display:flex;flex-direction:column"><div style="flex:1;min-height:0;border-bottom:3px solid #14110E;overflow:hidden"><img src="./art/absorbing-man.jpg" alt="" style="width:100%;height:100%;object-fit:cover;object-position:50% 10%;display:block;filter:grayscale(1)" /></div><div style="padding:9px 10px;display:flex;flex-direction:column;gap:3px"><span style="font-size:9px;font-weight:800;letter-spacing:1px;text-transform:uppercase;opacity:.55">#2 · Absorbing Man</span><span style="font-family:Bangers,cursive;font-size:18px;line-height:1">THE WALL IN THE SNOW</span><span style="font-size:10px;font-weight:700;color:#1F7A4C">Won on 2nd try · 3 delay</span></div></div>
+          <div style="border:3px solid #14110E;background:#14110E;color:#F4EFE3;box-shadow:0 0 0 3px #C8102E;display:flex;flex-direction:column"><div style="flex:1;min-height:0;border-bottom:3px solid #14110E;position:relative;overflow:hidden"><img src="./art/taskmaster.jpg" alt="" style="width:100%;height:100%;object-fit:cover;object-position:50% 0%;display:block" /><div style="position:absolute;right:10px;bottom:10px;max-width:220px;background:#fff;color:#14110E;border:3px solid #14110E;border-radius:18px;padding:8px 12px;font-size:13px;font-weight:700;line-height:1.3">I've watched every fight you've ever had.</div></div><div style="padding:12px 14px;display:flex;flex-direction:column;gap:4px"><span style="font-size:10px;font-weight:800;letter-spacing:1px;text-transform:uppercase;color:#F2B01E">#3 · Taskmaster · up next</span><span style="font-family:Bangers,cursive;font-size:28px;line-height:1">WELCOME TO HYDRA CITY</span><span style="font-size:11.5px;line-height:1.45;opacity:.75">New York wakes up under a Hydra flag. Rescue the heroes he's locked up and they'll join your deck.</span></div></div>
+          <div style="border:3px solid rgba(20,17,14,.3);background:#EAE3D3;opacity:.55;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px"><span style="font-family:Bangers,cursive;font-size:44px">?</span><span style="font-size:9px;font-weight:800;letter-spacing:1px;text-transform:uppercase">#4 · Sealed</span></div>
+          <div style="border:3px solid rgba(20,17,14,.3);background:#EAE3D3;opacity:.55;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px"><span style="font-family:Bangers,cursive;font-size:44px">?</span><span style="font-size:9px;font-weight:800;letter-spacing:1px;text-transform:uppercase">#5 · Sealed</span></div>
+        </div>
+        <div style="flex:none;height:88px;background:#14110E;color:#F4EFE3;display:flex;align-items:center;gap:14px;padding:0 16px 0 20px"><span style="flex:1;font-size:11px;opacity:.6">Future villains stay sealed so each issue opens on a reveal. Tap a finished issue to reread it.</span><div style="width:380px;height:58px;background:#C8102E;border:3px solid #F4EFE3;display:flex;align-items:center;justify-content:center;font-family:Bangers,cursive;font-size:22px;letter-spacing:1.2px">BRIEFING ▸</div></div>
+      </div>
+    </div>
+
+
+    <div id="d-issue" style="display:flex;flex-direction:column;gap:9px">
+      <div style="display:flex;align-items:baseline;gap:9px;color:#F4EFE3"><span style="font-family:Bangers,cursive;font-size:22px;color:#C8102E">07b</span><span style="font-family:Bangers,cursive;font-size:20px;letter-spacing:.8px">ISSUE · REREAD</span><span style="font-size:10px;font-weight:800;letter-spacing:1.2px;text-transform:uppercase;opacity:.45">Tap a finished issue in The Run</span></div>
+      <div data-screen-label="D-C07b Issue detail" style="width:1440px;height:980px;box-sizing:border-box;overflow:hidden;background:#F4EFE3;color:#14110E;display:flex;flex-direction:column"><div style="flex:none;height:60px;background:#14110E;color:#F4EFE3;display:flex;align-items:center;gap:14px;padding:0 22px"><span style="font-family:Bangers,cursive;font-size:22px;padding:5px 11px;border:2px solid #F4EFE3">◂ THE RUN</span><span style="font-family:Bangers,cursive;font-size:28px;letter-spacing:1px">ISSUE #2</span><span style="flex:1"></span><span style="font-size:10px;font-weight:800;letter-spacing:1.1px;text-transform:uppercase;opacity:.55">Finished</span></div>
+        <div style="flex:1;min-height:0;display:flex">
+          <div style="flex:1;min-width:0;position:relative;border-right:4px solid #14110E;overflow:hidden"><img src="./art/absorbing-man.jpg" alt="" style="width:100%;height:100%;object-fit:cover;object-position:50% 10%;display:block" />
+            <span style="position:absolute;left:16px;top:16px;background:#1F7A4C;color:#F4EFE3;border:3px solid #F4EFE3;font-family:Bangers,cursive;font-size:19px;padding:4px 10px">WON</span>
+            <div style="position:absolute;left:16px;right:16px;bottom:18px;background:#F2B01E;border:3px solid #14110E;padding:8px 11px;font-size:12px;font-weight:800;font-style:italic;line-height:1.35;text-transform:uppercase">Madame Hydra ran with the Gem. Crusher Creel stood in the way.</div></div>
+          <div style="flex:1;min-width:0;padding:20px;display:flex;flex-direction:column;gap:12px;overflow-y:auto;scrollbar-width:none">
+            <div><div style="font-size:10px;font-weight:800;letter-spacing:1px;text-transform:uppercase;opacity:.55">#2 · Absorbing Man</div><div style="font-family:Bangers,cursive;font-size:36px;line-height:.95">THE WALL IN THE SNOW</div></div>
+            <div style="display:flex;align-items:center;gap:8px"><span style="font-family:Bangers,cursive;font-size:16px;letter-spacing:.6px;color:#14110E">ATTEMPTS</span><span style="flex:1;height:3px;background:#14110E"></span></div>
+            <div style="border:3px solid #14110E;background:#fff">
+              <div style="display:flex;gap:10px;padding:9px 11px;align-items:baseline"><span style="font-family:Bangers,cursive;font-size:18px;width:22px;flex:none;opacity:.45">1</span><div style="flex:1;display:flex;flex-direction:column;gap:2px"><span style="font-size:12px;font-weight:800">Lost · round 7</span><span style="font-size:10.5px;opacity:.65">None Shall Pass completed. Rewound; nothing kept.</span></div><span style="font-size:9px;font-weight:800;letter-spacing:.8px;color:#C8102E">REWIND</span></div>
+              <div style="display:flex;gap:10px;padding:9px 11px;align-items:baseline;border-top:1px solid rgba(20,17,14,.14)"><span style="font-family:Bangers,cursive;font-size:18px;width:22px;flex:none">2</span><div style="flex:1;display:flex;flex-direction:column;gap:2px"><span style="font-size:12px;font-weight:800">Won · round 9</span><span style="font-size:10.5px;opacity:.65">Spider-Woman switched to Aggression/Justice.</span></div><span style="font-size:9px;font-weight:800;letter-spacing:.8px;color:#1F7A4C">KEPT</span></div>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px"><span style="font-family:Bangers,cursive;font-size:16px;letter-spacing:.6px;color:#14110E">WROTE TO THE LOG</span><span style="flex:1;height:3px;background:#14110E"></span></div>
+            <div style="border:3px solid #14110E;background:#fff">
+              <div style="display:flex;gap:9px;padding:8px 10px;border-top:1px solid rgba(20,17,14,.14)"><span style="width:8px;height:8px;flex:none;background:#1F5FA8;margin-top:4px"></span><div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:2px"><span style="font-size:11.5px;font-weight:700;line-height:1.35">3 delay counters</span><span style="font-size:10px;line-height:1.35;opacity:.65">Issue #5 starting threat.</span></div><span style="font-size:8.5px;font-weight:800;letter-spacing:.6px;opacity:.45;flex:none;white-space:nowrap">MC10 p.7</span></div>
+              <div style="display:flex;gap:9px;padding:8px 10px;border-top:1px solid rgba(20,17,14,.14)"><span style="width:8px;height:8px;flex:none;background:#1F7A4C;margin-top:4px"></span><div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:2px"><span style="font-size:11.5px;font-weight:700;line-height:1.35">Upgrade Attack → Hawkeye</span><span style="font-size:10px;line-height:1.35;opacity:.65">Permanent condition.</span></div><span style="font-size:8.5px;font-weight:800;letter-spacing:.6px;opacity:.45;flex:none;white-space:nowrap">MC10 p.7</span></div>
+              <div style="display:flex;gap:9px;padding:8px 10px;border-top:1px solid rgba(20,17,14,.14)"><span style="width:8px;height:8px;flex:none;background:#1F7A4C;margin-top:4px"></span><div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:2px"><span style="font-size:11.5px;font-weight:700;line-height:1.35">Upgrade Thwart → Spider-Woman</span><span style="font-size:10px;line-height:1.35;opacity:.65">Permanent condition.</span></div><span style="font-size:8.5px;font-weight:800;letter-spacing:.6px;opacity:.45;flex:none;white-space:nowrap">MC10 p.7</span></div>
+            </div>
+          </div>
+        </div>
+        <div style="flex:none;height:88px;background:#14110E;display:flex;align-items:center;justify-content:flex-end;gap:10px;padding:0 16px"><div style="width:240px;height:58px;border:3px solid #F4EFE3;color:#F4EFE3;display:flex;align-items:center;justify-content:center;font-family:Bangers,cursive;font-size:19px;letter-spacing:.8px">◂ #1 · #3 ▸</div><div style="width:380px;height:58px;background:#C8102E;border:3px solid #F4EFE3;color:#F4EFE3;display:flex;align-items:center;justify-content:center;font-family:Bangers,cursive;font-size:22px;letter-spacing:1.2px">REREAD ISSUE #2 ▸</div></div></div>
+    </div>
+
+    <!-- 08 -->
+    <div style="display:flex;flex-direction:column;gap:9px">
+      <div style="display:flex;align-items:baseline;gap:9px;color:#F4EFE3"><span style="font-family:Bangers,cursive;font-size:22px;color:#C8102E">08</span><span style="font-family:Bangers,cursive;font-size:20px;letter-spacing:.8px">BRIEFING</span></div>
+      <div data-screen-label="D-C08 Briefing" style="width:1440px;height:980px;box-sizing:border-box;overflow:hidden;background:#F4EFE3;color:#14110E;display:flex;flex-direction:column">
+        <div style="flex:none;height:60px;background:#14110E;color:#F4EFE3;display:flex;align-items:center;gap:14px;padding:0 22px"><span style="font-family:Bangers,cursive;font-size:22px;padding:5px 11px;border:2px solid #F4EFE3">◂ ISSUES</span><span style="font-family:Bangers,cursive;font-size:28px;letter-spacing:1px">BRIEFING · ISSUE #3</span></div>
+        <div style="flex:1;min-height:0;padding:20px;display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr);gap:20px">
+          <div style="display:flex;flex-direction:column;gap:14px;min-height:0">
+            <div style="display:flex;gap:12px;align-items:flex-start">
+              <div style="width:78px;height:78px;flex:none;border:3px solid #14110E;overflow:hidden;border-radius:50%"><img src="./art/spider-woman.webp" alt="" style="width:100%;height:100%;object-fit:cover;object-position:50% 15%;display:block" /></div>
+              <div style="flex:1;position:relative;background:#fff;border:3px solid #14110E;border-radius:20px;padding:11px 15px;font-size:14px;font-weight:700;line-height:1.4">Quinjet's down, the city's flipped, and Taskmaster's hunting us. Here's what we walk in with.
+                <div style="position:absolute;left:-15px;top:20px;width:16px;height:18px;background:#14110E;clip-path:polygon(100% 0,100% 100%,0 30%)"></div><div style="position:absolute;left:-8px;top:23px;width:11px;height:12px;background:#fff;clip-path:polygon(100% 0,100% 100%,0 30%)"></div>
+              </div>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px"><span style="font-family:Bangers,cursive;font-size:18px;letter-spacing:.6px">HANDLED FOR YOU</span><span style="flex:1;height:3px;background:#14110E"></span></div>
+            <div style="border:3px solid #14110E;background:#fff;display:flex;flex-direction:column">
+              <div style="display:flex;gap:12px;padding:11px 13px;border-bottom:2px solid rgba(20,17,14,.15)"><span style="font-family:Bangers,cursive;font-size:17px;color:#1F7A4C;width:18px;flex:none">✓</span><div style="display:flex;flex-direction:column;gap:2px"><span style="font-size:13px;font-weight:800">Setup cards start in play</span><span style="font-size:11.5px;line-height:1.4;opacity:.7">Hawkeye: Emergency Teleporter, Upgrade Attack. Spider-Woman: Tactical Scanner, Upgrade Thwart.</span></div></div>
+              <div style="display:flex;gap:12px;padding:11px 13px;border-bottom:2px solid rgba(20,17,14,.15)"><span style="font-family:Bangers,cursive;font-size:17px;color:#1F7A4C;width:18px;flex:none">✓</span><div style="display:flex;flex-direction:column;gap:2px"><span style="font-size:13px;font-weight:800">2 stolen weapons shuffled in</span><span style="font-size:11.5px;line-height:1.4;opacity:.7">The Experimental attachments Crossbones got his hands on in issue #1 are in the encounter deck.</span></div></div>
+              <div style="display:flex;gap:12px;padding:11px 13px"><span style="font-family:Bangers,cursive;font-size:17px;color:#1F5FA8;width:18px;flex:none">→</span><div style="display:flex;flex-direction:column;gap:2px"><span style="font-size:13px;font-weight:800">3 delay counters held for issue #5</span><span style="font-size:11.5px;line-height:1.4;opacity:.7">Not used here. Red Skull's scheme starts with that much threat.</span></div></div>
+            </div>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:14px">
+            <sc-if value="{{ expert }}" hint-placeholder-val="{{ false }}">
+              <div style="display:flex;align-items:center;gap:8px"><span style="font-family:Bangers,cursive;font-size:18px;letter-spacing:.6px;color:#C8102E">YOUR CALL</span><span style="flex:1;height:3px;background:#14110E"></span></div>
+              <div style="border:3px solid #14110E;background:#fff;padding:12px 13px;display:flex;flex-direction:column;gap:9px">
+                <div style="display:flex;align-items:center;gap:8px"><span style="font-family:Bangers,cursive;font-size:18px">HAWKEYE</span><span style="flex:1;height:9px;background:#EAE3D3;border:2px solid #14110E;position:relative"><span style="position:absolute;left:0;top:0;bottom:0;width:44%;background:#C8102E"></span></span><span style="font-family:Bangers,cursive;font-size:18px">4/9</span></div>
+                <div style="font-size:12px;line-height:1.4">Still hurt from issue #2. Heal to full by taking a random Hydra obligation into your deck?</div>
+                <div style="display:flex;gap:8px"><div style="flex:1;height:46px;border:2.5px solid #14110E;display:flex;align-items:center;justify-content:center;font-family:Bangers,cursive;font-size:16px">STAY AT 4</div><div style="flex:1;height:46px;border:2.5px solid #14110E;background:#14110E;color:#F4EFE3;display:flex;align-items:center;justify-content:center;font-family:Bangers,cursive;font-size:16px">HEAL · TAKE 1</div></div>
+              </div>
+            </sc-if>
+            <div style="display:flex;align-items:center;gap:8px"><span style="font-family:Bangers,cursive;font-size:18px;letter-spacing:.6px">DECKS</span><span style="flex:1;height:3px;background:#14110E"></span></div>
+            <div style="border:3px solid #14110E;background:#fff;display:flex;flex-direction:column">
+              <div style="display:flex;align-items:center;gap:10px;padding:10px 12px;border-bottom:2px solid rgba(20,17,14,.15)"><span style="font-family:Bangers,cursive;font-size:17px;flex:1">HAWKEYE · LEADERSHIP</span><span style="font-size:11px;font-weight:800">40 + 2 pinned</span></div>
+              <div style="display:flex;align-items:center;gap:10px;padding:10px 12px"><span style="font-family:Bangers,cursive;font-size:17px;flex:1">SPIDER-WOMAN · AGG/JUS</span><span style="font-size:11px;font-weight:800">40 + 2 pinned</span></div>
+            </div>
+            <div style="font-size:11px;line-height:1.45;opacity:.6">Decks can change now; hero can't. Pinned campaign cards don't count toward deck size.</div>
+          </div>
+        </div>
+        <div style="flex:none;height:88px;background:#14110E;display:flex;align-items:center;justify-content:flex-end;gap:10px;padding:0 16px"><div style="width:150px;height:52px;border:3px solid #F4EFE3;color:#F4EFE3;display:flex;align-items:center;justify-content:center;font-family:Bangers,cursive;font-size:19px;letter-spacing:.8px">EDIT DECKS</div><div style="width:380px;height:58px;background:#C8102E;border:3px solid #F4EFE3;color:#F4EFE3;display:flex;align-items:center;justify-content:center;font-family:Bangers,cursive;font-size:22px;letter-spacing:1.2px">OPEN ISSUE #3 ▸</div></div>
+      </div>
+    </div>
+
+    <!-- 09 -->
+    <div style="display:flex;flex-direction:column;gap:9px">
+      <div style="display:flex;align-items:baseline;gap:9px;color:#F4EFE3"><span style="font-family:Bangers,cursive;font-size:22px;color:#C8102E">09</span><span style="font-family:Bangers,cursive;font-size:20px;letter-spacing:.8px">DEFEAT · REWIND</span></div>
+      <div data-screen-label="D-C09 Defeat rewind" style="width:1440px;height:980px;box-sizing:border-box;overflow:hidden;background:#14110E;color:#F4EFE3;display:flex;align-items:center;gap:40px;padding:0 50px 0 40px;background-image:radial-gradient(rgba(244,239,227,.08) 1px,transparent 1.1px);background-size:7px 7px">
+        <div style="flex:1;min-width:0;height:78%;border:5px solid #F4EFE3;overflow:hidden;transform:rotate(-3deg);box-shadow:10px 10px 0 #C8102E;position:relative;clip-path:polygon(0 0,100% 0,100% 90%,86% 95%,72% 90%,58% 97%,41% 91%,27% 96%,12% 90%,0 96%)"><img src="./art/taskmaster.jpg" alt="" style="width:100%;height:100%;object-fit:cover;object-position:50% 0%;display:block;filter:grayscale(1) contrast(1.2)" /><div style="position:absolute;right:14px;bottom:60px;max-width:220px;background:#fff;color:#14110E;border:3px solid #14110E;border-radius:18px;padding:9px 13px;font-size:14px;font-weight:700;line-height:1.35">Told you. I've seen every move you've got.</div></div>
+        <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:14px">
+          <sc-if value="{{ rewind }}" hint-placeholder-val="{{ true }}">
+            <div style="align-self:flex-start;background:#F2B01E;color:#14110E;border:3px solid #14110E;padding:8px 12px;font-size:14px;font-weight:800;font-style:italic;text-transform:uppercase;transform:rotate(-1.5deg)">No. That's not how it happened.</div>
+            <div style="font-family:Bangers,cursive;font-size:88px;line-height:.9;letter-spacing:1px">REWIND<br />ISSUE #3</div>
+            <div style="font-size:14px;line-height:1.5;opacity:.8">Same villain, same log as when you opened it. Change decks or aspects first if you want.</div>
+            <div style="border:2px solid rgba(244,239,227,.3);padding:11px 13px;display:flex;flex-direction:column;gap:6px;font-size:12px;line-height:1.4"><div style="display:flex;gap:8px"><span style="color:#1F7A4C;font-weight:800">KEPT</span><span>Everything from issues #1–2.</span></div><div style="display:flex;gap:8px"><span style="color:#F2B01E;font-weight:800">GONE</span><span>Tactical Scanner — spent this game, struck from the campaign.</span></div></div>
+          </sc-if>
+          <sc-if value="{{ plain }}" hint-placeholder-val="{{ false }}">
+            <div style="font-family:Bangers,cursive;font-size:64px;line-height:.9;letter-spacing:1px">ISSUE #3 LOST</div>
+            <div style="font-size:14px;line-height:1.5;opacity:.8">Standard campaign: retry with no penalty. Cards removed from the campaign stay removed.</div>
+          </sc-if>
+          <div style="height:54px;background:#C8102E;border:3px solid #F4EFE3;display:flex;align-items:center;justify-content:center;font-family:Bangers,cursive;font-size:24px;letter-spacing:1.2px;margin-top:6px">{{ retryCta }}</div>
+          <div style="display:flex;gap:10px"><div style="flex:1;height:46px;border:3px solid #F4EFE3;display:flex;align-items:center;justify-content:center;font-family:Bangers,cursive;font-size:18px">EDIT DECKS</div><div style="flex:1;height:46px;border:3px solid rgba(244,239,227,.35);color:rgba(244,239,227,.6);display:flex;align-items:center;justify-content:center;font-family:Bangers,cursive;font-size:18px">SHELVE</div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 10 -->
+    <div id="d-dossier" style="display:flex;flex-direction:column;gap:9px">
+      <div style="display:flex;align-items:baseline;gap:9px;color:#F4EFE3"><span style="font-family:Bangers,cursive;font-size:22px;color:#C8102E">10</span><span style="font-family:Bangers,cursive;font-size:20px;letter-spacing:.8px">DOSSIER</span></div>
+      <div data-screen-label="D-C10 Dossier" style="width:1440px;height:980px;box-sizing:border-box;overflow:hidden;background:#F4EFE3;color:#14110E;display:flex;flex-direction:column">
+        <div style="flex:none;height:60px;background:#14110E;color:#F4EFE3;display:flex;align-items:center;gap:14px;padding:0 22px"><span style="font-family:Bangers,cursive;font-size:22px;padding:5px 11px;border:2px solid #F4EFE3">◂ COVER</span><span style="font-family:Bangers,cursive;font-size:28px;letter-spacing:1px">DOSSIER</span><span style="flex:1"></span><span style="font-size:10px;font-weight:800;letter-spacing:1.1px;text-transform:uppercase;opacity:.55">After issue #2</span></div>
+        <div style="flex:none;display:flex;gap:0;background:#EAE3D3;border-bottom:3px solid #14110E;padding:0 16px"><div style="height:48px;padding:0 26px;display:flex;align-items:center;font-family:Bangers,cursive;font-size:17px;letter-spacing:.7px;background:#14110E;color:#F4EFE3">OVERVIEW</div><div style="height:48px;padding:0 26px;display:flex;align-items:center;font-family:Bangers,cursive;font-size:17px;letter-spacing:.7px;color:#14110E">LOG</div><div style="height:48px;padding:0 26px;display:flex;align-items:center;font-family:Bangers,cursive;font-size:17px;letter-spacing:.7px;color:#14110E">HEROES</div><div style="height:48px;padding:0 26px;display:flex;align-items:center;font-family:Bangers,cursive;font-size:17px;letter-spacing:.7px;color:#14110E">ISSUES</div></div>
+        <div style="flex:1;min-height:0;padding:20px;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;align-items:start">
+          <div style="border:3px solid #14110E;background:#fff">
+            <div style="height:320px;border-bottom:3px solid #14110E;position:relative;overflow:hidden"><img src="./art/hawkeye.jpg" alt="" style="width:100%;height:100%;object-fit:cover;object-position:50% 15%;display:block" /><sc-if value="{{ expert }}" hint-placeholder-val="{{ false }}"><span style="position:absolute;right:8px;top:8px;background:#C8102E;color:#F4EFE3;border:2px solid #F4EFE3;font-family:Bangers,cursive;font-size:17px;padding:2px 8px">4/9 HP</span></sc-if></div>
+            <div style="padding:10px 12px;border-bottom:3px solid #14110E;background:#EAE3D3;display:flex;align-items:baseline;gap:8px"><span style="font-family:Bangers,cursive;font-size:22px;line-height:1">HAWKEYE</span><span style="font-size:9px;font-weight:800;letter-spacing:1px;text-transform:uppercase;opacity:.55">Seat #1 · locked</span></div>
+            <div style="display:flex;flex-direction:column;font-size:12px;line-height:1.35">
+              <div style="padding:9px 12px;border-bottom:1px solid rgba(20,17,14,.15)"><b>Tech</b> · Emergency Teleporter<div style="font-size:10.5px;opacity:.55">One use, then gone.</div></div>
+              <div style="padding:9px 12px;border-bottom:1px solid rgba(20,17,14,.15)"><b>Condition</b> · Upgrade Attack (Basic)<div style="font-size:10.5px;opacity:.55">Can improve in #4.</div></div>
+              <div style="padding:9px 12px;opacity:.45"><b>Rescued</b> · earned in #3</div>
+            </div>
+          </div>
+          <div style="border:3px solid #14110E;background:#fff">
+            <div style="height:320px;border-bottom:3px solid #14110E;position:relative;overflow:hidden"><img src="./art/spider-woman.webp" alt="" style="width:100%;height:100%;object-fit:cover;object-position:50% 15%;display:block" /><sc-if value="{{ expert }}" hint-placeholder-val="{{ false }}"><span style="position:absolute;right:8px;top:8px;background:#14110E;color:#F4EFE3;border:2px solid #F4EFE3;font-family:Bangers,cursive;font-size:17px;padding:2px 8px">11/11 HP</span></sc-if></div>
+            <div style="padding:10px 12px;border-bottom:3px solid #14110E;background:#EAE3D3;display:flex;align-items:baseline;gap:8px"><span style="font-family:Bangers,cursive;font-size:22px;line-height:1">SPIDER-WOMAN</span><span style="font-size:9px;font-weight:800;letter-spacing:1px;text-transform:uppercase;opacity:.55">Seat #2</span></div>
+            <div style="display:flex;flex-direction:column;font-size:12px;line-height:1.35">
+              <div style="padding:9px 12px;border-bottom:1px solid rgba(20,17,14,.15)"><b>Tech</b> · Tactical Scanner</div>
+              <div style="padding:9px 12px;border-bottom:1px solid rgba(20,17,14,.15)"><b>Condition</b> · Upgrade Thwart (Basic)</div>
+              <sc-if value="{{ expert }}" hint-placeholder-val="{{ false }}"><div style="padding:9px 12px;border-bottom:1px solid rgba(20,17,14,.15)"><b>Obligation</b> · Martial Law<div style="font-size:10.5px;opacity:.55">Took it to heal after #1.</div></div></sc-if>
+              <div style="padding:9px 12px;opacity:.45"><b>Rescued</b> · earned in #3</div>
+            </div>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:10px">
+            <div style="display:flex;align-items:center;gap:8px"><span style="font-family:Bangers,cursive;font-size:18px;letter-spacing:.6px">THE WORLD</span><span style="flex:1;height:3px;background:#14110E"></span></div>
+            <div style="border:3px solid #14110E;background:#fff;display:flex;flex-direction:column">
+              <div style="display:flex;gap:10px;padding:11px 12px;border-bottom:2px solid rgba(20,17,14,.15);align-items:baseline"><span style="font-family:Bangers,cursive;font-size:26px;line-height:1;width:26px;flex:none">2</span><div><div style="font-size:13px;font-weight:800">Stolen weapons</div><div style="font-size:11px;opacity:.7">Shuffled into every remaining issue.</div></div></div>
+              <div style="display:flex;gap:10px;padding:11px 12px;border-bottom:2px solid rgba(20,17,14,.15);align-items:baseline"><span style="font-family:Bangers,cursive;font-size:26px;line-height:1;width:26px;flex:none">3</span><div><div style="font-size:13px;font-weight:800">Delay counters</div><div style="font-size:11px;opacity:.7">{{ delayFx }}</div></div></div>
+              <div style="display:flex;gap:10px;padding:11px 12px;align-items:baseline;opacity:.45"><span style="font-family:Bangers,cursive;font-size:26px;line-height:1;width:26px;flex:none">—</span><div><div style="font-size:13px;font-weight:800">Lost allies</div><div style="font-size:11px">Decided in #4.</div></div></div>
+            </div>
+            <div style="font-size:11px;line-height:1.45;opacity:.6">Each line says when it matters. Nothing here needs to be written down.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+
+    <div id="d-log" style="display:flex;flex-direction:column;gap:9px">
+      <div style="display:flex;align-items:baseline;gap:9px;color:#F4EFE3"><span style="font-family:Bangers,cursive;font-size:22px;color:#C8102E">10b</span><span style="font-family:Bangers,cursive;font-size:20px;letter-spacing:.8px">DOSSIER · LOG</span><span style="font-size:10px;font-weight:800;letter-spacing:1.2px;text-transform:uppercase;opacity:.45">Every entry, where it came from, what it does</span></div>
+      <div data-screen-label="D-C10b Dossier log" style="width:1440px;height:980px;box-sizing:border-box;overflow:hidden;background:#F4EFE3;color:#14110E;display:flex;flex-direction:column"><div style="flex:none;height:60px;background:#14110E;color:#F4EFE3;display:flex;align-items:center;gap:14px;padding:0 22px"><span style="font-family:Bangers,cursive;font-size:22px;padding:5px 11px;border:2px solid #F4EFE3">◂ COVER</span><span style="font-family:Bangers,cursive;font-size:28px;letter-spacing:1px">DOSSIER</span><span style="flex:1"></span><span style="font-size:10px;font-weight:800;letter-spacing:1.1px;text-transform:uppercase;opacity:.55">Rise of Red Skull</span></div><div style="flex:none;display:flex;gap:0;background:#EAE3D3;border-bottom:3px solid #14110E;padding:0 16px"><div style="height:48px;padding:0 26px;display:flex;align-items:center;font-family:Bangers,cursive;font-size:17px;letter-spacing:.7px;color:#14110E">OVERVIEW</div><div style="height:48px;padding:0 26px;display:flex;align-items:center;font-family:Bangers,cursive;font-size:17px;letter-spacing:.7px;background:#14110E;color:#F4EFE3">LOG</div><div style="height:48px;padding:0 26px;display:flex;align-items:center;font-family:Bangers,cursive;font-size:17px;letter-spacing:.7px;color:#14110E">HEROES</div><div style="height:48px;padding:0 26px;display:flex;align-items:center;font-family:Bangers,cursive;font-size:17px;letter-spacing:.7px;color:#14110E">ISSUES</div></div>
+        <div style="flex:1;min-height:0;padding:18px 20px;display:grid;grid-template-columns:minmax(0,1.7fr) minmax(0,1fr);gap:20px">
+          <div style="min-height:0;overflow-y:auto;scrollbar-width:none;display:flex;flex-direction:column;gap:12px">
+            <div style="border:3px solid #14110E;background:#fff"><div style="display:flex;align-items:center;gap:8px;padding:7px 10px;background:#14110E;color:#F4EFE3"><span style="font-family:Bangers,cursive;font-size:16px;letter-spacing:.5px">#1 · CROSSBONES</span><span style="flex:1"></span><span style="font-size:9px;font-weight:800;letter-spacing:1px;text-transform:uppercase;color:#7FD1A4">Won · 1st try</span></div>
+              <div style="display:flex;gap:9px;padding:8px 10px;border-top:1px solid rgba(20,17,14,.14)"><span style="width:8px;height:8px;flex:none;background:#1F7A4C;margin-top:4px"></span><div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:2px"><span style="font-size:11.5px;font-weight:700;line-height:1.35">Identities locked: Hawkeye (#1), Spider-Woman (#2)</span><span style="font-size:10px;line-height:1.35;opacity:.65">Can’t change for the rest of the campaign.</span></div><span style="font-size:8.5px;font-weight:800;letter-spacing:.6px;opacity:.45;flex:none;white-space:nowrap">MC10 p.5</span></div>
+              <div style="display:flex;gap:9px;padding:8px 10px;border-top:1px solid rgba(20,17,14,.14)"><span style="width:8px;height:8px;flex:none;background:#C8102E;margin-top:4px"></span><div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:2px"><span style="font-size:11.5px;font-weight:700;line-height:1.35">2 Experimental attachments entered play</span><span style="font-size:10px;line-height:1.35;opacity:.65">Shuffled into the encounter deck of every later issue.</span></div><span style="font-size:8.5px;font-weight:800;letter-spacing:.6px;opacity:.45;flex:none;white-space:nowrap">MC10 p.5</span></div>
+              <div style="display:flex;gap:9px;padding:8px 10px;border-top:1px solid rgba(20,17,14,.14)"><span style="width:8px;height:8px;flex:none;background:#1F7A4C;margin-top:4px"></span><div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:2px"><span style="font-size:11.5px;font-weight:700;line-height:1.35">TECH taken: Emergency Teleporter · Tactical Scanner</span><span style="font-size:10px;line-height:1.35;opacity:.65">Pinned to decks; one use each, then struck.</span></div><span style="font-size:8.5px;font-weight:800;letter-spacing:.6px;opacity:.45;flex:none;white-space:nowrap">MC10 p.5</span></div>
+              <sc-if value="{{ expert }}" hint-placeholder-val="{{ false }}"><div style="display:flex;gap:9px;padding:8px 10px;border-top:1px solid rgba(20,17,14,.14)"><span style="width:8px;height:8px;flex:none;background:#F2B01E;margin-top:4px"></span><div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:2px"><span style="font-size:11.5px;font-weight:700;line-height:1.35">HP recorded: Hawkeye 6/9 · Spider-Woman 11/11</span><span style="font-size:10px;line-height:1.35;opacity:.65">Next issue starts at these values.</span></div><span style="font-size:8.5px;font-weight:800;letter-spacing:.6px;opacity:.45;flex:none;white-space:nowrap">MC10 p.17</span></div></sc-if>
+            </div>
+            <div style="border:3px solid #14110E;background:#fff"><div style="display:flex;align-items:center;gap:8px;padding:7px 10px;background:#14110E;color:#F4EFE3"><span style="font-family:Bangers,cursive;font-size:16px;letter-spacing:.5px">#2 · ABSORBING MAN</span><span style="flex:1"></span><span style="font-size:9px;font-weight:800;letter-spacing:1px;text-transform:uppercase;color:#7FD1A4">Won · 2nd try</span></div>
+              <sc-if value="{{ expert }}" hint-placeholder-val="{{ false }}"><div style="display:flex;gap:9px;padding:8px 10px;border-top:1px solid rgba(20,17,14,.14)"><span style="width:8px;height:8px;flex:none;background:#F2B01E;margin-top:4px"></span><div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:2px"><span style="font-size:11.5px;font-weight:700;line-height:1.35">Spider-Woman healed to full, took Martial Law</span><span style="font-size:10px;line-height:1.35;opacity:.65">Obligation stays in her deck until resolved in play.</span></div><span style="font-size:8.5px;font-weight:800;letter-spacing:.6px;opacity:.45;flex:none;white-space:nowrap">MC10 p.7</span></div></sc-if>
+              <div style="display:flex;gap:9px;padding:8px 10px;border-top:1px solid rgba(20,17,14,.14)"><span style="width:8px;height:8px;flex:none;background:rgba(20,17,14,.35);margin-top:4px"></span><div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:2px"><span style="font-size:11.5px;font-weight:700;line-height:1.35">Attempt 1 lost · rewound</span><span style="font-size:10px;line-height:1.35;opacity:.65">Log restored to issue start; nothing kept from that game.</span></div><span style="font-size:8.5px;font-weight:800;letter-spacing:.6px;opacity:.45;flex:none;white-space:nowrap">MC10 p.3</span></div>
+              <div style="display:flex;gap:9px;padding:8px 10px;border-top:1px solid rgba(20,17,14,.14)"><span style="width:8px;height:8px;flex:none;background:#1F5FA8;margin-top:4px"></span><div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:2px"><span style="font-size:11.5px;font-weight:700;line-height:1.35">3 delay counters on the main scheme</span><span style="font-size:10px;line-height:1.35;opacity:.65">Issue #5: Red Skull’s scheme starts with {{ delayShort }}.</span></div><span style="font-size:8.5px;font-weight:800;letter-spacing:.6px;opacity:.45;flex:none;white-space:nowrap">MC10 p.7</span></div>
+              <div style="display:flex;gap:9px;padding:8px 10px;border-top:1px solid rgba(20,17,14,.14)"><span style="width:8px;height:8px;flex:none;background:#1F7A4C;margin-top:4px"></span><div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:2px"><span style="font-size:11.5px;font-weight:700;line-height:1.35">Conditions: Upgrade Attack · Upgrade Thwart (Basic)</span><span style="font-size:10px;line-height:1.35;opacity:.65">Permanent. Improved side can be earned in #4.</span></div><span style="font-size:8.5px;font-weight:800;letter-spacing:.6px;opacity:.45;flex:none;white-space:nowrap">MC10 p.7</span></div>
+              <sc-if value="{{ expert }}" hint-placeholder-val="{{ false }}"><div style="display:flex;gap:9px;padding:8px 10px;border-top:1px solid rgba(20,17,14,.14)"><span style="width:8px;height:8px;flex:none;background:#F2B01E;margin-top:4px"></span><div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:2px"><span style="font-size:11.5px;font-weight:700;line-height:1.35">HP recorded: Hawkeye 4/10 · Spider-Woman 11/13</span><span style="font-size:10px;line-height:1.35;opacity:.65">Next issue starts at these values.</span></div><span style="font-size:8.5px;font-weight:800;letter-spacing:.6px;opacity:.45;flex:none;white-space:nowrap">MC10 p.17</span></div></sc-if>
+            </div>
+            <div style="border:3px dashed rgba(20,17,14,.4);padding:9px 11px;display:flex;flex-direction:column;gap:3px"><span style="font-family:Bangers,cursive;font-size:16px;letter-spacing:.5px">#3 · TASKMASTER · NEXT</span><span style="font-size:10.5px;line-height:1.4;opacity:.65">On a win: rescued allies join the deck of the hero who freed them.</span></div></div>
+          <div style="display:flex;flex-direction:column;gap:10px">
+              <div style="display:flex;align-items:center;gap:8px"><span style="font-family:Bangers,cursive;font-size:16px;letter-spacing:.6px;color:#14110E">IN FORCE NOW</span><span style="flex:1;height:3px;background:#14110E"></span></div>
+              <div style="border:3px solid #14110E;background:#fff">
+                <div style="display:flex;align-items:baseline;gap:8px;padding:7px 10px;border-top:1px solid rgba(20,17,14,.14)"><span style="font-size:11px;font-weight:800;width:74px;flex:none">Weapons</span><span style="font-family:Bangers,cursive;font-size:17px;line-height:1">2</span><span style="flex:1"></span><span style="font-size:10px;opacity:.6">in every encounter deck</span></div>
+                <div style="display:flex;align-items:baseline;gap:8px;padding:7px 10px;border-top:1px solid rgba(20,17,14,.14)"><span style="font-size:11px;font-weight:800;width:74px;flex:none">Delay</span><span style="font-family:Bangers,cursive;font-size:17px;line-height:1">3</span><span style="flex:1"></span><span style="font-size:10px;opacity:.6">{{ delayShort }} in #5</span></div>
+                <div style="display:flex;align-items:baseline;gap:8px;padding:7px 10px;border-top:1px solid rgba(20,17,14,.14)"><span style="font-size:11px;font-weight:800;width:74px;flex:none">Struck</span><span style="font-family:Bangers,cursive;font-size:17px;line-height:1">0</span><span style="flex:1"></span><span style="font-size:10px;opacity:.6">nothing lost yet</span></div>
+                <div style="display:flex;align-items:baseline;gap:8px;padding:7px 10px;border-top:1px solid rgba(20,17,14,.14)"><span style="font-size:11px;font-weight:800;width:74px;flex:none">Rewinds</span><span style="font-family:Bangers,cursive;font-size:17px;line-height:1">1</span><span style="flex:1"></span><span style="font-size:10px;opacity:.6">free on Standard</span></div>
+              </div>
+              <div style="font-size:11px;line-height:1.45;opacity:.6">Written by the game, never by hand. Page refs point to the rulebook for anyone checking.</div>
+            </div>
+        </div></div>
+    </div>
+
+    <div id="d-hero" style="display:flex;flex-direction:column;gap:9px">
+      <div style="display:flex;align-items:baseline;gap:9px;color:#F4EFE3"><span style="font-family:Bangers,cursive;font-size:22px;color:#C8102E">10c</span><span style="font-family:Bangers,cursive;font-size:20px;letter-spacing:.8px">DOSSIER · HERO</span><span style="font-size:10px;font-weight:800;letter-spacing:1.2px;text-transform:uppercase;opacity:.45">One sheet per signed hero</span></div>
+      <div data-screen-label="D-C10c Dossier hero" style="width:1440px;height:980px;box-sizing:border-box;overflow:hidden;background:#F4EFE3;color:#14110E;display:flex;flex-direction:column"><div style="flex:none;height:60px;background:#14110E;color:#F4EFE3;display:flex;align-items:center;gap:14px;padding:0 22px"><span style="font-family:Bangers,cursive;font-size:22px;padding:5px 11px;border:2px solid #F4EFE3">◂ COVER</span><span style="font-family:Bangers,cursive;font-size:28px;letter-spacing:1px">DOSSIER</span><span style="flex:1"></span><span style="font-size:10px;font-weight:800;letter-spacing:1.1px;text-transform:uppercase;opacity:.55">Rise of Red Skull</span></div><div style="flex:none;display:flex;gap:0;background:#EAE3D3;border-bottom:3px solid #14110E;padding:0 16px"><div style="height:48px;padding:0 26px;display:flex;align-items:center;font-family:Bangers,cursive;font-size:17px;letter-spacing:.7px;color:#14110E">OVERVIEW</div><div style="height:48px;padding:0 26px;display:flex;align-items:center;font-family:Bangers,cursive;font-size:17px;letter-spacing:.7px;color:#14110E">LOG</div><div style="height:48px;padding:0 26px;display:flex;align-items:center;font-family:Bangers,cursive;font-size:17px;letter-spacing:.7px;background:#14110E;color:#F4EFE3">HEROES</div><div style="height:48px;padding:0 26px;display:flex;align-items:center;font-family:Bangers,cursive;font-size:17px;letter-spacing:.7px;color:#14110E">ISSUES</div></div>
+        <div style="flex:1;min-height:0;padding:18px 20px;display:grid;grid-template-columns:260px minmax(0,1fr) minmax(0,1fr);gap:18px">
+          <div style="display:flex;flex-direction:column;gap:8px"><div style="display:flex;align-items:center;gap:10px;padding:8px;background:#14110E;color:#F4EFE3"><div style="width:48px;height:48px;border:2.5px solid #F4EFE3;overflow:hidden;flex:none"><img src="./art/hawkeye.jpg" alt="" style="width:100%;height:100%;object-fit:cover;object-position:50% 15%;display:block" /></div><div style="display:flex;flex-direction:column;gap:2px"><span style="font-family:Bangers,cursive;font-size:18px;line-height:1">HAWKEYE</span><span style="font-size:9px;font-weight:800;letter-spacing:1px;text-transform:uppercase;opacity:.6">Seat #1</span></div></div><div style="display:flex;align-items:center;gap:10px;padding:8px;border:3px solid #14110E"><div style="width:48px;height:48px;border:2.5px solid #14110E;overflow:hidden;flex:none"><img src="./art/spider-woman.webp" alt="" style="width:100%;height:100%;object-fit:cover;object-position:50% 15%;display:block" /></div><div style="display:flex;flex-direction:column;gap:2px"><span style="font-family:Bangers,cursive;font-size:18px;line-height:1">SPIDER-WOMAN</span><span style="font-size:9px;font-weight:800;letter-spacing:1px;text-transform:uppercase;opacity:.6">Seat #2</span></div></div></div>
+          <div style="display:flex;flex-direction:column;gap:12px;min-height:0">
+            <div style="flex:1;min-height:0;border:3px solid #14110E;position:relative;overflow:hidden"><img src="./art/hawkeye.jpg" alt="" style="width:100%;height:100%;object-fit:cover;object-position:50% 15%;display:block" />
+              <div style="position:absolute;left:0;right:0;bottom:0;background:#14110E;color:#F4EFE3;padding:10px 12px;display:flex;flex-direction:column;gap:2px"><span style="font-family:Bangers,cursive;font-size:30px;line-height:.95">HAWKEYE</span><span style="font-size:9px;font-weight:800;letter-spacing:1px;text-transform:uppercase;opacity:.6">Clint Barton · Seat #1 · locked for the campaign</span></div>
+              <div style="position:absolute;right:10px;top:10px;max-width:190px;background:#fff;border:3px solid #14110E;border-radius:16px;padding:7px 10px;font-size:12px;font-weight:700;line-height:1.3">Two issues down. Still haven’t missed.</div></div>
+            <div style="display:flex;gap:6px"><div style="flex:1;border:2.5px solid #1F7A4C;padding:5px 0;text-align:center;display:flex;flex-direction:column;gap:1px"><span style="font-family:Bangers,cursive;font-size:15px;line-height:1">#1</span><span style="font-size:8px;font-weight:800;letter-spacing:.8px;text-transform:uppercase;color:#1F7A4C">Won</span></div><div style="flex:1;border:2.5px solid #1F7A4C;padding:5px 0;text-align:center;display:flex;flex-direction:column;gap:1px"><span style="font-family:Bangers,cursive;font-size:15px;line-height:1">#2</span><span style="font-size:8px;font-weight:800;letter-spacing:.8px;text-transform:uppercase;color:#1F7A4C">Won</span></div><div style="flex:1;border:2.5px solid #C8102E;padding:5px 0;text-align:center;display:flex;flex-direction:column;gap:1px"><span style="font-family:Bangers,cursive;font-size:15px;line-height:1">#3</span><span style="font-size:8px;font-weight:800;letter-spacing:.8px;text-transform:uppercase;color:#C8102E">Next</span></div><div style="flex:1;border:2.5px solid rgba(20,17,14,.3);padding:5px 0;text-align:center;display:flex;flex-direction:column;gap:1px"><span style="font-family:Bangers,cursive;font-size:15px;line-height:1">#4</span><span style="font-size:8px;font-weight:800;letter-spacing:.8px;text-transform:uppercase;color:rgba(20,17,14,.3)">—</span></div><div style="flex:1;border:2.5px solid rgba(20,17,14,.3);padding:5px 0;text-align:center;display:flex;flex-direction:column;gap:1px"><span style="font-family:Bangers,cursive;font-size:15px;line-height:1">#5</span><span style="font-size:8px;font-weight:800;letter-spacing:.8px;text-transform:uppercase;color:rgba(20,17,14,.3)">—</span></div></div>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:12px;min-height:0;overflow-y:auto;scrollbar-width:none">
+            <div style="display:flex;align-items:center;gap:8px"><span style="font-family:Bangers,cursive;font-size:16px;letter-spacing:.6px;color:#14110E">CAMPAIGN CARDS</span><span style="flex:1;height:3px;background:#14110E"></span></div>
+            <div style="display:flex;flex-direction:column;gap:10px"><div style="border:3px solid #14110E;background:#fff;display:flex;flex-direction:column;gap:3px;padding:8px 10px;position:relative"><span style="font-size:8.5px;font-weight:800;letter-spacing:1px;text-transform:uppercase;opacity:.55">Tech · Setup</span><span style="font-family:Bangers,cursive;font-size:17px;line-height:1">Emergency Teleporter</span><span style="font-size:10px;line-height:1.35;opacity:.7">Discard: fetch an ally, give it Tough.</span><span style="position:absolute;right:-3px;top:-9px;background:#C8102E;color:#F4EFE3;font-size:8px;font-weight:800;letter-spacing:.8px;padding:2px 6px;text-transform:uppercase">One use</span></div><div style="border:3px solid #14110E;background:#fff;display:flex;flex-direction:column;gap:3px;padding:8px 10px;position:relative"><span style="font-size:8.5px;font-weight:800;letter-spacing:1px;text-transform:uppercase;opacity:.55">Condition · Basic</span><span style="font-family:Bangers,cursive;font-size:17px;line-height:1">Upgrade Attack</span><span style="font-size:10px;line-height:1.35;opacity:.7">Permanent. +1 HP, hero +1 ATK.</span><span style="position:absolute;right:-3px;top:-9px;background:#1F5FA8;color:#F4EFE3;font-size:8px;font-weight:800;letter-spacing:.8px;padding:2px 6px;text-transform:uppercase">Improves in #4</span></div></div>
+            <sc-if value="{{ expert }}" hint-placeholder-val="{{ false }}"><div style="border:3px solid #14110E;background:#fff;padding:8px 10px;display:flex;align-items:center;gap:8px"><span style="font-size:8.5px;font-weight:800;letter-spacing:1px;text-transform:uppercase;opacity:.55">Obligations</span><span style="font-size:11px;font-weight:700">None · set #1 has 4 left</span></div></sc-if>
+            <div style="display:flex;align-items:center;gap:8px"><span style="font-family:Bangers,cursive;font-size:16px;letter-spacing:.6px;color:#14110E">STATS</span><span style="flex:1;height:3px;background:#14110E"></span></div>
+            <div style="border:3px solid #14110E;background:#fff">
+              <div style="padding:7px 10px;font-family:Bangers,cursive;font-size:15px;letter-spacing:.5px;background:#EAE3D3">AS OF ISSUE #3</div>
+              <div style="display:flex;align-items:baseline;gap:8px;padding:7px 10px;border-top:1px solid rgba(20,17,14,.14)"><span style="font-size:11px;font-weight:800;width:74px;flex:none">Hit points</span><span style="font-family:Bangers,cursive;font-size:17px;line-height:1">10</span><span style="flex:1"></span><span style="font-size:10px;opacity:.6">9 base + 1 condition</span></div>
+              <div style="display:flex;align-items:baseline;gap:8px;padding:7px 10px;border-top:1px solid rgba(20,17,14,.14)"><span style="font-size:11px;font-weight:800;width:74px;flex:none">ATK</span><span style="font-family:Bangers,cursive;font-size:17px;line-height:1">3</span><span style="flex:1"></span><span style="font-size:10px;opacity:.6">2 base + 1 condition</span></div>
+              <div style="display:flex;align-items:baseline;gap:8px;padding:7px 10px;border-top:1px solid rgba(20,17,14,.14)"><span style="font-size:11px;font-weight:800;width:74px;flex:none">Deck</span><span style="font-family:Bangers,cursive;font-size:17px;line-height:1">40 + 2</span><span style="flex:1"></span><span style="font-size:10px;opacity:.6">campaign cards don’t count</span></div>
+              <div style="display:flex;align-items:baseline;gap:8px;padding:7px 10px;border-top:1px solid rgba(20,17,14,.14)"><span style="font-size:11px;font-weight:800;width:74px;flex:none">Aspect</span><span style="font-family:Bangers,cursive;font-size:17px;line-height:1">Leadership</span><span style="flex:1"></span><span style="font-size:10px;opacity:.6">free to change</span></div>
+              <sc-if value="{{ expert }}" hint-placeholder-val="{{ false }}"><div style="display:flex;align-items:center;gap:8px;padding:8px 10px;border-top:1px solid rgba(20,17,14,.14)"><span style="font-size:11px;font-weight:800;width:74px;flex:none">Carried HP</span><span style="flex:1;height:9px;background:#EAE3D3;border:2px solid #14110E;position:relative"><span style="position:absolute;left:0;top:0;bottom:0;width:40%;background:#C8102E"></span></span><span style="font-family:Bangers,cursive;font-size:17px">4/10</span></div></sc-if>
+            </div>
+          </div>
+        </div>
+        <div style="flex:none;height:88px;background:#14110E;display:flex;align-items:center;justify-content:flex-end;padding:0 16px"><div style="width:380px;height:58px;border:3px solid #F4EFE3;color:#F4EFE3;display:flex;align-items:center;justify-content:center;font-family:Bangers,cursive;font-size:20px;letter-spacing:1.2px">EDIT HAWKEYE’S DECK</div></div></div>
+    </div>
+
+    <!-- 11 -->
+    <div style="display:flex;flex-direction:column;gap:9px">
+      <div style="display:flex;align-items:baseline;gap:9px;color:#F4EFE3"><span style="font-family:Bangers,cursive;font-size:22px;color:#C8102E">11</span><span style="font-family:Bangers,cursive;font-size:20px;letter-spacing:.8px">FINALE · EPILOGUE</span></div>
+      <div data-screen-label="D-C11 Finale" style="width:1440px;height:980px;box-sizing:border-box;overflow:hidden;background:#F2B01E;color:#14110E;display:flex;gap:24px;padding:24px;background-image:radial-gradient(rgba(20,17,14,.14) 1.2px,transparent 1.3px);background-size:7px 7px">
+        <div style="flex:1.2;min-width:0;display:grid;grid-template-columns:minmax(0,1.4fr) minmax(0,1fr);grid-template-rows:minmax(0,1fr) minmax(0,1fr);gap:10px">
+          <div style="grid-row:1 / span 2;border:3px solid #14110E;position:relative;overflow:hidden;background:#14110E"><img src="./art/red-skull.webp" alt="" style="width:100%;height:100%;object-fit:cover;object-position:50% 15%;display:block" /><div style="position:absolute;left:10px;right:10px;top:12px;background:#fff;border:3px solid #14110E;border-radius:20px;padding:9px 13px;font-size:14px;font-weight:700;line-height:1.3">Hydra… cannot… be destroyed…</div><div style="position:absolute;left:10px;bottom:8px;font-family:Bangers,cursive;font-size:68px;line-height:1;color:#C8102E;-webkit-text-stroke:2.5px #F4EFE3;transform:rotate(-6deg)">SHRAKK!</div></div>
+          <div style="border:3px solid #14110E;position:relative;overflow:hidden;background:#14110E"><img src="./art/hawkeye.jpg" alt="" style="width:100%;height:100%;object-fit:cover;object-position:50% 15%;display:block" /><div style="position:absolute;left:6px;right:6px;bottom:8px;background:#fff;border:3px solid #14110E;border-radius:14px;padding:6px 9px;font-size:12px;font-weight:700;line-height:1.3">Cut off one head, you get a nap.</div></div>
+          <div style="border:3px solid #14110E;position:relative;overflow:hidden;background:#14110E"><img src="./art/spider-woman.webp" alt="" style="width:100%;height:100%;object-fit:cover;object-position:50% 15%;display:block" /><div style="position:absolute;left:6px;right:6px;bottom:8px;background:#fff;border:3px solid #14110E;border-radius:14px;padding:6px 9px;font-size:12px;font-weight:700;line-height:1.3">Now put the world back.</div></div>
+        </div>
+        <div style="flex:.8;min-width:0;display:flex;flex-direction:column;gap:14px;justify-content:flex-end">
+          <div style="align-self:flex-start;background:#fff;border:3px solid #14110E;padding:7px 11px;font-size:12px;font-weight:800;font-style:italic;line-height:1.4;text-transform:uppercase">With the Reality Gem, one flash of yellow light undoes it all.</div>
+          <div style="font-family:Bangers,cursive;font-size:104px;line-height:.86;letter-spacing:1.5px">HYDRA<br />FALLS.</div>
+          <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px">
+            <div style="border:3px solid #14110E;background:#F4EFE3;padding:7px 9px"><div style="font-size:8px;font-weight:800;letter-spacing:1px;text-transform:uppercase;opacity:.6">Issues</div><div style="font-family:Bangers,cursive;font-size:26px;line-height:1.05">5/5</div></div>
+            <div style="border:3px solid #14110E;background:#F4EFE3;padding:7px 9px"><div style="font-size:8px;font-weight:800;letter-spacing:1px;text-transform:uppercase;opacity:.6">Rewinds</div><div style="font-family:Bangers,cursive;font-size:26px;line-height:1.05">2</div></div>
+            <div style="border:3px solid #14110E;background:#F4EFE3;padding:7px 9px"><div style="font-size:8px;font-weight:800;letter-spacing:1px;text-transform:uppercase;opacity:.6">Allies freed</div><div style="font-family:Bangers,cursive;font-size:26px;line-height:1.05">3</div></div>
+          </div>
+          <div style="height:54px;background:#C8102E;border:3px solid #14110E;color:#F4EFE3;display:flex;align-items:center;justify-content:center;font-family:Bangers,cursive;font-size:22px;letter-spacing:1.2px">EXPERT CAMPAIGN UNLOCKED ▸</div>
+          <div style="height:44px;border:3px solid #14110E;display:flex;align-items:center;justify-content:center;font-family:Bangers,cursive;font-size:18px">REREAD THE RUN</div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;unlockRule&quot;: {&quot;editor&quot;: &quot;enum&quot;, &quot;options&quot;: [&quot;sequential&quot;, &quot;open&quot;], &quot;default&quot;: &quot;sequential&quot;, &quot;tsType&quot;: &quot;'sequential' | 'open'&quot;, &quot;section&quot;: &quot;Saga&quot;}, &quot;expert&quot;: {&quot;editor&quot;: &quot;boolean&quot;, &quot;default&quot;: false, &quot;tsType&quot;: &quot;boolean&quot;, &quot;section&quot;: &quot;Campaign&quot;}, &quot;retryFraming&quot;: {&quot;editor&quot;: &quot;enum&quot;, &quot;options&quot;: [&quot;rewind&quot;, &quot;plain&quot;], &quot;default&quot;: &quot;rewind&quot;, &quot;tsType&quot;: &quot;'rewind' | 'plain'&quot;, &quot;section&quot;: &quot;Campaign&quot;}}">
+class Component extends DCLogic {
+  state = { step: 1, picks: { 1: "scanner", 2: null }, cpicks: { 1: "atk", 2: null } };
+  tech = [
+    { id: "stims", name: "Adrenal Stims", fx: "Ready and heal 5." },
+    { id: "scanner", name: "Tactical Scanner", fx: "Draw 5 cards." },
+    { id: "teleporter", name: "Emergency Teleporter", fx: "Fetch an ally, make it tough." },
+    { id: "cannon", name: "Laser Cannon", fx: "5 damage to villain + your enemies." }
+  ];
+  conds = [
+    { id: "thw", name: "Upgrade Thwart", fx: "+2 HP · hero +1 THW", hp: 2, stat: "THW" },
+    { id: "atk", name: "Upgrade Attack", fx: "+1 HP · hero +1 ATK", hp: 1, stat: "ATK" },
+    { id: "def", name: "Upgrade Defense", fx: "+3 HP · hero +1 DEF", hp: 3, stat: "DEF" },
+    { id: "rec", name: "Upgrade Recovery", fx: "+4 HP · alter-ego +1 REC", hp: 4, stat: "REC" }
+  ];
+  base = { 1: { hero: "HAWKEYE", hp: 9, THW: 1, ATK: 2, DEF: 1 }, 2: { hero: "SPIDER-WOMAN", hp: 11, THW: 1, ATK: 1, DEF: 1 } };
+  cap(s) { return s.charAt(0) + s.slice(1).toLowerCase(); }
+  techSeats() {
+    const { picks } = this.state;
+    return [1, 2].map(n => {
+      const other = n === 1 ? 2 : 1;
+      return { hero: this.base[n].hero, options: this.tech.map(t => {
+        const taken = picks[other] === t.id;
+        return { ...t, sel: picks[n] === t.id, taken, takenBy: "With " + this.cap(this.base[other].hero),
+          pick: () => { if (!taken) this.setState(s => ({ picks: { ...s.picks, [n]: s.picks[n] === t.id ? null : t.id } })); } };
+      }) };
+    });
+  }
+  condSeats() {
+    const { cpicks } = this.state;
+    return [1, 2].map(n => {
+      const b = this.base[n], other = n === 1 ? 2 : 1, pick = this.conds.find(c => c.id === cpicks[n]);
+      let preview = "Choose one, or stay as you are.";
+      if (cpicks[n] === "none") preview = "Staying as-is · " + b.hp + " HP";
+      else if (pick) preview = b.hp + " → " + (b.hp + pick.hp) + " HP · " + (pick.stat === "REC" ? "REC +1" : pick.stat + " " + b[pick.stat] + " → " + (b[pick.stat] + 1));
+      return { hero: b.hero, preview, declined: cpicks[n] === "none",
+        decline: () => this.setState(s => ({ cpicks: { ...s.cpicks, [n]: s.cpicks[n] === "none" ? null : "none" } })),
+        options: this.conds.map(c => {
+          const taken = cpicks[other] === c.id;
+          return { ...c, sel: cpicks[n] === c.id, taken, takenBy: "With " + this.cap(this.base[other].hero),
+            pick: () => { if (!taken) this.setState(s => ({ cpicks: { ...s.cpicks, [n]: s.cpicks[n] === c.id ? null : c.id } })); } };
+        }) };
+    });
+  }
+  saga() {
+    const open = (this.props.unlockRule ?? "sequential") === "open";
+    const boxes = [["MC16","Galaxy's Most Wanted"],["MC21","The Mad Titan's Shadow"],["MC27","Sinister Motives"],["MC32","Mutant Genesis"],["MC40","NeXt Evolution"],["MC45","Age of Apocalypse"],["MC50","Agents of S.H.I.E.L.D."],["MC60","Fear No Evil"]];
+    return {
+      sagaCount: open ? "9 volumes" : "1 of 9 open",
+      sagaNote: open ? "Any built volume can be started. Unbuilt ones light up as their card data ships. Civil War (MC56) is competitive only — no campaign." : "Win a volume on Standard to open the next. Sealed volumes keep their villains hidden. Civil War (MC56) is competitive only — no campaign.",
+      vols: boxes.map(([code, name], i) => ({ n: i + 2, code, name, next: !open && i === 0,
+        lock: open ? "Coming in an update" : (i === 0 ? "Win Vol. 1 to open" : "Sealed") }))
+    };
+  }
+  renderVals() {
+    const expert = !!(this.props.expert ?? false);
+    const rewind = (this.props.retryFraming ?? "rewind") === "rewind";
+    const { step, picks, cpicks } = this.state;
+    const allPicked = !!(picks[1] && picks[2]), condAll = !!(cpicks[1] && cpicks[2]);
+    return {
+      ...this.saga(),
+      expert, notExpert: !expert, rewind, plain: !rewind,
+      retryCta: rewind ? "REWIND ▸" : "RETRY ISSUE #3 ▸",
+      delayShort: expert ? "+3 threat per player" : "+3 threat",
+      delayFx: expert ? "Issue #5: Red Skull's scheme starts at +3 threat per player." : "Issue #5: Red Skull's scheme starts at +3 threat.",
+      p2: step >= 2, p3: step >= 3, np2: step < 2, np3: step < 3, notDone: step < 3, done: step >= 3, stepLabel: step + "/3",
+      advance: () => this.setState(s => ({ step: s.step >= 3 ? 1 : s.step + 1 })),
+      seats: this.techSeats(), allPicked, notAllPicked: !allPicked,
+      condSeats: this.condSeats(), condAllPicked: condAll, condNotAllPicked: !condAll
+    };
+  }
+}
+</script>
+</body>
+</html>
