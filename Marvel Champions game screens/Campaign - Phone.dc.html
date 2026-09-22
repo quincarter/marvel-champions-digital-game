@@ -42,36 +42,41 @@ a:hover{color:#8E0B20;}
 
     <!-- C00b -->
     <div id="c00b" style="display:flex;flex-direction:column;gap:9px">
-      <div style="display:flex;align-items:baseline;gap:9px;color:#F4EFE3"><span style="font-family:Bangers,cursive;font-size:22px;color:#C8102E">C00b</span><span style="font-family:Bangers,cursive;font-size:20px;letter-spacing:.8px">THE SAGA</span><span style="font-size:10px;font-weight:800;letter-spacing:1.2px;text-transform:uppercase;opacity:.45">All campaigns · unlock in order</span></div>
+      <div style="display:flex;align-items:baseline;gap:9px;color:#F4EFE3"><span style="font-family:Bangers,cursive;font-size:22px;color:#C8102E">C00b</span><span style="font-family:Bangers,cursive;font-size:20px;letter-spacing:.8px">THE SAGA</span><span style="font-size:10px;font-weight:800;letter-spacing:1.2px;text-transform:uppercase;opacity:.45">Tap any volume · live</span></div>
       <div data-screen-label="C00b The saga" style="width:390px;height:844px;box-sizing:border-box;overflow:hidden;background:#F4EFE3;color:#14110E;display:flex;flex-direction:column">
         <div style="flex:none;height:30px;background:#14110E;color:#F4EFE3;display:flex;align-items:center;justify-content:space-between;padding:0 14px;font-size:11px;font-weight:800"><span>9:41</span><span style="display:flex;gap:5px;align-items:center"><span style="width:15px;height:8px;border:1.5px solid #F4EFE3"></span><span style="width:16px;height:8px;background:#F4EFE3"></span></span></div>
-        <div style="flex:none;background:#14110E;color:#F4EFE3;display:flex;align-items:center;gap:10px;padding:9px 13px 11px">
-          <span style="font-family:Bangers,cursive;font-size:16px;padding:3px 8px;border:2px solid #F4EFE3">◂</span>
-          <span style="font-family:Bangers,cursive;font-size:21px;letter-spacing:1px">THE SAGA</span>
-          <span style="flex:1"></span><span style="font-size:9px;font-weight:800;letter-spacing:1.1px;text-transform:uppercase;opacity:.55">{{ sagaCount }}</span>
-        </div>
+        <div style="flex:none;background:#14110E;color:#F4EFE3;display:flex;align-items:center;gap:10px;padding:9px 13px 11px"><span style="font-family:Bangers,cursive;font-size:16px;padding:3px 8px;border:2px solid #F4EFE3">◂</span><span style="font-family:Bangers,cursive;font-size:21px;letter-spacing:1px">THE SAGA</span><span style="flex:1"></span><span style="font-size:9px;font-weight:800;letter-spacing:1.1px;text-transform:uppercase;opacity:.55">{{ sagaCount }}</span></div>
         <div style="flex:1;min-height:0;overflow-y:auto;scrollbar-width:none;padding:12px;display:flex;flex-direction:column;gap:8px">
-          <div style="border:3px solid #14110E;background:#14110E;color:#F4EFE3;box-shadow:0 0 0 3px #C8102E;margin-bottom:6px">
-            <div style="height:180px;border-bottom:3px solid #14110E;position:relative;overflow:hidden"><img src="./art/red-skull.webp" alt="" style="width:100%;height:100%;object-fit:cover;object-position:50% 15%;display:block" /><span style="position:absolute;left:0;top:0;background:#F2B01E;color:#14110E;border-right:3px solid #14110E;border-bottom:3px solid #14110E;font-family:Bangers,cursive;font-size:17px;padding:3px 9px">VOL. 1</span></div>
+          <div style="border:3px solid #14110E;background:#14110E;color:#F4EFE3;box-shadow:0 0 0 3px #C8102E;margin-bottom:6px;flex:none">
+            <div style="height:170px;border-bottom:3px solid #14110E;position:relative;overflow:hidden;background-image:radial-gradient(rgba(244,239,227,.12) 1.2px,transparent 1.3px);background-size:7px 7px">
+              <sc-if value="{{ feat.hasArt }}" hint-placeholder-val="{{ true }}"><img src="./art/red-skull.webp" alt="" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:50% 15%;display:block" /></sc-if>
+              <sc-if value="{{ feat.noArt }}" hint-placeholder-val="{{ false }}"><div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px"><span style="font-family:Bangers,cursive;font-size:120px;line-height:.85;opacity:.2">{{ feat.glyph }}</span><span style="font-size:10px;font-weight:800;letter-spacing:1.2px;text-transform:uppercase;opacity:.55">{{ feat.artNote }}</span></div></sc-if>
+              <span style="position:absolute;left:0;top:0;background:#F2B01E;color:#14110E;border-right:3px solid #14110E;border-bottom:3px solid #14110E;font-family:Bangers,cursive;font-size:17px;padding:4px 11px">VOL. {{ feat.n }}</span>
+              <sc-if value="{{ feat.done }}" hint-placeholder-val="{{ false }}"><div style="position:absolute;right:14px;top:16px;border:4px solid #1F7A4C;color:#1F7A4C;background:rgba(244,239,227,.94);font-family:Bangers,cursive;font-size:24px;letter-spacing:1px;padding:2px 12px;transform:rotate(8deg)">COMPLETE</div></sc-if>
+            </div>
             <div style="padding:10px 12px 12px;display:flex;flex-direction:column;gap:7px">
-              <div style="display:flex;justify-content:space-between;font-size:9px;font-weight:800;letter-spacing:1px;text-transform:uppercase"><span style="color:#F2B01E">In progress · MC10</span><span style="opacity:.6">Issue 3 of 5</span></div>
-              <div style="font-family:Bangers,cursive;font-size:28px;line-height:.95;letter-spacing:.8px">THE RISE OF RED SKULL</div>
-              <div style="display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:4px"><div style="height:7px;background:#F4EFE3"></div><div style="height:7px;background:#F4EFE3"></div><div style="height:7px;background:#C8102E;box-shadow:0 0 0 2px #F4EFE3"></div><div style="height:7px;border:2px solid rgba(244,239,227,.35);box-sizing:border-box"></div><div style="height:7px;border:2px solid rgba(244,239,227,.35);box-sizing:border-box"></div></div>
-              <div style="display:flex;gap:10px;font-size:10px;font-weight:700;opacity:.7"><span>Hawkeye · Spider-Woman</span><span style="flex:1"></span><span>Standard ○ · Expert ○</span></div>
+              <div style="display:flex;justify-content:space-between;font-size:9px;font-weight:800;letter-spacing:1px;text-transform:uppercase"><span style="color:#F2B01E">{{ feat.status }} · {{ feat.code }}</span><span style="opacity:.6">{{ feat.right }}</span></div>
+              <div style="font-family:Bangers,cursive;font-size:28px;line-height:.95;letter-spacing:.8px">{{ feat.nameUp }}</div>
+              <sc-if value="{{ feat.hasPips }}" hint-placeholder-val="{{ true }}"><div style="display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:5px"><sc-for list="{{ feat.pips }}" as="p" hint-placeholder-count="5"><div style="height:7px;position:relative"><sc-if value="{{ p.done }}" hint-placeholder-val="{{ false }}"><div style="position:absolute;inset:0;background:#F4EFE3"></div></sc-if><sc-if value="{{ p.cur }}" hint-placeholder-val="{{ false }}"><div style="position:absolute;inset:0;background:#C8102E;box-shadow:0 0 0 2px #F4EFE3"></div></sc-if><sc-if value="{{ p.empty }}" hint-placeholder-val="{{ true }}"><div style="position:absolute;inset:0;border:2px solid rgba(244,239,227,.35)"></div></sc-if></div></sc-for></div></sc-if>
+              <div style="font-size:10.5px;font-weight:700;opacity:.75;line-height:1.4">{{ feat.sub }}</div>
+              <sc-if value="{{ feat.hasAlt }}" hint-placeholder-val="{{ false }}"><div style="display:flex;gap:6px"><div style="flex:1;height:40px;border:2.5px solid #F4EFE3;display:flex;align-items:center;justify-content:center;font-family:Bangers,cursive;font-size:15px;letter-spacing:.6px">{{ feat.alt1 }}</div><div style="flex:1;height:40px;border:2.5px solid #F4EFE3;display:flex;align-items:center;justify-content:center;font-family:Bangers,cursive;font-size:15px;letter-spacing:.6px">{{ feat.alt2 }}</div></div><div style="font-size:10px;line-height:1.4;opacity:.6">{{ feat.foot }}</div></sc-if>
             </div>
           </div>
-          <div style="display:flex;align-items:center;gap:8px;margin-top:2px"><span style="font-family:Bangers,cursive;font-size:16px;letter-spacing:.6px">NEXT IN THE SAGA</span><span style="flex:1;height:3px;background:#14110E"></span></div>
-          <sc-for list="{{ vols }}" as="v" hint-placeholder-count="8">
-            <div style="position:relative;display:flex;align-items:stretch;height:54px;border:3px solid #14110E;background:#EAE3D3">
+          <div style="display:flex;align-items:center;gap:8px;margin-top:2px"><span style="font-family:Bangers,cursive;font-size:16px;letter-spacing:.6px">ALL VOLUMES</span><span style="flex:1;height:3px;background:#14110E"></span></div>
+          <sc-for list="{{ vols }}" as="v" hint-placeholder-count="9">
+            <div onClick="{{ v.pick }}" style="position:relative;flex:none;display:flex;align-items:stretch;height:54px;border:3px solid #14110E;background:#EAE3D3;cursor:pointer">
               <div style="width:62px;flex:none;background:#14110E;color:#F4EFE3;display:flex;flex-direction:column;align-items:center;justify-content:center;line-height:1"><span style="font-size:8px;font-weight:800;letter-spacing:1px">VOL.</span><span style="font-family:Bangers,cursive;font-size:24px">{{ v.n }}</span></div>
-              <div style="flex:1;min-width:0;padding:6px 10px;display:flex;flex-direction:column;justify-content:center;gap:2px"><span style="font-family:Bangers,cursive;font-size:17px;line-height:1;letter-spacing:.4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ v.name }}</span><span style="font-size:9px;font-weight:800;letter-spacing:.8px;text-transform:uppercase;opacity:.6">{{ v.code }} · {{ v.lock }}</span></div>
-              <sc-if value="{{ v.next }}" hint-placeholder-val="{{ false }}"><div style="position:absolute;inset:-3px;border:3px dashed #C8102E;pointer-events:none"></div></sc-if>
+              <div style="flex:1;min-width:0;padding:6px 10px;display:flex;flex-direction:column;justify-content:center;gap:2px"><span style="font-family:Bangers,cursive;font-size:17px;line-height:1;letter-spacing:.4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ v.name }}</span><span style="font-size:9px;font-weight:800;letter-spacing:.8px;text-transform:uppercase;opacity:.6">{{ v.code }}</span></div>
+              <div style="flex:none;display:flex;align-items:center;padding-right:9px"><sc-if value="{{ v.done }}" hint-placeholder-val="{{ false }}"><span style="font-size:8.5px;font-weight:800;letter-spacing:.9px;text-transform:uppercase;background:#1F7A4C;color:#F4EFE3;padding:3px 6px;white-space:nowrap">✓ Complete</span></sc-if><sc-if value="{{ v.live }}" hint-placeholder-val="{{ false }}"><span style="font-size:8.5px;font-weight:800;letter-spacing:.9px;text-transform:uppercase;background:#C8102E;color:#F4EFE3;padding:3px 6px;white-space:nowrap">Issue 3 of 5</span></sc-if><sc-if value="{{ v.fresh }}" hint-placeholder-val="{{ false }}"><span style="font-size:8.5px;font-weight:800;letter-spacing:.9px;text-transform:uppercase;background:#F2B01E;color:#14110E;padding:3px 6px;white-space:nowrap">Open</span></sc-if><sc-if value="{{ v.sealed }}" hint-placeholder-val="{{ true }}"><span style="font-size:8.5px;font-weight:800;letter-spacing:.9px;text-transform:uppercase;border:1.5px solid rgba(20,17,14,.45);padding:2px 6px;white-space:nowrap">Sealed</span></sc-if></div>
+              <sc-if value="{{ v.sealed }}" hint-placeholder-val="{{ true }}"><div style="position:absolute;inset:0;background:rgba(244,239,227,.45);pointer-events:none"></div></sc-if>
+              <sc-if value="{{ v.sel }}" hint-placeholder-val="{{ false }}"><div style="position:absolute;inset:-3px;border:3px solid #C8102E;pointer-events:none"></div></sc-if>
             </div>
           </sc-for>
           <div style="font-size:10px;line-height:1.45;opacity:.6;margin-top:4px">{{ sagaNote }}</div>
         </div>
         <div style="flex:none;padding:10px 12px 14px;background:#14110E">
-          <a href="#c01" style="height:52px;background:#C8102E;border:3px solid #F4EFE3;color:#F4EFE3;display:flex;align-items:center;justify-content:center;font-family:Bangers,cursive;font-size:22px;letter-spacing:1.2px">CONTINUE VOL. 1 ▸</a>
+          <sc-if value="{{ feat.canPlay }}" hint-placeholder-val="{{ true }}"><a href="#c01" style="height:52px;background:#C8102E;border:3px solid #F4EFE3;color:#F4EFE3;display:flex;align-items:center;justify-content:center;font-family:Bangers,cursive;font-size:22px;letter-spacing:1.2px">{{ feat.cta }}</a></sc-if>
+          <sc-if value="{{ feat.locked }}" hint-placeholder-val="{{ false }}"><div style="height:52px;border:3px solid rgba(244,239,227,.3);color:rgba(244,239,227,.5);display:flex;align-items:center;justify-content:center;font-family:Bangers,cursive;font-size:20px;letter-spacing:1.2px">{{ feat.cta }}</div></sc-if>
         </div>
       </div>
     </div>
@@ -590,7 +595,7 @@ a:hover{color:#8E0B20;}
   </div>
 </div>
 </x-dc>
-<script type="text/x-dc" data-dc-script data-props="{&quot;unlockRule&quot;: {&quot;editor&quot;: &quot;enum&quot;, &quot;options&quot;: [&quot;sequential&quot;, &quot;open&quot;], &quot;default&quot;: &quot;sequential&quot;, &quot;tsType&quot;: &quot;'sequential' | 'open'&quot;, &quot;section&quot;: &quot;Saga&quot;}, &quot;expert&quot;: {&quot;editor&quot;: &quot;boolean&quot;, &quot;default&quot;: false, &quot;tsType&quot;: &quot;boolean&quot;, &quot;section&quot;: &quot;Campaign&quot;}, &quot;retryFraming&quot;: {&quot;editor&quot;: &quot;enum&quot;, &quot;options&quot;: [&quot;rewind&quot;, &quot;plain&quot;], &quot;default&quot;: &quot;rewind&quot;, &quot;tsType&quot;: &quot;'rewind' | 'plain'&quot;, &quot;section&quot;: &quot;Campaign&quot;}}">
+<script type="text/x-dc" data-dc-script data-props="{&quot;sagaProgress&quot;: {&quot;editor&quot;: &quot;enum&quot;, &quot;options&quot;: [&quot;vol1&quot;, &quot;vol1-beaten&quot;], &quot;default&quot;: &quot;vol1&quot;, &quot;tsType&quot;: &quot;'vol1' | 'vol1-beaten'&quot;, &quot;section&quot;: &quot;Saga&quot;}, &quot;unlockRule&quot;: {&quot;editor&quot;: &quot;enum&quot;, &quot;options&quot;: [&quot;sequential&quot;, &quot;open&quot;], &quot;default&quot;: &quot;sequential&quot;, &quot;tsType&quot;: &quot;'sequential' | 'open'&quot;, &quot;section&quot;: &quot;Saga&quot;}, &quot;expert&quot;: {&quot;editor&quot;: &quot;boolean&quot;, &quot;default&quot;: false, &quot;tsType&quot;: &quot;boolean&quot;, &quot;section&quot;: &quot;Campaign&quot;}, &quot;retryFraming&quot;: {&quot;editor&quot;: &quot;enum&quot;, &quot;options&quot;: [&quot;rewind&quot;, &quot;plain&quot;], &quot;default&quot;: &quot;rewind&quot;, &quot;tsType&quot;: &quot;'rewind' | 'plain'&quot;, &quot;section&quot;: &quot;Campaign&quot;}}">
 class Component extends DCLogic {
   state = { step: 1, picks: { 1: "scanner", 2: null }, cpicks: { 1: "atk", 2: null } };
   conds = [
@@ -628,12 +633,24 @@ class Component extends DCLogic {
   ];
   saga() {
     const open = (this.props.unlockRule ?? "sequential") === "open";
-    const boxes = [["MC16","Galaxy's Most Wanted"],["MC21","The Mad Titan's Shadow"],["MC27","Sinister Motives"],["MC32","Mutant Genesis"],["MC40","NeXt Evolution"],["MC45","Age of Apocalypse"],["MC50","Agents of S.H.I.E.L.D."],["MC60","Fear No Evil"]];
+    const beaten = (this.props.sagaProgress ?? "vol1") === "vol1-beaten";
+    const boxes = [["MC10","The Rise of Red Skull"],["MC16","Galaxy's Most Wanted"],["MC21","The Mad Titan's Shadow"],["MC27","Sinister Motives"],["MC32","Mutant Genesis"],["MC40","NeXt Evolution"],["MC45","Age of Apocalypse"],["MC50","Agents of S.H.I.E.L.D."],["MC60","Fear No Evil"]];
+    const statusOf = i => i === 0 ? (beaten ? "done" : "live") : (open || (beaten && i === 1)) ? "fresh" : "sealed";
+    const sel = this.state.vsel ?? (beaten ? 1 : 0);
+    const vols = boxes.map(([code, name], i) => { const s = statusOf(i); return { n: i + 1, code, name, done: s === "done", live: s === "live", fresh: s === "fresh", sealed: s === "sealed", hasArt: i === 0, sel: i === sel, pick: () => this.setState({ vsel: i }) }; });
+    const [code, name] = boxes[sel], s = statusOf(sel), n = sel + 1;
+    const base = { n, code, nameUp: name.toUpperCase(), hasArt: sel === 0, noArt: sel !== 0, done: s === "done", glyph: s === "sealed" ? "?" : String(n), artNote: s === "sealed" ? "Villains hidden until it opens" : "Box art · " + code, alt1: "", alt2: "", foot: "", hasAlt: false, hasPips: false, pips: [], canPlay: true, locked: false };
+    const pipsFor = cur => [0,1,2,3,4].map(k => ({ done: k < cur, cur: k === cur, empty: k > cur }));
+    let feat;
+    if (s === "done") feat = { ...base, status: "Complete", right: "Standard ✓ · Expert ○", sub: "Hawkeye · Spider-Woman · 5 issues · 2 rewinds", cta: "REREAD THE RUN", hasAlt: true, alt1: "NEW RUN", alt2: "EXPERT RUN ▸", foot: "A new run gets its own log. The finished one stays on the shelf to reread.", hasPips: true, pips: pipsFor(5) };
+    else if (s === "live") feat = { ...base, status: "In progress", right: "Issue 3 of 5", sub: "Hawkeye · Spider-Woman", cta: "CONTINUE ▸", hasAlt: true, alt1: "DOSSIER", alt2: "START OVER", foot: "Starting over archives this run; it doesn't delete it.", hasPips: true, pips: pipsFor(2) };
+    else if (s === "fresh") feat = { ...base, status: "Open", right: "Not started", sub: "Sign a new roster. Any hero can sign, including ones who finished an earlier volume.", cta: "START VOL. " + n + " ▸" };
+    else feat = { ...base, status: "Sealed", right: "", sub: "Win Vol. " + (n - 1) + " on Standard to open it. Its villains stay hidden until then.", cta: "LOCKED", canPlay: false, locked: true };
+    const doneCount = beaten ? 1 : 0, openCount = vols.filter(v => !v.sealed).length;
     return {
-      sagaCount: open ? "9 volumes" : "1 of 9 open",
-      sagaNote: open ? "Any built volume can be started. Unbuilt ones light up as their card data ships. Civil War (MC56) is competitive only — no campaign." : "Win a volume on Standard to open the next. Sealed volumes keep their villains hidden. Civil War (MC56) is competitive only — no campaign.",
-      vols: boxes.map(([code, name], i) => ({ n: i + 2, code, name, next: !open && i === 0,
-        lock: open ? "Coming in an update" : (i === 0 ? "Win Vol. 1 to open" : "Sealed") }))
+      vols, feat,
+      sagaCount: doneCount + " of 9 complete · " + openCount + " open",
+      sagaNote: open ? "Every volume is open. Finished volumes can be reread or started again. Civil War (MC56) is competitive only, so it has no campaign." : "Win a volume on Standard to open the next. Finished volumes can be reread or started again. Civil War (MC56) is competitive only, so it has no campaign."
     };
   }
   renderVals() {
