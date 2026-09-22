@@ -102,6 +102,15 @@ function evaluateQuery(
       return { kind: "cards", instanceIds: matching(state, removedFromGame(events), query.query, context) };
     case "cardsInPlay":
       return { kind: "cards", instanceIds: matching(state, cardsInPlay(state), query.query, context) };
+    case "cardsTuckedUnder": {
+      // RRG 1.8 "Tuck": a tucked card is out of play, so `cardsInPlay` never reaches it — the host is in play and
+      // what is underneath is not (MC10 p. 12's allies beneath a side scheme). A host that has left play names
+      // nothing, which is the printed "if the … side scheme is still in play" condition.
+      const tucked = matching(state, cardsInPlay(state), query.under, context).flatMap(
+        (id) => getInstance(state, id)?.tucked ?? [],
+      );
+      return { kind: "cards", instanceIds: matching(state, tucked, query.query, context) };
+    }
     case "cardsInVictoryDisplay":
       return { kind: "cards", instanceIds: matching(state, state.victoryDisplay, query.query, context) };
     case "countersOn": {

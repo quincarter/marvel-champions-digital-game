@@ -392,11 +392,32 @@ export function validateDeck(deck: DeckContents, pool: CardPool, context?: DeckC
    */
   const isRemovedFromCampaign = (cardId: string): boolean =>
     (campaign?.removedFromCampaign ?? []).some((face) => face.cardId === cardId && face.face === undefined);
-  const isProhibited = (card: PlayerCard): boolean => {
+  const isProhibited = (card: AnyCard): boolean => {
     if (!campaign) return false;
     if (campaign.prohibitedCardIds?.includes(card.id)) return true;
-    const set = card.specificTo?.encounterSetId;
+    const set = "specificTo" in card ? card.specificTo?.encounterSetId : undefined;
     return set !== undefined && (campaign.prohibitedEncounterSetIds?.includes(set) ?? false);
+  };
+
+  /**
+   * What the campaign has taken away, reported once per line: RRG 1.8 p. 29's removal first, then the box's own
+   * prohibition (MC27 p. 4; MC40 p. 6). Both are false with no campaign context, so a standalone deck never
+   * reaches either.
+   */
+  const campaignTookAway = (card: AnyCard, name: string): boolean => {
+    if (isRemovedFromCampaign(card.id)) {
+      add(
+        "campaign_removed_card",
+        `${name} has been removed from this campaign and can no longer be used during the rest of it, even on a retry.`,
+        [card.id],
+      );
+      return true;
+    }
+    if (isProhibited(card)) {
+      add("campaign_prohibited_card", `${name} cannot be used during this campaign.`, [card.id]);
+      return true;
+    }
+    return false;
   };
 
   // ---- The identity ---------------------------------------------------------------------
@@ -491,6 +512,17 @@ export function validateDeck(deck: DeckContents, pool: CardPool, context?: DeckC
       );
       continue;
     }
+    if (card.type === "obligation" && grantedCopies(card.id) >= entry.quantity) {
+      // The one encounter card a campaign may put in a player deck. MC10 p. 17, "Obligations in Player Decks":
+      // "The obligations in the expert campaign sets have player-card backs because they are meant to be added to
+      // player decks, but they are still encounter cards." Legal only because the campaign put it there — an
+      // obligation is never a deckbuilding choice, so the exemption is exactly the copies the campaign granted,
+      // and an ungranted copy falls through to the ordinary "encounter cards cannot be in a player deck" refusal
+      // below. Like every grant it is exempt from deck size (MC10 p. 3) and reaches no further check, but the
+      // campaign can still have taken it away (RRG 1.8 p. 29).
+      campaignTookAway(card, name);
+      continue;
+    }
     if (!isPlayerDeckCard(card)) {
       // RRG 1.8 "Identity-Specific Card" (p. 23) and "Obligation" (p. 30): an identity's
       // obligation and nemesis set are identity-specific but are encounter cards. Setup adds
@@ -530,18 +562,7 @@ export function validateDeck(deck: DeckContents, pool: CardPool, context?: DeckC
     }
     // RRG 1.8 p. 29 and MC27 p. 4 / MC40 p. 6: gone for the rest of the campaign, or never allowed inside it.
     // Checked before everything below, so a removed card is reported once, as removed.
-    if (isRemovedFromCampaign(card.id)) {
-      add(
-        "campaign_removed_card",
-        `${name} has been removed from this campaign and can no longer be used during the rest of it, even on a retry.`,
-        [card.id],
-      );
-      continue;
-    }
-    if (isPlayerDeckCard(card) && isProhibited(card)) {
-      add("campaign_prohibited_card", `${name} cannot be used during this campaign.`, [card.id]);
-      continue;
-    }
+    if (campaignTookAway(card, name)) continue;
     if (card.specificTo !== undefined) {
       // Neither kind is a deckbuilding choice: a campaign adds campaign cards (and, in The Rise of Red Skull, rescued
       // Captive allies) to decks by its own instructions, "Cards added to the deck as part of a campaign do not count
@@ -577,7 +598,13 @@ export function validateDeck(deck: DeckContents, pool: CardPool, context?: DeckC
           `${name} is used only in competitive (team-vs-team) mode, which is not available yet.`,
           [card.id],
         );
-      } else {
+      } else if (grantedCopies(card.id) < entry.quantity) {
+        // A scenario-specific card is not a deckbuilding choice either — but a campaign instruction can still add
+        // one to a deck, and then it is as legal as any other grant: MC10 p. 10, "Each player who rescued one or
+        // more allies from the Taskmaster encounter set **adds those allies to their deck** and records their
+        // names in the campaign log" (the same sentence's cards stay refused for every copy the campaign did not
+        // grant, and for every deck that is not this campaign's). MC10 p. 12 then takes an unrescued one back out
+        // through RRG 1.8 p. 29's removal, which `campaignTookAway` has already checked above.
         add(
           "scenario_card",
           `${name} belongs to a scenario's own set of cards and enters the game only through that scenario, so it cannot be put in a deck.`,

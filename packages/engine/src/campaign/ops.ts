@@ -74,7 +74,21 @@ export interface CampaignPendingChoice extends CampaignChoiceKey {
   readonly options: readonly string[];
   readonly count: number;
   readonly optional: boolean;
+  /**
+   * The choice is whether to take a **random draw**, not which card to take (`CampaignOp` `random` with
+   * `optional`). Its `options` are the single `CAMPAIGN_ACCEPT` token: answering `[]` declines and answering
+   * `[CAMPAIGN_ACCEPT]` accepts, after which the cards come from `CampaignLog.rng` rather than from the answer.
+   * The trace still records what was drawn (`CampaignChoiceRecord.random`), so the history reads the same way.
+   */
+  readonly random?: true;
 }
+
+/**
+ * The one option an optional `random` offers: "yes, take the draw". A token rather than a card id because the
+ * players are not choosing a card — the draw is the RNG's — and a token keeps the answer shape identical to every
+ * other choice, so a caller, the history and the option-membership check need no special case.
+ */
+export const CAMPAIGN_ACCEPT = "accept";
 
 /** One answered choice. Recorded in the log's history, which is what makes a campaign replayable from its seed. */
 export interface CampaignChoiceAnswer extends CampaignChoiceKey {
@@ -149,11 +163,15 @@ const scalarsOfLogValue = (value: LogValue | undefined): readonly CampaignScalar
     case "number":
       return [value.value];
     case "flag":
-      return [value.value];
+      // An unchecked box records nothing, the way an empty `choice` and an empty `text` already do: "if the box is
+      // checked" is the only sentence a rulebook writes about a flag, so `fieldIsSet` must not be satisfied by a
+      // box that was explicitly written `false` (every per-seat "each player records whether …" writes one).
+      return value.value ? [value.value] : [];
     case "cardList":
       return value.cardIds;
     case "cardRef":
-      return [value.cardId];
+      // Same polarity: a `cardRef` field left unset by a declined optional choice holds no card id at all.
+      return value.cardId === "" ? [] : [value.cardId];
     case "choice":
       return value.option === "" ? [] : [value.option];
     case "strikeList":
@@ -278,6 +296,10 @@ export function evaluateCampaignPredicate(run: CampaignRun, predicate: CampaignP
       const resolved = run.working.resolved[predicate.nodeId];
       return predicate.as === undefined ? resolved !== undefined : resolved === predicate.as;
     }
+    case "choiceMade":
+      // The counterpart of `optional` on `choose`/`random`: a seat that declined recorded an empty pick, so this
+      // is false for that seat and true for one that took it (MC10 p. 12's "each player … **may** replace").
+      return slotValues(run, predicate.slot).length > 0;
     case "modes":
       return matchesModes(run.modes, predicate.of);
     case "not":
@@ -313,7 +335,11 @@ const CARD_DATA_CATEGORIES: Readonly<Record<AnyCard["type"], readonly TargetCate
   evidence: [],
 };
 
-/** RRG 1.8 "Player Deck" (p. 33). A collection or own-deck choice adds a card to a deck, so only these qualify. */
+/**
+ * RRG 1.8 "Player Deck" (p. 33). A collection or own-deck choice *is* a deckbuilding choice, so only these
+ * qualify — which is a rule about those two sources, not about the filter: a campaign set holds whatever the box
+ * printed in it, and a card of one reaches a deck only because a `grantCard` op put it there (RRG 1.8 p. 11).
+ */
 const DECKABLE: ReadonlySet<AnyCard["type"]> = new Set<AnyCard["type"]>([
   "ally",
   "event",
@@ -344,6 +370,12 @@ const grantedTo = (seat: CampaignSeat | undefined): ReadonlySet<string> =>
  * `excludeGranted` is **group-wide**: once a campaign card has been added to someone's deck, the physical card is
  * taken. MC16 p. 5 prints the same rule for its Market ("only one copy per campaign for the players as a group").
  * Flagged rather than assumed to be per-seat, because no box prints the per-seat reading.
+ *
+ * It reads the *grants*, so a table-wide single-copy pool must be written as a `forEachSeat` whose ops choose and
+ * then grant for each seat in turn (MC10 p. 5's "each player chooses one of the TECH upgrades"). A flat `choose`
+ * with `chooser: "eachSeat"` asks every seat before any `grantCard` runs, so nothing has been taken yet and two
+ * seats could name the same copy — the ordering is the definition's to get right, and is why the per-seat shape
+ * is the one both synthetic fixtures use.
  */
 const anyGranted = (run: CampaignRun): ReadonlySet<string> =>
   new Set(run.working.seats.flatMap((seat) => seat.grants.map((grant) => grant.cardId as string)));
@@ -357,7 +389,6 @@ function matchesCollectionFilter(
   filter: CollectionFilter,
   seat: CampaignSeat | undefined,
 ): boolean {
-  if (!DECKABLE.has(card.type)) return false;
   const categories = CARD_DATA_CATEGORIES[card.type];
   if (filter.categories && !filter.categories.some((category) => categories.includes(category))) return false;
   if (filter.aspects && !filter.aspects.includes("aspect" in card ? (card.aspect as string) : "")) return false;
@@ -376,6 +407,35 @@ function matchesCollectionFilter(
   if (filter.excludeCardIds?.includes(card.id)) return false;
   return true;
 }
+
+/** A deckbuilding choice's candidates: the filter, plus RRG 1.8 p. 33's "what may be in a player deck at all". */
+const matchesDeckbuildingFilter = (
+  run: CampaignRun,
+  card: AnyCard,
+  filter: CollectionFilter,
+  seat: CampaignSeat | undefined,
+): boolean => DECKABLE.has(card.type) && matchesCollectionFilter(run, card, filter, seat);
+
+/**
+ * One encounter set's cards, narrowed the way a `campaignSet`/`perSeatSet` source asks: the printed set, minus
+ * what a grant has already taken, minus the box's own sub-pool filter (MC10 p. 5's TECH upgrades against MC10
+ * p. 7's Condition upgrades, both printed in one set).
+ */
+const cardsOfSet = (
+  run: CampaignRun,
+  setId: string,
+  granted: ReadonlySet<string>,
+  filter: CollectionFilter | undefined,
+  seat: CampaignSeat | undefined,
+): readonly string[] =>
+  poolCards(run.deps.pool)
+    .filter(
+      (card) =>
+        inEncounterSet(card, setId) &&
+        !granted.has(card.id) &&
+        (filter === undefined || matchesCollectionFilter(run, card, filter, seat)),
+    )
+    .map((card) => card.id);
 
 /** The nodes still playable: never resolved, and — for a `choice` graph — passing the graph's `available` gate. */
 export function availableNodeIds(run: CampaignRun, filter: "unresolved" | "available"): readonly string[] {
@@ -402,11 +462,7 @@ export function resolveChoiceSource(
       return usable(source.cardIds);
     case "campaignSet": {
       const granted = source.excludeGranted ? anyGranted(run) : new Set<string>();
-      return usable(
-        poolCards(run.deps.pool)
-          .filter((card) => inEncounterSet(card, source.encounterSetId) && !granted.has(card.id))
-          .map((card) => card.id),
-      );
+      return usable(cardsOfSet(run, source.encounterSetId, granted, source.filter, seat));
     }
     case "perSeatSet": {
       // MC10 p. 17: "they must take that card from the set that matches their player number."
@@ -420,16 +476,12 @@ export function resolveChoiceSource(
         );
       }
       const granted = source.excludeGranted ? grantedTo(seat) : new Set<string>();
-      return usable(
-        poolCards(run.deps.pool)
-          .filter((card) => inEncounterSet(card, setId) && !granted.has(card.id))
-          .map((card) => card.id),
-      );
+      return usable(cardsOfSet(run, setId, granted, source.filter, seat));
     }
     case "collection":
       return usable(
         poolCards(run.deps.pool)
-          .filter((card) => matchesCollectionFilter(run, card, source.filter, seat))
+          .filter((card) => matchesDeckbuildingFilter(run, card, source.filter, seat))
           .map((card) => card.id),
       );
     case "fieldOptions": {
@@ -455,7 +507,7 @@ export function resolveChoiceSource(
       return usable(
         listed.filter((id) => {
           const card = cards.find((candidate) => candidate.id === id);
-          return card !== undefined && matchesCollectionFilter(run, card, filter, seat);
+          return card !== undefined && matchesDeckbuildingFilter(run, card, filter, seat);
         }),
       );
     }
@@ -479,8 +531,11 @@ function logValueFor(run: CampaignRun, field: string, value: CampaignValue): Log
     case "number":
       return { kind: "number", value: campaignNumber(run, value) };
     case "flag": {
+      // Nothing to write is an *unchecked* box. The earlier `true` default had the polarity backwards: a box a
+      // rulebook means to check is written `{ kind: "const", value: true }`, while a value that resolves to
+      // nothing — an unset field, a declined optional choice — is exactly the case that must not check it.
       const [first] = campaignValues(run, value);
-      return { kind: "flag", value: first === undefined ? true : Boolean(first) };
+      return { kind: "flag", value: first === undefined ? false : Boolean(first) };
     }
     case "cardList":
       return { kind: "cardList", cardIds: campaignStrings(run, value) as readonly CardId[] };
@@ -648,6 +703,52 @@ function runChoose(
 }
 
 /**
+ * A random draw, and the consent an `optional` one needs first.
+ *
+ * `optional` is the printed "each player **may** add 1 random …" (MC10 p. 7): the players decide *whether*, never
+ * *which*, so the pending choice offers the single `CAMPAIGN_ACCEPT` token and the cards still come from the log's
+ * RNG. A declined draw records an empty pick — the same shape a declined `choose` records — so `choiceMade` reads
+ * it, and the trace says the draw was offered rather than saying nothing at all.
+ */
+function runRandom(
+  run: CampaignRun,
+  op: Extract<CampaignOp, { kind: "random" }>,
+  instruction: CampaignInstruction,
+): void {
+  const options = resolveChoiceSource(run, op.from, run.seatScope);
+  const count = op.count ?? 1;
+  if (op.optional) {
+    const key: CampaignChoiceKey = { instructionId: instruction.id, slot: op.slot, seatNumber: run.seatScope };
+    const answer = run.answers.get(campaignChoiceKey(key));
+    if (answer === undefined) {
+      run.pending = {
+        ...key,
+        text: instruction.text,
+        citation: instruction.citation,
+        chooser: run.seatScope === null ? "group" : "eachSeat",
+        options: [CAMPAIGN_ACCEPT],
+        count: 1,
+        optional: true,
+        random: true,
+      };
+      return;
+    }
+    if (answer.length > 1 || answer.some((picked) => picked !== CAMPAIGN_ACCEPT)) {
+      throw new EngineInvariantError(
+        `campaign draw "${op.slot}" of ${instruction.id} is answered with [] to decline or ["${CAMPAIGN_ACCEPT}"] to take it, and was answered with [${answer.join(", ")}]`,
+      );
+    }
+    if (answer.length === 0) {
+      recordChoice(run, op.slot, run.seatScope, [], true);
+      return;
+    }
+  }
+  // Drawn from `CampaignLog.rng`, which advances as part of the log's state: a client cannot reroll by reloading,
+  // and the whole campaign replays from its seed (MC27 p. 22, MC45 p. 5, MC60 p. 9 step 2).
+  recordChoice(run, op.slot, run.seatScope, drawRandom(run, options, count), true);
+}
+
+/**
  * One op. **Exhaustive with no `default:`** — see this module's header: a member no built box uses must still be
  * interpreted, because the requirement is that a later box is content-only.
  */
@@ -724,13 +825,9 @@ export function runCampaignOp(run: CampaignRun, op: CampaignOp, instruction: Cam
     case "choose":
       runChoose(run, op, instruction);
       return;
-    case "random": {
-      // Drawn from `CampaignLog.rng`, which advances as part of the log's state: a client cannot reroll by
-      // reloading, and the whole campaign replays from its seed (MC27 p. 22, MC45 p. 5, MC60 p. 9 step 2).
-      const options = resolveChoiceSource(run, op.from, run.seatScope);
-      recordChoice(run, op.slot, run.seatScope, drawRandom(run, options, op.count ?? 1), true);
+    case "random":
+      runRandom(run, op, instruction);
       return;
-    }
     case "spend": {
       // MC16 p. 5: "Subtract that card's Unit Cost value from the value recorded in your 'Unspent Units' box."
       for (const seatNumber of targetSeats(run, op.seat)) {

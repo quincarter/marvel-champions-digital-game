@@ -13,6 +13,7 @@ import { cardId, flat, type CardId, type PlayModes } from "@mc/content";
 import { DEFAULT_DEPS } from "../abilities.js";
 import type { CampaignGameResult, CampaignLog } from "../campaign.js";
 import type { GameEvent } from "../events.js";
+import { cardsInPlay } from "../select.js";
 import { createGame, type GameSetupConfig } from "../setup.js";
 import type { GameState } from "../state.js";
 import { runCommands } from "../testing/drive.js";
@@ -22,11 +23,15 @@ import {
   SYNTHETIC_CAMPAIGN,
   SYNTHETIC_CAMPAIGN_DEPS,
   SYNTHETIC_CAMPAIGN_ID,
+  SYNTHETIC_EXTRAS_CAMPAIGN,
+  SYNTHETIC_EXTRAS_CAMPAIGN_ID,
+  SYNTHETIC_EXTRAS_DEPS,
   syntheticCampaignInput,
 } from "../testing/campaign.js";
 import { campaignResultOf } from "./result.js";
 import {
   applyCampaignResult,
+  CAMPAIGN_ACCEPT,
   campaignChoiceKey,
   createCampaignLog,
   resolveBetweenGames,
@@ -497,3 +502,178 @@ describe("campaignResultOf reads the finished game, not the client", () => {
 
 /** A card id the pool knows about, kept honest: the fixture's ids are the ones the runner's sources resolve. */
 const _ids: readonly CardId[] = [WARD, RELIC_A, RELIC_B, GIFT];
+
+// ---------------------------------------------------------------------------------------------------------------
+// The second synthetic box (`SYNTHETIC_EXTRAS_CAMPAIGN`): the vocabulary the branching one has no reason to use
+// ---------------------------------------------------------------------------------------------------------------
+
+const EXTRAS: PlayModes = { campaign: { campaignId: SYNTHETIC_EXTRAS_CAMPAIGN_ID } };
+const CHARM_A = cardId("syn-charm-a");
+const CHARM_B = cardId("syn-charm-b");
+const BOONS_1 = [cardId("syn-boon-1a"), cardId("syn-boon-1b")];
+
+const extrasLog = (seed = 77): CampaignLog =>
+  createCampaignLog(SYNTHETIC_EXTRAS_CAMPAIGN, {
+    id: "syn-extras-run",
+    seats: SEATS,
+    modes: EXTRAS,
+    poolVersion: "syn-pool-1",
+    seed,
+  });
+
+const betweenExtras = (log: CampaignLog, script: readonly CampaignChoiceAnswer[]): Settled =>
+  settle(
+    (answers) => resolveBetweenGames(SYNTHETIC_EXTRAS_CAMPAIGN, log, SYNTHETIC_EXTRAS_DEPS, EXTRAS, answers),
+    script,
+  );
+
+const afterExtras = (log: CampaignLog, result: CampaignGameResult, script: readonly CampaignChoiceAnswer[]): Settled =>
+  settle(
+    (answers) =>
+      applyCampaignResult(
+        SYNTHETIC_EXTRAS_CAMPAIGN,
+        log,
+        result,
+        { at: 1_700_000_002_000, gameId: "game-trial" },
+        SYNTHETIC_EXTRAS_DEPS,
+        answers,
+      ),
+    script,
+  );
+
+/** Seat 1 takes its charm and accepts the draw; seat 2 takes the other charm and declines (an empty answer). */
+const EXTRAS_SCRIPT: readonly CampaignChoiceAnswer[] = [
+  { instructionId: "syn2.trial.setup.charm", slot: "charm", seatNumber: 1, picked: [CHARM_A] },
+  { instructionId: "syn2.trial.setup.charm", slot: "charm", seatNumber: 2, picked: [CHARM_B] },
+  { instructionId: "syn2.trial.setup.boon", slot: "boon", seatNumber: 1, picked: [CAMPAIGN_ACCEPT] },
+  { instructionId: "syn2.trial.setup.boon", slot: "boon", seatNumber: 2, picked: [] },
+];
+
+const withBoons = (picked: readonly string[]): readonly CampaignChoiceAnswer[] =>
+  EXTRAS_SCRIPT.map((answer) => (answer.slot === "boon" ? { ...answer, picked } : answer));
+
+/** Both seats accepting, and both declining: the two tables the `tookBoon` box can describe. */
+const BOTH_ACCEPT = withBoons([CAMPAIGN_ACCEPT]);
+const BOTH_DECLINE = withBoons([]);
+
+describe("a choice over one pool of a mixed campaign set", () => {
+  it("offers only the cards the filter names, and takes each granted copy off the table", () => {
+    const { asked } = betweenExtras(extrasLog(), EXTRAS_SCRIPT);
+    const charms = asked.filter((choice) => choice.slot === "charm");
+
+    // The set also holds a token upgrade, which neither seat is ever offered: one printed set, two printed pools.
+    expect(charms.map((choice) => choice.options)).toEqual([[CHARM_A, CHARM_B], [CHARM_B]]);
+    expect(charms.every((choice) => choice.random === undefined)).toBe(true);
+  });
+
+  it("draws a per-seat set's obligations, which are not player-deck cards at all", () => {
+    const { log } = betweenExtras(extrasLog(), EXTRAS_SCRIPT);
+    const [one] = log.seats;
+
+    // MC10 p. 17's shape: seat 1 draws from the set numbered 1, and what it draws is an obligation — a card a
+    // deckbuilding filter would have excluded outright, which is exactly why a set filter is not one.
+    expect(BOONS_1).toContain(one?.grants.at(-1)?.cardId);
+    expect(one?.fields.boons).toEqual({ kind: "cardList", cardIds: [one?.grants.at(-1)?.cardId] });
+  });
+});
+
+describe('an optional random draw (the printed "each player may add 1 random …")', () => {
+  it("asks only whether to take the draw, never which card", () => {
+    const { asked } = betweenExtras(extrasLog(), EXTRAS_SCRIPT);
+    const boons = asked.filter((choice) => choice.slot === "boon");
+
+    expect(
+      boons.map((choice) => [choice.seatNumber, choice.options, choice.count, choice.optional, choice.random]),
+    ).toEqual([
+      [1, [CAMPAIGN_ACCEPT], 1, true, true],
+      [2, [CAMPAIGN_ACCEPT], 1, true, true],
+    ]);
+  });
+
+  it("draws from the log's own RNG, so the same seed draws the same card and a client cannot reroll", () => {
+    const drawn = (seed: number): unknown => betweenExtras(extrasLog(seed), EXTRAS_SCRIPT).log.seats[0]?.fields.boons;
+
+    expect(drawn(77)).toEqual(drawn(77));
+    // Whatever it drew, it drew it from *this seat's* numbered set, and only from its obligations.
+    const cardIds = (drawn(77) as { readonly cardIds: readonly CardId[] }).cardIds;
+    expect(cardIds).toHaveLength(1);
+    expect(BOONS_1).toContain(cardIds[0]);
+  });
+
+  it("records a declined draw as an offer that was refused, and grants nothing", () => {
+    const { log } = betweenExtras(extrasLog(), EXTRAS_SCRIPT);
+    const [, two] = log.seats;
+    const step = log.attempt?.steps.find((entry) => entry.instructionId === "syn2.trial.setup.boon");
+
+    expect(two?.grants.map((grant) => grant.cardId)).toEqual([CHARM_B]);
+    expect(two?.fields.boons).toBeUndefined();
+    expect(step?.choices).toEqual([
+      { slot: "boon", seatNumber: 1, picked: [expect.any(String)], random: true },
+      { slot: "boon", seatNumber: 2, picked: [], random: true },
+    ]);
+  });
+
+  it("leaves the box a declined draw writes *unchecked*, and `fieldIsSet` reads it that way", () => {
+    const declined = betweenExtras(extrasLog(), BOTH_DECLINE);
+    const accepted = betweenExtras(extrasLog(), BOTH_ACCEPT);
+
+    // The write is the same op either way: `{ kind: "choice", slot }` over a slot that picked nothing. Nothing
+    // recorded is an *unchecked* box — the polarity this pins, which used to write `true` instead.
+    expect(declined.log.seats[1]?.fields.tookBoon).toEqual({ kind: "flag", value: false });
+    expect(accepted.log.seats[1]?.fields.tookBoon).toEqual({ kind: "flag", value: true });
+
+    // …and an unchecked box is not "set". The consolation's `when` is `not(fieldIsSet)` with `seat: "self"` at
+    // instruction level, which asks about *any* seat (`predicateSeats`), so it runs only for the table where no
+    // box is checked at all — and with the old polarity it would have run for neither.
+    const skipReason = (settled: Settled, script: readonly CampaignChoiceAnswer[]): string | undefined =>
+      afterExtras(settled.log, gameResult({ nodeId: "trial", outcome: "won" }), script).log.history[0]?.steps.find(
+        (step) => step.instructionId === "syn2.trial.victory.consolation",
+      )?.skipped;
+    expect(skipReason(declined, BOTH_DECLINE)).toBeUndefined();
+    expect(skipReason(accepted, BOTH_ACCEPT)).toBe("condition");
+  });
+});
+
+describe('recording the cards tucked under a card in play (RRG 1.8 "Tuck")', () => {
+  it("reads what `cardsInPlay` cannot, because a tucked card is out of play", () => {
+    const composed = betweenExtras(extrasLog(), EXTRAS_SCRIPT).log;
+    const start = startGameFromLog(SYNTHETIC_EXTRAS_CAMPAIGN, composed);
+    const identities = seatIdentities(HERO, 2);
+    const created = createGame(
+      {
+        seed: start.input.seed,
+        cards: [...DEFAULT_CARDS, SCHEME, SETUP_WARD, ...identities],
+        villainCardId: VILLAIN.id,
+        mainSchemeCardId: SCHEME.id,
+        encounterDeck: [],
+        players: identities.map((identity) => ({
+          identityCardId: identity.id,
+          deck: [...DEFAULT_DECK, cardId("syn-ward")],
+        })),
+        campaign: start.input,
+      },
+      DEFAULT_DEPS,
+    );
+    if (!created.ok) throw new Error(`setup failed: ${created.error.message}`);
+    const driven = runCommands(created.state, DEFAULT_DEPS);
+    const events = [...created.events, ...driven.events];
+    const finished: GameState = { ...driven.state, outcome: { result: "win", reason: "villainDefeated" } };
+
+    // Both setup-keyword allies are in play at Appendix II step 11 and the campaign's own `afterScenarioSetup`
+    // instruction tucks them under the main scheme, where no in-play selection can see them any more.
+    expect(cardsInPlay(finished).filter((id) => finished.instances[id]?.cardId === WARD)).toEqual([]);
+
+    const result = campaignResultOf(SYNTHETIC_EXTRAS_CAMPAIGN, composed, finished, events, DEFAULT_DEPS);
+    expect(result.records).toEqual([
+      {
+        instructionId: "syn2.trial.victory.stowed",
+        write: {
+          field: "stowed",
+          seatNumber: null,
+          mode: "append",
+          value: { kind: "cardList", cardIds: [WARD, WARD] },
+        },
+      },
+    ]);
+  });
+});

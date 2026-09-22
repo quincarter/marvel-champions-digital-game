@@ -334,6 +334,15 @@ export type CampaignGameQuery =
   | { readonly kind: "cardsRemovedFromGame"; readonly query: TargetQuery }
   /** MC50 p. 11: "Record the number of Rescued Captive allies in play in the campaign log." */
   | { readonly kind: "cardsInPlay"; readonly query: TargetQuery }
+  /**
+   * The cards **tucked** under a host card, which `cardsInPlay` deliberately never sees: RRG 1.8 "Tuck" puts a
+   * tucked card out of play, and `select.ts` keeps it out of every in-play selection. MC10 p. 12 records "the name
+   * of each ally underneath" a side scheme that is still in play. `under` names the host(s) among the cards in
+   * play; `query` filters what is beneath them, in tuck order. A host that is no longer in play names nothing,
+   * which is how the printed "**If** the … side scheme is still in play" condition resolves with no second
+   * predicate: the sentence and its gate are one query.
+   */
+  | { readonly kind: "cardsTuckedUnder"; readonly under: TargetQuery; readonly query: TargetQuery }
   /** MC60 p. 13: "If the Typhoid Mary/Bloody Mary ally is in the victory display, check the 'Mary Defeated?' box." */
   | { readonly kind: "cardsInVictoryDisplay"; readonly query: TargetQuery }
   /**
@@ -405,6 +414,18 @@ export type CampaignPredicate =
   | { readonly kind: "notStruck"; readonly field: string; readonly option: string }
   /** MC60 p. 9 step 4: "choose any scenario to play that has not been Completed or Failed". */
   | { readonly kind: "nodeResolved"; readonly nodeId: string; readonly as?: "completed" | "failed" }
+  /**
+   * Whether a `choose`/`random` slot **earlier in this same step list** picked anything.
+   *
+   * The counterpart of `optional` on those two ops: a seat that declined picked nothing, so `not` of this is "this
+   * seat declined" — MC10 p. 12's "each player in hero form **may** replace their 'Basic' Condition upgrade", where
+   * the ops that carry out the replacement must not run for a player who said no. Scoped like every other per-seat
+   * read: inside a `forEachSeat` it asks about that seat's own pick, and outside one about a group pick.
+   *
+   * A slot no op in this list has reached yet reads as "not picked", the same way an unwritten field reads as
+   * unset: the between-games vocabulary has no undefined, only "nothing recorded".
+   */
+  | { readonly kind: "choiceMade"; readonly slot: string }
   | { readonly kind: "modes"; readonly of: ModePredicate }
   | { readonly kind: "not"; readonly of: CampaignPredicate }
   | { readonly kind: "and" | "or"; readonly of: readonly CampaignPredicate[] };
@@ -462,7 +483,20 @@ export type CampaignOp =
    * schemes"), MC60 p. 9 step 2. Drawn from `CampaignLog.rng`, so a campaign is replayable and a client cannot
    * reroll by reloading.
    */
-  | { readonly kind: "random"; readonly slot: string; readonly from: CampaignChoiceSource; readonly count?: number }
+  | {
+      readonly kind: "random";
+      readonly slot: string;
+      readonly from: CampaignChoiceSource;
+      readonly count?: number;
+      /**
+       * A draw the players may decline: MC10 p. 7 (and p. 10, p. 12, p. 15) prints "Each player **may** add 1
+       * random obligation from their expert campaign set to their deck", and MC50 p. 11 prints the same "may" over
+       * a random evidence card. The players never pick *which* card — that is the whole difference from `choose`
+       * with `optional` — so the answer is only whether to take the draw (`CAMPAIGN_ACCEPT`), and the card itself
+       * still comes from `CampaignLog.rng`. A declined draw records an empty choice, which `choiceMade` reads.
+       */
+      readonly optional?: true;
+    }
   // --- currency ----------------------------------------------------------------------------------------------
   /**
    * MC16 p. 5: "Subtract that card's Unit Cost value from the value recorded in your 'Unspent Units' box, then add
@@ -503,14 +537,26 @@ export type GrantPermanence = "campaign" | "thisGame";
 export type CampaignChoiceSource =
   /** An explicit list, for an option set the rulebook enumerates. */
   | { readonly kind: "cards"; readonly cardIds: readonly CardId[] }
-  /** Cards of a campaign-specific encounter set (MC10 p. 5's Tech upgrades, MC50 p. 5's evidence cards). */
-  | { readonly kind: "campaignSet"; readonly encounterSetId: EncounterSetId; readonly excludeGranted?: true }
+  /**
+   * Cards of a campaign-specific encounter set (MC10 p. 5's Tech upgrades, MC50 p. 5's evidence cards).
+   *
+   * `filter` is needed because one printed set is not one printed choice: MC10's Hydra Campaign set holds two
+   * unrelated pools offered by two different scenarios — "choose one of the TECH upgrades" (p. 5) and "choose one
+   * of the 'Basic' Condition upgrades" (p. 7) — and MC50 p. 5 deals evidence out of a set that also holds its
+   * envelope cards. Absent means the whole set, which is what every single-pool box prints.
+   */
+  | {
+      readonly kind: "campaignSet";
+      readonly encounterSetId: EncounterSetId;
+      readonly excludeGranted?: true;
+      readonly filter?: CollectionFilter;
+    }
   /**
    * MC10 p. 17: "When a player is instructed to add a card from their expert encounter set to their deck, they must
    * take that card from the set that matches their player number" — the seat's own numbered copy of
-   * `Campaign.perSeatSetIds`.
+   * `Campaign.perSeatSetIds`. `filter` narrows it exactly as it does a `campaignSet`.
    */
-  | { readonly kind: "perSeatSet"; readonly excludeGranted?: true }
+  | { readonly kind: "perSeatSet"; readonly excludeGranted?: true; readonly filter?: CollectionFilter }
   /** MC27 p. 22 / MC32 p. 5 / MC45 p. 24: "an aspect card in their collection", filtered. */
   | { readonly kind: "collection"; readonly filter: CollectionFilter }
   /** Options of a `choice` or `strikeList` field (MC45 p. 5's available missions). */
@@ -521,8 +567,13 @@ export type CampaignChoiceSource =
   | { readonly kind: "ownDeck"; readonly filter?: CollectionFilter };
 
 /**
- * How a collection- or deck-wide choice is narrowed. Mirrors `TargetQuery`'s vocabulary where the two overlap, but
- * is its own type because it filters *card data*, not cards in play (there is no game here).
+ * How a between-games choice over cards is narrowed — a collection, a seat's own deck, or one pool of a mixed
+ * campaign set. Mirrors `TargetQuery`'s vocabulary where the two overlap, but is its own type because it filters
+ * *card data*, not cards in play (there is no game here).
+ *
+ * The filter says nothing about whether a card may legally be *in a deck*: that is the source's own rule, and only
+ * `collection` and `ownDeck` (which are deckbuilding choices, RRG 1.8 "Player Deck", p. 33) apply it. A campaign
+ * set's cards are whatever the box printed in it — MC50 p. 5's evidence cards go into an envelope, not a deck.
  */
 export interface CollectionFilter {
   /** MC32 p. 5: "up to 1 copy of an event and/or 1 copy of an upgrade"; MC45 p. 24's upgrade/support/ally. */

@@ -16,13 +16,28 @@
  * - a node `defeat` block, and an `Expert Campaign Only` instruction,
  * - a `progressToFail` threshold, so a node can fail without ever being played.
  *
+ * `SYNTHETIC_EXTRAS_CAMPAIGN` at the bottom of this file is a second, one-node box for the members even that
+ * shape has no printed reason to use (a filtered set choice, an optional random draw, `choiceMade`, a flag
+ * written from nothing, a `cardsTuckedUnder` record) — kept separate so neither box changes the other's draws.
+ *
  * Everything is plain data; `campaign.test.ts` round-trips both values through `JSON.parse(JSON.stringify(...))`.
  */
 
-import { campaignId, cardId, encounterSetId, scenarioId, type AnyCard, type UpgradeCard } from "@mc/content";
+import {
+  campaignId,
+  cardId,
+  encounterSetId,
+  scenarioId,
+  trait,
+  type AnyCard,
+  type EncounterSetId,
+  type ObligationCard,
+  type Trait,
+  type UpgradeCard,
+} from "@mc/content";
 import type { CampaignDeps } from "../campaign/ops.js";
 import { createRng } from "../rng.js";
-import { stubAlly, stubIdentity, stubUpgrade } from "./fixtures.js";
+import { stubAlly, stubIdentity, stubObligation, stubUpgrade } from "./fixtures.js";
 import type {
   CampaignCardFace,
   CampaignDefinition,
@@ -546,3 +561,204 @@ export const SYNTHETIC_CAMPAIGN_POOL: readonly AnyCard[] = [
 
 /** What the runner is handed: the pool above, and no numbered per-seat sets (the synthetic box prints none). */
 export const SYNTHETIC_CAMPAIGN_DEPS: CampaignDeps = { pool: SYNTHETIC_CAMPAIGN_POOL };
+
+// ---------------------------------------------------------------------------------------------------------------
+// A second synthetic box: the vocabulary the branching one above does not reach
+// ---------------------------------------------------------------------------------------------------------------
+
+/**
+ * `SYNTHETIC_EXTRAS_CAMPAIGN` is deliberately a *separate* definition rather than more instructions on the box
+ * above: that one's `random` ops draw from its own node list and its own set, so adding either a node or a card
+ * there would silently change every draw it makes and every option it offers. This one is the simplest possible
+ * shape — one linear node, free retry — carrying only the members the other box has no printed reason to use:
+ *
+ * - a `campaignSet` choice **filtered** to one trait, where the set holds two unrelated pools (MC10 p. 5 vs p. 7),
+ * - a `perSeatSet` draw filtered to a card *category that is not a player card* (MC10 p. 17's obligations), which
+ *   is the case that proves a set filter is not a deckbuilding filter,
+ * - an **optional** `random` — the printed "each player **may** add 1 random …" — answered with `CAMPAIGN_ACCEPT`,
+ * - the `choiceMade` predicate over both an accepted and a declined draw,
+ * - a `flag` field written from a value that resolves to nothing, which must read as *unchecked*,
+ * - a `cardsTuckedUnder` record, over cards an `inGame` instruction tucked out of play (RRG 1.8 "Tuck"),
+ * - `LossPolicy.retry: "free"`, the seven-box default the branching fixture cannot also be.
+ */
+export const SYNTHETIC_EXTRAS_CAMPAIGN_ID = campaignId("syn-extras");
+
+const EXTRAS_SET = encounterSetId("syn-extras-set");
+/** MC10 p. 17's numbered Expert Campaign Sets, as a shape: one set per seat, indexed by seat number. */
+const SEAT_SETS = [encounterSetId("syn-seat-set-1"), encounterSetId("syn-seat-set-2")] as const;
+const CHARM = trait("SYN-CHARM");
+const TOKEN = trait("SYN-TOKEN");
+
+export const SYNTHETIC_EXTRAS_CAMPAIGN: CampaignDefinition = {
+  campaignId: SYNTHETIC_EXTRAS_CAMPAIGN_ID,
+  version: "1",
+  logFields: [
+    { id: "charm", label: "Charm", scope: "perSeat", type: { kind: "cardRef" }, citation: CITE },
+    { id: "boons", label: "Boons taken", scope: "perSeat", type: { kind: "cardList" }, citation: CITE },
+    { id: "tookBoon", label: "Took a boon?", scope: "perSeat", type: { kind: "flag" }, citation: CITE },
+    { id: "stowed", label: "Stowed away", scope: "shared", type: { kind: "cardList" }, citation: CITE },
+  ],
+  loss: { retry: "free", retryBaseline: "nodeStart" },
+  graph: {
+    kind: "linear",
+    nodes: [
+      {
+        id: "trial",
+        label: "Trial - the Vault",
+        scenario: { kind: "fixed", scenarioId: scenarioId("syn-scenario-two") },
+        setup: [
+          {
+            id: "syn2.trial.setup.charm",
+            text: "Each player chooses one of the charms in the campaign set and adds it to their deck.",
+            citation: CITE,
+            step: {
+              kind: "betweenGames",
+              // Per seat in turn — choose, then grant — because `excludeGranted` reads the grants: a table-wide
+              // single-copy pool has to take each seat's card off the table before the next seat is asked.
+              ops: [
+                {
+                  kind: "forEachSeat",
+                  ops: [
+                    {
+                      kind: "choose",
+                      slot: "charm",
+                      chooser: "eachSeat",
+                      from: {
+                        kind: "campaignSet",
+                        encounterSetId: EXTRAS_SET,
+                        excludeGranted: true,
+                        filter: { traits: [CHARM] },
+                      },
+                    },
+                    {
+                      kind: "grantCard",
+                      seat: "self",
+                      card: { kind: "choice", slot: "charm" },
+                      permanence: "campaign",
+                    },
+                    { kind: "setField", field: "charm", seat: "self", value: { kind: "choice", slot: "charm" } },
+                  ],
+                },
+              ],
+            },
+          },
+          {
+            id: "syn2.trial.setup.boon",
+            text: "Each player may add 1 random boon from their numbered set to their deck.",
+            citation: CITE,
+            step: {
+              kind: "betweenGames",
+              ops: [
+                {
+                  kind: "forEachSeat",
+                  ops: [
+                    {
+                      kind: "random",
+                      slot: "boon",
+                      optional: true,
+                      from: { kind: "perSeatSet", filter: { categories: ["obligation"] } },
+                    },
+                    {
+                      kind: "if",
+                      when: { kind: "choiceMade", slot: "boon" },
+                      then: [
+                        {
+                          kind: "grantCard",
+                          seat: "self",
+                          card: { kind: "choice", slot: "boon" },
+                          permanence: "campaign",
+                        },
+                        { kind: "appendToList", field: "boons", seat: "self", value: { kind: "choice", slot: "boon" } },
+                      ],
+                    },
+                    // Written whatever the answer: a declined draw resolves to nothing, and nothing is an
+                    // *unchecked* box. This one write is the whole polarity question (`logValueFor`'s `flag`).
+                    { kind: "setField", field: "tookBoon", seat: "self", value: { kind: "choice", slot: "boon" } },
+                  ],
+                },
+              ],
+            },
+          },
+          {
+            id: "syn2.trial.setup.stow",
+            text: "The vault keeper stows each ally beneath the main scheme.",
+            citation: CITE,
+            step: {
+              kind: "inGame",
+              window: "afterScenarioSetup",
+              effects: [
+                {
+                  kind: "tuckCards",
+                  cards: { kind: "ref", ref: { kind: "each", query: { categories: ["ally"] } } },
+                  under: { kind: "mainScheme" },
+                },
+              ],
+            },
+          },
+        ],
+        victory: [
+          {
+            id: "syn2.trial.victory.stowed",
+            text: "Record the name of each ally stowed beneath the main scheme in the campaign log.",
+            citation: CITE,
+            step: {
+              kind: "record",
+              writes: [
+                {
+                  field: "stowed",
+                  mode: "append",
+                  value: {
+                    kind: "cardsTuckedUnder",
+                    under: { categories: ["mainScheme"] },
+                    query: { categories: ["ally"] },
+                  },
+                },
+              ],
+            },
+          },
+          {
+            // Trace-only, and gated on the polarity: a seat that declined the draw has an unchecked box, and an
+            // unchecked box is not "set". Nothing else in either fixture asks `fieldIsSet` about a `flag`.
+            id: "syn2.trial.victory.consolation",
+            text: "If any player took no boon, the keeper offers them a consolation.",
+            citation: CITE,
+            when: { kind: "not", of: { kind: "fieldIsSet", field: "tookBoon", seat: "self" } },
+            step: { kind: "betweenGames", ops: [] },
+          },
+        ],
+      },
+    ],
+  },
+};
+
+const extrasUpgrade = (id: string, traits: readonly Trait[], setId: EncounterSetId): UpgradeCard => ({
+  ...stubUpgrade({ id, cost: 1, traits }),
+  specificTo: { kind: "campaign", encounterSetId: setId },
+});
+
+const boon = (id: string, setId: EncounterSetId): ObligationCard => ({
+  ...stubObligation({ id }),
+  encounterSetIds: [setId],
+});
+
+/**
+ * What the extras box's sources draw from. The mixed campaign set is the point: two charms and one token in one
+ * printed set, so a filtered choice must offer two options and an unfiltered one three. Each numbered seat set
+ * mixes two obligations with one upgrade for the same reason — and because an obligation is not a player-deck
+ * card, a filter that quietly applied RRG 1.8 p. 33's deckbuilding test would offer nothing at all.
+ */
+export const SYNTHETIC_EXTRAS_POOL: readonly AnyCard[] = [
+  ...SYNTHETIC_CAMPAIGN_POOL,
+  extrasUpgrade("syn-charm-a", [CHARM], EXTRAS_SET),
+  extrasUpgrade("syn-charm-b", [CHARM], EXTRAS_SET),
+  extrasUpgrade("syn-token-a", [TOKEN], EXTRAS_SET),
+  boon("syn-boon-1a", SEAT_SETS[0]),
+  boon("syn-boon-1b", SEAT_SETS[0]),
+  extrasUpgrade("syn-sundry-1", [TOKEN], SEAT_SETS[0]),
+  boon("syn-boon-2a", SEAT_SETS[1]),
+  boon("syn-boon-2b", SEAT_SETS[1]),
+  extrasUpgrade("syn-sundry-2", [TOKEN], SEAT_SETS[1]),
+];
+
+/** The extras box's deps: its own pool, and MC10 p. 17's shape — one numbered set per seat, seat 1 first. */
+export const SYNTHETIC_EXTRAS_DEPS: CampaignDeps = { pool: SYNTHETIC_EXTRAS_POOL, perSeatSetIds: SEAT_SETS };

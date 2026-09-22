@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { matchesModes } from "@mc/content";
-import { SYNTHETIC_CAMPAIGN, SYNTHETIC_CAMPAIGN_LOG } from "./testing/campaign.js";
+import { SYNTHETIC_CAMPAIGN, SYNTHETIC_CAMPAIGN_LOG, SYNTHETIC_EXTRAS_CAMPAIGN } from "./testing/campaign.js";
 import type { CampaignDefinition, CampaignLog } from "./campaign.js";
 
 const roundTrip = <T>(value: T): T => JSON.parse(JSON.stringify(value)) as T;
@@ -9,6 +9,11 @@ describe("campaign types are plain serializable data", () => {
   it("round-trips a campaign definition through JSON unchanged", () => {
     const after: CampaignDefinition = roundTrip(SYNTHETIC_CAMPAIGN);
     expect(after).toEqual(SYNTHETIC_CAMPAIGN);
+  });
+
+  it("round-trips the second definition, whose members the first has no reason to use, through JSON unchanged", () => {
+    const after: CampaignDefinition = roundTrip(SYNTHETIC_EXTRAS_CAMPAIGN);
+    expect(after).toEqual(SYNTHETIC_EXTRAS_CAMPAIGN);
   });
 
   it("round-trips a campaign log through JSON unchanged", () => {

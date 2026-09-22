@@ -226,6 +226,7 @@ export type {
 } from "./campaign/runner.js";
 export {
   applyCampaignResult,
+  CAMPAIGN_ACCEPT,
   CAMPAIGN_NEXT_NODE_INSTRUCTION,
   campaignChoiceKey,
   campaignResultOf,

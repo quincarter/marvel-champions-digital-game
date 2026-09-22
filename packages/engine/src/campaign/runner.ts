@@ -57,7 +57,7 @@ import {
 } from "./ops.js";
 
 export type { CampaignChoiceAnswer, CampaignChoiceKey, CampaignDeps, CampaignPendingChoice } from "./ops.js";
-export { campaignChoiceKey } from "./ops.js";
+export { CAMPAIGN_ACCEPT, campaignChoiceKey } from "./ops.js";
 export { campaignResultOf } from "./result.js";
 
 /**

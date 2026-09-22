@@ -412,6 +412,10 @@ export type CampaignGameQuery =
   | { readonly kind: "cardsThatEnteredPlay"; readonly query: TargetQuery } // MC10 p. 5
   | { readonly kind: "cardsRemovedFromGame"; readonly query: TargetQuery } // MC60 p. 13
   | { readonly kind: "cardsInPlay"; readonly query: TargetQuery } // MC50 p. 11
+  // Added building MC10: cards *tucked* under a card in play are out of play (RRG 1.8 "Tuck"), so no in-play
+  // selection reaches them — "record the name of each ally underneath it" (MC10 p. 12). A host that has left play
+  // names nothing, which is the printed "if the … side scheme is still in play" condition.
+  | { readonly kind: "cardsTuckedUnder"; readonly under: TargetQuery; readonly query: TargetQuery } // MC10 p. 12
   | { readonly kind: "cardsInVictoryDisplay"; readonly query: TargetQuery } // MC60 p. 13
   | { readonly kind: "countersOn"; readonly query: TargetQuery; readonly counter: string } // MC10 p. 7, MC50 p. 11
   | { readonly kind: "threatOn"; readonly query: TargetQuery } // MC60 p. 13
@@ -462,7 +466,7 @@ total functions: no campaign, no field, wrong kind and an unseated player all re
 
 The between-games half has its own tiny value language (no `GameState` to read):
 
-```ts
+````ts
 export type CampaignValue =
   | { readonly kind: "const"; readonly value: number | string | boolean }
   | { readonly kind: "field"; readonly field: string; readonly seat?: "self" | "each" }
@@ -472,16 +476,26 @@ export type CampaignValue =
   /** A choice the player made earlier in this same step list. */
   | { readonly kind: "choice"; readonly slot: string };
 
+**Polarity, as built.** "Nothing recorded" is *false*, never true: a `flag` written from a value that resolves to
+nothing (an unset field, a declined optional choice) is an **unchecked** box, and `fieldIsSet` is satisfied only by
+a checked one, a non-empty list, or a `cardRef`/`choice` that names something. An earlier `logValueFor` wrote `true`
+for an empty value, which made every "did this player decline?" read backwards; `@mc/engine`'s second synthetic
+fixture pins both directions.
+
+```ts
 export type CampaignPredicate =
   | { readonly kind: "fieldAtLeast"; readonly field: string; readonly amount: number; readonly seat?: "self" }
   | { readonly kind: "fieldIsSet"; readonly field: string; readonly seat?: "self" }
   | { readonly kind: "fieldContains"; readonly field: string; readonly value: string; readonly seat?: "self" }
   | { readonly kind: "notStruck"; readonly field: string; readonly option: string }
+  // Added building MC10: whether a `choose`/`random` slot earlier in this same step list picked anything. The
+  // counterpart of `optional` on those ops — `not` of it is "this seat declined" (MC10 p. 12's "may replace").
+  | { readonly kind: "choiceMade"; readonly slot: string }
   | { readonly kind: "nodeResolved"; readonly nodeId: string; readonly as?: "won" | "failed" }
   | { readonly kind: "modes"; readonly of: ModePredicate }
   | { readonly kind: "not"; readonly of: CampaignPredicate }
   | { readonly kind: "and" | "or"; readonly of: readonly CampaignPredicate[] };
-```
+````
 
 ### 4.5 `CampaignOp` — the between-games vocabulary
 
@@ -520,8 +534,19 @@ export type CampaignOp =
       readonly count?: number;
       readonly optional?: true;
     }
-  /** Seeded from the log's own RNG, so a campaign is replayable and a client cannot reroll. */
-  | { readonly kind: "random"; readonly slot: string; readonly from: CampaignChoiceSource; readonly count?: number }
+  /**
+   * Seeded from the log's own RNG, so a campaign is replayable and a client cannot reroll. `optional` (added
+   * building MC10) is the printed "each player **may** add 1 random obligation" (MC10 p. 7): the players decide
+   * whether, never which, so the pending choice offers the single `CAMPAIGN_ACCEPT` token — an empty answer
+   * declines, and the card still comes from the log's RNG. A declined draw records an empty pick (`choiceMade`).
+   */
+  | {
+      readonly kind: "random";
+      readonly slot: string;
+      readonly from: CampaignChoiceSource;
+      readonly count?: number;
+      readonly optional?: true;
+    }
   // --- currency ---------------------------------------------------------------------------
   /** MC16 p. 5. A numeric per-seat field plus a per-card price read from card data. */
   | { readonly kind: "spend"; readonly field: string; readonly seat: "self"; readonly amount: CampaignValue }
@@ -542,10 +567,19 @@ export type CampaignOp =
 
 export type CampaignChoiceSource =
   | { readonly kind: "cards"; readonly cardIds: readonly CardId[] }
-  /** Cards of a campaign set not already granted / not removed from the campaign. */
-  | { readonly kind: "campaignSet"; readonly encounterSetId: EncounterSetId; readonly excludeGranted?: true }
-  /** MC10 p. 17: the seat's own numbered copy of `Campaign.perSeatSetIds`. */
-  | { readonly kind: "perSeatSet"; readonly excludeGranted?: true }
+  /**
+   * Cards of a campaign set not already granted / not removed from the campaign. `filter` (added building MC10)
+   * is there because one printed set is not one printed choice: MC10's Hydra Campaign set holds the TECH upgrades
+   * (p. 5) and the "Basic" Condition upgrades (p. 7), offered by different scenarios.
+   */
+  | {
+      readonly kind: "campaignSet";
+      readonly encounterSetId: EncounterSetId;
+      readonly excludeGranted?: true;
+      readonly filter?: CollectionFilter;
+    }
+  /** MC10 p. 17: the seat's own numbered copy of `Campaign.perSeatSetIds`, narrowed the same way. */
+  | { readonly kind: "perSeatSet"; readonly excludeGranted?: true; readonly filter?: CollectionFilter }
   /** MC27 p. 22 / MC32 p. 5 / MC45 p. 24: the player's whole collection, filtered. */
   | { readonly kind: "collection"; readonly filter: CollectionFilter }
   /** Options of a `choice`/`strikeList` field that have not been struck. */
@@ -558,6 +592,10 @@ export type CampaignChoiceSource =
  * Declared as built. It filters *card data*, not cards in play — there is no `GameState` between games — so it is
  * its own type rather than a `TargetQuery`, while mirroring that vocabulary where the two overlap. `aspects` is
  * `string[]` for the same reason `TargetQuery.aspect` is: imported data is untrusted.
+ *
+ * It says nothing about whether a card may legally be *in a deck*: only `collection` and `ownDeck` are
+ * deckbuilding choices (RRG 1.8 "Player Deck", p. 33) and apply that test. A campaign set holds whatever the box
+ * printed in it — MC10 p. 17's obligations and MC50 p. 5's evidence cards are not player cards at all.
  */
 export interface CollectionFilter {
   readonly categories?: readonly TargetCategory[]; // MC32 p. 5 "an event and/or an upgrade"; MC45 p. 24
@@ -1130,16 +1168,18 @@ export interface CampaignDeckContext {
 
 Changes to the existing checks in `packages/engine/src/deck.ts`:
 
-| Today                                                                           | In campaign context                                                                                                                                                                       |
-| ------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `campaign_card` (line ~416) refuses every `specificTo.kind === "campaign"` card | refuses only if there is no campaign context, or the card's set is not in `campaignSetIds`, or its id is not in `grantedCardIds`. New code `campaign_card_not_granted` for the last case. |
-| granted cards `continue` before `counted += …`                                  | unchanged — this is already the RRG-correct exemption (MC10 p. 3)                                                                                                                         |
-| `linked_card`                                                                   | **unchanged and absolute**, in campaign context too (ruling August 3, 2026 (4) answer 3)                                                                                                  |
-| `scenario_card`, `competitive_card`                                             | unchanged                                                                                                                                                                                 |
-| identity choice                                                                 | new `campaign_identity_locked` when `deck.identityCardId !== context.identityCardId`                                                                                                      |
-| —                                                                               | new `campaign_removed_card` (RRG p. 29) and `campaign_prohibited_card` (MC27 p. 4 / MC40 p. 6)                                                                                            |
-| —                                                                               | new `campaign_deck_frozen` when a non-granted line differs from `frozenNonCampaignCards`                                                                                                  |
-| copy limit                                                                      | granted cards are excluded from the by-title copy count, consistent with the deck-size exemption. **Flagged** — see Open question Q8.                                                     |
+| Today                                                                           | In campaign context                                                                                                                                                                                                                                                                                                                       |
+| ------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `campaign_card` (line ~416) refuses every `specificTo.kind === "campaign"` card | refuses only if there is no campaign context, or the card's set is not in `campaignSetIds`, or its id is not in `grantedCardIds`. New code `campaign_card_not_granted` for the last case.                                                                                                                                                 |
+| granted cards `continue` before `counted += …`                                  | unchanged — this is already the RRG-correct exemption (MC10 p. 3), and the two rows below join it: a granted scenario card and a granted obligation are not counted toward deck size either                                                                                                                                               |
+| `linked_card`                                                                   | **unchanged and absolute**, in campaign context too (ruling August 3, 2026 (4) answer 3)                                                                                                                                                                                                                                                  |
+| `scenario_card`                                                                 | **as built:** refused unless the campaign granted this copy. MC10 p. 10 adds rescued Captive allies (scenario-specific cards) to decks by instruction; MC10 p. 12 takes an unrescued one back out through RRG 1.8 p. 29's removal, which is checked first. Still refused outside a campaign, and for every copy beyond the granted ones.  |
+| `competitive_card`                                                              | unchanged                                                                                                                                                                                                                                                                                                                                 |
+| `not_a_player_card` for an `obligation`                                         | **as built:** an obligation is legal for exactly the copies the campaign granted. MC10 p. 17: "The obligations in the expert campaign sets have player-card backs because they are meant to be added to player decks, but they are still encounter cards." Every other encounter card, and an ungranted obligation, is refused as before. |
+| identity choice                                                                 | new `campaign_identity_locked` when `deck.identityCardId !== context.identityCardId`                                                                                                                                                                                                                                                      |
+| —                                                                               | new `campaign_removed_card` (RRG p. 29) and `campaign_prohibited_card` (MC27 p. 4 / MC40 p. 6)                                                                                                                                                                                                                                            |
+| —                                                                               | new `campaign_deck_frozen` when a non-granted line differs from `frozenNonCampaignCards`                                                                                                                                                                                                                                                  |
+| copy limit                                                                      | granted cards are excluded from the by-title copy count, consistent with the deck-size exemption. **Flagged** — see Open question Q8.                                                                                                                                                                                                     |
 
 **The Q8 decision point** is the exported constant `CAMPAIGN_GRANTS_COUNT_TOWARD_COPY_LIMIT` in
 `packages/engine/src/deck.ts`, set to `false` (the recommendation above), with the open question in its doc comment.
@@ -1255,12 +1295,32 @@ Ordered, each step independently verifiable. C1 and MC10's C2 are built together
 | 4   | **Landed.** The runner (§7.3): `resolveBetweenGames`, `startGameFromLog`, `campaignResultOf`, `applyCampaignResult`, `createCampaignLog`, seeded campaign RNG, pending-choice re-entry                                                                                                                                                                            | `game-rules-architect`       | `campaign/runner.test.ts`: the synthetic campaign played end to end, a loss, a retry, a `removeFromCampaign` surviving it, seed determinism, a JSON round trip |
 | 5   | **Landed.** `validateDeck` `DeckContext`, five new problem codes, the campaign-specific refusals made conditional                                                                                                                                                                                                                                                 | `game-rules-architect`       | `deck.test.ts`: campaign card legal inside its campaign and illegal outside; removed card refused; identity lock; frozen deck; granted cards exempt from size  |
 | 6   | **Landed (2026-09-21), MC10 only.** Content: `Campaign` record fields; confirm `aos`/`cw`/`fne` campaign-card counts against their rulebooks (PLAN.md §C2 open item); correct the MC56 row. **As built:** only `trors` (MC10) has a `Campaign` record — see the note below the table.                                                                             | `card-data-pipeline`         | `validateCampaign`; a test that every box's campaign sets are `campaignSpecific`                                                                               |
-| 7   | `packages/cards/src/campaigns/trors.ts` — MC10's five nodes, every instruction cited `MC10 p. N`                                                                                                                                                                                                                                                                  | `ability-scripting-engineer` | the §9.3 coverage test                                                                                                                                         |
+| 7   | **Landed.** `packages/cards/src/campaigns/trors.ts` — MC10's five nodes, every instruction cited `MC10 p. N`. Writing it found six gaps in the foundation, all closed in `@mc/engine` rather than worked around in content — see the note below the table.                                                                                                        | `ability-scripting-engineer` | the §9.3 coverage test, plus a five-node between-games walk and one real game per §11 step 7                                                                   |
 | 8   | MC10's 30 parked refs (04155–04166): the four TECH upgrades, the four Condition upgrades (both faces), the four Expert Campaign obligations; `KNOWN_SKIPPED.trors` → `[]`                                                                                                                                                                                         | `ability-scripting-engineer` | `wave2/coverage.test.ts`                                                                                                                                       |
 | 9   | QA scenarios: full standard campaign; full expert campaign (persistent damage MC10 p. 17, obligations in decks, engaged-with-enemy record p. 12, delay counters → starting threat p. 15); a lost-and-retried scenario proving the log survives; Hydra Prison allies proving removal sticks across the retry; a Vibranium Arrow in-game log write surviving a loss | `rules-qa-engineer`          | named per-page tests                                                                                                                                           |
 | 10  | `CampaignStorage` + `IdbCampaignStorage` + shared contract test; `SaveMeta.campaignId`; `SAVE_SCHEMA` → 4                                                                                                                                                                                                                                                         | `game-client-engineer`       | the contract test, both implementations                                                                                                                        |
 | 11  | The five view models in §10.2                                                                                                                                                                                                                                                                                                                                     | `game-client-engineer`       | Vitest unit tests; scenes are a separate brief                                                                                                                 |
 | 12  | **Acceptance gate for "content-only": write MC21's definition against the frozen foundation.** MC21 is the cheapest second box (campaign pool of flags, no currency, no track). If it needs _any_ change in `packages/engine` or `packages/client`, the foundation is wrong and steps 2–4 are revised before more boxes land.                                     | `ability-scripting-engineer` | a `git diff --stat` touching only `packages/content` and `packages/cards`                                                                                      |
+
+**Step 7, as built: the six gaps the first real box found.** Each is general, and none of them names a box:
+
+1. `CampaignChoiceSource` `campaignSet`/`perSeatSet` take a `CollectionFilter` — one printed set is not one printed
+   choice (MC10 p. 5's TECH upgrades vs. p. 7's Condition upgrades, in one set). The filter is _not_ a deckbuilding
+   test; only `collection`/`ownDeck` apply that (§4.5).
+2. `CampaignGameQuery` `cardsTuckedUnder` (§4.3b) — the cards under a host card, which no in-play selection sees.
+3. `CampaignOp` `random` takes `optional`, answered with the exported `CAMPAIGN_ACCEPT` token (§4.5).
+4. `CampaignPredicate` `choiceMade`, plus the polarity fix in §4.4: nothing recorded is an _unchecked_ box.
+5. `validateDeck` exempts a granted `specificTo.kind === "scenario"` card (§8).
+6. `validateDeck` exempts a granted `obligation` (§8), which stays illegal as a deckbuilding choice.
+
+`packages/engine/src/testing/campaign.ts` now carries a **second** one-node synthetic box
+(`SYNTHETIC_EXTRAS_CAMPAIGN`) for exactly these members plus `LossPolicy.retry: "free"`, kept separate from the
+branching fixture so that neither box's `random` draws or choice options move when the other changes.
+
+**One sharp edge, flagged rather than changed.** `excludeGranted` reads the _grants_, so a table-wide single-copy
+pool must be written as a `forEachSeat` that chooses and grants per seat; a flat `choose` with
+`chooser: "eachSeat"` asks every seat before any `grantCard` runs, so two seats could name the same copy. Both
+fixtures and `trors.ts` use the per-seat shape, and `ops.ts` says so where `anyGranted` is defined.
 
 **Step 6, as built.** `Campaign` (`packages/content/src/schema/sets.ts`) gained two fields the §3 sketch didn't
 carry: `boxCode` (the printed FFG code, "MC10" — distinct from `packCode`, the internal `SetCode`) and

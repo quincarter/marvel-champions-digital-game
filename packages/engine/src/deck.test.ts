@@ -21,6 +21,7 @@ import { DEFAULT_DEPS } from "./abilities.js";
 import {
   abilityRefsOf,
   CAMPAIGN_GRANTS_COUNT_TOWARD_COPY_LIMIT,
+  DECK_MAX_CARDS,
   requiredIdentitySet,
   unscriptedCards,
   validateDeck,
@@ -531,11 +532,24 @@ describe("validateDeck in a campaign context", () => {
   });
   /** An ordinary basic card, for the rules that are about a card the *player* chose. */
   const bulk = synthetic(basicEvent, { id: cardId("x-bulk"), name: "Bulk Supply" });
+  /**
+   * A **scenario**-specific player card: it enters the game through its scenario, so it is never a deckbuilding
+   * choice — but a campaign instruction can still add one to a deck (MC10 p. 10's rescued Captive allies).
+   */
+  const CAPTIVE = "x-captive";
+  const captive = synthetic(basicEvent, {
+    id: cardId(CAPTIVE),
+    name: "Rescued Captive",
+    specificTo: { kind: "scenario", encounterSetId: encounterSetId("x-scenario-set") },
+  });
+  /** An encounter card with a player-card back, the one kind of encounter card a campaign may deal into a deck. */
+  const obligation = CORE_CARDS.find((card) => card.type === "obligation");
+  if (!obligation) throw new Error("Core has no obligation card");
   /** Four more of them, so deck size can be pushed past the maximum without tripping the three-copy rule too. */
   const spares = [1, 2, 3, 4].map((n) =>
     synthetic(basicEvent, { id: cardId(`x-spare-${n}`), name: `Spare Part ${n}` }),
   );
-  const POOL: readonly AnyCard[] = [...CORE_CARDS, reward, bulk, ...spares];
+  const POOL: readonly AnyCard[] = [...CORE_CARDS, reward, bulk, captive, ...spares];
 
   const inCampaign = (over: Partial<CampaignDeckContext> = {}): DeckContext => ({
     campaign: {
@@ -629,6 +643,52 @@ describe("validateDeck in a campaign context", () => {
       expect(codesIn(oversize)).toEqual(["deck_size"]);
       const granted = spares.flatMap((spare) => [spare.id as string, spare.id as string, spare.id as string]);
       expect(codesIn(oversize, inCampaign({ grantedCardIds: granted }))).toEqual([]);
+    });
+
+    it("allows a scenario-specific card the campaign added, and only the copies it added (MC10 p. 10)", () => {
+      // "Each player who rescued one or more allies from the Taskmaster encounter set **adds those allies to
+      // their deck**." Outside a campaign, and inside one that did not add it, the card is refused exactly as it
+      // always was: a scenario's own cards are not a deckbuilding choice.
+      const one = withCard(starter(), CAPTIVE, 1);
+      expect(codesIn(one)).toEqual(["scenario_card"]);
+      expect(codesIn(one, inCampaign())).toEqual(["scenario_card"]);
+      expect(codesIn(one, inCampaign({ grantedCardIds: [CAPTIVE] }))).toEqual([]);
+      expect(codesIn(withCard(starter(), CAPTIVE, 2), inCampaign({ grantedCardIds: [CAPTIVE] }))).toEqual([
+        "scenario_card",
+      ]);
+      // MC10 p. 12 takes an unrescued one back out again, through RRG 1.8 p. 29's removal.
+      const removed = inCampaign({ grantedCardIds: [CAPTIVE], removedFromCampaign: [{ cardId: cardId(CAPTIVE) }] });
+      expect(codesIn(one, removed)).toEqual(["campaign_removed_card"]);
+    });
+
+    it("allows an obligation the campaign added, and only then (MC10 p. 17)", () => {
+      // "The obligations in the expert campaign sets have player-card backs because they are meant to be added to
+      // player decks, but they are still encounter cards" — legal here only because the campaign put it there.
+      const id = obligation.id as string;
+      const one = withCard(starter(), id, 1);
+      expect(codesIn(one)).toEqual(["not_a_player_card"]);
+      expect(codesIn(one, inCampaign())).toEqual(["not_a_player_card"]);
+      expect(codesIn(one, inCampaign({ grantedCardIds: [id] }))).toEqual([]);
+      expect(codesIn(withCard(starter(), id, 2), inCampaign({ grantedCardIds: [id] }))).toEqual(["not_a_player_card"]);
+      const removed = inCampaign({ grantedCardIds: [id], removedFromCampaign: [{ cardId: obligation.id }] });
+      expect(codesIn(one, removed)).toEqual(["campaign_removed_card"]);
+    });
+
+    it("counts neither of them toward deck size, the way every grant is exempt (MC10 p. 3)", () => {
+      /** The starter deck topped up with spare copies to exactly the maximum, so one more card is one too many. */
+      const size = (deck: DeckContents): number => deck.cards.reduce((total, line) => total + line.quantity, 0);
+      let filled = starter();
+      for (const spare of spares) {
+        const room = DECK_MAX_CARDS - size(filled);
+        if (room > 0) filled = withCard(filled, spare.id, Math.min(3, room));
+      }
+      expect(size(filled)).toBe(DECK_MAX_CARDS);
+      expect(codesIn(filled)).toEqual([]);
+      expect(codesIn(withCard(filled, bulk.id, 1))).toEqual(["deck_size"]);
+
+      expect(codesIn(withCard(filled, CAPTIVE, 1), inCampaign({ grantedCardIds: [CAPTIVE] }))).toEqual([]);
+      const obligationId = obligation.id as string;
+      expect(codesIn(withCard(filled, obligationId, 1), inCampaign({ grantedCardIds: [obligationId] }))).toEqual([]);
     });
 
     it("leaves granted copies out of the by-title copy count (the Q8 decision point)", () => {
