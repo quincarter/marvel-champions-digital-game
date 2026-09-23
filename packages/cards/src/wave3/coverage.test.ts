@@ -164,18 +164,11 @@ const KNOWN_SKIPPED: Readonly<Record<string, readonly string[]>> = {
     "16182a.kree-supremacy-constant",
     "16182b.kree-supremacy-constant",
   ],
-  stld: [
-    // Star-Lord's kit is scripted (docs/phase7-wave3-scripting.md, `wave3/stld/star-lord-kit.ts`). Three genuine
-    // primitive gaps (module docblock): 17017 (a "character has an attachment matching X" TargetQuery filter,
-    // the mirror of `host`/`hostOfSelf`), 17029 (an optional/"up to" form of `EffectSpec divide`), 17005 (a
-    // "play only if you control a named card" restriction — a `constant` ability's rules are only active while
-    // its own card is in play, so this can't be a `cannotPlay` constant on the event card itself). His
-    // obligation and nemesis set are fully scripted. Regenerated with `MC_REFS_PACKS=stld pnpm refs` — never
-    // hand-typed.
-    "17005.sliding-shot-constant",
-    "17017.target-practice-interrupt",
-    "17029.agile-flight-action",
-  ],
+  // stld: fully scripted — no genuine primitive gaps (module docblock, `wave3/stld/star-lord-kit.ts`). The last
+  // three (17005.sliding-shot-constant, 17017.target-practice-interrupt, 17029.agile-flight-action) closed in the
+  // third primitives pass (docs/phase7-wave3.md §3.39–§3.42). His obligation and nemesis set are fully scripted
+  // too. Regenerated with `MC_REFS_PACKS=stld pnpm refs` — never hand-typed.
+  stld: [],
   gam: [],
   drax: [
     // Drax's kit, obligation and nemesis set are scripted (docs/phase7-wave3-scripting.md, `wave3/drax/`). Two

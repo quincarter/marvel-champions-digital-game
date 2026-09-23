@@ -2,10 +2,12 @@ import { cardId } from "@mc/content";
 import {
   activeVillain,
   allyLimitFor,
+  applyCommand,
   cardsInPlay,
   characterProfile,
   handSize,
   hasKeyword,
+  legalActions,
   traitsOf,
   type CardInstance,
   type GameState,
@@ -25,6 +27,7 @@ import {
   play,
   payWith,
   playerOf,
+  runWith,
   settle,
   stackEncounterDeck,
   toHero,
@@ -32,8 +35,9 @@ import {
   type Picker,
 } from "../../testing/harness.js";
 import { driveEvents } from "../../testing/staging.js";
+import { traceAbilities } from "../../testing/trace.js";
 import { wave3Scenario } from "../setup.js";
-import { playFromHand, runWave3, startWave3Game, WAVE3_DEPS } from "../testing.js";
+import { encounterCardInVillainArea, playFromHand, runWave3, startWave3Game, WAVE3_DEPS } from "../testing.js";
 import type { CorePlayer } from "../../core/setup.js";
 import { STAR_LORD_LEADERSHIP } from "./testing.js";
 
@@ -42,13 +46,13 @@ import { STAR_LORD_LEADERSHIP } from "./testing.js";
 const starLordVsRhino = () => startWave3Game(wave3Scenario("rhino", { players: [STAR_LORD_LEADERSHIP], seed: 2026 }));
 
 /**
- * Dive Bomb (Aggression) and Ever Vigilant (Protection) are out of aspect for the Leadership test deck, so these two
- * tests seat a stand-in deck that also holds one of each, with `requireLegalDecks` dropped (as `../gam/support.ts`
- * does for Gamora).
+ * Dive Bomb (Aggression), Ever Vigilant (Protection) and Agile Flight (Justice) are out of aspect for the
+ * Leadership test deck, so these tests seat a stand-in deck that also holds one of each, with `requireLegalDecks`
+ * dropped (as `../gam/support.ts` does for Gamora).
  */
 const starLordWithOffAspectEvents = () => {
   const base = STAR_LORD_LEADERSHIP as Extract<CorePlayer, { readonly deck: readonly string[] }>;
-  const seat = { ...base, deck: [...base.deck, cardId("17028"), cardId("17030")] };
+  const seat = { ...base, deck: [...base.deck, cardId("17028"), cardId("17030"), cardId("17029")] };
   return startWave3Game({ ...wave3Scenario("rhino", { players: [seat], seed: 2026 }), requireLegalDecks: false });
 };
 
@@ -212,8 +216,44 @@ describe("Star-Lord kit", () => {
     expect(mainThreat(state)).toBe(before - 2 - 2 * 2);
   });
 
-  // Sliding Shot's own "Play only if you control an Element Gun" (17005.sliding-shot-constant) is a documented
-  // primitive gap (module docblock, `star-lord-kit.ts`), not tested here.
+  describe("Sliding Shot — Play only if you control an Element Gun (17005.sliding-shot-constant, docs/phase7-wave3.md §3.42)", () => {
+    it("cannot be played, or offered, without an Element Gun in play", () => {
+      const hero = runWave3(starLordVsRhino(), toHero());
+      const given = moveToHand(hero, P1, "17005");
+      const [id] = given.ids as [InstanceId];
+      const result = applyCommand(
+        given.state,
+        { type: "playCard", playerId: P1, cardInstanceId: id, payment: [], attachToInstanceId: null },
+        WAVE3_DEPS,
+      );
+      expect(result.ok).toBe(false);
+      const actions = legalActions(given.state, P1, WAVE3_DEPS);
+      if (actions.kind !== "turn") throw new Error(`expected a turn, got ${actions.kind}`);
+      expect(actions.legal.some((a) => a.action.kind === "playCard" && a.action.instanceId === id)).toBe(false);
+    });
+
+    it("is offered and plays normally once you control an Element Gun", () => {
+      const hero = runWave3(starLordVsRhino(), toHero());
+      const { state: withGun } = playFromHand(hero, "17007", 3, accepting("enemy"));
+      const given = moveToHand(withGun, P1, "17005");
+      const [id] = given.ids as [InstanceId];
+      const actions = legalActions(given.state, P1, WAVE3_DEPS);
+      if (actions.kind !== "turn") throw new Error(`expected a turn, got ${actions.kind}`);
+      expect(actions.legal.some((a) => a.action.kind === "playCard" && a.action.instanceId === id)).toBe(true);
+      const result = applyCommand(
+        given.state,
+        {
+          type: "playCard",
+          playerId: P1,
+          cardInstanceId: id,
+          payment: payWith(given.state, P1, 3, [id]).map((fromHand) => ({ fromHand })),
+          attachToInstanceId: null,
+        },
+        WAVE3_DEPS,
+      );
+      expect(result.ok).toBe(true);
+    });
+  });
 
   it("Sliding Shot: deals 5 damage plus 2 more per facedown encounter card (17005.sliding-shot-action)", () => {
     const hero = runWave3(starLordVsRhino(), toHero());
@@ -494,6 +534,104 @@ describe("Star-Lord kit", () => {
     expect(afterPhase.atk).toBe(printed.atk); // the bonus expired with the phase
     expect(afterPhase.thw).toBe(printed.thw);
     expect(inst(reached, identity).damage).toBe(damageBefore + 1); // Blaze of Glory's own end-of-phase damage
+  });
+
+  describe("Target Practice — Interrupt: when an ally with a weapon attachment upgrade makes an attack, discard Target Practice → that ally gets +2 ATK for that attack (17017.target-practice-interrupt, docs/phase7-wave3.md §3.40)", () => {
+    it("an ally with a weapon attached gets +2 ATK for its attack", () => {
+      const hero = runWave3(starLordVsRhino(), toHero());
+      const { state: withYondu, id: yondu } = playFromHand(hero, "17013", 4);
+      const given = moveToHand(withYondu, P1, "17019"); // Laser Blaster ([WEAPON])
+      const [blaster] = given.ids as [InstanceId];
+      const attached = settle(
+        runWave3(given.state, play(P1, blaster, payWith(given.state, P1, 1, [blaster]), { attachToInstanceId: yondu })),
+        firstLegal,
+        undefined,
+        WAVE3_DEPS,
+      );
+      const { state: withCard, id: targetPractice } = playFromHand(attached, "17017", 0);
+      // Laser Blaster's own +1 ATK is baked into `printedAtk`, so the interrupt's +2 is on top of that.
+      const printedAtk = characterProfile(withCard, yondu, WAVE3_DEPS)!.atk;
+      const villain = activeVillain(withCard).instanceId;
+      const before = inst(withCard, villain).damage;
+      const attacked = settle(
+        runWave3(withCard, { type: "basicAttack", playerId: P1, attackerInstanceId: yondu, targetInstanceId: villain }),
+        accepting("17017.target-practice-interrupt"),
+        undefined,
+        WAVE3_DEPS,
+      );
+      expect(inst(attacked, villain).damage).toBe(before + printedAtk + 2);
+      expect(cardsInPlay(attacked)).not.toContain(targetPractice);
+    });
+
+    it("is never offered for an ally with no weapon attached", () => {
+      const hero = runWave3(starLordVsRhino(), toHero());
+      const { state: withYondu, id: yondu } = playFromHand(hero, "17013", 4);
+      const { state: withCard } = playFromHand(withYondu, "17017", 0);
+      const villain = activeVillain(withCard).instanceId;
+      const { deps, trace } = traceAbilities(WAVE3_DEPS);
+      settle(
+        runWith(deps, withCard, {
+          type: "basicAttack",
+          playerId: P1,
+          attackerInstanceId: yondu,
+          targetInstanceId: villain,
+        }),
+        firstLegal,
+        undefined,
+        deps,
+      );
+      expect(trace.resolved()).not.toContain("17017.target-practice-interrupt");
+    });
+  });
+
+  describe("Agile Flight — Play only if your identity has the aerial trait (data). Hero Action (thwart): remove a total of up to 5 threat from among schemes, as you choose (17029.agile-flight-action, docs/phase7-wave3.md §3.41)", () => {
+    it("divides fewer than 5 across two schemes", () => {
+      const hero = runWave3(starLordWithOffAspectEvents(), toHero());
+      const { state: withJetBoots } = playFromHand(hero, "17008", 2); // grants aerial
+      const { state: withScheme, id: sideScheme } = encounterCardInVillainArea(withJetBoots, "01107", 4);
+      const withThreat = patchInstance(withScheme, withScheme.mainScheme.instanceId, { threat: 6 });
+      const main = withThreat.mainScheme.instanceId;
+      const given = moveToHand(withThreat, P1, "17029");
+      const [card] = given.ids as [InstanceId];
+      const divideThree: Picker = (s) => {
+        const choice = s.pendingChoice;
+        if (choice?.prompt.kind === "divide") return [`${sideScheme}#1`, `${sideScheme}#2`, `${main}#1`];
+        return firstLegal(s);
+      };
+      const settled = settle(
+        runWave3(given.state, play(P1, card, payWith(given.state, P1, 3, [card]))),
+        divideThree,
+        undefined,
+        WAVE3_DEPS,
+      );
+      expect(inst(settled, sideScheme).threat).toBe(2);
+      expect(inst(settled, main).threat).toBe(5);
+    });
+
+    it("still asks with a single scheme in play, since how many is the chooser's", () => {
+      const hero = runWave3(starLordWithOffAspectEvents(), toHero());
+      const { state: withJetBoots } = playFromHand(hero, "17008", 2); // grants aerial
+      const withThreat = patchInstance(withJetBoots, withJetBoots.mainScheme.instanceId, { threat: 6 });
+      const main = withThreat.mainScheme.instanceId;
+      const given = moveToHand(withThreat, P1, "17029");
+      const [card] = given.ids as [InstanceId];
+      const divideTwo: Picker = (s) => {
+        const choice = s.pendingChoice;
+        if (choice?.prompt.kind === "divide") {
+          expect(choice.minSelections).toBe(0);
+          expect(choice.maxSelections).toBe(5);
+          return [`${main}#1`, `${main}#2`];
+        }
+        return firstLegal(s);
+      };
+      const settled = settle(
+        runWave3(given.state, play(P1, card, payWith(given.state, P1, 3, [card]))),
+        divideTwo,
+        undefined,
+        WAVE3_DEPS,
+      );
+      expect(inst(settled, main).threat).toBe(4);
+    });
   });
 
   it("Laser Blaster: attached ally gets +1 ATK, and its attacks gain overkill (17019.laser-blaster-constant)", () => {

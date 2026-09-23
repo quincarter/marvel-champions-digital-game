@@ -24,14 +24,18 @@ import {
   defeat,
   defineAbilities,
   discardThis,
+  divide,
   draw,
   each,
   encounterCards,
   eventPlayer,
+  eventSource,
   exhaustThis,
+  exists,
   gainsKeyword,
   gainsTrait,
   gets,
+  hasAttachment,
   heal,
   heroAction,
   heroInterrupt,
@@ -39,11 +43,13 @@ import {
   interrupt,
   isHero,
   min,
+  modifyStat,
   modifyStatOf,
   moveCards,
   on,
   option,
   partOf,
+  playOnlyIf,
   preventDamage,
   query,
   ready,
@@ -93,26 +99,21 @@ const GUARDIAN_CHARACTERS: TargetQuery = query(["identity", "ally"], { trait: GU
  * pool) are aliased automatically, not scripted here. Budding Crime Syndicate (17025) carries no ability of its
  * own — its Hinder keyword (docs/phase7-wave3.md §1.3) is read by the engine directly.
  *
- * **Three documented skips, all genuine primitive gaps:**
+ * **Three genuine primitive gaps, all closed** (docs/phase7-wave3.md §3.39/§3.40/§3.41/§3.42, docs/phase7-wave3-
+ * scripting.md §6d):
  * - `17017.target-practice-interrupt` ("Interrupt: When an ally with a weapon attachment upgrade makes an
- *   attack…") needs a `TargetQuery` filter asking whether a *character* has an attachment matching some other
- *   query — the mirror of the existing `host`/`hostOfSelf` pair, which only ask about a candidate's *own*
- *   attachment relationship, not "does some other card in play consider this its host". Composing it as an
- *   `ifThen(exists(...))` guard inside the effects, rather than gating the trigger itself, would let the
- *   interrupt be offered (and Target Practice discarded) against an ally with no weapon at all — a real
- *   widening of the printed card, not an approximation worth shipping.
- * - `17029.agile-flight-action` ("Remove a total of up to 5 threat from among schemes (as you choose)") needs an
- *   optional/"up to" form of `EffectSpec divide` — the existing builder always forces the full computed amount
- *   (`minSelections === maxSelections === amount`, docs/phase7-wave2.md §3.7's own Inconspicuous/Wasp Sting
- *   shape, which print "a total of N" with no "up to"), with no way for the player to choose to remove less. A
- *   forced-maximum reading would be a real behavior change, not the printed "as you choose".
- * - `17005.sliding-shot-constant` ("Play only if you control an Element Gun") looked scriptable as a `constant`
- *   ability with a `cannotPlay` rule, but a `constant`'s rules are only active while its *own card is in play*
- *   (`activeRules`/`activeAbilityRefs`, `packages/engine/src/select.ts`: both iterate `cardsInPlay(state)`) — and
- *   an event card being evaluated for whether it may be played from hand is never itself in play yet. Verified by
- *   writing the test: the restriction silently never applied. `playRestrictions` (the schema field that already
- *   covers "requires an identity trait/form") has no "controls a named card" case either. Needs either a new
- *   `playRestrictions` case or a play-time-evaluated rule kind distinct from the in-play-only `constant` rules.
+ *   attack…") — the mirror of the existing `host`/`hostOfSelf` pair, `TargetQuery.hasAttachment` asks whether a
+ *   *character* has an attachment matching some other query, on the trigger itself (not an `ifThen(exists(...))`
+ *   guard in the effects, which would let the interrupt be offered — and Target Practice discarded — against an
+ *   ally with no weapon at all).
+ * - `17029.agile-flight-action` ("Remove a total of up to 5 threat from among schemes (as you choose)") —
+ *   `EffectSpec divide`'s new `upTo: true` lets the chooser divide fewer than the computed amount, or none
+ *   (§4 Q16), unlike the existing forced-maximum shape (`minSelections === maxSelections === amount`,
+ *   docs/phase7-wave2.md §3.7's own Inconspicuous/Wasp Sting, which print "a total of N" with no "up to").
+ * - `17005.sliding-shot-constant` ("Play only if you control an Element Gun") — `constant.playOnlyIf`, read from
+ *   the card being played wherever it is (not the in-play-only `activeRules`/`activeAbilityRefs` a bare
+ *   `cannotPlay` rule would need), enforced in `playRestrictionFault` for the play command, `legalActions`, and
+ *   any event offered in a timing window alike.
  */
 export const STAR_LORD_KIT = defineAbilities({
   // Star-Lord — Each ally you control gains the guardian trait.
@@ -168,7 +169,8 @@ export const STAR_LORD_KIT = defineAbilities({
     removeThreat(scaled(dealtEncounterCount(you), { times: 2, plus: 2 }), chosen("scheme")),
   ),
 
-  // Sliding Shot (17005.sliding-shot-constant, "Play only if you control an Element Gun") — see module docblock.
+  // Sliding Shot — Play only if you control an Element Gun (docs/phase7-wave3.md §3.42).
+  "17005.sliding-shot-constant": constant(playOnlyIf(exists({ name: "Element Gun", controller: "you" }))),
 
   // Sliding Shot — Hero Action (attack): Deal 5 damage to an enemy. Deal 2 additional damage to that enemy for
   // each facedown encounter card in front of you.
@@ -278,7 +280,14 @@ export const STAR_LORD_KIT = defineAbilities({
     atEndOfPhase(dealDamage(1, each(GUARDIAN_CHARACTERS))),
   ),
 
-  // Target Practice (17017) — see module docblock.
+  // Target Practice — Interrupt: When an ally with a weapon attachment upgrade makes an attack, discard Target
+  // Practice → that ally gets +2 ATK for that attack (docs/phase7-wave3.md §3.40). "An ally" is any player's, not
+  // just yours — the printed card does not say "you control".
+  "17017.target-practice-interrupt": interrupt(
+    on.attacks(query("ally", hasAttachment(query("upgrade", { trait: trait("Weapon") })))),
+    { cost: discardThis },
+    modifyStat("atk", 2, eventSource, "endOfAttack"),
+  ),
 
   // The Power of Leadership (17018) reprints an earlier Leadership resource card verbatim — aliased by
   // `../reprints.ts`, not scripted here.
@@ -301,7 +310,9 @@ export const STAR_LORD_KIT = defineAbilities({
     dealDamage(1, each(query("enemy", { excluding: chosen("enemy") }))),
   ),
 
-  // Agile Flight (17029) — see module docblock.
+  // Agile Flight — Play only if your identity has the aerial trait (data). Hero Action (thwart): Remove a total of
+  // up to 5 threat from among schemes (as you choose) (docs/phase7-wave3.md §3.41, §4 Q16: 0 is allowed too).
+  "17029.agile-flight-action": heroAction({ label: "thwart" }, divide("threat", 5, query("scheme"), { upTo: true })),
 
   // Ever Vigilant — Play only if your identity has the aerial trait (data). Hero Action: Ready your hero and
   // remove 2 threat from the main scheme.
