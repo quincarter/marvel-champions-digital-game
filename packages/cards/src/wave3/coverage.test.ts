@@ -10,6 +10,7 @@ import { coveredByEngineRule } from "../dsl/index.js";
 import { WAVE1_ABILITIES } from "../wave1/index.js";
 import { WAVE2_ABILITIES } from "../wave2/index.js";
 import { WAVE3_ABILITIES, wave3ReprintPairs } from "./index.js";
+import { DRAX_ABILITIES } from "./drax/index.js";
 import { GAM_ABILITIES } from "./gam/index.js";
 import { GMW_ABILITIES } from "./gmw/index.js";
 import { STLD_ABILITIES } from "./stld/index.js";
@@ -40,7 +41,7 @@ const PACK_STATUS: Readonly<Record<string, "scripted" | "in progress" | "not sta
   gmw: "in progress",
   stld: "scripted",
   gam: "scripted",
-  drax: "not started",
+  drax: "in progress",
   vnm: "not started",
   ron: "not started",
 };
@@ -294,7 +295,19 @@ const KNOWN_SKIPPED: Readonly<Record<string, readonly string[]>> = {
     "17029.agile-flight-action",
   ],
   gam: [],
-  drax: [],
+  drax: [
+    // Drax's kit, obligation and nemesis set are scripted (docs/phase7-wave3-scripting.md, `wave3/drax/`). Two
+    // genuine primitive gaps (module docblocks in `drax/drax-kit.ts`, `drax/drax-pack-cards.ts`): 19012 (Martyr —
+    // a consequential-damage event needs a link back to the attack that caused it, to read whether that attack
+    // defeated an enemy); 19032.regroup-interrupt (a defeated ally needs a destination redirect to hand,
+    // conditioned on the defeat coming from an enemy attack — no existing primitive redirects a defeat's
+    // destination anywhere but the victory display or a scenario area). 19013.moondragon-action stays skipped per
+    // docs/phase7-wave3.md §3.23/§4 Q12 (an enemy attacking another enemy — intentionally left unbuilt this wave,
+    // not this pack's gap to resolve). Regenerated with `MC_REFS_PACKS=drax pnpm refs` — never hand-typed.
+    "19012.martyr-response",
+    "19013.moondragon-action",
+    "19032.regroup-interrupt",
+  ],
   vnm: [],
   ron: [],
 };
@@ -387,6 +400,7 @@ describe("wave 3 pack ability id coverage (every registered ability id is named 
     { code: "gmw", registry: GMW_ABILITIES },
     { code: "stld", registry: STLD_ABILITIES },
     { code: "gam", registry: GAM_ABILITIES },
+    { code: "drax", registry: DRAX_ABILITIES },
   ];
 
   /**
@@ -401,9 +415,17 @@ describe("wave 3 pack ability id coverage (every registered ability id is named 
    * in-game command can drive, so `wave3/gam/*.test.ts` has nothing to name it in. It's tested at the engine level,
    * `packages/engine/src/off-aspect-allowance.test.ts` (4 tests) plus `packages/content/src/schema/wave3.test.ts`
    * §1.5 (2 tests).
+   *
+   * `19030.bring-it-constant` ("Bring It!", `drax`): "Max 1 per phase." is `playRestrictions.maxPerPhase`
+   * (`packages/engine/src/actions.ts`), the Maximum Velocity precedent (`wave2/qsv/kit.ts` 14005) — `@mc/content`'s
+   * own 19030 record carries no `playRestrictions` at all (the same data gap Maximum Velocity has, flagged for
+   * `card-data-pipeline`), so there is no in-game command whose *rejection* this ref's own test could drive; the
+   * restriction mechanism itself is engine-enforced, data permitting, and is covered generically by
+   * `packages/engine/src/primitives-wave2.test.ts` (`playRestrictions.maxPerPhase`).
    */
   const COVERED_BY_ENGINE_RULE: Readonly<Record<string, string>> = {
     "18001b.gamora-constant": "packages/engine/src/off-aspect-allowance.test.ts",
+    "19030.bring-it-constant": "packages/engine/src/primitives-wave2.test.ts",
   };
 
   it("checks every pack PACK_STATUS marks started, so a new pack can't skip the guard by not being listed here", () => {

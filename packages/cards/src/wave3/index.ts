@@ -13,6 +13,7 @@ import type { AbilityRegistry, EngineDeps } from "@mc/engine";
 import { WAVE1_ABILITIES } from "../wave1/index.js";
 import { WAVE2_ABILITIES } from "../wave2/index.js";
 import { mergeRegistries } from "../dsl/index.js";
+import { DRAX_ABILITIES } from "./drax/index.js";
 import { GAM_ABILITIES } from "./gam/index.js";
 import { GMW_ABILITIES } from "./gmw/index.js";
 import { STLD_ABILITIES } from "./stld/index.js";
@@ -36,6 +37,7 @@ export const WAVE3_ABILITIES: AbilityRegistry = mergeRegistries(
   GMW_ABILITIES,
   GAM_ABILITIES,
   STLD_ABILITIES,
+  DRAX_ABILITIES,
 );
 
 /** Engine dependencies for games that use the wave 3 (cycle 2) pool. */
