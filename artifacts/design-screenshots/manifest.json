@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-23T18:05:31.080Z",
+  "generatedAt": "2026-09-23T19:00:18.801Z",
   "viewport": {
     "width": 1600,
     "height": 1200
@@ -709,6 +709,96 @@
       "source": "Components.dc.html",
       "screenshot": "artifacts/design-screenshots/components.dc.png",
       "screens": []
+    },
+    {
+      "source": "GMW Comic Reader.dc.html",
+      "screenshot": "artifacts/design-screenshots/gmw-comic-reader.dc.png",
+      "screens": [
+        {
+          "label": "16·R1 Comic phone",
+          "screenshot": "artifacts/design-screenshots/individual/gmw-comic-reader.dc/01-16-r1-comic-phone.png"
+        },
+        {
+          "label": "16·R2 Comic tablet",
+          "screenshot": "artifacts/design-screenshots/individual/gmw-comic-reader.dc/02-16-r2-comic-tablet.png"
+        },
+        {
+          "label": "16·R3 Comic desktop",
+          "screenshot": "artifacts/design-screenshots/individual/gmw-comic-reader.dc/03-16-r3-comic-desktop.png"
+        },
+        {
+          "label": "16·F The run",
+          "screenshot": "artifacts/design-screenshots/individual/gmw-comic-reader.dc/04-16-f-the-run.png"
+        },
+        {
+          "label": "16·F Issue opener comic",
+          "screenshot": "artifacts/design-screenshots/individual/gmw-comic-reader.dc/05-16-f-issue-opener-comic.png"
+        },
+        {
+          "label": "16·F In-game beat",
+          "screenshot": "artifacts/design-screenshots/individual/gmw-comic-reader.dc/06-16-f-in-game-beat.png"
+        },
+        {
+          "label": "16·F Defeat rewind",
+          "screenshot": "artifacts/design-screenshots/individual/gmw-comic-reader.dc/07-16-f-defeat-rewind.png"
+        },
+        {
+          "label": "16·F Aftermath page",
+          "screenshot": "artifacts/design-screenshots/individual/gmw-comic-reader.dc/08-16-f-aftermath-page.png"
+        },
+        {
+          "label": "16·F Finale spread",
+          "screenshot": "artifacts/design-screenshots/individual/gmw-comic-reader.dc/09-16-f-finale-spread.png"
+        },
+        {
+          "label": "T-16·F The run",
+          "screenshot": "artifacts/design-screenshots/individual/gmw-comic-reader.dc/10-t-16-f-the-run.png"
+        },
+        {
+          "label": "T-16·F Issue opener comic",
+          "screenshot": "artifacts/design-screenshots/individual/gmw-comic-reader.dc/11-t-16-f-issue-opener-comic.png"
+        },
+        {
+          "label": "T-16·F In-game beat",
+          "screenshot": "artifacts/design-screenshots/individual/gmw-comic-reader.dc/12-t-16-f-in-game-beat.png"
+        },
+        {
+          "label": "T-16·F Defeat rewind",
+          "screenshot": "artifacts/design-screenshots/individual/gmw-comic-reader.dc/13-t-16-f-defeat-rewind.png"
+        },
+        {
+          "label": "T-16·F Aftermath page",
+          "screenshot": "artifacts/design-screenshots/individual/gmw-comic-reader.dc/14-t-16-f-aftermath-page.png"
+        },
+        {
+          "label": "T-16·F Finale spread",
+          "screenshot": "artifacts/design-screenshots/individual/gmw-comic-reader.dc/15-t-16-f-finale-spread.png"
+        },
+        {
+          "label": "D-16·F The run",
+          "screenshot": "artifacts/design-screenshots/individual/gmw-comic-reader.dc/16-d-16-f-the-run.png"
+        },
+        {
+          "label": "D-16·F Issue opener comic",
+          "screenshot": "artifacts/design-screenshots/individual/gmw-comic-reader.dc/17-d-16-f-issue-opener-comic.png"
+        },
+        {
+          "label": "D-16·F In-game beat",
+          "screenshot": "artifacts/design-screenshots/individual/gmw-comic-reader.dc/18-d-16-f-in-game-beat.png"
+        },
+        {
+          "label": "D-16·F Defeat rewind",
+          "screenshot": "artifacts/design-screenshots/individual/gmw-comic-reader.dc/19-d-16-f-defeat-rewind.png"
+        },
+        {
+          "label": "D-16·F Aftermath page",
+          "screenshot": "artifacts/design-screenshots/individual/gmw-comic-reader.dc/20-d-16-f-aftermath-page.png"
+        },
+        {
+          "label": "D-16·F Finale spread",
+          "screenshot": "artifacts/design-screenshots/individual/gmw-comic-reader.dc/21-d-16-f-finale-spread.png"
+        }
+      ]
     },
     {
       "source": "Screens - Desktop.dc.html",
