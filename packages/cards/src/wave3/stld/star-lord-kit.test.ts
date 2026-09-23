@@ -618,7 +618,7 @@ describe("Star-Lord kit", () => {
       const divideTwo: Picker = (s) => {
         const choice = s.pendingChoice;
         if (choice?.prompt.kind === "divide") {
-          expect(choice.minSelections).toBe(0);
+          expect(choice.minSelections).toBe(1);
           expect(choice.maxSelections).toBe(5);
           return [`${main}#1`, `${main}#2`];
         }
@@ -631,6 +631,62 @@ describe("Star-Lord kit", () => {
         WAVE3_DEPS,
       );
       expect(inst(settled, main).threat).toBe(4);
+    });
+
+    // docs/phase7-wave3.md §4 Q16, decided by the user on 2026-09-23: "up to 5" removes at least 1 whenever threat can
+    // be removed, and 0 only when nothing can be targeted.
+    describe("must remove at least 1 threat whenever it can (§4 Q16)", () => {
+      /** Agile Flight played and paid for, stopped at its divide prompt (or wherever it settles without one). */
+      const atDivide = (sideSchemeThreat: number | null, mainThreat: number) => {
+        const hero = runWave3(starLordWithOffAspectEvents(), toHero());
+        const { state: withJetBoots } = playFromHand(hero, "17008", 2); // grants aerial
+        const withSide =
+          sideSchemeThreat === null ? { state: withJetBoots } : encounterCardInVillainArea(withJetBoots, "01107", 4);
+        const staged =
+          "id" in withSide
+            ? patchInstance(withSide.state, withSide.id, { threat: sideSchemeThreat ?? 0 })
+            : withSide.state;
+        const withThreat = patchInstance(staged, staged.mainScheme.instanceId, { threat: mainThreat });
+        const given = moveToHand(withThreat, P1, "17029");
+        const [card] = given.ids as [InstanceId];
+        return settle(
+          runWave3(given.state, play(P1, card, payWith(given.state, P1, 3, [card]))),
+          firstLegal,
+          (s) => s.pendingChoice?.prompt.kind === "divide",
+          WAVE3_DEPS,
+        );
+      };
+      const refusesNone = (state: GameState) => {
+        const choice = state.pendingChoice!;
+        expect(choice.prompt.kind).toBe("divide");
+        expect(choice.minSelections).toBe(1);
+        const none = { type: "resolveChoice", playerId: P1, choiceId: choice.choiceId, selectedOptionIds: [] } as const;
+        expect(applyCommand(state, none, WAVE3_DEPS).ok).toBe(false);
+      };
+
+      it("with one scheme holding threat, 0 is refused", () => {
+        refusesNone(atDivide(null, 6));
+      });
+
+      it("with two schemes holding threat, 0 is refused, and 1 point is enough", () => {
+        const state = atDivide(4, 6);
+        refusesNone(state);
+        const main = state.mainScheme.instanceId;
+        const choice = state.pendingChoice!;
+        const one = applyCommand(
+          state,
+          { type: "resolveChoice", playerId: P1, choiceId: choice.choiceId, selectedOptionIds: [`${main}#1`] },
+          WAVE3_DEPS,
+        );
+        expect(one.ok).toBe(true);
+        if (one.ok) expect(inst(one.state, main).threat).toBe(5);
+      });
+
+      it("with no threat on any scheme, nothing can be targeted: no choice, nothing removed", () => {
+        const state = atDivide(0, 0);
+        expect(state.pendingChoice?.prompt.kind).not.toBe("divide");
+        expect(inst(state, state.mainScheme.instanceId).threat).toBe(0);
+      });
     });
   });
 

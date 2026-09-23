@@ -1,4 +1,5 @@
-import { activeEncounterDeck, activeVillain } from "@mc/engine";
+import { activeEncounterDeck, activeVillain, applyCommand } from "@mc/engine";
+import { moveToDiscard } from "../../testing/staging.js";
 import { characterProfile, type Command, type GameState, type InstanceId } from "@mc/engine";
 import { CORE_DEPS } from "../index.js";
 import { coreScenario } from "../setup.js";
@@ -73,6 +74,28 @@ describe("Captain Marvel", () => {
 });
 
 describe("Black Panther", () => {
+  // docs/phase7-wave3.md §4 Q16, decided by the user on 2026-09-23: an effect's "up to N" chooses at least one when
+  // possible, so "Choose up to 3 different cards in your discard pile" can no longer choose none.
+  it("Ancestral Knowledge: chooses 1 to 3 different cards from the discard pile, never none while it holds any", () => {
+    const start = vsRhino("core-black-panther-protection");
+    const [first, second] = playerOf(start, P1).deck.map((id) => inst(start, id).cardId as string);
+    const discarded = moveToDiscard(moveToDiscard(start, P1, first!).state, P1, second!).state;
+    const given = moveToHand(discarded, P1, "01042");
+    const [knowledge] = given.ids as [InstanceId];
+    const choosing = run(given.state, play(P1, knowledge, payWith(given.state, P1, 1, given.ids)));
+    const choice = choosing.pendingChoice!;
+    expect(choice.prompt.kind).toBe("chooseCards");
+    expect(choice.minSelections).toBe(1);
+    const none = applyCommand(
+      choosing,
+      { type: "resolveChoice", playerId: P1, choiceId: choice.choiceId, selectedOptionIds: [] },
+      CORE_DEPS,
+    );
+    expect(none.ok).toBe(false);
+    const after = settle(answer(choosing, [choice.options[0]!.optionId]));
+    expect(playerOf(after, P1).discard).not.toContain(choice.options[0]!.optionId);
+  });
+
   it("Wakanda Forever!: Energy Daggers hits the villain and each enemy engaged with the chosen player; Panther Claws as the final step deals 4", () => {
     const round2 = settle(
       run(stackEncounterDeck(vsRhino("core-black-panther-protection"), "01186", "01101"), endTurn()),

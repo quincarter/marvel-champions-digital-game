@@ -187,7 +187,7 @@ export const MSM_KIT = defineAbilities({
   // Bruno Carrelli — Action: Exhaust Bruno Carrelli → add up to 3 cards attached here to your hand.
   "05007.bruno-carrelli-action-2": action(
     { cost: exhaustThis },
-    chooseCards("returned", cards(attachedHere()), { min: 0, max: 3 }),
+    chooseCards("returned", cards(attachedHere()), { min: 1, max: 3 }),
     moveCards(cards(chosen("returned")), "hand"),
   ),
 

@@ -107,8 +107,8 @@ const GUARDIAN_CHARACTERS: TargetQuery = query(["identity", "ally"], { trait: GU
  *   guard in the effects, which would let the interrupt be offered — and Target Practice discarded — against an
  *   ally with no weapon at all).
  * - `17029.agile-flight-action` ("Remove a total of up to 5 threat from among schemes (as you choose)") —
- *   `EffectSpec divide`'s new `upTo: true` lets the chooser divide fewer than the computed amount, or none
- *   (§4 Q16), unlike the existing forced-maximum shape (`minSelections === maxSelections === amount`,
+ *   `EffectSpec divide`'s new `upTo: true` lets the chooser divide fewer than the computed amount, but at least 1
+ *   whenever a scheme holds threat it can lose (§4 Q16, decided by the user on 2026-09-23), unlike the existing forced-maximum shape (`minSelections === maxSelections === amount`,
  *   docs/phase7-wave2.md §3.7's own Inconspicuous/Wasp Sting, which print "a total of N" with no "up to").
  * - `17005.sliding-shot-constant` ("Play only if you control an Element Gun") — `constant.playOnlyIf`, read from
  *   the card being played wherever it is (not the in-play-only `activeRules`/`activeAbilityRefs` a bare
@@ -266,7 +266,7 @@ export const STAR_LORD_KIT = defineAbilities({
   // control → deal 3 damage to each chosen enemy.
   "17014.air-supremacy-action": heroAction(
     chooseTarget("enemies", query("enemy"), {
-      optional: true,
+      upTo: true,
       count: countOf(query(["identity", "ally"], { controller: "you", trait: AERIAL })),
     }),
     dealDamage(3, chosen("enemies")),

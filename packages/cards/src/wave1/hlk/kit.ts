@@ -91,7 +91,7 @@ export const HLK_KIT = defineAbilities({
 
   // Thunderclap — Hero Action: Choose up to 3 different enemies. Deal 3 damage to each of them.
   "10005.thunderclap-action": heroAction(
-    chooseTarget("enemies", query("enemy"), { count: 3, optional: true }),
+    chooseTarget("enemies", query("enemy"), { count: 3, upTo: true }),
     dealDamage(3, chosen("enemies")),
   ),
 

@@ -887,7 +887,7 @@ Quantities are MarvelCDB `quantity`.
   order (`ChoicePrompt orderPlayers`, `authority: "firstPlayerOrders"`), dealing one player's whole share before the
   next player's — ruling, Jan 26, 2026 (4) answer 3, "Distribution is AABB or BBAA". One player is dealt to without
   asking, so Core's single-player use is unchanged. Handled in `effects-frame.ts`; `applyEffect` now refuses it.
-- **`chooseTarget.count` accepts a `ValueSpec`** ("X enemies"), with `optional` for "up to 3". Targets are distinct
+- **`chooseTarget.count` accepts a `ValueSpec`** ("X enemies"), with `optional` for "up to 3" (since 2026-09-23, `upTo`, which chooses at least 1: docs/phase7-wave3.md §4 Q16). Targets are distinct
   cards, and a villain is one enemy however many stages its deck has (FAQ "Melee (#30)", p. 59).
 - **Added while proving it:** `Predicate refMatches` gained `anywhere`, to ask about a card that is no longer in play
   ("each time a Goblin minion is discarded this way" asks about a card now in a discard pile).

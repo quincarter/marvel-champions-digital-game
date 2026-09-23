@@ -197,7 +197,7 @@ export const KANG_ENCOUNTER_SET = defineAbilities({
         printedCostOf(chosen("candidate")),
       ),
     ),
-    chooseTarget("pick", { inSlot: "highestCost" }, { optional: true }),
+    chooseTarget("pick", { inSlot: "highestCost" }),
     discard(chosen("pick")),
     tuckCards(cards(chosen("pick")), self, true),
   ),
@@ -341,11 +341,11 @@ export const KANG_ENCOUNTER_SET = defineAbilities({
   // Apocryphus — When Revealed: discard an ally or support you control. [star] Boost: exhaust a character you
   // control. Give this enemy another boost card.
   "11040.when-revealed": whenRevealed(
-    chooseTarget("target", query(["ally", "support"], { controller: "you" }), { optional: true }),
+    chooseTarget("target", query(["ally", "support"], { controller: "you" })),
     discard(chosen("target")),
   ),
   "11040.boost": boost(
-    chooseTarget("char", query("character", { controller: "you" }), { optional: true }),
+    chooseTarget("char", query("character", { controller: "you" })),
     exhaust(chosen("char")),
     modifyAttack({ extraBoostCards: 1 }),
   ),

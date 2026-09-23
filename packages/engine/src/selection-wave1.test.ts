@@ -140,11 +140,25 @@ const X_ENEMIES = actionEvent("x-enemies", [
 ]);
 /** "Deal 1 damage to up to 3 different enemies." */
 const UP_TO_THREE = actionEvent("up-to-three", [
+  { kind: "chooseTarget", slot: "enemies", query: { categories: ["enemy"] }, chooser: you, count: 3, upTo: true },
+  { kind: "dealDamage", target: { kind: "slot", slot: "enemies" }, amount: one },
+]);
+/** "You may deal 1 damage to up to 3 different enemies." — a printed "may" is what lets the player take none. */
+const MAY_UP_TO_THREE = actionEvent("may-up-to-three", [
   { kind: "chooseTarget", slot: "enemies", query: { categories: ["enemy"] }, chooser: you, count: 3, optional: true },
   { kind: "dealDamage", target: { kind: "slot", slot: "enemies" }, amount: one },
 ]);
 
-const EVENTS = [DISCARD_THREE, DISCARD_EACH, DISCARD_EACH_PLAYER, DEAL_TWO_EACH, DEAL_ONE_YOU, X_ENEMIES, UP_TO_THREE];
+const EVENTS = [
+  DISCARD_THREE,
+  DISCARD_EACH,
+  DISCARD_EACH_PLAYER,
+  DEAL_TWO_EACH,
+  DEAL_ONE_YOU,
+  X_ENEMIES,
+  UP_TO_THREE,
+  MAY_UP_TO_THREE,
+];
 
 /** An encounter card that hits "the hero with the fewest hit points remaining", ties chosen by the first player. */
 const FEWEST_HP = stubAbility("mad-genius.when-revealed", {
@@ -546,29 +560,37 @@ describe("§3.12 'X enemies' and 'up to 3 different enemies'", () => {
     expect(mustInstance(hit, second.id).damage).toBe(1);
   });
 
-  it("'up to 3' lets the player take fewer, and the targets are distinct cards", () => {
+  // docs/phase7-wave3.md §4 Q16, decided by the user on 2026-09-23: an effect's "up to N" chooses at least one when
+  // possible. This test used to take none; that is now refused, and only a printed "may" (`optional`) allows it.
+  it("'up to 3' lets the player take fewer but at least one, and the targets are distinct cards", () => {
     const start = game({ encounter: [GOON.id, OTHER.id, ...copies(BLANK.id, 14)] });
     const first = engage(start, GOON.id);
-    const given = giveCard(first.state, p1, UP_TO_THREE.card.id);
-    const atChoice = ok(given.state, {
-      type: "playCard",
-      playerId: p1,
-      cardInstanceId: given.id,
-      payment: [],
-      attachToInstanceId: null,
-    });
+    const atChoiceFor = (event: { card: { id: CardId } }) => {
+      const given = giveCard(first.state, p1, event.card.id);
+      return ok(given.state, {
+        type: "playCard",
+        playerId: p1,
+        cardInstanceId: given.id,
+        payment: [],
+        attachToInstanceId: null,
+      });
+    };
 
-    const choice = atChoice.pendingChoice;
-    expect(choice?.minSelections).toBe(0);
+    const atChoice = atChoiceFor(UP_TO_THREE);
+    const choice = atChoice.pendingChoice!;
+    expect(choice.minSelections).toBe(1);
     // One villain and one minion in play, so at most two of the three may be taken.
-    expect(choice?.maxSelections).toBe(2);
-    const none = ok(atChoice, {
-      type: "resolveChoice",
-      playerId: p1,
-      choiceId: choice!.choiceId,
-      selectedOptionIds: [],
-    });
-    expect(mustInstance(none, first.id).damage).toBe(0);
+    expect(choice.maxSelections).toBe(2);
+    const none = { type: "resolveChoice", playerId: p1, choiceId: choice.choiceId, selectedOptionIds: [] } as const;
+    expect(applyCommand(atChoice, none, deps).ok).toBe(false);
+    const one = ok(atChoice, { ...none, selectedOptionIds: [first.id] });
+    expect(mustInstance(one, first.id).damage).toBe(1);
+
+    // "You may …": none is allowed.
+    const mayChoice = atChoiceFor(MAY_UP_TO_THREE);
+    expect(mayChoice.pendingChoice?.minSelections).toBe(0);
+    const declined = ok(mayChoice, { ...none, choiceId: mayChoice.pendingChoice!.choiceId });
+    expect(mustInstance(declined, first.id).damage).toBe(0);
   });
 });
 

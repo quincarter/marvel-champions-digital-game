@@ -165,10 +165,10 @@ describe("§18.1 `overpaid.*` read from a `cardEntersPlay` interrupt on the card
  * of 3)." (Muster Courage 12032.)
  *
  * The skip named `EffectSpec chooseCards.max`, which is indeed a fixed `number` — but a choice among characters **in
- * play** is `chooseTarget`, whose `count` has been `number | ValueSpec` since Shield Toss and whose `optional` is
- * exactly "up to" (RRG 1.8 "Choose (Game Element)", p. 12).
+ * play** is `chooseTarget`, whose `count` has been `number | ValueSpec` since Shield Toss and whose `upTo` is "up to":
+ * at least one when possible (docs/phase7-wave3.md §4 Q16, decided by the user on 2026-09-23).
  */
-describe("§18.2 `chooseTarget.count` as a live value, with `optional` for 'up to'", () => {
+describe("§18.2 `chooseTarget.count` as a live value, with `upTo` for 'up to'", () => {
   const muster = stubAbility(
     "muster.action",
     def({
@@ -180,7 +180,7 @@ describe("§18.2 `chooseTarget.count` as a live value, with `optional` for 'up t
           query: { categories: ["hero", "ally"], controller: "any" },
           chooser: { kind: "controller" },
           count: { kind: "scaled", value: { kind: "villainStageNumber" }, max: 3 },
-          optional: true,
+          upTo: true,
         },
         { kind: "giveStatus", target: { kind: "slot", slot: "brave" }, status: "tough" },
       ],
@@ -207,14 +207,14 @@ describe("§18.2 `chooseTarget.count` as a live value, with `optional` for 'up t
     return { deps, state: out, muster: event };
   }
 
-  it("offers exactly the villain's stage number of targets, and none of them is mandatory", () => {
+  it("offers exactly the villain's stage number of targets, and at least one must be taken (§4 Q16)", () => {
     const { deps, state, muster: event } = board();
     const prompted = settleUntil(runWith(deps, state, play(event)), "chooseTarget", deps);
     const choice = prompted.pendingChoice;
     if (!choice) throw new Error("no choice");
     // Three friendly characters are in play (hero + two allies), so the bound is the value, not the candidate count.
     expect(choice.options).toHaveLength(3);
-    expect({ min: choice.minSelections, max: choice.maxSelections }).toEqual({ min: 0, max: 1 });
+    expect({ min: choice.minSelections, max: choice.maxSelections }).toEqual({ min: 1, max: 1 });
   });
 
   it("re-reads the value from the board: the same card offers 2 once the villain is on stage II", () => {
@@ -231,23 +231,18 @@ describe("§18.2 `chooseTarget.count` as a live value, with `optional` for 'up t
     expect(prompted.pendingChoice?.maxSelections).toBe(2);
   });
 
-  it("taking none of the offered targets is legal, and gives nothing", () => {
+  // Was "taking none … is legal": §4 Q16 (the user's decision, 2026-09-23) makes "up to X" choose at least one.
+  it("taking none of the offered targets is refused (§4 Q16)", () => {
     const { deps, state, muster: event } = board();
     const prompted = settleUntil(runWith(deps, state, play(event)), "chooseTarget", deps);
     const choice = prompted.pendingChoice;
     if (!choice) throw new Error("no choice");
-    const after = settle(
-      runWith(deps, prompted, {
-        type: "resolveChoice",
-        playerId: p1,
-        choiceId: choice.choiceId,
-        selectedOptionIds: [],
-      }),
-      undefined,
+    const none = applyCommand(
+      prompted,
+      { type: "resolveChoice", playerId: p1, choiceId: choice.choiceId, selectedOptionIds: [] },
       deps,
     );
-    const hero = mustPlayer(after, p1).identity.instanceId;
-    expect(mustInstance(after, hero).statuses.tough).toBe(0);
+    expect(none.ok).toBe(false);
   });
 });
 

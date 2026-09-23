@@ -283,15 +283,26 @@ export const forEachPlayer = (players: PlayerRef, ...effects: readonly EffectArg
   players,
   effects: flatten(effects),
 });
+/**
+ * "Choose a/an X" (`count` for "X enemies"). `upTo`: a printed "up to X" — at least one whenever a legal target exists
+ * (docs/phase7-wave3.md §4 Q16, decided by the user on 2026-09-23). `optional`: only for a printed "may", which lets the
+ * chooser pick none. With no legal target nothing is asked either way, so neither is needed for "if able".
+ */
 export const chooseTarget = (
   slot: string,
   q: TargetQuery,
-  opts: { readonly chooser?: PlayerRef; readonly optional?: boolean; readonly count?: Amount } = {},
+  opts: {
+    readonly chooser?: PlayerRef;
+    readonly upTo?: boolean;
+    readonly optional?: boolean;
+    readonly count?: Amount;
+  } = {},
 ): EffectSpec => ({
   kind: "chooseTarget",
   slot,
   query: q,
   chooser: opts.chooser ?? you,
+  ...(opts.upTo ? { upTo: true as const } : {}),
   ...(opts.optional ? { optional: true } : {}),
   ...(opts.count !== undefined ? { count: amount(opts.count) } : {}),
 });

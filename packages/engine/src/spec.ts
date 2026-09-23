@@ -1048,10 +1048,11 @@ export type EffectSpec =
       /**
        * "Remove a total of **up to** 5 threat from among schemes (as you choose)" (Agile Flight, `stld` 17029;
        * docs/phase7-wave3.md §3.41): `amount` is the most the chooser may divide, and they may divide fewer points,
-       * none included. The choice is asked even with a single candidate, since how many is still the chooser's. An
-       * effect's "up to" is not a cost's: RRG 1.8 "Cost" (p. 14) requires a minimum of one only of a *cost*, and RRG
-       * 1.8 "Choose (Game Element)" (p. 12) chooses "to a maximum of the specified number" — the same reading
-       * `chooseTarget.optional` already has for "up to X" targets. Choosing none is a reading (§4 Q16).
+       * but **at least 1** whenever something can be targeted (§4 Q16, decided by the user on 2026-09-23: an
+       * effect's "up to N" chooses at least one when possible, unless a printed "may" makes it optional). Only valid
+       * targets are offered (RRG 1.8 "Target", p. 43: valid "if any part of that ability can affect that target"): a
+       * scheme with threat that can be removed, a character that can take damage. With none, nothing is asked and
+       * nothing happens. The choice is asked even with a single candidate, since how many is still the chooser's.
        */
       readonly upTo?: true;
     }
@@ -1580,9 +1581,14 @@ export type EffectSpec =
    * Parks a `chooseTarget` choice for `chooser` and binds the answer to `slot`.
    *
    * `count` is how many are chosen (default 1) and may be a `ValueSpec`: "deal 1 damage to X enemies", where X was
-   * bound by the ability's cost (Shield Toss). With `optional`, "up to X" (Thunderclap). The choices are distinct
-   * cards, so "different enemies" needs nothing further — and a villain is one enemy however many stages its deck
-   * has (FAQ "Melee (#30)", p. 59: "different stages of the villain are considered to be the same enemy").
+   * bound by the ability's cost (Shield Toss). The choices are distinct cards, so "different enemies" needs nothing
+   * further — and a villain is one enemy however many stages its deck has (FAQ "Melee (#30)", p. 59: "different
+   * stages of the villain are considered to be the same enemy"). With no legal target nothing is asked and the slot
+   * is bound empty (RRG 1.8 "Choose (Game Element)", p. 12).
+   *
+   * - `upTo`: "up to X" (Thunderclap, Air Supremacy, Muster Courage): from 1 to `count`. §4 Q16, decided by the user
+   *   on 2026-09-23: an effect's "up to N" chooses at least one whenever a legal target exists.
+   * - `optional`: a printed "may" — the chooser may choose none. Never the reading of a bare "up to".
    */
   | {
       readonly kind: "chooseTarget";
@@ -1590,6 +1596,7 @@ export type EffectSpec =
       readonly query: TargetQuery;
       readonly chooser: PlayerRef;
       readonly count?: number | ValueSpec;
+      readonly upTo?: true;
       readonly optional?: boolean;
     }
   | {

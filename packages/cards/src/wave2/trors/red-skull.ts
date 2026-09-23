@@ -240,7 +240,7 @@ export const RED_SKULL_SET = defineAbilities({
       chooseCards(
         "returned",
         { kind: "zone", zone: "discard", player: thatPlayer },
-        { min: 0, max: 3, chooser: thatPlayer },
+        { min: 1, max: 3, chooser: thatPlayer },
       ),
       moveCards(cards(chosen("returned")), "deckShuffle"),
     ]),
@@ -273,12 +273,12 @@ export const RED_SKULL_SET = defineAbilities({
       usesAttackedPlayer: true,
       requireResults: { damage: 1, undefended: 1 },
     },
-    chooseTarget("support", query("support", { controller: "you" }), { optional: true }),
+    chooseTarget("support", query("support", { controller: "you" })),
     ifThen({ kind: "exists", query: query("support", { controller: "you" }) }, discard(chosen("support"))),
   ),
   "04145.boost": boost(
     ifThen(undefendedAttack, [
-      chooseTarget("support2", query("support", { controller: "you" }), { optional: true }),
+      chooseTarget("support2", query("support", { controller: "you" })),
       ifThen({ kind: "exists", query: query("support", { controller: "you" }) }, discard(chosen("support2"))),
     ]),
   ),

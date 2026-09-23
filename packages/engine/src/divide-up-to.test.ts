@@ -3,8 +3,9 @@
  * shaped like Agile Flight (`stld` 17029): "Hero Action (thwart): Remove a total of up to 5 threat from among schemes
  * (as you choose)."
  *
- * Sources: RRG 1.8 "Choose (Game Element)" (p. 12), "to a maximum of the specified number"; RRG 1.8 "Cost" (p. 14)
- * requires a minimum of one only for a cost, so an effect's "up to" may divide none.
+ * §4 Q16, decided by the user on 2026-09-23: an effect's "up to N" chooses at least one whenever something can be
+ * targeted (unless a printed "may" makes it optional), so Agile Flight removes at least 1 threat whenever a scheme holds
+ * threat it can lose, and 0 only when none does. Only valid targets are offered (RRG 1.8 "Target", p. 43).
  */
 
 import type { CardId } from "@mc/content";
@@ -96,23 +97,61 @@ function play(state: GameState, event: { card: { id: CardId } }, shares: readonl
 const threatOn = (state: GameState, id: InstanceId): number => mustInstance(state, id).threat;
 
 describe("§3.41 divide 'up to'", () => {
-  it("offers 0 to 5 points and removes exactly the shares chosen", () => {
+  it("offers 1 to 5 points and removes exactly the shares chosen", () => {
     const { state: start, plots } = table(2);
     const [a, b] = plots as [InstanceId, InstanceId];
     const main = start.mainScheme!.instanceId;
     const { state, asked, session } = play(start, UP_TO_5, [`${a}#1`, `${a}#2`, `${main}#1`]);
-    expect(asked).toEqual({ min: 0, max: 5 });
+    expect(asked).toEqual({ min: 1, max: 5 });
     expect([threatOn(state, a), threatOn(state, b), threatOn(state, main)]).toEqual([2, 4, 5]);
     const replayed = replay(session.log, deps);
     if (!replayed.ok) throw new Error(replayed.error.message);
     expect(replayed.state).toEqual(session.state);
   });
 
-  it("may divide none: nothing is removed and the event still resolves", () => {
+  it("refuses 0 while threat can be removed, with one scheme or with several (§4 Q16)", () => {
+    const two = table(2).state;
+    expect(() => play(two, UP_TO_5, [])).toThrow(/rejected/);
+    const one = table(1);
+    expect(() => play(one.state, UP_TO_3_SIDE, [])).toThrow(/rejected/);
+    // The minimum is 1: a single point is enough.
+    const [a] = one.plots as [InstanceId];
+    expect(threatOn(play(one.state, UP_TO_3_SIDE, [`${a}#1`]).state, a)).toBe(3);
+  });
+
+  it("offers only schemes it can remove threat from; with none, nothing is asked and nothing happens", () => {
     const { state: start, plots } = table(2);
+    const [a, b] = plots as [InstanceId, InstanceId];
     const main = start.mainScheme!.instanceId;
-    const { state, events } = play(start, UP_TO_5, []);
-    expect([...plots.map((id) => threatOn(state, id)), threatOn(state, main)]).toEqual([4, 4, 6]);
+    const emptied: GameState = {
+      ...start,
+      instances: { ...start.instances, [a]: { ...mustInstance(start, a), threat: 0 } },
+    };
+    let offered: readonly string[] = [];
+    const given = giveCard(emptied, P1, UP_TO_5.card.id);
+    runCommandsPicking(
+      given.state,
+      deps,
+      (current) => {
+        const choice = current.pendingChoice;
+        if (choice?.prompt.kind !== "divide") return defaultPick(current);
+        offered = choice.options.map((o) => o.optionId.slice(0, o.optionId.lastIndexOf("#")));
+        return [`${b}#1`];
+      },
+      { type: "playCard", playerId: P1, cardInstanceId: given.id, payment: [], attachToInstanceId: null },
+    );
+    expect(new Set(offered)).toEqual(new Set([b, main]));
+    // No side scheme holds threat: the side-scheme-only division has no valid target and removes nothing.
+    const bare: GameState = {
+      ...start,
+      instances: {
+        ...start.instances,
+        [a]: { ...mustInstance(start, a), threat: 0 },
+        [b]: { ...mustInstance(start, b), threat: 0 },
+      },
+    };
+    const { asked, events } = play(bare, UP_TO_3_SIDE, []);
+    expect(asked).toEqual({});
     expect(events.some((e) => e.type === "threatRemoved")).toBe(false);
   });
 
@@ -120,7 +159,7 @@ describe("§3.41 divide 'up to'", () => {
     const { state: start, plots } = table(1);
     const [a] = plots as [InstanceId];
     const { state, asked } = play(start, UP_TO_3_SIDE, [`${a}#1`]);
-    expect(asked).toEqual({ min: 0, max: 3 });
+    expect(asked).toEqual({ min: 1, max: 3 });
     expect(threatOn(state, a)).toBe(3);
   });
 
