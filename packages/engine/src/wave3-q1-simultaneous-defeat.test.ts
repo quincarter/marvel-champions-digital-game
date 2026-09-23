@@ -1,29 +1,22 @@
 /**
- * rules-qa-engineer pin for docs/phase7-wave3.md §4 Q1 (open question, no RRG rule for it — "Winning the Game",
- * p. 48, has no rule for a simultaneous win and loss): "A deferred villain defeat and a simultaneous last
- * elimination." §3.1's own docblock claims: "When a villain's defeat goes on the stack (because an ability
- * listens to it) and the same defeat sweep eliminates the last player, the elimination happens first and the game
- * is lost."
+ * rules-qa-engineer pin for docs/phase7-wave3.md §4 Q1: "A deferred villain defeat and a simultaneous last
+ * elimination", settled by FFG rulings.
  *
- * **Finding: that claim does not hold for the case this test builds, and the discrepancy is worth a second look
- * from `game-rules-architect`.** A single `dealDamage` effect whose target is `each` of a query matching both the
- * villain and the sole player's identity (both at lethal damage from the same effect resolution) does **not**
- * produce a "loss" — it produces a **win** (`villainDefeated`), and the identity never takes damage at all. Each
- * target of an `each` effect is applied one at a time, in whatever order `selectTargets` returns them; the first
- * target processed here is the villain, whose deferred-but-heard defeat resolves to `endGame({ result: "win" })`
- * before the loop ever reaches the identity — so "simultaneous" damage from one effect is not actually
- * simultaneous in its game-ending consequences, it is a race decided by iteration order. That is a different (and
- * arguably more surprising) reading than the sequential "elimination first" scenario §3.1's docblock describes,
- * and it was not exercised by any existing engine test before this pass (`villain-defeat.test.ts` and
- * `defeat-destination.test.ts` each test their own mechanism in isolation, never both at once against the same
- * two characters).
+ * The first version of this pin found the engine producing a **win**: a single `dealDamage` effect with an `each`
+ * target applied its targets one at a time, so the villain (first in the loop, its defeat listened to) fell and ended
+ * the game before the identity was ever damaged. Two rulings make that wrong:
  *
- * This test pins **today's actual observed behavior** (a win), not the doc's claim (a loss) — re-verified directly
- * against the engine, not assumed from the docblock. RRG 1.8 has no rule for this either way; flagged here rather
- * than decided. If `game-rules-architect` changes target-iteration order, or batches an `each` effect's targets
- * through the same single-sweep `damageGroup` mechanism indirect damage already uses (`resolve/damage-group.ts`,
- * RRG 1.8 "Indirect Damage" p. 24's own "assigned and then resolved simultaneously"), this is the test that should
- * flip — and docs/phase7-wave3.md §4 Q1's own docblock should be corrected to match, either way.
+ * - Ruling, June 2, 2026 (2) answer 1 (clarifying RRG 1.8 "Damage", p. 14): damage one effect deals to several
+ *   characters "is dealt simultaneously; resolve damage steps for both enemies at the same time". Every target is dealt
+ *   its damage before any defeat is checked.
+ * - FFG ruling, May 18, 2023 (The Kraken, "each other character takes 1 damage", defeating every character): "the
+ *   players are considered to have lost the scenario ... there aren't any ties in Marvel Champions between the villain
+ *   and the heroes, so if the heroes don't win, they have lost." RRG 1.8 "Winning the Game" (p. 48) and "Player
+ *   Elimination" (p. 34) have no rule of their own for the tie.
+ *
+ * The engine now deals multi-target damage as one simultaneous group and, while an identity falls in the same defeat
+ * sweep, holds the villain's defeat until the eliminations apply. This pins the corrected outcome: a **loss**. The
+ * engine's own tests for both halves are in `simultaneous-damage.test.ts`.
  */
 
 import { flat, type CardId } from "@mc/content";
@@ -64,13 +57,13 @@ const CARDS = [NOVA_BLAST];
 const DECK: readonly CardId[] = [NOVA_BLAST.id];
 
 describe("§4 Q1: a deferred villain defeat and a simultaneous last-player elimination", () => {
-  it("today's engine: the villain (processed first by `each`) wins the game outright — the identity is never even damaged", () => {
+  it("is a loss: both are dealt their damage at once, and the last elimination beats the villain's defeat", () => {
     const base = gameAtFirstTurn({ cards: CARDS, deps, deck: DECK, villain: VILLAIN });
     const identityId = mustPlayer(base, P1).identity.instanceId;
     const { state } = playFree(base, deps, NOVA_BLAST.id);
-    expect(state.outcome).toEqual({ result: "win", reason: "villainDefeated" });
-    expect(mustPlayer(state, P1).eliminated).toBe(false);
-    // The identity was never reached: the `each` loop stopped once the villain's own defeat ended the game.
-    expect(mustInstance(state, identityId).damage).toBe(0);
+    expect(state.outcome).toEqual({ result: "loss", reason: "allPlayersDefeated" });
+    expect(mustPlayer(state, P1).eliminated).toBe(true);
+    // The identity was dealt its damage in the same step as the villain, not skipped by an early win.
+    expect(mustInstance(state, identityId).damage).toBeGreaterThanOrEqual(10);
   });
 });
