@@ -408,10 +408,17 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
     }
     case "adjustBoostCount":
     case "replaceBoostCount": {
-      // The boost card the current activation is counting (docs/phase7-wave2.md §3.6).
+      // The boost card the current activation is counting (docs/phase7-wave2.md §3.6), or still resolving its own
+      // "Boost:" ability (`step === "ability"`, before the count step is reached — docs/phase7-wave3.md's `gmw`
+      // Badoon Warlord/Badoon Lieutenant, "[star] Boost: If this activation is an attack/scheme, this card gets +2
+      // boost icons for this activation": a card's own Boost ability modifying its own count has to run while its
+      // effects are still on the stack, which is before the frame's `boost.step` becomes `"count"`. `countAdjust`
+      // is carried on the same procedure/boost object either way, so setting it early is equivalent to setting it
+      // at the count step itself.
       const procedure = ctx.state.stack.find(
         (f): f is Frame<"enemyAttack"> | Frame<"enemyScheme"> =>
-          (f.kind === "enemyAttack" || f.kind === "enemyScheme") && f.boost?.step === "count",
+          (f.kind === "enemyAttack" || f.kind === "enemyScheme") &&
+          (f.boost?.step === "count" || f.boost?.step === "ability"),
       );
       const boost = procedure?.boost;
       if (!procedure || !boost) return;

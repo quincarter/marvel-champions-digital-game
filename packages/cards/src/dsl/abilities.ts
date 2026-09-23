@@ -42,6 +42,12 @@ export interface AbilityOptions {
   /** Actions only: a condition printed before the cost ("If you are in Tiny hero form, exhaust … →"). */
   readonly while?: Predicate;
   /**
+   * "First Player Action:" / "First Player Interrupt:" (docs/phase7-wave3.md §3.13, the Milano/Kree Command Ship):
+   * only the first player may use it, and an optional first-player interrupt/response on an encounter card is
+   * offered to the first player rather than to the player the event names.
+   */
+  readonly firstPlayerOnly?: boolean;
+  /**
    * Star-Lord's "What could go wrong?" (`stld` 17001a; docs/phase7-wave3.md §3.20): on an `interrupt` trigger, makes
    * it a cost modifier the player opts into while playing a matching card (`playCard.costReductionAbilities`)
    * rather than an ability offered in that window — see `AbilityDefinition.playCostReduction`'s own docblock.
@@ -109,7 +115,15 @@ function build(
 /** "Action:" */
 export const action = (...args: Args): AbilityDefinition => {
   const { options, effects } = split(args);
-  return build({ kind: "action", ...(options.while ? { while: options.while } : {}) }, options, effects);
+  return build(
+    {
+      kind: "action",
+      ...(options.while ? { while: options.while } : {}),
+      ...(options.firstPlayerOnly ? { firstPlayerOnly: true } : {}),
+    },
+    options,
+    effects,
+  );
 };
 /** "Hero Action:" */
 export const heroAction = (...args: Args): AbilityDefinition => {
@@ -125,18 +139,36 @@ export const alterEgoAction = (...args: Args): AbilityDefinition => {
     effects,
   );
 };
+/** "First Player Action:" (docs/phase7-wave3.md §3.13, the Milano). */
+export const firstPlayerAction = (...args: Args): AbilityDefinition => {
+  const [first, ...rest] = args;
+  const options: AbilityOptions = !first || isEffectArg(first) ? {} : first;
+  const effects = !first || isEffectArg(first) ? args : rest;
+  return action({ ...options, firstPlayerOnly: true }, ...(effects as readonly EffectArg[]));
+};
 
 /**
  * "Resource: … generate …" (a bare number is that many wild resources). `generatesFor`: "generate a [wild]
  * resource for an X card" (Expert Marksman, Finesse, `trors` pack) — usable only while paying for a card matching
  * the query (FAQ "Finesse (#33)", RRG 1.8 p. 60: "its resource cost or a cost within that aspect card's ability").
+ * `forAnyPlayer`: "Piloting — Resource: Exhaust the Milano → generate a [wild] resource for any player" (the
+ * Milano, docs/phase7-wave3.md §3.13) — any player paying a cost may use it, not only its controller.
  */
 export const resource = (
   generates: ResourceGeneration,
-  options: AbilityOptions & { readonly form?: Form; readonly generatesFor?: TargetQuery } = {},
+  options: AbilityOptions & {
+    readonly form?: Form;
+    readonly generatesFor?: TargetQuery;
+    readonly forAnyPlayer?: boolean;
+  } = {},
 ): AbilityDefinition => {
-  const { form, generatesFor, ...rest } = options;
-  const definition = build({ kind: "resource", ...(form ? { form } : {}) }, rest, [], generates);
+  const { form, generatesFor, forAnyPlayer, ...rest } = options;
+  const definition = build(
+    { kind: "resource", ...(form ? { form } : {}), ...(forAnyPlayer ? { forAnyPlayer: true } : {}) },
+    rest,
+    [],
+    generates,
+  );
   return generatesFor ? { ...definition, generatesFor } : definition;
 };
 /** "Hero Resource:" */
@@ -149,7 +181,11 @@ const triggered =
   (kind: "interrupt" | "response", forced: boolean, form?: Form) =>
   (on: EventPattern, ...args: Args): AbilityDefinition => {
     const { options, effects } = split(args);
-    return build({ kind, forced, on, ...(form ? { form } : {}) }, options, effects);
+    return build(
+      { kind, forced, on, ...(form ? { form } : {}), ...(options.firstPlayerOnly ? { firstPlayerOnly: true } : {}) },
+      options,
+      effects,
+    );
   };
 
 /** "Interrupt:" — optional; "When …". */

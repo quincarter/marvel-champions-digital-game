@@ -1052,6 +1052,14 @@ export function evaluate(state: GameState, predicate: Predicate, context: Effect
       const frame = id ? state.stack.find((f) => f.frameId === id) : undefined;
       return frame?.kind === "event" && (frame.vars[predicate.key] ?? 0) >= predicate.atLeast;
     }
+    case "currentActivationIs": {
+      const id = currentActivationFrameId(state.stack);
+      const frame = id ? state.stack.find((f) => f.frameId === id) : undefined;
+      if (frame?.kind !== "event") return false;
+      return predicate.activation === "attack"
+        ? frame.event.kind === "enemyAttack"
+        : frame.event.kind === "enemyScheme";
+    }
     case "refMatches": {
       const inPlay = predicate.anywhere === true ? null : cardsInPlay(state);
       return resolveRef(state, predicate.ref, context).some(

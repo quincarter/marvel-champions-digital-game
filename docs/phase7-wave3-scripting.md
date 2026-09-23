@@ -197,6 +197,39 @@ scripted (kit, obligation, nemesis, e2e — see §7's table):
 `build()`, `dealEncounterCardsCost`, `firstRevealGainsSurge`, `on.attacksOrThwarts`, `on.cardPlayed`
 (abilities.ts). No engine change.
 
+## 6c. Traps hit scripting Brotherhood of Badoon (test-only, cost real time — read before repeating them)
+
+- **`locateCard` scans the encounter deck before `villainArea`.** Test surgery that _adds_ a card id to
+  `state.villainArea` without also _removing_ it from wherever it already sits (almost always the encounter deck
+  it hasn't been drawn from) leaves the card locatable in both places; the next thing that moves it (its own
+  discard-this-card cost, say) finds it via the deck first, silently leaving a stale duplicate in `villainArea`
+  forever. Fixed generically with `packages/cards/src/testing/staging.ts`'s new `encounterCardInVillainArea` (the
+  `@mc/cards` port of `packages/engine/src/testing/wave3.ts`'s own same-named helper, which already knew this) —
+  use it instead of hand-rolling `{ ...state, villainArea: [...state.villainArea, id] }`.
+- **`CardInstance.home` does not track "is this card in the villain area".** Its type (`CardHome`) is narrower
+  than `ZoneId` on purpose — it only ever names a deck/discard/player-home kind, for routing a _later_ discard
+  ("whose discard pile does this go to"), not the card's current location. A revealed environment or side scheme
+  keeps `home: { kind: "encounterDeck", … }` forever, even while sitting in `villainArea`; `locateCard` (which
+  scans the actual zone arrays) is the only authority on "where is this card right now". Don't try to "fix" a
+  test by setting `home` to a location kind it can't express — `CardHome`'s own type will refuse it, correctly.
+- **A minion put into play via `putIntoPlay` (a "[star] Boost: put X into play engaged with you" body) does emit
+  `minionEngaged`**, through the same effect's own `entering` branch (`resolve/apply-effect.ts`'s `case
+"putIntoPlay"`) — a minion's own Forced Response to "engages you" fires correctly whichever way it enters play,
+  reveal or boost. No gap here; recorded only because it was worth checking rather than assuming.
+- **A card drawn as a filler ahead of a staged reveal can itself have Surge, or a scenario's villain can deal more
+  than one boost card for one activation** — `stackEncounterDeck(state, "01186", "<code>")`'s usual one-filler
+  recipe (`docs/card-scripting-process.md` §7) is not a universal constant; if a reveal-triggered test's target
+  still shows `engagedWith: null`/isn't the card you expect, check the actual event trace
+  (`../testing/staging.ts`'s `driveEvents`) for how many `boostCardFlipped`/`encounterCardRevealed` pairs actually
+  happened before assuming the ability itself is broken. Brotherhood of Badoon's own villain phase deals Drang two
+  boost cards for a single scheme activation (Badoon Ship's own environment does not explain this; not chased
+  further since every test in this pass that needed a _specific_ card revealed used the zero-filler "stack it
+  alone, let it become the boost card" path instead, which is exact and doesn't depend on the count).
+- **`instancesOf(state, code)` returns every printed copy, not "the one that just did something."** Multiple
+  copies of the same minion (Badoon Grunt, Badoon Assassin, …) exist in a scenario's own deck; picking
+  `instancesOf(...)[0]` after driving an ability is a coin flip. Filter by the property the ability actually
+  changed (`engagedWith === P1`, `attachedTo === villain`, …) instead.
+
 ## 7. Progress / next up
 
 **Foundation: done.** `wave3/{index,cards,reprints,names,setup,testing,coverage.test}.ts` all exist and are green.
@@ -210,27 +243,55 @@ don't trust the coverage report alone, it only proves a ref _resolves_, never th
 
 **`gmw` status: in progress.**
 
-| Piece                                                                                                                              | Status                                                                                                                               |
-| ---------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
-| Groot's identity (16001a/b)                                                                                                        | Scripted, tested (Flora Colossus, Growth Spurt)                                                                                      |
-| Groot's kit (16002–16024)                                                                                                          | Scripted except §5's three gaps; every registered ref tested — see the handoff report for the ref→test mapping                       |
-| Groot's obligation/nemesis (16025–16028)                                                                                           | Scripted, every registered ref tested (Wilt ×3, Fan the Flames, Blazing Inferno, Furnax)                                             |
-| Groot e2e                                                                                                                          | 1 test, `groot-kit/e2e.test.ts` (Rhino, standard, solo)                                                                              |
-| Rocket Raccoon's identity/kit (16029–16052)                                                                                        | Scripted except §6a's four gaps; every registered ref tested — see the handoff report for the ref→test mapping                       |
-| Rocket Raccoon's obligation/nemesis (16053–16057; 16058–16060 are Brotherhood of Badoon's villain Drang, not Rocket's — see below) | Scripted, every registered ref tested (Crisis on Halfworld ×3, Blackjack's Bazooka, Planetary Invasion)                              |
-| Brotherhood of Badoon (16058 Drang, 16061–16069 + Band of Badoon modular)                                                          | **Not started**                                                                                                                      |
-| Infiltrate the Museum (16070–16079 + Menagerie Medley modular)                                                                     | **Not started**                                                                                                                      |
-| Escape the Museum (16080–16087 + Ship Command/Galactic Artifacts)                                                                  | **Not started**                                                                                                                      |
-| Nebula (16088–16101 + Space Pirates modular)                                                                                       | **Not started**                                                                                                                      |
-| Ronan the Accuser (16102–16121 + Kree Militants modular)                                                                           | **Not started**                                                                                                                      |
-| Shared modular sets used across scenarios (Power Stone, Ship Command, Galactic Artifacts: 16122–16149)                             | **Not started**                                                                                                                      |
-| Campaign-only cards (The Market 16150–16177, Campaign Challenge/Badoon Headhunter 16178–16187)                                     | **Deferred to campaign mode (C2)** — stay in `KNOWN_SKIPPED` with reason "campaign mode deferred", the `trors` 04155–04166 precedent |
+| Piece                                                                                                                                                      | Status                                                                                                                                                                                                                                                                                                                     |
+| ---------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Groot's identity (16001a/b)                                                                                                                                | Scripted, tested (Flora Colossus, Growth Spurt)                                                                                                                                                                                                                                                                            |
+| Groot's kit (16002–16024)                                                                                                                                  | Scripted except §5's three gaps; every registered ref tested — see the handoff report for the ref→test mapping                                                                                                                                                                                                             |
+| Groot's obligation/nemesis (16025–16028)                                                                                                                   | Scripted, every registered ref tested (Wilt ×3, Fan the Flames, Blazing Inferno, Furnax)                                                                                                                                                                                                                                   |
+| Groot e2e                                                                                                                                                  | 1 test, `groot-kit/e2e.test.ts` (Rhino, standard, solo)                                                                                                                                                                                                                                                                    |
+| Rocket Raccoon's identity/kit (16029–16052)                                                                                                                | Scripted except §6a's four gaps; every registered ref tested — see the handoff report for the ref→test mapping                                                                                                                                                                                                             |
+| Rocket Raccoon's obligation/nemesis (16053–16057; 16058–16060 are Brotherhood of Badoon's villain Drang, not Rocket's — see below)                         | Scripted, every registered ref tested (Crisis on Halfworld ×3, Blackjack's Bazooka, Planetary Invasion)                                                                                                                                                                                                                    |
+| Brotherhood of Badoon (villain Drang 16058–16060, main scheme 16061–16062, Badoon Ship, Drang's Spear, Badoon Engineer, the four side schemes 16063–16069) | Scripted except 16060.when-revealed (module docblock in `gmw/badoon.ts`: needs a player-level superlative, "the player engaged with the fewest minions" — no `PlayerRef` for it yet); every other registered ref tested — see `gmw/badoon.test.ts`, `gmw/band-of-badoon.test.ts`                                           |
+| Band of Badoon modular (16117–16121)                                                                                                                       | Scripted, every registered ref tested (`gmw/band-of-badoon.test.ts`) — 16121's overkill grant is pinned structurally rather than by a live spillover combat test (see that file's own comment: a full attack/defend/assign sequence to land excess damage on a _third_ character is more scaffolding than this pass built) |
+| Ship Command modular (16142–16148, used by 4 of 5 scenarios)                                                                                               | Scripted, every registered ref tested (`gmw/ship-command.test.ts`)                                                                                                                                                                                                                                                         |
+| Brotherhood of Badoon e2e                                                                                                                                  | 1 test, `gmw/brotherhood-of-badoon-e2e.test.ts` (standard, solo, Groot) — plays to a real outcome, replays deep-equal                                                                                                                                                                                                      |
+| Infiltrate the Museum (16070–16079 + Menagerie Medley modular)                                                                                             | **Not started**                                                                                                                                                                                                                                                                                                            |
+| Escape the Museum (16080–16087 + Galactic Artifacts)                                                                                                       | **Not started**                                                                                                                                                                                                                                                                                                            |
+| Nebula (16088–16101 + Space Pirates modular)                                                                                                               | **Not started**                                                                                                                                                                                                                                                                                                            |
+| Ronan the Accuser (16102–16121 + Kree Militants modular; 16117–16121 already done above, shared with Band of Badoon)                                       | **Not started**                                                                                                                                                                                                                                                                                                            |
+| Power Stone, Galactic Artifacts modular sets (16122–16141, 16149)                                                                                          | **Not started**                                                                                                                                                                                                                                                                                                            |
+| Campaign-only cards (The Market 16150–16177, Campaign Challenge/Badoon Headhunter 16178–16187)                                                             | **Deferred to campaign mode (C2)** — stay in `KNOWN_SKIPPED` with reason "campaign mode deferred", the `trors` 04155–04166 precedent                                                                                                                                                                                       |
 
-**Next session on `gmw` should do Brotherhood of Badoon** (the first scenario: its villain Drang 16058–16060, main
-scheme 16061a/b–16062a/b, Milano/Charge Up 16063, and the Band of Badoon modular set 16064–16069), needed before
-either hero's own e2e test can reach `gmw`'s own villain rather than falling back to Rhino. `MC_REFS_PACKS=gmw
-pnpm refs` is the up-to-date source of truth for exactly which refs remain — the table above is a snapshot, that
-command is not.
+**Next session on `gmw` should do Infiltrate the Museum** (villain the Collector I–III 16070–16072, main scheme The
+Grand Collection 16073, and the encounter set 16074–16079, plus the Menagerie Medley modular set) — needs §3.14 (The
+Collection scenario area) and §3.16 (Starshark's indirect damage), both already landed per docs/phase7-wave3.md.
+`MC_REFS_PACKS=gmw pnpm refs` is the up-to-date source of truth for exactly which refs remain — the table above is a
+snapshot, that command is not.
+
+**A `gmw`-specific engine gap found and fixed this session:** `enterPlayOnReveal`'s per-type switch
+(`packages/engine/src/resolve/reveal.ts`) had no `"support"` case, so `putIntoPlay` on an ownerless, scenario-
+specific support (the Milano, 16142: `specificTo: { kind: "scenario" }`, never in a player's deck) silently did
+nothing — the card never entered a play area. Fixed generically (any ownerless support, not just the Milano):
+given the same "moves to a play area, `entered = true`" treatment `"obligation"` already had, plus setting
+`controllerId`. New engine test: `packages/engine/src/scenario-support-setup.test.ts`. A second, `wave3/setup.ts`-
+level gap: nothing populated `GameSetupConfig.setAside` for `specificTo: { kind: "scenario" }` cards at all, so the
+Milano had no instance to find in the first place; fixed with `scenarioSpecificSetAside`, generic over any pack's
+scenario-specific card, in `buildSingleVillain`.
+
+**Two DSL/engine additions this session, both generic:**
+
+- **`Predicate currentActivationIs`** (`{ kind: "currentActivationIs"; activation: "attack" | "scheme" }`,
+  `packages/engine/src/spec.ts`/`select.ts`; DSL: `activationIs(...)`, `dsl/values.ts`) — "If this activation is an
+  attack/scheme" (Badoon Warlord 16121, Badoon Lieutenant 16119), readable from a Boost ability body (which has no
+  `context.event` of its own). Engine test: `packages/engine/src/current-activation.test.ts`.
+- **`adjustBoostCount`/`replaceBoostCount` no longer require `boost.step === "count"`** (`resolve/apply-effect.ts`)
+  — `step === "ability"` (a card's own "[star] Boost:" ability still resolving) now qualifies too, since both
+  steps share the same `boost.countAdjust` field. Needed for the same two cards' own "this card gets +2 boost
+  icons for this activation" text, printed under the Boost keyword itself. Same engine test file as above.
+- **DSL: `firstPlayerAction`, `resource`'s `forAnyPlayer` option, and `firstPlayerOnly` on `action`/`interrupt`/
+  `response`** (`dsl/abilities.ts`) — docs/phase7-wave3.md §3.13 landed the engine primitive but nothing in
+  `@mc/cards` had exposed it yet; needed for the Milano's own "First Player Action"/"Piloting — Resource" text and
+  every side scheme's "First Player Action: Exhaust the Milano → …".
 
 **`stld` status: done.** Star-Lord's identity, kit (17001–17023), obligation (Banishment, 17024) and nemesis set
 (Budding Crime Syndicate 17025 — no ability of its own, data-only Hinder keyword; Mister Knife 17026; Spartoi

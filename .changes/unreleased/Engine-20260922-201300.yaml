@@ -1,0 +1,3 @@
+kind: Engine
+body: Support putIntoPlay for ownerless scenario-specific supports, currentActivationIs predicate, boost-count adjustment during a card's own Boost ability
+time: 2026-09-22T20:13:00.433284-04:00

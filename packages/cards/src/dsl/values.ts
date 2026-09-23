@@ -331,6 +331,14 @@ export const threatAtLeast = (of: TargetRef, n: Amount): Predicate => valueAtLea
 export const eventDealt = (key: string, n = 1): Predicate => ({ kind: "eventResultAtLeast", key, amount: n });
 /** "If the villain is making an undefended attack". */
 export const undefendedAttack: Predicate = { kind: "currentAttack", key: "undefended", atLeast: 1 };
+/**
+ * "If this activation is an attack/scheme" (Badoon Warlord, Badoon Lieutenant, `gmw` 16121/16119), readable from a
+ * Boost ability body, which has no `context.event` of its own (docs/phase7-wave3.md's `gmw` scenario scripting).
+ */
+export const activationIs = (activation: "attack" | "scheme"): Predicate => ({
+  kind: "currentActivationIs",
+  activation,
+});
 /** "If this is the final step of this sequence" (Wakanda Forever!). */
 export const finalStep: Predicate = varAtLeast("sequence.final", 1);
 /**
