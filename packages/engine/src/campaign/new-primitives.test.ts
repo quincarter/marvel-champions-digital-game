@@ -17,7 +17,8 @@ import { describe, expect, it } from "vitest";
 import { campaignId, cardId, encounterSetId, scenarioId, type PlayModes } from "@mc/content";
 import { DEFAULT_DEPS } from "../abilities.js";
 import type { CampaignDefinition, CampaignGameResult } from "../campaign.js";
-import { stubEvent } from "../testing/fixtures.js";
+import type { InstanceId } from "../ids.js";
+import { stubEvent, stubSideScheme } from "../testing/fixtures.js";
 import { DEFAULT_CARDS, HERO, MAIN_SCHEME, VILLAIN, seatIdentities } from "../testing/scenario.js";
 import { createGame, type GameSetupConfig } from "../setup.js";
 import { campaignResultOf } from "./result.js";
@@ -267,5 +268,66 @@ describe("CampaignGameQuery.cardsInScenarioArea", () => {
     const applied = applyCampaignResult(definition, composed.value, gameResult, { at: 1 }, { pool: [] });
     if (applied.kind !== "done") throw new Error("unexpected pending choice");
     expect(applied.value.shared.collected).toEqual({ kind: "cardList", cardIds: [HERO.id] });
+  });
+});
+
+describe("CampaignGameQuery.keywordValueSum and capAt", () => {
+  it("MC16 p. 8: sums printed Victory X values in the victory display, capped at 3", () => {
+    const definition = definitionWith(
+      [],
+      [
+        {
+          id: "only.victory.units",
+          text: "test",
+          citation: "test",
+          step: {
+            kind: "record",
+            writes: [
+              {
+                field: "result",
+                mode: "set",
+                value: {
+                  kind: "capAt",
+                  of: { kind: "keywordValueSum", query: { categories: ["sideScheme"] }, keyword: "victory" },
+                  amount: 3,
+                },
+              },
+            ],
+          },
+        },
+      ],
+    );
+    const identities = seatIdentities(HERO, 1);
+    const twoPointScheme = {
+      ...stubSideScheme({ id: "two-point", startingThreat: 1 }),
+      keywords: [{ name: "victory" as const, value: 2 }],
+    };
+    const config: GameSetupConfig = {
+      seed: 1,
+      cards: [...DEFAULT_CARDS, ...identities, twoPointScheme],
+      villainCardId: VILLAIN.id,
+      mainSchemeCardId: MAIN_SCHEME.id,
+      encounterDeck: [],
+      setAside: [twoPointScheme.id],
+      players: identities.map((identity) => ({ identityCardId: identity.id, deck: [] })),
+    };
+    const created = createGame(config, DEFAULT_DEPS);
+    if (!created.ok) throw new Error(`setup failed: ${created.error.message}`);
+    const twoPointInstance = Object.entries(created.state.instances).find(
+      ([, instance]) => instance.cardId === twoPointScheme.id,
+    )?.[0] as InstanceId | undefined;
+    if (!twoPointInstance) throw new Error("stub side scheme never instantiated");
+    // Two copies in the victory display: 2 + 2 = 4, capped at 3 (not the card count, 2).
+    const finished = {
+      ...created.state,
+      victoryDisplay: [twoPointInstance, twoPointInstance],
+      outcome: { result: "win" as const, reason: "villainDefeated" as const },
+    };
+
+    const composed = resolveBetweenGames(definition, newLog(definition), { pool: [] }, MODES);
+    if (composed.kind !== "done") throw new Error("unexpected pending choice");
+    const result = campaignResultOf(definition, composed.value, finished, [], DEFAULT_DEPS);
+    const write = result.records.find((record) => record.instructionId === "only.victory.units")?.write;
+    expect(write?.value).toEqual({ kind: "number", value: 3 });
   });
 });

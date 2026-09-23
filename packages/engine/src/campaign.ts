@@ -359,6 +359,13 @@ export type CampaignGameQuery =
   /** MC60 p. 13: "If Disturbed Psyche is in play and has at least 2 threat on it…" */
   | { readonly kind: "threatOn"; readonly query: TargetQuery }
   /**
+   * MC16 p. 8: "Record a number of units … equal to the victory values on encounter cards in the victory display"
+   * — the printed `Victory X` keyword's own value (RRG 1.8's Victory X, docs/phase7-wave3.md §3.4), summed across
+   * every matching card, not the card *count* `victoryDisplayCount`/`cardsInVictoryDisplay` would give (two
+   * Victory 2 cards is 4, not 2). `keyword` is a `KeywordName`; a card with no such keyword contributes 0.
+   */
+  | { readonly kind: "keywordValueSum"; readonly query: TargetQuery; readonly keyword: string }
+  /**
    * MC10 p. 17: "each player must record their remaining hit points … If a player's remaining hit point value is
    * higher than their base hit point value, record their base hit points in the campaign log instead." The cap is
    * part of the query because every box prints it, and MC60 p. 9 records it after *each* game, won or lost.
@@ -371,7 +378,13 @@ export type CampaignGameQuery =
   /** The size of a list-valued query, for "the number of minions and side schemes recorded" (MC50 p. 11). */
   | { readonly kind: "count"; readonly of: CampaignGameQuery }
   /** A list- or number-valued query as a yes/no, for a `flag` field. */
-  | { readonly kind: "atLeast"; readonly of: CampaignGameQuery; readonly amount: number };
+  | { readonly kind: "atLeast"; readonly of: CampaignGameQuery; readonly amount: number }
+  /**
+   * MC16 p. 8: "Record a number of units (to a maximum of 3 units) equal to the victory values…" — a numeric
+   * query's own printed ceiling. Distinct from `LogFieldDef`'s `number.max`, which caps what the *field* can ever
+   * hold, not what one write may add: MC16's `units` field is otherwise unbounded (it carries across scenarios).
+   */
+  | { readonly kind: "capAt"; readonly of: CampaignGameQuery; readonly amount: number };
 
 /** How a `record` instruction writes one field. */
 export interface LogWriteSpec {
