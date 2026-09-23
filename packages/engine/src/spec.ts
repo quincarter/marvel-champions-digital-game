@@ -597,7 +597,14 @@ export type Predicate =
       readonly atLeast?: number;
       readonly of?: "count";
       readonly isSet?: boolean;
-    };
+    }
+  /**
+   * "If this activation is an attack/scheme" (Badoon Warlord, Badoon Lieutenant, `gmw` 16121/16119): reads the
+   * enclosing `enemyAttack`/`enemyScheme` event frame (`currentActivationFrameId`), so it also works from inside a
+   * Boost ability, which has no `context.event` of its own. False with no such frame on the stack (a player's own
+   * attack/thwart is a different event kind and doesn't match either reading).
+   */
+  | { readonly kind: "currentActivationIs"; readonly activation: "attack" | "scheme" };
 
 export type StatusName = "stunned" | "confused" | "tough";
 

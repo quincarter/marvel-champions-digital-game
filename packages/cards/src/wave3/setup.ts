@@ -72,6 +72,23 @@ function wave3EncounterCardsOf(setIds: readonly string[]): CardId[] {
 }
 
 /**
+ * A card belonging to one of these encounter sets by `specificTo: { kind: "scenario" }` rather than
+ * `encounterSetIds` (the Milano, 16142: "Permanent. Setup." — a player-typed support that "enters the game only
+ * through that scenario", per `packages/engine/src/deck.ts`'s own reading of `specificTo`, so it is never shuffled
+ * into the encounter deck; MC16's own setup text puts it into play directly). These need an instance to exist
+ * before a scenario's own `Setup:` ability can find and place it, so they start set aside
+ * (`GameSetupConfig.setAside`, RRG 1.8 "Set Aside", p. 39) like a signature side scheme, for that ability to select
+ * by name (`encounterSetAside({ name })`) and `putIntoPlay`. Generic over any pack's `specificTo`-scoped scenario
+ * card, not just the Milano — no card name here.
+ */
+function scenarioSpecificSetAside(setIds: readonly string[]): CardId[] {
+  return WAVE3_CARDS.filter(
+    (card) =>
+      "specificTo" in card && card.specificTo?.kind === "scenario" && setIds.includes(card.specificTo.encounterSetId),
+  ).map((card) => card.id);
+}
+
+/**
  * A single-villain `GMW_SCENARIOS` record. Unlike `../wave2/setup.ts`'s `buildSingleVillain`, expert mode may
  * substitute an entirely different villain card (`Scenario.expertVillains`) rather than a later stage of the same
  * one — Escape the Museum's Collector is two separate one-stage cards, front (16080a) and back (16081a), per
@@ -112,6 +129,7 @@ function buildSingleVillain(scenario: (typeof GMW_SCENARIOS)[number], options: W
     includeIdentitySets: scenario.usesIdentityEncounterSets ?? true,
     requireIdentitySets: true,
     requireLegalDecks: true,
+    setAside: scenarioSpecificSetAside(sets),
     ...(useExpertVillain ? { setAsideVillainCardIds: scenario.expertVillains!.setAsideVillainCardIds } : {}),
     ...(scenario.separateDecks ? { scenarioDecks: scenario.separateDecks } : {}),
     ...(options.firstPlayerIndex !== undefined ? { firstPlayerIndex: options.firstPlayerIndex } : {}),
