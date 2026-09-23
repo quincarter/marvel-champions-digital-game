@@ -478,6 +478,18 @@ export function enterPlayOnReveal(ctx: Ctx, id: InstanceId, playerId: PlayerId):
       moveCard(ctx, id, { kind: "playArea", playerId });
       entered = true;
       break;
+    /**
+     * A player-typed support with no owner (`putIntoPlay`'s own "encounter cards other than minions" reading also
+     * catches an ownerless player card, docs/phase7-wave3.md's `gmw` Milano, 16142: "Permanent. Setup." — a
+     * `specificTo: { kind: "scenario" }` support nobody's deck ever holds). It needs a play area to sit in like any
+     * other card; `playerId` is only its initial home; `RuleSpec controlledByFirstPlayer` (already declared by its
+     * own constant ability) reassigns control on the very next state-trigger sweep if that isn't the first player.
+     */
+    case "support":
+      moveCard(ctx, id, { kind: "playArea", playerId });
+      updateInstance(ctx, id, (i) => ({ ...i, controllerId: playerId }));
+      entered = true;
+      break;
     default:
       break;
   }

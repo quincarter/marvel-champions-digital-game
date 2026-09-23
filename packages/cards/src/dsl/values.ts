@@ -223,6 +223,12 @@ export const handCountOf = (player: PlayerRef = you): ValueSpec => ({ kind: "han
  * "Modifiers" (p. 29) rounds fractional values up unless the text prints otherwise.
  */
 export const deckCountOf = (player: PlayerRef = you): ValueSpec => ({ kind: "deckCount", player });
+/**
+ * "For each facedown encounter card in front of you" (Star-Lord's own kit, `stld`: Gutsy Move, Sliding Shot, Jet
+ * Boots, Star-Lord's Helmet; docs/phase7-wave3.md §3.10): the count of encounter cards the interrupt-time cost
+ * `AbilityCost.dealEncounterCards` (§3.20) has dealt a player, read live wherever it's needed.
+ */
+export const dealtEncounterCount = (player: PlayerRef = you): ValueSpec => ({ kind: "dealtEncounterCount", player });
 
 /**
  * Arithmetic: "2 damage for each counter (to a maximum of 10)" → `scaled(counters, { times: 2, max: 10 })`;
@@ -334,6 +340,14 @@ export const threatAtLeast = (of: TargetRef, n: Amount): Predicate => valueAtLea
 export const eventDealt = (key: string, n = 1): Predicate => ({ kind: "eventResultAtLeast", key, amount: n });
 /** "If the villain is making an undefended attack". */
 export const undefendedAttack: Predicate = { kind: "currentAttack", key: "undefended", atLeast: 1 };
+/**
+ * "If this activation is an attack/scheme" (Badoon Warlord, Badoon Lieutenant, `gmw` 16121/16119), readable from a
+ * Boost ability body, which has no `context.event` of its own (docs/phase7-wave3.md's `gmw` scenario scripting).
+ */
+export const activationIs = (activation: "attack" | "scheme"): Predicate => ({
+  kind: "currentActivationIs",
+  activation,
+});
 /** "If this is the final step of this sequence" (Wakanda Forever!). */
 export const finalStep: Predicate = varAtLeast("sequence.final", 1);
 /**

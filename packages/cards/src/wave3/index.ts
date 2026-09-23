@@ -15,6 +15,7 @@ import { WAVE2_ABILITIES } from "../wave2/index.js";
 import { mergeRegistries } from "../dsl/index.js";
 import { GAM_ABILITIES } from "./gam/index.js";
 import { GMW_ABILITIES } from "./gmw/index.js";
+import { STLD_ABILITIES } from "./stld/index.js";
 import { WAVE3_REPRINT_ABILITIES } from "./reprints.js";
 
 /**
@@ -27,13 +28,14 @@ const EARLIER_ABILITIES: AbilityRegistry = { ...WAVE1_ABILITIES, ...WAVE2_ABILIT
 
 /**
  * Every scripted ability in the wave 3 pool: every earlier (Core/wave 1/cycle 1) script, wave 3's own reprint
- * aliases, then one entry per cycle 2 pack that has been started (`gmw`, `gam`).
+ * aliases, then one entry per cycle 2 pack that has been started (`gmw`, `gam`, `stld`).
  */
 export const WAVE3_ABILITIES: AbilityRegistry = mergeRegistries(
   EARLIER_ABILITIES,
   WAVE3_REPRINT_ABILITIES,
   GMW_ABILITIES,
   GAM_ABILITIES,
+  STLD_ABILITIES,
 );
 
 /** Engine dependencies for games that use the wave 3 (cycle 2) pool. */

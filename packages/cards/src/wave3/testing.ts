@@ -46,3 +46,4 @@ export const defeatWithAttack = (state: GameState, target: InstanceId): GameStat
 
 export { WAVE3_DEPS } from "./index.js";
 export { answer, runWith, settle, settleUntil } from "../testing/harness.js";
+export { encounterCardInVillainArea } from "../testing/staging.js";

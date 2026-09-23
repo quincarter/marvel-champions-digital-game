@@ -190,6 +190,22 @@ export const ready = (target: TargetRef): EffectSpec => ({ kind: "ready", target
 /** "Discard X" for a card in play. */
 export const discard = (target: TargetRef): EffectSpec => ({ kind: "discardFromPlay", target });
 /**
+ * "Defeat a non-[Elite] minion." (Nova Prime, `stld` 17002; docs/phase7-wave3.md §3.9): a character defeated by
+ * effect rather than by damage. Everything that sees an ordinary defeat sees this one (interrupts, When Defeated,
+ * Victory X, `cannotBeDefeated`); a villain's stage falls the same way "Villain Defeat" (RRG 1.8 p. 47) describes,
+ * and an identity's player is eliminated. Characters only.
+ */
+export const defeat = (target: TargetRef): EffectSpec => ({ kind: "defeat", target });
+/**
+ * "Cosmo does not take consequential damage for this use." (Cosmo, `stld` 17020, errata RRG 1.8 p. 67; docs/phase7-
+ * wave3.md §3.21): cancels the named character's pending consequential damage from its current attack or thwart.
+ * `character` defaults to the ability's own card.
+ */
+export const cancelConsequentialDamage = (character: TargetRef = self): EffectSpec => ({
+  kind: "cancelConsequentialDamage",
+  character,
+});
+/**
  * `opts.upTo`: "(to a maximum of 10)" (Growth Spurt, `gmw` 16001b; Drax's vengeance counters, `drax`) — places at
  * most as many as bring the card to that total, locally to this effect (docs/phase7-wave3.md §3.10). `opts.bind`:
  * `<bind>.amount` reports how many were actually placed.

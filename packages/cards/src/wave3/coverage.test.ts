@@ -33,7 +33,7 @@ const reprintIdsOf = (cards: readonly AnyCard[]): ReadonlySet<string> => {
 /** One row per wave 3 pack (docs/phase7-wave3.md "Wave 3"). */
 const PACK_STATUS: Readonly<Record<string, "scripted" | "in progress" | "not started">> = {
   gmw: "in progress",
-  stld: "not started",
+  stld: "in progress",
   gam: "scripted",
   drax: "not started",
   vnm: "not started",
@@ -48,13 +48,15 @@ const PACK_STATUS: Readonly<Record<string, "scripted" | "in progress" | "not sta
  */
 const KNOWN_SKIPPED: Readonly<Record<string, readonly string[]>> = {
   gmw: [
-    // Groot's own kit and obligation/nemesis are fully scripted; Rocket Raccoon's kit and obligation/
-    // nemesis are (docs/phase7-wave3-scripting.md). Genuine primitive gaps (module docblocks in
-    // `gmw/groot-kit.ts` and `gmw/rocket-kit.ts`): 16006, 16009, 16024 (Groot); 16032, 16033, 16052
-    // (Rocket); 16020/16048 (the Team-Up card, printed once per range, same cross-player targeting gap
-    // both times). Everything from 16058 on (Brotherhood of Badoon's villain Drang onward) is the first
-    // scenario and its modular set — not yet reached this session. Regenerated with
-    // `MC_REFS_PACKS=gmw pnpm refs` (docs/card-scripting-process.md) — never hand-typed.
+    // Groot's and Rocket Raccoon's kits/obligations/nemeses, and Brotherhood of Badoon (villain Drang,
+    // main scheme Terrestrial Invasion/Protect the Planet, Badoon Ship, Drang's Spear, Badoon Engineer,
+    // the four side schemes, the Band of Badoon modular set) plus the Ship Command modular set are
+    // scripted. Genuine primitive gaps (module docblocks in `gmw/groot-kit.ts`, `gmw/rocket-kit.ts`,
+    // `gmw/badoon.ts`): 16006, 16009, 16024 (Groot); 16032, 16033, 16052 (Rocket); 16020/16048 (the
+    // Team-Up card, same cross-player targeting gap both times); 16060.when-revealed (Drang III, needs
+    // a player-level superlative — "the player engaged with the fewest minions"). Everything from
+    // Infiltrate the Museum on (16070+, except Ship Command's own 16142-16148) is not yet reached.
+    // Regenerated with `MC_REFS_PACKS=gmw pnpm refs` (docs/card-scripting-process.md) — never hand-typed.
     "16006.we-are-groot-action",
     "16009.lashing-vines-response",
     "16020.flora-and-fauna-constant",
@@ -65,27 +67,7 @@ const KNOWN_SKIPPED: Readonly<Record<string, readonly string[]>> = {
     "16048.flora-and-fauna-constant",
     "16048.flora-and-fauna-action",
     "16052.booster-boots-interrupt",
-    "16058.drang-forced-response",
-    "16059.when-revealed",
-    "16059.drang-forced-response",
     "16060.when-revealed",
-    "16060.drang-forced-response",
-    "16061a.setup",
-    "16061b.terrestrial-invasion-forced-response",
-    "16061b.terrestrial-invasion-constant",
-    "16062a.when-revealed",
-    "16062b.protect-the-planet-forced-response",
-    "16062b.protect-the-planet-constant",
-    "16063.charge-up",
-    "16064.drangs-spear-constant",
-    "16064.drangs-spear-action",
-    "16065.badoon-engineer-forced-response",
-    "16065.boost",
-    "16066.blockade-constant",
-    "16067.bombardment-forced-response",
-    "16067.bombardment-constant",
-    "16068.oppressive-armada-constant",
-    "16069.spatial-positioning-constant",
     "16070.collector-forced-interrupt",
     "16071.when-revealed",
     "16071.collector-forced-interrupt",
@@ -183,14 +165,6 @@ const KNOWN_SKIPPED: Readonly<Record<string, readonly string[]>> = {
     "16116.when-revealed-alter-ego",
     "16116.when-revealed-hero",
     "16116.boost",
-    "16117.badoon-assassin-forced-response",
-    "16117.boost",
-    "16118.badoon-grunt-forced-response",
-    "16118.boost",
-    "16119.boost",
-    "16120.boost",
-    "16121.badoon-warlord-constant",
-    "16121.boost",
     "16122.cloak-of-hercules-action",
     "16123.obedience-potion-constant",
     "16123.obedience-potion-action",
@@ -218,25 +192,6 @@ const KNOWN_SKIPPED: Readonly<Record<string, readonly string[]>> = {
     "16140.sound-the-alarms-constant",
     "16140.boost",
     "16141.when-revealed",
-    "16142.milano-constant",
-    "16142.milano-constant-2",
-    "16143.rogue-vessel-forced-interrupt",
-    "16143.rogue-vessel-constant",
-    "16144.cannonade-constant",
-    "16145.when-revealed",
-    "16145.blind-side-constant",
-    "16145.blind-side-constant-2",
-    "16145.blind-side-constant-3",
-    "16146.when-revealed",
-    "16146.hull-breach-constant",
-    "16146.hull-breach-constant-2",
-    "16146.hull-breach-constant-3",
-    "16147.when-revealed",
-    "16147.power-siphon-constant",
-    "16147.power-siphon-constant-2",
-    "16147.power-siphon-constant-3",
-    "16148.when-revealed-alter-ego",
-    "16148.when-revealed-hero",
     "16149.power-stone-forced-response",
     "16150.brainstorm-constant",
     "16150.brainstorm-action",
@@ -321,7 +276,18 @@ const KNOWN_SKIPPED: Readonly<Record<string, readonly string[]>> = {
     "16185.when-revealed",
     "16185.boost",
   ],
-  stld: [],
+  stld: [
+    // Star-Lord's kit is scripted (docs/phase7-wave3-scripting.md, `wave3/stld/star-lord-kit.ts`). Three genuine
+    // primitive gaps (module docblock): 17017 (a "character has an attachment matching X" TargetQuery filter,
+    // the mirror of `host`/`hostOfSelf`), 17029 (an optional/"up to" form of `EffectSpec divide`), 17005 (a
+    // "play only if you control a named card" restriction — a `constant` ability's rules are only active while
+    // its own card is in play, so this can't be a `cannotPlay` constant on the event card itself). His
+    // obligation and nemesis set are fully scripted. Regenerated with `MC_REFS_PACKS=stld pnpm refs` — never
+    // hand-typed.
+    "17005.sliding-shot-constant",
+    "17017.target-practice-interrupt",
+    "17029.agile-flight-action",
+  ],
   gam: [],
   drax: [],
   vnm: [],

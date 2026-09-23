@@ -105,6 +105,44 @@ export function moveToDiscard(
 }
 
 /**
+ * Puts `code` straight into the villain area (surgery: no reveal, no When Revealed/enter-play keywords), the way a
+ * side scheme, environment or villain-owned attachment sits once it's "in play" for a test that only cares about a
+ * later ability firing on it — a First Player Action, a Forced Response, a discard-this-card cost.
+ *
+ * **Must remove the card from wherever it already is** (almost always the encounter deck it hasn't been drawn
+ * from yet) — `locateCard`/`moveCard` scan the encounter deck before `villainArea`, so a card merely *added* to
+ * `villainArea` without being *removed* from the deck list first is found and moved from the wrong place the next
+ * time something moves it (its own discard-this-card ability, say), leaving a stale duplicate in `villainArea`
+ * forever. `packages/engine/src/testing/wave3.ts`'s own `encounterCardInVillainArea` hit exactly this the same way
+ * before this file existed; ported here as the `@mc/cards`-side counterpart of that helper.
+ */
+export function encounterCardInVillainArea(
+  state: GameState,
+  code: string,
+  threat = 0,
+): { readonly state: GameState; readonly id: InstanceId } {
+  const deckId = activeEncounterDeckId(state);
+  const pile = state.encounterDecks[deckId]!;
+  const wanted = cardId(code);
+  const id =
+    pile.deck.find((i) => state.instances[i]?.cardId === wanted) ??
+    pile.discard.find((i) => state.instances[i]?.cardId === wanted);
+  if (!id) throw new Error(`no ${code} in the encounter deck or discard`);
+  return {
+    id,
+    state: {
+      ...state,
+      encounterDecks: {
+        ...state.encounterDecks,
+        [deckId]: { deck: pile.deck.filter((i) => i !== id), discard: pile.discard.filter((i) => i !== id) },
+      },
+      villainArea: [...state.villainArea, id],
+      instances: { ...state.instances, [id]: { ...state.instances[id]!, threat, faceup: true } },
+    },
+  };
+}
+
+/**
  * A set-aside nemesis-set card (RRG 1.8 Appendix II step 5, "set aside", kept per-player on `PlayerState.setAside`
  * — never shuffled into the encounter deck at setup) moved onto the top of the encounter deck for a reveal test,
  * the test-only-surgery counterpart of `stackEncounterDeck` for cards that never reach the deck.
