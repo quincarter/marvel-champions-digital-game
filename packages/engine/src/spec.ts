@@ -456,6 +456,13 @@ export type ValueSpec =
   | { readonly kind: "damage"; readonly of: TargetRef }
   /** Threat on a scheme: "X is the amount of threat on Bomb Scare". */
   | { readonly kind: "threat"; readonly of: TargetRef }
+  /**
+   * The main scheme's printed stage number, as it reads now: "[Collector] gets +X SCH and +X ATK, where X is equal
+   * to the main scheme's current stage number" (Collector I/II, `gmw` 16080a/16081a). Defaults to the central main
+   * scheme; a separate game area's own stage (Kang's `expertVillains` shape) is unreachable from a card that has no
+   * `TargetRef` for "that area's main scheme" yet — none printed needs it.
+   */
+  | { readonly kind: "mainSchemeStageNumber" }
   /** Boost icons printed on a card: "1 more than the number of boost icons on the discarded card" (with `scaled`). */
   | { readonly kind: "boostIcons"; readonly of: TargetRef }
   /**
@@ -1692,4 +1699,10 @@ export type CardDestination =
   | "encounterDeckShuffle"
   | "separateDiscard"
   | "separateDeckTop"
-  | "separateDeckShuffle";
+  | "separateDeckShuffle"
+  /**
+   * "Set aside the [X] modular encounter set" (Escape the Museum 1A, `gmw` 16082a): the shared set-aside pile
+   * `ZoneId.encounterSetAside`/`CardSelector.encounterSetAside` already reads from (a signature side scheme's own
+   * home before it enters play). No card printed before this needed *sending* a card there rather than reading it.
+   */
+  | "encounterSetAside";

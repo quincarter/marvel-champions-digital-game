@@ -220,6 +220,9 @@ export function moveCardsTo(ctx: Ctx, ids: readonly InstanceId[], destination: C
       case "removedFromGame":
         to = { kind: "removedFromGame" };
         break;
+      case "encounterSetAside":
+        to = { kind: "encounterSetAside" };
+        break;
       case "encounterDeckShuffle":
         if (owner) continue;
         to = { kind: "encounterDeck", deckId: activeEncounterDeckId(ctx.state) };
