@@ -8,6 +8,7 @@ import { MUSEUM } from "./museum.js";
 import { NEBULA } from "./nebula.js";
 import { ROCKET_KIT } from "./rocket-kit.js";
 import { ROCKET_OBLIGATION_NEMESIS } from "./rocket-obligation-nemesis.js";
+import { RONAN } from "./ronan.js";
 import { SHIP_COMMAND } from "./ship-command.js";
 
 /**
@@ -24,4 +25,5 @@ export const GMW_ABILITIES: AbilityRegistry = mergeRegistries(
   MUSEUM,
   ESCAPE_THE_MUSEUM,
   NEBULA,
+  RONAN,
 );
