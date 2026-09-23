@@ -6,8 +6,17 @@
 
 import { trait } from "@mc/content";
 import { describe, expect, it } from "vitest";
-import { constant, discardThis, heroAction, interrupt, on, playOnlyIf, whenRevealed } from "./abilities.js";
-import { divide, enemyAttack, ifThen, modifyStat, surge } from "./effects.js";
+import {
+  constant,
+  discardThis,
+  heroAction,
+  interrupt,
+  on,
+  playOnlyIf,
+  spendSameType,
+  whenRevealed,
+} from "./abilities.js";
+import { discard, divide, enemyAttack, ifThen, modifyStat, surge } from "./effects.js";
 import { validateDefinition } from "./validate.js";
 import {
   controllerOf,
@@ -15,6 +24,7 @@ import {
   eachPlayer,
   eventSource,
   exists,
+  self,
   hasAttachment,
   made,
   not,
@@ -106,5 +116,16 @@ describe("§3.42 playOnlyIf", () => {
         ],
       },
     });
+  });
+});
+
+describe("§3.43 a cost of N resources of one type", () => {
+  it("Kree Combat Armor (16131): spend 3 resources of the same type → discard this card", () => {
+    const definition = heroAction({ cost: spendSameType(3) }, discard(self));
+    valid(definition);
+    expect(definition.cost).toEqual({ resources: 3, sameResourceType: true });
+    expect(
+      validateDefinition(heroAction({ cost: { resources: { physical: 1 }, sameResourceType: true } })),
+    ).not.toEqual([]);
   });
 });

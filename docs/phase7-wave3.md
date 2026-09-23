@@ -939,6 +939,34 @@ So the condition is too varied for fixed data fields. And every one of these car
 constant(playOnlyIf(exists({ name: "Element Gun", controller: "you" })));
 ```
 
+### 3.43 "Spend N resources of the same type →": `AbilityCost.sameResourceType`
+
+> **Status: landed (2026-09-23),** tested in `packages/engine/src/same-type-resource-cost.test.ts` (6 tests: three of one type pay; a mixed payment is refused and a hand that cannot pay is not offered by `legalActions`; wilds count as the chosen type; a two-type card gives one icon and overpays the other; `legalActions`' example is accepted; a timing window's payment follows the same rule; replay deep-equal).
+
+Kree Combat Armor (16131, Kree Militants): "Hero Action: Spend 3 resources of the same type → discard this card." `ResourceRequirement` names fixed types or a generic amount; `spend(3)` would accept three different types. The cost is the mirror of `distinctResourceTypes` ("Spend 2 resources of different types", Red Dagger, The Poison).
+
+**The rules decisions:**
+
+- **The type is the payer's choice**, made by what they spend. Any of physical, mental or energy works.
+- **A wild resource counts as any type.** RRG 1.8 "Wild Resource" (p. 48): "When a player generates a wild resource, they may specify which resource type (energy, mental, physical, or wild) it is being used as." So two physical and a wild pay, and three wilds pay (as one declared type, or as three "wild", which is also one type).
+- **A card printing icons of two types** generates both. One of them can count toward the chosen type; the other either pays some other part of the cost or is overpaid. RRG 1.8 "Cost" (p. 13): "While paying a cost, a player is permitted to generate resources beyond the specified cost", and those "are considered to have been overpaid for that cost and were not paid for that cost". So [physical][mental] + physical + wild pays 3 physical, with the mental overpaid. [physical][mental] + mental + energy cannot pay: at most two of any one type.
+- **Only this cost's own resources must match.** With a card's printed cost in the same payment (an event whose action carries the cost), the rest is paid from whatever is left (`payableWithOneType` sets the matching resources aside first; RRG 1.8 "Cost", p. 13: the player "chooses how to divide those resources between those costs").
+
+**What landed:**
+
+- **`AbilityCost.sameResourceType: true`**, with `resources` as the count. `payableWithOneType` (`resources.ts`) tries each type, taking that type's own resources first and then wilds, and checks that what remains pays the rest.
+- **Checked in `resourceVars`** (`actions.ts`), which every action and play payment already runs, so a mixed payment is refused with "spend 3 resources of the same type". **`legalActions` offers the ability only when it is payable**: it probes the player's whole wallet first (overpaying is legal), so a hand that cannot make three of one type lists the action as illegal with that message. Its `example` is the smallest prefix of the wallet that pays.
+- **Fixed on the way: a triggered ability's payment in a timing window** (`payWindowAbility`, `resolve/window.ts`) checked only the total. It now goes through `resourceVars` too, so `sameResourceType`, `distinctResourceTypes` and a `resourcesX` X bind the same way they do for an action. A payment that fails is a decline, as an under-payment already was. No existing test changed.
+- **Client impact: none forced.** `PaymentQuery.requirement` still reads "3 of any type"; the refusal message names the rule. `game-client-engineer` may want to show "of the same type" in the payment sheet.
+
+**DSL:** `spendSameType(n)` in `dsl/abilities.ts`. The validator requires `resources` to be a number.
+
+**Kree Combat Armor composition** (`16131.kree-combat-armor-action`):
+
+```ts
+heroAction({ cost: spendSameType(3) }, discard(self));
+```
+
 ---
 
 ## 4. Open questions (for the user or FFG)

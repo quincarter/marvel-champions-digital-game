@@ -504,6 +504,11 @@ export const exhaustThis: AbilityCost = { exhaustSelf: true };
 export const discardThis: AbilityCost = { discardSelf: true };
 /** "Spend a [energy] resource" → `spend({ energy: 1 })`; "Spend [E][M][P]" → one of each. */
 export const spend = (resources: ResourceRequirement | number): AbilityCost => ({ resources });
+/**
+ * "Spend 3 resources of the same type →" (Kree Combat Armor, `gmw` 16131; docs/phase7-wave3.md §3.43): `n` resources,
+ * all of one type the payer chooses. A wild counts as any type; a two-type card may give one icon and overpay the other.
+ */
+export const spendSameType = (n: number): AbilityCost => ({ resources: n, sameResourceType: true });
 /** "Spend X [type] resources →": X is bound to var `bind`. */
 export const spendX = (resourceType: TypedResource, bind = "x", min = 1): AbilityCost => ({
   resourcesX: { resource: resourceType, bind, min },

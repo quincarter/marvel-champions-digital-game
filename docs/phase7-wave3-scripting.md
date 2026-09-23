@@ -391,6 +391,7 @@ forcedInterrupt(
 | `17017.target-practice-interrupt` | new `TargetQuery.hasAttachment` (§3.40)                        | `hasAttachment` (new)                 |
 | `17029.agile-flight-action`       | new `EffectSpec divide.upTo` (§3.41)                           | `divide(…, { upTo: true })`           |
 | `17005.sliding-shot-constant`     | new `constant.playOnlyIf` (§3.42)                              | `playOnlyIf` (new)                    |
+| `16131.kree-combat-armor-action`  | new `AbilityCost.sameResourceType` (§3.43)                     | `spendSameType` (new)                 |
 
 Single-Minded Fury (`16114.when-revealed`). "Controls the Power Stone" is "attached to your identity" (§4 Q11). With
 the stone on the villain the ref names nobody, no attack is made, and the card surges (§3.39):
@@ -428,6 +429,13 @@ covers the other seventeen "Play only if …" cards §3.42's survey lists, each 
 
 ```ts
 constant(playOnlyIf(exists({ name: "Element Gun", controller: "you" })));
+```
+
+Kree Combat Armor (`16131.kree-combat-armor-action`). A wild counts as any type; a card printing two types gives one
+and overpays the other; `legalActions` offers it only when the hand can pay (§3.43):
+
+```ts
+heroAction({ cost: spendSameType(3) }, discard(self));
 ```
 
 ## 7. Progress / next up

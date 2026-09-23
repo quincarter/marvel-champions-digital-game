@@ -743,6 +743,14 @@ export interface AbilityCost {
   /** "Spend 2 resources of different types" (Red Dagger): the payment must hold this many types; a wild can be any one. */
   readonly distinctResourceTypes?: number;
   /**
+   * "Spend 3 resources of the same type →" (Kree Combat Armor, `gmw` 16131; docs/phase7-wave3.md §3.43): every resource
+   * this cost's `resources` asks for (a generic number) must be of one type, the payer's choice. A wild counts as any
+   * type; a card that generates two types can give one of them and overpay the other (`payableWithOneType`). Checked
+   * wherever the payment is (`resourceVars`), so an action, a window's payment and a play all refuse a mixed payment, and
+   * `legalActions` offers the ability only when the player's resources can pay it.
+   */
+  readonly sameResourceType?: true;
+  /**
    * "Exhaust Captain America's Shield →" (min 1, max 1) / "Exhaust any number of allies you control →" (min 1, no
    * max): exhaust cards in play, other than this ability's own card (`exhaustSelf`) or your identity
    * (`exhaustIdentity`). See `InPlayCostPick` for how the cards are picked and when the cost is payable.

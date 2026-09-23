@@ -156,6 +156,32 @@ export function satisfies(pool: ResourcePool, requirement: number | ResourceRequ
 }
 
 /**
+ * "Spend 3 resources of the same type" (Kree Combat Armor, `gmw` 16131; docs/phase7-wave3.md §3.43): can `pool` pay
+ * `requirement` with `count` of its generic resources all of one type? Each type is tried: that many of the type are set
+ * aside (its own resources first, then wilds declared as it), and the rest of the pool must still pay the rest of the
+ * requirement.
+ *
+ * - A wild counts as any type: RRG 1.8 "Wild Resource" (p. 48), "When a player generates a wild resource, they may
+ *   specify which resource type (energy, mental, physical, or wild) it is being used as". Three wilds pay, declared as
+ *   one type (or as "wild", which comes to the same thing).
+ * - A card with icons of two types generates both; the one that is not the chosen type pays the rest of the cost or is
+ *   overpaid. RRG 1.8 "Cost" (p. 13): "While paying a cost, a player is permitted to generate resources beyond the
+ *   specified cost", and those "are considered to have been overpaid for that cost and were not paid for that cost".
+ *
+ * Using the type's own resources before wilds is optimal: a wild left over can pay anything a typed one can.
+ */
+export function payableWithOneType(pool: ResourcePool, count: number, requirement: ResolvedRequirement): boolean {
+  if (count <= 0) return satisfies(pool, requirement);
+  const rest: ResolvedRequirement = { ...requirement, generic: Math.max(0, requirement.generic - count) };
+  return TYPED_RESOURCES.some((type) => {
+    const own = Math.min(pool[type], count);
+    const wilds = count - own;
+    if (wilds > pool.wild) return false;
+    return satisfies({ ...pool, [type]: pool[type] - own, wild: pool.wild - wilds }, rest);
+  });
+}
+
+/**
  * "If you paid for this card using a [X] resource": true when the payment
  * contained an X, or a wild the payer can declare as X.
  */

@@ -80,11 +80,13 @@ import {
   combineRequirements,
   countUsableAs,
   EMPTY_POOL,
+  payableWithOneType,
   poolOf,
   poolTotal,
   printedResources,
   RESOURCE_TYPES,
   describeRequirement,
+  requirementOf,
   requirementTotal,
   satisfies,
   scalePool,
@@ -1135,7 +1137,7 @@ function overpaidVars(pool: ResourcePool, requirement: ResolvedRequirement): Rec
 }
 
 /** "Spend X [type] resources": binds X from the pool beyond the cost's fixed requirement. */
-function resourceVars(
+export function resourceVars(
   pool: ResourcePool,
   cost: AbilityCost | undefined,
   requirement: ResolvedRequirement,
@@ -1156,6 +1158,13 @@ function resourceVars(
     const x = max === undefined ? paid : Math.min(paid, max);
     if (x < (cost.resourcesX.min ?? 0)) return { code: "insufficient_resources", message: "X is too small" };
     vars[cost.resourcesX.bind] = x;
+  }
+  if (cost?.sameResourceType) {
+    // "Spend 3 resources of the same type" (docs/phase7-wave3.md §3.43).
+    const count = requirementTotal(requirementOf(cost.resources));
+    if (!payableWithOneType(pool, count, requirement)) {
+      return { code: "insufficient_resources", message: `spend ${count} resources of the same type` };
+    }
   }
   if (cost?.distinctResourceTypes !== undefined) {
     // Each typed resource present is one type; each wild can stand for a type not otherwise present.
