@@ -40,7 +40,7 @@ const reprintIdsOf = (cards: readonly AnyCard[]): ReadonlySet<string> => {
 
 /** One row per wave 3 pack (docs/phase7-wave3.md "Wave 3"). */
 const PACK_STATUS: Readonly<Record<string, "scripted" | "in progress" | "not started">> = {
-  gmw: "in progress",
+  gmw: "scripted",
   stld: "scripted",
   gam: "scripted",
   drax: "scripted",
@@ -83,22 +83,13 @@ const KNOWN_SKIPPED: Readonly<Record<string, readonly string[]>> = {
     // controllerOf` + `TargetQuery.hasAttachment`) and 16131.kree-combat-armor-action (`AbilityCost.
     // sameResourceType`). The last one, 16125.the-poison-forced-interrupt, closed when a turn beginning gained an
     // interrupt window (docs/phase7-wave3.md §3.46). No `gmw` genuine primitive gap remains.
-    // The Market (16150–16177, `gmw/market.ts`) is now scripted too, except three cards blocked on two genuine
-    // primitive gaps (flagged for `game-rules-architect`, docblocks in `gmw/market.ts`): Take the Fight to Them
-    // (16161) needs each card in a "look at N, discard any, place the rest on top and/or bottom in any order"
-    // effect independently assignable to the top or the bottom of the encounter deck — `EffectSpec.reorderCards`
-    // only ever sends every kept card to the top. Reactor Core (16165) and Navigation Column (16172) need an
-    // ability's own cost (how many cards, or which zone) to vary by board state ("if you control the Milano")
-    // without being a player's choice — `AbilityCost.either` only offers a choice among payable branches, which
-    // would wrongly let a Milano-controller overpay. The five Campaign Challenge side schemes (16178a/b–16182a/b,
-    // `gmw/campaign-challenge.ts`) are now scripted too — no genuine primitive gap in that module.
+    // The Market (16150–16177, `gmw/market.ts`) is fully scripted. Its last three cards closed on two primitives
+    // (docs/phase7-wave3.md §3.48, §3.49): Take the Fight to Them (16161) on `reorderCards` to
+    // "encounterDeckTopOrBottom" (each kept card to the top or the bottom, each pile ordered), Reactor Core (16165)
+    // and Navigation Column (16172) on `AbilityCost.conditional` (a cost branch the board picks, "… instead if you
+    // control the Milano"). The five Campaign Challenge side schemes (16178a/b–16182a/b, `gmw/campaign-challenge.ts`)
+    // are scripted too. No `gmw` ref is left unscripted.
     // Regenerated with `MC_REFS_PACKS=gmw pnpm refs` (docs/card-scripting-process.md) — never hand-typed.
-    "16161.take-the-fight-to-them-constant",
-    "16161.take-the-fight-to-them-action",
-    "16165.reactor-core-constant",
-    "16165.reactor-core-action",
-    "16172.navigation-column-constant",
-    "16172.navigation-column-action",
   ],
   // stld: fully scripted — no genuine primitive gaps (module docblock, `wave3/stld/star-lord-kit.ts`). The last
   // three (17005.sliding-shot-constant, 17017.target-practice-interrupt, 17029.agile-flight-action) closed in the

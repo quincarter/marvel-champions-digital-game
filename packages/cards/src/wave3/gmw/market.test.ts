@@ -1,5 +1,12 @@
 import { cardId } from "@mc/content";
-import { NO_STATUSES } from "@mc/engine";
+import {
+  activeEncounterDeck,
+  applyCommand,
+  NO_STATUSES,
+  playCostOf,
+  type GameState,
+  type InstanceId,
+} from "@mc/engine";
 import {
   endTurn,
   firstLegal,
@@ -589,5 +596,213 @@ describe("Triple Threat (16177)", () => {
     expect([...playerOf(played, P1).hand, ...playerOf(played, P1).deck, ...playerOf(played, P1).discard]).not.toContain(
       id,
     );
+  });
+});
+
+/**
+ * Answers Take the Fight to Them's questions by prompt (docs/phase7-wave3.md §3.48): which looked-at cards to discard,
+ * which kept cards go to the bottom, and the top-down order of each pile. `looked` is the top of the encounter deck
+ * before the play, so each answer names cards by their position there. `asked` records each question as it comes.
+ */
+const takingTheFight =
+  (
+    looked: readonly InstanceId[],
+    answers: {
+      readonly discard?: readonly number[];
+      readonly bottom?: readonly number[];
+      readonly topOrder?: readonly number[];
+      readonly bottomOrder?: readonly number[];
+    },
+    asked: string[],
+  ): Picker =>
+  (state) => {
+    const choice = state.pendingChoice;
+    if (!choice) return [];
+    const at = (positions: readonly number[] | undefined): readonly string[] =>
+      (positions ?? []).map((i) => looked[i]!);
+    const prompt = choice.prompt;
+    if (prompt.kind === "chooseCards" && prompt.slot === "discarded") {
+      asked.push("discard");
+      return at(answers.discard);
+    }
+    if (prompt.kind === "chooseBottomCards") {
+      asked.push(`split:${choice.options.length}`);
+      return at(answers.bottom);
+    }
+    if (prompt.kind === "orderCards") {
+      asked.push(prompt.to);
+      return at(prompt.to === "encounterDeckTop" ? answers.topOrder : answers.bottomOrder);
+    }
+    return firstLegal(state);
+  };
+
+describe("Take the Fight to Them (16161)", () => {
+  const setup = () => {
+    const hero = runWave3(grootVsRhinoWithMarket("16161"), toHero());
+    return { hero, deck: activeEncounterDeck(hero).deck, hand: playerOf(hero, P1).hand.length };
+  };
+
+  it("solo, both kept on top: looks at 2, orders them, draws 1 (16161.take-the-fight-to-them-constant, 16161.take-the-fight-to-them-action)", () => {
+    const { hero, deck, hand } = setup();
+    const asked: string[] = [];
+    const picker = takingTheFight(deck, { discard: [], bottom: [], topOrder: [1, 0] }, asked);
+    const { state: played } = playFromHand(hero, "16161", 0, picker);
+    expect(asked).toEqual(["discard", "split:2", "encounterDeckTop"]);
+    expect(activeEncounterDeck(played).deck.slice(0, 3)).toEqual([deck[1], deck[0], deck[2]]);
+    expect(activeEncounterDeck(played).deck).toHaveLength(deck.length);
+    // `playFromHand` moves the event into the hand from the deck first; playing it takes it back out, and "Draw 1
+    // card" adds one.
+    expect(playerOf(played, P1).hand.length).toBe(hand + 1);
+  });
+
+  it("solo, both kept on the bottom: the last card chosen becomes the deck's bottom card (16161.take-the-fight-to-them-action)", () => {
+    const { hero, deck } = setup();
+    const asked: string[] = [];
+    const picker = takingTheFight(deck, { discard: [], bottom: [0, 1], bottomOrder: [1, 0] }, asked);
+    const { state: played } = playFromHand(hero, "16161", 0, picker);
+    expect(asked).toEqual(["discard", "split:2", "encounterDeckBottom"]);
+    const after = activeEncounterDeck(played).deck;
+    expect(after[0]).toBe(deck[2]);
+    expect(after.slice(-2)).toEqual([deck[1], deck[0]]);
+  });
+
+  it("solo, one on top and one on the bottom: no order to choose (16161.take-the-fight-to-them-action)", () => {
+    const { hero, deck } = setup();
+    const asked: string[] = [];
+    const { state: played } = playFromHand(hero, "16161", 0, takingTheFight(deck, { bottom: [0] }, asked));
+    expect(asked).toEqual(["discard", "split:2"]);
+    const after = activeEncounterDeck(played).deck;
+    expect(after[0]).toBe(deck[1]);
+    expect(after.at(-1)).toBe(deck[0]);
+  });
+
+  it("solo, both discarded: nothing left to place, so nothing more is asked (16161.take-the-fight-to-them-action)", () => {
+    const { hero, deck } = setup();
+    const discardBefore = activeEncounterDeck(hero).discard.length;
+    const asked: string[] = [];
+    const { state: played } = playFromHand(hero, "16161", 0, takingTheFight(deck, { discard: [0, 1] }, asked));
+    expect(asked).toEqual(["discard"]);
+    const after = activeEncounterDeck(played);
+    expect(after.deck[0]).toBe(deck[2]);
+    expect(after.discard).toHaveLength(discardBefore + 2);
+    expect(after.discard).toEqual(expect.arrayContaining([deck[0], deck[1]]));
+  });
+
+  it("2[per_hero] with two players looks at 4: discard one, split the other three (16161.take-the-fight-to-them-action)", () => {
+    const hero = runWave3(
+      startWave3Game({
+        ...wave3Scenario("rhino", {
+          players: [marketSeat(["16161"]), { starterDeckId: "rocket-raccoon-aggression" }],
+          seed: 2026,
+        }),
+        requireLegalDecks: false,
+      }),
+      toHero(),
+    );
+    const deck = activeEncounterDeck(hero).deck;
+    const asked: string[] = [];
+    const picker = takingTheFight(deck, { discard: [3], bottom: [0], topOrder: [2, 1] }, asked);
+    const { state: played } = playFromHand(hero, "16161", 0, picker);
+    expect(asked).toEqual(["discard", "split:3", "encounterDeckTop"]);
+    const after = activeEncounterDeck(played);
+    expect(after.deck.slice(0, 3)).toEqual([deck[2], deck[1], deck[4]]);
+    expect(after.deck.at(-1)).toBe(deck[0]);
+    expect(after.discard).toContain(deck[3]);
+  });
+});
+
+describe("Reactor Core (16165)", () => {
+  /** Plays Reactor Core, uses it, and reports how many cards left the deck and what an event / an upgrade now cost. */
+  const useReactorCore = (hero: GameState) => {
+    const { state: withUpgrade, id: upgrade } = playFromHand(hero, "16165", 1);
+    const deckBefore = playerOf(withUpgrade, P1).deck.length;
+    const used = settle(
+      runWave3(withUpgrade, use(P1, upgrade, "16165.reactor-core-action")),
+      firstLegal,
+      undefined,
+      WAVE3_DEPS,
+    );
+    const { state: holding, ids } = moveToHand(used, P1, "16160", "16164");
+    const [event, upgradeInHand] = ids as [InstanceId, InstanceId];
+    return {
+      discarded: deckBefore - playerOf(used, P1).deck.length,
+      exhausted: inst(used, upgrade).exhausted,
+      eventCost: playCostOf(holding, P1, event, WAVE3_DEPS)?.current,
+      upgradeCost: playCostOf(holding, P1, upgradeInHand, WAVE3_DEPS)?.current,
+    };
+  };
+
+  it("without the Milano: exhausts and discards the top 2 cards; the next event costs 1 less, an upgrade does not (16165.reactor-core-constant, 16165.reactor-core-action)", () => {
+    const hero = runWave3(grootVsRhinoWithMarket("16165", "16160", "16164"), toHero());
+    expect(useReactorCore(hero)).toEqual({ discarded: 2, exhausted: true, eventCost: 0, upgradeCost: 1 });
+  });
+
+  it("controlling the Milano: discards only the top card instead (16165.reactor-core-action)", () => {
+    const hero = runWave3(brotherhoodOfBadoonWithMarket("16165", "16160", "16164"), toHero());
+    expect(useReactorCore(hero)).toEqual({ discarded: 1, exhausted: true, eventCost: 0, upgradeCost: 1 });
+  });
+});
+
+describe("Navigation Column (16172)", () => {
+  it("without the Milano: exhausts and discards the chosen hand card, then draws 1 (16172.navigation-column-constant, 16172.navigation-column-action)", () => {
+    const hero = runWave3(grootVsRhinoWithMarket("16172"), toHero());
+    const { state: withUpgrade, id: upgrade } = playFromHand(hero, "16172", 2);
+    const seat = playerOf(withUpgrade, P1);
+    const pick = seat.hand[0]!;
+    const used = settle(
+      runWave3(withUpgrade, use(P1, upgrade, "16172.navigation-column-action", [], { discard: [pick] })),
+      firstLegal,
+      undefined,
+      WAVE3_DEPS,
+    );
+    expect(inst(used, upgrade).exhausted).toBe(true);
+    expect(playerOf(used, P1).discard).toContain(pick);
+    // One card out of the hand, one drawn: the deck lost only the draw.
+    expect(playerOf(used, P1).hand.length).toBe(seat.hand.length);
+    expect(playerOf(used, P1).deck.length).toBe(seat.deck.length - 1);
+  });
+
+  it("without the Milano an empty hand cannot pay, even with a full deck (16172.navigation-column-action)", () => {
+    const hero = runWave3(grootVsRhinoWithMarket("16172"), toHero());
+    const { state: withUpgrade, id: upgrade } = playFromHand(hero, "16172", 2);
+    const emptyHand: GameState = {
+      ...withUpgrade,
+      players: withUpgrade.players.map((p) =>
+        p.playerId === P1 ? { ...p, hand: [], discard: [...p.discard, ...p.hand] } : p,
+      ),
+    };
+    expect(applyCommand(emptyHand, use(P1, upgrade, "16172.navigation-column-action"), WAVE3_DEPS).ok).toBe(false);
+  });
+
+  it("controlling the Milano: the top card of the deck is discarded instead and the hand is untouched (16172.navigation-column-action)", () => {
+    const hero = runWave3(brotherhoodOfBadoonWithMarket("16172"), toHero());
+    const { state: withUpgrade, id: upgrade } = playFromHand(hero, "16172", 2);
+    const seat = playerOf(withUpgrade, P1);
+    const [top] = seat.deck;
+    const used = settle(
+      runWave3(withUpgrade, use(P1, upgrade, "16172.navigation-column-action")),
+      firstLegal,
+      undefined,
+      WAVE3_DEPS,
+    );
+    expect(inst(used, upgrade).exhausted).toBe(true);
+    expect(playerOf(used, P1).discard).toContain(top);
+    // Every card that was in hand is still there, plus the one drawn.
+    expect(playerOf(used, P1).hand).toEqual(expect.arrayContaining([...seat.hand]));
+    expect(playerOf(used, P1).hand.length).toBe(seat.hand.length + 1);
+    expect(playerOf(used, P1).deck.length).toBe(seat.deck.length - 2);
+  });
+
+  it("controlling the Milano with neither deck nor discard pile to discard from cannot pay, even with cards in hand (16172.navigation-column-action)", () => {
+    const hero = runWave3(brotherhoodOfBadoonWithMarket("16172"), toHero());
+    const { state: withUpgrade, id: upgrade } = playFromHand(hero, "16172", 2);
+    const noDeck: GameState = {
+      ...withUpgrade,
+      players: withUpgrade.players.map((p) => (p.playerId === P1 ? { ...p, deck: [], discard: [] } : p)),
+    };
+    expect(playerOf(noDeck, P1).hand.length).toBeGreaterThan(0);
+    const pick = playerOf(noDeck, P1).hand[0]!;
+    const attempt = use(P1, upgrade, "16172.navigation-column-action", [], { discard: [pick] });
+    expect(applyCommand(noDeck, attempt, WAVE3_DEPS).ok).toBe(false);
   });
 });

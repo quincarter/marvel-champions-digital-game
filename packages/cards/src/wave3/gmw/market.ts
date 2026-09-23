@@ -11,12 +11,16 @@ import {
   chosen,
   chosenPlayer,
   confuse,
+  costIf,
   dealDamage,
   defineAbilities,
   discardFromHand,
+  discardFromHandCost,
+  discardTopOfDeckCost,
   draw,
   drawUpTo,
   each,
+  encounterCards,
   exhaustThis,
   exists,
   FRIENDLY_CHARACTER,
@@ -30,6 +34,8 @@ import {
   moveCards,
   option,
   partOf,
+  perHero,
+  placeOnTopOrBottom,
   placeThreat,
   preventDamage,
   query,
@@ -242,15 +248,18 @@ export const MARKET = defineAbilities({
 
   // Take the Fight to Them (16161) — Hero Action: Look at the top 2[per_hero] cards of the encounter deck. Discard
   // any number of those, then place the rest on the top and/or bottom of the encounter deck in any order. Draw 1
-  // card.
-  //
-  // **Missing engine primitive** (flagged for `game-rules-architect`): `EffectSpec.reorderCards`
-  // (`packages/engine/src/spec.ts`) only supports `to: "encounterDeckTop"` — every reordered card goes to the top,
-  // in the chosen order. This card needs each looked-at card independently assignable to the top *or* the bottom
-  // of the deck, still in a chosen order within each pile. No existing primitive combination expresses that
-  // without silently forcing every kept card to the top (wrong: it would let a player stack the deck instead of
-  // burying part of it). Left unscripted; the same "and/or bottom" phrasing also blocks an unrelated `bp`-pack
-  // card (`packages/content/src/data/bp/cards.ts`), so one primitive lands both.
+  // card. `selectCards` binds the looked-at cards without moving them (RRG 1.8 "Look, Looked-At", p. 27: they stay
+  // part of the deck). "Any number" includes none, so `min: 0`; `max` is the most 2[per_hero] can ever be (4
+  // players), and the engine caps it at the cards actually looked at. `placeOnTopOrBottom` is docs/phase7-wave3.md
+  // §3.48: each kept card goes on the top or the bottom, then each pile is ordered.
+  "16161.take-the-fight-to-them-action": heroAction(
+    selectCards("looked", encounterCards(["deck"], undefined, perHero(2))),
+    chooseCards("discarded", cards(chosen("looked")), { min: 0, max: 8 }),
+    moveCards(cards(chosen("discarded")), "discard"),
+    placeOnTopOrBottom(cards(chosen("looked"), { excludeSlots: ["discarded"] })),
+    draw(1),
+  ),
+  "16161.take-the-fight-to-them-constant": partOf("16161.take-the-fight-to-them-action"),
 
   // Armor Plating (16162, upgrade, ARMOR/MILANO MOD) — Hero Interrupt: When an identity would take any amount of
   // damage, exhaust Armor Plating → prevent 1 of that damage (2 of that damage instead if you control the Milano).
@@ -283,13 +292,14 @@ export const MARKET = defineAbilities({
   // of your deck (the top card instead if you control the Milano) → reduce the resource cost of the next event you
   // play this turn by 1.
   //
-  // **Missing engine primitive** (flagged for `game-rules-architect`): the printed cost's own size (2 cards, or 1
-  // while controlling the Milano) depends on board state, not a player choice — `AbilityCost.either`
-  // (`packages/engine/src/abilities.ts`) offers a player a choice among *payable* branches, which would wrongly
-  // let a Milano-controller pay the pricier 2-card branch instead of getting the guaranteed discount. `discardFromDeck`
-  // is a fixed `number`, with no `ValueSpec`/`Predicate`-conditioned form. The same gap blocks Navigation Column
-  // (16172), whose "discard from hand" vs. "discard from deck" substitution is the same shape one level up (which
-  // zone, not just how many). Left unscripted.
+  // `costIf` (docs/phase7-wave3.md §3.49): the board, not the player, picks how many cards the cost discards, read
+  // when the cost is determined. "Instead" replaces the printed 2 cards, so a Milano controller whose deck and
+  // discard pile together hold no card cannot use it at all, and one without the Milano needs 2.
+  "16165.reactor-core-action": heroAction(
+    { cost: [exhaustThis, costIf(MILANO_CONTROLLED, discardTopOfDeckCost(1), discardTopOfDeckCost(2))] },
+    reduceNextCardCost(you, 1, "turn", query("event")),
+  ),
+  "16165.reactor-core-constant": partOf("16165.reactor-core-action"),
 
   // Ardent Resolve (16166) — Hero Action: Ready a friendly character. Draw 1 card.
   "16166.ardent-resolve-action": heroAction(chooseTarget("char", FRIENDLY_CHARACTER), ready(chosen("char")), draw(1)),
@@ -335,8 +345,13 @@ export const MARKET = defineAbilities({
   // discard 1 card from your hand (discard the top card of your deck instead if you control the Milano) → draw 1
   // card.
   //
-  // **Missing engine primitive** — see 16165's docblock above: this is the same board-state-conditioned-cost gap
-  // one level up (which zone the discard comes from, not just how many cards). Left unscripted.
+  // `costIf` (docs/phase7-wave3.md §3.49), as Reactor Core's, one level up: the board picks the zone. With the
+  // Milano the hand is never asked for a card and cannot pay instead; without it, the deck cannot.
+  "16172.navigation-column-action": heroAction(
+    { cost: [exhaustThis, costIf(MILANO_CONTROLLED, discardTopOfDeckCost(1), discardFromHandCost(1, 1))] },
+    draw(1),
+  ),
+  "16172.navigation-column-constant": partOf("16172.navigation-column-action"),
 
   // Targeting Screen (16173, upgrade, MILANO MOD/TECH) — Hero Action: Exhaust Targeting Screen → remove 2 threat
   // from a scheme (3 threat instead if you control the Milano).
