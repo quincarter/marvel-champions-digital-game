@@ -51,16 +51,25 @@ describe("rosterModelOf", () => {
 });
 
 describe("rosterDeckOptions", () => {
-  test("a seat's picker excludes an identity already seated elsewhere", () => {
+  test("an identity already seated elsewhere is listed, not dropped — just marked blocked", () => {
     const seats: (Deck | null)[] = [hawkeye, null, null, null];
     const options = rosterDeckOptions(seats, 2, [], POOL_VERSION);
-    expect(options.some((deck) => deck.identityCardId === "04001a")).toBe(false);
-    expect(options.some((deck) => deck.identityCardId === "04031a")).toBe(true);
+    const hawkeyeOption = options.find((o) => o.deck.identityCardId === "04001a");
+    expect(hawkeyeOption).toMatchObject({ blocked: true, blockedReason: "Already seated at #1" });
+    const spiderWomanOption = options.find((o) => o.deck.identityCardId === "04031a");
+    expect(spiderWomanOption).toMatchObject({ blocked: false, blockedReason: null });
   });
 
-  test("a seat's own current deck is not excluded from its own picker", () => {
+  test("a seat's own current deck is never blocked in its own picker", () => {
     const seats: (Deck | null)[] = [hawkeye, null, null, null];
     const options = rosterDeckOptions(seats, 1, [], POOL_VERSION);
-    expect(options.some((deck) => deck.identityCardId === "04001a")).toBe(true);
+    const hawkeyeOption = options.find((o) => o.deck.identityCardId === "04001a");
+    expect(hawkeyeOption?.blocked).toBe(false);
+  });
+
+  test("every precon is listed regardless of scroll position — nothing is ever excluded outright", () => {
+    const seats: (Deck | null)[] = [hawkeye, spiderWoman, null, null];
+    const options = rosterDeckOptions(seats, 3, [], POOL_VERSION);
+    expect(options.length).toBe(precons.length);
   });
 });

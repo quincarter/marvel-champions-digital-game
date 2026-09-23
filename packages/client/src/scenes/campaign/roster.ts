@@ -24,9 +24,11 @@ import { destroyChildren } from "../../ui/destroy-children.js";
 import { cssOf, textStyle } from "../../ui/theme.js";
 import { dashedRect, McButton } from "../../ui/widgets.js";
 import { fadeScreenIn, goToScreen } from "../../ui/transitions.js";
+import { McVirtualList } from "../../ui/virtual-list.js";
 import { deckStorage, campaignService } from "../../session.js";
 import { rollSeed } from "../../view/seed.js";
 import type { Rect } from "../../view/layout.js";
+import { ListScroll } from "../../view/list-scroll.js";
 import {
   ROSTER_SEAT_COUNT,
   preconRosterOf,
@@ -51,6 +53,8 @@ export class CampaignRosterScene extends Phaser.Scene {
   #savedDecks: readonly Deck[] = [];
   #model: RosterModel | null = null;
   #pickerSeat: number | null = null;
+  #pickerScroll = new ListScroll();
+  #pickerList: McVirtualList | null = null;
   #signing = false;
   #error: string | null = null;
 
@@ -62,7 +66,11 @@ export class CampaignRosterScene extends Phaser.Scene {
     this.cameras.main.setBackgroundColor(cssOf(surface.paper.hex));
     this.scale.on("resize", this.#rebuild, this);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.scale.off("resize", this.#rebuild, this));
-    this.#route = new FocusRoute(this, { onCancel: () => this.#onCancel() });
+    this.#route = new FocusRoute(this, {
+      onCancel: () => this.#onCancel(),
+      onPage: (direction) => this.#pickerList?.scrollByPage(direction),
+      onHomeEnd: (edge) => (edge === "home" ? this.#pickerList?.scrollToStart() : this.#pickerList?.scrollToEnd()),
+    });
     this.#campaignId = data.campaignId;
     this.#expertCampaign = data.expertCampaign ?? false;
     this.#seats = preconRosterOf(
@@ -70,6 +78,8 @@ export class CampaignRosterScene extends Phaser.Scene {
       POOL_VERSION,
     );
     this.#pickerSeat = null;
+    this.#pickerScroll.reset();
+    this.#pickerList = null;
     this.#signing = false;
     this.#error = null;
     this.#model = rosterModelOf(this.#seats, POOL_CARDS);
@@ -95,6 +105,8 @@ export class CampaignRosterScene extends Phaser.Scene {
   }
 
   #rebuild(): void {
+    this.#pickerList?.destroy();
+    this.#pickerList = null;
     destroyChildren(this);
     this.#stops = new Map();
     this.#model = rosterModelOf(this.#seats, POOL_CARDS);
@@ -217,6 +229,7 @@ export class CampaignRosterScene extends Phaser.Scene {
     const deck = this.#seats[seatNumber - 1] ?? null;
     const open = (): void => {
       this.#pickerSeat = seatNumber;
+      this.#pickerScroll.reset();
       this.#rebuild();
     };
     if (!deck) {
@@ -366,37 +379,64 @@ export class CampaignRosterScene extends Phaser.Scene {
     }
 
     const options = rosterDeckOptions(this.#seats, seatNumber, this.#savedDecks, POOL_VERSION);
-    const listBottom = panelRect.y + panelRect.height - 16;
-    let index = 0;
-    for (const deck of options) {
-      const rowY = y + index * (rowHeight + 8);
-      if (rowY + rowHeight > listBottom) break;
-      const rect: Rect = { x: panelRect.x + 20, y: rowY, width: rowWidth, height: rowHeight };
-      const identityName = CARDS_BY_ID.get(deck.identityCardId as string)?.name ?? (deck.identityCardId as string);
-      const aspects = deck.aspects.length > 0 ? deck.aspects.join(" + ") : "No aspect";
-      const select = (): void => {
-        this.#seats[seatNumber - 1] = deck;
-        this.#pickerSeat = null;
-        this.#rebuild();
-      };
-      campaignActionButton(this, {
-        kind: "secondary",
-        rect,
-        title: identityName,
-        subtitle: aspects,
-        enabled: true,
-        onClick: select,
-        titleSize: 15,
-      });
-      this.#stops.set(`pick-${index}`, { rect, activate: select });
-      index += 1;
-    }
+    const listRect: Rect = { x: panelRect.x + 20, y, width: rowWidth, height: panelRect.y + panelRect.height - 16 - y };
+    const gap = 8;
+
     if (options.length === 0) {
-      this.add.text(panelRect.x + 20, y, "No other decks available — build one from Decks & Collection.", {
+      this.add.text(listRect.x, listRect.y, "No decks available — build one from Decks & Collection.", {
         ...textStyle(typeRole.body, surface.ink.hex, ink.secondary),
         wordWrap: { width: rowWidth, useAdvancedWrap: true },
       });
+      return;
     }
+
+    const selectAt = (index: number): void => {
+      const option = options[index];
+      if (!option || option.blocked) return;
+      this.#seats[seatNumber - 1] = option.deck;
+      this.#pickerSeat = null;
+      this.#rebuild();
+    };
+
+    const renderRow = (index: number, rect: Rect): { objects: readonly Phaser.GameObjects.GameObject[] } => {
+      const option = options[index]!;
+      const identityName =
+        CARDS_BY_ID.get(option.deck.identityCardId as string)?.name ?? (option.deck.identityCardId as string);
+      const aspects = option.deck.aspects.length > 0 ? option.deck.aspects.join(" + ") : "No aspect";
+      const rowRect: Rect = { x: rect.x, y: rect.y, width: rect.width, height: rowHeight };
+      const button = campaignActionButton(this, {
+        kind: "secondary",
+        rect: rowRect,
+        title: identityName,
+        subtitle: option.blocked ? (option.blockedReason ?? "Already seated") : aspects,
+        enabled: !option.blocked,
+        onClick: () => selectAt(index),
+        titleSize: 15,
+      });
+      return { objects: [button.container] };
+    };
+
+    // Stops for every option, not just the visible window, so Tab reaches a deck scrolled off-screen (`rect` reads
+    // the list's own position math, which is valid whether or not that row is currently drawn).
+    let list: McVirtualList;
+    options.forEach((option, index) => {
+      this.#stops.set(`pick-${index}`, {
+        rect: () => list.rectFor(index),
+        activate: () => selectAt(index),
+        ensureVisible: () => list.scrollIntoView(index),
+      });
+    });
+
+    list = new McVirtualList(this, {
+      rect: listRect,
+      rowHeight: rowHeight + gap,
+      count: options.length,
+      scroll: this.#pickerScroll,
+      background: false,
+      renderRow,
+      onRowActivate: (index) => selectAt(index),
+    });
+    this.#pickerList = list;
   }
 
   async #sign(): Promise<void> {

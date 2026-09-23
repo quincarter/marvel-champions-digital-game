@@ -57,22 +57,35 @@ export function preconRosterOf(castIdentityIds: readonly CardId[], poolVersion: 
   return seats;
 }
 
-/** Every deck this seat may sign: every precon and saved deck whose identity isn't already seated elsewhere. */
+export interface RosterDeckOption {
+  readonly deck: Deck;
+  /** True when this identity is already seated at a different seat — shown, not hidden, so the whole pool scrolls. */
+  readonly blocked: boolean;
+  readonly blockedReason: string | null;
+}
+
+/** Every precon and saved deck, for this seat's picker. An identity already seated elsewhere is listed, not
+ * dropped, so a wave-2 hero at the bottom of the pool is never made unreachable by an earlier seat's pick —
+ * it's shown `blocked` instead, with the seat it's already sitting in. */
 export function rosterDeckOptions(
   seats: readonly (Deck | null)[],
   seatNumber: number,
   savedDecks: readonly Deck[],
   poolVersion: string,
-): readonly Deck[] {
-  const usedElsewhere = new Set(
-    seats
-      .map((deck, index) => (index + 1 === seatNumber ? null : deck))
-      .filter((deck): deck is Deck => deck !== null)
-      .map((deck) => deck.identityCardId as string),
-  );
-  return [...preconDecks(poolVersion), ...savedDecks].filter(
-    (deck) => !usedElsewhere.has(deck.identityCardId as string),
-  );
+): readonly RosterDeckOption[] {
+  const usedElsewhere = new Map<string, number>();
+  seats.forEach((deck, index) => {
+    if (index + 1 === seatNumber || !deck) return;
+    usedElsewhere.set(deck.identityCardId as string, index + 1);
+  });
+  return [...preconDecks(poolVersion), ...savedDecks].map((deck) => {
+    const seat = usedElsewhere.get(deck.identityCardId as string);
+    return {
+      deck,
+      blocked: seat !== undefined,
+      blockedReason: seat !== undefined ? `Already seated at #${seat}` : null,
+    };
+  });
 }
 
 export function rosterModelOf(seats: readonly (Deck | null)[], pool: CardPool): RosterModel {
