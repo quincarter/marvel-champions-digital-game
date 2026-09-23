@@ -38,4 +38,9 @@ export {
 export type { Wave3ScenarioOptions } from "./wave3/index.js";
 export { PLAYABLE_ABILITIES, PLAYABLE_DEPS, playableScenario, playableStarterDeckSetup } from "./playable/index.js";
 export type { PlayableScenarioOptions } from "./playable/index.js";
-export { CAMPAIGNS, campaignDefinitionOf, TRORS_CAMPAIGN_DEFINITION } from "./campaigns/index.js";
+export {
+  CAMPAIGNS,
+  campaignDefinitionOf,
+  GMW_CAMPAIGN_DEFINITION,
+  TRORS_CAMPAIGN_DEFINITION,
+} from "./campaigns/index.js";

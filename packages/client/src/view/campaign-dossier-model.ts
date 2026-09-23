@@ -16,7 +16,9 @@ import type {
   CampaignNode,
   CampaignOp,
   CampaignStep,
+  EffectSpec,
   LogValue,
+  Predicate,
 } from "@mc/engine";
 import { issueNumberOf, issueStoryFor, type CampaignStory } from "../campaign/story.js";
 import { campaignLogSheet, renderLogValue, type CardNameOf } from "./campaign-log-model.js";
@@ -156,6 +158,24 @@ const WORLD_FIELD_PRESENTATION: Readonly<
   heroForm: { hidden: true },
   healedByObligation: { hidden: true },
   engagedWithEnemy: { hidden: true },
+  // MC16 p. 4/p. 8/p. 10/p. 12/p. 14/p. 18: the Badoon Headhunter ladder unlocks a harsher rung per mark here.
+  headhunterDefeated: {
+    label: "Headhunter marks",
+    when: "Each mark shuffles the ladder's next card into every remaining issue.",
+  },
+  // MC16 p. 5/p. 10: the Collection is spent (and its cards removed from the game) once the group has few enough left.
+  collection: { hidden: true },
+  collectionCount: {
+    label: "Cards in The Collection",
+    when: "Removed from the game once 1 or fewer remain per player.",
+  },
+  powerStoneControl: {
+    label: "Power Stone control",
+    when: "Whoever holds it when scenario 5 is lost loses the campaign.",
+  },
+  evasionCounters: { label: "Evasion counters on Nebula's Ship", when: "Fewer counters raise scenario 4's threat." },
+  galacticArtifacts: { hidden: true },
+  kreeSupremacyRevealed: { hidden: true },
 };
 
 export function campaignDossierOverview(
@@ -200,7 +220,7 @@ export function campaignDossierOverview(
     .map((field) => {
       const presentation = WORLD_FIELD_PRESENTATION[field.id];
       const raw = record.shared[field.id];
-      const bigValue = bigValueOf(raw);
+      const bigValue = bigValueOf(raw, heroNameOf, cardName);
       return {
         id: field.id,
         bigValue,
@@ -211,9 +231,88 @@ export function campaignDossierOverview(
   return { seats, world };
 }
 
+// ---------------------------------------------------------------------------------------------------------------
+// The Badoon bounty ladder (MC16 p. 4/p. 8/p. 10/p. 12/p. 14/p. 18): rungs read off the definition's own setup
+// instructions, never hard-coded — a scenario's `headhunterLadder` (`packages/cards/src/campaigns/gmw.ts`) is an
+// `if campaignLog(<field> atLeast N) → moveCards(encounterSetAside({printedId}), …)` pair per rung, so this walks
+// the *compiled* `EffectSpec` tree the same way an engine trace would, rather than re-deriving the mapping by name.
+// ---------------------------------------------------------------------------------------------------------------
+
+export interface DossierBountyRung {
+  readonly tier: number;
+  readonly cardId: string;
+  readonly name: string;
+  readonly unlocked: boolean;
+}
+
+function conditionTier(condition: Predicate, fieldId: string): number | null {
+  if (condition.kind === "campaignLog" && condition.field === fieldId && typeof condition.atLeast === "number") {
+    return condition.atLeast;
+  }
+  return null;
+}
+
+function encounterSetAsidePrintedId(selector: unknown): string | null {
+  if (!selector || typeof selector !== "object") return null;
+  const candidate = selector as { readonly kind?: string; readonly filter?: { readonly printedId?: unknown } };
+  if (candidate.kind !== "encounterSetAside") return null;
+  const printedId = candidate.filter?.printedId;
+  return typeof printedId === "string" ? printedId : null;
+}
+
+/** Every card an `ifThen(campaignLogAtLeast(fieldId, tier), moveCards(encounterSetAside({printedId}), …))` reveals. */
+function ladderCardsIn(effects: readonly EffectSpec[], fieldId: string): readonly { tier: number; cardId: string }[] {
+  const found: { tier: number; cardId: string }[] = [];
+  for (const effect of effects) {
+    if (effect.kind !== "if") continue;
+    const tier = conditionTier(effect.condition, fieldId);
+    if (tier === null) continue;
+    for (const inner of effect.then) {
+      if (inner.kind !== "moveCards") continue;
+      const printedId = encounterSetAsidePrintedId(inner.cards);
+      if (printedId) found.push({ tier, cardId: printedId });
+    }
+  }
+  return found;
+}
+
+/**
+ * Every rung this campaign's setup instructions ever reveal for shared number field `fieldId`, tier order,
+ * deduplicated by card id (every later scenario's setup repeats the same `ifThen` for rungs it also unlocks).
+ * `unlocked` compares each rung's tier against `currentMarks` (the field's live value).
+ */
+export function bountyLadderRungs(
+  definition: CampaignDefinition,
+  fieldId: string,
+  currentMarks: number,
+  cardName: CardNameOf = (id) => id as string,
+): readonly DossierBountyRung[] {
+  const byCardId = new Map<string, number>();
+  for (const node of definition.graph.nodes) {
+    for (const instruction of [...node.setup, ...node.victory, ...(node.defeat ?? [])]) {
+      const step = instruction.step;
+      if (step.kind !== "inGame") continue;
+      for (const found of ladderCardsIn(step.effects, fieldId)) {
+        if (!byCardId.has(found.cardId)) byCardId.set(found.cardId, found.tier);
+      }
+    }
+  }
+  return [...byCardId.entries()]
+    .sort(([, a], [, b]) => a - b)
+    .map(([cardId, tier]) => ({ tier, cardId, name: cardName(cardId as CardId), unlocked: currentMarks >= tier }));
+}
+
 const HIDDEN_PLACEHOLDER = "not yet known";
 
-function bigValueOf(value: LogValue | undefined): string {
+/**
+ * `heroNameOf` first (Power Stone Control names an identity, and a player-facing screen should say "Rocket", not
+ * a card id) — `cardName` is the fallback for a `cardRef` naming something that isn't a seat's identity.
+ */
+function bigValueOf(
+  value: LogValue | undefined,
+  heroNameOf?: (identityCardId: string) => string,
+  cardName?: CardNameOf,
+): string {
   if (!value) return "—";
   switch (value.kind) {
     case "number":
@@ -224,6 +323,8 @@ function bigValueOf(value: LogValue | undefined): string {
       return String(value.cardIds.length);
     case "strikeList":
       return String(value.struck.length);
+    case "cardRef":
+      return heroNameOf?.(value.cardId as string) ?? cardName?.(value.cardId) ?? (value.cardId as string);
     default:
       return "—";
   }
