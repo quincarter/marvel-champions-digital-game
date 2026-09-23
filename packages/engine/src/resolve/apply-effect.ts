@@ -75,6 +75,7 @@ import type { TriggerEvent } from "../trigger-events.js";
 import { matchingCardInPlay } from "../unique.js";
 import { campaignSeatNumber } from "../campaign-state.js";
 import { campaignLogValueOf, recordCampaignRemoval, recordCampaignWrite } from "./campaign.js";
+import { damageGroupFrame } from "./damage-group.js";
 import { buildScenarioDeck, moveCardsTo, selectCards, shuffleEncounterDeck } from "./cards.js";
 import { cannotBeUnattached, cannotThwart } from "../rules.js";
 import { advanceMainSchemeStage, checkDefeats, completeMainScheme } from "./defeat.js";
@@ -175,18 +176,23 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       // "Increase the amount of damage that event deals by 2" (Embiggen!): every instance this card deals (RRG 1.8
       // "Event", p. 19; FAQ "Embiggen (#10)", p. 59).
       const amount = value(effect.amount) + cardEffectBonus(ctx.state, frame.selfInstanceId, "damage");
-      pushEvents(
-        ctx,
-        targets(effect.target).map((id) => ({
-          kind: "dealDamage",
-          targetInstanceId: id,
-          amount,
-          sourceInstanceId: frame.selfInstanceId,
-          fromAttack: effect.fromAttack === true,
-          ...(effect.ignoreTough ? { ignoreTough: true } : {}),
-        })),
-        reportTo(effect.bind),
-      );
+      const events = targets(effect.target).map((id): Extract<TriggerEvent, { kind: "dealDamage" }> => ({
+        kind: "dealDamage",
+        targetInstanceId: id,
+        amount,
+        sourceInstanceId: frame.selfInstanceId,
+        fromAttack: effect.fromAttack === true,
+        ...(effect.ignoreTough ? { ignoreTough: true } : {}),
+      }));
+      // One effect dealing damage to several characters ("each character", "two enemies") deals it simultaneously:
+      // ruling, June 2, 2026 (2) answer 1 ("Damage is dealt simultaneously; resolve damage steps for both enemies at
+      // the same time"), with RRG 1.8 "Damage" (p. 14) giving the steps. So every target is dealt its damage before
+      // any defeat is checked, through the same group indirect damage uses (docs/phase7-wave3.md §4 Q1).
+      if (events.length > 1) {
+        pushFrames(ctx, [damageGroupFrame(ctx, events, reportTo(effect.bind))]);
+        return;
+      }
+      pushEvents(ctx, events, reportTo(effect.bind));
       return;
     }
     case "heal": {

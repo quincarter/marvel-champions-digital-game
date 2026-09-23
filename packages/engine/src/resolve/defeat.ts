@@ -252,6 +252,12 @@ export function checkDefeats(ctx: Ctx, hints?: DefeatHint | readonly DefeatHint[
   // applies through `applyDefeat`, which re-checks the dial, so a flip to an ∞ face or a reset dial replaces it. With
   // nothing listening the stage falls right here, exactly as it did before.
   const villainDefeats: StackFrame[] = [];
+  // A villain and an identity defeated by the same sweep are defeated simultaneously, and if that eliminates the last
+  // player the players lose: "there aren't any ties in Marvel Champions between the villain and the heroes, so if the
+  // heroes don't win, they have lost" (FFG ruling, May 18, 2023, The Kraken's "each other character takes 1 damage";
+  // docs/phase7-wave3.md §4 Q1). So while an identity falls in this sweep, the villain's defeat waits on the stack
+  // until the eliminations below have applied: the last one ends the game as a loss, and otherwise the villain falls.
+  const identityFalls = playerOrder(ctx.state).some((player) => identityAtZero(ctx, player.identity.instanceId));
   for (const { instanceId } of undefeatedVillains(ctx.state)) {
     const villainProfile = characterProfile(ctx.state, instanceId, ctx.deps);
     const villain = getInstance(ctx.state, instanceId);
@@ -270,7 +276,7 @@ export function checkDefeats(ctx: Ctx, hints?: DefeatHint | readonly DefeatHint[
           }
         : {}),
     };
-    if (heard(ctx.state, ctx.deps, defeat)) {
+    if (identityFalls || heard(ctx.state, ctx.deps, defeat)) {
       villainDefeats.push(eventFrame(ctx, defeat));
       continue;
     }
@@ -314,11 +320,7 @@ export function checkDefeats(ctx: Ctx, hints?: DefeatHint | readonly DefeatHint[
 
   for (const player of playerOrder(ctx.state)) {
     const identityId = player.identity.instanceId;
-    const profile = characterProfile(ctx.state, identityId, ctx.deps);
-    const instance = getInstance(ctx.state, identityId);
-    if (!profile || !instance) continue;
-    if (instance.damage < profile.maxHp) continue;
-    if (cannotBeDefeated(ctx.state, ctx.deps, identityId)) continue;
+    if (!identityAtZero(ctx, identityId)) continue;
     // "When [your hero] would be defeated, … instead" (Captain America's Helmet) needs an interrupt window, so the
     // defeat goes on the stack as an event when an ability could react to it and the player is eliminated when it
     // applies. With nothing listening the elimination happens right here, exactly as it did before.
@@ -346,6 +348,14 @@ export function checkDefeats(ctx: Ctx, hints?: DefeatHint | readonly DefeatHint[
     eliminatePlayer(ctx, player.playerId);
     if (ctx.state.outcome) return;
   }
+}
+
+/** An identity at zero remaining hit points that can be defeated: the sweep defeats it. */
+function identityAtZero(ctx: Ctx, identityId: InstanceId): boolean {
+  const profile = characterProfile(ctx.state, identityId, ctx.deps);
+  const instance = getInstance(ctx.state, identityId);
+  if (!profile || !instance || instance.damage < profile.maxHp) return false;
+  return !cannotBeDefeated(ctx.state, ctx.deps, identityId);
 }
 
 const updateVillain = (ctx: Ctx, id: InstanceId, update: (villain: VillainState) => VillainState): void => {
