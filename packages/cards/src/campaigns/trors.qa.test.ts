@@ -384,7 +384,16 @@ function playCrossbonesForPersistentDamage(seedLog: CampaignLog): { readonly fol
   const replayed = replay(driven.session.log, WAVE2_DEPS);
   if (!replayed.ok) throw new Error("session log did not replay");
   const events = [...created.events, ...replayed.events];
-  const wonState: GameState = { ...driven.session.state, outcome: { result: "win", reason: "villainDefeated" } };
+  // The driver reliably loses this villain at full strength by both identities being defeated (`allPlayersDefeated`)
+  // — the file header's own reason a real loss is the only way to get real persistent damage. Overriding `outcome`
+  // to a win is already fictional (see the header); a real win never leaves every seat eliminated, so the override
+  // also clears `eliminated`, or `sittingOutOf`'s now-wired `elimination` policy (step 4e) would read both seats as
+  // sitting out the Victory steps this test exists to exercise, healing away the very persistent damage under test.
+  const wonState: GameState = {
+    ...driven.session.state,
+    players: driven.session.state.players.map((player) => ({ ...player, eliminated: false })),
+    outcome: { result: "win", reason: "villainDefeated" },
+  };
   const result = campaignResultOf(TRORS_CAMPAIGN_DEFINITION, composed, wonState, events, WAVE2_DEPS);
   const folded = settle(
     (answers) =>
@@ -902,5 +911,137 @@ describe('RRG 1.8 "Modes of Play" (p. 29) — expert campaign is independent of 
     // not this is a campaign game — the campaign's own `modes.expert` flag reaches the same `difficultyOf` read
     // `wave2/setup.ts`'s `buildSingleVillain` always used.
     expect(expertConfig.encounterDeck.length).toBeGreaterThan(standardConfig.encounterDeck.length);
+  });
+});
+
+// -----------------------------------------------------------------------------------------------------------------
+// Step 4e — MC10 p. 17's own Elimination and Victory: a mandatory obligation, not MC16's free rejoin
+// -----------------------------------------------------------------------------------------------------------------
+
+/**
+ * MC10 p. 17 (`trors.ts`'s `elimination`, `mc10.elimination.rejoin`/`.obligation`): "If a player is defeated during
+ * a scenario that their teammates go on to win, the defeated player does not participate in any of the victory
+ * steps for that scenario. However, they can rejoin their teammates for the next scenario by adding an obligation
+ * to their deck during setup to restore their identity to full hit points." Maintainer decision 2026-09-23 (no FFG
+ * ruling exists): unlike MC16 p. 5's free rejoin, the obligation here is the mandatory price of rejoining.
+ *
+ * Synthetic (per this file's header technique note): `applyCampaignResult` is handed a `CampaignGameResult` whose
+ * `sittingOut: [2]` stands in for whatever `campaignResultOf` would have derived from a real game where seat 2 was
+ * eliminated (`GameState.players[i].eliminated`) in a scenario the team won — `@mc/engine`'s own
+ * `campaign/result.test.ts` / `campaign/runner.test.ts` already cover that derivation at the primitive level, and
+ * `gmw.qa.test.ts`'s "Elimination and Victory" describe block proves it against a real finished `GameState` for the
+ * sibling MC16 policy.
+ */
+describe('MC10 p. 17 "Elimination and Victory" — an eliminated seat sits out Victory, then rejoins with a mandatory obligation', () => {
+  const seat2IdentityHp = (() => {
+    const card = WAVE2_CARDS.find((candidate) => candidate.id === SEATS[1]!.identityCardId);
+    if (!card || card.type !== "hero_identity") throw new Error("seat 2's identity is not a hero_identity card");
+    return card.hp;
+  })();
+
+  function eliminatedAtCrossbones(seed = 9001) {
+    const log = freshLog(`qa-elimination-${seed}`, EXPERT, seed);
+    const composed = settle(
+      (answers) => resolveBetweenGames(TRORS_CAMPAIGN_DEFINITION, log, DEPS, EXPERT, answers),
+      SCRIPT,
+    ).value;
+    const result: CampaignGameResult = {
+      nodeId: "crossbones",
+      outcome: "won",
+      // Exactly what `campaignResultOf` would compute for a won game with seat 2 eliminated: `seatsFor`'s exclusion
+      // already means no "each"-scoped write exists for seat 2, so none is supplied here either — instead there is
+      // `rejoinRecords`' own write, keyed to the policy's own instruction id, exactly as `result.ts` derives it from
+      // the seat's printed hit points.
+      records: [
+        appendWrite("mc10.s1.victory.experimental", "experimental", null, { kind: "cardList", cardIds: [] }),
+        write("mc10.s1.victory.hp", "remainingHp", 1, { kind: "number", value: 40 }),
+        write("mc10.elimination.rejoin", "remainingHp", 2, { kind: "number", value: seat2IdentityHp }),
+      ],
+      removedFromCampaign: [],
+      logWrites: [],
+      expiringGrants: [],
+      sittingOut: [2],
+    };
+    const folded = settle(
+      (answers) =>
+        applyCampaignResult(
+          TRORS_CAMPAIGN_DEFINITION,
+          composed,
+          result,
+          { at: 1_700_000_000_000, gameId: "qa-elimination" },
+          DEPS,
+          answers,
+        ),
+      SCRIPT,
+    ).value;
+    return { composed, folded };
+  }
+
+  it("seat 2 takes none of Crossbones' Victory steps: no TECH upgrade grant, no log write", () => {
+    const { folded } = eliminatedAtCrossbones();
+    expect(folded.seats[1]?.fields.techUpgrade).toBeUndefined();
+    expect(
+      folded.seats[1]?.grants.some((grant) => (TECH_IDS as readonly string[]).includes(grant.cardId as string)),
+    ).toBe(false);
+    // Seat 1 (not eliminated) is unchanged: it still takes its own TECH upgrade normally.
+    expect(folded.seats[0]?.fields.techUpgrade).toEqual({ kind: "cardRef", cardId: TECH_IDS[0] });
+    expect(folded.seats[0]?.grants.some((grant) => grant.cardId === TECH_IDS[0])).toBe(true);
+  });
+
+  it("seat 2 rejoins with exactly one new obligation from its own numbered set and full (printed) hit points", () => {
+    const { folded } = eliminatedAtCrossbones();
+    const seat2 = folded.seats[1]!;
+    expect(seat2.fields.remainingHp).toEqual({ kind: "number", value: seat2IdentityHp });
+    const obligationGrants = seat2.grants.filter((grant) => (grant.cardId as string).startsWith("0416"));
+    expect(obligationGrants).toHaveLength(1);
+    expect(seat2.fields.obligations).toEqual({ kind: "cardList", cardIds: [obligationGrants[0]!.cardId] });
+    const trace = folded.history
+      .at(-1)!
+      .steps.find((step) => step.instructionId === "mc10.elimination.rejoin.obligation");
+    expect(trace?.grants).toHaveLength(1);
+  });
+
+  it("a standard campaign prints no such rule: the obligation and HP write never happen even if a seat sits out", () => {
+    const log = freshLog("qa-elimination-standard", STANDARD, 9002);
+    const composed = settle(
+      (answers) => resolveBetweenGames(TRORS_CAMPAIGN_DEFINITION, log, DEPS, STANDARD, answers),
+      SCRIPT,
+    ).value;
+    const result: CampaignGameResult = {
+      nodeId: "crossbones",
+      outcome: "won",
+      records: [appendWrite("mc10.s1.victory.experimental", "experimental", null, { kind: "cardList", cardIds: [] })],
+      removedFromCampaign: [],
+      logWrites: [],
+      expiringGrants: [],
+      sittingOut: [2],
+    };
+    const folded = settle(
+      (answers) =>
+        applyCampaignResult(
+          TRORS_CAMPAIGN_DEFINITION,
+          composed,
+          result,
+          { at: 1_700_000_000_000, gameId: "qa-elimination-standard" },
+          DEPS,
+          answers,
+        ),
+      SCRIPT,
+    ).value;
+    // `EliminationPolicy.whenModes: { expertCampaign: true }` gates the whole rule: no rejoin write, no obligation.
+    // The instruction is still traced (as every instruction is, per `runCampaignInstruction`'s own contract, "why
+    // did nothing happen?"), but `skipped: "modes"` and no writes or grants — a standard campaign never applies it.
+    expect(folded.seats[1]?.fields.remainingHp).toBeUndefined();
+    expect(folded.seats[1]?.fields.obligations).toBeUndefined();
+    const traces = folded.history.at(-1)!.steps.filter((step) => step.instructionId.startsWith("mc10.elimination"));
+    expect(traces.every((step) => step.skipped === "modes")).toBe(true);
+    expect(traces.every((step) => step.grants.length === 0 && step.writes.length === 0)).toBe(true);
+  });
+
+  it("a seat not eliminated leaves no elimination trace at all: the synthetic rejoin instructions are absent", () => {
+    const log = fullWalk(EXPERT, RECORDS_STANDARD);
+    for (const entry of log.history) {
+      expect(entry.steps.some((step) => step.instructionId.startsWith("mc10.elimination"))).toBe(false);
+    }
   });
 });

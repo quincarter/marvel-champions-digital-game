@@ -155,6 +155,10 @@ const seatNumbers = (run: CampaignRun): readonly number[] => run.working.seats.m
 const participatingSeats = (run: CampaignRun): readonly number[] =>
   seatNumbers(run).filter((seatNumber) => !run.sittingOut.includes(seatNumber));
 
+/** The complement of `participatingSeats`: only the seats sitting out (`forEachSeat`'s `scope: "sittingOut"`). */
+const sittingOutSeats = (run: CampaignRun): readonly number[] =>
+  seatNumbers(run).filter((seatNumber) => run.sittingOut.includes(seatNumber));
+
 /**
  * The seat a `seat: "self" | "each"` on a *value* addresses.
  *
@@ -883,7 +887,7 @@ export function runCampaignOp(run: CampaignRun, op: CampaignOp, instruction: Cam
       return;
     }
     case "forEachSeat":
-      for (const seatNumber of participatingSeats(run)) {
+      for (const seatNumber of op.scope === "sittingOut" ? sittingOutSeats(run) : participatingSeats(run)) {
         withSeat(run, seatNumber, () => {
           for (const inner of op.ops) runCampaignOp(run, inner, instruction);
         });

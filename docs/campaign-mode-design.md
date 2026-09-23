@@ -1462,14 +1462,38 @@ cardId("16061b")})`, but no card record has that id. A main scheme is one record
    "to its printed hit point value" at no cost (ruling June 2, 2026 (3) #1: "Heal identity to printed HP at no
    cost"). `rejoinAtPrintedHitPoints: { field }` writes the identity card's printed `hp` into that per-seat field,
    in place of the record the seat did not make. It is traced as its own step under the policy's `id`, after the
-   node's Victory instructions. `gmw.ts` declares the policy for `expertCampaign`. **`trors.ts` does not declare it
-   yet**, even though MC10 p. 17 prints the same skip, and that is flagged rather than decided. Without a free rejoin
-   the seat's `remainingHp` keeps the _previous_ scenario's value. MC10 says the seat rejoins "by adding an
-   obligation … to restore their identity to full hit points", but it doesn't say what a seat that declines the
-   obligation starts at. That is an open question for FFG.
+   node's Victory instructions. `gmw.ts` declares the policy for `expertCampaign`.
 
 Tests: `packages/engine/src/campaign/new-primitives.test.ts` ("CampaignGameQuery.mainSchemeStageNumber and equals",
 "CampaignDefinition.elimination") and the two un-skipped `gmw.qa.test.ts` groups.
+
+**MC10 QA (step 4e on PR #35): `trors.ts` declares the same rule, but the obligation is mandatory, not free.**
+**Q19. Is MC10's rejoin free (MC16's reading) or does it cost the printed obligation? Decided by the maintainer,
+2026-09-23 (no FFG ruling exists to settle it either way): the obligation is required.** MC10 p. 17 says the
+defeated seat "can rejoin their teammates for the next scenario by adding an obligation to their deck during
+setup to restore their identity to full hit points" — worded as a price ("by adding …"), unlike MC16 p. 5's plain
+"healing their identity to its printed hit point value" with no cost attached (closed by ruling June 2, 2026 (3)
+#1, "at no cost"). No ruling addresses MC10 specifically, so each box's own printed wording is read on its own
+terms rather than assumed to match its sibling. `EliminationPolicy` gained `rejoinGrant: { from:
+CampaignChoiceSource; appendToField?: string }`, run unconditionally (no `optional`) for every seat
+`rejoinAtPrintedHitPoints` heals — the general primitive is `CampaignOp` `forEachSeat`'s new `scope?:
+"participating" | "sittingOut"` (default `"participating"`, unchanged for every existing box), so a policy's own
+synthetic instruction can run _only_ for the seats it is rejoining, the complement of every other per-seat op's
+audience. `runner.ts`'s `rejoinInstruction` emits a second, `betweenGames` instruction (`${policy.id}.obligation`)
+alongside the existing `record` one, drawing one obligation via a mandatory (non-optional) `random` and granting it
+with `permanence: "campaign"` — the same convention `trors.ts`'s own volunteered obligation draw (`obligationSetup`)
+already uses, from the same `EXPERT_CAMPAIGN_SET`, appended to the same `obligations` field. `trors.ts` declares
+`elimination` with both `rejoinAtPrintedHitPoints: { field: "remainingHp" }` and `rejoinGrant`, gated
+`expertCampaign: true` like every other box's rule. Tests: `packages/cards/src/campaigns/trors.qa.test.ts`'s
+`'MC10 p. 17 "Elimination and Victory"'` describe block (a sitting-out seat's Victory steps are skipped; it rejoins
+with exactly one new obligation and full printed hit points; a standard campaign applies neither; an uneliminated
+seat leaves no trace of the rule at all). Fixing this also surfaced a real interaction in the box's own pre-existing
+"persistent damage" test: its real, driven Crossbones game naturally loses by both identities being defeated, and
+the test's own documented "forced win" override (re-deriving `campaignResultOf` against that finished state with
+`outcome` overridden to a win) had left `eliminated: true` on both players — which the newly-wired policy now
+(correctly) reads as both seats sitting out and rejoining at full HP, erasing the very persistent damage the test
+exists to check. The override now also clears `eliminated`, consistent with the fictional premise it already stood
+on (a real win never leaves every seat eliminated).
 
 ---
 

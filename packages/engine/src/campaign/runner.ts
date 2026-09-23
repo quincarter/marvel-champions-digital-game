@@ -503,6 +503,7 @@ const rejoinInstruction = (
 ): readonly CampaignInstruction[] => {
   const policy = definition.elimination;
   if (!policy?.rejoinAtPrintedHitPoints || sittingOut.length === 0) return [];
+  const grant = policy.rejoinGrant;
   return [
     {
       id: policy.id,
@@ -511,6 +512,47 @@ const rejoinInstruction = (
       ...(policy.whenModes ? { whenModes: policy.whenModes } : {}),
       step: { kind: "record", writes: [] },
     },
+    // MC10 p. 17 alone (`EliminationPolicy.rejoinGrant`'s own comment): the obligation is the price of the heal
+    // above, run for every sitting-out seat and no other — `forEachSeat`'s `scope: "sittingOut"` is the general
+    // primitive this reads, not something wired to one box.
+    ...(grant
+      ? [
+          {
+            id: `${policy.id}.obligation`,
+            text: policy.text,
+            citation: policy.citation,
+            ...(policy.whenModes ? { whenModes: policy.whenModes } : {}),
+            step: {
+              kind: "betweenGames" as const,
+              ops: [
+                {
+                  kind: "forEachSeat" as const,
+                  scope: "sittingOut" as const,
+                  ops: [
+                    { kind: "random" as const, slot: "obligation", from: grant.from },
+                    {
+                      kind: "grantCard" as const,
+                      seat: "self" as const,
+                      card: { kind: "choice" as const, slot: "obligation" },
+                      permanence: "campaign" as const,
+                    },
+                    ...(grant.appendToField
+                      ? [
+                          {
+                            kind: "appendToList" as const,
+                            field: grant.appendToField,
+                            seat: "self" as const,
+                            value: { kind: "choice" as const, slot: "obligation" },
+                          },
+                        ]
+                      : []),
+                  ],
+                },
+              ],
+            },
+          },
+        ]
+      : []),
   ];
 };
 

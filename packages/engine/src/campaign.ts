@@ -597,8 +597,21 @@ export type CampaignOp =
       readonly into?: "deck" | "setAside";
     }
   // --- control -------------------------------------------------------------------------------------------------
-  /** "Repeat this process for each player" (MC27 p. 22). Inner ops see `seat: "self"` as the scoped seat. */
-  | { readonly kind: "forEachSeat"; readonly ops: readonly CampaignOp[] }
+  /**
+   * "Repeat this process for each player" (MC27 p. 22). Inner ops see `seat: "self"` as the scoped seat.
+   *
+   * `scope` defaults to `"participating"` — every seat but those `CampaignDefinition.elimination` is sitting out of
+   * this scenario's Victory steps (§4.6b), the same set `targetSeats`'s `"each"` reads. `"sittingOut"` is the
+   * complement: the seats an elimination policy's own `rejoinGrant` runs *for*, e.g. MC10 p. 17's "adding an
+   * obligation to their deck" as the price of rejoining. No printed box content ever needs `"sittingOut"` directly —
+   * only `EliminationPolicy.rejoinGrant`'s synthetic instruction does — but it is a general seat-selection axis, not
+   * a special case wired to one box.
+   */
+  | {
+      readonly kind: "forEachSeat";
+      readonly ops: readonly CampaignOp[];
+      readonly scope?: "participating" | "sittingOut";
+    }
   | {
       readonly kind: "if";
       readonly when: CampaignPredicate;
@@ -720,6 +733,23 @@ export interface EliminationPolicy {
   /** Every box prints the rule for its expert campaign only. */
   readonly whenModes?: ModePredicate;
   readonly rejoinAtPrintedHitPoints?: { readonly field: string };
+  /**
+   * MC10 p. 17 alone: rejoining is not free — "they can rejoin their teammates for the next scenario **by adding an
+   * obligation to their deck** during setup to restore their identity to full hit points." Maintainer decision
+   * 2026-09-23 (no FFG ruling addresses it): unlike MC16's free rejoin, MC10's "by adding" reads as the *price* of
+   * rejoining, not an option, so this runs unconditionally for every seat `rejoinAtPrintedHitPoints` heals — there
+   * is no `optional` here the way `trors.ts`'s own volunteered obligation draw has one.
+   *
+   * Drawn once per rejoining seat via a synthetic `forEachSeat` (`scope: "sittingOut"`) `random` + `grantCard`,
+   * following the same convention `trors.ts`'s `obligationSetup` already uses for every other obligation grant in
+   * this box: `permanence: "campaign"`, no `excludeGranted` (MC10's four numbered Expert Campaign Sets are
+   * identical, so two seats may hold the same obligation title).
+   */
+  readonly rejoinGrant?: {
+    readonly from: CampaignChoiceSource;
+    /** MC10 p. 17/p. 20's "Obligations" log column — the same field a volunteered draw appends to. */
+    readonly appendToField?: string;
+  };
 }
 
 // ---------------------------------------------------------------------------------------------------------------
