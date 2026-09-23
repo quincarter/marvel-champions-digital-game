@@ -1,0 +1,3 @@
+kind: Fixed
+body: Groot and Rocket Raccoon's hero art waits in art/heroes/_pending until their pack (gmw) is imported, so main's hero-art test passes
+time: 2026-09-22T20:33:48.619842-04:00
