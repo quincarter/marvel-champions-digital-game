@@ -181,7 +181,7 @@ export function seatsLayout(input: SeatsLayoutInput): SeatsLayout {
 
   const headerBar: Rect = { x: 0, y: 0, width, height: HEADER_HEIGHT };
   const headerPad = 16;
-  const backWidth = 90;
+  const backWidth = 140;
   const stepWidth = Math.min(160, Math.max(90, width * 0.32));
   const back: Rect = { x: headerPad, y: (HEADER_HEIGHT - hit.target) / 2, width: backWidth, height: hit.target };
   const step: Rect = {

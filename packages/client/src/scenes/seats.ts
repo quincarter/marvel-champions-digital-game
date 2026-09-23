@@ -29,7 +29,6 @@ import {
   POOL_DEPS,
   POOL_ENCOUNTER_SETS,
   POOL_PACKS,
-  POOL_SCENARIOS,
   POOL_VERSION,
   packNameOf,
 } from "../content/pool.js";
@@ -305,12 +304,11 @@ export class SeatsScene extends Phaser.Scene {
       )
       .setOrigin(0, 0);
 
-    const scenario = POOL_SCENARIOS.find((s) => (s.id as string) === this.#draft.scenarioId);
     const back = (): void => this.#back();
     this.#buttons.push(
       new McButton(this, {
         kind: "onInk",
-        label: `◂ ${scenario?.name ?? "Back"}`,
+        label: "◂ Scenarios",
         type: typeRole.backLabel,
         rect: layout.back,
         onClick: back,
