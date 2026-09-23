@@ -323,8 +323,8 @@ export class CampaignBriefingScene extends Phaser.Scene {
       const picture = heroPicture(speakerIdentityId);
       const image = drawPicture(this, picture, portraitRect, () => this.#draw(), { focusY: 0.15 });
       if (image) {
-        // The design's round portrait. Not `image.setMask(createGeometryMask())`, a silent no-op under WebGL in
-        // Phaser 4 (`ui/rex.ts`); the mask shape stays off the display list, so it is destroyed with the image.
+        // The design's round portrait, clipped through `ui/rex.ts` (Phaser 4's own geometry mask does nothing under
+        // WebGL). The mask shape stays off the display list, so it is destroyed with the image.
         const maskShape = this.make.graphics({}, false);
         maskShape.fillStyle(0xffffff).fillCircle(centerX, centerY, radius);
         setMask(image, maskShape, "world");
