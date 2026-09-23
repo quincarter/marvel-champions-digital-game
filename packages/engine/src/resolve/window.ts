@@ -9,6 +9,7 @@ import {
   paymentsFromOptionIds,
   payPayment,
   planCost,
+  playCostModifier,
   priceOrNull,
   pricePlay,
 } from "../actions.js";
@@ -149,9 +150,18 @@ function windowEventCost(ctx: Ctx, candidate: TriggerCandidate): number {
   const card = cardOf(ctx.state, candidate.instanceId);
   if (!card || !candidate.controllerId) return 0;
   const printed = "cost" in card ? card.cost : 0;
+  // A card played straight from hand at its own trigger window (Crosscounter, Knife Leap, …) is priced the same
+  // way `ownPlayCost` prices a normally-played card: printed cost, then every in-play/hand-active `CostModifierSpec`
+  // constant (`playCostModifier` — this path previously read only `costReductionFor`'s older "reduce the next card"
+  // lasting-effect mechanism, so a constant cost reduction like Knife Leap's "reduce the cost to play this card by
+  // 1 for each vengeance counter on Drax" silently never applied here), then the older reduction, never below 0.
+  const modified = Math.max(
+    0,
+    printed + playCostModifier(ctx.state, ctx.deps, candidate.controllerId, candidate.instanceId, null),
+  );
   const reduced = Math.max(
     0,
-    printed - costReductionFor(ctx.state, ctx.deps, candidate.controllerId, candidate.instanceId),
+    modified - costReductionFor(ctx.state, ctx.deps, candidate.controllerId, candidate.instanceId),
   );
   const abilityCost = ctx.deps.abilities[candidate.abilityId]?.cost?.resources;
   return requirementTotal(combineRequirements(reduced, abilityCost));
