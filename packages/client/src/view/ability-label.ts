@@ -20,7 +20,15 @@
  */
 
 import type { AbilityId } from "@mc/content";
-import { activeAbilityRefs, type AbilityCost, type EngineDeps, type GameState, type InstanceId } from "@mc/engine";
+import {
+  activeAbilityRefs,
+  controllerOf,
+  costAsDetermined,
+  type AbilityCost,
+  type EngineDeps,
+  type GameState,
+  type InstanceId,
+} from "@mc/engine";
 import { faceUpName } from "./names.js";
 
 /** "Aunt May — exhaust" or, once a card names the ability, "Rocket Boots — Afterburners". */
@@ -63,7 +71,12 @@ export function abilityShortLabelOf(
   // Forever!'s targets) — never named on the `AbilityReference` itself (there is nothing else to call it), so this
   // is the one case where the label isn't traced back to printed data via `.label`/`AbilityCost`.
   if (deps.abilities[abilityId]?.trigger.kind === "special") return "Special";
-  return costPhrase(deps.abilities[abilityId]?.cost);
+  // Navigation Column (16172) etc.: `conditional` costs read the wrong branch (or none) unless resolved against
+  // the board first (`costAsDetermined`, engine `actions.ts` §3.49) — the written cost is only ever a template.
+  const written = deps.abilities[abilityId]?.cost;
+  const controllerId = controllerOf(state, instanceId);
+  const determined = controllerId ? costAsDetermined(state, deps, instanceId, controllerId, written) : written;
+  return costPhrase(determined);
 }
 
 /**

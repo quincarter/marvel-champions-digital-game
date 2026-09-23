@@ -25,6 +25,7 @@
 import {
   activeAbilityRefs,
   applyCommand,
+  costAsDetermined,
   getPlayer,
   type AbilityCost,
   type Command,
@@ -52,12 +53,28 @@ export interface DiscardCostShape {
  * is internal, so this mirrors it with the same public `activeAbilityRefs`
  * every other card-in-hand/in-play lookup already uses).
  */
-function actionAbilityCost(state: GameState, deps: EngineDeps, action: LegalAction["action"]): AbilityCost | undefined {
-  if (action.kind === "useAbility") return deps.abilities[action.abilityId]?.cost;
+/**
+ * The cost *as determined* (`costAsDetermined`, `packages/engine/src/actions.ts` §3.49): a `conditional` cost
+ * (Navigation Column, 16172, "if you control the Milano … / otherwise …") is resolved against the board before this
+ * reads `discardFromHand` off it. Reading the written cost instead would show the wrong branch's shape — or none at
+ * all — whenever the board picks a branch other than the printed default.
+ */
+function actionAbilityCost(
+  state: GameState,
+  deps: EngineDeps,
+  playerId: PlayerId,
+  action: LegalAction["action"],
+): AbilityCost | undefined {
+  if (action.kind === "useAbility") {
+    const written = deps.abilities[action.abilityId]?.cost;
+    return costAsDetermined(state, deps, action.instanceId, playerId, written);
+  }
   if (action.kind !== "playCard") return undefined;
   for (const ref of activeAbilityRefs(state, action.instanceId)) {
     const definition = deps.abilities[ref.id];
-    if (definition?.trigger.kind === "action") return definition.cost;
+    if (definition?.trigger.kind === "action") {
+      return costAsDetermined(state, deps, action.instanceId, playerId, definition.cost);
+    }
   }
   return undefined;
 }
@@ -66,9 +83,10 @@ function actionAbilityCost(state: GameState, deps: EngineDeps, action: LegalActi
 export function discardCostOf(
   state: GameState,
   deps: EngineDeps,
+  playerId: PlayerId,
   action: LegalAction["action"],
 ): DiscardCostShape | null {
-  const cost = actionAbilityCost(state, deps, action)?.discardFromHand;
+  const cost = actionAbilityCost(state, deps, playerId, action)?.discardFromHand;
   if (!cost) return null;
   return { min: cost.min, max: cost.max ?? null };
 }
@@ -104,7 +122,7 @@ export function beginDiscardChoice(
   deps: EngineDeps,
 ): DiscardChoiceState | null {
   if (action.action.kind !== "playCard" && action.action.kind !== "useAbility") return null;
-  const cost = discardCostOf(state, deps, action.action);
+  const cost = discardCostOf(state, deps, playerId, action.action);
   if (!cost) return null;
   const candidates = discardCandidates(state, playerId, action.action.instanceId);
   if (candidates.length <= cost.min) return null;

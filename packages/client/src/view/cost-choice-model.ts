@@ -10,19 +10,40 @@
  * anywhere else — so a new `either` cost the pool adds later still gets a legible label with no client change,
  * as long as its branches use vocabulary this file already knows.
  */
-import { activeAbilityRefs, type AbilityCost, type EngineDeps, type GameState, type LegalAction } from "@mc/engine";
+import {
+  activeAbilityRefs,
+  costAsDetermined,
+  type AbilityCost,
+  type EngineDeps,
+  type GameState,
+  type LegalAction,
+  type PlayerId,
+} from "@mc/engine";
 
 export type CostChoicePrompt =
   | { readonly kind: "branch"; readonly options: readonly { readonly branch: number; readonly label: string }[] }
   | { readonly kind: "counters"; readonly min: number; readonly max: number; readonly label: string };
 
-/** The `AbilityCost` an action's `useAbility`/action-triggered `playCard` would pay, mirroring `discard-choice-model.ts`'s own lookup. */
-function actionAbilityCost(state: GameState, deps: EngineDeps, action: LegalAction["action"]): AbilityCost | undefined {
-  if (action.kind === "useAbility") return deps.abilities[action.abilityId]?.cost;
+/**
+ * The `AbilityCost` an action's `useAbility`/action-triggered `playCard` would pay, mirroring
+ * `discard-choice-model.ts`'s own lookup — resolved with `costAsDetermined` so a `conditional` cost (Navigation
+ * Column, 16172) shows the branch the board actually has, not the printed template.
+ */
+function actionAbilityCost(
+  state: GameState,
+  deps: EngineDeps,
+  playerId: PlayerId,
+  action: LegalAction["action"],
+): AbilityCost | undefined {
+  if (action.kind === "useAbility") {
+    return costAsDetermined(state, deps, action.instanceId, playerId, deps.abilities[action.abilityId]?.cost);
+  }
   if (action.kind !== "playCard") return undefined;
   for (const ref of activeAbilityRefs(state, action.instanceId)) {
     const definition = deps.abilities[ref.id];
-    if (definition?.trigger.kind === "action") return definition.cost;
+    if (definition?.trigger.kind === "action") {
+      return costAsDetermined(state, deps, action.instanceId, playerId, definition.cost);
+    }
   }
   return undefined;
 }
@@ -61,7 +82,7 @@ function describeCost(cost: AbilityCost): string {
  */
 export function costChoicePromptFor(state: GameState, deps: EngineDeps, entry: LegalAction): CostChoicePrompt | null {
   if (entry.costBranches && entry.costBranches.length > 1) {
-    const cost = actionAbilityCost(state, deps, entry.action);
+    const cost = actionAbilityCost(state, deps, entry.example.playerId, entry.action);
     const branches = cost?.either ?? [];
     return {
       kind: "branch",
@@ -72,7 +93,7 @@ export function costChoicePromptFor(state: GameState, deps: EngineDeps, entry: L
     };
   }
   if (entry.costCounters && entry.costCounters.min < entry.costCounters.max) {
-    const cost = actionAbilityCost(state, deps, entry.action);
+    const cost = actionAbilityCost(state, deps, entry.example.playerId, entry.action);
     const counterType = cost?.spendCounters?.counterType ?? "counters";
     return { kind: "counters", min: entry.costCounters.min, max: entry.costCounters.max, label: counterType };
   }
