@@ -9,7 +9,14 @@ import { CAMPAIGN_RECORDS } from "../../campaign/campaign-service.js";
 import { campaignDefinitionOf } from "@mc/cards";
 import { CARDS_BY_ID } from "../../content/pool.js";
 import { ink, surface, typeRole } from "../../tokens.js";
-import { bangers, campaignFrame, drawPicture, issuePips, villainPicture } from "../../ui/campaign-chrome.js";
+import {
+  bangers,
+  campaignCoverPicture,
+  campaignFrame,
+  drawPicture,
+  issuePips,
+  villainPicture,
+} from "../../ui/campaign-chrome.js";
 import { campaignActionButton } from "../../ui/campaign-buttons-a.js";
 import { destroyChildren } from "../../ui/destroy-children.js";
 import { cssOf, textStyle } from "../../ui/theme.js";
@@ -242,7 +249,9 @@ export class CampaignCoverScene extends Phaser.Scene {
   }
 
   #drawArt(rect: Rect, model: CoverModel): void {
-    const picture = villainPicture(model.villainScenarioId);
+    // A box's own cover art (`art/campaigns/<id>/cover.*`) is its key art, made for this exact spot; the final
+    // scenario's villain picture is only ever the fallback for a box that hasn't shipped one yet.
+    const picture = campaignCoverPicture(model.campaignId) ?? villainPicture(model.villainScenarioId);
     if (picture) {
       drawPicture(this, picture, rect, () => this.#rebuild(), { focusY: 0.1 });
       return;

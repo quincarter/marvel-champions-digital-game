@@ -4,10 +4,10 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, test } from "vitest";
 import type { PanelArt } from "../campaign/story.js";
 import { TRORS_STORY } from "../campaign/stories/trors.js";
-import { campaignArtboardFor, parseCampaignArt } from "./campaign-art.js";
+import { campaignArtboardFor, campaignCoverFor, parseCampaignArt } from "./campaign-art.js";
 
 describe("parseCampaignArt", () => {
-  test("an artboard is looked up by campaign and name; variants collect; a cover is not an artboard", () => {
+  test("an artboard is looked up by campaign and name; variants collect; a cover is read separately, not as an artboard", () => {
     const catalog = parseCampaignArt({
       "../art/campaigns/trors/cover.jpg": "/cover",
       "../art/campaigns/trors/artboards/mountain-facility.webp": "/a",
@@ -17,6 +17,8 @@ describe("parseCampaignArt", () => {
     expect(catalog.artboards.get("trors/mountain-facility")?.map((p) => p.url)).toEqual(["/b", "/a"]);
     expect(campaignArtboardFor(catalog, "gmw", "mountain-facility", () => 0)?.url).toBe("/c");
     expect(campaignArtboardFor(catalog, "trors", "the-citadel")).toBeNull();
+    expect(campaignCoverFor(catalog, "trors")?.url).toBe("/cover");
+    expect(campaignCoverFor(catalog, "gmw")).toBeNull();
     expect(catalog.unrecognized).toEqual([]);
   });
 
