@@ -9,7 +9,7 @@ import { flat, type AnyCard, type CardId } from "@mc/content";
 import { describe, expect, it } from "vitest";
 import type { EngineDeps } from "./abilities.js";
 import { playerId, type InstanceId } from "./ids.js";
-import { activeEncounterDeck, activeVillain, mustPlayer } from "./query.js";
+import { activeEncounterDeck, activeVillain, mustInstance, mustPlayer } from "./query.js";
 import { canAttack } from "./select.js";
 import { createGame } from "./setup.js";
 import type { GameState } from "./state.js";
@@ -53,7 +53,7 @@ function engageMinion(
     state: {
       ...withEncounterPiles(state, { deck: deck.filter((x) => x !== id) }),
       players: state.players.map((p) => (p.playerId === player ? { ...p, playArea: [...p.playArea, id] } : p)),
-      instances: { ...state.instances, [id]: { ...state.instances[id], faceup: true, engagedWith: player } },
+      instances: { ...state.instances, [id]: { ...mustInstance(state, id), faceup: true, engagedWith: player } },
     },
   };
 }
@@ -84,7 +84,7 @@ function putAllyInPlay(
             }
           : p,
       ),
-      instances: { ...state.instances, [id]: { ...state.instances[id], faceup: true, controllerId: player } },
+      instances: { ...state.instances, [id]: { ...mustInstance(state, id), faceup: true, controllerId: player } },
     },
   };
 }

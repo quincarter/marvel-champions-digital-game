@@ -20,6 +20,7 @@ import {
   eventSource,
   exhaustThis,
   forcedResponse,
+  gets,
   heal,
   heroAction,
   heroInterrupt,
@@ -47,10 +48,13 @@ import {
   selectCards,
   shuffleDeck,
   shuffleEncounterDeck,
+  statOf,
   theMainScheme,
   theVillain,
+  threatOn,
   thwart,
   thwartAScheme,
+  valueEquals,
   when,
   you,
   yourIdentity,
@@ -227,5 +231,25 @@ export const GAMORA_KIT = defineAbilities({
     { label: ["attack", "thwart"] },
     ...damageAnEnemy(2),
     ...removeThreatFromAScheme(2),
+  ),
+
+  // Pivotal Moment — Hero Action (attack): Deal 2 damage to the villain (5 damage instead if there is no threat on
+  // the main scheme).
+  "18029.pivotal-moment-action": heroAction(
+    { label: "attack" },
+    attack(ifElse(valueEquals(threatOn(theMainScheme), 0), 5, 2), theVillain),
+  ),
+
+  // Comms Implant — Attach to a guardian ally (data, `attachesTo`). Max 1 per ally (data). Attached ally gets +1
+  // THW and +1 hit point.
+  "18030.comms-implant-constant": constant(gets("thw", 1, { hostOfSelf: true }), gets("hp", 1, { hostOfSelf: true })),
+
+  // True Grit — Response (thwart): After your hero defends against an enemy attack, remove threat from a scheme
+  // equal to your hero's THW.
+  "18031.true-grit-response": response(
+    after.defends(YOUR_HERO),
+    { label: "thwart" },
+    aScheme(),
+    thwart(statOf(yourIdentity, "thw"), chosen("scheme")),
   ),
 });

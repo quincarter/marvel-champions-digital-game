@@ -34,7 +34,7 @@ const reprintIdsOf = (cards: readonly AnyCard[]): ReadonlySet<string> => {
 const PACK_STATUS: Readonly<Record<string, "scripted" | "in progress" | "not started">> = {
   gmw: "in progress",
   stld: "not started",
-  gam: "not started",
+  gam: "scripted",
   drax: "not started",
   vnm: "not started",
   ron: "not started",
