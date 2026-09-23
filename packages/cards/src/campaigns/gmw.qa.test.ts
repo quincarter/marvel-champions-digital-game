@@ -814,12 +814,13 @@ function foldedS1Units(mutate: (state: GameState) => GameState): number {
 
 describe('MC16 p. 8 — Scenario 1 victory units: "up to 3" caps at the boundary, not below or above it', () => {
   it("Badoon Headhunter (Victory 2) + one Challenge side scheme (Victory 1) sum to exactly 3: awarded in full", () => {
-    // base 1 + victory sum 3 (capped, but not over) + no-minions-in-play bonus 1 (none staged in play) + stage-1B 0.
+    // base 1 + victory sum 3 (capped, but not over) + no-minions-in-play bonus 1 (none staged in play) + stage-1B 1
+    // (the staged game never left stage 1).
     const total = foldedS1Units((state) => ({
       ...state,
       victoryDisplay: [anyInstanceOf(state, "16183"), anyInstanceOf(state, "16178a")] as never,
     }));
-    expect(total).toBe(5);
+    expect(total).toBe(6);
   });
 
   it("a 4th Victory-1 card pushes the sum to 4, but the cap still awards only 3 for it — same total as exactly 3", () => {
@@ -836,16 +837,16 @@ describe('MC16 p. 8 — Scenario 1 victory units: "up to 3" caps at the boundary
         anyInstanceOf(state, blitz),
       ] as never,
     }));
-    // 1 + 3 (capped from 4) + 1 (no minions) + 0 = 5 — identical to the exactly-3 case, which is the proof the cap
-    // is doing something: an uncapped reading would have awarded 6 here.
-    expect(total).toBe(5);
+    // 1 + 3 (capped from 4) + 1 (no minions) + 1 (stage 1B) = 6 — identical to the exactly-3 case, which is the
+    // proof the cap is doing something: an uncapped reading would have awarded 7 here.
+    expect(total).toBe(6);
   });
 });
 
 describe('MC16 p. 8 — "1 if there are no minions in play" and "1 if the main scheme is on stage 1B", at their boundary', () => {
   it("met: no minion staged in play (the default) awards the bonus", () => {
-    const total = foldedS1Units((state) => state); // empty victory display, stage 1A, nothing in play
-    expect(total).toBe(1 + 0 + 1 + 0); // base + victory(0) + no-minions(true) + stage1B(false)
+    const total = foldedS1Units((state) => state); // empty victory display, stage 1B, nothing in play
+    expect(total).toBe(1 + 0 + 1 + 1); // base + victory(0) + no-minions(true) + stage1B(true)
   });
 
   it("missed: a minion staged into the villain area (in play) withholds the bonus", () => {
@@ -853,41 +854,27 @@ describe('MC16 p. 8 — "1 if there are no minions in play" and "1 if the main s
       ...state,
       villainArea: [...state.villainArea, anyInstanceOf(state, "16183")],
     }));
-    expect(total).toBe(1 + 0 + 0 + 0);
+    expect(total).toBe(1 + 0 + 0 + 1);
   });
 
   /**
-   * BUG (found by this QA pass, not fixed): `gmw.ts`'s `TERRESTRIAL_INVASION_1B = cardId("16061b")` names a
-   * `CardId` that does not exist anywhere in `WAVE3_CARDS`. `packages/content/src/data/gmw/cards.ts` models
-   * Terrestrial Invasion as *one* card record, `cardId("16061a")`, with a `stages` array — each stage's own
-   * A/B-face text lives in that stage's `text`/`aSide` fields and its `image`/`abilityId` *strings* (e.g.
-   * `"16061b.terrestrial-invasion-forced-response"`), never as a second top-level `cardId()`. Which face a main
-   * scheme stage is showing is `CardInstance.flipped` (`state.ts`, "A double-sided encounter card showing its
-   * other face"), not a different `instance.cardId`. `TargetQuery.printedId` matches `instance.cardId` directly
-   * (`select.ts:343`) — so `atLeast(cardsInPlay({categories:["mainScheme"], printedId: TERRESTRIAL_INVASION_1B}),
-   * 1)` can never be true in any real game: no instance's `cardId` is ever `"16061b"`. MC16 p. 8's "1 unit if the
-   * main scheme is on stage 1B (Terrestrial Invasion)" bonus is therefore dead — always 0, in every real game.
-   * The identical pattern also breaks Nebula's own "1 if the main scheme is on stage 1B (The Art of Evasion)"
-   * bonus (`ART_OF_EVASION_1B = cardId("16091b")`; `16091b` likewise has no card record). Reported, not fixed:
-   * fixing this needs either a `TargetQuery` that can read `CardInstance.flipped`/stage identity directly (an
-   * `@mc/engine` `select.ts` change) or a different `CampaignGameQuery` shape entirely — a design decision, not a
-   * one-line content fix. Owner: `game-rules-architect` (query shape) with `ability-scripting-engineer` (the
-   * `gmw.ts` rewrite once that shape exists).
+   * Fixed from this QA pass's own finding: `gmw.ts` used to test `cardsInPlay({printedId: cardId("16061b")})`, a
+   * card id no record has — Terrestrial Invasion is one card record, `16061a`, with a `stages` array, and the stage
+   * in play is `GameState.mainScheme.stageIndex`. It now reads `CampaignGameQuery` `mainSchemeStageNumber`; a
+   * main scheme in play is always on its B side (RRG 1.8 "Main Scheme", p. 27), so "stage 1B" is stage 1.
    */
-  it.skip("met: the main scheme is actually on stage 1B (Terrestrial Invasion) awards the bonus — ENGINE/CONTENT GAP", () => {
-    const total = foldedS1Units((state) => ({
-      ...state,
-      instances: {
-        ...state.instances,
-        [state.mainScheme.instanceId]: {
-          ...getInstance(state, state.mainScheme.instanceId)!,
-          cardId: "16061b" as CardId,
-        },
-      },
-    }));
-    // This assertion is what MC16 p. 8's printed bonus should produce; today it stays at 2 (the bonus never fires)
-    // because no instance's `cardId` is ever literally `"16061b"` — see the docblock above.
-    expect(total).toBe(1 + 0 + 1 + 1); // base + victory(0) + no-minions(true, still) + stage1B(true)
+  it("met: the main scheme is still on stage 1B (Terrestrial Invasion) awards the bonus", () => {
+    const total = foldedS1Units((state) => {
+      expect(state.mainScheme.cardId).toBe("16061a");
+      expect(state.mainScheme.stageIndex).toBe(0);
+      return state;
+    });
+    expect(total).toBe(1 + 0 + 1 + 1); // base + victory(0) + no-minions(true) + stage1B(true)
+  });
+
+  it("missed: the main scheme advanced to stage 2B (Protect the Planet) withholds the bonus", () => {
+    const total = foldedS1Units((state) => ({ ...state, mainScheme: { ...state.mainScheme, stageIndex: 1 } }));
+    expect(total).toBe(1 + 0 + 1 + 0); // base + victory(0) + no-minions(true) + stage1B(false)
   });
 });
 
@@ -1663,19 +1650,16 @@ describe("MC16 p. 5 — the expert deck freeze: aspect/basic changes refused, Ma
  * point value." Ruling June 2, 2026 (3) #1 makes the healing half explicit: "Heal identity to printed HP at no
  * cost" for a player defeated in Brotherhood of Badoon, entering Infiltrate the Museum.
  *
- * `@mc/engine`'s `campaign/result.ts` `seatsFor` (the function that decides which seats a `record` instruction's
- * `"each"`/`"self"` write applies to) reads only `state.campaign?.seats` — it never consults `PlayerState.eliminated`
- * (`state.ts:175`). An eliminated seat is still handed every "each" Victory write the same as a seat that survived
- * the whole game, which is the opposite of "does not participate in the Victory steps." This is an `@mc/engine`
- * gap, not a `gmw.ts` content bug (nothing in `gmw.ts` could special-case it without engine support), so it is
- * reported here rather than fixed. Owner: `game-rules-architect`.
+ * Fixed from this QA pass's own finding (`seatsFor` used to hand an eliminated seat every "each" Victory write):
+ * `CampaignDefinition.elimination` (design §4.6b) declares the rule, and `gmw.ts` declares it for expert
+ * campaigns with the free rejoin at printed hit points.
  */
-describe.skip('MC16 p. 5 "Elimination and Victory" — a defeated player skips this scenario\'s Victory steps (ENGINE GAP)', () => {
-  it("an eliminated seat's remaining HP is not recorded from this scenario's own (irrelevant) finished state", () => {
+describe('MC16 p. 5 "Elimination and Victory" — a defeated player skips this scenario\'s Victory steps', () => {
+  function eliminatedSeat2Result(modes: PlayModes) {
     const seats = seatsOf(TWO_SEATS);
-    const log = freshLog("qa-elimination-victory", EXPERT, seats, 4242);
+    const log = freshLog("qa-elimination-victory", modes, seats, 4242);
     const composed = settleCampaign(
-      (answers) => resolveBetweenGames(GMW_CAMPAIGN_DEFINITION, log, DEPS, EXPERT, answers),
+      (answers) => resolveBetweenGames(GMW_CAMPAIGN_DEFINITION, log, DEPS, modes, answers),
       declineMarketAndHeal("brotherhood-of-badoon", [1, 2]),
     ).value;
     const start = startGameFromLog(GMW_CAMPAIGN_DEFINITION, composed);
@@ -1687,7 +1671,7 @@ describe.skip('MC16 p. 5 "Elimination and Victory" — a defeated player skips t
         aspects: seat.aspects,
       })),
       seed: start.input.seed,
-      modes: EXPERT,
+      modes,
     });
     const withSetAside: GameSetupConfig = {
       ...config,
@@ -1703,10 +1687,46 @@ describe.skip('MC16 p. 5 "Elimination and Victory" — a defeated player skips t
       outcome: { result: "win", reason: "villainDefeated" },
     };
     const result = campaignResultOf(GMW_CAMPAIGN_DEFINITION, composed, finished, [], WAVE3_DEPS);
+    const folded = settleCampaign(
+      (answers) => applyCampaignResult(GMW_CAMPAIGN_DEFINITION, composed, result, { at: 1 }, DEPS, answers),
+      declineMarketAndHeal("brotherhood-of-badoon", [1, 2]),
+    ).value;
+    const printedHp = (finished.cardPool[finished.players[1]!.identity.cardId] as { readonly hp: number }).hp;
+    return { result, folded, printedHp };
+  }
+
+  it("an eliminated seat's remaining HP is not recorded from this scenario's own (irrelevant) finished state", () => {
+    const { result } = eliminatedSeat2Result(EXPERT);
     const seat2Hp = result.records.find((r) => r.instructionId === "mc16.s1.victory.hp" && r.write.seatNumber === 2);
-    // The rule's intent: this write should not exist for an eliminated seat at all (MC16 p. 5, "does not
-    // participate in the Victory steps"). Today, `seatsFor`'s "each" ignores `eliminated` entirely, so it does.
+    // MC16 p. 5, "does not participate in the Victory steps": no write exists for the eliminated seat at all.
     expect(seat2Hp).toBeUndefined();
+    expect(result.sittingOut).toEqual([2]);
+    // Seat 1 still records its own HP, and the eliminated seat none of the "each player" units.
+    expect(result.records.some((r) => r.instructionId === "mc16.s1.victory.hp" && r.write.seatNumber === 1)).toBe(true);
+    expect(result.records.some((r) => r.instructionId === "mc16.s1.victory.units" && r.write.seatNumber === 2)).toBe(
+      false,
+    );
+  });
+
+  it("the eliminated seat rejoins at its printed hit points (ruling June 2, 2026 (3) #1) and earns no units", () => {
+    const { folded, printedHp } = eliminatedSeat2Result(EXPERT);
+    const seat1 = folded.seats.find((seat) => seat.seatNumber === 1)!;
+    const seat2 = folded.seats.find((seat) => seat.seatNumber === 2)!;
+    expect(seat2.fields.remainingHp).toEqual({ kind: "number", value: printedHp });
+    expect(seat2.fields.units?.kind === "number" ? seat2.fields.units.value : 0).toBe(0);
+    expect(seat1.fields.units?.kind === "number" ? seat1.fields.units.value : 0).toBeGreaterThan(0);
+    const trace = folded.history.at(-1)!.steps.find((step) => step.instructionId === "mc16.elimination.rejoin");
+    expect(trace?.writes).toEqual([
+      { field: "remainingHp", seatNumber: 2, mode: "set", value: { kind: "number", value: printedHp } },
+    ]);
+  });
+
+  it("a standard campaign prints no such rule: the eliminated seat still takes its Victory units", () => {
+    const { result } = eliminatedSeat2Result(STANDARD);
+    expect(result.sittingOut).toBeUndefined();
+    expect(result.records.some((r) => r.instructionId === "mc16.s1.victory.units" && r.write.seatNumber === 2)).toBe(
+      true,
+    );
   });
 });
 

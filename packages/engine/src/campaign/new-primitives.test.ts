@@ -14,11 +14,11 @@
  *   `scenarioArea`, over the same `GameState.scenarioAreas`.
  */
 import { describe, expect, it } from "vitest";
-import { campaignId, cardId, encounterSetId, scenarioId, type PlayModes } from "@mc/content";
+import { campaignId, cardId, encounterSetId, flat, scenarioId, type PlayModes } from "@mc/content";
 import { DEFAULT_DEPS } from "../abilities.js";
-import type { CampaignDefinition, CampaignGameResult } from "../campaign.js";
+import type { CampaignDefinition, CampaignGameResult, LogWrite } from "../campaign.js";
 import type { InstanceId } from "../ids.js";
-import { stubEvent, stubSideScheme } from "../testing/fixtures.js";
+import { stubEvent, stubMainScheme, stubSideScheme } from "../testing/fixtures.js";
 import { DEFAULT_CARDS, HERO, MAIN_SCHEME, VILLAIN, seatIdentities } from "../testing/scenario.js";
 import { createGame, type GameSetupConfig } from "../setup.js";
 import { campaignResultOf } from "./result.js";
@@ -371,5 +371,193 @@ describe("CampaignGameQuery.keywordValueSum, capAt and atMost", () => {
     const write = result.records.find((record) => record.instructionId === "only.victory.noMinions")?.write;
     // No minions were ever instantiated for this game, so `atMost(…, 0)` is true.
     expect(write?.value).toEqual({ kind: "flag", value: true });
+  });
+});
+
+describe("CampaignGameQuery.mainSchemeStageNumber and equals", () => {
+  // MC16 p. 8 / p. 14: "Record 1 unit for each player if the main scheme is on stage 1B". A main scheme is one card
+  // record with a `stages` array; the stage in play is `GameState.mainScheme.stageIndex`, always on its B side
+  // (RRG 1.8 "Main Scheme", p. 27), so the sentence is `equals(mainSchemeStageNumber, 1)`.
+  const twoStageScheme = stubMainScheme({
+    id: "two-stage-scheme",
+    stages: [
+      { startingThreat: flat(0), targetThreat: flat(20), acceleration: flat(1) },
+      { startingThreat: flat(0), targetThreat: flat(20), acceleration: flat(1) },
+    ],
+  });
+  const definition = definitionWith(
+    [],
+    [
+      {
+        id: "only.victory.stage",
+        text: "test",
+        citation: "test",
+        step: {
+          kind: "record",
+          writes: [
+            { field: "result", mode: "set", value: { kind: "mainSchemeStageNumber" } },
+            { field: "flag", mode: "set", value: { kind: "equals", of: { kind: "mainSchemeStageNumber" }, amount: 1 } },
+          ],
+        },
+      },
+    ],
+  );
+
+  function recordedAt(stageIndex: number): readonly LogWrite[] {
+    const identities = seatIdentities(HERO, 1);
+    const created = createGame(
+      {
+        seed: 1,
+        cards: [...DEFAULT_CARDS, ...identities, twoStageScheme],
+        villainCardId: VILLAIN.id,
+        mainSchemeCardId: twoStageScheme.id,
+        encounterDeck: [],
+        players: identities.map((identity) => ({ identityCardId: identity.id, deck: [] })),
+      },
+      DEFAULT_DEPS,
+    );
+    if (!created.ok) throw new Error(`setup failed: ${created.error.message}`);
+    const finished = {
+      ...created.state,
+      mainScheme: { ...created.state.mainScheme, stageIndex },
+      outcome: { result: "win" as const, reason: "villainDefeated" as const },
+    };
+    const composed = resolveBetweenGames(definition, newLog(definition), { pool: [] }, MODES);
+    if (composed.kind !== "done") throw new Error("unexpected pending choice");
+    return campaignResultOf(definition, composed.value, finished, [], DEFAULT_DEPS).records.map((r) => r.write);
+  }
+
+  it("reads the printed stage number of the stage in play; equals is true only on that exact value", () => {
+    expect(recordedAt(0).map((write) => write.value)).toEqual([
+      { kind: "number", value: 1 },
+      { kind: "flag", value: true },
+    ]);
+    expect(recordedAt(1).map((write) => write.value)).toEqual([
+      { kind: "number", value: 2 },
+      { kind: "flag", value: false },
+    ]);
+  });
+});
+
+describe("CampaignDefinition.elimination (design §4.6b; MC16 p. 5 'Elimination and Victory')", () => {
+  const EXPERT_MODES: PlayModes = { campaign: { campaignId: CAMPAIGN_ID, expertCampaign: true } };
+  const identities = seatIdentities(HERO, 2);
+  const printedHp = identities[1]!.hp;
+
+  const base = definitionWith(
+    [],
+    [
+      {
+        id: "only.victory.record",
+        text: "Record each identity's remaining hit points; 1 unit for each player; the team's shared result.",
+        citation: "test",
+        step: {
+          kind: "record",
+          writes: [
+            { field: "hp", seat: "each", mode: "set", value: { kind: "remainingHitPointsCappedAtBase" } },
+            { field: "units", seat: "each", mode: "add", value: { kind: "const", value: 1 } },
+            { field: "result", mode: "set", value: { kind: "const", value: 7 } },
+          ],
+        },
+      },
+      {
+        id: "only.victory.between",
+        text: "Each player adds 1 unit (a between-games Victory op).",
+        citation: "test",
+        step: {
+          kind: "betweenGames",
+          ops: [
+            {
+              kind: "forEachSeat",
+              ops: [{ kind: "addToField", field: "units", seat: "self", value: { kind: "const", value: 1 } }],
+            },
+          ],
+        },
+      },
+    ],
+  );
+  const withFields: CampaignDefinition = {
+    ...base,
+    logFields: [
+      ...base.logFields,
+      { id: "hp", label: "HP", scope: "perSeat", type: { kind: "number", min: 0 }, citation: "test" },
+      { id: "units", label: "Units", scope: "perSeat", type: { kind: "number", min: 0 }, citation: "test" },
+    ],
+  };
+  const withPolicy: CampaignDefinition = {
+    ...withFields,
+    elimination: {
+      id: "only.elimination.rejoin",
+      text: "test",
+      citation: "MC16 p. 5",
+      whenModes: { expertCampaign: true },
+      rejoinAtPrintedHitPoints: { field: "hp" },
+    },
+  };
+
+  function play(definition: CampaignDefinition, modes: PlayModes) {
+    const log = createCampaignLog(definition, { id: "run", seats: SEATS, modes, poolVersion: "test", seed: 1 });
+    const composed = resolveBetweenGames(definition, log, { pool: [] }, modes);
+    if (composed.kind !== "done") throw new Error("unexpected pending choice");
+    const created = createGame(
+      {
+        seed: 1,
+        cards: [...DEFAULT_CARDS, ...identities],
+        villainCardId: VILLAIN.id,
+        mainSchemeCardId: MAIN_SCHEME.id,
+        encounterDeck: [],
+        players: identities.map((identity) => ({ identityCardId: identity.id, deck: [] })),
+        campaign: startGameFromLog(definition, composed.value).input,
+      },
+      DEFAULT_DEPS,
+    );
+    if (!created.ok) throw new Error(`setup failed: ${created.error.message}`);
+    const seat2Identity = created.state.players[1]!.identity.instanceId;
+    // Seat 2 was defeated (its identity at 0 hit points) in a game seat 1 went on to win.
+    const finished = {
+      ...created.state,
+      instances: {
+        ...created.state.instances,
+        [seat2Identity]: { ...created.state.instances[seat2Identity]!, damage: printedHp },
+      },
+      players: created.state.players.map((player, index) => (index === 1 ? { ...player, eliminated: true } : player)),
+      outcome: { result: "win" as const, reason: "villainDefeated" as const },
+    };
+    const result = campaignResultOf(definition, composed.value, finished, [], DEFAULT_DEPS);
+    const applied = applyCampaignResult(definition, composed.value, result, { at: 1 }, { pool: [] });
+    if (applied.kind !== "done") throw new Error("unexpected pending choice");
+    const field = (seatNumber: number, id: string) =>
+      applied.value.seats.find((seat) => seat.seatNumber === seatNumber)?.fields[id];
+    return { result, log: applied.value, field };
+  }
+
+  it("the eliminated seat gets no per-seat record or between-games Victory op; shared writes still happen", () => {
+    const { result, log, field } = play(withPolicy, EXPERT_MODES);
+    expect(result.sittingOut).toEqual([2]);
+    const recorded = result.records.filter((r) => r.instructionId === "only.victory.record");
+    expect(recorded.map((r) => r.write.seatNumber)).toEqual([1, 1, null]);
+    expect(field(1, "units")).toEqual({ kind: "number", value: 2 });
+    expect(field(2, "units")).toBeUndefined();
+    expect(log.shared.result).toEqual({ kind: "number", value: 7 });
+  });
+
+  it("rejoinAtPrintedHitPoints writes the seat's printed hit points in place of the record it did not make", () => {
+    const { log, field } = play(withPolicy, EXPERT_MODES);
+    expect(field(2, "hp")).toEqual({ kind: "number", value: printedHp });
+    expect(field(1, "hp")).toEqual({ kind: "number", value: identities[0]!.hp });
+    // Traced as its own step, after the node's own Victory instructions.
+    const last = log.history.at(-1)!.steps.at(-1);
+    expect(last?.instructionId).toBe("only.elimination.rejoin");
+    expect(last?.writes).toEqual([
+      { field: "hp", seatNumber: 2, mode: "set", value: { kind: "number", value: printedHp } },
+    ]);
+  });
+
+  it("outside the policy's modes, and with no policy at all, the eliminated seat participates (the default)", () => {
+    for (const { result, field } of [play(withPolicy, MODES), play(withFields, EXPERT_MODES)]) {
+      expect(result.sittingOut).toBeUndefined();
+      expect(field(2, "units")).toEqual({ kind: "number", value: 2 });
+      expect(field(2, "hp")).toEqual({ kind: "number", value: 0 });
+    }
   });
 });

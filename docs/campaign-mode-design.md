@@ -1437,6 +1437,40 @@ Because the end-to-end walk cannot reach `@mc/engine`'s internal `testing/fixtur
 reducer is exercised elsewhere (`packages/engine/src/campaign/result.ts`'s tests, and `trors.test.ts` against a
 real driven game), not a second time here.
 
+**MC16 QA (step 4d on PR #35), as built: two gaps the Galaxy's Most Wanted walk found.** Both were pinned by
+skipped tests in `packages/cards/src/campaigns/gmw.qa.test.ts` and are closed in `@mc/engine`. Neither names a box:
+
+1. **"The main scheme is on stage 1B"** (MC16 p. 8 and p. 14). `gmw.ts` read it as `cardsInPlay({printedId:
+cardId("16061b")})`, but no card record has that id. A main scheme is one record with a `stages` array, and the
+   stage in play is `GameState.mainScheme.stageIndex`. The B side is not state: a main scheme in play is always on
+   its B side, because advancing resolves the A side and then flips to B (RRG 1.8 "Main Scheme", p. 27). So "stage
+   1B" is stage 1. `CampaignGameQuery` gained `mainSchemeStageNumber`, the between-games twin of the in-game
+   `ValueSpec` of the same name, which reads the central stage when there are separate game areas. It also gained
+   `equals`, alongside `atLeast`/`atMost`. The bonus is now `equals(mainSchemeStageNumber, 1)`. MC21's "if … 1B
+   was completed" (`mts.gate.test.ts`) still uses its stage-name `cardsThatEnteredPlay` bridge. That is a different
+   fact: RRG p. 27 says a scheme that advances other than by threat is not completed.
+2. **Elimination and Victory** (§1 row 22). All nine boxes print it in their expert campaign rules. MC10 p. 17,
+   MC16 p. 5, MC21 p. 25, MC27 p. 6, MC32 p. 5, MC40 p. 7, MC45 p. 20, MC50 p. 6 and MC60 p. 9 each say "the
+   defeated player does not participate in the Victory steps of that scenario". No box prints the opposite, and none
+   prints the rule for a standard campaign. `CampaignDefinition.elimination` (`EliminationPolicy`, §4.6b in
+   `campaign.ts`) declares it with its own `whenModes`. **Absent means the eliminated seat participates**, which is
+   what every box does outside its expert rules. Under the policy, `campaignResultOf` marks the eliminated seats of
+   a won game as `CampaignGameResult.sittingOut` and writes them no `"each"`/`"self"` record. The runner's per-seat
+   ops (`forEachSeat`, a per-seat `choose`, an unscoped per-seat write) skip those seats in that game's Victory
+   instructions. Shared writes still happen, and `seatCount` still counts every player. The rejoin differs by box.
+   Eight print a _paid_ heal in the next setup, which their own setup instructions carry. MC16 p. 5 alone heals
+   "to its printed hit point value" at no cost (ruling June 2, 2026 (3) #1: "Heal identity to printed HP at no
+   cost"). `rejoinAtPrintedHitPoints: { field }` writes the identity card's printed `hp` into that per-seat field,
+   in place of the record the seat did not make. It is traced as its own step under the policy's `id`, after the
+   node's Victory instructions. `gmw.ts` declares the policy for `expertCampaign`. **`trors.ts` does not declare it
+   yet**, even though MC10 p. 17 prints the same skip, and that is flagged rather than decided. Without a free rejoin
+   the seat's `remainingHp` keeps the _previous_ scenario's value. MC10 says the seat rejoins "by adding an
+   obligation … to restore their identity to full hit points", but it doesn't say what a seat that declines the
+   obligation starts at. That is an open question for FFG.
+
+Tests: `packages/engine/src/campaign/new-primitives.test.ts` ("CampaignGameQuery.mainSchemeStageNumber and equals",
+"CampaignDefinition.elimination") and the two un-skipped `gmw.qa.test.ts` groups.
+
 ---
 
 ## 12. Open questions

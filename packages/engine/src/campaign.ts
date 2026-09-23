@@ -58,6 +58,12 @@ export interface CampaignDefinition {
    * this, a node's instruction list is not a function of the definition alone and MC27 would force an engine change.
    */
   readonly conditionalInstructions?: Readonly<Record<string, CampaignInstruction>>;
+  /**
+   * What happens to a player eliminated from a game the rest of the table goes on to win (§4.6b). Absent means
+   * nothing does: the eliminated seat takes part in the Victory steps like any other seat, which is what a standard
+   * campaign does in every box (none prints the rule outside its expert campaign rules).
+   */
+  readonly elimination?: EliminationPolicy;
 }
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -375,6 +381,14 @@ export type CampaignGameQuery =
   | { readonly kind: "isEngagedWithEnemy" }
   /** A fixed value, for an instruction that simply marks a box: MC60 p. 13's "Check the 'Completed' box". */
   | { readonly kind: "const"; readonly value: number | string | boolean }
+  /**
+   * The printed stage number of the main scheme in play (`MainSchemeStage.stageNumber`), the between-games twin of
+   * the in-game `ValueSpec` of the same name. MC16 p. 8 / p. 14, "Record 1 unit for each player if the main scheme
+   * is on stage 1B", is `equals(mainSchemeStageNumber, 1)`. There is no side to ask about: a main scheme in play is
+   * always on its B side (RRG 1.8 "Main Scheme", p. 27: advancing resolves the A side, then flips to B), so "1B"
+   * names stage 1. With separate game areas it reads the central stage, `GameState.mainScheme`.
+   */
+  | { readonly kind: "mainSchemeStageNumber" }
   /** The size of a list-valued query, for "the number of minions and side schemes recorded" (MC50 p. 11). */
   | { readonly kind: "count"; readonly of: CampaignGameQuery }
   /** A list- or number-valued query as a yes/no, for a `flag` field. */
@@ -385,6 +399,8 @@ export type CampaignGameQuery =
    * `not(atLeast(…, 1))` instead.
    */
   | { readonly kind: "atMost"; readonly of: CampaignGameQuery; readonly amount: number }
+  /** A numeric query as a yes/no for one exact value: "if the main scheme is on stage 1B" (MC16 p. 8). */
+  | { readonly kind: "equals"; readonly of: CampaignGameQuery; readonly amount: number }
   /**
    * MC16 p. 8: "Record a number of units (to a maximum of 3 units) equal to the victory values…" — a numeric
    * query's own printed ceiling. Distinct from `LogFieldDef`'s `number.max`, which caps what the *field* can ever
@@ -680,6 +696,33 @@ export interface LossPolicy {
 }
 
 // ---------------------------------------------------------------------------------------------------------------
+// §4.6b Elimination and Victory
+// ---------------------------------------------------------------------------------------------------------------
+
+/**
+ * A player defeated during a scenario their teammates go on to win "does not participate in the Victory steps of
+ * that scenario". All nine boxes print it in their expert campaign rules (MC10 p. 17, MC16 p. 5, MC21 p. 25, MC27
+ * p. 6, MC32 p. 5, MC40 p. 7, MC45 p. 20, MC50 p. 6, MC60 p. 9). For such a seat `campaignResultOf` writes no
+ * `"each"`/`"self"` record, and the between-games Victory ops (`forEachSeat`, a per-seat `choose`, a per-seat write
+ * outside a seat scope) skip it. Shared writes belong to the team and still happen.
+ *
+ * How the seat rejoins differs by box. Eight print a paid heal in the next scenario's setup (MC10's obligation,
+ * MC21's acceleration token, …), which their own setup instructions carry. MC16 p. 5 alone rejoins the seat free,
+ * "healing their identity to its printed hit point value" (ruling June 2, 2026 (3) #1: "Heal identity to printed HP
+ * at no cost"). `rejoinAtPrintedHitPoints` names the per-seat number field the next setup reads hit points from;
+ * the seat's printed hit points are written there in place of the record it did not make.
+ */
+export interface EliminationPolicy {
+  /** The trace entry for the rejoin write, so the log says why an eliminated seat's hit points changed. */
+  readonly id: string;
+  readonly text: string;
+  readonly citation: string;
+  /** Every box prints the rule for its expert campaign only. */
+  readonly whenModes?: ModePredicate;
+  readonly rejoinAtPrintedHitPoints?: { readonly field: string };
+}
+
+// ---------------------------------------------------------------------------------------------------------------
 // §5 The log
 // ---------------------------------------------------------------------------------------------------------------
 
@@ -936,4 +979,9 @@ export interface CampaignGameResult {
   readonly logWrites: readonly LogWrite[];
   /** Grants with `permanence: "thisGame"` expiring now — MC32 p. 5's "use it or lose it" role upgrades. */
   readonly expiringGrants: readonly CardId[];
+  /**
+   * Seats sitting out this scenario's Victory steps under `CampaignDefinition.elimination` (§4.6b): eliminated in a
+   * game the team won, in a mode the policy applies to. Absent or empty when nobody sits out.
+   */
+  readonly sittingOut?: readonly number[];
 }

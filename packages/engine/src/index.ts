@@ -203,6 +203,7 @@ export type {
   CampaignValue,
   CampaignWindow,
   CollectionFilter,
+  EliminationPolicy,
   GrantPermanence,
   LogFieldDef,
   LogFieldType,

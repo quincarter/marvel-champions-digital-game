@@ -138,6 +138,7 @@ function newRun(
   working: CampaignWorkingLog,
   nodeId: string,
   records: ReadonlyMap<string, readonly LogWrite[]> = new Map(),
+  sittingOut: readonly number[] = [],
 ): CampaignRun {
   return {
     definition,
@@ -146,6 +147,7 @@ function newRun(
     answers: campaignAnswerMap(answers),
     phase,
     records,
+    sittingOut,
     working,
     nodeId,
     steps: [],
@@ -490,6 +492,28 @@ const recordsByInstruction = (result: CampaignGameResult): ReadonlyMap<string, r
   return map;
 };
 
+/**
+ * The elimination policy's rejoin write (design §4.6b), run after the node's own Victory instructions so it
+ * overrides anything they wrote for the seat. A `record` step whose writes `campaignResultOf` computed under the
+ * policy's id; it only exists when a seat sat out, so an ordinary win's trace is unchanged.
+ */
+const rejoinInstruction = (
+  definition: CampaignDefinition,
+  sittingOut: readonly number[],
+): readonly CampaignInstruction[] => {
+  const policy = definition.elimination;
+  if (!policy?.rejoinAtPrintedHitPoints || sittingOut.length === 0) return [];
+  return [
+    {
+      id: policy.id,
+      text: policy.text,
+      citation: policy.citation,
+      ...(policy.whenModes ? { whenModes: policy.whenModes } : {}),
+      step: { kind: "record", writes: [] },
+    },
+  ];
+};
+
 /** Folds the writes a *game* made into the log. They stick whatever the outcome (RRG 1.8 p. 29; design §6.2). */
 function applyInGameWrites(
   definition: CampaignDefinition,
@@ -568,9 +592,20 @@ export function applyCampaignResult(
   expireThisGameGrants(working);
   applyInGameWrites(definition, working, result);
 
-  const run = newRun(definition, deps, attempt.modes, answers, "afterGame", working, attempt.nodeId, records);
+  const sittingOut = won ? (result.sittingOut ?? []) : [];
+  const run = newRun(
+    definition,
+    deps,
+    attempt.modes,
+    answers,
+    "afterGame",
+    working,
+    attempt.nodeId,
+    records,
+    sittingOut,
+  );
   const instructions: readonly CampaignInstruction[] = won
-    ? [...(definition.everyNodeVictory ?? []), ...node.victory]
+    ? [...(definition.everyNodeVictory ?? []), ...node.victory, ...rejoinInstruction(definition, sittingOut)]
     : definition.loss.retry === "byInstruction"
       ? [...(node.defeat ?? []), ...(definition.loss.everyNodeDefeat ?? [])]
       : [];

@@ -146,10 +146,6 @@ const CRYSTAL_BALL = cardId("16130");
 const YOU_STAND_ACCUSED = cardId("16116");
 const PINCER_MANEUVER = cardId("16112");
 
-// --- Main scheme stage cards a victory bullet checks by id (RRG 1.8 doesn't name a stage; the card does) --
-const TERRESTRIAL_INVASION_1B = cardId("16061b");
-const ART_OF_EVASION_1B = cardId("16091b");
-
 const NEBULAS_SHIP_QUERY = query(["environment"], { name: "Nebula's Ship" });
 const NEBULAS_SHIP = each(NEBULAS_SHIP_QUERY);
 const TECHNIQUE = trait("TECHNIQUE");
@@ -508,6 +504,13 @@ export const GMW_CAMPAIGN_DEFINITION: CampaignDefinition = {
   // MC16 p. 4: "If the players lost, they may reset the scenario and try again with no penalty" — for every
   // scenario except one Expert Campaign Only exception on Ronan (MC16 p. 18), the same shape `trors.ts` uses.
   loss: { retry: "byInstruction", retryBaseline: "nodeStart" },
+  elimination: {
+    id: "mc16.elimination.rejoin",
+    text: "In an expert campaign, if a player is defeated during a scenario that their teammates go on to win, the defeated player does not participate in the Victory steps of that scenario. However, that player can rejoin their teammates for the next scenario, healing their identity to its printed hit point value.",
+    citation: "MC16 p. 5; ruling June 2, 2026 (3) #1",
+    whenModes: { expertCampaign: true },
+    rejoinAtPrintedHitPoints: { field: "remainingHp" },
+  },
   graph: {
     kind: "linear",
     nodes: [
@@ -568,14 +571,8 @@ export const GMW_CAMPAIGN_DEFINITION: CampaignDefinition = {
                   field: "units",
                   seat: "each",
                   mode: "add",
-                  value: {
-                    kind: "atLeast",
-                    of: {
-                      kind: "cardsInPlay",
-                      query: { categories: ["mainScheme"], printedId: TERRESTRIAL_INVASION_1B },
-                    },
-                    amount: 1,
-                  },
+                  // Stage 1 of Terrestrial Invasion's one card record (`16061a`); in play a stage is always on its B side.
+                  value: { kind: "equals", of: { kind: "mainSchemeStageNumber" }, amount: 1 },
                 },
               ],
             },
@@ -872,11 +869,8 @@ export const GMW_CAMPAIGN_DEFINITION: CampaignDefinition = {
                   field: "units",
                   seat: "each",
                   mode: "add",
-                  value: {
-                    kind: "atLeast",
-                    of: { kind: "cardsInPlay", query: { categories: ["mainScheme"], printedId: ART_OF_EVASION_1B } },
-                    amount: 1,
-                  },
+                  // Stage 1 of The Art of Evasion's one card record (`16091a`); in play a stage is always on its B side.
+                  value: { kind: "equals", of: { kind: "mainSchemeStageNumber" }, amount: 1 },
                 },
               ],
             },

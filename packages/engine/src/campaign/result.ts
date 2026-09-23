@@ -31,7 +31,15 @@ import { EngineInvariantError } from "../errors.js";
 import type { GameEvent } from "../events.js";
 import type { InstanceId, PlayerId } from "../ids.js";
 import { cardsInPlay, matchesQuery, type EffectContext } from "../select.js";
-import { cardOf, getInstance, maxHitPoints, minionsEngagedWith, remainingHitPoints } from "../query.js";
+import {
+  cardOf,
+  getCard,
+  getInstance,
+  mainSchemeStage,
+  maxHitPoints,
+  minionsEngagedWith,
+  remainingHitPoints,
+} from "../query.js";
 import type { TargetQuery } from "../spec.js";
 import type { GameState } from "../state.js";
 import { fieldDefOf } from "./log.js";
@@ -155,6 +163,8 @@ function evaluateQuery(
     case "isEngagedWithEnemy":
       // MC10 p. 12: "Each player engaged with an enemy records they are engaged with an enemy in the campaign log."
       return { kind: "boolean", value: playerId !== null && minionsEngagedWith(state, playerId).length > 0 };
+    case "mainSchemeStageNumber":
+      return { kind: "number", value: mainSchemeStage(state).stageNumber };
     case "const":
       return typeof query.value === "number"
         ? { kind: "number", value: query.value }
@@ -172,6 +182,11 @@ function evaluateQuery(
       return {
         kind: "boolean",
         value: countOf(evaluateQuery(state, events, query.of, playerId, deps)) <= query.amount,
+      };
+    case "equals":
+      return {
+        kind: "boolean",
+        value: countOf(evaluateQuery(state, events, query.of, playerId, deps)) === query.amount,
       };
     case "capAt":
       return {
@@ -237,11 +252,73 @@ function logValueOf(state: GameState, declared: LogFieldDef, mode: LogWriteMode,
  * A shared field is one write with no seat. Both `"each"` and `"self"` write every seat: a record instruction
  * reads a *finished game*, where there is no "self" to scope to — "each player records their remaining hit
  * points" and "record your remaining hit points" are the same sentence once the game is over.
+ *
+ * A seat sitting out the Victory steps (§4.6b, `sittingOutOf`) gets no per-seat write at all.
  */
-function seatsFor(state: GameState, spec: LogWriteSpec): readonly (readonly [number | null, PlayerId | null])[] {
+function seatsFor(
+  state: GameState,
+  spec: LogWriteSpec,
+  sittingOut: readonly number[],
+): readonly (readonly [number | null, PlayerId | null])[] {
   if (spec.seat === undefined) return [[null, null]];
   const seats = state.campaign?.seats ?? [];
-  return seats.map((seat, index) => [seat.seatNumber, state.players[index]?.playerId ?? null] as const);
+  return seats.flatMap((seat, index) =>
+    sittingOut.includes(seat.seatNumber) ? [] : [[seat.seatNumber, state.players[index]?.playerId ?? null] as const],
+  );
+}
+
+/**
+ * The seats that do not participate in this scenario's Victory steps (§4.6b; MC16 p. 5 "Elimination and Victory",
+ * printed in every box's expert rules): eliminated during a game the team won, when the definition declares the
+ * policy for these modes. `state.players[i]` is `state.campaign.seats[i]`, the same pairing `seatsFor` uses.
+ */
+function sittingOutOf(definition: CampaignDefinition, log: CampaignLog, state: GameState): readonly number[] {
+  const policy = definition.elimination;
+  if (!policy || state.outcome?.result !== "win") return [];
+  if (!log.attempt || !matchesModes(log.attempt.modes, policy.whenModes)) return [];
+  const seats = state.campaign?.seats ?? [];
+  return seats.flatMap((seat, index) => (state.players[index]?.eliminated ? [seat.seatNumber] : []));
+}
+
+/**
+ * MC16 p. 5: the eliminated seat "can rejoin their teammates for the next scenario, healing their identity to its
+ * printed hit point value" — its printed hit points, not whatever its identity was showing when it was eliminated,
+ * written under the policy's own instruction id so the runner traces it as one step.
+ */
+function rejoinRecords(
+  definition: CampaignDefinition,
+  state: GameState,
+  sittingOut: readonly number[],
+): readonly { readonly instructionId: string; readonly write: LogWrite }[] {
+  const policy = definition.elimination;
+  const rejoin = policy?.rejoinAtPrintedHitPoints;
+  if (!policy || !rejoin) return [];
+  const declared = fieldDefOf(definition, rejoin.field);
+  if (declared.scope !== "perSeat" || declared.type.kind !== "number") {
+    throw new EngineInvariantError(
+      `campaign ${definition.campaignId}'s elimination policy writes "${rejoin.field}", which is not a per-seat number field`,
+    );
+  }
+  const seats = state.campaign?.seats ?? [];
+  return seats.flatMap((seat, index) => {
+    if (!sittingOut.includes(seat.seatNumber)) return [];
+    const identity = state.players[index]?.identity;
+    const card = identity ? getCard(state, identity.cardId) : undefined;
+    if (!card || card.type !== "hero_identity") {
+      throw new EngineInvariantError(`seat ${seat.seatNumber} has no identity card to read printed hit points from`);
+    }
+    return [
+      {
+        instructionId: policy.id,
+        write: {
+          field: rejoin.field,
+          seatNumber: seat.seatNumber,
+          mode: "set",
+          value: { kind: "number", value: card.hp },
+        },
+      },
+    ];
+  });
 }
 
 const recordInstructions = (
@@ -279,13 +356,14 @@ export function campaignResultOf(
   // RRG 1.8 has no "conceded" campaign outcome: a conceded game is a game the players did not win (design §7.2).
   const outcome = state.outcome.result === "win" ? "won" : "lost";
 
+  const sittingOut = sittingOutOf(definition, log, state);
   const records: { readonly instructionId: string; readonly write: LogWrite }[] = [];
   for (const instruction of recordInstructions(definition, node, outcome === "won")) {
     if (instruction.step.kind !== "record") continue;
     if (!matchesModes(attempt.modes, instruction.whenModes)) continue;
     for (const spec of instruction.step.writes) {
       const declared = fieldDefOf(definition, spec.field);
-      for (const [seatNumber, playerId] of seatsFor(state, spec)) {
+      for (const [seatNumber, playerId] of seatsFor(state, spec, sittingOut)) {
         const value = evaluateQuery(state, events, spec.value, playerId, deps);
         records.push({
           instructionId: instruction.id,
@@ -299,6 +377,7 @@ export function campaignResultOf(
       }
     }
   }
+  records.push(...rejoinRecords(definition, state, sittingOut));
 
   return {
     nodeId: attempt.nodeId,
@@ -309,5 +388,6 @@ export function campaignResultOf(
     expiringGrants: log.seats.flatMap((seat) =>
       seat.grants.flatMap((grant) => (grant.permanence === "thisGame" ? [grant.cardId] : [])),
     ),
+    ...(sittingOut.length > 0 ? { sittingOut } : {}),
   };
 }

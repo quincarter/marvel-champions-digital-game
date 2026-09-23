@@ -114,6 +114,11 @@ export interface CampaignRun {
   readonly phase: CampaignRunPhase;
   /** What the finished game computed for each `record` instruction, by instruction id (`afterGame` only). */
   readonly records: ReadonlyMap<string, readonly LogWrite[]>;
+  /**
+   * Seats sitting out this scenario's Victory steps (`CampaignGameResult.sittingOut`, design §4.6b): no per-seat op
+   * runs for them. `seatCount` still counts them — "1[per_hero]" is the number of players who played the game.
+   */
+  readonly sittingOut: readonly number[];
   working: CampaignWorkingLog;
   /** The node whose instructions are running; `CampaignGrant.grantedAtNodeId` and `progressNode` read it. */
   nodeId: string;
@@ -145,6 +150,10 @@ export interface CampaignRun {
 export type CampaignScalar = number | string | boolean;
 
 const seatNumbers = (run: CampaignRun): readonly number[] => run.working.seats.map((seat) => seat.seatNumber);
+
+/** The seats a per-seat op runs for: every seat but those sitting out the Victory steps (design §4.6b). */
+const participatingSeats = (run: CampaignRun): readonly number[] =>
+  seatNumbers(run).filter((seatNumber) => !run.sittingOut.includes(seatNumber));
 
 /**
  * The seat a `seat: "self" | "each"` on a *value* addresses.
@@ -571,8 +580,8 @@ function logValueFor(run: CampaignRun, field: string, value: CampaignValue): Log
 /** The seats an op with `seat: "self"` runs for: the scoped one, or every seat in turn (`grantCard`'s "each"). */
 const targetSeats = (run: CampaignRun, seat: "self" | "each" | undefined): readonly (number | null)[] => {
   if (seat === undefined) return [null];
-  if (seat === "each") return seatNumbers(run);
-  return run.seatScope === null ? seatNumbers(run) : [run.seatScope];
+  if (seat === "each") return participatingSeats(run);
+  return run.seatScope === null ? participatingSeats(run) : [run.seatScope];
 };
 
 const withSeat = (run: CampaignRun, seatNumber: number | null, body: () => void): void => {
@@ -669,7 +678,7 @@ function recordChoice(
 /** The seats a `choose`/`random` asks. `eachSeat` inside a `forEachSeat` is just that seat. */
 const choosingSeats = (run: CampaignRun, chooser: "eachSeat" | "group" | "firstPlayer"): readonly (number | null)[] => {
   if (chooser !== "eachSeat") return [null];
-  return run.seatScope === null ? seatNumbers(run) : [run.seatScope];
+  return run.seatScope === null ? participatingSeats(run) : [run.seatScope];
 };
 
 function runChoose(
@@ -874,7 +883,7 @@ export function runCampaignOp(run: CampaignRun, op: CampaignOp, instruction: Cam
       return;
     }
     case "forEachSeat":
-      for (const seatNumber of seatNumbers(run)) {
+      for (const seatNumber of participatingSeats(run)) {
         withSeat(run, seatNumber, () => {
           for (const inner of op.ops) runCampaignOp(run, inner, instruction);
         });
