@@ -104,6 +104,9 @@ function checkCost(definition: AbilityDefinition, problems: string[]): void {
         'cost spendCounters: an "up to" amount must be a whole number of at least 1 (RRG 1.8 "Cost", p. 14)',
       );
   }
+  // docs/phase7-wave3.md §3.43: "N resources of the same type" is a generic count.
+  if (cost.sameResourceType && (typeof cost.resources !== "number" || cost.resources < 1))
+    problems.push("cost sameResourceType: needs `resources` as a whole number of at least 1");
   if (cost.discardFromDeck !== undefined && (!Number.isInteger(cost.discardFromDeck) || cost.discardFromDeck < 1))
     problems.push("cost discardFromDeck: must be a whole number of at least 1");
   if (cost.either) {

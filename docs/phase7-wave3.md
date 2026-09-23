@@ -833,6 +833,192 @@ forcedInterrupt(
 
 **Library Labyrinth (16085a):** "\"This way?\" — Hero Action: Deal yourself 1 facedown encounter card → remove 5 threat from the main scheme. (Limit once per round per player.)" §3.36's `AbilityLimit.per: "player"` covers it: `heroAction({ cost: dealEncounterCardsCost(1), limit: oncePerRoundPerPlayer }, removeThreat(5, theMainScheme))`.
 
+### 3.39–3.45 The last skipped wave 3 refs (third primitives pass, 2026-09-23)
+
+Seven refs stayed in `KNOWN_SKIPPED` as primitive gaps after the `gmw` pass: two in Ronan the Accuser (`gmw`), three in Star-Lord (`stld`, docs/phase7-wave3-scripting.md §6b) and two in Drax (`drax`). Each was checked against the vocabulary first. None composed as is, but two of them (§3.39, §3.40) are small general pieces that compose with each other. Moondragon (`drax` 19013) is not among them: it stays open on §4 Q12 (§3.23). The DSL compositions are validated in `packages/cards/src/dsl/wave3-primitives-2.test.ts`.
+
+### 3.39 "The player who controls X": `PlayerRef controllerOf`
+
+> **Status: landed (2026-09-23),** tested in `packages/engine/src/controller-of-player-ref.test.ts` (3 tests: the ref names the stone's holder and nobody for a scenario-controlled card; the villain attacks that player in alter-ego form and the card does not surge; with the stone on the villain no attack is made and the card surges; replay deep-equal).
+
+Single-Minded Fury (16114): "When Revealed: Ronan the Accuser attacks the player who controls the Power Stone _(even if that player is in alter-ego form)_. If no attack was made this way, this card gains surge." No `PlayerRef` named a player through a card's controller. `ownerOf` reads ownership, which is a different fact once control changes hands (RRG 1.8 "Ownership and Control", p. 31).
+
+- **`PlayerRef controllerOf { target }`**: the players who control the cards `target` names, in player order. The raw data has two other wordings it covers: "The player who controls that identity" and "a player who controls a [Web-Warrior] character" (the latter with `choosePlayer { among }` to pick one).
+- **"Controls the Power Stone"** keeps §4 Q11's reading (§3.19): the stone is attached to that player's identity. That is `controllerOf(each(query("identity", hasAttachment({ name: "Power Stone" }))))`, with §3.40's query field.
+- **Attached to no identity.** RRG 1.8 "Ownership and Control" (p. 31): "Encounter cards are considered to be under the control of the scenario." So neither the villain holding the stone nor the stone itself names a player. The ref is empty, `enemyAttack` with an empty `against` makes no attack (it does not fall back to the engaged player), `<bind>.made` stays 0, and the card's own sentence gives the rest: "If no attack was made this way, this card gains surge." The same branch covers a stunned Ronan: RRG 1.8 "Stun, Stunned" (p. 41), "If a stunned villain or minion would attack, discard the stunned status card instead … that character is not considered to have attacked", so no attack was made and the card surges.
+- **Alter-ego form** needs nothing: an `enemyAttack` effect attacks the named player whatever their form. The parenthetical only restates that.
+
+**DSL:** `controllerOf(target)` in `dsl/values.ts`.
+
+**Single-Minded Fury composition** (`16114.when-revealed`):
+
+```ts
+whenRevealed(
+  enemyAttack(theVillain, {
+    against: controllerOf(each(query("identity", hasAttachment({ name: "Power Stone" })))),
+    bind: "fury",
+  }),
+  ifThen(not(made("fury")), surge()),
+);
+```
+
+### 3.40 "A character that has an attachment matching X": `TargetQuery.hasAttachment`
+
+> **Status: landed (2026-09-23),** tested in `packages/engine/src/has-attachment-query.test.ts` (3 tests: `explainQuery` reports `missingAttachment`; an ally with a Weapon upgrade triggers the interrupt, +2 ATK for that attack, the support discarded; an ally whose only attachment is not a Weapon is never offered it; replay deep-equal).
+
+Target Practice (17017): "Interrupt: When an ally with a weapon attachment upgrade makes an attack, discard Target Practice → that ally gets +2 ATK for that attack." `host` asks what a candidate is attached _to_, and `hostOfSelf` whether it is this card's own host. Nothing asked what is attached to a candidate.
+
+- **`TargetQuery.hasAttachment: TargetQuery`**: at least one card attached to the candidate matches the inner query, read in the same context (so `you` and `self` mean the same inside it).
+- **It belongs in the trigger, not in the effects.** RRG 1.8 "Initiating Abilities" (p. 24): an ability is initiated when its triggering condition occurs. With the filter on `sourceIs`, the interrupt is never offered for an ally without a weapon, so Target Practice is never discarded for nothing. The `stld` note was right to refuse an `ifThen(exists(…))` guard in the effects.
+- New `QueryExclusion` `"missingAttachment"` for `explainQuery`/`why-not.ts`. **Client impact:** one line in `packages/client/src/view/highlights.ts`, whose reason table is exhaustive.
+
+**DSL:** `hasAttachment(q)` in `dsl/values.ts`, a query fragment.
+
+**Target Practice composition** (`17017.target-practice-interrupt`):
+
+```ts
+interrupt(
+  on.attacks(query("ally", hasAttachment(query("upgrade", { trait: WEAPON })))),
+  { cost: discardThis },
+  modifyStat("atk", 2, eventSource, "endOfAttack"),
+);
+```
+
+"An ally" is any player's ally; the printed card does not say "your".
+
+### 3.41 "A total of up to N … (as you choose)": `divide.upTo`
+
+> **Status: landed (2026-09-23),** tested in `packages/engine/src/divide-up-to.test.ts` (4 tests: 0–5 points offered and exactly the chosen shares removed; dividing none removes nothing and the event still resolves; a single candidate is still asked; without `upTo` a single candidate still takes the full amount unasked; replay deep-equal).
+
+Agile Flight (17029): "Hero Action (thwart): Remove a total of up to 5 threat from among schemes (as you choose)." `EffectSpec divide` always divided the full amount (`minSelections === maxSelections === amount`), and a single candidate took it all without a choice. That is right for "a total of N" (Wasp Sting, Inconspicuous), not for "up to".
+
+- **`EffectSpec divide.upTo: true`**: `amount` is the most that may be divided. The `divide` choice has `minSelections: 0`, so the chooser may divide fewer points, or none.
+- **Why none is allowed.** RRG 1.8 "Cost" (p. 14): "A cost requiring 'any number' or 'up to' some number of game elements requires a minimum of one such game element." That sentence is about costs only. For an effect, RRG 1.8 "Choose (Game Element)" (p. 12) chooses "to a maximum of the specified number". This is the reading `chooseTarget.optional` already has for "up to X" targets (Thunderclap). Ruling, Mar 6, 2026 (2) (Quick Quip, "up to 2" enemies) confirms that an effect's "up to" allows fewer; it does not speak to none, so dividing none is a reading, flagged as §4 Q16. It is harmless: the thwart still happens and removes no threat.
+- **A single candidate is still asked**, because the amount is now the chooser's. Without `upTo`, the behavior is unchanged.
+- Threat that cannot be removed (crisis, patrol, `threatCannotBeRemoved`) is handled by each `removeThreat` event as before; the chooser may still place points there, and they do nothing.
+
+**DSL:** `divide(what, n, among, { upTo: true })` in `dsl/effects.ts`.
+
+**Agile Flight composition** (`17029.agile-flight-action`; its "Play only if your identity has the aerial trait" is already `playRestrictions` data):
+
+```ts
+heroAction({ label: "thwart" }, divide("threat", 5, query("scheme"), { upTo: true }));
+```
+
+### 3.42 "Play only if …" on any condition: `constant.playOnlyIf`, `ValueSpec victoryDisplayCount`
+
+> **Status: landed (2026-09-23),** tested in `packages/engine/src/play-only-if.test.ts` (4 tests: without an Element Gun the play is refused and `legalActions` does not offer it; another player's gun does not count; with your own gun it is offered and plays; the victory-display condition reads the out-of-play pile).
+
+Sliding Shot (17005): "Play only if you control an Element Gun." A `constant` ability's rules are only read from cards in play, and the event is not in play while it is checked, so a `cannotPlay` rule on the card never applied (the `stld` pass verified this). `PlayRestrictions` data has `requiresIdentityTrait` and `requiresControlledCharacterTrait`, but no named-card case.
+
+**Survey of every "Play only if …" in `packages/content/raw/marvelcdb/*.json` (2026-09-23).** Most are the identity-trait form `playRestrictions.requiresIdentityTrait` already carries ("your identity has the [X] trait", "you have the [X] trait", "you are in [Giant] hero form"), and "you control a [Spy] character" is `requiresControlledCharacterTrait`. Eighteen printed cards are left over, and none of them is a trait on your identity:
+
+| Wording                                                       | Cards                                                                                                                                      | Composition                                                                                                                 |
+| ------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------- |
+| "Play only if you control an Element Gun"                     | Sliding Shot 17005 (`stld`)                                                                                                                | `exists({ name: "Element Gun", controller: "you" })`                                                                        |
+| "Play only if you control a [Web-Warrior] card"               | Spider-Man 27017, Ghost-Spider 27048 (`sm`), Spider-Ham 31021, Spider-Man 31022 (`spdr`), Scarlet Spider 30020, SP//dr 30021 (`spiderham`) | `exists({ trait: WEB_WARRIOR, controller: "you" })` (a card, not only a character)                                          |
+| "Play only if any player controls a [Martial Artist] card"    | Black Belt 62037 (`luke_cage`)                                                                                                             | `exists({ trait: MARTIAL_ARTIST, controlledBy: eachPlayer })` (not `controller: "any"`, which also matches encounter cards) |
+| "Play only if you control at least 3 characters with [Posse]" | The Posse 40058 (`next_evol`)                                                                                                              | `valueAtLeast(countOf(query(["identity", "ally"], { trait: POSSE, controller: "you" })), 3)`                                |
+| "Play only if there is a side scheme in the victory display"  | Mission Planning 40017 (`next_evol`), Critical Hit 43016, Predictable Ploy 43038, Anticipated Attack 43040 (`x23`)                         | `valueAtLeast(victoryDisplayCount(query("sideScheme")), 1)` (new `ValueSpec`)                                               |
+| "Play only if Vision is in Dense/Intangible mass form"        | Superdense Strike 26009, Mass Increase 26012, Just Passing Through 26010, Phase Disruption 26011 (`vision`)                                | a `Predicate` on however `vision`'s mass forms are modeled (not checked here)                                               |
+| "Play only if you are the Bucky Barnes or Sam Wilson player"  | Captain America 53023 (`falcon`)                                                                                                           | a `Predicate` naming both identity cards by both faces (not checked here)                                                   |
+
+So the condition is too varied for fixed data fields. And every one of these cards that is already emitted (13 of the 18: 17005, 26009–26012, 30020, 30021, 31021, 31022, 43016, 43038, 43040, 53023) already carries the sentence as an unparsed "-constant" ability ref. The five that are not are in packs not emitted yet (`sm`, `luke_cage`, `next_evol`). The primitive is therefore an ability:
+
+- **`AbilityTriggerSpec constant.playOnlyIf: Predicate`**, read from the card being played, wherever it is, the same way `playableFrom`/`paymentOnly` are read from the card itself. `you` is the player playing it, `self` the card. RRG 1.8 "Initiating Abilities" (p. 24) step 2 ("Check play restrictions") and "Play Restrictions and Permissions" (p. 33, "all of its play restrictions must be observed").
+- **Enforced in `playRestrictionFault`** (`actions.ts`), which now takes the card's instance id. That one function covers the play command, `legalActions` (the play is not offered), a play from an effect (`playFromHand`), and an event offered in a timing window.
+- **`ValueSpec victoryDisplayCount { filter? }`**: the victory display is out of play, so `exists`/`count` cannot read it. It completes the survey.
+
+**What `card-data-pipeline` must emit: nothing new.** Each of these sentences already becomes a "-constant" ability ref (and should keep doing so when `sm`, `luke_cage` and `next_evol` are emitted), which the scripter fills with `constant(playOnlyIf(…))`. Parsing them into `PlayRestrictions` fields would need a new field for each row above. Rows 1, 2 and 3 alone would need three (a name, a trait on any card, any player), and the ability would still be needed for the rest. The existing `requiresIdentityTrait` / `requiresControlledCharacterTrait` fields stay as they are.
+
+**DSL:** `playOnlyIf(predicate)`, a `constant` part (several are ANDed), in `dsl/abilities.ts`; `victoryDisplayCount(filter?)` in `dsl/values.ts`.
+
+**Sliding Shot composition** (`17005.sliding-shot-constant`):
+
+```ts
+constant(playOnlyIf(exists({ name: "Element Gun", controller: "you" })));
+```
+
+### 3.43 "Spend N resources of the same type →": `AbilityCost.sameResourceType`
+
+> **Status: landed (2026-09-23),** tested in `packages/engine/src/same-type-resource-cost.test.ts` (6 tests: three of one type pay; a mixed payment is refused and a hand that cannot pay is not offered by `legalActions`; wilds count as the chosen type; a two-type card gives one icon and overpays the other; `legalActions`' example is accepted; a timing window's payment follows the same rule; replay deep-equal).
+
+Kree Combat Armor (16131, Kree Militants): "Hero Action: Spend 3 resources of the same type → discard this card." `ResourceRequirement` names fixed types or a generic amount; `spend(3)` would accept three different types. The cost is the mirror of `distinctResourceTypes` ("Spend 2 resources of different types", Red Dagger, The Poison).
+
+**The rules decisions:**
+
+- **The type is the payer's choice**, made by what they spend. Any of physical, mental or energy works.
+- **A wild resource counts as any type.** RRG 1.8 "Wild Resource" (p. 48): "When a player generates a wild resource, they may specify which resource type (energy, mental, physical, or wild) it is being used as." So two physical and a wild pay, and three wilds pay (as one declared type, or as three "wild", which is also one type).
+- **A card printing icons of two types** generates both. One of them can count toward the chosen type; the other either pays some other part of the cost or is overpaid. RRG 1.8 "Cost" (p. 13): "While paying a cost, a player is permitted to generate resources beyond the specified cost", and those "are considered to have been overpaid for that cost and were not paid for that cost". So [physical][mental] + physical + wild pays 3 physical, with the mental overpaid. [physical][mental] + mental + energy cannot pay: at most two of any one type.
+- **Only this cost's own resources must match.** With a card's printed cost in the same payment (an event whose action carries the cost), the rest is paid from whatever is left (`payableWithOneType` sets the matching resources aside first; RRG 1.8 "Cost", p. 13: the player "chooses how to divide those resources between those costs").
+
+**What landed:**
+
+- **`AbilityCost.sameResourceType: true`**, with `resources` as the count. `payableWithOneType` (`resources.ts`) tries each type, taking that type's own resources first and then wilds, and checks that what remains pays the rest.
+- **Checked in `resourceVars`** (`actions.ts`), which every action and play payment already runs, so a mixed payment is refused with "spend 3 resources of the same type". **`legalActions` offers the ability only when it is payable**: it probes the player's whole wallet first (overpaying is legal), so a hand that cannot make three of one type lists the action as illegal with that message. Its `example` is the smallest prefix of the wallet that pays.
+- **Fixed on the way: a triggered ability's payment in a timing window** (`payWindowAbility`, `resolve/window.ts`) checked only the total. It now goes through `resourceVars` too, so `sameResourceType`, `distinctResourceTypes` and a `resourcesX` X bind the same way they do for an action. A payment that fails is a decline, as an under-payment already was. No existing test changed.
+- **Client impact: none forced.** `PaymentQuery.requirement` still reads "3 of any type"; the refusal message names the rule. `game-client-engineer` may want to show "of the same type" in the payment sheet.
+
+**DSL:** `spendSameType(n)` in `dsl/abilities.ts`. The validator requires `resources` to be a number.
+
+**Kree Combat Armor composition** (`16131.kree-combat-armor-action`):
+
+```ts
+heroAction({ cost: spendSameType(3) }, discard(self));
+```
+
+### 3.44 "After [ally] takes consequential damage from performing an attack, if that attack defeated an enemy"
+
+> **Status: landed (2026-09-23),** tested in `packages/engine/src/consequential-damage-link.test.ts` (4 tests: an attack that defeats an enemy, then the damage is taken and the response gives tough; an attack that defeats nothing gives none; a thwart's consequential damage carries `thwart.*` and no `attack.*`; a tough status already on the ally absorbs the damage, so she took none and nothing triggers; replay deep-equal).
+
+Martyr (19012): "Response: After Martyr takes consequential damage from performing an attack, if that attack defeated an enemy, give her a tough status card." The consequential damage event (`pushConsequentialDamage`) had no link back to the attack. It is pushed before the attack event, so it resolves after it (LIFO), and by then the attack's frame is gone.
+
+**Printed timing kept.** RRG 1.8 "Consequential Damage" (p. 13): "Consequential damage is dealt to an ally after resolving abilities that are triggered by the ally attacking or thwarting." The response stays on the consequential damage itself. Firing it on the attack's own "after it defeats" window instead would give the tough status card first, and that card would then absorb Martyr's own consequential damage (RRG 1.8 "Tough", p. 44), which the card does not intend.
+
+**What landed:**
+
+- **The basic power reports into its consequential damage.** `pushConsequentialDamage` now returns the damage event's frame, and the basic attack's (or thwart's) event(s) are pushed with `reportTo: { frameId, prefix: "attack" | "thwart" }`, the mechanism `bind` already uses. When the attack finishes, before the waiting damage applies, its results land on that damage event as `attack.made`, `attack.damage`, `attack.damaged`, `attack.defeated` (a divided attack sums its attacks). The damage's own response window sees them in `results`, next to its own `amount`. Nothing else changes: the event is the same event, at the same point on the stack.
+- **Only consequential damage carries them**, so `requireResults: { "attack.made": 1 }` is itself "consequential damage from performing an attack". A thwart's carries `thwart.*` instead.
+- **"Takes"** is damage taken (`amount` ≥ 1). A tough status card already on the ally absorbs the damage, so she took none and the response is not offered.
+- Consequential damage is engine-pushed only for basic attacks and thwarts (an ally's "(attack)" ability prints its own). No change there.
+
+**DSL:** `after.consequentialDamage(who, { from: "attack" | "thwart", defeated? })` in `dsl/abilities.ts`.
+
+**Martyr composition** (`19012.martyr-response`):
+
+```ts
+response(after.consequentialDamage("self", { from: "attack", defeated: true }), giveTough(self));
+```
+
+### 3.45 A defeat's destination: `setDefeatDestination`, `RuleSpec defeatDestination`, `characterDefeated.fromAttack`
+
+> **Status: landed (2026-09-23),** tested in `packages/engine/src/defeat-destination.test.ts` (4 tests: an ally defending the villain's attack is defeated, still counts as defeated, and returns to its owner's hand; declined, it is discarded; an ally defeated by a player's own event is never offered the interrupt; a constant `defeatDestination` sends a defeated minion into the encounter deck; replay deep-equal).
+
+Regroup (19032): "Interrupt: When an ally is defeated by an enemy attack, return it to its owner's hand instead of discarding it." The only precedent was `RuleSpec defeatedIntoEncounterDeck` (Time Portal): a constant, side schemes only, one destination, no condition. Nothing could redirect a character's defeat, and a defeat did not say whether attack damage caused it. A plain `instead()` on the defeat would cancel the defeat itself, so no When Defeated would resolve and the ally would not count as defeated: a different card.
+
+**The rules:**
+
+- **The ally is still defeated; only the discard is replaced.** RRG 1.8 "Defeat" (p. 15): a defeated ally is discarded. The card says "instead of discarding it", so When Defeated, "after … is defeated" responses and the attack's `defeated` result all still apply.
+- **Victory X is not a discard.** A Victory X card still goes to the victory display (RRG 1.8 "Victory X", p. 46), and a destination does not apply to it.
+- **"Defeated by an enemy attack"**: the defeating damage was attack damage (`dealDamage.fromAttack`) and its source is an enemy. An enemy attack that deals indirect damage (§3.16) counts; damage from an encounter card's effect, a player's event or retaliate does not.
+
+**What landed:**
+
+- **`EffectSpec setDefeatDestination { to: CardDestination }`**, for an interrupt to `characterDefeated`: it records `to` on the pending defeat event (`characterDefeated.destination`), the way `preventDamage` edits a pending damage event. `applyDefeat` sends the card there (`moveCardsTo`; `"hand"` and the deck destinations are its owner's) instead of `discardFromPlay`. A later interrupt's destination replaces an earlier one's.
+- **`RuleSpec defeatDestination { target, to, while? }`**, the constant form and the generalization of `defeatedIntoEncounterDeck`. It applies to a defeated ally, minion or side scheme. `defeatDestinationRule` (`rules.ts`) reads it, and reads the old kind as `to: "encounterDeckShuffle"`, so Time Portal's script is unchanged. The interrupt's destination wins over a constant one.
+- **`characterDefeated.fromAttack`**, set when the defeating damage was attack damage. `EventPattern.fromAttack` now matches a defeat as well as a damage event. The defeat sweep's hints now also come from a simultaneous damage group (indirect damage, a divided attack), one per member, so those defeats also carry their source, defeating player and `fromAttack`. Before this, a damage group's defeats carried no source at all.
+- **Client impact: none.** No new `GameEvent`; the card's move is logged as `cardMoved` after `characterDefeated`.
+
+**Open reading, §4 Q17:** Regroup and the Collector's "when a card would be placed into a discard pile from play, put it into The Collection instead" (§3.14) can both apply to one defeated ally in Infiltrate the Museum. The engine resolves Regroup in the defeat's interrupt window, so the ally never heads for a discard pile and the Collection redirect does not apply.
+
+**DSL:** `setDefeatDestination(to)` in `dsl/effects.ts`; `on.defeated(what, { byAttackFrom })` in `dsl/abilities.ts`. The constant form goes through the `rule(...)` passthrough.
+
+**Regroup composition** (`19032.regroup-interrupt`):
+
+```ts
+interrupt(when.defeated(query("ally"), { byAttackFrom: query("enemy") }), setDefeatDestination("hand"));
+```
+
 ---
 
 ## 4. Open questions (for the user or FFG)
@@ -854,6 +1040,8 @@ Each is implemented the way stated, or not at all, and named here rather than de
 13. **A Team-Up name written "Hero/Alter-ego" (§3.34).** Heart of the Panther (`bp` 51025) prints "Team-Up (Black Panther/T'Challa and Black Panther/Shuri)". RRG 1.8 "Team-Up" (p. 43) matches a name against a character's "title or subtitle", and no title contains a slash. Implemented as naming one identity card by both sides: its hero face is the first half, its alter-ego face is the second, and it matches whichever side is up. Before this, the play check and the deckbuilding check both refused the card outright. A strict reading of p. 23 would instead require the hero side ("Black Panther") to be up. That makes no difference for the deck check, and for the play check only while one Black Panther is in alter-ego form.
 14. **Found, not fixed: a card revealed by `EffectSpec revealEncounterCard` is still on top of the encounter deck while it resolves.** Found while writing §3.35's test. The effect takes the top card with `drawEncounterCard`, which returns the card without removing it, and a revealed treachery only leaves the deck in the reveal frame's `finish` stage. So a When Revealed on that card that discards, deals or reveals from the encounter deck reaches the card itself first. Every other reveal path deals the card out of the deck before revealing it: the villain phase deal and surge (`dealEncounterCardTo`). The likely fix is to deal the card to the revealing player first, as surge does. Three Core/wave 1 scripts use the effect (`core/modular/standard.ts`, `core/aspects/protection.ts`, `wave1/bkw/pack-cards.ts`), so it is flagged here for `rules-qa-engineer` rather than changed in this pass. §3.35's test is written to pass either way.
 15. **Found, not fixed: the engine resets an emptied player deck lazily.** Ruling, Apr 30, 2026 (3) answer 7, "The deck is reshuffled **before** the currently resolving card enters the discard pile", means the reset happens the moment a deck empties (RRG 1.8 "Player Deck", p. 33). `drawCards`, `discardDeckUntil` and `takeTopOfDeck` reset an empty deck only on its next read instead. So when an event draws or discards the last card of its player's deck, the event then goes to the discard pile and is shuffled into the new deck at the next read, and the facedown encounter card comes late. §3.33's cost resets immediately, and its test pins answer 7. The general fix is to reset in `moveCard` whenever a player's deck becomes empty. That touches every draw, so it is flagged for `rules-qa-engineer` and a separate change rather than folded into this pass.
+16. **Can an effect's "up to N" choose none (§3.41)?** Agile Flight: "Remove a total of up to 5 threat from among schemes (as you choose)." RRG 1.8 "Cost" (p. 14) requires at least one only of a cost. Ruling, Mar 6, 2026 (2) lets Quick Quip's "up to 2" choose 1, but says nothing about 0. Implemented as allowing 0, the same as `chooseTarget.optional`. The card has no text that could make 0 matter.
+17. **Regroup and the Collector's discard redirect on the same ally (§3.45).** Regroup (an optional Interrupt: "When an ally is defeated by an enemy attack, return it to its owner's hand instead of discarding it") and Collector I–III (a Forced Interrupt: "When a card … would be placed into a discard pile from play, put it faceup into The Collection instead") both replace the discard of a defeated ally. RRG 1.8 Appendix III resolves forced interrupts before optional ones, which would favor the Collector if both answer the same moment. But Regroup's trigger is the defeat, and the Collector's is the card being placed into a discard pile. The engine models the Collector as a constant redirect applied as the card leaves play (§3.14), so Regroup, resolved in the defeat's interrupt window, wins, and the ally goes to hand. Needs an FFG answer.
 
 ## 5. What this asks of the other agents
 

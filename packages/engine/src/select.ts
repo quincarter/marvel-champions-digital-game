@@ -266,6 +266,8 @@ export type QueryExclusion =
   | "wrongUnique"
   | "notHostOfSelf"
   | "notAttachedToHost"
+  /** No card attached to it matches the query's `hasAttachment`. */
+  | "missingAttachment"
   | "wrongOwner"
   | "missingPrintedResource"
   | "wrongAspect"
@@ -358,6 +360,12 @@ export function explainQuery(
   if (query.host !== undefined) {
     const attachedTo = instance.attachedTo;
     if (attachedTo === null || !resolveRef(state, query.host, context).includes(attachedTo)) return "notAttachedToHost";
+  }
+  // "An ally with a weapon attachment upgrade" (docs/phase7-wave3.md §3.40): the other direction of `host`.
+  if (query.hasAttachment !== undefined) {
+    const wanted = query.hasAttachment;
+    if (!instance.attachments.some((attached) => matchesQuery(state, attached, wanted, context)))
+      return "missingAttachment";
   }
   if (query.owner === "you" && instance.ownerId !== context.controllerId) return "wrongOwner";
   if (query.printedResource !== undefined) {
@@ -799,6 +807,13 @@ export function resolvePlayers(state: GameState, ref: PlayerRef, context: Effect
         .filter((id): id is PlayerId => id !== null);
       return [...new Set(owners)];
     }
+    case "controllerOf": {
+      // docs/phase7-wave3.md §3.39: encounter cards are controlled by the scenario (RRG 1.8 p. 31), so they name no one.
+      const controllers = new Set(resolveRef(state, ref.target, context).map((id) => controllerOf(state, id)));
+      return playerOrder(state)
+        .map((p) => p.playerId)
+        .filter((id) => controllers.has(id));
+    }
     case "engagedWith": {
       const engaged = resolveRef(state, ref.of, context)
         .map((id) => getInstance(state, id)?.engagedWith ?? null)
@@ -1023,6 +1038,12 @@ export function resolveValue(
     case "scenarioAreaCount": {
       const ids = state.scenarioAreas?.[value.name] ?? [];
       const filter = value.filter;
+      return filter ? ids.filter((id) => matchesQuery(state, id, filter, { ...context, deps })).length : ids.length;
+    }
+    case "victoryDisplayCount": {
+      // docs/phase7-wave3.md §3.42: out of play, so only a read of the pile itself reaches it.
+      const filter = value.filter;
+      const ids = state.victoryDisplay;
       return filter ? ids.filter((id) => matchesQuery(state, id, filter, { ...context, deps })).length : ids.length;
     }
     case "dealtEncounterCount": {

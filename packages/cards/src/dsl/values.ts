@@ -62,6 +62,13 @@ export const eventPlayer: PlayerRef = { kind: "eventPlayer" };
  */
 export const defeatingPlayer: PlayerRef = { kind: "defeatingPlayer" };
 export const ownerOf = (target: TargetRef): PlayerRef => ({ kind: "ownerOf", target });
+/**
+ * "The player who controls that identity" / "the player who controls the Power Stone" (docs/phase7-wave3.md §3.39):
+ * the players who control the cards `target` names, in player order. An encounter card is controlled by the scenario
+ * (RRG 1.8 "Ownership and Control", p. 31), so it names nobody. The Power Stone, read as "attached to your identity"
+ * (§4 Q11), is `controllerOf(each(query("identity", hasAttachment({ name: "Power Stone" }))))`.
+ */
+export const controllerOf = (target: TargetRef): PlayerRef => ({ kind: "controllerOf", target });
 
 // ---------------------------------------------------------------------------
 // Cards in play
@@ -146,6 +153,12 @@ export const sharesTraitWith = (ref: TargetRef): Pick<TargetQuery, "sharesTraitW
  * matches wherever the card is (deck, discard, set aside, in play). docs/phase7-wave2.md §20.2.
  */
 export const encounterSetOf = (ref: TargetRef): Pick<TargetQuery, "encounterSetOf"> => ({ encounterSetOf: ref });
+/**
+ * "An ally **with a weapon attachment upgrade**" (Target Practice, `stld` 17017; docs/phase7-wave3.md §3.40): a query
+ * fragment matching a card that has at least one attachment matching `q` — `query("ally", hasAttachment(query(
+ * "upgrade", { trait: WEAPON })))`. The other direction of `host`.
+ */
+export const hasAttachment = (q: TargetQuery): Pick<TargetQuery, "hasAttachment"> => ({ hasAttachment: q });
 
 /** "Friendly character": any identity or ally (every player's, RRG "Friendly"). */
 export const FRIENDLY_CHARACTER: TargetQuery = query(["identity", "ally"]);
@@ -296,6 +309,15 @@ export const dealtEncounterCount = (player: PlayerRef = you): ValueSpec => ({ ki
 export const scenarioAreaCount = (name: string, filter?: TargetQuery): ValueSpec => ({
   kind: "scenarioAreaCount",
   name,
+  ...(filter ? { filter } : {}),
+});
+/**
+ * The cards in the victory display, optionally filtered: "Play only if there is a side scheme in the victory display"
+ * (Mission Planning, Critical Hit) is `playOnlyIf(valueAtLeast(victoryDisplayCount(query("sideScheme")), 1))`.
+ * docs/phase7-wave3.md §3.42.
+ */
+export const victoryDisplayCount = (filter?: TargetQuery): ValueSpec => ({
+  kind: "victoryDisplayCount",
   ...(filter ? { filter } : {}),
 });
 

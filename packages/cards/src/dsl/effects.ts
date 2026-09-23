@@ -198,6 +198,11 @@ export const discard = (target: TargetRef): EffectSpec => ({ kind: "discardFromP
  */
 export const defeat = (target: TargetRef): EffectSpec => ({ kind: "defeat", target });
 /**
+ * "… return it to its owner's hand **instead of discarding it**" (Regroup, `drax` 19032; docs/phase7-wave3.md §3.45):
+ * from an interrupt to a character's defeat, the card goes to `to` instead of its discard pile. It is still defeated.
+ */
+export const setDefeatDestination = (to: CardDestination): EffectSpec => ({ kind: "setDefeatDestination", to });
+/**
  * "Cosmo does not take consequential damage for this use." (Cosmo, `stld` 17020, errata RRG 1.8 p. 67; docs/phase7-
  * wave3.md §3.21): cancels the named character's pending consequential damage from its current attack or thwart.
  * `character` defaults to the ability's own card.
@@ -870,7 +875,15 @@ export const divide = (
   what: "damage" | "threat",
   n: Amount,
   among: TargetQuery,
-  opts: { readonly chooser?: PlayerRef; readonly bind?: string } = {},
+  opts: {
+    readonly chooser?: PlayerRef;
+    readonly bind?: string;
+    /**
+     * "A total of **up to** N" (Agile Flight, `stld` 17029; docs/phase7-wave3.md §3.41): the chooser divides at most
+     * N points, possibly none, and is asked even with a single candidate.
+     */
+    readonly upTo?: boolean;
+  } = {},
 ): EffectSpec => ({
   kind: "divide",
   what,
@@ -878,6 +891,7 @@ export const divide = (
   among,
   chooser: opts.chooser ?? you,
   ...withBind(opts.bind),
+  ...(opts.upTo ? { upTo: true as const } : {}),
 });
 
 /**

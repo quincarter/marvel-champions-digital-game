@@ -58,7 +58,14 @@ function matchesRest(
 ): boolean {
   const subjects = eventSubjects(event);
   if (pattern.fromAttack !== undefined) {
-    if (event.kind !== "dealDamage" || event.fromAttack !== pattern.fromAttack) return false;
+    // Damage from an attack, or a defeat by attack damage ("defeated by an enemy attack"; docs/phase7-wave3.md §3.45).
+    const fromAttack =
+      event.kind === "dealDamage"
+        ? event.fromAttack
+        : event.kind === "characterDefeated"
+          ? event.fromAttack === true
+          : undefined;
+    if (fromAttack !== pattern.fromAttack) return false;
   }
   const context: EffectContext = { selfInstanceId: selfId, controllerId: controller, event, bindings: {}, deps };
   if (pattern.targetIs) {
@@ -219,7 +226,7 @@ function inHandCandidates(
       const card = cardOf(state, id);
       if (card?.type !== "event") continue;
       // "Max 1 per round", "Play only if …": a window never offers a card its restrictions forbid.
-      if (playRestrictionFault(state, deps, player.playerId, card)) continue;
+      if (playRestrictionFault(state, deps, player.playerId, card, id)) continue;
       for (const ref of card.abilities) {
         const definition = deps.abilities[ref.id];
         if (!definition) continue;

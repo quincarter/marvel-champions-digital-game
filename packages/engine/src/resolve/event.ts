@@ -23,7 +23,7 @@ import {
   cannotTakeDamage,
   damageTakenAfterConstants,
   excessDamageBonus,
-  defeatedIntoEncounterDeck,
+  defeatDestinationRule,
   excessDamageThreatSchemes,
   notDefeatedWithoutThreat,
   patrolledBy,
@@ -33,6 +33,8 @@ import { cardsInPlay, controllerOf } from "../select.js";
 import { currentActivationFrameId, type StackFrame, type Vars } from "../stack.js";
 import type { GameState } from "../state.js";
 import type { TriggerEvent } from "../trigger-events.js";
+import type { EffectSpec } from "../spec.js";
+import { moveCardsTo } from "./cards.js";
 import { checkDefeats, checkMainSchemeCompletion, defeatVillainStage, eliminatePlayer } from "./defeat.js";
 import { dashedStatSkipsActivation, pushEnemyAttackFrame, pushEnemySchemeFrame } from "./enemy-activation.js";
 import { applyEnterPlayKeywords } from "./enter-play.js";
@@ -166,6 +168,18 @@ export function executeEventFrame(ctx: Ctx, frame: Frame<"event">): void {
       return;
     }
   }
+}
+
+/**
+ * A defeated side scheme leaves play: to a constant `defeatDestination` (or `defeatedIntoEncounterDeck`) destination if
+ * one matches, else its discard pile, marked defeated so Victory X can claim it (docs/phase7-wave3.md §3.4, §3.45).
+ */
+function schemeDefeatDestination(state: GameState, deps: EngineDeps, schemeId: InstanceId): EffectSpec {
+  // Victory X is not a discard, so a destination that replaces the discard does not apply to it.
+  const to = hasKeyword(state, schemeId, "victory", deps) ? null : defeatDestinationRule(state, deps, schemeId);
+  return to === null
+    ? { kind: "discardFromPlay", target: { kind: "self" }, defeated: true }
+    : { kind: "moveCards", cards: { kind: "ref", ref: { kind: "self" } }, to };
 }
 
 const withResults = (event: TriggerEvent, vars: Vars): TriggerEvent =>
@@ -340,8 +354,11 @@ function applyDefeat(ctx: Ctx, event: Extract<TriggerEvent, { kind: "characterDe
     undefined,
     instance.engagedWith ?? ctx.state.firstPlayerId,
   );
-  // Victory X sends a defeated character to the victory display instead (docs/phase7-wave3.md §3.4).
-  defeatFromPlay(ctx, id);
+  // Victory X sends a defeated character to the victory display instead (docs/phase7-wave3.md §3.4). Otherwise an
+  // interrupt's `setDefeatDestination` ("return it to its owner's hand instead of discarding it", Regroup), else a
+  // constant `defeatDestination` rule, replaces the discard (docs/phase7-wave3.md §3.45).
+  const destination = event.destination ?? defeatDestinationRule(ctx.state, ctx.deps, id);
+  defeatFromPlay(ctx, id, destination === null ? undefined : () => moveCardsTo(ctx, [id], destination));
   addFrameVars(ctx, event.parentFrameId, { defeated: 1 });
   const frames: StackFrame[] = [...whenDefeated];
   if (event.overkill && !ctx.state.outcome && getInstance(ctx.state, event.overkill.toInstanceId)) {
@@ -525,6 +542,7 @@ export function applyDamage(
   checkDefeats(ctx, {
     targetId: event.targetInstanceId,
     parentFrameId: event.parentFrameId ?? null,
+    fromAttack: event.fromAttack,
     overkill: recipient ? { amount: excess, toInstanceId: recipient, sourceInstanceId: source } : undefined,
     defeatedByPlayerId: source !== null ? controllerOf(ctx.state, source) : null,
     sourceInstanceId: source,
@@ -726,10 +744,9 @@ function applyRemoveThreat(ctx: Ctx, event: Extract<TriggerEvent, { kind: "remov
     const effectsFrame: StackFrame = {
       ...base(ctx),
       kind: "effects",
-      // "Shuffle it into the encounter deck instead of discarding it." (Time Portal; `defeatedIntoEncounterDeck`, §3.11).
-      effects: defeatedIntoEncounterDeck(ctx.state, ctx.deps, event.schemeInstanceId)
-        ? [{ kind: "moveCards", cards: { kind: "ref", ref: { kind: "self" } }, to: "encounterDeckShuffle" }]
-        : [{ kind: "discardFromPlay", target: { kind: "self" }, defeated: true }],
+      // "Shuffle it into the encounter deck instead of discarding it." (Time Portal; `defeatedIntoEncounterDeck`, §3.11;
+      // the general `defeatDestination`, docs/phase7-wave3.md §3.45).
+      effects: [schemeDefeatDestination(ctx.state, ctx.deps, event.schemeInstanceId)],
       cursor: 0,
       bindings: {},
       vars: {},

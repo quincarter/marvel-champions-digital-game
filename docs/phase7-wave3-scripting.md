@@ -380,6 +380,80 @@ forcedInterrupt(
 );
 ```
 
+**The last seven wave 3 gaps (`game-rules-architect`, third primitives pass, 2026-09-23).** docs/phase7-wave3.md
+§3.39–§3.45 has the rules decision, the citation and the engine test for each one;
+`packages/cards/src/dsl/wave3-primitives-2.test.ts` validates every composition below. Drop each ref from
+`KNOWN_SKIPPED` when you script it. `19013.moondragon-action` stays skipped (§3.23, §4 Q12).
+
+| Ref                               | Closed by                                                          | Builder(s)                                                       |
+| --------------------------------- | ------------------------------------------------------------------ | ---------------------------------------------------------------- |
+| `16114.when-revealed`             | new `PlayerRef controllerOf` (§3.39) + `hasAttachment` (§3.40)     | `controllerOf`, `hasAttachment` (new)                            |
+| `17017.target-practice-interrupt` | new `TargetQuery.hasAttachment` (§3.40)                            | `hasAttachment` (new)                                            |
+| `17029.agile-flight-action`       | new `EffectSpec divide.upTo` (§3.41)                               | `divide(…, { upTo: true })`                                      |
+| `17005.sliding-shot-constant`     | new `constant.playOnlyIf` (§3.42)                                  | `playOnlyIf` (new)                                               |
+| `16131.kree-combat-armor-action`  | new `AbilityCost.sameResourceType` (§3.43)                         | `spendSameType` (new)                                            |
+| `19012.martyr-response`           | consequential damage carries its attack's results (§3.44)          | `after.consequentialDamage` (new)                                |
+| `19032.regroup-interrupt`         | new `setDefeatDestination`, `characterDefeated.fromAttack` (§3.45) | `setDefeatDestination`, `on.defeated(…, { byAttackFrom })` (new) |
+
+Single-Minded Fury (`16114.when-revealed`). "Controls the Power Stone" is "attached to your identity" (§4 Q11). With
+the stone on the villain the ref names nobody, no attack is made, and the card surges (§3.39):
+
+```ts
+whenRevealed(
+  enemyAttack(theVillain, {
+    against: controllerOf(each(query("identity", hasAttachment({ name: "Power Stone" })))),
+    bind: "fury",
+  }),
+  ifThen(not(made("fury")), surge()),
+);
+```
+
+Target Practice (`17017.target-practice-interrupt`). The filter is on the trigger, so an ally without a weapon never
+offers it (§3.40):
+
+```ts
+interrupt(
+  on.attacks(query("ally", hasAttachment(query("upgrade", { trait: WEAPON })))),
+  { cost: discardThis },
+  modifyStat("atk", 2, eventSource, "endOfAttack"),
+);
+```
+
+Agile Flight (`17029.agile-flight-action`). The chooser may divide fewer than 5 points, even none (§3.41, §4 Q16):
+
+```ts
+heroAction({ label: "thwart" }, divide("threat", 5, query("scheme"), { upTo: true }));
+```
+
+Sliding Shot (`17005.sliding-shot-constant`). The condition is read from the card while it is being played, so it
+works although the event is not in play (§3.42). No data change is needed: the ref already exists. The same builder
+covers the other seventeen "Play only if …" cards §3.42's survey lists, each on its own "-constant" ref:
+
+```ts
+constant(playOnlyIf(exists({ name: "Element Gun", controller: "you" })));
+```
+
+Kree Combat Armor (`16131.kree-combat-armor-action`). A wild counts as any type; a card printing two types gives one
+and overpays the other; `legalActions` offers it only when the hand can pay (§3.43):
+
+```ts
+heroAction({ cost: spendSameType(3) }, discard(self));
+```
+
+Martyr (`19012.martyr-response`). The response stays on the consequential damage, so the tough status card arrives
+after that damage and cannot absorb it (§3.44):
+
+```ts
+response(after.consequentialDamage("self", { from: "attack", defeated: true }), giveTough(self));
+```
+
+Regroup (`19032.regroup-interrupt`). The ally is still defeated (When Defeated and "after … is defeated" still
+apply); only its discard is replaced. Any player's ally, since the card does not say "your" (§3.45, §4 Q17):
+
+```ts
+interrupt(when.defeated(query("ally"), { byAttackFrom: query("enemy") }), setDefeatDestination("hand"));
+```
+
 ## 7. Progress / next up
 
 **Foundation: done.** `wave3/{index,cards,reprints,names,setup,testing,coverage.test}.ts` all exist and are green.

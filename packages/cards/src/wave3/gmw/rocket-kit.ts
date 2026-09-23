@@ -9,6 +9,7 @@ import {
   chosen,
   chosenPlayer,
   chooseCards,
+  chooseOne,
   chooseTarget,
   choosePlayer,
   constant,
@@ -21,6 +22,7 @@ import {
   each,
   eachTimeUntil,
   exhaustThis,
+  exists,
   forcedResponse,
   gainsTrait,
   gets,
@@ -31,7 +33,9 @@ import {
   modifyAttack,
   modifyStat,
   moveCards,
+  ofTeamUpSet,
   on,
+  option,
   preventDamage,
   putIntoPlay,
   query,
@@ -42,6 +46,7 @@ import {
   response,
   rule,
   self,
+  teamUpCharacters,
   theMainScheme,
   theVillain,
   when,
@@ -53,6 +58,9 @@ import {
 } from "../../dsl/index.js";
 
 const CHARGE = "charge";
+/** Groot's own counter type, needed only for Flora and Fauna's "place 2 growth counters on Groot" branch — the
+ * same counter type name `gmw/groot-kit.ts` uses for its own copy of this card. */
+const GROWTH = "growth";
 const TECH = trait("TECH");
 /** "Rocket Raccoon" as a `countersOn`/`gets` target: his identity, whichever form it's in. */
 const ROCKET = yourIdentity;
@@ -61,15 +69,14 @@ const ROCKET = yourIdentity;
  * Rocket Raccoon (16029a/b) and his hero kit (16030–16052). Reprints in this pack (none found by `../reprints.ts`
  * for this range) are aliased automatically, not scripted here.
  *
- * Three refs recorded in an earlier scripting pass as primitive gaps are now closed (docs/phase7-wave3.md
- * §3.30, §3.31, §3.33; docs/phase7-wave3-scripting.md §6d):
+ * Four refs recorded in an earlier scripting pass as primitive gaps are now closed (docs/phase7-wave3.md
+ * §3.30, §3.31, §3.33, §3.34; docs/phase7-wave3-scripting.md §6d):
  * - `16032.schadenfreude-action`: `eachTimeUntil` + `on.youDealDamage` (§3.30).
  * - `16033.salvage-response`: the existing `resourcesSpent`/`on.youSpendThis()` trigger (§3.31).
  * - `16052.booster-boots-interrupt`: the new `AbilityCost.discardFromDeck` (§3.33).
- *
- * `16048.flora-and-fauna-action` (Rocket's own copy of the Team-Up card, printed identically at 16020 in Groot's
- * own card range) is scripted alongside 16020, not here — same composition, tested together in a two-player
- * game with Groot and Rocket at different seats (docs/phase7-wave3.md §3.34).
+ * - `16048.flora-and-fauna-action` (Rocket's own copy of the Team-Up card, printed identically at 16020 in Groot's
+ *   own card range, scripted there with the identical composition): `TargetQuery.titled`/`identitySetTitled`,
+ *   DSL `teamUpCharacters(i)`/`ofTeamUpSet(i)` (§3.34).
  */
 export const ROCKET_KIT = defineAbilities({
   // "Murdered You!" — Response: After you deal excess damage to an enemy, draw 1 card.
@@ -200,7 +207,25 @@ export const ROCKET_KIT = defineAbilities({
   // Response: After Groot defends against an attack, heal 2 damage from him.
   "16047.groot-response": response(when.defends(query("ally", { self: true })), heal(2, self)),
 
-  // Flora and Fauna (16048) — see module docblock.
+  // Flora and Fauna — Team-Up (Groot and Rocket Raccoon). Hero Action: Place 2 growth counters on Groot (to a
+  // maximum of 10) and ready him, or place 2 charge counters on a Rocket Raccoon upgrade and ready that upgrade.
+  // Identical composition to Groot's own 16020 (module docblock, §3.34).
+  "16048.flora-and-fauna-action": heroAction(
+    chooseOne(
+      option(
+        "Place 2 growth counters on Groot and ready him",
+        addCounters(GROWTH, 2, teamUpCharacters(0), { upTo: 10 }),
+        ready(teamUpCharacters(0)),
+      ),
+      option(
+        "Place 2 charge counters on a Rocket Raccoon upgrade and ready it",
+        { when: exists(query("upgrade", ofTeamUpSet(1))) },
+        chooseTarget("upgrade", query("upgrade", ofTeamUpSet(1))),
+        addCounters("charge", 2, chosen("upgrade")),
+        ready(chosen("upgrade")),
+      ),
+    ),
+  ),
 
   // Booster Boots — Hero Interrupt: When you would take any amount of damage from an attack, exhaust Booster
   // Boots and discard the top card of your deck → prevent 1 of that damage (§3.33).

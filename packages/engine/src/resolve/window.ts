@@ -12,6 +12,7 @@ import {
   playCostModifier,
   priceOrNull,
   pricePlay,
+  resourceVars,
 } from "../actions.js";
 import type { ChoiceOption } from "../choices.js";
 import { type Ctx, emit, findFrame, popFrame, pushFrames, requestChoice, setFrame } from "../ctx.js";
@@ -19,8 +20,8 @@ import { costReductionFor } from "../effects.js";
 import { EngineInvariantError } from "../errors.js";
 import type { FrameId, PlayerId } from "../ids.js";
 import { cardOf, mustPlayer, playerOrder } from "../query.js";
-import { combineRequirements, poolTotal, requirementTotal, satisfies } from "../resources.js";
-import type { TriggerCandidate, Vars, WindowTiming } from "../stack.js";
+import { combineRequirements, requirementTotal, satisfies } from "../resources.js";
+import type { TriggerCandidate, WindowTiming } from "../stack.js";
 import type { GameState } from "../state.js";
 import type { TriggerEvent } from "../trigger-events.js";
 import { simultaneousOrderer } from "../villain/authority.js";
@@ -212,14 +213,11 @@ function payWindowAbility(ctx: Ctx, frame: Frame<"window">, answer: readonly str
   if (isPriceFault(plan)) return;
   const pool = priceOrNull(ctx, controller, payment, null, plan.payingFor);
   if (!pool || !satisfies(pool, plan.requirement)) return;
+  // The same checks and vars an action's payment gets: "of the same type" / "of different types", X
+  // (docs/phase7-wave3.md §3.43). A payment that fails one is a decline, as an under-payment is.
+  const paidVars = resourceVars(pool, plan.cost ?? definition.cost, plan.requirement);
+  if (isPriceFault(paidVars)) return;
   const spent = payPayment(ctx, controller, payment);
-  const paidVars: Vars = {
-    "paid.physical": pool.physical,
-    "paid.mental": pool.mental,
-    "paid.energy": pool.energy,
-    "paid.wild": pool.wild,
-    "paid.total": poolTotal(pool),
-  };
   pushFrames(ctx, [
     abilityFrame(ctx, candidate, frame.event, frame.eventFrameId, plan.bindings, { ...plan.vars, ...paidVars }),
   ]);

@@ -267,6 +267,11 @@ export interface ConstantPart {
    * from hand.
    */
   readonly playableAttachments?: TargetQuery;
+  /**
+   * "Play only if you control an Element Gun." (Sliding Shot, `stld` 17005; docs/phase7-wave3.md §3.42): a play
+   * restriction read from the card itself while it is being played. Several are ANDed.
+   */
+  readonly playOnlyIf?: Predicate;
 }
 
 export function constant(...parts: readonly ConstantPart[]): AbilityDefinition {
@@ -298,6 +303,9 @@ export function constant(...parts: readonly ConstantPart[]): AbilityDefinition {
   const paymentOnly = all("paymentOnly");
   const playableFrom = all("playableFrom");
   const basicPowerCosts = all("basicPowerCosts");
+  const playConditions = parts.flatMap((p) => (p.playOnlyIf ? [p.playOnlyIf] : []));
+  const playOnlyIfCondition: Predicate | undefined =
+    playConditions.length > 1 ? { kind: "and", of: playConditions } : playConditions[0];
   return {
     trigger: {
       kind: "constant",
@@ -312,10 +320,17 @@ export function constant(...parts: readonly ConstantPart[]): AbilityDefinition {
       ...(playableFrom.length ? { playableFrom } : {}),
       ...(basicPowerCosts.length ? { basicPowerCosts } : {}),
       ...(playableAttachmentsList[0] ? { playableAttachments: playableAttachmentsList[0] } : {}),
+      ...(playOnlyIfCondition ? { playOnlyIf: playOnlyIfCondition } : {}),
     },
     effects: [],
   };
 }
+/**
+ * "Play only if you control an Element Gun." (Sliding Shot, `stld` 17005; docs/phase7-wave3.md §3.42): a play
+ * restriction on any `Predicate`, checked on the card being played (RRG 1.8 "Initiating Abilities", p. 24, step 2), with
+ * `you` the player playing it. `constant(playOnlyIf(exists(query("upgrade", { name: "Element Gun", controller: "you" }))))`.
+ */
+export const playOnlyIf = (condition: Predicate): ConstantPart => ({ playOnlyIf: condition });
 /** "You may play [X] events attached to this card as if they were in your hand." (Hawkeye's Quiver, `trors` pack). */
 export const playableAttachments = (query: TargetQuery): ConstantPart => ({ playableAttachments: query });
 /** "Reduce the cost to play X by N [while …]" / "… costs N additional resources" (a signed `delta`). */
@@ -489,6 +504,11 @@ export const exhaustThis: AbilityCost = { exhaustSelf: true };
 export const discardThis: AbilityCost = { discardSelf: true };
 /** "Spend a [energy] resource" → `spend({ energy: 1 })`; "Spend [E][M][P]" → one of each. */
 export const spend = (resources: ResourceRequirement | number): AbilityCost => ({ resources });
+/**
+ * "Spend 3 resources of the same type →" (Kree Combat Armor, `gmw` 16131; docs/phase7-wave3.md §3.43): `n` resources,
+ * all of one type the payer chooses. A wild counts as any type; a two-type card may give one icon and overpay the other.
+ */
+export const spendSameType = (n: number): AbilityCost => ({ resources: n, sameResourceType: true });
 /** "Spend X [type] resources →": X is bound to var `bind`. */
 export const spendX = (resourceType: TypedResource, bind = "x", min = 1): AbilityCost => ({
   resourcesX: { resource: resourceType, bind, min },
@@ -776,6 +796,24 @@ export const on = {
       opts.taken ? { requireResults: { amount: 1 } } : {},
     ),
   /**
+   * "After [ally] takes consequential damage from performing an attack[, if that attack defeated an enemy]" (Martyr,
+   * `drax` 19012; docs/phase7-wave3.md §3.44). An ally's consequential damage carries the results of the basic power it
+   * follows as `attack.*` / `thwart.*` (`made`, `damage`, `defeated`, …), and only that damage does, so `from` alone
+   * says "consequential damage from an attack/thwart". "Takes" is damage taken (a tough status card that absorbs it
+   * means none was taken). `defeated`: the attack defeated its target.
+   */
+  consequentialDamage: (
+    to: Who,
+    opts: { readonly from: "attack" | "thwart"; readonly defeated?: boolean },
+  ): EventPattern =>
+    pattern("dealDamage", asTarget(to), {
+      requireResults: {
+        amount: 1,
+        [`${opts.from}.made`]: 1,
+        ...(opts.defeated ? { [`${opts.from}.defeated`]: 1 } : {}),
+      },
+    }),
+  /**
    * "Each time / After **you** deal any amount of damage to [an enemy]" (Schadenfreude, `gmw` 16032; docs/phase7-
    * wave3.md §3.30). "You" is your identity where able (RRG 1.8 "You, Your", p. 49; ruling, Dec 17, 2025 (3)): your
    * identity's attacks and effects, and the cards p. 49 calls "an extension of a player's identity" — events you
@@ -798,8 +836,23 @@ export const on = {
   encounterCardRevealed: (what?: TargetQuery): EventPattern =>
     pattern("encounterCardRevealing", what ? { targetIs: what } : {}),
   /** "When/After X is defeated"; `byYou`: "after *you* defeat a minion". */
-  defeated: (what: Who, opts: { readonly byYou?: boolean } = {}): EventPattern =>
-    pattern("characterDefeated", asTarget(what), opts.byYou ? { playerIs: "controller" } : {}),
+  defeated: (
+    what: Who,
+    opts: {
+      readonly byYou?: boolean;
+      /**
+       * "When an ally is defeated **by an enemy attack**" (Regroup, `drax` 19032; docs/phase7-wave3.md §3.45): the
+       * defeating damage was attack damage from a card matching this query — `{ categories: ["enemy"] }`.
+       */
+      readonly byAttackFrom?: TargetQuery;
+    } = {},
+  ): EventPattern =>
+    pattern(
+      "characterDefeated",
+      asTarget(what),
+      opts.byYou ? { playerIs: "controller" } : {},
+      opts.byAttackFrom ? { fromAttack: true, sourceIs: opts.byAttackFrom } : {},
+    ),
   /**
    * "After [X] (or an event you play) defeats a minion or side scheme" (Small but Mighty, 13001a; docs/phase7-
    * wave2.md §17.2): matches both `characterDefeated` and `schemeDefeated` by *source* — which card dealt the

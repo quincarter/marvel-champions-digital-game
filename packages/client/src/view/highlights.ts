@@ -191,6 +191,7 @@ const EXCLUSION_WORDING: Record<ExclusionCode, string> = {
   wrongUnique: "wrong unique icon",
   notHostOfSelf: "isn't hosting this card",
   notAttachedToHost: "not attached to the right host",
+  missingAttachment: "doesn't have the right attachment",
   wrongOwner: "not owned by you",
   missingPrintedResource: "doesn't print the needed resource",
   wrongAspect: "wrong aspect",

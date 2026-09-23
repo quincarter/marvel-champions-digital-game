@@ -7,6 +7,7 @@ import {
   aScheme,
   attack,
   cards,
+  chooseOne,
   chooseTarget,
   chosen,
   constant,
@@ -16,6 +17,7 @@ import {
   draw,
   eventAmount,
   exhaustThis,
+  exists,
   forcedInterrupt,
   FRIENDLY_CHARACTER,
   gainsKeyword,
@@ -30,7 +32,9 @@ import {
   modifyAttack,
   modifyStat,
   moveCards,
+  ofTeamUpSet,
   on,
+  option,
   preventDamage,
   query,
   reduceNextCardCost,
@@ -41,6 +45,7 @@ import {
   removeUpToCounters,
   ready,
   self,
+  teamUpCharacters,
   theMainScheme,
   theVillain,
   thwart,
@@ -67,11 +72,16 @@ const DAMAGE_PREVENTABLE = min(eventAmount, countersOn(GROOT, GROWTH));
  * are aliased automatically, not scripted here.
  *
  * Three refs recorded in an earlier scripting pass as primitive gaps are now closed (docs/phase7-wave3.md
- * §3.28–§3.29, §3.32; docs/phase7-wave3-scripting.md §6d):
+ * §3.28–§3.29, §3.32, §3.34; docs/phase7-wave3-scripting.md §6d):
  * - `16006.we-are-groot-action`: `AbilityCost.spendCounters.upTo`/`bind` and `costSelection.counters` (§3.32).
  * - `16009.lashing-vines-response`: `on.basicPowerUsed` already covers a basic attack, thwart and defense with one
  *   subject role (§3.28); a defense's "after" window was also fixed to wait for the attack to end.
  * - `16024.deft-focus-action`: `reduceNextCardCost`'s existing `duration: "turn"` (§3.29).
+ * - `16020.flora-and-fauna-action` (Team-Up (Groot and Rocket Raccoon); printed identically at 16048 in Rocket
+ *   Raccoon's own card range, scripted there with the identical composition): naming "Groot" and "a Rocket
+ *   Raccoon upgrade" across two players' own hands needed `TargetQuery.titled`/`identitySetTitled`, DSL
+ *   `teamUpCharacters(i)`/`ofTeamUpSet(i)` (§3.34) — a Team-Up card can be played from either player's hand, so
+ *   neither name can be `yourIdentity`/`identitySetOf: you`.
  */
 export const GROOT_KIT = defineAbilities({
   // Flora Colossus — Forced Interrupt: When Groot would take any amount of damage, remove that many growth
@@ -213,6 +223,29 @@ export const GROOT_KIT = defineAbilities({
     when.attacks("self", { target: query("minion") }),
     modifyStat("atk", 3, self, "endOfAttack"),
     modifyAttack({ overkill: true }),
+  ),
+
+  // Flora and Fauna — Team-Up (Groot and Rocket Raccoon). Hero Action: Place 2 growth counters on Groot (to a
+  // maximum of 10) and ready him, or place 2 charge counters on a Rocket Raccoon upgrade and ready that upgrade.
+  // "A Rocket Raccoon upgrade" is any upgrade from Rocket's own identity-specific set, not merely one the current
+  // player controls (§3.34): a Team-Up card can be played by Groot's player on an upgrade Rocket's player
+  // controls. The option's `when` is RRG 1.8 "Choose (Option)" (p. 12): a player can't choose an option that
+  // can't be at least partially resolved.
+  "16020.flora-and-fauna-action": heroAction(
+    chooseOne(
+      option(
+        "Place 2 growth counters on Groot and ready him",
+        addCounters(GROWTH, 2, teamUpCharacters(0), { upTo: 10 }),
+        ready(teamUpCharacters(0)),
+      ),
+      option(
+        "Place 2 charge counters on a Rocket Raccoon upgrade and ready it",
+        { when: exists(query("upgrade", ofTeamUpSet(1))) },
+        chooseTarget("upgrade", query("upgrade", ofTeamUpSet(1))),
+        addCounters("charge", 2, chosen("upgrade")),
+        ready(chosen("upgrade")),
+      ),
+    ),
   ),
 
   // Deft Focus — Hero Action: Exhaust Deft Focus → reduce the resource cost of the next superpower card you play

@@ -223,6 +223,8 @@ interface DefeatHint {
   readonly defeatedByPlayerId?: PlayerId | null;
   /** The damage's source card itself ("after *Wasp* — or an event you play — defeats a minion"). */
   readonly sourceInstanceId?: InstanceId | null;
+  /** The damage was attack damage: "defeated by an enemy attack" (Regroup; docs/phase7-wave3.md §3.45). */
+  readonly fromAttack?: boolean;
 }
 
 const defeatPending = (state: GameState, id: InstanceId): boolean =>
@@ -234,9 +236,14 @@ const defeatPending = (state: GameState, id: InstanceId): boolean =>
       (f.stage === "interrupts" || f.stage === "apply"),
   );
 
-/** Sweeps every character in play for zero remaining hit points, in a fixed order. */
-export function checkDefeats(ctx: Ctx, hint?: DefeatHint): void {
+/**
+ * Sweeps every character in play for zero remaining hit points, in a fixed order. `hints` say what dealt the damage to
+ * each character that took some: one for a single damage event, one per member for a simultaneous damage group.
+ */
+export function checkDefeats(ctx: Ctx, hints?: DefeatHint | readonly DefeatHint[]): void {
   if (ctx.state.outcome) return;
+  const all: readonly DefeatHint[] = hints === undefined ? [] : "targetId" in hints ? [hints] : hints;
+  const hintFor = (id: InstanceId): DefeatHint | undefined => all.find((candidate) => candidate.targetId === id);
 
   // Villains first, in printed order: a villain stage falls the moment its dial reaches zero.
   const activeChoices: StackFrame[] = [];
@@ -250,14 +257,16 @@ export function checkDefeats(ctx: Ctx, hint?: DefeatHint): void {
     const villain = getInstance(ctx.state, instanceId);
     if (!villainProfile || !villain || villain.damage < villainProfile.maxHp) continue;
     if (cannotBeDefeated(ctx.state, ctx.deps, instanceId) || defeatPending(ctx.state, instanceId)) continue;
+    const hint = hintFor(instanceId);
     const defeat: TriggerEvent = {
       kind: "characterDefeated",
       instanceId,
-      ...(hint?.targetId === instanceId
+      ...(hint
         ? {
             parentFrameId: hint.parentFrameId,
             ...(hint.defeatedByPlayerId ? { defeatedByPlayerId: hint.defeatedByPlayerId } : {}),
             ...(hint.sourceInstanceId ? { sourceInstanceId: hint.sourceInstanceId } : {}),
+            ...(hint.fromAttack ? { fromAttack: true as const } : {}),
           }
         : {}),
     };
@@ -283,15 +292,16 @@ export function checkDefeats(ctx: Ctx, hint?: DefeatHint): void {
       if (hasKeyword(ctx.state, id, "permanent", ctx.deps)) continue;
       if (cannotBeDefeated(ctx.state, ctx.deps, id)) continue;
       if (defeatPending(ctx.state, id)) continue;
-      const context =
-        hint?.targetId === id
-          ? {
-              parentFrameId: hint.parentFrameId,
-              ...(hint.overkill ? { overkill: hint.overkill } : {}),
-              ...(hint.defeatedByPlayerId ? { defeatedByPlayerId: hint.defeatedByPlayerId } : {}),
-              ...(hint.sourceInstanceId ? { sourceInstanceId: hint.sourceInstanceId } : {}),
-            }
-          : {};
+      const hint = hintFor(id);
+      const context = hint
+        ? {
+            parentFrameId: hint.parentFrameId,
+            ...(hint.overkill ? { overkill: hint.overkill } : {}),
+            ...(hint.defeatedByPlayerId ? { defeatedByPlayerId: hint.defeatedByPlayerId } : {}),
+            ...(hint.sourceInstanceId ? { sourceInstanceId: hint.sourceInstanceId } : {}),
+            ...(hint.fromAttack ? { fromAttack: true as const } : {}),
+          }
+        : {};
       defeatFrames.push(eventFrame(ctx, { kind: "characterDefeated", instanceId: id, ...context }));
     }
   }

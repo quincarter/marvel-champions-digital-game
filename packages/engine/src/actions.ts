@@ -80,11 +80,13 @@ import {
   combineRequirements,
   countUsableAs,
   EMPTY_POOL,
+  payableWithOneType,
   poolOf,
   poolTotal,
   printedResources,
   RESOURCE_TYPES,
   describeRequirement,
+  requirementOf,
   requirementTotal,
   satisfies,
   scalePool,
@@ -106,7 +108,7 @@ import {
   traitsOf,
   type EffectContext,
 } from "./select.js";
-import type { Bindings, Vars } from "./stack.js";
+import type { Bindings, ReportTarget, Vars } from "./stack.js";
 import type { GameState } from "./state.js";
 import { characterTitledAs } from "./titles.js";
 import { entersPlayWhenPlayed, matchingCardInPlay, uniqueBlockedMessage } from "./unique.js";
@@ -222,16 +224,31 @@ export const playableOutsideHand = (state: GameState, deps: EngineDeps, playerId
 /**
  * The printed play restrictions the engine enforces beyond form, control and per-player/per-host maximums
  * (docs/phase7-wave1.md §1.8, §3.10): "Max N per round", "Play only if your identity has the [trait] trait", "Play only if
- * you control a [trait] character". Traits count whether printed or gained (RRG 1.8 "Gains").
+ * you control a [trait] character". Traits count whether printed or gained (RRG 1.8 "Gains"). Also the card's own
+ * scripted `playOnlyIf` conditions (docs/phase7-wave3.md §3.42), read from `instanceId` wherever it is.
  */
 export function playRestrictionFault(
   state: GameState,
   deps: EngineDeps,
   playerId: PlayerId,
   card: AnyCard,
+  instanceId: InstanceId,
 ): PriceFault | null {
   const teamUp = teamUpFault(state, card);
   if (teamUp) return teamUp;
+  // "Play only if you control an Element Gun": RRG 1.8 "Initiating Abilities" (p. 24) step 2, the card not in play.
+  const context: EffectContext = {
+    selfInstanceId: instanceId,
+    controllerId: playerId,
+    event: null,
+    bindings: {},
+    deps,
+  };
+  for (const trigger of printedConstants(state, deps, instanceId)) {
+    if (trigger.playOnlyIf && !evaluate(state, trigger.playOnlyIf, context)) {
+      return { code: "no_valid_target", message: "this card's play restriction is not met" };
+    }
+  }
   const restrictions = "playRestrictions" in card ? card.playRestrictions : undefined;
   if (!restrictions) return null;
   // RRG 1.8 "Max, Maximum" (p. 28): across all copies by title, for all players.
@@ -1120,7 +1137,7 @@ function overpaidVars(pool: ResourcePool, requirement: ResolvedRequirement): Rec
 }
 
 /** "Spend X [type] resources": binds X from the pool beyond the cost's fixed requirement. */
-function resourceVars(
+export function resourceVars(
   pool: ResourcePool,
   cost: AbilityCost | undefined,
   requirement: ResolvedRequirement,
@@ -1141,6 +1158,13 @@ function resourceVars(
     const x = max === undefined ? paid : Math.min(paid, max);
     if (x < (cost.resourcesX.min ?? 0)) return { code: "insufficient_resources", message: "X is too small" };
     vars[cost.resourcesX.bind] = x;
+  }
+  if (cost?.sameResourceType) {
+    // "Spend 3 resources of the same type" (docs/phase7-wave3.md §3.43).
+    const count = requirementTotal(requirementOf(cost.resources));
+    if (!payableWithOneType(pool, count, requirement)) {
+      return { code: "insufficient_resources", message: `spend ${count} resources of the same type` };
+    }
   }
   if (cost?.distinctResourceTypes !== undefined) {
     // Each typed resource present is one type; each wild can stand for a type not otherwise present.
@@ -1550,7 +1574,7 @@ export function playCard(ctx: Ctx, command: Command & { type: "playCard" }): Eng
     if (held >= restrictions.maxPerPlayer)
       return engineError("no_valid_target", `max ${restrictions.maxPerPlayer} per player`, command);
   }
-  const restricted = playRestrictionFault(ctx.state, ctx.deps, command.playerId, card);
+  const restricted = playRestrictionFault(ctx.state, ctx.deps, command.playerId, card, command.cardInstanceId);
   if (restricted) return engineError(restricted.code, restricted.message, command);
   // "You cannot play hero-specific cards." (Depowered; `cannotPlay`, docs/phase7-wave2.md §3.11).
   if (cannotPlayCard(ctx.state, ctx.deps, command.playerId, command.cardInstanceId)) {
@@ -1680,7 +1704,10 @@ function playFromEffectRestrictionFault(ctx: Ctx, playerId: PlayerId, id: Instan
   if ("specialCost" in card && card.specialCost === "dash") return "a '—' cost cannot be played";
   const restrictions = "playRestrictions" in card ? card.playRestrictions : undefined;
   if (restrictions?.form && player.identity.form !== restrictions.form) return "wrong form";
-  if (playRestrictionFault(ctx.state, ctx.deps, playerId, card) || cannotPlayCard(ctx.state, ctx.deps, playerId, id))
+  if (
+    playRestrictionFault(ctx.state, ctx.deps, playerId, card, id) ||
+    cannotPlayCard(ctx.state, ctx.deps, playerId, id)
+  )
     return "a play restriction";
   if (hasKeyword(ctx.state, id, "restricted", ctx.deps)) {
     const held = [...restrictedCardsOf(ctx.state, playerId, ctx.deps), id];
@@ -1992,10 +2019,18 @@ function payBasicPowerCost(
   return null;
 }
 
-/** RRG "Consequential Damage": tier 5 of the timing chart, after the attack fully resolves. */
-function pushConsequentialDamage(ctx: Ctx, characterId: InstanceId, kind: "attack" | "thwart"): void {
+/**
+ * RRG "Consequential Damage": tier 5 of the timing chart, after the attack fully resolves.
+ *
+ * Returns where the basic power's own attack/thwart event(s) report their results (docs/phase7-wave3.md §3.44): into
+ * this damage event, prefixed `attack.`/`thwart.`, so "After Martyr takes consequential damage from performing an
+ * attack, if that attack defeated an enemy" (Martyr, `drax` 19012) reads `attack.defeated` in the damage's own response
+ * window. The damage is pushed first and so resolves after the power (LIFO); the power's frame reports into it as it
+ * finishes, before the damage applies. Null when the ally takes none.
+ */
+function pushConsequentialDamage(ctx: Ctx, characterId: InstanceId, kind: "attack" | "thwart"): ReportTarget | null {
   const card = cardOf(ctx.state, characterId);
-  if (card?.type !== "ally") return;
+  if (card?.type !== "ally") return null;
   const printed = kind === "attack" ? card.consequentialDamage.attack : card.consequentialDamage.thwart;
   // "Takes +1 consequential damage after it attacks" (Enraged): a modifier on the printed value.
   const amount = Math.max(
@@ -2003,8 +2038,8 @@ function pushConsequentialDamage(ctx: Ctx, characterId: InstanceId, kind: "attac
     printed +
       statBonus(ctx.state, ctx.deps, characterId, kind === "attack" ? "consequentialAttack" : "consequentialThwart"),
   );
-  if (amount <= 0) return;
-  pushEvent(ctx, {
+  if (amount <= 0) return null;
+  const frameId = pushEvent(ctx, {
     kind: "dealDamage",
     targetInstanceId: characterId,
     amount,
@@ -2012,6 +2047,7 @@ function pushConsequentialDamage(ctx: Ctx, characterId: InstanceId, kind: "attac
     fromAttack: false,
     consequential: true,
   });
+  return { frameId, prefix: kind };
 }
 
 /**
@@ -2095,15 +2131,19 @@ function basicAttackPaying(
     return engineError("no_valid_target", "a character with a printed '—' ATK cannot attack", command);
   }
   announceBasicPower(ctx, command.attackerInstanceId, "attack", command.playerId);
-  pushConsequentialDamage(ctx, command.attackerInstanceId, "attack");
+  const consequential = pushConsequentialDamage(ctx, command.attackerInstanceId, "attack");
   if (!command.divide) {
-    pushEvent(ctx, {
-      kind: "attack",
-      attackerInstanceId: command.attackerInstanceId,
-      targetInstanceId: command.targetInstanceId,
-      playerId: command.playerId,
-      basic: true,
-    });
+    pushEvent(
+      ctx,
+      {
+        kind: "attack",
+        attackerInstanceId: command.attackerInstanceId,
+        targetInstanceId: command.targetInstanceId,
+        playerId: command.playerId,
+        basic: true,
+      },
+      consequential,
+    );
   } else {
     // "Wasp is considered to attack each target affected by her divided basic attack" (FAQ "Wasp (#1C)"): one attack per
     // target, in the order given, so each retaliate resolves in the order of her choice.
@@ -2117,6 +2157,7 @@ function basicAttackPaying(
         basic: true,
         amount,
       })),
+      consequential,
     );
   }
   announceBasicPowerUsing(ctx, command.attackerInstanceId, "attack", command.playerId);
@@ -2228,16 +2269,20 @@ function basicThwartPaying(
     );
   }
   announceBasicPower(ctx, command.thwarterInstanceId, "thwart", command.playerId);
-  pushConsequentialDamage(ctx, command.thwarterInstanceId, "thwart");
+  const consequential = pushConsequentialDamage(ctx, command.thwarterInstanceId, "thwart");
   if (!command.divide) {
-    pushEvent(ctx, {
-      kind: "thwart",
-      thwarterInstanceId: command.thwarterInstanceId,
-      schemeInstanceId: command.schemeInstanceId,
-      playerId: command.playerId,
-      basic: true,
-      ...(useAtk ? { useAtk: true } : {}),
-    });
+    pushEvent(
+      ctx,
+      {
+        kind: "thwart",
+        thwarterInstanceId: command.thwarterInstanceId,
+        schemeInstanceId: command.schemeInstanceId,
+        playerId: command.playerId,
+        basic: true,
+        ...(useAtk ? { useAtk: true } : {}),
+      },
+      consequential,
+    );
   } else {
     // "simultaneously remove threat from each scheme that Wasp chooses" (FAQ "Wasp (#1C)"): one thwart per scheme.
     pushEvents(
@@ -2250,6 +2295,7 @@ function basicThwartPaying(
         basic: true,
         amount,
       })),
+      consequential,
     );
   }
   announceBasicPowerUsing(ctx, command.thwarterInstanceId, "thwart", command.playerId);

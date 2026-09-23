@@ -397,13 +397,15 @@ export function discardFromPlay(ctx: Ctx, id: InstanceId): void {
  *   first, before the host's own attachments are discarded with it.
  * Only a defeat does this: a card discarded any other way ("discard this side scheme") goes to its discard pile.
  */
-export function defeatFromPlay(ctx: Ctx, id: InstanceId): void {
+export function defeatFromPlay(ctx: Ctx, id: InstanceId, insteadOfDiscard?: () => void): void {
   const instance = getInstance(ctx.state, id);
   if (!instance) return;
   for (const attachment of [...instance.attachments]) {
     if (hasKeyword(ctx.state, attachment, "victory", ctx.deps)) leavePlay(ctx, attachment, { kind: "victoryDisplay" });
   }
   if (hasKeyword(ctx.state, id, "victory", ctx.deps)) leavePlay(ctx, id, { kind: "victoryDisplay" });
+  // "… instead of discarding it" (a defeat destination, docs/phase7-wave3.md §3.45) replaces only the discard.
+  else if (insteadOfDiscard) insteadOfDiscard();
   else discardFromPlay(ctx, id);
 }
 

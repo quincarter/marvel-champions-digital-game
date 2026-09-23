@@ -3,6 +3,7 @@ import type { InstanceId, PlayerId } from "./ids.js";
 import type { ResourcePool, ResourceRequirement, TypedResource } from "./resources.js";
 import type {
   AttackKeyword,
+  CardDestination,
   EffectSpec,
   PlayerRef,
   Predicate,
@@ -166,6 +167,20 @@ export type AbilityTriggerSpec =
        * discard pile").
        */
       readonly playableFrom?: readonly "discard"[];
+      /**
+       * "Play only if you control an Element Gun." (Sliding Shot, `stld` 17005): a play restriction whose condition is
+       * any `Predicate`, read from the card itself while it is being played (RRG 1.8 "Initiating Abilities", p. 24,
+       * step 2: "Check play restrictions"; "Play Restrictions and Permissions", p. 33: "all of its play restrictions
+       * must be observed"). The card is not in play when this is checked, which is why it cannot be a `cannotPlay` rule:
+       * those are read only from cards in play. `you` is the player playing the card and `self` the card. Enforced
+       * wherever `playRestrictionFault` is: a play command, `legalActions`, a play from an effect, and an event offered
+       * in a timing window. docs/phase7-wave3.md §3.42.
+       *
+       * The general form of the printed `PlayRestrictions` fields (`requiresIdentityTrait`,
+       * `requiresControlledCharacterTrait`), for the conditions card data cannot say: a named card, a trait on any card
+       * type, "any player controls", "at least 3 characters with the [Posse] trait".
+       */
+      readonly playOnlyIf?: Predicate;
       /**
        * "You may play [Arrow] events attached to this card as if they were in your hand" (Hawkeye's Quiver; docs/phase7-
        * wave2.md §3.10): cards attached to this card that match may be played by its controller as if from hand. A
@@ -380,6 +395,19 @@ export type RuleSpec =
    * side scheme that is defeated goes into the encounter deck, which is shuffled, instead of the discard pile.
    */
   | { readonly kind: "defeatedIntoEncounterDeck"; readonly target: TargetQuery; readonly while?: Predicate }
+  /**
+   * The general form of `defeatedIntoEncounterDeck` (docs/phase7-wave3.md §3.45): a matching card that is defeated — a
+   * side scheme, an ally or a minion — goes to `to` instead of its discard pile ("… shuffle it into the encounter deck
+   * instead of discarding it", Time Portal, is `to: "encounterDeckShuffle"`). The constant sibling of the interrupt-time
+   * `EffectSpec setDefeatDestination`, which wins when both apply (it is the more specific, later choice). The card is
+   * still defeated; Victory X still sends it to the victory display.
+   */
+  | {
+      readonly kind: "defeatDestination";
+      readonly target: TargetQuery;
+      readonly to: CardDestination;
+      readonly while?: Predicate;
+    }
   /** "The engaged player must defend against [attacker]'s attacks with an ally they control, if able" (Melter). */
   | { readonly kind: "mustDefendWithAlly"; readonly attacker: TargetQuery; readonly while?: Predicate }
   /**
@@ -728,6 +756,14 @@ export interface AbilityCost {
   readonly payPrintedCostOf?: { readonly slot: string; readonly from: CardZoneQuery; readonly entersPlay?: boolean };
   /** "Spend 2 resources of different types" (Red Dagger): the payment must hold this many types; a wild can be any one. */
   readonly distinctResourceTypes?: number;
+  /**
+   * "Spend 3 resources of the same type →" (Kree Combat Armor, `gmw` 16131; docs/phase7-wave3.md §3.43): every resource
+   * this cost's `resources` asks for (a generic number) must be of one type, the payer's choice. A wild counts as any
+   * type; a card that generates two types can give one of them and overpay the other (`payableWithOneType`). Checked
+   * wherever the payment is (`resourceVars`), so an action, a window's payment and a play all refuse a mixed payment, and
+   * `legalActions` offers the ability only when the player's resources can pay it.
+   */
+  readonly sameResourceType?: true;
   /**
    * "Exhaust Captain America's Shield →" (min 1, max 1) / "Exhaust any number of allies you control →" (min 1, no
    * max): exhaust cards in play, other than this ability's own card (`exhaustSelf`) or your identity

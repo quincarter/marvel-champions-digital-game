@@ -241,7 +241,9 @@ function executeDivide(
   const amount = Math.max(0, resolveValue(ctx.state, effect.amount, context, ctx.deps));
   const candidates = selectTargets(ctx.state, effect.among, context);
   const [chooser] = resolvePlayers(ctx.state, effect.chooser, context);
-  if (frame.answer === null && candidates.length > 1 && amount > 0 && chooser) {
+  // "Up to" (docs/phase7-wave3.md §3.41): how many is the chooser's, so even a single candidate is asked.
+  const asks = candidates.length > 1 || (effect.upTo === true && candidates.length === 1);
+  if (frame.answer === null && asks && amount > 0 && chooser) {
     requestChoice(ctx, {
       playerId: chooser,
       authority: effectChoiceAuthority(ctx.state, frame.selfInstanceId, effect.chooser),
@@ -253,7 +255,7 @@ function executeDivide(
           ref: { kind: "card", instanceId: id } as const,
         })),
       ),
-      minSelections: amount,
+      minSelections: effect.upTo ? 0 : amount,
       maxSelections: amount,
       frameId: frame.frameId,
     });

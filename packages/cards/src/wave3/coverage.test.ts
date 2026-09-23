@@ -68,20 +68,23 @@ const KNOWN_SKIPPED: Readonly<Record<string, readonly string[]>> = {
     // scheme Interception Imminent/"Take What Is Mine", Kree Command Ship, Universal Weapon, Fanaticism, the side
     // schemes Cut the Power/Pincer Maneuver/Superior Tactics, the treacheries Single-Minded Fury/Kree Physiology/
     // "You Stand Accused!", and the Kree Militants modular set — `gmw/ronan.ts`) are scripted. A second primitives
-    // pass closed 13 refs left as gaps by the first (docs/phase7-wave3.md §3.28–§3.38, docs/phase7-wave3-
+    // pass closed all 13 refs left as gaps by the first (docs/phase7-wave3.md §3.28–§3.38, docs/phase7-wave3-
     // scripting.md §6d): 16006/16009/16024 (Groot, `gmw/groot-kit.ts`), 16032/16033/16052 (Rocket,
-    // `gmw/rocket-kit.ts`), 16060.when-revealed (Drang III, `gmw/badoon.ts`), 16073b.the-grand-collection-action
-    // (`gmw/museum.ts`), and 16085a.this-way plus 16085b's three refs (`gmw/escape-the-museum.ts`). Remaining
-    // genuine primitive gaps: 16020/16048 (Flora and Fauna, a cross-player Team-Up targeting gap, closed by
-    // `TargetQuery.titled`/`identitySetTitled` but not yet scripted); 16114.when-revealed (Single-Minded Fury,
-    // needs a `PlayerRef` for "whoever's identity a named card is attached to", module docblock in `gmw/ronan.ts`);
-    // 16131.kree-combat-armor-action (needs a "same type" resource cost, same docblock). `gmw/nebula.ts` and
-    // `gmw/ronan.ts` otherwise have no genuine primitive gaps — every other primitive they needed had already
-    // landed. The Galactic Artifacts/Badoon Headhunter modular sets are not yet reached (needed by Infiltrate the
-    // Museum/Escape the Museum and campaign mode respectively, not any remaining scenario).
+    // `gmw/rocket-kit.ts`), 16020/16048 (Flora and Fauna, scripted identically in both files, tested together in
+    // `gmw/flora-and-fauna.test.ts`), 16060.when-revealed (Drang III, `gmw/badoon.ts`),
+    // 16073b.the-grand-collection-action (`gmw/museum.ts`), and 16085a.this-way plus 16085b's three refs
+    // (`gmw/escape-the-museum.ts`). Ruthless (16102, `gmw/ruthless.ts`) was left in KNOWN_SKIPPED with no
+    // recorded reason by the first pass — a bare oversight, not a primitive gap; scripted with the existing
+    // enemyScheme/enemyAttack bind-and-read pattern. The Galactic Artifacts modular set (16122–16130,
+    // `gmw/galactic-artifacts.ts`) and the Badoon Headhunter modular set (16183–16185,
+    // `gmw/badoon-headhunter.ts`, modular per RRG 1.8 FAQ p. 61 despite its campaign-numbered cards) are now
+    // scripted too. Remaining genuine primitive gaps: 16114.when-revealed (Single-Minded Fury, needs a
+    // `PlayerRef` for "whoever's identity a named card is attached to", module docblock in `gmw/ronan.ts`);
+    // 16125.the-poison-forced-interrupt (`turnStarted` has no interrupt window, module docblock in
+    // `gmw/galactic-artifacts.ts`); 16131.kree-combat-armor-action (needs a "same type" resource cost, same
+    // docblock as 16114). `gmw/nebula.ts` and `gmw/ronan.ts` otherwise have no genuine primitive gaps — every
+    // other primitive they needed had already landed.
     // Regenerated with `MC_REFS_PACKS=gmw pnpm refs` (docs/card-scripting-process.md) — never hand-typed.
-    "16020.flora-and-fauna-action",
-    "16048.flora-and-fauna-action",
     "16114.when-revealed",
     "16125.the-poison-forced-interrupt",
     "16131.kree-combat-armor-action",

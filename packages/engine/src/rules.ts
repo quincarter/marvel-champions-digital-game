@@ -12,7 +12,7 @@ import {
   rulePlayers,
   type EffectContext,
 } from "./select.js";
-import type { AttackKeyword } from "./spec.js";
+import type { AttackKeyword, CardDestination } from "./spec.js";
 import type { Form, GameState } from "./state.js";
 
 /** "X cannot take damage [while …] [from …]". `sources` are the damage's source and the card it came through. */
@@ -148,11 +148,21 @@ export const cannotTriggerAction = (
     ({ rule, context }) => (rule.form === undefined || rule.form === form) && matchesQuery(state, id, rule.on, context),
   );
 
-/** Whether a defeated side scheme is shuffled into the encounter deck instead of discarded (`defeatedIntoEncounterDeck`). */
-export const defeatedIntoEncounterDeck = (state: GameState, deps: EngineDeps, id: InstanceId): boolean =>
-  activeRules(state, deps, "defeatedIntoEncounterDeck").some(({ rule, context }) =>
+/**
+ * Where a defeated card goes instead of its discard pile, from a constant rule (docs/phase7-wave3.md §3.45): the first
+ * matching `defeatDestination`, else `"encounterDeckShuffle"` for the older `defeatedIntoEncounterDeck` (Time Portal),
+ * else null (the discard pile). An interrupt's `setDefeatDestination` on the defeat event itself wins over both.
+ */
+export function defeatDestinationRule(state: GameState, deps: EngineDeps, id: InstanceId): CardDestination | null {
+  const general = activeRules(state, deps, "defeatDestination").find(({ rule, context }) =>
     matchesQuery(state, id, rule.target, context),
   );
+  if (general) return general.rule.to;
+  const intoDeck = activeRules(state, deps, "defeatedIntoEncounterDeck").some(({ rule, context }) =>
+    matchesQuery(state, id, rule.target, context),
+  );
+  return intoDeck ? "encounterDeckShuffle" : null;
+}
 
 /** Whether this character may divide its basic `power` among several targets (`divideBasicPower`). */
 export const canDivideBasicPower = (

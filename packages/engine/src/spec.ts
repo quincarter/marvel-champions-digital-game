@@ -93,6 +93,15 @@ export interface TargetQuery {
    * works on a card (an event) that is not itself an attachment. An unattached card never matches.
    */
   readonly host?: TargetRef;
+  /**
+   * The card has at least one card attached to it that matches this query: "When an ally **with a weapon attachment
+   * upgrade** makes an attack" (Target Practice, `stld` 17017) is `{ categories: ["ally"], hasAttachment: {
+   * categories: ["upgrade"], trait: WEAPON } }`; "the identity the Power Stone is attached to" is `{ categories:
+   * ["identity"], hasAttachment: { name: "Power Stone" } }`. The other direction of `host`, which asks what the
+   * candidate is attached *to*; this asks what is attached to the candidate. The inner query is read in the same
+   * context as the outer one, so its `self`/`you` mean what they mean here. docs/phase7-wave3.md §3.40.
+   */
+  readonly hasAttachment?: TargetQuery;
   /** In play facedown as something else ("each facedown Drone minion"). */
   readonly facedown?: boolean;
   /**
@@ -353,6 +362,19 @@ export type PlayerRef =
   /** The player a card is engaged with: "the engaged player" on a minion's own ability. */
   | { readonly kind: "engagedWith"; readonly of: TargetRef }
   /**
+   * The player(s) who control the cards the ref names, in player order: "the player who controls that identity", "a
+   * player who controls a [Web-Warrior] character" (a query ref, then `choosePlayer { among }` to pick one), and "the
+   * player who controls the Power Stone" (Single-Minded Fury, `gmw` 16114), which names the identity the stone is
+   * attached to: `controllerOf(each({ categories: ["identity"], hasAttachment: { name: "Power Stone" } }))`.
+   *
+   * RRG 1.8 "Ownership and Control" (p. 31): a player controls their identity and the player cards in their play
+   * area; "Encounter cards are considered to be under the control of the scenario". So a card no player controls (a
+   * minion, an encounter attachment, the villain) names nobody, and an effect aimed at nobody does nothing — the
+   * Power Stone on the villain gives Single-Minded Fury no player to attack. Not `ownerOf`, which reads who brought
+   * the card into the game and differs once control changes hands. docs/phase7-wave3.md §3.39.
+   */
+  | { readonly kind: "controllerOf"; readonly target: TargetRef }
+  /**
    * "The player who defeated this scheme" (Crossbones' Assault 04070) / "the defeating player" (Mystique's
    * Manipulations, errata RRG 1.8 p. 66): the defeating player recorded on the `schemeDefeated` or
    * `characterDefeated` event in context. Unlike an `on.defeated({ byYou: true })` trigger filter, which is a yes/no
@@ -442,6 +464,13 @@ export type ValueSpec =
    * Grand Collection 1B), "for each card in The Collection" (Collector III). docs/phase7-wave3.md §3.14.
    */
   | { readonly kind: "scenarioAreaCount"; readonly name: string; readonly filter?: TargetQuery }
+  /**
+   * The cards in the victory display (docs/phase7-wave3.md §3.4), optionally filtered: "Play only if there is a side
+   * scheme in the victory display" (Mission Planning, Critical Hit, Predictable Ploy, Anticipated Attack) is
+   * `compare(victoryDisplayCount({ categories: ["sideScheme"] }), "atLeast", 1)` as a `playOnlyIf` (§3.42). The
+   * victory display is out of play, which is why `exists`/`count` (cards in play) cannot read it.
+   */
+  | { readonly kind: "victoryDisplayCount"; readonly filter?: TargetQuery }
   /**
    * How many of the cards a ref names match a query, wherever they are (not restricted to in play, unlike `count`):
    * "for each treachery looked at this way" (Falcon, `cap` pack, over `selectCards`' non-in-play "look") reads the
@@ -980,6 +1009,15 @@ export type EffectSpec =
       readonly among: TargetQuery;
       readonly chooser: PlayerRef;
       readonly bind?: string;
+      /**
+       * "Remove a total of **up to** 5 threat from among schemes (as you choose)" (Agile Flight, `stld` 17029;
+       * docs/phase7-wave3.md §3.41): `amount` is the most the chooser may divide, and they may divide fewer points,
+       * none included. The choice is asked even with a single candidate, since how many is still the chooser's. An
+       * effect's "up to" is not a cost's: RRG 1.8 "Cost" (p. 14) requires a minimum of one only of a *cost*, and RRG
+       * 1.8 "Choose (Game Element)" (p. 12) chooses "to a maximum of the specified number" — the same reading
+       * `chooseTarget.optional` already has for "up to X" targets. Choosing none is a reading (§4 Q16).
+       */
+      readonly upTo?: true;
     }
   /** "Choose a player." Binds that player (their identity) into `slot`; use `PlayerRef` `slot` to refer to them. */
   /**
@@ -1298,6 +1336,15 @@ export type EffectSpec =
    * (RRG 1.8 "Villain Defeat", p. 47). Characters only. docs/phase7-wave3.md §3.9.
    */
   | { readonly kind: "defeat"; readonly target: TargetRef }
+  /**
+   * "Interrupt: When an ally is defeated by an enemy attack, return it to its owner's hand **instead of discarding
+   * it**." (Regroup, `drax` 19032; docs/phase7-wave3.md §3.45): from an interrupt to a `characterDefeated` event, the
+   * defeated card goes to `to` instead of its discard pile. `"hand"` and the deck destinations are its owner's. The
+   * card is still defeated: When Defeated, "after … is defeated" and a `defeated` result all still apply. Only the
+   * discard is replaced, so a Victory X card still goes to the victory display (RRG 1.8 "Victory X", p. 46: it is not
+   * being discarded). A later interrupt's destination replaces an earlier one's. Does nothing outside that window.
+   */
+  | { readonly kind: "setDefeatDestination"; readonly to: CardDestination }
   /**
    * "Engage that enemy" (Get Over Here!). RRG 1.8 "Engage" (p. 18): "If a card ability instructs a player to engage a
    * minion, that minion is also considered to have engaged that player", and "while a minion is engaged with a
