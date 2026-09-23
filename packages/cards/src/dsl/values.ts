@@ -134,10 +134,21 @@ export const superlative = (
 // Queries
 // ---------------------------------------------------------------------------
 
+/**
+ * `categories: []` means "not filtered by category at all" (`TargetQuery.categories` is optional; the engine's own
+ * `explainQuery`, `packages/engine/src/select.ts`, treats *any* array there — including an empty one — as an
+ * active filter, so an empty array would otherwise match nothing). `query([], { printedId })` (`campaigns/gmw.ts`'s
+ * `revealChallengeSideScheme`/headhunter-ladder queries, the only current callers) means "any category, but this
+ * exact printed card" — so an empty list is omitted here rather than sent through as a category filter that can
+ * never be satisfied.
+ */
 export const query = (
   categories: TargetCategory | readonly TargetCategory[],
   rest: Omit<TargetQuery, "categories"> = {},
-): TargetQuery => ({ categories: typeof categories === "string" ? [categories] : categories, ...rest });
+): TargetQuery => {
+  const list = typeof categories === "string" ? [categories] : categories;
+  return list.length === 0 ? rest : { categories: list, ...rest };
+};
 
 /**
  * "… that shares a trait with your hero" (Team-Building Exercise, `ant` 12024): `query(categories, sharesTraitWith(
