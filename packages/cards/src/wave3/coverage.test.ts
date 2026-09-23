@@ -63,17 +63,22 @@ const KNOWN_SKIPPED: Readonly<Record<string, readonly string[]>> = {
     // in the Museum/The Great Escape, "I Have You Now!", Impossible Geometry — `gmw/escape-the-museum.ts`), and
     // Nebula (villain Nebula I–III, main scheme The Art of Evasion/Warp Drive Initiated, Nebula's Ship, the five
     // Technique attachments, Lethal Intent, Barrel Roll, Combat Ready, the Space Pirates modular set, and the
-    // Power Stone modular card — `gmw/nebula.ts`) are scripted. A second primitives pass closed 13 refs left as
-    // gaps by the first (docs/phase7-wave3.md §3.28–§3.38, docs/phase7-wave3-scripting.md §6d), including Groot's
-    // own 16006/16009/16024, now scripted in `gmw/groot-kit.ts`. Remaining genuine primitive gaps (module
-    // docblocks in `gmw/rocket-kit.ts`, `gmw/badoon.ts`, `gmw/museum.ts`): 16032, 16033, 16052 (Rocket); 16020/
-    // 16048 (the Team-Up card, a cross-player Team-Up targeting gap); 16060.when-revealed (Drang III, a
-    // player-level superlative); 16073b.the-grand-collection-action (an either/or `AbilityCost`); 16085a.this-way
-    // (a per-player `AbilityLimit`); 16085b's three refs (indirect damage "among players"). `gmw/nebula.ts` itself
-    // has no genuine primitive gaps (module docblock) — every primitive it needed had already landed. Ronan the
-    // Accuser (16102+, except the Band of Badoon-shared 16117-16121 already scripted) and the Kree Militants/
-    // Galactic Artifacts/Badoon Headhunter modular sets are not yet reached. Regenerated with `MC_REFS_PACKS=gmw
-    // pnpm refs` (docs/card-scripting-process.md) — never hand-typed.
+    // Power Stone modular card — `gmw/nebula.ts`), and Ronan the Accuser (villain Ronan the Accuser I–III, main
+    // scheme Interception Imminent/"Take What Is Mine", Kree Command Ship, Universal Weapon, Fanaticism, the side
+    // schemes Cut the Power/Pincer Maneuver/Superior Tactics, the treacheries Single-Minded Fury/Kree Physiology/
+    // "You Stand Accused!", and the Kree Militants modular set — `gmw/ronan.ts`) are scripted. A second primitives
+    // pass closed 13 refs left as gaps by the first (docs/phase7-wave3.md §3.28–§3.38, docs/phase7-wave3-
+    // scripting.md §6d), including Groot's own 16006/16009/16024, now scripted in `gmw/groot-kit.ts`. Remaining
+    // genuine primitive gaps (module docblocks in `gmw/rocket-kit.ts`, `gmw/badoon.ts`, `gmw/museum.ts`,
+    // `gmw/ronan.ts`): 16032, 16033, 16052 (Rocket); 16020/16048 (the Team-Up card, a cross-player Team-Up
+    // targeting gap); 16060.when-revealed (Drang III, a player-level superlative); 16073b.the-grand-collection-
+    // action (an either/or `AbilityCost`); 16085a.this-way (a per-player `AbilityLimit`); 16085b's three refs
+    // (indirect damage "among players"); 16114.when-revealed (Single-Minded Fury, needs a `PlayerRef` for "whoever
+    // controls a named card"); 16131.kree-combat-armor-action (needs a "same type" resource cost). `gmw/nebula.ts`
+    // and `gmw/ronan.ts` otherwise have no genuine primitive gaps (module docblocks) — every other primitive they
+    // needed had already landed. The Galactic Artifacts/Badoon Headhunter modular sets are not yet reached (needed
+    // by Infiltrate the Museum/Escape the Museum and campaign mode respectively, not any remaining scenario).
+    // Regenerated with `MC_REFS_PACKS=gmw pnpm refs` (docs/card-scripting-process.md) — never hand-typed.
     "16020.flora-and-fauna-action",
     "16032.schadenfreude-action",
     "16033.salvage-response",
@@ -87,30 +92,7 @@ const KNOWN_SKIPPED: Readonly<Record<string, readonly string[]>> = {
     "16085b.museum-ship-constant-2",
     "16102.when-revealed-alter-ego",
     "16102.when-revealed-hero",
-    "16103.ronan-the-accuser-forced-interrupt",
-    "16104.when-revealed",
-    "16104.ronan-the-accuser-forced-interrupt",
-    "16105.when-revealed",
-    "16105.ronan-the-accuser-forced-interrupt",
-    "16106a.setup",
-    "16106b.interception-imminent-constant",
-    "16107a.when-revealed",
-    "16107b.take-what-is-mine-constant",
-    "16108.kree-command-ship-constant",
-    "16109.universal-weapon-constant",
-    "16109.universal-weapon-action",
-    "16109.boost",
-    "16110.fanaticism-forced-interrupt",
-    "16111.boost",
-    "16112.pincer-maneuver-constant",
-    "16113.superior-tactics-constant",
-    "16113.when-revealed",
     "16114.when-revealed",
-    "16114.boost",
-    "16115.when-revealed",
-    "16116.when-revealed-alter-ego",
-    "16116.when-revealed-hero",
-    "16116.boost",
     "16122.cloak-of-hercules-action",
     "16123.obedience-potion-constant",
     "16123.obedience-potion-action",
@@ -122,11 +104,7 @@ const KNOWN_SKIPPED: Readonly<Record<string, readonly string[]>> = {
     "16128.when-defeated",
     "16129.when-defeated",
     "16130.when-defeated",
-    "16131.kree-combat-armor-constant",
     "16131.kree-combat-armor-action",
-    "16132.boost",
-    "16133.boost",
-    "16134.boost",
     "16150.brainstorm-constant",
     "16150.brainstorm-action",
     "16151.by-any-means-constant",
