@@ -580,6 +580,63 @@ Salvage (16033): "Response: After you spend this card, put a tech upgrade from y
 
 **Composition:** `response(on.youSpendThis(), chooseCards("tech", zone("discard", you, { filter: query("upgrade", { trait: TECH }) }), { min: 1, max: 1 }), moveCards(cards(chosen("tech")), "deckTop"))`. The engine test writes the same thing as plain data.
 
+### 3.32 A cost the player sizes: "Remove up to N counters →" (`spendCounters.upTo`, `bind`)
+
+> **Status: landed (2026-09-22),** tested in `packages/engine/src/variable-counter-cost.test.ts` (4 tests: the chosen count is paid and bound, the default, the refusals, `legalActions`'s range, replay deep-equal).
+
+"We Are Groot" (16006): "Hero Action: Remove up to 4 growth counters from Groot → choose that many friendly characters. Give each of those characters a tough status card." `spendCounters` removed a fixed number, and nothing bound the number removed.
+
+- **`AbilityCost.spendCounters.upTo: true`** makes `amount` the maximum. **`bind`** names the var that receives the number removed; it works on a fixed amount too.
+- **The number is the player's decision, made up front** like every cost (RRG 1.8 "Initiating Abilities", p. 24, step 5). It goes in the new optional **`costSelection.counters`** on `playCard` and `useAbility`. With none given, the most that can be removed is used. That is also the only possible choice in a timing window, which asks nothing.
+- **0 is not allowed.** RRG 1.8 "Cost" (p. 14): "A cost requiring 'any number' or 'up to' some number of game elements requires a minimum of one such game element." Counters are tokens, which RRG 1.8 "Game Element" (p. 21) lists as game elements, so a Groot with no growth counters cannot play the card, and `costSelection.counters: 0` is refused. The upper bounds are the printed N and the counters the card holds.
+- **"Choose that many friendly characters"** with fewer characters than counters chooses them all. RRG 1.8 "Choose (Game Element)" (p. 12): "simultaneously choose as many as are available, to a maximum of the specified number". `chooseTarget` with a `count` already works that way.
+- **`legalActions`** reports **`costCounters: { min, max }`** on the action, so the client can ask how many. `selectCost` (`actions.ts`) turns the choice into a fixed cost before it is checked. The plan carries that concrete cost to `payCost`, so what is paid is exactly what was checked.
+
+**DSL:** `removeUpToCounters(counterType, n, { bind, fromIdentity? })` in `dsl/abilities.ts`. The validator knows the bind.
+
+**We Are Groot composition:**
+
+```ts
+heroAction(
+  { cost: removeUpToCounters("growth", 4, { bind: "removed", fromIdentity: true }) },
+  chooseTarget("friends", FRIENDLY_CHARACTER, { count: varOf("removed") }),
+  giveTough(chosen("friends")),
+);
+```
+
+### 3.33 "Discard the top card of your deck →" as a cost (`AbilityCost.discardFromDeck`)
+
+> **Status: landed (2026-09-22),** tested in `packages/engine/src/deck-discard-cost.test.ts` (4 tests: an ordinary payment, a deck the cost empties, a deck already empty with a discard pile, nothing to discard; replay deep-equal).
+
+Booster Boots (16052): "Hero Interrupt: When you would take any amount of damage from an attack, exhaust Booster Boots and discard the top card of your deck → prevent 1 of that damage." The engine could discard deck cards as an effect, but a cost has to be refusable, and an empty deck needs a rule.
+
+**The rules for an empty deck:**
+
+- RRG 1.8 "Player Deck" (p. 33): "If a player deck empties, the player shuffles their discard pile to make a new deck. That player immediately deals themself one facedown encounter card"; "If the player's deck empties while the player was discarding cards from their deck, no further cards are discarded from the newly shuffled deck"; "If a player deck empties and the player has no cards in their discard pile, the deck does not reset until there is at least one card in the player's discard pile".
+- Ruling, Apr 30, 2026 (3) answer 7: "The deck is reshuffled **before** the currently resolving card enters the discard pile". The reset happens the moment the deck empties.
+- RRG 1.8 "Cost" (p. 13): a cost is paid in full.
+
+**Decision:**
+
+- **Payable iff the deck can supply all N cards.** A deck of fewer cards would stop at the reshuffle (p. 33) and leave the cost unpaid, so the ability cannot be initiated.
+- **An empty deck with cards in the discard pile can pay.** Under the ruling the rules have already reset that deck. The engine resets decks lazily (on the next read), so the cost resets it first, dealing the facedown encounter card, then discards from the new deck.
+- **An empty deck and an empty discard pile cannot pay.** There is nothing to discard, and the deck does not reset. Booster Boots is then never offered.
+- **A deck the cost empties is reset at once**, before the ability's effects resolve, dealing its encounter card then (answer 7). The test pins the answer's own detail: the event being resolved goes to the discard pile after the reset, so it is not shuffled in.
+
+**DSL:** `discardTopOfDeckCost(n = 1)` in `dsl/abilities.ts`.
+
+**Booster Boots composition:**
+
+```ts
+heroInterrupt(
+  when.damage(YOUR_IDENTITY, { fromAttack: true }),
+  { cost: [exhaustThis, discardTopOfDeckCost()] },
+  preventDamage(1),
+);
+```
+
+"Would take any amount of damage from an attack" is the `dealDamage` interrupt window. §3.12 already makes a tough status card resolve first.
+
 ### 3.34 Naming a Team-Up card's characters: `TargetQuery.titled` and `identitySetTitled`
 
 > **Status: landed (2026-09-22),** tested in `packages/engine/src/team-up-names.test.ts` (7 tests: a pair whose names are on both faces, an alter-ego pair, a "Hero/Alter-ego" pair, an ally named by subtitle, deckbuilding, replay deep-equal). DSL tests: `packages/cards/src/dsl/wave3-primitives.test.ts`.
@@ -687,6 +744,35 @@ whenRevealed(
 
 The same shape covers the Kree Fanatic's Ronan (§2.3), "engages the hero with the fewest remaining hit points": `superlativePlayer("lowest", remainingHpOf(identityOf(thatPlayer)))`.
 
+### 3.36 An either/or cost (`AbilityCost.either`) and a limit per player (`AbilityLimit.per: "player"`)
+
+> **Status: landed (2026-09-22),** tested in `packages/engine/src/either-cost.test.ts` (4 tests: each branch paid as named, the default branch and the refusals, `legalActions`'s payable branches, the limit kept per player; replay deep-equal).
+
+The Grand Collection 1B (16073b): "Hero Action: Choose to either exhaust your hero or spend 2 resources of any type → discard 1 card from The Collection (to its owner's discard pile). (Limit once per round per player.)" `cost: [a, b]` is an AND (`mergeCosts`). No cost could be one-of-two. The stage is an encounter card whose action every player may use once per round, and limits were counted per card, not per player.
+
+**What landed:**
+
+- **`AbilityCost.either: AbilityCost[]`.** Exactly one branch is paid, together with the rest of the cost. The branch is the player's choice, sent as the new optional **`costSelection.branch`** (0-based) on `useAbility` and `playCard`. RRG 1.8 "Choose (Option)" (p. 12): a player "cannot choose an option that cannot be at least partially resolved", including one with "a cost the player cannot pay". So a branch that cannot be paid is refused, and an out-of-range index is refused too.
+- **With no branch named**, the engine pays the first branch whose non-resource components can be paid now. That keeps old commands valid, and it is the only choice a timing window can make. The decision is recorded as var `cost.branch`.
+- **One implementation.** `selectCost` (`actions.ts`) reduces the cost to the chosen branch before `planCost` checks it. The resulting `CostPlan.cost` is what `payCost` pays and what the resource vars read. `planCost` applies it everywhere it is called: trigger candidates, resource abilities and windows included. The ability is therefore offered wherever either branch can be paid.
+- **`legalActions` offers one variant per branch.** The action is legal when any branch works, and the new **`LegalAction.costBranches`** lists the payable branches. With an exhausted hero only `[1]` is listed; the client asks, then sends `costSelection.branch`. `paymentFor` takes a `costSelection` in `PaymentContext`, so the payment step prices the branch the player chose.
+- **Client impact: none forced.** Every new field (`Command.costSelection`, `LegalAction.costBranches`/`costCounters`, `PaymentContext.costSelection`) is optional, and no client switch is exhaustive over them. Until the client learns the fields, it sends commands without a branch and gets the first payable one. `game-client-engineer` should add the branch prompt.
+- **`AbilityLimit.per: "player"`.** The use count is kept per player who uses the ability (`limitKeyOf` appends `#player:<id>`), and it is read wherever limits are read: `useAbility`, resource abilities, trigger candidates, ability frames and cost reductions. RRG 1.8 "Limit" (p. 27) counts "per instance of that ability", and the printed "per player" narrows that further. The same field covers Library Labyrinth's "this way" (16085a), which the Escape the Museum pass skipped for exactly this reason.
+
+**DSL:** `eitherCost(...branches)` and `oncePerRoundPerPlayer` in `dsl/abilities.ts`. The validator refuses a branch that repeats a component of the rest of the cost, and a nested `either`.
+
+**The Grand Collection 1B composition:**
+
+```ts
+heroAction(
+  { cost: eitherCost(exhaustYourHero, spend(2)), limit: oncePerRoundPerPlayer },
+  chooseCards("card", scenarioArea("The Collection"), { min: 1, max: 1 }),
+  moveCards(cards(chosen("card")), "discard"),
+);
+```
+
+`"discard"` sends each card to its owner's pile (§3.14).
+
 ---
 
 ## 4. Open questions (for the user or FFG)
@@ -707,6 +793,7 @@ Each is implemented the way stated, or not at all, and named here rather than de
 12. **Moondragon: is "that minion attacks another enemy" an activation (§3.23)?** RRG 1.8 "Activation" (p. 6): "Whenever an enemy attacks or schemes, it is considered to have activated." If it is, a villainous minion takes a boost card and "when this minion activates/attacks" abilities fire, and the target (an enemy) has no controller to defend it or assign damage. The rulings file and the FAQ are silent. Proposed: an attack but not an activation against a player — no boost card, no defense, the damage dealt to the chosen enemy as attack damage, retaliate applying to the minion.
 13. **A Team-Up name written "Hero/Alter-ego" (§3.34).** Heart of the Panther (`bp` 51025) prints "Team-Up (Black Panther/T'Challa and Black Panther/Shuri)". RRG 1.8 "Team-Up" (p. 43) matches a name against a character's "title or subtitle", and no title contains a slash. Implemented as naming one identity card by both sides: its hero face is the first half, its alter-ego face is the second, and it matches whichever side is up. Before this, the play check and the deckbuilding check both refused the card outright. A strict reading of p. 23 would instead require the hero side ("Black Panther") to be up. That makes no difference for the deck check, and for the play check only while one Black Panther is in alter-ego form.
 14. **Found, not fixed: a card revealed by `EffectSpec revealEncounterCard` is still on top of the encounter deck while it resolves.** Found while writing §3.35's test. The effect takes the top card with `drawEncounterCard`, which returns the card without removing it, and a revealed treachery only leaves the deck in the reveal frame's `finish` stage. So a When Revealed on that card that discards, deals or reveals from the encounter deck reaches the card itself first. Every other reveal path deals the card out of the deck before revealing it: the villain phase deal and surge (`dealEncounterCardTo`). The likely fix is to deal the card to the revealing player first, as surge does. Three Core/wave 1 scripts use the effect (`core/modular/standard.ts`, `core/aspects/protection.ts`, `wave1/bkw/pack-cards.ts`), so it is flagged here for `rules-qa-engineer` rather than changed in this pass. §3.35's test is written to pass either way.
+15. **Found, not fixed: the engine resets an emptied player deck lazily.** Ruling, Apr 30, 2026 (3) answer 7, "The deck is reshuffled **before** the currently resolving card enters the discard pile", means the reset happens the moment a deck empties (RRG 1.8 "Player Deck", p. 33). `drawCards`, `discardDeckUntil` and `takeTopOfDeck` reset an empty deck only on its next read instead. So when an event draws or discards the last card of its player's deck, the event then goes to the discard pile and is shuffled into the new deck at the next read, and the facedown encounter card comes late. §3.33's cost resets immediately, and its test pins answer 7. The general fix is to reset in `moveCard` whenever a player's deck becomes empty. That touches every draw, so it is flagged for `rules-qa-engineer` and a separate change rather than folded into this pass.
 
 ## 5. What this asks of the other agents
 

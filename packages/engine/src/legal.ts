@@ -29,7 +29,7 @@ import {
   playRequirement,
 } from "./actions.js";
 import type { PendingChoice } from "./choices.js";
-import type { Command, CostChoices, Payment } from "./commands.js";
+import type { Command, CostChoices, CostSelection, Payment } from "./commands.js";
 import { createCtx } from "./ctx.js";
 import { applyCommand } from "./engine.js";
 import { EngineInvariantError, type EngineErrorCode } from "./errors.js";
@@ -89,6 +89,17 @@ export interface LegalAction {
   readonly controllers?: readonly PlayerId[];
   /** True when the action costs resources, so the client opens the payment step. */
   readonly needsPayment: boolean;
+  /**
+   * An either/or cost ("Choose to either exhaust your hero or spend 2 resources of any type →"; docs/phase7-wave3.md
+   * §3.36): the branches (`AbilityCost.either` indexes) that can be paid right now. The client asks which one and
+   * sends it as `costSelection.branch`; `example` uses the first. Absent for any other cost.
+   */
+  readonly costBranches?: readonly number[];
+  /**
+   * An "up to N" counter cost ("Remove up to 4 growth counters from Groot →"; §3.32): how many the player may remove
+   * right now, sent as `costSelection.counters`. `example` removes the most. Absent for any other cost.
+   */
+  readonly costCounters?: { readonly min: number; readonly max: number };
 }
 
 export interface IllegalAction {
@@ -126,8 +137,36 @@ function probe(state: GameState, deps: EngineDeps, command: Command): Probe {
 interface Variant {
   readonly target: InstanceId | null;
   readonly controllerId?: PlayerId;
+  /** The either/or cost branch this variant pays (`costSelection.branch`), when the cost has one. */
+  readonly branch?: number;
   readonly build: (payment: readonly Payment[]) => Command;
 }
+
+/**
+ * One `CostSelection` per either/or branch (docs/phase7-wave3.md §3.36), so `legalActions` offers an ability whenever
+ * any branch can be paid; `[undefined]` for any other cost, which keeps every other command exactly as it was.
+ */
+const branchSelections = (cost: AbilityCost | undefined): readonly (number | undefined)[] =>
+  cost?.either ? cost.either.map((_, index) => index) : [undefined];
+
+/** The `costCounters` range for an "up to N" counter cost, in the cost or any of its branches (§3.32). */
+function counterRange(
+  state: GameState,
+  playerId: PlayerId,
+  source: InstanceId,
+  cost: AbilityCost | undefined,
+): { readonly min: number; readonly max: number } | undefined {
+  const counters = [cost?.spendCounters, ...(cost?.either ?? []).map((branch) => branch.spendCounters)].find(
+    (component) => component?.upTo,
+  );
+  if (!counters) return undefined;
+  const holder = counters.target === "identity" ? getPlayer(state, playerId)?.identity.instanceId : source;
+  const held = holder ? (state.instances[holder]?.counters[counters.counterType] ?? 0) : 0;
+  return { min: 1, max: Math.min(counters.amount, held) };
+}
+
+const withBranch = (branch: number | undefined): { readonly costSelection?: CostSelection } =>
+  branch === undefined ? {} : { costSelection: { branch } };
 
 type Evaluated = { readonly legal: LegalAction } | { readonly illegal: IllegalAction };
 
@@ -324,6 +363,11 @@ function evaluate(
   const controllers = variants.some((v) => v.controllerId !== undefined)
     ? [...new Set(working.flatMap((t) => (t.variant.controllerId ? [t.variant.controllerId] : [])))]
     : undefined;
+  const costBranches = variants.some((v) => v.branch !== undefined)
+    ? [...new Set(working.flatMap((t) => (t.variant.branch === undefined ? [] : [t.variant.branch])))].sort(
+        (a, b) => a - b,
+      )
+    : undefined;
   return {
     legal: {
       action,
@@ -332,6 +376,7 @@ function evaluate(
       blockedTargets,
       ...(controllers ? { controllers } : {}),
       needsPayment: payment.length > 0,
+      ...(costBranches ? { costBranches } : {}),
     },
   };
 }
@@ -364,32 +409,43 @@ function evaluatePlay(state: GameState, deps: EngineDeps, playerId: PlayerId, id
     for (const host of hosts) {
       for (const { costChoices, target } of costChoiceSets(state, deps, playerId, id, cost, picks)) {
         for (const controllerId of controllers) {
-          variants.push({
-            target: host ?? target,
-            ...(controllerId ? { controllerId } : {}),
-            build: (payment) => ({
-              type: "playCard",
-              playerId,
-              cardInstanceId: id,
-              payment,
-              attachToInstanceId: host,
-              ...(costChoices ? { costChoices } : {}),
-              ...(controllerId && controllerId !== playerId ? { controllerId } : {}),
-              ...(reductions.length > 0 ? { costReductionAbilities: reductions } : {}),
-            }),
-          });
+          for (const branch of branchSelections(cost)) {
+            variants.push({
+              target: host ?? target,
+              ...(controllerId ? { controllerId } : {}),
+              ...(branch === undefined ? {} : { branch }),
+              build: (payment) => ({
+                type: "playCard",
+                playerId,
+                cardInstanceId: id,
+                payment,
+                attachToInstanceId: host,
+                ...(costChoices ? { costChoices } : {}),
+                ...(controllerId && controllerId !== playerId ? { controllerId } : {}),
+                ...(reductions.length > 0 ? { costReductionAbilities: reductions } : {}),
+                ...withBranch(branch),
+              }),
+            });
+          }
         }
       }
     }
   }
-  return evaluate(
+  const evaluated = evaluate(
     state,
     deps,
     { kind: "playCard", instanceId: id },
     variants,
     leavingCardsToDiscard(wallets(spend), cost),
   );
+  return withCounterRange(evaluated, counterRange(state, playerId, id, cost));
 }
+
+/** Adds `costCounters` to a legal action whose cost removes "up to N" counters (docs/phase7-wave3.md §3.32). */
+const withCounterRange = (
+  evaluated: Evaluated,
+  range: { readonly min: number; readonly max: number } | undefined,
+): Evaluated => ("legal" in evaluated && range ? { legal: { ...evaluated.legal, costCounters: range } } : evaluated);
 
 /** The `playCostReduction` abilities `playerId` could use on playing this card right now (docs/phase7-wave3.md §3.20). */
 function playCostReducers(
@@ -420,26 +476,30 @@ function evaluateAbility(
   const cost = deps.abilities[abilityId]?.cost;
   const picks = discardPicks(state, deps, playerId, instanceId, cost);
   const spend = spendOrder(state, deps, playerId, new Set(picks), null);
-  const variants: Variant[] = costChoiceSets(state, deps, playerId, instanceId, cost, picks).map(
-    ({ costChoices, target }) => ({
-      target,
-      build: (payment) => ({
-        type: "useAbility",
-        playerId,
-        cardInstanceId: instanceId,
-        abilityId,
-        payment,
-        ...(costChoices ? { costChoices } : {}),
-      }),
-    }),
+  const variants: Variant[] = costChoiceSets(state, deps, playerId, instanceId, cost, picks).flatMap(
+    ({ costChoices, target }) =>
+      branchSelections(cost).map((branch) => ({
+        target,
+        ...(branch === undefined ? {} : { branch }),
+        build: (payment: readonly Payment[]): Command => ({
+          type: "useAbility",
+          playerId,
+          cardInstanceId: instanceId,
+          abilityId,
+          payment,
+          ...(costChoices ? { costChoices } : {}),
+          ...withBranch(branch),
+        }),
+      })),
   );
-  return evaluate(
+  const evaluated = evaluate(
     state,
     deps,
     { kind: "useAbility", instanceId, abilityId },
     variants,
     leavingCardsToDiscard(wallets(spend), cost),
   );
+  return withCounterRange(evaluated, counterRange(state, playerId, instanceId, cost));
 }
 
 /** Action abilities the player could trigger: on cards they control, and "Hero Action" text on encounter cards. */
@@ -655,6 +715,8 @@ export interface PaymentContext {
   readonly controllerId?: PlayerId;
   /** Overrides the cost picks the engine would fill in itself. */
   readonly costChoices?: CostChoices;
+  /** The either/or branch and "up to N" counter count (`CostSelection`; docs/phase7-wave3.md §3.32, §3.36). */
+  readonly costSelection?: CostSelection;
 }
 
 /** An action that carries a payment, resolved down to a single command shape. */
@@ -720,7 +782,8 @@ function payableFor(
     const hosts =
       card?.type === "upgrade" && card.attachesTo ? attachmentHostCandidates(state, card.attachesTo, context) : [];
     const host = options.target && hosts.includes(options.target) ? options.target : (hosts[0] ?? null);
-    const plan = planCost(state, deps, id, playerId, cost, costChoices ?? {}, NO_RESERVED);
+    const selection = options.costSelection;
+    const plan = planCost(state, deps, id, playerId, cost, costChoices ?? {}, NO_RESERVED, selection);
     const planned = "requirement" in plan ? plan : null;
     const requirement = card && planned ? playRequirement(state, playerId, id, planned.requirement, deps, host) : null;
     return {
@@ -732,6 +795,7 @@ function payableFor(
         attachToInstanceId: host,
         ...(costChoices ? { costChoices } : {}),
         ...(controllerId && controllerId !== playerId ? { controllerId } : {}),
+        ...(selection ? { costSelection: selection } : {}),
       }),
       excludeInstanceId: id,
       reserved: new Set([id, ...picks]),
@@ -747,7 +811,8 @@ function payableFor(
     const sets = costChoiceSets(state, deps, playerId, instanceId, cost, picks);
     const chosen = sets.find((set) => set.target !== null && set.target === options.target) ?? sets[0];
     const costChoices = mergeChoices(chosen?.costChoices, options.costChoices);
-    const plan = planCost(state, deps, instanceId, playerId, cost, costChoices ?? {}, NO_RESERVED);
+    const selection = options.costSelection;
+    const plan = planCost(state, deps, instanceId, playerId, cost, costChoices ?? {}, NO_RESERVED, selection);
     const planned = "requirement" in plan ? plan : null;
     return {
       build: (payment) => ({
@@ -757,6 +822,7 @@ function payableFor(
         abilityId,
         payment,
         ...(costChoices ? { costChoices } : {}),
+        ...(selection ? { costSelection: selection } : {}),
       }),
       excludeInstanceId: null,
       reserved: new Set(picks),

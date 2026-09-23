@@ -320,6 +320,27 @@ export function takeTopOfDeck(ctx: Ctx, playerId: PlayerId): InstanceId | null {
   return mustPlayer(ctx.state, playerId).deck[0] ?? null;
 }
 
+/**
+ * "Discard the top card of your deck →" as a cost (`AbilityCost.discardFromDeck`; docs/phase7-wave3.md §3.33). A deck
+ * already empty is reset first (`takeTopOfDeck`); a deck this cost empties stops the discarding (RRG 1.8 "Player
+ * Deck", p. 33: "no further cards are discarded from the newly shuffled deck") and is then reset at once — ruling, Apr
+ * 30, 2026 (3) answer 7, "The deck is reshuffled **before** the currently resolving card enters the discard pile" —
+ * rather than on its next read, so its facedown encounter card is dealt before the ability's effects resolve.
+ * `planCost` has already refused a deck that cannot supply every card. Each card moved is logged as `cardMoved`.
+ */
+export function discardFromDeckAsCost(ctx: Ctx, playerId: PlayerId, count: number): readonly InstanceId[] {
+  const discarded: InstanceId[] = [];
+  for (let i = 0; i < count; i++) {
+    if (discarded.length > 0 && mustPlayer(ctx.state, playerId).deck.length === 0) break;
+    const top = takeTopOfDeck(ctx, playerId);
+    if (!top) break;
+    moveCard(ctx, top, { kind: "discard", playerId }, "top");
+    discarded.push(top);
+  }
+  if (discarded.length > 0 && mustPlayer(ctx.state, playerId).deck.length === 0) resetPlayerDeck(ctx, playerId);
+  return discarded;
+}
+
 export function drawCards(ctx: Ctx, playerId: PlayerId, count: number): void {
   for (let i = 0; i < count; i++) {
     let player = mustPlayer(ctx.state, playerId);

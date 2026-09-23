@@ -96,6 +96,24 @@ function checkCost(definition: AbilityDefinition, problems: string[]): void {
   const random = cost.discardRandomFromHand;
   if (random !== undefined && (!Number.isInteger(random) || random < 1))
     problems.push("cost discardRandomFromHand: must be a whole number of at least 1");
+  // docs/phase7-wave3.md §3.32, §3.33, §3.36.
+  const counters = [cost.spendCounters, ...(cost.either ?? []).map((branch) => branch.spendCounters)];
+  for (const component of counters) {
+    if (component?.upTo && (!Number.isInteger(component.amount) || component.amount < 1))
+      problems.push(
+        'cost spendCounters: an "up to" amount must be a whole number of at least 1 (RRG 1.8 "Cost", p. 14)',
+      );
+  }
+  if (cost.discardFromDeck !== undefined && (!Number.isInteger(cost.discardFromDeck) || cost.discardFromDeck < 1))
+    problems.push("cost discardFromDeck: must be a whole number of at least 1");
+  if (cost.either) {
+    if (cost.either.length < 2) problems.push("cost either: needs at least two branches");
+    for (const branch of cost.either) {
+      if (branch.either) problems.push("cost either: a branch cannot itself be an either/or cost");
+      const shared = Object.keys(branch).filter((key) => key !== "either" && key in cost);
+      if (shared.length > 0) problems.push(`cost either: a branch repeats the cost's own ${shared.join(", ")}`);
+    }
+  }
   const slots = [
     ...(cost.discardFromHand ? ["discard"] : []),
     ...(cost.payPrintedCostOf ? [cost.payPrintedCostOf.slot] : []),
@@ -350,6 +368,12 @@ function checkBindings(definition: AbilityDefinition, problems: string[]): void 
   }
   if (cost?.payPrintedCostOf) scope.slots.add(cost.payPrintedCostOf.slot);
   if (cost?.resourcesX) scope.vars.add(cost.resourcesX.bind);
+  // "Remove up to 4 growth counters → choose that many" (docs/phase7-wave3.md §3.32), in the cost or any branch;
+  // `cost.branch`, the either/or branch paid (§3.36).
+  for (const component of [cost, ...(cost?.either ?? [])]) {
+    if (component?.spendCounters?.bind) scope.vars.add(component.spendCounters.bind);
+  }
+  if (cost?.either) scope.vars.add("cost.branch");
   for (const pick of [cost?.exhaustCards, cost?.returnToHand]) {
     if (!pick) continue;
     scope.slots.add(pick.slot);

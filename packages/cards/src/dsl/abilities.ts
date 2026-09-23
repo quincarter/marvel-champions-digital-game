@@ -512,6 +512,40 @@ export const removeCounter = (
  * encounter cards as the cost.
  */
 export const dealEncounterCardsCost = (n: number): AbilityCost => ({ dealEncounterCards: n });
+/**
+ * "Remove **up to** N [type] counters from [Groot] →" ("We Are Groot", `gmw` 16006; docs/phase7-wave3.md §3.32): the
+ * player picks how many, 1 to N (RRG 1.8 "Cost", p. 14: "up to" still needs at least one), in the command's
+ * `costSelection.counters`; the number removed is bound to var `bind` for the effects ("choose that many …").
+ * `fromIdentity` as `removeCounter`'s.
+ */
+export const removeUpToCounters = (
+  counterType: string,
+  n: number,
+  opts: { readonly bind: string; readonly fromIdentity?: boolean },
+): AbilityCost => ({
+  spendCounters: {
+    counterType,
+    amount: n,
+    upTo: true,
+    bind: opts.bind,
+    ...(opts.fromIdentity ? { target: "identity" } : {}),
+  },
+});
+/**
+ * "Discard the top card of your deck →" (Booster Boots, `gmw` 16052; docs/phase7-wave3.md §3.33). Payable only if the
+ * deck can supply every card; an empty deck with a discard pile is reset first, and a deck the cost empties is reset
+ * at once (RRG 1.8 "Player Deck", p. 33; ruling, Apr 30, 2026 (3) answer 7).
+ */
+export const discardTopOfDeckCost = (n = 1): AbilityCost => ({ discardFromDeck: n });
+/**
+ * "Choose to either exhaust your hero or spend 2 resources of any type →" (The Grand Collection 1B, `gmw` 16073b;
+ * docs/phase7-wave3.md §3.36): exactly one branch is paid, the player's choice (`costSelection.branch`, the branch's
+ * index here). Each branch is one cost or a list merged like `cost: [...]`. Other components of the ability's cost
+ * go beside it: `cost: [exhaustThis, eitherCost(...)]`.
+ */
+export const eitherCost = (...branches: readonly (AbilityCost | readonly AbilityCost[])[]): AbilityCost => ({
+  either: branches.map((branch) => (isCostList(branch) ? mergeCosts(branch) : branch)),
+});
 export const takeDamageCost = (n: number): AbilityCost => ({ damageSelf: n });
 /** "Deal N damage to [this character] →" */
 export const damageThisCardCost = (n: number): AbilityCost => ({ damageThisCard: n });
@@ -597,6 +631,11 @@ export const payPrintedCostOf = (
 
 /** "(Limit once per round.)" */
 export const oncePerRound: AbilityLimit = { count: 1, period: "round" };
+/**
+ * "(Limit once per round per player.)" (The Grand Collection 1B, Library Labyrinth 16085a, `gmw`; docs/phase7-wave3.md
+ * §3.36): a shared card's ability counted separately for each player who uses it.
+ */
+export const oncePerRoundPerPlayer: AbilityLimit = { count: 1, period: "round", per: "player" };
 /** "(Limit once per phase.)" (Super Speed, Quicksilver 14001a). */
 export const oncePerPhase: AbilityLimit = { count: 1, period: "phase" };
 

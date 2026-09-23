@@ -105,6 +105,18 @@ actions.ts`), with its own engine test (`packages/engine/src/abilities.test.ts`,
    characters." Needs a variable "spend up to N counters, X = amount spent" ability cost, the counter analog of
    `AbilityCost.resourcesX` (docs/phase7-wave3.md §3.25 only built the resource form). No existing primitive lets
    the number of counters actually removed drive the number of targets chosen.
+   **Closed (docs/phase7-wave3.md §3.32, 2026-09-22).** New `spendCounters.upTo` and `bind`. The player sends the
+   count as `costSelection.counters`; it must be at least 1 (RRG 1.8 "Cost", p. 14: "up to" still needs one). The
+   builder is `removeUpToCounters` in `dsl/abilities.ts`. Script it as:
+
+   ```ts
+   heroAction(
+     { cost: removeUpToCounters("growth", 4, { bind: "removed", fromIdentity: true }) },
+     chooseTarget("friends", FRIENDLY_CHARACTER, { count: varOf("removed") }),
+     giveTough(chosen("friends")),
+   );
+   ```
+
 2. **`16009.lashing-vines-response`** — "After Groot uses a basic power" (RRG 1.8's "Basic Power" glossary entry
    covers ATK/THW/DEF/REC together, so this plausibly spans all three player-facing powers). The DSL's
    `on.attacks`/`on.thwarts` treat the acting character as the event's _source_; `on.defends`'s `defended` event
@@ -229,6 +241,18 @@ Recorded in `gmw/rocket-kit.ts`'s own module docblock (mirrors §5's format):
    for discarding from your own deck as a cost. Flagged for `game-rules-architect` rather than added unilaterally
    this pass: RRG 1.8 "Deck" (p. 15)'s empty-deck reshuffle rule needs a decision for a cost specifically (refuse
    the ability, or reshuffle mid-payment?) that a rushed addition risks getting wrong.
+   **Closed (docs/phase7-wave3.md §3.33, 2026-09-22).** New `AbilityCost.discardFromDeck`. It is payable only if the
+   deck can supply every card. An empty deck with a discard pile is the deck the rules have already reshuffled
+   (RRG 1.8 p. 33; ruling Apr 30, 2026 (3) answer 7), so it pays from the new deck; empty deck and discard pile
+   cannot pay. The builder is `discardTopOfDeckCost` in `dsl/abilities.ts`. Script it as:
+
+   ```ts
+   heroInterrupt(
+     when.damage(YOUR_IDENTITY, { fromAttack: true }),
+     { cost: [exhaustThis, discardTopOfDeckCost()] },
+     preventDamage(1),
+   );
+   ```
 
 ## 6b. Star-Lord's own gaps (`stld`, a separate concurrent session's pack)
 
@@ -300,14 +324,17 @@ existing vocabulary already covered it. docs/phase7-wave3.md §3.28–§3.36 has
 the engine test for each one. `packages/cards/src/dsl/wave3-primitives.test.ts` validates every composition below.
 Drop each ref from `KNOWN_SKIPPED` when you script it.
 
-| Ref                                                            | Closed by                                                    | Builder(s)                                                          |
-| -------------------------------------------------------------- | ------------------------------------------------------------ | ------------------------------------------------------------------- |
-| `16009.lashing-vines-response`                                 | existing `basicPowerUsed` (§3.28), plus a defense-timing fix | `on.basicPowerUsed(YOUR_IDENTITY)`                                  |
-| `16024.deft-focus-action`                                      | existing `reduceNextCardCost` `"turn"` (§3.29)               | `reduceNextCardCost(you, 1, "turn", { trait: SUPERPOWER })`         |
-| `16032.schadenfreude-action`                                   | existing `eachTimeUntil` (§3.17, §3.30)                      | `eachTimeUntil`, `on.youDealDamage` (new)                           |
-| `16033.salvage-response`                                       | existing `resourcesSpent` (§3.31)                            | `on.youSpendThis()`                                                 |
-| `16020.flora-and-fauna-action`, `16048.flora-and-fauna-action` | new `TargetQuery.titled` / `identitySetTitled` (§3.34)       | `teamUpCharacters(i)`, `ofTeamUpSet(i)` (new)                       |
-| `16060.when-revealed`                                          | new `PlayerRef superlative`, `choosePlayer.among` (§3.35)    | `superlativePlayer`, `choosePlayer(slot, chooser, { among })` (new) |
+| Ref                                                            | Closed by                                                                              | Builder(s)                                                          |
+| -------------------------------------------------------------- | -------------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
+| `16009.lashing-vines-response`                                 | existing `basicPowerUsed` (§3.28), plus a defense-timing fix                           | `on.basicPowerUsed(YOUR_IDENTITY)`                                  |
+| `16024.deft-focus-action`                                      | existing `reduceNextCardCost` `"turn"` (§3.29)                                         | `reduceNextCardCost(you, 1, "turn", { trait: SUPERPOWER })`         |
+| `16032.schadenfreude-action`                                   | existing `eachTimeUntil` (§3.17, §3.30)                                                | `eachTimeUntil`, `on.youDealDamage` (new)                           |
+| `16033.salvage-response`                                       | existing `resourcesSpent` (§3.31)                                                      | `on.youSpendThis()`                                                 |
+| `16020.flora-and-fauna-action`, `16048.flora-and-fauna-action` | new `TargetQuery.titled` / `identitySetTitled` (§3.34)                                 | `teamUpCharacters(i)`, `ofTeamUpSet(i)` (new)                       |
+| `16060.when-revealed`                                          | new `PlayerRef superlative`, `choosePlayer.among` (§3.35)                              | `superlativePlayer`, `choosePlayer(slot, chooser, { among })` (new) |
+| `16006.we-are-groot-action`                                    | new `spendCounters.upTo` / `bind`, `costSelection.counters` (§3.32)                    | `removeUpToCounters` (new)                                          |
+| `16052.booster-boots-interrupt`                                | new `AbilityCost.discardFromDeck` (§3.33)                                              | `discardTopOfDeckCost` (new)                                        |
+| `16073b.the-grand-collection-action`                           | new `AbilityCost.either`, `costSelection.branch`, `AbilityLimit.per: "player"` (§3.36) | `eitherCost`, `oncePerRoundPerPlayer` (new)                         |
 
 The compositions are in §5 and §6a above and in docs/phase7-wave3.md. Drang III's, from §3.35:
 
@@ -402,6 +429,19 @@ to either exhaust your hero or spend 2 resources of any type → discard 1 card 
 true either/or `AbilityCost` — pay _one_ of two different cost shapes, the player's choice — distinct from
 `cost: [a, b]`, which is an AND (`dsl/abilities.ts`'s `mergeCosts`). No card scripted before this pass has needed
 one; flagged to `game-rules-architect` rather than approximated.
+
+**Closed (docs/phase7-wave3.md §3.36, 2026-09-22).** New `AbilityCost.either`: the player sends the branch as
+`costSelection.branch`, and `legalActions` lists the payable ones in `costBranches`. New `AbilityLimit.per:
+"player"` covers "(Limit once per round per player.)", here and on Library Labyrinth 16085a. The builders are
+`eitherCost` and `oncePerRoundPerPlayer` in `dsl/abilities.ts`. Script it as:
+
+```ts
+heroAction(
+  { cost: eitherCost(exhaustYourHero, spend(2)), limit: oncePerRoundPerPlayer },
+  chooseCards("card", scenarioArea("The Collection"), { min: 1, max: 1 }),
+  moveCards(cards(chosen("card")), "discard"),
+);
+```
 
 **One engine change this pass (minimal, generic, own test):** `RuleSpec discardFromPlayDestination` (docs/phase7-
 wave3.md §3.14) gains an optional `thenPlaceThreat?: number`. Collector III's own printed ability is one Forced

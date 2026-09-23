@@ -17,7 +17,8 @@ import { heard } from "./triggers.js";
 /**
  * The `abilityUses` key a limit counts against. An unqualified limit uses `<instance>:<ability>`, exactly as before;
  * `limit.per` appends `#<value>` so the same ability keeps one count per value ("limit once per round for each
- * aspect", Superhuman Agility). `#` never appears in an ability id, so `clearAbilityUses` can strip it back off.
+ * aspect", Superhuman Agility; "once per round per player", The Grand Collection — `#player:<id>`, the player using
+ * it, docs/phase7-wave3.md §3.36). `#` never appears in an ability id, so `clearAbilityUses` can strip it back off.
  */
 export function limitKeyOf(
   state: GameState,
@@ -25,8 +26,10 @@ export function limitKeyOf(
   abilityId: AbilityId,
   definition: AbilityDefinition,
   event: TriggerEvent | null,
+  playerId: PlayerId | null = null,
 ): string {
   const base = abilityUseKey(id, abilityId);
+  if (definition.limit?.per === "player") return `${base}#player:${playerId ?? "none"}`;
   if (definition.limit?.per !== "aspectOfEventCard") return base;
   const [subject] = event ? eventSubjects(event).targets : [];
   const card = subject ? cardOf(state, subject) : undefined;
@@ -40,17 +43,19 @@ export function limitReached(
   abilityId: AbilityId,
   definition: AbilityDefinition,
   event: TriggerEvent | null = null,
+  playerId: PlayerId | null = null,
 ): boolean {
   if (!definition.limit) return false;
-  return (state.abilityUses[limitKeyOf(state, id, abilityId, definition, event)] ?? 0) >= definition.limit.count;
+  const key = limitKeyOf(state, id, abilityId, definition, event, playerId);
+  return (state.abilityUses[key] ?? 0) >= definition.limit.count;
 }
 
 export function executeAbilityFrame(ctx: Ctx, frame: Frame<"ability">): void {
   const definition = ctx.deps.abilities[frame.abilityId];
   popFrame(ctx);
   if (!definition) return;
-  if (limitReached(ctx.state, frame.instanceId, frame.abilityId, definition, frame.event)) return;
-  recordAbilityUse(ctx, frame.instanceId, frame.abilityId, definition, frame.event);
+  if (limitReached(ctx.state, frame.instanceId, frame.abilityId, definition, frame.event, frame.controllerId)) return;
+  recordAbilityUse(ctx, frame.instanceId, frame.abilityId, definition, frame.event, frame.controllerId);
   emit(ctx, {
     type: "abilityResolved",
     instanceId: frame.instanceId,
@@ -130,9 +135,10 @@ export function recordAbilityUse(
   abilityId: AbilityId,
   definition: AbilityDefinition,
   event: TriggerEvent | null = null,
+  playerId: PlayerId | null = null,
 ): void {
   if (!definition.limit) return;
-  const key = limitKeyOf(ctx.state, instanceId, abilityId, definition, event);
+  const key = limitKeyOf(ctx.state, instanceId, abilityId, definition, event, playerId);
   const uses = (ctx.state.abilityUses[key] ?? 0) + 1;
   ctx.state = { ...ctx.state, abilityUses: { ...ctx.state.abilityUses, [key]: uses } };
   emit(ctx, { type: "abilityUseRecorded", instanceId, abilityId, uses });

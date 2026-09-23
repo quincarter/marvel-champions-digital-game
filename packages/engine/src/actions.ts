@@ -9,12 +9,13 @@ import {
   type ResourceGeneration,
 } from "./abilities.js";
 import type { ChoiceOption } from "./choices.js";
-import type { BasicPowerShare, Command, CostChoices, Payment } from "./commands.js";
+import type { BasicPowerShare, Command, CostChoices, CostSelection, Payment } from "./commands.js";
 import { emit, moveCard, updateInstance, type Ctx } from "./ctx.js";
 import {
   consumeCostReductions,
   costReductionFor,
   dealEncounterCardTo,
+  discardFromDeckAsCost,
   discardFromHand,
   discardFromPlay,
   discardRandomFromHand,
@@ -527,7 +528,7 @@ function resourceAbilityFault(
   if (form && getPlayer(state, playerId)?.identity.form !== form) {
     return { code: "wrong_form", message: `${abilityId} requires ${form} form` };
   }
-  if (definition.limit && (state.abilityUses[`${instanceId}:${abilityId}`] ?? 0) >= definition.limit.count) {
+  if (limitReached(state, instanceId, asAbilityId(abilityId), definition, null, playerId)) {
     return { code: "limit_reached", message: `${abilityId} has reached its limit` };
   }
   // "Generate a [wild] resource for an event": only while paying for a matching card.
@@ -698,7 +699,7 @@ export function payPayment(ctx: Ctx, playerId: PlayerId, payment: readonly Payme
     );
     const plan = planCost(ctx.state, ctx.deps, instanceId, playerId, definition.cost, {}, new Set());
     if (!isFault(plan)) payCost(ctx, instanceId, playerId, definition.cost, plan);
-    recordAbilityUse(ctx, instanceId, abilityId, definition);
+    recordAbilityUse(ctx, instanceId, abilityId, definition, null, playerId);
     emit(ctx, {
       type: "resourcesGenerated",
       playerId,
@@ -757,6 +758,77 @@ export interface CostPlan {
   readonly vars: Vars;
   /** The card resources are being spent on, for "while paying for an [aspect] card". */
   readonly payingFor: InstanceId | null;
+  /**
+   * The cost actually being paid, once the player's decisions are applied (`selectCost`): an either/or cost reduced to
+   * its chosen branch, an "up to N" counter cost to its chosen count. `payCost` and the resource vars read this, so a
+   * plan is paid exactly as it was checked. Absent: the cost as written.
+   */
+  readonly cost?: AbilityCost;
+}
+
+/**
+ * Applies the decisions a cost leaves to the player (docs/phase7-wave3.md §3.32, §3.36), giving the concrete cost to
+ * check and pay:
+ *
+ * - `either`: exactly one branch is paid, with the rest of the cost. `selection.branch` names it; with none, the first
+ *   branch whose non-resource components can be paid now is taken (the only choice a timing window can make, since
+ *   it asks nothing). A branch index out of range is refused. RRG 1.8 "Choose (Option)" (p. 12): a player "cannot
+ *   choose an option that cannot be at least partially resolved", including one with "a cost the player cannot pay".
+ * - `spendCounters.upTo`: `selection.counters` counters, from 1 (RRG 1.8 "Cost", p. 14: "up to" some number "requires
+ *   a minimum of one") to the printed maximum and what the card holds; with none, as many as it can.
+ *
+ * `vars` records the decisions for the log and the effects: `cost.branch`, and the counter cost's own `bind`.
+ */
+export function selectCost(
+  state: GameState,
+  deps: EngineDeps,
+  sourceId: InstanceId,
+  playerId: PlayerId,
+  cost: AbilityCost,
+  selection: CostSelection,
+  choices: CostChoices = {},
+  reserved: ReadonlySet<InstanceId> = new Set(),
+): { readonly cost: AbilityCost; readonly vars: Record<string, number> } | PriceFault {
+  const vars: Record<string, number> = {};
+  let chosen: AbilityCost = cost;
+  if (cost.either) {
+    const { either, ...common } = cost;
+    if (either.length === 0) return { code: "invalid_choice", message: "an either/or cost has no branches" };
+    const branchCost = (index: number): AbilityCost => ({ ...common, ...either[index] });
+    let index = selection.branch;
+    if (index !== undefined && (!Number.isInteger(index) || index < 0 || index >= either.length)) {
+      return { code: "invalid_choice", message: `choose a cost branch from 0 to ${either.length - 1}` };
+    }
+    if (index === undefined) {
+      const payable = either.findIndex((_, i) => {
+        const concrete = selectCost(state, deps, sourceId, playerId, branchCost(i), selection, choices, reserved);
+        return (
+          !isFault(concrete) && !isFault(planCost(state, deps, sourceId, playerId, concrete.cost, choices, reserved))
+        );
+      });
+      index = payable < 0 ? 0 : payable;
+    }
+    chosen = branchCost(index);
+    if (chosen.either) return { code: "invalid_choice", message: "an either/or cost cannot nest another" };
+    vars["cost.branch"] = index;
+  }
+  const counters = chosen.spendCounters;
+  if (counters?.upTo) {
+    const holderId =
+      counters.target === "identity" ? mustPlayer(state, playerId).identity.instanceId : (sourceId as InstanceId);
+    const held = getInstance(state, holderId)?.counters[counters.counterType] ?? 0;
+    const most = Math.min(counters.amount, held);
+    const count = selection.counters ?? most;
+    if (!Number.isInteger(count) || count < 1 || count > counters.amount) {
+      return { code: "invalid_choice", message: `remove 1 to ${counters.amount} ${counters.counterType} counters` };
+    }
+    if (count > held) {
+      return { code: "insufficient_resources", message: `not enough ${counters.counterType} counters` };
+    }
+    const { upTo: _upTo, ...fixed } = counters;
+    chosen = { ...chosen, spendCounters: { ...fixed, amount: count } };
+  }
+  return { cost: chosen, vars };
 }
 
 const NO_REQUIREMENT: ResolvedRequirement = { generic: 0, physical: 0, mental: 0, energy: 0 };
@@ -791,14 +863,22 @@ export function planCost(
   cost: AbilityCost | undefined,
   choices: CostChoices,
   reserved: ReadonlySet<InstanceId>,
+  selection: CostSelection = {},
 ): CostPlan | PriceFault {
   if (!cost) return { requirement: NO_REQUIREMENT, bindings: {}, vars: {}, payingFor: null };
   const source = getInstance(state, sourceId);
   if (!source) return { code: "unknown_instance", message: `no instance ${sourceId}` };
+  // Either/or and "up to N" costs become the cost actually paid (docs/phase7-wave3.md §3.32, §3.36).
+  const selected =
+    cost.either || cost.spendCounters?.upTo
+      ? selectCost(state, deps, sourceId, playerId, cost, selection, choices, reserved)
+      : null;
+  if (selected && isFault(selected)) return selected;
+  if (selected) cost = selected.cost;
   const player = mustPlayer(state, playerId);
   const identity = mustInstance(state, player.identity.instanceId);
   const bindings: Record<string, readonly InstanceId[]> = {};
-  const vars: Record<string, number> = {};
+  const vars: Record<string, number> = { ...selected?.vars };
   let requirement = combineRequirements(cost.resources, 0);
   let payingFor: InstanceId | null = null;
 
@@ -808,6 +888,15 @@ export function planCost(
     const holder = cost.spendCounters.target === "identity" ? identity : source;
     if ((holder.counters[cost.spendCounters.counterType] ?? 0) < cost.spendCounters.amount) {
       return { code: "insufficient_resources", message: `not enough ${cost.spendCounters.counterType} counters` };
+    }
+    if (cost.spendCounters.bind) vars[cost.spendCounters.bind] = cost.spendCounters.amount;
+  }
+  // "Discard the top card of your deck →" (docs/phase7-wave3.md §3.33): the deck, or the deck the rules would already
+  // have reshuffled from the discard pile (the engine resets lazily), must hold them all.
+  if (cost.discardFromDeck !== undefined) {
+    const supply = player.deck.length > 0 ? player.deck.length : player.discard.length;
+    if (supply < cost.discardFromDeck) {
+      return { code: "card_not_in_zone", message: `discard the top ${cost.discardFromDeck} card(s) of your deck` };
     }
   }
   if (cost.exhaustIdentity && identity.exhausted) {
@@ -922,7 +1011,7 @@ export function planCost(
   }
   if (cost.exhaustCards) bindInPlayPick(cost.exhaustCards, exhausting, bindings, vars);
   if (cost.returnToHand) bindInPlayPick(cost.returnToHand, returning, bindings, vars);
-  return { requirement, bindings, vars, payingFor };
+  return { requirement, bindings, vars, payingFor, ...(selected ? { cost } : {}) };
 }
 
 function bindInPlayPick(
@@ -1076,9 +1165,10 @@ export function payCost(
   ctx: Ctx,
   sourceId: InstanceId,
   playerId: PlayerId,
-  cost: AbilityCost | undefined,
+  written: AbilityCost | undefined,
   plan: CostPlan,
 ): void {
+  const cost = plan.cost ?? written;
   if (!cost) return;
   const identityId = mustPlayer(ctx.state, playerId).identity.instanceId;
   if (cost.exhaustSelf) exhaustCard(ctx, sourceId);
@@ -1091,6 +1181,7 @@ export function payCost(
   // "Deal yourself 1 facedown encounter card →" (docs/phase7-wave3.md §3.20).
   for (let i = 0; i < (cost.dealEncounterCards ?? 0); i++) dealEncounterCardTo(ctx, playerId);
   for (const id of plan.bindings.discard ?? []) discardFromHand(ctx, playerId, id);
+  if (cost.discardFromDeck) discardFromDeckAsCost(ctx, playerId, cost.discardFromDeck);
   // After the payment and the chosen discards have left the hand, so the random pick is among what remains.
   if (cost.discardRandomFromHand) discardRandomFromHand(ctx, playerId, cost.discardRandomFromHand, [sourceId]);
   if (cost.damageSelf) {
@@ -1237,8 +1328,10 @@ export function pricePlay(
   x?: number,
   /** "…, reducing its resource cost by 1" (docs/phase7-wave2.md §9): a reduction the playing effect carries. */
   extraReduction = 0,
+  /** The event's action cost decisions (`CostSelection`; docs/phase7-wave3.md §3.32, §3.36). */
+  selection: CostSelection = {},
 ): PricedPlay | PriceFault {
-  const plan = planCost(ctx.state, ctx.deps, cardInstanceId, playerId, cost, choices, handCardsIn(payment));
+  const plan = planCost(ctx.state, ctx.deps, cardInstanceId, playerId, cost, choices, handCardsIn(payment), selection);
   if (isFault(plan)) return plan;
   const card = mustCardOf(ctx.state, cardInstanceId);
   const printedX = "specialCost" in card && card.specialCost === "X";
@@ -1272,7 +1365,7 @@ export function pricePlay(
       message: `Needs ${describeRequirement(requirement)}; the payment covers ${poolTotal(pool)}.`,
     };
   }
-  const vars = resourceVars(pool, cost, requirement);
+  const vars = resourceVars(pool, plan.cost ?? cost, requirement);
   if (isFault(vars)) return vars;
   return { pool, plan, vars: { ...plan.vars, ...vars, ...(printedX ? { x: xValue } : {}) } };
 }
@@ -1350,7 +1443,7 @@ export function playCostReductionFault(
   const form = "form" in trigger ? trigger.form : undefined;
   if (form && getPlayer(state, playerId)?.identity.form !== form)
     return { code: "wrong_form", message: `${abilityId} requires ${form} form` };
-  if (limitReached(state, instanceId, asAbilityId(abilityId), definition))
+  if (limitReached(state, instanceId, asAbilityId(abilityId), definition, null, playerId))
     return { code: "limit_reached", message: `${abilityId} has reached its limit` };
   if (reduction.fromHand === true && !mustPlayer(state, playerId).hand.includes(cardInstanceId))
     return { code: "no_valid_target", message: "that ability only reduces a card played from your hand" };
@@ -1541,6 +1634,7 @@ export function playCard(ctx: Ctx, command: Command & { type: "playCard" }): Eng
     attachTo,
     command.x,
     extraReduction,
+    command.costSelection,
   );
   if (isFault(priced)) return engineError(priced.code, priced.message, command);
 
@@ -1550,7 +1644,7 @@ export function playCard(ctx: Ctx, command: Command & { type: "playCard" }): Eng
     if (!definition) continue;
     const plan = planCost(ctx.state, ctx.deps, instanceId, command.playerId, definition.cost, {}, new Set());
     if (!isFault(plan)) payCost(ctx, instanceId, command.playerId, definition.cost, plan);
-    recordAbilityUse(ctx, instanceId, abilityId, definition);
+    recordAbilityUse(ctx, instanceId, abilityId, definition, null, command.playerId);
     emit(ctx, {
       type: "playCostReduced",
       cardInstanceId: command.cardInstanceId,
@@ -1808,11 +1902,10 @@ export function useAbility(ctx: Ctx, command: Command & { type: "useAbility" }):
   if (definition.trigger.form && player.identity.form !== definition.trigger.form) {
     return engineError("wrong_form", `${command.abilityId} requires ${definition.trigger.form} form`, command);
   }
-  if (definition.limit) {
-    const uses = ctx.state.abilityUses[`${command.cardInstanceId}:${command.abilityId}`] ?? 0;
-    if (uses >= definition.limit.count) {
-      return engineError("limit_reached", `limit ${definition.limit.count} per ${definition.limit.period}`, command);
-    }
+  // "(Limit once per round per player.)" counts the triggering player's uses (docs/phase7-wave3.md §3.36).
+  if (limitReached(ctx.state, command.cardInstanceId, command.abilityId, definition, null, command.playerId)) {
+    const limit = definition.limit;
+    return engineError("limit_reached", `limit ${limit?.count} per ${limit?.period}`, command);
   }
   const plan = planCost(
     ctx.state,
@@ -1822,6 +1915,7 @@ export function useAbility(ctx: Ctx, command: Command & { type: "useAbility" }):
     definition.cost,
     command.costChoices ?? {},
     handCardsIn(command.payment),
+    command.costSelection,
   );
   if (isFault(plan)) return engineError(plan.code, plan.message, command);
   const pool = priceOf(ctx, command.playerId, command.payment, null, plan.payingFor);
@@ -1833,7 +1927,7 @@ export function useAbility(ctx: Ctx, command: Command & { type: "useAbility" }):
       command,
     );
   }
-  const vars = resourceVars(pool, definition.cost, plan.requirement);
+  const vars = resourceVars(pool, plan.cost ?? definition.cost, plan.requirement);
   if (isFault(vars)) return engineError(vars.code, vars.message, command);
 
   const spent = payPayment(ctx, command.playerId, command.payment);
