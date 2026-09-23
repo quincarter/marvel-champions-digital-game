@@ -28,6 +28,8 @@ export const SCENES = {
   campaignRoster: "CampaignRoster",
   campaignOpener: "CampaignOpener",
   campaignBriefing: "CampaignBriefing",
+  /** A Market-shaped pending choice mid-Briefing (`scenes/campaign/market.ts`'s own doc comment on the bounce). */
+  campaignMarket: "CampaignMarket",
   campaignAftermath: "CampaignAftermath",
   campaignRewind: "CampaignRewind",
   campaignRun: "CampaignRun",

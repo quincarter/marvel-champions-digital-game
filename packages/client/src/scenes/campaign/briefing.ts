@@ -29,6 +29,7 @@ import { fadeScreenIn, goToScreen } from "../../ui/transitions.js";
 import type { Rect } from "../../view/layout.js";
 import { formFactorFor } from "../../view/layout.js";
 import { briefingViewOf, type BriefingView, type HandledRow } from "../../view/campaign-briefing-model.js";
+import { isMarketPendingChoice } from "../../view/campaign-market-model.js";
 import { CARDS_BY_ID } from "../../content/pool.js";
 import { appSession, campaignService } from "../../session.js";
 import type { CampaignRecord } from "../../engine/campaign-storage.js";
@@ -66,7 +67,7 @@ export class CampaignBriefingScene extends Phaser.Scene {
     this.#definition = null;
     this.#nodeIds = [];
     this.#pending = null;
-    this.#answers = [];
+    this.#answers = data.answers ? [...data.answers] : [];
     this.#picking = [];
     this.#composing = false;
     this.#starting = false;
@@ -119,6 +120,13 @@ export class CampaignBriefingScene extends Phaser.Scene {
     if (!this.sys.isActive()) return;
     this.#composing = false;
     if (result.kind === "pending") {
+      // A Market-shaped choice (`view/campaign-market-model.ts`) gets its own screen, never this generic panel —
+      // detected by shape (every option prices in the campaign's currency field), never by `campaignId`.
+      if (isMarketPendingChoice(result.choice, (id) => CARDS_BY_ID.get(id))) {
+        this.scale.off("resize", this.#draw, this);
+        goToScreen(this, SCENES.campaignMarket, { runId: record.id, answers: this.#answers });
+        return;
+      }
       this.#pending = result.choice;
       this.#picking = [];
     } else {

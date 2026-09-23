@@ -14,6 +14,7 @@
  *
  * `CampaignDeckEdit` is reachable from Briefing, Rewind and Dossier › Heroes and returns to `returnTo`.
  */
+import type { CampaignChoiceAnswer } from "@mc/engine";
 import type { SCENES } from "../keys.js";
 
 /** Where a screen goes back to, as a scene key plus that scene's own start data. */
@@ -47,9 +48,25 @@ export interface CampaignOpenerData {
   readonly returnTo?: CampaignReturn;
 }
 
-/** C08. Composes the next issue (answering its setup choices), shows decks, and starts the game. */
+/**
+ * C08. Composes the next issue (answering its setup choices), shows decks, and starts the game. `answers`
+ * carries over a bounce back from the Market screen (`market.ts`'s own doc comment): the questions already
+ * answered before a Market-shaped pending choice sent the flow there, so composing resumes rather than restarts.
+ */
 export interface CampaignBriefingData {
   readonly runId: string;
+  readonly answers?: readonly CampaignChoiceAnswer[];
+}
+
+/**
+ * The Market — a between-games shopping trip built from a Market-shaped pending choice (`view/campaign-market-
+ * model.ts`'s `isMarketPendingChoice`), reached only from Briefing's own composing loop. `answers` is everything
+ * already decided before the Market-shaped choice appeared; this screen keeps composing from there and hands the
+ * same shape back once it's done (`CampaignBriefingData.answers`).
+ */
+export interface CampaignMarketData {
+  readonly runId: string;
+  readonly answers: readonly CampaignChoiceAnswer[];
 }
 
 /**

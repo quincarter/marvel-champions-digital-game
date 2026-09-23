@@ -42,6 +42,7 @@ import { CampaignCoverScene } from "./scenes/campaign/cover.js";
 import { CampaignRosterScene } from "./scenes/campaign/roster.js";
 import { CampaignOpenerScene } from "./scenes/campaign/opener.js";
 import { CampaignBriefingScene } from "./scenes/campaign/briefing.js";
+import { CampaignMarketScene } from "./scenes/campaign/market.js";
 import { CampaignAftermathScene } from "./scenes/campaign/aftermath.js";
 import { CampaignRewindScene } from "./scenes/campaign/rewind.js";
 import { CampaignRunScene } from "./scenes/campaign/run.js";
@@ -100,6 +101,7 @@ const game = new Phaser.Game({
     CampaignRosterScene,
     CampaignOpenerScene,
     CampaignBriefingScene,
+    CampaignMarketScene,
     CampaignAftermathScene,
     CampaignRewindScene,
     CampaignRunScene,
