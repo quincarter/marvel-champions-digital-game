@@ -2,8 +2,10 @@ import { cardId } from "@mc/content";
 import {
   activeEncounterDeckId,
   activeVillain,
+  applyCommand,
   damageTakenAfterConstants,
   hasKeyword,
+  legalActions,
   threatCannotBeRemoved,
   type GameState,
   type InstanceId,
@@ -14,7 +16,9 @@ import {
   identityOf,
   inst,
   instancesOf,
+  moveToHand,
   P1,
+  P2,
   patchInstance,
   runWith,
   settle,
@@ -31,8 +35,9 @@ import { encounterCardInVillainArea, playFromHand, runWave3, startWave3Game, WAV
  * Ronan the Accuser (docs/phase7-wave3.md §2.2): the villain Ronan the Accuser I–III, the main scheme Interception
  * Imminent → "Take What Is Mine", Kree Command Ship, Universal Weapon, Fanaticism, the side schemes Cut the Power/
  * Pincer Maneuver/Superior Tactics, the treacheries Single-Minded Fury/Kree Physiology/"You Stand Accused!", and
- * the Kree Militants modular set. See `gmw/ronan.ts`'s own module docblock for the two genuine primitive gaps
- * (16114.when-revealed, 16131.kree-combat-armor-action).
+ * the Kree Militants modular set. `16114.when-revealed` and `16131.kree-combat-armor-action` (once the last two
+ * genuine primitive gaps this pack had, `gmw/ronan.ts`'s own module docblock) are now scripted too, per
+ * docs/phase7-wave3.md §3.39/§3.40/§3.43.
  *
  * **Traps hit writing this file, beyond the standing ones in docs/card-scripting-process.md §7:**
  *
@@ -430,7 +435,70 @@ describe("Superior Tactics (16113)", () => {
   });
 });
 
-describe("Single-Minded Fury (16114) — When Revealed SKIPPED (module docblock)", () => {
+describe("Single-Minded Fury (16114.when-revealed) — Ronan attacks the player who controls the Power Stone (module docblock, docs/phase7-wave3.md §3.39/§3.40, §4 Q11)", () => {
+  /** A two-player game (`flora-and-fauna.test.ts`'s own precedent) so the Power Stone can be moved onto P2's
+   * identity, distinct from the first player (P1) it starts attached to. */
+  const twoPlayerRonan = () =>
+    startWave3Game(
+      wave3Scenario("ronan-the-accuser", {
+        players: [{ starterDeckId: "groot-protection" }, { starterDeckId: "rocket-raccoon-aggression" }],
+        seed: 2026,
+      }),
+    );
+
+  const surged = (events: readonly { readonly type: string }[]) => events.some((e) => e.type === "surgeTriggered");
+
+  it("attacks the player whose identity holds the Power Stone (P2), even in alter-ego form", () => {
+    // Both hero form, so Ronan's own per-round activation is an attack (module docblock's "villain deals more
+    // than one boost card" trap: an *attack* activation doesn't place threat and can't push the main scheme past
+    // its own completion threshold mid-phase the way a scheme activation's threat can — `16107a.when-revealed`
+    // firing here would reattach the Power Stone to Ronan mid-phase and confound this test). Two safe fillers
+    // (`01186`/`01187`, "Standard" Core treacheries with no `[star] Boost:` text of their own, so they never
+    // cascade into a further boost draw when *flipped as a boost card* — `stageNemesisCardForReveal`'s own
+    // docblock, `../../testing/staging.ts`) absorb P1's own baseline boost draw and P2's own baseline + "you
+    // control the Power Stone" extra draw (16103's own Forced Interrupt, since the stone is on P2's identity), so
+    // Single-Minded Fury lands as the villain phase's own "Deal Encounter Cards" reveal, not consumed as a boost
+    // card itself.
+    const base = twoPlayerRonan();
+    const p1Hero = runWave3(base, toHero(P1));
+    const p1Done = settle(runWave3(p1Hero, endTurn(P1)), firstLegal, undefined, WAVE3_DEPS);
+    const hero = runWave3(p1Done, toHero(P2));
+    const [stone] = instancesOf(hero, "16149");
+    const identity2 = identityOf(hero, P2);
+    const onP2 = moveAttachment(hero, stone!, identity2);
+    const scheme = onP2.mainScheme.instanceId;
+    const lowThreat = patchInstance(onP2, scheme, { threat: 0 });
+    const damageBefore = inst(lowThreat, identity2).damage;
+    const staged = stackEncounterDeck(lowThreat, "01186", "01186", "01187", "16114");
+    const { state: after, events } = driveEvents(WAVE3_DEPS, staged, endTurn(P2));
+    expect(inst(after, identity2).damage).toBeGreaterThan(damageBefore);
+    expect(surged(events)).toBe(false);
+  });
+
+  it("with the Power Stone attached to no identity (on Ronan himself), no attack is made and this card gains surge", () => {
+    const base = withoutPowerStoneControl(ronanTheAccuser());
+    const staged = stackEncounterDeck(base, "01186", "16114");
+    const { events } = driveEvents(WAVE3_DEPS, staged, endTurn());
+    expect(events.some((e) => e.type === "attackResolved")).toBe(false);
+    expect(surged(events)).toBe(true);
+  });
+
+  it("a stunned Ronan does not attack (the stunned status is discarded instead), so this card gains surge", () => {
+    const base = ronanTheAccuser();
+    const villain = base.villains[0]!.instanceId;
+    const stunned = {
+      ...base,
+      instances: {
+        ...base.instances,
+        [villain]: { ...inst(base, villain), statuses: { ...inst(base, villain).statuses, stunned: 1 } },
+      },
+    };
+    const staged = stackEncounterDeck(stunned, "01186", "16114");
+    const { events } = driveEvents(WAVE3_DEPS, staged, endTurn());
+    expect(events.some((e) => e.type === "attackResolved")).toBe(false);
+    expect(surged(events)).toBe(true);
+  });
+
   it("[star] Boost: attaches the Power Stone to Ronan the Accuser (16114.boost)", () => {
     const base = withoutPowerStoneControl(ronanTheAccuser());
     const villain = base.villains[0]!.instanceId;
@@ -501,6 +569,66 @@ describe("Kree Militants modular (16131-16134)", () => {
     const villain = state.villains[0]!.instanceId;
     const { state: attached } = attachTo(state, "16131", villain);
     expect(damageTakenAfterConstants(attached, WAVE3_DEPS, villain, 4, true)).toBe(3);
+  });
+
+  describe("Kree Combat Armor — Hero Action: spend 3 resources of the same type → discard this card (16131.kree-combat-armor-action, docs/phase7-wave3.md §3.43)", () => {
+    it("three of one type (three copies of Desperate Defense, all [energy]) pays and discards the card", () => {
+      const hero = runWave3(ronanTheAccuser(), toHero());
+      const villain = hero.villains[0]!.instanceId;
+      const { state: attached, id: armor } = attachTo(hero, "16131", villain);
+      const given = moveToHand(attached, P1, "16013", "16013", "16013");
+      const [c1, c2, c3] = given.ids as [InstanceId, InstanceId, InstanceId];
+      const used = runWave3(
+        given.state,
+        use(P1, armor, "16131.kree-combat-armor-action", [{ fromHand: c1 }, { fromHand: c2 }, { fromHand: c3 }]),
+      );
+      expect(inst(used, armor).attachedTo).toBeNull();
+    });
+
+    it("a mixed-type payment is refused, and legalActions does not offer an unpayable hand", () => {
+      const hero = runWave3(ronanTheAccuser(), toHero());
+      const villain = hero.villains[0]!.instanceId;
+      const { state: attached, id: armor } = attachTo(hero, "16131", villain);
+      // 16013 (Desperate Defense, [energy]), 16014 (Fighting Fit, [physical]), 16002 (Fruition, [mental]) — one of
+      // each type, so even Milano's own "spend 1 resource of any type" ability (16142.milano-constant-2, `gmw/
+      // ship-command.ts`) can push at most 2 of any one type to 3, never far enough. The rest of the hand is
+      // emptied first (back into the deck) so `legalActions`' own "probe the whole wallet" check has no other way
+      // to pay (the engine test's own `table()` convention, `packages/engine/src/same-type-resource-cost.test.ts`).
+      const emptied: GameState = {
+        ...attached,
+        players: attached.players.map((p) =>
+          p.playerId === P1 ? { ...p, deck: [...p.hand, ...p.deck], hand: [] } : p,
+        ),
+      };
+      const given = moveToHand(emptied, P1, "16013", "16014", "16002");
+      const [c1, c2, c3] = given.ids as [InstanceId, InstanceId, InstanceId];
+      const result = applyCommand(
+        given.state,
+        use(P1, armor, "16131.kree-combat-armor-action", [{ fromHand: c1 }, { fromHand: c2 }, { fromHand: c3 }]),
+        WAVE3_DEPS,
+      );
+      expect(result.ok).toBe(false);
+      const actions = legalActions(given.state, P1, WAVE3_DEPS);
+      if (actions.kind !== "turn") throw new Error(`expected a turn, got ${actions.kind}`);
+      const offered = actions.legal.find((a) => a.action.kind === "useAbility" && a.action.instanceId === armor);
+      expect(offered).toBeUndefined();
+    });
+
+    it("wild resources count as any type (two copies of The Power of Protection, [wild], plus one [physical])", () => {
+      const hero = runWave3(ronanTheAccuser(), toHero());
+      const villain = hero.villains[0]!.instanceId;
+      const { state: attached, id: armor } = attachTo(hero, "16131", villain);
+      // RRG 1.8 "Wild Resource" (p. 48): a wild resource may be declared as any type — so 2 wild + 1 physical pays
+      // 3 physical.
+      const given = moveToHand(attached, P1, "16015", "16015", "16014");
+      const [c1, c2, c3] = given.ids as [InstanceId, InstanceId, InstanceId];
+      const result = applyCommand(
+        given.state,
+        use(P1, armor, "16131.kree-combat-armor-action", [{ fromHand: c1 }, { fromHand: c2 }, { fromHand: c3 }]),
+        WAVE3_DEPS,
+      );
+      expect(result.ok).toBe(true);
+    });
   });
 
   const boostResolves = (code: string, abilityId: string) => {

@@ -6,8 +6,11 @@ import {
   cancelWhenRevealed,
   chooseOne,
   constant,
+  controllerOf,
   dealEncounterCardsCost,
   defineAbilities,
+  discard,
+  each,
   encounterCards,
   encounterSetAside,
   enemyAttack,
@@ -20,14 +23,17 @@ import {
   gainsKeyword,
   giveBoostCard,
   giveTough,
+  hasAttachment,
   hasStatus,
   heroAction,
   identityOf,
   ifThen,
   interrupt,
+  made,
   modifyAttack,
   moveCards,
   named,
+  not,
   on,
   option,
   placeThreat,
@@ -40,6 +46,8 @@ import {
   selectCards,
   setup,
   spend,
+  spendSameType,
+  surge,
   takeDamage,
   takeDamageCost,
   theMainScheme,
@@ -75,19 +83,16 @@ import {
  * encounter cards are controlled by the scenario, RRG 1.8 "Ownership and Control" p. 31, so the printed "control"
  * has to mean the attachment relationship MC16 p. 15's own campaign text uses the same wording for).
  *
- * **Genuine primitive gap (`KNOWN_SKIPPED`): `16114.when-revealed`** — "Ronan the Accuser attacks the player who
- * controls the Power Stone (even if that player is in alter-ego form). If no attack was made this way, this card
- * gains surge." needs a `PlayerRef` for "whoever's identity a named card is currently attached to" (the Power
- * Stone may be attached to the villain, in which case no such player exists and the fallback applies). No existing
- * `PlayerRef` reads a card's current host this way — `ownerOf` reads deckbuilding ownership, not the attachment
- * relationship, and no `PlayerRef` inverts "the card attached to a given target" into "the player who controls
- * whatever card matches a query". `16114.boost` ("Attach the Power Stone to Ronan the Accuser") needs no such
- * primitive and is scripted normally.
+ * **`16114.when-revealed`** ("Ronan the Accuser attacks the player who controls the Power Stone (even if that
+ * player is in alter-ego form). If no attack was made this way, this card gains surge.") — docs/phase7-wave3.md
+ * §3.39/§3.40, §4 Q11: "controls the Power Stone" is "the Power Stone is attached to that player's identity",
+ * `controllerOf(each(query("identity", hasAttachment({ name: "Power Stone" }))))`. With the stone on the villain
+ * (an encounter card, controlled by the scenario, RRG 1.8 "Ownership and Control" p. 31) the ref names nobody,
+ * `enemyAttack` makes no attack against an empty `against`, and the card's own sentence gives the surge.
  *
- * **Genuine primitive gap (`KNOWN_SKIPPED`): `16131.kree-combat-armor-action`** — "Hero Action: Spend 3 resources
- * of the same type → discard this card." needs a resource cost shape for "N resources, the player's choice of
- * type, but all N must match" — `ResourceRequirement` has no "same type" concept (`spend(3)` would wrongly accept
- * 3 resources of mixed types).
+ * **`16131.kree-combat-armor-action`** ("Hero Action: Spend 3 resources of the same type → discard this card.") —
+ * docs/phase7-wave3.md §3.43: `AbilityCost.sameResourceType` (`spendSameType(3)`), the payer's choice of type, a
+ * wild counting as any type.
  */
 
 const exhaustMilano = exhaustCardsCost(query("support", { name: "Milano" }));
@@ -209,8 +214,16 @@ export const RONAN = defineAbilities({
     attachCard(named("Power Stone"), theVillain),
   ),
 
-  // Single-Minded Fury (16114, treachery) — SKIPPED (module docblock): "the player who controls the Power Stone"
-  // needs a PlayerRef primitive for "whoever's identity a named card is attached to".
+  // Single-Minded Fury (16114, treachery) — When Revealed: Ronan attacks the player who controls the Power Stone
+  // (even if that player is in alter-ego form). If no attack was made this way, this card gains surge (module
+  // docblock, docs/phase7-wave3.md §3.39/§3.40, §4 Q11).
+  "16114.when-revealed": whenRevealed(
+    enemyAttack(theVillain, {
+      against: controllerOf(each(query("identity", hasAttachment({ name: "Power Stone" })))),
+      bind: "fury",
+    }),
+    ifThen(not(made("fury")), surge()),
+  ),
   // [star] Boost: Attach the Power Stone to Ronan the Accuser.
   "16114.boost": boost(attachCard(named("Power Stone"), theVillain)),
 
@@ -234,11 +247,13 @@ export const RONAN = defineAbilities({
   // Kree Militants (modular: 16131–16134) ----------------------------------------------------------------------
 
   // Kree Combat Armor — Attach to the enemy with the highest ATK (data-driven `attachesTo`). Reduce the amount of
-  // damage attached character takes from each attack by 1. Hero Action: SKIPPED (module docblock) — needs a "same
-  // type" resource cost.
+  // damage attached character takes from each attack by 1.
   "16131.kree-combat-armor-constant": constant(
     rule({ kind: "reduceDamageTaken", target: { hostOfSelf: true }, amount: 1, fromAttack: true }),
   ),
+  // Hero Action: Spend 3 resources of the same type → discard this card (module docblock, docs/phase7-wave3.md
+  // §3.43).
+  "16131.kree-combat-armor-action": heroAction({ cost: spendSameType(3) }, discard(self)),
 
   // Kree Commando — Patrol (data). [star] Boost: If this is an attack, this attack gains piercing.
   "16132.boost": boost(ifThen(activationIs("attack"), modifyAttack({ keywords: ["piercing"] }))),

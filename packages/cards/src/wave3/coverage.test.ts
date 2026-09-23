@@ -72,17 +72,16 @@ const KNOWN_SKIPPED: Readonly<Record<string, readonly string[]>> = {
     // `gmw/rocket-kit.ts`), 16020/16048 (Flora and Fauna, scripted identically in both files, tested together in
     // `gmw/flora-and-fauna.test.ts`), 16060.when-revealed (Drang III, `gmw/badoon.ts`),
     // 16073b.the-grand-collection-action (`gmw/museum.ts`), and 16085a.this-way plus 16085b's three refs
-    // (`gmw/escape-the-museum.ts`). Remaining genuine primitive gaps, found by the Ronan the Accuser pass:
-    // 16114.when-revealed (Single-Minded Fury, needs a `PlayerRef` for "whoever's identity a named card is
-    // attached to", module docblock in `gmw/ronan.ts`); 16131.kree-combat-armor-action (needs a "same type"
-    // resource cost, same docblock). `gmw/nebula.ts` and `gmw/ronan.ts` otherwise have no genuine primitive gaps
-    // — every other primitive they needed had already landed. The Galactic Artifacts/Badoon Headhunter modular
-    // sets are not yet reached (needed by Infiltrate the Museum/Escape the Museum and campaign mode respectively,
-    // not any remaining scenario). Regenerated with `MC_REFS_PACKS=gmw pnpm refs` (docs/card-scripting-
-    // process.md) — never hand-typed.
+    // (`gmw/escape-the-museum.ts`). A third primitives pass (docs/phase7-wave3.md §3.39/§3.40/§3.43, docs/phase7-
+    // wave3-scripting.md §6d) closed the last two Ronan the Accuser gaps too: 16114.when-revealed (Single-Minded
+    // Fury, `PlayerRef controllerOf` + `TargetQuery.hasAttachment`) and 16131.kree-combat-armor-action
+    // (`AbilityCost.sameResourceType`). `gmw/nebula.ts` and `gmw/ronan.ts` have no remaining genuine primitive
+    // gaps — every primitive they needed has landed. The Galactic Artifacts/Badoon Headhunter modular sets are
+    // not yet reached (needed by Infiltrate the Museum/Escape the Museum and campaign mode respectively, not any
+    // remaining scenario). Regenerated with `MC_REFS_PACKS=gmw pnpm refs` (docs/card-scripting-process.md) —
+    // never hand-typed.
     "16102.when-revealed-alter-ego",
     "16102.when-revealed-hero",
-    "16114.when-revealed",
     "16122.cloak-of-hercules-action",
     "16123.obedience-potion-constant",
     "16123.obedience-potion-action",
@@ -94,7 +93,6 @@ const KNOWN_SKIPPED: Readonly<Record<string, readonly string[]>> = {
     "16128.when-defeated",
     "16129.when-defeated",
     "16130.when-defeated",
-    "16131.kree-combat-armor-action",
     "16150.brainstorm-constant",
     "16150.brainstorm-action",
     "16151.by-any-means-constant",
