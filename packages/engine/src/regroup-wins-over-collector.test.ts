@@ -1,24 +1,21 @@
 /**
- * rules-qa-engineer pin for docs/phase7-wave3.md §4 Q17 (open question, undecided by FFG): "Regroup and the
- * Collector's discard redirect on the same ally." Regroup (`drax` 19032, an optional Interrupt: "When an ally is
- * defeated by an enemy attack, return it to its owner's hand instead of discarding it") and Collector I–III (a
- * Forced Interrupt, `discardFromPlayDestination`, docs/phase7-wave3.md §3.14: "When a card … would be placed into
- * a discard pile from play, put it faceup into The Collection instead") both replace the discard of the same
- * defeated ally, and there is no ruling that says which wins when both are live at once.
+ * docs/phase7-wave3.md §4 Q17, decided by the user on 2026-09-23 (no FFG ruling): **Regroup wins over the Collector's
+ * discard redirect, and the ally goes to its owner's hand.** Regroup (`drax` 19032, an optional Interrupt: "When an
+ * ally is defeated by an enemy attack, return it to its owner's hand instead of discarding it") and Collector I–III
+ * (a Forced Interrupt, `discardFromPlayDestination`, docs/phase7-wave3.md §3.14: "When a card … would be placed into
+ * a discard pile from play, put it faceup into The Collection instead") both reach the discard of the same defeated
+ * ally.
  *
- * This test does not decide the question (not this agent's call — see CLAUDE.md's rules-qa-engineer boundary). It
- * pins **today's engine behavior**: Regroup's own interrupt (`setDefeatDestination`, resolved in the defeat's own
- * interrupt window) wins, because the engine models the Collector's redirect as a constant rule applied later, at
- * the moment the card actually leaves play (`discardFromPlayDestination`, read in `leavePlay`) — not as a second
- * interrupt racing Regroup's in the same window. So the ally ends up in its owner's hand, not in The Collection.
- * RRG 1.8 Appendix III ("Simultaneous Timing Priority") would resolve a forced interrupt before an optional one if
- * both answered the *same* triggering event — the reading docs/phase7-wave3.md §3.45's own docblock flags as the
- * one an FFG answer could reasonably overturn. If a future ruling instead has the Collector win, this is the one
- * test that should flip.
+ * The user's reasoning: Regroup triggers on the defeat, which comes before the card would ever be placed in a discard
+ * pile, so once Regroup has resolved the Collector never triggers. RRG 1.8 Appendix III's forced-before-optional
+ * order applies only to abilities answering the *same* triggering condition, which these two do not. The engine
+ * already models it that way: Regroup's `setDefeatDestination` resolves in the defeat's own interrupt window, and the
+ * Collector's redirect is a constant read only when a card actually goes to a discard pile from play (`leavePlay`).
+ * No engine change was needed; this file was the rules-QA pin `wave3-q17-regroup-collector.test.ts` while Q17 was
+ * open.
  *
- * Reuses `defeat-destination.test.ts`'s and `scenario-area.test.ts`'s own stub shapes (Regroup, Collector) rather
- * than inventing new ones, so this test only differs from those two files in combining both cards on the same
- * defeated ally at once — exactly the situation neither of those two files' own tests puts them in.
+ * Reuses `defeat-destination.test.ts`'s and `scenario-area.test.ts`'s own stub shapes (Regroup, Collector), combined
+ * on the same defeated ally, which neither of those files does.
  */
 
 import { flat, type CardId } from "@mc/content";
@@ -92,13 +89,19 @@ const picker =
     return defaultPick(state);
   };
 
-describe("§4 Q17: Regroup vs. the Collector's discard redirect on the same defeated ally", () => {
-  it("today's engine: Regroup's own interrupt wins — the ally returns to hand, not The Collection", () => {
+describe("§4 Q17 (decided 2026-09-23): Regroup wins over the Collector's discard redirect on the same defeated ally", () => {
+  it("Regroup triggers on the defeat, before any discard: the ally returns to hand, and the Collector never triggers", () => {
     const t = table();
     const endTurn: Command = { type: "endTurn", playerId: P1 };
     const { state, events } = runCommandsPicking(t.state, deps, picker(t.recruit), endTurn);
     expect(events.some((e) => e.type === "characterDefeated" && e.instanceId === t.recruit)).toBe(true);
     expect(mustPlayer(state, P1).hand).toContain(t.recruit);
     expect(state.scenarioAreas?.[AREA] ?? []).not.toContain(t.recruit);
+    // The Collector's redirect never happened for it.
+    expect(
+      events.some(
+        (e) => e.type === "triggerEvent" && e.event.kind === "discardRedirected" && e.event.instanceId === t.recruit,
+      ),
+    ).toBe(false);
   });
 });
