@@ -139,6 +139,51 @@ describe("Ms. Marvel kit", () => {
     expect(playerOf(after, P1).dealtEncounter).toHaveLength(dealtBefore + 1);
   });
 
+  // docs/phase7-wave3.md §4 Q18, decided by the user on 2026-09-23: "that card" names the specific card, so it is
+  // still added to hand even though the reset that emptying the deck caused (ruling, Apr 30, 2026 (3) answer 7) has
+  // already shuffled it into the new deck.
+  it('"Teen Spirit" (§4 Q18): a match that was the deck\'s last card still goes to hand after the immediate reset', () => {
+    const start = msmVsRhino();
+    // Every other Ms. Marvel signature card out of the deck's way, as in the test above...
+    const cleared = moveToHand(
+      start,
+      P1,
+      "05003",
+      "05003",
+      "05003",
+      "05004",
+      "05004",
+      "05004",
+      "05005",
+      "05005",
+      "05006",
+      "05007",
+      "05008",
+      "05009",
+      "05010",
+      "05011",
+    ).state;
+    // ...and Red Dagger, the one match left, moved to the bottom: the last card the discarding reaches.
+    const deck = playerOf(cleared, P1).deck;
+    const redDagger = deck.find((id) => inst(cleared, id).cardId === "05002")!;
+    const bottomed = {
+      ...cleared,
+      players: cleared.players.map((p) =>
+        p.playerId === P1 ? { ...p, deck: [...deck.filter((id) => id !== redDagger), redDagger] } : p,
+      ),
+    };
+    const others = deck.filter((id) => id !== redDagger);
+    const identity = identityOf(bottomed);
+    const dealtBefore = playerOf(bottomed, P1).dealtEncounter.length;
+    const after = runMsm(bottomed, use(P1, identity, "05001b.teen-spirit"));
+    expect(playerOf(after, P1).hand).toContain(redDagger);
+    expect(playerOf(after, P1).deck).not.toContain(redDagger);
+    // Everything else discarded was shuffled into the new deck by the reset, which dealt the facedown encounter card.
+    expect(new Set(playerOf(after, P1).deck)).toEqual(new Set(others));
+    expect(playerOf(after, P1).discard).toEqual([]);
+    expect(playerOf(after, P1).dealtEncounter).toHaveLength(dealtBefore + 1);
+  });
+
   it("Red Dagger: an Interrupt that replaces his own defeat, paid with 2 resources of different types", () => {
     const start = msmVsRhino();
     // Red Dagger, 3 single-icon cards to pay his own cost (energy/mental/mental filler), and Big Hands (physical)
