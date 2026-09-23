@@ -112,11 +112,19 @@ actions.ts`), with its own engine test (`packages/engine/src/abilities.test.ts`,
    single `EventPattern` reaches all three with one subject role, and an `AbilityDefinition` carries exactly one
    trigger. Needs a `usesBasicPower(by)` pattern that composes both roles itself — flag to `game-rules-architect`
    if a second card ever needs the same wording (none does yet in `gmw`).
+   **Closed (docs/phase7-wave3.md §3.28, 2026-09-22): no gap.** `on.basicPowerUsed(YOUR_IDENTITY)` already matches
+   every basic power (attack, thwart, defense, recovery) with the character as the event's target. The one fix was
+   engine-side: a defense's "after" window now waits for the attack to end (RRG 1.8 p. 16). Script it as
+   `heroResponse(on.basicPowerUsed(YOUR_IDENTITY), { cost: [removeCounter("growth", 2, { fromIdentity: true }),
+exhaustThis] }, ready(yourIdentity))`.
 3. **`16024.deft-focus-action`** — "reduce the resource cost of the next superpower card you play this turn by 1."
    Needs a standing "next matching card played this turn" cost-reduction rule, distinct from the interrupt-time
    reduction docs/phase7-wave3.md §3.20 built for Star-Lord's "What could go wrong?" (that one is offered live, at
    the point of paying for the card that triggers it — this one is banked ahead of time by an earlier action and
    has to survive until a later, unrelated card is played).
+   **Closed (docs/phase7-wave3.md §3.29, 2026-09-22): no gap.** `reduceNextCardCost` already has `duration:
+"turn"` and a `cardFilter`, and nothing consumes it except a matching card. Script it as `heroAction({ cost:
+exhaustThis }, reduceNextCardCost(you, 1, "turn", { trait: SUPERPOWER }))`.
 
 ## 6. DSL builders added this pass
 
@@ -156,8 +164,17 @@ Recorded in `gmw/rocket-kit.ts`'s own module docblock (mirrors §5's format):
    deal any amount of damage to an enemy") needs a "grant a standing triggered ability for a duration" primitive.
    `RuleSpec applyRuleUntil` only carries a `RuleSpec` (a static restriction/modifier), not an arbitrary reactive
    ability, so there is no way to express "each time X happens, do Y" as something that itself later expires.
+   **Closed (docs/phase7-wave3.md §3.30, 2026-09-22):** `EffectSpec eachTimeUntil` (§3.17) was built for this card.
+   It only lacked a builder. New builders: `eachTimeUntil` (`dsl/effects.ts`) and `on.youDealDamage` (`dsl/
+abilities.ts`; "you" per RRG 1.8 p. 49, "deal" as damage dealt per p. 35). Script it as
+   `heroAction(eachTimeUntil("endOfTurn", on.youDealDamage(query("enemy")), heal(2, yourIdentity)))`.
 2. **`16033.salvage-response`** ("Response: After you spend this card, …") needs a trigger event for a card being
    spent as a resource payment — no such `TriggerEvent` kind exists.
+   **Closed (docs/phase7-wave3.md §3.31, 2026-09-22): no gap.** `resourcesSpent` / `on.youSpendThis()`
+   (docs/phase7-wave2.md §12) is that trigger. It fires after the costs are paid and before the paid-for card
+   resolves, and Salvage is already in the discard pile when it does. Script it as `response(on.youSpendThis(),
+chooseCards("tech", zone("discard", you, { filter: query("upgrade", { trait: TECH }) }), { min: 1, max: 1 }),
+moveCards(cards(chosen("tech")), "deckTop"))`.
 3. **`16048.flora-and-fauna-constant`/`-action`** (Rocket's own printing of the Team-Up card, identical at 16020
    in Groot's own range) — "a Rocket Raccoon upgrade" needs a `TargetQuery` for "belongs to a specific named
    character's card pool, independent of who controls it"; `identitySetOf` only reaches the _current player's_

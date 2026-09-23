@@ -2,6 +2,7 @@ import type {
   CampaignLogValueSpec,
   CardDestination,
   CardSelector,
+  EventPattern,
   EffectSpec,
   FacedownRole,
   LastingUntil,
@@ -378,6 +379,19 @@ export const atEndOfActivation = (...effects: readonly EffectArg[]): EffectSpec 
   kind: "atEndOfActivation",
   effects: flatten(effects),
 });
+/**
+ * "Until the end of the turn, heal 2 damage from Rocket Raccoon **each time** you deal any amount of damage to an
+ * enemy." (Schadenfreude, `gmw` 16032; docs/phase7-wave3.md §3.17, §3.30): a lasting "each time …" effect. Every
+ * event matching `on` until `until` resolves `effects` — mandatory, before that event's responses (RRG 1.8 "Delayed
+ * Effect", p. 15), matched with this card as "self" and its controller as "you". `on` is any `EventPattern`
+ * (`on.youDealDamage(ENEMY)` for Schadenfreude). Not created outside the period it names (RRG 1.8 "Lasting
+ * Effects", p. 26).
+ */
+export const eachTimeUntil = (
+  until: "endOfPhase" | "endOfRound" | "endOfTurn",
+  on: EventPattern,
+  ...effects: readonly EffectArg[]
+): EffectSpec => ({ kind: "eachTimeUntil", until, on, effects: flatten(effects) });
 /** "Prevent N of that damage" (absent = all of it). */
 export const preventDamage = (n?: Amount): EffectSpec =>
   n === undefined ? { kind: "preventDamage" } : { kind: "preventDamage", amount: amount(n) };

@@ -730,6 +730,23 @@ export const on = {
       opts.fromAttack !== undefined ? { fromAttack: opts.fromAttack } : {},
       opts.taken ? { requireResults: { amount: 1 } } : {},
     ),
+  /**
+   * "Each time / After **you** deal any amount of damage to [an enemy]" (Schadenfreude, `gmw` 16032; docs/phase7-
+   * wave3.md §3.30). "You" is your identity where able (RRG 1.8 "You, Your", p. 49; ruling, Dec 17, 2025 (3)): your
+   * identity's attacks and effects, and the cards p. 49 calls "an extension of a player's identity" — events you
+   * play, resources you spend, upgrades you control. **Not** allies or supports ("not considered to be performed by
+   * that player's identity"). Known gap: an upgrade attached to a *different* friendly character is not an
+   * extension either, and this query still counts it (no printed card needs the case yet). "Deal" is damage
+   * **dealt**, not taken: prevention reduces what the target takes, "but the amount of damage 'dealt' is not
+   * reduced" (RRG 1.8 "Prevent", p. 35), so the event's own amount is read (`eventAtLeast`), not its `amount` result.
+   */
+  youDealDamage: (to: Who): EventPattern =>
+    pattern(
+      "dealDamage",
+      { sourceIs: { controller: "you", categories: ["identity", "event", "resource", "upgrade"] } },
+      asTarget(to),
+      { eventAtLeast: { amount: 1 } },
+    ),
   /** "When threat would be placed on a scheme" / "after placing threat here". */
   threatPlaced: (where?: Who): EventPattern => pattern("placeThreat", where ? asTarget(where) : {}),
   /** "When a [treachery] card is revealed from the encounter deck". */

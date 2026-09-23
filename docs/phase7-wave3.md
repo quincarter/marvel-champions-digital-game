@@ -530,6 +530,56 @@ Each of these looked like a gap in the survey and is not:
 | "Discard 1 card at random from your hand. If that card's printed resource has [physical] …"             | Adam Warlock (`stld`)                                         | docs/phase7-wave2.md §3.13.6                                                                                                                                                   |
 | "Deal yourself 1 facedown encounter card →" as a cost                                                   | Star-Lord, Daring Escape, Library Labyrinth, Universal Weapon | the effect before the arrow; the ability's cost is otherwise free — **unproven as a cost**; the scripter should confirm the "→" split holds when the effect is a deal          |
 
+### 3.27–3.36 The ten skipped `gmw` refs (second primitives pass, 2026-09-22)
+
+The scripting pass left ten `gmw` refs in `KNOWN_SKIPPED` as primitive gaps (docs/phase7-wave3-scripting.md §5, §6a and §7). Each was checked against the engine first. Four already composed and needed at most a DSL builder or one timing fix (§3.28–§3.31); the other six needed new vocabulary (§3.32–§3.36). §3.27 is left unused: §2.3 already points at it for the Kree Fanatic's "activates against the player he is engaged with", which §3.26's table covers.
+
+### 3.28 "After [character] uses a basic power" (Lashing Vines)
+
+> **Status: composes; one engine timing fix landed (2026-09-22),** tested in `packages/engine/src/gmw-compositions.test.ts`.
+
+Lashing Vines (16009): "Hero Response: After Groot uses a basic power, remove 2 growth counters from him and exhaust Lashing Vines → ready Groot."
+
+- **Already there:** `TriggerEvent basicPowerUsed { characterInstanceId, power }` (docs/phase7-wave2.md §3.11) is announced for all four basic powers: a basic attack and thwart once they resolve, a basic defense when the defender is declared (`enemy-activation.ts`), a basic recovery. RRG 1.8 "Basic Power" (p. 10) lists attack, thwart, defense and recovery as basic powers, so a defense counts. The scripter's gap note read `on.defends` and `on.attacks`, but `on.basicPowerUsed` covers all of them with the character as the target.
+- **Recovery never reaches Lashing Vines.** It is an alter-ego power, and the card is a Hero Response, so the form gate refuses it. That matches the printed card.
+- **Fixed: a defense's "after" window now waits for the attack to end.** RRG 1.8 "Defend, Defense" (p. 16): "Abilities that trigger after a character defends an attack resolve after that attack ends." `defended` already deferred its response window to the activation's end. `basicPowerUsed` with `power: "defense"` opened its window as soon as the defender was declared, before boosts and damage. It now defers the same way (`defersResponsesToActivation`, `resolve/event.ts`). That also corrects Super Speed (`qsv` 14001a) and Captain Marvel ally (04032) on a defense. No existing test changed.
+
+**Composition:** `heroResponse(on.basicPowerUsed(YOUR_IDENTITY), { cost: [removeCounter("growth", 2, { fromIdentity: true }), exhaustThis] }, ready(yourIdentity))`.
+
+### 3.29 "The next superpower card you play this turn" (Deft Focus)
+
+> **Status: composes, no change (2026-09-22),** tested in `packages/engine/src/gmw-compositions.test.ts` (and `turn-duration.test.ts`).
+
+Deft Focus (16024): "Hero Action: Exhaust Deft Focus → reduce the resource cost of the next superpower card you play this turn by 1."
+
+`EffectSpec reduceNextCardCost` already has `duration: "turn"` (docs/phase7-wave2.md §13, written for this card's `magneto` reprint 49023) and a `cardFilter`. `costReductionFor` applies it only while pricing a matching card, and `consumeCostReductions` ends it on the first matching card played. A non-matching card neither uses it nor consumes it. It expires unused when the turn ends. This is a different mechanism from §3.20: Star-Lord's reduction is chosen while the card is being played, while this one is set up earlier by a separate ability.
+
+**Composition:** `heroAction({ cost: exhaustThis }, reduceNextCardCost(you, 1, "turn", { trait: SUPERPOWER }))`. "A superpower card" is any card type with the trait, so the filter has no `categories`.
+
+### 3.30 "Each time you deal any amount of damage to an enemy" (Schadenfreude)
+
+> **Status: composes over §3.17; DSL builders added (2026-09-22),** tested in `packages/engine/src/gmw-compositions.test.ts`.
+
+Schadenfreude (16032): "Hero Action: Until the end of the turn, heal 2 damage from Rocket Raccoon each time you deal any amount of damage to an enemy." §3.17 was built for this card, and its test used this card's shape. The scripter's note ("`applyRuleUntil` only carries a `RuleSpec`") missed `EffectSpec eachTimeUntil` because no DSL builder existed. Two builders now exist:
+
+- **`eachTimeUntil(until, on, ...effects)`** (`dsl/effects.ts`).
+- **`on.youDealDamage(to)`** (`dsl/abilities.ts`). It encodes two rules:
+  - **Who "you" is.** RRG 1.8 "You, Your" (p. 49; ruling Dec 17, 2025 (3)): "you" is your identity where able. Events you play, resources you spend and upgrades you control are "an extension of a player's identity". Allies and supports are "not considered to be performed by that player's identity". So the source must be one of your identity, event, resource or upgrade cards. An ally's attack and a support's damage do not heal (tested). **Known gap:** an upgrade attached to a _different_ friendly character is not an extension either, and the query still counts it. No printed card needs that case.
+  - **"Deal" means damage dealt.** RRG 1.8 "Prevent" (p. 35): prevention reduces what the target takes, "but the amount of damage 'dealt' is not reduced". So the pattern reads the event's own amount (`eventAtLeast: { amount: 1 }`), not the `amount` result (damage taken). A hit fully absorbed by the villain's tough status still heals (tested).
+
+**Composition:** `heroAction(eachTimeUntil("endOfTurn", on.youDealDamage(query("enemy")), heal(2, yourIdentity)))`.
+
+### 3.31 "After you spend this card" (Salvage)
+
+> **Status: composes, no change (2026-09-22),** tested in `packages/engine/src/gmw-compositions.test.ts`.
+
+Salvage (16033): "Response: After you spend this card, put a tech upgrade from your discard pile on top of your deck." The scripter's note said no such `TriggerEvent` existed. `resourcesSpent` has been there since docs/phase7-wave2.md §12, with the DSL `on.youSpendThis()`. The rules questions it raises are already settled:
+
+- **When it fires.** After every cost is paid (step 5 of RRG 1.8 "Initiating Abilities", p. 24) and before the paid-for card starts being played (step 6). RRG 1.8 "Cost Arrow Icon" (p. 14): "Responses to the text preceding the cost arrow icon resolve before the text following the icon resolves". Ruling, Feb 28, 2026 (1): "Any abilities triggered by paying a cost resolve immediately before the effect following the arrow resolves." The test pins this with a draw event: Salvage puts the Tech upgrade on top, then the event paid for with Salvage draws it.
+- **Where the spent card is.** Already in its owner's discard pile, since every cost is paid at once (RRG 1.8 "Cost", p. 13). Its ability on this event is still live, because RRG 1.8 "Resource Card" (p. 37) says "Some resource cards have card text that is active while using the card to generate resources". `spentCardCandidates` (`resolve/triggers.ts`) handles that. Salvage is not an upgrade, so it cannot pick itself.
+
+**Composition:** `response(on.youSpendThis(), chooseCards("tech", zone("discard", you, { filter: query("upgrade", { trait: TECH }) }), { min: 1, max: 1 }), moveCards(cards(chosen("tech")), "deckTop"))`. The engine test writes the same thing as plain data.
+
 ---
 
 ## 4. Open questions (for the user or FFG)
