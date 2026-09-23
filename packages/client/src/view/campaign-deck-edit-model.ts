@@ -40,6 +40,10 @@ export interface CampaignDeckEditRow {
   /** True for a line the campaign granted (MC10 p. 3): not editable in the sense the player chose it. */
   readonly locked: boolean;
   readonly lockedReason: string | null;
+  /** True for a line RRG 1.8 p. 29 removed from the campaign — refused, and the deck should say why. */
+  readonly refused: boolean;
+  /** `validateDeck`'s own `campaign_removed_card` message for this card, or null when the line isn't refused. */
+  readonly refusedReason: string | null;
 }
 
 export interface CampaignDeckEditModel {
@@ -53,6 +57,18 @@ export interface CampaignDeckEditModel {
 const GRANT_REASON = "Added by the campaign — does not count toward deck size";
 const FROZEN_REASON = "Your deck is frozen for the rest of the campaign; only campaign-granted cards can change.";
 
+/**
+ * Card ids RRG 1.8 p. 29 removed from `context` **by face** (a removal naming the other face of a double-sided
+ * card leaves the front, and so the deck line, usable — ruling April 30, 2026 (4) answer 2) — the same test
+ * `validateDeck`'s own `isRemovedFromCampaign` applies, read here so a builder screen can keep a removed card out
+ * of what it offers to *add*, not only flag it once it's already in the deck.
+ */
+export function removedFromCampaignCardIds(context: CampaignDeckContext): ReadonlySet<CardId> {
+  return new Set(
+    (context.removedFromCampaign ?? []).filter((face) => face.face === undefined).map((face) => face.cardId),
+  );
+}
+
 /** `validateDeck` in campaign context, plus the row-level marks a builder screen needs but `DeckValidation` doesn't carry. */
 export function campaignDeckEditModel(
   deck: DeckContents,
@@ -61,12 +77,24 @@ export function campaignDeckEditModel(
 ): CampaignDeckEditModel {
   const validation = validateDeck(deck, pool, { campaign: context });
   const granted = new Set(context.grantedCardIds);
-  const rows: readonly CampaignDeckEditRow[] = deck.cards.map((line) => ({
-    cardId: line.cardId,
-    quantity: line.quantity,
-    locked: granted.has(line.cardId),
-    lockedReason: granted.has(line.cardId) ? GRANT_REASON : null,
-  }));
+  const removedReasonByCardId = new Map<string, string>();
+  if (!validation.ok) {
+    for (const problem of validation.problems) {
+      if (problem.code !== "campaign_removed_card") continue;
+      for (const cardId of problem.cardIds) removedReasonByCardId.set(cardId as string, problem.message);
+    }
+  }
+  const rows: readonly CampaignDeckEditRow[] = deck.cards.map((line) => {
+    const refusedReason = removedReasonByCardId.get(line.cardId as string) ?? null;
+    return {
+      cardId: line.cardId,
+      quantity: line.quantity,
+      locked: granted.has(line.cardId),
+      lockedReason: granted.has(line.cardId) ? GRANT_REASON : null,
+      refused: refusedReason !== null,
+      refusedReason,
+    };
+  });
   const editingDisabled = context.frozenNonCampaignCards !== undefined;
   return { validation, rows, editingDisabled, editingDisabledReason: editingDisabled ? FROZEN_REASON : null };
 }
