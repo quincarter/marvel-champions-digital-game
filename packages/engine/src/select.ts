@@ -266,6 +266,8 @@ export type QueryExclusion =
   | "wrongUnique"
   | "notHostOfSelf"
   | "notAttachedToHost"
+  /** No card attached to it matches the query's `hasAttachment`. */
+  | "missingAttachment"
   | "wrongOwner"
   | "missingPrintedResource"
   | "wrongAspect"
@@ -358,6 +360,12 @@ export function explainQuery(
   if (query.host !== undefined) {
     const attachedTo = instance.attachedTo;
     if (attachedTo === null || !resolveRef(state, query.host, context).includes(attachedTo)) return "notAttachedToHost";
+  }
+  // "An ally with a weapon attachment upgrade" (docs/phase7-wave3.md §3.40): the other direction of `host`.
+  if (query.hasAttachment !== undefined) {
+    const wanted = query.hasAttachment;
+    if (!instance.attachments.some((attached) => matchesQuery(state, attached, wanted, context)))
+      return "missingAttachment";
   }
   if (query.owner === "you" && instance.ownerId !== context.controllerId) return "wrongOwner";
   if (query.printedResource !== undefined) {
@@ -798,6 +806,13 @@ export function resolvePlayers(state: GameState, ref: PlayerRef, context: Effect
         .map((id) => getInstance(state, id)?.ownerId ?? null)
         .filter((id): id is PlayerId => id !== null);
       return [...new Set(owners)];
+    }
+    case "controllerOf": {
+      // docs/phase7-wave3.md §3.39: encounter cards are controlled by the scenario (RRG 1.8 p. 31), so they name no one.
+      const controllers = new Set(resolveRef(state, ref.target, context).map((id) => controllerOf(state, id)));
+      return playerOrder(state)
+        .map((p) => p.playerId)
+        .filter((id) => controllers.has(id));
     }
     case "engagedWith": {
       const engaged = resolveRef(state, ref.of, context)

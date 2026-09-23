@@ -380,6 +380,40 @@ forcedInterrupt(
 );
 ```
 
+**The last seven wave 3 gaps (`game-rules-architect`, third primitives pass, 2026-09-23).** docs/phase7-wave3.md
+§3.39–§3.45 has the rules decision, the citation and the engine test for each one;
+`packages/cards/src/dsl/wave3-primitives-2.test.ts` validates every composition below. Drop each ref from
+`KNOWN_SKIPPED` when you script it. `19013.moondragon-action` stays skipped (§3.23, §4 Q12).
+
+| Ref                               | Closed by                                                      | Builder(s)                            |
+| --------------------------------- | -------------------------------------------------------------- | ------------------------------------- |
+| `16114.when-revealed`             | new `PlayerRef controllerOf` (§3.39) + `hasAttachment` (§3.40) | `controllerOf`, `hasAttachment` (new) |
+| `17017.target-practice-interrupt` | new `TargetQuery.hasAttachment` (§3.40)                        | `hasAttachment` (new)                 |
+
+Single-Minded Fury (`16114.when-revealed`). "Controls the Power Stone" is "attached to your identity" (§4 Q11). With
+the stone on the villain the ref names nobody, no attack is made, and the card surges (§3.39):
+
+```ts
+whenRevealed(
+  enemyAttack(theVillain, {
+    against: controllerOf(each(query("identity", hasAttachment({ name: "Power Stone" })))),
+    bind: "fury",
+  }),
+  ifThen(not(made("fury")), surge()),
+);
+```
+
+Target Practice (`17017.target-practice-interrupt`). The filter is on the trigger, so an ally without a weapon never
+offers it (§3.40):
+
+```ts
+interrupt(
+  on.attacks(query("ally", hasAttachment(query("upgrade", { trait: WEAPON })))),
+  { cost: discardThis },
+  modifyStat("atk", 2, eventSource, "endOfAttack"),
+);
+```
+
 ## 7. Progress / next up
 
 **Foundation: done.** `wave3/{index,cards,reprints,names,setup,testing,coverage.test}.ts` all exist and are green.

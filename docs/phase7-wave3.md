@@ -833,6 +833,59 @@ forcedInterrupt(
 
 **Library Labyrinth (16085a):** "\"This way?\" — Hero Action: Deal yourself 1 facedown encounter card → remove 5 threat from the main scheme. (Limit once per round per player.)" §3.36's `AbilityLimit.per: "player"` covers it: `heroAction({ cost: dealEncounterCardsCost(1), limit: oncePerRoundPerPlayer }, removeThreat(5, theMainScheme))`.
 
+### 3.39–3.45 The last skipped wave 3 refs (third primitives pass, 2026-09-23)
+
+Seven refs stayed in `KNOWN_SKIPPED` as primitive gaps after the `gmw` pass: two in Ronan the Accuser (`gmw`), three in Star-Lord (`stld`, docs/phase7-wave3-scripting.md §6b) and two in Drax (`drax`). Each was checked against the vocabulary first. None composed as is, but two of them (§3.39, §3.40) are small general pieces that compose with each other. Moondragon (`drax` 19013) is not among them: it stays open on §4 Q12 (§3.23). The DSL compositions are validated in `packages/cards/src/dsl/wave3-primitives-2.test.ts`.
+
+### 3.39 "The player who controls X": `PlayerRef controllerOf`
+
+> **Status: landed (2026-09-23),** tested in `packages/engine/src/controller-of-player-ref.test.ts` (3 tests: the ref names the stone's holder and nobody for a scenario-controlled card; the villain attacks that player in alter-ego form and the card does not surge; with the stone on the villain no attack is made and the card surges; replay deep-equal).
+
+Single-Minded Fury (16114): "When Revealed: Ronan the Accuser attacks the player who controls the Power Stone _(even if that player is in alter-ego form)_. If no attack was made this way, this card gains surge." No `PlayerRef` named a player through a card's controller. `ownerOf` reads ownership, which is a different fact once control changes hands (RRG 1.8 "Ownership and Control", p. 31).
+
+- **`PlayerRef controllerOf { target }`**: the players who control the cards `target` names, in player order. The raw data has two other wordings it covers: "The player who controls that identity" and "a player who controls a [Web-Warrior] character" (the latter with `choosePlayer { among }` to pick one).
+- **"Controls the Power Stone"** keeps §4 Q11's reading (§3.19): the stone is attached to that player's identity. That is `controllerOf(each(query("identity", hasAttachment({ name: "Power Stone" }))))`, with §3.40's query field.
+- **Attached to no identity.** RRG 1.8 "Ownership and Control" (p. 31): "Encounter cards are considered to be under the control of the scenario." So neither the villain holding the stone nor the stone itself names a player. The ref is empty, `enemyAttack` with an empty `against` makes no attack (it does not fall back to the engaged player), `<bind>.made` stays 0, and the card's own sentence gives the rest: "If no attack was made this way, this card gains surge." The same branch covers a stunned Ronan: RRG 1.8 "Stun, Stunned" (p. 41), "If a stunned villain or minion would attack, discard the stunned status card instead … that character is not considered to have attacked", so no attack was made and the card surges.
+- **Alter-ego form** needs nothing: an `enemyAttack` effect attacks the named player whatever their form. The parenthetical only restates that.
+
+**DSL:** `controllerOf(target)` in `dsl/values.ts`.
+
+**Single-Minded Fury composition** (`16114.when-revealed`):
+
+```ts
+whenRevealed(
+  enemyAttack(theVillain, {
+    against: controllerOf(each(query("identity", hasAttachment({ name: "Power Stone" })))),
+    bind: "fury",
+  }),
+  ifThen(not(made("fury")), surge()),
+);
+```
+
+### 3.40 "A character that has an attachment matching X": `TargetQuery.hasAttachment`
+
+> **Status: landed (2026-09-23),** tested in `packages/engine/src/has-attachment-query.test.ts` (3 tests: `explainQuery` reports `missingAttachment`; an ally with a Weapon upgrade triggers the interrupt, +2 ATK for that attack, the support discarded; an ally whose only attachment is not a Weapon is never offered it; replay deep-equal).
+
+Target Practice (17017): "Interrupt: When an ally with a weapon attachment upgrade makes an attack, discard Target Practice → that ally gets +2 ATK for that attack." `host` asks what a candidate is attached _to_, and `hostOfSelf` whether it is this card's own host. Nothing asked what is attached to a candidate.
+
+- **`TargetQuery.hasAttachment: TargetQuery`**: at least one card attached to the candidate matches the inner query, read in the same context (so `you` and `self` mean the same inside it).
+- **It belongs in the trigger, not in the effects.** RRG 1.8 "Initiating Abilities" (p. 24): an ability is initiated when its triggering condition occurs. With the filter on `sourceIs`, the interrupt is never offered for an ally without a weapon, so Target Practice is never discarded for nothing. The `stld` note was right to refuse an `ifThen(exists(…))` guard in the effects.
+- New `QueryExclusion` `"missingAttachment"` for `explainQuery`/`why-not.ts`. **Client impact:** one line in `packages/client/src/view/highlights.ts`, whose reason table is exhaustive.
+
+**DSL:** `hasAttachment(q)` in `dsl/values.ts`, a query fragment.
+
+**Target Practice composition** (`17017.target-practice-interrupt`):
+
+```ts
+interrupt(
+  on.attacks(query("ally", hasAttachment(query("upgrade", { trait: WEAPON })))),
+  { cost: discardThis },
+  modifyStat("atk", 2, eventSource, "endOfAttack"),
+);
+```
+
+"An ally" is any player's ally; the printed card does not say "your".
+
 ---
 
 ## 4. Open questions (for the user or FFG)

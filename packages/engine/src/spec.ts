@@ -93,6 +93,15 @@ export interface TargetQuery {
    * works on a card (an event) that is not itself an attachment. An unattached card never matches.
    */
   readonly host?: TargetRef;
+  /**
+   * The card has at least one card attached to it that matches this query: "When an ally **with a weapon attachment
+   * upgrade** makes an attack" (Target Practice, `stld` 17017) is `{ categories: ["ally"], hasAttachment: {
+   * categories: ["upgrade"], trait: WEAPON } }`; "the identity the Power Stone is attached to" is `{ categories:
+   * ["identity"], hasAttachment: { name: "Power Stone" } }`. The other direction of `host`, which asks what the
+   * candidate is attached *to*; this asks what is attached to the candidate. The inner query is read in the same
+   * context as the outer one, so its `self`/`you` mean what they mean here. docs/phase7-wave3.md §3.40.
+   */
+  readonly hasAttachment?: TargetQuery;
   /** In play facedown as something else ("each facedown Drone minion"). */
   readonly facedown?: boolean;
   /**
@@ -352,6 +361,19 @@ export type PlayerRef =
   | { readonly kind: "others"; readonly of: PlayerRef }
   /** The player a card is engaged with: "the engaged player" on a minion's own ability. */
   | { readonly kind: "engagedWith"; readonly of: TargetRef }
+  /**
+   * The player(s) who control the cards the ref names, in player order: "the player who controls that identity", "a
+   * player who controls a [Web-Warrior] character" (a query ref, then `choosePlayer { among }` to pick one), and "the
+   * player who controls the Power Stone" (Single-Minded Fury, `gmw` 16114), which names the identity the stone is
+   * attached to: `controllerOf(each({ categories: ["identity"], hasAttachment: { name: "Power Stone" } }))`.
+   *
+   * RRG 1.8 "Ownership and Control" (p. 31): a player controls their identity and the player cards in their play
+   * area; "Encounter cards are considered to be under the control of the scenario". So a card no player controls (a
+   * minion, an encounter attachment, the villain) names nobody, and an effect aimed at nobody does nothing — the
+   * Power Stone on the villain gives Single-Minded Fury no player to attack. Not `ownerOf`, which reads who brought
+   * the card into the game and differs once control changes hands. docs/phase7-wave3.md §3.39.
+   */
+  | { readonly kind: "controllerOf"; readonly target: TargetRef }
   /**
    * "The player who defeated this scheme" (Crossbones' Assault 04070) / "the defeating player" (Mystique's
    * Manipulations, errata RRG 1.8 p. 66): the defeating player recorded on the `schemeDefeated` or
