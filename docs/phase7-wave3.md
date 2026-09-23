@@ -222,6 +222,7 @@ Each villain deck is I–II standard and II–III expert, except Escape the Muse
 
 Five cards: Ronan the Accuser (90001, a minion with Toughness, "Ronan the Accuser cannot be stunned", "Forced Interrupt: When the villain phase begins, Ronan the Accuser engages the hero with the fewest remaining hit points"), Judge, Jury, Executioner (90002), The Accused (90003), Bring the Hammer Down ×2 (90004), You Dare Oppose Me? ×2 (90005).
 
+- **Status: fully scripted (2026-09-23).** The third vocabulary question below needed a new effect, `dealAsEncounterCard` (§3.47).
 - **Needs:** §3.7 (`cannotHaveStatus`, landed), §3.2 (villain phase begins, landed), and three vocabulary questions for the scripter, each believed expressible with what exists but not yet proven: "engages the hero with the fewest remaining hit points" (`engage` with a `PlayerRef ownerOf` a `superlative` identity by `remainingHp`), "Ronan the Accuser activates against the player he is engaged with" (§3.27), and "Each time a card belonging to the Kree Fanatic set is discarded this way, deal that card to yourself" (`discardEncounterCards` with a bind, then `moveCards` of the bound cards filtered by `encounterSetOf`).
 - The minion shares the title "Ronan the Accuser" with the `gmw` villain. The unique rule keeps them from being in play together.
 
@@ -1063,6 +1064,59 @@ poison counter here." `turnStarted` was an announcement, so it opened only a res
 
 ```ts
 forcedInterrupt(on.yourTurnBegins(), addCounters("poison", 1), takeDamage(countersOn(self, "poison")));
+```
+
+### 3.47 Dealing a card already identified: `EffectSpec dealAsEncounterCard`
+
+> **Status: landed (2026-09-23),** tested in `packages/engine/src/deal-as-encounter-card.test.ts` (4 tests: the named
+> cards are dealt facedown in order and the deck's top is untouched; the dealt cards are revealed in the next villain
+> phase; a card in play is never dealt; replay deep-equal). Card test: `ron/kree-fanatic.test.ts`,
+> `90005.when-revealed`.
+
+You Dare Oppose Me? (90005): "Discard the top 5 cards of the encounter deck. Each time a card belonging to the Kree
+Fanatic set is discarded this way, deal that card to yourself as a facedown encounter card." It is also RRG 1.8's own
+example for "Each Time" (p. 7). `dealEncounterCard` always takes the encounter deck's top card, and no
+`CardDestination` reached a player's dealt-encounter zone.
+
+**The rule:** RRG 1.8 "Deal, Deal an Encounter Card" (p. 15): a dealt card is placed facedown in front of the player,
+"is not revealed at this time" and "is added to the queue of cards that player resolves during the villain phase". If
+it is dealt during step three or four, it joins the cards being dealt and revealed in those steps.
+
+**What landed:**
+
+- **`EffectSpec dealAsEncounterCard { cards: TargetRef, player: PlayerRef }`.** Each card `cards` names goes facedown
+  into the first named player's `dealtEncounter` zone, in order. The card must be out of play (the encounter deck or a
+  discard pile, which is where "discarded this way" leaves it) and must be a type a player can be dealt (attachment,
+  environment, minion, obligation, side scheme, treachery). An effect, not a `CardDestination`: `moveCards`
+  destinations name no player, and the player here is a `PlayerRef` resolved in the effect's context.
+- **"Each time":** `discardEncounterCards` still does every discard before its `forEachDiscarded` passes. RRG "Each
+  Time" would interleave them, but here that makes no observable difference. The deal reads nothing from the deck, and
+  an emptied encounter deck is reset only at its next draw, so a dealt card is still in the discard pile when its pass
+  runs.
+- **Log:** `cardMoved` per dealt card, as for every deal. No new `GameEvent`.
+- **Found while testing (§4 Q14):** revealed by `EffectSpec revealEncounterCard` rather than by the villain phase, this
+  card is still on top of the encounter deck while it resolves. It would discard itself as the first of the five and,
+  being a Kree Fanatic card, deal itself to the revealing player. The villain phase path (the test) is correct. The Q14
+  fix, dealing the card out of the deck before revealing it, would cover this as well.
+
+**DSL:** `dealAsEncounterCard(cards, player = you)` in `dsl/effects.ts`.
+
+**You Dare Oppose Me?** (`90005.when-revealed`):
+
+```ts
+whenRevealed(
+  discardEncounterCards(5, {
+    forEachDiscarded: {
+      slot: "discarded",
+      effects: [
+        ifThen(
+          refMatches(chosen("discarded"), encounterSetOf(self), { anywhere: true }),
+          dealAsEncounterCard(chosen("discarded"), you),
+        ),
+      ],
+    },
+  }),
+);
 ```
 
 ---

@@ -1,5 +1,7 @@
 import {
+  activeEncounterDeck,
   activeEncounterDeckId,
+  cardOf,
   characterProfile,
   type Command,
   type EngineDeps,
@@ -8,7 +10,7 @@ import {
   type InstanceId,
   type PlayerId,
 } from "@mc/engine";
-import { cardId } from "@mc/content";
+import { cardId, encounterSetId } from "@mc/content";
 import {
   applyOk,
   firstLegal,
@@ -409,7 +411,41 @@ describe("Bring the Hammer Down (90004)", () => {
 });
 
 describe("You Dare Oppose Me? (90005)", () => {
-  // 90005.when-revealed is a genuine primitive gap (module docblock); only its Boost is scripted.
+  it("When Revealed: discards the top 5, and each Kree Fanatic card among them is dealt to you and revealed (90005.when-revealed)", () => {
+    const state = withKreeFanatic();
+    const hero = runWave3(state, toHero());
+    // The encounter deck's top: Nebula's boost card, then the card dealt to P1 in step 3 (You Dare Oppose Me?), then
+    // the five it discards: The Accused (Kree Fanatic), a card from another set, Judge, Jury, Executioner (Kree
+    // Fanatic), two more from other sets. Then a card that must stay on top.
+    const deck = activeEncounterDeck(hero).deck;
+    const others = deck
+      .filter((id) => {
+        const card = cardOf(hero, id);
+        return !(card && "encounterSetIds" in card && card.encounterSetIds.includes(encounterSetId("kree_fanatic")));
+      })
+      .map((id) => hero.instances[id]!.cardId as string)
+      .filter((code) => code !== "01186");
+    const [otherA, otherB, otherC, otherD] = others;
+    for (const code of [otherA, otherB, otherC]) expect(code?.startsWith("90")).toBe(false);
+    const staged = stackEncounterDeck(hero, "01186", "90005", "90003", otherA!, "90002", otherB!, otherC!, otherD!);
+    const top = activeEncounterDeck(staged).deck;
+    const [, oppose, accused, discardA, jje, discardB, discardC, untouched] = top;
+    const identity = identityOf(staged);
+
+    const { deps, trace } = traceAbilities(WAVE3_DEPS);
+    const { state: after } = driveEvents(deps, staged, { type: "endTurn", playerId: P1 });
+    expect(trace.resolved()).toContain("90005.when-revealed");
+    // The two Kree Fanatic cards were dealt to P1 and revealed in the same step (RRG 1.8 "Deal", p. 15): The Accused
+    // attached to P1's identity, Judge, Jury, Executioner in play as a side scheme.
+    expect(inst(after, identity).attachments).toContain(accused);
+    expect(after.villainArea).toContain(jje);
+    // The other three stayed in the encounter discard pile, with the treachery itself.
+    const discard = activeEncounterDeck(after).discard;
+    for (const id of [oppose, discardA, discardB, discardC]) expect(discard).toContain(id);
+    // Nothing was drawn from the deck in their place: the card after the five was never touched by this effect.
+    expect(activeEncounterDeck(after).deck).toContain(untouched);
+  });
+
   it("[star] Boost: if this activation is an attack, that attack gains overkill (90005.boost)", () => {
     const state = withKreeFanatic();
     const { state: engaged } = engageMinion(state, "90001", P1);

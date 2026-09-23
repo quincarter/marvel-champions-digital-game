@@ -1393,6 +1393,15 @@ export type EffectSpec =
    * before the next player's. One player receiving cards is dealt without asking.
    */
   | { readonly kind: "dealEncounterCard"; readonly player: PlayerRef; readonly count?: ValueSpec }
+  /**
+   * "Deal that card to yourself as a facedown encounter card" (You Dare Oppose Me?, `ron` 90005; docs/phase7-wave3.md
+   * §3.47): a card already identified, not the encounter deck's top card. Each card `cards` names that is an encounter
+   * card that can be dealt (attachment, environment, minion, obligation, side scheme, treachery) and is out of play
+   * (the encounter deck or a discard pile, where "discarded this way" leaves it) goes facedown to the first player
+   * `player` names, in `cards` order, into the same zone the villain phase deals to (RRG 1.8 "Deal", p. 15). A card in
+   * play is not dealt: no printed card deals one. Logged as `cardMoved`, like every deal.
+   */
+  | { readonly kind: "dealAsEncounterCard"; readonly cards: TargetRef; readonly player: PlayerRef }
   | { readonly kind: "revealEncounterCard"; readonly player: PlayerRef }
   /**
    * "Give the villain 1 facedown boost card" (Hired Gun 02007, Intimidation 02035), outside any activation. Cards

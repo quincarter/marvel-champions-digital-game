@@ -152,6 +152,16 @@ export function engagedEvent(ctx: Ctx, id: InstanceId): readonly TriggerEvent[] 
   return heard(ctx.state, ctx.deps, event) ? [event] : [];
 }
 
+/** The encounter card types a player can be dealt (not a villain or main scheme, which are never in the deck). */
+const DEALABLE_TYPES: ReadonlySet<string> = new Set([
+  "attachment",
+  "environment",
+  "minion",
+  "obligation",
+  "side_scheme",
+  "treachery",
+]);
+
 export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext, frame: Frame<"effects">): void {
   const targets = (ref: Parameters<typeof resolveRef>[1]): readonly InstanceId[] =>
     resolveRef(ctx.state, ref, context).filter((id) => getInstance(ctx.state, id) !== undefined);
@@ -655,6 +665,19 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
     case "dealEncounterCard":
       // Dealing asks the first player for the order when several players receive cards (`executeDealEncounterCards`).
       throw new EngineInvariantError("dealEncounterCard is handled before applyEffect");
+    case "dealAsEncounterCard": {
+      const [playerId] = resolvePlayers(ctx.state, effect.player, context);
+      if (!playerId) return;
+      const inPlay = new Set(cardsInPlay(ctx.state));
+      for (const id of targets(effect.cards)) {
+        if (inPlay.has(id)) continue;
+        const type = cardOf(ctx.state, id)?.type;
+        if (!type || !DEALABLE_TYPES.has(type)) continue;
+        updateInstance(ctx, id, (i) => ({ ...i, faceup: false }));
+        moveCard(ctx, id, { kind: "dealtEncounter", playerId });
+      }
+      return;
+    }
     case "revealEncounterCard": {
       const frames: StackFrame[] = [];
       for (const playerId of resolvePlayers(ctx.state, effect.player, context)) {

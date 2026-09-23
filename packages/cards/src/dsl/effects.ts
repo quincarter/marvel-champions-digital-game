@@ -786,6 +786,16 @@ export const assignDamage = (n: Amount, among: TargetQuery, chooser: PlayerRef =
   chooser,
 });
 export const dealEncounterCard = (player: PlayerRef = you): EffectSpec => ({ kind: "dealEncounterCard", player });
+/**
+ * "Deal that card to yourself as a facedown encounter card" (You Dare Oppose Me?, `ron` 90005): deals the card(s)
+ * `cards` names, already identified and out of play, rather than the encounter deck's top card (docs/phase7-wave3.md
+ * §3.47).
+ */
+export const dealAsEncounterCard = (cards: TargetRef, player: PlayerRef = you): EffectSpec => ({
+  kind: "dealAsEncounterCard",
+  cards,
+  player,
+});
 export const revealEncounterCard = (player: PlayerRef = you): EffectSpec => ({ kind: "revealEncounterCard", player });
 /**
  * "Give the villain 1 facedown boost card" (Hired Gun 02007, Intimidation 02035): dealt outside an activation, it

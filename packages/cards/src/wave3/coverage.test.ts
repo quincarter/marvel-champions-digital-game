@@ -45,7 +45,7 @@ const PACK_STATUS: Readonly<Record<string, "scripted" | "in progress" | "not sta
   gam: "scripted",
   drax: "scripted",
   vnm: "scripted",
-  ron: "in progress",
+  ron: "scripted",
 };
 
 /**
@@ -181,11 +181,9 @@ const KNOWN_SKIPPED: Readonly<Record<string, readonly string[]>> = {
   // vnm: fully scripted — no genuine primitive gaps (module docblock, `wave3/vnm/venom-kit.ts`). Regenerated with
   // `MC_REFS_PACKS=vnm pnpm refs` — never hand-typed.
   vnm: [],
-  // ron: one genuine primitive gap (module docblock, `wave3/ron/kree-fanatic.ts`): 90005.when-revealed needs a
-  // `CardDestination` for dealing a specific already-known card to a player facedown, distinct from
-  // `EffectSpec dealEncounterCard`'s "draw a new card from the deck top". Regenerated with `MC_REFS_PACKS=ron
-  // pnpm refs` — never hand-typed.
-  ron: ["90005.when-revealed"],
+  // ron: fully scripted. The last gap, 90005.when-revealed, closed with `EffectSpec dealAsEncounterCard`
+  // (docs/phase7-wave3.md §3.47). Regenerated with `MC_REFS_PACKS=ron pnpm refs` — never hand-typed.
+  ron: [],
 };
 
 const PACKS: ReadonlyArray<{ readonly code: string; readonly cards: readonly AnyCard[] }> = [

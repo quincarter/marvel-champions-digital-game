@@ -3,16 +3,20 @@ import {
   atEndOfActivation,
   attachCard,
   boost,
+  chosen,
   choosePlayer,
   chosenPlayer,
   constant,
+  dealAsEncounterCard,
   dealEncounterCard,
+  discardEncounterCards,
   defineAbilities,
   discard,
   engage,
   engagedPlayerOf,
   enemyAttack,
   enemyScheme,
+  encounterSetOf,
   eventDealt,
   exists,
   firstPlayer,
@@ -28,6 +32,7 @@ import {
   placeThreat,
   putIntoPlay,
   query,
+  refMatches,
   remainingHpOf,
   rule,
   self,
@@ -50,19 +55,12 @@ import {
  * rule (p. 46, "only one card with a given title may be in play … at a time") keeps them apart at the table; no
  * scripting is needed for that — nothing here or in `gmw/ronan.ts` puts both decks in the same scenario.
  *
- * **Genuine primitive gap (`KNOWN_SKIPPED`): `90005.when-revealed`** — "Discard the top 5 cards of the encounter
- * deck. Each time a card belonging to the Kree Fanatic set is discarded this way, deal that card to yourself as a
- * facedown encounter card." `discardEncounterCards`'s own `forEachDiscarded` plus `refMatches(chosen(...), {
- * encounterSetOf: self })` composes the "belonging to the Kree Fanatic set" half fine (docs/phase7-wave3.md §2.3's
- * own proposed reading), but "deal that card to yourself as a facedown encounter card" needs a `CardDestination`
- * that moves a specific, already-identified card into a player's own dealt-encounter zone facedown — every
- * existing route there (`EffectSpec dealEncounterCard`) instead *draws a new card from the top of the deck*
- * (`packages/engine/src/spec.ts`), and `CardDestination`'s own union (`"hand" | "discard" | "deckTop" |
- * "deckBottom" | "deckShuffle" | "removedFromGame" | "encounterDeckShuffle" | "separateDiscard" |
- * "separateDeckTop" | "separateDeckShuffle" | "encounterSetAside" | { scenarioArea }`) has no "dealt to a player,
- * facedown" option for `moveCards` to redirect an arbitrary card to. §2.3's own note flagged this exact clause as
- * "believed expressible … but not yet proven"; it isn't. `90005.boost` ("If this activation is an attack, that
- * attack gains overkill") needs nothing new and is scripted below.
+ * **You Dare Oppose Me? (`90005.when-revealed`)** — "Discard the top 5 cards of the encounter deck. Each time a card
+ * belonging to the Kree Fanatic set is discarded this way, deal that card to yourself as a facedown encounter card."
+ * `discardEncounterCards`' `forEachDiscarded` binds each discarded card; `refMatches(…, encounterSetOf(self))` is
+ * "belonging to the Kree Fanatic set"; `dealAsEncounterCard` deals that very card, not the deck's new top card
+ * (docs/phase7-wave3.md §3.47). A dealt card joins the queue the villain phase is revealing (RRG 1.8 "Deal", p. 15),
+ * so a Kree Fanatic card dealt this way in step 4 is revealed in the same step.
  */
 export const KREE_FANATIC = defineAbilities({
   // Ronan the Accuser (90001, minion) — Toughness (data). Ronan the Accuser cannot be stunned.
@@ -128,8 +126,22 @@ export const KREE_FANATIC = defineAbilities({
   // [star] Boost: If this activation defeats a character, deal the first player 1 facedown encounter card.
   "90004.boost": boost(atEndOfActivation(ifThen(eventDealt("defeated"), dealEncounterCard(firstPlayer)))),
 
-  // You Dare Oppose Me? (90005, treachery) — When Revealed: SKIPPED (module docblock, genuine primitive gap:
-  // no `CardDestination` deals a specific already-known card to a player facedown).
+  // You Dare Oppose Me? (90005, treachery) — When Revealed: Discard the top 5 cards of the encounter deck. Each time
+  // a card belonging to the Kree Fanatic set is discarded this way, deal that card to yourself as a facedown
+  // encounter card (module docblock).
+  "90005.when-revealed": whenRevealed(
+    discardEncounterCards(5, {
+      forEachDiscarded: {
+        slot: "discarded",
+        effects: [
+          ifThen(
+            refMatches(chosen("discarded"), encounterSetOf(self), { anywhere: true }),
+            dealAsEncounterCard(chosen("discarded"), you),
+          ),
+        ],
+      },
+    }),
+  ),
   // [star] Boost: If this activation is an attack, that attack gains overkill.
   "90005.boost": boost(ifThen(activationIs("attack"), modifyAttack({ overkill: true }))),
 });
