@@ -2,6 +2,7 @@ import type { AbilityRegistry } from "@mc/engine";
 import { mergeRegistries } from "../../dsl/index.js";
 import { BADOON } from "./badoon.js";
 import { BADOON_HEADHUNTER } from "./badoon-headhunter.js";
+import { CAMPAIGN_CHALLENGE } from "./campaign-challenge.js";
 import { ESCAPE_THE_MUSEUM } from "./escape-the-museum.js";
 import { GALACTIC_ARTIFACTS } from "./galactic-artifacts.js";
 import { GROOT_KIT } from "./groot-kit.js";
@@ -34,4 +35,5 @@ export const GMW_ABILITIES: AbilityRegistry = mergeRegistries(
   GALACTIC_ARTIFACTS,
   BADOON_HEADHUNTER,
   MARKET,
+  CAMPAIGN_CHALLENGE,
 );

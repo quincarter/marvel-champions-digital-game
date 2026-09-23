@@ -90,8 +90,8 @@ const KNOWN_SKIPPED: Readonly<Record<string, readonly string[]>> = {
     // only ever sends every kept card to the top. Reactor Core (16165) and Navigation Column (16172) need an
     // ability's own cost (how many cards, or which zone) to vary by board state ("if you control the Milano")
     // without being a player's choice — `AbilityCost.either` only offers a choice among payable branches, which
-    // would wrongly let a Milano-controller overpay. The five Campaign Challenge side schemes (16178a/b–16182a/b)
-    // are the next agent's own module, not `gmw/market.ts`.
+    // would wrongly let a Milano-controller overpay. The five Campaign Challenge side schemes (16178a/b–16182a/b,
+    // `gmw/campaign-challenge.ts`) are now scripted too — no genuine primitive gap in that module.
     // Regenerated with `MC_REFS_PACKS=gmw pnpm refs` (docs/card-scripting-process.md) — never hand-typed.
     "16161.take-the-fight-to-them-constant",
     "16161.take-the-fight-to-them-action",
@@ -99,24 +99,6 @@ const KNOWN_SKIPPED: Readonly<Record<string, readonly string[]>> = {
     "16165.reactor-core-action",
     "16172.navigation-column-constant",
     "16172.navigation-column-action",
-    "16178a.badoon-blitz-constant",
-    "16178a.when-defeated",
-    "16178b.badoon-blitz-constant",
-    "16178b.when-defeated",
-    "16179a.gallery-of-splendor-constant",
-    "16179a.when-defeated",
-    "16179b.gallery-of-splendor-constant",
-    "16179b.when-defeated",
-    "16180a.there-is-no-escape-constant",
-    "16180a.when-defeated",
-    "16180b.there-is-no-escape-constant",
-    "16180b.when-defeated",
-    "16181a.guerrilla-tactics-constant",
-    "16181a.when-defeated",
-    "16181b.guerrilla-tactics-constant",
-    "16181b.when-defeated",
-    "16182a.kree-supremacy-constant",
-    "16182b.kree-supremacy-constant",
   ],
   // stld: fully scripted — no genuine primitive gaps (module docblock, `wave3/stld/star-lord-kit.ts`). The last
   // three (17005.sliding-shot-constant, 17017.target-practice-interrupt, 17029.agile-flight-action) closed in the
