@@ -33,6 +33,14 @@ import { FocusRoute, type FocusStop } from "../focus-route.js";
 import { SCENES } from "../keys.js";
 import type { CampaignOpenerData } from "./routes.js";
 
+/**
+ * The floor every text-wrap width is clamped to before it reaches Phaser. `Text.setWordWrapWidth` (and the
+ * `wordWrap.width` option `captionBox`/`speechBubble` pass through to it) throws "wordWrapWidth < a single
+ * character" once the number reaches zero or goes negative — found resizing the browser window with this screen
+ * open, where a resize event can land mid-transition with a panel rect narrower than its own padding for one frame.
+ */
+const MIN_WRAP_WIDTH = 40;
+
 export class CampaignOpenerScene extends Phaser.Scene {
   #data!: CampaignOpenerData;
   #record: CampaignRecord | null = null;
@@ -107,6 +115,10 @@ export class CampaignOpenerScene extends Phaser.Scene {
   }
 
   #draw(): void {
+    // Guards every redraw an async callback can trigger after this scene is gone — `#load`'s own `await`, and
+    // `drawPicture`'s "the scan just arrived" callback — against drawing into a torn-down scene (`this.scale` is
+    // the *game's* emitter and outlives the scene, so a resize mid-teardown can still reach here).
+    if (!this.sys.isActive()) return;
     const record = this.#record;
     const story = this.#story;
     for (const button of this.#buttons) button.destroy();
@@ -241,26 +253,69 @@ export class CampaignOpenerScene extends Phaser.Scene {
     g.fillStyle(surface.parchment.hex, 1).fillRect(rect.x, rect.y, rect.width, rect.height);
     g.lineStyle(3, surface.ink.hex, 1).strokeRect(rect.x, rect.y, rect.width, rect.height);
 
+    // Every text-wrap width below is clamped through `MIN_WRAP_WIDTH` — `rect.width` can land narrower than its
+    // own padding for one frame mid-resize (see that constant's own doc comment).
+    const textWidth = Math.max(MIN_WRAP_WIDTH, rect.width - 20);
+
     let y = rect.y + 10;
     if (panel.caption) {
-      const { rect: capRect } = captionBox(this, rect.x + 10, y, rect.width - 20, panel.caption);
+      // A few extra px of headroom past `textWidth`: the caption's italic type can render past its own
+      // metrics-reported wrap width at a line's right edge (the same italic/slant overhang `tokens.ts` documents
+      // for Bangers), and `captionBox` clamps its own drawn width to what it was asked for — found on a phone
+      // caption's last wrapped line ("WEAPONS IT") sitting flush against the box's own right border.
+      const { rect: capRect } = captionBox(
+        this,
+        rect.x + 10,
+        y,
+        Math.max(MIN_WRAP_WIDTH, textWidth - 10),
+        panel.caption,
+      );
       y = capRect.y + capRect.height + 10;
     }
 
-    const artBottom = Math.max(y, rect.y + rect.height * (panel.lines.length > 0 ? 0.55 : 0.75));
-    const artRect: Rect = { x: rect.x + 10, y, width: rect.width - 20, height: Math.max(0, artBottom - y) };
-    if (panel.art && artRect.height > 20) this.#drawArt(panel, artRect);
+    // A real picture (the villain panel) fills the whole panel below the caption, the way the tile draws it —
+    // its speech bubble overlaps the art's own lower-right corner rather than pushing the art up into a half-height
+    // strip. A "note" placeholder (no picture yet) keeps the old split: the glyph is small regardless of how much
+    // room it's given, so a full-height box would just center it in a lot of empty parchment above the lines.
+    const fillsPanel = panel.art?.kind === "villain" || panel.art?.kind === "hero";
+    const artBottom = fillsPanel
+      ? rect.y + rect.height - 10
+      : Math.max(y, rect.y + rect.height * (panel.lines.length > 0 ? 0.55 : 0.75));
+    const artRect: Rect = {
+      x: rect.x + 10,
+      y,
+      width: Math.max(0, rect.width - 20),
+      height: Math.max(0, artBottom - y),
+    };
+    if (panel.art && artRect.height > 20 && artRect.width > 20) this.#drawArt(panel, artRect);
 
-    let lineY = artBottom + 10;
-    for (const line of panel.lines) {
-      if (lineY > rect.y + rect.height - 24) break;
-      const speaker = line.speaker.kind === "hero" || line.speaker.kind === "npc" ? line.speaker.name : undefined;
-      const { rect: bubbleRect } = speechBubble(this, rect.x + 10, lineY, rect.width - 20, line.text, {
-        ...(speaker ? { speaker } : {}),
-        tail: "none",
-        size: 12,
-      });
-      lineY = bubbleRect.y + bubbleRect.height + 8;
+    if (fillsPanel && panel.lines.length > 0) {
+      // Overlapping the art: measured once (drawn off-screen, then discarded) so the bubble's own bottom edge can
+      // be pinned a fixed inset above the panel's bottom rather than guessed at.
+      const overlapWidth = Math.max(MIN_WRAP_WIDTH, textWidth * 0.75);
+      let bottom = rect.y + rect.height - 14;
+      for (const line of [...panel.lines].reverse()) {
+        const speaker = line.speaker.kind === "hero" || line.speaker.kind === "npc" ? line.speaker.name : undefined;
+        const options = { ...(speaker ? { speaker } : {}), tail: "none" as const, size: 14 };
+        const probe = speechBubble(this, -10000, -10000, overlapWidth, line.text, options);
+        const bubbleHeight = probe.rect.height;
+        for (const object of probe.objects) object.destroy();
+        const bubbleY = bottom - bubbleHeight;
+        speechBubble(this, rect.x + rect.width - 10 - overlapWidth, bubbleY, overlapWidth, line.text, options);
+        bottom = bubbleY - 8;
+      }
+    } else {
+      let lineY = artBottom + 10;
+      for (const line of panel.lines) {
+        if (lineY > rect.y + rect.height - 24) break;
+        const speaker = line.speaker.kind === "hero" || line.speaker.kind === "npc" ? line.speaker.name : undefined;
+        const { rect: bubbleRect } = speechBubble(this, rect.x + 10, lineY, textWidth, line.text, {
+          ...(speaker ? { speaker } : {}),
+          tail: "none",
+          size: 12,
+        });
+        lineY = bubbleRect.y + bubbleRect.height + 8;
+      }
     }
 
     if (panel.sfx) {
