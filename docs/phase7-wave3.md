@@ -1019,6 +1019,52 @@ Regroup (19032): "Interrupt: When an ally is defeated by an enemy attack, return
 interrupt(when.defeated(query("ally"), { byAttackFrom: query("enemy") }), setDefeatDestination("hand"));
 ```
 
+### 3.46 "When your turn begins" is an interrupt; the "you" of an uncontrolled attachment or obligation
+
+> **Status: landed (2026-09-23),** tested in `packages/engine/src/turn-start-timing.test.ts` (4 tests: a turn-start
+> interrupt resolves before a turn-start response; an attachment on P2's identity and an obligation in P2's area answer
+> P2's turns only, while a player support still answers its controller's; the event is initiated then resolved; replay
+> deep-equal). Card test: `gmw/galactic-artifacts.test.ts`, `16125.the-poison-forced-interrupt`.
+
+The Poison (16125): "Forced Interrupt: When your turn begins, place 1 poison counter here, then take 1 damage for each
+poison counter here." `turnStarted` was an announcement, so it opened only a response window.
+
+**The rules:**
+
+- **A turn beginning is a triggering condition like a phase beginning.** RRG 1.8 "Interrupt" (p. 25) resolves an
+  interrupt "immediately before that triggering condition resolves", and the RRG has no class of timing point that
+  can only be responded to. §3.2's `phaseBeginning` and `phaseEnding` already had both windows, as does `turnEnding`
+  (Hulk's Enraged). So `turnStarted` now has both. **Every other "begins/ends" timing point was checked:**
+  `phaseBeginning`/`phaseEnding` (both windows, §3.2; "the round begins/ends" is the player/villain phase's), and
+  `turnEnding` (both). `villainStepResolved` ("After resolving step one") stays response-only because it is an
+  "after" point. `playerPhaseEnded`/`villainPhaseEnded` stay response-only announcements; `phaseEnding` is their
+  interruptible form.
+- **The "you" of an uncontrolled attachment on a player card is that card's controller** (RRG 1.8 "Attachment",
+  p. 8), and **of an obligation, the player whose play area it is in** (RRG 1.8 "Obligation", p. 30). Before, a
+  `playerIs: "controller"` trigger on any uncontrolled card matched whichever player the event was about, so in a
+  multiplayer game "your turn begins" on The Poison fired on every player's turn, and so did Medical Emergency's
+  (`trors` 04164) "At the end of your turn". Now the event must be about that player. Other uncontrolled cards (an
+  enemy, a scheme) keep the old reading: an engaged minion is in a player's area, but "after you attack this minion"
+  means whoever attacks it.
+
+**What landed:**
+
+- `isAnnouncement` (`trigger-events.ts`) no longer lists `turnStarted`. Its apply step changes nothing. The turn's
+  state is set (`beginTurn`) before the event is pushed, but no player can act until the event's frame has left the
+  stack, so an interrupt still resolves before anything the turn does.
+- `uncontrolledYouOf` (`select.ts`), read by `matchesPattern` (`resolve/triggers.ts`). It is narrower than `speakerOf`,
+  which also names an engaged minion's player.
+- **Responses are unchanged.** Quinjet (`cap` 03019, "Response: After your turn begins") still answers in the response
+  window, and its test is unchanged.
+- **Log:** each turn start now logs `triggerEvent { phase: "initiated" }` before its `resolved`, like every
+  interruptible event. No existing test or e2e seed changed outcome.
+
+**The Poison** (`16125.the-poison-forced-interrupt`):
+
+```ts
+forcedInterrupt(on.yourTurnBegins(), addCounters("poison", 1), takeDamage(countersOn(self, "poison")));
+```
+
 ---
 
 ## 4. Open questions (for the user or FFG)

@@ -671,6 +671,23 @@ export function speakerOf(state: GameState, sourceId: InstanceId | null): Player
   return state.players.find((p) => p.playArea.includes(sourceId))?.playerId ?? null;
 }
 
+/**
+ * Who a triggered ability's "you"/"your" is on an uncontrolled card whose "you" the rules name: an attachment on a
+ * player card ("it refers to the attached player card's controller", RRG 1.8 "Attachment", p. 8), or an obligation
+ * ("apply only to the player whose play area the obligation is in", RRG 1.8 "Obligation", p. 30). Null for every
+ * other uncontrolled card (an enemy, a scheme), whose "you" is still the player the event is about.
+ *
+ * Narrower than `speakerOf` on purpose: an engaged minion is in a player's area too, but "after you attack this
+ * minion" means whichever player attacks it.
+ */
+export function uncontrolledYouOf(state: GameState, id: InstanceId): PlayerId | null {
+  const instance = getInstance(state, id);
+  if (!instance) return null;
+  if (instance.attachedTo) return controllerOf(state, instance.attachedTo);
+  if (cardOf(state, id)?.type !== "obligation") return null;
+  return state.players.find((p) => p.playArea.includes(id))?.playerId ?? null;
+}
+
 /** The players a rule's `player` ref binds, with "you" read as the rule's speaker rather than the card's controller. */
 export const rulePlayers = (
   state: GameState,

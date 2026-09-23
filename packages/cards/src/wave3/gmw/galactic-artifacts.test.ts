@@ -8,7 +8,10 @@ import {
   type PlayerId,
 } from "@mc/engine";
 import { cardId } from "@mc/content";
+import type { Command, GameEvent } from "@mc/engine";
 import {
+  applyOk,
+  endTurn,
   firstLegal,
   identityOf,
   inst,
@@ -211,8 +214,61 @@ describe("The Beyonder's Blazer (16124)", () => {
 });
 
 describe("The Poison (16125)", () => {
-  // 16125.the-poison-forced-interrupt is a genuine primitive gap (module docblock: `turnStarted` never opens an
-  // interrupt window) and is left unscripted; only its Hero Action is scripted.
+  /** Ends P1's turn and answers every choice until P1's next turn has begun, collecting the events on the way. */
+  function toNextTurn(state: GameState): { readonly state: GameState; readonly events: readonly GameEvent[] } {
+    const round = state.round;
+    const events: GameEvent[] = [];
+    let current = state;
+    const step = (command: Command) => {
+      const result = applyOk(current, command, WAVE3_DEPS);
+      current = result.state;
+      events.push(...result.events);
+    };
+    step(endTurn(P1));
+    for (let guard = 0; current.pendingChoice && !current.outcome; guard++) {
+      if (guard > 500) throw new Error("choices did not settle");
+      const choice = current.pendingChoice;
+      step({
+        type: "resolveChoice",
+        playerId: choice.playerId,
+        choiceId: choice.choiceId,
+        selectedOptionIds: firstLegal(current),
+      });
+    }
+    expect(current.round).toBe(round + 1);
+    expect(current.step).toMatchObject({ kind: "turn", activePlayerId: P1 });
+    return { state: current, events };
+  }
+
+  it("Forced Interrupt: when your turn begins, place 1 poison counter, then take 1 damage per counter (16125.the-poison-forced-interrupt)", () => {
+    const state = museum();
+    const identity = identityOf(state, P1);
+    const { state: attached, id: poison } = attachTo(state, "16125", identity);
+    const fromPoison = (events: readonly GameEvent[]) =>
+      events.flatMap((e) => (e.type === "damageDealt" && e.sourceInstanceId === poison ? [e] : []));
+
+    const first = toNextTurn(attached);
+    expect(inst(first.state, poison).counters.poison).toBe(1);
+    expect(fromPoison(first.events)).toEqual([
+      { type: "damageDealt", targetInstanceId: identity, amount: 1, sourceInstanceId: poison },
+    ]);
+    // It is an interrupt to the turn beginning: its window opens after the turn start is initiated and before the
+    // turn start resolves (docs/phase7-wave3.md §3.46).
+    const at = (predicate: (e: GameEvent) => boolean) => first.events.findIndex(predicate);
+    const initiated = at((e) => e.type === "triggerEvent" && e.event.kind === "turnStarted" && e.phase === "initiated");
+    const resolved = at((e) => e.type === "triggerEvent" && e.event.kind === "turnStarted" && e.phase === "resolved");
+    const damage = at((e) => e.type === "damageDealt" && e.sourceInstanceId === poison);
+    expect(initiated).toBeGreaterThanOrEqual(0);
+    expect(initiated).toBeLessThan(damage);
+    expect(damage).toBeLessThan(resolved);
+
+    // The next turn: a second counter, and 2 damage. (The main scheme's threat is cleared so a second villain phase
+    // doesn't complete it first.)
+    const second = toNextTurn(patchInstance(first.state, first.state.mainScheme.instanceId, { threat: 0 }));
+    expect(inst(second.state, poison).counters.poison).toBe(2);
+    expect(fromPoison(second.events).map((e) => e.amount)).toEqual([2]);
+  });
+
   it("Hero Action: spend 3 resources of different types to discard this card (16125.the-poison-action)", () => {
     const state = museum();
     const identity = identityOf(state, P1);

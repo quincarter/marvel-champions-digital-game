@@ -4,7 +4,14 @@ import type { EngineDeps, EventPattern } from "../abilities.js";
 import { isPriceFault, planCost, playRestrictionFault } from "../actions.js";
 import type { InstanceId, PlayerId } from "../ids.js";
 import { cardOf, getPlayer, playerOrder } from "../query.js";
-import { activeAbilityRefs, cardsInPlay, controllerOf, type EffectContext, matchesQuery } from "../select.js";
+import {
+  activeAbilityRefs,
+  cardsInPlay,
+  controllerOf,
+  type EffectContext,
+  matchesQuery,
+  uncontrolledYouOf,
+} from "../select.js";
 import type { TargetQuery } from "../spec.js";
 import { candidateOf, type TriggerCandidate, type WindowTiming } from "../stack.js";
 import type { LastingEffect } from "../lasting.js";
@@ -33,9 +40,15 @@ function matchesPattern(
   }
   const controller = controllerOverride ?? controllerOf(state, selfId);
   if (pattern.playerIs === "controller") {
-    // An encounter card has no controller: its "you" is the player the event is about.
-    if (!controller)
-      return actingPlayerOf(event, pattern) !== null && matchesRest(state, pattern, event, selfId, null, deps);
+    // An encounter card has no controller: its "you" is the player the event is about — unless the rules name its
+    // "you" (an attachment on a player card, an obligation: `uncontrolledYouOf`), when the event must be about them.
+    if (!controller) {
+      const acting = actingPlayerOf(event, pattern);
+      if (acting === null) return false;
+      const named = uncontrolledYouOf(state, selfId);
+      if (named !== null && acting !== named) return false;
+      return matchesRest(state, pattern, event, selfId, null, deps);
+    }
     // RRG p.9: "after [enemy] attacks you" resolves for the attacked player, not the defender.
     const attackedPlayer = pattern.usesAttackedPlayer && event.kind === "enemyAttack" ? event.attackedPlayerId : null;
     if (attackedPlayer !== null) {

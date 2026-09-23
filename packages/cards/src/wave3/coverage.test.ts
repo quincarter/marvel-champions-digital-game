@@ -81,11 +81,9 @@ const KNOWN_SKIPPED: Readonly<Record<string, readonly string[]>> = {
     // scripted too. A third primitives pass (docs/phase7-wave3.md §3.39/§3.40/§3.43, docs/phase7-wave3-scripting.md
     // §6d) closed the last two Ronan the Accuser gaps too: 16114.when-revealed (Single-Minded Fury, `PlayerRef
     // controllerOf` + `TargetQuery.hasAttachment`) and 16131.kree-combat-armor-action (`AbilityCost.
-    // sameResourceType`). Remaining genuine primitive gap: 16125.the-poison-forced-interrupt (`turnStarted` has no
-    // interrupt window, module docblock in `gmw/galactic-artifacts.ts`). `gmw/nebula.ts` and `gmw/ronan.ts` have
-    // no remaining genuine primitive gaps — every primitive they needed has landed.
+    // sameResourceType`). The last one, 16125.the-poison-forced-interrupt, closed when a turn beginning gained an
+    // interrupt window (docs/phase7-wave3.md §3.46). No `gmw` genuine primitive gap remains.
     // Regenerated with `MC_REFS_PACKS=gmw pnpm refs` (docs/card-scripting-process.md) — never hand-typed.
-    "16125.the-poison-forced-interrupt",
     "16150.brainstorm-constant",
     "16150.brainstorm-action",
     "16151.by-any-means-constant",

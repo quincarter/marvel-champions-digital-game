@@ -436,6 +436,13 @@ export function isAnnouncement(event: TriggerEvent): boolean {
     // "When you use one of your hero's basic powers" (§17.4): the power is still to come.
     case "basicPowerUsing":
     case "turnEnding":
+    // "Forced Interrupt: When your turn begins, …" (The Poison, `gmw` 16125). A turn beginning is a timing point like a
+    // phase beginning (below): RRG 1.8 "Interrupt" (p. 25) resolves an interrupt "immediately before that triggering
+    // condition resolves", and nothing in the RRG makes a "begins" timing point response-only. The turn's state
+    // (`beginTurn`) is set before the event is pushed, but no player action can be taken until its frame has left the
+    // stack, so an interrupt still resolves before anything the turn does. Its apply step changes nothing, and
+    // "After your turn begins" (Quinjet, `cap` 03019) still answers in the response window as before.
+    case "turnStarted":
     case "surgeResolving":
     case "cardBeingPlayed":
     // docs/phase7-wave3.md §3.2: "When the villain phase begins/ends" are interrupts to these timing points.

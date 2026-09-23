@@ -1,19 +1,24 @@
 import {
+  addCounters,
   chooseOneBy,
   constant,
+  countersOn,
   defeatingPlayer,
   defineAbilities,
   discard,
   draw,
+  forcedInterrupt,
   gets,
   heal,
   heroAction,
   identityOf,
+  on,
   option,
   placeThreat,
   playFromHandReducingCost,
   ready,
   self,
+  takeDamage,
   takeDamageCost,
   theMainScheme,
   whenDefeated,
@@ -44,21 +49,11 @@ import {
  * gives every unowned encounter card, not something narrower that needs suppressing elsewhere. No card in this
  * set is scripted as if it belonged to one player only.
  *
- * **Genuine primitive gap (`KNOWN_SKIPPED`): `16125.the-poison-forced-interrupt`** — "Forced Interrupt: When your
- * turn begins, place 1 poison counter here, then take 1 damage for each poison counter here." `TriggerEvent
- * turnStarted` is one of `isAnnouncement`'s events (`packages/engine/src/trigger-events.ts`): its stack frame is
- * built straight into the `"responses"` stage (`eventFrame`, `packages/engine/src/resolve/frames.ts`), so it never
- * opens an interrupt window at all — confirmed by driving a real game to a turn start with the ability registered:
- * it never fires, not even to place the counter. The established precedent for "when your turn begins" (Quinjet,
- * `cap` 03019, "Response: After your turn begins") is printed and scripted as a response, which the engine already
- * supports (`on.yourTurnBegins()` composes fine there). The Poison's own printed wording is "Forced Interrupt",
- * not "Forced Response" — scripting it as `forcedResponse` would silently reclassify its timing (interrupts
- * resolve before the triggering condition; responses after, RRG 1.8 "Interrupt"/"Response", p. 25/38) rather than
- * express what is printed, so it is left unscripted rather than approximated. Nothing else in this pool needs an
- * interrupt window on `turnStarted` today, so no fix is proposed here beyond the observation that `isAnnouncement`
- * would need to stop listing it (and `eventFrame` would need an interrupt stage for it) for this exact card to be
- * scriptable as printed. `16125.the-poison-constant` doesn't exist (the printed text has no separate constant
- * ability); its Hero Action, `16125.the-poison-action`, is unaffected and is scripted below.
+ * **The Poison's "Forced Interrupt: When your turn begins" (16125)** is `forcedInterrupt(on.yourTurnBegins(), …)`. A
+ * turn beginning opens an interrupt window before its response window (docs/phase7-wave3.md §3.46, RRG 1.8
+ * "Interrupt", p. 25), and "your" on an uncontrolled attachment on your identity is that identity's controller (RRG
+ * 1.8 "Attachment", p. 8), so it answers the attached player's turn only. "Take 1 damage" is `takeDamage` on that
+ * player's identity (RRG 1.8 "You, Your", p. 49).
  */
 export const GALACTIC_ARTIFACTS = defineAbilities({
   // Cloak of Hercules (16122) — Attach to the enemy with the lowest ATK (data). Hero Action: Spend [P][P][P] → discard.
@@ -78,8 +73,12 @@ export const GALACTIC_ARTIFACTS = defineAbilities({
   "16124.the-beyonders-blazer-action": heroAction({ cost: spend(2) }, placeThreat(2, theMainScheme), discard(self)),
 
   // The Poison (16125, errata RRG 1.8 p. 66) — Attach to your identity (data). Forced Interrupt: When your turn
-  // begins, place 1 poison counter here, then take 1 damage for each poison counter here — SKIPPED, module
-  // docblock (`16125.the-poison-forced-interrupt`, genuine primitive gap: `turnStarted` has no interrupt window).
+  // begins, place 1 poison counter here, then take 1 damage for each poison counter here (module docblock).
+  "16125.the-poison-forced-interrupt": forcedInterrupt(
+    on.yourTurnBegins(),
+    addCounters("poison", 1),
+    takeDamage(countersOn(self, "poison")),
+  ),
   // Hero Action: Spend 3 resources of different types → discard. Any player can do this (see module docblock).
   // "3 resources of different types" is one of each typed resource — the same total as any other 3-resource cost,
   // just unable to be paid from a single type (RRG 1.8 "Resource Type", p. 37).

@@ -454,6 +454,12 @@ apply); only its discard is replaced. Any player's ally, since the card does not
 interrupt(when.defeated(query("ally"), { byAttackFrom: query("enemy") }), setDefeatDestination("hand"));
 ```
 
+**The last two wave 3 gaps (`game-rules-architect`, fourth pass, 2026-09-23), scripted in the same pass.**
+
+| Ref                                 | Closed by                                                                                          | Builder(s)                                |
+| ----------------------------------- | -------------------------------------------------------------------------------------------------- | ----------------------------------------- |
+| `16125.the-poison-forced-interrupt` | a turn beginning opens an interrupt window; an attachment's "you" is its host's controller (§3.46) | `forcedInterrupt(on.yourTurnBegins(), …)` |
+
 ## 7. Progress / next up
 
 **Foundation: done.** `wave3/{index,cards,reprints,names,setup,testing,coverage.test}.ts` all exist and are green.
