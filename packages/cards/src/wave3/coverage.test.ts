@@ -13,6 +13,7 @@ import { WAVE3_ABILITIES, wave3ReprintPairs } from "./index.js";
 import { DRAX_ABILITIES } from "./drax/index.js";
 import { GAM_ABILITIES } from "./gam/index.js";
 import { GMW_ABILITIES } from "./gmw/index.js";
+import { RON_ABILITIES } from "./ron/index.js";
 import { STLD_ABILITIES } from "./stld/index.js";
 import { VNM_ABILITIES } from "./vnm/index.js";
 import { abilityRefIds } from "../ability-refs.js";
@@ -44,7 +45,7 @@ const PACK_STATUS: Readonly<Record<string, "scripted" | "in progress" | "not sta
   gam: "scripted",
   drax: "scripted",
   vnm: "scripted",
-  ron: "not started",
+  ron: "in progress",
 };
 
 /**
@@ -81,20 +82,8 @@ const KNOWN_SKIPPED: Readonly<Record<string, readonly string[]>> = {
     // Regenerated with `MC_REFS_PACKS=gmw pnpm refs` (docs/card-scripting-process.md) — never hand-typed.
     "16020.flora-and-fauna-action",
     "16048.flora-and-fauna-action",
-    "16102.when-revealed-alter-ego",
-    "16102.when-revealed-hero",
     "16114.when-revealed",
-    "16122.cloak-of-hercules-action",
-    "16123.obedience-potion-constant",
-    "16123.obedience-potion-action",
-    "16124.the-beyonders-blazer-action",
     "16125.the-poison-forced-interrupt",
-    "16125.the-poison-action",
-    "16126.vandarian-power-stone-action",
-    "16127.when-defeated",
-    "16128.when-defeated",
-    "16129.when-defeated",
-    "16130.when-defeated",
     "16131.kree-combat-armor-action",
     "16150.brainstorm-constant",
     "16150.brainstorm-action",
@@ -173,11 +162,6 @@ const KNOWN_SKIPPED: Readonly<Record<string, readonly string[]>> = {
     "16181b.when-defeated",
     "16182a.kree-supremacy-constant",
     "16182b.kree-supremacy-constant",
-    "16183.boost",
-    "16184.when-revealed",
-    "16184.boost",
-    "16185.when-revealed",
-    "16185.boost",
   ],
   stld: [
     // Star-Lord's kit is scripted (docs/phase7-wave3-scripting.md, `wave3/stld/star-lord-kit.ts`). Three genuine
@@ -208,7 +192,11 @@ const KNOWN_SKIPPED: Readonly<Record<string, readonly string[]>> = {
   // vnm: fully scripted — no genuine primitive gaps (module docblock, `wave3/vnm/venom-kit.ts`). Regenerated with
   // `MC_REFS_PACKS=vnm pnpm refs` — never hand-typed.
   vnm: [],
-  ron: [],
+  // ron: one genuine primitive gap (module docblock, `wave3/ron/kree-fanatic.ts`): 90005.when-revealed needs a
+  // `CardDestination` for dealing a specific already-known card to a player facedown, distinct from
+  // `EffectSpec dealEncounterCard`'s "draw a new card from the deck top". Regenerated with `MC_REFS_PACKS=ron
+  // pnpm refs` — never hand-typed.
+  ron: ["90005.when-revealed"],
 };
 
 const PACKS: ReadonlyArray<{ readonly code: string; readonly cards: readonly AnyCard[] }> = [
@@ -301,6 +289,7 @@ describe("wave 3 pack ability id coverage (every registered ability id is named 
     { code: "gam", registry: GAM_ABILITIES },
     { code: "drax", registry: DRAX_ABILITIES },
     { code: "vnm", registry: VNM_ABILITIES },
+    { code: "ron", registry: RON_ABILITIES },
   ];
 
   /**

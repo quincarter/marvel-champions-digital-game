@@ -1,7 +1,9 @@
 import type { AbilityRegistry } from "@mc/engine";
 import { mergeRegistries } from "../../dsl/index.js";
 import { BADOON } from "./badoon.js";
+import { BADOON_HEADHUNTER } from "./badoon-headhunter.js";
 import { ESCAPE_THE_MUSEUM } from "./escape-the-museum.js";
+import { GALACTIC_ARTIFACTS } from "./galactic-artifacts.js";
 import { GROOT_KIT } from "./groot-kit.js";
 import { GROOT_OBLIGATION_NEMESIS } from "./groot-obligation-nemesis.js";
 import { MUSEUM } from "./museum.js";
@@ -9,6 +11,7 @@ import { NEBULA } from "./nebula.js";
 import { ROCKET_KIT } from "./rocket-kit.js";
 import { ROCKET_OBLIGATION_NEMESIS } from "./rocket-obligation-nemesis.js";
 import { RONAN } from "./ronan.js";
+import { RUTHLESS } from "./ruthless.js";
 import { SHIP_COMMAND } from "./ship-command.js";
 
 /**
@@ -26,4 +29,7 @@ export const GMW_ABILITIES: AbilityRegistry = mergeRegistries(
   ESCAPE_THE_MUSEUM,
   NEBULA,
   RONAN,
+  RUTHLESS,
+  GALACTIC_ARTIFACTS,
+  BADOON_HEADHUNTER,
 );
