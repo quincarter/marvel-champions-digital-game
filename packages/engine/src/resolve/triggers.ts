@@ -58,7 +58,14 @@ function matchesRest(
 ): boolean {
   const subjects = eventSubjects(event);
   if (pattern.fromAttack !== undefined) {
-    if (event.kind !== "dealDamage" || event.fromAttack !== pattern.fromAttack) return false;
+    // Damage from an attack, or a defeat by attack damage ("defeated by an enemy attack"; docs/phase7-wave3.md §3.45).
+    const fromAttack =
+      event.kind === "dealDamage"
+        ? event.fromAttack
+        : event.kind === "characterDefeated"
+          ? event.fromAttack === true
+          : undefined;
+    if (fromAttack !== pattern.fromAttack) return false;
   }
   const context: EffectContext = { selfInstanceId: selfId, controllerId: controller, event, bindings: {}, deps };
   if (pattern.targetIs) {

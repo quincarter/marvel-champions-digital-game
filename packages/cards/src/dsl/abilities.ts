@@ -836,8 +836,23 @@ export const on = {
   encounterCardRevealed: (what?: TargetQuery): EventPattern =>
     pattern("encounterCardRevealing", what ? { targetIs: what } : {}),
   /** "When/After X is defeated"; `byYou`: "after *you* defeat a minion". */
-  defeated: (what: Who, opts: { readonly byYou?: boolean } = {}): EventPattern =>
-    pattern("characterDefeated", asTarget(what), opts.byYou ? { playerIs: "controller" } : {}),
+  defeated: (
+    what: Who,
+    opts: {
+      readonly byYou?: boolean;
+      /**
+       * "When an ally is defeated **by an enemy attack**" (Regroup, `drax` 19032; docs/phase7-wave3.md §3.45): the
+       * defeating damage was attack damage from a card matching this query — `{ categories: ["enemy"] }`.
+       */
+      readonly byAttackFrom?: TargetQuery;
+    } = {},
+  ): EventPattern =>
+    pattern(
+      "characterDefeated",
+      asTarget(what),
+      opts.byYou ? { playerIs: "controller" } : {},
+      opts.byAttackFrom ? { fromAttack: true, sourceIs: opts.byAttackFrom } : {},
+    ),
   /**
    * "After [X] (or an event you play) defeats a minion or side scheme" (Small but Mighty, 13001a; docs/phase7-
    * wave2.md §17.2): matches both `characterDefeated` and `schemeDefeated` by *source* — which card dealt the

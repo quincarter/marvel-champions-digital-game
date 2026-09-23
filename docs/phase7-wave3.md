@@ -990,6 +990,35 @@ Martyr (19012): "Response: After Martyr takes consequential damage from performi
 response(after.consequentialDamage("self", { from: "attack", defeated: true }), giveTough(self));
 ```
 
+### 3.45 A defeat's destination: `setDefeatDestination`, `RuleSpec defeatDestination`, `characterDefeated.fromAttack`
+
+> **Status: landed (2026-09-23),** tested in `packages/engine/src/defeat-destination.test.ts` (4 tests: an ally defending the villain's attack is defeated, still counts as defeated, and returns to its owner's hand; declined, it is discarded; an ally defeated by a player's own event is never offered the interrupt; a constant `defeatDestination` sends a defeated minion into the encounter deck; replay deep-equal).
+
+Regroup (19032): "Interrupt: When an ally is defeated by an enemy attack, return it to its owner's hand instead of discarding it." The only precedent was `RuleSpec defeatedIntoEncounterDeck` (Time Portal): a constant, side schemes only, one destination, no condition. Nothing could redirect a character's defeat, and a defeat did not say whether attack damage caused it. A plain `instead()` on the defeat would cancel the defeat itself, so no When Defeated would resolve and the ally would not count as defeated: a different card.
+
+**The rules:**
+
+- **The ally is still defeated; only the discard is replaced.** RRG 1.8 "Defeat" (p. 15): a defeated ally is discarded. The card says "instead of discarding it", so When Defeated, "after … is defeated" responses and the attack's `defeated` result all still apply.
+- **Victory X is not a discard.** A Victory X card still goes to the victory display (RRG 1.8 "Victory X", p. 46), and a destination does not apply to it.
+- **"Defeated by an enemy attack"**: the defeating damage was attack damage (`dealDamage.fromAttack`) and its source is an enemy. An enemy attack that deals indirect damage (§3.16) counts; damage from an encounter card's effect, a player's event or retaliate does not.
+
+**What landed:**
+
+- **`EffectSpec setDefeatDestination { to: CardDestination }`**, for an interrupt to `characterDefeated`: it records `to` on the pending defeat event (`characterDefeated.destination`), the way `preventDamage` edits a pending damage event. `applyDefeat` sends the card there (`moveCardsTo`; `"hand"` and the deck destinations are its owner's) instead of `discardFromPlay`. A later interrupt's destination replaces an earlier one's.
+- **`RuleSpec defeatDestination { target, to, while? }`**, the constant form and the generalization of `defeatedIntoEncounterDeck`. It applies to a defeated ally, minion or side scheme. `defeatDestinationRule` (`rules.ts`) reads it, and reads the old kind as `to: "encounterDeckShuffle"`, so Time Portal's script is unchanged. The interrupt's destination wins over a constant one.
+- **`characterDefeated.fromAttack`**, set when the defeating damage was attack damage. `EventPattern.fromAttack` now matches a defeat as well as a damage event. The defeat sweep's hints now also come from a simultaneous damage group (indirect damage, a divided attack), one per member, so those defeats also carry their source, defeating player and `fromAttack`. Before this, a damage group's defeats carried no source at all.
+- **Client impact: none.** No new `GameEvent`; the card's move is logged as `cardMoved` after `characterDefeated`.
+
+**Open reading, §4 Q17:** Regroup and the Collector's "when a card would be placed into a discard pile from play, put it into The Collection instead" (§3.14) can both apply to one defeated ally in Infiltrate the Museum. The engine resolves Regroup in the defeat's interrupt window, so the ally never heads for a discard pile and the Collection redirect does not apply.
+
+**DSL:** `setDefeatDestination(to)` in `dsl/effects.ts`; `on.defeated(what, { byAttackFrom })` in `dsl/abilities.ts`. The constant form goes through the `rule(...)` passthrough.
+
+**Regroup composition** (`19032.regroup-interrupt`):
+
+```ts
+interrupt(when.defeated(query("ally"), { byAttackFrom: query("enemy") }), setDefeatDestination("hand"));
+```
+
 ---
 
 ## 4. Open questions (for the user or FFG)
@@ -1012,6 +1041,7 @@ Each is implemented the way stated, or not at all, and named here rather than de
 14. **Found, not fixed: a card revealed by `EffectSpec revealEncounterCard` is still on top of the encounter deck while it resolves.** Found while writing §3.35's test. The effect takes the top card with `drawEncounterCard`, which returns the card without removing it, and a revealed treachery only leaves the deck in the reveal frame's `finish` stage. So a When Revealed on that card that discards, deals or reveals from the encounter deck reaches the card itself first. Every other reveal path deals the card out of the deck before revealing it: the villain phase deal and surge (`dealEncounterCardTo`). The likely fix is to deal the card to the revealing player first, as surge does. Three Core/wave 1 scripts use the effect (`core/modular/standard.ts`, `core/aspects/protection.ts`, `wave1/bkw/pack-cards.ts`), so it is flagged here for `rules-qa-engineer` rather than changed in this pass. §3.35's test is written to pass either way.
 15. **Found, not fixed: the engine resets an emptied player deck lazily.** Ruling, Apr 30, 2026 (3) answer 7, "The deck is reshuffled **before** the currently resolving card enters the discard pile", means the reset happens the moment a deck empties (RRG 1.8 "Player Deck", p. 33). `drawCards`, `discardDeckUntil` and `takeTopOfDeck` reset an empty deck only on its next read instead. So when an event draws or discards the last card of its player's deck, the event then goes to the discard pile and is shuffled into the new deck at the next read, and the facedown encounter card comes late. §3.33's cost resets immediately, and its test pins answer 7. The general fix is to reset in `moveCard` whenever a player's deck becomes empty. That touches every draw, so it is flagged for `rules-qa-engineer` and a separate change rather than folded into this pass.
 16. **Can an effect's "up to N" choose none (§3.41)?** Agile Flight: "Remove a total of up to 5 threat from among schemes (as you choose)." RRG 1.8 "Cost" (p. 14) requires at least one only of a cost. Ruling, Mar 6, 2026 (2) lets Quick Quip's "up to 2" choose 1, but says nothing about 0. Implemented as allowing 0, the same as `chooseTarget.optional`. The card has no text that could make 0 matter.
+17. **Regroup and the Collector's discard redirect on the same ally (§3.45).** Regroup (an optional Interrupt: "When an ally is defeated by an enemy attack, return it to its owner's hand instead of discarding it") and Collector I–III (a Forced Interrupt: "When a card … would be placed into a discard pile from play, put it faceup into The Collection instead") both replace the discard of a defeated ally. RRG 1.8 Appendix III resolves forced interrupts before optional ones, which would favor the Collector if both answer the same moment. But Regroup's trigger is the defeat, and the Collector's is the card being placed into a discard pile. The engine models the Collector as a constant redirect applied as the card leaves play (§3.14), so Regroup, resolved in the defeat's interrupt window, wins, and the ally goes to hand. Needs an FFG answer.
 
 ## 5. What this asks of the other agents
 

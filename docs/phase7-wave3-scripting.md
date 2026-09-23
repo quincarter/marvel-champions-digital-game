@@ -385,14 +385,15 @@ forcedInterrupt(
 `packages/cards/src/dsl/wave3-primitives-2.test.ts` validates every composition below. Drop each ref from
 `KNOWN_SKIPPED` when you script it. `19013.moondragon-action` stays skipped (§3.23, §4 Q12).
 
-| Ref                               | Closed by                                                      | Builder(s)                            |
-| --------------------------------- | -------------------------------------------------------------- | ------------------------------------- |
-| `16114.when-revealed`             | new `PlayerRef controllerOf` (§3.39) + `hasAttachment` (§3.40) | `controllerOf`, `hasAttachment` (new) |
-| `17017.target-practice-interrupt` | new `TargetQuery.hasAttachment` (§3.40)                        | `hasAttachment` (new)                 |
-| `17029.agile-flight-action`       | new `EffectSpec divide.upTo` (§3.41)                           | `divide(…, { upTo: true })`           |
-| `17005.sliding-shot-constant`     | new `constant.playOnlyIf` (§3.42)                              | `playOnlyIf` (new)                    |
-| `16131.kree-combat-armor-action`  | new `AbilityCost.sameResourceType` (§3.43)                     | `spendSameType` (new)                 |
-| `19012.martyr-response`           | consequential damage carries its attack's results (§3.44)      | `after.consequentialDamage` (new)     |
+| Ref                               | Closed by                                                          | Builder(s)                                                       |
+| --------------------------------- | ------------------------------------------------------------------ | ---------------------------------------------------------------- |
+| `16114.when-revealed`             | new `PlayerRef controllerOf` (§3.39) + `hasAttachment` (§3.40)     | `controllerOf`, `hasAttachment` (new)                            |
+| `17017.target-practice-interrupt` | new `TargetQuery.hasAttachment` (§3.40)                            | `hasAttachment` (new)                                            |
+| `17029.agile-flight-action`       | new `EffectSpec divide.upTo` (§3.41)                               | `divide(…, { upTo: true })`                                      |
+| `17005.sliding-shot-constant`     | new `constant.playOnlyIf` (§3.42)                                  | `playOnlyIf` (new)                                               |
+| `16131.kree-combat-armor-action`  | new `AbilityCost.sameResourceType` (§3.43)                         | `spendSameType` (new)                                            |
+| `19012.martyr-response`           | consequential damage carries its attack's results (§3.44)          | `after.consequentialDamage` (new)                                |
+| `19032.regroup-interrupt`         | new `setDefeatDestination`, `characterDefeated.fromAttack` (§3.45) | `setDefeatDestination`, `on.defeated(…, { byAttackFrom })` (new) |
 
 Single-Minded Fury (`16114.when-revealed`). "Controls the Power Stone" is "attached to your identity" (§4 Q11). With
 the stone on the villain the ref names nobody, no attack is made, and the card surges (§3.39):
@@ -444,6 +445,13 @@ after that damage and cannot absorb it (§3.44):
 
 ```ts
 response(after.consequentialDamage("self", { from: "attack", defeated: true }), giveTough(self));
+```
+
+Regroup (`19032.regroup-interrupt`). The ally is still defeated (When Defeated and "after … is defeated" still
+apply); only its discard is replaced. Any player's ally, since the card does not say "your" (§3.45, §4 Q17):
+
+```ts
+interrupt(when.defeated(query("ally"), { byAttackFrom: query("enemy") }), setDefeatDestination("hand"));
 ```
 
 ## 7. Progress / next up

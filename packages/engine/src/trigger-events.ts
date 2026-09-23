@@ -1,5 +1,6 @@
 import type { AbilityId } from "@mc/content";
 import type { FrameId, InstanceId, PlayerId } from "./ids.js";
+import type { CardDestination } from "./spec.js";
 import type { Vars } from "./stack.js";
 
 /**
@@ -197,6 +198,18 @@ export type TriggerEventBody =
        * points, so applying it does not re-check the dial (docs/phase7-wave3.md §3.9).
        */
       readonly byEffect?: true;
+      /**
+       * The defeating damage was attack damage (`dealDamage.fromAttack`: an attack's damage, or its overkill spill), so
+       * "When an ally is defeated by an enemy attack" (Regroup, `drax` 19032) is `fromAttack: true` with `sourceIs` an
+       * enemy (docs/phase7-wave3.md §3.45). Absent for any other defeat.
+       */
+      readonly fromAttack?: true;
+      /**
+       * "Return it to its owner's hand instead of discarding it" (Regroup): where the defeated card goes instead of its
+       * discard pile, set by an interrupt's `EffectSpec setDefeatDestination` (docs/phase7-wave3.md §3.45). It is still
+       * defeated — When Defeated, Victory X and "after … is defeated" all still apply; only the discard is replaced.
+       */
+      readonly destination?: CardDestination;
       readonly parentFrameId?: FrameId | null;
       readonly overkill?: {
         readonly amount: number;

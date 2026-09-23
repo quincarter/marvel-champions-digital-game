@@ -3,6 +3,7 @@ import type { InstanceId, PlayerId } from "./ids.js";
 import type { ResourcePool, ResourceRequirement, TypedResource } from "./resources.js";
 import type {
   AttackKeyword,
+  CardDestination,
   EffectSpec,
   PlayerRef,
   Predicate,
@@ -394,6 +395,19 @@ export type RuleSpec =
    * side scheme that is defeated goes into the encounter deck, which is shuffled, instead of the discard pile.
    */
   | { readonly kind: "defeatedIntoEncounterDeck"; readonly target: TargetQuery; readonly while?: Predicate }
+  /**
+   * The general form of `defeatedIntoEncounterDeck` (docs/phase7-wave3.md §3.45): a matching card that is defeated — a
+   * side scheme, an ally or a minion — goes to `to` instead of its discard pile ("… shuffle it into the encounter deck
+   * instead of discarding it", Time Portal, is `to: "encounterDeckShuffle"`). The constant sibling of the interrupt-time
+   * `EffectSpec setDefeatDestination`, which wins when both apply (it is the more specific, later choice). The card is
+   * still defeated; Victory X still sends it to the victory display.
+   */
+  | {
+      readonly kind: "defeatDestination";
+      readonly target: TargetQuery;
+      readonly to: CardDestination;
+      readonly while?: Predicate;
+    }
   /** "The engaged player must defend against [attacker]'s attacks with an ally they control, if able" (Melter). */
   | { readonly kind: "mustDefendWithAlly"; readonly attacker: TargetQuery; readonly while?: Predicate }
   /**

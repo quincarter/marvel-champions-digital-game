@@ -354,6 +354,14 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       );
       return;
     }
+    case "setDefeatDestination": {
+      // docs/phase7-wave3.md §3.45: "return it to its owner's hand instead of discarding it", from an interrupt to the
+      // defeat. The defeat still happens; `applyDefeat` sends the card here instead of its discard pile.
+      const target = frame.eventFrameId ? findFrame(ctx.state, frame.eventFrameId) : undefined;
+      if (target?.kind !== "event" || target.event.kind !== "characterDefeated" || target.cancelled) return;
+      setFrame(ctx, { ...target, event: { ...target.event, destination: effect.to } });
+      return;
+    }
     case "cancelConsequentialDamage": {
       // docs/phase7-wave3.md §3.21: the waiting consequential damage event of each character, cancelled before it applies.
       const characters = targets(effect.character);

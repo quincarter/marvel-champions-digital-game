@@ -16,9 +16,10 @@ import {
   playOnlyIf,
   response,
   spendSameType,
+  when,
   whenRevealed,
 } from "./abilities.js";
-import { discard, divide, enemyAttack, giveTough, ifThen, modifyStat, surge } from "./effects.js";
+import { discard, divide, enemyAttack, giveTough, ifThen, modifyStat, setDefeatDestination, surge } from "./effects.js";
 import { validateDefinition } from "./validate.js";
 import {
   controllerOf,
@@ -145,5 +146,26 @@ describe("§3.44 consequential damage from an attack", () => {
         requireResults: { amount: 1, "attack.made": 1, "attack.defeated": 1 },
       },
     });
+  });
+});
+
+describe("§3.45 a defeat's destination", () => {
+  it("Regroup (19032): when an ally is defeated by an enemy attack, return it to its owner's hand instead", () => {
+    const definition = interrupt(
+      when.defeated(query("ally"), { byAttackFrom: query("enemy") }),
+      setDefeatDestination("hand"),
+    );
+    valid(definition);
+    expect(definition.trigger).toEqual({
+      kind: "interrupt",
+      forced: false,
+      on: {
+        on: "characterDefeated",
+        targetIs: { categories: ["ally"] },
+        fromAttack: true,
+        sourceIs: { categories: ["enemy"] },
+      },
+    });
+    expect(definition.effects).toEqual([{ kind: "setDefeatDestination", to: "hand" }]);
   });
 });

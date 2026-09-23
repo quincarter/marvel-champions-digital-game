@@ -1337,6 +1337,15 @@ export type EffectSpec =
    */
   | { readonly kind: "defeat"; readonly target: TargetRef }
   /**
+   * "Interrupt: When an ally is defeated by an enemy attack, return it to its owner's hand **instead of discarding
+   * it**." (Regroup, `drax` 19032; docs/phase7-wave3.md §3.45): from an interrupt to a `characterDefeated` event, the
+   * defeated card goes to `to` instead of its discard pile. `"hand"` and the deck destinations are its owner's. The
+   * card is still defeated: When Defeated, "after … is defeated" and a `defeated` result all still apply. Only the
+   * discard is replaced, so a Victory X card still goes to the victory display (RRG 1.8 "Victory X", p. 46: it is not
+   * being discarded). A later interrupt's destination replaces an earlier one's. Does nothing outside that window.
+   */
+  | { readonly kind: "setDefeatDestination"; readonly to: CardDestination }
+  /**
    * "Engage that enemy" (Get Over Here!). RRG 1.8 "Engage" (p. 18): "If a card ability instructs a player to engage a
    * minion, that minion is also considered to have engaged that player", and "while a minion is engaged with a
    * player, card abilities cannot cause the minion to engage with the same player again". The minion moves to that
