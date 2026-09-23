@@ -988,7 +988,7 @@ describe('MC10 p. 17 "Elimination and Victory" — an eliminated seat sits out V
     expect(folded.seats[0]?.grants.some((grant) => grant.cardId === TECH_IDS[0])).toBe(true);
   });
 
-  it("seat 2 rejoins with exactly one new obligation from its own numbered set and full (printed) hit points", () => {
+  it("seat 2 rejoins with exactly one new Expert Campaign obligation and full (printed) hit points (the shared-set caveat in trors.ts note 1 applies)", () => {
     const { folded } = eliminatedAtCrossbones();
     const seat2 = folded.seats[1]!;
     expect(seat2.fields.remainingHp).toEqual({ kind: "number", value: seat2IdentityHp });
