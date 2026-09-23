@@ -6,6 +6,7 @@ import {
   inst,
   instancesOf,
   P1,
+  patchInstance,
   playerOf,
   settle,
   toHero,
@@ -101,6 +102,21 @@ describe("Kang scenario", () => {
       settled.instances[id]?.cardId?.toString().match(/^1101[89]|^1102[01]/),
     );
     expect(obligations).toHaveLength(0);
+  });
+
+  it("Kang's Arrival 1B (11007b, MainSchemeStage.completionLoses): completing stage 1 loses the game instead of advancing to The Master of Time", () => {
+    const start = kangVsHeroes();
+    const scheme = start.mainScheme.instanceId;
+    expect(start.mainScheme.stageIndex).toBe(0);
+    // Threat 1 below target (7 for 1 hero): step one's own acceleration (1[per_hero]) pushes it to target,
+    // completing the stage through the real event system (a direct patch to the target value would not fire the
+    // completion check at all, since that check runs where threat is *placed*, not on every read) — same shape
+    // as Hostile Takeover 1B (`packages/cards/src/wave1/gob/risky-business.test.ts`).
+    const primed = patchInstance(start, scheme, { threat: 6 });
+    const settled = settle(runWave2(primed, endTurn()), firstLegal, undefined, WAVE2_DEPS);
+    expect(settled.outcome).toMatchObject({ result: "loss", reason: "mainSchemeCompleted" });
+    // Not advanced: stage 1 completing is a loss, not a trip to stage 2 (The Master of Time).
+    expect(settled.mainScheme.stageIndex).toBe(0);
   });
 
   it("The Chronopolis 3A (Kang (Immortus)'s stage): creates a game area, adds Kang (Immortus), and deals the revealing player an encounter card", () => {

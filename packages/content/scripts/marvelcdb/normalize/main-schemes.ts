@@ -124,6 +124,10 @@ export function normalizeMainSchemes(ctx: NormalizeContext): Map<string, string>
         traits: b.traits,
         keywords: pb.keywords,
         abilities: abilityRefs(ctx, rb.code, b.name, pb.abilities),
+        // docs/phase7-wave3.md §3.37: "If this stage/scheme is completed, the players lose the game." printed
+        // anywhere in the B-side text, final stage or not — a final stage already loses by the engine's default
+        // rule, so the flag there just restates it; a non-final stage needs it to lose instead of advancing.
+        ...(pb.completionLoses ? { completionLoses: true } : {}),
         ...(bSideImage ? { image: bSideImage } : {}),
         aSide: {
           text: a.text,

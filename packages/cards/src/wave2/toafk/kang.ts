@@ -95,11 +95,13 @@ const TEMPORAL = trait("TEMPORAL");
  *   already engages a minion with that player (`zola.ts`'s Island of Dr. Zola setup uses the same shape). Kang
  *   insert, "Setup" (§2.3): "Kang's Wrath 4B searches for each player's nemesis minion."
  *
- * **Still a data gap (`card-data-pipeline`), not a primitive gap:**
- * - `11007b.when-revealed` and `11013b.when-revealed` each carry only one ability ref for text with two distinct
- *   clauses (the "When Revealed" sentence, scripted below for both, plus a "When Completed Abilities" (RRG 1.8
- *   p. 48) "If this stage is completed, the players lose the game" sentence with no ref of its own — the same
- *   data-shape gap Captured by Hydra (04107, `taskmaster.ts`) has for its "When Defeated" half).
+ * `11007b.when-revealed` and `11013b.when-revealed` each carry only one ability ref for a printed text box with
+ * two clauses: the "When Revealed" sentence, scripted below for both, and "If this stage is completed, the
+ * players lose the game." — not a second ref, per `MainSchemeStage.completionLoses` (docs/phase7-wave3.md
+ * §3.37): data on the stage, not an ability. Kang's Arrival 1B (11007b) is the only *non-final* stage in this
+ * scenario printing the sentence — stage 1 loses instead of advancing to The Master of Time — and is pinned by
+ * `packages/cards/src/wave3/gmw/escape-the-museum-completion.test.ts`'s sibling assertion in this module's own
+ * test file (`kang.test.ts`).
  */
 
 /** "Toughness (data). [star] Forced Interrupt: When Kang attacks you, either place 1 threat on the main scheme, or he gets +2 ATK for this attack." (Kang (I)/Kang (III), standard and expert). */
@@ -221,8 +223,9 @@ export const KANG_SET = defineAbilities({
     moveCards(cards(chosen("obligations")), "removedFromGame"),
     shuffleEncounterDeck(),
   ),
-  // Kang's Arrival — When Revealed: deal each player an encounter card. (The "if completed, lose" half has no
-  // ability ref — module docblock.)
+  // Kang's Arrival — When Revealed: deal each player an encounter card. Stage 1's own "If this stage is
+  // completed, the players lose the game." is `MainSchemeStage.completionLoses` (module docblock), not an
+  // ability — no ref for it here.
   "11007b.when-revealed": whenRevealed(dealEncounterCard(eachPlayer)),
 
   // The Master of Time 2A — When Revealed: place 1 acceleration token here for each side scheme in play, then
@@ -353,8 +356,9 @@ export const KANG_SET = defineAbilities({
     revealCard(tuckedUnderRef(centralMainScheme), firstPlayer),
   ),
   // Kang's Wrath 4B — When Revealed: each player searches the encounter deck, discard pile, and set-aside area for
-  // their nemesis minion and puts it into play engaged with them (module docblock, §17.1). The "loses the game if
-  // completed" half has no ability ref — module docblock.
+  // their nemesis minion and puts it into play engaged with them (module docblock, §17.1). Stage 4 is the
+  // scenario's final stage, so its own "If this stage is completed, the players lose the game." restates the
+  // engine's default rule (`MainSchemeStage.completionLoses`, module docblock); no ability ref for it either way.
   "11013b.when-revealed": whenRevealed(
     forEachPlayer(
       eachPlayer,

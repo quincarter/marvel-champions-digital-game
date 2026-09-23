@@ -243,6 +243,7 @@ export const TOAFK_CARDS: readonly AnyCard[] = [
         traits: [],
         keywords: [],
         abilities: [{ id: abilityId("11007b.when-revealed") }],
+        completionLoses: true,
         image: imageRef("/bundles/cards/11007a.jpg"),
         aSide: {
           text: {
@@ -409,6 +410,7 @@ export const TOAFK_CARDS: readonly AnyCard[] = [
         traits: [],
         keywords: [],
         abilities: [{ id: abilityId("11013b.when-revealed") }],
+        completionLoses: true,
         image: imageRef("/bundles/cards/11013a.jpg"),
         aSide: {
           text: {

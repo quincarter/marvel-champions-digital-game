@@ -1455,6 +1455,7 @@ export const GMW_CARDS: readonly AnyCard[] = [
           },
           { id: abilityId("16062b.protect-the-planet-constant") },
         ],
+        completionLoses: true,
         image: imageRef("/bundles/cards/16062b.png"),
         aSide: {
           text: {
@@ -1713,6 +1714,7 @@ export const GMW_CARDS: readonly AnyCard[] = [
           { id: abilityId("16073b.the-grand-collection-action") },
           { id: abilityId("16073b.the-grand-collection-constant") },
         ],
+        completionLoses: true,
         image: imageRef("/bundles/cards/16073b.png"),
         aSide: {
           text: {
@@ -2008,6 +2010,7 @@ export const GMW_CARDS: readonly AnyCard[] = [
             id: abilityId("16082b.the-missing-milano-forced-interrupt"),
           },
         ],
+        completionLoses: true,
         image: imageRef("/bundles/cards/16082b.png"),
         aSide: {
           text: {
@@ -2036,6 +2039,7 @@ export const GMW_CARDS: readonly AnyCard[] = [
             id: abilityId("16083b.lost-in-the-museum-forced-interrupt"),
           },
         ],
+        completionLoses: true,
         image: imageRef("/bundles/cards/16083b.png"),
         aSide: {
           text: {
@@ -2063,6 +2067,7 @@ export const GMW_CARDS: readonly AnyCard[] = [
           { id: abilityId("16084b.the-great-escape-constant") },
           { id: abilityId("16084b.the-great-escape-constant-2") },
         ],
+        completionLoses: true,
         image: imageRef("/bundles/cards/16084b.png"),
         aSide: {
           text: {
@@ -2268,6 +2273,7 @@ export const GMW_CARDS: readonly AnyCard[] = [
         traits: [],
         keywords: [],
         abilities: [{ id: abilityId("16092b.warp-drive-initiated-constant") }],
+        completionLoses: true,
         image: imageRef("/bundles/cards/16092b.png"),
         aSide: {
           text: {
@@ -2632,6 +2638,7 @@ export const GMW_CARDS: readonly AnyCard[] = [
         traits: [],
         keywords: [],
         abilities: [{ id: abilityId("16107b.take-what-is-mine-constant") }],
+        completionLoses: true,
         image: imageRef("/bundles/cards/16107b.png"),
         aSide: {
           text: {
