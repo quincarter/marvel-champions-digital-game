@@ -3,6 +3,7 @@ import {
   activeVillain,
   allyLimitFor,
   cardsInPlay,
+  characterProfile,
   handSize,
   hasKeyword,
   traitsOf,
@@ -30,6 +31,7 @@ import {
   use,
   type Picker,
 } from "../../testing/harness.js";
+import { driveEvents } from "../../testing/staging.js";
 import { wave3Scenario } from "../setup.js";
 import { playFromHand, runWave3, startWave3Game, WAVE3_DEPS } from "../testing.js";
 import { STAR_LORD_LEADERSHIP } from "./testing.js";
@@ -383,6 +385,71 @@ describe("Star-Lord kit", () => {
     const midPlay = runWave3(given.state, play(P1, airSupremacy, paid));
     const after = answer(midPlay, [villain], WAVE3_DEPS);
     expect(inst(after, villain).damage).toBe(before + 3);
+  });
+
+  it("Blaze of Glory: each guardian character gets +2 THW/+2 ATK this phase, then takes 1 damage when it ends", () => {
+    const hero = runWave3(starLordVsRhino(), toHero());
+    const identity = identityOf(hero);
+    const printed = characterProfile(hero, identity, WAVE3_DEPS)!;
+    const damageBefore = inst(hero, identity).damage;
+    const { state: withCard } = playFromHand(hero, "17015", 2);
+    const boosted = characterProfile(withCard, identity, WAVE3_DEPS)!;
+    expect(boosted.atk).toBe(printed.atk + 2);
+    expect(boosted.thw).toBe(printed.thw + 2);
+    expect(inst(withCard, identity).damage).toBe(damageBefore); // the end-of-phase damage hasn't happened yet
+    // Reach the villain phase's own `declareDefender` prompt: "end of player phase" (which both expires the
+    // stat bonus and resolves Blaze of Glory's own delayed damage) has already run by that point, but Rhino's
+    // own attack — which would otherwise add noise to `identity`'s damage — has not yet dealt anything.
+    const reached = settle(
+      runWave3(withCard, endTurn()),
+      firstLegal,
+      (s) => s.pendingChoice?.prompt.kind === "declareDefender",
+      WAVE3_DEPS,
+    );
+    const afterPhase = characterProfile(reached, identity, WAVE3_DEPS)!;
+    expect(afterPhase.atk).toBe(printed.atk); // the bonus expired with the phase
+    expect(afterPhase.thw).toBe(printed.thw);
+    expect(inst(reached, identity).damage).toBe(damageBefore + 1); // Blaze of Glory's own end-of-phase damage
+  });
+
+  it("Laser Blaster: attached ally gets +1 ATK, and its attacks gain overkill", () => {
+    const hero = runWave3(starLordVsRhino(), toHero());
+    const { state: withYondu, id: yondu } = playFromHand(hero, "17013", 4);
+    const printedAtk = characterProfile(withYondu, yondu, WAVE3_DEPS)!.atk;
+    const given = moveToHand(withYondu, P1, "17019");
+    const [blaster] = given.ids as [InstanceId];
+    const attached = settle(
+      runWave3(given.state, play(P1, blaster, payWith(given.state, P1, 1, [blaster]), { attachToInstanceId: yondu })),
+      firstLegal,
+      undefined,
+      WAVE3_DEPS,
+    );
+    const boosted = characterProfile(attached, yondu, WAVE3_DEPS)!;
+    // Yondu's printed ATK is 1; Laser Blaster's own +1 brings it to 2.
+    expect(boosted.atk).toBe(printedAtk + 1);
+
+    // An engaged minion (Hydra Mercenary, 3 HP) pre-damaged to 1 remaining HP, so Yondu's boosted ATK (2) defeats
+    // it with exactly 1 point of excess damage. Without overkill that excess is wasted; with it, it spills — onto
+    // the active villain, this engine's own reading of "another enemy" for a minion target (`overkillRecipient`,
+    // `packages/engine/src/defend-preview.ts`). The `overkillSpilled` event is the direct proof the granted
+    // keyword actually changed the attack's own resolution, not just a stat.
+    const withMinion = engagedMinion(attached, HYDRA_MERCENARY, "blaster-target");
+    const primed = patchInstance(withMinion, "blaster-target" as InstanceId, { damage: 2 });
+    const villain = activeVillain(primed).instanceId;
+    const { events } = driveEvents(WAVE3_DEPS, primed, {
+      type: "basicAttack",
+      playerId: P1,
+      attackerInstanceId: yondu,
+      targetInstanceId: "blaster-target" as InstanceId,
+    });
+    expect(events).toContainEqual(
+      expect.objectContaining({
+        type: "overkillSpilled",
+        fromInstanceId: "blaster-target",
+        toInstanceId: villain,
+        amount: 1,
+      }),
+    );
   });
 
   it("C.I.T.T.: exhaust and spend 2 resources of any type to ready a guardian character", () => {
