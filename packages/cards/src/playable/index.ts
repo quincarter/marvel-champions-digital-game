@@ -12,6 +12,8 @@ import {
   WAVE1_STARTER_DECKS,
   WAVE2_SCENARIOS,
   WAVE2_STARTER_DECKS,
+  WAVE3_SCENARIOS,
+  WAVE3_STARTER_DECKS,
   type StarterDeck,
 } from "@mc/content";
 import type { AbilityRegistry, EngineDeps, GameSetupConfig, PlayerSetup } from "@mc/engine";
@@ -20,6 +22,8 @@ import { WAVE1_ABILITIES } from "../wave1/index.js";
 import { wave1Scenario, type Wave1ScenarioOptions } from "../wave1/setup.js";
 import { WAVE2_ABILITIES } from "../wave2/index.js";
 import { wave2Scenario } from "../wave2/setup.js";
+import { WAVE3_ABILITIES } from "../wave3/index.js";
+import { wave3Scenario } from "../wave3/setup.js";
 
 /**
  * Every scripted ability. Both waves' registries carry Core's own scripts, as the same objects under the same ids,
@@ -37,7 +41,7 @@ function unionRegistries(...registries: readonly AbilityRegistry[]): AbilityRegi
   return union;
 }
 
-export const PLAYABLE_ABILITIES: AbilityRegistry = unionRegistries(WAVE1_ABILITIES, WAVE2_ABILITIES);
+export const PLAYABLE_ABILITIES: AbilityRegistry = unionRegistries(WAVE1_ABILITIES, WAVE2_ABILITIES, WAVE3_ABILITIES);
 
 /** Engine dependencies for a game on the playable pool. */
 export const PLAYABLE_DEPS: EngineDeps = { abilities: PLAYABLE_ABILITIES };
@@ -45,7 +49,12 @@ export const PLAYABLE_DEPS: EngineDeps = { abilities: PLAYABLE_ABILITIES };
 /** Wave 1's options are the widest (Breakout's `"extreme"` and `villainVersions`); every other builder takes a subset. */
 export type PlayableScenarioOptions = Wave1ScenarioOptions;
 
-const STARTER_DECKS: readonly StarterDeck[] = [...CORE_STARTER_DECKS, ...WAVE1_STARTER_DECKS, ...WAVE2_STARTER_DECKS];
+const STARTER_DECKS: readonly StarterDeck[] = [
+  ...CORE_STARTER_DECKS,
+  ...WAVE1_STARTER_DECKS,
+  ...WAVE2_STARTER_DECKS,
+  ...WAVE3_STARTER_DECKS,
+];
 
 /** Any starter deck in the playable pool as a player seat (quantities expanded; the identity isn't part of the deck). */
 export function playableStarterDeckSetup(starterDeckId: string): PlayerSetup {
@@ -75,6 +84,12 @@ export function playableScenario(scenarioId: string, options: PlayableScenarioOp
     };
   });
   const seated = { ...options, players };
+  if (WAVE3_SCENARIOS.some((scenario) => scenario.id === scenarioId)) {
+    if (seated.difficulty === "extreme")
+      throw new Error(`${scenarioId} is a cycle 2 scenario; "extreme" is Breakout's own multi-villain challenge`);
+    const { villainVersions: _villainVersions, difficulty, ...rest } = seated;
+    return { ...wave3Scenario(scenarioId, { ...rest, ...(difficulty ? { difficulty } : {}) }), cards: PLAYABLE_CARDS };
+  }
   if (WAVE2_SCENARIOS.some((scenario) => scenario.id === scenarioId)) {
     if (seated.difficulty === "extreme")
       throw new Error(`${scenarioId} is a cycle 1 scenario; "extreme" is Breakout's own multi-villain challenge`);
