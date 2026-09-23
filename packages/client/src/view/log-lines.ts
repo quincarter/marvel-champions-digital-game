@@ -116,6 +116,8 @@ function describe(event: GameEvent, state: GameState, viewer: PlayerId | null, d
   const who = (id: PlayerId): string => seatName(state, id, viewer);
   /** "You draw" vs "Spider-Man draws": the second person takes no -s. */
   const verb = (id: PlayerId, plural: string, singular: string): string => (id === viewer ? plural : singular);
+  /** "Your deck" vs "Spider-Man's deck": "you" possessive isn't "you's". */
+  const possessive = (id: PlayerId): string => (id === viewer ? "Your" : `${who(id)}'s`);
   const card = (id: Parameters<typeof cardName>[1]): string => cardName(state, id);
 
   switch (event.type) {
@@ -138,11 +140,22 @@ function describe(event: GameEvent, state: GameState, viewer: PlayerId | null, d
      * same command.
      */
     case "cardMoved":
-      if (event.to.kind !== "dealtEncounter") return null;
-      return {
-        text: `${who(event.to.playerId)} ${verb(event.to.playerId, "are", "is")} dealt a facedown encounter card.`,
-        voice: "villain",
-      };
+      if (event.to.kind === "dealtEncounter") {
+        return {
+          text: `${who(event.to.playerId)} ${verb(event.to.playerId, "are", "is")} dealt a facedown encounter card.`,
+          voice: "villain",
+        };
+      }
+      // A card that would have gone to a discard pile went to a scenario area instead (The Collector's redirect,
+      // docs/phase7-wave3.md §3.14) — otherwise silent: the card just vanishes from play with nothing on the log
+      // explaining where it went, since it never touches a discard pile a player might think to check.
+      if (event.to.kind === "scenarioArea") {
+        return {
+          text: `${card(event.instanceId)} goes into ${event.to.name} instead of a discard pile.`,
+          voice: "villain",
+        };
+      }
+      return null;
     case "turnStarted":
       return { text: `${who(event.playerId)} ${verb(event.playerId, "take", "takes")} a turn.`, voice: "player" };
     case "formChanged":
@@ -153,6 +166,15 @@ function describe(event: GameEvent, state: GameState, viewer: PlayerId | null, d
     case "cardPlayed":
       return {
         text: `${who(event.playerId)} played ${card(event.instanceId)}${event.resourcesPaid > 0 ? ` for ${event.resourcesPaid}` : ""}.`,
+        voice: "player",
+      };
+    // Star-Lord's "What could go wrong?" and its own shape of ability (docs/phase7-wave3.md §3.20): the reduction
+    // is named on the play itself, not offered in the printed Interrupt's own window, so without a line here a
+    // card costing less than it should looked unexplained — `cardPlayed`'s own "for N" already shows the reduced
+    // price, but not why.
+    case "playCostReduced":
+      return {
+        text: `${card(event.instanceId)} reduces the cost of ${card(event.cardInstanceId)} by ${event.amount}.`,
         voice: "player",
       };
     case "damageDealt":
@@ -166,13 +188,18 @@ function describe(event: GameEvent, state: GameState, viewer: PlayerId | null, d
       };
     case "damageHealed":
       return { text: `${card(event.targetInstanceId)} healed ${event.amount} damage.`, voice: "player" };
+    // A tough status card has timing priority over every other interrupt that would otherwise fire first
+    // (docs/phase7-wave3.md §3.12) — logged only when some other interrupt was actually waiting, so the ordinary
+    // "took 0 damage — TOUGH spent" line stays the whole story the rest of the time.
+    case "interruptsPreempted":
+      return { text: `Toughness has interrupt priority — no other interrupt fires first.`, voice: "scenario" };
     case "threatPlaced":
       return { text: `${event.amount} threat placed on ${card(event.schemeInstanceId)}.`, voice: "scenario" };
     case "threatRemoved":
       return { text: `${event.amount} threat removed from ${card(event.schemeInstanceId)}.`, voice: "player" };
     case "threatRemovalBlocked":
       return {
-        text: `Threat can't be removed from ${card(event.schemeInstanceId)} — ${event.reason === "crisis" ? "Crisis" : "a rule"}.`,
+        text: `Threat can't be removed from ${card(event.schemeInstanceId)} — ${event.reason === "crisis" ? "Crisis" : event.reason === "patrol" ? "Patrol" : "a rule"}.`,
         voice: "scenario",
       };
     /**
@@ -225,6 +252,15 @@ function describe(event: GameEvent, state: GameState, viewer: PlayerId | null, d
         text: `${card(event.enemyInstanceId)} hit ${card(event.targetInstanceId)} for ${event.damageDealt} (ATK ${event.baseAtk} + ${event.boostIcons} boost − ${event.defenseReduction} defense).`,
         voice: "villain",
       };
+    // Moondragon's "that minion attacks another enemy of your choice" (docs/phase7-wave3.md §3.23) — an enemy
+    // attacking a different enemy, rather than a player, which nothing else on the board shows happening.
+    case "enemyAttackedEnemy":
+      return {
+        text: event.skipped
+          ? `${card(event.attackerInstanceId)}'s attack on ${card(event.targetInstanceId)} doesn't happen — ${enemyAttackSkipReason(event.skipped)}.`
+          : `${card(event.attackerInstanceId)} attacks ${card(event.targetInstanceId)} for ${event.damageDealt}.`,
+        voice: "villain",
+      };
     // The scheme half of the same breakdown, worded the same way. The third term only appears when something actually
     // changed the threat ("reduce the amount of threat placed … by 1"); an attack always has a defense term, a scheme
     // has no equivalent that is always present.
@@ -244,6 +280,22 @@ function describe(event: GameEvent, state: GameState, viewer: PlayerId | null, d
     // for no reason the log ever gave.
     case "activeVillainChanged":
       return { text: `The active villain is now ${card(event.to)}.`, voice: "villain" };
+    // The Collector flipping between its finite front and ∞ back (docs/phase7-wave3.md §3.1) — `hitPointsReset`
+    // is present on that flip and on Risky Business's Green Goblin (whose own two faces both reset the dial), so
+    // it names what actually happens to the hit point dial rather than leaving the player to infer it from the
+    // panel alone. A flip between two ordinary faces that *keeps* its damage (Risky Business's Norman Osborn) has
+    // nothing extra to say.
+    case "villainFlipped":
+      return {
+        text: `${card(event.instanceId)} flips${event.hitPointsReset ? ", hit points reset," : ""} to side ${event.to}.`,
+        voice: "villain",
+      };
+    // A card the first player controls followed the token to a new seat (the Milano, docs/phase7-wave3.md §3.13) —
+    // otherwise silent, since nothing about the card's own state changes, only who may use its ability. The
+    // engine's own `reason` is always "firstPlayer" today, so the line states that plainly rather than branching
+    // on a value that has only ever had one shape.
+    case "controllerChanged":
+      return { text: `${card(event.instanceId)} now follows the first player, ${who(event.to)}.`, voice: "scenario" };
     case "mainSchemeAdvanced":
       return { text: `The main scheme advances to stage ${event.stageIndex + 1}.`, voice: "villain" };
     case "mainSchemeCompleted":
@@ -253,6 +305,15 @@ function describe(event: GameEvent, state: GameState, viewer: PlayerId | null, d
     case "surgeTriggered":
       return {
         text: `Surge — ${who(event.playerId)} ${verb(event.playerId, "reveal", "reveals")} another encounter card.`,
+        voice: "villain",
+      };
+    // "The first [Technique] attachment revealed each round gains surge" (Nebula I-III) or "the first treachery the
+    // engaged player reveals each villain phase gains surge" (Mister Knife) — a printed rule handing the card a
+    // keyword it wasn't dealt with, otherwise indistinguishable from the card just printing surge itself
+    // (docs/phase7-wave3.md §3.8).
+    case "surgeGranted":
+      return {
+        text: `${card(event.instanceId)} gains surge — first of its kind revealed this round.`,
         voice: "villain",
       };
     case "accelerationTokenAdded":
@@ -271,6 +332,11 @@ function describe(event: GameEvent, state: GameState, viewer: PlayerId | null, d
       return { text: `${who(event.playerId)} ${verb(event.playerId, "are", "is")} out of the game.`, voice: "loss" };
     case "cardDiscardedFromPlay":
       return { text: `${card(event.instanceId)} left play.`, voice: "player" };
+    // RRG 1.8 "Player Deck" (p. 33): a deck that empties reshuffles its discard pile at once, and the player is
+    // dealt a facedown encounter card for it — a rule that used to run silently, with only the following draw or
+    // discard-cost payment as any evidence it happened.
+    case "playerDeckReset":
+      return { text: `${possessive(event.playerId)} deck is shuffled from the discard pile.`, voice: "scenario" };
     case "cardPutIntoPlayFacedown":
       return { text: `A facedown ${event.as} entered play engaged with ${who(event.playerId)}.`, voice: "villain" };
     case "gameEnded":
@@ -316,6 +382,17 @@ function describe(event: GameEvent, state: GameState, viewer: PlayerId | null, d
       return null;
   }
 }
+
+const enemyAttackSkipReason = (skipped: "leftPlay" | "cannotAttack" | "dashedStat"): string => {
+  switch (skipped) {
+    case "leftPlay":
+      return "the target already left play";
+    case "cannotAttack":
+      return "the attacker cannot attack";
+    default:
+      return "the attacker has no printed ATK";
+  }
+};
 
 const statusRemovedText = (reason: string, name: string): string => {
   switch (reason) {
