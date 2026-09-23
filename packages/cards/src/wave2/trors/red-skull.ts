@@ -122,8 +122,12 @@ export const RED_SKULL_SET = defineAbilities({
   "04128a.the-rise-of-red-skull-constant": coveredByEngineRule(),
   // The Rise of Red Skull — Forced Response (module docblock: printed "Forced Interrupt," scripted as a Response):
   // after resolving step one of the villain phase, reveal the top card of the side-scheme deck and put it into play.
+  // Wave 3 §3.2's `villainStepResolved { step: "placeThreat" }` (docs/phase7-wave3.md §3.2, §5) is the
+  // step-one-completing event; `on.threatPlaced(mainScheme)` fired on every threat placement on the main scheme
+  // from any source, not once per villain phase (docs/phase7-wave3-qa.md Finding 1, and the same bug found here
+  // independently in `04128b`/`04129b`, which the QA pass's Finding 1 didn't name).
   "04128b.the-rise-of-red-skull-forced-response": forcedResponse(
-    on.threatPlaced(query("mainScheme")),
+    on.villainStepResolved(),
     selectCards("found", scenarioDeck("side-scheme deck", { top: 1 })),
     revealCard(chosen("found"), firstPlayer),
   ),
@@ -133,9 +137,10 @@ export const RED_SKULL_SET = defineAbilities({
     selectCards("found", scenarioDeck("side-scheme deck", { top: 1 })),
     revealCard(chosen("found"), firstPlayer),
   ),
-  // New World Hydra — same Forced Response as 1B. "If this scheme is completed, the players lose" is data.
+  // New World Hydra — same Forced Response as 1B (see 04128b's comment above for the `villainStepResolved` fix).
+  // "If this scheme is completed, the players lose" is data.
   "04129b.new-world-hydra-forced-response": forcedResponse(
-    on.threatPlaced(query("mainScheme")),
+    on.villainStepResolved(),
     selectCards("found2", scenarioDeck("side-scheme deck", { top: 1 })),
     revealCard(chosen("found2"), firstPlayer),
   ),

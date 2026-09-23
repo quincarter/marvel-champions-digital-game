@@ -92,6 +92,38 @@ describe("Red Skull scenario", () => {
     expect(settled.scenarioDecks["side-scheme deck"]!.deck.length).toBeLessThan(before);
   });
 
+  /**
+   * `04128b`/`04129b` print the exact same "After resolving step one of the villain phase" wording as the three
+   * `trors` main schemes docs/phase7-wave3.md §3.2/§5 named, and carried the exact same bug (wired to
+   * `on.threatPlaced(query("mainScheme"))` instead of `on.villainStepResolved()`) — found independently while
+   * fixing those three, since Finding 1's own list of three cards didn't name it (docs/phase7-wave3-qa.md).
+   */
+  it("The Rise of Red Skull (04128b.the-rise-of-red-skull-forced-response): reveals exactly 1 side scheme per villain phase, even once Spreading Lies (04137) places threat on the main scheme outside step one", () => {
+    const start = redSkullVsHeroes();
+    const before = start.scenarioDecks["side-scheme deck"]!.deck.length;
+    // Spreading Lies: "When Revealed: Place 2 threat on each scheme in play" — a real step-two encounter card
+    // reveal (not a direct ability invocation) that places threat on the main scheme itself, outside step one. The
+    // old wiring saw that placement as a fresh `threatPlaced(mainScheme)` and revealed a second side scheme for it.
+    const stacked = stackEncounterDeck(start, ADVANCE, "04137");
+    const settled = settle(runWave2(stacked, toHero(), endTurn()), firstLegal, undefined, WAVE2_DEPS);
+    expect(before - settled.scenarioDecks["side-scheme deck"]!.deck.length).toBe(1);
+  });
+
+  it("New World Hydra (04129b.new-world-hydra-forced-response): reveals exactly 1 side scheme per villain phase, on stage 2", () => {
+    const start = redSkullVsHeroes();
+    // Test-only surgery to reach stage 2 ("New World Hydra") directly, the same pattern this suite's `qa.test.ts`
+    // uses for `zola`'s own stage 2. `04128a`'s stages array has stage 1 at index 0, stage 2 at index 1.
+    const schemeId = start.mainScheme.instanceId;
+    const onStage2 = {
+      ...start,
+      instances: { ...start.instances, [schemeId]: { ...start.instances[schemeId]!, threat: 1 } }, // startingThreat: perPlayer 1
+      mainScheme: { ...start.mainScheme, stageIndex: 1 },
+    };
+    const before = onStage2.scenarioDecks["side-scheme deck"]!.deck.length;
+    const settled = settle(runWave2(onStage2, toHero(), endTurn()), firstLegal, undefined, WAVE2_DEPS);
+    expect(before - settled.scenarioDecks["side-scheme deck"]!.deck.length).toBe(1);
+  });
+
   it("The Sleeper: When Revealed engages the first player; When Defeated removes it from the game", () => {
     expect(WAVE2_DEPS.abilities["04130.when-revealed"]).toBeDefined();
     expect(WAVE2_DEPS.abilities["04130.when-defeated"]).toBeDefined();

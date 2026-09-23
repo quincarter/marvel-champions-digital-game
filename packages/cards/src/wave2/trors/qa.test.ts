@@ -1,5 +1,5 @@
 import { cardId } from "@mc/content";
-import { createGame } from "@mc/engine";
+import { createGame, type GameState } from "@mc/engine";
 import {
   endTurn,
   firstLegal,
@@ -10,53 +10,171 @@ import {
   patchInstance,
   playerOf,
   settle,
+  stackEncounterDeck,
   toHero,
 } from "../../testing/harness.js";
 import { stackSetAsideBehindBoost } from "../../testing/staging.js";
 import { playToOutcome } from "../../testing/driver.js";
-import { WAVE2_ABILITIES, WAVE2_DEPS } from "../index.js";
+import { WAVE2_DEPS } from "../index.js";
 import { wave2Scenario } from "../setup.js";
 import { runWave2, startWave2Game } from "../testing.js";
 
 /**
- * Wave 3 §3.2's own docblock (docs/phase7-wave3.md §3.2, "Wave 2 bug found on the way") flags this as a live bug,
- * still unfixed as of this QA pass (confirmed independently here, not just trusted from the doc — re-checked
- * against the actual registered `AbilityDefinition`s below): three `trors` main schemes script "After resolving
- * step one of the villain phase" as `on.threatPlaced(query("mainScheme"))` (None Shall Pass 1B `04079b`, Hunting
- * Down Heroes `04096b`, The Mad Doctor 2B `04113b`) instead of the villain-phase-round-structure primitive built
- * for exactly this wording this wave, `on.villainStepResolved("placeThreat")` (`villainStepResolved { step:
- * "placeThreat" }` in the engine, docs/phase7-wave3.md §3.2, landed, commit `6ebb61f`). `on.threatPlaced` fires on
- * *every* threat placement on the main scheme (any source, any step), not once per villain phase.
+ * Wave 3 §3.2's own docblock (docs/phase7-wave3.md §3.2, "Wave 2 bug found on the way") flagged this as a live bug:
+ * three `trors` main schemes scripted "After resolving step one of the villain phase" as
+ * `on.threatPlaced(query("mainScheme"))` (None Shall Pass 1B `04079b`, Hunting Down Heroes `04096b`, The Mad
+ * Doctor 2B `04113b`) instead of the villain-phase-round-structure primitive built for exactly this wording this
+ * wave, `on.villainStepResolved("placeThreat")` (`villainStepResolved { step: "placeThreat" }` in the engine,
+ * docs/phase7-wave3.md §3.2, landed, commit `6ebb61f`). `on.threatPlaced` fired on *every* threat placement on the
+ * main scheme (any source, any step), not once per villain phase.
  *
  * Printed text (Red Skull rulebook, spoiler edition, p. 10, Taskmaster's Hunting Down Heroes): "Forced Response:
  * After resolving step one of the villain phase, each hero must choose to either place 1 threat on Hunting Down
  * Heroes or take 1 damage." That is a single event per villain phase (RRG 1.8 "Round Overview" p. 4, "step one"),
- * so the Forced Response should resolve exactly once per villain phase — RRG 1.8 "Forced" (p. 20): a forced
- * ability "must be triggered" by its triggering condition, which here is the villain phase's step one, not any
- * later `placeThreat` on the same card (Hunting Down Heroes' own "place 1 threat here" branch places threat on
- * itself, so on the current wiring it *retriggers its own Forced Response* the moment that branch is chosen; None
- * Shall Pass's delay counters and The Mad Doctor's test counters likewise accumulate on any threat placed on the
- * main scheme by any other source in the same villain phase, not only once).
+ * so the Forced Response resolves exactly once per villain phase — RRG 1.8 "Forced" (p. 20): a forced ability
+ * "must be triggered" by its triggering condition, which here is the villain phase's step one, not any later
+ * `placeThreat` on the same card (Hunting Down Heroes' own "place 1 threat here" branch places threat on itself,
+ * so on the old wiring it *retriggered its own Forced Response* the moment that branch was chosen; None Shall
+ * Pass's delay counters and The Mad Doctor's test counters likewise accumulated on any threat placed on the main
+ * scheme by any other source in the same villain phase, not only once).
  *
- * This test pins the ability definitions' own trigger shape rather than driving a full live game to the retrigger
- * (attempted first; the retrigger's exact live trace turned out to depend on interactions with `firstLegal`'s
- * choice-picking and the driver that were not fully untangled within this pass's time budget — flagged under "what
- * could not be checked" in docs/phase7-wave3-qa.md). The trigger shape itself is unambiguous and cheap to check,
- * and is exactly what `ability-scripting-engineer` needs to fix (docs/phase7-wave3.md §5: "re-script the three
- * `trors` main schemes ... on `villainStepResolved`") and exactly what this test will flip to green the moment
- * that fix lands, with no test change needed.
- *
- * Owner: `ability-scripting-engineer` (a card-script fix, not an engine change).
+ * **Fixed** (docs/phase7-wave3.md §5): all three now trigger on `on.villainStepResolved()`
+ * (`absorbing-man.ts`/`taskmaster.ts`/`zola.ts`). The tests below replace the earlier structural `test.fails` pin
+ * with live, full-game repros of exactly the three properties the fix has to hold: fires once per villain phase,
+ * ignores threat placed by another source in the same phase, and (Hunting Down Heroes specifically) doesn't
+ * retrigger from its own "place 1 threat here" branch.
  */
-test.fails("None Shall Pass / Hunting Down Heroes / The Mad Doctor: 'after resolving step one of the villain phase' is wired to villainStepResolved, not to every threatPlaced(mainScheme) (docs/phase7-wave3.md §3.2, §5; RRG 1.8 p. 4, p. 20)", () => {
-  for (const id of [
-    "04079b.none-shall-pass-forced-response",
-    "04096b.hunting-down-heroes-forced-response",
-    "04113b.the-mad-doctor-forced-response",
-  ] as const) {
-    const def = (WAVE2_ABILITIES as Record<string, { trigger?: { on?: { on?: string } } }>)[id];
-    expect(def?.trigger?.on?.on).toBe("villainStepResolved");
-  }
+describe("trors step-one main schemes fire on villainStepResolved, not on every threatPlaced(mainScheme)", () => {
+  const ADVANCE = "01186";
+  /** "When Revealed: Discard an upgrade or support you control. If no cards were discarded this way, this card
+   * gains surge." No threat effect of its own and no form condition — a clean step-two filler for exact-count
+   * assertions, so the only main-scheme threat in the round is step one's acceleration plus the ability under test. */
+  const CLEAN_FILLER = "01188";
+
+  it("None Shall Pass (04079b.none-shall-pass-forced-response): places exactly 1 delay counter per villain phase", () => {
+    const start = startWave2Game(
+      wave2Scenario("absorbing-man", { players: [{ starterDeckId: "hawkeye-leadership" }], seed: 2026 }),
+    );
+    const scheme = start.mainScheme.instanceId;
+    const stacked = stackEncounterDeck(start, ADVANCE, CLEAN_FILLER);
+    expect(inst(stacked, scheme).counters.delay ?? 0).toBe(0);
+    const afterRound1 = settle(runWave2(stacked, endTurn()), firstLegal, undefined, WAVE2_DEPS);
+    expect(inst(afterRound1, scheme).counters.delay ?? 0).toBe(1);
+  });
+
+  it("None Shall Pass (04079b.none-shall-pass-forced-response): does not fire again when Steel Kick (04087) places threat on the main scheme outside step one", () => {
+    const start = startWave2Game(
+      wave2Scenario("absorbing-man", { players: [{ starterDeckId: "hawkeye-leadership" }], seed: 2026 }),
+    );
+    const scheme = start.mainScheme.instanceId;
+    // Steel Kick's Alter-Ego reveal places 2-3 threat on the main scheme itself, from a real step-two encounter
+    // card reveal (not a direct ability invocation) — no `toHero()`, so the player stays in alter-ego form.
+    const stacked = stackEncounterDeck(start, ADVANCE, "04087");
+    const settled = settle(runWave2(stacked, endTurn()), firstLegal, undefined, WAVE2_DEPS);
+    expect(inst(settled, scheme).counters.delay ?? 0).toBe(1);
+    // Confirm Steel Kick's own threat placement actually happened, so the delay count of 1 isn't a no-op.
+    expect(inst(settled, scheme).threat).toBeGreaterThanOrEqual(2 + 2);
+  });
+
+  /**
+   * Drives a real game to its next `resolveChoice`-by-`resolveChoice` conclusion (like `settle`, but counting
+   * along the way instead of discarding the trace): how many times Hunting Down Heroes' own Forced Response
+   * offered its choice ("Place 1 threat here" / "Take 1 damage") this villain phase. A retrigger — the old wiring's
+   * exact bug, whether from the ability's own "place 1 threat" branch or from another source's threat placement —
+   * shows up directly as this count exceeding 1, sidestepping any other card's own effect on the main scheme's
+   * threat total (the ability's own `placeThreat` isn't the only thing that moves it in a real game — step one's
+   * acceleration does too, every round).
+   */
+  const countHuntingDownHeroesPrompts = (state: GameState): { readonly count: number; readonly final: GameState } => {
+    let current = state;
+    let count = 0;
+    for (let guard = 0; current.pendingChoice && !current.outcome; guard++) {
+      if (guard > 200) throw new Error("choices did not settle");
+      const labels = current.pendingChoice.options.map((o) => o.label);
+      if (labels.length === 2 && labels[0] === "Place 1 threat here" && labels[1] === "Take 1 damage") count++;
+      current = runWave2(current, {
+        type: "resolveChoice",
+        playerId: current.pendingChoice.playerId,
+        choiceId: current.pendingChoice.choiceId,
+        selectedOptionIds: firstLegal(current),
+      });
+    }
+    return { count, final: current };
+  };
+
+  it("Hunting Down Heroes (04096b.hunting-down-heroes-forced-response): fires exactly once per villain phase and does not retrigger from its own 'place 1 threat here' branch", () => {
+    const start = startWave2Game(
+      wave2Scenario("taskmaster", { players: [{ starterDeckId: "hawkeye-leadership" }], seed: 2026 }),
+    );
+    const scheme = start.mainScheme.instanceId;
+    expect(inst(start, scheme).threat).toBe(1); // startingThreat: perPlayer 1
+    const stacked = stackEncounterDeck(start, ADVANCE, CLEAN_FILLER);
+    // firstLegal always takes a mandatory choice's first option — Hunting Down Heroes' own text lists "Place 1
+    // threat here" before "Take 1 damage", so this drives exactly the branch that used to retrigger the ability:
+    // the old wiring saw that very placement as a fresh `threatPlaced(mainScheme)` and asked again, without bound.
+    const { count, final } = countHuntingDownHeroesPrompts(runWave2(stacked, toHero(), endTurn()));
+    expect(count).toBe(1);
+    // start (1) + step one's own acceleration (1, perPlayer 1) + the Forced Response's own "place 1 threat" (1).
+    expect(inst(final, scheme).threat).toBe(3);
+  });
+
+  it("Hunting Down Heroes (04096b.hunting-down-heroes-forced-response): does not fire again when Hunted by Hydra (04106) is revealed and places threat on the main scheme outside step one", () => {
+    const start = startWave2Game(
+      wave2Scenario("taskmaster", { players: [{ starterDeckId: "hawkeye-leadership" }], seed: 2026 }),
+    );
+    const scheme = start.mainScheme.instanceId;
+    const handBefore = playerOf(start, P1).hand.length;
+    // Hunted by Hydra: a real step-two encounter card reveal (not a direct ability invocation), carrying Incite 1
+    // (places 1 threat on the main scheme the instant it's revealed, outside step one) and its own When Revealed
+    // (each hero-form player takes 1 damage and discards a card — confirms the reveal actually happened).
+    const stacked = stackEncounterDeck(start, ADVANCE, "04106");
+    const { count, final } = countHuntingDownHeroesPrompts(runWave2(stacked, toHero(), endTurn()));
+    expect(count).toBe(1);
+    expect(playerOf(final, P1).hand.length).toBeLessThan(handBefore); // Hunted by Hydra's own reveal actually fired
+    // Regardless of how much threat Hunted by Hydra's own Incite adds on top, the Forced Response's own
+    // contribution is capped at the single firing above: start (1) + step one's acceleration (1) + one placement
+    // (1) is the floor: a retrigger would add at least 1 more on top of whatever Incite itself contributes.
+    expect(inst(final, scheme).threat).toBeGreaterThanOrEqual(3);
+  });
+
+  it("The Mad Doctor (04113b.the-mad-doctor-forced-response): places exactly 1 test counter per villain phase", () => {
+    const start = startWave2Game(
+      wave2Scenario("zola", { players: [{ starterDeckId: "hawkeye-leadership" }], seed: 2026 }),
+    );
+    // Test-only surgery to reach stage 2 ("The Mad Doctor") directly, the same pattern this suite already uses to
+    // reach a specific card/state without depending on a real scheme-completion grind (`absorbing-man.test.ts`'s
+    // `withoutBioServant`, this file's own `patchInstance` uses below). `04112a`'s stages array has stage 1 at
+    // index 0, stage 2 ("The Mad Doctor") at index 1; a real `advanceMainScheme` also resets the instance's threat
+    // to the new stage's starting threat (`packages/engine/src/resolve/defeat.ts`), reproduced here directly.
+    const schemeId = start.mainScheme.instanceId;
+    const onStage2 = {
+      ...patchInstance(start, schemeId, { threat: 1, counters: {} }), // startingThreat: perPlayer 1
+      mainScheme: { ...start.mainScheme, stageIndex: 1 },
+    };
+    expect(inst(onStage2, schemeId).counters.test ?? 0).toBe(0);
+    const stacked = stackEncounterDeck(onStage2, ADVANCE, CLEAN_FILLER);
+    const afterRound1 = settle(runWave2(stacked, endTurn()), firstLegal, undefined, WAVE2_DEPS);
+    expect(inst(afterRound1, schemeId).counters.test ?? 0).toBe(1);
+  });
+
+  it("The Mad Doctor (04113b.the-mad-doctor-forced-response): does not fire again when Technological Enhancements' Incite (04121) places threat on the main scheme outside step one", () => {
+    const start = startWave2Game(
+      wave2Scenario("zola", { players: [{ starterDeckId: "hawkeye-leadership" }], seed: 2026 }),
+    );
+    const schemeId = start.mainScheme.instanceId;
+    const onStage2 = {
+      ...patchInstance(start, schemeId, { threat: 1, counters: {} }),
+      mainScheme: { ...start.mainScheme, stageIndex: 1 },
+    };
+    // Technological Enhancements: Incite 1 (places 1 threat on the main scheme when revealed) plus its own When
+    // Revealed, which also places 1 *test* counter — a retrigger of the Forced Response would add a second test
+    // counter from the same phase (reaching the 3-counter spawn threshold in one round instead of three).
+    const stacked = stackEncounterDeck(onStage2, ADVANCE, "04121");
+    const settled = settle(runWave2(stacked, endTurn()), firstLegal, undefined, WAVE2_DEPS);
+    // The Forced Response's own counter (1) + Technological Enhancements' own When Revealed counter (1) = 2, not 3
+    // — so the "3+ test counters" spawn branch does not fire this round.
+    expect(inst(settled, schemeId).counters.test ?? 0).toBe(2);
+  });
 });
 
 /**

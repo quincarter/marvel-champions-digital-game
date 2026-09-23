@@ -1,7 +1,7 @@
 import { trait } from "@mc/content";
 import {
   amount,
-  chooseOne,
+  chooseOneBy,
   chooseTarget,
   chosen,
   constant,
@@ -118,15 +118,26 @@ export const TASKMASTER_SET = defineAbilities({
     shuffleEncounterDeck(),
   ),
   // Hunting Down Heroes — Forced Response: after resolving step one of the villain phase, each player in hero
-  // form must choose to place 1 threat here or take 1 damage (docs/phase7-wave2-scripting.md's own reading of
-  // "resolving step one" as the step's own `placeThreat` event, established in `absorbing-man.ts`).
+  // form must choose to place 1 threat here or take 1 damage. Wave 3 §3.2's `villainStepResolved { step:
+  // "placeThreat" }` (docs/phase7-wave3.md §3.2, §5) is the step-one-completing event; the wave 2 wiring
+  // (`on.threatPlaced(mainScheme)`) fired on every threat placement on the main scheme from any source, and since
+  // this ability's own "Place 1 threat here" branch places threat on the main scheme, it retriggered its own
+  // Forced Response for as long as that branch was chosen (docs/phase7-wave3-qa.md Finding 1). Separately found
+  // while pinning that fix with a live game: `chooseOne(...)` (`chooseOneBy(you, ...)`, `you` = `{ kind:
+  // "controller" }`) resolves the *main scheme's own* controller, which is null (a central main scheme has no
+  // owning player, `select.ts` `controllerOf`) — inside `forEachPlayer`, `you`/`controller` still means the
+  // ability's own controller, not the iterated player (`resolve/apply-effect.ts`'s `forEachPlayer` case only
+  // rebinds `scopedPlayerId`, not `controllerId`), so the choice silently had no chooser and never asked anyone.
+  // `chooseOneBy(thatPlayer, ...)` scopes it to the player this `forEachPlayer` pass is currently on, the way this
+  // ability's own `isHero(thatPlayer)` condition already does.
   "04096b.hunting-down-heroes-forced-response": forcedResponse(
-    on.threatPlaced(query("mainScheme")),
+    on.villainStepResolved(),
     forEachPlayer(
       eachPlayer,
       ifThen(
         isHero(thatPlayer),
-        chooseOne(
+        chooseOneBy(
+          thatPlayer,
           option("Place 1 threat here", placeThreat(1, theMainScheme)),
           option("Take 1 damage", dealDamage(1, identityOf(thatPlayer))),
         ),
