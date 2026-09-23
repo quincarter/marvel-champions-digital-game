@@ -191,6 +191,7 @@ import { GMW_CARDS } from "./gmw/cards.js";
 import { GMW_ENCOUNTER_SETS } from "./gmw/encounterSets.js";
 import { GMW_SCENARIOS } from "./gmw/scenarios.js";
 import { GMW_STARTER_DECKS } from "./gmw/starterDecks.js";
+import { GMW_CAMPAIGN } from "./gmw/campaign.js";
 import { STLD_CARDS } from "./stld/cards.js";
 import { STLD_ENCOUNTER_SETS } from "./stld/encounterSets.js";
 import { STLD_STARTER_DECKS } from "./stld/starterDecks.js";
@@ -265,15 +266,15 @@ export const PLAYABLE_CARDS: readonly AnyCard[] = [
 
 /**
  * Every campaign box whose scenarios and encounter sets are ingested into `@mc/content` (PLAN.md §C3;
- * docs/campaign-mode-design.md §11 step 6). Only `trors` (The Rise of Red Skull, MC10) qualifies today — the other
- * eight campaign boxes with a campaign mode (MC16, MC21, MC27, MC32, MC40, MC45, MC50, MC60) have only raw
- * MarvelCDB JSON cached (`packages/content/raw/marvelcdb/`), not a normalized `Pack`/`Scenario`/`EncounterSet` in
- * this package yet (see docs/phase7-wave2-data.md's per-pack survey), so a `Campaign` record naming their
- * scenarios/sets would reference data that does not exist. Each is added here once its own box is ingested and
- * scripted, per PLAN.md §C2's gate ("That box's own heroes, villains and scenarios scripted ... This gates the
- * rest."). Civil War (MC56) has no campaign mode at all (MC56 p. 3) and is never added.
+ * docs/campaign-mode-design.md §11 step 6). `trors` (The Rise of Red Skull, MC10) and `gmw` (The Galaxy's Most
+ * Wanted, MC16) qualify today — the other seven campaign boxes with a campaign mode (MC21, MC27, MC32, MC40, MC45,
+ * MC50, MC60) have only raw MarvelCDB JSON cached (`packages/content/raw/marvelcdb/`), not a normalized
+ * `Pack`/`Scenario`/`EncounterSet` in this package yet (see docs/phase7-wave2-data.md's per-pack survey), so a
+ * `Campaign` record naming their scenarios/sets would reference data that does not exist. Each is added here once
+ * its own box is ingested and scripted, per PLAN.md §C2's gate ("That box's own heroes, villains and scenarios
+ * scripted ... This gates the rest."). Civil War (MC56) has no campaign mode at all (MC56 p. 3) and is never added.
  */
-export const CAMPAIGNS: readonly Campaign[] = [TRORS_CAMPAIGN];
+export const CAMPAIGNS: readonly Campaign[] = [TRORS_CAMPAIGN, GMW_CAMPAIGN];
 
 // ---------------------------------------------------------------------------------------------------------------
 // Data-only pool (PLAN.md Phase 7, "All 62 non-Core packs become card data; only wave 1 is scripted"/"Wave 2

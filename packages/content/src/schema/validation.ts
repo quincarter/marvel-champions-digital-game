@@ -468,6 +468,14 @@ function wave2PlayerCardErrors(card: PlayerCard): string[] {
       `${card.type} with no aspect classification must say which scenario or campaign set it belongs to (specificTo)`,
     );
   }
+  // MC16 p. 5's "Unit Cost X." (see `PlayerCardCommon.unitCost`): only ever on a campaign-specific card, and never
+  // a fabricated value — it must be a positive integer.
+  if (card.unitCost !== undefined) {
+    if (!isPositiveInteger(card.unitCost)) errors.push(`${card.type} unitCost must be a positive integer`);
+    if (specific === undefined || specific.kind !== "campaign") {
+      errors.push(`${card.type} unitCost is only for a campaign-specific card (specificTo.kind === 'campaign')`);
+    }
+  }
   errors.push(...flipSideErrors(card, card.type));
   return errors;
 }
