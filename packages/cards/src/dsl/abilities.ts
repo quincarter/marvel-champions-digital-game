@@ -689,6 +689,14 @@ export const on = {
    */
   youPlay: (what: TargetQuery): EventPattern => pattern("cardBeingPlayed", { targetIs: what, playerIs: "controller" }),
   /**
+   * "After you play an [X] card" (Morphogenetics, `msm` 05001a; Finesse/Precision, Gamora's own identity, `gam`
+   * 18001a) — the response twin of `youPlay`: `cardPlayed`, announced once the play has resolved, rather than
+   * `cardBeingPlayed`'s interrupt-time point. `what` filters which played card ("an attack event" is `query("event",
+   * { trait: ATTACK })`). Promoted from the local `afterYouPlay`/`whenYouPlay` pattern `msm/kit.ts` composed by hand
+   * before this builder existed.
+   */
+  youPlayedCard: (what: TargetQuery): EventPattern => pattern("cardPlayed", { targetIs: what, playerIs: "controller" }),
+  /**
    * "After **a player** plays [X]" (Knowhere, `stld` 17022: "after a player plays a guardian ally") — no `playerIs`
    * scope, unlike `youPlayThis`'s hardcoded "you"; the player who played it is named with `eventPlayer`.
    */

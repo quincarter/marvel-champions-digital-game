@@ -524,6 +524,8 @@ export const zone = (
     readonly filter?: TargetQuery;
     readonly top?: Amount;
     readonly topmostOnly?: boolean;
+    /** "The bottommost [X] from your discard pile" (Conditioning Room, `gam` 18008): `zone`'s mirror of `topmostOnly`. */
+    readonly bottommostOnly?: boolean;
     readonly random?: Amount;
   } = {},
 ): CardSelector => ({
@@ -533,6 +535,7 @@ export const zone = (
   ...(opts.filter ? { filter: opts.filter } : {}),
   ...(opts.top !== undefined ? { top: amount(opts.top) } : {}),
   ...(opts.topmostOnly ? { topmostOnly: true } : {}),
+  ...(opts.bottommostOnly ? { bottommostOnly: true } : {}),
   ...(opts.random !== undefined ? { random: amount(opts.random) } : {}),
 });
 /** "The top N cards of your deck". */

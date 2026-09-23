@@ -650,7 +650,11 @@ export function threatRemovalBlocked(
     patrolledBy(state, deps, thwartingPlayerId)
   )
     return "patrol";
-  return threatCannotBeRemoved(state, deps, schemeId, byThwart) ? "rule" : null;
+  // The removing player, for a `threatCannotBeRemoved` rule scoped with `player` (docs/phase7-wave3.md §3.26): the
+  // thwart's player when this is a thwart, else the removing card's controller — the same reading `defeatingPlayerOf`
+  // (below) uses for "the player who defeated this scheme".
+  const removerId = thwartingPlayerId ?? (sourceInstanceId === null ? null : controllerOf(state, sourceInstanceId));
+  return threatCannotBeRemoved(state, deps, schemeId, byThwart, removerId) ? "rule" : null;
 }
 
 function applyPlaceThreat(ctx: Ctx, event: Extract<TriggerEvent, { kind: "placeThreat" }>, frameId: FrameId): void {

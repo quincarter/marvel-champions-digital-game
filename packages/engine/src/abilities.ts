@@ -255,12 +255,21 @@ export type RuleSpec =
       readonly while?: Predicate;
       readonly fromSource?: TargetQuery;
     }
-  /** "Threat cannot be removed from this scheme" (Countdown to Oblivion); `by: "thwart"`: "… from attached scheme by thwarting" (Held Hostage). */
+  /**
+   * "Threat cannot be removed from this scheme" (Countdown to Oblivion); `by: "thwart"`: "… from attached scheme by
+   * thwarting" (Held Hostage). `player`, resolved with "you" as the rule card's speaker exactly as `cannotAttack`'s own
+   * field docs (docs/phase7-wave2.md §25), scopes *who* is blocked rather than restricting every player: absent, it
+   * blocks any removal, as every rule before this field existed did; given, only a removal whose player (the thwart's
+   * player, else the removing card's controller; a removal with neither is never scoped out) is one of `player`'s
+   * players is blocked. "Players other than Gamora cannot remove threat from Sibling Rivalry" (`gam` 18025,
+   * docs/phase7-wave3.md §3.26) is `{ player: others(ownerOf(gamorasIdentity)) }`.
+   */
   | {
       readonly kind: "threatCannotBeRemoved";
       readonly target: TargetQuery;
       readonly while?: Predicate;
       readonly by?: "thwart";
+      readonly player?: PlayerRef;
     }
   /** "While Baron Zemo is engaged with you, you cannot thwart." `player` is resolved with "you" as the rule card's speaker (`speakerOf`). */
   | { readonly kind: "cannotThwart"; readonly player: PlayerRef; readonly while?: Predicate }
@@ -286,6 +295,13 @@ export type RuleSpec =
       readonly target: TargetQuery;
       readonly player?: PlayerRef;
       readonly while?: Predicate;
+      /**
+       * "Drax cannot attack minions." (`gam` 18019, docs/phase7-wave3.md §3.26): restricts *this character*, not
+       * the controlling player — a different attack by the same player (another ally, their own hero) is unaffected.
+       * The mirror of `attackKeywords.attacker`, over the same "who is making the attack" question. Matched against
+       * the attacking character itself, before `player` (if also given) narrows further by controller.
+       */
+      readonly attacker?: TargetQuery;
     }
   /** "Resolve each 'When Revealed' ability that you reveal 1 additional time." (Media Coverage). */
   | {

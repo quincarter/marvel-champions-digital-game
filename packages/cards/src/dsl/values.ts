@@ -296,8 +296,17 @@ export const hasStatus = (of: TargetRef, status: StatusName): Predicate => ({ ki
 export const hasTrait = (of: TargetRef, t: Trait): Predicate => ({ kind: "hasTrait", of, trait: t });
 /** "If you have the Aerial trait". */
 export const youHaveTrait = (t: Trait): Predicate => hasTrait(yourIdentity, t);
-/** The ref names a card that is in play and matches the query. */
-export const refMatches = (ref: TargetRef, q: TargetQuery): Predicate => ({ kind: "refMatches", ref, query: q });
+/**
+ * The ref names a card that is in play and matches the query. `anywhere: true` drops the "in play" requirement
+ * ("Look at the top card of your deck. If that card is an attack or thwart event, draw it.", Gamora 18001b): the
+ * looked-at card is still on top of the deck, not in play, when this reads it.
+ */
+export const refMatches = (ref: TargetRef, q: TargetQuery, opts: { readonly anywhere?: boolean } = {}): Predicate => ({
+  kind: "refMatches",
+  ref,
+  query: q,
+  ...(opts.anywhere ? { anywhere: true } : {}),
+});
 export const damagedAtLeast = (of: TargetRef, n: number): Predicate => ({ kind: "damagedAtLeast", of, amount: n });
 /**
  * A numeric comparison between two live values — the general form behind "if there is 10 or more threat here"
@@ -431,4 +440,34 @@ export const campaignLogAtLeast = (field: string, n: number, read: CampaignLogRe
 /** "Each <X> recorded in the campaign log", as a query clause narrowing cards to the ones the field names. */
 export const inCampaignLogField = (field: string, seat?: PlayerRef): Pick<TargetQuery, "inCampaignLogField"> => ({
   inCampaignLogField: { field, ...(seat ? { seat } : {}) },
+});
+
+// ---------------------------------------------------------------------------
+// Wave 3 (cycle 2, docs/phase7-wave3.md) additions
+// ---------------------------------------------------------------------------
+
+/**
+ * "If you have played a [Thwart] event this turn" (Decisive Blow, Forward Momentum, `gam`): at least `atLeast`
+ * (default 1) of the cards `player` played this turn match `cards`, wherever those cards are now.
+ * docs/phase7-wave3.md §3.24.
+ */
+export const playedThisTurn = (cards: TargetQuery, opts: { player?: PlayerRef; atLeast?: number } = {}): Predicate => ({
+  kind: "playedThisTurn",
+  player: opts.player ?? you,
+  cards,
+  ...(opts.atLeast !== undefined ? { atLeast: opts.atLeast } : {}),
+});
+
+/**
+ * How many cards (of `cardType`, absent: any) `player` has played this round is at most `atMost`. `firstThisRound`
+ * (above) is the wave 1 "first ally played each round" reading (`atMost: 0`, before the card in question); this is
+ * the general form wave 3 needs for "If this is the first card you have played this round, return this card to your
+ * hand" (Clobber, Impede, `gam`) — `atMost: 1` while the card itself resolves, since it counts as played from the
+ * moment it is played (docs/phase7-wave3.md §3.11).
+ */
+export const playedThisRound = (atMost: number, opts: { cardType?: string; player?: PlayerRef } = {}): Predicate => ({
+  kind: "playedThisRound",
+  player: opts.player ?? you,
+  ...(opts.cardType ? { cardType: opts.cardType } : {}),
+  atMost,
 });

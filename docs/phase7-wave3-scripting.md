@@ -307,5 +307,28 @@ is emitted and their own engine primitives have landed (`drax`'s Moondragon, §3
 RRG/FAQ are silent on whether "that minion attacks another enemy" is an activation; docs/phase7-wave3.md §4 Q12
 has the proposed reading, still unconfirmed).
 
+### `gam` (Gamora): fully scripted
+
+`MC_REFS_PACKS=gam pnpm refs` resolves 35/35 — **no `KNOWN_SKIPPED` entries, no genuine primitive gaps.**
+Everything docs/phase7-wave3.md §3.26 flagged "unproven" for this pack turned out to compose, once three small
+primitives (all with their own engine tests) were promoted:
+
+- `CardSelector.zone.bottommostOnly`, the mirror of the existing `topmostOnly` — Conditioning Room's "return the
+  bottommost attack or thwart event from your discard pile".
+- `TargetQuery.unique`, reading the same printed fact `unique.ts`'s `isUnique` uses for the deckbuilding unique
+  rule — Godslayer's "against a unique enemy".
+- `RuleSpec threatCannotBeRemoved.player` and `RuleSpec cannotAttack.attacker` — Sibling Rivalry ("players other
+  than Gamora cannot remove threat from it") and Drax ("Drax cannot attack minions", independent of who controls
+  him), each a `player`-shaped field added beside an existing rule the same way `cannotAttack.player` (docs/
+  phase7-wave2.md §25) already worked, but scoping the _other_ half of the sentence (who is blocked / which
+  character, respectively) that no existing field said.
+
+`gamora-kit.ts`/`gamora-obligation-nemesis.ts` cover every non-reprint `gam` ability (18014 Uppercut, 18017 Combat
+Training, 18032 Enhanced Reflexes alias from `reprints.ts`); `gamora-kit.test.ts` (24 tests) and
+`gamora-obligation-nemesis.test.ts` (8 tests) drive every registered ref through its own real trigger window, named
+in each test's own title; `e2e.test.ts` plays Gamora's own hand-built stand-in deck (`support.ts` — she has no real
+precon yet, docs/phase7-wave3.md §0/§4) against Rhino to a real outcome. `support.ts`'s own docblock explains why
+the deck is hand-built rather than a `StarterDeck` and that it makes no legality claim.
+
 **Wave 3's client wiring is out of scope for every pack in this pass** (per the brief: "the whole wave gets wired
 into the client once, at the end") — nothing here touches `packages/client` or `playable/`.
