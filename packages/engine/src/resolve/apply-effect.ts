@@ -31,6 +31,7 @@ import {
   removeStatus,
   setActiveVillain,
   shuffleZone,
+  playerDeckResets,
   takeTopOfDeck,
 } from "../effects.js";
 import { EngineInvariantError } from "../errors.js";
@@ -1316,18 +1317,18 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
         if (!player || player.eliminated) continue;
         // Bounded by the cards that exist, so a deck with no match can't loop forever.
         const limit = player.deck.length + player.discard.length;
-        let discarded = 0;
         for (let i = 0; i < limit; i++) {
-          if (discarded > 0 && mustPlayer(ctx.state, playerId).deck.length === 0) break;
           const id = takeTopOfDeck(ctx, playerId);
           if (!id) break;
+          const resets = playerDeckResets(ctx, playerId);
           // The log already carries each move as `cardMoved`, the same record `discardEncounterUntil` leaves.
           moveCard(ctx, id, { kind: "discard", playerId }, "top");
-          discarded++;
           if (matchesQuery(ctx.state, id, effect.filter, context)) {
             found.push(id);
             break;
           }
+          // This discard emptied the deck, which was reset at once (`settlePlayerDecks`): stop.
+          if (playerDeckResets(ctx, playerId) > resets) break;
         }
       }
       updateFrame(ctx, frame.frameId, (f) =>

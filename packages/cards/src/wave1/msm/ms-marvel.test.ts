@@ -128,10 +128,15 @@ describe("Ms. Marvel kit", () => {
     // once the (now matchless) deck runs out (RRG 1.8 "Player Deck", p. 33).
     const { state: withDiscard, id: redDagger } = moveToDiscard(cleared, P1, "05002");
     const identity = identityOf(withDiscard);
+    const dealtBefore = playerOf(withDiscard, P1).dealtEncounter.length;
     const after = runMsm(withDiscard, use(P1, identity, "05001b.teen-spirit"));
     expect(playerOf(after, P1).hand).not.toContain(redDagger);
-    expect(playerOf(after, P1).discard).toContain(redDagger);
-    expect(playerOf(after, P1).deck).toEqual([]);
+    // The last discard emptied the deck, which was reset at once (ruling, Apr 30, 2026 (3) answer 7): Red Dagger is
+    // shuffled into the new deck with everything discarded, the discarding stopped there, and the reset dealt P1 a
+    // facedown encounter card.
+    expect(playerOf(after, P1).deck).toContain(redDagger);
+    expect(playerOf(after, P1).discard).toEqual([]);
+    expect(playerOf(after, P1).dealtEncounter).toHaveLength(dealtBefore + 1);
   });
 
   it("Red Dagger: an Interrupt that replaces his own defeat, paid with 2 resources of different types", () => {

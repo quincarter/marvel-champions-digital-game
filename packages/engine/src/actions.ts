@@ -909,7 +909,8 @@ export function planCost(
     if (cost.spendCounters.bind) vars[cost.spendCounters.bind] = cost.spendCounters.amount;
   }
   // "Discard the top card of your deck →" (docs/phase7-wave3.md §3.33): the deck, or the deck the rules would already
-  // have reshuffled from the discard pile (the engine resets lazily), must hold them all.
+  // have reshuffled from the discard pile (an empty deck beside a discard pile is a state built before §4 Q15's
+  // immediate reset), must hold them all.
   if (cost.discardFromDeck !== undefined) {
     const supply = player.deck.length > 0 ? player.deck.length : player.discard.length;
     if (supply < cost.discardFromDeck) {

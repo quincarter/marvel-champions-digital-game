@@ -1,7 +1,16 @@
 import type { VillainSideLetter } from "@mc/content";
 import type { EngineDeps } from "./abilities.js";
 import type { EncounterDeckId, InstanceId, PlayerId } from "./ids.js";
-import { emit, moveCard, setStep, updateInstance, updatePlayer, type Ctx } from "./ctx.js";
+import {
+  emit,
+  moveCard,
+  relocateCard,
+  setStep,
+  settlePlayerDecks,
+  updateInstance,
+  updatePlayer,
+  type Ctx,
+} from "./ctx.js";
 import { hasKeyword, statusCapacity, usesKeyword } from "./keywords.js";
 import {
   activeEncounterDeckId,
@@ -306,14 +315,33 @@ function resetPlayerDeck(ctx: Ctx, playerId: PlayerId): boolean {
   if (player.discard.length === 0) return false;
   const order = shuffleZone(ctx, { kind: "deck", playerId }, player.discard);
   updatePlayer(ctx, playerId, (p) => ({ ...p, deck: order, discard: [] }));
+  emit(ctx, { type: "playerDeckReset", playerId });
   dealEncounterCardTo(ctx, playerId);
   return true;
 }
 
 /**
- * The top card of a player's deck, resetting the deck first if it is empty (RRG
- * "Player Deck": reshuffle the discard pile and deal that player a facedown
- * encounter card). Null if deck and discard are both empty.
+ * Resets `playerId`'s deck if it is empty and their discard pile is not (`settlePlayerDecks`, `ctx.ts`, runs it after
+ * every move that could make that true). An eliminated player's zones are leaving the game, so never theirs.
+ */
+export function resetPlayerDeckIfEmpty(ctx: Ctx, playerId: PlayerId): boolean {
+  const player = ctx.state.players.find((p) => p.playerId === playerId);
+  if (!player || player.eliminated || player.deck.length > 0) return false;
+  return resetPlayerDeck(ctx, playerId);
+}
+
+/**
+ * How many times `playerId`'s deck has been reset so far in this command. A discard from the deck compares it before
+ * and after each card: "If the player's deck empties while the player was discarding cards from their deck, no further
+ * cards are discarded from the newly shuffled deck" (RRG 1.8 "Player Deck", p. 33).
+ */
+export const playerDeckResets = (ctx: Ctx, playerId: PlayerId): number =>
+  ctx.events.filter((event) => event.type === "playerDeckReset" && event.playerId === playerId).length;
+
+/**
+ * The top card of a player's deck. A deck is reset the moment it empties (`settlePlayerDecks`), so it is only found
+ * empty here when the discard pile was empty too, or in a state built before that rule (a save, a test's surgery): it
+ * is reset here then. Null if deck and discard are both empty.
  */
 export function takeTopOfDeck(ctx: Ctx, playerId: PlayerId): InstanceId | null {
   if (mustPlayer(ctx.state, playerId).deck.length === 0 && !resetPlayerDeck(ctx, playerId)) return null;
@@ -322,34 +350,35 @@ export function takeTopOfDeck(ctx: Ctx, playerId: PlayerId): InstanceId | null {
 
 /**
  * "Discard the top card of your deck →" as a cost (`AbilityCost.discardFromDeck`; docs/phase7-wave3.md §3.33). A deck
- * already empty is reset first (`takeTopOfDeck`); a deck this cost empties stops the discarding (RRG 1.8 "Player
- * Deck", p. 33: "no further cards are discarded from the newly shuffled deck") and is then reset at once — ruling, Apr
- * 30, 2026 (3) answer 7, "The deck is reshuffled **before** the currently resolving card enters the discard pile" —
- * rather than on its next read, so its facedown encounter card is dealt before the ability's effects resolve.
- * `planCost` has already refused a deck that cannot supply every card. Each card moved is logged as `cardMoved`.
+ * this cost empties is reset at once (`settlePlayerDecks`; ruling, Apr 30, 2026 (3) answer 7), so its facedown
+ * encounter card is dealt before the ability's effects resolve, and the discarding stops there (RRG 1.8 "Player Deck",
+ * p. 33: "no further cards are discarded from the newly shuffled deck"). `planCost` has already refused a deck that
+ * cannot supply every card. Each card moved is logged as `cardMoved`.
  */
 export function discardFromDeckAsCost(ctx: Ctx, playerId: PlayerId, count: number): readonly InstanceId[] {
   const discarded: InstanceId[] = [];
   for (let i = 0; i < count; i++) {
-    if (discarded.length > 0 && mustPlayer(ctx.state, playerId).deck.length === 0) break;
     const top = takeTopOfDeck(ctx, playerId);
     if (!top) break;
+    const resets = playerDeckResets(ctx, playerId);
     moveCard(ctx, top, { kind: "discard", playerId }, "top");
     discarded.push(top);
+    if (playerDeckResets(ctx, playerId) > resets) break;
   }
-  if (discarded.length > 0 && mustPlayer(ctx.state, playerId).deck.length === 0) resetPlayerDeck(ctx, playerId);
   return discarded;
 }
 
+/**
+ * Draws one card at a time. A deck the draw empties is reset at once, after the draw is logged, and the drawing goes on
+ * from the new deck (RRG 1.8 "Player Deck", p. 33: "the player continues to draw cards up to the specified number").
+ */
 export function drawCards(ctx: Ctx, playerId: PlayerId, count: number): void {
   for (let i = 0; i < count; i++) {
-    let player = mustPlayer(ctx.state, playerId);
-    if (player.deck.length === 0 && !resetPlayerDeck(ctx, playerId)) return;
-    player = mustPlayer(ctx.state, playerId);
-    const top = player.deck[0];
+    const top = takeTopOfDeck(ctx, playerId);
     if (!top) return;
-    moveCard(ctx, top, { kind: "hand", playerId });
+    const from = relocateCard(ctx, top, { kind: "hand", playerId });
     emit(ctx, { type: "cardDrawn", playerId, instanceId: top });
+    settlePlayerDecks(ctx, from, { kind: "hand", playerId });
   }
 }
 

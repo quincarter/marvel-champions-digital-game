@@ -534,6 +534,9 @@ export function eliminatePlayer(ctx: Ctx, playerId: PlayerId): void {
     }
     moveCard(ctx, id, discardZoneFor(ctx.state, id), "top");
   }
+  // Marked eliminated before its hand, deck and the rest are emptied into its discard pile, so the emptied deck is not
+  // reset (`settlePlayerDecks`): step 5 removes these zones from the game.
+  updatePlayer(ctx, playerId, (p) => ({ ...p, eliminated: true }));
   for (const id of [...mustPlayer(ctx.state, playerId).hand]) {
     moveCard(ctx, id, { kind: "discard", playerId }, "top");
   }
@@ -547,7 +550,6 @@ export function eliminatePlayer(ctx: Ctx, playerId: PlayerId): void {
     moveCard(ctx, id, { kind: "discard", playerId }, "top");
   }
 
-  updatePlayer(ctx, playerId, (p) => ({ ...p, eliminated: true }));
   emit(ctx, { type: "playerEliminated", playerId });
 
   if (ctx.state.players.every((p) => p.eliminated)) {

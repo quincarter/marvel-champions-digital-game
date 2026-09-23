@@ -1190,9 +1190,9 @@ export type EffectSpec =
    * A deck and discard pile both empty discard nothing and bind nothing (p. 33: "the deck does not reset until there
    * is at least one card in the player's discard pile").
    *
-   * The reset itself is the engine's usual deferred one (`takeTopOfDeck`/`drawCards`): the reshuffle and its dealt
-   * encounter card happen at the next draw from that deck rather than the instant it empties. That is a pre-existing
-   * engine-wide modeling choice, not one this effect makes.
+   * The reset happens the moment the deck empties (`settlePlayerDecks`, `ctx.ts`; ruling, Apr 30, 2026 (3) answer 7;
+   * docs/phase7-wave3.md §4 Q15), so a match that was the deck's last card is already in the new deck when this effect
+   * binds it. A `moveCards` of the slot still finds it there (§4 Q18).
    */
   | {
       readonly kind: "discardDeckUntil";

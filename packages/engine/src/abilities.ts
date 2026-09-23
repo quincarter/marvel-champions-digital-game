@@ -678,8 +678,9 @@ export interface AbilityCost {
    * - **An empty deck is not an excuse.** The RRG never leaves a deck empty while the discard pile holds cards: "If
    *   a player deck empties, the player shuffles their discard pile to make a new deck" (p. 33), at once (ruling, Apr
    *   30, 2026 (3) answer 7: "The deck is reshuffled **before** the currently resolving card enters the discard
-   *   pile"). The engine resets a deck lazily, on its next read, so an empty deck here is one the rules have already
-   *   reset: it is reset first (with its facedown encounter card) and pays from the new deck. With both deck and
+   *   pile"), and so does the engine (`settlePlayerDecks`, docs/phase7-wave3.md §4 Q15). An empty deck with cards in
+   *   the discard pile only exists in a state built before that (a save, a test's surgery): it is reset first (with
+   *   its facedown encounter card) and pays from the new deck. With both deck and
    *   discard pile empty there is nothing to discard, and the ability cannot be initiated.
    * - **A deck the cost empties resets immediately** (the same ruling), before the ability's effects resolve.
    */
