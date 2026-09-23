@@ -769,9 +769,12 @@ function executeChoosePlayer(
     return;
   }
   const [chooser] = resolvePlayers(ctx.state, effect.chooser, context);
-  const players = playerOrder(ctx.state);
-  if (!chooser || players.length === 0) {
-    setFrame(ctx, { ...frame, cursor: frame.cursor + 1, bindings: { ...frame.bindings, [effect.slot]: [] } });
+  // `among` (docs/phase7-wave3.md §3.35): only those players are eligible, and one eligible player is no choice.
+  const eligible = effect.among ? resolvePlayers(ctx.state, effect.among, context) : null;
+  const players = playerOrder(ctx.state).filter((p) => eligible === null || eligible.includes(p.playerId));
+  if (!chooser || players.length === 0 || (eligible !== null && players.length === 1)) {
+    const bound = eligible !== null && players.length === 1 ? [players[0]!.identity.instanceId] : [];
+    setFrame(ctx, { ...frame, cursor: frame.cursor + 1, bindings: { ...frame.bindings, [effect.slot]: bound } });
     return;
   }
   requestChoice(ctx, {

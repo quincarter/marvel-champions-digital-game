@@ -811,6 +811,19 @@ export function resolvePlayers(state: GameState, ref: PlayerRef, context: Effect
       const player = event.defeatedByPlayerId ?? null;
       return player !== null && getPlayer(state, player) ? [player] : [];
     }
+    case "superlative": {
+      // docs/phase7-wave3.md §3.35: each candidate measured with itself as the scoped player, in player order.
+      const pool = resolvePlayers(state, ref.among ?? { kind: "each" }, context);
+      const scored = pool.map((playerId) => ({
+        playerId,
+        score: resolveValue(state, ref.measure, { ...context, scopedPlayerId: playerId }),
+      }));
+      if (scored.length === 0) return [];
+      const scores = scored.map((s) => s.score);
+      const best = ref.order === "lowest" ? Math.min(...scores) : Math.max(...scores);
+      const tied = scored.filter((s) => s.score === best).map((s) => s.playerId);
+      return ref.ties === "first" ? tied.slice(0, 1) : tied;
+    }
   }
 }
 

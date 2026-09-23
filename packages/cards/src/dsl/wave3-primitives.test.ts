@@ -6,7 +6,16 @@
 
 import { trait } from "@mc/content";
 import { describe, expect, it } from "vitest";
-import { alterEgoAction, exhaustThis, heroAction, heroResponse, on, removeCounter, response } from "./abilities.js";
+import {
+  alterEgoAction,
+  exhaustThis,
+  heroAction,
+  heroResponse,
+  on,
+  removeCounter,
+  response,
+  whenRevealed,
+} from "./abilities.js";
 import {
   addCounters,
   anAttackableEnemy,
@@ -15,12 +24,16 @@ import {
   cards,
   chooseCards,
   chooseOne,
+  choosePlayer,
   chooseTarget,
+  discardEncounterCards,
   eachTimeUntil,
   giveTough,
   heal,
+  ifThen,
   moveCards,
   option,
+  putIntoPlay,
   ready,
   reduceNextCardCost,
   thwartAScheme,
@@ -29,13 +42,20 @@ import {
 import { validateDefinition } from "./validate.js";
 import {
   chosen,
+  chosenPlayer,
+  countOf,
   exists,
+  firstPlayer,
   named,
   ofTeamUpSet,
+  perHero,
   query,
+  refMatches,
   statOf,
   sum,
+  superlativePlayer,
   teamUpCharacters,
+  thatPlayer,
   titled,
   you,
   YOUR_IDENTITY,
@@ -89,6 +109,31 @@ describe("§3.28–§3.31 compositions", () => {
         moveCards(cards(chosen("tech")), "deckTop"),
       ),
     );
+  });
+});
+
+describe("§3.35 a player superlative", () => {
+  it("Drang III (16060): each discarded minion engages the player with the fewest minions, ties to the first player", () => {
+    const fewestMinions = superlativePlayer("lowest", countOf(query("minion", { engagedWithPlayer: thatPlayer })));
+    const drang = whenRevealed(
+      discardEncounterCards(perHero(4), {
+        forEachDiscarded: {
+          slot: "discarded",
+          effects: [
+            ifThen(refMatches(chosen("discarded"), query("minion"), { anywhere: true }), [
+              choosePlayer("fewest", firstPlayer, { among: fewestMinions }),
+              putIntoPlay(chosen("discarded"), chosenPlayer("fewest")),
+            ]),
+          ],
+        },
+      }),
+    );
+    valid(drang);
+    expect(fewestMinions).toEqual({
+      kind: "superlative",
+      order: "lowest",
+      measure: { kind: "count", query: { categories: ["minion"], engagedWithPlayer: { kind: "scoped" } } },
+    });
   });
 });
 

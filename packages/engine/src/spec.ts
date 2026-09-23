@@ -359,7 +359,31 @@ export type PlayerRef =
    * gate, this hands the player back as a value a later effect can use. Empty outside a defeat, and for a defeat no
    * player caused (an encounter card's own effect).
    */
-  | { readonly kind: "defeatingPlayer" };
+  | { readonly kind: "defeatingPlayer" }
+  /**
+   * "The player who is engaged with the fewest minions" (Drang III, `gmw` 16060), "the player with the most threat
+   * on their side schemes", "the hero with the fewest remaining hit points" read as a player: the `TargetRef
+   * superlative` for players (docs/phase7-wave3.md §3.35). `measure` is evaluated once per player in `among` (default:
+   * each player), with that player as the scoped player — `PlayerRef scoped` (DSL `thatPlayer`) — so "engaged with
+   * the fewest minions" is `count({ categories: ["minion"], engagedWithPlayer: { kind: "scoped" } })`.
+   *
+   * It is read fresh every time the ref is resolved, so "each time a minion is discarded this way, put it into play
+   * engaged with the player who is engaged with the fewest minions" re-ranks the players for each minion.
+   *
+   * **Ties resolve to every tied player** (`ties: "all"`, the default), as the card superlative does: a ref is
+   * resolved without asking anyone. An effect that needs one player breaks the tie with `choosePlayer { among }`:
+   * RRG 1.8 "First Player" (p. 19), "If an encounter card targets a specific player or card, and there are multiple
+   * eligible targets, the first player selects among the eligible options" — `chooser: firstPlayer` on an encounter
+   * card; the resolving player on a player card (RRG 1.8 "Choose (Game Element)", p. 12). `ties: "first"` takes the
+   * first tied player in player order, for text where the choice cannot matter.
+   */
+  | {
+      readonly kind: "superlative";
+      readonly order: "highest" | "lowest";
+      readonly measure: ValueSpec;
+      readonly among?: PlayerRef;
+      readonly ties?: "all" | "first";
+    };
 
 export type ValueSpec =
   | { readonly kind: "const"; readonly value: number }
@@ -951,7 +975,12 @@ export type EffectSpec =
       readonly bind?: string;
     }
   /** "Choose a player." Binds that player (their identity) into `slot`; use `PlayerRef` `slot` to refer to them. */
-  | { readonly kind: "choosePlayer"; readonly slot: string; readonly chooser: PlayerRef }
+  /**
+   * "Choose a player." `among` limits the choice to the players it names — the tie of a `PlayerRef superlative` ("the
+   * player engaged with the fewest minions", docs/phase7-wave3.md §3.35). With `among`, a single eligible player is
+   * bound without asking (there is no choice to make), and none binds nothing.
+   */
+  | { readonly kind: "choosePlayer"; readonly slot: string; readonly chooser: PlayerRef; readonly among?: PlayerRef }
   /** "Each player …": runs `effects` once per player in player order, with `PlayerRef` `scoped` = that player. */
   | { readonly kind: "forEachPlayer"; readonly players: PlayerRef; readonly effects: readonly EffectSpec[] }
   /**

@@ -256,10 +256,21 @@ export const chooseOneBy = (chooser: PlayerRef, ...options: readonly ChoiceOptio
   options,
 });
 /** "Choose a player." Refer to them with `chosenPlayer(slot)`. */
-export const choosePlayer = (slot = "player", chooser: PlayerRef = you): EffectSpec => ({
+export const choosePlayer = (
+  slot = "player",
+  chooser: PlayerRef = you,
+  opts: {
+    /**
+     * Only these players are eligible — the tie of a `superlativePlayer` ("the player engaged with the fewest
+     * minions", Drang III; docs/phase7-wave3.md §3.35). One eligible player is bound without asking.
+     */
+    readonly among?: PlayerRef;
+  } = {},
+): EffectSpec => ({
   kind: "choosePlayer",
   slot,
   chooser,
+  ...(opts.among ? { among: opts.among } : {}),
 });
 /** "Each player …": the effects run once per player with `thatPlayer`. */
 export const forEachPlayer = (players: PlayerRef, ...effects: readonly EffectArg[]): EffectSpec => ({

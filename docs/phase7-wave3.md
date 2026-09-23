@@ -650,6 +650,43 @@ The option's `when` is RRG 1.8 "Choose (Option)" (p. 12): a player cannot choose
 | Psychic Rapport (33023, 34023)      | `ready(teamUpCharacters())`, then `chooseCards("card", zone("discard", you, { filter: ofTeamUpSet(0) }), …)` for "a Cyclops card"                   |
 | Super-Soldiers (54022)              | `giveTough(teamUpCharacters())`                                                                                                                     |
 
+### 3.35 A player superlative: `PlayerRef superlative` and `choosePlayer.among`
+
+> **Status: landed (2026-09-22),** tested in `packages/engine/src/player-superlative.test.ts` (2 tests: the ranking is re-run for each minion, the first player breaks a tie, `ties` and `among` work, replay deep-equal).
+
+Drang III (16060): "When Revealed: Discard the top 4[per_hero] cards of the encounter deck. Each time a minion is discarded this way, put it into play engaged with the player who is engaged with the fewest minions." `TargetRef superlative` ranks cards. Nothing ranked players.
+
+**What landed:**
+
+- **`PlayerRef superlative { order, measure, among?, ties? }`**. Each player in `among` (default: each player) is measured once, as the scoped player (`PlayerRef scoped`, DSL `thatPlayer`). "Engaged with the fewest minions" is `count({ categories: ["minion"], engagedWithPlayer: scoped })`. It is read fresh each time it is resolved. `forEachDiscarded` runs its effects once per discarded card and each run resolves fully before the next starts, so every minion is ranked against the minions already placed.
+- **Ties.** A ref is resolved without asking anyone, so ties resolve to every tied player (`ties: "all"`, the default). `ties: "first"` takes the first tied player in player order. Neither is right for Drang III. RRG 1.8 "First Player" (p. 19): "If an encounter card targets a specific player or card, and there are multiple eligible targets, the first player selects among the eligible options."
+- **`choosePlayer.among?: PlayerRef`** limits the choice to the tied players. The first player, as `chooser`, gets `firstPlayerTargets` authority on an encounter card. A single eligible player is bound without asking, because there is no choice to make. `choosePlayer` without `among` behaves exactly as before. On a player card the chooser would be `you`, per RRG 1.8 "Choose (Game Element)" (p. 12).
+- **"Each time … this way" is resolved after the whole discard.** RRG 1.8 "Each Time" (p. 7) interrupts the resolving ability for each match. `discardEncounterCards` discards every card first and then runs `forEachDiscarded` in discard order, as it already did for wave 1. For Drang III the difference shows only if a minion entering play reads or changes the encounter deck before the next discard. None of the Brotherhood of Badoon minions does.
+
+**DSL:** `superlativePlayer(order, measure, { among?, ties? })` in `dsl/values.ts`, and `choosePlayer(slot, chooser, { among })` in `dsl/effects.ts`.
+
+**Drang III composition:**
+
+```ts
+whenRevealed(
+  discardEncounterCards(perHero(4), {
+    forEachDiscarded: {
+      slot: "discarded",
+      effects: [
+        ifThen(refMatches(chosen("discarded"), query("minion"), { anywhere: true }), [
+          choosePlayer("fewest", firstPlayer, {
+            among: superlativePlayer("lowest", countOf(query("minion", { engagedWithPlayer: thatPlayer }))),
+          }),
+          putIntoPlay(chosen("discarded"), chosenPlayer("fewest")),
+        ]),
+      ],
+    },
+  }),
+);
+```
+
+The same shape covers the Kree Fanatic's Ronan (§2.3), "engages the hero with the fewest remaining hit points": `superlativePlayer("lowest", remainingHpOf(identityOf(thatPlayer)))`.
+
 ---
 
 ## 4. Open questions (for the user or FFG)
@@ -669,6 +706,7 @@ Each is implemented the way stated, or not at all, and named here rather than de
 11. **"If you control the Power Stone" (§3.19).** Read as "if the Power Stone is attached to your identity": encounter cards are controlled by the scenario (RRG 1.8 p. 31), and MC16 p. 15 phrases the same condition as "attached to an identity". The FAQ (p. 62) says "an identity who controls the Power Stone", which fits either reading.
 12. **Moondragon: is "that minion attacks another enemy" an activation (§3.23)?** RRG 1.8 "Activation" (p. 6): "Whenever an enemy attacks or schemes, it is considered to have activated." If it is, a villainous minion takes a boost card and "when this minion activates/attacks" abilities fire, and the target (an enemy) has no controller to defend it or assign damage. The rulings file and the FAQ are silent. Proposed: an attack but not an activation against a player — no boost card, no defense, the damage dealt to the chosen enemy as attack damage, retaliate applying to the minion.
 13. **A Team-Up name written "Hero/Alter-ego" (§3.34).** Heart of the Panther (`bp` 51025) prints "Team-Up (Black Panther/T'Challa and Black Panther/Shuri)". RRG 1.8 "Team-Up" (p. 43) matches a name against a character's "title or subtitle", and no title contains a slash. Implemented as naming one identity card by both sides: its hero face is the first half, its alter-ego face is the second, and it matches whichever side is up. Before this, the play check and the deckbuilding check both refused the card outright. A strict reading of p. 23 would instead require the hero side ("Black Panther") to be up. That makes no difference for the deck check, and for the play check only while one Black Panther is in alter-ego form.
+14. **Found, not fixed: a card revealed by `EffectSpec revealEncounterCard` is still on top of the encounter deck while it resolves.** Found while writing §3.35's test. The effect takes the top card with `drawEncounterCard`, which returns the card without removing it, and a revealed treachery only leaves the deck in the reveal frame's `finish` stage. So a When Revealed on that card that discards, deals or reveals from the encounter deck reaches the card itself first. Every other reveal path deals the card out of the deck before revealing it: the villain phase deal and surge (`dealEncounterCardTo`). The likely fix is to deal the card to the revealing player first, as surge does. Three Core/wave 1 scripts use the effect (`core/modular/standard.ts`, `core/aspects/protection.ts`, `wave1/bkw/pack-cards.ts`), so it is flagged here for `rules-qa-engineer` rather than changed in this pass. §3.35's test is written to pass either way.
 
 ## 5. What this asks of the other agents
 

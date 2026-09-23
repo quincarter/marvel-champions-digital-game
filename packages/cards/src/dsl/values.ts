@@ -34,6 +34,19 @@ export const thatPlayer: PlayerRef = { kind: "scoped" };
 export const chosenPlayer = (slot = "player"): PlayerRef => ({ kind: "slot", slot });
 /** "Each other hero": every player except these. */
 export const otherPlayers = (of: PlayerRef = you): PlayerRef => ({ kind: "others", of });
+/**
+ * "The player who is engaged with the fewest minions" (Drang III, `gmw` 16060; docs/phase7-wave3.md §3.35): the
+ * player(s) in `among` (default each player) with the lowest/highest `measure`, each measured as `thatPlayer`:
+ * `superlativePlayer("lowest", countOf(query("minion", { engagedWithPlayer: thatPlayer })))`. Read fresh each time
+ * it is resolved. Ties resolve to every tied player (`ties: "first"`: the first in player order); to make one player
+ * pick among them, pass it as `choosePlayer(slot, firstPlayer, { among })` — RRG 1.8 "First Player" (p. 19) gives an
+ * encounter card's tie to the first player.
+ */
+export const superlativePlayer = (
+  order: "highest" | "lowest",
+  measure: ValueSpec,
+  opts: { readonly among?: PlayerRef; readonly ties?: "all" | "first" } = {},
+): PlayerRef => ({ kind: "superlative", order, measure, ...opts });
 /** "The engaged player" of a minion. */
 export const engagedPlayerOf = (of: TargetRef): PlayerRef => ({ kind: "engagedWith", of });
 /**

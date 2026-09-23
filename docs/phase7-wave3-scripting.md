@@ -293,6 +293,42 @@ scripted (kit, obligation, nemesis, e2e — see §7's table):
   `instancesOf(...)[0]` after driving an ability is a coin flip. Filter by the property the ability actually
   changed (`engagedWith === P1`, `attachedTo === villain`, …) instead.
 
+## 6d. The ten `gmw` gaps, closed (`game-rules-architect`, second primitives pass, 2026-09-22)
+
+Each of the ten refs `KNOWN_SKIPPED` held as a primitive gap now has either new vocabulary or a proof that the
+existing vocabulary already covered it. docs/phase7-wave3.md §3.28–§3.36 has the rules decision, the citation and
+the engine test for each one. `packages/cards/src/dsl/wave3-primitives.test.ts` validates every composition below.
+Drop each ref from `KNOWN_SKIPPED` when you script it.
+
+| Ref                                                            | Closed by                                                    | Builder(s)                                                          |
+| -------------------------------------------------------------- | ------------------------------------------------------------ | ------------------------------------------------------------------- |
+| `16009.lashing-vines-response`                                 | existing `basicPowerUsed` (§3.28), plus a defense-timing fix | `on.basicPowerUsed(YOUR_IDENTITY)`                                  |
+| `16024.deft-focus-action`                                      | existing `reduceNextCardCost` `"turn"` (§3.29)               | `reduceNextCardCost(you, 1, "turn", { trait: SUPERPOWER })`         |
+| `16032.schadenfreude-action`                                   | existing `eachTimeUntil` (§3.17, §3.30)                      | `eachTimeUntil`, `on.youDealDamage` (new)                           |
+| `16033.salvage-response`                                       | existing `resourcesSpent` (§3.31)                            | `on.youSpendThis()`                                                 |
+| `16020.flora-and-fauna-action`, `16048.flora-and-fauna-action` | new `TargetQuery.titled` / `identitySetTitled` (§3.34)       | `teamUpCharacters(i)`, `ofTeamUpSet(i)` (new)                       |
+| `16060.when-revealed`                                          | new `PlayerRef superlative`, `choosePlayer.among` (§3.35)    | `superlativePlayer`, `choosePlayer(slot, chooser, { among })` (new) |
+
+The compositions are in §5 and §6a above and in docs/phase7-wave3.md. Drang III's, from §3.35:
+
+```ts
+whenRevealed(
+  discardEncounterCards(perHero(4), {
+    forEachDiscarded: {
+      slot: "discarded",
+      effects: [
+        ifThen(refMatches(chosen("discarded"), query("minion"), { anywhere: true }), [
+          choosePlayer("fewest", firstPlayer, {
+            among: superlativePlayer("lowest", countOf(query("minion", { engagedWithPlayer: thatPlayer }))),
+          }),
+          putIntoPlay(chosen("discarded"), chosenPlayer("fewest")),
+        ]),
+      ],
+    },
+  }),
+);
+```
+
 ## 7. Progress / next up
 
 **Foundation: done.** `wave3/{index,cards,reprints,names,setup,testing,coverage.test}.ts` all exist and are green.
@@ -333,7 +369,7 @@ structurally-checked `coveredByEngineRule()` citation rather than a bare allowli
 | Groot e2e                                                                                                                                                       | 1 test, `groot-kit/e2e.test.ts` (Rhino, standard, solo)                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
 | Rocket Raccoon's identity/kit (16029–16052)                                                                                                                     | Scripted except §6a's four gaps; every registered ref tested — see the handoff report for the ref→test mapping                                                                                                                                                                                                                                                                                                                                                                                          |
 | Rocket Raccoon's obligation/nemesis (16053–16057; 16058–16060 are Brotherhood of Badoon's villain Drang, not Rocket's — see below)                              | Scripted, every registered ref tested (Crisis on Halfworld ×3, Blackjack's Bazooka, Planetary Invasion)                                                                                                                                                                                                                                                                                                                                                                                                 |
-| Brotherhood of Badoon (villain Drang 16058–16060, main scheme 16061–16062, Badoon Ship, Drang's Spear, Badoon Engineer, the four side schemes 16063–16069)      | Scripted except 16060.when-revealed (module docblock in `gmw/badoon.ts`: needs a player-level superlative, "the player engaged with the fewest minions" — no `PlayerRef` for it yet); every other registered ref tested — see `gmw/badoon.test.ts`, `gmw/band-of-badoon.test.ts`                                                                                                                                                                                                                        |
+| Brotherhood of Badoon (villain Drang 16058–16060, main scheme 16061–16062, Badoon Ship, Drang's Spear, Badoon Engineer, the four side schemes 16063–16069)      | Scripted except 16060.when-revealed (module docblock in `gmw/badoon.ts`: needs a player-level superlative, "the player engaged with the fewest minions"; **gap closed: docs/phase7-wave3.md §3.35, see §6d**); every other registered ref tested — see `gmw/badoon.test.ts`, `gmw/band-of-badoon.test.ts`                                                                                                                                                                                               |
 | Band of Badoon modular (16117–16121)                                                                                                                            | Scripted, every registered ref tested (`gmw/band-of-badoon.test.ts`) — 16121's overkill grant is pinned structurally rather than by a live spillover combat test (see that file's own comment: a full attack/defend/assign sequence to land excess damage on a _third_ character is more scaffolding than this pass built)                                                                                                                                                                              |
 | Ship Command modular (16142–16148, used by 4 of 5 scenarios)                                                                                                    | Scripted, every registered ref tested (`gmw/ship-command.test.ts`)                                                                                                                                                                                                                                                                                                                                                                                                                                      |
 | Brotherhood of Badoon e2e                                                                                                                                       | 1 test, `gmw/brotherhood-of-badoon-e2e.test.ts` (standard, solo, Groot) — plays to a real outcome, replays deep-equal                                                                                                                                                                                                                                                                                                                                                                                   |
