@@ -14,6 +14,7 @@ import { DRAX_ABILITIES } from "./drax/index.js";
 import { GAM_ABILITIES } from "./gam/index.js";
 import { GMW_ABILITIES } from "./gmw/index.js";
 import { STLD_ABILITIES } from "./stld/index.js";
+import { VNM_ABILITIES } from "./vnm/index.js";
 import { abilityRefIds } from "../ability-refs.js";
 
 describe("wave 3 ability registry", () => {
@@ -42,7 +43,7 @@ const PACK_STATUS: Readonly<Record<string, "scripted" | "in progress" | "not sta
   stld: "scripted",
   gam: "scripted",
   drax: "scripted",
-  vnm: "not started",
+  vnm: "scripted",
   ron: "not started",
 };
 
@@ -289,6 +290,8 @@ const KNOWN_SKIPPED: Readonly<Record<string, readonly string[]>> = {
     "19013.moondragon-action",
     "19032.regroup-interrupt",
   ],
+  // vnm: fully scripted — no genuine primitive gaps (module docblock, `wave3/vnm/venom-kit.ts`). Regenerated with
+  // `MC_REFS_PACKS=vnm pnpm refs` — never hand-typed.
   vnm: [],
   ron: [],
 };
@@ -382,6 +385,7 @@ describe("wave 3 pack ability id coverage (every registered ability id is named 
     { code: "stld", registry: STLD_ABILITIES },
     { code: "gam", registry: GAM_ABILITIES },
     { code: "drax", registry: DRAX_ABILITIES },
+    { code: "vnm", registry: VNM_ABILITIES },
   ];
 
   /**

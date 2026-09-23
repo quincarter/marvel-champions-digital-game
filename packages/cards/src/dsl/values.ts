@@ -298,6 +298,13 @@ export const allOf = (...of: Predicate[]): Predicate => ({ kind: "and", of });
 export const anyOf = (...of: Predicate[]): Predicate => ({ kind: "or", of });
 /** "If you paid for this card using a [X] resource". */
 export const paidWith = (resource: TypedResource): Predicate => ({ kind: "paidWith", resource });
+/**
+ * "If you paid for this card using only [X] resources" (Behind Enemy Lines, Grasping Tendrils, Savage Attack,
+ * `vnm`; docs/phase7-wave3.md §3.26): something was paid, and every resource paid was that type or a wild
+ * declared as it. FAQ "Unstoppable Force (#6)" (RRG 1.8 p. 60): at a cost of 0 it fails. The engine `Predicate`
+ * already existed (`play-restrictions.test.ts`'s own SMASH_ACTION); this is its first DSL wrapper.
+ */
+export const paidWithOnly = (resource: TypedResource): Predicate => ({ kind: "paidWithOnly", resource });
 export const varAtLeast = (name: string, n = 1): Predicate => ({ kind: "varAtLeast", name, amount: n });
 /** An event-producing effect with `bind` happened ("if no attacks were made this way" = `not(made(b))`). */
 export const made = (bind: string): Predicate => varAtLeast(`${bind}.made`, 1);

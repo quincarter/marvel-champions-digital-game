@@ -14,7 +14,8 @@
  * table mapping scenarios to files — the folder name *is* the lookup. A slot
  * may hold several pictures: `villain.jpg`, `villain-2.jpg`, `villain-3.png`;
  * one is picked at random. `<packCode>` is `Pack.code` (`POOL_PACKS`, e.g.
- * `core`, `twc`) the same way.
+ * `core`, `twc`) the same way. A folder whose name starts with `_` (`art/scenarios/_pending/`) is a holding area for
+ * art whose scenario isn't in the pool yet, and is never read, the same as `art/heroes/_pending/`.
  *
  * The parsing and the lookups are pure functions over a path → URL map, so
  * they are tested without the glob.
@@ -61,6 +62,7 @@ export function parseArtCatalog(files: Readonly<Record<string, string>>): ArtCat
     const picture: Picture = { key: `scene-art:${underArt}`, url: files[fullPath]! };
 
     if (parts[0] === "scenarios" && parts.length === 3) {
+      if (parts[1]!.startsWith("_")) continue;
       const slot = slotOf(stem, SCENARIO_SLOTS);
       if (!slot) {
         unrecognized.push(underArt);

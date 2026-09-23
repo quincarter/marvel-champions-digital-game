@@ -14,6 +14,8 @@ list to edit. Formats: `png`, `jpg`, `jpeg`, `webp`, `avif`.
 | `outcomes/`                   | `victory.<ext>`       | Game Over for any win with no scene of its own                                                        |
 | `heroes/<identityId>-<slug>/` | `hero.<ext>`          | The hero's artwork on hero select (Take your seats), the way a villain's shows on Scenario select     |
 | `packs/<packCode>/`           | `cover.<ext>`         | OPTIONAL: a pack's shelf-header thumbnail on Scenario select and Take your seats (W2b's pack shelves) |
+| `campaigns/<campaignId>/`     | `cover.<ext>`         | NOT READ YET: the campaign's key art, for the campaign screens                                        |
+| `campaigns/<campaignId>/`     | `artboards/*`         | NOT READ YET: story panel art between a campaign's scenarios (the canvases' "Panel art" slots)        |
 
 `<scenarioId>` is the content package's `Scenario.id`, so the folder name is the
 lookup: `rhino`, `klaw`, `ultron`, `risky-business`, `mutagen-formula`,
@@ -22,11 +24,21 @@ lookup: `rhino`, `klaw`, `ultron`, `risky-business`, `mutagen-formula`,
 same way — no pack ships a cover yet, and a shelf header draws fine without
 one (just the pack's name and a rule, no thumbnail).
 
+`<campaignId>` is the content package's `Campaign.id`, which is the campaign box's pack code, the same key
+`music/campaigns/` uses: `trors` (The Rise of Red Skull), `gmw` (The Galaxy's Most Wanted), `mts` (The Mad
+Titan's Shadow), `sm` (Sinister Motives), `mut_gen` (Mutant Genesis), `next_evol` (NeXt Evolution), `aoa` (Age of
+Apocalypse), `aos` (Agents of S.H.I.E.L.D.) and `fne` (Fear No Evil). Civil War has no campaign mode, so no folder.
+All nine folders exist; one with just a `.gitkeep` is still waiting for its cover or panels. Nothing reads this
+folder yet and no test checks it, so a misnamed file won't fail anything until the campaign screens are built.
+
 `<identityId>` is the hero identity card's id (`01001a` Spider-Man, `51001a` Shuri's Black Panther). Only the part
 of the folder name before the first `-` is read; the rest is there so a person can tell the folders apart. Card ids
 are used because nothing shorter is unique — two heroes are called Black Panther, two Spider-Man, and one pack can
 hold five heroes. An empty folder (just a `.gitkeep`) is a hero still waiting for a picture: drop `hero.<ext>` in.
-`heroes/_pending/` holds pictures for heroes whose pack isn't imported yet; it is never read.
+`heroes/_pending/` holds pictures for heroes whose pack isn't imported yet; it is never read. Each such hero has
+its future folder waiting there (`_pending/40037a-domino/`, holding a `.gitkeep` until it gets a `hero.<ext>`), because
+a folder directly under `heroes/` for a hero with no card data fails the test below. When a pack is imported as card
+data, the same branch moves its heroes' folders up one level into `heroes/`, pictures and all.
 `packages/client/src/art/hero-art.test.ts` fails if a folder isn't a real identity id or a file isn't `hero*`.
 
 **Several pictures for one slot:** add a suffix — `villain.jpg`,
@@ -38,6 +50,9 @@ stopped, the villain didn't beat them.
 Game Over shows the scene on every layout: edge to edge in the art window at
 the top on phone and tablet-portrait, and as a full-bleed backdrop under a wash
 of the result's colour (red for a loss, green for a win) on desktop.
+
+`scenarios/_pending/` holds villain art for scenarios that aren't in the pool yet; like `heroes/_pending/`, it
+is never read.
 
 `packages/client/src/art/scenario-art.test.ts` fails if a file here fits no slot
 (a typo like `villian.jpg`) or a scenario folder isn't a real scenario id.

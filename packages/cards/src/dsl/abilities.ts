@@ -395,6 +395,27 @@ export const excludedFromAllyLimit = (
   rules: [{ kind: "excludedFromAllyLimit", target, ...(opts.while ? { while: opts.while } : {}) }],
 });
 /**
+ * "You can control 1 additional [X] upgrade that has the restricted keyword." (Venom / Flash Thompson, `vnm`
+ * 20001a/b; Side Holster, 20021; docs/phase7-wave3.md §3.22). RRG 1.8 "Restricted" (p. 38) fixes the base limit at
+ * two; each rule raises it by `amount` for `player` (absent: the rule's own speaker, the card's controller —
+ * "you can control", not "any player can"). `cards` scopes the extra room to matching held cards only ("1
+ * additional **[Weapon]** upgrade"); omit it for an unscoped raise.
+ */
+export const restrictedLimit = (
+  amount: number,
+  opts: { readonly cards?: TargetQuery; readonly player?: PlayerRef; readonly while?: Predicate } = {},
+): ConstantPart => ({
+  rules: [
+    {
+      kind: "restrictedLimit",
+      amount,
+      ...(opts.cards ? { cards: opts.cards } : {}),
+      ...(opts.player ? { player: opts.player } : {}),
+      ...(opts.while ? { while: opts.while } : {}),
+    },
+  ],
+});
+/**
  * "Treat the printed text box of each [trait] player card as if it were blank" (Tech Theft 12026, `ant`;
  * docs/phase7-wave2.md §8): the matching cards' abilities and printed keywords stop working while this card is in
  * play. `target` is a category list, not `controller: "you"` — the rule sits on an encounter card, which has no
