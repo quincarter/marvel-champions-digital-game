@@ -241,6 +241,25 @@ now has one, verified by name in the handoff report. **The standing rule this ea
 "done", diff the ability ids a module registers against the ability ids its own test file(s) actually exercise —
 don't trust the coverage report alone, it only proves a ref _resolves_, never that it's _correct_ or _reachable_.**
 
+**That standing rule is now a structural guard, not just a rule to remember (2026-09-22 checkpoint).**
+`wave3/coverage.test.ts`'s new "wave 3 pack ability id coverage" describe block fails for any ability id a
+started pack's own registry defines whose full id string doesn't appear in that pack's own `*.test.ts` files. On
+first run it flagged 46 `gmw` ids (all real tests that simply never named the id — `groot-kit.ts`/`rocket-
+kit.ts`/`ship-command.ts`/`groot-obligation-nemesis.ts`/`rocket-obligation-nemesis.ts` — plus 9 genuinely
+untested `badoon.ts` refs: `16059.drang-forced-response`, `16059.when-revealed`, `16060.drang-forced-response`,
+`16061b.terrestrial-invasion-forced-response`, `16062a.when-revealed`, `16062b.protect-the-planet-constant`,
+`16062b.protect-the-planet-forced-response`, `16065.badoon-engineer-forced-response`, `16065.boost`, `16067.
+bombardment-forced-response`, and `16117.boost`). All are now covered: the 46 by adding the id to the existing
+test's title, the 11 by new tests that reach Drang II/III (a real combat-driven defeat→advance for the When
+Revealed ones, direct `stageIndex` surgery for the live forced responses), Protect the Planet's own stage
+advance and both First Player Action branches, and Badoon Engineer/Bombardment/Badoon Assassin's boost bodies
+(the latter two via the event log's own `abilityResolved`/`traceAbilities`, since Charge Up's own 4-counter reset
+makes a final-barrage-count assertion read 0 even when the ability fired). `gmw`'s guard is green with zero
+`KNOWN_SKIPPED`-adjacent exceptions. The guard also carries a `stld` `PENDING` allowlist (22 ids, all genuinely
+tested but not id-named — see the guard's own docblock for the discrepancy between that count and the 2 the
+originating brief expected) and a `gam` entry (13 ids fixed by title, `18001b.gamora-constant` exempted via a
+structurally-checked `coveredByEngineRule()` citation rather than a bare allowlist entry).
+
 **`gmw` status: in progress.**
 
 | Piece                                                                                                                                                      | Status                                                                                                                                                                                                                                                                                                                     |
