@@ -191,6 +191,15 @@ export function answerFor(group: AftermathChoiceGroup, seatNumber: number): Camp
 }
 
 /**
+ * The answer to send for the prompt the engine is showing *now*: the local decision of the seat `pending` names.
+ * Never the group's remembered `currentSeatNumber` — the runner asks one seat at a time, so after seat 1 is sent the
+ * next prompt is seat 2's, and re-sending seat 1's card as seat 2's answer is refused (it is no longer offered).
+ */
+export function answerForPending(group: AftermathChoiceGroup, pending: CampaignPendingChoice): CampaignChoiceAnswer {
+  return answerFor(group, pending.seatNumber ?? group.currentSeatNumber);
+}
+
+/**
  * Whether `answer` is something the real `pending` choice actually offers — the guard against sending a guessed
  * pick the runner never presented. A caller that finds this false has a stale guess (another seat's real answer
  * changed what's on offer) and must re-derive the decision from `pending.options`, never send `answer` as-is.

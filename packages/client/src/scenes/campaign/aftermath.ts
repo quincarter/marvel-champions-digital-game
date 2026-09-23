@@ -38,7 +38,7 @@ import {
   aftermathColumns,
   aftermathOptionOf,
   aftermathStamp,
-  answerFor,
+  answerForPending,
   continuesGroup,
   decideForSeat,
   offersAnswer,
@@ -195,7 +195,6 @@ export class CampaignAftermathScene extends Phaser.Scene {
     const saved = this.#saved;
     if (!record || !saved) return;
     for (let guard = 0; guard < 8; guard++) {
-      const seatNumber = group.currentSeatNumber;
       const peek = await service.fold(record, saved, this.#answers, this.#gameId);
       if (!this.sys.isActive()) return;
       if (peek.kind === "done") {
@@ -212,7 +211,8 @@ export class CampaignAftermathScene extends Phaser.Scene {
         this.#draw();
         return;
       }
-      const answer = answerFor(group, seatNumber);
+      const seatNumber = pending.seatNumber ?? group.currentSeatNumber;
+      const answer = answerForPending(group, pending);
       if (!offersAnswer(pending, answer)) {
         // Our local guess no longer matches what the engine actually offers this seat — reset to the real prompt
         // rather than send something it never presented.

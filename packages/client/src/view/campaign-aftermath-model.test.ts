@@ -15,6 +15,7 @@ import {
   aftermathOptionOf,
   aftermathStamp,
   answerFor,
+  answerForPending,
   continuesGroup,
   decideForSeat,
   offersAnswer,
@@ -178,5 +179,62 @@ describe("campaign-aftermath-model", () => {
     const record = await seedDesignRun(service(), "afterIssue1");
     const stamp = aftermathStamp(record, "crossbones", issueNumberOf);
     expect(stamp.loggedTag).toBeNull();
+  });
+});
+
+describe("committing picks made up front (the Aftermath screen's own order)", () => {
+  test("both seats pick first, then the commit loop answers each seat the engine asks for, and the run advances", async () => {
+    const svc = service();
+    const decks = preconDecks();
+    const deckFor = (hero: string) => {
+      const found = decks.find((candidate) => (candidate.id as string).includes(hero));
+      if (!found) throw new Error(`no precon for ${hero}`);
+      return { identityCardId: found.identityCardId, deck: found };
+    };
+    const record = await svc.start({
+      campaignId: "trors",
+      seats: [deckFor("hawkeye"), deckFor("spider-woman")],
+      poolVersion: "test",
+      seed: 1,
+    });
+    const composeResult = await svc.compose(record);
+    if (composeResult.kind !== "done") throw new Error("expected issue #1 setup to need no answers");
+    const composed = composeResult.record;
+    const core = new EngineSessionCore({ storage: new MemoryGameStorage() });
+    const started = await core.start(svc.launchConfig(composed));
+    const won: GameState = {
+      ...started.snapshot.state,
+      cardPool: started.cardPool,
+      outcome: { result: "win", reason: "villainDefeated" },
+    };
+    const seats = composed.seats.map((seat) => ({ seatNumber: seat.seatNumber, heroName: `Seat ${seat.seatNumber}` }));
+
+    const first = await svc.foldState(composed, won, [], []);
+    if (first.kind !== "pending") throw new Error("expected the TECH choice");
+    let group = startAftermathGroup(first.choice, seats, (cardId) => aftermathOptionOf(cardId, CARDS_BY_ID));
+    // The design's picks, both made before anything is sent: seat 1 Tactical Scanner, seat 2 Emergency Teleporter.
+    group = decideForSeat(group, 1, { kind: "picked", cardId: "04156" as CardId });
+    group = decideForSeat(group, 2, { kind: "picked", cardId: "04157" as CardId });
+    expect(readyToCommit(group)).toBe(true);
+
+    // The scene's commit loop: peek, answer the seat the engine is asking about, advance with that same prompt.
+    const answers: CampaignChoiceAnswer[] = [];
+    for (let guard = 0; guard < 4; guard++) {
+      const peek = await svc.foldState(composed, won, [], answers);
+      if (peek.kind === "done") {
+        expect(peek.record.position.nextNodeId).toBe("absorbing-man");
+        expect(peek.record.seats.map((seat) => seat.grants.map((grant) => grant.cardId))).toEqual([
+          ["04156"],
+          ["04157"],
+        ]);
+        return;
+      }
+      const answer = answerForPending(group, peek.choice);
+      expect(answer.seatNumber).toBe(peek.choice.seatNumber);
+      expect(offersAnswer(peek.choice, answer)).toBe(true);
+      answers.push(answer);
+      group = advanceAftermathGroup(group, answer.seatNumber!, peek.choice) ?? group;
+    }
+    throw new Error("the commit loop never finished the fold");
   });
 });
