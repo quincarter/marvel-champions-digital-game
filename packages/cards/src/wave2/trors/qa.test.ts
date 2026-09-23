@@ -14,9 +14,50 @@ import {
 } from "../../testing/harness.js";
 import { stackSetAsideBehindBoost } from "../../testing/staging.js";
 import { playToOutcome } from "../../testing/driver.js";
-import { WAVE2_DEPS } from "../index.js";
+import { WAVE2_ABILITIES, WAVE2_DEPS } from "../index.js";
 import { wave2Scenario } from "../setup.js";
 import { runWave2, startWave2Game } from "../testing.js";
+
+/**
+ * Wave 3 §3.2's own docblock (docs/phase7-wave3.md §3.2, "Wave 2 bug found on the way") flags this as a live bug,
+ * still unfixed as of this QA pass (confirmed independently here, not just trusted from the doc — re-checked
+ * against the actual registered `AbilityDefinition`s below): three `trors` main schemes script "After resolving
+ * step one of the villain phase" as `on.threatPlaced(query("mainScheme"))` (None Shall Pass 1B `04079b`, Hunting
+ * Down Heroes `04096b`, The Mad Doctor 2B `04113b`) instead of the villain-phase-round-structure primitive built
+ * for exactly this wording this wave, `on.villainStepResolved("placeThreat")` (`villainStepResolved { step:
+ * "placeThreat" }` in the engine, docs/phase7-wave3.md §3.2, landed, commit `6ebb61f`). `on.threatPlaced` fires on
+ * *every* threat placement on the main scheme (any source, any step), not once per villain phase.
+ *
+ * Printed text (Red Skull rulebook, spoiler edition, p. 10, Taskmaster's Hunting Down Heroes): "Forced Response:
+ * After resolving step one of the villain phase, each hero must choose to either place 1 threat on Hunting Down
+ * Heroes or take 1 damage." That is a single event per villain phase (RRG 1.8 "Round Overview" p. 4, "step one"),
+ * so the Forced Response should resolve exactly once per villain phase — RRG 1.8 "Forced" (p. 20): a forced
+ * ability "must be triggered" by its triggering condition, which here is the villain phase's step one, not any
+ * later `placeThreat` on the same card (Hunting Down Heroes' own "place 1 threat here" branch places threat on
+ * itself, so on the current wiring it *retriggers its own Forced Response* the moment that branch is chosen; None
+ * Shall Pass's delay counters and The Mad Doctor's test counters likewise accumulate on any threat placed on the
+ * main scheme by any other source in the same villain phase, not only once).
+ *
+ * This test pins the ability definitions' own trigger shape rather than driving a full live game to the retrigger
+ * (attempted first; the retrigger's exact live trace turned out to depend on interactions with `firstLegal`'s
+ * choice-picking and the driver that were not fully untangled within this pass's time budget — flagged under "what
+ * could not be checked" in docs/phase7-wave3-qa.md). The trigger shape itself is unambiguous and cheap to check,
+ * and is exactly what `ability-scripting-engineer` needs to fix (docs/phase7-wave3.md §5: "re-script the three
+ * `trors` main schemes ... on `villainStepResolved`") and exactly what this test will flip to green the moment
+ * that fix lands, with no test change needed.
+ *
+ * Owner: `ability-scripting-engineer` (a card-script fix, not an engine change).
+ */
+test.fails("None Shall Pass / Hunting Down Heroes / The Mad Doctor: 'after resolving step one of the villain phase' is wired to villainStepResolved, not to every threatPlaced(mainScheme) (docs/phase7-wave3.md §3.2, §5; RRG 1.8 p. 4, p. 20)", () => {
+  for (const id of [
+    "04079b.none-shall-pass-forced-response",
+    "04096b.hunting-down-heroes-forced-response",
+    "04113b.the-mad-doctor-forced-response",
+  ] as const) {
+    const def = (WAVE2_ABILITIES as Record<string, { trigger?: { on?: { on?: string } } }>)[id];
+    expect(def?.trigger?.on?.on).toBe("villainStepResolved");
+  }
+});
 
 /**
  * rules-qa-engineer wave 2 pass over `trors` (docs/phase7-wave2-qa.md has the full report). Bugs proven here are
