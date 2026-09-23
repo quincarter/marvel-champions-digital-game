@@ -20,8 +20,14 @@ import { abilityRefIds } from "../src/ability-refs.js";
 import { CORE_ABILITIES } from "../src/core/index.js";
 import { WAVE1_ABILITIES } from "../src/wave1/index.js";
 import { WAVE2_ABILITIES } from "../src/wave2/index.js";
+import { WAVE3_ABILITIES } from "../src/wave3/index.js";
 
-const REGISTRY: Record<string, unknown> = { ...CORE_ABILITIES, ...WAVE1_ABILITIES, ...WAVE2_ABILITIES };
+const REGISTRY: Record<string, unknown> = {
+  ...CORE_ABILITIES,
+  ...WAVE1_ABILITIES,
+  ...WAVE2_ABILITIES,
+  ...WAVE3_ABILITIES,
+};
 
 type Card = Record<string, any>;
 
