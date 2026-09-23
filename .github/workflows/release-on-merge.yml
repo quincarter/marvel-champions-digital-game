@@ -64,10 +64,9 @@ jobs:
         id: check_changes
         shell: bash
         run: |
-          if [[ "${{ github.ref }}" == refs/tags/v* ]]; then
-            echo "Tag push detected (${{ github.ref_name }})."
-            echo "mode=tag" >> "$GITHUB_OUTPUT"
-            echo "has_changes=true" >> "$GITHUB_OUTPUT"
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            echo "Tag push detected (${GITHUB_REF_NAME})."
+            printf 'mode=tag\nhas_changes=true\n' >> "$GITHUB_OUTPUT"
             exit 0
           fi
 
@@ -77,14 +76,11 @@ jobs:
 
           if ! git ls-remote --tags origin | grep -q "refs/tags/${LATEST}$"; then
             echo "${LATEST} is on main but not tagged: its release PR merged. Tagging it."
-            echo "mode=tag" >> "$GITHUB_OUTPUT"
-            echo "has_changes=true" >> "$GITHUB_OUTPUT"
-          elif [ "${COUNT}" -gt 0 ] || [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            echo "mode=prepare" >> "$GITHUB_OUTPUT"
-            echo "has_changes=true" >> "$GITHUB_OUTPUT"
+            printf 'mode=tag\nhas_changes=true\n' >> "$GITHUB_OUTPUT"
+          elif [ "${COUNT}" -gt 0 ] || [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then
+            printf 'mode=prepare\nhas_changes=true\n' >> "$GITHUB_OUTPUT"
           else
-            echo "has_changes=false" >> "$GITHUB_OUTPUT"
-            echo "should_release=false" >> "$GITHUB_OUTPUT"
+            printf 'has_changes=false\nshould_release=false\n' >> "$GITHUB_OUTPUT"
           fi
 
       - uses: pnpm/action-setup@v4
@@ -167,8 +163,8 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PUBLISH_INPUT: ${{ github.event.inputs.publish || 'true' }}
         run: |
-          if [[ "${{ github.ref }}" == refs/tags/v* ]]; then
-            TAG="${{ github.ref_name }}"
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            TAG="$GITHUB_REF_NAME"
           else
             TAG=$(changie latest)
             git config user.name "github-actions[bot]"
@@ -189,10 +185,12 @@ jobs:
             gh "${GH_ARGS[@]}"
           fi
 
-          echo "should_release=true" >> "$GITHUB_OUTPUT"
-          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
-          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
-          echo "publish=${PUBLISH_INPUT}" >> "$GITHUB_OUTPUT"
+          {
+            echo "should_release=true"
+            echo "version=${VERSION}"
+            echo "tag=${TAG}"
+            echo "publish=${PUBLISH_INPUT}"
+          } >> "$GITHUB_OUTPUT"
 
   desktop-builds:
     name: Desktop (${{ matrix.name }})
