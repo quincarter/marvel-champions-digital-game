@@ -5,6 +5,13 @@ on `docs/phase7-wave2-qa.md`. Per the standing ownership boundary: this pass fin
 does not fix engine or card-script code. Every finding cites the printed text and the authority (RRG 1.8 page or a
 dated post-1.7 ruling) it was checked against.
 
+**Two checkpoints.** Checkpoint 1 (below, through "Test counts" as it stood) covered items 1/3/4 partially and
+flagged items 1's full `gmw` sweep, `stld`/`gam`/`drax`/`vnm` audits, more 2-player/expert games and a rulings
+skim as not done. Checkpoint 2 (§"Checkpoint 2" near the bottom) does those: full `stld`/`gam`/`drax`/`vnm`
+line-by-line audits, the rest of `gmw` (Groot/Rocket kits, obligations/nemeses, Badoon, Museum, Escape the Museum,
+Nebula, every modular set), six more smoke games, and a targeted rulings skim. Read both; the findings summary and
+test counts near the bottom are the current totals across both.
+
 ## Coverage
 
 ### Smoke games (task item 1)
@@ -150,57 +157,77 @@ Q4, Q13, Q16, Q18 all look like reasonable, low-risk readings as implemented.
 
 - Fanaticism, Single-Minded Fury, Kree Physiology, "You Stand Accused!" (`gmw/ronan.ts`) — printed text vs. script,
   exact matches.
-- Escape the Museum's `completionLoses` gap (1B/2B) — closed since the scripting doc's own table entry was written;
-  confirmed via `packages/content/src/data/gmw/cards.ts` and `packages/engine/src/resolve/defeat.ts:114`.
-- Ten `gmw` smoke games (Rocket solo, 2-player Groot+Rocket, four expert-mode games, Escape the Museum, Nebula, and
-  the `ron` modular inside a real scenario) — all reach a real outcome, no stuck choice, replay deep-equal.
+- Escape the Museum's `completionLoses` gap (1B/2B) — **re-checked in checkpoint 2 with a real driven test, not
+  just a data grep** (checkpoint 1 only confirmed the field's presence): `escape-the-museum.test.ts` now proves a
+  stage reaching its target threat the ordinary way loses the game, not just a stage whose last threat is removed.
+  `escape-the-museum.ts`'s own module docblock still calls this an open gap and should be corrected.
+- Ten `gmw` smoke games from checkpoint 1 (Rocket solo, 2-player Groot+Rocket, four expert-mode games, Escape the
+  Museum, Nebula, the `ron` modular inside a real scenario), plus six more from checkpoint 2 (Gamora + Star-Lord
+  2p, Drax + Venom 2p, and one expert game each for Star-Lord/Gamora/Drax/Venom) — all sixteen reach a real
+  outcome, no stuck choice, replay deep-equal.
 - Q4, Q13, Q16 — implemented as documented, low risk.
 - The `ron`/Kree Fanatic modular set plays inside a real `gmw` scenario (Brotherhood of Badoon, swapped in for Band
   of Badoon) without incident.
+- **Full line-by-line audits, checkpoint 2** (`stld` kit/obligation/nemesis, `gam` kit/obligation/nemesis except the
+  one finding below, `drax` kit/obligation/nemesis/pack-cards, `vnm` kit/obligation/nemesis, and the rest of `gmw`:
+  Groot kit/obligation/nemesis, Rocket kit/obligation/nemesis, Badoon + Band of Badoon, Museum + Menagerie Medley,
+  Escape the Museum, Nebula + Space Pirates + Power Stone, Ship Command, Galactic Artifacts, Badoon Headhunter,
+  Ruthless) — every card read against `pnpm card`/`docs/cards/by_pack/*.md`, checked for target, "you" vs. "each
+  player", may/must, timing word, cost vs. effect, keyword, and the "already X" ordering pattern. All clean except
+  the Waylay finding below.
 
 ## Findings summary
 
-| #   | Card / mechanism                                                                                                 | Printed text                                                | Authority                                        | Test                                                            | Severity                                                                                                              | Owner                                                                    |
-| --- | ---------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------- | ------------------------------------------------ | --------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
-| 1   | `trors` None Shall Pass / Hunting Down Heroes / The Mad Doctor — "after resolving step one of the villain phase" | Red Skull rulebook p. 10 (Hunting Down Heroes)              | RRG 1.8 p. 4, p. 20                              | `packages/cards/src/wave2/trors/qa.test.ts`, `test.fails`       | **Breaks a game** (unbounded retrigger loop)                                                                          | `ability-scripting-engineer`                                             |
-| 2   | §4 Q1: deferred villain defeat vs. simultaneous last-player elimination                                          | — (open question)                                           | RRG 1.8 "Winning the Game" p. 48 (silent)        | `packages/engine/src/wave3-q1-simultaneous-defeat.test.ts`      | **Doc/code contradiction** — flag for re-check, not a player-facing bug (no printed card builds this exact shape yet) | `game-rules-architect` (to reconcile the doc and the code)               |
-| 3   | §4 Q4: minion leaves play before When Defeated                                                                   | — (open question, no card reads the difference yet)         | ruling Jan 11, 2026 (1); RRG 1.8 "Defeat" p. 15  | `packages/engine/src/wave3-q4-minion-leaves-play-order.test.ts` | Cosmetic today (pin for the future)                                                                                   | —                                                                        |
-| 4   | §4 Q17: Regroup vs. the Collector's discard redirect                                                             | Regroup (`drax` 19032), Collector I–III (`gmw` 16070–16072) | RRG 1.8 Appendix III; docs/phase7-wave3.md §3.45 | `packages/engine/src/wave3-q17-regroup-collector.test.ts`       | **Wrong result risk** if a future ruling favors the Collector — currently undecided by FFG                            | needs an FFG answer                                                      |
-| 5   | Tooling: `pnpm card`/`pnpm dsl`/`pnpm refs` don't know about `WAVE3_ABILITIES`                                   | —                                                           | —                                                | manual repro (`MC_CARD=16110 pnpm card`), not a test            | Cosmetic (dev tooling only)                                                                                           | `ability-scripting-engineer` or whoever owns `packages/cards/tools/*.ts` |
+| #   | Card / mechanism                                                                                                 | Printed text                                                                                               | Authority                                                                                                                                                      | Test                                                                         | Severity                                                                                                                                                                                                 | Owner                                                                                                                                                                                                        |
+| --- | ---------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 1   | `trors` None Shall Pass / Hunting Down Heroes / The Mad Doctor — "after resolving step one of the villain phase" | Red Skull rulebook p. 10 (Hunting Down Heroes)                                                             | RRG 1.8 p. 4, p. 20                                                                                                                                            | `packages/cards/src/wave2/trors/qa.test.ts`, `test.fails`                    | **Breaks a game** (unbounded retrigger loop)                                                                                                                                                             | `ability-scripting-engineer`                                                                                                                                                                                 |
+| 2   | §4 Q1: deferred villain defeat vs. simultaneous last-player elimination                                          | — (open question)                                                                                          | RRG 1.8 "Winning the Game" p. 48 (silent)                                                                                                                      | `packages/engine/src/wave3-q1-simultaneous-defeat.test.ts`                   | **Doc/code contradiction** — flag for re-check, not a player-facing bug (no printed card builds this exact shape yet)                                                                                    | `game-rules-architect` (to reconcile the doc and the code)                                                                                                                                                   |
+| 3   | §4 Q4: minion leaves play before When Defeated                                                                   | — (open question, no card reads the difference yet)                                                        | ruling Jan 11, 2026 (1); RRG 1.8 "Defeat" p. 15                                                                                                                | `packages/engine/src/wave3-q4-minion-leaves-play-order.test.ts`              | Cosmetic today (pin for the future)                                                                                                                                                                      | —                                                                                                                                                                                                            |
+| 4   | §4 Q17: Regroup vs. the Collector's discard redirect                                                             | Regroup (`drax` 19032), Collector I–III (`gmw` 16070–16072)                                                | RRG 1.8 Appendix III; docs/phase7-wave3.md §3.45                                                                                                               | `packages/engine/src/wave3-q17-regroup-collector.test.ts`                    | **Wrong result risk** if a future ruling favors the Collector — currently undecided by FFG                                                                                                               | needs an FFG answer                                                                                                                                                                                          |
+| 5   | Tooling: `pnpm card`/`pnpm dsl`/`pnpm refs` don't know about `WAVE3_ABILITIES`                                   | —                                                                                                          | —                                                                                                                                                              | manual repro (`MC_CARD=16110 pnpm card`), not a test                         | Cosmetic (dev tooling only)                                                                                                                                                                              | **Fixed during this pass** (commit `821aa2b`)                                                                                                                                                                |
+| 6   | **Waylay (`gam` 18028): stuns/confuses whoever reveals it, not "Gamora"** — checkpoint 2's own finding           | "When Revealed: Stun and confuse Gamora. If Gamora is already stunned or confused, this card gains surge." | RRG 1.8 "You, Your" p. 49 (a named character overrides the generic "you" reveal-default); ruling June 25, 2026 (4) #1 ("Nemesis sets belong to that identity") | `packages/cards/src/wave3/gam/gamora-obligation-nemesis.test.ts`, `it.fails` | **Wrong result** — invisible in every solo test (the revealer is always Gamora there); in any 2+ player game where someone else reveals it, the wrong player is stunned/confused and Gamora is untouched | `ability-scripting-engineer` (`gam/gamora-obligation-nemesis.ts`, `18028.when-revealed`; swap `yourIdentity` for the `GAMORA_PLAYER` binding `18025`'s own abilities in the same file already use correctly) |
+| 7   | Escape the Museum's `completionLoses` docblock is stale — checkpoint 2's own finding                             | "If this stage is completed, the players lose the game" (16082b/16083b)                                    | RRG 1.8 "Villain Defeat" p. 47; docs/phase7-wave3.md §3.37                                                                                                     | `packages/cards/src/wave3/gmw/escape-the-museum.test.ts` (new passing test)  | **Not a bug** — documentation drift only; the game behaves correctly, the comment describing it as broken does not                                                                                       | `ability-scripting-engineer` (correct the docblock in `escape-the-museum.ts`)                                                                                                                                |
 
 ## What could not be checked (time budget)
 
-- **A full line-by-line `pnpm card`-vs-script audit of every `gmw` card** (the brief's literal item 2 ask) — not
-  completed; the tooling gap above cost real time, and the remaining budget went to spot-checking the
-  highest-risk-looking cards instead of an exhaustive sweep.
-- **`stld`, `gam`, `drax`, `vnm` card-text audits** — none beyond the Regroup/Collector pair read for Q17; no
-  line-by-line pass on any of the four hero kits, obligations or nemesis sets.
-- **2-player and expert-mode games for `stld`/`gam`/`drax`/`vnm`** — solo standard Rhino only, same gap wave 2's own
-  pass left for its own late-audited kits.
 - **A live (not structural) repro of the `trors` step-one retrigger bug** — attempted, not completed; see Finding 1's
   own caveat above.
-- **A full read of `marvel-champions-rulings-post-rrg-1-7.md`** — grepped by name for wave 3 hero/villain/pack
-  terms (as the wave 3 spec's own §0 did), not read end to end; a ruling bearing on a shared keyword without naming
-  a wave 3 card by name could have been missed, the same caveat wave 2's pass recorded.
 - **The five other `completionLoses: true` stages** found by `grep` beyond Escape the Museum's own two (line
   numbers 2013, 2042, 2070, 2276, 2641 in `packages/content/src/data/gmw/cards.ts`) — not individually re-driven to
   confirm each actually loses the game when completed, only confirmed the field is present and the engine reads it
-  generically.
+  generically (Escape the Museum's own two now are — see the finding above).
 - **The turn-start interrupt window (`06de1d6`) and consequential-damage (`04f0317`) cross-cutting changes** — no
-  _new_ earlier-wave regression test added; relied on each change's own landed test file rather than combining with
+  new earlier-wave regression test added; relied on each change's own landed test file rather than combining with
   an unrelated earlier-wave card.
-- **A multiplayer game mixing a `gmw` hero with a `stld`/`gam`/`drax`/`vnm` hero** — not attempted.
+- **A multiplayer game mixing a `gmw` hero with a `stld`/`gam`/`drax`/`vnm` hero** — not attempted (the checkpoint-2
+  2-player games pair two of the four hero packs together, or one hero pack with `gmw`'s own precons, but no game
+  seats a `gmw` hero and a `stld`/`gam`/`drax`/`vnm` hero at the same table).
+- **The Dec 17, 2025 Ruling 3 "after [enemy] attacks you" / ally-attacked exception** — spot-checked against
+  Drax's own Payback (19007, the ruling's own named example): the shared `on.villainAttacks({ againstYou: true })`
+  primitive (`playerIs: "controller", usesAttackedPlayer: true`) reads the attack's target player, not a specific
+  character, which looks correct for the ruling's own reading, and this is a pre-existing wave 1/2 primitive, not
+  something new this wave. Not independently pinned with a new test (an ally being attacked directly, rather than
+  defending the villain's attack on the player, needs state the existing `toDeclareDefender` helper doesn't build)
+  — flagged as checked-but-not-proven rather than assumed correct.
+- **The Apr 30, 2026 Ruling 2 "does a Guard/Patrol engage during cost payment fizzle the effect" reading** —
+  several `gmw`/`stld` cards use the "deal yourself 1 facedown encounter card → effect" shape (Daring Escape,
+  Library Labyrinth, Universal Weapon, Star-Lord's "What could go wrong?"); whether a minion revealed by that cost
+  and engaging the player mid-payment correctly blocks a same-turn attack effect the ruling describes was not
+  tested — this is existing, general step-5/step-6 engine sequencing, not wave-3-specific, so it was treated as
+  out of scope for a targeted skim rather than exhaustively re-verified.
+- **The Aug 3, 2026 Ruling 6 "exactly defeat" definition** — no wave 3 card prints "exactly defeat" (confirmed by
+  grepping all six packs' printed-text transcriptions), so nothing in this wave exercises it; not pursued further.
 
 ## Test counts
 
-- `pnpm check` (lint, format, typecheck, test, build across every package): **fully green.**
+- `pnpm check` (lint, format, typecheck, test, build across every package): **fully green**, both checkpoints.
 - `packages/engine` — 123 test files, 1056 tests, all passed.
-- `packages/cards` — 139 test files (138 passed, 1 skipped: the Q12 Moondragon placeholder), 1272 tests (1270
-  passed, 1 expected fail: the `trors` step-one retrigger finding, 1 skipped: Q12).
+- `packages/cards` — 141 test files (all passed), 1280 tests (1277 passed, 2 expected fail: the `trors` step-one
+  retrigger finding and the Waylay finding, 1 skipped: Q12).
 - `packages/content` — 20 files, 461 tests, all passed (untouched by this pass).
 - `packages/client` — 134 files, 1624 tests, all passed (untouched by this pass).
 
-## Files touched this pass
+## Files touched, checkpoint 1
 
 - `packages/cards/src/wave2/trors/qa.test.ts` — new `test.fails` pinning the still-live step-one retrigger bug
   (Finding 1).
@@ -211,3 +238,99 @@ Q4, Q13, Q16, Q18 all look like reasonable, low-risk readings as implemented.
 - `packages/engine/src/wave3-q4-minion-leaves-play-order.test.ts` — new: Q4 pin.
 - `packages/engine/src/wave3-q17-regroup-collector.test.ts` — new: Q17 pin.
 - `docs/phase7-wave3-qa.md` — this report (new).
+
+## Checkpoint 2
+
+Addressed everything checkpoint 1 listed as not checked, in the order the coordinator asked for: full `stld`/
+`gam`/`drax`/`vnm` line-by-line audits, the rest of `gmw`, six more smoke games, and a targeted rulings skim. Two
+new findings (Waylay, #6; Escape the Museum's stale docblock, #7 — a "clean" result, not a bug) are folded into
+the findings/clean sections above rather than repeated here.
+
+### Line-by-line audits
+
+Method: `pnpm card` (fixed mid-pass to see `WAVE3_ABILITIES`, commit `821aa2b`) dumped every card's printed text
+next to its script location; each ability's DSL composition was then read against that text for target, "you" vs.
+"each player", may/must, the timing word, cost vs. effect, and keywords, watching specifically for an
+approximation (a trigger broader than printed) or a half-scripted text box (one clause silently missing) — the two
+patterns earlier passes found. `docs/cards/by_pack/*.md` filled in the handful of multi-stage villain/main-scheme
+texts `pnpm card`'s own tool doesn't print per-stage.
+
+- **`stld`**: Star-Lord's identity (17001a/b), full kit (17002–17023, 17028–17030), obligation (Banishment,
+  17024), nemesis set (Budding Crime Syndicate, Mister Knife, Spartoi Cunning). All clean.
+- **`gam`**: Gamora's identity (18001a/b), full kit (18002–18020, 18029–18031), obligation (Unfulfilled Destiny,
+  18024), nemesis set (Sibling Rivalry, Nebula the minion, In a Bind, Waylay). Clean except Waylay (Finding 6).
+- **`drax`**: Drax's identity (19001a/b), full kit (19002–19018), obligation (Memories of Another Life, 19025),
+  nemesis set (Cull the Weak, Yotat the Destroyer, Challenge Accepted, "I Will Destroy You!"), the aspect filler
+  cards bundled in the pack ("Bring It!", "Think Fast!", Regroup). All clean.
+- **`vnm`**: Venom/Flash Thompson's identity (20001a/b), full kit (20002–20029), obligation (Struggle for Control,
+  20023), nemesis set (Klyntar Frenzy, Enraged Symbiote). All clean.
+- **`gmw` remainder**: Groot's kit/obligation/nemesis (16002–16028), Rocket Raccoon's kit/obligation/nemesis
+  (16029–16057), Brotherhood of Badoon (Drang I–III, Terrestrial Invasion/Protect the Planet, Badoon Ship, Drang's
+  Spear, Badoon Engineer, the four side schemes) plus Band of Badoon, Infiltrate the Museum (Collector I–III, The
+  Grand Collection, Biogram Image, Inconspicuous Box, View the Cosmos, Stay Awhile) plus Menagerie Medley, Escape
+  the Museum (the ∞-face Collector pair, the three-stage main scheme, Library Labyrinth/Museum Ship, the two
+  treacheries), Nebula (Nebula I–III, the main scheme, Nebula's Ship, the five Techniques, Lethal Intent, Barrel
+  Roll, Combat Ready) plus Space Pirates and the Power Stone, Ship Command, Galactic Artifacts, Badoon Headhunter,
+  and Ruthless. All clean; Ronan's own set was already audited in checkpoint 1.
+
+### Six more smoke games
+
+| Pack(s)        | Hero(es)                        | Scenario     | Mode     | Players | Outcome? | File                                                 |
+| -------------- | ------------------------------- | ------------ | -------- | ------- | -------- | ---------------------------------------------------- |
+| `gam` + `stld` | Gamora + Star-Lord (Leadership) | Rhino (Core) | standard | 2       | yes      | `gam/qa.test.ts`                                     |
+| `gam`          | Gamora                          | Rhino (Core) | expert   | 1       | yes      | `gam/qa.test.ts`                                     |
+| `drax` + `vnm` | Drax + Venom                    | Rhino (Core) | standard | 2       | yes      | `drax/qa.test.ts`                                    |
+| `drax`         | Drax                            | Rhino (Core) | expert   | 1       | yes      | `drax/qa.test.ts`                                    |
+| `vnm`          | Venom                           | Rhino (Core) | expert   | 1       | yes      | `drax/qa.test.ts` (Venom has no natural home either) |
+| `stld`         | Star-Lord (Leadership)          | Rhino (Core) | expert   | 1       | yes      | `stld/qa.test.ts`                                    |
+
+All six reach a real outcome, no stuck `PendingChoice`, replay deep-equal. Cross-pack 2-player pairings (Gamora +
+Star-Lord, Drax + Venom) live in whichever pack's folder was more natural, since neither pack "owns" the other.
+
+### Rulings skim
+
+Grepped `marvel-champions-rulings-post-rrg-1-7.md` (1139 lines) for every wave 3 hero/villain/pack/keyword name
+(35 hits across the file), read each hit's full ruling. Findings folded in above (Waylay, cross-checked against
+June 25, 2026 (4) #1's "nemesis sets belong to that identity"). Confirmed already correct, no new test needed:
+
+- **Jan 26, 2026 (3)** — Rocket Raccoon's "Murdered You!" (16029a) reads excess damage dealt, not taken;
+  `on.attacks("self", { excessDamage: true })` already does this (matches checkpoint 1's own citation of the same
+  ruling for Follow Through).
+- **Aug 3, 2026 (4) #4** — Drax retains vengeance counters above 3; `addCounters("vengeance", 1, ..., { upTo: 3 })`
+  caps the placement, not the total, so a counter added by another source (Captain Americat, unscripted this
+  wave) isn't capped. Already confirmed in the drax-kit.ts audit above.
+- **March 19, 2026 (3)** — Power Stone on an eliminated player's identity resolves its "attach to" text rather
+  than being discarded; docs/phase7-wave3.md §3.19 already implements this (`eliminatePlayer`'s permanent-card
+  handling), pre-existing from checkpoint-1-adjacent engine work, re-confirmed by reading the ruling against the
+  spec doc's own citation.
+
+Not chased further (see "what could not be checked" above): the Dec 17, 2025 (3) ally-attacked exception
+(spot-checked, not newly pinned), the Apr 30, 2026 (2) Guard/Patrol cost-fizzle reading (generic engine
+sequencing, not wave-3-specific), and the Aug 3, 2026 (6) "exactly defeat" definition (no wave 3 card uses the
+term).
+
+## Files touched, checkpoint 2
+
+- `packages/cards/src/wave3/gam/gamora-obligation-nemesis.test.ts` — new `it.fails` pinning the Waylay finding
+  (Finding 6).
+- `packages/cards/src/wave3/gmw/escape-the-museum.test.ts` — new passing test proving the `completionLoses`
+  docblock is stale (Finding 7).
+- `packages/cards/src/wave3/gam/qa.test.ts` — new: Gamora + Star-Lord 2p game, Gamora expert solo.
+- `packages/cards/src/wave3/drax/qa.test.ts` — extended: Drax + Venom 2p game, Drax expert solo, Venom expert solo.
+- `packages/cards/src/wave3/stld/qa.test.ts` — new: Star-Lord expert solo.
+- `docs/phase7-wave3-qa.md` — this report, updated.
+
+## Resolutions
+
+- **Finding 2 (§4 Q1), resolved in `cbc8a10`.** Simultaneous villain defeat and last elimination is a loss. Multi-target
+  damage now resolves simultaneously (ruling June 2, 2026 (2) answer 1; FFG ruling May 18, 2023 on The Kraken). The
+  Q1 pin was rewritten to expect the loss.
+- **Finding 6 (Waylay), resolved.** `18028.when-revealed` now targets the identity titled "Gamora", not the revealer.
+  The pin was also invalid: it threw during setup ("no 18028 set aside for p2") before reaching any assertion, which
+  `it.fails` counted as the expected failure. It is now a passing test that stages a real 2-player villain phase in
+  which P2 is dealt and reveals Waylay, confirmed to fail against the old targeting. The same file's `GAMORA_PLAYER`
+  (`ownerOf(named("Gamora"))`) could resolve to Drax's Gamora ally (19020) at another seat, since `named` returns the
+  first card in play with that title. It is now `controllerOf` the Gamora identity.
+- **Tooling finding, resolved in `821aa2b`.** `pnpm card` reads `WAVE3_ABILITIES`.
+- **Lesson for pins:** an `it.fails` test passes on _any_ throw, including a setup error. A pin must be seen failing on
+  its assertion (run it once as a plain `it`) before it is committed.

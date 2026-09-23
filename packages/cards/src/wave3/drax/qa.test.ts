@@ -1,6 +1,58 @@
+import { createGame, replay } from "@mc/engine";
+import { playToOutcome } from "../../testing/driver.js";
+import { WAVE3_DEPS } from "../index.js";
+import { VENOM_SEAT, venomScenario } from "../vnm/support.js";
+import { draxScenario } from "./support.js";
+
 /**
- * rules-qa-engineer wave 3 pass, `drax` (docs/phase7-wave3-qa.md has the full report).
+ * rules-qa-engineer wave 3 pass, `drax` (docs/phase7-wave3-qa.md has the full report). `gam`/`stld`/`drax`/`vnm`
+ * each had only one solo Rhino-standard game before this pass; adds a 2-player game (Drax + Venom — neither pack
+ * has a natural home for a cross-pack test, so it lives here) and Drax's own first expert-mode game.
  */
+test("Rhino (standard), 2-player: Drax + Venom", () => {
+  const config = draxScenario("rhino", { seed: 11, extraPlayers: [VENOM_SEAT] });
+  const created = createGame(config, WAVE3_DEPS);
+  if (!created.ok) throw new Error(`setup failed: ${created.error.message}`);
+  const result = playToOutcome(created.state, WAVE3_DEPS);
+  console.info(
+    `[wave3 qa smoke] Rhino (standard), 2p — Drax + Venom: ${result.outcome ? `${result.outcome.result} (${result.outcome.reason})` : "no outcome"} in round ${result.rounds}, ${result.commands} commands`,
+  );
+  expect(result.outcome).not.toBeNull();
+  expect(result.rounds).toBeGreaterThanOrEqual(1);
+  const replayed = replay(result.session.log, WAVE3_DEPS);
+  expect(replayed.ok).toBe(true);
+  if (replayed.ok) expect(replayed.state).toEqual(result.session.state);
+}, 180_000);
+
+test("Rhino (expert), solo: Drax", () => {
+  const config = draxScenario("rhino", { seed: 12, difficulty: "expert" });
+  const created = createGame(config, WAVE3_DEPS);
+  if (!created.ok) throw new Error(`setup failed: ${created.error.message}`);
+  const result = playToOutcome(created.state, WAVE3_DEPS);
+  console.info(
+    `[wave3 qa smoke] Rhino (expert) — Drax: ${result.outcome ? `${result.outcome.result} (${result.outcome.reason})` : "no outcome"} in round ${result.rounds}, ${result.commands} commands`,
+  );
+  expect(result.outcome).not.toBeNull();
+  expect(result.rounds).toBeGreaterThanOrEqual(1);
+  const replayed = replay(result.session.log, WAVE3_DEPS);
+  expect(replayed.ok).toBe(true);
+  if (replayed.ok) expect(replayed.state).toEqual(result.session.state);
+}, 120_000);
+
+test("Rhino (expert), solo: Venom", () => {
+  const config = venomScenario("rhino", { seed: 13, difficulty: "expert" });
+  const created = createGame(config, WAVE3_DEPS);
+  if (!created.ok) throw new Error(`setup failed: ${created.error.message}`);
+  const result = playToOutcome(created.state, WAVE3_DEPS);
+  console.info(
+    `[wave3 qa smoke] Rhino (expert) — Venom: ${result.outcome ? `${result.outcome.result} (${result.outcome.reason})` : "no outcome"} in round ${result.rounds}, ${result.commands} commands`,
+  );
+  expect(result.outcome).not.toBeNull();
+  expect(result.rounds).toBeGreaterThanOrEqual(1);
+  const replayed = replay(result.session.log, WAVE3_DEPS);
+  expect(replayed.ok).toBe(true);
+  if (replayed.ok) expect(replayed.state).toEqual(result.session.state);
+}, 120_000);
 
 /**
  * docs/phase7-wave3.md §4 Q12 (open question, no FFG ruling — "the rulings file and the FAQ are silent"): "Is

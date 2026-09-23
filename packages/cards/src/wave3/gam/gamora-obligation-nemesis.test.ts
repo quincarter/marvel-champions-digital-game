@@ -1,4 +1,4 @@
-import { activeEncounterDeck } from "@mc/engine";
+import { activeEncounterDeck, activeEncounterDeckId, type GameState, type InstanceId } from "@mc/engine";
 import {
   endTurn,
   firstLegal,
@@ -264,5 +264,47 @@ describe("Gamora's nemesis set (Sibling Rivalry, Nebula, In a Bind, Waylay)", ()
     // inferred from how much of the encounter deck one villain phase happens to consume.
     const { events } = driveEvents(WAVE3_DEPS, staged, { type: "endTurn", playerId: P1 });
     expect(events.some((e) => e.type === "surgeTriggered")).toBe(true);
+  });
+
+  /**
+   * rules-qa-engineer wave 3 pass (docs/phase7-wave3-qa.md has the full report). Printed text: "When Revealed:
+   * Stun and confuse Gamora. If Gamora is already stunned or confused, this card gains surge." The card names
+   * Gamora, not "you", so it must hit Gamora's identity whoever reveals it. It used to hit the revealer's identity
+   * (`yourIdentity`), which only differs in a multiplayer game where another player is dealt Waylay. Fixed: the
+   * script now targets the identity titled "Gamora". This test stages a real 2-player villain phase in which P2 is
+   * dealt and reveals Waylay, and was confirmed to fail against the old targeting.
+   */
+  it("Waylay (18028.when-revealed): stuns and confuses Gamora even when a different player reveals it (docs/phase7-wave3-qa.md; RRG 1.8 p. 49)", () => {
+    const start = startWave3Game(
+      gamoraScenario("rhino", { seed: 4, extraPlayers: [{ starterDeckId: "groot-protection" }] }),
+    );
+    const gamoraIdentity = identityOf(start, P1);
+    const otherIdentity = identityOf(start, P2);
+    // Waylay comes from Gamora's (P1's) set-aside nemesis cards and goes fourth in the encounter deck: the villain's
+    // two boost cards (it schemes against each alter-ego) take the first two, P1 is dealt Advance (no surge), and
+    // P2 is dealt Waylay.
+    const onTop = stageNemesisCardForReveal(start, "18028", P1, 0);
+    const piles = activeEncounterDeck(onTop);
+    const [waylayId, ...rest] = piles.deck as [InstanceId, ...InstanceId[]];
+    const advance = rest.find((id) => onTop.instances[id]?.cardId === "01186")!;
+    const others = rest.filter((id) => id !== advance);
+    const staged: GameState = {
+      ...onTop,
+      encounterDecks: {
+        ...onTop.encounterDecks,
+        [activeEncounterDeckId(onTop)]: {
+          ...piles,
+          deck: [others[0]!, others[1]!, advance, waylayId, ...others.slice(2)],
+        },
+      },
+    };
+    const { state: revealed, events } = driveEvents(WAVE3_DEPS, staged, endTurn(P1), endTurn(P2));
+    const waylay = instancesOf(revealed, "18028")[0]!;
+    const revealedBy = events.find((e) => e.type === "encounterCardRevealed" && e.instanceId === waylay);
+    expect(revealedBy?.type === "encounterCardRevealed" ? revealedBy.playerId : null).toBe(P2);
+    expect(inst(revealed, gamoraIdentity).statuses.stunned).toBeGreaterThan(0);
+    expect(inst(revealed, gamoraIdentity).statuses.confused).toBeGreaterThan(0);
+    expect(inst(revealed, otherIdentity).statuses.stunned).toBe(0);
+    expect(inst(revealed, otherIdentity).statuses.confused).toBe(0);
   });
 });

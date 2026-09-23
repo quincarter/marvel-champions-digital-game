@@ -9,16 +9,15 @@ import {
   discard,
   discardFromHand,
   discardFromHandCost,
+  controllerOf,
   each,
   forcedInterrupt,
   forcedResponse,
   hasStatus,
   heroAction,
   ifThen,
-  named,
   on,
   otherPlayers,
-  ownerOf,
   query,
   rule,
   self,
@@ -27,14 +26,19 @@ import {
   takeDamageCost,
   whenRevealed,
   you,
-  yourIdentity,
 } from "../../dsl/index.js";
 import { obligation } from "../../core/obligations.js";
 
 const ATTACK = trait("ATTACK");
+/**
+ * Gamora's identity, whoever controls it. An identity query, not `named("Gamora")`: `named` returns the first card
+ * in play with that title, which can be Drax's Gamora ally (19020) at another seat. Both of Gamora's faces are titled
+ * "Gamora", so this matches her in either form.
+ */
+const GAMORA = each(query("identity", { name: "Gamora" }));
 /** Gamora's own player, however this ability's card came to be in play (an obligation, a side scheme, a nemesis
- * minion, an attachment on her identity): the player whose identity currently shows the title "Gamora". */
-const GAMORA_PLAYER = ownerOf(named("Gamora"));
+ * minion, an attachment on her identity). */
+const GAMORA_PLAYER = controllerOf(GAMORA);
 
 /**
  * Unfulfilled Destiny (18024), Gamora's obligation, and her nemesis set: Sibling Rivalry (18025), Nebula (18026,
@@ -83,8 +87,8 @@ export const GAMORA_OBLIGATION_NEMESIS = defineAbilities({
   // Waylay — When Revealed: Stun and confuse Gamora. If Gamora is already stunned or confused, this card gains
   // surge. "Already" is read before this reveal's own stun/confuse are applied.
   "18028.when-revealed": whenRevealed(
-    ifThen(anyOf(hasStatus(yourIdentity, "stunned"), hasStatus(yourIdentity, "confused")), surge()),
-    stun(yourIdentity),
-    confuse(yourIdentity),
+    ifThen(anyOf(hasStatus(GAMORA, "stunned"), hasStatus(GAMORA, "confused")), surge()),
+    stun(GAMORA),
+    confuse(GAMORA),
   ),
 });

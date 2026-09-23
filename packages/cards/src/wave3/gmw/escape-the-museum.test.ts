@@ -1,4 +1,4 @@
-import { characterProfile, type GameState, type InstanceId } from "@mc/engine";
+import { characterProfile, mainSchemeValue, type GameState, type InstanceId } from "@mc/engine";
 import {
   answer,
   firstLegal,
@@ -177,6 +177,40 @@ describe("The Missing Milano 1B / Lost in the Museum 2B (advance when the last t
     const state = escapeTheMuseum();
     const advanced = advanceToStage3(toHeroForm(state));
     expect(advanced.mainScheme.stageIndex).toBe(2); // The Great Escape
+  });
+
+  /**
+   * rules-qa-engineer wave 3 pass (docs/phase7-wave3-qa.md has the full report). This module's own docblock (the
+   * comment block at the top of `escape-the-museum.ts`) records "If this stage is completed, the players lose the
+   * game" (16082b/16083b's own second sentence) as a **known, unfixed correctness gap** — that a stage reaching
+   * its printed *target* threat the ordinary way (not "the last threat removed") would silently advance instead
+   * of losing, because no ability ref existed to carry the loss condition separately from the advance-on-zero
+   * response.
+   *
+   * **Re-checked directly against the engine and the data as emitted today: the gap is closed, and the docblock
+   * is stale.** `packages/content/src/data/gmw/cards.ts` now carries `completionLoses: true` on both 16082b and
+   * 16083b (confirmed by reading the file directly), and `packages/engine/src/resolve/defeat.ts`'s
+   * `completeMainScheme` already reads that field on *every* path a stage can complete — not just the final stage
+   * (`next === null || mainSchemeStageOf(...).completionLoses === true`) — so a stage reaching its target threat
+   * the ordinary way (`checkOneMainScheme`, the same function that already completes any main scheme's final
+   * stage) loses the game exactly as the docblock says it should, without any extra ability ref. This must have
+   * landed generically (§3.37's own primitive) sometime after this module's own docblock was written, with nobody
+   * circling back to update the comment.
+   *
+   * This test proves it the way the docblock's own confound warning says the existing tests deliberately avoid: by
+   * raising the main scheme's threat toward its *target* (not toward zero) and letting it complete normally,
+   * rather than resetting threat first. `ability-scripting-engineer` should update `escape-the-museum.ts`'s
+   * docblock to stop calling this an open gap.
+   */
+  it("Stage 1B (The Missing Milano) loses the game if it reaches its target threat the ordinary way, not just by having its last threat removed — the module docblock's own 'known correctness gap' no longer reproduces", () => {
+    const state = escapeTheMuseum();
+    const target = mainSchemeValue(state, "targetThreat", WAVE3_DEPS, state.mainScheme);
+    const hero = toHeroForm(state);
+    const near = patchInstance(hero, hero.mainScheme.instanceId, { threat: target - 1 });
+    const settled = settle(runWave3(near, { type: "endTurn", playerId: P1 }), firstLegal, undefined, WAVE3_DEPS);
+    expect(settled.outcome).toEqual({ result: "loss", reason: "mainSchemeCompleted" });
+    // Did not silently advance to Lost in the Museum instead.
+    expect(settled.mainScheme.stageIndex).toBe(0);
   });
 });
 
