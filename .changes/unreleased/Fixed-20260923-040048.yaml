@@ -1,0 +1,3 @@
+kind: Fixed
+body: goToScreen no longer silently ignores a screen change that arrives while the screen's own entrance fade is still running
+time: 2026-09-23T04:00:48.804994-04:00
