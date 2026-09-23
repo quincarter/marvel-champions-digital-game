@@ -374,43 +374,58 @@ function drawEnvironment(ctx: BoardDrawContext, rect: Rect, environment: Environ
 }
 
 /**
- * The encounter piles. The deck is a facedown stack, so it shows the
- * encounter back — the same back every facedown encounter card shows, which
- * is what makes a stack read as a stack rather than as a number in a box.
- * The discard is faceup at the table, so it shows its top card.
+ * The encounter piles, plus one more tile per scenario area in play (The Collection, docs/phase7-wave3.md §3.14) —
+ * a scenario with none draws exactly the two-pile column this was before. The deck is a facedown stack, so it
+ * shows the encounter back — the same back every facedown encounter card shows, which is what makes a stack read
+ * as a stack rather than as a number in a box. The discard, and a scenario area, are faceup at the table, so each
+ * shows its top card; a scenario area's whole contents (not just the top) are then a tap away, the same "◂ ▸
+ * through the rest of the pile" Inspect already gives the discard (`piles.ts`'s own docblock).
  */
 export function drawEncounter(ctx: BoardDrawContext, rect: Rect, model: BoardModel): void {
   const { scene } = ctx;
-  const half = (rect.height - 6) / 2;
-  const piles: readonly {
-    kind: "encounterDeck" | "encounterDiscard";
-    name: string;
-    count: number;
-    y: number;
-    art: ArtSource | null;
-    instanceId: InstanceId | null;
-  }[] = [
+  type Pile = {
+    readonly kind: "encounterDeck" | "encounterDiscard" | "scenarioArea";
+    readonly name: string;
+    readonly count: number;
+    readonly art: ArtSource | null;
+    readonly instanceId: InstanceId | null;
+    /** Every card in the pile, for a tap to open browsable through — only a scenario area needs more than one. */
+    readonly siblings: readonly InstanceId[];
+  };
+  const piles: readonly Pile[] = [
     {
       kind: "encounterDeck",
       name: "ENC DECK",
       count: model.encounterPiles.deck,
-      y: rect.y,
       art: CARD_BACKS.encounter,
       instanceId: model.encounterDeckTopInstanceId,
+      siblings: [],
     },
     {
       kind: "encounterDiscard",
       name: "DISCARD",
       count: model.encounterPiles.discard,
-      y: rect.y + half + 6,
       art: model.encounterDiscardTop,
       instanceId: model.encounterDiscardTopInstanceId,
+      siblings: [],
     },
+    ...model.scenarioAreas.map((area): Pile => ({
+      kind: "scenarioArea",
+      name: area.name.toUpperCase(),
+      count: area.count,
+      art: area.topArt,
+      instanceId: area.instanceIds[0] ?? null,
+      siblings: area.instanceIds,
+    })),
   ];
-  for (const { kind, name, count, y, art, instanceId } of piles) {
-    const box: Rect = { x: rect.x, y, width: rect.width, height: half };
-    // A card revealed from the deck or discarded to the pile travels from or to this box itself, not the whole column.
-    ctx.frame.pileRects.set(pileKey(kind), box);
+  const gap = 6;
+  const slot = (rect.height - gap * (piles.length - 1)) / piles.length;
+  piles.forEach(({ kind, name, count, art, instanceId, siblings }, index) => {
+    const box: Rect = { x: rect.x, y: rect.y + index * (slot + gap), width: rect.width, height: slot };
+    // A card revealed from the deck or discarded to the pile travels from or to this box itself, not the whole
+    // column. A scenario area is not a travel-animation anchor yet — no printed effect moves a card there with a
+    // motion this app plays — so only the two encounter piles register one.
+    if (kind !== "scenarioArea") ctx.frame.pileRects.set(pileKey(kind), box);
     const g = scene.add.graphics();
     paintPanel(g, box, count > 0 ? "card" : "quiet", count > 0 ? "rest" : "unavailable");
 
@@ -443,12 +458,14 @@ export function drawEncounter(ctx: BoardDrawContext, rect: Rect, model: BoardMod
 
     // Every pile with a card in it is readable, the deck's own facedown top included (D08's own subtitle: "any
     // card, anywhere, including facedown counts") — Inspect already draws the honest "facedown" face for it via
-    // `faceVisible`; this box only had no tap target to reach that with.
+    // `faceVisible`; this box only had no tap target to reach that with. A scenario area opens every card it
+    // holds, not only the top one — it's a shared, faceup zone, closer to the discard than to a deck.
     if (count > 0 && instanceId) {
       ctx.frame.hitRects.set(instanceId, box);
-      addTapTarget(scene, box, { onTap: () => ctx.inspect(instanceId), onInspect: () => ctx.inspect(instanceId) });
+      const open = (): void => ctx.inspect(instanceId, siblings.length > 0 ? siblings : undefined);
+      addTapTarget(scene, box, { onTap: open, onInspect: open });
     }
-  }
+  });
 }
 
 export function drawPlayArea(ctx: BoardDrawContext, rect: Rect, model: BoardModel): void {
