@@ -6,6 +6,7 @@ import { ESCAPE_THE_MUSEUM } from "./escape-the-museum.js";
 import { GALACTIC_ARTIFACTS } from "./galactic-artifacts.js";
 import { GROOT_KIT } from "./groot-kit.js";
 import { GROOT_OBLIGATION_NEMESIS } from "./groot-obligation-nemesis.js";
+import { MARKET } from "./market.js";
 import { MUSEUM } from "./museum.js";
 import { NEBULA } from "./nebula.js";
 import { ROCKET_KIT } from "./rocket-kit.js";
@@ -32,4 +33,5 @@ export const GMW_ABILITIES: AbilityRegistry = mergeRegistries(
   RUTHLESS,
   GALACTIC_ARTIFACTS,
   BADOON_HEADHUNTER,
+  MARKET,
 );
