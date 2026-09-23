@@ -871,6 +871,9 @@ export function validateMainSchemeCard(card: MainSchemeCard): ValidationResult {
           }
         }
       }
+      // docs/phase7-wave3.md §3.37: present only as `true`.
+      if (stage.completionLoses !== undefined && stage.completionLoses !== true)
+        errors.push(`${label} completionLoses must be true when present`);
       // A main scheme side can be printed with no text, like a villain stage (Attack on Mount Athena 04061: stage 1's B
       // side, stages 2 and 3's A sides; docs/phase7-wave2.md §6.13).
       if (!isCardTextAllowEmpty(stage.text)) errors.push(`${label} text must have printed and current strings`);

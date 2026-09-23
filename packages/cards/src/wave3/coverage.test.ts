@@ -63,22 +63,18 @@ const KNOWN_SKIPPED: Readonly<Record<string, readonly string[]>> = {
     // in the Museum/The Great Escape, "I Have You Now!", Impossible Geometry — `gmw/escape-the-museum.ts`), and
     // Nebula (villain Nebula I–III, main scheme The Art of Evasion/Warp Drive Initiated, Nebula's Ship, the five
     // Technique attachments, Lethal Intent, Barrel Roll, Combat Ready, the Space Pirates modular set, and the
-    // Power Stone modular card — `gmw/nebula.ts`) are scripted. Genuine primitive gaps (module docblocks in
-    // `gmw/groot-kit.ts`, `gmw/rocket-kit.ts`, `gmw/badoon.ts`, `gmw/museum.ts`, `gmw/escape-the-museum.ts`):
-    // 16006, 16009, 16024 (Groot); 16032, 16033, 16052 (Rocket); 16020/16048 (the Team-Up card, same
-    // cross-player targeting gap both times); 16060.when-revealed (Drang III, needs a player-level superlative —
-    // "the player engaged with the fewest minions"); 16073b.the-grand-collection-action (needs a true either/or
-    // `AbilityCost`, distinct from an AND-cost list); 16085a.this-way (needs `AbilityLimit.per` to support a
-    // per-acting-player key); 16085b's three refs (need an "assign indirect damage among players" primitive,
-    // distinct from `dealIndirectDamage`'s existing per-player and `assignDamage`'s existing per-character
-    // shapes). `gmw/nebula.ts` itself has no genuine primitive gaps (module docblock) — every primitive it needed
-    // had already landed. Ronan the Accuser (16102+, except the Band of Badoon-shared 16117-16121 already
-    // scripted) and the Kree Militants/Galactic Artifacts/Badoon Headhunter modular sets are not yet reached.
-    // Regenerated with `MC_REFS_PACKS=gmw pnpm refs` (docs/card-scripting-process.md) — never hand-typed.
-    "16006.we-are-groot-action",
-    "16009.lashing-vines-response",
+    // Power Stone modular card — `gmw/nebula.ts`) are scripted. A second primitives pass closed 13 refs left as
+    // gaps by the first (docs/phase7-wave3.md §3.28–§3.38, docs/phase7-wave3-scripting.md §6d), including Groot's
+    // own 16006/16009/16024, now scripted in `gmw/groot-kit.ts`. Remaining genuine primitive gaps (module
+    // docblocks in `gmw/rocket-kit.ts`, `gmw/badoon.ts`, `gmw/museum.ts`): 16032, 16033, 16052 (Rocket); 16020/
+    // 16048 (the Team-Up card, a cross-player Team-Up targeting gap); 16060.when-revealed (Drang III, a
+    // player-level superlative); 16073b.the-grand-collection-action (an either/or `AbilityCost`); 16085a.this-way
+    // (a per-player `AbilityLimit`); 16085b's three refs (indirect damage "among players"). `gmw/nebula.ts` itself
+    // has no genuine primitive gaps (module docblock) — every primitive it needed had already landed. Ronan the
+    // Accuser (16102+, except the Band of Badoon-shared 16117-16121 already scripted) and the Kree Militants/
+    // Galactic Artifacts/Badoon Headhunter modular sets are not yet reached. Regenerated with `MC_REFS_PACKS=gmw
+    // pnpm refs` (docs/card-scripting-process.md) — never hand-typed.
     "16020.flora-and-fauna-action",
-    "16024.deft-focus-action",
     "16032.schadenfreude-action",
     "16033.salvage-response",
     "16048.flora-and-fauna-action",

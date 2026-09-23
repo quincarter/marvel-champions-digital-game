@@ -8,12 +8,20 @@ import { trait } from "@mc/content";
 import { describe, expect, it } from "vitest";
 import {
   alterEgoAction,
+  discardTopOfDeckCost,
+  eitherCost,
   exhaustThis,
+  exhaustYourHero,
   heroAction,
+  heroInterrupt,
   heroResponse,
   on,
+  oncePerRoundPerPlayer,
   removeCounter,
+  removeUpToCounters,
   response,
+  spend,
+  when,
   whenRevealed,
 } from "./abilities.js";
 import {
@@ -33,9 +41,11 @@ import {
   ifThen,
   moveCards,
   option,
+  preventDamage,
   putIntoPlay,
   ready,
   reduceNextCardCost,
+  scenarioArea,
   thwartAScheme,
   zone,
 } from "./effects.js";
@@ -46,6 +56,7 @@ import {
   countOf,
   exists,
   firstPlayer,
+  FRIENDLY_CHARACTER,
   named,
   ofTeamUpSet,
   perHero,
@@ -57,6 +68,7 @@ import {
   teamUpCharacters,
   thatPlayer,
   titled,
+  varOf,
   you,
   YOUR_IDENTITY,
   yourIdentity,
@@ -109,6 +121,43 @@ describe("§3.28–§3.31 compositions", () => {
         moveCards(cards(chosen("tech")), "deckTop"),
       ),
     );
+  });
+});
+
+describe("§3.32, §3.33, §3.36 costs", () => {
+  it("We Are Groot (16006): remove up to 4 growth counters from Groot, bound for 'that many'", () => {
+    const groot = heroAction(
+      { cost: removeUpToCounters("growth", 4, { bind: "removed", fromIdentity: true }) },
+      chooseTarget("friends", FRIENDLY_CHARACTER, { count: varOf("removed") }),
+      giveTough(chosen("friends")),
+    );
+    valid(groot);
+    expect(groot.cost).toEqual({
+      spendCounters: { counterType: "growth", amount: 4, upTo: true, bind: "removed", target: "identity" },
+    });
+  });
+
+  it("Booster Boots (16052): exhaust it and discard the top card of your deck", () => {
+    const boots = heroInterrupt(
+      when.damage(YOUR_IDENTITY, { fromAttack: true }),
+      { cost: [exhaustThis, discardTopOfDeckCost()] },
+      preventDamage(1),
+    );
+    valid(boots);
+    expect(boots.cost).toEqual({ exhaustSelf: true, discardFromDeck: 1 });
+  });
+
+  it("The Grand Collection 1B (16073b): either exhaust your hero or spend 2 resources, once per round per player", () => {
+    const collection = heroAction(
+      { cost: eitherCost(exhaustYourHero, spend(2)), limit: oncePerRoundPerPlayer },
+      chooseCards("card", scenarioArea("The Collection"), { min: 1, max: 1 }),
+      moveCards(cards(chosen("card")), "discard"),
+    );
+    valid(collection);
+    expect(collection.cost).toEqual({ either: [{ exhaustIdentity: true }, { resources: 2 }] });
+    expect(collection.limit).toEqual({ count: 1, period: "round", per: "player" });
+    // A branch that repeats a component of the rest of the cost is an authoring error.
+    expect(validateDefinition(heroAction({ cost: [exhaustThis, eitherCost(exhaustThis, spend(1))] }))).not.toEqual([]);
   });
 });
 

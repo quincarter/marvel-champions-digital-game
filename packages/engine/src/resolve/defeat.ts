@@ -109,7 +109,9 @@ export function completeMainScheme(ctx: Ctx, schemeId: InstanceId): void {
     ...(central ? {} : { schemeInstanceId: schemeId }),
   });
   const next = central ? nextMainSchemeStage(ctx.state, scheme) : "alternatives";
-  if (next === null) {
+  // "If this stage is completed, the players lose the game." on a stage that is not the last (docs/phase7-wave3.md
+  // §3.37): its completion loses exactly as the final stage's does (RRG 1.8 "Main Scheme", p. 27), not advance.
+  if (next === null || mainSchemeStageOf(ctx.state, scheme).completionLoses === true) {
     updateMainSchemeState(ctx, schemeId, (s) => ({ ...s, completed: true }));
     endGame(ctx, { result: "loss", reason: "mainSchemeCompleted" });
     return;

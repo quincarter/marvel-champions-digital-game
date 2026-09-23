@@ -626,9 +626,45 @@ export interface AbilityCost {
    */
   readonly spendCounters?: {
     readonly counterType: string;
+    /** How many; with `upTo`, the most that may be removed. */
     readonly amount: number;
     readonly target?: "self" | "identity";
+    /**
+     * "Remove **up to** 4 growth counters from Groot →" ("We Are Groot", `gmw` 16006; docs/phase7-wave3.md §3.32): the
+     * player chooses how many, from 1 to `amount` (and no more than the card holds), in the command's
+     * `costSelection.counters`. RRG 1.8 "Cost" (p. 14): "A cost requiring 'any number' or 'up to' some number of game
+     * elements requires a minimum of one such game element", so 0 is not a payment. With no choice given, the most
+     * that can be removed is.
+     */
+    readonly upTo?: boolean;
+    /** The number of counters removed, bound to this var for the effects ("choose that many friendly characters"). */
+    readonly bind?: string;
   };
+  /**
+   * "Discard the top card of your deck →" (Booster Boots, `gmw` 16052; docs/phase7-wave3.md §3.33): that many cards
+   * from the top of the paying player's deck go to their discard pile as the cost.
+   *
+   * - **Payable only if the deck can supply them all.** RRG 1.8 "Cost" (p. 13): a cost is paid in full; RRG 1.8
+   *   "Player Deck" (p. 33): "If the player's deck empties while the player was discarding cards from their deck, no
+   *   further cards are discarded from the newly shuffled deck", so a deck of fewer cards cannot pay more.
+   * - **An empty deck is not an excuse.** The RRG never leaves a deck empty while the discard pile holds cards: "If
+   *   a player deck empties, the player shuffles their discard pile to make a new deck" (p. 33), at once (ruling, Apr
+   *   30, 2026 (3) answer 7: "The deck is reshuffled **before** the currently resolving card enters the discard
+   *   pile"). The engine resets a deck lazily, on its next read, so an empty deck here is one the rules have already
+   *   reset: it is reset first (with its facedown encounter card) and pays from the new deck. With both deck and
+   *   discard pile empty there is nothing to discard, and the ability cannot be initiated.
+   * - **A deck the cost empties resets immediately** (the same ruling), before the ability's effects resolve.
+   */
+  readonly discardFromDeck?: number;
+  /**
+   * "Choose to either exhaust your hero or spend 2 resources of any type →" (The Grand Collection 1B, `gmw` 16073b;
+   * docs/phase7-wave3.md §3.36): pay exactly **one** of these costs, the player's choice, together with every other
+   * component of this cost. The command names the branch (`costSelection.branch`, 0-based); with none, the first
+   * branch that can be paid is. The ability can be initiated if any branch can be paid (RRG 1.8 "Choose (Option)",
+   * p. 12: an option whose cost cannot be paid cannot be chosen), and `legalActions` lists the payable branches.
+   * A branch may not itself contain `either`.
+   */
+  readonly either?: readonly AbilityCost[];
   /**
    * "Deal yourself 1 facedown encounter card →" (Star-Lord; Daring Escape; Library Labyrinth; Universal Weapon): the
    * paying player is dealt that many encounter cards, facedown, as the cost (docs/phase7-wave3.md §3.20).
@@ -741,7 +777,12 @@ export interface AbilityLimit {
    * Only meaningful on a triggered ability: with no triggering event (an "Action" used by command) the ability falls
    * back to one shared count, exactly as an unqualified limit behaves today.
    */
-  readonly per?: "aspectOfEventCard";
+  /**
+   * - `"player"`: "(Limit once per round **per player**.)" (The Grand Collection 1B, Library Labyrinth 16085a, `gmw`;
+   *   docs/phase7-wave3.md §3.36): a shared card's ability keeps one count for each player who uses it, keyed by the
+   *   ability's controller — for an encounter card's action, the player who triggers it.
+   */
+  readonly per?: "aspectOfEventCard" | "player";
 }
 
 /**

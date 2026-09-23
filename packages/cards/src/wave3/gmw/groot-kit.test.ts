@@ -7,8 +7,11 @@ import {
   inst,
   instancesOf,
   mainThreat,
+  moveToHand,
   P1,
   patchInstance,
+  payWith,
+  play,
   playerOf,
   settle,
   toHero,
@@ -299,5 +302,147 @@ describe("Groot kit", () => {
     // Rocket Raccoon's printed ATK is 1; +3 from his own interrupt deals 4 to a 3-hit-point minion — overkill
     // carries the extra point of damage past its defeat rather than wasting it, so it's gone rather than damaged.
     expect(instancesOf(attacked, "01101").some((id) => cardsInPlay(attacked).includes(id))).toBe(false);
+  });
+
+  it('"We Are Groot": removes the chosen number of growth counters and gives that many friendly characters tough (16006.we-are-groot-action)', () => {
+    const hero = runWave3(grootVsRhino(), toHero());
+    const identity = identityOf(hero);
+    const withCounters = patchInstance(hero, identity, { counters: { growth: 3 } });
+    const given = moveToHand(withCounters, P1, "16006");
+    const [weAreGroot] = given.ids as [InstanceId];
+    // Only Groot's own identity is a friendly character here, so "choose that many" removes 1 counter and gives
+    // exactly 1 target (itself) tough, even though up to 4 could have been removed.
+    const played = settle(
+      runWave3(
+        given.state,
+        play(P1, weAreGroot, payWith(given.state, P1, 1, [weAreGroot]), { costSelection: { counters: 1 } }),
+      ),
+      firstLegal,
+      undefined,
+      WAVE3_DEPS,
+    );
+    expect(inst(played, identity).counters.growth).toBe(2);
+    expect(inst(played, identity).statuses.tough).toBe(1);
+  });
+
+  it('"We Are Groot": with no counters named, removes as many as it can and chooses as many friendly characters as there are (16006.we-are-groot-action)', () => {
+    const hero = runWave3(grootVsRhino(), toHero());
+    const identity = identityOf(hero);
+    // An ally (Rocket Raccoon, 16019) joins Groot as a second friendly character.
+    const { state: withRocket } = playFromHand(hero, "16019", 3);
+    const rocket = instancesOf(withRocket, "16019").find((id) => cardsInPlay(withRocket).includes(id))!;
+    const withCounters = patchInstance(withRocket, identity, { counters: { growth: 2 } });
+    const given = moveToHand(withCounters, P1, "16006");
+    const [weAreGroot] = given.ids as [InstanceId];
+    const played = settle(
+      runWave3(given.state, play(P1, weAreGroot, payWith(given.state, P1, 1, [weAreGroot]))),
+      firstLegal,
+      undefined,
+      WAVE3_DEPS,
+    );
+    // Removed the 2 counters Groot actually had (the max), and both friendly characters — Groot and Rocket
+    // Raccoon — got a tough status card, exactly "that many".
+    expect(inst(played, identity).counters.growth ?? 0).toBe(0);
+    expect(inst(played, identity).statuses.tough).toBe(1);
+    expect(inst(played, rocket).statuses.tough).toBe(1);
+  });
+
+  it("Lashing Vines: after Groot makes a basic attack, remove 2 growth counters and exhaust it → ready Groot (16009.lashing-vines-response)", () => {
+    const { state: withCard, id: lashingVines } = playFromHand(runWave3(grootVsRhino(), toHero()), "16009", 1);
+    const identity = identityOf(withCard);
+    const withCounters = patchInstance(withCard, identity, { counters: { growth: 3 } });
+    const villain = withCounters.villains[0]!.instanceId;
+    const attacked = settle(
+      runWave3(withCounters, {
+        type: "basicAttack",
+        playerId: P1,
+        attackerInstanceId: identity,
+        targetInstanceId: villain,
+      }),
+      accepting("16009.lashing-vines-response"),
+      undefined,
+      WAVE3_DEPS,
+    );
+    // A basic attack exhausts the attacker; the response readies Groot right back up.
+    expect(inst(attacked, identity).exhausted).toBe(false);
+    expect(inst(attacked, identity).counters.growth).toBe(1);
+    expect(inst(attacked, lashingVines).exhausted).toBe(true);
+  });
+
+  it("Lashing Vines: after Groot defends against an attack, the response is still offered once the attack ends (16009.lashing-vines-response)", () => {
+    const { state: withCard, id: lashingVines } = playFromHand(runWave3(grootVsRhino(), toHero()), "16009", 1);
+    const identity = identityOf(withCard);
+    const withCounters = patchInstance(withCard, identity, { counters: { growth: 3 }, damage: 0 });
+    const reached = toDeclareDefender(withCounters);
+    const offered = answer(reached, [identity], WAVE3_DEPS); // declares Groot as the defender
+    // Its own "after Groot defends, takes no damage" response (Hard to Ignore isn't in hand here) proves the
+    // engine's own defense-timing fix: Lashing Vines' response fires once this settles, not mid-declaration.
+    const after = settle(offered, accepting("16009.lashing-vines-response"), undefined, WAVE3_DEPS);
+    expect(inst(after, identity).counters.growth).toBe(1);
+    expect(inst(after, lashingVines).exhausted).toBe(true);
+  });
+
+  it("Deft Focus: exhausts to reduce the next superpower card played this turn by 1 (16024.deft-focus-action)", () => {
+    const hero = runWave3(grootVsRhino(), toHero());
+    // Deft Focus (16024, cost 1) and "I. AM. GROOT!" (16004, printed cost 2, SUPERPOWER trait).
+    const given = moveToHand(hero, P1, "16024", "16004");
+    const [deftFocus, iAmGroot] = given.ids as [InstanceId, InstanceId];
+    const withDeftFocus = settle(
+      runWave3(given.state, play(P1, deftFocus, payWith(given.state, P1, 1, [deftFocus, iAmGroot]))),
+      firstLegal,
+      undefined,
+      WAVE3_DEPS,
+    );
+    const withDiscount = runWave3(withDeftFocus, use(P1, deftFocus, "16024.deft-focus-action"));
+    expect(inst(withDiscount, deftFocus).exhausted).toBe(true);
+    const villain = withDiscount.villains[0]!.instanceId;
+    const before = inst(withDiscount, villain).damage;
+    // "I. AM. GROOT!" is printed cost 2; paying only 1 succeeds because of the discount (an underpaid `playCard`
+    // command is rejected outright, so a successful play here is itself proof the reduction applied), and it
+    // still deals damage equal to Groot's growth counters (its own printed effect, unaffected by the discount).
+    const withGrowth = patchInstance(withDiscount, identityOf(withDiscount), { counters: { growth: 2 } });
+    const played = settle(
+      runWave3(withGrowth, play(P1, iAmGroot, payWith(withGrowth, P1, 1, [iAmGroot]))),
+      firstLegal,
+      undefined,
+      WAVE3_DEPS,
+    );
+    expect(inst(played, villain).damage).toBe(before + 2);
+  });
+
+  it("Deft Focus: does not discount a non-superpower card (16024.deft-focus-action)", () => {
+    const hero = runWave3(grootVsRhino(), toHero());
+    // Fertile Ground (16007, printed cost 1, LOCATION trait — not SUPERPOWER).
+    const given = moveToHand(hero, P1, "16024", "16007");
+    const [deftFocus, fertileGround] = given.ids as [InstanceId, InstanceId];
+    const withDeftFocus = settle(
+      runWave3(given.state, play(P1, deftFocus, payWith(given.state, P1, 1, [deftFocus, fertileGround]))),
+      firstLegal,
+      undefined,
+      WAVE3_DEPS,
+    );
+    const withDiscount = runWave3(withDeftFocus, use(P1, deftFocus, "16024.deft-focus-action"));
+    // Fertile Ground's printed cost is 1; the discount doesn't apply to it, so paying 0 is rejected outright.
+    expect(() =>
+      runWave3(withDiscount, play(P1, fertileGround, payWith(withDiscount, P1, 0, [fertileGround]))),
+    ).toThrow();
+  });
+
+  it("Deft Focus: the discount expires unused at the end of the turn (16024.deft-focus-action)", () => {
+    const hero = runWave3(grootVsRhino(), toHero());
+    const given = moveToHand(hero, P1, "16024", "16004");
+    const [deftFocus, iAmGroot] = given.ids as [InstanceId, InstanceId];
+    const withDeftFocus = settle(
+      runWave3(given.state, play(P1, deftFocus, payWith(given.state, P1, 1, [deftFocus, iAmGroot]))),
+      firstLegal,
+      undefined,
+      WAVE3_DEPS,
+    );
+    const withDiscount = runWave3(withDeftFocus, use(P1, deftFocus, "16024.deft-focus-action"));
+    const afterTurn = settle(runWave3(withDiscount, endTurn()), firstLegal, undefined, WAVE3_DEPS);
+    const backToHero = runWave3(afterTurn, toHero());
+    // Paying only 1 for "I. AM. GROOT!" (printed cost 2) once the turn has ended is rejected: the discount didn't
+    // carry over.
+    expect(() => runWave3(backToHero, play(P1, iAmGroot, payWith(backToHero, P1, 1, [iAmGroot])))).toThrow();
   });
 });

@@ -135,7 +135,9 @@ export function candidatesFor(
       // "First Player Interrupt/Response": the first player is the one offered it and resolving it (§3.13).
       if (trigger.firstPlayerOnly === true && controllerId !== null && controllerId !== state.firstPlayerId) continue;
       if (!formSatisfied(state, controllerId, trigger.form)) continue;
-      if (limitReached(state, id, ref.id, definition, event)) continue;
+      const limitPlayer =
+        controllerId ?? (trigger.firstPlayerOnly === true ? state.firstPlayerId : actingPlayerOf(event, trigger.on));
+      if (limitReached(state, id, ref.id, definition, event, limitPlayer)) continue;
       if (!matchesPattern(state, trigger.on, event, id, deps)) continue;
       // RRG "Cost": an ability whose cost can't be paid can't be triggered.
       if (
@@ -188,7 +190,7 @@ function spentCardCandidates(
         typeof trigger.on.on === "string" ? [trigger.on.on] : trigger.on.on;
       if (!kinds.includes("resourcesSpent")) continue;
       if (!formSatisfied(state, controllerId, trigger.form)) continue;
-      if (limitReached(state, id, ref.id, definition, event)) continue;
+      if (limitReached(state, id, ref.id, definition, event, controllerId)) continue;
       if (!matchesPattern(state, trigger.on, event, id, deps, controllerId)) continue;
       if (definition.cost && isPriceFault(planCost(state, deps, id, controllerId, definition.cost, {}, new Set())))
         continue;
