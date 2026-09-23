@@ -347,11 +347,11 @@ standard, solo, since `stld` carries no scenario of its own). Three genuine prim
 for Star-Lord (`STLD_STARTER_DECKS` is empty, unlike `gmw`'s two box heroes), so his own tests build a legal
 Leadership deck directly from his own pack (`stld/testing.ts`'s `STAR_LORD_LEADERSHIP`).
 
-**`gam` is being scripted concurrently by its own session** (`wave3/gam/`), pushing to this same branch — neither
-this `gmw` session nor the `stld` one touches that folder. `drax`/`vnm`/`ron`: not started. All five packs' data
-is emitted and their own engine primitives have landed (`drax`'s Moondragon, §3.23, is the one open exception —
-RRG/FAQ are silent on whether "that minion attacks another enemy" is an activation; docs/phase7-wave3.md §4 Q12
-has the proposed reading, still unconfirmed).
+**`gam` and `drax` were each scripted concurrently by their own sessions** (`wave3/gam/`, `wave3/drax/`), pushing to
+this same branch — neither this `gmw` session nor the `stld` one touches those folders. `vnm`/`ron`: not started.
+All five packs' data is emitted and their own engine primitives have landed (`drax`'s Moondragon, §3.23, is the one
+open exception — RRG/FAQ are silent on whether "that minion attacks another enemy" is an activation; docs/phase7-
+wave3.md §4 Q12 has the proposed reading, still unconfirmed).
 
 ### `gam` (Gamora): fully scripted
 
@@ -375,6 +375,50 @@ Training, 18032 Enhanced Reflexes alias from `reprints.ts`); `gamora-kit.test.ts
 in each test's own title; `e2e.test.ts` plays Gamora's own hand-built stand-in deck (`support.ts` — she has no real
 precon yet, docs/phase7-wave3.md §0/§4) against Rhino to a real outcome. `support.ts`'s own docblock explains why
 the deck is hand-built rather than a `StarterDeck` and that it makes no legality claim.
+
+### `drax` (Drax): scripted, two genuine primitive gaps
+
+`MC_REFS_PACKS=drax pnpm refs` resolves 32/35 — three `KNOWN_SKIPPED` entries. `drax-kit.ts` (identity + 19002–
+19018, minus the two reprints 19014 Counter-Punch/19019 Indomitable aliased by `../reprints.ts`),
+`drax-obligation-nemesis.ts` (Memories of Another Life 19025, the nemesis set Cull the Weak/Yotat the Destroyer/
+Challenge Accepted/"I Will Destroy You!" ×2, plus Gamora the ally 19020 — a `basic`-aspect filler bundled in this
+pack, scripted here since it has no other natural home) and `drax-pack-cards.ts` (the multi-aspect fillers "Bring
+It!" 19030, "Think Fast!" 19031, Regroup 19032 — its `-forced-interrupt` only, see the gap below; Enhanced Physique
+19033's resource ability is a fourth auto-aliased reprint) between them cover every other ref;
+`drax-kit.test.ts` (19 tests), `drax-obligation-nemesis.test.ts` (9 tests) and `drax-pack-cards.test.ts` (3 tests)
+drive every registered ref through its own real trigger window, named by id in each test's own title; `e2e.test.ts`
+plays Drax's own hand-built stand-in deck (`support.ts` — no real precon yet, docs/phase7-wave3.md §0/§2.1) against
+Rhino to a real outcome. Two genuine gaps, both flagged for `game-rules-architect` rather than approximated:
+
+- **`19012.martyr-response`** ("Response: After Martyr takes consequential damage from performing an attack, if
+  that attack defeated an enemy, give her a tough status card.") — the trigger point has to be the consequential
+  damage itself (RRG 1.8 "Consequential Damage", p. 13, tier 5, resolving _after_ the attack and its own responses;
+  giving tough any earlier would let the fresh tough card wrongly absorb Martyr's own consequential damage). The
+  engine's consequential-damage `dealDamage` event (`pushConsequentialDamage`, `packages/engine/src/actions.ts`)
+  carries no `parentFrameId` back to the attack that caused it — it's pushed _before_ the attack event exists (so
+  it resolves _after_, LIFO) — so there is no way to read "did the attack I just took consequential damage from
+  defeat an enemy" from within it.
+- **`19032.regroup-interrupt`** ("Interrupt: When an ally is defeated by an enemy attack, return it to its owner's
+  hand instead of discarding it.") — needs a defeat-destination redirect to _hand_, conditioned on the defeat
+  coming from an enemy's attack. The one precedent, `RuleSpec defeatedIntoEncounterDeck` (Time Portal, `wave2/
+toafk/kang-encounter-set.ts` 11033), is narrowly built for a side scheme going to the encounter deck,
+  unconditionally — no "to hand" destination, no "only if defeated by an attack" condition.
+
+`19013.moondragon-action` stays skipped too, per docs/phase7-wave3.md §3.23/§4 Q12 — not this pack's gap to
+resolve.
+
+**DSL/engine fixes made along the way, both minimal and generic:**
+
+- `dsl/validate.ts`'s bind-tracking `bindsOf` had no case for `addCounters`, so `<bind>.amount` (documented on the
+  builder itself, for exactly this card's "If you cannot, draw 1 card") failed validation as "read before it is
+  bound." Added the missing case.
+- `windowEventCost` (`packages/engine/src/resolve/window.ts`, pricing a card played only at its own trigger window
+  — Crosscounter, Knife Leap: no standalone action, so never played via a plain `playCard`) read only the older
+  `costReductionFor` "reduce the next card" mechanism, never the `CostModifierSpec` constant-rule system every
+  _normally_-played card already gets (`playCostModifier`) — so Knife Leap's "reduce the cost to play this card by
+  1 for each vengeance counter on Drax" (the Hercules/Winter Soldier shape, `activeIn: "hand"`) silently never
+  applied at that prompt, even though the same reduction was already honored once payment committed. Own test,
+  `packages/engine/src/window-event-cost.test.ts`.
 
 **Wave 3's client wiring is out of scope for every pack in this pass** (per the brief: "the whole wave gets wired
 into the client once, at the end") — nothing here touches `packages/client` or `playable/`.
