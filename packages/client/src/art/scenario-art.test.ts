@@ -42,6 +42,15 @@ describe("parseArtCatalog", () => {
     expect(catalog.scenarios.has("rhino")).toBe(false);
   });
 
+  test("a `_`-prefixed scenario folder is a holding area: neither read nor reported", () => {
+    const held = parseArtCatalog({
+      "art/scenarios/_pending/thanos.jpg": "/thanos",
+      "art/scenarios/klaw/villain.jpg": "/k",
+    });
+    expect(held.scenarios.has("_pending")).toBe(false);
+    expect(held.unrecognized).toEqual([]);
+  });
+
   test("pack covers land in the packs map, variants included, sorted the same way scenario art is", () => {
     expect(catalog.packs.get("core")!.cover.map((p) => p.url)).toEqual(["/core-cover-2.png", "/core-cover.jpg"]);
     expect(catalog.packs.has("twc")).toBe(false); // its only file was a typo, unrecognized rather than misfiled
