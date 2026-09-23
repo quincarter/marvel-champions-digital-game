@@ -1,4 +1,5 @@
 import {
+  action,
   addCounters,
   after,
   anAttackableEnemy,
@@ -15,8 +16,11 @@ import {
   countersOn,
   damageThisCardCost,
   defineAbilities,
+  discardThis,
   draw,
   enemyAttack,
+  enemyCanAttackAnother,
+  enemyToAttack,
   encounterCards,
   eventAmount,
   eventDealt,
@@ -72,8 +76,12 @@ import {
  * "attack", defeated: true })` reads it directly. The response stays on the consequential damage itself (RRG 1.8
  * "Consequential Damage", p. 13), so the fresh tough status card arrives after that damage and cannot absorb it.
  *
- * **`19013.moondragon-action`** ("That minion attacks another enemy of your choice") stays `KNOWN_SKIPPED`, per
- * docs/phase7-wave3.md §3.23/§4 Q12 — the primitive is intentionally left unbuilt this wave.
+ * **`19013.moondragon-action`** ("That minion attacks another enemy of your choice") — docs/phase7-wave3.md §3.23,
+ * with §4 Q12 decided by the user (2026-09-23): an attack, not an activation (`enemyAttacksEnemy`). No boost card, no
+ * defense, no "when this minion attacks" abilities; the minion's ATK is attack damage, so the target's tough and
+ * retaliate apply and the minion's overkill spills a defeated minion's excess onto the villain (RRG 1.8 "Overkill",
+ * p. 31). Guard does not stop it (RRG 1.8 "Guard", p. 21: a player's attacks only). The action needs a minion with
+ * another enemy it may attack, else it has no valid target (RRG 1.8 "Target", pp. 42–43) and cannot be initiated.
  */
 export const DRAX_KIT = defineAbilities({
   // Drax — Drax gets +1 ATK for each vengeance counter on him.
@@ -179,6 +187,14 @@ export const DRAX_KIT = defineAbilities({
   "19012.martyr-response": response(
     after.consequentialDamage("self", { from: "attack", defeated: true }),
     giveTough(self),
+  ),
+
+  // Moondragon — Action: Exhaust and discard Moondragon → choose a minion. That minion attacks another enemy of your
+  // choice. (Module docblock; docs/phase7-wave3.md §3.23.) The `while` keeps the cost from being paid with no minion
+  // that could attack anything.
+  "19013.moondragon-action": action(
+    { cost: [exhaustThis, discardThis], while: enemyCanAttackAnother(query("minion")) },
+    ...enemyToAttack(query("minion")),
   ),
 
   // Deflection — Hero Interrupt: When an identity would take any amount of damage from an attack, prevent up to 5

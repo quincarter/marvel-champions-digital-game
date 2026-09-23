@@ -206,6 +206,7 @@ const EXCLUSION_WORDING: Record<ExclusionCode, string> = {
   printedHpTooHigh: "printed HP is too high",
   printedCostTooHigh: "printed cost is too high",
   cannotBeAttacked: "can't be attacked right now",
+  nothingToAttack: "has no other enemy it can attack",
   alreadyChosen: "already chosen for this cost",
   notInSlot: "not one of the cards already picked",
   wrongSignatureSideScheme: "not this villain's signature side scheme",

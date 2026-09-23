@@ -121,6 +121,21 @@ export type TriggerEventBody =
       readonly playerId: PlayerId;
     }
   /**
+   * An enemy attacks another enemy ("That minion attacks another enemy of your choice", Moondragon; `EffectSpec
+   * enemyAttacksEnemy`, docs/phase7-wave3.md §3.23). An attack but not an activation (§4 Q12, the user's decision,
+   * 2026-09-23), so it is deliberately not an `enemyAttack`: no boost card, no defense, and no "when this enemy
+   * attacks/activates" ability hears it. Its interrupt window comes before the damage; its apply step deals the
+   * attacker's ATK to the target as attack damage and names the target in a `characterAttacked` event (retaliate).
+   * No player is a subject: nobody is attacked, and the player whose ability caused it is not attacking.
+   */
+  | {
+      readonly kind: "enemyAttacksEnemy";
+      readonly attackerInstanceId: InstanceId;
+      readonly targetInstanceId: InstanceId;
+      /** The card whose ability made the attack (Moondragon), for the log. */
+      readonly sourceInstanceId: InstanceId | null;
+    }
+  /**
    * "After [character] is attacked", named after the attack's damage resolves so
    * the target is the character that was actually hit (the defender, if one was
    * declared). Retaliate X hangs off this; so does any card ability worded the
@@ -417,6 +432,7 @@ export function isAnnouncement(event: TriggerEvent): boolean {
     case "thwart":
     case "enemyAttack":
     case "enemyScheme":
+    case "enemyAttacksEnemy":
     // RRG 1.8 "Defend, Defense" (p. 15) names abilities that trigger "when your hero defends against an attack"
     // (Expert Defense, Desperate Defense), and "Interrupt" (p. 25) resolves them as the triggering condition
     // initiates. The defender is recorded before this event is pushed, so the interrupt window sees it.
@@ -502,6 +518,8 @@ export function eventSubjects(event: TriggerEvent): EventSubjects {
       return of([event.enemyInstanceId], [], [event.playerId]);
     case "characterAttacked":
       return of([event.attackerInstanceId], [event.targetInstanceId], [event.playerId]);
+    case "enemyAttacksEnemy":
+      return of([event.attackerInstanceId], [event.targetInstanceId], []);
     case "defended":
       return of([event.enemyInstanceId], [event.defenderInstanceId], [event.playerId]);
     case "cardEntersPlay":

@@ -237,7 +237,14 @@ export function currentActivationFrameId(stack: readonly StackFrame[]): FrameId 
   for (const frame of stack) {
     if (frame.kind !== "event") continue;
     const kind = frame.event.kind;
-    if (kind === "attack" || kind === "enemyAttack" || kind === "enemyScheme" || kind === "thwart")
+    // `enemyAttacksEnemy` is an attack, so "this attack" names it, though not an activation (docs/phase7-wave3.md §3.23).
+    if (
+      kind === "attack" ||
+      kind === "enemyAttack" ||
+      kind === "enemyScheme" ||
+      kind === "thwart" ||
+      kind === "enemyAttacksEnemy"
+    )
       return frame.frameId;
   }
   return null;

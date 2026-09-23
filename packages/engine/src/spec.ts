@@ -166,6 +166,14 @@ export interface TargetQuery {
   readonly maxPrintedCost?: number | ValueSpec;
   /** Only enemies this character is allowed to attack right now (RRG "Guard"). */
   readonly attackableBy?: TargetRef;
+  /**
+   * The mirror of `attackableBy`: only characters that could attack, right now, at least one *other* card in play this
+   * query matches (`canAttack`, so a `cannotAttack` rule counts and guard does not bind an enemy). "Choose a minion.
+   * That minion attacks another enemy of your choice" (Moondragon, `drax` 19013) is `{ canAttackOneOf: { categories:
+   * ["enemy"] } }` on the minion choice: a minion with no other enemy to attack is not a valid target, because nothing
+   * in the ability could affect it (RRG 1.8 "Target", pp. 42–43; docs/phase7-wave3.md §3.23).
+   */
+  readonly canAttackOneOf?: TargetQuery;
   /** Excludes cards already bound to these slots: "remove 2 threat from a *different* scheme". */
   readonly excludeSlots?: readonly string[];
   /**
@@ -756,6 +764,34 @@ export type EffectSpec =
        */
       readonly keywords?: readonly AttackKeyword[];
       readonly moveDamageFrom?: TargetRef;
+      readonly bind?: string;
+    }
+  /**
+   * "That minion attacks another enemy of your choice" (Moondragon, `drax` 19013): an enemy attacks another enemy.
+   * docs/phase7-wave3.md §3.23, on §4 Q12 as the user decided it (2026-09-23; no FFG ruling exists): it is **an
+   * attack, not an activation**, although RRG 1.8 "Activation" (p. 6) calls an attack a card ability causes an
+   * activation. So:
+   *
+   * - no boost card (villainous or not), and nothing keyed on `enemyAttack` ("when this minion attacks/activates")
+   *   fires: this resolves as its own `enemyAttacksEnemy` event, never as an `enemyAttack`;
+   * - nobody defends: the target is an enemy, with no controller to defend it or assign its damage;
+   * - the attacker's ATK is dealt to the target as attack damage (`dealDamage.fromAttack`) with the attacker's attack
+   *   keywords, so the target's tough status, damage reductions and retaliate apply as to any attack, and a
+   *   `characterAttacked` event names the target;
+   * - overkill follows RRG 1.8 "Overkill" (p. 31) as written, whoever attacks: a minion the attack defeats spills its
+   *   excess to the (active) villain; a villain target spills nowhere;
+   * - guard does not restrict it: guard binds the engaged *player's* attacks (RRG 1.8 "Guard", p. 21), and an enemy's
+   *   attack is nobody's (`canAttack`); an `attacker`- or `target`-scoped `cannotAttack` rule still does;
+   * - a stunned attacker removes its stunned status card instead of attacking (RRG 1.8 "Stun", p. 41: "When this
+   *   character would attack"), since this is an attack;
+   * - a "—" ATK attacker does not attack, as `attack` treats one (RRG 1.8 "Dash (Value)", p. 15).
+   *
+   * The first card each ref names is used. `bind`: `<bind>.made`, `.damage`, `.damaged`, `.defeated`, as `attack`.
+   */
+  | {
+      readonly kind: "enemyAttacksEnemy";
+      readonly attacker: TargetRef;
+      readonly target: TargetRef;
       readonly bind?: string;
     }
   /**

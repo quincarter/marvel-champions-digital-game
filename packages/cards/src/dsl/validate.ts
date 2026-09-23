@@ -318,6 +318,7 @@ function bindsOf(effect: EffectSpec, scope: Scope): void {
     // each flagged this as a gap for `ability-scripting-engineer` before their cards could be scripted.
     case "cancelBoostIcons":
     case "cancelBoostAbility":
+    case "enemyAttacksEnemy":
     case "dealIndirectDamage":
     case "moveThreat":
     case "divide":

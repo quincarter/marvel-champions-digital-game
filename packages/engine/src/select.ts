@@ -282,6 +282,8 @@ export type QueryExclusion =
   | "printedHpTooHigh"
   | "printedCostTooHigh"
   | "cannotBeAttacked"
+  /** `canAttackOneOf`: there is no other card in play the query matches that this character could attack. */
+  | "nothingToAttack"
   | "alreadyChosen"
   | "notInSlot"
   | "wrongSignatureSideScheme"
@@ -423,6 +425,14 @@ export function explainQuery(
   if (query.attackableBy) {
     const [attacker] = resolveRef(state, query.attackableBy, context);
     if (!attacker || !canAttack(state, attacker, id, context.deps)) return "cannotBeAttacked";
+  }
+  if (query.canAttackOneOf) {
+    const among = query.canAttackOneOf;
+    const any = cardsInPlay(state).some(
+      (other) =>
+        other !== id && matchesQuery(state, other, among, context) && canAttack(state, id, other, context.deps),
+    );
+    if (!any) return "nothingToAttack";
   }
   if (query.excludeSlots?.some((slot) => (context.bindings[slot] ?? []).includes(id))) return "alreadyChosen";
   // "each *other* environment card in play": everything this ref names is out.

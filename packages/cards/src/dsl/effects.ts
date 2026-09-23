@@ -342,6 +342,42 @@ export const enemyScheme = (
   ...(opts.schBonus !== undefined ? { schBonus: amount(opts.schBonus) } : {}),
 });
 /**
+ * "That minion attacks another enemy" (Moondragon, `drax` 19013): `attacker` attacks `target`, an enemy attacking an
+ * enemy. An attack, not an activation (docs/phase7-wave3.md §3.23, §4 Q12): no boost card, no defense, and "when this
+ * enemy attacks" abilities stay silent; the target's tough, retaliate and the attacker's overkill apply. Pair with
+ * `enemyToAttack` for the two choices. `bind`: `<bind>.made`, `.damage`, `.defeated`.
+ */
+export const enemyAttacksEnemy = (
+  attacker: TargetRef,
+  target: TargetRef,
+  opts: { readonly bind?: string } = {},
+): EffectSpec => ({ kind: "enemyAttacksEnemy", attacker, target, ...withBind(opts.bind) });
+/**
+ * "Choose a minion. That minion attacks another enemy of your choice." — both choices, then the attack. The first
+ * choice only offers a card with another enemy it could attack (`canAttackOneOf`), so an ability with none has no
+ * valid target (RRG 1.8 "Target", pp. 42–43); pair the action with `while: enemyCanAttackAnother(...)` so it cannot be
+ * initiated (and its cost paid) for nothing. `attackers` is the printed "a minion"; the target is any other enemy the
+ * chosen one may attack.
+ */
+export const enemyToAttack = (
+  attackers: TargetQuery,
+  opts: { readonly attackerSlot?: string; readonly targetSlot?: string; readonly bind?: string } = {},
+): EffectSpec[] => {
+  const attackerSlot = opts.attackerSlot ?? "attacker";
+  const targetSlot = opts.targetSlot ?? "attacked";
+  const who: TargetRef = { kind: "slot", slot: attackerSlot };
+  return [
+    chooseTarget(attackerSlot, { ...attackers, canAttackOneOf: { categories: ["enemy"] } }),
+    chooseTarget(targetSlot, { categories: ["enemy"], attackableBy: who, excluding: who }),
+    enemyAttacksEnemy(who, { kind: "slot", slot: targetSlot }, opts.bind ? { bind: opts.bind } : {}),
+  ];
+};
+/** The `while` for `enemyToAttack`: some card `attackers` matches has another enemy it could attack. */
+export const enemyCanAttackAnother = (attackers: TargetQuery): Predicate => ({
+  kind: "exists",
+  query: { ...attackers, canAttackOneOf: { categories: ["enemy"] } },
+});
+/**
  * `extraBoostCards` accepts a live `Amount`, not just a literal number — "give him an additional boost card for
  * each side scheme in play" (Master Strategist, `trors`, docs/phase7-wave2.md §3.11) needs `countOf(query
  * ("sideScheme"))`, and the engine's own `EffectSpec` (`packages/engine/src/spec.ts`) already types the field as

@@ -1,5 +1,6 @@
 import { cardId, type CardId } from "@mc/content";
-import type { GameSetupConfig } from "@mc/engine";
+import type { GameSetupConfig, GameState, InstanceId, PlayerId } from "@mc/engine";
+import { P1 } from "../../testing/harness.js";
 import { wave3Scenario, type Wave3ScenarioOptions } from "../setup.js";
 
 /**
@@ -64,4 +65,39 @@ export function draxScenario(
   const { extraPlayers, ...rest } = options;
   const config = wave3Scenario(scenarioId, { ...rest, players: [DRAX_SEAT, ...(extraPlayers ?? [])] });
   return { ...config, requireLegalDecks: false };
+}
+
+/**
+ * Test surgery: a minion put straight into play, engaged with `player`, under the instance id `slot` (no reveal, no
+ * When Revealed, no toughness). The same instance shape `../vnm/venom-kit.test.ts`'s `engageMinion` builds;
+ * `home: "playArea"` matters, since the defeat sweep scans the player's play area. Moondragon's tests (19013) need
+ * several minions of known stats on the table at once.
+ */
+export function engageMinion(state: GameState, code: string, slot: string, player: PlayerId = P1): GameState {
+  const id = slot as InstanceId;
+  const instance = {
+    instanceId: id,
+    cardId: code,
+    ownerId: null,
+    controllerId: null,
+    home: { kind: "playArea", playerId: player },
+    faceup: true,
+    exhausted: false,
+    damage: 0,
+    threat: 0,
+    statuses: { stunned: 0, confused: 0, tough: 0 },
+    counters: {},
+    attachedTo: null,
+    attachments: [],
+    boostCards: [],
+    tucked: [],
+    facedownAs: null,
+    engagedWith: player,
+    flipped: false,
+  } as never;
+  return {
+    ...state,
+    players: state.players.map((p) => (p.playerId === player ? { ...p, playArea: [...p.playArea, id] } : p)),
+    instances: { ...state.instances, [id]: instance },
+  };
 }

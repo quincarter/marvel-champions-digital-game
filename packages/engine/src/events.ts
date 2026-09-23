@@ -216,6 +216,18 @@ export type GameEvent =
       readonly damageDealt: number;
     }
   /**
+   * An enemy attacked another enemy (`EffectSpec enemyAttacksEnemy`, docs/phase7-wave3.md §3.23): not an activation, so
+   * no boost and no defense, and `damageDealt` is the attacker's ATK. `skipped` says why nothing was dealt: the
+   * attacker or target left play before the attack resolved, a rule forbids the attack now, or the ATK is "—".
+   */
+  | {
+      readonly type: "enemyAttackedEnemy";
+      readonly attackerInstanceId: InstanceId;
+      readonly targetInstanceId: InstanceId;
+      readonly damageDealt: number;
+      readonly skipped?: "leftPlay" | "cannotAttack" | "dashedStat";
+    }
+  /**
    * The scheme half of `attackResolved`: how an activation's threat total was arrived at, each term separately, so a
    * client can show "SCH 1 + 2 boost" rather than one number (RRG 1.8 "Scheme (Enemy Activation)", p. 39, and "Boost",
    * p. 11). `baseSch` already includes an `schBonus` on this activation; `threatBonus` is a change to the *threat*

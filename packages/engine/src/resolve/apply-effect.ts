@@ -281,6 +281,36 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       );
       return;
     }
+    case "enemyAttacksEnemy": {
+      // docs/phase7-wave3.md §3.23 / §4 Q12: an attack, not an activation. The checks that decide whether the attack
+      // happens at all are here, the damage itself in the event's apply step (`resolve/event.ts`).
+      const inPlay = cardsInPlay(ctx.state);
+      const [attacker] = targets(effect.attacker).filter((id) => inPlay.includes(id));
+      const [target] = targets(effect.target).filter((id) => id !== attacker && inPlay.includes(id));
+      if (!attacker || !target) return;
+      if (!categoriesOf(ctx.state, attacker).includes("enemy") || !categoriesOf(ctx.state, target).includes("enemy"))
+        return;
+      // RRG 1.8 "Stun" (p. 41): "When this character would attack, remove each stunned status card from it instead."
+      // This is an attack, so a stunned attacker spends its stun, even though it is not an activation.
+      if (statusActive(ctx.state, attacker, "stunned", ctx.deps)) {
+        updateInstance(ctx, attacker, (i) => ({ ...i, statuses: { ...i.statuses, stunned: 0 } }));
+        emit(ctx, { type: "statusRemoved", instanceId: attacker, status: "stunned", reason: "cancelledAttack" });
+        return;
+      }
+      pushEvents(
+        ctx,
+        [
+          {
+            kind: "enemyAttacksEnemy",
+            attackerInstanceId: attacker,
+            targetInstanceId: target,
+            sourceInstanceId: frame.selfInstanceId,
+          },
+        ],
+        reportTo(effect.bind),
+      );
+      return;
+    }
     case "thwart": {
       const controller = frame.controllerId;
       const [thwarter] = targets(effect.thwarter ?? { kind: "identityOf", player: { kind: "controller" } });

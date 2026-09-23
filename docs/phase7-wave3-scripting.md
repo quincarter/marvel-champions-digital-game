@@ -2,7 +2,7 @@
 
 This is the brief for scripting wave 3 (cycle 2, `ability-scripting-engineer`, PLAN.md Phase 7, `docs/phase7-
 wave3.md`). Read `docs/phase7-wave3.md` first — the shared spec for schema decisions (§1), per-pack setup needs
-(§2) and engine primitives (§3, all landed for `gmw`/`stld`/`gam`/`vnm` except Moondragon, §3.23, `drax`-only).
+(§2) and engine primitives (§3, all landed, the last being Moondragon's §3.23 on 2026-09-23).
 This document is the narrower "how to script a pack" companion, directly modeled on `docs/phase7-wave2-scripting.md`
 (wave 2's own version). Read `docs/card-scripting-process.md` too — it says where the time actually goes and names
 the standing traps (`stackSetAsideBehindBoost`, the two-wave-siblings trap this file's own §3 hit first).
@@ -383,7 +383,7 @@ forcedInterrupt(
 **The last seven wave 3 gaps (`game-rules-architect`, third primitives pass, 2026-09-23).** docs/phase7-wave3.md
 §3.39–§3.45 has the rules decision, the citation and the engine test for each one;
 `packages/cards/src/dsl/wave3-primitives-2.test.ts` validates every composition below. Drop each ref from
-`KNOWN_SKIPPED` when you script it. `19013.moondragon-action` stays skipped (§3.23, §4 Q12).
+`KNOWN_SKIPPED` when you script it. `19013.moondragon-action` was scripted with §3.23 (§4 Q12, decided 2026-09-23).
 
 | Ref                               | Closed by                                                          | Builder(s)                                                       |
 | --------------------------------- | ------------------------------------------------------------------ | ---------------------------------------------------------------- |
@@ -665,8 +665,8 @@ Leadership deck directly from his own pack (`stld/testing.ts`'s `STAR_LORD_LEADE
 **`gam`, `drax` and `vnm` were each scripted concurrently by their own sessions** (`wave3/gam/`, `wave3/drax/`,
 `wave3/vnm/`), pushing to this same branch — neither this `gmw` session nor the `stld` one touches those folders.
 `ron`: not started. All five packs' data is emitted and their own engine primitives have landed (`drax`'s
-Moondragon, §3.23, is the one open exception — RRG/FAQ are silent on whether "that minion attacks another enemy" is
-an activation; docs/phase7-wave3.md §4 Q12 has the proposed reading, still unconfirmed).
+Moondragon, §3.23, was the last: RRG/FAQ are silent on whether "that minion attacks another enemy" is an activation,
+and the user decided docs/phase7-wave3.md §4 Q12 on 2026-09-23 — an attack, not an activation).
 
 ### `gam` (Gamora): fully scripted
 
@@ -719,8 +719,8 @@ Rhino to a real outcome. Two genuine gaps, both flagged for `game-rules-architec
 toafk/kang-encounter-set.ts` 11033), is narrowly built for a side scheme going to the encounter deck,
   unconditionally — no "to hand" destination, no "only if defeated by an attack" condition.
 
-`19013.moondragon-action` stays skipped too, per docs/phase7-wave3.md §3.23/§4 Q12 — not this pack's gap to
-resolve.
+`19013.moondragon-action` was scripted on 2026-09-23 by `game-rules-architect` with the primitive, per
+docs/phase7-wave3.md §3.23/§4 Q12 (`enemyToAttack`, `enemyAttacksEnemy`).
 
 **DSL/engine fixes made along the way, both minimal and generic:**
 

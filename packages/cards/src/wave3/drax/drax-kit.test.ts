@@ -1,4 +1,10 @@
-import { activeVillain, characterProfile as characterProfileOf, type GameState, type InstanceId } from "@mc/engine";
+import {
+  activeVillain,
+  applyCommand,
+  characterProfile as characterProfileOf,
+  type GameState,
+  type InstanceId,
+} from "@mc/engine";
 import { describe, expect, it } from "vitest";
 import {
   answer,
@@ -21,7 +27,7 @@ import {
 import { withForm } from "../../testing/staging.js";
 import { WAVE3_DEPS } from "../index.js";
 import { playFromHand, startWave3Game } from "../testing.js";
-import { draxScenario } from "./support.js";
+import { draxScenario, engageMinion } from "./support.js";
 
 /** Real wave 3 content: Drax (a hand-built stand-in deck, `support.ts`) against Rhino (a Core scenario, seated
  * with wave 3 content — `wave3Scenario`'s fallback), standard, solo. Drax starts in alter-ego. */
@@ -359,6 +365,74 @@ describe("Drax's hero kit (19002–19018)", () => {
       // The pre-existing tough absorbed her consequential damage (RRG 1.8 "Tough", p. 44), so she took none —
       // and this response never fired, so no *second* tough card replaced the one already spent.
       expect(inst(attacked, martyr).statuses.tough).toBe(0);
+    });
+  });
+
+  describe("Moondragon — Action: exhaust and discard her → choose a minion; that minion attacks another enemy of your choice (19013.moondragon-action, docs/phase7-wave3.md §3.23, §4 Q12)", () => {
+    const SHOCKER = "01103"; // ATK 2, HP 3
+    const WHIPLASH = "01172"; // ATK 3, HP 4, retaliate 1
+    const HYDRA_MERCENARY = "01101"; // guard
+    const SANDMAN = "01102"; // ATK 3, HP 4
+
+    const withMoondragon = () => {
+      const hero = runWith(WAVE3_DEPS, draxVsRhino(), toHero());
+      return playFromHand(hero, "19013", 3);
+    };
+    /** Picks the attacker, then the target, by instance id; `firstLegal` for anything else. */
+    const choosing =
+      (attacker: string, target: string): Picker =>
+      (state) => {
+        const prompt = state.pendingChoice?.prompt;
+        if (prompt?.kind === "chooseTarget" && prompt.slot === "attacker") return [attacker];
+        if (prompt?.kind === "chooseTarget" && prompt.slot === "attacked") return [target];
+        return firstLegal(state);
+      };
+    const useMoondragon = (state: GameState, id: InstanceId, pick: Picker) =>
+      settle(runWith(WAVE3_DEPS, state, use(P1, id, "19013.moondragon-action")), pick, undefined, WAVE3_DEPS);
+    const encounterCardsLeft = (state: GameState) =>
+      Object.values(state.encounterDecks).reduce((sum, piles) => sum + piles.deck.length, 0);
+
+    it("the minion's ATK is dealt to the chosen enemy as an attack: no boost card, no defense, and the target's retaliate hits it", () => {
+      const { state, id } = withMoondragon();
+      const staged = engageMinion(engageMinion(state, SHOCKER, "md-shocker"), WHIPLASH, "md-whiplash");
+      const before = encounterCardsLeft(staged);
+      const after = useMoondragon(staged, id, choosing("md-shocker", "md-whiplash"));
+      expect(inst(after, "md-whiplash" as InstanceId).damage).toBe(2);
+      expect(inst(after, "md-shocker" as InstanceId).damage).toBe(1); // Whiplash's retaliate 1
+      expect(encounterCardsLeft(after)).toBe(before); // no boost card
+      expect(after.pendingChoice).toBeNull(); // nobody was asked to defend
+      expect(playerOf(after, P1).playArea).not.toContain(id); // discarded as the cost
+      expect(playerOf(after, P1).discard).toContain(id);
+    });
+
+    it("the target's tough status card absorbs the attack", () => {
+      const { state, id } = withMoondragon();
+      const staged = engageMinion(engageMinion(state, SHOCKER, "md-shocker"), SANDMAN, "md-sandman");
+      const tough = patchInstance(staged, "md-sandman" as InstanceId, {
+        statuses: { stunned: 0, confused: 0, tough: 1 },
+      });
+      const after = useMoondragon(tough, id, choosing("md-shocker", "md-sandman"));
+      expect(inst(after, "md-sandman" as InstanceId).damage).toBe(0);
+      expect(inst(after, "md-sandman" as InstanceId).statuses.tough).toBe(0);
+    });
+
+    it("guard does not stop a minion attacking the villain (RRG 1.8 'Guard', p. 21: a player's attacks only)", () => {
+      const { state, id } = withMoondragon();
+      const staged = engageMinion(state, HYDRA_MERCENARY, "md-mercenary");
+      const villain = activeVillain(staged).instanceId;
+      const before = inst(staged, villain).damage;
+      const after = useMoondragon(staged, id, choosing("md-mercenary", villain));
+      expect(inst(after, villain).damage).toBe(before + 1);
+    });
+
+    it("cannot be used with no minion in play: nothing could be chosen (RRG 1.8 'Target', pp. 42–43)", () => {
+      const { state, id } = withMoondragon();
+      const result = applyCommand(state, use(P1, id, "19013.moondragon-action"), WAVE3_DEPS);
+      expect(result.ok).toBe(false);
+      // The control: the same Moondragon is usable once a minion is in play (it has the villain to attack).
+      const withMinion = engageMinion(state, SHOCKER, "md-shocker");
+      expect(applyCommand(withMinion, use(P1, id, "19013.moondragon-action"), WAVE3_DEPS).ok).toBe(true);
+      expect(playerOf(state, P1).playArea).toContain(id);
     });
   });
 
