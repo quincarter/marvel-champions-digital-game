@@ -15,7 +15,7 @@ list to edit. Formats: `png`, `jpg`, `jpeg`, `webp`, `avif`.
 | `heroes/<identityId>-<slug>/` | `hero.<ext>`          | The hero's artwork on hero select (Take your seats), the way a villain's shows on Scenario select     |
 | `packs/<packCode>/`           | `cover.<ext>`         | OPTIONAL: a pack's shelf-header thumbnail on Scenario select and Take your seats (W2b's pack shelves) |
 | `campaigns/<campaignId>/`     | `cover.<ext>`         | NOT READ YET: the campaign's key art, for the campaign screens                                        |
-| `campaigns/<campaignId>/`     | `artboards/*`         | NOT READ YET: story panel art between a campaign's scenarios (the canvases' "Panel art" slots)        |
+| `campaigns/<campaignId>/`     | `artboards/<name>.*`  | A story panel's picture, where the story file names it (`{ kind: "artboard", name }`); else its note  |
 
 `<scenarioId>` is the content package's `Scenario.id`, so the folder name is the
 lookup: `rhino`, `klaw`, `ultron`, `risky-business`, `mutagen-formula`,
@@ -28,8 +28,10 @@ one (just the pack's name and a rule, no thumbnail).
 `music/campaigns/` uses: `trors` (The Rise of Red Skull), `gmw` (The Galaxy's Most Wanted), `mts` (The Mad
 Titan's Shadow), `sm` (Sinister Motives), `mut_gen` (Mutant Genesis), `next_evol` (NeXt Evolution), `aoa` (Age of
 Apocalypse), `aos` (Agents of S.H.I.E.L.D.) and `fne` (Fear No Evil). Civil War has no campaign mode, so no folder.
-All nine folders exist; one with just a `.gitkeep` is still waiting for its cover or panels. Nothing reads this
-folder yet and no test checks it, so a misnamed file won't fail anything until the campaign screens are built.
+All nine folders exist; one with just a `.gitkeep` is still waiting for its cover or panels. The cover is not read
+yet. An artboard shows wherever a panel in `packages/client/src/campaign/stories/<campaignId>.ts` names it
+(`mountain-facility` → `artboards/mountain-facility.webp`); until the file exists the panel keeps its "Panel art: …"
+note. `packages/client/src/art/campaign-art.test.ts` fails if an artboard file matches no name a story uses.
 
 `<identityId>` is the hero identity card's id (`01001a` Spider-Man, `51001a` Shuri's Black Panther). Only the part
 of the folder name before the first `-` is read; the rest is there so a person can tell the folders apart. Card ids

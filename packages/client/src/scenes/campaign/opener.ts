@@ -11,8 +11,10 @@
  */
 import Phaser from "phaser";
 import { issueNumberOf, issueStoryFor, type IssueStory } from "../../campaign/story.js";
+import type { Picture } from "../../art/pictures.js";
 import {
   artNote,
+  artboardPicture,
   campaignFrame,
   captionBox,
   drawPicture,
@@ -277,7 +279,10 @@ export class CampaignOpenerScene extends Phaser.Scene {
     // its speech bubble overlaps the art's own lower-right corner rather than pushing the art up into a half-height
     // strip. A "note" placeholder (no picture yet) keeps the old split: the glyph is small regardless of how much
     // room it's given, so a full-height box would just center it in a lot of empty parchment above the lines.
-    const fillsPanel = panel.art?.kind === "villain" || panel.art?.kind === "hero";
+    const fillsPanel =
+      panel.art?.kind === "villain" ||
+      panel.art?.kind === "hero" ||
+      (panel.art?.kind === "artboard" && this.#artboard(panel.art.name) !== null);
     const artBottom = fillsPanel
       ? rect.y + rect.height - 10
       : Math.max(y, rect.y + rect.height * (panel.lines.length > 0 ? 0.55 : 0.75));
@@ -331,6 +336,10 @@ export class CampaignOpenerScene extends Phaser.Scene {
     }
   }
 
+  #artboard(name: string): Picture | null {
+    return this.#record ? artboardPicture(this.#record.campaignId, name) : null;
+  }
+
   #drawArt(panel: OpenerPanelView, rect: Rect): void {
     const art = panel.art;
     if (!art) return;
@@ -340,6 +349,11 @@ export class CampaignOpenerScene extends Phaser.Scene {
     }
     const record = this.#record;
     if (!record) return;
+    if (art.kind === "artboard") {
+      const image = drawPicture(this, this.#artboard(art.name), rect, () => this.#draw(), { focusY: 0.4 });
+      if (!image) artNote(this, rect, art.text);
+      return;
+    }
     if (art.kind === "villain") {
       const nodeId = this.#nodeId();
       const scenarioId = nodeId ?? "";

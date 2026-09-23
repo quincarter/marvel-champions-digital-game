@@ -28,7 +28,15 @@ import type { CampaignRecord } from "../../engine/campaign-storage.js";
 import type { SavedGame } from "../../engine/host.js";
 import { appSession, campaignService } from "../../session.js";
 import { accent, ink, signal, surface, typeRole } from "../../tokens.js";
-import { artNote, campaignFrame, drawPicture, speechBubble, stamp, villainPicture } from "../../ui/campaign-chrome.js";
+import {
+  artNote,
+  artboardPicture,
+  campaignFrame,
+  drawPicture,
+  speechBubble,
+  stamp,
+  villainPicture,
+} from "../../ui/campaign-chrome.js";
 import { destroyChildren } from "../../ui/destroy-children.js";
 import { cssOf, textStyle } from "../../ui/theme.js";
 import { fadeScreenIn, goToScreen } from "../../ui/transitions.js";
@@ -370,6 +378,12 @@ export class CampaignAftermathScene extends Phaser.Scene {
     const art = story.aftermathArt;
     if (art?.kind === "note") {
       artNote(this, rect, art.text, true);
+      return;
+    }
+    if (art?.kind === "artboard") {
+      const campaignId = this.#record?.campaignId ?? "";
+      const image = drawPicture(this, artboardPicture(campaignId, art.name), rect, () => this.#draw(), { focusY: 0.4 });
+      if (!image) artNote(this, rect, art.text, true);
       return;
     }
     const picture = villainPicture(nodeId);

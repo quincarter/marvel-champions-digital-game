@@ -8,6 +8,7 @@
  * destroy them with the rest of its display list (`destroyChildren`).
  */
 import Phaser from "phaser";
+import { CAMPAIGN_ART, campaignArtboardFor } from "../art/campaign-art.js";
 import { HERO_ART, heroArtFor } from "../art/hero-art.js";
 import { coverFit, ensurePictureLoaded, type Picture } from "../art/pictures.js";
 import { ART_CATALOG } from "../art/scenario-art.js";
@@ -321,6 +322,11 @@ export function artNote(scene: Phaser.Scene, rect: Rect, note: string, onInk = f
 /** A villain's picture for a campaign node's scenario (`art/scenarios/<id>/villain.*`), or null. */
 export function villainPicture(scenarioId: string): Picture | null {
   return ART_CATALOG.scenarios.get(scenarioId)?.villain[0] ?? null;
+}
+
+/** A campaign story panel's picture (`art/campaigns/<campaignId>/artboards/<name>.*`), the first variant so redraws don't flicker. */
+export function artboardPicture(campaignId: string, name: string): Picture | null {
+  return campaignArtboardFor(CAMPAIGN_ART, campaignId, name, () => 0);
 }
 
 /** A hero's picture by identity card id (`art/heroes/<id>-*`), always the first variant so redraws don't flicker. */

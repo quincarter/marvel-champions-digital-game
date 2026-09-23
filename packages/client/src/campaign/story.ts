@@ -28,11 +28,16 @@ export interface StoryLine {
   readonly fallback?: string;
 }
 
-/** What a comic panel shows. A `note` is the design's "Panel art: …" placeholder, kept until the art exists. */
+/**
+ * What a comic panel shows. A `note` is the design's "Panel art: …" placeholder, kept until the art exists. An
+ * `artboard` is a picture from `art/campaigns/<campaignId>/artboards/<name>.*` (`art/campaign-art.ts`), and shows
+ * `text` as that same placeholder until the file is added.
+ */
 export type PanelArt =
   | { readonly kind: "villain" }
   | { readonly kind: "hero"; readonly identityId: string }
-  | { readonly kind: "note"; readonly text: string };
+  | { readonly kind: "note"; readonly text: string }
+  | { readonly kind: "artboard"; readonly name: string; readonly text: string };
 
 export interface StoryPanel {
   readonly art: PanelArt;

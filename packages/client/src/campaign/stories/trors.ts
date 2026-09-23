@@ -25,7 +25,7 @@ export const TRORS_STORY: CampaignStory = {
       teaser: "Knock knock. Hydra's here for the toys.",
       opener: [
         {
-          art: { kind: "note", text: "Panel art: mountain facility at night" },
+          art: { kind: "artboard", name: "mountain-facility", text: "Panel art: mountain facility at night" },
           caption:
             "The Adirondacks. 4 a.m. Under this mountain, S.H.I.E.L.D. builds weapons it swears it'll never use.",
           lines: [],
