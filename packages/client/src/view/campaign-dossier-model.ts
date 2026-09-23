@@ -149,7 +149,8 @@ const WORLD_FIELD_PRESENTATION: Readonly<
   Record<string, { readonly label: string; readonly when: string } | { readonly hidden: true }>
 > = {
   experimental: { label: "Stolen weapons", when: "Shuffled into every remaining issue." },
-  delayCounters: { label: "Delay counters", when: "Issue #5: Red Skull's scheme starts at +3 threat." },
+  // Not a number: the threat is this count on Standard and this count per player on Expert (MC10 p. 15).
+  delayCounters: { label: "Delay counters", when: "Issue #5: added to Red Skull's starting threat." },
   imprisonedAllies: { label: "Lost allies", when: "Decided in #4." },
   hydraPrison: { hidden: true },
   heroForm: { hidden: true },
