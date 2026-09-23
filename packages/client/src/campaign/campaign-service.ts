@@ -49,7 +49,7 @@ export interface CampaignSeatChoice {
 export interface StartCampaignInput {
   readonly campaignId: string;
   readonly seats: readonly CampaignSeatChoice[];
-  /** Campaign-level modes beyond `campaign` itself — in practice `{ expertCampaign: true }` or nothing. */
+  /** The Expert Campaign modifier (MC10 p. 17), stored as `modes.campaign.expertCampaign`. */
   readonly expertCampaign?: boolean;
   readonly poolVersion: string;
   readonly seed: number;
@@ -102,9 +102,13 @@ export class CampaignService {
     const content = CAMPAIGN_RECORDS[input.campaignId];
     const definition = this.#definitionOf(input.campaignId);
     if (!content || !definition) throw new Error(`campaign "${input.campaignId}" is not playable in this build`);
+    // Expert campaign is a modification of *campaign* mode (`CampaignModeRef.expertCampaign`), which is where
+    // `matchesModes` reads it — never a top-level `PlayModes` key.
     const modes: PlayModes = {
-      campaign: { campaignId: definition.campaignId },
-      ...(input.expertCampaign ? { expertCampaign: true } : {}),
+      campaign: {
+        campaignId: definition.campaignId,
+        ...(input.expertCampaign ? { expertCampaign: true as const } : {}),
+      },
     };
     const log = createCampaignLog(definition, {
       id: this.#newId(),

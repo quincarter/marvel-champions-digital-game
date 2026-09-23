@@ -128,4 +128,38 @@ describe("CampaignService", () => {
     expect(edited.seats[0]!.deck.aspects).toEqual(["justice"]);
     await expect(campaigns.setSeatDeck(edited, 1, ROSTER[1]!.deck)).rejects.toThrow(/locked/);
   });
+
+  test("an Expert Campaign run stores the modifier where the runner reads it, so expert-only instructions run", async () => {
+    const campaigns = service();
+    const record = await campaigns.start({
+      campaignId: "trors",
+      seats: ROSTER,
+      expertCampaign: true,
+      poolVersion: POOL_VERSION,
+      seed: 11,
+    });
+    expect(record.modes).toEqual({ campaign: { campaignId: record.campaignId, expertCampaign: true } });
+    const composed = await campaigns.compose(record);
+    if (composed.kind !== "done") throw new Error("issue #1 asks nothing");
+    const core = new EngineSessionCore({ storage: new MemoryGameStorage() });
+    const started = await core.start(campaigns.launchConfig(composed.record));
+    const won: GameState = {
+      ...started.snapshot.state,
+      cardPool: started.cardPool,
+      outcome: { result: "win", reason: "villainDefeated" },
+    };
+    const answers: CampaignChoiceAnswer[] = [];
+    let folded = await campaigns.foldState(composed.record, won, [], answers);
+    while (folded.kind === "pending") {
+      answers.push({ ...folded.choice, picked: folded.choice.options.slice(0, 1) });
+      folded = await campaigns.foldState(composed.record, won, [], answers);
+    }
+    // MC10 p. 5's "Expert Campaign Only: Record each identity's remaining hit points" wrote a value for each seat.
+    expect(folded.record.seats.map((seat) => seat.fields.remainingHp?.kind)).toEqual(["number", "number"]);
+  });
+
+  test("a Standard run carries no expert modifier", async () => {
+    const record = await service().start({ campaignId: "trors", seats: ROSTER, poolVersion: POOL_VERSION, seed: 11 });
+    expect(record.modes).toEqual({ campaign: { campaignId: record.campaignId } });
+  });
 });

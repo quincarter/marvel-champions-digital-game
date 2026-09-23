@@ -48,17 +48,9 @@ export function finaleViewOf(
   };
 }
 
-/**
- * `CampaignModeRef.expertCampaign` is declared at `record.modes.campaign.expertCampaign` (`@mc/content`'s
- * `PlayModes`), but `CampaignService.start` (`campaign/campaign-service.ts`, read-only for this file's owner)
- * currently spreads `{ expertCampaign: true }` onto `modes` itself rather than onto `modes.campaign` — a real bug,
- * reported rather than fixed here. TypeScript's excess-property check doesn't catch it because the value comes
- * through a spread, so it silently writes the flag to the wrong place. Reading both keeps this view correct either
- * way; drop the top-level fallback once that bug is fixed.
- */
+/** Whether the finished run was already the Expert Campaign (`CampaignModeRef.expertCampaign`). */
 function alreadyExpertOf(record: CampaignRecord): boolean {
-  const modes = record.modes as CampaignRecord["modes"] & { readonly expertCampaign?: boolean };
-  return modes.campaign?.expertCampaign === true || modes.expertCampaign === true;
+  return record.modes.campaign?.expertCampaign === true;
 }
 
 /** One hero line per seat, in seat order; a roster longer than the written lines reuses the last one (design's own rule). */
