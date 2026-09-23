@@ -1,4 +1,4 @@
-import { applyCommand, type GameState, type InstanceId } from "@mc/engine";
+import { applyCommand, cardOf, type GameState, type InstanceId } from "@mc/engine";
 import {
   endTurn,
   firstLegal,
@@ -12,6 +12,7 @@ import {
   settle,
   toHero,
   use,
+  type Picker,
 } from "../../testing/harness.js";
 import { wave2Scenario } from "../setup.js";
 import { runWave2, startWave2Game, WAVE2_DEPS } from "../testing.js";
@@ -90,6 +91,56 @@ describe("Kang / Temporal encounter set (kang-encounter-set.ts)", () => {
   // exactly one printed resource type of the matching kind (`printedResources` reads a "resource"-type card's
   // `producesIcons`, RRG 1.8 "Wild Resource" p. 48's own "printed resource" reading), and are already in the
   // `hawkeye-leadership` precon (1 copy each), so no synthetic card is needed.
+  it("Apocryphus (11040.when-revealed): When Revealed, you must discard an ally or support you control; declining isn't offered (§4 Q16)", () => {
+    let state = runWave2(kangVsHeroes(), toHero());
+    // Hawkeye (04011) is the precon's one ally; put it into play so there is something to discard.
+    const moved = moveToHand(state, P1, "04011");
+    const allyId = moved.ids[0]!;
+    state = settle(
+      runWave2(moved.state, play(P1, allyId, payWith(moved.state, P1, 2))),
+      firstLegal,
+      undefined,
+      WAVE2_DEPS,
+    );
+    // Two candidates (Hawkeye and the Team Training support, 04016), so the target choice is a real prompt.
+    const support = moveToHand(state, P1, "04016");
+    const supportId = support.ids[0]!;
+    state = settle(
+      runWave2(support.state, play(P1, supportId, payWith(support.state, P1, 2))),
+      firstLegal,
+      undefined,
+      WAVE2_DEPS,
+    );
+    const controlled = (s: GameState) =>
+      playerOf(s, P1).playArea.filter((id) => ["ally", "support"].includes(cardOf(s, id)?.type ?? "")).length;
+    const before = controlled(state);
+    expect(before).toBeGreaterThan(0);
+
+    // Relabel the encounter card P1 is dealt as Apocryphus, then answer every choice by trying to pick nothing.
+    const deckId = Object.keys(state.encounterDecks)[0]!;
+    const fillerId = state.encounterDecks[deckId]!.deck[1]!;
+    const relabeled = {
+      ...state,
+      instances: { ...state.instances, [fillerId]: { ...state.instances[fillerId]!, cardId: "11040" as never } },
+    };
+    let prompted = false;
+    const tryingToDecline: Picker = (s) => {
+      const choice = s.pendingChoice!;
+      // A When Revealed's target prompt carries no ability id, only its slot (`"target"` in the script).
+      if (choice.prompt.kind === "chooseTarget" && choice.prompt.slot === "target") {
+        prompted = true;
+        expect(choice.options).toHaveLength(2); // Hawkeye and Team Training
+        expect(choice.minSelections).toBe(1); // mandatory: no empty answer
+      }
+      return choice.minSelections === 0 ? [] : firstLegal(s);
+    };
+    const { deps, trace } = traceAbilities(WAVE2_DEPS);
+    const after = settle(runWith(deps, relabeled, endTurn()), tryingToDecline, undefined, deps);
+    expect(trace.resolved()).toContain("11040.when-revealed");
+    expect(prompted).toBe(true);
+    expect(controlled(after)).toBe(before - 1);
+  });
+
   it("Weakened (11018): Alter-Ego Action discards a [physical] resource from hand to discard this obligation", () => {
     const revealed = revealAsObligation(kangVsHeroes(), "11018");
     const obligation = instancesOf(revealed, "11018").find((id) => playerOf(revealed, P1).playArea.includes(id));
