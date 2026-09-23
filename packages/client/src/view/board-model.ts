@@ -44,6 +44,7 @@ import {
 import { artFor, type ArtSource, type CardBack, type CardFace } from "../art/art-source.js";
 import { faceVisible } from "./visibility.js";
 import { STATUS_DISABLES } from "../tokens.js";
+import { hpFraction } from "./hp-format.js";
 import type { StatusName } from "./log-lines.js";
 import { faceUpName, playerName } from "./names.js";
 
@@ -103,7 +104,8 @@ export function profileStatTiles(
       bonus: dashed || !printed ? 0 : profile[stat] - printed[stat],
     };
   });
-  if (current !== undefined && max !== undefined) tiles.push({ label: "HP", value: `${current}/${max}`, bonus: 0 });
+  if (current !== undefined && max !== undefined)
+    tiles.push({ label: "HP", value: hpFraction(current, max), bonus: 0 });
   return tiles;
 }
 

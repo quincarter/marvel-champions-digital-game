@@ -11,6 +11,7 @@ import { accent, ink, signal, status, surface, typeRole } from "../../tokens.js"
 import { cssOf, textStyle } from "../../ui/theme.js";
 import { fitText, hatchRect, label, paintPanel } from "../../ui/widgets.js";
 import type { BoardModel, EnvironmentPanel, SeatRow, SeparateDeckPile, VillainPanel } from "../../view/board-model.js";
+import { hpFraction, hpRatio } from "../../view/hp-format.js";
 import {
   CARD_ASPECT,
   PANEL_TEXT_INSETS,
@@ -246,7 +247,7 @@ function drawCompactVillain(ctx: BoardDrawContext, rect: Rect, villain: VillainP
       width: rect.width - 8,
       height: barHeight,
     };
-    const ratio = panel.hp.max > 0 ? Math.max(0, Math.min(1, panel.hp.current / panel.hp.max)) : 0;
+    const ratio = hpRatio(panel.hp.current, panel.hp.max);
     const bar = scene.add.graphics();
     bar.fillStyle(surface.parchment.hex, dim).fillRect(barRect.x, barRect.y, barRect.width, barRect.height);
     // `signal.heal` fills proportional to *remaining* HP, matching `McHpPlate`'s own meter — the same "how much is
@@ -254,7 +255,7 @@ function drawCompactVillain(ctx: BoardDrawContext, rect: Rect, villain: VillainP
     bar.fillStyle(signal.heal.hex, dim).fillRect(barRect.x, barRect.y, barRect.width * ratio, barRect.height);
     bar.lineStyle(1.5, surface.ink.hex, dim).strokeRect(barRect.x, barRect.y, barRect.width, barRect.height);
     scene.add
-      .text(barRect.x + barRect.width / 2, barRect.y - 7, `${panel.hp.current}/${panel.hp.max}`, {
+      .text(barRect.x + barRect.width / 2, barRect.y - 7, hpFraction(panel.hp.current, panel.hp.max), {
         ...textStyle(typeRole.label, surface.ink.hex, dim),
         fontSize: "9px",
       })
