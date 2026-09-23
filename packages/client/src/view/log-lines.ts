@@ -75,13 +75,26 @@ export function appendEvents(
   let beat = log.beat;
   let nextId = log.nextId;
   const lines = [...log.lines];
+  let previous: GameEvent | undefined;
 
   for (const event of events) {
     if (event.type === "roundStarted") {
       round = event.round;
       beat = 0;
     }
-    const described = describe(event, state, perspectiveId, deps);
+    // A card moving into a scenario area only reads as a *redirect* ("instead of a discard pile") when it actually
+    // was on its way to one: `leavePlay` emits `cardDiscardedFromPlay` right before the `cardMoved` it redirects
+    // (engine `effects.ts`'s own comment, "The discard is still attempted ... so it is logged as one"). A plain move
+    // into a scenario area — The Grand Collection's own Setup, Collector II/III's When Revealed — has no such event
+    // in front of it, and calling that "instead of a discard pile" is simply wrong: nothing here was ever headed to
+    // one.
+    const redirected =
+      event.type === "cardMoved" &&
+      event.to.kind === "scenarioArea" &&
+      previous?.type === "cardDiscardedFromPlay" &&
+      previous.instanceId === event.instanceId;
+    const described = describe(event, state, perspectiveId, deps, redirected);
+    previous = event;
     if (!described) continue;
     beat += 1;
     lines.push({
@@ -102,17 +115,28 @@ export function appendEvents(
   };
 }
 
-/** Exposed for tests: one event's line, or null if it isn't player-readable. */
+/**
+ * Exposed for tests: one event's line, or null if it isn't player-readable. `redirected` is the one piece of
+ * context that depends on the event before it in the same burst (`appendEvents`'s own lookback) — see that
+ * function's comment on `cardMoved`/`discardRedirected`.
+ */
 export function logLine(
   event: GameEvent,
   state: GameState,
   perspectiveId: PlayerId | null,
   deps: EngineDeps,
+  redirected = false,
 ): Beat | null {
-  return describe(event, state, perspectiveId, deps);
+  return describe(event, state, perspectiveId, deps, redirected);
 }
 
-function describe(event: GameEvent, state: GameState, viewer: PlayerId | null, deps: EngineDeps): Beat | null {
+function describe(
+  event: GameEvent,
+  state: GameState,
+  viewer: PlayerId | null,
+  deps: EngineDeps,
+  redirected = false,
+): Beat | null {
   const who = (id: PlayerId): string => seatName(state, id, viewer);
   /** "You draw" vs "Spider-Man draws": the second person takes no -s. */
   const verb = (id: PlayerId, plural: string, singular: string): string => (id === viewer ? plural : singular);
@@ -146,14 +170,18 @@ function describe(event: GameEvent, state: GameState, viewer: PlayerId | null, d
           voice: "villain",
         };
       }
-      // A card that would have gone to a discard pile went to a scenario area instead (The Collector's redirect,
-      // docs/phase7-wave3.md §3.14) — otherwise silent: the card just vanishes from play with nothing on the log
-      // explaining where it went, since it never touches a discard pile a player might think to check.
+      // A card moving into a scenario area: a card that would have gone to a discard pile went there instead (The
+      // Collector's redirect, docs/phase7-wave3.md §3.14) — otherwise silent: the card just vanishes from play with
+      // nothing on the log explaining where it went, since it never touches a discard pile a player might think to
+      // check. A plain move into the area (The Grand Collection's own Setup, Collector II/III's When Revealed) gets
+      // its own, unrelated wording: it was never headed to a discard pile, so saying "instead of" one is wrong.
       if (event.to.kind === "scenarioArea") {
-        return {
-          text: `${card(event.instanceId)} goes into ${event.to.name} instead of a discard pile.`,
-          voice: "villain",
-        };
+        return redirected
+          ? {
+              text: `${card(event.instanceId)} goes into ${event.to.name} instead of a discard pile.`,
+              voice: "villain",
+            }
+          : { text: `${card(event.instanceId)} is put into ${event.to.name}.`, voice: "villain" };
       }
       return null;
     case "turnStarted":
