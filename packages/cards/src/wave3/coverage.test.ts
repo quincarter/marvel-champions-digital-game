@@ -33,7 +33,7 @@ const reprintIdsOf = (cards: readonly AnyCard[]): ReadonlySet<string> => {
 /** One row per wave 3 pack (docs/phase7-wave3.md "Wave 3"). */
 const PACK_STATUS: Readonly<Record<string, "scripted" | "in progress" | "not started">> = {
   gmw: "in progress",
-  stld: "not started",
+  stld: "in progress",
   gam: "not started",
   drax: "not started",
   vnm: "not started",
@@ -276,7 +276,18 @@ const KNOWN_SKIPPED: Readonly<Record<string, readonly string[]>> = {
     "16185.when-revealed",
     "16185.boost",
   ],
-  stld: [],
+  stld: [
+    // Star-Lord's kit is scripted (docs/phase7-wave3-scripting.md, `wave3/stld/star-lord-kit.ts`). Three genuine
+    // primitive gaps (module docblock): 17017 (a "character has an attachment matching X" TargetQuery filter,
+    // the mirror of `host`/`hostOfSelf`), 17029 (an optional/"up to" form of `EffectSpec divide`), 17005 (a
+    // "play only if you control a named card" restriction — a `constant` ability's rules are only active while
+    // its own card is in play, so this can't be a `cannotPlay` constant on the event card itself). His
+    // obligation and nemesis set are fully scripted. Regenerated with `MC_REFS_PACKS=stld pnpm refs` — never
+    // hand-typed.
+    "17005.sliding-shot-constant",
+    "17017.target-practice-interrupt",
+    "17029.agile-flight-action",
+  ],
   gam: [],
   drax: [],
   vnm: [],

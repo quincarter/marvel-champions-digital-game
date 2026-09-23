@@ -223,6 +223,12 @@ export const handCountOf = (player: PlayerRef = you): ValueSpec => ({ kind: "han
  * "Modifiers" (p. 29) rounds fractional values up unless the text prints otherwise.
  */
 export const deckCountOf = (player: PlayerRef = you): ValueSpec => ({ kind: "deckCount", player });
+/**
+ * "For each facedown encounter card in front of you" (Star-Lord's own kit, `stld`: Gutsy Move, Sliding Shot, Jet
+ * Boots, Star-Lord's Helmet; docs/phase7-wave3.md §3.10): the count of encounter cards the interrupt-time cost
+ * `AbilityCost.dealEncounterCards` (§3.20) has dealt a player, read live wherever it's needed.
+ */
+export const dealtEncounterCount = (player: PlayerRef = you): ValueSpec => ({ kind: "dealtEncounterCount", player });
 
 /**
  * Arithmetic: "2 damage for each counter (to a maximum of 10)" → `scaled(counters, { times: 2, max: 10 })`;

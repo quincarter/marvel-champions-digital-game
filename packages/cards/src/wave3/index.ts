@@ -14,6 +14,7 @@ import { WAVE1_ABILITIES } from "../wave1/index.js";
 import { WAVE2_ABILITIES } from "../wave2/index.js";
 import { mergeRegistries } from "../dsl/index.js";
 import { GMW_ABILITIES } from "./gmw/index.js";
+import { STLD_ABILITIES } from "./stld/index.js";
 import { WAVE3_REPRINT_ABILITIES } from "./reprints.js";
 
 /**
@@ -32,6 +33,7 @@ export const WAVE3_ABILITIES: AbilityRegistry = mergeRegistries(
   EARLIER_ABILITIES,
   WAVE3_REPRINT_ABILITIES,
   GMW_ABILITIES,
+  STLD_ABILITIES,
 );
 
 /** Engine dependencies for games that use the wave 3 (cycle 2) pool. */
