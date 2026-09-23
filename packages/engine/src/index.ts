@@ -135,6 +135,7 @@ export {
   excessDamageBonus,
   mustDefendWithAlly,
   notDefeatedWithoutThreat,
+  restrictedLimitFor,
   schemeThreatDestination,
   threatCannotBeRemoved,
 } from "./rules.js";

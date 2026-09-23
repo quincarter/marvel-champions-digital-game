@@ -13,6 +13,7 @@ import { WAVE3_ABILITIES, wave3ReprintPairs } from "./index.js";
 import { GAM_ABILITIES } from "./gam/index.js";
 import { GMW_ABILITIES } from "./gmw/index.js";
 import { STLD_ABILITIES } from "./stld/index.js";
+import { VNM_ABILITIES } from "./vnm/index.js";
 import { abilityRefIds } from "../ability-refs.js";
 
 describe("wave 3 ability registry", () => {
@@ -41,7 +42,7 @@ const PACK_STATUS: Readonly<Record<string, "scripted" | "in progress" | "not sta
   stld: "scripted",
   gam: "scripted",
   drax: "not started",
-  vnm: "not started",
+  vnm: "scripted",
   ron: "not started",
 };
 
@@ -295,6 +296,8 @@ const KNOWN_SKIPPED: Readonly<Record<string, readonly string[]>> = {
   ],
   gam: [],
   drax: [],
+  // vnm: fully scripted — no genuine primitive gaps (module docblock, `wave3/vnm/venom-kit.ts`). Regenerated with
+  // `MC_REFS_PACKS=vnm pnpm refs` — never hand-typed.
   vnm: [],
   ron: [],
 };
@@ -387,6 +390,7 @@ describe("wave 3 pack ability id coverage (every registered ability id is named 
     { code: "gmw", registry: GMW_ABILITIES },
     { code: "stld", registry: STLD_ABILITIES },
     { code: "gam", registry: GAM_ABILITIES },
+    { code: "vnm", registry: VNM_ABILITIES },
   ];
 
   /**

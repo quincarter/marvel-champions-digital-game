@@ -367,6 +367,17 @@ export const atEndOfRound = (...effects: readonly EffectArg[]): EffectSpec => ({
   kind: "atEndOfRound",
   effects: flatten(effects),
 });
+/**
+ * "After that thwart ends, …" (Making an Entrance, `vnm` 20013) — the generic sibling of `atEndOfAttack` for
+ * either an attack or a scheme/thwart activation (`EffectSpec atEndOfActivation`, already landed for a Boost
+ * ability's own "after this activation ends"; this is its first DSL wrapper for a player-side interrupt). Reads
+ * `currentActivationFrameId`, which already matches a `thwart` event frame alongside `attack`/`enemyAttack`/
+ * `enemyScheme`, so an interrupt to `basicPowerUsing` on a thwart still finds the right frame to defer onto.
+ */
+export const atEndOfActivation = (...effects: readonly EffectArg[]): EffectSpec => ({
+  kind: "atEndOfActivation",
+  effects: flatten(effects),
+});
 /** "Prevent N of that damage" (absent = all of it). */
 export const preventDamage = (n?: Amount): EffectSpec =>
   n === undefined ? { kind: "preventDamage" } : { kind: "preventDamage", amount: amount(n) };

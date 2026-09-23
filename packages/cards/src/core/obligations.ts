@@ -26,8 +26,13 @@ import type { AbilityDefinition } from "@mc/engine";
  * player's once-per-round form change (RRG "Form, Change Form").
  */
 
-/** "You may flip to alter-ego form." Only offered in hero form. */
-const mayFlipToAlterEgo = chooseOne(
+/**
+ * "You may flip to alter-ego form." Only offered in hero form. Exported (additive, no behavior change) so a pack
+ * whose obligation's own options don't match the shared `obligation()` shape — Struggle for Control (`vnm` 20023):
+ * "Exhaust Flash Thompson **and take 2 damage** → discard this obligation", not the shared "→ remove this
+ * obligation from the game" — can still reuse the flip choice instead of re-deriving it.
+ */
+export const mayFlipToAlterEgo = chooseOne(
   option("Flip to alter-ego form", { when: isHero() }, changeForm(you, "alterEgo")),
   option("Stay in hero form", { when: isHero() }),
 );
