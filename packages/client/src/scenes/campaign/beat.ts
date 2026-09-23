@@ -112,47 +112,69 @@ export class CampaignBeatOverlay extends Phaser.Scene {
       .setOrigin(0, 0.5);
 
     // The villain splash: a bordered picture with a red "STAGE N" tag. Phone runs it full-bleed near the top
-    // (the tile's own composition); wide lays it out roughly centered over the panel frames.
+    // (the tile's own composition); wide fills most of the panel-frame area the splash sits over — the tile's own
+    // splash reads as roughly 900×590 at 1440×980 (0.625 of the width), not a small inset photo.
     const splashRect: Rect = phone
       ? { x: 0, y: topBar, width, height: Math.min(height - topBar, width * 0.72) }
       : (() => {
-          const splashWidth = Math.min(width * 0.42, 540);
-          const splashHeight = splashWidth * 0.72;
+          const maxHeight = height - topBar - frameGutter * 2;
+          let splashWidth = Math.min(width * 0.62, 900);
+          let splashHeight = splashWidth * 0.656;
+          if (splashHeight > maxHeight) {
+            splashHeight = maxHeight;
+            splashWidth = splashHeight / 0.656;
+          }
           return {
             x: (width - splashWidth) / 2,
-            y: topBar + Math.max(frameGutter, (height - topBar - splashHeight) / 2 - 20),
+            y: topBar + Math.max(frameGutter, (height - topBar - splashHeight) / 2 - 10),
             width: splashWidth,
             height: splashHeight,
           };
         })();
-    this.add
-      .rectangle(splashRect.x, splashRect.y, splashRect.width, splashRect.height, surface.ink.hex)
-      .setOrigin(0, 0);
+    // Wide draws the splash into its own container, tilted a degree or two (the tile's own "photo dropped onto the
+    // page slightly askew" — a static comic flourish, not information, so it's skipped on phone's full-bleed
+    // treatment where there's no page around it to tilt against). Every child is drawn at coordinates relative to
+    // the splash's own center and reparented in, so the container's rotation pivots around that center rather than
+    // the scene's origin.
+    const cx = splashRect.x + splashRect.width / 2;
+    const cy = splashRect.y + splashRect.height / 2;
+    const local: Rect = phone
+      ? splashRect
+      : { x: -splashRect.width / 2, y: -splashRect.height / 2, width: splashRect.width, height: splashRect.height };
+    const splashGroup = phone ? null : this.add.container(cx, cy).setAngle(-1.5);
+
+    const splashBg = this.add.rectangle(local.x, local.y, local.width, local.height, surface.ink.hex).setOrigin(0, 0);
     const picture = villainPicture(this.#data.scenarioId);
-    drawPicture(this, picture, splashRect, () => this.#draw(), { focusY: 0.3 });
+    const splashImage = drawPicture(this, picture, local, () => this.#draw(), { focusY: 0.3 });
     const border = this.add.graphics();
-    border.lineStyle(4, surface.ink.hex, 1).strokeRect(splashRect.x, splashRect.y, splashRect.width, splashRect.height);
+    border.lineStyle(4, surface.ink.hex, 1).strokeRect(local.x, local.y, local.width, local.height);
 
     const tagText = `STAGE ${roman(this.#data.stage)}`;
     const tag = this.add.text(0, 0, tagText, textStyle({ ...typeRole.barTitle, size: 14 }, surface.paper.hex));
     const tagRect: Rect = {
-      x: splashRect.x + (phone ? 8 : 0),
-      y: splashRect.y + (phone ? 8 : 0),
+      x: local.x + (phone ? 8 : 0),
+      y: local.y + (phone ? 8 : 0),
       width: tag.width + 18,
       height: 24,
     };
-    this.add.rectangle(tagRect.x, tagRect.y, tagRect.width, tagRect.height, accent.heroRed.hex).setOrigin(0, 0);
+    const tagBg = this.add
+      .rectangle(tagRect.x, tagRect.y, tagRect.width, tagRect.height, accent.heroRed.hex)
+      .setOrigin(0, 0);
     tag.setPosition(tagRect.x + 9, tagRect.y + 5);
     this.children.bringToTop(tag);
+    splashGroup?.add([splashBg, ...(splashImage ? [splashImage] : []), border, tagBg, tag]);
 
-    // The speech bubble: tucked into the splash's lower-right corner on wide, a full-width strip just under it on
-    // phone (the tile's own composition — its tail points up into the image either way).
-    const bubbleWidth = phone ? width - 24 : Math.min(340, width - 48);
-    const bubbleX = phone ? 12 : splashRect.x + splashRect.width - bubbleWidth * 0.6;
+    // The speech bubble: tucked into the splash's lower-right corner on wide, larger than the panels' own dialogue
+    // (the tile's own bigger type here), a full-width strip just under it on phone.
+    const bubbleWidth = phone ? width - 24 : Math.min(440, width - 48);
+    const bubbleX = phone ? 12 : splashRect.x + splashRect.width - bubbleWidth * 0.62;
     const bubbleY = phone ? splashRect.y + splashRect.height + 12 : splashRect.y + splashRect.height - 20;
     let bubbleBottom = bubbleY;
     if (line) {
-      const { rect: bubbleRect } = speechBubble(this, bubbleX, bubbleY, bubbleWidth, line, { tail: "none", size: 15 });
+      const { rect: bubbleRect } = speechBubble(this, bubbleX, bubbleY, bubbleWidth, line, {
+        tail: "none",
+        size: phone ? 15 : 19,
+      });
       bubbleBottom = bubbleRect.y + bubbleRect.height;
     }
 
