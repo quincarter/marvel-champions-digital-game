@@ -149,7 +149,7 @@ describe("Gamora's hero kit (18002–18023)", () => {
     expect(playerOf(state, P1).hand).toContain(found);
   });
 
-  it("Acrobatic Move — Hero Action (attack): deal 2 damage to an enemy", () => {
+  it("Acrobatic Move — Hero Action (attack): deal 2 damage to an enemy (18003.acrobatic-move-action)", () => {
     const hero = runWith(WAVE3_DEPS, gamoraVsRhino(1), toHero());
     const villain = activeVillain(hero).instanceId;
     const before = inst(hero, villain).damage;
@@ -177,14 +177,14 @@ describe("Gamora's hero kit (18002–18023)", () => {
     expect(mainThreat(after)).toBe(beforeThreat - 1);
   });
 
-  it("Set the Pace — Hero Action (thwart): remove 1 threat from a scheme", () => {
+  it("Set the Pace — Hero Action (thwart): remove 1 threat from a scheme (18005.set-the-pace-action)", () => {
     const hero = runWith(WAVE3_DEPS, gamoraVsRhino(1), toHero());
     const staged = patchInstance(hero, hero.mainScheme.instanceId, { threat: 3 });
     const { state } = playAndAccept(staged, "18005", 0);
     expect(mainThreat(state)).toBe(2);
   });
 
-  it("Decisive Blow — Hero Action (attack): 4 damage to an enemy (7 instead if you played a thwart event this turn)", () => {
+  it("Decisive Blow — Hero Action (attack): 4 damage to an enemy (7 instead if you played a thwart event this turn) (18006.decisive-blow-action)", () => {
     const hero = runWith(WAVE3_DEPS, gamoraVsRhino(1), toHero());
     const villain = activeVillain(hero).instanceId;
     const before = inst(hero, villain).damage;
@@ -198,7 +198,7 @@ describe("Gamora's hero kit (18002–18023)", () => {
     expect(inst(boosted, villain).damage).toBe(afterThwart + 7);
   });
 
-  it("Forward Momentum — Hero Action (thwart): 3 threat from a scheme (5 instead if you played an attack event this turn)", () => {
+  it("Forward Momentum — Hero Action (thwart): 3 threat from a scheme (5 instead if you played an attack event this turn) (18007.forward-momentum-action)", () => {
     const hero = runWith(WAVE3_DEPS, gamoraVsRhino(1), toHero());
     const staged = patchInstance(hero, hero.mainScheme.instanceId, { threat: 10 });
     const { state } = playAndAccept(staged, "18007", 2);
@@ -276,7 +276,7 @@ describe("Gamora's hero kit (18002–18023)", () => {
     expect(inst(state, villain).damage).toBe(before + 3);
   });
 
-  it("Angela — Forced Response: search the top 10 for a minion and put it into play engaged with you; else discard Angela", () => {
+  it("Angela — Forced Response: search the top 10 for a minion and put it into play engaged with you; else discard Angela (18011.angela-forced-response)", () => {
     const hero = runWith(WAVE3_DEPS, gamoraVsRhino(1), toHero());
     const given = moveToHand(hero, P1, "18011");
     const [angelaId] = given.ids;
@@ -293,7 +293,7 @@ describe("Gamora's hero kit (18002–18023)", () => {
     expect(stillInPlay).toBe(!discarded);
   });
 
-  it("Clobber — Hero Action (attack): 3 damage to an enemy; return to hand if the first card played this round", () => {
+  it("Clobber — Hero Action (attack): 3 damage to an enemy; return to hand if the first card played this round (18012.clobber-action)", () => {
     const hero = runWith(WAVE3_DEPS, gamoraVsRhino(1), toHero());
     const villain = activeVillain(hero).instanceId;
     const before = inst(hero, villain).damage;
@@ -302,14 +302,14 @@ describe("Gamora's hero kit (18002–18023)", () => {
     expect(playerOf(state, P1).hand).toContain(id);
   });
 
-  it("Plan of Attack — Action: search the top 4 (7 in alter-ego) cards for an attack event and add it to hand", () => {
+  it("Plan of Attack — Action: search the top 4 (7 in alter-ego) cards for an attack event and add it to hand (18013.plan-of-attack-action)", () => {
     const start = gamoraVsRhino(1);
     const before = playerOf(start, P1).hand.length;
     const { state } = playAndAccept(start, "18013", 0);
     expect(playerOf(state, P1).hand.length).toBeGreaterThanOrEqual(before - 1);
   });
 
-  it("First Hit — Hero Action (attack): deal 2 damage to the villain", () => {
+  it("First Hit — Hero Action (attack): deal 2 damage to the villain (18015.first-hit-action)", () => {
     const hero = runWith(WAVE3_DEPS, gamoraVsRhino(1), toHero());
     const villain = activeVillain(hero).instanceId;
     const before = inst(hero, villain).damage;
@@ -366,7 +366,7 @@ describe("Gamora's hero kit (18002–18023)", () => {
     expect(inst(reached, minionId).damage).toBeGreaterThanOrEqual(2);
   });
 
-  it("Impede — Hero Action (thwart): remove 3 threat from the main scheme; return to hand if first played this round", () => {
+  it("Impede — Hero Action (thwart): remove 3 threat from the main scheme; return to hand if first played this round (18016.impede-action)", () => {
     const hero = runWith(WAVE3_DEPS, gamoraVsRhino(1), toHero());
     const staged = patchInstance(hero, hero.mainScheme.instanceId, { threat: 10 });
     const { state, id } = playAndAccept(staged, "18016", 2);
@@ -401,7 +401,7 @@ describe("Gamora's hero kit (18002–18023)", () => {
     expect(inst(attacked, villain).damage).toBe(before + printedAtk + 2);
   });
 
-  it("Drax (ally) — cannot attack minions, but may still attack the villain", () => {
+  it("Drax (ally) — cannot attack minions, but may still attack the villain (18019.drax-constant)", () => {
     const hero = runWith(WAVE3_DEPS, gamoraVsRhino(1), toHero());
     const given = moveToHand(hero, P1, "18019");
     const [draxId] = given.ids;
@@ -422,7 +422,7 @@ describe("Gamora's hero kit (18002–18023)", () => {
     expect(inst(attacked, villain).damage).toBeGreaterThan(0);
   });
 
-  it("Hit and Run — Hero Action (attack/thwart): deal 2 damage to an enemy, remove 2 threat from a scheme", () => {
+  it("Hit and Run — Hero Action (attack/thwart): deal 2 damage to an enemy, remove 2 threat from a scheme (18020.hit-and-run-constant)", () => {
     const hero = runWith(WAVE3_DEPS, gamoraVsRhino(1), toHero());
     const staged = patchInstance(hero, hero.mainScheme.instanceId, { threat: 5 });
     const villain = activeVillain(staged).instanceId;
@@ -434,7 +434,7 @@ describe("Gamora's hero kit (18002–18023)", () => {
 });
 
 describe("Gamora's further signature cards (18029–18032)", () => {
-  it("Pivotal Moment — Hero Action (attack): 2 damage to the villain (5 instead if no threat on the main scheme)", () => {
+  it("Pivotal Moment — Hero Action (attack): 2 damage to the villain (5 instead if no threat on the main scheme) (18029.pivotal-moment-action)", () => {
     const hero = runWith(WAVE3_DEPS, gamoraVsRhino(1), toHero());
     const zeroThreat = patchInstance(hero, hero.mainScheme.instanceId, { threat: 0 });
     const villain = activeVillain(zeroThreat).instanceId;
@@ -448,7 +448,7 @@ describe("Gamora's further signature cards (18029–18032)", () => {
     expect(inst(second, villain).damage).toBe(afterFirst + 2);
   });
 
-  it("Comms Implant — attach to a guardian ally: +1 THW and +1 hit point", () => {
+  it("Comms Implant — attach to a guardian ally: +1 THW and +1 hit point (18030.comms-implant-constant)", () => {
     // Drax (18019, a GUARDIAN ally, `constant(cannotAttack)` only — no enters-play trigger to settle) rather than
     // Angela or Nebula, whose own forced/optional responses would otherwise complicate reaching a clean attach.
     const hero = runWith(WAVE3_DEPS, gamoraVsRhino(1), toHero());

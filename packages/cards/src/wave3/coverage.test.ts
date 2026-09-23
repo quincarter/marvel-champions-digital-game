@@ -6,9 +6,11 @@
  */
 import { DRAX_CARDS, GAM_CARDS, GMW_CARDS, RON_CARDS, STLD_CARDS, VNM_CARDS, type AnyCard } from "@mc/content";
 import type { AbilityRegistry } from "@mc/engine";
+import { coveredByEngineRule } from "../dsl/index.js";
 import { WAVE1_ABILITIES } from "../wave1/index.js";
 import { WAVE2_ABILITIES } from "../wave2/index.js";
 import { WAVE3_ABILITIES, wave3ReprintPairs } from "./index.js";
+import { GAM_ABILITIES } from "./gam/index.js";
 import { GMW_ABILITIES } from "./gmw/index.js";
 import { STLD_ABILITIES } from "./stld/index.js";
 import { abilityRefIds } from "../ability-refs.js";
@@ -397,6 +399,14 @@ describe("wave 3 pack ability id coverage (every registered ability id is named 
    * brief's own "never edit another pack's folder" rule), so all 22 are listed here rather than guessed at
    * individually, and this discrepancy is called out explicitly in this session's own handoff report for whoever
    * is driving the `stld` session next.
+   *
+   * **Checked again after commit 2c31a79** ("stld — behavioral tests for Blaze of Glory and Laser Blaster"),
+   * reported as having named 17015/17019: it added real coverage (`moveToHand`/`playFromHand` driving both cards
+   * through real commands) but the test titles still read "Blaze of Glory: …" / "Laser Blaster: …" with no
+   * `(17015.blaze-of-glory-action)` / `(17019.laser-blaster-constant)` suffix — the card's numeric code appears in
+   * the test body (as an argument to `playFromHand`/`moveToHand`), but not the full ability ref string this guard
+   * checks for. So both stay in `PENDING` rather than being dropped on the strength of the report alone; flagged
+   * in this session's own report rather than silently trusting "now tested and named".
    */
   const PENDING: Readonly<Record<string, readonly string[]>> = {
     stld: [
@@ -428,16 +438,41 @@ describe("wave 3 pack ability id coverage (every registered ability id is named 
   const PACKS_WITH_OWN_REGISTRIES: ReadonlyArray<{ readonly code: string; readonly registry: AbilityRegistry }> = [
     { code: "gmw", registry: GMW_ABILITIES },
     { code: "stld", registry: STLD_ABILITIES },
+    { code: "gam", registry: GAM_ABILITIES },
   ];
 
+  /**
+   * A principled exemption for `coveredByEngineRule()` ids, not a one-off allowlist: an id is only exempt when its
+   * registered definition structurally *is* the `coveredByEngineRule()` sentinel (`{ trigger: { kind: "constant" },
+   * effects: [] }`) — so this can't be used to paper over a genuinely untested ability that merely happens to have
+   * empty effects — and only alongside the engine test that actually covers the rule it names, cited here by path,
+   * so a reviewer can check the citation instead of taking "it's covered elsewhere" on faith.
+   *
+   * `18001b.gamora-constant` (Skilled Tactician, Gamora's deckbuilding-only ability, `IdentityDeckbuilding.
+   * offAspectAllowance`, docs/phase7-wave3.md §1.5): the rule lives on the identity card's data, not on anything an
+   * in-game command can drive, so `wave3/gam/*.test.ts` has nothing to name it in. It's tested at the engine level,
+   * `packages/engine/src/off-aspect-allowance.test.ts` (4 tests) plus `packages/content/src/schema/wave3.test.ts`
+   * §1.5 (2 tests).
+   */
+  const COVERED_BY_ENGINE_RULE: Readonly<Record<string, string>> = {
+    "18001b.gamora-constant": "packages/engine/src/off-aspect-allowance.test.ts",
+  };
+
   describe.each(PACKS_WITH_OWN_REGISTRIES)("$code", ({ code, registry }) => {
-    it("every ability id it registers is named in one of its own test files", () => {
+    it("every ability id it registers is named in one of its own test files (or is a cited coveredByEngineRule() exemption)", () => {
       const text = packTestText(code);
       const pending = PENDING[code] ?? [];
+      const sentinel = coveredByEngineRule();
       const unnamed = Object.keys(registry).filter((id) => !text.includes(id));
+      const notExempt = unnamed.filter((id) => {
+        if (!(id in COVERED_BY_ENGINE_RULE)) return true;
+        // Only exempt if the registered definition really is the sentinel shape — never merely because the id is
+        // listed, which would make the exemption indistinguishable from a plain allowlist.
+        return JSON.stringify(registry[id]) !== JSON.stringify(sentinel);
+      });
       expect(
-        unnamed.filter((id) => !pending.includes(id)),
-        `${code} ability ids registered but not named in any wave3/${code}/*.test.ts file:\n${unnamed
+        notExempt.filter((id) => !pending.includes(id)),
+        `${code} ability ids registered but not named in any wave3/${code}/*.test.ts file (and not a cited coveredByEngineRule() exemption):\n${notExempt
           .filter((id) => !pending.includes(id))
           .join("\n")}`,
       ).toEqual([]);
