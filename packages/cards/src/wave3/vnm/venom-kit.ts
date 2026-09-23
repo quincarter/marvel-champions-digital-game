@@ -18,7 +18,6 @@ import {
   chosenPlayer,
   confuse,
   constant,
-  coveredByEngineRule,
   damageAnEnemy,
   dealDamage,
   dealEncounterCard,
@@ -42,6 +41,7 @@ import {
   modifyBasicPower,
   moveCards,
   on,
+  partOf,
   option,
   paidWithOnly,
   query,
@@ -100,7 +100,7 @@ const GUARDIAN = trait("GUARDIAN");
  * **Multi-Gun (20008)** parses into one `-action` ref plus three bullet-line refs (`-constant`/`-constant-2`/`-
  * constant-3`), the same ingestion artifact Hex Bolt (`scw` 15004) and several `trors` cards carry (docs/phase7-
  * wave2-scripting.md's own precedent): the `-action` ref's `chooseOne` already carries the whole printed text, so
- * the three extras are stood up empty (`coveredByEngineRule()`).
+ * the three extras are `partOf` it, each covered by its own branch test in `venom-kit.test.ts`.
  */
 export const VENOM_KIT = defineAbilities({
   // Venom (20001a) — You can control 1 additional upgrade that has the restricted keyword. Symbiotic Bond -
@@ -182,9 +182,10 @@ export const VENOM_KIT = defineAbilities({
       option("Remove 2 threat from a scheme", ...removeThreatFromAScheme(2)),
     ),
   ),
-  "20008.multi-gun-constant": coveredByEngineRule(),
-  "20008.multi-gun-constant-2": coveredByEngineRule(),
-  "20008.multi-gun-constant-3": coveredByEngineRule(),
+  // The three bulleted options were ingested as their own refs, one per bullet; each is part of the action above.
+  "20008.multi-gun-constant": partOf("20008.multi-gun-action"),
+  "20008.multi-gun-constant-2": partOf("20008.multi-gun-action"),
+  "20008.multi-gun-constant-3": partOf("20008.multi-gun-action"),
 
   // Spider-Sense — Hero Interrupt: When the villain initiates an attack against you, draw 1 card.
   "20009.spider-sense-interrupt": heroInterrupt(on.villainAttacks({ againstYou: true }), draw(1)),

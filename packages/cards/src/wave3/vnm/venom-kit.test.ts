@@ -64,6 +64,37 @@ const acceptingAndPaying =
     return accepting(...wanted)(state);
   };
 
+/** A minion put into play by hand, engaged with `player` (the same instance shape `../stld/star-lord-kit.test.ts`'s
+ * `engagedMinion` builds; `home: "playArea"` matters, since the defeat sweep scans the player's play area). */
+function engageMinion(state: GameState, code: string, slot: string, player = P1): GameState {
+  const id = slot as InstanceId;
+  const instance = {
+    instanceId: id,
+    cardId: code,
+    ownerId: null,
+    controllerId: null,
+    home: { kind: "playArea", playerId: player },
+    faceup: true,
+    exhausted: false,
+    damage: 0,
+    threat: 0,
+    statuses: { stunned: 0, confused: 0, tough: 0 },
+    counters: {},
+    attachedTo: null,
+    attachments: [],
+    boostCards: [],
+    tucked: [],
+    facedownAs: null,
+    engagedWith: player,
+    flipped: false,
+  } as never;
+  return {
+    ...state,
+    players: state.players.map((p) => (p.playerId === player ? { ...p, playArea: [...p.playArea, id] } : p)),
+    instances: { ...state.instances, [id]: instance },
+  };
+}
+
 function playAndAccept(state: GameState, code: string, cost: number, accept?: string | Picker) {
   const given = moveToHand(state, P1, code);
   const [id] = given.ids as [InstanceId];
@@ -219,25 +250,53 @@ describe("Venom's hero kit", () => {
     expect(inst(used, identity).damage).toBe(2);
   });
 
-  it("Multi-Gun — Restricted; exhaust → choose one: deal 2 damage to an enemy (20008.multi-gun-action, 20008.multi-gun-constant, 20008.multi-gun-constant-2, 20008.multi-gun-constant-3 are the bulleted-list parser artifact — no behavior of their own)", () => {
-    const hero = runWave3(venomVsRhino(9), toHero());
-    const villain = activeVillain(hero).instanceId;
+  /** Multi-Gun in play. Its three bulleted options are separate refs (`partOf` the action), so each gets a test. */
+  function multiGunInPlay(seed: number): { readonly state: GameState; readonly multiGun: InstanceId } {
+    const hero = runWave3(venomVsRhino(seed), toHero());
     const { state: withCard, ids } = moveToHand(hero, P1, "20008");
     const [multiGun] = ids as [InstanceId];
-    const played = settle(
+    const state = settle(
       runWith(WAVE3_DEPS, withCard, play(P1, multiGun, payWith(withCard, P1, 3, [multiGun]))),
       firstLegal,
       undefined,
       WAVE3_DEPS,
     );
-    const before = inst(played, villain).damage;
-    const used = settle(
-      runWith(WAVE3_DEPS, played, use(P1, multiGun, "20008.multi-gun-action")),
-      pickingLabelStartingWith("Deal 2 damage"),
+    return { state, multiGun };
+  }
+
+  const useMultiGun = (state: GameState, multiGun: InstanceId, label: string): GameState =>
+    settle(
+      runWith(WAVE3_DEPS, state, use(P1, multiGun, "20008.multi-gun-action")),
+      pickingLabelStartingWith(label),
       undefined,
       WAVE3_DEPS,
     );
+
+  it("Multi-Gun: exhaust → deal 2 damage to an enemy (20008.multi-gun-action, 20008.multi-gun-constant)", () => {
+    const { state, multiGun } = multiGunInPlay(9);
+    const villain = activeVillain(state).instanceId;
+    const before = inst(state, villain).damage;
+    const used = useMultiGun(state, multiGun, "Deal 2 damage");
     expect(inst(used, villain).damage).toBe(before + 2);
+    expect(inst(used, multiGun).exhausted).toBe(true);
+  });
+
+  it("Multi-Gun: choose a player, deal 1 damage to each minion engaged with them (20008.multi-gun-constant-2)", () => {
+    const { state, multiGun } = multiGunInPlay(9);
+    const withMinions = engageMinion(engageMinion(state, "01101", "mg-minion-1"), "01101", "mg-minion-2");
+    const villain = activeVillain(withMinions).instanceId;
+    const before = inst(withMinions, villain).damage;
+    const used = useMultiGun(withMinions, multiGun, "Choose a player");
+    expect(inst(used, "mg-minion-1" as InstanceId).damage).toBe(1);
+    expect(inst(used, "mg-minion-2" as InstanceId).damage).toBe(1);
+    expect(inst(used, villain).damage).toBe(before); // minions only
+  });
+
+  it("Multi-Gun: remove 2 threat from a scheme (20008.multi-gun-constant-3)", () => {
+    const { state, multiGun } = multiGunInPlay(9);
+    const withThreat = patchInstance(state, state.mainScheme.instanceId, { threat: 10 });
+    const used = useMultiGun(withThreat, multiGun, "Remove 2 threat");
+    expect(inst(used, used.mainScheme.instanceId).threat).toBe(8);
   });
 
   it("Spider-Sense — Hero Interrupt: draws 1 card when the villain initiates an attack against you (20009.spider-sense-interrupt)", () => {
