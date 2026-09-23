@@ -48,46 +48,23 @@ const PACK_STATUS: Readonly<Record<string, "scripted" | "in progress" | "not sta
  */
 const KNOWN_SKIPPED: Readonly<Record<string, readonly string[]>> = {
   gmw: [
-    // Groot's own kit and obligation/nemesis are scripted (docs/phase7-wave3-scripting.md). Three genuine
-    // primitive gaps (module docblock, `gmw/groot-kit.ts`): 16006 (a variable spend-up-to-N-counters cost),
-    // 16009 ("uses a basic power" spans attack/thwart/defense with no single EventPattern), 16024 (a
-    // standing "next matching card played this turn" cost reduction). Everything else below (16020 Flora and
-    // Fauna's Team-Up; Rocket Raccoon's kit/obligation/nemesis; the five scenarios and their modular sets) is
-    // not yet reached this session — docs/phase7-wave3-scripting.md "Progress / next up". Regenerated with
+    // Groot's own kit and obligation/nemesis are fully scripted; Rocket Raccoon's kit and obligation/
+    // nemesis are (docs/phase7-wave3-scripting.md). Genuine primitive gaps (module docblocks in
+    // `gmw/groot-kit.ts` and `gmw/rocket-kit.ts`): 16006, 16009, 16024 (Groot); 16032, 16033, 16052
+    // (Rocket); 16020/16048 (the Team-Up card, printed once per range, same cross-player targeting gap
+    // both times). Everything from 16058 on (Brotherhood of Badoon's villain Drang onward) is the first
+    // scenario and its modular set — not yet reached this session. Regenerated with
     // `MC_REFS_PACKS=gmw pnpm refs` (docs/card-scripting-process.md) — never hand-typed.
     "16006.we-are-groot-action",
     "16009.lashing-vines-response",
     "16020.flora-and-fauna-constant",
     "16020.flora-and-fauna-action",
     "16024.deft-focus-action",
-    "16029a.murdered-you",
-    "16029b.tinkering",
-    "16030.ive-got-a-plan-response",
-    "16031.reload-action",
     "16032.schadenfreude-action",
     "16033.salvage-response",
-    "16034.battery-pack-constant",
-    "16034.battery-pack-action",
-    "16035.cybernetic-skeleton-constant",
-    "16035.cybernetic-skeleton-constant-2",
-    "16036.particle-cannon-constant",
-    "16036.particle-cannon-action",
-    "16037.rocket-launcher-constant",
-    "16037.rocket-launcher-action",
-    "16038.rockets-pistol-constant",
-    "16038.rockets-pistol-action",
-    "16039.thruster-boots-constant",
-    "16040.bug-response",
-    "16043.looking-for-trouble-action",
-    "16045.follow-through-interrupt",
-    "16046.hand-cannon-interrupt",
-    "16047.groot-response",
     "16048.flora-and-fauna-constant",
     "16048.flora-and-fauna-action",
     "16052.booster-boots-interrupt",
-    "16053.obligation",
-    "16056.blackjacks-bazooka-action",
-    "16057.when-revealed",
     "16058.drang-forced-response",
     "16059.when-revealed",
     "16059.drang-forced-response",

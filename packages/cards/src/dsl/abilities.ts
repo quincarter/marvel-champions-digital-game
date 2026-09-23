@@ -589,11 +589,18 @@ export const on = {
       readonly basic?: boolean;
       readonly defeats?: boolean;
       readonly damages?: boolean;
+      /**
+       * "After you deal excess damage to an enemy" ("Murdered You!", Rocket Raccoon's hero identity, `gmw`
+       * 16029a): the attack's own `excessDealt` result (RRG 1.8 "Excess Damage", p. 19), set whenever an attack
+       * deals more damage than its target's remaining hit points (`resolve/event.ts`).
+       */
+      readonly excessDamage?: boolean;
     } = {},
   ): EventPattern => {
     const results: Record<string, number> = {};
     if (opts.defeats) results.defeated = 1;
     if (opts.damages) results.damage = 1;
+    if (opts.excessDamage) results.excessDealt = 1;
     return pattern(
       "attack",
       asSource(by),
