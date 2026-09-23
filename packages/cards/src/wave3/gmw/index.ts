@@ -1,6 +1,7 @@
 import type { AbilityRegistry } from "@mc/engine";
 import { mergeRegistries } from "../../dsl/index.js";
 import { BADOON } from "./badoon.js";
+import { ESCAPE_THE_MUSEUM } from "./escape-the-museum.js";
 import { GROOT_KIT } from "./groot-kit.js";
 import { GROOT_OBLIGATION_NEMESIS } from "./groot-obligation-nemesis.js";
 import { MUSEUM } from "./museum.js";
@@ -20,4 +21,5 @@ export const GMW_ABILITIES: AbilityRegistry = mergeRegistries(
   SHIP_COMMAND,
   BADOON,
   MUSEUM,
+  ESCAPE_THE_MUSEUM,
 );

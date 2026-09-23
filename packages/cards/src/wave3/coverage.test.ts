@@ -56,16 +56,20 @@ const KNOWN_SKIPPED: Readonly<Record<string, readonly string[]>> = {
   gmw: [
     // Groot's and Rocket Raccoon's kits/obligations/nemeses, Brotherhood of Badoon (villain Drang, main scheme
     // Terrestrial Invasion/Protect the Planet, Badoon Ship, Drang's Spear, Badoon Engineer, the four side
-    // schemes, the Band of Badoon modular set), the Ship Command modular set, and Infiltrate the Museum (villain
+    // schemes, the Band of Badoon modular set), the Ship Command modular set, Infiltrate the Museum (villain
     // Collector I–III, main scheme The Grand Collection, its own encounter set, and Menagerie Medley — `gmw/
-    // museum.ts`) are scripted. Genuine primitive gaps (module docblocks in `gmw/groot-kit.ts`, `gmw/rocket-
-    // kit.ts`, `gmw/badoon.ts`, `gmw/museum.ts`): 16006, 16009, 16024 (Groot); 16032, 16033, 16052 (Rocket);
-    // 16020/16048 (the Team-Up card, same cross-player targeting gap both times); 16060.when-revealed (Drang
-    // III, needs a player-level superlative — "the player engaged with the fewest minions");
-    // 16073b.the-grand-collection-action (needs a true either/or `AbilityCost`, distinct from an AND-cost list).
-    // Everything from Escape the Museum on (16080+, except Menagerie Medley's own 16135-16137 and Ship Command's
-    // own 16142-16148) is not yet reached. Regenerated with `MC_REFS_PACKS=gmw pnpm refs` (docs/card-scripting-
-    // process.md) — never hand-typed.
+    // museum.ts`), and Escape the Museum (the mode-labelled Collector pair, main scheme The Missing Milano/Lost
+    // in the Museum/The Great Escape, "I Have You Now!", Impossible Geometry — `gmw/escape-the-museum.ts`) are
+    // scripted. Genuine primitive gaps (module docblocks in `gmw/groot-kit.ts`, `gmw/rocket-kit.ts`, `gmw/
+    // badoon.ts`, `gmw/museum.ts`, `gmw/escape-the-museum.ts`): 16006, 16009, 16024 (Groot); 16032, 16033, 16052
+    // (Rocket); 16020/16048 (the Team-Up card, same cross-player targeting gap both times); 16060.when-revealed
+    // (Drang III, needs a player-level superlative — "the player engaged with the fewest minions");
+    // 16073b.the-grand-collection-action (needs a true either/or `AbilityCost`, distinct from an AND-cost list);
+    // 16085a.this-way (needs `AbilityLimit.per` to support a per-acting-player key); 16085b's three refs (need an
+    // "assign indirect damage among players" primitive, distinct from `dealIndirectDamage`'s existing per-player
+    // and `assignDamage`'s existing per-character shapes). Everything from Nebula on (16088+, except Menagerie
+    // Medley's own 16135-16137 and Ship Command's own 16142-16148) is not yet reached. Regenerated with
+    // `MC_REFS_PACKS=gmw pnpm refs` (docs/card-scripting-process.md) — never hand-typed.
     "16006.we-are-groot-action",
     "16009.lashing-vines-response",
     "16020.flora-and-fauna-constant",
@@ -78,29 +82,10 @@ const KNOWN_SKIPPED: Readonly<Record<string, readonly string[]>> = {
     "16052.booster-boots-interrupt",
     "16060.when-revealed",
     "16073b.the-grand-collection-action",
-    "16080a.collector-constant",
-    "16080a.collector-forced-interrupt",
-    "16080b.collector-constant",
-    "16080b.collector-forced-interrupt",
-    "16081a.collector-constant",
-    "16081a.collector-forced-interrupt",
-    "16081b.collector-constant",
-    "16081b.collector-forced-interrupt",
-    "16082a.setup",
-    "16082b.the-missing-milano-forced-interrupt",
-    "16083a.when-revealed",
-    "16083b.lost-in-the-museum-forced-interrupt",
-    "16084a.when-revealed",
-    "16084b.the-great-escape-constant",
-    "16084b.the-great-escape-constant-2",
     "16085a.this-way",
     "16085b.hold-on-to-your-butts",
     "16085b.museum-ship-constant",
     "16085b.museum-ship-constant-2",
-    "16086.when-revealed-alter-ego",
-    "16086.when-revealed-hero",
-    "16086.boost",
-    "16087.when-revealed",
     "16088.nebula-constant",
     "16088.nebula-forced-interrupt",
     "16089.nebula-constant",

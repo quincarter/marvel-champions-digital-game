@@ -202,6 +202,11 @@ export const villainStageNumberOf = (of?: TargetRef): ValueSpec => ({
 });
 export const damageOn = (of: TargetRef): ValueSpec => ({ kind: "damage", of });
 export const threatOn = (of: TargetRef): ValueSpec => ({ kind: "threat", of });
+/**
+ * "X is equal to the main scheme's current stage number" (Collector I/II, `gmw` 16080a/16081a): the central main
+ * scheme's own stage number, as it reads now. The `villainStageNumberOf` sibling above.
+ */
+export const mainSchemeStageNumber: ValueSpec = { kind: "mainSchemeStageNumber" };
 export const boostIconsOn = (of: TargetRef): ValueSpec => ({ kind: "boostIcons", of });
 export const remainingHpOf = (of: TargetRef): ValueSpec => ({ kind: "remainingHp", of });
 /** A card's own printed resource cost (0 for a card that prints none): "the highest-cost card you control". */

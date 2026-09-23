@@ -935,6 +935,8 @@ export function resolveValue(
       const [id] = resolveRef(state, value.of, context);
       return id ? (getInstance(state, id)?.threat ?? 0) : 0;
     }
+    case "mainSchemeStageNumber":
+      return mainSchemeStage(state).stageNumber;
     case "boostIcons": {
       // One counting function for every read (docs/phase7-wave2.md §3.6): printed icons plus boost icon modifiers.
       const [counted] = resolveRef(state, value.of, context);
