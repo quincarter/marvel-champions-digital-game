@@ -723,7 +723,7 @@ type FootTone = "ability" | "note";
  * `▶` ability affordance (an accent bar in the "legal" green) or a note — who
  * lent this card, a lasting effect aimed at this seat (caution yellow).
  */
-function drawFootStrip(scene: Phaser.Scene, rect: Rect, text: string, tone: FootTone, dim: number): void {
+export function drawFootStrip(scene: Phaser.Scene, rect: Rect, text: string, tone: FootTone, dim: number): void {
   const g = scene.add.graphics();
   g.fillStyle(surface.ink.hex, 0.92 * dim).fillRect(rect.x, rect.y, rect.width, rect.height);
   g.fillStyle(tone === "ability" ? signal.heal.hex : signal.caution.hex, dim).fillRect(rect.x, rect.y, 4, rect.height);

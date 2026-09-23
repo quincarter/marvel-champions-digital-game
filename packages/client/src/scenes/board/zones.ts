@@ -20,7 +20,7 @@ import {
   villainRowSlots,
   type Rect,
 } from "../../view/layout.js";
-import { drawCharacter } from "./character-panel.js";
+import { drawCharacter, drawFootStrip } from "./character-panel.js";
 import { pileKey, type BoardDrawContext } from "./context.js";
 import { drawPile } from "./piles.js";
 import { addTapTarget } from "./tap-target.js";
@@ -334,6 +334,21 @@ function drawEnvironment(ctx: BoardDrawContext, rect: Rect, environment: Environ
   // Each counter kind as its own chip along the bottom: the number big, the kind spelled out beside it, so
   // "4 INFAMY" never has to be inferred from a colour or a pip count.
   const chipHeight = 24;
+  const counterCount = Math.min(environment.counters.length, 2);
+  const countersTop =
+    counterCount > 0
+      ? inner.y + inner.height - 4 - counterCount * chipHeight - (counterCount - 1) * 3
+      : inner.y + inner.height - 22;
+
+  // A printed Hero/Alter-Ego Action or resource ability on the environment itself (Library Labyrinth's "This
+  // way?"), the same `▶` affordance a character panel's own foot strip gives its usable ability — drawn only
+  // where it fits between the title band and the counter chips.
+  const abilityLine = ctx.controller.abilityLine(environment.instanceId);
+  const abilityTop = titleBox.y + titleBox.height + 4;
+  if (abilityLine && abilityTop + 18 <= countersTop - 4) {
+    drawFootStrip(scene, { x: inner.x, y: abilityTop, width: inner.width, height: 18 }, abilityLine, "ability", dim);
+  }
+
   environment.counters.slice(0, 2).forEach((counter, index) => {
     const chip: Rect = {
       x: inner.x + 4,
@@ -370,7 +385,7 @@ function drawEnvironment(ctx: BoardDrawContext, rect: Rect, environment: Environ
     label(scene, inner.x + 6, inner.y + inner.height - 18, "no counters", typeRole.label, onArt, ink.meta * dim);
   }
 
-  ctx.makeTapTarget(rect, environment.instanceId, () => ctx.inspect(environment.instanceId));
+  ctx.makeTapTarget(rect, environment.instanceId, () => ctx.controller.onCharacterTap(environment.instanceId));
 }
 
 /**
