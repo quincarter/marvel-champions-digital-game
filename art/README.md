@@ -26,7 +26,10 @@ one (just the pack's name and a rule, no thumbnail).
 of the folder name before the first `-` is read; the rest is there so a person can tell the folders apart. Card ids
 are used because nothing shorter is unique — two heroes are called Black Panther, two Spider-Man, and one pack can
 hold five heroes. An empty folder (just a `.gitkeep`) is a hero still waiting for a picture: drop `hero.<ext>` in.
-`heroes/_pending/` holds pictures for heroes whose pack isn't imported yet; it is never read.
+`heroes/_pending/` holds pictures for heroes whose pack isn't imported yet; it is never read. Each such hero has
+its future folder waiting there (`_pending/40037a-domino/`, holding a `.gitkeep` until it gets a `hero.<ext>`), because
+a folder directly under `heroes/` for a hero with no card data fails the test below. When a pack is imported as card
+data, the same branch moves its heroes' folders up one level into `heroes/`, pictures and all.
 `packages/client/src/art/hero-art.test.ts` fails if a folder isn't a real identity id or a file isn't `hero*`.
 
 **Several pictures for one slot:** add a suffix — `villain.jpg`,
