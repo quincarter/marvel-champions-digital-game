@@ -22,9 +22,9 @@ import { runWave3, startWave3Game, WAVE3_DEPS } from "../testing.js";
  * (Groot and Rocket Raccoon). Both printed copies are scripted with the identical composition (`gmw/groot-kit.ts`,
  * `gmw/rocket-kit.ts`) and are tested together here, in one two-player game with Groot at P1 and Rocket Raccoon
  * at P2 (docs/phase7-wave3.md §3.34, docs/phase7-wave3-scripting.md §6d) — each playing their own printed copy
- * from their own hand, exercising both branches. The cross-player claim itself ("a Rocket Raccoon upgrade" is
- * any upgrade from Rocket's own identity-specific set, not merely one the *current* player controls) is already
- * covered at the engine level, `packages/engine/src/team-up-names.test.ts`.
+ * from their own hand, exercising both branches — and each copy used on the *other* seat's hero, which is the
+ * point of a Team-Up card: "Groot" and "a Rocket Raccoon upgrade" are whoever controls them (docs/phase7-wave3.md
+ * §3.34; the matcher itself is tested in `packages/engine/src/team-up-names.test.ts`).
  */
 const grootAndRocketVsRhino = () =>
   startWave3Game(
@@ -89,5 +89,55 @@ describe("Flora and Fauna — Team-Up (Groot and Rocket Raccoon), a two-player g
     );
     expect(inst(played, pistol).counters.charge).toBe(5); // 3 + 2
     expect(inst(played, pistol).exhausted).toBe(false); // readied
+  });
+
+  it("Rocket's copy (16048) played from P2's hand grows P1's Groot: the Groot branch reaches across seats (16048.flora-and-fauna-action)", () => {
+    const p2Turn = settle(runWave3(grootAndRocketVsRhino(), endTurn(P1)), firstLegal, undefined, WAVE3_DEPS);
+    const hero = runWave3(p2Turn, toHero(P2));
+    const groot = identityOf(hero, P1);
+    const tired = patchInstance(hero, groot, { counters: { growth: 3 }, exhausted: true });
+    const given = moveToHand(tired, P2, "16048");
+    const [card] = given.ids as [InstanceId];
+    const played = settle(
+      runWave3(given.state, play(P2, card, payWith(given.state, P2, 1, [card]))),
+      picking("Place 2 growth counters on Groot"),
+      undefined,
+      WAVE3_DEPS,
+    );
+    expect(inst(played, groot).counters.growth).toBe(5);
+    expect(inst(played, groot).exhausted).toBe(false);
+  });
+
+  it("Groot's copy (16020) played from P1's hand charges P2's Rocket's Pistol: the upgrade branch reaches across seats (16020.flora-and-fauna-action)", () => {
+    // P2 (Rocket) puts Rocket's Pistol into play on their own turn, then the round ends and it's P1's turn again.
+    const p2Turn = runWave3(
+      settle(runWave3(grootAndRocketVsRhino(), endTurn(P1)), firstLegal, undefined, WAVE3_DEPS),
+      toHero(P2),
+    );
+    const givenPistol = moveToHand(p2Turn, P2, "16038");
+    const [pistol] = givenPistol.ids as [InstanceId];
+    const withPistol = settle(
+      runWave3(givenPistol.state, play(P2, pistol, payWith(givenPistol.state, P2, 1, [pistol]))),
+      firstLegal,
+      undefined,
+      WAVE3_DEPS,
+    );
+    const nextRound = settle(runWave3(withPistol, endTurn(P2)), firstLegal, undefined, WAVE3_DEPS);
+    // The first player token passes each round, so round 2 opens with P2's turn; P2 passes to reach P1's.
+    const p1Up = settle(runWave3(nextRound, endTurn(P2)), firstLegal, undefined, WAVE3_DEPS);
+    expect(p1Up.outcome).toBeFalsy();
+    const p1Turn = runWave3(patchInstance(p1Up, pistol, { exhausted: true }), toHero(P1));
+    const before = inst(p1Turn, pistol).counters.charge ?? 0;
+
+    const given = moveToHand(p1Turn, P1, "16020");
+    const [card] = given.ids as [InstanceId];
+    const played = settle(
+      runWave3(given.state, play(P1, card, payWith(given.state, P1, 1, [card]))),
+      picking("Place 2 charge counters on a Rocket Raccoon upgrade"),
+      undefined,
+      WAVE3_DEPS,
+    );
+    expect(inst(played, pistol).counters.charge).toBe(before + 2);
+    expect(inst(played, pistol).exhausted).toBe(false);
   });
 });
