@@ -265,4 +265,36 @@ describe("Gamora's nemesis set (Sibling Rivalry, Nebula, In a Bind, Waylay)", ()
     const { events } = driveEvents(WAVE3_DEPS, staged, { type: "endTurn", playerId: P1 });
     expect(events.some((e) => e.type === "surgeTriggered")).toBe(true);
   });
+
+  /**
+   * rules-qa-engineer wave 3 pass (docs/phase7-wave3-qa.md has the full report). Printed text: "When Revealed:
+   * Stun and confuse Gamora. If Gamora is already stunned or confused, this card gains surge." The card names
+   * "Gamora" explicitly — not "you" — so RRG 1.8 "You, Your" (p. 49) doesn't apply: this is a named-character
+   * effect, the same shape Sibling Rivalry's own Forced Response in this file already reads correctly via
+   * `GAMORA_PLAYER` (`ownerOf(named("Gamora"))`, `gamora-obligation-nemesis.ts`).
+   *
+   * **Finding: `18028.when-revealed` stuns/confuses `yourIdentity` (`identityOf(you)`) instead — "you" being
+   * whoever reveals the card, per RRG 1.8 "You, Your" (p. 49)'s own default for an encounter card ("'you' refers
+   * to whoever the ability text concerns", normally the revealer for a step-three reveal). In solo play the
+   * revealer is always Gamora, so every existing test above (solo only) can't see the difference. In a 2-player
+   * game where the *other* player reveals Waylay, this test shows the wrong identity gets stunned and confused.**
+   *
+   * Severity: wrong result, not a crash — but it means the printed nemesis treachery's whole point (punishing the
+   * Gamora player specifically) silently stops working the moment Gamora isn't the one who happens to reveal it,
+   * in any 2+ player game. Owner: `ability-scripting-engineer` (`gam/gamora-obligation-nemesis.ts`, `18028.when-
+   * revealed`) — the fix is presumably swapping `yourIdentity` for the same `GAMORA_PLAYER`-derived identity ref
+   * `18025.sibling-rivalry-constant`/`-forced-response` already use in this same file.
+   */
+  it.fails("Waylay (18028.when-revealed): stuns and confuses Gamora even when a different player reveals it (docs/phase7-wave3-qa.md; RRG 1.8 p. 49)", () => {
+    const start = startWave3Game(
+      gamoraScenario("rhino", { seed: 4, extraPlayers: [{ starterDeckId: "groot-protection" }] }),
+    );
+    const gamoraIdentity = identityOf(start, P1);
+    const otherIdentity = identityOf(start, P2);
+    const { state: revealed } = revealFromEncounterDeck(WAVE3_DEPS, start, "18028", firstLegal, 1, P2);
+    expect(inst(revealed, gamoraIdentity).statuses.stunned).toBeGreaterThan(0);
+    expect(inst(revealed, gamoraIdentity).statuses.confused).toBeGreaterThan(0);
+    expect(inst(revealed, otherIdentity).statuses.stunned).toBe(0);
+    expect(inst(revealed, otherIdentity).statuses.confused).toBe(0);
+  });
 });
