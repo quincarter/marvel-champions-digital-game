@@ -229,6 +229,15 @@ export const deckCountOf = (player: PlayerRef = you): ValueSpec => ({ kind: "dec
  * `AbilityCost.dealEncounterCards` (§3.20) has dealt a player, read live wherever it's needed.
  */
 export const dealtEncounterCount = (player: PlayerRef = you): ValueSpec => ({ kind: "dealtEncounterCount", player });
+/**
+ * The cards in a scenario out-of-play area, optionally filtered: "if there are at least 5 cards in The Collection"
+ * (The Grand Collection 1B), "for each card in The Collection" (Collector III). docs/phase7-wave3.md §3.14.
+ */
+export const scenarioAreaCount = (name: string, filter?: TargetQuery): ValueSpec => ({
+  kind: "scenarioAreaCount",
+  name,
+  ...(filter ? { filter } : {}),
+});
 
 /**
  * Arithmetic: "2 damage for each counter (to a maximum of 10)" → `scaled(counters, { times: 2, max: 10 })`;

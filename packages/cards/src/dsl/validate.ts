@@ -302,6 +302,12 @@ function bindsOf(effect: EffectSpec, scope: Scope): void {
     case "divide":
       if (effect.bind) scope.prefixes.add(`${effect.bind}.`);
       return;
+    // `<bind>.amount`: how many counters were actually placed (docs/phase7-wave3.md §3.10) — "If you cannot, draw
+    // 1 card." (Drax, `wave3/drax/drax-kit.ts` 19001a) needed this case; it was documented on `EffectSpec
+    // addCounters` itself but never wired into the validator's own bind tracking.
+    case "addCounters":
+      if (effect.bind) scope.prefixes.add(`${effect.bind}.`);
+      return;
     default:
       return;
   }

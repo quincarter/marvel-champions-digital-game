@@ -530,15 +530,23 @@ export type RuleSpec =
    * "Forced Interrupt: When a card (player or encounter) would be placed into a discard pile from play, put it faceup into
    * The Collection instead." (Collector I–III, Infiltrate the Museum, `gmw` 16070–16072). A matching card leaving play for
    * a discard pile goes, faceup, to the scenario area `area` instead (`leavePlay`), and `discardRedirected` is announced
-   * for what follows ("…, then place 1 threat on the main scheme", Collector III). MC16 FAQ p. 21: only a card *in play*
-   * placed *into a discard pile* — not one set aside, removed from the game, shuffled into a deck, returned to hand, or
-   * discarded from an out-of-play area. RRG 1.8 FAQ "Rocket Raccoon (#29A)" (p. 61): the discard was still attempted, so
-   * a cost to discard it is paid. docs/phase7-wave3.md §3.14.
+   * for what follows. MC16 FAQ p. 21: only a card *in play* placed *into a discard pile* — not one set aside, removed
+   * from the game, shuffled into a deck, returned to hand, or discarded from an out-of-play area. RRG 1.8 FAQ "Rocket
+   * Raccoon (#29A)" (p. 61): the discard was still attempted, so a cost to discard it is paid. docs/phase7-wave3.md §3.14.
+   *
+   * `thenPlaceThreat`: Collector III's own printed ability is one Forced Interrupt box ("…instead, then place 1 threat
+   * on the main scheme"), and every villain stage's abilities are only the ones printed on that stage's own face (RRG
+   * 1.8 "Villain Defeat", p. 47) — so the redirect and its follow-up have to be one `AbilityDefinition` (one ability id,
+   * `16072.collector-forced-interrupt`), not the redirect plus a second card's own response to `discardRedirected` (the
+   * engine's own `scenario-area.test.ts` uses two cards only to exercise the event generically). `leavePlay` places this
+   * many threat on the redirecting rule's own game area's main scheme, through the ordinary interruptible `placeThreat`
+   * event, immediately after announcing the redirect — so a "prevent threat from being placed" effect still applies.
    */
   | {
       readonly kind: "discardFromPlayDestination";
       readonly cards: TargetQuery;
       readonly area: string;
+      readonly thenPlaceThreat?: number;
       readonly while?: Predicate;
     }
   /**

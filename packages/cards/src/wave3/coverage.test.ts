@@ -10,6 +10,7 @@ import { coveredByEngineRule } from "../dsl/index.js";
 import { WAVE1_ABILITIES } from "../wave1/index.js";
 import { WAVE2_ABILITIES } from "../wave2/index.js";
 import { WAVE3_ABILITIES, wave3ReprintPairs } from "./index.js";
+import { DRAX_ABILITIES } from "./drax/index.js";
 import { GAM_ABILITIES } from "./gam/index.js";
 import { GMW_ABILITIES } from "./gmw/index.js";
 import { STLD_ABILITIES } from "./stld/index.js";
@@ -41,7 +42,7 @@ const PACK_STATUS: Readonly<Record<string, "scripted" | "in progress" | "not sta
   gmw: "in progress",
   stld: "scripted",
   gam: "scripted",
-  drax: "not started",
+  drax: "in progress",
   vnm: "scripted",
   ron: "not started",
 };
@@ -54,15 +55,18 @@ const PACK_STATUS: Readonly<Record<string, "scripted" | "in progress" | "not sta
  */
 const KNOWN_SKIPPED: Readonly<Record<string, readonly string[]>> = {
   gmw: [
-    // Groot's and Rocket Raccoon's kits/obligations/nemeses, and Brotherhood of Badoon (villain Drang,
-    // main scheme Terrestrial Invasion/Protect the Planet, Badoon Ship, Drang's Spear, Badoon Engineer,
-    // the four side schemes, the Band of Badoon modular set) plus the Ship Command modular set are
-    // scripted. Genuine primitive gaps (module docblocks in `gmw/groot-kit.ts`, `gmw/rocket-kit.ts`,
-    // `gmw/badoon.ts`): 16006, 16009, 16024 (Groot); 16032, 16033, 16052 (Rocket); 16020/16048 (the
-    // Team-Up card, same cross-player targeting gap both times); 16060.when-revealed (Drang III, needs
-    // a player-level superlative — "the player engaged with the fewest minions"). Everything from
-    // Infiltrate the Museum on (16070+, except Ship Command's own 16142-16148) is not yet reached.
-    // Regenerated with `MC_REFS_PACKS=gmw pnpm refs` (docs/card-scripting-process.md) — never hand-typed.
+    // Groot's and Rocket Raccoon's kits/obligations/nemeses, Brotherhood of Badoon (villain Drang, main scheme
+    // Terrestrial Invasion/Protect the Planet, Badoon Ship, Drang's Spear, Badoon Engineer, the four side
+    // schemes, the Band of Badoon modular set), the Ship Command modular set, and Infiltrate the Museum (villain
+    // Collector I–III, main scheme The Grand Collection, its own encounter set, and Menagerie Medley — `gmw/
+    // museum.ts`) are scripted. Genuine primitive gaps (module docblocks in `gmw/groot-kit.ts`, `gmw/rocket-
+    // kit.ts`, `gmw/badoon.ts`, `gmw/museum.ts`): 16006, 16009, 16024 (Groot); 16032, 16033, 16052 (Rocket);
+    // 16020/16048 (the Team-Up card, same cross-player targeting gap both times); 16060.when-revealed (Drang
+    // III, needs a player-level superlative — "the player engaged with the fewest minions");
+    // 16073b.the-grand-collection-action (needs a true either/or `AbilityCost`, distinct from an AND-cost list).
+    // Everything from Escape the Museum on (16080+, except Menagerie Medley's own 16135-16137 and Ship Command's
+    // own 16142-16148) is not yet reached. Regenerated with `MC_REFS_PACKS=gmw pnpm refs` (docs/card-scripting-
+    // process.md) — never hand-typed.
     "16006.we-are-groot-action",
     "16009.lashing-vines-response",
     "16020.flora-and-fauna-constant",
@@ -74,23 +78,7 @@ const KNOWN_SKIPPED: Readonly<Record<string, readonly string[]>> = {
     "16048.flora-and-fauna-action",
     "16052.booster-boots-interrupt",
     "16060.when-revealed",
-    "16070.collector-forced-interrupt",
-    "16071.when-revealed",
-    "16071.collector-forced-interrupt",
-    "16072.when-revealed",
-    "16072.collector-forced-interrupt",
-    "16073a.setup",
     "16073b.the-grand-collection-action",
-    "16073b.the-grand-collection-constant",
-    "16074.biogram-image-forced-interrupt",
-    "16074.boost",
-    "16076.when-revealed",
-    "16076.boost",
-    "16077.when-revealed",
-    "16077.view-the-cosmos-constant",
-    "16077.view-the-cosmos-constant-2",
-    "16078.when-revealed-alter-ego",
-    "16078.when-revealed-hero",
     "16080a.collector-constant",
     "16080a.collector-forced-interrupt",
     "16080b.collector-constant",
@@ -187,10 +175,6 @@ const KNOWN_SKIPPED: Readonly<Record<string, readonly string[]>> = {
     "16132.boost",
     "16133.boost",
     "16134.boost",
-    "16135.when-revealed",
-    "16135.boost",
-    "16137.starshark-constant",
-    "16137.boost",
     "16138.pirate-commander-forced-response",
     "16138.boost",
     "16139.pirate-lackey-forced-response",
@@ -295,7 +279,19 @@ const KNOWN_SKIPPED: Readonly<Record<string, readonly string[]>> = {
     "17029.agile-flight-action",
   ],
   gam: [],
-  drax: [],
+  drax: [
+    // Drax's kit, obligation and nemesis set are scripted (docs/phase7-wave3-scripting.md, `wave3/drax/`). Two
+    // genuine primitive gaps (module docblocks in `drax/drax-kit.ts`, `drax/drax-pack-cards.ts`): 19012 (Martyr —
+    // a consequential-damage event needs a link back to the attack that caused it, to read whether that attack
+    // defeated an enemy); 19032.regroup-interrupt (a defeated ally needs a destination redirect to hand,
+    // conditioned on the defeat coming from an enemy attack — no existing primitive redirects a defeat's
+    // destination anywhere but the victory display or a scenario area). 19013.moondragon-action stays skipped per
+    // docs/phase7-wave3.md §3.23/§4 Q12 (an enemy attacking another enemy — intentionally left unbuilt this wave,
+    // not this pack's gap to resolve). Regenerated with `MC_REFS_PACKS=drax pnpm refs` — never hand-typed.
+    "19012.martyr-response",
+    "19013.moondragon-action",
+    "19032.regroup-interrupt",
+  ],
   // vnm: fully scripted — no genuine primitive gaps (module docblock, `wave3/vnm/venom-kit.ts`). Regenerated with
   // `MC_REFS_PACKS=vnm pnpm refs` — never hand-typed.
   vnm: [],
@@ -390,6 +386,7 @@ describe("wave 3 pack ability id coverage (every registered ability id is named 
     { code: "gmw", registry: GMW_ABILITIES },
     { code: "stld", registry: STLD_ABILITIES },
     { code: "gam", registry: GAM_ABILITIES },
+    { code: "drax", registry: DRAX_ABILITIES },
     { code: "vnm", registry: VNM_ABILITIES },
   ];
 
@@ -405,9 +402,17 @@ describe("wave 3 pack ability id coverage (every registered ability id is named 
    * in-game command can drive, so `wave3/gam/*.test.ts` has nothing to name it in. It's tested at the engine level,
    * `packages/engine/src/off-aspect-allowance.test.ts` (4 tests) plus `packages/content/src/schema/wave3.test.ts`
    * §1.5 (2 tests).
+   *
+   * `19030.bring-it-constant` ("Bring It!", `drax`): "Max 1 per phase." is `playRestrictions.maxPerPhase`
+   * (`packages/engine/src/actions.ts`), the Maximum Velocity precedent (`wave2/qsv/kit.ts` 14005) — `@mc/content`'s
+   * own 19030 record carries no `playRestrictions` at all (the same data gap Maximum Velocity has, flagged for
+   * `card-data-pipeline`), so there is no in-game command whose *rejection* this ref's own test could drive; the
+   * restriction mechanism itself is engine-enforced, data permitting, and is covered generically by
+   * `packages/engine/src/primitives-wave2.test.ts` (`playRestrictions.maxPerPhase`).
    */
   const COVERED_BY_ENGINE_RULE: Readonly<Record<string, string>> = {
     "18001b.gamora-constant": "packages/engine/src/off-aspect-allowance.test.ts",
+    "19030.bring-it-constant": "packages/engine/src/primitives-wave2.test.ts",
   };
 
   it("checks every pack PACK_STATUS marks started, so a new pack can't skip the guard by not being listed here", () => {

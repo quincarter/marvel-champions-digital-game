@@ -584,6 +584,18 @@ export const setAside = (player: PlayerRef = you, filter?: TargetQuery): CardSel
   player,
   ...(filter ? { filter } : {}),
 });
+/**
+ * The cards in a scenario out-of-play area, e.g. "The Collection" (docs/phase7-wave3.md §3.14): `scenarioArea(name)`
+ * as a `CardSelector` ("discard 1 card from The Collection"); `{ scenarioArea: name }` is already a valid
+ * `CardDestination` for `moveCards`' own `to`, with no wrapper needed ("put it faceup into The Collection").
+ */
+export const scenarioArea = (name: string, filter?: TargetQuery): CardSelector => ({
+  kind: "scenarioArea",
+  name,
+  ...(filter ? { filter } : {}),
+});
+/** "Create '[name]' game area" (The Grand Collection 1A, docs/phase7-wave3.md §3.14). Empty; a no-op if it exists. */
+export const createScenarioArea = (name: string): EffectSpec => ({ kind: "createScenarioArea", name });
 export const tuckedUnder = (under: TargetRef): CardSelector => ({ kind: "tucked", under });
 /**
  * "Search the encounter deck, discard pile, **and set-aside area** for X" (Kang's Wrath 4B, 11013b; docs/phase7-

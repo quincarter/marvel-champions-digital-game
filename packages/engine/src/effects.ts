@@ -16,7 +16,13 @@ import {
 } from "./query.js";
 import type { TriggerEvent } from "./trigger-events.js";
 import { nextInt, shuffle } from "./rng.js";
-import { accelerationTokenRedirect, cannotLeavePlay, cannotReady, discardRedirectArea } from "./rules.js";
+import {
+  accelerationTokenRedirect,
+  cannotLeavePlay,
+  cannotReady,
+  discardRedirectArea,
+  mainSchemeForRedirect,
+} from "./rules.js";
 import { pushEvent } from "./resolve/frames.js";
 import { matchesQuery, type EffectContext } from "./select.js";
 import type { StatusName } from "./spec.js";
@@ -412,7 +418,7 @@ export function leavePlay(
   const redirect = discarded && to === requested ? discardRedirectArea(ctx.state, ctx.deps, id) : null;
   if (discarded && to === requested)
     emit(ctx, { type: "cardDiscardedFromPlay", instanceId: id, cardId: instance.cardId });
-  if (redirect !== null) to = { kind: "scenarioArea", name: redirect };
+  if (redirect !== null) to = { kind: "scenarioArea", name: redirect.area };
   for (const attachment of [...instance.attachments]) discardFromPlay(ctx, attachment);
   // RRG "Tuck": when a card leaves play, each card tucked under it is discarded.
   for (const tuckedId of [...instance.tucked]) {
@@ -435,7 +441,23 @@ export function leavePlay(
     faceup: redirect !== null ? true : i.facedownAs ? true : i.faceup,
     flipped: false,
   }));
-  if (redirect !== null) pushEvent(ctx, { kind: "discardRedirected", instanceId: id, area: redirect });
+  if (redirect !== null) {
+    pushEvent(ctx, { kind: "discardRedirected", instanceId: id, area: redirect.area });
+    // Collector III's own "…, then place 1 threat on the main scheme" (`thenPlaceThreat`, docs/phase7-wave3.md §3.14):
+    // one Forced Interrupt box, so the follow-up runs right after the redirect it belongs to, through the ordinary
+    // interruptible `placeThreat` event rather than a second card's response to `discardRedirected`.
+    if (redirect.thenPlaceThreat !== undefined) {
+      const schemeInstanceId = mainSchemeForRedirect(ctx.state, ctx.deps, redirect);
+      if (schemeInstanceId !== null) {
+        pushEvent(ctx, {
+          kind: "placeThreat",
+          schemeInstanceId,
+          amount: redirect.thenPlaceThreat,
+          sourceInstanceId: redirect.sourceInstanceId,
+        });
+      }
+    }
+  }
 }
 
 // ---------------------------------------------------------------------------
