@@ -7,6 +7,7 @@
 import { POOL_DEPS } from "../../content/pool.js";
 import type { Command, InstanceId, LegalAction, PlayerId } from "@mc/engine";
 import { ink } from "../../tokens.js";
+import type { CostChoicePrompt } from "../../view/cost-choice-model.js";
 import type { DiscardChoiceState } from "../../view/discard-choice-model.js";
 import type { FocusTarget } from "../../view/focus.js";
 import type { BasicAction } from "../../view/highlights.js";
@@ -42,7 +43,19 @@ export type Selection =
    * mode the player can back out of — payment, a discard cost, a controller — and a free card had none, so a
    * stray tap on Spiritual Meditation played it, with no way back. Reported from play.
    */
-  | { readonly kind: "confirmingPlay"; readonly action: LegalAction; readonly controllerId: PlayerId | null };
+  | { readonly kind: "confirmingPlay"; readonly action: LegalAction; readonly controllerId: PlayerId | null }
+  /**
+   * An either/or cost branch, or how many counters an "up to N" cost removes, needs choosing before payment can
+   * even be priced — a branch changes what the cost *is* (docs/phase7-wave3.md §3.32, §3.36), so this happens
+   * before, not during, the payment mode (`view/cost-choice-model.ts`).
+   */
+  | {
+      readonly kind: "choosingCostSelection";
+      readonly action: LegalAction;
+      readonly target: InstanceId | null;
+      readonly controllerId: PlayerId | null;
+      readonly prompt: CostChoicePrompt;
+    };
 
 export type TargetState = "rest" | "selected" | "unavailable";
 

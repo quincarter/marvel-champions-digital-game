@@ -20,6 +20,7 @@ import type { Rect } from "../../view/layout.js";
 import type { PaymentView } from "../../view/payment-model.js";
 import type { BoardDrawContext } from "./context.js";
 import { drawControllerBar, drawPlayConfirmBar } from "./controller-bar.js";
+import { drawCostChoiceBar } from "./cost-choice-bar.js";
 import { drawDiscardBar } from "./discard-bar.js";
 import { drawPaymentBar } from "./payment-bar.js";
 import { drawMyPiles } from "./piles.js";
@@ -57,12 +58,16 @@ export function drawHand(ctx: BoardDrawContext, rect: Rect, model: BoardModel): 
   const discard = ctx.controller.discardChoiceView();
   const controllerChoice = ctx.controller.controllerChoice();
   const playConfirmation = ctx.controller.playConfirmation();
+  const costChoice = ctx.controller.costChoiceView();
   let top = rect.y + HAND_CAPTION_HEIGHT;
   if (playConfirmation) {
     drawPlayConfirmBar(ctx, { x: rect.x, y: rect.y, width: rect.width, height: hit.target }, playConfirmation);
     top = rect.y + hit.target + 4;
   } else if (controllerChoice) {
     drawControllerBar(ctx, { x: rect.x, y: rect.y, width: rect.width, height: hit.target }, controllerChoice);
+    top = rect.y + hit.target + 4;
+  } else if (costChoice) {
+    drawCostChoiceBar(ctx, { x: rect.x, y: rect.y, width: rect.width, height: hit.target }, costChoice);
     top = rect.y + hit.target + 4;
   } else if (payment) {
     drawPaymentBar(ctx, { x: rect.x, y: rect.y, width: rect.width, height: hit.target }, payment);
