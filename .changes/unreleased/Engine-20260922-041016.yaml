@@ -1,3 +1,0 @@
-kind: Engine
-body: 'Add ValueSpec deckCount (deckCountOf in the DSL): a player''s deck size, so "the top half of their deck" can feed a zone selector''s top'
-time: 2026-09-22T04:10:16.674872-04:00
