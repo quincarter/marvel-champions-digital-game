@@ -3,6 +3,7 @@ import { mergeRegistries } from "../../dsl/index.js";
 import { BADOON } from "./badoon.js";
 import { GROOT_KIT } from "./groot-kit.js";
 import { GROOT_OBLIGATION_NEMESIS } from "./groot-obligation-nemesis.js";
+import { MUSEUM } from "./museum.js";
 import { ROCKET_KIT } from "./rocket-kit.js";
 import { ROCKET_OBLIGATION_NEMESIS } from "./rocket-obligation-nemesis.js";
 import { SHIP_COMMAND } from "./ship-command.js";
@@ -18,4 +19,5 @@ export const GMW_ABILITIES: AbilityRegistry = mergeRegistries(
   ROCKET_OBLIGATION_NEMESIS,
   SHIP_COMMAND,
   BADOON,
+  MUSEUM,
 );

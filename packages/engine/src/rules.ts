@@ -1,8 +1,17 @@
 import type { EngineDeps } from "./abilities.js";
 import type { InstanceId, PlayerId } from "./ids.js";
 import { hasKeyword } from "./keywords.js";
-import { minionsEngagedWith, villainOf } from "./query.js";
-import { activeRules, cardsInPlay, categoriesOf, matchesQuery, resolveRef, rulePlayers } from "./select.js";
+import { mainSchemeFor, minionsEngagedWith, villainOf } from "./query.js";
+import {
+  activeRules,
+  cardsInPlay,
+  categoriesOf,
+  contextArea,
+  matchesQuery,
+  resolveRef,
+  rulePlayers,
+  type EffectContext,
+} from "./select.js";
 import type { AttackKeyword } from "./spec.js";
 import type { Form, GameState } from "./state.js";
 
@@ -231,12 +240,41 @@ export const cannotBeUnattached = (state: GameState, deps: EngineDeps, id: Insta
     matchesQuery(state, id, rule.target, context),
   );
 
+/** Where `discardRedirectArea` sends a card, and the follow-up (if any) that redirect itself carries. */
+export interface DiscardRedirect {
+  readonly area: string;
+  /** Collector III's "…, then place 1 threat on the main scheme" (`thenPlaceThreat`, docs/phase7-wave3.md §3.14). */
+  readonly thenPlaceThreat?: number;
+  readonly sourceInstanceId: InstanceId | null;
+}
+
 /** The scenario area a card discarded from play goes to instead, or null (`discardFromPlayDestination`; §3.14). */
-export function discardRedirectArea(state: GameState, deps: EngineDeps, id: InstanceId): string | null {
+export function discardRedirectArea(state: GameState, deps: EngineDeps, id: InstanceId): DiscardRedirect | null {
   const match = activeRules(state, deps, "discardFromPlayDestination").find(({ rule, context }) =>
     matchesQuery(state, id, rule.cards, context),
   );
-  return match ? match.rule.area : null;
+  if (!match) return null;
+  return {
+    area: match.rule.area,
+    ...(match.rule.thenPlaceThreat !== undefined ? { thenPlaceThreat: match.rule.thenPlaceThreat } : {}),
+    sourceInstanceId: match.context.selfInstanceId,
+  };
+}
+
+/** The main scheme a redirect's follow-up threat lands on: the redirecting rule's own game area's stage. */
+export function mainSchemeForRedirect(
+  state: GameState,
+  deps: EngineDeps,
+  redirect: DiscardRedirect,
+): InstanceId | null {
+  const context: EffectContext = {
+    selfInstanceId: redirect.sourceInstanceId,
+    controllerId: null,
+    event: null,
+    bindings: {},
+    deps,
+  };
+  return mainSchemeFor(state, contextArea(state, context))?.instanceId ?? null;
 }
 
 /** RRG 1.8 "Restricted" (p. 38): "A player cannot have more than two cards with the restricted keyword in play". */

@@ -35,7 +35,24 @@ const COLLECTOR = stubVillain({
   id: "collector",
   stages: [{ hp: flat(40), atk: 1, sch: 1, abilities: [COLLECTOR_RULE.ref] }],
 });
-/** Collector III's "…, then place 1 threat on the main scheme", as a response to the redirect. */
+/**
+ * Collector III's own printed ability, in one Forced Interrupt box: "…instead, then place 1 threat on the main
+ * scheme" (`thenPlaceThreat`, `discardFromPlayDestination`, docs/phase7-wave3.md §3.14) — the follow-up is part of
+ * the *same* rule as the redirect, not a second card's response to `discardRedirected` (that's `CURATOR_RESPONSE`
+ * below, kept only to prove the announced event is independently usable by an unrelated card).
+ */
+const COLLECTOR_III_RULE = stubAbility("collector-iii.constant", {
+  trigger: {
+    kind: "constant",
+    rules: [{ kind: "discardFromPlayDestination", cards: {}, area: AREA, thenPlaceThreat: 1 }],
+  },
+  effects: [],
+});
+const COLLECTOR_III = stubVillain({
+  id: "collector-iii",
+  stages: [{ hp: flat(40), atk: 1, sch: 1, abilities: [COLLECTOR_III_RULE.ref] }],
+});
+/** A second card's own response to the redirect, proving `discardRedirected` is independently usable. */
 const CURATOR_RESPONSE = stubAbility("curator.response", {
   trigger: { kind: "response", forced: true, on: { on: "discardRedirected" } },
   effects: [{ kind: "placeThreat", target: mainScheme, amount: n(1) }],
@@ -86,8 +103,8 @@ const TOP_CARD = actionEvent("top-card", [
 ]);
 const EVENTS = [CREATE, SMASH, DISMISS, RECLAIM, COUNT, TOP_CARD];
 
-const deps: EngineDeps = depsOf(COLLECTOR_RULE, CURATOR_RESPONSE, ...EVENTS.map((e) => e.ability));
-const CARDS = [COLLECTOR, CURATOR, GRUNT, BOUNTY, ...EVENTS.map((e) => e.card)];
+const deps: EngineDeps = depsOf(COLLECTOR_RULE, COLLECTOR_III_RULE, CURATOR_RESPONSE, ...EVENTS.map((e) => e.ability));
+const CARDS = [COLLECTOR, COLLECTOR_III, CURATOR, GRUNT, BOUNTY, ...EVENTS.map((e) => e.card)];
 const ENCOUNTER: readonly CardId[] = [GRUNT.id, BOUNTY.id, ...copiesOf(GRUNT.id, 10)];
 
 function start(): { state: GameState; curator: InstanceId } {
@@ -101,6 +118,19 @@ function start(): { state: GameState; curator: InstanceId } {
   const created = playFree(base, deps, CREATE.card.id).state;
   const placed = playerCardIntoPlay(created, CURATOR.id);
   return { state: placed.state, curator: placed.id };
+}
+
+/** No curator support in play: only the villain's own rule can place the follow-up threat. */
+function startAgainstCollectorIII(): { state: GameState } {
+  const base = gameAtFirstTurn({
+    cards: CARDS,
+    deps,
+    villain: COLLECTOR_III,
+    encounter: ENCOUNTER,
+    deck: EVENTS.flatMap((e) => copiesOf(e.card.id, 2)),
+  });
+  const created = playFree(base, deps, CREATE.card.id).state;
+  return { state: created };
 }
 const collection = (state: GameState): readonly InstanceId[] => state.scenarioAreas?.[AREA] ?? [];
 const mainThreat = (state: GameState): number => mustInstance(state, state.mainScheme.instanceId).threat;
@@ -141,6 +171,18 @@ describe("§3.14 The Collection: a scenario out-of-play area", () => {
     const after = playFree(bounty.state, deps, SMASH.card.id).state;
     expect(after.victoryDisplay).toContain(bounty.id);
     expect(collection(after)).not.toContain(bounty.id);
+  });
+
+  it("Collector III's own rule places its follow-up threat itself, with no other card reacting", () => {
+    const { state } = startAgainstCollectorIII();
+    const grunt = minionEngagedWith(state, GRUNT.id);
+    const threatBefore = mainThreat(grunt.state);
+    const { state: after, session } = playFree(grunt.state, deps, SMASH.card.id);
+    expect(collection(after)).toContain(grunt.id);
+    expect(mainThreat(after)).toBe(threatBefore + 1);
+    const replayed = replay(session.log, deps);
+    if (!replayed.ok) throw new Error(replayed.error.message);
+    expect(replayed.state).toEqual(session.state);
   });
 
   it("a card is taken back out to its owner's discard pile, and the area can be counted", () => {

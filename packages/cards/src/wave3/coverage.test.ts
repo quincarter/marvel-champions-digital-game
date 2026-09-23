@@ -53,15 +53,18 @@ const PACK_STATUS: Readonly<Record<string, "scripted" | "in progress" | "not sta
  */
 const KNOWN_SKIPPED: Readonly<Record<string, readonly string[]>> = {
   gmw: [
-    // Groot's and Rocket Raccoon's kits/obligations/nemeses, and Brotherhood of Badoon (villain Drang,
-    // main scheme Terrestrial Invasion/Protect the Planet, Badoon Ship, Drang's Spear, Badoon Engineer,
-    // the four side schemes, the Band of Badoon modular set) plus the Ship Command modular set are
-    // scripted. Genuine primitive gaps (module docblocks in `gmw/groot-kit.ts`, `gmw/rocket-kit.ts`,
-    // `gmw/badoon.ts`): 16006, 16009, 16024 (Groot); 16032, 16033, 16052 (Rocket); 16020/16048 (the
-    // Team-Up card, same cross-player targeting gap both times); 16060.when-revealed (Drang III, needs
-    // a player-level superlative — "the player engaged with the fewest minions"). Everything from
-    // Infiltrate the Museum on (16070+, except Ship Command's own 16142-16148) is not yet reached.
-    // Regenerated with `MC_REFS_PACKS=gmw pnpm refs` (docs/card-scripting-process.md) — never hand-typed.
+    // Groot's and Rocket Raccoon's kits/obligations/nemeses, Brotherhood of Badoon (villain Drang, main scheme
+    // Terrestrial Invasion/Protect the Planet, Badoon Ship, Drang's Spear, Badoon Engineer, the four side
+    // schemes, the Band of Badoon modular set), the Ship Command modular set, and Infiltrate the Museum (villain
+    // Collector I–III, main scheme The Grand Collection, its own encounter set, and Menagerie Medley — `gmw/
+    // museum.ts`) are scripted. Genuine primitive gaps (module docblocks in `gmw/groot-kit.ts`, `gmw/rocket-
+    // kit.ts`, `gmw/badoon.ts`, `gmw/museum.ts`): 16006, 16009, 16024 (Groot); 16032, 16033, 16052 (Rocket);
+    // 16020/16048 (the Team-Up card, same cross-player targeting gap both times); 16060.when-revealed (Drang
+    // III, needs a player-level superlative — "the player engaged with the fewest minions");
+    // 16073b.the-grand-collection-action (needs a true either/or `AbilityCost`, distinct from an AND-cost list).
+    // Everything from Escape the Museum on (16080+, except Menagerie Medley's own 16135-16137 and Ship Command's
+    // own 16142-16148) is not yet reached. Regenerated with `MC_REFS_PACKS=gmw pnpm refs` (docs/card-scripting-
+    // process.md) — never hand-typed.
     "16006.we-are-groot-action",
     "16009.lashing-vines-response",
     "16020.flora-and-fauna-constant",
@@ -73,23 +76,7 @@ const KNOWN_SKIPPED: Readonly<Record<string, readonly string[]>> = {
     "16048.flora-and-fauna-action",
     "16052.booster-boots-interrupt",
     "16060.when-revealed",
-    "16070.collector-forced-interrupt",
-    "16071.when-revealed",
-    "16071.collector-forced-interrupt",
-    "16072.when-revealed",
-    "16072.collector-forced-interrupt",
-    "16073a.setup",
     "16073b.the-grand-collection-action",
-    "16073b.the-grand-collection-constant",
-    "16074.biogram-image-forced-interrupt",
-    "16074.boost",
-    "16076.when-revealed",
-    "16076.boost",
-    "16077.when-revealed",
-    "16077.view-the-cosmos-constant",
-    "16077.view-the-cosmos-constant-2",
-    "16078.when-revealed-alter-ego",
-    "16078.when-revealed-hero",
     "16080a.collector-constant",
     "16080a.collector-forced-interrupt",
     "16080b.collector-constant",
@@ -186,10 +173,6 @@ const KNOWN_SKIPPED: Readonly<Record<string, readonly string[]>> = {
     "16132.boost",
     "16133.boost",
     "16134.boost",
-    "16135.when-revealed",
-    "16135.boost",
-    "16137.starshark-constant",
-    "16137.boost",
     "16138.pirate-commander-forced-response",
     "16138.boost",
     "16139.pirate-lackey-forced-response",
