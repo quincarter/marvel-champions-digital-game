@@ -133,6 +133,15 @@ interface PlayerCardCommon extends BaseCard {
    * into a deck. RRG 1.8 "Double-Sided Card" (p. 17) and "Flip" (p. 20) apply as for encounter cards.
    */
   readonly flipSide?: CardFlipSide;
+  /**
+   * "Unit Cost X." (MC16 p. 5): the price, in a between-scenario campaign's "units" currency, to add this card from
+   * The Galaxy's Most Wanted's Market to a deck — a printed property of the card itself, not campaign behavior
+   * (`@mc/engine`'s `CampaignOp` `spend`, packages/engine/src/campaign.ts: "The per-card price is card data, not
+   * campaign data"). Present only on a `specificTo: { kind: "campaign" }` card that prints "Unit Cost X." in its
+   * text (docs/phase7-wave3.md §1); absent for every other player card, including every other campaign-specific one
+   * (e.g. The Rise of Red Skull's Hydra Campaign upgrades have no Unit Cost).
+   */
+  readonly unitCost?: number;
 }
 
 /** Fields of a card with a printed resource cost. */

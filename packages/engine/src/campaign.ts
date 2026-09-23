@@ -346,12 +346,25 @@ export type CampaignGameQuery =
   /** MC60 p. 13: "If the Typhoid Mary/Bloody Mary ally is in the victory display, check the 'Mary Defeated?' box." */
   | { readonly kind: "cardsInVictoryDisplay"; readonly query: TargetQuery }
   /**
+   * A scenario out-of-play area (docs/phase7-wave3.md §3.14): "In the 'Cards in The Collection' section, record
+   * the title of each player card in The Collection" (MC16 p. 10) — the `record`-side twin of the in-game
+   * `CardSelector` `scenarioArea` (`effects.ts`'s `scenarioArea`), reading the same `GameState.scenarioAreas`.
+   */
+  | { readonly kind: "cardsInScenarioArea"; readonly name: string; readonly query: TargetQuery }
+  /**
    * MC10 p. 7: "Record the number of delay counters on the main scheme in the campaign log." MC50 p. 11 does the
    * same per Board Member. `counter` is a counter name as `CardInstance.counters` keys them.
    */
   | { readonly kind: "countersOn"; readonly query: TargetQuery; readonly counter: string }
   /** MC60 p. 13: "If Disturbed Psyche is in play and has at least 2 threat on it…" */
   | { readonly kind: "threatOn"; readonly query: TargetQuery }
+  /**
+   * MC16 p. 8: "Record a number of units … equal to the victory values on encounter cards in the victory display"
+   * — the printed `Victory X` keyword's own value (RRG 1.8's Victory X, docs/phase7-wave3.md §3.4), summed across
+   * every matching card, not the card *count* `victoryDisplayCount`/`cardsInVictoryDisplay` would give (two
+   * Victory 2 cards is 4, not 2). `keyword` is a `KeywordName`; a card with no such keyword contributes 0.
+   */
+  | { readonly kind: "keywordValueSum"; readonly query: TargetQuery; readonly keyword: string }
   /**
    * MC10 p. 17: "each player must record their remaining hit points … If a player's remaining hit point value is
    * higher than their base hit point value, record their base hit points in the campaign log instead." The cap is
@@ -365,7 +378,19 @@ export type CampaignGameQuery =
   /** The size of a list-valued query, for "the number of minions and side schemes recorded" (MC50 p. 11). */
   | { readonly kind: "count"; readonly of: CampaignGameQuery }
   /** A list- or number-valued query as a yes/no, for a `flag` field. */
-  | { readonly kind: "atLeast"; readonly of: CampaignGameQuery; readonly amount: number };
+  | { readonly kind: "atLeast"; readonly of: CampaignGameQuery; readonly amount: number }
+  /**
+   * `atLeast`'s complement: MC16 p. 8, "Record 1 unit for each player if there are **no minions** in play" is
+   * `atMost(cardsInPlay({categories:["minion"]}), 0)` — there is no negation over `CampaignGameQuery` to spell
+   * `not(atLeast(…, 1))` instead.
+   */
+  | { readonly kind: "atMost"; readonly of: CampaignGameQuery; readonly amount: number }
+  /**
+   * MC16 p. 8: "Record a number of units (to a maximum of 3 units) equal to the victory values…" — a numeric
+   * query's own printed ceiling. Distinct from `LogFieldDef`'s `number.max`, which caps what the *field* can ever
+   * hold, not what one write may add: MC16's `units` field is otherwise unbounded (it carries across scenarios).
+   */
+  | { readonly kind: "capAt"; readonly of: CampaignGameQuery; readonly amount: number };
 
 /** How a `record` instruction writes one field. */
 export interface LogWriteSpec {
@@ -404,7 +429,21 @@ export type CampaignValue =
   /** MC27 p. 5 and ruling August 3, 2026 (4) answer 2: negative victory points mark no reputation-track nodes. */
   | { readonly kind: "clampAtZero"; readonly of: CampaignValue }
   /** A choice made earlier in this same step list, by `CampaignOp` `choose`/`random` slot. */
-  | { readonly kind: "choice"; readonly slot: string };
+  | { readonly kind: "choice"; readonly slot: string }
+  /**
+   * The number of seats in the campaign (`CampaignLog.seats.length`), for a threshold a rulebook prints "[per_hero]"
+   * rather than as a box constant: MC16 p. 10, "1[per_hero] or fewer cards in The Collection" is `not(valueAtLeast(
+   * count("collection"), difference([field("collection", of:"count"), seatCount])))`-style arithmetic over this and
+   * `difference`, since `fieldAtLeast`'s `amount` is a fixed number and a per-hero threshold is not one.
+   */
+  | { readonly kind: "seatCount" }
+  /**
+   * Integer division: MC16 p. 12, "for every 2 Galactic Artifacts side schemes in the victory display, record 1
+   * unit" is `divide(count("galacticArtifacts"), 2, "down")`. Mirrors the in-game `ValueSpec` `scaled`'s own
+   * `divide`, which this type is otherwise deliberately without (see the file header) — needed the moment a
+   * between-games write is itself a quotient rather than a sum/difference/min/max of whole values.
+   */
+  | { readonly kind: "divide"; readonly of: CampaignValue; readonly by: number; readonly round: "down" | "up" };
 
 export type CampaignPredicate =
   | { readonly kind: "fieldAtLeast"; readonly field: string; readonly amount: number; readonly seat?: "self" }
@@ -428,7 +467,13 @@ export type CampaignPredicate =
   | { readonly kind: "choiceMade"; readonly slot: string }
   | { readonly kind: "modes"; readonly of: ModePredicate }
   | { readonly kind: "not"; readonly of: CampaignPredicate }
-  | { readonly kind: "and" | "or"; readonly of: readonly CampaignPredicate[] };
+  | { readonly kind: "and" | "or"; readonly of: readonly CampaignPredicate[] }
+  /**
+   * `fieldAtLeast` generalized to a *computed* threshold: MC16 p. 10's "1[per_hero] or fewer" needs `seatCount` on
+   * one side, which is not a literal a definition can write into `fieldAtLeast.amount: number`. `fieldAtLeast`
+   * stays as the common case (its literal reads more plainly than `valueAtLeast(field(...), const(n))` would).
+   */
+  | { readonly kind: "valueAtLeast"; readonly value: CampaignValue; readonly amount: CampaignValue };
 
 // ---------------------------------------------------------------------------------------------------------------
 // §4.5 The between-games vocabulary
@@ -518,8 +563,23 @@ export type CampaignOp =
   // --- composition (feeds `CampaignGameInput`, not the log) ----------------------------------------------------
   /** MC60 p. 9 step 5: "Determine the villain … and record the name of the chosen villain next to the scenario". */
   | { readonly kind: "composeVillain"; readonly villain: CampaignValue }
-  /** MC60 p. 9 step 6: "Gather your chosen main scheme, your chosen villain, and their corresponding encounter sets." */
-  | { readonly kind: "composeEncounterSets"; readonly sets: readonly CampaignValue[] }
+  /**
+   * MC60 p. 9 step 6: "Gather your chosen main scheme, your chosen villain, and their corresponding encounter
+   * sets." `into` is where the gathered cards land in the composed game: `"deck"` (the default, MC60's own
+   * reading — Appendix II step 10 shuffles them straight into the assembled encounter deck) or `"setAside"`
+   * (RRG 1.8 "Set Aside", p. 39) for a set a scenario needs *available* to an in-game instruction's own selective
+   * pick rather than pre-shuffled — MC16 p. 8/p. 10/p. 12/p. 14/p. 18's escalating Badoon Headhunter draws and
+   * p. 14's Galactic Artifacts side schemes (row 31, row 30): the box names a card by its printed id or by a
+   * campaign-log-recorded title, and only some of a gathered set's cards are meant to enter the deck this game.
+   * A card a `campaignLog` `CardSelector`/`moveCards` instruction names must already be a `GameState` instance
+   * (`select.ts`'s `campaignLog` case only matches existing instances) — `"setAside"` is what makes that true for
+   * a card whose origin set is not itself part of the next scenario's own base `encounterSetIds`.
+   */
+  | {
+      readonly kind: "composeEncounterSets";
+      readonly sets: readonly CampaignValue[];
+      readonly into?: "deck" | "setAside";
+    }
   // --- control -------------------------------------------------------------------------------------------------
   /** "Repeat this process for each player" (MC27 p. 22). Inner ops see `seat: "self"` as the scoped seat. */
   | { readonly kind: "forEachSeat"; readonly ops: readonly CampaignOp[] }
@@ -585,6 +645,13 @@ export interface CollectionFilter {
   readonly sharesTraitWithIdentity?: true;
   /** MC16 p. 5's Unit Cost ceiling reads a numeric log field instead; this is a printed-cost filter. */
   readonly maxPrintedCost?: number;
+  /**
+   * `PlayerCardCommon.unitCost` (MC16 p. 5's "Unit Cost X."), not `maxPrintedCost`'s printed resource cost —
+   * a card's Market price and its play cost are unrelated numbers (most Market cards print cost 0). Exact rather
+   * than a ceiling: splitting one Market-wide choice into one `campaignSet` per price tier is what lets `spend`'s
+   * `amount` be a per-tier constant instead of needing to read the *chosen* card's own price back out of `deps.pool`.
+   */
+  readonly unitCostExactly?: number;
   readonly excludeCardIds?: readonly CardId[];
 }
 
@@ -736,8 +803,8 @@ export interface CampaignAttempt {
   readonly input: CampaignGameInput;
   /** `composeVillain` (MC60 p. 9 step 5). Null for a node whose scenario is `fixed`. */
   readonly composedVillain: string | null;
-  /** `composeEncounterSets` (MC60 p. 9 step 6), in the order the ops named them. */
-  readonly composedEncounterSetIds: readonly string[];
+  /** `composeEncounterSets` (MC60 p. 9 step 6), in the order the ops named them, split by `into`. */
+  readonly composedEncounterSets: { readonly deck: readonly string[]; readonly setAside: readonly string[] };
 }
 
 export type CampaignStatus = "active" | "won" | "lost" | "abandoned" | "incompatible";

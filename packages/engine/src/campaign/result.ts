@@ -31,7 +31,7 @@ import { EngineInvariantError } from "../errors.js";
 import type { GameEvent } from "../events.js";
 import type { InstanceId, PlayerId } from "../ids.js";
 import { cardsInPlay, matchesQuery, type EffectContext } from "../select.js";
-import { getInstance, maxHitPoints, minionsEngagedWith, remainingHitPoints } from "../query.js";
+import { cardOf, getInstance, maxHitPoints, minionsEngagedWith, remainingHitPoints } from "../query.js";
 import type { TargetQuery } from "../spec.js";
 import type { GameState } from "../state.js";
 import { fieldDefOf } from "./log.js";
@@ -113,6 +113,11 @@ function evaluateQuery(
     }
     case "cardsInVictoryDisplay":
       return { kind: "cards", instanceIds: matching(state, state.victoryDisplay, query.query, context) };
+    case "cardsInScenarioArea":
+      return {
+        kind: "cards",
+        instanceIds: matching(state, state.scenarioAreas?.[query.name] ?? [], query.query, context),
+      };
     case "countersOn": {
       const counter = query.counter;
       const total = matching(state, cardsInPlay(state), query.query, context).reduce(
@@ -126,6 +131,15 @@ function evaluateQuery(
         (sum, id) => sum + (getInstance(state, id)?.threat ?? 0),
         0,
       );
+      return { kind: "number", value: total };
+    }
+    case "keywordValueSum": {
+      const total = matching(state, state.victoryDisplay, query.query, context).reduce((sum, id) => {
+        const card = cardOf(state, id);
+        const keyword =
+          card && "keywords" in card ? card.keywords.find((entry) => entry.name === query.keyword) : undefined;
+        return sum + (keyword && "value" in keyword ? keyword.value : 0);
+      }, 0);
       return { kind: "number", value: total };
     }
     case "remainingHitPointsCappedAtBase": {
@@ -153,6 +167,16 @@ function evaluateQuery(
       return {
         kind: "boolean",
         value: countOf(evaluateQuery(state, events, query.of, playerId, deps)) >= query.amount,
+      };
+    case "atMost":
+      return {
+        kind: "boolean",
+        value: countOf(evaluateQuery(state, events, query.of, playerId, deps)) <= query.amount,
+      };
+    case "capAt":
+      return {
+        kind: "number",
+        value: Math.min(countOf(evaluateQuery(state, events, query.of, playerId, deps)), query.amount),
       };
   }
 }

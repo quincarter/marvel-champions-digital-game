@@ -290,7 +290,7 @@ describe("the boundary the runner hands a game", () => {
     expect(start.nodeId).toBe("omega");
     expect(start.scenarioId).toBeNull();
     expect(start.villain).not.toBeNull();
-    expect(start.encounterSetIds).toEqual(["syn-campaign-set"]);
+    expect(start.encounterSets).toEqual({ deck: ["syn-campaign-set"], setAside: [] });
     // The ward recorded in the log made the campaign-wide setup instruction apply this time round.
     expect(start.input.instructions.map((instruction) => instruction.window)).toEqual([
       "afterScenarioSetup",
