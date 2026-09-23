@@ -5,13 +5,16 @@ import {
   draw,
   forcedInterrupt,
   heroAction,
+  interrupt,
   moveCards,
   on,
   query,
   self,
+  setDefeatDestination,
   takeDamage,
   theVillain,
   cards,
+  when,
 } from "../../dsl/index.js";
 
 /**
@@ -22,17 +25,13 @@ import {
  * `drax-obligation-nemesis.ts`/aliased by `../reprints.ts` respectively; Enhanced Physique (19033, `basic`) is
  * also a reprint, aliased automatically.
  *
- * **Genuine primitive gap, `KNOWN_SKIPPED`:**
- * - `19032.regroup-interrupt` ("Interrupt: When an ally is defeated by an enemy attack, return it to its owner's
- *   hand instead of discarding it.") — needs a defeat-destination redirect to *hand*, conditioned on the defeat
- *   coming specifically from an enemy's attack. The one existing precedent, `RuleSpec defeatedIntoEncounterDeck`
- *   (Time Portal, `wave2/toafk/kang-encounter-set.ts` 11033), is narrowly built for a side scheme going to the
- *   encounter deck, unconditionally — it has no "to hand" destination and no "only if defeated by an attack"
- *   condition. `defeatFromPlay`/`leavePlay` (`packages/engine/src/effects.ts`) know how to redirect a defeated
- *   card to the victory display (Victory X) or a scenario area (`discardFromPlayDestination`, §3.14), but not to a
- *   player's hand. A genuinely new primitive, flagged for `game-rules-architect` rather than approximated (a plain
- *   `instead()` on the `characterDefeated` event would cancel the defeat outright — no "When Defeated" would fire,
- *   which is a different card).
+ * **`19032.regroup-interrupt`** ("Interrupt: When an ally is defeated by an enemy attack, return it to its
+ * owner's hand instead of discarding it.") — docs/phase7-wave3.md §3.45: `EffectSpec setDefeatDestination`
+ * redirects a pending defeat's own discard, and `characterDefeated.fromAttack` (set when the defeating damage was
+ * attack damage) lets `on.defeated(…, { byAttackFrom })` read "defeated by an enemy attack". The ally is still
+ * defeated — When Defeated, Victory X and "after … is defeated" all still apply; only the discard is replaced.
+ * Any player's ally, since the printed card does not say "your" (§4 Q17: an open reading against the Collector's
+ * own discard redirect, `gmw/museum.ts`).
  */
 export const DRAX_PACK_CARDS = defineAbilities({
   // "Bring It!" — Max 1 per phase (data: `playRestrictions.maxPerPhase` on the 19030 record, engine-enforced —
@@ -44,6 +43,12 @@ export const DRAX_PACK_CARDS = defineAbilities({
   // Take 1 damage. Confuse the villain.
   "19031.think-fast-action": heroAction(takeDamage(1), confuse(theVillain)),
 
+  // Regroup — Interrupt: When an ally is defeated by an enemy attack, return it to its owner's hand instead of
+  // discarding it (module docblock, docs/phase7-wave3.md §3.45).
+  "19032.regroup-interrupt": interrupt(
+    when.defeated(query("ally"), { byAttackFrom: query("enemy") }),
+    setDefeatDestination("hand"),
+  ),
   // Regroup — Forced Interrupt: When the round ends, discard this card. The villain phase's end *is* the round's
   // end (RRG 1.8 "Villain Phase", p. 47 step 6b; docs/phase7-wave3.md §3.2).
   "19032.regroup-forced-interrupt": forcedInterrupt(on.phaseEnding("villain"), moveCards(cards(self), "discard")),

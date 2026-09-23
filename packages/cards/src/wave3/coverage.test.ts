@@ -171,17 +171,14 @@ const KNOWN_SKIPPED: Readonly<Record<string, readonly string[]>> = {
   stld: [],
   gam: [],
   drax: [
-    // Drax's kit, obligation and nemesis set are scripted (docs/phase7-wave3-scripting.md, `wave3/drax/`). Two
-    // genuine primitive gaps (module docblocks in `drax/drax-kit.ts`, `drax/drax-pack-cards.ts`): 19012 (Martyr —
-    // a consequential-damage event needs a link back to the attack that caused it, to read whether that attack
-    // defeated an enemy); 19032.regroup-interrupt (a defeated ally needs a destination redirect to hand,
-    // conditioned on the defeat coming from an enemy attack — no existing primitive redirects a defeat's
-    // destination anywhere but the victory display or a scenario area). 19013.moondragon-action stays skipped per
-    // docs/phase7-wave3.md §3.23/§4 Q12 (an enemy attacking another enemy — intentionally left unbuilt this wave,
-    // not this pack's gap to resolve). Regenerated with `MC_REFS_PACKS=drax pnpm refs` — never hand-typed.
-    "19012.martyr-response",
+    // Drax's kit, obligation and nemesis set are scripted (docs/phase7-wave3-scripting.md, `wave3/drax/`). The two
+    // remaining genuine primitive gaps closed in the third primitives pass (docs/phase7-wave3.md §3.44/§3.45):
+    // 19012.martyr-response (consequential damage now reports its basic power's own results onto itself) and
+    // 19032.regroup-interrupt (`setDefeatDestination`, `characterDefeated.fromAttack`). 19013.moondragon-action
+    // stays skipped per docs/phase7-wave3.md §3.23/§4 Q12 (an enemy attacking another enemy — intentionally left
+    // unbuilt this wave, not this pack's gap to resolve). Regenerated with `MC_REFS_PACKS=drax pnpm refs` — never
+    // hand-typed.
     "19013.moondragon-action",
-    "19032.regroup-interrupt",
   ],
   // vnm: fully scripted — no genuine primitive gaps (module docblock, `wave3/vnm/venom-kit.ts`). Regenerated with
   // `MC_REFS_PACKS=vnm pnpm refs` — never hand-typed.

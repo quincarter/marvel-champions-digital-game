@@ -1,17 +1,20 @@
-import { activeVillain, applyCommand, legalActions, type InstanceId } from "@mc/engine";
+import { activeVillain, applyCommand, characterProfile, legalActions, type InstanceId } from "@mc/engine";
 import { describe, expect, it } from "vitest";
 import {
   endTurn,
   firstLegal,
   identityOf,
   inst,
+  instancesOf,
   moveToHand,
   P1,
+  patchInstance,
   play,
   playerOf,
   runWith,
   settle,
   toHero,
+  type Picker,
 } from "../../testing/harness.js";
 import { WAVE3_DEPS } from "../index.js";
 import { playFromHand, startWave3Game } from "../testing.js";
@@ -101,5 +104,56 @@ describe("Drax pack fillers (19030–19032)", () => {
     const after = settle(runWith(WAVE3_DEPS, played, endTurn()), firstLegal, undefined, WAVE3_DEPS);
     expect(playerOf(after, P1).discard).toContain(id);
     expect(playerOf(after, P1).playArea).not.toContain(id);
+  });
+
+  describe("Regroup — Interrupt: when an ally is defeated by an enemy attack, return it to its owner's hand instead of discarding it (19032.regroup-interrupt, docs/phase7-wave3.md §3.45)", () => {
+    it("an ally defeated by the villain's attack returns to hand, not the discard pile", () => {
+      const hero = runWith(WAVE3_DEPS, draxVsRhino(1), toHero());
+      const { state: withRegroup } = playFromHand(hero, "19032", 1);
+      const { state: withMantis } = playFromHand(withRegroup, "19002", 2); // Mantis, hp 3
+      const [mantis] = instancesOf(withMantis, "19002") as [InstanceId];
+      const maxHp = characterProfile(withMantis, mantis, WAVE3_DEPS)!.maxHp;
+      const primed = patchInstance(withMantis, mantis, { damage: maxHp - 1 }); // any hit at all defeats her
+      const defendWithMantis: Picker = (s) => {
+        const choice = s.pendingChoice;
+        if (choice?.prompt.kind === "declareDefender") {
+          const defend = choice.options.find((o) => o.ref.kind === "card" && o.ref.instanceId === mantis);
+          return defend ? [defend.optionId] : ["decline"];
+        }
+        if (choice?.prompt.kind === "chooseTriggers") {
+          const regroup = choice.options.find((o) => o.optionId.endsWith(":19032.regroup-interrupt"));
+          return regroup ? [regroup.optionId] : choice.options.map((o) => o.optionId);
+        }
+        return firstLegal(s);
+      };
+      const settled = settle(runWith(WAVE3_DEPS, primed, endTurn()), defendWithMantis, undefined, WAVE3_DEPS);
+      expect(playerOf(settled, P1).playArea).not.toContain(mantis); // no longer in play: still defeated
+      expect(playerOf(settled, P1).hand).toContain(mantis);
+      expect(playerOf(settled, P1).discard).not.toContain(mantis);
+      expect(inst(settled, mantis).damage).toBe(0); // leaving play cleared it (RRG 1.8 "Leaves Play")
+    });
+
+    it("an ally defeated by non-attack damage (her own consequential damage) still goes to the discard pile as usual", () => {
+      const hero = runWith(WAVE3_DEPS, draxVsRhino(2), toHero());
+      const { state: withRegroup } = playFromHand(hero, "19032", 1);
+      const { state: withMartyr } = playFromHand(withRegroup, "19012", 4); // Martyr: consequentialDamage.attack = 1
+      const [martyr] = instancesOf(withMartyr, "19012") as [InstanceId];
+      const primed = patchInstance(withMartyr, martyr, { damage: 2 }); // hp 3: her own 1 consequential damage kills her
+      const villain = activeVillain(primed).instanceId;
+      const attacked = settle(
+        runWith(WAVE3_DEPS, primed, {
+          type: "basicAttack",
+          playerId: P1,
+          attackerInstanceId: martyr,
+          targetInstanceId: villain,
+        } as never),
+        firstLegal,
+        undefined,
+        WAVE3_DEPS,
+      );
+      expect(playerOf(attacked, P1).playArea).not.toContain(martyr);
+      expect(playerOf(attacked, P1).discard).toContain(martyr);
+      expect(playerOf(attacked, P1).hand).not.toContain(martyr);
+    });
   });
 });

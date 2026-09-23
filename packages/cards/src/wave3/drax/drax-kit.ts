@@ -65,22 +65,15 @@ import {
  * Indomitable) are aliased automatically by `../reprints.ts`, not scripted here — see docs/phase7-wave3-
  * scripting.md.
  *
- * **Genuine primitive gap, `KNOWN_SKIPPED` (`wave3/coverage.test.ts`):**
- * - `19012.martyr-response` ("Response: After Martyr takes consequential damage from performing an attack, if
- *   that attack defeated an enemy, give her a tough status card.") — the trigger point has to be the consequential
- *   damage itself (RRG 1.8 "Consequential Damage", p. 13, tier 5, resolves *after* the attack, its own responses
- *   and any "after X attacks" window; giving tough any earlier would let the fresh tough card absorb Martyr's own
- *   consequential damage, which the printed card does not intend). But the engine's consequential-damage
- *   `dealDamage` event (`pushConsequentialDamage`, `packages/engine/src/actions.ts`) carries no `parentFrameId`
- *   back to the attack that caused it — unlike ordinary attack damage, which gets one from the currently-open
- *   attack frame (`effects-frame.ts`) — because it is pushed *before* the attack event exists (so it resolves
- *   *after*, LIFO order). There is no live `EventPattern`/`Predicate` way to read "did the attack I just took
- *   consequential damage from defeat an enemy" without that link. Linking the two would need the attack's own
- *   frame id reserved ahead of its own push — a bigger, riskier engine change than one ally's behavior justifies
- *   solo — so this is flagged for `game-rules-architect` rather than approximated (e.g. firing on the attack's
- *   own "defeats" response instead would change the printed timing and its interaction with tough).
- * - `19013.moondragon-action` ("That minion attacks another enemy of your choice") stays `KNOWN_SKIPPED` too, per
- *   docs/phase7-wave3.md §3.23/§4 Q12 — the primitive is intentionally left unbuilt this wave.
+ * **`19012.martyr-response`** ("Response: After Martyr takes consequential damage from performing an attack, if
+ * that attack defeated an enemy, give her a tough status card.") — docs/phase7-wave3.md §3.44: the consequential
+ * damage event now reports the basic power's own results (`attack.made`/`attack.defeated`) onto itself
+ * (`pushConsequentialDamage`, `packages/engine/src/actions.ts`), so `after.consequentialDamage(who, { from:
+ * "attack", defeated: true })` reads it directly. The response stays on the consequential damage itself (RRG 1.8
+ * "Consequential Damage", p. 13), so the fresh tough status card arrives after that damage and cannot absorb it.
+ *
+ * **`19013.moondragon-action`** ("That minion attacks another enemy of your choice") stays `KNOWN_SKIPPED`, per
+ * docs/phase7-wave3.md §3.23/§4 Q12 — the primitive is intentionally left unbuilt this wave.
  */
 export const DRAX_KIT = defineAbilities({
   // Drax — Drax gets +1 ATK for each vengeance counter on him.
@@ -177,6 +170,15 @@ export const DRAX_KIT = defineAbilities({
   "19011.too-stubborn-to-die-interrupt": heroInterrupt(
     when.defeated("host"),
     instead(setRemainingHitPoints(4, host), changeForm(you, "alterEgo"), moveCards(cards(self), "removedFromGame")),
+  ),
+
+  // Martyr — Response: After Martyr takes consequential damage from performing an attack, if that attack defeated
+  // an enemy, give her a tough status card (module docblock, docs/phase7-wave3.md §3.44). The response stays on
+  // the consequential damage itself — the printed timing — so the tough status card arrives after that damage and
+  // cannot absorb it.
+  "19012.martyr-response": response(
+    after.consequentialDamage("self", { from: "attack", defeated: true }),
+    giveTough(self),
   ),
 
   // Deflection — Hero Interrupt: When an identity would take any amount of damage from an attack, prevent up to 5

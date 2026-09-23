@@ -290,6 +290,78 @@ describe("Drax's hero kit (19002–19018)", () => {
     expect(playerOf(after, P1).playArea).not.toContain(cardId);
   });
 
+  describe("Martyr — Response: after she takes consequential damage from an attack that defeated an enemy, give her a tough status card (19012.martyr-response, docs/phase7-wave3.md §3.44)", () => {
+    it("gains tough after an attack that defeats the villain and deals her its own consequential damage", () => {
+      const hero = runWith(WAVE3_DEPS, draxVsRhino(), toHero());
+      const { state: equipped } = playFromHand(hero, "19012", 4);
+      const [martyr] = instancesOf(equipped, "19012") as [InstanceId];
+      const villain = activeVillain(equipped).instanceId;
+      const martyrAtk = characterProfile(equipped, martyr).atk;
+      const villainMaxHp = characterProfile(equipped, villain).maxHp;
+      const primed = patchInstance(equipped, villain, { damage: villainMaxHp - martyrAtk });
+      expect(inst(primed, martyr).statuses.tough).toBe(0);
+      const attacked = settle(
+        runWith(WAVE3_DEPS, primed, {
+          type: "basicAttack",
+          playerId: P1,
+          attackerInstanceId: martyr,
+          targetInstanceId: villain,
+        } as never),
+        accepting("19012.martyr-response"),
+        undefined,
+        WAVE3_DEPS,
+      );
+      expect(activeVillain(attacked).stageIndex).toBe(1); // Rhino advanced past stage 1: defeated
+      expect(inst(attacked, martyr).statuses.tough).toBeGreaterThanOrEqual(1);
+    });
+
+    it("gains nothing when the attack doesn't defeat the villain", () => {
+      const hero = runWith(WAVE3_DEPS, draxVsRhino(), toHero());
+      const { state: equipped } = playFromHand(hero, "19012", 4);
+      const [martyr] = instancesOf(equipped, "19012") as [InstanceId];
+      const villain = activeVillain(equipped).instanceId;
+      const attacked = settle(
+        runWith(WAVE3_DEPS, equipped, {
+          type: "basicAttack",
+          playerId: P1,
+          attackerInstanceId: martyr,
+          targetInstanceId: villain,
+        } as never),
+        accepting("19012.martyr-response"),
+        undefined,
+        WAVE3_DEPS,
+      );
+      expect(activeVillain(attacked).stageIndex).toBe(0); // still Rhino I: not defeated
+      expect(inst(attacked, martyr).statuses.tough).toBe(0);
+    });
+
+    it("gains nothing when an existing tough status absorbs her consequential damage instead of taking it", () => {
+      const hero = runWith(WAVE3_DEPS, draxVsRhino(), toHero());
+      const { state: equipped } = playFromHand(hero, "19012", 4);
+      const [martyr] = instancesOf(equipped, "19012") as [InstanceId];
+      const villain = activeVillain(equipped).instanceId;
+      const martyrAtk = characterProfile(equipped, martyr).atk;
+      const villainMaxHp = characterProfile(equipped, villain).maxHp;
+      const primed = patchInstance(equipped, villain, { damage: villainMaxHp - martyrAtk });
+      const toughened = patchInstance(primed, martyr, { statuses: { stunned: 0, confused: 0, tough: 1 } });
+      const attacked = settle(
+        runWith(WAVE3_DEPS, toughened, {
+          type: "basicAttack",
+          playerId: P1,
+          attackerInstanceId: martyr,
+          targetInstanceId: villain,
+        } as never),
+        accepting("19012.martyr-response"),
+        undefined,
+        WAVE3_DEPS,
+      );
+      expect(activeVillain(attacked).stageIndex).toBe(1); // the attack still defeated the villain
+      // The pre-existing tough absorbed her consequential damage (RRG 1.8 "Tough", p. 44), so she took none —
+      // and this response never fired, so no *second* tough card replaced the one already spent.
+      expect(inst(attacked, martyr).statuses.tough).toBe(0);
+    });
+  });
+
   it("Deflection — prevent up to 5 damage from an attack, discard that many cards from the top of your deck (19015.deflection-interrupt)", () => {
     const { state: equipped } = moveToHand(runWith(WAVE3_DEPS, draxVsRhino(), toHero()), P1, "19015");
     const identity = identityOf(equipped);
