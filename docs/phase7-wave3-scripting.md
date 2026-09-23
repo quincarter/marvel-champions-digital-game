@@ -167,6 +167,36 @@ Recorded in `gmw/rocket-kit.ts`'s own module docblock (mirrors §5's format):
    this pass: RRG 1.8 "Deck" (p. 15)'s empty-deck reshuffle rule needs a decision for a cost specifically (refuse
    the ability, or reshuffle mid-payment?) that a rushed addition risks getting wrong.
 
+## 6b. Star-Lord's own gaps (`stld`, a separate concurrent session's pack)
+
+Recorded in `stld/star-lord-kit.ts`'s own module docblock (mirrors §5/§6a's format); `stld` is otherwise fully
+scripted (kit, obligation, nemesis, e2e — see §7's table):
+
+1. **`17017.target-practice-interrupt`** ("Interrupt: When an ally with a weapon attachment upgrade makes an
+   attack…") needs a `TargetQuery` filter asking whether a _character_ has an attachment matching some other
+   query — the mirror of the existing `host`/`hostOfSelf` pair, which only ask about a candidate's _own_
+   attachment relationship, not "does some other card in play consider this its host". Composing it as an
+   `ifThen(exists(...))` guard inside the effects, rather than gating the trigger itself, would let the interrupt
+   be offered (and Target Practice discarded) against an ally with no weapon at all — a real widening of the
+   printed card, not an approximation worth shipping.
+2. **`17029.agile-flight-action`** ("Remove a total of up to 5 threat from among schemes (as you choose)") needs
+   an optional/"up to" form of `EffectSpec divide` — the existing builder always forces the full computed amount
+   (`minSelections === maxSelections === amount`, docs/phase7-wave2.md §3.7's own Inconspicuous/Wasp Sting shape,
+   which print "a total of N" with no "up to"), with no way for the player to choose to remove less.
+3. **`17005.sliding-shot-constant`** ("Play only if you control an Element Gun") looked scriptable as a
+   `constant` ability with a `cannotPlay` rule, but a `constant`'s rules are only active while its _own card is
+   in play_ (`activeRules`/`activeAbilityRefs`, `packages/engine/src/select.ts`: both iterate `cardsInPlay(state)`)
+   — and an event card being evaluated for whether it may be played from hand is never itself in play yet.
+   Verified by writing the test: the restriction silently never applied. `playRestrictions` (the schema field
+   that already covers "requires an identity trait/form") has no "controls a named card" case either. Needs
+   either a new `playRestrictions` case or a play-time-evaluated rule kind distinct from the in-play-only
+   `constant` rules.
+
+**DSL builders added this pass (`stld` session, `packages/cards/src/dsl/`):** `dealtEncounterCount` (values.ts);
+`defeat`, `cancelConsequentialDamage` (effects.ts); `AbilityOptions.playCostReduction` plus its pass-through in
+`build()`, `dealEncounterCardsCost`, `firstRevealGainsSurge`, `on.attacksOrThwarts`, `on.cardPlayed`
+(abilities.ts). No engine change.
+
 ## 7. Progress / next up
 
 **Foundation: done.** `wave3/{index,cards,reprints,names,setup,testing,coverage.test}.ts` all exist and are green.
@@ -202,11 +232,19 @@ either hero's own e2e test can reach `gmw`'s own villain rather than falling bac
 pnpm refs` is the up-to-date source of truth for exactly which refs remain — the table above is a snapshot, that
 command is not.
 
-**`stld` and `gam` are now being scripted concurrently by their own sessions** (`wave3/stld/`, `wave3/gam/`), each
-pushing to this same branch — this `gmw` session doesn't touch either folder. `drax`/`vnm`/`ron`: not started.
-All five packs' data is emitted and their own engine primitives have landed (`drax`'s Moondragon, §3.23, is the
-one open exception — RRG/FAQ are silent on whether "that minion attacks another enemy" is an activation;
-docs/phase7-wave3.md §4 Q12 has the proposed reading, still unconfirmed).
+**`stld` status: done.** Star-Lord's identity, kit (17001–17023), obligation (Banishment, 17024) and nemesis set
+(Budding Crime Syndicate 17025 — no ability of its own, data-only Hinder keyword; Mister Knife 17026; Spartoi
+Cunning 17027 ×3) are all scripted, every registered ref backed by a real-command test in
+`stld/star-lord-kit.test.ts` / `stld/star-lord-obligation-nemesis.test.ts`, plus `stld/e2e.test.ts` (Rhino,
+standard, solo, since `stld` carries no scenario of its own). Three genuine primitive gaps, §6b. No precon exists
+for Star-Lord (`STLD_STARTER_DECKS` is empty, unlike `gmw`'s two box heroes), so his own tests build a legal
+Leadership deck directly from his own pack (`stld/testing.ts`'s `STAR_LORD_LEADERSHIP`).
+
+**`gam` is being scripted concurrently by its own session** (`wave3/gam/`), pushing to this same branch — neither
+this `gmw` session nor the `stld` one touches that folder. `drax`/`vnm`/`ron`: not started. All five packs' data
+is emitted and their own engine primitives have landed (`drax`'s Moondragon, §3.23, is the one open exception —
+RRG/FAQ are silent on whether "that minion attacks another enemy" is an activation; docs/phase7-wave3.md §4 Q12
+has the proposed reading, still unconfirmed).
 
 **Wave 3's client wiring is out of scope for every pack in this pass** (per the brief: "the whole wave gets wired
 into the client once, at the end") — nothing here touches `packages/client` or `playable/`.
