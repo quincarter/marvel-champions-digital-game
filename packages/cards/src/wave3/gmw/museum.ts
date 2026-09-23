@@ -16,17 +16,21 @@ import {
   defineAbilities,
   each,
   eachPlayer,
+  eitherCost,
   endGame,
   enemyAttack,
+  exhaustYourHero,
   exists,
   firstPlayer,
   forcedInterrupt,
   forEachPlayer,
   hasStatus,
+  heroAction,
   ifThen,
   made,
   moveCards,
   not,
+  oncePerRoundPerPlayer,
   option,
   perHero,
   placeThreat,
@@ -36,10 +40,12 @@ import {
   query,
   revealCard,
   rule,
+  scenarioArea,
   scenarioAreaCount,
   self,
   selectCards,
   setup,
+  spend,
   spendResources,
   stateCheck,
   superlative,
@@ -90,12 +96,11 @@ import {
  * unable to move itself to The Collection — so ordering it as the ability's first effect, ahead of the prevention,
  * produces the identical result to modelling it as a cost. Flagged here as a scripting decision, not a guess.
  *
- * **Genuine primitive gap (`KNOWN_SKIPPED`): `16073b.the-grand-collection-action`** — "Hero Action: Choose to
- * either exhaust your hero or spend 2 resources of any type → discard 1 card from The Collection (to its owner's
- * discard pile). (Limit once per round per player.)" needs a true either/or `AbilityCost` (pay *one* of two
- * different cost shapes, the player's choice) — distinct from `cost: [a, b]`, which is an AND (both paid together,
- * `dsl/abilities.ts`'s `mergeCosts`). No card scripted before this pass has needed one; not built here per the
- * standing rule (never approximate a cost by picking only one branch).
+ * `16073b.the-grand-collection-action` ("Hero Action: Choose to either exhaust your hero or spend 2 resources of
+ * any type → discard 1 card from The Collection (to its owner's discard pile). (Limit once per round per
+ * player.)") was recorded as a primitive gap — a true either/or `AbilityCost`, distinct from `cost: [a, b]`'s AND.
+ * Closed by `AbilityCost.either`/`costSelection.branch` and `AbilityLimit.per: "player"` (docs/phase7-wave3.md
+ * §3.36).
  *
  * "If this stage is completed, the players lose the game" (16073b's own second clause) needs no ability ref: The
  * Grand Collection is a single-stage main scheme, so completing it is completing the *final* stage, and RRG 1.8
@@ -162,7 +167,13 @@ export const MUSEUM = defineAbilities({
     createScenarioArea(COLLECTION),
     forEachPlayer(eachPlayer, moveCards(topOfDeck(1, thatPlayer), { scenarioArea: COLLECTION })),
   ),
-  // The Grand Collection 1B — Hero Action: SKIPPED (module docblock) — needs an either/or `AbilityCost`.
+  // The Grand Collection 1B — Hero Action: Choose to either exhaust your hero or spend 2 resources of any type →
+  // discard 1 card from The Collection (to its owner's discard pile). (Limit once per round per player.)
+  "16073b.the-grand-collection-action": heroAction(
+    { cost: eitherCost(exhaustYourHero, spend(2)), limit: oncePerRoundPerPlayer },
+    chooseCards("card", scenarioArea(COLLECTION), { min: 1, max: 1 }),
+    moveCards(cards(chosen("card")), "discard"),
+  ),
   // The Grand Collection 1B — If there are at least 5[per_hero] cards in The Collection, the players lose the
   // game. ("…or if this stage is completed" is the engine's own final-stage-completion default; module docblock.)
   "16073b.the-grand-collection-constant": stateCheck(

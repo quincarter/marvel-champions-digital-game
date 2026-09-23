@@ -1,16 +1,20 @@
 import { characterProfile, type GameState, type InstanceId } from "@mc/engine";
 import {
+  answer,
   firstLegal,
   identityOf,
   inst,
   instancesOf,
   P1,
+  P2,
   patchInstance,
+  playerOf,
   runWith,
   settle,
   stackEncounterDeck,
   toHero,
   use,
+  type Picker,
 } from "../../testing/harness.js";
 import { defeatWithAttack } from "../../testing/staging.js";
 import { traceAbilities } from "../../testing/trace.js";
@@ -211,6 +215,129 @@ describe("The Great Escape 3B (16084b)", () => {
     // own Drang's Spear stalwart test uses the same trick).
     const settled = runWave3(noThreat, { type: "noop", playerId: P1 } as never);
     expect(settled.outcome).toEqual({ result: "win", reason: "villainDefeated" });
+  });
+});
+
+describe('Library Labyrinth ("This way?", 16085a.this-way)', () => {
+  it("deals yourself 1 facedown encounter card → removes 5 threat from the main scheme", () => {
+    const state = toHeroForm(escapeTheMuseum());
+    const labyrinth = instancesOf(state, "16085a")[0]!;
+    const withThreat = patchInstance(state, state.mainScheme.instanceId, { threat: 10 });
+    const dealtBefore = playerOf(withThreat, P1).dealtEncounter.length;
+    const used = runWave3(withThreat, use(P1, labyrinth, "16085a.this-way"));
+    expect(inst(used, used.mainScheme.instanceId).threat).toBe(5);
+    expect(playerOf(used, P1).dealtEncounter.length).toBe(dealtBefore + 1);
+  });
+
+  it("limit once per round per player: a second use by P1 this round is refused, but P2's own first use isn't", () => {
+    const twoPlayers = toHeroForm(
+      startWave3Game(
+        wave3Scenario("escape-the-museum", {
+          players: [{ starterDeckId: "groot-protection" }, { starterDeckId: "rocket-raccoon-aggression" }],
+          seed: 2026,
+        }),
+      ),
+    );
+    const labyrinth = instancesOf(twoPlayers, "16085a")[0]!;
+    const withThreat = patchInstance(twoPlayers, twoPlayers.mainScheme.instanceId, { threat: 20 });
+    const p1Used = runWave3(withThreat, use(P1, labyrinth, "16085a.this-way"));
+    expect(inst(p1Used, p1Used.mainScheme.instanceId).threat).toBe(15);
+    expect(() => runWave3(p1Used, use(P1, labyrinth, "16085a.this-way"))).toThrow();
+    expect(inst(p1Used, p1Used.mainScheme.instanceId).threat).toBe(15); // unchanged: the refused attempt did nothing
+
+    // P2 hasn't used it yet this round: their own first use still succeeds.
+    const heroP2 = runWave3(p1Used, { type: "endTurn", playerId: P1 }, toHero(P2));
+    const p2Used = runWave3(heroP2, use(P2, labyrinth, "16085a.this-way"));
+    expect(inst(p2Used, p2Used.mainScheme.instanceId).threat).toBe(10);
+  });
+});
+
+describe('Museum Ship ("Hold on to your butts!", 16085b)', () => {
+  const escapeTheMuseum2P = () =>
+    startWave3Game(
+      wave3Scenario("escape-the-museum", {
+        players: [{ starterDeckId: "groot-protection" }, { starterDeckId: "rocket-raccoon-aggression" }],
+        seed: 2026,
+      }),
+    );
+
+  /** Answers choices with `pick` until (and including) one whose prompt is `kind`, then stops — before the rest of
+   * the villain phase's own unrelated activity (Collector's own attack, further reveals) can add more damage and
+   * confound the assertion below (the same concern `docs/card-scripting-process.md` §7 flags generally). */
+  const settleThrough = (state: GameState, kind: string, pick: Picker): GameState => {
+    let current = state;
+    for (let guard = 0; current.pendingChoice && !current.outcome && guard < 500; guard++) {
+      const choice = current.pendingChoice;
+      const wasTargetKind = choice.prompt.kind === kind;
+      current = answer(current, pick(current), WAVE3_DEPS);
+      if (wasTargetKind) break;
+    }
+    return current;
+  };
+
+  /** Takes the printed option whose label starts with `startsWith`, then — when the group's own indirect damage
+   * is being divided — assigns all of it onto P1's own identity (RRG 1.8 "Indirect Damage", p. 24: "divided as
+   * the group chooses among friendly characters in play"; any legal division proves the primitive, this one is
+   * simplest to assert on). Declines/first-legals everything else. */
+  const pickingBranch =
+    (startsWith: string): Picker =>
+    (state) => {
+      const choice = state.pendingChoice;
+      if (!choice) return [];
+      if (choice.prompt.kind === "chooseOption") {
+        const hit = choice.options.find((o) => o.label.startsWith(startsWith));
+        if (hit) return [hit.optionId];
+      }
+      if (choice.prompt.kind === "assignIndirectDamage") {
+        const identity = identityOf(state, P1);
+        return choice.options
+          .filter((o) => o.optionId.startsWith(`${identity}#`))
+          .slice(0, choice.maxSelections)
+          .map((o) => o.optionId);
+      }
+      return firstLegal(state);
+    };
+
+  /** Both players' hero-phase turns end, reaching the villain phase's own beginning — where the Forced Interrupt
+   * fires — without yet resolving anything past it. */
+  const atVillainPhaseBeginning = (state: GameState): GameState => {
+    const afterP1 = settle(
+      runWave3(state, { type: "endTurn", playerId: P1 }),
+      firstLegal,
+      (s) => s.step.phase === "player" && s.step.kind === "turn" && s.step.activePlayerId === P2,
+      WAVE3_DEPS,
+    );
+    return runWave3(afterP1, { type: "endTurn", playerId: P2 });
+  };
+
+  it("branch: exhaust the Milano → assign 2[per_hero] indirect damage among players (16085b.hold-on-to-your-butts, 16085b.museum-ship-constant)", () => {
+    const advanced = advanceToStage3(toHeroForm(escapeTheMuseum2P()));
+    const milano = instancesOf(advanced, "16142").find((id) => advanced.players.some((p) => p.playArea.includes(id)))!;
+    const readyMilano = patchInstance(advanced, milano, { exhausted: false });
+    const identity = identityOf(readyMilano, P1);
+    const damageBefore = inst(readyMilano, identity).damage;
+    const after = settleThrough(
+      atVillainPhaseBeginning(readyMilano),
+      "assignIndirectDamage",
+      pickingBranch("Exhaust the Milano"),
+    );
+    expect(inst(after, milano).exhausted).toBe(true);
+    expect(inst(after, identity).damage).toBe(damageBefore + 4); // 2[per_hero] × 2 players, all assigned to P1
+  });
+
+  it("branch: assign 3[per_hero] indirect damage among players, leaving the Milano ready (16085b.hold-on-to-your-butts, 16085b.museum-ship-constant-2)", () => {
+    const advanced = advanceToStage3(toHeroForm(escapeTheMuseum2P()));
+    const milano = instancesOf(advanced, "16142").find((id) => advanced.players.some((p) => p.playArea.includes(id)))!;
+    const readyMilano = patchInstance(advanced, milano, { exhausted: false });
+    const identity = identityOf(readyMilano, P1);
+    const damageBefore = inst(readyMilano, identity).damage;
+    const after = settleThrough(
+      atVillainPhaseBeginning(readyMilano),
+      "assignIndirectDamage",
+      pickingBranch("Assign 3"),
+    );
+    expect(inst(after, milano).exhausted).toBe(false); // this branch never touches the Milano
+    expect(inst(after, identity).damage).toBe(damageBefore + 6); // 3[per_hero] × 2 players, all assigned to P1
   });
 });
 

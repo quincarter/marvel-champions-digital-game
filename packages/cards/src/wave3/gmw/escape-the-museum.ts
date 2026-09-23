@@ -2,10 +2,13 @@ import {
   addAccelerationToken,
   boost,
   cards,
+  chooseOneBy,
   chooseTarget,
   chosen,
   confuse,
   constant,
+  dealEncounterCardsCost,
+  dealIndirectDamage,
   defineAbilities,
   encounterCards,
   encounterSetAside,
@@ -13,6 +16,7 @@ import {
   enemyScheme,
   exhaust,
   exhaustCardsCost,
+  exists,
   firstPlayer,
   firstPlayerAction,
   flipCard,
@@ -21,11 +25,15 @@ import {
   gets,
   giveTough,
   hasStatus,
+  heroAction,
   ifThen,
   mainSchemeStageNumber,
   moveCards,
   named,
   not,
+  oncePerRoundPerPlayer,
+  option,
+  partOf,
   perHero,
   putIntoPlay,
   query,
@@ -103,27 +111,21 @@ import {
  * encounter set with it (`TargetQuery.encounterSetOf`, already generic and pack-agnostic) — no new `TargetQuery`
  * field for "belongs to a named encounter set" was needed.
  *
- * **Genuine primitive gaps (`KNOWN_SKIPPED`), Library Labyrinth / Museum Ship (16085):**
+ * Library Labyrinth / Museum Ship (16085) were recorded as two more primitive gaps, both now closed
+ * (docs/phase7-wave3.md §3.36, §3.38; docs/phase7-wave3-scripting.md §6d):
  *
- * - **`16085a.this-way`** ("Hero Action: Deal yourself 1 facedown encounter card → remove 5 threat from the main
- *   scheme. (Limit once per round per player.)") needs `AbilityLimit.per` to support a per-*acting-player* key.
- *   Today `per` only carries `"aspectOfEventCard"`, and an unqualified limit's `abilityUses` counter is keyed by
- *   `<instance>:<ability>` alone (`resolve/ability.ts`'s `limitKeyOf`) — shared across every player who might use a
- *   *shared* card's own Hero Action, not per player. RRG 1.8 "Limit" (p. 26) confirms the *un*qualified default is
- *   card-specific, not per-player, which is exactly why this printed card spells "per player" out: it is asking
- *   for scoping the engine does not have a key for yet. Threading an acting-player key through every place a limit
- *   is checked and recorded (`resolve/ability.ts`, `actions.ts`'s `useAbility` pre-check, the trigger paths in
- *   `resolve/triggers.ts`) is a real, multi-site primitive, not a one-line addition — flagged for
- *   `game-rules-architect` rather than approximated as a shared limit, which would silently block a second
- *   player's own use for the rest of the round.
- * - **`16085b.hold-on-to-your-butts`, `.museum-ship-constant`, `.museum-ship-constant-2`** ("Forced Interrupt: When
+ * - `16085a.this-way` ("Hero Action: Deal yourself 1 facedown encounter card → remove 5 threat from the main
+ *   scheme. (Limit once per round per player.)") needed `AbilityLimit.per` to support a per-*acting-player* key.
+ *   Closed by `AbilityLimit.per: "player"` (§3.36), the same primitive The Grand Collection 1B (16073b) needed.
+ * - `16085b.hold-on-to-your-butts`, `.museum-ship-constant`, `.museum-ship-constant-2` ("Forced Interrupt: When
  *   the villain phase begins, choose one: exhaust the Milano → assign 2[per_hero] indirect damage among players;
- *   or assign 3[per_hero] indirect damage among players.") needs a primitive for a chooser freely splitting a pool
- *   of *indirect* damage across players (not each player's own characters, which `EffectSpec dealIndirectDamage`'s
- *   existing `PlayerRef | "group"` shapes already cover, and not "among heroes and allies" within one player's
- *   own pool, which `EffectSpec assignDamage` already covers but only as ordinary — not indirect — damage). No
- *   printed card in the pool needs "indirect damage among *players*" today; not approximated with either existing
- *   shape, since both would either under- or over-scope who takes the damage.
+ *   or assign 3[per_hero] indirect damage among players.") needed a primitive for a chooser freely splitting a
+ *   pool of *indirect* damage across players. Closed: this is exactly `EffectSpec dealIndirectDamage`'s existing
+ *   `to: "group"` form (RRG 1.8 "Indirect Damage", p. 24: "…dealt to a group of players (or among players) can be
+ *   divided as the group chooses among friendly characters in play"), which had no card exercising it until now
+ *   (§3.38). "As the group chooses" is submitted by the first player (docs/phase7-wave1.md §4.7); "choose one" on
+ *   an encounter card naming no player is also the first player's (RRG 1.8 "First Player", p. 19). The two
+ *   `-constant`/`-constant-2` refs are the option bullets, `partOf` the Forced Interrupt.
  */
 
 /** "Exhaust the Milano" as a cost — Milano is unique, so this always names the one in play (`gmw/badoon.ts`'s own copy). */
@@ -201,8 +203,33 @@ export const ESCAPE_THE_MUSEUM = defineAbilities({
   // players lose the game" is the engine's own final-stage default — no ref, per the module docblock.)
   "16084b.the-great-escape-constant-2": stateCheck(not(threatAtLeast(self, 1)), endGame("win")),
 
-  // Library Labyrinth ("This way?") and Museum Ship — SKIPPED (module docblock): 16085a needs `AbilityLimit.per`
-  // to support a per-acting-player key; 16085b needs an "assign indirect damage among players" primitive.
+  // Library Labyrinth ("This way?") — Hero Action: Deal yourself 1 facedown encounter card → remove 5 threat from
+  // the main scheme. (Limit once per round per player.)
+  "16085a.this-way": heroAction(
+    { cost: dealEncounterCardsCost(1), limit: oncePerRoundPerPlayer },
+    removeThreat(5, theMainScheme),
+  ),
+
+  // Museum Ship ("Hold on to your butts!") — Forced Interrupt: When the villain phase begins, choose one: exhaust
+  // the Milano → assign 2[per_hero] indirect damage among players; or assign 3[per_hero] indirect damage among
+  // players. "Exhaust the Milano →" inside an option is guarded so the option can't be taken for free once the
+  // Milano is already exhausted (RRG 1.8 "Choose (Option)", p. 12).
+  "16085b.hold-on-to-your-butts": forcedInterrupt(
+    on.phaseBeginning("villain"),
+    chooseOneBy(
+      firstPlayer,
+      option(
+        "Exhaust the Milano → assign 2[per_hero] indirect damage among players",
+        { when: exists(query("support", { name: "Milano", exhausted: false })) },
+        exhaust(named("Milano")),
+        dealIndirectDamage("group", perHero(2)),
+      ),
+      option("Assign 3[per_hero] indirect damage among players", dealIndirectDamage("group", perHero(3))),
+    ),
+  ),
+  // Museum Ship — the two option bullets above are one ability box (module docblock).
+  "16085b.museum-ship-constant": partOf("16085b.hold-on-to-your-butts"),
+  "16085b.museum-ship-constant-2": partOf("16085b.hold-on-to-your-butts"),
 
   // "I Have You Now!" (16086) — When Revealed (Alter-Ego): Exhaust your identity. Collector schemes.
   "16086.when-revealed-alter-ego": whenRevealedAlterEgo(exhaust(yourIdentity), enemyScheme(theVillain)),

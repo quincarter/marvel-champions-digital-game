@@ -6,11 +6,17 @@ import {
   inst,
   instancesOf,
   P1,
+  P2,
   patchInstance,
+  payWith,
+  picking,
+  playerOf,
   runWith,
   settle,
   settleUntil,
   stackEncounterDeck,
+  toHero,
+  use,
 } from "../../testing/harness.js";
 import { defeatWithAttack, driveEvents } from "../../testing/staging.js";
 import { traceAbilities } from "../../testing/trace.js";
@@ -165,6 +171,105 @@ describe("The Grand Collection 1B (16073b)", () => {
     // `EffectSpec endGame`'s `reason` is a fixed two-value enum with no case for this card's own condition; the
     // default, `"mainSchemeCompleted"`, is what `endGame("loss")` (no explicit reason) logs.
     expect(after.outcome).toEqual({ result: "loss", reason: "mainSchemeCompleted" });
+  });
+
+  it("Hero Action: branch 0 exhausts your hero → discards 1 card from The Collection, to its owner's discard pile (16073b.the-grand-collection-action)", () => {
+    // 1A's own setup already put exactly 1 card into The Collection: the top of P1's own deck.
+    const state = infiltrateTheMuseum();
+    const hero = runWave3(state, toHero());
+    const [card] = collection(hero);
+    expect(card).toBeDefined();
+    const identity = identityOf(hero);
+    const used = settle(
+      runWave3(
+        hero,
+        use(P1, hero.mainScheme.instanceId, "16073b.the-grand-collection-action", [], undefined, { branch: 0 }),
+      ),
+      firstLegal, // the only chooseCards candidate is the one card in The Collection
+      undefined,
+      WAVE3_DEPS,
+    );
+    expect(inst(used, identity).exhausted).toBe(true);
+    expect(collection(used)).toHaveLength(0);
+    expect(playerOf(used, P1).discard).toContain(card);
+  });
+
+  it("Hero Action: branch 1 spends 2 resources of any type → discards 1 card from The Collection, leaving your hero ready (16073b.the-grand-collection-action)", () => {
+    const state = infiltrateTheMuseum();
+    const hero = runWave3(state, toHero());
+    const [card] = collection(hero);
+    const identity = identityOf(hero);
+    const payment = payWith(hero, P1, 2).map((fromHand) => ({ fromHand }));
+    const used = settle(
+      runWave3(
+        hero,
+        use(P1, hero.mainScheme.instanceId, "16073b.the-grand-collection-action", payment, undefined, { branch: 1 }),
+      ),
+      firstLegal,
+      undefined,
+      WAVE3_DEPS,
+    );
+    expect(inst(used, identity).exhausted).toBe(false);
+    expect(collection(used)).toHaveLength(0);
+    expect(playerOf(used, P1).discard).toContain(card);
+    for (const { fromHand } of payment) {
+      expect(playerOf(used, P1).discard).toContain(fromHand);
+    }
+  });
+
+  it("Limit once per round per player: P1's second use this round is refused, but P2's own first use isn't (16073b.the-grand-collection-action)", () => {
+    // A two-player game: 1A's own setup puts one card per player into The Collection.
+    const state = startWave3Game(
+      wave3Scenario("infiltrate-the-museum", {
+        players: [{ starterDeckId: "groot-protection" }, { starterDeckId: "rocket-raccoon-aggression" }],
+        seed: 2026,
+      }),
+    );
+    const before = collection(state);
+    expect(before).toHaveLength(2);
+    const [cardP1, cardP2] = before;
+    const heroP1 = runWave3(state, toHero(P1));
+    const p1Used = settle(
+      runWave3(
+        heroP1,
+        use(P1, heroP1.mainScheme.instanceId, "16073b.the-grand-collection-action", [], undefined, { branch: 0 }),
+      ),
+      picking(...(cardP1 ? [cardP1] : [])),
+      undefined,
+      WAVE3_DEPS,
+    );
+    expect(collection(p1Used)).toHaveLength(1);
+    // A second use this round is refused by the limit, not by an unpaid cost: branch 1 (spend resources) is still
+    // payable on its own, since only branch 0 exhausted P1's hero.
+    expect(() =>
+      runWith(
+        WAVE3_DEPS,
+        p1Used,
+        use(
+          P1,
+          p1Used.mainScheme.instanceId,
+          "16073b.the-grand-collection-action",
+          payWith(p1Used, P1, 2).map((fromHand) => ({ fromHand })),
+          undefined,
+          { branch: 1 },
+        ),
+      ),
+    ).toThrow();
+    expect(collection(p1Used)).toHaveLength(1); // unchanged: the refused attempt did nothing
+
+    // P2 hasn't used it yet this round: their own first use still succeeds.
+    const heroP2 = runWave3(p1Used, { type: "endTurn", playerId: P1 }, toHero(P2));
+    const p2Used = settle(
+      runWave3(
+        heroP2,
+        use(P2, heroP2.mainScheme.instanceId, "16073b.the-grand-collection-action", [], undefined, { branch: 0 }),
+      ),
+      picking(...(cardP2 ? [cardP2] : [])),
+      undefined,
+      WAVE3_DEPS,
+    );
+    expect(collection(p2Used)).toHaveLength(0);
+    expect(playerOf(p2Used, P2).discard).toContain(cardP2);
   });
 });
 

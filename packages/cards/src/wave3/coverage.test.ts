@@ -65,23 +65,16 @@ const KNOWN_SKIPPED: Readonly<Record<string, readonly string[]>> = {
     // Technique attachments, Lethal Intent, Barrel Roll, Combat Ready, the Space Pirates modular set, and the
     // Power Stone modular card — `gmw/nebula.ts`) are scripted. A second primitives pass closed 13 refs left as
     // gaps by the first (docs/phase7-wave3.md §3.28–§3.38, docs/phase7-wave3-scripting.md §6d): 16006/16009/16024
-    // (Groot, scripted in `gmw/groot-kit.ts`) and 16032/16033/16052 (Rocket, scripted in `gmw/rocket-kit.ts`).
-    // Remaining genuine primitive gaps: 16020/16048 (Flora and Fauna, a cross-player Team-Up targeting gap);
-    // 16060.when-revealed (Drang III, a player-level superlative); 16073b.the-grand-collection-action (an
-    // either/or `AbilityCost`); 16085a.this-way (a per-player `AbilityLimit`); 16085b's three refs (indirect
-    // damage "among players"). `gmw/nebula.ts` itself has no genuine primitive gaps (module docblock) — every
-    // primitive it needed had already landed. Ronan the Accuser (16102+, except the Band of Badoon-shared
-    // 16117-16121 already scripted) and the Kree Militants/Galactic Artifacts/Badoon Headhunter modular sets are
-    // not yet reached. Regenerated with `MC_REFS_PACKS=gmw pnpm refs` (docs/card-scripting-process.md) — never
-    // hand-typed.
+    // (Groot, `gmw/groot-kit.ts`), 16032/16033/16052 (Rocket, `gmw/rocket-kit.ts`), 16060.when-revealed (Drang
+    // III, `gmw/badoon.ts`), 16073b.the-grand-collection-action (`gmw/museum.ts`), and 16085a.this-way plus
+    // 16085b's three refs (`gmw/escape-the-museum.ts`). Remaining genuine primitive gap: 16020/16048 (Flora and
+    // Fauna, a cross-player Team-Up targeting gap, closed by `TargetQuery.titled`/`identitySetTitled` but not yet
+    // scripted). `gmw/nebula.ts` itself has no genuine primitive gaps (module docblock) — every primitive it
+    // needed had already landed. Ronan the Accuser (16102+, except the Band of Badoon-shared 16117-16121 already
+    // scripted) and the Kree Militants/Galactic Artifacts/Badoon Headhunter modular sets are not yet reached.
+    // Regenerated with `MC_REFS_PACKS=gmw pnpm refs` (docs/card-scripting-process.md) — never hand-typed.
     "16020.flora-and-fauna-action",
     "16048.flora-and-fauna-action",
-    "16060.when-revealed",
-    "16073b.the-grand-collection-action",
-    "16085a.this-way",
-    "16085b.hold-on-to-your-butts",
-    "16085b.museum-ship-constant",
-    "16085b.museum-ship-constant-2",
     "16102.when-revealed-alter-ego",
     "16102.when-revealed-hero",
     "16103.ronan-the-accuser-forced-interrupt",

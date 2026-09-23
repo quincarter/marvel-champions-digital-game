@@ -6,6 +6,7 @@ import {
   inst,
   instancesOf,
   P1,
+  P2,
   patchInstance,
   payWith,
   runWith,
@@ -236,6 +237,55 @@ describe("Drang III (16060) — expert mode, which starts on Drang II and can be
     const before = inst(atStageIII, ship!).counters.barrage ?? 0;
     const after = settle(runWave3(atStageIII, endTurn()), firstLegal, undefined, WAVE3_DEPS);
     expect(inst(after, ship!).counters.barrage ?? 0).toBeGreaterThanOrEqual(before + 1);
+  });
+});
+
+describe("Drang III (16060) — When Revealed, a two-player game, reached by actually defeating Drang II", () => {
+  const drangIIIExpert = () =>
+    startWave3Game(
+      wave3Scenario("brotherhood-of-badoon", {
+        difficulty: "expert",
+        players: [{ starterDeckId: "groot-protection" }, { starterDeckId: "rocket-raccoon-aggression" }],
+        seed: 2026,
+      }),
+    );
+
+  it("discards the top 4[per_hero] cards; each discarded minion engages the player with the fewest minions, re-ranked per minion, ties going to the first player (16060.when-revealed)", () => {
+    const start = drangIIIExpert();
+    // 8 cards for 2 players: two Badoon Grunt minions (16118, a real minion in this scenario's own recommended
+    // Band of Badoon modular set) at positions 1 and 5, six standard-set fillers (Advance/Assault/Caught Off
+    // Guard/Gang-Up) filling the rest — a plain `discardEncounterCards`, not a reveal, so none of the fillers'
+    // own text fires.
+    const stacked = stackEncounterDeck(start, "16118", "01186", "01186", "01187", "16118", "01187", "01188", "01189");
+    const hero = runWave3(stacked, toHero(P1));
+    const villain = hero.villains[0]!.instanceId;
+    expect(activeVillain(hero).stageIndex).toBe(1); // expert starts on Drang II
+    // Drang II prints 14[per_hero] hit points (28 for 2 players); prime to 1 remaining and land Groot's own basic
+    // ATK (2) for the kill, through a real `basicAttack` command, so the engine's own advance pushes Drang III's
+    // own When Revealed frame (the same `defeatDrangI` precedent above).
+    const primed = patchInstance(hero, villain, { damage: 26 });
+    const attacked = settle(
+      runWave3(primed, {
+        type: "basicAttack",
+        playerId: P1,
+        attackerInstanceId: identityOf(primed, P1),
+        targetInstanceId: villain,
+      }),
+      firstLegal,
+      undefined,
+      WAVE3_DEPS,
+    );
+    expect(activeVillain(attacked).stageIndex).toBe(2); // Drang III is now the active stage
+
+    const grunts = instancesOf(attacked, "16118").filter((id) => cardsInPlay(attacked).includes(id));
+    expect(grunts).toHaveLength(2);
+    const engagedWithP1 = grunts.filter((id) => inst(attacked, id).engagedWith === P1);
+    const engagedWithP2 = grunts.filter((id) => inst(attacked, id).engagedWith === P2);
+    // The first Grunt discarded ties 0-0 and goes to the first player (P1, RRG 1.8 "First Player", p. 19); by the
+    // time the second Grunt is discarded, P1 already has 1 and P2 has 0, so the ranking — re-run per minion —
+    // sends it to P2 instead of piling both onto P1.
+    expect(engagedWithP1).toHaveLength(1);
+    expect(engagedWithP2).toHaveLength(1);
   });
 });
 
