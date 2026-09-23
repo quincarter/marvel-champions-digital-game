@@ -63,17 +63,14 @@ const KNOWN_SKIPPED: Readonly<Record<string, readonly string[]>> = {
     // in the Museum/The Great Escape, "I Have You Now!", Impossible Geometry — `gmw/escape-the-museum.ts`) are
     // scripted. A second primitives pass closed 13 refs left as gaps by the first (docs/phase7-wave3.md
     // §3.28–§3.38, docs/phase7-wave3-scripting.md §6d): 16006/16009/16024 (Groot, scripted); 16032/16033/16052
-    // (Rocket); 16020/16048 (Flora and Fauna, a cross-player Team-Up targeting gap); 16060.when-revealed (Drang
-    // III, a player-level superlative); 16073b.the-grand-collection-action (an either/or `AbilityCost`);
+    // (Rocket, scripted); 16020/16048 (Flora and Fauna, a cross-player Team-Up targeting gap); 16060.when-revealed
+    // (Drang III, a player-level superlative); 16073b.the-grand-collection-action (an either/or `AbilityCost`);
     // 16085a.this-way (a per-player `AbilityLimit`); 16085b's three refs (indirect damage "among players").
     // Everything from Nebula on (16088+, except Menagerie Medley's own 16135-16137 and Ship Command's own
     // 16142-16148) is not yet reached. Regenerated with `MC_REFS_PACKS=gmw pnpm refs` (docs/card-scripting-
     // process.md) — never hand-typed.
     "16020.flora-and-fauna-action",
-    "16032.schadenfreude-action",
-    "16033.salvage-response",
     "16048.flora-and-fauna-action",
-    "16052.booster-boots-interrupt",
     "16060.when-revealed",
     "16073b.the-grand-collection-action",
     "16085a.this-way",

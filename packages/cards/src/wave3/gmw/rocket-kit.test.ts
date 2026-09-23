@@ -9,6 +9,7 @@ import {
   moveToHand,
   P1,
   patchInstance,
+  play,
   playerOf,
   settle,
   stackEncounterDeck,
@@ -16,6 +17,7 @@ import {
   use,
   type Picker,
 } from "../../testing/harness.js";
+import { moveToDiscard } from "../../testing/staging.js";
 import { wave3Scenario } from "../setup.js";
 import { playFromHand, runWave3, startWave3Game, WAVE3_DEPS } from "../testing.js";
 
@@ -328,5 +330,149 @@ describe("Rocket Raccoon kit", () => {
     const after = settle(offered, accepting("16047.groot-response"), undefined, WAVE3_DEPS);
     expect(inst(after, groot).damage).toBe(Math.max(0, damageAfterAttack - 2));
     expect(inst(after, groot).damage).toBeLessThan(damageAfterAttack); // the heal genuinely did something
+  });
+
+  it("Schadenfreude: heals 2 damage from Rocket Raccoon for each separate instance of damage dealt to an enemy this turn (16032.schadenfreude-action)", () => {
+    const hero = runWave3(rocketVsRhino(), toHero());
+    const identity = identityOf(hero);
+    const damaged = patchInstance(hero, identity, { damage: 6 });
+    // Rocket's Pistol (16038, a separate card whose own ability exhausts only itself) supplies a first damage
+    // instance without exhausting Rocket's own identity, so a second instance — a basic attack — can follow in
+    // the same turn.
+    const { state: withPistol, id: pistol } = playFromHand(damaged, "16038", 1);
+    const { state: withSchaden } = playFromHand(withPistol, "16032", 2);
+    const villain = withSchaden.villains[0]!.instanceId;
+
+    const afterPistol = settle(
+      runWave3(withSchaden, use(P1, pistol, "16038.rockets-pistol-action")),
+      firstLegal,
+      undefined,
+      WAVE3_DEPS,
+    );
+    expect(inst(afterPistol, identity).damage).toBe(6 - 2); // one healed instance
+
+    const attacked = runWave3(afterPistol, {
+      type: "basicAttack",
+      playerId: P1,
+      attackerInstanceId: identity,
+      targetInstanceId: villain,
+    });
+    expect(inst(attacked, identity).damage).toBe(6 - 2 - 2); // a second healed instance, same turn
+  });
+
+  it("Schadenfreude: stops healing once the turn ends (16032.schadenfreude-action)", () => {
+    const hero = runWave3(rocketVsRhino(), toHero());
+    const identity = identityOf(hero);
+    const damaged = patchInstance(hero, identity, { damage: 6 });
+    const { state: withSchaden } = playFromHand(damaged, "16032", 2);
+    const villain = withSchaden.villains[0]!.instanceId;
+    const attacked = runWave3(withSchaden, {
+      type: "basicAttack",
+      playerId: P1,
+      attackerInstanceId: identity,
+      targetInstanceId: villain,
+    });
+    expect(inst(attacked, identity).damage).toBe(6 - 2); // healed once, still this turn
+
+    // Past the end of the turn (and the villain phase's own activity), a fresh damage instance heals nothing —
+    // Schadenfreude's own standing ability already expired. Form carries over between rounds (no auto-reset), so
+    // Rocket is already back in hero form once the next hero phase starts; no further `toHero()` is needed here.
+    const nextRound = settle(runWave3(attacked, endTurn()), firstLegal, undefined, WAVE3_DEPS);
+    const stillIdentity = identityOf(nextRound);
+    const before = inst(nextRound, stillIdentity).damage;
+    const secondTurnAttack = runWave3(nextRound, {
+      type: "basicAttack",
+      playerId: P1,
+      attackerInstanceId: stillIdentity,
+      targetInstanceId: villain,
+    });
+    expect(inst(secondTurnAttack, stillIdentity).damage).toBe(before);
+  });
+
+  it("Schadenfreude: still heals when the enemy's tough status card absorbs the entire hit (16032.schadenfreude-action, RRG 1.8 'Prevent')", () => {
+    const hero = runWave3(rocketVsRhino(), toHero());
+    const identity = identityOf(hero);
+    const damaged = patchInstance(hero, identity, { damage: 4 });
+    const { state: withSchaden } = playFromHand(damaged, "16032", 2);
+    const villain = withSchaden.villains[0]!.instanceId;
+    const toughVillain = patchInstance(withSchaden, villain, {
+      statuses: { ...inst(withSchaden, villain).statuses, tough: 1 },
+    });
+    const villainDamageBefore = inst(toughVillain, villain).damage;
+    const attacked = runWave3(toughVillain, {
+      type: "basicAttack",
+      playerId: P1,
+      attackerInstanceId: identity,
+      targetInstanceId: villain,
+    });
+    expect(inst(attacked, villain).damage).toBe(villainDamageBefore); // tough absorbed the whole hit
+    expect(inst(attacked, villain).statuses.tough).toBe(0); // the tough status card is spent, proving it fired
+    expect(inst(attacked, identity).damage).toBe(4 - 2); // Rocket still healed: damage was "dealt", not "taken"
+  });
+
+  it("Salvage: after you spend this card, puts a tech upgrade from your discard pile on top of your deck (16033.salvage-response)", () => {
+    const hero = runWave3(rocketVsRhino(), toHero());
+    const { state: withDiscard, id: batteryPack } = moveToDiscard(hero, P1, "16034"); // Battery Pack, a [TECH] upgrade
+    const given = moveToHand(withDiscard, P1, "16033", "16031"); // Salvage, Reload (cost 1, an energy icon)
+    const [salvage, reload] = given.ids as [InstanceId, InstanceId];
+    // Salvage produces a wild resource icon, which can pay Reload's printed energy cost on its own.
+    const played = settle(
+      runWave3(given.state, play(P1, reload, [salvage])),
+      accepting("16033.salvage-response"),
+      undefined,
+      WAVE3_DEPS,
+    );
+    expect(playerOf(played, P1).discard).toContain(salvage); // spent as a resource, in the discard pile
+    expect(playerOf(played, P1).deck[0]).toBe(batteryPack);
+  });
+
+  it("Booster Boots: exhausts and discards the top card of your deck to prevent 1 of an attack's damage (16052.booster-boots-interrupt)", () => {
+    const { state: withBoots, id: boots } = playFromHand(runWave3(rocketVsRhino(), toHero()), "16052", 1);
+    const identity = identityOf(withBoots);
+    const damaged = patchInstance(withBoots, identity, { damage: 0 });
+    const topOfDeck = playerOf(damaged, P1).deck[0];
+    // Both branches run the same, otherwise-deterministic villain phase from the identical starting state (the
+    // encounter deck's own order, and so the villain's boost draw, is unaffected by which choice is made here) —
+    // undefended, so the only difference between accepting and declining Booster Boots is its own 1 damage
+    // prevented, whatever Rhino's boosted ATK for this particular reveal turns out to be.
+    const prevented = settle(
+      runWave3(damaged, endTurn()),
+      accepting("16052.booster-boots-interrupt"),
+      undefined,
+      WAVE3_DEPS,
+    );
+    const declined = settle(runWave3(damaged, endTurn()), firstLegal, undefined, WAVE3_DEPS);
+    expect(inst(declined, identity).damage - inst(prevented, identity).damage).toBe(1);
+    expect(inst(prevented, boots).exhausted).toBe(true);
+    expect(playerOf(prevented, P1).discard).toContain(topOfDeck);
+  });
+
+  it("Booster Boots: a deck the cost empties still pays, resetting it at once from the discard pile (16052.booster-boots-interrupt)", () => {
+    const { state: withBoots, id: boots } = playFromHand(runWave3(rocketVsRhino(), toHero()), "16052", 1);
+    const identity = identityOf(withBoots);
+    const damaged = patchInstance(withBoots, identity, { damage: 0 });
+    const owner = damaged.players.find((p) => p.playerId === P1)!;
+    const [onlyCard, ...rest] = owner.deck;
+    // Thin the deck to its very last card, with the rest in the discard pile — paying the cost discards that
+    // last card, empties the deck, and the engine resets it at once (ruling, Apr 30, 2026 (3) answer 7; the
+    // reset's own facedown-encounter-card side effect is already covered in isolation by the engine's own
+    // `deck-discard-cost.test.ts`).
+    const thinned: GameState = {
+      ...damaged,
+      players: damaged.players.map((p) =>
+        p.playerId === P1 ? { ...p, deck: [onlyCard!], discard: [...p.discard, ...rest] } : p,
+      ),
+    };
+    const prevented = settle(
+      runWave3(thinned, endTurn()),
+      accepting("16052.booster-boots-interrupt"),
+      undefined,
+      WAVE3_DEPS,
+    );
+    const declined = settle(runWave3(thinned, endTurn()), firstLegal, undefined, WAVE3_DEPS);
+    expect(inst(declined, identity).damage - inst(prevented, identity).damage).toBe(1); // still prevented 1
+    expect(inst(prevented, boots).exhausted).toBe(true);
+    expect(playerOf(prevented, P1).deck.length).toBeGreaterThan(0); // reshuffled from the discard pile
+    expect(playerOf(prevented, P1).discard).not.toContain(onlyCard); // the discarded card was folded into the reset
   });
 });

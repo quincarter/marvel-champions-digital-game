@@ -5,8 +5,10 @@ import {
   anAttackableEnemy,
   attack,
   bindTargets,
+  cards,
   chosen,
   chosenPlayer,
+  chooseCards,
   chooseTarget,
   choosePlayer,
   constant,
@@ -14,8 +16,10 @@ import {
   defineAbilities,
   discard,
   discardEncounterUntil,
+  discardTopOfDeckCost,
   draw,
   each,
+  eachTimeUntil,
   exhaustThis,
   forcedResponse,
   gainsTrait,
@@ -26,7 +30,9 @@ import {
   heroResponse,
   modifyAttack,
   modifyStat,
+  moveCards,
   on,
+  preventDamage,
   putIntoPlay,
   query,
   ready,
@@ -39,8 +45,11 @@ import {
   theMainScheme,
   theVillain,
   when,
+  you,
   YOUR_HERO,
+  YOUR_IDENTITY,
   yourIdentity,
+  zone,
 } from "../../dsl/index.js";
 
 const CHARGE = "charge";
@@ -52,27 +61,15 @@ const ROCKET = yourIdentity;
  * Rocket Raccoon (16029a/b) and his hero kit (16030–16052). Reprints in this pack (none found by `../reprints.ts`
  * for this range) are aliased automatically, not scripted here.
  *
- * **Four documented skips, all genuine primitive gaps, not guesses:**
- * - `16032.schadenfreude-action` ("Until the end of the turn, heal 2 damage from Rocket Raccoon each time you deal
- *   any amount of damage to an enemy") needs a "grant a standing triggered ability for a duration" primitive.
- *   `RuleSpec applyRuleUntil` only carries a `RuleSpec` (a static restriction/modifier), not an arbitrary reactive
- *   ability, so there's no way to express "each time X happens, do Y" as something that itself expires.
- * - `16033.salvage-response` ("Response: After you spend this card, …") needs a trigger event for a card being
- *   spent as a resource payment — no such `TriggerEvent` kind exists; `cardBeingPlayed`/`cardPlayed` are about the
- *   card *being played*, not a different card being spent to pay for one.
- * - `16048.flora-and-fauna-action` (Rocket's own copy of the Team-Up card, printed identically at
- *   16020 in Groot's own card range) — "place 2 charge counters on **a Rocket Raccoon upgrade**" needs a
- *   `TargetQuery` field for "an upgrade belonging to a specific named character's card pool, independent of who
- *   controls it" (a Team-Up card can be played across two different players' hands). `TargetQuery.identitySetOf`
- *   only reaches "the current *player's* own identity-specific cards" (`PlayerRef`, not a fixed character name),
- *   which doesn't fit. Groot's own 16020 has the identical gap.
- * - `16052.booster-boots-interrupt` ("… discard the top card of your deck →") needs an `AbilityCost` component for
- *   discarding from your own deck as a cost — no such component exists (only `EffectSpec`-level deck discards,
- *   which resolve as an effect, not a payable, refusable cost). The closest precedent, `AbilityCost.
- *   dealEncounterCards` (docs/phase7-wave3.md §3.20), is a different zone; extending the cost vocabulary again
- *   deserves `game-rules-architect` input on the empty-deck-reshuffle question RRG 1.8 "Deck" (p. 15) raises for a
- *   cost specifically (a cost that can't be paid should refuse the ability, not force a reshuffle mid-payment),
- *   which is more than this pass's time allows to settle correctly.
+ * Three refs recorded in an earlier scripting pass as primitive gaps are now closed (docs/phase7-wave3.md
+ * §3.30, §3.31, §3.33; docs/phase7-wave3-scripting.md §6d):
+ * - `16032.schadenfreude-action`: `eachTimeUntil` + `on.youDealDamage` (§3.30).
+ * - `16033.salvage-response`: the existing `resourcesSpent`/`on.youSpendThis()` trigger (§3.31).
+ * - `16052.booster-boots-interrupt`: the new `AbilityCost.discardFromDeck` (§3.33).
+ *
+ * `16048.flora-and-fauna-action` (Rocket's own copy of the Team-Up card, printed identically at 16020 in Groot's
+ * own card range) is scripted alongside 16020, not here — same composition, tested together in a two-player
+ * game with Groot and Rocket at different seats (docs/phase7-wave3.md §3.34).
  */
 export const ROCKET_KIT = defineAbilities({
   // "Murdered You!" — Response: After you deal excess damage to an enemy, draw 1 card.
@@ -97,9 +94,21 @@ export const ROCKET_KIT = defineAbilities({
   // Reload — Hero Action: Ready each tech upgrade you control.
   "16031.reload-action": heroAction(ready(each(query("upgrade", { controller: "you", trait: TECH })))),
 
-  // Schadenfreude (16032) — see module docblock.
+  // Schadenfreude — Hero Action: Until the end of the turn, heal 2 damage from Rocket Raccoon each time you deal
+  // any amount of damage to an enemy. `on.youDealDamage` reads "you" as your identity, event, resource or
+  // upgrade cards (RRG 1.8 "You, Your") and the event's own dealt amount, not the amount actually taken, so a
+  // hit fully absorbed by the enemy's own tough status card still heals (§3.30).
+  "16032.schadenfreude-action": heroAction(
+    eachTimeUntil("endOfTurn", on.youDealDamage(query("enemy")), heal(2, ROCKET)),
+  ),
 
-  // Salvage (16033) — see module docblock.
+  // Salvage — Response: After you spend this card, put a tech upgrade from your discard pile on top of your
+  // deck. Fires after every cost is paid and before the paid-for card starts being played (§3.31).
+  "16033.salvage-response": response(
+    on.youSpendThis(),
+    chooseCards("tech", zone("discard", you, { filter: query("upgrade", { trait: TECH }) }), { min: 1, max: 1 }),
+    moveCards(cards(chosen("tech")), "deckTop"),
+  ),
 
   // Battery Pack — Enters play with 2 charge counters on it. Action: Exhaust Battery Pack → move a charge counter
   // from this card to another tech upgrade you control.
@@ -193,5 +202,11 @@ export const ROCKET_KIT = defineAbilities({
 
   // Flora and Fauna (16048) — see module docblock.
 
-  // Booster Boots (16052) — see module docblock.
+  // Booster Boots — Hero Interrupt: When you would take any amount of damage from an attack, exhaust Booster
+  // Boots and discard the top card of your deck → prevent 1 of that damage (§3.33).
+  "16052.booster-boots-interrupt": heroInterrupt(
+    when.damage(YOUR_IDENTITY, { fromAttack: true }),
+    { cost: [exhaustThis, discardTopOfDeckCost()] },
+    preventDamage(1),
+  ),
 });
