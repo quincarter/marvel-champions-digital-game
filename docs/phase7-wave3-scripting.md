@@ -114,17 +114,27 @@ actions.ts`), with its own engine test (`packages/engine/src/abilities.test.ts`,
    if a second card ever needs the same wording (none does yet in `gmw`).
    **Closed (docs/phase7-wave3.md §3.28, 2026-09-22): no gap.** `on.basicPowerUsed(YOUR_IDENTITY)` already matches
    every basic power (attack, thwart, defense, recovery) with the character as the event's target. The one fix was
-   engine-side: a defense's "after" window now waits for the attack to end (RRG 1.8 p. 16). Script it as
-   `heroResponse(on.basicPowerUsed(YOUR_IDENTITY), { cost: [removeCounter("growth", 2, { fromIdentity: true }),
-exhaustThis] }, ready(yourIdentity))`.
+   engine-side: a defense's "after" window now waits for the attack to end (RRG 1.8 p. 16). Script it as:
+
+   ```ts
+   heroResponse(
+     on.basicPowerUsed(YOUR_IDENTITY),
+     { cost: [removeCounter("growth", 2, { fromIdentity: true }), exhaustThis] },
+     ready(yourIdentity),
+   );
+   ```
+
 3. **`16024.deft-focus-action`** — "reduce the resource cost of the next superpower card you play this turn by 1."
    Needs a standing "next matching card played this turn" cost-reduction rule, distinct from the interrupt-time
    reduction docs/phase7-wave3.md §3.20 built for Star-Lord's "What could go wrong?" (that one is offered live, at
    the point of paying for the card that triggers it — this one is banked ahead of time by an earlier action and
    has to survive until a later, unrelated card is played).
-   **Closed (docs/phase7-wave3.md §3.29, 2026-09-22): no gap.** `reduceNextCardCost` already has `duration:
-"turn"` and a `cardFilter`, and nothing consumes it except a matching card. Script it as `heroAction({ cost:
-exhaustThis }, reduceNextCardCost(you, 1, "turn", { trait: SUPERPOWER }))`.
+   **Closed (docs/phase7-wave3.md §3.29, 2026-09-22): no gap.** `reduceNextCardCost` already has a `"turn"`
+   duration and a `cardFilter`, and nothing consumes it except a matching card. Script it as:
+
+   ```ts
+   heroAction({ cost: exhaustThis }, reduceNextCardCost(you, 1, "turn", { trait: SUPERPOWER }));
+   ```
 
 ## 6. DSL builders added this pass
 
@@ -165,20 +175,56 @@ Recorded in `gmw/rocket-kit.ts`'s own module docblock (mirrors §5's format):
    `RuleSpec applyRuleUntil` only carries a `RuleSpec` (a static restriction/modifier), not an arbitrary reactive
    ability, so there is no way to express "each time X happens, do Y" as something that itself later expires.
    **Closed (docs/phase7-wave3.md §3.30, 2026-09-22):** `EffectSpec eachTimeUntil` (§3.17) was built for this card.
-   It only lacked a builder. New builders: `eachTimeUntil` (`dsl/effects.ts`) and `on.youDealDamage` (`dsl/
-abilities.ts`; "you" per RRG 1.8 p. 49, "deal" as damage dealt per p. 35). Script it as
-   `heroAction(eachTimeUntil("endOfTurn", on.youDealDamage(query("enemy")), heal(2, yourIdentity)))`.
+   It only lacked a builder. New builders: `eachTimeUntil` in `dsl/effects.ts` and `on.youDealDamage` in
+   `dsl/abilities.ts`. "You" follows RRG 1.8 p. 49, and "deal" means damage dealt (p. 35). Script it as:
+
+   ```ts
+   heroAction(eachTimeUntil("endOfTurn", on.youDealDamage(query("enemy")), heal(2, yourIdentity)));
+   ```
+
 2. **`16033.salvage-response`** ("Response: After you spend this card, …") needs a trigger event for a card being
    spent as a resource payment — no such `TriggerEvent` kind exists.
-   **Closed (docs/phase7-wave3.md §3.31, 2026-09-22): no gap.** `resourcesSpent` / `on.youSpendThis()`
-   (docs/phase7-wave2.md §12) is that trigger. It fires after the costs are paid and before the paid-for card
-   resolves, and Salvage is already in the discard pile when it does. Script it as `response(on.youSpendThis(),
-chooseCards("tech", zone("discard", you, { filter: query("upgrade", { trait: TECH }) }), { min: 1, max: 1 }),
-moveCards(cards(chosen("tech")), "deckTop"))`.
+   **Closed (docs/phase7-wave3.md §3.31, 2026-09-22): no gap.** `resourcesSpent` (DSL `on.youSpendThis()`,
+   docs/phase7-wave2.md §12) is that trigger. It fires after the costs are paid and before the paid-for card
+   resolves, and Salvage is already in the discard pile when it does. Script it as:
+
+   ```ts
+   response(
+     on.youSpendThis(),
+     chooseCards("tech", zone("discard", you, { filter: query("upgrade", { trait: TECH }) }), { min: 1, max: 1 }),
+     moveCards(cards(chosen("tech")), "deckTop"),
+   );
+   ```
+
 3. **`16048.flora-and-fauna-constant`/`-action`** (Rocket's own printing of the Team-Up card, identical at 16020
    in Groot's own range) — "a Rocket Raccoon upgrade" needs a `TargetQuery` for "belongs to a specific named
    character's card pool, independent of who controls it"; `identitySetOf` only reaches the _current player's_
    own identity-specific cards.
+   **Closed (docs/phase7-wave3.md §3.34, 2026-09-22).** New `TargetQuery.titled` and `identitySetTitled`, whose
+   names come from the card's own Team-Up keyword. They work for every Team-Up card, not just this one. The builders
+   are `teamUpCharacters(index?)` and `ofTeamUpSet(index?)` in `dsl/values.ts`. Script both 16020 and 16048 as:
+
+   ```ts
+   heroAction(
+     chooseOne(
+       option(
+         "Place 2 growth counters on Groot and ready him",
+         addCounters("growth", 2, teamUpCharacters(0), { upTo: 10 }),
+         ready(teamUpCharacters(0)),
+       ),
+       option(
+         "Place 2 charge counters on a Rocket Raccoon upgrade and ready it",
+         { when: exists(query("upgrade", ofTeamUpSet(1))) },
+         chooseTarget("upgrade", query("upgrade", ofTeamUpSet(1))),
+         addCounters("charge", 2, chosen("upgrade")),
+         ready(chosen("upgrade")),
+       ),
+     ),
+   );
+   ```
+
+   The `-constant` refs are the unparsed "Max 1 per deck" sentence, which the data fix removes.
+
 4. **`16052.booster-boots-interrupt`** ("… discard the top card of your deck →") needs an `AbilityCost` component
    for discarding from your own deck as a cost. Flagged for `game-rules-architect` rather than added unilaterally
    this pass: RRG 1.8 "Deck" (p. 15)'s empty-deck reshuffle rule needs a decision for a cost specifically (refuse

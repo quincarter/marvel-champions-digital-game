@@ -234,7 +234,33 @@ export interface TargetQuery {
    * card *data* — it matches wherever the card is, and a game with no campaign input matches nothing.
    */
   readonly inCampaignLogField?: { readonly field: string; readonly seat?: PlayerRef };
+  /**
+   * The character is named by one of these names (docs/phase7-wave3.md §3.34): "Ready Cyclops and Phoenix", "Heal 3
+   * damage each from Gwen Stacy and Miles Morales", "Place 2 growth counters on Groot" (the Team-Up cards). An identity
+   * matches by the title on its faceup side, any other character by its title or subtitle (RRG 1.8 "Team-Up", p. 43;
+   * "Identity", p. 23; `titles.ts`). Whoever controls it — pair with `categories: ["identity", "ally"]` for "friendly".
+   */
+  readonly titled?: CharacterNames;
+  /**
+   * The card belongs to the identity-specific set of an identity card named by one of these names, whoever controls
+   * it: "a Rocket Raccoon upgrade" (Flora and Fauna), "a Cyclops card from your discard pile" (Psychic Rapport). RRG 1.8
+   * "Identity-Specific Card" (p. 23): a card of an identity's "set of accompanying cards", its set icon, which the data
+   * carries as `aspect: "hero:<identity card id>"`. Unlike `identitySetOf` (a *player's* identity), this names the
+   * identity itself, so a Team-Up card in either player's hand finds the same cards. Docs/phase7-wave3.md §3.34.
+   */
+  readonly identitySetTitled?: CharacterNames;
 }
+
+/**
+ * Character names as a card prints them (docs/phase7-wave3.md §3.34). `names` is written out; `teamUpOf` reads them
+ * from the Team-Up keyword of the card(s) the ref names (`self` for the Team-Up card itself), so a script never
+ * hard-codes a name its card data already carries. `index` picks one of the keyword's two names (0 or 1): "Place 2
+ * growth counters on **Groot**" is name 0 of "Team-Up (Groot and Rocket Raccoon)". A name "Hero/Alter-ego" ("Black
+ * Panther/T'Challa") names one identity card by both sides (`titles.ts`).
+ */
+export type CharacterNames =
+  | { readonly names: readonly string[] }
+  | { readonly teamUpOf: TargetRef; readonly index?: 0 | 1 };
 
 /** Names one instance without knowing its id at authoring time. */
 export type TargetRef =

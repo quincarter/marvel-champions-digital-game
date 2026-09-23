@@ -580,6 +580,76 @@ Salvage (16033): "Response: After you spend this card, put a tech upgrade from y
 
 **Composition:** `response(on.youSpendThis(), chooseCards("tech", zone("discard", you, { filter: query("upgrade", { trait: TECH }) }), { min: 1, max: 1 }), moveCards(cards(chosen("tech")), "deckTop"))`. The engine test writes the same thing as plain data.
 
+### 3.34 Naming a Team-Up card's characters: `TargetQuery.titled` and `identitySetTitled`
+
+> **Status: landed (2026-09-22),** tested in `packages/engine/src/team-up-names.test.ts` (7 tests: a pair whose names are on both faces, an alter-ego pair, a "Hero/Alter-ego" pair, an ally named by subtitle, deckbuilding, replay deep-equal). DSL tests: `packages/cards/src/dsl/wave3-primitives.test.ts`.
+
+Flora and Fauna (16020, 16048): "Team-Up (Groot and Rocket Raccoon). … Hero Action: Place 2 growth counters on Groot (to a maximum of 10) and ready him, or place 2 charge counters on a Rocket Raccoon upgrade and ready that upgrade." A Team-Up card can be in either player's hand, so "Groot" and "a Rocket Raccoon upgrade" cannot be `yourIdentity` or `identitySetOf: you`. Team-Up is on 30 printed cards across 25 packs, so the vocabulary is general. None of the wave 2 Team-Up scripts (Order and Chaos 14018/15018, Swarm Tactics 12020/13020) names a character in its effect, so there was no earlier shape to extend.
+
+**How the printed cards refer to their two characters:**
+
+- each named identity: "Ready Cyclops and Phoenix";
+- each of them, with an amount: "Heal 3 damage each from Gwen Stacy and Miles Morales", "Give Captain America and Winter Soldier each a tough status card";
+- one of them: "Place 2 growth counters on Groot";
+- cards belonging to one of them: "a Rocket Raccoon upgrade", "a Cyclops card from your discard pile";
+- a value summed over both: "the total ATK of Colossus and Wolverine".
+
+The names are hero titles, alter-ego titles ("Cindy Moon and Peter Parker", "Gwen Stacy and Miles Morales"), or "Hero/Alter-ego" when two identities share a hero title ("Black Panther/T'Challa and Black Panther/Shuri").
+
+**The rules:**
+
+- RRG 1.8 "Team-Up" (p. 43) spells the keyword out as a constant: "…a friendly character in play whose title or subtitle matches name 1 and a friendly character in play whose title or subtitle matches name 2."
+- RRG 1.8 "Identity" (p. 23): "If a card refers to a hero or alter-ego by title, it refers only to the identity with that title, and not to the other side of the card."
+- RRG 1.8 "Identity-Specific Card" (p. 23): a card that belongs to "an identity's set of accompanying cards", marked by its set icon.
+
+**What landed:**
+
+- **`CharacterNames`**: `{ names }` spells the names out. `{ teamUpOf: TargetRef, index?: 0 | 1 }` reads them from the Team-Up keyword on the card(s) the ref names, usually `self`. `index` picks one of the two names. So a script never repeats names its card data already carries.
+- **`TargetQuery.titled: CharacterNames`**: the character is named by one of the names. An identity matches by the title on its faceup side only (p. 23). Any other character matches by its title or its subtitle (p. 43; "Subtitle", p. 41). It matches whoever controls the character. The DSL adds `categories: ["identity", "ally"]` for "friendly".
+- **`TargetQuery.identitySetTitled: CharacterNames`**: "a <name> card". The card's set icon (`aspect: "hero:<identity id>"`) names an identity card that matches the name by any of its titles, whoever controls the card. That is the principled meaning of "a Rocket Raccoon upgrade": an upgrade from Rocket Raccoon's identity-specific set. It is not "an upgrade Rocket's player controls": Flora and Fauna can be played by Groot's player on an upgrade the other player controls, and the test does exactly that.
+- **`titles.ts`**: `characterTitledAs` and `identityCardTitledAs` are the one reading of a name. The Team-Up play check (`teamUpFault`) and the deckbuilding check (`validateDeck`) now use them too.
+- **Fixed on the way:** both of those checks compared names to titles as plain strings. That refused Heart of the Panther (`bp` 51025, "Black Panther/T'Challa and Black Panther/Shuri") everywhere, because no single title contains a slash. A "Hero/Alter-ego" name now matches the identity whose hero face is the first half and whose alter-ego face is the second, whichever side is up. This is a reading (§4 Q13).
+
+**DSL** (`dsl/values.ts`):
+
+- `teamUpCharacter(index?)` is the query.
+- `teamUpCharacters(index?)` is the same thing as an `each` ref.
+- `ofTeamUpSet(index?)` is a query fragment: `query("upgrade", ofTeamUpSet(1))`.
+- `titled(...names)` and `ofIdentitySetTitled(...names)` are the written-out forms.
+
+**Flora and Fauna composition** (both 16020 and 16048):
+
+```ts
+heroAction(
+  chooseOne(
+    option(
+      "Place 2 growth counters on Groot and ready him",
+      addCounters("growth", 2, teamUpCharacters(0), { upTo: 10 }),
+      ready(teamUpCharacters(0)),
+    ),
+    option(
+      "Place 2 charge counters on a Rocket Raccoon upgrade and ready it",
+      { when: exists(query("upgrade", ofTeamUpSet(1))) },
+      chooseTarget("upgrade", query("upgrade", ofTeamUpSet(1))),
+      addCounters("charge", 2, chosen("upgrade")),
+      ready(chosen("upgrade")),
+    ),
+  ),
+);
+```
+
+The option's `when` is RRG 1.8 "Choose (Option)" (p. 12): a player cannot choose an option "that cannot be at least partially resolved".
+
+**Other Team-Up cards** (not scripted this wave; each is checked by `wave3-primitives.test.ts`):
+
+| Card                                | Composition                                                                                                                                         |
+| ----------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Beauty and the Thief (37019, 38020) | `heroAction({ label: ["attack", "thwart"] }, attackAnEnemy(4), thwartAScheme(4))`. It names nobody in its effect; the keyword alone gates the play. |
+| Fastball Special (35023)            | `attack(sum(statOf(teamUpCharacters(0), "atk"), statOf(teamUpCharacters(1), "atk")), chosen("enemy"), { keywords: ["overkill", "piercing"] })`      |
+| Young Love (27019, 27050)           | `alterEgoAction(heal(3, teamUpCharacters()))`. Alter-ego titles match only while that side is up.                                                   |
+| Psychic Rapport (33023, 34023)      | `ready(teamUpCharacters())`, then `chooseCards("card", zone("discard", you, { filter: ofTeamUpSet(0) }), …)` for "a Cyclops card"                   |
+| Super-Soldiers (54022)              | `giveTough(teamUpCharacters())`                                                                                                                     |
+
 ---
 
 ## 4. Open questions (for the user or FFG)
@@ -598,6 +668,7 @@ Each is implemented the way stated, or not at all, and named here rather than de
 10. **Follow Through is modeled as a constant (§3.18).** Printed as an optional Hero Interrupt, it always applies here. Declining it is never better for its controller in cycle 2; if a later card punishes excess damage, it becomes a real choice and needs an interrupt window on excess damage.
 11. **"If you control the Power Stone" (§3.19).** Read as "if the Power Stone is attached to your identity": encounter cards are controlled by the scenario (RRG 1.8 p. 31), and MC16 p. 15 phrases the same condition as "attached to an identity". The FAQ (p. 62) says "an identity who controls the Power Stone", which fits either reading.
 12. **Moondragon: is "that minion attacks another enemy" an activation (§3.23)?** RRG 1.8 "Activation" (p. 6): "Whenever an enemy attacks or schemes, it is considered to have activated." If it is, a villainous minion takes a boost card and "when this minion activates/attacks" abilities fire, and the target (an enemy) has no controller to defend it or assign damage. The rulings file and the FAQ are silent. Proposed: an attack but not an activation against a player — no boost card, no defense, the damage dealt to the chosen enemy as attack damage, retaliate applying to the minion.
+13. **A Team-Up name written "Hero/Alter-ego" (§3.34).** Heart of the Panther (`bp` 51025) prints "Team-Up (Black Panther/T'Challa and Black Panther/Shuri)". RRG 1.8 "Team-Up" (p. 43) matches a name against a character's "title or subtitle", and no title contains a slash. Implemented as naming one identity card by both sides: its hero face is the first half, its alter-ego face is the second, and it matches whichever side is up. Before this, the play check and the deckbuilding check both refused the card outright. A strict reading of p. 23 would instead require the hero side ("Black Panther") to be up. That makes no difference for the deck check, and for the play check only while one Black Panther is in alter-ego form.
 
 ## 5. What this asks of the other agents
 

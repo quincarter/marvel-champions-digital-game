@@ -54,7 +54,6 @@ import {
   areaOfCard,
   areaOfPlayer,
   heroFacesOf,
-  identityFace,
   mainSchemeStateOf,
   playerOrder,
   mustCardOf,
@@ -108,6 +107,7 @@ import {
 } from "./select.js";
 import type { Bindings, Vars } from "./stack.js";
 import type { GameState } from "./state.js";
+import { characterTitledAs } from "./titles.js";
 import { entersPlayWhenPlayed, matchingCardInPlay, uniqueBlockedMessage } from "./unique.js";
 
 function requireActivePlayer(state: GameState, playerId: PlayerId, command: Command): EngineError | null {
@@ -273,17 +273,13 @@ function teamUpFault(state: GameState, card: AnyCard): PriceFault | null {
   if (keyword?.name !== "teamUp") return null;
   if (!keyword.names)
     return { code: "no_valid_target", message: "this Team-Up card's names are missing from its card data" };
-  const titles = new Set<string>();
-  for (const player of playerOrder(state)) {
-    titles.add(identityFace(state, player).face.faceName);
-    for (const id of player.playArea) {
-      const ally = cardOf(state, id);
-      if (ally?.type !== "ally" || controllerOf(state, id) === null || getInstance(state, id)?.facedownAs) continue;
-      titles.add(ally.name);
-      if (ally.subtitle) titles.add(ally.subtitle);
-    }
-  }
-  const missing = keyword.names.filter((name) => !titles.has(name));
+  // Friendly characters: every player's identity and the allies in play they control (`characterTitledAs` reads an
+  // identity's faceup title, an ally's title or subtitle, and a "Hero/Alter-ego" name; docs/phase7-wave3.md §3.34).
+  const friendly = playerOrder(state).flatMap((player) => [
+    player.identity.instanceId,
+    ...player.playArea.filter((id) => cardOf(state, id)?.type === "ally" && controllerOf(state, id) !== null),
+  ]);
+  const missing = keyword.names.filter((name) => !friendly.some((id) => characterTitledAs(state, id, name)));
   return missing.length === 0
     ? null
     : { code: "no_valid_target", message: `Team-Up needs ${missing.join(" and ")} in play` };

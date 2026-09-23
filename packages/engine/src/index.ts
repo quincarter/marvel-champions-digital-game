@@ -141,6 +141,7 @@ export {
 } from "./rules.js";
 export { hasKeyword, keywordsOf, printedKeywordsOf, statusActive } from "./keywords.js";
 export { printedResources } from "./resources.js";
+export { characterTitledAs, identityCardTitledAs } from "./titles.js";
 export type { CostChoices } from "./commands.js";
 export type { DeferredEffects, ReportTarget, Vars } from "./stack.js";
 export { currentActivationFrameId } from "./stack.js";
@@ -149,6 +150,7 @@ export { abilityUseKey, DEFAULT_DEPS, NO_ABILITIES } from "./abilities.js";
 export type {
   CardDestination,
   CardSelector,
+  CharacterNames,
   EffectSpec,
   LastingUntil,
   PlayerRef,
