@@ -26,6 +26,7 @@ on:
 
 permissions:
   contents: write
+  pull-requests: write
 
 concurrency:
   group: release-on-merge-${{ github.ref }}
@@ -54,23 +55,36 @@ jobs:
         with:
           version: latest
 
-      - name: Check for unreleased changes
+      # main requires a pull request (the "default" ruleset), so this job never pushes to main. It runs in one of
+      # two modes:
+      #   prepare: unreleased fragments on main -> batch them onto the bot-owned `release/next` branch and open or
+      #            update a "chore(release): vX.Y.Z" PR.
+      #   tag:     that PR has merged, so main's latest `.changes/vX.Y.Z.md` has no tag yet -> tag it and build.
+      - name: Decide what this run does
         id: check_changes
         shell: bash
         run: |
           if [[ "${{ github.ref }}" == refs/tags/v* ]]; then
             echo "Tag push detected (${{ github.ref_name }})."
+            echo "mode=tag" >> "$GITHUB_OUTPUT"
             echo "has_changes=true" >> "$GITHUB_OUTPUT"
-            echo "is_tag=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          LATEST=$(changie latest)
+          COUNT=$(find .changes/unreleased -maxdepth 1 \( -name "*.yaml" -o -name "*.yml" \) 2>/dev/null | wc -l)
+          echo "Latest released version on main: ${LATEST}. Unreleased fragments: ${COUNT}."
+
+          if ! git ls-remote --tags origin | grep -q "refs/tags/${LATEST}$"; then
+            echo "${LATEST} is on main but not tagged: its release PR merged. Tagging it."
+            echo "mode=tag" >> "$GITHUB_OUTPUT"
+            echo "has_changes=true" >> "$GITHUB_OUTPUT"
+          elif [ "${COUNT}" -gt 0 ] || [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "mode=prepare" >> "$GITHUB_OUTPUT"
+            echo "has_changes=true" >> "$GITHUB_OUTPUT"
           else
-            COUNT=$(find .changes/unreleased -maxdepth 1 \( -name "*.yaml" -o -name "*.yml" \) ! -name ".gitkeep" 2>/dev/null | wc -l)
-            echo "Found ${COUNT} unreleased change fragment(s)."
-            if [ "${COUNT}" -gt 0 ] || [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-              echo "has_changes=true" >> "$GITHUB_OUTPUT"
-            else
-              echo "has_changes=false" >> "$GITHUB_OUTPUT"
-              echo "should_release=false" >> "$GITHUB_OUTPUT"
-            fi
+            echo "has_changes=false" >> "$GITHUB_OUTPUT"
+            echo "should_release=false" >> "$GITHUB_OUTPUT"
           fi
 
       - uses: pnpm/action-setup@v4
@@ -95,83 +109,83 @@ jobs:
           pnpm test
           pnpm build
 
-      - name: Cut Release and Update Changelog
-        id: cut
-        if: steps.check_changes.outputs.has_changes == 'true'
+      - name: Open or update the release PR
+        id: prepare
+        if: steps.check_changes.outputs.mode == 'prepare'
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           BUMP_INPUT: ${{ github.event.inputs.bump || 'auto' }}
+        run: |
+          if [ "${BUMP_INPUT}" != "auto" ]; then
+            NEXT_TAG=$(changie next "${BUMP_INPUT}")
+          else
+            NEXT_TAG=$(changie next auto 2>/dev/null || changie next patch)
+          fi
+          TAG="v${NEXT_TAG#v}"
+          echo "Preparing ${TAG}."
+
+          # Batch the fragments into .changes/${TAG}.md, rebuild CHANGELOG.md and run the version replacements
+          # (.changie.yaml), then bump Android's versionCode.
+          changie batch "${TAG}" --allow-no-changes
+          changie merge
+          GRADLE_FILE="packages/client/android/app/build.gradle"
+          if [ -f "$GRADLE_FILE" ]; then
+            CURRENT_CODE=$(grep -oE 'versionCode [0-9]+' "$GRADLE_FILE" | awk '{print $2}')
+            sed -i -E "s/versionCode [0-9]+/versionCode $((CURRENT_CODE + 1))/" "$GRADLE_FILE"
+          fi
+
+          # release/next is owned by this job and rebuilt from main on every run, so it is force-pushed.
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git checkout -B release/next
+          git add -A
+          git commit -m "chore(release): ${TAG}"
+          git push --force origin release/next
+
+          BODY_FILE=$(mktemp)
+          {
+            echo "Merging this PR releases **${TAG}**: the tag, the GitHub release, and the desktop and Android builds."
+            echo "It is regenerated on every merge to main while it is open, so it always holds everything unreleased."
+            echo
+            cat ".changes/${TAG}.md"
+          } > "$BODY_FILE"
+
+          PR=$(gh pr list --head release/next --base main --state open --json number -q '.[0].number')
+          if [ -n "$PR" ]; then
+            gh pr edit "$PR" --title "chore(release): ${TAG}" --body-file "$BODY_FILE"
+            echo "Updated release PR #${PR}."
+          else
+            gh pr create --head release/next --base main --title "chore(release): ${TAG}" --body-file "$BODY_FILE"
+          fi
+
+      - name: Tag the release
+        id: cut
+        if: steps.check_changes.outputs.mode == 'tag'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PUBLISH_INPUT: ${{ github.event.inputs.publish || 'true' }}
         run: |
           if [[ "${{ github.ref }}" == refs/tags/v* ]]; then
             TAG="${{ github.ref_name }}"
-            VERSION="${TAG#v}"
-            echo "Processing tag release: ${TAG} (version: ${VERSION})"
           else
-            # 1. Determine next version
-            NEXT_TAG=""
-            if [ "${BUMP_INPUT}" != "auto" ]; then
-              NEXT_TAG=$(changie next "${BUMP_INPUT}")
-            else
-              NEXT_TAG=$(changie next auto 2>/dev/null || changie next patch)
-            fi
-
-            VERSION="${NEXT_TAG#v}"
-            TAG="v${VERSION}"
-            echo "Target Version: ${VERSION} (tag: ${TAG})"
-
-            # 2. Batch unreleased changes into .changes/${TAG}.md
-            changie batch "${TAG}" --allow-no-changes
-
-            # 3. Merge CHANGELOG.md and execute replacements
-            changie merge
-
-            # 4. Increment Android versionCode in build.gradle
-            GRADLE_FILE="packages/client/android/app/build.gradle"
-            if [ -f "$GRADLE_FILE" ]; then
-              CURRENT_CODE=$(grep -oE 'versionCode [0-9]+' "$GRADLE_FILE" | awk '{print $2}')
-              NEXT_CODE=$((CURRENT_CODE + 1))
-              sed -i -E "s/versionCode [0-9]+/versionCode ${NEXT_CODE}/" "$GRADLE_FILE"
-              echo "Incremented Android versionCode from ${CURRENT_CODE} to ${NEXT_CODE}"
-            fi
-
-            # 5. Commit release metadata and create git tag
+            TAG=$(changie latest)
             git config user.name "github-actions[bot]"
             git config user.email "github-actions[bot]@users.noreply.github.com"
-            git add -A
-            git commit -m "chore(release): ${TAG}" || echo "Nothing to commit"
-
-            if ! git rev-parse "${TAG}" >/dev/null 2>&1; then
-              git tag -a "${TAG}" -m "Release ${TAG}"
-            fi
-
-            if git ls-remote --tags origin | grep -q "refs/tags/${TAG}$"; then
-              echo "ERROR: Tag ${TAG} already exists on remote origin. Cannot cut release for existing tag."
-              exit 1
-            else
-              git push origin HEAD:main "${TAG}" || {
-                echo "Warning: Push to main branch failed (branch protection active). Pushing tag ${TAG} directly..."
-                git push origin "${TAG}"
-              }
-            fi
+            git tag -a "${TAG}" -m "Release ${TAG}"
+            git push origin "${TAG}"
           fi
+          VERSION="${TAG#v}"
+          echo "Releasing ${TAG}."
 
-          # 6. Create GitHub release draft
           NOTES_FILE=".changes/${TAG}.md"
-          GH_ARGS=(release create "${TAG}" --title "Marvel Champions ${TAG}" --draft --prerelease)
-          if [ -f "$NOTES_FILE" ]; then
-            GH_ARGS+=(--notes-file "$NOTES_FILE")
-          else
-            GH_ARGS+=(--generate-notes)
-          fi
-
           if gh release view "${TAG}" >/dev/null 2>&1; then
             echo "Release ${TAG} already exists on GitHub."
-            if [ -f "$NOTES_FILE" ]; then
-              gh release edit "${TAG}" --notes-file "$NOTES_FILE"
-            fi
+            if [ -f "$NOTES_FILE" ]; then gh release edit "${TAG}" --notes-file "$NOTES_FILE"; fi
           else
+            GH_ARGS=(release create "${TAG}" --title "Marvel Champions ${TAG}" --draft --prerelease)
+            if [ -f "$NOTES_FILE" ]; then GH_ARGS+=(--notes-file "$NOTES_FILE"); else GH_ARGS+=(--generate-notes); fi
             gh "${GH_ARGS[@]}"
           fi
 
