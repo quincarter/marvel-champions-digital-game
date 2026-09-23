@@ -10,6 +10,13 @@
 import type { CampaignDefinition, CampaignHistoryEntry, CampaignLog } from "@mc/engine";
 import { issueNumberOf, issueStoryFor, type CampaignStory } from "../campaign/story.js";
 import { renderLogValue, type CardNameOf } from "./campaign-log-model.js";
+import { FIELD_SHORT_LABEL } from "./campaign-run-model.js";
+
+/** A field's short word if one is known, else the printed sheet label, lowercased so it reads mid-sentence. */
+function fieldLabelOf(definition: CampaignDefinition): (fieldId: string) => string {
+  const byId = new Map(definition.logFields.map((field) => [field.id, field.label]));
+  return (fieldId) => FIELD_SHORT_LABEL[fieldId] ?? byId.get(fieldId)?.toLowerCase() ?? fieldId;
+}
 
 export interface IssueAttemptRow {
   readonly index: number;
@@ -54,15 +61,24 @@ function attemptDetail(entry: CampaignHistoryEntry): string {
 }
 
 /** Every write a step made, described the way design §7 asks for: a bold line, a short detail, a citation. */
-function writeRowsOf(entry: CampaignHistoryEntry, cardName: CardNameOf): readonly IssueWriteRow[] {
+function writeRowsOf(
+  entry: CampaignHistoryEntry,
+  fieldLabel: (fieldId: string) => string,
+  cardName: CardNameOf,
+): readonly IssueWriteRow[] {
   const rows: IssueWriteRow[] = [];
   entry.steps.forEach((step, stepIndex) => {
     if (step.skipped) return;
     step.writes.forEach((write, writeIndex) => {
+      // A `cardRef` write (a TECH/Condition upgrade) is always paired with this same step's `grantCard` — the
+      // grant row below already says which card, so the write row would only repeat it.
+      if (write.value.kind === "cardRef") return;
+      // An unset flag ("false") is a non-event on the printed sheet; only a flag actually raised is worth a line.
+      if (write.value.kind === "flag" && !write.value.value) return;
       const rendered = renderLogValue(write.value, cardName);
       rows.push({
         key: `write:${stepIndex}:${writeIndex}`,
-        headline: `${rendered} ${write.field}`,
+        headline: write.value.kind === "flag" ? fieldLabel(write.field) : `${rendered} ${fieldLabel(write.field)}`,
         detail: step.text,
         citation: step.citation,
       });
@@ -127,7 +143,7 @@ export function campaignIssueModel(
     won: resolved === "completed",
     recap: issueStory?.recap ?? "",
     attempts,
-    writes: winning ? writeRowsOf(winning, cardName) : [],
+    writes: winning ? writeRowsOf(winning, fieldLabelOf(definition), cardName) : [],
     prevNodeId: at > 0 ? (finished[at - 1] ?? null) : null,
     nextFinishedNodeId: at >= 0 && at < finished.length - 1 ? (finished[at + 1] ?? null) : null,
   };

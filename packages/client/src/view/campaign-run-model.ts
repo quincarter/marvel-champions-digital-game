@@ -13,8 +13,11 @@ import type { CampaignDefinition, CampaignHistoryEntry, CampaignLog } from "@mc/
 import { issueNumberOf, issueStoryFor, type CampaignStory } from "../campaign/story.js";
 import type { CardNameOf } from "./campaign-log-model.js";
 
-/** Short, on-brand words for a log field, matching the design's own examples ("2 prototypes", "3 delay"). */
-const FIELD_SHORT_LABEL: Readonly<Record<string, string>> = {
+/**
+ * Short, on-brand words for a log field, matching the design's own examples ("2 prototypes", "3 delay"). Exported
+ * so `campaign-issue-model.ts` renders the same field the same way rather than falling back to the raw field id.
+ */
+export const FIELD_SHORT_LABEL: Readonly<Record<string, string>> = {
   delayCounters: "delay",
   experimental: "prototypes",
   rescuedAllies: "rescued",
