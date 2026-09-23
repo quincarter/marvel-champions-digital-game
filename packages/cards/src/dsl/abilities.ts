@@ -572,6 +572,24 @@ export const discardTopOfDeckCost = (n = 1): AbilityCost => ({ discardFromDeck: 
 export const eitherCost = (...branches: readonly (AbilityCost | readonly AbilityCost[])[]): AbilityCost => ({
   either: branches.map((branch) => (isCostList(branch) ? mergeCosts(branch) : branch)),
 });
+/**
+ * "Discard the top 2 cards of your deck (the top card instead if you control the Milano) →" (Reactor Core, `gmw`
+ * 16165; docs/phase7-wave3.md §3.49): a cost component the board picks, not the player. `then` is paid while
+ * `condition` holds when the cost is determined, `otherwise` if not; only that branch is checked, so an unpayable one
+ * makes the ability unusable even if the other could be paid ("instead" replaces the printed cost). Each branch is one
+ * cost or a list merged like `cost: [...]`; other components go beside it: `cost: [exhaustThis, costIf(...)]`.
+ */
+export const costIf = (
+  condition: Predicate,
+  then: AbilityCost | readonly AbilityCost[],
+  otherwise: AbilityCost | readonly AbilityCost[],
+): AbilityCost => ({
+  conditional: {
+    condition,
+    then: isCostList(then) ? mergeCosts(then) : then,
+    else: isCostList(otherwise) ? mergeCosts(otherwise) : otherwise,
+  },
+});
 export const takeDamageCost = (n: number): AbilityCost => ({ damageSelf: n });
 /** "Deal N damage to [this character] →" */
 export const damageThisCardCost = (n: number): AbilityCost => ({ damageThisCard: n });

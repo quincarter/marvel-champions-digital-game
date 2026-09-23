@@ -1117,6 +1117,16 @@ export const reorderCards = (from: CardSelector, chooser: PlayerRef = you): Effe
   to: "encounterDeckTop",
 });
 /**
+ * "Place the rest on the top and/or bottom of the encounter deck in any order" (Take the Fight to Them, `gmw` 16161;
+ * docs/phase7-wave3.md §3.48): `chooser` sends each card to the top or the bottom, then orders each pile.
+ */
+export const placeOnTopOrBottom = (from: CardSelector, chooser: PlayerRef = you): EffectSpec => ({
+  kind: "reorderCards",
+  cards: from,
+  chooser,
+  to: "encounterDeckTopOrBottom",
+});
+/**
  * "Deal N indirect damage to each player" / "…to you" (RRG 1.8 "Indirect Damage"): each player divides it among the
  * characters they control. `to: "group"` has the first player divide it among every friendly character.
  */

@@ -784,6 +784,46 @@ export interface CostPlan {
 }
 
 /**
+ * A `conditional` cost component (docs/phase7-wave3.md §3.49) replaced by the branch the board picks: `then` while its
+ * condition holds, `else` otherwise, merged with the rest of the cost. RRG 1.8 "Initiating Abilities" (p. 24), step 3:
+ * the cost is determined before it is paid, so the condition is read now, with the paying player as `you` and the
+ * ability's card as `self`. Only the picked branch is ever checked: "instead" replaces the printed cost (RRG 1.8
+ * "Replacement Effect", p. 37), so an unpayable picked branch makes the ability unusable even if the other is payable.
+ * `vars["cost.condition"]` records the pick (1 = `then`). A cost with no `conditional` comes back unchanged.
+ */
+function determineConditionalCost(
+  state: GameState,
+  deps: EngineDeps,
+  sourceId: InstanceId,
+  playerId: PlayerId,
+  cost: AbilityCost,
+): { readonly cost: AbilityCost; readonly vars: Record<string, number> } {
+  if (!cost.conditional) return { cost, vars: {} };
+  const { conditional, ...common } = cost;
+  const context: EffectContext = { selfInstanceId: sourceId, controllerId: playerId, event: null, bindings: {}, deps };
+  const holds = evaluate(state, conditional.condition, context);
+  return {
+    cost: { ...common, ...(holds ? conditional.then : conditional.else) },
+    vars: { "cost.condition": holds ? 1 : 0 },
+  };
+}
+
+/**
+ * The cost `playerId` would pay for `sourceId`'s ability right now, once the board has picked any `conditional`
+ * branch (§3.49). What `legalActions` and a client read to know which picks the cost asks for ("choose and discard 1
+ * card from your hand" or not). Player decisions (`either`, "up to N") are left as written.
+ */
+export function costAsDetermined(
+  state: GameState,
+  deps: EngineDeps,
+  sourceId: InstanceId,
+  playerId: PlayerId,
+  cost: AbilityCost | undefined,
+): AbilityCost | undefined {
+  return cost && determineConditionalCost(state, deps, sourceId, playerId, cost).cost;
+}
+
+/**
  * Applies the decisions a cost leaves to the player (docs/phase7-wave3.md §3.32, §3.36), giving the concrete cost to
  * check and pay:
  *
@@ -794,19 +834,24 @@ export interface CostPlan {
  * - `spendCounters.upTo`: `selection.counters` counters, from 1 (RRG 1.8 "Cost", p. 14: "up to" some number "requires
  *   a minimum of one") to the printed maximum and what the card holds; with none, as many as it can.
  *
- * `vars` records the decisions for the log and the effects: `cost.branch`, and the counter cost's own `bind`.
+ * Before either of those, a `conditional` component becomes the branch the board picks (`costAsDetermined`, §3.49).
+ *
+ * `vars` records the decisions for the log and the effects: `cost.condition`, `cost.branch`, and the counter cost's
+ * own `bind`.
  */
 export function selectCost(
   state: GameState,
   deps: EngineDeps,
   sourceId: InstanceId,
   playerId: PlayerId,
-  cost: AbilityCost,
+  written: AbilityCost,
   selection: CostSelection,
   choices: CostChoices = {},
   reserved: ReadonlySet<InstanceId> = new Set(),
 ): { readonly cost: AbilityCost; readonly vars: Record<string, number> } | PriceFault {
-  const vars: Record<string, number> = {};
+  const determined = determineConditionalCost(state, deps, sourceId, playerId, written);
+  const cost = determined.cost;
+  const vars: Record<string, number> = { ...determined.vars };
   let chosen: AbilityCost = cost;
   if (cost.either) {
     const { either, ...common } = cost;
@@ -885,9 +930,9 @@ export function planCost(
   if (!cost) return { requirement: NO_REQUIREMENT, bindings: {}, vars: {}, payingFor: null };
   const source = getInstance(state, sourceId);
   if (!source) return { code: "unknown_instance", message: `no instance ${sourceId}` };
-  // Either/or and "up to N" costs become the cost actually paid (docs/phase7-wave3.md §3.32, §3.36).
+  // Conditional, either/or and "up to N" costs become the cost actually paid (docs/phase7-wave3.md §3.32, §3.36, §3.49).
   const selected =
-    cost.either || cost.spendCounters?.upTo
+    cost.conditional || cost.either || cost.spendCounters?.upTo
       ? selectCost(state, deps, sourceId, playerId, cost, selection, choices, reserved)
       : null;
   if (selected && isFault(selected)) return selected;

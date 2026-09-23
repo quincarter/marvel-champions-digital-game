@@ -1,4 +1,4 @@
-import type { AbilityDefinition, AbilityRegistry, EffectSpec } from "@mc/engine";
+import type { AbilityCost, AbilityDefinition, AbilityRegistry, EffectSpec } from "@mc/engine";
 
 /**
  * A private marker for `allowUnlabeledAttack`'s opt-out (below). A symbol key never appears in `Object.entries`/
@@ -78,6 +78,28 @@ function checkBoostCards(definition: AbilityDefinition, problems: string[]): voi
 function checkCost(definition: AbilityDefinition, problems: string[]): void {
   const cost = definition.cost;
   if (!cost) return;
+  // docs/phase7-wave3.md §3.49: each branch the board may pick is checked as the whole cost it makes.
+  for (const variant of costVariants(cost)) checkCostShape(variant, problems);
+  if (!cost.conditional) return;
+  const { conditional, ...common } = cost;
+  for (const branch of [conditional.then, conditional.else]) {
+    if (branch.conditional) problems.push("cost conditional: a branch cannot itself be conditional");
+    const shared = Object.keys(branch).filter((key) => key in common);
+    if (shared.length > 0) problems.push(`cost conditional: a branch repeats the cost's own ${shared.join(", ")}`);
+  }
+}
+
+/** The concrete costs a written cost can become: one per `conditional` branch (§3.49), else the cost itself. */
+function costVariants(cost: AbilityCost): readonly AbilityCost[] {
+  if (!cost.conditional) return [cost];
+  const { conditional, ...common } = cost;
+  return [
+    { ...common, ...conditional.then },
+    { ...common, ...conditional.else },
+  ];
+}
+
+function checkCostShape(cost: AbilityCost, problems: string[]): void {
   for (const [name, pick] of [
     ["exhaustCards", cost.exhaustCards],
     ["returnToHand", cost.returnToHand],
@@ -360,28 +382,31 @@ function checkBindings(definition: AbilityDefinition, problems: string[]): void 
     vars: new Set(["x"]),
     prefixes: new Set(["paid.", "overpaid.", "sequence.", "self.counters."]),
   };
-  const cost = definition.cost;
-  if (cost?.discardFromHand) {
-    scope.slots.add("discard");
-    if (cost.discardFromHand.bind) scope.vars.add(cost.discardFromHand.bind);
-  }
-  // "For each threat here" after a discard-self cost (Beat Cop): snapshotted with the counters (`AbilityCost.discardSelf`).
-  if (cost?.discardSelf) {
-    scope.vars.add("self.threat");
-    scope.vars.add("self.damage");
-  }
-  if (cost?.payPrintedCostOf) scope.slots.add(cost.payPrintedCostOf.slot);
-  if (cost?.resourcesX) scope.vars.add(cost.resourcesX.bind);
-  // "Remove up to 4 growth counters → choose that many" (docs/phase7-wave3.md §3.32), in the cost or any branch;
-  // `cost.branch`, the either/or branch paid (§3.36).
-  for (const component of [cost, ...(cost?.either ?? [])]) {
-    if (component?.spendCounters?.bind) scope.vars.add(component.spendCounters.bind);
-  }
-  if (cost?.either) scope.vars.add("cost.branch");
-  for (const pick of [cost?.exhaustCards, cost?.returnToHand]) {
-    if (!pick) continue;
-    scope.slots.add(pick.slot);
-    if (pick.bind) scope.vars.add(pick.bind);
+  // A `conditional` cost (docs/phase7-wave3.md §3.49) binds what either branch binds, and `cost.condition`.
+  if (definition.cost?.conditional) scope.vars.add("cost.condition");
+  for (const cost of definition.cost ? costVariants(definition.cost) : []) {
+    if (cost.discardFromHand) {
+      scope.slots.add("discard");
+      if (cost.discardFromHand.bind) scope.vars.add(cost.discardFromHand.bind);
+    }
+    // "For each threat here" after a discard-self cost (Beat Cop): snapshotted with the counters (`AbilityCost.discardSelf`).
+    if (cost.discardSelf) {
+      scope.vars.add("self.threat");
+      scope.vars.add("self.damage");
+    }
+    if (cost.payPrintedCostOf) scope.slots.add(cost.payPrintedCostOf.slot);
+    if (cost.resourcesX) scope.vars.add(cost.resourcesX.bind);
+    // "Remove up to 4 growth counters → choose that many" (docs/phase7-wave3.md §3.32), in the cost or any branch;
+    // `cost.branch`, the either/or branch paid (§3.36).
+    for (const component of [cost, ...(cost.either ?? [])]) {
+      if (component.spendCounters?.bind) scope.vars.add(component.spendCounters.bind);
+    }
+    if (cost.either) scope.vars.add("cost.branch");
+    for (const pick of [cost.exhaustCards, cost.returnToHand]) {
+      if (!pick) continue;
+      scope.slots.add(pick.slot);
+      if (pick.bind) scope.vars.add(pick.bind);
+    }
   }
   if (definition.trigger.kind === "constant") {
     checkRefs(definition.trigger, scope, "constant", problems);

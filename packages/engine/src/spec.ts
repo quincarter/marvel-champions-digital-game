@@ -1401,12 +1401,19 @@ export type EffectSpec =
    * "Put the others back in any order" (Heimdall). RRG 1.8 "Deck" (p. 15): a deck's order changes only when a card
    * instructs it. `chooser` orders the cards and they go back on top of the encounter deck in that order, the first
    * card chosen ending up on top.
+   *
+   * `to: "encounterDeckTopOrBottom"`: "place the rest on the top and/or bottom of the encounter deck in any order"
+   * (Take the Fight to Them, `gmw` 16161; docs/phase7-wave3.md §3.48). `chooser` puts each card on the top or the
+   * bottom, independently, then orders each pile. Three questions, each skipped when it has only one answer: which
+   * cards go to the bottom (`ChoicePrompt chooseBottomCards`), then the order of the top pile, then the order of the
+   * bottom pile (`orderCards`, `to: "encounterDeckTop"` / `"encounterDeckBottom"`). No card moves until every answer
+   * is in.
    */
   | {
       readonly kind: "reorderCards";
       readonly cards: CardSelector;
       readonly chooser: PlayerRef;
-      readonly to: "encounterDeckTop";
+      readonly to: "encounterDeckTop" | "encounterDeckTopOrBottom";
     }
   /**
    * "Set his hit point dial to 1 instead" (Captain America's Helmet), as a replacement for a defeat. RRG 1.8 "Hit

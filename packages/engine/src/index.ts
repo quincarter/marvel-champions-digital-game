@@ -66,7 +66,7 @@ export { legalActions, paymentFor, tryPayment } from "./legal.js";
 
 /** What a card costs right now vs. what is printed on it, and the cards moving the price (Steve Rogers' Living Legend). */
 export type { PlayCost, PlayCostContribution } from "./actions.js";
-export { playCostOf, playableOutsideHand } from "./actions.js";
+export { costAsDetermined, playCostOf, playableOutsideHand } from "./actions.js";
 export type { Command, CommandType, Payment } from "./commands.js";
 export type { GameEvent, GameEventType } from "./events.js";
 export type { EngineError, EngineErrorCode, IllegalDeck } from "./errors.js";

@@ -695,6 +695,28 @@ export interface AbilityCost {
    */
   readonly either?: readonly AbilityCost[];
   /**
+   * "Discard the top 2 cards of your deck (the top card instead if you control the Milano) →" (Reactor Core, `gmw`
+   * 16165); "choose and discard 1 card from your hand (discard the top card of your deck instead if you control the
+   * Milano) →" (Navigation Column, 16172). docs/phase7-wave3.md §3.49. A cost component the board picks, not the
+   * player: `then` if `condition` holds, `else` otherwise, paid together with every other component of the cost.
+   *
+   * - **Decided when the cost is determined.** RRG 1.8 "Initiating Abilities" (p. 24), step 3: "Determine the cost (or
+   *   costs) … taking modifiers into account". `condition` is read then, from the paying player's point of view (`you`
+   *   is the payer, `self` the ability's card), and the branch is recorded as var `cost.condition` (1 for `then`, 0 for
+   *   `else`).
+   * - **No fallback.** "Instead" is a replacement (RRG 1.8 "Replacement Effect", p. 37): while the condition holds,
+   *   the printed cost is no longer the cost at all. So only the selected branch is checked, and if it cannot be paid
+   *   the ability cannot be initiated (p. 24, steps 3 and 5), even when the other branch could be. This is the
+   *   difference from `either`, where the player picks among payable branches.
+   * - A branch may contain `either` (a choice inside the board's pick) but not another `conditional`, and must not
+   *   repeat a component of the rest of the cost.
+   */
+  readonly conditional?: {
+    readonly condition: Predicate;
+    readonly then: AbilityCost;
+    readonly else: AbilityCost;
+  };
+  /**
    * "Deal yourself 1 facedown encounter card →" (Star-Lord; Daring Escape; Library Labyrinth; Universal Weapon): the
    * paying player is dealt that many encounter cards, facedown, as the cost (docs/phase7-wave3.md §3.20).
    */

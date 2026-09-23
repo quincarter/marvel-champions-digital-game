@@ -16,6 +16,7 @@ import type { AbilityId, ResourceIconType } from "@mc/content";
 import { DEFAULT_DEPS, type AbilityCost, type EngineDeps } from "./abilities.js";
 import {
   basicPowerCost,
+  costAsDetermined,
   eventActionAbility,
   generatedResources,
   handCardResources,
@@ -384,7 +385,7 @@ function evaluate(
 function evaluatePlay(state: GameState, deps: EngineDeps, playerId: PlayerId, id: InstanceId): Evaluated | null {
   const card = cardOf(state, id);
   if (!card) return null;
-  const cost = eventActionAbility(createCtx(state, deps), card)?.cost;
+  const cost = costAsDetermined(state, deps, id, playerId, eventActionAbility(createCtx(state, deps), card)?.cost);
   const picks = discardPicks(state, deps, playerId, id, cost);
   const spend = spendOrder(state, deps, playerId, new Set([id, ...picks]), id);
   const context: EffectContext = { selfInstanceId: id, controllerId: playerId, event: null, bindings: {}, deps };
@@ -473,7 +474,7 @@ function evaluateAbility(
   instanceId: InstanceId,
   abilityId: AbilityId,
 ): Evaluated {
-  const cost = deps.abilities[abilityId]?.cost;
+  const cost = costAsDetermined(state, deps, instanceId, playerId, deps.abilities[abilityId]?.cost);
   const picks = discardPicks(state, deps, playerId, instanceId, cost);
   const spend = spendOrder(state, deps, playerId, new Set(picks), null);
   const variants: Variant[] = costChoiceSets(state, deps, playerId, instanceId, cost, picks).flatMap(
@@ -766,7 +767,13 @@ function payableFor(
   if (action.kind === "playCard") {
     const id = action.instanceId;
     const card = cardOf(state, id);
-    const cost = card ? eventActionAbility(createCtx(state, deps), card)?.cost : undefined;
+    const cost = costAsDetermined(
+      state,
+      deps,
+      id,
+      playerId,
+      card ? eventActionAbility(createCtx(state, deps), card)?.cost : undefined,
+    );
     const picks = options.costChoices?.discard ?? discardPicks(state, deps, playerId, id, cost);
     const sets = costChoiceSets(state, deps, playerId, id, cost, picks);
     const chosen = sets.find((set) => set.target !== null && set.target === options.target) ?? sets[0];
@@ -806,7 +813,7 @@ function payableFor(
   }
   if (action.kind === "useAbility") {
     const { instanceId, abilityId } = action;
-    const cost = deps.abilities[abilityId]?.cost;
+    const cost = costAsDetermined(state, deps, instanceId, playerId, deps.abilities[abilityId]?.cost);
     const picks = options.costChoices?.discard ?? discardPicks(state, deps, playerId, instanceId, cost);
     const sets = costChoiceSets(state, deps, playerId, instanceId, cost, picks);
     const chosen = sets.find((set) => set.target !== null && set.target === options.target) ?? sets[0];

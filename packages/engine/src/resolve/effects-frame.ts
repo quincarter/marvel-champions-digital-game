@@ -15,7 +15,7 @@ import {
   playWithPaymentFault,
   priceOrNull,
 } from "../actions.js";
-import type { ChoiceOption } from "../choices.js";
+import type { ChoiceOption, ChoicePrompt } from "../choices.js";
 import { type Ctx, emit, moveCard, popFrame, pushFrames, requestChoice, setFrame } from "../ctx.js";
 import { dealEncounterCardTo, discardFromHand, setForm } from "../effects.js";
 import { cannotChangeForm } from "../rules.js";
@@ -584,6 +584,7 @@ function executeReorderCards(
   effect: Extract<EffectSpec, { kind: "reorderCards" }>,
   context: EffectContext,
 ): void {
+  if (effect.to === "encounterDeckTopOrBottom") return executePlaceTopOrBottom(ctx, frame, effect, context);
   const ids = selectCards(ctx, effect.cards, context);
   const [chooser] = resolvePlayers(ctx.state, effect.chooser, context);
   if (frame.answer === null && ids.length > 1 && chooser) {
@@ -605,6 +606,96 @@ function executeReorderCards(
   const deckId = activeEncounterDeckId(ctx.state);
   // Placed one at a time on top, last first, so the first card chosen ends up on top.
   for (const id of [...order].reverse()) moveCard(ctx, id, { kind: "encounterDeck", deckId }, "top");
+}
+
+/** The answer to an ordering choice over `pile`, if it names every card of the pile exactly once; otherwise `pile`. */
+function orderedAnswer(answer: readonly string[] | null, pile: readonly InstanceId[]): readonly InstanceId[] {
+  const answered = (answer ?? []).map((id) => asInstanceId(id)).filter((id) => pile.includes(id));
+  return answered.length === pile.length && new Set(answered).size === pile.length ? answered : pile;
+}
+
+/**
+ * `reorderCards` with `to: "encounterDeckTopOrBottom"` (docs/phase7-wave3.md §3.48): "place the rest on the top
+ * and/or bottom of the encounter deck in any order" (Take the Fight to Them, `gmw` 16161). RRG 1.8 "Deck" (p. 15): the
+ * order changes only as the card instructs, and the card lets each card go to either end, in any order. RRG 1.8
+ * "Look, Looked-At" (p. 27): the cards stay part of the deck while looked at, and only the resolving player sees them,
+ * so every question goes to `chooser` alone.
+ *
+ * Three answers inside one effect step, kept on the frame (`_place.step`, `_place.top`, `_place.bottom`) the way
+ * `playFromHand` keeps its own:
+ *
+ * 0. **Split:** which cards go to the bottom (`chooseBottomCards`, 0 to all); the rest go on top.
+ * 1. **Order the top pile** (`orderCards` to `encounterDeckTop`), asked only for two or more cards.
+ * 2. **Order the bottom pile** (`orderCards` to `encounterDeckBottom`), likewise.
+ *
+ * Both orders read top-down, the way the deck will: the first card of the top pile becomes the deck's top card, the
+ * last card of the bottom pile its bottom card. Nothing moves until the last answer, then every card moves at once
+ * (one `cardMoved` each). A malformed answer keeps the cards in the order they were looked at, all on top for the split.
+ */
+function executePlaceTopOrBottom(
+  ctx: Ctx,
+  frame: Frame<"effects">,
+  effect: Extract<EffectSpec, { kind: "reorderCards" }>,
+  context: EffectContext,
+): void {
+  const [chooser] = resolvePlayers(ctx.state, effect.chooser, context);
+  const step = frame.vars["_place.step"] ?? 0;
+  const advance = (next: number, top: readonly InstanceId[], bottom: readonly InstanceId[]): void =>
+    setFrame(ctx, {
+      ...frame,
+      answer: null,
+      vars: { ...frame.vars, "_place.step": next },
+      bindings: { ...frame.bindings, "_place.top": top, "_place.bottom": bottom },
+    });
+  const ask = (prompt: ChoicePrompt, pile: readonly InstanceId[], min: number, ordered: boolean): void =>
+    requestChoice(ctx, {
+      playerId: chooser as PlayerId,
+      authority: effectChoiceAuthority(ctx.state, frame.selfInstanceId, effect.chooser),
+      prompt,
+      options: cardOptions(ctx, pile),
+      minSelections: min,
+      maxSelections: pile.length,
+      frameId: frame.frameId,
+      ordered,
+    });
+
+  if (step === 0) {
+    const ids = selectCards(ctx, effect.cards, context);
+    if (frame.answer === null && ids.length > 0 && chooser) {
+      ask({ kind: "chooseBottomCards", deck: "encounterDeck" }, ids, 0, false);
+      return;
+    }
+    const bottom = ids.filter((id) => (frame.answer ?? []).includes(id));
+    advance(
+      1,
+      ids.filter((id) => !bottom.includes(id)),
+      bottom,
+    );
+    return;
+  }
+
+  const top = frame.bindings["_place.top"] ?? [];
+  const bottom = frame.bindings["_place.bottom"] ?? [];
+  if (step === 1) {
+    if (frame.answer === null && top.length > 1 && chooser) {
+      ask({ kind: "orderCards", to: "encounterDeckTop" }, top, top.length, true);
+      return;
+    }
+    advance(2, orderedAnswer(frame.answer, top), bottom);
+    return;
+  }
+  if (frame.answer === null && bottom.length > 1 && chooser) {
+    ask({ kind: "orderCards", to: "encounterDeckBottom" }, bottom, bottom.length, true);
+    return;
+  }
+  const bottomOrder = orderedAnswer(frame.answer, bottom);
+  const vars = Object.fromEntries(Object.entries(frame.vars).filter(([key]) => !key.startsWith("_place.")));
+  const bindings = Object.fromEntries(Object.entries(frame.bindings).filter(([key]) => !key.startsWith("_place.")));
+  setFrame(ctx, { ...frame, answer: null, vars, bindings, cursor: frame.cursor + 1 });
+  const deck = { kind: "encounterDeck", deckId: activeEncounterDeckId(ctx.state) } as const;
+  // Each bottom card goes under the last, so the pile keeps its top-down order; the top pile is placed last card first.
+  for (const id of bottomOrder) moveCard(ctx, id, deck, "bottom");
+  for (const id of [...top].reverse()) moveCard(ctx, id, deck, "top");
 }
 
 const cardOptions = (ctx: Ctx, ids: readonly InstanceId[]): readonly ChoiceOption[] =>
