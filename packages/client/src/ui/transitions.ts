@@ -174,7 +174,19 @@ export function fadeScreenIn(scene: Phaser.Scene, durationMs: number = motion.sc
  * Use in place of a bare `this.scene.start(key, data)` wherever one screen
  * hands off to another (never for an overlay `launch`, which runs over the
  * board). Immediate under reduced motion. A second call while already fading
- * is ignored, so a double-click on "Start game" starts one game.
+ * *out* is ignored, so a double-click on "Start game" starts one game.
+ *
+ * **Only guards against a fade already leaving, not one still arriving.** A
+ * scene whose own entrance fade-in (`fadeScreenIn`, `create()`) hasn't
+ * finished can still call this the moment async setup work resolves — a
+ * screen with no slow network/image step (e.g. `CampaignAftermathScene`
+ * folding a loss straight from IndexedDB) can finish well inside the 200ms
+ * entrance fade. `Camera.FadeEffect.direction` (`true` = fading out) is what
+ * tells the two apart; checking only `isRunning` here made a fast async
+ * chain's `goToScreen` a silent no-op — no error, no navigation, the screen
+ * just sat on its own faded-in frame forever. Found live (agent C, Aftermath's
+ * loss → Rewind hand-off, played back through a real concede rather than
+ * guessed at).
  */
 export function goToScreen(
   scene: Phaser.Scene,
@@ -187,7 +199,7 @@ export function goToScreen(
     return;
   }
   const camera = scene.cameras.main;
-  if (camera.fadeEffect.isRunning) return;
+  if (camera.fadeEffect.isRunning && camera.fadeEffect.direction) return;
   const { r, g, b } = rgbOf(surface.void.hex);
   camera.once("camerafadeoutcomplete", () => scene.scene.start(key, data));
   camera.fadeOut(durationMs, r, g, b);
