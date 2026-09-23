@@ -11,8 +11,10 @@ import { campaignService } from "../../session.js";
 import { accent, signal, surface, typeRole } from "../../tokens.js";
 import { cssOf, textStyle } from "../../ui/theme.js";
 import {
+  actionBarCta,
   bangers,
   campaignFrame,
+  drawActionBar,
   drawPicture,
   drawTopBar,
   heroPicture,
@@ -50,6 +52,8 @@ interface LoadedDossier {
   readonly campaignId: string;
   readonly issueNumber: number;
   readonly totalIssues: number;
+  /** The last node marked `completed`, by its 1-based issue number — null on a run with nothing finished yet. */
+  readonly lastCompletedNumber: number | null;
   readonly overview: DossierOverview;
   readonly log: DossierLog;
   readonly issues: readonly RunIssueRow[];
@@ -115,12 +119,20 @@ export class CampaignDossierScene extends Phaser.Scene {
     const overview = campaignDossierOverview(withMeta, definition, heroNameOf, cardName);
     const log = campaignDossierLog(record, definition, cardName);
     const run = campaignRunModel(withMeta, definition, storyFor(record.campaignId as string), cardName);
+    // "After issue #N" names the *last finished* issue, not the current/next one `run.issueNumber` tracks — the
+    // highest 1-based position among nodes marked `completed`, in the definition's own printed order. Null on a
+    // fresh run (nothing finished yet), which the header renders as "No issues yet".
+    const completedNumbers = definition.graph.nodes
+      .map((node, index) => (record.position.resolved[node.id] === "completed" ? index + 1 : null))
+      .filter((n): n is number => n !== null);
+    const lastCompletedNumber = completedNumbers.length > 0 ? Math.max(...completedNumbers) : null;
     this.#loaded = {
       campaignName: record.name,
       box: record.box,
       campaignId: record.campaignId as string,
       issueNumber: run.issueNumber,
       totalIssues: run.totalIssues,
+      lastCompletedNumber,
       overview,
       log,
       issues: run.issues,
@@ -161,7 +173,13 @@ export class CampaignDossierScene extends Phaser.Scene {
       backLabel: "◂ Cover",
       onBack: () => this.#back(),
       title: "Dossier",
-      right: loaded ? (this.#tab === "overview" ? `After issue #${loaded.issueNumber}` : loaded.campaignName) : "",
+      right: loaded
+        ? this.#tab === "overview"
+          ? loaded.lastCompletedNumber === null
+            ? "No issues yet"
+            : `After issue #${loaded.lastCompletedNumber}`
+          : loaded.campaignName
+        : "",
     });
     if (top.back && top.backRect) {
       stops.set("back", { rect: top.backRect, activate: () => this.#back() });
@@ -193,7 +211,15 @@ export class CampaignDossierScene extends Phaser.Scene {
     });
 
     const bodyTop = tabRect.y + tabRect.height;
-    const bodyRect: Rect = { x: 0, y: bodyTop, width: frame.width, height: frame.height - bodyTop };
+    // Only the Heroes tab has an action bar (design tile 14's "EDIT HAWKEYE'S DECK") — Overview and Log run their
+    // content to the bottom of the screen (tiles 12/13).
+    let bodyBottom = frame.height;
+    if (this.#tab === "heroes") {
+      const bar = drawActionBar(this);
+      bodyBottom = bar.y;
+      this.#heroesActionBar(bar, stops, order);
+    }
+    const bodyRect: Rect = { x: 0, y: bodyTop, width: frame.width, height: bodyBottom - bodyTop };
     switch (this.#tab) {
       case "overview":
         this.#drawOverview(loaded, frame, bodyRect);
@@ -210,6 +236,29 @@ export class CampaignDossierScene extends Phaser.Scene {
     }
 
     this.#route?.set(order, stops);
+  }
+
+  /** Heroes tab's action bar: "EDIT <HERO>'S DECK" → the deck editor, returning to this seat's Heroes tab. */
+  #heroesActionBar(bar: Rect, stops: Map<string, FocusStop>, order: string[]): void {
+    const frame = campaignFrame(this);
+    const seatNumber = this.#seatNumber;
+    const runId = this.#data?.runId;
+    const heroName = this.#loaded?.overview.seats.find((seat) => seat.seatNumber === seatNumber)?.heroName;
+    const label = heroName ? `EDIT ${heroName.toUpperCase()}'S DECK` : "EDIT DECK";
+    const rect = actionBarCta(bar, frame.phone);
+    const activate = (): void => {
+      if (!runId) return;
+      goToScreen(this, SCENES.campaignDeckEdit, {
+        runId,
+        seatNumber,
+        returnTo: { key: SCENES.campaignDossier, data: { runId, tab: "heroes", seatNumber } },
+      });
+    };
+    stops.set("edit-deck", { rect, activate });
+    order.push("edit-deck");
+    this.#buttons.push(
+      new McButton(this, { kind: "primary", label, type: typeRole.barTitle, rect, onClick: activate }),
+    );
   }
 
   // -----------------------------------------------------------------------------------------------------------
@@ -384,16 +433,25 @@ export class CampaignDossierScene extends Phaser.Scene {
       let ry = ruleHeading(this, rx, body.y + pad, rightWidth, "In force now");
       const box = this.add.graphics();
       const boxTop = ry;
+      // Three columns, none overlapping: the label at the left edge, the big number in its own column starting
+      // ~130px in (design tile 13's own layout), the short note right-aligned at the far edge.
+      const valueColumnX = rx + 130;
       for (const row of loaded.log.inForce) {
         const rowHeight = 36;
-        this.add.text(rx + 10, ry + 10, row.label, textStyle(typeRole.emphasis, surface.ink.hex)).setFontSize(12);
-        this.add.text(rx + rightWidth - 10, ry + 6, row.value, textStyle(bangers(18), surface.ink.hex)).setOrigin(1, 0);
         this.add
-          .text(rx + rightWidth - 10, ry + rowHeight - 4, row.note, {
+          .text(rx + 10, ry + rowHeight / 2, row.label, textStyle(typeRole.emphasis, surface.ink.hex))
+          .setOrigin(0, 0.5)
+          .setFontSize(12);
+        this.add
+          .text(valueColumnX, ry + rowHeight / 2, row.value, textStyle(bangers(18), surface.ink.hex))
+          .setOrigin(0, 0.5);
+        this.add
+          .text(rx + rightWidth - 10, ry + rowHeight / 2, row.note, {
             ...textStyle(typeRole.body, surface.ink.hex, 0.5),
             fontSize: "10px",
           })
-          .setOrigin(1, 1);
+          .setOrigin(1, 0.5)
+          .setWordWrapWidth(rightWidth - 140);
         ry += rowHeight;
         this.add.rectangle(rx, ry, rightWidth, 1, surface.ink.hex, 0.12).setOrigin(0, 0.5);
       }
@@ -452,11 +510,44 @@ export class CampaignDossierScene extends Phaser.Scene {
     }
     const midX = pad + listWidth + 16;
     const midWidth = 320;
-    if (hero) this.#heroBigPanel(hero, { x: midX, y: body.y + pad, width: midWidth, height: body.height - pad * 2 });
+    const boxesHeight = 48;
+    const artHeight = body.height - pad * 2 - boxesHeight - 10;
+    if (hero) {
+      this.#heroBigPanel(hero, { x: midX, y: body.y + pad, width: midWidth, height: artHeight });
+      this.#issueBoxesRow(hero, { x: midX, y: body.y + pad + artHeight + 10, width: midWidth, height: boxesHeight });
+    }
     const rightX = midX + midWidth + 24;
     const rightWidth = frame.width - rightX - pad;
     if (hero)
       this.#heroSidePanel(hero, { x: rightX, y: body.y + pad, width: rightWidth, height: body.height - pad * 2 });
+  }
+
+  /** The five per-issue result boxes under the hero's art (design tile 14): WON green, NEXT red, sealed dim. */
+  #issueBoxesRow(hero: DossierHero, rect: Rect): void {
+    const gap = 6;
+    const count = Math.max(1, hero.issues.length);
+    const width = (rect.width - gap * (count - 1)) / count;
+    for (const box of hero.issues) {
+      const index = hero.issues.indexOf(box);
+      const bx = rect.x + index * (width + gap);
+      const color = box.state === "won" ? signal.heal.hex : box.state === "next" ? accent.heroRed.hex : surface.ink.hex;
+      const alpha = box.state === "sealed" ? 0.3 : 1;
+      const g = this.add.graphics();
+      g.fillStyle(surface.card.hex, 1).fillRect(bx, rect.y, width, rect.height);
+      g.lineStyle(2, color, alpha).strokeRect(bx, rect.y, width, rect.height);
+      this.add
+        .text(bx + width / 2, rect.y + rect.height * 0.38, `#${box.number}`, {
+          ...textStyle(bangers(14), surface.ink.hex, alpha),
+        })
+        .setOrigin(0.5);
+      this.add
+        .text(bx + width / 2, rect.y + rect.height * 0.74, box.label, {
+          ...textStyle(typeRole.label, color, alpha),
+          fontSize: "9px",
+          fontStyle: "700",
+        })
+        .setOrigin(0.5);
+    }
   }
 
   #seatButton(seatNumber: number, rect: Rect, stops: Map<string, FocusStop>, order: string[]): void {
@@ -527,12 +618,15 @@ export class CampaignDossierScene extends Phaser.Scene {
   }
 
   #heroPanel(hero: DossierHero, rect: Rect, stops: Map<string, FocusStop>, order: string[]): void {
-    this.#heroBigPanel(hero, { x: rect.x, y: rect.y, width: rect.width, height: rect.height * 0.55 });
+    const boxesHeight = 44;
+    const artHeight = rect.height * 0.5;
+    this.#heroBigPanel(hero, { x: rect.x, y: rect.y, width: rect.width, height: artHeight });
+    this.#issueBoxesRow(hero, { x: rect.x, y: rect.y + artHeight + 8, width: rect.width, height: boxesHeight });
     this.#heroSidePanel(hero, {
       x: rect.x,
-      y: rect.y + rect.height * 0.55 + 12,
+      y: rect.y + artHeight + boxesHeight + 20,
       width: rect.width,
-      height: rect.height * 0.4,
+      height: rect.height - artHeight - boxesHeight - 20,
     });
     void stops;
     void order;
@@ -611,20 +705,24 @@ export class CampaignDossierScene extends Phaser.Scene {
     const boxHeight = hero.stats.length * rowHeight;
     const fill = this.add.graphics();
     fill.fillStyle(0xeae3d3, 1).fillRect(rect.x, boxTop, rect.width, boxHeight);
+    // Three columns, none overlapping: label at the left edge, the big number in its own column ~130px in, the
+    // short note right-aligned at the far edge — the same layout `#drawLog`'s "In force now" table uses.
+    const statValueX = rect.x + 130;
     for (const stat of hero.stats) {
       this.add
         .text(rect.x + 10, y + rowHeight / 2, stat.label, textStyle(typeRole.emphasis, surface.ink.hex))
         .setFontSize(12)
         .setOrigin(0, 0.5);
       this.add
-        .text(rect.x + rect.width - 10, y + 8, stat.value, textStyle(bangers(16), surface.ink.hex))
-        .setOrigin(1, 0);
+        .text(statValueX, y + rowHeight / 2, stat.value, textStyle(bangers(16), surface.ink.hex))
+        .setOrigin(0, 0.5);
       this.add
-        .text(rect.x + rect.width - 10, y + rowHeight - 8, stat.note, {
+        .text(rect.x + rect.width - 10, y + rowHeight / 2, stat.note, {
           ...textStyle(typeRole.body, surface.ink.hex, 0.5),
           fontSize: "9px",
         })
-        .setOrigin(1, 1);
+        .setOrigin(1, 0.5)
+        .setWordWrapWidth(rect.width - 140);
       y += rowHeight;
       this.add.rectangle(rect.x, y, rect.width, 1, surface.ink.hex, 0.12).setOrigin(0, 0.5);
     }

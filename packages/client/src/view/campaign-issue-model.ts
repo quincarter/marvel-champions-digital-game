@@ -13,9 +13,19 @@ import { renderLogValue, type CardNameOf } from "./campaign-log-model.js";
 import { FIELD_SHORT_LABEL } from "./campaign-run-model.js";
 
 /** A field's short word if one is known, else the printed sheet label, lowercased so it reads mid-sentence. */
+/**
+ * A fuller word than `FIELD_SHORT_LABEL`'s Run-card brevity ("delay") — the "WROTE TO THE LOG" list has room for
+ * "delay counters", matching design tile 9's own "3 delay counters" line. Falls back to the Run screen's short
+ * word, then the sheet's own label, so an unmapped field still reads as *something* rather than its raw id.
+ */
+const WRITE_FIELD_LABEL: Readonly<Record<string, string>> = {
+  delayCounters: "delay counters",
+};
+
 function fieldLabelOf(definition: CampaignDefinition): (fieldId: string) => string {
   const byId = new Map(definition.logFields.map((field) => [field.id, field.label]));
-  return (fieldId) => FIELD_SHORT_LABEL[fieldId] ?? byId.get(fieldId)?.toLowerCase() ?? fieldId;
+  return (fieldId) =>
+    WRITE_FIELD_LABEL[fieldId] ?? FIELD_SHORT_LABEL[fieldId] ?? byId.get(fieldId)?.toLowerCase() ?? fieldId;
 }
 
 export interface IssueAttemptRow {
@@ -27,12 +37,19 @@ export interface IssueAttemptRow {
   readonly tag: "REWIND" | "KEPT";
 }
 
+/** What kind of thing this row records — the issue detail screen's colour coding (green/blue/red). */
+export type IssueWriteKind = "grant" | "number" | "removed" | "flag";
+
 export interface IssueWriteRow {
   readonly key: string;
   readonly headline: string;
   readonly detail: string;
   readonly citation: string;
+  readonly kind: IssueWriteKind;
 }
+
+/** A seat number to the hero's printed name, so a per-seat write/grant can read "→ Hawkeye" instead of a bare number. */
+export type HeroNameOfSeat = (seatNumber: number) => string | null;
 
 export interface CampaignIssueModel {
   readonly nodeId: string;
@@ -65,11 +82,19 @@ function writeRowsOf(
   entry: CampaignHistoryEntry,
   fieldLabel: (fieldId: string) => string,
   cardName: CardNameOf,
+  heroNameOfSeat: HeroNameOfSeat,
 ): readonly IssueWriteRow[] {
   const rows: IssueWriteRow[] = [];
   entry.steps.forEach((step, stepIndex) => {
     if (step.skipped) return;
+    // A `cardRef` write's seat, keyed by the card it names — a grant for that same card (below) reads the hero
+    // it belongs to off this map rather than guessing from array position, which a declined `optional` choice
+    // (fewer grants than seats) would otherwise misalign.
+    const seatOfCard = new Map<string, number>();
     step.writes.forEach((write, writeIndex) => {
+      if (write.value.kind === "cardRef" && write.seatNumber !== null) {
+        seatOfCard.set(write.value.cardId as string, write.seatNumber);
+      }
       // A `cardRef` write (a TECH/Condition upgrade) is always paired with this same step's `grantCard` — the
       // grant row below already says which card, so the write row would only repeat it.
       if (write.value.kind === "cardRef") return;
@@ -77,19 +102,25 @@ function writeRowsOf(
       if (write.value.kind === "flag" && !write.value.value) return;
       if (write.value.kind === "cardList" && write.value.cardIds.length === 0) return;
       const rendered = renderLogValue(write.value, cardName);
+      const hero = write.seatNumber !== null ? heroNameOfSeat(write.seatNumber) : null;
+      const base = write.value.kind === "flag" ? fieldLabel(write.field) : `${rendered} ${fieldLabel(write.field)}`;
       rows.push({
         key: `write:${stepIndex}:${writeIndex}`,
-        headline: write.value.kind === "flag" ? fieldLabel(write.field) : `${rendered} ${fieldLabel(write.field)}`,
+        headline: hero ? `${base} → ${hero}` : base,
         detail: step.text,
         citation: step.citation,
+        kind: write.value.kind === "flag" ? "flag" : "number",
       });
     });
     step.grants.forEach((grant, grantIndex) => {
+      const hero = grantHeroName(seatOfCard, grant.cardId as string, heroNameOfSeat);
+      const base = cardName(grant.cardId);
       rows.push({
         key: `grant:${stepIndex}:${grantIndex}`,
-        headline: cardName(grant.cardId),
+        headline: hero ? `${base} → ${hero}` : base,
         detail: grant.permanence === "campaign" ? "Permanent condition." : "For this game only.",
         citation: step.citation,
+        kind: "grant",
       });
     });
     step.removedFromCampaign.forEach((face, faceIndex) => {
@@ -98,10 +129,28 @@ function writeRowsOf(
         headline: `Removed ${cardName(face.cardId)}${face.face ? ` (${face.face})` : ""}`,
         detail: "No longer available for the rest of the campaign.",
         citation: step.citation,
+        kind: "removed",
       });
     });
   });
   return rows;
+}
+
+function grantHeroName(
+  seatOfCard: ReadonlyMap<string, number>,
+  cardId: string,
+  heroNameOfSeat: HeroNameOfSeat,
+): string | null {
+  const seatNumber = seatOfCard.get(cardId);
+  return seatNumber === undefined ? null : heroNameOfSeat(seatNumber);
+}
+
+/** Every seat's own printed name, resolved through the same `cardName` the rest of the row already uses. */
+function heroNameOfSeatFrom(record: CampaignLog, cardName: CardNameOf): HeroNameOfSeat {
+  return (seatNumber) => {
+    const seat = record.seats.find((candidate) => candidate.seatNumber === seatNumber);
+    return seat ? cardName(seat.identityCardId) : null;
+  };
 }
 
 /** The finished node ids, in the definition's own printed order — the switcher and the "prev/next" walk it. */
@@ -144,7 +193,9 @@ export function campaignIssueModel(
     won: resolved === "completed",
     recap: issueStory?.recap ?? "",
     attempts,
-    writes: winning ? writeRowsOf(winning, fieldLabelOf(definition), cardName) : [],
+    writes: winning
+      ? writeRowsOf(winning, fieldLabelOf(definition), cardName, heroNameOfSeatFrom(record, cardName))
+      : [],
     prevNodeId: at > 0 ? (finished[at - 1] ?? null) : null,
     nextFinishedNodeId: at >= 0 && at < finished.length - 1 ? (finished[at + 1] ?? null) : null,
   };

@@ -135,19 +135,26 @@ export interface DossierOverview {
 }
 
 /** The printed sheet's own per-seat columns this screen surfaces, matching MC10 p. 20's log sheet layout. */
-const OVERVIEW_SEAT_FIELD_IDS: readonly { readonly id: string; readonly label: string }[] = [
-  { id: "techUpgrade", label: "Tech" },
-  { id: "basicUpgrade", label: "Condition" },
-  { id: "obligations", label: "Obligation" },
-  { id: "rescuedAllies", label: "Rescued" },
-];
+const OVERVIEW_SEAT_FIELD_IDS: readonly string[] = ["techUpgrade", "basicUpgrade", "obligations", "rescuedAllies"];
 
-/** Short "when it matters" phrasing for a shared field, falling back to the field's own label + citation. */
-const WORLD_FIELD_NOTE: Readonly<Record<string, string>> = {
-  experimental: "Shuffled into every remaining issue's encounter deck.",
-  delayCounters: "Adds starting threat to a later issue's main scheme.",
-  imprisonedAllies: "Decided by a later issue.",
-  hydraPrison: "Still in play until a later issue removes it.",
+/**
+ * A shared field's presentation on "The World" — short, player-facing words in place of the printed sheet's own
+ * column header, and the one sentence that says when the number matters (design tile 12's three lines). `hidden`
+ * marks a field the printed log sheet keeps no column for: it exists only so an in-game instruction can read it
+ * back within one scenario (`hydraPrison`, `heroForm`, `healedByObligation`, `engagedWithEnemy`), so it has nothing
+ * a player needs read out between issues. A field with neither an entry here nor a citation-based fallback is
+ * still shown — the sheet's own label and citation, so an unmapped field never disappears silently.
+ */
+const WORLD_FIELD_PRESENTATION: Readonly<
+  Record<string, { readonly label: string; readonly when: string } | { readonly hidden: true }>
+> = {
+  experimental: { label: "Stolen weapons", when: "Shuffled into every remaining issue." },
+  delayCounters: { label: "Delay counters", when: "Issue #5: Red Skull's scheme starts at +3 threat." },
+  imprisonedAllies: { label: "Lost allies", when: "Decided in #4." },
+  hydraPrison: { hidden: true },
+  heroForm: { hidden: true },
+  healedByObligation: { hidden: true },
+  engagedWithEnemy: { hidden: true },
 };
 
 export function campaignDossierOverview(
@@ -157,14 +164,20 @@ export function campaignDossierOverview(
   cardName: CardNameOf = (id) => id as string,
 ): DossierOverview {
   const sheet = campaignLogSheet(definition, record, cardName);
+  // `campaignLogSheet` already drops a field whose `whenModes` doesn't match this log's modes (an Expert Campaign
+  // field on a Standard run) — `sheet.*.fields` simply doesn't carry it. This screen must not resurrect it by
+  // falling back to `OVERVIEW_SEAT_FIELD_IDS`' own label when the lookup misses: a field this run never tracks is
+  // omitted from the row list entirely, not shown as an "earned in #N" placeholder.
   const seats: DossierOverviewSeat[] = sheet.seats.map((seatSheet) => {
-    const rows: DossierOverviewRow[] = OVERVIEW_SEAT_FIELD_IDS.map(({ id, label }) => {
-      const row = seatSheet.fields.find((field) => field.id === id);
-      const empty = !row || row.rendered === "—" || row.rendered === "(none)";
+    const rows: DossierOverviewRow[] = OVERVIEW_SEAT_FIELD_IDS.filter((id) =>
+      seatSheet.fields.some((field) => field.id === id),
+    ).map((id) => {
+      const row = seatSheet.fields.find((field) => field.id === id)!;
+      const empty = row.rendered === "—" || row.rendered === "(none)";
       const earning = empty ? nodeWritingField(definition, id) : null;
       return {
-        label: row?.label ?? label,
-        value: row?.rendered ?? "—",
+        label: row.label,
+        value: row.rendered,
         note: earning ? `earned in ${nodeIndexLabel(definition, earning)}` : null,
         empty,
       };
@@ -180,14 +193,18 @@ export function campaignDossierOverview(
 
   const world: DossierWorldRow[] = sheet.shared
     .filter((field) => field.rendered !== HIDDEN_PLACEHOLDER)
+    .filter(
+      (field) => WORLD_FIELD_PRESENTATION[field.id] === undefined || !("hidden" in WORLD_FIELD_PRESENTATION[field.id]!),
+    )
     .map((field) => {
+      const presentation = WORLD_FIELD_PRESENTATION[field.id];
       const raw = record.shared[field.id];
       const bigValue = bigValueOf(raw);
       return {
         id: field.id,
         bigValue,
-        label: field.label,
-        when: WORLD_FIELD_NOTE[field.id] ?? `${field.label} (${field.citation}).`,
+        label: presentation && "label" in presentation ? presentation.label : field.label,
+        when: presentation && "when" in presentation ? presentation.when : `${field.label} (${field.citation}).`,
       };
     });
   return { seats, world };
@@ -449,14 +466,22 @@ export function campaignDossierHero(
     };
   });
 
-  const deckTotal = seat.deck.cards.reduce((sum, entry) => sum + entry.quantity, 0);
+  // `seat.deck.cards` already includes the granted lines (design Q5's "campaign's own copy"), so a grant would be
+  // double-counted if just summed — split the same way the Briefing's own `deckRowsOf` does (`campaign-briefing-model.ts`).
+  const grantedIds = new Set(seat.grants.map((grant) => grant.cardId));
+  let deckSize = 0;
+  let pinnedCount = 0;
+  for (const line of seat.deck.cards) {
+    if (grantedIds.has(line.cardId)) pinnedCount += line.quantity;
+    else deckSize += line.quantity;
+  }
   const stats: DossierHeroStatRow[] = [
     {
       label: "Hit points",
       value: identity && "hp" in identity ? String((identity as { readonly hp: number }).hp) : "—",
       note: "base",
     },
-    { label: "Deck", value: `${deckTotal} + ${seat.grants.length}`, note: "campaign cards don't count" },
+    { label: "Deck", value: `${deckSize} + ${pinnedCount}`, note: "campaign cards don't count" },
     { label: "Aspect", value: seat.deck.aspects.join(" / ") || "—", note: "free to change" },
   ];
 
@@ -465,7 +490,7 @@ export function campaignDossierHero(
     identityCardId: seat.identityCardId as string,
     heroName,
     alterEgoName: alterEgo?.alterEgo.faceName ?? null,
-    quote: null,
+    quote: quoteFor(definition, record, seat.identityCardId as string),
     issues,
     campaignCards,
     stats,
@@ -475,6 +500,19 @@ export function campaignDossierHero(
 function firstLineOf(text: string): string {
   const line = text.split("\n").find((candidate) => candidate.trim().length > 0);
   return line ? line.trim() : "";
+}
+
+/**
+ * The current (next) issue's opening line, when it's written for this hero specifically — the Hero sheet's speech
+ * bubble (design tile 14). A campaign with no current issue (won/lost), a box with no story, or a briefing line
+ * written for a different hero (or narrated) all produce no bubble rather than a guessed one.
+ */
+function quoteFor(definition: CampaignDefinition, record: CampaignLog, identityCardId: string): string | null {
+  const nodeId = record.position.nextNodeId;
+  if (!nodeId) return null;
+  const line = issueStoryFor(definition.campaignId as string, nodeId)?.briefing;
+  if (!line || line.speaker.kind !== "hero" || line.speaker.identityId !== identityCardId) return null;
+  return line.text;
 }
 
 // ---------------------------------------------------------------------------------------------------------------

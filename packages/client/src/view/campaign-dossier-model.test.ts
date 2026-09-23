@@ -119,11 +119,16 @@ describe("campaignDossierOverview / campaignDossierLog / campaignDossierHero", (
     expect(condition.note).toBe("earned in #2");
   });
 
-  it("world box carries the shared fields as real counted values", () => {
+  it("world box carries the shared fields as real counted values, in short player-facing words", () => {
     const overview = campaignDossierOverview(record, TRORS_CAMPAIGN_DEFINITION, heroNameOf, cardName);
     const experimental = overview.world.find((row) => row.id === "experimental")!;
     expect(experimental).toBeDefined();
-    expect(experimental.when).toContain("encounter deck");
+    expect(experimental.label).toBe("Stolen weapons");
+    expect(experimental.when).toBe("Shuffled into every remaining issue.");
+    // 0: this fixture forces the outcome without actually playing the scenario, so nothing entered play.
+    expect(experimental.bigValue).toBe("0");
+    // A bookkeeping field the printed log sheet has no column for is never shown, even though it's `shared` scope.
+    expect(overview.world.some((row) => row.id === "hydraPrison")).toBe(false);
   });
 
   it("log: one finished section for Crossbones, WON · 1st try, and a next-issue preview", () => {
@@ -144,5 +149,69 @@ describe("campaignDossierOverview / campaignDossierLog / campaignDossierHero", (
     expect(hero?.issues[0]).toMatchObject({ number: 1, state: "won" });
     expect(hero?.issues[1]).toMatchObject({ number: 2, state: "next" });
     expect(hero?.stats.find((row) => row.label === "Deck")?.value).toMatch(/^\d+ \+ \d+$/);
+  });
+
+  it("heroes: the deck count splits granted lines from the rest rather than summing seat.deck.cards raw", () => {
+    // `seat.deck.cards` already includes the granted TECH upgrade's own line (design Q5's "campaign's own copy"),
+    // so a naive sum over-counts it. Compare against the seat's own data rather than a hardcoded "40".
+    const seat1 = won.seats.find((seat) => seat.seatNumber === 1)!;
+    const grantedIds = new Set(seat1.grants.map((grant) => grant.cardId));
+    const rawTotal = seat1.deck.cards.reduce((sum, line) => sum + line.quantity, 0);
+    const pinnedTotal = seat1.deck.cards
+      .filter((line) => grantedIds.has(line.cardId))
+      .reduce((sum, line) => sum + line.quantity, 0);
+    const hero = campaignDossierHero(record, TRORS_CAMPAIGN_DEFINITION, 1, (id) => CARDS_BY_ID.get(id));
+    expect(hero?.stats.find((row) => row.label === "Deck")?.value).toBe(`${rawTotal - pinnedTotal} + ${pinnedTotal}`);
+    // The bug this guards: naively summing every line (including the granted one) instead of splitting it out.
+    expect(hero?.stats.find((row) => row.label === "Deck")?.value).not.toBe(`${rawTotal} + ${seat1.grants.length}`);
+  });
+});
+
+describe("campaignDossierOverview: mode gating", () => {
+  const wonStandard = winCurrentNode(freshLog(), [
+    { instructionId: "mc10.s1.victory.tech", slot: "tech", seatNumber: 1, picked: ["04155"] },
+    { instructionId: "mc10.s1.victory.tech", slot: "tech", seatNumber: 2, picked: ["04156"] },
+  ]);
+
+  it("a Standard log never shows an Expert-Campaign-only field, even as an unearned 'earned in #N' row", () => {
+    const overview = campaignDossierOverview(
+      { ...wonStandard, name: "The Rise of Red Skull" },
+      TRORS_CAMPAIGN_DEFINITION,
+      heroNameOf,
+      cardName,
+    );
+    const seat1 = overview.seats.find((seat) => seat.seatNumber === 1)!;
+    // `obligations` is `whenModes: { expertCampaign: true }` — absent from a Standard run's rows entirely.
+    expect(seat1.rows.some((row) => row.label === "Obligations")).toBe(false);
+  });
+
+  it("an Expert Campaign log does show the Expert-Campaign-only field", () => {
+    // `expertCampaign` nests under `campaign` (`PlayModes.campaign.expertCampaign`, `matchesModes` reads exactly
+    // that path) — not a sibling top-level flag. `campaign-service.ts`'s own `start()` builds `{ campaign: {...},
+    // expertCampaign: true }` as *siblings*, which a spread's excess-property leniency lets past the `PlayModes`
+    // annotation uncaught; `matchesModes` then never sees it and every Expert-Campaign-only field silently reads
+    // as Standard. That looks like a real bug in `campaign-service.ts` (out of this file's ownership — flagged,
+    // not fixed here); this test builds the log the way `matchesModes` actually reads modes.
+    const expertFresh = createCampaignLog(TRORS_CAMPAIGN_DEFINITION, {
+      id: "dossier-model-test-expert",
+      seats: SEATS,
+      modes: {
+        campaign: { campaignId: TRORS_CAMPAIGN_DEFINITION.campaignId, expertCampaign: true },
+      },
+      poolVersion: "dossier-model-test-expert",
+      seed: 4242,
+    });
+    const wonExpert = winCurrentNode(expertFresh, [
+      { instructionId: "mc10.s1.victory.tech", slot: "tech", seatNumber: 1, picked: ["04155"] },
+      { instructionId: "mc10.s1.victory.tech", slot: "tech", seatNumber: 2, picked: ["04156"] },
+    ]);
+    const overview = campaignDossierOverview(
+      { ...wonExpert, name: "The Rise of Red Skull" },
+      TRORS_CAMPAIGN_DEFINITION,
+      heroNameOf,
+      cardName,
+    );
+    const seat1 = overview.seats.find((seat) => seat.seatNumber === 1)!;
+    expect(seat1.rows.some((row) => row.label === "Obligations")).toBe(true);
   });
 });

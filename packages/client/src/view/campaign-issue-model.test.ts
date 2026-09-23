@@ -16,7 +16,7 @@ import {
 } from "@mc/engine";
 import { TRORS_CAMPAIGN_DEFINITION } from "@mc/cards";
 import { TRORS_STARTER_DECKS } from "@mc/content";
-import { buildScenario, POOL_CARDS, POOL_DEPS } from "../content/pool.js";
+import { buildScenario, CARDS_BY_ID, POOL_CARDS, POOL_DEPS } from "../content/pool.js";
 import type { SessionConfig } from "../engine/host.js";
 import { storyFor } from "../campaign/story.js";
 import { campaignLaunchConfig, campaignPostGameFold } from "./campaign-step-model.js";
@@ -117,5 +117,20 @@ describe("campaignIssueModel", () => {
     expect(
       campaignIssueModel(freshLog(), TRORS_CAMPAIGN_DEFINITION, storyFor("trors"), "not-a-node", cardName),
     ).toBeNull();
+  });
+
+  it("names the hero a grant belongs to, colour-codes rows, and reads a short field label", () => {
+    const won = winCurrentNode(freshLog(), [
+      { instructionId: "mc10.s1.victory.tech", slot: "tech", seatNumber: 1, picked: ["04155"] },
+      { instructionId: "mc10.s1.victory.tech", slot: "tech", seatNumber: 2, picked: ["04156"] },
+    ]);
+    const realCardName = (id: string): string => CARDS_BY_ID.get(id)?.name ?? id;
+    const model = campaignIssueModel(won, TRORS_CAMPAIGN_DEFINITION, storyFor("trors"), "crossbones", realCardName);
+    const grant = model?.writes.find((row) => row.kind === "grant" && row.headline.includes("Hawkeye"));
+    expect(grant).toBeDefined();
+    expect(grant?.headline).toMatch(/^.+ → Hawkeye$/);
+    // "0 delay counters", not the raw field id "delayCounters" or a bare "0".
+    const numberRows = model?.writes.filter((row) => row.kind === "number") ?? [];
+    for (const row of numberRows) expect(row.headline).not.toMatch(/[a-z][A-Z]/); // no raw camelCase field id leaked
   });
 });

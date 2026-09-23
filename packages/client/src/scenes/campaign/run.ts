@@ -238,9 +238,20 @@ export class CampaignRunScene extends Phaser.Scene {
       speechBubble(this, rect.x + 10, artRect.y + artRect.height - 90, bubbleWidth, issue.teaser, { size: 13 });
     }
 
-    // Footer.
+    // Footer. A finished issue's footer is paper with ink text (design tile 8's "#1 · CROSSBONES" strip) — a back
+    // issue read in daylight, not still under the ink ground the current/sealed footers use.
+    if (finished) {
+      g.fillStyle(surface.paper.hex, 1).fillRect(
+        rect.x,
+        artRect.y + artRect.height,
+        rect.width,
+        rect.height - artRect.height,
+      );
+    }
     const footerY = artRect.y + artRect.height + 8;
-    const footerColor = current ? surface.paper.hex : sealed ? surface.ink.hex : surface.paper.hex;
+    // Current's footer sits on the ink ground (paper text); finished's is now paper itself, and sealed's is
+    // parchment — both read with ink text.
+    const footerColor = current ? surface.paper.hex : surface.ink.hex;
     const kicker = sealed
       ? `#${issue.number} · SEALED`
       : current
@@ -278,7 +289,7 @@ export class CampaignRunScene extends Phaser.Scene {
           rect.x + 10,
           titleLabel.y + titleLabel.height + 4,
           issue.resultLine,
-          textStyle(typeRole.body, surface.paper.hex, 0.8),
+          textStyle(typeRole.body, footerColor, 0.7),
         )
         .setFontSize(11)
         .setWordWrapWidth(rect.width - 20);
@@ -324,8 +335,12 @@ export class CampaignRunScene extends Phaser.Scene {
     if (current) {
       g.fillStyle(surface.ink.hex, 1).fillRect(rect.x, rect.y, rect.width, rect.height);
       g.lineStyle(3, accent.heroRed.hex, 1).strokeRect(rect.x, rect.y, rect.width, rect.height);
+    } else if (sealed) {
+      g.fillStyle(0xd9d2bd, 1).fillRect(rect.x, rect.y, rect.width, rect.height);
     } else {
-      g.fillStyle(sealed ? 0xd9d2bd : 0x1c1a17, 1).fillRect(rect.x, rect.y, rect.width, rect.height);
+      // A finished issue reads as a back issue in daylight (design tile 8): paper, not the ink ground.
+      g.fillStyle(surface.paper.hex, 1).fillRect(rect.x, rect.y, rect.width, rect.height);
+      g.lineStyle(2, surface.ink.hex, 0.25).strokeRect(rect.x, rect.y, rect.width, rect.height);
     }
     const thumbSize = current ? rect.width - 20 : 56;
     const thumbRect: Rect = current
@@ -348,7 +363,7 @@ export class CampaignRunScene extends Phaser.Scene {
     }
     const textX = current ? rect.x + 10 : thumbRect.x + thumbRect.width + 10;
     const textWidth = current ? rect.width - 20 : rect.width - (textX - rect.x) - 10;
-    const footerColor = current || !sealed ? surface.paper.hex : surface.ink.hex;
+    const footerColor = current ? surface.paper.hex : surface.ink.hex;
     const kicker = sealed ? `#${issue.number} · SEALED` : `#${issue.number} · ${(issue.villain ?? "").toUpperCase()}`;
     let textY = current ? thumbRect.y + thumbRect.height + 6 : rect.y + 8;
     const kickerLabel = this.add

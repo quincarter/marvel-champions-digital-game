@@ -140,7 +140,7 @@ export class CampaignIssueScene extends Phaser.Scene {
       new McButton(this, {
         kind: "primary",
         label: `REREAD ISSUE #${model.number} ▸`,
-        type: typeRole.rowTitle,
+        type: typeRole.barTitle,
         rect: ctaRect,
         onClick: () => this.#reread(model),
       }),
@@ -158,23 +158,26 @@ export class CampaignIssueScene extends Phaser.Scene {
     });
   }
 
+  /** The "◂ #1 · #3 ▸" prev/next switcher: one paper-on-ink boxed button (design tile 9), not a filled ink block. */
   #switcher(model: CampaignIssueModel, rect: Rect, stops: Map<string, FocusStop>, order: string[]): void {
     const g = this.add.graphics();
-    g.fillStyle(surface.ink.hex, 1).fillRect(rect.x, rect.y, rect.width, rect.height);
+    g.fillStyle(surface.paper.hex, 1).fillRect(rect.x, rect.y, rect.width, rect.height);
+    g.lineStyle(2, surface.ink.hex, 1).strokeRect(rect.x, rect.y, rect.width, rect.height);
     const prevLabel = model.prevNodeId ? `◂ #${prevNumber(model)}` : "◂";
     const nextLabel = model.nextFinishedNodeId ? `#${nextNumber(model)} ▸` : "▸";
     const half = rect.width / 2;
     const prevRect: Rect = { x: rect.x, y: rect.y, width: half, height: rect.height };
     const nextRect: Rect = { x: rect.x + half, y: rect.y, width: half, height: rect.height };
+    g.lineStyle(1, surface.ink.hex, 0.3).lineBetween(rect.x + half, rect.y, rect.x + half, rect.y + rect.height);
     this.add
       .text(prevRect.x + prevRect.width / 2, prevRect.y + prevRect.height / 2, prevLabel, {
-        ...textStyle(typeRole.rowTitle, surface.paper.hex, model.prevNodeId ? 1 : 0.35),
+        ...textStyle(typeRole.rowTitle, surface.ink.hex, model.prevNodeId ? 1 : 0.3),
         fontSize: "14px",
       })
       .setOrigin(0.5);
     this.add
       .text(nextRect.x + nextRect.width / 2, nextRect.y + nextRect.height / 2, nextLabel, {
-        ...textStyle(typeRole.rowTitle, surface.paper.hex, model.nextFinishedNodeId ? 1 : 0.35),
+        ...textStyle(typeRole.rowTitle, surface.ink.hex, model.nextFinishedNodeId ? 1 : 0.3),
         fontSize: "14px",
       })
       .setOrigin(0.5);
@@ -269,41 +272,76 @@ export class CampaignIssueScene extends Phaser.Scene {
       .setWordWrapWidth(rect.width);
     let y = title.y + title.height + 20;
     y = ruleHeading(this, rect.x, y, rect.width, "Attempts");
-    for (const attempt of model.attempts) {
-      const box = this.add.graphics();
+    if (model.attempts.length > 0) {
+      const boxTop = y;
       const rowHeight = 46;
-      box.lineStyle(2, surface.ink.hex, 1).strokeRect(rect.x, y, rect.width, rowHeight);
-      this.add.text(rect.x + 12, y + 10, String(attempt.index), textStyle(bangers(18), surface.ink.hex, 0.5));
-      this.add.text(rect.x + 40, y + 6, attempt.headline, textStyle(typeRole.emphasis, surface.ink.hex));
+      model.attempts.forEach((attempt, index) => {
+        this.add.text(rect.x + 12, y + 10, String(attempt.index), textStyle(bangers(18), surface.ink.hex, 0.5));
+        this.add.text(rect.x + 40, y + 6, attempt.headline, textStyle(typeRole.emphasis, surface.ink.hex));
+        this.add
+          .text(rect.x + 40, y + 24, attempt.detail, textStyle(typeRole.body, surface.ink.hex, 0.7))
+          .setFontSize(11)
+          .setWordWrapWidth(rect.width - 150);
+        this.add
+          .text(rect.x + rect.width - 12, y + rowHeight / 2, attempt.tag, {
+            ...textStyle(typeRole.label, attempt.tag === "KEPT" ? signal.heal.hex : accent.heroRed.hex, 1),
+            fontStyle: "700",
+          })
+          .setOrigin(1, 0.5)
+          .setFontSize(11);
+        y += rowHeight;
+        if (index < model.attempts.length - 1) {
+          this.add.rectangle(rect.x, y, rect.width, 1, surface.ink.hex, 0.15).setOrigin(0, 0.5);
+        }
+      });
       this.add
-        .text(rect.x + 40, y + 24, attempt.detail, textStyle(typeRole.body, surface.ink.hex, 0.7))
-        .setFontSize(11)
-        .setWordWrapWidth(rect.width - 150);
-      this.add
-        .text(rect.x + rect.width - 12, y + rowHeight / 2, attempt.tag, {
-          ...textStyle(typeRole.label, attempt.tag === "KEPT" ? signal.heal.hex : accent.heroRed.hex, 1),
-          fontStyle: "700",
-        })
-        .setOrigin(1, 0.5)
-        .setFontSize(11);
-      y += rowHeight + 6;
+        .graphics()
+        .lineStyle(2, surface.ink.hex, 1)
+        .strokeRect(rect.x, boxTop, rect.width, y - boxTop);
     }
-    y += 10;
+    y += 26;
     y = ruleHeading(this, rect.x, y, rect.width, "Wrote to the log");
-    for (const write of model.writes) {
+    if (model.writes.length > 0) {
+      const boxTop = y;
       const rowHeight = 42;
-      this.add.rectangle(rect.x + 4, y + rowHeight / 2, 8, 8, signal.cost.hex);
-      this.add.text(rect.x + 18, y, write.headline, textStyle(typeRole.emphasis, surface.ink.hex)).setFontSize(13);
+      model.writes.forEach((write, index) => {
+        this.add.rectangle(rect.x + 12, y + rowHeight / 2, 8, 8, writeKindColor(write.kind));
+        this.add
+          .text(rect.x + 26, y + 8, write.headline, textStyle(typeRole.emphasis, surface.ink.hex))
+          .setFontSize(13)
+          .setWordWrapWidth(rect.width - 150);
+        this.add
+          .text(rect.x + 26, y + 26, write.detail, textStyle(typeRole.body, surface.ink.hex, 0.65))
+          .setFontSize(11)
+          .setWordWrapWidth(rect.width - 150);
+        this.add
+          .text(rect.x + rect.width - 10, y + 8, write.citation, textStyle(typeRole.label, surface.ink.hex, 0.5))
+          .setOrigin(1, 0)
+          .setFontSize(10);
+        y += rowHeight;
+        if (index < model.writes.length - 1) {
+          this.add.rectangle(rect.x, y, rect.width, 1, surface.ink.hex, 0.15).setOrigin(0, 0.5);
+        }
+      });
       this.add
-        .text(rect.x + 18, y + 18, write.detail, textStyle(typeRole.body, surface.ink.hex, 0.65))
-        .setFontSize(11)
-        .setWordWrapWidth(rect.width - 150);
-      this.add
-        .text(rect.x + rect.width, y, write.citation, textStyle(typeRole.label, surface.ink.hex, 0.5))
-        .setOrigin(1, 0)
-        .setFontSize(10);
-      y += rowHeight;
+        .graphics()
+        .lineStyle(2, surface.ink.hex, 1)
+        .strokeRect(rect.x, boxTop, rect.width, y - boxTop);
     }
+  }
+}
+
+/** Green for a grant, blue for a number, red for a removal, caution for a flag — the issue detail's colour code. */
+function writeKindColor(kind: CampaignIssueModel["writes"][number]["kind"]): number {
+  switch (kind) {
+    case "grant":
+      return signal.heal.hex;
+    case "removed":
+      return accent.heroRed.hex;
+    case "flag":
+      return signal.caution.hex;
+    default:
+      return signal.cost.hex;
   }
 }
 
