@@ -319,3 +319,18 @@ term).
 - `packages/cards/src/wave3/drax/qa.test.ts` — extended: Drax + Venom 2p game, Drax expert solo, Venom expert solo.
 - `packages/cards/src/wave3/stld/qa.test.ts` — new: Star-Lord expert solo.
 - `docs/phase7-wave3-qa.md` — this report, updated.
+
+## Resolutions
+
+- **Finding 2 (§4 Q1), resolved in `cbc8a10`.** Simultaneous villain defeat and last elimination is a loss. Multi-target
+  damage now resolves simultaneously (ruling June 2, 2026 (2) answer 1; FFG ruling May 18, 2023 on The Kraken). The
+  Q1 pin was rewritten to expect the loss.
+- **Finding 6 (Waylay), resolved.** `18028.when-revealed` now targets the identity titled "Gamora", not the revealer.
+  The pin was also invalid: it threw during setup ("no 18028 set aside for p2") before reaching any assertion, which
+  `it.fails` counted as the expected failure. It is now a passing test that stages a real 2-player villain phase in
+  which P2 is dealt and reveals Waylay, confirmed to fail against the old targeting. The same file's `GAMORA_PLAYER`
+  (`ownerOf(named("Gamora"))`) could resolve to Drax's Gamora ally (19020) at another seat, since `named` returns the
+  first card in play with that title. It is now `controllerOf` the Gamora identity.
+- **Tooling finding, resolved in `821aa2b`.** `pnpm card` reads `WAVE3_ABILITIES`.
+- **Lesson for pins:** an `it.fails` test passes on _any_ throw, including a setup error. A pin must be seen failing on
+  its assertion (run it once as a plain `it`) before it is committed.
