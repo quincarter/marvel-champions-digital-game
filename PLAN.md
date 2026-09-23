@@ -1167,6 +1167,9 @@ Built once, before any box's campaign content. Nothing here names a specific cam
 - [ ] `rules-qa-engineer` scenarios: a full campaign played end to end, a lost-and-retried scenario proving the log
       survives, and a permanent removal proving it sticks across the retry.
 - [ ] Client wiring for anything the box needs that the foundation does not already cover.
+      [docs/campaign-client-per-box.md](docs/campaign-client-per-box.md) lists what each box gets for free, the
+      story file every box needs written, and which boxes (MC16, MC21, MC27, MC32, MC40, MC45, MC50, MC60) need a
+      design pass first because the MC10 tiles never show what their campaigns do.
 
 #### C3. The boxes
 
