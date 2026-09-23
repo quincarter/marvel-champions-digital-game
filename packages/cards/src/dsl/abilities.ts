@@ -19,6 +19,7 @@ import type {
   StatName,
   TargetQuery,
   InPlayCostPick,
+  PlayerRef,
   TraitGrantSpec,
   TriggerEventKind,
   TypedResource,
@@ -40,6 +41,12 @@ export interface AbilityOptions {
   readonly label?: AbilityLabel | readonly AbilityLabel[];
   /** Actions only: a condition printed before the cost ("If you are in Tiny hero form, exhaust … →"). */
   readonly while?: Predicate;
+  /**
+   * Star-Lord's "What could go wrong?" (`stld` 17001a; docs/phase7-wave3.md §3.20): on an `interrupt` trigger, makes
+   * it a cost modifier the player opts into while playing a matching card (`playCard.costReductionAbilities`)
+   * rather than an ability offered in that window — see `AbilityDefinition.playCostReduction`'s own docblock.
+   */
+  readonly playCostReduction?: { readonly amount: number; readonly cards?: TargetQuery; readonly fromHand?: boolean };
 }
 type Args = readonly (AbilityOptions | EffectArg)[];
 
@@ -91,6 +98,7 @@ function build(
     ...(label && label.length > 0 ? { label } : {}),
     effects: flatten(effects),
     ...(generates !== undefined ? { generates } : {}),
+    ...(options.playCostReduction ? { playCostReduction: options.playCostReduction } : {}),
   };
 }
 
@@ -322,6 +330,27 @@ export const gainsTraitsOf = (
   traitGrants: [{ traitsOf, target, ...(opts.while ? { while: opts.while } : {}) }],
 });
 export const rule = (r: RuleSpec): ConstantPart => ({ rules: [r] });
+/**
+ * "The first [X] the engaged player reveals each villain phase gains surge." (Mister Knife, `stld` 17026); "The
+ * first [Technique] attachment revealed each round gains surge." (Nebula I–III, `gmw`; docs/phase7-wave3.md §3.8).
+ * `revealer` narrows *who* has to reveal it ("the engaged player" is `engagedPlayerOf(self)`); absent matches
+ * anyone's reveal.
+ */
+export const firstRevealGainsSurge = (
+  cards: TargetQuery,
+  each: "round" | "phase",
+  opts: { readonly revealer?: PlayerRef; readonly while?: Predicate } = {},
+): ConstantPart => ({
+  rules: [
+    {
+      kind: "firstRevealGainsSurge",
+      cards,
+      each,
+      ...(opts.revealer ? { revealer: opts.revealer } : {}),
+      ...(opts.while ? { while: opts.while } : {}),
+    },
+  ],
+});
 /** "X does not count against your ally limit." (Stinger, `ant`; RRG 1.8 "Ally Limit", p. 7). */
 export const excludedFromAllyLimit = (
   target: TargetQuery,
@@ -420,6 +449,12 @@ export const removeCounter = (
   spendCounters: { counterType, amount: n, ...(opts.fromIdentity ? { target: "identity" } : {}) },
 });
 /** "Take N damage →" (your identity). */
+/**
+ * "Deal yourself N facedown encounter card(s) →" (Star-Lord's "What could go wrong?"; Daring Escape; Library
+ * Labyrinth; Universal Weapon; docs/phase7-wave3.md §3.20, §3.26): the paying player is dealt that many facedown
+ * encounter cards as the cost.
+ */
+export const dealEncounterCardsCost = (n: number): AbilityCost => ({ dealEncounterCards: n });
 export const takeDamageCost = (n: number): AbilityCost => ({ damageSelf: n });
 /** "Deal N damage to [this character] →" */
 export const damageThisCardCost = (n: number): AbilityCost => ({ damageThisCard: n });
@@ -570,6 +605,8 @@ export const on = {
   /** "After X thwarts"; `basic`: "X makes a **basic** thwart" (Entangling Vines, `gmw` 16008). */
   thwarts: (by: Who, opts: { readonly basic?: boolean } = {}): EventPattern =>
     pattern("thwart", asSource(by), opts.basic ? { attackKind: "basic" } : {}),
+  /** "When/After X attacks or thwarts" (Cosmo, Adam Warlock, `stld`): either player-side power, by source. */
+  attacksOrThwarts: (by: Who): EventPattern => pattern(["attack", "thwart"], asSource(by)),
   /**
    * "When/After the player/villain phase begins" (Museum Ship, Nebula's Ship, Blazing Inferno, Sibling Rivalry,
    * the Kree Fanatic's Ronan; docs/phase7-wave3.md §3.2). Interrupt and response windows both read this pattern;
@@ -608,6 +645,11 @@ export const on = {
    * (`cardBeingPlayed`, interruptible unlike `cardPlayed`/`cardEntersPlay`). `what` filters which played card.
    */
   youPlay: (what: TargetQuery): EventPattern => pattern("cardBeingPlayed", { targetIs: what, playerIs: "controller" }),
+  /**
+   * "After **a player** plays [X]" (Knowhere, `stld` 17022: "after a player plays a guardian ally") — no `playerIs`
+   * scope, unlike `youPlayThis`'s hardcoded "you"; the player who played it is named with `eventPlayer`.
+   */
+  cardPlayed: (what: TargetQuery): EventPattern => pattern("cardPlayed", { targetIs: what }),
   /** "When X would take damage" / "after X takes damage" (`taken`: some damage was actually dealt). */
   damage: (to: Who, opts: { readonly fromAttack?: boolean; readonly taken?: boolean } = {}): EventPattern =>
     pattern(
