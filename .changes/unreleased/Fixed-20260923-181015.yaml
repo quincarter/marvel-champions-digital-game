@@ -1,0 +1,3 @@
+kind: Fixed
+body: 'Un-skip GMW''s Collection hand-choice QA test: the ''4 cards, hand unchanged'' finding was measuring against the wrong baseline (the main scheme''s own setup also seeds The Collection), not a real bug'
+time: 2026-09-23T18:10:15.295463-04:00

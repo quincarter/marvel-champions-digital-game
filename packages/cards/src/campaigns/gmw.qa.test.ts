@@ -31,6 +31,7 @@ import { GMW_CAMPAIGN, GMW_STARTER_DECKS, WAVE3_CARDS, type CardId, type PlayMod
 import {
   activeEncounterDeck,
   applyCampaignResult,
+  applyCommand,
   cardsInPlay,
   campaignChoiceKey,
   campaignResultOf,
@@ -1508,23 +1509,27 @@ describe("MC16 p. 10 — the optional 1-unit heal: declined, accepted, and unaff
  * `mc16.s2.setup.collection` (RRG 1.8 p. 67 errata, "When setup ends, in player order, each player must choose 1
  * card from their hand and put it faceup into The Collection") is windowed `afterMulligans` and drives a
  * `forEachPlayer(eachPlayer, [chooseCards(min:1,max:1, from hand), moveCards(chosen, {scenarioArea: "The
- * Collection"})])` per `gmw.ts`. Driving a real, 2-seat Infiltrate the Museum game to its first player-phase pause
- * (`realGameAt`) finds **4** cards already in `state.scenarioAreas["The Collection"]`, not the 2 (1 per seat) this
- * instruction alone should ever produce — and *neither* seat's own hand shrank from its normal opening size,
- * which is the opposite of what "choose 1 card from hand" should do. Two explanations are both plausible and this
- * pass could not distinguish them in the time budgeted: (a) `mc16.s2.setup.collection`'s own `chooseCards`/
- * `moveCards` pair genuinely no-ops (0 cards actually chosen/moved) while something unrelated — most likely the
- * Collector's own printed ability ("When a card would be placed into a discard pile from play, put it faceup into
- * The Collection instead"), which is live for this scenario's own villain and could be catching ordinary
- * setup-time discards nothing to do with this instruction — independently fills the area to 4; or (b) this
- * instruction's own effect is double-firing per seat (2 × 2 = 4) while a separate accounting bug also hides the
- * hand-size change. Reported, not fixed, and not confidently diagnosed further: whichever it is, "each player's
- * hand shrinks by exactly 1, and The Collection gains exactly `seats.length` cards" is the rule this instruction
- * alone should produce, and today it does not. Owner: `ability-scripting-engineer` (`gmw.ts`'s own instruction) or
- * `game-rules-architect` (if the Collector's own redirect is the actual source).
+ * Collection"})])` per `gmw.ts`.
+ *
+ * DIAGNOSIS (this pass): driving the real game and tracing every `cardMoved` event into `state.scenarioAreas["The
+ * Collection"]` shows the instruction itself is correct — exactly one `cardMoved` per seat, each `from: {kind:
+ * "hand"}`, in seat order, each moving the exact card `chooseCards` bound. The earlier report's "4, not 2" was
+ * real but was comparing against the wrong baseline: Infiltrate the Museum's own main scheme, The Grand Collection
+ * 1A, prints its own unconditional `Setup: Create "The Collection" game area. Put the top card of each player's
+ * deck faceup into The Collection` (`packages/cards/src/wave3/gmw/museum.ts`'s `16073a.setup`), which runs during
+ * `resolveScenarioSetup` — *before* the campaign's `afterMulligans` window — and already seeds the area with 1
+ * card per seat (2, in a 2-seat game) from the top of each deck. That is a second, independent, and correct
+ * source into the same shared out-of-play area; it is not the Collector's discard redirect (which only fires on a
+ * discard-from-play, and nothing discards during setup here) and not a double-fire of the campaign instruction. So
+ * a 2-seat expert game legitimately ends setup with 4 cards in The Collection (2 from the main scheme's own setup,
+ * 2 from the campaign's expert-only hand choice) — this instruction alone still only ever adds `seats.length`.
+ * Likewise "hand unchanged at 5" was comparing against a hardcoded expectation (4) rather than each seat's own
+ * actual post-mulligan hand size (6, for these decks); the real, instruction-attributable effect is each seat's
+ * hand shrinking by exactly 1 from its own post-mulligan size, which this test now asserts directly instead of
+ * against a hardcoded absolute.
  */
-describe.skip('RRG 1.8 p. 67 errata "When setup ends" — The Collection\'s hand-card choice (UNCONFIRMED DISCREPANCY)', () => {
-  it("expert campaign: each player puts exactly 1 card from hand into The Collection scenario area, and only that", () => {
+describe('RRG 1.8 p. 67 errata "When setup ends" — The Collection\'s hand-card choice', () => {
+  it("expert campaign: each player puts exactly 1 card from hand into The Collection scenario area, in player order, and only that", () => {
     const seats = seatsOf(TWO_SEATS);
     const log = winNode(
       freshLog("qa-collection-choice", EXPERT, seats, 4242),
@@ -1533,10 +1538,87 @@ describe.skip('RRG 1.8 p. 67 errata "When setup ends" — The Collection\'s hand
       1,
       [1, 2],
     );
-    const state = realGameAt(log, EXPERT, "infiltrate-the-museum", seats);
-    const collection = state.scenarioAreas?.["The Collection"] ?? [];
-    expect(collection).toHaveLength(seats.length); // observed: 4, not 2
-    for (const player of state.players) expect(player.hand.length).toBe(4); // observed: 5 (unchanged) for both seats
+    const seatNumbers = seats.map((seat) => seat.seatNumber);
+    const composed = settleCampaign(
+      (answers) => resolveBetweenGames(GMW_CAMPAIGN_DEFINITION, log, DEPS, EXPERT, answers),
+      declineMarketAndHeal("infiltrate-the-museum", seatNumbers),
+    ).value;
+    const start = startGameFromLog(GMW_CAMPAIGN_DEFINITION, composed);
+    if (start.nodeId !== "infiltrate-the-museum")
+      throw new Error(`expected infiltrate-the-museum, got ${start.nodeId}`);
+    if (!start.scenarioId) throw new Error(`node ${start.nodeId} has no fixed scenario`);
+    const config: GameSetupConfig = wave3Scenario(start.scenarioId as string, {
+      players: start.input.seats.map((seat) => ({
+        identityCardId: seat.identityCardId,
+        deck: seat.deck,
+        aspects: seat.aspects,
+      })),
+      seed: start.input.seed,
+      modes: EXPERT,
+    });
+    const withSetAside: GameSetupConfig = {
+      ...config,
+      setAside: [...config.setAside!, ...cardsOfSets(start.encounterSets.setAside)],
+    };
+    const created = createGame({ ...withSetAside, campaign: start.input }, WAVE3_DEPS);
+    if (!created.ok) throw new Error(`setup failed: ${created.error.message}`);
+
+    // The main scheme's own "Setup" text (16073a) seeds The Collection with 1 card per seat, from the top of each
+    // deck, during `resolveScenarioSetup` — before mulligans, and before this instruction's own `afterMulligans`
+    // window. That baseline is asserted here so the rest of the test measures only this instruction's own delta.
+    const collectionBeforeInstruction = created.state.scenarioAreas?.["The Collection"] ?? [];
+    expect(collectionBeforeInstruction).toHaveLength(seats.length);
+
+    let state = created.state;
+    const handsBeforeInstruction = new Map(state.players.map((p) => [p.playerId, p.hand.length]));
+    const handToCollectionMoves: { readonly playerId: string; readonly instanceId: string }[] = [];
+    const instructionOrder: string[] = [];
+    let guard = 0;
+    while (state.pendingChoice && !state.outcome && state.step.phase !== "player") {
+      if (guard++ > 500) throw new Error("choices did not settle");
+      const choice = state.pendingChoice;
+      const picked = choice.options.slice(0, choice.minSelections).map((o) => o.optionId);
+      // Every mulligan is kept (min 0): this scenario's own opening-hand size is what "shrinks by 1" is measured
+      // against, not a hardcoded absolute.
+      const applied = applyCommand(
+        state,
+        { type: "resolveChoice", playerId: choice.playerId, choiceId: choice.choiceId, selectedOptionIds: picked },
+        WAVE3_DEPS,
+      );
+      if (!applied.ok) throw new Error(`resolveChoice rejected: ${applied.error.code}: ${applied.error.message}`);
+      for (const ev of applied.events) {
+        if (ev.type === "campaignInstructionResolved" && ev.instructionId === "mc16.s2.setup.collection") {
+          instructionOrder.push(ev.instructionId);
+        }
+        if (
+          ev.type === "cardMoved" &&
+          ev.from.kind === "hand" &&
+          ev.to.kind === "scenarioArea" &&
+          ev.to.name === "The Collection"
+        ) {
+          handToCollectionMoves.push({ playerId: ev.from.playerId, instanceId: ev.instanceId });
+        }
+      }
+      state = applied.state;
+    }
+    state = settle(state, firstLegal, (s) => s.step.phase === "player", WAVE3_DEPS);
+
+    expect(instructionOrder).toEqual(["mc16.s2.setup.collection"]);
+    // Exactly 1 hand-to-Collection move per seat, from that seat's own hand, in seat (player) order.
+    expect(handToCollectionMoves).toHaveLength(seats.length);
+    expect(handToCollectionMoves.map((move) => move.playerId)).toEqual(seats.map((_, i) => state.players[i]?.playerId));
+
+    const collectionAfter = state.scenarioAreas?.["The Collection"] ?? [];
+    expect(collectionAfter).toHaveLength(collectionBeforeInstruction.length + seats.length);
+    for (const move of handToCollectionMoves) expect(collectionAfter).toContain(move.instanceId);
+
+    for (const player of state.players) {
+      const before = handsBeforeInstruction.get(player.playerId) ?? 0;
+      expect(player.hand.length).toBe(before - 1);
+      const moved = handToCollectionMoves.find((move) => move.playerId === player.playerId);
+      expect(moved).toBeDefined();
+      expect(player.hand).not.toContain(moved!.instanceId);
+    }
   });
 });
 
