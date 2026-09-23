@@ -16,6 +16,7 @@ list to edit. Formats: `png`, `jpg`, `jpeg`, `webp`, `avif`.
 | `packs/<packCode>/`           | `cover.<ext>`         | OPTIONAL: a pack's shelf-header thumbnail on Scenario select and Take your seats (W2b's pack shelves) |
 | `campaigns/<campaignId>/`     | `cover.<ext>`         | NOT READ YET: the campaign's key art, for the campaign screens                                        |
 | `campaigns/<campaignId>/`     | `artboards/<name>.*`  | A story panel's picture, where the story file names it (`{ kind: "artboard", name }`); else its note  |
+| `campaigns/<campaignId>/`     | `pages/NN-<slug>.*`   | Full comic pages, read panel by panel in the comic reader; `NN` is the page order. Built in step 5a   |
 
 `<scenarioId>` is the content package's `Scenario.id`, so the folder name is the
 lookup: `rhino`, `klaw`, `ultron`, `risky-business`, `mutagen-formula`,
@@ -34,6 +35,14 @@ All nine folders exist; one with just a `.gitkeep` is still waiting for its cove
 yet. An artboard shows wherever a panel in `packages/client/src/campaign/stories/<campaignId>.ts` names it
 (`mountain-facility` → `artboards/mountain-facility.webp`); until the file exists the panel keeps its "Panel art: …"
 note. `packages/client/src/art/campaign-art.test.ts` fails if an artboard file matches no name a story uses.
+
+**Two kinds of campaign story art.** `artboards/` holds single pictures, one per story panel (The Rise of Red Skull
+works this way). `pages/` holds whole comic pages with several panels each, and a box that has a `pages/` folder is
+told through the comic reader instead (`artifacts/design-screenshots/individual/gmw-comic-reader.dc/`). Name pages
+`NN-<slug>.<ext>` (`01-badoon.jpg`, `02-museum.jpg`, …): the two-digit number is the page order, the slug is for
+people. Where each panel sits on a page, and which story beats it carries, is recorded once in the box's story file,
+because a file name can't hold it. Credit the artist in a `CREDITS.md` beside the pages when the art is fan-made
+(see `campaigns/gmw/pages/`).
 
 `<identityId>` is the hero identity card's id (`01001a` Spider-Man, `51001a` Shuri's Black Panther). Only the part
 of the folder name before the first `-` is read; the rest is there so a person can tell the folders apart. Card ids

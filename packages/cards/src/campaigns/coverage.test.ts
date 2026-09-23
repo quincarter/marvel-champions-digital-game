@@ -13,6 +13,7 @@ import { CAMPAIGNS, TRORS_CAMPAIGN_DEFINITION } from "./index.js";
 /** `CAMPAIGNS` must cover exactly the campaigns this build ships a definition for — a new box can't be silently unchecked. */
 const CAMPAIGN_STATUS: Readonly<Record<string, "scripted">> = {
   trors: "scripted",
+  gmw: "scripted",
 };
 
 describe("CAMPAIGNS registry", () => {
