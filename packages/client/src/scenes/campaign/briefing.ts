@@ -8,10 +8,11 @@
  * half-answered is ever shown as settled: `#pending` is only ever the *current* unanswered question.
  */
 import Phaser from "phaser";
-import type { CampaignChoiceAnswer, CampaignPendingChoice } from "@mc/engine";
+import type { CampaignChoiceAnswer, CampaignDefinition, CampaignPendingChoice } from "@mc/engine";
 import { CAMPAIGN_ACCEPT } from "@mc/engine";
 import { issueNumberOf, issueStoryFor, lineForRoster, type IssueStory } from "../../campaign/story.js";
 import {
+  bangers,
   drawActionBar,
   drawPicture,
   drawTopBar,
@@ -40,6 +41,8 @@ export class CampaignBriefingScene extends Phaser.Scene {
   #data!: CampaignBriefingData;
   #record: CampaignRecord | null = null;
   #story: IssueStory | null = null;
+  #definition: CampaignDefinition | null = null;
+  #nodeIds: readonly string[] = [];
   #issueNumber = 1;
   #pending: CampaignPendingChoice | null = null;
   #answers: CampaignChoiceAnswer[] = [];
@@ -59,6 +62,8 @@ export class CampaignBriefingScene extends Phaser.Scene {
     this.#data = data;
     this.#record = null;
     this.#story = null;
+    this.#definition = null;
+    this.#nodeIds = [];
     this.#pending = null;
     this.#answers = [];
     this.#picking = [];
@@ -91,6 +96,8 @@ export class CampaignBriefingScene extends Phaser.Scene {
     this.#record = record;
     this.#story = issueStoryFor(record.campaignId, nodeId);
     const definition = service.definitionFor(record);
+    this.#definition = definition;
+    this.#nodeIds = definition.graph.nodes.map((node) => node.id);
     this.#issueNumber = issueNumberOf(
       definition.graph.nodes.map((node) => node.id),
       nodeId,
@@ -201,7 +208,9 @@ export class CampaignBriefingScene extends Phaser.Scene {
     const actionBar = drawActionBar(this);
     const contentBottom = actionBar.y - 16;
 
-    const view = record.attempt ? briefingViewOf(record, cardName, this.#issueNumber) : null;
+    const view = record.attempt
+      ? briefingViewOf(record, cardName, this.#issueNumber, this.#definition ?? undefined, this.#nodeIds)
+      : null;
     const gutter = phone ? 16 : 24;
     const columnGap = 32;
     const leftWidth = phone ? width - gutter * 2 : Math.round((width - gutter * 2 - columnGap) * 0.58);
@@ -509,10 +518,10 @@ export class CampaignBriefingScene extends Phaser.Scene {
           rect.x + 12,
           rowY + rowHeight / 2,
           `${row.heroName.toUpperCase()} · ${row.aspectLabel}`,
-          textStyle({ ...typeRole.rowTitle, size: 14 }, surface.ink.hex),
+          textStyle(bangers(16), surface.ink.hex),
         )
         .setOrigin(0, 0.5);
-      fitText(title, rect.width * 0.6, 14);
+      fitText(title, rect.width * 0.6, 16);
       const countText = row.pinnedCount > 0 ? `${row.deckSize} + ${row.pinnedCount} pinned` : `${row.deckSize}`;
       this.add
         .text(

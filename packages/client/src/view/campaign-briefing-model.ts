@@ -6,7 +6,7 @@
  * states without a scene.
  */
 import type { CardId } from "@mc/content";
-import type { CampaignAttempt, CampaignStepTrace } from "@mc/engine";
+import type { CampaignAttempt, CampaignDefinition, CampaignStepTrace, LogValue } from "@mc/engine";
 import type { CampaignRecord } from "../engine/campaign-storage.js";
 import { campaignStepRows, type CampaignStepRow } from "./campaign-step-model.js";
 
@@ -64,6 +64,138 @@ function statusOf(step: CampaignStepTrace): "done" | "later" {
   return "later";
 }
 
+/**
+ * Every campaign-log field id an effect tree reads (`kind: "campaignLog"`), walked structurally rather than by
+ * shape — the same generic walk `@mc/engine`'s campaign runner uses internally (`campaign/runner.ts`'s
+ * `fieldsReadBy`, not exported) to decide what a game's `CampaignLogView` needs to carry. No card or field name is
+ * ever named here: an effect tree that happens not to read the log at all just returns an empty set.
+ */
+function fieldsReadBy(effects: unknown, found: Set<string> = new Set()): ReadonlySet<string> {
+  if (Array.isArray(effects)) {
+    for (const item of effects) fieldsReadBy(item, found);
+    return found;
+  }
+  if (effects !== null && typeof effects === "object") {
+    const record = effects as Record<string, unknown>;
+    if (record.kind === "campaignLog" && typeof record.field === "string") found.add(record.field);
+    for (const value of Object.values(record)) fieldsReadBy(value, found);
+  }
+  return found;
+}
+
+/** Whether a log value is worth a row at all — an empty card list or a zero count says nothing happened. */
+function isMeaningfulValue(value: LogValue | undefined): boolean {
+  if (!value) return false;
+  switch (value.kind) {
+    case "number":
+      return value.value !== 0;
+    case "flag":
+      return value.value === true;
+    case "cardList":
+      return value.cardIds.length > 0;
+    case "strikeList":
+      return value.struck.length > 0;
+    case "cardState":
+      return Object.keys(value.cards).length > 0;
+    case "instructionList":
+      return value.ids.length > 0;
+    case "text":
+      return value.value.length > 0;
+    case "choice":
+      return value.option.length > 0;
+    case "cardRef":
+      return true;
+  }
+}
+
+/** A compact figure for a title ("2", not "Emergency Teleporter, Upgrade Attack") — the count for a list, the number for a number. */
+function compactValueOf(value: LogValue): string {
+  switch (value.kind) {
+    case "number":
+      return String(value.value);
+    case "flag":
+      return value.value ? "yes" : "no";
+    case "cardList":
+      return String(value.cardIds.length);
+    case "strikeList":
+      return String(value.struck.length);
+    case "cardState":
+      return String(Object.keys(value.cards).length);
+    case "instructionList":
+      return String(value.ids.length);
+    case "choice":
+      return value.option;
+    case "text":
+      return value.value;
+    case "cardRef":
+      return "1";
+  }
+}
+
+/**
+ * Rows built from campaign-log fields rather than from a `CampaignStepTrace` — generic over any box's log fields,
+ * naming none of them:
+ *  - one ✓ row per composed in-game instruction (`attempt.input.instructions`) that reads a field with a
+ *    meaningful current value, titled from the field's own printed label and that value, detailed with the
+ *    instruction's own printed sentence;
+ *  - one → row per shared field with a meaningful value that *this* issue's instructions never read but a
+ *    *later* node's own setup does — "held for issue #N", N being that node's 1-based position in the graph,
+ *    detailed with that later instruction's own printed sentence.
+ */
+function fieldLogRowsOf(
+  attempt: CampaignAttempt,
+  record: CampaignRecord,
+  definition: CampaignDefinition,
+  nodeIds: readonly string[],
+): readonly HandledRow[] {
+  const fieldLabel = (id: string): string => definition.logFields.find((field) => field.id === id)?.label ?? id;
+
+  const readThisIssue = new Set<string>();
+  const nowRows: HandledRow[] = [];
+  for (const instruction of attempt.input.instructions) {
+    const fields = fieldsReadBy(instruction.effects);
+    if (fields.size === 0) continue;
+    const parts: string[] = [];
+    for (const fieldId of fields) {
+      readThisIssue.add(fieldId);
+      const value = record.shared[fieldId];
+      if (isMeaningfulValue(value)) parts.push(`${fieldLabel(fieldId)}: ${compactValueOf(value!)}`);
+    }
+    if (parts.length === 0) continue;
+    nowRows.push({
+      key: `field:${instruction.instructionId}`,
+      status: "done",
+      title: parts.join("; "),
+      detail: instruction.text,
+    });
+  }
+
+  const currentIndex = nodeIds.indexOf(attempt.nodeId);
+  const laterRows: HandledRow[] = [];
+  if (currentIndex >= 0) {
+    for (const [fieldId, value] of Object.entries(record.shared)) {
+      if (readThisIssue.has(fieldId) || !isMeaningfulValue(value)) continue;
+      for (let index = currentIndex + 1; index < nodeIds.length; index++) {
+        const node = definition.graph.nodes.find((candidate) => candidate.id === nodeIds[index]);
+        if (!node) continue;
+        const candidates = [...(definition.everyNodeSetup ?? []), ...(node.composition ?? []), ...node.setup];
+        const found = candidates.find(
+          (instruction) => instruction.step.kind === "inGame" && fieldsReadBy(instruction.step.effects).has(fieldId),
+        );
+        if (!found) continue;
+        laterRows.push({
+          key: `field-later:${fieldId}`,
+          status: "later",
+          title: `${fieldLabel(fieldId)} — held for issue #${index + 1}`,
+          detail: found.text,
+        });
+        break;
+      }
+    }
+  }
+  return [...nowRows, ...laterRows];
+}
+
 /** One row for the seats' current campaign grants — MC10 p. 3's "start in play" TECH/Basic Condition upgrades. */
 function grantsRowOf(record: CampaignRecord, cardName: CardNameOf): HandledRow | null {
   const withGrants = record.seats.filter((seat) => seat.grants.length > 0);
@@ -86,11 +218,21 @@ function stepRowOf(row: CampaignStepRow, statusById: ReadonlyMap<string, "done" 
   };
 }
 
-/** Every step of a composed attempt, rendered as the Briefing's "HANDLED FOR YOU" rows. Grants get one combined row up front; everything else follows in the attempt's own order. Steps with nothing to show (skipped, or no writes/grants/choices/removals) are dropped. */
+/**
+ * Every step of a composed attempt, rendered as the Briefing's "HANDLED FOR YOU" rows. Grants get one combined row
+ * up front; the attempt's own between-games steps follow; then the campaign-log-driven rows (`fieldLogRowsOf`) —
+ * what this issue's in-game instructions read off the log, and what a later issue is still waiting to read. Steps
+ * and fields with nothing to show (skipped, no writes/grants/choices/removals, or an empty/zero value) are dropped.
+ *
+ * `definition` and `nodeIds` (the graph's node ids, 1-based issue order) are only needed for the "held for issue
+ * #N" rows — a caller that doesn't have them handy can omit `nodeIds` and simply won't get those rows.
+ */
 export function handledRowsOf(
   attempt: CampaignAttempt,
   record: CampaignRecord,
   cardName: CardNameOf,
+  definition?: CampaignDefinition,
+  nodeIds: readonly string[] = [],
 ): readonly HandledRow[] {
   const grants = grantsRowOf(record, cardName);
   const statusById = new Map(attempt.steps.map((step) => [step.instructionId, statusOf(step)] as const));
@@ -104,7 +246,8 @@ export function handledRowsOf(
     })
     .map((row) => stepRowOf(row, statusById))
     .filter((row): row is HandledRow => row !== null);
-  return grants ? [grants, ...stepRows] : stepRows;
+  const fieldRows = definition ? fieldLogRowsOf(attempt, record, definition, nodeIds) : [];
+  return [...(grants ? [grants] : []), ...stepRows, ...fieldRows];
 }
 
 export function deckRowsOf(record: CampaignRecord, cardName: CardNameOf): readonly DeckRow[] {
@@ -127,11 +270,17 @@ export function deckRowsOf(record: CampaignRecord, cardName: CardNameOf): readon
 }
 
 /** Both halves of the Briefing's real data, from a record whose issue is already composed (`record.attempt` set). */
-export function briefingViewOf(record: CampaignRecord, cardName: CardNameOf, issueNumber: number): BriefingView | null {
+export function briefingViewOf(
+  record: CampaignRecord,
+  cardName: CardNameOf,
+  issueNumber: number,
+  definition?: CampaignDefinition,
+  nodeIds: readonly string[] = [],
+): BriefingView | null {
   if (!record.attempt) return null;
   return {
     issueNumber,
-    handled: handledRowsOf(record.attempt, record, cardName),
+    handled: handledRowsOf(record.attempt, record, cardName, definition, nodeIds),
     decks: deckRowsOf(record, cardName),
   };
 }
