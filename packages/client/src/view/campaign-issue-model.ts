@@ -75,6 +75,7 @@ function writeRowsOf(
       if (write.value.kind === "cardRef") return;
       // An unset flag ("false") is a non-event on the printed sheet; only a flag actually raised is worth a line.
       if (write.value.kind === "flag" && !write.value.value) return;
+      if (write.value.kind === "cardList" && write.value.cardIds.length === 0) return;
       const rendered = renderLogValue(write.value, cardName);
       rows.push({
         key: `write:${stepIndex}:${writeIndex}`,
