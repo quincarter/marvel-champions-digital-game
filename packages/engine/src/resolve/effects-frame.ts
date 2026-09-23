@@ -1019,7 +1019,13 @@ function executeResolveSpecials(
       steps.push({
         instanceId: id,
         abilityId: ref.id,
-        controllerId: controllerOf(ctx.state, id),
+        // An encounter card resolving its own Special has no controller of its own (e.g. Nebula's Technique
+        // attachments, `gmw` 16094-16098, attached to the villain); "you" inside that Special's text ("You are
+        // stunned") then falls back to whoever the *instructing* ability's own "you" was (RRG 1.8 "You, Your",
+        // p. 49) — the player the villain's activation concerns, already resolved onto `context.controllerId` by
+        // the calling `forcedInterrupt`/Boost frame. docs/phase7-wave3.md §3's "Special" pattern; found scripting
+        // `gmw/nebula.ts`.
+        controllerId: controllerOf(ctx.state, id) ?? context.controllerId,
         forced: true,
         fromHand: false,
       });
