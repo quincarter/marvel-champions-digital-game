@@ -14,11 +14,14 @@ import {
   type CampaignRunnerResult,
   type CampaignSeatSetup,
 } from "@mc/engine";
-import { TRORS_CAMPAIGN_DEFINITION } from "@mc/cards";
+import { GMW_CAMPAIGN_DEFINITION, TRORS_CAMPAIGN_DEFINITION } from "@mc/cards";
 import { TRORS_STARTER_DECKS } from "@mc/content";
 import { buildScenario, POOL_CARDS, POOL_DEPS } from "../content/pool.js";
 import type { SessionConfig } from "../engine/host.js";
 import { storyFor } from "../campaign/story.js";
+import { CampaignService } from "../campaign/campaign-service.js";
+import { seedGmwRun } from "../campaign/dev-fixtures.js";
+import { MemoryCampaignStorage } from "../engine/campaign-storage.js";
 import { campaignLaunchConfig, campaignPostGameFold } from "./campaign-step-model.js";
 import { campaignRunModel } from "./campaign-run-model.js";
 
@@ -132,5 +135,25 @@ describe("campaignRunModel", () => {
     expect(first?.won).toBe(true);
     expect(first?.resultLine).toMatch(/^Won/);
     expect(second?.status).toBe("current");
+  });
+
+  it("GMW's units field pluralizes by count: '1 unit', never '1 units'", async () => {
+    const service = new CampaignService({
+      storage: new MemoryCampaignStorage(),
+      campaignDeps: { pool: Object.fromEntries(POOL_CARDS.map((card) => [card.id as string, card])) },
+      engineDeps: POOL_DEPS,
+    });
+    const record = await seedGmwRun(service, "afterIssue1");
+    const model = campaignRunModel(
+      { ...record, name: "Galaxy's Most Wanted", box: "MC16" },
+      GMW_CAMPAIGN_DEFINITION,
+      storyFor("gmw"),
+      cardName,
+    );
+    const first = model.issues[0];
+    expect(first?.status).toBe("finished");
+    // Never "1 units" — singular count reads as singular noun.
+    expect(first?.resultLine).not.toMatch(/\b1 units\b/);
+    expect(first?.resultLine).toMatch(/\bunits?\b/);
   });
 });

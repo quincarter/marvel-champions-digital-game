@@ -24,7 +24,11 @@ export const FIELD_SHORT_LABEL: Readonly<Record<string, string>> = {
   techUpgrade: "tech",
   basicUpgrade: "condition",
   remainingHp: "HP",
+  units: "unit",
 };
+
+/** MC16's "units" is a countable noun ("1 unit" / "5 units"); every other short label above reads fine unpluralized. */
+const PLURALIZED_FIELDS: ReadonlySet<string> = new Set(["units"]);
 
 export type RunIssueStatus = "finished" | "current" | "sealed";
 
@@ -78,7 +82,8 @@ function detailFor(entry: CampaignHistoryEntry, cardName: CardNameOf): string | 
   for (const step of entry.steps) {
     for (const write of step.writes) {
       if (write.value.kind === "number" && write.value.value > 0) {
-        const label = FIELD_SHORT_LABEL[write.field] ?? write.field;
+        const base = FIELD_SHORT_LABEL[write.field] ?? write.field;
+        const label = PLURALIZED_FIELDS.has(write.field) && write.value.value !== 1 ? `${base}s` : base;
         return `${write.value.value} ${label}`;
       }
     }
