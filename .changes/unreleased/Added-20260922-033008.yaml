@@ -1,3 +1,0 @@
-kind: Added
-body: 'Campaign mode step 10: CampaignStorage/IdbCampaignStorage (a third IndexedDB database, mc-campaigns) and SaveMeta.campaignId/campaignNodeId (SAVE_SCHEMA 4, migrating a pre-campaign save rather than retiring it)'
-time: 2026-09-22T03:30:08.259241-04:00
