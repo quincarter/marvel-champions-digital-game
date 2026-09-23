@@ -382,7 +382,9 @@ export class CampaignAftermathScene extends Phaser.Scene {
     }
     if (art?.kind === "artboard") {
       const campaignId = this.#record?.campaignId ?? "";
-      const image = drawPicture(this, artboardPicture(campaignId, art.name), rect, () => this.#draw(), { focusY: 0.4 });
+      const image = drawPicture(this, artboardPicture(campaignId, art.name), rect, () => this.#draw(), {
+        focusY: art.focusY ?? 0.4,
+      });
       if (!image) artNote(this, rect, art.text, true);
       return;
     }

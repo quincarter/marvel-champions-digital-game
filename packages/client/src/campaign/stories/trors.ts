@@ -36,7 +36,7 @@ export const TRORS_STORY: CampaignStory = {
           sfx: "KRA-KOOM!",
         },
         {
-          art: { kind: "note", text: "Panel art: the heroes drop in" },
+          art: { kind: "artboard", name: "heroes-drop-in", text: "Panel art: the heroes drop in", focusY: 0.8 },
           lines: [
             {
               speaker: HAWKEYE,
