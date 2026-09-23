@@ -91,7 +91,33 @@ Notes:
   columns currently render every option as a card. Any box above whose victory choice is not a card needs that
   row design.
 
-## 4. Running a design pass
+## 4. Boxes told as comic pages
+
+A box with fan-made comic pages is told through the **comic reader** instead of single-picture panels: a full page
+read panel by panel, with The Run, the issue opener, the in-game stage beat, Rewind, the Aftermath and the Finale all
+drawn from its pages. The rule is in `art/README.md`: a box gets the reader when it has
+`art/campaigns/<id>/pages/NN-<slug>.<ext>` (the number is the page order), and `CREDITS.md` beside fan-made pages
+names the artist. Where each panel sits on a page, and which story beats it carries, is recorded once in the box's
+story file. GMW builds the reader (PR #35, step 5a); the boxes below reuse it.
+
+| Box  | Reader tiles (`artifacts/design-screenshots/individual/`) | Pages in the repo now                                                  | Page order (from the design canvas's slices)                                                        |
+| ---- | --------------------------------------------------------- | ---------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| MC16 | `gmw-comic-reader.dc/` (f478c355)                         | `art/campaigns/gmw/pages/01-badoon` … `06-finale`, credited            | done (5513196f)                                                                                     |
+| MC21 | `mts-comic-reader.dc/` (1027efda)                         | 6 Joey Vazquez pages in `art/campaigns/mts/artboards/`, original names | `p1-titan`, `p2-order`, `p3-battle`, `p4-hel`, `p5-asgard`, `p6-feast`                              |
+| MC27 | `sm-comic-reader.dc/` (1027efda)                          | 8 Joey Vazquez pages in `art/campaigns/sm/artboards/`, original names  | `p1-swing`, `p2-sandman`, `p3-oscorp`, `p4-mysterio`, `p5-six`, `p6-goblin`, `p7-shield`, `p8-home` |
+
+The slices are in `Marvel Champions game screens/art/campaigns/<id>/` (the design canvas's own copies). When MC21's
+or MC27's campaign client work starts:
+
+- [ ] Move the box's pages out of `artboards/` into `pages/NN-<slug>.<ext>`, numbered and named after the canvas
+      slices above (match each original file to its slice by eye; MC21's originals are two-page spreads, so check
+      whether a slice is a whole file or half of one before renaming). Add `pages/CREDITS.md` naming Joey Vazquez and
+      mapping each original file name to its new one, as `art/campaigns/gmw/pages/CREDITS.md` does.
+- [ ] Record each page's panel outlines and beats in the box's story file, following GMW's.
+- [ ] Build and click-check the box's comic screens against its reader tiles at phone, tablet and desktop, together
+      with its own design-pass screens from §3.
+
+## 5. Running a design pass
 
 1. Add the box's tiles to the campaign canvases (`Marvel Champions game screens/Campaign - *.dc.html`) or a new
    canvas per box, and regenerate the PNGs with `pnpm capture:screens` into
