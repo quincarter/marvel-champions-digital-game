@@ -116,8 +116,10 @@ export const SAGA_VOLUMES: readonly SagaVolume[] = [
   { number: 9, campaignId: "fne", boxCode: "MC60", name: "Fear No Evil" },
 ];
 
+// Matches the current design canvas (`Marvel Champions game screens/Campaign - *.dc.html`'s `saga()`), the
+// sequential-unlock wording — this client has no "every volume open" mode for the other branch to apply to.
 export const SAGA_NOTE =
-  "Win a volume on Standard to open the next. Sealed volumes keep their villains hidden. Civil War (MC56) is competitive only — no campaign.";
+  "Win a volume on Standard to open the next. Finished volumes can be reread or started again. Civil War (MC56) is competitive only, so it has no campaign.";
 
 /** Every box's story, by `Campaign.id`. Adding a box's story is one entry. */
 const STORIES: Readonly<Record<string, CampaignStory>> = { [TRORS_STORY.campaignId]: TRORS_STORY };

@@ -1,33 +1,38 @@
 /**
- * C00b — The Saga: the campaign shelf. One featured volume (art, status, its own CTA) plus a grid — desktop/tablet
- * — or a scrolling list — phone — of every other box in release order (`SAGA_VOLUMES`).
+ * C00b — The Saga: the campaign shelf. One featured volume (art, status, its own CTA) plus a 3×3 "ALL VOLUMES"
+ * grid — desktop/tablet — or a scrolling list — phone — of all nine boxes in release order (`SAGA_VOLUMES`).
+ *
+ * Matches the current design canvas (`Marvel Champions game screens/Campaign - *.dc.html`'s `saga()`): the grid
+ * includes the featured volume itself (its own tile, ringed red), not just what's "next"; status drives every
+ * chip's colour (done green, live red, fresh yellow, sealed an outline); a sealed tile dims under a dark scrim.
  *
  * All data — status, unlock, pips, roster names — comes from `view/campaign-saga-model.ts`; this scene only lays
  * it out and wires taps. Tapping any volume (grid tile, phone row) re-features it; nothing here computes legality
  * or unlock itself.
  */
 import Phaser from "phaser";
+import { CAMPAIGN_RECORDS } from "../../campaign/campaign-service.js";
 import { CARDS_BY_ID } from "../../content/pool.js";
-import { accent, ink, signal, surface, typeRole } from "../../tokens.js";
+import { ink, signal, surface, typeRole } from "../../tokens.js";
 import {
   bangers,
   campaignFrame,
   drawActionBar,
-  drawTopBar,
   drawPicture,
+  drawTopBar,
   issuePips,
   villainPicture,
 } from "../../ui/campaign-chrome.js";
-import { campaignActionButton, campaignTile } from "../../ui/campaign-buttons-a.js";
+import { campaignActionButton, campaignTile, type CampaignTileStatus } from "../../ui/campaign-buttons-a.js";
 import { destroyChildren } from "../../ui/destroy-children.js";
 import { cssOf, textStyle } from "../../ui/theme.js";
 import { McVirtualList } from "../../ui/virtual-list.js";
-import { dashedRect } from "../../ui/widgets.js";
 import { fadeScreenIn, goToScreen } from "../../ui/transitions.js";
 import { campaignService } from "../../session.js";
 import {
   campaignSagaRows,
   defaultFeaturedVolume,
+  doneVolumeCount,
   openVolumeCount,
   type SagaVolumeRow,
 } from "../../view/campaign-saga-model.js";
@@ -40,6 +45,10 @@ import type { CampaignSagaData } from "./routes.js";
 
 const identityNameOf = (id: string): string => CARDS_BY_ID.get(id)?.name ?? id;
 
+/** A box's own final scenario (its `Campaign.scenarioIds`' last entry) — the villain art `villainPicture` keys on. */
+const finalScenarioIdOf = (campaignId: string): string =>
+  (CAMPAIGN_RECORDS[campaignId]?.scenarioIds.at(-1) as string | undefined) ?? campaignId;
+
 export class CampaignSagaScene extends Phaser.Scene {
   #route: FocusRoute | null = null;
   #stops = new Map<string, FocusStop>();
@@ -47,6 +56,7 @@ export class CampaignSagaScene extends Phaser.Scene {
   #featured = 1;
   #confirmAbandon = false;
   #listScroll = new ListScroll();
+  #phoneList: McVirtualList | null = null;
 
   constructor() {
     super(SCENES.campaignSaga);
@@ -56,10 +66,15 @@ export class CampaignSagaScene extends Phaser.Scene {
     this.cameras.main.setBackgroundColor(cssOf(surface.paper.hex));
     this.scale.on("resize", this.#rebuild, this);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.scale.off("resize", this.#rebuild, this));
-    this.#route = new FocusRoute(this, { onCancel: () => goToScreen(this, SCENES.title) });
+    this.#route = new FocusRoute(this, {
+      onCancel: () => goToScreen(this, SCENES.title),
+      onPage: (direction) => this.#phoneList?.scrollByPage(direction),
+      onHomeEnd: (edge) => (edge === "home" ? this.#phoneList?.scrollToStart() : this.#phoneList?.scrollToEnd()),
+    });
     this.#rows = [];
     this.#confirmAbandon = false;
     this.#listScroll.reset();
+    this.#phoneList = null;
     void this.#load();
     fadeScreenIn(this);
   }
@@ -73,6 +88,8 @@ export class CampaignSagaScene extends Phaser.Scene {
   }
 
   #rebuild(): void {
+    this.#phoneList?.destroy();
+    this.#phoneList = null;
     destroyChildren(this);
     this.#stops = new Map();
     if (this.#rows.length === 0) return;
@@ -82,16 +99,14 @@ export class CampaignSagaScene extends Phaser.Scene {
       backLabel: frame.phone ? "◂" : "◂ Title",
       onBack: () => goToScreen(this, SCENES.title),
       title: "The saga",
-      right: `${openVolumeCount(this.#rows)} OF 9 OPEN`,
+      right: `${doneVolumeCount(this.#rows)} OF 9 COMPLETE · ${openVolumeCount(this.#rows)} OPEN`,
     });
     if (top.backRect) this.#stops.set("back", { rect: top.backRect, activate: () => goToScreen(this, SCENES.title) });
 
     const row = this.#rows.find((r) => r.volume.number === this.#featured) ?? this.#rows[0]!;
-    const others = this.#rows.filter((r) => r.volume.number !== row.volume.number);
-    const firstSealedNumber = this.#rows.find((r) => r.status === "sealed")?.volume.number ?? null;
 
-    if (frame.phone) this.#drawPhone(frame, top.height, row, others, firstSealedNumber);
-    else this.#drawWide(frame, top.height, row, others, firstSealedNumber);
+    if (frame.phone) this.#drawPhone(frame, top.height, row);
+    else this.#drawWide(frame, top.height, row);
 
     const order = ["back", ...[...this.#stops.keys()].filter((k) => k !== "back")];
     this.#route?.set(order, this.#stops);
@@ -104,17 +119,11 @@ export class CampaignSagaScene extends Phaser.Scene {
     this.#rebuild();
   }
 
-  // ---- Wide (desktop/tablet): featured card left, grid right --------------------------------------------------
+  // ---- Wide (desktop/tablet): featured card left, 3×3 "ALL VOLUMES" grid right ----------------------------------
 
-  #drawWide(
-    frame: ReturnType<typeof campaignFrame>,
-    topHeight: number,
-    row: SagaVolumeRow,
-    others: readonly SagaVolumeRow[],
-    firstSealedNumber: number | null,
-  ): void {
+  #drawWide(frame: ReturnType<typeof campaignFrame>, topHeight: number, row: SagaVolumeRow): void {
     const gutter = frame.gutter;
-    const cardWidth = Math.min(524, frame.width * 0.37);
+    const cardWidth = Math.round(((frame.width - gutter * 3) * 1) / 2.6);
     const cardRect: Rect = {
       x: gutter,
       y: topHeight + gutter,
@@ -127,17 +136,18 @@ export class CampaignSagaScene extends Phaser.Scene {
     const gridWidth = frame.width - gridX - gutter;
     let y = topHeight + gutter;
     this.add
-      .text(gridX, y, "NEXT IN THE SAGA", textStyle({ ...typeRole.barTitle, size: 15 }, surface.ink.hex))
-      .setLetterSpacing(1);
-    this.add.rectangle(gridX + 190, y + 9, gridWidth - 190, 2, surface.ink.hex).setOrigin(0, 0.5);
-    y += 26;
+      .text(gridX, y, "ALL VOLUMES", textStyle({ ...typeRole.barTitle, size: 18 }, surface.ink.hex))
+      .setLetterSpacing(0.6);
+    this.add.rectangle(gridX + 150, y + 11, gridWidth - 150, 3, surface.ink.hex).setOrigin(0, 0.5);
+    y += 32;
 
-    const cols = 4;
-    const gap = 16;
+    const cols = 3;
+    const rows = 3;
+    const gap = 14;
     const tileWidth = (gridWidth - gap * (cols - 1)) / cols;
-    const rows = Math.ceil(others.length / cols);
-    const tileHeight = Math.min(210, (frame.height - y - gutter - gap * (rows - 1)) / rows);
-    others.forEach((tileRow, index) => {
+    const footnoteHeight = 34;
+    const tileHeight = (frame.height - y - gutter - gap * (rows - 1) - footnoteHeight) / rows;
+    this.#rows.forEach((tileRow, index) => {
       const col = index % cols;
       const line = Math.floor(index / cols);
       const rect: Rect = {
@@ -146,68 +156,79 @@ export class CampaignSagaScene extends Phaser.Scene {
         width: tileWidth,
         height: tileHeight,
       };
-      const highlighted = tileRow.status === "sealed" && tileRow.volume.number === firstSealedNumber;
-      const chip =
-        tileRow.status === "sealed" ? (highlighted ? (tileRow.lockReason ?? "SEALED") : "SEALED") : tileRow.status;
-      const { objects, zone } = campaignTile(this, {
-        rect,
-        eyebrow: tileRow.volume.boxCode,
-        title: `Vol. ${tileRow.volume.number}`,
-        subtitle: tileRow.volume.name,
-        chip,
-        highlighted,
-        onClick: () => this.#feature(tileRow.volume.number),
-      });
-      void objects;
-      this.#stops.set(`vol-${tileRow.volume.number}`, {
-        rect,
-        activate: () => this.#feature(tileRow.volume.number),
-      });
-      void zone;
+      this.#drawGridTile(tileRow, rect);
     });
 
-    const footnoteY = y + rows * tileHeight + (rows - 1) * gap + 14;
+    const footnoteY = y + rows * tileHeight + (rows - 1) * gap + 12;
     this.add.text(gridX, footnoteY, SAGA_NOTE, {
       ...textStyle(typeRole.label, surface.ink.hex, ink.meta),
       wordWrap: { width: gridWidth, useAdvancedWrap: true },
     });
   }
 
-  // ---- Phone: featured card, then a scrolling list, then a bottom CTA -------------------------------------------
+  #drawGridTile(tileRow: SagaVolumeRow, rect: Rect): void {
+    const art = villainPicture(finalScenarioIdOf(tileRow.volume.campaignId));
+    const { objects, zone } = campaignTile(this, {
+      rect,
+      eyebrow: tileRow.volume.boxCode,
+      title: `Vol. ${tileRow.volume.number}`,
+      subtitle: tileRow.volume.name,
+      chip: this.#gridChip(tileRow),
+      status: tileRow.status,
+      art,
+      onArtReady: () => this.#rebuild(),
+      selected: tileRow.volume.number === this.#featured,
+      onClick: () => this.#feature(tileRow.volume.number),
+    });
+    void objects;
+    void zone;
+    this.#stops.set(`vol-${tileRow.volume.number}`, { rect, activate: () => this.#feature(tileRow.volume.number) });
+  }
 
-  #drawPhone(
-    frame: ReturnType<typeof campaignFrame>,
-    topHeight: number,
-    row: SagaVolumeRow,
-    others: readonly SagaVolumeRow[],
-    firstSealedNumber: number | null,
-  ): void {
+  /** The grid tile's own status chip — the honest "not in this build yet" only when it's what's actually true. */
+  #gridChip(row: SagaVolumeRow): string {
+    switch (row.status) {
+      case "done":
+        return "✓ Complete";
+      case "live":
+        return row.issueNumber !== null ? `Issue ${row.issueNumber} of ${row.totalIssues}` : "In progress";
+      case "fresh":
+        return "Open";
+      case "sealed":
+      default:
+        return row.lockReason ?? "Sealed";
+    }
+  }
+
+  // ---- Phone: featured card, then a scrolling "ALL VOLUMES" list, then a bottom CTA -----------------------------
+
+  #drawPhone(frame: ReturnType<typeof campaignFrame>, topHeight: number, row: SagaVolumeRow): void {
     const gutter = frame.gutter;
-    const cardHeight = Math.min(340, frame.height * 0.42);
+    const cardHeight = Math.min(400, frame.height * 0.46);
     const cardRect: Rect = { x: gutter, y: topHeight + gutter, width: frame.width - gutter * 2, height: cardHeight };
     this.#drawFeaturedCard(cardRect, row, true);
 
     let y = cardRect.y + cardRect.height + 18;
     this.add
-      .text(gutter, y, "NEXT IN THE SAGA", textStyle({ ...typeRole.barTitle, size: 13 }, surface.ink.hex))
-      .setLetterSpacing(1);
-    this.add.rectangle(gutter + 150, y + 8, frame.width - gutter * 2 - 150, 2, surface.ink.hex).setOrigin(0, 0.5);
+      .text(gutter, y, "ALL VOLUMES", textStyle({ ...typeRole.barTitle, size: 14 }, surface.ink.hex))
+      .setLetterSpacing(0.6);
+    this.add.rectangle(gutter + 110, y + 9, frame.width - gutter * 2 - 110, 3, surface.ink.hex).setOrigin(0, 0.5);
     y += 24;
 
     const actionBar = drawActionBar(this);
     const listRect: Rect = { x: gutter, y, width: frame.width - gutter * 2, height: actionBar.y - y - 10 };
     const rowHeight = 58;
-    new McVirtualList(this, {
+    this.#phoneList = new McVirtualList(this, {
       rect: listRect,
       rowHeight,
-      count: others.length,
+      count: this.#rows.length,
       scroll: this.#listScroll,
       background: false,
-      renderRow: (index, rect) => this.#drawPhoneVolumeRow(others[index]!, rect, firstSealedNumber),
-      onRowActivate: (index) => this.#feature(others[index]!.volume.number),
+      renderRow: (index, rect) => this.#drawPhoneVolumeRow(this.#rows[index]!, rect),
+      onRowActivate: (index) => this.#feature(this.#rows[index]!.volume.number),
     });
 
-    const ctaRect = {
+    const ctaRect: Rect = {
       x: actionBar.x + 12,
       y: actionBar.y + 9,
       width: actionBar.width - 24,
@@ -227,90 +248,149 @@ export class CampaignSagaScene extends Phaser.Scene {
     this.#stops.set("cta", { rect: ctaRect, activate: cta.onClick });
   }
 
-  #drawPhoneVolumeRow(row: SagaVolumeRow, rect: Rect, firstSealedNumber: number | null) {
+  #drawPhoneVolumeRow(row: SagaVolumeRow, rect: Rect): { objects: readonly Phaser.GameObjects.GameObject[] } {
     const objects: Phaser.GameObjects.GameObject[] = [];
-    const highlighted = row.status === "sealed" && row.volume.number === firstSealedNumber;
+    const rowRect: Rect = { x: rect.x, y: rect.y, width: rect.width, height: rect.height - 6 };
     const g = this.add.graphics();
-    g.fillStyle(surface.parchment.hex, 1).fillRect(rect.x, rect.y, rect.width, rect.height - 6);
-    if (highlighted) {
-      const border = this.add.graphics();
-      dashedRect(border, { x: rect.x, y: rect.y, width: rect.width, height: rect.height - 6 }, 2, accent.heroRed.hex);
-      objects.push(border);
-    } else {
-      g.lineStyle(1.5, surface.ink.hex, 1).strokeRect(rect.x, rect.y, rect.width, rect.height - 6);
-    }
+    g.fillStyle(surface.parchment.hex, 1).fillRect(rowRect.x, rowRect.y, rowRect.width, rowRect.height);
+    g.lineStyle(3, surface.ink.hex, 1).strokeRect(
+      rowRect.x + 1.5,
+      rowRect.y + 1.5,
+      rowRect.width - 3,
+      rowRect.height - 3,
+    );
     objects.push(g);
 
-    const blockW = 46;
+    const blockW = 58;
     const numberBg = this.add.graphics();
-    numberBg.fillStyle(surface.ink.hex, 1).fillRect(rect.x, rect.y, blockW, rect.height - 6);
+    numberBg.fillStyle(surface.ink.hex, 1).fillRect(rowRect.x, rowRect.y, blockW, rowRect.height);
     objects.push(numberBg);
     const number = this.add
-      .text(rect.x + blockW / 2, rect.y + (rect.height - 6) / 2, `VOL.\n${row.volume.number}`, {
-        ...textStyle(bangers(13, 1), surface.paper.hex),
+      .text(rowRect.x + blockW / 2, rowRect.y + rowRect.height / 2, `VOL.\n${row.volume.number}`, {
+        ...textStyle(bangers(15, 1), surface.paper.hex),
         align: "center",
       })
       .setOrigin(0.5, 0.5);
     objects.push(number);
 
-    const name = this.add.text(rect.x + blockW + 12, rect.y + 8, row.volume.name.toUpperCase(), {
-      ...textStyle(bangers(15, 1), surface.ink.hex),
-      wordWrap: { width: rect.width - blockW - 24, useAdvancedWrap: true },
+    const name = this.add.text(rowRect.x + blockW + 10, rowRect.y + 6, row.volume.name.toUpperCase(), {
+      ...textStyle(bangers(16, 1), surface.ink.hex),
+      wordWrap: { width: rowRect.width - blockW - 24, useAdvancedWrap: true },
     });
     objects.push(name);
-    const meta =
-      row.status === "sealed" ? (row.lockReason ?? "Sealed") : row.status === "done" ? "Won" : row.status.toUpperCase();
-    const metaText = this.add.text(
-      rect.x + blockW + 12,
-      rect.y + rect.height - 26,
-      `${row.volume.boxCode} · ${meta}`,
-      textStyle(typeRole.label, surface.ink.hex, ink.meta),
-    );
-    objects.push(metaText);
+    const meta = this.add.text(rowRect.x + blockW + 10, rowRect.y + rowRect.height - 18, row.volume.boxCode, {
+      ...textStyle(typeRole.label, surface.ink.hex, ink.meta),
+      fontSize: "9px",
+    });
+    objects.push(meta);
+
+    const chip = this.#gridChip(row);
+    const chipColors: Readonly<Record<CampaignTileStatus, { fill: number | null; text: number }>> = {
+      done: { fill: signal.heal.hex, text: surface.paper.hex },
+      live: { fill: 0xc8102e, text: surface.paper.hex },
+      fresh: { fill: signal.caution.hex, text: surface.ink.hex },
+      sealed: { fill: null, text: surface.ink.hex },
+    };
+    const colors = chipColors[row.status];
+    const chipLabel = this.add
+      .text(0, 0, chip.toUpperCase(), textStyle(typeRole.label, colors.text, 1))
+      .setLetterSpacing(0.6)
+      .setFontSize(9);
+    const chipRect: Rect = {
+      x: rowRect.x + rowRect.width - 10 - chipLabel.width - 12,
+      y: rowRect.y + rowRect.height / 2 - 10,
+      width: chipLabel.width + 12,
+      height: 20,
+    };
+    const chipBg = this.add.graphics();
+    if (colors.fill !== null)
+      chipBg.fillStyle(colors.fill, 1).fillRect(chipRect.x, chipRect.y, chipRect.width, chipRect.height);
+    else
+      chipBg
+        .lineStyle(1.5, surface.ink.hex, 0.45)
+        .strokeRect(chipRect.x + 0.75, chipRect.y + 0.75, chipRect.width - 1.5, chipRect.height - 1.5);
+    chipLabel.setPosition(chipRect.x + 6, chipRect.y + chipRect.height / 2).setOrigin(0, 0.5);
+    objects.push(chipBg, chipLabel);
+
+    if (row.status === "sealed") {
+      const dim = this.add
+        .rectangle(rowRect.x, rowRect.y, rowRect.width, rowRect.height, surface.paper.hex, 0.45)
+        .setOrigin(0, 0);
+      objects.push(dim);
+    }
+    if (row.volume.number === this.#featured) {
+      const ring = this.add.graphics();
+      ring.lineStyle(3, 0xc8102e, 1).strokeRect(rowRect.x, rowRect.y, rowRect.width, rowRect.height);
+      objects.push(ring);
+    }
     return { objects };
   }
 
-  // ---- The featured card: art (or a glyph), status line, name, pips, roster line, CTA ---------------------------
+  // ---- The featured card: art (or a glyph), status line, name, pips, sub, CTA, alt row --------------------------
 
   #drawFeaturedCard(rect: Rect, row: SagaVolumeRow, phone: boolean): void {
     const border = this.add.graphics();
-    border.lineStyle(3, accent.heroRed.hex, 1).strokeRect(rect.x + 1.5, rect.y + 1.5, rect.width - 3, rect.height - 3);
-    const footerHeight = Math.min(rect.height * 0.42, phone ? 148 : 250);
-    const artRect: Rect = { x: rect.x, y: rect.y, width: rect.width, height: rect.height - footerHeight };
-    const footerRect: Rect = { x: rect.x, y: rect.y + artRect.height, width: rect.width, height: footerHeight };
+    border.lineStyle(6, 0xc8102e, 1).strokeRect(rect.x, rect.y, rect.width, rect.height);
+    border.lineStyle(3, surface.ink.hex, 1).strokeRect(rect.x + 3, rect.y + 3, rect.width - 6, rect.height - 6);
+    const copy = this.#featuredCopy(row);
+    const footerHeight = Math.min(rect.height * 0.5, phone ? 210 : 270);
+    const artRect: Rect = {
+      x: rect.x + 3,
+      y: rect.y + 3,
+      width: rect.width - 6,
+      height: rect.height - 6 - footerHeight,
+    };
+    const footerRect: Rect = {
+      x: rect.x + 3,
+      y: artRect.y + artRect.height,
+      width: rect.width - 6,
+      height: footerHeight,
+    };
 
     this.#drawFeaturedArt(artRect, row);
 
     // "VOL. N" tab
-    const tab = this.add
-      .text(0, 0, `VOL. ${row.volume.number}`, textStyle(bangers(18, 1), surface.ink.hex))
-      .setPosition(rect.x + 22, rect.y + 22);
+    const tab = this.add.text(0, 0, `VOL. ${row.volume.number}`, textStyle(bangers(18, 1), surface.ink.hex));
     const tabBg = this.add.graphics();
-    tabBg.fillStyle(signal.caution.hex, 1).fillRect(rect.x + 12, rect.y + 12, tab.width + 20, tab.height + 12);
-    tab.setPosition(rect.x + 22, rect.y + 18);
+    tabBg.fillStyle(signal.caution.hex, 1).fillRect(artRect.x, artRect.y, tab.width + 20, tab.height + 12);
+    tab.setPosition(artRect.x + 10, artRect.y + 6);
     this.children.bringToTop(tab);
+    if (row.status === "done") {
+      const stamp = this.add
+        .text(0, 0, "COMPLETE", textStyle(bangers(phone ? 18 : 26, 1), signal.heal.hex))
+        .setRotation(0.14);
+      const stampBg = this.add.graphics();
+      stampBg
+        .fillStyle(surface.card.hex, 0.94)
+        .fillRoundedRect(-stamp.width / 2 - 10, -stamp.height / 2 - 4, stamp.width + 20, stamp.height + 8, 4);
+      stampBg
+        .lineStyle(4, signal.heal.hex, 1)
+        .strokeRoundedRect(-stamp.width / 2 - 10, -stamp.height / 2 - 4, stamp.width + 20, stamp.height + 8, 4);
+      const stampContainer = this.add.container(artRect.x + artRect.width - 60, artRect.y + 34, [stampBg, stamp]);
+      stampContainer.setRotation(0.14);
+      stamp.setPosition(-stamp.width / 2, -stamp.height / 2);
+      stampBg.setPosition(0, 0);
+    }
 
     const footerBg = this.add.graphics();
     footerBg.fillStyle(surface.ink.hex, 1).fillRect(footerRect.x, footerRect.y, footerRect.width, footerRect.height);
 
-    let y = footerRect.y + 14;
-    const statusText =
-      row.status === "live"
-        ? `IN PROGRESS · ${row.volume.boxCode}`
-        : row.status === "done"
-          ? `COMPLETE · ${row.volume.boxCode}`
-          : row.status === "fresh"
-            ? row.volume.boxCode
-            : row.volume.boxCode;
+    const pad = phone ? 12 : 18;
+    let y = footerRect.y + (phone ? 10 : 16);
     this.add
-      .text(footerRect.x + 16, y, statusText.toUpperCase(), textStyle(typeRole.label, surface.paper.hex, ink.meta))
+      .text(
+        footerRect.x + pad,
+        y,
+        `${copy.status} · ${row.volume.boxCode}`.toUpperCase(),
+        textStyle(typeRole.label, signal.caution.hex, 1),
+      )
       .setLetterSpacing(1);
-    if (row.status === "live" && row.issueNumber !== null) {
+    if (copy.right) {
       this.add
         .text(
-          footerRect.x + footerRect.width - 16,
+          footerRect.x + footerRect.width - pad,
           y,
-          `ISSUE ${row.issueNumber} OF ${row.totalIssues}`,
+          copy.right.toUpperCase(),
           textStyle(typeRole.label, surface.paper.hex, ink.meta),
         )
         .setOrigin(1, 0)
@@ -318,75 +398,72 @@ export class CampaignSagaScene extends Phaser.Scene {
     }
     y += 18;
 
-    const name = this.add.text(footerRect.x + 16, y, row.volume.name.toUpperCase(), {
-      ...textStyle(bangers(phone ? 20 : 26, 0.88), surface.paper.hex),
-      wordWrap: { width: footerRect.width - 32, useAdvancedWrap: true },
+    const name = this.add.text(footerRect.x + pad, y, row.volume.name.toUpperCase(), {
+      ...textStyle(bangers(phone ? 28 : 44, 0.92), surface.paper.hex),
+      wordWrap: { width: footerRect.width - pad * 2, useAdvancedWrap: true },
     });
-    y += name.height + 10;
+    y += name.height + 9;
 
-    if (row.status !== "sealed" || row.hasDefinition) {
-      const pipsRect: Rect = { x: footerRect.x + 16, y, width: footerRect.width - 32, height: 8 };
+    if (copy.hasPips) {
+      const pipsRect: Rect = { x: footerRect.x + pad, y, width: footerRect.width - pad * 2, height: phone ? 7 : 8 };
       issuePips(this, pipsRect, row.pips, true);
-      y += 18;
+      y += phone ? 15 : 18;
     }
 
-    const rosterLine = row.rosterNames.length > 0 ? row.rosterNames.join(" · ") : "";
-    this.add.text(footerRect.x + 16, y, rosterLine, textStyle(typeRole.emphasis, surface.paper.hex, ink.secondary));
-    const standardMark = row.wonStandard ? "✓" : "○";
-    const expertMark = row.wonExpert ? "✓" : "○";
-    this.add
-      .text(
-        footerRect.x + footerRect.width - 16,
-        y,
-        `Standard ${standardMark} · Expert ${expertMark}`,
-        textStyle(typeRole.emphasis, surface.paper.hex, ink.secondary),
-      )
-      .setOrigin(1, 0);
-    y += 22;
-
-    // Phone draws this screen's one CTA in the bottom action bar instead (`#drawPhone`) — the card itself stops
-    // at the roster/Standard-Expert line there, matching the design's phone composition.
-    if (phone) return;
-
-    const ctaHeight = 52;
-    const ctaRect: Rect = { x: footerRect.x + 16, y, width: footerRect.width - 32, height: ctaHeight };
-    const cta = this.#ctaFor(row);
-    campaignActionButton(this, {
-      kind: "primary",
-      rect: ctaRect,
-      title: cta.label,
-      enabled: cta.enabled,
-      ...(cta.reason !== undefined ? { reason: cta.reason } : {}),
-      onClick: cta.onClick,
-      titleSize: 18,
+    const subText = this.add.text(footerRect.x + pad, y, copy.sub, {
+      ...textStyle(typeRole.emphasis, surface.paper.hex, ink.secondary),
+      fontSize: phone ? "11px" : "12px",
+      wordWrap: { width: footerRect.width - pad * 2, useAdvancedWrap: true },
     });
-    this.#stops.set("cta", { rect: ctaRect, activate: cta.onClick });
-    y += ctaHeight + 8;
+    y += subText.height + (phone ? 8 : 10);
 
-    const alt = this.#altActionsFor(row);
-    if (alt.length > 0 && y + 30 <= footerRect.y + footerRect.height) {
-      const altWidth = (footerRect.width - 32 - 8 * (alt.length - 1)) / alt.length;
-      alt.forEach((action, index) => {
-        const altRect: Rect = { x: footerRect.x + 16 + index * (altWidth + 8), y, width: altWidth, height: 26 };
+    // Phone draws this screen's one CTA in the bottom action bar instead (`#drawPhone`) — the card itself keeps
+    // going below the sub line (DOSSIER/START OVER + footnote, or nothing at all), matching the phone composition.
+    if (!phone) {
+      const ctaHeight = 58;
+      const ctaRect: Rect = { x: footerRect.x + pad, y, width: footerRect.width - pad * 2, height: ctaHeight };
+      const cta = this.#ctaFor(row);
+      campaignActionButton(this, {
+        kind: "primary",
+        rect: ctaRect,
+        title: cta.label,
+        enabled: cta.enabled,
+        ...(cta.reason !== undefined ? { reason: cta.reason } : {}),
+        onClick: cta.onClick,
+        titleSize: 21,
+      });
+      this.#stops.set("cta", { rect: ctaRect, activate: cta.onClick });
+      y += ctaHeight + 8;
+    }
+
+    if (copy.hasAlt) {
+      const altHeight = phone ? 40 : 48;
+      const altWidth = (footerRect.width - pad * 2 - 8) / 2;
+      copy.alt.forEach((action, index) => {
+        const altRect: Rect = { x: footerRect.x + pad + index * (altWidth + 8), y, width: altWidth, height: altHeight };
         campaignActionButton(this, {
           kind: "onInk",
           rect: altRect,
           title: action.label,
           enabled: action.enabled,
           onClick: action.onClick,
-          titleSize: 11,
+          titleSize: phone ? 15 : 19,
         });
         this.#stops.set(`alt-${index}`, { rect: altRect, activate: action.onClick });
       });
+      y += altHeight + 6;
+      if (copy.foot) {
+        this.add.text(footerRect.x + pad, y, copy.foot, {
+          ...textStyle(typeRole.label, surface.paper.hex, ink.meta),
+          fontSize: phone ? "9.5px" : "10.5px",
+          wordWrap: { width: footerRect.width - pad * 2, useAdvancedWrap: true },
+        });
+      }
     }
   }
 
   #drawFeaturedArt(rect: Rect, row: SagaVolumeRow): void {
-    const story = row.volume.campaignId === "trors" ? row.volume.campaignId : null;
-    void story;
-    const scenarioId = row.volume.campaignId; // MC10's own final scenario is looked up below for trors specifically.
-    const picture =
-      row.volume.campaignId === "trors" ? villainPicture("red-skull") : (villainPicture(scenarioId) ?? null);
+    const picture = villainPicture(finalScenarioIdOf(row.volume.campaignId));
     if (picture) {
       const image = drawPicture(this, picture, rect, () => this.#rebuild(), { focusY: 0.15 });
       void image;
@@ -400,6 +477,65 @@ export class CampaignSagaScene extends Phaser.Scene {
         ...textStyle(bangers(Math.min(rect.width, rect.height) * 0.5), surface.paper.hex, 0.18),
       })
       .setOrigin(0.5, 0.5);
+  }
+
+  // ---- Featured-card copy per status — pure string composition over one row, no navigation here -----------------
+
+  #featuredCopy(row: SagaVolumeRow): {
+    readonly status: string;
+    readonly right: string;
+    readonly sub: string;
+    readonly hasPips: boolean;
+    readonly hasAlt: boolean;
+    readonly alt: readonly { label: string; enabled: boolean; onClick: () => void }[];
+    readonly foot: string;
+  } {
+    const n = row.volume.number;
+    switch (row.status) {
+      case "done":
+        return {
+          status: "Complete",
+          right: `Standard ${row.wonStandard ? "✓" : "○"} · Expert ${row.wonExpert ? "✓" : "○"}`,
+          sub: `${row.rosterNames.join(" · ")} · ${row.totalIssues} issues`,
+          hasPips: true,
+          hasAlt: true,
+          alt: this.#altActionsFor(row),
+          foot: "A new run gets its own log. The finished one stays on the shelf to reread.",
+        };
+      case "live":
+        return {
+          status: "In progress",
+          right: row.issueNumber !== null ? `Issue ${row.issueNumber} of ${row.totalIssues}` : "",
+          sub: row.rosterNames.join(" · "),
+          hasPips: true,
+          hasAlt: true,
+          alt: this.#altActionsFor(row),
+          foot: "Starting over archives this run; it doesn't delete it.",
+        };
+      case "fresh":
+        return {
+          status: "Open",
+          right: "Not started",
+          sub: "Sign a new roster. Any hero can sign, including ones who finished an earlier volume.",
+          hasPips: false,
+          hasAlt: false,
+          alt: [],
+          foot: "",
+        };
+      case "sealed":
+      default:
+        return {
+          status: "Sealed",
+          right: "",
+          sub: row.lockReason
+            ? `This build doesn't ship Vol. ${n} yet.`
+            : `Win Vol. ${n - 1} on Standard to open it. Its villains stay hidden until then.`,
+          hasPips: false,
+          hasAlt: false,
+          alt: [],
+          foot: "",
+        };
+    }
   }
 
   // ---- CTA/alt-action resolution — pure decisions over one row, wired to navigation here ------------------------

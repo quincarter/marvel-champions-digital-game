@@ -2,7 +2,7 @@ import { describe, expect, test } from "vitest";
 import { CAMPAIGN_LOG_SCHEMA, type CampaignDefinition } from "@mc/engine";
 import { TRORS_CAMPAIGN_DEFINITION } from "@mc/cards";
 import type { CampaignSummary } from "../engine/campaign-storage.js";
-import { campaignSagaRows, defaultFeaturedVolume, openVolumeCount } from "./campaign-saga-model.js";
+import { campaignSagaRows, defaultFeaturedVolume, doneVolumeCount, openVolumeCount } from "./campaign-saga-model.js";
 
 const trorsSummary = (overrides: Partial<CampaignSummary> = {}): CampaignSummary => ({
   id: "c1",
@@ -41,8 +41,8 @@ describe("campaignSagaRows", () => {
       expect(row.status).toBe("sealed");
       expect(row.unlocked).toBe(false);
     }
-    // Vol. 2 has no `CampaignDefinition` in this build yet, so it says so honestly rather than "win Vol. 1".
-    expect(rows[1]!.lockReason).toBe("Not in this build yet");
+    // Vol. 2 isn't unlocked yet either way, so the generic "Sealed" chip covers it — no need to say more.
+    expect(rows[1]!.lockReason).toBeNull();
   });
 
   test("an active run reads live, with issue number and pips from the real graph", () => {
@@ -63,6 +63,7 @@ describe("campaignSagaRows", () => {
     expect(rows[0]!.pips).toEqual(["done", "done", "done", "done", "done"]);
     // Vol. 2's unlock rule is satisfied, but honesty about content wins: still "not in this build yet".
     expect(rows[1]).toMatchObject({ status: "sealed", unlocked: true, lockReason: "Not in this build yet" });
+    expect(doneVolumeCount(rows)).toBe(1);
   });
 
   test("a won-on-expert run does not itself open the next volume — only Standard does", () => {
@@ -75,7 +76,7 @@ describe("campaignSagaRows", () => {
     const rows = campaignSagaRows([won], { definitionOf: lookup, identityNameOf: nameOf });
     expect(rows[0]).toMatchObject({ wonStandard: false, wonExpert: true });
     expect(rows[1]!.unlocked).toBe(false);
-    expect(rows[1]!.lockReason).toBe("Not in this build yet");
+    expect(rows[1]!.lockReason).toBeNull();
   });
 
   test("an incompatible active run is not resumable", () => {
@@ -94,6 +95,8 @@ describe("campaignSagaRows", () => {
   });
 
   test("openVolumeCount is 1 with nothing played, in a build with only MC10", () => {
-    expect(openVolumeCount(campaignSagaRows([], { definitionOf: lookup, identityNameOf: nameOf }))).toBe(1);
+    const rows = campaignSagaRows([], { definitionOf: lookup, identityNameOf: nameOf });
+    expect(openVolumeCount(rows)).toBe(1);
+    expect(doneVolumeCount(rows)).toBe(0);
   });
 });

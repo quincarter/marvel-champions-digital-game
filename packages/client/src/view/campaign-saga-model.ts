@@ -39,7 +39,11 @@ export interface SagaVolumeRow {
   readonly totalIssues: number;
   readonly pips: readonly PipState[];
   readonly rosterNames: readonly string[];
-  /** Why the CTA is disabled when `status` is "sealed": "Not in this build yet" or "Win Vol. N to open". */
+  /**
+   * Set only for the honest case: the unlock rule would open this volume (the previous one is won on Standard) but
+   * this build has no `CampaignDefinition` for it yet. The tile's own generic "Sealed" chip covers every other
+   * sealed volume — a still-locked one says so through `unlocked`, not through a stored reason string.
+   */
   readonly lockReason: string | null;
 }
 
@@ -99,7 +103,7 @@ export function campaignSagaRows(
       status = "fresh";
     } else {
       status = "sealed";
-      lockReason = !hasDefinition ? "Not in this build yet" : `WIN VOL. ${volume.number - 1} TO OPEN`;
+      if (unlocked && !hasDefinition) lockReason = "Not in this build yet";
     }
 
     const total = totalIssuesOf(definition);
@@ -154,9 +158,14 @@ export function defaultFeaturedVolume(rows: readonly SagaVolumeRow[]): number {
   );
 }
 
-/** How many volumes are open (playable right now) — the "N OF 9 OPEN" label. */
+/** How many volumes are open (playable right now) — half of the "N OF 9 COMPLETE · N OPEN" header label. */
 export function openVolumeCount(rows: readonly SagaVolumeRow[]): number {
   return rows.filter((r) => r.status !== "sealed").length;
+}
+
+/** How many volumes are won — the other half of the header label. */
+export function doneVolumeCount(rows: readonly SagaVolumeRow[]): number {
+  return rows.filter((r) => r.status === "done").length;
 }
 
 /** Has any run of `campaignId` been won on Standard — the Cover screen's "Expert Campaign" unlock (MC10 p. 17). */

@@ -13,7 +13,7 @@ import { bangers, campaignFrame, drawPicture, issuePips, villainPicture } from "
 import { campaignActionButton } from "../../ui/campaign-buttons-a.js";
 import { destroyChildren } from "../../ui/destroy-children.js";
 import { cssOf, textStyle } from "../../ui/theme.js";
-import { McButton } from "../../ui/widgets.js";
+import { fitText, McButton } from "../../ui/widgets.js";
 import { fadeScreenIn, goToScreen } from "../../ui/transitions.js";
 import { campaignService } from "../../session.js";
 import { coverModelOf, type CoverModel } from "../../view/campaign-cover-model.js";
@@ -100,16 +100,20 @@ export class CampaignCoverScene extends Phaser.Scene {
     this.#stops.set("back", { rect, activate: () => this.#back() });
   }
 
+  /** The tilted yellow "A STORY IN FIVE ISSUES" tag — rotated about its own centre, not the world origin, so a
+   * small angle reads as a local tilt in place rather than shifting the whole tag toward (0,0). */
   #drawTag(x: number, bottomY: number): void {
     const label = this.add
       .text(0, 0, "A story in five issues", textStyle({ ...typeRole.emphasis, size: 12 }, surface.ink.hex))
-      .setLetterSpacing(0.5);
-    const rect: Rect = { x, y: bottomY - 26, width: label.width + 20, height: 26 };
+      .setLetterSpacing(0.5)
+      .setOrigin(0, 0);
+    const width = label.width + 20;
+    const height = 26;
     const bg = this.add.graphics();
-    bg.fillStyle(0xf2b01e, 1).fillRect(rect.x, rect.y, rect.width, rect.height);
-    label.setPosition(rect.x + 10, rect.y + 6);
-    this.children.bringToTop(label);
-    this.add.container(0, 0, [bg, label]).setRotation(-0.035);
+    bg.fillStyle(0xf2b01e, 1).fillRect(-width / 2, -height / 2, width, height);
+    label.setPosition(-width / 2 + 10, -height / 2 + 6);
+    const container = this.add.container(x + width / 2, bottomY - height / 2, [bg, label]);
+    container.setRotation(-0.04);
   }
 
   // ---- Wide (desktop/tablet): art left, ink panel right ---------------------------------------------------------
@@ -137,11 +141,14 @@ export class CampaignCoverScene extends Phaser.Scene {
     chipLabel.setPosition(chipRect.x + 10, chipRect.y + 6);
     y += 54;
 
-    const title = this.add.text(panelRect.x + pad, y, model.name.toUpperCase(), {
-      ...textStyle(bangers(48, 0.86), surface.paper.hex),
-      wordWrap: { width: panelRect.width - pad * 2, useAdvancedWrap: true },
-    });
-    y += title.height + 18;
+    const titleHeight = this.#drawBalancedTitle(
+      panelRect.x + pad,
+      y,
+      panelRect.width - pad * 2,
+      frame.height * 0.45,
+      model.name,
+    );
+    y += titleHeight + 18;
 
     this.add.text(panelRect.x + pad, y, model.blurb, {
       ...textStyle(typeRole.body, surface.paper.hex, ink.secondary),
@@ -159,7 +166,7 @@ export class CampaignCoverScene extends Phaser.Scene {
     const artRect: Rect = { x: 0, y: 0, width: frame.width, height: artHeight };
     this.#drawArt(artRect, model);
     const scrim = this.add.graphics();
-    scrim.fillStyle(surface.ink.hex, 0.55).fillRect(artRect.x, artRect.y + artRect.height - 120, artRect.width, 120);
+    scrim.fillStyle(surface.ink.hex, 0.6).fillRect(artRect.x, artRect.y + artRect.height - 160, artRect.width, 160);
     void scrim;
     this.#drawBack(16, 16);
 
@@ -173,12 +180,8 @@ export class CampaignCoverScene extends Phaser.Scene {
       .strokeRect(chipRect.x + 0.5, chipRect.y + 0.5, chipRect.width - 1, chipRect.height - 1);
     chip.setPosition(chipRect.x + 10, chipRect.y + 6);
 
-    this.#drawTag(16, artHeight - 46);
-    const title = this.add.text(16, artHeight - 16, model.name.toUpperCase(), {
-      ...textStyle(bangers(26, 0.86), surface.paper.hex),
-      wordWrap: { width: frame.width - 32, useAdvancedWrap: true },
-    });
-    title.setY(artHeight - 16 - title.height);
+    const titleHeight = this.#drawBalancedTitle(16, artHeight - 14, frame.width - 32, 100, model.name, "bottom");
+    this.#drawTag(16, artHeight - 14 - titleHeight - 8);
 
     const panelRect: Rect = { x: 0, y: artHeight, width: frame.width, height: frame.height - artHeight };
     this.add.rectangle(panelRect.x, panelRect.y, panelRect.width, panelRect.height, surface.ink.hex).setOrigin(0, 0);
@@ -192,6 +195,50 @@ export class CampaignCoverScene extends Phaser.Scene {
     void blurb;
 
     this.#drawBottomBlock(panelRect, pad, model);
+  }
+
+  /**
+   * The huge two-line Bangers title ("THE RISE / OF RED SKULL"): split the box name into two roughly-balanced
+   * lines by word count, then size both to fit — big enough to nearly fill the space given it (the tile draws it
+   * at ~45% of the panel's own height on desktop; over the art's bottom edge on phone), never past the given
+   * width. `anchor: "bottom"` reads `y` as where the block's own bottom edge should land (the phone composition,
+   * where the title sits just above the blurb rather than growing down from a fixed top). Returns the block's
+   * total height.
+   */
+  #drawBalancedTitle(
+    x: number,
+    y: number,
+    maxWidth: number,
+    maxHeight: number,
+    name: string,
+    anchor: "top" | "bottom" = "top",
+  ): number {
+    const [line1, line2] = balancedTwoLines(name);
+    const lineHeight = 0.86;
+    const startSize = Math.min(96, maxHeight / (line2 ? 2 * lineHeight : lineHeight));
+    const first = this.add.text(
+      x,
+      0,
+      line1.toUpperCase(),
+      textStyle(bangers(startSize, lineHeight), surface.paper.hex),
+    );
+    fitText(first, maxWidth, startSize);
+    let size = Number.parseFloat(String(first.style.fontSize));
+    let second: Phaser.GameObjects.Text | null = null;
+    if (line2) {
+      second = this.add.text(x, 0, line2.toUpperCase(), textStyle(bangers(size, lineHeight), surface.paper.hex));
+      fitText(second, maxWidth, size);
+      const secondSize = Number.parseFloat(String(second.style.fontSize));
+      if (secondSize < size) {
+        size = secondSize;
+        first.setFontSize(size);
+      }
+    }
+    const total = first.height + (second?.height ?? 0);
+    const top = anchor === "bottom" ? y - total : y;
+    first.setY(top);
+    second?.setY(top + first.height);
+    return total;
   }
 
   #drawArt(rect: Rect, model: CoverModel): void {
@@ -236,26 +283,28 @@ export class CampaignCoverScene extends Phaser.Scene {
       const dossierRect: Rect = { x, y, width: halfWidth, height: 64 };
       const issuesRect: Rect = { x: x + halfWidth + 12, y, width: halfWidth, height: 64 };
       campaignActionButton(this, {
-        kind: "secondary",
+        kind: "onInk",
         rect: dossierRect,
         title: "Dossier ▸",
         subtitle: "Campaign log · heroes & world",
+        subtitleStyle: "label",
         enabled: model.canOpenDossier,
         onClick: () => goToScreen(this, SCENES.campaignDossier, { runId: this.#runId }),
-        titleSize: 15,
+        titleSize: 20,
       });
       this.#stops.set("dossier", {
         rect: dossierRect,
         activate: () => goToScreen(this, SCENES.campaignDossier, { runId: this.#runId }),
       });
       campaignActionButton(this, {
-        kind: "secondary",
+        kind: "onInk",
         rect: issuesRect,
         title: "Issues ▸",
         subtitle: "All 5 issues · reread",
+        subtitleStyle: "label",
         enabled: model.canOpenRun,
         onClick: () => goToScreen(this, SCENES.campaignRun, { runId: this.#runId }),
-        titleSize: 15,
+        titleSize: 20,
       });
       this.#stops.set("issues", {
         rect: issuesRect,
@@ -331,4 +380,20 @@ export class CampaignCoverScene extends Phaser.Scene {
     }
     return { title: "Campaign over", enabled: false, onClick: () => {} };
   }
+}
+
+/** A box name split into two roughly-balanced lines by word count ("The Rise of Red Skull" → "THE RISE" / "OF RED
+ * SKULL") — tries every split point and keeps whichever leaves the two lines closest in length. A one-word name
+ * (or an empty one) returns an empty second line. */
+function balancedTwoLines(name: string): readonly [string, string] {
+  const words = name.trim().split(/\s+/).filter(Boolean);
+  if (words.length <= 1) return [name, ""];
+  let best = { at: 1, score: Number.POSITIVE_INFINITY };
+  for (let at = 1; at < words.length; at++) {
+    const a = words.slice(0, at).join(" ");
+    const b = words.slice(at).join(" ");
+    const score = Math.abs(a.length - b.length);
+    if (score < best.score) best = { at, score };
+  }
+  return [words.slice(0, best.at).join(" "), words.slice(best.at).join(" ")];
 }
