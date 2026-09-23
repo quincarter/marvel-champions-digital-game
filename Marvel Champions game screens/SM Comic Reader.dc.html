@@ -1,0 +1,725 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="design_doc_mode" content="canvas" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="" />
+<link href="https://fonts.googleapis.com/css2?family=Bangers&family=Public+Sans:ital,wght@0,400;0,600;0,700;0,800;1,400;1,800&display=swap" rel="stylesheet" />
+<style>
+html,body{margin:0;padding:0;background:#0E0C0A;}
+a{color:#F2B01E;text-decoration:none;}
+a:hover{color:#F4EFE3;}
+</style>
+</helmet>
+
+<div style="background:#0E0C0A;font-family:'Public Sans',system-ui,sans-serif;padding:40px;display:flex;flex-direction:column;gap:32px;width:max-content;color:#F4EFE3">
+
+  <div style="display:flex;flex-direction:column;gap:14px;max-width:1860px">
+    <div style="display:flex;align-items:flex-end;gap:18px;flex-wrap:wrap">
+      <span style="background:#1F5FA8;color:#F4EFE3;font-family:Bangers,cursive;font-size:20px;letter-spacing:1px;padding:3px 10px">VOL. 4 · MC27</span>
+      <div style="font-family:Bangers,cursive;font-size:46px;letter-spacing:1.5px;line-height:.9">SINISTER MOTIVES · THE COMIC</div>
+      <div style="font-size:12px;font-weight:700;line-height:1.5;opacity:.6;padding-bottom:4px;max-width:620px">The 8 artboards laid edge to edge as one strip, so the camera glides from panel to panel and across page breaks without cutting. All three frames share one reading position. Tap a viewport, or use ← →. Box screens: <a href="./Campaign - Phone.dc.html#box-mc27">Campaign · MC27</a>.</div>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px">
+      <div style="border:2px solid rgba(244,239,227,.25);padding:10px 12px;display:flex;flex-direction:column;gap:4px"><span style="font-family:Bangers,cursive;font-size:17px;letter-spacing:.6px;color:#F2B01E">ONE CONTINUOUS STRIP</span><span style="font-size:11px;line-height:1.45;opacity:.75">Pages sit side by side with a thin gutter. Moving to the next page is a camera move, not a page load.</span></div>
+      <div style="border:2px solid rgba(244,239,227,.25);padding:10px 12px;display:flex;flex-direction:column;gap:4px"><span style="font-family:Bangers,cursive;font-size:17px;letter-spacing:.6px;color:#F2B01E">SAME BEATS, THREE FRAMINGS</span><span style="font-size:11px;line-height:1.45;opacity:.75">Phone zooms to the panel. Tablet keeps some of the page around it. Desktop shows the whole page and spotlights the panel.</span></div>
+      <div style="border:2px solid rgba(244,239,227,.25);padding:10px 12px;display:flex;flex-direction:column;gap:4px"><span style="font-family:Bangers,cursive;font-size:17px;letter-spacing:.6px;color:#F2B01E">PAGES OPEN AS YOU WIN</span><span style="font-size:11px;line-height:1.45;opacity:.75">Each page is an issue opener or aftermath. Unread pages stay sealed and the strip ends on “To be continued”.</span></div>
+      <div style="border:2px solid rgba(244,239,227,.25);padding:10px 12px;display:flex;flex-direction:column;gap:4px"><span style="font-family:Bangers,cursive;font-size:17px;letter-spacing:.6px;color:#F2B01E">LETTERING SITS ON TOP</span><span style="font-size:11px;line-height:1.45;opacity:.75">Captions, balloons and SFX are app text over the art, so any roster can get its own lines.</span></div>
+    </div>
+  </div>
+
+  <div style="display:flex;flex-wrap:wrap;gap:36px;max-width:1900px;align-items:flex-start">
+
+    <!-- PHONE -->
+    <div style="display:flex;flex-direction:column;gap:9px">
+      <div style="display:flex;align-items:baseline;gap:9px"><span style="font-family:Bangers,cursive;font-size:22px;color:#C8102E">27·R1</span><span style="font-family:Bangers,cursive;font-size:20px;letter-spacing:.8px">PHONE · GUIDED VIEW</span><span style="font-size:10px;font-weight:800;letter-spacing:1.2px;text-transform:uppercase;opacity:.45">Panel fills the screen · tap to advance</span></div>
+      <div data-screen-label="27·R1 Comic phone" style="width:390px;height:844px;box-sizing:border-box;overflow:hidden;background:#0B0A09;color:#F4EFE3;display:flex;flex-direction:column">
+        <div style="flex:none;height:30px;display:flex;align-items:center;justify-content:space-between;padding:0 14px;font-size:11px;font-weight:800"><span>9:41</span><span style="display:flex;gap:5px;align-items:center"><span style="width:15px;height:8px;border:1.5px solid #F4EFE3"></span><span style="width:16px;height:8px;background:#F4EFE3"></span></span></div>
+        <div style="flex:none;height:54px;display:flex;align-items:center;gap:10px;padding:0 13px">
+          <span style="font-family:Bangers,cursive;font-size:16px;padding:3px 8px;border:2px solid #F4EFE3">◂</span>
+          <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:1px"><span style="font-size:9px;font-weight:800;letter-spacing:1.2px;text-transform:uppercase;color:#F2B01E">{{ cur.issue }}</span><span style="font-family:Bangers,cursive;font-size:19px;letter-spacing:.8px;line-height:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ cur.title }}</span></div>
+          <span style="font-size:9px;font-weight:800;letter-spacing:1px;text-transform:uppercase;opacity:.55">Page {{ cur.pageNo }}/8</span>
+        </div>
+        <div onClick="{{ next }}" style="flex:none;width:390px;height:660px;position:relative;overflow:hidden;cursor:pointer;background:#0B0A09">
+          <div style="position:absolute;left:0;top:0;width:{{ stripW }}px;height:1000px;transform-origin:0 0;transform:{{ ph.tf }};transition:transform {{ dur }}s cubic-bezier(.65,0,.3,1)">
+            <div style="position:absolute;top:0;left:0px;width:993px;height:1000px;background:#000;overflow:hidden"><img src="./art/campaigns/sm/p1-swing.jpg" alt="" style="width:100%;height:100%;display:block;object-fit:cover;filter:{{ pf.f0 }};transition:filter .6s" /><sc-if value="{{ pf.l0 }}" hint-placeholder-val="{{ false }}"><div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px"><span style="font-family:Bangers,cursive;font-size:120px;letter-spacing:4px;color:#F4EFE3">SEALED</span><span style="font-size:34px;font-weight:800;letter-spacing:3px;text-transform:uppercase;color:#F2B01E">{{ pf.g0 }}</span></div></sc-if></div>
+<div style="position:absolute;top:0;left:1017px;width:1000px;height:1000px;background:#000;overflow:hidden"><img src="./art/campaigns/sm/p2-sandman.jpg" alt="" style="width:100%;height:100%;display:block;object-fit:cover;filter:{{ pf.f1 }};transition:filter .6s" /><sc-if value="{{ pf.l1 }}" hint-placeholder-val="{{ false }}"><div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px"><span style="font-family:Bangers,cursive;font-size:120px;letter-spacing:4px;color:#F4EFE3">SEALED</span><span style="font-size:34px;font-weight:800;letter-spacing:3px;text-transform:uppercase;color:#F2B01E">{{ pf.g1 }}</span></div></sc-if></div>
+<div style="position:absolute;top:0;left:2041px;width:1000px;height:1000px;background:#000;overflow:hidden"><img src="./art/campaigns/sm/p3-oscorp.jpg" alt="" style="width:100%;height:100%;display:block;object-fit:cover;filter:{{ pf.f2 }};transition:filter .6s" /><sc-if value="{{ pf.l2 }}" hint-placeholder-val="{{ false }}"><div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px"><span style="font-family:Bangers,cursive;font-size:120px;letter-spacing:4px;color:#F4EFE3">SEALED</span><span style="font-size:34px;font-weight:800;letter-spacing:3px;text-transform:uppercase;color:#F2B01E">{{ pf.g2 }}</span></div></sc-if></div>
+<div style="position:absolute;top:0;left:3065px;width:1000px;height:1000px;background:#000;overflow:hidden"><img src="./art/campaigns/sm/p4-mysterio.jpg" alt="" style="width:100%;height:100%;display:block;object-fit:cover;filter:{{ pf.f3 }};transition:filter .6s" /><sc-if value="{{ pf.l3 }}" hint-placeholder-val="{{ false }}"><div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px"><span style="font-family:Bangers,cursive;font-size:120px;letter-spacing:4px;color:#F4EFE3">SEALED</span><span style="font-size:34px;font-weight:800;letter-spacing:3px;text-transform:uppercase;color:#F2B01E">{{ pf.g3 }}</span></div></sc-if></div>
+<div style="position:absolute;top:0;left:4089px;width:1000px;height:1000px;background:#000;overflow:hidden"><img src="./art/campaigns/sm/p5-six.jpg" alt="" style="width:100%;height:100%;display:block;object-fit:cover;filter:{{ pf.f4 }};transition:filter .6s" /><sc-if value="{{ pf.l4 }}" hint-placeholder-val="{{ false }}"><div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px"><span style="font-family:Bangers,cursive;font-size:120px;letter-spacing:4px;color:#F4EFE3">SEALED</span><span style="font-size:34px;font-weight:800;letter-spacing:3px;text-transform:uppercase;color:#F2B01E">{{ pf.g4 }}</span></div></sc-if></div>
+<div style="position:absolute;top:0;left:5113px;width:1000px;height:1000px;background:#000;overflow:hidden"><img src="./art/campaigns/sm/p6-goblin.jpg" alt="" style="width:100%;height:100%;display:block;object-fit:cover;filter:{{ pf.f5 }};transition:filter .6s" /><sc-if value="{{ pf.l5 }}" hint-placeholder-val="{{ false }}"><div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px"><span style="font-family:Bangers,cursive;font-size:120px;letter-spacing:4px;color:#F4EFE3">SEALED</span><span style="font-size:34px;font-weight:800;letter-spacing:3px;text-transform:uppercase;color:#F2B01E">{{ pf.g5 }}</span></div></sc-if></div>
+<div style="position:absolute;top:0;left:6137px;width:1000px;height:1000px;background:#000;overflow:hidden"><img src="./art/campaigns/sm/p7-shield.jpg" alt="" style="width:100%;height:100%;display:block;object-fit:cover;filter:{{ pf.f6 }};transition:filter .6s" /><sc-if value="{{ pf.l6 }}" hint-placeholder-val="{{ false }}"><div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px"><span style="font-family:Bangers,cursive;font-size:120px;letter-spacing:4px;color:#F4EFE3">SEALED</span><span style="font-size:34px;font-weight:800;letter-spacing:3px;text-transform:uppercase;color:#F2B01E">{{ pf.g6 }}</span></div></sc-if></div>
+<div style="position:absolute;top:0;left:7161px;width:993px;height:1000px;background:#000;overflow:hidden"><img src="./art/campaigns/sm/p8-home.jpg" alt="" style="width:100%;height:100%;display:block;object-fit:cover;filter:{{ pf.f7 }};transition:filter .6s" /><sc-if value="{{ pf.l7 }}" hint-placeholder-val="{{ false }}"><div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px"><span style="font-family:Bangers,cursive;font-size:120px;letter-spacing:4px;color:#F4EFE3">SEALED</span><span style="font-size:34px;font-weight:800;letter-spacing:3px;text-transform:uppercase;color:#F2B01E">{{ pf.g7 }}</span></div></sc-if></div>
+            <div style="position:absolute;left:{{ ph.sx }}px;top:{{ ph.sy }}px;width:{{ ph.sw }}px;height:{{ ph.sh }}px;box-shadow:0 0 0 40000px rgba(11,10,9,.78);outline:{{ ph.ow }}px solid #F4EFE3;transition:all {{ dur }}s cubic-bezier(.65,0,.3,1);pointer-events:none"></div>
+          </div>
+          <sc-if value="{{ cur.hasCap }}" hint-placeholder-val="{{ true }}"><div style="position:absolute;left:12px;top:12px;max-width:270px;background:#F2B01E;color:#14110E;border:3px solid #14110E;padding:7px 10px;font-size:11px;font-weight:800;font-style:italic;line-height:1.4;text-transform:uppercase;box-shadow:3px 3px 0 #14110E">{{ cur.cap }}</div></sc-if>
+          <sc-if value="{{ cur.hasSfx }}" hint-placeholder-val="{{ false }}"><div style="position:absolute;right:14px;top:70px;font-family:Bangers,cursive;font-size:54px;line-height:1;color:#F2B01E;-webkit-text-stroke:2.5px #14110E;transform:rotate(-8deg);text-shadow:4px 4px 0 #14110E">{{ cur.sfx }}</div></sc-if>
+          <sc-if value="{{ cur.hasLine }}" hint-placeholder-val="{{ false }}"><div style="position:absolute;left:14px;right:40px;bottom:18px;background:#fff;color:#14110E;border:3px solid #14110E;border-radius:22px;padding:10px 14px;box-shadow:4px 4px 0 #C8102E"><div style="font-size:9px;font-weight:800;letter-spacing:1.2px;text-transform:uppercase;color:#C8102E;margin-bottom:2px">{{ cur.who }}</div><div style="font-size:14px;font-weight:700;line-height:1.35">{{ cur.line }}</div><div style="position:absolute;left:36px;top:-17px;width:22px;height:17px;background:#14110E;clip-path:polygon(0 100%,100% 100%,20% 0)"></div><div style="position:absolute;left:40px;top:-10px;width:14px;height:13px;background:#fff;clip-path:polygon(0 100%,100% 100%,20% 0)"></div></div></sc-if>
+          <sc-if value="{{ cur.end }}" hint-placeholder-val="{{ false }}"><div style="position:absolute;left:0;right:0;bottom:0;padding:22px 16px;background:linear-gradient(180deg,rgba(11,10,9,0),#0B0A09 40%);display:flex;flex-direction:column;gap:6px"><span style="font-family:Bangers,cursive;font-size:40px;line-height:.9;letter-spacing:1.2px">TO BE CONTINUED…</span><span style="font-size:11px;font-weight:700;opacity:.75">{{ cur.endNote }}</span></div></sc-if>
+        </div>
+        <div style="flex:1;min-height:0;padding:10px 12px 14px;display:flex;flex-direction:column;gap:10px">
+          <div style="display:flex;gap:4px;justify-content:center">
+            <sc-for list="{{ pageBeats }}" as="d" hint-placeholder-count="4"><span onClick="{{ d.go }}" style="width:{{ d.w }}px;height:6px;background:{{ d.bg }};cursor:pointer;transition:all .3s"></span></sc-for>
+          </div>
+          <div style="display:flex;gap:8px">
+            <div onClick="{{ prev }}" style="width:70px;height:48px;border:3px solid #F4EFE3;display:flex;align-items:center;justify-content:center;font-family:Bangers,cursive;font-size:20px;cursor:pointer">◂</div>
+            <div onClick="{{ next }}" style="flex:1;height:48px;background:#C8102E;border:3px solid #F4EFE3;display:flex;align-items:center;justify-content:center;font-family:Bangers,cursive;font-size:20px;letter-spacing:1.2px;cursor:pointer">{{ nextLabel }}</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TABLET -->
+    <div style="display:flex;flex-direction:column;gap:9px">
+      <div style="display:flex;align-items:baseline;gap:9px"><span style="font-family:Bangers,cursive;font-size:22px;color:#C8102E">27·R2</span><span style="font-family:Bangers,cursive;font-size:20px;letter-spacing:.8px">TABLET · PANEL IN CONTEXT</span><span style="font-size:10px;font-weight:800;letter-spacing:1.2px;text-transform:uppercase;opacity:.45">Half zoom · script on the side</span></div>
+      <div data-screen-label="27·R2 Comic tablet" style="width:1024px;height:768px;box-sizing:border-box;overflow:hidden;background:#0B0A09;color:#F4EFE3;display:flex;flex-direction:column">
+        <div style="flex:none;height:46px;background:#14110E;display:flex;align-items:center;gap:14px;padding:0 16px"><span style="font-family:Bangers,cursive;font-size:16px;padding:3px 9px;border:2px solid #F4EFE3">◂ ISSUES</span><span style="font-family:Bangers,cursive;font-size:22px;letter-spacing:1px">SINISTER MOTIVES</span><span style="flex:1"></span><span style="font-size:10px;font-weight:800;letter-spacing:1.1px;text-transform:uppercase;opacity:.6">Page {{ cur.pageNo }} of 8</span></div>
+        <div style="flex:1;min-height:0;display:flex">
+          <div onClick="{{ next }}" style="flex:none;width:700px;height:722px;position:relative;overflow:hidden;cursor:pointer">
+            <div style="position:absolute;left:0;top:0;width:{{ stripW }}px;height:1000px;transform-origin:0 0;transform:{{ tb.tf }};transition:transform {{ dur }}s cubic-bezier(.65,0,.3,1)">
+              <div style="position:absolute;top:0;left:0px;width:993px;height:1000px;background:#000;overflow:hidden"><img src="./art/campaigns/sm/p1-swing.jpg" alt="" style="width:100%;height:100%;display:block;object-fit:cover;filter:{{ pf.f0 }};transition:filter .6s" /><sc-if value="{{ pf.l0 }}" hint-placeholder-val="{{ false }}"><div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px"><span style="font-family:Bangers,cursive;font-size:120px;letter-spacing:4px;color:#F4EFE3">SEALED</span><span style="font-size:34px;font-weight:800;letter-spacing:3px;text-transform:uppercase;color:#F2B01E">{{ pf.g0 }}</span></div></sc-if></div>
+<div style="position:absolute;top:0;left:1017px;width:1000px;height:1000px;background:#000;overflow:hidden"><img src="./art/campaigns/sm/p2-sandman.jpg" alt="" style="width:100%;height:100%;display:block;object-fit:cover;filter:{{ pf.f1 }};transition:filter .6s" /><sc-if value="{{ pf.l1 }}" hint-placeholder-val="{{ false }}"><div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px"><span style="font-family:Bangers,cursive;font-size:120px;letter-spacing:4px;color:#F4EFE3">SEALED</span><span style="font-size:34px;font-weight:800;letter-spacing:3px;text-transform:uppercase;color:#F2B01E">{{ pf.g1 }}</span></div></sc-if></div>
+<div style="position:absolute;top:0;left:2041px;width:1000px;height:1000px;background:#000;overflow:hidden"><img src="./art/campaigns/sm/p3-oscorp.jpg" alt="" style="width:100%;height:100%;display:block;object-fit:cover;filter:{{ pf.f2 }};transition:filter .6s" /><sc-if value="{{ pf.l2 }}" hint-placeholder-val="{{ false }}"><div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px"><span style="font-family:Bangers,cursive;font-size:120px;letter-spacing:4px;color:#F4EFE3">SEALED</span><span style="font-size:34px;font-weight:800;letter-spacing:3px;text-transform:uppercase;color:#F2B01E">{{ pf.g2 }}</span></div></sc-if></div>
+<div style="position:absolute;top:0;left:3065px;width:1000px;height:1000px;background:#000;overflow:hidden"><img src="./art/campaigns/sm/p4-mysterio.jpg" alt="" style="width:100%;height:100%;display:block;object-fit:cover;filter:{{ pf.f3 }};transition:filter .6s" /><sc-if value="{{ pf.l3 }}" hint-placeholder-val="{{ false }}"><div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px"><span style="font-family:Bangers,cursive;font-size:120px;letter-spacing:4px;color:#F4EFE3">SEALED</span><span style="font-size:34px;font-weight:800;letter-spacing:3px;text-transform:uppercase;color:#F2B01E">{{ pf.g3 }}</span></div></sc-if></div>
+<div style="position:absolute;top:0;left:4089px;width:1000px;height:1000px;background:#000;overflow:hidden"><img src="./art/campaigns/sm/p5-six.jpg" alt="" style="width:100%;height:100%;display:block;object-fit:cover;filter:{{ pf.f4 }};transition:filter .6s" /><sc-if value="{{ pf.l4 }}" hint-placeholder-val="{{ false }}"><div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px"><span style="font-family:Bangers,cursive;font-size:120px;letter-spacing:4px;color:#F4EFE3">SEALED</span><span style="font-size:34px;font-weight:800;letter-spacing:3px;text-transform:uppercase;color:#F2B01E">{{ pf.g4 }}</span></div></sc-if></div>
+<div style="position:absolute;top:0;left:5113px;width:1000px;height:1000px;background:#000;overflow:hidden"><img src="./art/campaigns/sm/p6-goblin.jpg" alt="" style="width:100%;height:100%;display:block;object-fit:cover;filter:{{ pf.f5 }};transition:filter .6s" /><sc-if value="{{ pf.l5 }}" hint-placeholder-val="{{ false }}"><div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px"><span style="font-family:Bangers,cursive;font-size:120px;letter-spacing:4px;color:#F4EFE3">SEALED</span><span style="font-size:34px;font-weight:800;letter-spacing:3px;text-transform:uppercase;color:#F2B01E">{{ pf.g5 }}</span></div></sc-if></div>
+<div style="position:absolute;top:0;left:6137px;width:1000px;height:1000px;background:#000;overflow:hidden"><img src="./art/campaigns/sm/p7-shield.jpg" alt="" style="width:100%;height:100%;display:block;object-fit:cover;filter:{{ pf.f6 }};transition:filter .6s" /><sc-if value="{{ pf.l6 }}" hint-placeholder-val="{{ false }}"><div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px"><span style="font-family:Bangers,cursive;font-size:120px;letter-spacing:4px;color:#F4EFE3">SEALED</span><span style="font-size:34px;font-weight:800;letter-spacing:3px;text-transform:uppercase;color:#F2B01E">{{ pf.g6 }}</span></div></sc-if></div>
+<div style="position:absolute;top:0;left:7161px;width:993px;height:1000px;background:#000;overflow:hidden"><img src="./art/campaigns/sm/p8-home.jpg" alt="" style="width:100%;height:100%;display:block;object-fit:cover;filter:{{ pf.f7 }};transition:filter .6s" /><sc-if value="{{ pf.l7 }}" hint-placeholder-val="{{ false }}"><div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px"><span style="font-family:Bangers,cursive;font-size:120px;letter-spacing:4px;color:#F4EFE3">SEALED</span><span style="font-size:34px;font-weight:800;letter-spacing:3px;text-transform:uppercase;color:#F2B01E">{{ pf.g7 }}</span></div></sc-if></div>
+              <div style="position:absolute;left:{{ tb.sx }}px;top:{{ tb.sy }}px;width:{{ tb.sw }}px;height:{{ tb.sh }}px;box-shadow:0 0 0 40000px rgba(11,10,9,{{ tb.dim }});outline:{{ tb.ow }}px solid #F4EFE3;transition:all {{ dur }}s cubic-bezier(.65,0,.3,1);pointer-events:none"></div>
+            </div>
+            <sc-if value="{{ cur.hasCap }}" hint-placeholder-val="{{ true }}"><div style="position:absolute;left:16px;top:16px;max-width:380px;background:#F2B01E;color:#14110E;border:3px solid #14110E;padding:8px 12px;font-size:12.5px;font-weight:800;font-style:italic;line-height:1.4;text-transform:uppercase;box-shadow:3px 3px 0 #14110E">{{ cur.cap }}</div></sc-if>
+            <sc-if value="{{ cur.hasSfx }}" hint-placeholder-val="{{ false }}"><div style="position:absolute;right:26px;top:40px;font-family:Bangers,cursive;font-size:72px;line-height:1;color:#F2B01E;-webkit-text-stroke:3px #14110E;transform:rotate(-8deg);text-shadow:5px 5px 0 #14110E">{{ cur.sfx }}</div></sc-if>
+            <sc-if value="{{ cur.hasLine }}" hint-placeholder-val="{{ false }}"><div style="position:absolute;left:24px;bottom:24px;max-width:420px;background:#fff;color:#14110E;border:3px solid #14110E;border-radius:24px;padding:11px 16px;box-shadow:4px 4px 0 #C8102E"><div style="font-size:10px;font-weight:800;letter-spacing:1.2px;text-transform:uppercase;color:#C8102E;margin-bottom:2px">{{ cur.who }}</div><div style="font-size:16px;font-weight:700;line-height:1.35">{{ cur.line }}</div><div style="position:absolute;left:40px;top:-17px;width:22px;height:17px;background:#14110E;clip-path:polygon(0 100%,100% 100%,20% 0)"></div><div style="position:absolute;left:44px;top:-10px;width:14px;height:13px;background:#fff;clip-path:polygon(0 100%,100% 100%,20% 0)"></div></div></sc-if>
+            <sc-if value="{{ cur.end }}" hint-placeholder-val="{{ false }}"><div style="position:absolute;left:0;right:0;bottom:0;padding:30px 24px;background:linear-gradient(180deg,rgba(11,10,9,0),#0B0A09 45%);display:flex;flex-direction:column;gap:6px"><span style="font-family:Bangers,cursive;font-size:54px;line-height:.9;letter-spacing:1.4px">TO BE CONTINUED…</span><span style="font-size:13px;font-weight:700;opacity:.75">{{ cur.endNote }}</span></div></sc-if>
+          </div>
+          <div style="flex:1;min-width:0;background:#F4EFE3;color:#14110E;display:flex;flex-direction:column;border-left:4px solid #14110E">
+            <div style="flex:none;padding:16px 16px 12px;border-bottom:3px solid #14110E;display:flex;flex-direction:column;gap:3px"><span style="font-size:10px;font-weight:800;letter-spacing:1.2px;text-transform:uppercase;color:#C8102E">{{ cur.issue }}</span><span style="font-family:Bangers,cursive;font-size:28px;line-height:.95;letter-spacing:.8px">{{ cur.title }}</span><span style="font-size:11px;line-height:1.45;opacity:.7">{{ cur.role }}</span></div>
+            <div style="flex:1;min-height:0;overflow-y:auto;scrollbar-width:none;padding:10px 12px;display:flex;flex-direction:column;gap:6px">
+              <sc-for list="{{ pageBeats }}" as="d" hint-placeholder-count="4">
+                <div onClick="{{ d.go }}" style="display:flex;gap:10px;align-items:flex-start;padding:9px 10px;border:3px solid {{ d.bd }};background:{{ d.rowBg }};cursor:pointer">
+                  <span style="font-family:Bangers,cursive;font-size:18px;line-height:1;width:20px;flex:none;color:{{ d.numC }}">{{ d.n }}</span>
+                  <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:2px"><span style="font-size:9px;font-weight:800;letter-spacing:1px;text-transform:uppercase;opacity:.55">{{ d.kind }}</span><span style="font-size:12px;font-weight:700;line-height:1.35">{{ d.text }}</span></div>
+                </div>
+              </sc-for>
+            </div>
+            <div style="flex:none;padding:12px;background:#14110E;display:flex;gap:8px">
+              <div onClick="{{ prev }}" style="width:70px;height:50px;border:3px solid #F4EFE3;color:#F4EFE3;display:flex;align-items:center;justify-content:center;font-family:Bangers,cursive;font-size:20px;cursor:pointer">◂</div>
+              <div onClick="{{ next }}" style="flex:1;height:50px;background:#C8102E;border:3px solid #F4EFE3;color:#F4EFE3;display:flex;align-items:center;justify-content:center;font-family:Bangers,cursive;font-size:20px;letter-spacing:1.2px;cursor:pointer">{{ nextLabel }}</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- DESKTOP -->
+    <div style="display:flex;flex-direction:column;gap:9px">
+      <div style="display:flex;align-items:baseline;gap:9px"><span style="font-family:Bangers,cursive;font-size:22px;color:#C8102E">27·R3</span><span style="font-family:Bangers,cursive;font-size:20px;letter-spacing:.8px">DESKTOP · THE WHOLE PAGE</span><span style="font-size:10px;font-weight:800;letter-spacing:1.2px;text-transform:uppercase;opacity:.45">Spotlight moves over the page · neighbours visible at the edges</span></div>
+      <div data-screen-label="27·R3 Comic desktop" style="width:1440px;height:980px;box-sizing:border-box;overflow:hidden;background:#0B0A09;color:#F4EFE3;display:flex;flex-direction:column">
+        <div style="flex:none;height:54px;background:#14110E;display:flex;align-items:center;gap:16px;padding:0 22px"><span style="font-family:Bangers,cursive;font-size:17px;padding:4px 10px;border:2px solid #F4EFE3">◂ ISSUES</span><span style="font-family:Bangers,cursive;font-size:24px;letter-spacing:1px">SINISTER MOTIVES</span><span style="font-size:11px;font-weight:800;letter-spacing:1.2px;text-transform:uppercase;color:#F2B01E">{{ cur.issue }} · {{ cur.title }}</span><span style="flex:1"></span><span style="font-size:11px;font-weight:800;letter-spacing:1.1px;text-transform:uppercase;opacity:.6">← → to read · beat {{ beatNo }} of {{ beatCount }}</span></div>
+        <div onClick="{{ next }}" style="flex:none;width:1440px;height:760px;position:relative;overflow:hidden;cursor:pointer">
+          <div style="position:absolute;left:0;top:0;width:{{ stripW }}px;height:1000px;transform-origin:0 0;transform:{{ dt.tf }};transition:transform {{ dur }}s cubic-bezier(.65,0,.3,1)">
+            <div style="position:absolute;top:0;left:0px;width:993px;height:1000px;background:#000;overflow:hidden"><img src="./art/campaigns/sm/p1-swing.jpg" alt="" style="width:100%;height:100%;display:block;object-fit:cover;filter:{{ pf.f0 }};transition:filter .6s" /><sc-if value="{{ pf.l0 }}" hint-placeholder-val="{{ false }}"><div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px"><span style="font-family:Bangers,cursive;font-size:120px;letter-spacing:4px;color:#F4EFE3">SEALED</span><span style="font-size:34px;font-weight:800;letter-spacing:3px;text-transform:uppercase;color:#F2B01E">{{ pf.g0 }}</span></div></sc-if></div>
+<div style="position:absolute;top:0;left:1017px;width:1000px;height:1000px;background:#000;overflow:hidden"><img src="./art/campaigns/sm/p2-sandman.jpg" alt="" style="width:100%;height:100%;display:block;object-fit:cover;filter:{{ pf.f1 }};transition:filter .6s" /><sc-if value="{{ pf.l1 }}" hint-placeholder-val="{{ false }}"><div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px"><span style="font-family:Bangers,cursive;font-size:120px;letter-spacing:4px;color:#F4EFE3">SEALED</span><span style="font-size:34px;font-weight:800;letter-spacing:3px;text-transform:uppercase;color:#F2B01E">{{ pf.g1 }}</span></div></sc-if></div>
+<div style="position:absolute;top:0;left:2041px;width:1000px;height:1000px;background:#000;overflow:hidden"><img src="./art/campaigns/sm/p3-oscorp.jpg" alt="" style="width:100%;height:100%;display:block;object-fit:cover;filter:{{ pf.f2 }};transition:filter .6s" /><sc-if value="{{ pf.l2 }}" hint-placeholder-val="{{ false }}"><div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px"><span style="font-family:Bangers,cursive;font-size:120px;letter-spacing:4px;color:#F4EFE3">SEALED</span><span style="font-size:34px;font-weight:800;letter-spacing:3px;text-transform:uppercase;color:#F2B01E">{{ pf.g2 }}</span></div></sc-if></div>
+<div style="position:absolute;top:0;left:3065px;width:1000px;height:1000px;background:#000;overflow:hidden"><img src="./art/campaigns/sm/p4-mysterio.jpg" alt="" style="width:100%;height:100%;display:block;object-fit:cover;filter:{{ pf.f3 }};transition:filter .6s" /><sc-if value="{{ pf.l3 }}" hint-placeholder-val="{{ false }}"><div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px"><span style="font-family:Bangers,cursive;font-size:120px;letter-spacing:4px;color:#F4EFE3">SEALED</span><span style="font-size:34px;font-weight:800;letter-spacing:3px;text-transform:uppercase;color:#F2B01E">{{ pf.g3 }}</span></div></sc-if></div>
+<div style="position:absolute;top:0;left:4089px;width:1000px;height:1000px;background:#000;overflow:hidden"><img src="./art/campaigns/sm/p5-six.jpg" alt="" style="width:100%;height:100%;display:block;object-fit:cover;filter:{{ pf.f4 }};transition:filter .6s" /><sc-if value="{{ pf.l4 }}" hint-placeholder-val="{{ false }}"><div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px"><span style="font-family:Bangers,cursive;font-size:120px;letter-spacing:4px;color:#F4EFE3">SEALED</span><span style="font-size:34px;font-weight:800;letter-spacing:3px;text-transform:uppercase;color:#F2B01E">{{ pf.g4 }}</span></div></sc-if></div>
+<div style="position:absolute;top:0;left:5113px;width:1000px;height:1000px;background:#000;overflow:hidden"><img src="./art/campaigns/sm/p6-goblin.jpg" alt="" style="width:100%;height:100%;display:block;object-fit:cover;filter:{{ pf.f5 }};transition:filter .6s" /><sc-if value="{{ pf.l5 }}" hint-placeholder-val="{{ false }}"><div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px"><span style="font-family:Bangers,cursive;font-size:120px;letter-spacing:4px;color:#F4EFE3">SEALED</span><span style="font-size:34px;font-weight:800;letter-spacing:3px;text-transform:uppercase;color:#F2B01E">{{ pf.g5 }}</span></div></sc-if></div>
+<div style="position:absolute;top:0;left:6137px;width:1000px;height:1000px;background:#000;overflow:hidden"><img src="./art/campaigns/sm/p7-shield.jpg" alt="" style="width:100%;height:100%;display:block;object-fit:cover;filter:{{ pf.f6 }};transition:filter .6s" /><sc-if value="{{ pf.l6 }}" hint-placeholder-val="{{ false }}"><div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px"><span style="font-family:Bangers,cursive;font-size:120px;letter-spacing:4px;color:#F4EFE3">SEALED</span><span style="font-size:34px;font-weight:800;letter-spacing:3px;text-transform:uppercase;color:#F2B01E">{{ pf.g6 }}</span></div></sc-if></div>
+<div style="position:absolute;top:0;left:7161px;width:993px;height:1000px;background:#000;overflow:hidden"><img src="./art/campaigns/sm/p8-home.jpg" alt="" style="width:100%;height:100%;display:block;object-fit:cover;filter:{{ pf.f7 }};transition:filter .6s" /><sc-if value="{{ pf.l7 }}" hint-placeholder-val="{{ false }}"><div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px"><span style="font-family:Bangers,cursive;font-size:120px;letter-spacing:4px;color:#F4EFE3">SEALED</span><span style="font-size:34px;font-weight:800;letter-spacing:3px;text-transform:uppercase;color:#F2B01E">{{ pf.g7 }}</span></div></sc-if></div>
+            <div style="position:absolute;left:{{ dt.sx }}px;top:{{ dt.sy }}px;width:{{ dt.sw }}px;height:{{ dt.sh }}px;box-shadow:0 0 0 40000px rgba(11,10,9,{{ dt.dim }});outline:{{ dt.ow }}px solid #F4EFE3;transition:all {{ dur }}s cubic-bezier(.65,0,.3,1);pointer-events:none"></div>
+          </div>
+          <sc-if value="{{ cur.hasCap }}" hint-placeholder-val="{{ true }}"><div style="position:absolute;left:28px;top:24px;max-width:460px;background:#F2B01E;color:#14110E;border:3px solid #14110E;padding:10px 14px;font-size:14px;font-weight:800;font-style:italic;line-height:1.4;text-transform:uppercase;box-shadow:4px 4px 0 #14110E">{{ cur.cap }}</div></sc-if>
+          <sc-if value="{{ cur.hasSfx }}" hint-placeholder-val="{{ false }}"><div style="position:absolute;right:60px;top:50px;font-family:Bangers,cursive;font-size:96px;line-height:1;color:#F2B01E;-webkit-text-stroke:3.5px #14110E;transform:rotate(-8deg);text-shadow:6px 6px 0 #14110E">{{ cur.sfx }}</div></sc-if>
+          <sc-if value="{{ cur.hasLine }}" hint-placeholder-val="{{ false }}"><div style="position:absolute;left:40px;bottom:34px;max-width:520px;background:#fff;color:#14110E;border:3px solid #14110E;border-radius:26px;padding:13px 18px;box-shadow:5px 5px 0 #C8102E"><div style="font-size:11px;font-weight:800;letter-spacing:1.2px;text-transform:uppercase;color:#C8102E;margin-bottom:2px">{{ cur.who }}</div><div style="font-size:19px;font-weight:700;line-height:1.35">{{ cur.line }}</div><div style="position:absolute;left:44px;top:-17px;width:22px;height:17px;background:#14110E;clip-path:polygon(0 100%,100% 100%,20% 0)"></div><div style="position:absolute;left:48px;top:-10px;width:14px;height:13px;background:#fff;clip-path:polygon(0 100%,100% 100%,20% 0)"></div></div></sc-if>
+          <sc-if value="{{ cur.end }}" hint-placeholder-val="{{ false }}"><div style="position:absolute;left:0;right:0;bottom:0;padding:40px 40px 34px;background:linear-gradient(180deg,rgba(11,10,9,0),#0B0A09 45%);display:flex;flex-direction:column;gap:8px"><span style="font-family:Bangers,cursive;font-size:72px;line-height:.9;letter-spacing:1.6px">TO BE CONTINUED…</span><span style="font-size:15px;font-weight:700;opacity:.75">{{ cur.endNote }}</span></div></sc-if>
+        </div>
+        <div style="flex:1;min-height:0;background:#14110E;border-top:4px solid #F4EFE3;display:flex;align-items:center;gap:14px;padding:0 22px">
+          <div onClick="{{ prev }}" style="width:64px;height:110px;border:3px solid #F4EFE3;display:flex;align-items:center;justify-content:center;font-family:Bangers,cursive;font-size:24px;cursor:pointer;flex:none">◂</div>
+          <div style="flex:1;min-width:0;display:flex;gap:10px;align-items:flex-end">
+            <div onClick="{{ pf.go0 }}" style="flex:none;display:flex;flex-direction:column;gap:5px;cursor:pointer;opacity:{{ pf.op0 }}"><div style="width:95px;height:96px;position:relative;overflow:hidden;border:3px solid {{ pf.bd0 }};box-shadow:{{ pf.sh0 }}"><img src="./art/campaigns/sm/p1-swing.jpg" alt="" style="width:100%;height:100%;object-fit:cover;display:block;filter:{{ pf.tf0 }}" /><sc-if value="{{ pf.l0 }}" hint-placeholder-val="{{ false }}"><div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-family:Bangers,cursive;font-size:18px;letter-spacing:1px">SEALED</div></sc-if></div><span style="font-size:9px;font-weight:800;letter-spacing:1px;text-transform:uppercase;white-space:nowrap">{{ pf.lb0 }}</span></div>
+<div onClick="{{ pf.go1 }}" style="flex:none;display:flex;flex-direction:column;gap:5px;cursor:pointer;opacity:{{ pf.op1 }}"><div style="width:96px;height:96px;position:relative;overflow:hidden;border:3px solid {{ pf.bd1 }};box-shadow:{{ pf.sh1 }}"><img src="./art/campaigns/sm/p2-sandman.jpg" alt="" style="width:100%;height:100%;object-fit:cover;display:block;filter:{{ pf.tf1 }}" /><sc-if value="{{ pf.l1 }}" hint-placeholder-val="{{ false }}"><div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-family:Bangers,cursive;font-size:18px;letter-spacing:1px">SEALED</div></sc-if></div><span style="font-size:9px;font-weight:800;letter-spacing:1px;text-transform:uppercase;white-space:nowrap">{{ pf.lb1 }}</span></div>
+<div onClick="{{ pf.go2 }}" style="flex:none;display:flex;flex-direction:column;gap:5px;cursor:pointer;opacity:{{ pf.op2 }}"><div style="width:96px;height:96px;position:relative;overflow:hidden;border:3px solid {{ pf.bd2 }};box-shadow:{{ pf.sh2 }}"><img src="./art/campaigns/sm/p3-oscorp.jpg" alt="" style="width:100%;height:100%;object-fit:cover;display:block;filter:{{ pf.tf2 }}" /><sc-if value="{{ pf.l2 }}" hint-placeholder-val="{{ false }}"><div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-family:Bangers,cursive;font-size:18px;letter-spacing:1px">SEALED</div></sc-if></div><span style="font-size:9px;font-weight:800;letter-spacing:1px;text-transform:uppercase;white-space:nowrap">{{ pf.lb2 }}</span></div>
+<div onClick="{{ pf.go3 }}" style="flex:none;display:flex;flex-direction:column;gap:5px;cursor:pointer;opacity:{{ pf.op3 }}"><div style="width:96px;height:96px;position:relative;overflow:hidden;border:3px solid {{ pf.bd3 }};box-shadow:{{ pf.sh3 }}"><img src="./art/campaigns/sm/p4-mysterio.jpg" alt="" style="width:100%;height:100%;object-fit:cover;display:block;filter:{{ pf.tf3 }}" /><sc-if value="{{ pf.l3 }}" hint-placeholder-val="{{ false }}"><div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-family:Bangers,cursive;font-size:18px;letter-spacing:1px">SEALED</div></sc-if></div><span style="font-size:9px;font-weight:800;letter-spacing:1px;text-transform:uppercase;white-space:nowrap">{{ pf.lb3 }}</span></div>
+<div onClick="{{ pf.go4 }}" style="flex:none;display:flex;flex-direction:column;gap:5px;cursor:pointer;opacity:{{ pf.op4 }}"><div style="width:96px;height:96px;position:relative;overflow:hidden;border:3px solid {{ pf.bd4 }};box-shadow:{{ pf.sh4 }}"><img src="./art/campaigns/sm/p5-six.jpg" alt="" style="width:100%;height:100%;object-fit:cover;display:block;filter:{{ pf.tf4 }}" /><sc-if value="{{ pf.l4 }}" hint-placeholder-val="{{ false }}"><div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-family:Bangers,cursive;font-size:18px;letter-spacing:1px">SEALED</div></sc-if></div><span style="font-size:9px;font-weight:800;letter-spacing:1px;text-transform:uppercase;white-space:nowrap">{{ pf.lb4 }}</span></div>
+<div onClick="{{ pf.go5 }}" style="flex:none;display:flex;flex-direction:column;gap:5px;cursor:pointer;opacity:{{ pf.op5 }}"><div style="width:96px;height:96px;position:relative;overflow:hidden;border:3px solid {{ pf.bd5 }};box-shadow:{{ pf.sh5 }}"><img src="./art/campaigns/sm/p6-goblin.jpg" alt="" style="width:100%;height:100%;object-fit:cover;display:block;filter:{{ pf.tf5 }}" /><sc-if value="{{ pf.l5 }}" hint-placeholder-val="{{ false }}"><div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-family:Bangers,cursive;font-size:18px;letter-spacing:1px">SEALED</div></sc-if></div><span style="font-size:9px;font-weight:800;letter-spacing:1px;text-transform:uppercase;white-space:nowrap">{{ pf.lb5 }}</span></div>
+<div onClick="{{ pf.go6 }}" style="flex:none;display:flex;flex-direction:column;gap:5px;cursor:pointer;opacity:{{ pf.op6 }}"><div style="width:96px;height:96px;position:relative;overflow:hidden;border:3px solid {{ pf.bd6 }};box-shadow:{{ pf.sh6 }}"><img src="./art/campaigns/sm/p7-shield.jpg" alt="" style="width:100%;height:100%;object-fit:cover;display:block;filter:{{ pf.tf6 }}" /><sc-if value="{{ pf.l6 }}" hint-placeholder-val="{{ false }}"><div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-family:Bangers,cursive;font-size:18px;letter-spacing:1px">SEALED</div></sc-if></div><span style="font-size:9px;font-weight:800;letter-spacing:1px;text-transform:uppercase;white-space:nowrap">{{ pf.lb6 }}</span></div>
+<div onClick="{{ pf.go7 }}" style="flex:none;display:flex;flex-direction:column;gap:5px;cursor:pointer;opacity:{{ pf.op7 }}"><div style="width:95px;height:96px;position:relative;overflow:hidden;border:3px solid {{ pf.bd7 }};box-shadow:{{ pf.sh7 }}"><img src="./art/campaigns/sm/p8-home.jpg" alt="" style="width:100%;height:100%;object-fit:cover;display:block;filter:{{ pf.tf7 }}" /><sc-if value="{{ pf.l7 }}" hint-placeholder-val="{{ false }}"><div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-family:Bangers,cursive;font-size:18px;letter-spacing:1px">SEALED</div></sc-if></div><span style="font-size:9px;font-weight:800;letter-spacing:1px;text-transform:uppercase;white-space:nowrap">{{ pf.lb7 }}</span></div>
+          </div>
+          <div onClick="{{ next }}" style="width:220px;height:110px;background:#C8102E;border:3px solid #F4EFE3;display:flex;align-items:center;justify-content:center;font-family:Bangers,cursive;font-size:24px;letter-spacing:1.2px;cursor:pointer;flex:none">{{ nextLabel }}</div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <div style="max-width:1400px;display:flex;flex-direction:column;gap:10px">
+    <div style="display:flex;align-items:center;gap:10px"><span style="font-family:Bangers,cursive;font-size:22px;letter-spacing:.8px">WHERE EACH PAGE LIVES IN THE CAMPAIGN</span><span style="flex:1;height:3px;background:#F4EFE3;opacity:.3"></span></div>
+    <div style="display:grid;grid-template-columns:repeat(8,minmax(0,1fr));gap:10px">
+      <sc-for list="{{ thumbs }}" as="t" hint-placeholder-count="0">
+        <div onClick="{{ t.go }}" style="border:2px solid rgba(244,239,227,.25);padding:10px 12px;display:flex;flex-direction:column;gap:4px;cursor:pointer"><span style="font-family:Bangers,cursive;font-size:16px;letter-spacing:.6px;color:#F2B01E">{{ t.label }}</span><span style="font-size:11px;line-height:1.45;opacity:.75">{{ t.role }}</span></div>
+      </sc-for>
+    </div>
+  </div>
+  <div id="flow" style="display:flex;flex-direction:column;gap:22px;border-top:4px solid #1F5FA8;padding-top:26px">
+    <div style="display:flex;flex-direction:column;gap:12px;max-width:1720px">
+      <div style="display:flex;align-items:flex-end;gap:16px;flex-wrap:wrap"><span style="font-family:Bangers,cursive;font-size:40px;letter-spacing:1.4px;line-height:.9">IN THE CAMPAIGN FLOW</span><span style="font-size:12px;font-weight:700;line-height:1.5;opacity:.6;padding-bottom:3px;max-width:760px">Sinister Motives' eight pages, dropped into MC10's screens. The prologue plays after the roster is signed. Page 3 splits in two: the top half is issue #1's aftermath, the bottom half opens issue #2. The Briefing, the Tech deal and the collection pick stay as they are.</span></div>
+    </div>
+
+    <div style="display:flex;flex-direction:column;gap:14px">
+      <div style="display:flex;align-items:center;gap:10px"><span style="font-family:Bangers,cursive;font-size:26px;letter-spacing:1px">PHONE</span><span style="flex:1;height:3px;background:#F4EFE3;opacity:.3"></span></div>
+      <div style="display:flex;gap:18px;align-items:flex-start;flex-wrap:wrap">
+<div style="display:flex;flex-direction:column;gap:9px;flex:none"><div style="display:flex;align-items:baseline;gap:9px"><span style="font-family:Bangers,cursive;font-size:22px;color:#C8102E">C06</span><span style="font-family:Bangers,cursive;font-size:20px;letter-spacing:.8px">THE RUN</span><span style="font-size:10px;font-weight:800;letter-spacing:1.2px;text-transform:uppercase;opacity:.45">Pages as issue covers</span></div><div data-screen-label="27·F The run" style="width:390px;height:844px;box-sizing:border-box;overflow:hidden;background:#14110E;color:#F4EFE3;display:flex;flex-direction:column;position:relative;flex:none"><div style="flex:none;height:30px;display:flex;align-items:center;justify-content:space-between;padding:0 14px;font-size:11px;font-weight:800;color:#F4EFE3"><span>9:41</span><span style="display:flex;gap:5px;align-items:center"><span style="width:15px;height:8px;border:1.5px solid #F4EFE3"></span><span style="width:16px;height:8px;background:#F4EFE3"></span></span></div><div style="flex:none;height:54px;display:flex;align-items:center;gap:10px;padding:0 13px;background:#14110E;color:#F4EFE3"><span style="font-family:Bangers,cursive;font-size:16px;padding:3px 8px;border:2px solid #F4EFE3">◂</span><div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:1px"><span style="font-size:9px;font-weight:800;letter-spacing:1.2px;text-transform:uppercase;color:#F2B01E">Sinister Motives</span><span style="font-family:Bangers,cursive;font-size:19px;letter-spacing:.8px;line-height:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">THE RUN</span></div><span style="font-size:9px;font-weight:800;letter-spacing:1px;text-transform:uppercase;opacity:.55">3/5</span></div><div style="flex:1;min-height:0;overflow:hidden;padding:12px;display:flex;flex-direction:column;gap:9px"><div style="flex:none;border:3px solid #14110E;background:#221D18;display:flex;flex-direction:column;overflow:hidden"><div style="position:relative;height:72px;border-bottom:3px solid #14110E"><div style="position:absolute;inset:0;overflow:hidden"><img src="./art/campaigns/sm/p2-sandman.jpg" alt="" style="position:absolute;left:0px;top:-41px;width:360px;height:360px;max-width:none;filter:saturate(.7)" /></div><span style="position:absolute;right:8px;top:8px;background:#1F7A4C;border:2px solid #F4EFE3;font-family:Bangers,cursive;font-size:14px;padding:2px 7px">READ ▸</span></div><div style="padding:8px 10px;display:flex;flex-direction:column;gap:2px"><span style="font-size:9px;font-weight:800;letter-spacing:1px;text-transform:uppercase;color:#F4EFE3;opacity:0.6">#1 · Sandman</span><span style="font-family:Bangers,cursive;font-size:17px;line-height:1">DOWN IN THE DUNES</span><span style="font-size:10px;font-weight:700;color:#7FD1A4;opacity:0.85">Won · Rep +7</span></div></div><div style="flex:none;border:3px solid #14110E;background:#221D18;display:flex;flex-direction:column;overflow:hidden"><div style="position:relative;height:72px;border-bottom:3px solid #14110E"><div style="position:absolute;inset:0;overflow:hidden"><img src="./art/campaigns/sm/p3-oscorp.jpg" alt="" style="position:absolute;left:-497px;top:-620px;width:857px;height:857px;max-width:none;filter:saturate(.7)" /></div><span style="position:absolute;right:8px;top:8px;background:#1F7A4C;border:2px solid #F4EFE3;font-family:Bangers,cursive;font-size:14px;padding:2px 7px">READ ▸</span></div><div style="padding:8px 10px;display:flex;flex-direction:column;gap:2px"><span style="font-size:9px;font-weight:800;letter-spacing:1px;text-transform:uppercase;color:#F4EFE3;opacity:0.6">#2 · Venom</span><span style="font-family:Bangers,cursive;font-size:17px;line-height:1">SOMETHING GOT OUT</span><span style="font-size:10px;font-weight:700;color:#7FD1A4;opacity:0.85">Won on 2nd try · Rep +4</span></div></div><div style="flex:none;border:3px solid #F4EFE3;box-shadow:0 0 0 3px #C8102E;background:#221D18;display:flex;flex-direction:column;overflow:hidden"><div style="position:relative;height:150px;border-bottom:3px solid #14110E"><div style="position:absolute;inset:0;overflow:hidden"><img src="./art/campaigns/sm/p4-mysterio.jpg" alt="" style="position:absolute;left:-98px;top:-406px;width:556px;height:556px;max-width:none" /></div></div><div style="padding:8px 10px;display:flex;flex-direction:column;gap:2px"><span style="font-size:9px;font-weight:800;letter-spacing:1px;text-transform:uppercase;color:#F2B01E;opacity:1">#3 · Mysterio</span><span style="font-family:Bangers,cursive;font-size:22px;line-height:1">SMOKE AND MIRRORS</span><span style="font-size:10px;font-weight:700;color:#F4EFE3;opacity:0.85">Up next · Rep 11</span></div></div><div style="flex:none;border:3px solid #14110E;background:#221D18;display:flex;flex-direction:column;overflow:hidden"><div style="position:relative;height:54px;border-bottom:3px solid #14110E"><div style="position:absolute;inset:0;overflow:hidden"><img src="./art/campaigns/sm/p5-six.jpg" alt="" style="position:absolute;left:0px;top:-153px;width:360px;height:360px;max-width:none;filter:grayscale(1) blur(5px) brightness(.35)" /></div><div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-family:Bangers,cursive;font-size:22px;letter-spacing:1px">SEALED</div></div><div style="padding:8px 10px;display:flex;flex-direction:column;gap:2px"><span style="font-size:9px;font-weight:800;letter-spacing:1px;text-transform:uppercase;color:#F4EFE3;opacity:0.6">#4 · Sinister Six</span><span style="font-family:Bangers,cursive;font-size:17px;line-height:1">ISSUE 4</span><span style="font-size:10px;font-weight:700;color:#F4EFE3;opacity:0.5">Sealed</span></div></div></div><div style="flex:none;padding:10px 12px 14px;display:flex;;border-top:3px solid #F4EFE3"><div style="height:52px;flex:1;display:flex;align-items:center;justify-content:center;font-family:Bangers,cursive;font-size:21px;letter-spacing:1.1px;box-sizing:border-box;background:#C8102E;border:3px solid #F4EFE3;color:#F4EFE3">READ ISSUE #3 ▸</div></div></div></div><div style="flex:none;align-self:center;display:flex;flex-direction:column;align-items:center;gap:6px;width:120px;text-align:center"><span style="font-family:Bangers,cursive;font-size:34px;color:#F2B01E;line-height:1">▸</span><span style="font-size:10px;font-weight:800;letter-spacing:1px;text-transform:uppercase">Read issue #3</span></div><div style="display:flex;flex-direction:column;gap:9px;flex:none"><div style="display:flex;align-items:baseline;gap:9px"><span style="font-family:Bangers,cursive;font-size:22px;color:#C8102E">C03</span><span style="font-family:Bangers,cursive;font-size:20px;letter-spacing:.8px">ISSUE OPENER</span><span style="font-size:10px;font-weight:800;letter-spacing:1.2px;text-transform:uppercase;opacity:.45">Replaces the 3-panel opener</span></div><div data-screen-label="27·F Issue opener comic" style="width:390px;height:844px;box-sizing:border-box;overflow:hidden;background:#0B0A09;color:#F4EFE3;display:flex;flex-direction:column;position:relative;flex:none"><div style="flex:none;height:30px;display:flex;align-items:center;justify-content:space-between;padding:0 14px;font-size:11px;font-weight:800;color:#F4EFE3"><span>9:41</span><span style="display:flex;gap:5px;align-items:center"><span style="width:15px;height:8px;border:1.5px solid #F4EFE3"></span><span style="width:16px;height:8px;background:#F4EFE3"></span></span></div><div style="flex:none;height:54px;display:flex;align-items:center;gap:10px;padding:0 13px;background:#14110E;color:#F4EFE3"><span style="font-family:Bangers,cursive;font-size:16px;padding:3px 8px;border:2px solid #F4EFE3">◂</span><div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:1px"><span style="font-size:9px;font-weight:800;letter-spacing:1.2px;text-transform:uppercase;color:#F2B01E">Issue #3 of 5</span><span style="font-family:Bangers,cursive;font-size:19px;letter-spacing:.8px;line-height:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">SMOKE AND MIRRORS</span></div><span style="font-size:9px;font-weight:800;letter-spacing:1px;text-transform:uppercase;opacity:.55">Page 4 · panel 5</span></div><div style="flex:none;width:390px;height:660px;position:relative;overflow:hidden"><div style="position:absolute;inset:0;overflow:hidden"><img src="./art/campaigns/sm/p4-mysterio.jpg" alt="" style="position:absolute;left:-563px;top:-1784px;width:2444px;height:2444px;max-width:none" /></div><div style="position:absolute;left:12px;top:12px;max-width:260px;background:#F2B01E;color:#14110E;border:3px solid #14110E;padding:7px 10px;font-size:11px;font-weight:800;font-style:italic;line-height:1.4;text-transform:uppercase;box-shadow:3px 3px 0 #14110E">Issue #3 · Every mirror in Manhattan started lying.</div><div style="position:absolute;left:14px;right:40px;bottom:18px;background:#fff;color:#14110E;border:3px solid #14110E;border-radius:22px;padding:10px 14px;box-shadow:4px 4px 0 #C8102E"><div style="font-size:9.5px;font-weight:800;letter-spacing:1.2px;text-transform:uppercase;color:#C8102E;margin-bottom:3px;line-height:1.2">Ghost-Spider</div><div style="font-size:14px;font-weight:700;line-height:1.35">Which one of you is real?</div></div><div style="position:absolute;right:14px;top:150px;font-family:Bangers,cursive;font-size:50px;line-height:1;color:#F2B01E;-webkit-text-stroke:2.5px #14110E;transform:rotate(-8deg);text-shadow:4px 4px 0 #14110E">SHHHMMM</div></div><div style="flex:1;min-height:0;padding:10px 12px 14px;display:flex;flex-direction:column;gap:10px"><div style="display:flex;gap:4px;justify-content:center"><span style="width:8px;height:6px;background:#F4EFE3"></span><span style="width:8px;height:6px;background:#F4EFE3"></span><span style="width:8px;height:6px;background:#F4EFE3"></span><span style="width:8px;height:6px;background:#F4EFE3"></span><span style="width:22px;height:6px;background:#F2B01E"></span></div><div style="display:flex;gap:8px"><div style="height:48px;width:70px;flex:none;display:flex;align-items:center;justify-content:center;font-family:Bangers,cursive;font-size:18px;letter-spacing:1.1px;box-sizing:border-box;border:3px solid #F4EFE3;color:#F4EFE3">◂</div><div style="height:48px;flex:1;display:flex;align-items:center;justify-content:center;font-family:Bangers,cursive;font-size:18px;letter-spacing:1.1px;box-sizing:border-box;background:#C8102E;border:3px solid #F4EFE3;color:#F4EFE3">SUIT UP ▸</div></div></div></div></div><div style="flex:none;align-self:center;display:flex;flex-direction:column;align-items:center;gap:6px;width:120px;text-align:center"><span style="font-family:Bangers,cursive;font-size:34px;color:#F2B01E;line-height:1">▸</span><span style="font-size:10px;font-weight:800;letter-spacing:1px;text-transform:uppercase">Briefing</span><span style="font-size:10px;line-height:1.4;opacity:.55">Unchanged</span></div><div style="display:flex;flex-direction:column;gap:9px;flex:none"><div style="display:flex;align-items:baseline;gap:9px"><span style="font-family:Bangers,cursive;font-size:22px;color:#C8102E">C04</span><span style="font-family:Bangers,cursive;font-size:20px;letter-spacing:.8px">IN-GAME BEAT</span><span style="font-size:10px;font-weight:800;letter-spacing:1.2px;text-transform:uppercase;opacity:.45">A panel pops on a stage flip</span></div><div data-screen-label="27·F In-game beat" style="width:390px;height:844px;box-sizing:border-box;overflow:hidden;background:#0E0C0A;color:#F4EFE3;display:flex;flex-direction:column;position:relative;flex:none"><div style="flex:none;height:30px;display:flex;align-items:center;justify-content:space-between;padding:0 14px;font-size:11px;font-weight:800;color:#F4EFE3"><span>9:41</span><span style="display:flex;gap:5px;align-items:center"><span style="width:15px;height:8px;border:1.5px solid #F4EFE3"></span><span style="width:16px;height:8px;background:#F4EFE3"></span></span></div><div style="flex:1;position:relative"><div style="position:absolute;inset:0;padding:90px 12px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));grid-auto-rows:130px;gap:10px;opacity:.3"><div style="border:3px solid #F4EFE3;background:#221D18"></div><div style="border:3px solid #F4EFE3;background:#221D18"></div><div style="border:3px solid #F4EFE3;background:#221D18"></div><div style="border:3px solid #F4EFE3;background:#221D18"></div><div style="border:3px solid #F4EFE3;background:#221D18"></div><div style="border:3px solid #F4EFE3;background:#221D18"></div><div style="border:3px solid #F4EFE3;background:#221D18"></div><div style="border:3px solid #F4EFE3;background:#221D18"></div></div><div style="position:absolute;left:50%;top:110px;width:366px;margin-left:-183px;display:flex;flex-direction:column;gap:14px;transform:rotate(-1.2deg)"><div style="height:230px;position:relative;border:4px solid #F4EFE3;box-shadow:8px 8px 0 rgba(0,0,0,.6);overflow:hidden"><div style="position:absolute;inset:0;overflow:hidden"><img src="./art/campaigns/sm/p4-mysterio.jpg" alt="" style="position:absolute;left:-610px;top:-155px;width:968px;height:968px;max-width:none" /></div><span style="position:absolute;left:0;top:0;background:#C8102E;border-right:3px solid #14110E;border-bottom:3px solid #14110E;padding:5px 10px;font-size:10px;font-weight:800;letter-spacing:1px;text-transform:uppercase">Mysterio · Stage II</span></div><div style="align-self:flex-end;background:#fff;color:#14110E;border:3px solid #14110E;border-radius:24px;padding:11px 15px;font-size:15px;font-weight:800;line-height:1.3;box-shadow:4px 4px 0 #14110E;max-width:292.8px">Nothing you see is real, children. Least of all your odds.</div><div style="align-self:center;background:#14110E;border:2px solid #F4EFE3;padding:6px 12px;font-size:10px;font-weight:800;letter-spacing:1.1px;text-transform:uppercase">Panel from page 4 · tap anywhere</div></div></div></div></div><div style="flex:none;align-self:center;display:flex;flex-direction:column;align-items:center;gap:6px;width:120px;text-align:center"><span style="font-family:Bangers,cursive;font-size:34px;color:#F2B01E;line-height:1">▸</span><span style="font-size:10px;font-weight:800;letter-spacing:1px;text-transform:uppercase">If you lose</span></div><div style="display:flex;flex-direction:column;gap:9px;flex:none"><div style="display:flex;align-items:baseline;gap:9px"><span style="font-family:Bangers,cursive;font-size:22px;color:#C8102E">C08</span><span style="font-family:Bangers,cursive;font-size:20px;letter-spacing:.8px">DEFEAT · REWIND</span><span style="font-size:10px;font-weight:800;letter-spacing:1.2px;text-transform:uppercase;opacity:.45">Torn panel from the page</span></div><div data-screen-label="27·F Defeat rewind" style="width:390px;height:844px;box-sizing:border-box;overflow:hidden;background:#14110E;color:#F4EFE3;display:flex;flex-direction:column;position:relative;flex:none"><div style="flex:none;height:30px;display:flex;align-items:center;justify-content:space-between;padding:0 14px;font-size:11px;font-weight:800;color:#F4EFE3"><span>9:41</span><span style="display:flex;gap:5px;align-items:center"><span style="width:15px;height:8px;border:1.5px solid #F4EFE3"></span><span style="width:16px;height:8px;background:#F4EFE3"></span></span></div><div style="flex:1;display:flex;flex-direction:column;gap:24px;padding:18px 18px 14px;background-image:radial-gradient(rgba(244,239,227,.08) 1px,transparent 1.1px);background-size:7px 7px"><div style="position:relative;width:354px;height:280px;border:4px solid #F4EFE3;box-shadow:8px 8px 0 #C8102E;overflow:hidden;clip-path:polygon(0 0,100% 0,100% 88%,86% 94%,72% 89%,58% 97%,41% 90%,27% 96%,12% 89%,0 95%)"><div style="position:absolute;inset:0;overflow:hidden"><img src="./art/campaigns/sm/p2-sandman.jpg" alt="" style="position:absolute;left:-55px;top:0px;width:633px;height:633px;max-width:none;filter:grayscale(1) contrast(1.2)" /></div><div style="position:absolute;right:12px;bottom:40px;max-width:220px;background:#fff;color:#14110E;border:3px solid #14110E;border-radius:22px;padding:10px 14px;box-shadow:4px 4px 0 #C8102E"><div style="font-size:8.8px;font-weight:800;letter-spacing:1.2px;text-transform:uppercase;color:#C8102E;margin-bottom:3px;line-height:1.2">Mysterio</div><div style="font-size:13px;font-weight:700;line-height:1.35">Cut! Take it from the top.</div></div></div><div style="display:flex;flex-direction:column;gap:12px"><div style="align-self:flex-start;background:#F2B01E;color:#14110E;border:3px solid #14110E;padding:7px 11px;font-size:12px;font-weight:800;font-style:italic;text-transform:uppercase;transform:rotate(-1.5deg)">No. That's not how it happened.</div><div style="font-family:Bangers,cursive;font-size:46px;line-height:.9;letter-spacing:1px">REWIND<br />ISSUE #3</div><div style="font-size:12px;line-height:1.5;opacity:.8;max-width:420px">The page flips back to the last panel you read. Same log, same reputation. Nothing the lost game marked on the track is kept.</div><div style="border:2px solid rgba(244,239,227,.3);padding:9px 11px;display:flex;flex-direction:column;gap:5px;font-size:11px;line-height:1.4;max-width:420px"><div style="display:flex;gap:8px"><span style="color:#7FD1A4;font-weight:800;width:44px;flex:none">KEPT</span><span>Reputation 11, Tech, Aspect Advantage.</span></div><div style="display:flex;gap:8px"><span style="color:#F2B01E;font-weight:800;width:44px;flex:none">REDO</span><span>Page 4's last panel replays before the game starts again.</span></div></div></div><div style="margin-top:auto"><div style="display:flex;gap:8px;"><div style="height:52px;flex:1;display:flex;align-items:center;justify-content:center;font-family:Bangers,cursive;font-size:21px;letter-spacing:1.1px;box-sizing:border-box;border:3px solid #F4EFE3;color:#F4EFE3">EDIT DECKS</div><div style="height:52px;flex:1;display:flex;align-items:center;justify-content:center;font-family:Bangers,cursive;font-size:21px;letter-spacing:1.1px;box-sizing:border-box;background:#C8102E;border:3px solid #F4EFE3;color:#F4EFE3">REWIND ▸</div></div></div></div></div></div><div style="flex:none;align-self:center;display:flex;flex-direction:column;align-items:center;gap:6px;width:120px;text-align:center"><span style="font-family:Bangers,cursive;font-size:34px;color:#F2B01E;line-height:1">▸</span><span style="font-size:10px;font-weight:800;letter-spacing:1px;text-transform:uppercase">If you win #1</span></div><div style="display:flex;flex-direction:column;gap:9px;flex:none"><div style="display:flex;align-items:baseline;gap:9px"><span style="font-family:Bangers,cursive;font-size:22px;color:#C8102E">C05</span><span style="font-family:Bangers,cursive;font-size:20px;letter-spacing:.8px">AFTERMATH · PAGE</span><span style="font-size:10px;font-weight:800;letter-spacing:1.2px;text-transform:uppercase;opacity:.45">Log stamped on the panels</span></div><div data-screen-label="27·F Aftermath page" style="width:390px;height:844px;box-sizing:border-box;overflow:hidden;background:#14110E;color:#F4EFE3;display:flex;flex-direction:column;position:relative;flex:none"><div style="flex:none;height:30px;display:flex;align-items:center;justify-content:space-between;padding:0 14px;font-size:11px;font-weight:800;color:#F4EFE3"><span>9:41</span><span style="display:flex;gap:5px;align-items:center"><span style="width:15px;height:8px;border:1.5px solid #F4EFE3"></span><span style="width:16px;height:8px;background:#F4EFE3"></span></span></div><div style="flex:none;height:560px;position:relative"><div style="position:absolute;inset:0;overflow:hidden"><img src="./art/campaigns/sm/p3-oscorp.jpg" alt="" style="position:absolute;left:-1205px;top:0px;width:1867px;height:1867px;max-width:none" /></div><div style="position:absolute;left:14px;bottom:16px;max-width:240px;background:#fff;color:#14110E;border:3px solid #14110E;border-radius:22px;padding:10px 14px;box-shadow:4px 4px 0 #C8102E"><div style="font-size:10.2px;font-weight:800;letter-spacing:1.2px;text-transform:uppercase;color:#C8102E;margin-bottom:3px;line-height:1.2">Sandman</div><div style="font-size:15px;font-weight:700;line-height:1.35">This ain't over, webheads.</div></div><div style="position:absolute;right:12px;top:14px"><div style="display:flex;flex-direction:column;gap:8px"><div style="background:rgba(20,17,14,.9);border:3px solid #F2B01E;color:#F2B01E;padding:5px 10px;font-size:11px;font-weight:800;letter-spacing:1px;text-transform:uppercase;transform:rotate(-2deg);align-self:flex-start">Issue #1 · Won</div><div style="background:rgba(20,17,14,.9);border:3px solid #F4EFE3;color:#F4EFE3;padding:5px 10px;font-size:11px;font-weight:800;letter-spacing:1px;text-transform:uppercase;transform:rotate(1.5deg);align-self:flex-start">Reputation +7 · nodes 1–7</div><div style="background:rgba(20,17,14,.9);border:3px solid #F4EFE3;color:#F4EFE3;padding:5px 10px;font-size:11px;font-weight:800;letter-spacing:1px;text-transform:uppercase;transform:rotate(-1deg);align-self:flex-start">Osborn Tech recorded</div><div style="background:rgba(20,17,14,.9);border:3px solid #7FD1A4;color:#7FD1A4;padding:5px 10px;font-size:11px;font-weight:800;letter-spacing:1px;text-transform:uppercase;transform:rotate(2deg);align-self:flex-start">Public Outcry: calm</div></div></div></div><div style="flex:1;min-height:0;padding:12px;display:flex;flex-direction:column;gap:10px"><div style="display:flex;gap:4px;justify-content:center"><span style="width:8px;height:6px;background:#F4EFE3"></span><span style="width:22px;height:6px;background:#F2B01E"></span><span style="width:8px;height:6px;background:rgba(244,239,227,.3)"></span><span style="width:8px;height:6px;background:rgba(244,239,227,.3)"></span><span style="width:8px;height:6px;background:rgba(244,239,227,.3)"></span><span style="width:8px;height:6px;background:rgba(244,239,227,.3)"></span></div><div style="font-size:11px;line-height:1.45;opacity:.7">The first half of page 3 is the aftermath. The log is stamped onto the panels, then the Tech deal opens.</div><div style="margin-top:auto;display:flex;gap:8px"><div style="height:48px;width:70px;flex:none;display:flex;align-items:center;justify-content:center;font-family:Bangers,cursive;font-size:18px;letter-spacing:1.1px;box-sizing:border-box;border:3px solid #F4EFE3;color:#F4EFE3">◂</div><div style="height:48px;flex:1;display:flex;align-items:center;justify-content:center;font-family:Bangers,cursive;font-size:18px;letter-spacing:1.1px;box-sizing:border-box;background:#C8102E;border:3px solid #F4EFE3;color:#F4EFE3">S.H.I.E.L.D. TECH ▸</div></div></div></div></div><div style="flex:none;align-self:center;display:flex;flex-direction:column;align-items:center;gap:6px;width:120px;text-align:center"><span style="font-family:Bangers,cursive;font-size:34px;color:#F2B01E;line-height:1">▸</span><span style="font-size:10px;font-weight:800;letter-spacing:1px;text-transform:uppercase">Dealt 3 Tech</span><span style="font-size:10px;line-height:1.4;opacity:.55">Unchanged · then the next issue</span></div><div style="display:flex;flex-direction:column;gap:9px;flex:none"><div style="display:flex;align-items:baseline;gap:9px"><span style="font-family:Bangers,cursive;font-size:22px;color:#C8102E">C10</span><span style="font-family:Bangers,cursive;font-size:20px;letter-spacing:.8px">FINALE</span><span style="font-size:10px;font-weight:800;letter-spacing:1.2px;text-transform:uppercase;opacity:.45">Spread replaces the epilogue</span></div><div data-screen-label="27·F Finale spread" style="width:390px;height:844px;box-sizing:border-box;overflow:hidden;background:#14110E;color:#F4EFE3;display:flex;flex-direction:column;position:relative;flex:none"><div style="flex:none;height:30px;display:flex;align-items:center;justify-content:space-between;padding:0 14px;font-size:11px;font-weight:800;color:#F4EFE3"><span>9:41</span><span style="display:flex;gap:5px;align-items:center"><span style="width:15px;height:8px;border:1.5px solid #F4EFE3"></span><span style="width:16px;height:8px;background:#F4EFE3"></span></span></div><div style="flex:none;height:520px;position:relative"><div style="position:absolute;inset:0;overflow:hidden"><img src="./art/campaigns/sm/p8-home.jpg" alt="" style="position:absolute;left:-580px;top:-520px;width:1033px;height:1040px;max-width:none" /></div><div style="position:absolute;left:14px;right:60px;bottom:16px;background:#fff;color:#14110E;border:3px solid #14110E;border-radius:22px;padding:10px 14px;box-shadow:4px 4px 0 #C8102E"><div style="font-size:9.5px;font-weight:800;letter-spacing:1.2px;text-transform:uppercase;color:#C8102E;margin-bottom:3px;line-height:1.2">Mom</div><div style="font-size:14px;font-weight:700;line-height:1.35">You're home. That's all that matters.</div></div></div><div style="flex:1;min-height:0;padding:14px;display:flex;flex-direction:column;gap:10px;background:#F2B01E;color:#14110E"><div style="font-family:Bangers,cursive;font-size:44px;line-height:.86;letter-spacing:1.4px">THE CITY SAYS THANKS.</div><div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px"><div style="border:3px solid #14110E;background:#F4EFE3;color:#14110E;padding:6px 10px"><div style="font-size:8px;font-weight:800;letter-spacing:1px;text-transform:uppercase;opacity:.6">Issues</div><div style="font-family:Bangers,cursive;font-size:22px;line-height:1.05">5/5</div></div><div style="border:3px solid #14110E;background:#F4EFE3;color:#14110E;padding:6px 10px"><div style="font-size:8px;font-weight:800;letter-spacing:1px;text-transform:uppercase;opacity:.6">Reputation</div><div style="font-family:Bangers,cursive;font-size:22px;line-height:1.05">23</div></div><div style="border:3px solid #14110E;background:#F4EFE3;color:#14110E;padding:6px 10px"><div style="font-size:8px;font-weight:800;letter-spacing:1px;text-transform:uppercase;opacity:.6">Rewinds</div><div style="font-family:Bangers,cursive;font-size:22px;line-height:1.05">2</div></div></div><div style="margin-top:auto"><div style="height:48px;flex:1;display:flex;align-items:center;justify-content:center;font-family:Bangers,cursive;font-size:18px;letter-spacing:1.1px;box-sizing:border-box;background:#C8102E;border:3px solid #F4EFE3;color:#F4EFE3">READ IT ALL AGAIN ▸</div></div></div></div></div>
+      </div>
+    </div>
+
+    <div style="display:flex;flex-direction:column;gap:14px">
+      <div style="display:flex;align-items:center;gap:10px"><span style="font-family:Bangers,cursive;font-size:26px;letter-spacing:1px">TABLET</span><span style="flex:1;height:3px;background:#F4EFE3;opacity:.3"></span></div>
+      <div style="display:flex;gap:18px;align-items:flex-start;flex-wrap:wrap">
+<div style="display:flex;flex-direction:column;gap:9px;flex:none"><div style="display:flex;align-items:baseline;gap:9px"><span style="font-family:Bangers,cursive;font-size:22px;color:#C8102E">C06</span><span style="font-family:Bangers,cursive;font-size:20px;letter-spacing:.8px">THE RUN</span><span style="font-size:10px;font-weight:800;letter-spacing:1.2px;text-transform:uppercase;opacity:.45">Pages as issue covers</span></div><div data-screen-label="T-27·F The run" style="width:1024px;height:768px;box-sizing:border-box;overflow:hidden;background:#14110E;color:#F4EFE3;display:flex;flex-direction:column;position:relative;flex:none"><div style="flex:none;height:46px;background:#14110E;color:#F4EFE3;display:flex;align-items:center;gap:14px;padding:0 16px"><span style="font-family:Bangers,cursive;font-size:16px;padding:3px 9px;border:2px solid #F4EFE3">◂ BACK</span><span style="font-family:Bangers,cursive;font-size:21px;letter-spacing:1px">THE RUN</span><span style="font-size:11px;font-weight:800;letter-spacing:1.1px;text-transform:uppercase;color:#F2B01E">Sinister Motives</span><span style="flex:1"></span><span style="font-size:10px;font-weight:800;letter-spacing:1.1px;text-transform:uppercase;opacity:.6">3/5</span></div><div style="flex:1;min-height:0;padding:20px;display:flex;flex-direction:column;gap:16px"><div style="display:flex;gap:8px;align-items:flex-start"><div style="width:190.4px;flex:none"><div style="flex:none;border:3px solid #14110E;background:#221D18;display:flex;flex-direction:column;overflow:hidden"><div style="position:relative;height:302.4px;border-bottom:3px solid #14110E"><div style="position:absolute;inset:0;overflow:hidden"><img src="./art/campaigns/sm/p2-sandman.jpg" alt="" style="position:absolute;left:-259px;top:0px;width:703px;height:703px;max-width:none;filter:saturate(.7)" /></div><span style="position:absolute;right:8px;top:8px;background:#1F7A4C;border:2px solid #F4EFE3;font-family:Bangers,cursive;font-size:14px;padding:2px 7px">READ ▸</span></div><div style="padding:8px 10px;display:flex;flex-direction:column;gap:2px"><span style="font-size:9px;font-weight:800;letter-spacing:1px;text-transform:uppercase;color:#F4EFE3;opacity:0.6">#1 · Sandman</span><span style="font-family:Bangers,cursive;font-size:17px;line-height:1">DOWN IN THE DUNES</span><span style="font-size:10px;font-weight:700;color:#7FD1A4;opacity:0.85">Won · Rep +7</span></div></div></div><div style="width:190.4px;flex:none"><div style="flex:none;border:3px solid #14110E;background:#221D18;display:flex;flex-direction:column;overflow:hidden"><div style="position:relative;height:302.4px;border-bottom:3px solid #14110E"><div style="position:absolute;inset:0;overflow:hidden"><img src="./art/campaigns/sm/p3-oscorp.jpg" alt="" style="position:absolute;left:-416px;top:-341px;width:643px;height:643px;max-width:none;filter:saturate(.7)" /></div><span style="position:absolute;right:8px;top:8px;background:#1F7A4C;border:2px solid #F4EFE3;font-family:Bangers,cursive;font-size:14px;padding:2px 7px">READ ▸</span></div><div style="padding:8px 10px;display:flex;flex-direction:column;gap:2px"><span style="font-size:9px;font-weight:800;letter-spacing:1px;text-transform:uppercase;color:#F4EFE3;opacity:0.6">#2 · Venom</span><span style="font-family:Bangers,cursive;font-size:17px;line-height:1">SOMETHING GOT OUT</span><span style="font-size:10px;font-weight:700;color:#7FD1A4;opacity:0.85">Won on 2nd try · Rep +4</span></div></div></div><div style="width:190.4px;flex:none"><div style="flex:none;border:3px solid #F4EFE3;box-shadow:0 0 0 3px #C8102E;background:#221D18;display:flex;flex-direction:column;overflow:hidden"><div style="position:relative;height:420px;border-bottom:3px solid #14110E"><div style="position:absolute;inset:0;overflow:hidden"><img src="./art/campaigns/sm/p4-mysterio.jpg" alt="" style="position:absolute;left:-686px;top:-1136px;width:1556px;height:1556px;max-width:none" /></div></div><div style="padding:8px 10px;display:flex;flex-direction:column;gap:2px"><span style="font-size:9px;font-weight:800;letter-spacing:1px;text-transform:uppercase;color:#F2B01E;opacity:1">#3 · Mysterio</span><span style="font-family:Bangers,cursive;font-size:22px;line-height:1">SMOKE AND MIRRORS</span><span style="font-size:10px;font-weight:700;color:#F4EFE3;opacity:0.85">Up next · Rep 11</span></div></div></div><div style="width:190.4px;flex:none"><div style="flex:none;border:3px solid #14110E;background:#221D18;display:flex;flex-direction:column;overflow:hidden"><div style="position:relative;height:302.4px;border-bottom:3px solid #14110E"><div style="position:absolute;inset:0;overflow:hidden"><img src="./art/campaigns/sm/p5-six.jpg" alt="" style="position:absolute;left:-59px;top:0px;width:302px;height:302px;max-width:none;filter:grayscale(1) blur(5px) brightness(.35)" /></div><div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-family:Bangers,cursive;font-size:22px;letter-spacing:1px">SEALED</div></div><div style="padding:8px 10px;display:flex;flex-direction:column;gap:2px"><span style="font-size:9px;font-weight:800;letter-spacing:1px;text-transform:uppercase;color:#F4EFE3;opacity:0.6">#4 · Sinister Six</span><span style="font-family:Bangers,cursive;font-size:17px;line-height:1">ISSUE 4</span><span style="font-size:10px;font-weight:700;color:#F4EFE3;opacity:0.5">Sealed</span></div></div></div><div style="width:190.4px;flex:none"><div style="flex:none;border:3px solid #14110E;background:#221D18;display:flex;flex-direction:column;overflow:hidden"><div style="position:relative;height:302.4px;border-bottom:3px solid #14110E"><div style="position:absolute;inset:0;overflow:hidden"><img src="./art/campaigns/sm/p6-goblin.jpg" alt="" style="position:absolute;left:-59px;top:0px;width:302px;height:302px;max-width:none;filter:grayscale(1) blur(5px) brightness(.35)" /></div><div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-family:Bangers,cursive;font-size:22px;letter-spacing:1px">SEALED</div></div><div style="padding:8px 10px;display:flex;flex-direction:column;gap:2px"><span style="font-size:9px;font-weight:800;letter-spacing:1px;text-transform:uppercase;color:#F4EFE3;opacity:0.6">#5 · Venom Goblin</span><span style="font-family:Bangers,cursive;font-size:17px;line-height:1">ISSUE 5</span><span style="font-size:10px;font-weight:700;color:#F4EFE3;opacity:0.5">Sealed</span></div></div></div></div><div style="font-size:12px;line-height:1.5;opacity:.6;max-width:640px">Each issue is shown as its own comic page. Reputation earned shows under each finished issue. Sealed pages stay blurred.</div></div><div style="flex:none;padding:12px 22px;display:flex;justify-content:flex-end;border-top:3px solid #F4EFE3"><div style="height:52px;width:300px;flex:none;display:flex;align-items:center;justify-content:center;font-family:Bangers,cursive;font-size:21px;letter-spacing:1.1px;box-sizing:border-box;background:#C8102E;border:3px solid #F4EFE3;color:#F4EFE3">READ ISSUE #3 ▸</div></div></div></div><div style="flex:none;align-self:center;display:flex;flex-direction:column;align-items:center;gap:6px;width:120px;text-align:center"><span style="font-family:Bangers,cursive;font-size:34px;color:#F2B01E;line-height:1">▸</span><span style="font-size:10px;font-weight:800;letter-spacing:1px;text-transform:uppercase">Read issue #3</span></div><div style="display:flex;flex-direction:column;gap:9px;flex:none"><div style="display:flex;align-items:baseline;gap:9px"><span style="font-family:Bangers,cursive;font-size:22px;color:#C8102E">C03</span><span style="font-family:Bangers,cursive;font-size:20px;letter-spacing:.8px">ISSUE OPENER</span><span style="font-size:10px;font-weight:800;letter-spacing:1.2px;text-transform:uppercase;opacity:.45">Replaces the 3-panel opener</span></div><div data-screen-label="T-27·F Issue opener comic" style="width:1024px;height:768px;box-sizing:border-box;overflow:hidden;background:#0B0A09;color:#F4EFE3;display:flex;flex-direction:column;position:relative;flex:none"><div style="flex:none;height:46px;background:#14110E;color:#F4EFE3;display:flex;align-items:center;gap:14px;padding:0 16px"><span style="font-family:Bangers,cursive;font-size:16px;padding:3px 9px;border:2px solid #F4EFE3">◂ BACK</span><span style="font-family:Bangers,cursive;font-size:21px;letter-spacing:1px">SMOKE AND MIRRORS</span><span style="font-size:11px;font-weight:800;letter-spacing:1.1px;text-transform:uppercase;color:#F2B01E">Issue #3 of 5</span><span style="flex:1"></span><span style="font-size:10px;font-weight:800;letter-spacing:1.1px;text-transform:uppercase;opacity:.6">Page 4 · panel 5</span></div><div style="flex:none;width:1024px;height:658px;position:relative;overflow:hidden"><div style="position:absolute;inset:0;overflow:hidden"><img src="./art/campaigns/sm/p4-mysterio.jpg" alt="" style="position:absolute;left:-173px;top:-713px;width:1371px;height:1371px;max-width:none" /></div><div style="position:absolute;left:12px;top:12px;max-width:420px;background:#F2B01E;color:#14110E;border:3px solid #14110E;padding:7px 10px;font-size:13px;font-weight:800;font-style:italic;line-height:1.4;text-transform:uppercase;box-shadow:3px 3px 0 #14110E">Issue #3 · Every mirror in Manhattan started lying.</div><div style="position:absolute;left:28px;bottom:28px;max-width:460px;background:#fff;color:#14110E;border:3px solid #14110E;border-radius:22px;padding:10px 14px;box-shadow:4px 4px 0 #C8102E"><div style="font-size:10.9px;font-weight:800;letter-spacing:1.2px;text-transform:uppercase;color:#C8102E;margin-bottom:3px;line-height:1.2">Ghost-Spider</div><div style="font-size:16px;font-weight:700;line-height:1.35">Which one of you is real?</div></div><div style="position:absolute;right:50px;top:120px;font-family:Bangers,cursive;font-size:80px;line-height:1;color:#F2B01E;-webkit-text-stroke:2.5px #14110E;transform:rotate(-8deg);text-shadow:4px 4px 0 #14110E">SHHHMMM</div></div><div style="flex:1;min-height:0;display:flex;align-items:center;gap:14px;padding:0 22px;background:#14110E;border-top:3px solid #F4EFE3"><div style="flex:1"><div style="display:flex;gap:4px;justify-content:center"><span style="width:8px;height:6px;background:#F4EFE3"></span><span style="width:8px;height:6px;background:#F4EFE3"></span><span style="width:8px;height:6px;background:#F4EFE3"></span><span style="width:8px;height:6px;background:#F4EFE3"></span><span style="width:22px;height:6px;background:#F2B01E"></span></div></div><span style="font-size:11px;font-weight:800;letter-spacing:1px;text-transform:uppercase;opacity:.6">Last panel · skip ▸▸ any time</span><div style="height:48px;width:280px;flex:none;display:flex;align-items:center;justify-content:center;font-family:Bangers,cursive;font-size:18px;letter-spacing:1.1px;box-sizing:border-box;background:#C8102E;border:3px solid #F4EFE3;color:#F4EFE3">SUIT UP ▸</div></div></div></div><div style="flex:none;align-self:center;display:flex;flex-direction:column;align-items:center;gap:6px;width:120px;text-align:center"><span style="font-family:Bangers,cursive;font-size:34px;color:#F2B01E;line-height:1">▸</span><span style="font-size:10px;font-weight:800;letter-spacing:1px;text-transform:uppercase">Briefing</span><span style="font-size:10px;line-height:1.4;opacity:.55">Unchanged</span></div><div style="display:flex;flex-direction:column;gap:9px;flex:none"><div style="display:flex;align-items:baseline;gap:9px"><span style="font-family:Bangers,cursive;font-size:22px;color:#C8102E">C04</span><span style="font-family:Bangers,cursive;font-size:20px;letter-spacing:.8px">IN-GAME BEAT</span><span style="font-size:10px;font-weight:800;letter-spacing:1.2px;text-transform:uppercase;opacity:.45">A panel pops on a stage flip</span></div><div data-screen-label="T-27·F In-game beat" style="width:1024px;height:768px;box-sizing:border-box;overflow:hidden;background:#0E0C0A;color:#F4EFE3;display:flex;flex-direction:column;position:relative;flex:none"><div style="flex:1;position:relative"><div style="position:absolute;inset:0;padding:70px 24px;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));grid-auto-rows:170px;gap:10px;opacity:.3"><div style="border:3px solid #F4EFE3;background:#221D18"></div><div style="border:3px solid #F4EFE3;background:#221D18"></div><div style="border:3px solid #F4EFE3;background:#221D18"></div><div style="border:3px solid #F4EFE3;background:#221D18"></div><div style="border:3px solid #F4EFE3;background:#221D18"></div><div style="border:3px solid #F4EFE3;background:#221D18"></div><div style="border:3px solid #F4EFE3;background:#221D18"></div><div style="border:3px solid #F4EFE3;background:#221D18"></div><div style="border:3px solid #F4EFE3;background:#221D18"></div><div style="border:3px solid #F4EFE3;background:#221D18"></div><div style="border:3px solid #F4EFE3;background:#221D18"></div><div style="border:3px solid #F4EFE3;background:#221D18"></div></div><div style="position:absolute;left:50%;top:90px;width:620px;margin-left:-310px;display:flex;flex-direction:column;gap:14px;transform:rotate(-1.2deg)"><div style="height:320px;position:relative;border:4px solid #F4EFE3;box-shadow:8px 8px 0 rgba(0,0,0,.6);overflow:hidden"><div style="position:absolute;inset:0;overflow:hidden"><img src="./art/campaigns/sm/p4-mysterio.jpg" alt="" style="position:absolute;left:-1042px;top:-299px;width:1654px;height:1654px;max-width:none" /></div><span style="position:absolute;left:0;top:0;background:#C8102E;border-right:3px solid #14110E;border-bottom:3px solid #14110E;padding:5px 10px;font-size:10px;font-weight:800;letter-spacing:1px;text-transform:uppercase">Mysterio · Stage II</span></div><div style="align-self:flex-end;background:#fff;color:#14110E;border:3px solid #14110E;border-radius:24px;padding:11px 15px;font-size:19px;font-weight:800;line-height:1.3;box-shadow:4px 4px 0 #14110E;max-width:496px">Nothing you see is real, children. Least of all your odds.</div><div style="align-self:center;background:#14110E;border:2px solid #F4EFE3;padding:6px 12px;font-size:10px;font-weight:800;letter-spacing:1.1px;text-transform:uppercase">Panel from page 4 · tap anywhere</div></div></div></div></div><div style="flex:none;align-self:center;display:flex;flex-direction:column;align-items:center;gap:6px;width:120px;text-align:center"><span style="font-family:Bangers,cursive;font-size:34px;color:#F2B01E;line-height:1">▸</span><span style="font-size:10px;font-weight:800;letter-spacing:1px;text-transform:uppercase">If you lose</span></div><div style="display:flex;flex-direction:column;gap:9px;flex:none"><div style="display:flex;align-items:baseline;gap:9px"><span style="font-family:Bangers,cursive;font-size:22px;color:#C8102E">C08</span><span style="font-family:Bangers,cursive;font-size:20px;letter-spacing:.8px">DEFEAT · REWIND</span><span style="font-size:10px;font-weight:800;letter-spacing:1.2px;text-transform:uppercase;opacity:.45">Torn panel from the page</span></div><div data-screen-label="T-27·F Defeat rewind" style="width:1024px;height:768px;box-sizing:border-box;overflow:hidden;background:#14110E;color:#F4EFE3;display:flex;flex-direction:column;position:relative;flex:none"><div style="flex:1;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:40px;align-items:center;padding:40px 56px;background-image:radial-gradient(rgba(244,239,227,.08) 1px,transparent 1.1px);background-size:7px 7px"><div style="display:flex;justify-content:center"><div style="position:relative;width:420px;height:520px;border:4px solid #F4EFE3;box-shadow:8px 8px 0 #C8102E;overflow:hidden;clip-path:polygon(0 0,100% 0,100% 88%,86% 94%,72% 89%,58% 97%,41% 90%,27% 96%,12% 89%,0 95%)"><div style="position:absolute;inset:0;overflow:hidden"><img src="./art/campaigns/sm/p2-sandman.jpg" alt="" style="position:absolute;left:-223px;top:0px;width:1191px;height:1191px;max-width:none;filter:grayscale(1) contrast(1.2)" /></div><div style="position:absolute;right:12px;bottom:40px;max-width:220px;background:#fff;color:#14110E;border:3px solid #14110E;border-radius:22px;padding:10px 14px;box-shadow:4px 4px 0 #C8102E"><div style="font-size:8.8px;font-weight:800;letter-spacing:1.2px;text-transform:uppercase;color:#C8102E;margin-bottom:3px;line-height:1.2">Mysterio</div><div style="font-size:13px;font-weight:700;line-height:1.35">Cut! Take it from the top.</div></div></div></div><div style="display:flex;flex-direction:column;gap:22px"><div style="display:flex;flex-direction:column;gap:12px"><div style="align-self:flex-start;background:#F2B01E;color:#14110E;border:3px solid #14110E;padding:7px 11px;font-size:12px;font-weight:800;font-style:italic;text-transform:uppercase;transform:rotate(-1.5deg)">No. That's not how it happened.</div><div style="font-family:Bangers,cursive;font-size:62px;line-height:.9;letter-spacing:1px">REWIND<br />ISSUE #3</div><div style="font-size:14px;line-height:1.5;opacity:.8;max-width:420px">The page flips back to the last panel you read. Same log, same reputation. Nothing the lost game marked on the track is kept.</div><div style="border:2px solid rgba(244,239,227,.3);padding:9px 11px;display:flex;flex-direction:column;gap:5px;font-size:11px;line-height:1.4;max-width:420px"><div style="display:flex;gap:8px"><span style="color:#7FD1A4;font-weight:800;width:44px;flex:none">KEPT</span><span>Reputation 11, Tech, Aspect Advantage.</span></div><div style="display:flex;gap:8px"><span style="color:#F2B01E;font-weight:800;width:44px;flex:none">REDO</span><span>Page 4's last panel replays before the game starts again.</span></div></div></div><div style="display:flex;gap:8px;max-width:520px"><div style="height:52px;flex:1;display:flex;align-items:center;justify-content:center;font-family:Bangers,cursive;font-size:21px;letter-spacing:1.1px;box-sizing:border-box;border:3px solid #F4EFE3;color:#F4EFE3">EDIT DECKS</div><div style="height:52px;flex:1;display:flex;align-items:center;justify-content:center;font-family:Bangers,cursive;font-size:21px;letter-spacing:1.1px;box-sizing:border-box;background:#C8102E;border:3px solid #F4EFE3;color:#F4EFE3">REWIND ▸</div></div></div></div></div></div><div style="flex:none;align-self:center;display:flex;flex-direction:column;align-items:center;gap:6px;width:120px;text-align:center"><span style="font-family:Bangers,cursive;font-size:34px;color:#F2B01E;line-height:1">▸</span><span style="font-size:10px;font-weight:800;letter-spacing:1px;text-transform:uppercase">If you win #1</span></div><div style="display:flex;flex-direction:column;gap:9px;flex:none"><div style="display:flex;align-items:baseline;gap:9px"><span style="font-family:Bangers,cursive;font-size:22px;color:#C8102E">C05</span><span style="font-family:Bangers,cursive;font-size:20px;letter-spacing:.8px">AFTERMATH · PAGE</span><span style="font-size:10px;font-weight:800;letter-spacing:1.2px;text-transform:uppercase;opacity:.45">Log stamped on the panels</span></div><div data-screen-label="T-27·F Aftermath page" style="width:1024px;height:768px;box-sizing:border-box;overflow:hidden;background:#14110E;color:#F4EFE3;display:flex;flex-direction:column;position:relative;flex:none"><div style="flex:none;height:46px;background:#14110E;color:#F4EFE3;display:flex;align-items:center;gap:14px;padding:0 16px"><span style="font-family:Bangers,cursive;font-size:16px;padding:3px 9px;border:2px solid #F4EFE3">◂ BACK</span><span style="font-family:Bangers,cursive;font-size:21px;letter-spacing:1px">CONTAINMENT</span><span style="font-size:11px;font-weight:800;letter-spacing:1.1px;text-transform:uppercase;color:#F2B01E">After issue #1</span><span style="flex:1"></span><span style="font-size:10px;font-weight:800;letter-spacing:1.1px;text-transform:uppercase;opacity:.6">Page 3 · panel 2</span></div><div style="flex:none;height:652px;position:relative"><div style="position:absolute;inset:0;overflow:hidden"><img src="./art/campaigns/sm/p3-oscorp.jpg" alt="" style="position:absolute;left:-575px;top:0px;width:2173px;height:2173px;max-width:none" /></div><div style="position:absolute;left:24px;bottom:24px;max-width:300px;background:#fff;color:#14110E;border:3px solid #14110E;border-radius:22px;padding:10px 14px;box-shadow:4px 4px 0 #C8102E"><div style="font-size:10.9px;font-weight:800;letter-spacing:1.2px;text-transform:uppercase;color:#C8102E;margin-bottom:3px;line-height:1.2">Sandman</div><div style="font-size:16px;font-weight:700;line-height:1.35">This ain't over, webheads.</div></div><div style="position:absolute;left:24px;top:20px"><div style="display:flex;flex-direction:column;gap:8px"><div style="background:rgba(20,17,14,.9);border:3px solid #F2B01E;color:#F2B01E;padding:5px 10px;font-size:11px;font-weight:800;letter-spacing:1px;text-transform:uppercase;transform:rotate(-2deg);align-self:flex-start">Issue #1 · Won</div><div style="background:rgba(20,17,14,.9);border:3px solid #F4EFE3;color:#F4EFE3;padding:5px 10px;font-size:11px;font-weight:800;letter-spacing:1px;text-transform:uppercase;transform:rotate(1.5deg);align-self:flex-start">Reputation +7 · nodes 1–7</div><div style="background:rgba(20,17,14,.9);border:3px solid #F4EFE3;color:#F4EFE3;padding:5px 10px;font-size:11px;font-weight:800;letter-spacing:1px;text-transform:uppercase;transform:rotate(-1deg);align-self:flex-start">Osborn Tech recorded</div><div style="background:rgba(20,17,14,.9);border:3px solid #7FD1A4;color:#7FD1A4;padding:5px 10px;font-size:11px;font-weight:800;letter-spacing:1px;text-transform:uppercase;transform:rotate(2deg);align-self:flex-start">Public Outcry: calm</div></div></div></div><div style="flex:1;min-height:0;display:flex;align-items:center;gap:14px;padding:0 22px;border-top:3px solid #F4EFE3"><div style="flex:1"><div style="display:flex;gap:4px;justify-content:center"><span style="width:8px;height:6px;background:#F4EFE3"></span><span style="width:22px;height:6px;background:#F2B01E"></span><span style="width:8px;height:6px;background:rgba(244,239,227,.3)"></span><span style="width:8px;height:6px;background:rgba(244,239,227,.3)"></span><span style="width:8px;height:6px;background:rgba(244,239,227,.3)"></span><span style="width:8px;height:6px;background:rgba(244,239,227,.3)"></span></div></div><div style="height:48px;width:320px;flex:none;display:flex;align-items:center;justify-content:center;font-family:Bangers,cursive;font-size:18px;letter-spacing:1.1px;box-sizing:border-box;background:#C8102E;border:3px solid #F4EFE3;color:#F4EFE3">S.H.I.E.L.D. TECH ▸</div></div></div></div><div style="flex:none;align-self:center;display:flex;flex-direction:column;align-items:center;gap:6px;width:120px;text-align:center"><span style="font-family:Bangers,cursive;font-size:34px;color:#F2B01E;line-height:1">▸</span><span style="font-size:10px;font-weight:800;letter-spacing:1px;text-transform:uppercase">Dealt 3 Tech</span><span style="font-size:10px;line-height:1.4;opacity:.55">Unchanged · then the next issue</span></div><div style="display:flex;flex-direction:column;gap:9px;flex:none"><div style="display:flex;align-items:baseline;gap:9px"><span style="font-family:Bangers,cursive;font-size:22px;color:#C8102E">C10</span><span style="font-family:Bangers,cursive;font-size:20px;letter-spacing:.8px">FINALE</span><span style="font-size:10px;font-weight:800;letter-spacing:1.2px;text-transform:uppercase;opacity:.45">Spread replaces the epilogue</span></div><div data-screen-label="T-27·F Finale spread" style="width:1024px;height:768px;box-sizing:border-box;overflow:hidden;background:#14110E;color:#F4EFE3;display:flex;flex-direction:column;position:relative;flex:none"><div style="flex:none;height:480px;position:relative"><div style="position:absolute;inset:0;overflow:hidden"><img src="./art/campaigns/sm/p8-home.jpg" alt="" style="position:absolute;left:0px;top:-533px;width:1024px;height:1031px;max-width:none" /></div><div style="position:absolute;right:40px;bottom:30px;max-width:360px;background:#fff;color:#14110E;border:3px solid #14110E;border-radius:22px;padding:10px 14px;box-shadow:4px 4px 0 #C8102E"><div style="font-size:10.9px;font-weight:800;letter-spacing:1.2px;text-transform:uppercase;color:#C8102E;margin-bottom:3px;line-height:1.2">Mom</div><div style="font-size:16px;font-weight:700;line-height:1.35">You're home. That's all that matters.</div></div></div><div style="flex:1;min-height:0;display:flex;gap:30px;align-items:center;padding:0 24px;background:#F2B01E;color:#14110E;border-top:4px solid #14110E"><div style="font-family:Bangers,cursive;font-size:46px;line-height:.86;letter-spacing:1.5px;flex:none">THE CITY<br />SAYS THANKS.</div><div style="flex:1;max-width:420px"><div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px"><div style="border:3px solid #14110E;background:#F4EFE3;color:#14110E;padding:6px 10px"><div style="font-size:8px;font-weight:800;letter-spacing:1px;text-transform:uppercase;opacity:.6">Issues</div><div style="font-family:Bangers,cursive;font-size:22px;line-height:1.05">5/5</div></div><div style="border:3px solid #14110E;background:#F4EFE3;color:#14110E;padding:6px 10px"><div style="font-size:8px;font-weight:800;letter-spacing:1px;text-transform:uppercase;opacity:.6">Reputation</div><div style="font-family:Bangers,cursive;font-size:22px;line-height:1.05">23</div></div><div style="border:3px solid #14110E;background:#F4EFE3;color:#14110E;padding:6px 10px"><div style="font-size:8px;font-weight:800;letter-spacing:1px;text-transform:uppercase;opacity:.6">Rewinds</div><div style="font-family:Bangers,cursive;font-size:22px;line-height:1.05">2</div></div></div></div><div style="display:flex;flex-direction:column;gap:8px;width:260px;flex:none"><div style="height:52px;flex:1;display:flex;align-items:center;justify-content:center;font-family:Bangers,cursive;font-size:21px;letter-spacing:1.1px;box-sizing:border-box;background:#C8102E;border:3px solid #F4EFE3;color:#F4EFE3">EXPERT RUN ▸</div><div style="height:44px;border:3px solid #14110E;display:flex;align-items:center;justify-content:center;font-family:Bangers,cursive;font-size:18px">READ IT ALL AGAIN</div></div></div></div></div>
+      </div>
+    </div>
+
+    <div style="display:flex;flex-direction:column;gap:14px">
+      <div style="display:flex;align-items:center;gap:10px"><span style="font-family:Bangers,cursive;font-size:26px;letter-spacing:1px">DESKTOP</span><span style="flex:1;height:3px;background:#F4EFE3;opacity:.3"></span></div>
+      <div style="display:flex;gap:18px;align-items:flex-start;flex-wrap:wrap">
+<div style="display:flex;flex-direction:column;gap:9px;flex:none"><div style="display:flex;align-items:baseline;gap:9px"><span style="font-family:Bangers,cursive;font-size:22px;color:#C8102E">C06</span><span style="font-family:Bangers,cursive;font-size:20px;letter-spacing:.8px">THE RUN</span><span style="font-size:10px;font-weight:800;letter-spacing:1.2px;text-transform:uppercase;opacity:.45">Pages as issue covers</span></div><div data-screen-label="D-27·F The run" style="width:1440px;height:980px;box-sizing:border-box;overflow:hidden;background:#14110E;color:#F4EFE3;display:flex;flex-direction:column;position:relative;flex:none"><div style="flex:none;height:54px;background:#14110E;color:#F4EFE3;display:flex;align-items:center;gap:14px;padding:0 22px"><span style="font-family:Bangers,cursive;font-size:16px;padding:3px 9px;border:2px solid #F4EFE3">◂ BACK</span><span style="font-family:Bangers,cursive;font-size:24px;letter-spacing:1px">THE RUN</span><span style="font-size:11px;font-weight:800;letter-spacing:1.1px;text-transform:uppercase;color:#F2B01E">Sinister Motives</span><span style="flex:1"></span><span style="font-size:10px;font-weight:800;letter-spacing:1.1px;text-transform:uppercase;opacity:.6">3/5</span></div><div style="flex:1;min-height:0;padding:28px;display:flex;flex-direction:column;gap:16px"><div style="display:flex;gap:10px;align-items:flex-start"><div style="width:268.8px;flex:none"><div style="flex:none;border:3px solid #14110E;background:#221D18;display:flex;flex-direction:column;overflow:hidden"><div style="position:relative;height:403.2px;border-bottom:3px solid #14110E"><div style="position:absolute;inset:0;overflow:hidden"><img src="./art/campaigns/sm/p2-sandman.jpg" alt="" style="position:absolute;left:-337px;top:0px;width:938px;height:938px;max-width:none;filter:saturate(.7)" /></div><span style="position:absolute;right:8px;top:8px;background:#1F7A4C;border:2px solid #F4EFE3;font-family:Bangers,cursive;font-size:14px;padding:2px 7px">READ ▸</span></div><div style="padding:8px 10px;display:flex;flex-direction:column;gap:2px"><span style="font-size:9px;font-weight:800;letter-spacing:1px;text-transform:uppercase;color:#F4EFE3;opacity:0.6">#1 · Sandman</span><span style="font-family:Bangers,cursive;font-size:17px;line-height:1">DOWN IN THE DUNES</span><span style="font-size:10px;font-weight:700;color:#7FD1A4;opacity:0.85">Won · Rep +7</span></div></div></div><div style="width:268.8px;flex:none"><div style="flex:none;border:3px solid #14110E;background:#221D18;display:flex;flex-direction:column;overflow:hidden"><div style="position:relative;height:403.2px;border-bottom:3px solid #14110E"><div style="position:absolute;inset:0;overflow:hidden"><img src="./art/campaigns/sm/p3-oscorp.jpg" alt="" style="position:absolute;left:-546px;top:-455px;width:858px;height:858px;max-width:none;filter:saturate(.7)" /></div><span style="position:absolute;right:8px;top:8px;background:#1F7A4C;border:2px solid #F4EFE3;font-family:Bangers,cursive;font-size:14px;padding:2px 7px">READ ▸</span></div><div style="padding:8px 10px;display:flex;flex-direction:column;gap:2px"><span style="font-size:9px;font-weight:800;letter-spacing:1px;text-transform:uppercase;color:#F4EFE3;opacity:0.6">#2 · Venom</span><span style="font-family:Bangers,cursive;font-size:17px;line-height:1">SOMETHING GOT OUT</span><span style="font-size:10px;font-weight:700;color:#7FD1A4;opacity:0.85">Won on 2nd try · Rep +4</span></div></div></div><div style="width:268.8px;flex:none"><div style="flex:none;border:3px solid #F4EFE3;box-shadow:0 0 0 3px #C8102E;background:#221D18;display:flex;flex-direction:column;overflow:hidden"><div style="position:relative;height:560px;border-bottom:3px solid #14110E"><div style="position:absolute;inset:0;overflow:hidden"><img src="./art/campaigns/sm/p4-mysterio.jpg" alt="" style="position:absolute;left:-906px;top:-1514px;width:2074px;height:2074px;max-width:none" /></div></div><div style="padding:8px 10px;display:flex;flex-direction:column;gap:2px"><span style="font-size:9px;font-weight:800;letter-spacing:1px;text-transform:uppercase;color:#F2B01E;opacity:1">#3 · Mysterio</span><span style="font-family:Bangers,cursive;font-size:22px;line-height:1">SMOKE AND MIRRORS</span><span style="font-size:10px;font-weight:700;color:#F4EFE3;opacity:0.85">Up next · Rep 11</span></div></div></div><div style="width:268.8px;flex:none"><div style="flex:none;border:3px solid #14110E;background:#221D18;display:flex;flex-direction:column;overflow:hidden"><div style="position:relative;height:403.2px;border-bottom:3px solid #14110E"><div style="position:absolute;inset:0;overflow:hidden"><img src="./art/campaigns/sm/p5-six.jpg" alt="" style="position:absolute;left:-70px;top:0px;width:403px;height:403px;max-width:none;filter:grayscale(1) blur(5px) brightness(.35)" /></div><div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-family:Bangers,cursive;font-size:22px;letter-spacing:1px">SEALED</div></div><div style="padding:8px 10px;display:flex;flex-direction:column;gap:2px"><span style="font-size:9px;font-weight:800;letter-spacing:1px;text-transform:uppercase;color:#F4EFE3;opacity:0.6">#4 · Sinister Six</span><span style="font-family:Bangers,cursive;font-size:17px;line-height:1">ISSUE 4</span><span style="font-size:10px;font-weight:700;color:#F4EFE3;opacity:0.5">Sealed</span></div></div></div><div style="width:268.8px;flex:none"><div style="flex:none;border:3px solid #14110E;background:#221D18;display:flex;flex-direction:column;overflow:hidden"><div style="position:relative;height:403.2px;border-bottom:3px solid #14110E"><div style="position:absolute;inset:0;overflow:hidden"><img src="./art/campaigns/sm/p6-goblin.jpg" alt="" style="position:absolute;left:-70px;top:0px;width:403px;height:403px;max-width:none;filter:grayscale(1) blur(5px) brightness(.35)" /></div><div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-family:Bangers,cursive;font-size:22px;letter-spacing:1px">SEALED</div></div><div style="padding:8px 10px;display:flex;flex-direction:column;gap:2px"><span style="font-size:9px;font-weight:800;letter-spacing:1px;text-transform:uppercase;color:#F4EFE3;opacity:0.6">#5 · Venom Goblin</span><span style="font-family:Bangers,cursive;font-size:17px;line-height:1">ISSUE 5</span><span style="font-size:10px;font-weight:700;color:#F4EFE3;opacity:0.5">Sealed</span></div></div></div></div><div style="font-size:12px;line-height:1.5;opacity:.6;max-width:640px">Each issue is shown as its own comic page. Reputation earned shows under each finished issue. Sealed pages stay blurred.</div></div><div style="flex:none;padding:12px 22px;display:flex;justify-content:flex-end;border-top:3px solid #F4EFE3"><div style="height:52px;width:300px;flex:none;display:flex;align-items:center;justify-content:center;font-family:Bangers,cursive;font-size:21px;letter-spacing:1.1px;box-sizing:border-box;background:#C8102E;border:3px solid #F4EFE3;color:#F4EFE3">READ ISSUE #3 ▸</div></div></div></div><div style="flex:none;align-self:center;display:flex;flex-direction:column;align-items:center;gap:6px;width:120px;text-align:center"><span style="font-family:Bangers,cursive;font-size:34px;color:#F2B01E;line-height:1">▸</span><span style="font-size:10px;font-weight:800;letter-spacing:1px;text-transform:uppercase">Read issue #3</span></div><div style="display:flex;flex-direction:column;gap:9px;flex:none"><div style="display:flex;align-items:baseline;gap:9px"><span style="font-family:Bangers,cursive;font-size:22px;color:#C8102E">C03</span><span style="font-family:Bangers,cursive;font-size:20px;letter-spacing:.8px">ISSUE OPENER</span><span style="font-size:10px;font-weight:800;letter-spacing:1.2px;text-transform:uppercase;opacity:.45">Replaces the 3-panel opener</span></div><div data-screen-label="D-27·F Issue opener comic" style="width:1440px;height:980px;box-sizing:border-box;overflow:hidden;background:#0B0A09;color:#F4EFE3;display:flex;flex-direction:column;position:relative;flex:none"><div style="flex:none;height:54px;background:#14110E;color:#F4EFE3;display:flex;align-items:center;gap:14px;padding:0 22px"><span style="font-family:Bangers,cursive;font-size:16px;padding:3px 9px;border:2px solid #F4EFE3">◂ BACK</span><span style="font-family:Bangers,cursive;font-size:24px;letter-spacing:1px">SMOKE AND MIRRORS</span><span style="font-size:11px;font-weight:800;letter-spacing:1.1px;text-transform:uppercase;color:#F2B01E">Issue #3 of 5</span><span style="flex:1"></span><span style="font-size:10px;font-weight:800;letter-spacing:1.1px;text-transform:uppercase;opacity:.6">Page 4 · panel 5</span></div><div style="flex:none;width:1440px;height:760px;position:relative;overflow:hidden"><div style="position:absolute;inset:0;overflow:hidden;background:#0B0A09"><img src="./art/campaigns/sm/p4-mysterio.jpg" alt="" style="position:absolute;left:363px;top:23px;width:714px;height:714px;max-width:none" /><div style="position:absolute;left:363px;top:544px;width:714px;height:193px;box-shadow:0 0 0 4000px rgba(11,10,9,.68);outline:3px solid #F4EFE3"></div></div><div style="position:absolute;left:12px;top:12px;max-width:420px;background:#F2B01E;color:#14110E;border:3px solid #14110E;padding:7px 10px;font-size:13px;font-weight:800;font-style:italic;line-height:1.4;text-transform:uppercase;box-shadow:3px 3px 0 #14110E">Issue #3 · Every mirror in Manhattan started lying.</div><div style="position:absolute;left:28px;bottom:28px;max-width:460px;background:#fff;color:#14110E;border:3px solid #14110E;border-radius:22px;padding:10px 14px;box-shadow:4px 4px 0 #C8102E"><div style="font-size:12.9px;font-weight:800;letter-spacing:1.2px;text-transform:uppercase;color:#C8102E;margin-bottom:3px;line-height:1.2">Ghost-Spider</div><div style="font-size:19px;font-weight:700;line-height:1.35">Which one of you is real?</div></div><div style="position:absolute;right:50px;top:120px;font-family:Bangers,cursive;font-size:80px;line-height:1;color:#F2B01E;-webkit-text-stroke:2.5px #14110E;transform:rotate(-8deg);text-shadow:4px 4px 0 #14110E">SHHHMMM</div></div><div style="flex:1;min-height:0;display:flex;align-items:center;gap:14px;padding:0 22px;background:#14110E;border-top:3px solid #F4EFE3"><div style="flex:1"><div style="display:flex;gap:4px;justify-content:center"><span style="width:8px;height:6px;background:#F4EFE3"></span><span style="width:8px;height:6px;background:#F4EFE3"></span><span style="width:8px;height:6px;background:#F4EFE3"></span><span style="width:8px;height:6px;background:#F4EFE3"></span><span style="width:22px;height:6px;background:#F2B01E"></span></div></div><span style="font-size:11px;font-weight:800;letter-spacing:1px;text-transform:uppercase;opacity:.6">Last panel · skip ▸▸ any time</span><div style="height:60px;width:280px;flex:none;display:flex;align-items:center;justify-content:center;font-family:Bangers,cursive;font-size:21px;letter-spacing:1.1px;box-sizing:border-box;background:#C8102E;border:3px solid #F4EFE3;color:#F4EFE3">SUIT UP ▸</div></div></div></div><div style="flex:none;align-self:center;display:flex;flex-direction:column;align-items:center;gap:6px;width:120px;text-align:center"><span style="font-family:Bangers,cursive;font-size:34px;color:#F2B01E;line-height:1">▸</span><span style="font-size:10px;font-weight:800;letter-spacing:1px;text-transform:uppercase">Briefing</span><span style="font-size:10px;line-height:1.4;opacity:.55">Unchanged</span></div><div style="display:flex;flex-direction:column;gap:9px;flex:none"><div style="display:flex;align-items:baseline;gap:9px"><span style="font-family:Bangers,cursive;font-size:22px;color:#C8102E">C04</span><span style="font-family:Bangers,cursive;font-size:20px;letter-spacing:.8px">IN-GAME BEAT</span><span style="font-size:10px;font-weight:800;letter-spacing:1.2px;text-transform:uppercase;opacity:.45">A panel pops on a stage flip</span></div><div data-screen-label="D-27·F In-game beat" style="width:1440px;height:980px;box-sizing:border-box;overflow:hidden;background:#0E0C0A;color:#F4EFE3;display:flex;flex-direction:column;position:relative;flex:none"><div style="flex:1;position:relative"><div style="position:absolute;inset:0;padding:70px 24px;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));grid-auto-rows:170px;gap:10px;opacity:.3"><div style="border:3px solid #F4EFE3;background:#221D18"></div><div style="border:3px solid #F4EFE3;background:#221D18"></div><div style="border:3px solid #F4EFE3;background:#221D18"></div><div style="border:3px solid #F4EFE3;background:#221D18"></div><div style="border:3px solid #F4EFE3;background:#221D18"></div><div style="border:3px solid #F4EFE3;background:#221D18"></div><div style="border:3px solid #F4EFE3;background:#221D18"></div><div style="border:3px solid #F4EFE3;background:#221D18"></div><div style="border:3px solid #F4EFE3;background:#221D18"></div><div style="border:3px solid #F4EFE3;background:#221D18"></div><div style="border:3px solid #F4EFE3;background:#221D18"></div><div style="border:3px solid #F4EFE3;background:#221D18"></div></div><div style="position:absolute;left:50%;top:90px;width:820px;margin-left:-410px;display:flex;flex-direction:column;gap:14px;transform:rotate(-1.2deg)"><div style="height:420px;position:relative;border:4px solid #F4EFE3;box-shadow:8px 8px 0 rgba(0,0,0,.6);overflow:hidden"><div style="position:absolute;inset:0;overflow:hidden"><img src="./art/campaigns/sm/p4-mysterio.jpg" alt="" style="position:absolute;left:-1383px;top:-398px;width:2195px;height:2195px;max-width:none" /></div><span style="position:absolute;left:0;top:0;background:#C8102E;border-right:3px solid #14110E;border-bottom:3px solid #14110E;padding:5px 10px;font-size:10px;font-weight:800;letter-spacing:1px;text-transform:uppercase">Mysterio · Stage II</span></div><div style="align-self:flex-end;background:#fff;color:#14110E;border:3px solid #14110E;border-radius:24px;padding:11px 15px;font-size:19px;font-weight:800;line-height:1.3;box-shadow:4px 4px 0 #14110E;max-width:656px">Nothing you see is real, children. Least of all your odds.</div><div style="align-self:center;background:#14110E;border:2px solid #F4EFE3;padding:6px 12px;font-size:10px;font-weight:800;letter-spacing:1.1px;text-transform:uppercase">Panel from page 4 · tap anywhere</div></div></div></div></div><div style="flex:none;align-self:center;display:flex;flex-direction:column;align-items:center;gap:6px;width:120px;text-align:center"><span style="font-family:Bangers,cursive;font-size:34px;color:#F2B01E;line-height:1">▸</span><span style="font-size:10px;font-weight:800;letter-spacing:1px;text-transform:uppercase">If you lose</span></div><div style="display:flex;flex-direction:column;gap:9px;flex:none"><div style="display:flex;align-items:baseline;gap:9px"><span style="font-family:Bangers,cursive;font-size:22px;color:#C8102E">C08</span><span style="font-family:Bangers,cursive;font-size:20px;letter-spacing:.8px">DEFEAT · REWIND</span><span style="font-size:10px;font-weight:800;letter-spacing:1.2px;text-transform:uppercase;opacity:.45">Torn panel from the page</span></div><div data-screen-label="D-27·F Defeat rewind" style="width:1440px;height:980px;box-sizing:border-box;overflow:hidden;background:#14110E;color:#F4EFE3;display:flex;flex-direction:column;position:relative;flex:none"><div style="flex:1;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:40px;align-items:center;padding:40px 56px;background-image:radial-gradient(rgba(244,239,227,.08) 1px,transparent 1.1px);background-size:7px 7px"><div style="display:flex;justify-content:center"><div style="position:relative;width:560px;height:640px;border:4px solid #F4EFE3;box-shadow:8px 8px 0 #C8102E;overflow:hidden;clip-path:polygon(0 0,100% 0,100% 88%,86% 94%,72% 89%,58% 97%,41% 90%,27% 96%,12% 89%,0 95%)"><div style="position:absolute;inset:0;overflow:hidden"><img src="./art/campaigns/sm/p2-sandman.jpg" alt="" style="position:absolute;left:-253px;top:0px;width:1470px;height:1470px;max-width:none;filter:grayscale(1) contrast(1.2)" /></div><div style="position:absolute;right:12px;bottom:40px;max-width:220px;background:#fff;color:#14110E;border:3px solid #14110E;border-radius:22px;padding:10px 14px;box-shadow:4px 4px 0 #C8102E"><div style="font-size:8.8px;font-weight:800;letter-spacing:1.2px;text-transform:uppercase;color:#C8102E;margin-bottom:3px;line-height:1.2">Mysterio</div><div style="font-size:13px;font-weight:700;line-height:1.35">Cut! Take it from the top.</div></div></div></div><div style="display:flex;flex-direction:column;gap:22px"><div style="display:flex;flex-direction:column;gap:12px"><div style="align-self:flex-start;background:#F2B01E;color:#14110E;border:3px solid #14110E;padding:7px 11px;font-size:12px;font-weight:800;font-style:italic;text-transform:uppercase;transform:rotate(-1.5deg)">No. That's not how it happened.</div><div style="font-family:Bangers,cursive;font-size:62px;line-height:.9;letter-spacing:1px">REWIND<br />ISSUE #3</div><div style="font-size:14px;line-height:1.5;opacity:.8;max-width:420px">The page flips back to the last panel you read. Same log, same reputation. Nothing the lost game marked on the track is kept.</div><div style="border:2px solid rgba(244,239,227,.3);padding:9px 11px;display:flex;flex-direction:column;gap:5px;font-size:11px;line-height:1.4;max-width:420px"><div style="display:flex;gap:8px"><span style="color:#7FD1A4;font-weight:800;width:44px;flex:none">KEPT</span><span>Reputation 11, Tech, Aspect Advantage.</span></div><div style="display:flex;gap:8px"><span style="color:#F2B01E;font-weight:800;width:44px;flex:none">REDO</span><span>Page 4's last panel replays before the game starts again.</span></div></div></div><div style="display:flex;gap:8px;max-width:520px"><div style="height:52px;flex:1;display:flex;align-items:center;justify-content:center;font-family:Bangers,cursive;font-size:21px;letter-spacing:1.1px;box-sizing:border-box;border:3px solid #F4EFE3;color:#F4EFE3">EDIT DECKS</div><div style="height:52px;flex:1;display:flex;align-items:center;justify-content:center;font-family:Bangers,cursive;font-size:21px;letter-spacing:1.1px;box-sizing:border-box;background:#C8102E;border:3px solid #F4EFE3;color:#F4EFE3">REWIND ▸</div></div></div></div></div></div><div style="flex:none;align-self:center;display:flex;flex-direction:column;align-items:center;gap:6px;width:120px;text-align:center"><span style="font-family:Bangers,cursive;font-size:34px;color:#F2B01E;line-height:1">▸</span><span style="font-size:10px;font-weight:800;letter-spacing:1px;text-transform:uppercase">If you win #1</span></div><div style="display:flex;flex-direction:column;gap:9px;flex:none"><div style="display:flex;align-items:baseline;gap:9px"><span style="font-family:Bangers,cursive;font-size:22px;color:#C8102E">C05</span><span style="font-family:Bangers,cursive;font-size:20px;letter-spacing:.8px">AFTERMATH · PAGE</span><span style="font-size:10px;font-weight:800;letter-spacing:1.2px;text-transform:uppercase;opacity:.45">Log stamped on the panels</span></div><div data-screen-label="D-27·F Aftermath page" style="width:1440px;height:980px;box-sizing:border-box;overflow:hidden;background:#14110E;color:#F4EFE3;display:flex;flex-direction:column;position:relative;flex:none"><div style="flex:none;height:54px;background:#14110E;color:#F4EFE3;display:flex;align-items:center;gap:14px;padding:0 22px"><span style="font-family:Bangers,cursive;font-size:16px;padding:3px 9px;border:2px solid #F4EFE3">◂ BACK</span><span style="font-family:Bangers,cursive;font-size:24px;letter-spacing:1px">CONTAINMENT</span><span style="font-size:11px;font-weight:800;letter-spacing:1.1px;text-transform:uppercase;color:#F2B01E">After issue #1</span><span style="flex:1"></span><span style="font-size:10px;font-weight:800;letter-spacing:1.1px;text-transform:uppercase;opacity:.6">Page 3 · panel 2</span></div><div style="flex:none;height:760px;position:relative"><div style="position:absolute;inset:0;overflow:hidden;background:#0B0A09"><img src="./art/campaigns/sm/p3-oscorp.jpg" alt="" style="position:absolute;left:363px;top:23px;width:714px;height:714px;max-width:none" /><div style="position:absolute;left:363px;top:23px;width:714px;height:214px;box-shadow:0 0 0 4000px rgba(11,10,9,.68);outline:3px solid #F4EFE3"></div></div><div style="position:absolute;left:40px;bottom:34px;max-width:340px;background:#fff;color:#14110E;border:3px solid #14110E;border-radius:22px;padding:10px 14px;box-shadow:4px 4px 0 #C8102E"><div style="font-size:12.9px;font-weight:800;letter-spacing:1.2px;text-transform:uppercase;color:#C8102E;margin-bottom:3px;line-height:1.2">Sandman</div><div style="font-size:19px;font-weight:700;line-height:1.35">This ain't over, webheads.</div></div><div style="position:absolute;left:40px;top:30px"><div style="display:flex;flex-direction:column;gap:8px"><div style="background:rgba(20,17,14,.9);border:3px solid #F2B01E;color:#F2B01E;padding:5px 10px;font-size:11px;font-weight:800;letter-spacing:1px;text-transform:uppercase;transform:rotate(-2deg);align-self:flex-start">Issue #1 · Won</div><div style="background:rgba(20,17,14,.9);border:3px solid #F4EFE3;color:#F4EFE3;padding:5px 10px;font-size:11px;font-weight:800;letter-spacing:1px;text-transform:uppercase;transform:rotate(1.5deg);align-self:flex-start">Reputation +7 · nodes 1–7</div><div style="background:rgba(20,17,14,.9);border:3px solid #F4EFE3;color:#F4EFE3;padding:5px 10px;font-size:11px;font-weight:800;letter-spacing:1px;text-transform:uppercase;transform:rotate(-1deg);align-self:flex-start">Osborn Tech recorded</div><div style="background:rgba(20,17,14,.9);border:3px solid #7FD1A4;color:#7FD1A4;padding:5px 10px;font-size:11px;font-weight:800;letter-spacing:1px;text-transform:uppercase;transform:rotate(2deg);align-self:flex-start">Public Outcry: calm</div></div></div></div><div style="flex:1;min-height:0;display:flex;align-items:center;gap:14px;padding:0 22px;border-top:3px solid #F4EFE3"><div style="flex:1"><div style="display:flex;gap:4px;justify-content:center"><span style="width:8px;height:6px;background:#F4EFE3"></span><span style="width:22px;height:6px;background:#F2B01E"></span><span style="width:8px;height:6px;background:rgba(244,239,227,.3)"></span><span style="width:8px;height:6px;background:rgba(244,239,227,.3)"></span><span style="width:8px;height:6px;background:rgba(244,239,227,.3)"></span><span style="width:8px;height:6px;background:rgba(244,239,227,.3)"></span></div></div><div style="height:60px;width:320px;flex:none;display:flex;align-items:center;justify-content:center;font-family:Bangers,cursive;font-size:21px;letter-spacing:1.1px;box-sizing:border-box;background:#C8102E;border:3px solid #F4EFE3;color:#F4EFE3">S.H.I.E.L.D. TECH ▸</div></div></div></div><div style="flex:none;align-self:center;display:flex;flex-direction:column;align-items:center;gap:6px;width:120px;text-align:center"><span style="font-family:Bangers,cursive;font-size:34px;color:#F2B01E;line-height:1">▸</span><span style="font-size:10px;font-weight:800;letter-spacing:1px;text-transform:uppercase">Dealt 3 Tech</span><span style="font-size:10px;line-height:1.4;opacity:.55">Unchanged · then the next issue</span></div><div style="display:flex;flex-direction:column;gap:9px;flex:none"><div style="display:flex;align-items:baseline;gap:9px"><span style="font-family:Bangers,cursive;font-size:22px;color:#C8102E">C10</span><span style="font-family:Bangers,cursive;font-size:20px;letter-spacing:.8px">FINALE</span><span style="font-size:10px;font-weight:800;letter-spacing:1.2px;text-transform:uppercase;opacity:.45">Spread replaces the epilogue</span></div><div data-screen-label="D-27·F Finale spread" style="width:1440px;height:980px;box-sizing:border-box;overflow:hidden;background:#14110E;color:#F4EFE3;display:flex;flex-direction:column;position:relative;flex:none"><div style="flex:none;height:640px;position:relative"><div style="position:absolute;inset:0;overflow:hidden"><img src="./art/campaigns/sm/p8-home.jpg" alt="" style="position:absolute;left:0px;top:-767px;width:1440px;height:1450px;max-width:none" /></div><div style="position:absolute;right:40px;bottom:30px;max-width:360px;background:#fff;color:#14110E;border:3px solid #14110E;border-radius:22px;padding:10px 14px;box-shadow:4px 4px 0 #C8102E"><div style="font-size:12.9px;font-weight:800;letter-spacing:1.2px;text-transform:uppercase;color:#C8102E;margin-bottom:3px;line-height:1.2">Mom</div><div style="font-size:19px;font-weight:700;line-height:1.35">You're home. That's all that matters.</div></div></div><div style="flex:1;min-height:0;display:flex;gap:30px;align-items:center;padding:0 40px;background:#F2B01E;color:#14110E;border-top:4px solid #14110E"><div style="font-family:Bangers,cursive;font-size:60px;line-height:.86;letter-spacing:1.5px;flex:none">THE CITY<br />SAYS THANKS.</div><div style="flex:1;max-width:420px"><div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px"><div style="border:3px solid #14110E;background:#F4EFE3;color:#14110E;padding:6px 10px"><div style="font-size:8px;font-weight:800;letter-spacing:1px;text-transform:uppercase;opacity:.6">Issues</div><div style="font-family:Bangers,cursive;font-size:22px;line-height:1.05">5/5</div></div><div style="border:3px solid #14110E;background:#F4EFE3;color:#14110E;padding:6px 10px"><div style="font-size:8px;font-weight:800;letter-spacing:1px;text-transform:uppercase;opacity:.6">Reputation</div><div style="font-family:Bangers,cursive;font-size:22px;line-height:1.05">23</div></div><div style="border:3px solid #14110E;background:#F4EFE3;color:#14110E;padding:6px 10px"><div style="font-size:8px;font-weight:800;letter-spacing:1px;text-transform:uppercase;opacity:.6">Rewinds</div><div style="font-family:Bangers,cursive;font-size:22px;line-height:1.05">2</div></div></div></div><div style="display:flex;flex-direction:column;gap:8px;width:260px;flex:none"><div style="height:52px;flex:1;display:flex;align-items:center;justify-content:center;font-family:Bangers,cursive;font-size:21px;letter-spacing:1.1px;box-sizing:border-box;background:#C8102E;border:3px solid #F4EFE3;color:#F4EFE3">EXPERT RUN ▸</div><div style="height:44px;border:3px solid #14110E;display:flex;align-items:center;justify-content:center;font-family:Bangers,cursive;font-size:18px">READ IT ALL AGAIN</div></div></div></div></div>
+      </div>
+    </div>
+  </div>
+<!-- /flow -->
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;wonIssues&quot;:{&quot;editor&quot;:&quot;range&quot;,&quot;min&quot;:0,&quot;max&quot;:5,&quot;step&quot;:1,&quot;default&quot;:5,&quot;tsType&quot;:&quot;number&quot;,&quot;section&quot;:&quot;Campaign progress&quot;},&quot;spotlight&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Reader&quot;},&quot;autoplay&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:false,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Reader&quot;}}">
+class Component extends DCLogic {
+  state = { beat: 0 };
+  pagesDef = [
+ {
+  "src": "./art/campaigns/sm/p1-swing.jpg",
+  "a": 0.9933774834437086,
+  "gate": 0,
+  "issue": "Prologue",
+  "title": "SWING SHIFT",
+  "short": "PROLOGUE",
+  "role": "Before issue #1. Plays after the roster is signed.",
+  "beats": [
+   {
+    "r": [
+     0,
+     0,
+     1,
+     1
+    ],
+    "cap": "Queens to Midtown in four swings. It's a nice morning."
+   },
+   {
+    "r": [
+     0,
+     0,
+     1,
+     0.58
+    ],
+    "who": "Ghost-Spider",
+    "line": "Race you to the Flatiron."
+   },
+   {
+    "r": [
+     0,
+     0.5,
+     1,
+     0.27
+    ],
+    "who": "Miles",
+    "line": "Hold up. Spider-sense says… sand?"
+   },
+   {
+    "r": [
+     0,
+     0.76,
+     1,
+     0.24
+    ],
+    "cap": "It was not a nice morning for long."
+   }
+  ]
+ },
+ {
+  "src": "./art/campaigns/sm/p2-sandman.jpg",
+  "a": 1,
+  "gate": 0,
+  "issue": "Issue #1",
+  "title": "DOWN IN THE DUNES",
+  "short": "#1 SANDMAN",
+  "role": "Issue #1 opener.",
+  "beats": [
+   {
+    "r": [
+     0,
+     0,
+     1,
+     1
+    ],
+    "cap": "Issue #1 · Midtown. The sidewalk is getting up and walking."
+   },
+   {
+    "r": [
+     0,
+     0,
+     0.72,
+     0.43
+    ],
+    "who": "Sandman",
+    "line": "Outta my way, bugs!"
+   },
+   {
+    "r": [
+     0.69,
+     0,
+     0.31,
+     0.47
+    ],
+    "sfx": "FWOOSH!"
+   },
+   {
+    "r": [
+     0,
+     0.41,
+     1,
+     0.31
+    ],
+    "who": "Ghost-Spider",
+    "line": "Hold him still, Miles!"
+   },
+   {
+    "r": [
+     0,
+     0.71,
+     1,
+     0.29
+    ],
+    "who": "Sandman",
+    "line": "Hold THIS.",
+    "sfx": "THOOM!"
+   }
+  ]
+ },
+ {
+  "src": "./art/campaigns/sm/p3-oscorp.jpg",
+  "a": 1,
+  "gate": 1,
+  "issue": "After #1 · Issue #2",
+  "title": "SOMETHING GOT OUT",
+  "short": "#1 AFTER · #2",
+  "role": "Issue #1 aftermath (top half), then issue #2 opener.",
+  "beats": [
+   {
+    "r": [
+     0,
+     0,
+     1,
+     0.3
+    ],
+    "cap": "S.H.I.E.L.D. containment. Sand, in a jar."
+   },
+   {
+    "r": [
+     0.5,
+     0,
+     0.5,
+     0.3
+    ],
+    "who": "Sandman",
+    "line": "This ain't over, webheads."
+   },
+   {
+    "r": [
+     0,
+     0.26,
+     1,
+     0.26
+    ],
+    "cap": "Somebody broke into Oscorp while you were busy."
+   },
+   {
+    "r": [
+     0,
+     0.52,
+     0.3,
+     0.48
+    ],
+    "cap": "Issue #2 · Oscorp tower. Something got out."
+   },
+   {
+    "r": [
+     0.28,
+     0.53,
+     0.33,
+     0.47
+    ],
+    "sfx": "SKRAA!"
+   },
+   {
+    "r": [
+     0.58,
+     0.53,
+     0.42,
+     0.47
+    ],
+    "who": "Venom",
+    "line": "WE ARE HUNGRY."
+   }
+  ]
+ },
+ {
+  "src": "./art/campaigns/sm/p4-mysterio.jpg",
+  "a": 1,
+  "gate": 2,
+  "issue": "Issue #3",
+  "title": "SMOKE AND MIRRORS",
+  "short": "#3 MYSTERIO",
+  "role": "Issue #3 opener. Venom joins for one issue.",
+  "beats": [
+   {
+    "r": [
+     0,
+     0,
+     1,
+     1
+    ],
+    "cap": "Issue #3 · Enemies make strange roommates."
+   },
+   {
+    "r": [
+     0,
+     0,
+     0.35,
+     0.54
+    ],
+    "who": "Venom",
+    "line": "WE help. This once."
+   },
+   {
+    "r": [
+     0.63,
+     0,
+     0.37,
+     0.55
+    ],
+    "who": "Miles",
+    "line": "He came through the ceiling. Again."
+   },
+   {
+    "r": [
+     0,
+     0.54,
+     1,
+     0.2
+    ],
+    "cap": "Then every mirror in Manhattan started lying."
+   },
+   {
+    "r": [
+     0,
+     0.73,
+     1,
+     0.27
+    ],
+    "who": "Ghost-Spider",
+    "line": "Which one of you is real?",
+    "sfx": "SHHHMMM"
+   }
+  ]
+ },
+ {
+  "src": "./art/campaigns/sm/p5-six.jpg",
+  "a": 1,
+  "gate": 3,
+  "issue": "Issue #4",
+  "title": "SIX AGAINST THREE",
+  "short": "#4 SINISTER SIX",
+  "role": "Issue #4 opener.",
+  "beats": [
+   {
+    "r": [
+     0,
+     0,
+     1,
+     1
+    ],
+    "cap": "Issue #4 · Six against three. Bad maths."
+   },
+   {
+    "r": [
+     0.02,
+     0,
+     0.32,
+     1
+    ],
+    "cap": "They came out of the dark all at once."
+   },
+   {
+    "r": [
+     0.35,
+     0,
+     0.65,
+     0.6
+    ],
+    "sfx": "ZZZZAK!"
+   },
+   {
+    "r": [
+     0.33,
+     0.55,
+     0.67,
+     0.45
+    ],
+    "who": "Venom",
+    "line": "WE will EAT the bird."
+   }
+  ]
+ },
+ {
+  "src": "./art/campaigns/sm/p6-goblin.jpg",
+  "a": 1,
+  "gate": 4,
+  "issue": "Issue #5",
+  "title": "THE GOBLIN WEARS BLACK",
+  "short": "#5 VENOM GOBLIN",
+  "role": "Issue #5 opener.",
+  "beats": [
+   {
+    "r": [
+     0,
+     0,
+     1,
+     1
+    ],
+    "cap": "Issue #5 · Norman Osborn had a plan. He always has a plan."
+   },
+   {
+    "r": [
+     0,
+     0,
+     1,
+     0.37
+    ],
+    "who": "Miles",
+    "line": "Why is there always a glider?"
+   },
+   {
+    "r": [
+     0.3,
+     0.33,
+     0.7,
+     0.24
+    ],
+    "who": "Green Goblin",
+    "line": "One little signal, and it comes to me."
+   },
+   {
+    "r": [
+     0,
+     0.48,
+     0.42,
+     0.52
+    ],
+    "sfx": "SKREEEE!"
+   },
+   {
+    "r": [
+     0.6,
+     0.53,
+     0.4,
+     0.47
+    ],
+    "who": "Venom Goblin",
+    "line": "NOW we are PERFECT."
+   }
+  ]
+ },
+ {
+  "src": "./art/campaigns/sm/p7-shield.jpg",
+  "a": 1,
+  "gate": 5,
+  "issue": "Finale",
+  "title": "CLEAN-UP CREW",
+  "short": "FINALE",
+  "role": "After issue #5. Shows your final reputation.",
+  "beats": [
+   {
+    "r": [
+     0,
+     0,
+     1,
+     1
+    ],
+    "cap": "Times Square, 3 a.m. The city is sticky."
+   },
+   {
+    "r": [
+     0,
+     0,
+     0.51,
+     1
+    ],
+    "cap": "S.H.I.E.L.D. took the Goblin. And the goo."
+   },
+   {
+    "r": [
+     0.5,
+     0,
+     0.5,
+     0.61
+    ],
+    "who": "Miles",
+    "line": "Keep it in the jar this time. Please."
+   },
+   {
+    "r": [
+     0.46,
+     0.6,
+     0.54,
+     0.4
+    ],
+    "who": "Nick Fury",
+    "line": "You two did good. Don't let it go to your heads."
+   }
+  ]
+ },
+ {
+  "src": "./art/campaigns/sm/p8-home.jpg",
+  "a": 0.9933774834437086,
+  "gate": 5,
+  "issue": "Epilogue",
+  "title": "PAST CURFEW",
+  "short": "EPILOGUE",
+  "role": "Last page. Only the hero who lives here gets it.",
+  "beats": [
+   {
+    "r": [
+     0,
+     0,
+     1,
+     0.24
+    ],
+    "cap": "Brooklyn. Well past curfew."
+   },
+   {
+    "r": [
+     0,
+     0.24,
+     1,
+     0.26
+    ],
+    "cap": "Saving the city works up an appetite."
+   },
+   {
+    "r": [
+     0,
+     0.5,
+     0.51,
+     0.5
+    ],
+    "cap": "They were waiting up."
+   },
+   {
+    "r": [
+     0.5,
+     0.5,
+     0.5,
+     0.5
+    ],
+    "who": "Mom",
+    "line": "You're home. That's all that matters."
+   }
+  ]
+ }
+];
+  layout() {
+    const G = 24; let x = 0;
+    const won = this.props.wonIssues ?? 5;
+    const pages = this.pagesDef.map((p, i) => { const w = Math.round(p.a * 1000); const o = { ...p, i, x, w, locked: p.gate > won }; x += w + G; return o; });
+    const beats = [];
+    pages.forEach(p => { if (!p.locked) p.beats.forEach((b, j) => beats.push({ ...b, page: p.i, j })); });
+    const firstLocked = pages.find(p => p.locked);
+    if (firstLocked) beats.push({ r: [0, 0, 1, 1], page: firstLocked.i, j: 0, end: true });
+    return { pages, beats, stripW: x - G, firstLocked };
+  }
+  rect(p, r) { return { x: p.x + r[0] * p.w, y: r[1] * 1000, w: r[2] * p.w, h: r[3] * 1000 }; }
+  cam(t, vw, vh, fit) {
+    const s = Math.min(vw / t.w, vh / t.h) * fit;
+    const tx = vw / 2 - (t.x + t.w / 2) * s, ty = vh / 2 - (t.y + t.h / 2) * s;
+    return { s, tf: "translate(" + tx.toFixed(1) + "px," + ty.toFixed(1) + "px) scale(" + s.toFixed(4) + ")" };
+  }
+  view(panel, page, vw, vh, mode) {
+    let t;
+    if (mode === "phone") t = panel;
+    else if (mode === "tablet") { const k = .45; t = { x: panel.x + (page.x - panel.x) * k, y: panel.y + (page.y - panel.y) * k, w: panel.w + (page.w - panel.w) * k, h: panel.h + (page.h - panel.h) * k }; }
+    else t = { x: page.x - page.w * .1, y: page.y, w: page.w * 1.2, h: page.h };
+    const c = this.cam(t, vw, vh, mode === "phone" ? .94 : .96);
+    const spot = this.props.spotlight ?? true;
+    return { tf: c.tf, sx: panel.x, sy: panel.y, sw: panel.w, sh: panel.h, ow: (3 / c.s).toFixed(2), dim: spot ? (mode === "desktop" ? .7 : .6) : .35 };
+  }
+  go(n) { const { beats } = this.layout(); this.setState({ beat: Math.max(0, Math.min(beats.length - 1, n)) }); }
+  componentDidMount() {
+    this.onKey = e => { if (e.key === "ArrowRight") this.go(this.state.beat + 1); if (e.key === "ArrowLeft") this.go(this.state.beat - 1); };
+    window.addEventListener("keydown", this.onKey);
+    this.timer = setInterval(() => { if (this.props.autoplay) { const { beats } = this.layout(); this.setState(s => ({ beat: s.beat + 1 >= beats.length ? 0 : s.beat + 1 })); } }, 4200);
+  }
+  componentWillUnmount() { window.removeEventListener("keydown", this.onKey); clearInterval(this.timer); }
+  renderVals() {
+    const { pages, beats, stripW, firstLocked } = this.layout();
+    const bi = Math.min(this.state.beat, beats.length - 1);
+    const b = beats[bi], pg = pages[b.page];
+    const pageR = { x: pg.x, y: 0, w: pg.w, h: 1000 };
+    const panel = this.rect(pg, b.r);
+    const cur = {
+      issue: pg.issue, title: pg.title, pageNo: pg.i + 1, role: pg.role,
+      cap: b.cap || "", hasCap: !!b.cap && !b.end, who: b.who || "", line: b.line || "", hasLine: !!b.line && !b.end,
+      sfx: b.sfx || "", hasSfx: !!b.sfx && !b.end, end: !!b.end,
+      endNote: firstLocked ? (firstLocked.gate >= 5 ? "Win issue #5 to read the finale." : "Win issue #" + firstLocked.gate + " to open the next page.") : ""
+    };
+    const pb = beats.map((x, k) => ({ ...x, k })).filter(x => x.page === b.page && !x.end);
+    const pageBeats = pb.map((x, n) => {
+      const on = x.k === bi;
+      return {
+        n: n + 1, go: e => { e && e.stopPropagation && e.stopPropagation(); this.go(x.k); },
+        w: on ? 22 : 8, bg: on ? "#F2B01E" : x.k < bi ? "#F4EFE3" : "rgba(244,239,227,.3)",
+        kind: x.line ? x.who : x.sfx && !x.cap ? "Sound" : n === 0 ? "Establishing" : "Caption",
+        text: x.line ? "“" + x.line + "”" : x.cap || x.sfx,
+        bd: on ? "#C8102E" : "#14110E", rowBg: on ? "#fff" : "#EAE3D3", numC: on ? "#C8102E" : "#14110E"
+      };
+    });
+    const thumbs = pages.map(p => {
+      const first = beats.findIndex(x => x.page === p.i);
+      return {
+        src: p.src, w: Math.round(96 * p.a), label: p.short, role: p.role, locked: p.locked,
+        filter: p.locked ? "grayscale(1) brightness(.35)" : "none",
+        bd: p.i === b.page ? "#C8102E" : "#F4EFE3", sh: p.i === b.page ? "0 0 0 3px #C8102E" : "none", op: p.locked ? .6 : 1,
+        go: () => { if (first >= 0) this.go(first); }
+      };
+    });
+    return {
+      stripW, dur: bi === 0 && !this.moved ? 0 : 1.1,
+      pages: pages.map(p => ({ x: p.x, w: p.w, src: p.src, locked: p.locked, filter: p.locked ? "grayscale(1) blur(6px) brightness(.35)" : "none", gateText: p.gate >= 5 ? "Win issue #5" : "Win issue #" + p.gate })),
+      ph: this.view(panel, pageR, 390, 660, "phone"),
+      tb: this.view(panel, pageR, 700, 722, "tablet"),
+      dt: this.view(panel, pageR, 1440, 760, "desktop"),
+      cur, pageBeats, thumbs, pf: Object.assign({}, ...pages.map((p, i) => ({ ["f" + i]: p.locked ? "grayscale(1) blur(6px) brightness(.35)" : "none", ["l" + i]: p.locked, ["g" + i]: p.gate >= 5 ? "Win issue #5" : "Win issue #" + p.gate })), ...thumbs.map((m, i) => ({ ["go" + i]: m.go, ["op" + i]: m.op, ["bd" + i]: m.bd, ["sh" + i]: m.sh, ["tf" + i]: m.filter, ["lb" + i]: m.label }))),
+      beatNo: bi + 1, beatCount: beats.length,
+      nextLabel: b.end ? "BACK TO THE START" : bi + 1 < beats.length && beats[bi + 1].page !== b.page ? "NEXT PAGE ▸" : "NEXT ▸",
+      next: () => { this.moved = true; this.go(b.end || bi + 1 >= beats.length ? 0 : bi + 1); },
+      prev: e => { e && e.stopPropagation && e.stopPropagation(); this.moved = true; this.go(bi - 1); }
+    };
+  }
+}
+</script>
+</body>
+</html>

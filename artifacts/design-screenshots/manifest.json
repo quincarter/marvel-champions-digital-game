@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-23T19:00:18.801Z",
+  "generatedAt": "2026-09-23T19:14:29.865Z",
   "viewport": {
     "width": 1600,
     "height": 1200
@@ -801,6 +801,96 @@
       ]
     },
     {
+      "source": "MTS Comic Reader.dc.html",
+      "screenshot": "artifacts/design-screenshots/mts-comic-reader.dc.png",
+      "screens": [
+        {
+          "label": "21·R1 Comic phone",
+          "screenshot": "artifacts/design-screenshots/individual/mts-comic-reader.dc/01-21-r1-comic-phone.png"
+        },
+        {
+          "label": "21·R2 Comic tablet",
+          "screenshot": "artifacts/design-screenshots/individual/mts-comic-reader.dc/02-21-r2-comic-tablet.png"
+        },
+        {
+          "label": "21·R3 Comic desktop",
+          "screenshot": "artifacts/design-screenshots/individual/mts-comic-reader.dc/03-21-r3-comic-desktop.png"
+        },
+        {
+          "label": "21·F The run",
+          "screenshot": "artifacts/design-screenshots/individual/mts-comic-reader.dc/04-21-f-the-run.png"
+        },
+        {
+          "label": "21·F Issue opener comic",
+          "screenshot": "artifacts/design-screenshots/individual/mts-comic-reader.dc/05-21-f-issue-opener-comic.png"
+        },
+        {
+          "label": "21·F In-game beat",
+          "screenshot": "artifacts/design-screenshots/individual/mts-comic-reader.dc/06-21-f-in-game-beat.png"
+        },
+        {
+          "label": "21·F Defeat rewind",
+          "screenshot": "artifacts/design-screenshots/individual/mts-comic-reader.dc/07-21-f-defeat-rewind.png"
+        },
+        {
+          "label": "21·F Aftermath page",
+          "screenshot": "artifacts/design-screenshots/individual/mts-comic-reader.dc/08-21-f-aftermath-page.png"
+        },
+        {
+          "label": "21·F Finale spread",
+          "screenshot": "artifacts/design-screenshots/individual/mts-comic-reader.dc/09-21-f-finale-spread.png"
+        },
+        {
+          "label": "T-21·F The run",
+          "screenshot": "artifacts/design-screenshots/individual/mts-comic-reader.dc/10-t-21-f-the-run.png"
+        },
+        {
+          "label": "T-21·F Issue opener comic",
+          "screenshot": "artifacts/design-screenshots/individual/mts-comic-reader.dc/11-t-21-f-issue-opener-comic.png"
+        },
+        {
+          "label": "T-21·F In-game beat",
+          "screenshot": "artifacts/design-screenshots/individual/mts-comic-reader.dc/12-t-21-f-in-game-beat.png"
+        },
+        {
+          "label": "T-21·F Defeat rewind",
+          "screenshot": "artifacts/design-screenshots/individual/mts-comic-reader.dc/13-t-21-f-defeat-rewind.png"
+        },
+        {
+          "label": "T-21·F Aftermath page",
+          "screenshot": "artifacts/design-screenshots/individual/mts-comic-reader.dc/14-t-21-f-aftermath-page.png"
+        },
+        {
+          "label": "T-21·F Finale spread",
+          "screenshot": "artifacts/design-screenshots/individual/mts-comic-reader.dc/15-t-21-f-finale-spread.png"
+        },
+        {
+          "label": "D-21·F The run",
+          "screenshot": "artifacts/design-screenshots/individual/mts-comic-reader.dc/16-d-21-f-the-run.png"
+        },
+        {
+          "label": "D-21·F Issue opener comic",
+          "screenshot": "artifacts/design-screenshots/individual/mts-comic-reader.dc/17-d-21-f-issue-opener-comic.png"
+        },
+        {
+          "label": "D-21·F In-game beat",
+          "screenshot": "artifacts/design-screenshots/individual/mts-comic-reader.dc/18-d-21-f-in-game-beat.png"
+        },
+        {
+          "label": "D-21·F Defeat rewind",
+          "screenshot": "artifacts/design-screenshots/individual/mts-comic-reader.dc/19-d-21-f-defeat-rewind.png"
+        },
+        {
+          "label": "D-21·F Aftermath page",
+          "screenshot": "artifacts/design-screenshots/individual/mts-comic-reader.dc/20-d-21-f-aftermath-page.png"
+        },
+        {
+          "label": "D-21·F Finale spread",
+          "screenshot": "artifacts/design-screenshots/individual/mts-comic-reader.dc/21-d-21-f-finale-spread.png"
+        }
+      ]
+    },
+    {
       "source": "Screens - Desktop.dc.html",
       "screenshot": "artifacts/design-screenshots/screens-desktop.dc.png",
       "screens": [
@@ -971,6 +1061,96 @@
         {
           "label": "T08 Victory",
           "screenshot": "artifacts/design-screenshots/individual/screens-tablet.dc/08-t08-victory.png"
+        }
+      ]
+    },
+    {
+      "source": "SM Comic Reader.dc.html",
+      "screenshot": "artifacts/design-screenshots/sm-comic-reader.dc.png",
+      "screens": [
+        {
+          "label": "27·R1 Comic phone",
+          "screenshot": "artifacts/design-screenshots/individual/sm-comic-reader.dc/01-27-r1-comic-phone.png"
+        },
+        {
+          "label": "27·R2 Comic tablet",
+          "screenshot": "artifacts/design-screenshots/individual/sm-comic-reader.dc/02-27-r2-comic-tablet.png"
+        },
+        {
+          "label": "27·R3 Comic desktop",
+          "screenshot": "artifacts/design-screenshots/individual/sm-comic-reader.dc/03-27-r3-comic-desktop.png"
+        },
+        {
+          "label": "27·F The run",
+          "screenshot": "artifacts/design-screenshots/individual/sm-comic-reader.dc/04-27-f-the-run.png"
+        },
+        {
+          "label": "27·F Issue opener comic",
+          "screenshot": "artifacts/design-screenshots/individual/sm-comic-reader.dc/05-27-f-issue-opener-comic.png"
+        },
+        {
+          "label": "27·F In-game beat",
+          "screenshot": "artifacts/design-screenshots/individual/sm-comic-reader.dc/06-27-f-in-game-beat.png"
+        },
+        {
+          "label": "27·F Defeat rewind",
+          "screenshot": "artifacts/design-screenshots/individual/sm-comic-reader.dc/07-27-f-defeat-rewind.png"
+        },
+        {
+          "label": "27·F Aftermath page",
+          "screenshot": "artifacts/design-screenshots/individual/sm-comic-reader.dc/08-27-f-aftermath-page.png"
+        },
+        {
+          "label": "27·F Finale spread",
+          "screenshot": "artifacts/design-screenshots/individual/sm-comic-reader.dc/09-27-f-finale-spread.png"
+        },
+        {
+          "label": "T-27·F The run",
+          "screenshot": "artifacts/design-screenshots/individual/sm-comic-reader.dc/10-t-27-f-the-run.png"
+        },
+        {
+          "label": "T-27·F Issue opener comic",
+          "screenshot": "artifacts/design-screenshots/individual/sm-comic-reader.dc/11-t-27-f-issue-opener-comic.png"
+        },
+        {
+          "label": "T-27·F In-game beat",
+          "screenshot": "artifacts/design-screenshots/individual/sm-comic-reader.dc/12-t-27-f-in-game-beat.png"
+        },
+        {
+          "label": "T-27·F Defeat rewind",
+          "screenshot": "artifacts/design-screenshots/individual/sm-comic-reader.dc/13-t-27-f-defeat-rewind.png"
+        },
+        {
+          "label": "T-27·F Aftermath page",
+          "screenshot": "artifacts/design-screenshots/individual/sm-comic-reader.dc/14-t-27-f-aftermath-page.png"
+        },
+        {
+          "label": "T-27·F Finale spread",
+          "screenshot": "artifacts/design-screenshots/individual/sm-comic-reader.dc/15-t-27-f-finale-spread.png"
+        },
+        {
+          "label": "D-27·F The run",
+          "screenshot": "artifacts/design-screenshots/individual/sm-comic-reader.dc/16-d-27-f-the-run.png"
+        },
+        {
+          "label": "D-27·F Issue opener comic",
+          "screenshot": "artifacts/design-screenshots/individual/sm-comic-reader.dc/17-d-27-f-issue-opener-comic.png"
+        },
+        {
+          "label": "D-27·F In-game beat",
+          "screenshot": "artifacts/design-screenshots/individual/sm-comic-reader.dc/18-d-27-f-in-game-beat.png"
+        },
+        {
+          "label": "D-27·F Defeat rewind",
+          "screenshot": "artifacts/design-screenshots/individual/sm-comic-reader.dc/19-d-27-f-defeat-rewind.png"
+        },
+        {
+          "label": "D-27·F Aftermath page",
+          "screenshot": "artifacts/design-screenshots/individual/sm-comic-reader.dc/20-d-27-f-aftermath-page.png"
+        },
+        {
+          "label": "D-27·F Finale spread",
+          "screenshot": "artifacts/design-screenshots/individual/sm-comic-reader.dc/21-d-27-f-finale-spread.png"
         }
       ]
     }
