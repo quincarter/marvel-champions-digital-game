@@ -123,7 +123,8 @@ export interface CampaignRun {
   /** `inGame` instructions collected for the game about to be built (`beforeGame` only), in printed order. */
   instructions: ResolvedInstruction[];
   composedVillain: string | null;
-  composedEncounterSetIds: string[];
+  /** `composeEncounterSets`, split by `into` (default `"deck"`). */
+  composedEncounterSets: { deck: string[]; setAside: string[] };
   /** Choices made earlier in this same step list, by `${slot}\u0000${seat}` (`CampaignValue` `choice`). */
   slots: Map<string, readonly string[]>;
   // --- accumulators for the instruction currently resolving ---
@@ -237,6 +238,12 @@ export function campaignValues(run: CampaignRun, value: CampaignValue): readonly
       return [Math.max(0, campaignNumber(run, value.of))];
     case "choice":
       return slotValues(run, value.slot);
+    case "seatCount":
+      return [seatNumbers(run).length];
+    case "divide": {
+      const raw = campaignNumber(run, value.of) / value.by;
+      return [value.round === "down" ? Math.floor(raw) : Math.ceil(raw)];
+    }
   }
 }
 
@@ -308,6 +315,8 @@ export function evaluateCampaignPredicate(run: CampaignRun, predicate: CampaignP
       return predicate.of.every((part) => evaluateCampaignPredicate(run, part));
     case "or":
       return predicate.of.some((part) => evaluateCampaignPredicate(run, part));
+    case "valueAtLeast":
+      return campaignNumber(run, predicate.value) >= campaignNumber(run, predicate.amount);
   }
 }
 
@@ -403,6 +412,9 @@ function matchesCollectionFilter(
   }
   if (filter.maxPrintedCost !== undefined) {
     if (!("cost" in card) || typeof card.cost !== "number" || card.cost > filter.maxPrintedCost) return false;
+  }
+  if (filter.unitCostExactly !== undefined) {
+    if (!("unitCost" in card) || card.unitCost !== filter.unitCostExactly) return false;
   }
   if (filter.excludeCardIds?.includes(card.id)) return false;
   return true;
@@ -853,12 +865,14 @@ export function runCampaignOp(run: CampaignRun, op: CampaignOp, instruction: Cam
     case "composeVillain":
       run.composedVillain = campaignString(run, op.villain);
       return;
-    case "composeEncounterSets":
-      run.composedEncounterSetIds = [
-        ...run.composedEncounterSetIds,
+    case "composeEncounterSets": {
+      const bucket = op.into ?? "deck";
+      run.composedEncounterSets[bucket] = [
+        ...run.composedEncounterSets[bucket],
         ...op.sets.flatMap((set) => campaignStrings(run, set)),
       ];
       return;
+    }
     case "forEachSeat":
       for (const seatNumber of seatNumbers(run)) {
         withSeat(run, seatNumber, () => {

@@ -152,7 +152,7 @@ function newRun(
     pending: null,
     instructions: [],
     composedVillain: null,
-    composedEncounterSetIds: [],
+    composedEncounterSets: { deck: [], setAside: [] },
     slots: new Map(),
     instructionId: "",
     writes: [],
@@ -364,7 +364,7 @@ export function resolveBetweenGames(
     steps: run.steps,
     input,
     composedVillain: run.composedVillain,
-    composedEncounterSetIds: run.composedEncounterSetIds,
+    composedEncounterSets: run.composedEncounterSets,
   };
   return { kind: "done", value: { ...withWorking(log, run.working), attempt } };
 }
@@ -446,8 +446,12 @@ export interface CampaignGameStart {
   readonly scenarioId: ScenarioId | null;
   /** MC60 p. 9 step 5's chosen villain, as the `composeVillain` op named it. */
   readonly villain: string | null;
-  /** MC60 p. 9 step 6's gathered sets, as the `composeEncounterSets` ops named them, in order. */
-  readonly encounterSetIds: readonly string[];
+  /**
+   * MC60 p. 9 step 6's / MC16 p. 8's gathered sets, as the `composeEncounterSets` ops named them, in order, split
+   * by `into`: `deck` cards belong in `GameSetupConfig.encounterDeck` before it is shuffled, `setAside` cards in
+   * `GameSetupConfig.setAside` (design note on `composeEncounterSets`, above).
+   */
+  readonly encounterSets: { readonly deck: readonly string[]; readonly setAside: readonly string[] };
 }
 
 export function startGameFromLog(definition: CampaignDefinition, log: CampaignLog): CampaignGameStart {
@@ -461,7 +465,7 @@ export function startGameFromLog(definition: CampaignDefinition, log: CampaignLo
     input: attempt.input,
     scenarioId: node.scenario.kind === "fixed" ? node.scenario.scenarioId : null,
     villain: attempt.composedVillain,
-    encounterSetIds: attempt.composedEncounterSetIds,
+    encounterSets: attempt.composedEncounterSets,
   };
 }
 

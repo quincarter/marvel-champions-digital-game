@@ -113,6 +113,11 @@ function evaluateQuery(
     }
     case "cardsInVictoryDisplay":
       return { kind: "cards", instanceIds: matching(state, state.victoryDisplay, query.query, context) };
+    case "cardsInScenarioArea":
+      return {
+        kind: "cards",
+        instanceIds: matching(state, state.scenarioAreas?.[query.name] ?? [], query.query, context),
+      };
     case "countersOn": {
       const counter = query.counter;
       const total = matching(state, cardsInPlay(state), query.query, context).reduce(
