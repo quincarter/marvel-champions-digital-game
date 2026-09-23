@@ -31,7 +31,7 @@ export interface MusicController {
     readonly campaignId?: string | undefined;
     readonly packCode?: string | undefined;
   }): void;
-  playOutcome(scenarioId: string, result: "win" | "loss" | "conceded"): void;
+  playOutcome(scenarioId: string, result: "win" | "loss" | "conceded", packCode?: string): void;
   syncSettings(settings: Settings): void;
   stop(fadeDurationMs?: number): void;
 }
@@ -84,9 +84,9 @@ export class MusicScene extends Phaser.Scene implements MusicController {
     }
   }
 
-  playOutcome(scenarioId: string, result: "win" | "loss" | "conceded"): void {
+  playOutcome(scenarioId: string, result: "win" | "loss" | "conceded", packCode?: string): void {
     this.#mode = "outcome";
-    const track = outcomeTrackFor(MUSIC_CATALOG, scenarioId, result);
+    const track = outcomeTrackFor(MUSIC_CATALOG, scenarioId, result, Math.random, packCode);
     if (track) {
       this.#requestTrack(track);
     } else {

@@ -17,12 +17,18 @@ folder is all it should take**. Formats: `mp3`, `ogg`, `m4a`.
 | `campaigns/<campaignId>/` | `battle.<ext>`        | During any game of that campaign whose scenario has no `battle` track of its own                                 |
 | `campaigns/<campaignId>/` | `interlude.<ext>`     | Between a campaign's scenarios (campaign log, upgrades)                                                          |
 | `packs/<packCode>/`       | `battle.<ext>`        | During any scenario from that pack with no scenario or campaign track                                            |
+| `packs/<packCode>/`       | `villain-wins.<ext>`  | Game Over, when the players lose or concede in any scenario of that pack with no `villain-wins` of its own       |
+| `packs/<packCode>/`       | `villain-loses.<ext>` | Game Over, when the players win any scenario of that pack with no `villain-loses` of its own                     |
 | `outcomes/`               | `defeat.<ext>`        | Game Over for any loss or concession with no track of its own                                                    |
 | `outcomes/`               | `victory.<ext>`       | Game Over for any win with no track of its own                                                                   |
 
 **Which track wins during a game**, most specific first:
 `scenarios/<scenarioId>/battle` → `campaigns/<campaignId>/battle` →
 `packs/<packCode>/battle` → `gameplay/`.
+
+**Which track plays at Game Over**, most specific first:
+`scenarios/<scenarioId>/villain-wins` (or `-loses`) → `packs/<packCode>/villain-wins` (or `-loses`) →
+`outcomes/defeat` (or `victory`).
 
 `<scenarioId>` is the content package's `Scenario.id` (`rhino`, `klaw`,
 `ultron`, `risky-business`, `mutagen-formula`, `breakout`), `<campaignId>` is
