@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 import { CAMPAIGN_LOG_SCHEMA, type CampaignDefinition } from "@mc/engine";
-import { TRORS_CAMPAIGN_DEFINITION } from "@mc/cards";
+import { campaignDefinitionOf, TRORS_CAMPAIGN_DEFINITION } from "@mc/cards";
 import type { CampaignSummary } from "../engine/campaign-storage.js";
 import { campaignSagaRows, defaultFeaturedVolume, doneVolumeCount, openVolumeCount } from "./campaign-saga-model.js";
 
@@ -64,6 +64,13 @@ describe("campaignSagaRows", () => {
     // Vol. 2's unlock rule is satisfied, but honesty about content wins: still "not in this build yet".
     expect(rows[1]).toMatchObject({ status: "sealed", unlocked: true, lockReason: "Not in this build yet" });
     expect(doneVolumeCount(rows)).toBe(1);
+  });
+
+  test("against the real @mc/cards registry, winning Vol. 1 on Standard opens Vol. 2 (gmw) as fresh, not sealed", () => {
+    const won = trorsSummary({ id: "c2", status: "won", position: { nextNodeId: null, resolved: {}, progress: {} } });
+    const rows = campaignSagaRows([won], { definitionOf: campaignDefinitionOf, identityNameOf: nameOf });
+    expect(rows[1]!.volume.campaignId).toBe("gmw");
+    expect(rows[1]).toMatchObject({ status: "fresh", unlocked: true, hasDefinition: true, lockReason: null });
   });
 
   test("a won-on-expert run does not itself open the next volume — only Standard does", () => {
