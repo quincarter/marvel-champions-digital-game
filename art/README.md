@@ -14,6 +14,8 @@ list to edit. Formats: `png`, `jpg`, `jpeg`, `webp`, `avif`.
 | `outcomes/`                   | `victory.<ext>`       | Game Over for any win with no scene of its own                                                        |
 | `heroes/<identityId>-<slug>/` | `hero.<ext>`          | The hero's artwork on hero select (Take your seats), the way a villain's shows on Scenario select     |
 | `packs/<packCode>/`           | `cover.<ext>`         | OPTIONAL: a pack's shelf-header thumbnail on Scenario select and Take your seats (W2b's pack shelves) |
+| `campaigns/<campaignId>/`     | `cover.<ext>`         | NOT READ YET: the campaign's key art, for the campaign screens                                        |
+| `campaigns/<campaignId>/`     | `artboards/*`         | NOT READ YET: story panel art between a campaign's scenarios (the canvases' "Panel art" slots)        |
 
 `<scenarioId>` is the content package's `Scenario.id`, so the folder name is the
 lookup: `rhino`, `klaw`, `ultron`, `risky-business`, `mutagen-formula`,
@@ -21,6 +23,13 @@ lookup: `rhino`, `klaw`, `ultron`, `risky-business`, `mutagen-formula`,
 (`POOL_PACKS` in `packages/client/src/content/pool.ts`, e.g. `core`, `twc`) the
 same way — no pack ships a cover yet, and a shelf header draws fine without
 one (just the pack's name and a rule, no thumbnail).
+
+`<campaignId>` is the content package's `Campaign.id`, which is the campaign box's pack code, the same key
+`music/campaigns/` uses: `trors` (The Rise of Red Skull), `gmw` (The Galaxy's Most Wanted), `mts` (The Mad
+Titan's Shadow), `sm` (Sinister Motives), `mut_gen` (Mutant Genesis), `next_evol` (NeXt Evolution), `aoa` (Age of
+Apocalypse), `aos` (Agents of S.H.I.E.L.D.) and `fne` (Fear No Evil). Civil War has no campaign mode, so no folder.
+All nine folders exist; one with just a `.gitkeep` is still waiting for its cover or panels. Nothing reads this
+folder yet and no test checks it, so a misnamed file won't fail anything until the campaign screens are built.
 
 `<identityId>` is the hero identity card's id (`01001a` Spider-Man, `51001a` Shuri's Black Panther). Only the part
 of the folder name before the first `-` is read; the rest is there so a person can tell the folders apart. Card ids
