@@ -19,7 +19,9 @@ list to edit. Formats: `png`, `jpg`, `jpeg`, `webp`, `avif`.
 
 `<scenarioId>` is the content package's `Scenario.id`, so the folder name is the
 lookup: `rhino`, `klaw`, `ultron`, `risky-business`, `mutagen-formula`,
-`breakout` (the Wrecking Crew's scenario). `<packCode>` is `Pack.code`
+`breakout` (the Wrecking Crew's scenario), `crossbones`, `absorbing-man`, `taskmaster`, `zola`, `red-skull`, `kang`,
+`brotherhood-of-badoon`, `infiltrate-the-museum`, `escape-the-museum`, `nebula` and `ronan-the-accuser`. A folder
+with just a `.gitkeep` is a scenario still waiting for its pictures. `<packCode>` is `Pack.code`
 (`POOL_PACKS` in `packages/client/src/content/pool.ts`, e.g. `core`, `twc`) the
 same way — no pack ships a cover yet, and a shelf header draws fine without
 one (just the pack's name and a rule, no thumbnail).
