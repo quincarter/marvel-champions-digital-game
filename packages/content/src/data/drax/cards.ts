@@ -698,12 +698,13 @@ export const DRAX_CARDS: readonly AnyCard[] = [
     traits: [],
     keywords: [],
     deckLimit: 3,
+    playRestrictions: { maxPerPhase: 1 },
     text: {
       printed: "Max 1 per phase.\nHero Action: Draw 1 card for each minion engaged with you.",
       current: "Max 1 per phase.\nHero Action: Draw 1 card for each minion engaged with you.",
     },
     flavor: "\"You picked the wrong day, pal!\" —Rocket Raccoon",
-    abilities: [{ id: abilityId("19030.bring-it-constant") }, { id: abilityId("19030.bring-it-action") }],
+    abilities: [{ id: abilityId("19030.bring-it-action") }],
   },
   {
     id: cardId("19031"),

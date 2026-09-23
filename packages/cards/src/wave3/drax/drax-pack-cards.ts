@@ -1,6 +1,5 @@
 import {
   confuse,
-  coveredByEngineRule,
   countOf,
   defineAbilities,
   draw,
@@ -36,10 +35,9 @@ import {
  *   which is a different card).
  */
 export const DRAX_PACK_CARDS = defineAbilities({
-  // "Bring It!" — Max 1 per phase (data gap, the Maximum Velocity precedent, `wave2/qsv/kit.ts` 14005: `@mc/
-  // content`'s own 19030 record carries no `playRestrictions.maxPerPhase`, so this is `coveredByEngineRule()`, not
-  // scripted around here). Hero Action: Draw 1 card for each minion engaged with you.
-  "19030.bring-it-constant": coveredByEngineRule(),
+  // "Bring It!" — Max 1 per phase (data: `playRestrictions.maxPerPhase` on the 19030 record, engine-enforced —
+  // same shape as Maximum Velocity, `wave2/qsv/kit.ts` 14005). Hero Action: Draw 1 card for each minion engaged
+  // with you.
   "19030.bring-it-action": heroAction(draw(countOf(query("minion", { engagedWith: "you" })))),
 
   // "Think Fast!" — Play only if your identity has the guardian trait (data, `playRestrictions`). Hero Action:
