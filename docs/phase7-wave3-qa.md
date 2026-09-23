@@ -359,14 +359,17 @@ contents, the actual villain-area instance, and its actual threat.
 | Every scenario's Campaign Challenge side scheme reveals in play, right face by mode    | `Priority 1 — every scenario's Campaign Challenge side scheme reveals for real, right face by mode` (9 tests: 4 scenarios × standard/expert + the 1-player Hinder scaling case) | **Pass.** Right face in `villainArea`, faceup; wrong face stays in `encounterSetAside`; threat = `startingThreat` + `Hinder × players`, correct at 1 and 2 players. |
 | Kree Supremacy's "(Optional)" reveal (RRG 1.8 p. 67 errata)                            | `Priority 1 — Kree Supremacy's "(Optional)" reveal is a real group decision, not silently skipped` (3 tests: accept/decline/accept-expert)                                      | **Pass.**                                                                                                                                                           |
 | Every Badoon Headhunter rung lands in the encounter deck at the right tier, not before | `Priority 1 — the Badoon Headhunter ladder lands in the encounter deck at the right tier, not before` (5 tests, one per scenario, checking both sides of each threshold)        | **Pass.**                                                                                                                                                           |
-| Other cards `gmw.ts` moves by printed id — "You Stand Accused!" (116) at Ronan         | `Priority 1 — "You Stand Accused!" is dealt to the recorded Power Stone controller, and only then` (2 tests)                                                                    | 1 pass (no controller ⇒ nothing dealt), **1 bug found** (below)                                                                                                     |
+| Other cards `gmw.ts` moves by printed id — "You Stand Accused!" (116) at Ronan         | `Priority 1 — "You Stand Accused!" is dealt to the recorded Power Stone controller, and only then` (2 tests)                                                                    | 1 pass (no controller ⇒ nothing dealt), **1 bug found** (below, since fixed)                                                                                        |
 
 A `grep` of `gmw.ts` for `query(`/`printedId` also turned up Pincer Maneuver's `mc16.s5.setup.pincer-maneuver`,
 which shares "You Stand Accused!"'s bug (below) rather than the fixed one.
 
-### Bugs found (both reported, neither fixed here — root cause is a `CardSelector` design gap, not a one-line
+### Bugs found (both fixed 2026-09-23 by `CardSelector atMost`, docs/phase7-wave3.md §3.50)
 
-content typo)
+> **Fixed.** `gmw.ts` now searches with `oneCopyOf(encounterCards(...))`, and both tests below run (no longer
+> `it.skip`). Each also checks that the copies not taken stay in the encounter deck or discard pile. The same flaw in
+> Zola (II)'s Test Subjects search (`searchAndReveal`, 04123 ×2) and Peter Quill's Element Gun setup (17007 ×2) was
+> fixed with them.
 
 1. **"You Stand Accused!" (16116) is dealt three times, not once.** `16116` has `quantityInSet: 3`
    (`packages/content/src/data/gmw/cards.ts`). `mc16.s5.setup.you-stand-accused`'s

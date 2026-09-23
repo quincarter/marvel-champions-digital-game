@@ -155,6 +155,15 @@ describe("Star-Lord kit", () => {
     expect(playerOf(state, P1).hand.some((id) => state.instances[id]?.cardId === cardId("17007"))).toBe(true);
   });
 
+  it("Peter Quill: Setup takes one copy of Element Gun and leaves the other in the deck (docs/phase7-wave3.md §3.50)", () => {
+    const state = starLordVsRhino();
+    const player = playerOf(state, P1);
+    const guns = (ids: readonly string[]) => ids.filter((id) => state.instances[id]?.cardId === cardId("17007")).length;
+    // The kit prints two; with this seed neither is in the opening hand, so Setup's "a copy" moves exactly one.
+    expect(guns(player.hand)).toBe(1);
+    expect(guns(player.deck) + guns(player.discard)).toBe(1);
+  });
+
   it("Smooth Talker: swaps a chosen hand card with the top card of the deck", () => {
     const state = starLordVsRhino(); // starts in alter-ego, where this ability lives
     const identity = identityOf(state);
@@ -267,7 +276,9 @@ describe("Star-Lord kit", () => {
   it("Bad Boy: discarded to prevent all damage from the villain's attack, changing to alter-ego and drawing 2", () => {
     const { state: withCard, id: badBoy } = playFromHand(runWave3(starLordVsRhino(), toHero()), "17006", 3);
     const identity = identityOf(withCard);
-    const handBefore = playerOf(withCard, P1).hand.length;
+    // The end of the player phase first brings the hand to hero hand size (RRG 1.8 "Hand Size", p. 21), whatever it
+    // held before, then Bad Boy draws 2.
+    const handBefore = handSize(withCard, P1, WAVE3_DEPS);
     const attacked = settle(runWave3(withCard, endTurn()), accepting("17006.bad-boy-constant"), undefined, WAVE3_DEPS);
     expect(inst(attacked, identity).damage).toBe(0);
     expect(playerOf(attacked, P1).identity.form).toBe("alterEgo");

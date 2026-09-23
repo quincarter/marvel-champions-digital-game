@@ -41,6 +41,12 @@ export function selectCards(ctx: Ctx, selector: CardSelector, context: EffectCon
       for (const part of selector.of) for (const id of selectCards(ctx, part, context)) seen.add(id);
       return [...seen];
     }
+    case "atMost":
+      // "Search for one copy": the first `count` in the inner selector's order (docs/phase7-wave3.md §3.50).
+      return selectCards(ctx, selector.of, context).slice(
+        0,
+        Math.max(0, resolveValue(ctx.state, selector.count, context)),
+      );
     case "ref":
       return filtered(
         resolveRef(state, selector.ref, context).filter((id) => getInstance(state, id) !== undefined),

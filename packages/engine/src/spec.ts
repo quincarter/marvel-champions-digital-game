@@ -1747,6 +1747,21 @@ export type CardSelector =
    * list cannot.
    */
   | { readonly kind: "anyOf"; readonly of: readonly CardSelector[] }
+  /**
+   * "Search … for **one copy** of X" (MC16 p. 18), "search … for **a copy** of the Element Gun upgrade" (Peter Quill,
+   * `stld` 17001b), "search … for the Test Subjects side scheme and reveal **it**" (Zola 04110): at most `count` of
+   * the cards `of` names, the first ones in `of`'s own order, never an error when fewer (or none) match. Several
+   * printed copies of one card are separate instances, so a plain selector names every copy; this caps it.
+   *
+   * **Which copy (docs/phase7-wave3.md §3.50).** RRG 1.8 "Search" (p. 39): "If a player finds multiple cards that
+   * satisfy the criteria of a search, the player chooses among those options." `atMost` is for copies that are
+   * interchangeable, so it takes them in selector order rather than asking: an `encounter` selector yields the deck
+   * top-down, then the discard pile, and a `zone` selector its zones in the order listed. The deck is shuffled
+   * after the search (RRG 1.8 "Shuffle", p. 39), so *which* deck copy is irrelevant; only deck-before-discard is a
+   * real (documented) pick. Where the searching player's pick matters, use `chooseCards` with `max` instead.
+   * Negative or zero `count` names nothing. The other copies are not touched: they stay where they were.
+   */
+  | { readonly kind: "atMost"; readonly count: ValueSpec; readonly of: CardSelector }
   /** The cards in a scenario out-of-play area ("discard 1 card from The Collection"; docs/phase7-wave3.md §3.14). */
   | { readonly kind: "scenarioArea"; readonly name: string; readonly filter?: TargetQuery }
   /**

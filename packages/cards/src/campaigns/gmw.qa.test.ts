@@ -25,6 +25,7 @@ import { GMW_STARTER_DECKS, WAVE3_CARDS, type CardId, type PlayModes } from "@mc
 import {
   activeEncounterDeck,
   applyCampaignResult,
+  cardsInPlay,
   campaignChoiceKey,
   createCampaignLog,
   createGame,
@@ -501,20 +502,12 @@ describe('Priority 1 — "You Stand Accused!" is dealt to the recorded Power Sto
   });
 
   /**
-   * BUG (reported, not fixed here — see `docs/phase7-wave3-qa.md`'s GMW section): "You Stand Accused!" (16116)
-   * has `quantityInSet: 3` (`packages/content/src/data/gmw/cards.ts`), but `gmw.ts`'s own
-   * `mc16.s5.setup.you-stand-accused` selects it with a plain `selectCards("accused", encounterCards(["deck",
-   * "discard"], { printedId: YOU_STAND_ACCUSED }))` — a `CardSelector` with no "how many" concept beyond `top`
-   * (a *positional* deck-top limiter, spec.ts's own `CardSelector.encounter.top`, useless across "deck and
-   * discard" together and useless for "an arbitrary one of several identical copies" in any case). MC16 p. 18
-   * prints "search … for **one copy** of the … treachery, then deal **that card**" — singular — but the
-   * instruction as scripted deals *all three* copies to the recorded controller. Confirmed live: with all four
-   * earlier scenarios won, the sole Power Stone controller's `dealtEncounter` held three separate `16116`
-   * instances, not one. This needs either a `CardSelector` "at most N matches" primitive (`game-rules-architect`,
-   * since no existing selector shape spells it) or a `gmw.ts`-side rework using an existing primitive that can
-   * (`ability-scripting-engineer`) — filed both ways since it isn't clear yet which side owns the fix.
+   * Found by QA (dba21d9a), fixed by docs/phase7-wave3.md §3.50: "You Stand Accused!" (16116) has `quantityInSet: 3`,
+   * and MC16 p. 18 prints "search … for **one copy** of the … treachery, then deal **that card**". A plain
+   * `encounterCards` selector named all three copies, so all three were dealt. `oneCopyOf` (`CardSelector atMost`)
+   * takes one, and the other two stay in the encounter deck/discard pile.
    */
-  it.skip("a recorded Power Stone controller is dealt exactly one copy of the treachery (MC16 p. 18)", () => {
+  it("a recorded Power Stone controller is dealt exactly one copy of the treachery (MC16 p. 18)", () => {
     const seats = seatsOf(TWO_SEATS);
     const seatNumbers = seats.map((seat) => seat.seatNumber);
     let log = freshLog("qa-power-stone", STANDARD, seats, 4242);
@@ -553,27 +546,26 @@ describe('Priority 1 — "You Stand Accused!" is dealt to the recorded Power Sto
     if (!created.ok) throw new Error(`setup failed: ${created.error.message}`);
     const state = settle(created.state, firstLegal, (s) => s.step.phase === "player", WAVE3_DEPS);
     const seat1 = state.players.find((p) => p.identity.cardId === identityCardId);
-    expect(seat1?.dealtEncounter.length).toBe(1); // actually 3, one per printed copy of 16116
+    expect(seat1?.dealtEncounter.length).toBe(1);
     expect(state.instances[seat1!.dealtEncounter[0]!]?.cardId).toBe("16116");
+    // The other two copies were not taken: they are still in the encounter deck or its discard pile.
+    expect(deckAndDiscardCardIds(state).filter((id) => id === "16116")).toHaveLength(2);
   });
 
   /**
-   * BUG (reported, not fixed here — same root cause as "You Stand Accused!" above): Pincer Maneuver (16112) also
-   * has `quantityInSet: 2`. `mc16.s5.setup.pincer-maneuver`'s own `selectCards("pincer", encounterCards(["deck",
-   * "discard"], { printedId: PINCER_MANEUVER }))` matches *both* copies, and `revealCard(chosen("pincer"),
-   * firstPlayer)` reveals both — confirmed live: Ronan's setup ends with **two** separate Pincer Maneuver side
-   * schemes in the villain area, each independently placed with the full "3 minus Evasion Counters" threat MC16
-   * p. 18 describes for *the* (singular) side scheme, doubling both the threat total and the "First Player
-   * Action: exhaust the Milano" scheme's real board presence. This is a more consequential instance of the same
-   * `CardSelector` gap "You Stand Accused!"'s test documents above.
+   * Found by QA (dba21d9a), fixed by docs/phase7-wave3.md §3.50: Pincer Maneuver (16112) has `quantityInSet: 2`, and
+   * MC16 p. 18 prints "search … for **one copy** of the Pincer Maneuver (112) side scheme and reveal it". Both
+   * copies used to be revealed, each with the full "3 minus Evasion Counters" threat. Now one is revealed and the
+   * other stays in the encounter deck, where a later search or draw can still find it.
    */
-  it.skip("only one Pincer Maneuver side scheme is revealed and placed (MC16 p. 18)", () => {
+  it("only one Pincer Maneuver side scheme is revealed and placed (MC16 p. 18)", () => {
     const seats = seatsOf(TWO_SEATS);
     const log = walkTo(STANDARD, seats, "ronan-the-accuser", RONAN_MARKS);
     const state = realGameAt(log, STANDARD, "ronan-the-accuser", seats, [
       answer("mc16.s5.setup.kree-decide", "kree", null, []),
     ]);
-    const pincerInstances = Object.values(state.instances).filter((instance) => instance.cardId === "16112");
-    expect(pincerInstances).toHaveLength(1); // actually 2, one per printed copy of 16112
+    const pincersInPlay = cardsInPlay(state).filter((id) => state.instances[id]?.cardId === "16112");
+    expect(pincersInPlay).toHaveLength(1);
+    expect(deckAndDiscardCardIds(state).filter((id) => id === "16112")).toHaveLength(1);
   });
 });

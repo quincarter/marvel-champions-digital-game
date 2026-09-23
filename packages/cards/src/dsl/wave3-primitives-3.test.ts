@@ -1,9 +1,11 @@
 /**
- * docs/phase7-wave3.md §3.48–§3.49: the DSL builders for the last three Market cards (`gmw` 16161, 16165, 16172). Each
- * composition validates and emits exactly the plain data the per-primitive engine test drives
- * (`packages/engine/src/place-top-or-bottom.test.ts`, `packages/engine/src/conditional-cost.test.ts`).
+ * docs/phase7-wave3.md §3.48–§3.50: the DSL builders for the last three Market cards (`gmw` 16161, 16165, 16172) and
+ * "search for one copy" (MC16 p. 18). Each composition validates and emits exactly the plain data the per-primitive
+ * engine test drives (`packages/engine/src/place-top-or-bottom.test.ts`, `packages/engine/src/conditional-cost.test.ts`,
+ * `packages/engine/src/at-most-selector.test.ts`).
  */
 
+import { cardId } from "@mc/content";
 import { describe, expect, it } from "vitest";
 import {
   costIf,
@@ -15,9 +17,19 @@ import {
   heroAction,
   spend,
 } from "./abilities.js";
-import { cards, draw, encounterCards, placeOnTopOrBottom, selectCards } from "./effects.js";
+import {
+  atMost,
+  cards,
+  draw,
+  encounterCards,
+  oneCopyOf,
+  placeOnTopOrBottom,
+  revealCard,
+  searchAndReveal,
+  selectCards,
+} from "./effects.js";
 import { validateDefinition } from "./validate.js";
-import { chosen, exists, perHero, query, varOf } from "./values.js";
+import { chosen, exists, firstPlayer, perHero, query, varOf } from "./values.js";
 
 const valid = (definition: Parameters<typeof validateDefinition>[0]) =>
   expect(validateDefinition(definition)).toEqual([]);
@@ -71,5 +83,29 @@ describe("§3.49 a cost the board picks", () => {
     expect(
       validateDefinition(heroAction({ cost: costIf(MILANO, discardTopOfDeckCost(0), spend(1)) }, draw(1))),
     ).not.toEqual([]);
+  });
+});
+
+describe("§3.50 search for one copy", () => {
+  const PINCER = encounterCards(["deck", "discard"], { printedId: cardId("16112") });
+
+  it("oneCopyOf compiles to atMost 1 around the selector", () => {
+    const definition = heroAction(selectCards("pincer", oneCopyOf(PINCER)), revealCard(chosen("pincer"), firstPlayer));
+    valid(definition);
+    expect(definition.effects[0]).toEqual({
+      kind: "selectCards",
+      slot: "pincer",
+      cards: { kind: "atMost", count: { kind: "const", value: 1 }, of: PINCER },
+    });
+  });
+
+  it("atMost takes any amount, and searchAndReveal reveals one copy", () => {
+    expect(atMost(perHero(1), PINCER)).toEqual({ kind: "atMost", count: perHero(1), of: PINCER });
+    const [search] = searchAndReveal("Test Subjects");
+    expect(search).toEqual({
+      kind: "selectCards",
+      slot: "found",
+      cards: oneCopyOf(encounterCards(["deck", "discard"], { name: "Test Subjects" })),
+    });
   });
 });

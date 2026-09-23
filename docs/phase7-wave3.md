@@ -1261,6 +1261,52 @@ Plating, Heavy Cannon and the other Milano mods.
   which follows the board's branch. But the player isn't asked which hand card to discard; the engine picks the
   cheapest one. The fix is to pass the cost through `costAsDetermined` in `actionAbilityCost`.
 
+### 3.50 "Search … for one copy of X": `CardSelector atMost`
+
+> **Status: landed (2026-09-23),** tested in `packages/engine/src/at-most-selector.test.ts` (5 tests: one copy taken
+> and the rest untouched; a second, later search finds a remaining copy; deck before discard pile, then the discard
+> pile; fewer or none matching is not an error; at most 2 and at most 0; each replays deep-equal). DSL:
+> `packages/cards/src/dsl/wave3-primitives-3.test.ts`. Campaign tests: `campaigns/gmw.qa.test.ts` ("You Stand
+> Accused!" and Pincer Maneuver, un-skipped). Card test: `stld/star-lord-kit.test.ts` (Element Gun).
+
+MC16 p. 18 (Ronan the Accuser setup): "search the encounter deck and discard pile for **one copy** of the 'You Stand
+Accused!' (116) treachery, then deal that card to that player", and "for **one copy** of the Pincer Maneuver (112) side
+scheme and reveal it". Each printed copy is its own instance, and a selector names every instance that matches, so
+three treacheries were dealt (16116 ×3) and two Pincer Maneuvers revealed (16112 ×2), each with its own threat (found
+by QA, `docs/phase7-wave3-qa.md`). `CardSelector.encounter.top` is positional and does not help.
+
+**The rule:** RRG 1.8 "Search" (p. 39): "If a player finds multiple cards that satisfy the criteria of a search, the
+player chooses among those options." RRG 1.8 "Shuffle" (p. 39): a searched deck is shuffled after the search. The
+rulings file (December 17, 2025 through August 13, 2026) has no ruling on which copy a search takes.
+
+**What landed:**
+
+- **`CardSelector { kind: "atMost"; count: ValueSpec; of: CardSelector }`.** The first `count` cards `of` names, in
+  its own order. Fewer or none matching names fewer or none, with no error; `count` of 0 or less names nothing. It
+  wraps any selector, so it works in every effect that takes one (`selectCards`, `moveCards`, `tuckCards`,
+  `chooseCards`' pool).
+- **Which copy.** `atMost` is for interchangeable copies, so it doesn't ask. It takes them in selector order: an
+  `encounter` selector yields the deck top-down, then the discard pile; a `zone` selector its zones in the order
+  listed. The deck is shuffled afterwards, so which deck copy is taken can't be seen. The one real pick is deck
+  before discard pile. That default is ours, not the RRG's (the RRG gives the player the pick); it takes a bad
+  encounter card out of the deck, which is the choice a player would make. Where the pick matters to the player, use
+  `chooseCards` with `max` instead (Island of Dr. Zola's Ultimate Bio-Servant already does).
+- **The other copies stay where they were.** Nothing else moves, so a later search or draw can still find them.
+
+**DSL:** `atMost(n, from)` and `oneCopyOf(from)` (= `atMost(1, from)`) in `dsl/effects.ts`. `searchAndReveal` now
+reveals one copy ("reveal **it**").
+
+**Scripts switched:**
+
+- `campaigns/gmw.ts`: `mc16.s5.setup.you-stand-accused` and `mc16.s5.setup.pincer-maneuver`.
+- `searchAndReveal`: Zola (II) 04110, "search … for the Test Subjects side scheme and reveal it" (04123 ×2) had the
+  same flaw and revealed both. Every other `searchAndReveal` target is printed once, so nothing else changes.
+- Peter Quill 17001b Setup, "search your deck and discard pile for **a copy** of the Element Gun upgrade" (17007 ×2):
+  it put both in hand.
+
+Every other name or printed-id search in `@mc/cards` and the campaign definitions (including `mts.gate.test.ts`)
+targets a card printed once, or already chooses with `chooseCards` or `firstOf`.
+
 ---
 
 ## 4. Open questions (for the user or FFG)

@@ -97,6 +97,7 @@ import {
   firstPlayer,
   max,
   moveCards,
+  oneCopyOf,
   placeThreat,
   putIntoPlay,
   query,
@@ -978,7 +979,10 @@ export const GMW_CAMPAIGN_DEFINITION: CampaignDefinition = {
               window: DEFAULT_CAMPAIGN_WINDOW,
               effects: [
                 ifThen(campaignLogIsSet("powerStoneControl", true), [
-                  selectCards("accused", encounterCards(["deck", "discard"], { printedId: YOU_STAND_ACCUSED })),
+                  selectCards(
+                    "accused",
+                    oneCopyOf(encounterCards(["deck", "discard"], { printedId: YOU_STAND_ACCUSED })),
+                  ),
                   dealAsEncounterCard(
                     chosen("accused"),
                     controllerOf(each(query(["identity"], inCampaignLogField("powerStoneControl")))),
@@ -996,7 +1000,7 @@ export const GMW_CAMPAIGN_DEFINITION: CampaignDefinition = {
               kind: "inGame",
               window: DEFAULT_CAMPAIGN_WINDOW,
               effects: [
-                selectCards("pincer", encounterCards(["deck", "discard"], { printedId: PINCER_MANEUVER })),
+                selectCards("pincer", oneCopyOf(encounterCards(["deck", "discard"], { printedId: PINCER_MANEUVER }))),
                 revealCard(chosen("pincer"), firstPlayer),
                 shuffleEncounterDeck(),
                 forEachPlayer(
