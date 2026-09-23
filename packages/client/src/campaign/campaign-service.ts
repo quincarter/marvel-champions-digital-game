@@ -12,7 +12,7 @@
  * question again with the same options, and a `random` op cannot be rerolled by refreshing.
  */
 import { campaignDefinitionOf } from "@mc/cards";
-import { TRORS_CAMPAIGN, type Campaign, type CardId, type Deck, type PlayModes } from "@mc/content";
+import { CAMPAIGNS as CONTENT_CAMPAIGNS, type Campaign, type CardId, type Deck, type PlayModes } from "@mc/content";
 import {
   applyCommands,
   createCampaignLog,
@@ -36,9 +36,9 @@ import { campaignLaunchConfig, campaignPostGameFold } from "../view/campaign-ste
  * `@mc/cards` also ships its `CampaignDefinition` (`campaignDefinitionOf`); a record without one is listed as
  * sealed rather than hidden.
  */
-export const CAMPAIGN_RECORDS: Readonly<Record<string, Campaign>> = {
-  [TRORS_CAMPAIGN.id as string]: TRORS_CAMPAIGN,
-};
+export const CAMPAIGN_RECORDS: Readonly<Record<string, Campaign>> = Object.fromEntries(
+  CONTENT_CAMPAIGNS.map((campaign) => [campaign.id as string, campaign]),
+);
 
 /** A new campaign's seat: the identity locked for the campaign, and the campaign's own copy of a deck. */
 export interface CampaignSeatChoice {

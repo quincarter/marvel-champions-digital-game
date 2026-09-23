@@ -10,7 +10,13 @@
  * `CampaignLog` — it is a box's own rule about *when* a deck freezes, not campaign state — so it is an explicit,
  * optional input here; MC10 never freezes a deck, so its own tests never pass one.
  */
-import { validateDeck, type CampaignDeckContext, type CampaignLog, type DeckValidation } from "@mc/engine";
+import {
+  validateDeck,
+  type CampaignDefinition,
+  type CampaignDeckContext,
+  type CampaignLog,
+  type DeckValidation,
+} from "@mc/engine";
 import type { AnyCard, Campaign, CardId, DeckCardEntry, DeckContents } from "@mc/content";
 
 /** Assembles the campaign half of `DeckContext` from a `Campaign` content record and a seat's log column. */
@@ -32,6 +38,42 @@ export function campaignDeckContextOf(
     ...(campaign.prohibited?.encounterSetIds ? { prohibitedEncounterSetIds: campaign.prohibited.encounterSetIds } : {}),
     ...(options.frozenNonCampaignCards ? { frozenNonCampaignCards: options.frozenNonCampaignCards } : {}),
   };
+}
+
+/**
+ * Which boxes freeze deck customization at all, and when (`docs/campaign-mode-design.md` §"Changes to the
+ * existing checks": "MC16 p. 5 (mandatory) / MC27 p. 6 (optional)" — no generic signal in `CampaignLog` says this,
+ * it is each box's own printed rule, so it stays a short lookup here rather than a per-campaign `if` in a scene.
+ * `"mandatory"` freezes automatically once an expert-mode run has played its first scenario; a box with no entry
+ * (MC10, and every box not yet in this table) never freezes. `"optional"` (MC27) is left for that box's own client
+ * work — the player must be offered a choice this module cannot invent.
+ */
+const DECK_FREEZE_POLICY: Readonly<Record<string, "mandatory" | "optional">> = {
+  gmw: "mandatory",
+};
+
+/**
+ * MC16 p. 5: "Once a player starts an expert campaign, they cannot add, remove, or change the aspect and/or basic
+ * cards in their deck … for the remainder of the campaign." — snapshotted from the stored run itself, never
+ * guessed: `history`'s very first entry's `logBefore` is the log exactly as it stood before that node's own setup
+ * instructions ran (`CampaignHistoryEntry.logBefore`'s own doc comment), i.e. the deck the seat started the
+ * campaign with, before any between-games edit ever touched it. Null when the box doesn't freeze, the run isn't in
+ * expert mode, or scenario 1 hasn't been attempted yet (nothing to freeze against).
+ */
+export function frozenNonCampaignCardsOf(
+  definition: CampaignDefinition,
+  log: CampaignLog,
+  seatNumber: number,
+): readonly DeckCardEntry[] | null {
+  const policy = DECK_FREEZE_POLICY[log.campaignId as string];
+  if (policy !== "mandatory") return null;
+  if (!log.modes.campaign?.expertCampaign) return null;
+  const firstNodeId = definition.graph.kind === "linear" ? definition.graph.nodes[0]?.id : undefined;
+  if (!firstNodeId) return null;
+  const opening = log.history.find((entry) => entry.nodeId === firstNodeId);
+  if (!opening) return null;
+  const seat = opening.logBefore.seats.find((candidate) => candidate.seatNumber === seatNumber);
+  return seat ? seat.deck.cards : null;
 }
 
 export interface CampaignDeckEditRow {

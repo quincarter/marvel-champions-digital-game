@@ -8,10 +8,11 @@
  * scenario — the World box only reads `record.shared`, so this exercises exactly that without a full campaign run.
  */
 import { describe, expect, it } from "vitest";
-import { createCampaignLog, type CampaignLog } from "@mc/engine";
+import { createCampaignLog, type CampaignHistoryEntry, type CampaignLog } from "@mc/engine";
 import { GMW_CAMPAIGN_DEFINITION } from "@mc/cards";
 import { cardId } from "@mc/content";
 import { bountyLadderRungs, campaignDossierOverview } from "./campaign-dossier-model.js";
+import { frozenNonCampaignCardsOf } from "./campaign-deck-edit-model.js";
 
 const heroNameOf = (identityCardId: string): string => identityCardId;
 const cardName = (id: string): string => id;
@@ -76,5 +77,58 @@ describe("GMW's World box", () => {
     expect(rungs.map((r) => r.cardId)).toEqual(["16184", "16185", "16186", "16187"]);
     expect(rungs.every((r) => r.name.startsWith("Card 161"))).toBe(true);
     expect(rungs.map((r) => r.unlocked)).toEqual([true, true, false, false]);
+  });
+});
+
+describe("GMW's expert deck freeze (MC16 p. 5)", () => {
+  const STARTER_CARDS = [{ cardId: cardId("16001"), quantity: 2 }];
+
+  function openingHistoryEntry(seatDeckCards: typeof STARTER_CARDS): CampaignHistoryEntry {
+    const opening = freshRecord();
+    return {
+      nodeId: "brotherhood-of-badoon",
+      modes: opening.modes,
+      outcome: "won",
+      gameId: null,
+      logBefore: {
+        definitionVersion: opening.definitionVersion,
+        shared: {},
+        hidden: {},
+        seats: [
+          {
+            seatNumber: 1,
+            identityCardId: cardId("rocket-raccoon"),
+            deck: { identityCardId: cardId("rocket-raccoon"), aspects: ["justice"], cards: seatDeckCards },
+            grants: [],
+            fields: {},
+          },
+        ],
+        removedFromCampaign: [],
+        position: { nextNodeId: "brotherhood-of-badoon", resolved: {}, progress: {} },
+        rng: opening.rng,
+      },
+      steps: [],
+      at: 0,
+    };
+  }
+
+  it("snapshots the deck from scenario 1's own logBefore once the run is in expert mode", () => {
+    const record = {
+      ...freshRecord(),
+      modes: { campaign: { campaignId: GMW_CAMPAIGN_DEFINITION.campaignId, expertCampaign: true as const } },
+      history: [openingHistoryEntry(STARTER_CARDS)],
+    };
+    expect(frozenNonCampaignCardsOf(GMW_CAMPAIGN_DEFINITION, record, 1)).toEqual(STARTER_CARDS);
+  });
+
+  it("is null outside expert mode, and null before scenario 1 has a history entry", () => {
+    const standard = { ...freshRecord(), history: [openingHistoryEntry(STARTER_CARDS)] };
+    expect(frozenNonCampaignCardsOf(GMW_CAMPAIGN_DEFINITION, standard, 1)).toBeNull();
+
+    const expertNoHistory = {
+      ...freshRecord(),
+      modes: { campaign: { campaignId: GMW_CAMPAIGN_DEFINITION.campaignId, expertCampaign: true as const } },
+    };
+    expect(frozenNonCampaignCardsOf(GMW_CAMPAIGN_DEFINITION, expertNoHistory, 1)).toBeNull();
   });
 });

@@ -144,11 +144,14 @@ if (import.meta.env.DEV) {
   (globalThis as unknown as { __mcGame?: Phaser.Game }).__mcGame = game;
   // Campaign screens in a known state without playing four games first (`campaign/dev-fixtures.ts`):
   //   const run = await __mcCampaign.seed("afterIssue2"); __mcGame.scene.start("CampaignRun", { runId: run.id });
+  //   const gmwRun = await __mcCampaign.seedGmw("afterIssue1");
   void Promise.all([import("./session.js"), import("./campaign/dev-fixtures.js")]).then(([session, fixtures]) => {
     (globalThis as unknown as { __mcCampaign?: unknown }).__mcCampaign = {
       service: session.campaignService(),
       seed: (stop?: Parameters<typeof fixtures.seedDesignRun>[1], options?: { expertCampaign?: boolean }) =>
         fixtures.seedDesignRun(session.campaignService(), stop, options),
+      seedGmw: (stop?: Parameters<typeof fixtures.seedGmwRun>[1], options?: { expertCampaign?: boolean }) =>
+        fixtures.seedGmwRun(session.campaignService(), stop, options),
     };
   });
 }

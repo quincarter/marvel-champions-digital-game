@@ -12,6 +12,7 @@
  */
 import Phaser from "phaser";
 import { deckId, type Deck } from "@mc/content";
+import { CAMPAIGNS } from "@mc/cards";
 import { surface } from "../../tokens.js";
 import { cssOf, textStyle } from "../../ui/theme.js";
 import { typeRole } from "../../tokens.js";
@@ -20,7 +21,7 @@ import { destroyChildren } from "../../ui/destroy-children.js";
 import { fadeScreenIn, goToScreen } from "../../ui/transitions.js";
 import { CAMPAIGN_RECORDS } from "../../campaign/campaign-service.js";
 import { campaignService } from "../../session.js";
-import { campaignDeckContextOf } from "../../view/campaign-deck-edit-model.js";
+import { campaignDeckContextOf, frozenNonCampaignCardsOf } from "../../view/campaign-deck-edit-model.js";
 import { POOL_CARDS } from "../../content/pool.js";
 import { SCENES } from "../keys.js";
 import type { DeckBuilderCampaignData } from "../deck-builder.js";
@@ -78,7 +79,14 @@ export class CampaignDeckEditScene extends Phaser.Scene {
       return;
     }
 
-    const context = campaignDeckContextOf(content, current, data.seatNumber);
+    const definition = CAMPAIGNS[current.campaignId as string];
+    const frozenNonCampaignCards = definition ? frozenNonCampaignCardsOf(definition, current, data.seatNumber) : null;
+    const context = campaignDeckContextOf(
+      content,
+      current,
+      data.seatNumber,
+      frozenNonCampaignCards ? { frozenNonCampaignCards } : {},
+    );
     const identity = POOL_CARDS.find((card) => (card.id as string) === (seat.identityCardId as string));
     const identityName = identity?.name ?? (seat.identityCardId as string);
     const title = `${current.name} — Seat ${data.seatNumber}: ${identityName}`;
