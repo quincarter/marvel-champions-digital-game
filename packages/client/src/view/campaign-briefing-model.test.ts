@@ -78,7 +78,7 @@ describe("campaign briefing model", () => {
     expect(delayRow).toEqual({
       key: "field-later:delayCounters",
       status: "later",
-      title: "Number of delay counters on main scheme — held for issue #5",
+      title: "Number of delay counters on main scheme: 3 — held for issue #5",
       detail:
         "Place X threat counters on the main scheme, where X is the number of delay counters recorded in the campaign log.",
     });

@@ -186,7 +186,7 @@ function fieldLogRowsOf(
         laterRows.push({
           key: `field-later:${fieldId}`,
           status: "later",
-          title: `${fieldLabel(fieldId)} — held for issue #${index + 1}`,
+          title: `${fieldLabel(fieldId)}: ${compactValueOf(value!)} — held for issue #${index + 1}`,
           detail: found.text,
         });
         break;

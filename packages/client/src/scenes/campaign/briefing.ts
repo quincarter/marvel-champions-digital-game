@@ -364,7 +364,8 @@ export class CampaignBriefingScene extends Phaser.Scene {
     g.lineStyle(2, surface.ink.hex, 1).strokeRect(rect.x, listTop, rect.width, listHeight);
     rows.forEach(({ row, y: rowY }, index) => {
       if (index > 0) g.lineStyle(1, surface.ink.hex, 0.2).lineBetween(rect.x, rowY, rect.x + rect.width, rowY);
-      const glyphColor = row.status === "done" ? signal.heal.hex : accent.heroRed.hex;
+      // The canvas: green ✓ for this issue, blue → for a value held for a later one (never Hero Red, which is the CTA's).
+      const glyphColor = row.status === "done" ? signal.heal.hex : signal.cost.hex;
       this.add
         .text(
           rowXs.glyph,
