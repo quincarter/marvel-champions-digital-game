@@ -322,7 +322,23 @@ export function checkDefeats(ctx: Ctx, hints?: DefeatHint | readonly DefeatHint[
     // "When [your hero] would be defeated, … instead" (Captain America's Helmet) needs an interrupt window, so the
     // defeat goes on the stack as an event when an ability could react to it and the player is eliminated when it
     // applies. With nothing listening the elimination happens right here, exactly as it did before.
-    const defeat: TriggerEvent = { kind: "characterDefeated", instanceId: identityId };
+    // The same hint the ally/minion and villain paths above thread through (`fromAttack`/`sourceInstanceId`/
+    // `defeatedByPlayerId`, docs/phase7-wave3.md §3.45): an identity's own defeat previously carried none of it, so
+    // "defeated by an enemy attack" could never distinguish an identity killed by a villain's attack from one
+    // killed by, say, a treachery's own damage (`ron` 90002's own docblock, `wave3/ron/kree-fanatic.ts`).
+    const hint = hintFor(identityId);
+    const defeat: TriggerEvent = {
+      kind: "characterDefeated",
+      instanceId: identityId,
+      ...(hint
+        ? {
+            parentFrameId: hint.parentFrameId,
+            ...(hint.defeatedByPlayerId ? { defeatedByPlayerId: hint.defeatedByPlayerId } : {}),
+            ...(hint.sourceInstanceId ? { sourceInstanceId: hint.sourceInstanceId } : {}),
+            ...(hint.fromAttack ? { fromAttack: true as const } : {}),
+          }
+        : {}),
+    };
     if (!defeatPending(ctx.state, identityId) && heard(ctx.state, ctx.deps, defeat)) {
       pushFrames(ctx, [eventFrame(ctx, defeat)]);
       continue;

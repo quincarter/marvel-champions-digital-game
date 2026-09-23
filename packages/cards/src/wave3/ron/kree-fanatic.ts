@@ -86,18 +86,15 @@ export const KREE_FANATIC = defineAbilities({
   // `controller: "you"`, which resolves against this card's own controller and this is an unowned side scheme
   // (no controller to be "you"), so it would never match anyone.
   //
-  // "By an enemy attack" is deliberately not enforced with `sourceIs: { categories: ["enemy"] }`, a known,
-  // documented simplification rather than a silent approximation: `checkDefeats`'s identity-elimination path
-  // (`packages/engine/src/resolve/defeat.ts`) constructs its own `characterDefeated` event with no
-  // `sourceInstanceId` at all — unlike the ally/minion path, which always carries one — so a `sourceIs` filter
-  // would silently and permanently exclude every identity defeat, even ones genuinely caused by an enemy attack
-  // (the very case this Forced Response exists for). Only damage defeats a character at all (RRG 1.8 "Defeat",
-  // p. 15), and every printed source of damage to a friendly character in this pool is an enemy's own attack or
-  // an encounter card's own effect — both "an enemy" in the sense a table would read this card. Confirmed the
-  // ally/minion path *does* carry a source (so a future fix restoring the filter for that half only is possible,
-  // but would need engine work on the identity path first to be uniform).
+  // "By an enemy attack" is `on.defeated(…, { byAttackFrom: query("enemy") })`, now enforced for real. An
+  // identity's own defeat previously carried no `fromAttack`/`sourceInstanceId` at all — unlike the ally/minion
+  // path, which always did — so this filter would have silently and permanently excluded every identity defeat,
+  // even ones genuinely caused by an enemy attack (the very case this Forced Response exists for). Fixed
+  // generically: `checkDefeats`'s identity-elimination path (`packages/engine/src/resolve/defeat.ts`) now threads
+  // the same `DefeatHint` (`fromAttack`/`sourceInstanceId`/`defeatedByPlayerId`) the ally/minion and villain paths
+  // already carried, tested in `packages/engine/src/identity-defeat-from-attack.test.ts`.
   "90002.judge-jury-executioner-forced-response": forcedResponse(
-    { on: "characterDefeated", targetIs: FRIENDLY_CHARACTER },
+    on.defeated(FRIENDLY_CHARACTER, { byAttackFrom: query("enemy") }),
     placeThreat(2, theMainScheme),
   ),
   // [star] Boost: Put Judge, Jury, Executioner into play.

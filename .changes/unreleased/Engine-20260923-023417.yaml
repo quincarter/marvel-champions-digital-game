@@ -1,0 +1,3 @@
+kind: Engine
+body: An identity's own defeat now carries the same fromAttack/sourceInstanceId hint an ally's already did; fixes Judge, Jury, Executioner's overbroad 'defeated by an enemy attack' trigger (ron)
+time: 2026-09-23T02:34:17.746696-04:00

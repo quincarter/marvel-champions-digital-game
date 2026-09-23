@@ -1,19 +1,75 @@
-import { activeEncounterDeckId, characterProfile, type GameState, type InstanceId, type PlayerId } from "@mc/engine";
+import {
+  activeEncounterDeckId,
+  characterProfile,
+  type Command,
+  type EngineDeps,
+  type GameEvent,
+  type GameState,
+  type InstanceId,
+  type PlayerId,
+} from "@mc/engine";
 import { cardId } from "@mc/content";
 import {
+  applyOk,
+  firstLegal,
   identityOf,
   inst,
   instancesOf,
+  moveToHand,
   P1,
   P2,
   patchInstance,
+  payWith,
+  play,
+  playerOf,
+  runWith,
+  settle,
   stackEncounterDeck,
   toHero,
+  type Picker,
 } from "../../testing/harness.js";
 import { defeatWithAttack, driveEvents } from "../../testing/staging.js";
 import { traceAbilities } from "../../testing/trace.js";
 import { wave3Scenario } from "../setup.js";
 import { runWave3, startWave3Game, WAVE3_DEPS } from "../testing.js";
+
+/** `driveEvents`, but with a custom choice `Picker` instead of a hardcoded `firstLegal` — needed to declare a
+ * specific ally as the defender, which `firstLegal` alone would decline (`ronan.test.ts`'s own note on the same
+ * trap). */
+function driveEventsPicking(
+  deps: EngineDeps,
+  state: GameState,
+  pick: Picker,
+  ...commands: readonly Command[]
+): { readonly state: GameState; readonly events: readonly GameEvent[] } {
+  let current = state;
+  const events: GameEvent[] = [];
+  const settleOne = () => {
+    while (current.pendingChoice && !current.outcome) {
+      const choice = current.pendingChoice;
+      const result = applyOk(
+        current,
+        {
+          type: "resolveChoice",
+          playerId: choice.playerId,
+          choiceId: choice.choiceId,
+          selectedOptionIds: pick(current),
+        },
+        deps,
+      );
+      current = result.state;
+      events.push(...result.events);
+    }
+  };
+  settleOne();
+  for (const command of commands) {
+    const result = applyOk(current, command, deps);
+    current = result.state;
+    events.push(...result.events);
+    settleOne();
+  }
+  return { state: current, events };
+}
 
 /**
  * The Kree Fanatic modular set (`ron`, 90001–90005, `wave3/ron/kree-fanatic.ts`), exercised by swapping it into
@@ -174,6 +230,78 @@ describe("Judge, Jury, Executioner (90002)", () => {
           (e as { readonly sourceInstanceId: unknown }).sourceInstanceId === jje,
       ),
     ).toBe(true);
+  });
+
+  it("an ally defeated by an enemy attack also places 2 threat (90002.judge-jury-executioner-forced-response)", () => {
+    const state = withKreeFanatic();
+    const { state: placedJJE, id: jje } = placeInVillainArea(state, "90002");
+    const { state: engagedRonan } = engageMinion(placedJJE, "90001", P1);
+    const hero = runWave3(engagedRonan, toHero());
+    const given = moveToHand(hero, P1, "16012"); // Starhawk (Groot's own starter-deck ally)
+    const [starhawkCard] = given.ids as [InstanceId];
+    const played = settle(
+      runWave3(given.state, play(P1, starhawkCard, payWith(given.state, P1, 2, [starhawkCard]))),
+      firstLegal,
+      undefined,
+      WAVE3_DEPS,
+    );
+    const [starhawk] = instancesOf(played, "16012");
+    const profile = characterProfile(played, starhawk!, WAVE3_DEPS)!;
+    // One point of remaining hit points: any lethal attack (Ronan's own basic ATK) defeats it once it defends.
+    const primed = patchInstance(played, starhawk!, { damage: Math.max(0, profile.maxHp - 1) });
+    const defendWithStarhawk: Picker = (s) => {
+      const choice = s.pendingChoice;
+      if (choice?.prompt.kind === "declareDefender") {
+        const defend = choice.options.find((o) => o.ref.kind === "card" && o.ref.instanceId === starhawk);
+        return defend ? [defend.optionId] : ["decline"];
+      }
+      return firstLegal(s);
+    };
+    const { state: settled, events } = driveEventsPicking(WAVE3_DEPS, primed, defendWithStarhawk, {
+      type: "endTurn",
+      playerId: P1,
+    });
+    expect(playerOf(settled, P1).playArea).not.toContain(starhawk); // defeated, not just damaged.
+    expect(
+      events.some(
+        (e) =>
+          e.type === "threatPlaced" &&
+          (e as { readonly amount: number; readonly sourceInstanceId: unknown }).amount === 2 &&
+          (e as { readonly sourceInstanceId: unknown }).sourceInstanceId === jje,
+      ),
+    ).toBe(true);
+  });
+
+  it("an ally defeated by non-attack damage does not place threat (90002.judge-jury-executioner-forced-response)", () => {
+    const state = withKreeFanatic();
+    const { state: placedJJE } = placeInVillainArea(state, "90002");
+    const hero = runWave3(placedJJE, toHero());
+    const given = moveToHand(hero, P1, "16012"); // Starhawk: consequentialDamage.attack = 2, hp 3.
+    const [starhawkCard] = given.ids as [InstanceId];
+    const played = settle(
+      runWave3(given.state, play(P1, starhawkCard, payWith(given.state, P1, 2, [starhawkCard]))),
+      firstLegal,
+      undefined,
+      WAVE3_DEPS,
+    );
+    const [starhawk] = instancesOf(played, "16012");
+    // 1 remaining hit point: her own 2-consequential-damage basic attack (fromAttack: false, `sourceInstanceId`
+    // herself, not an enemy) defeats her without any enemy attack involved.
+    const primed = patchInstance(played, starhawk!, { damage: 2 });
+    const threatBefore = inst(primed, primed.mainScheme.instanceId).threat;
+    const attacked = settle(
+      runWith(WAVE3_DEPS, primed, {
+        type: "basicAttack",
+        playerId: P1,
+        attackerInstanceId: starhawk!,
+        targetInstanceId: primed.villains[0]!.instanceId,
+      } as never),
+      firstLegal,
+      undefined,
+      WAVE3_DEPS,
+    );
+    expect(playerOf(attacked, P1).playArea).not.toContain(starhawk); // defeated by her own consequential damage.
+    expect(inst(attacked, attacked.mainScheme.instanceId).threat).toBe(threatBefore);
   });
 
   it("[star] Boost: puts Judge, Jury, Executioner into play (90002.boost)", () => {
