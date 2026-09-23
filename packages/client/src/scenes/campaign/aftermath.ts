@@ -179,7 +179,11 @@ export class CampaignAftermathScene extends Phaser.Scene {
       goToScreen(this, SCENES.campaignFinale, { runId: record.id });
       return;
     }
-    this.#group = null;
+    // `this.#group` is left as-is on purpose: by the time a commit loop reaches "done", every seat in it is
+    // already confirmed (`AftermathColumn.status === "confirmed"`), which is exactly what the summary phase shows
+    // — the tile keeps each hero's pick on screen (YOURS / WITH …), it doesn't clear the columns. A win with no
+    // pending choice at all (MC10 has none, but a future box might) leaves `#group` null, which the summary phase
+    // reads as "nothing to hand out this issue".
     this.#phase = "summary";
     this.#draw();
   }
@@ -288,7 +292,7 @@ export class CampaignAftermathScene extends Phaser.Scene {
 
     const actionBarHeight = 88;
     const rightRect: Rect = { x: leftWidth, y: 0, width: width - leftWidth, height: height - actionBarHeight };
-    if (this.#phase === "summary") this.#drawSummary(rightRect, story, loggedTag, order, stops, false);
+    if (this.#phase === "summary") this.#drawSummary(rightRect, order, stops, false);
     else this.#drawColumns(rightRect, order, stops, false);
 
     this.#drawActionBar(
@@ -329,7 +333,7 @@ export class CampaignAftermathScene extends Phaser.Scene {
       y = rect.y + rect.height + 14;
     }
     const listRect: Rect = { x: 0, y, width, height: Math.max(0, height - actionBarHeight - y) };
-    if (this.#phase === "summary") this.#drawSummary(listRect, story, loggedTag, order, stops, true);
+    if (this.#phase === "summary") this.#drawSummary(listRect, order, stops, true);
     else this.#drawColumns(listRect, order, stops, true);
     this.#drawActionBar({ x: 0, y: height - actionBarHeight, width, height: actionBarHeight }, true, order, stops);
   }
@@ -373,15 +377,17 @@ export class CampaignAftermathScene extends Phaser.Scene {
     if (!image) artNote(this, rect, `Panel art: ${story.villain}`, true);
   }
 
-  #drawSummary(
-    rect: Rect,
-    story: IssueStory | null,
-    loggedTag: string | null,
-    order: string[],
-    stops: Map<string, FocusStop>,
-    phone: boolean,
-  ): void {
-    void loggedTag;
+  /**
+   * The summary phase's content area: the last committed group's columns, still showing every hero's confirmed
+   * pick (YOURS / WITH …) exactly as the tile keeps them — never cleared. A win with no pending choice at all
+   * (MC10 has none, but the vocabulary allows one) has no group to show, so this falls back to a short line. The
+   * CTA itself lives in the action bar (`#drawActionBar`), the same place the commit CTA does.
+   */
+  #drawSummary(rect: Rect, order: string[], stops: Map<string, FocusStop>, phone: boolean): void {
+    if (this.#group) {
+      this.#drawColumns(rect, order, stops, phone);
+      return;
+    }
     const pad = phone ? 16 : 24;
     label(
       this,
@@ -392,13 +398,10 @@ export class CampaignAftermathScene extends Phaser.Scene {
       surface.paper.hex,
       1,
     );
-    void story;
-    const ctaRect: Rect = {
-      x: rect.x + pad,
-      y: rect.y + pad + 40,
-      width: Math.min(320, rect.width - pad * 2),
-      height: 52,
-    };
+  }
+
+  /** "On to issue #N ▸" (or the Dossier, past the last issue) — the destination for the summary phase's CTA. */
+  #nextLabel(): string {
     const record = this.#record;
     const nodeIds = record
       ? campaignService()
@@ -406,18 +409,7 @@ export class CampaignAftermathScene extends Phaser.Scene {
           .graph.nodes.map((n) => n.id)
       : [];
     const currentIndex = record && this.#nodeId ? nodeIds.indexOf(this.#nodeId) : -1;
-    const nextLabel = `On to issue #${currentIndex + 2} ▸`;
-    this.#buttons.push(
-      new McButton(this, {
-        kind: "primary",
-        label: nextLabel,
-        type: typeRole.barTitle,
-        rect: ctaRect,
-        onClick: () => this.#leaveToNext(),
-      }),
-    );
-    order.push("summary-cta");
-    stops.set("summary-cta", { rect: ctaRect, activate: () => this.#leaveToNext() });
+    return `On to issue #${currentIndex + 2} ▸`;
   }
 
   #leaveToNext(): void {
@@ -601,10 +593,36 @@ export class CampaignAftermathScene extends Phaser.Scene {
     this.#draw();
   }
 
+  /** The bar's CTA rect: right-aligned 425px on wide, full width (minus the thumb gutter) on phone. */
+  #ctaRect(rect: Rect, phone: boolean): Rect {
+    const width = phone ? rect.width - 24 : Math.min(425, rect.width - 32);
+    return {
+      x: phone ? rect.x + 12 : rect.x + rect.width - 16 - width,
+      y: rect.y + (rect.height - 52) / 2,
+      width,
+      height: 52,
+    };
+  }
+
   #drawActionBar(rect: Rect, phone: boolean, order: string[], stops: Map<string, FocusStop>): void {
     this.add.rectangle(rect.x, rect.y, rect.width, rect.height, surface.ink.hex).setOrigin(0, 0);
     this.add.rectangle(rect.x, rect.y, rect.width, 1, surface.paper.hex, 0.3).setOrigin(0, 0);
-    if (this.#phase === "summary") return;
+    if (this.#phase === "summary") {
+      // Every seat has already been confirmed (or there was nothing to ask) — the same bar, now the forward CTA.
+      const ctaRect = this.#ctaRect(rect, phone);
+      this.#buttons.push(
+        new McButton(this, {
+          kind: "primary",
+          label: this.#nextLabel(),
+          type: typeRole.barTitle,
+          rect: ctaRect,
+          onClick: () => this.#leaveToNext(),
+        }),
+      );
+      order.push("next-issue");
+      stops.set("next-issue", { rect: ctaRect, activate: () => this.#leaveToNext() });
+      return;
+    }
     const group = this.#group;
     const ready = group !== null && readyToCommit(group);
     const noteWidth = phone ? 0 : Math.max(0, rect.width - 425 - 48);
@@ -616,13 +634,7 @@ export class CampaignAftermathScene extends Phaser.Scene {
         .setFontSize(12)
         .setWordWrapWidth(noteWidth);
     }
-    const ctaWidth = phone ? rect.width - 24 : Math.min(425, rect.width - 32);
-    const ctaRect: Rect = {
-      x: phone ? rect.x + 12 : rect.x + rect.width - 16 - ctaWidth,
-      y: rect.y + (rect.height - 52) / 2,
-      width: ctaWidth,
-      height: 52,
-    };
+    const ctaRect = this.#ctaRect(rect, phone);
     const label_ = group?.optional && !ready ? "Each hero decides" : "Each hero takes one";
     this.#buttons.push(
       new McButton(this, {

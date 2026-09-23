@@ -167,7 +167,31 @@ export class CampaignRewindScene extends Phaser.Scene {
     }
   }
 
+  /**
+   * The tag/title/box/buttons block, vertically centred beside the art — the tile's own composition, not
+   * top-aligned. `#estimateRightHeight` gives a close-enough height without a real layout pass (the exact figure
+   * would need one, since the body text and the kept/gone box both word-wrap, but centring a block that's off by a
+   * handful of pixels is visually indistinguishable from centring it exactly), and the real draw simply starts
+   * that much lower.
+   */
   #drawRight(rect: Rect, view: RewindView, order: string[], stops: Map<string, FocusStop>, phone: boolean): void {
+    const offset = Math.max(0, (rect.height - this.#estimateRightHeight(view, phone)) / 2);
+    this.#layoutRight({ ...rect, y: rect.y + offset }, view, order, stops, phone);
+  }
+
+  #estimateRightHeight(view: RewindView, phone: boolean): number {
+    const tag = 34;
+    if (view.campaignLost) {
+      const headline = (phone ? 46 : 64) * 1.7;
+      return tag + 16 + headline + 16 + 40 + 60 + 52;
+    }
+    const headline = (phone ? 40 : 60) * 1.65;
+    const body = 40;
+    const box = 34 + view.gone.length * 34 + 24;
+    return tag + 14 + headline + 12 + body + 16 + box + 20 + 56 + 10 + 48;
+  }
+
+  #layoutRight(rect: Rect, view: RewindView, order: string[], stops: Map<string, FocusStop>, phone: boolean): void {
     let y = rect.y;
     if (view.campaignLost) {
       const { rect: tagRect } = this.#tag(rect.x, y, "The campaign is lost.");
@@ -266,29 +290,31 @@ export class CampaignRewindScene extends Phaser.Scene {
     stops.set("rewind", { rect: rewindRect, activate: () => this.#rewind() });
     y += 56 + 10;
 
+    // The tile's Edit decks / Shelve are ink-filled with a paper outline (`kind: "onInk"`), not the paper-filled
+    // "secondary" skin — Shelve dimmer still, since it's the least-committed of the three ways forward.
     const halfWidth = (rect.width - 12) / 2;
     const editRect: Rect = { x: rect.x, y, width: halfWidth, height: 48 };
     const shelveRect: Rect = { x: rect.x + halfWidth + 12, y, width: halfWidth, height: 48 };
     this.#buttons.push(
       new McButton(this, {
-        kind: "secondary",
+        kind: "onInk",
         label: "Edit decks",
-        type: typeRole.rowTitle,
+        type: typeRole.barTitle,
         rect: editRect,
         onClick: () => this.#editDecks(),
       }),
     );
     order.push("edit-decks");
     stops.set("edit-decks", { rect: editRect, activate: () => this.#editDecks() });
-    this.#buttons.push(
-      new McButton(this, {
-        kind: "secondary",
-        label: "Shelve",
-        type: typeRole.rowTitle,
-        rect: shelveRect,
-        onClick: () => goToScreen(this, SCENES.campaignSaga),
-      }),
-    );
+    const shelve = new McButton(this, {
+      kind: "onInk",
+      label: "Shelve",
+      type: typeRole.barTitle,
+      rect: shelveRect,
+      onClick: () => goToScreen(this, SCENES.campaignSaga),
+    });
+    shelve.container.setAlpha(0.75);
+    this.#buttons.push(shelve);
     order.push("shelve");
     stops.set("shelve", { rect: shelveRect, activate: () => goToScreen(this, SCENES.campaignSaga) });
   }

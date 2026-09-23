@@ -91,6 +91,9 @@ export class CampaignFinaleScene extends Phaser.Scene {
     for (let y = 6; y < height; y += 10) for (let x = 6; x < width; x += 10) g.fillCircle(x, y, 1);
   }
 
+  /** The tile's own margin around the comic grid — and the gutter before the right column. */
+  static readonly #MARGIN = 24;
+
   #drawWide(
     width: number,
     height: number,
@@ -100,12 +103,13 @@ export class CampaignFinaleScene extends Phaser.Scene {
     order: string[],
     stops: Map<string, FocusStop>,
   ): void {
-    const gridWidth = Math.round(width * 0.585);
-    this.#drawComicGrid({ x: 0, y: 0, width: gridWidth, height }, story, lastNodeId);
+    const m = CampaignFinaleScene.#MARGIN;
+    const gridRect: Rect = { x: m, y: m, width: Math.round(width * 0.585) - m, height: height - m * 2 };
+    this.#drawComicGrid(gridRect, story, lastNodeId);
 
-    const rightX = gridWidth + 24;
+    const rightX = gridRect.x + gridRect.width + m;
     this.#drawCopy(
-      { x: rightX, y: 24, width: width - rightX - 24, height: height - 48 },
+      { x: rightX, y: m, width: width - rightX - m, height: height - m * 2 },
       view,
       story,
       order,
@@ -123,10 +127,11 @@ export class CampaignFinaleScene extends Phaser.Scene {
     order: string[],
     stops: Map<string, FocusStop>,
   ): void {
+    const m = CampaignFinaleScene.#MARGIN;
     const gridHeight = Math.round(height * 0.42);
-    this.#drawComicGrid({ x: 16, y: 16, width: width - 32, height: gridHeight }, story, lastNodeId);
+    this.#drawComicGrid({ x: m, y: m, width: width - m * 2, height: gridHeight }, story, lastNodeId);
     this.#drawCopy(
-      { x: 16, y: gridHeight + 32, width: width - 32, height: height - gridHeight - 48 },
+      { x: m, y: gridHeight + m * 2, width: width - m * 2, height: height - gridHeight - m * 3 },
       view,
       story,
       order,
@@ -145,7 +150,9 @@ export class CampaignFinaleScene extends Phaser.Scene {
     const border = this.add.graphics();
     border.lineStyle(3, surface.ink.hex, 1);
 
-    const villainWidth = Math.round(rect.width * 0.58);
+    // A thin yellow gutter between panels — the tile's own comic-grid gaps, not panels touching edge to edge.
+    const gap = 8;
+    const villainWidth = Math.round(rect.width * 0.58) - gap / 2;
     const villainRect: Rect = { x: rect.x, y: rect.y, width: villainWidth, height: rect.height };
     border.strokeRect(villainRect.x, villainRect.y, villainRect.width, villainRect.height);
     const picture = villainPicture(lastNodeId);
@@ -161,28 +168,24 @@ export class CampaignFinaleScene extends Phaser.Scene {
           tail: "none",
         },
       );
+      // Bottom-left, big and tilted — the tile's own lettered SFX, not a corner caption.
       this.add
-        .text(
-          villainRect.x + villainRect.width - 12,
-          villainRect.y + villainRect.height - 16,
-          story.sfx.toUpperCase(),
-          {
-            ...textStyle({ ...typeRole.barTitle, size: 30 }, accent.heroRed.hex),
-            stroke: cssOf(surface.paper.hex),
-            strokeThickness: 3,
-          },
-        )
-        .setOrigin(1, 1)
-        .setAngle(-6);
+        .text(villainRect.x + 12, villainRect.y + villainRect.height - 16, story.sfx.toUpperCase(), {
+          ...textStyle({ ...typeRole.barTitle, size: 60 }, accent.heroRed.hex),
+          stroke: cssOf(surface.paper.hex),
+          strokeThickness: 5,
+        })
+        .setOrigin(0, 1)
+        .setAngle(-8);
     }
 
-    const heroX = villainRect.x + villainRect.width;
+    const heroX = villainRect.x + villainRect.width + gap;
     const heroWidth = rect.x + rect.width - heroX;
     const seats = record?.seats ?? [];
     const count = Math.max(1, seats.length);
-    const heroHeight = rect.height / count;
+    const heroHeight = (rect.height - gap * (count - 1)) / count;
     seats.forEach((seat, index) => {
-      const heroRect: Rect = { x: heroX, y: rect.y + index * heroHeight, width: heroWidth, height: heroHeight };
+      const heroRect: Rect = { x: heroX, y: rect.y + index * (heroHeight + gap), width: heroWidth, height: heroHeight };
       border.strokeRect(heroRect.x, heroRect.y, heroRect.width, heroRect.height);
       const heroArt = heroPicture(seat.identityCardId as string);
       drawPicture(this, heroArt, heroRect, () => this.#draw(), { focusY: 0.1 });
@@ -205,6 +208,11 @@ export class CampaignFinaleScene extends Phaser.Scene {
     this.children.bringToTop(border);
   }
 
+  /**
+   * The caption/headline/stats/CTAs block, bottom-aligned within `rect` — the tile ends it near the bottom of the
+   * screen, not pinned to the top. Laid out once at `rect.y` to get its real height (the caption box and headline
+   * both wrap), then every object it created is shifted down by the leftover headroom.
+   */
   #drawCopy(
     rect: Rect,
     view: FinaleView,
@@ -213,16 +221,31 @@ export class CampaignFinaleScene extends Phaser.Scene {
     stops: Map<string, FocusStop>,
     phone: boolean,
   ): void {
+    const objects: Phaser.GameObjects.GameObject[] = [];
+    const buttons: { readonly button: McButton; readonly rect: Rect }[] = [];
+    const add = <T extends Phaser.GameObjects.GameObject>(object: T): T => {
+      objects.push(object);
+      return object;
+    };
+    const button = (options: import("../../ui/widgets.js").McButtonOptions): McButton => {
+      const instance = new McButton(this, options);
+      this.#buttons.push(instance);
+      buttons.push({ button: instance, rect: options.rect });
+      return instance;
+    };
+
     let y = rect.y;
     if (story) {
-      const box = this.add.graphics();
-      const text = this.add
-        .text(rect.x + 12, y + 10, story.caption.toUpperCase(), {
-          ...textStyle(typeRole.label, surface.ink.hex, 1),
-          fontStyle: "italic 700",
-        })
-        .setFontSize(12)
-        .setWordWrapWidth(rect.width - 24);
+      const box = add(this.add.graphics());
+      const text = add(
+        this.add
+          .text(rect.x + 12, y + 10, story.caption.toUpperCase(), {
+            ...textStyle(typeRole.label, surface.ink.hex, 1),
+            fontStyle: "italic 700",
+          })
+          .setFontSize(12)
+          .setWordWrapWidth(rect.width - 24),
+      );
       const boxHeight = text.height + 20;
       box.fillStyle(surface.paper.hex, 1).fillRect(rect.x, y, rect.width, boxHeight);
       box.lineStyle(3, surface.ink.hex, 1).strokeRect(rect.x, y, rect.width, boxHeight);
@@ -230,12 +253,14 @@ export class CampaignFinaleScene extends Phaser.Scene {
       y += boxHeight + 16;
     }
 
-    const headline = this.add
-      .text(rect.x, y, (story?.headline ?? "The campaign is won.").split(" ").join("\n"), {
-        ...textStyle({ ...typeRole.barTitle, size: phone ? 44 : 64 }, surface.ink.hex),
-      })
-      .setOrigin(0, 0)
-      .setLineSpacing(-8);
+    const headline = add(
+      this.add
+        .text(rect.x, y, (story?.headline ?? "The campaign is won.").split(" ").join("\n"), {
+          ...textStyle({ ...typeRole.barTitle, size: phone ? 44 : 64 }, surface.ink.hex),
+        })
+        .setOrigin(0, 0)
+        .setLineSpacing(-8),
+    );
     fitText(headline, rect.width, phone ? 44 : 64);
     y = headline.y + headline.height + 20;
 
@@ -244,16 +269,16 @@ export class CampaignFinaleScene extends Phaser.Scene {
       { label: "Rewinds", value: String(view.stats.rewinds) },
       { label: "Allies freed", value: String(view.stats.alliesFreed) },
     ];
-    const gap = 10;
-    const boxWidth = (rect.width - gap * 2) / 3;
+    const statGap = 10;
+    const boxWidth = (rect.width - statGap * 2) / 3;
     stats.forEach((stat, index) => {
-      const x = rect.x + index * (boxWidth + gap);
-      const g = this.add.graphics();
+      const x = rect.x + index * (boxWidth + statGap);
+      const g = add(this.add.graphics());
       g.fillStyle(surface.paper.hex, 1).fillRect(x, y, boxWidth, 66);
       g.lineStyle(2, surface.ink.hex, 1).strokeRect(x, y, boxWidth, 66);
-      label(this, x + 10, y + 8, stat.label, typeRole.label, surface.ink.hex, ink.meta).setFontSize(10);
+      add(label(this, x + 10, y + 8, stat.label, typeRole.label, surface.ink.hex, ink.meta)).setFontSize(10);
       fitText(
-        this.add.text(x + 10, y + 24, stat.value, textStyle({ ...typeRole.barTitle, size: 26 }, surface.ink.hex)),
+        add(this.add.text(x + 10, y + 24, stat.value, textStyle({ ...typeRole.barTitle, size: 26 }, surface.ink.hex))),
         boxWidth - 20,
         26,
       );
@@ -262,31 +287,63 @@ export class CampaignFinaleScene extends Phaser.Scene {
 
     const primaryLabel = view.alreadyExpert ? "Back to the saga ▸" : "Expert campaign unlocked ▸";
     const primaryRect: Rect = { x: rect.x, y, width: rect.width, height: 54 };
-    this.#buttons.push(
-      new McButton(this, {
-        kind: "primary",
-        label: primaryLabel,
-        type: typeRole.barTitle,
-        rect: primaryRect,
-        onClick: () => this.#onPrimary(),
-      }),
-    );
+    button({
+      kind: "primary",
+      label: primaryLabel,
+      type: typeRole.barTitle,
+      rect: primaryRect,
+      onClick: () => this.#onPrimary(),
+    });
     order.push("primary");
     stops.set("primary", { rect: primaryRect, activate: () => this.#onPrimary() });
     y += 54 + 10;
 
+    // "Reread the run" reads as an outline on the page itself — the tile's ground colour, an ink border, a Bangers
+    // label — not the paper-filled "secondary" skin, which none of `skin()`'s kinds draw, so this is hand-drawn.
     const rereadRect: Rect = { x: rect.x, y, width: rect.width, height: 48 };
-    this.#buttons.push(
-      new McButton(this, {
-        kind: "secondary",
-        label: "Reread the run",
-        type: typeRole.rowTitle,
-        rect: rereadRect,
-        onClick: () => this.#reread(),
-      }),
+    this.#drawOutlineButton(rereadRect, "Reread the run", () => this.#reread(), order, stops, "reread", add);
+    y += 48;
+
+    const bottom = y;
+    const offset = Math.max(0, rect.y + rect.height - bottom);
+    if (offset <= 0) return;
+    for (const object of objects) {
+      const positioned = object as Phaser.GameObjects.GameObject & { y?: number; setY?: (y: number) => unknown };
+      if (typeof positioned.y === "number" && positioned.setY) positioned.setY(positioned.y + offset);
+    }
+    for (const { button: instance, rect: buttonRect } of buttons) {
+      instance.update({ rect: { ...buttonRect, y: buttonRect.y + offset } });
+    }
+    const reread = stops.get("reread");
+    if (reread) stops.set("reread", { ...reread, rect: { ...rereadRect, y: rereadRect.y + offset } });
+  }
+
+  /** A ground-coloured, ink-outlined Bangers button — `skin()` has no kind that draws this, so it's hand-drawn. */
+  #drawOutlineButton(
+    rect: Rect,
+    text: string,
+    onClick: () => void,
+    order: string[],
+    stops: Map<string, FocusStop>,
+    key: string,
+    add: <T extends Phaser.GameObjects.GameObject>(object: T) => T,
+  ): void {
+    const g = add(this.add.graphics());
+    g.lineStyle(2, surface.ink.hex, 1).strokeRect(rect.x, rect.y, rect.width, rect.height);
+    add(
+      this.add
+        .text(
+          rect.x + rect.width / 2,
+          rect.y + rect.height / 2,
+          text.toUpperCase(),
+          textStyle(typeRole.barTitle, surface.ink.hex),
+        )
+        .setOrigin(0.5),
     );
-    order.push("reread");
-    stops.set("reread", { rect: rereadRect, activate: () => this.#reread() });
+    const zone = add(this.add.zone(rect.x, rect.y, rect.width, rect.height).setOrigin(0, 0).setInteractive());
+    (zone as Phaser.GameObjects.Zone).on("pointerup", onClick);
+    order.push(key);
+    stops.set(key, { rect, activate: onClick });
   }
 
   #onPrimary(): void {
