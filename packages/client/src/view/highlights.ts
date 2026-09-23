@@ -186,6 +186,7 @@ const EXCLUSION_WORDING: Record<ExclusionCode, string> = {
   missingTrait: "missing the required trait",
   hasExcludedTrait: "has an excluded trait",
   wrongName: "not the named card",
+  wrongPrintedId: "not the exact printed card",
   wrongFacedown: "wrong face up or down",
   wrongStarIcon: "wrong star icon in the boost area",
   wrongUnique: "wrong unique icon",

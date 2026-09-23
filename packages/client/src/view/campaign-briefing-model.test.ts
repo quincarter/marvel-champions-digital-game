@@ -171,7 +171,7 @@ function trorsFixtureWithFields(
       seed: 1,
     },
     composedVillain: null,
-    composedEncounterSetIds: [],
+    composedEncounterSets: { deck: [], setAside: [] },
   };
   return {
     attempt,
