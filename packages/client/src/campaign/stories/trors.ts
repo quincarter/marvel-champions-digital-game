@@ -58,7 +58,7 @@ export const TRORS_STORY: CampaignStory = {
         speaker: { kind: "npc", name: "S.H.I.E.L.D. quartermaster" },
         text: "Crossbones got the Gem, not the prototypes. They're yours — one each. Don't make me regret it.",
       },
-      aftermathArt: { kind: "note", text: "Panel art: wrecked P.E.G.A.S.U.S. lab" },
+      aftermathArt: { kind: "artboard", name: "pegasus-wrecked", text: "Panel art: wrecked P.E.G.A.S.U.S. lab" },
       rewindTaunt: "You came all this way to lose in a basement?",
     },
     {
@@ -71,7 +71,7 @@ export const TRORS_STORY: CampaignStory = {
       teaser: "Go around me? There ain't no around.",
       opener: [
         {
-          art: { kind: "note", text: "Panel art: a Hydra convoy in the snow" },
+          art: { kind: "artboard", name: "hydra-convoy", text: "Panel art: a Hydra convoy in the snow", focusX: 0.15 },
           caption: "Twelve miles of mountain road. One truck carries the Gem. One man blocks the road.",
           lines: [],
         },
@@ -81,7 +81,13 @@ export const TRORS_STORY: CampaignStory = {
           sfx: "THOOM!",
         },
         {
-          art: { kind: "note", text: "Panel art: taillights vanishing" },
+          art: {
+            kind: "artboard",
+            name: "hydra-convoy",
+            text: "Panel art: taillights vanishing",
+            focusX: 0.85,
+            focusY: 0.65,
+          },
           lines: [
             {
               speaker: SPIDER_WOMAN,
@@ -113,7 +119,13 @@ export const TRORS_STORY: CampaignStory = {
       teaser: "I've watched every fight you've ever had.",
       opener: [
         {
-          art: { kind: "note", text: "Panel art: Hydra banners over Manhattan" },
+          art: {
+            kind: "artboard",
+            name: "hydra-manhattan",
+            text: "Panel art: Hydra banners over Manhattan",
+            focusX: 0.45,
+            focusY: 0.2,
+          },
           caption: "The Reality Gem flickers once. New York wakes up with a Hydra flag on every roof.",
           lines: [],
         },
@@ -122,7 +134,13 @@ export const TRORS_STORY: CampaignStory = {
           lines: [{ speaker: VILLAIN, text: "Your friends are in cages. You're next. I know your moves already." }],
         },
         {
-          art: { kind: "note", text: "Panel art: the downed Quinjet" },
+          art: {
+            kind: "artboard",
+            name: "hydra-manhattan",
+            text: "Panel art: the downed Quinjet",
+            focusX: 0,
+            focusY: 0.6,
+          },
           lines: [
             {
               speaker: HAWKEYE,
@@ -142,7 +160,13 @@ export const TRORS_STORY: CampaignStory = {
         speaker: { kind: "npc", name: "A freed hero" },
         text: "You got us out. We're with you until this is over.",
       },
-      aftermathArt: { kind: "note", text: "Panel art: opened cells" },
+      aftermathArt: {
+        kind: "artboard",
+        name: "hydra-manhattan",
+        text: "Panel art: opened cells",
+        focusX: 0.85,
+        focusY: 0.7,
+      },
       rewindTaunt: "Told you. I've seen every move you've got.",
     },
     {
@@ -184,7 +208,7 @@ export const TRORS_STORY: CampaignStory = {
         speaker: { kind: "npc", name: "S.H.I.E.L.D. field surgeon" },
         text: "You beat his machines in hero form. That mark of yours can take more now — if you want it.",
       },
-      aftermathArt: { kind: "note", text: "Panel art: Zola's broken chassis" },
+      aftermathArt: { kind: "artboard", name: "zola-lab", text: "Panel art: Zola's broken chassis", focusY: 0.65 },
       rewindTaunt: "An imperfect experiment. We simply run it again.",
     },
     {
@@ -196,7 +220,13 @@ export const TRORS_STORY: CampaignStory = {
       teaser: "Kneel, and I may let you watch.",
       opener: [
         {
-          art: { kind: "note", text: "Panel art: the Skull's citadel" },
+          art: {
+            kind: "artboard",
+            name: "skull-citadel",
+            text: "Panel art: the Skull's citadel",
+            focusY: 0.15,
+            focusX: 1,
+          },
           caption: "The last door. Behind it, a man who believes the whole world owes him its knees.",
           lines: [],
         },
@@ -205,7 +235,13 @@ export const TRORS_STORY: CampaignStory = {
           lines: [{ speaker: VILLAIN, text: "With one Gem I rewrote a city. Imagine what I do with the world." }],
         },
         {
-          art: { kind: "note", text: "Panel art: the heroes at the door" },
+          art: {
+            kind: "artboard",
+            name: "skull-citadel",
+            text: "Panel art: the heroes at the door",
+            focusY: 0.85,
+            focusX: 0,
+          },
           lines: [
             {
               speaker: HAWKEYE,

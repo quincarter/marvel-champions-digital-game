@@ -352,6 +352,7 @@ export class CampaignOpenerScene extends Phaser.Scene {
     if (art.kind === "artboard") {
       const image = drawPicture(this, this.#artboard(art.name), rect, () => this.#draw(), {
         focusY: art.focusY ?? 0.4,
+        ...(art.focusX === undefined ? {} : { focusX: art.focusX }),
       });
       if (!image) artNote(this, rect, art.text);
       return;

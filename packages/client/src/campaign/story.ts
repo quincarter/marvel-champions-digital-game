@@ -41,8 +41,12 @@ export type PanelArt =
       readonly kind: "artboard";
       readonly name: string;
       readonly text: string;
-      /** Where a cropped panel keeps its focus, 0 top to 1 bottom (default 0.4) — the subject's height in the picture. */
+      /**
+       * Where a cropped panel keeps its focus (0 top/left to 1 bottom/right; defaults 0.4 and 0.5), so panels that
+       * share one picture can each show the part their caption names.
+       */
       readonly focusY?: number;
+      readonly focusX?: number;
     };
 
 export interface StoryPanel {

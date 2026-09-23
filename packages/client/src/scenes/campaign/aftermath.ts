@@ -384,6 +384,7 @@ export class CampaignAftermathScene extends Phaser.Scene {
       const campaignId = this.#record?.campaignId ?? "";
       const image = drawPicture(this, artboardPicture(campaignId, art.name), rect, () => this.#draw(), {
         focusY: art.focusY ?? 0.4,
+        ...(art.focusX === undefined ? {} : { focusX: art.focusX }),
       });
       if (!image) artNote(this, rect, art.text, true);
       return;

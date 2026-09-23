@@ -336,7 +336,7 @@ export function heroPicture(identityId: string): Picture | null {
 
 /**
  * Draws `picture` cover-fitted into `rect` (cropped, never stretched). `focusY` is the vertical focal point, 0 top
- * to 1 bottom — portraits want faces (0.15), not belts. Returns null while the picture loads; `onReady` fires once it
+ * to 1 bottom (`focusX` the horizontal one, 0 left to 1 right) — portraits want faces (0.15), not belts. Returns null while the picture loads; `onReady` fires once it
  * has, and the caller redraws.
  */
 export function drawPicture(
@@ -344,7 +344,12 @@ export function drawPicture(
   picture: Picture | null,
   rect: Rect,
   onReady: () => void,
-  options: { readonly focusY?: number; readonly grayscale?: boolean; readonly alpha?: number } = {},
+  options: {
+    readonly focusX?: number;
+    readonly focusY?: number;
+    readonly grayscale?: boolean;
+    readonly alpha?: number;
+  } = {},
 ): Phaser.GameObjects.Image | null {
   if (!picture || rect.width <= 0 || rect.height <= 0) return null;
   const key = ensurePictureLoaded(scene, picture, onReady);
@@ -353,11 +358,12 @@ export function drawPicture(
   const fit = coverFit(source, rect);
   const focusY = options.focusY ?? 0.5;
   const cropY = Math.max(0, Math.min(source.height - fit.cropHeight, (source.height - fit.cropHeight) * focusY));
+  const cropX = (source.width - fit.cropWidth) * (options.focusX ?? 0.5);
   const image = scene.add
-    .image(rect.x - fit.cropX * fit.scale, rect.y - cropY * fit.scale, key)
+    .image(rect.x - cropX * fit.scale, rect.y - cropY * fit.scale, key)
     .setOrigin(0, 0)
     .setScale(fit.scale)
-    .setCrop(fit.cropX, cropY, fit.cropWidth, fit.cropHeight)
+    .setCrop(cropX, cropY, fit.cropWidth, fit.cropHeight)
     .setAlpha(options.alpha ?? 1);
   if (options.grayscale) desaturate(image);
   return image;
