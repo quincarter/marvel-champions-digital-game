@@ -530,9 +530,9 @@ Each of these looked like a gap in the survey and is not:
 | "Discard 1 card at random from your hand. If that card's printed resource has [physical] …"             | Adam Warlock (`stld`)                                         | docs/phase7-wave2.md §3.13.6                                                                                                                                                   |
 | "Deal yourself 1 facedown encounter card →" as a cost                                                   | Star-Lord, Daring Escape, Library Labyrinth, Universal Weapon | the effect before the arrow; the ability's cost is otherwise free — **unproven as a cost**; the scripter should confirm the "→" split holds when the effect is a deal          |
 
-### 3.27–3.36 The ten skipped `gmw` refs (second primitives pass, 2026-09-22)
+### 3.27–3.38 The skipped `gmw` refs (second primitives pass, 2026-09-22)
 
-The scripting pass left ten `gmw` refs in `KNOWN_SKIPPED` as primitive gaps (docs/phase7-wave3-scripting.md §5, §6a and §7). Each was checked against the engine first. Four already composed and needed at most a DSL builder or one timing fix (§3.28–§3.31); the other six needed new vocabulary (§3.32–§3.36). §3.27 is left unused: §2.3 already points at it for the Kree Fanatic's "activates against the player he is engaged with", which §3.26's table covers.
+The scripting pass left ten `gmw` refs in `KNOWN_SKIPPED` as primitive gaps (docs/phase7-wave3-scripting.md §5, §6a and §7). Each was checked against the engine first. Four already composed and needed at most a DSL builder or one timing fix (§3.28–§3.31); the other six needed new vocabulary (§3.32–§3.36). §3.27 is left unused: §2.3 already points at it for the Kree Fanatic's "activates against the player he is engaged with", which §3.26's table covers. §3.37–§3.38 close three more gaps that the Escape the Museum pass found: a loss on completing a stage that is not the last, damage "among players", and a per-player limit.
 
 ### 3.28 "After [character] uses a basic power" (Lashing Vines)
 
@@ -772,6 +772,66 @@ heroAction(
 ```
 
 `"discard"` sends each card to its owner's pile (§3.14).
+
+### 3.37 "If this stage is completed, the players lose the game." on a stage that is not the last: `MainSchemeStage.completionLoses`
+
+> **Status: engine and schema landed (2026-09-22),** tested in `packages/engine/src/stage-completion-loses.test.ts` (3 tests: completing a marked non-final stage loses where an unmarked one advances; leaving it by an advance does not lose; replay deep-equal). **Data not emitted yet (`card-data-pipeline`, below).**
+
+Found by the Escape the Museum pass. The Missing Milano 1B and Lost in the Museum 2B (16082b, 16083b) print "Forced Interrupt: When the last threat is removed from this scheme, advance to stage 2A/3A (the players win by advancing). If this stage is completed, the players lose the game." Neither stage is the last. RRG 1.8 "Main Scheme, Main Scheme Deck" (p. 27) makes only the final stage's completion a loss ("If the villain completes the final stage of the main scheme deck, the villain wins the game"); completing any other stage advances the deck. So the engine advanced where the card loses. The data gave the whole text box one ability ref, already spent on the advance, so a second trigger could not be added.
+
+**The shape: data on the stage, not an ability.** The sentence is not a triggered ability. It changes what completing this stage does, exactly as being the final stage does, so it belongs next to the stage's other printed facts.
+
+- **`MainSchemeStage.completionLoses?: true`** (content schema, validated).
+- `completeMainScheme` (`resolve/defeat.ts`) loses when the stage is final **or** carries the flag, on the same path as before: `endGame("loss", "mainSchemeCompleted")`.
+- Leaving the stage any other way is not completing it. RRG 1.8 p. 27: "If the main scheme advances other than through having threat on it equal to or greater than its target threat value, that main scheme is **not** considered completed." So the scripted "advance when the last threat is removed" still advances (tested).
+- No ability ref is needed for the sentence, so 16082b's and 16083b's single ref stays the advance response it already is.
+
+**Survey of all raw MarvelCDB main schemes.** 60 B sides print the sentence ("stage" or "scheme"). Eight are **not** the last stage of their scenario:
+
+| Stage                                        | Pack        | Status                                                                                                                                                          |
+| -------------------------------------------- | ----------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| The Missing Milano 1B (16082b)               | `gmw`       | emitted, scripted; advances today instead of losing                                                                                                             |
+| Lost in the Museum 2B (16083b)               | `gmw`       | the same                                                                                                                                                        |
+| Kang's Arrival 1B (11007b)                   | `toafk`     | **live wave 2 bug**: emitted and scripted, and completing stage 1 advances to The Master of Time instead of losing (its docblock already noted the missing ref) |
+| Infiltrate A.I.M. Island Embassy 1B (50087b) | `aos`       | not emitted                                                                                                                                                     |
+| Locate Missing Person 2B (50088b)            | `aos`       | not emitted                                                                                                                                                     |
+| Zemo's Manipulations 1B (50167b)             | `aos`       | not emitted                                                                                                                                                     |
+| Gotta Get Away 1B (40103b)                   | `next_evol` | not emitted                                                                                                                                                     |
+| Uncontrollable Power 1B (40166b)             | `next_evol` | not emitted                                                                                                                                                     |
+
+The other 52 are final stages, where the flag restates the rule. Two sentences are compound: Extract Captives 3B (50089b) and Mutant Massacre 2B (40078b), "If this stage is completed or there are no … in play, the players lose". The flag covers the "completed" half, and the other half is a script's `stateCheck` + `endGame("loss")`.
+
+**What `card-data-pipeline` must emit:** `completionLoses: true` on every main scheme stage whose B-side text contains "If this stage is completed, the players lose the game" or "If this scheme is completed, the players lose the game". That includes the compound sentence, and final stages too, for uniformity. The sentence also needs no ability ref of its own. Re-emit `gmw` (16082b, 16083b) and `toafk` (11007b; also 11013b, final). Every other already-emitted pack with a final stage can follow at its next re-emit. `rules-qa-engineer` should pin Kang's Arrival with a scenario test once `toafk` is re-emitted.
+
+### 3.38 "Assign N indirect damage among players" (Museum Ship) and Library Labyrinth's per-player limit
+
+> **Status: composes; first test of the group form (2026-09-22),** in `packages/engine/src/indirect-among-players.test.ts` (2 tests: the first player chooses the option and divides the damage among both players' characters, each option's amount and Milano cost, replay deep-equal).
+
+**Museum Ship (16085b):** "Forced Interrupt: When the villain phase begins, choose one: • Exhaust the Milano → assign 2[per_hero] indirect damage among players. • Assign 3[per_hero] indirect damage among players." The Escape the Museum pass read "among players" as a shape `dealIndirectDamage` lacked. It is the `to: "group"` form, which had no test until now.
+
+- RRG 1.8 "Indirect Damage" (p. 24): "Indirect damage dealt to a group of players **(or among players)** can be divided as the group chooses among friendly characters in play". That is exactly "group": one pool, divided across every player's identity and allies.
+- "As the group chooses" is submitted by the first player (docs/phase7-wave1.md §4.7, the user's decision for the group form). "Choose one" on an encounter card that names no player is also the first player's (RRG 1.8 "First Player", p. 19).
+- **"Exhaust the Milano →" inside an option.** On an encounter card, an option "that requires one or more targets" cannot be chosen when it has no valid target (RRG 1.8 "Choose (Option)", p. 12). An exhausted Milano cannot be exhausted, so the option is guarded with `when`. Otherwise the players could take the cheaper option for free.
+
+**Composition** for `16085b.hold-on-to-your-butts` (the two `-constant` refs are the option bullets, so they are `partOf` it):
+
+```ts
+forcedInterrupt(
+  on.phaseBeginning("villain"),
+  chooseOneBy(
+    firstPlayer,
+    option(
+      "Exhaust the Milano → assign 2[per_hero] indirect damage among players",
+      { when: exists(query("support", { name: "Milano", exhausted: false })) },
+      exhaust(named("Milano")),
+      dealIndirectDamage("group", perHero(2)),
+    ),
+    option("Assign 3[per_hero] indirect damage among players", dealIndirectDamage("group", perHero(3))),
+  ),
+);
+```
+
+**Library Labyrinth (16085a):** "\"This way?\" — Hero Action: Deal yourself 1 facedown encounter card → remove 5 threat from the main scheme. (Limit once per round per player.)" §3.36's `AbilityLimit.per: "player"` covers it: `heroAction({ cost: dealEncounterCardsCost(1), limit: oncePerRoundPerPlayer }, removeThreat(5, theMainScheme))`.
 
 ---
 

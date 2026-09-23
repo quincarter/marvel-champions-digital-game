@@ -356,6 +356,30 @@ whenRevealed(
 );
 ```
 
+**Three more, found by the Escape the Museum pass** (docs/phase7-wave3.md §3.37, §3.38):
+
+| Ref / card                                                                   | Closed by                                                                                                                 | Use                                                                                                             |
+| ---------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| 16082b / 16083b "If this stage is completed, the players lose the game."     | new `MainSchemeStage.completionLoses` (§3.37). It is data, so no ability ref is needed; `card-data-pipeline` must emit it | nothing to script; drop the tests' threat-reset workaround once `gmw` is re-emitted                             |
+| `16085a.this-way`                                                            | `AbilityLimit.per: "player"` (§3.36)                                                                                      | `heroAction({ cost: dealEncounterCardsCost(1), limit: oncePerRoundPerPlayer }, removeThreat(5, theMainScheme))` |
+| `16085b.hold-on-to-your-butts` (+ `-constant`, `-constant-2` as `partOf` it) | existing `dealIndirectDamage("group", …)`, RRG 1.8 p. 24 "among players" (§3.38)                                          | see below                                                                                                       |
+
+```ts
+forcedInterrupt(
+  on.phaseBeginning("villain"),
+  chooseOneBy(
+    firstPlayer,
+    option(
+      "Exhaust the Milano → assign 2[per_hero] indirect damage among players",
+      { when: exists(query("support", { name: "Milano", exhausted: false })) },
+      exhaust(named("Milano")),
+      dealIndirectDamage("group", perHero(2)),
+    ),
+    option("Assign 3[per_hero] indirect damage among players", dealIndirectDamage("group", perHero(3))),
+  ),
+);
+```
+
 ## 7. Progress / next up
 
 **Foundation: done.** `wave3/{index,cards,reprints,names,setup,testing,coverage.test}.ts` all exist and are green.
