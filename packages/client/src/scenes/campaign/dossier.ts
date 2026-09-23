@@ -132,7 +132,11 @@ export class CampaignDossierScene extends Phaser.Scene {
 
   #back(): void {
     if (!this.#data) return;
-    goToScreen(this, SCENES.campaignCover, { campaignId: this.#loaded?.campaignId ?? this.#data.runId });
+    // The cover of *this* run: without `runId` it is a fresh volume's cover ("Sign the roster"). A run that never
+    // loaded has no box to show a cover for, so it goes back to the shelf.
+    const campaignId = this.#loaded?.campaignId;
+    if (!campaignId) goToScreen(this, SCENES.campaignSaga);
+    else goToScreen(this, SCENES.campaignCover, { campaignId, runId: this.#data.runId });
   }
 
   #setTab(tab: DossierTab): void {
