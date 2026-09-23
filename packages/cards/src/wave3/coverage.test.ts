@@ -38,7 +38,7 @@ const reprintIdsOf = (cards: readonly AnyCard[]): ReadonlySet<string> => {
 /** One row per wave 3 pack (docs/phase7-wave3.md "Wave 3"). */
 const PACK_STATUS: Readonly<Record<string, "scripted" | "in progress" | "not started">> = {
   gmw: "in progress",
-  stld: "in progress",
+  stld: "scripted",
   gam: "scripted",
   drax: "not started",
   vnm: "not started",
@@ -383,58 +383,6 @@ describe("wave 3 pack ability id coverage (every registered ability id is named 
       .map(([, text]) => text)
       .join("\n");
 
-  /**
-   * Ids a concurrent, still-in-progress sibling session is expected to name itself (docs/phase7-wave3-scripting.md
-   * §7: `stld` is otherwise done). **Never add a `gmw` id here** — this checkpoint's own job is to close exactly
-   * that gap for `gmw`, so a `gmw` id landing in `PENDING` would silently defeat the guard it was written to add.
-   *
-   * `stld`'s own doc claims "every registered ref backed by a real-command test", and spot-checking a few of these
-   * (17015.blaze-of-glory-action, 17019.laser-blaster-constant) against `star-lord-kit.test.ts` confirms real tests
-   * exist for them — they just don't name the id in the test title yet, the same gap this pass closed for `gmw` by
-   * editing test titles. **The rest of this list is larger than the brief that asked for it expected** ("if
-   * 17015/17019 are still flagged … give the guard a PENDING allowlist holding just those two ids"): as of this
-   * checkpoint 22 `stld` ids are unnamed, not 2. Every one of them is a `star-lord-kit.ts` ability this pack's own
-   * "in progress" table nonetheless marks done, so the likely explanation is the same "id not literally quoted in
-   * the test" gap, not an untested ability — but this session cannot open `wave3/stld/` to check test-by-test (the
-   * brief's own "never edit another pack's folder" rule), so all 22 are listed here rather than guessed at
-   * individually, and this discrepancy is called out explicitly in this session's own handoff report for whoever
-   * is driving the `stld` session next.
-   *
-   * **Checked again after commit 2c31a79** ("stld — behavioral tests for Blaze of Glory and Laser Blaster"),
-   * reported as having named 17015/17019: it added real coverage (`moveToHand`/`playFromHand` driving both cards
-   * through real commands) but the test titles still read "Blaze of Glory: …" / "Laser Blaster: …" with no
-   * `(17015.blaze-of-glory-action)` / `(17019.laser-blaster-constant)` suffix — the card's numeric code appears in
-   * the test body (as an argument to `playFromHand`/`moveToHand`), but not the full ability ref string this guard
-   * checks for. So both stay in `PENDING` rather than being dropped on the strength of the report alone; flagged
-   * in this session's own report rather than silently trusting "now tested and named".
-   */
-  const PENDING: Readonly<Record<string, readonly string[]>> = {
-    stld: [
-      "17001a.star-lord-constant",
-      "17001b.setup",
-      "17003.daring-escape-constant",
-      "17004.gutsy-move-action",
-      "17005.sliding-shot-action",
-      "17008.jet-boots-constant",
-      "17009.leader-of-the-guardians-constant",
-      "17010.star-lords-helmet-constant",
-      "17011.adam-warlock-constant",
-      "17011.adam-warlock-constant-2",
-      "17011.adam-warlock-constant-3",
-      "17011.adam-warlock-constant-4",
-      "17013.yondu-constant",
-      "17014.air-supremacy-action",
-      "17015.blaze-of-glory-action",
-      "17019.laser-blaster-constant",
-      "17022.knowhere-constant",
-      "17024.obligation",
-      "17026.mister-knife-constant",
-      "17027.when-revealed",
-      "17028.dive-bomb-action",
-      "17030.ever-vigilant-action",
-    ],
-  };
-
   const PACKS_WITH_OWN_REGISTRIES: ReadonlyArray<{ readonly code: string; readonly registry: AbilityRegistry }> = [
     { code: "gmw", registry: GMW_ABILITIES },
     { code: "stld", registry: STLD_ABILITIES },
@@ -458,10 +406,17 @@ describe("wave 3 pack ability id coverage (every registered ability id is named 
     "18001b.gamora-constant": "packages/engine/src/off-aspect-allowance.test.ts",
   };
 
+  it("checks every pack PACK_STATUS marks started, so a new pack can't skip the guard by not being listed here", () => {
+    const started = Object.entries(PACK_STATUS)
+      .filter(([, status]) => status !== "not started")
+      .map(([code]) => code)
+      .sort();
+    expect(PACKS_WITH_OWN_REGISTRIES.map((p) => p.code).sort()).toEqual(started);
+  });
+
   describe.each(PACKS_WITH_OWN_REGISTRIES)("$code", ({ code, registry }) => {
     it("every ability id it registers is named in one of its own test files (or is a cited coveredByEngineRule() exemption)", () => {
       const text = packTestText(code);
-      const pending = PENDING[code] ?? [];
       const sentinel = coveredByEngineRule();
       const unnamed = Object.keys(registry).filter((id) => !text.includes(id));
       const notExempt = unnamed.filter((id) => {
@@ -471,15 +426,9 @@ describe("wave 3 pack ability id coverage (every registered ability id is named 
         return JSON.stringify(registry[id]) !== JSON.stringify(sentinel);
       });
       expect(
-        notExempt.filter((id) => !pending.includes(id)),
-        `${code} ability ids registered but not named in any wave3/${code}/*.test.ts file (and not a cited coveredByEngineRule() exemption):\n${notExempt
-          .filter((id) => !pending.includes(id))
-          .join("\n")}`,
+        notExempt,
+        `${code} ability ids registered but not named in any wave3/${code}/*.test.ts file (and not a cited coveredByEngineRule() exemption):\n${notExempt.join("\n")}`,
       ).toEqual([]);
-      // The other direction: a `PENDING` entry that's actually already named should be dropped, so the allowlist
-      // doesn't quietly grow stale (the same drift `KNOWN_SKIPPED` had, docs/card-scripting-process.md §3).
-      const staled = pending.filter((id) => !unnamed.includes(id));
-      expect(staled, `${code} PENDING ids already named — remove them from PENDING:\n${staled.join("\n")}`).toEqual([]);
     });
   });
 });

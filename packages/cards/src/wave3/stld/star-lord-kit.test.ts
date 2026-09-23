@@ -34,11 +34,23 @@ import {
 import { driveEvents } from "../../testing/staging.js";
 import { wave3Scenario } from "../setup.js";
 import { playFromHand, runWave3, startWave3Game, WAVE3_DEPS } from "../testing.js";
+import type { CorePlayer } from "../../core/setup.js";
 import { STAR_LORD_LEADERSHIP } from "./testing.js";
 
 // Star-Lord (Leadership, built entirely from his own pack — no precon exists, `./testing.js`'s own docblock)
 // against Rhino (a Core scenario, seated with wave 3 content via `wave3Scenario`'s fallback), standard, solo.
 const starLordVsRhino = () => startWave3Game(wave3Scenario("rhino", { players: [STAR_LORD_LEADERSHIP], seed: 2026 }));
+
+/**
+ * Dive Bomb (Aggression) and Ever Vigilant (Protection) are out of aspect for the Leadership test deck, so these two
+ * tests seat a stand-in deck that also holds one of each, with `requireLegalDecks` dropped (as `../gam/support.ts`
+ * does for Gamora).
+ */
+const starLordWithOffAspectEvents = () => {
+  const base = STAR_LORD_LEADERSHIP as Extract<CorePlayer, { readonly deck: readonly string[] }>;
+  const seat = { ...base, deck: [...base.deck, cardId("17028"), cardId("17030")] };
+  return startWave3Game({ ...wave3Scenario("rhino", { players: [seat], seed: 2026 }), requireLegalDecks: false });
+};
 
 /** Accepts the named optional response/interrupt; declines everything else. Mirrors `../gmw/groot-kit.test.ts`. */
 const accepting =
@@ -109,7 +121,7 @@ function withDealtEncounterCards(state: GameState, n: number, player = P1): Game
 }
 
 describe("Star-Lord kit", () => {
-  it("Star-Lord: each ally you control gains the guardian trait", () => {
+  it("Star-Lord: each ally you control gains the guardian trait (17001a.star-lord-constant)", () => {
     const hero = runWave3(starLordVsRhino(), toHero());
     // Nova Prime (17002) prints no traits of its own.
     const { state, id } = playFromHand(hero, "17002", 5, accepting());
@@ -134,7 +146,7 @@ describe("Star-Lord kit", () => {
     expect(playerOf(played, P1).dealtEncounter.length).toBe(before + 1);
   });
 
-  it("Peter Quill: Setup searches the deck and discard pile for Element Gun and adds it to hand", () => {
+  it("Peter Quill: Setup searches the deck and discard pile for Element Gun and adds it to hand (17001b.setup)", () => {
     const state = starLordVsRhino(); // resolves during setup, before the opening hand is drawn out further
     expect(playerOf(state, P1).hand.some((id) => state.instances[id]?.cardId === cardId("17007"))).toBe(true);
   });
@@ -170,7 +182,7 @@ describe("Star-Lord kit", () => {
     expect(instancesOf(state, HYDRA_MERCENARY).some((id) => cardsInPlay(state).includes(id))).toBe(false);
   });
 
-  it("Daring Escape: deals yourself 1 facedown encounter card, readies your hero, and draws 1 card", () => {
+  it("Daring Escape: deals yourself 1 facedown encounter card, readies your hero, and draws 1 card (17003.daring-escape-constant)", () => {
     const hero = runWave3(starLordVsRhino(), toHero());
     const identity = identityOf(hero);
     const exhausted = patchInstance(hero, identity, { exhausted: true });
@@ -183,7 +195,7 @@ describe("Star-Lord kit", () => {
     expect(playerOf(state, P1).dealtEncounter.length).toBe(dealtBefore + 1);
   });
 
-  it("Gutsy Move: removes 2 threat from a scheme, plus 2 more for each facedown encounter card in front of you", () => {
+  it("Gutsy Move: removes 2 threat from a scheme, plus 2 more for each facedown encounter card in front of you (17004.gutsy-move-action)", () => {
     const hero = runWave3(starLordVsRhino(), toHero());
     const withThreat = patchInstance(hero, hero.mainScheme.instanceId, { threat: 20 });
     const before = mainThreat(withThreat);
@@ -191,7 +203,7 @@ describe("Star-Lord kit", () => {
     expect(mainThreat(state)).toBe(before - 2); // no facedown encounter cards dealt yet
   });
 
-  it("Gutsy Move: removes 2 additional threat for each facedown encounter card in front of you", () => {
+  it("Gutsy Move: removes 2 additional threat for each facedown encounter card in front of you (17004.gutsy-move-action)", () => {
     const hero = runWave3(starLordVsRhino(), toHero());
     const dealt = withDealtEncounterCards(hero, 2);
     const withThreat = patchInstance(dealt, dealt.mainScheme.instanceId, { threat: 20 });
@@ -203,7 +215,7 @@ describe("Star-Lord kit", () => {
   // Sliding Shot's own "Play only if you control an Element Gun" (17005.sliding-shot-constant) is a documented
   // primitive gap (module docblock, `star-lord-kit.ts`), not tested here.
 
-  it("Sliding Shot: deals 5 damage plus 2 more per facedown encounter card", () => {
+  it("Sliding Shot: deals 5 damage plus 2 more per facedown encounter card (17005.sliding-shot-action)", () => {
     const hero = runWave3(starLordVsRhino(), toHero());
     const { state: withGun } = playFromHand(hero, "17007", 3, accepting("enemy"));
     const villain = activeVillain(withGun).instanceId;
@@ -238,7 +250,7 @@ describe("Star-Lord kit", () => {
     expect(inst(used, gun).exhausted).toBe(true);
   });
 
-  it("Jet Boots: Star-Lord gains the aerial trait", () => {
+  it("Jet Boots: Star-Lord gains the aerial trait (17008.jet-boots-constant)", () => {
     const hero = runWave3(starLordVsRhino(), toHero());
     const { state } = playFromHand(hero, "17008", 2);
     expect(traitsOf(state, identityOf(state), WAVE3_DEPS)).toContain("AERIAL");
@@ -271,7 +283,7 @@ describe("Star-Lord kit", () => {
     expect(inst(declined, boots).exhausted).toBe(false);
   });
 
-  it("Leader of the Guardians: each guardian character you control gets +1 THW", () => {
+  it("Leader of the Guardians: each guardian character you control gets +1 THW (17009.leader-of-the-guardians-constant)", () => {
     const hero = runWave3(starLordVsRhino(), toHero());
     const { state } = playFromHand(hero, "17009", 3);
     const identity = identityOf(state);
@@ -287,7 +299,7 @@ describe("Star-Lord kit", () => {
     expect(mainThreat(thwarted)).toBe(before - 3);
   });
 
-  it("Star-Lord's Helmet: +1 hand size per facedown encounter card while in hero form (to a maximum of +3)", () => {
+  it("Star-Lord's Helmet: +1 hand size per facedown encounter card while in hero form (to a maximum of +3) (17010.star-lords-helmet-constant)", () => {
     const hero = runWave3(starLordVsRhino(), toHero());
     const { state: withHelmet } = playFromHand(hero, "17010", 1);
     const before = handSize(withHelmet, P1, WAVE3_DEPS);
@@ -297,7 +309,7 @@ describe("Star-Lord kit", () => {
     expect(handSize(dealtFive, P1, WAVE3_DEPS)).toBe(before + 3); // capped at +3
   });
 
-  it("Star-Lord's Helmet: grants no bonus in alter-ego form", () => {
+  it("Star-Lord's Helmet: grants no bonus in alter-ego form (17010.star-lords-helmet-constant)", () => {
     const { state: withHelmet } = playFromHand(runWave3(starLordVsRhino(), toHero()), "17010", 1);
     const dealt = withDealtEncounterCards(withHelmet, 2);
     const alterEgo: GameState = {
@@ -311,33 +323,78 @@ describe("Star-Lord kit", () => {
     expect(handSize(alterEgo, P1, WAVE3_DEPS)).toBe(6);
   });
 
-  it("Adam Warlock: physical branch removes 3 threat from a scheme", () => {
+  /**
+   * Adam Warlock in play, with the hand cut down to one card of a known printed resource, so the Response's "discard
+   * 1 card at random" is deterministic. The four bulleted resource lines are separate refs (`partOf` the response,
+   * see `star-lord-kit.ts`), so each branch gets its own test and names its own ref.
+   */
+  function adamWithOnlyInHand(code: string): { readonly state: GameState; readonly adam: InstanceId } {
     const { state: withAdam, id: adam } = playFromHand(runWave3(starLordVsRhino(), toHero()), "17011", 3);
-    // Force the random hand discard deterministic: Laser Blaster (17019) is the deck's own physical-resource card.
-    const given = moveToHand(withAdam, P1, "17019");
-    const [physical] = given.ids as [InstanceId];
-    const onlyPhysical: GameState = {
+    const given = moveToHand(withAdam, P1, code);
+    const [only] = given.ids as [InstanceId];
+    const state: GameState = {
       ...given.state,
       players: given.state.players.map((p) =>
-        p.playerId === P1
-          ? { ...p, hand: [physical], discard: [...p.discard, ...p.hand.filter((id) => id !== physical)] }
-          : p,
+        p.playerId === P1 ? { ...p, hand: [only], discard: [...p.discard, ...p.hand.filter((id) => id !== only)] } : p,
       ),
     };
-    const withThreat = patchInstance(onlyPhysical, onlyPhysical.mainScheme.instanceId, { threat: 10 });
-    const before = mainThreat(withThreat);
-    const attacked = settle(
-      runWave3(withThreat, {
+    return { state, adam };
+  }
+
+  const adamAttacks = (state: GameState, adam: InstanceId, pick: Picker): GameState =>
+    settle(
+      runWave3(state, {
         type: "basicAttack",
         playerId: P1,
         attackerInstanceId: adam,
-        targetInstanceId: activeVillain(withThreat).instanceId,
+        targetInstanceId: activeVillain(state).instanceId,
       }),
-      accepting("17011.adam-warlock-response", "scheme"),
+      pick,
       undefined,
       WAVE3_DEPS,
     );
-    expect(mainThreat(attacked)).toBe(before - 3);
+
+  it("Adam Warlock: physical branch removes 3 threat from a scheme (17011.adam-warlock-response, 17011.adam-warlock-constant)", () => {
+    const { state, adam } = adamWithOnlyInHand("17019"); // Laser Blaster: physical
+    const withThreat = patchInstance(state, state.mainScheme.instanceId, { threat: 10 });
+    const attacked = adamAttacks(withThreat, adam, accepting("17011.adam-warlock-response", "scheme"));
+    expect(mainThreat(attacked)).toBe(7);
+  });
+
+  it("Adam Warlock: energy branch heals 3 damage from an identity (17011.adam-warlock-constant-2)", () => {
+    const { state, adam } = adamWithOnlyInHand("17003"); // Daring Escape: energy
+    const identity = identityOf(state);
+    const hurt = patchInstance(state, identity, { damage: 5 });
+    const attacked = adamAttacks(hurt, adam, accepting("17011.adam-warlock-response"));
+    expect(inst(attacked, identity).damage).toBe(2);
+  });
+
+  it("Adam Warlock: mental branch deals 3 damage to an enemy (17011.adam-warlock-constant-3)", () => {
+    const { state, adam } = adamWithOnlyInHand("17004"); // Gutsy Move: mental
+    const withThreat = patchInstance(state, state.mainScheme.instanceId, { threat: 10 });
+    const villain = activeVillain(withThreat).instanceId;
+    const before = inst(withThreat, villain).damage;
+    // A thwart, not an attack, so the only damage on the villain is the Response's 3.
+    const thwarted = settle(
+      runWave3(withThreat, {
+        type: "basicThwart",
+        playerId: P1,
+        thwarterInstanceId: adam,
+        schemeInstanceId: withThreat.mainScheme.instanceId,
+      }),
+      accepting("17011.adam-warlock-response"),
+      undefined,
+      WAVE3_DEPS,
+    );
+    expect(inst(thwarted, villain).damage).toBe(before + 3);
+  });
+
+  it("Adam Warlock: wild branch lets you choose one of the three (17011.adam-warlock-constant-4)", () => {
+    const { state, adam } = adamWithOnlyInHand("17002"); // Nova Prime: wild
+    const withThreat = patchInstance(state, state.mainScheme.instanceId, { threat: 10 });
+    // The first option is "Remove 3 threat from a scheme".
+    const attacked = adamAttacks(withThreat, adam, accepting("17011.adam-warlock-response", "scheme"));
+    expect(mainThreat(attacked)).toBe(7);
   });
 
   it("Beta Ray Bill: after he attacks and defeats a minion, removes 2 threat from the main scheme", () => {
@@ -361,7 +418,7 @@ describe("Star-Lord kit", () => {
     expect(mainThreat(attacked)).toBe(before - 2);
   });
 
-  it("Yondu: his attacks gain ranged", () => {
+  it("Yondu: his attacks gain ranged (17013.yondu-constant)", () => {
     const { state: withYondu, id: yondu } = playFromHand(runWave3(starLordVsRhino(), toHero()), "17013", 4);
     expect(hasKeyword(withYondu, yondu, "ranged", WAVE3_DEPS)).toBe(true);
     // Also confirmed by play: Yondu's printed ATK (1) lands undiminished on a 2-HP minion he attacks.
@@ -375,7 +432,7 @@ describe("Star-Lord kit", () => {
     expect(inst(attacked, "yondu-target" as InstanceId).damage).toBe(1);
   });
 
-  it("Air Supremacy: deals 3 damage to up to X enemies, X = the number of aerial characters you control", () => {
+  it("Air Supremacy: deals 3 damage to up to X enemies, X = the number of aerial characters you control (17014.air-supremacy-action)", () => {
     const { state: withJetBoots } = playFromHand(runWave3(starLordVsRhino(), toHero()), "17008", 2); // grants aerial
     const given = moveToHand(withJetBoots, P1, "17014");
     const [airSupremacy] = given.ids as [InstanceId];
@@ -387,7 +444,34 @@ describe("Star-Lord kit", () => {
     expect(inst(after, villain).damage).toBe(before + 3);
   });
 
-  it("Blaze of Glory: each guardian character gets +2 THW/+2 ATK this phase, then takes 1 damage when it ends", () => {
+  it("Dive Bomb: deals 7 damage to the chosen enemy and 1 to each other enemy (17028.dive-bomb-action)", () => {
+    const { state: withJetBoots } = playFromHand(runWave3(starLordWithOffAspectEvents(), toHero()), "17008", 2);
+    // Hydra Mercenary has guard, so the 7-damage attack goes to it (3 hit points: defeated). The villain still takes
+    // the 1 damage "to each other enemy", which is not an attack, so guard doesn't stop it.
+    const withMinion = engagedMinion(withJetBoots, HYDRA_MERCENARY, "dive-bomb-minion");
+    const minion = "dive-bomb-minion" as InstanceId;
+    const villain = activeVillain(withMinion).instanceId;
+    const before = inst(withMinion, villain).damage;
+    const pickMinion: Picker = (state) => {
+      const match = state.pendingChoice?.options.find((o) => o.ref?.kind === "card" && o.ref.instanceId === minion);
+      return match ? [match.optionId] : firstLegal(state);
+    };
+    const { state } = playFromHand(withMinion, "17028", 4, pickMinion);
+    expect(cardsInPlay(state)).not.toContain(minion);
+    expect(inst(state, villain).damage).toBe(before + 1);
+  });
+
+  it("Ever Vigilant: readies your hero and removes 2 threat from the main scheme (17030.ever-vigilant-action)", () => {
+    const { state: withJetBoots } = playFromHand(runWave3(starLordWithOffAspectEvents(), toHero()), "17008", 2); // grants aerial
+    const identity = identityOf(withJetBoots);
+    const exhausted = patchInstance(withJetBoots, identity, { exhausted: true });
+    const withThreat = patchInstance(exhausted, exhausted.mainScheme.instanceId, { threat: 20 });
+    const { state } = playFromHand(withThreat, "17030", 2);
+    expect(inst(state, identity).exhausted).toBe(false);
+    expect(mainThreat(state)).toBe(18);
+  });
+
+  it("Blaze of Glory: each guardian character gets +2 THW/+2 ATK this phase, then takes 1 damage when it ends (17015.blaze-of-glory-action)", () => {
     const hero = runWave3(starLordVsRhino(), toHero());
     const identity = identityOf(hero);
     const printed = characterProfile(hero, identity, WAVE3_DEPS)!;
@@ -412,7 +496,7 @@ describe("Star-Lord kit", () => {
     expect(inst(reached, identity).damage).toBe(damageBefore + 1); // Blaze of Glory's own end-of-phase damage
   });
 
-  it("Laser Blaster: attached ally gets +1 ATK, and its attacks gain overkill", () => {
+  it("Laser Blaster: attached ally gets +1 ATK, and its attacks gain overkill (17019.laser-blaster-constant)", () => {
     const hero = runWave3(starLordVsRhino(), toHero());
     const { state: withYondu, id: yondu } = playFromHand(hero, "17013", 4);
     const printedAtk = characterProfile(withYondu, yondu, WAVE3_DEPS)!.atk;
@@ -557,7 +641,7 @@ describe("Star-Lord kit", () => {
     expect(inst(attacked, cosmo).damage).toBe(1);
   });
 
-  it("Knowhere: increases your ally limit by 1", () => {
+  it("Knowhere: increases your ally limit by 1 (17022.knowhere-constant)", () => {
     const { state } = playFromHand(runWave3(starLordVsRhino(), toHero()), "17022", 2);
     expect(allyLimitFor(state, WAVE3_DEPS, P1)).toBe(4);
   });

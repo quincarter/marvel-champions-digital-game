@@ -33,7 +33,7 @@ const pickingLabelStartingWith =
   };
 
 describe("Star-Lord's obligation and nemesis (Banishment, Mister Knife, Spartoi Cunning)", () => {
-  it("Banishment: exhausting Peter Quill removes it from the game", () => {
+  it("Banishment: exhausting Peter Quill removes it from the game (17024.obligation)", () => {
     // "01186" (Advance, 0 boost icons) absorbs the villain's own unconditional boost draw (`docs/card-scripting-
     // process.md`'s own `stackSetAsideBehindBoost` lesson), the same shape `groot-obligation-nemesis.test.ts` uses
     // for Wilt — obligations are ordinary encounter-deck cards once shuffled in, not staged separately.
@@ -50,7 +50,7 @@ describe("Star-Lord's obligation and nemesis (Banishment, Mister Knife, Spartoi 
     expect(inst(revealed, identity).exhausted).toBe(true);
   });
 
-  it("Banishment: discards an Element Gun from play when you control one", () => {
+  it("Banishment: discards an Element Gun from play when you control one (17024.obligation)", () => {
     const staged = stackEncounterDeck(starLordVsRhino(), "01186", "17024");
     // Peter Quill's own Setup already searched one into hand; play it so there's one in play to discard.
     const hero = runWave3(staged, toHero());
@@ -84,7 +84,7 @@ describe("Star-Lord's obligation and nemesis (Banishment, Mister Knife, Spartoi 
     expect(mainThreat(revealed)).toBe(mainThreat(played) + 1);
   });
 
-  it("Banishment: places 3 threat on the main scheme when you control no Element Gun", () => {
+  it("Banishment: places 3 threat on the main scheme when you control no Element Gun (17024.obligation)", () => {
     const staged = stackEncounterDeck(starLordVsRhino(), "01186", "17024");
     const before = mainThreat(staged);
     const revealed = settle(
@@ -100,7 +100,7 @@ describe("Star-Lord's obligation and nemesis (Banishment, Mister Knife, Spartoi 
     expect(mainThreat(revealed)).toBe(before + 1 + 1 + 3);
   });
 
-  it("Mister Knife: Retaliate 1 (data) and the first treachery the engaged player reveals each villain phase gains surge", () => {
+  it("Mister Knife: Retaliate 1 (data) and the first treachery the engaged player reveals each villain phase gains surge (17026.mister-knife-constant)", () => {
     const { state, id: knife } = revealFromEncounterDeck(starLordVsRhino(), "17026", firstLegal, 1);
     expect(hasKeyword(state, knife, "retaliate", WAVE3_DEPS)).toBe(true);
     // Mister Knife is already engaged with the sole player once revealed (solo play), so no engagement surgery is
@@ -124,7 +124,7 @@ describe("Star-Lord's obligation and nemesis (Banishment, Mister Knife, Spartoi 
     expect(activeEncounterDeck(revealed).discard.length).toBeGreaterThan(discardBefore);
   });
 
-  it("Spartoi Cunning: When Revealed, discard 1 card at random from hand, take 1 damage, and place 1 threat on the main scheme", () => {
+  it("Spartoi Cunning: When Revealed, discard 1 card at random from hand, take 1 damage, and place 1 threat on the main scheme (17027.when-revealed)", () => {
     const start = starLordVsRhino();
     const identity = identityOf(start);
     // Peter Quill's own printed hand size (alter-ego) is 6; trim to well under it first, so "end of player phase"
