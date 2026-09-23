@@ -1,4 +1,4 @@
-import type { Trait } from "@mc/content";
+import type { CardId, Trait } from "@mc/content";
 /**
  * When a lasting effect ends: "until the end of the phase" / "…of the round" / "…of this attack" / "…of this turn".
  *
@@ -84,6 +84,14 @@ export interface TargetQuery {
   readonly anyTrait?: readonly Trait[];
   /** Exact printed card name ("the Breakin' & Takin' side scheme", "the Ultron Drones environment"). */
   readonly name?: string;
+  /**
+   * The exact printed card, by id — for the rare case `name` cannot disambiguate: MC16's Campaign Challenge side
+   * schemes print the *same* title on both faces (16178a/16178b "Badoon Blitz", …; docs/phase7-wave3.md §1.4 emits
+   * each face as its own card, precisely so this field can tell them apart), and a campaign instruction reveals
+   * one specific face by mode, not "a card named X". Prefer `name` wherever it alone is unambiguous — this is for
+   * card data's own edge case, not a general substitute for it.
+   */
+  readonly printedId?: CardId;
   /** The card this card is attached to (true) or anything else (false): "When attached minion is defeated". */
   readonly hostOfSelf?: boolean;
   /**
