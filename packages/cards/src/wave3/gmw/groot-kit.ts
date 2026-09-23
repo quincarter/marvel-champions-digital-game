@@ -1,3 +1,4 @@
+import { trait } from "@mc/content";
 import {
   action,
   addCounters,
@@ -6,6 +7,7 @@ import {
   aScheme,
   attack,
   cards,
+  chooseTarget,
   chosen,
   constant,
   countersOn,
@@ -15,7 +17,9 @@ import {
   eventAmount,
   exhaustThis,
   forcedInterrupt,
+  FRIENDLY_CHARACTER,
   gainsKeyword,
+  giveTough,
   heroAction,
   heroInterrupt,
   heroResponse,
@@ -29,18 +33,24 @@ import {
   on,
   preventDamage,
   query,
+  reduceNextCardCost,
   remainingHpOf,
   removeCounter,
   removeCountersFrom,
   removeThreat,
+  removeUpToCounters,
+  ready,
   self,
   theMainScheme,
   theVillain,
   thwart,
   valueEquals,
   varAtLeast,
+  varOf,
   when,
+  you,
   YOUR_HERO,
+  YOUR_IDENTITY,
   yourIdentity,
 } from "../../dsl/index.js";
 
@@ -56,22 +66,12 @@ const DAMAGE_PREVENTABLE = min(eventAmount, countersOn(GROOT, GROWTH));
  * Protection 16015, and any others `../reprints.ts` catches by exact name/type match against the earlier pool)
  * are aliased automatically, not scripted here.
  *
- * **Two documented skips, both genuine primitive gaps, not guesses:**
- * - `16006.we-are-groot-action` ("Remove up to 4 growth counters from Groot → choose that many friendly
- *   characters") needs a variable "spend up to N counters, X = amount spent" ability cost, the counter analog of
- *   `AbilityCost.resourcesX` (docs/phase7-wave3.md §3.25 built the resource form only). No existing primitive lets
- *   the number of counters removed drive the number of targets chosen.
- * - `16009.lashing-vines-response` ("After Groot uses a basic power") reads as any of a basic attack, thwart, or
- *   defense (RRG 1.8's "Basic Power" glossary entry covers ATK/THW/DEF/REC together). The DSL's `on.attacks`/
- *   `on.thwarts` treat the acting character as the event's *source*, but `on.defends`'s `defended` event carries
- *   the defender as its *target* (`eventSubjects`, `packages/engine/src/trigger-events.ts`) — there is no single
- *   `EventPattern` that reaches all three with one subject role, and an `AbilityDefinition` carries exactly one
- *   trigger. Needs a `usesBasicPower(by)` pattern that composes the two roles itself, built with
- *   `game-rules-architect` if it's worth a shared primitive rather than three duplicated abilities.
- * - `16024.deft-focus-action` ("reduce the resource cost of the next superpower card you play this turn by 1")
- *   needs a standing "next matching card played this turn" cost-reduction rule, distinct from the interrupt-time
- *   reduction docs/phase7-wave3.md §3.20 built for Star-Lord (that one is offered on the play itself, not banked
- *   ahead of time by an earlier action).
+ * Three refs recorded in an earlier scripting pass as primitive gaps are now closed (docs/phase7-wave3.md
+ * §3.28–§3.29, §3.32; docs/phase7-wave3-scripting.md §6d):
+ * - `16006.we-are-groot-action`: `AbilityCost.spendCounters.upTo`/`bind` and `costSelection.counters` (§3.32).
+ * - `16009.lashing-vines-response`: `on.basicPowerUsed` already covers a basic attack, thwart and defense with one
+ *   subject role (§3.28); a defense's "after" window was also fixed to wait for the attack to end.
+ * - `16024.deft-focus-action`: `reduceNextCardCost`'s existing `duration: "turn"` (§3.29).
  */
 export const GROOT_KIT = defineAbilities({
   // Flora Colossus — Forced Interrupt: When Groot would take any amount of damage, remove that many growth
@@ -116,7 +116,13 @@ export const GROOT_KIT = defineAbilities({
     ifThen(varAtLeast("hit.defeated"), addCounters(GROWTH, 1, GROOT, { upTo: 10 })),
   ),
 
-  // "We Are Groot" (16006) — see module docblock.
+  // "We Are Groot" — Hero Action: Remove up to 4 growth counters from Groot → choose that many friendly
+  // characters. Give each of those characters a tough status card.
+  "16006.we-are-groot-action": heroAction(
+    { cost: removeUpToCounters(GROWTH, 4, { bind: "removed", fromIdentity: true }) },
+    chooseTarget("friends", FRIENDLY_CHARACTER, { count: varOf("removed") }),
+    giveTough(chosen("friends")),
+  ),
 
   // Fertile Ground — Alter-Ego Action: Exhaust Fertile Ground → place 1 growth counter on Groot (to a maximum of
   // 10) and draw 1 card.
@@ -134,7 +140,15 @@ export const GROOT_KIT = defineAbilities({
     modifyStat("thw", 2, GROOT, "endOfAttack"),
   ),
 
-  // Lashing Vines (16009) — see module docblock.
+  // Lashing Vines — Hero Response: After Groot uses a basic power, remove 2 growth counters from him and exhaust
+  // Lashing Vines → ready Groot. `on.basicPowerUsed` covers a basic attack, thwart and defense (RRG 1.8 "Basic
+  // Power"); a basic recovery never reaches this ability, since it's an alter-ego power and this is a Hero
+  // Response, so the form gate refuses it (§3.28).
+  "16009.lashing-vines-response": heroResponse(
+    on.basicPowerUsed(YOUR_IDENTITY),
+    { cost: [removeCounter(GROWTH, 2, { fromIdentity: true }), exhaustThis] },
+    ready(GROOT),
+  ),
 
   // Vine Shield — Hero Interrupt: When Groot defends against an attack, remove 1 growth counter from him and
   // exhaust Vine Shield → Groot gets +3 DEF for that attack. Same shape as Expert Defense (`cap` 03033).
@@ -201,5 +215,10 @@ export const GROOT_KIT = defineAbilities({
     modifyAttack({ overkill: true }),
   ),
 
-  // Deft Focus (16024) — see module docblock.
+  // Deft Focus — Hero Action: Exhaust Deft Focus → reduce the resource cost of the next superpower card you play
+  // this turn by 1. "A superpower card" is any card type with the trait, so the filter has no `categories` (§3.29).
+  "16024.deft-focus-action": heroAction(
+    { cost: exhaustThis },
+    reduceNextCardCost(you, 1, "turn", { trait: trait("SUPERPOWER") }),
+  ),
 });

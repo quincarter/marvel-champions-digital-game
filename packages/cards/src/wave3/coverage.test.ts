@@ -61,20 +61,15 @@ const KNOWN_SKIPPED: Readonly<Record<string, readonly string[]>> = {
     // Collector I–III, main scheme The Grand Collection, its own encounter set, and Menagerie Medley — `gmw/
     // museum.ts`), and Escape the Museum (the mode-labelled Collector pair, main scheme The Missing Milano/Lost
     // in the Museum/The Great Escape, "I Have You Now!", Impossible Geometry — `gmw/escape-the-museum.ts`) are
-    // scripted. Genuine primitive gaps (module docblocks in `gmw/groot-kit.ts`, `gmw/rocket-kit.ts`, `gmw/
-    // badoon.ts`, `gmw/museum.ts`, `gmw/escape-the-museum.ts`): 16006, 16009, 16024 (Groot); 16032, 16033, 16052
-    // (Rocket); 16020/16048 (the Team-Up card, same cross-player targeting gap both times); 16060.when-revealed
-    // (Drang III, needs a player-level superlative — "the player engaged with the fewest minions");
-    // 16073b.the-grand-collection-action (needs a true either/or `AbilityCost`, distinct from an AND-cost list);
-    // 16085a.this-way (needs `AbilityLimit.per` to support a per-acting-player key); 16085b's three refs (need an
-    // "assign indirect damage among players" primitive, distinct from `dealIndirectDamage`'s existing per-player
-    // and `assignDamage`'s existing per-character shapes). Everything from Nebula on (16088+, except Menagerie
-    // Medley's own 16135-16137 and Ship Command's own 16142-16148) is not yet reached. Regenerated with
-    // `MC_REFS_PACKS=gmw pnpm refs` (docs/card-scripting-process.md) — never hand-typed.
-    "16006.we-are-groot-action",
-    "16009.lashing-vines-response",
+    // scripted. A second primitives pass closed 13 refs left as gaps by the first (docs/phase7-wave3.md
+    // §3.28–§3.38, docs/phase7-wave3-scripting.md §6d): 16006/16009/16024 (Groot, scripted); 16032/16033/16052
+    // (Rocket); 16020/16048 (Flora and Fauna, a cross-player Team-Up targeting gap); 16060.when-revealed (Drang
+    // III, a player-level superlative); 16073b.the-grand-collection-action (an either/or `AbilityCost`);
+    // 16085a.this-way (a per-player `AbilityLimit`); 16085b's three refs (indirect damage "among players").
+    // Everything from Nebula on (16088+, except Menagerie Medley's own 16135-16137 and Ship Command's own
+    // 16142-16148) is not yet reached. Regenerated with `MC_REFS_PACKS=gmw pnpm refs` (docs/card-scripting-
+    // process.md) — never hand-typed.
     "16020.flora-and-fauna-action",
-    "16024.deft-focus-action",
     "16032.schadenfreude-action",
     "16033.salvage-response",
     "16048.flora-and-fauna-action",
