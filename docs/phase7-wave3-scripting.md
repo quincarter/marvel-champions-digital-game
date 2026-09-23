@@ -392,6 +392,7 @@ forcedInterrupt(
 | `17029.agile-flight-action`       | new `EffectSpec divide.upTo` (§3.41)                           | `divide(…, { upTo: true })`           |
 | `17005.sliding-shot-constant`     | new `constant.playOnlyIf` (§3.42)                              | `playOnlyIf` (new)                    |
 | `16131.kree-combat-armor-action`  | new `AbilityCost.sameResourceType` (§3.43)                     | `spendSameType` (new)                 |
+| `19012.martyr-response`           | consequential damage carries its attack's results (§3.44)      | `after.consequentialDamage` (new)     |
 
 Single-Minded Fury (`16114.when-revealed`). "Controls the Power Stone" is "attached to your identity" (§4 Q11). With
 the stone on the villain the ref names nobody, no attack is made, and the card surges (§3.39):
@@ -436,6 +437,13 @@ and overpays the other; `legalActions` offers it only when the hand can pay (§3
 
 ```ts
 heroAction({ cost: spendSameType(3) }, discard(self));
+```
+
+Martyr (`19012.martyr-response`). The response stays on the consequential damage, so the tough status card arrives
+after that damage and cannot absorb it (§3.44):
+
+```ts
+response(after.consequentialDamage("self", { from: "attack", defeated: true }), giveTough(self));
 ```
 
 ## 7. Progress / next up

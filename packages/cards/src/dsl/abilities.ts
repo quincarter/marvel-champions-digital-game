@@ -796,6 +796,24 @@ export const on = {
       opts.taken ? { requireResults: { amount: 1 } } : {},
     ),
   /**
+   * "After [ally] takes consequential damage from performing an attack[, if that attack defeated an enemy]" (Martyr,
+   * `drax` 19012; docs/phase7-wave3.md §3.44). An ally's consequential damage carries the results of the basic power it
+   * follows as `attack.*` / `thwart.*` (`made`, `damage`, `defeated`, …), and only that damage does, so `from` alone
+   * says "consequential damage from an attack/thwart". "Takes" is damage taken (a tough status card that absorbs it
+   * means none was taken). `defeated`: the attack defeated its target.
+   */
+  consequentialDamage: (
+    to: Who,
+    opts: { readonly from: "attack" | "thwart"; readonly defeated?: boolean },
+  ): EventPattern =>
+    pattern("dealDamage", asTarget(to), {
+      requireResults: {
+        amount: 1,
+        [`${opts.from}.made`]: 1,
+        ...(opts.defeated ? { [`${opts.from}.defeated`]: 1 } : {}),
+      },
+    }),
+  /**
    * "Each time / After **you** deal any amount of damage to [an enemy]" (Schadenfreude, `gmw` 16032; docs/phase7-
    * wave3.md §3.30). "You" is your identity where able (RRG 1.8 "You, Your", p. 49; ruling, Dec 17, 2025 (3)): your
    * identity's attacks and effects, and the cards p. 49 calls "an extension of a player's identity" — events you

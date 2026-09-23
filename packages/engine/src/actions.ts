@@ -108,7 +108,7 @@ import {
   traitsOf,
   type EffectContext,
 } from "./select.js";
-import type { Bindings, Vars } from "./stack.js";
+import type { Bindings, ReportTarget, Vars } from "./stack.js";
 import type { GameState } from "./state.js";
 import { characterTitledAs } from "./titles.js";
 import { entersPlayWhenPlayed, matchingCardInPlay, uniqueBlockedMessage } from "./unique.js";
@@ -2019,10 +2019,18 @@ function payBasicPowerCost(
   return null;
 }
 
-/** RRG "Consequential Damage": tier 5 of the timing chart, after the attack fully resolves. */
-function pushConsequentialDamage(ctx: Ctx, characterId: InstanceId, kind: "attack" | "thwart"): void {
+/**
+ * RRG "Consequential Damage": tier 5 of the timing chart, after the attack fully resolves.
+ *
+ * Returns where the basic power's own attack/thwart event(s) report their results (docs/phase7-wave3.md §3.44): into
+ * this damage event, prefixed `attack.`/`thwart.`, so "After Martyr takes consequential damage from performing an
+ * attack, if that attack defeated an enemy" (Martyr, `drax` 19012) reads `attack.defeated` in the damage's own response
+ * window. The damage is pushed first and so resolves after the power (LIFO); the power's frame reports into it as it
+ * finishes, before the damage applies. Null when the ally takes none.
+ */
+function pushConsequentialDamage(ctx: Ctx, characterId: InstanceId, kind: "attack" | "thwart"): ReportTarget | null {
   const card = cardOf(ctx.state, characterId);
-  if (card?.type !== "ally") return;
+  if (card?.type !== "ally") return null;
   const printed = kind === "attack" ? card.consequentialDamage.attack : card.consequentialDamage.thwart;
   // "Takes +1 consequential damage after it attacks" (Enraged): a modifier on the printed value.
   const amount = Math.max(
@@ -2030,8 +2038,8 @@ function pushConsequentialDamage(ctx: Ctx, characterId: InstanceId, kind: "attac
     printed +
       statBonus(ctx.state, ctx.deps, characterId, kind === "attack" ? "consequentialAttack" : "consequentialThwart"),
   );
-  if (amount <= 0) return;
-  pushEvent(ctx, {
+  if (amount <= 0) return null;
+  const frameId = pushEvent(ctx, {
     kind: "dealDamage",
     targetInstanceId: characterId,
     amount,
@@ -2039,6 +2047,7 @@ function pushConsequentialDamage(ctx: Ctx, characterId: InstanceId, kind: "attac
     fromAttack: false,
     consequential: true,
   });
+  return { frameId, prefix: kind };
 }
 
 /**
@@ -2122,15 +2131,19 @@ function basicAttackPaying(
     return engineError("no_valid_target", "a character with a printed '—' ATK cannot attack", command);
   }
   announceBasicPower(ctx, command.attackerInstanceId, "attack", command.playerId);
-  pushConsequentialDamage(ctx, command.attackerInstanceId, "attack");
+  const consequential = pushConsequentialDamage(ctx, command.attackerInstanceId, "attack");
   if (!command.divide) {
-    pushEvent(ctx, {
-      kind: "attack",
-      attackerInstanceId: command.attackerInstanceId,
-      targetInstanceId: command.targetInstanceId,
-      playerId: command.playerId,
-      basic: true,
-    });
+    pushEvent(
+      ctx,
+      {
+        kind: "attack",
+        attackerInstanceId: command.attackerInstanceId,
+        targetInstanceId: command.targetInstanceId,
+        playerId: command.playerId,
+        basic: true,
+      },
+      consequential,
+    );
   } else {
     // "Wasp is considered to attack each target affected by her divided basic attack" (FAQ "Wasp (#1C)"): one attack per
     // target, in the order given, so each retaliate resolves in the order of her choice.
@@ -2144,6 +2157,7 @@ function basicAttackPaying(
         basic: true,
         amount,
       })),
+      consequential,
     );
   }
   announceBasicPowerUsing(ctx, command.attackerInstanceId, "attack", command.playerId);
@@ -2255,16 +2269,20 @@ function basicThwartPaying(
     );
   }
   announceBasicPower(ctx, command.thwarterInstanceId, "thwart", command.playerId);
-  pushConsequentialDamage(ctx, command.thwarterInstanceId, "thwart");
+  const consequential = pushConsequentialDamage(ctx, command.thwarterInstanceId, "thwart");
   if (!command.divide) {
-    pushEvent(ctx, {
-      kind: "thwart",
-      thwarterInstanceId: command.thwarterInstanceId,
-      schemeInstanceId: command.schemeInstanceId,
-      playerId: command.playerId,
-      basic: true,
-      ...(useAtk ? { useAtk: true } : {}),
-    });
+    pushEvent(
+      ctx,
+      {
+        kind: "thwart",
+        thwarterInstanceId: command.thwarterInstanceId,
+        schemeInstanceId: command.schemeInstanceId,
+        playerId: command.playerId,
+        basic: true,
+        ...(useAtk ? { useAtk: true } : {}),
+      },
+      consequential,
+    );
   } else {
     // "simultaneously remove threat from each scheme that Wasp chooses" (FAQ "Wasp (#1C)"): one thwart per scheme.
     pushEvents(
@@ -2277,6 +2295,7 @@ function basicThwartPaying(
         basic: true,
         amount,
       })),
+      consequential,
     );
   }
   announceBasicPowerUsing(ctx, command.thwarterInstanceId, "thwart", command.playerId);

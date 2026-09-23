@@ -11,12 +11,14 @@ import {
   discardThis,
   heroAction,
   interrupt,
+  after,
   on,
   playOnlyIf,
+  response,
   spendSameType,
   whenRevealed,
 } from "./abilities.js";
-import { discard, divide, enemyAttack, ifThen, modifyStat, surge } from "./effects.js";
+import { discard, divide, enemyAttack, giveTough, ifThen, modifyStat, surge } from "./effects.js";
 import { validateDefinition } from "./validate.js";
 import {
   controllerOf,
@@ -127,5 +129,21 @@ describe("§3.43 a cost of N resources of one type", () => {
     expect(
       validateDefinition(heroAction({ cost: { resources: { physical: 1 }, sameResourceType: true } })),
     ).not.toEqual([]);
+  });
+});
+
+describe("§3.44 consequential damage from an attack", () => {
+  it("Martyr (19012): after she takes consequential damage from an attack that defeated an enemy", () => {
+    const definition = response(after.consequentialDamage("self", { from: "attack", defeated: true }), giveTough(self));
+    valid(definition);
+    expect(definition.trigger).toEqual({
+      kind: "response",
+      forced: false,
+      on: {
+        on: "dealDamage",
+        selfIs: "target",
+        requireResults: { amount: 1, "attack.made": 1, "attack.defeated": 1 },
+      },
+    });
   });
 });

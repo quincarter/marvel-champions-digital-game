@@ -967,6 +967,29 @@ Kree Combat Armor (16131, Kree Militants): "Hero Action: Spend 3 resources of th
 heroAction({ cost: spendSameType(3) }, discard(self));
 ```
 
+### 3.44 "After [ally] takes consequential damage from performing an attack, if that attack defeated an enemy"
+
+> **Status: landed (2026-09-23),** tested in `packages/engine/src/consequential-damage-link.test.ts` (4 tests: an attack that defeats an enemy, then the damage is taken and the response gives tough; an attack that defeats nothing gives none; a thwart's consequential damage carries `thwart.*` and no `attack.*`; a tough status already on the ally absorbs the damage, so she took none and nothing triggers; replay deep-equal).
+
+Martyr (19012): "Response: After Martyr takes consequential damage from performing an attack, if that attack defeated an enemy, give her a tough status card." The consequential damage event (`pushConsequentialDamage`) had no link back to the attack. It is pushed before the attack event, so it resolves after it (LIFO), and by then the attack's frame is gone.
+
+**Printed timing kept.** RRG 1.8 "Consequential Damage" (p. 13): "Consequential damage is dealt to an ally after resolving abilities that are triggered by the ally attacking or thwarting." The response stays on the consequential damage itself. Firing it on the attack's own "after it defeats" window instead would give the tough status card first, and that card would then absorb Martyr's own consequential damage (RRG 1.8 "Tough", p. 44), which the card does not intend.
+
+**What landed:**
+
+- **The basic power reports into its consequential damage.** `pushConsequentialDamage` now returns the damage event's frame, and the basic attack's (or thwart's) event(s) are pushed with `reportTo: { frameId, prefix: "attack" | "thwart" }`, the mechanism `bind` already uses. When the attack finishes, before the waiting damage applies, its results land on that damage event as `attack.made`, `attack.damage`, `attack.damaged`, `attack.defeated` (a divided attack sums its attacks). The damage's own response window sees them in `results`, next to its own `amount`. Nothing else changes: the event is the same event, at the same point on the stack.
+- **Only consequential damage carries them**, so `requireResults: { "attack.made": 1 }` is itself "consequential damage from performing an attack". A thwart's carries `thwart.*` instead.
+- **"Takes"** is damage taken (`amount` ≥ 1). A tough status card already on the ally absorbs the damage, so she took none and the response is not offered.
+- Consequential damage is engine-pushed only for basic attacks and thwarts (an ally's "(attack)" ability prints its own). No change there.
+
+**DSL:** `after.consequentialDamage(who, { from: "attack" | "thwart", defeated? })` in `dsl/abilities.ts`.
+
+**Martyr composition** (`19012.martyr-response`):
+
+```ts
+response(after.consequentialDamage("self", { from: "attack", defeated: true }), giveTough(self));
+```
+
 ---
 
 ## 4. Open questions (for the user or FFG)
