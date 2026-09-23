@@ -24,6 +24,7 @@ import { accent, ink, signal, surface, typeRole } from "../../tokens.js";
 import { cssOf, textStyle } from "../../ui/theme.js";
 import { McButton, fitText, label } from "../../ui/widgets.js";
 import { destroyChildren } from "../../ui/destroy-children.js";
+import { setMask } from "../../ui/rex.js";
 import { fadeScreenIn, goToScreen } from "../../ui/transitions.js";
 import type { Rect } from "../../view/layout.js";
 import { formFactorFor } from "../../view/layout.js";
@@ -221,7 +222,7 @@ export class CampaignBriefingScene extends Phaser.Scene {
       height: contentBottom - (top.height + 20),
     };
 
-    let leftBottom = this.#drawSpeaker(leftRect, record);
+    let leftBottom = this.#drawSpeaker(leftRect, record, phone);
     leftBottom = this.#drawHandled(
       { x: leftRect.x, y: leftBottom + 20, width: leftRect.width, height: contentBottom - leftBottom - 20 },
       view,
@@ -303,7 +304,7 @@ export class CampaignBriefingScene extends Phaser.Scene {
   }
 
   /** The round portrait + speech bubble: whoever the story's briefing line speaks as, or the first seat. */
-  #drawSpeaker(rect: Rect, record: CampaignRecord): number {
+  #drawSpeaker(rect: Rect, record: CampaignRecord, phone: boolean): number {
     const rosterIds = record.seats.map((seat) => seat.identityCardId);
     const story = this.#story;
     if (!story) return rect.y;
@@ -311,19 +312,27 @@ export class CampaignBriefingScene extends Phaser.Scene {
     if (!resolved) return rect.y;
     const speakerIdentityId =
       resolved.speaker.kind === "hero" ? resolved.speaker.identityId : (record.seats[0]?.identityCardId ?? null);
-    const portraitSize = 64;
+    const portraitSize = phone ? 64 : 84;
     const portraitRect: Rect = { x: rect.x, y: rect.y, width: portraitSize, height: portraitSize };
-    // A square frame with an ink border, not the design's round portrait: Phaser 4's `GameObject.setMask` throws
-    // in the WebGL renderer ("Create a Mask filter instead"), so there is no cheap way to clip the picture to a
-    // circle here — the border still reads as a portrait frame without it.
+    const radius = portraitSize / 2;
+    const centerX = rect.x + radius;
+    const centerY = rect.y + radius;
     const g = this.add.graphics();
-    g.fillStyle(surface.ink.hex, 1).fillRect(rect.x, rect.y, portraitSize, portraitSize);
+    g.fillStyle(surface.ink.hex, 1).fillCircle(centerX, centerY, radius);
     if (speakerIdentityId) {
       const picture = heroPicture(speakerIdentityId);
-      drawPicture(this, picture, portraitRect, () => this.#draw(), { focusY: 0.15 });
+      const image = drawPicture(this, picture, portraitRect, () => this.#draw(), { focusY: 0.15 });
+      if (image) {
+        // The design's round portrait. Not `image.setMask(createGeometryMask())`, a silent no-op under WebGL in
+        // Phaser 4 (`ui/rex.ts`); the mask shape stays off the display list, so it is destroyed with the image.
+        const maskShape = this.make.graphics({}, false);
+        maskShape.fillStyle(0xffffff).fillCircle(centerX, centerY, radius);
+        setMask(image, maskShape, "world");
+        image.once(Phaser.GameObjects.Events.DESTROY, () => maskShape.destroy());
+      }
     }
     const border = this.add.graphics();
-    border.lineStyle(2, surface.ink.hex, 1).strokeRect(rect.x, rect.y, portraitSize, portraitSize);
+    border.lineStyle(3, surface.ink.hex, 1).strokeCircle(centerX, centerY, radius);
     const { rect: bubbleRect } = speechBubble(
       this,
       rect.x + portraitSize + 16,
