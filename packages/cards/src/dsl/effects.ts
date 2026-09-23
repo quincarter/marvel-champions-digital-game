@@ -676,6 +676,14 @@ export const resolveSpecials = (cardsQuery: TargetQuery): EffectSpec => ({
   cards: cardsQuery,
 });
 /**
+ * `resolveSpecials` for a card named by reference rather than found by query — "attach this card to Nebula and
+ * resolve its 'Special' ability" (Nebula's Technique attachments, `gmw` 16094–16098): `self` is this exact
+ * instance, not "any Technique attachment in play" (which could match a different already-attached copy of the
+ * same non-unique card). The engine's `EffectSpec resolveSpecials` already carries an `of` field for this
+ * (`separate-deck.test.ts`'s own Invocation-deck usage); this is its first DSL exposure.
+ */
+export const resolveSpecialsOf = (ref: TargetRef): EffectSpec => ({ kind: "resolveSpecials", of: ref });
+/**
  * "Discard N cards from your hand". `player` may be `eachPlayer`: each chooses from their own hand, in player order.
  *
  * `filter` narrows which hand cards count: "1 resource of any type" (Power Drain) is `{ filter: ANY_RESOURCE }`, a

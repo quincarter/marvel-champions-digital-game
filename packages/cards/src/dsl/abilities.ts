@@ -494,6 +494,12 @@ export const spendX = (resourceType: TypedResource, bind = "x", min = 1): Abilit
   resourcesX: { resource: resourceType, bind, min },
 });
 /**
+ * "Spend up to N resources of any type →" (Nebula's Ship, `gmw` 16093; docs/phase7-wave3.md §3.25): unlike `spendX`
+ * (a named type, at least `min`), this is any type, capped at `max`, with none required — RRG 1.8 "Cost" (p. 13):
+ * overpaying is legal, so X is capped rather than the payment refused. `bind` is 0 if nothing is spent this way.
+ */
+export const spendUpTo = (max: number, bind = "x"): AbilityCost => ({ resourcesX: { resource: "any", bind, max } });
+/**
  * "Remove N [type] counter(s) from it →" (the ability's own card). `fromIdentity`: "Remove N growth counters from
  * Groot →" (`gmw` 16008, 16010, 16011) — the paying player's own identity, a different card than the one carrying
  * the ability (`AbilityCost.spendCounters.target`).

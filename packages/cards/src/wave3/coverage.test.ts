@@ -59,18 +59,22 @@ const KNOWN_SKIPPED: Readonly<Record<string, readonly string[]>> = {
     // Terrestrial Invasion/Protect the Planet, Badoon Ship, Drang's Spear, Badoon Engineer, the four side
     // schemes, the Band of Badoon modular set), the Ship Command modular set, Infiltrate the Museum (villain
     // Collector I–III, main scheme The Grand Collection, its own encounter set, and Menagerie Medley — `gmw/
-    // museum.ts`), and Escape the Museum (the mode-labelled Collector pair, main scheme The Missing Milano/Lost
-    // in the Museum/The Great Escape, "I Have You Now!", Impossible Geometry — `gmw/escape-the-museum.ts`) are
-    // scripted. Genuine primitive gaps (module docblocks in `gmw/groot-kit.ts`, `gmw/rocket-kit.ts`, `gmw/
-    // badoon.ts`, `gmw/museum.ts`, `gmw/escape-the-museum.ts`): 16006, 16009, 16024 (Groot); 16032, 16033, 16052
-    // (Rocket); 16020/16048 (the Team-Up card, same cross-player targeting gap both times); 16060.when-revealed
-    // (Drang III, needs a player-level superlative — "the player engaged with the fewest minions");
-    // 16073b.the-grand-collection-action (needs a true either/or `AbilityCost`, distinct from an AND-cost list);
-    // 16085a.this-way (needs `AbilityLimit.per` to support a per-acting-player key); 16085b's three refs (need an
-    // "assign indirect damage among players" primitive, distinct from `dealIndirectDamage`'s existing per-player
-    // and `assignDamage`'s existing per-character shapes). Everything from Nebula on (16088+, except Menagerie
-    // Medley's own 16135-16137 and Ship Command's own 16142-16148) is not yet reached. Regenerated with
-    // `MC_REFS_PACKS=gmw pnpm refs` (docs/card-scripting-process.md) — never hand-typed.
+    // museum.ts`), Escape the Museum (the mode-labelled Collector pair, main scheme The Missing Milano/Lost
+    // in the Museum/The Great Escape, "I Have You Now!", Impossible Geometry — `gmw/escape-the-museum.ts`), and
+    // Nebula (villain Nebula I–III, main scheme The Art of Evasion/Warp Drive Initiated, Nebula's Ship, the five
+    // Technique attachments, Lethal Intent, Barrel Roll, Combat Ready, the Space Pirates modular set, and the
+    // Power Stone modular card — `gmw/nebula.ts`) are scripted. Genuine primitive gaps (module docblocks in
+    // `gmw/groot-kit.ts`, `gmw/rocket-kit.ts`, `gmw/badoon.ts`, `gmw/museum.ts`, `gmw/escape-the-museum.ts`):
+    // 16006, 16009, 16024 (Groot); 16032, 16033, 16052 (Rocket); 16020/16048 (the Team-Up card, same
+    // cross-player targeting gap both times); 16060.when-revealed (Drang III, needs a player-level superlative —
+    // "the player engaged with the fewest minions"); 16073b.the-grand-collection-action (needs a true either/or
+    // `AbilityCost`, distinct from an AND-cost list); 16085a.this-way (needs `AbilityLimit.per` to support a
+    // per-acting-player key); 16085b's three refs (need an "assign indirect damage among players" primitive,
+    // distinct from `dealIndirectDamage`'s existing per-player and `assignDamage`'s existing per-character
+    // shapes). `gmw/nebula.ts` itself has no genuine primitive gaps (module docblock) — every primitive it needed
+    // had already landed. Ronan the Accuser (16102+, except the Band of Badoon-shared 16117-16121 already
+    // scripted) and the Kree Militants/Galactic Artifacts/Badoon Headhunter modular sets are not yet reached.
+    // Regenerated with `MC_REFS_PACKS=gmw pnpm refs` (docs/card-scripting-process.md) — never hand-typed.
     "16006.we-are-groot-action",
     "16009.lashing-vines-response",
     "16020.flora-and-fauna-action",
@@ -85,37 +89,6 @@ const KNOWN_SKIPPED: Readonly<Record<string, readonly string[]>> = {
     "16085b.hold-on-to-your-butts",
     "16085b.museum-ship-constant",
     "16085b.museum-ship-constant-2",
-    "16088.nebula-constant",
-    "16088.nebula-forced-interrupt",
-    "16089.nebula-constant",
-    "16089.nebula-forced-interrupt",
-    "16090.nebula-constant",
-    "16090.nebula-forced-interrupt",
-    "16091a.setup",
-    "16091b.the-art-of-evasion-constant",
-    "16092a.when-revealed",
-    "16092b.warp-drive-initiated-constant",
-    "16093.nebulas-ship-forced-interrupt",
-    "16093.nebulas-ship-constant",
-    "16094.cutthroat-ambition-constant",
-    "16094.cutthroat-ambition-special",
-    "16094.boost",
-    "16095.evasive-maneuvering-constant",
-    "16095.evasive-maneuvering-special",
-    "16095.boost",
-    "16096.unyielding-persistence-constant",
-    "16096.unyielding-persistence-special",
-    "16096.boost",
-    "16097.weapon-mastery-constant",
-    "16097.weapon-mastery-special",
-    "16097.boost",
-    "16098.wide-stance-constant",
-    "16098.wide-stance-special",
-    "16098.boost",
-    "16099.when-revealed",
-    "16100.when-revealed",
-    "16100.boost",
-    "16101.when-revealed",
     "16102.when-revealed-alter-ego",
     "16102.when-revealed-hero",
     "16103.ronan-the-accuser-forced-interrupt",
@@ -158,14 +131,6 @@ const KNOWN_SKIPPED: Readonly<Record<string, readonly string[]>> = {
     "16132.boost",
     "16133.boost",
     "16134.boost",
-    "16138.pirate-commander-forced-response",
-    "16138.boost",
-    "16139.pirate-lackey-forced-response",
-    "16139.boost",
-    "16140.sound-the-alarms-constant",
-    "16140.boost",
-    "16141.when-revealed",
-    "16149.power-stone-forced-response",
     "16150.brainstorm-constant",
     "16150.brainstorm-action",
     "16151.by-any-means-constant",

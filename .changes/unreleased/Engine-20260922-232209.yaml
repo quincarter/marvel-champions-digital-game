@@ -1,0 +1,3 @@
+kind: Engine
+body: 'engine: resolveSpecials inherits the calling ability''s controller, so a Special ability''s own ''you'' (an encounter card with no controller of its own) isn''t null'
+time: 2026-09-22T23:22:09.054988-04:00
