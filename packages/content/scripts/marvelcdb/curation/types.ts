@@ -69,6 +69,16 @@ export interface StarterDeckCuration {
    * `aspect` and every listed `secondaryAspects` entry accept a plain (non-identity-specific) card in `cards`.
    */
   readonly secondaryAspects?: readonly CoreAspect[];
+  /**
+   * Wave 3: card codes covered by the identity's own `IdentityDeckbuilding.offAspectAllowance` (Gamora's Skilled
+   * Tactician — First Hit/Impede, docs/phase7-wave3.md §1.5), for `normalizeStarterDecks`' per-card aspect check
+   * only. Unlike `secondaryAspects`, these do **not** add an aspect to the emitted `StarterDeck.aspects` — the
+   * deck still has exactly one *chosen* aspect (`@mc/engine`'s `validateDeck` requires `aspects.length === 1`
+   * unless the identity's `deckbuilding.aspectCount` says otherwise, which `offAspectAllowance` never does), and
+   * `validateDeck` recognizes these cards through the identity's own `offAspectAllowance` field at runtime, not
+   * through anything printed on the `StarterDeck` record itself.
+   */
+  readonly offAspectAllowanceCodes?: readonly string[];
   /** MarvelCDB code → quantity, exactly as the source lists it (identity excluded). */
   readonly cards: Readonly<Record<string, number>>;
   /** The obligation and nemesis cards the source lists for this deck, cross-checked against the identity links. */

@@ -170,12 +170,98 @@ export const WAVE2_STARTER_DECKS: readonly StarterDeck[] = [
   ...SCW_STARTER_DECKS,
 ];
 
+// ---------------------------------------------------------------------------------------------------------------
+// Wave 3 (PLAN.md Phase 7, docs/phase7-wave3.md): cycle 2, The Galaxy's Most Wanted. In release order: `gmw`
+// (Groot, Rocket Raccoon, five scenarios), then the Star-Lord, Gamora, Drax and Venom hero packs, then `ron`
+// (the Kree Fanatic modular set, not a scenario pack — docs/phase7-wave3.md §2.3). All six packs are fully
+// scripted (`@mc/cards`'s `wave3` module). As with wave 1/wave 2, `@mc/engine`/`coreScenario()`/the client keep
+// using `CORE_*` until the primitives docs/phase7-wave3.md §3 lists all land — these `WAVE3_*` exports are
+// `@mc/content`-only aggregates, wired into the client's playable pool as a separate step. Declared here (before
+// `PLAYABLE_CARDS`, which reads `WAVE3_CARDS`) rather than after the data-only pool below, since this module's
+// top-level `const`s execute in source order.
+// ---------------------------------------------------------------------------------------------------------------
+export * from "./gmw/index.js";
+export * from "./stld/index.js";
+export * from "./gam/index.js";
+export * from "./drax/index.js";
+export * from "./vnm/index.js";
+export * from "./ron/index.js";
+
+import { GMW_CARDS } from "./gmw/cards.js";
+import { GMW_ENCOUNTER_SETS } from "./gmw/encounterSets.js";
+import { GMW_SCENARIOS } from "./gmw/scenarios.js";
+import { GMW_STARTER_DECKS } from "./gmw/starterDecks.js";
+import { STLD_CARDS } from "./stld/cards.js";
+import { STLD_ENCOUNTER_SETS } from "./stld/encounterSets.js";
+import { STLD_STARTER_DECKS } from "./stld/starterDecks.js";
+import { GAM_CARDS } from "./gam/cards.js";
+import { GAM_ENCOUNTER_SETS } from "./gam/encounterSets.js";
+import { GAM_STARTER_DECKS } from "./gam/starterDecks.js";
+import { DRAX_CARDS } from "./drax/cards.js";
+import { DRAX_ENCOUNTER_SETS } from "./drax/encounterSets.js";
+import { DRAX_STARTER_DECKS } from "./drax/starterDecks.js";
+import { VNM_CARDS } from "./vnm/cards.js";
+import { VNM_ENCOUNTER_SETS } from "./vnm/encounterSets.js";
+import { VNM_STARTER_DECKS } from "./vnm/starterDecks.js";
+import { RON_CARDS } from "./ron/cards.js";
+import { RON_ENCOUNTER_SETS } from "./ron/encounterSets.js";
+
 /**
- * Every playable card: Core, the eight wave 1 packs, then the six cycle 1 packs, each exactly once. `WAVE1_CARDS`
- * and `WAVE2_CARDS` are sibling pools that both start from Core, so concatenating them would list Core twice; this
- * is the one pool a client that runs every scripted wave at once sends to the engine.
+ * Every card in the wave 3 (cycle 2) pool: Core plus the six cycle 2 packs, in release order. Like `WAVE1_CARDS`/
+ * `WAVE2_CARDS`, this is a sibling pool that starts from Core independently — see `PLAYABLE_CARDS`'s own comment.
  */
-export const PLAYABLE_CARDS: readonly AnyCard[] = [...WAVE1_CARDS, ...WAVE2_CARDS.slice(CORE_CARDS.length)];
+export const WAVE3_CARDS: readonly AnyCard[] = [
+  ...CORE_CARDS,
+  ...GMW_CARDS,
+  ...STLD_CARDS,
+  ...GAM_CARDS,
+  ...DRAX_CARDS,
+  ...VNM_CARDS,
+  ...RON_CARDS,
+];
+
+/** Every cycle 2 encounter set (Core's own villain sets are not included, matching `WAVE1_ENCOUNTER_SETS`/`WAVE2_ENCOUNTER_SETS`). */
+export const WAVE3_ENCOUNTER_SETS: readonly EncounterSet[] = [
+  ...GMW_ENCOUNTER_SETS,
+  ...STLD_ENCOUNTER_SETS,
+  ...GAM_ENCOUNTER_SETS,
+  ...DRAX_ENCOUNTER_SETS,
+  ...VNM_ENCOUNTER_SETS,
+  ...RON_ENCOUNTER_SETS,
+];
+
+/**
+ * Every cycle 2 scenario: The Galaxy's Most Wanted's five (Brotherhood of Badoon, Infiltrate the Museum, Escape
+ * the Museum, Nebula, Ronan the Accuser). The four hero packs define no scenario of their own, and `ron` is a
+ * modular encounter set, not a scenario (docs/phase7-wave3.md §2.3) — matching `WAVE1_SCENARIOS`'/
+ * `WAVE2_SCENARIOS`' own pattern (only the scenario-carrying pack contributes).
+ */
+export const WAVE3_SCENARIOS: readonly Scenario[] = [...GMW_SCENARIOS];
+
+/**
+ * Every cycle 2 starter deck: Groot and Rocket Raccoon (`gmw`, MC16 p. 20), plus one each for Star-Lord, Gamora,
+ * Drax and Venom, sourced from their own Hall of Heroes release-page starter-deck photos (each precon's own
+ * `provenance.sources`).
+ */
+export const WAVE3_STARTER_DECKS: readonly StarterDeck[] = [
+  ...GMW_STARTER_DECKS,
+  ...STLD_STARTER_DECKS,
+  ...GAM_STARTER_DECKS,
+  ...DRAX_STARTER_DECKS,
+  ...VNM_STARTER_DECKS,
+];
+
+/**
+ * Every playable card: Core, the eight wave 1 packs, the six cycle 1 packs, then the six cycle 2 packs, each
+ * exactly once. `WAVE1_CARDS`, `WAVE2_CARDS` and `WAVE3_CARDS` are sibling pools that each start from Core
+ * independently, so concatenating them would list Core (and, for wave 3, its own `CORE_CARDS.length` prefix)
+ * more than once; this is the one pool a client that runs every scripted wave at once sends to the engine.
+ */
+export const PLAYABLE_CARDS: readonly AnyCard[] = [
+  ...WAVE1_CARDS,
+  ...WAVE2_CARDS.slice(CORE_CARDS.length),
+  ...WAVE3_CARDS.slice(CORE_CARDS.length),
+];
 
 /**
  * Every campaign box whose scenarios and encounter sets are ingested into `@mc/content` (PLAN.md §C3;
@@ -203,10 +289,6 @@ export const CAMPAIGNS: readonly Campaign[] = [TRORS_CAMPAIGN];
 export * from "./bp/index.js";
 export * from "./cyclops/index.js";
 export * from "./gambit/index.js";
-export * from "./drax/index.js";
-export * from "./gam/index.js";
-export * from "./stld/index.js";
-export * from "./vnm/index.js";
 export * from "./nebu/index.js";
 export * from "./warm/index.js";
 export * from "./vision/index.js";
@@ -214,7 +296,6 @@ export * from "./ncrawler/index.js";
 export * from "./magneto/index.js";
 export * from "./winter/index.js";
 export * from "./falcon/index.js";
-export * from "./ron/index.js";
 export * from "./nova/index.js";
 export * from "./silk/index.js";
 export * from "./spdr/index.js";
@@ -233,7 +314,6 @@ export * from "./angel/index.js";
 export * from "./storm/index.js";
 export * from "./psylocke/index.js";
 export * from "./jubilee/index.js";
-export * from "./gmw/index.js";
 
 import { BP_CARDS } from "./bp/cards.js";
 import { BP_ENCOUNTER_SETS } from "./bp/encounterSets.js";
@@ -241,14 +321,6 @@ import { CYCLOPS_CARDS } from "./cyclops/cards.js";
 import { CYCLOPS_ENCOUNTER_SETS } from "./cyclops/encounterSets.js";
 import { GAMBIT_CARDS } from "./gambit/cards.js";
 import { GAMBIT_ENCOUNTER_SETS } from "./gambit/encounterSets.js";
-import { DRAX_CARDS } from "./drax/cards.js";
-import { DRAX_ENCOUNTER_SETS } from "./drax/encounterSets.js";
-import { GAM_CARDS } from "./gam/cards.js";
-import { GAM_ENCOUNTER_SETS } from "./gam/encounterSets.js";
-import { STLD_CARDS } from "./stld/cards.js";
-import { STLD_ENCOUNTER_SETS } from "./stld/encounterSets.js";
-import { VNM_CARDS } from "./vnm/cards.js";
-import { VNM_ENCOUNTER_SETS } from "./vnm/encounterSets.js";
 import { NEBU_CARDS } from "./nebu/cards.js";
 import { NEBU_ENCOUNTER_SETS } from "./nebu/encounterSets.js";
 import { WARM_CARDS } from "./warm/cards.js";
@@ -263,8 +335,6 @@ import { WINTER_CARDS } from "./winter/cards.js";
 import { WINTER_ENCOUNTER_SETS } from "./winter/encounterSets.js";
 import { FALCON_CARDS } from "./falcon/cards.js";
 import { FALCON_ENCOUNTER_SETS } from "./falcon/encounterSets.js";
-import { RON_CARDS } from "./ron/cards.js";
-import { RON_ENCOUNTER_SETS } from "./ron/encounterSets.js";
 import { NOVA_CARDS } from "./nova/cards.js";
 import { NOVA_ENCOUNTER_SETS } from "./nova/encounterSets.js";
 import { SILK_CARDS } from "./silk/cards.js";
@@ -301,14 +371,13 @@ import { PSYLOCKE_CARDS } from "./psylocke/cards.js";
 import { PSYLOCKE_ENCOUNTER_SETS } from "./psylocke/encounterSets.js";
 import { JUBILEE_CARDS } from "./jubilee/cards.js";
 import { JUBILEE_ENCOUNTER_SETS } from "./jubilee/encounterSets.js";
-import { GMW_CARDS } from "./gmw/cards.js";
-import { GMW_ENCOUNTER_SETS } from "./gmw/encounterSets.js";
 
 /**
- * Every card in the data-only pool: 33 packs across cycles 3, 4, 5, 6, 7, 8, 9, 10 and one non-cycle promotional
- * release, in pack-code alphabetical order (no release-order relationship spans this many cycles at once, unlike
- * `WAVE1_CARDS`/`WAVE2_CARDS`). Not included in `WAVE1_CARDS`/`WAVE2_CARDS`/`CORE_CARDS` — a client that wants
- * "every known card, playable or not" concatenates this with those.
+ * Every card in the data-only pool: 27 packs across cycles 4, 5, 6, 7, 8, 9 and 10, in pack-code alphabetical
+ * order (no release-order relationship spans this many cycles at once, unlike `WAVE1_CARDS`/`WAVE2_CARDS`/
+ * `WAVE3_CARDS`). Not included in `WAVE1_CARDS`/`WAVE2_CARDS`/`WAVE3_CARDS`/`CORE_CARDS` — a client that wants
+ * "every known card, playable or not" concatenates this with those. `gmw`, `stld`, `gam`, `drax`, `vnm` and `ron`
+ * (cycle 2) moved out of this pool into `WAVE3_*` below once wave 3 scripted them (docs/phase7-wave3.md).
  */
 export const DATA_ONLY_CARDS: readonly AnyCard[] = [
   ...BP_CARDS,
@@ -318,10 +387,6 @@ export const DATA_ONLY_CARDS: readonly AnyCard[] = [
   ...JUBILEE_CARDS,
   ...CYCLOPS_CARDS,
   ...GAMBIT_CARDS,
-  ...DRAX_CARDS,
-  ...GAM_CARDS,
-  ...STLD_CARDS,
-  ...VNM_CARDS,
   ...NEBU_CARDS,
   ...WARM_CARDS,
   ...VISION_CARDS,
@@ -329,7 +394,6 @@ export const DATA_ONLY_CARDS: readonly AnyCard[] = [
   ...MAGNETO_CARDS,
   ...WINTER_CARDS,
   ...FALCON_CARDS,
-  ...RON_CARDS,
   ...NOVA_CARDS,
   ...SILK_CARDS,
   ...SPDR_CARDS,
@@ -344,17 +408,7 @@ export const DATA_ONLY_CARDS: readonly AnyCard[] = [
   ...DEADPOOL_CARDS,
   ...SPIDERHAM_CARDS,
   ...MOJO_CARDS,
-  ...GMW_CARDS,
 ];
-
-/**
- * `GMW_SCENARIOS`/`GMW_STARTER_DECKS` (re-exported via `./gmw/index.js` above) are The Galaxy's Most Wanted's own
- * five scenarios and two precons (wave 3, docs/phase7-wave3.md) — the only data-only pack with either. No
- * `DATA_ONLY_SCENARIOS`/`DATA_ONLY_STARTER_DECKS` aggregate exists because every other data-only pack has none;
- * add one if a second data-only pack grows scenario data. Not wired into `@mc/engine` or the client (out of scope
- * for this pass): a client that wants to *run* one of these scenarios still needs `ability-scripting-engineer` to
- * script `gmw`'s cards first.
- */
 
 /** Every data-only pool encounter set. */
 export const DATA_ONLY_ENCOUNTER_SETS: readonly EncounterSet[] = [
@@ -365,10 +419,6 @@ export const DATA_ONLY_ENCOUNTER_SETS: readonly EncounterSet[] = [
   ...JUBILEE_ENCOUNTER_SETS,
   ...CYCLOPS_ENCOUNTER_SETS,
   ...GAMBIT_ENCOUNTER_SETS,
-  ...DRAX_ENCOUNTER_SETS,
-  ...GAM_ENCOUNTER_SETS,
-  ...STLD_ENCOUNTER_SETS,
-  ...VNM_ENCOUNTER_SETS,
   ...NEBU_ENCOUNTER_SETS,
   ...WARM_ENCOUNTER_SETS,
   ...VISION_ENCOUNTER_SETS,
@@ -376,7 +426,6 @@ export const DATA_ONLY_ENCOUNTER_SETS: readonly EncounterSet[] = [
   ...MAGNETO_ENCOUNTER_SETS,
   ...WINTER_ENCOUNTER_SETS,
   ...FALCON_ENCOUNTER_SETS,
-  ...RON_ENCOUNTER_SETS,
   ...NOVA_ENCOUNTER_SETS,
   ...SILK_ENCOUNTER_SETS,
   ...SPDR_ENCOUNTER_SETS,
@@ -391,5 +440,4 @@ export const DATA_ONLY_ENCOUNTER_SETS: readonly EncounterSet[] = [
   ...DEADPOOL_ENCOUNTER_SETS,
   ...SPIDERHAM_ENCOUNTER_SETS,
   ...MOJO_ENCOUNTER_SETS,
-  ...GMW_ENCOUNTER_SETS,
 ];

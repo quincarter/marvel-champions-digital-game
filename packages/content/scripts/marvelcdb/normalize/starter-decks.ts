@@ -25,10 +25,12 @@ export function normalizeStarterDecks(ctx: NormalizeContext): StarterDeck[] {
       if (qty > card.quantityInSet) errors.push(`deck ${d.id}: ${qty}× ${code} but one box has ${card.quantityInSet}`);
       if (qty > card.deckLimit) errors.push(`deck ${d.id}: ${qty}× ${code} exceeds deck limit ${card.deckLimit}`);
       const secondaryAspects: readonly CoreAspect[] = d.secondaryAspects ?? [];
+      const offAspectAllowanceCodes = d.offAspectAllowanceCodes ?? [];
       const ok =
         card.aspect === `hero:${d.identityCode}` ||
         card.aspect === d.aspect ||
         secondaryAspects.includes(card.aspect as CoreAspect) ||
+        offAspectAllowanceCodes.includes(code) ||
         card.aspect === "basic";
       if (!ok) errors.push(`deck ${d.id}: ${code} has aspect ${card.aspect}`);
     }

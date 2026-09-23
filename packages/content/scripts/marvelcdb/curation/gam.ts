@@ -3,7 +3,9 @@
  *
  * Normalizes cleanly with no hand corrections needed.
  *
- * **Starter deck and scenario data not curated this pass** — data-only pool (PLAN.md Phase 7).
+ * **Scenario data not curated** — `gam` is a hero pack with no scenario of its own. Starter deck curated wave 3
+ * (below); it is the first precon in the pipeline that actually exercises `offAspectAllowance` below (First Hit
+ * x3 from Protection, Impede x3 from Justice — exactly the 6-card allowance Skilled Tactician grants).
  *
  * **Skilled Tactician deckbuilding (wave3 §1.5).** Gamora's alter-ego face (18001b), "Skilled Tactician": "You may
  * include up to 6 attack and/or thwart events in your deck from aspects other than your chosen aspect." (raw
@@ -53,5 +55,57 @@ export const GAM_CURATION: PackCuration = {
   },
 
   scenarios: [],
-  starterDecks: [],
+  starterDecks: [
+    {
+      id: "gamora-aggression",
+      name: "Gamora (Aggression) — starter deck",
+      identityCode: "18001a",
+      aspect: "aggression",
+      // First Hit (Protection) and Impede (Justice) are Skilled Tactician's off-aspect allowance (§1.5), not a
+      // second *chosen* aspect the way Spider-Woman's Double-Agent precon (wave 2, `secondaryAspects`) is —
+      // `@mc/engine`'s `validateDeck` requires exactly one chosen aspect here (Gamora's `deckbuilding` carries
+      // `offAspectAllowance`, not `aspectCount`), so `aspects` on the emitted `StarterDeck` must stay
+      // `["aggression"]` alone; `offAspectAllowanceCodes` only lets the normalizer's own per-card aspect check
+      // accept these two codes, matching what `validateDeck` already recognizes via the identity's own field.
+      offAspectAllowanceCodes: ["18015", "18016"],
+      cards: {
+        // Gamora cards (18002-18010), Hall of Heroes starter-deck image ("Gamora Deck"): "Nebula, Acrobatic Move
+        // x2, Crosscounter x2, Set the Pace x2, Decisive Blow x2, Forward Momentum x2, Conditioning Room, Keen
+        // Instincts x2, Gamora's Sword". 15 hero cards.
+        "18002": 1,
+        "18003": 2,
+        "18004": 2,
+        "18005": 2,
+        "18006": 2,
+        "18007": 2,
+        "18008": 1,
+        "18009": 2,
+        "18010": 1,
+        // Aggression + off-aspect cards ("Aggression+ Aspect Cards" on the image, Skilled Tactician's allowance):
+        // "Angela, Clobber x3, Plan of Attack x3, Uppercut x2, First Hit x3 (Protection), Impede x3 (Justice),
+        // Combat Training x2, Godslayer". 18 cards; First Hit + Impede = 6, exactly the offAspectAllowance max.
+        "18011": 1,
+        "18012": 3,
+        "18013": 3,
+        "18014": 2,
+        "18015": 3,
+        "18016": 3,
+        "18017": 2,
+        "18018": 1,
+        // Basic cards: "Drax, Hit and Run x3, Energy, Genius, Strength". 7 basic cards. 15 + 18 + 7 = 40.
+        "18019": 1,
+        "18020": 3,
+        "18021": 1,
+        "18022": 1,
+        "18023": 1,
+      },
+      obligationCode: "18024",
+      nemesisCodes: ["18025", "18026", "18027", "18028"],
+      verified: true,
+      sources: [
+        'Hall of Heroes Gamora release page (https://hallofheroeslcg.com/gamora/), "Starter Deck" link: https://hallofheroeslcg.com/wp-content/uploads/2021/05/gamorastarter.jpg — image transcribed directly (card-data-pipeline, wave 3).',
+      ],
+      note: "40 cards = 15 Gamora + 18 Aggression (incl. the 6-card off-aspect allowance: First Hit x3/Protection, Impede x3/Justice) + 7 Basic, matching the printed deck-list card's own counts. Nemesis set (Sibling Rivalry, Nebula, In a Bind, Waylay x2) matches docs/phase7-wave3.md §2.1's independently-researched table.",
+    },
+  ],
 };

@@ -2,10 +2,18 @@
  * Wave 3 / cycle 2 reprints (PLAN.md Phase 7 / docs/phase7-wave3.md / docs/phase7-wave3-scripting.md).
  *
  * Several cycle 2 cards reprint a Core, wave 1 or cycle 1 card verbatim (same printed name AND type). This module
- * is the cycle 2 analog of `../wave2/reprints.ts`: it finds every such pair programmatically against
- * `PLAYABLE_CARDS` (Core + every wave 1 pack + every cycle 1 pack — `WAVE1_CARDS`/`WAVE2_CARDS` are *siblings*,
- * not nested, `./cards.ts`'s own docblock), and for pairs whose ability ids carry the same slug and count,
- * aliases the wave 3 id straight to the earlier `AbilityDefinition` — one script, two or more ids.
+ * is the cycle 2 analog of `../wave2/reprints.ts`: it finds every such pair programmatically against "every
+ * earlier card" and, for pairs whose ability ids carry the same slug and count, aliases the wave 3 id straight to
+ * the earlier `AbilityDefinition` — one script, two or more ids.
+ *
+ * **"Earlier" is `WAVE1_CARDS` ∪ `WAVE2_CARDS` (deduped by id), not `PLAYABLE_CARDS`.** `@mc/content`'s
+ * `PLAYABLE_CARDS` grew to include cycle 2 itself once the wave 3 content pass wired it in
+ * (`card-data-pipeline`, docs/phase7-wave3.md) — using it here would make every wave 3 card its own "earlier"
+ * match (`earlierCardIds.has(card.id)` is true for a card checking against a pool that already contains it),
+ * silently producing zero reprint pairs. `WAVE1_CARDS`/`WAVE2_CARDS` are the two *pre-cycle-2* sibling pools
+ * (both start from Core independently — `./cards.ts`'s own docblock), so their union is exactly "every card
+ * printed before cycle 2", matching wave 2's own `../wave2/reprints.ts` pattern (which uses `WAVE1_CARDS` alone
+ * for the same reason).
  *
  * **Matched by (name, type), then confirmed by ability shape — never assumed from the name alone.** A mismatched
  * pair (same name/type, different ability shape) is recorded in `WAVE3_REPRINT_PROBLEMS` (pinned by
@@ -14,7 +22,7 @@
  * A pack agent should never define an ability id for a card that reprints an earlier one: this module already
  * supplies it, and `mergeRegistries` throws "defined twice" if a pack module also defines it.
  */
-import { PLAYABLE_CARDS, type AbilityReference, type AnyCard } from "@mc/content";
+import { WAVE1_CARDS, WAVE2_CARDS, type AbilityReference, type AnyCard } from "@mc/content";
 import type { AbilityDefinition, AbilityRegistry } from "@mc/engine";
 import { WAVE1_ABILITIES } from "../wave1/index.js";
 import { WAVE2_ABILITIES } from "../wave2/index.js";
@@ -49,8 +57,15 @@ function abilityRefsOf(card: AnyCard): readonly AbilityReference[] {
 
 const reprintKey = (card: AnyCard): string => `${card.name} ${card.type}`;
 
-const earlierCardIds = new Set(PLAYABLE_CARDS.map((c) => c.id as string));
-const earlierByReprintKey = new Map<string, AnyCard>(PLAYABLE_CARDS.map((c) => [reprintKey(c), c]));
+/** Every card printed before cycle 2: `WAVE1_CARDS` ∪ `WAVE2_CARDS`, deduped by id (both already include Core). */
+const EARLIER_CARDS: readonly AnyCard[] = (() => {
+  const byId = new Map<string, AnyCard>();
+  for (const c of [...WAVE1_CARDS, ...WAVE2_CARDS]) byId.set(c.id as string, c);
+  return [...byId.values()];
+})();
+
+const earlierCardIds = new Set(EARLIER_CARDS.map((c) => c.id as string));
+const earlierByReprintKey = new Map<string, AnyCard>(EARLIER_CARDS.map((c) => [reprintKey(c), c]));
 
 /** Every (wave 3 card, matched earlier card) pair by (name, type), whether or not it ends up aliased. */
 export function wave3ReprintPairs(): ReadonlyArray<{ readonly wave3: AnyCard; readonly wave2: AnyCard }> {
