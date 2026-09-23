@@ -10,7 +10,7 @@
 import Phaser from "phaser";
 import { storyFor } from "../../campaign/story.js";
 import type { CampaignRecord } from "../../engine/campaign-storage.js";
-import { campaignService } from "../../session.js";
+import { appSession, campaignService } from "../../session.js";
 import { accent, ink, signal, surface, typeRole } from "../../tokens.js";
 import { campaignFrame, drawPicture, heroPicture, speechBubble, villainPicture } from "../../ui/campaign-chrome.js";
 import { destroyChildren } from "../../ui/destroy-children.js";
@@ -57,6 +57,7 @@ export class CampaignFinaleScene extends Phaser.Scene {
       return;
     }
     this.#record = record;
+    appSession().music?.playFinale(record.campaignId as string);
     const definition = service.definitionFor(record);
     this.#view = finaleViewOf(definition, record);
     this.#draw();

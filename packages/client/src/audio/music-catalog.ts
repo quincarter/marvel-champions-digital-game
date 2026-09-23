@@ -9,6 +9,7 @@
  *   music/scenarios/<scenarioId>/villain-loses.<ext>Game Over: villain loses (players win)
  *   music/campaigns/<campaignId>/battle.<ext>      Campaign battle fallback
  *   music/campaigns/<campaignId>/interlude.<ext>   Between campaign scenarios
+ *   music/campaigns/<campaignId>/finale.<ext>      The Finale screen, once the campaign is won
  *   music/packs/<packCode>/battle.<ext>            Pack battle fallback
  *   music/packs/<packCode>/villain-wins.<ext>      Game Over fallback for any loss in that pack
  *   music/packs/<packCode>/villain-loses.<ext>     Game Over fallback for any win in that pack
@@ -32,7 +33,7 @@ export interface Track {
 }
 
 const SCENARIO_SLOTS = ["villain-wins", "villain-loses", "battle"] as const;
-const CAMPAIGN_SLOTS = ["interlude", "battle"] as const;
+const CAMPAIGN_SLOTS = ["interlude", "battle", "finale"] as const;
 const PACK_SLOTS = ["battle", "villain-wins", "villain-loses"] as const;
 const OUTCOME_SLOTS = ["defeat", "victory"] as const;
 
@@ -98,7 +99,7 @@ export function parseMusicCatalog(files: Readonly<Record<string, string>>): Musi
         continue;
       }
       const campaignId = parts[1]!;
-      const entry = campaigns.get(campaignId) ?? { battle: [], interlude: [] };
+      const entry = campaigns.get(campaignId) ?? { battle: [], interlude: [], finale: [] };
       entry[slot].push(track);
       campaigns.set(campaignId, entry);
     } else if (parts[0] === "packs" && parts.length === 3) {
@@ -251,3 +252,15 @@ const files = {
 
 /** Everything in `music/`. */
 export const MUSIC_CATALOG: MusicCatalog = parseMusicCatalog(files);
+
+/**
+ * The campaign's Finale track (`campaigns/<campaignId>/finale`), or null when it has none — the Finale screen then
+ * keeps whatever was already playing.
+ */
+export function finaleTrackFor(
+  catalog: MusicCatalog,
+  campaignId: string,
+  random: () => number = Math.random,
+): Track | null {
+  return pickTrack(catalog.campaigns.get(campaignId)?.finale ?? [], null, random);
+}

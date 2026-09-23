@@ -16,6 +16,7 @@ folder is all it should take**. Formats: `mp3`, `ogg`, `m4a`.
 | `scenarios/<scenarioId>/` | `villain-loses.<ext>` | Game Over, when the players beat it                                                                              |
 | `campaigns/<campaignId>/` | `battle.<ext>`        | During any game of that campaign whose scenario has no `battle` track of its own                                 |
 | `campaigns/<campaignId>/` | `interlude.<ext>`     | Between a campaign's scenarios (campaign log, upgrades)                                                          |
+| `campaigns/<campaignId>/` | `finale.<ext>`        | The Finale screen, once the campaign is won (keeps the current track if the campaign has none)                   |
 | `packs/<packCode>/`       | `battle.<ext>`        | During any scenario from that pack with no scenario or campaign track                                            |
 | `packs/<packCode>/`       | `villain-wins.<ext>`  | Game Over, when the players lose or concede in any scenario of that pack with no `villain-wins` of its own       |
 | `packs/<packCode>/`       | `villain-loses.<ext>` | Game Over, when the players win any scenario of that pack with no `villain-loses` of its own                     |

@@ -4,6 +4,7 @@ import {
   MUSIC_CATALOG,
   battleTrackFor,
   interludeTrackFor,
+  finaleTrackFor,
   outcomeTrackFor,
   parseMusicCatalog,
   titleTrackFor,
@@ -22,6 +23,7 @@ const mockCatalog = parseMusicCatalog({
   "../../music/scenarios/rhino/nested/battle.mp3": "/nested.mp3",
   "../../music/campaigns/rohrs/battle.mp3": "/rohrs-b.mp3",
   "../../music/campaigns/rohrs/interlude.mp3": "/rohrs-int.mp3",
+  "../../music/campaigns/rohrs/finale.mp3": "/rohrs-fin.mp3",
   "../../music/campaigns/rohrs/typo-slot.mp3": "/rohrs-typo.mp3",
   "../../music/packs/core/battle.mp3": "/core-b.mp3",
   "../../music/packs/core/bad-slot.mp3": "/core-bad.mp3",
@@ -132,6 +134,13 @@ describe("outcomeTrackFor, pack fallback", () => {
   test("a scenario's own track still wins over its pack's, and other packs fall back to the default", () => {
     expect(outcomeTrackFor(mockCatalog, "rhino", "loss", first, "gmw")?.url).toBe("/rhino-w2.ogg");
     expect(outcomeTrackFor(mockCatalog, "klaw", "loss", first, "core")?.url).toBe("/defeat.mp3");
+  });
+});
+
+describe("finaleTrackFor", () => {
+  test("a campaign's finale track, or null so the Finale keeps what's playing", () => {
+    expect(finaleTrackFor(mockCatalog, "rohrs", first)?.url).toBe("/rohrs-fin.mp3");
+    expect(finaleTrackFor(mockCatalog, "gmw", first)).toBeNull();
   });
 });
 

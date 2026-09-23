@@ -16,7 +16,14 @@ import Phaser from "phaser";
 import type { Settings } from "../settings.js";
 import { appSession } from "../session.js";
 import { SCENES } from "../scenes/keys.js";
-import { MUSIC_CATALOG, battleTrackFor, outcomeTrackFor, titleTrackFor, type Track } from "./music-catalog.js";
+import {
+  MUSIC_CATALOG,
+  battleTrackFor,
+  outcomeTrackFor,
+  titleTrackFor,
+  type Track,
+  finaleTrackFor,
+} from "./music-catalog.js";
 
 /** Default BGM volume when unmuted (0.0 to 1.0). Sits cleanly under UI sound. */
 export const DEFAULT_MUSIC_VOLUME = 0.45;
@@ -32,6 +39,8 @@ export interface MusicController {
     readonly packCode?: string | undefined;
   }): void;
   playOutcome(scenarioId: string, result: "win" | "loss" | "conceded", packCode?: string): void;
+  /** The Finale screen: the campaign's `finale` track; keeps the current track when the campaign has none. */
+  playFinale(campaignId: string): void;
   syncSettings(settings: Settings): void;
   stop(fadeDurationMs?: number): void;
 }
@@ -41,7 +50,7 @@ export class MusicScene extends Phaser.Scene implements MusicController {
   #currentKey: string | null = null;
   #targetKey: string | null = null;
   #lastTitleKey: string | null = null;
-  #mode: "title" | "battle" | "outcome" | "stopped" = "stopped";
+  #mode: "title" | "battle" | "outcome" | "finale" | "stopped" = "stopped";
   #targetVolume = DEFAULT_MUSIC_VOLUME;
 
   constructor() {
@@ -92,6 +101,13 @@ export class MusicScene extends Phaser.Scene implements MusicController {
     } else {
       this.stop();
     }
+  }
+
+  playFinale(campaignId: string): void {
+    const track = finaleTrackFor(MUSIC_CATALOG, campaignId);
+    if (!track) return;
+    this.#mode = "finale";
+    this.#requestTrack(track);
   }
 
   syncSettings(settings: Settings): void {
