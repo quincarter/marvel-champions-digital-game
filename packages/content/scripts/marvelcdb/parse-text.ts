@@ -21,9 +21,11 @@
  *   suffix (`-2`) as a last resort.
  * - Keyword lines (`Guard.`, `Toughness.`), reminder text in parentheses,
  *   restrictions (`Max 1 per player.`), attachment rules (`Attach to a
- *   minion.`), a main scheme's `Contents:` paragraph and the final-stage
- *   reminder "If this stage is completed, the players lose the game." are data
- *   or rules reminders, not abilities.
+ *   minion.`), a main scheme's `Contents:` paragraph and the stage-completion
+ *   reminder "If this stage/scheme is completed, the players lose the game."
+ *   are data or rules reminders, not abilities: the reminder instead sets
+ *   `ParsedText.completionLoses` (docs/phase7-wave3.md §3.37,
+ *   `MainSchemeStage.completionLoses`), whether or not the stage is final.
  * - A leading `[star]` marker is a printed reminder icon, not part of the
  *   ability kind; it stays in the card text.
  */
@@ -109,6 +111,16 @@ export interface ParsedText {
   readonly nemesisMinion?: boolean;
   /** "<Villain>'s Side Scheme." (The Wrecking Crew's signature side schemes, docs/phase7-wave1.md §1.1). */
   readonly signatureOf?: string;
+  /**
+   * "If this stage/scheme is completed, the players lose the game." was printed somewhere in this main scheme
+   * stage's B-side text (docs/phase7-wave3.md §3.37, `MainSchemeStage.completionLoses`) — plain or the two-clause
+   * compound ("...or there are no Rescued Captive allies in play..."). The caller sets `completionLoses` on
+   * every stage this fires on, final or not: a final stage already loses by the engine's default rule, so the
+   * flag there just restates it, while a non-final stage needs it to lose instead of advancing. The plain
+   * sentence is a rules reminder, not an ability (stripped here, no ref); the compound sentence's other clause
+   * is real scripted behavior and stays in the card text/constant ability for `ability-scripting-engineer`.
+   */
+  readonly completionLoses?: boolean;
   readonly unclassified: string[];
 }
 
@@ -758,7 +770,17 @@ function parseRestriction(sentence: string, into: MutableRestrictions): { maxPer
   return undefined;
 }
 
-const STAGE_LOSS_REMINDER = /^If this stage is completed, the players lose the game\.?$/;
+// Both "stage" and "scheme" are printed across the corpus (mts 21138b, aoa 45062b, trors 04113b, … all print
+// "scheme"; most others print "stage") — docs/phase7-wave3.md §3.37.
+const STAGE_LOSS_REMINDER = /^If this (?:stage|scheme) is completed, the players lose the game\.?$/;
+// The two-clause compound: "if this stage/scheme is completed" joined by "or" to another loss condition, either
+// order — Extract Captives `aos` 50089b ("If this stage is completed or there are no Rescued Captive allies in
+// play, the players lose the game."), Mutant Massacre `next_evol` 40078b (same shape), and The Grand Collection
+// `gmw` 16073b ("If there are at least 5[per_hero] cards in The Collection or if this stage is completed, the
+// players lose the game." — the other clause leads). Only the "completed" half is the reminder; the other half
+// is real scripted behavior and is left in the card text (a `constant` ability ref).
+const STAGE_LOSS_COMPOUND_HALF = /\bif this (?:stage|scheme) is completed\b/i;
+const STAGE_LOSS_COMPOUND_TAIL = /the players lose the game\.?$/i;
 
 export function parseCardText(text: string, options: ParseOptions): ParsedText {
   const keywords: KeywordInstance[] = [];
@@ -770,6 +792,7 @@ export function parseCardText(text: string, options: ParseOptions): ParsedText {
   let maxPerDeckText: number | undefined;
   let nemesisMinion: boolean | undefined;
   let signatureOf: string | undefined;
+  let completionLoses: boolean | undefined;
 
   if (options.obligation) {
     const lines = text.split("\n");
@@ -892,7 +915,15 @@ export function parseCardText(text: string, options: ParseOptions): ParsedText {
         continue;
       }
       if (/^\(.*\)\.?$/.test(sentence)) continue; // reminder text
-      if (STAGE_LOSS_REMINDER.test(sentence)) continue;
+      if (STAGE_LOSS_REMINDER.test(sentence)) {
+        completionLoses = true;
+        continue;
+      }
+      if (STAGE_LOSS_COMPOUND_HALF.test(sentence) && STAGE_LOSS_COMPOUND_TAIL.test(sentence)) {
+        // The "completed" half is the reminder; the "or …" half is scripted behavior, so the sentence stays
+        // (falls through to the constant buffer below) instead of being stripped like the plain form.
+        completionLoses = true;
+      }
       const restriction = parseRestriction(sentence, restrictions);
       if (restriction) {
         flushConstant();
@@ -965,7 +996,9 @@ export function parseCardText(text: string, options: ParseOptions): ParsedText {
           }
         }
       }
-      // Final-stage loss reminder glued after an ability body is not part of the ability.
+      // The "If this stage/scheme is completed, the players lose the game." reminder always prints on its own
+      // line in the corpus (never glued onto a header's own line), so it's caught by the preamble sentence loop
+      // above on that following line, not here.
       abilities.push({
         kind,
         ...(form ? { form } : {}),
@@ -1002,6 +1035,7 @@ export function parseCardText(text: string, options: ParseOptions): ParsedText {
     ...(attachesToVillainNamed ? { attachesToVillainNamed } : {}),
     ...(nemesisMinion ? { nemesisMinion } : {}),
     ...(signatureOf ? { signatureOf } : {}),
+    ...(completionLoses ? { completionLoses } : {}),
     unclassified,
   };
 }

@@ -57,3 +57,73 @@ describe("parseRestriction: Max N per deck/player, no trailing period", () => {
     ]);
   });
 });
+
+/**
+ * docs/phase7-wave3.md §3.37, `MainSchemeStage.completionLoses`: "If this stage/scheme is completed, the players
+ * lose the game." is a rules reminder, not an ability — it must not become a bogus ability ref, and the caller
+ * (`normalize/main-schemes.ts`) needs `ParsedText.completionLoses` to set the flag whether or not the stage is
+ * the scenario's last. Before this fix the plain sentence was already stripped but not surfaced as a flag; the
+ * "scheme" wording (mts 21138b, aoa 45062b, trors 04113b/04129b, …) was not recognized at all; and the two-clause
+ * compound (Extract Captives `aos` 50089b, Mutant Massacre `next_evol` 40078b, The Grand Collection `gmw` 16073b)
+ * was left as an ordinary constant ability with no flag set.
+ */
+describe("stage-completion loss reminder: MainSchemeStage.completionLoses", () => {
+  it('"If this stage is completed, the players lose the game." is stripped and sets completionLoses (gmw 16082b)', () => {
+    const text =
+      "Forced Interrupt: When the last threat is removed from this scheme, advance to stage 2A (the players win by advancing).\nIf this stage is completed, the players lose the game.";
+    const parsed = parseCardText(text, { villainNames: new Set() });
+
+    expect(parsed.completionLoses).toBe(true);
+    expect(parsed.unclassified).toEqual([]);
+    expect(parsed.abilities).toEqual([
+      {
+        kind: "forced-interrupt",
+        text: "Forced Interrupt: When the last threat is removed from this scheme, advance to stage 2A (the players win by advancing).",
+      },
+    ]);
+  });
+
+  it('"If this scheme is completed, the players lose the game." (the "scheme" wording) is also recognized (mts 21138b)', () => {
+    const text =
+      "Forced Interrupt: When Hela would be defeated, if Odin is attached to this scheme, discard each attachment from Hela and flip her to her wounded side instead.\nIf this scheme is completed, the players lose the game.";
+    const parsed = parseCardText(text, { villainNames: new Set() });
+
+    expect(parsed.completionLoses).toBe(true);
+    expect(parsed.unclassified).toEqual([]);
+    expect(parsed.abilities).toHaveLength(1);
+    expect(parsed.abilities[0]?.kind).toBe("forced-interrupt");
+  });
+
+  it("a plain stage with no printed reminder leaves completionLoses unset (gmw 16061b)", () => {
+    const text =
+      '[star] Forced Response: After resolving step one of the villain phase, resolve the Badoon Ship\'s "Charge Up" ability.\nFirst Player Action: Exhaust the Milano → remove 3 threat from this scheme.';
+    const parsed = parseCardText(text, { villainNames: new Set() });
+
+    expect(parsed.completionLoses).toBeUndefined();
+  });
+
+  it('the two-clause compound sets completionLoses but keeps the other clause as a scriptable ability, "completed" leading (next_evol 40078b)', () => {
+    const text =
+      "Action: Exhaust a MORLOCK ally → shuffle Hide! from the encounter discard pile into the encounter deck.\nIf there are 3 villains under Routed, the players win the game.\nIf this stage is completed or there are no Morlock allies in play, the players lose the game.";
+    const parsed = parseCardText(text, { villainNames: new Set() });
+
+    expect(parsed.completionLoses).toBe(true);
+    expect(parsed.unclassified).toEqual([]);
+    expect(parsed.abilities.some((a) => a.kind === "constant" && a.text.includes("no Morlock allies in play"))).toBe(
+      true,
+    );
+  });
+
+  it('the two-clause compound also fires with the other clause leading, "completed" trailing (gmw 16073b)', () => {
+    const text =
+      "Hero Action: Choose to either exhaust your hero or spend 2 resources of any type → discard 1 card from The Collection (to its owner's discard pile). (Limit once per round per player.)\nIf there are at least 5[per_hero] cards in The Collection or if this stage is completed, the players lose the game.";
+    const parsed = parseCardText(text, { villainNames: new Set() });
+
+    expect(parsed.completionLoses).toBe(true);
+    expect(parsed.unclassified).toEqual([]);
+    const constant = parsed.abilities.find((a) => a.kind === "constant");
+    expect(constant?.text).toContain(
+      "If there are at least 5[per_hero] cards in The Collection or if this stage is completed",
+    );
+  });
+});

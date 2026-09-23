@@ -68,28 +68,19 @@ const KNOWN_SKIPPED: Readonly<Record<string, readonly string[]>> = {
     // schemes Cut the Power/Pincer Maneuver/Superior Tactics, the treacheries Single-Minded Fury/Kree Physiology/
     // "You Stand Accused!", and the Kree Militants modular set — `gmw/ronan.ts`) are scripted. A second primitives
     // pass closed 13 refs left as gaps by the first (docs/phase7-wave3.md §3.28–§3.38, docs/phase7-wave3-
-    // scripting.md §6d), including Groot's own 16006/16009/16024, now scripted in `gmw/groot-kit.ts`. Remaining
-    // genuine primitive gaps (module docblocks in `gmw/rocket-kit.ts`, `gmw/badoon.ts`, `gmw/museum.ts`,
-    // `gmw/ronan.ts`): 16032, 16033, 16052 (Rocket); 16020/16048 (the Team-Up card, a cross-player Team-Up
-    // targeting gap); 16060.when-revealed (Drang III, a player-level superlative); 16073b.the-grand-collection-
-    // action (an either/or `AbilityCost`); 16085a.this-way (a per-player `AbilityLimit`); 16085b's three refs
-    // (indirect damage "among players"); 16114.when-revealed (Single-Minded Fury, needs a `PlayerRef` for "whoever
-    // controls a named card"); 16131.kree-combat-armor-action (needs a "same type" resource cost). `gmw/nebula.ts`
-    // and `gmw/ronan.ts` otherwise have no genuine primitive gaps (module docblocks) — every other primitive they
-    // needed had already landed. The Galactic Artifacts/Badoon Headhunter modular sets are not yet reached (needed
-    // by Infiltrate the Museum/Escape the Museum and campaign mode respectively, not any remaining scenario).
+    // scripting.md §6d): 16006/16009/16024 (Groot, `gmw/groot-kit.ts`), 16032/16033/16052 (Rocket,
+    // `gmw/rocket-kit.ts`), 16060.when-revealed (Drang III, `gmw/badoon.ts`), 16073b.the-grand-collection-action
+    // (`gmw/museum.ts`), and 16085a.this-way plus 16085b's three refs (`gmw/escape-the-museum.ts`). Remaining
+    // genuine primitive gaps: 16020/16048 (Flora and Fauna, a cross-player Team-Up targeting gap, closed by
+    // `TargetQuery.titled`/`identitySetTitled` but not yet scripted); 16114.when-revealed (Single-Minded Fury,
+    // needs a `PlayerRef` for "whoever's identity a named card is attached to", module docblock in `gmw/ronan.ts`);
+    // 16131.kree-combat-armor-action (needs a "same type" resource cost, same docblock). `gmw/nebula.ts` and
+    // `gmw/ronan.ts` otherwise have no genuine primitive gaps — every other primitive they needed had already
+    // landed. The Galactic Artifacts/Badoon Headhunter modular sets are not yet reached (needed by Infiltrate the
+    // Museum/Escape the Museum and campaign mode respectively, not any remaining scenario).
     // Regenerated with `MC_REFS_PACKS=gmw pnpm refs` (docs/card-scripting-process.md) — never hand-typed.
     "16020.flora-and-fauna-action",
-    "16032.schadenfreude-action",
-    "16033.salvage-response",
     "16048.flora-and-fauna-action",
-    "16052.booster-boots-interrupt",
-    "16060.when-revealed",
-    "16073b.the-grand-collection-action",
-    "16085a.this-way",
-    "16085b.hold-on-to-your-butts",
-    "16085b.museum-ship-constant",
-    "16085b.museum-ship-constant-2",
     "16102.when-revealed-alter-ego",
     "16102.when-revealed-hero",
     "16114.when-revealed",

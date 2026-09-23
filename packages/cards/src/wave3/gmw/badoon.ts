@@ -4,16 +4,20 @@ import {
   adjustBoostCount,
   attacksGainKeywords,
   boost,
+  choosePlayer,
   chooseOne,
   chooseTarget,
   chosen,
+  chosenPlayer,
   constant,
   countersOn,
+  countOf,
   dealDamage,
   dealEncounterCard,
   dealIndirectDamage,
   defineAbilities,
   discard,
+  discardEncounterCards,
   eachPlayer,
   encounterCards,
   encounterSetAside,
@@ -34,8 +38,10 @@ import {
   not,
   on,
   option,
+  perHero,
   putIntoPlay,
   query,
+  refMatches,
   removeCountersFrom,
   removeThreat,
   resolveSpecials,
@@ -45,6 +51,7 @@ import {
   setup,
   special,
   spend,
+  superlativePlayer,
   thatPlayer,
   theVillain,
   valueAtLeast,
@@ -60,11 +67,12 @@ import {
  * Blockade/Bombardment/Oppressive Armada/Spatial Positioning (16066–16069), and the Band of Badoon modular set
  * (Badoon Assassin/Grunt/Lieutenant/Sentry/Warlord, 16117–16121).
  *
- * Genuine primitive gap (recorded in `KNOWN_SKIPPED`): **16060.when-revealed** ("Discard the top 4[per_hero] cards
- * of the encounter deck. Each time a minion is discarded this way, put it into play engaged with the player who is
- * engaged with the fewest minions.") needs a player-level superlative ("the player with the fewest of X") — the
- * DSL's `superlative` only ranks *cards* (`TargetRef among`), not players by a per-player count. No existing
- * primitive expresses "the player engaged with the fewest minions" as a `PlayerRef`.
+ * `16060.when-revealed` ("Discard the top 4[per_hero] cards of the encounter deck. Each time a minion is discarded
+ * this way, put it into play engaged with the player who is engaged with the fewest minions.") was recorded as a
+ * primitive gap — the DSL's `superlative` only ranked *cards*, not players by a per-player count. Closed by
+ * `PlayerRef superlative`/`choosePlayer.among` (docs/phase7-wave3.md §3.35). Re-ranked fresh for each discarded
+ * minion, since `forEachDiscarded` runs its effects once per card and each run resolves fully before the next
+ * starts; a tie goes to the first player among the tied ones (RRG 1.8 "First Player", p. 19).
  */
 
 const chargeUp = () => resolveSpecials(query("environment", { name: "Badoon Ship" }));
@@ -82,7 +90,23 @@ export const BADOON = defineAbilities({
   // Drang II — [star] Forced Response: After Drang schemes, resolve the Badoon Ship's "Charge Up" ability.
   "16059.drang-forced-response": forcedResponse(on.enemySchemes("self"), chargeUp()),
 
-  // Drang III — When Revealed: SKIPPED (module docblock) — needs a player-superlative primitive.
+  // Drang III — When Revealed: Discard the top 4[per_hero] cards of the encounter deck. Each time a minion is
+  // discarded this way, put it into play engaged with the player who is engaged with the fewest minions.
+  "16060.when-revealed": whenRevealed(
+    discardEncounterCards(perHero(4), {
+      forEachDiscarded: {
+        slot: "discarded",
+        effects: [
+          ifThen(refMatches(chosen("discarded"), query("minion"), { anywhere: true }), [
+            choosePlayer("fewest", firstPlayer, {
+              among: superlativePlayer("lowest", countOf(query("minion", { engagedWithPlayer: thatPlayer }))),
+            }),
+            putIntoPlay(chosen("discarded"), chosenPlayer("fewest")),
+          ]),
+        ],
+      },
+    }),
+  ),
   // Drang III — [star] Forced Response: After Drang activates, resolve the Badoon Ship's "Charge Up" ability.
   "16060.drang-forced-response": forcedResponse(on.enemySchemesOrAttacks("self"), chargeUp()),
 
