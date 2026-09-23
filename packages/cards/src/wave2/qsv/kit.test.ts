@@ -1,6 +1,7 @@
 import type { InstanceId } from "@mc/engine";
-import { characterProfile } from "@mc/engine";
+import { applyCommand, characterProfile, legalActions } from "@mc/engine";
 import {
+  endTurn,
   firstLegal,
   identityOf,
   inst,
@@ -8,6 +9,7 @@ import {
   moveToHand,
   P1,
   patchInstance,
+  play,
   payWith,
   playerOf,
   settle,
@@ -172,6 +174,34 @@ describe("Quicksilver kit", () => {
     expect(boosted.atk).toBe(before.atk + 2);
     expect(boosted.def).toBe(before.def + 2);
     expect(state.lastingEffects.length).toBeGreaterThan(0);
+  });
+
+  it("Maximum Velocity: 'Max 1 per phase.' rejects a second copy this phase but allows one in a later phase (14005.maximum-velocity-action)", () => {
+    const hero = runWave2(qsvVsRhino(), toHero());
+    const given = moveToHand(hero, P1, "14005", "14005");
+    const [first, second] = given.ids as [InstanceId, InstanceId];
+
+    const firstPayment = payWith(given.state, P1, 2, [first, second]);
+    const afterFirst = settle(runWave2(given.state, play(P1, first, firstPayment)), firstLegal, undefined, WAVE2_DEPS);
+    expect(playerOf(afterFirst, P1).discard).toContain(first);
+
+    // A second copy in the same phase is rejected outright...
+    const secondPayment = payWith(afterFirst, P1, 2, [second]);
+    const rejected = applyCommand(afterFirst, play(P1, second, secondPayment), WAVE2_DEPS);
+    expect(rejected.ok ? undefined : rejected.error.code).toBe("limit_reached");
+
+    // ...and legalActions greys it out rather than letting the player click into that error.
+    const actions = legalActions(afterFirst, P1, WAVE2_DEPS);
+    if (actions.kind !== "turn") throw new Error(`expected a turn, got ${actions.kind}`);
+    expect(actions.legal.some((a) => a.action.kind === "playCard" && a.action.instanceId === second)).toBe(false);
+    const illegal = actions.illegal.find((a) => a.action.kind === "playCard" && a.action.instanceId === second);
+    expect(illegal?.reason).toBe("limit_reached");
+
+    // A fresh player phase (next round) resets the count, so the same copy can now be played.
+    const nextRound = settle(runWave2(afterFirst, endTurn()), firstLegal, undefined, WAVE2_DEPS);
+    const laterPayment = payWith(nextRound, P1, 2, [second]);
+    const playedLater = applyCommand(nextRound, play(P1, second, laterPayment), WAVE2_DEPS);
+    expect(playedLater.ok).toBe(true);
   });
 
   it("Speed Cyclone: paying X = 2 stuns 2 enemies", () => {

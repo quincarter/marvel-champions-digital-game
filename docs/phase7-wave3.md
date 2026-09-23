@@ -530,6 +530,126 @@ Each of these looked like a gap in the survey and is not:
 | "Discard 1 card at random from your hand. If that card's printed resource has [physical] …"             | Adam Warlock (`stld`)                                         | docs/phase7-wave2.md §3.13.6                                                                                                                                                   |
 | "Deal yourself 1 facedown encounter card →" as a cost                                                   | Star-Lord, Daring Escape, Library Labyrinth, Universal Weapon | the effect before the arrow; the ability's cost is otherwise free — **unproven as a cost**; the scripter should confirm the "→" split holds when the effect is a deal          |
 
+### 3.27–3.36 The ten skipped `gmw` refs (second primitives pass, 2026-09-22)
+
+The scripting pass left ten `gmw` refs in `KNOWN_SKIPPED` as primitive gaps (docs/phase7-wave3-scripting.md §5, §6a and §7). Each was checked against the engine first. Four already composed and needed at most a DSL builder or one timing fix (§3.28–§3.31); the other six needed new vocabulary (§3.32–§3.36). §3.27 is left unused: §2.3 already points at it for the Kree Fanatic's "activates against the player he is engaged with", which §3.26's table covers.
+
+### 3.28 "After [character] uses a basic power" (Lashing Vines)
+
+> **Status: composes; one engine timing fix landed (2026-09-22),** tested in `packages/engine/src/gmw-compositions.test.ts`.
+
+Lashing Vines (16009): "Hero Response: After Groot uses a basic power, remove 2 growth counters from him and exhaust Lashing Vines → ready Groot."
+
+- **Already there:** `TriggerEvent basicPowerUsed { characterInstanceId, power }` (docs/phase7-wave2.md §3.11) is announced for all four basic powers: a basic attack and thwart once they resolve, a basic defense when the defender is declared (`enemy-activation.ts`), a basic recovery. RRG 1.8 "Basic Power" (p. 10) lists attack, thwart, defense and recovery as basic powers, so a defense counts. The scripter's gap note read `on.defends` and `on.attacks`, but `on.basicPowerUsed` covers all of them with the character as the target.
+- **Recovery never reaches Lashing Vines.** It is an alter-ego power, and the card is a Hero Response, so the form gate refuses it. That matches the printed card.
+- **Fixed: a defense's "after" window now waits for the attack to end.** RRG 1.8 "Defend, Defense" (p. 16): "Abilities that trigger after a character defends an attack resolve after that attack ends." `defended` already deferred its response window to the activation's end. `basicPowerUsed` with `power: "defense"` opened its window as soon as the defender was declared, before boosts and damage. It now defers the same way (`defersResponsesToActivation`, `resolve/event.ts`). That also corrects Super Speed (`qsv` 14001a) and Captain Marvel ally (04032) on a defense. No existing test changed.
+
+**Composition:** `heroResponse(on.basicPowerUsed(YOUR_IDENTITY), { cost: [removeCounter("growth", 2, { fromIdentity: true }), exhaustThis] }, ready(yourIdentity))`.
+
+### 3.29 "The next superpower card you play this turn" (Deft Focus)
+
+> **Status: composes, no change (2026-09-22),** tested in `packages/engine/src/gmw-compositions.test.ts` (and `turn-duration.test.ts`).
+
+Deft Focus (16024): "Hero Action: Exhaust Deft Focus → reduce the resource cost of the next superpower card you play this turn by 1."
+
+`EffectSpec reduceNextCardCost` already has `duration: "turn"` (docs/phase7-wave2.md §13, written for this card's `magneto` reprint 49023) and a `cardFilter`. `costReductionFor` applies it only while pricing a matching card, and `consumeCostReductions` ends it on the first matching card played. A non-matching card neither uses it nor consumes it. It expires unused when the turn ends. This is a different mechanism from §3.20: Star-Lord's reduction is chosen while the card is being played, while this one is set up earlier by a separate ability.
+
+**Composition:** `heroAction({ cost: exhaustThis }, reduceNextCardCost(you, 1, "turn", { trait: SUPERPOWER }))`. "A superpower card" is any card type with the trait, so the filter has no `categories`.
+
+### 3.30 "Each time you deal any amount of damage to an enemy" (Schadenfreude)
+
+> **Status: composes over §3.17; DSL builders added (2026-09-22),** tested in `packages/engine/src/gmw-compositions.test.ts`.
+
+Schadenfreude (16032): "Hero Action: Until the end of the turn, heal 2 damage from Rocket Raccoon each time you deal any amount of damage to an enemy." §3.17 was built for this card, and its test used this card's shape. The scripter's note ("`applyRuleUntil` only carries a `RuleSpec`") missed `EffectSpec eachTimeUntil` because no DSL builder existed. Two builders now exist:
+
+- **`eachTimeUntil(until, on, ...effects)`** (`dsl/effects.ts`).
+- **`on.youDealDamage(to)`** (`dsl/abilities.ts`). It encodes two rules:
+  - **Who "you" is.** RRG 1.8 "You, Your" (p. 49; ruling Dec 17, 2025 (3)): "you" is your identity where able. Events you play, resources you spend and upgrades you control are "an extension of a player's identity". Allies and supports are "not considered to be performed by that player's identity". So the source must be one of your identity, event, resource or upgrade cards. An ally's attack and a support's damage do not heal (tested). **Known gap:** an upgrade attached to a _different_ friendly character is not an extension either, and the query still counts it. No printed card needs that case.
+  - **"Deal" means damage dealt.** RRG 1.8 "Prevent" (p. 35): prevention reduces what the target takes, "but the amount of damage 'dealt' is not reduced". So the pattern reads the event's own amount (`eventAtLeast: { amount: 1 }`), not the `amount` result (damage taken). A hit fully absorbed by the villain's tough status still heals (tested).
+
+**Composition:** `heroAction(eachTimeUntil("endOfTurn", on.youDealDamage(query("enemy")), heal(2, yourIdentity)))`.
+
+### 3.31 "After you spend this card" (Salvage)
+
+> **Status: composes, no change (2026-09-22),** tested in `packages/engine/src/gmw-compositions.test.ts`.
+
+Salvage (16033): "Response: After you spend this card, put a tech upgrade from your discard pile on top of your deck." The scripter's note said no such `TriggerEvent` existed. `resourcesSpent` has been there since docs/phase7-wave2.md §12, with the DSL `on.youSpendThis()`. The rules questions it raises are already settled:
+
+- **When it fires.** After every cost is paid (step 5 of RRG 1.8 "Initiating Abilities", p. 24) and before the paid-for card starts being played (step 6). RRG 1.8 "Cost Arrow Icon" (p. 14): "Responses to the text preceding the cost arrow icon resolve before the text following the icon resolves". Ruling, Feb 28, 2026 (1): "Any abilities triggered by paying a cost resolve immediately before the effect following the arrow resolves." The test pins this with a draw event: Salvage puts the Tech upgrade on top, then the event paid for with Salvage draws it.
+- **Where the spent card is.** Already in its owner's discard pile, since every cost is paid at once (RRG 1.8 "Cost", p. 13). Its ability on this event is still live, because RRG 1.8 "Resource Card" (p. 37) says "Some resource cards have card text that is active while using the card to generate resources". `spentCardCandidates` (`resolve/triggers.ts`) handles that. Salvage is not an upgrade, so it cannot pick itself.
+
+**Composition:** `response(on.youSpendThis(), chooseCards("tech", zone("discard", you, { filter: query("upgrade", { trait: TECH }) }), { min: 1, max: 1 }), moveCards(cards(chosen("tech")), "deckTop"))`. The engine test writes the same thing as plain data.
+
+### 3.34 Naming a Team-Up card's characters: `TargetQuery.titled` and `identitySetTitled`
+
+> **Status: landed (2026-09-22),** tested in `packages/engine/src/team-up-names.test.ts` (7 tests: a pair whose names are on both faces, an alter-ego pair, a "Hero/Alter-ego" pair, an ally named by subtitle, deckbuilding, replay deep-equal). DSL tests: `packages/cards/src/dsl/wave3-primitives.test.ts`.
+
+Flora and Fauna (16020, 16048): "Team-Up (Groot and Rocket Raccoon). … Hero Action: Place 2 growth counters on Groot (to a maximum of 10) and ready him, or place 2 charge counters on a Rocket Raccoon upgrade and ready that upgrade." A Team-Up card can be in either player's hand, so "Groot" and "a Rocket Raccoon upgrade" cannot be `yourIdentity` or `identitySetOf: you`. Team-Up is on 30 printed cards across 25 packs, so the vocabulary is general. None of the wave 2 Team-Up scripts (Order and Chaos 14018/15018, Swarm Tactics 12020/13020) names a character in its effect, so there was no earlier shape to extend.
+
+**How the printed cards refer to their two characters:**
+
+- each named identity: "Ready Cyclops and Phoenix";
+- each of them, with an amount: "Heal 3 damage each from Gwen Stacy and Miles Morales", "Give Captain America and Winter Soldier each a tough status card";
+- one of them: "Place 2 growth counters on Groot";
+- cards belonging to one of them: "a Rocket Raccoon upgrade", "a Cyclops card from your discard pile";
+- a value summed over both: "the total ATK of Colossus and Wolverine".
+
+The names are hero titles, alter-ego titles ("Cindy Moon and Peter Parker", "Gwen Stacy and Miles Morales"), or "Hero/Alter-ego" when two identities share a hero title ("Black Panther/T'Challa and Black Panther/Shuri").
+
+**The rules:**
+
+- RRG 1.8 "Team-Up" (p. 43) spells the keyword out as a constant: "…a friendly character in play whose title or subtitle matches name 1 and a friendly character in play whose title or subtitle matches name 2."
+- RRG 1.8 "Identity" (p. 23): "If a card refers to a hero or alter-ego by title, it refers only to the identity with that title, and not to the other side of the card."
+- RRG 1.8 "Identity-Specific Card" (p. 23): a card that belongs to "an identity's set of accompanying cards", marked by its set icon.
+
+**What landed:**
+
+- **`CharacterNames`**: `{ names }` spells the names out. `{ teamUpOf: TargetRef, index?: 0 | 1 }` reads them from the Team-Up keyword on the card(s) the ref names, usually `self`. `index` picks one of the two names. So a script never repeats names its card data already carries.
+- **`TargetQuery.titled: CharacterNames`**: the character is named by one of the names. An identity matches by the title on its faceup side only (p. 23). Any other character matches by its title or its subtitle (p. 43; "Subtitle", p. 41). It matches whoever controls the character. The DSL adds `categories: ["identity", "ally"]` for "friendly".
+- **`TargetQuery.identitySetTitled: CharacterNames`**: "a <name> card". The card's set icon (`aspect: "hero:<identity id>"`) names an identity card that matches the name by any of its titles, whoever controls the card. That is the principled meaning of "a Rocket Raccoon upgrade": an upgrade from Rocket Raccoon's identity-specific set. It is not "an upgrade Rocket's player controls": Flora and Fauna can be played by Groot's player on an upgrade the other player controls, and the test does exactly that.
+- **`titles.ts`**: `characterTitledAs` and `identityCardTitledAs` are the one reading of a name. The Team-Up play check (`teamUpFault`) and the deckbuilding check (`validateDeck`) now use them too.
+- **Fixed on the way:** both of those checks compared names to titles as plain strings. That refused Heart of the Panther (`bp` 51025, "Black Panther/T'Challa and Black Panther/Shuri") everywhere, because no single title contains a slash. A "Hero/Alter-ego" name now matches the identity whose hero face is the first half and whose alter-ego face is the second, whichever side is up. This is a reading (§4 Q13).
+
+**DSL** (`dsl/values.ts`):
+
+- `teamUpCharacter(index?)` is the query.
+- `teamUpCharacters(index?)` is the same thing as an `each` ref.
+- `ofTeamUpSet(index?)` is a query fragment: `query("upgrade", ofTeamUpSet(1))`.
+- `titled(...names)` and `ofIdentitySetTitled(...names)` are the written-out forms.
+
+**Flora and Fauna composition** (both 16020 and 16048):
+
+```ts
+heroAction(
+  chooseOne(
+    option(
+      "Place 2 growth counters on Groot and ready him",
+      addCounters("growth", 2, teamUpCharacters(0), { upTo: 10 }),
+      ready(teamUpCharacters(0)),
+    ),
+    option(
+      "Place 2 charge counters on a Rocket Raccoon upgrade and ready it",
+      { when: exists(query("upgrade", ofTeamUpSet(1))) },
+      chooseTarget("upgrade", query("upgrade", ofTeamUpSet(1))),
+      addCounters("charge", 2, chosen("upgrade")),
+      ready(chosen("upgrade")),
+    ),
+  ),
+);
+```
+
+The option's `when` is RRG 1.8 "Choose (Option)" (p. 12): a player cannot choose an option "that cannot be at least partially resolved".
+
+**Other Team-Up cards** (not scripted this wave; each is checked by `wave3-primitives.test.ts`):
+
+| Card                                | Composition                                                                                                                                         |
+| ----------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Beauty and the Thief (37019, 38020) | `heroAction({ label: ["attack", "thwart"] }, attackAnEnemy(4), thwartAScheme(4))`. It names nobody in its effect; the keyword alone gates the play. |
+| Fastball Special (35023)            | `attack(sum(statOf(teamUpCharacters(0), "atk"), statOf(teamUpCharacters(1), "atk")), chosen("enemy"), { keywords: ["overkill", "piercing"] })`      |
+| Young Love (27019, 27050)           | `alterEgoAction(heal(3, teamUpCharacters()))`. Alter-ego titles match only while that side is up.                                                   |
+| Psychic Rapport (33023, 34023)      | `ready(teamUpCharacters())`, then `chooseCards("card", zone("discard", you, { filter: ofTeamUpSet(0) }), …)` for "a Cyclops card"                   |
+| Super-Soldiers (54022)              | `giveTough(teamUpCharacters())`                                                                                                                     |
+
 ---
 
 ## 4. Open questions (for the user or FFG)
@@ -543,11 +663,12 @@ Each is implemented the way stated, or not at all, and named here rather than de
 5. **Patrol and target validity (§3.5).** RRG 1.8 "Initiating Abilities" (p. 24) step 2 requires a valid target. Should a "(thwart)" ability whose only possible target is the main scheme be unplayable while patrolled? The engine lets it be played and blocks the removal, as it already does for crisis.
 6. **When is Star-Lord's "When you play a card from your hand" true (§3.20)?** RRG 1.8 step 6 says the card "commences being played" after the cost is paid (step 5), yet the ability reduces "the cost to play that card by 3". The printed card works only if the reduction applies at step 4. Proposed: treat it as a cost modifier offered while paying, like a resource ability.
 7. **The Collector's back faces print ATK/SCH 0/0 (standard) in the raw data. Answered (`card-data-pipeline`, 2026-09-22): printed "0"/"0" (standard) and "2"/"2" (expert), not "—"/"—", confirmed against the printed card images.** `marvelcdb.com/bundles/cards/16080b.png` and `16081b.png` were fetched and viewed directly this pass (not stored in the repo — CLAUDE.md's art boundary): both print solid numeral stat badges — "0" SCH / "0" ATK on the standard back face (16080b, "A2"), "2" SCH / "2" ATK on the expert back face (16081b, "B2") — not the dashed "—" box RRG 1.8 "Dash (Value)" (p. 15) uses elsewhere (compare Risky Business's Norman Osborn/Green Goblin, which do print a dash). So the Wounded Collector can attack and scheme (0 or 2, never blocked from using the power the way a dash would), not "—". Both faces also print "HIT POINTS ∞" in the footer, independently confirming `infiniteHp` against the card itself.
-8. **Venom's set-aside Symbiotes.** Struggle for Control (20023): "Put 1 set-aside copy of Enraged Symbiote into play". How many copies start set aside, rather than in the nemesis set, is in the Venom insert, which is not in the repo.
+8. **Venom's set-aside Symbiotes. Answered (`ability-scripting-engineer`, 2026-09-22): all 4 printed copies, and this is already the engine's own general rule, not a Venom-specific setup step.** `packages/engine/src/setup.ts` (`config.includeIdentitySets !== false`): only a hero's own obligation is shuffled into the encounter deck during setup (RRG 1.8 "Obligation", p. 30, step 10); every _other_ nemesis-set card (a nemesis minion, a nemesis side scheme, for _any_ hero) is instead pushed onto that player's own `PlayerState.setAside` and stays there — nothing shuffles it into the encounter deck automatically. So Klyntar Frenzy and all 4 Enraged Symbiote copies (`quantityInSet: 4`) start set aside by the same mechanism `stld`'s own Spartoi Cunning nemesis-set testing already relied on, not a bespoke Venom rule to build. Corroborated by two secondary sources (not authoritative alone, but consistent with the engine's own rule and each other): the Venom insert's own FAQ (`hallofheroeslcg.com/wp-content/uploads/2021/07/venominsert.jpg`, fetched 2026-09-22) — "Because each copy of Enraged Symbiote is considered to be Venom's nemesis minion, Venom will put all set-aside copies of Enraged Symbiote into play" — and an official FFG ruling (Hall of Heroes "Latest FFG Rulings (post-RRG 1.5)", May 18, 2023, Alex): "If you reveal Shadow of the Past while playing the Venom hero and you can't put all **4** copies of his nemesis minion into play (like if you had already put one into play earlier from his obligation) … you simply put as many as you can that are currently set aside." Full citations in `packages/cards/src/wave3/vnm/venom-obligation-nemesis.ts`'s own module docblock.
 9. **A reduction and a cap on the same character (§3.15).** Wide Stance and Cutthroat Ambition can both be on Nebula. Implemented as reductions first, then the cap: 10 damage → 9 → 5 taken. The other order gives 10 → 5 → 4. The two agree whenever the damage is at most the cap (5 → 4 either way) and differ above it. RRG 1.8 has no rule for ordering two constants.
 10. **Follow Through is modeled as a constant (§3.18).** Printed as an optional Hero Interrupt, it always applies here. Declining it is never better for its controller in cycle 2; if a later card punishes excess damage, it becomes a real choice and needs an interrupt window on excess damage.
 11. **"If you control the Power Stone" (§3.19).** Read as "if the Power Stone is attached to your identity": encounter cards are controlled by the scenario (RRG 1.8 p. 31), and MC16 p. 15 phrases the same condition as "attached to an identity". The FAQ (p. 62) says "an identity who controls the Power Stone", which fits either reading.
 12. **Moondragon: is "that minion attacks another enemy" an activation (§3.23)?** RRG 1.8 "Activation" (p. 6): "Whenever an enemy attacks or schemes, it is considered to have activated." If it is, a villainous minion takes a boost card and "when this minion activates/attacks" abilities fire, and the target (an enemy) has no controller to defend it or assign damage. The rulings file and the FAQ are silent. Proposed: an attack but not an activation against a player — no boost card, no defense, the damage dealt to the chosen enemy as attack damage, retaliate applying to the minion.
+13. **A Team-Up name written "Hero/Alter-ego" (§3.34).** Heart of the Panther (`bp` 51025) prints "Team-Up (Black Panther/T'Challa and Black Panther/Shuri)". RRG 1.8 "Team-Up" (p. 43) matches a name against a character's "title or subtitle", and no title contains a slash. Implemented as naming one identity card by both sides: its hero face is the first half, its alter-ego face is the second, and it matches whichever side is up. Before this, the play check and the deckbuilding check both refused the card outright. A strict reading of p. 23 would instead require the hero side ("Black Panther") to be up. That makes no difference for the deck check, and for the play check only while one Black Panther is in alter-ego form.
 
 ## 5. What this asks of the other agents
 

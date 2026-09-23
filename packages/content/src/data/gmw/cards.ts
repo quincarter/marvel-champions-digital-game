@@ -490,10 +490,7 @@ export const GMW_CARDS: readonly AnyCard[] = [
       printed: "Team-Up (Groot and Rocket Raccoon).\nMax 1 per deck\nHero Action: Place 2 growth counters on Groot (to a maximum of 10) and ready him, or place 2 charge counters on a Rocket Raccoon upgrade and ready that upgrade.",
       current: "Team-Up (Groot and Rocket Raccoon).\nMax 1 per deck\nHero Action: Place 2 growth counters on Groot (to a maximum of 10) and ready him, or place 2 charge counters on a Rocket Raccoon upgrade and ready that upgrade.",
     },
-    abilities: [
-      { id: abilityId("16020.flora-and-fauna-constant") },
-      { id: abilityId("16020.flora-and-fauna-action") },
-    ],
+    abilities: [{ id: abilityId("16020.flora-and-fauna-action") }],
   },
   {
     id: cardId("16021"),
@@ -1148,10 +1145,7 @@ export const GMW_CARDS: readonly AnyCard[] = [
       printed: "Team-Up (Groot and Rocket Raccoon).\nMax 1 per deck\nHero Action: Place 2 growth counters on Groot (to a maximum of 10) and ready him, or place 2 charge counters on a Rocket Raccoon upgrade and ready that upgrade.",
       current: "Team-Up (Groot and Rocket Raccoon).\nMax 1 per deck\nHero Action: Place 2 growth counters on Groot (to a maximum of 10) and ready him, or place 2 charge counters on a Rocket Raccoon upgrade and ready that upgrade.",
     },
-    abilities: [
-      { id: abilityId("16048.flora-and-fauna-constant") },
-      { id: abilityId("16048.flora-and-fauna-action") },
-    ],
+    abilities: [{ id: abilityId("16048.flora-and-fauna-action") }],
   },
   {
     id: cardId("16049"),

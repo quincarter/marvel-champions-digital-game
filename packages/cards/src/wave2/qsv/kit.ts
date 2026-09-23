@@ -79,17 +79,10 @@ import { cardName } from "../names.js";
  * ready, announces nothing). The Resource half of the same card (`14009.friction-resistance-resource`) needed
  * nothing new and was already scripted.
  *
- * **Data gap, not an engine gap:**
- * - `14005.maximum-velocity-constant` — "Max 1 per phase." is `playRestrictions.maxPerPhase` (`packages/engine/
- *   src/actions.ts`, "the same rule with the phase as the period", citing Maximum Velocity by name), but `@mc/
- *   content`'s own 14005 record carries no `playRestrictions` at all — the ingestion parser has no rule that turns
- *   "Max 1 per phase." printed text into that field the way it does for "Max 1 per player"/"Max 1 per deck"
- *   (`deckLimit`). Flagged for `card-data-pipeline`; until fixed, Maximum Velocity can be played more than once
- *   per phase in a real game — a documented inaccuracy, not scripted around here, since there is no ability-level
- *   equivalent of a card-level `playRestrictions` flag. Stood up as `coveredByEngineRule()`, not skipped: the
- *   restriction *is* engine-enforced, data permitting, so this ref genuinely has no script of its own to write —
- *   the same shape Size Increase's own "Uses" reminder ref uses (`ant/obligation-nemesis.ts`). `14005.maximum-
- *   velocity-action` (the +2/+2/+2 effect itself) is unaffected and scripted normally.
+ * **Maximum Velocity's "Max 1 per phase."** is `playRestrictions.maxPerPhase` on the 14005 record
+ * (`@mc/content`), engine-enforced in `packages/engine/src/actions.ts` — data only, no ability ref of its own
+ * (the maxperphase-fix pass taught the ingestion parser this sentence, matching "Max 1 per player"/"Max 1 per
+ * round"). `14005.maximum-velocity-action` (the +2/+2/+2 effect itself) is scripted normally below.
  */
 export const QSV_KIT = defineAbilities({
   // Super Speed — Response: After you use one of Quicksilver's basic powers (THW, ATK, or DEF), ready him. (Limit
@@ -140,9 +133,8 @@ export const QSV_KIT = defineAbilities({
   "14004.double-time-constant": coveredByEngineRule(),
   "14004.double-time-constant-2": coveredByEngineRule(),
 
-  // Maximum Velocity — Max 1 per phase (data gap — module docblock). Hero Action: you get +2 THW, +2 ATK, and
-  // +2 DEF until the end of the round.
-  "14005.maximum-velocity-constant": coveredByEngineRule(),
+  // Maximum Velocity — Max 1 per phase (data: `playRestrictions.maxPerPhase`, engine-enforced). Hero Action: you
+  // get +2 THW, +2 ATK, and +2 DEF until the end of the round.
   "14005.maximum-velocity-action": heroAction(
     modifyStat("thw", 2, yourIdentity, "endOfRound"),
     modifyStat("atk", 2, yourIdentity, "endOfRound"),

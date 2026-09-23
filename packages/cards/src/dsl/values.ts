@@ -1,5 +1,6 @@
 import { trait, type Trait } from "@mc/content";
 import type {
+  CharacterNames,
   Form,
   PlayerRef,
   Predicate,
@@ -139,6 +140,47 @@ export const FRIENDLY_CHARACTER: TargetQuery = query(["identity", "ally"]);
 export const YOUR_HERO: TargetQuery = query("hero", { controller: "you" });
 /** "You" as a card: your identity in either form. */
 export const YOUR_IDENTITY: TargetQuery = query("identity", { controller: "you" });
+
+// ---------------------------------------------------------------------------
+// Characters named by title — Team-Up cards (docs/phase7-wave3.md §3.34)
+// ---------------------------------------------------------------------------
+
+/**
+ * The names a Team-Up card's own keyword prints ("Team-Up (Groot and Rocket Raccoon)"), read from the card data so a
+ * script never repeats them: `index` 0 or 1 is one of the two, absent is both.
+ */
+const teamUpNames = (index?: 0 | 1): CharacterNames => ({
+  teamUpOf: self,
+  ...(index === undefined ? {} : { index }),
+});
+/**
+ * "Groot" / "Cyclops and Phoenix" on a Team-Up card, as a query: the friendly character (identity or ally, whoever
+ * controls it) showing that title — an identity by its faceup side only (RRG 1.8 "Identity", p. 23), an ally by its
+ * title or subtitle (RRG 1.8 "Team-Up", p. 43). `index` picks name 0 or 1 of the keyword; absent matches either.
+ */
+export const teamUpCharacter = (index?: 0 | 1): TargetQuery =>
+  query(["identity", "ally"], { titled: teamUpNames(index) });
+/**
+ * "Ready Cyclops and Phoenix" / "place 2 growth counters on Groot" / "Heal 3 damage each from Gwen Stacy and Miles
+ * Morales": every friendly character the Team-Up card names (`index`: just one of them), as a ref.
+ * "X is the total ATK of Colossus and Wolverine" is `sum(statOf(teamUpCharacters(0), "atk"), statOf(
+ * teamUpCharacters(1), "atk"))`.
+ */
+export const teamUpCharacters = (index?: 0 | 1): TargetRef => each(teamUpCharacter(index));
+/**
+ * "A Rocket Raccoon upgrade" / "a Cyclops card": a card of the identity-specific set of the identity the Team-Up card
+ * names, whoever controls it (RRG 1.8 "Identity-Specific Card", p. 23). A query fragment: `query("upgrade",
+ * ofTeamUpSet(1))`, `ofTeamUpSet(0)` over a `zone("discard", you, …)` for "a Cyclops card from your discard pile".
+ */
+export const ofTeamUpSet = (index?: 0 | 1): Pick<TargetQuery, "identitySetTitled"> => ({
+  identitySetTitled: teamUpNames(index),
+});
+/** A character named by a title written out, for a card that names one without the Team-Up keyword. */
+export const titled = (...names: readonly string[]): TargetQuery => query(["identity", "ally"], { titled: { names } });
+/** `ofTeamUpSet`'s written-out form: "a <name> card" by identity title. */
+export const ofIdentitySetTitled = (...names: readonly string[]): Pick<TargetQuery, "identitySetTitled"> => ({
+  identitySetTitled: { names },
+});
 
 // ---------------------------------------------------------------------------
 // Traits used by Core cards (the content schema upper-cases traits)
@@ -303,6 +345,13 @@ export const allOf = (...of: Predicate[]): Predicate => ({ kind: "and", of });
 export const anyOf = (...of: Predicate[]): Predicate => ({ kind: "or", of });
 /** "If you paid for this card using a [X] resource". */
 export const paidWith = (resource: TypedResource): Predicate => ({ kind: "paidWith", resource });
+/**
+ * "If you paid for this card using only [X] resources" (Behind Enemy Lines, Grasping Tendrils, Savage Attack,
+ * `vnm`; docs/phase7-wave3.md §3.26): something was paid, and every resource paid was that type or a wild
+ * declared as it. FAQ "Unstoppable Force (#6)" (RRG 1.8 p. 60): at a cost of 0 it fails. The engine `Predicate`
+ * already existed (`play-restrictions.test.ts`'s own SMASH_ACTION); this is its first DSL wrapper.
+ */
+export const paidWithOnly = (resource: TypedResource): Predicate => ({ kind: "paidWithOnly", resource });
 export const varAtLeast = (name: string, n = 1): Predicate => ({ kind: "varAtLeast", name, amount: n });
 /** An event-producing effect with `bind` happened ("if no attacks were made this way" = `not(made(b))`). */
 export const made = (bind: string): Predicate => varAtLeast(`${bind}.made`, 1);

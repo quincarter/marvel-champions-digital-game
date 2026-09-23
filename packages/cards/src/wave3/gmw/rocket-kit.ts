@@ -60,7 +60,7 @@ const ROCKET = yourIdentity;
  * - `16033.salvage-response` ("Response: After you spend this card, …") needs a trigger event for a card being
  *   spent as a resource payment — no such `TriggerEvent` kind exists; `cardBeingPlayed`/`cardPlayed` are about the
  *   card *being played*, not a different card being spent to pay for one.
- * - `16048.flora-and-fauna-constant`/`-action` (Rocket's own copy of the Team-Up card, printed identically at
+ * - `16048.flora-and-fauna-action` (Rocket's own copy of the Team-Up card, printed identically at
  *   16020 in Groot's own card range) — "place 2 charge counters on **a Rocket Raccoon upgrade**" needs a
  *   `TargetQuery` field for "an upgrade belonging to a specific named character's card pool, independent of who
  *   controls it" (a Team-Up card can be played across two different players' hands). `TargetQuery.identitySetOf`

@@ -17,6 +17,7 @@ import { DRAX_ABILITIES } from "./drax/index.js";
 import { GAM_ABILITIES } from "./gam/index.js";
 import { GMW_ABILITIES } from "./gmw/index.js";
 import { STLD_ABILITIES } from "./stld/index.js";
+import { VNM_ABILITIES } from "./vnm/index.js";
 import { WAVE3_REPRINT_ABILITIES } from "./reprints.js";
 
 /**
@@ -38,6 +39,7 @@ export const WAVE3_ABILITIES: AbilityRegistry = mergeRegistries(
   GAM_ABILITIES,
   STLD_ABILITIES,
   DRAX_ABILITIES,
+  VNM_ABILITIES,
 );
 
 /** Engine dependencies for games that use the wave 3 (cycle 2) pool. */

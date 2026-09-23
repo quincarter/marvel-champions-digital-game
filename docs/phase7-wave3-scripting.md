@@ -112,11 +112,29 @@ actions.ts`), with its own engine test (`packages/engine/src/abilities.test.ts`,
    single `EventPattern` reaches all three with one subject role, and an `AbilityDefinition` carries exactly one
    trigger. Needs a `usesBasicPower(by)` pattern that composes both roles itself — flag to `game-rules-architect`
    if a second card ever needs the same wording (none does yet in `gmw`).
+   **Closed (docs/phase7-wave3.md §3.28, 2026-09-22): no gap.** `on.basicPowerUsed(YOUR_IDENTITY)` already matches
+   every basic power (attack, thwart, defense, recovery) with the character as the event's target. The one fix was
+   engine-side: a defense's "after" window now waits for the attack to end (RRG 1.8 p. 16). Script it as:
+
+   ```ts
+   heroResponse(
+     on.basicPowerUsed(YOUR_IDENTITY),
+     { cost: [removeCounter("growth", 2, { fromIdentity: true }), exhaustThis] },
+     ready(yourIdentity),
+   );
+   ```
+
 3. **`16024.deft-focus-action`** — "reduce the resource cost of the next superpower card you play this turn by 1."
    Needs a standing "next matching card played this turn" cost-reduction rule, distinct from the interrupt-time
    reduction docs/phase7-wave3.md §3.20 built for Star-Lord's "What could go wrong?" (that one is offered live, at
    the point of paying for the card that triggers it — this one is banked ahead of time by an earlier action and
    has to survive until a later, unrelated card is played).
+   **Closed (docs/phase7-wave3.md §3.29, 2026-09-22): no gap.** `reduceNextCardCost` already has a `"turn"`
+   duration and a `cardFilter`, and nothing consumes it except a matching card. Script it as:
+
+   ```ts
+   heroAction({ cost: exhaustThis }, reduceNextCardCost(you, 1, "turn", { trait: SUPERPOWER }));
+   ```
 
 ## 6. DSL builders added this pass
 
@@ -156,12 +174,57 @@ Recorded in `gmw/rocket-kit.ts`'s own module docblock (mirrors §5's format):
    deal any amount of damage to an enemy") needs a "grant a standing triggered ability for a duration" primitive.
    `RuleSpec applyRuleUntil` only carries a `RuleSpec` (a static restriction/modifier), not an arbitrary reactive
    ability, so there is no way to express "each time X happens, do Y" as something that itself later expires.
+   **Closed (docs/phase7-wave3.md §3.30, 2026-09-22):** `EffectSpec eachTimeUntil` (§3.17) was built for this card.
+   It only lacked a builder. New builders: `eachTimeUntil` in `dsl/effects.ts` and `on.youDealDamage` in
+   `dsl/abilities.ts`. "You" follows RRG 1.8 p. 49, and "deal" means damage dealt (p. 35). Script it as:
+
+   ```ts
+   heroAction(eachTimeUntil("endOfTurn", on.youDealDamage(query("enemy")), heal(2, yourIdentity)));
+   ```
+
 2. **`16033.salvage-response`** ("Response: After you spend this card, …") needs a trigger event for a card being
    spent as a resource payment — no such `TriggerEvent` kind exists.
+   **Closed (docs/phase7-wave3.md §3.31, 2026-09-22): no gap.** `resourcesSpent` (DSL `on.youSpendThis()`,
+   docs/phase7-wave2.md §12) is that trigger. It fires after the costs are paid and before the paid-for card
+   resolves, and Salvage is already in the discard pile when it does. Script it as:
+
+   ```ts
+   response(
+     on.youSpendThis(),
+     chooseCards("tech", zone("discard", you, { filter: query("upgrade", { trait: TECH }) }), { min: 1, max: 1 }),
+     moveCards(cards(chosen("tech")), "deckTop"),
+   );
+   ```
+
 3. **`16048.flora-and-fauna-constant`/`-action`** (Rocket's own printing of the Team-Up card, identical at 16020
    in Groot's own range) — "a Rocket Raccoon upgrade" needs a `TargetQuery` for "belongs to a specific named
    character's card pool, independent of who controls it"; `identitySetOf` only reaches the _current player's_
    own identity-specific cards.
+   **Closed (docs/phase7-wave3.md §3.34, 2026-09-22).** New `TargetQuery.titled` and `identitySetTitled`, whose
+   names come from the card's own Team-Up keyword. They work for every Team-Up card, not just this one. The builders
+   are `teamUpCharacters(index?)` and `ofTeamUpSet(index?)` in `dsl/values.ts`. Script both 16020 and 16048 as:
+
+   ```ts
+   heroAction(
+     chooseOne(
+       option(
+         "Place 2 growth counters on Groot and ready him",
+         addCounters("growth", 2, teamUpCharacters(0), { upTo: 10 }),
+         ready(teamUpCharacters(0)),
+       ),
+       option(
+         "Place 2 charge counters on a Rocket Raccoon upgrade and ready it",
+         { when: exists(query("upgrade", ofTeamUpSet(1))) },
+         chooseTarget("upgrade", query("upgrade", ofTeamUpSet(1))),
+         addCounters("charge", 2, chosen("upgrade")),
+         ready(chosen("upgrade")),
+       ),
+     ),
+   );
+   ```
+
+   The `-constant` refs are the unparsed "Max 1 per deck" sentence, which the data fix removes.
+
 4. **`16052.booster-boots-interrupt`** ("… discard the top card of your deck →") needs an `AbilityCost` component
    for discarding from your own deck as a cost. Flagged for `game-rules-architect` rather than added unilaterally
    this pass: RRG 1.8 "Deck" (p. 15)'s empty-deck reshuffle rule needs a decision for a cost specifically (refuse
@@ -347,11 +410,11 @@ standard, solo, since `stld` carries no scenario of its own). Three genuine prim
 for Star-Lord (`STLD_STARTER_DECKS` is empty, unlike `gmw`'s two box heroes), so his own tests build a legal
 Leadership deck directly from his own pack (`stld/testing.ts`'s `STAR_LORD_LEADERSHIP`).
 
-**`gam` and `drax` were each scripted concurrently by their own sessions** (`wave3/gam/`, `wave3/drax/`), pushing to
-this same branch — neither this `gmw` session nor the `stld` one touches those folders. `vnm`/`ron`: not started.
-All five packs' data is emitted and their own engine primitives have landed (`drax`'s Moondragon, §3.23, is the one
-open exception — RRG/FAQ are silent on whether "that minion attacks another enemy" is an activation; docs/phase7-
-wave3.md §4 Q12 has the proposed reading, still unconfirmed).
+**`gam`, `drax` and `vnm` were each scripted concurrently by their own sessions** (`wave3/gam/`, `wave3/drax/`,
+`wave3/vnm/`), pushing to this same branch — neither this `gmw` session nor the `stld` one touches those folders.
+`ron`: not started. All five packs' data is emitted and their own engine primitives have landed (`drax`'s
+Moondragon, §3.23, is the one open exception — RRG/FAQ are silent on whether "that minion attacks another enemy" is
+an activation; docs/phase7-wave3.md §4 Q12 has the proposed reading, still unconfirmed).
 
 ### `gam` (Gamora): fully scripted
 
@@ -419,6 +482,39 @@ resolve.
   1 for each vengeance counter on Drax" (the Hercules/Winter Soldier shape, `activeIn: "hand"`) silently never
   applied at that prompt, even though the same reduction was already honored once payment committed. Own test,
   `packages/engine/src/window-event-cost.test.ts`.
+
+### `vnm` (Venom): fully scripted
+
+`MC_REFS_PACKS=vnm pnpm refs` resolves 34/34 — **no `KNOWN_SKIPPED` entries, no genuine primitive gaps.**
+`venom-kit.ts` (identity 20001a/b + 20002–20022, 20026–20029, minus the two reprints The Power of Justice 20014 and
+Resourceful 20020 aliased by `../reprints.ts`) and `venom-obligation-nemesis.ts` (Struggle for Control 20023, the
+nemesis set Klyntar Frenzy 20024 / Enraged Symbiote ×4 20025) between them cover every ref; `venom-kit.test.ts` (24
+tests) and `venom-obligation-nemesis.test.ts` (5 tests) drive every registered ref through its own real trigger
+window, named by id in each test's own title; `e2e.test.ts` plays Venom's own hand-built stand-in deck (`support.ts`
+— no real precon yet, docs/phase7-wave3.md §0/§4) against Rhino to a real outcome.
+
+- **Three additive DSL wrappers, no engine change**: `paidWithOnly` (`dsl/values.ts`, the engine `Predicate` already
+  existed from wave 2's own play-restrictions test), `restrictedLimit` (`dsl/abilities.ts`, docs/phase7-wave3.md
+  §3.22's `RuleSpec`, landed with no DSL wrapper yet) and `atEndOfActivation` (`dsl/effects.ts`, the engine
+  `EffectSpec` already existed for a Boost ability's own "after this activation ends" — this is its first use from
+  a player-side interrupt, needed for Making an Entrance's "after that thwart ends" follow-up).
+- **One additive engine export**: `restrictedLimitFor` (`packages/engine/src/rules.ts`) already existed but wasn't
+  re-exported from `packages/engine/src/index.ts`, so no test outside the engine package could call it directly —
+  the same gap `excessDamageBonus` had before this wave's `gmw` session re-exported it (§6's own note above).
+- **One additive core export**: `mayFlipToAlterEgo` (`packages/cards/src/core/obligations.ts`) was a private helper
+  inside the shared `obligation()` builder; Struggle for Control's first option ("Exhaust Flash Thompson **and take
+  2 damage** → discard this obligation", not the shared "→ remove this obligation from the game") doesn't fit the
+  shared shape, so it needed the flip-choice half on its own.
+- **docs/phase7-wave3.md §4 Q8 answered**: all 4 printed copies of Enraged Symbiote start set aside, and this turns
+  out to already be the engine's own general rule for every hero's nemesis-set cards (`packages/engine/src/
+setup.ts`: only a hero's own obligation is shuffled into the encounter deck at setup; every other nemesis-set card
+  is pushed onto that player's `PlayerState.setAside` and stays there) — not something this pack had to build.
+  Corroborated by the Venom insert's own FAQ and an official FFG ruling (Hall of Heroes "Latest FFG Rulings
+  (post-RRG 1.5)", May 18, 2023); full citations in `venom-obligation-nemesis.ts`'s own module docblock. Caught a
+  real bug on the way: `Predicate exists({ inSlot })` resolves through `selectTargets`, which is scoped to
+  `cardsInPlay` — always false for a still-set-aside card, so the obligation's own "if you cannot" branch looked
+  like it always fired even when a symbiote was validly chosen. Fixed by reading the bound slot with `countAmong`
+  (`dsl/values.ts`'s existing `ValueSpec countInRef`, "not restricted to in play") instead — no engine change.
 
 **Wave 3's client wiring is out of scope for every pack in this pass** (per the brief: "the whole wave gets wired
 into the client once, at the end") — nothing here touches `packages/client` or `playable/`.

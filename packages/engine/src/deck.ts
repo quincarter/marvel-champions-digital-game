@@ -38,6 +38,7 @@ import type {
 } from "@mc/content";
 import type { EngineDeps } from "./abilities.js";
 import type { CampaignCardFace } from "./campaign.js";
+import { identityCardTitledAs } from "./titles.js";
 import { cardsMatch, isUnique, uniqueLabel } from "./unique.js";
 
 /**
@@ -925,13 +926,8 @@ export function validateDeck(deck: DeckContents, pool: CardPool, context?: DeckC
       continue;
     }
     if (!identity) continue;
-    const titles = [
-      identity.name,
-      identity.hero.faceName,
-      identity.alterEgo.faceName,
-      ...(identity.additionalHeroForms ?? []).map((form) => form.faceName),
-    ];
-    if (teamUp.names.some((name) => titles.includes(name))) continue;
+    // Any of the identity's titles, or "Hero/Alter-ego" for both sides (docs/phase7-wave3.md §3.34, `titles.ts`).
+    if (teamUp.names.some((name) => identityCardTitledAs(identity, name))) continue;
     add(
       "team_up_identity",
       `${uniqueLabel(line.card)} is a Team-Up card for ${teamUp.names[0]} and ${teamUp.names[1]}; only a deck whose identity is one of them may include it.`,

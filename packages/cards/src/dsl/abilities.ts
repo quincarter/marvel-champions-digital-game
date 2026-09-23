@@ -395,6 +395,27 @@ export const excludedFromAllyLimit = (
   rules: [{ kind: "excludedFromAllyLimit", target, ...(opts.while ? { while: opts.while } : {}) }],
 });
 /**
+ * "You can control 1 additional [X] upgrade that has the restricted keyword." (Venom / Flash Thompson, `vnm`
+ * 20001a/b; Side Holster, 20021; docs/phase7-wave3.md §3.22). RRG 1.8 "Restricted" (p. 38) fixes the base limit at
+ * two; each rule raises it by `amount` for `player` (absent: the rule's own speaker, the card's controller —
+ * "you can control", not "any player can"). `cards` scopes the extra room to matching held cards only ("1
+ * additional **[Weapon]** upgrade"); omit it for an unscoped raise.
+ */
+export const restrictedLimit = (
+  amount: number,
+  opts: { readonly cards?: TargetQuery; readonly player?: PlayerRef; readonly while?: Predicate } = {},
+): ConstantPart => ({
+  rules: [
+    {
+      kind: "restrictedLimit",
+      amount,
+      ...(opts.cards ? { cards: opts.cards } : {}),
+      ...(opts.player ? { player: opts.player } : {}),
+      ...(opts.while ? { while: opts.while } : {}),
+    },
+  ],
+});
+/**
  * "Treat the printed text box of each [trait] player card as if it were blank" (Tech Theft 12026, `ant`;
  * docs/phase7-wave2.md §8): the matching cards' abilities and printed keywords stop working while this card is in
  * play. `target` is a category list, not `controller: "you"` — the rule sits on an encounter card, which has no
@@ -708,6 +729,23 @@ export const on = {
       asTarget(to),
       opts.fromAttack !== undefined ? { fromAttack: opts.fromAttack } : {},
       opts.taken ? { requireResults: { amount: 1 } } : {},
+    ),
+  /**
+   * "Each time / After **you** deal any amount of damage to [an enemy]" (Schadenfreude, `gmw` 16032; docs/phase7-
+   * wave3.md §3.30). "You" is your identity where able (RRG 1.8 "You, Your", p. 49; ruling, Dec 17, 2025 (3)): your
+   * identity's attacks and effects, and the cards p. 49 calls "an extension of a player's identity" — events you
+   * play, resources you spend, upgrades you control. **Not** allies or supports ("not considered to be performed by
+   * that player's identity"). Known gap: an upgrade attached to a *different* friendly character is not an
+   * extension either, and this query still counts it (no printed card needs the case yet). "Deal" is damage
+   * **dealt**, not taken: prevention reduces what the target takes, "but the amount of damage 'dealt' is not
+   * reduced" (RRG 1.8 "Prevent", p. 35), so the event's own amount is read (`eventAtLeast`), not its `amount` result.
+   */
+  youDealDamage: (to: Who): EventPattern =>
+    pattern(
+      "dealDamage",
+      { sourceIs: { controller: "you", categories: ["identity", "event", "resource", "upgrade"] } },
+      asTarget(to),
+      { eventAtLeast: { amount: 1 } },
     ),
   /** "When threat would be placed on a scheme" / "after placing threat here". */
   threatPlaced: (where?: Who): EventPattern => pattern("placeThreat", where ? asTarget(where) : {}),

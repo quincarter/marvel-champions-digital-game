@@ -180,10 +180,14 @@ const withResults = (event: TriggerEvent, vars: Vars): TriggerEvent =>
  * "after [enemy] attacks you" abilities — so a defense declared in step 2 must not resolve its responses until then.
  * The interrupt side is unaffected: "when your hero defends" still fires as the defense initiates (p. 15).
  *
- * Only `defended` defers. The other step 6 triggers the RRG lists (`characterAttacked` for retaliate, `dealDamage`)
- * are already pushed by the attack procedure after damage, so they resolve inside step 6 where they belong.
+ * `defended` defers, and so does `basicPowerUsed` for the basic **defense** power: "After Groot uses a basic power"
+ * (Lashing Vines, `gmw` 16009) and "After you use a basic power" (Super Speed) are, for a defense, abilities that
+ * trigger after a character defends (docs/phase7-wave3.md §3.28). The other step 6 triggers the RRG lists
+ * (`characterAttacked` for retaliate, `dealDamage`) are already pushed by the attack procedure after damage, so they
+ * resolve inside step 6 where they belong.
  */
-const defersResponsesToActivation = (event: TriggerEvent): boolean => event.kind === "defended";
+const defersResponsesToActivation = (event: TriggerEvent): boolean =>
+  event.kind === "defended" || (event.kind === "basicPowerUsed" && event.power === "defense");
 
 /**
  * Opens one deferred response window held on an activation frame. The finished activation's own results ride along

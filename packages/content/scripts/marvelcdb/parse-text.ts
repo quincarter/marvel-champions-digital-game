@@ -91,6 +91,7 @@ export interface ParsedRestrictions {
   readonly form?: "hero" | "alterEgo";
   readonly anyPlayerControl?: boolean;
   readonly maxPerRound?: number;
+  readonly maxPerPhase?: number;
   readonly requiresIdentityTrait?: string;
   readonly requiresControlledCharacterTrait?: string;
 }
@@ -678,28 +679,43 @@ interface MutableRestrictions {
   form?: "hero" | "alterEgo";
   anyPlayerControl?: boolean;
   maxPerRound?: number;
+  maxPerPhase?: number;
   /** Plain uppercased trait text; the caller brands it as a `Trait`. */
   requiresIdentityTrait?: string;
   requiresControlledCharacterTrait?: string;
 }
 
-/** Wave 1 play restrictions (docs/phase7-wave1.md §1.8), in addition to the Phase 2 shapes above. */
+/**
+ * Wave 1 play restrictions (docs/phase7-wave1.md §1.8), in addition to the Phase 2 shapes above.
+ *
+ * Every `Max N per …` form's trailing period is optional (maxperphase-fix pass): MarvelCDB drops it on a card
+ * whose "Max N per …" sentence is immediately followed by a line break rather than another sentence — observed
+ * on "Max 1 per deck" (Flora and Fauna, `gmw` 16020/16048), "Max 1 per player" (X-Gene, `jubilee` 47020/`rogue`
+ * 38019) — so every branch below tolerates it rather than only the one printing that dropped it first.
+ */
 function parseRestriction(sentence: string, into: MutableRestrictions): { maxPerDeck?: number } | undefined {
-  let m = /^Max (\d+) per deck\.$/.exec(sentence);
+  let m = /^Max (\d+) per deck\.?$/.exec(sentence);
   if (m) return { maxPerDeck: Number(m[1]) };
-  m = /^Max (\d+) per player\.$/.exec(sentence);
+  m = /^Max (\d+) per player\.?$/.exec(sentence);
   if (m) {
     into.maxPerPlayer = Number(m[1]);
     return {};
   }
-  m = /^Max (\d+) per round\.$/.exec(sentence);
+  m = /^Max (\d+) per round\.?$/.exec(sentence);
   if (m) {
     into.maxPerRound = Number(m[1]);
     return {};
   }
+  // "Max N per phase." (Maximum Velocity `qsv` 14005, "Bring It!" `drax` 19030) — the only two printed instances
+  // across all emitted data. Mirrors `maxPerRound` exactly.
+  m = /^Max (\d+) per phase\.?$/.exec(sentence);
+  if (m) {
+    into.maxPerPhase = Number(m[1]);
+    return {};
+  }
   // docs/phase7-wave2.md §7.2: "Max 1 per encounter card." (Coordinated Effort, 58032) — the second sentence of
   // its printed pair with "Attach to an encounter card in play.".
-  m = /^Max (\d+) per (?:enemy|ally|minion|character|hero|encounter card)\.$/.exec(sentence);
+  m = /^Max (\d+) per (?:enemy|ally|minion|character|hero|encounter card)\.?$/.exec(sentence);
   if (m) {
     into.maxPerHost = Number(m[1]);
     return {};

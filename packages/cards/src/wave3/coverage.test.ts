@@ -14,6 +14,7 @@ import { DRAX_ABILITIES } from "./drax/index.js";
 import { GAM_ABILITIES } from "./gam/index.js";
 import { GMW_ABILITIES } from "./gmw/index.js";
 import { STLD_ABILITIES } from "./stld/index.js";
+import { VNM_ABILITIES } from "./vnm/index.js";
 import { abilityRefIds } from "../ability-refs.js";
 
 describe("wave 3 ability registry", () => {
@@ -41,8 +42,8 @@ const PACK_STATUS: Readonly<Record<string, "scripted" | "in progress" | "not sta
   gmw: "in progress",
   stld: "scripted",
   gam: "scripted",
-  drax: "in progress",
-  vnm: "not started",
+  drax: "scripted",
+  vnm: "scripted",
   ron: "not started",
 };
 
@@ -72,12 +73,10 @@ const KNOWN_SKIPPED: Readonly<Record<string, readonly string[]>> = {
     // `MC_REFS_PACKS=gmw pnpm refs` (docs/card-scripting-process.md) — never hand-typed.
     "16006.we-are-groot-action",
     "16009.lashing-vines-response",
-    "16020.flora-and-fauna-constant",
     "16020.flora-and-fauna-action",
     "16024.deft-focus-action",
     "16032.schadenfreude-action",
     "16033.salvage-response",
-    "16048.flora-and-fauna-constant",
     "16048.flora-and-fauna-action",
     "16052.booster-boots-interrupt",
     "16060.when-revealed",
@@ -276,6 +275,8 @@ const KNOWN_SKIPPED: Readonly<Record<string, readonly string[]>> = {
     "19013.moondragon-action",
     "19032.regroup-interrupt",
   ],
+  // vnm: fully scripted — no genuine primitive gaps (module docblock, `wave3/vnm/venom-kit.ts`). Regenerated with
+  // `MC_REFS_PACKS=vnm pnpm refs` — never hand-typed.
   vnm: [],
   ron: [],
 };
@@ -369,6 +370,7 @@ describe("wave 3 pack ability id coverage (every registered ability id is named 
     { code: "stld", registry: STLD_ABILITIES },
     { code: "gam", registry: GAM_ABILITIES },
     { code: "drax", registry: DRAX_ABILITIES },
+    { code: "vnm", registry: VNM_ABILITIES },
   ];
 
   /**
@@ -384,16 +386,12 @@ describe("wave 3 pack ability id coverage (every registered ability id is named 
    * `packages/engine/src/off-aspect-allowance.test.ts` (4 tests) plus `packages/content/src/schema/wave3.test.ts`
    * §1.5 (2 tests).
    *
-   * `19030.bring-it-constant` ("Bring It!", `drax`): "Max 1 per phase." is `playRestrictions.maxPerPhase`
-   * (`packages/engine/src/actions.ts`), the Maximum Velocity precedent (`wave2/qsv/kit.ts` 14005) — `@mc/content`'s
-   * own 19030 record carries no `playRestrictions` at all (the same data gap Maximum Velocity has, flagged for
-   * `card-data-pipeline`), so there is no in-game command whose *rejection* this ref's own test could drive; the
-   * restriction mechanism itself is engine-enforced, data permitting, and is covered generically by
-   * `packages/engine/src/primitives-wave2.test.ts` (`playRestrictions.maxPerPhase`).
+   * "Bring It!" (`drax` 19030): the maxperphase-fix pass gave 19030 a real `playRestrictions.maxPerPhase`
+   * (`@mc/content`) instead of a bogus `-constant` ability ref, so it no longer needs this exemption — it's
+   * covered by behavioral tests in `wave3/drax/drax-pack-cards.test.ts` instead.
    */
   const COVERED_BY_ENGINE_RULE: Readonly<Record<string, string>> = {
     "18001b.gamora-constant": "packages/engine/src/off-aspect-allowance.test.ts",
-    "19030.bring-it-constant": "packages/engine/src/primitives-wave2.test.ts",
   };
 
   it("checks every pack PACK_STATUS marks started, so a new pack can't skip the guard by not being listed here", () => {

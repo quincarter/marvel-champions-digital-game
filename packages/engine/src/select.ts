@@ -43,7 +43,16 @@ import { boostIconsFor } from "./modifiers.js";
 import { printedResources, RESOURCE_TYPES } from "./resources.js";
 import { currentActivationFrameId, type Bindings, type Vars } from "./stack.js";
 import type { LastingReach, LastingScope } from "./lasting.js";
-import type { PlayerRef, Predicate, TargetCategory, TargetQuery, TargetRef, ValueSpec } from "./spec.js";
+import type {
+  CharacterNames,
+  PlayerRef,
+  Predicate,
+  TargetCategory,
+  TargetQuery,
+  TargetRef,
+  ValueSpec,
+} from "./spec.js";
+import { characterTitledAs, identityCardTitledAs } from "./titles.js";
 import { STATUS_NAMES, type GameAreaState, type GameState } from "./state.js";
 import type { TriggerEvent } from "./trigger-events.js";
 import { eventSubjects } from "./trigger-events.js";
@@ -470,6 +479,20 @@ export function explainQuery(
     );
     if (!sets.some((setId) => wanted.has(setId))) return "wrongEncounterSet";
   }
+  // Team-Up names (docs/phase7-wave3.md §3.34; `titles.ts`): the character showing that title, or a card of the
+  // identity-specific set of the identity with that title, whoever controls either.
+  if (query.titled !== undefined) {
+    const names = characterNames(state, query.titled, context);
+    if (!names.some((name) => characterTitledAs(state, id, name))) return "wrongName";
+  }
+  if (query.identitySetTitled !== undefined) {
+    const card = cardOf(state, id);
+    const aspect = card && "aspect" in card ? String(card.aspect) : "";
+    const identity = aspect.startsWith("hero:") ? state.cardPool[aspect.slice("hero:".length)] : undefined;
+    const names = identity?.type === "hero_identity" ? characterNames(state, query.identitySetTitled, context) : [];
+    if (identity?.type !== "hero_identity" || !names.some((name) => identityCardTitledAs(identity, name)))
+      return "wrongIdentitySet";
+  }
   if (query.inCampaignLogField) {
     // "Each EXPERIMENTAL attachment recorded in the campaign log" (MC10 p. 7) as a filter. Membership only: the
     // `campaignLog` selector is where a title recorded twice names two cards (ruling June 2, 2026 (3) answer 3).
@@ -717,6 +740,20 @@ export function controllerOf(state: GameState, id: InstanceId): PlayerId | null 
   const player = state.players.find((p) => p.identity.instanceId === id);
   if (player) return player.playerId;
   return instance.controllerId;
+}
+
+/**
+ * The names a `CharacterNames` spec stands for (docs/phase7-wave3.md §3.34): written out, or read from the Team-Up
+ * keyword of the card(s) a ref names — wherever that card is, since a Team-Up event resolves out of play.
+ */
+export function characterNames(state: GameState, spec: CharacterNames, context: EffectContext): readonly string[] {
+  if ("names" in spec) return spec.names;
+  return resolveRef(state, spec.teamUpOf, context).flatMap((id) => {
+    const card = cardOf(state, id);
+    const teamUp = card && "keywords" in card ? card.keywords.find((k) => k.name === "teamUp") : undefined;
+    const names = teamUp?.name === "teamUp" && teamUp.names ? teamUp.names : [];
+    return spec.index === undefined ? names : names.slice(spec.index, spec.index + 1);
+  });
 }
 
 export const selectTargets = (state: GameState, query: TargetQuery, context: EffectContext): readonly InstanceId[] =>

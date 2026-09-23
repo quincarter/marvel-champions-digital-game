@@ -1,0 +1,3 @@
+kind: Engine
+body: 'Team-Up names as vocabulary: TargetQuery.titled and identitySetTitled read a card''s own Team-Up keyword (DSL teamUpCharacters, ofTeamUpSet); the Team-Up play and deck checks now accept ''Hero/Alter-ego'' names such as Heart of the Panther''s (docs/phase7-wave3.md §3.34)'
+time: 2026-09-22T22:32:35.409449-04:00

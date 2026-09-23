@@ -1,6 +1,18 @@
-import { activeVillain, type InstanceId } from "@mc/engine";
+import { activeVillain, applyCommand, legalActions, type InstanceId } from "@mc/engine";
 import { describe, expect, it } from "vitest";
-import { endTurn, firstLegal, identityOf, inst, P1, playerOf, runWith, settle, toHero } from "../../testing/harness.js";
+import {
+  endTurn,
+  firstLegal,
+  identityOf,
+  inst,
+  moveToHand,
+  P1,
+  play,
+  playerOf,
+  runWith,
+  settle,
+  toHero,
+} from "../../testing/harness.js";
 import { WAVE3_DEPS } from "../index.js";
 import { playFromHand, startWave3Game } from "../testing.js";
 import { draxScenario } from "./support.js";
@@ -44,6 +56,31 @@ describe("Drax pack fillers (19030–19032)", () => {
     const { state } = playFromHand(withMinion, "19030", 0);
     // Playing "Bring It!" costs the card itself (hand -1); drawing 1 per engaged minion (one here) is +1 — net 0.
     expect(playerOf(state, P1).hand.length).toBe(beforeHand);
+  });
+
+  it('"Bring It!" — 19030.bring-it-action, "Max 1 per phase." rejects a second copy this phase but allows one in a later phase', () => {
+    const hero = runWith(WAVE3_DEPS, draxVsRhino(1), toHero());
+    const given = moveToHand(hero, P1, "19030", "19030");
+    const [first, second] = given.ids as [InstanceId, InstanceId];
+
+    const afterFirst = settle(runWith(WAVE3_DEPS, given.state, play(P1, first, [])), firstLegal, undefined, WAVE3_DEPS);
+    expect(playerOf(afterFirst, P1).discard).toContain(first);
+
+    // A second copy in the same phase is rejected outright...
+    const rejected = applyCommand(afterFirst, play(P1, second, []), WAVE3_DEPS);
+    expect(rejected.ok ? undefined : rejected.error.code).toBe("limit_reached");
+
+    // ...and legalActions greys it out rather than letting the player click into that error.
+    const actions = legalActions(afterFirst, P1, WAVE3_DEPS);
+    if (actions.kind !== "turn") throw new Error(`expected a turn, got ${actions.kind}`);
+    expect(actions.legal.some((a) => a.action.kind === "playCard" && a.action.instanceId === second)).toBe(false);
+    const illegal = actions.illegal.find((a) => a.action.kind === "playCard" && a.action.instanceId === second);
+    expect(illegal?.reason).toBe("limit_reached");
+
+    // A fresh player phase (next round) resets the count, so the same copy can now be played.
+    const nextRound = settle(runWith(WAVE3_DEPS, afterFirst, endTurn()), firstLegal, undefined, WAVE3_DEPS);
+    const playedLater = applyCommand(nextRound, play(P1, second, []), WAVE3_DEPS);
+    expect(playedLater.ok).toBe(true);
   });
 
   it('"Think Fast!" — Hero Action: take 1 damage, confuse the villain (19031.think-fast-action)', () => {
