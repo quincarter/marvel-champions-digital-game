@@ -98,3 +98,26 @@ export function campaignDeckEditModel(
   const editingDisabled = context.frozenNonCampaignCards !== undefined;
   return { validation, rows, editingDisabled, editingDisabledReason: editingDisabled ? FROZEN_REASON : null };
 }
+
+/** `model.rows` split into what counts toward deck size and what's pinned — MC10 p. 3: "Cards added to the deck as part of a campaign do not count toward a player's minimum or maximum deck size." */
+export interface CampaignDeckSizeSplit {
+  /** The sum of every non-granted line's quantity — what a player-facing "N cards" figure should read. */
+  readonly counted: number;
+  /** The sum of every granted line's quantity — cards pinned into the deck outside that count. */
+  readonly pinned: number;
+}
+
+/**
+ * `model`'s deck-size split, the same way the Briefing's own "N cards + M pinned" reads it
+ * (`campaign-briefing-model.ts`'s `deckRowsOf`): a whole line counts as pinned once its card is one the campaign
+ * granted, never split copy-by-copy — so this screen's count always agrees with the Briefing's for the same seat.
+ */
+export function campaignDeckSizeSplit(model: CampaignDeckEditModel): CampaignDeckSizeSplit {
+  let counted = 0;
+  let pinned = 0;
+  for (const row of model.rows) {
+    if (row.locked) pinned += row.quantity;
+    else counted += row.quantity;
+  }
+  return { counted, pinned };
+}

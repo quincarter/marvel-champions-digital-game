@@ -6,6 +6,7 @@ import { POOL_CARDS } from "../content/pool.js";
 import {
   campaignDeckContextOf,
   campaignDeckEditModel,
+  campaignDeckSizeSplit,
   removedFromCampaignCardIds,
 } from "./campaign-deck-edit-model.js";
 
@@ -136,6 +137,29 @@ describe("campaignDeckEditModel", () => {
     expect(removedFromCampaignCardIds(context).has(cardId)).toBe(false);
     const facelessContext = { ...context, removedFromCampaign: [{ cardId }] };
     expect(removedFromCampaignCardIds(facelessContext).has(cardId)).toBe(true);
+  });
+
+  it("campaignDeckSizeSplit counts a granted line as pinned, not toward the deck-size count (MC10 p. 3)", () => {
+    const context = campaignDeckContextOf(TRORS_CAMPAIGN, grantedLog(), 1);
+    const deck = {
+      identityCardId: STARTER.identityCardId,
+      aspects: STARTER.aspects,
+      cards: [...STARTER.cards, { cardId: TECH_UPGRADE, quantity: 1 }],
+    };
+    const totalCards = deck.cards.reduce((n, line) => n + line.quantity, 0);
+    const model = campaignDeckEditModel(deck, POOL_CARDS, context);
+    const split = campaignDeckSizeSplit(model);
+    expect(split.pinned).toBe(1);
+    expect(split.counted).toBe(totalCards - 1);
+    // A deck with no grants at all has nothing pinned.
+    const ungranted = campaignDeckSizeSplit(
+      campaignDeckEditModel(
+        { identityCardId: STARTER.identityCardId, aspects: STARTER.aspects, cards: STARTER.cards },
+        POOL_CARDS,
+        campaignDeckContextOf(TRORS_CAMPAIGN, freshLog(), 1),
+      ),
+    );
+    expect(ungranted.pinned).toBe(0);
   });
 
   it("disables editing, with the printed reason, only when a freeze is supplied", () => {

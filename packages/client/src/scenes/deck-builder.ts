@@ -75,6 +75,7 @@ import { drawCostCurveBars, drawGroupedCardList } from "../ui/deck-stats-widgets
 import { campaignService, deckStorage } from "../session.js";
 import {
   campaignDeckEditModel,
+  campaignDeckSizeSplit,
   removedFromCampaignCardIds,
   type CampaignDeckEditModel,
   type CampaignDeckEditRow,
@@ -526,9 +527,17 @@ export class DeckBuilderScene extends Phaser.Scene {
   #drawLegalityLine(left: number, top: number, column: number, deck: Deck, onDark = false): number {
     let y = top;
     const verdict = this.#campaignModel ? this.#campaignModel.validation : legalityOf(deck, POOL);
-    const cardCount = deck.cards.reduce((n, c) => n + c.quantity, 0);
+    // Campaign mode's own count (the Briefing's "N cards + M pinned", MC10 p. 3): granted lines don't count toward
+    // deck size, so the legal-count line says so rather than reading a plain total that includes them.
+    const cardCountText = this.#campaignModel
+      ? (() => {
+          const split = campaignDeckSizeSplit(this.#campaignModel!);
+          const pinnedSuffix = split.pinned > 0 ? ` + ${split.pinned} pinned` : "";
+          return `${split.counted} cards${pinnedSuffix}`;
+        })()
+      : `${deck.cards.reduce((n, c) => n + c.quantity, 0)} cards`;
     const legalityText = verdict.ok
-      ? `Legal — ${cardCount} cards.`
+      ? `Legal — ${cardCountText}.`
       : `${verdict.problems.length} problem${verdict.problems.length === 1 ? "" : "s"}: ${verdict.problems.map((p) => p.message).join(" ")}`;
     const color = verdict.ok ? signal.heal.hex : accent.redDeep.hex;
     const legalityLine = this.add
