@@ -9,7 +9,10 @@
  *   music/scenarios/<scenarioId>/villain-loses.<ext>Game Over: villain loses (players win)
  *   music/campaigns/<campaignId>/battle.<ext>      Campaign battle fallback
  *   music/campaigns/<campaignId>/interlude.<ext>   Between campaign scenarios
+ *   music/campaigns/<campaignId>/finale.<ext>      The Finale screen, once the campaign is won
  *   music/packs/<packCode>/battle.<ext>            Pack battle fallback
+ *   music/packs/<packCode>/villain-wins.<ext>      Game Over fallback for any loss in that pack
+ *   music/packs/<packCode>/villain-loses.<ext>     Game Over fallback for any win in that pack
  *   music/outcomes/defeat.<ext>                    Game Over defeat fallback & concessions
  *   music/outcomes/victory.<ext>                   Game Over victory fallback
  *
@@ -30,8 +33,8 @@ export interface Track {
 }
 
 const SCENARIO_SLOTS = ["villain-wins", "villain-loses", "battle"] as const;
-const CAMPAIGN_SLOTS = ["interlude", "battle"] as const;
-const PACK_SLOTS = ["battle"] as const;
+const CAMPAIGN_SLOTS = ["interlude", "battle", "finale"] as const;
+const PACK_SLOTS = ["battle", "villain-wins", "villain-loses"] as const;
 const OUTCOME_SLOTS = ["defeat", "victory"] as const;
 
 export type ScenarioMusicSlot = (typeof SCENARIO_SLOTS)[number];
@@ -96,7 +99,7 @@ export function parseMusicCatalog(files: Readonly<Record<string, string>>): Musi
         continue;
       }
       const campaignId = parts[1]!;
-      const entry = campaigns.get(campaignId) ?? { battle: [], interlude: [] };
+      const entry = campaigns.get(campaignId) ?? { battle: [], interlude: [], finale: [] };
       entry[slot].push(track);
       campaigns.set(campaignId, entry);
     } else if (parts[0] === "packs" && parts.length === 3) {
@@ -106,7 +109,7 @@ export function parseMusicCatalog(files: Readonly<Record<string, string>>): Musi
         continue;
       }
       const packCode = parts[1]!;
-      const entry = packs.get(packCode) ?? { battle: [] };
+      const entry = packs.get(packCode) ?? { battle: [], "villain-wins": [], "villain-loses": [] };
       entry[slot].push(track);
       packs.set(packCode, entry);
     } else if (parts[0] === "outcomes" && parts.length === 2) {
@@ -171,19 +174,24 @@ export function battleTrackFor(
 /**
  * The track for how a game ended.
  *
- * - Win: scenario's villain-loses → outcomes/victory
- * - Loss or Concession: scenario's villain-wins → outcomes/defeat
+ * - Win: scenario's villain-loses → pack's villain-loses → outcomes/victory
+ * - Loss or Concession: scenario's villain-wins → pack's villain-wins → outcomes/defeat
+ *
+ * The pack step lets one track cover every scenario of a box ("lose any battle in The Galaxy's Most Wanted").
  */
 export function outcomeTrackFor(
   catalog: MusicCatalog,
   scenarioId: string,
   result: "win" | "loss" | "conceded",
   random: () => number = Math.random,
+  packCode?: string,
 ): Track | null {
-  const scenario = catalog.scenarios.get(scenarioId);
-  const own = result === "win" ? scenario?.["villain-loses"] : scenario?.["villain-wins"];
-  const generic = catalog.outcomes[result === "win" ? "victory" : "defeat"];
-  return pickTrack(own && own.length > 0 ? own : generic, null, random);
+  const slot = result === "win" ? "villain-loses" : "villain-wins";
+  const own = catalog.scenarios.get(scenarioId)?.[slot] ?? [];
+  if (own.length > 0) return pickTrack(own, null, random);
+  const pack = packCode ? (catalog.packs.get(packCode)?.[slot] ?? []) : [];
+  if (pack.length > 0) return pickTrack(pack, null, random);
+  return pickTrack(catalog.outcomes[result === "win" ? "victory" : "defeat"], null, random);
 }
 
 /**
@@ -244,3 +252,15 @@ const files = {
 
 /** Everything in `music/`. */
 export const MUSIC_CATALOG: MusicCatalog = parseMusicCatalog(files);
+
+/**
+ * The campaign's Finale track (`campaigns/<campaignId>/finale`), or null when it has none — the Finale screen then
+ * keeps whatever was already playing.
+ */
+export function finaleTrackFor(
+  catalog: MusicCatalog,
+  campaignId: string,
+  random: () => number = Math.random,
+): Track | null {
+  return pickTrack(catalog.campaigns.get(campaignId)?.finale ?? [], null, random);
+}

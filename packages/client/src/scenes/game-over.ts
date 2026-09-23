@@ -20,7 +20,7 @@
  */
 
 import Phaser from "phaser";
-import { POOL_DEPS } from "../content/pool.js";
+import { POOL_DEPS, POOL_SCENARIOS } from "../content/pool.js";
 import { artFor } from "../art/art-source.js";
 import { cardArt, drawArt } from "../art/card-art.js";
 import { coverFit, type Picture } from "../art/pictures.js";
@@ -87,7 +87,8 @@ export class GameOverScene extends Phaser.Scene {
     this.#outcomeArt =
       game?.outcome && config ? outcomeArtFor(ART_CATALOG, config.scenarioId, game.outcome.result) : null;
     if (game?.outcome && config) {
-      appSession().music?.playOutcome(config.scenarioId, game.outcome.result);
+      const packCode = POOL_SCENARIOS.find((s) => s.id === config.scenarioId)?.packCode;
+      appSession().music?.playOutcome(config.scenarioId, game.outcome.result, packCode);
     }
     this.#draw();
     fadeScreenIn(this);
