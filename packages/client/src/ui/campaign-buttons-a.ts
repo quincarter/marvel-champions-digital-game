@@ -9,7 +9,7 @@ import Phaser from "phaser";
 import { ink, signal, surface, typeRole } from "../tokens.js";
 import type { Rect } from "../view/layout.js";
 import { bangers } from "./campaign-chrome.js";
-import { textStyle, type WidgetKind } from "./theme.js";
+import { skin, textStyle, type WidgetKind } from "./theme.js";
 import { dashedRect, McButton, paintDotGrid } from "./widgets.js";
 
 export interface CampaignActionButtonOptions {
@@ -35,9 +35,10 @@ export function campaignActionButton(scene: Phaser.Scene, options: CampaignActio
     ...(options.reason !== undefined ? { reason: options.reason } : {}),
     onClick: options.onClick,
   });
-  const onDark = options.kind === "onInk" || options.kind === "primary";
-  const dim = options.enabled === false ? ink.disabled : 1;
-  const textColor = onDark ? surface.paper.hex : surface.ink.hex;
+  const state = options.enabled === false ? "unavailable" : "rest";
+  const buttonSkin = skin(options.kind, state);
+  const dim = buttonSkin.textAlpha;
+  const textColor = buttonSkin.text;
   const pad = 16;
   const { rect } = options;
   const titleSize = options.titleSize ?? (options.kind === "primary" ? 22 : 18);
@@ -107,22 +108,28 @@ export function campaignTile(
     .setLetterSpacing(1);
   objects.push(eyebrow);
 
-  const titleSize = Math.min(38, rect.width * 0.19);
-  const title = scene.add.text(rect.x + 12, rect.y + rect.height - 76, options.title.toUpperCase(), {
-    ...textStyle(bangers(titleSize, 0.85), surface.paper.hex),
-    wordWrap: { width: rect.width - 24, useAdvancedWrap: true },
-  });
-  objects.push(title);
+  const chipY = rect.y + rect.height - 32;
+  const titleSize = Math.min(32, rect.width * 0.16);
 
+  // Laid out bottom-up (chip, then subtitle, then title) so a two-line box name never collides with the chip below
+  // it — text height is only known once the object exists, so this measures each before placing the one above it.
+  let subtitle: Phaser.GameObjects.Text | null = null;
   if (options.subtitle) {
-    const subtitle = scene.add.text(rect.x + 12, title.y + title.height + 2, options.subtitle.toUpperCase(), {
+    subtitle = scene.add.text(rect.x + 12, 0, options.subtitle.toUpperCase(), {
       ...textStyle(bangers(13, 1), surface.paper.hex),
       wordWrap: { width: rect.width - 24, useAdvancedWrap: true },
     });
+    subtitle.setY(chipY - 10 - subtitle.height);
     objects.push(subtitle);
   }
+  const title = scene.add.text(rect.x + 12, 0, options.title.toUpperCase(), {
+    ...textStyle(bangers(titleSize, 0.85), surface.paper.hex),
+    wordWrap: { width: rect.width - 24, useAdvancedWrap: true },
+  });
+  title.setY((subtitle ? subtitle.y : chipY - 6) - 4 - title.height);
+  objects.push(title);
 
-  const chipY = rect.y + rect.height - 32;
+  const chipBg = scene.add.graphics();
   const chipLabel = scene.add
     .text(
       0,
@@ -132,7 +139,6 @@ export function campaignTile(
     )
     .setLetterSpacing(1);
   const chipRect: Rect = { x: rect.x + 12, y: chipY, width: chipLabel.width + 16, height: 20 };
-  const chipBg = scene.add.graphics();
   if (options.highlighted)
     chipBg.fillStyle(signal.caution.hex, 1).fillRect(chipRect.x, chipRect.y, chipRect.width, chipRect.height);
   else
@@ -140,6 +146,7 @@ export function campaignTile(
       .lineStyle(1, surface.paper.hex, 0.55)
       .strokeRect(chipRect.x + 0.5, chipRect.y + 0.5, chipRect.width - 1, chipRect.height - 1);
   chipLabel.setPosition(chipRect.x + 8, chipRect.y + chipRect.height / 2).setOrigin(0, 0.5);
+  // `chipBg` was created (and so added) before `chipLabel` — drawn first, so the label sits on top of the fill.
   objects.push(chipBg, chipLabel);
 
   const zone = scene.add
