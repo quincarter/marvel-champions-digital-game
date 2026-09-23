@@ -22,8 +22,8 @@ import { wave3Scenario } from "../setup.js";
 import { runWave3, startWave3Game, WAVE3_DEPS } from "../testing.js";
 
 /** Escape the Museum, standard mode: the mode-labelled Collector pair (16080a/16080b), the main scheme The Missing
- * Milano → Lost in the Museum → The Great Escape (16082–16084), Library Labyrinth (16085a, its own ability skipped
- * per the module docblock), and the encounter set's two treacheries. */
+ * Milano → Lost in the Museum → The Great Escape (16082–16084), Library Labyrinth/Museum Ship (16085), and the
+ * encounter set's two treacheries. */
 const escapeTheMuseum = (opts: { readonly difficulty?: "standard" | "expert" } = {}) =>
   startWave3Game(
     wave3Scenario("escape-the-museum", {
