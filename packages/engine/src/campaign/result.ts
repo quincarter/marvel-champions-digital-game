@@ -168,6 +168,11 @@ function evaluateQuery(
         kind: "boolean",
         value: countOf(evaluateQuery(state, events, query.of, playerId, deps)) >= query.amount,
       };
+    case "atMost":
+      return {
+        kind: "boolean",
+        value: countOf(evaluateQuery(state, events, query.of, playerId, deps)) <= query.amount,
+      };
     case "capAt":
       return {
         kind: "number",

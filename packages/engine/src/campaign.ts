@@ -380,6 +380,12 @@ export type CampaignGameQuery =
   /** A list- or number-valued query as a yes/no, for a `flag` field. */
   | { readonly kind: "atLeast"; readonly of: CampaignGameQuery; readonly amount: number }
   /**
+   * `atLeast`'s complement: MC16 p. 8, "Record 1 unit for each player if there are **no minions** in play" is
+   * `atMost(cardsInPlay({categories:["minion"]}), 0)` — there is no negation over `CampaignGameQuery` to spell
+   * `not(atLeast(…, 1))` instead.
+   */
+  | { readonly kind: "atMost"; readonly of: CampaignGameQuery; readonly amount: number }
+  /**
    * MC16 p. 8: "Record a number of units (to a maximum of 3 units) equal to the victory values…" — a numeric
    * query's own printed ceiling. Distinct from `LogFieldDef`'s `number.max`, which caps what the *field* can ever
    * hold, not what one write may add: MC16's `units` field is otherwise unbounded (it carries across scenarios).

@@ -271,7 +271,7 @@ describe("CampaignGameQuery.cardsInScenarioArea", () => {
   });
 });
 
-describe("CampaignGameQuery.keywordValueSum and capAt", () => {
+describe("CampaignGameQuery.keywordValueSum, capAt and atMost", () => {
   it("MC16 p. 8: sums printed Victory X values in the victory display, capped at 3", () => {
     const definition = definitionWith(
       [],
@@ -329,5 +329,47 @@ describe("CampaignGameQuery.keywordValueSum and capAt", () => {
     const result = campaignResultOf(definition, composed.value, finished, [], DEFAULT_DEPS);
     const write = result.records.find((record) => record.instructionId === "only.victory.units")?.write;
     expect(write?.value).toEqual({ kind: "number", value: 3 });
+  });
+
+  it("atMost is atLeast's complement, for MC16 p. 8's 'if there are no minions in play'", () => {
+    const definition = definitionWith(
+      [],
+      [
+        {
+          id: "only.victory.noMinions",
+          text: "test",
+          citation: "test",
+          step: {
+            kind: "record",
+            writes: [
+              {
+                field: "flag",
+                mode: "set",
+                value: { kind: "atMost", of: { kind: "cardsInPlay", query: { categories: ["minion"] } }, amount: 0 },
+              },
+            ],
+          },
+        },
+      ],
+    );
+    const identities = seatIdentities(HERO, 1);
+    const config: GameSetupConfig = {
+      seed: 1,
+      cards: [...DEFAULT_CARDS, ...identities],
+      villainCardId: VILLAIN.id,
+      mainSchemeCardId: MAIN_SCHEME.id,
+      encounterDeck: [],
+      players: identities.map((identity) => ({ identityCardId: identity.id, deck: [] })),
+    };
+    const created = createGame(config, DEFAULT_DEPS);
+    if (!created.ok) throw new Error(`setup failed: ${created.error.message}`);
+    const finished = { ...created.state, outcome: { result: "win" as const, reason: "villainDefeated" as const } };
+
+    const composed = resolveBetweenGames(definition, newLog(definition), { pool: [] }, MODES);
+    if (composed.kind !== "done") throw new Error("unexpected pending choice");
+    const result = campaignResultOf(definition, composed.value, finished, [], DEFAULT_DEPS);
+    const write = result.records.find((record) => record.instructionId === "only.victory.noMinions")?.write;
+    // No minions were ever instantiated for this game, so `atMost(…, 0)` is true.
+    expect(write?.value).toEqual({ kind: "flag", value: true });
   });
 });
