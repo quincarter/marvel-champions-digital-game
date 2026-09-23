@@ -127,3 +127,21 @@ export function scenarioDetailLines(detail: ScenarioDetail): readonly string[] {
   lines.push(`Recommended modular: ${detail.recommendedModularSetNames.join(", ") || "none"}`);
   return lines;
 }
+
+const SHELF_ROMAN = ["", "I", "II", "III", "IV", "V", "VI"] as const;
+const shelfRoman = (n: number): string => SHELF_ROMAN[n] ?? String(n);
+
+/**
+ * The scenario shelf card's second line under the villain's name: "Stages I–III · Masters of Evil", or "Stage I · …"
+ * for a one-stage villain. When another scenario in the pool is fought against a villain of the same name
+ * (MC16's two Museum scenarios are both The Collector), the scenario's own name leads instead of the encounter set,
+ * or the two cards would read the same.
+ */
+export function shelfSubtitleOf(detail: ScenarioDetail, sharesVillainName: boolean): string {
+  const first = detail.stages[0]?.stageNumber ?? 1;
+  const last = detail.stages[detail.stages.length - 1]?.stageNumber ?? first;
+  const stages = last > first ? `Stages ${shelfRoman(first)}–${shelfRoman(last)}` : `Stage ${shelfRoman(first)}`;
+  if (sharesVillainName) return `${detail.scenarioName} · ${stages}`;
+  const setName = detail.recommendedModularSetNames[0] ?? detail.fixedEncounterSetNames[0] ?? "";
+  return setName ? `${stages} · ${setName}` : stages;
+}

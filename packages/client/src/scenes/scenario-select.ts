@@ -19,7 +19,7 @@ import { cssOf, textStyle } from "../ui/theme.js";
 import { McButton, McTextInput, fitText, label, paintDotGrid } from "../ui/widgets.js";
 import { McShelfRoster } from "../ui/shelf-roster.js";
 import { McVirtualList } from "../ui/virtual-list.js";
-import { scenarioDetailOf, type ScenarioDetail } from "../view/scenario-detail.js";
+import { scenarioDetailOf, shelfSubtitleOf, type ScenarioDetail } from "../view/scenario-detail.js";
 import { formatScaling } from "../view/scaling-text.js";
 import { scenarioProductsOf, withSelectionPinned } from "../view/roster-filter.js";
 import { packCompactChipsToRows } from "../view/chip-layout.js";
@@ -505,9 +505,12 @@ export class ScenarioSelectScene extends Phaser.Scene {
       artKey = cardArt(this).request(this, source);
     }
     const cardDetail = scenarioDetailOf(s, CARDS_BY_ID, POOL_ENCOUNTER_SETS);
-    const stageRange = `Stages ${roman(cardDetail.stages[0]?.stageNumber ?? 1)}–${roman(cardDetail.stages[cardDetail.stages.length - 1]?.stageNumber ?? 1)}`;
-    const setName = cardDetail.recommendedModularSetNames[0] ?? cardDetail.fixedEncounterSetNames[0] ?? "";
-    const subtitle = `${stageRange}${setName ? ` · ${setName}` : ""}`;
+    const sharesVillainName = POOL_SCENARIOS.some(
+      (other) =>
+        other.id !== s.id &&
+        scenarioDetailOf(other, CARDS_BY_ID, POOL_ENCOUNTER_SETS).villainName === cardDetail.villainName,
+    );
+    const subtitle = shelfSubtitleOf(cardDetail, sharesVillainName);
     const selected = this.#draft.scenarioId === (s.id as string);
     return renderShelfCard(this, rect, {
       artKey,
