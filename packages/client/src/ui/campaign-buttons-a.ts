@@ -39,21 +39,30 @@ export function campaignActionButton(scene: Phaser.Scene, options: CampaignActio
   const buttonSkin = skin(options.kind, state);
   const dim = buttonSkin.textAlpha;
   const textColor = buttonSkin.text;
-  const pad = 16;
+  const padX = 16;
   const { rect } = options;
   const titleSize = options.titleSize ?? (options.kind === "primary" ? 22 : 18);
-  const titleY = options.subtitle ? rect.y + pad - 2 : rect.y + rect.height / 2;
+  const hasSubtitle = Boolean(options.subtitle);
+  // Laid out top-down: title first, subtitle right under it (never centered as one block) — so a tight rect
+  // shrinks the button's own vertical centering rather than letting the two lines collide.
+  const blockHeight = hasSubtitle ? titleSize + 18 : titleSize;
+  const top = rect.y + Math.max(8, (rect.height - blockHeight) / 2);
   const title = scene.add
-    .text(rect.x + pad, titleY, options.title.toUpperCase(), textStyle(bangers(titleSize), textColor, dim))
-    .setOrigin(0, options.subtitle ? 0 : 0.5);
+    .text(
+      rect.x + padX,
+      hasSubtitle ? top : rect.y + rect.height / 2,
+      options.title.toUpperCase(),
+      textStyle(bangers(titleSize), textColor, dim),
+    )
+    .setOrigin(0, hasSubtitle ? 0 : 0.5);
   button.container.add(title);
   if (options.subtitle) {
     const subtitle = scene.add
-      .text(rect.x + pad, rect.y + rect.height - pad - 2, options.subtitle, {
+      .text(rect.x + padX, title.y + title.height + 2, options.subtitle, {
         ...textStyle(typeRole.emphasis, textColor, dim * ink.secondary),
         fontSize: "12px",
       })
-      .setOrigin(0, 1);
+      .setOrigin(0, 0);
     button.container.add(subtitle);
   }
   if (options.chevron) {
