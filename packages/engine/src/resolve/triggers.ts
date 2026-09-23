@@ -219,7 +219,7 @@ function inHandCandidates(
       const card = cardOf(state, id);
       if (card?.type !== "event") continue;
       // "Max 1 per round", "Play only if …": a window never offers a card its restrictions forbid.
-      if (playRestrictionFault(state, deps, player.playerId, card)) continue;
+      if (playRestrictionFault(state, deps, player.playerId, card, id)) continue;
       for (const ref of card.abilities) {
         const definition = deps.abilities[ref.id];
         if (!definition) continue;

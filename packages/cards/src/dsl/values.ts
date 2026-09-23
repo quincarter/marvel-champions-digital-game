@@ -311,6 +311,15 @@ export const scenarioAreaCount = (name: string, filter?: TargetQuery): ValueSpec
   name,
   ...(filter ? { filter } : {}),
 });
+/**
+ * The cards in the victory display, optionally filtered: "Play only if there is a side scheme in the victory display"
+ * (Mission Planning, Critical Hit) is `playOnlyIf(valueAtLeast(victoryDisplayCount(query("sideScheme")), 1))`.
+ * docs/phase7-wave3.md §3.42.
+ */
+export const victoryDisplayCount = (filter?: TargetQuery): ValueSpec => ({
+  kind: "victoryDisplayCount",
+  ...(filter ? { filter } : {}),
+});
 
 /**
  * Arithmetic: "2 damage for each counter (to a maximum of 10)" → `scaled(counters, { times: 2, max: 10 })`;

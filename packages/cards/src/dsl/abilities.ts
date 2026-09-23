@@ -267,6 +267,11 @@ export interface ConstantPart {
    * from hand.
    */
   readonly playableAttachments?: TargetQuery;
+  /**
+   * "Play only if you control an Element Gun." (Sliding Shot, `stld` 17005; docs/phase7-wave3.md §3.42): a play
+   * restriction read from the card itself while it is being played. Several are ANDed.
+   */
+  readonly playOnlyIf?: Predicate;
 }
 
 export function constant(...parts: readonly ConstantPart[]): AbilityDefinition {
@@ -298,6 +303,9 @@ export function constant(...parts: readonly ConstantPart[]): AbilityDefinition {
   const paymentOnly = all("paymentOnly");
   const playableFrom = all("playableFrom");
   const basicPowerCosts = all("basicPowerCosts");
+  const playConditions = parts.flatMap((p) => (p.playOnlyIf ? [p.playOnlyIf] : []));
+  const playOnlyIfCondition: Predicate | undefined =
+    playConditions.length > 1 ? { kind: "and", of: playConditions } : playConditions[0];
   return {
     trigger: {
       kind: "constant",
@@ -312,10 +320,17 @@ export function constant(...parts: readonly ConstantPart[]): AbilityDefinition {
       ...(playableFrom.length ? { playableFrom } : {}),
       ...(basicPowerCosts.length ? { basicPowerCosts } : {}),
       ...(playableAttachmentsList[0] ? { playableAttachments: playableAttachmentsList[0] } : {}),
+      ...(playOnlyIfCondition ? { playOnlyIf: playOnlyIfCondition } : {}),
     },
     effects: [],
   };
 }
+/**
+ * "Play only if you control an Element Gun." (Sliding Shot, `stld` 17005; docs/phase7-wave3.md §3.42): a play
+ * restriction on any `Predicate`, checked on the card being played (RRG 1.8 "Initiating Abilities", p. 24, step 2), with
+ * `you` the player playing it. `constant(playOnlyIf(exists(query("upgrade", { name: "Element Gun", controller: "you" }))))`.
+ */
+export const playOnlyIf = (condition: Predicate): ConstantPart => ({ playOnlyIf: condition });
 /** "You may play [X] events attached to this card as if they were in your hand." (Hawkeye's Quiver, `trors` pack). */
 export const playableAttachments = (query: TargetQuery): ConstantPart => ({ playableAttachments: query });
 /** "Reduce the cost to play X by N [while …]" / "… costs N additional resources" (a signed `delta`). */

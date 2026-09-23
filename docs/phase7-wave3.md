@@ -886,6 +886,59 @@ interrupt(
 
 "An ally" is any player's ally; the printed card does not say "your".
 
+### 3.41 "A total of up to N … (as you choose)": `divide.upTo`
+
+> **Status: landed (2026-09-23),** tested in `packages/engine/src/divide-up-to.test.ts` (4 tests: 0–5 points offered and exactly the chosen shares removed; dividing none removes nothing and the event still resolves; a single candidate is still asked; without `upTo` a single candidate still takes the full amount unasked; replay deep-equal).
+
+Agile Flight (17029): "Hero Action (thwart): Remove a total of up to 5 threat from among schemes (as you choose)." `EffectSpec divide` always divided the full amount (`minSelections === maxSelections === amount`), and a single candidate took it all without a choice. That is right for "a total of N" (Wasp Sting, Inconspicuous), not for "up to".
+
+- **`EffectSpec divide.upTo: true`**: `amount` is the most that may be divided. The `divide` choice has `minSelections: 0`, so the chooser may divide fewer points, or none.
+- **Why none is allowed.** RRG 1.8 "Cost" (p. 14): "A cost requiring 'any number' or 'up to' some number of game elements requires a minimum of one such game element." That sentence is about costs only. For an effect, RRG 1.8 "Choose (Game Element)" (p. 12) chooses "to a maximum of the specified number". This is the reading `chooseTarget.optional` already has for "up to X" targets (Thunderclap). Ruling, Mar 6, 2026 (2) (Quick Quip, "up to 2" enemies) confirms that an effect's "up to" allows fewer; it does not speak to none, so dividing none is a reading, flagged as §4 Q16. It is harmless: the thwart still happens and removes no threat.
+- **A single candidate is still asked**, because the amount is now the chooser's. Without `upTo`, the behavior is unchanged.
+- Threat that cannot be removed (crisis, patrol, `threatCannotBeRemoved`) is handled by each `removeThreat` event as before; the chooser may still place points there, and they do nothing.
+
+**DSL:** `divide(what, n, among, { upTo: true })` in `dsl/effects.ts`.
+
+**Agile Flight composition** (`17029.agile-flight-action`; its "Play only if your identity has the aerial trait" is already `playRestrictions` data):
+
+```ts
+heroAction({ label: "thwart" }, divide("threat", 5, query("scheme"), { upTo: true }));
+```
+
+### 3.42 "Play only if …" on any condition: `constant.playOnlyIf`, `ValueSpec victoryDisplayCount`
+
+> **Status: landed (2026-09-23),** tested in `packages/engine/src/play-only-if.test.ts` (4 tests: without an Element Gun the play is refused and `legalActions` does not offer it; another player's gun does not count; with your own gun it is offered and plays; the victory-display condition reads the out-of-play pile).
+
+Sliding Shot (17005): "Play only if you control an Element Gun." A `constant` ability's rules are only read from cards in play, and the event is not in play while it is checked, so a `cannotPlay` rule on the card never applied (the `stld` pass verified this). `PlayRestrictions` data has `requiresIdentityTrait` and `requiresControlledCharacterTrait`, but no named-card case.
+
+**Survey of every "Play only if …" in `packages/content/raw/marvelcdb/*.json` (2026-09-23).** Most are the identity-trait form `playRestrictions.requiresIdentityTrait` already carries ("your identity has the [X] trait", "you have the [X] trait", "you are in [Giant] hero form"), and "you control a [Spy] character" is `requiresControlledCharacterTrait`. Eighteen printed cards are left over, and none of them is a trait on your identity:
+
+| Wording                                                       | Cards                                                                                                                                      | Composition                                                                                                                 |
+| ------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------- |
+| "Play only if you control an Element Gun"                     | Sliding Shot 17005 (`stld`)                                                                                                                | `exists({ name: "Element Gun", controller: "you" })`                                                                        |
+| "Play only if you control a [Web-Warrior] card"               | Spider-Man 27017, Ghost-Spider 27048 (`sm`), Spider-Ham 31021, Spider-Man 31022 (`spdr`), Scarlet Spider 30020, SP//dr 30021 (`spiderham`) | `exists({ trait: WEB_WARRIOR, controller: "you" })` (a card, not only a character)                                          |
+| "Play only if any player controls a [Martial Artist] card"    | Black Belt 62037 (`luke_cage`)                                                                                                             | `exists({ trait: MARTIAL_ARTIST, controlledBy: eachPlayer })` (not `controller: "any"`, which also matches encounter cards) |
+| "Play only if you control at least 3 characters with [Posse]" | The Posse 40058 (`next_evol`)                                                                                                              | `valueAtLeast(countOf(query(["identity", "ally"], { trait: POSSE, controller: "you" })), 3)`                                |
+| "Play only if there is a side scheme in the victory display"  | Mission Planning 40017 (`next_evol`), Critical Hit 43016, Predictable Ploy 43038, Anticipated Attack 43040 (`x23`)                         | `valueAtLeast(victoryDisplayCount(query("sideScheme")), 1)` (new `ValueSpec`)                                               |
+| "Play only if Vision is in Dense/Intangible mass form"        | Superdense Strike 26009, Mass Increase 26012, Just Passing Through 26010, Phase Disruption 26011 (`vision`)                                | a `Predicate` on however `vision`'s mass forms are modeled (not checked here)                                               |
+| "Play only if you are the Bucky Barnes or Sam Wilson player"  | Captain America 53023 (`falcon`)                                                                                                           | a `Predicate` naming both identity cards by both faces (not checked here)                                                   |
+
+So the condition is too varied for fixed data fields. And every one of these cards that is already emitted (13 of the 18: 17005, 26009–26012, 30020, 30021, 31021, 31022, 43016, 43038, 43040, 53023) already carries the sentence as an unparsed "-constant" ability ref. The five that are not are in packs not emitted yet (`sm`, `luke_cage`, `next_evol`). The primitive is therefore an ability:
+
+- **`AbilityTriggerSpec constant.playOnlyIf: Predicate`**, read from the card being played, wherever it is, the same way `playableFrom`/`paymentOnly` are read from the card itself. `you` is the player playing it, `self` the card. RRG 1.8 "Initiating Abilities" (p. 24) step 2 ("Check play restrictions") and "Play Restrictions and Permissions" (p. 33, "all of its play restrictions must be observed").
+- **Enforced in `playRestrictionFault`** (`actions.ts`), which now takes the card's instance id. That one function covers the play command, `legalActions` (the play is not offered), a play from an effect (`playFromHand`), and an event offered in a timing window.
+- **`ValueSpec victoryDisplayCount { filter? }`**: the victory display is out of play, so `exists`/`count` cannot read it. It completes the survey.
+
+**What `card-data-pipeline` must emit: nothing new.** Each of these sentences already becomes a "-constant" ability ref (and should keep doing so when `sm`, `luke_cage` and `next_evol` are emitted), which the scripter fills with `constant(playOnlyIf(…))`. Parsing them into `PlayRestrictions` fields would need a new field for each row above. Rows 1, 2 and 3 alone would need three (a name, a trait on any card, any player), and the ability would still be needed for the rest. The existing `requiresIdentityTrait` / `requiresControlledCharacterTrait` fields stay as they are.
+
+**DSL:** `playOnlyIf(predicate)`, a `constant` part (several are ANDed), in `dsl/abilities.ts`; `victoryDisplayCount(filter?)` in `dsl/values.ts`.
+
+**Sliding Shot composition** (`17005.sliding-shot-constant`):
+
+```ts
+constant(playOnlyIf(exists({ name: "Element Gun", controller: "you" })));
+```
+
 ---
 
 ## 4. Open questions (for the user or FFG)
@@ -907,6 +960,7 @@ Each is implemented the way stated, or not at all, and named here rather than de
 13. **A Team-Up name written "Hero/Alter-ego" (§3.34).** Heart of the Panther (`bp` 51025) prints "Team-Up (Black Panther/T'Challa and Black Panther/Shuri)". RRG 1.8 "Team-Up" (p. 43) matches a name against a character's "title or subtitle", and no title contains a slash. Implemented as naming one identity card by both sides: its hero face is the first half, its alter-ego face is the second, and it matches whichever side is up. Before this, the play check and the deckbuilding check both refused the card outright. A strict reading of p. 23 would instead require the hero side ("Black Panther") to be up. That makes no difference for the deck check, and for the play check only while one Black Panther is in alter-ego form.
 14. **Found, not fixed: a card revealed by `EffectSpec revealEncounterCard` is still on top of the encounter deck while it resolves.** Found while writing §3.35's test. The effect takes the top card with `drawEncounterCard`, which returns the card without removing it, and a revealed treachery only leaves the deck in the reveal frame's `finish` stage. So a When Revealed on that card that discards, deals or reveals from the encounter deck reaches the card itself first. Every other reveal path deals the card out of the deck before revealing it: the villain phase deal and surge (`dealEncounterCardTo`). The likely fix is to deal the card to the revealing player first, as surge does. Three Core/wave 1 scripts use the effect (`core/modular/standard.ts`, `core/aspects/protection.ts`, `wave1/bkw/pack-cards.ts`), so it is flagged here for `rules-qa-engineer` rather than changed in this pass. §3.35's test is written to pass either way.
 15. **Found, not fixed: the engine resets an emptied player deck lazily.** Ruling, Apr 30, 2026 (3) answer 7, "The deck is reshuffled **before** the currently resolving card enters the discard pile", means the reset happens the moment a deck empties (RRG 1.8 "Player Deck", p. 33). `drawCards`, `discardDeckUntil` and `takeTopOfDeck` reset an empty deck only on its next read instead. So when an event draws or discards the last card of its player's deck, the event then goes to the discard pile and is shuffled into the new deck at the next read, and the facedown encounter card comes late. §3.33's cost resets immediately, and its test pins answer 7. The general fix is to reset in `moveCard` whenever a player's deck becomes empty. That touches every draw, so it is flagged for `rules-qa-engineer` and a separate change rather than folded into this pass.
+16. **Can an effect's "up to N" choose none (§3.41)?** Agile Flight: "Remove a total of up to 5 threat from among schemes (as you choose)." RRG 1.8 "Cost" (p. 14) requires at least one only of a cost. Ruling, Mar 6, 2026 (2) lets Quick Quip's "up to 2" choose 1, but says nothing about 0. Implemented as allowing 0, the same as `chooseTarget.optional`. The card has no text that could make 0 matter.
 
 ## 5. What this asks of the other agents
 

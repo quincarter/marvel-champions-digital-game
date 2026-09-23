@@ -167,6 +167,20 @@ export type AbilityTriggerSpec =
        */
       readonly playableFrom?: readonly "discard"[];
       /**
+       * "Play only if you control an Element Gun." (Sliding Shot, `stld` 17005): a play restriction whose condition is
+       * any `Predicate`, read from the card itself while it is being played (RRG 1.8 "Initiating Abilities", p. 24,
+       * step 2: "Check play restrictions"; "Play Restrictions and Permissions", p. 33: "all of its play restrictions
+       * must be observed"). The card is not in play when this is checked, which is why it cannot be a `cannotPlay` rule:
+       * those are read only from cards in play. `you` is the player playing the card and `self` the card. Enforced
+       * wherever `playRestrictionFault` is: a play command, `legalActions`, a play from an effect, and an event offered
+       * in a timing window. docs/phase7-wave3.md §3.42.
+       *
+       * The general form of the printed `PlayRestrictions` fields (`requiresIdentityTrait`,
+       * `requiresControlledCharacterTrait`), for the conditions card data cannot say: a named card, a trait on any card
+       * type, "any player controls", "at least 3 characters with the [Posse] trait".
+       */
+      readonly playOnlyIf?: Predicate;
+      /**
        * "You may play [Arrow] events attached to this card as if they were in your hand" (Hawkeye's Quiver; docs/phase7-
        * wave2.md §3.10): cards attached to this card that match may be played by its controller as if from hand. A
        * permission on the host, where `playableFrom` is one on the card itself.

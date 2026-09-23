@@ -222,16 +222,31 @@ export const playableOutsideHand = (state: GameState, deps: EngineDeps, playerId
 /**
  * The printed play restrictions the engine enforces beyond form, control and per-player/per-host maximums
  * (docs/phase7-wave1.md §1.8, §3.10): "Max N per round", "Play only if your identity has the [trait] trait", "Play only if
- * you control a [trait] character". Traits count whether printed or gained (RRG 1.8 "Gains").
+ * you control a [trait] character". Traits count whether printed or gained (RRG 1.8 "Gains"). Also the card's own
+ * scripted `playOnlyIf` conditions (docs/phase7-wave3.md §3.42), read from `instanceId` wherever it is.
  */
 export function playRestrictionFault(
   state: GameState,
   deps: EngineDeps,
   playerId: PlayerId,
   card: AnyCard,
+  instanceId: InstanceId,
 ): PriceFault | null {
   const teamUp = teamUpFault(state, card);
   if (teamUp) return teamUp;
+  // "Play only if you control an Element Gun": RRG 1.8 "Initiating Abilities" (p. 24) step 2, the card not in play.
+  const context: EffectContext = {
+    selfInstanceId: instanceId,
+    controllerId: playerId,
+    event: null,
+    bindings: {},
+    deps,
+  };
+  for (const trigger of printedConstants(state, deps, instanceId)) {
+    if (trigger.playOnlyIf && !evaluate(state, trigger.playOnlyIf, context)) {
+      return { code: "no_valid_target", message: "this card's play restriction is not met" };
+    }
+  }
   const restrictions = "playRestrictions" in card ? card.playRestrictions : undefined;
   if (!restrictions) return null;
   // RRG 1.8 "Max, Maximum" (p. 28): across all copies by title, for all players.
@@ -1550,7 +1565,7 @@ export function playCard(ctx: Ctx, command: Command & { type: "playCard" }): Eng
     if (held >= restrictions.maxPerPlayer)
       return engineError("no_valid_target", `max ${restrictions.maxPerPlayer} per player`, command);
   }
-  const restricted = playRestrictionFault(ctx.state, ctx.deps, command.playerId, card);
+  const restricted = playRestrictionFault(ctx.state, ctx.deps, command.playerId, card, command.cardInstanceId);
   if (restricted) return engineError(restricted.code, restricted.message, command);
   // "You cannot play hero-specific cards." (Depowered; `cannotPlay`, docs/phase7-wave2.md §3.11).
   if (cannotPlayCard(ctx.state, ctx.deps, command.playerId, command.cardInstanceId)) {
@@ -1680,7 +1695,10 @@ function playFromEffectRestrictionFault(ctx: Ctx, playerId: PlayerId, id: Instan
   if ("specialCost" in card && card.specialCost === "dash") return "a '—' cost cannot be played";
   const restrictions = "playRestrictions" in card ? card.playRestrictions : undefined;
   if (restrictions?.form && player.identity.form !== restrictions.form) return "wrong form";
-  if (playRestrictionFault(ctx.state, ctx.deps, playerId, card) || cannotPlayCard(ctx.state, ctx.deps, playerId, id))
+  if (
+    playRestrictionFault(ctx.state, ctx.deps, playerId, card, id) ||
+    cannotPlayCard(ctx.state, ctx.deps, playerId, id)
+  )
     return "a play restriction";
   if (hasKeyword(ctx.state, id, "restricted", ctx.deps)) {
     const held = [...restrictedCardsOf(ctx.state, playerId, ctx.deps), id];

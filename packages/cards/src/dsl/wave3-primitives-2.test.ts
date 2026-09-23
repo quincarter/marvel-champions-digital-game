@@ -6,10 +6,23 @@
 
 import { trait } from "@mc/content";
 import { describe, expect, it } from "vitest";
-import { discardThis, interrupt, on, whenRevealed } from "./abilities.js";
-import { enemyAttack, ifThen, modifyStat, surge } from "./effects.js";
+import { constant, discardThis, heroAction, interrupt, on, playOnlyIf, whenRevealed } from "./abilities.js";
+import { divide, enemyAttack, ifThen, modifyStat, surge } from "./effects.js";
 import { validateDefinition } from "./validate.js";
-import { controllerOf, each, eventSource, hasAttachment, made, not, query, theVillain } from "./values.js";
+import {
+  controllerOf,
+  each,
+  eachPlayer,
+  eventSource,
+  exists,
+  hasAttachment,
+  made,
+  not,
+  query,
+  theVillain,
+  valueAtLeast,
+  victoryDisplayCount,
+} from "./values.js";
 
 const valid = (definition: Parameters<typeof validateDefinition>[0]) =>
   expect(validateDefinition(definition)).toEqual([]);
@@ -41,6 +54,56 @@ describe("§3.39 PlayerRef controllerOf, §3.40 TargetQuery.hasAttachment", () =
       on: {
         on: "attack",
         sourceIs: { categories: ["ally"], hasAttachment: { categories: ["upgrade"], trait: WEAPON } },
+      },
+    });
+  });
+});
+
+describe("§3.41 divide 'up to'", () => {
+  it("Agile Flight (17029): remove a total of up to 5 threat from among schemes", () => {
+    const definition = heroAction({ label: "thwart" }, divide("threat", 5, query("scheme"), { upTo: true }));
+    valid(definition);
+    expect(definition.effects).toEqual([
+      {
+        kind: "divide",
+        what: "threat",
+        amount: { kind: "const", value: 5 },
+        among: { categories: ["scheme"] },
+        chooser: { kind: "controller" },
+        upTo: true,
+      },
+    ]);
+  });
+});
+
+describe("§3.42 playOnlyIf", () => {
+  it("Sliding Shot (17005): play only if you control an Element Gun", () => {
+    const definition = constant(playOnlyIf(exists({ name: "Element Gun", controller: "you" })));
+    valid(definition);
+    expect(definition.trigger).toEqual({
+      kind: "constant",
+      playOnlyIf: { kind: "exists", query: { name: "Element Gun", controller: "you" } },
+    });
+  });
+
+  it("the other surveyed wordings compose", () => {
+    const WEB_WARRIOR = trait("WEB-WARRIOR");
+    // "Play only if you control a [Web-Warrior] card" (Spider-Man 27017, Ghost-Spider 27048, …).
+    valid(constant(playOnlyIf(exists({ trait: WEB_WARRIOR, controller: "you" }))));
+    // "Play only if any player controls a [Martial Artist] card" (Black Belt 62037).
+    valid(constant(playOnlyIf(exists({ trait: trait("MARTIAL ARTIST"), controlledBy: eachPlayer }))));
+    // "Play only if there is a side scheme in the victory display" (Mission Planning 40017, Critical Hit 43016).
+    valid(constant(playOnlyIf(valueAtLeast(victoryDisplayCount(query("sideScheme")), 1))));
+    // Two parts are ANDed.
+    const both = constant(playOnlyIf(exists({ name: "A" })), playOnlyIf(exists({ name: "B" })));
+    expect(both.trigger).toEqual({
+      kind: "constant",
+      playOnlyIf: {
+        kind: "and",
+        of: [
+          { kind: "exists", query: { name: "A" } },
+          { kind: "exists", query: { name: "B" } },
+        ],
       },
     });
   });

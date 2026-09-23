@@ -465,6 +465,13 @@ export type ValueSpec =
    */
   | { readonly kind: "scenarioAreaCount"; readonly name: string; readonly filter?: TargetQuery }
   /**
+   * The cards in the victory display (docs/phase7-wave3.md §3.4), optionally filtered: "Play only if there is a side
+   * scheme in the victory display" (Mission Planning, Critical Hit, Predictable Ploy, Anticipated Attack) is
+   * `compare(victoryDisplayCount({ categories: ["sideScheme"] }), "atLeast", 1)` as a `playOnlyIf` (§3.42). The
+   * victory display is out of play, which is why `exists`/`count` (cards in play) cannot read it.
+   */
+  | { readonly kind: "victoryDisplayCount"; readonly filter?: TargetQuery }
+  /**
    * How many of the cards a ref names match a query, wherever they are (not restricted to in play, unlike `count`):
    * "for each treachery looked at this way" (Falcon, `cap` pack, over `selectCards`' non-in-play "look") reads the
    * cards bound to a slot. Resolved the same way `resourceTypes`/`distinctCardTypes` already read a ref's cards.
@@ -1002,6 +1009,15 @@ export type EffectSpec =
       readonly among: TargetQuery;
       readonly chooser: PlayerRef;
       readonly bind?: string;
+      /**
+       * "Remove a total of **up to** 5 threat from among schemes (as you choose)" (Agile Flight, `stld` 17029;
+       * docs/phase7-wave3.md §3.41): `amount` is the most the chooser may divide, and they may divide fewer points,
+       * none included. The choice is asked even with a single candidate, since how many is still the chooser's. An
+       * effect's "up to" is not a cost's: RRG 1.8 "Cost" (p. 14) requires a minimum of one only of a *cost*, and RRG
+       * 1.8 "Choose (Game Element)" (p. 12) chooses "to a maximum of the specified number" — the same reading
+       * `chooseTarget.optional` already has for "up to X" targets. Choosing none is a reading (§4 Q16).
+       */
+      readonly upTo?: true;
     }
   /** "Choose a player." Binds that player (their identity) into `slot`; use `PlayerRef` `slot` to refer to them. */
   /**

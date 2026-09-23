@@ -870,7 +870,15 @@ export const divide = (
   what: "damage" | "threat",
   n: Amount,
   among: TargetQuery,
-  opts: { readonly chooser?: PlayerRef; readonly bind?: string } = {},
+  opts: {
+    readonly chooser?: PlayerRef;
+    readonly bind?: string;
+    /**
+     * "A total of **up to** N" (Agile Flight, `stld` 17029; docs/phase7-wave3.md §3.41): the chooser divides at most
+     * N points, possibly none, and is asked even with a single candidate.
+     */
+    readonly upTo?: boolean;
+  } = {},
 ): EffectSpec => ({
   kind: "divide",
   what,
@@ -878,6 +886,7 @@ export const divide = (
   among,
   chooser: opts.chooser ?? you,
   ...withBind(opts.bind),
+  ...(opts.upTo ? { upTo: true as const } : {}),
 });
 
 /**
