@@ -150,7 +150,7 @@ describe("Rocket Raccoon kit", () => {
     expect(threatAfterFirst - inst(secondThwart, before).threat).toBe(3);
   });
 
-  it("Reload: Hero Action, readies each tech upgrade you control", () => {
+  it("Reload: Hero Action, readies each tech upgrade you control (16031.reload-action)", () => {
     // Reload is a played event (Hero Action), not an in-play ability — put Battery Pack into play first, exhaust
     // it, then play Reload from hand.
     const { state: withBattery } = playFromHand(runWave3(rocketVsRhino(), toHero()), "16034", 1);
@@ -160,7 +160,7 @@ describe("Rocket Raccoon kit", () => {
     expect(inst(used, battery).exhausted).toBe(false);
   });
 
-  it("Battery Pack: enters play with 2 charge counters; Action moves one to another tech upgrade you control", () => {
+  it("Battery Pack: enters play with 2 charge counters; Action moves one to another tech upgrade you control (16034.battery-pack-constant)", () => {
     const { state: withBattery } = playFromHand(rocketVsRhino(), "16034", 1);
     const battery = instancesOf(withBattery, "16034").find((id) => cardsInPlay(withBattery).includes(id))!;
     expect(inst(withBattery, battery).counters.charge).toBe(2);
@@ -177,7 +177,7 @@ describe("Rocket Raccoon kit", () => {
     expect(inst(used, battery).exhausted).toBe(true);
   });
 
-  it("Cybernetic Skeleton: you get +3 hit points; Rocket Raccoon gets +1 ATK while in hero form", () => {
+  it("Cybernetic Skeleton: you get +3 hit points; Rocket Raccoon gets +1 ATK while in hero form (16035.cybernetic-skeleton-constant, 16035.cybernetic-skeleton-constant-2)", () => {
     const { state: withSkeleton } = playFromHand(rocketVsRhino(), "16035", 2);
     const identity = identityOf(withSkeleton);
     const alterEgoMax = maxHitPoints(withSkeleton, identity, WAVE3_DEPS);
@@ -194,7 +194,7 @@ describe("Rocket Raccoon kit", () => {
     expect(inst(attacked, villain).damage).toBe(before + 2); // printed ATK 1, +1 from Cybernetic Skeleton
   });
 
-  it("Particle Cannon: enters play with 2 charge counters; Action exhausts and removes 1 to deal 4 overkill ranged damage", () => {
+  it("Particle Cannon: enters play with 2 charge counters; Action exhausts and removes 1 to deal 4 overkill ranged damage (16036.particle-cannon-constant)", () => {
     const { state: withCannon, id: cannon } = playFromHand(runWave3(rocketVsRhino(), toHero()), "16036", 3);
     expect(inst(withCannon, cannon).counters.charge).toBe(2);
     const villain = withCannon.villains[0]!.instanceId;
@@ -210,7 +210,7 @@ describe("Rocket Raccoon kit", () => {
     expect(inst(used, cannon).exhausted).toBe(true);
   });
 
-  it("Rocket Launcher: enters play with 2 charge counters; Action deals 2 damage to the villain and each minion engaged with the chosen player", () => {
+  it("Rocket Launcher: enters play with 2 charge counters; Action deals 2 damage to the villain and each minion engaged with the chosen player (16037.rocket-launcher-constant)", () => {
     const { state: withLauncher, id: launcher } = playFromHand(runWave3(rocketVsRhino(), toHero()), "16037", 3);
     expect(inst(withLauncher, launcher).counters.charge).toBe(2);
     const { state: withMinion, id: minion } = withEngagedMinion(withLauncher);
@@ -227,7 +227,7 @@ describe("Rocket Raccoon kit", () => {
     expect(inst(used, launcher).counters.charge).toBe(1);
   });
 
-  it("Rocket's Pistol: enters play with 3 charge counters; Action exhausts and removes 1 to deal 2 damage to an enemy", () => {
+  it("Rocket's Pistol: enters play with 3 charge counters; Action exhausts and removes 1 to deal 2 damage to an enemy (16038.rockets-pistol-constant)", () => {
     const { state: withPistol, id: pistol } = playFromHand(runWave3(rocketVsRhino(), toHero()), "16038", 1);
     expect(inst(withPistol, pistol).counters.charge).toBe(3);
     const villain = withPistol.villains[0]!.instanceId;
@@ -242,7 +242,7 @@ describe("Rocket Raccoon kit", () => {
     expect(inst(used, pistol).counters.charge).toBe(2);
   });
 
-  it("Thruster Boots: while in hero form, Rocket Raccoon gets +1 THW and gains the aerial trait", () => {
+  it("Thruster Boots: while in hero form, Rocket Raccoon gets +1 THW and gains the aerial trait (16039.thruster-boots-constant)", () => {
     const { state: withBoots } = playFromHand(runWave3(rocketVsRhino(), toHero()), "16039", 1);
     const identity = identityOf(withBoots);
     expect(traitsOf(withBoots, identity, WAVE3_DEPS)).toContain("AERIAL");
@@ -271,7 +271,7 @@ describe("Rocket Raccoon kit", () => {
     expect(inst(attacked, bug).damage).toBe(0);
   });
 
-  it("Looking for Trouble: Hero Action (thwart), discards from the encounter deck until a minion, puts it into play engaged with you, then removes 3 threat", () => {
+  it("Looking for Trouble: Hero Action (thwart), discards from the encounter deck until a minion, puts it into play engaged with you, then removes 3 threat (16043.looking-for-trouble-action)", () => {
     const hero = runWave3(rocketVsRhino(), toHero());
     const withThreat = patchInstance(hero, hero.mainScheme.instanceId, { threat: 10 });
     const stacked = stackEncounterDeck(withThreat, "01186", "01186", "01101"); // 2 fillers, then a real minion
@@ -283,7 +283,7 @@ describe("Rocket Raccoon kit", () => {
     expect(inst(state, minion!).engagedWith).toBe(P1);
   });
 
-  it("Follow Through: constant, your hero's attacks deal 1 more excess damage than they otherwise would", () => {
+  it("Follow Through: constant, your hero's attacks deal 1 more excess damage than they otherwise would (16045.follow-through-interrupt)", () => {
     const { state: withCard } = playFromHand(runWave3(rocketVsRhino(), toHero()), "16045", 2);
     const identity = identityOf(withCard);
     expect(excessDamageBonus(withCard, WAVE3_DEPS, identity)).toBe(1);

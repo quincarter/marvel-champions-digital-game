@@ -1,6 +1,7 @@
 import type { GameEvent } from "@mc/engine";
-import { firstLegal, inst, instancesOf, P1, settle, stackEncounterDeck } from "../../testing/harness.js";
+import { firstLegal, inst, instancesOf, P1, runWith, settle, stackEncounterDeck } from "../../testing/harness.js";
 import { driveEvents } from "../../testing/staging.js";
+import { traceAbilities } from "../../testing/trace.js";
 import { wave3Scenario } from "../setup.js";
 import { GMW_ABILITIES } from "./index.js";
 import { runWave3, startWave3Game, WAVE3_DEPS } from "../testing.js";
@@ -30,6 +31,30 @@ describe("Badoon Assassin (16117)", () => {
     // it plus this response could deal is 3 (1 printed ATK, if it also activates normally, plus this response's own
     // +2 floor); loosely bounded from below to allow either ordering of "engages" vs "activates" this same phase.
     expect(inst(revealed, identity).damage).toBeGreaterThanOrEqual(before + 3);
+  });
+
+  it("[star] Boost: if this activation is an attack, gains overkill, piercing, and ranged (16117.boost)", () => {
+    // Structurally pinned like Badoon Warlord's own constant just above: a live overkill/piercing spillover test
+    // needs a second target and full damage-assignment scaffolding this pass doesn't build (that file's own
+    // comment). What *is* live here is that the ability genuinely fires when it's drawn as an attack's boost card.
+    const definition = GMW_ABILITIES["16117.boost" as never];
+    expect(definition?.effects).toEqual([
+      {
+        kind: "if",
+        condition: { kind: "currentActivationIs", activation: "attack" },
+        then: [{ kind: "modifyAttack", keywords: ["overkill", "piercing", "ranged"] }],
+      },
+    ]);
+
+    const base = brotherhoodOfBadoon();
+    const heroForm = {
+      ...base,
+      players: base.players.map((p) => ({ ...p, identity: { ...p.identity, form: "hero" as const } })),
+    };
+    const staged = stackEncounterDeck(heroForm, "16117"); // drawn as Drang's own boost card during his attack
+    const { deps, trace } = traceAbilities(WAVE3_DEPS);
+    settle(runWith(deps, staged, { type: "endTurn", playerId: P1 }), firstLegal, undefined, deps);
+    expect(trace.resolved()).toContain("16117.boost");
   });
 });
 

@@ -41,14 +41,14 @@ const toDeclareDefender = (state: GameState) =>
   settle(runWave3(state, endTurn()), firstLegal, (s) => s.pendingChoice?.prompt.kind === "declareDefender", WAVE3_DEPS);
 
 describe("Groot kit", () => {
-  it("Fruition: places 2 growth counters on Groot (to a maximum of 10)", () => {
+  it("Fruition: places 2 growth counters on Groot (to a maximum of 10) (16002.fruition-action)", () => {
     const hero = runWave3(grootVsRhino(), toHero());
     const { state } = playFromHand(hero, "16002", 0);
     const identity = identityOf(state);
     expect(inst(state, identity).counters.growth).toBe(2);
   });
 
-  it("Fruition: capped at 10 growth counters", () => {
+  it("Fruition: capped at 10 growth counters (16002.fruition-action)", () => {
     const hero = runWave3(grootVsRhino(), toHero());
     const identity = identityOf(hero);
     const near = patchInstance(hero, identity, { counters: { growth: 9 } });
@@ -56,7 +56,7 @@ describe("Groot kit", () => {
     expect(inst(state, identity).counters.growth).toBe(10);
   });
 
-  it('"I am Groot": removes threat from a scheme equal to the number of growth counters on Groot', () => {
+  it('"I am Groot": removes threat from a scheme equal to the number of growth counters on Groot (16003.i-am-groot-action)', () => {
     const hero = runWave3(grootVsRhino(), toHero());
     const identity = identityOf(hero);
     const withCounters = patchInstance(hero, identity, { counters: { growth: 3 } });
@@ -67,7 +67,7 @@ describe("Groot kit", () => {
     expect(inst(state, identity).counters.growth).toBe(3); // reading the counters didn't spend them
   });
 
-  it('"I. AM. GROOT!": deals damage to an enemy equal to the number of growth counters on Groot', () => {
+  it('"I. AM. GROOT!": deals damage to an enemy equal to the number of growth counters on Groot (16004.i-am-groot-action)', () => {
     const hero = runWave3(grootVsRhino(), toHero());
     const identity = identityOf(hero);
     const withCounters = patchInstance(hero, identity, { counters: { growth: 4 } });
@@ -77,7 +77,7 @@ describe("Groot kit", () => {
     expect(inst(state, villain).damage).toBe(before + 4);
   });
 
-  it("Root Stomp: deals 5 damage to an enemy, placing 1 growth counter on Groot if that attack defeats it", () => {
+  it("Root Stomp: deals 5 damage to an enemy, placing 1 growth counter on Groot if that attack defeats it (16005.root-stomp-action)", () => {
     const hero = runWave3(grootVsRhino(), toHero());
     const identity = identityOf(hero);
     const villain = hero.villains[0]!.instanceId;
@@ -92,7 +92,7 @@ describe("Groot kit", () => {
     expect(inst(state, identity).counters.growth ?? 0).toBe(before + 1);
   });
 
-  it("Root Stomp: places no growth counter when the attack doesn't defeat its target", () => {
+  it("Root Stomp: places no growth counter when the attack doesn't defeat its target (16005.root-stomp-action)", () => {
     const hero = runWave3(grootVsRhino(), toHero());
     const identity = identityOf(hero);
     const villain = hero.villains[0]!.instanceId;
@@ -103,7 +103,7 @@ describe("Groot kit", () => {
     expect(inst(state, identity).counters.growth ?? 0).toBe(before);
   });
 
-  it("Flora Colossus: Forced Interrupt prevents damage to Groot by removing that many growth counters", () => {
+  it("Flora Colossus: Forced Interrupt prevents damage to Groot by removing that many growth counters (16001a.flora-colossus)", () => {
     const hero = runWave3(grootVsRhino(), toHero());
     const identity = identityOf(hero);
     const withCounters = patchInstance(hero, identity, { counters: { growth: 5 }, damage: 0 });
@@ -117,7 +117,7 @@ describe("Groot kit", () => {
     expect(inst(attacked, villain).damage).toBe(villainDamageBefore);
   });
 
-  it("Fighting Fit: deals 2 damage to the villain (5 instead if Groot is undamaged)", () => {
+  it("Fighting Fit: deals 2 damage to the villain (5 instead if Groot is undamaged) (16014.fighting-fit-action)", () => {
     const hero = runWave3(grootVsRhino(), toHero());
     const identity = identityOf(hero);
     const undamaged = patchInstance(hero, identity, { damage: 0 });
@@ -127,7 +127,7 @@ describe("Groot kit", () => {
     expect(inst(state, villain).damage).toBe(before + 5);
   });
 
-  it("Fighting Fit: deals only 2 damage to the villain once Groot has taken damage", () => {
+  it("Fighting Fit: deals only 2 damage to the villain once Groot has taken damage (16014.fighting-fit-action)", () => {
     const hero = runWave3(grootVsRhino(), toHero());
     const identity = identityOf(hero);
     const damaged = patchInstance(hero, identity, { damage: 1 });
@@ -147,7 +147,7 @@ describe("Groot kit", () => {
     expect(inst(used, fertileGround).exhausted).toBe(true);
   });
 
-  it("Dauntless: your hero gains retaliate 1 while undamaged, loses it once damaged", () => {
+  it("Dauntless: your hero gains retaliate 1 while undamaged, loses it once damaged (16016.dauntless-constant)", () => {
     const { state: withDauntless } = playFromHand(runWave3(grootVsRhino(), toHero()), "16016", 1);
     const identity = identityOf(withDauntless);
     const undamaged = patchInstance(withDauntless, identity, { damage: 0 });

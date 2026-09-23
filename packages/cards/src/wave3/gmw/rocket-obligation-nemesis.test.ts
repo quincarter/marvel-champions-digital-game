@@ -31,7 +31,7 @@ const pickingLabelStartingWith =
   };
 
 describe("Rocket Raccoon's obligation and nemesis (Crisis on Halfworld, Blackjack's Bazooka, Planetary Invasion)", () => {
-  it("Crisis on Halfworld: discards the highest cost upgrade you control", () => {
+  it("Crisis on Halfworld: discards the highest cost upgrade you control (16053.obligation)", () => {
     // Battery Pack (16034, cost 1) and Particle Cannon (16036, cost 3): the higher-cost one is discarded.
     const given = moveToHand(rocketVsRhino(), P1, "16034", "16036");
     const [battery, cannon] = given.ids;
@@ -101,7 +101,7 @@ describe("Rocket Raccoon's obligation and nemesis (Crisis on Halfworld, Blackjac
     expect(cardsInPlay(used)).not.toContain(bazooka);
   });
 
-  it("Planetary Invasion: When Revealed, discards from the encounter deck until a minion, reveals it, and gives it a tough status card", () => {
+  it("Planetary Invasion: When Revealed, discards from the encounter deck until a minion, reveals it, and gives it a tough status card (16057.when-revealed)", () => {
     const start = rocketVsRhino();
     const stacked = stackEncounterDeck(start, "01186", "01186", "01101"); // 2 fillers, then a real minion
     const { state, id } = revealFromEncounterDeck(stacked, "16057", firstLegal);

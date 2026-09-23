@@ -27,7 +27,7 @@ const pickingLabelStartingWith =
   };
 
 describe("Groot's obligation and nemesis (Wilt, Blazing Inferno, Furnax, Fan the Flames)", () => {
-  it("Wilt: exhausting your alter-ego removes it from the game, leaving Groot's growth counters untouched", () => {
+  it("Wilt: exhausting your alter-ego removes it from the game, leaving Groot's growth counters untouched (16025.obligation)", () => {
     const staged = stackEncounterDeck(grootVsRhino(), "01186", "16025");
     const identity = identityOf(staged);
     const withCounters = patchInstance(staged, identity, { counters: { growth: 4 } });
@@ -78,7 +78,7 @@ describe("Groot's obligation and nemesis (Wilt, Blazing Inferno, Furnax, Fan the
     expect(activeEncounterDeck(revealed).discard.length).toBeGreaterThan(discardBefore + 2);
   });
 
-  it("Fan the Flames: When Revealed, take 2 indirect damage (plus 1 for Blazing Inferno, plus 1 for Furnax, if in play)", () => {
+  it("Fan the Flames: When Revealed, take 2 indirect damage (plus 1 for Blazing Inferno, plus 1 for Furnax, if in play) (16028.when-revealed)", () => {
     const start = grootVsRhino();
     const identity = identityOf(start);
     const damageBefore = inst(start, identity).damage;
@@ -86,7 +86,7 @@ describe("Groot's obligation and nemesis (Wilt, Blazing Inferno, Furnax, Fan the
     expect(inst(state, identity).damage).toBe(damageBefore + 2);
   });
 
-  it("Blazing Inferno: Forced Response, after the villain phase begins, deal 2 indirect damage to each player", () => {
+  it("Blazing Inferno: Forced Response, after the villain phase begins, deal 2 indirect damage to each player (16026.blazing-inferno-forced-response)", () => {
     const start = grootVsRhino();
     // Revealing it happens mid-villain-phase, after that phase's own "phase begins" trigger already resolved
     // (docs/phase7-wave3.md §3.2), so this side scheme's own response only fires starting the *next* villain phase.
@@ -97,7 +97,7 @@ describe("Groot's obligation and nemesis (Wilt, Blazing Inferno, Furnax, Fan the
     expect(inst(nextPhase, identity).damage).toBe(before + 2);
   });
 
-  it("Furnax: [star] Forced Response, after Furnax activates, deal 2 indirect damage to each player", () => {
+  it("Furnax: [star] Forced Response, after Furnax activates, deal 2 indirect damage to each player (16027.furnax-forced-response)", () => {
     const start = grootVsRhino();
     // Same timing as Blazing Inferno above: Furnax is engaged the villain phase he's revealed (after enemy
     // activations for that phase already resolved), so he activates starting the *next* villain phase.

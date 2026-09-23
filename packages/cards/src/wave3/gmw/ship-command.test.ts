@@ -107,7 +107,7 @@ describe("Cannonade (16144.cannonade-constant)", () => {
 });
 
 describe("Blind Side, Hull Breach, Power Siphon — When Revealed: Choose one (16145–16147)", () => {
-  it("Blind Side: choosing to exhaust the Milano leaves it exhausted", () => {
+  it("Blind Side: choosing to exhaust the Milano leaves it exhausted (16145.when-revealed, 16145.blind-side-constant, 16145.blind-side-constant-2, 16145.blind-side-constant-3)", () => {
     const state = brotherhoodOfBadoon();
     const staged = stackEncounterDeck(state, "01186", "16145");
     const [milano] = instancesOf(staged, "16142");
@@ -120,7 +120,7 @@ describe("Blind Side, Hull Breach, Power Siphon — When Revealed: Choose one (1
     expect(inst(revealed, milano!).exhausted).toBe(true);
   });
 
-  it("Hull Breach: choosing to deal 3 damage to the first player deals it", () => {
+  it("Hull Breach: choosing to deal 3 damage to the first player deals it (16146.when-revealed, 16146.hull-breach-constant, 16146.hull-breach-constant-2, 16146.hull-breach-constant-3)", () => {
     const state = brotherhoodOfBadoon();
     const staged = stackEncounterDeck(state, "01186", "16146");
     const identity = state.players[0]!.identity.instanceId;
@@ -134,7 +134,7 @@ describe("Blind Side, Hull Breach, Power Siphon — When Revealed: Choose one (1
     expect(inst(revealed, identity).damage).toBeGreaterThanOrEqual(before + 3);
   });
 
-  it("Power Siphon: choosing to discard 1 card at random from the first player's hand discards one", () => {
+  it("Power Siphon: choosing to discard 1 card at random from the first player's hand discards one (16147.when-revealed, 16147.power-siphon-constant, 16147.power-siphon-constant-2, 16147.power-siphon-constant-3)", () => {
     const state = brotherhoodOfBadoon();
     const staged = stackEncounterDeck(state, "01186", "16147");
     const handBefore = state.players[0]!.hand.length;
@@ -149,7 +149,7 @@ describe("Blind Side, Hull Breach, Power Siphon — When Revealed: Choose one (1
 });
 
 describe("Special Delivery (16148)", () => {
-  it("When Revealed (Alter-Ego): exhausting the Milano avoids the villain scheming with +1 SCH", () => {
+  it("When Revealed (Alter-Ego): exhausting the Milano avoids the villain scheming with +1 SCH (16148.when-revealed-alter-ego)", () => {
     const state = brotherhoodOfBadoon();
     expect(state.players[0]!.identity.form).toBe("alterEgo");
     const staged = stackEncounterDeck(state, "01186", "16148");
@@ -163,7 +163,7 @@ describe("Special Delivery (16148)", () => {
     expect(inst(revealed, milano!).exhausted).toBe(true);
   });
 
-  it("When Revealed (Hero): declining to exhaust the Milano lets the villain attack with +1 ATK", () => {
+  it("When Revealed (Hero): declining to exhaust the Milano lets the villain attack with +1 ATK (16148.when-revealed-hero)", () => {
     const base = brotherhoodOfBadoon();
     const state = {
       ...base,
