@@ -862,7 +862,12 @@ export function validateDeck(deck: DeckContents, pool: CardPool, context?: DeckC
       ? 0
       : group.reduce((n, line) => n + Math.min(line.quantity, grantedCopies(line.card.id)), 0);
     const total = group.reduce((n, line) => n + line.quantity, 0) - granted;
-    const limit = maxCopies(group);
+    // Adam Warlock's Avatar of Life (`mts` 21031b): "You cannot include more than 1 copy of any non-Adam Warlock card"
+    // (`IdentityDeckbuilding.maxCopiesPerTitle`, docs/phase7-wave4.md §1.4) lowers every title outside the identity set.
+    const printedLimit = maxCopies(group);
+    const identityCap = identity?.deckbuilding?.maxCopiesPerTitle;
+    const limit =
+      printedLimit === null || identityCap === undefined ? printedLimit : Math.min(printedLimit, identityCap);
     const ids = group.map((line) => line.card.id);
     if (limit === null) {
       add(
@@ -875,7 +880,9 @@ export function validateDeck(deck: DeckContents, pool: CardPool, context?: DeckC
         "copy_limit",
         limit === DECK_COPY_LIMIT
           ? `${title} has ${copies(total)}; a deck may include no more than ${DECK_COPY_LIMIT} copies of a non-unique card (by title).`
-          : `${title} has ${copies(total)}, but its deck limit is ${limit}: no more than ${copies(limit)} may be in a deck.`,
+          : identityCap !== undefined && limit === identityCap && (printedLimit ?? 0) > identityCap
+            ? `${title} has ${copies(total)}; ${identityName}'s deckbuilding allows no more than ${copies(limit)} of any card outside the identity set.`
+            : `${title} has ${copies(total)}, but its deck limit is ${limit}: no more than ${copies(limit)} may be in a deck.`,
         ids,
       );
     }

@@ -1,4 +1,5 @@
 import type { CoreAspect } from "./aspects.js";
+import type { Trait } from "./common.js";
 import type { CampaignId, CardId, CycleId, EncounterSetId, ScenarioId, SetCode, StarterDeckId } from "./ids.js";
 
 /** A cycle groups packs the way FFG/Hall of Heroes group product releases (e.g. "Core", "The Rise of Red Skull"). */
@@ -43,6 +44,29 @@ export interface EncounterSet {
    * not built, so no scenario may list one (`validateScenario`).
    */
   readonly competitiveOnly?: boolean;
+  /**
+   * `"standard"` / `"expert"` for a set in the Standard or Expert classification: Core's Standard and Expert sets, and
+   * The Hood's Standard II and Expert II (docs/phase7-wave4.md §1.9). RRG 1.8 "Standard Set" (p. 40): "The standard set
+   * is not a modular encounter set and cannot be selected (by the players or randomly) when a scenario requires players
+   * to choose a modular encounter set", and "Cards in the 'Standard' classification are any cards that have the word
+   * 'Standard' printed by the bottom of the card in its encounter set name area"; "Expert Set" (p. 19) likewise. Such
+   * a set is never a modular choice. Absent: not in either classification.
+   */
+  readonly classification?: "standard" | "expert";
+  /**
+   * Decks this set brings to any game it is in (docs/phase7-wave4.md §1.10): the Infinity Gauntlet set's "Infinity Stone
+   * deck". MC21 p. 16: "shuffle the six Infinity Stone environment cards together and set them aside, facedown. This is
+   * the 'Infinity Stone deck.' The Infinity Stone deck has its own discard pile. […] If the Infinity Stone deck is ever
+   * empty, shuffle the Infinity Stone deck discard pile back into the Infinity Stone deck. There is no built-in penalty
+   * for doing this." The set "may be used in other scenarios", so the deck is the set's, not a `Scenario`'s. Built at
+   * setup whenever the set is in the encounter deck, from that set's cards only.
+   */
+  readonly separateDecks?: readonly ScenarioSeparateDeck[];
+  /**
+   * MC21 p. 16: "If there is more than one villain (or no villain) in play at the start of the game, The Infinity
+   * Gauntlet set cannot be used." A scenario with `multipleVillains` may not include it.
+   */
+  readonly singleVillainOnly?: true;
 }
 
 /**
@@ -94,8 +118,12 @@ export interface MultipleVillains {
    * refers to 'the encounter deck' only refers to the active villain's deck. When the villain is dealt a boost card,
    * it is dealt from the active villain's deck. When a player is dealt an encounter card, it is dealt from the active
    * villain's deck."
+   *
+   * `shared` (Tower Defense, MC21 p. 10, "Encounter Deck: Tower Defense, Armies of Titan, and Standard sets"): one
+   * encounter deck, built from the scenario's own sets as usual; each `ScenarioVillain.encounterSetIds` may be empty.
+   * docs/phase7-wave4.md §1.6.
    */
-  readonly encounterDecks: "perVillain";
+  readonly encounterDecks: "perVillain" | "shared";
   /**
    * `activeVillainOnly`: "There are 4 villains in play at the beginning of the scenario, but only the active villain
    * will activate during the villain phase. The active villain is the villain with the active counter (all-purpose
@@ -135,7 +163,9 @@ export interface ScenarioSeparateDeck {
   /** Which encounter-deck cards form it: every card of the listed sets, and/or every card of one type. At least one. */
   readonly contents: {
     readonly encounterSetIds?: readonly EncounterSetId[];
-    readonly cardType?: "side_scheme";
+    readonly cardType?: "side_scheme" | "environment";
+    /** Only cards with this printed trait (the six Infinity Stones, not the Infinity Gauntlet; docs/phase7-wave4.md §1.10). */
+    readonly trait?: Trait;
   };
   /** `own`: a discard pile of its own. `encounter`: its cards are discarded to the encounter discard pile. */
   readonly discardPile: "own" | "encounter";
@@ -242,6 +272,33 @@ export interface Scenario {
   readonly separateGameAreas?: SeparateGameAreas;
   /** Decks this scenario adds besides the villain, main scheme and encounter decks (see `ScenarioSeparateDeck`). */
   readonly separateDecks?: readonly ScenarioSeparateDeck[];
+  /**
+   * `"random"`: the villain put into play at setup is chosen at random (the game's seeded RNG) among `villainCardId` and
+   * `setAsideVillainCardIds` (`expertVillains`' in expert mode), and every other one is set aside. Loki, MC21 p. 24:
+   * "choose one Loki villain card at random, reveal it and put it into play. Set the remaining four versions of Loki
+   * aside, out of play." Absent: `villainCardId` starts. docs/phase7-wave4.md §1.11.
+   */
+  readonly startingVillain?: "random";
+  /**
+   * A number the scenario's own card text compares against, by mode: All Hail King Loki 1B, "If the number of Lokis in
+   * the victory display is equal to the victory condition, the players win the game." MC21 p. 24: "Rookie Mode – One
+   * version of Loki; Standard Mode – Two versions of Loki; Expert Mode – Three versions of Loki; Heroic Mode – Four
+   * versions of Loki" (rookie is RRG 1.8's skirmish mode, p. 28). Read by the engine's `ValueSpec victoryCondition`;
+   * `skirmish` and `heroic`, when given, win over `standard`/`expert` in those modes. docs/phase7-wave4.md §1.11.
+   */
+  readonly victoryCondition?: {
+    readonly standard: number;
+    readonly expert: number;
+    readonly skirmish?: number;
+    readonly heroic?: number;
+  };
+  /**
+   * How many modular encounter sets are chosen at setup and set aside rather than shuffled in. Making Connections 1A
+   * (The Hood, `hood` 24004a): "Choose 7 modular encounter sets and set them aside (you may choose randomly). Choose 1
+   * of those sets at random, then shuffle it into the encounter deck." The shuffle-in is the 1A `Setup:` ability's; this
+   * says only how many are set aside. docs/phase7-wave4.md §1.12.
+   */
+  readonly setAsideModularSetCount?: number;
 }
 
 /**

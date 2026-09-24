@@ -1,3 +1,0 @@
-kind: Engine
-body: EffectSpec cancelConsequentialDamage ("does not take consequential damage for this use", Cosmo); consequential damage events are marked
-time: 2026-09-22T16:40:01.330045-04:00

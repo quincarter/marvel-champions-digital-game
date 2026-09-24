@@ -35,7 +35,17 @@ export interface CardFlipSide {
    * 16182b). docs/phase7-wave3.md §1.2.
    */
   readonly amplifyIcons?: number;
+  /** This face's "Standard Mode Only." / "Expert Mode Only." (see `ModeOnly`). */
+  readonly modeOnly?: ModeOnly;
 }
+
+/**
+ * "Standard Mode Only." / "Expert Mode Only." printed on a face of a double-sided card: RRG 1.8 "Double-Sided Card"
+ * (p. 17), "it is put into play with the 'Expert Mode Only' side faceup if the players are playing expert mode.
+ * Otherwise, the card is put into play with the 'Standard Mode Only' side faceup." Formidable Foe (`hood`
+ * 24049a/b), `sm` 27174a/b, `next_evol` 40081a/b. Data, not an ability ref. docs/phase7-wave4.md §1.8.
+ */
+export type ModeOnly = "standard" | "expert";
 
 /** The wave 1 name of `CardFlipSide`, kept so existing imports compile. */
 export type EncounterCardFlipSide = CardFlipSide;
@@ -71,6 +81,8 @@ interface EncounterCardCommon extends BaseCard {
    * `PlayerCardCommon.separateDeck`.
    */
   readonly separateDeck?: string;
+  /** The top-level face's "Standard Mode Only." / "Expert Mode Only." (see `ModeOnly`). */
+  readonly modeOnly?: ModeOnly;
 }
 
 export interface MinionCard extends EncounterCardCommon {

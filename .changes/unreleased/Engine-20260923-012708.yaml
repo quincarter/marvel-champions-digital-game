@@ -1,3 +1,0 @@
-kind: Engine
-body: 'PlayerRef controllerOf and TargetQuery.hasAttachment: the player who controls a card, and a character with a matching attachment (Single-Minded Fury, Target Practice)'
-time: 2026-09-23T01:27:08.374877-04:00

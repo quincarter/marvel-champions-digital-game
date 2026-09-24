@@ -1,3 +1,0 @@
-kind: Added
-body: 'Dossier World box: GMW''s shared log fields (bounty ladder, Collection, Power Stone control, evasion counters) get short player-facing labels; bountyLadderRungs reads the Badoon Headhunter ladder''s rungs off the campaign definition'
-time: 2026-09-23T18:49:36.897151-04:00

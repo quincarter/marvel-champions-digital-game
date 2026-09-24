@@ -219,7 +219,12 @@ export interface ScenarioDeckState {
   readonly discardPile: "own" | "encounter";
   readonly whenEmpty: "reshuffleDiscardWithoutPenalty" | "remainsEmpty";
   /** Which encounter-deck cards form it (`ScenarioSeparateDeck.contents`); read by `buildScenarioDeck`. */
-  readonly contents: { readonly encounterSetIds?: readonly string[]; readonly cardType?: "side_scheme" };
+  readonly contents: {
+    readonly encounterSetIds?: readonly string[];
+    readonly cardType?: "side_scheme" | "environment";
+    /** Only cards printing this trait (the Infinity Stones; docs/phase7-wave4.md §1.10). */
+    readonly trait?: string;
+  };
 }
 
 /** One encounter deck and its discard pile (RRG 1.8 "Encounter Deck", p. 17). */

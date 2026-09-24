@@ -1,3 +1,0 @@
-kind: Engine
-body: 'An effect''s "up to N" now chooses at least 1 whenever a legal target exists, per the user''s §4 Q16 decision: divide.upTo (Agile Flight), the new chooseTarget.upTo, and the "up to" chooseCards scripts. chooseTarget.optional now means only a printed "may".'
-time: 2026-09-23T07:56:52.046041-04:00

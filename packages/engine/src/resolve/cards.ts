@@ -295,12 +295,13 @@ export function shuffleScenarioDeck(ctx: Ctx, name: string): void {
 export function buildScenarioDeck(ctx: Ctx, name: string): void {
   const piles = ctx.state.scenarioDecks[name];
   if (!piles) return;
-  const { encounterSetIds, cardType } = piles.contents;
+  const { encounterSetIds, cardType, trait } = piles.contents;
   for (const deckId of ctx.state.encounterDeckOrder) {
     for (const id of [...encounterDeckOf(ctx.state, deckId).deck]) {
       const card = cardOf(ctx.state, id);
       if (!card) continue;
       if (cardType !== undefined && card.type !== cardType) continue;
+      if (trait !== undefined && !("traits" in card && (card.traits as readonly string[]).includes(trait))) continue;
       if (
         encounterSetIds !== undefined &&
         !("encounterSetIds" in card && card.encounterSetIds.some((set: string) => encounterSetIds.includes(set)))

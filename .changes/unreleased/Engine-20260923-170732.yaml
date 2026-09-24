@@ -1,3 +1,0 @@
-kind: Engine
-body: Card selection can take at most N matches (CardSelector atMost, DSL atMost/oneCopyOf) for 'search for one copy' instructions
-time: 2026-09-23T17:07:32.328415-04:00

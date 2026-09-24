@@ -1,3 +1,0 @@
-kind: Fixed
-body: Main scheme stages that print 'If this stage is completed, the players lose the game' now end the game instead of advancing (Kang's Arrival, Escape the Museum, …)
-time: 2026-09-22T23:25:42.447983-04:00
