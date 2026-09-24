@@ -1,3 +1,0 @@
-kind: Fixed
-body: 'Releases work with main''s pull-request rule: a merge with changelog fragments opens a release PR, and merging that PR tags and builds the release'
-time: 2026-09-22T22:34:37.029622-04:00

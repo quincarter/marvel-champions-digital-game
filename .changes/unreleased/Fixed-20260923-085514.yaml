@@ -1,3 +1,0 @@
-kind: Fixed
-body: 'An Expert Campaign run now plays as one: the Expert Campaign modifier is stored where the campaign rules read it, so its expert-only steps (remaining hit points carried over, obligations, Red Skull''s campaign loss) actually apply.'
-time: 2026-09-23T08:55:14.419707-04:00

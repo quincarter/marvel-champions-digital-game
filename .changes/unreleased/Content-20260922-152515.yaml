@@ -1,3 +1,0 @@
-kind: Content
-body: Ingest preserves starIcon and hand-authored barrel modules (trors campaign.ts) on regenerate — no hand repair after `ingest --pack trors`
-time: 2026-09-22T15:25:15.93905-04:00

@@ -1,3 +1,0 @@
-kind: Fixed
-body: Fix the ability DSL's query([], ...) always matching nothing, which silently broke GMW's Campaign Challenge reveal and Badoon Headhunter ladder shuffles
-time: 2026-09-23T16:09:46.532248-04:00
