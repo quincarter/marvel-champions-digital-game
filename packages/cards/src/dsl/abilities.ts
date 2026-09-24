@@ -892,6 +892,12 @@ export const on = {
    * stage itself).
    */
   mainSchemeCompleted: (what: Who): EventPattern => pattern("mainSchemeCompleted", asTarget(what)),
+  /**
+   * "When this stage would be completed, remove all the threat from this stage instead" (Under Siege / The Armies of
+   * Thanos, `mts` 21098b/21099b; Upgrading Adaptoids 1B, `aos` 50104b; docs/phase7-wave4.md §3.4): pair with `instead`
+   * on a forced interrupt, `forcedInterrupt(on.mainSchemeCompleting("self"), instead(…))`.
+   */
+  mainSchemeCompleting: (what: Who): EventPattern => pattern("mainSchemeCompleting", asTarget(what)),
   /** "After you change to this form". */
   youChangeForm: (): EventPattern => pattern("formChanged", { playerIs: "controller" }),
   /**

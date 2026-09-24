@@ -279,6 +279,14 @@ export type TriggerEventBody =
    */
   | { readonly kind: "mainSchemeCompleted"; readonly schemeInstanceId: InstanceId; readonly stageIndex: number }
   /**
+   * A main scheme stage **would be** completed by reaching its target threat (docs/phase7-wave4.md §3.4): "Forced
+   * Interrupt: When this stage would be completed, remove all the threat from this stage instead." (Under Siege and The
+   * Armies of Thanos, `mts` 21098b/21099b; Upgrading Adaptoids 1B, `aos` 50104b). Pushed only when an ability listens;
+   * its apply step completes the stage (a loss on the final stage, else When Completed and the advance) unless an
+   * interrupt cancelled it or the threat has fallen below the target.
+   */
+  | { readonly kind: "mainSchemeCompleting"; readonly schemeInstanceId: InstanceId; readonly stageIndex: number }
+  /**
    * A boost card's icons are about to be counted for an activation (docs/phase7-wave2.md §3.6): "When boost icons on an
    * encounter card would be counted" (Chaos Control) and "increase or decrease the number of boost icons on that card by
    * 1 for this count" (Scarlet Witch's Crest) interrupt it with `replaceBoostCount` / `adjustBoostCount`. Announced only
@@ -492,6 +500,8 @@ export function isAnnouncement(event: TriggerEvent): boolean {
      * "Ally Limit" (p. 7) asks for: the check "occurs before abilities that resolve upon entering play".
      */
     case "cardEntersPlay":
+    // "When this stage would be completed" (docs/phase7-wave4.md §3.4): the completion is still to come.
+    case "mainSchemeCompleting":
       return false;
     default:
       return true;
@@ -555,6 +565,7 @@ export function eventSubjects(event: TriggerEvent): EventSubjects {
     case "discardRedirected":
       return of([], [event.instanceId], []);
     case "mainSchemeCompleted":
+    case "mainSchemeCompleting":
       return of([], [event.schemeInstanceId], []);
     case "boostIconsCounting":
       return of([event.enemyInstanceId], [event.cardInstanceId], [event.playerId]);
