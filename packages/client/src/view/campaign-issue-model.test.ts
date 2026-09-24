@@ -159,4 +159,27 @@ describe("campaignIssueModel", () => {
     // "0 headhunter defeated?" is a non-event, the same as an unset flag — never a row.
     expect(model?.writes.some((row) => row.headline.toLowerCase().includes("headhunter"))).toBe(false);
   });
+
+  it("GMW issue #2's Market spend and its own victory awards each get their own row, never the entry's net", async () => {
+    const service = new CampaignService({
+      storage: new MemoryCampaignStorage(),
+      campaignDeps: { pool: Object.fromEntries(POOL_CARDS.map((card) => [card.id as string, card])) },
+      engineDeps: POOL_DEPS,
+    });
+    const record = await seedGmwRun(service, "afterIssue2");
+    const model = campaignIssueModel(
+      record,
+      GMW_CAMPAIGN_DEFINITION,
+      storyFor("gmw"),
+      "infiltrate-the-museum",
+      cardName,
+    );
+    const unitRows = model?.writes.filter((row) => row.headline.includes("unit")) ?? [];
+    // The Market setup spends units (negative), and the victory block separately earns units (positive) — never
+    // one row pinning the whole issue's net to whichever instruction happened to run last.
+    expect(unitRows.some((row) => /^-\d+ units? → /.test(row.headline))).toBe(true);
+    expect(unitRows.some((row) => /^\+\d+ units? → /.test(row.headline))).toBe(true);
+    const spendRow = unitRows.find((row) => row.headline.startsWith("-"));
+    expect(spendRow?.detail).toMatch(/Market/);
+  });
 });

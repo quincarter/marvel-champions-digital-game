@@ -209,19 +209,48 @@ function numberDetailFor(
   return `${parts.join(", ")} ${pluralFieldLabel(field, anyPlural ? 2 : 1)}`;
 }
 
-/** A short, honest detail line for a won attempt, from what its steps actually wrote — never invented. */
+/** One row per seat-or-shared, its number deltas summed — a field several *victory* steps each award (GMW's
+ * `units` is written by both the main victory bullet and a separate bonus bullet) reads as one combined award,
+ * not one row per instruction. */
+function summedBySeat(deltas: readonly LogWriteGroup[]): readonly LogWriteGroup[] {
+  const bySeat = new Map<string, LogWriteGroup>();
+  for (const delta of deltas) {
+    if (delta.value.kind !== "number") continue;
+    const key = delta.seatNumber === null ? "shared" : String(delta.seatNumber);
+    const existing = bySeat.get(key);
+    bySeat.set(
+      key,
+      existing && existing.value.kind === "number"
+        ? { ...existing, value: { kind: "number", value: existing.value.value + delta.value.value } }
+        : delta,
+    );
+  }
+  return [...bySeat.values()];
+}
+
+/**
+ * A short, honest detail line for a won attempt, from what its steps actually wrote — never invented.
+ *
+ * `victoryInstructionIds` restricts this to the node's own `victory` block: a history entry also carries the
+ * *setup* steps that composed the game (GMW's Market spend, paid from units earned last issue), and those share
+ * the same log fields `victory` writes to (`units`) — the headline is "what this win earned", never netted
+ * against what was spent building the deck for it.
+ */
 function detailFor(
   entry: CampaignHistoryEntry,
   cardName: CardNameOf,
   heroLabel: (seatNumber: number) => string,
+  victoryInstructionIds: ReadonlySet<string>,
 ): string | null {
-  const resolved = resolvedWritesOf(entry);
+  const resolved = resolvedWritesOf(entry).filter((write) => victoryInstructionIds.has(write.step.instructionId));
   const firstPositive = resolved.find((write) => write.value.kind === "number" && write.value.value > 0);
   if (firstPositive) {
     const sameField = resolved.filter((write) => write.field === firstPositive.field && write.value.kind === "number");
-    return numberDetailFor(firstPositive.field, sameField, heroLabel);
+    return numberDetailFor(firstPositive.field, summedBySeat(sameField), heroLabel);
   }
-  const grants = entry.steps.flatMap((step) => step.grants);
+  const grants = entry.steps
+    .filter((step) => victoryInstructionIds.has(step.instructionId))
+    .flatMap((step) => step.grants);
   if (grants.length > 0) {
     return grants.length === 1 ? `${cardName(grants[0]!.cardId)}` : `${grants.length} cards granted`;
   }
@@ -233,11 +262,12 @@ function resultLineFor(
   history: readonly CampaignHistoryEntry[],
   cardName: CardNameOf,
   heroLabel: (seatNumber: number) => string,
+  victoryInstructionIds: ReadonlySet<string>,
 ): string {
   const attempts = history.filter((entry) => entry.nodeId === nodeId);
   const winning = attempts.find((entry) => entry.outcome === "won") ?? attempts[attempts.length - 1];
   if (!winning || winning.outcome !== "won") return attempts.length > 0 ? "Lost" : "";
-  const detail = detailFor(winning, cardName, heroLabel);
+  const detail = detailFor(winning, cardName, heroLabel, victoryInstructionIds);
   const tryNumber = attempts.indexOf(winning) + 1;
   const head = tryNumber <= 1 ? "Won" : `Won on ${ordinal(tryNumber)} try`;
   return detail ? `${head} · ${detail}` : head;
@@ -270,7 +300,13 @@ export function campaignRunModel(
         title,
         status,
         won: resolved === "completed",
-        resultLine: resultLineFor(node.id, record.history, cardName, heroLabel),
+        resultLine: resultLineFor(
+          node.id,
+          record.history,
+          cardName,
+          heroLabel,
+          new Set(node.victory.map((instruction) => instruction.id)),
+        ),
         teaser: null,
         blurb: null,
         pageProgressLine: null,

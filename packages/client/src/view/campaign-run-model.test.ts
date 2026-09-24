@@ -178,6 +178,26 @@ describe("campaignRunModel", () => {
     expect(model.issues[0]?.resultLine).toBe("Won · +3 units each");
   });
 
+  it("GMW issue #2's 'Won · +N units' is the victory award only, never netted against the Market spend", async () => {
+    const service = new CampaignService({
+      storage: new MemoryCampaignStorage(),
+      campaignDeps: { pool: Object.fromEntries(POOL_CARDS.map((card) => [card.id as string, card])) },
+      engineDeps: POOL_DEPS,
+    });
+    // Issue #2's own history entry carries both its setup (spending units earned last issue on Market cards) and
+    // its own victory — one history entry, two victory bullets writing "units" (+1 each), and a Market spend of
+    // several units on the same field. The headline must total the two victory bullets (+2), never the spend-and-
+    // earn net.
+    const record = await seedGmwRun(service, "afterIssue2");
+    const model = campaignRunModel(
+      { ...record, name: "Galaxy's Most Wanted", box: "MC16" },
+      GMW_CAMPAIGN_DEFINITION,
+      storyFor("gmw"),
+      cardName,
+    );
+    expect(model.issues[1]?.resultLine).toBe("Won · +2 units each");
+  });
+
   it("MC10's grant-only win still reads 'Won · N cards granted' — no number field to collapse", () => {
     const won = winCurrentNode(freshLog(), [
       { instructionId: "mc10.s1.victory.tech", slot: "tech", seatNumber: 1, picked: ["04155"] },

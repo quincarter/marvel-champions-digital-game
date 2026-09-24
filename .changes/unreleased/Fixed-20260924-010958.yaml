@@ -1,0 +1,3 @@
+kind: Fixed
+body: Compute campaign log deltas per step, not per history entry, so a setup spend never gets net against a victory award
+time: 2026-09-24T01:09:58.022154-04:00

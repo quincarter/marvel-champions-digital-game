@@ -304,14 +304,18 @@ export class CampaignIssueScene extends Phaser.Scene {
     if (model.writes.length > 0) {
       const boxTop = y;
       const minRowHeight = 42;
-      const detailTop = 26;
+      const minDetailTop = 26;
       const detailBottomPad = 12;
       model.writes.forEach((write, index) => {
         const rowTop = y;
-        this.add
+        const headline = this.add
           .text(rect.x + 26, y + 8, write.headline, textStyle(typeRole.emphasis, surface.ink.hex))
           .setFontSize(13)
           .setWordWrapWidth(rect.width - 150);
+        // A collapsed cardList delta ("+ Brainstorm, By Any Means, Contingency Plan → Groot") can wrap to two
+        // lines at this width — the detail line starts below the headline's own measured height, never a fixed
+        // offset that assumed one line.
+        const detailTop = Math.max(minDetailTop, 8 + headline.height + 4);
         const detail = this.add
           .text(rect.x + 26, y + detailTop, write.detail, textStyle(typeRole.body, surface.ink.hex, 0.65))
           .setFontSize(11)

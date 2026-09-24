@@ -156,6 +156,52 @@ describe("resolvedWritesOf", () => {
     const resolved = resolvedWritesOf(entry, (field) => field === "units");
     expect(resolved.map((w) => w.field)).toEqual(["units"]);
   });
+
+  test("a Market spend then two victory awards in one entry each get their own step's delta, never the entry's net", () => {
+    // GMW's own shape: issue #2's history entry carries its setup (spending units earned last issue on Market
+    // cards) and its own victory (earning units for issue #3) in the same entry. Each `add` write's raw stored
+    // value is the running total after that step (0 -> -4 -> -2 -> -1); naively pinning the entry's net (-1) to
+    // whichever step ran last would misattribute a Market spend to a victory bullet's own printed text.
+    const spend = stepOf([add("units", 1, -4)], "Between scenarios, players can spend units on Market cards.");
+    const award = stepOf([add("units", 1, -2)], "Record victory units in each player's Unspent Units box.");
+    const bonus = stepOf([add("units", 1, -1)], "Record 1 unit for each player if there are few enough cards.");
+    const entry: Entry = { logBefore: logBeforeOf({ 1: 0 }), steps: [spend, award, bonus] };
+    const resolved = resolvedWritesOf(entry);
+    expect(resolved).toHaveLength(3);
+    expect(resolved[0]?.value).toEqual({ kind: "number", value: -4 });
+    expect(resolved[0]?.step.text).toBe(spend.text);
+    expect(resolved[1]?.value).toEqual({ kind: "number", value: 2 });
+    expect(resolved[1]?.step.text).toBe(award.text);
+    expect(resolved[2]?.value).toEqual({ kind: "number", value: 1 });
+    expect(resolved[2]?.step.text).toBe(bonus.text);
+  });
+
+  test("a spend step's cardList write in the same step as its own unit spend gets its own delta too", () => {
+    const spend = stepOf(
+      [
+        add("units", 1, -4),
+        { field: "marketCards", seatNumber: 1, mode: "append", value: { kind: "cardList", cardIds: ["a" as CardId] } },
+      ],
+      "Between scenarios, players can spend units on Market cards.",
+    );
+    const entry: Entry = { logBefore: logBeforeOf({ 1: 0 }), steps: [spend] };
+    const resolved = resolvedWritesOf(entry);
+    expect(resolved).toHaveLength(2);
+    const units = resolved.find((w) => w.field === "units");
+    const cards = resolved.find((w) => w.field === "marketCards");
+    expect(units?.value).toEqual({ kind: "number", value: -4 });
+    expect(cards?.value).toEqual({ kind: "cardList", cardIds: ["a" as CardId] });
+  });
+
+  test("a `set` write mid-entry re-bases a later step's cumulative delta", () => {
+    const setStep = stepOf([set("units", 1, 5)]);
+    const addStep = stepOf([add("units", 1, 8)]);
+    const entry: Entry = { logBefore: logBeforeOf({ 1: 0 }), steps: [setStep, addStep] };
+    const resolved = resolvedWritesOf(entry);
+    expect(resolved[0]?.value).toEqual({ kind: "number", value: 5 });
+    // The `add` step's delta is against the `set` step's own ending value (5), not the entry's original baseline (0).
+    expect(resolved[1]?.value).toEqual({ kind: "number", value: 3 });
+  });
 });
 
 describe("lastWriteGroupsOf", () => {

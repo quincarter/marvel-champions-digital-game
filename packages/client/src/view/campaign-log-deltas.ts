@@ -14,20 +14,19 @@
  * write after the first, and also folds in whatever the field already held from an earlier issue — both fields are
  * cumulative across the whole campaign, not just within one fold.
  *
- * The fix, in one place: for each `(field, seat-or-shared)` group a step list touches, only the *last* write in
- * step order matters (it already reflects every earlier one this entry made), and that last value has
- * `entry.logBefore`'s own pre-entry value subtracted back out (a number's difference, or a list's own prefix
- * sliced off), so callers see what *this fold* contributed, never the campaign's running total. `set`/`strike`/etc.
- * writes are never cumulative this way (`combine`'s own `"set"` case returns the write's value verbatim), so
- * they're used as-is.
- *
  * Two grouping strategies live here because two different screens need different collapsing:
- * - `lastWriteGroupsOf` collapses *every* write kind to its group's last occurrence (the Aftermath's own semantic:
- *   a field several instructions write in sequence only cares about where it ended up).
- * - `resolvedWritesOf` collapses *only* cumulative writes (`add` numbers, `append` lists) this way; every other
- *   write kind/mode passes through unchanged, at every occurrence it was written, exactly as it already renders
- *   (the Run, the Issue detail and the Dossier Log must not start collapsing a repeated `set`/flag write just
- *   because an unrelated cumulative write on the same field needed fixing).
+ * - `lastWriteGroupsOf` collapses *every* write kind, across the *whole entry*, to its group's last occurrence
+ *   (the Aftermath's own semantic: a field several instructions write in sequence only cares about where it ended
+ *   up by the end of the fold, spend and award alike — its own tile never attributes a value to one instruction).
+ * - `resolvedWritesOf` collapses cumulative writes (`add` numbers, `append` lists) *per step*, not across the whole
+ *   entry: a step's own delta is its last write for that field+seat minus the value the *previous* step in this
+ *   entry left it at (or `entry.logBefore` if no earlier step touched it). This is the difference between "the
+ *   Market setup spent 4 units, then this scenario's own victory earned 3" (two rows, one per instruction, +then a
+ *   grant of a hero's own cards) and pinning the whole issue's *net* to whichever instruction happened to run last
+ *   — GMW's own setup (spending units earned last issue) and victory (earning units for the next one) share one
+ *   history entry, so collapsing across the entry misattributes a net change to one instruction's printed text.
+ *   Every other write kind/mode passes through unchanged, at every occurrence it was written, exactly as it
+ *   already renders (a repeated `set`/flag write is not cumulative and was never the bug).
  */
 import type { CampaignHistoryEntry, CampaignLogSnapshot, CampaignStepTrace, LogValue, LogWrite } from "@mc/engine";
 
@@ -68,26 +67,34 @@ function isCumulative(write: LogWrite): boolean {
   return write.mode === "append" && (write.value.kind === "cardList" || write.value.kind === "instructionList");
 }
 
+/** `current`, delta-adjusted against `before` (a number's difference, or a list's own prefix sliced off — a
+ * cumulative write only ever grows a list, never reorders or removes from it, so `before` is always its prefix). */
+function deltaOf(current: LogValue, before: LogValue | undefined): LogValue {
+  if (current.kind === "number") {
+    return { kind: "number", value: current.value - (before?.kind === "number" ? before.value : 0) };
+  }
+  if (current.kind === "cardList") {
+    return {
+      kind: "cardList",
+      cardIds: current.cardIds.slice(before?.kind === "cardList" ? before.cardIds.length : 0),
+    };
+  }
+  if (current.kind === "instructionList") {
+    return {
+      kind: "instructionList",
+      ids: current.ids.slice(before?.kind === "instructionList" ? before.ids.length : 0),
+    };
+  }
+  return current;
+}
+
 /**
- * `write.value`, delta-adjusted against `logBefore` for a cumulative write (an `add`-mode number's difference, or
- * an `append`-mode list's own baseline sliced off the front — `appendToList` only ever grows a list, never
- * reorders or removes from it, so the baseline is always its prefix); every other write is used verbatim.
+ * `write.value`, delta-adjusted against `logBefore` for a cumulative write; every other write is used verbatim.
+ * The whole-entry counterpart of `resolvedWritesOf`'s per-step `deltaOf` — see `lastWriteGroupsOf`'s own doc.
  */
 function resolvedValueOf(write: LogWrite, logBefore: LogSnapshotLike): LogValue {
-  if (write.mode === "add" && write.value.kind === "number") {
-    return { kind: "number", value: write.value.value - baselineNumberOf(logBefore, write.field, write.seatNumber) };
-  }
-  if (write.mode === "append" && write.value.kind === "cardList") {
-    const baseline = fieldValueOf(logBefore, write.field, write.seatNumber);
-    const before = baseline?.kind === "cardList" ? baseline.cardIds : [];
-    return { kind: "cardList", cardIds: write.value.cardIds.slice(before.length) };
-  }
-  if (write.mode === "append" && write.value.kind === "instructionList") {
-    const baseline = fieldValueOf(logBefore, write.field, write.seatNumber);
-    const before = baseline?.kind === "instructionList" ? baseline.ids : [];
-    return { kind: "instructionList", ids: write.value.ids.slice(before.length) };
-  }
-  return write.value;
+  if (!isCumulative(write)) return write.value;
+  return deltaOf(write.value, fieldValueOf(logBefore, write.field, write.seatNumber));
 }
 
 type HistoryEntryLike = Pick<CampaignHistoryEntry, "steps" | "logBefore">;
@@ -129,44 +136,48 @@ export function lastWriteGroupsOf(
 }
 
 /**
- * Every write in `entry`, in original step order, except a cumulative write (`add` on a number, `append` on a
- * list) is only kept at its group's *last* occurrence (delta-adjusted) — every other write kind/mode passes
- * through unchanged, at every occurrence, exactly as it renders today. See the module doc comment for why this
- * differs from `lastWriteGroupsOf`.
+ * Every write in `entry`, one row per `(step, field, seat)`: within a step, repeated writes to the same field+seat
+ * collapse to that step's own last write (mirrors a single instruction's own multiple writes, e.g. the four
+ * "units" writes GMW's own victory bullet makes in one step); across steps, a cumulative write's delta is taken
+ * against a *running* baseline this function carries step to step — the value the previous step in this entry left
+ * that field+seat at, falling back to `entry.logBefore` for the first step that ever touches it. A non-cumulative
+ * write (`set`/flag/etc.) still passes through verbatim, but also advances the running baseline, so a later
+ * cumulative write in the same entry deltas against wherever a `set` actually left the field. See the module doc
+ * comment for why this per-step accounting differs from `lastWriteGroupsOf`'s whole-entry collapse.
  */
 export function resolvedWritesOf(
   entry: HistoryEntryLike,
   fieldFilter?: (fieldId: string) => boolean,
 ): readonly LogWriteGroup[] {
-  const lastCumulativePos = new Map<string, { stepIndex: number; writeIndex: number }>();
-  entry.steps.forEach((step, stepIndex) => {
-    if (step.skipped) return;
-    step.writes.forEach((write, writeIndex) => {
-      if (fieldFilter && !fieldFilter(write.field)) return;
-      if (!isCumulative(write)) return;
-      lastCumulativePos.set(groupKey(write.field, write.seatNumber), { stepIndex, writeIndex });
-    });
-  });
-
+  const running = new Map<string, LogValue>();
   const resolved: LogWriteGroup[] = [];
   entry.steps.forEach((step, stepIndex) => {
     if (step.skipped) return;
+    // The step's own last write per field+seat — a step's earlier write to the same group is superseded within
+    // the step itself, the same way `combine` already folds them into one stored value.
+    const order: string[] = [];
+    const lastInStep = new Map<string, { write: LogWrite; writeIndex: number }>();
     step.writes.forEach((write, writeIndex) => {
       if (fieldFilter && !fieldFilter(write.field)) return;
-      if (isCumulative(write)) {
-        const last = lastCumulativePos.get(groupKey(write.field, write.seatNumber));
-        if (!last || last.stepIndex !== stepIndex || last.writeIndex !== writeIndex) return;
-      }
+      const key = groupKey(write.field, write.seatNumber);
+      if (!lastInStep.has(key)) order.push(key);
+      lastInStep.set(key, { write, writeIndex });
+    });
+    for (const key of order) {
+      const { write, writeIndex } = lastInStep.get(key)!;
+      const before = running.has(key) ? running.get(key) : fieldValueOf(entry.logBefore, write.field, write.seatNumber);
+      const value = isCumulative(write) ? deltaOf(write.value, before) : write.value;
+      running.set(key, write.value);
       resolved.push({
         field: write.field,
         seatNumber: write.seatNumber,
         mode: write.mode,
-        value: resolvedValueOf(write, entry.logBefore),
+        value,
         stepIndex,
         writeIndex,
         step,
       });
-    });
+    }
   });
   return resolved;
 }
