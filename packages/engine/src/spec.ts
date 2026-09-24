@@ -987,7 +987,13 @@ export type EffectSpec =
   /** "Cancel that card's boost ability" (Target Acquired): only before that ability resolves. `bind`: `<bind>.made`. */
   | { readonly kind: "cancelBoostAbility"; readonly bind?: string }
   /** Interrupt to damage: "prevent N of that damage" (Cosmic Flight) / "prevent all" (Backflip, `amount` absent). */
-  | { readonly kind: "preventDamage"; readonly amount?: ValueSpec }
+  /**
+   * "Prevent [N of] that damage" (an interrupt to a `dealDamage` event). `bind`: `<bind>.amount` is how much was
+   * prevented — "Discard cards … equal to the amount prevented this way" (Deflection, `drax` 19015), "If 2 or more
+   * damage was prevented this way, discard this card" (Telekinetic Force Field, `next_evol` 40034). The card whose
+   * ability this is is the preventer of the `damagePrevented` event it announces (docs/phase7-wave4.md §3.20).
+   */
+  | { readonly kind: "preventDamage"; readonly amount?: ValueSpec; readonly bind?: string }
   /** Interrupt to threat being placed: "prevent 1 of that threat" (Jennifer Walters). `amount` absent = all. */
   | { readonly kind: "preventThreat"; readonly amount?: ValueSpec }
   /**

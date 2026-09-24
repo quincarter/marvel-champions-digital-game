@@ -69,6 +69,17 @@ export function cannotTakeDamage(
 }
 
 /**
+ * The card whose "Prevent all damage to X" constant (`RuleSpec preventAllDamage`, docs/phase7-wave4.md §3.20) covers
+ * this target, or null: the first such rule in the order constants are read.
+ */
+export function damagePreventerOf(state: GameState, deps: EngineDeps, targetId: InstanceId): InstanceId | null {
+  const found = activeRules(state, deps, "preventAllDamage").find(({ rule, context }) =>
+    matchesQuery(state, targetId, rule.target, context),
+  );
+  return found ? found.context.selfInstanceId : null;
+}
+
+/**
  * "Threat cannot be removed from this scheme" (Countdown to Oblivion); a `by: "thwart"` rule only stops a thwart.
  * `removerId` is the player attempting the removal (the thwart's player, else the removing card's controller; null
  * for a removal no player made) — read only by a rule that scopes itself with `player` ("Players other than Gamora

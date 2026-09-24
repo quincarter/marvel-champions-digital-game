@@ -346,6 +346,9 @@ function bindsOf(effect: EffectSpec, scope: Scope): void {
     case "dealIndirectDamage":
     case "moveThreat":
     case "divide":
+    // `<bind>.amount` prevented, `<bind>.made` set shuffled in (docs/phase7-wave4.md §3.20, §3.18).
+    case "preventDamage":
+    case "shuffleInSetAsideModularSet":
       if (effect.bind) scope.prefixes.add(`${effect.bind}.`);
       return;
     // `<bind>.amount`: how many counters were actually placed (docs/phase7-wave3.md §3.10) — "If you cannot, draw

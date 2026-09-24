@@ -74,7 +74,7 @@ function matchesRest(
   if (pattern.fromAttack !== undefined) {
     // Damage from an attack, or a defeat by attack damage ("defeated by an enemy attack"; docs/phase7-wave3.md §3.45).
     const fromAttack =
-      event.kind === "dealDamage"
+      event.kind === "dealDamage" || event.kind === "damagePrevented"
         ? event.fromAttack
         : event.kind === "characterDefeated"
           ? event.fromAttack === true
