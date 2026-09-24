@@ -320,31 +320,45 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
+      # A supplied keystore needs its password: a missing secret fails here
+      # rather than being guessed. With no keystore at all, CI signs with a
+      # throwaway key and a random password, so that APK will not install over
+      # one signed with the real key.
       - name: Setup Keystore
         shell: bash
         env:
           KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
-          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD || 'rocket' }}
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS || secrets.ANDROID_KEYSTORE_ALIAS || 'marvel-champions' }}
-          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD || secrets.ANDROID_KEYSTORE_PASSWORD || 'rocket' }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: |
           if [ -n "$KEYSTORE_BASE64" ]; then
+            if [ -z "$KEYSTORE_PASSWORD" ]; then
+              echo "::error::ANDROID_KEYSTORE_BASE64 is set but ANDROID_KEYSTORE_PASSWORD is not. Add it as a repository secret (an environment secret is not visible to this job)."
+              exit 1
+            fi
             echo "$KEYSTORE_BASE64" | base64 -d > marvel-champions.keystore
             echo "Decoded keystore from repository secret."
           else
-            echo "Generating self-signed release keystore for CI..."
+            KEYSTORE_PASSWORD="$(openssl rand -hex 24)"
+            KEY_PASSWORD=""
+            echo "::add-mask::$KEYSTORE_PASSWORD"
+            echo "::warning::No ANDROID_KEYSTORE_BASE64 secret; signing with a throwaway CI key."
             keytool -genkeypair -v -keystore marvel-champions.keystore \
               -alias "$KEY_ALIAS" -keyalg RSA -keysize 2048 -validity 10000 \
-              -storepass "$KEYSTORE_PASSWORD" -keypass "$KEY_PASSWORD" \
+              -storepass "$KEYSTORE_PASSWORD" -keypass "$KEYSTORE_PASSWORD" \
               -dname "CN=Marvel Champions, OU=Game, O=Digital, L=Unknown, ST=Unknown, C=US"
           fi
+          {
+            echo "ANDROID_KEYSTORE_PASSWORD=$KEYSTORE_PASSWORD"
+            echo "ANDROID_KEY_PASSWORD=${KEY_PASSWORD:-$KEYSTORE_PASSWORD}"
+            echo "ANDROID_KEYSTORE_ALIAS=$KEY_ALIAS"
+          } >> "$GITHUB_ENV"
 
+      # Passwords and alias come from the Setup Keystore step's GITHUB_ENV.
       - name: Build Android Release APK
         env:
           ANDROID_KEYSTORE_PATH: ${{ github.workspace }}/marvel-champions.keystore
-          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD || 'rocket' }}
-          ANDROID_KEYSTORE_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS || secrets.ANDROID_KEYSTORE_ALIAS || 'marvel-champions' }}
-          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD || secrets.ANDROID_KEYSTORE_PASSWORD || 'rocket' }}
         run: pnpm android:build
 
       - name: Upload APK to GitHub Release
