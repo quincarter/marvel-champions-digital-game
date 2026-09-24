@@ -1,3 +1,0 @@
-kind: Engine
-body: 'An enemy can attack another enemy (EffectSpec enemyAttacksEnemy, docs/phase7-wave3.md §3.23): an attack, not an activation, per the user''s §4 Q12 decision. Moondragon (19013) is scripted, and drax is fully scripted.'
-time: 2026-09-23T07:46:34.854563-04:00

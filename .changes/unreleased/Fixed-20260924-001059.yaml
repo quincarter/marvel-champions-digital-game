@@ -1,3 +1,0 @@
-kind: Fixed
-body: Aftermath's log-tag stack summed every cumulative 'add' write instead of reading only the last one against its own baseline, inflating GMW's units tag (e.g. 11 instead of MC16 p. 15's real max of 6)
-time: 2026-09-24T00:10:59.547048-04:00

@@ -1,3 +1,0 @@
-kind: Fixed
-body: 'Release: a changelog fragment with unescaped apostrophes no longer stops the release job from batching the changelog'
-time: 2026-09-24T16:07:04.366244-04:00
