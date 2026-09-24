@@ -21,6 +21,7 @@ import {
   mustCard,
   mustCardOf,
   mustInstance,
+  modeOnlyFlipped,
   mustPlayer,
   mustVillain,
 } from "./query.js";
@@ -550,10 +551,11 @@ export function leavePlay(
     statuses: { stunned: 0, confused: 0, tough: 0 },
     exhausted: false,
     engagedWith: null,
-    // A facedown card is itself again once it leaves play, and a flipped card shows its front.
+    // A facedown card is itself again once it leaves play, and a flipped card shows its front — or, for a mode-only
+    // card, the face of the mode being played (docs/phase7-wave4.md §3.18).
     facedownAs: null,
     faceup: redirect !== null ? true : i.facedownAs ? true : i.faceup,
-    flipped: false,
+    flipped: card !== undefined && modeOnlyFlipped(card, ctx.state.scenarioRules.difficulty ?? "standard"),
   }));
   if (loses) endGame(ctx, { result: "loss", reason: "cardAbility" });
   if (redirect !== null) {

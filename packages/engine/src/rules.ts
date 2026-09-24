@@ -12,11 +12,13 @@ import {
   villainOf,
 } from "./query.js";
 import {
+  activeAbilityRefs,
   activeRules,
   cardsInPlay,
   categoriesOf,
   focusedMainSchemeId,
   contextArea,
+  evaluate,
   matchesQuery,
   resolveRef,
   rulePlayers,
@@ -24,6 +26,30 @@ import {
 } from "./select.js";
 import type { AttackKeyword, CardDestination } from "./spec.js";
 import type { Form, GameState } from "./state.js";
+
+/**
+ * Whether a revealed encounter card's effects are beyond canceling: an "uncancellable" ability of its own ("This effect
+ * cannot be canceled.", a player card revealed from the encounter deck), a `cannotBeCanceled` rule on the card itself
+ * (read wherever the card is, since a revealed treachery is not in play), or one in play that matches it ("Treacheries
+ * cannot be canceled."). docs/phase7-wave4.md §3.14.
+ */
+export function revealCannotBeCanceled(state: GameState, deps: EngineDeps, id: InstanceId): boolean {
+  const own: EffectContext = { selfInstanceId: id, controllerId: null, event: null, bindings: {}, deps };
+  for (const ref of activeAbilityRefs(state, id, deps)) {
+    const definition = deps.abilities[ref.id];
+    if (!definition) continue;
+    if (definition.uncancellable && definition.trigger.kind === "whenRevealed") return true;
+    if (definition.trigger.kind !== "constant") continue;
+    for (const rule of definition.trigger.rules ?? []) {
+      if (rule.kind !== "cannotBeCanceled") continue;
+      if (rule.while && !evaluate(state, rule.while, own)) continue;
+      if (matchesQuery(state, id, rule.cards, own)) return true;
+    }
+  }
+  return activeRules(state, deps, "cannotBeCanceled").some(({ rule, context }) =>
+    matchesQuery(state, id, rule.cards, context),
+  );
+}
 
 /** "X cannot take damage [while …] [from …]". `sources` are the damage's source and the card it came through. */
 export function cannotTakeDamage(
@@ -66,6 +92,23 @@ export const threatCannotBeRemoved = (
 /** "While Baron Zemo is engaged with you, you cannot thwart." */
 export const cannotThwart = (state: GameState, deps: EngineDeps, playerId: PlayerId): boolean =>
   activeRules(state, deps, "cannotThwart").some((active) => rulePlayers(state, active.rule, active).includes(playerId));
+
+/**
+ * The card's own "You cannot choose to discard this card from your hand" (`cannotChooseToDiscard` on a constant that works
+ * in hand, docs/phase7-wave4.md §3.13).
+ */
+export function cannotChooseToDiscard(state: GameState, deps: EngineDeps, id: InstanceId): boolean {
+  const card = cardOf(state, id);
+  if (!card || !("abilities" in card)) return false;
+  return card.abilities.some((ref) => {
+    const definition = deps.abilities[ref.id];
+    return (
+      definition?.trigger.kind === "constant" &&
+      definition.activeIn === "hand" &&
+      (definition.trigger.rules ?? []).some((rule) => rule.kind === "cannotChooseToDiscard")
+    );
+  });
+}
 
 /** A revealed environment goes to the revealer's play area (`entersRevealersPlayArea`, docs/phase7-wave4.md §3.16). */
 export const entersRevealersPlayArea = (state: GameState, deps: EngineDeps, id: InstanceId): boolean =>

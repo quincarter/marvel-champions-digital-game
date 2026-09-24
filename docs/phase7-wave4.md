@@ -411,15 +411,15 @@ stays data only.**
 | 3.7  | Loki: random start, swap, a villain stage's Victory X, the victory count | Loki; God of Lies (`tt`)                   | landed      |
 | 3.8  | An encounter ally attached to the main scheme (Odin)                     | Hela                                       | landed      |
 | 3.9  | An ally treated as a minion                                              | Fallen Warrior, Beguiled; 5 other packs    | not started |
-| 3.10 | Flipping a card into a separately emitted face of another type           | MC21 campaign                              | not started |
+| 3.10 | Flipping a card into a separately emitted face of another type           | MC21 campaign                              | landed      |
 | 3.11 | Timing points when a deck runs out                                       | Soul World, Universal Church, Thanos       | landed      |
 | 3.12 | Counting different aspects; Adam Warlock's copy limit                    | Adam Warlock                               | landed      |
-| 3.13 | Abilities active in hand; "cannot choose to discard this card"           | Pip the Troll, System Shock                | not started |
-| 3.14 | Player events shuffled into the encounter deck (Cosmic Entities)         | Adam Warlock precon                        | not started |
+| 3.13 | Abilities active in hand; "cannot choose to discard this card"           | Pip the Troll, System Shock                | landed      |
+| 3.14 | Player events shuffled into the encounter deck (Cosmic Entities)         | Adam Warlock precon                        | landed      |
 | 3.15 | "After the last X counter is removed from here"                          | Ebony Maw; `aos`, `phoenix`                | landed      |
 | 3.16 | Encounter cards in a player's play area                                  | Ebony Maw's Spells                         | landed      |
 | 3.17 | Alliance: paying a card's costs as a group                               | `warm`, `valk`, `vision`; 9 later cards    | landed      |
-| 3.18 | Set-aside modular sets; mode-only faces; Standard II                     | The Hood; Wheel of Genres (`mojo`)         | not started |
+| 3.18 | Set-aside modular sets; mode-only faces; Standard II                     | The Hood; Wheel of Genres (`mojo`)         | landed      |
 | 3.19 | Readying as a costed act; "cannot be readied by player card effects"     | Mister Fear; Undermine Support (`aos`)     | not started |
 | 3.20 | A trigger on damage a card prevented                                     | Abjuration                                 | not started |
 | 3.21 | An enemy attack against a chosen character                               | Speed Demon, Crossfire                     | not started |
@@ -688,6 +688,20 @@ discards attachments, tucked cards, status cards and tokens when the type change
 (the side-scheme-to-side-scheme flips). A side scheme that flips on "When Defeated" is still defeated (Victory X, "is in
 the victory display" readers), then becomes its other face in play.
 
+> **Status: landed (2026-09-24),** tested in `packages/engine/src/other-face.test.ts` (3 tests: a side scheme that flips
+> on its When Defeated into an ally stays in play under the first player's control with its counters discarded, replay
+> deep-equal; into a minion, engaged with the first player; into another side scheme, keeping its counters and entering
+> with starting threat plus hinder). **What landed:** `flipCard` on a card with `otherFaceId` calls
+> `resolve/other-face.ts flipToOtherFace`: the instance takes the other card's id; a different type discards
+> attachments and tucked cards and clears status cards, damage, threat and counters (RRG 1.8 "Flip", p. 20) and moves
+> the card where its new type lives (minion engaged with "you", ally/support/upgrade under "you", attachment on its
+> first legal host, scheme or environment in the villain's area; "you" is the first player for a side scheme's When
+> Defeated). The new face is then treated as entering play (§4 Q15). A defeated side scheme's leave-play step is now
+> guarded by `refMatches self {printedId}`, so one that flipped during its own When Defeated stays in play; its
+> `schemeDefeated` event still fires (the campaign's "if Secure the Landing Pad was defeated"). Event
+> `cardFlippedToOtherFace`. **DSL:** none new (`flipCard(self)` in a `whenDefeated`). **Not covered:** a side scheme with
+> Victory X that flips (none printed).
+
 ### 3.11 Timing points when a deck runs out
 
 > **Status: landed (2026-09-24),** tested in `packages/engine/src/set-deck-and-run-out.test.ts` (§3.11: 2 tests — taking
@@ -723,6 +737,18 @@ distinctCardTypes` exists (Time Stone's "different card type"); **plan:** `Value
 
 ### 3.13 Abilities active in hand; "cannot choose to discard this card"
 
+> **Status: landed (2026-09-24),** tested in `packages/engine/src/hand-abilities.test.ts` (3 tests: an action that works in
+> hand is offered and used from hand and not once the card is in play, replay deep-equal; a response that works in hand
+> is offered from hand and puts the card into play; a chosen discard never offers a card that cannot be chosen). **What
+> landed:** **`AbilityDefinition.activeIn: "hand"`**: `useAbility` and `legalActions` accept such an action only while
+> the card is in its user's hand (and every other action only in play); `inHandCandidates` offers such a triggered
+> ability to the hand's owner (its "you"), as an ability, not a play of the card; `candidatesFor` never offers it in
+> play. **`RuleSpec cannotChooseToDiscard`** on a hand-active constant keeps the card out of an effect's chosen discard,
+> a discard-from-hand cost, the end-of-phase discard and the mulligan (`handOptions`); a random discard still takes it.
+> **DSL:** `inHand(definition)`, `cannotChooseToDiscard`. **Behaviour change to know:** a non-event card's action
+> ability could previously be used from hand through a hand-crafted `useAbility` command (no legal move offered it);
+> that is now refused.
+
 Pip the Troll: "While Pip the Troll is in your hand, he gains 'Interrupt: When a player is attacked, spend [energy][mental]
 resources → put Pip the Troll into play under that player's control.'" System Shock (campaign): "You cannot choose to
 discard this card from your hand. While this card is in your hand, it gains: 'Alter-Ego Action: …'". **Plan:** an
@@ -736,6 +762,21 @@ looking). When Revealed: … and remove this card from the game. This effect can
 resolved as a boost card, it goes to the encounter discard pile. Ruling Jan 17, 2026 (5): with several encounter decks,
 the active villain's. **Plan:** a player card in the encounter deck keeps its owner; its When Revealed resolves when a
 player reveals it; `uncancellable` on the ability; a discarded one goes to the encounter discard pile.
+
+> **Status: landed (2026-09-24),** tested in `packages/engine/src/cosmic-entity.test.ts` (3 tests: played, the event
+> joins the active villain's encounter deck owned by its player, controlled by nobody, and discards to the encounter
+> discard pile; revealed, its When Revealed resolves and removes it from the game even with a forced "cancel its effects
+> and discard it" in play, replay deep-equal; "you" on it is the player who revealed it). **What landed:**
+> `moveCards … "encounterDeckShuffle"` now takes a player card: it keeps `ownerId`, loses its controller and is homed to
+> the active villain's encounter deck (`CardHome encounterDeck`), so `discardZoneFor` sends it (as a boost card or a
+> canceled reveal) to that encounter discard pile, and `gameAbilityFrames` makes the revealing player its "you". A
+> revealed event still where it was dealt when its reveal finishes is discarded like a treachery.
+> **`AbilityDefinition.uncancellable`** on a When Revealed, and **`RuleSpec cannotBeCanceled {cards, while?}`** (read
+> from the revealed card itself wherever it is, and from play), make `cancelRevealedCard` / `cancelWhenRevealed` change
+> nothing (`rules.ts revealCannotBeCanceled`). **Composes with:** Longshot and Cornered! (`mojo` 39071, 39017, "This
+> effect cannot be canceled"), Frequent Flyers and its siblings (`sm` 27108–27110, 27112, "In expert mode, … cannot be
+> canceled"), Dark Scepter (`tt` 55036, "Treacheries cannot be canceled"). **DSL:** `uncancellable(whenRevealed(…))`,
+> `cannotBeCanceled(query, when?)`. See §4 Q14.
 
 ### 3.15 "After the last X counter is removed from here"
 
@@ -833,6 +874,56 @@ RRG 1.8 "Alliance" (p. 6). As One!, Stand Together, Problem Solvers, Cosmic Alli
 while paying for a card with the keyword; only the playing player resolves it.
 
 ### 3.18 Set-aside modular sets; mode-only faces; Standard II
+
+> **Status: landed (2026-09-24),** tested in `packages/engine/src/set-aside-modular-sets.test.ts` (8 tests, on The
+> Hood's own emitted cards: setup creates each set-aside set in the set-aside area and records it; the shuffle-in
+> moves one whole set, chosen by the seeded RNG, into the encounter deck and logs it, count 3 → 2; with none left
+> nothing happens and the count reads 0; a game without the field is unchanged; setup refuses a card outside its set;
+> Formidable Foe enters play on its Standard face (villain steady, minion not) and in expert mode on its Expert face
+> (every enemy steady); The Hood's Mantle's granted steady holds one stun without stunning; replay deep-equal). DSL:
+> `packages/cards/src/dsl/wave4-hero-primitives.test.ts` (2 tests under §3.18).
+>
+> **What landed:**
+>
+> - **`GameSetupConfig.setAsideModularSets: { encounterSetId, cardIds }[]`**: created in `encounterSetAside` and
+>   recorded in **`GameState.setAsideModularSets`** (`SetAsideModularSet { encounterSetId, instanceIds }`, absent in a
+>   game that sets none aside, so saves are unchanged). Which sets, how many (`Scenario.setAsideModularSetCount`), and
+>   that none is a Standard/Expert classification set is the scenario builder's choice (the engine sees card ids, not
+>   `EncounterSet` records).
+> - **`EffectSpec shuffleInSetAsideModularSet { bind? }`**: "Choose 1 set-aside modular encounter set at random, then
+>   shuffle it into the encounter deck" (Making Connections 1A Setup, The Hood II/III, Promised Prosperity, Crime
+>   State, Field Recruitment): seeded pick, the set's cards still set aside go to the active encounter deck, shuffled;
+>   log `setAsideModularSetShuffledIn { encounterSetId, instanceIds }`. A card an ability already took out of the
+>   set-aside area stays where it is.
+> - **`ValueSpec setAsideModularSetCount`**: Wheel of Genres' "no set-aside modular encounter sets remaining".
+> - **Mode-only faces:** **`GameSetupConfig.difficulty: "standard" | "expert"`**, kept as
+>   `ScenarioRules.difficulty: "expert"` (absent in standard mode). **`modeOnlyFlipped(card, difficulty)`**
+>   (`query.ts`) shows the back of a card whose front names the other mode, at setup and whenever the card leaves play
+>   (the reset in `leavePlay`), so it enters play (Setup keyword, reveal, put into play) on the right face. The emitted
+>   Formidable Foe carries `modeOnly: "standard"` on its front only; a back with no `modeOnly` is read as the other
+>   mode's. **Pipeline:** emit `flipSide.modeOnly: "expert"` on 24049 (§1.8 says both faces).
+> - **Standard II:** unchanged (§4 Q5): `classification` keeps Standard II / Expert II out of modular choices; whether a
+>   game uses them is the insert's setup rule, still unread.
+>
+> **Steady, checked against The Hood's cards.** Every Hood printing grants it: The Hood's Mantle ("The Hood gains
+> retaliate 1 and steady"), Formidable Foe ("The villain gains steady" / "Each enemy gains steady"), Warehouse District
+> ("Each character in play gains steady"). The engine's rule (`keywords.ts`: `statusCapacity` 2, `statusActive` needs 2
+> of the type) reads `hasKeyword` with `deps`, which includes `keywordGrants`, and every caller passes `deps` (basic
+> attack and thwart, labeled abilities, the villain phase's stun/confuse checks, enemy-attacks-enemy, the state check
+> that sheds excess statuses). It matches RRG 1.8 "Steady" (p. 41) word for word: one more card of each, "not
+> considered" stunned/confused below two. A character that loses a granted steady while holding two of a status sheds
+> one (the capacity state check). Nothing to change.
+>
+> **Scenario builder (`ability-scripting-engineer`):** The Hood's builder passes `difficulty`, `modularSetCount: 0`,
+> and `setAsideModularSets` for the seven chosen sets (the players' choice, or random from the pool), and Making
+> Connections 1A's `Setup:` is `setup(shuffleInSetAsideModularSet())`. Mojo's Wheel of Genres builder does the same
+> with its own sets.
+>
+> **DSL:** `shuffleInSetAsideModularSet(bind?)` (`dsl/effects.ts`), `setAsideModularSetCount` (`dsl/values.ts`).
+>
+> **Composes with:** Wheel of Genres (`mojo` 39026a/b); Seek and Destroy's and Shadow of the Past's set-aside searches
+> (`encounterSetAside`, unchanged); the `gmw` Campaign Challenge faces and `sm` 27174a/b, `next_evol` 40081a/b once
+> they carry `modeOnly` (the same `modeOnlyFlipped`).
 
 Schema §1.8, §1.9, §1.12. **Plan:** setup sets aside the chosen modular sets; `EffectSpec shuffleRandomSetAsideSet`
 ("Choose 1 set-aside modular encounter set at random, then shuffle it into the encounter deck"); a `modeOnly` card is
@@ -1018,6 +1109,15 @@ Each is implemented the way stated, or not at all, and named here rather than de
     `basicPowerUsing` interrupt, which is the moment before the DEF is read. RRG 1.8 p. 15 lets it also trigger off a
     defense-labeled ability, but only a basic defense reduces damage at all, so there it would do nothing; the engine
     does not offer it there.
+14. **A cancel ability aimed at a card that cannot be canceled** (§3.14). Nothing in RRG 1.8 "Cancel" or "'Cannot'"
+    (p. 11) forbids initiating it; its costs are paid and it changes nothing. Implemented as: the cancel stays offered
+    and fizzles. Proposed alternative for the user: withhold it from the legal actions (friendlier, but not a written
+    rule).
+15. **Does a card that flips into a separately emitted face enter play?** (§3.10) RRG 1.8 "Flip" (p. 20) only says
+    what stays on the card. But Defensive Protocols and Retrieve Odin's Armor (21184b, 21186b) print "Hinder 2", which
+    only works on entering play, and a flipped-in side scheme at 0 threat could never be defeated; Black Swan's "After
+    Black Swan engages you" needs an engagement. Implemented as: the new face is treated as entering play (starting
+    threat plus hinder, engagement, "enters play" triggers). Needs a ruling or the MC21 insert's word.
 
 ## 5. What this asks of the other agents
 

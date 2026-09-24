@@ -32,7 +32,7 @@ import {
   mustCardOf,
   playerOrder,
 } from "../query.js";
-import { cannotTakeDamage } from "../rules.js";
+import { cannotChooseToDiscard, cannotTakeDamage } from "../rules.js";
 import { combineRequirements, satisfies } from "../resources.js";
 import {
   activeAbilityRefs,
@@ -508,7 +508,10 @@ function executeDiscardFromHand(
     const playerId = players[index];
     const player = playerId ? getPlayer(ctx.state, playerId) : undefined;
     if (!playerId || !player) continue;
-    const candidates = filter ? player.hand.filter((id) => matchesQuery(ctx.state, id, filter, context)) : player.hand;
+    // "You cannot choose to discard this card from your hand" (docs/phase7-wave4.md §3.13).
+    const candidates = (
+      filter ? player.hand.filter((id) => matchesQuery(ctx.state, id, filter, context)) : player.hand
+    ).filter((id) => !cannotChooseToDiscard(ctx.state, ctx.deps, id));
     const amount = Math.min(resolveValue(ctx.state, effect.amount, context, ctx.deps), candidates.length);
     if (amount <= 0) continue;
     setFrame(ctx, { ...frame, answer: null, vars: { ...vars, [`${DISCARD_HAND}index`]: index } });

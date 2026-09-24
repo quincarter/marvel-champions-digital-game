@@ -127,6 +127,12 @@ export type GameEvent =
   | { readonly type: "cardDetached"; readonly instanceId: InstanceId; readonly from: InstanceId }
   /** A card in play turned facedown (`turnFacedown`) or faceup (`changeAdditionalForm`), docs/phase7-wave4.md §3.1. */
   | { readonly type: "cardTurnedFacedown"; readonly instanceId: InstanceId }
+  /** A set-aside modular set was chosen at random and shuffled into the encounter deck (docs/phase7-wave4.md §3.18). */
+  | {
+      readonly type: "setAsideModularSetShuffledIn";
+      readonly encounterSetId: string;
+      readonly instanceIds: readonly InstanceId[];
+    }
   | { readonly type: "cardTurnedFaceup"; readonly instanceId: InstanceId }
   | {
       readonly type: "formChanged";
@@ -288,6 +294,17 @@ export type GameEvent =
        * unchanged.
        */
       readonly hitPointsReset?: true;
+    }
+  /**
+   * A card whose other face is a card of its own turned over (`otherFaceId`, docs/phase7-wave4.md §3.10). `typeChanged`:
+   * the new face is another card type, so its attachments, tucked cards, status cards and tokens were discarded.
+   */
+  | {
+      readonly type: "cardFlippedToOtherFace";
+      readonly instanceId: InstanceId;
+      readonly from: CardId;
+      readonly to: CardId;
+      readonly typeChanged: boolean;
     }
   /** A double-sided encounter card turned over; `flipped` is true when its other face is now up. */
   | { readonly type: "cardFlipped"; readonly instanceId: InstanceId; readonly flipped: boolean }

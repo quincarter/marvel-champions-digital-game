@@ -239,11 +239,18 @@ export function moveCardsTo(ctx: Ctx, ids: readonly InstanceId[], destination: C
         to = { kind: "setAside", playerId: owner };
         position = "bottom";
         break;
-      case "encounterDeckShuffle":
-        if (owner) continue;
-        to = { kind: "encounterDeck", deckId: activeEncounterDeckId(ctx.state) };
+      case "encounterDeckShuffle": {
+        const deckId = activeEncounterDeckId(ctx.state);
+        to = { kind: "encounterDeck", deckId };
         shuffleEncounter = true;
+        // "Shuffle this card into the encounter deck" on a player card (the Cosmic Entities, docs/phase7-wave4.md
+        // §3.14): it keeps its owner but joins the active villain's encounter deck (ruling, Jan 17, 2026 (5)), so it
+        // discards to that encounter discard pile (FAQ, RRG 1.8 p. 62: a Cosmic Entity resolved as a boost card "is
+        // placed in the encounter deck discard pile") and, controlled by nobody, its "you" is the revealing player.
+        if (owner)
+          updateInstance(ctx, id, (i) => ({ ...i, controllerId: null, home: { kind: "encounterDeck", deckId } }));
         break;
+      }
       case "separateDiscard":
       case "separateDeckTop":
       case "separateDeckShuffle": {

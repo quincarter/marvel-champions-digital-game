@@ -349,6 +349,11 @@ export const victoryDisplayCount = (filter?: TargetQuery): ValueSpec => ({
 });
 /** "The victory condition" (All Hail King Loki 1B): `Scenario.victoryCondition` for the modes played (§3.7 of wave 4). */
 export const victoryCondition: ValueSpec = { kind: "victoryCondition" };
+/**
+ * How many modular encounter sets are still set aside: Wheel of Genres (`mojo` 39026a), "if there are no set-aside
+ * modular encounter sets remaining" → `valueEquals(setAsideModularSetCount, 0)` (docs/phase7-wave4.md §3.18).
+ */
+export const setAsideModularSetCount: ValueSpec = { kind: "setAsideModularSetCount" };
 
 /**
  * Arithmetic: "2 damage for each counter (to a maximum of 10)" → `scaled(counters, { times: 2, max: 10 })`;

@@ -770,7 +770,14 @@ function applyRemoveThreat(ctx: Ctx, event: Extract<TriggerEvent, { kind: "remov
       kind: "effects",
       // "Shuffle it into the encounter deck instead of discarding it." (Time Portal; `defeatedIntoEncounterDeck`, §3.11;
       // the general `defeatDestination`, docs/phase7-wave3.md §3.45).
-      effects: [schemeDefeatDestination(ctx.state, ctx.deps, event.schemeInstanceId)],
+      // Unless it flipped into its other face during its "When Defeated" (Secure the Landing Pad → Cosmo; §3.10).
+      effects: [
+        {
+          kind: "if",
+          condition: { kind: "refMatches", ref: { kind: "self" }, query: { printedId: after.cardId } },
+          then: [schemeDefeatDestination(ctx.state, ctx.deps, event.schemeInstanceId)],
+        },
+      ],
       cursor: 0,
       bindings: {},
       vars: {},

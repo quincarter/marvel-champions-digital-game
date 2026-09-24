@@ -1,5 +1,6 @@
 /** Applying one non-interactive effect from an effects frame. */
 
+import { nextInt } from "../rng.js";
 import {
   type Ctx,
   emit,
@@ -79,8 +80,15 @@ import { campaignSeatNumber } from "../campaign-state.js";
 import { campaignLogValueOf, recordCampaignRemoval, recordCampaignWrite } from "./campaign.js";
 import { damageGroupFrame } from "./damage-group.js";
 import { advanceToSetAsideVillain, swapVillain } from "./villain-swap.js";
+import { flipToOtherFace } from "./other-face.js";
 import { buildScenarioDeck, moveCardsTo, selectCards, shuffleEncounterDeck } from "./cards.js";
-import { canHaveAttached, cannotBeUnattached, cannotChangeForm, cannotThwart } from "../rules.js";
+import {
+  canHaveAttached,
+  cannotBeUnattached,
+  cannotChangeForm,
+  cannotThwart,
+  revealCannotBeCanceled,
+} from "../rules.js";
 import { advanceMainSchemeStage, checkDefeats, completeMainScheme } from "./defeat.js";
 import {
   addVillains,
@@ -366,6 +374,22 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
         delta.extraBoost = extra;
       }
       addFrameVars(ctx, activation, delta);
+      return;
+    }
+    case "shuffleInSetAsideModularSet": {
+      const sets = ctx.state.setAsideModularSets ?? [];
+      if (sets.length === 0) {
+        if (effect.bind) addFrameVars(ctx, frame.frameId, { [`${effect.bind}.made`]: 0 });
+        return;
+      }
+      const [pick, rng] = nextInt(ctx.state.rng, sets.length);
+      const chosen = sets[pick]!;
+      ctx.state = { ...ctx.state, rng, setAsideModularSets: sets.filter((_, index) => index !== pick) };
+      // Only the cards still set aside: one an ability already took out ("search … the set-aside area") stays where it is.
+      const still = chosen.instanceIds.filter((id) => ctx.state.encounterSetAside.includes(id));
+      moveCardsTo(ctx, still, "encounterDeckShuffle");
+      emit(ctx, { type: "setAsideModularSetShuffledIn", encounterSetId: chosen.encounterSetId, instanceIds: still });
+      if (effect.bind) addFrameVars(ctx, frame.frameId, { [`${effect.bind}.made`]: 1 });
       return;
     }
     case "resolveAttackAgainst": {
@@ -815,6 +839,10 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
           if (!other?.stages[villain.stageIndex]) continue;
           flipVillain(ctx, id, other.side);
           frames.push(...gameAbilityFrames(ctx, id, ["whenRevealed"], null, undefined, ctx.state.firstPlayerId));
+        } else if (card?.otherFaceId !== undefined) {
+          // docs/phase7-wave4.md §3.10. Its new face goes to "you" (the first player, for a side scheme's When Defeated).
+          const playerId = context.controllerId ?? ctx.state.firstPlayerId;
+          if (!flipToOtherFace(ctx, id, playerId)) continue;
         } else if (card && "flipSide" in card && card.flipSide) {
           const flipped = !mustInstance(ctx.state, id).flipped;
           updateInstance(ctx, id, (i) => ({ ...i, flipped }));
@@ -1119,6 +1147,8 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
         (f): f is Frame<"reveal"> => f.kind === "reveal" && f.instanceId === revealing,
       );
       if (!reveal) return;
+      // "This effect cannot be canceled." (RRG 1.8 "'Cannot'", p. 11: "cannot" is absolute.) The cancel's costs stay paid.
+      if (revealCannotBeCanceled(ctx.state, ctx.deps, reveal.instanceId)) return;
       const all = effect.kind === "cancelRevealedCard";
       setFrame(ctx, all ? { ...reveal, effectsCancelled: true } : { ...reveal, whenRevealedCancelled: true });
       emit(ctx, { type: "revealCancelled", instanceId: reveal.instanceId, scope: all ? "allEffects" : "whenRevealed" });

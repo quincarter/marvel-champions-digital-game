@@ -648,6 +648,13 @@ export type RuleSpec =
    * legal host for an attachment or upgrade from `from` (absent: any card; `"encounter"`: an encounter card; `"upgrade"`:
    * a player upgrade), and an `attach` effect leaves such a card where it was. docs/phase7-wave4.md §3.8.
    */
+  /**
+   * "Treacheries cannot be canceled." (Dark Scepter, `tt` 55036, in play); "In expert mode, this card gains incite 1 and
+   * cannot be canceled." (Frequent Flyers and its three siblings, `sm` 27108–27110, 27112, read from the revealed card
+   * itself: `cards: { self: true }` with a mode `while`). A matching card being revealed cannot have its effects or its
+   * "When Revealed" effects canceled. docs/phase7-wave4.md §3.14.
+   */
+  | { readonly kind: "cannotBeCanceled"; readonly cards: TargetQuery; readonly while?: Predicate }
   | {
       readonly kind: "cannotHaveAttachments";
       readonly target: TargetQuery;
@@ -667,7 +674,13 @@ export type RuleSpec =
    * revealed or put into play goes to that player's play area, controlled by no one, instead of the villain's area. A
    * scenario rule, carried by the scenario's own cards. docs/phase7-wave4.md §3.16.
    */
-  | { readonly kind: "entersRevealersPlayArea"; readonly cards: TargetQuery; readonly while?: Predicate };
+  | { readonly kind: "entersRevealersPlayArea"; readonly cards: TargetQuery; readonly while?: Predicate }
+  /**
+   * "You cannot choose to discard this card from your hand." (System Shock, `mts` 21185). On a constant with `activeIn:
+   * "hand"`, it keeps the card itself out of every discard its owner chooses from hand (an effect's "discard N cards",
+   * a cost, the end-of-phase discard, the mulligan). A random discard can still take it. docs/phase7-wave4.md §3.13.
+   */
+  | { readonly kind: "cannotChooseToDiscard" };
 
 /** Where a cost may pick a card from (outside play). */
 export interface CardZoneQuery {
@@ -956,6 +969,22 @@ export interface AbilityDefinition {
    * its controller may use it, in the trigger's `form`. docs/phase7-wave3.md §3.20 and §4 Q6.
    */
   readonly playCostReduction?: { readonly amount: number; readonly cards?: TargetQuery; readonly fromHand?: boolean };
+  /**
+   * `"hand"`: the ability works while its card is in its owner's hand, and only then — "While Pip the Troll is in your
+   * hand, he gains 'Interrupt: When a player is attacked, spend [energy][mental] resources → put Pip the Troll into play
+   * under that player's control.'" (Pip the Troll, `mts` 21032); "While this card is in your hand, it gains: 'Alter-Ego
+   * Action: Spend a [mental] resource → remove this card from the game.'" (System Shock, 21185). Using it is not playing
+   * the card: its owner pays the ability's own cost. docs/phase7-wave4.md §3.13.
+   */
+  readonly activeIn?: "hand";
+  /**
+   * "This effect cannot be canceled." on a "When Revealed" ability (the Cosmic Entities, `mts` 21042/21048/21054/21060:
+   * "When Revealed: Deal 2 damage to the villain and remove this card from the game. This effect cannot be canceled.";
+   * Longshot and Cornered!, `mojo` 39071, 39017): a cancel of the revealed card's effects or of its "When Revealed"
+   * effects changes nothing (RRG 1.8 "Cancel" and "'Cannot'", p. 11). A card's own `RuleSpec cannotBeCanceled` does the
+   * same while its `while` holds. docs/phase7-wave4.md §3.14.
+   */
+  readonly uncancellable?: true;
 }
 
 /** Ability definitions are engine-side data keyed by the `AbilityId` printed on cards. */

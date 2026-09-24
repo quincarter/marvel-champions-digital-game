@@ -14,6 +14,7 @@ import {
   discardZoneFor,
   getInstance,
   getPlayer,
+  locateCard,
   mustCardOf,
   mustInstance,
   printedProfile,
@@ -390,7 +391,11 @@ export function executeRevealFrame(ctx: Ctx, frame: Frame<"reveal">): void {
     }
     case "finish": {
       setFrame(ctx, { ...frame, stage: "done" });
-      if (card.type === "treachery" && getInstance(ctx.state, frame.instanceId)) {
+      // A revealed player event (a Cosmic Entity whose effects left it where it was) is discarded like a treachery,
+      // to its encounter discard pile (docs/phase7-wave4.md §3.14).
+      const unresolvedEvent =
+        card.type === "event" && locateCard(ctx.state, frame.instanceId)?.kind === "dealtEncounter";
+      if ((card.type === "treachery" || unresolvedEvent) && getInstance(ctx.state, frame.instanceId)) {
         // Its home deck's discard (docs/phase7-wave1.md §4.3, proposed; see `discardZoneFor`).
         moveCard(ctx, frame.instanceId, discardZoneFor(ctx.state, frame.instanceId), "top");
       }

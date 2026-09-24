@@ -386,6 +386,27 @@ export const rule = (r: RuleSpec): ConstantPart => ({ rules: [r] });
  * host is also the scheme minions scheme onto and player constants mean by "the main scheme" (MC21 p. 10; errata RRG 1.8
  * p. 67). `constant(focusedMainScheme())`. docs/phase7-wave4.md §3.2.
  */
+/**
+ * "While Pip the Troll is in your hand, he gains '…'" / "While this card is in your hand, it gains: '…'" (Pip the Troll,
+ * System Shock, `mts` 21032, 21185): the ability works only while its card is in its owner's hand
+ * (`AbilityDefinition.activeIn`, docs/phase7-wave4.md §3.13). `inHand(interrupt(…))`.
+ */
+export const inHand = (definition: AbilityDefinition): AbilityDefinition => ({ ...definition, activeIn: "hand" });
+/**
+ * "… This effect cannot be canceled." (the Cosmic Entities, `mts` 21042/21048/21054/21060; Longshot, `mojo` 39071):
+ * `uncancellable(whenRevealed(…))`. "This card cannot be canceled" read from the card itself or from play is the
+ * constant `cannotBeCanceled(query)`. docs/phase7-wave4.md §3.14.
+ */
+export const uncancellable = (definition: AbilityDefinition): AbilityDefinition => ({
+  ...definition,
+  uncancellable: true,
+});
+/** "Treacheries cannot be canceled." (Dark Scepter, `tt` 55036); "this card … cannot be canceled" (`sm` 27108). */
+export const cannotBeCanceled = (cards: TargetQuery, when?: Predicate): ConstantPart => ({
+  rules: [{ kind: "cannotBeCanceled", cards, ...(when ? { while: when } : {}) }],
+});
+/** "You cannot choose to discard this card from your hand." (System Shock): `inHand(constant(cannotChooseToDiscard))`. */
+export const cannotChooseToDiscard: ConstantPart = { rules: [{ kind: "cannotChooseToDiscard" }] };
 export const focusedMainScheme = (): ConstantPart => rule({ kind: "focusedMainScheme", scheme: { kind: "host" } });
 /**
  * "The first [X] the engaged player reveals each villain phase gains surge." (Mister Knife, `stld` 17026); "The
