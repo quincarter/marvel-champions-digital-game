@@ -12,11 +12,13 @@ import {
   villainOf,
 } from "./query.js";
 import {
+  activeAbilityRefs,
   activeRules,
   cardsInPlay,
   categoriesOf,
   focusedMainSchemeId,
   contextArea,
+  evaluate,
   isPlayerCard,
   matchesQuery,
   resolveRef,
@@ -26,6 +28,30 @@ import {
 import { combineRequirements, type ResolvedRequirement } from "./resources.js";
 import type { AttackKeyword, CardDestination } from "./spec.js";
 import type { Form, GameState } from "./state.js";
+
+/**
+ * Whether a revealed encounter card's effects are beyond canceling: an "uncancellable" ability of its own ("This effect
+ * cannot be canceled.", a player card revealed from the encounter deck), a `cannotBeCanceled` rule on the card itself
+ * (read wherever the card is, since a revealed treachery is not in play), or one in play that matches it ("Treacheries
+ * cannot be canceled."). docs/phase7-wave4.md §3.14.
+ */
+export function revealCannotBeCanceled(state: GameState, deps: EngineDeps, id: InstanceId): boolean {
+  const own: EffectContext = { selfInstanceId: id, controllerId: null, event: null, bindings: {}, deps };
+  for (const ref of activeAbilityRefs(state, id, deps)) {
+    const definition = deps.abilities[ref.id];
+    if (!definition) continue;
+    if (definition.uncancellable && definition.trigger.kind === "whenRevealed") return true;
+    if (definition.trigger.kind !== "constant") continue;
+    for (const rule of definition.trigger.rules ?? []) {
+      if (rule.kind !== "cannotBeCanceled") continue;
+      if (rule.while && !evaluate(state, rule.while, own)) continue;
+      if (matchesQuery(state, id, rule.cards, own)) return true;
+    }
+  }
+  return activeRules(state, deps, "cannotBeCanceled").some(({ rule, context }) =>
+    matchesQuery(state, id, rule.cards, context),
+  );
+}
 
 /** "X cannot take damage [while …] [from …]". `sources` are the damage's source and the card it came through. */
 export function cannotTakeDamage(

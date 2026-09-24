@@ -676,6 +676,13 @@ export type RuleSpec =
    * legal host for an attachment or upgrade from `from` (absent: any card; `"encounter"`: an encounter card; `"upgrade"`:
    * a player upgrade), and an `attach` effect leaves such a card where it was. docs/phase7-wave4.md §3.8.
    */
+  /**
+   * "Treacheries cannot be canceled." (Dark Scepter, `tt` 55036, in play); "In expert mode, this card gains incite 1 and
+   * cannot be canceled." (Frequent Flyers and its three siblings, `sm` 27108–27110, 27112, read from the revealed card
+   * itself: `cards: { self: true }` with a mode `while`). A matching card being revealed cannot have its effects or its
+   * "When Revealed" effects canceled. docs/phase7-wave4.md §3.14.
+   */
+  | { readonly kind: "cannotBeCanceled"; readonly cards: TargetQuery; readonly while?: Predicate }
   | {
       readonly kind: "cannotHaveAttachments";
       readonly target: TargetQuery;
@@ -998,6 +1005,14 @@ export interface AbilityDefinition {
    * the card: its owner pays the ability's own cost. docs/phase7-wave4.md §3.13.
    */
   readonly activeIn?: "hand";
+  /**
+   * "This effect cannot be canceled." on a "When Revealed" ability (the Cosmic Entities, `mts` 21042/21048/21054/21060:
+   * "When Revealed: Deal 2 damage to the villain and remove this card from the game. This effect cannot be canceled.";
+   * Longshot and Cornered!, `mojo` 39071, 39017): a cancel of the revealed card's effects or of its "When Revealed"
+   * effects changes nothing (RRG 1.8 "Cancel" and "'Cannot'", p. 11). A card's own `RuleSpec cannotBeCanceled` does the
+   * same while its `while` holds. docs/phase7-wave4.md §3.14.
+   */
+  readonly uncancellable?: true;
 }
 
 /** Ability definitions are engine-side data keyed by the `AbilityId` printed on cards. */
