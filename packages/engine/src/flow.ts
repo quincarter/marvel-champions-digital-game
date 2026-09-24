@@ -8,7 +8,7 @@ import {
   stepAfterMulligans,
   STEP_AFTER_SCENARIO_SETUP,
 } from "./setup-steps.js";
-import { drawCards, endLastingEffect, expireLastingEffects, expirePlayerTurnEffects } from "./effects.js";
+import { drawUpTo, endLastingEffect, expireLastingEffects, expirePlayerTurnEffects } from "./effects.js";
 import { readyOrAnnounce } from "./resolve/event.js";
 import type { LastingEffect } from "./lasting.js";
 import { EngineInvariantError } from "./errors.js";
@@ -137,10 +137,12 @@ function executeScenarioSetupStep(ctx: Ctx): void {
   setStep(ctx, STEP_AFTER_SCENARIO_SETUP);
 }
 
-// RRG Appendix II step 14, after setup cards and setup abilities have resolved.
+// RRG Appendix II step 14, after setup cards and setup abilities have resolved: "Each player draws cards from their
+// deck until they have cards equal in number to their hand size" — a refill, so a drawn obligation (which goes to the
+// play area) is drawn past (docs/campaign-mode-design.md, "Obligations drawn at setup").
 function executeDrawStartingHands(ctx: Ctx): void {
   for (const player of ctx.state.players) {
-    drawCards(ctx, player.playerId, handSize(ctx.state, player.playerId, ctx.deps));
+    drawUpTo(ctx, player.playerId, () => handSize(ctx.state, player.playerId, ctx.deps));
   }
   setStep(ctx, {
     phase: "setup",
@@ -174,9 +176,7 @@ function executeMulligan(ctx: Ctx, remainingPlayerIds: readonly PlayerId[]): voi
 export function afterMulliganChoice(ctx: Ctx, playerId: PlayerId): void {
   const step = ctx.state.step;
   if (step.kind !== "mulligan") return;
-  const limit = handSize(ctx.state, playerId, ctx.deps);
-  const held = mustPlayer(ctx.state, playerId).hand.length;
-  if (held < limit) drawCards(ctx, playerId, limit - held);
+  drawUpTo(ctx, playerId, () => handSize(ctx.state, playerId, ctx.deps));
   setStep(ctx, {
     phase: "setup",
     kind: "mulligan",
@@ -312,9 +312,7 @@ export function afterDiscardChoice(ctx: Ctx, playerId: PlayerId): void {
 
 function executeEndPhaseDraw(ctx: Ctx): void {
   for (const player of playerOrder(ctx.state)) {
-    const limit = handSize(ctx.state, player.playerId, ctx.deps);
-    const current = mustPlayer(ctx.state, player.playerId).hand.length;
-    if (current < limit) drawCards(ctx, player.playerId, limit - current);
+    drawUpTo(ctx, player.playerId, () => handSize(ctx.state, player.playerId, ctx.deps));
   }
   setStep(ctx, { phase: "player", kind: "endPhaseReady" });
 }
