@@ -60,6 +60,18 @@ export type ChoicePrompt =
   | { readonly kind: "choosePlayer"; readonly slot: string }
   /** Order the Special abilities of a sequence (Wakanda Forever!). */
   | { readonly kind: "orderSpecials" }
+  /**
+   * A cost paid with cards in play whose cards are the player's choice, asked inside a timing window before the
+   * payment (`InPlayCostPick`; docs/phase7-wave4.md §3.17): "exhaust an [Avenger] character and a [Guardian] character"
+   * asks once per slot. Options are the candidates; selecting fewer than `min` backs out of the card or ability.
+   */
+  | {
+      readonly kind: "chooseCostCards";
+      readonly instanceId: InstanceId;
+      readonly abilityId: AbilityId;
+      readonly slot: string;
+      readonly mode: "exhaust" | "return";
+    }
   /** Paying for an interrupt/response event played from hand inside a timing window. */
   | {
       readonly kind: "payForCard";

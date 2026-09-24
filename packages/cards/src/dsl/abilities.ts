@@ -653,6 +653,18 @@ const inPlayPick = (q: TargetQuery, opts: InPlayCostOptions, defaultSlot: string
 export const exhaustCardsCost = (q: TargetQuery, opts: InPlayCostOptions = {}): AbilityCost => ({
   exhaustCards: inPlayPick(q, opts, "exhausted"),
 });
+/**
+ * "Exhaust an [Avenger] character and a [Guardian] character →" (As One!, Stand Together, Problem Solvers; Combine
+ * Forces' X-Force and X-Men; docs/phase7-wave4.md §3.17): one card per slot, each slot its own query, and one card
+ * cannot pay two slots. `exhaustEachCost({ avenger: query(["identity", "ally"], { trait: AVENGER }), guardian: … })` binds each card to its slot, so "the combined ATK of those characters" is `sum(statOf(chosen("avenger"),
+ * "atk"), statOf(chosen("guardian"), "atk"))`. On an alliance card the picks may be any player's characters; otherwise
+ * the payer's own, as for `exhaustCardsCost`.
+ */
+export const exhaustEachCost = (picks: Readonly<Record<string, TargetQuery>>): AbilityCost => {
+  const entries = Object.entries(picks);
+  if (entries.length < 2) throw new Error("exhaustEachCost: name at least two slots (one pick is exhaustCardsCost)");
+  return { exhaustCards: entries.map(([slot, q]) => inPlayPick(q, { slot }, slot)) };
+};
 /** "… return [cards you control] from play to your hand →" (Shield Toss). Same picking rules as `exhaustCardsCost`. */
 export const returnToHandCost = (q: TargetQuery, opts: InPlayCostOptions = {}): AbilityCost => ({
   returnToHand: inPlayPick(q, opts, "returned"),

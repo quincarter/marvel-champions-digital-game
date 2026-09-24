@@ -1,4 +1,10 @@
-import type { AbilityCost, AbilityDefinition, AbilityRegistry, EffectSpec } from "@mc/engine";
+import {
+  inPlayPicksOf,
+  type AbilityCost,
+  type AbilityDefinition,
+  type AbilityRegistry,
+  type EffectSpec,
+} from "@mc/engine";
 
 /**
  * A private marker for `allowUnlabeledAttack`'s opt-out (below). A symbol key never appears in `Object.entries`/
@@ -100,11 +106,8 @@ function costVariants(cost: AbilityCost): readonly AbilityCost[] {
 }
 
 function checkCostShape(cost: AbilityCost, problems: string[]): void {
-  for (const [name, pick] of [
-    ["exhaustCards", cost.exhaustCards],
-    ["returnToHand", cost.returnToHand],
-  ] as const) {
-    if (!pick) continue;
+  for (const { mode, pick } of inPlayPicksOf(cost)) {
+    const name = mode === "exhaust" ? "exhaustCards" : "returnToHand";
     // RRG 1.8 "Cost" (p. 14): "A cost requiring 'any number' or 'up to' some number of game elements requires a minimum of one".
     if (!Number.isInteger(pick.min) || pick.min < 1)
       problems.push(`cost ${name}: min must be a whole number of at least 1 (RRG 1.8 "Cost", p. 14)`);
@@ -142,8 +145,7 @@ function checkCostShape(cost: AbilityCost, problems: string[]): void {
   const slots = [
     ...(cost.discardFromHand ? ["discard"] : []),
     ...(cost.payPrintedCostOf ? [cost.payPrintedCostOf.slot] : []),
-    ...(cost.exhaustCards ? [cost.exhaustCards.slot] : []),
-    ...(cost.returnToHand ? [cost.returnToHand.slot] : []),
+    ...inPlayPicksOf(cost).map(({ pick }) => pick.slot),
   ];
   if (new Set(slots).size !== slots.length)
     problems.push(`cost components pick into the same slot (${slots.join(", ")}); give each its own slot`);
@@ -402,8 +404,7 @@ function checkBindings(definition: AbilityDefinition, problems: string[]): void 
       if (component.spendCounters?.bind) scope.vars.add(component.spendCounters.bind);
     }
     if (cost.either) scope.vars.add("cost.branch");
-    for (const pick of [cost.exhaustCards, cost.returnToHand]) {
-      if (!pick) continue;
+    for (const { pick } of inPlayPicksOf(cost)) {
       scope.slots.add(pick.slot);
       if (pick.bind) scope.vars.add(pick.bind);
     }

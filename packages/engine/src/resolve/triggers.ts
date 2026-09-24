@@ -1,7 +1,7 @@
 /** Trigger matching: which abilities (in play or in hand) an event makes available in a timing window. */
 
 import type { EngineDeps, EventPattern } from "../abilities.js";
-import { isPriceFault, planCost, playRestrictionFault } from "../actions.js";
+import { defaultInPlayPicks, isPriceFault, planCost, playRestrictionFault } from "../actions.js";
 import type { InstanceId, PlayerId } from "../ids.js";
 import { cardOf, getPlayer, playerOrder } from "../query.js";
 import {
@@ -159,11 +159,22 @@ export function candidatesFor(
         controllerId ?? (trigger.firstPlayerOnly === true ? state.firstPlayerId : actingPlayerOf(event, trigger.on));
       if (limitReached(state, id, ref.id, definition, event, limitPlayer)) continue;
       if (!matchesPattern(state, trigger.on, event, id, deps)) continue;
-      // RRG "Cost": an ability whose cost can't be paid can't be triggered.
+      // RRG "Cost": an ability whose cost can't be paid can't be triggered. A pick of cards in play the player makes
+      // later (`costPick`, docs/phase7-wave4.md §3.17) is judged by the default picks.
       if (
         definition.cost &&
         controllerId &&
-        isPriceFault(planCost(state, deps, id, controllerId, definition.cost, {}, new Set()))
+        isPriceFault(
+          planCost(
+            state,
+            deps,
+            id,
+            controllerId,
+            definition.cost,
+            defaultInPlayPicks(state, deps, id, controllerId, definition.cost),
+            new Set(),
+          ),
+        )
       ) {
         continue;
       }
@@ -212,7 +223,20 @@ function spentCardCandidates(
       if (!formSatisfied(state, controllerId, trigger.form)) continue;
       if (limitReached(state, id, ref.id, definition, event, controllerId)) continue;
       if (!matchesPattern(state, trigger.on, event, id, deps, controllerId)) continue;
-      if (definition.cost && isPriceFault(planCost(state, deps, id, controllerId, definition.cost, {}, new Set())))
+      if (
+        definition.cost &&
+        isPriceFault(
+          planCost(
+            state,
+            deps,
+            id,
+            controllerId,
+            definition.cost,
+            defaultInPlayPicks(state, deps, id, controllerId, definition.cost),
+            new Set(),
+          ),
+        )
+      )
         continue;
       found.push(candidateOf({ instanceId: id, abilityId: ref.id, controllerId, definition }, forced));
     }
