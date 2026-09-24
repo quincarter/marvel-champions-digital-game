@@ -11,6 +11,7 @@
  * its `fallback` text instead, so any roster gets the same beats.
  */
 import { TRORS_STORY } from "./stories/trors.js";
+import { GMW_STORY } from "./stories/gmw.js";
 
 export type StorySpeaker =
   | { readonly kind: "narrator" }
@@ -58,6 +59,46 @@ export interface StoryPanel {
   readonly sfx?: string;
 }
 
+/**
+ * A panel's outline on its page, in that page's own pixel coordinates (top-left origin, matching the image file).
+ * A slanted panel may give its bounding box here instead — real games' comic pages skew panels for energy, and a
+ * rectangle that contains the whole panel still lights the right area, just not flush to its printed border.
+ */
+export interface ComicPanelRect {
+  readonly x: number;
+  readonly y: number;
+  readonly w: number;
+  readonly h: number;
+}
+
+/** One beat of a page-based issue (`art/README.md`'s "comic reader"): a panel, its caption/lines/SFX. */
+export interface ComicBeat {
+  readonly panel: ComicPanelRect;
+  readonly caption?: string;
+  readonly lines: readonly StoryLine[];
+  readonly sfx?: string;
+}
+
+/**
+ * A full comic page (`art/campaigns/<campaignId>/pages/<file>.<ext>`), read panel by panel by the comic reader.
+ * `width`/`height` are the source image's own pixel dimensions — every beat's `panel` rect is measured against
+ * them, so the reader can scale to any screen size without re-deriving the art's own layout.
+ */
+export interface ComicPage {
+  /** The file's name without its number/extension prefix stripped — `"01-badoon"` for `pages/01-badoon.jpg`. */
+  readonly file: string;
+  readonly width: number;
+  readonly height: number;
+  /** In reading order. */
+  readonly beats: readonly ComicBeat[];
+}
+
+/** Points an issue at one beat of one page, in the order the issue's guided read shows them. */
+export interface ComicBeatRef {
+  readonly page: string;
+  readonly beatIndex: number;
+}
+
 export interface IssueStory {
   /** `CampaignNode.id`. */
   readonly nodeId: string;
@@ -68,8 +109,13 @@ export interface IssueStory {
   readonly blurb: string;
   /** Issue detail's recap caption, once the issue is finished. */
   readonly recap: string;
-  /** Tapped through one at a time on the issue opener (C03). Three panels in the design. */
+  /** Tapped through one at a time on the issue opener (C03). Three panels in the design. Unused when `comicBeats` is set. */
   readonly opener: readonly StoryPanel[];
+  /**
+   * For a page-based box (`CampaignStory.pages` is set): this issue's guided read, in order. When present, the
+   * issue opener uses the comic reader over these beats instead of the three-panel `opener` above.
+   */
+  readonly comicBeats?: readonly ComicBeatRef[];
   /** The villain's line when it flips to a stage (C04), by stage number (2 = stage II). */
   readonly stageLines: Readonly<Record<number, string>>;
   /** A short rule reminder shown under the stage-flip splash ("Piercing while armed"). */
@@ -97,6 +143,8 @@ export interface CampaignStory {
   /** Identity ids whose beats are written for them (the box's own heroes). */
   readonly castIdentityIds: readonly string[];
   readonly issues: readonly IssueStory[];
+  /** Set only for a box told as comic pages (`art/README.md`); its issues' `comicBeats` index into this. */
+  readonly pages?: readonly ComicPage[];
   readonly finale: {
     readonly caption: string;
     readonly headline: string;
@@ -137,7 +185,10 @@ export const SAGA_NOTE =
   "Win a volume on Standard to open the next. Finished volumes can be reread or started again. Civil War (MC56) is competitive only, so it has no campaign.";
 
 /** Every box's story, by `Campaign.id`. Adding a box's story is one entry. */
-const STORIES: Readonly<Record<string, CampaignStory>> = { [TRORS_STORY.campaignId]: TRORS_STORY };
+const STORIES: Readonly<Record<string, CampaignStory>> = {
+  [TRORS_STORY.campaignId]: TRORS_STORY,
+  [GMW_STORY.campaignId]: GMW_STORY,
+};
 
 export const storyFor = (campaignId: string): CampaignStory | undefined => STORIES[campaignId];
 
