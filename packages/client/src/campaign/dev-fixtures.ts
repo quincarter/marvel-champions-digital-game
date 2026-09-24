@@ -92,6 +92,7 @@ export type GmwRunStop =
   | "afterIssue1"
   | "afterIssue2"
   | "afterIssue2HeadhuntersDown"
+  | "afterIssue3"
   | "expertAfterIssue1"
   | "lostIssue3"
   | "finished";
@@ -171,6 +172,8 @@ function withHeadhunterDefeated(state: GameState): GameState {
  * `"lostIssue3"` plays issues 1–2 to a win, then loses issue 3 ("escape-the-museum") once — a real, foldable loss
  * for Rewind (C09) to read, on an issue whose `comicBeats` point at a real page (`02-museum`) so the screen's
  * torn-panel art has something to crop.
+ * `"afterIssue3"` plays through issue 3 as well, so the next issue composed against this record is #4
+ * ("nebula") — `seedGmwWonGame`'s own default stop, so its own Aftermath page (`04-knowhere`) is reachable.
  * `"finished"` plays through all five issues to a win, the way `seedDesignRun`'s own `"finished"` stop does, so the
  * GMW Finale (reached only from a `status: "won"` run) has something to open.
  */
@@ -211,6 +214,8 @@ export async function seedGmwRun(
   );
   if (stop === "afterIssue2" || stop === "afterIssue2HeadhuntersDown") return record;
   if (stop === "lostIssue3") return playIssueWith(service, record, "loss", gmwAutoAnswer);
+  record = await playIssueWith(service, record, "win", gmwAutoAnswer);
+  if (stop === "afterIssue3") return record;
   while (record.status === "active") record = await playIssueWith(service, record, "win", gmwAutoAnswer);
   return record;
 }
@@ -244,4 +249,60 @@ export async function seedDesignRun(
   if (stop === "lostIssue3") return playIssue(service, record, "loss");
   while (record.status === "active") record = await playIssue(service, record, "win");
   return record;
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// A real, unfolded win — reachable through the live `appSession().store`, not just this file's own `foldState`
+// shortcut. `main.ts`'s dev-only `__mcCampaign.seedGmwWon`/`seedDesignWon` write `WonGame.won` as a save's own
+// replay baseline (0 commands) and resume the live store from it, so `CampaignAftermathScene` runs a *real*
+// `fold` against a live game exactly as a played-and-won game would — the seed only stands in for playing the
+// scenario to a win, never for anything downstream of that.
+// ---------------------------------------------------------------------------------------------------------------
+
+export interface WonGame {
+  /** Composed for the issue this win is for (`record.attempt` set) — never folded by this file. */
+  readonly record: CampaignRecord;
+  /** `outcome: { result: "win", … }`, otherwise a real post-setup state — the same substitution `playIssueWith`'s
+   * win branch already makes, here left unfolded for a caller to save and resume into instead. */
+  readonly won: GameState;
+}
+
+/** Composes `record`'s own next issue for real, then fabricates its win the same way `playIssueWith` does. */
+async function composeAndFabricateWin(
+  service: CampaignService,
+  record: CampaignRecord,
+  answerFor: (choice: CampaignPendingChoice) => CampaignChoiceAnswer,
+): Promise<WonGame> {
+  const composed = await settleWith((answers) => service.compose(record, answers), answerFor);
+  const core = new EngineSessionCore({ storage: new MemoryGameStorage() });
+  const started = await core.start(service.launchConfig(composed));
+  const won: GameState = {
+    ...started.snapshot.state,
+    cardPool: started.cardPool,
+    outcome: { result: "win", reason: "villainDefeated" },
+  };
+  return { record: composed, won };
+}
+
+/**
+ * `stop`'s own next issue, composed and won for real but not folded — defaults to `"afterIssue3"`, so the game
+ * this returns is issue #4 ("nebula"), the Aftermath page (`04-knowhere`) this box's own comic pass added.
+ */
+export async function seedGmwWonGame(
+  service: CampaignService,
+  stop: GmwRunStop = "afterIssue3",
+  options: { readonly expertCampaign?: boolean } = {},
+): Promise<WonGame> {
+  const record = await seedGmwRun(service, stop, options);
+  return composeAndFabricateWin(service, record, gmwAutoAnswer);
+}
+
+/** MC10's own equivalent, for proving its plain Aftermath is unchanged through the same live-store path. */
+export async function seedDesignWonGame(
+  service: CampaignService,
+  stop: DesignRunStop = "afterIssue2",
+  options: { readonly expertCampaign?: boolean } = {},
+): Promise<WonGame> {
+  const record = await seedDesignRun(service, stop, options);
+  return composeAndFabricateWin(service, record, autoAnswer);
 }
