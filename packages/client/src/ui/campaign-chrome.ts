@@ -392,6 +392,21 @@ export function desaturate(image: Phaser.GameObjects.Image): void {
   else image.setTint(0xb8b8b8);
 }
 
+/**
+ * Sealed pages stay blurred so an issue still opens on a reveal (C07's own note) — a real pixelate filter over the
+ * dim-and-note fallback `desaturate` above falls back to, because Phaser 4's colour-matrix filter is already
+ * confirmed live here. `amount` is heavy enough that no panel line or figure reads through it; `enableFilters` is a
+ * per-`GameObject` API here (not the Camera-level `filters.internal.addPixelate` the class doc for `Pixelate`
+ * shows), matching how `desaturate` reaches the same `filters.internal` controller off an `Image`.
+ */
+export function pixelateHeavy(image: Phaser.GameObjects.Image, amount = 14): void {
+  const filterable = image as unknown as {
+    enableFilters?: () => { filters?: { internal?: { addPixelate?: (amount?: number) => unknown } } };
+  };
+  const applied = filterable.enableFilters?.()?.filters?.internal?.addPixelate?.(amount);
+  if (!applied) image.setAlpha(0.15); // No filter support in this runtime: fall back to a heavy dim instead.
+}
+
 /** A rough Bangers width before the text exists — for sizing the back button box. */
 function estimateBangersWidth(text: string, size: number): number {
   return text.length * size * 0.42;

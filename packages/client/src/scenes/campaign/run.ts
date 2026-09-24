@@ -6,34 +6,84 @@
  * parchment question marks. Phone (#08 phone composition): the same three states stacked as rows, the current
  * issue as a large card.
  *
+ * A page-based box (`CampaignStory.pages` set, GMW today — `gmw-comic-reader.dc/*-the-run.png`) instead shows each
+ * issue as its own comic page (`RunIssueRow.pageCrop`, `view/campaign-run-model.ts`): finished full colour with a
+ * green "READ ▸" chip that opens the comic reader as a reread, current the same crop highlighted with a
+ * page-and-panel bookmark line instead of the speech-bubble teaser, sealed heavily pixelated so no panel reads
+ * through — detected from the model's own data, never `campaignId`, so a later page-based box picks this up for
+ * free. A box with no `pages` (MC10) keeps the plain villain-picture columns above untouched.
+ *
  * All data comes from `campaignRunModel` (`view/campaign-run-model.ts`), itself over the real `CampaignRecord`
  * loaded through `campaignService()` — nothing here computes campaign state.
  */
 import Phaser from "phaser";
 import { CARDS_BY_ID } from "../../content/pool.js";
 import { storyFor } from "../../campaign/story.js";
+import { ensurePictureLoaded } from "../../art/pictures.js";
+import { coverCropFavoringBeats } from "../../view/comic-crop.js";
 import { campaignService } from "../../session.js";
 import { accent, surface, typeRole } from "../../tokens.js";
 import { cssOf, textStyle } from "../../ui/theme.js";
 import {
   bangers,
   campaignFrame,
+  campaignPagePicture,
   drawActionBar,
   drawPicture,
   drawTopBar,
+  pixelateHeavy,
   speechBubble,
+  stamp,
   villainPicture,
 } from "../../ui/campaign-chrome.js";
 import { fitText, McButton } from "../../ui/widgets.js";
 import { destroyChildren } from "../../ui/destroy-children.js";
 import { fadeScreenIn, goToScreen } from "../../ui/transitions.js";
-import { campaignRunModel, type CampaignRunModel, type RunIssueRow } from "../../view/campaign-run-model.js";
+import {
+  campaignRunModel,
+  type CampaignRunModel,
+  type RunIssueRow,
+  type RunPageCrop,
+} from "../../view/campaign-run-model.js";
 import type { Rect } from "../../view/layout.js";
 import { FocusRoute, type FocusStop } from "../focus-route.js";
 import { SCENES } from "../keys.js";
 import type { CampaignRunData } from "./routes.js";
 
 const cardName = (id: string): string => CARDS_BY_ID.get(id)?.name ?? id;
+
+/**
+ * A page-based issue's own comic-page crop (`RunPageCrop`), cover-fit into `rect`: full colour normally, heavily
+ * pixelated (`pixelateHeavy`) while sealed so no panel line or figure reads through — "each issue still opens on a
+ * reveal" stays true even once its own page is drawn behind the blur. Returns null while the page's art hasn't
+ * loaded (or has none); `onReady` is `ensurePictureLoaded`'s redraw hook, the same contract `drawPicture` uses.
+ */
+function drawPageCrop(
+  scene: Phaser.Scene,
+  campaignId: string,
+  crop: RunPageCrop,
+  rect: Rect,
+  onReady: () => void,
+  options: { readonly pixelated?: boolean } = {},
+): Phaser.GameObjects.Image | null {
+  if (rect.width <= 0 || rect.height <= 0) return null;
+  const picture = campaignPagePicture(campaignId, crop.file);
+  if (!picture) return null;
+  const key = ensurePictureLoaded(scene, picture, onReady);
+  if (!key) return null;
+  // `coverCropFavoringBeats` treats `crop.rect` (this issue's own slice of the page, page-pixel space) as if it
+  // were the whole source image, so a page split across two issues (GMW's `02-museum`) still cover-fits to just
+  // its own half rather than the shared page's full frame — and nudges the crop window toward `crop.beats` rather
+  // than that slice's bare center, so a real blank/blacked-out gap between two panels doesn't dominate the frame.
+  const fit = coverCropFavoringBeats(crop, rect);
+  const image = scene.add
+    .image(rect.x - fit.cropX * fit.scale, rect.y - fit.cropY * fit.scale, key)
+    .setOrigin(0, 0)
+    .setScale(fit.scale)
+    .setCrop(fit.cropX, fit.cropY, fit.cropWidth, fit.cropHeight);
+  if (options.pixelated) pixelateHeavy(image);
+  return image;
+}
 
 export class CampaignRunScene extends Phaser.Scene {
   #data: CampaignRunData | null = null;
@@ -154,7 +204,15 @@ export class CampaignRunScene extends Phaser.Scene {
         );
       }
     } else {
-      const note = "Future villains stay sealed so each issue opens on a reveal. Tap a finished issue to reread it.";
+      // A page-based box's current issue reads its own comic page first — the note and CTA say so, matching
+      // `gmw-comic-reader.dc`'s "Tap a finished one to reread it in the reader" / "READ ISSUE #N ▸" — but the CTA
+      // still lands on Briefing exactly like the plain "BRIEFING ▸" it replaces (the run's normal next stop, C03's
+      // own opener, is reached from there): only the label and note change here, matching the design tile.
+      const currentIssue = model.issues.find((issue) => issue.status === "current");
+      const note = currentIssue?.pageCrop
+        ? "Each issue is shown as its own comic page. Tap a finished one to reread it in the reader. Sealed pages stay blurred, so each issue still opens on a reveal."
+        : "Future villains stay sealed so each issue opens on a reveal. Tap a finished issue to reread it.";
+      const ctaLabel = currentIssue?.pageCrop ? `READ ISSUE #${currentIssue.number} ▸` : "BRIEFING ▸";
       const ctaWidth = frame.phone ? bar.width - pad * 2 : 200;
       const noteWidth = frame.phone ? bar.width - pad * 2 : bar.width - pad * 2 - ctaWidth - 24;
       const noteText = this.add
@@ -167,7 +225,7 @@ export class CampaignRunScene extends Phaser.Scene {
         : { x: bar.x + bar.width - pad - ctaWidth, y: bar.y + (bar.height - 62) / 2, width: ctaWidth, height: 62 };
       this.#button(
         "primary",
-        "BRIEFING ▸",
+        ctaLabel,
         ctaRect,
         () => goToScreen(this, SCENES.campaignBriefing, { runId: this.#data!.runId }),
         stops,
@@ -207,6 +265,10 @@ export class CampaignRunScene extends Phaser.Scene {
     const g = this.add.graphics();
     const finished = issue.status === "finished";
     const sealed = issue.status === "sealed";
+    // Set below for a finished page-based issue's READ ▸ chip zone, and brought back above the whole-column zone
+    // once that's added — that zone is added *after* this one, so without this it would win the "topmost only
+    // gets the click" tie-break (Phaser's own `topOnly` default) despite `bringToTop` having run first.
+    let readZone: Phaser.GameObjects.Zone | null = null;
     if (current) {
       g.fillStyle(surface.ink.hex, 1).fillRect(rect.x, rect.y, rect.width, rect.height);
       g.lineStyle(4, accent.heroRed.hex, 1).strokeRect(rect.x, rect.y, rect.width, rect.height);
@@ -217,9 +279,56 @@ export class CampaignRunScene extends Phaser.Scene {
       g.fillStyle(0x1c1a17, 1).fillRect(rect.x, rect.y, rect.width, rect.height);
     }
 
-    const artHeight = sealed ? rect.height * 0.55 : rect.height - (current ? 130 : 70);
+    // A page-based issue (`issue.pageCrop`) draws its own comic-page crop the whole height of the art box, even
+    // sealed — pixelated instead of the "?" glyph, so it's still that issue's own page under the blur.
+    const artHeight = issue.pageCrop
+      ? rect.height - (current ? 70 : 34) // Current's footer carries a third line (`pageProgressLine`) below the title.
+      : sealed
+        ? rect.height * 0.55
+        : rect.height - (current ? 130 : 70);
     const artRect: Rect = { x: rect.x, y: rect.y, width: rect.width, height: Math.max(60, artHeight) };
-    if (sealed) {
+    if (issue.pageCrop) {
+      const image = drawPageCrop(this, this.#campaignId, issue.pageCrop, artRect, () => this.#draw(), {
+        pixelated: sealed,
+      });
+      if (sealed) {
+        this.add
+          .text(
+            artRect.x + artRect.width / 2,
+            artRect.y + artRect.height / 2,
+            "SEALED",
+            textStyle(bangers(20), surface.paper.hex, 0.9),
+          )
+          .setOrigin(0.5);
+      }
+      if (finished) {
+        // Measured off-screen first (`stamp`'s own width depends on the label it just drew) so the chip lands
+        // flush against the art's right edge rather than at a guessed offset.
+        const probe = stamp(this, -10000, -10000, "READ ▸", { size: 13 });
+        for (const object of probe.objects) object.destroy();
+        const { rect: chipRect } = stamp(
+          this,
+          artRect.x + artRect.width - 10 - probe.rect.width,
+          artRect.y + 10,
+          "READ ▸",
+          {
+            size: 13,
+          },
+        );
+        // Its own hotspot straight into the reader, on top of the whole-column zone below (which still opens the
+        // Issue detail page, C07b — that page has its own "Reread" button too, so this chip is a shortcut to it).
+        const key = `read:${issue.nodeId}`;
+        const activate = (): void => this.#reread(issue.nodeId);
+        readZone = this.add
+          .zone(chipRect.x, chipRect.y, chipRect.width, chipRect.height)
+          .setOrigin(0, 0)
+          .setInteractive({ useHandCursor: true });
+        readZone.on("pointerup", activate);
+        stops.set(key, { rect: chipRect, activate });
+        order.push(key);
+      }
+      void image;
+    } else if (sealed) {
       this.add
         .text(
           artRect.x + artRect.width / 2,
@@ -283,6 +392,17 @@ export class CampaignRunScene extends Phaser.Scene {
         )
         .setWordWrapWidth(rect.width - 20);
     }
+    if (current && issue.pageProgressLine) {
+      this.add
+        .text(
+          rect.x + 10,
+          titleLabel.y + titleLabel.height + 4,
+          issue.pageProgressLine,
+          textStyle(typeRole.body, surface.paper.hex, 0.85),
+        )
+        .setFontSize(12)
+        .setWordWrapWidth(rect.width - 20);
+    }
     if (finished && issue.resultLine) {
       this.add
         .text(
@@ -305,6 +425,7 @@ export class CampaignRunScene extends Phaser.Scene {
       zone.on("pointerup", activate);
       stops.set(key, { rect, activate });
       order.push(key);
+      if (readZone) this.children.bringToTop(readZone);
     }
   }
 
@@ -320,11 +441,132 @@ export class CampaignRunScene extends Phaser.Scene {
     let y = top + 12;
     for (const issue of model.issues) {
       const current = issue.status === "current";
-      const rowHeight = current ? 220 : 74;
+      // A page-based issue's own comic-page crop reads wide (its own page aspect), so its row is a full-width
+      // strip rather than the plain square-thumbnail-beside-text row below — sized to match `gmw-comic-reader.dc`'s
+      // phone composition (current tallest, finished mid, sealed short).
+      const rowHeight = issue.pageCrop ? (current ? 240 : issue.status === "finished" ? 150 : 86) : current ? 220 : 74;
       const rect: Rect = { x: pad, y, width: frame.width - pad * 2, height: rowHeight };
-      this.#row(issue, rect, current, stops, order);
+      if (issue.pageCrop) this.#rowComic(issue, issue.pageCrop, rect, current, stops, order);
+      else this.#row(issue, rect, current, stops, order);
       y += rowHeight + 12;
       if (y > bottom - 20) break;
+    }
+  }
+
+  /** Phone row for a page-based issue: the wide comic-page crop above the same kicker/title/result footer. */
+  #rowComic(
+    issue: RunIssueRow,
+    crop: RunPageCrop,
+    rect: Rect,
+    current: boolean,
+    stops: Map<string, FocusStop>,
+    order: string[],
+  ): void {
+    const g = this.add.graphics();
+    const finished = issue.status === "finished";
+    const sealed = issue.status === "sealed";
+    // See `#column`'s own `readZone` comment: brought above the whole-row zone once that's added below.
+    let readZone: Phaser.GameObjects.Zone | null = null;
+    if (current) {
+      g.fillStyle(surface.ink.hex, 1).fillRect(rect.x, rect.y, rect.width, rect.height);
+      g.lineStyle(3, accent.heroRed.hex, 1).strokeRect(rect.x, rect.y, rect.width, rect.height);
+    } else if (sealed) {
+      g.fillStyle(0xd9d2bd, 1).fillRect(rect.x, rect.y, rect.width, rect.height);
+    } else {
+      g.fillStyle(surface.paper.hex, 1).fillRect(rect.x, rect.y, rect.width, rect.height);
+      g.lineStyle(2, surface.ink.hex, 0.25).strokeRect(rect.x, rect.y, rect.width, rect.height);
+    }
+    const pad = 10;
+    const artHeight = rect.height - (current ? 70 : sealed ? 34 : 44);
+    const artRect: Rect = {
+      x: rect.x + pad,
+      y: rect.y + pad,
+      width: rect.width - pad * 2,
+      height: Math.max(50, artHeight),
+    };
+    drawPageCrop(this, this.#campaignId, crop, artRect, () => this.#draw(), { pixelated: sealed });
+    if (sealed) {
+      this.add
+        .text(
+          artRect.x + artRect.width / 2,
+          artRect.y + artRect.height / 2,
+          "SEALED",
+          textStyle(bangers(16), surface.paper.hex, 0.9),
+        )
+        .setOrigin(0.5);
+    }
+    if (finished) {
+      const probe = stamp(this, -10000, -10000, "READ ▸", { size: 11 });
+      for (const object of probe.objects) object.destroy();
+      const { rect: chipRect } = stamp(
+        this,
+        artRect.x + artRect.width - 8 - probe.rect.width,
+        artRect.y + 8,
+        "READ ▸",
+        {
+          size: 11,
+        },
+      );
+      const key = `read:${issue.nodeId}`;
+      const activate = (): void => this.#reread(issue.nodeId);
+      readZone = this.add
+        .zone(chipRect.x, chipRect.y, chipRect.width, chipRect.height)
+        .setOrigin(0, 0)
+        .setInteractive({ useHandCursor: true });
+      readZone.on("pointerup", activate);
+      stops.set(key, { rect: chipRect, activate });
+      order.push(key);
+    }
+
+    const footerColor = current ? surface.paper.hex : surface.ink.hex;
+    const kicker = sealed
+      ? `#${issue.number} · SEALED`
+      : current
+        ? `#${issue.number} · ${(issue.villain ?? "").toUpperCase()} · UP NEXT`
+        : `#${issue.number} · ${(issue.villain ?? "").toUpperCase()}`;
+    let textY = artRect.y + artRect.height + 6;
+    const kickerLabel = this.add
+      .text(rect.x + pad, textY, kicker, textStyle(typeRole.label, footerColor, current ? 0.9 : sealed ? 0.6 : 0.75))
+      .setFontSize(10);
+    textY = kickerLabel.y + kickerLabel.height + 2;
+    const titleLabel = sealed
+      ? kickerLabel
+      : this.add
+          .text(rect.x + pad, textY, issue.title, textStyle(bangers(current ? 18 : 14), footerColor))
+          .setWordWrapWidth(rect.width - pad * 2);
+    if (!sealed) fitText(titleLabel, rect.width - pad * 2, current ? 18 : 14);
+    if (current && issue.pageProgressLine) {
+      this.add
+        .text(
+          rect.x + pad,
+          titleLabel.y + titleLabel.height + 4,
+          issue.pageProgressLine,
+          textStyle(typeRole.body, surface.paper.hex, 0.85),
+        )
+        .setFontSize(11)
+        .setWordWrapWidth(rect.width - pad * 2);
+    }
+    if (finished && issue.resultLine) {
+      this.add
+        .text(
+          rect.x + pad,
+          titleLabel.y + titleLabel.height + 2,
+          issue.resultLine,
+          textStyle(typeRole.body, footerColor, 0.8),
+        )
+        .setFontSize(10);
+    }
+    if (finished) {
+      const key = `issue:${issue.nodeId}`;
+      const activate = (): void => this.#openIssue(issue.nodeId);
+      const zone = this.add
+        .zone(rect.x, rect.y, rect.width, rect.height)
+        .setOrigin(0, 0)
+        .setInteractive({ useHandCursor: true });
+      zone.on("pointerup", activate);
+      stops.set(key, { rect, activate });
+      order.push(key);
+      if (readZone) this.children.bringToTop(readZone);
     }
   }
 
@@ -409,6 +651,16 @@ export class CampaignRunScene extends Phaser.Scene {
   #openIssue(nodeId: string): void {
     if (!this.#data) return;
     goToScreen(this, SCENES.campaignIssue, { runId: this.#data.runId, nodeId });
+  }
+
+  /** The READ ▸ chip on a page-based finished issue: straight into the comic reader, back to The Run once done. */
+  #reread(nodeId: string): void {
+    if (!this.#data) return;
+    goToScreen(this, SCENES.campaignOpener, {
+      runId: this.#data.runId,
+      nodeId,
+      returnTo: { key: SCENES.campaignRun, data: { runId: this.#data.runId } },
+    });
   }
 
   #button(

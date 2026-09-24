@@ -10,7 +10,14 @@
  * still the runner's job (`campaign-service.ts`), this only describes what's already true of the log.
  */
 import type { CampaignDefinition, CampaignHistoryEntry, CampaignLog } from "@mc/engine";
-import { issueNumberOf, issueStoryFor, type CampaignStory } from "../campaign/story.js";
+import {
+  issueNumberOf,
+  issueStoryFor,
+  type CampaignStory,
+  type ComicBeatRef,
+  type ComicPage,
+  type ComicPanelRect,
+} from "../campaign/story.js";
 import type { CardNameOf } from "./campaign-log-model.js";
 
 /**
@@ -36,6 +43,26 @@ export const PLURALIZED_FIELDS: ReadonlySet<string> = new Set(["units"]);
 
 export type RunIssueStatus = "finished" | "current" | "sealed";
 
+/**
+ * Where a page-based issue's own comic page (`docs/campaign-client-per-box.md` §4) crops for The Run: the page
+ * itself and the bounding rect (page-pixel space) of just the beats that issue's `comicBeats` names — a page split
+ * across two issues (GMW's `02-museum`) crops each to only its own half. Never set for a box without `pages`
+ * (MC10): The Run keeps its plain villain-picture columns for those, unchanged.
+ */
+export interface RunPageCrop {
+  readonly file: string;
+  readonly width: number;
+  readonly height: number;
+  readonly rect: ComicPanelRect;
+  /**
+   * The individual panel rects `rect` unions — a page can carry real blank/blacked-out space between two of an
+   * issue's panels (GMW's `02-museum` "the alarm cutting the lights"), so the drawing side (`scenes/campaign/
+   * run.ts`'s `drawPageCrop`) biases its crop window toward these rather than the union's own bare geometric
+   * center, which can otherwise land squarely on that blank gutter instead of either panel.
+   */
+  readonly beats: readonly ComicPanelRect[];
+}
+
 export interface RunIssueRow {
   readonly nodeId: string;
   readonly number: number;
@@ -47,10 +74,63 @@ export interface RunIssueRow {
   readonly won: boolean | null;
   /** Finished only: e.g. "Won · 2nd try · 3 delay". Null otherwise. */
   readonly resultLine: string | null;
-  /** Current only: the Run card's speech-bubble line. Null otherwise. */
+  /** Current only: the Run card's speech-bubble line. Null for a page-based issue (its own crop stands in for it). */
   readonly teaser: string | null;
-  /** Current only: the one-sentence pitch. Null otherwise. */
+  /** Current only: the one-sentence pitch. Null for a page-based issue (see `pageProgressLine`). */
   readonly blurb: string | null;
+  /**
+   * Current only, page-based issues only: "page 2, last panel" — where the guided read leaves off, so the Run
+   * reads like a bookmark rather than repeating the pitch a comic page already shows.
+   */
+  readonly pageProgressLine: string | null;
+  /**
+   * This issue's own comic-page crop, for every status (finished full colour, current highlighted, sealed
+   * pixelated so nothing legible shows through) — null for a box with no `pages` or an issue with no `comicBeats`.
+   */
+  readonly pageCrop: RunPageCrop | null;
+}
+
+/** The smallest rect (page-pixel space) containing every one of `rects` — a page split across issues crops to it. */
+function unionRect(rects: readonly ComicPanelRect[]): ComicPanelRect {
+  const x0 = Math.min(...rects.map((r) => r.x));
+  const y0 = Math.min(...rects.map((r) => r.y));
+  const x1 = Math.max(...rects.map((r) => r.x + r.w));
+  const y1 = Math.max(...rects.map((r) => r.y + r.h));
+  return { x: x0, y: y0, w: x1 - x0, h: y1 - y0 };
+}
+
+/** `RunPageCrop` for an issue's `comicBeats` against the box's `pages`, or null (no pages, or issue has no beats). */
+function pageCropFor(
+  pages: readonly ComicPage[] | undefined,
+  comicBeats: readonly ComicBeatRef[] | undefined,
+): RunPageCrop | null {
+  if (!pages || !comicBeats || comicBeats.length === 0) return null;
+  const page = pages.find((candidate) => candidate.file === comicBeats[0]!.page);
+  if (!page) return null;
+  const rects = comicBeats
+    .filter((ref) => ref.page === page.file)
+    .map((ref) => page.beats[ref.beatIndex]?.panel)
+    .filter((rect): rect is ComicPanelRect => rect !== undefined);
+  if (rects.length === 0) return null;
+  return { file: page.file, width: page.width, height: page.height, rect: unionRect(rects), beats: rects };
+}
+
+/**
+ * "page 2, last panel" / "page 2, panel 2" — 1-based on both counters, "last" once the guided read's final beat
+ * for the current issue is also the page's own final beat (matches the design tile's own wording).
+ */
+function pageProgressLineFor(
+  pages: readonly ComicPage[] | undefined,
+  comicBeats: readonly ComicBeatRef[] | undefined,
+): string | null {
+  if (!pages || !comicBeats || comicBeats.length === 0) return null;
+  const lastRef = comicBeats[comicBeats.length - 1]!;
+  const pageIndex = pages.findIndex((candidate) => candidate.file === lastRef.page);
+  const page = pages[pageIndex];
+  if (pageIndex < 0 || !page) return null;
+  const isLastOfPage = lastRef.beatIndex === page.beats.length - 1;
+  const panel = isLastOfPage ? "last panel" : `panel ${lastRef.beatIndex + 1}`;
+  return `Up next · page ${pageIndex + 1}, ${panel}`;
 }
 
 export interface CampaignRunModel {
@@ -123,6 +203,10 @@ export function campaignRunModel(
     const status: RunIssueStatus = isCurrent ? "current" : resolved ? "finished" : "sealed";
     const issueStory = issueStoryFor(definition.campaignId as string, node.id);
     const title = issueStory?.title ?? node.label;
+    // A page-based issue's own crop is just art layout — never a spoiler on its own (it's shown pixelated while
+    // sealed) — so it's computed for every status alike, unlike `villain`/`title` below which stay hidden on
+    // purpose until the issue is at least current.
+    const pageCrop = pageCropFor(story?.pages, issueStory?.comicBeats);
     if (status === "finished") {
       return {
         nodeId: node.id,
@@ -134,6 +218,8 @@ export function campaignRunModel(
         resultLine: resultLineFor(node.id, record.history, cardName),
         teaser: null,
         blurb: null,
+        pageProgressLine: null,
+        pageCrop,
       };
     }
     if (status === "current") {
@@ -145,8 +231,12 @@ export function campaignRunModel(
         status,
         won: null,
         resultLine: null,
-        teaser: issueStory?.teaser ?? null,
-        blurb: issueStory?.blurb ?? null,
+        // A page-based issue reads its own crop as the pitch, so the speech-bubble teaser and blurb (written for
+        // the plain villain-picture column) are dropped in favor of `pageProgressLine`.
+        teaser: pageCrop ? null : (issueStory?.teaser ?? null),
+        blurb: pageCrop ? null : (issueStory?.blurb ?? null),
+        pageProgressLine: pageProgressLineFor(story?.pages, issueStory?.comicBeats),
+        pageCrop,
       };
     }
     return {
@@ -159,6 +249,8 @@ export function campaignRunModel(
       resultLine: null,
       teaser: null,
       blurb: null,
+      pageProgressLine: null,
+      pageCrop,
     };
   });
   const currentIndex = currentId ? nodeIds.indexOf(currentId) : -1;

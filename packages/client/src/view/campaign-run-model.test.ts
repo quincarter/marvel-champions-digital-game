@@ -156,4 +156,38 @@ describe("campaignRunModel", () => {
     expect(first?.resultLine).not.toMatch(/\b1 units\b/);
     expect(first?.resultLine).toMatch(/\bunits?\b/);
   });
+
+  it("GMW's page-based issues carry their own comic-page crop; MC10's plain columns carry none", async () => {
+    const service = new CampaignService({
+      storage: new MemoryCampaignStorage(),
+      campaignDeps: { pool: Object.fromEntries(POOL_CARDS.map((card) => [card.id as string, card])) },
+      engineDeps: POOL_DEPS,
+    });
+    const record = await seedGmwRun(service, "afterIssue2");
+    const model = campaignRunModel(
+      { ...record, name: "Galaxy's Most Wanted", box: "MC16" },
+      GMW_CAMPAIGN_DEFINITION,
+      storyFor("gmw"),
+      cardName,
+    );
+    // Issue #2 and #3 split one page (02-museum): #2 (finished) crops to its own beats, #3 (current) to the rest,
+    // and #3's crop lands on that page's own last beat, so it reads "last panel" rather than a mid-page number.
+    const [, second, third] = model.issues;
+    expect(second?.status).toBe("finished");
+    expect(second?.pageCrop?.file).toBe("02-museum");
+    expect(third?.status).toBe("current");
+    expect(third?.pageCrop?.file).toBe("02-museum");
+    expect(third?.pageCrop?.rect).not.toEqual(second?.pageCrop?.rect);
+    expect(third?.pageProgressLine).toBe("Up next · page 2, last panel");
+    expect(third?.teaser).toBeNull();
+    expect(third?.blurb).toBeNull();
+
+    const trorsModel = campaignRunModel(
+      { ...freshLog(), name: "The Rise of Red Skull", box: "MC10" },
+      TRORS_CAMPAIGN_DEFINITION,
+      storyFor("trors"),
+      cardName,
+    );
+    for (const issue of trorsModel.issues) expect(issue.pageCrop).toBeNull();
+  });
 });
