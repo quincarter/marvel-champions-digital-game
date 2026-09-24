@@ -134,5 +134,6 @@ describe("two-hero Breakout soak", () => {
     const failures: Failure[] = [];
     for (let seed = 1; seed <= SEEDS; seed++) failures.push(...(await soak(seed)));
     expect(failures).toEqual([]);
-  }, 60_000);
+    // ~20s on a fast Mac; a Windows CI runner sharing its cores with the other test files needs well over 60s.
+  }, 180_000);
 });
