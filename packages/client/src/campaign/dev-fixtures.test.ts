@@ -63,6 +63,17 @@ describe("seedGmwRun", () => {
     expect(marks?.kind === "number" ? marks.value : 0).toBe(2);
   });
 
+  test("lostIssue3 reaches issue 3 lost once, with issue 3 up next again", async () => {
+    const record = await seedGmwRun(service(), "lostIssue3");
+    expect(record.position.nextNodeId).toBe("escape-the-museum");
+    expect(record.history.map((entry) => `${entry.nodeId}:${entry.outcome}`)).toEqual([
+      "brotherhood-of-badoon:won",
+      "infiltrate-the-museum:won",
+      "escape-the-museum:lost",
+    ]);
+    expect(record.status).toBe("active");
+  });
+
   test("expertAfterIssue1 gives frozenNonCampaignCardsOf a real snapshot to read", async () => {
     const record = await seedGmwRun(service(), "expertAfterIssue1");
     expect(record.modes.campaign?.expertCampaign).toBe(true);
