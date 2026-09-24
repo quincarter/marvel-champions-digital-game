@@ -349,22 +349,22 @@ stays data only.**
 | §    | Primitive                                                                | Needed by                                  | Status      |
 | ---- | ------------------------------------------------------------------------ | ------------------------------------------ | ----------- |
 | 3.1  | Additional forms (the form keyword)                                      | Spectrum, Vision; Shadowcat, Nick Fury     | landed      |
-| 3.2  | Two main schemes in play, each paired with a villain; Focused Defense    | Tower Defense                              | not started |
+| 3.2  | Two main schemes in play, each paired with a villain; Focused Defense    | Tower Defense                              | landed      |
 | 3.3  | Villains protected by each other's hit points: one defeat sweep          | Tower Defense; Four Horsemen (`aoa`)       | landed      |
 | 3.4  | A main scheme stage's completion is replaceable                          | Tower Defense; Upgrading Adaptoids (`aos`) | landed      |
 | 3.5  | Damage on a card that is not a character (Avengers Tower)                | Tower Defense                              | landed      |
-| 3.6  | A modular set's own deck (the Infinity Stone deck)                       | Thanos, Loki, any scenario                 | not started |
-| 3.7  | Loki: random start, swap, a villain stage's Victory X, the victory count | Loki; God of Lies (`tt`)                   | not started |
-| 3.8  | An encounter ally attached to the main scheme (Odin)                     | Hela                                       | not started |
+| 3.6  | A modular set's own deck (the Infinity Stone deck)                       | Thanos, Loki, any scenario                 | landed      |
+| 3.7  | Loki: random start, swap, a villain stage's Victory X, the victory count | Loki; God of Lies (`tt`)                   | landed      |
+| 3.8  | An encounter ally attached to the main scheme (Odin)                     | Hela                                       | landed      |
 | 3.9  | An ally treated as a minion                                              | Fallen Warrior, Beguiled; 5 other packs    | not started |
 | 3.10 | Flipping a card into a separately emitted face of another type           | MC21 campaign                              | not started |
-| 3.11 | Timing points when a deck runs out                                       | Soul World, Universal Church, Thanos       | not started |
-| 3.12 | Counting different aspects; Adam Warlock's copy limit                    | Adam Warlock                               | not started |
+| 3.11 | Timing points when a deck runs out                                       | Soul World, Universal Church, Thanos       | landed      |
+| 3.12 | Counting different aspects; Adam Warlock's copy limit                    | Adam Warlock                               | landed      |
 | 3.13 | Abilities active in hand; "cannot choose to discard this card"           | Pip the Troll, System Shock                | not started |
 | 3.14 | Player events shuffled into the encounter deck (Cosmic Entities)         | Adam Warlock precon                        | not started |
-| 3.15 | "After the last X counter is removed from here"                          | Ebony Maw; `aos`, `phoenix`                | not started |
-| 3.16 | Encounter cards in a player's play area                                  | Ebony Maw's Spells                         | not started |
-| 3.17 | Alliance: paying a card's costs as a group                               | `warm`, `valk`, `vision`; 9 later cards    | not started |
+| 3.15 | "After the last X counter is removed from here"                          | Ebony Maw; `aos`, `phoenix`                | landed      |
+| 3.16 | Encounter cards in a player's play area                                  | Ebony Maw's Spells                         | landed      |
+| 3.17 | Alliance: paying a card's costs as a group                               | `warm`, `valk`, `vision`; 9 later cards    | landed      |
 | 3.18 | Set-aside modular sets; mode-only faces; Standard II                     | The Hood; Wheel of Genres (`mojo`)         | not started |
 | 3.19 | Readying as a costed act; "cannot be readied by player card effects"     | Mister Fear; Undermine Support (`aos`)     | not started |
 | 3.20 | A trigger on damage a card prevented                                     | Abjuration                                 | not started |
@@ -437,19 +437,40 @@ threat in step 1 and feel acceleration and crisis; each villain schemes onto its
 scheme with Focused Defense; encounter cards' "the main scheme" is both, a player card's is the controller's choice, a
 player constant's is Focused Defense's scheme; the active villain is the one "who matches the attached scheme".
 
-**Plan.**
+**What landed:**
 
-- **`GameState.extraMainSchemes?: MainSchemeState[]`** (absent otherwise, so saves are unchanged), listed by
-  `mainSchemeStates` after the central one, so step 1, acceleration, crisis and completion reach both. `EffectSpec
-putMainSchemeStageIntoPlay { stage }` ("reveal stage 2A and put it into play next to this stage") resolves its A
-  side and places it.
-- **`TargetRef mainScheme`** resolves to every main scheme for an encounter card, to a choice for a player card's
-  effect, and to the Focused Defense scheme for a player constant (a `RuleSpec mainSchemeForPlayerCards { scheme }`
-  carried by Focused Defense).
-- **`RuleSpec activeVillainOfScheme { scheme }`** (Focused Defense's constant): the villain whose title the scheme's
-  `villainOf` names is active, applied between frames like `controlledByFirstPlayer`, logged `activeVillainChanged`.
-- **Scheme threat:** `schemeThreatDestination` gains `scheme: "ownMainScheme"` (villains) and a scenario-level minion
-  destination (the scheme with Focused Defense), read in `enemyScheme`.
+- **`GameState.extraMainSchemes`** (absent otherwise, so saves are unchanged): stages in play beside the central one in
+  the shared game area. `mainSchemeStates` and the new `sharedMainSchemes` list them, so completion (§3.4), crisis and
+  `cardsInPlay` (with their attachments) reach them. **Step one** places each shared main scheme's own acceleration plus
+  its own tokens plus the icons in play. A completed extra stage loses on its final stage and advances otherwise, like
+  the central one.
+- **`EffectSpec putMainSchemeStageIntoPlay { stageNumber, name? }`**: the main scheme card's first unspent stage of that
+  number becomes an extra main scheme, in play before its A and B When Revealed resolve (so 2A's "attached to this stage"
+  finds it), then its starting threat. The stage is spent.
+- **`RuleSpec focusedMainScheme { scheme }`** (Focused Defense's constant, `scheme: host`): between frames the villain
+  whose title the scheme's `villainOf` names takes the active counter (`activeVillainChanged { reason:
+"focusedScheme" }`), and the same scheme is the one minions scheme onto and player constants mean.
+- **Scheme threat** (`pairedMainSchemeId`, read in `enemyScheme` after `schemeThreatDestination`): with extra main schemes
+  in play, a villain places threat on the main scheme whose `villainOf` is its title, a minion on the Focused Defense
+  scheme.
+- **"The main scheme"** (`TargetRef mainScheme`) with extra main schemes and no separate game area: on an encounter card,
+  every shared main scheme; on a player card, the one its controller chose for this ability, else the Focused Defense
+  scheme. **The choice:** before a player card's effect that names the main scheme resolves, the effects frame inserts a
+  `chooseTarget` among the main schemes (chooser: its controller, slot `MAIN_SCHEME_CHOICE`), once per ability. A
+  constant never asks, so it reads the Focused Defense scheme.
+- **`GameSetupConfig.sharedEncounterDeck`** (with `villains`): one deck `e1` built from `encounterDeck`, every villain's
+  `encounterDeckId`. The scenario builder maps `MultipleVillains.encounterDecks: "shared"` to it (§5).
+- **DSL:** `putMainSchemeStageIntoPlay`, `focusedMainScheme()`.
+
+> **Status: landed (2026-09-24),** tested in `packages/engine/src/two-main-schemes.test.ts` (5 tests: setup puts stage 2
+> beside stage 1 with one shared deck, and Focused Defense makes Corvus active; after the player phase ends Focused
+> Defense moves, both schemes gain step one's threat and the new active villain schemes onto her own scheme only, replay
+> deep-equal; a minion schemes onto the Focused Defense scheme; a player card's "the main scheme" asks its controller
+> which; an encounter card's is both and a player constant's is Focused Defense's). DSL:
+> `packages/cards/src/dsl/wave4-primitives.test.ts`. **Known limits:** `nextMainSchemeStage` does not skip spent stages,
+> so if Under Siege (stage 1) were ever completed without its replacement it would advance to the stage already beside
+> it; both Tower Defense stages always replace their completion (§3.4), so no printed card reaches it. "The other
+> villain" (Proxima's Power's boost) is the existing non-active villain ref (wave 2 §6.8), not re-tested here.
 
 ### 3.3 Villains protected by each other's hit points: one defeat sweep
 
@@ -506,6 +527,19 @@ add the event if not. Other raw cards that put damage "here" are checked when th
 
 ### 3.6 A modular set's own deck: the Infinity Stone deck
 
+> **Status: landed (2026-09-24),** tested in `packages/engine/src/set-deck-and-run-out.test.ts` (§3.6: 2 tests — the deck
+> is built from the set's cards at setup and each card's discard home is the deck's own pile; the top card is put into
+> play, its Special resolves and it goes to that pile). **What landed:** `GameSetupConfig.scenarioDecks[].buildAtSetup`
+> (and `ScenarioDeckState.buildAtSetup`): scenario setup builds such a deck from the encounter deck right after shuffling
+> it, before the setup-keyword cards enter play, with no card text asking. `ScenarioSeparateDeck.contents.trait` and
+> `cardType: "environment"` are read by `buildScenarioDeck`. Everything else composed: "put the top card of the infinity
+> stone deck into play" is `selectCards` of `scenarioDeck(name, top 1)` then `putIntoPlay`; "Place this card in the
+> infinity stone deck discard pile" is `discard(self)` (its home); the empty-deck reshuffle is the existing `whenEmpty`.
+> **For the scenario builder (§5):** every `EncounterSet.separateDecks` of a set in the game becomes a
+> `GameSetupConfig.scenarioDecks` entry with `buildAtSetup: true`, and `singleVillainOnly` sets are refused with several
+> villains. **Not yet proven:** "Apply its boost icons … as if it were a boost card" ("I Am Inevitable", Infinite
+> Mischief) is expected to be `adjustBoostCount` by `boostIconsOn` of the discarded stone; the scripter confirms it.
+
 Schema §1.10. **Plan:** build `EncounterSet.separateDecks` at setup (the scenario-deck machinery of wave 2 §3.3);
 "put the top card of the infinity stone deck into play", "reveal the top card", "Place this card in the infinity stone
 deck discard pile" (the deck's discard home), reshuffle when empty without penalty, and the "runs out" timing point
@@ -513,6 +547,28 @@ deck discard pile" (the deck's discard home), reshuffle when empty without penal
 card (to confirm).
 
 ### 3.7 Loki: random start, swap, a villain stage's Victory X, the victory count
+
+> **Status: landed (2026-09-24),** tested in `packages/engine/src/villain-swap.test.ts` (5 tests: one Loki starts at random
+> from the seed and the rest are set aside; a swap keeps the villain instance, its dial, status cards and counters, sets
+> the old card aside and fires "after Loki is swapped", replay deep-equal; a swapped-in stalwart Loki sheds its status
+> cards; a defeated Loki goes to the victory display and a random set-aside one takes over (dial reset, status and
+> counters kept), and at the victory condition the players win, replay deep-equal; a villain whose last stage has
+> Victory X goes to the victory display on an ordinary defeat). DSL: `wave4-primitives.test.ts`.
+>
+> **What landed:** `GameSetupConfig.randomStartingVillain` (the choice is the game's first RNG draw) and
+> `GameSetupConfig.victoryCondition` (→ `ScenarioRules.victoryCondition`, read by **`ValueSpec victoryCondition`**; the
+> scenario builder picks the number for the modes played). **`EffectSpec swapVillain { villain }`** and
+> **`EffectSpec advanceToSetAsideVillain { villain }`** (`resolve/villain-swap.ts`): the villain stays one instance and
+> takes a random set-aside villain card of its title; the set-aside instance takes the old card, so everything on the
+> villain simply stays. A swap keeps the dial's value (its remaining hit points) and announces **`TriggerEvent
+villainSwapped`** (log `villainReplaced { reason: "swap" }`); an advance resets the dial, sends the old card to the
+> victory display (Victory X) or out of the game, gives toughness its tough status card and resolves the new card's When
+> Revealed (log `villainReplaced { reason: "advance" }`); used from a forced interrupt to the defeat, it leaves the
+> dial above zero, so the defeat does not apply. **Victory X on a villain:** `defeatVillainStage` puts a defeated last
+> stage with the keyword in the victory display (wave 3 §3.4's open item; also the Brotherhood of Mutants, `mut_gen`).
+> A stalwart Loki's status cards go by the existing stalwart rule (wave 3 §3.7). **DSL:** `swapVillain`,
+> `advanceToSetAsideVillain`, `victoryCondition`. **Not covered:** a non-final villain stage with Victory X (no printed
+> card has one); Thunderbolt Backup's in-play swap (`aos` 50131b).
 
 Schema §1.11. RRG 1.8 "'Swap'" (p. 42): swapping an in-play card with an out-of-play card that shares its title means
 "neither card is considered to enter or leave play. Tokens, attached cards, tucked cards, and status cards on the
@@ -527,6 +583,30 @@ Lies, Shatter the Illusion (`tt` God of Lies); Thunderbolt Backup's "swapping it
 (`aos` 50131b) is a different swap (both in play) and is not claimed.
 
 ### 3.8 An encounter ally attached to the main scheme (Odin)
+
+> **Status: landed (2026-09-24),** tested in `packages/engine/src/captive-ally.test.ts` (2 tests: attached, Odin is in
+> play but reached by no category and takes no attachment; detached, the first player controls him in play, and
+> defeated he is removed from the game and the players lose, replay deep-equal). DSL: `wave4-primitives.test.ts`.
+> **What landed:**
+>
+> - **An ally attached to a card and controlled by no player has no categories** (`categoriesOf`): ruling Jun 25, 2026
+>   (4) #5, "Characters not under player control are not friendly characters". It is in play (`cardsInPlay`, by name).
+> - **`EffectSpec detach { card, controller }`**: the attached card moves into the controller's play area under their
+>   control, staying in play (logs `cardDetached`, `controllerChanged { reason: "effect" }`).
+> - **`RuleSpec cannotHaveAttachments { target, from? }`**: no legal host for an attachment or upgrade from `from` (any,
+>   `"encounter"` for the King side's "encounter cards", `"upgrade"` for Robert Kelly), read by
+>   `attachmentHostCandidates` (so both encounter "attach to" and playing an upgrade) and by the `attach` effect.
+> - **`RuleSpec leavingPlayLoses { target }`**: `leavePlay` ends the game as **`GameOutcome { result: "loss", reason:
+"cardAbility" }`** (new) when a matching card leaves play.
+> - "When Odin leaves play, remove him from the game" needs nothing: Odin is double-sided, and RRG 1.8 "Double-Sided
+>   Card" (p. 17) already sends him out of the game (`leavePlay`), which also stops Med Lab (ruling Dec 17, 2025 (4) #2).
+>   `leavePlay` now counts a card with `otherFaceId` as double-sided too, so the campaign's Cosmo is removed the same way.
+> - The rest composes: "The first player gains control of Odin" is `controlledByFirstPlayer` with `while: not(isAttached
+self)`; "does not count against ally limit" is `excludedFromAllyLimit`; flipping to his King side is `flipCard`.
+>
+> **Composes with:** Robert Kelly (`mut_gen` 32063, 32065a: detached, taken control of, "cannot have upgrades attached",
+> "If Robert Kelly leaves play, the players lose"), Hope Summers (`next_evol` 40130). **Not built:** a general "when X
+> leaves play" interrupt window (Abduct Superhumans `aos` 50081, Spider-Man `sm` 27017); no `mts` card needs one.
 
 Odin's Torment 1A attaches Odin, captive side up, to the main scheme; Hall of Nastrond: "The first player detaches Odin
 from the main scheme and takes control of him"; Odin: "While Odin is not attached to the main scheme, he gains: 'The
@@ -556,11 +636,31 @@ the victory display" readers), then becomes its other face in play.
 
 ### 3.11 Timing points when a deck runs out
 
+> **Status: landed (2026-09-24),** tested in `packages/engine/src/set-deck-and-run-out.test.ts` (§3.11: 2 tests — taking
+> a scenario deck's last card announces it once, then the deck takes its discard pile back with no penalty, replay
+> deep-equal; a player's deck that runs out and resets is announced to that player's cards). **What landed:**
+> `TriggerEvent deckRanOut { deck: "player" | "scenario", playerId?, name? }`, response window only, pushed between
+> frames and only when an ability listens. A player's deck: recorded as it resets (`resetPlayerDeck`). A scenario deck:
+> recorded by the move that took its last card (`settlePlayerDecks`), so a deck that starts empty before setup builds it
+> never counts. The record is `GameState.pendingDeckRunOuts` (absent until first used), drained by the flow
+> (`announceDeckRunOuts`). **DSL:** `on.yourDeckRunsOut()`, `on.aPlayerResetsTheirDeck()`, `on.scenarioDeckRunsOut(name)`.
+> A player deck that empties with an empty discard pile does not reset (RRG 1.8 p. 33) and is not announced until it does.
+
 Soul World ("After your deck runs out of cards"), Universal Church of Truth ("After a player resets their deck"), Thanos
 I–III ("After the infinity stone deck runs out"). The engine logs `playerDeckReset` (wave 3 §4 Q15) but announces no
 trigger event. **Plan:** `TriggerEvent deckRanOut { deck: player | scenarioDeck name, playerId? }`, heard-only.
 
 ### 3.12 Counting different aspects; Adam Warlock's copy limit
+
+> **Status: landed (2026-09-24),** tested in `packages/engine/src/distinct-aspects.test.ts` (1 test: each of the four
+> aspects counted once, a printed aspect included, basic and 'Pool not) and `packages/engine/src/max-copies-per-title.test.ts`
+> (the copy limit, §1.4). **What landed:** `ValueSpec distinctAspects { cards }`; DSL `distinctAspectsOf`. **Composes:**
+> "discard up to 4 cards from the top of your deck → …" (Karmic Blast, Cosmic Awareness, Magic Attack, Zone of Silence)
+> is scripted as effects — a `chooseOne` of 1–4, each `selectCards(topOfDeck(n))` then `moveCards` to the discard pile —
+> with the bound cards read by `distinctAspectsOf` or `countAmong`; the composition is in `wave4-primitives.test.ts`. The
+> printed arrow makes the discard a cost of the extra damage; as an effect the one difference is that it resolves after
+> the first 4 damage is chosen, which no card reads (flagged, not open). Battle Mage's "If that card is: Aggression – …"
+> is `refMatches(chosen, { aspect }, { anywhere: true })` per option.
 
 Karmic Blast, Cosmic Awareness, Regeneration Cycle: "for each different aspect discarded this way". `ValueSpec
 distinctCardTypes` exists (Time Stone's "different card type"); **plan:** `ValueSpec distinctAspects { cards }`
@@ -585,17 +685,94 @@ player reveals it; `uncancellable` on the ability; a discarded one goes to the e
 
 ### 3.15 "After the last X counter is removed from here"
 
+> **Status: landed (2026-09-24),** tested in `packages/engine/src/spell-environments.test.ts` (§3.15: fires on the last
+> counter only, the Spell is discarded and "your identity" is its play area's player; replay deep-equal). **What
+> landed:** `TriggerEvent countersRemoved { instanceId, counterType, amount, remaining }` with interrupt and response
+> windows, pushed by `EffectSpec removeCounters` only when an ability listens (otherwise the removal happens at once, as
+> before); its apply step removes them, so the uses keyword's discard still follows. **`EventPattern.eventAtMost`**, the
+> mirror of `eventAtLeast`: `{ remaining: 0 }` is "the last". **DSL:** `on.lastCounterRemoved(counterType)`. **Not
+> covered:** counters removed as a cost (`spendCounters`) do not push the event; no printed "last counter" card removes
+> its counters as a cost.
+
 Fireball, Manipulation, Pacification, Rubblestorm; Holding Cell (`aos` 50105a–50108a), Phoenix Force (`phoenix`
 34002a). **Plan:** verify `removeCounters` announces an event; add `countersRemoved { instanceId, counterType,
 remaining }` if not.
 
 ### 3.16 Encounter cards in a player's play area
 
+> **Status: landed (2026-09-24),** tested in `packages/engine/src/spell-environments.test.ts` (§3.16: a revealed Spell
+> environment goes in front of the revealing player, controlled by no one, and is found by `inPlayAreaOf`; any other
+> environment still goes to the villain's area). **What landed:** **`RuleSpec entersRevealersPlayArea { cards }`** (a
+> scenario rule the scripter puts on Ebony Maw's own cards), read by `enterPlayOnReveal`, the path both a reveal and
+> `putIntoPlay` take; **`TargetQuery.inPlayAreaOf`** (exclusion `notInPlayArea`); `uncontrolledYouOf` now names the
+> play area's player for an environment there too, and a triggered ability on such a card (or an obligation, or an
+> attachment on a player card) resolves with that player as "you". **DSL:** `inPlayAreaOf(player)`. **Client:** Spell
+> environments in a player's area; one line in `view/highlights.ts` (added).
+
 MC21 p. 6: a revealed Spell environment goes in front of the revealing player; Ebony Maw's interrupt reads "each Spell
 card in your play area". **Plan:** verify where `putIntoPlay` places an environment for a player, and add a
 `TargetQuery.inPlayAreaOf: PlayerRef` if no query reads it.
 
 ### 3.17 Alliance: paying a card's costs as a group
+
+> **Status: landed (2026-09-24),** tested in `packages/engine/src/alliance.test.ts` (10 tests: a resource cost paid
+> from two players' hands, each card to its owner's discard pile, only the playing player resolving the card; another
+> player's hand card refused without alliance; another player's resource ability used, its controller paying its cost
+> and logged as the generator, refused without alliance; "exhaust an [Avenger] character and a [Guardian] character"
+> taking another player's character, refused without alliance; one character with both traits cannot pay both slots;
+> `legalActions` offers the card when only the table can pay it, and not its non-alliance twin; "After you spend this
+> card" heard by the spender with `forPlayerId` the paying player; in a timing window, a `chooseCostCards` prompt per
+> unforced pick before the payment, a forced pick not asked; declining a pick backs out; replay deep-equal). DSL:
+> `packages/cards/src/dsl/wave4-hero-primitives.test.ts` (5 tests).
+>
+> **What landed:**
+>
+> - **One reading, from the card data.** `paidAsGroup(state, deps, ...cards)` (`actions.ts`) is true when the card
+>   whose costs are paid has the alliance keyword (printed or gained, `hasKeyword`). Every payment path reads it:
+>   `priceOf` (a command's `payment` may name any player's hand cards and resource abilities), `paymentOptions` (the
+>   payment sheets and `legalActions`' wallets list every player's hand, the paying player's first), `planCost`'s
+>   in-play picks (`eligibleForInPlayPick`: any player's cards, not only the payer's, RRG 1.8 "Cost" p. 14 being the
+>   rule alliance lifts) and its `discardFromHand` picks. Each contributed card is read from its owner's point of view:
+>   their form for "spend only in hero form", their discard pile for a "top card of your discard pile" resource.
+> - **A contributed resource ability** is used by its controller (`resourceSpender`): its form, its limit, its own cost
+>   and the `resourcesGenerated` log line are theirs. A "for any player" ability (the Milano) is still the payer's.
+> - **`resourcesSpent`, one event per spender.** `playerId` is the spender ("you" for "After you spend this card"),
+>   `forPlayerId` the player playing the card (Everyday Hero's "for a player"). The paying player's event resolves
+>   first. Hand cards go to the discard pile of the hand they came from.
+> - **Several picks in one cost.** `AbilityCost.exhaustCards` may be a list of `InPlayCostPick`s, each with its own slot;
+>   one card cannot pay two of them (RRG 1.8 "Cost", p. 13). `inPlayPicksOf(cost)` (exported) lists every pick;
+>   `planCost`, `payCost`, `legalActions`, the validator and the window read it. `defaultInPlayPicks` (moved from
+>   `legal.ts` to `actions.ts`) is the smallest default, a card taken by one slot kept out of the next.
+> - **Picks inside a timing window** (Stand Together, Serve and Protect are interrupts). A window used to price every
+>   cost with no picks, so an unforced "exhaust a …" pick was unpayable there. Now the window asks
+>   **`ChoicePrompt chooseCostCards { instanceId, abilityId, slot, mode }`** for each unforced pick before the payment
+>   sheet (RRG 1.8 "Initiating Abilities", p. 24: costs are determined before they are paid), keeping the picks on the
+>   frame (`Frame<"window">.costPicks`, keyed by candidate, optional so saves are unchanged; `awaiting: "costPick"`).
+>   Selecting fewer than the pick's `min` backs out. In-play trigger candidates are judged payable with the default
+>   picks, so an ability with an unforced pick is offered at all.
+> - **Engine code names no card.** Alliance is read from `KeywordInstance { name: "alliance" }` on the emitted cards.
+>
+> **DSL:** `exhaustEachCost({ avenger: query(["identity", "ally"], { trait: AVENGER }), guardian: … })`
+> (`dsl/abilities.ts`); "the combined ATK of those characters" is `sum(statOf(chosen("avenger"), "atk"),
+statOf(chosen("guardian"), "atk"))`. No builder for the keyword itself: it is card data.
+>
+> **Checked against every raw card printing "Alliance."** (14; `grep -il alliance packages/content/raw/marvelcdb/*.json`):
+> resource costs only (Cosmic Alliance, Joining Forces, Team Investigation, Strength in Diversity, Joys of Life,
+> Flying Formation, Break Time, Mutant Mayhem) pay from any player's hand; two-slot exhaust costs (As One!, Stand
+> Together, Problem Solvers, Combine Forces, Gunboat Diplomacy, Serve and Protect) compose with `exhaustEachCost`.
+> Joys of Life's "Choose: • Exhaust a [Civilian] alter-ego → … • Exhaust a hero or ally → …" is `eitherCost` with an
+> `exhaustCardsCost` per branch, the branch read from var `cost.branch`. Effects that act "as a group" (Joining Forces'
+> "the players put a total of 1 [Avenger] ally and 1 [Guardian] ally into play from their hand(s)"; Mutant Mayhem's
+> "those players play those allies") are effects, not costs, and belong to the scripting pass (`zone("hand",
+eachPlayer, …)` with `chooseCards`/`putIntoPlay` to be confirmed there).
+>
+> **Composes with:** Everyday Hero (`28019`, "After you spend this card for a player"), now reachable across players;
+> the Milano's "for any player" resource (`gmw`), unchanged; any "Exhaust an X character and a Y character" cost
+> (Combine Forces and Gunboat Diplomacy, `ncrawler` 48031/48032; Serve and Protect, `jubilee` 47029).
+>
+> **Client:** `chooseCostCards` needs a prompt title (the choice scene falls back to "Choose") and the payment sheet
+> should show whose hand each option comes from (`ref.instanceId` locates it). **Netcode:** a command may now spend
+> another seat's cards; the table's consent to that is a client/netcode concern (§4 Q10).
 
 RRG 1.8 "Alliance" (p. 6). As One!, Stand Together, Problem Solvers, Cosmic Alliance, Joining Forces; also `angel`
 42031, `deadpool` 44046, `falcon` 53019, `jj` 61026, `jubilee` 47028/47029, `ncrawler` 48031/48032, `next_evol` 40053. **Plan:** other players' resources (and "exhaust an Avenger character and a Guardian character" costs) usable
@@ -694,6 +871,13 @@ Each is implemented the way stated, or not at all, and named here rather than de
    of Avengers Tower from play". Proposed: follow the rulings (no When Revealed on a flip) and have the Stronghold side's
    script discard the other Avengers Towers as it flips, which is what MC21 p. 11 describes. Needs the user's call.
 
+10. **Who agrees to spend another player's cards for an alliance card?** (§3.17) RRG 1.8 "Alliance" (p. 6) says any
+    player "may help pay", so each contribution is that player's choice. The engine takes one command from the player
+    playing the card, naming every card spent, as it already does for the Milano's "for any player" resource. Implemented
+    as: the engine accepts it; asking the other seats before the command is sent is a client/netcode step, not an
+    engine rule. The order the per-spender `resourcesSpent` events resolve in (the paying player's first, then seat
+    order) is our default; no ruling covers it.
+
 ## 5. What this asks of the other agents
 
 - **`card-data-pipeline`** (after §1 lands):
@@ -703,7 +887,9 @@ Each is implemented the way stated, or not at all, and named here rather than de
   - `modeOnly` (§1.8) and `classification` (§1.9), re-emitting `hood` and back-filling `gmw`'s split side schemes;
   - `hood`'s `Scenario` record (§1.12, §2.3);
   - the four hero-pack precons from their inserts.
-- **`ability-scripting-engineer`:** script each pack once its §3 primitives are "landed"; §3.23 lists what composes today.
+- **`ability-scripting-engineer`:** the `mts` scenario builder must map `MultipleVillains.encounterDecks: "shared"` to
+  `GameSetupConfig.sharedEncounterDeck` (§3.2) — the wave 1 builder (`wave1/setup.ts` `buildMultiVillain`) knows only
+  per-villain decks. Script each pack once its §3 primitives are "landed"; §3.23 lists what composes today.
 - **`rules-qa-engineer`:** a Tower Defense test where both villains reach 0 in one attack (§3.3); a Loki swap carrying
   attachments, status cards and the dial (§3.7); the campaign's full run, retry and permanent removal.
 - **`game-client-engineer`:** energy/mass form display and the form choice (§3.1); two main schemes and the Focused

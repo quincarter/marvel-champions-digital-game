@@ -1122,6 +1122,37 @@ export const changeAdditionalForm = (
   ...(opts.to !== undefined ? { to: opts.to } : {}),
   ...(opts.toName !== undefined ? { toName: opts.toName } : {}),
 });
+/**
+ * "Reveal stage 2A and put it into play next to this stage so there are two main schemes and two villains in play"
+ * (Under Siege 1A, Tower Defense, `mts` 21098a; docs/phase7-wave4.md §3.2).
+ */
+export const putMainSchemeStageIntoPlay = (stageNumber: number, name?: string): EffectSpec => ({
+  kind: "putMainSchemeStageIntoPlay",
+  stageNumber,
+  ...(name !== undefined ? { name } : {}),
+});
+/**
+ * "Swap Loki with a random set-aside Loki villain" (The Trickster, Casket of Ancient Winters, `mts`; Stories and Lies,
+ * `tt`): RRG 1.8 "'Swap'" (p. 42), everything on the villain stays, dial included (docs/phase7-wave4.md §3.7).
+ */
+export const swapVillain = (villain: TargetRef = { kind: "villain" }): EffectSpec => ({ kind: "swapVillain", villain });
+/**
+ * "When Loki is defeated, advance to a random set-aside Loki villain" (All Hail King Loki 1B): from a forced interrupt
+ * to the villain's defeat, `advanceToSetAsideVillain(eventTarget)` (docs/phase7-wave4.md §3.7).
+ */
+export const advanceToSetAsideVillain = (villain: TargetRef = { kind: "villain" }): EffectSpec => ({
+  kind: "advanceToSetAsideVillain",
+  villain,
+});
+/**
+ * "The first player detaches Odin from the main scheme and takes control of him" (Hall of Nastrond, `mts` 21141; Find the
+ * Senator, `mut_gen` 32065a; docs/phase7-wave4.md §3.8): the card stays in play, under `controller`'s control.
+ */
+export const detach = (card: TargetRef, controller: PlayerRef = { kind: "firstPlayer" }): EffectSpec => ({
+  kind: "detach",
+  card,
+  controller,
+});
 /** "Turn all your energy form upgrades facedown" (Monica Rambeau, `mts` 21001b; docs/phase7-wave4.md §3.1). */
 export const turnFacedown = (target: TargetRef): EffectSpec => ({ kind: "turnFacedown", target });
 

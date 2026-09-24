@@ -4,10 +4,13 @@
  * per-primitive engine test drives.
  */
 
+import { trait } from "@mc/content";
 import { describe, expect, it } from "vitest";
 import {
   action,
   constant,
+  focusedMainScheme,
+  forcedInterrupt,
   forcedResponse,
   heroAction,
   heroResponse,
@@ -15,18 +18,58 @@ import {
   playOnlyIf,
   rule,
   setup,
+  stateCheck,
+  whenDefeated,
+  whenRevealed,
 } from "./abilities.js";
 import {
+  advanceToSetAsideVillain,
+  attack,
+  cards,
+  chooseOne,
+  moveCards,
+  option,
+  selectCards,
+  topOfDeck,
+  attachCard,
   attackAnEnemy,
   changeAdditionalForm,
   damageAnEnemy,
+  dealDamage,
+  detach,
+  discard,
   chooseTarget,
   draw,
+  endGame,
+  enemyScheme,
   ifThen,
+  putMainSchemeStageIntoPlay,
+  removeCountersFrom,
+  swapVillain,
   turnFacedown,
 } from "./effects.js";
 import { validateDefinition } from "./validate.js";
-import { chosen, each, inAdditionalForm, not, printedForm, query, you } from "./values.js";
+import {
+  chosen,
+  distinctAspectsOf,
+  each,
+  eventTarget,
+  host,
+  inAdditionalForm,
+  inPlayAreaOf,
+  named,
+  not,
+  printedForm,
+  query,
+  self,
+  sum,
+  theVillain,
+  valueAtLeast,
+  victoryCondition,
+  victoryDisplayCount,
+  you,
+  yourIdentity,
+} from "./values.js";
 
 const valid = (definition: Parameters<typeof validateDefinition>[0]) =>
   expect(validateDefinition(definition)).toEqual([]);
@@ -83,5 +126,68 @@ describe("§3.1 additional forms", () => {
     const density = heroResponse(on.youChangeAdditionalForm("mass"), draw(1));
     expect(density.trigger).toMatchObject({ on: { eventIs: { change: "additional", formType: "mass" } } });
     valid(density);
+  });
+});
+
+describe("§3.2 two main schemes", () => {
+  it("Under Siege 1A and Focused Defense (21098a, 21101)", () => {
+    valid(setup(putMainSchemeStageIntoPlay(2)));
+    const focused = constant(focusedMainScheme());
+    expect(focused.trigger).toMatchObject({ rules: [{ kind: "focusedMainScheme", scheme: { kind: "host" } }] });
+    valid(focused);
+    valid(forcedResponse(on.phaseEnding("player"), attachCard(self, each(query("mainScheme", { excluding: host })))));
+  });
+});
+
+describe("§3.7 Loki", () => {
+  it("All Hail King Loki 1B, The Trickster (21165b, 21176)", () => {
+    valid(forcedInterrupt(on.defeated(query("villain", { name: "Loki" })), advanceToSetAsideVillain(eventTarget)));
+    valid(
+      stateCheck(
+        valueAtLeast(victoryDisplayCount(query("villain", { name: "Loki" })), victoryCondition),
+        endGame("win"),
+      ),
+    );
+    valid(whenRevealed(swapVillain(), enemyScheme(theVillain)));
+  });
+});
+
+describe("§3.8 an encounter ally attached to the main scheme", () => {
+  it("Hall of Nastrond and Odin (21141, 21139a)", () => {
+    valid(whenDefeated(detach(named("Odin"))));
+    valid(
+      constant(
+        rule({ kind: "cannotHaveAttachments", target: { self: true } }),
+        rule({ kind: "leavingPlayLoses", target: { self: true } }),
+      ),
+    );
+  });
+});
+
+describe("§3.15 / §3.16 Ebony Maw's Spells", () => {
+  it("Fireball and Ebony Maw (21076, 21071)", () => {
+    valid(forcedResponse(on.lastCounterRemoved("invocation"), discard(self), dealDamage(4, yourIdentity)));
+    valid(constant(rule({ kind: "entersRevealersPlayArea", cards: { trait: trait("SPELL") } })));
+    valid(
+      forcedInterrupt(
+        on.villainAttacks({ againstYou: true }),
+        removeCountersFrom(each(query([], { trait: trait("SPELL"), ...inPlayAreaOf() })), "invocation", 1),
+      ),
+    );
+  });
+});
+
+describe("§3.12 different aspects", () => {
+  it("Karmic Blast (21038): discard up to 4 from the top of your deck, +1 damage per different aspect", () => {
+    const discardTop = (n: number) =>
+      option(`Discard ${n}`, selectCards("discarded", topOfDeck(n)), moveCards(cards(chosen("discarded")), "discard"));
+    valid(
+      heroAction(
+        { label: "attack" },
+        chooseTarget("enemy", query("enemy")),
+        chooseOne(discardTop(1), discardTop(2), discardTop(3), discardTop(4)),
+        attack(sum(4, distinctAspectsOf(chosen("discarded"))), chosen("enemy")),
+      ),
+    );
   });
 });

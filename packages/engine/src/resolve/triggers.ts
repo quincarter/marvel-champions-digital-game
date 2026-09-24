@@ -1,7 +1,7 @@
 /** Trigger matching: which abilities (in play or in hand) an event makes available in a timing window. */
 
 import type { EngineDeps, EventPattern } from "../abilities.js";
-import { isPriceFault, planCost, playRestrictionFault } from "../actions.js";
+import { defaultInPlayPicks, isPriceFault, planCost, playRestrictionFault } from "../actions.js";
 import type { InstanceId, PlayerId } from "../ids.js";
 import { cardOf, getPlayer, playerOrder } from "../query.js";
 import {
@@ -109,6 +109,13 @@ function matchesRest(
       if (typeof value !== "number" || value < amount) return false;
     }
   }
+  if (pattern.eventAtMost) {
+    const carried = event as unknown as Readonly<Record<string, unknown>>;
+    for (const [key, amount] of Object.entries(pattern.eventAtMost)) {
+      const value = carried[key];
+      if (typeof value !== "number" || value > amount) return false;
+    }
+  }
   if (pattern.eventIs) {
     const carried = event as unknown as Readonly<Record<string, unknown>>;
     for (const [key, expected] of Object.entries(pattern.eventIs)) {
@@ -159,16 +166,32 @@ export function candidatesFor(
         controllerId ?? (trigger.firstPlayerOnly === true ? state.firstPlayerId : actingPlayerOf(event, trigger.on));
       if (limitReached(state, id, ref.id, definition, event, limitPlayer)) continue;
       if (!matchesPattern(state, trigger.on, event, id, deps)) continue;
-      // RRG "Cost": an ability whose cost can't be paid can't be triggered.
+      // RRG "Cost": an ability whose cost can't be paid can't be triggered. A pick of cards in play the player makes
+      // later (`costPick`, docs/phase7-wave4.md §3.17) is judged by the default picks.
       if (
         definition.cost &&
         controllerId &&
-        isPriceFault(planCost(state, deps, id, controllerId, definition.cost, {}, new Set()))
+        isPriceFault(
+          planCost(
+            state,
+            deps,
+            id,
+            controllerId,
+            definition.cost,
+            defaultInPlayPicks(state, deps, id, controllerId, definition.cost),
+            new Set(),
+          ),
+        )
       ) {
         continue;
       }
+      // An uncontrolled card whose "you" the rules name (an obligation, an attachment on a player card, an environment in
+      // a player's play area: `uncontrolledYouOf`) resolves as that player.
       const acting =
-        controllerId ?? (trigger.firstPlayerOnly === true ? state.firstPlayerId : actingPlayerOf(event, trigger.on));
+        controllerId ??
+        (trigger.firstPlayerOnly === true
+          ? state.firstPlayerId
+          : (uncontrolledYouOf(state, id) ?? actingPlayerOf(event, trigger.on)));
       found.push(candidateOf({ instanceId: id, abilityId: ref.id, controllerId: acting, definition }, forced));
     }
   }
@@ -212,7 +235,20 @@ function spentCardCandidates(
       if (!formSatisfied(state, controllerId, trigger.form)) continue;
       if (limitReached(state, id, ref.id, definition, event, controllerId)) continue;
       if (!matchesPattern(state, trigger.on, event, id, deps, controllerId)) continue;
-      if (definition.cost && isPriceFault(planCost(state, deps, id, controllerId, definition.cost, {}, new Set())))
+      if (
+        definition.cost &&
+        isPriceFault(
+          planCost(
+            state,
+            deps,
+            id,
+            controllerId,
+            definition.cost,
+            defaultInPlayPicks(state, deps, id, controllerId, definition.cost),
+            new Set(),
+          ),
+        )
+      )
         continue;
       found.push(candidateOf({ instanceId: id, abilityId: ref.id, controllerId, definition }, forced));
     }

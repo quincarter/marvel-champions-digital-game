@@ -20,6 +20,7 @@ import {
   mainSchemeStageOf,
   mainSchemeStateOf,
   mainSchemeFor,
+  sharedMainSchemes,
   activeVillainIdFor,
   areaOfCard,
   areaOfPlayer,
@@ -106,6 +107,10 @@ export function categoriesOf(state: GameState, id: InstanceId): readonly TargetC
   }
   switch (card.type) {
     case "ally":
+      // An ally attached to a card and controlled by no player — Odin, captive on the main scheme (docs/phase7-wave4.md
+      // §3.8): ruling Jun 25, 2026 (4) #5, "Characters not under player control are not friendly characters". It is in
+      // play but no character anything can target by category until a player takes control of it.
+      if (instance.controllerId === null && instance.attachedTo !== null) return [];
       return ["ally", "character"];
     case "minion":
       return ["minion", "enemy", "character"];
@@ -235,6 +240,28 @@ export function additionalFormCards(
   );
 }
 
+/**
+ * The main scheme a `focusedMainScheme` rule names (Focused Defense's host, docs/phase7-wave4.md §3.2), when it is a
+ * main scheme in play; else null.
+ */
+export function focusedMainSchemeId(state: GameState, deps: EngineDeps): InstanceId | null {
+  for (const { rule, context } of activeRules(state, deps, "focusedMainScheme")) {
+    const scheme = resolveRef(state, rule.scheme, context).find((id) => mainSchemeStateOf(state, id) !== undefined);
+    if (scheme !== undefined) return scheme;
+  }
+  return null;
+}
+
+/** "(Aggression, Justice, Leadership and Protection)": the aspects `ValueSpec distinctAspects` counts (§3.12 of wave 4). */
+const FOUR_ASPECTS: readonly string[] = ["aggression", "justice", "leadership", "protection"];
+
+/** The binding slot the "which main scheme?" choice fills for a player card's ability (docs/phase7-wave4.md §3.2). */
+export const MAIN_SCHEME_CHOICE = "_mainScheme";
+
+/** A player's card: owned by a player (a player deck card, even while it resolves or sits out of play). */
+export const isPlayerCard = (state: GameState, id: InstanceId | null): boolean =>
+  id !== null && (getInstance(state, id)?.ownerId ?? null) !== null;
+
 export function cardsInPlay(state: GameState): readonly InstanceId[] {
   // A defeated villain's last stage is removed from the game (RRG 1.8 "Villain Defeat", p. 47), so it is out of play.
   const villains = undefeatedVillains(state).map((villain) => villain.instanceId);
@@ -249,6 +276,8 @@ export function cardsInPlay(state: GameState): readonly InstanceId[] {
   for (const attachment of getInstance(state, state.mainScheme.instanceId)?.attachments ?? []) {
     ids.push(attachment);
   }
+  // A main scheme stage in play beside the central one (Tower Defense; docs/phase7-wave4.md §3.2).
+  for (const extra of state.extraMainSchemes ?? []) withAttachments(extra.instanceId);
   // Each separate game area's own main scheme stage (docs/phase7-wave2.md §3.1).
   for (const area of state.gameAreas) if (area.mainScheme) withAttachments(area.mainScheme.instanceId);
   for (const player of playerOrder(state)) {
@@ -306,6 +335,8 @@ export type QueryExclusion =
   | "notInSlot"
   | "wrongSignatureSideScheme"
   | "notEngagedWithPlayer"
+  /** Not in the play area of a player the query's `inPlayAreaOf` names (docs/phase7-wave4.md §3.16). */
+  | "notInPlayArea"
   | "wrongIdentitySet"
   | "notNemesisMinion"
   | "noSharedTrait"
@@ -468,6 +499,10 @@ export function explainQuery(
     state.villains.some((villain) => villain.signatureSideSchemeId === id) !== query.signatureSideScheme
   ) {
     return "wrongSignatureSideScheme";
+  }
+  if (query.inPlayAreaOf) {
+    const owners = resolvePlayers(state, query.inPlayAreaOf, context);
+    if (!state.players.some((p) => owners.includes(p.playerId) && p.playArea.includes(id))) return "notInPlayArea";
   }
   if (query.engagedWithPlayer) {
     if (
@@ -714,7 +749,10 @@ export function uncontrolledYouOf(state: GameState, id: InstanceId): PlayerId | 
   const instance = getInstance(state, id);
   if (!instance) return null;
   if (instance.attachedTo) return controllerOf(state, instance.attachedTo);
-  if (cardOf(state, id)?.type !== "obligation") return null;
+  // An obligation, and an environment placed in a player's play area (Ebony Maw's Spells, "in front of them in their play
+  // area", MC21 p. 6; "deal 4 damage to your identity": docs/phase7-wave4.md §3.16).
+  const type = cardOf(state, id)?.type;
+  if (type !== "obligation" && type !== "environment") return null;
   return state.players.find((p) => p.playArea.includes(id))?.playerId ?? null;
 }
 
@@ -926,7 +964,21 @@ export function resolveRef(state: GameState, ref: TargetRef, context: EffectCont
     }
     case "mainScheme": {
       // "The main scheme": this area's own stage, or the central one (`of: "central"`, "under stage 4A").
-      const scheme = ref.of === "central" ? state.mainScheme : mainSchemeFor(state, contextArea(state, context));
+      if (ref.of === "central") return [state.mainScheme.instanceId];
+      const area = contextArea(state, context);
+      // Two main schemes in the shared area (Tower Defense, docs/phase7-wave4.md §3.2; MC21 p. 10): the one the player
+      // chose for this ability (`MAIN_SCHEME_CHOICE`, asked before the effect resolves); on a player card otherwise the
+      // one Focused Defense names ("a constant effect on a player card … always refers to the scheme card with the
+      // attachment 'Focused Defense'"); on an encounter card, both ("Encounter cards that refer to 'the main scheme'
+      // refer to both main scheme cards").
+      if (!area && (state.extraMainSchemes ?? []).length > 0) {
+        const chosen = context.bindings[MAIN_SCHEME_CHOICE];
+        if (chosen) return chosen;
+        if (isPlayerCard(state, context.selfInstanceId))
+          return [focusedMainSchemeId(state, context.deps ?? DEFAULT_DEPS) ?? state.mainScheme.instanceId];
+        return sharedMainSchemes(state).map((scheme) => scheme.instanceId);
+      }
+      const scheme = mainSchemeFor(state, area);
       return scheme ? [scheme.instanceId] : [];
     }
     case "identityOf":
@@ -1087,6 +1139,8 @@ export function resolveValue(
       const filter = value.filter;
       return filter ? ids.filter((id) => matchesQuery(state, id, filter, { ...context, deps })).length : ids.length;
     }
+    case "victoryCondition":
+      return state.scenarioRules.victoryCondition ?? 0;
     case "victoryDisplayCount": {
       // docs/phase7-wave3.md §3.42: out of play, so only a read of the pile itself reaches it.
       const filter = value.filter;
@@ -1113,6 +1167,16 @@ export function resolveValue(
         if (card) types.add(card.type);
       }
       return types.size;
+    }
+    case "distinctAspects": {
+      const aspects = new Set<string>();
+      for (const id of resolveRef(state, value.cards, context)) {
+        const card = cardOf(state, id);
+        if (!card || !("aspect" in card)) continue;
+        for (const aspect of [card.aspect, card.printedAspect])
+          if (aspect !== undefined && FOUR_ASPECTS.includes(aspect)) aspects.add(aspect);
+      }
+      return aspects.size;
     }
     case "printedCost": {
       const [id] = resolveRef(state, value.of, context);

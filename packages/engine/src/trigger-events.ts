@@ -1,4 +1,4 @@
-import type { AbilityId } from "@mc/content";
+import type { AbilityId, CardId } from "@mc/content";
 import type { FrameId, InstanceId, PlayerId } from "./ids.js";
 import type { CardDestination } from "./spec.js";
 import type { Vars } from "./stack.js";
@@ -183,9 +183,9 @@ export type TriggerEventBody =
    * - `cardInstanceIds`: the cards discarded from hand, in payment order. A "Resource:" ability of a card in play is not
    *   a card being spent, so it is not listed.
    * - `playerId`: whose hand they came from ("you"). `forPlayerId`: the player whose cost they paid — "After you spend
-   *   this card **for a player**, heal 1 damage from that player's identity" (Everyday Hero 28019). The same player
-   *   today, since no payment yet spans players (Alliance, RRG 1.8 p. 6, is not built); kept apart so that card is
-   *   right the day it is.
+   *   this card **for a player**, heal 1 damage from that player's identity" (Everyday Hero 28019). They differ when
+   *   another player helps pay for an alliance card (RRG 1.8 "Alliance", p. 6; docs/phase7-wave4.md §3.17): one event
+   *   per spender, each naming the paying player as `forPlayerId`.
    * - `payingForInstanceId` / `purpose`: what the payment was for — the card being played (`playCard`), the card whose
    *   ability's cost it paid (`ability`), or neither (`effect`: "spend X resources" inside an effect). The played card
    *   is the event's *target*, so "When you spend this card to play a THWART event" is a `targetIs` query; an
@@ -278,6 +278,42 @@ export type TriggerEventBody =
    * alternatives that card text must choose among (docs/phase7-wave2.md §3.1, §3.4).
    */
   | { readonly kind: "mainSchemeCompleted"; readonly schemeInstanceId: InstanceId; readonly stageIndex: number }
+  /**
+   * A deck ran out of cards (docs/phase7-wave4.md §3.11): "After your deck runs out of cards" (Soul World, `mts` 21033) and
+   * "After a player resets their deck" (Universal Church of Truth, 21068) are a player's deck, which resets the moment it
+   * empties (RRG 1.8 "Player Deck", p. 33); "After the infinity stone deck runs out" (Thanos I–III, 21111–21113) is a
+   * scenario deck. Announced between frames, and only when an ability listens.
+   */
+  | {
+      readonly kind: "deckRanOut";
+      readonly deck: "player" | "scenario";
+      readonly playerId?: PlayerId;
+      readonly name?: string;
+    }
+  /**
+   * Counters are removed from a card by an effect (docs/phase7-wave4.md §3.15): "When the last lock counter is removed from
+   * here" (Holding Cell, `aos` 50105a, an interrupt), "After the last invocation counter is removed from Fireball"
+   * (`mts` 21076–21079), "After the last power counter is removed from here" (Phoenix Force, `phoenix` 34002a).
+   * `remaining` is what the card will hold after the removal (`eventAtMost: { remaining: 0 }` is "the last"). Pushed
+   * only when an ability listens; its apply step removes them (so the uses keyword's discard follows).
+   */
+  | {
+      readonly kind: "countersRemoved";
+      readonly instanceId: InstanceId;
+      readonly counterType: string;
+      readonly amount: number;
+      readonly remaining: number;
+    }
+  /**
+   * "After Loki is swapped with a set-aside Loki villain" (Loki's Cape, `mts` 21172): `EffectSpec swapVillain` exchanged
+   * the villain's card (docs/phase7-wave4.md §3.7). Response window only; pushed only when an ability listens.
+   */
+  | {
+      readonly kind: "villainSwapped";
+      readonly villainInstanceId: InstanceId;
+      readonly fromCardId: CardId;
+      readonly toCardId: CardId;
+    }
   /**
    * A main scheme stage **would be** completed by reaching its target threat (docs/phase7-wave4.md §3.4): "Forced
    * Interrupt: When this stage would be completed, remove all the threat from this stage instead." (Under Siege and The
@@ -502,6 +538,8 @@ export function isAnnouncement(event: TriggerEvent): boolean {
     case "cardEntersPlay":
     // "When this stage would be completed" (docs/phase7-wave4.md §3.4): the completion is still to come.
     case "mainSchemeCompleting":
+    // "When the last lock counter is removed from here" (docs/phase7-wave4.md §3.15): the removal is still to come.
+    case "countersRemoved":
       return false;
     default:
       return true;
@@ -580,6 +618,12 @@ export function eventSubjects(event: TriggerEvent): EventSubjects {
       return of([], [event.instanceId], []);
     case "boostCardTurnedFaceup":
       return of([event.enemyInstanceId], [event.boostInstanceId], [event.playerId]);
+    case "countersRemoved":
+      return of([], [event.instanceId], []);
+    case "villainSwapped":
+      return of([], [event.villainInstanceId], []);
+    case "deckRanOut":
+      return of([], [], [event.playerId ?? null]);
     case "formChanged":
       return of([], event.formCardInstanceId ? [event.formCardInstanceId] : [], [event.playerId]);
     case "turnStarted":

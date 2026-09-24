@@ -29,7 +29,7 @@ import type { TargetQuery } from "../spec.js";
 import type { StackFrame } from "../stack.js";
 import type { GameState } from "../state.js";
 import type { TriggerEvent } from "../trigger-events.js";
-import { firstRevealGainsSurge, whenRevealedRepeats } from "../rules.js";
+import { canHaveAttached, entersRevealersPlayArea, firstRevealGainsSurge, whenRevealedRepeats } from "../rules.js";
 import { encounterTargetSelector } from "../villain/authority.js";
 import { engagedEvent } from "./apply-effect.js";
 import { enterPlay, quickstrikeAttack } from "./enter-play.js";
@@ -175,6 +175,14 @@ export function attachmentHostCandidates(
   host: AttachmentHost,
   context: EffectContext,
 ): readonly InstanceId[] {
+  // "Odin cannot have cards attached" (`cannotHaveAttachments`, docs/phase7-wave4.md §3.8): never a legal host.
+  const deps = context.deps ?? DEFAULT_DEPS;
+  return rawHostCandidates(state, host, context).filter((id) =>
+    canHaveAttached(state, deps, id, context.selfInstanceId),
+  );
+}
+
+function rawHostCandidates(state: GameState, host: AttachmentHost, context: EffectContext): readonly InstanceId[] {
   const deps = context.deps ?? DEFAULT_DEPS;
   switch (host.kind) {
     case "villain":
@@ -452,7 +460,11 @@ export function enterPlayOnReveal(ctx: Ctx, id: InstanceId, playerId: PlayerId):
       });
       break;
     case "environment":
-      moveCard(ctx, id, { kind: "villainArea" });
+      // "They place that card in front of them in their play area" (Spell environments; docs/phase7-wave4.md §3.16).
+      if (entersRevealersPlayArea(ctx.state, ctx.deps, id)) {
+        moveCard(ctx, id, { kind: "playArea", playerId });
+        updateInstance(ctx, id, (i) => ({ ...i, controllerId: null }));
+      } else moveCard(ctx, id, { kind: "villainArea" });
       entered = true;
       break;
     case "attachment": {

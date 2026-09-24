@@ -63,7 +63,8 @@ export type GameEvent =
       readonly instanceId: InstanceId;
       readonly from: PlayerId | null;
       readonly to: PlayerId;
-      readonly reason: "firstPlayer";
+      /** `effect`: a card took control of it ("detaches Odin … and takes control of him", docs/phase7-wave4.md §3.8). */
+      readonly reason: "firstPlayer" | "effect";
     }
   /** A player became a card's owner by taking it (RRG 1.8 "Ownership and Control", p. 31; docs/phase7-wave2.md §3.10). */
   | { readonly type: "ownershipChanged"; readonly instanceId: InstanceId; readonly playerId: PlayerId }
@@ -111,6 +112,19 @@ export type GameEvent =
       readonly formName: string;
       readonly instanceId: InstanceId;
     }
+  /**
+   * The villain instance took another card of its title (docs/phase7-wave4.md §3.7): `swap` (RRG 1.8 "'Swap'", p. 42;
+   * dial kept) or `advance` (the defeated card went to the victory display or out of the game; dial reset).
+   */
+  | {
+      readonly type: "villainReplaced";
+      readonly instanceId: InstanceId;
+      readonly fromCardId: CardId;
+      readonly toCardId: CardId;
+      readonly reason: "swap" | "advance";
+    }
+  /** An attached card was detached into a play area (`EffectSpec detach`, docs/phase7-wave4.md §3.8). */
+  | { readonly type: "cardDetached"; readonly instanceId: InstanceId; readonly from: InstanceId }
   /** A card in play turned facedown (`turnFacedown`) or faceup (`changeAdditionalForm`), docs/phase7-wave4.md §3.1. */
   | { readonly type: "cardTurnedFacedown"; readonly instanceId: InstanceId }
   | { readonly type: "cardTurnedFaceup"; readonly instanceId: InstanceId }
@@ -282,7 +296,8 @@ export type GameEvent =
       readonly type: "activeVillainChanged";
       readonly from: InstanceId;
       readonly to: InstanceId;
-      readonly reason: "effect" | "activeVillainDefeated";
+      /** `focusedScheme`: the villain of the main scheme Focused Defense is attached to (docs/phase7-wave4.md §3.2). */
+      readonly reason: "effect" | "activeVillainDefeated" | "focusedScheme";
     }
   /** `schemeInstanceId` only for a separate game area's own stage (docs/phase7-wave2.md §3.1); absent is the central one. */
   | { readonly type: "mainSchemeCompleted"; readonly stageIndex: number; readonly schemeInstanceId?: InstanceId }
