@@ -1150,7 +1150,7 @@ Each is implemented the way stated, or not at all, and named here rather than de
     only works on entering play, and a flipped-in side scheme at 0 threat could never be defeated; Black Swan's "After
     Black Swan engages you" needs an engagement. Implemented as: the new face is treated as entering play (starting
     threat plus hinder, engagement, "enters play" triggers). Needs a ruling or the MC21 insert's word.
-16. **Who pays Mister Fear's cost when another player's card readies the engaged player's hero?** (§3.19) The card
+18. **Who pays Mister Fear's cost when another player's card readies the engaged player's hero?** (§3.19) The card
     says "for the engaged player to ready"; RRG 1.8 "Ready" (p. 36) says "for a player to ready a card, that player".
     Implemented as: the player readying pays — the controller at the end-of-phase ready, the resolving player for a
     card effect — and `player` scopes the rule to the engaged player, so another player's Cosmic Alliance readies the
