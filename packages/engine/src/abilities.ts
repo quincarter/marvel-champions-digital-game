@@ -609,7 +609,15 @@ export type RuleSpec =
    * The Wrecking Crew insert, "Signature Side Schemes": "These side schemes are not discarded when they have no threat on
    * them." A scenario rule overriding RRG 1.8 "Defeat" (p. 15) under the Golden Rules (p. 4), carried by the main scheme.
    */
-  | { readonly kind: "notDefeatedWithoutThreat"; readonly target: TargetQuery; readonly while?: Predicate };
+  | { readonly kind: "notDefeatedWithoutThreat"; readonly target: TargetQuery; readonly while?: Predicate }
+  /**
+   * "The unique rule does not apply to Avengers Tower." (Avengers Tower, Stronghold side, `mts` 21100a): while this is in
+   * play, a card titled `title` entering play is never refused by the unique rule (RRG 1.8 "Unique Icon", pp. 45–46).
+   * MC21 p. 11: "This constant ability allows each player to play the Avengers Tower support card and use its ability
+   * while the Avengers Tower environment card Stronghold side is in play." By printed title, since the entering card is
+   * not in play yet. docs/phase7-wave4.md §3.5.
+   */
+  | { readonly kind: "uniqueRuleExempt"; readonly title: string; readonly while?: Predicate };
 
 /** Where a cost may pick a card from (outside play). */
 export interface CardZoneQuery {

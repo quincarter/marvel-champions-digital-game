@@ -352,7 +352,7 @@ stays data only.**
 | 3.2  | Two main schemes in play, each paired with a villain; Focused Defense    | Tower Defense                              | not started |
 | 3.3  | Villains protected by each other's hit points: one defeat sweep          | Tower Defense; Four Horsemen (`aoa`)       | landed      |
 | 3.4  | A main scheme stage's completion is replaceable                          | Tower Defense; Upgrading Adaptoids (`aos`) | landed      |
-| 3.5  | Damage on a card that is not a character (Avengers Tower)                | Tower Defense                              | not started |
+| 3.5  | Damage on a card that is not a character (Avengers Tower)                | Tower Defense                              | landed      |
 | 3.6  | A modular set's own deck (the Infinity Stone deck)                       | Thanos, Loki, any scenario                 | not started |
 | 3.7  | Loki: random start, swap, a villain stage's Victory X, the victory count | Loki; God of Lies (`tt`)                   | not started |
 | 3.8  | An encounter ally attached to the main scheme (Odin)                     | Hela                                       | not started |
@@ -489,6 +489,16 @@ completion with a listener becomes a `mainSchemeCompleting` trigger event with a
 the completion (no advance, no loss). **Composes with:** Upgrading Adaptoids 1B (`aos` 50104b).
 
 ### 3.5 Damage on a card that is not a character
+
+> **Status: landed (2026-09-24),** tested in `packages/engine/src/damage-on-environment.test.ts` (3 tests: damage dealt
+> to an environment stays on it and never defeats it; at 9 per player the Stronghold side clears it and flips, and 9
+> more on the Damaged side loses; the Stronghold side lets a unique card of its title enter play and the Damaged side
+> does not; replay deep-equal). **What landed:** nothing was missing for the damage itself: `dealDamage` already deals
+> to any card, the defeat sweep reads only characters, and "After damage is placed here" is a response to `dealDamage`
+> with `selfIs: "target"`, `damageOn(self)` reads it, and "remove all of it" is `heal` of that much. **New:** `RuleSpec
+uniqueRuleExempt { title }` ("The unique rule does not apply to Avengers Tower"), read by `matchingCardInPlay`
+> (which now takes `deps`) for a card entering play. **Open, §4 Q9:** the Damaged side's "When Revealed: Discard each
+> other Avengers Tower from play" and a flip.
 
 "Deal 3 damage to Avengers Tower"; "After damage is placed here, if there is at least 9[per_hero] damage here …";
 "remove all of it". **Plan:** verify whether `dealDamage`/`placeDamage` accept an environment and announce a trigger;
@@ -677,6 +687,12 @@ Each is implemented the way stated, or not at all, and named here rather than de
    print it; RRG 1.8 p. 21 says an additional change "does count as changing form for the purpose of triggering card
    effects", which is about triggers, not restrictions. Implemented as: no. A bare rule blocks only the hero/alter-ego
    flip, and "You cannot change energy forms" (Loss of Control) is what blocks energy forms.
+
+9. **Does flipping Avengers Tower to its Damaged side resolve that side's "When Revealed"?** (§3.5) Ruling Jun 25, 2026
+   (4) #3 and Jan 26, 2026 (4) #2: "Environments flip, they are not revealed." Yet the only way the Damaged side enters
+   play is by that flip, and MC21 p. 11 says its When Revealed "reinforces the unique rule by discarding each other copy
+   of Avengers Tower from play". Proposed: follow the rulings (no When Revealed on a flip) and have the Stronghold side's
+   script discard the other Avengers Towers as it flips, which is what MC21 p. 11 describes. Needs the user's call.
 
 ## 5. What this asks of the other agents
 

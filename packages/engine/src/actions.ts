@@ -1038,7 +1038,7 @@ export function planCost(
      * No FFG ruling found either way as of 2026-09-12; see the report for the open question.
      */
     if (entersPlay && card) {
-      const match = matchingCardInPlay(state, card, new Set([pick]), playerId);
+      const match = matchingCardInPlay(state, card, new Set([pick]), playerId, deps);
       if (match) {
         return { code: "duplicate_unique_card", message: uniqueBlockedMessage(card, mustCardOf(state, match)) };
       }
@@ -1638,7 +1638,7 @@ export function playCard(ctx: Ctx, command: Command & { type: "playCard" }): Eng
    * refused play costs nothing.
    */
   if (entersPlayWhenPlayed(card)) {
-    const match = matchingCardInPlay(ctx.state, card, new Set(), controllerId);
+    const match = matchingCardInPlay(ctx.state, card, new Set(), controllerId, ctx.deps);
     if (match) {
       return engineError("duplicate_unique_card", uniqueBlockedMessage(card, mustCardOf(ctx.state, match)), command);
     }
@@ -1759,7 +1759,7 @@ function playFromEffectRestrictionFault(ctx: Ctx, playerId: PlayerId, id: Instan
     const held = [...restrictedCardsOf(ctx.state, playerId, ctx.deps), id];
     if (held.length > restrictedLimitFor(ctx.state, ctx.deps, playerId, held)) return "the restricted card limit";
   }
-  if (entersPlayWhenPlayed(card) && matchingCardInPlay(ctx.state, card, new Set(), playerId))
+  if (entersPlayWhenPlayed(card) && matchingCardInPlay(ctx.state, card, new Set(), playerId, ctx.deps))
     return "a matching unique card is in play";
   return null;
 }

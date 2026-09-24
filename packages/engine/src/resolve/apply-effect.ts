@@ -128,7 +128,7 @@ function admitUniqueEntry(
       continue;
     }
     // `ignore` keeps a card already in play from matching itself.
-    const match = matchingCardInPlay(ctx.state, card, new Set([id]), forPlayer);
+    const match = matchingCardInPlay(ctx.state, card, new Set([id]), forPlayer, ctx.deps);
     if (!match) {
       admitted.push(id);
       continue;
