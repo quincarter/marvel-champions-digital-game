@@ -13,15 +13,17 @@
  * Market-shaped (or the whole issue is done), it hands `runId` plus its own answers back to Briefing, which resumes
  * composing from there. Neither scene ever re-decides an answer the other already made.
  *
- * **One purchase at a time, always** — see `campaign-market-model.ts`'s own header. "Done shopping" declines only
- * the *current* ask; declining is what steps a seat forward to its next tier or hands the turn to the next seat, so
- * repeated presses (never a single "leave" that forfeits everything remaining) are how a seat skips a tier it
- * doesn't want. A seat with no units left for any remaining tier never sees another pending choice at all — the
- * engine's own `fieldAtLeast` guard skips it — so this never turns into dozens of clicks in practice.
+ * **A whole cart, one seat at a time** — see `campaign-market-model.ts`'s own header. Clicking a shelf card never
+ * talks to the runner directly; it only adds or removes that card from `#cart`, the active seat's own uncommitted
+ * basket. "Done shopping" is what drives the runner: `#checkout` answers each of the runner's own tier-by-tier asks
+ * with a cart card of that price if one remains (declining the rest of that tier), until either the runner moves on
+ * to a different seat (that seat gets its own fresh empty cart) or the whole issue is done. A seat with no units
+ * left for any remaining tier never sees another pending choice at all — the engine's own `fieldAtLeast` guard skips
+ * it — so checkout never turns into dozens of engine round trips in practice even for a full cart.
  */
 import Phaser from "phaser";
 import type { AnyCard } from "@mc/content";
-import type { CampaignChoiceAnswer, CampaignPendingChoice } from "@mc/engine";
+import type { CampaignChoiceAnswer, CampaignPendingChoice, LogValue } from "@mc/engine";
 import { CARDS_BY_ID, POOL_CARDS } from "../../content/pool.js";
 import type { CampaignRecord } from "../../engine/campaign-storage.js";
 import { campaignService } from "../../session.js";
@@ -41,9 +43,12 @@ import { textStyle } from "../../ui/theme.js";
 import { fadeScreenIn, goToScreen } from "../../ui/transitions.js";
 import { McButton, fitText, label } from "../../ui/widgets.js";
 import {
+  answerMarketAsk,
+  canAddToCart,
   isMarketPendingChoice,
   marketCatalogOf,
   marketViewOf,
+  type MarketCartItem,
   type MarketShelfCard,
   type MarketView,
 } from "../../view/campaign-market-model.js";
@@ -56,6 +61,9 @@ const cardOf = (id: string): AnyCard | undefined => CARDS_BY_ID.get(id);
 /** Every campaign's Market-priced catalog this build ships, built once (`unitCost` never changes at runtime). */
 const CATALOG = marketCatalogOf(POOL_CARDS);
 
+/** A campaign log's numeric field, read the same defensive way `campaign-market-model.ts`'s own `numberField` does. */
+const numberField = (value: LogValue | undefined): number => (value?.kind === "number" ? value.value : 0);
+
 export class CampaignMarketScene extends Phaser.Scene {
   #data!: CampaignMarketData;
   #record: CampaignRecord | null = null;
@@ -65,6 +73,10 @@ export class CampaignMarketScene extends Phaser.Scene {
   #busy = false;
   /** "See the full stall": once toggled, the shelf shows every catalog card instead of the first page. */
   #showFullStall = false;
+  /** The active seat's own basket this visit — see the file header's "A whole cart, one seat at a time". */
+  #cart: MarketCartItem[] = [];
+  /** Which seat `#cart` belongs to, so a new active seat always starts from an empty basket. */
+  #cartSeatNumber: number | null = null;
   #buttons: McButton[] = [];
   #route: FocusRoute | null = null;
 
@@ -80,6 +92,8 @@ export class CampaignMarketScene extends Phaser.Scene {
     this.#pending = null;
     this.#busy = false;
     this.#showFullStall = false;
+    this.#cart = [];
+    this.#cartSeatNumber = null;
   }
 
   create(): void {
@@ -128,26 +142,57 @@ export class CampaignMarketScene extends Phaser.Scene {
     goToScreen(this, SCENES.campaignBriefing, { runId: record.id, answers: this.#answers });
   }
 
-  #buy(cardId: string): void {
-    const pending = this.#pending;
-    if (!pending || this.#busy) return;
-    this.#answers = [
-      ...this.#answers,
-      { instructionId: pending.instructionId, slot: pending.slot, seatNumber: pending.seatNumber, picked: [cardId] },
-    ];
-    this.#pending = null;
-    void this.#compose();
+  /** Adds or removes `cardId` from the active seat's cart — never talks to the runner (see the file header). */
+  #toggleCart(cardId: string, price: number): void {
+    if (this.#busy) return;
+    const already = this.#cart.some((item) => item.cardId === cardId);
+    if (already) {
+      this.#cart = this.#cart.filter((item) => item.cardId !== cardId);
+    } else {
+      const activeSeatNumber = this.#pending?.seatNumber ?? null;
+      const seat = this.#record?.seats.find((candidate) => candidate.seatNumber === activeSeatNumber);
+      const remainingBalance = numberField(seat?.fields.units) - this.#spentThisVisit(activeSeatNumber);
+      if (!canAddToCart(price, this.#cart, remainingBalance)) return;
+      this.#cart = [...this.#cart, { cardId, price }];
+    }
+    this.#draw();
   }
 
-  #doneShopping(): void {
-    const pending = this.#pending;
-    if (!pending || this.#busy) return;
-    this.#answers = [
-      ...this.#answers,
-      { instructionId: pending.instructionId, slot: pending.slot, seatNumber: pending.seatNumber, picked: [] },
-    ];
-    this.#pending = null;
-    void this.#compose();
+  /** Units the active seat has already spent this visit via committed answers (not the cart). */
+  #spentThisVisit(seatNumber: number | null): number {
+    if (seatNumber === null) return 0;
+    let spent = 0;
+    for (const answer of this.#answers) {
+      if (answer.seatNumber !== seatNumber || !answer.slot.startsWith("market-") || answer.picked.length === 0) {
+        continue;
+      }
+      const price = (CARDS_BY_ID.get(answer.picked[0] as string) as { readonly unitCost?: number } | undefined)
+        ?.unitCost;
+      if (price !== undefined) spent += price;
+    }
+    return spent;
+  }
+
+  /**
+   * Turns the active seat's cart into engine answers: for each of the runner's own tier-by-tier asks, answers with
+   * a cart card of that price if one remains (removing it from the cart), or declines. Loops until the runner
+   * either moves off this seat (a fresh cart starts for whoever it asks next, in `#draw`) or the issue is done.
+   */
+  async #checkout(): Promise<void> {
+    if (this.#busy) return;
+    const activeSeatNumber = this.#pending?.seatNumber ?? null;
+    let cart: readonly MarketCartItem[] = this.#cart;
+    for (;;) {
+      const pending = this.#pending;
+      if (!pending || pending.seatNumber !== activeSeatNumber || !isMarketPendingChoice(pending, cardOf)) break;
+      const step = answerMarketAsk(pending, cart);
+      cart = step.remainingCart;
+      this.#answers = [...this.#answers, step.answer];
+      this.#pending = null;
+      await this.#compose();
+      if (!this.sys.isActive()) return;
+    }
+    this.#cart = [...cart];
   }
 
   #heroNameOf = (seatNumber: number): string => {
@@ -195,10 +240,26 @@ export class CampaignMarketScene extends Phaser.Scene {
       return;
     }
 
+    // A new active seat always starts from an empty basket — see the file header's "A whole cart, one seat at a
+    // time" and `campaign-market-model.ts`'s own header.
+    if (this.#cartSeatNumber !== pending.seatNumber) {
+      this.#cart = [];
+      this.#cartSeatNumber = pending.seatNumber;
+    }
+
     // Phone has no room for a sixth row below the fixed action bar without a scrolling list (out of scope this
     // pass) — one fewer card keeps "See the full stall" itself on screen instead of clipped behind the CTA.
     const pageSize = this.#showFullStall ? CATALOG.length : phone ? 3 : 5;
-    const view = marketViewOf(record.seats, pending, this.#answers, CATALOG, cardOf, this.#heroNameOf, pageSize);
+    const view = marketViewOf(
+      record.seats,
+      pending,
+      this.#answers,
+      this.#cart,
+      CATALOG,
+      cardOf,
+      this.#heroNameOf,
+      pageSize,
+    );
 
     if (phone) {
       this.#drawPhone(
@@ -241,11 +302,11 @@ export class CampaignMarketScene extends Phaser.Scene {
         label: "Done shopping ▸",
         type: typeRole.barTitle,
         rect: doneRect,
-        onClick: () => this.#doneShopping(),
+        onClick: () => void this.#checkout(),
         enabled: !this.#busy,
       }),
     );
-    stops.set("done", { rect: doneRect, activate: () => this.#doneShopping() });
+    stops.set("done", { rect: doneRect, activate: () => void this.#checkout() });
 
     this.#route = this.#route ?? new FocusRoute(this, { onCancel: back });
     this.#route.set([...stops.keys()], stops);
@@ -374,8 +435,8 @@ export class CampaignMarketScene extends Phaser.Scene {
   }
 
   #drawShelfCard(rect: Rect, card: MarketShelfCard, stops: Map<string, FocusStop>): void {
-    const live = card.state.kind === "live";
-    const dim = card.state.kind === "unaffordable" || card.state.kind === "taken";
+    const clickable = card.state.kind === "live" || card.state.kind === "inCart";
+    const dim = card.state.kind === "unaffordable" || card.state.kind === "taken" || card.state.kind === "capped";
     const g = this.add.graphics();
     g.fillStyle(surface.card.hex, dim ? 0.6 : 1).fillRect(rect.x, rect.y, rect.width, rect.height);
     g.lineStyle(
@@ -409,18 +470,20 @@ export class CampaignMarketScene extends Phaser.Scene {
 
     if (card.state.kind === "inCart") this.#tag(rect, "In your cart", signal.caution.hex, surface.ink.hex);
     else if (card.state.kind === "taken") this.#centeredTag(rect, `${card.state.heroName.toUpperCase()} bought it`);
+    else if (card.state.kind === "capped") this.#tag(rect, "Tier full (4)", surface.void.hex, surface.paper.hex);
     else if (card.state.kind === "unaffordable")
       this.#tag(rect, `Need ${card.state.need}`, surface.void.hex, surface.paper.hex);
 
-    if (live) {
+    if (clickable) {
       const zone = this.add
         .zone(rect.x, rect.y, rect.width, rect.height)
         .setOrigin(0, 0)
         .setInteractive({ useHandCursor: true });
       const cardId = card.cardId as string;
-      zone.on("pointerup", () => this.#buy(cardId));
-      const key = `buy:${cardId}`;
-      stops.set(key, { rect, activate: () => this.#buy(cardId) });
+      const price = card.price;
+      zone.on("pointerup", () => this.#toggleCart(cardId, price));
+      const key = `cart:${cardId}`;
+      stops.set(key, { rect, activate: () => this.#toggleCart(cardId, price) });
     }
   }
 
@@ -518,8 +581,11 @@ export class CampaignMarketScene extends Phaser.Scene {
       rowY += rowHeight;
     } else {
       for (const line of view.receipt) {
+        const label = line.inCart
+          ? `${line.heroName} · ${line.cardName} (in cart)`
+          : `${line.heroName} · ${line.cardName}`;
         this.add
-          .text(rect.x + 12, rowY, `${line.heroName} · ${line.cardName}`, textStyle(typeRole.body, surface.ink.hex))
+          .text(rect.x + 12, rowY, label, textStyle(typeRole.body, line.inCart ? signal.caution.hex : surface.ink.hex))
           .setOrigin(0, 0)
           .setFontSize(12)
           .setWordWrapWidth(rect.width - 90);
@@ -528,7 +594,7 @@ export class CampaignMarketScene extends Phaser.Scene {
             rect.x + rect.width - 12,
             rowY,
             `-${line.price}u`,
-            textStyle({ ...typeRole.rowTitle, size: 13 }, surface.ink.hex),
+            textStyle({ ...typeRole.rowTitle, size: 13 }, line.inCart ? signal.caution.hex : surface.ink.hex),
           )
           .setOrigin(1, 0);
         rowY += rowHeight;
