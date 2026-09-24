@@ -19,6 +19,7 @@ import {
   getInstance,
   heroFacesOf,
   mustCard,
+  mustCardOf,
   mustInstance,
   mustPlayer,
   mustVillain,
@@ -371,15 +372,51 @@ export function discardFromDeckAsCost(ctx: Ctx, playerId: PlayerId, count: numbe
 /**
  * Draws one card at a time. A deck the draw empties is reset at once, after the draw is logged, and the drawing goes on
  * from the new deck (RRG 1.8 "Player Deck", p. 33: "the player continues to draw cards up to the specified number").
+ * A drawn obligation goes to the play area (`drawOne`) and still counts as one of the `count` cards drawn.
  */
 export function drawCards(ctx: Ctx, playerId: PlayerId, count: number): void {
   for (let i = 0; i < count; i++) {
-    const top = takeTopOfDeck(ctx, playerId);
-    if (!top) return;
-    const from = relocateCard(ctx, top, { kind: "hand", playerId });
-    emit(ctx, { type: "cardDrawn", playerId, instanceId: top });
-    settlePlayerDecks(ctx, from, { kind: "hand", playerId });
+    if (!drawOne(ctx, playerId)) return;
   }
+}
+
+/**
+ * Draws one card at a time until `playerId`'s hand holds `target()` cards: refilling to hand size. That is the setup
+ * draw and the mulligan (RRG 1.8 Appendix II steps 14-15, p. 51), the end-of-phase draw ("checking after each card is
+ * drawn whether they are at their hand size", RRG 1.8 "Hand Size", p. 21) and "draw up to your hand size" effects.
+ * `target` is read again after every card, so a drawn Martial Law's "Your hand size is reduced by 1" counts from the
+ * next card on. A drawn obligation is not in hand, so the drawing goes on past it (RRG 1.8 "Obligation", p. 30: "unless
+ * they are refilling their hand to their hand size"). Every card drawn leaves deck and discard for good (a reset
+ * reshuffles only the discard pile), so this stops at the latest when both are empty.
+ */
+export function drawUpTo(ctx: Ctx, playerId: PlayerId, target: () => number): void {
+  while (mustPlayer(ctx.state, playerId).hand.length < target()) {
+    if (!drawOne(ctx, playerId)) return;
+  }
+}
+
+/**
+ * Draws the top card of `playerId`'s deck; false when there is none. An obligation in a player deck (The Rise of Red
+ * Skull's expert campaign sets, MC10 p. 17) is drawn but never reaches the hand: "If a player draws an obligation card
+ * from their player deck, they place that obligation into their play area" (RRG 1.8 "Obligation", p. 30). It is still
+ * an encounter card (MC10 p. 17), so it enters play as a revealed obligation does (`enterPlayOnReveal`): faceup,
+ * controlled by nobody (the play area holding it makes it that player's, `useAbility`'s obligation check), and
+ * announced as entering play. It is placed, not revealed, so no "When Revealed" ability resolves.
+ */
+function drawOne(ctx: Ctx, playerId: PlayerId): boolean {
+  const top = takeTopOfDeck(ctx, playerId);
+  if (!top) return false;
+  const obligation = mustCardOf(ctx.state, top).type === "obligation";
+  const to: ZoneId = obligation ? { kind: "playArea", playerId } : { kind: "hand", playerId };
+  const from = relocateCard(ctx, top, to);
+  emit(ctx, { type: "cardDrawn", playerId, instanceId: top });
+  if (obligation) {
+    updateInstance(ctx, top, (i) => ({ ...i, faceup: true, controllerId: null }));
+    emit(ctx, { type: "drawnObligationPlaced", playerId, instanceId: top });
+  }
+  settlePlayerDecks(ctx, from, to);
+  if (obligation) pushEvent(ctx, { kind: "cardEntersPlay", instanceId: top, playerId });
+  return true;
 }
 
 export function discardFromHand(ctx: Ctx, playerId: PlayerId, id: InstanceId): void {

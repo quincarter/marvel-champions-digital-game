@@ -21,6 +21,7 @@ import {
   leavePlay,
   discardRandomFromHand,
   drawCards,
+  drawUpTo,
   drawEncounterCard,
   exhaustCard,
   giveStatus,
@@ -1155,9 +1156,10 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
     case "changeForm":
       throw new EngineInvariantError("changeForm is handled before applyEffect");
     case "drawUpTo":
+      // Every printed "draw up to" reads "up to your hand size" (Split Personality, Grand Strategy, MC16's setup), so
+      // it refills: a drawn obligation does not count toward it (`drawUpTo`).
       for (const playerId of resolvePlayers(ctx.state, effect.player, context)) {
-        const missing = value(effect.amount) - mustPlayer(ctx.state, playerId).hand.length;
-        if (missing > 0) drawCards(ctx, playerId, missing);
+        drawUpTo(ctx, playerId, () => value(effect.amount));
       }
       return;
     case "forEachPlayer": {

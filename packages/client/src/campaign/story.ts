@@ -116,6 +116,12 @@ export interface IssueStory {
    * issue opener uses the comic reader over these beats instead of the three-panel `opener` above.
    */
   readonly comicBeats?: readonly ComicBeatRef[];
+  /**
+   * For a page-based box (`CampaignStory.pages` is set): the Aftermath's (C05) own guided read on a win, tapped
+   * through the same way `comicBeats` is before the screen's tags/CTA (`scenes/campaign/aftermath.ts`). Absent
+   * (or a box with no `pages`) keeps the plain single-picture Aftermath (MC10) untouched.
+   */
+  readonly aftermathBeats?: readonly ComicBeatRef[];
   /** The villain's line when it flips to a stage (C04), by stage number (2 = stage II). */
   readonly stageLines: Readonly<Record<number, string>>;
   /** A short rule reminder shown under the stage-flip splash ("Piercing while armed"). */
@@ -168,6 +174,16 @@ export interface CampaignStory {
   readonly issues: readonly IssueStory[];
   /** Set only for a box told as comic pages (`art/README.md`); its issues' `comicBeats` index into this. */
   readonly pages?: readonly ComicPage[];
+  /**
+   * Rewind's (C09) campaign-lost variant: shown only when a scenario's defeat instructions end the whole campaign
+   * outright (MC10's Expert-only Red Skull loss, MC16's Expert Campaign Only Ronan loss) — there is no "REWIND ▸"
+   * left for that run, only the way back to the saga. `headline` may carry a `\n` for the two-line stamp the
+   * screen renders ("Hydra\nWins.").
+   */
+  readonly campaignLost: {
+    readonly headline: string;
+    readonly line: string;
+  };
   readonly finale: {
     readonly caption: string;
     readonly headline: string;

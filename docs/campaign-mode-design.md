@@ -1495,6 +1495,19 @@ the test's own documented "forced win" override (re-deriving `campaignResultOf` 
 exists to check. The override now also clears `eliminated`, consistent with the fictional premise it already stood
 on (a real win never leaves every seat eliminated).
 
+**Step 4f on PR #35: an obligation drawn from a player deck goes into that player's play area.** MC10 p. 17
+("Obligations in Player Decks") and RRG 1.8 "Obligation" (p. 30). Every player-deck draw goes through `drawOne` in
+`packages/engine/src/effects.ts`: a drawn obligation is logged `cardDrawn` + `drawnObligationPlaced`, enters the
+drawing player's play area faceup and uncontrolled (it is still an encounter card), and is announced as
+`cardEntersPlay`. It is placed, not revealed, so no "When Revealed" resolves (none of 04163–04166 prints one). A
+counted draw ("draw 3") counts it as one of the cards; a refill (`drawUpTo`: the setup draw, the mulligan, the
+end-of-phase draw, "draw up to your hand size" effects) keeps drawing past it, re-reading hand size after every card
+so a drawn Martial Law lowers the target at once. `useAbility` refuses an obligation's ability to any player but the
+one whose play area holds it, and constant modifiers on an obligation ("Your hero gets -1 THW") now read "you" as
+that player (`modifiers.ts`, `uncontrolledYouOf`). The setup reading is Q20. Tests:
+`packages/engine/src/drawn-obligation.test.ts`; the four obligations in
+`packages/cards/src/wave2/trors/campaign-cards.test.ts` are now drawn for real.
+
 ---
 
 ## 12. Open questions
@@ -1578,3 +1591,14 @@ the same set"), **Villainous** (MC60 p. 3 rewritten around "uses a basic power",
 **Vulnerable** (MC50 p. 3 → MC60 p. 3 adds a first-player tie-break for simultaneous defeat). MC45 p. 3 also relaxes
 **Teamwork** from "each minion that shares the keyword activates" (MC32 p. 3) to "the minion that just entered play
 activates" — a genuine behavioural change to an implemented keyword.
+
+**Q20. Obligations drawn at setup (opening hand and mulligan).** _(Built as recommended; open for the maintainer.)_
+RRG 1.8 Appendix II (p. 51) says nothing about obligations: step 14 reads "Each player draws cards from their deck
+until they have cards equal in number to their hand size (including modifiers)", step 15 "draw up to their starting
+hand size". MC10 p. 17 only says an obligation drawn from a deck is put into play and not replaced. **As built:** both
+steps are read as refilling to hand size, so the general "draw → play area" rule applies and RRG 1.8 "Obligation"
+(p. 30)'s refill exception applies too: the obligation enters the play area and the player keeps drawing until the
+hand is at hand size. "Including modifiers" is read live, so an obligation that lowers hand size (Martial Law)
+counts from the next card on. A player may not mulligan an obligation away (it is in play, not in hand), and it is in
+play before step 16's setup abilities. The alternatives, not built: shuffle an obligation drawn at setup back and draw
+again, or count it toward the opening hand (one card short). No ruling found; worth asking FFG.

@@ -10,6 +10,7 @@ import { campaignId, cardId, WAVE2_CARDS, type CardId, type DeckContents } from 
 import {
   cardsInPlay,
   characterProfile,
+  createGame,
   handSize,
   validateDeck,
   type CampaignGameInput,
@@ -30,7 +31,9 @@ import {
   P1,
   patchInstance,
   playerOf,
+  putOnTopOfDeck,
   settle,
+  settleUntil,
   stackEncounterDeck,
   toHero,
   use,
@@ -86,36 +89,30 @@ function campaignConfig(scenarioId: string, extra: readonly string[], seed = 202
 }
 
 /**
- * Moves an instance already in a player's hand or deck straight into their play area — test-only surgery for a card
- * MC10 p. 17 says enters play the moment it is drawn ("Obligations in Player Decks"), a card-type rule outside this
- * task's scope (`campaign-cards.ts`'s own docblock). Nothing here depends on *how* the card reached play, only on
- * what its own ability does once it is there — the same principle `taskmaster.test.ts`'s Hydra Hunter surgery uses.
+ * A game with the obligation `code` in P1's deck (`deckConfig`), started so that P1 **draws** it: MC10 p. 17
+ * ("Obligations in Player Decks") and RRG 1.8 "Obligation" (p. 30) put an obligation drawn from a player deck into
+ * that player's play area. If the opening hand (RRG 1.8 Appendix II step 14) did not already draw it, it is stacked on
+ * top of the deck and P1 mulligans one card (step 15), and the refill draws it. Either way the draw is the engine's
+ * own; only the deck order is arranged. Returns the game at the first player phase and the obligation's instance.
  */
-function putIntoPlayArea(
-  state: GameState,
-  player: PlayerId,
-  code: string,
-): { readonly state: GameState; readonly id: InstanceId } {
-  const owner = playerOf(state, player);
-  const id = [...owner.hand, ...owner.deck].find((i) => state.instances[i]?.cardId === cardId(code));
-  if (!id) throw new Error(`${player} has no ${code} in hand or deck`);
-  return {
-    id,
-    state: {
-      ...state,
-      players: state.players.map((p) =>
-        p.playerId === player
-          ? {
-              ...p,
-              hand: p.hand.filter((h) => h !== id),
-              deck: p.deck.filter((h) => h !== id),
-              playArea: [...p.playArea, id],
-            }
-          : p,
-      ),
-      instances: { ...state.instances, [id]: { ...state.instances[id]!, faceup: true } },
-    },
-  };
+function drawnIntoPlay(code: string, seed = 2026): { readonly state: GameState; readonly id: InstanceId } {
+  const created = createGame(deckConfig("rhino", [code], seed), WAVE2_DEPS);
+  if (!created.ok) throw new Error(`setup failed: ${created.error.message}`);
+  let state = settleUntil(created.state, "mulligan", firstLegal, WAVE2_DEPS);
+  const isCode = (i: InstanceId) => state.instances[i]?.cardId === cardId(code);
+  let id = playerOf(state, P1).playArea.find(isCode);
+  if (id) {
+    state = answer(state, [], WAVE2_DEPS);
+  } else {
+    const stacked = putOnTopOfDeck(state, P1, code);
+    id = stacked.ids[0]!;
+    state = answer(stacked.state, [playerOf(stacked.state, P1).hand[0]!], WAVE2_DEPS);
+  }
+  state = settle(state, firstLegal, (s) => s.step.phase === "player", WAVE2_DEPS);
+  expect(playerOf(state, P1).playArea).toContain(id);
+  expect(playerOf(state, P1).hand).not.toContain(id);
+  expect(state.instances[id]!.faceup).toBe(true);
+  return { state, id };
 }
 
 /**
@@ -447,67 +444,58 @@ describe("Basic Recovery Upgrade (04162a) / Improved Recovery Upgrade (04162b)",
 });
 
 // --- Zola's Algorithm (04163) and Medical Emergency (04164) -------------------------------------------------------
+// Every obligation below reaches play the way MC10 p. 17 says it does: drawn from P1's deck (`drawnIntoPlay`).
 
 describe("Zola's Algorithm (04163)", () => {
   it("Alter-Ego Action: exhaust your alter-ego and spend a [mental] resource → discard this card", () => {
-    const started = startWave2Game(deckConfig("rhino", ["04163"], 2026));
-    const alterEgo = inAlterEgo(started);
+    const drawn = drawnIntoPlay("04163");
+    const zola = drawn.id;
     // Hawkeye's Bow (04002, wild icon, already in the starter deck) pays the typed cost below.
-    const inHand = moveToHand(alterEgo, P1, "04163", "04002");
-    const [zola] = inHand.ids as [InstanceId, InstanceId];
-    const placed = putIntoPlayArea(inHand.state, P1, "04163");
-    expect(placed.id).toBe(zola);
-    const payment = payTyped(placed.state, P1, "mental");
-    const identity = identityOf(placed.state);
-    expect(inst(placed.state, identity).exhausted).toBe(false);
-    const used = runWave2(placed.state, use(P1, zola, "04163.obligation", [{ fromHand: payment }]));
+    const inHand = moveToHand(inAlterEgo(drawn.state), P1, "04002");
+    const payment = payTyped(inHand.state, P1, "mental");
+    const identity = identityOf(inHand.state);
+    expect(inst(inHand.state, identity).exhausted).toBe(false);
+    const used = runWave2(inHand.state, use(P1, zola, "04163.obligation", [{ fromHand: payment }]));
     expect(inst(used, identity).exhausted).toBe(true);
-    expect(used.players.find((p) => p.playerId === P1)!.playArea).not.toContain(zola);
+    expect(playerOf(used, P1).playArea).not.toContain(zola);
   });
 });
 
 describe("Medical Emergency (04164)", () => {
   it("Forced Response: at the end of your turn, take 1 damage if you are in hero form", () => {
-    const started = startWave2Game(deckConfig("rhino", ["04164"], 2026));
-    const hero = inHero(started);
-    const inHand = moveToHand(hero, P1, "04164");
-    const placed = putIntoPlayArea(inHand.state, P1, "04164");
-    const identity = identityOf(placed.state);
-    const before = inst(placed.state, identity).damage;
+    const drawn = drawnIntoPlay("04164");
+    const hero = inHero(drawn.state);
+    const identity = identityOf(hero);
+    const before = inst(hero, identity).damage;
     // Not `settle(..., firstLegal, ...)`: that would decline "declare a defender" against Rhino's own following
     // villain-phase attack and let it resolve, adding damage this test isn't about. The forced response resolves
     // synchronously as part of the `endTurn` command itself (it is forced, so it needs no `chooseTriggers` pick).
-    const ended = runWave2(placed.state, endTurn());
+    const ended = runWave2(hero, endTurn());
     expect(inst(ended, identity).damage).toBe(before + 1);
   });
 
   it("does not damage an alter-ego at the end of their turn", () => {
-    const started = startWave2Game(deckConfig("rhino", ["04164"], 2026));
-    const alterEgo = inAlterEgo(started);
-    const inHand = moveToHand(alterEgo, P1, "04164");
-    const placed = putIntoPlayArea(inHand.state, P1, "04164");
-    const identity = identityOf(placed.state);
-    const before = inst(placed.state, identity).damage;
-    const ended = runWave2(placed.state, endTurn());
+    const drawn = drawnIntoPlay("04164");
+    const alterEgo = inAlterEgo(drawn.state);
+    const identity = identityOf(alterEgo);
+    const before = inst(alterEgo, identity).damage;
+    const ended = runWave2(alterEgo, endTurn());
     expect(inst(ended, identity).damage).toBe(before);
   });
 
   it("Alter-Ego Action: discard the top 5 cards of your deck and spend a [physical] resource → discard this card", () => {
-    const started = startWave2Game(deckConfig("rhino", ["04164"], 2026));
-    const alterEgo = inAlterEgo(started);
+    const drawn = drawnIntoPlay("04164");
+    const medical = drawn.id;
     // Hawkeye's Bow (04002, wild icon, already in the starter deck) pays the typed cost below.
-    const inHand = moveToHand(alterEgo, P1, "04164", "04002");
-    const [medical] = inHand.ids as [InstanceId, InstanceId];
-    const placed = putIntoPlayArea(inHand.state, P1, "04164");
-    expect(placed.id).toBe(medical);
-    const deckBefore = playerOf(placed.state, P1).deck.length;
-    const discardBefore = playerOf(placed.state, P1).discard.length;
-    const payment = payTyped(placed.state, P1, "physical");
-    const used = runWave2(placed.state, use(P1, medical, "04164.medical-emergency-action", [{ fromHand: payment }]));
+    const inHand = moveToHand(inAlterEgo(drawn.state), P1, "04002");
+    const deckBefore = playerOf(inHand.state, P1).deck.length;
+    const discardBefore = playerOf(inHand.state, P1).discard.length;
+    const payment = payTyped(inHand.state, P1, "physical");
+    const used = runWave2(inHand.state, use(P1, medical, "04164.medical-emergency-action", [{ fromHand: payment }]));
     expect(playerOf(used, P1).deck.length).toBe(deckBefore - 5);
     // 5 milled + Medical Emergency itself + the payment card (spending a resource discards the card spent).
     expect(playerOf(used, P1).discard.length).toBe(discardBefore + 5 + 1 + 1);
-    expect(used.players.find((p) => p.playerId === P1)!.playArea).not.toContain(medical);
+    expect(playerOf(used, P1).playArea).not.toContain(medical);
   });
 });
 
@@ -516,36 +504,31 @@ describe("Medical Emergency (04164)", () => {
 // `card-data-pipeline` into a `-constant` ref and an `-action` ref (`campaign-cards.ts`'s own docblock).
 
 describe("Martial Law (04165)", () => {
-  it("constant: your hand size is reduced by 1 while it is in play", () => {
-    const started = startWave2Game(deckConfig("rhino", ["04165"], 2026));
-    const before = handSize(started, P1, WAVE2_DEPS);
-    const inHand = moveToHand(started, P1, "04165");
-    const placed = putIntoPlayArea(inHand.state, P1, "04165");
-    expect(handSize(placed.state, P1, WAVE2_DEPS)).toBe(before - 1);
+  it("constant: your hand size is reduced by 1 while it is in play, including for the draw that placed it", () => {
+    const before = handSize(startWave2Game(deckConfig("rhino", [], 2026)), P1, WAVE2_DEPS);
+    const drawn = drawnIntoPlay("04165");
+    expect(handSize(drawn.state, P1, WAVE2_DEPS)).toBe(before - 1);
+    // The setup draw and the mulligan draw up to hand size one card at a time, so the refill that drew Martial Law
+    // stopped one card short of the printed hand size (RRG 1.8 Appendix II step 14: "including modifiers").
+    expect(playerOf(drawn.state, P1).hand).toHaveLength(before - 1);
   });
 
   it("Alter-Ego Action: deal yourself an encounter card and spend a [energy] resource → discard this card", () => {
-    const started = startWave2Game(deckConfig("rhino", ["04165"], 2026));
-    const alterEgo = inAlterEgo(started);
+    const drawn = drawnIntoPlay("04165");
+    const martialLaw = drawn.id;
     // Hawkeye's Bow (04002, wild icon, already in the starter deck) pays the typed cost below.
-    const inHand = moveToHand(alterEgo, P1, "04165", "04002");
-    const [martialLaw] = inHand.ids as [InstanceId, InstanceId];
-    const placed = putIntoPlayArea(inHand.state, P1, "04165");
-    expect(placed.id).toBe(martialLaw);
-    const dealtBefore = playerOf(placed.state, P1).dealtEncounter.length;
-    const payment = payTyped(placed.state, P1, "energy");
-    const used = runWave2(placed.state, use(P1, martialLaw, "04165.martial-law-action", [{ fromHand: payment }]));
+    const inHand = moveToHand(inAlterEgo(drawn.state), P1, "04002");
+    const dealtBefore = playerOf(inHand.state, P1).dealtEncounter.length;
+    const payment = payTyped(inHand.state, P1, "energy");
+    const used = runWave2(inHand.state, use(P1, martialLaw, "04165.martial-law-action", [{ fromHand: payment }]));
     expect(playerOf(used, P1).dealtEncounter.length).toBe(dealtBefore + 1);
-    expect(used.players.find((p) => p.playerId === P1)!.playArea).not.toContain(martialLaw);
+    expect(playerOf(used, P1).playArea).not.toContain(martialLaw);
   });
 });
 
 describe("Anti-Hero Propaganda (04166)", () => {
   it("constant: your hero gets -1 THW, -1 ATK, and -1 DEF", () => {
-    const started = startWave2Game(deckConfig("rhino", ["04166"], 2026));
-    const inHand = moveToHand(started, P1, "04166");
-    const placed = putIntoPlayArea(inHand.state, P1, "04166");
-    const hero = inHero(placed.state);
+    const hero = inHero(drawnIntoPlay("04166").state);
     const profile = characterProfile(hero, identityOf(hero), WAVE2_DEPS)!;
     // Hawkeye's printed 2 ATK / 1 THW / 1 DEF (`packages/content/src/data/trors/cards.ts`), each reduced by 1.
     expect(profile.atk).toBe(1);
@@ -554,18 +537,16 @@ describe("Anti-Hero Propaganda (04166)", () => {
   });
 
   it("Alter-Ego Action: take 2 damage and spend a [wild] resource → discard this card", () => {
-    const started = startWave2Game(deckConfig("rhino", ["04166"], 2026));
-    const alterEgo = inAlterEgo(started);
+    const drawn = drawnIntoPlay("04166");
+    const propaganda = drawn.id;
     // "Spend a [wild] resource" (`ResourceRequirement.wild`) demands an actual printed wild icon, not any resource
     // — Hawkeye's Bow (04002, one printed [wild] icon, already in the starter deck) pays it exactly.
-    const inHand = moveToHand(alterEgo, P1, "04166", "04002");
-    const [propaganda, bow] = inHand.ids as [InstanceId, InstanceId];
-    const placed = putIntoPlayArea(inHand.state, P1, "04166");
-    expect(placed.id).toBe(propaganda);
-    const identity = identityOf(placed.state);
-    const damageBefore = inst(placed.state, identity).damage;
-    const used = runWave2(placed.state, use(P1, propaganda, "04166.anti-hero-propaganda-action", [{ fromHand: bow }]));
+    const inHand = moveToHand(inAlterEgo(drawn.state), P1, "04002");
+    const [bow] = inHand.ids as [InstanceId];
+    const identity = identityOf(inHand.state);
+    const damageBefore = inst(inHand.state, identity).damage;
+    const used = runWave2(inHand.state, use(P1, propaganda, "04166.anti-hero-propaganda-action", [{ fromHand: bow }]));
     expect(inst(used, identity).damage).toBe(damageBefore + 2);
-    expect(used.players.find((p) => p.playerId === P1)!.playArea).not.toContain(propaganda);
+    expect(playerOf(used, P1).playArea).not.toContain(propaganda);
   });
 });
