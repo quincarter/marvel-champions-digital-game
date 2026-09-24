@@ -22,7 +22,12 @@ export interface CampaignArtCatalog {
   readonly artboards: ReadonlyMap<string, readonly Picture[]>;
   /** By `<campaignId>`, at most one file (`cover.<ext>` has no variant convention — it's the box's one key art). */
   readonly covers: ReadonlyMap<string, Picture>;
-  /** Files under `art/campaigns/` outside an `artboards/` folder that aren't a campaign's `cover.*`. */
+  /**
+   * A full comic page, by `<campaignId>/<file>` (`file` matches the story's `ComicPage.file`, e.g. `01-badoon`).
+   * No variant convention, same as `covers` — a page is one specific piece of art, not an interchangeable one.
+   */
+  readonly pages: ReadonlyMap<string, Picture>;
+  /** Files under `art/campaigns/` outside an `artboards/`/`pages/` folder that aren't a campaign's `cover.*`. */
   readonly unrecognized: readonly string[];
 }
 
@@ -32,6 +37,7 @@ const baseName = (stem: string): string => stem.replace(/-\d+$/, "");
 export function parseCampaignArt(files: Readonly<Record<string, string>>): CampaignArtCatalog {
   const artboards = new Map<string, Picture[]>();
   const covers = new Map<string, Picture>();
+  const pages = new Map<string, Picture>();
   const unrecognized: string[] = [];
   for (const fullPath of Object.keys(files).sort()) {
     const underArt = fullPath.slice(fullPath.indexOf("art/campaigns/") + "art/".length);
@@ -43,6 +49,14 @@ export function parseCampaignArt(files: Readonly<Record<string, string>>): Campa
       if (!covers.has(campaignId)) covers.set(campaignId, { key: `scene-art:${underArt}`, url: files[fullPath]! });
       continue;
     }
+    if (parts.length === 4 && parts[0] === "campaigns" && parts[2] === "pages" && stem !== "") {
+      const campaignId = parts[1]!;
+      const slot = `${campaignId}/${stem}`;
+      // A page has no variant convention (unlike an artboard): the first file found for a slot wins, matching
+      // `covers`' own "one specific piece of art" rule above.
+      if (!pages.has(slot)) pages.set(slot, { key: `scene-art:${underArt}`, url: files[fullPath]! });
+      continue;
+    }
     if (parts[0] !== "campaigns" || parts.length !== 4 || parts[2] !== "artboards" || stem === "") {
       unrecognized.push(underArt);
       continue;
@@ -52,7 +66,7 @@ export function parseCampaignArt(files: Readonly<Record<string, string>>): Campa
     entry.push({ key: `scene-art:${underArt}`, url: files[fullPath]! });
     artboards.set(slot, entry);
   }
-  return { artboards, covers, unrecognized };
+  return { artboards, covers, pages, unrecognized };
 }
 
 /** A campaign's artboard by name, or null when there is none yet — the panel then shows its placeholder note. */
@@ -68,6 +82,11 @@ export function campaignArtboardFor(
 /** A box's `cover.<ext>`, or null when it hasn't shipped one yet — the Cover screen's existing fallback applies. */
 export function campaignCoverFor(catalog: CampaignArtCatalog, campaignId: string): Picture | null {
   return catalog.covers.get(campaignId) ?? null;
+}
+
+/** A comic page by its story-file name (`ComicPage.file`), or null while the scan hasn't landed yet. */
+export function campaignPageFor(catalog: CampaignArtCatalog, campaignId: string, file: string): Picture | null {
+  return catalog.pages.get(`${campaignId}/${file}`) ?? null;
 }
 
 const files = import.meta.glob("../../../../art/campaigns/*/**/*.{png,jpg,jpeg,webp,avif}", {
