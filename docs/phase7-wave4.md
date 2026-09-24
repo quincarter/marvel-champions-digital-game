@@ -1109,11 +1109,11 @@ Each is implemented the way stated, or not at all, and named here rather than de
     `basicPowerUsing` interrupt, which is the moment before the DEF is read. RRG 1.8 p. 15 lets it also trigger off a
     defense-labeled ability, but only a basic defense reduces damage at all, so there it would do nothing; the engine
     does not offer it there.
-14. **A cancel ability aimed at a card that cannot be canceled** (§3.14). Nothing in RRG 1.8 "Cancel" or "'Cannot'"
+16. **A cancel ability aimed at a card that cannot be canceled** (§3.14). Nothing in RRG 1.8 "Cancel" or "'Cannot'"
     (p. 11) forbids initiating it; its costs are paid and it changes nothing. Implemented as: the cancel stays offered
     and fizzles. Proposed alternative for the user: withhold it from the legal actions (friendlier, but not a written
     rule).
-15. **Does a card that flips into a separately emitted face enter play?** (§3.10) RRG 1.8 "Flip" (p. 20) only says
+17. **Does a card that flips into a separately emitted face enter play?** (§3.10) RRG 1.8 "Flip" (p. 20) only says
     what stays on the card. But Defensive Protocols and Retrieve Odin's Armor (21184b, 21186b) print "Hinder 2", which
     only works on entering play, and a flipped-in side scheme at 0 threat could never be defeated; Black Swan's "After
     Black Swan engages you" needs an engagement. Implemented as: the new face is treated as entering play (starting
