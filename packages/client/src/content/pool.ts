@@ -11,23 +11,49 @@
  */
 import { PLAYABLE_DEPS, playableScenario, type PlayableScenarioOptions } from "@mc/cards";
 import {
+  BKW_CYCLE,
   BKW_PACK,
+  ANT_CYCLE,
   ANT_PACK,
+  CAP_CYCLE,
   CAP_PACK,
+  CORE_CYCLE,
   CORE_ENCOUNTER_SETS,
   CORE_PACK,
   CORE_SCENARIOS,
   CORE_STARTER_DECKS,
+  DRAX_CYCLE,
+  DRAX_PACK,
+  DRS_CYCLE,
   DRS_PACK,
+  GAM_CYCLE,
+  GAM_PACK,
+  GMW_CYCLE,
+  GMW_PACK,
+  GOB_CYCLE,
   GOB_PACK,
+  HLK_CYCLE,
   HLK_PACK,
+  MSM_CYCLE,
   MSM_PACK,
+  QSV_CYCLE,
   QSV_PACK,
+  RON_CYCLE,
+  RON_PACK,
+  SCW_CYCLE,
   SCW_PACK,
+  STLD_CYCLE,
+  STLD_PACK,
+  THOR_CYCLE,
   THOR_PACK,
+  TOAFK_CYCLE,
   TOAFK_PACK,
+  TRORS_CYCLE,
   TRORS_PACK,
+  TWC_CYCLE,
   TWC_PACK,
+  VNM_CYCLE,
+  VNM_PACK,
   WAVE1_ENCOUNTER_SETS,
   WAVE1_SCENARIOS,
   WAVE1_STARTER_DECKS,
@@ -37,15 +63,11 @@ import {
   WAVE3_ENCOUNTER_SETS,
   WAVE3_SCENARIOS,
   WAVE3_STARTER_DECKS,
+  WSP_CYCLE,
   WSP_PACK,
-  DRAX_PACK,
-  GAM_PACK,
-  GMW_PACK,
-  RON_PACK,
-  STLD_PACK,
-  VNM_PACK,
   poolVersionOf,
   type AnyCard,
+  type Cycle,
   type EncounterSet,
   type Pack,
   type Scenario,
@@ -53,6 +75,7 @@ import {
 } from "@mc/content";
 import type { EngineDeps } from "@mc/engine";
 import { POOL_CARDS } from "./pool-cards.js";
+import type { ShelfPack } from "../view/roster-shelves.js";
 
 // Defined in `pool-cards.ts` so the build can read it without the rules engine; re-exported so this stays the one import site.
 export { POOL_CARDS };
@@ -144,6 +167,49 @@ export const POOL_PACKS: readonly Pack[] = [
 export function packNameOf(code: string): string {
   return POOL_PACKS.find((pack) => (pack.code as string) === code)?.name ?? code;
 }
+
+/**
+ * Every `POOL_PACKS` entry paired with its own `Cycle` record — each pack module's own `*_CYCLE` export, not
+ * derived or guessed, so a pack's cycle name/order here is exactly what `packages/content/src/data/<pack>/packs.ts`
+ * prints. Order matches `POOL_PACKS`; every pack in the same cycle carries an identical `Cycle`.
+ */
+const POOL_PACK_CYCLES: readonly (readonly [Pack, Cycle])[] = [
+  [CORE_PACK, CORE_CYCLE],
+  [GOB_PACK, GOB_CYCLE],
+  [TWC_PACK, TWC_CYCLE],
+  [CAP_PACK, CAP_CYCLE],
+  [MSM_PACK, MSM_CYCLE],
+  [THOR_PACK, THOR_CYCLE],
+  [BKW_PACK, BKW_CYCLE],
+  [DRS_PACK, DRS_CYCLE],
+  [HLK_PACK, HLK_CYCLE],
+  [TRORS_PACK, TRORS_CYCLE],
+  [TOAFK_PACK, TOAFK_CYCLE],
+  [ANT_PACK, ANT_CYCLE],
+  [WSP_PACK, WSP_CYCLE],
+  [QSV_PACK, QSV_CYCLE],
+  [SCW_PACK, SCW_CYCLE],
+  [GMW_PACK, GMW_CYCLE],
+  [STLD_PACK, STLD_CYCLE],
+  [GAM_PACK, GAM_CYCLE],
+  [DRAX_PACK, DRAX_CYCLE],
+  [VNM_PACK, VNM_CYCLE],
+  [RON_PACK, RON_CYCLE],
+];
+
+/**
+ * `POOL_PACKS`, reshaped into what `view/roster-shelves.ts`'s `cycleShelvesOf` needs to group the hero roster into
+ * one shelf per release wave instead of one per pack (the "Take your seats" screen, docs/phase4-screen-gaps.md
+ * §3 W2b superseded by the maintainer's 2026-09-23 call): each pack's own `cycleId`/`Cycle.order`/`releaseDate`,
+ * nothing hand-curated per hero or pack name.
+ */
+export const POOL_HERO_SHELF_PACKS: readonly ShelfPack[] = POOL_PACK_CYCLES.map(([pack, cycle]) => ({
+  code: pack.code as string,
+  cycleId: cycle.id as string,
+  cycleName: cycle.name,
+  cycleOrder: cycle.order,
+  ...(pack.releaseDate !== undefined ? { releaseDate: pack.releaseDate } : {}),
+}));
 
 /** The app's one scenario builder: Core, wave 1, cycle 1 and cycle 2 scenarios alike. */
 export const buildScenario = playableScenario;

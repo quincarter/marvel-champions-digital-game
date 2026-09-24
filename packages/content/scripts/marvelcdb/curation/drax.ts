@@ -10,7 +10,7 @@ import type { PackCuration } from "./types.ts";
 
 export const DRAX_CURATION: PackCuration = {
   packCode: "drax",
-  cycle: { id: "cycle3", name: "Cycle 3", order: 3 },
+  cycle: { id: "cycle3", name: "The Galaxy's Most Wanted", order: 3 },
   pack: {
     name: "Drax",
     releaseDate: "2021-06-18",

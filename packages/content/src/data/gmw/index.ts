@@ -9,5 +9,4 @@ export * from "./encounterSets.js";
 export * from "./scenarios.js";
 export * from "./starterDecks.js";
 export * from "./provenance.js";
-// Hand-authored (not MarvelCDB-sourced) — see campaign.ts's own docblock.
 export * from "./campaign.js";

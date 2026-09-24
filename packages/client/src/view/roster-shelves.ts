@@ -128,3 +128,69 @@ export function shelvesOf<T>(
 export function flattenShelves<T>(shelves: readonly Shelf<T>[]): readonly T[] {
   return shelves.flatMap((shelf) => shelf.items);
 }
+
+/**
+ * The one fact about a pack `cycleShelvesOf` needs — everything else about the pack (its own display name, which
+ * items it holds) stays the caller's business. Built from `@mc/content`'s own `Pack`/`Cycle` records; this module
+ * stays free of any dependency on `@mc/content` so it can go on being tested with plain fixtures.
+ */
+export interface ShelfPack {
+  readonly code: string;
+  readonly cycleId: string;
+  readonly cycleName: string;
+  /** `Cycle.order` — shelves sort by this, ascending. */
+  readonly cycleOrder: number;
+  /** `Pack.releaseDate` (ISO), where known — orders packs inside one cycle's shelf. Missing sorts last within the cycle. */
+  readonly releaseDate?: string;
+}
+
+/**
+ * `shelvesOf`, grouped by release wave/cycle instead of by physical product (the maintainer's call: FFG releases
+ * heroes in waves — a campaign box plus the hero packs that ship alongside it — and a shelf per one-hero pack
+ * scattered that grouping across a "Hero packs" catch-all). Purely a function of each pack's own `cycleId` and
+ * `Cycle.order`/`releaseDate` — no pack or hero name is special-cased, so a later wave falls in the right shelf
+ * the moment its packs carry the right cycle.
+ *
+ * - One shelf per distinct `cycleId` among `packs`, titled with that cycle's own name, ordered by `cycleOrder`.
+ * - Inside a shelf, packs sort by `releaseDate` (a campaign box general-releases before the hero packs FFG ships
+ *   alongside it, so it naturally sorts first — nothing here treats a box specially); inside one pack, an item
+ *   keeps the order the caller's own `candidates` array already gave it (a stable sort only reorders *between*
+ *   packs, never within one).
+ * - A candidate whose `packCode` isn't `null` but isn't in `packs` is dropped, same as `shelvesOf` drops a pack
+ *   `packOrder` never named — never guessed into a position.
+ * - `null` `packCode`s (no pack of their own) are untouched by any of this and still land on "Your decks", first.
+ * - A query still matches a shelf's own title (now the cycle's name, e.g. "galaxy" for The Galaxy's Most Wanted)
+ *   to keep the whole shelf, via `shelvesOf`'s own pack-name matching.
+ */
+export function cycleShelvesOf<T>(
+  candidates: readonly ShelfCandidate<T>[],
+  packs: readonly ShelfPack[],
+  query: string,
+): readonly Shelf<T>[] {
+  const packByCode = new Map(packs.map((p) => [p.code, p]));
+
+  // A stable sort: two candidates whose packs tie (same pack, or both packless/unknown) keep the relative order
+  // the caller already gave them, so a pack's own hero order survives untouched.
+  const byRelease = [...candidates].sort((a, b) => {
+    const pa = a.packCode !== null ? packByCode.get(a.packCode) : undefined;
+    const pb = b.packCode !== null ? packByCode.get(b.packCode) : undefined;
+    if (!pa || !pb) return 0;
+    if (pa.cycleOrder !== pb.cycleOrder) return pa.cycleOrder - pb.cycleOrder;
+    return (pa.releaseDate ?? "").localeCompare(pb.releaseDate ?? "");
+  });
+
+  // Every candidate's own pack is swapped for that pack's cycle, so `shelvesOf`'s pack-keyed grouping becomes
+  // cycle-keyed grouping — one shelf per wave instead of one per product.
+  const byCycle = byRelease.map((c): ShelfCandidate<T> => {
+    const pack = c.packCode !== null ? packByCode.get(c.packCode) : undefined;
+    return pack ? { ...c, packCode: pack.cycleId } : c;
+  });
+
+  const cycleOrder = [...packs]
+    .sort((a, b) => a.cycleOrder - b.cycleOrder)
+    .map((p) => p.cycleId)
+    .filter((id, i, ids) => ids.indexOf(id) === i);
+  const cycleName = (cycleId: string): string => packs.find((p) => p.cycleId === cycleId)?.cycleName ?? cycleId;
+
+  return shelvesOf(byCycle, cycleOrder, cycleName, query);
+}

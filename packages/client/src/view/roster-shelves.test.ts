@@ -1,5 +1,12 @@
 import { describe, expect, test } from "vitest";
-import { flattenShelves, shelvesOf, YOUR_DECKS_SHELF_ID, type ShelfCandidate } from "./roster-shelves.js";
+import {
+  cycleShelvesOf,
+  flattenShelves,
+  shelvesOf,
+  YOUR_DECKS_SHELF_ID,
+  type ShelfCandidate,
+  type ShelfPack,
+} from "./roster-shelves.js";
 
 interface Item {
   readonly id: string;
@@ -207,5 +214,87 @@ describe("shelvesOf with a solo shelf", () => {
   it("searching a hero pack by its pack name finds its hero on the gathered shelf", () => {
     const shelves = shelvesOf(all, order, nameOf, "ms. marvel", solo);
     expect(shelves.map((s) => [s.id, s.items])).toEqual([["hero-packs", ["Kamala"]]]);
+  });
+});
+
+describe("cycleShelvesOf", () => {
+  const candidate = (item: string, packCode: string | null): ShelfCandidate<string> => ({
+    item,
+    packCode,
+    searchHaystacks: [item],
+    passesChips: true,
+  });
+
+  // Modeled on Core / Wave 1 / The Rise of Red Skull (a box plus four solo hero packs): out of arrival order and
+  // deliberately not already grouped, so a passing test proves the grouping, not the fixture.
+  const packs: readonly ShelfPack[] = [
+    { code: "core", cycleId: "core", cycleName: "Core Set", cycleOrder: 0, releaseDate: "2019-11-01" },
+    { code: "cap", cycleId: "wave1", cycleName: "Wave 1", cycleOrder: 1, releaseDate: "2019-12-20" },
+    { code: "msm", cycleId: "wave1", cycleName: "Wave 1", cycleOrder: 1, releaseDate: "2019-12-20" },
+    { code: "thor", cycleId: "wave1", cycleName: "Wave 1", cycleOrder: 1, releaseDate: "2020-03-06" },
+    { code: "trors", cycleId: "cycle1", cycleName: "The Rise of Red Skull", cycleOrder: 2, releaseDate: "2020-09-04" },
+    { code: "ant", cycleId: "cycle1", cycleName: "The Rise of Red Skull", cycleOrder: 2, releaseDate: "2020-11-06" },
+    { code: "wsp", cycleId: "cycle1", cycleName: "The Rise of Red Skull", cycleOrder: 2, releaseDate: "2021-01-22" },
+  ];
+
+  const all = [
+    candidate("Spider-Man", "core"),
+    candidate("Ant-Man", "ant"),
+    candidate("Cap", "cap"),
+    candidate("Hawkeye", "trors"),
+    candidate("Spider-Woman", "trors"),
+    candidate("Kamala", "msm"),
+    candidate("Wasp", "wsp"),
+    candidate("Thor", "thor"),
+    candidate("My deck", null),
+  ];
+
+  test("one shelf per cycle, in cycle order, titled with the cycle's own name", () => {
+    const shelves = cycleShelvesOf(all, packs, "");
+    expect(shelves.map((s) => s.id)).toEqual([YOUR_DECKS_SHELF_ID, "core", "wave1", "cycle1"]);
+    expect(shelves.map((s) => s.title)).toEqual(["Your decks", "Core Set", "Wave 1", "The Rise of Red Skull"]);
+  });
+
+  test("a wave's shelf gathers every pack of that cycle, box first, then by release date", () => {
+    const shelves = cycleShelvesOf(all, packs, "");
+    const cycle1 = shelves.find((s) => s.id === "cycle1")!;
+    // trors (the box, earliest release) first, then ant, then wsp — never the input's own arrival order.
+    expect(cycle1.items).toEqual(["Hawkeye", "Spider-Woman", "Ant-Man", "Wasp"]);
+    const wave1 = shelves.find((s) => s.id === "wave1")!;
+    expect(wave1.items).toEqual(["Cap", "Kamala", "Thor"]);
+  });
+
+  test("two items in the same pack keep the order the caller gave them", () => {
+    const reordered = [candidate("Spider-Woman", "trors"), candidate("Hawkeye", "trors")];
+    const shelves = cycleShelvesOf(reordered, packs, "");
+    expect(shelves[0]!.items).toEqual(["Spider-Woman", "Hawkeye"]);
+  });
+
+  test("a query matching a cycle's own name keeps the whole shelf", () => {
+    const shelves = cycleShelvesOf(all, packs, "rise of red skull");
+    expect(shelves.map((s) => s.id)).toEqual(["cycle1"]);
+    expect(shelves[0]!.items).toEqual(["Hawkeye", "Spider-Woman", "Ant-Man", "Wasp"]);
+  });
+
+  test("a query matching one item narrows its shelf without pulling in the rest of the cycle", () => {
+    const shelves = cycleShelvesOf(all, packs, "kamala");
+    expect(shelves.map((s) => s.id)).toEqual(["wave1"]);
+    expect(shelves[0]!.items).toEqual(["Kamala"]);
+  });
+
+  test("a chip-excluded item never appears, same as shelvesOf", () => {
+    const shelves = cycleShelvesOf([{ ...all[1]!, passesChips: false }], packs, "");
+    expect(shelves).toEqual([]);
+  });
+
+  test("'Your decks' stays untouched by cycle grouping and sorts first", () => {
+    const shelves = cycleShelvesOf(all, packs, "");
+    expect(shelves[0]!.id).toBe(YOUR_DECKS_SHELF_ID);
+    expect(shelves[0]!.items).toEqual(["My deck"]);
+  });
+
+  test("a candidate whose pack isn't in the pack list is dropped, never guessed into a shelf", () => {
+    const shelves = cycleShelvesOf([candidate("Mystery", "future-pack")], packs, "");
+    expect(shelves).toEqual([]);
   });
 });
