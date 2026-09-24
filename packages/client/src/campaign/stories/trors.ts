@@ -430,6 +430,10 @@ export const TRORS_STORY: CampaignStory = {
       rewindTaunt: "The world was always going to kneel.",
     },
   ],
+  campaignLost: {
+    headline: "Hydra\nWins.",
+    line: "Red Skull conquered the world. This run of the campaign is over.",
+  },
   finale: {
     caption: "With the Reality Gem, one flash of yellow light undoes it all.",
     headline: "Hydra falls.",

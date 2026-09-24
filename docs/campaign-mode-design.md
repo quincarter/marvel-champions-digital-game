@@ -1495,6 +1495,19 @@ the test's own documented "forced win" override (re-deriving `campaignResultOf` 
 exists to check. The override now also clears `eliminated`, consistent with the fictional premise it already stood
 on (a real win never leaves every seat eliminated).
 
+**Step 4f on PR #35: an obligation drawn from a player deck goes into that player's play area.** MC10 p. 17
+("Obligations in Player Decks") and RRG 1.8 "Obligation" (p. 30). Every player-deck draw goes through `drawOne` in
+`packages/engine/src/effects.ts`: a drawn obligation is logged `cardDrawn` + `drawnObligationPlaced`, enters the
+drawing player's play area faceup and uncontrolled (it is still an encounter card), and is announced as
+`cardEntersPlay`. It is placed, not revealed, so no "When Revealed" resolves (none of 04163–04166 prints one). A
+counted draw ("draw 3", and the setup draw and mulligan per Q20) counts it as one of the cards; a refill
+(`drawUpTo`: the end-of-phase draw, "draw up to your hand size" effects) keeps drawing past it, re-reading hand size
+after every card so a drawn Martial Law lowers the target at once. `useAbility` refuses an obligation's ability to any player but the
+one whose play area holds it, and constant modifiers on an obligation ("Your hero gets -1 THW") now read "you" as
+that player (`modifiers.ts`, `uncontrolledYouOf`). The setup reading is Q20. Tests:
+`packages/engine/src/drawn-obligation.test.ts`; the four obligations in
+`packages/cards/src/wave2/trors/campaign-cards.test.ts` are now drawn for real.
+
 ---
 
 ## 12. Open questions
@@ -1578,3 +1591,22 @@ the same set"), **Villainous** (MC60 p. 3 rewritten around "uses a basic power",
 **Vulnerable** (MC50 p. 3 → MC60 p. 3 adds a first-player tie-break for simultaneous defeat). MC45 p. 3 also relaxes
 **Teamwork** from "each minion that shares the keyword activates" (MC32 p. 3) to "the minion that just entered play
 activates" — a genuine behavioural change to an implemented keyword.
+
+**Q20. Obligations drawn at setup (opening hand and mulligan). Maintainer decision (2026-09-23), adopting a
+community (Reddit) reading of MC10 p. 17 and RRG 1.8 Appendix II steps 14–15; no FFG ruling exists — revisit if FFG
+rules on it.** Source: [r/marvelchampionslcg community comment](https://www.reddit.com/r/marvelchampionslcg/comments/zph2j1/comment/j0t7kwq/),
+adopted by the maintainer 2026-09-23; not an FFG ruling. RRG 1.8 Appendix II (p. 51) says nothing about obligations;
+MC10 p. 17 says "When a player draws an obligation from their deck, they must immediately put that card into play in
+their play area. They do not draw a card to replace that obligation." The first build read steps 14 and 15 as
+refills (RRG 1.8 "Obligation", p. 30's exception); the decision reads both as counted draws instead:
+
+| Draw                                                           | Obligation drawn   | Replaced?                                                                                            |
+| -------------------------------------------------------------- | ------------------ | ---------------------------------------------------------------------------------------------------- |
+| Opening hand (step 14): a counted draw of hand-size cards      | into the play area | not then; the mulligan's draw up to hand size makes the hand up, even if the player discards nothing |
+| Mulligan (step 15): a counted draw of (hand size − hand) cards | into the play area | no: the player ends a card short                                                                     |
+| Martial Law (hand size −1) in the opening hand                 | into the play area | the mulligan draws up to the **reduced** hand size, read when the mulligan's draw is computed        |
+| End-of-phase draw; "draw up to your hand size" effects         | into the play area | yes, unchanged: refills keep drawing past it (RRG 1.8 p. 30)                                         |
+
+Built in `packages/engine/src/flow.ts` (`executeDrawStartingHands` and `afterMulliganChoice` use `drawCards`; a
+player whose opening hand is empty still gets the mulligan's draw). Tests: the "obligations drawn at setup" describe
+block in `packages/engine/src/drawn-obligation.test.ts`.

@@ -93,6 +93,7 @@ export type GmwRunStop =
   | "afterIssue2"
   | "afterIssue2HeadhuntersDown"
   | "expertAfterIssue1"
+  | "lostIssue3"
   | "finished";
 
 /**
@@ -167,6 +168,9 @@ function withHeadhunterDefeated(state: GameState): GameState {
  * (`"afterIssue2"` alone always shows 0 marks — a substituted win never puts anything in a real victory display).
  * `"expertAfterIssue1"` starts the run in expert mode: `packages/client/src/view/campaign-deck-edit-model.ts`'s
  * `frozenNonCampaignCardsOf` needs a history entry for scenario 1, which only exists once it has been played.
+ * `"lostIssue3"` plays issues 1–2 to a win, then loses issue 3 ("escape-the-museum") once — a real, foldable loss
+ * for Rewind (C09) to read, on an issue whose `comicBeats` point at a real page (`02-museum`) so the screen's
+ * torn-panel art has something to crop.
  * `"finished"` plays through all five issues to a win, the way `seedDesignRun`'s own `"finished"` stop does, so the
  * GMW Finale (reached only from a `status: "won"` run) has something to open.
  */
@@ -206,6 +210,7 @@ export async function seedGmwRun(
     headhuntersDown ? withHeadhunterDefeated : undefined,
   );
   if (stop === "afterIssue2" || stop === "afterIssue2HeadhuntersDown") return record;
+  if (stop === "lostIssue3") return playIssueWith(service, record, "loss", gmwAutoAnswer);
   while (record.status === "active") record = await playIssueWith(service, record, "win", gmwAutoAnswer);
   return record;
 }

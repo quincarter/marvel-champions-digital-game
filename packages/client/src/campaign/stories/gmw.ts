@@ -148,7 +148,10 @@ const PAGES: readonly ComicPage[] = [
       {
         // Right inset: Nebula, cuffed, walked in by a captor.
         panel: { x: 985, y: 0, w: 425, h: 1075 },
-        lines: [{ speaker: VILLAIN, text: "Careful. I bite." }],
+        lines: [
+          { speaker: GAMORA, text: "Walk." },
+          { speaker: VILLAIN, text: "Careful. I bite." },
+        ],
       },
       {
         // Bottom strip: Nebula pleading her case, a guard behind her.
@@ -265,6 +268,9 @@ export const GMW_STORY: CampaignStory = {
         { page: "01-badoon", beatIndex: 1 },
         { page: "01-badoon", beatIndex: 2 },
       ],
+      // The fight's own aftermath (page 1's bottom strip) — the issue's only panel that reads as "after" rather
+      // than "during" the boarding.
+      aftermathBeats: [{ page: "01-badoon", beatIndex: 2 }],
       stageLines: { 2: "Terrestrial invasion. You cannot stop what is already landed." },
       // The fight breaking out (page 1's bottom strip, "KRA-KOOM!") — the page has no Badoon speaking panel, so
       // this is the closest fit for "already landed": the invasion is already on the Milano's deck.
@@ -307,6 +313,8 @@ export const GMW_STORY: CampaignStory = {
         { page: "02-museum", beatIndex: 0 },
         { page: "02-museum", beatIndex: 1 },
       ],
+      // Rocket at the glass (page 2's left inset) — the issue's own beat closest to "the haul's already in the bag".
+      aftermathBeats: [{ page: "02-museum", beatIndex: 1 }],
       stageLines: { 2: "Alert every hall. Nothing leaves my collection." },
       // The Collector's screaming hologram (page 2's right inset) — the page's own villain-speaking panel.
       stagePanels: { 2: { page: "02-museum", beatIndex: 2 } },
@@ -352,6 +360,8 @@ export const GMW_STORY: CampaignStory = {
         { page: "02-museum", beatIndex: 2 },
         { page: "02-museum", beatIndex: 3 },
       ],
+      // The crew clearing the roof (page 2's bottom strip) — the issue's own "we made it out" beat.
+      aftermathBeats: [{ page: "02-museum", beatIndex: 3 }],
       stageLines: { 2: "The roof is not an exit. It is a dead end with a view." },
       // Same Collector hologram panel as the prior issue — this scenario shares the museum page and its own
       // beats have no second villain-speaking panel of the Collector to draw on instead.
@@ -395,6 +405,12 @@ export const GMW_STORY: CampaignStory = {
         { page: "03-nebula", beatIndex: 1 },
         { page: "03-nebula", beatIndex: 2 },
         { page: "03-nebula", beatIndex: 3 },
+      ],
+      // The Aftermath's own page (`04-knowhere`): Nebula walked in cuffed, the bill for the roof coming due.
+      aftermathBeats: [
+        { page: "04-knowhere", beatIndex: 0 },
+        { page: "04-knowhere", beatIndex: 1 },
+        { page: "04-knowhere", beatIndex: 2 },
       ],
       stageLines: { 2: "You cannot catch what is already gone." },
       // Nebula's own line in her throne room (page 3's left inset) — the page's only panel where she speaks.
@@ -452,11 +468,28 @@ export const GMW_STORY: CampaignStory = {
       rewindTaunt: "The Accuser does not lose. He is merely delayed.",
     },
   ],
+  // MC16 p. 18's own Expert Campaign Only defeat instruction on this scenario: "Ronan the Accuser claims the Power
+  // Stone and the players lose the campaign." — reached only in Expert Campaign, the same way MC10's own
+  // campaign-lost variant is Expert-only there.
+  campaignLost: {
+    headline: "Ronan\nWins.",
+    line: "Ronan claimed the Power Stone. This run of the campaign is over.",
+  },
   finale: {
     caption: "Every hero the Badoon, the Collector and Nebula ever crossed, in one place at once.",
+    // Two words, like every other box's finale headline (`stories/trors.ts`'s "Hydra falls.") — the copy band's
+    // headline renders one word per giant line (`#drawCopy`), so a longer headline overflows a page-based
+    // spread's shorter band. The design canvas's own on-page text ("THE STONE STAYS SAFE.") is Ronan's threat
+    // from issue #5 turned into the crew's own boast instead, which "Ronan falls." says just as directly.
     headline: "Ronan falls.",
     sfx: "KA-BLAM!",
     villainLine: "This is not... an ending...",
     heroLines: ["Wanted list's looking a lot shorter.", "Somebody's buying the next round. Not it."],
+    // The finale spread (`docs/campaign-client-per-box.md` §4) reads the whole page full-bleed, not a single beat.
+    page: "06-finale",
+    stats: [
+      { kind: "numberTotal", label: "Units banked", field: "units" },
+      { kind: "sharedNumber", label: "Headhunters", field: "headhunterDefeated" },
+    ],
   },
 };

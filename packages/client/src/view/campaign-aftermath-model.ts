@@ -16,7 +16,15 @@
  * from a seat's own recorded decision, never a synthesized one.
  */
 import type { AnyCard, CardId } from "@mc/content";
-import type { CampaignChoiceAnswer, CampaignHistoryEntry, CampaignLog, CampaignPendingChoice } from "@mc/engine";
+import type {
+  CampaignDefinition,
+  CampaignHistoryEntry,
+  CampaignChoiceAnswer,
+  CampaignLog,
+  CampaignPendingChoice,
+  LogFieldDef,
+  LogWrite,
+} from "@mc/engine";
 
 export interface AftermathOption {
   readonly cardId: CardId;
@@ -295,4 +303,132 @@ export function aftermathStamp(
     }
   }
   return { issueNumber: issueNumberOf(nodeId), loggedTag };
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// The Aftermath comic page's own tag stack (C05, page-based boxes): every field a win's fold actually wrote,
+// stacked instead of the plain screen's single `loggedTag` — GMW's tile shows three at once
+// ("LOGGED · POWER STONE: GROOT", "LOGGED · 1 EVASION COUNTER", "+1 UNIT EACH"). Never used by MC10's plain
+// Aftermath, which keeps `aftermathStamp` above untouched.
+// ---------------------------------------------------------------------------------------------------------------
+
+export interface AftermathLogTag {
+  readonly text: string;
+  /** `"logged"` (white outline, one write) vs. `"each"` (green outline, the same per-seat write for every seat). */
+  readonly kind: "logged" | "each";
+}
+
+/**
+ * A field's own short tag label. `Power Stone Control` reads as `POWER STONE` and `Unspent Units` as `UNIT` on the
+ * printed tile — a shortened *display* label for the tag, hand-written per field the same way `aftermathOptionOf`'s
+ * `AFTERMATH_EFFECT_OVERRIDES` hand-writes an option's effect line, never invented from the write's own value. A
+ * field with no override falls back to its own printed `label`, so a future box's field still tags, just with its
+ * full log-sheet name instead of a shortened one.
+ */
+const LOG_TAG_LABEL_OVERRIDES: Readonly<Record<string, string>> = {
+  powerStoneControl: "Power Stone",
+  evasionCounters: "Evasion Counter",
+  units: "Unit",
+};
+
+function tagLabel(field: Pick<LogFieldDef, "id" | "label">): string {
+  return (LOG_TAG_LABEL_OVERRIDES[field.id] ?? field.label).toUpperCase();
+}
+
+/** `count === 1` singularizes a label that ends in "S" (the printed sheet's plural); otherwise pluralizes it. */
+function countedLabel(label: string, count: number): string {
+  const bare = label.endsWith("S") ? label.slice(0, -1) : label;
+  return count === 1 ? bare : `${bare}S`;
+}
+
+/** One shared-field write (`write.seatNumber === null`) as a "LOGGED · …" tag, or null for a value kind this tag
+ * stack doesn't have a plain-English rendering for yet (`cardList`/`strikeList`/`cardState`/`instructionList`/
+ * `text`) — a future box's field of that shape simply doesn't tag rather than printing something unreadable. */
+function loggedTagFor(field: LogFieldDef, write: LogWrite, cardsById: ReadonlyMap<string, AnyCard>): string | null {
+  const label = tagLabel(field);
+  const value = write.value;
+  if (value.kind === "number") {
+    // Zero is deliberately skipped here (unlike `aftermathStamp`'s single tag, which keeps it): a boolean-ish
+    // shared tally like `headhunterDefeated` writes 0 on every issue where the box wasn't in play, and a page
+    // already showing "the log is stamped onto the panels as you read" (the design's own phone caption) should
+    // not tag a fact that didn't happen.
+    return value.value === 0 ? null : `LOGGED · ${value.value} ${countedLabel(label, value.value)}`;
+  }
+  if (value.kind === "cardRef") {
+    const name = cardsById.get(value.cardId as string)?.name;
+    return name ? `LOGGED · ${label}: ${name.toUpperCase()}` : null;
+  }
+  if (value.kind === "flag") return value.value ? `LOGGED · ${label}` : null;
+  if (value.kind === "choice") return `LOGGED · ${label}: ${value.option.toUpperCase()}`;
+  return null;
+}
+
+/** "+1 UNIT EACH": every participating seat's own total `add` for one per-seat number field, when every seat's
+ * total came out the same positive number — the shape every GMW per-seat write takes today, since none of its
+ * component queries (`keywordValueSum`, `threatOn`) currently vary by seat. A future write that *does* end up
+ * different per seat simply doesn't produce this tag (there is no single number left to print). */
+function eachTagFor(field: LogFieldDef, totalsBySeat: ReadonlyMap<number, number>): string | null {
+  const totals = [...totalsBySeat.values()];
+  const first = totals[0];
+  if (first === undefined || first <= 0 || !totals.every((total) => total === first)) return null;
+  return `+${first} ${countedLabel(tagLabel(field), first)} EACH`;
+}
+
+/**
+ * Every tag the Aftermath's comic page shows for the issue just folded: `nodeId`'s *last* history entry (as
+ * `aftermathStamp` reads it — the one this fold just appended, even for a rewound-and-replayed node), walked for
+ * every non-`hidden`, non-skipped write. `"logged"` tags print in the write order they actually happened in;
+ * `"each"` tags (summed across the whole entry, since one per-seat field is written by several instructions in
+ * sequence — MC16's "units" field alone has three) always come last, matching the tile's own layout (the shared
+ * per-hero grant sits under the individual logged facts, not interleaved with them).
+ */
+export function aftermathLogTags(
+  log: Pick<CampaignLog, "history">,
+  nodeId: string,
+  fields: readonly LogFieldDef[],
+  cardsById: ReadonlyMap<string, AnyCard>,
+): readonly AftermathLogTag[] {
+  const entry = log.history.filter((candidate) => candidate.nodeId === nodeId).at(-1);
+  if (!entry) return [];
+  const fieldsById = new Map(fields.map((field) => [field.id, field]));
+  const logged: AftermathLogTag[] = [];
+  const perSeatTotals = new Map<string, Map<number, number>>();
+
+  for (const step of entry.steps) {
+    if (step.skipped) continue;
+    for (const write of step.writes) {
+      const field = fieldsById.get(write.field);
+      if (!field || field.hidden) continue;
+      if (write.seatNumber === null) {
+        const text = loggedTagFor(field, write, cardsById);
+        if (text) logged.push({ text, kind: "logged" });
+        continue;
+      }
+      if (write.mode !== "add" || write.value.kind !== "number") continue;
+      const bySeat = perSeatTotals.get(write.field) ?? new Map<number, number>();
+      bySeat.set(write.seatNumber, (bySeat.get(write.seatNumber) ?? 0) + write.value.value);
+      perSeatTotals.set(write.field, bySeat);
+    }
+  }
+
+  const each: AftermathLogTag[] = [];
+  for (const [fieldId, totals] of perSeatTotals) {
+    const field = fieldsById.get(fieldId);
+    if (!field || field.hidden) continue;
+    const text = eachTagFor(field, totals);
+    if (text) each.push({ text, kind: "each" });
+  }
+  return [...logged, ...each];
+}
+
+/**
+ * Whether the *next* node's own setup raises a Market visit, read from that node's printed setup instruction text
+ * (MC16 p. 5's Market instruction is the only GMW setup line that ever mentions "Market") — detected from the
+ * definition's own data, never from `campaignId`, so a later box whose next setup names a Market the same way
+ * picks this up for free. Null `nodeId` (the last issue, with nothing next) reads as false.
+ */
+export function nextIssueRaisesMarket(definition: Pick<CampaignDefinition, "graph">, nodeId: string): boolean {
+  const nodes = definition.graph.nodes;
+  const next = nodes[nodes.findIndex((node) => node.id === nodeId) + 1];
+  return next?.setup.some((instruction) => /\bmarket\b/i.test(instruction.text)) ?? false;
 }

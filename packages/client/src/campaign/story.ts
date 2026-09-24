@@ -125,6 +125,12 @@ export interface IssueStory {
    * issue opener uses the comic reader over these beats instead of the three-panel `opener` above.
    */
   readonly comicBeats?: readonly ComicBeatRef[];
+  /**
+   * For a page-based box (`CampaignStory.pages` is set): the Aftermath's (C05) own guided read on a win, tapped
+   * through the same way `comicBeats` is before the screen's tags/CTA (`scenes/campaign/aftermath.ts`). Absent
+   * (or a box with no `pages`) keeps the plain single-picture Aftermath (MC10) untouched.
+   */
+  readonly aftermathBeats?: readonly ComicBeatRef[];
   /** The villain's line when it flips to a stage (C04), by stage number (2 = stage II). */
   readonly stageLines: Readonly<Record<number, string>>;
   /** A short rule reminder shown under the stage-flip splash ("Piercing while armed"). */
@@ -148,6 +154,22 @@ export interface IssueStory {
   readonly teaser: string;
 }
 
+/**
+ * How one of a box's own Finale stat boxes (beyond the universal "Issues") is computed from the finished record
+ * (`view/campaign-finale-model.ts`'s `finaleViewOf`). Declared per box because each box's rulebook names and
+ * shapes its own numbers differently (MC10's rewind count and rescued allies vs MC16's banked currency and its
+ * escalating Headhunter ladder) — the client never branches on `campaignId` to pick these.
+ */
+export type FinaleStatSpec =
+  /** Count of `history` entries lost — the same "Rewinds" MC10 has always shown. */
+  | { readonly kind: "rewinds"; readonly label: string }
+  /** Sum of a per-seat `cardList` field's length across every seat ("an ally the players kept"). */
+  | { readonly kind: "cardListTotal"; readonly label: string; readonly field: string }
+  /** Sum of a per-seat `number` field across every seat (a currency's total left unspent). */
+  | { readonly kind: "numberTotal"; readonly label: string; readonly field: string }
+  /** A `shared` `number` field's own value (an escalating ladder's count). */
+  | { readonly kind: "sharedNumber"; readonly label: string; readonly field: string };
+
 export interface CampaignStory {
   readonly campaignId: string;
   /** "A story in five issues". */
@@ -161,6 +183,16 @@ export interface CampaignStory {
   readonly issues: readonly IssueStory[];
   /** Set only for a box told as comic pages (`art/README.md`); its issues' `comicBeats` index into this. */
   readonly pages?: readonly ComicPage[];
+  /**
+   * Rewind's (C09) campaign-lost variant: shown only when a scenario's defeat instructions end the whole campaign
+   * outright (MC10's Expert-only Red Skull loss, MC16's Expert Campaign Only Ronan loss) — there is no "REWIND ▸"
+   * left for that run, only the way back to the saga. `headline` may carry a `\n` for the two-line stamp the
+   * screen renders ("Hydra\nWins.").
+   */
+  readonly campaignLost: {
+    readonly headline: string;
+    readonly line: string;
+  };
   readonly finale: {
     readonly caption: string;
     readonly headline: string;
@@ -168,6 +200,13 @@ export interface CampaignStory {
     readonly villainLine: string;
     /** One line per roster seat, in seat order; extra seats reuse the last. */
     readonly heroLines: readonly string[];
+    /**
+     * For a page-based box (`pages` set): which page the Finale reads full-bleed instead of the plain villain/hero
+     * comic-grid layout (`ComicPage.file`, e.g. `"06-finale"`). Unset (MC10) keeps that grid.
+     */
+    readonly page?: string;
+    /** This box's own extra stat boxes, in display order. Unset keeps `DEFAULT_FINALE_STATS` (MC10's own two). */
+    readonly stats?: readonly FinaleStatSpec[];
   };
 }
 

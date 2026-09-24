@@ -8,16 +8,32 @@
  * last written line for a roster longer than the box wrote dialogue for.
  */
 import Phaser from "phaser";
+import { CARDS_BY_ID } from "../../content/pool.js";
 import { storyFor } from "../../campaign/story.js";
+import { ensurePictureLoaded } from "../../art/pictures.js";
+import { coverCropFavoringBeats } from "../../view/comic-crop.js";
 import type { CampaignRecord } from "../../engine/campaign-storage.js";
 import { appSession, campaignService } from "../../session.js";
 import { accent, ink, signal, surface, typeRole } from "../../tokens.js";
-import { campaignFrame, drawPicture, heroPicture, speechBubble, villainPicture } from "../../ui/campaign-chrome.js";
+import {
+  campaignFrame,
+  campaignPagePicture,
+  drawPicture,
+  heroPicture,
+  speechBubble,
+  villainPicture,
+} from "../../ui/campaign-chrome.js";
 import { destroyChildren } from "../../ui/destroy-children.js";
 import { cssOf, textStyle } from "../../ui/theme.js";
 import { fadeScreenIn, goToScreen } from "../../ui/transitions.js";
 import { McButton, fitText, label } from "../../ui/widgets.js";
-import { finaleHeroLineFor, finaleViewOf, type FinaleView } from "../../view/campaign-finale-model.js";
+import {
+  finaleHeroLineFor,
+  finaleSpreadCropFor,
+  finaleViewOf,
+  type FinaleView,
+} from "../../view/campaign-finale-model.js";
+import type { RunPageCrop } from "../../view/campaign-run-model.js";
 import type { Rect } from "../../view/layout.js";
 import { FocusRoute, type FocusStop } from "../focus-route.js";
 import { SCENES } from "../keys.js";
@@ -59,7 +75,8 @@ export class CampaignFinaleScene extends Phaser.Scene {
     this.#record = record;
     appSession().music?.playFinale(record.campaignId as string);
     const definition = service.definitionFor(record);
-    this.#view = finaleViewOf(definition, record);
+    const stats = storyFor(record.campaignId as string)?.finale.stats;
+    this.#view = stats ? finaleViewOf(definition, record, stats) : finaleViewOf(definition, record);
     this.#draw();
   }
 
@@ -74,13 +91,17 @@ export class CampaignFinaleScene extends Phaser.Scene {
     const record = this.#record;
     const view = this.#view;
     if (!record || !view) return;
-    const story = storyFor(record.campaignId as string)?.finale ?? null;
+    const fullStory = storyFor(record.campaignId as string);
+    const story = fullStory?.finale ?? null;
     const lastNodeId = campaignService().definitionFor(record).graph.nodes.at(-1)?.id ?? "";
+    // A page-based box (`finale.page` set — GMW) reads its finale as one full-bleed comic spread instead of the
+    // plain villain/hero grid below; a box with no `pages` or no `finale.page` (MC10) keeps that grid untouched.
+    const pageCrop = finaleSpreadCropFor(fullStory);
 
     const order: string[] = [];
     const stops = new Map<string, FocusStop>();
-    if (phone) this.#drawPhone(width, height, view, story, lastNodeId, order, stops);
-    else this.#drawWide(width, height, view, story, lastNodeId, order, stops);
+    if (phone) this.#drawPhone(width, height, view, story, lastNodeId, pageCrop, order, stops);
+    else this.#drawWide(width, height, view, story, lastNodeId, pageCrop, order, stops);
 
     this.#route = this.#route ?? new FocusRoute(this);
     this.#route.set(order, stops);
@@ -101,10 +122,27 @@ export class CampaignFinaleScene extends Phaser.Scene {
     view: FinaleView,
     story: NonNullable<ReturnType<typeof storyFor>>["finale"] | null,
     lastNodeId: string,
+    pageCrop: RunPageCrop | null,
     order: string[],
     stops: Map<string, FocusStop>,
   ): void {
     const m = CampaignFinaleScene.#MARGIN;
+    if (pageCrop) {
+      // A page-based spread reads full-bleed across the top, the yellow copy band below it — not the side-by-side
+      // grid/copy split the plain villain-picture layout uses (that split exists to fit a tall villain panel).
+      const spreadHeight = Math.round(height * 0.65);
+      this.#drawPageSpread({ x: 0, y: 0, width, height: spreadHeight }, story, pageCrop);
+      this.#drawCopy(
+        { x: m, y: spreadHeight + m, width: width - m * 2, height: height - spreadHeight - m * 2 },
+        view,
+        story,
+        order,
+        stops,
+        false,
+        { hideCaption: true, rereadLabel: "Read it all again ▸", onReread: () => this.#rereadFromStart() },
+      );
+      return;
+    }
     const gridRect: Rect = { x: m, y: m, width: Math.round(width * 0.585) - m, height: height - m * 2 };
     this.#drawComicGrid(gridRect, story, lastNodeId);
 
@@ -125,10 +163,25 @@ export class CampaignFinaleScene extends Phaser.Scene {
     view: FinaleView,
     story: NonNullable<ReturnType<typeof storyFor>>["finale"] | null,
     lastNodeId: string,
+    pageCrop: RunPageCrop | null,
     order: string[],
     stops: Map<string, FocusStop>,
   ): void {
     const m = CampaignFinaleScene.#MARGIN;
+    if (pageCrop) {
+      const spreadHeight = Math.round(height * 0.63);
+      this.#drawPageSpread({ x: 0, y: 0, width, height: spreadHeight }, story, pageCrop);
+      this.#drawCopy(
+        { x: m, y: spreadHeight + m, width: width - m * 2, height: height - spreadHeight - m * 2 },
+        view,
+        story,
+        order,
+        stops,
+        true,
+        { hideCaption: true, rereadLabel: "Read it all again ▸", onReread: () => this.#rereadFromStart() },
+      );
+      return;
+    }
     const gridHeight = Math.round(height * 0.42);
     this.#drawComicGrid({ x: m, y: m, width: width - m * 2, height: gridHeight }, story, lastNodeId);
     this.#drawCopy(
@@ -139,6 +192,46 @@ export class CampaignFinaleScene extends Phaser.Scene {
       stops,
       true,
     );
+  }
+
+  /**
+   * A page-based finale spread (`finale.page`): the whole comic page cover-fit full-bleed into `rect` (like
+   * `scenes/campaign/run.ts`'s `drawPageCrop`, but the entire page rather than one issue's own slice of it — the
+   * finale reads as a single splash, not a panel-by-panel guided read), an ink border, and one speech bubble for
+   * the lead seat's own hero line — a written GMW line, labeled with whichever hero is actually in that seat
+   * (never a specific hero name hardcoded here), not the design tile's own Star-Lord placeholder.
+   */
+  #drawPageSpread(
+    rect: Rect,
+    story: NonNullable<ReturnType<typeof storyFor>>["finale"] | null,
+    crop: RunPageCrop,
+  ): void {
+    const record = this.#record;
+    if (rect.width > 0 && rect.height > 0) {
+      const picture = campaignPagePicture(record?.campaignId as string, crop.file);
+      const key = picture ? ensurePictureLoaded(this, picture, () => this.#draw()) : null;
+      if (key) {
+        const fit = coverCropFavoringBeats(crop, rect);
+        this.add
+          .image(rect.x - fit.cropX * fit.scale, rect.y - fit.cropY * fit.scale, key)
+          .setOrigin(0, 0)
+          .setScale(fit.scale)
+          .setCrop(fit.cropX, fit.cropY, fit.cropWidth, fit.cropHeight);
+      }
+    }
+    const border = this.add.graphics();
+    border.lineStyle(3, surface.ink.hex, 1).strokeRect(rect.x, rect.y, rect.width, rect.height);
+
+    const seat = record?.seats[0];
+    const line = story ? finaleHeroLineFor(story.heroLines, 0) : "";
+    if (seat && line) {
+      const speakerName = (CARDS_BY_ID.get(seat.identityCardId as string)?.name ?? "").toUpperCase();
+      const maxWidth = Math.min(320, rect.width - 32);
+      speechBubble(this, rect.x + rect.width - maxWidth - 16, rect.y + rect.height - 90, maxWidth, line, {
+        ...(speakerName ? { speaker: speakerName } : {}),
+        tail: "none",
+      });
+    }
   }
 
   /** The comic grid: a tall villain panel on the left, one stacked hero panel per seat on the right. */
@@ -221,6 +314,15 @@ export class CampaignFinaleScene extends Phaser.Scene {
     order: string[],
     stops: Map<string, FocusStop>,
     phone: boolean,
+    options: {
+      // A page-based spread already carries the caption's beat on the page art itself (`06-finale`'s own top
+      // strip); the plain villain/hero grid has no picture caption of its own, so the copy band draws one there.
+      readonly hideCaption?: boolean;
+      // A page-based box rereads through the comic reader from issue #1 (`#rereadFromStart`); the plain grid
+      // layout keeps its own "restart the run at The Run screen" behavior (`#reread`).
+      readonly rereadLabel?: string;
+      readonly onReread?: () => void;
+    } = {},
   ): void {
     const objects: Phaser.GameObjects.GameObject[] = [];
     const buttons: { readonly button: McButton; readonly rect: Rect }[] = [];
@@ -236,7 +338,7 @@ export class CampaignFinaleScene extends Phaser.Scene {
     };
 
     let y = rect.y;
-    if (story) {
+    if (story && !options.hideCaption) {
       const box = add(this.add.graphics());
       const text = add(
         this.add
@@ -265,13 +367,14 @@ export class CampaignFinaleScene extends Phaser.Scene {
     fitText(headline, rect.width, phone ? 44 : 64);
     y = headline.y + headline.height + 20;
 
+    // "Issues" is universal (every box has a node count); every other box is this box's own `finale.stats`
+    // declaration (`DEFAULT_FINALE_STATS` for a box with none) — never a hardcoded list here.
     const stats: readonly { readonly label: string; readonly value: string }[] = [
-      { label: "Issues", value: `${view.stats.issuesCompleted}/${view.stats.issuesTotal}` },
-      { label: "Rewinds", value: String(view.stats.rewinds) },
-      { label: "Allies freed", value: String(view.stats.alliesFreed) },
+      { label: "Issues", value: `${view.issuesCompleted}/${view.issuesTotal}` },
+      ...view.stats,
     ];
     const statGap = 10;
-    const boxWidth = (rect.width - statGap * 2) / 3;
+    const boxWidth = (rect.width - statGap * (stats.length - 1)) / stats.length;
     stats.forEach((stat, index) => {
       const x = rect.x + index * (boxWidth + statGap);
       const g = add(this.add.graphics());
@@ -299,10 +402,19 @@ export class CampaignFinaleScene extends Phaser.Scene {
     stops.set("primary", { rect: primaryRect, activate: () => this.#onPrimary() });
     y += 54 + 10;
 
-    // "Reread the run" reads as an outline on the page itself — the tile's ground colour, an ink border, a Bangers
-    // label — not the paper-filled "secondary" skin, which none of `skin()`'s kinds draw, so this is hand-drawn.
+    // "Reread the run" / "Read it all again" reads as an outline on the page itself — the tile's ground colour, an
+    // ink border, a Bangers label — not the paper-filled "secondary" skin, which none of `skin()`'s kinds draw, so
+    // this is hand-drawn.
     const rereadRect: Rect = { x: rect.x, y, width: rect.width, height: 48 };
-    this.#drawOutlineButton(rereadRect, "Reread the run", () => this.#reread(), order, stops, "reread", add);
+    this.#drawOutlineButton(
+      rereadRect,
+      options.rereadLabel ?? "Reread the run",
+      options.onReread ?? (() => this.#reread()),
+      order,
+      stops,
+      "reread",
+      add,
+    );
     y += 48;
 
     const bottom = y;
@@ -362,5 +474,18 @@ export class CampaignFinaleScene extends Phaser.Scene {
     const record = this.#record;
     if (!record) return;
     goToScreen(this, SCENES.campaignRun, { runId: record.id });
+  }
+
+  /** "Read it all again ▸" (a page-based box's own finale): the comic reader, from issue #1, back here once done. */
+  #rereadFromStart(): void {
+    const record = this.#record;
+    if (!record) return;
+    const firstNodeId = campaignService().definitionFor(record).graph.nodes[0]?.id;
+    if (!firstNodeId) return;
+    goToScreen(this, SCENES.campaignOpener, {
+      runId: record.id,
+      nodeId: firstNodeId,
+      returnTo: { key: SCENES.campaignFinale, data: { runId: record.id } },
+    });
   }
 }
