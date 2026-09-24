@@ -1,7 +1,7 @@
 import type { AbilityReference, AnyCard, Trait } from "@mc/content";
 import { DEFAULT_DEPS, type EngineDeps, type RuleSpec } from "./abilities.js";
 import type { InstanceId, PlayerId } from "./ids.js";
-import { hasKeyword } from "./keywords.js";
+import { activeFormType, hasKeyword, printedFormTypes } from "./keywords.js";
 import {
   activeVillain,
   cardOf,
@@ -220,6 +220,21 @@ export function traitsOf(state: GameState, id: InstanceId, deps: EngineDeps = DE
 }
 
 /** Every card instance that is in play, in a stable order (RRG "In Play and Out of Play"). */
+/**
+ * The faceup cards `playerId` controls that grant an additional form of `formType` now (docs/phase7-wave4.md §3.1): the
+ * player "is in <name> <type> form" while one shows that name (RRG 1.8 "Form, Change Form", p. 21).
+ */
+export function additionalFormCards(
+  state: GameState,
+  playerId: PlayerId,
+  formType: string,
+  deps: EngineDeps = DEFAULT_DEPS,
+): readonly InstanceId[] {
+  return cardsInPlay(state).filter(
+    (id) => controllerOf(state, id) === playerId && activeFormType(state, id, deps) === formType,
+  );
+}
+
 export function cardsInPlay(state: GameState): readonly InstanceId[] {
   // A defeated villain's last stage is removed from the game (RRG 1.8 "Villain Defeat", p. 47), so it is out of play.
   const villains = undefeatedVillains(state).map((villain) => villain.instanceId);
@@ -263,6 +278,8 @@ export type QueryExclusion =
   | "wrongName"
   | "wrongPrintedId"
   | "wrongFacedown"
+  /** The card prints no form keyword of the query's `printedForm` type (docs/phase7-wave4.md §3.1). */
+  | "wrongForm"
   | "wrongStarIcon"
   | "wrongUnique"
   | "notHostOfSelf"
@@ -342,6 +359,7 @@ export function explainQuery(
   if (query.name !== undefined && currentName(state, id) !== query.name) return "wrongName";
   if (query.printedId !== undefined && instance.cardId !== query.printedId) return "wrongPrintedId";
   if (query.facedown !== undefined && (instance.facedownAs !== null) !== query.facedown) return "wrongFacedown";
+  if (query.printedForm !== undefined && !printedFormTypes(state, id).includes(query.printedForm)) return "wrongForm";
   // "If that card has a star icon (★) in the boost area" (Longshot, `wolv`). A printed fact (`hasStarIcon`), not a
   // read of the ability registry: see docs/phase7-wave2.md §18.6. RRG 1.8 "Boost, Boost Icon" (p. 11) — a star is not
   // a boost icon, so this clause says nothing about the card's pip count.
@@ -1137,6 +1155,13 @@ export function evaluate(state: GameState, predicate: Predicate, context: Effect
       const [playerId] = resolvePlayers(state, predicate.player, context);
       const player = playerId ? getPlayer(state, playerId) : undefined;
       return player?.identity.form === predicate.form;
+    }
+    case "inAdditionalForm": {
+      const [playerId] = resolvePlayers(state, predicate.player, context);
+      if (!playerId) return false;
+      return additionalFormCards(state, playerId, predicate.formType, context.deps).some(
+        (id) => predicate.name === undefined || currentName(state, id) === predicate.name,
+      );
     }
     case "hasStatus": {
       const [id] = resolveRef(state, predicate.of, context);

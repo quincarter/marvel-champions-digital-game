@@ -170,6 +170,12 @@ export const encounterSetOf = (ref: TargetRef): Pick<TargetQuery, "encounterSetO
  * "upgrade", { trait: WEAPON })))`. The other direction of `host`.
  */
 export const hasAttachment = (q: TargetQuery): Pick<TargetQuery, "hasAttachment"> => ({ hasAttachment: q });
+/**
+ * "A facedown energy form upgrade" (Spectrum's Energy Transformation, `mts` 21001a): a query fragment for a card printing
+ * the form keyword of `formType` on either face, read even while it is facedown (docs/phase7-wave4.md §3.1) —
+ * `query("upgrade", printedForm("energy"), { facedown: true, controller: "you" })`.
+ */
+export const printedForm = (formType: string): Pick<TargetQuery, "printedForm"> => ({ printedForm: formType });
 
 /** "Friendly character": any identity or ally (every player's, RRG "Friendly"). */
 export const FRIENDLY_CHARACTER: TargetQuery = query(["identity", "ally"]);
@@ -382,6 +388,17 @@ export const ifElse = (condition: Predicate, then: Amount, otherwise: Amount): V
 
 export const inForm = (form: Form, player: PlayerRef = you): Predicate => ({ kind: "form", player, form });
 export const isHero = (player: PlayerRef = you): Predicate => inForm("hero", player);
+/**
+ * "If you were already in Gamma energy form" (Gamma Blast, `mts` 21007) / "While you are in Dense mass form" / "Play only
+ * if Vision is in Intangible mass form" (`vision`): `player` controls a faceup card with the form keyword of `formType`,
+ * titled `name` when given (docs/phase7-wave4.md §3.1).
+ */
+export const inAdditionalForm = (formType: string, name?: string, player: PlayerRef = you): Predicate => ({
+  kind: "inAdditionalForm",
+  player,
+  formType,
+  ...(name !== undefined ? { name } : {}),
+});
 export const isAlterEgo = (player: PlayerRef = you): Predicate => inForm("alterEgo", player);
 export const exists = (q: TargetQuery): Predicate => ({ kind: "exists", query: q });
 /** "If Bomb Scare is in play" (exact printed name). */

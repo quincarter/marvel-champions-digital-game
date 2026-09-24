@@ -57,10 +57,13 @@ export const threatCannotBeRemoved = (
 export const cannotThwart = (state: GameState, deps: EngineDeps, playerId: PlayerId): boolean =>
   activeRules(state, deps, "cannotThwart").some((active) => rulePlayers(state, active.rule, active).includes(playerId));
 
-/** "You cannot change form." */
-export const cannotChangeForm = (state: GameState, deps: EngineDeps, playerId: PlayerId): boolean =>
-  activeRules(state, deps, "cannotChangeForm").some((active) =>
-    rulePlayers(state, active.rule, active).includes(playerId),
+/**
+ * "You cannot change form." (no `formType`: the hero/alter-ego change) / "You cannot change energy forms." (`formType`
+ * given: that additional form; docs/phase7-wave4.md §3.1). Each rule blocks only the kind of change it names.
+ */
+export const cannotChangeForm = (state: GameState, deps: EngineDeps, playerId: PlayerId, formType?: string): boolean =>
+  activeRules(state, deps, "cannotChangeForm").some(
+    (active) => active.rule.formType === formType && rulePlayers(state, active.rule, active).includes(playerId),
   );
 
 /** "… cannot ready." */

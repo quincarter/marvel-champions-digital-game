@@ -61,6 +61,30 @@ export function printedKeywordsOf(
   return "keywords" in card ? card.keywords : [];
 }
 
+/**
+ * The form types a card prints, on either face ("Energy form.", "Mass form."; docs/phase7-wave4.md §3.1), read from the
+ * card data even while it is facedown or blanked: the owner knows their own facedown card (`TargetQuery.printedForm`).
+ */
+export function printedFormTypes(state: GameState, id: InstanceId): readonly string[] {
+  const card = cardOf(state, id);
+  if (!card) return [];
+  const faces: readonly (readonly KeywordInstance[])[] = [
+    "keywords" in card ? card.keywords : [],
+    "flipSide" in card && card.flipSide ? card.flipSide.keywords : [],
+  ];
+  const types = faces.flatMap((keywords) => keywords.flatMap((k) => (k.name === "form" ? [k.formType] : [])));
+  return [...new Set(types)];
+}
+
+/**
+ * The additional form a card in play grants right now: its showing face's form keyword. A facedown card shows none (RRG
+ * 1.8 "Facedown"), and neither does a blanked text box (RRG 1.8 "Blank", p. 10).
+ */
+export function activeFormType(state: GameState, id: InstanceId, deps: EngineDeps = DEFAULT_DEPS): string | undefined {
+  const form = printedKeywordsOf(state, id, deps).find((k) => k.name === "form");
+  return form?.name === "form" ? form.formType : undefined;
+}
+
 /** Keywords granted by constant abilities in play ("X gains retaliate 1"); RRG "Gains": not printed. */
 function grantedKeywords(state: GameState, deps: EngineDeps, id: InstanceId): readonly KeywordInstance[] {
   if (Object.keys(deps.abilities).length === 0) return [];

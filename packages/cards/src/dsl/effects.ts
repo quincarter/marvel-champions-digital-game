@@ -1106,6 +1106,24 @@ export const changeVillainForm = (villain: TargetRef, toFaceWithTrait: Trait): E
 });
 /** "Flip [card]" (RRG 1.8 "Flip"). */
 export const flipCard = (target: TargetRef): EffectSpec => ({ kind: "flipCard", target });
+/**
+ * "Change to Gamma energy form" → `changeAdditionalForm("energy", { toName: "Gamma" })`; "flip that card faceup to change
+ * to that energy form" → `{ to: chosen("form") }`; "Change mass form by flipping your mass form upgrade over" →
+ * `changeAdditionalForm("mass")` (docs/phase7-wave4.md §3.1). One single-faced form card of a type shows at a time; a
+ * double-sided one flips. Never the once-per-round form change; "You cannot change energy forms" stops it.
+ */
+export const changeAdditionalForm = (
+  formType: string,
+  opts: { readonly to?: TargetRef; readonly toName?: string; readonly player?: PlayerRef } = {},
+): EffectSpec => ({
+  kind: "changeAdditionalForm",
+  player: opts.player ?? you,
+  formType,
+  ...(opts.to !== undefined ? { to: opts.to } : {}),
+  ...(opts.toName !== undefined ? { toName: opts.toName } : {}),
+});
+/** "Turn all your energy form upgrades facedown" (Monica Rambeau, `mts` 21001b; docs/phase7-wave4.md §3.1). */
+export const turnFacedown = (target: TargetRef): EffectSpec => ({ kind: "turnFacedown", target });
 
 /** "Increase or decrease the number of boost icons on that card by 1 for this count" (Crest, `scw` pack). */
 export const adjustBoostCount = (delta: Amount): EffectSpec => ({ kind: "adjustBoostCount", delta: amount(delta) });

@@ -348,7 +348,7 @@ stays data only.**
 
 | §    | Primitive                                                                | Needed by                                  | Status      |
 | ---- | ------------------------------------------------------------------------ | ------------------------------------------ | ----------- |
-| 3.1  | Additional forms (the form keyword)                                      | Spectrum, Vision; Shadowcat, Nick Fury     | not started |
+| 3.1  | Additional forms (the form keyword)                                      | Spectrum, Vision; Shadowcat, Nick Fury     | landed      |
 | 3.2  | Two main schemes in play, each paired with a villain; Focused Defense    | Tower Defense                              | not started |
 | 3.3  | Villains protected by each other's hit points: one defeat sweep          | Tower Defense; Four Horsemen (`aoa`)       | not started |
 | 3.4  | A main scheme stage's completion is replaceable                          | Tower Defense; Upgrading Adaptoids (`aos`) | not started |
@@ -374,6 +374,16 @@ stays data only.**
 
 ### 3.1 Additional forms: the form keyword
 
+> **Status: landed (2026-09-24),** tested in `packages/engine/src/additional-forms.test.ts` (8 tests: facedown forms
+> grant none and have no title, but the owner finds them by printed form; a change turns the form faceup, is heard by
+> "After you change form" and by the form card's own "this form" but not by an identity-only listener, and never uses the
+> once-per-round change; one energy form at a time; no change, no trigger; `cannotChangeForm { formType }` stops only its
+> type; a double-sided form card flips; the hero/alter-ego flip is an identity change; replay deep-equal). DSL:
+> `packages/cards/src/dsl/wave4-primitives.test.ts` (5 tests). **Not done:** Corrupted Programming's "blank, except for
+> keywords" (`blankTextBox` has no keyword exception, so a blanked mass form card grants no form); it lands with the
+> `vision` scripting. **Client:** log lines for `additionalFormChanged`, `cardTurnedFacedown` and `cardTurnedFaceup`,
+> and a view of which form is up.
+
 **Cards.** Spectrum: Monica Rambeau's Setup puts Gamma, Photon and Pulsar into play facedown; Energy Transformation
 ("After you change to this form, choose a facedown energy form upgrade → flip that card faceup to change to that
 energy form"); Power Down ("After you change to this form, turn all your energy form upgrades facedown"); each form's
@@ -389,20 +399,29 @@ not use the once-per-round flip, and changing one "does count as changing form f
 effects". A facedown card has no title, text or keywords (RRG 1.8 "Facedown"), so a facedown energy form grants no
 form.
 
-**Plan.**
+**What landed:**
 
-- A player **is in "<name> <type> form"** while they control a faceup card with `form { formType: type }` titled
-  `<name>` (Gamma, Dense). `Predicate inAdditionalForm { player, formType, name? }` reads it; with no `name`, "in any
-  <type> form".
-- **`EffectSpec changeAdditionalForm { player, formType, to?: TargetRef | { name }, facedown? }`**: flips the named card
-  faceup and every other faceup card of that form type facedown (energy forms), or flips the single card of that type
-  over (mass form, `to` absent on a double-sided card). Blocked by `RuleSpec cannotChangeForm` when it names the form
-  type (`formType?` on the existing rule). Announces `formChanged { playerId, to, formType, formName }`.
-- **`formChanged` gains `formType?` / `formName?`** (absent = hero/alter-ego). Existing "after you change form"
-  listeners hear both kinds, which is what p. 21 says; "After you change to this energy form" on a form card is
-  `formChanged` with `formName` = its own title.
-- "Turn all your energy form upgrades facedown" is an effect on cards (existing `putIntoPlayFacedown`/facedown flip);
-  it is not a change of form (no form is changed _to_), so it announces nothing.
+- A player **is in "<name> <type> form"** while they control a faceup card whose showing face has `form { formType }`
+  and is titled `<name>` (Gamma, Dense). **`Predicate inAdditionalForm { player, formType, name? }`** reads it; with no
+  `name`, "in any <type> form". A facedown or blanked card grants none.
+- **`EffectSpec changeAdditionalForm { player, formType, to?, toName? }`**: among the player's cards printing that form
+  type, the one `to` names, else the one printed `toName`, else the only one if double-sided. A single-faced form card
+  turns faceup and every other faceup one of that type turns facedown (§4 Q1); a double-sided one flips (also
+  announcing `cardFlipped`). Already there: nothing changes and nothing triggers. Blocked by **`RuleSpec
+cannotChangeForm { formType }`** (new field; without it the rule still means only the hero/alter-ego flip, §4 Q8).
+- **`formChanged` gains `change: "identity" | "additional"`** (always set) and, for an additional change, `formType`,
+  `formName` and `formCardInstanceId`, which is the event's target. Log: `additionalFormChanged`.
+- **`EffectSpec turnFacedown { target }`**: "Turn all your energy form upgrades facedown" and the Setup's "into play,
+  facedown". Not a change of form, so it announces nothing (log `cardTurnedFacedown`).
+- **`TargetQuery.printedForm`** (exclusion `wrongForm`) finds a form card by its printed keyword, facedown too, so
+  "choose a facedown energy form upgrade" is a query.
+- **DSL:** `changeAdditionalForm`, `turnFacedown` (`dsl/effects.ts`); `inAdditionalForm`, `printedForm`
+  (`dsl/values.ts`); `on.youChangeIdentityForm()` ("After you change to this form" on Spectrum's or Vision's identity
+  faces), `on.youChangeToThisForm()` (on the form card), `on.youChangeAdditionalForm(type)` (Density Control). Plain
+  `on.youChangeForm()` still hears both (Moxie, Ready to Rumble); `on.playerChangesForm(to)` now means the identity flip
+  only.
+- **Scripting note:** Gamma Blast's "If you were already in Gamma energy form" is read before its own change, so test
+  `inAdditionalForm("energy", "Gamma")` first and keep the answer.
 
 **Composes with:** Shadowcat's Solid/Phased and Quick Shift, Permanently Phased (`mut_gen` 32031, 32040, 32055); Nick
 Fury's Assault/Stealth suit forms (`aos` 50035a/b); every "after you change form" card (Moxie, `ant` 12016, `wsp`
@@ -633,6 +652,10 @@ Each is implemented the way stated, or not at all, and named here rather than de
 7. **Hela's "When Hela is defeated, if Odin is not attached to the main scheme, you win the game"** vs. MC21 p. 20's "If
    the players control the Odin ally when Hela is defeated". Equivalent in every reachable state (Odin is attached or
    controlled by the first player until he leaves play, which loses). Implemented from the card.
+8. **Does a bare "You cannot change form" stop an additional form change?** (§3.1) All Tied Up and Care for Cassie
+   print it; RRG 1.8 p. 21 says an additional change "does count as changing form for the purpose of triggering card
+   effects", which is about triggers, not restrictions. Implemented as: no. A bare rule blocks only the hero/alter-ego
+   flip, and "You cannot change energy forms" (Loss of Control) is what blocks energy forms.
 
 ## 5. What this asks of the other agents
 

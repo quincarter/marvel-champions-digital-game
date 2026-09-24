@@ -37,12 +37,13 @@ import {
 } from "../effects.js";
 import { EngineInvariantError } from "../errors.js";
 import type { InstanceId, PlayerId } from "../ids.js";
-import { statusActive } from "../keywords.js";
+import { printedFormTypes, statusActive } from "../keywords.js";
 import { boostIconsFor, cardEffectBonus } from "../modifiers.js";
 import type { LastingDuration, LastingScope } from "../lasting.js";
 import {
   activeEncounterDeckId,
   cardOf,
+  currentName,
   discardZoneFor,
   encounterDeckOf,
   getInstance,
@@ -78,7 +79,7 @@ import { campaignSeatNumber } from "../campaign-state.js";
 import { campaignLogValueOf, recordCampaignRemoval, recordCampaignWrite } from "./campaign.js";
 import { damageGroupFrame } from "./damage-group.js";
 import { buildScenarioDeck, moveCardsTo, selectCards, shuffleEncounterDeck } from "./cards.js";
-import { cannotBeUnattached, cannotThwart } from "../rules.js";
+import { cannotBeUnattached, cannotChangeForm, cannotThwart } from "../rules.js";
 import { advanceMainSchemeStage, checkDefeats, completeMainScheme } from "./defeat.js";
 import {
   addVillains,
@@ -772,6 +773,71 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
         frames.push(eventFrame(ctx, { kind: "cardFlipped", instanceId: id }));
       }
       pushFrames(ctx, frames);
+      return;
+    }
+    case "changeAdditionalForm": {
+      // docs/phase7-wave4.md §3.1; RRG 1.8 "Form, Change Form" (p. 21).
+      const events: TriggerEvent[] = [];
+      for (const playerId of resolvePlayers(ctx.state, effect.player, context)) {
+        const player = getPlayer(ctx.state, playerId);
+        if (!player || player.eliminated || cannotChangeForm(ctx.state, ctx.deps, playerId, effect.formType)) continue;
+        const owned = cardsInPlay(ctx.state).filter(
+          (id) => controllerOf(ctx.state, id) === playerId && printedFormTypes(ctx.state, id).includes(effect.formType),
+        );
+        const printedNames = (id: InstanceId): readonly string[] => {
+          const card = cardOf(ctx.state, id);
+          if (!card) return [];
+          return "flipSide" in card && card.flipSide ? [card.name, card.flipSide.name] : [card.name];
+        };
+        const named = effect.to ? targets(effect.to).filter((id) => owned.includes(id)) : [];
+        const target =
+          named[0] ??
+          (effect.toName !== undefined
+            ? owned.find((id) => printedNames(id).includes(effect.toName as string))
+            : owned.length === 1 && printedNames(owned[0] as InstanceId).length === 2
+              ? owned[0]
+              : undefined);
+        if (target === undefined) continue;
+        const card = cardOf(ctx.state, target);
+        const instance = mustInstance(ctx.state, target);
+        if (card && "flipSide" in card && card.flipSide && !instance.facedownAs) {
+          // A double-sided form card (a mass form upgrade): the change is a flip, unless the named face already shows.
+          if (effect.toName !== undefined && currentName(ctx.state, target) === effect.toName) continue;
+          updateInstance(ctx, target, (i) => ({ ...i, flipped: !i.flipped }));
+          emit(ctx, { type: "cardFlipped", instanceId: target, flipped: !instance.flipped });
+          events.push({ kind: "cardFlipped", instanceId: target });
+        } else {
+          if (!instance.facedownAs) continue; // Already in that form: nothing changes and nothing triggers.
+          // One form of a type at a time (§4 Q1): the one showing turns facedown as this one turns faceup.
+          for (const other of owned) {
+            if (other === target || mustInstance(ctx.state, other).facedownAs) continue;
+            const otherCard = cardOf(ctx.state, other);
+            if (otherCard && "flipSide" in otherCard && otherCard.flipSide) continue;
+            turnFacedown(ctx, other);
+          }
+          updateInstance(ctx, target, (i) => ({ ...i, faceup: true, facedownAs: null }));
+          emit(ctx, { type: "cardTurnedFaceup", instanceId: target });
+        }
+        const formName = currentName(ctx.state, target) ?? "";
+        emit(ctx, { type: "additionalFormChanged", playerId, formType: effect.formType, formName, instanceId: target });
+        events.push({
+          kind: "formChanged",
+          playerId,
+          to: player.identity.form,
+          change: "additional",
+          formType: effect.formType,
+          formName,
+          formCardInstanceId: target,
+        });
+      }
+      pushEvents(ctx, events);
+      return;
+    }
+    case "turnFacedown": {
+      const inPlay = cardsInPlay(ctx.state);
+      for (const id of targets(effect.target)) {
+        if (inPlay.includes(id) && !mustInstance(ctx.state, id).facedownAs) turnFacedown(ctx, id);
+      }
       return;
     }
     case "changeVillainForm": {
@@ -1572,4 +1638,13 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       return;
     }
   }
+}
+
+/**
+ * A card in play turns facedown as nothing in particular (`FacedownRole` `blank`), keeping its controller: no title,
+ * text, keywords or abilities until it turns faceup or leaves play (docs/phase7-wave4.md §3.1).
+ */
+function turnFacedown(ctx: Ctx, id: InstanceId): void {
+  updateInstance(ctx, id, (i) => ({ ...i, faceup: false, facedownAs: { kind: "blank", traits: [] } }));
+  emit(ctx, { type: "cardTurnedFacedown", instanceId: id });
 }

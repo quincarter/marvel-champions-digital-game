@@ -79,6 +79,7 @@ export function setForm(
     kind: "formChanged",
     playerId,
     to,
+    change: "identity",
     ...(faces > 1 ? { fromHeroForm: fromIndex, toHeroForm: nextIndex } : {}),
   };
 }

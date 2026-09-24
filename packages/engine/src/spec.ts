@@ -274,6 +274,13 @@ export interface TargetQuery {
    * identity itself, so a Team-Up card in either player's hand finds the same cards. Docs/phase7-wave3.md §3.34.
    */
   readonly identitySetTitled?: CharacterNames;
+  /**
+   * The card prints the form keyword of this type on either face ("Energy form.", "Mass form."; docs/phase7-wave4.md
+   * §3.1), read from the printed card even while it is facedown: "choose a facedown energy form upgrade" (Spectrum's
+   * Energy Transformation, `mts` 21001a) names cards whose own text a facedown card does not show. A player knows their
+   * own facedown cards (RRG 1.8 "Facedown", owner may look), so this is the owner's reading.
+   */
+  readonly printedForm?: string;
 }
 
 /**
@@ -712,7 +719,19 @@ export type Predicate =
    * Boost ability, which has no `context.event` of its own. False with no such frame on the stack (a player's own
    * attack/thwart is a different event kind and doesn't match either reading).
    */
-  | { readonly kind: "currentActivationIs"; readonly activation: "attack" | "scheme" };
+  | { readonly kind: "currentActivationIs"; readonly activation: "attack" | "scheme" }
+  /**
+   * "If you were already in Gamma energy form" (Gamma Blast, `mts` 21007) / "While you are in Dense mass form" (Vision,
+   * `vision` 26001b) / "Play only if Vision is in Intangible mass form": the player controls a faceup card with the form
+   * keyword of `formType`, titled `name` when given (any form of that type when not). RRG 1.8 "Form, Change Form"
+   * (p. 21); docs/phase7-wave4.md §3.1.
+   */
+  | {
+      readonly kind: "inAdditionalForm";
+      readonly player: PlayerRef;
+      readonly formType: string;
+      readonly name?: string;
+    };
 
 export type StatusName = "stunned" | "confused" | "tough";
 
@@ -1585,6 +1604,34 @@ export type EffectSpec =
    * Either way a `cardFlipped` event follows, for "after this card flips" abilities. A card with one face is unaffected.
    */
   | { readonly kind: "flipCard"; readonly target: TargetRef }
+  /**
+   * "Change to Gamma energy form" / "flip that card faceup to change to that energy form" / "change energy forms" /
+   * "Change mass form by flipping your mass form upgrade over" (docs/phase7-wave4.md §3.1; RRG 1.8 "Form, Change Form",
+   * p. 21). Among the cards `player` controls that print the form keyword of `formType`, the one `to` names, else the one
+   * printed `toName` (either face), else the only one if it is double-sided:
+   * - a **double-sided** form card (a mass form upgrade) flips to its other face, unless `toName` is already showing;
+   * - a **single-faced** form card turns faceup, and every other faceup form card of that type the player controls turns
+   *   facedown (one energy form at a time; §4 Q1). Already faceup: nothing changes.
+   *
+   * A change announces `formChanged` with `change: "additional"`, `formType`, `formName` and the form card as the event's
+   * target, so "After you change form" (Moxie) hears it and "After you change to this energy form" matches its own card.
+   * It never uses the once-per-round form change. `RuleSpec cannotChangeForm` with this `formType` ("You cannot change
+   * energy forms", Loss of Control) stops it.
+   */
+  | {
+      readonly kind: "changeAdditionalForm";
+      readonly player: PlayerRef;
+      readonly formType: string;
+      readonly to?: TargetRef;
+      readonly toName?: string;
+    }
+  /**
+   * "Turn all your energy form upgrades facedown" (Monica Rambeau's Power Down, `mts` 21001b) / "Put all 3 energy form
+   * upgrades into play, facedown" (her Setup, after `putIntoPlay`): each card in play `target` names turns facedown, as
+   * nothing in particular (`FacedownRole` `blank`: no title, text, keywords or abilities), keeping its controller. Not a
+   * change of form (no form is changed to), so it announces nothing. It is itself again when it leaves play.
+   */
+  | { readonly kind: "turnFacedown"; readonly target: TargetRef }
   /**
    * "Change Apocalypse to [Giant] form" (Staggering Strength, Biomorphic Blast; The Age of Apocalypse): a three-sided
    * villain (`VillainSideLetter` "C") turns to the face of its current stage card whose traits include `toFaceWithTrait`.
