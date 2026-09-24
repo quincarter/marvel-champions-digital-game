@@ -158,6 +158,16 @@ export interface CampaignStory {
   readonly issues: readonly IssueStory[];
   /** Set only for a box told as comic pages (`art/README.md`); its issues' `comicBeats` index into this. */
   readonly pages?: readonly ComicPage[];
+  /**
+   * Rewind's (C09) campaign-lost variant: shown only when a scenario's defeat instructions end the whole campaign
+   * outright (MC10's Expert-only Red Skull loss, MC16's Expert Campaign Only Ronan loss) — there is no "REWIND ▸"
+   * left for that run, only the way back to the saga. `headline` may carry a `\n` for the two-line stamp the
+   * screen renders ("Hydra\nWins.").
+   */
+  readonly campaignLost: {
+    readonly headline: string;
+    readonly line: string;
+  };
   readonly finale: {
     readonly caption: string;
     readonly headline: string;

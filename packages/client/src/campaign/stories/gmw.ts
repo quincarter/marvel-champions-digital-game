@@ -468,6 +468,13 @@ export const GMW_STORY: CampaignStory = {
       rewindTaunt: "The Accuser does not lose. He is merely delayed.",
     },
   ],
+  // MC16 p. 18's own Expert Campaign Only defeat instruction on this scenario: "Ronan the Accuser claims the Power
+  // Stone and the players lose the campaign." — reached only in Expert Campaign, the same way MC10's own
+  // campaign-lost variant is Expert-only there.
+  campaignLost: {
+    headline: "Ronan\nWins.",
+    line: "Ronan claimed the Power Stone. This run of the campaign is over.",
+  },
   finale: {
     caption: "Every hero the Badoon, the Collector and Nebula ever crossed, in one place at once.",
     headline: "Ronan falls.",
