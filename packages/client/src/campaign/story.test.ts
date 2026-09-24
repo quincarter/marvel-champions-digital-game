@@ -37,6 +37,28 @@ describe("campaign story", () => {
     }
   });
 
+  test("every gmw stagePanels ref points at a page and beat that exist", () => {
+    const story = storyFor("gmw")!;
+    const pages = story.pages!;
+    for (const issue of story.issues) {
+      for (const [stage, ref] of Object.entries(issue.stagePanels ?? {})) {
+        const page = pages.find((p) => p.file === ref.page);
+        expect(page, `gmw stagePanels: ${issue.nodeId} stage ${stage}: unknown page "${ref.page}"`).toBeDefined();
+        expect(
+          page!.beats[ref.beatIndex],
+          `gmw stagePanels: ${issue.nodeId} stage ${stage}: ${ref.page}#${ref.beatIndex}`,
+        ).toBeDefined();
+        // A `stagePanels` entry with no matching `stageLines` entry would draw a panel with an empty speech
+        // bubble — the beat never opens for a stage the story has nothing to say about (`campaign-beat-model.ts`),
+        // so a `stagePanels` entry with no line is dead data.
+        expect(
+          issue.stageLines[Number(stage)],
+          `gmw stagePanels: ${issue.nodeId} stage ${stage} has no matching stageLines entry`,
+        ).toBeDefined();
+      }
+    }
+  });
+
   test("every gmw panel rect sits inside its page's own bounds", () => {
     const story = storyFor("gmw")!;
     for (const page of story.pages ?? []) {

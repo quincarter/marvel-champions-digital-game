@@ -8,8 +8,16 @@
  * `scenes/villain-phase.ts`'s own "REDUCED MOTION" section documents).
  */
 import Phaser from "phaser";
-import { issueStoryFor } from "../../campaign/story.js";
-import { campaignFrame, drawPicture, speechBubble, villainPicture } from "../../ui/campaign-chrome.js";
+import { issueStoryFor, storyFor, type ComicBeatRef, type ComicPage } from "../../campaign/story.js";
+import {
+  campaignFrame,
+  campaignPagePicture,
+  drawPicture,
+  speechBubble,
+  villainPicture,
+} from "../../ui/campaign-chrome.js";
+import { ensurePictureLoaded } from "../../art/pictures.js";
+import { coverCropFavoringBeats } from "../../view/comic-crop.js";
 import { accent, dotGrid, surface, typeRole } from "../../tokens.js";
 import { textStyle } from "../../ui/theme.js";
 import { dashedRect, paintDotGrid } from "../../ui/widgets.js";
@@ -25,6 +33,61 @@ const AUTO_CLOSE_DELAY_MS = 4000;
 
 const ROMAN = ["", "I", "II", "III", "IV", "V", "VI", "VII", "VIII"] as const;
 const roman = (n: number): string => ROMAN[n] ?? String(n);
+
+/** A `stagePanels` ref resolved against a page-based box's own pages: the page, its 1-based position among the
+ * box's pages (for "PANEL FROM PAGE N"), and the crop `coverCropFavoringBeats` needs. Null for a box with no
+ * `pages`, or a ref naming a page/beat that doesn't exist there (never thrown here — the beat still draws, just
+ * with the plain villain-picture fallback, since a bad ref is a story-authoring slip, not a reason to break C04). */
+interface StagePanelCrop {
+  readonly file: string;
+  readonly width: number;
+  readonly height: number;
+  readonly rect: { readonly x: number; readonly y: number; readonly w: number; readonly h: number };
+  readonly beats: readonly { readonly x: number; readonly y: number; readonly w: number; readonly h: number }[];
+  readonly pageNumber: number;
+}
+
+function stagePanelCropFor(
+  pages: readonly ComicPage[] | undefined,
+  ref: ComicBeatRef | undefined,
+): StagePanelCrop | null {
+  if (!pages || !ref) return null;
+  const pageIndex = pages.findIndex((candidate) => candidate.file === ref.page);
+  const page = pages[pageIndex];
+  const beat = page?.beats[ref.beatIndex];
+  if (!page || !beat) return null;
+  return {
+    file: page.file,
+    width: page.width,
+    height: page.height,
+    rect: beat.panel,
+    beats: [beat.panel],
+    pageNumber: pageIndex + 1,
+  };
+}
+
+/** Draws a `StagePanelCrop` cover-fit into `rect`, the same crop math The Run's own page crop uses (`scenes/
+ * campaign/run.ts`'s `drawPageCrop`) — here for one panel instead of an issue's whole page slice. Null while the
+ * page's art hasn't loaded (or has none); `onReady` is `ensurePictureLoaded`'s redraw hook. */
+function drawStagePanelPicture(
+  scene: Phaser.Scene,
+  campaignId: string,
+  crop: StagePanelCrop,
+  rect: Rect,
+  onReady: () => void,
+): Phaser.GameObjects.Image | null {
+  if (rect.width <= 0 || rect.height <= 0) return null;
+  const picture = campaignPagePicture(campaignId, crop.file);
+  if (!picture) return null;
+  const key = ensurePictureLoaded(scene, picture, onReady);
+  if (!key) return null;
+  const fit = coverCropFavoringBeats(crop, rect);
+  return scene.add
+    .image(rect.x - fit.cropX * fit.scale, rect.y - fit.cropY * fit.scale, key)
+    .setOrigin(0, 0)
+    .setScale(fit.scale)
+    .setCrop(fit.cropX, fit.cropY, fit.cropWidth, fit.cropHeight);
+}
 
 export class CampaignBeatOverlay extends Phaser.Scene {
   #data!: CampaignBeatData;
@@ -61,6 +124,11 @@ export class CampaignBeatOverlay extends Phaser.Scene {
     const story = issueStoryFor(this.#data.campaignId, this.#data.nodeId);
     const line = story?.stageLines[this.#data.stage] ?? "";
     const note = story?.stageNotes?.[this.#data.stage];
+    // A page-based box (GMW) points the flip at one panel of its own issue instead of the scenario's plain
+    // villain portrait — detected from the story's own data (`stagePanels`/`pages`), never `campaignId`, so a
+    // box with no pages (MC10) is untouched and a later page-based box picks this up for free.
+    const pages = storyFor(this.#data.campaignId)?.pages;
+    const panelCrop = stagePanelCropFor(pages, story?.stagePanels?.[this.#data.stage]);
 
     // Paper ground with faint comic panel frames — the same dotted-and-dashed comic-page texture the opener uses,
     // kept purely decorative here since there is nothing tap-through about this screen.
@@ -144,8 +212,9 @@ export class CampaignBeatOverlay extends Phaser.Scene {
     const splashGroup = phone ? null : this.add.container(cx, cy).setAngle(-1.5);
 
     const splashBg = this.add.rectangle(local.x, local.y, local.width, local.height, surface.ink.hex).setOrigin(0, 0);
-    const picture = villainPicture(this.#data.scenarioId);
-    const splashImage = drawPicture(this, picture, local, () => this.#draw(), { focusY: 0.3 });
+    const splashImage = panelCrop
+      ? drawStagePanelPicture(this, this.#data.campaignId, panelCrop, local, () => this.#draw())
+      : drawPicture(this, villainPicture(this.#data.scenarioId), local, () => this.#draw(), { focusY: 0.3 });
     const border = this.add.graphics();
     border.lineStyle(4, surface.ink.hex, 1).strokeRect(local.x, local.y, local.width, local.height);
 
@@ -178,8 +247,11 @@ export class CampaignBeatOverlay extends Phaser.Scene {
       bubbleBottom = bubbleRect.y + bubbleRect.height;
     }
 
-    // The small ink note: a rule reminder plus "TAP ANYWHERE" — under the splash on wide, under the bubble on phone.
-    const noteText = note ? `${note} · TAP ANYWHERE` : "TAP ANYWHERE";
+    // The small ink note: "PANEL FROM PAGE N" for a page-based panel (crediting where it's lifted from, the way
+    // The Run's own bookmark line does), otherwise a rule reminder — either way plus "TAP ANYWHERE". Under the
+    // splash on wide, under the bubble on phone.
+    const noteLead = panelCrop ? `PANEL FROM PAGE ${panelCrop.pageNumber}` : note;
+    const noteText = noteLead ? `${noteLead} · TAP ANYWHERE` : "TAP ANYWHERE";
     const noteY = phone ? bubbleBottom + 10 : splashRect.y + splashRect.height + 8;
     const noteX = phone ? 0 : splashRect.x;
     const noteLabel = this.add

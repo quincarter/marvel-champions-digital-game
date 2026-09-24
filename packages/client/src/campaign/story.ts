@@ -120,6 +120,13 @@ export interface IssueStory {
   readonly stageLines: Readonly<Record<number, string>>;
   /** A short rule reminder shown under the stage-flip splash ("Piercing while armed"). */
   readonly stageNotes?: Readonly<Record<number, string>>;
+  /**
+   * For a page-based box (`CampaignStory.pages` is set): the stage-flip splash (C04) shows this panel of that
+   * issue's own page instead of the scenario's villain art, by stage number — the box's guided read already drew
+   * this beat once, so the flip reuses the panel that fits rather than falling back to a plain portrait. A stage
+   * with no entry here (or a box with no `pages`) keeps the plain villain-picture splash.
+   */
+  readonly stagePanels?: Readonly<Record<number, ComicBeatRef>>;
   /** The Briefing's opening line, spoken by a roster hero where possible. */
   readonly briefing: StoryLine;
   /** Who hands out this issue's rewards on a win (C05/C06). */

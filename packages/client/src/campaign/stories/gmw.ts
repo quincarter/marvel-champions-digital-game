@@ -266,6 +266,9 @@ export const GMW_STORY: CampaignStory = {
         { page: "01-badoon", beatIndex: 2 },
       ],
       stageLines: { 2: "Terrestrial invasion. You cannot stop what is already landed." },
+      // The fight breaking out (page 1's bottom strip, "KRA-KOOM!") — the page has no Badoon speaking panel, so
+      // this is the closest fit for "already landed": the invasion is already on the Milano's deck.
+      stagePanels: { 2: { page: "01-badoon", beatIndex: 2 } },
       briefing: {
         speaker: ROCKET,
         text: "Badoon on the hull and a debt collector on the comms. Let's make this quick.",
@@ -305,6 +308,8 @@ export const GMW_STORY: CampaignStory = {
         { page: "02-museum", beatIndex: 1 },
       ],
       stageLines: { 2: "Alert every hall. Nothing leaves my collection." },
+      // The Collector's screaming hologram (page 2's right inset) — the page's own villain-speaking panel.
+      stagePanels: { 2: { page: "02-museum", beatIndex: 2 } },
       briefing: {
         speaker: GROOT,
         text: "I am Groot.",
@@ -348,6 +353,9 @@ export const GMW_STORY: CampaignStory = {
         { page: "02-museum", beatIndex: 3 },
       ],
       stageLines: { 2: "The roof is not an exit. It is a dead end with a view." },
+      // Same Collector hologram panel as the prior issue — this scenario shares the museum page and its own
+      // beats have no second villain-speaking panel of the Collector to draw on instead.
+      stagePanels: { 2: { page: "02-museum", beatIndex: 2 } },
       briefing: {
         speaker: ROCKET,
         text: "Roof's the only way out and it's got a Collector-shaped problem on it. Let's go.",
@@ -389,6 +397,8 @@ export const GMW_STORY: CampaignStory = {
         { page: "03-nebula", beatIndex: 3 },
       ],
       stageLines: { 2: "You cannot catch what is already gone." },
+      // Nebula's own line in her throne room (page 3's left inset) — the page's only panel where she speaks.
+      stagePanels: { 2: { page: "03-nebula", beatIndex: 1 } },
       briefing: {
         speaker: GAMORA,
         text: "Nebula's got a head start and someone waiting on the other end. We close the gap now.",
@@ -432,6 +442,8 @@ export const GMW_STORY: CampaignStory = {
         { page: "05-ronan", beatIndex: 4 },
       ],
       stageLines: { 2: "Justice is not negotiated. It is delivered." },
+      // Ronan's own close-up (page 5's bottom-right inset) — the page's villain-speaking panel.
+      stagePanels: { 2: { page: "05-ronan", beatIndex: 4 } },
       briefing: {
         speaker: GROOT,
         text: "I am Groot.",
