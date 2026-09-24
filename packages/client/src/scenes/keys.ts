@@ -52,6 +52,8 @@ export const SCENES = {
    * Title too (`scenes/settings.ts`'s own doc comment is that button's entry point).
    */
   settings: "SettingsOverlay",
+  /** Settings ▸ Unlocks (`scenes/unlocks.ts`): unlock everything, or one hero at a time. Launched over Settings. */
+  unlocks: "UnlocksOverlay",
   /** C04: a villain's stage flip told as a comic splash, launched over the Board in a campaign game. */
   campaignBeat: "CampaignBeatOverlay",
   /** Background soundtrack controller running across screen transitions. */

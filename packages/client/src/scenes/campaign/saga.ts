@@ -42,6 +42,7 @@ import type { Rect } from "../../view/layout.js";
 import { ListScroll } from "../../view/list-scroll.js";
 import { FocusRoute, type FocusStop } from "../focus-route.js";
 import { SCENES } from "../keys.js";
+import { refreshUnlocks, unlocks } from "../../progression/progression.js";
 import type { CampaignSagaData } from "./routes.js";
 
 const identityNameOf = (id: string): string => CARDS_BY_ID.get(id)?.name ?? id;
@@ -85,9 +86,14 @@ export class CampaignSagaScene extends Phaser.Scene {
   }
 
   async #load(): Promise<void> {
-    const summaries = await campaignService().storage.list();
+    const [summaries] = await Promise.all([campaignService().storage.list(), refreshUnlocks().catch(() => false)]);
     if (!this.sys.isActive()) return;
-    this.#rows = campaignSagaRows(summaries, { identityNameOf });
+    const unlocked = unlocks();
+    this.#rows = campaignSagaRows(summaries, {
+      identityNameOf,
+      waveLockOf: (campaignId) => unlocked.campaignLock(campaignId),
+      everythingUnlocked: unlocked.everything,
+    });
     this.#featured = defaultFeaturedVolume(this.#rows);
     this.#rebuild();
   }
@@ -201,7 +207,7 @@ export class CampaignSagaScene extends Phaser.Scene {
         return "Open";
       case "sealed":
       default:
-        return row.lockReason ?? "Sealed";
+        return row.unlocked && !row.hasDefinition ? (row.lockReason ?? "Sealed") : "Sealed";
     }
   }
 
@@ -532,9 +538,12 @@ export class CampaignSagaScene extends Phaser.Scene {
         return {
           status: "Sealed",
           right: "",
-          sub: row.lockReason
-            ? `This build doesn't ship Vol. ${n} yet.`
-            : `Win Vol. ${n - 1} on Standard to open it. Its villains stay hidden until then.`,
+          sub:
+            row.unlocked && !row.hasDefinition
+              ? `This build doesn't ship Vol. ${n} yet.`
+              : row.lockReason
+                ? `${row.lockReason}. Or open everything in Settings ▸ Unlocks.`
+                : `Win Vol. ${n - 1} on Standard to open it. Its villains stay hidden until then.`,
           hasPips: false,
           hasAlt: false,
           alt: [],

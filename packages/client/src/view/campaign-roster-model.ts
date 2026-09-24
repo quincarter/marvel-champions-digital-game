@@ -72,6 +72,8 @@ export function rosterDeckOptions(
   seatNumber: number,
   savedDecks: readonly Deck[],
   poolVersion: string,
+  /** Why a hero isn't unlocked yet (`Unlocks.heroLock`), or null. Default: every hero is open. */
+  heroLockOf: (identityCardId: string) => string | null = () => null,
 ): readonly RosterDeckOption[] {
   const usedElsewhere = new Map<string, number>();
   seats.forEach((deck, index) => {
@@ -80,10 +82,11 @@ export function rosterDeckOptions(
   });
   return [...preconDecks(poolVersion), ...savedDecks].map((deck) => {
     const seat = usedElsewhere.get(deck.identityCardId as string);
+    const lock = heroLockOf(deck.identityCardId as string);
     return {
       deck,
-      blocked: seat !== undefined,
-      blockedReason: seat !== undefined ? `Already seated at #${seat}` : null,
+      blocked: seat !== undefined || lock !== null,
+      blockedReason: seat !== undefined ? `Already seated at #${seat}` : lock,
     };
   });
 }

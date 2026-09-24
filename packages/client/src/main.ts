@@ -37,6 +37,7 @@ import { DeckCheckScene } from "./scenes/deck-check.js";
 import { PauseOverlay } from "./scenes/pause.js";
 import { RulesOverlay } from "./scenes/rules.js";
 import { SettingsOverlay } from "./scenes/settings.js";
+import { UnlocksOverlay } from "./scenes/unlocks.js";
 import { CampaignSagaScene } from "./scenes/campaign/saga.js";
 import { CampaignCoverScene } from "./scenes/campaign/cover.js";
 import { CampaignRosterScene } from "./scenes/campaign/roster.js";
@@ -118,6 +119,7 @@ const game = new Phaser.Game({
     PauseOverlay,
     RulesOverlay,
     SettingsOverlay,
+    UnlocksOverlay,
     CampaignBeatOverlay,
     MusicScene,
   ],

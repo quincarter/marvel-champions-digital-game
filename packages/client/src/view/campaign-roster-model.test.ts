@@ -73,3 +73,17 @@ describe("rosterDeckOptions", () => {
     expect(options.length).toBe(precons.length);
   });
 });
+
+describe("rosterDeckOptions with progression", () => {
+  test("a hero the player hasn't unlocked is listed, blocked, with what opens it", () => {
+    const seats = preconRosterOf(TRORS_STORY.castIdentityIds as readonly CardId[], POOL_VERSION);
+    const options = rosterDeckOptions(seats, 3, [], POOL_VERSION, (id) =>
+      id === "03001a" ? "Beat Rhino to unlock Wave 1" : null,
+    );
+    const cap = options.find((o) => o.deck.identityCardId === "03001a")!;
+    expect(cap).toMatchObject({ blocked: true, blockedReason: "Beat Rhino to unlock Wave 1" });
+    expect(options.find((o) => o.deck.identityCardId === "01001a")).toMatchObject({ blocked: false });
+    // Already seated wins over a lock: that is the reason the player can act on here.
+    expect(options.find((o) => o.deck.identityCardId === "04001a")?.blockedReason).toBe("Already seated at #1");
+  });
+});

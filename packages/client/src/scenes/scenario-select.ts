@@ -48,6 +48,7 @@ import { SCENES } from "./keys.js";
 import type { SeatsData } from "./seats.js";
 import { destroyChildren } from "../ui/destroy-children.js";
 import { fadeScreenIn, goToScreen } from "../ui/transitions.js";
+import { refreshUnlocks, unlocks } from "../progression/progression.js";
 
 export interface ScenarioSelectData {
   readonly draft: SetupDraft;
@@ -128,6 +129,9 @@ export class ScenarioSelectScene extends Phaser.Scene {
     });
     this.#rebuild();
     fadeScreenIn(this);
+    void refreshUnlocks().then((changed) => {
+      if (changed && this.sys.isActive()) this.#rebuild();
+    });
     void appSession()
       .store.listSaves()
       .then((saves) => {
@@ -366,29 +370,35 @@ export class ScenarioSelectScene extends Phaser.Scene {
     // the draft's current difficulty, dim otherwise), the played record, and the CTA pinned at the foot.
     this.#drawSidePanel(layout, detail, detailTextWidth);
 
+    const lock = unlocks().scenarioLock(currentScenario);
     const next = (): void => {
+      if (lock) return;
       this.scale.off("resize", this.#rebuild, this);
       goToScreen(this, SCENES.seats, { draft: this.#draft } satisfies SeatsData);
     };
     this.#buttons.push(
       new McButton(this, {
         kind: "primary",
-        label: "Choose heroes ▸",
+        label: lock ? "Locked" : "Choose heroes ▸",
         type: typeRole.barTitle,
         rect: layout.next,
+        enabled: lock === null,
+        ...(lock ? { reason: lock } : {}),
         onClick: next,
       }),
     );
     this.#stops.set("next", { rect: layout.next, activate: next });
-    label(
+    // Locked: the footer says what opens it, since the CTA itself only has room for "Locked".
+    const footer = label(
       this,
       layout.footer.x,
       layout.footer.y,
-      "Step 1 of 4 · scenario",
+      lock ?? "Step 1 of 4 · scenario",
       typeRole.label,
       surface.paper.hex,
-      ink.label,
+      lock ? 1 : ink.label,
     );
+    if (lock) fitText(footer, layout.footer.width, typeRole.label.size);
 
     this.#route?.set(
       scenarioSelectFocusOrder({
@@ -512,14 +522,16 @@ export class ScenarioSelectScene extends Phaser.Scene {
     );
     const subtitle = shelfSubtitleOf(cardDetail, sharesVillainName);
     const selected = this.#draft.scenarioId === (s.id as string);
+    // A locked scenario stays selectable, so its stages can be read ahead of time; only "Choose heroes" refuses it.
+    const lock = unlocks().scenarioLock(s);
     return renderShelfCard(this, rect, {
       artKey,
       titleRole: typeRole.villainTitle,
       title: cardDetail.villainName,
       subtitle,
-      blockedBy: null,
-      warning: null,
-      tag: selected ? "SELECTED" : null,
+      blockedBy: lock,
+      warning: lock,
+      tag: lock ? "LOCKED" : selected ? "SELECTED" : null,
       selected,
     });
   }

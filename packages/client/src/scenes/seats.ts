@@ -100,6 +100,7 @@ import type { ScenarioSelectData } from "./scenario-select.js";
 import type { TableSetupData } from "./table-setup.js";
 import { destroyChildren } from "../ui/destroy-children.js";
 import { fadeScreenIn, goToScreen } from "../ui/transitions.js";
+import { refreshUnlocks, unlocks } from "../progression/progression.js";
 
 export interface SeatsData {
   readonly draft: SetupDraft;
@@ -216,6 +217,9 @@ export class SeatsScene extends Phaser.Scene {
     this.#savedDecks = this.#seedDecks;
     this.#rebuild();
     fadeScreenIn(this);
+    void refreshUnlocks().then((changed) => {
+      if (changed && this.sys.isActive()) this.#rebuild();
+    });
     void deckStorage()
       .list()
       .then((decks) => {
@@ -247,7 +251,23 @@ export class SeatsScene extends Phaser.Scene {
    */
   #seatOptionsExcludingActive(deckOptions: readonly DeckOption[]): readonly SeatOption[] {
     const seatsExcludingActive = this.#draft.seats.filter((_, i) => i !== this.#draft.activeSeatIndex);
-    return seatOptions(deckOptions, seatsExcludingActive, CARDS_BY_ID, MAX_SEATS);
+    // A hero the player hasn't unlocked is shown, dimmed, with what opens it — never hidden.
+    return seatOptions(deckOptions, seatsExcludingActive, CARDS_BY_ID, MAX_SEATS).map((option) => {
+      if (option.seated) return option;
+      const deck = deckOptions.find((candidate) => (candidate.deck.id as string) === option.deckId);
+      const lock = deck ? unlocks().heroLock(deck.deck.identityCardId as string) : null;
+      return lock ? { ...option, blockedBy: lock } : option;
+    });
+  }
+
+  /** Why the table can't be dealt yet: a seated hero that has since been locked again (Settings ▸ Unlocks). */
+  #tableLock(deckOptions: readonly DeckOption[]): string | null {
+    for (const deckId of this.#draft.seats) {
+      const deck = deckOptions.find((candidate) => (candidate.deck.id as string) === deckId);
+      const lock = deck ? unlocks().heroLock(deck.deck.identityCardId as string) : null;
+      if (lock) return `${deck!.identityName ?? deck!.deck.name}: ${lock}`;
+    }
+    return null;
   }
 
   #rebuild(): void {
@@ -549,16 +569,22 @@ export class SeatsScene extends Phaser.Scene {
     // The two actions at the panel's own foot: the primary "Play N heroes ▸" on to Table setup, and a quiet
     // "Deck check ▸" for the active seat's own deck. D03 draws them the other way round; the owner's call
     // (2026-09-18) is that the way forward is the red one and looking at a deck is the side trip.
+    const tableLock = this.#tableLock(deckOptions);
     const play = (): void => {
+      if (tableLock) return;
       this.scale.off("resize", this.#rebuild, this);
       goToScreen(this, SCENES.setup, { draft: this.#draft } satisfies TableSetupData);
     };
     this.#buttons.push(
       new McButton(this, {
         kind: "primary",
-        label: `Play ${this.#draft.seats.length} hero${this.#draft.seats.length === 1 ? "" : "es"} ▸`,
+        label: tableLock
+          ? "Hero locked"
+          : `Play ${this.#draft.seats.length} hero${this.#draft.seats.length === 1 ? "" : "es"} ▸`,
         type: typeRole.barTitle,
         rect: layout.play,
+        enabled: tableLock === null,
+        ...(tableLock ? { reason: tableLock } : {}),
         onClick: play,
       }),
     );
@@ -945,13 +971,16 @@ export class SeatsScene extends Phaser.Scene {
     // full sentence ("Captain Marvel is already at the table"), which used to truncate in the subtitle line — the
     // full reason is still one Inspect away (`#inspectOption`'s own `note`).
     const blockedBy = seatedElsewhere ? null : (entry?.blockedBy ?? null);
+    const lock = seatedElsewhere ? null : unlocks().heroLock(option.deck.identityCardId as string);
     const tag = entry?.isActiveSeat
       ? `SEAT ${this.#draft.activeSeatIndex + 1}`
       : seatedElsewhere
         ? `SEAT ${entry!.seatIndex! + 1}`
-        : blockedBy
-          ? "AT THE TABLE"
-          : null;
+        : lock
+          ? "LOCKED"
+          : blockedBy
+            ? "AT THE TABLE"
+            : null;
     return renderShelfCard(this, rect, {
       artKey,
       titleRole: typeRole.barTitle,
@@ -959,7 +988,7 @@ export class SeatsScene extends Phaser.Scene {
       subtitle: `${sourceText} · ${option.identityName ?? "unknown identity"}`,
       stamps: aspectStampsOf(option.deck.aspects),
       blockedBy,
-      warning: seatedElsewhere ? null : (entry?.warning ?? null),
+      warning: seatedElsewhere ? null : (lock ?? entry?.warning ?? null),
       tag,
       selected: entry?.isActiveSeat ?? false,
     });

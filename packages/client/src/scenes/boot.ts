@@ -29,6 +29,7 @@ import type { ScenarioSelectData } from "./scenario-select.js";
 import type { SeatsData } from "./seats.js";
 import type { TableSetupData } from "./table-setup.js";
 import { goToScreen } from "../ui/transitions.js";
+import { refreshUnlocks } from "../progression/progression.js";
 
 /**
  * Dev-only screenshot entry point: `?screen=…` jumps straight past Title, for
@@ -290,7 +291,8 @@ export class BootScene extends Phaser.Scene {
 
     this.scene.launch(SCENES.music);
 
-    void this.#awaitFonts()
+    // Progress is read before Title so no screen draws a hero or scenario locked that the player has earned.
+    void Promise.all([this.#awaitFonts(), refreshUnlocks().catch(() => false)])
       .then(() => devScreenJump())
       .then((jump) => {
         if (!jump) {
