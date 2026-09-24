@@ -1,0 +1,643 @@
+# Phase 7 working spec: wave 4 (cycle 3)
+
+This is the shared brief for every agent working Phase 7's fourth content wave:
+
+- `card-data-pipeline`, `game-rules-architect`, `ability-scripting-engineer`, `encounter-ai-designer`, `rules-qa-engineer`
+  and `game-client-engineer`.
+- It turns wave 4's scope into schema decisions (§1), per-pack setup needs (§2), and a prioritized list of engine
+  primitives (§3), each with a status.
+- The models are `docs/phase7-wave1.md`, `docs/phase7-wave2.md` and `docs/phase7-wave3.md`, whose §3 primitives are
+  assumed. The definition of done is `docs/wave-definition-of-done.md`: **the box's campaign ships in this wave.** If
+  you change a decision here, update this file in the same change.
+
+**Wave 4** is cycle 3, The Mad Titan's Shadow. RRG 1.8 Appendix VI (p. 71) lists its wave 4 as "The Mad Titan's Shadow
+campaign expansion, the Nebula Hero Pack, the War Machine Hero Pack, the Valkyrie Hero Pack, and the Vision Hero Pack".
+The Hood, a scenario pack with no player cards, is released in the same window. In release order (Hall of Heroes dates;
+`docs/phase7-wave4-sources.md` §1):
+
+| Pack     | Product                       | Released     | State today                                       |
+| -------- | ----------------------------- | ------------ | ------------------------------------------------- |
+| `nebu`   | Nebula hero pack              | Sep 17, 2021 | emitted, data only                                |
+| `mts`    | The Mad Titan's Shadow (MC21) | Oct 29, 2021 | **not emitted** (§1, 26 survey lines)             |
+| `warm`   | War Machine hero pack         | Nov 12, 2021 | emitted, data only                                |
+| `hood`   | The Hood scenario pack        | Nov 26, 2021 | emitted, data only; no scenario record yet (§2.3) |
+| `vision` | Vision hero pack              | Jan 14, 2022 | emitted, data only; **Dense face missing** (§1.2) |
+| `valk`   | Valkyrie hero pack            | Jan 21, 2022 | emitted, data only                                |
+
+- **The brief's order was `mts, nebu, warm, hood, valk, vision`.** By the dates, Nebula precedes the box (its Aug 27 US
+  release slipped to Oct 29) and Vision precedes Valkyrie. Nothing here depends on the order; the box is still first
+  in priority (§3).
+- **The box's content** (MC21 p. 2): Spectrum, Adam Warlock, five scenarios (Ebony Maw, Tower Defense, Thanos, Hela,
+  Loki), modular sets (Black Order, Armies of Titan, Children of Thanos, Infinity Gauntlet, Legions of Hel, Frost
+  Giants, Enchantress) and The Mad Titan's Shadow Campaign set (cards 180–193).
+- **The Hood** has no "Ghost Rider" set. Its sets are The Hood, nine modulars (Beasty Boys, Brothers Grimm, Crossfire's
+  Crew, Mister Hyde, Ransacked Armory, Sinister Syndicate, State of Emergency, Streets of Mayhem, Wrecking Crew) and the
+  Standard II / Expert II difficulty sets.
+
+## 0. Sources
+
+Authorities, in the order they win (RRG 1.8 "The Golden Rules", p. 4: card text and scenario rules beat the Rules
+Reference; FFG rulings clarify both):
+
+1. **Card text and product rules.** The Mad Titan's Shadow rulebook (MC21) is
+   `docs/campaign-modes/mc21_the_mad_titans_shadow_rulebook-compressed.pdf`, converted page by page in
+   `docs/campaign-modes/markdown/mc21_the_mad_titans_shadow.md`. Cited as "MC21 p. N" by the PDF page the conversion
+   labels (wave 3 used the same convention). Its "Swapping Loki" section on p. 24 is lost to a graphic callout in the
+   conversion; its rules clarification on the same page survives and is quoted in §3.7.
+   - **Not in the repo:** the Nebula, War Machine, Valkyrie, Vision and The Hood inserts (linked from their Hall of
+     Heroes pages). Each is needed for its precon (§2.1) and The Hood's for Standard II / Expert II (§4 Q5).
+2. **FFG rulings, Dec 17, 2025 to Aug 13, 2026**, in `marvel-champions-rulings-post-rrg-1-7.md`, cited by date heading
+   (grep with the `**` markup stripped). The ones that touch cycle 3, each checked: Dec 17, 2025 (1) #3 (Beguiled is a
+   status change), Dec 17, 2025 (4) #2 (Odin removed from the game), Jan 17, 2026 (4) #2 (two Gauntlet Guns, two ammo
+   counters), Jan 17, 2026 (5) (Cosmic Entity events with several encounter decks), Jan 26, 2026 (4) #5 and #7 (a Drone's
+   facedown side; Valkyrie hero vs. ally), Feb 28, 2026 (3) (swapping Lokis moves permanent attachments), Feb 28, 2026
+   (8) #1 (Infinity Stones into The Collection), Mar 19, 2026 (4) (the Valkyrie ally in a Valkyrie deck), Jun 25, 2026
+   (4) #1 and #5 (Old Rivals; Odin attached is not friendly), Aug 3, 2026 (4) #1 (Odin attached takes no attachments).
+3. **RRG 1.8 (Jul 2026)**, `mc_rulesreference_v18_compressed.pdf`, cited by printed page (PDF page index + 1, checked
+   with `pypdf`). The text is grepped in `mc_rulesreference_v18_compressed.md`, which has no page markers. Cycle 3's FAQ
+   is on p. 62 and its errata on p. 67. New or first-used entries: "Form, Change Form" (p. 21), "Alliance" (p. 6),
+   "Steady" (p. 41), "'Swap'" (p. 42), "Flip" (p. 20), "Double-Sided Card" (p. 17), "Standard Set" / "Expert Set"
+   (pp. 40, 19), "Villain Defeat" (p. 47).
+4. **`docs/phase7-wave4-sources.md`**, the tracker's index of inserts, errata, taboo and rulings, verified and corrected
+   in place by this pass (2026-09-24). Its §4 lists the cycle 3 errata the pipeline applies (§1.13).
+
+`packages/content/raw/marvelcdb/{mts,nebu,warm,hood,valk,vision}.json` point to card text and stats. They are not an
+authority; card images were checked where the raw data and the card disagree (§1.3).
+
+---
+
+## 1. Schema decisions (owner: `game-rules-architect`)
+
+> Status: not started. Lands in `packages/content/src/schema/**` with fixtures in
+> `packages/content/src/schema/wave4.test.ts`.
+
+**The survey** (`scripts/marvelcdb/survey.ts --pack mts nebu warm hood valk vision`, 2026-09-24): `nebu`, `warm`, `hood`,
+`valk` and `vision` normalize cleanly; `mts` has 26 lines (dash costs 3, attach rules 6, unlinked records 8, side
+schemes with foreign backs 3, missing art 4, a boost star 1, "not this set's villain" 1). "Clean" is not "right":
+§1.1, §1.2 and §1.8 are data errors in packs that survey clean.
+
+### 1.1 The form keyword: "Energy form." / "Mass form." (`KeywordInstance form`)
+
+RRG 1.8 "Form, Change Form" (p. 21): "Cards with the '[type] form' keyword grant an identity unique forms." MC21 p. 2
+calls them "Additional Forms". So "Energy form." is a keyword with a parameter, not an ability.
+
+- **New `KeywordInstance { name: "form"; formType: string }`**, `formType` lower case: "Energy form." → `"energy"`
+  (Gamma, Photon, Pulsar, `mts` 21002–21004), "Mass form." → `"mass"` (Intangible/Dense, `vision` 26002; Solid/Phased,
+  `mut_gen` 32031a/b), "Suit form." → `"suit"` (Assault/Stealth, `aos` 50035a/b).
+- **Parser (pipeline):** a leading `"<Word> form."` sentence becomes the keyword. Today it becomes the first
+  "-constant" ref (`26002.intangible-constant`), which no script can fill.
+
+### 1.2 Vision's Dense face is dropped (data bug)
+
+`vision` 26002 is one double-sided upgrade: raw `double_sided: true`, `back_name: "Dense"`, `back_text: "Mass form.
+Permanent. While in hero form, Vision gets +2 ATK and +2 DEF. Response: After you change to this mass form, draw 1
+card."`, `backimagesrc`. The normalizer reads `back_*` only for encounter cards, so the emitted card has no `flipSide`
+and Vision can never be Dense. It is the only emitted player card with a `back_text` (checked across every raw pack).
+**Pipeline:** emit `flipSide` from the `back_*` fields for player cards (`PlayerCardCommon.flipSide` exists, wave 2
+§1.5), with `form` keywords on both faces (§1.1).
+
+### 1.3 Spectrum's energy forms print a dash cost
+
+Gamma, Photon and Pulsar (21002–21004) have no raw `cost`. The printed card (Gamma, `marvelcdb.com/bundles/cards/21002.png`,
+viewed in a scratch folder and not stored) shows "—". So `cost: 0, specialCost: "dash"` (wave 2 §1.3; RRG 1.8 "Dash
+(Value)", p. 15: it "cannot be played and can only enter play through other means"). The same card prints "After you
+change to this **energy** form", where raw reads "this form": a curation correction for all three.
+
+### 1.4 Adam Warlock's deckbuilding (`IdentityDeckbuilding.maxCopiesPerTitle`)
+
+Adam Warlock (21031b), Avatar of Life: "During deck-building, your deck must include an equal number of cards from all 4
+aspects. You cannot include more than 1 copy of any non-Adam Warlock card." MC21 p. 3: "he cannot include more than one
+copy of any aspect card in his deck" and "his pre-built deck includes many powerful cards that are unique or 'Max 1
+per deck'" (the precon includes a basic card, Martinex, once).
+
+- The first sentence is the existing `aspectCount: 4` and `equalCardsPerAspect: true` (the Spider-Woman fields).
+- **New `IdentityDeckbuilding.maxCopiesPerTitle?: number`**: every card outside the identity's own set is limited to
+  that many copies by title, aspect and basic alike. `validateDeck` reports `deck_limit` past it.
+- **Data:** 21031a gets `{ aspectCount: 4, equalCardsPerAspect: true, maxCopiesPerTitle: 1 }`.
+
+### 1.5 A main scheme that belongs to a villain: `MainSchemeStage.villainOf`
+
+Tower Defense's two main schemes print "Proxima Midnight's Scheme." (21098b) and "Corvus Glaive's Scheme." (21099b).
+MC21 p. 10: "Stage 1B is identified as Proxima Midnight's scheme, and stage 2B is identified as Corvus Glaive's
+scheme. When either of the two villains schemes, place the threat on their matching main scheme card only." The
+main-scheme sibling of `SideSchemeCard.signatureOf` ("Wrecker's Side Scheme.").
+
+- **New `MainSchemeStage.villainOf?: string`**, the villain's title. The sentence needs no ability ref.
+
+### 1.6 Two villains sharing one encounter deck: `MultipleVillains.encounterDecks: "shared"`
+
+The Wrecking Crew (`MultipleVillains`, wave 1 §1.1) gives each villain its own encounter deck. Tower Defense has one
+("Encounter Deck: Tower Defense, Armies of Titan, and Standard sets", MC21 p. 10), two villains, one active villain.
+
+- **`MultipleVillains.encounterDecks` gains `"shared"`**; with it `ScenarioVillain.encounterSetIds` may be empty and the
+  scenario's own `encounterSetIds` build the one deck. `activation: "activeVillainOnly"` and `winCondition:
+"allVillainsDefeated"` are unchanged. Which villain is active is Focused Defense's rule (§3.2), not data.
+- **Parser:** "Attach to Corvus Glaive." (21104) failed because the set has two villains; it is `AttachmentHost
+{ kind: "namedVillain", name }`, which exists.
+
+### 1.7 A card whose faces are two separately emitted cards: `BaseCard.otherFaceId`
+
+Five campaign side schemes print "When Defeated: … Flip this card over." with a back of another card: Secure the
+Landing Pad → Cosmo (ally, 21180a/b), Save the Shawarma Place → Black Swan (minion, 21182a/b), Open the Dungeons →
+Jormungand (attachment, 21189a/b); Hack Sanctuary's Computer → Defensive Protocols and Find the Norn Stones → Retrieve
+Odin's Armor (side schemes, 21184a/b, 21186a/b). `SideSchemeCard` has no `flipSide`, and a `CardFlipSide` cannot carry
+another card type's stats. Wave 3 §1.4 already emits a side scheme's two faces as two cards (16178a/b), with no link.
+
+- **New `BaseCard.otherFaceId?: CardId`**, set on both faces, naming the other. Emitting each face with its own type
+  keeps every face's schema exact (Cosmo is a real `AllyCard` with `specificTo: campaign`).
+- The engine flips such a card by replacing the instance's card with the other face (§3.10): RRG 1.8 "Flip" (p. 20),
+  "A different card type from the previous face, all attached cards, tucked cards, status cards, and tokens are
+  discarded from the card." A double-sided card never goes to a discard pile (RRG 1.8 "Double-Sided Card", p. 17).
+- **Pipeline:** emit `otherFaceId` on 21180a/b, 21182a/b, 21184a/b, 21186a/b, 21189a/b, and back-fill wave 3's 16178a/b–
+  16182a/b (their faces are chosen by mode, not flipped, but they are one card).
+
+### 1.8 "Standard Mode Only" / "Expert Mode Only" faces: `modeOnly`
+
+RRG 1.8 "Double-Sided Card" (p. 17): "If a double-sided card has 'Standard Mode Only' and 'Expert Mode Only' sides, it
+is put into play with the 'Expert Mode Only' side faceup if the players are playing expert mode." Formidable Foe (`hood`
+24049a/b) is emitted with the sentence as ability refs (`24049a.formidable-foe-constant`), so the engine cannot read it.
+
+- **New `modeOnly?: "standard" | "expert"`** on `EncounterCardCommon` and `CardFlipSide`. The sentence needs no ref.
+- Seventeen raw cards print it: `hood` 24049a/b, `gmw` 16178a/b–16182a/b (wave 3 §1.4's split side schemes, which may
+  carry it too), `sm` 27174a/b, `next_evol` 40081a/b.
+
+### 1.9 Standard II and Expert II: `EncounterSet.classification`
+
+RRG 1.8 "Standard Set" (p. 40): "The standard set is not a modular encounter set and cannot be selected (by the players
+or randomly) when a scenario requires players to choose a modular encounter set", and "Cards in the 'Standard'
+classification are any cards that have the word 'Standard' printed by the bottom of the card". "Expert Set" (p. 19)
+likewise. Standard II and Expert II print "Standard II" / "Expert II", so they are that classification.
+
+- **New `EncounterSet.classification?: "standard" | "expert"`**: such a set is never a modular choice
+  (`validateScenario`, and The Hood's "Choose 7 modular encounter sets"). Emit it on `standard_ii`, `expert_ii`, and on
+  Core's `standard` and `expert` for uniformity.
+- Whether a game uses Standard II instead of or beside Standard is a setup choice the insert states (§4 Q5); the
+  scenario's `standardEncounterSetIds` is unchanged.
+
+### 1.10 A modular set that brings its own deck: `EncounterSet.separateDecks`
+
+MC21 p. 16: "When using the Infinity Gauntlet set in a scenario, attach the Infinity Gauntlet attachment card to the
+villain during setup. If there is more than one villain (or no villain) in play at the start of the game, The Infinity
+Gauntlet set cannot be used. After attaching the Infinity Gauntlet to the villain, shuffle the six Infinity Stone
+environment cards together and set them aside, facedown. This is the 'Infinity Stone deck.' The Infinity Stone deck
+has its own discard pile. […] If the Infinity Stone deck is ever empty, shuffle the Infinity Stone deck discard pile
+back into the Infinity Stone deck. There is no built-in penalty for doing this." The set "may be used in other
+scenarios", so the deck belongs to the set, not to Thanos's or Loki's `Scenario`.
+
+- **New `EncounterSet.separateDecks?: readonly ScenarioSeparateDeck[]`**, built at setup whenever the set is in the
+  game. `ScenarioSeparateDeck.contents` gains `trait?: Trait` (Infinity Stone) beside `cardType`, whose union widens to
+  `"side_scheme" | "environment"`.
+- **New `EncounterSet.singleVillainOnly?: true`**: `validateScenario` and setup refuse the set with `multipleVillains`.
+- Infinity Gauntlet set: `separateDecks: [{ name: "Infinity Stone", contents: { encounterSetIds: [infinity_gauntlet],
+trait: INFINITY_STONE }, discardPile: "own", whenEmpty: "reshuffleDiscardWithoutPenalty" }]`.
+
+### 1.11 Loki: a random starting villain and a victory count
+
+MC21 p. 24: "choose one Loki villain card at random, reveal it and put it into play. Set the remaining four versions of
+Loki aside", and "The number of different versions of Loki that must be defeated is determined by the players before
+the game begins. […] Rookie Mode – One version of Loki; Standard Mode – Two versions; Expert Mode – Three versions;
+Heroic Mode – Four versions." 21165b: "If the number of Lokis in the victory display is equal to the victory condition,
+the players win the game."
+
+- **New `Scenario.startingVillain?: "random"`**: the villain put into play at setup is chosen with the game's seeded
+  RNG from `villainCardId` and `setAsideVillainCardIds`; the rest are set aside. Each Loki is its own one-stage
+  `VillainCard` (five titles "Loki", the Kang shape).
+- **New `Scenario.victoryCondition?: { standard: number; expert: number; skirmish?: number; heroic?: number }`**,
+  read by the new `ValueSpec victoryCondition` (§3.7). Loki: `{ skirmish: 1, standard: 2, expert: 3, heroic: 4 }`.
+- `victory: "cardAbility"`: defeating a final villain stage does not win; the stage's `stateCheck` does.
+
+### 1.12 The Hood's set-aside modular sets: `Scenario.setAsideModularSetCount`
+
+Making Connections 1A (24004a): "Choose 7 modular encounter sets and set them aside (you may choose randomly). Choose 1
+of those sets at random, then shuffle it into the encounter deck." Mojo's Wheel of Genres reads "set-aside modular
+encounter sets" too (`mojo` 39026a/b).
+
+- **New `Scenario.setAsideModularSetCount?: number`**: that many modular sets are chosen at setup and put in
+  `encounterSetAside`, grouped by set. `modularSetCount` is 0 for The Hood; the 1A `Setup:` shuffles one in (§3.18).
+
+### 1.13 Other data notes for the pipeline
+
+- **Errata to apply** (RRG 1.8 p. 67): Sanctuary (21116), Infinity Gauntlet (21129; raw lacks "Attach to the villain",
+  and its "Setup [star]" is a formatting break), Eros (22011), Cosmo (22020; raw already current), Old Rivals (22031),
+  James Rhodes (23001b), Aragorn (25007), Shieldmaiden (25011; Defense trait), Beguiled (25031; Condition trait),
+  Machine Man (26022). The rulebook errata (MC21 p. 10) is scenario rules, applied in §3.2.
+- **Attach rules the parser missed:** Restrained 21083 "Attach to a friendly character with the highest ATK and exhaust
+  it." → `superlative { among: "friendlyCharacter", order: "highest", measure: "atk" }` plus the "exhaust it" ref;
+  Focused Defense 21101 → `mainScheme` (put into play by 2A); Fallen Warrior 21153 → `ally` (put into play by its own
+  When Revealed); Frozen 21158 prints "Attack to your identity" in raw, a typo for "Attach" (check the image).
+- **Rain Fire 21109:** raw `boost_star: false` but its text has a Boost ability; confirm the star from the image.
+- **Encounter allies.** Odin (21139a/b; Captive / King faces of one ally, `flipSide`) is a scenario-specific ally like
+  Taskmaster's captives (`specificTo: { kind: "scenario" }`). Cosmo 21180b and the four Captive allies 21190–21193 are
+  `specificTo: { kind: "campaign" }`.
+- **Campaign cards (180–193)** are emitted with the box: `specificTo: campaign` on player cards, `campaignSpecific` on
+  "The Mad Titan's Shadow Campaign" set. MC21 p. 4: "Cards 180–193 … cannot be included in any deck unless playing The
+  Mad Titan's Shadow campaign and the players were directed to add them".
+- **Cycle id.** `nebu`, `warm`, `hood`, `valk` and `vision` use `cycle: { id: "cycle4", name: "Cycle 4", order: 4 }`,
+  following MarvelCDB's `pack_wave: 4`. `mts` joins them; the name may become "The Mad Titan's Shadow" for all six, as
+  `stld` did for cycle 2 (a label, not a disagreement with FFG's numbering).
+
+### 1.14 Keywords
+
+Cycle 3 prints **Alliance** and **Steady** for the first time and introduces the **form** keyword (§1.1); everything
+else is older. MC21 p. 13's "Important Keywords" list is a reminder list, not new keywords
+(`docs/phase7-wave4-sources.md` §2.2).
+
+| Keyword  | Printed forms                                          | Cards                                                        |
+| -------- | ------------------------------------------------------ | ------------------------------------------------------------ |
+| Form     | "Energy form." / "Mass form."                          | 21002–21004; 26002 (both faces)                              |
+| Alliance | "Alliance." (with reminder text on some)               | 23032, 23034, 25033, 25036, 26035 (and 9 later-pack cards)   |
+| Steady   | "The Hood gains … steady"; "Each enemy gains steady"   | 24008, 24049a/b, 24063 (granted; the engine implements it)   |
+| Victory  | "Victory N." on side schemes, minions and **villains** | 21116, 21140–21145, Loki 21160–21164, campaign cards         |
+| Hinder   | "Hinder 1[per_hero]." / "Hinder 2[per_hero]."          | 21110, 21116, 21140–21142, 21166–21169, 22… (all per player) |
+
+---
+
+## 2. Per-pack setup needs, standalone and campaign
+
+RRG 1.8 Appendix II (p. 51) with the wave 1–3 engine. Step 13, "Campaign Setup", is used only in campaign mode.
+
+### 2.1 Hero packs
+
+| Pack     | Identity                              | Obligation                    | Nemesis set (nemesis minion in bold)                                                     | Other setup and legality                                                                                    |
+| -------- | ------------------------------------- | ----------------------------- | ---------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| `mts`    | Spectrum / Monica Rambeau (21001a/b)  | Loss of Control (21026)       | **Radioactive Man** (21027), Reactor Meltdown, Sap Power ×2, Radioactive Blast           | Setup: "Put all 3 energy form upgrades into play, facedown" (§3.1). Precon Spectrum/Leadership (MC21 p. 3). |
+| `mts`    | Adam Warlock (21031a/b)               | Regeneration Cycle (21066)    | **The Magus** (21067), Universal Church of Truth, Zealot of Truth ×2, Cosmic Inquisition | Deckbuilding §1.4. Precon "all four aspects" (MC21 p. 3). Cosmic Entity events (§3.14).                     |
+| `nebu`   | Nebula (22001a/b)                     | Inferiority Complex (22027)   | **Gamora** (22028), Self-Preservation, Lethal Weapon, Old Rivals ×2                      | Precon from the insert (not in repo).                                                                       |
+| `warm`   | War Machine / James Rhodes (23001a/b) | Equipment Malfunction (23028) | **Living Laser** (23029), Deadly Light Show, Laser Strike ×3                             | Ammo counters on the identity. Precon from the insert.                                                      |
+| `vision` | Vision (26001a/b)                     | Corrupted Programming (26028) | **Ultron** (26029), Ultron Unleashed, Ultron Drones, Relentless Android ×2               | Setup: mass form upgrade into play, Intangible side up (§1.2, §3.1). Drones exist (Core Ultron).            |
+| `valk`   | Valkyrie / Brunnhilde (25001a/b)      | Trouble in Otherworld (25028) | **Enchantress** (25029), Powerful Enchantments, Beguiled, Seduced ×2                     | Setup: "Set the Death Glow upgrade aside, out of play" (§3.22).                                             |
+
+- **Same title, different cards:** Gamora the ally (22002) and the nemesis minion (22028, "discard the Gamora ally from
+  play"); the Enchantress minion in `valk` and in `mts`'s Enchantress modular (25029 / 21177); Cosmo (22020, the `stld`
+  reprint) and the campaign Cosmo (21180b); Avengers Tower support (21020) and environment (21100a/b, "The unique rule
+  does not apply to Avengers Tower", MC21 p. 11); Corvus Glaive / Proxima Midnight / Ebony Maw as villains and as
+  Children of Thanos minions.
+- **Precons.** Only the box's two are printed in the repo (MC21 p. 3). The four hero packs' come from their inserts.
+
+### 2.2 The Mad Titan's Shadow scenarios
+
+Villain decks are I–II standard and II–III expert, except Hela (one card per mode, wave 3 §1.1) and Loki (five
+stage-I cards, §1.11).
+
+| Scenario      | Main scheme deck                                          | Encounter sets (required) + modulars                                 | 1A Setup / scenario rules                                                                                                                                                             | Needs (§3)                                  |
+| ------------- | --------------------------------------------------------- | -------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------- |
+| Ebony Maw     | Attack on Knowhere → The Power Stone (2B loses)           | Ebony Maw, Standard; Black Order, Armies of Titan                    | 1B: each player discards from the encounter deck until a Spell and puts it into play in their play area.                                                                              | §3.15, §3.16, §3.20                         |
+| Tower Defense | Under Siege 1 and The Armies of Thanos 2 **both in play** | Tower Defense, Standard; Armies of Titan                             | "Reveal stage 2A and put it into play next to this stage so there are two main schemes and two villains in play." Avengers Tower, Focused Defense.                                    | §3.2, §3.3, §3.4, §3.5                      |
+| Thanos        | The Infinity Stones → Balance the Scales (2A loses)       | Thanos, Infinity Gauntlet, Standard; Black Order, Children of Thanos | 1B: top card of the Infinity Stone deck into play; reveal Sanctuary.                                                                                                                  | §3.6, §3.11, "from player cards" damage     |
+| Hela          | Odin's Torment (single stage)                             | Hela, Standard; Legions of Hel, Frost Giants                         | "Attach Odin to the main scheme, captive side faceup. Reveal Gnipahellir and Garm. Set Gjallerbru, Skurge, Hall of Nastrond, and Nidhogg aside."                                      | §3.8, §3.9; ∞ villain (landed, wave 3 §3.1) |
+| Loki          | All Hail King Loki (single stage)                         | Loki, Infinity Gauntlet, Standard; Enchantress, Frost Giants         | "Set each copy of the Loki villain aside … Put the War in Asgard side scheme into play. … Reveal 1 set-aside Loki villain at random. Reveal the top card of the infinity stone deck." | §3.6, §3.7, §3.9                            |
+
+- **Modular sets** (MC21 pp. 6, 10, 16, 20, 24): Black Order, Armies of Titan, Children of Thanos, Infinity Gauntlet
+  (single-villain scenarios only), Legions of Hel, Frost Giants, Enchantress.
+- **Tower Defense's optional setup damage** on Avengers Tower (1/2/3 per player by difficulty, MC21 p. 11) is a
+  suggested difficulty option, not a rule; standalone play uses 0 unless a setup option is added (§4 Q4).
+
+#### Campaign (MC21 pp. 4, 7, 13, 17, 21, 25)
+
+`packages/cards/src/campaigns/mts.gate.test.ts` wrote MC21 against the frozen campaign foundation with synthetic ids
+and found it fits. Checked against the real cards:
+
+| Scenario      | Campaign setup                                                                                                           | Campaign victory                                                                                         | What the real cards add                                                                                                                                                           |
+| ------------- | ------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Ebony Maw     | Secure the Landing Pad into play; Security Breach shuffled in                                                            | Cosmo if Secure the Landing Pad was defeated; Security Breach if 1B completed; HP (expert)               | Secure the Landing Pad flips into the Cosmo ally (§1.7, §3.10). Security Breach puts a random hand card facedown on itself.                                                       |
+| Tower Defense | Save the Shawarma Place into play; Security Breach if pooled; HP; token heal on **one of** the main schemes              | Shawarma; Black Swan if not in the victory display; Avengers Tower Damaged; HP                           | Save the Shawarma Place flips into the Black Swan minion (§3.10), which "engages the first player".                                                                               |
+| Thanos        | Hack Sanctuary's Computer; Cosmo, Security Breach, Shawarma, Black Swan if pooled; HP; 3 damage if the Tower was Damaged | System Shock if Defensive Protocols not in the victory display; Infinity Stones 1B completed             | Hack Sanctuary's Computer flips into Defensive Protocols (a side scheme, §3.10).                                                                                                  |
+| Hela          | Find the Norn Stones; Summoned Back; Shawarma, System Shock if pooled; discard half deck if 1B completed                 | Norn Stone if Find the Norn Stones was defeated; Odin if Retrieve Odin's Armor is in the victory display | Find the Norn Stones flips into Retrieve Odin's Armor. System Shock needs an ability active in hand (§3.13) and "You cannot choose to discard this card from your hand" (§3.13).  |
+| Loki          | Open the Dungeons; Summoned Back; pooled cards; Norn Stone on its Setup side; Odin on his King side                      | Campaign won; expert: losing loses the campaign                                                          | Open the Dungeons flips into Jormungand ("Attach to Loki", +4[per_hero] hit points). Odin's King side is his back face (21139b): the gate's modeling choice 6 needs a `flipCard`. |
+
+- **Expert campaign** (MC21 p. 25): record remaining hit points capped at base; heal to full by an acceleration token;
+  "If a player is defeated during a scenario that their teammates go on to win, the defeated player does not
+  participate in any of the victory steps for that scenario. However, they can rejoin their teammates for the next
+  scenario by placing an acceleration token on the main scheme." The gate records a defeated player's hit points as 0
+  and lets every player decline the heal, so a defeated player who declines would start with 0 hit points and be
+  defeated at once. §4 Q6.
+- **Beyond the frozen foundation**, the campaign needs only card-level primitives: §3.10 (faces of different types),
+  §3.13 (hand abilities, "cannot choose to discard") and Security Breach's "places a random card from their hand
+  facedown here … Return each facedown card here to its owner's hand", which `tuckCards` may cover (to verify with the
+  script). No `CampaignOp` change.
+
+### 2.3 The Hood scenario
+
+| Scenario | Main scheme deck                                                  | Encounter sets                           | 1A Setup                                                                                                                                                   | Needs (§3)                      |
+| -------- | ----------------------------------------------------------------- | ---------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------- |
+| The Hood | Making Connections → Promised Prosperity → Crime State (3B loses) | The Hood, Standard; 7 set-aside modulars | "Choose 7 modular encounter sets and set them aside (you may choose randomly). Choose 1 of those sets at random, then shuffle it into the encounter deck." | §1.12, §3.18, Foul Play (§3.23) |
+
+- `hood` has no `Scenario` record yet (`curation/hood.ts`: "scenario curation is a follow-up").
+- "Each player must resolve The Hood's 'Foul Play' ability in player order": `resolveSpecials` with a scoped player
+  (§3.23).
+
+---
+
+## 3. Engine primitives for cycle 3 (owner: `game-rules-architect`)
+
+**Build the mechanism, not the card.** Engine code never names a card; card names below say where each primitive is
+needed, and each section names cards from other packs that compose with it.
+
+**Priority order.** The box first (its scenarios, then its heroes, then its campaign), then the hero packs and The Hood
+in release order. Within that, rules the whole box leans on come first. **A pack whose cards need an unbuilt primitive
+stays data only.**
+
+| §    | Primitive                                                                | Needed by                                  | Status      |
+| ---- | ------------------------------------------------------------------------ | ------------------------------------------ | ----------- |
+| 3.1  | Additional forms (the form keyword)                                      | Spectrum, Vision; Shadowcat, Nick Fury     | not started |
+| 3.2  | Two main schemes in play, each paired with a villain; Focused Defense    | Tower Defense                              | not started |
+| 3.3  | Villains protected by each other's hit points: one defeat sweep          | Tower Defense; Four Horsemen (`aoa`)       | not started |
+| 3.4  | A main scheme stage's completion is replaceable                          | Tower Defense; Upgrading Adaptoids (`aos`) | not started |
+| 3.5  | Damage on a card that is not a character (Avengers Tower)                | Tower Defense                              | not started |
+| 3.6  | A modular set's own deck (the Infinity Stone deck)                       | Thanos, Loki, any scenario                 | not started |
+| 3.7  | Loki: random start, swap, a villain stage's Victory X, the victory count | Loki; God of Lies (`tt`)                   | not started |
+| 3.8  | An encounter ally attached to the main scheme (Odin)                     | Hela                                       | not started |
+| 3.9  | An ally treated as a minion                                              | Fallen Warrior, Beguiled; 5 other packs    | not started |
+| 3.10 | Flipping a card into a separately emitted face of another type           | MC21 campaign                              | not started |
+| 3.11 | Timing points when a deck runs out                                       | Soul World, Universal Church, Thanos       | not started |
+| 3.12 | Counting different aspects; Adam Warlock's copy limit                    | Adam Warlock                               | not started |
+| 3.13 | Abilities active in hand; "cannot choose to discard this card"           | Pip the Troll, System Shock                | not started |
+| 3.14 | Player events shuffled into the encounter deck (Cosmic Entities)         | Adam Warlock precon                        | not started |
+| 3.15 | "After the last X counter is removed from here"                          | Ebony Maw; `aos`, `phoenix`                | not started |
+| 3.16 | Encounter cards in a player's play area                                  | Ebony Maw's Spells                         | not started |
+| 3.17 | Alliance: paying a card's costs as a group                               | `warm`, `valk`, `vision`; 9 later cards    | not started |
+| 3.18 | Set-aside modular sets; mode-only faces; Standard II                     | The Hood; Wheel of Genres (`mojo`)         | not started |
+| 3.19 | Readying as a costed act; "cannot be readied by player card effects"     | Mister Fear; Undermine Support (`aos`)     | not started |
+| 3.20 | A trigger on damage a card prevented                                     | Abjuration                                 | not started |
+| 3.21 | An enemy attack against a chosen character                               | Speed Demon, Crossfire                     | not started |
+| 3.22 | Valkyrie's kit                                                           | `valk`                                     | not started |
+| 3.23 | Reusable as is                                                           | —                                          | checked     |
+
+### 3.1 Additional forms: the form keyword
+
+**Cards.** Spectrum: Monica Rambeau's Setup puts Gamma, Photon and Pulsar into play facedown; Energy Transformation
+("After you change to this form, choose a facedown energy form upgrade → flip that card faceup to change to that
+energy form"); Power Down ("After you change to this form, turn all your energy form upgrades facedown"); each form's
+"After you change to this energy form"; Gamma Blast, Photon Speed, Pulsar Shield ("Change to Gamma energy form … If you
+were already in Gamma energy form"); Speed of Light and Blue Marvel ("change energy forms"); Energy Duplication ("the
+printed resource on your faceup energy form upgrade"); Loss of Control ("You cannot change energy forms"); Moxie and
+Ready to Rumble ("After you change form"). Vision: "Change mass form by flipping your mass form upgrade over";
+"While you are in Dense mass form"; "Play only if Vision is in Dense mass form"; Density Control ("After you change mass
+form"); Corrupted Programming ("Treat your mass form upgrade's text box as if it were blank, except for keywords").
+
+**Rules.** RRG 1.8 "Form, Change Form" (p. 21), quoted in §1.1: additional forms are separate from hero/alter-ego, do
+not use the once-per-round flip, and changing one "does count as changing form for the purpose of triggering card
+effects". A facedown card has no title, text or keywords (RRG 1.8 "Facedown"), so a facedown energy form grants no
+form.
+
+**Plan.**
+
+- A player **is in "<name> <type> form"** while they control a faceup card with `form { formType: type }` titled
+  `<name>` (Gamma, Dense). `Predicate inAdditionalForm { player, formType, name? }` reads it; with no `name`, "in any
+  <type> form".
+- **`EffectSpec changeAdditionalForm { player, formType, to?: TargetRef | { name }, facedown? }`**: flips the named card
+  faceup and every other faceup card of that form type facedown (energy forms), or flips the single card of that type
+  over (mass form, `to` absent on a double-sided card). Blocked by `RuleSpec cannotChangeForm` when it names the form
+  type (`formType?` on the existing rule). Announces `formChanged { playerId, to, formType, formName }`.
+- **`formChanged` gains `formType?` / `formName?`** (absent = hero/alter-ego). Existing "after you change form"
+  listeners hear both kinds, which is what p. 21 says; "After you change to this energy form" on a form card is
+  `formChanged` with `formName` = its own title.
+- "Turn all your energy form upgrades facedown" is an effect on cards (existing `putIntoPlayFacedown`/facedown flip);
+  it is not a change of form (no form is changed _to_), so it announces nothing.
+
+**Composes with:** Shadowcat's Solid/Phased and Quick Shift, Permanently Phased (`mut_gen` 32031, 32040, 32055); Nick
+Fury's Assault/Stealth suit forms (`aos` 50035a/b); every "after you change form" card (Moxie, `ant` 12016, `wsp`
+13014, `hlk` 10009, `wonder_man` 58010).
+
+### 3.2 Two main schemes in play, each paired with a villain; Focused Defense
+
+**Cards.** Under Siege 1A/1B, The Armies of Thanos 2A/2B, Focused Defense, Proxima Midnight I–III, Corvus Glaive
+I–III, every Tower Defense card that says "the main scheme" or "the villain".
+
+**Rules.** MC21 pp. 10–11 and the p. 67 errata, quoted in `docs/phase7-wave4-sources.md` §3: both main schemes gain
+threat in step 1 and feel acceleration and crisis; each villain schemes onto its own scheme; a minion schemes onto the
+scheme with Focused Defense; encounter cards' "the main scheme" is both, a player card's is the controller's choice, a
+player constant's is Focused Defense's scheme; the active villain is the one "who matches the attached scheme".
+
+**Plan.**
+
+- **`GameState.extraMainSchemes?: MainSchemeState[]`** (absent otherwise, so saves are unchanged), listed by
+  `mainSchemeStates` after the central one, so step 1, acceleration, crisis and completion reach both. `EffectSpec
+putMainSchemeStageIntoPlay { stage }` ("reveal stage 2A and put it into play next to this stage") resolves its A
+  side and places it.
+- **`TargetRef mainScheme`** resolves to every main scheme for an encounter card, to a choice for a player card's
+  effect, and to the Focused Defense scheme for a player constant (a `RuleSpec mainSchemeForPlayerCards { scheme }`
+  carried by Focused Defense).
+- **`RuleSpec activeVillainOfScheme { scheme }`** (Focused Defense's constant): the villain whose title the scheme's
+  `villainOf` names is active, applied between frames like `controlledByFirstPlayer`, logged `activeVillainChanged`.
+- **Scheme threat:** `schemeThreatDestination` gains `scheme: "ownMainScheme"` (villains) and a scenario-level minion
+  destination (the scheme with Focused Defense), read in `enemyScheme`.
+
+### 3.3 Villains protected by each other's hit points: one defeat sweep
+
+"Proxima Midnight cannot be defeated while Corvus Glaive has any hit points remaining", and the mirror on Corvus. The
+sweep (`checkDefeats`) takes villains one at a time, and a defeated stage advances at once: with both at 0, Proxima
+falls, Proxima II arrives with full hit points, and Corvus is now protected. RRG 1.8 "Damage" (p. 14) and ruling Jun 2,
+2026 (2) make damage simultaneous. **Plan:** decide every villain's defeat in the sweep first, then apply them.
+`cannotBeDefeated` with `while: valueAtLeast(remainingHpOf(named(...)), 1)` is the card script. **Composes with:** War,
+Famine, Pestilence, Death (`aoa` 45081–45084, "cannot be defeated while another villain has at least 1 hit point").
+
+### 3.4 A main scheme stage's completion is replaceable
+
+"Forced Interrupt: When this stage would be completed, remove all the threat from this stage instead. Then, deal
+6[per_hero] damage to Avengers Tower." `whenCompleted` resolves before an advance but cannot stop it. **Plan:** a
+completion with a listener becomes a `mainSchemeCompleting` trigger event with an interrupt window; `instead` cancels
+the completion (no advance, no loss). **Composes with:** Upgrading Adaptoids 1B (`aos` 50104b).
+
+### 3.5 Damage on a card that is not a character
+
+"Deal 3 damage to Avengers Tower"; "After damage is placed here, if there is at least 9[per_hero] damage here …";
+"remove all of it". **Plan:** verify whether `dealDamage`/`placeDamage` accept an environment and announce a trigger;
+add the event if not. Other raw cards that put damage "here" are checked when this lands.
+
+### 3.6 A modular set's own deck: the Infinity Stone deck
+
+Schema §1.10. **Plan:** build `EncounterSet.separateDecks` at setup (the scenario-deck machinery of wave 2 §3.3);
+"put the top card of the infinity stone deck into play", "reveal the top card", "Place this card in the infinity stone
+deck discard pile" (the deck's discard home), reshuffle when empty without penalty, and the "runs out" timing point
+(§3.11). "Apply its boost icons … as if it were a boost card" is `adjustBoostCount` with `boostIconsOn` of the bound
+card (to confirm).
+
+### 3.7 Loki: random start, swap, a villain stage's Victory X, the victory count
+
+Schema §1.11. RRG 1.8 "'Swap'" (p. 42): swapping an in-play card with an out-of-play card that shares its title means
+"neither card is considered to enter or leave play. Tokens, attached cards, tucked cards, and status cards on the
+previously in-play card are transferred … If the swapped card has an associated hit point dial, that dial remains at
+the same value." MC21 p. 24: "This does not cause Loki to leave play, enter play, or be revealed. … The Loki card that
+was swapped out should be set-aside with the other remaining set-aside versions of Loki." Ruling Feb 28, 2026 (3):
+permanent attachments move to the swapped-in villain. Loki's Cape: "After Loki is swapped with a set-aside Loki
+villain". **Plan:** `EffectSpec swapVillain { villain, with: "randomSetAside" }` with a `villainSwapped` event; setup's
+random starting villain; a defeated stage with Victory X goes to the victory display (wave 3 §3.4's open item);
+"advance to a random set-aside Loki villain" on defeat; `ValueSpec victoryCondition`. **Composes with:** Stories and
+Lies, Shatter the Illusion (`tt` God of Lies); Thunderbolt Backup's "swapping it with the minion already attached here"
+(`aos` 50131b) is a different swap (both in play) and is not claimed.
+
+### 3.8 An encounter ally attached to the main scheme (Odin)
+
+Odin's Torment 1A attaches Odin, captive side up, to the main scheme; Hall of Nastrond: "The first player detaches Odin
+from the main scheme and takes control of him"; Odin: "While Odin is not attached to the main scheme, he gains: 'The
+first player gains control of Odin. Odin cannot have cards attached and does not count against ally limit.' If Odin
+leaves play, the players lose the game." Rulings Jun 25, 2026 (4) #5 (not friendly while attached) and Aug 3, 2026 (4)
+#1 (takes no attachments while attached). **Plan:** an ally as an attachment of the main scheme (not a character, not
+friendly), `EffectSpec detach { card, into: "play", controller }`, `RuleSpec cannotHaveAttachments { target, from? }`
+("encounter cards" on the King side). `controlledByFirstPlayer` and `excludedFromAllyLimit` exist.
+
+### 3.9 An ally treated as a minion
+
+Fallen Warrior, Beguiled (`mts` 21153, 21178; `valk` 25031): "Treat attached ally as an [Undead] minion with a blank
+text box. Attached minion's SCH is equal to its printed THW and it does not take consequential damage. … Attached ally
+engages its controller." Ruling Dec 17, 2025 (1) #3: "the ally does not leave play and the 'minion' does not enter
+play; the character remains in play and retains all tokens and attachments. (The process is essentially a status
+change.)" **Plan:** a `RuleSpec treatAsMinion { target: host, traits, schFromThw, noConsequentialDamage, keepTraits? }`
+read where a card's categories are decided (`categoriesOf`, beside `facedownAs`), cheap because it reads only the
+card's own attachments. **Composes with:** 'Pool-ized (`deadpool` 44041), "Lost" Child (`jubilee` 47027), Manipulated
+Mind (`sm` 27171, "except for traits"), Possessed (`storm` 36038), Malice (`next_evol` 40199).
+
+### 3.10 Flipping a card into a separately emitted face of another type
+
+Schema §1.7. **Plan:** `flipCard` on a card with `otherFaceId` replaces the instance's card; RRG 1.8 "Flip" (p. 20)
+discards attachments, tucked cards, status cards and tokens when the type changes, and keeps them when it does not
+(the side-scheme-to-side-scheme flips). A side scheme that flips on "When Defeated" is still defeated (Victory X, "is in
+the victory display" readers), then becomes its other face in play.
+
+### 3.11 Timing points when a deck runs out
+
+Soul World ("After your deck runs out of cards"), Universal Church of Truth ("After a player resets their deck"), Thanos
+I–III ("After the infinity stone deck runs out"). The engine logs `playerDeckReset` (wave 3 §4 Q15) but announces no
+trigger event. **Plan:** `TriggerEvent deckRanOut { deck: player | scenarioDeck name, playerId? }`, heard-only.
+
+### 3.12 Counting different aspects; Adam Warlock's copy limit
+
+Karmic Blast, Cosmic Awareness, Regeneration Cycle: "for each different aspect discarded this way". `ValueSpec
+distinctCardTypes` exists (Time Stone's "different card type"); **plan:** `ValueSpec distinctAspects { cards }`
+(the four core aspects, `printedAspect` included). Battle Mage's "If that card is: Aggression – …" composes from
+`refMatches` with `aspect`. Deckbuilding is §1.4 plus `validateDeck`.
+
+### 3.13 Abilities active in hand; "cannot choose to discard this card"
+
+Pip the Troll: "While Pip the Troll is in your hand, he gains 'Interrupt: When a player is attacked, spend [energy][mental]
+resources → put Pip the Troll into play under that player's control.'" System Shock (campaign): "You cannot choose to
+discard this card from your hand. While this card is in your hand, it gains: 'Alter-Ego Action: …'". **Plan:** an
+`AbilityDefinition.activeIn: "hand"` read by trigger candidates and actions; `RuleSpec cannotChooseToDiscard { cards }`
+for discard choices from hand.
+
+### 3.14 Player events shuffled into the encounter deck (Cosmic Entities)
+
+In-Betweener, Living Tribunal, Eternity, The Gardener: "Action: Shuffle this card into the encounter deck (without
+looking). When Revealed: … and remove this card from the game. This effect cannot be canceled." FAQ (RRG 1.8 p. 62):
+resolved as a boost card, it goes to the encounter discard pile. Ruling Jan 17, 2026 (5): with several encounter decks,
+the active villain's. **Plan:** a player card in the encounter deck keeps its owner; its When Revealed resolves when a
+player reveals it; `uncancellable` on the ability; a discarded one goes to the encounter discard pile.
+
+### 3.15 "After the last X counter is removed from here"
+
+Fireball, Manipulation, Pacification, Rubblestorm; Holding Cell (`aos` 50105a–50108a), Phoenix Force (`phoenix`
+34002a). **Plan:** verify `removeCounters` announces an event; add `countersRemoved { instanceId, counterType,
+remaining }` if not.
+
+### 3.16 Encounter cards in a player's play area
+
+MC21 p. 6: a revealed Spell environment goes in front of the revealing player; Ebony Maw's interrupt reads "each Spell
+card in your play area". **Plan:** verify where `putIntoPlay` places an environment for a player, and add a
+`TargetQuery.inPlayAreaOf: PlayerRef` if no query reads it.
+
+### 3.17 Alliance: paying a card's costs as a group
+
+RRG 1.8 "Alliance" (p. 6). As One!, Stand Together, Problem Solvers, Cosmic Alliance, Joining Forces; also `angel`
+42031, `deadpool` 44046, `falcon` 53019, `jj` 61026, `jubilee` 47028/47029, `ncrawler` 48031/48032, `next_evol` 40053. **Plan:** other players' resources (and "exhaust an Avenger character and a Guardian character" costs) usable
+while paying for a card with the keyword; only the playing player resolves it.
+
+### 3.18 Set-aside modular sets; mode-only faces; Standard II
+
+Schema §1.8, §1.9, §1.12. **Plan:** setup sets aside the chosen modular sets; `EffectSpec shuffleRandomSetAsideSet`
+("Choose 1 set-aside modular encounter set at random, then shuffle it into the encounter deck"); a `modeOnly` card is
+put into play on its expert face in expert mode. **Composes with:** Wheel of Genres (`mojo` 39026a/b, "if there are no
+set-aside modular encounter sets remaining"); the Campaign Challenge faces (`gmw`), `sm` 27174a/b, `next_evol` 40081a/b.
+
+### 3.19 Readying as a costed act; "cannot be readied by player card effects"
+
+Mister Fear: "As an additional cost for the engaged player to ready a hero or ally they control, the player must spend
+a [mental] resource." Undermine Support (`aos` 50174), the same for a support. Unnatural Storm: "Heroes and allies
+cannot be readied by player card effects." **Plan:** a `RuleSpec readyCost` and `cannotReady.bySource`.
+
+### 3.20 A trigger on damage a card prevented
+
+Abjuration: "Prevent all damage to Ebony Maw. Forced Response: After Abjuration prevents 2 or more damage from a single
+attack, discard it." **Plan:** check what `damagePrevented` carries; a trigger event naming the preventing card and
+the amount.
+
+### 3.21 An enemy attack against a chosen character
+
+Speed Demon: "When a character attacks Speed Demon, Speed Demon attacks that character. (Resolve Speed Demon's attack
+first.)"; Crossfire: "When Crossfire attacks, he attacks the friendly character with the fewest remaining hit points."
+**Plan:** check wave 1 §3.6's redirection first.
+
+### 3.22 Valkyrie's kit
+
+Death Perception ("Play the set-aside Death-Glow upgrade as if it were in your hand"), "the enemy with Death-Glow
+attached" (`hasAttachment`, landed), Dragonfang / Valkyrie's Spear (+2 while attacking / defending against that enemy),
+Shieldmaiden ("declare Valkyrie the defender without exhausting her"), The Best Defense… ("use its ATK instead of its
+DEF for this attack"), Thor ("resolve this attack against each minion engaged with that player"). **Plan:** check each
+against the vocabulary when `valk` comes up.
+
+### 3.23 Reusable as is (checked against `pnpm dsl` and the engine)
+
+| Printed wording                                                                    | Cards                                                 | Existing vocabulary                                                  |
+| ---------------------------------------------------------------------------------- | ----------------------------------------------------- | -------------------------------------------------------------------- |
+| "Hela cannot be defeated"; ∞ hit points; flip resets the dial                      | Hela 21136b/21137b                                    | `cannotBeDefeated`, `infiniteHp` (wave 3 §3.1)                       |
+| "When Hela would be defeated, if Odin is attached … flip her … instead"            | Odin's Torment 1B                                     | a defeat interrupt that flips (wave 3 §3.1)                          |
+| "+2[per_hero] hit points for each side scheme in victory display"                  | Hela A1/B1                                            | `victoryDisplayCount`, a stat modifier (to confirm hit points scale) |
+| "Threat cannot be removed from Gnipahellir"                                        | Garm, Skurge, Nidhogg, Zealot of Truth                | `threatCannotBeRemoved`                                              |
+| "Attached identity cannot ready"                                                   | Frozen, Restrained                                    | `cannotReady`                                                        |
+| "Pay the printed cost of an ally in any player's discard pile →"                   | Make the Call (21056, 23020)                          | `payPrintedCostOf`                                                   |
+| "Double the number of resources … while paying for a Justice card"                 | The Power of Justice/Aggression                       | `doublesResourcesWhilePayingFor`                                     |
+| "You may play the event attached to Black Panther as if it were in your hand"      | Black Panther 23012, Jocasta 26013                    | `playableAttachments`                                                |
+| "generate a [wild] resource for a War Machine event"                               | Gauntlet Gun 23005                                    | `resource … generatesFor` (FAQ p. 62)                                |
+| "resolve the 'Special' ability on each [Technique] upgrade you control"            | Nebula, Gamora ally, Lethal Intent, Combat Ready      | `resolveSpecials` / `resolveSpecialsOf`                              |
+| "Reduce the amount of damage Vision takes from each attack by 2"                   | Intangible, Victor Mancha                             | `reduceDamageTaken`                                                  |
+| "Treat your mass form upgrade's text box as if it were blank, except for keywords" | Corrupted Programming                                 | `blankTextBox` (keywords kept: to confirm)                           |
+| "The villain gains steady" / "each enemy gains steady"                             | Formidable Foe, The Hood's Mantle, Warehouse District | `gainsKeyword` + the RRG Steady rule (`keywords.ts`)                 |
+| "For each different card type discarded this way"                                  | Time Stone                                            | `distinctCardTypes`                                                  |
+| "Spend up to 3 resources of any type → … for each resource spent"                  | Machine Man 26022                                     | `spendUpTo` (wave 3 §3.25)                                           |
+| "Play a card from your hand, reducing its resource cost by 3"                      | Meditation 26036                                      | `playFromHandReducingCost`                                           |
+| "Put the top card of your deck into play facedown, engaged with you as a Drone"    | Ultron, Ultron Unleashed, Relentless Android          | `droneFromDeck`                                                      |
+| "Attach to the villain who is not the active villain"                              | Direct Assault                                        | `AttachmentHost nonActiveVillain`                                    |
+| "Each player removes the top half of their deck (rounded down) from the game"      | Balance the Scales 2B                                 | `deckCountOf` + `scaled`                                             |
+| "(Limit once per phase.)" on James Rhodes (errata)                                 | 23001b                                                | `oncePerPhase`                                                       |
+
+---
+
+## 4. Open questions (for the user or FFG)
+
+Each is implemented the way stated, or not at all, and named here rather than decided silently.
+
+1. **Changing to an energy form while in another** (§3.1). The cards say "flip that card faceup to change to that energy
+   form"; neither MC21 nor the RRG says the old form turns facedown. Implemented as: one energy form faceup at a time
+   (the previous one turns facedown), because "If you were already in Gamma energy form" and Energy Duplication's "your
+   faceup energy form upgrade" assume one.
+2. **"The main scheme" in a player constant with one main scheme and no Focused Defense in play** (§3.2): only arises
+   before 2A resolves. Implemented as the central scheme.
+3. **Loki's damage on a defeat-advance** (§3.7). MC21 p. 24 transfers "counters, and tokens" to the new Loki on defeat;
+   RRG 1.8 "Villain Defeat" (p. 47) carries "non-damage tokens" to a same-title stage and "Excess damage … does not carry
+   over". Implemented as: damage does not carry on defeat; on a swap the dial stays (RRG "'Swap'").
+4. **Tower Defense's suggested setup damage** (MC21 p. 11) is a difficulty option. Standalone default: none.
+5. **Standard II / Expert II** replace or join Standard / Expert? The Hood insert (not in the repo) says; until it is
+   read, games use Standard / Expert and Standard II is never chosen.
+6. **An eliminated player in the expert campaign** (§2.2): MC21 p. 25 lets them rejoin "by placing an acceleration token";
+   the gate lets them decline the heal and start at 0 hit points. Proposed: an identity whose recorded hit points are 0
+   must take the heal.
+7. **Hela's "When Hela is defeated, if Odin is not attached to the main scheme, you win the game"** vs. MC21 p. 20's "If
+   the players control the Odin ally when Hela is defeated". Equivalent in every reachable state (Odin is attached or
+   controlled by the first player until he leaves play, which loses). Implemented from the card.
+
+## 5. What this asks of the other agents
+
+- **`card-data-pipeline`** (after §1 lands):
+  - make `mts` survey clean and emit it, campaign cards included (§1.3, §1.6, §1.7, §1.10, §1.11, §1.13), with Spectrum
+    and Adam Warlock precons from MC21 p. 3;
+  - the form keyword (§1.1) and Vision's Dense face (§1.2), re-emitting `vision`;
+  - `modeOnly` (§1.8) and `classification` (§1.9), re-emitting `hood` and back-filling `gmw`'s split side schemes;
+  - `hood`'s `Scenario` record (§1.12, §2.3);
+  - the four hero-pack precons from their inserts.
+- **`ability-scripting-engineer`:** script each pack once its §3 primitives are "landed"; §3.23 lists what composes today.
+- **`rules-qa-engineer`:** a Tower Defense test where both villains reach 0 in one attack (§3.3); a Loki swap carrying
+  attachments, status cards and the dial (§3.7); the campaign's full run, retry and permanent removal.
+- **`game-client-engineer`:** energy/mass form display and the form choice (§3.1); two main schemes and the Focused
+  Defense marker (§3.2); damage on Avengers Tower (§3.5); the Infinity Stone deck and its discard pile (§3.6); Loki's
+  set-aside versions and the victory count (§3.7); Odin on the main scheme (§3.8); an ally shown as a minion (§3.9);
+  MC21's campaign-pool design pass (`docs/campaign-client-per-box.md` §3: Dossier and Briefing).
