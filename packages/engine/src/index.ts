@@ -1,4 +1,4 @@
-export const ENGINE_VERSION = "0.5.0";
+export const ENGINE_VERSION = "0.5.1";
 
 export type { PlayerId, InstanceId, ChoiceId, EncounterDeckId, FrameId } from "./ids.js";
 export { playerId, instanceId, choiceId, encounterDeckId, frameId } from "./ids.js";
