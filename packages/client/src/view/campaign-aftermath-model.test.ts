@@ -272,7 +272,12 @@ describe("aftermathLogTags", () => {
     | undefined;
   if (!grootIdentityId) throw new Error("expected the real pool to carry a card named Groot");
 
-  function entryOf(steps: CampaignHistoryEntry["steps"]): { readonly history: readonly CampaignHistoryEntry[] } {
+  /** `logBefore` for two seats, each starting from `unitsBefore` (default 0) — the baseline an `add` write's
+   * cumulative running total is read back against (see `aftermathLogTags`'s own doc comment). */
+  function entryOf(
+    steps: CampaignHistoryEntry["steps"],
+    unitsBefore: number = 0,
+  ): { readonly history: readonly CampaignHistoryEntry[] } {
     return {
       history: [
         {
@@ -280,7 +285,21 @@ describe("aftermathLogTags", () => {
           modes: {},
           outcome: "won",
           gameId: null,
-          logBefore: {} as CampaignHistoryEntry["logBefore"],
+          logBefore: {
+            definitionVersion: "test",
+            shared: {},
+            hidden: {},
+            seats: [1, 2].map((seatNumber) => ({
+              seatNumber,
+              identityCardId: "" as CardId,
+              deck: { cards: [] },
+              grants: [],
+              fields: { units: { kind: "number", value: unitsBefore } },
+            })),
+            removedFromCampaign: [],
+            position: { nextNodeId: null, resolved: {}, progress: {} },
+            rng: { seed: 0, index: 0 },
+          } as unknown as CampaignHistoryEntry["logBefore"],
           steps,
           at: 0,
         },
@@ -388,6 +407,49 @@ describe("aftermathLogTags", () => {
     expect(aftermathLogTags(log, "nebula", fields, CARDS_BY_ID)).toEqual([]);
   });
 
+  /**
+   * The real bug this regression test reproduces (found clicking through the Aftermath, MC16 p. 15's Nebula
+   * Victory): a per-seat field several instructions write in sequence in one node — "units" alone has three specs
+   * — chains each `add` write onto the *previous* write's own running total, not onto zero
+   * (`applyLogWrite`/`combine`, `engine/campaign/log.ts`). A multi-issue campaign also carries a nonzero baseline
+   * into the node (units are the box's own currency, unspent across issues). Naively summing every `add` write for
+   * a seat, as an earlier version of `aftermathLogTags` did, double-counts the chain *and* folds in whatever the
+   * field already held — 1 (baseline) + 1 (spec 1) + 0 (spec 2) + 1 (spec 3) + 1 (spec 4), stored as the running
+   * totals 2, 2, 3, 4, summed wrongly to 11. The fix reads only the last write per seat (4, the true running
+   * total) and subtracts the logBefore baseline (1), landing on the real MC16 p. 15 max for an empty victory
+   * display and an unthreatened main scheme: 1 + 0 + 1 + 1 = 3.
+   */
+  test("a field written by several chained `add` specs, with a nonzero baseline, tags the real delta — not the sum of the running totals it was written as", () => {
+    const log = entryOf(
+      [
+        {
+          instructionId: "mc16.s4.victory.units",
+          text: "",
+          citation: "",
+          kind: "record",
+          writes: [
+            // Exactly the shape `campaignResultOf` produces for MC16 p. 15's four "units" specs (const 1, capAt
+            // keywordValueSum 0, atMost-evasion true, equals-mainSchemeStage true), *after* `applyLogWrite`
+            // folds each one onto a baseline of 1 (an earlier issue's leftover unit): 1+1=2, +0=2, +1=3, +1=4.
+            { field: "units", seatNumber: 1, mode: "add", value: { kind: "number", value: 2 } },
+            { field: "units", seatNumber: 2, mode: "add", value: { kind: "number", value: 2 } },
+            { field: "units", seatNumber: 1, mode: "add", value: { kind: "number", value: 2 } },
+            { field: "units", seatNumber: 2, mode: "add", value: { kind: "number", value: 2 } },
+            { field: "units", seatNumber: 1, mode: "add", value: { kind: "number", value: 3 } },
+            { field: "units", seatNumber: 2, mode: "add", value: { kind: "number", value: 3 } },
+            { field: "units", seatNumber: 1, mode: "add", value: { kind: "number", value: 4 } },
+            { field: "units", seatNumber: 2, mode: "add", value: { kind: "number", value: 4 } },
+          ],
+          choices: [],
+          removedFromCampaign: [],
+          grants: [],
+        },
+      ],
+      1,
+    );
+    expect(aftermathLogTags(log, "nebula", fields, CARDS_BY_ID)).toEqual([{ text: "+3 UNITS EACH", kind: "each" }]);
+  });
+
   test("no history entry for the node returns no tags", () => {
     expect(aftermathLogTags({ history: [] }, "nebula", fields, CARDS_BY_ID)).toEqual([]);
   });
@@ -424,5 +486,12 @@ describe("aftermathLogTags, against a real GMW fold", () => {
     expect(tags).toHaveLength(1);
     expect(tags[0]?.kind).toBe("each");
     expect(tags[0]?.text).toMatch(/^\+\d+ UNITS? EACH$/);
+    // MC16 p. 15's own printed ceiling for this instruction: 1 (base) + 3 (capped victory-display sum) + 1 (≤1
+    // evasion counter) + 1 (main scheme on 1B) = 6 per player. A number above that is exactly the bug this test
+    // guards against — `aftermathLogTags` reading `mode: "add"`'s *cumulative* running total as an independent
+    // delta and summing every write instead of reading only the last one against `logBefore`'s own baseline.
+    const amount = Number(tags[0]!.text.match(/^\+(\d+)/)![1]);
+    expect(amount).toBeGreaterThan(0);
+    expect(amount).toBeLessThanOrEqual(6);
   }, 30_000);
 });

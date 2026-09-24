@@ -2,7 +2,7 @@ import { describe, expect, test } from "vitest";
 import { POOL_CARDS, POOL_DEPS } from "../content/pool.js";
 import { MemoryCampaignStorage } from "../engine/campaign-storage.js";
 import { CampaignService } from "./campaign-service.js";
-import { seedDesignRun, seedGmwRun } from "./dev-fixtures.js";
+import { seedDesignRun, seedDesignWonGame, seedGmwRun, seedGmwWonGame } from "./dev-fixtures.js";
 import { frozenNonCampaignCardsOf } from "../view/campaign-deck-edit-model.js";
 import { GMW_CAMPAIGN_DEFINITION } from "@mc/cards";
 
@@ -87,4 +87,29 @@ describe("seedGmwRun", () => {
     expect(record.status).toBe("won");
     expect(record.history.filter((entry) => entry.outcome === "won")).toHaveLength(5);
   }, 30_000);
+
+  test("afterIssue3 reaches issue 4 ('nebula') up next", async () => {
+    const record = await seedGmwRun(service(), "afterIssue3");
+    expect(record.position.nextNodeId).toBe("nebula");
+  });
+});
+
+describe("seedGmwWonGame / seedDesignWonGame", () => {
+  test("composes issue #4 for real and fabricates its win, without folding it", async () => {
+    const { record, won } = await seedGmwWonGame(service());
+    expect(record.attempt?.nodeId).toBe("nebula");
+    expect(record.status).toBe("active"); // unfolded: still the pre-win status
+    expect(won.outcome).toEqual({ result: "win", reason: "villainDefeated" });
+  });
+
+  test("a later stop composes whatever issue comes after it", async () => {
+    const { record } = await seedGmwWonGame(service(), "afterIssue1");
+    expect(record.attempt?.nodeId).toBe("infiltrate-the-museum");
+  });
+
+  test("MC10's own equivalent composes issue #3 for real (afterIssue2's own next issue)", async () => {
+    const { record, won } = await seedDesignWonGame(service());
+    expect(record.attempt?.nodeId).toBe("taskmaster");
+    expect(won.outcome).toEqual({ result: "win", reason: "villainDefeated" });
+  });
 });

@@ -351,10 +351,13 @@ export class CampaignAftermathScene extends Phaser.Scene {
     const readingRect: Rect = { x: 0, y: headerBottom, width, height: Math.max(0, readingBottom - headerBottom) };
     drawComicReaderStep(this, readingRect, record.campaignId as string, view.step, () => this.#draw());
 
-    // The fold's real log writes, stacked top-left over the art — never the tile's own hardcoded words.
+    // The fold's real log writes, stacked top-left over the art — never the tile's own hardcoded words. Nudged
+    // below a beat's own caption box (`drawComicReaderStep` pins that to the same top-left corner) rather than
+    // measuring it exactly: a caption is at most a couple of short lines, so a fixed clearance never has to be
+    // pixel-perfect to stop the two stacks from overlapping.
     const definitionFields = definition.logFields;
     const tags = aftermathLogTags(record, nodeId, definitionFields, CARDS_BY_ID);
-    let tagY = readingRect.y + 12;
+    let tagY = readingRect.y + 12 + (view.step.caption ? 66 : 0);
     const { rect: wonRect } = stamp(this, 12, tagY, `Issue #${number} · Won`, { ground: signal.caution.hex });
     tagY = wonRect.y + wonRect.height + 8;
     for (const tag of tags) {

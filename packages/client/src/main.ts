@@ -149,13 +149,66 @@ if (import.meta.env.DEV) {
   // Campaign screens in a known state without playing four games first (`campaign/dev-fixtures.ts`):
   //   const run = await __mcCampaign.seed("afterIssue2"); __mcGame.scene.start("CampaignRun", { runId: run.id });
   //   const gmwRun = await __mcCampaign.seedGmw("afterIssue1");
-  void Promise.all([import("./session.js"), import("./campaign/dev-fixtures.js")]).then(([session, fixtures]) => {
+  // A real, unfolded win in the live store, so the Aftermath (C05) runs a real `fold` against a live game rather
+  // than this file's own `foldState` shortcut:
+  //   const { runId } = await __mcCampaign.seedGmwWon("afterIssue3");
+  //   __mcGame.scene.start("CampaignAftermath", { runId });
+  void Promise.all([
+    import("./session.js"),
+    import("./campaign/dev-fixtures.js"),
+    import("./engine/idb-game-storage.js"),
+    import("./engine/game-storage.js"),
+  ]).then(([session, fixtures, idbGameStorage, gameStorage]) => {
+    /**
+     * Writes `WonGame.won` as a fresh save's own replay baseline (0 commands — `resume` replays nothing, so the
+     * live session lands on exactly the state stored) directly to the same `mc-saves` IndexedDB the engine worker
+     * reads (`engine.worker.ts`'s own `new IdbGameStorage()`), then resumes the live store from it through its
+     * normal `resume` path — the same door a returning player's "Continue" uses, not a new one. Dev/QA only: a
+     * production build never calls this, and nothing it does is reachable from the UI.
+     */
+    async function seedWon(
+      seed: () => Promise<{
+        readonly record: import("./engine/campaign-storage.js").CampaignRecord;
+        readonly won: import("@mc/engine").GameState;
+      }>,
+    ): Promise<{ readonly runId: string; readonly gameId: string }> {
+      const { record, won } = await seed();
+      const storage = new idbGameStorage.IdbGameStorage();
+      const gameId = crypto.randomUUID();
+      const at = Date.now();
+      const { cardPool: _cardPool, ...withoutPool } = won;
+      await storage.create(
+        {
+          id: gameId,
+          schema: gameStorage.SAVE_SCHEMA,
+          config: session.campaignService().launchConfig(record),
+          createdAt: at,
+          updatedAt: at,
+          status: "won",
+          round: won.round,
+          commandCount: 0,
+          outcome: won.outcome,
+          campaignId: record.campaignId,
+          campaignNodeId: record.attempt?.nodeId ?? null,
+        },
+        withoutPool,
+      );
+      await session.appSession().store.resume(gameId);
+      return { runId: record.id, gameId };
+    }
+
     (globalThis as unknown as { __mcCampaign?: unknown }).__mcCampaign = {
       service: session.campaignService(),
       seed: (stop?: Parameters<typeof fixtures.seedDesignRun>[1], options?: { expertCampaign?: boolean }) =>
         fixtures.seedDesignRun(session.campaignService(), stop, options),
       seedGmw: (stop?: Parameters<typeof fixtures.seedGmwRun>[1], options?: { expertCampaign?: boolean }) =>
         fixtures.seedGmwRun(session.campaignService(), stop, options),
+      seedGmwWon: (stop?: Parameters<typeof fixtures.seedGmwWonGame>[1], options?: { expertCampaign?: boolean }) =>
+        seedWon(() => fixtures.seedGmwWonGame(session.campaignService(), stop, options)),
+      seedDesignWon: (
+        stop?: Parameters<typeof fixtures.seedDesignWonGame>[1],
+        options?: { expertCampaign?: boolean },
+      ) => seedWon(() => fixtures.seedDesignWonGame(session.campaignService(), stop, options)),
     };
   });
 }
