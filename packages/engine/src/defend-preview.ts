@@ -94,7 +94,10 @@ export function plannedAttackDamage(
   const defenderProfile = override.defenderInstanceId
     ? characterProfile(state, override.defenderInstanceId, deps)
     : undefined;
-  const defenseReduction = override.basicDefense && defenderProfile?.kind === "identity" ? defenderProfile.def : 0;
+  // "Use its ATK instead of its DEF for this attack" (The Best Defense…, `modifyAttack.defenseUsesAtk`; §3.22).
+  const defenseStat = (vars.defenseUsesAtk ?? 0) > 0 ? "atk" : "def";
+  const defenseReduction =
+    override.basicDefense && defenderProfile?.kind === "identity" ? defenderProfile[defenseStat] : 0;
   return { baseAtk, defenseReduction, damage: Math.max(0, baseAtk + override.boostIcons - defenseReduction) };
 }
 

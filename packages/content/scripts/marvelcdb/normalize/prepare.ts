@@ -27,6 +27,8 @@ export interface Prepared {
   readonly specialCost?: SpecialCost;
   /** MarvelCDB's `quantity`, or a curated `Correction.quantityInSet` override (see that field's doc comment). */
   readonly quantityInSet: number;
+  /** A curated `Correction.impliedAttachHost` (see that field's doc comment) — absent for every ordinary card. */
+  readonly impliedAttachHost?: "mainScheme" | "ally";
 }
 
 /** Prepares a record once per run (cached by code), marking which corrections and errata matched. */
@@ -43,11 +45,13 @@ export function prepare(ctx: NormalizeContext, r: RawCard): Prepared {
   // read automatically, before any correction is consulted.
   let specialCost: SpecialCost | undefined = r.cost === -1 ? "X" : undefined;
   let quantityInSet = r.quantity;
+  let impliedAttachHost: "mainScheme" | "ally" | undefined;
   const notes: string[] = [];
   const ignored = new Set<string>();
   curation.corrections.forEach((c, i) => {
     if (c.code !== r.code) return;
     ctx.usedCorrections.add(i);
+    if (c.impliedAttachHost !== undefined) impliedAttachHost = c.impliedAttachHost;
     if (c.textReplace) {
       const count = text.split(c.textReplace.find).length - 1;
       if (count !== 1)
@@ -98,6 +102,7 @@ export function prepare(ctx: NormalizeContext, r: RawCard): Prepared {
     ignored,
     quantityInSet,
     ...(specialCost ? { specialCost } : {}),
+    ...(impliedAttachHost ? { impliedAttachHost } : {}),
   };
   ctx.prepared.set(r.code, p);
   return p;

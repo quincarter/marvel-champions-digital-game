@@ -164,10 +164,11 @@ function executePlayFromHand(
       ? 0
       : Math.max(0, resolveValue(ctx.state, effect.costReduction, context, ctx.deps));
   const paying = effect.ignoreCost !== true;
+  const from = effect.from ?? "hand";
   const fault = (id: InstanceId, player: PlayerId): string | null =>
-    paying ? playWithPaymentFault(ctx, player, id, reduction) : playIgnoringCostFault(ctx, player, id);
+    paying ? playWithPaymentFault(ctx, player, id, reduction, from) : playIgnoringCostFault(ctx, player, id, from);
   const candidates = playerId
-    ? (getPlayer(ctx.state, playerId)?.hand ?? []).filter(
+    ? (getPlayer(ctx.state, playerId)?.[from] ?? []).filter(
         (id) => !fault(id, playerId) && (!effect.filter || matchesQuery(ctx.state, id, effect.filter, context)),
       )
     : [];
@@ -194,7 +195,7 @@ function executePlayFromHand(
     if (!playerId || !picked) return done();
     if (!paying) {
       done();
-      playIgnoringCost(ctx, playerId, picked);
+      playIgnoringCost(ctx, playerId, picked, from);
       return;
     }
     // A host is only a question when the upgrade names one and several are legal (RRG 1.8 "Attach To", p. 8).

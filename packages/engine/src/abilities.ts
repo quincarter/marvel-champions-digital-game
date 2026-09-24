@@ -75,6 +75,13 @@ export interface EventPattern {
    * effect body then names them with `PlayerRef { kind: "eventPlayer" }`.
    */
   readonly eventIs?: Readonly<Record<string, string>>;
+  /**
+   * "After the enemy **with Death-Glow** is defeated" (Flight of the Valkyrior, 25008) / "after Valkyrie attacks and
+   * defeats the enemy that has Death-Glow attached" (Valhalla, 25004): one of the cards attached to the defeated
+   * character when its defeat was initiated (`characterDefeated.attachedInstanceIds`) matches. A defeat only;
+   * docs/phase7-wave4.md §3.22.
+   */
+  readonly targetHadAttachment?: TargetQuery;
 }
 
 /**

@@ -889,6 +889,11 @@ export const on = {
        * defeating damage was attack damage from a card matching this query — `{ categories: ["enemy"] }`.
        */
       readonly byAttackFrom?: TargetQuery;
+      /**
+       * "After the enemy **with Death-Glow** is defeated" (Flight of the Valkyrior, Valhalla; docs/phase7-wave4.md
+       * §3.22): a card matching this was attached when the defeat was initiated, read after the character left play.
+       */
+      readonly withAttachment?: TargetQuery;
     } = {},
   ): EventPattern =>
     pattern(
@@ -896,6 +901,7 @@ export const on = {
       asTarget(what),
       opts.byYou ? { playerIs: "controller" } : {},
       opts.byAttackFrom ? { fromAttack: true, sourceIs: opts.byAttackFrom } : {},
+      opts.withAttachment ? { targetHadAttachment: opts.withAttachment } : {},
     ),
   /**
    * "After [X] (or an event you play) defeats a minion or side scheme" (Small but Mighty, 13001a; docs/phase7-

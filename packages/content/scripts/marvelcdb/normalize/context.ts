@@ -43,6 +43,8 @@ export interface NormalizeContext extends Flattened {
   readonly usedNotes: Set<string>;
   readonly usedAbilityIds: Set<string>;
   readonly usedImageOverrides: Set<string>;
+  /** `PackCuration.encounterSets` keys matched (docs/phase7-wave4.md §1.10) — a stale entry is caught the same way. */
+  readonly usedEncounterSetOverrides: Set<string>;
 }
 
 export function createContext(raw: readonly RawCard[], curation: PackCuration): NormalizeContext {
@@ -102,6 +104,7 @@ export function createContext(raw: readonly RawCard[], curation: PackCuration): 
     usedNotes: new Set(),
     usedAbilityIds: new Set(),
     usedImageOverrides: new Set(),
+    usedEncounterSetOverrides: new Set(),
   };
 }
 
@@ -131,7 +134,11 @@ export function parse(ctx: NormalizeContext, p: Prepared): ParsedText {
   });
   for (const u of parsed.unclassified) ctx.errors.push(`${p.raw.code}: ${u}`);
   const hasBoostAbility = parsed.abilities.some((a) => a.kind === "boost");
-  if (Boolean(p.raw.boost_star) !== hasBoostAbility) {
+  // docs/phase7-wave4.md §1.13: Rain Fire (`mts` 21109) sends `boost_star: false` despite printing a Boost
+  // ability — confirmed from the card image as MarvelCDB's own flag being wrong, not the text. A curated
+  // `ignoreFields: ["boost_star"]` correction silences this cross-check for that one record; the emitted
+  // `starIcon` always follows the text (`hasBoostAbility`), never the raw flag, so this only affects validation.
+  if (Boolean(p.raw.boost_star) !== hasBoostAbility && !p.ignored.has("boost_star")) {
     ctx.errors.push(
       `${p.raw.code}: boost_star=${String(p.raw.boost_star)} but text ${hasBoostAbility ? "has" : "has no"} a Boost ability`,
     );

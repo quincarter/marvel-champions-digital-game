@@ -64,6 +64,12 @@ export type TriggerEventBody =
       readonly keywords?: readonly ("piercing" | "ranged" | "overkill")[];
       /** The card whose ability made this attack (the event card for "Hero Action (attack)"). */
       readonly sourceInstanceId?: InstanceId | null;
+      /**
+       * The same attack resolved against another target ("resolve this attack against each minion engaged with that
+       * player", Thor 25013; `EffectSpec resolveAttackAgainst`, docs/phase7-wave4.md §3.22): the attacker's own "when
+       * it attacks" abilities don't re-trigger, as with an enemy attack's `additionalResolution`.
+       */
+      readonly additionalResolution?: true;
     }
   | {
       readonly kind: "thwart";
@@ -251,6 +257,14 @@ export type TriggerEventBody =
        * defeating *card*. Null when nothing player- or card-driven defeated it.
        */
       readonly sourceInstanceId?: InstanceId | null;
+      /**
+       * The cards attached to the character when its defeat was initiated ("is defeated", before any interrupt), set as
+       * the event goes on the stack (`eventFrame`). By its response window the character has left play and a card
+       * like Death-Glow has set itself aside, so "After the enemy with Death-Glow is defeated" (Flight of the
+       * Valkyrior, 25008) reads this, through `EventPattern.targetHadAttachment` (docs/phase7-wave4.md §3.22).
+       * Absent when nothing was attached.
+       */
+      readonly attachedInstanceIds?: readonly InstanceId[];
     }
   /** An encounter card has been flipped faceup and is about to resolve (RRG "Reveal"): the point to cancel it. */
   | { readonly kind: "encounterCardRevealing"; readonly instanceId: InstanceId; readonly playerId: PlayerId }
