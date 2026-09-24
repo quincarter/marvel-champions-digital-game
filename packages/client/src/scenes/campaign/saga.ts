@@ -21,6 +21,7 @@ import {
   drawPicture,
   drawTopBar,
   issuePips,
+  campaignCoverPicture,
   villainPicture,
 } from "../../ui/campaign-chrome.js";
 import { campaignActionButton, campaignTile, type CampaignTileStatus } from "../../ui/campaign-buttons-a.js";
@@ -44,6 +45,10 @@ import { SCENES } from "../keys.js";
 import type { CampaignSagaData } from "./routes.js";
 
 const identityNameOf = (id: string): string => CARDS_BY_ID.get(id)?.name ?? id;
+
+/** A volume's art: the box's own cover (`art/campaigns/<id>/cover.*`) when it has one, as the Cover screen uses, else its final villain. */
+const volumeArtOf = (campaignId: string) =>
+  campaignCoverPicture(campaignId) ?? villainPicture(finalScenarioIdOf(campaignId));
 
 /** A box's own final scenario (its `Campaign.scenarioIds`' last entry) — the villain art `villainPicture` keys on. */
 const finalScenarioIdOf = (campaignId: string): string =>
@@ -167,7 +172,7 @@ export class CampaignSagaScene extends Phaser.Scene {
   }
 
   #drawGridTile(tileRow: SagaVolumeRow, rect: Rect): void {
-    const art = villainPicture(finalScenarioIdOf(tileRow.volume.campaignId));
+    const art = volumeArtOf(tileRow.volume.campaignId);
     const { objects, zone } = campaignTile(this, {
       rect,
       eyebrow: tileRow.volume.boxCode,
@@ -463,7 +468,7 @@ export class CampaignSagaScene extends Phaser.Scene {
   }
 
   #drawFeaturedArt(rect: Rect, row: SagaVolumeRow): void {
-    const picture = villainPicture(finalScenarioIdOf(row.volume.campaignId));
+    const picture = volumeArtOf(row.volume.campaignId);
     if (picture) {
       const image = drawPicture(this, picture, rect, () => this.#rebuild(), { focusY: 0.15 });
       void image;
