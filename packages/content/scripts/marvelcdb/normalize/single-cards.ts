@@ -98,5 +98,41 @@ function readFlipSide(
     return { flipSide, flipParts: [pBack] };
   }
   if (r.linked_card) ctx.errors.push(`${r.code}: unexpected linked card ${r.linked_card.code} on a ${r.type_code}`);
+  // docs/phase7-wave4.md §1.2: a double-sided *player* card whose back face MarvelCDB sends inline on the front
+  // record (`double_sided: true`, `back_name`, `back_text`, `backimagesrc`) instead of as a nested `linked_card` —
+  // Vision's Intangible/Dense (`vision` 26002), the only emitted player card with a `back_text` (checked across
+  // every raw pack). Synthesized into the same `Prepared`/`abilityRefs` pipeline as any other back face, under a
+  // `<code>b` synthetic code (so curated corrections/errata can target it the same way `back.code` does above).
+  if (r.double_sided && r.back_text) {
+    const backCode = `${r.code}b`;
+    const backRaw: RawCard = {
+      ...r,
+      code: backCode,
+      name: r.back_name ?? r.name,
+      real_name: r.back_name ?? r.name,
+      subname: undefined,
+      text: r.back_text,
+      real_text: r.back_text,
+      imagesrc: r.backimagesrc ?? null,
+      backimagesrc: null,
+      linked_card: null,
+      double_sided: false,
+      back_name: null,
+      back_text: null,
+    };
+    const pBack = prepare(ctx, backRaw);
+    const parsedBack = parse(ctx, pBack);
+    const backImage = imageOf(backRaw.imagesrc);
+    const flipSide: EncounterCardFlipSide = {
+      name: pBack.name,
+      traits: pBack.traits,
+      keywords: parsedBack.keywords,
+      text: pBack.text,
+      ...(pBack.flavor ? { flavor: pBack.flavor } : {}),
+      abilities: abilityRefs(ctx, backCode, pBack.name, parsedBack.abilities),
+      ...(backImage ? { image: backImage } : {}),
+    };
+    return { flipSide, flipParts: [pBack] };
+  }
   return { flipSide: undefined, flipParts: [] };
 }

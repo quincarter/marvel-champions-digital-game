@@ -69,17 +69,24 @@ export const VISION_CARDS: readonly AnyCard[] = [
     resourceIcons: {},
     aspect: "hero:26001a",
     traits: [],
-    keywords: [{ name: "permanent" }],
+    keywords: [{ name: "form", formType: "mass" }, { name: "permanent" }],
     deckLimit: 1,
     text: {
       printed: "Mass form. Permanent.\nVision cannot attack or defend.\nReduce the amount of damage Vision takes from each attack by 2.",
       current: "Mass form. Permanent.\nVision cannot attack or defend.\nReduce the amount of damage Vision takes from each attack by 2.",
     },
-    abilities: [
-      { id: abilityId("26002.intangible-constant") },
-      { id: abilityId("26002.intangible-constant-2") },
-      { id: abilityId("26002.intangible-constant-3") },
-    ],
+    abilities: [{ id: abilityId("26002.intangible-constant") }, { id: abilityId("26002.intangible-constant-2") }],
+    flipSide: {
+      name: "Dense",
+      traits: [],
+      keywords: [{ name: "form", formType: "mass" }, { name: "permanent" }],
+      text: {
+        printed: "Mass form. Permanent.\nWhile in hero form, Vision gets +2 ATK and +2 DEF.\nResponse: After you change to this mass form, draw 1 card.",
+        current: "Mass form. Permanent.\nWhile in hero form, Vision gets +2 ATK and +2 DEF.\nResponse: After you change to this mass form, draw 1 card.",
+      },
+      abilities: [{ id: abilityId("26002b.dense-constant") }, { id: abilityId("26002b.dense-response") }],
+      image: imageRef("/bundles/cards/26002b.png"),
+    },
   },
   {
     id: cardId("26003"),

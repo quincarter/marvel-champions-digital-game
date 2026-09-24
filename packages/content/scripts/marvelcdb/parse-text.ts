@@ -294,6 +294,12 @@ const RESOURCE_ICON_RE = /\[(energy|mental|physical|wild)\]/g;
  * (docs/phase7-wave2.md §6.2).
  */
 function parseKeyword(sentence: string): KeywordInstance | undefined {
+  // docs/phase7-wave4.md §1.1: "Energy form." / "Mass form." / "Suit form." — RRG 1.8 "Form, Change Form" (p. 21)
+  // names these an identity's "additional forms", a keyword with a parameter, not an ability. `formType` is the
+  // printed word, lower-cased ("Energy form." → "energy"). Matched narrowly (a single leading word) so it never
+  // collides with "Hero form only."/"Play only if you are in <X> hero form." (handled by `parseRestriction`).
+  const form = /^([A-Za-z]+) form\.?$/.exec(sentence);
+  if (form) return { name: "form", formType: (form[1] as string).toLowerCase() };
   // `Uses (N type counters)` carries its parameter in parentheses, so match it
   // before reminder text is stripped.
   // Per player forms (docs/phase7-wave3.md §1.3): `Uses (N[per_hero] type counters).` (Crossbones' Machine Gun,

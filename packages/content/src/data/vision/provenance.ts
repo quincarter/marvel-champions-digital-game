@@ -13,7 +13,12 @@ export const VISION_PROVENANCE: readonly CardProvenance[] = [
     marvelcdbCodes: ["26001a", "26001b"],
     corrections: [],
   },
-  { cardId: cardId("26002"), cardSetCode: "vision", marvelcdbCodes: ["26002"], corrections: [] },
+  {
+    cardId: cardId("26002"),
+    cardSetCode: "vision",
+    marvelcdbCodes: ["26002", "26002b"],
+    corrections: [],
+  },
   { cardId: cardId("26003"), cardSetCode: "vision", marvelcdbCodes: ["26003"], corrections: [] },
   { cardId: cardId("26004"), cardSetCode: "vision", marvelcdbCodes: ["26004"], corrections: [] },
   { cardId: cardId("26005"), cardSetCode: "vision", marvelcdbCodes: ["26005"], corrections: [] },
