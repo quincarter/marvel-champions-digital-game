@@ -1,3 +1,0 @@
-kind: Fixed
-body: 'Release: the macOS build signs and notarizes the app once the Apple Developer ID secrets are set, so Gatekeeper opens it without a warning'
-time: 2026-09-24T17:04:34.027265-04:00

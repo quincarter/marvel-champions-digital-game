@@ -1,3 +1,0 @@
-kind: Fixed
-body: 'Tests: the two-hero Breakout soak test no longer times out on slower CI runners (Windows)'
-time: 2026-09-24T17:57:15.978724-04:00
