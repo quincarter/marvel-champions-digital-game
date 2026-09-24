@@ -1968,6 +1968,19 @@ export function useAbility(ctx: Ctx, command: Command & { type: "useAbility" }):
   if (controller !== null && controller !== command.playerId) {
     return engineError("no_valid_target", "you do not control that card", command);
   }
+  // An obligation is controlled by nobody, but RRG 1.8 "Obligation" (p. 30): "Only the player with the obligation in
+  // their play area can trigger abilities or pay costs on that obligation" (MC10 p. 17 says the same of its Alter-Ego
+  // Action), however it got there.
+  if (mustCardOf(ctx.state, command.cardInstanceId).type === "obligation") {
+    const holder = ctx.state.players.find((p) => p.playArea.includes(command.cardInstanceId));
+    if (holder && holder.playerId !== command.playerId) {
+      return engineError(
+        "no_valid_target",
+        "only the player with that obligation in their play area can use it",
+        command,
+      );
+    }
+  }
   if (definition.trigger.firstPlayerOnly === true && command.playerId !== ctx.state.firstPlayerId) {
     return engineError("no_valid_target", "only the first player may trigger that ability", command);
   }
