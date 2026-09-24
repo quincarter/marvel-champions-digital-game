@@ -117,6 +117,18 @@ export interface CampaignDeckEditData {
   readonly returnTo: CampaignReturn;
 }
 
+/**
+ * The frozen-deck summary (design tile 20): what `CampaignDeckEditData` becomes once MC16 p. 5's Expert freeze has
+ * locked in (`scenes/campaign/deck-edit.ts` detects this from `frozenNonCampaignCardsOf`, never from `campaignId`,
+ * and starts this scene instead of `deckBuilder`). Same shape as `CampaignDeckEditData` plus the seat's own title.
+ */
+export interface CampaignFrozenDeckData {
+  readonly runId: string;
+  readonly seatNumber: number;
+  readonly returnTo: CampaignReturn;
+  readonly title: string;
+}
+
 /** C04, launched over the Board: a villain flipped to `stage` in a campaign game. */
 export interface CampaignBeatData {
   readonly campaignId: string;

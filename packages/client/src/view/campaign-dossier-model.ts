@@ -70,6 +70,18 @@ function nodeWritingField(definition: CampaignDefinition, fieldId: string): Camp
   return null;
 }
 
+/**
+ * Every node (in printed order) whose setup/victory/defeat instructions write `fieldId` — `nodeWritingField`
+ * generalized to every occurrence, not just the first. Used by `campaign-frozen-deck-model.ts` to find every issue
+ * a Wallet's card-list field (`walletFieldsOf`'s `cardListField`) is written by, i.e. every issue The Market opens.
+ */
+export function nodesWritingField(definition: CampaignDefinition, fieldId: string): readonly CampaignNode[] {
+  return definition.graph.nodes.filter((node) => {
+    const instructions = [...node.setup, ...node.victory, ...(node.defeat ?? [])];
+    return instructions.some((instruction) => stepWritesField(instruction.step, fieldId));
+  });
+}
+
 /** Whether `op` (recursively) calls `setGrantFace` on the card currently held by log field `fieldId`. */
 function opFlipsFieldFace(op: CampaignOp, fieldId: string): boolean {
   if (op.kind === "setGrantFace") return op.card.kind === "field" && op.card.field === fieldId;
@@ -255,7 +267,7 @@ export function campaignDossierOverview(
 // never by campaign id. A box with no such pairing (MC10) has no Wallets panel at all.
 // ---------------------------------------------------------------------------------------------------------------
 
-interface WalletFields {
+export interface WalletFields {
   readonly currencyField: string;
   readonly cardListField: string;
 }
@@ -282,7 +294,7 @@ function walletOpsIn(ops: readonly CampaignOp[]): WalletFields | null {
   return null;
 }
 
-function walletFieldsOf(definition: CampaignDefinition): WalletFields | null {
+export function walletFieldsOf(definition: CampaignDefinition): WalletFields | null {
   for (const node of definition.graph.nodes) {
     for (const instruction of [...node.setup, ...node.victory, ...(node.defeat ?? [])]) {
       const step = instruction.step;

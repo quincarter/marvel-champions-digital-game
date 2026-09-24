@@ -50,6 +50,7 @@ import { CampaignIssueScene } from "./scenes/campaign/issue.js";
 import { CampaignDossierScene } from "./scenes/campaign/dossier.js";
 import { CampaignFinaleScene } from "./scenes/campaign/finale.js";
 import { CampaignDeckEditScene } from "./scenes/campaign/deck-edit.js";
+import { CampaignFrozenDeckScene } from "./scenes/campaign/frozen-deck.js";
 import { CampaignBeatOverlay } from "./scenes/campaign/beat.js";
 import { MusicScene } from "./audio/music-controller.js";
 import { installDebugDump } from "./ui/debug-dump.js";
@@ -109,6 +110,7 @@ const game = new Phaser.Game({
     CampaignDossierScene,
     CampaignFinaleScene,
     CampaignDeckEditScene,
+    CampaignFrozenDeckScene,
     ChoiceOverlay,
     InspectOverlay,
     VillainPhaseOverlay,

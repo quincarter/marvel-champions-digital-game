@@ -37,6 +37,8 @@ export const SCENES = {
   campaignDossier: "CampaignDossier",
   campaignFinale: "CampaignFinale",
   campaignDeckEdit: "CampaignDeckEdit",
+  /** MC16 p. 5's Expert deck freeze (`scenes/campaign/deck-edit.ts` routes here in place of `deckBuilder`). */
+  campaignFrozenDeck: "CampaignFrozenDeck",
   // Overlays.
   choice: "ChoiceOverlay",
   inspect: "InspectOverlay",
