@@ -21,6 +21,9 @@ import {
 const thor = UNLOCK_HEROES.find((h) => h.name === "Thor")!.identityCardId;
 const groot = UNLOCK_HEROES.find((h) => h.name === "Groot")!.identityCardId;
 const spiderMan = UNLOCK_HEROES.find((h) => h.name === "Spider-Man")!.identityCardId;
+/** 750 points (a Galaxy's Most Wanted campaign, won and won on Expert) and nothing on the path opened by it. */
+const rich = (prefs: UnlockPrefs = DEFAULT_UNLOCK_PREFS) =>
+  new Unlocks({ progress: { ...NO_PROGRESS, wonCampaignIds: ["gmw"], wonExpertCampaignIds: ["gmw"] }, prefs });
 const make = (prefs: UnlockPrefs = DEFAULT_UNLOCK_PREFS, wonScenarioIds: string[] = []) =>
   new Unlocks({ progress: { ...NO_PROGRESS, wonScenarioIds }, prefs });
 type SwitchRow = Extract<UnlockListRow, { kind: "hero" | "campaign" | "scenario" }>;
@@ -46,16 +49,16 @@ describe("unlockListRowsOf", () => {
       state: "earned",
       detail: "Earned · Beat Ultron",
     });
-    const byHand = unlockByHand(make(), { kind: "hero", identityCardId: thor });
-    expect(rowOf(unlockListRowsOf(make(byHand)), `hero:${thor}`)).toMatchObject({ state: "on" });
+    const byHand = unlockByHand(rich(), { kind: "hero", identityCardId: thor });
+    expect(rowOf(unlockListRowsOf(rich(byHand)), `hero:${thor}`)).toMatchObject({ state: "on" });
     const all = unlockListRowsOf(make({ ...DEFAULT_UNLOCK_PREFS, unlockAll: true }));
     expect(rowOf(all, `hero:${thor}`).state).toBe("all");
     expect(all.find((r) => r.id === "wave:wave1")).toMatchObject({ status: "Unlocked by setting", open: true });
   });
 
   it("shows a campaign's cast as coming with it", () => {
-    const prefs = unlockByHand(make(), { kind: "campaign", campaignId: "gmw" });
-    const rows = unlockListRowsOf(make(prefs));
+    const prefs = unlockByHand(rich(), { kind: "campaign", campaignId: "gmw" });
+    const rows = unlockListRowsOf(rich(prefs));
     expect(rowOf(rows, "campaign:gmw")).toMatchObject({ state: "on" });
     expect(rowOf(rows, `hero:${groot}`)).toMatchObject({ state: "all", detail: "Comes with its campaign" });
   });
@@ -63,20 +66,20 @@ describe("unlockListRowsOf", () => {
 
 describe("taps", () => {
   it("asks before anything that costs points, and switches off without asking", () => {
-    const u = make();
+    const u = rich();
     const tap = rowTapOf(u, rowOf(unlockListRowsOf(u), `hero:${thor}`));
     expect(tap).toMatchObject({
       kind: "confirm",
-      confirm: { title: "Unlock Thor by hand?", confirmLabel: "Spend 150" },
+      confirm: { title: "Unlock Thor by hand?", confirmLabel: "Spend 150", affordable: true },
     });
 
-    const opened = make(unlockByHand(u, { kind: "hero", identityCardId: thor }));
+    const opened = rich(unlockByHand(u, { kind: "hero", identityCardId: thor }));
     const off = rowTapOf(opened, rowOf(unlockListRowsOf(opened), `hero:${thor}`));
     expect(off).toMatchObject({ kind: "apply", prefs: { heroIds: [] } });
 
     // Paid for once: back on without asking again.
     if (off?.kind !== "apply") throw new Error("expected apply");
-    const reopened = rowTapOf(make(off.prefs), rowOf(unlockListRowsOf(make(off.prefs)), `hero:${thor}`));
+    const reopened = rowTapOf(rich(off.prefs), rowOf(unlockListRowsOf(rich(off.prefs)), `hero:${thor}`));
     expect(reopened).toMatchObject({ kind: "apply", prefs: { heroIds: [thor] } });
   });
 
@@ -86,28 +89,52 @@ describe("taps", () => {
   });
 
   it("says what a confirm costs, that it isn't refunded, and how to earn it instead", () => {
-    const hero = confirmOf(make(DEFAULT_UNLOCK_PREFS, ["rhino"]), { kind: "hero", identityCardId: thor });
+    const hero = confirmOf(rich(), { kind: "hero", identityCardId: thor });
     expect(hero.body).toBe(
-      "This costs 150 champion points (you have 100, leaving -50). Switching it off later won't refund them. " +
+      "This costs 150 of your 750 champion points, leaving 600. Switching it off later won't refund them. " +
         "Or beat Ultron to unlock Thor for free, and earn points for the win. " +
         "This is for Thor's precon: a Thor deck you import or build plays already.",
     );
-    const campaign = confirmOf(make(), { kind: "campaign", campaignId: "gmw" });
+    const campaign = confirmOf(rich(), { kind: "campaign", campaignId: "gmw" });
     expect(campaign.body).toContain("Its cast (Groot and Rocket Raccoon) comes with it.");
+  });
+
+  it("won't let a player spend points they haven't earned", () => {
+    const short = confirmOf(make(DEFAULT_UNLOCK_PREFS, ["rhino"]), { kind: "hero", identityCardId: thor });
+    expect(short).toMatchObject({ title: "Not enough champion points", affordable: false, confirmLabel: "" });
+    expect(short.body).toBe(
+      "Unlocking Thor costs 150 points, and you have 100. Win games to earn more. Or beat Ultron to unlock Thor " +
+        "for free, and earn points for the win. Or turn on Unlock everything in Settings ▸ Unlocks to open " +
+        "everything for free, with points off.",
+    );
+  });
+
+  it("makes Unlock everything free, but still asks first", () => {
     const everything = tapOf(make(), { kind: "everything" }, false);
-    expect(everything).toMatchObject({ kind: "confirm", confirm: { title: "Unlock everything?" } });
+    expect(everything).toMatchObject({
+      kind: "confirm",
+      confirm: { title: "Unlock everything for free?", affordable: true, confirmLabel: "Unlock everything" },
+    });
     if (everything?.kind !== "confirm") throw new Error("expected confirm");
-    expect(everything.confirm.body).toMatch(/covers 2 campaigns, \d+ scenarios and \d+ heroes/);
+    expect(everything.confirm.body).toContain("nothing is charged");
+    expect(tapOf(make({ ...DEFAULT_UNLOCK_PREFS, unlockAll: true }), { kind: "everything" }, true)).toMatchObject({
+      kind: "apply",
+      prefs: { unlockAll: false },
+    });
   });
 });
 
 describe("summaries", () => {
   it("leads with champion points", () => {
     expect(unlocksSummaryOf(make())).toBe("0 champion points · 1 of 4 waves open. Next: Beat Rhino to unlock Wave 1.");
-    const byHand = unlockByHand(make(), { kind: "hero", identityCardId: thor });
-    expect(unlocksSummaryOf(make(byHand))).toBe(
-      "-150 champion points · 1 of 4 waves open · 1 unlocked by hand. Next: Beat Rhino to unlock Wave 1.",
+    const byHand = unlockByHand(rich(), { kind: "hero", identityCardId: thor });
+    expect(unlocksSummaryOf(rich(byHand))).toBe(
+      "600 champion points · 1 of 4 waves open · 1 unlocked by hand. Next: Beat Rhino to unlock Wave 1.",
     );
+    expect(unlocksSummaryOf(make({ ...DEFAULT_UNLOCK_PREFS, unlockAll: true }))).toBe(
+      "Unlock everything is on: everything is open, and champion points are off.",
+    );
+    expect(pointsRowOf(make({ ...DEFAULT_UNLOCK_PREFS, unlockAll: true })).title).toBe("Champion points: off");
     expect(pointsRowOf(make(DEFAULT_UNLOCK_PREFS, ["rhino"])).title).toBe("Champion points: 100");
   });
 
@@ -135,7 +162,7 @@ describe("scenario rows", () => {
       state: "off",
       detail: "Beat Rhino to unlock The Rise of Red Skull",
     });
-    expect(rowTapOf(make(), rowOf(rows, "scenario:red-skull"))).toMatchObject({
+    expect(rowTapOf(rich(), rowOf(rows, "scenario:red-skull"))).toMatchObject({
       kind: "confirm",
       confirm: { title: "Unlock Red Skull by hand?", confirmLabel: "Spend 100" },
     });

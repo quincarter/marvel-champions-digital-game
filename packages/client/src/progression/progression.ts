@@ -13,6 +13,7 @@
 import { appSession, campaignService } from "../session.js";
 import {
   NO_PROGRESS,
+  UNLOCK_PREFS_VERSION,
   Unlocks,
   devUnlockAllFrom,
   parseUnlockPrefs,
@@ -34,7 +35,7 @@ function readPrefs(): UnlockPrefs {
 
 function writePrefs(prefs: UnlockPrefs): void {
   try {
-    globalThis.localStorage?.setItem(PREFS_KEY, JSON.stringify(prefs));
+    globalThis.localStorage?.setItem(PREFS_KEY, JSON.stringify({ version: UNLOCK_PREFS_VERSION, ...prefs }));
   } catch {
     // Private mode or a full quota: the choice still holds for this session.
   }

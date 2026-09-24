@@ -29,6 +29,8 @@ const won = (wonScenarioIds: string[], wonCampaignIds: string[] = []): UnlockPro
   wonScenarioIds,
   wonCampaignIds,
 });
+/** 750 points (a Galaxy's Most Wanted campaign, won and won on Expert) and nothing on the path opened by it. */
+const RICH: UnlockProgress = { ...NO_PROGRESS, wonCampaignIds: ["gmw"], wonExpertCampaignIds: ["gmw"] };
 const make = (progress: UnlockProgress = NO_PROGRESS, prefs: UnlockPrefs = DEFAULT_UNLOCK_PREFS) =>
   new Unlocks({ progress, prefs });
 
@@ -123,18 +125,26 @@ describe("opening things by hand", () => {
 
   it("opens one hero, charging for it once and refunding nothing", () => {
     const thor = heroNamed("Thor");
-    const start = make(won(["rhino"]));
-    const prefs = unlockByHand(start, { kind: "hero", identityCardId: thor });
+    const progress: UnlockProgress = { ...RICH, wonScenarioIds: ["rhino"] };
+    const prefs = unlockByHand(make(progress), { kind: "hero", identityCardId: thor });
     expect(prefs.charges).toEqual([{ id: `hero:${thor}`, points: POINTS.unlockHero }]);
-    const opened = make(won(["rhino"]), prefs);
+    const opened = make(progress, prefs);
     expect(opened.heroLock(thor)).toBeNull();
     expect(opened.heroLock(heroNamed("Hulk"))).not.toBeNull();
-    expect(opened.points()).toEqual({ earned: 100, spent: 150, total: -50 });
+    expect(opened.points()).toEqual({ earned: 850, spent: 150, total: 700 });
 
-    const closed = make(won(["rhino"]), relock(prefs, { kind: "hero", identityCardId: thor }));
+    const closed = make(progress, relock(prefs, { kind: "hero", identityCardId: thor }));
     expect(closed.heroLock(thor)).not.toBeNull();
     expect(closed.points().spent).toBe(POINTS.unlockHero);
     expect(closed.chargesFor({ kind: "hero", identityCardId: thor })).toEqual([]);
+  });
+
+  it("never spends points the player hasn't earned", () => {
+    const thor = heroNamed("Thor");
+    const poor = make(won(["rhino"]));
+    expect(poor.canAfford({ kind: "hero", identityCardId: thor })).toBe(false);
+    expect(unlockByHand(poor, { kind: "hero", identityCardId: thor })).toBe(poor.prefs);
+    expect(poor.canAfford({ kind: "scenario", scenarioId: "red-skull" })).toBe(true);
   });
 
   it("charges nothing for what play already opened", () => {
@@ -143,7 +153,7 @@ describe("opening things by hand", () => {
   });
 
   it("opens a campaign with its cast, out of the Saga's order", () => {
-    const u = make(NO_PROGRESS, unlockByHand(make(), { kind: "campaign", campaignId: "gmw" }));
+    const u = make(RICH, unlockByHand(make(RICH), { kind: "campaign", campaignId: "gmw" }));
     expect(u.campaignLock("gmw")).toBeNull();
     expect(u.campaignManual("gmw")).toBe(true);
     expect(u.heroLock(heroNamed("Groot"))).toBeNull();
@@ -151,15 +161,13 @@ describe("opening things by hand", () => {
     expect(u.points().spent).toBe(POINTS.unlockCampaign);
   });
 
-  it("charges Unlock everything per locked campaign and hero, never twice for a cast", () => {
+  it("opens everything for free, with no points needed", () => {
     const u = make();
-    const charges = u.chargesFor({ kind: "everything" });
-    const heroes = UNLOCK_HEROES.filter((h) => h.cycleId !== "core").length;
-    // Both campaigns, and every non-Core hero except the four cast members the campaigns bring.
-    expect(charges.filter((c) => c.id.startsWith("campaign:"))).toHaveLength(2);
-    expect(charges.filter((c) => c.id.startsWith("hero:"))).toHaveLength(heroes - 4);
-    const after = make(NO_PROGRESS, unlockByHand(u, { kind: "everything" }));
-    expect(after.chargesFor({ kind: "hero", identityCardId: heroNamed("Thor") })).toEqual([]);
+    expect(u.chargesFor({ kind: "everything" })).toEqual([]);
+    expect(u.canAfford({ kind: "everything" })).toBe(true);
+    const prefs = unlockByHand(u, { kind: "everything" });
+    expect(prefs).toMatchObject({ unlockAll: true, charges: [] });
+    expect(make(NO_PROGRESS, prefs).points()).toEqual({ earned: 0, spent: 0, total: 0 });
   });
 });
 
@@ -219,7 +227,9 @@ describe("storage", () => {
     expect(parseUnlockPrefs(null)).toEqual(DEFAULT_UNLOCK_PREFS);
     expect(parseUnlockPrefs("not json")).toEqual(DEFAULT_UNLOCK_PREFS);
     expect(
-      parseUnlockPrefs('{"unlockAll":"yes","heroIds":["03001a",4],"charges":[{"id":"hero:03001a","points":150},{}]}'),
+      parseUnlockPrefs(
+        '{"version":2,"unlockAll":"yes","heroIds":["03001a",4],"charges":[{"id":"hero:03001a","points":150},{}]}',
+      ),
     ).toEqual({
       unlockAll: false,
       heroIds: ["03001a"],
@@ -227,6 +237,8 @@ describe("storage", () => {
       scenarioIds: [],
       charges: [{ id: "hero:03001a", points: 150 }],
     });
+    // Before version 2, "Unlock everything" charged points; those charges are dropped rather than kept negative.
+    expect(parseUnlockPrefs('{"unlockAll":true,"charges":[{"id":"hero:03001a","points":150}]}').charges).toEqual([]);
   });
 
   it("lists every pool hero once", () => {
@@ -252,7 +264,7 @@ describe("scenarios by hand", () => {
     expect(u.chargesFor({ kind: "scenario", scenarioId: "red-skull" })).toEqual([
       { id: "scenario:red-skull", points: POINTS.unlockScenario },
     ]);
-    const opened = make(NO_PROGRESS, unlockByHand(u, { kind: "scenario", scenarioId: "red-skull" }));
+    const opened = make(RICH, unlockByHand(make(RICH), { kind: "scenario", scenarioId: "red-skull" }));
     expect(opened.scenarioLock(scenario("red-skull"))).toBeNull();
     expect(opened.scenarioLock(scenario("zola"))).not.toBeNull();
     expect(opened.points().spent).toBe(POINTS.unlockScenario);

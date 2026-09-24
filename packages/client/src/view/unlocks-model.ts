@@ -5,7 +5,6 @@
  * anything costs points, and saves what a tap changes.
  */
 import {
-  POINTS,
   UNLOCK_CAMPAIGNS,
   UNLOCK_HEROES,
   UNLOCK_WAVES,
@@ -22,7 +21,6 @@ import {
 import { POOL_SCENARIOS } from "../content/pool.js";
 
 const formatPoints = (points: number): string => points.toLocaleString("en-US");
-const plural = (count: number, one: string, many = `${one}s`): string => `${count} ${count === 1 ? one : many}`;
 
 export interface UnlockHeaderRow {
   readonly title: string;
@@ -63,6 +61,14 @@ export type UnlockListRow =
 
 export function pointsRowOf(unlocks: Unlocks): UnlockHeaderRow {
   const { earned, spent, total } = unlocks.points();
+  if (unlocks.everything) {
+    return {
+      title: "Champion points: off",
+      detail:
+        "Unlock everything is on, so everything is open for free. Switch it off to earn and spend points again; " +
+        "what you've earned is kept. A feature of this app, not a card-game rule; see How it works.",
+    };
+  }
   return {
     title: `Champion points: ${formatPoints(total)}`,
     detail: `${earnedLineOf(unlocks, earned)} Spent ${formatPoints(spent)}. A feature of this app, not a card-game rule; see How it works.`,
@@ -81,7 +87,7 @@ function earnedLineOf(unlocks: Unlocks, earned: number): string {
 export function unlockAllRowOf(unlocks: Unlocks): UnlockAllRow {
   const detail = unlocks.devUnlockAll
     ? "Open for this session by the ?unlock=all link, whatever this switch says. Nothing is charged."
-    : "Every wave, hero, scenario and campaign, in any order. What you've earned stays earned.";
+    : "Free: every wave, hero, scenario and campaign, in any order, with champion points switched off. What you've earned stays earned.";
   return { title: "Unlock everything", detail, on: unlocks.prefs.unlockAll };
 }
 
@@ -205,11 +211,14 @@ export const switchToggleable = (state: UnlockSwitchState): boolean => state ===
 export const switchLabel = (state: UnlockSwitchState): string =>
   state === "always" ? "OPEN" : state === "earned" ? "EARNED" : state === "off" ? "OFF" : "ON";
 
-/** Asked before anything that costs points. */
+/** Asked before anything is unlocked by hand: what it costs, or that it can't be afforded yet. */
 export interface UnlockConfirm {
   readonly target: UnlockTarget;
   readonly title: string;
   readonly body: string;
+  /** False when the player hasn't earned enough points: the confirm offers only "Keep playing". */
+  readonly affordable: boolean;
+  /** The confirm button's label. Empty when `affordable` is false. */
   readonly confirmLabel: string;
 }
 
@@ -220,13 +229,14 @@ export type UnlockTap =
   | null;
 
 /**
- * Switching off is free and immediate. Switching on asks first whenever it costs points; something already paid
- * for once (switched on, off, and on again) switches straight back on.
+ * Switching off is free and immediate. Switching on asks first whenever it costs points, and always for Unlock
+ * everything, which is free but switches points off; something already paid for once switches straight back on.
  */
 export function tapOf(unlocks: Unlocks, target: UnlockTarget, currentlyOn: boolean): UnlockTap {
   if (currentlyOn) return { kind: "apply", prefs: relock(unlocks.prefs, target) };
   const charges = unlocks.chargesFor(target);
-  if (charges.length === 0) return { kind: "apply", prefs: unlockByHand(unlocks, target) };
+  if (charges.length === 0 && target.kind !== "everything")
+    return { kind: "apply", prefs: unlockByHand(unlocks, target) };
   return { kind: "confirm", confirm: confirmOf(unlocks, target) };
 }
 
@@ -237,24 +247,22 @@ export function rowTapOf(unlocks: Unlocks, row: UnlockListRow): UnlockTap {
   return tapOf(unlocks, row.target, row.state === "on");
 }
 
-export function confirmOf(unlocks: Unlocks, target: UnlockTarget): UnlockConfirm {
-  const charges = unlocks.chargesFor(target);
-  const cost = charges.reduce((sum, c) => sum + c.points, 0);
-  const have = unlocks.points().total;
-  const price =
-    `This costs ${formatPoints(cost)} champion points (you have ${formatPoints(have)}, leaving ` +
-    `${formatPoints(have - cost)}). Switching it off later won't refund them.`;
+const lowerFirst = (text: string): string => `${text.charAt(0).toLowerCase()}${text.slice(1)}`;
+
+/** The name and the free way in, for each kind of thing that can be bought. */
+function subjectOf(
+  unlocks: Unlocks,
+  target: Exclude<UnlockTarget, { kind: "everything" }>,
+): { name: string; title: string; free: string | null; note: string } {
   switch (target.kind) {
     case "hero": {
       const name = UNLOCK_HEROES.find((h) => h.identityCardId === target.identityCardId)?.name ?? "this hero";
       const hint = unlocks.heroHint(target.identityCardId);
       return {
-        target,
+        name,
         title: `Unlock ${name} by hand?`,
-        body:
-          `${price}${hint ? ` Or ${hint.charAt(0).toLowerCase()}${hint.slice(1)} to unlock ${name} for free, and earn points for the win.` : ""}` +
-          ` This is for ${name}'s precon: a ${name} deck you import or build plays already.`,
-        confirmLabel: `Spend ${formatPoints(cost)}`,
+        free: hint ? `${lowerFirst(hint)} to unlock ${name} for free, and earn points for the win` : null,
+        note: ` This is for ${name}'s precon: a ${name} deck you import or build plays already.`,
       };
     }
     case "campaign": {
@@ -264,56 +272,74 @@ export function confirmOf(unlocks: Unlocks, target: UnlockTarget): UnlockConfirm
         wave && wave.starterHeroIds !== "all"
           ? wave.starterHeroIds.map((id) => UNLOCK_HEROES.find((h) => h.identityCardId === id)?.name ?? id)
           : [];
-      const hint = wave?.gate?.hint;
+      const name = campaign?.name ?? "this campaign";
       return {
-        target,
-        title: `Open ${campaign?.name ?? "this campaign"} by hand?`,
-        body:
-          `${price}${cast.length > 0 ? ` Its cast (${cast.join(" and ")}) comes with it.` : ""}` +
-          (hint ? ` Or ${hint.charAt(0).toLowerCase()}${hint.slice(1)} to open it for free.` : ""),
-        confirmLabel: `Spend ${formatPoints(cost)}`,
+        name,
+        title: `Open ${name} by hand?`,
+        free: wave?.gate ? `${lowerFirst(wave.gate.hint)} to open it for free` : null,
+        note: cast.length > 0 ? ` Its cast (${cast.join(" and ")}) comes with it.` : "",
       };
     }
     case "scenario": {
       const name = scenarioNameOf(target.scenarioId);
       const scenario = POOL_SCENARIOS.find((sc) => (sc.id as string) === target.scenarioId);
-      const lock = scenario ? unlocks.waveLock(scenarioCycleOf(scenario)) : null;
-      const wave = UNLOCK_WAVES.find((w) => w.cycleId === (scenario ? scenarioCycleOf(scenario) : undefined));
+      const cycleId = scenario ? scenarioCycleOf(scenario) : undefined;
+      const lock = unlocks.waveLock(cycleId);
+      const wave = UNLOCK_WAVES.find((w) => w.cycleId === cycleId);
       return {
-        target,
+        name,
         title: `Unlock ${name} by hand?`,
-        body:
-          `${price} This opens ${name} on its own, not the rest of ${wave?.name ?? "its wave"}.` +
-          (lock ? ` Or ${lock.charAt(0).toLowerCase()}${lock.slice(1)}, for free.` : ""),
-        confirmLabel: `Spend ${formatPoints(cost)}`,
-      };
-    }
-    case "everything": {
-      const heroes = charges.filter((c) => c.id.startsWith("hero:")).length;
-      const campaigns = charges.filter((c) => c.id.startsWith("campaign:")).length;
-      const scenarios = charges.filter((c) => c.id.startsWith("scenario:")).length;
-      const parts = [
-        campaigns > 0 ? plural(campaigns, "campaign") : null,
-        scenarios > 0 ? plural(scenarios, "scenario") : null,
-        heroes > 0 ? plural(heroes, "hero", "heroes") : null,
-      ].filter((part): part is string => part !== null);
-      const what = parts.length > 1 ? `${parts.slice(0, -1).join(", ")} and ${parts.at(-1)}` : (parts[0] ?? "nothing");
-      return {
-        target,
-        title: "Unlock everything?",
-        body:
-          `${price} It covers ${what} you haven't earned yet. Beating villains unlocks heroes for free and ` +
-          `earns ${POINTS.firstWin} points for each first win.`,
-        confirmLabel: `Spend ${formatPoints(cost)}`,
+        free: lock ? `${lowerFirst(lock)}, for free` : null,
+        note: ` This opens ${name} on its own, not the rest of ${wave?.name ?? "its wave"}.`,
       };
     }
   }
 }
 
+export function confirmOf(unlocks: Unlocks, target: UnlockTarget): UnlockConfirm {
+  if (target.kind === "everything") {
+    return {
+      target,
+      title: "Unlock everything for free?",
+      body:
+        "Every wave, hero, scenario and campaign opens, and nothing is charged. Champion points switch off " +
+        "while it's on. Switch it off in Settings ▸ Unlocks to go back to earning and spending them; what you've " +
+        "earned stays earned.",
+      affordable: true,
+      confirmLabel: "Unlock everything",
+    };
+  }
+  const cost = unlocks.chargesFor(target).reduce((sum, c) => sum + c.points, 0);
+  const have = unlocks.points().total;
+  const subject = subjectOf(unlocks, target);
+  const free = subject.free ? ` Or ${subject.free}.` : "";
+  if (cost > have) {
+    return {
+      target,
+      title: "Not enough champion points",
+      body:
+        `Unlocking ${subject.name} costs ${formatPoints(cost)} points, and you have ${formatPoints(have)}. ` +
+        `Win games to earn more.${free} Or turn on Unlock everything in Settings ▸ Unlocks to open everything ` +
+        "for free, with points off.",
+      affordable: false,
+      confirmLabel: "",
+    };
+  }
+  return {
+    target,
+    title: subject.title,
+    body:
+      `This costs ${formatPoints(cost)} of your ${formatPoints(have)} champion points, leaving ` +
+      `${formatPoints(have - cost)}. Switching it off later won't refund them.${free}${subject.note}`,
+    affordable: true,
+    confirmLabel: `Spend ${formatPoints(cost)}`,
+  };
+}
+
 /** The one line Settings shows under "Unlocks". */
 export function unlocksSummaryOf(unlocks: Unlocks): string {
+  if (unlocks.everything) return "Unlock everything is on: everything is open, and champion points are off.";
   const points = `${formatPoints(unlocks.points().total)} champion points`;
-  if (unlocks.everything) return `${points} · everything is unlocked.`;
   const waves = unlocks.waves();
   const open = waves.filter((w) => w.unlocked).length;
   const next = waves.find((w) => !w.unlocked);

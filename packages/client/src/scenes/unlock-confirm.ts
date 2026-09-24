@@ -54,9 +54,11 @@ export class UnlockConfirmOverlay extends Phaser.Scene {
 
   #answer(confirmed: boolean): void {
     const { target, onUnlocked } = this.#data;
-    if (confirmed) setUnlockPrefs(unlockByHand(unlocks(), target));
+    // Re-checked at the moment of paying: never spend points the player doesn't have.
+    const paid = confirmed && unlocks().canAfford(target);
+    if (paid) setUnlockPrefs(unlockByHand(unlocks(), target));
     this.scene.stop();
-    if (confirmed) onUnlocked?.();
+    if (paid) onUnlocked?.();
   }
 
   #draw(): void {
@@ -93,33 +95,34 @@ export class UnlockConfirmOverlay extends Phaser.Scene {
     title.setPosition(box.x + 20, box.y + 20);
     body.setPosition(box.x + 20, title.y + title.height + 12);
 
-    const buttonWidth = (textWidth - 12) / 2;
+    // Not enough points: nothing to confirm, only the way back.
+    const buttonWidth = confirm.affordable ? (textWidth - 12) / 2 : textWidth;
     const buttonY = box.y + box.height - 20 - buttonHeight;
     const cancelRect: Rect = { x: box.x + 20, y: buttonY, width: buttonWidth, height: buttonHeight };
     const okRect: Rect = { x: cancelRect.x + buttonWidth + 12, y: buttonY, width: buttonWidth, height: buttonHeight };
     this.#buttons.push(
       new McButton(this, {
-        kind: "secondary",
+        kind: confirm.affordable ? "secondary" : "primary",
         label: "Keep playing",
         type: typeRole.label,
         rect: cancelRect,
         onClick: () => this.#answer(false),
       }),
-      new McButton(this, {
-        kind: "primary",
-        label: confirm.confirmLabel,
-        type: typeRole.label,
-        rect: okRect,
-        onClick: () => this.#answer(true),
-      }),
     );
-    this.#route?.set(
-      ["cancel", "ok"],
-      new Map([
-        ["cancel", { rect: cancelRect, activate: () => this.#answer(false) }],
-        ["ok", { rect: okRect, activate: () => this.#answer(true) }],
-      ]),
-    );
+    const stops = new Map([["cancel", { rect: cancelRect, activate: () => this.#answer(false) }]]);
+    if (confirm.affordable) {
+      this.#buttons.push(
+        new McButton(this, {
+          kind: "primary",
+          label: confirm.confirmLabel,
+          type: typeRole.label,
+          rect: okRect,
+          onClick: () => this.#answer(true),
+        }),
+      );
+      stops.set("ok", { rect: okRect, activate: () => this.#answer(true) });
+    }
+    this.#route?.set(confirm.affordable ? ["cancel", "ok"] : ["cancel"], stops);
   }
 }
 

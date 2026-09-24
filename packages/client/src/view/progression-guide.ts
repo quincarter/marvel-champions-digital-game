@@ -76,18 +76,25 @@ export function progressionGuideOf(): readonly GuideSection[] {
       paragraphs: [
         "Don't want to play through? Unlock something right where you find it locked: a precon in Seats, a " +
           "scenario in Scenario select, a campaign on the Saga shelf. Or switch it on here. It costs points " +
-          "instead of wins, and it asks first.",
+          "you've earned instead of wins, and it asks first.",
       ],
       bullets: [
         `A hero's precon: ${POINTS.unlockHero} points.`,
         `A campaign: ${POINTS.unlockCampaign} points. Its cast comes with it.`,
         `A scenario, on its own: ${POINTS.unlockScenario} points.`,
-        `Unlock everything: ${POINTS.unlockHero} for each locked hero, ${POINTS.unlockScenario} for each locked ` +
-          `scenario and ${POINTS.unlockCampaign} for each locked campaign.`,
+        "You can only spend points you've earned, so your total never goes below zero.",
         "Anything you've already earned by playing is free.",
         "Points are never refunded. Switching something off and on again doesn't charge twice.",
-        "Your total can go below zero.",
       ],
+    },
+    {
+      heading: "Unlock everything: points off",
+      paragraphs: [
+        "Rather not bother with progression at all? Unlock everything in Settings ▸ Unlocks opens every wave, " +
+          "hero, scenario and campaign for free, and switches champion points off while it's on. Switch it off " +
+          "to go back to earning and spending them; what you've earned stays earned.",
+      ],
+      bullets: [],
     },
     {
       heading: "Where it's kept",

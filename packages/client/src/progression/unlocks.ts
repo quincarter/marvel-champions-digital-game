@@ -26,10 +26,13 @@
  * MarvelCDB or built in the deck builder seats whatever hero it's for (`Unlocks.deckLock`). Locked heroes can still
  * be built, so it's the precon, not the character, that play unlocks.
  *
- * **Opening things by hand** (Settings ▸ Unlocks): "Unlock everything", one hero, or one campaign (which seats its
- * cast too). Each costs champion points (`POINTS`), charged once per thing and never refunded, so switching it
- * off and on again is free. What was charged is kept in `UnlockPrefs.charges`. A dev/QA session can open
- * everything for one page load with `?unlock=all` (`progression.ts`): that is never saved and never charged.
+ * **Opening things by hand.** One hero, one scenario or one campaign (which seats its cast too) costs champion
+ * points (`POINTS`) the player has earned: charged once per thing, never refunded, and never more than the player
+ * has, so the total can't go below zero. What was charged is kept in `UnlockPrefs.charges`.
+ *
+ * **Unlock everything is free.** It's the way out of points altogether, for a player who doesn't want the
+ * progression: everything opens, nothing is charged, and points read as off while it's on. A dev/QA session can do
+ * the same for one page load with `?unlock=all` (`progression.ts`), which is never saved.
  *
  * Pure: no storage, no Phaser. `progression.ts` owns the cache and the saved preferences.
  */
@@ -154,6 +157,12 @@ export interface UnlockPrefs {
   /** Everything ever charged. Never shrinks: switching something off refunds nothing. */
   readonly charges: readonly UnlockCharge[];
 }
+
+/**
+ * Bumped when stored charges stop meaning what they meant. 2: "Unlock everything" became free, so the charges an
+ * earlier build recorded for it (and the negative totals they caused) are dropped on load.
+ */
+export const UNLOCK_PREFS_VERSION = 2;
 
 export const DEFAULT_UNLOCK_PREFS: UnlockPrefs = {
   unlockAll: false,
@@ -428,6 +437,12 @@ export class Unlocks {
     return wave ? this.waveLock(wave.cycleId) : null;
   }
 
+  /** Whether the player has the points `target` costs. Spending never takes the total below zero. */
+  canAfford(target: UnlockTarget): boolean {
+    const cost = this.chargesFor(target).reduce((sum, charge) => sum + charge.points, 0);
+    return cost === 0 || cost <= this.points().total;
+  }
+
   /** Champion points: earned by wins, less what opening things by hand has cost. */
   points(): PointsTally {
     const p = this.progress;
@@ -482,14 +497,8 @@ export class Unlocks {
       case "scenario":
         return scenario(target.scenarioId);
       case "everything":
-        return [
-          ...UNLOCK_CAMPAIGNS.flatMap((c) => campaign(c.campaignId)),
-          ...POOL_SCENARIOS.flatMap((s) => scenario(s.id as string)),
-          // A campaign's cast comes with the campaign, so the cast isn't charged twice.
-          ...UNLOCK_HEROES.filter((h) => !this.#castOfLockedCampaign(h.identityCardId)).flatMap((h) =>
-            hero(h.identityCardId),
-          ),
-        ];
+        // Free: Unlock everything is the way out of points altogether, not a purchase.
+        return [];
     }
   }
 
@@ -497,18 +506,13 @@ export class Unlocks {
     const cycleId = heroCycleOf(identityCardId);
     return UNLOCK_WAVES.find((w) => w.cycleId === cycleId);
   }
-
-  #castOfLockedCampaign(identityCardId: string): boolean {
-    const wave = this.#waveOfHero(identityCardId);
-    if (!wave?.campaignId || wave.starterHeroIds === "all" || !wave.starterHeroIds.includes(identityCardId))
-      return false;
-    return !this.campaignEarned(wave.campaignId);
-  }
 }
 
-/** `prefs` with `target` switched on, and what that costs added to its charges. */
+/** `prefs` with `target` switched on and what it costs added to its charges; unchanged if it can't be afforded. */
 export function unlockByHand(unlocks: Unlocks, target: UnlockTarget): UnlockPrefs {
   const prefs = unlocks.prefs;
+  // Points are spent, never borrowed: something the player can't afford stays locked.
+  if (!unlocks.canAfford(target)) return prefs;
   const charges = [...prefs.charges, ...unlocks.chargesFor(target)];
   switch (target.kind) {
     case "hero":
@@ -576,7 +580,7 @@ export function parseUnlockPrefs(raw: string | null): UnlockPrefs {
       heroIds: strings(value.heroIds),
       campaignIds: strings(value.campaignIds),
       scenarioIds: strings(value.scenarioIds),
-      charges: charges.map((c) => ({ id: c.id, points: c.points })),
+      charges: value.version === UNLOCK_PREFS_VERSION ? charges.map((c) => ({ id: c.id, points: c.points })) : [],
     };
   } catch {
     return DEFAULT_UNLOCK_PREFS;
