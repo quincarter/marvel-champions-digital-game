@@ -1,5 +1,6 @@
 import { describe, expect, test } from "vitest";
 import {
+  azShelvesOf,
   cycleShelvesOf,
   flattenShelves,
   shelvesOf,
@@ -296,5 +297,86 @@ describe("cycleShelvesOf", () => {
   test("a candidate whose pack isn't in the pack list is dropped, never guessed into a shelf", () => {
     const shelves = cycleShelvesOf([candidate("Mystery", "future-pack")], packs, "");
     expect(shelves).toEqual([]);
+  });
+});
+
+describe("azShelvesOf", () => {
+  interface Hero {
+    readonly id: string;
+    readonly name: string;
+    readonly deckName: string;
+  }
+
+  const hero = (id: string, name: string, deckName: string = name): Hero => ({ id, name, deckName });
+  const nameOf = (h: Hero): string => h.name;
+  const tieBreakOf = (h: Hero): string => h.deckName;
+
+  function heroCandidate(
+    h: Hero,
+    packCode: string | null,
+    extra: Partial<ShelfCandidate<Hero>> = {},
+  ): ShelfCandidate<Hero> {
+    return { item: h, packCode, searchHaystacks: [h.name, h.deckName], passesChips: true, ...extra };
+  }
+
+  test("groups into one letter-headed shelf per first letter, A–Z, regardless of input order", () => {
+    const candidates = [
+      heroCandidate(hero("t", "Thor"), "wave1"),
+      heroCandidate(hero("a", "Ant-Man"), "cycle1"),
+      heroCandidate(hero("c", "Captain Marvel"), "core"),
+      heroCandidate(hero("b", "Black Widow"), "core"),
+    ];
+    const shelves = azShelvesOf(candidates, "", nameOf, tieBreakOf);
+    expect(shelves.map((s) => s.id)).toEqual(["az:A", "az:B", "az:C", "az:T"]);
+    expect(shelves.map((s) => s.title)).toEqual(["A", "B", "C", "T"]);
+    expect(flattenShelves(shelves).map((h) => h.id)).toEqual(["a", "b", "c", "t"]);
+  });
+
+  test("within a shelf, items sort by name then tie-break — two decks sharing a hero name", () => {
+    const candidates = [
+      heroCandidate(hero("cm-lead", "Captain Marvel", "Captain Marvel (Leadership) — Core Set starter deck"), "core"),
+      heroCandidate(hero("cm-agg", "Captain Marvel", "Captain Marvel (Aggression) — Core Set tutorial deck"), "core"),
+    ];
+    const shelves = azShelvesOf(candidates, "", nameOf, tieBreakOf);
+    expect(shelves).toHaveLength(1);
+    expect(shelves[0]!.items.map((h) => h.id)).toEqual(["cm-agg", "cm-lead"]);
+  });
+
+  test("'Your decks' (null packCode) sorts first, ahead of every letter shelf, and by name itself", () => {
+    const candidates = [
+      heroCandidate(hero("t", "Thor"), "wave1"),
+      heroCandidate(hero("z", "Zed's deck"), null),
+      heroCandidate(hero("a", "Ant's deck"), null),
+    ];
+    const shelves = azShelvesOf(candidates, "", nameOf, tieBreakOf);
+    expect(shelves.map((s) => s.id)).toEqual([YOUR_DECKS_SHELF_ID, "az:T"]);
+    expect(shelves[0]!.items.map((h) => h.id)).toEqual(["a", "z"]);
+  });
+
+  test("a chip-excluded candidate never appears, same as shelvesOf", () => {
+    const shelves = azShelvesOf(
+      [heroCandidate(hero("t", "Thor"), "wave1", { passesChips: false })],
+      "",
+      nameOf,
+      tieBreakOf,
+    );
+    expect(shelves).toEqual([]);
+  });
+
+  test("a query narrows to matching items only — no whole-shelf match on a single-letter title", () => {
+    const candidates = [heroCandidate(hero("t", "Thor"), "wave1"), heroCandidate(hero("a", "Ant-Man"), "cycle1")];
+    // "a" is a substring of a letter-shelf title ("A"), but that must never keep the whole shelf — only "Ant-Man"
+    // itself matches "ant".
+    const shelves = azShelvesOf(candidates, "ant", nameOf, tieBreakOf);
+    expect(shelves.map((s) => s.id)).toEqual(["az:A"]);
+    expect(shelves[0]!.items.map((h) => h.id)).toEqual(["a"]);
+  });
+
+  test("accent- and case-insensitive, both for the query and for grouping/sorting", () => {
+    const candidates = [heroCandidate(hero("c", "Ángela"), "wave1"), heroCandidate(hero("a", "angel"), "wave1")];
+    const shelves = azShelvesOf(candidates, "ANGEL", nameOf, tieBreakOf);
+    expect(shelves.map((s) => s.id)).toEqual(["az:A"]);
+    // "angel" sorts before "Ángela" once both are accent- and case-folded ("angel" < "angela").
+    expect(shelves[0]!.items.map((h) => h.id)).toEqual(["a", "c"]);
   });
 });

@@ -44,6 +44,9 @@ import { rollSeed } from "./seed.js";
 
 export type SetupDifficulty = "standard" | "expert" | "extreme";
 
+/** Take your seats' hero-roster sort toggle: grouped by release wave (`cycleShelvesOf`, the default) or one flat A–Z run (`azShelvesOf`). Session-scoped on the draft, same lifetime as `heroFilter` — it survives a trip to Deck check and back, but a fresh draft (a new visit from Title) starts back at the default. */
+export type HeroSortMode = "wave" | "az";
+
 export interface SetupDraft {
   readonly scenarioId: string;
   readonly difficulty: SetupDifficulty;
@@ -56,6 +59,8 @@ export interface SetupDraft {
   readonly seed: number;
   readonly scenarioFilter: RosterFilter;
   readonly heroFilter: RosterFilter;
+  /** Default `"wave"`. See `HeroSortMode`'s own doc comment. */
+  readonly heroSortMode: HeroSortMode;
   /**
    * The active-seat model (docs/phase4-screen-gaps.md §3, "Reopened — W2b"): which of up to `MAX_SEATS` seat
    * slots the next roster pick targets. `seats` stays compact (no gaps — see that field's own doc comment and
@@ -86,6 +91,7 @@ export function initialSetupDraft(options: InitialSetupDraftOptions): SetupDraft
     seed: options.seed,
     scenarioFilter: EMPTY_ROSTER_FILTER,
     heroFilter: EMPTY_ROSTER_FILTER,
+    heroSortMode: "wave",
     activeSeatIndex: 0,
   };
 }
@@ -139,6 +145,10 @@ export function setHeroFilter(draft: SetupDraft, filter: RosterFilter): SetupDra
 
 export function clearHeroFilter(draft: SetupDraft): SetupDraft {
   return { ...draft, heroFilter: EMPTY_ROSTER_FILTER };
+}
+
+export function setHeroSortMode(draft: SetupDraft, mode: HeroSortMode): SetupDraft {
+  return { ...draft, heroSortMode: mode };
 }
 
 /**
