@@ -6,10 +6,50 @@
 
 import { trait } from "@mc/content";
 import { describe, expect, it } from "vitest";
-import { exhaustEachCost, heroAction, heroInterrupt, on } from "./abilities.js";
-import { damageAnEnemy, dealDamage, draw, preventDamage, ready } from "./effects.js";
+import {
+  action,
+  constant,
+  exhaustEachCost,
+  forcedInterrupt,
+  gets,
+  heroAction,
+  heroInterrupt,
+  interrupt,
+  on,
+  response,
+  setup,
+} from "./abilities.js";
+import {
+  cards,
+  damageAnEnemy,
+  dealDamage,
+  declareDefender,
+  draw,
+  ifThen,
+  modifyAttack,
+  moveCards,
+  playSetAside,
+  preventDamage,
+  ready,
+  resolveAttackAgainst,
+  zone,
+} from "./effects.js";
 import { validateDefinition } from "./validate.js";
-import { chosen, eventSource, query, statOf, sum } from "./values.js";
+import {
+  attackInProgress,
+  chosen,
+  each,
+  eventSource,
+  ifElse,
+  query,
+  refMatches,
+  self,
+  statOf,
+  sum,
+  you,
+  YOUR_IDENTITY,
+  yourIdentity,
+} from "./values.js";
 
 const valid = (definition: Parameters<typeof validateDefinition>[0]) =>
   expect(validateDefinition(definition)).toEqual([]);
@@ -53,5 +93,79 @@ describe("§3.17 Alliance: 'Exhaust an [Avenger] character and a [Guardian] char
   it("the validator knows both slots: reading an unbound slot is an error, reading a bound one is not", () => {
     valid(heroAction({ cost: avengerAndGuardian }, ready(chosen("guardian")), draw(1)));
     expect(validateDefinition(heroAction({ cost: avengerAndGuardian }, ready(chosen("other"))))).not.toEqual([]);
+  });
+});
+
+const DEATH_GLOW = query("upgrade", { name: "Death-Glow" });
+const WITH_GLOW = query("enemy", { hasAttachment: DEATH_GLOW });
+
+describe("§3.22 Valkyrie's kit", () => {
+  it("Valkyrie (25001a/b): Setup sets Death-Glow aside; Death Perception plays it from there; 'Not this Day.' sets it aside again", () => {
+    valid(setup(moveCards(zone("deck", you, { filter: DEATH_GLOW }), "setAside")));
+    const perception = heroAction(playSetAside(DEATH_GLOW));
+    expect(perception.effects).toEqual([
+      {
+        kind: "playFromHand",
+        player: you,
+        from: "setAside",
+        costReduction: { kind: "const", value: 0 },
+        filter: DEATH_GLOW,
+      },
+    ]);
+    valid(perception);
+    valid(action(moveCards(cards(each(DEATH_GLOW)), "setAside")));
+  });
+
+  it("Death-Glow (25002): set aside when its enemy is defeated; ready Valkyrie if she (or an extension of her) defeated it", () => {
+    valid(
+      forcedInterrupt(
+        on.defeated("host"),
+        moveCards(cards(self), "setAside"),
+        ifThen(refMatches(eventSource, query([], { extensionOf: you }), { anywhere: true }), ready(yourIdentity)),
+      ),
+    );
+  });
+
+  it("Flight of the Valkyrior (25008) / Valhalla (25004): 'the enemy with Death-Glow' read after it was defeated", () => {
+    const flight = response(on.defeated(query("enemy"), { withAttachment: DEATH_GLOW }), draw(1));
+    expect(flight.trigger).toMatchObject({ on: { on: "characterDefeated", targetHadAttachment: DEATH_GLOW } });
+    valid(flight);
+    valid(response(on.defeated(query("enemy"), { byAttackFrom: YOUR_IDENTITY, withAttachment: DEATH_GLOW }), draw(1)));
+  });
+
+  it("Dragonfang (25006) / Valkyrie's Spear (25005): while attacking / defending against the Death-Glow enemy", () => {
+    valid(
+      constant(
+        gets("atk", ifElse(attackInProgress({ attacker: YOUR_IDENTITY, target: WITH_GLOW }), 2, 1), YOUR_IDENTITY),
+      ),
+    );
+    valid(
+      constant(
+        gets("def", ifElse(attackInProgress({ attacker: WITH_GLOW, defender: YOUR_IDENTITY }), 2, 1), YOUR_IDENTITY),
+      ),
+    );
+  });
+
+  it("Shieldmaiden (25011), The Best Defense… (25020), Thor (25013)", () => {
+    valid(heroInterrupt(on.enemyAttacks(WITH_GLOW), { label: "defense" }, declareDefender(yourIdentity)));
+    expect(declareDefender(chosen("ally"), { exhaust: true })).toEqual({
+      kind: "declareDefender",
+      character: chosen("ally"),
+      exhaust: true,
+    });
+    valid(
+      heroInterrupt(
+        on.basicPowerUsing(YOUR_IDENTITY, { power: "defense" }),
+        { label: "defense" },
+        modifyAttack({ defenseUsesAtk: true }),
+      ),
+    );
+    valid(
+      interrupt(
+        { on: "attack", selfIs: "source", targetIs: query("minion", { engagedWith: "you" }) },
+        { cost: { resources: { energy: 1 } } },
+        resolveAttackAgainst(each(query("minion", { engagedWith: "you" }))),
+      ),
+    );
   });
 });

@@ -96,6 +96,32 @@ export function lastingReaches(
 /** The `enemyAttack` event frame slot a defense records its defender in (`resolve/enemy-activation.ts` `setDefender`). */
 export const DEFENDER_SLOT = "defender";
 
+/**
+ * RRG 1.8 "You, Your" (p. 49): "Some player cards are considered to be an extension of a player's identity" — events
+ * the player plays, resources they spend, and upgrades they control "unless attached to a different friendly
+ * character" — so what they do is done by that identity. Allies, supports, player side schemes and encounter cards are
+ * not. `TargetQuery.extensionOf` (docs/phase7-wave4.md §3.22: "If Valkyrie defeated that enemy" when an event she
+ * played dealt the damage). Read wherever the card is (an event or spent resource is out of play by then); an event or
+ * resource is its owner's, an upgrade its controller's.
+ */
+export function isIdentityExtension(state: GameState, id: InstanceId, players: readonly PlayerId[]): boolean {
+  const card = cardOf(state, id);
+  const instance = state.instances[id];
+  if (!card || !instance) return false;
+  const identityOf = (player: PlayerId) => state.players.find((p) => p.playerId === player)?.identity.instanceId;
+  if (players.some((player) => identityOf(player) === id)) return true;
+  if (card.type === "event" || card.type === "resource")
+    return instance.ownerId !== null && players.includes(instance.ownerId);
+  if (card.type !== "upgrade") return false;
+  const controller = controllerOf(state, id);
+  if (controller === null || !players.includes(controller)) return false;
+  const host = instance.attachedTo;
+  if (host === null || host === identityOf(controller)) return true;
+  // "Unless attached to a different friendly character": an upgrade on an enemy (Death-Glow) is still an extension.
+  const hostCategories = categoriesOf(state, host);
+  return !(hostCategories.includes("ally") || hostCategories.includes("identity"));
+}
+
 export function categoriesOf(state: GameState, id: InstanceId): readonly TargetCategory[] {
   const instance = getInstance(state, id);
   const card = cardOf(state, id);
@@ -300,6 +326,7 @@ export type QueryExclusion =
   | "wrongSelf"
   | "wrongCategory"
   | "wrongController"
+  | "notIdentityExtension"
   | "notEngagedWithYou"
   | "notEngaged"
   | "missingTrait"
@@ -494,6 +521,8 @@ export function explainQuery(
     if (controller === null || !resolvePlayers(state, query.controlledBy, context).includes(controller))
       return "wrongController";
   }
+  if (query.extensionOf && !isIdentityExtension(state, id, resolvePlayers(state, query.extensionOf, context)))
+    return "notIdentityExtension";
   if (
     query.signatureSideScheme !== undefined &&
     state.villains.some((villain) => villain.signatureSideSchemeId === id) !== query.signatureSideScheme
@@ -1262,6 +1291,31 @@ export function evaluate(state: GameState, predicate: Predicate, context: Effect
       const id = currentActivationFrameId(state.stack);
       const frame = id ? state.stack.find((f) => f.frameId === id) : undefined;
       return frame?.kind === "event" && (frame.vars[predicate.key] ?? 0) >= predicate.atLeast;
+    }
+    case "attackInProgress": {
+      // The stack is innermost-first: a nested attack (a boost's, a retaliation's) is the one "while attacking" reads.
+      const frame = state.stack.find(
+        (f) =>
+          f.kind === "event" &&
+          (f.event.kind === "attack" || f.event.kind === "enemyAttack" || f.event.kind === "enemyAttacksEnemy"),
+      );
+      if (frame?.kind !== "event") return false;
+      const event = frame.event;
+      const attacker =
+        event.kind === "enemyAttack"
+          ? event.enemyInstanceId
+          : event.kind === "attack" || event.kind === "enemyAttacksEnemy"
+            ? event.attackerInstanceId
+            : null;
+      const target = "targetInstanceId" in event ? event.targetInstanceId : null;
+      const defender = event.kind === "enemyAttack" ? ((frame.slots[DEFENDER_SLOT] ?? [])[0] ?? null) : null;
+      const matches = (id: InstanceId | null, query: TargetQuery | undefined): boolean =>
+        query === undefined || (id !== null && matchesQuery(state, id, query, context));
+      return (
+        matches(attacker, predicate.attacker) &&
+        matches(target, predicate.target) &&
+        matches(defender, predicate.defender)
+      );
     }
     case "currentActivationIs": {
       const id = currentActivationFrameId(state.stack);
