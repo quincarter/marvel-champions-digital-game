@@ -28,7 +28,8 @@ import {
   speechBubble,
   villainPicture,
 } from "../../ui/campaign-chrome.js";
-import { drawComicReaderStep } from "../../ui/comic-reader.js";
+import { drawComicReaderStep, type ComicReaderTween } from "../../ui/comic-reader.js";
+import type { ComicBeat } from "../../campaign/story.js";
 import { accent, dotGrid, ink, surface, typeRole } from "../../tokens.js";
 import { cssOf, textStyle } from "../../ui/theme.js";
 import { McButton, dashedRect, fitText, label, paintDotGrid } from "../../ui/widgets.js";
@@ -43,7 +44,7 @@ import {
   resolveComicBeats,
   type ResolvedComicBeat,
 } from "../../view/comic-reader-model.js";
-import { campaignService } from "../../session.js";
+import { appSession, campaignService } from "../../session.js";
 import type { CampaignRecord } from "../../engine/campaign-storage.js";
 import { FocusRoute, type FocusStop } from "../focus-route.js";
 import { SCENES } from "../keys.js";
@@ -67,6 +68,15 @@ export class CampaignOpenerScene extends Phaser.Scene {
   /** Set only when the story is page-based and this issue names `comicBeats` — see the class doc comment. */
   #comicSteps: readonly ResolvedComicBeat[] = [];
   #comicCurrent = 0;
+  /**
+   * The guided view's own camera pan (a lettered page, `art/README.md`'s "guided view" over MC10's official
+   * pages): the panel it's panning *from* and how far along, while a tween is in flight. `null` once the tween
+   * finishes (or under reduced motion, where a step never tweens at all) — `#drawComicReader` then draws the
+   * current panel at rest. Ignored entirely for an unlettered page (GMW's own reader is unaffected).
+   */
+  #panTweenFrom: ComicBeat["panel"] | null = null;
+  #panTweenProgress = 1;
+  #panTween: Phaser.Tweens.Tween | null = null;
   #buttons: McButton[] = [];
   #route: FocusRoute | null = null;
 
@@ -81,6 +91,9 @@ export class CampaignOpenerScene extends Phaser.Scene {
     this.#revealed = 1;
     this.#comicSteps = [];
     this.#comicCurrent = 0;
+    this.#panTweenFrom = null;
+    this.#panTweenProgress = 1;
+    this.#panTween = null;
   }
 
   create(): void {
@@ -102,6 +115,7 @@ export class CampaignOpenerScene extends Phaser.Scene {
     };
     this.input.keyboard?.on("keydown", onArrow);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.input.keyboard?.off("keydown", onArrow));
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.#panTween?.stop());
     void this.#load();
     fadeScreenIn(this);
   }
@@ -128,6 +142,10 @@ export class CampaignOpenerScene extends Phaser.Scene {
     const pages = storyFor(record.campaignId)?.pages;
     this.#comicSteps = this.#story?.comicBeats && pages ? resolveComicBeats(pages, this.#story.comicBeats) : [];
     this.#comicCurrent = 0;
+    this.#panTween?.stop();
+    this.#panTween = null;
+    this.#panTweenFrom = null;
+    this.#panTweenProgress = 1;
     this.#draw();
   }
 
@@ -160,13 +178,56 @@ export class CampaignOpenerScene extends Phaser.Scene {
       this.#leave();
       return;
     }
+    const fromPanel = this.#comicSteps[this.#comicCurrent]?.beat.panel ?? null;
+    const fromPage = this.#comicSteps[this.#comicCurrent]?.page.file ?? null;
     this.#comicCurrent = nextComicBeat(this.#comicCurrent, total);
-    this.#draw();
+    this.#startPanTween(fromPanel, fromPage);
   }
 
   /** "◂ BACK" / "←": one beat back, clamped at the first — never leaves the screen. */
   #backComic(): void {
+    const fromPanel = this.#comicSteps[this.#comicCurrent]?.beat.panel ?? null;
+    const fromPage = this.#comicSteps[this.#comicCurrent]?.page.file ?? null;
     this.#comicCurrent = prevComicBeat(this.#comicCurrent);
+    this.#startPanTween(fromPanel, fromPage);
+  }
+
+  /**
+   * Starts (or skips) the guided view's camera pan from the panel just left to the one now current. Only a
+   * lettered page tweens at all — an unlettered page's reader (GMW) always draws at rest, matching its own
+   * behavior before this existed. Under reduced motion the step is instant (no tween, one redraw at the new
+   * panel) rather than a fast version of the same animation.
+   */
+  #startPanTween(fromPanel: ComicBeat["panel"] | null, fromPage: string | null): void {
+    this.#panTween?.stop();
+    this.#panTween = null;
+    const step = this.#comicSteps[this.#comicCurrent];
+    const lettered = step?.page.lettered === true;
+    const samePage = fromPage !== null && fromPage === step?.page.file;
+    if (!lettered || !samePage || !fromPanel || appSession().settings.reducedMotion) {
+      this.#panTweenFrom = null;
+      this.#panTweenProgress = 1;
+      this.#draw();
+      return;
+    }
+    this.#panTweenFrom = fromPanel;
+    this.#panTweenProgress = 0;
+    const state = { t: 0 };
+    this.#panTween = this.tweens.add({
+      targets: state,
+      t: 1,
+      duration: 450,
+      ease: "Sine.easeInOut",
+      onUpdate: () => {
+        this.#panTweenProgress = state.t;
+        this.#draw();
+      },
+      onComplete: () => {
+        this.#panTweenFrom = null;
+        this.#panTween = null;
+        this.#draw();
+      },
+    });
     this.#draw();
   }
 
@@ -351,7 +412,10 @@ export class CampaignOpenerScene extends Phaser.Scene {
     const dotsHeight = 22;
     const readingBottom = height - actionBarHeight - dotsHeight;
     const readingRect: Rect = { x: 0, y: headerBottom, width, height: Math.max(0, readingBottom - headerBottom) };
-    drawComicReaderStep(this, readingRect, record.campaignId, view.step, () => this.#draw());
+    const tween: ComicReaderTween | undefined = this.#panTweenFrom
+      ? { fromPanel: this.#panTweenFrom, progress: this.#panTweenProgress }
+      : undefined;
+    drawComicReaderStep(this, readingRect, record.campaignId, view.step, () => this.#draw(), tween);
 
     this.#drawBeatDots(width, height - actionBarHeight - dotsHeight / 2);
 

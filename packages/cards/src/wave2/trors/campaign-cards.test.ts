@@ -92,7 +92,7 @@ function campaignConfig(scenarioId: string, extra: readonly string[], seed = 202
  * A game with the obligation `code` in P1's deck (`deckConfig`), started so that P1 **draws** it: MC10 p. 17
  * ("Obligations in Player Decks") and RRG 1.8 "Obligation" (p. 30) put an obligation drawn from a player deck into
  * that player's play area. If the opening hand (RRG 1.8 Appendix II step 14) did not already draw it, it is stacked on
- * top of the deck and P1 mulligans one card (step 15), and the refill draws it. Either way the draw is the engine's
+ * top of the deck and P1 mulligans one card (step 15), and the mulligan's draw draws it. Either way the draw is the engine's
  * own; only the deck order is arranged. Returns the game at the first player phase and the obligation's instance.
  */
 function drawnIntoPlay(code: string, seed = 2026): { readonly state: GameState; readonly id: InstanceId } {
@@ -508,8 +508,9 @@ describe("Martial Law (04165)", () => {
     const before = handSize(startWave2Game(deckConfig("rhino", [], 2026)), P1, WAVE2_DEPS);
     const drawn = drawnIntoPlay("04165");
     expect(handSize(drawn.state, P1, WAVE2_DEPS)).toBe(before - 1);
-    // The setup draw and the mulligan draw up to hand size one card at a time, so the refill that drew Martial Law
-    // stopped one card short of the printed hand size (RRG 1.8 Appendix II step 14: "including modifiers").
+    // Either way it was drawn, the hand ends one short of the printed hand size (docs/campaign-mode-design.md Q20):
+    // drawn in the opening hand, the mulligan fills only to the reduced hand size; drawn by the mulligan, it is not
+    // replaced.
     expect(playerOf(drawn.state, P1).hand).toHaveLength(before - 1);
   });
 

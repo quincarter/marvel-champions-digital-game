@@ -91,6 +91,15 @@ export interface ComicPage {
   readonly height: number;
   /** In reading order. */
   readonly beats: readonly ComicBeat[];
+  /**
+   * True for a page that is the box's own official, lettered art (captions and speech balloons already printed
+   * into it — The Rise of Red Skull's rulebook pages, copied into `pages/` rather than redrawn unlettered). The
+   * reader draws none of its own lettering over a page like this (the printed balloons are the story) and fits
+   * each panel into the reading area instead of cover-cropping it, letterboxing where a panel's own aspect ratio
+   * doesn't match the screen's — never cropping a panel's own art to fill the frame. Omitted/false keeps the
+   * GMW behavior: the reader's own captions/bubbles over a cover-fit, recentered page.
+   */
+  readonly lettered?: boolean;
 }
 
 /** Points an issue at one beat of one page, in the order the issue's guided read shows them. */
@@ -145,6 +154,22 @@ export interface IssueStory {
   readonly teaser: string;
 }
 
+/**
+ * How one of a box's own Finale stat boxes (beyond the universal "Issues") is computed from the finished record
+ * (`view/campaign-finale-model.ts`'s `finaleViewOf`). Declared per box because each box's rulebook names and
+ * shapes its own numbers differently (MC10's rewind count and rescued allies vs MC16's banked currency and its
+ * escalating Headhunter ladder) — the client never branches on `campaignId` to pick these.
+ */
+export type FinaleStatSpec =
+  /** Count of `history` entries lost — the same "Rewinds" MC10 has always shown. */
+  | { readonly kind: "rewinds"; readonly label: string }
+  /** Sum of a per-seat `cardList` field's length across every seat ("an ally the players kept"). */
+  | { readonly kind: "cardListTotal"; readonly label: string; readonly field: string }
+  /** Sum of a per-seat `number` field across every seat (a currency's total left unspent). */
+  | { readonly kind: "numberTotal"; readonly label: string; readonly field: string }
+  /** A `shared` `number` field's own value (an escalating ladder's count). */
+  | { readonly kind: "sharedNumber"; readonly label: string; readonly field: string };
+
 export interface CampaignStory {
   readonly campaignId: string;
   /** "A story in five issues". */
@@ -175,6 +200,13 @@ export interface CampaignStory {
     readonly villainLine: string;
     /** One line per roster seat, in seat order; extra seats reuse the last. */
     readonly heroLines: readonly string[];
+    /**
+     * For a page-based box (`pages` set): which page the Finale reads full-bleed instead of the plain villain/hero
+     * comic-grid layout (`ComicPage.file`, e.g. `"06-finale"`). Unset (MC10) keeps that grid.
+     */
+    readonly page?: string;
+    /** This box's own extra stat boxes, in display order. Unset keeps `DEFAULT_FINALE_STATS` (MC10's own two). */
+    readonly stats?: readonly FinaleStatSpec[];
   };
 }
 

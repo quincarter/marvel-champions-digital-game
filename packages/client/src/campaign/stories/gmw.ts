@@ -477,9 +477,19 @@ export const GMW_STORY: CampaignStory = {
   },
   finale: {
     caption: "Every hero the Badoon, the Collector and Nebula ever crossed, in one place at once.",
+    // Two words, like every other box's finale headline (`stories/trors.ts`'s "Hydra falls.") — the copy band's
+    // headline renders one word per giant line (`#drawCopy`), so a longer headline overflows a page-based
+    // spread's shorter band. The design canvas's own on-page text ("THE STONE STAYS SAFE.") is Ronan's threat
+    // from issue #5 turned into the crew's own boast instead, which "Ronan falls." says just as directly.
     headline: "Ronan falls.",
     sfx: "KA-BLAM!",
     villainLine: "This is not... an ending...",
     heroLines: ["Wanted list's looking a lot shorter.", "Somebody's buying the next round. Not it."],
+    // The finale spread (`docs/campaign-client-per-box.md` §4) reads the whole page full-bleed, not a single beat.
+    page: "06-finale",
+    stats: [
+      { kind: "numberTotal", label: "Units banked", field: "units" },
+      { kind: "sharedNumber", label: "Headhunters", field: "headhunterDefeated" },
+    ],
   },
 };
