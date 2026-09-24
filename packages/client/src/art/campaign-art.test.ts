@@ -5,7 +5,13 @@ import { describe, expect, test } from "vitest";
 import type { PanelArt } from "../campaign/story.js";
 import { TRORS_STORY } from "../campaign/stories/trors.js";
 import { GMW_STORY } from "../campaign/stories/gmw.js";
-import { campaignArtboardFor, campaignCoverFor, campaignPageFor, parseCampaignArt } from "./campaign-art.js";
+import {
+  CAMPAIGN_ART,
+  campaignArtboardFor,
+  campaignCoverFor,
+  campaignPageFor,
+  parseCampaignArt,
+} from "./campaign-art.js";
 
 describe("parseCampaignArt", () => {
   test("an artboard is looked up by campaign and name; variants collect; a cover is read separately, not as an artboard", () => {
@@ -72,5 +78,20 @@ describe("the real art/campaigns folder", () => {
         .map((file) => file.slice(0, file.lastIndexOf(".")));
       for (const file of onDisk) expect(named, `${story.campaignId}/pages/${file}`).toContain(file);
     }
+  });
+
+  test("rulebook/ holds only official rulebook pages named page_NNN.jpg, and never reaches the client", () => {
+    for (const campaignId of readdirSync(root)) {
+      const dir = join(root, campaignId, "rulebook");
+      if (!existsSync(dir)) continue;
+      for (const file of readdirSync(dir).filter((f) => !f.startsWith("."))) {
+        expect(file, `${campaignId}/rulebook/${file}`).toMatch(/^(page_\d{3}\.jpg|SOURCE\.md)$/);
+      }
+    }
+    for (const picture of [...CAMPAIGN_ART.pages.values(), ...CAMPAIGN_ART.covers.values()]) {
+      expect(picture.key).not.toContain("/rulebook/");
+    }
+    for (const pictures of CAMPAIGN_ART.artboards.values())
+      for (const picture of pictures) expect(picture.key).not.toContain("/rulebook/");
   });
 });

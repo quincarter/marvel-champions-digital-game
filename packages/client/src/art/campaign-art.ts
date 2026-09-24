@@ -89,11 +89,20 @@ export function campaignPageFor(catalog: CampaignArtCatalog, campaignId: string,
   return catalog.pages.get(`${campaignId}/${file}`) ?? null;
 }
 
-const files = import.meta.glob("../../../../art/campaigns/*/**/*.{png,jpg,jpeg,webp,avif}", {
-  eager: true,
-  query: "?url",
-  import: "default",
-}) as Record<string, string>;
+// Only the folders a screen reads. `rulebook/` (the official, lettered rulebook comic pages) is deliberately left
+// out: globbing it would ship ~45 MB of pages no screen shows yet in every build.
+const files = import.meta.glob(
+  [
+    "../../../../art/campaigns/*/cover.{png,jpg,jpeg,webp,avif}",
+    "../../../../art/campaigns/*/artboards/*.{png,jpg,jpeg,webp,avif}",
+    "../../../../art/campaigns/*/pages/*.{png,jpg,jpeg,webp,avif}",
+  ],
+  {
+    eager: true,
+    query: "?url",
+    import: "default",
+  },
+) as Record<string, string>;
 
-/** Everything in `art/campaigns/`. */
+/** Everything in `art/campaigns/` a screen reads: covers, artboards and comic pages (never `rulebook/`). */
 export const CAMPAIGN_ART: CampaignArtCatalog = parseCampaignArt(files);
