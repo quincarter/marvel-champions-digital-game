@@ -357,7 +357,7 @@ stays data only.**
 | 3.7  | Loki: random start, swap, a villain stage's Victory X, the victory count | Loki; God of Lies (`tt`)                   | landed      |
 | 3.8  | An encounter ally attached to the main scheme (Odin)                     | Hela                                       | landed      |
 | 3.9  | An ally treated as a minion                                              | Fallen Warrior, Beguiled; 5 other packs    | not started |
-| 3.10 | Flipping a card into a separately emitted face of another type           | MC21 campaign                              | not started |
+| 3.10 | Flipping a card into a separately emitted face of another type           | MC21 campaign                              | landed      |
 | 3.11 | Timing points when a deck runs out                                       | Soul World, Universal Church, Thanos       | landed      |
 | 3.12 | Counting different aspects; Adam Warlock's copy limit                    | Adam Warlock                               | landed      |
 | 3.13 | Abilities active in hand; "cannot choose to discard this card"           | Pip the Troll, System Shock                | landed      |
@@ -634,6 +634,20 @@ discards attachments, tucked cards, status cards and tokens when the type change
 (the side-scheme-to-side-scheme flips). A side scheme that flips on "When Defeated" is still defeated (Victory X, "is in
 the victory display" readers), then becomes its other face in play.
 
+> **Status: landed (2026-09-24),** tested in `packages/engine/src/other-face.test.ts` (3 tests: a side scheme that flips
+> on its When Defeated into an ally stays in play under the first player's control with its counters discarded, replay
+> deep-equal; into a minion, engaged with the first player; into another side scheme, keeping its counters and entering
+> with starting threat plus hinder). **What landed:** `flipCard` on a card with `otherFaceId` calls
+> `resolve/other-face.ts flipToOtherFace`: the instance takes the other card's id; a different type discards
+> attachments and tucked cards and clears status cards, damage, threat and counters (RRG 1.8 "Flip", p. 20) and moves
+> the card where its new type lives (minion engaged with "you", ally/support/upgrade under "you", attachment on its
+> first legal host, scheme or environment in the villain's area; "you" is the first player for a side scheme's When
+> Defeated). The new face is then treated as entering play (§4 Q15). A defeated side scheme's leave-play step is now
+> guarded by `refMatches self {printedId}`, so one that flipped during its own When Defeated stays in play; its
+> `schemeDefeated` event still fires (the campaign's "if Secure the Landing Pad was defeated"). Event
+> `cardFlippedToOtherFace`. **DSL:** none new (`flipCard(self)` in a `whenDefeated`). **Not covered:** a side scheme with
+> Victory X that flips (none printed).
+
 ### 3.11 Timing points when a deck runs out
 
 > **Status: landed (2026-09-24),** tested in `packages/engine/src/set-deck-and-run-out.test.ts` (§3.11: 2 tests — taking
@@ -878,7 +892,7 @@ set-aside modular encounter sets remaining"); the Campaign Challenge faces (`gmw
 >   who readies and what readies it; when a cost applies it logs `readyCostAsked` and pushes an effects frame that asks
 >   the readier with the existing `spendResources` prompt, then readies the card only if it was paid
 >   (`EffectSpec ready.readyCostPaid`, set by that frame only, so the ready does not ask twice).
-> - **Who is asked:** the controller at the end-of-phase ready, the resolving player for a card effect (§4 Q15).
+> - **Who is asked:** the controller at the end-of-phase ready, the resolving player for a card effect (§4 Q16).
 > - **`RuleSpec cannotReady.bySource: "playerCard"`**: "cannot be readied by player card effects" stops a ready whose
 >   source is a player card (`isPlayerCard`); `cardReadying` gains `sourceInstanceId`, and `readyCard` /
 >   `cannotReady` take the source.
@@ -1064,7 +1078,12 @@ Each is implemented the way stated, or not at all, and named here rather than de
     (p. 11) forbids initiating it; its costs are paid and it changes nothing. Implemented as: the cancel stays offered
     and fizzles. Proposed alternative for the user: withhold it from the legal actions (friendlier, but not a written
     rule).
-15. **Who pays Mister Fear's cost when another player's card readies the engaged player's hero?** (§3.19) The card
+15. **Does a card that flips into a separately emitted face enter play?** (§3.10) RRG 1.8 "Flip" (p. 20) only says
+    what stays on the card. But Defensive Protocols and Retrieve Odin's Armor (21184b, 21186b) print "Hinder 2", which
+    only works on entering play, and a flipped-in side scheme at 0 threat could never be defeated; Black Swan's "After
+    Black Swan engages you" needs an engagement. Implemented as: the new face is treated as entering play (starting
+    threat plus hinder, engagement, "enters play" triggers). Needs a ruling or the MC21 insert's word.
+16. **Who pays Mister Fear's cost when another player's card readies the engaged player's hero?** (§3.19) The card
     says "for the engaged player to ready"; RRG 1.8 "Ready" (p. 36) says "for a player to ready a card, that player".
     Implemented as: the player readying pays — the controller at the end-of-phase ready, the resolving player for a
     card effect — and `player` scopes the rule to the engaged player, so another player's Cosmic Alliance readies the

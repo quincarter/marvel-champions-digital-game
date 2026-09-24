@@ -80,6 +80,7 @@ import { campaignSeatNumber } from "../campaign-state.js";
 import { campaignLogValueOf, recordCampaignRemoval, recordCampaignWrite } from "./campaign.js";
 import { damageGroupFrame } from "./damage-group.js";
 import { advanceToSetAsideVillain, swapVillain } from "./villain-swap.js";
+import { flipToOtherFace } from "./other-face.js";
 import { buildScenarioDeck, moveCardsTo, selectCards, shuffleEncounterDeck } from "./cards.js";
 import {
   canHaveAttached,
@@ -844,6 +845,10 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
           if (!other?.stages[villain.stageIndex]) continue;
           flipVillain(ctx, id, other.side);
           frames.push(...gameAbilityFrames(ctx, id, ["whenRevealed"], null, undefined, ctx.state.firstPlayerId));
+        } else if (card?.otherFaceId !== undefined) {
+          // docs/phase7-wave4.md §3.10. Its new face goes to "you" (the first player, for a side scheme's When Defeated).
+          const playerId = context.controllerId ?? ctx.state.firstPlayerId;
+          if (!flipToOtherFace(ctx, id, playerId)) continue;
         } else if (card && "flipSide" in card && card.flipSide) {
           const flipped = !mustInstance(ctx.state, id).flipped;
           updateInstance(ctx, id, (i) => ({ ...i, flipped }));
