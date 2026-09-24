@@ -48,7 +48,7 @@ import {
 } from "./query.js";
 import { attachmentHostCandidates } from "./resolve/index.js";
 import { printedResources, requirementTotal, type ResolvedRequirement } from "./resources.js";
-import { activeAbilityRefs, cardsInPlay, controllerOf, matchesQuery, type EffectContext } from "./select.js";
+import { activeAbilityRefs, cardsInPlay, controllerOf, isAlly, matchesQuery, type EffectContext } from "./select.js";
 import type { GameState } from "./state.js";
 
 /** One thing a player could do on their turn, independent of target and payment. */
@@ -581,10 +581,7 @@ export function legalActions(state: GameState, playerId: PlayerId, deps: EngineD
     results.push(evaluateAbility(state, deps, playerId, instanceId, abilityId));
   }
 
-  const characters = [
-    player.identity.instanceId,
-    ...player.playArea.filter((id) => cardOf(state, id)?.type === "ally"),
-  ];
+  const characters = [player.identity.instanceId, ...player.playArea.filter((id) => isAlly(state, id))];
   const enemies = [
     // Any undefeated villain, not only the active one (The Wrecking Crew insert: "Players may attack any villain").
     ...undefeatedVillains(state).map((villain) => villain.instanceId),

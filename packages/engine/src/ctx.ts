@@ -16,6 +16,7 @@ import type { CardInstance, GameState, GameStep, PlayerState, ZoneId } from "./s
 import { describeFrame, type StackFrame } from "./stack.js";
 import type { EngineDeps } from "./abilities.js";
 import { resetPlayerDeckIfEmpty } from "./effects.js";
+import { syncTreatedAs } from "./treat-as.js";
 
 /**
  * Working context for one command. `state` is replaced (never mutated) by each
@@ -186,6 +187,8 @@ export function relocateCard(ctx: Ctx, id: InstanceId, to: ZoneId, position: Zon
   });
   for (const zone of [from, to]) {
     if (zone?.kind === "separateDeck") syncSeparateDeckTop(ctx, zone.playerId, zone.name);
+    // An attachment arriving on or leaving a host may make it a minion or an ally again (docs/phase7-wave4.md §3.9).
+    if (zone?.kind === "attachment") syncTreatedAs(ctx, zone.hostInstanceId);
   }
   return from ?? null;
 }

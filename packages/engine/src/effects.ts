@@ -554,6 +554,7 @@ export function leavePlay(
     // A facedown card is itself again once it leaves play, and a flipped card shows its front — or, for a mode-only
     // card, the face of the mode being played (docs/phase7-wave4.md §3.18).
     facedownAs: null,
+    ...(i.treatedAs ? { treatedAs: null } : {}),
     faceup: redirect !== null ? true : i.facedownAs ? true : i.faceup,
     flipped: card !== undefined && modeOnlyFlipped(card, ctx.state.scenarioRules.difficulty ?? "standard"),
   }));
