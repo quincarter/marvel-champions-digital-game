@@ -291,6 +291,20 @@ export type TriggerEventBody =
       readonly name?: string;
     }
   /**
+   * Counters are removed from a card by an effect (docs/phase7-wave4.md §3.15): "When the last lock counter is removed from
+   * here" (Holding Cell, `aos` 50105a, an interrupt), "After the last invocation counter is removed from Fireball"
+   * (`mts` 21076–21079), "After the last power counter is removed from here" (Phoenix Force, `phoenix` 34002a).
+   * `remaining` is what the card will hold after the removal (`eventAtMost: { remaining: 0 }` is "the last"). Pushed
+   * only when an ability listens; its apply step removes them (so the uses keyword's discard follows).
+   */
+  | {
+      readonly kind: "countersRemoved";
+      readonly instanceId: InstanceId;
+      readonly counterType: string;
+      readonly amount: number;
+      readonly remaining: number;
+    }
+  /**
    * "After Loki is swapped with a set-aside Loki villain" (Loki's Cape, `mts` 21172): `EffectSpec swapVillain` exchanged
    * the villain's card (docs/phase7-wave4.md §3.7). Response window only; pushed only when an ability listens.
    */
@@ -524,6 +538,8 @@ export function isAnnouncement(event: TriggerEvent): boolean {
     case "cardEntersPlay":
     // "When this stage would be completed" (docs/phase7-wave4.md §3.4): the completion is still to come.
     case "mainSchemeCompleting":
+    // "When the last lock counter is removed from here" (docs/phase7-wave4.md §3.15): the removal is still to come.
+    case "countersRemoved":
       return false;
     default:
       return true;
@@ -602,6 +618,8 @@ export function eventSubjects(event: TriggerEvent): EventSubjects {
       return of([], [event.instanceId], []);
     case "boostCardTurnedFaceup":
       return of([event.enemyInstanceId], [event.boostInstanceId], [event.playerId]);
+    case "countersRemoved":
+      return of([], [event.instanceId], []);
     case "villainSwapped":
       return of([], [event.villainInstanceId], []);
     case "deckRanOut":

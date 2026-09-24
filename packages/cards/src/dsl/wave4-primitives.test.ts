@@ -4,6 +4,7 @@
  * per-primitive engine test drives.
  */
 
+import { trait } from "@mc/content";
 import { describe, expect, it } from "vitest";
 import {
   action,
@@ -27,13 +28,16 @@ import {
   attackAnEnemy,
   changeAdditionalForm,
   damageAnEnemy,
+  dealDamage,
   detach,
+  discard,
   chooseTarget,
   draw,
   endGame,
   enemyScheme,
   ifThen,
   putMainSchemeStageIntoPlay,
+  removeCountersFrom,
   swapVillain,
   turnFacedown,
 } from "./effects.js";
@@ -44,6 +48,7 @@ import {
   eventTarget,
   host,
   inAdditionalForm,
+  inPlayAreaOf,
   named,
   not,
   printedForm,
@@ -54,6 +59,7 @@ import {
   victoryCondition,
   victoryDisplayCount,
   you,
+  yourIdentity,
 } from "./values.js";
 
 const valid = (definition: Parameters<typeof validateDefinition>[0]) =>
@@ -144,6 +150,19 @@ describe("§3.8 an encounter ally attached to the main scheme", () => {
       constant(
         rule({ kind: "cannotHaveAttachments", target: { self: true } }),
         rule({ kind: "leavingPlayLoses", target: { self: true } }),
+      ),
+    );
+  });
+});
+
+describe("§3.15 / §3.16 Ebony Maw's Spells", () => {
+  it("Fireball and Ebony Maw (21076, 21071)", () => {
+    valid(forcedResponse(on.lastCounterRemoved("invocation"), discard(self), dealDamage(4, yourIdentity)));
+    valid(constant(rule({ kind: "entersRevealersPlayArea", cards: { trait: trait("SPELL") } })));
+    valid(
+      forcedInterrupt(
+        on.villainAttacks({ againstYou: true }),
+        removeCountersFrom(each(query([], { trait: trait("SPELL"), ...inPlayAreaOf() })), "invocation", 1),
       ),
     );
   });

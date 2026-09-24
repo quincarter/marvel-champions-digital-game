@@ -582,7 +582,24 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
     }
     case "removeCounters": {
       const amount = value(effect.amount);
-      for (const id of targets(effect.target)) removeCounters(ctx, id, effect.counterType, amount);
+      // With an ability listening ("When/After the last invocation counter is removed", docs/phase7-wave4.md §3.15), each
+      // removal is an event whose apply step removes them; otherwise they go at once, as before.
+      const events: TriggerEvent[] = [];
+      for (const id of targets(effect.target)) {
+        const held = getInstance(ctx.state, id)?.counters[effect.counterType] ?? 0;
+        const removing = Math.min(amount, held);
+        if (removing <= 0) continue;
+        const event: TriggerEvent = {
+          kind: "countersRemoved",
+          instanceId: id,
+          counterType: effect.counterType,
+          amount: removing,
+          remaining: held - removing,
+        };
+        if (heard(ctx.state, ctx.deps, event)) events.push(event);
+        else removeCounters(ctx, id, effect.counterType, amount);
+      }
+      if (events.length > 0) pushEvents(ctx, events);
       return;
     }
     case "attach": {

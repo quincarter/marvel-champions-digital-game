@@ -197,6 +197,11 @@ export interface TargetQuery {
   readonly controlledBy?: PlayerRef;
   /** Engaged with one of these players: "each enemy engaged with *that player*". */
   readonly engagedWithPlayer?: PlayerRef;
+  /**
+   * In one of these players' play areas, whoever controls it: "each Spell card in your play area" (Ebony Maw I–III, `mts`
+   * 21071–21073), which reaches encounter environments no player controls (docs/phase7-wave4.md §3.16).
+   */
+  readonly inPlayAreaOf?: PlayerRef;
   /** A villain's signature side scheme (true) or any other card (false): The Wrecking Crew insert, "Signature Side Schemes". */
   readonly signatureSideScheme?: boolean;
   /**

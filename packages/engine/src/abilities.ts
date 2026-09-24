@@ -60,6 +60,12 @@ export interface EventPattern {
    */
   readonly eventAtLeast?: Readonly<Record<string, number>>;
   /**
+   * Numbers the event itself carries must be at most this: `{ remaining: 0 }` for "When/After the last invocation counter
+   * is removed from here" (Fireball, `mts` 21076; Holding Cell, `aos` 50105a; docs/phase7-wave4.md §3.15). The mirror of
+   * `eventAtLeast`.
+   */
+  readonly eventAtMost?: Readonly<Record<string, number>>;
+  /**
    * String fields the event itself carries must equal these, in both windows — the string counterpart of
    * `eventAtLeast`. `{ to: "hero" }` is "After a player changes to **hero form**" (Taskmaster 04093–04095), which
    * `formChanged`'s own `to` field already records but no pattern field could read. An event without the field, or
@@ -647,7 +653,14 @@ export type RuleSpec =
    * card leaves play the game ends as a loss. Moving between play areas or being detached is not leaving play.
    * docs/phase7-wave4.md §3.8.
    */
-  | { readonly kind: "leavingPlayLoses"; readonly target: TargetQuery; readonly while?: Predicate };
+  | { readonly kind: "leavingPlayLoses"; readonly target: TargetQuery; readonly while?: Predicate }
+  /**
+   * Ebony Maw's Spell environments (MC21 p. 6): "When a player reveals a Spell environment, they place that card in front of
+   * them in their play area", and stage 1B "puts that card into play in their play area". A matching environment that is
+   * revealed or put into play goes to that player's play area, controlled by no one, instead of the villain's area. A
+   * scenario rule, carried by the scenario's own cards. docs/phase7-wave4.md §3.16.
+   */
+  | { readonly kind: "entersRevealersPlayArea"; readonly cards: TargetQuery; readonly while?: Predicate };
 
 /** Where a cost may pick a card from (outside play). */
 export interface CardZoneQuery {

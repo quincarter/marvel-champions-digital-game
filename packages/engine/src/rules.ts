@@ -67,6 +67,12 @@ export const threatCannotBeRemoved = (
 export const cannotThwart = (state: GameState, deps: EngineDeps, playerId: PlayerId): boolean =>
   activeRules(state, deps, "cannotThwart").some((active) => rulePlayers(state, active.rule, active).includes(playerId));
 
+/** A revealed environment goes to the revealer's play area (`entersRevealersPlayArea`, docs/phase7-wave4.md §3.16). */
+export const entersRevealersPlayArea = (state: GameState, deps: EngineDeps, id: InstanceId): boolean =>
+  activeRules(state, deps, "entersRevealersPlayArea").some(({ rule, context }) =>
+    matchesQuery(state, id, rule.cards, context),
+  );
+
 /** "If Odin leaves play, the players lose the game." (`leavingPlayLoses`, docs/phase7-wave4.md §3.8), read before it goes. */
 export const leavingPlayLoses = (state: GameState, deps: EngineDeps, id: InstanceId): boolean =>
   activeRules(state, deps, "leavingPlayLoses").some(({ rule, context }) =>

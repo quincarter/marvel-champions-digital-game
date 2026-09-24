@@ -2,7 +2,14 @@
 
 import { type Ctx, emit, findFrame, popFrame, pushFrames, setFrame, updateFrame, updateInstance } from "../ctx.js";
 import { overkillRecipient } from "../defend-preview.js";
-import { defeatFromPlay, expireEventLastingEffects, healDamage, pierceTough, readyCard } from "../effects.js";
+import {
+  defeatFromPlay,
+  expireEventLastingEffects,
+  healDamage,
+  pierceTough,
+  readyCard,
+  removeCounters,
+} from "../effects.js";
 import type { FrameId, InstanceId, PlayerId } from "../ids.js";
 import { attackKeywordsOf, hasKeyword, keywordTotal } from "../keywords.js";
 import {
@@ -308,6 +315,11 @@ function applyEvent(ctx: Ctx, frame: Frame<"event">): boolean | void {
       return applyDefeat(ctx, event);
     case "mainSchemeCompleting":
       return applyMainSchemeCompleting(ctx, event);
+    case "countersRemoved": {
+      const removed = removeCounters(ctx, event.instanceId, event.counterType, event.amount);
+      addFrameVars(ctx, frame.frameId, { amount: removed });
+      return removed > 0;
+    }
     case "cardReadying":
       readyAndAnnounce(ctx, event.instanceId);
       return;

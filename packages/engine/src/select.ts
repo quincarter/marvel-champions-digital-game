@@ -332,6 +332,8 @@ export type QueryExclusion =
   | "notInSlot"
   | "wrongSignatureSideScheme"
   | "notEngagedWithPlayer"
+  /** Not in the play area of a player the query's `inPlayAreaOf` names (docs/phase7-wave4.md §3.16). */
+  | "notInPlayArea"
   | "wrongIdentitySet"
   | "notNemesisMinion"
   | "noSharedTrait"
@@ -494,6 +496,10 @@ export function explainQuery(
     state.villains.some((villain) => villain.signatureSideSchemeId === id) !== query.signatureSideScheme
   ) {
     return "wrongSignatureSideScheme";
+  }
+  if (query.inPlayAreaOf) {
+    const owners = resolvePlayers(state, query.inPlayAreaOf, context);
+    if (!state.players.some((p) => owners.includes(p.playerId) && p.playArea.includes(id))) return "notInPlayArea";
   }
   if (query.engagedWithPlayer) {
     if (
@@ -740,7 +746,10 @@ export function uncontrolledYouOf(state: GameState, id: InstanceId): PlayerId | 
   const instance = getInstance(state, id);
   if (!instance) return null;
   if (instance.attachedTo) return controllerOf(state, instance.attachedTo);
-  if (cardOf(state, id)?.type !== "obligation") return null;
+  // An obligation, and an environment placed in a player's play area (Ebony Maw's Spells, "in front of them in their play
+  // area", MC21 p. 6; "deal 4 damage to your identity": docs/phase7-wave4.md §3.16).
+  const type = cardOf(state, id)?.type;
+  if (type !== "obligation" && type !== "environment") return null;
   return state.players.find((p) => p.playArea.includes(id))?.playerId ?? null;
 }
 

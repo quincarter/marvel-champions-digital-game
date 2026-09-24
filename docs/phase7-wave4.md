@@ -362,8 +362,8 @@ stays data only.**
 | 3.12 | Counting different aspects; Adam Warlock's copy limit                    | Adam Warlock                               | not started |
 | 3.13 | Abilities active in hand; "cannot choose to discard this card"           | Pip the Troll, System Shock                | not started |
 | 3.14 | Player events shuffled into the encounter deck (Cosmic Entities)         | Adam Warlock precon                        | not started |
-| 3.15 | "After the last X counter is removed from here"                          | Ebony Maw; `aos`, `phoenix`                | not started |
-| 3.16 | Encounter cards in a player's play area                                  | Ebony Maw's Spells                         | not started |
+| 3.15 | "After the last X counter is removed from here"                          | Ebony Maw; `aos`, `phoenix`                | landed      |
+| 3.16 | Encounter cards in a player's play area                                  | Ebony Maw's Spells                         | landed      |
 | 3.17 | Alliance: paying a card's costs as a group                               | `warm`, `valk`, `vision`; 9 later cards    | landed      |
 | 3.18 | Set-aside modular sets; mode-only faces; Standard II                     | The Hood; Wheel of Genres (`mojo`)         | not started |
 | 3.19 | Readying as a costed act; "cannot be readied by player card effects"     | Mister Fear; Undermine Support (`aos`)     | not started |
@@ -675,11 +675,29 @@ player reveals it; `uncancellable` on the ability; a discarded one goes to the e
 
 ### 3.15 "After the last X counter is removed from here"
 
+> **Status: landed (2026-09-24),** tested in `packages/engine/src/spell-environments.test.ts` (§3.15: fires on the last
+> counter only, the Spell is discarded and "your identity" is its play area's player; replay deep-equal). **What
+> landed:** `TriggerEvent countersRemoved { instanceId, counterType, amount, remaining }` with interrupt and response
+> windows, pushed by `EffectSpec removeCounters` only when an ability listens (otherwise the removal happens at once, as
+> before); its apply step removes them, so the uses keyword's discard still follows. **`EventPattern.eventAtMost`**, the
+> mirror of `eventAtLeast`: `{ remaining: 0 }` is "the last". **DSL:** `on.lastCounterRemoved(counterType)`. **Not
+> covered:** counters removed as a cost (`spendCounters`) do not push the event; no printed "last counter" card removes
+> its counters as a cost.
+
 Fireball, Manipulation, Pacification, Rubblestorm; Holding Cell (`aos` 50105a–50108a), Phoenix Force (`phoenix`
 34002a). **Plan:** verify `removeCounters` announces an event; add `countersRemoved { instanceId, counterType,
 remaining }` if not.
 
 ### 3.16 Encounter cards in a player's play area
+
+> **Status: landed (2026-09-24),** tested in `packages/engine/src/spell-environments.test.ts` (§3.16: a revealed Spell
+> environment goes in front of the revealing player, controlled by no one, and is found by `inPlayAreaOf`; any other
+> environment still goes to the villain's area). **What landed:** **`RuleSpec entersRevealersPlayArea { cards }`** (a
+> scenario rule the scripter puts on Ebony Maw's own cards), read by `enterPlayOnReveal`, the path both a reveal and
+> `putIntoPlay` take; **`TargetQuery.inPlayAreaOf`** (exclusion `notInPlayArea`); `uncontrolledYouOf` now names the
+> play area's player for an environment there too, and a triggered ability on such a card (or an obligation, or an
+> attachment on a player card) resolves with that player as "you". **DSL:** `inPlayAreaOf(player)`. **Client:** Spell
+> environments in a player's area; one line in `view/highlights.ts` (added).
 
 MC21 p. 6: a revealed Spell environment goes in front of the revealing player; Ebony Maw's interrupt reads "each Spell
 card in your play area". **Plan:** verify where `putIntoPlay` places an environment for a player, and add a
