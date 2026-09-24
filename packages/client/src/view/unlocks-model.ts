@@ -104,7 +104,7 @@ export function unlockListRowsOf(
     });
   }
 
-  rows.push({ kind: "section", id: "section:heroes", title: "Heroes by wave" });
+  rows.push({ kind: "section", id: "section:heroes", title: "Precon heroes by wave · your own decks always play" });
   for (const status of unlocks.waves()) {
     rows.push({
       kind: "wave",
@@ -213,7 +213,9 @@ export function confirmOf(unlocks: Unlocks, target: UnlockTarget): UnlockConfirm
       return {
         target,
         title: `Unlock ${name} by hand?`,
-        body: `${price}${hint ? ` Or ${hint.charAt(0).toLowerCase()}${hint.slice(1)} to unlock ${name} for free, and earn points for the win.` : ""}`,
+        body:
+          `${price}${hint ? ` Or ${hint.charAt(0).toLowerCase()}${hint.slice(1)} to unlock ${name} for free, and earn points for the win.` : ""}` +
+          ` This is for ${name}'s precon: a ${name} deck you import or build plays already.`,
         confirmLabel: `Spend ${formatPoints(cost)}`,
       };
     }

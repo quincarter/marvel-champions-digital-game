@@ -255,7 +255,7 @@ export class SeatsScene extends Phaser.Scene {
     return seatOptions(deckOptions, seatsExcludingActive, CARDS_BY_ID, MAX_SEATS).map((option) => {
       if (option.seated) return option;
       const deck = deckOptions.find((candidate) => (candidate.deck.id as string) === option.deckId);
-      const lock = deck ? unlocks().heroLock(deck.deck.identityCardId as string) : null;
+      const lock = deck ? unlocks().deckLock(deck.deck) : null;
       return lock ? { ...option, blockedBy: lock } : option;
     });
   }
@@ -264,7 +264,7 @@ export class SeatsScene extends Phaser.Scene {
   #tableLock(deckOptions: readonly DeckOption[]): string | null {
     for (const deckId of this.#draft.seats) {
       const deck = deckOptions.find((candidate) => (candidate.deck.id as string) === deckId);
-      const lock = deck ? unlocks().heroLock(deck.deck.identityCardId as string) : null;
+      const lock = deck ? unlocks().deckLock(deck.deck) : null;
       if (lock) return `${deck!.identityName ?? deck!.deck.name}: ${lock}`;
     }
     return null;
@@ -971,7 +971,7 @@ export class SeatsScene extends Phaser.Scene {
     // full sentence ("Captain Marvel is already at the table"), which used to truncate in the subtitle line — the
     // full reason is still one Inspect away (`#inspectOption`'s own `note`).
     const blockedBy = seatedElsewhere ? null : (entry?.blockedBy ?? null);
-    const lock = seatedElsewhere ? null : unlocks().heroLock(option.deck.identityCardId as string);
+    const lock = seatedElsewhere ? null : unlocks().deckLock(option.deck);
     const tag = entry?.isActiveSeat
       ? `SEAT ${this.#draft.activeSeatIndex + 1}`
       : seatedElsewhere

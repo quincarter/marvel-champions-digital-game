@@ -226,3 +226,13 @@ describe("storage", () => {
     expect(new Set(ids).size).toBe(ids.length);
   });
 });
+
+describe("your own decks", () => {
+  it("locks only preconstructed decks", () => {
+    const u = make();
+    const thor = heroNamed("Thor");
+    expect(u.deckLock({ identityCardId: thor, source: { kind: "precon" } })).toBe("Beat Rhino to unlock Wave 1");
+    expect(u.deckLock({ identityCardId: thor, source: { kind: "imported" } })).toBeNull();
+    expect(u.deckLock({ identityCardId: thor, source: { kind: "built" } })).toBeNull();
+  });
+});

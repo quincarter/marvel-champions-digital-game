@@ -89,7 +89,8 @@ describe("taps", () => {
     const hero = confirmOf(make(DEFAULT_UNLOCK_PREFS, ["rhino"]), { kind: "hero", identityCardId: thor });
     expect(hero.body).toBe(
       "This costs 150 champion points (you have 100, leaving -50). Switching it off later won't refund them. " +
-        "Or beat Ultron to unlock Thor for free, and earn points for the win.",
+        "Or beat Ultron to unlock Thor for free, and earn points for the win. " +
+        "This is for Thor's precon: a Thor deck you import or build plays already.",
     );
     const campaign = confirmOf(make(), { kind: "campaign", campaignId: "gmw" });
     expect(campaign.body).toContain("Its cast (Groot and Rocket Raccoon) comes with it.");

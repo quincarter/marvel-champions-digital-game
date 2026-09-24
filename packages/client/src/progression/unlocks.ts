@@ -22,6 +22,10 @@
  * `won` record in `mc-campaigns`, the same rows the results history and the Saga shelf already read. Earned is
  * earned: a reward whose villain was beaten stays open whatever else is switched on or off.
  *
+ * **Your own decks are always yours.** The locks are on the preconstructed decks only: a deck the player imported from
+ * MarvelCDB or built in the deck builder seats whatever hero it's for (`Unlocks.deckLock`). Locked heroes can still
+ * be built, so it's the precon, not the character, that play unlocks.
+ *
  * **Opening things by hand** (Settings ▸ Unlocks): "Unlock everything", one hero, or one campaign (which seats its
  * cast too). Each costs champion points (`POINTS`), charged once per thing and never refunded, so switching it
  * off and on again is free. What was charged is kept in `UnlockPrefs.charges`. A dev/QA session can open
@@ -376,6 +380,11 @@ export class Unlocks {
     const waveLock = this.waveLock(heroCycleOf(identityCardId));
     if (waveLock) return waveLock;
     return `${this.heroHint(identityCardId) ?? "Play on"} to unlock ${heroNameOf(identityCardId)}`;
+  }
+
+  /** `heroLock` for a deck: only a preconstructed deck is ever locked; an imported or built deck always seats. */
+  deckLock(deck: { readonly identityCardId: string; readonly source: { readonly kind: string } }): string | null {
+    return deck.source.kind === "precon" ? this.heroLock(deck.identityCardId) : null;
   }
 
   /** The campaign's wave was opened by play. */

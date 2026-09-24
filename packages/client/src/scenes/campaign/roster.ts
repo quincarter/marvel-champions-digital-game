@@ -379,8 +379,8 @@ export class CampaignRosterScene extends Phaser.Scene {
       y += 50;
     }
 
-    const options = rosterDeckOptions(this.#seats, seatNumber, this.#savedDecks, POOL_VERSION, (id) =>
-      unlocks().heroLock(id),
+    const options = rosterDeckOptions(this.#seats, seatNumber, this.#savedDecks, POOL_VERSION, (deck) =>
+      unlocks().deckLock(deck),
     );
     const listRect: Rect = { x: panelRect.x + 20, y, width: rowWidth, height: panelRect.y + panelRect.height - 16 - y };
     const gap = 8;
