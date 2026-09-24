@@ -39,7 +39,8 @@ import { SCENES } from "./keys.js";
 import { destroyChildren } from "../ui/destroy-children.js";
 import { fadeScreenIn, goToScreen } from "../ui/transitions.js";
 import { Unlocks, newsBetween, withWin, type UnlockNews } from "../progression/unlocks.js";
-import { refreshUnlocks, unlocks } from "../progression/progression.js";
+import { Extras, extrasNewsBetween, identityOfSeat, withEndedGame } from "../progression/extras.js";
+import { extras, refreshUnlocks, unlocks } from "../progression/progression.js";
 
 /** Dots on the outcome ground, darker than the paper grid so they read on red and green. */
 const GROUND_DOTS = { spacing: 9, radius: 1, alpha: 0.22 } as const;
@@ -68,6 +69,8 @@ export class GameOverScene extends Phaser.Scene {
   #loadingArt: string | null = null;
   /** What this win earned toward progression (`progression/unlocks.ts`), shown as a ribbon. Null on a loss. */
   #news: UnlockNews | null = null;
+  /** How many things this game opened in Extras (`progression/extras.ts`), win or lose. */
+  #extrasNews = 0;
 
   constructor() {
     super(SCENES.gameOver);
@@ -91,6 +94,17 @@ export class GameOverScene extends Phaser.Scene {
     this.#outcomeArt =
       game?.outcome && config ? outcomeArtFor(ART_CATALOG, config.scenarioId, game.outcome.result) : null;
     this.#news = null;
+    this.#extrasNews = 0;
+    if (game?.outcome && config) {
+      const before = extras();
+      const heroIds = config.players.map(identityOfSeat).filter((id): id is string => id !== null);
+      const after = new Extras(
+        withEndedGame(before.progress, { scenarioId: config.scenarioId, result: game.outcome.result, heroIds }),
+        { everything: before.everything },
+      );
+      this.#extrasNews = extrasNewsBetween(before, after);
+      if (game.outcome.result !== "win") void refreshUnlocks().catch(() => false);
+    }
     if (game?.outcome?.result === "win" && config) {
       // Worked out from this result rather than read back from storage, which may not have the save's final
       // status yet; the cache itself catches up on the refresh below.
@@ -141,16 +155,17 @@ export class GameOverScene extends Phaser.Scene {
       // The wide loss screen is Hero Red from edge to edge, which would swallow a red ring.
       if (!tall && model.tone === "loss") ringColor = surface.ink.hex;
     }
-    if (this.#news) this.#drawNews(this.#news, width);
+    if (this.#news || this.#extrasNews > 0) this.#drawNews(this.#news, width);
     // Last, so the ring sits over the button it frames.
     this.#route?.set(this.#order, this.#stops, ringColor);
   }
 
-  /** A paper ribbon across the top: the points this win earned and anything it opened. */
-  #drawNews(news: UnlockNews, width: number): void {
+  /** A paper ribbon across the top: the points this win earned, anything it opened, and what's new in Extras. */
+  #drawNews(news: UnlockNews | null, width: number): void {
     const parts = [
-      news.points > 0 ? `+${news.points} champion points` : null,
-      news.unlocked.length > 0 ? `Unlocked: ${news.unlocked.join(", ")}` : null,
+      news && news.points > 0 ? `+${news.points} champion points` : null,
+      news && news.unlocked.length > 0 ? `Unlocked: ${news.unlocked.join(", ")}` : null,
+      this.#extrasNews > 0 ? `${this.#extrasNews} new in Extras` : null,
     ].filter((part): part is string => part !== null);
     const text = label(this, 0, 0, parts.join("  ·  "), typeRole.label, surface.ink.hex, 1).setOrigin(0.5, 0.5);
     fitText(text, width - 64, typeRole.label.size);

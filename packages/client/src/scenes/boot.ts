@@ -30,6 +30,7 @@ import type { SeatsData } from "./seats.js";
 import type { TableSetupData } from "./table-setup.js";
 import { goToScreen } from "../ui/transitions.js";
 import { refreshUnlocks } from "../progression/progression.js";
+import type { ExtrasTab } from "../progression/extras.js";
 
 /**
  * Dev-only screenshot entry point: `?screen=…` jumps straight past Title, for
@@ -79,6 +80,11 @@ async function devScreenJump(): Promise<{ readonly key: string; readonly data?: 
   }
 
   if (screen === "decks") return { key: SCENES.decks, data: {} satisfies DecksSceneData };
+  // `?screen=extras[&tab=music]`: the Extras shelf; pair with `&unlock=all` to see every tile open.
+  if (screen === "extras") {
+    const tab = params.get("tab");
+    return { key: SCENES.extras, data: tab ? { tab: tab as ExtrasTab } : {} };
+  }
 
   if (screen === "board" || screen === "pause" || screen === "rules" || screen === "settings") {
     await startDevGame();

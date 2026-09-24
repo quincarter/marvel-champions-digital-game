@@ -64,6 +64,10 @@ a folder directly under `heroes/` for a hero with no card data fails the test be
 data, the same branch moves its heroes' folders up one level into `heroes/`, pictures and all.
 `packages/client/src/art/hero-art.test.ts` fails if a folder isn't a real identity id or a file isn't `hero*`.
 
+**Extras** (the Title menu's reward shelf) shows these same pictures once play has opened them: a hero's
+`hero.*` files, a scenario's `villain*` files, `title/`, `outcomes/` and each campaign's `cover.*`. Nothing extra
+needs adding for it; a new file shows up there too.
+
 **Several pictures for one slot:** add a suffix — `villain.jpg`,
 `villain-2.jpg`, `villain-3.png` — and one is picked at random.
 

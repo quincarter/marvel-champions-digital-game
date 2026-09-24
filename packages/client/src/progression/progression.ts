@@ -11,6 +11,7 @@
  * session.
  */
 import { appSession, campaignService } from "../session.js";
+import { Extras, NO_EXTRAS_PROGRESS, extrasProgressOf, type ExtrasProgress } from "./extras.js";
 import {
   NO_PROGRESS,
   UNLOCK_PREFS_VERSION,
@@ -46,6 +47,8 @@ const devUnlockAll = typeof location !== "undefined" && devUnlockAllFrom(locatio
 let progress: UnlockProgress = NO_PROGRESS;
 let prefs: UnlockPrefs | null = null;
 let current: Unlocks | null = null;
+let extrasProgress: ExtrasProgress = NO_EXTRAS_PROGRESS;
+let currentExtras: Extras | null = null;
 
 export function unlocks(): Unlocks {
   prefs ??= readPrefs();
@@ -53,7 +56,16 @@ export function unlocks(): Unlocks {
   return current;
 }
 
-/** Re-reads progress from storage. True when it changed since the last read. */
+/** What the Extras screen may show (`extras.ts`), from the same reads; everything is open while `unlocks()` says so. */
+export function extras(): Extras {
+  currentExtras ??= new Extras(extrasProgress, { everything: unlocks().everything });
+  return currentExtras;
+}
+
+/**
+ * Re-reads progress from storage. True when the unlocks changed since the last read; Extras progress is refreshed by
+ * the same read, and the Extras screen redraws after it regardless.
+ */
 export async function refreshUnlocks(): Promise<boolean> {
   const [saves, campaigns] = await Promise.all([
     appSession().store.listSaves(),
@@ -61,10 +73,16 @@ export async function refreshUnlocks(): Promise<boolean> {
       .storage.list()
       .catch(() => []),
   ]);
+  const nextExtras = extrasProgressOf(saves, campaigns);
+  if (JSON.stringify(nextExtras) !== JSON.stringify(extrasProgress)) {
+    extrasProgress = nextExtras;
+    currentExtras = null;
+  }
   const next = progressOf(saves, campaigns);
   if (sameProgress(next, progress)) return false;
   progress = next;
   current = null;
+  currentExtras = null;
   return true;
 }
 
@@ -72,5 +90,6 @@ export async function refreshUnlocks(): Promise<boolean> {
 export function setUnlockPrefs(next: UnlockPrefs): void {
   prefs = next;
   current = null;
+  currentExtras = null;
   writePrefs(next);
 }

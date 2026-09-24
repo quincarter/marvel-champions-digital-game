@@ -40,10 +40,12 @@ export interface CampaignRosterData {
 
 /**
  * C03. The opener of the run's next issue (`record.position.nextNodeId`), continuing to Briefing. With `nodeId` it
- * is a reread of a finished issue (C07b's "Reread issue #2"): the same panels, then back to `returnTo`.
+ * is a reread of a finished issue (C07b's "Reread issue #2"): the same panels, then back to `returnTo`. With no
+ * `runId` it is a read from Extras: `campaignId` names the box, `nodeId` the issue, and `returnTo` where to go after.
  */
 export interface CampaignOpenerData {
-  readonly runId: string;
+  readonly runId?: string;
+  readonly campaignId?: string;
   readonly nodeId?: string;
   readonly returnTo?: CampaignReturn;
 }

@@ -94,6 +94,26 @@ Version 2 made "Unlock everything" free, so charges saved before it (when it cos
 - **Settings:** the Unlocks row's summary line leads with the points total.
 - **Game over:** a win shows a ribbon with the points it earned and anything it unlocked.
 
+## Extras
+
+**Extras** (on the Title menu, `scenes/extras.ts`) is the reward shelf: the campaign comics, a file for every hero
+and villain, the artwork and the soundtrack. Nothing in it is bought with points; each thing opens when the player
+does what it belongs to (`progression/extras.ts`):
+
+| Tab      | Opens when                                                                                                                                                                                          |
+| -------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Stories  | A campaign run reaches the issue (signing a run opens issue #1); every issue once the campaign is won                                                                                               |
+| Heroes   | A game played as that hero ends (won, lost or conceded), in a campaign or on its own                                                                                                                |
+| Villains | A game against that scenario ends. Its "villain loses" picture opens on a win, its "villain wins" on a loss                                                                                         |
+| Artwork  | The title wallpapers always; the generic victory and defeat scenes with a first win and loss; a box's cover with its first run                                                                      |
+| Music    | Where the track plays: a battle theme by playing that scenario, victory and defeat themes by winning and losing it, a finale by completing the campaign. The title and default battle themes always |
+
+A story is reread through the campaign opener with no run behind it, told to the box's own cast. A song plays through
+the music controller's jukebox until another screen asks for its own music. Game over's ribbon says how many things
+the game just opened ("3 new in Extras"), win or lose. Like everything else here it is derived from `mc-saves` and
+`mc-campaigns`, never stored, and "Unlock everything" (or `?unlock=all`) opens all of it. `?screen=extras&tab=music`
+jumps straight to a tab.
+
 ## For development
 
 `?unlock=all` in the URL opens everything for one page load. It is never saved and never charged, and it works

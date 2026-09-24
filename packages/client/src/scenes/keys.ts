@@ -39,6 +39,8 @@ export const SCENES = {
   campaignDeckEdit: "CampaignDeckEdit",
   /** MC16 p. 5's Expert deck freeze (`scenes/campaign/deck-edit.ts` routes here in place of `deckBuilder`). */
   campaignFrozenDeck: "CampaignFrozenDeck",
+  /** Extras (`scenes/extras.ts`): the comics, artwork, hero and villain files and the soundtrack, opened by play. */
+  extras: "Extras",
   // Overlays.
   choice: "ChoiceOverlay",
   inspect: "InspectOverlay",
@@ -56,6 +58,8 @@ export const SCENES = {
   unlocks: "UnlocksOverlay",
   /** "Unlock this by hand?" (`scenes/unlock-confirm.ts`), over whichever screen is spending champion points. */
   unlockConfirm: "UnlockConfirmOverlay",
+  /** One Extras file or picture (`scenes/extras-viewer.ts`), launched over Extras. */
+  extrasViewer: "ExtrasViewerOverlay",
   /** C04: a villain's stage flip told as a comic splash, launched over the Board in a campaign game. */
   campaignBeat: "CampaignBeatOverlay",
   /** Background soundtrack controller running across screen transitions. */

@@ -419,13 +419,20 @@ describe("screen focus routes", () => {
     expect(settingsFocusOrder([])).toEqual(["back"]);
   });
 
-  test("the Title menu (W2's D01) is Continue (when there's one), New game, Decks, Campaign, Settings", () => {
-    expect(titleMenuFocusOrder({ continuable: false })).toEqual(["new-game", "decks", "campaign", "settings"]);
+  test("the Title menu (W2's D01) is Continue (when there's one), New game, Decks, Campaign, Extras, Settings", () => {
+    expect(titleMenuFocusOrder({ continuable: false })).toEqual([
+      "new-game",
+      "decks",
+      "campaign",
+      "extras",
+      "settings",
+    ]);
     expect(titleMenuFocusOrder({ continuable: true })).toEqual([
       "continue",
       "new-game",
       "decks",
       "campaign",
+      "extras",
       "settings",
     ]);
   });
