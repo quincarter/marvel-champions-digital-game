@@ -1174,6 +1174,15 @@ export const advanceToSetAsideVillain = (villain: TargetRef = { kind: "villain" 
   kind: "advanceToSetAsideVillain",
   villain,
 });
+/**
+ * "The first player detaches Odin from the main scheme and takes control of him" (Hall of Nastrond, `mts` 21141; Find the
+ * Senator, `mut_gen` 32065a; docs/phase7-wave4.md §3.8): the card stays in play, under `controller`'s control.
+ */
+export const detach = (card: TargetRef, controller: PlayerRef = { kind: "firstPlayer" }): EffectSpec => ({
+  kind: "detach",
+  card,
+  controller,
+});
 /** "Turn all your energy form upgrades facedown" (Monica Rambeau, `mts` 21001b; docs/phase7-wave4.md §3.1). */
 export const turnFacedown = (target: TargetRef): EffectSpec => ({ kind: "turnFacedown", target });
 

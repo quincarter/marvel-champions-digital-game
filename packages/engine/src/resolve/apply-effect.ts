@@ -80,7 +80,7 @@ import { campaignLogValueOf, recordCampaignRemoval, recordCampaignWrite } from "
 import { damageGroupFrame } from "./damage-group.js";
 import { advanceToSetAsideVillain, swapVillain } from "./villain-swap.js";
 import { buildScenarioDeck, moveCardsTo, selectCards, shuffleEncounterDeck } from "./cards.js";
-import { cannotBeUnattached, cannotChangeForm, cannotThwart } from "../rules.js";
+import { canHaveAttached, cannotBeUnattached, cannotChangeForm, cannotThwart } from "../rules.js";
 import { advanceMainSchemeStage, checkDefeats, completeMainScheme } from "./defeat.js";
 import {
   addVillains,
@@ -613,7 +613,24 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
     }
     case "removeCounters": {
       const amount = value(effect.amount);
-      for (const id of targets(effect.target)) removeCounters(ctx, id, effect.counterType, amount);
+      // With an ability listening ("When/After the last invocation counter is removed", docs/phase7-wave4.md §3.15), each
+      // removal is an event whose apply step removes them; otherwise they go at once, as before.
+      const events: TriggerEvent[] = [];
+      for (const id of targets(effect.target)) {
+        const held = getInstance(ctx.state, id)?.counters[effect.counterType] ?? 0;
+        const removing = Math.min(amount, held);
+        if (removing <= 0) continue;
+        const event: TriggerEvent = {
+          kind: "countersRemoved",
+          instanceId: id,
+          counterType: effect.counterType,
+          amount: removing,
+          remaining: held - removing,
+        };
+        if (heard(ctx.state, ctx.deps, event)) events.push(event);
+        else removeCounters(ctx, id, effect.counterType, amount);
+      }
+      if (events.length > 0) pushEvents(ctx, events);
       return;
     }
     case "attach": {
@@ -623,6 +640,8 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
         // "The Power Stone cannot be unattached from Ronan the Accuser" (docs/phase7-wave3.md §3.19).
         const current = getInstance(ctx.state, id)?.attachedTo ?? null;
         if (current !== null && current !== host && cannotBeUnattached(ctx.state, ctx.deps, id)) continue;
+        // "Odin cannot have cards attached" (docs/phase7-wave4.md §3.8): the card stays where it was.
+        if (!canHaveAttached(ctx.state, ctx.deps, host, id)) continue;
         moveCard(ctx, id, { kind: "attachment", hostInstanceId: host });
         // "Attach 1 card from your hand facedown here" (Bruno Carrelli): no title, traits, keywords or abilities
         // while it is facedown; it is itself again when it leaves play (`leavePlay`).
@@ -941,6 +960,24 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       if (!ctx.state.scenarioRules.separateGameAreas) return;
       const players = resolvePlayers(ctx.state, effect.player, context);
       pushFrames(ctx, revealMainSchemeStages(ctx, players, effect.stageNumber, effect.removeUnused ?? false));
+      return;
+    }
+    case "detach": {
+      // "The first player detaches Odin from the main scheme and takes control of him" (Hall of Nastrond, `mts` 21141;
+      // Find the Senator, `mut_gen` 32065a; docs/phase7-wave4.md §3.8). The card stays in play: it moves from its host to
+      // its new controller's play area, which is not leaving or entering play.
+      const [playerId] = resolvePlayers(ctx.state, effect.controller, context);
+      if (!playerId) return;
+      for (const id of targets(effect.card)) {
+        const instance = getInstance(ctx.state, id);
+        if (!instance || instance.attachedTo === null) continue;
+        const from = instance.controllerId;
+        moveCard(ctx, id, { kind: "playArea", playerId });
+        updateInstance(ctx, id, (i) => ({ ...i, controllerId: playerId }));
+        emit(ctx, { type: "cardDetached", instanceId: id, from: instance.attachedTo });
+        if (from !== playerId)
+          emit(ctx, { type: "controllerChanged", instanceId: id, from, to: playerId, reason: "effect" });
+      }
       return;
     }
     case "swapVillain":

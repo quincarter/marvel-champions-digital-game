@@ -204,6 +204,11 @@ export interface TargetQuery {
   readonly extensionOf?: PlayerRef;
   /** Engaged with one of these players: "each enemy engaged with *that player*". */
   readonly engagedWithPlayer?: PlayerRef;
+  /**
+   * In one of these players' play areas, whoever controls it: "each Spell card in your play area" (Ebony Maw I–III, `mts`
+   * 21071–21073), which reaches encounter environments no player controls (docs/phase7-wave4.md §3.16).
+   */
+  readonly inPlayAreaOf?: PlayerRef;
   /** A villain's signature side scheme (true) or any other card (false): The Wrecking Crew insert, "Signature Side Schemes". */
   readonly signatureSideScheme?: boolean;
   /**
@@ -557,6 +562,13 @@ export type ValueSpec =
   | { readonly kind: "resourceTypes"; readonly cards: TargetRef }
   /** Distinct card types among cards ("for each different card type discarded this way": Trickster, Leading the Charge). */
   | { readonly kind: "distinctCardTypes"; readonly cards: TargetRef }
+  /**
+   * Distinct core aspects among cards: "deal 1 additional damage to that enemy for each different aspect discarded this way
+   * (Aggression, Justice, Leadership and Protection)" (Karmic Blast, Cosmic Awareness, Regeneration Cycle, `mts` 21038,
+   * 21039, 21066). A card counts for its `aspect` and its `printedAspect` (an identity-specific card that prints one,
+   * docs/phase7-wave2.md §1.2); basic and identity-set cards count for none. docs/phase7-wave4.md §3.12.
+   */
+  | { readonly kind: "distinctAspects"; readonly cards: TargetRef }
   /** A card's printed cost (RRG 1.8 "Printed", p. 35): "equal to its printed cost" (Headbutt, Thoughtcasting). A card with no printed cost is 0. */
   | { readonly kind: "printedCost"; readonly of: TargetRef }
   /** The sum of the printed costs of every card a ref names, wherever they are: "the total cost of all allies beneath it" (Hydra Prison). */
@@ -1707,6 +1719,13 @@ export type EffectSpec =
    * if there is not a component in both locations"). docs/phase7-wave4.md §3.7.
    */
   | { readonly kind: "swapVillain"; readonly villain: TargetRef }
+  /**
+   * "The first player detaches Odin from the main scheme and takes control of him" (Hall of Nastrond, `mts` 21141); "The
+   * first player detaches Robert Kelly from this scheme and takes control of him" (Find the Senator, `mut_gen` 32065a).
+   * Each attached card `card` names moves into `controller`'s play area under their control. It stays in play, so nothing
+   * enters or leaves play. docs/phase7-wave4.md §3.8.
+   */
+  | { readonly kind: "detach"; readonly card: TargetRef; readonly controller: PlayerRef }
   /**
    * "When Loki is defeated, advance to a random set-aside Loki villain" (All Hail King Loki 1B, `mts` 21165b; MC21 p. 24:
    * "When a new version of Loki enters play, transfer all attachments, status cards, counters, and tokens that were on the

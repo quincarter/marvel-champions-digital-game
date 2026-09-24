@@ -922,6 +922,13 @@ export const on = {
    * on a forced interrupt, `forcedInterrupt(on.mainSchemeCompleting("self"), instead(…))`.
    */
   mainSchemeCompleting: (what: Who): EventPattern => pattern("mainSchemeCompleting", asTarget(what)),
+  /**
+   * "After the last invocation counter is removed from Fireball" (`mts` 21076–21079) / "When the last lock counter is
+   * removed from here" (Holding Cell, `aos` 50105a) / "After the last power counter is removed from here" (Phoenix Force):
+   * counters of `counterType` removed from this card by an effect, leaving none (docs/phase7-wave4.md §3.15).
+   */
+  lastCounterRemoved: (counterType: string): EventPattern =>
+    pattern("countersRemoved", { selfIs: "target", eventIs: { counterType }, eventAtMost: { remaining: 0 } }),
   /** "After your deck runs out of cards" (Soul World, `mts` 21033; docs/phase7-wave4.md §3.11): your deck reset. */
   yourDeckRunsOut: (): EventPattern => pattern("deckRanOut", { playerIs: "controller", eventIs: { deck: "player" } }),
   /** "After a player resets their deck" (Universal Church of Truth, 21068): any player's; name them with `eventPlayer`. */

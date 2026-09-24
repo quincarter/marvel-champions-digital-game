@@ -133,6 +133,10 @@ export function categoriesOf(state: GameState, id: InstanceId): readonly TargetC
   }
   switch (card.type) {
     case "ally":
+      // An ally attached to a card and controlled by no player — Odin, captive on the main scheme (docs/phase7-wave4.md
+      // §3.8): ruling Jun 25, 2026 (4) #5, "Characters not under player control are not friendly characters". It is in
+      // play but no character anything can target by category until a player takes control of it.
+      if (instance.controllerId === null && instance.attachedTo !== null) return [];
       return ["ally", "character"];
     case "minion":
       return ["minion", "enemy", "character"];
@@ -274,6 +278,9 @@ export function focusedMainSchemeId(state: GameState, deps: EngineDeps): Instanc
   return null;
 }
 
+/** "(Aggression, Justice, Leadership and Protection)": the aspects `ValueSpec distinctAspects` counts (§3.12 of wave 4). */
+const FOUR_ASPECTS: readonly string[] = ["aggression", "justice", "leadership", "protection"];
+
 /** The binding slot the "which main scheme?" choice fills for a player card's ability (docs/phase7-wave4.md §3.2). */
 export const MAIN_SCHEME_CHOICE = "_mainScheme";
 
@@ -355,6 +362,8 @@ export type QueryExclusion =
   | "notInSlot"
   | "wrongSignatureSideScheme"
   | "notEngagedWithPlayer"
+  /** Not in the play area of a player the query's `inPlayAreaOf` names (docs/phase7-wave4.md §3.16). */
+  | "notInPlayArea"
   | "wrongIdentitySet"
   | "notNemesisMinion"
   | "noSharedTrait"
@@ -519,6 +528,10 @@ export function explainQuery(
     state.villains.some((villain) => villain.signatureSideSchemeId === id) !== query.signatureSideScheme
   ) {
     return "wrongSignatureSideScheme";
+  }
+  if (query.inPlayAreaOf) {
+    const owners = resolvePlayers(state, query.inPlayAreaOf, context);
+    if (!state.players.some((p) => owners.includes(p.playerId) && p.playArea.includes(id))) return "notInPlayArea";
   }
   if (query.engagedWithPlayer) {
     if (
@@ -765,7 +778,10 @@ export function uncontrolledYouOf(state: GameState, id: InstanceId): PlayerId | 
   const instance = getInstance(state, id);
   if (!instance) return null;
   if (instance.attachedTo) return controllerOf(state, instance.attachedTo);
-  if (cardOf(state, id)?.type !== "obligation") return null;
+  // An obligation, and an environment placed in a player's play area (Ebony Maw's Spells, "in front of them in their play
+  // area", MC21 p. 6; "deal 4 damage to your identity": docs/phase7-wave4.md §3.16).
+  const type = cardOf(state, id)?.type;
+  if (type !== "obligation" && type !== "environment") return null;
   return state.players.find((p) => p.playArea.includes(id))?.playerId ?? null;
 }
 
@@ -1180,6 +1196,16 @@ export function resolveValue(
         if (card) types.add(card.type);
       }
       return types.size;
+    }
+    case "distinctAspects": {
+      const aspects = new Set<string>();
+      for (const id of resolveRef(state, value.cards, context)) {
+        const card = cardOf(state, id);
+        if (!card || !("aspect" in card)) continue;
+        for (const aspect of [card.aspect, card.printedAspect])
+          if (aspect !== undefined && FOUR_ASPECTS.includes(aspect)) aspects.add(aspect);
+      }
+      return aspects.size;
     }
     case "printedCost": {
       const [id] = resolveRef(state, value.of, context);

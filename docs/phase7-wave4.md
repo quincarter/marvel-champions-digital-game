@@ -355,15 +355,15 @@ stays data only.**
 | 3.5  | Damage on a card that is not a character (Avengers Tower)                | Tower Defense                              | landed      |
 | 3.6  | A modular set's own deck (the Infinity Stone deck)                       | Thanos, Loki, any scenario                 | landed      |
 | 3.7  | Loki: random start, swap, a villain stage's Victory X, the victory count | Loki; God of Lies (`tt`)                   | landed      |
-| 3.8  | An encounter ally attached to the main scheme (Odin)                     | Hela                                       | not started |
+| 3.8  | An encounter ally attached to the main scheme (Odin)                     | Hela                                       | landed      |
 | 3.9  | An ally treated as a minion                                              | Fallen Warrior, Beguiled; 5 other packs    | not started |
 | 3.10 | Flipping a card into a separately emitted face of another type           | MC21 campaign                              | not started |
 | 3.11 | Timing points when a deck runs out                                       | Soul World, Universal Church, Thanos       | landed      |
-| 3.12 | Counting different aspects; Adam Warlock's copy limit                    | Adam Warlock                               | not started |
+| 3.12 | Counting different aspects; Adam Warlock's copy limit                    | Adam Warlock                               | landed      |
 | 3.13 | Abilities active in hand; "cannot choose to discard this card"           | Pip the Troll, System Shock                | not started |
 | 3.14 | Player events shuffled into the encounter deck (Cosmic Entities)         | Adam Warlock precon                        | not started |
-| 3.15 | "After the last X counter is removed from here"                          | Ebony Maw; `aos`, `phoenix`                | not started |
-| 3.16 | Encounter cards in a player's play area                                  | Ebony Maw's Spells                         | not started |
+| 3.15 | "After the last X counter is removed from here"                          | Ebony Maw; `aos`, `phoenix`                | landed      |
+| 3.16 | Encounter cards in a player's play area                                  | Ebony Maw's Spells                         | landed      |
 | 3.17 | Alliance: paying a card's costs as a group                               | `warm`, `valk`, `vision`; 9 later cards    | landed      |
 | 3.18 | Set-aside modular sets; mode-only faces; Standard II                     | The Hood; Wheel of Genres (`mojo`)         | not started |
 | 3.19 | Readying as a costed act; "cannot be readied by player card effects"     | Mister Fear; Undermine Support (`aos`)     | not started |
@@ -584,6 +584,30 @@ Lies, Shatter the Illusion (`tt` God of Lies); Thunderbolt Backup's "swapping it
 
 ### 3.8 An encounter ally attached to the main scheme (Odin)
 
+> **Status: landed (2026-09-24),** tested in `packages/engine/src/captive-ally.test.ts` (2 tests: attached, Odin is in
+> play but reached by no category and takes no attachment; detached, the first player controls him in play, and
+> defeated he is removed from the game and the players lose, replay deep-equal). DSL: `wave4-primitives.test.ts`.
+> **What landed:**
+>
+> - **An ally attached to a card and controlled by no player has no categories** (`categoriesOf`): ruling Jun 25, 2026
+>   (4) #5, "Characters not under player control are not friendly characters". It is in play (`cardsInPlay`, by name).
+> - **`EffectSpec detach { card, controller }`**: the attached card moves into the controller's play area under their
+>   control, staying in play (logs `cardDetached`, `controllerChanged { reason: "effect" }`).
+> - **`RuleSpec cannotHaveAttachments { target, from? }`**: no legal host for an attachment or upgrade from `from` (any,
+>   `"encounter"` for the King side's "encounter cards", `"upgrade"` for Robert Kelly), read by
+>   `attachmentHostCandidates` (so both encounter "attach to" and playing an upgrade) and by the `attach` effect.
+> - **`RuleSpec leavingPlayLoses { target }`**: `leavePlay` ends the game as **`GameOutcome { result: "loss", reason:
+"cardAbility" }`** (new) when a matching card leaves play.
+> - "When Odin leaves play, remove him from the game" needs nothing: Odin is double-sided, and RRG 1.8 "Double-Sided
+>   Card" (p. 17) already sends him out of the game (`leavePlay`), which also stops Med Lab (ruling Dec 17, 2025 (4) #2).
+>   `leavePlay` now counts a card with `otherFaceId` as double-sided too, so the campaign's Cosmo is removed the same way.
+> - The rest composes: "The first player gains control of Odin" is `controlledByFirstPlayer` with `while: not(isAttached
+self)`; "does not count against ally limit" is `excludedFromAllyLimit`; flipping to his King side is `flipCard`.
+>
+> **Composes with:** Robert Kelly (`mut_gen` 32063, 32065a: detached, taken control of, "cannot have upgrades attached",
+> "If Robert Kelly leaves play, the players lose"), Hope Summers (`next_evol` 40130). **Not built:** a general "when X
+> leaves play" interrupt window (Abduct Superhumans `aos` 50081, Spider-Man `sm` 27017); no `mts` card needs one.
+
 Odin's Torment 1A attaches Odin, captive side up, to the main scheme; Hall of Nastrond: "The first player detaches Odin
 from the main scheme and takes control of him"; Odin: "While Odin is not attached to the main scheme, he gains: 'The
 first player gains control of Odin. Odin cannot have cards attached and does not count against ally limit.' If Odin
@@ -628,6 +652,16 @@ trigger event. **Plan:** `TriggerEvent deckRanOut { deck: player | scenarioDeck 
 
 ### 3.12 Counting different aspects; Adam Warlock's copy limit
 
+> **Status: landed (2026-09-24),** tested in `packages/engine/src/distinct-aspects.test.ts` (1 test: each of the four
+> aspects counted once, a printed aspect included, basic and 'Pool not) and `packages/engine/src/max-copies-per-title.test.ts`
+> (the copy limit, §1.4). **What landed:** `ValueSpec distinctAspects { cards }`; DSL `distinctAspectsOf`. **Composes:**
+> "discard up to 4 cards from the top of your deck → …" (Karmic Blast, Cosmic Awareness, Magic Attack, Zone of Silence)
+> is scripted as effects — a `chooseOne` of 1–4, each `selectCards(topOfDeck(n))` then `moveCards` to the discard pile —
+> with the bound cards read by `distinctAspectsOf` or `countAmong`; the composition is in `wave4-primitives.test.ts`. The
+> printed arrow makes the discard a cost of the extra damage; as an effect the one difference is that it resolves after
+> the first 4 damage is chosen, which no card reads (flagged, not open). Battle Mage's "If that card is: Aggression – …"
+> is `refMatches(chosen, { aspect }, { anywhere: true })` per option.
+
 Karmic Blast, Cosmic Awareness, Regeneration Cycle: "for each different aspect discarded this way". `ValueSpec
 distinctCardTypes` exists (Time Stone's "different card type"); **plan:** `ValueSpec distinctAspects { cards }`
 (the four core aspects, `printedAspect` included). Battle Mage's "If that card is: Aggression – …" composes from
@@ -651,11 +685,29 @@ player reveals it; `uncancellable` on the ability; a discarded one goes to the e
 
 ### 3.15 "After the last X counter is removed from here"
 
+> **Status: landed (2026-09-24),** tested in `packages/engine/src/spell-environments.test.ts` (§3.15: fires on the last
+> counter only, the Spell is discarded and "your identity" is its play area's player; replay deep-equal). **What
+> landed:** `TriggerEvent countersRemoved { instanceId, counterType, amount, remaining }` with interrupt and response
+> windows, pushed by `EffectSpec removeCounters` only when an ability listens (otherwise the removal happens at once, as
+> before); its apply step removes them, so the uses keyword's discard still follows. **`EventPattern.eventAtMost`**, the
+> mirror of `eventAtLeast`: `{ remaining: 0 }` is "the last". **DSL:** `on.lastCounterRemoved(counterType)`. **Not
+> covered:** counters removed as a cost (`spendCounters`) do not push the event; no printed "last counter" card removes
+> its counters as a cost.
+
 Fireball, Manipulation, Pacification, Rubblestorm; Holding Cell (`aos` 50105a–50108a), Phoenix Force (`phoenix`
 34002a). **Plan:** verify `removeCounters` announces an event; add `countersRemoved { instanceId, counterType,
 remaining }` if not.
 
 ### 3.16 Encounter cards in a player's play area
+
+> **Status: landed (2026-09-24),** tested in `packages/engine/src/spell-environments.test.ts` (§3.16: a revealed Spell
+> environment goes in front of the revealing player, controlled by no one, and is found by `inPlayAreaOf`; any other
+> environment still goes to the villain's area). **What landed:** **`RuleSpec entersRevealersPlayArea { cards }`** (a
+> scenario rule the scripter puts on Ebony Maw's own cards), read by `enterPlayOnReveal`, the path both a reveal and
+> `putIntoPlay` take; **`TargetQuery.inPlayAreaOf`** (exclusion `notInPlayArea`); `uncontrolledYouOf` now names the
+> play area's player for an environment there too, and a triggered ability on such a card (or an obligation, or an
+> attachment on a player card) resolves with that player as "you". **DSL:** `inPlayAreaOf(player)`. **Client:** Spell
+> environments in a player's area; one line in `view/highlights.ts` (added).
 
 MC21 p. 6: a revealed Spell environment goes in front of the revealing player; Ebony Maw's interrupt reads "each Spell
 card in your play area". **Plan:** verify where `putIntoPlay` places an environment for a player, and add a

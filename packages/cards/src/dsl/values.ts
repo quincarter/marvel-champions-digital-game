@@ -176,6 +176,11 @@ export const hasAttachment = (q: TargetQuery): Pick<TargetQuery, "hasAttachment"
  * `query("upgrade", printedForm("energy"), { facedown: true, controller: "you" })`.
  */
 export const printedForm = (formType: string): Pick<TargetQuery, "printedForm"> => ({ printedForm: formType });
+/**
+ * "Each Spell card in your play area" (Ebony Maw I–III, `mts` 21071–21073): a query fragment for cards in that player's
+ * play area, controlled by them or not (docs/phase7-wave4.md §3.16).
+ */
+export const inPlayAreaOf = (player: PlayerRef = you): Pick<TargetQuery, "inPlayAreaOf"> => ({ inPlayAreaOf: player });
 
 /** "Friendly character": any identity or ally (every player's, RRG "Friendly"). */
 export const FRIENDLY_CHARACTER: TargetQuery = query(["identity", "ally"]);
@@ -299,6 +304,11 @@ export const printedCostOf = (of: TargetRef): ValueSpec => ({ kind: "printedCost
 export const countersOn = (of: TargetRef, counterType: string): ValueSpec => ({ kind: "counters", of, counterType });
 /** "For each different resource type discarded this way" (wild counts as its own type). */
 export const resourceTypesOf = (cardsRef: TargetRef): ValueSpec => ({ kind: "resourceTypes", cards: cardsRef });
+/**
+ * "For each different aspect discarded this way (Aggression, Justice, Leadership and Protection)" (Karmic Blast, Cosmic
+ * Awareness, Regeneration Cycle, `mts`; docs/phase7-wave4.md §3.12).
+ */
+export const distinctAspectsOf = (cardsRef: TargetRef): ValueSpec => ({ kind: "distinctAspects", cards: cardsRef });
 /** "That damage" / "it" in an interrupt: the triggering event's amount. */
 export const eventAmount: ValueSpec = { kind: "eventAmount" };
 export const eventResult = (key: string): ValueSpec => ({ kind: "eventResult", key });

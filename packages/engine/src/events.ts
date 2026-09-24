@@ -63,7 +63,8 @@ export type GameEvent =
       readonly instanceId: InstanceId;
       readonly from: PlayerId | null;
       readonly to: PlayerId;
-      readonly reason: "firstPlayer";
+      /** `effect`: a card took control of it ("detaches Odin … and takes control of him", docs/phase7-wave4.md §3.8). */
+      readonly reason: "firstPlayer" | "effect";
     }
   /** A player became a card's owner by taking it (RRG 1.8 "Ownership and Control", p. 31; docs/phase7-wave2.md §3.10). */
   | { readonly type: "ownershipChanged"; readonly instanceId: InstanceId; readonly playerId: PlayerId }
@@ -122,6 +123,8 @@ export type GameEvent =
       readonly toCardId: CardId;
       readonly reason: "swap" | "advance";
     }
+  /** An attached card was detached into a play area (`EffectSpec detach`, docs/phase7-wave4.md §3.8). */
+  | { readonly type: "cardDetached"; readonly instanceId: InstanceId; readonly from: InstanceId }
   /** A card in play turned facedown (`turnFacedown`) or faceup (`changeAdditionalForm`), docs/phase7-wave4.md §3.1. */
   | { readonly type: "cardTurnedFacedown"; readonly instanceId: InstanceId }
   | { readonly type: "cardTurnedFaceup"; readonly instanceId: InstanceId }

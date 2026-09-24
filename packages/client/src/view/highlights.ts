@@ -214,6 +214,7 @@ const EXCLUSION_WORDING: Record<ExclusionCode, string> = {
   notInSlot: "not one of the cards already picked",
   wrongSignatureSideScheme: "not this villain's signature side scheme",
   notEngagedWithPlayer: "not engaged with the right player",
+  notInPlayArea: "not in that player's play area",
   wrongIdentitySet: "not from this identity's set",
   notNemesisMinion: "not this player's nemesis minion",
   noSharedTrait: "shares no trait with that card",

@@ -29,6 +29,7 @@ import { nextInt, shuffle } from "./rng.js";
 import {
   accelerationTokenRedirect,
   cannotLeavePlay,
+  leavingPlayLoses,
   cannotReady,
   discardRedirectArea,
   mainSchemeForRedirect,
@@ -513,11 +514,15 @@ export function leavePlay(
     emit(ctx, { type: "leavePlayBlocked", instanceId: id, reason: "cannotLeavePlay" });
     return;
   }
+  // "If Odin leaves play, the players lose the game." (docs/phase7-wave4.md §3.8): read while it is still in play.
+  const loses = leavingPlayLoses(ctx.state, ctx.deps, id);
   const instance = mustInstance(ctx.state, id);
   // RRG 1.8 "Double-Sided Card" (p. 17): "When a double-sided card would enter an out-of-play area other than the
   // victory display or set-aside area, it is removed from the game."
   const card = ctx.state.cardPool[instance.cardId];
-  const doubleSided = card !== undefined && "flipSide" in card && card.flipSide !== undefined;
+  // A card whose other face is emitted as its own card (`otherFaceId`, docs/phase7-wave4.md §1.7) is double-sided too.
+  const doubleSided =
+    card !== undefined && (("flipSide" in card && card.flipSide !== undefined) || card.otherFaceId !== undefined);
   const keepsCard =
     requested.kind === "victoryDisplay" || requested.kind === "setAside" || requested.kind === "encounterSetAside";
   let to: ZoneId = doubleSided && !keepsCard ? { kind: "removedFromGame" } : requested;
@@ -550,6 +555,7 @@ export function leavePlay(
     faceup: redirect !== null ? true : i.facedownAs ? true : i.faceup,
     flipped: false,
   }));
+  if (loses) endGame(ctx, { result: "loss", reason: "cardAbility" });
   if (redirect !== null) {
     pushEvent(ctx, { kind: "discardRedirected", instanceId: id, area: redirect.area });
     // Collector III's own "…, then place 1 threat on the main scheme" (`thenPlaceThreat`, docs/phase7-wave3.md §3.14):

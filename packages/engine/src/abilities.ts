@@ -60,6 +60,12 @@ export interface EventPattern {
    */
   readonly eventAtLeast?: Readonly<Record<string, number>>;
   /**
+   * Numbers the event itself carries must be at most this: `{ remaining: 0 }` for "When/After the last invocation counter
+   * is removed from here" (Fireball, `mts` 21076; Holding Cell, `aos` 50105a; docs/phase7-wave4.md §3.15). The mirror of
+   * `eventAtLeast`.
+   */
+  readonly eventAtMost?: Readonly<Record<string, number>>;
+  /**
    * String fields the event itself carries must equal these, in both windows — the string counterpart of
    * `eventAtLeast`. `{ to: "hero" }` is "After a player changes to **hero form**" (Taskmaster 04093–04095), which
    * `formChanged`'s own `to` field already records but no pattern field could read. An event without the field, or
@@ -634,7 +640,34 @@ export type RuleSpec =
    * scheme (`host`, on the attachment). Applied between frames: the villain whose title the scheme's `villainOf` names is
    * made active (`activeVillainChanged { reason: "focusedScheme" }`). docs/phase7-wave4.md §3.2.
    */
-  | { readonly kind: "focusedMainScheme"; readonly scheme: TargetRef; readonly while?: Predicate };
+  | { readonly kind: "focusedMainScheme"; readonly scheme: TargetRef; readonly while?: Predicate }
+  /**
+   * "Odin cannot have cards attached" / "Odin cannot have encounter cards attached" (Odin, `mts` 21139a/b; with Odin
+   * attached to the main scheme, ruling Aug 3, 2026 (4) #1: "Odin cannot have attachments while attached to the main
+   * scheme"); "Robert Kelly … cannot have upgrades attached" (Find the Senator, `mut_gen` 32065a). A matching card is no
+   * legal host for an attachment or upgrade from `from` (absent: any card; `"encounter"`: an encounter card; `"upgrade"`:
+   * a player upgrade), and an `attach` effect leaves such a card where it was. docs/phase7-wave4.md §3.8.
+   */
+  | {
+      readonly kind: "cannotHaveAttachments";
+      readonly target: TargetQuery;
+      readonly from?: "encounter" | "upgrade";
+      readonly while?: Predicate;
+    }
+  /**
+   * "If Odin leaves play, the players lose the game." (Odin, Captive side, `mts` 21139a); "If Robert Kelly leaves play …"
+   * (Stalked by Sabretooth, `mut_gen` 32063); "If Hope Summers leaves play …" (`next_evol` 40130). The moment a matching
+   * card leaves play the game ends as a loss. Moving between play areas or being detached is not leaving play.
+   * docs/phase7-wave4.md §3.8.
+   */
+  | { readonly kind: "leavingPlayLoses"; readonly target: TargetQuery; readonly while?: Predicate }
+  /**
+   * Ebony Maw's Spell environments (MC21 p. 6): "When a player reveals a Spell environment, they place that card in front of
+   * them in their play area", and stage 1B "puts that card into play in their play area". A matching environment that is
+   * revealed or put into play goes to that player's play area, controlled by no one, instead of the villain's area. A
+   * scenario rule, carried by the scenario's own cards. docs/phase7-wave4.md §3.16.
+   */
+  | { readonly kind: "entersRevealersPlayArea"; readonly cards: TargetQuery; readonly while?: Predicate };
 
 /** Where a cost may pick a card from (outside play). */
 export interface CardZoneQuery {
