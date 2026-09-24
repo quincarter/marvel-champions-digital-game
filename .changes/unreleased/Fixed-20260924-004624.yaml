@@ -1,0 +1,3 @@
+kind: Fixed
+body: 'Issue detail/Dossier Log: pluralize and sign a field''s own delta consistently, drop zero-delta rows, and size rows from measured text height'
+time: 2026-09-24T00:46:24.49502-04:00

@@ -536,18 +536,24 @@ export class CampaignDossierScene extends Phaser.Scene {
       y += headerHeight;
       const bodyTop = y;
       const box = this.add.graphics();
+      const minRowHeight = 38;
+      const detailTop = 22;
+      const detailBottomPad = 8;
       for (const entry of section.entries) {
-        const rowHeight = 38;
-        this.add.rectangle(pad + 10, y + rowHeight / 2, 8, 8, signal.cost.hex);
+        const rowTop = y;
         this.add.text(pad + 24, y + 6, entry.headline, textStyle(typeRole.emphasis, surface.ink.hex)).setFontSize(12);
-        this.add
-          .text(pad + 24, y + 22, entry.detail, textStyle(typeRole.body, surface.ink.hex, 0.6))
+        const detail = this.add
+          .text(pad + 24, y + detailTop, entry.detail, textStyle(typeRole.body, surface.ink.hex, 0.6))
           .setFontSize(10)
           .setWordWrapWidth(leftWidth - 150);
         this.add
           .text(pad + leftWidth - 8, y + 6, entry.citation, textStyle(typeRole.label, surface.ink.hex, 0.45))
           .setOrigin(1, 0)
           .setFontSize(9);
+        // Sized from the detail text's own measured (possibly wrapped) height, never a fixed height a long
+        // instruction's printed text can run past — see `scenes/campaign/issue.ts`'s own writes list.
+        const rowHeight = Math.max(minRowHeight, detailTop + detail.height + detailBottomPad);
+        this.add.rectangle(pad + 10, rowTop + rowHeight / 2, 8, 8, signal.cost.hex);
         y += rowHeight;
       }
       box.lineStyle(2, surface.ink.hex, 1).strokeRect(pad, bodyTop, leftWidth, y - bodyTop);

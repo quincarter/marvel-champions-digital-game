@@ -10,7 +10,7 @@
 import type { CampaignDefinition, CampaignHistoryEntry, CampaignLog } from "@mc/engine";
 import { issueNumberOf, issueStoryFor, type CampaignStory } from "../campaign/story.js";
 import { renderLogValue, type CardNameOf } from "./campaign-log-model.js";
-import { FIELD_SHORT_LABEL } from "./campaign-run-model.js";
+import { FIELD_SHORT_LABEL, pluralizeFieldWord, signedCount } from "./campaign-run-model.js";
 import { resolvedWritesOf } from "./campaign-log-deltas.js";
 
 /** A field's short word if one is known, else the printed sheet label, lowercased so it reads mid-sentence. */
@@ -105,9 +105,16 @@ function writeRowsOf(
     // An unset flag ("false") is a non-event on the printed sheet; only a flag actually raised is worth a line.
     if (value.kind === "flag" && !value.value) continue;
     if (value.kind === "cardList" && value.cardIds.length === 0) continue;
-    const rendered = renderLogValue(value, cardName);
+    // A number write that stayed at (or fell back to) zero is a non-event on the printed sheet — the same reason
+    // an unset flag above is skipped, not something a player needs a "0 headhunter defeated?" line to see.
+    if (value.kind === "number" && value.value === 0) continue;
     const hero = seatNumber !== null ? heroNameOfSeat(seatNumber) : null;
-    const base = value.kind === "flag" ? fieldLabel(field) : `${rendered} ${fieldLabel(field)}`;
+    const base =
+      value.kind === "flag"
+        ? fieldLabel(field)
+        : value.kind === "number"
+          ? `${signedCount(value.value)} ${pluralizeFieldWord(fieldLabel(field), field, value.value)}`
+          : `${renderLogValue(value, cardName)} ${fieldLabel(field)}`;
     rows.push({
       key: `write:${stepIndex}:${writeIndex}`,
       headline: hero ? `${base} → ${hero}` : base,

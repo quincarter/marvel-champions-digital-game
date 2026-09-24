@@ -26,6 +26,8 @@ describe("campaignDossierLog's units rows (GMW)", () => {
     expect(section).toBeDefined();
     const unitEntries = section!.entries.filter((entry) => entry.headline.includes("unit"));
     expect(unitEntries).toHaveLength(2);
-    for (const entry of unitEntries) expect(entry.headline).toBe("3 unit");
+    for (const entry of unitEntries) expect(entry.headline).toBe("+3 units");
+    // "0 headhunter defeated?" is a non-event, the same as an unset flag — never a row.
+    expect(section!.entries.some((entry) => entry.headline.toLowerCase().includes("headhunter"))).toBe(false);
   });
 });

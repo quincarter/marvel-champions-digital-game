@@ -175,7 +175,7 @@ describe("campaignRunModel", () => {
     );
     // MC16 p. 15's units are written by three separate specs in one victory block, chaining onto each other
     // (`applyLogWrite`'s own running total) — the line must read the fold's own delta, not that running total.
-    expect(model.issues[0]?.resultLine).toBe("Won · 3 units each");
+    expect(model.issues[0]?.resultLine).toBe("Won · +3 units each");
   });
 
   it("MC10's grant-only win still reads 'Won · N cards granted' — no number field to collapse", () => {

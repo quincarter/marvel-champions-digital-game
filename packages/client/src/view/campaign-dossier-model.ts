@@ -23,7 +23,13 @@ import type {
 import { issueNumberOf, issueStoryFor, type CampaignStory } from "../campaign/story.js";
 import { campaignLogSheet, renderLogValue, type CardNameOf } from "./campaign-log-model.js";
 import type { RunIssueRow } from "./campaign-run-model.js";
-import { campaignRunModel, FIELD_SHORT_LABEL, PLURALIZED_FIELDS } from "./campaign-run-model.js";
+import {
+  campaignRunModel,
+  FIELD_SHORT_LABEL,
+  PLURALIZED_FIELDS,
+  pluralizeFieldWord,
+  signedCount,
+} from "./campaign-run-model.js";
 import { resolvedWritesOf } from "./campaign-log-deltas.js";
 
 /** A field's short word if one is known, else the printed sheet label, lowercased so it reads mid-sentence. */
@@ -594,10 +600,17 @@ export function campaignDossierLog(
         if (value.kind === "cardRef") continue;
         if (value.kind === "flag" && !value.value) continue;
         if (value.kind === "cardList" && value.cardIds.length === 0) continue;
-        const rendered = renderLogValue(value, cardName);
+        // A number write that stayed at (or fell back to) zero is a non-event, the same as an unset flag above.
+        if (value.kind === "number" && value.value === 0) continue;
+        const headline =
+          value.kind === "flag"
+            ? fieldLabel(field)
+            : value.kind === "number"
+              ? `${signedCount(value.value)} ${pluralizeFieldWord(fieldLabel(field), field, value.value)}`
+              : `${renderLogValue(value, cardName)} ${fieldLabel(field)}`;
         entries.push({
           key: `${node.id}:write:${stepIndex}:${writeIndex}`,
-          headline: value.kind === "flag" ? fieldLabel(field) : `${rendered} ${fieldLabel(field)}`,
+          headline,
           detail: step.text,
           citation: step.citation,
         });

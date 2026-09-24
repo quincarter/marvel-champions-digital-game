@@ -42,6 +42,26 @@ export const FIELD_SHORT_LABEL: Readonly<Record<string, string>> = {
  */
 export const PLURALIZED_FIELDS: ReadonlySet<string> = new Set(["units"]);
 
+/**
+ * `label` pluralized for `count`, iff `field` is in `PLURALIZED_FIELDS` — the one rule "3 units"/"1 unit" follows
+ * everywhere a field's own delta is shown (The Run, the Issue detail, the Dossier Log), so the same field never
+ * reads pluralized on one screen and singular on another.
+ */
+export function pluralizeFieldWord(label: string, field: string, count: number): string {
+  return PLURALIZED_FIELDS.has(field) && count !== 1 ? `${label}s` : label;
+}
+
+/** `pluralizeFieldWord` starting from the Run's own short word — the common case every caller but the Issue
+ * detail (which has its own fuller label per field) wants. */
+export function pluralFieldLabel(field: string, count: number): string {
+  return pluralizeFieldWord(FIELD_SHORT_LABEL[field] ?? field, field, count);
+}
+
+/** "+3", "-1", "0" — a delta reads as a delta, never as a bare magnitude that could be mistaken for a total. */
+export function signedCount(n: number): string {
+  return n >= 0 ? `+${n}` : `${n}`;
+}
+
 export type RunIssueStatus = "finished" | "current" | "sealed";
 
 /**
@@ -177,16 +197,16 @@ function numberDetailFor(
   deltas: readonly LogWriteGroup[],
   heroLabel: (seatNumber: number) => string,
 ): string {
-  const base = FIELD_SHORT_LABEL[field] ?? field;
   const values = deltas.map((delta) => (delta.value as { kind: "number"; value: number }).value);
-  const label = (forCount: number): string => (PLURALIZED_FIELDS.has(field) && forCount !== 1 ? `${base}s` : base);
   const seated = deltas.filter((delta) => delta.seatNumber !== null);
-  if (seated.length === 0) return `${values[0]} ${label(values[0]!)}`;
+  if (seated.length === 0) return `${signedCount(values[0]!)} ${pluralFieldLabel(field, values[0]!)}`;
   const allEqual = values.every((value) => value === values[0]);
-  if (allEqual) return `${values[0]} ${label(values[0]!)} each`;
-  const parts = seated.map((delta) => `${heroLabel(delta.seatNumber!)} ${(delta.value as { value: number }).value}`);
+  if (allEqual) return `${signedCount(values[0]!)} ${pluralFieldLabel(field, values[0]!)} each`;
+  const parts = seated.map(
+    (delta) => `${heroLabel(delta.seatNumber!)} ${signedCount((delta.value as { value: number }).value)}`,
+  );
   const anyPlural = values.some((value) => value !== 1);
-  return `${parts.join(", ")} ${label(anyPlural ? 2 : 1)}`;
+  return `${parts.join(", ")} ${pluralFieldLabel(field, anyPlural ? 2 : 1)}`;
 }
 
 /** A short, honest detail line for a won attempt, from what its steps actually wrote — never invented. */

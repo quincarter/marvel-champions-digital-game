@@ -303,21 +303,28 @@ export class CampaignIssueScene extends Phaser.Scene {
     y = ruleHeading(this, rect.x, y, rect.width, "Wrote to the log");
     if (model.writes.length > 0) {
       const boxTop = y;
-      const rowHeight = 42;
+      const minRowHeight = 42;
+      const detailTop = 26;
+      const detailBottomPad = 12;
       model.writes.forEach((write, index) => {
-        this.add.rectangle(rect.x + 12, y + rowHeight / 2, 8, 8, writeKindColor(write.kind));
+        const rowTop = y;
         this.add
           .text(rect.x + 26, y + 8, write.headline, textStyle(typeRole.emphasis, surface.ink.hex))
           .setFontSize(13)
           .setWordWrapWidth(rect.width - 150);
-        this.add
-          .text(rect.x + 26, y + 26, write.detail, textStyle(typeRole.body, surface.ink.hex, 0.65))
+        const detail = this.add
+          .text(rect.x + 26, y + detailTop, write.detail, textStyle(typeRole.body, surface.ink.hex, 0.65))
           .setFontSize(11)
           .setWordWrapWidth(rect.width - 150);
         this.add
           .text(rect.x + rect.width - 10, y + 8, write.citation, textStyle(typeRole.label, surface.ink.hex, 0.5))
           .setOrigin(1, 0)
           .setFontSize(10);
+        // Sized from the detail text's own measured (possibly wrapped) height, never a fixed height a long
+        // instruction's printed text can run past — e.g. MC16's "Record units in each player's..." wraps to two
+        // lines at this rect width, which the old fixed 42px let bleed into the next row.
+        const rowHeight = Math.max(minRowHeight, detailTop + detail.height + detailBottomPad);
+        this.add.rectangle(rect.x + 12, rowTop + rowHeight / 2, 8, 8, writeKindColor(write.kind));
         y += rowHeight;
         if (index < model.writes.length - 1) {
           this.add.rectangle(rect.x, y, rect.width, 1, surface.ink.hex, 0.15).setOrigin(0, 0.5);

@@ -153,8 +153,10 @@ describe("campaignIssueModel", () => {
     );
     const unitRows = model?.writes.filter((row) => row.headline.includes("unit")) ?? [];
     // Two seats, each their own award — not six rows for MC16's three chained `add` specs per seat, and never the
-    // running total (this issue's own bonus, e.g. "3 unit"), not the campaign's whole balance.
+    // running total (this issue's own bonus, e.g. "+3 units"), not the campaign's whole balance.
     expect(unitRows).toHaveLength(2);
-    for (const row of unitRows) expect(row.headline).toMatch(/^3 unit → /);
+    for (const row of unitRows) expect(row.headline).toMatch(/^\+3 units → /);
+    // "0 headhunter defeated?" is a non-event, the same as an unset flag — never a row.
+    expect(model?.writes.some((row) => row.headline.toLowerCase().includes("headhunter"))).toBe(false);
   });
 });
