@@ -1,7 +1,17 @@
 import { describe, expect, it } from "vitest";
-import { DEFAULT_UNLOCK_PREFS, NO_PROGRESS, UNLOCK_HEROES, Unlocks, type UnlockPrefs } from "../progression/unlocks.js";
 import {
-  prefsAfterTap,
+  DEFAULT_UNLOCK_PREFS,
+  NO_PROGRESS,
+  UNLOCK_HEROES,
+  Unlocks,
+  unlockByHand,
+  type UnlockPrefs,
+} from "../progression/unlocks.js";
+import {
+  confirmOf,
+  pointsRowOf,
+  rowTapOf,
+  tapOf,
   unlockAllRowOf,
   unlockListRowsOf,
   unlocksSummaryOf,
@@ -9,48 +19,95 @@ import {
 } from "./unlocks-model.js";
 
 const thor = UNLOCK_HEROES.find((h) => h.name === "Thor")!.identityCardId;
+const groot = UNLOCK_HEROES.find((h) => h.name === "Groot")!.identityCardId;
 const spiderMan = UNLOCK_HEROES.find((h) => h.name === "Spider-Man")!.identityCardId;
 const make = (prefs: UnlockPrefs = DEFAULT_UNLOCK_PREFS, wonScenarioIds: string[] = []) =>
   new Unlocks({ progress: { ...NO_PROGRESS, wonScenarioIds }, prefs });
-const heroRow = (rows: readonly UnlockListRow[], id: string) =>
-  rows.find((r): r is Extract<UnlockListRow, { kind: "hero" }> => r.kind === "hero" && r.identityCardId === id)!;
+type SwitchRow = Extract<UnlockListRow, { kind: "hero" | "campaign" }>;
+const rowOf = (rows: readonly UnlockListRow[], id: string) => rows.find((r) => r.id === id) as SwitchRow;
 
 describe("unlockListRowsOf", () => {
-  it("lists each wave with what opens it, then its heroes", () => {
+  it("lists campaigns, then each wave with what opens it and its heroes", () => {
     const rows = unlockListRowsOf(make());
-    expect(rows[0]).toMatchObject({ kind: "wave", title: "Core Set", status: "Unlocked", open: true });
-    const wave1 = rows.find((r) => r.id === "wave:wave1")!;
-    expect(wave1).toMatchObject({ status: "Beat Rhino to unlock Wave 1", open: false });
+    expect(rows[0]).toMatchObject({ kind: "section", title: "Campaigns" });
+    expect(rowOf(rows, "campaign:trors")).toMatchObject({
+      title: "Vol. 1 · The Rise of Red Skull",
+      state: "off",
+      detail: "Beat Green Goblin or the Wrecking Crew to unlock The Rise of Red Skull",
+    });
+    expect(rows.find((r) => r.id === "wave:core")).toMatchObject({ status: "Always open" });
+    expect(rowOf(rows, `hero:${spiderMan}`)).toMatchObject({ state: "always", detail: "Core Set" });
+    expect(rowOf(rows, `hero:${thor}`)).toMatchObject({ state: "off", detail: "Beat Rhino to unlock Wave 1" });
     expect(rows.filter((r) => r.kind === "hero")).toHaveLength(UNLOCK_HEROES.length);
-    expect(heroRow(rows, spiderMan).state).toBe("earned");
-    expect(heroRow(rows, thor).state).toBe("off");
   });
 
-  it("shows a hero's own switch, and hides it behind Unlock everything", () => {
-    expect(heroRow(unlockListRowsOf(make({ unlockAll: false, heroIds: [thor] })), thor).state).toBe("on");
-    const all = unlockListRowsOf(make({ unlockAll: true, heroIds: [] }));
-    expect(heroRow(all, thor).state).toBe("all");
+  it("tells a hero earned by play from one opened by hand", () => {
+    expect(rowOf(unlockListRowsOf(make(DEFAULT_UNLOCK_PREFS, ["rhino", "ultron"])), `hero:${thor}`)).toMatchObject({
+      state: "earned",
+      detail: "Earned · Beat Ultron",
+    });
+    const byHand = unlockByHand(make(), { kind: "hero", identityCardId: thor });
+    expect(rowOf(unlockListRowsOf(make(byHand)), `hero:${thor}`)).toMatchObject({ state: "on" });
+    const all = unlockListRowsOf(make({ ...DEFAULT_UNLOCK_PREFS, unlockAll: true }));
+    expect(rowOf(all, `hero:${thor}`).state).toBe("all");
     expect(all.find((r) => r.id === "wave:wave1")).toMatchObject({ status: "Unlocked by setting", open: true });
-    expect(heroRow(unlockListRowsOf(make(DEFAULT_UNLOCK_PREFS, ["rhino"])), thor).state).toBe("earned");
+  });
+
+  it("shows a campaign's cast as coming with it", () => {
+    const prefs = unlockByHand(make(), { kind: "campaign", campaignId: "gmw" });
+    const rows = unlockListRowsOf(make(prefs));
+    expect(rowOf(rows, "campaign:gmw")).toMatchObject({ state: "on" });
+    expect(rowOf(rows, `hero:${groot}`)).toMatchObject({ state: "all", detail: "Comes with its campaign" });
   });
 });
 
-describe("prefsAfterTap", () => {
-  it("flips only a hero's own switch", () => {
+describe("taps", () => {
+  it("asks before anything that costs points, and switches off without asking", () => {
+    const u = make();
+    const tap = rowTapOf(u, rowOf(unlockListRowsOf(u), `hero:${thor}`));
+    expect(tap).toMatchObject({
+      kind: "confirm",
+      confirm: { title: "Unlock Thor by hand?", confirmLabel: "Spend 150" },
+    });
+
+    const opened = make(unlockByHand(u, { kind: "hero", identityCardId: thor }));
+    const off = rowTapOf(opened, rowOf(unlockListRowsOf(opened), `hero:${thor}`));
+    expect(off).toMatchObject({ kind: "apply", prefs: { heroIds: [] } });
+
+    // Paid for once: back on without asking again.
+    if (off?.kind !== "apply") throw new Error("expected apply");
+    const reopened = rowTapOf(make(off.prefs), rowOf(unlockListRowsOf(make(off.prefs)), `hero:${thor}`));
+    expect(reopened).toMatchObject({ kind: "apply", prefs: { heroIds: [thor] } });
+  });
+
+  it("does nothing for a row with no switch", () => {
     const rows = unlockListRowsOf(make());
-    expect(prefsAfterTap(DEFAULT_UNLOCK_PREFS, heroRow(rows, thor))?.heroIds).toEqual([thor]);
-    expect(prefsAfterTap(DEFAULT_UNLOCK_PREFS, heroRow(rows, spiderMan))).toBeNull();
-    expect(prefsAfterTap(DEFAULT_UNLOCK_PREFS, rows[0]!)).toBeNull();
+    expect(rowTapOf(make(), rowOf(rows, `hero:${spiderMan}`))).toBeNull();
+  });
+
+  it("says what a confirm costs, that it isn't refunded, and how to earn it instead", () => {
+    const hero = confirmOf(make(DEFAULT_UNLOCK_PREFS, ["rhino"]), { kind: "hero", identityCardId: thor });
+    expect(hero.body).toBe(
+      "This costs 150 champion points (you have 100, leaving -50). Switching it off later won't refund them. " +
+        "Or beat Ultron to unlock Thor for free, and earn points for the win.",
+    );
+    const campaign = confirmOf(make(), { kind: "campaign", campaignId: "gmw" });
+    expect(campaign.body).toContain("Its cast (Groot and Rocket Raccoon) comes with it.");
+    const everything = tapOf(make(), { kind: "everything" }, false);
+    expect(everything).toMatchObject({ kind: "confirm", confirm: { title: "Unlock everything?" } });
+    if (everything?.kind !== "confirm") throw new Error("expected confirm");
+    expect(everything.confirm.body).toContain("2 campaigns and");
   });
 });
 
 describe("summaries", () => {
-  it("says what's open and what's next", () => {
-    expect(unlocksSummaryOf(make())).toBe("1 of 4 waves open. Next: Beat Rhino to unlock Wave 1.");
-    expect(unlocksSummaryOf(make({ unlockAll: false, heroIds: [thor] }))).toBe(
-      "1 of 4 waves open · 1 hero unlocked by hand. Next: Beat Rhino to unlock Wave 1.",
+  it("leads with champion points", () => {
+    expect(unlocksSummaryOf(make())).toBe("0 champion points · 1 of 4 waves open. Next: Beat Rhino to unlock Wave 1.");
+    const byHand = unlockByHand(make(), { kind: "hero", identityCardId: thor });
+    expect(unlocksSummaryOf(make(byHand))).toBe(
+      "-150 champion points · 1 of 4 waves open · 1 unlocked by hand. Next: Beat Rhino to unlock Wave 1.",
     );
-    expect(unlocksSummaryOf(make({ unlockAll: true, heroIds: [] }))).toBe("Everything is unlocked.");
+    expect(pointsRowOf(make(DEFAULT_UNLOCK_PREFS, ["rhino"])).title).toBe("Champion points: 100");
   });
 
   it("notes the dev param on the Unlock everything row", () => {

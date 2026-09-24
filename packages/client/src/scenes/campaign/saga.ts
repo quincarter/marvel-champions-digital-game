@@ -92,7 +92,7 @@ export class CampaignSagaScene extends Phaser.Scene {
     this.#rows = campaignSagaRows(summaries, {
       identityNameOf,
       waveLockOf: (campaignId) => unlocked.campaignLock(campaignId),
-      everythingUnlocked: unlocked.everything,
+      openedByHandOf: (campaignId) => unlocked.campaignManual(campaignId),
     });
     this.#featured = defaultFeaturedVolume(this.#rows);
     this.#rebuild();

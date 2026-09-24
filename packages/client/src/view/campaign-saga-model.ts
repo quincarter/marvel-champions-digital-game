@@ -15,7 +15,8 @@
  *
  * **Progression** (`progression/unlocks.ts`) sits on top: a volume whose wave the player hasn't opened stays sealed
  * with that wave's own reason ("Beat Green Goblin or the Wrecking Crew to unlock The Rise of Red Skull"), and
- * "unlock everything" opens every volume this build can play, regardless of the Standard-win order.
+ * a volume opened by hand (Settings ▸ Unlocks: one campaign, or "Unlock everything") opens regardless of the
+ * Standard-win order.
  */
 import { campaignDefinitionOf } from "@mc/cards";
 import type { CardId } from "@mc/content";
@@ -57,8 +58,8 @@ export interface SagaModelOptions {
   readonly identityNameOf?: (id: CardId) => string;
   /** Why a box's wave is still locked (`Unlocks.campaignLock`), or null. Default: nothing is wave-locked. */
   readonly waveLockOf?: (campaignId: string) => string | null;
-  /** Settings ▸ Unlocks "Unlock everything" (or `?unlock=all`): every volume opens, in any order. */
-  readonly everythingUnlocked?: boolean;
+  /** Opened by hand in Settings ▸ Unlocks (one campaign, everything, or `?unlock=all`): opens out of order. */
+  readonly openedByHandOf?: (campaignId: string) => boolean;
 }
 
 const defaultIdentityNameOf = (id: CardId): string => id as string;
@@ -76,7 +77,7 @@ export function campaignSagaRows(
   const definitionOf = options.definitionOf ?? campaignDefinitionOf;
   const identityNameOf = options.identityNameOf ?? defaultIdentityNameOf;
   const waveLockOf = options.waveLockOf ?? (() => null);
-  const everythingUnlocked = options.everythingUnlocked ?? false;
+  const openedByHandOf = options.openedByHandOf ?? (() => false);
   const rows = campaignListRows(summaries, definitionOf);
 
   const rowsByCampaign = new Map<string, CampaignListRow[]>();
@@ -96,8 +97,9 @@ export function campaignSagaRows(
     const wonExpert = wonRows.some((r) => r.modes.campaign?.expertCampaign === true);
     const definition = definitionOf(volume.campaignId);
     const hasDefinition = definition !== undefined;
-    const waveLock = everythingUnlocked ? null : waveLockOf(volume.campaignId);
-    const unlocked = everythingUnlocked || (previousWonStandard && waveLock === null);
+    const byHand = openedByHandOf(volume.campaignId);
+    const waveLock = byHand ? null : waveLockOf(volume.campaignId);
+    const unlocked = byHand || (previousWonStandard && waveLock === null);
 
     const summary = summaries.find((s) => s.id === (activeRow?.id ?? wonRows[0]?.id ?? "")) ?? null;
 
