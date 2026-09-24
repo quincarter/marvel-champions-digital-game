@@ -491,5 +491,16 @@ export const GMW_STORY: CampaignStory = {
       { kind: "numberTotal", label: "Units banked", field: "units" },
       { kind: "sharedNumber", label: "Headhunters", field: "headhunterDefeated" },
     ],
+    // The spread's one bubble is labeled by name, so it needs a line each hero would actually say — Groot only
+    // ever says "I am Groot." (every other Groot line in this file is the same one sentence), not `heroLines`'
+    // roster-agnostic quip; Rocket's own `heroLines` line carries over unchanged.
+    crewLines: [
+      { speaker: GROOT, text: "I am Groot.", fallback: "Wanted list's looking a lot shorter." },
+      {
+        speaker: ROCKET,
+        text: "Somebody's buying the next round. Not it.",
+        fallback: "Somebody's buying the next round. Not it.",
+      },
+    ],
   },
 };
