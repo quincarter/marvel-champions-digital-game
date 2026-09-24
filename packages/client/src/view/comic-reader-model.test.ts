@@ -63,3 +63,35 @@ describe("comic reader model", () => {
     expect(view.pageStrip).toEqual([{ file: "02-museum", active: true }]);
   });
 });
+
+describe("a lettered box's own pages (MC10's guided view)", () => {
+  const trorsStory = storyFor("trors")!;
+  const crossbones = trorsStory.issues.find((issue) => issue.nodeId === "crossbones")!;
+  const trorsSteps = resolveComicBeats(trorsStory.pages!, crossbones.comicBeats!);
+
+  test("every resolved step's page carries `lettered: true` — the reader (`ui/comic-reader.ts`) reads this to draw", () => {
+    for (let i = 0; i < trorsSteps.length; i += 1) {
+      const view = comicReaderViewOf(trorsSteps, i, []);
+      expect(view.step.page.lettered).toBe(true);
+    }
+  });
+
+  test("a lettered beat carries no caption/lines/sfx of its own — the printed art is the whole of the beat", () => {
+    const view = comicReaderViewOf(trorsSteps, 0, []);
+    expect(view.step.caption).toBeNull();
+    expect(view.step.lines).toEqual([]);
+    expect(view.step.sfx).toBeNull();
+  });
+
+  test("steps through every beat of issue #1 in reading order", () => {
+    expect(trorsSteps.map((step) => `${step.page.file}#${step.beatIndexInPage}`)).toEqual([
+      "01-siege#0",
+      "01-siege#1",
+      "01-siege#2",
+      "02-crossbones#0",
+    ]);
+    const view = comicReaderViewOf(trorsSteps, trorsSteps.length - 1, []);
+    expect(view.isLast).toBe(true);
+    expect(view.ctaLabel).toBe("SUIT UP ▸");
+  });
+});

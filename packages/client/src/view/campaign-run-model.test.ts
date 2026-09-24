@@ -114,7 +114,10 @@ describe("campaignRunModel", () => {
     expect(model.issues).toHaveLength(5);
     const [first, second] = model.issues;
     expect(first).toMatchObject({ nodeId: "crossbones", status: "current" });
-    expect(first?.teaser).toBeTruthy();
+    // MC10 is page-based now too (its own official, lettered rulebook pages): a page-crop issue reads its crop
+    // as the pitch instead of the flavor teaser (see `pageCropFor`'s own doc comment above).
+    expect(first?.pageCrop?.file).toBe("01-siege");
+    expect(first?.teaser).toBeNull();
     expect(second).toMatchObject({ nodeId: "absorbing-man", status: "sealed", villain: null });
   });
 
@@ -157,7 +160,7 @@ describe("campaignRunModel", () => {
     expect(first?.resultLine).toMatch(/\bunits?\b/);
   });
 
-  it("GMW's page-based issues carry their own comic-page crop; MC10's plain columns carry none", async () => {
+  it("GMW's and MC10's page-based issues each carry their own comic-page crop", async () => {
     const service = new CampaignService({
       storage: new MemoryCampaignStorage(),
       campaignDeps: { pool: Object.fromEntries(POOL_CARDS.map((card) => [card.id as string, card])) },
@@ -182,12 +185,13 @@ describe("campaignRunModel", () => {
     expect(third?.teaser).toBeNull();
     expect(third?.blurb).toBeNull();
 
+    // MC10 (its own official, lettered rulebook pages) crops the same way: issue #1's crop is its own page.
     const trorsModel = campaignRunModel(
       { ...freshLog(), name: "The Rise of Red Skull", box: "MC10" },
       TRORS_CAMPAIGN_DEFINITION,
       storyFor("trors"),
       cardName,
     );
-    for (const issue of trorsModel.issues) expect(issue.pageCrop).toBeNull();
+    expect(trorsModel.issues[0]?.pageCrop?.file).toBe("01-siege");
   });
 });
