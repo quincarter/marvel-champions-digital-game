@@ -29,8 +29,27 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # The same gate release-on-merge.yml runs before its builds, once, instead of
+  # once per OS: a red suite never ships an installer.
+  checks:
+    name: Checks (lint, format, typecheck, test)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm lint
+      - run: pnpm fmt:check
+      - run: pnpm typecheck
+      - run: pnpm test
+
   build:
     name: ${{ matrix.name }}
+    needs: checks
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -77,10 +96,6 @@ jobs:
           workspaces: packages/client/src-tauri -> target
 
       - run: pnpm install --frozen-lockfile
-
-      # The same gate a merge has to pass; a red suite never ships an installer.
-      - run: pnpm typecheck
-      - run: pnpm test
 
       # Signs and notarizes the macOS bundle once the Apple secrets exist (see
       # README, "macOS signing"). Only the secrets that are set are exported:
