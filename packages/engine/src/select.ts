@@ -252,6 +252,9 @@ export function focusedMainSchemeId(state: GameState, deps: EngineDeps): Instanc
   return null;
 }
 
+/** "(Aggression, Justice, Leadership and Protection)": the aspects `ValueSpec distinctAspects` counts (§3.12 of wave 4). */
+const FOUR_ASPECTS: readonly string[] = ["aggression", "justice", "leadership", "protection"];
+
 /** The binding slot the "which main scheme?" choice fills for a player card's ability (docs/phase7-wave4.md §3.2). */
 export const MAIN_SCHEME_CHOICE = "_mainScheme";
 
@@ -1164,6 +1167,16 @@ export function resolveValue(
         if (card) types.add(card.type);
       }
       return types.size;
+    }
+    case "distinctAspects": {
+      const aspects = new Set<string>();
+      for (const id of resolveRef(state, value.cards, context)) {
+        const card = cardOf(state, id);
+        if (!card || !("aspect" in card)) continue;
+        for (const aspect of [card.aspect, card.printedAspect])
+          if (aspect !== undefined && FOUR_ASPECTS.includes(aspect)) aspects.add(aspect);
+      }
+      return aspects.size;
     }
     case "printedCost": {
       const [id] = resolveRef(state, value.of, context);

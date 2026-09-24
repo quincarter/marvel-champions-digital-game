@@ -304,6 +304,11 @@ export const printedCostOf = (of: TargetRef): ValueSpec => ({ kind: "printedCost
 export const countersOn = (of: TargetRef, counterType: string): ValueSpec => ({ kind: "counters", of, counterType });
 /** "For each different resource type discarded this way" (wild counts as its own type). */
 export const resourceTypesOf = (cardsRef: TargetRef): ValueSpec => ({ kind: "resourceTypes", cards: cardsRef });
+/**
+ * "For each different aspect discarded this way (Aggression, Justice, Leadership and Protection)" (Karmic Blast, Cosmic
+ * Awareness, Regeneration Cycle, `mts`; docs/phase7-wave4.md §3.12).
+ */
+export const distinctAspectsOf = (cardsRef: TargetRef): ValueSpec => ({ kind: "distinctAspects", cards: cardsRef });
 /** "That damage" / "it" in an interrupt: the triggering event's amount. */
 export const eventAmount: ValueSpec = { kind: "eventAmount" };
 export const eventResult = (key: string): ValueSpec => ({ kind: "eventResult", key });

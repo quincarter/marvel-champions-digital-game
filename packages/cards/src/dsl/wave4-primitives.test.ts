@@ -24,6 +24,13 @@ import {
 } from "./abilities.js";
 import {
   advanceToSetAsideVillain,
+  attack,
+  cards,
+  chooseOne,
+  moveCards,
+  option,
+  selectCards,
+  topOfDeck,
   attachCard,
   attackAnEnemy,
   changeAdditionalForm,
@@ -44,6 +51,7 @@ import {
 import { validateDefinition } from "./validate.js";
 import {
   chosen,
+  distinctAspectsOf,
   each,
   eventTarget,
   host,
@@ -54,6 +62,7 @@ import {
   printedForm,
   query,
   self,
+  sum,
   theVillain,
   valueAtLeast,
   victoryCondition,
@@ -163,6 +172,21 @@ describe("§3.15 / §3.16 Ebony Maw's Spells", () => {
       forcedInterrupt(
         on.villainAttacks({ againstYou: true }),
         removeCountersFrom(each(query([], { trait: trait("SPELL"), ...inPlayAreaOf() })), "invocation", 1),
+      ),
+    );
+  });
+});
+
+describe("§3.12 different aspects", () => {
+  it("Karmic Blast (21038): discard up to 4 from the top of your deck, +1 damage per different aspect", () => {
+    const discardTop = (n: number) =>
+      option(`Discard ${n}`, selectCards("discarded", topOfDeck(n)), moveCards(cards(chosen("discarded")), "discard"));
+    valid(
+      heroAction(
+        { label: "attack" },
+        chooseTarget("enemy", query("enemy")),
+        chooseOne(discardTop(1), discardTop(2), discardTop(3), discardTop(4)),
+        attack(sum(4, distinctAspectsOf(chosen("discarded"))), chosen("enemy")),
       ),
     );
   });

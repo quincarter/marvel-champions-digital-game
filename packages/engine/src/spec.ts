@@ -555,6 +555,13 @@ export type ValueSpec =
   | { readonly kind: "resourceTypes"; readonly cards: TargetRef }
   /** Distinct card types among cards ("for each different card type discarded this way": Trickster, Leading the Charge). */
   | { readonly kind: "distinctCardTypes"; readonly cards: TargetRef }
+  /**
+   * Distinct core aspects among cards: "deal 1 additional damage to that enemy for each different aspect discarded this way
+   * (Aggression, Justice, Leadership and Protection)" (Karmic Blast, Cosmic Awareness, Regeneration Cycle, `mts` 21038,
+   * 21039, 21066). A card counts for its `aspect` and its `printedAspect` (an identity-specific card that prints one,
+   * docs/phase7-wave2.md §1.2); basic and identity-set cards count for none. docs/phase7-wave4.md §3.12.
+   */
+  | { readonly kind: "distinctAspects"; readonly cards: TargetRef }
   /** A card's printed cost (RRG 1.8 "Printed", p. 35): "equal to its printed cost" (Headbutt, Thoughtcasting). A card with no printed cost is 0. */
   | { readonly kind: "printedCost"; readonly of: TargetRef }
   /** The sum of the printed costs of every card a ref names, wherever they are: "the total cost of all allies beneath it" (Hydra Prison). */
