@@ -85,6 +85,26 @@ export interface FacedownRole {
 }
 
 /**
+ * A faceup ally treated as a minion by an attachment on it (Fallen Warrior, Beguiled, `mts` 21153, 21178: "Treat
+ * attached ally as an [Undead] minion with a blank text box. Attached minion's SCH is equal to its printed THW and it
+ * does not take consequential damage."; docs/phase7-wave4.md §3.9). Ruling, Dec 17, 2025 (1) #3: "the ally does not
+ * leave play and the 'minion' does not enter play; the character remains in play and retains all tokens and
+ * attachments. (The process is essentially a status change.)" Kept on the instance, set and cleared as the attachment
+ * arrives and goes (`syncTreatedAs`), so every "is this a minion?" reader answers from state alone. While it is set the
+ * card is a minion, enemy and character, not an ally; its text box is blank; its traits are `traits` (plus its printed
+ * ones when `keepPrintedTraits`, "a blank text box (except for traits)"); its SCH is its printed THW when `schFromThw`.
+ * `controllerBefore` is who controlled it as an ally, who gets it back when the attachment goes.
+ */
+export interface TreatedAs {
+  readonly kind: "minion";
+  readonly traits: readonly Trait[];
+  readonly keepPrintedTraits: boolean;
+  readonly schFromThw: boolean;
+  readonly source: InstanceId;
+  readonly controllerBefore: PlayerId | null;
+}
+
+/**
  * Where "discard" sends a card, fixed when the card is created (docs/phase7-wave1.md §3.2).
  *
  * - `player`: its owner's discard pile.
@@ -130,6 +150,8 @@ export interface CardInstance {
   readonly tucked: readonly InstanceId[];
   /** Set while this card is in play facedown as something else (a facedown Drone minion). */
   readonly facedownAs: FacedownRole | null;
+  /** Absent or null on every card not treated as another card type (docs/phase7-wave4.md §3.9). */
+  readonly treatedAs?: TreatedAs | null;
   readonly engagedWith: PlayerId | null;
   /**
    * A double-sided encounter card showing its other face (`EncounterCardCommon.flipSide`; RRG 1.8 "Flip", p. 20).

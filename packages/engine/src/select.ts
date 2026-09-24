@@ -127,6 +127,8 @@ export function categoriesOf(state: GameState, id: InstanceId): readonly TargetC
   const card = cardOf(state, id);
   if (!instance || !card) return [];
   if (instance.facedownAs?.kind === "minion") return ["minion", "enemy", "character"];
+  // An ally an attachment treats as a minion (docs/phase7-wave4.md §3.9).
+  if (instance.treatedAs?.kind === "minion") return ["minion", "enemy", "character"];
   const player = state.players.find((p) => p.identity.instanceId === id);
   if (card.type === "hero_identity" && player) {
     return player.identity.form === "hero" ? ["identity", "hero", "character"] : ["identity", "alterEgo", "character"];
@@ -168,11 +170,24 @@ export function categoriesOf(state: GameState, id: InstanceId): readonly TargetC
   }
 }
 
+/**
+ * A character a player's cards can use as an ally: an ally card, controlled or not, that no attachment treats as a
+ * minion and that is not a captive held by an attachment (the readers that walk a play area for allies).
+ */
+export function isAlly(state: GameState, id: InstanceId): boolean {
+  return categoriesOf(state, id).includes("ally");
+}
+
 function printedTraitsOf(state: GameState, id: InstanceId): readonly Trait[] {
   const card = cardOf(state, id);
   if (!card) return [];
   const facedown = getInstance(state, id)?.facedownAs;
   if (facedown) return facedown.traits;
+  const treated = getInstance(state, id)?.treatedAs;
+  if (treated) {
+    const printed = card.type === "ally" ? card.traits : [];
+    return treated.keepPrintedTraits ? [...treated.traits, ...printed] : treated.traits;
+  }
   const face = encounterFace(state, id);
   if (face) return face.traits;
   if (card.type === "hero_identity") {
@@ -1498,8 +1513,10 @@ export function activeAbilityRefs(
 ): readonly AbilityReference[] {
   const card = cardOf(state, id);
   if (!card) return [];
-  // A facedown card's own text is blank while it is facedown, and so is a card whose text box is treated as blank.
-  if (getInstance(state, id)?.facedownAs || textBoxBlankFor(state, id, deps)) return [];
+  // A facedown card's own text is blank while it is facedown, and so is a card whose text box is treated as blank
+  // (an ally treated as a minion "with a blank text box", docs/phase7-wave4.md §3.9).
+  const instance = getInstance(state, id);
+  if (instance?.facedownAs || instance?.treatedAs || textBoxBlankFor(state, id, deps)) return [];
   const face = encounterFace(state, id);
   if (face) return face.abilities;
   if (card.type === "hero_identity") {

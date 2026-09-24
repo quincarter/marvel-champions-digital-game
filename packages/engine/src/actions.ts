@@ -102,6 +102,7 @@ import {
   categoriesOf,
   controllerOf,
   evaluate,
+  isAlly,
   matchesQuery,
   printedAbilityRefs,
   resolveValue,
@@ -296,7 +297,7 @@ function teamUpFault(state: GameState, card: AnyCard): PriceFault | null {
   // identity's faceup title, an ally's title or subtitle, and a "Hero/Alter-ego" name; docs/phase7-wave3.md §3.34).
   const friendly = playerOrder(state).flatMap((player) => [
     player.identity.instanceId,
-    ...player.playArea.filter((id) => cardOf(state, id)?.type === "ally" && controllerOf(state, id) !== null),
+    ...player.playArea.filter((id) => isAlly(state, id) && controllerOf(state, id) !== null),
   ]);
   const missing = keyword.names.filter((name) => !friendly.some((id) => characterTitledAs(state, id, name)));
   return missing.length === 0
@@ -2148,7 +2149,7 @@ function usableCharacter(ctx: Ctx, playerId: PlayerId, characterId: InstanceId, 
   const instance = getInstance(ctx.state, characterId);
   if (!instance) return engineError("unknown_instance", `no instance ${characterId}`, command);
   const isIdentity = player.identity.instanceId === characterId;
-  const isOwnAlly = player.playArea.includes(characterId) && cardOf(ctx.state, characterId)?.type === "ally";
+  const isOwnAlly = player.playArea.includes(characterId) && isAlly(ctx.state, characterId);
   if (!isIdentity && !isOwnAlly) {
     return engineError("no_valid_target", "character is not a hero or ally you control", command);
   }

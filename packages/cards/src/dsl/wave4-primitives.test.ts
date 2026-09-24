@@ -10,6 +10,7 @@ import {
   action,
   alterEgoAction,
   cannotBeCanceled,
+  treatAttachedAllyAsMinion,
   uncancellable,
   cannotChooseToDiscard,
   inHand,
@@ -227,5 +228,18 @@ describe("§3.14 player events shuffled into the encounter deck", () => {
       rules: [{ kind: "cannotBeCanceled", cards: { categories: ["treachery"] } }],
     });
     valid(scepter);
+  });
+});
+
+describe("§3.9 an ally treated as a minion", () => {
+  it("Beguiled (21178): treat attached ally as an Enthralled minion; When Revealed, attached ally engages its controller", () => {
+    const ENTHRALLED = trait("ENTHRALLED");
+    const treat = constant(treatAttachedAllyAsMinion([ENTHRALLED]));
+    expect(treat.trigger).toEqual({
+      kind: "constant",
+      rules: [{ kind: "treatHostAsMinion", traits: [ENTHRALLED], schFromThw: true }],
+    });
+    valid(treat);
+    valid(constant(treatAttachedAllyAsMinion([], { keepPrintedTraits: true })));
   });
 });

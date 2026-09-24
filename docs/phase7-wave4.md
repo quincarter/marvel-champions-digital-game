@@ -356,7 +356,7 @@ stays data only.**
 | 3.6  | A modular set's own deck (the Infinity Stone deck)                       | Thanos, Loki, any scenario                 | landed      |
 | 3.7  | Loki: random start, swap, a villain stage's Victory X, the victory count | Loki; God of Lies (`tt`)                   | landed      |
 | 3.8  | An encounter ally attached to the main scheme (Odin)                     | Hela                                       | landed      |
-| 3.9  | An ally treated as a minion                                              | Fallen Warrior, Beguiled; 5 other packs    | not started |
+| 3.9  | An ally treated as a minion                                              | Fallen Warrior, Beguiled; 5 other packs    | landed      |
 | 3.10 | Flipping a card into a separately emitted face of another type           | MC21 campaign                              | landed      |
 | 3.11 | Timing points when a deck runs out                                       | Soul World, Universal Church, Thanos       | landed      |
 | 3.12 | Counting different aspects; Adam Warlock's copy limit                    | Adam Warlock                               | landed      |
@@ -626,6 +626,24 @@ change.)" **Plan:** a `RuleSpec treatAsMinion { target: host, traits, schFromThw
 read where a card's categories are decided (`categoriesOf`, beside `facedownAs`), cheap because it reads only the
 card's own attachments. **Composes with:** 'Pool-ized (`deadpool` 44041), "Lost" Child (`jubilee` 47027), Manipulated
 Mind (`sm` 27171, "except for traits"), Possessed (`storm` 36038), Malice (`next_evol` 40199).
+
+> **Status: landed (2026-09-24),** tested in `packages/engine/src/treat-as-minion.test.ts` (3 tests: attached, the ally is
+> an engaged minion nobody controls, with a blank text box, the new trait, SCH equal to its printed THW, its damage
+> kept and no ally action offered, replay deep-equal; "(except for traits)" keeps the printed traits; when the
+> attachment is discarded it is its controller's ally again with its text and damage). **What landed:** the plan's
+> read-at-query-time rule would need the ability registry in `categoriesOf`/`isMinion`, which take none, so the
+> ruling's "essentially a status change" is kept as state instead: **`CardInstance.treatedAs`** (optional; `kind`,
+> `traits`, `keepPrintedTraits`, `schFromThw`, `source`, `controllerBefore`), set and cleared by `treat-as.ts
+syncTreatedAs`, which `relocateCard` calls whenever a card moves onto or off a host, from the host's attachments'
+> **`RuleSpec treatHostAsMinion {traits, keepPrintedTraits?, schFromThw?}`**. It is set the moment the attachment
+> lands, so the same ability's "Attached ally engages its controller" engages a minion. Readers: `categoriesOf`,
+> `isMinion`, printed traits, blank abilities and keywords, `printedProfile` (a minion profile from the ally's printed
+> ATK, THW-as-SCH and hit points). A new `select.ts isAlly` (the `ally` category) replaces the raw `type === "ally"`
+> play-area walks (legal attackers/thwarters, defenders, Melter's forced ally defense, the ally limit, Team-Up's
+> friendly characters, why-not). Leaving play clears it. Event `treatedAsChanged`. **DSL:**
+> `constant(treatAttachedAllyAsMinion(traits, { keepPrintedTraits? }))`. **Not covered:** Mind Control, Redemption,
+> Karma (a minion treated as an ally, the mirror; `TreatedAs.kind` is the place to add `"ally"`), and Reluctant Foe
+> (`aos` 50171, a hero treated as a minion with a replaced text box).
 
 ### 3.10 Flipping a card into a separately emitted face of another type
 
