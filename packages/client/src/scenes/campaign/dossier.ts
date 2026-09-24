@@ -23,6 +23,7 @@ import {
   villainPicture,
 } from "../../ui/campaign-chrome.js";
 import { McButton, McTabs } from "../../ui/widgets.js";
+import { McScrollRegion } from "../../ui/scroll-region.js";
 import { destroyChildren } from "../../ui/destroy-children.js";
 import { fadeScreenIn, goToScreen } from "../../ui/transitions.js";
 import {
@@ -37,6 +38,7 @@ import {
 } from "../../view/campaign-dossier-model.js";
 import { campaignRunModel, type RunIssueRow } from "../../view/campaign-run-model.js";
 import type { Rect } from "../../view/layout.js";
+import { VariableListScroll } from "../../view/variable-list-scroll.js";
 import { FocusRoute, type FocusStop } from "../focus-route.js";
 import { SCENES } from "../keys.js";
 import type { CampaignDossierData, DossierTab } from "./routes.js";
@@ -80,6 +82,8 @@ export class CampaignDossierScene extends Phaser.Scene {
   #route: FocusRoute | null = null;
   #buttons: McButton[] = [];
   #tabs: McTabs | null = null;
+  #logRegion: McScrollRegion | null = null;
+  #logScroll = new VariableListScroll();
 
   constructor() {
     super(SCENES.campaignDossier);
@@ -100,6 +104,8 @@ export class CampaignDossierScene extends Phaser.Scene {
       this.#buttons = [];
       this.#tabs?.destroy();
       this.#tabs = null;
+      this.#logRegion?.destroy();
+      this.#logRegion = null;
     });
     void this.#load(data);
     this.#draw();
@@ -155,10 +161,15 @@ export class CampaignDossierScene extends Phaser.Scene {
 
   #setTab(tab: DossierTab): void {
     this.#tab = tab;
+    this.#logScroll.reset();
     this.#draw();
   }
 
   #draw(): void {
+    // Destroyed before `destroyChildren` (not swept by it): `McScrollRegion` also owns a scene-level wheel/drag
+    // listener (`ui/scroll-region.ts`), which only its own `destroy()` removes.
+    this.#logRegion?.destroy();
+    this.#logRegion = null;
     destroyChildren(this);
     for (const button of this.#buttons) button.destroy();
     this.#buttons = [];
@@ -511,7 +522,40 @@ export class CampaignDossierScene extends Phaser.Scene {
   // Log
   // -----------------------------------------------------------------------------------------------------------
 
+  /**
+   * The Log tab's content can run taller than the screen (a finished, multi-issue run stacks one section per
+   * issue) — scrolled inside its own box, `McScrollRegion`, rather than left to run off-canvas past `body` the
+   * way a plain draw once did. `McScrollRegion` needs its content's total height *before* construction (for the
+   * scroll clamp), which drawing only produces as a side effect, so this measures once into a throwaway pass
+   * (drawn, measured, destroyed — the section/row shapes are cheap text draws, not art), then draws for real into
+   * the region's own masked, scrolling layer.
+   */
   #drawLog(loaded: LoadedDossier, frame: ReturnType<typeof campaignFrame>, body: Rect): void {
+    const before = this.children.list.length;
+    const measuredHeight = this.#drawLogContent(loaded, frame, body);
+    for (const obj of this.children.list.slice(before)) obj.destroy();
+
+    this.#logRegion = new McScrollRegion(this, {
+      rect: body,
+      heights: [Math.max(body.height, measuredHeight)],
+      scroll: this.#logScroll,
+    });
+    this.#captureInto(this.#logRegion.content, () => this.#drawLogContent(loaded, frame, body));
+  }
+
+  /** Runs `draw`, then reparents everything it just added to the scene's top-level display list into
+   * `container` — the "eagerly draw, then move into the scrolled/masked layer" trick `McScrollRegion` relies on
+   * (its own doc comment), since `this.add.graphics()`/`new McButton(this, …)` always land at the top level first. */
+  #captureInto(container: Phaser.GameObjects.Container, draw: () => void): void {
+    const before = this.children.list.length;
+    draw();
+    const added = this.children.list.slice(before);
+    if (added.length > 0) container.add(added);
+  }
+
+  /** Draws the Log tab's whole body (every finished issue's section, the next-issue preview, and the "In force
+   * now" panel) and returns the total height used, measured from `body.y` — `#drawLog`'s own scroll math. */
+  #drawLogContent(loaded: LoadedDossier, frame: ReturnType<typeof campaignFrame>, body: Rect): number {
     const pad = frame.gutter;
     const rightWidth = frame.phone ? 0 : 300;
     const leftWidth = frame.width - pad * 2 - (rightWidth > 0 ? rightWidth + 24 : 0);
@@ -586,7 +630,9 @@ export class CampaignDossierScene extends Phaser.Scene {
         .text(pad + 10, y + 24, loaded.log.next.promise, textStyle(typeRole.body, surface.ink.hex, 0.7))
         .setFontSize(11)
         .setWordWrapWidth(leftWidth - 20);
+      y += dashHeight;
     }
+    let rightBottom = body.y;
 
     if (rightWidth > 0) {
       const rx = pad + leftWidth + 24;
@@ -616,13 +662,15 @@ export class CampaignDossierScene extends Phaser.Scene {
         this.add.rectangle(rx, ry, rightWidth, 1, surface.ink.hex, 0.12).setOrigin(0, 0.5);
       }
       box.lineStyle(2, surface.ink.hex, 1).strokeRect(rx, boxTop, rightWidth, ry - boxTop);
-      this.add
+      const footer = this.add
         .text(rx, ry + 10, "Written by the game, never by hand. Page refs point to the rulebook for anyone checking.", {
           ...textStyle(typeRole.body, surface.ink.hex, 0.55),
           fontSize: "11px",
         })
         .setWordWrapWidth(rightWidth);
+      rightBottom = footer.y + footer.height;
     }
+    return Math.max(y, rightBottom) - body.y;
   }
 
   // -----------------------------------------------------------------------------------------------------------

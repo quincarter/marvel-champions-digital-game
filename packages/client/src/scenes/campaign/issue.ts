@@ -24,10 +24,13 @@ import {
   villainPicture,
 } from "../../ui/campaign-chrome.js";
 import { McButton } from "../../ui/widgets.js";
+import { McVariableList } from "../../ui/variable-list.js";
+import type { VirtualListRow } from "../../ui/virtual-list.js";
 import { destroyChildren } from "../../ui/destroy-children.js";
 import { fadeScreenIn, goToScreen } from "../../ui/transitions.js";
 import { campaignIssueModel, type CampaignIssueModel } from "../../view/campaign-issue-model.js";
-import type { Rect } from "../../view/layout.js";
+import { logWriteRowHeight, type Rect } from "../../view/layout.js";
+import { VariableListScroll } from "../../view/variable-list-scroll.js";
 import { FocusRoute, type FocusStop } from "../focus-route.js";
 import { SCENES } from "../keys.js";
 import type { CampaignIssueData } from "./routes.js";
@@ -41,6 +44,8 @@ export class CampaignIssueScene extends Phaser.Scene {
   #status = "";
   #route: FocusRoute | null = null;
   #buttons: McButton[] = [];
+  #writesList: McVariableList | null = null;
+  #writesScroll = new VariableListScroll();
 
   constructor() {
     super(SCENES.campaignIssue);
@@ -50,6 +55,7 @@ export class CampaignIssueScene extends Phaser.Scene {
     this.#data = data;
     this.#model = null;
     this.#status = "";
+    this.#writesScroll.reset();
     this.#route = new FocusRoute(this, { onCancel: () => this.#back() });
     const onResize = (): void => this.#draw();
     this.scale.on("resize", onResize, this);
@@ -57,6 +63,8 @@ export class CampaignIssueScene extends Phaser.Scene {
       this.scale.off("resize", onResize, this);
       for (const button of this.#buttons) button.destroy();
       this.#buttons = [];
+      this.#writesList?.destroy();
+      this.#writesList = null;
     });
     void this.#load(data);
     this.#draw();
@@ -89,6 +97,10 @@ export class CampaignIssueScene extends Phaser.Scene {
   }
 
   #draw(): void {
+    // Destroyed before `destroyChildren` (not swept by it): `McVariableList` also owns a scene-level wheel
+    // listener (`ui/variable-list.ts`), which only its own `destroy()` removes.
+    this.#writesList?.destroy();
+    this.#writesList = null;
     destroyChildren(this);
     for (const button of this.#buttons) button.destroy();
     this.#buttons = [];
@@ -302,43 +314,64 @@ export class CampaignIssueScene extends Phaser.Scene {
     y += 26;
     y = ruleHeading(this, rect.x, y, rect.width, "Wrote to the log");
     if (model.writes.length > 0) {
-      const boxTop = y;
-      const minRowHeight = 42;
-      const minDetailTop = 26;
-      const detailBottomPad = 12;
-      model.writes.forEach((write, index) => {
-        const rowTop = y;
-        const headline = this.add
-          .text(rect.x + 26, y + 8, write.headline, textStyle(typeRole.emphasis, surface.ink.hex))
-          .setFontSize(13)
-          .setWordWrapWidth(rect.width - 150);
-        // A collapsed cardList delta ("+ Brainstorm, By Any Means, Contingency Plan → Groot") can wrap to two
-        // lines at this width — the detail line starts below the headline's own measured height, never a fixed
-        // offset that assumed one line.
-        const detailTop = Math.max(minDetailTop, 8 + headline.height + 4);
-        const detail = this.add
-          .text(rect.x + 26, y + detailTop, write.detail, textStyle(typeRole.body, surface.ink.hex, 0.65))
-          .setFontSize(11)
-          .setWordWrapWidth(rect.width - 150);
-        this.add
-          .text(rect.x + rect.width - 10, y + 8, write.citation, textStyle(typeRole.label, surface.ink.hex, 0.5))
-          .setOrigin(1, 0)
-          .setFontSize(10);
-        // Sized from the detail text's own measured (possibly wrapped) height, never a fixed height a long
-        // instruction's printed text can run past — e.g. MC16's "Record units in each player's..." wraps to two
-        // lines at this rect width, which the old fixed 42px let bleed into the next row.
-        const rowHeight = Math.max(minRowHeight, detailTop + detail.height + detailBottomPad);
-        this.add.rectangle(rect.x + 12, rowTop + rowHeight / 2, 8, 8, writeKindColor(write.kind));
-        y += rowHeight;
-        if (index < model.writes.length - 1) {
-          this.add.rectangle(rect.x, y, rect.width, 1, surface.ink.hex, 0.15).setOrigin(0, 0.5);
-        }
+      // A finished issue's write list can run past the panel's own bottom (GMW's own setup-then-victory shape
+      // writes several rows to the same field) — scrolled inside its own box, `McVariableList`, rather than left
+      // to spill past the frame and behind the action bar the way a plain `forEach` draw once did.
+      const listRect: Rect = { x: rect.x, y, width: rect.width, height: Math.max(60, rect.y + rect.height - y) };
+      const heights = model.writes.map((write) => logWriteRowHeight(write.headline, write.detail, rect.width));
+      const writes = model.writes;
+      const renderRow = (index: number, rowRect: Rect): VirtualListRow => this.#renderWriteRow(writes[index]!, rowRect);
+      this.#writesList = new McVariableList(this, {
+        rect: listRect,
+        heights,
+        renderRow,
+        scroll: this.#writesScroll,
+        background: false,
       });
       this.add
         .graphics()
         .lineStyle(2, surface.ink.hex, 1)
-        .strokeRect(rect.x, boxTop, rect.width, y - boxTop);
+        .strokeRect(listRect.x, listRect.y, listRect.width, listRect.height);
     }
+  }
+
+  /** One "Wrote to the log" row, drawn at `rowRect` (the row's own position at zero scroll — `McVariableList`
+   * reparents these objects into its masked, scrolling layer and handles the offset itself). */
+  #renderWriteRow(write: CampaignIssueModel["writes"][number], rowRect: Rect): VirtualListRow {
+    const objects: Phaser.GameObjects.GameObject[] = [];
+    const headline = this.add
+      .text(rowRect.x + 26, rowRect.y + 8, write.headline, textStyle(typeRole.emphasis, surface.ink.hex))
+      .setFontSize(13)
+      .setWordWrapWidth(rowRect.width - 150);
+    objects.push(headline);
+    // A collapsed cardList delta ("+ Brainstorm, By Any Means, Contingency Plan → Groot") can wrap to two lines
+    // at this width — the detail line starts below the headline's own measured height, never a fixed offset that
+    // assumed one line (matches `logWriteRowHeight`'s own estimate, which sized this row for exactly this).
+    const detailTop = Math.max(26, 8 + headline.height + 4);
+    objects.push(
+      this.add
+        .text(rowRect.x + 26, rowRect.y + detailTop, write.detail, textStyle(typeRole.body, surface.ink.hex, 0.65))
+        .setFontSize(11)
+        .setWordWrapWidth(rowRect.width - 150),
+    );
+    objects.push(
+      this.add
+        .text(
+          rowRect.x + rowRect.width - 10,
+          rowRect.y + 8,
+          write.citation,
+          textStyle(typeRole.label, surface.ink.hex, 0.5),
+        )
+        .setOrigin(1, 0)
+        .setFontSize(10),
+    );
+    objects.push(this.add.rectangle(rowRect.x + 12, rowRect.y + rowRect.height / 2, 8, 8, writeKindColor(write.kind)));
+    objects.push(
+      this.add
+        .rectangle(rowRect.x, rowRect.y + rowRect.height, rowRect.width, 1, surface.ink.hex, 0.15)
+        .setOrigin(0, 0.5),
+    );
+    return { objects };
   }
 }
 

@@ -8,6 +8,7 @@ import {
   cardStatColumn,
   CARD_ASPECT,
   formFactorFor,
+  logWriteRowHeight,
   panelShape,
   PANEL_TEXT_MIN_WIDTH,
   PHONE_TABS,
@@ -501,5 +502,31 @@ describe("a phone on its side", () => {
     expect(playArea!.y).toBe(me!.y);
     expect(hand!.height).toBeGreaterThanOrEqual(96);
     expect(actionBar!.height).toBe(hit.primary);
+  });
+});
+
+describe("logWriteRowHeight", () => {
+  test("a short headline and detail never exceed one line each of height", () => {
+    expect(logWriteRowHeight("+1 unit", "Short.", 600)).toBe(52);
+  });
+
+  test("a headline long enough to wrap grows the row beyond a single-line headline's", () => {
+    const oneLine = logWriteRowHeight("+3 units", "Some detail text that stays on one line.", 500);
+    const wrapped = logWriteRowHeight(
+      "+ Brainstorm, By Any Means, Contingency Plan, In Defiance, Calculate the Odds",
+      "Some detail text that stays on one line.",
+      500,
+    );
+    expect(wrapped).toBeGreaterThan(oneLine);
+  });
+
+  test("a long detail line also grows the row", () => {
+    const short = logWriteRowHeight("+1 unit", "Short.", 500);
+    const long = logWriteRowHeight(
+      "+1 unit",
+      "Record units in each player's Unspent Units box: a much longer printed instruction that wraps to several lines at this width.",
+      500,
+    );
+    expect(long).toBeGreaterThan(short);
   });
 });
