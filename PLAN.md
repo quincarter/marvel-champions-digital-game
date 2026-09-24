@@ -622,6 +622,7 @@ Owner: `rules-qa-engineer`, in collaboration with `game-rules-architect`.
 Owner: `card-data-pipeline` + `ability-scripting-engineer`, tracked by `content-release-tracker`.
 
 - [ ] Cycle 1 (The Rise of Red Skull) as the next full content pass, then subsequent cycles/campaign boxes in release order.
+  - Waves so far: wave 1 (pre-cycle 1), wave 2 (cycle 1, The Rise of Red Skull), wave 3 (cycle 2, The Galaxy's Most Wanted, #30) are merged. **Wave 4 (cycle 3, The Mad Titan's Shadow: `mts`, `nebu`, `warm`, `hood`, `valk`, `vision`) started 2026-09-24 on `feature/wave-4`**; its working spec is [docs/phase7-wave4.md](docs/phase7-wave4.md).
 - [ ] Each new cycle's new keywords get added to `game-rules-architect`'s keyword set before that cycle's cards are scripted.
 - [ ] Ongoing: `content-release-tracker` watches for new releases/errata/taboo changes and files content-pipeline work rather than letting the card pool go stale.
 - [ ] **Campaign mode** is built once as a capability, then added per box as each box's cards finish scripting — see "Campaign mode" below for the decisions, the one-time foundation and the repeatable per-box checklist.
