@@ -21,9 +21,16 @@ const VILLAIN: StorySpeaker = { kind: "villain" };
 
 /**
  * Panel rectangles below are measured against each page's own pixel size (`sips -g pixelWidth -g pixelHeight`;
- * 1500×1500 for pages 1–4, 1920×993 for pages 5–6) by loading the page, reading off its gutters by eye, and
- * checking the rectangle against the art before it was written down. A background panel that bleeds off the page
- * with no printed border (page 1's starfield, page 3's dogfight) is measured to the page's own edge.
+ * 1500×1500 for pages 1–4, 1920×993 for pages 5–6): a script thresholds each page for its near-white panel
+ * borders against the dark/coloured gutters, locates the border lines around each panel (row/column white-run
+ * detection, and for slanted panels the largest connected border blob), and every candidate rectangle is
+ * rendered as a crop and reviewed against the source page before being written down (crops kept, ungit-tracked,
+ * under `artifacts/qa/gmw-reader/rects/`). A background panel that bleeds off the page with no printed border
+ * (page 1's starfield, page 3's dogfight, page 5's Ronan close-up) is measured to the page's own edge. Slanted
+ * panels (page 3's two insets) are boxed to the bounding rectangle of the tilted frame, not the frame itself.
+ * `02-museum`'s middle panel is genuinely solid black in the source art (the alarm cutting the museum's
+ * lights) with no readable content, so no beat points a panel at it; its alarm caption/sfx are carried on the
+ * neighboring right-inset beat instead.
  */
 const PAGES: readonly ComicPage[] = [
   {
@@ -39,7 +46,7 @@ const PAGES: readonly ComicPage[] = [
       },
       {
         // Top-right bordered inset: the team walking the Milano's corridor.
-        panel: { x: 985, y: 0, w: 450, h: 1075 },
+        panel: { x: 985, y: 0, w: 436, h: 1080 },
         lines: [
           { speaker: DRAX, text: "The Badoon fleet is hailing us. They want a word." },
           { speaker: GAMORA, text: "They can have a fist instead." },
@@ -47,7 +54,7 @@ const PAGES: readonly ComicPage[] = [
       },
       {
         // Bottom bordered strip: the fight breaks out.
-        panel: { x: 60, y: 1090, w: 1380, h: 380 },
+        panel: { x: 73, y: 1088, w: 1351, h: 336 },
         caption: "The Badoon Want a Word",
         lines: [
           { speaker: ROCKET, text: "Word's out, boys — you picked the wrong ride to board!" },
@@ -70,23 +77,20 @@ const PAGES: readonly ComicPage[] = [
       },
       {
         // Left inset: Rocket at the glass, the Collector's hologram calm.
-        panel: { x: 65, y: 355, w: 410, h: 730 },
+        panel: { x: 62, y: 355, w: 412, h: 727 },
         lines: [
           { speaker: ROCKET, text: "Nice collection. Real shame about the break-in." },
           { speaker: VILLAIN, text: "You misunderstand. Nothing here ever leaves." },
         ],
       },
       {
-        // Middle black panel — deliberately dark (the museum's alarm cutting the lights), part of the source art.
-        panel: { x: 490, y: 355, w: 460, h: 730 },
+        // Right inset: the hologram, no longer calm. The middle panel between this and the left inset is
+        // deliberately solid black in the source art (the museum's alarm cutting the lights) with no readable
+        // content of its own, so its alarm caption/sfx are carried here instead of pointing a beat at blank art.
+        panel: { x: 979, y: 355, w: 442, h: 731 },
         caption: "Every alarm in the museum, at once.",
-        lines: [],
-        sfx: "WEEOO-WEEOO!",
-      },
-      {
-        // Right inset: the hologram, no longer calm.
-        panel: { x: 965, y: 355, w: 445, h: 730 },
         lines: [{ speaker: VILLAIN, text: "Seal the exits. Nobody leaves my collection." }],
+        sfx: "WEEOO-WEEOO!",
       },
       {
         // Bottom strip: the team runs for it, red emergency light.
@@ -106,18 +110,19 @@ const PAGES: readonly ComicPage[] = [
     beats: [
       {
         // Top strip: a ship streaking through a warp corridor.
-        panel: { x: 0, y: 60, w: 1500, h: 250 },
+        panel: { x: 0, y: 71, w: 1500, h: 241 },
         caption: "Nebula ran with the Collection before the alarms even finished ringing.",
         lines: [],
       },
       {
-        // Left inset: Nebula's throne room, an alien informant reporting in.
-        panel: { x: 85, y: 345, w: 880, h: 700 },
+        // Left inset (slanted frame; box below is the bounding box of the tilted panel): Nebula's throne
+        // room, an alien informant reporting in.
+        panel: { x: 60, y: 330, w: 895, h: 685 },
         lines: [{ speaker: VILLAIN, text: "Hey, Ronan. You're in our spot." }],
       },
       {
-        // Right inset: a device detonating in open space.
-        panel: { x: 930, y: 375, w: 480, h: 650 },
+        // Right inset (slanted frame; bounding box): a device detonating in open space.
+        panel: { x: 945, y: 355, w: 465, h: 675 },
         caption: "One less Galactic Artifact for anyone to fight over.",
         lines: [],
         sfx: "THOOM!",
@@ -181,8 +186,10 @@ const PAGES: readonly ComicPage[] = [
         sfx: "SHRAKK!",
       },
       {
-        // Bottom-right inset: Ronan himself.
-        panel: { x: 1215, y: 735, w: 390, h: 258 },
+        // Bottom-right close-up: Ronan himself, a foreground figure breaking the frame with no printed
+        // border (like Star-Lord on page 1) — bled to the page's own right/bottom edges so the crop lands on
+        // his face instead of the empty starfield beside it.
+        panel: { x: 1530, y: 650, w: 390, h: 343 },
         lines: [{ speaker: VILLAIN, text: "The Stone stays safe. You do not." }],
       },
     ],
@@ -339,7 +346,6 @@ export const GMW_STORY: CampaignStory = {
       comicBeats: [
         { page: "02-museum", beatIndex: 2 },
         { page: "02-museum", beatIndex: 3 },
-        { page: "02-museum", beatIndex: 4 },
       ],
       stageLines: { 2: "The roof is not an exit. It is a dead end with a view." },
       briefing: {
