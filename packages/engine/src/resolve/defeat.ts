@@ -50,6 +50,15 @@ const advancePending = (state: GameState, schemeId: InstanceId): boolean =>
       frame.effects[0]?.kind === "advanceMainScheme",
   );
 
+/** A "would be completed" event for this scheme is already on the stack (docs/phase7-wave4.md §3.4). */
+const completingPending = (state: GameState, schemeId: InstanceId): boolean =>
+  state.stack.some(
+    (frame) =>
+      frame.kind === "event" &&
+      frame.event.kind === "mainSchemeCompleting" &&
+      frame.event.schemeInstanceId === schemeId,
+  );
+
 /**
  * The stage a main scheme advances to by default: the next stage, when exactly one stage carries the next stage number.
  * `null` when there is none (the final stage) and `"alternatives"` when several do (The Once and Future Kang's four
@@ -79,14 +88,44 @@ export function checkMainSchemeCompletion(ctx: Ctx): void {
 
 function checkOneMainScheme(ctx: Ctx, schemeId: InstanceId): void {
   const scheme = mainSchemeStateOf(ctx.state, schemeId);
-  if (!scheme || scheme.completed || advancePending(ctx.state, schemeId)) return;
+  if (!scheme || scheme.completed || advancePending(ctx.state, schemeId) || completingPending(ctx.state, schemeId))
+    return;
   const stage = mainSchemeStageOf(ctx.state, scheme);
   // RRG 1.8 "Dash (Value)" (p. 15): a dashed target threat "cannot be used", so the stage never completes by threat (The
   // Master of Time 2B; docs/phase7-wave2.md §3.4).
   if (stage.dashedValues?.includes("targetThreat")) return;
   const target = mainSchemeValue(ctx.state, "targetThreat", ctx.deps, scheme);
   if (mustInstance(ctx.state, schemeId).threat < target) return;
+  // "When this stage would be completed, … instead" (docs/phase7-wave4.md §3.4): with an ability listening, the
+  // completion is an event with an interrupt window, applied by `applyMainSchemeCompleting`. With none it happens here,
+  // exactly as before.
+  const completing: TriggerEvent = {
+    kind: "mainSchemeCompleting",
+    schemeInstanceId: schemeId,
+    stageIndex: scheme.stageIndex,
+  };
+  if (heard(ctx.state, ctx.deps, completing)) {
+    pushFrames(ctx, [eventFrame(ctx, completing)]);
+    return;
+  }
   completeMainScheme(ctx, schemeId);
+}
+
+/**
+ * The apply step of `mainSchemeCompleting`: the stage is completed if it still would be — the same stage, not yet
+ * completed, and still at or above its target threat (an interrupt that removed the threat "instead" has also cancelled
+ * the event, and either way nothing completes). Returns whether it happened.
+ */
+export function applyMainSchemeCompleting(
+  ctx: Ctx,
+  event: Extract<TriggerEvent, { kind: "mainSchemeCompleting" }>,
+): boolean {
+  const scheme = mainSchemeStateOf(ctx.state, event.schemeInstanceId);
+  if (!scheme || scheme.completed || scheme.stageIndex !== event.stageIndex || ctx.state.outcome) return false;
+  const target = mainSchemeValue(ctx.state, "targetThreat", ctx.deps, scheme);
+  if (mustInstance(ctx.state, event.schemeInstanceId).threat < target) return false;
+  completeMainScheme(ctx, event.schemeInstanceId);
+  return true;
 }
 
 /**

@@ -351,7 +351,7 @@ stays data only.**
 | 3.1  | Additional forms (the form keyword)                                      | Spectrum, Vision; Shadowcat, Nick Fury     | landed      |
 | 3.2  | Two main schemes in play, each paired with a villain; Focused Defense    | Tower Defense                              | not started |
 | 3.3  | Villains protected by each other's hit points: one defeat sweep          | Tower Defense; Four Horsemen (`aoa`)       | landed      |
-| 3.4  | A main scheme stage's completion is replaceable                          | Tower Defense; Upgrading Adaptoids (`aos`) | not started |
+| 3.4  | A main scheme stage's completion is replaceable                          | Tower Defense; Upgrading Adaptoids (`aos`) | landed      |
 | 3.5  | Damage on a card that is not a character (Avengers Tower)                | Tower Defense                              | not started |
 | 3.6  | A modular set's own deck (the Infinity Stone deck)                       | Thanos, Loki, any scenario                 | not started |
 | 3.7  | Loki: random start, swap, a villain stage's Victory X, the victory count | Loki; God of Lies (`tt`)                   | not started |
@@ -471,6 +471,17 @@ falls, Proxima II arrives with full hit points, and Corvus is now protected. RRG
 Famine, Pestilence, Death (`aoa` 45081–45084, "cannot be defeated while another villain has at least 1 hit point").
 
 ### 3.4 A main scheme stage's completion is replaceable
+
+> **Status: landed (2026-09-24),** tested in `packages/engine/src/main-scheme-completing.test.ts` (3 tests: "remove all
+> the threat from this stage instead" keeps the final stage from completing and the rest of the ability resolves; an
+> interrupt that replaces nothing leaves the completion to happen after it; with nothing listening the final stage
+> loses as before; replay deep-equal). **What landed:** `TriggerEvent mainSchemeCompleting { schemeInstanceId,
+stageIndex }`, pushed by `checkOneMainScheme` only when an ability listens (a game without one completes exactly as
+> before), with an interrupt window and the target scheme as its target. Its apply step (`applyMainSchemeCompleting`)
+> completes the stage only if it still would: same stage, not completed, threat still at or above the target. The
+> existing `cancelTriggeringEvent` (`instead`) is the replacement. **DSL:** `on.mainSchemeCompleting(what)`. A completion
+> by card effect (`completeMainScheme`, Kang's stage 3) is not routed through it; no printed "would be completed"
+> reacts to one.
 
 "Forced Interrupt: When this stage would be completed, remove all the threat from this stage instead. Then, deal
 6[per_hero] damage to Avengers Tower." `whenCompleted` resolves before an advance but cannot stop it. **Plan:** a

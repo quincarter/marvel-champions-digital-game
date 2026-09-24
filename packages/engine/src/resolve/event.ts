@@ -35,7 +35,13 @@ import type { GameState } from "../state.js";
 import type { TriggerEvent } from "../trigger-events.js";
 import type { EffectSpec } from "../spec.js";
 import { moveCardsTo } from "./cards.js";
-import { checkDefeats, checkMainSchemeCompletion, defeatVillainStage, eliminatePlayer } from "./defeat.js";
+import {
+  applyMainSchemeCompleting,
+  checkDefeats,
+  checkMainSchemeCompletion,
+  defeatVillainStage,
+  eliminatePlayer,
+} from "./defeat.js";
 import { dashedStatSkipsActivation, pushEnemyAttackFrame, pushEnemySchemeFrame } from "./enemy-activation.js";
 import { applyEnterPlayKeywords } from "./enter-play.js";
 import {
@@ -300,6 +306,8 @@ function applyEvent(ctx: Ctx, frame: Frame<"event">): boolean | void {
       return applyRetaliate(ctx, event);
     case "characterDefeated":
       return applyDefeat(ctx, event);
+    case "mainSchemeCompleting":
+      return applyMainSchemeCompleting(ctx, event);
     case "cardReadying":
       readyAndAnnounce(ctx, event.instanceId);
       return;
