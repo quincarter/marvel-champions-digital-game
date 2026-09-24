@@ -70,7 +70,7 @@ import type { PackCuration } from "./types.ts";
 
 export const GMW_CURATION: PackCuration = {
   packCode: "gmw",
-  cycle: { id: "cycle3", name: "Cycle 3", order: 3 },
+  cycle: { id: "cycle3", name: "The Galaxy's Most Wanted", order: 3 },
   pack: {
     name: "Galaxy's Most Wanted",
     releaseDate: "2021-04-02",

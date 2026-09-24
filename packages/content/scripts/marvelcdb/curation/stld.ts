@@ -10,7 +10,7 @@ import type { PackCuration } from "./types.ts";
 
 export const STLD_CURATION: PackCuration = {
   packCode: "stld",
-  cycle: { id: "cycle3", name: "Cycle 3", order: 3 },
+  cycle: { id: "cycle3", name: "The Galaxy's Most Wanted", order: 3 },
   pack: {
     name: "Star-Lord",
     releaseDate: "2021-05-14",

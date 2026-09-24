@@ -25,7 +25,7 @@ import type { PackCuration } from "./types.ts";
 
 export const GAM_CURATION: PackCuration = {
   packCode: "gam",
-  cycle: { id: "cycle3", name: "Cycle 3", order: 3 },
+  cycle: { id: "cycle3", name: "The Galaxy's Most Wanted", order: 3 },
   pack: {
     name: "Gamora",
     releaseDate: "2021-05-14",

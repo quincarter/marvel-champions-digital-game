@@ -6,7 +6,7 @@
 import { cycleId, setCode } from "../../schema/index.js";
 import type { Cycle, Pack } from "../../schema/index.js";
 
-export const GAM_CYCLE: Cycle = { id: cycleId("cycle3"), name: "Cycle 3", order: 3 };
+export const GAM_CYCLE: Cycle = { id: cycleId("cycle3"), name: "The Galaxy's Most Wanted", order: 3 };
 
 /** Release date source: Hall of Heroes Gamora page (https://hallofheroeslcg.com/gamora/): "Release date: May 14, 2021" */
 export const GAM_PACK: Pack = { code: setCode("gam"), name: "Gamora", cycleId: cycleId("cycle3"), releaseDate: "2021-05-14" };

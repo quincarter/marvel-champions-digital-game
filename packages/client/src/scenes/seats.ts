@@ -28,9 +28,8 @@ import {
   POOL_CARDS,
   POOL_DEPS,
   POOL_ENCOUNTER_SETS,
-  POOL_PACKS,
+  POOL_HERO_SHELF_PACKS,
   POOL_VERSION,
-  packNameOf,
 } from "../content/pool.js";
 import { artFor } from "../art/art-source.js";
 import { cardArt, drawArt } from "../art/card-art.js";
@@ -43,7 +42,7 @@ import { McVirtualList } from "../ui/virtual-list.js";
 import { deckOptionsOf, type DeckOption } from "../view/deck-list-model.js";
 import { heroAspectsOf, withSelectionPinned, type DeckSourceKind } from "../view/roster-filter.js";
 import { packCompactChipsToRows } from "../view/chip-layout.js";
-import { shelvesOf, flattenShelves, type Shelf, type ShelfCandidate } from "../view/roster-shelves.js";
+import { cycleShelvesOf, flattenShelves, type Shelf, type ShelfCandidate } from "../view/roster-shelves.js";
 import { ALL_PACKS, drillIntoPack, drillOut, type ShelfDrillState } from "../view/shelf-drill.js";
 import { seatOptions, type SeatOption } from "../view/seats.js";
 import {
@@ -1042,14 +1041,10 @@ export class SeatsScene extends Phaser.Scene {
         passesChips: chipsOk,
       };
     });
-    return shelvesOf(
-      candidates,
-      POOL_PACKS.map((p) => p.code as string),
-      packNameOf,
-      this.#draft.heroFilter.text,
-      // A hero pack ships one hero; a shelf each was a column of one-card rows.
-      { id: "hero-packs", title: "Hero packs" },
-    );
+    // One shelf per release wave (Core, Wave 1, The Rise of Red Skull, The Galaxy's Most Wanted, …) rather than
+    // one per pack — a campaign box's own heroes and the hero packs FFG ships alongside it land on the same
+    // shelf, replacing the old one-shelf-per-single-hero-pack "Hero packs" catch-all.
+    return cycleShelvesOf(candidates, POOL_HERO_SHELF_PACKS, this.#draft.heroFilter.text);
   }
 
   #heroPassesChips(option: DeckOption, blockedBy: string | null): boolean {
