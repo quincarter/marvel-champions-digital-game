@@ -214,6 +214,12 @@ export type TriggerEventBody =
        */
       readonly byEffect?: true;
       /**
+       * Set by the defeat sweep on villains that reached zero together: whether each could be defeated ("cannot be
+       * defeated while X has any hit points remaining") was read once for all of them, before any applied, so applying
+       * one does not re-read it after another has already advanced to a fresh stage (docs/phase7-wave4.md §3.3).
+       */
+      readonly protectionChecked?: true;
+      /**
        * The defeating damage was attack damage (`dealDamage.fromAttack`: an attack's damage, or its overkill spill), so
        * "When an ally is defeated by an enemy attack" (Regroup, `drax` 19032) is `fromAttack: true` with `sourceIs` an
        * enemy (docs/phase7-wave3.md §3.45). Absent for any other defeat.

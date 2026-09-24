@@ -258,11 +258,19 @@ export function checkDefeats(ctx: Ctx, hints?: DefeatHint | readonly DefeatHint[
   // docs/phase7-wave3.md §4 Q1). So while an identity falls in this sweep, the villain's defeat waits on the stack
   // until the eliminations below have applied: the last one ends the game as a loss, and otherwise the villain falls.
   const identityFalls = playerOrder(ctx.state).some((player) => identityAtZero(ctx, player.identity.instanceId));
-  for (const { instanceId } of undefeatedVillains(ctx.state)) {
+  // Every villain's defeat is decided before any applies (docs/phase7-wave4.md §3.3). "Proxima Midnight cannot be
+  // defeated while Corvus Glaive has any hit points remaining" and its mirror (Tower Defense, `mts` 21092–21097; the
+  // Four Horsemen, `aoa` 45081–45084): with both at zero, both fall, because damage is dealt simultaneously (ruling, Jun
+  // 2, 2026 (2) answer 1, on RRG 1.8 "Damage", p. 14). Applying one first would advance it to a fresh stage whose hit
+  // points then protect the other.
+  const falling = undefeatedVillains(ctx.state).filter(({ instanceId }) => {
     const villainProfile = characterProfile(ctx.state, instanceId, ctx.deps);
     const villain = getInstance(ctx.state, instanceId);
-    if (!villainProfile || !villain || villain.damage < villainProfile.maxHp) continue;
-    if (cannotBeDefeated(ctx.state, ctx.deps, instanceId) || defeatPending(ctx.state, instanceId)) continue;
+    if (!villainProfile || !villain || villain.damage < villainProfile.maxHp) return false;
+    return !cannotBeDefeated(ctx.state, ctx.deps, instanceId) && !defeatPending(ctx.state, instanceId);
+  });
+  const together = falling.length > 1;
+  for (const { instanceId } of falling) {
     const hint = hintFor(instanceId);
     const defeat: TriggerEvent = {
       kind: "characterDefeated",
@@ -275,8 +283,9 @@ export function checkDefeats(ctx: Ctx, hints?: DefeatHint | readonly DefeatHint[
             ...(hint.fromAttack ? { fromAttack: true as const } : {}),
           }
         : {}),
+      ...(together ? { protectionChecked: true as const } : {}),
     };
-    if (identityFalls || heard(ctx.state, ctx.deps, defeat)) {
+    if (identityFalls || together || heard(ctx.state, ctx.deps, defeat)) {
       villainDefeats.push(eventFrame(ctx, defeat));
       continue;
     }

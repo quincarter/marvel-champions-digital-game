@@ -327,7 +327,9 @@ function applyDefeat(ctx: Ctx, event: Extract<TriggerEvent, { kind: "characterDe
   // A defeat by effect ("defeat a minion", docs/phase7-wave3.md §3.9) does not depend on the dial.
   if (!profile || (instance.damage < profile.maxHp && event.byEffect !== true)) return false;
   // RRG 1.8 "'Cannot'" (p. 11): absolute, including a defeat already on the stack (docs/phase7-wave3.md §3.1).
-  if (cannotBeDefeated(ctx.state, ctx.deps, id)) return false;
+  // `protectionChecked`: villains that fell together in one sweep had their "cannot be defeated while …" read then, before
+  // either applied (docs/phase7-wave4.md §3.3).
+  if (event.protectionChecked !== true && cannotBeDefeated(ctx.state, ctx.deps, id)) return false;
   // A villain stage (docs/phase7-wave3.md §3.1). Reaching here means no interrupt replaced the defeat: "flip this card
   // instead" turns the villain to an ∞ face and "reset his hit points instead" clears the damage, and either fails the
   // dial check above. Otherwise it falls exactly as the sweep's inline path does (RRG 1.8 "Villain Defeat", p. 47).

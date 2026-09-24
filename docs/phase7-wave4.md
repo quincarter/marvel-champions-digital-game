@@ -350,7 +350,7 @@ stays data only.**
 | ---- | ------------------------------------------------------------------------ | ------------------------------------------ | ----------- |
 | 3.1  | Additional forms (the form keyword)                                      | Spectrum, Vision; Shadowcat, Nick Fury     | landed      |
 | 3.2  | Two main schemes in play, each paired with a villain; Focused Defense    | Tower Defense                              | not started |
-| 3.3  | Villains protected by each other's hit points: one defeat sweep          | Tower Defense; Four Horsemen (`aoa`)       | not started |
+| 3.3  | Villains protected by each other's hit points: one defeat sweep          | Tower Defense; Four Horsemen (`aoa`)       | landed      |
 | 3.4  | A main scheme stage's completion is replaceable                          | Tower Defense; Upgrading Adaptoids (`aos`) | not started |
 | 3.5  | Damage on a card that is not a character (Avengers Tower)                | Tower Defense                              | not started |
 | 3.6  | A modular set's own deck (the Infinity Stone deck)                       | Thanos, Loki, any scenario                 | not started |
@@ -452,6 +452,16 @@ putMainSchemeStageIntoPlay { stage }` ("reveal stage 2A and put it into play nex
   destination (the scheme with Focused Defense), read in `enemyScheme`.
 
 ### 3.3 Villains protected by each other's hit points: one defeat sweep
+
+> **Status: landed (2026-09-24),** tested in `packages/engine/src/villain-mutual-protection.test.ts` (4 tests: one at
+> zero while the other has hit points stands; one effect bringing both to zero defeats both; the second reaching zero
+> later takes the first down with it; with defeats on the stack because something listens, both still fall; replay
+> deep-equal). **What landed:** `checkDefeats` decides every villain's defeat (dial at zero, `cannotBeDefeated`, not
+> already pending) before applying any. When more than one falls in one sweep, each defeat goes on the stack marked
+> `characterDefeated.protectionChecked`, and `applyDefeat` does not re-read `cannotBeDefeated` for it, so the first
+> villain's fresh stage cannot shield the second. A single falling villain behaves exactly as before. Known limit: a
+> "cannot be defeated" rule created by an interrupt to one of those defeats is not re-read for them; no printed card
+> does that.
 
 "Proxima Midnight cannot be defeated while Corvus Glaive has any hit points remaining", and the mirror on Corvus. The
 sweep (`checkDefeats`) takes villains one at a time, and a defeated stage advances at once: with both at 0, Proxima
