@@ -45,6 +45,7 @@
 
 import Phaser from "phaser";
 import type { AnyCard, CardType, Deck, HeroIdentityCard } from "@mc/content";
+import type { CampaignDeckContext } from "@mc/engine";
 import { POOL_CARDS, POOL_STARTER_DECKS, POOL_VERSION } from "../content/pool.js";
 import {
   SELECTABLE_ASPECTS,
@@ -61,7 +62,7 @@ import {
   setName,
   type PoolFilter,
 } from "../view/deck-builder-model.js";
-import { costCurveBars, deckListGroupsOf, deckStatsOf } from "../view/deck-stats.js";
+import { costCurveBars, deckListGroupsOf, deckStatsOf, type DeckListEntry } from "../view/deck-stats.js";
 import { CHIP_GAP, chipStripHeight, wrapChipsToRows } from "../view/chip-layout.js";
 import { deckBuilderFocusOrder } from "../view/screen-focus.js";
 import { formFactorFor, type Rect } from "../view/layout.js";
@@ -71,14 +72,39 @@ import { accent, dotGrid, hit, ink, signal, surface, typeRole } from "../tokens.
 import { cssOf, textStyle } from "../ui/theme.js";
 import { McButton, McTextInput, fitText, label, paintDotGrid, paintPanel } from "../ui/widgets.js";
 import { drawCostCurveBars, drawGroupedCardList } from "../ui/deck-stats-widgets.js";
-import { deckStorage } from "../session.js";
+import { campaignService, deckStorage } from "../session.js";
+import {
+  campaignDeckEditModel,
+  campaignDeckSizeSplit,
+  removedFromCampaignCardIds,
+  type CampaignDeckEditModel,
+  type CampaignDeckEditRow,
+} from "../view/campaign-deck-edit-model.js";
+import type { CampaignReturn } from "./campaign/routes.js";
 import { FocusRoute, type FocusStop } from "./focus-route.js";
 import { SCENES } from "./keys.js";
 import { destroyChildren } from "../ui/destroy-children.js";
 import { fadeScreenIn, goToScreen } from "../ui/transitions.js";
 
+/**
+ * Between-issue deck editing (`scenes/campaign/deck-edit.ts`), a campaign mode over this same screen rather than a
+ * second deck grid: the identity is locked for the whole campaign (RRG 1.8 Appendix I; MC10 p. 3), so no picker,
+ * no name field (a campaign seat's deck has none of its own) and no Preconstructed/Clear (both would silently drop
+ * the campaign's own granted lines, which a player can never remove by hand). Save writes through
+ * `campaignService().setSeatDeck` and returns to `returnTo`, instead of `deckStorage()` and the Decks screen.
+ */
+export interface DeckBuilderCampaignData {
+  readonly runId: string;
+  readonly seatNumber: number;
+  readonly returnTo: CampaignReturn;
+  readonly context: CampaignDeckContext;
+  /** The header text: the campaign's own name plus the seat and its identity (`scenes/campaign/deck-edit.ts` builds it — it alone knows the campaign's display name). */
+  readonly title: string;
+}
+
 export interface DeckBuilderSceneData {
   readonly deck?: Deck;
+  readonly campaign?: DeckBuilderCampaignData;
 }
 
 const IDENTITY_ROW_HEIGHT = hit.target;
@@ -123,6 +149,9 @@ export class DeckBuilderScene extends Phaser.Scene {
   #filterText = "";
   #status: string | null = null;
   #busy = false;
+  #campaign: DeckBuilderCampaignData | null = null;
+  /** Recomputed every `#rebuild` from `#deck`/`#campaign` — the row-level marks the pool list and "your deck" panel both read; `null` outside campaign mode. */
+  #campaignModel: CampaignDeckEditModel | null = null;
   #nameInput: McTextInput | null = null;
   #filterInput: McTextInput | null = null;
   #buttons: McButton[] = [];
@@ -138,6 +167,7 @@ export class DeckBuilderScene extends Phaser.Scene {
 
   create(data: DeckBuilderSceneData = {}): void {
     this.cameras.main.setBackgroundColor(cssOf(surface.paper.hex));
+    this.#campaign = data.campaign ?? null;
     this.#deck = data.deck ?? null;
     this.#identity = this.#deck ? (IDENTITIES.find((i) => i.id === this.#deck!.identityCardId) ?? null) : null;
     this.#filter = {};
@@ -197,15 +227,23 @@ export class DeckBuilderScene extends Phaser.Scene {
     paintDotGrid(this, { x: 0, y: 0, width, height }, "paper", dotGrid.onPaper);
 
     let y = pad;
-    this.add
-      .text(left, y, "DECK BUILDER", {
+    // Campaign mode's title (the run's own name plus the seat and its identity, `scenes/campaign/deck-edit.ts`)
+    // can run to two lines on a narrow layout, unlike the standalone builder's fixed "DECK BUILDER" — so the next
+    // row is placed from the title's own measured height, not a hardcoded single-line one, or the identity label
+    // below it would sit under the title's wrapped second line.
+    const titleText = this.#campaign ? this.#campaign.title.toUpperCase() : "DECK BUILDER";
+    const titleObj = this.add
+      .text(left, y, titleText, {
         ...textStyle(typeRole.screenTitle, surface.ink.hex),
         fontSize: phone ? "28px" : "38px",
       })
+      .setWordWrapWidth(column - 108)
       .setLetterSpacing(2);
     const backRect: Rect = { x: left + column - 100, y: y + 2, width: 100, height: hit.target };
+    const campaign = this.#campaign;
     const goBack = (): void => {
-      goToScreen(this, SCENES.decks);
+      if (campaign) goToScreen(this, campaign.returnTo.key, campaign.returnTo.data);
+      else goToScreen(this, SCENES.decks);
     };
     this.#buttons.push(
       new McButton(this, {
@@ -217,7 +255,7 @@ export class DeckBuilderScene extends Phaser.Scene {
       }),
     );
     this.#stops.set("back", { rect: backRect, activate: goBack });
-    y += (phone ? 28 : 38) + 16;
+    y += Math.max(titleObj.height, phone ? 28 : 38) + 16;
 
     if (!this.#identity) {
       this.#drawIdentityPicker(left, y, column);
@@ -235,6 +273,7 @@ export class DeckBuilderScene extends Phaser.Scene {
     }
 
     const deck = this.#deck!;
+    this.#campaignModel = this.#campaign ? campaignDeckEditModel(deck, POOL, this.#campaign.context) : null;
     label(this, left, y, `identity — ${this.#identity.name}`, typeRole.label, surface.ink.hex, ink.label);
     y += 20;
 
@@ -247,9 +286,32 @@ export class DeckBuilderScene extends Phaser.Scene {
         aspectIds: [...SELECTABLE_ASPECTS],
         typeFilterIds: TYPE_FILTERS.map((f) => f.id),
         poolCardIds: pool.map((card) => card.id as string),
+        showName: !this.#campaign,
+        showPreconClear: !this.#campaign,
       }),
       this.#stops,
     );
+  }
+
+  /** Cards this screen must never offer to *add*: RRG 1.8 p. 29 removals from the campaign this deck belongs to. A line already in the deck from before a removal still shows (in "your deck" and, so a player can remove it, in the pool list) via `#campaignModel`'s own `refused` mark — this only narrows what browsing turns up. `null` outside campaign mode. */
+  #removedFromCampaignIds(): ReadonlySet<string> | null {
+    return this.#campaign ? new Set([...removedFromCampaignCardIds(this.#campaign.context)].map(String)) : null;
+  }
+
+  /** `deck`'s own campaign row, by card id — `null` outside campaign mode or for a card with no line yet. */
+  #campaignRowFor(cardId: string): CampaignDeckEditRow | null {
+    return this.#campaignModel?.rows.find((row) => (row.cardId as string) === cardId) ?? null;
+  }
+
+  /** `browsablePool`, narrowed for campaign mode: a removed card the deck doesn't currently hold is left out of what browsing turns up (`#removedFromCampaignIds`); one it still holds stays, so its row's own "−" can fix the deck. */
+  #browsablePool(deck: Deck): readonly AnyCard[] {
+    const pool = browsablePool(POOL, this.#identity!, deck.aspects, this.#filter);
+    const removed = this.#removedFromCampaignIds();
+    if (!removed) return pool;
+    return pool.filter((card) => {
+      if (!removed.has(card.id as string)) return true;
+      return (deck.cards.find((line) => line.cardId === card.id)?.quantity ?? 0) > 0;
+    });
   }
 
   /**
@@ -263,7 +325,7 @@ export class DeckBuilderScene extends Phaser.Scene {
     let y = top;
     y = this.#drawAspectPicker(left, y, column, deck);
     y = this.#drawTypeFilters(left, y, column);
-    y = this.#drawNameField(left, y, column, deck);
+    if (!this.#campaign) y = this.#drawNameField(left, y, column, deck);
     y = this.#drawLegalityLine(left, y, column, deck);
     y = this.#drawCostCurve(left, y, column, deck, false);
     y = this.#drawYourDeckList(left, y, column, deck, false);
@@ -274,7 +336,7 @@ export class DeckBuilderScene extends Phaser.Scene {
     label(this, left, y, "search the pool", typeRole.label, surface.ink.hex, ink.label);
     y += 16;
     y = this.#drawFilterInput(left, y, column);
-    const pool = browsablePool(POOL, this.#identity!, deck.aspects, this.#filter);
+    const pool = this.#browsablePool(deck);
     label(
       this,
       left,
@@ -322,7 +384,7 @@ export class DeckBuilderScene extends Phaser.Scene {
       "rest",
     );
     let rightY = top + 8;
-    rightY = this.#drawNameField(rightX + 12, rightY, RIGHT_RAIL_WIDTH - 24, deck, true);
+    if (!this.#campaign) rightY = this.#drawNameField(rightX + 12, rightY, RIGHT_RAIL_WIDTH - 24, deck, true);
     rightY = this.#drawLegalityLine(rightX + 12, rightY, RIGHT_RAIL_WIDTH - 24, deck, true);
     rightY += 4;
     rightY = this.#drawYourDeckList(rightX + 12, rightY, RIGHT_RAIL_WIDTH - 24, deck, true);
@@ -333,7 +395,7 @@ export class DeckBuilderScene extends Phaser.Scene {
     label(this, midX, midY, "card pool", typeRole.label, surface.ink.hex, ink.label);
     midY += 16;
     midY = this.#drawFilterInput(midX, midY, midWidth);
-    const pool = browsablePool(POOL, this.#identity!, deck.aspects, this.#filter);
+    const pool = this.#browsablePool(deck);
     label(
       this,
       midX,
@@ -352,6 +414,7 @@ export class DeckBuilderScene extends Phaser.Scene {
   #drawAspectPicker(left: number, top: number, column: number, deck: Deck): number {
     let y = top;
     const maxAspects = aspectCountFor(this.#identity!);
+    const frozen = this.#campaignModel?.editingDisabled ?? false;
     label(this, left, y, `aspect (choose ${maxAspects})`, typeRole.label, surface.ink.hex, ink.label);
     y += 16;
     const aspectCols = column >= 420 ? SELECTABLE_ASPECTS.length : 2;
@@ -368,6 +431,7 @@ export class DeckBuilderScene extends Phaser.Scene {
       };
       const selected = deck.aspects.includes(aspect);
       const toggle = (): void => {
+        if (frozen) return;
         if (selected)
           this.#setDeck(
             setAspects(
@@ -379,7 +443,18 @@ export class DeckBuilderScene extends Phaser.Scene {
         else this.#setDeck(setAspects(deck, [...deck.aspects.slice(1), aspect]));
       };
       this.#buttons.push(
-        new McButton(this, { kind: "secondary", label: aspect, type: typeRole.label, rect, selected, onClick: toggle }),
+        new McButton(this, {
+          kind: "secondary",
+          label: aspect,
+          type: typeRole.label,
+          rect,
+          selected,
+          enabled: !frozen,
+          ...(frozen && this.#campaignModel?.editingDisabledReason
+            ? { reason: this.#campaignModel.editingDisabledReason }
+            : {}),
+          onClick: toggle,
+        }),
       );
       this.#stops.set(`aspect:${aspect}`, { rect, activate: toggle });
     });
@@ -451,10 +526,18 @@ export class DeckBuilderScene extends Phaser.Scene {
 
   #drawLegalityLine(left: number, top: number, column: number, deck: Deck, onDark = false): number {
     let y = top;
-    const verdict = legalityOf(deck, POOL);
-    const cardCount = deck.cards.reduce((n, c) => n + c.quantity, 0);
+    const verdict = this.#campaignModel ? this.#campaignModel.validation : legalityOf(deck, POOL);
+    // Campaign mode's own count (the Briefing's "N cards + M pinned", MC10 p. 3): granted lines don't count toward
+    // deck size, so the legal-count line says so rather than reading a plain total that includes them.
+    const cardCountText = this.#campaignModel
+      ? (() => {
+          const split = campaignDeckSizeSplit(this.#campaignModel!);
+          const pinnedSuffix = split.pinned > 0 ? ` + ${split.pinned} pinned` : "";
+          return `${split.counted} cards${pinnedSuffix}`;
+        })()
+      : `${deck.cards.reduce((n, c) => n + c.quantity, 0)} cards`;
     const legalityText = verdict.ok
-      ? `Legal — ${cardCount} cards.`
+      ? `Legal — ${cardCountText}.`
       : `${verdict.problems.length} problem${verdict.problems.length === 1 ? "" : "s"}: ${verdict.problems.map((p) => p.message).join(" ")}`;
     const color = verdict.ok ? signal.heal.hex : accent.redDeep.hex;
     const legalityLine = this.add
@@ -462,6 +545,18 @@ export class DeckBuilderScene extends Phaser.Scene {
       .setWordWrapWidth(column);
     if (onDark && verdict.ok) legalityLine.setColor(cssOf(signal.heal.hex));
     y += legalityLine.height + 12;
+
+    if (this.#campaignModel?.editingDisabledReason) {
+      const frozenLine = this.add
+        .text(
+          left,
+          y,
+          this.#campaignModel.editingDisabledReason,
+          textStyle(typeRole.body, onDark ? surface.paper.hex : accent.redDeep.hex),
+        )
+        .setWordWrapWidth(column);
+      y += frozenLine.height + 12;
+    }
 
     if (this.#status) {
       const statusLine = this.add
@@ -503,53 +598,74 @@ export class DeckBuilderScene extends Phaser.Scene {
       onDark ? ink.secondary : ink.label,
     );
     const groups = deckListGroupsOf(deck, POOL);
-    return drawGroupedCardList(this, left, top + 16, column, groups, STATS_LIST_ENTRY_CAP, onDark);
+    const noteOf = this.#campaign
+      ? (entry: DeckListEntry): string | null => {
+          const row = this.#campaignRowFor(entry.cardId as string);
+          return row?.lockedReason ?? row?.refusedReason ?? null;
+        }
+      : undefined;
+    return drawGroupedCardList(this, left, top + 16, column, groups, STATS_LIST_ENTRY_CAP, onDark, noteOf);
   }
 
   #drawPreconClearSave(left: number, top: number, column: number, deck: Deck, onDark = false): number {
     let y = top;
-    const resetRowGap = 8;
-    const resetCellWidth = (column - resetRowGap) / 2;
-    const preconRect: Rect = { x: left, y, width: resetCellWidth, height: hit.target };
-    const clearRect: Rect = { x: left + resetCellWidth + resetRowGap, y, width: resetCellWidth, height: hit.target };
-    const precon = resetToPrecon(deck, this.#identity!, POOL_STARTER_DECKS);
-    const doPrecon = (): void => {
-      if (precon) this.#setDeck(precon);
-    };
-    this.#buttons.push(
-      new McButton(this, {
-        kind: onDark ? "onInk" : "secondary",
-        label: "Preconstructed",
-        type: typeRole.label,
-        rect: preconRect,
-        enabled: precon !== null,
-        ...(precon === null ? { reason: "This hero has no published precon to reset to." } : {}),
-        onClick: doPrecon,
-      }),
-    );
-    this.#stops.set("preconstructed", { rect: preconRect, activate: doPrecon });
-    const doClear = (): void => this.#setDeck(resetToIdentitySet(deck, this.#identity!, POOL));
-    this.#buttons.push(
-      new McButton(this, {
-        kind: onDark ? "onInk" : "secondary",
-        label: "Clear",
-        type: typeRole.label,
-        rect: clearRect,
-        onClick: doClear,
-      }),
-    );
-    this.#stops.set("clear", { rect: clearRect, activate: doClear });
-    y += hit.target + 16;
+    // Campaign mode (MC10 p. 3): Preconstructed and Clear both replace `deck.cards` wholesale, which would drop
+    // the campaign's own granted lines — a player can never remove those by hand, so the screen never offers a
+    // control that would do it as a side effect. `showPreconClear: false` already keeps them out of the focus
+    // route; this keeps them off the canvas too.
+    if (!this.#campaign) {
+      const resetRowGap = 8;
+      const resetCellWidth = (column - resetRowGap) / 2;
+      const preconRect: Rect = { x: left, y, width: resetCellWidth, height: hit.target };
+      const clearRect: Rect = {
+        x: left + resetCellWidth + resetRowGap,
+        y,
+        width: resetCellWidth,
+        height: hit.target,
+      };
+      const precon = resetToPrecon(deck, this.#identity!, POOL_STARTER_DECKS);
+      const doPrecon = (): void => {
+        if (precon) this.#setDeck(precon);
+      };
+      this.#buttons.push(
+        new McButton(this, {
+          kind: onDark ? "onInk" : "secondary",
+          label: "Preconstructed",
+          type: typeRole.label,
+          rect: preconRect,
+          enabled: precon !== null,
+          ...(precon === null ? { reason: "This hero has no published precon to reset to." } : {}),
+          onClick: doPrecon,
+        }),
+      );
+      this.#stops.set("preconstructed", { rect: preconRect, activate: doPrecon });
+      const doClear = (): void => this.#setDeck(resetToIdentitySet(deck, this.#identity!, POOL));
+      this.#buttons.push(
+        new McButton(this, {
+          kind: onDark ? "onInk" : "secondary",
+          label: "Clear",
+          type: typeRole.label,
+          rect: clearRect,
+          onClick: doClear,
+        }),
+      );
+      this.#stops.set("clear", { rect: clearRect, activate: doClear });
+      y += hit.target + 16;
+    }
 
+    const frozen = this.#campaignModel?.editingDisabled ?? false;
     const saveRect: Rect = { x: left, y, width: column, height: hit.primary };
     const doSave = (): void => void this.#save();
     this.#buttons.push(
       new McButton(this, {
         kind: "primary",
-        label: this.#busy ? "Saving…" : "Save deck",
+        label: this.#busy ? "Saving…" : this.#campaign ? "Save changes" : "Save deck",
         type: typeRole.barTitle,
         rect: saveRect,
-        enabled: !this.#busy,
+        enabled: !this.#busy && !frozen,
+        ...(frozen && this.#campaignModel?.editingDisabledReason
+          ? { reason: this.#campaignModel.editingDisabledReason }
+          : {}),
         onClick: doSave,
       }),
     );
@@ -600,7 +716,15 @@ export class DeckBuilderScene extends Phaser.Scene {
       const cardId = card.id as string;
       this.#stops.set(`card:${cardId}`, {
         rect: () => list.rectFor(index),
-        activate: () => this.#setDeck(addCard(deck, card.id)),
+        // Keyboard/pad activation mirrors the row's own "+" button, including its campaign refusals: a stop still
+        // exists for every browsable card (so its reason reads with `I`), but pressing it on a refused or frozen
+        // row is a no-op, exactly like clicking a disabled "+".
+        activate: () => {
+          const row = this.#campaignRowFor(cardId);
+          const frozen = this.#campaignModel?.editingDisabled ?? false;
+          if (frozen || (row?.refused ?? false)) return;
+          this.#setDeck(addCard(deck, card.id));
+        },
         inspect: () => this.#inspect(card),
         ensureVisible: () => list.scrollIntoView(index),
       });
@@ -649,16 +773,23 @@ export class DeckBuilderScene extends Phaser.Scene {
     paintPanel(g, row, "card", "rest");
     objects.push(g);
     const quantity = deck.cards.find((c) => c.cardId === card.id)?.quantity ?? 0;
+    const campaignRow = this.#campaignRowFor(card.id as string);
+    const frozen = this.#campaignModel?.editingDisabled ?? false;
 
     const name = this.add.text(row.x + 10, row.y + 6, card.name, textStyle(typeRole.rowTitle, surface.ink.hex));
     fitText(name, row.width - 190);
     objects.push(name);
     const cost = "cost" in card ? String((card as unknown as { cost: number }).cost) : "—";
+    const typeLineText = campaignRow?.locked
+      ? `${card.type.replace(/_/g, " ")} · cost ${cost} · campaign grant`
+      : campaignRow?.refused
+        ? `${card.type.replace(/_/g, " ")} · cost ${cost} · removed from campaign`
+        : `${card.type.replace(/_/g, " ")} · cost ${cost}`;
     objects.push(
       this.add.text(
         row.x + 10,
         row.y + 6 + name.height + 2,
-        `${card.type.replace(/_/g, " ")} · cost ${cost}`,
+        typeLineText,
         textStyle(typeRole.label, surface.ink.hex, ink.meta),
       ),
     );
@@ -687,19 +818,29 @@ export class DeckBuilderScene extends Phaser.Scene {
       width: 40,
       height: hit.target,
     };
+    // Campaign mode: a granted line can't be removed by the player (MC10 p. 3) and nothing is added while the
+    // deck is frozen (MC16 p. 5 / MC27 p. 6) — both disable with the row's own reason, read the same way any
+    // other unavailable control's reason reads (`McButton.reason`).
+    const minusDisabledReason = frozen
+      ? (this.#campaignModel?.editingDisabledReason ?? undefined)
+      : campaignRow?.lockedReason;
     const doRemove = (): void => this.#setDeck(removeCard(deck, card.id));
     const minusButton = new McButton(this, {
       kind: "secondary",
       label: "−",
       type: typeRole.rowTitle,
       rect: minusRect,
-      enabled: quantity > 0,
+      enabled: quantity > 0 && !(campaignRow?.locked ?? false) && !frozen,
+      ...(minusDisabledReason ? { reason: minusDisabledReason } : {}),
       onClick: doRemove,
       clip,
       suppressClick,
     });
     objects.push(minusButton.container);
 
+    const plusDisabledReason = frozen
+      ? (this.#campaignModel?.editingDisabledReason ?? undefined)
+      : (campaignRow?.refusedReason ?? undefined);
     const plusRect: Rect = { x: row.x + row.width - 46, y: minusRect.y, width: 40, height: hit.target };
     const doAdd = (): void => this.#setDeck(addCard(deck, card.id));
     const plusButton = new McButton(this, {
@@ -707,6 +848,8 @@ export class DeckBuilderScene extends Phaser.Scene {
       label: "+",
       type: typeRole.rowTitle,
       rect: plusRect,
+      enabled: !(campaignRow?.refused ?? false) && !frozen,
+      ...(plusDisabledReason ? { reason: plusDisabledReason } : {}),
       onClick: doAdd,
       clip,
       suppressClick,
@@ -727,11 +870,42 @@ export class DeckBuilderScene extends Phaser.Scene {
 
   async #save(): Promise<void> {
     if (this.#busy || !this.#deck) return;
+    if (this.#campaignModel?.editingDisabled) return;
     this.#busy = true;
     this.#rebuild();
+    if (this.#campaign) {
+      await this.#saveCampaignDeck(this.#campaign, this.#deck);
+      return;
+    }
     await deckStorage().put(this.#deck);
     this.#busy = false;
     this.#status = "Saved.";
     this.#rebuild();
+  }
+
+  /**
+   * Between-issue save (`scenes/campaign/deck-edit.ts`): reloads the run fresh rather than trusting whatever record
+   * `deck-edit.ts` happened to load before handing off, so a save can never write over a run that changed under it
+   * (`campaignService().setSeatDeck` already refuses to write under a composed attempt for the same reason). Only
+   * `identityCardId`/`aspects`/`cards` are read from `deck` — `campaignService().setSeatDeck`'s own doc comment.
+   */
+  async #saveCampaignDeck(campaign: DeckBuilderCampaignData, deck: Deck): Promise<void> {
+    const record = await campaignService().load(campaign.runId);
+    if (!record) {
+      this.#busy = false;
+      this.#status = "This campaign run is gone — nothing was saved.";
+      this.#rebuild();
+      return;
+    }
+    try {
+      await campaignService().setSeatDeck(record, campaign.seatNumber, deck);
+    } catch (error) {
+      this.#busy = false;
+      this.#status = error instanceof Error ? error.message : "This deck could not be saved.";
+      this.#rebuild();
+      return;
+    }
+    this.#busy = false;
+    goToScreen(this, campaign.returnTo.key, campaign.returnTo.data);
   }
 }

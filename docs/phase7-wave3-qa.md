@@ -334,3 +334,139 @@ term).
 - **Tooling finding, resolved in `821aa2b`.** `pnpm card` reads `WAVE3_ABILITIES`.
 - **Lesson for pins:** an `it.fails` test passes on _any_ throw, including a setup error. A pin must be seen failing on
   its assertion (run it once as a plain `it`) before it is committed.
+
+## Checkpoint 3: GMW campaign mode (PR #35 step 4)
+
+QA pass over `packages/cards/src/campaigns/gmw.ts` (`GMW_CAMPAIGN_DEFINITION`), the Market
+(`wave3/gmw/market.ts`), Campaign Challenge (`wave3/gmw/campaign-challenge.ts`), and Badoon Headhunter
+(`wave3/gmw/badoon-headhunter.ts`). New file: `packages/cards/src/campaigns/gmw.qa.test.ts`.
+
+### Why this pass exists
+
+Until `f7ec234f` ("fix(cards): query([], ...) no longer matches nothing"), `packages/engine/src/select.ts`'s
+`explainQuery` treated `TargetQuery.categories: []` as an active (and unsatisfiable) filter, so every
+`query([], {printedId})` call in `gmw.ts` — `revealChallengeSideScheme`'s reveal, `headhunterLadder`'s shuffle-ins,
+and the Kree Supremacy reveal bridge — silently selected nothing and did nothing. `campaigns/gmw.test.ts` kept
+passing throughout, because it only asserts `CampaignLog` values (units, `marketCards`, runner bookkeeping), never
+the resulting `GameState`. This pass proves the fix (and everything downstream of it) with real games —
+`createGame`/`startGameFromLog`, not synthetic `CampaignGameResult`s — asserting on the actual encounter deck
+contents, the actual villain-area instance, and its actual threat.
+
+### Priority 1 results
+
+| Item                                                                                   | Test(s)                                                                                                                                                                         | Result                                                                                                                                                              |
+| -------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Every scenario's Campaign Challenge side scheme reveals in play, right face by mode    | `Priority 1 — every scenario's Campaign Challenge side scheme reveals for real, right face by mode` (9 tests: 4 scenarios × standard/expert + the 1-player Hinder scaling case) | **Pass.** Right face in `villainArea`, faceup; wrong face stays in `encounterSetAside`; threat = `startingThreat` + `Hinder × players`, correct at 1 and 2 players. |
+| Kree Supremacy's "(Optional)" reveal (RRG 1.8 p. 67 errata)                            | `Priority 1 — Kree Supremacy's "(Optional)" reveal is a real group decision, not silently skipped` (3 tests: accept/decline/accept-expert)                                      | **Pass.**                                                                                                                                                           |
+| Every Badoon Headhunter rung lands in the encounter deck at the right tier, not before | `Priority 1 — the Badoon Headhunter ladder lands in the encounter deck at the right tier, not before` (5 tests, one per scenario, checking both sides of each threshold)        | **Pass.**                                                                                                                                                           |
+| Other cards `gmw.ts` moves by printed id — "You Stand Accused!" (116) at Ronan         | `Priority 1 — "You Stand Accused!" is dealt to the recorded Power Stone controller, and only then` (2 tests)                                                                    | 1 pass (no controller ⇒ nothing dealt), **1 bug found** (below, since fixed)                                                                                        |
+
+A `grep` of `gmw.ts` for `query(`/`printedId` also turned up Pincer Maneuver's `mc16.s5.setup.pincer-maneuver`,
+which shares "You Stand Accused!"'s bug (below) rather than the fixed one.
+
+### Bugs found (both fixed 2026-09-23 by `CardSelector atMost`, docs/phase7-wave3.md §3.50)
+
+> **Fixed.** `gmw.ts` now searches with `oneCopyOf(encounterCards(...))`, and both tests below run (no longer
+> `it.skip`). Each also checks that the copies not taken stay in the encounter deck or discard pile. The same flaw in
+> Zola (II)'s Test Subjects search (`searchAndReveal`, 04123 ×2) and Peter Quill's Element Gun setup (17007 ×2) was
+> fixed with them.
+
+1. **"You Stand Accused!" (16116) is dealt three times, not once.** `16116` has `quantityInSet: 3`
+   (`packages/content/src/data/gmw/cards.ts`). `mc16.s5.setup.you-stand-accused`'s
+   `selectCards("accused", encounterCards(["deck", "discard"], { printedId: YOU_STAND_ACCUSED }))` matches every
+   copy — `CardSelector`'s `encounter` variant has no "at most N matches" concept, only `top` (a _positional_
+   deck-top limiter that does nothing useful across "deck and discard" together, spec.ts's own docstring). MC16
+   p. 18 prints "search … for **one copy** … then deal **that card**" — singular. Confirmed live: the recorded
+   Power Stone controller's `dealtEncounter` held three separate `16116` instances. Test:
+   `gmw.qa.test.ts`'s `it.skip("a recorded Power Stone controller is dealt exactly one copy of the treachery
+(MC16 p. 18)")`.
+2. **Pincer Maneuver (16112) is revealed twice, not once — the more consequential twin of the same bug.** `16112`
+   also has `quantityInSet: 2`; the same `selectCards`/`printedId` shape in `mc16.s5.setup.pincer-maneuver` matches
+   both copies, and `revealCard(chosen("pincer"), firstPlayer)` reveals both. Confirmed live: Ronan's setup ends
+   with **two** separate Pincer Maneuver side schemes in the villain area, each independently placed with the full
+   "3 minus Evasion Counters" threat MC16 p. 18 describes for _the_ (singular) scheme — doubling both the total
+   threat obligation and the "First Player Action: exhaust the Milano" scheme's real board presence at every
+   Ronan game. Test: `gmw.qa.test.ts`'s `it.skip("only one Pincer Maneuver side scheme is revealed and placed
+(MC16 p. 18)")`.
+
+Both bugs share one root cause: `CardSelector`'s `encounter`/`scenarioDeck`/`separateDeck` variants (spec.ts) have
+no "select at most N of the matches" primitive, only `top` (positional, single-zone). Filed for `game-rules-
+architect` (if the fix belongs in the `CardSelector` shape itself) and `ability-scripting-engineer` (if `gmw.ts`
+should instead be rewritten against an existing primitive, e.g. a deterministic "first match" reducer) — which
+owns the fix isn't resolved yet, so both are named rather than guessing.
+
+### A design note surfaced while writing these tests (not a bug)
+
+`applyCampaignResult`'s synthetic-record technique (`trors.qa.test.ts`'s own documented shortcut, reused here) has
+a sharp edge worth recording for future campaign QA: a `record`-kind victory instruction with no matching entry in
+`CampaignGameResult.records` is skipped outright, but a **`betweenGames`-kind** victory instruction (e.g. MC16
+p. 10's Collection bonus, `mc16.s2.victory.collection-bonus`) is _not_ gated by `records` at all and evaluates its
+`CampaignValue` combinators for real against whatever the working log actually holds. Since The Collection starts
+empty, "1[per_hero] or fewer" is vacuously true, so winning Infiltrate the Museum synthetically (with no override)
+still awards 1 real unit per seat — which in turn makes every later scenario's own Market/heal offers real
+questions that a script must answer, not skip. `gmw.qa.test.ts`'s `declineMarketAndHeal` helper exists because of
+this; a QA test that assumes "no override ⇒ no side effect" for _every_ victory instruction will intermittently
+throw ("no scripted answer for …") depending on which instructions a scenario happens to print.
+
+### What this pass did not test
+
+- Every other value the "You Stand Accused!"/Pincer Maneuver bugs interact with downstream (e.g., whether a
+  doubled Pincer Maneuver breaks the "First Player Action: exhaust the Milano" scheme text, or whether a
+  triple-dealt "You Stand Accused!" can be played/discarded three times) — out of scope once the root selector bug
+  was identified; re-test once fixed.
+
+## Checkpoint 4: GMW campaign walks, Market visits, loss/retry, Expert mechanics, log-fed setups (PR #35 step 4c)
+
+The second pass Checkpoint 3 flagged as thin: a full standard/expert campaign walk with real games at every node,
+Victory-unit boundaries, the Market across visits, loss/retry, Expert-only mechanics, and the log fields (Power
+Stone, evasion counters, Galactic Artifacts) that feed a later scenario's setup. All six items below are now
+covered, extending `packages/cards/src/campaigns/gmw.qa.test.ts` (same file, new `describe`s after the Priority 1
+ones) rather than a new file.
+
+| #   | Item                                                                                                                                   | Tests                                                                                                                                                                                                                                                                                                                                                                                            | Result                                                                                                                                                                                                                                                                                                                 |
+| --- | -------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | Full standard + expert campaign, real game at every node                                                                               | `"MC16 p. 3/p. 4 — a full standard and a full expert campaign, real game at every node"` (3 tests: standard stage/threat, expert stage/threat incl. Ronan's +1[per_hero], the full walk completing "won")                                                                                                                                                                                        | **Pass.** Villain stage index and main scheme starting threat read off a real `GameState` at all 5 nodes, both modes.                                                                                                                                                                                                  |
+| 2   | Victory units: base, 3-cap, and each scenario bonus at its boundary                                                                    | `'MC16 p. 8 — Scenario 1 victory units: "up to 3" caps at the boundary'`, `'MC16 p. 8 — "1 if there are no minions in play" and "1 if the main scheme is on stage 1B"'`, `'MC16 p. 10 — "1 if there is no threat on the main scheme"'`, `'MC16 p. 10 — "1 unit for each player if there are 1[per_hero] or fewer cards in The Collection"'`, `'MC16 p. 12 — "for every 2 Galactic Artifacts …"'` | **Pass, with one bug found (below).** Cap and no-minions/no-threat bonuses proven at their boundary from a real, staged `GameState` folded through `campaignResultOf`/`applyCampaignResult`; the Collection and Galactic Artifacts `betweenGames` bonuses proven at their boundary via `CampaignGameResult.logWrites`. |
+| 3   | The Market: several purchases in one visit, one copy across visits, carried units, legal + deck-size-exempt later                      | `"MC16 p. 5 — the Market: several purchases in one visit, one copy across visits, and carried units"` (4 tests)                                                                                                                                                                                                                                                                                  | **Pass.**                                                                                                                                                                                                                                                                                                              |
+| 4   | Loss and retry: what's kept vs. discarded                                                                                              | `'MC16 p. 4 — "reset the scenario and try again with no penalty"'` (3 tests)                                                                                                                                                                                                                                                                                                                     | **Pass.** A Market purchase made during the lost attempt's own setup is undone (`retryBaseline: "nodeStart"`); the Headhunter ladder (only ever written by a win) is untouched by a loss; the retry composes the identical deck the first attempt did.                                                                 |
+| 5   | Expert: HP carry/restore, the heal boundary, the Collection choice, Ronan's expert-only loss, the deck freeze, elimination-and-victory | `"MC16 p. 5/p. 10 — Expert campaign: remaining HP is recorded, then really restored"`, `'MC16 p. 10 — the optional 1-unit heal'` (3 tests), `"MC16 p. 18 — Ronan's expert-campaign-only loss"` (2 tests), `'MC16 p. 5 — the expert deck freeze'`                                                                                                                                                 | **Mostly pass, two gaps found (below).** HP restore, heal boundary (unaffordable/declined/accepted), Ronan's expert-vs-standard loss, and the deck freeze (a resized non-campaign line refused, a Market grant still accepted) all pass against a real `GameState` or a real `validateDeck` call.                      |
+| 6   | Log fields feeding later setups: Power Stone control, evasion counters, Galactic Artifacts                                             | `"MC16 p. 15 — Power Stone Control is recorded from a real attachment"`, `'MC16 p. 18 — Pincer Maneuver's "3 minus Evasion Counters" threat'` (2 tests), `"MC16 p. 12/p. 14 — Galactic Artifacts recorded in the victory display are pulled into Nebula's own deck"`                                                                                                                             | **Pass.** Power Stone control derived from a real staged attachment (not the log-shortcut Checkpoint 3 used); Pincer Maneuver's threat floor proven at 3 and past it (5); all four Galactic Artifacts effects (evasion counter, dealt card, boost, tough) confirmed landing in a real Nebula game.                     |
+
+### Bugs and gaps found this checkpoint
+
+1. **`gmw.ts`'s "main scheme is on stage 1B" bonus is dead code in every real game (content bug).** `TERRESTRIAL_INVASION_1B = cardId("16061b")` (scenario 1) and `ART_OF_EVASION_1B = cardId("16091b")` (Nebula) name `CardId`s that do not exist anywhere in `WAVE3_CARDS` — `packages/content/src/data/gmw/cards.ts` models each of these main schemes as _one_ card record (`16061a`, `16091a`) with a `stages` array; a stage's A/B face text lives in that stage's own `text`/`aSide` fields, never as a second top-level `cardId()`. Which face is showing is `CardInstance.flipped`, not a different `instance.cardId`. Since `TargetQuery.printedId` matches `instance.cardId` directly (`select.ts:343`), `atLeast(cardsInPlay({categories:["mainScheme"], printedId: TERRESTRIAL_INVASION_1B}), 1)` can never be true — MC16 p. 8's and p. 14's "1 unit if the main scheme is on stage 1B" bonuses always award 0, in every real game, standard or expert. Test: `gmw.qa.test.ts`'s `it.skip("met: the main scheme is actually on stage 1B (Terrestrial Invasion) awards the bonus — ENGINE/CONTENT GAP")`. Owner: `game-rules-architect` (a `TargetQuery` that can read stage identity/`flipped` needs to exist first) then `ability-scripting-engineer` (rewrite `gmw.ts` against it). **Not fixed** — the fix needs a new query shape, not a one-line content edit. **Fixed since:** `CampaignGameQuery` `mainSchemeStageNumber` + `equals` (design §11, "MC16 QA (step 4d)"); both bonuses are `equals(mainSchemeStageNumber, 1)` and the test runs as `"met: the main scheme is still on stage 1B …"` plus a stage-2 miss.
+2. **The Collection's "choose 1 card from hand" (RRG 1.8 p. 67 errata) — diagnosed, not a bug.** Driving a real, 2-seat Infiltrate the Museum game (expert campaign) to its first player-phase pause found **4** cards in `state.scenarioAreas["The Collection"]`, not the 2 (1 per seat) `mc16.s2.setup.collection` alone should ever add, and neither seat's hand had shrunk from a hardcoded expectation of 4. Tracing every `cardMoved` event into the area shows the instruction itself fires exactly once per seat, each moving the one card `chooseCards` bound from that seat's own hand — the missing baseline was Infiltrate the Museum's own main scheme, The Grand Collection 1A, whose printed `Setup: Create "The Collection" game area. Put the top card of each player's deck faceup into The Collection` (`packages/cards/src/wave3/gmw/museum.ts`'s `16073a.setup`) runs earlier, at `resolveScenarioSetup`, and already seeds the area with 1 card per seat from the deck — a second, independent, and correct source into the same shared area, not the Collector's discard redirect (nothing discards during setup) and not a double-fire. A 2-seat expert game legitimately ends setup with 4 cards in The Collection (2 from the main scheme's own setup, 2 from this instruction); the "hand unchanged at 5" was likewise measured against a hardcoded absolute (4) rather than each seat's own actual post-mulligan hand size (6). Test: `gmw.qa.test.ts`'s `describe('RRG 1.8 p. 67 errata "When setup ends" — The Collection's hand-card choice')`, now driving the real game and asserting the instruction's own delta (one hand-to-Collection `cardMoved` per seat, in seat order, hand length down by exactly 1) rather than an absolute count. No code change was needed in `gmw.ts`/`museum.ts`; the earlier report's own assertions were the bug.
+3. **MC16 p. 5 "Elimination and Victory" is not implemented at the engine level (confirmed engine gap, not new this checkpoint but now proven with a real staged game).** `packages/engine/src/campaign/result.ts`'s `seatsFor` — the function deciding which seats a `record` instruction's `"each"`/`"self"` write applies to — reads only `state.campaign?.seats`; it never consults `PlayerState.eliminated` (`state.ts:175`). A player defeated mid-scenario in a game the team still wins is handed every "each" Victory write exactly like a seat that survived the whole game, the opposite of MC16 p. 5's "does not participate in the Victory steps of that scenario." Ruling June 2, 2026 (3) #1 additionally specifies the healing half explicitly ("Heal identity to printed HP at no cost" for a player defeated in Brotherhood of Badoon, entering Infiltrate the Museum) — a rule `hpSetSetup`'s plain `remainingHitPointsCappedAtBase` read cannot express either, since a defeated identity's own "remaining HP" from that lost attempt is not what the next scenario should read at all. Test: `gmw.qa.test.ts`'s `describe.skip('MC16 p. 5 "Elimination and Victory" — a defeated player skips this scenario's Victory steps (ENGINE GAP)')`. Owner: `game-rules-architect`. **Fixed since:** `CampaignDefinition.elimination` (design §11, "MC16 QA (step 4d)"), declared by `gmw.ts` for expert campaigns with the free rejoin at printed HP; the group runs un-skipped with three tests.
+
+### Rulings checked
+
+- **June 2, 2026 (3)**: all four sub-answers read against `gmw.ts`/the engine. #1 (heal to printed HP at no cost for
+  a player defeated in a won scenario) is the uncovered half of Finding 3 above. #2 (campaign setup finishes before
+  Collector II's own When Revealed damage) — not independently tested this checkpoint (would need a full Escape the
+  Museum setup-into-play drive; flagged, not verified). #3 (multiple copies of the same title in The Collection are
+  recorded individually) is consistent with `collection`'s field being a plain `cardList` `append` with no
+  title-dedup, but not proven with a live 2-copies-of-one-title case (the Collection hand-choice discrepancy,
+  Finding 2, made staging that scenario unreliable this checkpoint). #4 (Escape the Museum removes a _count_ of
+  cards from The Collection, not necessarily the exact same instances) matches `gmw.ts`'s own
+  `moveCards(campaignLogCards("collection"), "removedFromGame")` reading, not independently re-verified for the
+  duplicate-title edge case.
+
+### Files touched, Checkpoint 4
+
+- `packages/cards/src/campaigns/gmw.qa.test.ts` — extended: 6 new `describe` groups (one per item above), ~50 new
+  tests. Originally 3 `it.skip`/`describe.skip` findings (stage-1B dead bonus, the Collection discrepancy, the
+  elimination gap); all three are now un-skipped (see "Fixed since" notes above and step 4d's own diagnosis of the
+  Collection finding).
+- `docs/phase7-wave3-qa.md` — this section.
+
+### What this pass did not test
+
+- The full MC16 end-to-end campaign walk with **real, engine-driven** wins at every one of the 5 nodes (this
+  checkpoint's own Item 1 drives real games at every node for _setup inspection_, but still advances between nodes
+  with a synthetic `winNode`/`applyWin`, the same documented shortcut `trors.qa.test.ts` uses — a genuine,
+  engine-recognized win chained across all 5 nodes, the way `trors.qa.test.ts`'s own Crossbones test does for one
+  node, was not attempted for all 5 GMW scenarios this pass; time budget).
+- Ruling June 2, 2026 (3) #2 and #3 (see "Rulings checked" above) — read against the code, not independently driven.
+- Every other value the Collection-choice discrepancy (Finding 2) might also be corrupting (e.g., whether the
+  quadrupled Collection area then breaks scenario 3's own `mc16.s3.setup.collection-remove` "search deck/discard/hand
+  for each card recorded" instruction) — out of scope once the discrepancy itself couldn't be diagnosed confidently.

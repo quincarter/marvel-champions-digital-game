@@ -64,6 +64,29 @@ export function toggleRowHeight(detail: string, width: number): number {
   return Math.max(MIN_HEIGHT, DETAIL_TOP + lines * DETAIL_LINE_HEIGHT + BOTTOM_PADDING);
 }
 
+/**
+ * The height a campaign log write row needs — a headline (itself sometimes multi-line: a collapsed cardList delta
+ * like "+ Brainstorm, By Any Means, Contingency Plan → Groot" can wrap), then a detail line, with a citation
+ * pinned top-right in its own reserved column (`scenes/campaign/issue.ts`'s "Wrote to the log" list and the
+ * Dossier's Log tab share this exact row shape, so one formula keeps them from drifting apart the way
+ * `toggleRowHeight` already does for Pause/Settings' own shared row).
+ */
+export function logWriteRowHeight(headline: string, detail: string, width: number, citationColumnWidth = 150): number {
+  const TOP = 8;
+  const HEADLINE_LINE_HEIGHT = 15;
+  const HEADLINE_CHAR_WIDTH = 6.4;
+  const DETAIL_GAP = 4;
+  const DETAIL_LINE_HEIGHT = 13;
+  const DETAIL_CHAR_WIDTH = 5.2;
+  const BOTTOM_PADDING = 12;
+  const MIN_HEIGHT = 42;
+  const wrapWidth = Math.max(1, width - citationColumnWidth);
+  const headlineLines = estimateWrappedLines(headline, wrapWidth, HEADLINE_CHAR_WIDTH);
+  const detailLines = estimateWrappedLines(detail, wrapWidth, DETAIL_CHAR_WIDTH);
+  const detailTop = TOP + headlineLines * HEADLINE_LINE_HEIGHT + DETAIL_GAP;
+  return Math.max(MIN_HEIGHT, detailTop + detailLines * DETAIL_LINE_HEIGHT + BOTTOM_PADDING);
+}
+
 export function estimateWrappedLines(text: string, widthPx: number, avgCharWidthPx: number): number {
   const maxChars = Math.max(1, Math.floor(widthPx / avgCharWidthPx));
   let lines = 1;

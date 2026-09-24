@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { validateCampaign } from "../schema/index.js";
-import { CAMPAIGNS, WAVE2_ENCOUNTER_SETS, WAVE2_SCENARIOS } from "./index.js";
+import { CAMPAIGNS, WAVE2_ENCOUNTER_SETS, WAVE2_SCENARIOS, WAVE3_ENCOUNTER_SETS, WAVE3_SCENARIOS } from "./index.js";
+
+/** Scenarios/encounter sets a campaign might reference, across every wave that has ingested a `Campaign` record. */
+const ALL_SCENARIOS = [...WAVE2_SCENARIOS, ...WAVE3_SCENARIOS];
+const ALL_ENCOUNTER_SETS = [...WAVE2_ENCOUNTER_SETS, ...WAVE3_ENCOUNTER_SETS];
 
 /**
  * docs/campaign-mode-design.md §11 step 6, §9.1 row 1: every `Campaign` content record `@mc/content` emits must be
@@ -18,7 +22,7 @@ describe("Campaign content records", () => {
   });
 
   it("every scenario a campaign names is registered and belongs to the campaign's own pack", () => {
-    const byId = new Map(WAVE2_SCENARIOS.map((s) => [s.id as string, s]));
+    const byId = new Map(ALL_SCENARIOS.map((s) => [s.id as string, s]));
     for (const campaign of CAMPAIGNS) {
       for (const scenarioId of campaign.scenarioIds) {
         const scenario = byId.get(scenarioId as string);
@@ -29,7 +33,7 @@ describe("Campaign content records", () => {
   });
 
   it("every set a campaign names (campaignSetIds and perSeatSetIds) is registered and campaignSpecific", () => {
-    const byId = new Map(WAVE2_ENCOUNTER_SETS.map((s) => [s.id as string, s]));
+    const byId = new Map(ALL_ENCOUNTER_SETS.map((s) => [s.id as string, s]));
     for (const campaign of CAMPAIGNS) {
       for (const setId of [...campaign.campaignSetIds, ...(campaign.perSeatSetIds ?? [])]) {
         const set = byId.get(setId as string);
@@ -46,7 +50,7 @@ describe("Campaign content records", () => {
     }
   });
 
-  it("only campaign boxes with data actually ingested are present (MC10 today; see data/index.ts CAMPAIGNS doc)", () => {
-    expect(CAMPAIGNS.map((c) => c.id as string)).toEqual(["trors"]);
+  it("only campaign boxes with data actually ingested are present (MC10, MC16 today; see data/index.ts CAMPAIGNS doc)", () => {
+    expect(CAMPAIGNS.map((c) => c.id as string)).toEqual(["trors", "gmw"]);
   });
 });

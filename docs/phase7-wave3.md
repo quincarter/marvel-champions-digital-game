@@ -1132,6 +1132,181 @@ whenRevealed(
 );
 ```
 
+### 3.48 "Place the rest on the top and/or bottom of the encounter deck in any order": `reorderCards` to `"encounterDeckTopOrBottom"`
+
+> **Status: landed (2026-09-23),** tested in `packages/engine/src/place-top-or-bottom.test.ts` (5 tests: a split with
+> both piles ordered, all to the bottom, all to the top, one card each side, everything discarded; each replays
+> deep-equal). DSL: `packages/cards/src/dsl/wave3-primitives-3.test.ts`. Card tests: `gmw/market.test.ts`, Take the
+> Fight to Them (16161; solo top-only, bottom-only, split and discard-all, and two players looking at 4).
+
+Take the Fight to Them (16161): "Hero Action: Look at the top 2[per_hero] cards of the encounter deck. Discard any
+number of those, then place the rest on the top and/or bottom of the encounter deck in any order. Draw 1 card."
+`reorderCards` (Heimdall, §3.13 of docs/phase7-wave1.md) only put cards back on top.
+
+**The rule:** RRG 1.8 "Deck" (p. 15) and "Encounter Deck" (p. 17): the order of a deck changes only when a card
+instructs it, and this card lets each card go to either end, in any order. RRG 1.8 "Look, Looked-At" (p. 27): the
+looked-at cards stay part of the deck, and only the player resolving the ability sees them. So every question goes to
+that player alone.
+
+**What landed:**
+
+- **`EffectSpec reorderCards.to: "encounterDeckTopOrBottom"`.** Three questions to `chooser`, each skipped when only
+  one answer is possible:
+  1. **Split:** the new `ChoicePrompt { kind: "chooseBottomCards", deck: "encounterDeck" }`. The player selects the
+     cards that go to the bottom, from none to all of them. Every card not selected goes on top.
+  2. **Order the top pile:** `orderCards` to `"encounterDeckTop"`, asked only when the pile holds two or more cards.
+  3. **Order the bottom pile:** `orderCards` to `"encounterDeckBottom"` (new), likewise.
+- **Both orders read top-down, the way the deck will.** The first card selected for the top pile becomes the deck's top
+  card. The last card selected for the bottom pile becomes the deck's bottom card. A player orders each pile the way it
+  will lie in the deck, and the same reading holds for both prompts.
+- **Nothing moves until the last answer.** The split and the top order are kept on the frame (`_place.step`,
+  `_place.top`, `_place.bottom`, the way `playFromHand` keeps its own `_play.*` state) and cleared when the effect
+  finishes. Then every card moves at once, one `cardMoved` each. A malformed order keeps the cards in the order they
+  were looked at, and a malformed split puts every card on top.
+- **Who orders both piles:** the same `chooser`. No card or ruling splits the decision.
+
+**DSL:** `placeOnTopOrBottom(cards, chooser = you)` in `dsl/effects.ts`.
+
+**Take the Fight to Them** (`16161.take-the-fight-to-them-action`):
+
+```ts
+heroAction(
+  selectCards("looked", encounterCards(["deck"], undefined, perHero(2))),
+  chooseCards("discarded", cards(chosen("looked")), { min: 0, max: 8 }),
+  moveCards(cards(chosen("discarded")), "discard"),
+  placeOnTopOrBottom(cards(chosen("looked"), { excludeSlots: ["discarded"] })),
+  draw(1),
+);
+```
+
+"Any number" includes none, so `min: 0`. `max: 8` is the most 2[per_hero] can be with four players, and the engine caps
+it at the number of cards looked at. Going Undercover (`bp`, "place the rest on the top and/or bottom of the encounter
+deck in any order", chosen by the defeating player) is the next card that needs this. It passes that player as
+`chooser`.
+
+**Client:** see §3.49's client note.
+
+### 3.49 A cost the board picks: `AbilityCost.conditional` ("… instead if you control the Milano")
+
+> **Status: landed (2026-09-23),** tested in `packages/engine/src/conditional-cost.test.ts` (5 tests: the count and the
+> zone each follow the condition; another player's Milano does not count; `legalActions` fills in the picks of the
+> branch the board picked; no fallback to the other branch in either direction; replay deep-equal). DSL:
+> `packages/cards/src/dsl/wave3-primitives-3.test.ts`. Card tests: `gmw/market.test.ts`, Reactor Core (16165) and
+> Navigation Column (16172), each with and without the Milano.
+
+Reactor Core (16165): "Hero Action: Exhaust Reactor Core and discard the top 2 cards of your deck (the top card instead
+if you control the Milano) → reduce the resource cost of the next event you play this turn by 1." Navigation Column
+(16172): "Hero Action: Exhaust Navigation Column, choose and discard 1 card from your hand (discard the top card of your
+deck instead if you control the Milano) → draw 1 card." In both cards the size or zone of the cost depends on the board.
+`AbilityCost.either` (§3.36) is a player's choice among payable branches. Using it here would let a Milano controller
+pay the printed cost instead.
+
+**The rule:**
+
+- **When the cost is decided.** RRG 1.8 "Initiating Abilities" (p. 24), step 3: "Determine the cost (or costs) to play
+  the card or initiate the ability and the player's ability to pay them, taking modifiers into account." The condition
+  is read at step 3, when the ability is initiated, from the paying player's point of view.
+- **No fallback.** "Instead" makes this a replacement (RRG 1.8 "Instead" → "Replacement Effect", p. 37): while the
+  condition holds, the printed cost is not the cost at all. Only the branch the board picked is checked. If that branch
+  can't be paid, the ability can't be initiated (p. 24, steps 3 and 5; "Cost", p. 13: a cost is paid in full), even
+  when the other branch could be paid. So a Milano controller whose deck and discard pile are both empty can't use
+  Navigation Column with a full hand. Without the Milano, an empty hand can't pay it with a full deck.
+- The rulings file (December 17, 2025 through August 13, 2026) has no ruling on a conditional cost.
+
+**What landed:**
+
+- **`AbilityCost.conditional { condition: Predicate; then: AbilityCost; else: AbilityCost }`.** It is paid together
+  with every other component of the cost. `selectCost` (`actions.ts`) resolves it before any player decision, through
+  `determineConditionalCost`. The condition is evaluated with `you` = the payer and `self` = the ability's card. The
+  picked branch is merged into the rest of the cost and recorded as var `cost.condition` (1 = `then`, 0 = `else`).
+  `planCost` routes every conditional cost through `selectCost`, so the ability frames, trigger candidates and windows
+  all pay exactly the checked branch.
+- **A branch may hold an `either`** (a player choice inside the board's pick) but not another `conditional`. It must
+  not repeat a component of the rest of the cost.
+- **`costAsDetermined(state, deps, sourceId, playerId, cost)`** (exported from `@mc/engine`) returns the cost with the
+  board's branch applied. `legalActions` and `paymentFor` read it, so a legal action's `example` fills in a hand pick
+  only when the hand branch is the cost. A client should read it too, rather than the written cost.
+- **Validator:** each branch is checked as the whole cost it makes. A nested `conditional` or a repeated component is
+  refused. What either branch binds is in scope for the effects, and so is `cost.condition`.
+
+**DSL:** `costIf(condition, then, otherwise)` in `dsl/abilities.ts`; each branch is one cost or a list merged like
+`cost: [...]`.
+
+```ts
+// Reactor Core
+heroAction(
+  { cost: [exhaustThis, costIf(MILANO_CONTROLLED, discardTopOfDeckCost(1), discardTopOfDeckCost(2))] },
+  reduceNextCardCost(you, 1, "turn", query("event")),
+);
+// Navigation Column
+heroAction(
+  { cost: [exhaustThis, costIf(MILANO_CONTROLLED, discardTopOfDeckCost(1), discardFromHandCost(1, 1))] },
+  draw(1),
+);
+```
+
+`MILANO_CONTROLLED` is the Market's own "you control the Milano" predicate (`gmw/market.ts`), already used by Armor
+Plating, Heavy Cannon and the other Milano mods.
+
+**Client (both sections; no client code changed):**
+
+- `chooseBottomCards` has no title in `scenes/choice.ts`'s `promptTitle`, so the overlay falls back to "Choose". It
+  is a plain multi-select of card options (`ordered: false`, 0 to all). Suggested title: "Choose the cards to put on
+  the bottom of the encounter deck".
+- `orderCards` to `"encounterDeckBottom"` shows "Put these back in any order", the same title as the top pile. The
+  overlay should tell the two piles apart ("Order the cards going to the bottom, top to bottom").
+- `view/discard-choice-model.ts`'s `actionAbilityCost`, the ability label (`view/ability-label.ts`) and the
+  cost-choice model (`view/cost-choice-model.ts`) read the written cost, so none of them sees a `conditional`
+  component. Navigation Column without the Milano still works: the command carries `legalActions`' `example` pick,
+  which follows the board's branch. But the player isn't asked which hand card to discard; the engine picks the
+  cheapest one. The fix is to pass the cost through `costAsDetermined` in `actionAbilityCost`.
+
+### 3.50 "Search … for one copy of X": `CardSelector atMost`
+
+> **Status: landed (2026-09-23),** tested in `packages/engine/src/at-most-selector.test.ts` (5 tests: one copy taken
+> and the rest untouched; a second, later search finds a remaining copy; deck before discard pile, then the discard
+> pile; fewer or none matching is not an error; at most 2 and at most 0; each replays deep-equal). DSL:
+> `packages/cards/src/dsl/wave3-primitives-3.test.ts`. Campaign tests: `campaigns/gmw.qa.test.ts` ("You Stand
+> Accused!" and Pincer Maneuver, un-skipped). Card test: `stld/star-lord-kit.test.ts` (Element Gun).
+
+MC16 p. 18 (Ronan the Accuser setup): "search the encounter deck and discard pile for **one copy** of the 'You Stand
+Accused!' (116) treachery, then deal that card to that player", and "for **one copy** of the Pincer Maneuver (112) side
+scheme and reveal it". Each printed copy is its own instance, and a selector names every instance that matches, so
+three treacheries were dealt (16116 ×3) and two Pincer Maneuvers revealed (16112 ×2), each with its own threat (found
+by QA, `docs/phase7-wave3-qa.md`). `CardSelector.encounter.top` is positional and does not help.
+
+**The rule:** RRG 1.8 "Search" (p. 39): "If a player finds multiple cards that satisfy the criteria of a search, the
+player chooses among those options." RRG 1.8 "Shuffle" (p. 39): a searched deck is shuffled after the search. The
+rulings file (December 17, 2025 through August 13, 2026) has no ruling on which copy a search takes.
+
+**What landed:**
+
+- **`CardSelector { kind: "atMost"; count: ValueSpec; of: CardSelector }`.** The first `count` cards `of` names, in
+  its own order. Fewer or none matching names fewer or none, with no error; `count` of 0 or less names nothing. It
+  wraps any selector, so it works in every effect that takes one (`selectCards`, `moveCards`, `tuckCards`,
+  `chooseCards`' pool).
+- **Which copy.** `atMost` is for interchangeable copies, so it doesn't ask. It takes them in selector order: an
+  `encounter` selector yields the deck top-down, then the discard pile; a `zone` selector its zones in the order
+  listed. The deck is shuffled afterwards, so which deck copy is taken can't be seen. The one real pick is deck
+  before discard pile. That default is ours, not the RRG's (the RRG gives the player the pick); it takes a bad
+  encounter card out of the deck, which is the choice a player would make. Where the pick matters to the player, use
+  `chooseCards` with `max` instead (Island of Dr. Zola's Ultimate Bio-Servant already does).
+- **The other copies stay where they were.** Nothing else moves, so a later search or draw can still find them.
+
+**DSL:** `atMost(n, from)` and `oneCopyOf(from)` (= `atMost(1, from)`) in `dsl/effects.ts`. `searchAndReveal` now
+reveals one copy ("reveal **it**").
+
+**Scripts switched:**
+
+- `campaigns/gmw.ts`: `mc16.s5.setup.you-stand-accused` and `mc16.s5.setup.pincer-maneuver`.
+- `searchAndReveal`: Zola (II) 04110, "search … for the Test Subjects side scheme and reveal it" (04123 ×2) had the
+  same flaw and revealed both. Every other `searchAndReveal` target is printed once, so nothing else changes.
+- Peter Quill 17001b Setup, "search your deck and discard pile for **a copy** of the Element Gun upgrade" (17007 ×2):
+  it put both in hand.
+
+Every other name or printed-id search in `@mc/cards` and the campaign definitions (including `mts.gate.test.ts`)
+targets a card printed once, or already chooses with `chooseCards` or `firstOf`.
+
 ---
 
 ## 4. Open questions (for the user or FFG)

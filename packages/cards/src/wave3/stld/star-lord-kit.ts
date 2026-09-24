@@ -47,6 +47,7 @@ import {
   modifyStatOf,
   moveCards,
   on,
+  oneCopyOf,
   option,
   partOf,
   playOnlyIf,
@@ -134,9 +135,10 @@ export const STAR_LORD_KIT = defineAbilities({
   // your hand. The printed text omits "shuffle your deck" (unlike Captain America's identically-shaped 03001b),
   // but RRG 1.8 "Shuffle" (p. 39): "Any time a deck is searched by a game step or card ability, that deck is
   // shuffled after the game step or card ability completes its resolution" — an always-true rule, not something
-  // the printed sentence has to restate, so it's scripted here regardless.
+  // the printed sentence has to restate, so it's scripted here regardless. "A copy": the kit prints two Element
+  // Guns, so `oneCopyOf` takes one (deck first, then discard; docs/phase7-wave3.md §3.50) and leaves the other.
   "17001b.setup": setup(
-    moveCards(zone(["deck", "discard"], you, { filter: query("upgrade", { name: "Element Gun" }) }), "hand"),
+    moveCards(oneCopyOf(zone(["deck", "discard"], you, { filter: query("upgrade", { name: "Element Gun" }) })), "hand"),
     shuffleDeck(),
   ),
 

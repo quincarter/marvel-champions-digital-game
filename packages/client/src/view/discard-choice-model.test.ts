@@ -79,7 +79,7 @@ describe("discard-choice mode", () => {
 
   test("Shield Toss's cost is a real discard choice: min 0, no printed cap", () => {
     const action = shieldTossAction();
-    const cost = discardCostOf(state, WAVE1_DEPS, action.action);
+    const cost = discardCostOf(state, WAVE1_DEPS, me, action.action);
     expect(cost).toEqual({ min: 0, max: null });
   });
 

@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { scenarioDetailLines, scenarioDetailOf } from "./scenario-detail.js";
+import { scenarioDetailLines, scenarioDetailOf, shelfSubtitleOf } from "./scenario-detail.js";
 import { CARDS_BY_ID, POOL_ENCOUNTER_SETS, POOL_SCENARIOS } from "../content/pool.js";
 
 const rhino = POOL_SCENARIOS.find((s) => (s.id as string) === "rhino")!;
@@ -52,5 +52,33 @@ describe("scenarioDetailLines", () => {
     const detail = scenarioDetailOf(breakout, CARDS_BY_ID, POOL_ENCOUNTER_SETS);
     const lines = scenarioDetailLines(detail);
     expect(lines[0]).toContain("3 more");
+  });
+});
+
+describe("shelfSubtitleOf", () => {
+  const detail = (id: string) =>
+    scenarioDetailOf(
+      POOL_SCENARIOS.find((s) => (s.id as string) === id)!,
+      CARDS_BY_ID,
+      POOL_ENCOUNTER_SETS,
+    );
+
+  test("a three-stage villain reads as a range, with its modular set", () => {
+    expect(shelfSubtitleOf(detail("infiltrate-the-museum"), false)).toBe("Stages I–III · Menagerie Medley");
+  });
+
+  test("a one-stage villain reads 'Stage I', never 'Stages I–I'", () => {
+    expect(shelfSubtitleOf(detail("escape-the-museum"), false)).toBe("Stage I · Menagerie Medley");
+  });
+
+  test("two scenarios fought against the same-named villain lead with the scenario's own name", () => {
+    expect(shelfSubtitleOf(detail("infiltrate-the-museum"), true)).toBe("Infiltrate the Museum · Stages I–III");
+    expect(shelfSubtitleOf(detail("escape-the-museum"), true)).toBe("Escape the Museum · Stage I");
+  });
+
+  test("in the real pool, the two Museum scenarios are the only villain names shared", () => {
+    const names = POOL_SCENARIOS.map((s) => detail(s.id as string).villainName);
+    const shared = POOL_SCENARIOS.filter((_, i) => names.indexOf(names[i]!) !== names.lastIndexOf(names[i]!));
+    expect(shared.map((s) => s.id as string).sort()).toEqual(["escape-the-museum", "infiltrate-the-museum"]);
   });
 });

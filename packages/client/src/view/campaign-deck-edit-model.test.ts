@@ -3,7 +3,12 @@ import { cardId, TRORS_CAMPAIGN, TRORS_STARTER_DECKS, type DeckCardEntry, type S
 import { createCampaignLog, type CampaignLog, type CampaignSeatSetup } from "@mc/engine";
 import { TRORS_CAMPAIGN_DEFINITION } from "@mc/cards";
 import { POOL_CARDS } from "../content/pool.js";
-import { campaignDeckContextOf, campaignDeckEditModel } from "./campaign-deck-edit-model.js";
+import {
+  campaignDeckContextOf,
+  campaignDeckEditModel,
+  campaignDeckSizeSplit,
+  removedFromCampaignCardIds,
+} from "./campaign-deck-edit-model.js";
 
 function requireStarter(id: string): StarterDeck {
   const found = TRORS_STARTER_DECKS.find((deck) => (deck.id as string) === id);
@@ -104,6 +109,57 @@ describe("campaignDeckEditModel", () => {
       grantedCardIds: [],
     }).validation;
     expect(verdict.ok).toBe(false);
+  });
+
+  it("marks a line removed from the campaign refused, with validateDeck's own message", () => {
+    const removedCardId = STARTER.cards[0]!.cardId;
+    const context = {
+      ...campaignDeckContextOf(TRORS_CAMPAIGN, grantedLog(), 1),
+      removedFromCampaign: [{ cardId: removedCardId }],
+    };
+    const deck = { identityCardId: STARTER.identityCardId, aspects: STARTER.aspects, cards: STARTER.cards };
+    const model = campaignDeckEditModel(deck, POOL_CARDS, context);
+    expect(model.validation.ok).toBe(false);
+    const row = model.rows.find((candidate) => candidate.cardId === removedCardId);
+    expect(row?.refused).toBe(true);
+    expect(row?.refusedReason).toMatch(/removed from this campaign/);
+    const otherRow = model.rows.find((candidate) => candidate.cardId !== removedCardId);
+    expect(otherRow?.refused).toBe(false);
+    expect(otherRow?.refusedReason).toBeNull();
+  });
+
+  it("removedFromCampaignCardIds only counts a faceless removal (a same-card, other-face removal leaves it usable)", () => {
+    const cardId = STARTER.cards[0]!.cardId;
+    const context = {
+      ...campaignDeckContextOf(TRORS_CAMPAIGN, grantedLog(), 1),
+      removedFromCampaign: [{ cardId, face: "back" }],
+    };
+    expect(removedFromCampaignCardIds(context).has(cardId)).toBe(false);
+    const facelessContext = { ...context, removedFromCampaign: [{ cardId }] };
+    expect(removedFromCampaignCardIds(facelessContext).has(cardId)).toBe(true);
+  });
+
+  it("campaignDeckSizeSplit counts a granted line as pinned, not toward the deck-size count (MC10 p. 3)", () => {
+    const context = campaignDeckContextOf(TRORS_CAMPAIGN, grantedLog(), 1);
+    const deck = {
+      identityCardId: STARTER.identityCardId,
+      aspects: STARTER.aspects,
+      cards: [...STARTER.cards, { cardId: TECH_UPGRADE, quantity: 1 }],
+    };
+    const totalCards = deck.cards.reduce((n, line) => n + line.quantity, 0);
+    const model = campaignDeckEditModel(deck, POOL_CARDS, context);
+    const split = campaignDeckSizeSplit(model);
+    expect(split.pinned).toBe(1);
+    expect(split.counted).toBe(totalCards - 1);
+    // A deck with no grants at all has nothing pinned.
+    const ungranted = campaignDeckSizeSplit(
+      campaignDeckEditModel(
+        { identityCardId: STARTER.identityCardId, aspects: STARTER.aspects, cards: STARTER.cards },
+        POOL_CARDS,
+        campaignDeckContextOf(TRORS_CAMPAIGN, freshLog(), 1),
+      ),
+    );
+    expect(ungranted.pinned).toBe(0);
   });
 
   it("disables editing, with the printed reason, only when a freeze is supplied", () => {

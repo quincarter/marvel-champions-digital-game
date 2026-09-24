@@ -261,6 +261,7 @@ export type QueryExclusion =
   | "missingTrait"
   | "hasExcludedTrait"
   | "wrongName"
+  | "wrongPrintedId"
   | "wrongFacedown"
   | "wrongStarIcon"
   | "wrongUnique"
@@ -339,6 +340,7 @@ export function explainQuery(
   }
   // The name showing now: a facedown card has none; a villain or flipped card has its current face's.
   if (query.name !== undefined && currentName(state, id) !== query.name) return "wrongName";
+  if (query.printedId !== undefined && instance.cardId !== query.printedId) return "wrongPrintedId";
   if (query.facedown !== undefined && (instance.facedownAs !== null) !== query.facedown) return "wrongFacedown";
   // "If that card has a star icon (★) in the boost area" (Longshot, `wolv`). A printed fact (`hasStarIcon`), not a
   // read of the ability registry: see docs/phase7-wave2.md §18.6. RRG 1.8 "Boost, Boost Icon" (p. 11) — a star is not

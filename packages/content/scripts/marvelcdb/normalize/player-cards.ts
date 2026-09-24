@@ -121,6 +121,12 @@ export function normalizePlayerCard(
   }
   if (parsed.attachesToVillainNamed) errors.push(`${r.code}: player card attaches to a villain by name`);
   if (parsed.attachesTo && r.type_code !== "upgrade") errors.push(`${r.code}: attach rule on a ${r.type_code}`);
+  // MC16 p. 5's "Unit Cost X." (docs/phase7-wave3.md §1; `PlayerCardCommon.unitCost`): a campaign-specific card's
+  // own printed price, read straight off its printed text rather than added to `parseRestriction`'s sentence
+  // classifier, since it is card data (what the campaign spends against), not a play restriction. Only ever seen
+  // leading the printed text of a `the_market` card (`gmw` 16150–16177), one per card.
+  const unitCostMatch = /^Unit Cost (\d+)\./.exec(p.text.printed);
+  const unitCost = unitCostMatch ? Number(unitCostMatch[1]) : undefined;
   const playerCommon = {
     aspect: aspect as AllyCard["aspect"],
     traits: p.traits,
@@ -133,6 +139,7 @@ export function normalizePlayerCard(
     ...(separateDeck ? { separateDeck: separateDeck.deckName } : {}),
     ...(flipSide ? { flipSide } : {}),
     ...(specificTo ? { specificTo } : {}),
+    ...(unitCost !== undefined ? { unitCost } : {}),
     ...(printedAspect ? { printedAspect } : {}),
   };
   const cost = r.cost ?? null;

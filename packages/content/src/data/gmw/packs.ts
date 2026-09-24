@@ -6,7 +6,7 @@
 import { cycleId, setCode } from "../../schema/index.js";
 import type { Cycle, Pack } from "../../schema/index.js";
 
-export const GMW_CYCLE: Cycle = { id: cycleId("cycle3"), name: "Cycle 3", order: 3 };
+export const GMW_CYCLE: Cycle = { id: cycleId("cycle3"), name: "The Galaxy's Most Wanted", order: 3 };
 
 /** Release date source: Hall of Heroes Galaxy's Most Wanted page (https://hallofheroeslcg.com/galaxys-most-wanted/): "Release date: April 2, 2021" */
 export const GMW_PACK: Pack = {

@@ -8,7 +8,7 @@ import {
   stepAfterMulligans,
   STEP_AFTER_SCENARIO_SETUP,
 } from "./setup-steps.js";
-import { drawCards, endLastingEffect, expireLastingEffects, expirePlayerTurnEffects } from "./effects.js";
+import { drawCards, drawUpTo, endLastingEffect, expireLastingEffects, expirePlayerTurnEffects } from "./effects.js";
 import { readyOrAnnounce } from "./resolve/event.js";
 import type { LastingEffect } from "./lasting.js";
 import { EngineInvariantError } from "./errors.js";
@@ -137,7 +137,9 @@ function executeScenarioSetupStep(ctx: Ctx): void {
   setStep(ctx, STEP_AFTER_SCENARIO_SETUP);
 }
 
-// RRG Appendix II step 14, after setup cards and setup abilities have resolved.
+// RRG Appendix II step 14, after setup cards and setup abilities have resolved. A counted draw of hand-size cards, not
+// a refill: a drawn obligation goes into play and is not replaced here; the mulligan's draw makes the hand up
+// (maintainer decision 2026-09-23, docs/campaign-mode-design.md Q20).
 function executeDrawStartingHands(ctx: Ctx): void {
   for (const player of ctx.state.players) {
     drawCards(ctx, player.playerId, handSize(ctx.state, player.playerId, ctx.deps));
@@ -151,7 +153,7 @@ function executeDrawStartingHands(ctx: Ctx): void {
 
 // RRG Appendix II step 15: each player may discard any number, then draw back up to hand size.
 function executeMulligan(ctx: Ctx, remainingPlayerIds: readonly PlayerId[]): void {
-  const [current, ...rest] = livePlayers(ctx.state, remainingPlayerIds);
+  const [current] = livePlayers(ctx.state, remainingPlayerIds);
   if (!current) {
     // MC50 p. 11's "After resolving mulligans" window goes here, between steps 15 and 16, in a campaign game.
     setStep(ctx, stepAfterMulligans(ctx.state));
@@ -159,7 +161,8 @@ function executeMulligan(ctx: Ctx, remainingPlayerIds: readonly PlayerId[]): voi
   }
   const player = mustPlayer(ctx.state, current);
   if (player.hand.length === 0) {
-    setStep(ctx, { phase: "setup", kind: "mulligan", remainingPlayerIds: rest });
+    // Nothing to discard, but the draw up to hand size still happens (every opening card may have been an obligation).
+    afterMulliganChoice(ctx, current);
     return;
   }
   requestChoice(ctx, {
@@ -174,9 +177,11 @@ function executeMulligan(ctx: Ctx, remainingPlayerIds: readonly PlayerId[]): voi
 export function afterMulliganChoice(ctx: Ctx, playerId: PlayerId): void {
   const step = ctx.state.step;
   if (step.kind !== "mulligan") return;
-  const limit = handSize(ctx.state, playerId, ctx.deps);
-  const held = mustPlayer(ctx.state, playerId).hand.length;
-  if (held < limit) drawCards(ctx, playerId, limit - held);
+  // "Draw up to their starting hand size" as a counted draw of (hand size - hand) cards, hand size read now (so an
+  // opening-hand Martial Law already lowers it). An obligation drawn here goes into play and is not replaced: the
+  // player ends a card short (maintainer decision 2026-09-23, docs/campaign-mode-design.md Q20).
+  const missing = handSize(ctx.state, playerId, ctx.deps) - mustPlayer(ctx.state, playerId).hand.length;
+  if (missing > 0) drawCards(ctx, playerId, missing);
   setStep(ctx, {
     phase: "setup",
     kind: "mulligan",
@@ -312,9 +317,7 @@ export function afterDiscardChoice(ctx: Ctx, playerId: PlayerId): void {
 
 function executeEndPhaseDraw(ctx: Ctx): void {
   for (const player of playerOrder(ctx.state)) {
-    const limit = handSize(ctx.state, player.playerId, ctx.deps);
-    const current = mustPlayer(ctx.state, player.playerId).hand.length;
-    if (current < limit) drawCards(ctx, player.playerId, limit - current);
+    drawUpTo(ctx, player.playerId, () => handSize(ctx.state, player.playerId, ctx.deps));
   }
   setStep(ctx, { phase: "player", kind: "endPhaseReady" });
 }

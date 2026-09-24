@@ -3665,6 +3665,7 @@ export const GMW_CARDS: readonly AnyCard[] = [
     },
     abilities: [{ id: abilityId("16150.brainstorm-constant") }, { id: abilityId("16150.brainstorm-action") }],
     specificTo: { kind: "campaign", encounterSetId: encounterSetId("the_market") },
+    unitCost: 1,
   },
   {
     id: cardId("16151"),
@@ -3688,6 +3689,7 @@ export const GMW_CARDS: readonly AnyCard[] = [
     },
     abilities: [{ id: abilityId("16151.by-any-means-constant") }, { id: abilityId("16151.by-any-means-action") }],
     specificTo: { kind: "campaign", encounterSetId: encounterSetId("the_market") },
+    unitCost: 1,
   },
   {
     id: cardId("16152"),
@@ -3714,6 +3716,7 @@ export const GMW_CARDS: readonly AnyCard[] = [
       { id: abilityId("16152.contingency-plan-action") },
     ],
     specificTo: { kind: "campaign", encounterSetId: encounterSetId("the_market") },
+    unitCost: 1,
   },
   {
     id: cardId("16153"),
@@ -3737,6 +3740,7 @@ export const GMW_CARDS: readonly AnyCard[] = [
     },
     abilities: [{ id: abilityId("16153.in-defiance-constant") }, { id: abilityId("16153.in-defiance-interrupt") }],
     specificTo: { kind: "campaign", encounterSetId: encounterSetId("the_market") },
+    unitCost: 1,
   },
   {
     id: cardId("16154"),
@@ -3763,6 +3767,7 @@ export const GMW_CARDS: readonly AnyCard[] = [
       { id: abilityId("16154.calculate-the-odds-action") },
     ],
     specificTo: { kind: "campaign", encounterSetId: encounterSetId("the_market") },
+    unitCost: 2,
   },
   {
     id: cardId("16155"),
@@ -3792,6 +3797,7 @@ export const GMW_CARDS: readonly AnyCard[] = [
       { id: abilityId("16155.creative-solution-constant-4") },
     ],
     specificTo: { kind: "campaign", encounterSetId: encounterSetId("the_market") },
+    unitCost: 2,
   },
   {
     id: cardId("16156"),
@@ -3815,6 +3821,7 @@ export const GMW_CARDS: readonly AnyCard[] = [
     },
     abilities: [{ id: abilityId("16156.grapple-constant") }, { id: abilityId("16156.grapple-action") }],
     specificTo: { kind: "campaign", encounterSetId: encounterSetId("the_market") },
+    unitCost: 2,
   },
   {
     id: cardId("16157"),
@@ -3838,6 +3845,7 @@ export const GMW_CARDS: readonly AnyCard[] = [
     },
     abilities: [{ id: abilityId("16157.wing-it-constant") }, { id: abilityId("16157.wing-it-action") }],
     specificTo: { kind: "campaign", encounterSetId: encounterSetId("the_market") },
+    unitCost: 2,
   },
   {
     id: cardId("16158"),
@@ -3861,6 +3869,7 @@ export const GMW_CARDS: readonly AnyCard[] = [
     },
     abilities: [{ id: abilityId("16158.close-call-constant") }, { id: abilityId("16158.close-call-interrupt") }],
     specificTo: { kind: "campaign", encounterSetId: encounterSetId("the_market") },
+    unitCost: 3,
   },
   {
     id: cardId("16159"),
@@ -3884,6 +3893,7 @@ export const GMW_CARDS: readonly AnyCard[] = [
     },
     abilities: [{ id: abilityId("16159.defy-danger-constant") }, { id: abilityId("16159.defy-danger-action") }],
     specificTo: { kind: "campaign", encounterSetId: encounterSetId("the_market") },
+    unitCost: 3,
   },
   {
     id: cardId("16160"),
@@ -3907,6 +3917,7 @@ export const GMW_CARDS: readonly AnyCard[] = [
     },
     abilities: [{ id: abilityId("16160.in-harms-way-constant") }, { id: abilityId("16160.in-harms-way-action") }],
     specificTo: { kind: "campaign", encounterSetId: encounterSetId("the_market") },
+    unitCost: 3,
   },
   {
     id: cardId("16161"),
@@ -3933,6 +3944,7 @@ export const GMW_CARDS: readonly AnyCard[] = [
       { id: abilityId("16161.take-the-fight-to-them-action") },
     ],
     specificTo: { kind: "campaign", encounterSetId: encounterSetId("the_market") },
+    unitCost: 3,
   },
   {
     id: cardId("16162"),
@@ -3959,6 +3971,7 @@ export const GMW_CARDS: readonly AnyCard[] = [
       { id: abilityId("16162.armor-plating-interrupt") },
     ],
     specificTo: { kind: "campaign", encounterSetId: encounterSetId("the_market") },
+    unitCost: 4,
   },
   {
     id: cardId("16163"),
@@ -3982,6 +3995,7 @@ export const GMW_CARDS: readonly AnyCard[] = [
     },
     abilities: [{ id: abilityId("16163.heavy-cannon-constant") }, { id: abilityId("16163.heavy-cannon-action") }],
     specificTo: { kind: "campaign", encounterSetId: encounterSetId("the_market") },
+    unitCost: 4,
   },
   {
     id: cardId("16164"),
@@ -4008,6 +4022,7 @@ export const GMW_CARDS: readonly AnyCard[] = [
       { id: abilityId("16164.hyper-thrusters-action") },
     ],
     specificTo: { kind: "campaign", encounterSetId: encounterSetId("the_market") },
+    unitCost: 4,
   },
   {
     id: cardId("16165"),
@@ -4031,6 +4046,7 @@ export const GMW_CARDS: readonly AnyCard[] = [
     },
     abilities: [{ id: abilityId("16165.reactor-core-constant") }, { id: abilityId("16165.reactor-core-action") }],
     specificTo: { kind: "campaign", encounterSetId: encounterSetId("the_market") },
+    unitCost: 4,
   },
   {
     id: cardId("16166"),
@@ -4057,6 +4073,7 @@ export const GMW_CARDS: readonly AnyCard[] = [
       { id: abilityId("16166.ardent-resolve-action") },
     ],
     specificTo: { kind: "campaign", encounterSetId: encounterSetId("the_market") },
+    unitCost: 5,
   },
   {
     id: cardId("16167"),
@@ -4080,6 +4097,7 @@ export const GMW_CARDS: readonly AnyCard[] = [
     },
     abilities: [{ id: abilityId("16167.onrush-constant") }, { id: abilityId("16167.onrush-interrupt") }],
     specificTo: { kind: "campaign", encounterSetId: encounterSetId("the_market") },
+    unitCost: 5,
   },
   {
     id: cardId("16168"),
@@ -4103,6 +4121,7 @@ export const GMW_CARDS: readonly AnyCard[] = [
     },
     abilities: [{ id: abilityId("16168.safeguard-constant") }, { id: abilityId("16168.safeguard-action") }],
     specificTo: { kind: "campaign", encounterSetId: encounterSetId("the_market") },
+    unitCost: 5,
   },
   {
     id: cardId("16169"),
@@ -4126,6 +4145,7 @@ export const GMW_CARDS: readonly AnyCard[] = [
     },
     abilities: [{ id: abilityId("16169.sure-gamble-constant") }, { id: abilityId("16169.sure-gamble-action") }],
     specificTo: { kind: "campaign", encounterSetId: encounterSetId("the_market") },
+    unitCost: 5,
   },
   {
     id: cardId("16170"),
@@ -4149,6 +4169,7 @@ export const GMW_CARDS: readonly AnyCard[] = [
     },
     abilities: [{ id: abilityId("16170.cargo-hold-constant") }, { id: abilityId("16170.cargo-hold-action") }],
     specificTo: { kind: "campaign", encounterSetId: encounterSetId("the_market") },
+    unitCost: 6,
   },
   {
     id: cardId("16171"),
@@ -4172,6 +4193,7 @@ export const GMW_CARDS: readonly AnyCard[] = [
     },
     abilities: [{ id: abilityId("16171.mounted-laser-constant") }, { id: abilityId("16171.mounted-laser-action") }],
     specificTo: { kind: "campaign", encounterSetId: encounterSetId("the_market") },
+    unitCost: 6,
   },
   {
     id: cardId("16172"),
@@ -4198,6 +4220,7 @@ export const GMW_CARDS: readonly AnyCard[] = [
       { id: abilityId("16172.navigation-column-action") },
     ],
     specificTo: { kind: "campaign", encounterSetId: encounterSetId("the_market") },
+    unitCost: 6,
   },
   {
     id: cardId("16173"),
@@ -4224,6 +4247,7 @@ export const GMW_CARDS: readonly AnyCard[] = [
       { id: abilityId("16173.targeting-screen-action") },
     ],
     specificTo: { kind: "campaign", encounterSetId: encounterSetId("the_market") },
+    unitCost: 6,
   },
   {
     id: cardId("16174"),
@@ -4250,6 +4274,7 @@ export const GMW_CARDS: readonly AnyCard[] = [
       { id: abilityId("16174.grand-strategy-action") },
     ],
     specificTo: { kind: "campaign", encounterSetId: encounterSetId("the_market") },
+    unitCost: 7,
   },
   {
     id: cardId("16175"),
@@ -4276,6 +4301,7 @@ export const GMW_CARDS: readonly AnyCard[] = [
       { id: abilityId("16175.power-unleashed-action") },
     ],
     specificTo: { kind: "campaign", encounterSetId: encounterSetId("the_market") },
+    unitCost: 7,
   },
   {
     id: cardId("16176"),
@@ -4302,6 +4328,7 @@ export const GMW_CARDS: readonly AnyCard[] = [
       { id: abilityId("16176.tried-and-true-action") },
     ],
     specificTo: { kind: "campaign", encounterSetId: encounterSetId("the_market") },
+    unitCost: 7,
   },
   {
     id: cardId("16177"),
@@ -4325,6 +4352,7 @@ export const GMW_CARDS: readonly AnyCard[] = [
     },
     abilities: [{ id: abilityId("16177.triple-threat-constant") }, { id: abilityId("16177.triple-threat-action") }],
     specificTo: { kind: "campaign", encounterSetId: encounterSetId("the_market") },
+    unitCost: 7,
   },
   {
     id: cardId("16178a"),

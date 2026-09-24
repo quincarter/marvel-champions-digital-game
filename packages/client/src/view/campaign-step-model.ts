@@ -71,7 +71,14 @@ function effectsOf(step: CampaignStepTrace, cardName: CardNameOf): readonly stri
   const lines: string[] = [];
   for (const write of step.writes) {
     const target = write.seatNumber === null ? write.field : `${write.field} (seat ${write.seatNumber})`;
-    lines.push(`${write.mode} ${target} = ${renderLogValue(write.value, cardName)}`);
+    // This is a raw trace of the write as it went into the log, not the fold's own delta (`campaign-log-deltas.ts`):
+    // `add` stores the field's new running total, not the amount this one write alone contributed, so it's labelled
+    // as such rather than read as "added N" the way the Run/Issue/Dossier screens present it.
+    const rendered =
+      write.mode === "add"
+        ? `${renderLogValue(write.value, cardName)} (running total)`
+        : renderLogValue(write.value, cardName);
+    lines.push(`${write.mode} ${target} = ${rendered}`);
   }
   for (const choice of step.choices) {
     const who = choice.seatNumber === null ? "the group" : `seat ${choice.seatNumber}`;

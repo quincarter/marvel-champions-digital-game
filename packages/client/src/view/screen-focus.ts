@@ -131,6 +131,14 @@ export interface DeckBuilderFocusInput {
   readonly typeFilterIds: readonly string[];
   /** Every pool card in filter order — not just the ones currently on screen (see `DecksFocusInput.deckIds`). */
   readonly poolCardIds: readonly string[];
+  /**
+   * Campaign deck-edit mode (`scenes/campaign/deck-edit.ts`) draws neither the deck-name field (a campaign seat's
+   * deck has no name of its own — `DeckContents` carries only identity/aspects/cards) nor Preconstructed/Clear
+   * (both would silently drop the campaign's own granted lines, which the player can never remove by hand — MC10
+   * p. 3). Both default `true`, so every existing caller (the standalone builder) is unaffected.
+   */
+  readonly showName?: boolean;
+  readonly showPreconClear?: boolean;
 }
 
 /**
@@ -148,9 +156,8 @@ export function deckBuilderFocusOrder(input: DeckBuilderFocusInput): readonly st
     "back",
     ...input.aspectIds.map((id) => `aspect:${id}`),
     ...input.typeFilterIds.map((id) => `type:${id}`),
-    "name",
-    "preconstructed",
-    "clear",
+    ...((input.showName ?? true) ? ["name"] : []),
+    ...((input.showPreconClear ?? true) ? ["preconstructed", "clear"] : []),
     "save",
     "filter-text",
     ...input.poolCardIds.map((id) => `card:${id}`),

@@ -268,6 +268,14 @@ export function drawGroupedCardList(
   groups: readonly DeckListGroup[],
   entryCap: number,
   onDark = false,
+  /**
+   * Campaign deck edit's own annotation (`scenes/deck-builder.ts`'s campaign mode): a short text note drawn under
+   * an entry's own line — "Added by the campaign" for a granted card, the refusal reason for one RRG 1.8 p. 29
+   * removed — or `null`/omitted for an ordinary line. Text, not a colour swap, so the note reads under any vision
+   * (CLAUDE.md's colorblind-safe rule); every other caller (Deck check, Decks & Collection) omits it and draws
+   * exactly as before.
+   */
+  noteOf?: (entry: DeckListEntry) => string | null,
 ): number {
   const bodyColor = onDark ? surface.paper.hex : surface.ink.hex;
   let y = top;
@@ -293,6 +301,12 @@ export function drawGroupedCardList(
         0,
       );
       y += 16;
+      const note = noteOf?.(entry) ?? null;
+      if (note !== null) {
+        const noteLine = scene.add.text(left, y, note, textStyle(typeRole.label, bodyColor, ink.meta));
+        fitText(noteLine, column);
+        y += 14;
+      }
     }
     y += 4;
   }

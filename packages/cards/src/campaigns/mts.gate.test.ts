@@ -1154,7 +1154,7 @@ describe("MC21 gate: the runner, end to end", () => {
       SCRIPT,
     );
     const thanosStart = startGameFromLog(MTS_CAMPAIGN_DEFINITION, thanosComposed.value);
-    expect(thanosStart.encounterSetIds).toEqual([COSMO_SET, SECURITY_BREACH_SET]);
+    expect(thanosStart.encounterSets).toEqual({ deck: [COSMO_SET, SECURITY_BREACH_SET], setAside: [] });
     const thanosApplied = settle(
       (answers) =>
         applyCampaignResult(
@@ -1196,7 +1196,7 @@ describe("MC21 gate: the runner, end to end", () => {
       SCRIPT,
     );
     const lokiStart = startGameFromLog(MTS_CAMPAIGN_DEFINITION, lokiComposed.value);
-    expect(lokiStart.encounterSetIds).toEqual([ODIN_SET]);
+    expect(lokiStart.encounterSets).toEqual({ deck: [ODIN_SET], setAside: [] });
     const lokiApplied = settle(
       (answers) =>
         applyCampaignResult(

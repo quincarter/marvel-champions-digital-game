@@ -1,0 +1,3 @@
+kind: Fixed
+body: 'GMW: the "main scheme is on stage 1B" Victory unit (MC16 p. 8, p. 14) now fires, read through a new mainSchemeStageNumber campaign query instead of card ids that don''t exist'
+time: 2026-09-23T17:56:59.45439-04:00

@@ -34,6 +34,11 @@ export type GameEvent =
       readonly to: ZoneId;
     }
   | { readonly type: "cardDrawn"; readonly playerId: PlayerId; readonly instanceId: InstanceId }
+  /**
+   * The card just drawn (the `cardDrawn` before this) is an obligation, so it went to the drawing player's play area
+   * instead of their hand (RRG 1.8 "Obligation", p. 30; MC10 p. 17). A `cardEntersPlay` announcement follows.
+   */
+  | { readonly type: "drawnObligationPlaced"; readonly playerId: PlayerId; readonly instanceId: InstanceId }
   | { readonly type: "cardDiscardedFromHand"; readonly playerId: PlayerId; readonly instanceId: InstanceId }
   | {
       readonly type: "cardPlayed";

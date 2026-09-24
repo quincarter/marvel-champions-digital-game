@@ -1,4 +1,4 @@
-import type { Trait } from "@mc/content";
+import type { CardId, Trait } from "@mc/content";
 /**
  * When a lasting effect ends: "until the end of the phase" / "…of the round" / "…of this attack" / "…of this turn".
  *
@@ -84,6 +84,14 @@ export interface TargetQuery {
   readonly anyTrait?: readonly Trait[];
   /** Exact printed card name ("the Breakin' & Takin' side scheme", "the Ultron Drones environment"). */
   readonly name?: string;
+  /**
+   * The exact printed card, by id — for the rare case `name` cannot disambiguate: MC16's Campaign Challenge side
+   * schemes print the *same* title on both faces (16178a/16178b "Badoon Blitz", …; docs/phase7-wave3.md §1.4 emits
+   * each face as its own card, precisely so this field can tell them apart), and a campaign instruction reveals
+   * one specific face by mode, not "a card named X". Prefer `name` wherever it alone is unambiguous — this is for
+   * card data's own edge case, not a general substitute for it.
+   */
+  readonly printedId?: CardId;
   /** The card this card is attached to (true) or anything else (false): "When attached minion is defeated". */
   readonly hostOfSelf?: boolean;
   /**
@@ -1393,12 +1401,19 @@ export type EffectSpec =
    * "Put the others back in any order" (Heimdall). RRG 1.8 "Deck" (p. 15): a deck's order changes only when a card
    * instructs it. `chooser` orders the cards and they go back on top of the encounter deck in that order, the first
    * card chosen ending up on top.
+   *
+   * `to: "encounterDeckTopOrBottom"`: "place the rest on the top and/or bottom of the encounter deck in any order"
+   * (Take the Fight to Them, `gmw` 16161; docs/phase7-wave3.md §3.48). `chooser` puts each card on the top or the
+   * bottom, independently, then orders each pile. Three questions, each skipped when it has only one answer: which
+   * cards go to the bottom (`ChoicePrompt chooseBottomCards`), then the order of the top pile, then the order of the
+   * bottom pile (`orderCards`, `to: "encounterDeckTop"` / `"encounterDeckBottom"`). No card moves until every answer
+   * is in.
    */
   | {
       readonly kind: "reorderCards";
       readonly cards: CardSelector;
       readonly chooser: PlayerRef;
-      readonly to: "encounterDeckTop";
+      readonly to: "encounterDeckTop" | "encounterDeckTopOrBottom";
     }
   /**
    * "Set his hit point dial to 1 instead" (Captain America's Helmet), as a replacement for a defeat. RRG 1.8 "Hit
@@ -1732,6 +1747,21 @@ export type CardSelector =
    * list cannot.
    */
   | { readonly kind: "anyOf"; readonly of: readonly CardSelector[] }
+  /**
+   * "Search … for **one copy** of X" (MC16 p. 18), "search … for **a copy** of the Element Gun upgrade" (Peter Quill,
+   * `stld` 17001b), "search … for the Test Subjects side scheme and reveal **it**" (Zola 04110): at most `count` of
+   * the cards `of` names, the first ones in `of`'s own order, never an error when fewer (or none) match. Several
+   * printed copies of one card are separate instances, so a plain selector names every copy; this caps it.
+   *
+   * **Which copy (docs/phase7-wave3.md §3.50).** RRG 1.8 "Search" (p. 39): "If a player finds multiple cards that
+   * satisfy the criteria of a search, the player chooses among those options." `atMost` is for copies that are
+   * interchangeable, so it takes them in selector order rather than asking: an `encounter` selector yields the deck
+   * top-down, then the discard pile, and a `zone` selector its zones in the order listed. The deck is shuffled
+   * after the search (RRG 1.8 "Shuffle", p. 39), so *which* deck copy is irrelevant; only deck-before-discard is a
+   * real (documented) pick. Where the searching player's pick matters, use `chooseCards` with `max` instead.
+   * Negative or zero `count` names nothing. The other copies are not touched: they stay where they were.
+   */
+  | { readonly kind: "atMost"; readonly count: ValueSpec; readonly of: CardSelector }
   /** The cards in a scenario out-of-play area ("discard 1 card from The Collection"; docs/phase7-wave3.md §3.14). */
   | { readonly kind: "scenarioArea"; readonly name: string; readonly filter?: TargetQuery }
   /**

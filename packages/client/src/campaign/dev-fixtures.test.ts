@@ -1,0 +1,115 @@
+import { describe, expect, test } from "vitest";
+import { POOL_CARDS, POOL_DEPS } from "../content/pool.js";
+import { MemoryCampaignStorage } from "../engine/campaign-storage.js";
+import { CampaignService } from "./campaign-service.js";
+import { seedDesignRun, seedDesignWonGame, seedGmwRun, seedGmwWonGame } from "./dev-fixtures.js";
+import { frozenNonCampaignCardsOf } from "../view/campaign-deck-edit-model.js";
+import { GMW_CAMPAIGN_DEFINITION } from "@mc/cards";
+
+const service = () =>
+  new CampaignService({
+    storage: new MemoryCampaignStorage(),
+    campaignDeps: { pool: Object.fromEntries(POOL_CARDS.map((card) => [card.id as string, card])) },
+    engineDeps: POOL_DEPS,
+  });
+
+describe("seedDesignRun", () => {
+  test("after issue #2 matches the design's story: one rewind, the design's picks, issue #3 next", async () => {
+    const record = await seedDesignRun(service(), "afterIssue2");
+    expect(record.position.nextNodeId).toBe("taskmaster");
+    expect(record.history.map((entry) => `${entry.nodeId}:${entry.outcome}`)).toEqual([
+      "crossbones:won",
+      "absorbing-man:lost",
+      "absorbing-man:won",
+    ]);
+    expect(record.seats.map((seat) => seat.grants.map((grant) => grant.cardId))).toEqual([
+      ["04157", "04160a"],
+      ["04156", "04159a"],
+    ]);
+  });
+
+  test("finished is a won run", async () => {
+    const record = await seedDesignRun(service(), "finished");
+    expect(record.status).toBe("won");
+    expect(record.history.filter((entry) => entry.outcome === "won")).toHaveLength(5);
+  }, 30_000);
+});
+
+describe("seedGmwRun", () => {
+  test("afterIssue1 reaches issue 2 with units recorded and unspent", async () => {
+    const record = await seedGmwRun(service(), "afterIssue1");
+    expect(record.position.nextNodeId).toBe("infiltrate-the-museum");
+    expect(record.history.map((entry) => `${entry.nodeId}:${entry.outcome}`)).toEqual(["brotherhood-of-badoon:won"]);
+    for (const seat of record.seats) {
+      const units = seat.fields.units;
+      expect(units?.kind === "number" ? units.value : 0).toBeGreaterThan(0);
+    }
+  });
+
+  test("afterIssue2 reaches issue 3, having taken at least one Market card along the way", async () => {
+    const record = await seedGmwRun(service(), "afterIssue2");
+    expect(record.position.nextNodeId).toBe("escape-the-museum");
+    const marketCards = record.seats.flatMap((seat) => {
+      const field = seat.fields.marketCards;
+      return field?.kind === "cardList" ? field.cardIds : [];
+    });
+    expect(marketCards.length).toBeGreaterThan(0);
+  });
+
+  test("afterIssue2HeadhuntersDown reaches issue 3 with 2 Headhunter marks recorded", async () => {
+    const record = await seedGmwRun(service(), "afterIssue2HeadhuntersDown");
+    expect(record.position.nextNodeId).toBe("escape-the-museum");
+    const marks = record.shared.headhunterDefeated;
+    expect(marks?.kind === "number" ? marks.value : 0).toBe(2);
+  });
+
+  test("lostIssue3 reaches issue 3 lost once, with issue 3 up next again", async () => {
+    const record = await seedGmwRun(service(), "lostIssue3");
+    expect(record.position.nextNodeId).toBe("escape-the-museum");
+    expect(record.history.map((entry) => `${entry.nodeId}:${entry.outcome}`)).toEqual([
+      "brotherhood-of-badoon:won",
+      "infiltrate-the-museum:won",
+      "escape-the-museum:lost",
+    ]);
+    expect(record.status).toBe("active");
+  });
+
+  test("expertAfterIssue1 gives frozenNonCampaignCardsOf a real snapshot to read", async () => {
+    const record = await seedGmwRun(service(), "expertAfterIssue1");
+    expect(record.modes.campaign?.expertCampaign).toBe(true);
+    const frozen = frozenNonCampaignCardsOf(GMW_CAMPAIGN_DEFINITION, record, 1);
+    expect(frozen).not.toBeNull();
+    expect(frozen!.length).toBeGreaterThan(0);
+  });
+
+  test("finished is a won run through all five issues", async () => {
+    const record = await seedGmwRun(service(), "finished");
+    expect(record.status).toBe("won");
+    expect(record.history.filter((entry) => entry.outcome === "won")).toHaveLength(5);
+  }, 30_000);
+
+  test("afterIssue3 reaches issue 4 ('nebula') up next", async () => {
+    const record = await seedGmwRun(service(), "afterIssue3");
+    expect(record.position.nextNodeId).toBe("nebula");
+  });
+});
+
+describe("seedGmwWonGame / seedDesignWonGame", () => {
+  test("composes issue #4 for real and fabricates its win, without folding it", async () => {
+    const { record, won } = await seedGmwWonGame(service());
+    expect(record.attempt?.nodeId).toBe("nebula");
+    expect(record.status).toBe("active"); // unfolded: still the pre-win status
+    expect(won.outcome).toEqual({ result: "win", reason: "villainDefeated" });
+  });
+
+  test("a later stop composes whatever issue comes after it", async () => {
+    const { record } = await seedGmwWonGame(service(), "afterIssue1");
+    expect(record.attempt?.nodeId).toBe("infiltrate-the-museum");
+  });
+
+  test("MC10's own equivalent composes issue #3 for real (afterIssue2's own next issue)", async () => {
+    const { record, won } = await seedDesignWonGame(service());
+    expect(record.attempt?.nodeId).toBe("taskmaster");
+    expect(won.outcome).toEqual({ result: "win", reason: "villainDefeated" });
+  });
+});

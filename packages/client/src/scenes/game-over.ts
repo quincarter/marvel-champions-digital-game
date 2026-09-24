@@ -20,7 +20,7 @@
  */
 
 import Phaser from "phaser";
-import { POOL_DEPS } from "../content/pool.js";
+import { POOL_DEPS, POOL_SCENARIOS } from "../content/pool.js";
 import { artFor } from "../art/art-source.js";
 import { cardArt, drawArt } from "../art/card-art.js";
 import { coverFit, type Picture } from "../art/pictures.js";
@@ -33,7 +33,7 @@ import { gameOverModel, type GameOverModel } from "../view/game-over-model.js";
 import { formFactorFor, type Rect } from "../view/layout.js";
 import { rollSeed } from "../view/seed.js";
 import type { SessionConfig } from "../engine/host.js";
-import { appSession } from "../session.js";
+import { appSession, campaignService } from "../session.js";
 import { FocusRoute, type FocusStop } from "./focus-route.js";
 import { SCENES } from "./keys.js";
 import { destroyChildren } from "../ui/destroy-children.js";
@@ -87,7 +87,8 @@ export class GameOverScene extends Phaser.Scene {
     this.#outcomeArt =
       game?.outcome && config ? outcomeArtFor(ART_CATALOG, config.scenarioId, game.outcome.result) : null;
     if (game?.outcome && config) {
-      appSession().music?.playOutcome(config.scenarioId, game.outcome.result);
+      const packCode = POOL_SCENARIOS.find((s) => s.id === config.scenarioId)?.packCode;
+      appSession().music?.playOutcome(config.scenarioId, game.outcome.result, packCode);
     }
     this.#draw();
     fadeScreenIn(this);
@@ -429,10 +430,25 @@ export class GameOverScene extends Phaser.Scene {
    * The rematch actions. "Run it back" keeps the scenario and seats with a fresh
    * shuffle; "Same seed" replays the identical deal. The replay viewer is drawn
    * but unavailable until it exists.
+   *
+   * A **campaign** game (`config.campaign` set) replaces all of this: there is no rematch — the scenario belongs
+   * to a campaign log that has to fold this result first — so the only action is "Continue the campaign ▸", which
+   * finds the run this game came from and hands off to Aftermath. A standalone game's actions are unchanged.
    */
   #actions(
     config: SessionConfig | null,
   ): readonly { label: string; primary: boolean; run: () => void; unavailable: string | undefined }[] {
+    if (config?.campaign) {
+      const campaign = config.campaign;
+      return [
+        {
+          label: "Continue the campaign ▸",
+          primary: true,
+          run: () => void this.#continueCampaign(campaign),
+          unavailable: undefined,
+        },
+      ];
+    }
     const missing = config ? undefined : "this game's setup isn't available";
     return [
       {
@@ -449,6 +465,24 @@ export class GameOverScene extends Phaser.Scene {
       },
       { label: "Watch the replay", primary: false, run: () => undefined, unavailable: "replays aren't built yet" },
     ];
+  }
+
+  /**
+   * "Continue the campaign ▸": the campaign this game belongs to is found by `campaignId` + `nodeId`
+   * (`CampaignService.recordForGame`), never by re-deriving it from `GameState` — the same "ask the store of
+   * record, don't reimplement" rule everything else here follows. A run that can't be found (abandoned, storage
+   * cleared) shows why instead of silently doing nothing.
+   */
+  async #continueCampaign(campaign: NonNullable<SessionConfig["campaign"]>): Promise<void> {
+    if (this.#busy) return;
+    this.#busy = true;
+    const record = await campaignService().recordForGame(campaign);
+    this.#busy = false;
+    if (!record) {
+      this.#status?.setText("Couldn't find this campaign run — it may have been abandoned or its data cleared.");
+      return;
+    }
+    goToScreen(this, SCENES.campaignAftermath, { runId: record.id });
   }
 
   async #rematch(config: SessionConfig): Promise<void> {

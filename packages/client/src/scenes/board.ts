@@ -61,6 +61,8 @@ import { addTapTarget } from "./board/tap-target.js";
 import { LogPanel } from "./board/log.js";
 import { drawEncounter, drawEnemies, drawPlayArea, drawTeam } from "./board/zones.js";
 import { destroyChildren } from "../ui/destroy-children.js";
+import { campaignBeatFor } from "../view/campaign-beat-model.js";
+import type { CampaignBeatData } from "./campaign/routes.js";
 
 export class BoardScene extends Phaser.Scene {
   #unsubscribe: (() => void) | null = null;
@@ -94,6 +96,13 @@ export class BoardScene extends Phaser.Scene {
   #artUnsubscribe: (() => void) | null = null;
   /** The targeting panel's own hovered tile (docs/phase4-screen-gaps.md §3 "W5") — separate from `#focus`, since a mouse player hovers without ever taking keyboard focus. */
   #targetingHoverId: InstanceId | null = null;
+  /**
+   * A villain-stage flip the current command's events named, waiting for a clear moment to show (C04's own splash,
+   * `scenes/campaign/beat.ts`) — never opened the instant it's detected, or it would land on top of the villain-
+   * phase walkthrough that is narrating that very flip, or steal a pending choice's own overlay. Cleared the moment
+   * it launches, so a later redraw of the same command never queues (and therefore never shows) it twice.
+   */
+  #pendingCampaignBeat: CampaignBeatData | null = null;
 
   readonly #controller = new BoardController({
     model: () => this.#model,
@@ -130,6 +139,11 @@ export class BoardScene extends Phaser.Scene {
   /** The hand's flick coasts frame by frame; everything else on the table moves by tween or by redraw. */
   override update(_time: number, deltaMs: number): void {
     this.#hand.tick(deltaMs);
+    // Checked every frame, not only on a store update: the villain-phase walkthrough and the pending-choice
+    // overlay each close themselves (Skip, Continue, an answered decision) without dispatching a command, so a
+    // beat queued behind either would otherwise wait for the *next* command instead of opening the moment the way
+    // is actually clear.
+    this.#tryOpenCampaignBeat();
   }
 
   create(): void {
@@ -144,6 +158,7 @@ export class BoardScene extends Phaser.Scene {
     this.#tabBadges.clear();
     this.#focus = null;
     this.#saveFailureAnnounced = false;
+    this.#pendingCampaignBeat = null;
     this.cameras.main.setBackgroundColor(cssOf(surface.ink.hex));
     const { store } = appSession();
     this.#unsubscribe = store.subscribe((state) => this.#onState(state));
@@ -223,6 +238,7 @@ export class BoardScene extends Phaser.Scene {
         SCENES.pause,
         SCENES.rules,
         SCENES.settings,
+        SCENES.campaignBeat,
       ]) {
         if (this.scene.isActive(overlay) || this.scene.isSleeping(overlay)) this.scene.stop(overlay);
       }
@@ -279,8 +295,37 @@ export class BoardScene extends Phaser.Scene {
     // Only a *new* command can start a villain phase; a plain redraw re-reads
     // the same `lastEvents` and must not re-open a walkthrough the player skipped.
     if (fresh) this.#openVillainWalkthrough(state.lastEvents);
+    if (fresh) this.#queueCampaignBeat(state);
     this.#syncChoiceOverlay(state);
+    this.#tryOpenCampaignBeat();
     this.#draw();
+  }
+
+  /**
+   * The whole of this scene's side of C04's contract (`scenes/campaign/beat.ts`): notice a villain stage flip this
+   * command's events named, in a campaign game the story has something to say about, and remember it —
+   * `#tryOpenCampaignBeat` is what actually launches it, once a clear moment comes. Pure detection lives in
+   * `view/campaign-beat-model.ts` so "only a campaign game, only a stage the story has a line for" is Vitest-tested
+   * without a scene.
+   */
+  #queueCampaignBeat(state: SessionState): void {
+    if (!state.game || !state.config) return;
+    const beat = campaignBeatFor(state.lastEvents, state.game, state.config);
+    if (beat) this.#pendingCampaignBeat = beat;
+  }
+
+  /**
+   * Opens the queued beat, but never on top of the villain-phase walkthrough that is narrating the very flip it's
+   * about, never a second copy of itself, and never over an open pending choice — the beat is flavor, not a
+   * decision, and must not be the thing between a player and something the engine is actually waiting on.
+   */
+  #tryOpenCampaignBeat(): void {
+    if (!this.#pendingCampaignBeat) return;
+    if (appSession().store.state.game?.pendingChoice) return;
+    if (this.scene.isActive(SCENES.villainPhase) || this.scene.isActive(SCENES.campaignBeat)) return;
+    const data = this.#pendingCampaignBeat;
+    this.#pendingCampaignBeat = null;
+    this.scene.launch(SCENES.campaignBeat, data);
   }
 
   /**

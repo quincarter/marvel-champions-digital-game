@@ -138,6 +138,7 @@ function newRun(
   working: CampaignWorkingLog,
   nodeId: string,
   records: ReadonlyMap<string, readonly LogWrite[]> = new Map(),
+  sittingOut: readonly number[] = [],
 ): CampaignRun {
   return {
     definition,
@@ -146,13 +147,14 @@ function newRun(
     answers: campaignAnswerMap(answers),
     phase,
     records,
+    sittingOut,
     working,
     nodeId,
     steps: [],
     pending: null,
     instructions: [],
     composedVillain: null,
-    composedEncounterSetIds: [],
+    composedEncounterSets: { deck: [], setAside: [] },
     slots: new Map(),
     instructionId: "",
     writes: [],
@@ -364,7 +366,7 @@ export function resolveBetweenGames(
     steps: run.steps,
     input,
     composedVillain: run.composedVillain,
-    composedEncounterSetIds: run.composedEncounterSetIds,
+    composedEncounterSets: run.composedEncounterSets,
   };
   return { kind: "done", value: { ...withWorking(log, run.working), attempt } };
 }
@@ -446,8 +448,12 @@ export interface CampaignGameStart {
   readonly scenarioId: ScenarioId | null;
   /** MC60 p. 9 step 5's chosen villain, as the `composeVillain` op named it. */
   readonly villain: string | null;
-  /** MC60 p. 9 step 6's gathered sets, as the `composeEncounterSets` ops named them, in order. */
-  readonly encounterSetIds: readonly string[];
+  /**
+   * MC60 p. 9 step 6's / MC16 p. 8's gathered sets, as the `composeEncounterSets` ops named them, in order, split
+   * by `into`: `deck` cards belong in `GameSetupConfig.encounterDeck` before it is shuffled, `setAside` cards in
+   * `GameSetupConfig.setAside` (design note on `composeEncounterSets`, above).
+   */
+  readonly encounterSets: { readonly deck: readonly string[]; readonly setAside: readonly string[] };
 }
 
 export function startGameFromLog(definition: CampaignDefinition, log: CampaignLog): CampaignGameStart {
@@ -461,7 +467,7 @@ export function startGameFromLog(definition: CampaignDefinition, log: CampaignLo
     input: attempt.input,
     scenarioId: node.scenario.kind === "fixed" ? node.scenario.scenarioId : null,
     villain: attempt.composedVillain,
-    encounterSetIds: attempt.composedEncounterSetIds,
+    encounterSets: attempt.composedEncounterSets,
   };
 }
 
@@ -484,6 +490,70 @@ const recordsByInstruction = (result: CampaignGameResult): ReadonlyMap<string, r
     map.set(record.instructionId, list);
   }
   return map;
+};
+
+/**
+ * The elimination policy's rejoin write (design §4.6b), run after the node's own Victory instructions so it
+ * overrides anything they wrote for the seat. A `record` step whose writes `campaignResultOf` computed under the
+ * policy's id; it only exists when a seat sat out, so an ordinary win's trace is unchanged.
+ */
+const rejoinInstruction = (
+  definition: CampaignDefinition,
+  sittingOut: readonly number[],
+): readonly CampaignInstruction[] => {
+  const policy = definition.elimination;
+  if (!policy?.rejoinAtPrintedHitPoints || sittingOut.length === 0) return [];
+  const grant = policy.rejoinGrant;
+  return [
+    {
+      id: policy.id,
+      text: policy.text,
+      citation: policy.citation,
+      ...(policy.whenModes ? { whenModes: policy.whenModes } : {}),
+      step: { kind: "record", writes: [] },
+    },
+    // MC10 p. 17 alone (`EliminationPolicy.rejoinGrant`'s own comment): the obligation is the price of the heal
+    // above, run for every sitting-out seat and no other — `forEachSeat`'s `scope: "sittingOut"` is the general
+    // primitive this reads, not something wired to one box.
+    ...(grant
+      ? [
+          {
+            id: `${policy.id}.obligation`,
+            text: policy.text,
+            citation: policy.citation,
+            ...(policy.whenModes ? { whenModes: policy.whenModes } : {}),
+            step: {
+              kind: "betweenGames" as const,
+              ops: [
+                {
+                  kind: "forEachSeat" as const,
+                  scope: "sittingOut" as const,
+                  ops: [
+                    { kind: "random" as const, slot: "obligation", from: grant.from },
+                    {
+                      kind: "grantCard" as const,
+                      seat: "self" as const,
+                      card: { kind: "choice" as const, slot: "obligation" },
+                      permanence: "campaign" as const,
+                    },
+                    ...(grant.appendToField
+                      ? [
+                          {
+                            kind: "appendToList" as const,
+                            field: grant.appendToField,
+                            seat: "self" as const,
+                            value: { kind: "choice" as const, slot: "obligation" },
+                          },
+                        ]
+                      : []),
+                  ],
+                },
+              ],
+            },
+          },
+        ]
+      : []),
+  ];
 };
 
 /** Folds the writes a *game* made into the log. They stick whatever the outcome (RRG 1.8 p. 29; design §6.2). */
@@ -564,9 +634,20 @@ export function applyCampaignResult(
   expireThisGameGrants(working);
   applyInGameWrites(definition, working, result);
 
-  const run = newRun(definition, deps, attempt.modes, answers, "afterGame", working, attempt.nodeId, records);
+  const sittingOut = won ? (result.sittingOut ?? []) : [];
+  const run = newRun(
+    definition,
+    deps,
+    attempt.modes,
+    answers,
+    "afterGame",
+    working,
+    attempt.nodeId,
+    records,
+    sittingOut,
+  );
   const instructions: readonly CampaignInstruction[] = won
-    ? [...(definition.everyNodeVictory ?? []), ...node.victory]
+    ? [...(definition.everyNodeVictory ?? []), ...node.victory, ...rejoinInstruction(definition, sittingOut)]
     : definition.loss.retry === "byInstruction"
       ? [...(node.defeat ?? []), ...(definition.loss.everyNodeDefeat ?? [])]
       : [];

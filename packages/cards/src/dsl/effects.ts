@@ -680,6 +680,17 @@ export const tuckedUnder = (under: TargetRef): CardSelector => ({ kind: "tucked"
  * several zones for a single `selectCards`/`chooseCards`, rather than searching each zone as a separate effect.
  */
 export const anyOfCards = (...of: readonly CardSelector[]): CardSelector => ({ kind: "anyOf", of });
+/**
+ * "Search … for at most N of X": the first `n` cards `from` names, in its own order (an encounter search: the deck
+ * top-down, then the discard pile). Fewer or none is not an error. The copies not taken stay where they were
+ * (docs/phase7-wave3.md §3.50). For a pick that matters to the player, use `chooseCards` with `max` instead.
+ */
+export const atMost = (n: Amount, from: CardSelector): CardSelector => ({ kind: "atMost", count: amount(n), of: from });
+/**
+ * "Search … for **one copy** of X" / "for **a copy** of X" / "for X and reveal **it**": `atMost(1, from)`. A card
+ * with several printed copies is several instances, and a plain selector would name every one of them.
+ */
+export const oneCopyOf = (from: CardSelector): CardSelector => atMost(1, from);
 
 export const moveCards = (from: CardSelector, to: CardDestination, bind?: string): EffectSpec => ({
   kind: "moveCards",
@@ -871,14 +882,15 @@ export const spendResources = (resources: ResourceRequirement, bind: string, pla
 
 /**
  * "Search the encounter deck (and discard pile) for X and reveal it. Shuffle
- * the encounter deck." — X by exact printed name.
+ * the encounter deck." — X by exact printed name. "Reveal **it**" is one card: a card printed in several copies
+ * (Test Subjects, 04123 ×2) reveals one of them, not all (`oneCopyOf`, docs/phase7-wave3.md §3.50).
  */
 export const searchAndReveal = (
   name: string,
   zones: readonly ("deck" | "discard")[] = ["deck", "discard"],
   player: PlayerRef = you,
 ): EffectSpec[] => [
-  selectCards("found", encounterCards(zones, { name })),
+  selectCards("found", oneCopyOf(encounterCards(zones, { name }))),
   revealCard(chosen("found"), player),
   shuffleEncounterDeck(),
 ];
@@ -1115,6 +1127,16 @@ export const reorderCards = (from: CardSelector, chooser: PlayerRef = you): Effe
   cards: from,
   chooser,
   to: "encounterDeckTop",
+});
+/**
+ * "Place the rest on the top and/or bottom of the encounter deck in any order" (Take the Fight to Them, `gmw` 16161;
+ * docs/phase7-wave3.md §3.48): `chooser` sends each card to the top or the bottom, then orders each pile.
+ */
+export const placeOnTopOrBottom = (from: CardSelector, chooser: PlayerRef = you): EffectSpec => ({
+  kind: "reorderCards",
+  cards: from,
+  chooser,
+  to: "encounterDeckTopOrBottom",
 });
 /**
  * "Deal N indirect damage to each player" / "…to you" (RRG 1.8 "Indirect Damage"): each player divides it among the

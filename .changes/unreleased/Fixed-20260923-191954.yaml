@@ -1,0 +1,3 @@
+kind: Fixed
+body: 'client: pluralize GMW''s Unspent Units log line correctly (1 unit, not 1 units)'
+time: 2026-09-23T19:19:54.688677-04:00

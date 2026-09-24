@@ -58,6 +58,12 @@ export interface CampaignDefinition {
    * this, a node's instruction list is not a function of the definition alone and MC27 would force an engine change.
    */
   readonly conditionalInstructions?: Readonly<Record<string, CampaignInstruction>>;
+  /**
+   * What happens to a player eliminated from a game the rest of the table goes on to win (§4.6b). Absent means
+   * nothing does: the eliminated seat takes part in the Victory steps like any other seat, which is what a standard
+   * campaign does in every box (none prints the rule outside its expert campaign rules).
+   */
+  readonly elimination?: EliminationPolicy;
 }
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -346,12 +352,25 @@ export type CampaignGameQuery =
   /** MC60 p. 13: "If the Typhoid Mary/Bloody Mary ally is in the victory display, check the 'Mary Defeated?' box." */
   | { readonly kind: "cardsInVictoryDisplay"; readonly query: TargetQuery }
   /**
+   * A scenario out-of-play area (docs/phase7-wave3.md §3.14): "In the 'Cards in The Collection' section, record
+   * the title of each player card in The Collection" (MC16 p. 10) — the `record`-side twin of the in-game
+   * `CardSelector` `scenarioArea` (`effects.ts`'s `scenarioArea`), reading the same `GameState.scenarioAreas`.
+   */
+  | { readonly kind: "cardsInScenarioArea"; readonly name: string; readonly query: TargetQuery }
+  /**
    * MC10 p. 7: "Record the number of delay counters on the main scheme in the campaign log." MC50 p. 11 does the
    * same per Board Member. `counter` is a counter name as `CardInstance.counters` keys them.
    */
   | { readonly kind: "countersOn"; readonly query: TargetQuery; readonly counter: string }
   /** MC60 p. 13: "If Disturbed Psyche is in play and has at least 2 threat on it…" */
   | { readonly kind: "threatOn"; readonly query: TargetQuery }
+  /**
+   * MC16 p. 8: "Record a number of units … equal to the victory values on encounter cards in the victory display"
+   * — the printed `Victory X` keyword's own value (RRG 1.8's Victory X, docs/phase7-wave3.md §3.4), summed across
+   * every matching card, not the card *count* `victoryDisplayCount`/`cardsInVictoryDisplay` would give (two
+   * Victory 2 cards is 4, not 2). `keyword` is a `KeywordName`; a card with no such keyword contributes 0.
+   */
+  | { readonly kind: "keywordValueSum"; readonly query: TargetQuery; readonly keyword: string }
   /**
    * MC10 p. 17: "each player must record their remaining hit points … If a player's remaining hit point value is
    * higher than their base hit point value, record their base hit points in the campaign log instead." The cap is
@@ -362,10 +381,32 @@ export type CampaignGameQuery =
   | { readonly kind: "isEngagedWithEnemy" }
   /** A fixed value, for an instruction that simply marks a box: MC60 p. 13's "Check the 'Completed' box". */
   | { readonly kind: "const"; readonly value: number | string | boolean }
+  /**
+   * The printed stage number of the main scheme in play (`MainSchemeStage.stageNumber`), the between-games twin of
+   * the in-game `ValueSpec` of the same name. MC16 p. 8 / p. 14, "Record 1 unit for each player if the main scheme
+   * is on stage 1B", is `equals(mainSchemeStageNumber, 1)`. There is no side to ask about: a main scheme in play is
+   * always on its B side (RRG 1.8 "Main Scheme", p. 27: advancing resolves the A side, then flips to B), so "1B"
+   * names stage 1. With separate game areas it reads the central stage, `GameState.mainScheme`.
+   */
+  | { readonly kind: "mainSchemeStageNumber" }
   /** The size of a list-valued query, for "the number of minions and side schemes recorded" (MC50 p. 11). */
   | { readonly kind: "count"; readonly of: CampaignGameQuery }
   /** A list- or number-valued query as a yes/no, for a `flag` field. */
-  | { readonly kind: "atLeast"; readonly of: CampaignGameQuery; readonly amount: number };
+  | { readonly kind: "atLeast"; readonly of: CampaignGameQuery; readonly amount: number }
+  /**
+   * `atLeast`'s complement: MC16 p. 8, "Record 1 unit for each player if there are **no minions** in play" is
+   * `atMost(cardsInPlay({categories:["minion"]}), 0)` — there is no negation over `CampaignGameQuery` to spell
+   * `not(atLeast(…, 1))` instead.
+   */
+  | { readonly kind: "atMost"; readonly of: CampaignGameQuery; readonly amount: number }
+  /** A numeric query as a yes/no for one exact value: "if the main scheme is on stage 1B" (MC16 p. 8). */
+  | { readonly kind: "equals"; readonly of: CampaignGameQuery; readonly amount: number }
+  /**
+   * MC16 p. 8: "Record a number of units (to a maximum of 3 units) equal to the victory values…" — a numeric
+   * query's own printed ceiling. Distinct from `LogFieldDef`'s `number.max`, which caps what the *field* can ever
+   * hold, not what one write may add: MC16's `units` field is otherwise unbounded (it carries across scenarios).
+   */
+  | { readonly kind: "capAt"; readonly of: CampaignGameQuery; readonly amount: number };
 
 /** How a `record` instruction writes one field. */
 export interface LogWriteSpec {
@@ -404,7 +445,21 @@ export type CampaignValue =
   /** MC27 p. 5 and ruling August 3, 2026 (4) answer 2: negative victory points mark no reputation-track nodes. */
   | { readonly kind: "clampAtZero"; readonly of: CampaignValue }
   /** A choice made earlier in this same step list, by `CampaignOp` `choose`/`random` slot. */
-  | { readonly kind: "choice"; readonly slot: string };
+  | { readonly kind: "choice"; readonly slot: string }
+  /**
+   * The number of seats in the campaign (`CampaignLog.seats.length`), for a threshold a rulebook prints "[per_hero]"
+   * rather than as a box constant: MC16 p. 10, "1[per_hero] or fewer cards in The Collection" is `not(valueAtLeast(
+   * count("collection"), difference([field("collection", of:"count"), seatCount])))`-style arithmetic over this and
+   * `difference`, since `fieldAtLeast`'s `amount` is a fixed number and a per-hero threshold is not one.
+   */
+  | { readonly kind: "seatCount" }
+  /**
+   * Integer division: MC16 p. 12, "for every 2 Galactic Artifacts side schemes in the victory display, record 1
+   * unit" is `divide(count("galacticArtifacts"), 2, "down")`. Mirrors the in-game `ValueSpec` `scaled`'s own
+   * `divide`, which this type is otherwise deliberately without (see the file header) — needed the moment a
+   * between-games write is itself a quotient rather than a sum/difference/min/max of whole values.
+   */
+  | { readonly kind: "divide"; readonly of: CampaignValue; readonly by: number; readonly round: "down" | "up" };
 
 export type CampaignPredicate =
   | { readonly kind: "fieldAtLeast"; readonly field: string; readonly amount: number; readonly seat?: "self" }
@@ -428,7 +483,13 @@ export type CampaignPredicate =
   | { readonly kind: "choiceMade"; readonly slot: string }
   | { readonly kind: "modes"; readonly of: ModePredicate }
   | { readonly kind: "not"; readonly of: CampaignPredicate }
-  | { readonly kind: "and" | "or"; readonly of: readonly CampaignPredicate[] };
+  | { readonly kind: "and" | "or"; readonly of: readonly CampaignPredicate[] }
+  /**
+   * `fieldAtLeast` generalized to a *computed* threshold: MC16 p. 10's "1[per_hero] or fewer" needs `seatCount` on
+   * one side, which is not a literal a definition can write into `fieldAtLeast.amount: number`. `fieldAtLeast`
+   * stays as the common case (its literal reads more plainly than `valueAtLeast(field(...), const(n))` would).
+   */
+  | { readonly kind: "valueAtLeast"; readonly value: CampaignValue; readonly amount: CampaignValue };
 
 // ---------------------------------------------------------------------------------------------------------------
 // §4.5 The between-games vocabulary
@@ -518,11 +579,39 @@ export type CampaignOp =
   // --- composition (feeds `CampaignGameInput`, not the log) ----------------------------------------------------
   /** MC60 p. 9 step 5: "Determine the villain … and record the name of the chosen villain next to the scenario". */
   | { readonly kind: "composeVillain"; readonly villain: CampaignValue }
-  /** MC60 p. 9 step 6: "Gather your chosen main scheme, your chosen villain, and their corresponding encounter sets." */
-  | { readonly kind: "composeEncounterSets"; readonly sets: readonly CampaignValue[] }
+  /**
+   * MC60 p. 9 step 6: "Gather your chosen main scheme, your chosen villain, and their corresponding encounter
+   * sets." `into` is where the gathered cards land in the composed game: `"deck"` (the default, MC60's own
+   * reading — Appendix II step 10 shuffles them straight into the assembled encounter deck) or `"setAside"`
+   * (RRG 1.8 "Set Aside", p. 39) for a set a scenario needs *available* to an in-game instruction's own selective
+   * pick rather than pre-shuffled — MC16 p. 8/p. 10/p. 12/p. 14/p. 18's escalating Badoon Headhunter draws and
+   * p. 14's Galactic Artifacts side schemes (row 31, row 30): the box names a card by its printed id or by a
+   * campaign-log-recorded title, and only some of a gathered set's cards are meant to enter the deck this game.
+   * A card a `campaignLog` `CardSelector`/`moveCards` instruction names must already be a `GameState` instance
+   * (`select.ts`'s `campaignLog` case only matches existing instances) — `"setAside"` is what makes that true for
+   * a card whose origin set is not itself part of the next scenario's own base `encounterSetIds`.
+   */
+  | {
+      readonly kind: "composeEncounterSets";
+      readonly sets: readonly CampaignValue[];
+      readonly into?: "deck" | "setAside";
+    }
   // --- control -------------------------------------------------------------------------------------------------
-  /** "Repeat this process for each player" (MC27 p. 22). Inner ops see `seat: "self"` as the scoped seat. */
-  | { readonly kind: "forEachSeat"; readonly ops: readonly CampaignOp[] }
+  /**
+   * "Repeat this process for each player" (MC27 p. 22). Inner ops see `seat: "self"` as the scoped seat.
+   *
+   * `scope` defaults to `"participating"` — every seat but those `CampaignDefinition.elimination` is sitting out of
+   * this scenario's Victory steps (§4.6b), the same set `targetSeats`'s `"each"` reads. `"sittingOut"` is the
+   * complement: the seats an elimination policy's own `rejoinGrant` runs *for*, e.g. MC10 p. 17's "adding an
+   * obligation to their deck" as the price of rejoining. No printed box content ever needs `"sittingOut"` directly —
+   * only `EliminationPolicy.rejoinGrant`'s synthetic instruction does — but it is a general seat-selection axis, not
+   * a special case wired to one box.
+   */
+  | {
+      readonly kind: "forEachSeat";
+      readonly ops: readonly CampaignOp[];
+      readonly scope?: "participating" | "sittingOut";
+    }
   | {
       readonly kind: "if";
       readonly when: CampaignPredicate;
@@ -585,6 +674,13 @@ export interface CollectionFilter {
   readonly sharesTraitWithIdentity?: true;
   /** MC16 p. 5's Unit Cost ceiling reads a numeric log field instead; this is a printed-cost filter. */
   readonly maxPrintedCost?: number;
+  /**
+   * `PlayerCardCommon.unitCost` (MC16 p. 5's "Unit Cost X."), not `maxPrintedCost`'s printed resource cost —
+   * a card's Market price and its play cost are unrelated numbers (most Market cards print cost 0). Exact rather
+   * than a ceiling: splitting one Market-wide choice into one `campaignSet` per price tier is what lets `spend`'s
+   * `amount` be a per-tier constant instead of needing to read the *chosen* card's own price back out of `deps.pool`.
+   */
+  readonly unitCostExactly?: number;
   readonly excludeCardIds?: readonly CardId[];
 }
 
@@ -610,6 +706,50 @@ export interface LossPolicy {
    * defeated it during a game they lost**." A per-box value, never an engine default (design Q6).
    */
   readonly retryBaseline: "nodeStart";
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// §4.6b Elimination and Victory
+// ---------------------------------------------------------------------------------------------------------------
+
+/**
+ * A player defeated during a scenario their teammates go on to win "does not participate in the Victory steps of
+ * that scenario". All nine boxes print it in their expert campaign rules (MC10 p. 17, MC16 p. 5, MC21 p. 25, MC27
+ * p. 6, MC32 p. 5, MC40 p. 7, MC45 p. 20, MC50 p. 6, MC60 p. 9). For such a seat `campaignResultOf` writes no
+ * `"each"`/`"self"` record, and the between-games Victory ops (`forEachSeat`, a per-seat `choose`, a per-seat write
+ * outside a seat scope) skip it. Shared writes belong to the team and still happen.
+ *
+ * How the seat rejoins differs by box. Eight print a paid heal in the next scenario's setup (MC10's obligation,
+ * MC21's acceleration token, …), which their own setup instructions carry. MC16 p. 5 alone rejoins the seat free,
+ * "healing their identity to its printed hit point value" (ruling June 2, 2026 (3) #1: "Heal identity to printed HP
+ * at no cost"). `rejoinAtPrintedHitPoints` names the per-seat number field the next setup reads hit points from;
+ * the seat's printed hit points are written there in place of the record it did not make.
+ */
+export interface EliminationPolicy {
+  /** The trace entry for the rejoin write, so the log says why an eliminated seat's hit points changed. */
+  readonly id: string;
+  readonly text: string;
+  readonly citation: string;
+  /** Every box prints the rule for its expert campaign only. */
+  readonly whenModes?: ModePredicate;
+  readonly rejoinAtPrintedHitPoints?: { readonly field: string };
+  /**
+   * MC10 p. 17 alone: rejoining is not free — "they can rejoin their teammates for the next scenario **by adding an
+   * obligation to their deck** during setup to restore their identity to full hit points." Maintainer decision
+   * 2026-09-23 (no FFG ruling addresses it): unlike MC16's free rejoin, MC10's "by adding" reads as the *price* of
+   * rejoining, not an option, so this runs unconditionally for every seat `rejoinAtPrintedHitPoints` heals — there
+   * is no `optional` here the way `trors.ts`'s own volunteered obligation draw has one.
+   *
+   * Drawn once per rejoining seat via a synthetic `forEachSeat` (`scope: "sittingOut"`) `random` + `grantCard`,
+   * following the same convention `trors.ts`'s `obligationSetup` already uses for every other obligation grant in
+   * this box: `permanence: "campaign"`, no `excludeGranted` (MC10's four numbered Expert Campaign Sets are
+   * identical, so two seats may hold the same obligation title).
+   */
+  readonly rejoinGrant?: {
+    readonly from: CampaignChoiceSource;
+    /** MC10 p. 17/p. 20's "Obligations" log column — the same field a volunteered draw appends to. */
+    readonly appendToField?: string;
+  };
 }
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -736,8 +876,8 @@ export interface CampaignAttempt {
   readonly input: CampaignGameInput;
   /** `composeVillain` (MC60 p. 9 step 5). Null for a node whose scenario is `fixed`. */
   readonly composedVillain: string | null;
-  /** `composeEncounterSets` (MC60 p. 9 step 6), in the order the ops named them. */
-  readonly composedEncounterSetIds: readonly string[];
+  /** `composeEncounterSets` (MC60 p. 9 step 6), in the order the ops named them, split by `into`. */
+  readonly composedEncounterSets: { readonly deck: readonly string[]; readonly setAside: readonly string[] };
 }
 
 export type CampaignStatus = "active" | "won" | "lost" | "abandoned" | "incompatible";
@@ -869,4 +1009,9 @@ export interface CampaignGameResult {
   readonly logWrites: readonly LogWrite[];
   /** Grants with `permanence: "thisGame"` expiring now — MC32 p. 5's "use it or lose it" role upgrades. */
   readonly expiringGrants: readonly CardId[];
+  /**
+   * Seats sitting out this scenario's Victory steps under `CampaignDefinition.elimination` (§4.6b): eliminated in a
+   * game the team won, in a mode the policy applies to. Absent or empty when nobody sits out.
+   */
+  readonly sittingOut?: readonly number[];
 }

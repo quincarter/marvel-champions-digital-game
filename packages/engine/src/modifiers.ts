@@ -10,6 +10,7 @@ import {
   lastingReaches,
   matchesQuery,
   resolveValue,
+  uncontrolledYouOf,
   type EffectContext,
 } from "./select.js";
 import type { SchemeValueName, StatName } from "./spec.js";
@@ -69,9 +70,11 @@ export function modifiersFor(
     for (const ref of activeAbilityRefs(state, sourceId, deps)) {
       const definition = deps.abilities[ref.id];
       if (!definition || definition.trigger.kind !== "constant") continue;
+      // "Your hero gets -1 THW" on an obligation (Anti-Hero Propaganda) speaks for the player whose play area holds it
+      // (RRG 1.8 "Obligation", p. 30), as its triggered abilities already do (`uncontrolledYouOf`).
       const context: EffectContext = {
         selfInstanceId: sourceId,
-        controllerId: controllerOf(state, sourceId),
+        controllerId: controllerOf(state, sourceId) ?? uncontrolledYouOf(state, sourceId),
         event: null,
         bindings: {},
         deps,

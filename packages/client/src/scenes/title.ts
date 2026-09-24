@@ -9,6 +9,9 @@
  * difficulty, modular sets, seats, seed) — that flow now lives across
  * `ScenarioSelectScene` → `SeatsScene` → `TableSetupScene`, each reading and
  * writing the one `SetupDraft` `New game` hands off to the first of them.
+ *
+ * Campaign opens The Saga (`scenes/campaign/saga.ts`, C00b) — campaign mode's own shelf of boxes, not part of
+ * this menu's own layout beyond the one button.
  */
 
 import Phaser from "phaser";
@@ -228,19 +231,20 @@ export class TitleScene extends Phaser.Scene {
     );
     this.#stops.set("decks", { rect: layout.decks, activate: openDecks });
 
-    const campaignReason = "Campaigns are not part of this build yet.";
+    const openCampaign = (): void => {
+      this.scale.off("resize", this.#rebuild, this);
+      goToScreen(this, SCENES.campaignSaga);
+    };
     this.#buttons.push(
       new McButton(this, {
         kind: menuKind,
-        label: "Campaign — locked",
+        label: "Campaign",
         type: typeRole.rowTitle,
         rect: layout.campaign,
-        enabled: false,
-        reason: campaignReason,
-        onClick: () => {},
+        onClick: openCampaign,
       }),
     );
-    this.#stops.set("campaign", { rect: layout.campaign, activate: () => {} });
+    this.#stops.set("campaign", { rect: layout.campaign, activate: openCampaign });
 
     // W4's Settings is an overlay: launched over this scene, it stops itself on Back (`scenes/settings.ts`).
     const openSettings = (): void => {

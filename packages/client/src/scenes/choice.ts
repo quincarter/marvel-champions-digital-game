@@ -298,8 +298,8 @@ export class ChoiceOverlay extends Phaser.Scene {
     // to the text that already names it would read as two answers to the same question.
     const titleLeft = bar.x + 10;
     const titleText = state.game
-      ? choiceHeaderText(state.game, choice, POOL_DEPS, promptTitle(choice.prompt.kind))
-      : promptTitle(choice.prompt.kind);
+      ? choiceHeaderText(state.game, choice, POOL_DEPS, promptTitle(choice.prompt))
+      : promptTitle(choice.prompt);
     const title = this.add
       .text(titleLeft, bar.y + bar.height / 2, titleText, textStyle(typeRole.barTitle, surface.paper.hex))
       .setOrigin(0, 0.5)
@@ -1109,8 +1109,17 @@ function playerOptionLabel(game: GameState, playerId: PlayerId, perspectiveId: P
     .join(" · ");
 }
 
-/** The design's overlay titles for the engine's prompt kinds. */
-function promptTitle(kind: string): string {
+/**
+ * The design's overlay titles for the engine's prompt kinds. `orderCards`/`chooseBottomCards`
+ * (`reorderCards`'s three-step split, `packages/engine/src/resolve/effects-frame.ts`) share one kind family across
+ * two different piles — give each its own title instead of reusing the top pile's for both, and for the split step
+ * itself, rather than falling back to the generic "Choose".
+ */
+function promptTitle(prompt: { readonly kind: string; readonly to?: string }): string {
+  const kind = prompt.kind;
+  if (kind === "orderCards") {
+    return prompt.to === "encounterDeckBottom" ? "Put the bottom pile back in order" : "Put the top pile back in order";
+  }
   const titles: Record<string, string> = {
     declareDefender: "Declare a defender",
     discardDownToHandSize: "Discard to hand size",
@@ -1118,7 +1127,7 @@ function promptTitle(kind: string): string {
     chooseMinionToActivate: "Choose a minion to activate",
     orderEnemies: "Order the enemies",
     orderPlayers: "Order the players",
-    orderCards: "Put these back in any order",
+    chooseBottomCards: "Choose which cards go to the bottom",
     orderTriggers: "Order these effects",
     chooseTriggers: "Trigger an ability?",
     chooseTarget: "Choose a target",

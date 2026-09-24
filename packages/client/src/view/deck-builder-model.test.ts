@@ -1,5 +1,13 @@
 import { describe, expect, test } from "vitest";
-import { CORE_CARDS, CORE_STARTER_DECKS, WAVE1_CARDS, cardId, deckFromStarterDeck, type Deck } from "@mc/content";
+import {
+  CORE_CARDS,
+  CORE_STARTER_DECKS,
+  TRORS_CARDS,
+  WAVE1_CARDS,
+  cardId,
+  deckFromStarterDeck,
+  type Deck,
+} from "@mc/content";
 import {
   addCard,
   aspectCountFor,
@@ -115,6 +123,17 @@ describe("wave 1 (PLAN.md Phase 7)", () => {
     const pool = browsablePool(WAVE1_CARDS, drStrange, ["protection"]);
     for (const card of pool) expect(invocationNames.has(card.id)).toBe(false);
     expect(pool.length).toBeGreaterThan(0);
+  });
+
+  test('a campaign-specific card (specificTo.kind === "campaign") never appears in the browsable pool, campaign or not — only a campaign grant can add it (MC10 p. 3)', () => {
+    const hawkeye = identityOptions(TRORS_CARDS).find((c) => c.name === "Hawkeye")!;
+    const adrenalStims = TRORS_CARDS.find((c) => c.name === "Adrenal Stims")!;
+    expect("specificTo" in adrenalStims && adrenalStims.specificTo?.kind).toBe("campaign");
+    // basic aspect — would otherwise be browseable regardless of chosen aspect.
+    const pool = browsablePool(TRORS_CARDS, hawkeye, ["leadership"]);
+    expect(pool.some((card) => card.id === adrenalStims.id)).toBe(false);
+    // Ordinary basic cards are unaffected by the filter.
+    expect(pool.some((card) => card.name === "Energy")).toBe(true);
   });
 });
 

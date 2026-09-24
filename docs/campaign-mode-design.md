@@ -1437,6 +1437,77 @@ Because the end-to-end walk cannot reach `@mc/engine`'s internal `testing/fixtur
 reducer is exercised elsewhere (`packages/engine/src/campaign/result.ts`'s tests, and `trors.test.ts` against a
 real driven game), not a second time here.
 
+**MC16 QA (step 4d on PR #35), as built: two gaps the Galaxy's Most Wanted walk found.** Both were pinned by
+skipped tests in `packages/cards/src/campaigns/gmw.qa.test.ts` and are closed in `@mc/engine`. Neither names a box:
+
+1. **"The main scheme is on stage 1B"** (MC16 p. 8 and p. 14). `gmw.ts` read it as `cardsInPlay({printedId:
+cardId("16061b")})`, but no card record has that id. A main scheme is one record with a `stages` array, and the
+   stage in play is `GameState.mainScheme.stageIndex`. The B side is not state: a main scheme in play is always on
+   its B side, because advancing resolves the A side and then flips to B (RRG 1.8 "Main Scheme", p. 27). So "stage
+   1B" is stage 1. `CampaignGameQuery` gained `mainSchemeStageNumber`, the between-games twin of the in-game
+   `ValueSpec` of the same name, which reads the central stage when there are separate game areas. It also gained
+   `equals`, alongside `atLeast`/`atMost`. The bonus is now `equals(mainSchemeStageNumber, 1)`. MC21's "if … 1B
+   was completed" (`mts.gate.test.ts`) still uses its stage-name `cardsThatEnteredPlay` bridge. That is a different
+   fact: RRG p. 27 says a scheme that advances other than by threat is not completed.
+2. **Elimination and Victory** (§1 row 22). All nine boxes print it in their expert campaign rules. MC10 p. 17,
+   MC16 p. 5, MC21 p. 25, MC27 p. 6, MC32 p. 5, MC40 p. 7, MC45 p. 20, MC50 p. 6 and MC60 p. 9 each say "the
+   defeated player does not participate in the Victory steps of that scenario". No box prints the opposite, and none
+   prints the rule for a standard campaign. `CampaignDefinition.elimination` (`EliminationPolicy`, §4.6b in
+   `campaign.ts`) declares it with its own `whenModes`. **Absent means the eliminated seat participates**, which is
+   what every box does outside its expert rules. Under the policy, `campaignResultOf` marks the eliminated seats of
+   a won game as `CampaignGameResult.sittingOut` and writes them no `"each"`/`"self"` record. The runner's per-seat
+   ops (`forEachSeat`, a per-seat `choose`, an unscoped per-seat write) skip those seats in that game's Victory
+   instructions. Shared writes still happen, and `seatCount` still counts every player. The rejoin differs by box.
+   Eight print a _paid_ heal in the next setup, which their own setup instructions carry. MC16 p. 5 alone heals
+   "to its printed hit point value" at no cost (ruling June 2, 2026 (3) #1: "Heal identity to printed HP at no
+   cost"). `rejoinAtPrintedHitPoints: { field }` writes the identity card's printed `hp` into that per-seat field,
+   in place of the record the seat did not make. It is traced as its own step under the policy's `id`, after the
+   node's Victory instructions. `gmw.ts` declares the policy for `expertCampaign`.
+
+Tests: `packages/engine/src/campaign/new-primitives.test.ts` ("CampaignGameQuery.mainSchemeStageNumber and equals",
+"CampaignDefinition.elimination") and the two un-skipped `gmw.qa.test.ts` groups.
+
+**MC10 QA (step 4e on PR #35): `trors.ts` declares the same rule, but the obligation is mandatory, not free.**
+**Q19. Is MC10's rejoin free (MC16's reading) or does it cost the printed obligation? Decided by the maintainer,
+2026-09-23 (no FFG ruling exists to settle it either way): the obligation is required.** MC10 p. 17 says the
+defeated seat "can rejoin their teammates for the next scenario by adding an obligation to their deck during
+setup to restore their identity to full hit points" — worded as a price ("by adding …"), unlike MC16 p. 5's plain
+"healing their identity to its printed hit point value" with no cost attached (closed by ruling June 2, 2026 (3)
+#1, "at no cost"). No ruling addresses MC10 specifically, so each box's own printed wording is read on its own
+terms rather than assumed to match its sibling. `EliminationPolicy` gained `rejoinGrant: { from:
+CampaignChoiceSource; appendToField?: string }`, run unconditionally (no `optional`) for every seat
+`rejoinAtPrintedHitPoints` heals — the general primitive is `CampaignOp` `forEachSeat`'s new `scope?:
+"participating" | "sittingOut"` (default `"participating"`, unchanged for every existing box), so a policy's own
+synthetic instruction can run _only_ for the seats it is rejoining, the complement of every other per-seat op's
+audience. `runner.ts`'s `rejoinInstruction` emits a second, `betweenGames` instruction (`${policy.id}.obligation`)
+alongside the existing `record` one, drawing one obligation via a mandatory (non-optional) `random` and granting it
+with `permanence: "campaign"` — the same convention `trors.ts`'s own volunteered obligation draw (`obligationSetup`)
+already uses, from the same `EXPERT_CAMPAIGN_SET`, appended to the same `obligations` field. `trors.ts` declares
+`elimination` with both `rejoinAtPrintedHitPoints: { field: "remainingHp" }` and `rejoinGrant`, gated
+`expertCampaign: true` like every other box's rule. Tests: `packages/cards/src/campaigns/trors.qa.test.ts`'s
+`'MC10 p. 17 "Elimination and Victory"'` describe block (a sitting-out seat's Victory steps are skipped; it rejoins
+with exactly one new obligation and full printed hit points; a standard campaign applies neither; an uneliminated
+seat leaves no trace of the rule at all). Fixing this also surfaced a real interaction in the box's own pre-existing
+"persistent damage" test: its real, driven Crossbones game naturally loses by both identities being defeated, and
+the test's own documented "forced win" override (re-deriving `campaignResultOf` against that finished state with
+`outcome` overridden to a win) had left `eliminated: true` on both players — which the newly-wired policy now
+(correctly) reads as both seats sitting out and rejoining at full HP, erasing the very persistent damage the test
+exists to check. The override now also clears `eliminated`, consistent with the fictional premise it already stood
+on (a real win never leaves every seat eliminated).
+
+**Step 4f on PR #35: an obligation drawn from a player deck goes into that player's play area.** MC10 p. 17
+("Obligations in Player Decks") and RRG 1.8 "Obligation" (p. 30). Every player-deck draw goes through `drawOne` in
+`packages/engine/src/effects.ts`: a drawn obligation is logged `cardDrawn` + `drawnObligationPlaced`, enters the
+drawing player's play area faceup and uncontrolled (it is still an encounter card), and is announced as
+`cardEntersPlay`. It is placed, not revealed, so no "When Revealed" resolves (none of 04163–04166 prints one). A
+counted draw ("draw 3", and the setup draw and mulligan per Q20) counts it as one of the cards; a refill
+(`drawUpTo`: the end-of-phase draw, "draw up to your hand size" effects) keeps drawing past it, re-reading hand size
+after every card so a drawn Martial Law lowers the target at once. `useAbility` refuses an obligation's ability to any player but the
+one whose play area holds it, and constant modifiers on an obligation ("Your hero gets -1 THW") now read "you" as
+that player (`modifiers.ts`, `uncontrolledYouOf`). The setup reading is Q20. Tests:
+`packages/engine/src/drawn-obligation.test.ts`; the four obligations in
+`packages/cards/src/wave2/trors/campaign-cards.test.ts` are now drawn for real.
+
 ---
 
 ## 12. Open questions
@@ -1520,3 +1591,22 @@ the same set"), **Villainous** (MC60 p. 3 rewritten around "uses a basic power",
 **Vulnerable** (MC50 p. 3 → MC60 p. 3 adds a first-player tie-break for simultaneous defeat). MC45 p. 3 also relaxes
 **Teamwork** from "each minion that shares the keyword activates" (MC32 p. 3) to "the minion that just entered play
 activates" — a genuine behavioural change to an implemented keyword.
+
+**Q20. Obligations drawn at setup (opening hand and mulligan). Maintainer decision (2026-09-23), adopting a
+community (Reddit) reading of MC10 p. 17 and RRG 1.8 Appendix II steps 14–15; no FFG ruling exists — revisit if FFG
+rules on it.** Source: [r/marvelchampionslcg community comment](https://www.reddit.com/r/marvelchampionslcg/comments/zph2j1/comment/j0t7kwq/),
+adopted by the maintainer 2026-09-23; not an FFG ruling. RRG 1.8 Appendix II (p. 51) says nothing about obligations;
+MC10 p. 17 says "When a player draws an obligation from their deck, they must immediately put that card into play in
+their play area. They do not draw a card to replace that obligation." The first build read steps 14 and 15 as
+refills (RRG 1.8 "Obligation", p. 30's exception); the decision reads both as counted draws instead:
+
+| Draw                                                           | Obligation drawn   | Replaced?                                                                                            |
+| -------------------------------------------------------------- | ------------------ | ---------------------------------------------------------------------------------------------------- |
+| Opening hand (step 14): a counted draw of hand-size cards      | into the play area | not then; the mulligan's draw up to hand size makes the hand up, even if the player discards nothing |
+| Mulligan (step 15): a counted draw of (hand size − hand) cards | into the play area | no: the player ends a card short                                                                     |
+| Martial Law (hand size −1) in the opening hand                 | into the play area | the mulligan draws up to the **reduced** hand size, read when the mulligan's draw is computed        |
+| End-of-phase draw; "draw up to your hand size" effects         | into the play area | yes, unchanged: refills keep drawing past it (RRG 1.8 p. 30)                                         |
+
+Built in `packages/engine/src/flow.ts` (`executeDrawStartingHands` and `afterMulliganChoice` use `drawCards`; a
+player whose opening hand is empty still gets the mulligan's draw). Tests: the "obligations drawn at setup" describe
+block in `packages/engine/src/drawn-obligation.test.ts`.

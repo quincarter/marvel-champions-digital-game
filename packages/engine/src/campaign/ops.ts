@@ -114,6 +114,11 @@ export interface CampaignRun {
   readonly phase: CampaignRunPhase;
   /** What the finished game computed for each `record` instruction, by instruction id (`afterGame` only). */
   readonly records: ReadonlyMap<string, readonly LogWrite[]>;
+  /**
+   * Seats sitting out this scenario's Victory steps (`CampaignGameResult.sittingOut`, design §4.6b): no per-seat op
+   * runs for them. `seatCount` still counts them — "1[per_hero]" is the number of players who played the game.
+   */
+  readonly sittingOut: readonly number[];
   working: CampaignWorkingLog;
   /** The node whose instructions are running; `CampaignGrant.grantedAtNodeId` and `progressNode` read it. */
   nodeId: string;
@@ -123,7 +128,8 @@ export interface CampaignRun {
   /** `inGame` instructions collected for the game about to be built (`beforeGame` only), in printed order. */
   instructions: ResolvedInstruction[];
   composedVillain: string | null;
-  composedEncounterSetIds: string[];
+  /** `composeEncounterSets`, split by `into` (default `"deck"`). */
+  composedEncounterSets: { deck: string[]; setAside: string[] };
   /** Choices made earlier in this same step list, by `${slot}\u0000${seat}` (`CampaignValue` `choice`). */
   slots: Map<string, readonly string[]>;
   // --- accumulators for the instruction currently resolving ---
@@ -144,6 +150,14 @@ export interface CampaignRun {
 export type CampaignScalar = number | string | boolean;
 
 const seatNumbers = (run: CampaignRun): readonly number[] => run.working.seats.map((seat) => seat.seatNumber);
+
+/** The seats a per-seat op runs for: every seat but those sitting out the Victory steps (design §4.6b). */
+const participatingSeats = (run: CampaignRun): readonly number[] =>
+  seatNumbers(run).filter((seatNumber) => !run.sittingOut.includes(seatNumber));
+
+/** The complement of `participatingSeats`: only the seats sitting out (`forEachSeat`'s `scope: "sittingOut"`). */
+const sittingOutSeats = (run: CampaignRun): readonly number[] =>
+  seatNumbers(run).filter((seatNumber) => run.sittingOut.includes(seatNumber));
 
 /**
  * The seat a `seat: "self" | "each"` on a *value* addresses.
@@ -237,6 +251,12 @@ export function campaignValues(run: CampaignRun, value: CampaignValue): readonly
       return [Math.max(0, campaignNumber(run, value.of))];
     case "choice":
       return slotValues(run, value.slot);
+    case "seatCount":
+      return [seatNumbers(run).length];
+    case "divide": {
+      const raw = campaignNumber(run, value.of) / value.by;
+      return [value.round === "down" ? Math.floor(raw) : Math.ceil(raw)];
+    }
   }
 }
 
@@ -308,6 +328,8 @@ export function evaluateCampaignPredicate(run: CampaignRun, predicate: CampaignP
       return predicate.of.every((part) => evaluateCampaignPredicate(run, part));
     case "or":
       return predicate.of.some((part) => evaluateCampaignPredicate(run, part));
+    case "valueAtLeast":
+      return campaignNumber(run, predicate.value) >= campaignNumber(run, predicate.amount);
   }
 }
 
@@ -403,6 +425,9 @@ function matchesCollectionFilter(
   }
   if (filter.maxPrintedCost !== undefined) {
     if (!("cost" in card) || typeof card.cost !== "number" || card.cost > filter.maxPrintedCost) return false;
+  }
+  if (filter.unitCostExactly !== undefined) {
+    if (!("unitCost" in card) || card.unitCost !== filter.unitCostExactly) return false;
   }
   if (filter.excludeCardIds?.includes(card.id)) return false;
   return true;
@@ -559,8 +584,8 @@ function logValueFor(run: CampaignRun, field: string, value: CampaignValue): Log
 /** The seats an op with `seat: "self"` runs for: the scoped one, or every seat in turn (`grantCard`'s "each"). */
 const targetSeats = (run: CampaignRun, seat: "self" | "each" | undefined): readonly (number | null)[] => {
   if (seat === undefined) return [null];
-  if (seat === "each") return seatNumbers(run);
-  return run.seatScope === null ? seatNumbers(run) : [run.seatScope];
+  if (seat === "each") return participatingSeats(run);
+  return run.seatScope === null ? participatingSeats(run) : [run.seatScope];
 };
 
 const withSeat = (run: CampaignRun, seatNumber: number | null, body: () => void): void => {
@@ -657,7 +682,7 @@ function recordChoice(
 /** The seats a `choose`/`random` asks. `eachSeat` inside a `forEachSeat` is just that seat. */
 const choosingSeats = (run: CampaignRun, chooser: "eachSeat" | "group" | "firstPlayer"): readonly (number | null)[] => {
   if (chooser !== "eachSeat") return [null];
-  return run.seatScope === null ? seatNumbers(run) : [run.seatScope];
+  return run.seatScope === null ? participatingSeats(run) : [run.seatScope];
 };
 
 function runChoose(
@@ -853,14 +878,16 @@ export function runCampaignOp(run: CampaignRun, op: CampaignOp, instruction: Cam
     case "composeVillain":
       run.composedVillain = campaignString(run, op.villain);
       return;
-    case "composeEncounterSets":
-      run.composedEncounterSetIds = [
-        ...run.composedEncounterSetIds,
+    case "composeEncounterSets": {
+      const bucket = op.into ?? "deck";
+      run.composedEncounterSets[bucket] = [
+        ...run.composedEncounterSets[bucket],
         ...op.sets.flatMap((set) => campaignStrings(run, set)),
       ];
       return;
+    }
     case "forEachSeat":
-      for (const seatNumber of seatNumbers(run)) {
+      for (const seatNumber of op.scope === "sittingOut" ? sittingOutSeats(run) : participatingSeats(run)) {
         withSeat(run, seatNumber, () => {
           for (const inner of op.ops) runCampaignOp(run, inner, instruction);
         });

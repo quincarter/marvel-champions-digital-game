@@ -37,8 +37,18 @@ export type ChoicePrompt =
   /**
    * "Put the others back in any order" (Heimdall): the selections are the cards, in the order they go back on top of
    * the deck. RRG 1.8 "Deck" (p. 15): a deck's order changes only when a card instructs it.
+   *
+   * `to: "encounterDeckBottom"` (docs/phase7-wave3.md §3.48): the cards going to the bottom of the encounter deck. Both
+   * piles read the way the deck will: the first card selected is the highest of its pile, so the last card selected
+   * for the bottom becomes the deck's bottom card.
    */
-  | { readonly kind: "orderCards"; readonly to: "encounterDeckTop" }
+  | { readonly kind: "orderCards"; readonly to: "encounterDeckTop" | "encounterDeckBottom" }
+  /**
+   * "Place the rest on the top and/or bottom of the encounter deck" (docs/phase7-wave3.md §3.48): select the cards that
+   * go to the bottom; every card not selected goes on top. Any number may be selected, none included. Each pile of two
+   * or more cards is then ordered (`orderCards`).
+   */
+  | { readonly kind: "chooseBottomCards"; readonly deck: "encounterDeck" }
   /** Optional interrupts/responses: a controller picks which of theirs to use, in order. */
   | { readonly kind: "chooseTriggers"; readonly event: TriggerEvent; readonly timing: WindowTiming }
   | { readonly kind: "chooseTarget"; readonly slot: string; readonly abilityId: AbilityId | null }

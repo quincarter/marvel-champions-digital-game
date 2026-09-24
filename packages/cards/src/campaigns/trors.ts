@@ -360,6 +360,30 @@ export const TRORS_CAMPAIGN_DEFINITION: CampaignDefinition = {
   // Skull's own `defeat` block — gated `expertCampaign: true` — somewhere to live. `retry: "free"` cannot express
   // that exception at all, since it skips every node's `defeat` unconditionally.
   loss: { retry: "byInstruction", retryBaseline: "nodeStart" },
+  // MC10 p. 17 "Elimination and Victory": "If a player is defeated during a scenario that their teammates go on to
+  // win, the defeated player does not participate in any of the victory steps for that scenario. However, they can
+  // rejoin their teammates for the next scenario by adding an obligation to their deck during setup to restore
+  // their identity to full hit points." Maintainer decision 2026-09-23 (no FFG ruling exists to settle it): unlike
+  // MC16 p. 5's free rejoin, "by adding an obligation" reads as the price of rejoining, not an optional extra, so
+  // `rejoinGrant` is unconditional here — see its own doc comment on `EliminationPolicy` in `@mc/engine`.
+  // `rejoinAtPrintedHitPoints` writes `remainingHp`, the same field `mc10.*.setup.hp`'s "Set each player's hit
+  // points to their remaining hit point value" already reads every scenario, so "full hit points" for a rejoining
+  // seat is simply that field holding the seat's printed HP instead of a lower recorded value — no separate heal
+  // path is needed. The obligation itself is drawn from `EXPERT_CAMPAIGN_SET` with no `filter` (the set holds only
+  // obligations) and appended to `obligations`, the same field `obligationSetup`'s own volunteered draw writes, per
+  // this file's header note 1: the ingested data is one shared `expcamp` set rather than four numbered per-seat
+  // ones, so this reads that one set exactly as every other obligation draw in this file already does.
+  elimination: {
+    id: "mc10.elimination.rejoin",
+    text: "Expert Campaign Only: If a player is defeated during a scenario that their teammates go on to win, the defeated player does not participate in any of the victory steps for that scenario. However, they can rejoin their teammates for the next scenario by adding an obligation to their deck during setup to restore their identity to full hit points.",
+    citation: "MC10 p. 17; maintainer decision 2026-09-23 (obligation required, not optional; no FFG ruling)",
+    whenModes: { expertCampaign: true },
+    rejoinAtPrintedHitPoints: { field: "remainingHp" },
+    rejoinGrant: {
+      from: { kind: "campaignSet", encounterSetId: EXPERT_CAMPAIGN_SET },
+      appendToField: "obligations",
+    },
+  },
   graph: {
     kind: "linear",
     nodes: [

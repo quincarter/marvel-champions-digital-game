@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-22T23:08:26.696Z",
+  "generatedAt": "2026-09-23T19:14:29.865Z",
   "viewport": {
     "width": 1600,
     "height": 1200
@@ -78,6 +78,170 @@
         {
           "label": "D-C11 Finale",
           "screenshot": "artifacts/design-screenshots/individual/campaign-desktop.dc/15-d-c11-finale.png"
+        },
+        {
+          "label": "D-16·C01 Cover",
+          "screenshot": "artifacts/design-screenshots/individual/campaign-desktop.dc/16-d-16-c01-cover.png"
+        },
+        {
+          "label": "D-16·C03 Issue opener",
+          "screenshot": "artifacts/design-screenshots/individual/campaign-desktop.dc/17-d-16-c03-issue-opener.png"
+        },
+        {
+          "label": "D-16·C05 Aftermath market",
+          "screenshot": "artifacts/design-screenshots/individual/campaign-desktop.dc/18-d-16-c05-aftermath-market.png"
+        },
+        {
+          "label": "D-16·C09 Dossier bounty",
+          "screenshot": "artifacts/design-screenshots/individual/campaign-desktop.dc/19-d-16-c09-dossier-bounty.png"
+        },
+        {
+          "label": "D-16·C12 Deck edit expert",
+          "screenshot": "artifacts/design-screenshots/individual/campaign-desktop.dc/20-d-16-c12-deck-edit-expert.png"
+        },
+        {
+          "label": "D-21·C01 Cover",
+          "screenshot": "artifacts/design-screenshots/individual/campaign-desktop.dc/21-d-21-c01-cover.png"
+        },
+        {
+          "label": "D-21·C03 Issue opener",
+          "screenshot": "artifacts/design-screenshots/individual/campaign-desktop.dc/22-d-21-c03-issue-opener.png"
+        },
+        {
+          "label": "D-21·C09 Dossier pool",
+          "screenshot": "artifacts/design-screenshots/individual/campaign-desktop.dc/23-d-21-c09-dossier-pool.png"
+        },
+        {
+          "label": "D-21·C07 Briefing pool",
+          "screenshot": "artifacts/design-screenshots/individual/campaign-desktop.dc/24-d-21-c07-briefing-pool.png"
+        },
+        {
+          "label": "D-27·C01 Cover",
+          "screenshot": "artifacts/design-screenshots/individual/campaign-desktop.dc/25-d-27-c01-cover.png"
+        },
+        {
+          "label": "D-27·C03 Issue opener",
+          "screenshot": "artifacts/design-screenshots/individual/campaign-desktop.dc/26-d-27-c03-issue-opener.png"
+        },
+        {
+          "label": "D-27·C05 Aftermath dealt tech",
+          "screenshot": "artifacts/design-screenshots/individual/campaign-desktop.dc/27-d-27-c05-aftermath-dealt-tech.png"
+        },
+        {
+          "label": "D-27·C05b Aftermath aspect advantage",
+          "screenshot": "artifacts/design-screenshots/individual/campaign-desktop.dc/28-d-27-c05b-aftermath-aspect-advantage.png"
+        },
+        {
+          "label": "D-27·C09 Dossier reputation",
+          "screenshot": "artifacts/design-screenshots/individual/campaign-desktop.dc/29-d-27-c09-dossier-reputation.png"
+        },
+        {
+          "label": "D-27·C07 Briefing reputation",
+          "screenshot": "artifacts/design-screenshots/individual/campaign-desktop.dc/30-d-27-c07-briefing-reputation.png"
+        },
+        {
+          "label": "D-32·C01 Cover",
+          "screenshot": "artifacts/design-screenshots/individual/campaign-desktop.dc/31-d-32-c01-cover.png"
+        },
+        {
+          "label": "D-32·C03 Issue opener",
+          "screenshot": "artifacts/design-screenshots/individual/campaign-desktop.dc/32-d-32-c03-issue-opener.png"
+        },
+        {
+          "label": "D-32·C02 Roster roles",
+          "screenshot": "artifacts/design-screenshots/individual/campaign-desktop.dc/33-d-32-c02-roster-roles.png"
+        },
+        {
+          "label": "D-32·C07 Briefing role-building",
+          "screenshot": "artifacts/design-screenshots/individual/campaign-desktop.dc/34-d-32-c07-briefing-role-building.png"
+        },
+        {
+          "label": "D-32·C05 Aftermath use it or lose it",
+          "screenshot": "artifacts/design-screenshots/individual/campaign-desktop.dc/35-d-32-c05-aftermath-use-it-or-lose-it.png"
+        },
+        {
+          "label": "D-40·C01 Cover",
+          "screenshot": "artifacts/design-screenshots/individual/campaign-desktop.dc/36-d-40-c01-cover.png"
+        },
+        {
+          "label": "D-40·C03 Issue opener",
+          "screenshot": "artifacts/design-screenshots/individual/campaign-desktop.dc/37-d-40-c03-issue-opener.png"
+        },
+        {
+          "label": "D-40·C07 Briefing side scheme",
+          "screenshot": "artifacts/design-screenshots/individual/campaign-desktop.dc/38-d-40-c07-briefing-side-scheme.png"
+        },
+        {
+          "label": "D-40·C09 Dossier earned",
+          "screenshot": "artifacts/design-screenshots/individual/campaign-desktop.dc/39-d-40-c09-dossier-earned.png"
+        },
+        {
+          "label": "D-40·C08 Defeat rewind same choice",
+          "screenshot": "artifacts/design-screenshots/individual/campaign-desktop.dc/40-d-40-c08-defeat-rewind-same-choice.png"
+        },
+        {
+          "label": "D-45·C01 Cover",
+          "screenshot": "artifacts/design-screenshots/individual/campaign-desktop.dc/41-d-45-c01-cover.png"
+        },
+        {
+          "label": "D-45·C03 Issue opener",
+          "screenshot": "artifacts/design-screenshots/individual/campaign-desktop.dc/42-d-45-c03-issue-opener.png"
+        },
+        {
+          "label": "D-45·C05 Aftermath mission report",
+          "screenshot": "artifacts/design-screenshots/individual/campaign-desktop.dc/43-d-45-c05-aftermath-mission-report.png"
+        },
+        {
+          "label": "D-45·C09 Dossier strike lists",
+          "screenshot": "artifacts/design-screenshots/individual/campaign-desktop.dc/44-d-45-c09-dossier-strike-lists.png"
+        },
+        {
+          "label": "D-45·C10 Finale lost",
+          "screenshot": "artifacts/design-screenshots/individual/campaign-desktop.dc/45-d-45-c10-finale-lost.png"
+        },
+        {
+          "label": "D-50·C01 Cover",
+          "screenshot": "artifacts/design-screenshots/individual/campaign-desktop.dc/46-d-50-c01-cover.png"
+        },
+        {
+          "label": "D-50·C03 Issue opener",
+          "screenshot": "artifacts/design-screenshots/individual/campaign-desktop.dc/47-d-50-c03-issue-opener.png"
+        },
+        {
+          "label": "D-50·C09 Dossier deduction",
+          "screenshot": "artifacts/design-screenshots/individual/campaign-desktop.dc/48-d-50-c09-dossier-deduction.png"
+        },
+        {
+          "label": "D-50·C09b Dossier board",
+          "screenshot": "artifacts/design-screenshots/individual/campaign-desktop.dc/49-d-50-c09b-dossier-board.png"
+        },
+        {
+          "label": "D-50·C07 Briefing windows",
+          "screenshot": "artifacts/design-screenshots/individual/campaign-desktop.dc/50-d-50-c07-briefing-windows.png"
+        },
+        {
+          "label": "D-50·C08 Defeat real cost",
+          "screenshot": "artifacts/design-screenshots/individual/campaign-desktop.dc/51-d-50-c08-defeat-real-cost.png"
+        },
+        {
+          "label": "D-60·C01 Cover",
+          "screenshot": "artifacts/design-screenshots/individual/campaign-desktop.dc/52-d-60-c01-cover.png"
+        },
+        {
+          "label": "D-60·C03 Issue opener",
+          "screenshot": "artifacts/design-screenshots/individual/campaign-desktop.dc/53-d-60-c03-issue-opener.png"
+        },
+        {
+          "label": "D-60·C06 The city choice",
+          "screenshot": "artifacts/design-screenshots/individual/campaign-desktop.dc/54-d-60-c06-the-city-choice.png"
+        },
+        {
+          "label": "D-60·C07 Briefing composed",
+          "screenshot": "artifacts/design-screenshots/individual/campaign-desktop.dc/55-d-60-c07-briefing-composed.png"
+        },
+        {
+          "label": "D-60·C08 Defeat city moves",
+          "screenshot": "artifacts/design-screenshots/individual/campaign-desktop.dc/56-d-60-c08-defeat-city-moves.png"
         }
       ]
     },
@@ -144,6 +308,170 @@
         {
           "label": "C10 Finale",
           "screenshot": "artifacts/design-screenshots/individual/campaign-phone.dc/15-c10-finale.png"
+        },
+        {
+          "label": "16·C01 Cover",
+          "screenshot": "artifacts/design-screenshots/individual/campaign-phone.dc/16-16-c01-cover.png"
+        },
+        {
+          "label": "16·C03 Issue opener",
+          "screenshot": "artifacts/design-screenshots/individual/campaign-phone.dc/17-16-c03-issue-opener.png"
+        },
+        {
+          "label": "16·C05 Aftermath market",
+          "screenshot": "artifacts/design-screenshots/individual/campaign-phone.dc/18-16-c05-aftermath-market.png"
+        },
+        {
+          "label": "16·C09 Dossier bounty",
+          "screenshot": "artifacts/design-screenshots/individual/campaign-phone.dc/19-16-c09-dossier-bounty.png"
+        },
+        {
+          "label": "16·C12 Deck edit expert",
+          "screenshot": "artifacts/design-screenshots/individual/campaign-phone.dc/20-16-c12-deck-edit-expert.png"
+        },
+        {
+          "label": "21·C01 Cover",
+          "screenshot": "artifacts/design-screenshots/individual/campaign-phone.dc/21-21-c01-cover.png"
+        },
+        {
+          "label": "21·C03 Issue opener",
+          "screenshot": "artifacts/design-screenshots/individual/campaign-phone.dc/22-21-c03-issue-opener.png"
+        },
+        {
+          "label": "21·C09 Dossier pool",
+          "screenshot": "artifacts/design-screenshots/individual/campaign-phone.dc/23-21-c09-dossier-pool.png"
+        },
+        {
+          "label": "21·C07 Briefing pool",
+          "screenshot": "artifacts/design-screenshots/individual/campaign-phone.dc/24-21-c07-briefing-pool.png"
+        },
+        {
+          "label": "27·C01 Cover",
+          "screenshot": "artifacts/design-screenshots/individual/campaign-phone.dc/25-27-c01-cover.png"
+        },
+        {
+          "label": "27·C03 Issue opener",
+          "screenshot": "artifacts/design-screenshots/individual/campaign-phone.dc/26-27-c03-issue-opener.png"
+        },
+        {
+          "label": "27·C05 Aftermath dealt tech",
+          "screenshot": "artifacts/design-screenshots/individual/campaign-phone.dc/27-27-c05-aftermath-dealt-tech.png"
+        },
+        {
+          "label": "27·C05b Aftermath aspect advantage",
+          "screenshot": "artifacts/design-screenshots/individual/campaign-phone.dc/28-27-c05b-aftermath-aspect-advantage.png"
+        },
+        {
+          "label": "27·C09 Dossier reputation",
+          "screenshot": "artifacts/design-screenshots/individual/campaign-phone.dc/29-27-c09-dossier-reputation.png"
+        },
+        {
+          "label": "27·C07 Briefing reputation",
+          "screenshot": "artifacts/design-screenshots/individual/campaign-phone.dc/30-27-c07-briefing-reputation.png"
+        },
+        {
+          "label": "32·C01 Cover",
+          "screenshot": "artifacts/design-screenshots/individual/campaign-phone.dc/31-32-c01-cover.png"
+        },
+        {
+          "label": "32·C03 Issue opener",
+          "screenshot": "artifacts/design-screenshots/individual/campaign-phone.dc/32-32-c03-issue-opener.png"
+        },
+        {
+          "label": "32·C02 Roster roles",
+          "screenshot": "artifacts/design-screenshots/individual/campaign-phone.dc/33-32-c02-roster-roles.png"
+        },
+        {
+          "label": "32·C07 Briefing role-building",
+          "screenshot": "artifacts/design-screenshots/individual/campaign-phone.dc/34-32-c07-briefing-role-building.png"
+        },
+        {
+          "label": "32·C05 Aftermath use it or lose it",
+          "screenshot": "artifacts/design-screenshots/individual/campaign-phone.dc/35-32-c05-aftermath-use-it-or-lose-it.png"
+        },
+        {
+          "label": "40·C01 Cover",
+          "screenshot": "artifacts/design-screenshots/individual/campaign-phone.dc/36-40-c01-cover.png"
+        },
+        {
+          "label": "40·C03 Issue opener",
+          "screenshot": "artifacts/design-screenshots/individual/campaign-phone.dc/37-40-c03-issue-opener.png"
+        },
+        {
+          "label": "40·C07 Briefing side scheme",
+          "screenshot": "artifacts/design-screenshots/individual/campaign-phone.dc/38-40-c07-briefing-side-scheme.png"
+        },
+        {
+          "label": "40·C09 Dossier earned",
+          "screenshot": "artifacts/design-screenshots/individual/campaign-phone.dc/39-40-c09-dossier-earned.png"
+        },
+        {
+          "label": "40·C08 Defeat rewind same choice",
+          "screenshot": "artifacts/design-screenshots/individual/campaign-phone.dc/40-40-c08-defeat-rewind-same-choice.png"
+        },
+        {
+          "label": "45·C01 Cover",
+          "screenshot": "artifacts/design-screenshots/individual/campaign-phone.dc/41-45-c01-cover.png"
+        },
+        {
+          "label": "45·C03 Issue opener",
+          "screenshot": "artifacts/design-screenshots/individual/campaign-phone.dc/42-45-c03-issue-opener.png"
+        },
+        {
+          "label": "45·C05 Aftermath mission report",
+          "screenshot": "artifacts/design-screenshots/individual/campaign-phone.dc/43-45-c05-aftermath-mission-report.png"
+        },
+        {
+          "label": "45·C09 Dossier strike lists",
+          "screenshot": "artifacts/design-screenshots/individual/campaign-phone.dc/44-45-c09-dossier-strike-lists.png"
+        },
+        {
+          "label": "45·C10 Finale lost",
+          "screenshot": "artifacts/design-screenshots/individual/campaign-phone.dc/45-45-c10-finale-lost.png"
+        },
+        {
+          "label": "50·C01 Cover",
+          "screenshot": "artifacts/design-screenshots/individual/campaign-phone.dc/46-50-c01-cover.png"
+        },
+        {
+          "label": "50·C03 Issue opener",
+          "screenshot": "artifacts/design-screenshots/individual/campaign-phone.dc/47-50-c03-issue-opener.png"
+        },
+        {
+          "label": "50·C09 Dossier deduction",
+          "screenshot": "artifacts/design-screenshots/individual/campaign-phone.dc/48-50-c09-dossier-deduction.png"
+        },
+        {
+          "label": "50·C09b Dossier board",
+          "screenshot": "artifacts/design-screenshots/individual/campaign-phone.dc/49-50-c09b-dossier-board.png"
+        },
+        {
+          "label": "50·C07 Briefing windows",
+          "screenshot": "artifacts/design-screenshots/individual/campaign-phone.dc/50-50-c07-briefing-windows.png"
+        },
+        {
+          "label": "50·C08 Defeat real cost",
+          "screenshot": "artifacts/design-screenshots/individual/campaign-phone.dc/51-50-c08-defeat-real-cost.png"
+        },
+        {
+          "label": "60·C01 Cover",
+          "screenshot": "artifacts/design-screenshots/individual/campaign-phone.dc/52-60-c01-cover.png"
+        },
+        {
+          "label": "60·C03 Issue opener",
+          "screenshot": "artifacts/design-screenshots/individual/campaign-phone.dc/53-60-c03-issue-opener.png"
+        },
+        {
+          "label": "60·C06 The city choice",
+          "screenshot": "artifacts/design-screenshots/individual/campaign-phone.dc/54-60-c06-the-city-choice.png"
+        },
+        {
+          "label": "60·C07 Briefing composed",
+          "screenshot": "artifacts/design-screenshots/individual/campaign-phone.dc/55-60-c07-briefing-composed.png"
+        },
+        {
+          "label": "60·C08 Defeat city moves",
+          "screenshot": "artifacts/design-screenshots/individual/campaign-phone.dc/56-60-c08-defeat-city-moves.png"
         }
       ]
     },
@@ -210,6 +538,170 @@
         {
           "label": "T-C11 Finale",
           "screenshot": "artifacts/design-screenshots/individual/campaign-tablet.dc/15-t-c11-finale.png"
+        },
+        {
+          "label": "T-16·C01 Cover",
+          "screenshot": "artifacts/design-screenshots/individual/campaign-tablet.dc/16-t-16-c01-cover.png"
+        },
+        {
+          "label": "T-16·C03 Issue opener",
+          "screenshot": "artifacts/design-screenshots/individual/campaign-tablet.dc/17-t-16-c03-issue-opener.png"
+        },
+        {
+          "label": "T-16·C05 Aftermath market",
+          "screenshot": "artifacts/design-screenshots/individual/campaign-tablet.dc/18-t-16-c05-aftermath-market.png"
+        },
+        {
+          "label": "T-16·C09 Dossier bounty",
+          "screenshot": "artifacts/design-screenshots/individual/campaign-tablet.dc/19-t-16-c09-dossier-bounty.png"
+        },
+        {
+          "label": "T-16·C12 Deck edit expert",
+          "screenshot": "artifacts/design-screenshots/individual/campaign-tablet.dc/20-t-16-c12-deck-edit-expert.png"
+        },
+        {
+          "label": "T-21·C01 Cover",
+          "screenshot": "artifacts/design-screenshots/individual/campaign-tablet.dc/21-t-21-c01-cover.png"
+        },
+        {
+          "label": "T-21·C03 Issue opener",
+          "screenshot": "artifacts/design-screenshots/individual/campaign-tablet.dc/22-t-21-c03-issue-opener.png"
+        },
+        {
+          "label": "T-21·C09 Dossier pool",
+          "screenshot": "artifacts/design-screenshots/individual/campaign-tablet.dc/23-t-21-c09-dossier-pool.png"
+        },
+        {
+          "label": "T-21·C07 Briefing pool",
+          "screenshot": "artifacts/design-screenshots/individual/campaign-tablet.dc/24-t-21-c07-briefing-pool.png"
+        },
+        {
+          "label": "T-27·C01 Cover",
+          "screenshot": "artifacts/design-screenshots/individual/campaign-tablet.dc/25-t-27-c01-cover.png"
+        },
+        {
+          "label": "T-27·C03 Issue opener",
+          "screenshot": "artifacts/design-screenshots/individual/campaign-tablet.dc/26-t-27-c03-issue-opener.png"
+        },
+        {
+          "label": "T-27·C05 Aftermath dealt tech",
+          "screenshot": "artifacts/design-screenshots/individual/campaign-tablet.dc/27-t-27-c05-aftermath-dealt-tech.png"
+        },
+        {
+          "label": "T-27·C05b Aftermath aspect advantage",
+          "screenshot": "artifacts/design-screenshots/individual/campaign-tablet.dc/28-t-27-c05b-aftermath-aspect-advantage.png"
+        },
+        {
+          "label": "T-27·C09 Dossier reputation",
+          "screenshot": "artifacts/design-screenshots/individual/campaign-tablet.dc/29-t-27-c09-dossier-reputation.png"
+        },
+        {
+          "label": "T-27·C07 Briefing reputation",
+          "screenshot": "artifacts/design-screenshots/individual/campaign-tablet.dc/30-t-27-c07-briefing-reputation.png"
+        },
+        {
+          "label": "T-32·C01 Cover",
+          "screenshot": "artifacts/design-screenshots/individual/campaign-tablet.dc/31-t-32-c01-cover.png"
+        },
+        {
+          "label": "T-32·C03 Issue opener",
+          "screenshot": "artifacts/design-screenshots/individual/campaign-tablet.dc/32-t-32-c03-issue-opener.png"
+        },
+        {
+          "label": "T-32·C02 Roster roles",
+          "screenshot": "artifacts/design-screenshots/individual/campaign-tablet.dc/33-t-32-c02-roster-roles.png"
+        },
+        {
+          "label": "T-32·C07 Briefing role-building",
+          "screenshot": "artifacts/design-screenshots/individual/campaign-tablet.dc/34-t-32-c07-briefing-role-building.png"
+        },
+        {
+          "label": "T-32·C05 Aftermath use it or lose it",
+          "screenshot": "artifacts/design-screenshots/individual/campaign-tablet.dc/35-t-32-c05-aftermath-use-it-or-lose-it.png"
+        },
+        {
+          "label": "T-40·C01 Cover",
+          "screenshot": "artifacts/design-screenshots/individual/campaign-tablet.dc/36-t-40-c01-cover.png"
+        },
+        {
+          "label": "T-40·C03 Issue opener",
+          "screenshot": "artifacts/design-screenshots/individual/campaign-tablet.dc/37-t-40-c03-issue-opener.png"
+        },
+        {
+          "label": "T-40·C07 Briefing side scheme",
+          "screenshot": "artifacts/design-screenshots/individual/campaign-tablet.dc/38-t-40-c07-briefing-side-scheme.png"
+        },
+        {
+          "label": "T-40·C09 Dossier earned",
+          "screenshot": "artifacts/design-screenshots/individual/campaign-tablet.dc/39-t-40-c09-dossier-earned.png"
+        },
+        {
+          "label": "T-40·C08 Defeat rewind same choice",
+          "screenshot": "artifacts/design-screenshots/individual/campaign-tablet.dc/40-t-40-c08-defeat-rewind-same-choice.png"
+        },
+        {
+          "label": "T-45·C01 Cover",
+          "screenshot": "artifacts/design-screenshots/individual/campaign-tablet.dc/41-t-45-c01-cover.png"
+        },
+        {
+          "label": "T-45·C03 Issue opener",
+          "screenshot": "artifacts/design-screenshots/individual/campaign-tablet.dc/42-t-45-c03-issue-opener.png"
+        },
+        {
+          "label": "T-45·C05 Aftermath mission report",
+          "screenshot": "artifacts/design-screenshots/individual/campaign-tablet.dc/43-t-45-c05-aftermath-mission-report.png"
+        },
+        {
+          "label": "T-45·C09 Dossier strike lists",
+          "screenshot": "artifacts/design-screenshots/individual/campaign-tablet.dc/44-t-45-c09-dossier-strike-lists.png"
+        },
+        {
+          "label": "T-45·C10 Finale lost",
+          "screenshot": "artifacts/design-screenshots/individual/campaign-tablet.dc/45-t-45-c10-finale-lost.png"
+        },
+        {
+          "label": "T-50·C01 Cover",
+          "screenshot": "artifacts/design-screenshots/individual/campaign-tablet.dc/46-t-50-c01-cover.png"
+        },
+        {
+          "label": "T-50·C03 Issue opener",
+          "screenshot": "artifacts/design-screenshots/individual/campaign-tablet.dc/47-t-50-c03-issue-opener.png"
+        },
+        {
+          "label": "T-50·C09 Dossier deduction",
+          "screenshot": "artifacts/design-screenshots/individual/campaign-tablet.dc/48-t-50-c09-dossier-deduction.png"
+        },
+        {
+          "label": "T-50·C09b Dossier board",
+          "screenshot": "artifacts/design-screenshots/individual/campaign-tablet.dc/49-t-50-c09b-dossier-board.png"
+        },
+        {
+          "label": "T-50·C07 Briefing windows",
+          "screenshot": "artifacts/design-screenshots/individual/campaign-tablet.dc/50-t-50-c07-briefing-windows.png"
+        },
+        {
+          "label": "T-50·C08 Defeat real cost",
+          "screenshot": "artifacts/design-screenshots/individual/campaign-tablet.dc/51-t-50-c08-defeat-real-cost.png"
+        },
+        {
+          "label": "T-60·C01 Cover",
+          "screenshot": "artifacts/design-screenshots/individual/campaign-tablet.dc/52-t-60-c01-cover.png"
+        },
+        {
+          "label": "T-60·C03 Issue opener",
+          "screenshot": "artifacts/design-screenshots/individual/campaign-tablet.dc/53-t-60-c03-issue-opener.png"
+        },
+        {
+          "label": "T-60·C06 The city choice",
+          "screenshot": "artifacts/design-screenshots/individual/campaign-tablet.dc/54-t-60-c06-the-city-choice.png"
+        },
+        {
+          "label": "T-60·C07 Briefing composed",
+          "screenshot": "artifacts/design-screenshots/individual/campaign-tablet.dc/55-t-60-c07-briefing-composed.png"
+        },
+        {
+          "label": "T-60·C08 Defeat city moves",
+          "screenshot": "artifacts/design-screenshots/individual/campaign-tablet.dc/56-t-60-c08-defeat-city-moves.png"
         }
       ]
     },
@@ -217,6 +709,186 @@
       "source": "Components.dc.html",
       "screenshot": "artifacts/design-screenshots/components.dc.png",
       "screens": []
+    },
+    {
+      "source": "GMW Comic Reader.dc.html",
+      "screenshot": "artifacts/design-screenshots/gmw-comic-reader.dc.png",
+      "screens": [
+        {
+          "label": "16·R1 Comic phone",
+          "screenshot": "artifacts/design-screenshots/individual/gmw-comic-reader.dc/01-16-r1-comic-phone.png"
+        },
+        {
+          "label": "16·R2 Comic tablet",
+          "screenshot": "artifacts/design-screenshots/individual/gmw-comic-reader.dc/02-16-r2-comic-tablet.png"
+        },
+        {
+          "label": "16·R3 Comic desktop",
+          "screenshot": "artifacts/design-screenshots/individual/gmw-comic-reader.dc/03-16-r3-comic-desktop.png"
+        },
+        {
+          "label": "16·F The run",
+          "screenshot": "artifacts/design-screenshots/individual/gmw-comic-reader.dc/04-16-f-the-run.png"
+        },
+        {
+          "label": "16·F Issue opener comic",
+          "screenshot": "artifacts/design-screenshots/individual/gmw-comic-reader.dc/05-16-f-issue-opener-comic.png"
+        },
+        {
+          "label": "16·F In-game beat",
+          "screenshot": "artifacts/design-screenshots/individual/gmw-comic-reader.dc/06-16-f-in-game-beat.png"
+        },
+        {
+          "label": "16·F Defeat rewind",
+          "screenshot": "artifacts/design-screenshots/individual/gmw-comic-reader.dc/07-16-f-defeat-rewind.png"
+        },
+        {
+          "label": "16·F Aftermath page",
+          "screenshot": "artifacts/design-screenshots/individual/gmw-comic-reader.dc/08-16-f-aftermath-page.png"
+        },
+        {
+          "label": "16·F Finale spread",
+          "screenshot": "artifacts/design-screenshots/individual/gmw-comic-reader.dc/09-16-f-finale-spread.png"
+        },
+        {
+          "label": "T-16·F The run",
+          "screenshot": "artifacts/design-screenshots/individual/gmw-comic-reader.dc/10-t-16-f-the-run.png"
+        },
+        {
+          "label": "T-16·F Issue opener comic",
+          "screenshot": "artifacts/design-screenshots/individual/gmw-comic-reader.dc/11-t-16-f-issue-opener-comic.png"
+        },
+        {
+          "label": "T-16·F In-game beat",
+          "screenshot": "artifacts/design-screenshots/individual/gmw-comic-reader.dc/12-t-16-f-in-game-beat.png"
+        },
+        {
+          "label": "T-16·F Defeat rewind",
+          "screenshot": "artifacts/design-screenshots/individual/gmw-comic-reader.dc/13-t-16-f-defeat-rewind.png"
+        },
+        {
+          "label": "T-16·F Aftermath page",
+          "screenshot": "artifacts/design-screenshots/individual/gmw-comic-reader.dc/14-t-16-f-aftermath-page.png"
+        },
+        {
+          "label": "T-16·F Finale spread",
+          "screenshot": "artifacts/design-screenshots/individual/gmw-comic-reader.dc/15-t-16-f-finale-spread.png"
+        },
+        {
+          "label": "D-16·F The run",
+          "screenshot": "artifacts/design-screenshots/individual/gmw-comic-reader.dc/16-d-16-f-the-run.png"
+        },
+        {
+          "label": "D-16·F Issue opener comic",
+          "screenshot": "artifacts/design-screenshots/individual/gmw-comic-reader.dc/17-d-16-f-issue-opener-comic.png"
+        },
+        {
+          "label": "D-16·F In-game beat",
+          "screenshot": "artifacts/design-screenshots/individual/gmw-comic-reader.dc/18-d-16-f-in-game-beat.png"
+        },
+        {
+          "label": "D-16·F Defeat rewind",
+          "screenshot": "artifacts/design-screenshots/individual/gmw-comic-reader.dc/19-d-16-f-defeat-rewind.png"
+        },
+        {
+          "label": "D-16·F Aftermath page",
+          "screenshot": "artifacts/design-screenshots/individual/gmw-comic-reader.dc/20-d-16-f-aftermath-page.png"
+        },
+        {
+          "label": "D-16·F Finale spread",
+          "screenshot": "artifacts/design-screenshots/individual/gmw-comic-reader.dc/21-d-16-f-finale-spread.png"
+        }
+      ]
+    },
+    {
+      "source": "MTS Comic Reader.dc.html",
+      "screenshot": "artifacts/design-screenshots/mts-comic-reader.dc.png",
+      "screens": [
+        {
+          "label": "21·R1 Comic phone",
+          "screenshot": "artifacts/design-screenshots/individual/mts-comic-reader.dc/01-21-r1-comic-phone.png"
+        },
+        {
+          "label": "21·R2 Comic tablet",
+          "screenshot": "artifacts/design-screenshots/individual/mts-comic-reader.dc/02-21-r2-comic-tablet.png"
+        },
+        {
+          "label": "21·R3 Comic desktop",
+          "screenshot": "artifacts/design-screenshots/individual/mts-comic-reader.dc/03-21-r3-comic-desktop.png"
+        },
+        {
+          "label": "21·F The run",
+          "screenshot": "artifacts/design-screenshots/individual/mts-comic-reader.dc/04-21-f-the-run.png"
+        },
+        {
+          "label": "21·F Issue opener comic",
+          "screenshot": "artifacts/design-screenshots/individual/mts-comic-reader.dc/05-21-f-issue-opener-comic.png"
+        },
+        {
+          "label": "21·F In-game beat",
+          "screenshot": "artifacts/design-screenshots/individual/mts-comic-reader.dc/06-21-f-in-game-beat.png"
+        },
+        {
+          "label": "21·F Defeat rewind",
+          "screenshot": "artifacts/design-screenshots/individual/mts-comic-reader.dc/07-21-f-defeat-rewind.png"
+        },
+        {
+          "label": "21·F Aftermath page",
+          "screenshot": "artifacts/design-screenshots/individual/mts-comic-reader.dc/08-21-f-aftermath-page.png"
+        },
+        {
+          "label": "21·F Finale spread",
+          "screenshot": "artifacts/design-screenshots/individual/mts-comic-reader.dc/09-21-f-finale-spread.png"
+        },
+        {
+          "label": "T-21·F The run",
+          "screenshot": "artifacts/design-screenshots/individual/mts-comic-reader.dc/10-t-21-f-the-run.png"
+        },
+        {
+          "label": "T-21·F Issue opener comic",
+          "screenshot": "artifacts/design-screenshots/individual/mts-comic-reader.dc/11-t-21-f-issue-opener-comic.png"
+        },
+        {
+          "label": "T-21·F In-game beat",
+          "screenshot": "artifacts/design-screenshots/individual/mts-comic-reader.dc/12-t-21-f-in-game-beat.png"
+        },
+        {
+          "label": "T-21·F Defeat rewind",
+          "screenshot": "artifacts/design-screenshots/individual/mts-comic-reader.dc/13-t-21-f-defeat-rewind.png"
+        },
+        {
+          "label": "T-21·F Aftermath page",
+          "screenshot": "artifacts/design-screenshots/individual/mts-comic-reader.dc/14-t-21-f-aftermath-page.png"
+        },
+        {
+          "label": "T-21·F Finale spread",
+          "screenshot": "artifacts/design-screenshots/individual/mts-comic-reader.dc/15-t-21-f-finale-spread.png"
+        },
+        {
+          "label": "D-21·F The run",
+          "screenshot": "artifacts/design-screenshots/individual/mts-comic-reader.dc/16-d-21-f-the-run.png"
+        },
+        {
+          "label": "D-21·F Issue opener comic",
+          "screenshot": "artifacts/design-screenshots/individual/mts-comic-reader.dc/17-d-21-f-issue-opener-comic.png"
+        },
+        {
+          "label": "D-21·F In-game beat",
+          "screenshot": "artifacts/design-screenshots/individual/mts-comic-reader.dc/18-d-21-f-in-game-beat.png"
+        },
+        {
+          "label": "D-21·F Defeat rewind",
+          "screenshot": "artifacts/design-screenshots/individual/mts-comic-reader.dc/19-d-21-f-defeat-rewind.png"
+        },
+        {
+          "label": "D-21·F Aftermath page",
+          "screenshot": "artifacts/design-screenshots/individual/mts-comic-reader.dc/20-d-21-f-aftermath-page.png"
+        },
+        {
+          "label": "D-21·F Finale spread",
+          "screenshot": "artifacts/design-screenshots/individual/mts-comic-reader.dc/21-d-21-f-finale-spread.png"
+        }
+      ]
     },
     {
       "source": "Screens - Desktop.dc.html",
@@ -389,6 +1061,96 @@
         {
           "label": "T08 Victory",
           "screenshot": "artifacts/design-screenshots/individual/screens-tablet.dc/08-t08-victory.png"
+        }
+      ]
+    },
+    {
+      "source": "SM Comic Reader.dc.html",
+      "screenshot": "artifacts/design-screenshots/sm-comic-reader.dc.png",
+      "screens": [
+        {
+          "label": "27·R1 Comic phone",
+          "screenshot": "artifacts/design-screenshots/individual/sm-comic-reader.dc/01-27-r1-comic-phone.png"
+        },
+        {
+          "label": "27·R2 Comic tablet",
+          "screenshot": "artifacts/design-screenshots/individual/sm-comic-reader.dc/02-27-r2-comic-tablet.png"
+        },
+        {
+          "label": "27·R3 Comic desktop",
+          "screenshot": "artifacts/design-screenshots/individual/sm-comic-reader.dc/03-27-r3-comic-desktop.png"
+        },
+        {
+          "label": "27·F The run",
+          "screenshot": "artifacts/design-screenshots/individual/sm-comic-reader.dc/04-27-f-the-run.png"
+        },
+        {
+          "label": "27·F Issue opener comic",
+          "screenshot": "artifacts/design-screenshots/individual/sm-comic-reader.dc/05-27-f-issue-opener-comic.png"
+        },
+        {
+          "label": "27·F In-game beat",
+          "screenshot": "artifacts/design-screenshots/individual/sm-comic-reader.dc/06-27-f-in-game-beat.png"
+        },
+        {
+          "label": "27·F Defeat rewind",
+          "screenshot": "artifacts/design-screenshots/individual/sm-comic-reader.dc/07-27-f-defeat-rewind.png"
+        },
+        {
+          "label": "27·F Aftermath page",
+          "screenshot": "artifacts/design-screenshots/individual/sm-comic-reader.dc/08-27-f-aftermath-page.png"
+        },
+        {
+          "label": "27·F Finale spread",
+          "screenshot": "artifacts/design-screenshots/individual/sm-comic-reader.dc/09-27-f-finale-spread.png"
+        },
+        {
+          "label": "T-27·F The run",
+          "screenshot": "artifacts/design-screenshots/individual/sm-comic-reader.dc/10-t-27-f-the-run.png"
+        },
+        {
+          "label": "T-27·F Issue opener comic",
+          "screenshot": "artifacts/design-screenshots/individual/sm-comic-reader.dc/11-t-27-f-issue-opener-comic.png"
+        },
+        {
+          "label": "T-27·F In-game beat",
+          "screenshot": "artifacts/design-screenshots/individual/sm-comic-reader.dc/12-t-27-f-in-game-beat.png"
+        },
+        {
+          "label": "T-27·F Defeat rewind",
+          "screenshot": "artifacts/design-screenshots/individual/sm-comic-reader.dc/13-t-27-f-defeat-rewind.png"
+        },
+        {
+          "label": "T-27·F Aftermath page",
+          "screenshot": "artifacts/design-screenshots/individual/sm-comic-reader.dc/14-t-27-f-aftermath-page.png"
+        },
+        {
+          "label": "T-27·F Finale spread",
+          "screenshot": "artifacts/design-screenshots/individual/sm-comic-reader.dc/15-t-27-f-finale-spread.png"
+        },
+        {
+          "label": "D-27·F The run",
+          "screenshot": "artifacts/design-screenshots/individual/sm-comic-reader.dc/16-d-27-f-the-run.png"
+        },
+        {
+          "label": "D-27·F Issue opener comic",
+          "screenshot": "artifacts/design-screenshots/individual/sm-comic-reader.dc/17-d-27-f-issue-opener-comic.png"
+        },
+        {
+          "label": "D-27·F In-game beat",
+          "screenshot": "artifacts/design-screenshots/individual/sm-comic-reader.dc/18-d-27-f-in-game-beat.png"
+        },
+        {
+          "label": "D-27·F Defeat rewind",
+          "screenshot": "artifacts/design-screenshots/individual/sm-comic-reader.dc/19-d-27-f-defeat-rewind.png"
+        },
+        {
+          "label": "D-27·F Aftermath page",
+          "screenshot": "artifacts/design-screenshots/individual/sm-comic-reader.dc/20-d-27-f-aftermath-page.png"
+        },
+        {
+          "label": "D-27·F Finale spread",
+          "screenshot": "artifacts/design-screenshots/individual/sm-comic-reader.dc/21-d-27-f-finale-spread.png"
         }
       ]
     }

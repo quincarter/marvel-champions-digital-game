@@ -28,9 +28,8 @@ import {
   POOL_CARDS,
   POOL_DEPS,
   POOL_ENCOUNTER_SETS,
-  POOL_PACKS,
+  POOL_HERO_SHELF_PACKS,
   POOL_VERSION,
-  packNameOf,
 } from "../content/pool.js";
 import { artFor } from "../art/art-source.js";
 import { cardArt, drawArt } from "../art/card-art.js";
@@ -43,7 +42,13 @@ import { McVirtualList } from "../ui/virtual-list.js";
 import { deckOptionsOf, type DeckOption } from "../view/deck-list-model.js";
 import { heroAspectsOf, withSelectionPinned, type DeckSourceKind } from "../view/roster-filter.js";
 import { packCompactChipsToRows } from "../view/chip-layout.js";
-import { shelvesOf, flattenShelves, type Shelf, type ShelfCandidate } from "../view/roster-shelves.js";
+import {
+  azShelvesOf,
+  cycleShelvesOf,
+  flattenShelves,
+  type Shelf,
+  type ShelfCandidate,
+} from "../view/roster-shelves.js";
 import { ALL_PACKS, drillIntoPack, drillOut, type ShelfDrillState } from "../view/shelf-drill.js";
 import { seatOptions, type SeatOption } from "../view/seats.js";
 import {
@@ -62,7 +67,9 @@ import {
   seatIsSelectable,
   setActiveSeat,
   setHeroFilter,
+  setHeroSortMode,
   usePreconstructedForAllSeats,
+  type HeroSortMode,
   type SetupDraft,
 } from "../view/setup-draft.js";
 import { seatsFocusOrder } from "../view/screen-focus.js";
@@ -1042,14 +1049,19 @@ export class SeatsScene extends Phaser.Scene {
         passesChips: chipsOk,
       };
     });
-    return shelvesOf(
-      candidates,
-      POOL_PACKS.map((p) => p.code as string),
-      packNameOf,
-      this.#draft.heroFilter.text,
-      // A hero pack ships one hero; a shelf each was a column of one-card rows.
-      { id: "hero-packs", title: "Hero packs" },
-    );
+    // "By wave" (default): one shelf per release wave (Core, Wave 1, The Rise of Red Skull, The Galaxy's Most
+    // Wanted, …) rather than one per pack — a campaign box's own heroes and the hero packs FFG ships alongside it
+    // land on the same shelf, replacing the old one-shelf-per-single-hero-pack "Hero packs" catch-all.
+    // "A–Z": the same candidates, flattened into one letter-headed run by hero name (the roster's own sort
+    // toggle) — see `azShelvesOf`'s own doc comment for why letter shelves over a single long row or a grid.
+    return this.#draft.heroSortMode === "az"
+      ? azShelvesOf(
+          candidates,
+          this.#draft.heroFilter.text,
+          (option) => option.identityName ?? option.deck.name,
+          (option) => option.deck.name,
+        )
+      : cycleShelvesOf(candidates, POOL_HERO_SHELF_PACKS, this.#draft.heroFilter.text);
   }
 
   #heroPassesChips(option: DeckOption, blockedBy: string | null): boolean {
@@ -1105,7 +1117,32 @@ export class SeatsScene extends Phaser.Scene {
         this.#rebuild();
       },
     };
-    return [...aspectChips, ...sourceChips, playableChip];
+    return [...aspectChips, ...sourceChips, playableChip, ...this.#heroSortChipDefs()];
+  }
+
+  /**
+   * "By wave" / "A–Z" — a segmented pair, not another filter chip: unlike every other chip here (which toggles a
+   * narrowing on or off, all independently), exactly one of this pair is selected at all times, and clicking the
+   * one already selected does nothing (there's no "off" state to fall back to). Built from the same `HeroChipDef`
+   * shape as the filter chips above so it shares their exact drawing, wrapping and focus-order wiring
+   * (`packCompactChipsToRows`/`McChipRail`) — appended at the row's own end, matching the brief's "segmented pair
+   * at the end of the row".
+   */
+  #heroSortChipDefs(): readonly HeroChipDef[] {
+    const modes: readonly { readonly mode: HeroSortMode; readonly text: string }[] = [
+      { mode: "wave", text: "By wave" },
+      { mode: "az", text: "A–Z" },
+    ];
+    return modes.map(({ mode, text }) => ({
+      id: `sort:${mode}`,
+      text,
+      selected: this.#draft.heroSortMode === mode,
+      onClick: () => {
+        if (this.#draft.heroSortMode === mode) return;
+        this.#draft = setHeroSortMode(this.#draft, mode);
+        this.#rebuild();
+      },
+    }));
   }
 
   #onInspectChoose(rowId: string): void {

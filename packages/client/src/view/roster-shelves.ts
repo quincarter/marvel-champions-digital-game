@@ -128,3 +128,132 @@ export function shelvesOf<T>(
 export function flattenShelves<T>(shelves: readonly Shelf<T>[]): readonly T[] {
   return shelves.flatMap((shelf) => shelf.items);
 }
+
+/**
+ * The one fact about a pack `cycleShelvesOf` needs — everything else about the pack (its own display name, which
+ * items it holds) stays the caller's business. Built from `@mc/content`'s own `Pack`/`Cycle` records; this module
+ * stays free of any dependency on `@mc/content` so it can go on being tested with plain fixtures.
+ */
+export interface ShelfPack {
+  readonly code: string;
+  readonly cycleId: string;
+  readonly cycleName: string;
+  /** `Cycle.order` — shelves sort by this, ascending. */
+  readonly cycleOrder: number;
+  /** `Pack.releaseDate` (ISO), where known — orders packs inside one cycle's shelf. Missing sorts last within the cycle. */
+  readonly releaseDate?: string;
+}
+
+/**
+ * `shelvesOf`, grouped by release wave/cycle instead of by physical product (the maintainer's call: FFG releases
+ * heroes in waves — a campaign box plus the hero packs that ship alongside it — and a shelf per one-hero pack
+ * scattered that grouping across a "Hero packs" catch-all). Purely a function of each pack's own `cycleId` and
+ * `Cycle.order`/`releaseDate` — no pack or hero name is special-cased, so a later wave falls in the right shelf
+ * the moment its packs carry the right cycle.
+ *
+ * - One shelf per distinct `cycleId` among `packs`, titled with that cycle's own name, ordered by `cycleOrder`.
+ * - Inside a shelf, packs sort by `releaseDate` (a campaign box general-releases before the hero packs FFG ships
+ *   alongside it, so it naturally sorts first — nothing here treats a box specially); inside one pack, an item
+ *   keeps the order the caller's own `candidates` array already gave it (a stable sort only reorders *between*
+ *   packs, never within one).
+ * - A candidate whose `packCode` isn't `null` but isn't in `packs` is dropped, same as `shelvesOf` drops a pack
+ *   `packOrder` never named — never guessed into a position.
+ * - `null` `packCode`s (no pack of their own) are untouched by any of this and still land on "Your decks", first.
+ * - A query still matches a shelf's own title (now the cycle's name, e.g. "galaxy" for The Galaxy's Most Wanted)
+ *   to keep the whole shelf, via `shelvesOf`'s own pack-name matching.
+ */
+export function cycleShelvesOf<T>(
+  candidates: readonly ShelfCandidate<T>[],
+  packs: readonly ShelfPack[],
+  query: string,
+): readonly Shelf<T>[] {
+  const packByCode = new Map(packs.map((p) => [p.code, p]));
+
+  // A stable sort: two candidates whose packs tie (same pack, or both packless/unknown) keep the relative order
+  // the caller already gave them, so a pack's own hero order survives untouched.
+  const byRelease = [...candidates].sort((a, b) => {
+    const pa = a.packCode !== null ? packByCode.get(a.packCode) : undefined;
+    const pb = b.packCode !== null ? packByCode.get(b.packCode) : undefined;
+    if (!pa || !pb) return 0;
+    if (pa.cycleOrder !== pb.cycleOrder) return pa.cycleOrder - pb.cycleOrder;
+    return (pa.releaseDate ?? "").localeCompare(pb.releaseDate ?? "");
+  });
+
+  // Every candidate's own pack is swapped for that pack's cycle, so `shelvesOf`'s pack-keyed grouping becomes
+  // cycle-keyed grouping — one shelf per wave instead of one per product.
+  const byCycle = byRelease.map((c): ShelfCandidate<T> => {
+    const pack = c.packCode !== null ? packByCode.get(c.packCode) : undefined;
+    return pack ? { ...c, packCode: pack.cycleId } : c;
+  });
+
+  const cycleOrder = [...packs]
+    .sort((a, b) => a.cycleOrder - b.cycleOrder)
+    .map((p) => p.cycleId)
+    .filter((id, i, ids) => ids.indexOf(id) === i);
+  const cycleName = (cycleId: string): string => packs.find((p) => p.cycleId === cycleId)?.cycleName ?? cycleId;
+
+  return shelvesOf(byCycle, cycleOrder, cycleName, query);
+}
+
+/** `azShelvesOf`'s shelf id for a run of names with no alphabetic first character — never expected for a hero's own name (or its deck name), but kept total rather than assumed unreachable. */
+const AZ_OTHER_LETTER = "#";
+
+/** The (uppercase, accent-stripped) letter `azShelvesOf` groups `name` under. */
+function firstLetterOf(name: string): string {
+  const match = /[a-z]/.exec(normalizeSearch(name));
+  return match ? match[0]!.toUpperCase() : AZ_OTHER_LETTER;
+}
+
+/**
+ * `shelvesOf`'s flat A–Z alternative (Take your seats' "By wave"/"A–Z" sort toggle): every surviving candidate
+ * across one letter-headed run of shelves ("A", "B", …) instead of one shelf per release wave, for a player who
+ * wants to find a hero by name rather than browse by expansion. Chosen over a single long shelf (poor at 30+
+ * heroes) or a plain wrapping grid (loses the shelf-header drill-in and the "N identities" count every other
+ * roster shelf already gives for free): letter shelves reuse `Shelf<T>` unchanged, so `McShelfRoster`, drill-in,
+ * and card sizing all work exactly as they do for `cycleShelvesOf` — the card is the same card, only the grouping
+ * changed.
+ *
+ * - `packCode: null` candidates still land on "Your decks", first — same special case `shelvesOf` makes, so "Your
+ *   decks" stays first in both sort modes.
+ * - Every other surviving candidate is grouped by `firstLetterOf(nameOf(item))` into a shelf titled with that one
+ *   letter, shelves ordered A–Z.
+ * - Within a shelf (and within "Your decks"), items sort by `nameOf` then `tieBreakOf` to break a tie (e.g. two
+ *   Core Captain Marvel decks sharing a hero name), both compared case- and accent-insensitively
+ *   (`normalizeSearch`) — never the order `candidates` arrived in.
+ * - `passesChips` and the query behave exactly as they do in `shelvesOf`, with one deliberate difference: a query
+ *   never keeps a whole shelf because its own title matches — a single letter like "a" would trivially match
+ *   almost any query, defeating the filter. Only a candidate's own `searchHaystacks` decide survival here.
+ */
+export function azShelvesOf<T>(
+  candidates: readonly ShelfCandidate<T>[],
+  query: string,
+  nameOf: (item: T) => string,
+  tieBreakOf: (item: T) => string = () => "",
+): readonly Shelf<T>[] {
+  const yours: T[] = [];
+  const byLetter = new Map<string, T[]>();
+  for (const candidate of candidates) {
+    if (!candidate.passesChips) continue;
+    if (!matchesSearch(candidate.searchHaystacks, query)) continue;
+    if (candidate.packCode === null) {
+      yours.push(candidate.item);
+      continue;
+    }
+    const letter = firstLetterOf(nameOf(candidate.item));
+    const bucket = byLetter.get(letter);
+    if (bucket) bucket.push(candidate.item);
+    else byLetter.set(letter, [candidate.item]);
+  }
+
+  const cmp = (a: T, b: T): number => {
+    const byName = normalizeSearch(nameOf(a)).localeCompare(normalizeSearch(nameOf(b)));
+    return byName !== 0 ? byName : normalizeSearch(tieBreakOf(a)).localeCompare(normalizeSearch(tieBreakOf(b)));
+  };
+
+  const shelves: Shelf<T>[] = [];
+  if (yours.length > 0) shelves.push({ id: YOUR_DECKS_SHELF_ID, title: "Your decks", items: [...yours].sort(cmp) });
+  for (const letter of [...byLetter.keys()].sort()) {
+    shelves.push({ id: `az:${letter}`, title: letter, items: [...byLetter.get(letter)!].sort(cmp) });
+  }
+  return shelves;
+}

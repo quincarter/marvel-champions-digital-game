@@ -15,6 +15,7 @@ rust = "stable"
 java = "temurin-21"
 gradle = "latest"
 changie = "latest"
+actionlint = "latest"
 
 [tasks.setup]
 description = "Install workspace dependencies"

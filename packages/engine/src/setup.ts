@@ -10,7 +10,7 @@ import type {
 } from "@mc/content";
 import { DEFAULT_DEPS, type EngineDeps } from "./abilities.js";
 import { NO_CAMPAIGN_WRITES, type CampaignGameInput } from "./campaign.js";
-import { unbuildableSeparateDeck, validateDeck } from "./deck.js";
+import { unbuildableSeparateDeck, validateDeck, type DeckContext } from "./deck.js";
 import { createCtx, emit, type Ctx } from "./ctx.js";
 import { engineError, type EngineError } from "./errors.js";
 import { runFlow } from "./flow.js";
@@ -45,6 +45,42 @@ const deckContentsOf = (setup: PlayerSetup): DeckContents => {
   const cards: DeckCardEntry[] = [...quantities].map(([cardId, quantity]) => ({ cardId, quantity }));
   return { identityCardId: setup.identityCardId, aspects: setup.aspects ?? [], cards };
 };
+
+/**
+ * The deck rules a campaign game's seat is judged by (docs/campaign-mode-design.md §8): its locked identity, the
+ * copies the campaign granted it (legal, and exempt from deck size — MC10 p. 3), and the campaign's removals
+ * (RRG 1.8 p. 29). Without this a campaign game refuses the very cards its own campaign added, from the second
+ * scenario on.
+ *
+ * `CampaignGameInput` carries no `@mc/content` `Campaign` record — the engine never names a box — so the
+ * campaign's own sets are read off what it granted: every granted copy was put there by the campaign's definition,
+ * and a campaign-specific card names its set (`specificTo.encounterSetId`). A campaign card nobody was granted
+ * therefore still fails, as "not granted" when its set is one the campaign has granted from, and as "from a
+ * different product" otherwise — refused either way, which is the rule; only the wording is the narrower one.
+ */
+function campaignDeckContextOf(
+  campaign: CampaignGameInput,
+  seatIndex: number,
+  pool: Readonly<Record<string, AnyCard>>,
+): DeckContext {
+  const seat = campaign.seats[seatIndex];
+  const granted = seat?.grantedCardIds ?? [];
+  const campaignSetIds = new Set<string>();
+  for (const id of granted) {
+    const card = pool[id];
+    const specificTo = card && "specificTo" in card ? card.specificTo : undefined;
+    if (specificTo?.kind === "campaign") campaignSetIds.add(specificTo.encounterSetId);
+  }
+  return {
+    campaign: {
+      campaignId: campaign.campaignId,
+      campaignSetIds: [...campaignSetIds],
+      identityCardId: seat?.identityCardId ?? "",
+      grantedCardIds: granted,
+      removedFromCampaign: campaign.removedFromCampaign,
+    },
+  };
+}
 
 /**
  * One villain of a scenario with several villains in play at once (`Scenario.multipleVillains`; The Wrecking Crew
@@ -305,7 +341,8 @@ export function createGame(config: GameSetupConfig, deps: EngineDeps = DEFAULT_D
   // `duplicate_unique_card`.
   if (config.requireLegalDecks) {
     const illegalDecks = config.players.flatMap((setup, seatIndex) => {
-      const verdict = validateDeck(deckContentsOf(setup), pool);
+      const context = config.campaign ? campaignDeckContextOf(config.campaign, seatIndex, pool) : undefined;
+      const verdict = validateDeck(deckContentsOf(setup), pool, context);
       return verdict.ok ? [] : [{ seatIndex, playerId: playerId(`p${seatIndex + 1}`), problems: verdict.problems }];
     });
     if (illegalDecks.length > 0) {
