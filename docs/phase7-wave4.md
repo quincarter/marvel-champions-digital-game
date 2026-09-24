@@ -365,7 +365,7 @@ stays data only.**
 | 3.15 | "After the last X counter is removed from here"                          | Ebony Maw; `aos`, `phoenix`                | landed      |
 | 3.16 | Encounter cards in a player's play area                                  | Ebony Maw's Spells                         | landed      |
 | 3.17 | Alliance: paying a card's costs as a group                               | `warm`, `valk`, `vision`; 9 later cards    | landed      |
-| 3.18 | Set-aside modular sets; mode-only faces; Standard II                     | The Hood; Wheel of Genres (`mojo`)         | not started |
+| 3.18 | Set-aside modular sets; mode-only faces; Standard II                     | The Hood; Wheel of Genres (`mojo`)         | landed      |
 | 3.19 | Readying as a costed act; "cannot be readied by player card effects"     | Mister Fear; Undermine Support (`aos`)     | not started |
 | 3.20 | A trigger on damage a card prevented                                     | Abjuration                                 | not started |
 | 3.21 | An enemy attack against a chosen character                               | Speed Demon, Crossfire                     | not started |
@@ -779,6 +779,56 @@ RRG 1.8 "Alliance" (p. 6). As One!, Stand Together, Problem Solvers, Cosmic Alli
 while paying for a card with the keyword; only the playing player resolves it.
 
 ### 3.18 Set-aside modular sets; mode-only faces; Standard II
+
+> **Status: landed (2026-09-24),** tested in `packages/engine/src/set-aside-modular-sets.test.ts` (8 tests, on The
+> Hood's own emitted cards: setup creates each set-aside set in the set-aside area and records it; the shuffle-in
+> moves one whole set, chosen by the seeded RNG, into the encounter deck and logs it, count 3 → 2; with none left
+> nothing happens and the count reads 0; a game without the field is unchanged; setup refuses a card outside its set;
+> Formidable Foe enters play on its Standard face (villain steady, minion not) and in expert mode on its Expert face
+> (every enemy steady); The Hood's Mantle's granted steady holds one stun without stunning; replay deep-equal). DSL:
+> `packages/cards/src/dsl/wave4-hero-primitives.test.ts` (2 tests under §3.18).
+>
+> **What landed:**
+>
+> - **`GameSetupConfig.setAsideModularSets: { encounterSetId, cardIds }[]`**: created in `encounterSetAside` and
+>   recorded in **`GameState.setAsideModularSets`** (`SetAsideModularSet { encounterSetId, instanceIds }`, absent in a
+>   game that sets none aside, so saves are unchanged). Which sets, how many (`Scenario.setAsideModularSetCount`), and
+>   that none is a Standard/Expert classification set is the scenario builder's choice (the engine sees card ids, not
+>   `EncounterSet` records).
+> - **`EffectSpec shuffleInSetAsideModularSet { bind? }`**: "Choose 1 set-aside modular encounter set at random, then
+>   shuffle it into the encounter deck" (Making Connections 1A Setup, The Hood II/III, Promised Prosperity, Crime
+>   State, Field Recruitment): seeded pick, the set's cards still set aside go to the active encounter deck, shuffled;
+>   log `setAsideModularSetShuffledIn { encounterSetId, instanceIds }`. A card an ability already took out of the
+>   set-aside area stays where it is.
+> - **`ValueSpec setAsideModularSetCount`**: Wheel of Genres' "no set-aside modular encounter sets remaining".
+> - **Mode-only faces:** **`GameSetupConfig.difficulty: "standard" | "expert"`**, kept as
+>   `ScenarioRules.difficulty: "expert"` (absent in standard mode). **`modeOnlyFlipped(card, difficulty)`**
+>   (`query.ts`) shows the back of a card whose front names the other mode, at setup and whenever the card leaves play
+>   (the reset in `leavePlay`), so it enters play (Setup keyword, reveal, put into play) on the right face. The emitted
+>   Formidable Foe carries `modeOnly: "standard"` on its front only; a back with no `modeOnly` is read as the other
+>   mode's. **Pipeline:** emit `flipSide.modeOnly: "expert"` on 24049 (§1.8 says both faces).
+> - **Standard II:** unchanged (§4 Q5): `classification` keeps Standard II / Expert II out of modular choices; whether a
+>   game uses them is the insert's setup rule, still unread.
+>
+> **Steady, checked against The Hood's cards.** Every Hood printing grants it: The Hood's Mantle ("The Hood gains
+> retaliate 1 and steady"), Formidable Foe ("The villain gains steady" / "Each enemy gains steady"), Warehouse District
+> ("Each character in play gains steady"). The engine's rule (`keywords.ts`: `statusCapacity` 2, `statusActive` needs 2
+> of the type) reads `hasKeyword` with `deps`, which includes `keywordGrants`, and every caller passes `deps` (basic
+> attack and thwart, labeled abilities, the villain phase's stun/confuse checks, enemy-attacks-enemy, the state check
+> that sheds excess statuses). It matches RRG 1.8 "Steady" (p. 41) word for word: one more card of each, "not
+> considered" stunned/confused below two. A character that loses a granted steady while holding two of a status sheds
+> one (the capacity state check). Nothing to change.
+>
+> **Scenario builder (`ability-scripting-engineer`):** The Hood's builder passes `difficulty`, `modularSetCount: 0`,
+> and `setAsideModularSets` for the seven chosen sets (the players' choice, or random from the pool), and Making
+> Connections 1A's `Setup:` is `setup(shuffleInSetAsideModularSet())`. Mojo's Wheel of Genres builder does the same
+> with its own sets.
+>
+> **DSL:** `shuffleInSetAsideModularSet(bind?)` (`dsl/effects.ts`), `setAsideModularSetCount` (`dsl/values.ts`).
+>
+> **Composes with:** Wheel of Genres (`mojo` 39026a/b); Seek and Destroy's and Shadow of the Past's set-aside searches
+> (`encounterSetAside`, unchanged); the `gmw` Campaign Challenge faces and `sm` 27174a/b, `next_evol` 40081a/b once
+> they carry `modeOnly` (the same `modeOnlyFlipped`).
 
 Schema §1.8, §1.9, §1.12. **Plan:** setup sets aside the chosen modular sets; `EffectSpec shuffleRandomSetAsideSet`
 ("Choose 1 set-aside modular encounter set at random, then shuffle it into the encounter deck"); a `modeOnly` card is

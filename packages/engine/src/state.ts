@@ -292,6 +292,22 @@ export interface ScenarioRules {
   readonly separateGameAreas: boolean;
   /** `GameSetupConfig.victoryCondition` (Loki's count; docs/phase7-wave4.md §3.7). Absent in every other game. */
   readonly victoryCondition?: number;
+  /**
+   * `GameSetupConfig.difficulty`: `"expert"` in expert mode; absent in standard mode, so every older save reads as
+   * standard. Read by the mode-only faces rule (`modeOnlyFlipped`; docs/phase7-wave4.md §3.18).
+   */
+  readonly difficulty?: "expert";
+}
+
+/**
+ * A modular encounter set chosen at setup and set aside rather than shuffled in (`GameSetupConfig.setAsideModularSets`;
+ * Making Connections 1A: "Choose 7 modular encounter sets and set them aside"; docs/phase7-wave4.md §3.18). Its cards
+ * are in `encounterSetAside`; `instanceIds` names them, so "choose 1 set-aside modular encounter set at random, then
+ * shuffle it into the encounter deck" takes exactly that set's cards.
+ */
+export interface SetAsideModularSet {
+  readonly encounterSetId: string;
+  readonly instanceIds: readonly InstanceId[];
 }
 
 /**
@@ -432,6 +448,12 @@ export interface GameState {
   readonly encounterDecks: Readonly<Record<string, EncounterDeckState>>;
   readonly encounterDeckOrder: readonly EncounterDeckId[];
   readonly encounterSetAside: readonly InstanceId[];
+  /**
+   * The modular sets still set aside, in the order chosen (`SetAsideModularSet`). Absent in a game that set none aside,
+   * so its save is unchanged; an empty list once the last has been shuffled in ("if there are no set-aside modular
+   * encounter sets remaining", Wheel of Genres). docs/phase7-wave4.md §3.18.
+   */
+  readonly setAsideModularSets?: readonly SetAsideModularSet[];
   /** Scenario decks by name (docs/phase7-wave2.md §3.3). Empty for every scenario that has none. */
   readonly scenarioDecks: Readonly<Record<string, ScenarioDeckState>>;
   /**

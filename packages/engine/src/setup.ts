@@ -1,3 +1,4 @@
+import { modeOnlyFlipped } from "./query.js";
 import type {
   AnyCard,
   CardId,
@@ -28,6 +29,7 @@ import {
   type ScenarioDeckState,
   type SeparateDeckState,
   type VillainState,
+  type SetAsideModularSet,
 } from "./state.js";
 import type { GameEvent } from "./events.js";
 
@@ -171,6 +173,22 @@ export interface GameSetupConfig {
    * Loki 1B). Read by `ValueSpec victoryCondition`. docs/phase7-wave4.md §3.7.
    */
   readonly victoryCondition?: number;
+  /**
+   * The mode being played, standard (default) or expert (RRG 1.8 "Modes of Play", p. 29). Villain stages and the
+   * expert set are the scenario builder's; the engine reads this only for "Standard Mode Only" / "Expert Mode Only"
+   * faces (`modeOnly`): RRG 1.8 "Double-Sided Card" (p. 17), such a card "is put into play with the 'Expert Mode Only'
+   * side faceup if the players are playing expert mode". docs/phase7-wave4.md §3.18.
+   */
+  readonly difficulty?: "standard" | "expert";
+  /**
+   * Modular encounter sets set aside at setup instead of shuffled in (`Scenario.setAsideModularSetCount`; Making
+   * Connections 1A, The Hood: "Choose 7 modular encounter sets and set them aside (you may choose randomly)"). Each is
+   * its set id and its cards, one entry per copy; they are created in `encounterSetAside` and recorded in
+   * `GameState.setAsideModularSets` for `EffectSpec shuffleInSetAsideModularSet`. Which sets, and that none is a
+   * Standard/Expert classification set (RRG 1.8 "Standard Set", p. 40), is the scenario builder's choice.
+   * docs/phase7-wave4.md §3.18.
+   */
+  readonly setAsideModularSets?: readonly { readonly encounterSetId: string; readonly cardIds: readonly CardId[] }[];
   /** `Scenario.victory`. Absent: `"finalVillainStage"` (RRG 1.8 "Villain Defeat", p. 47). */
   readonly victory?: "finalVillainStage" | "cardAbility";
   /** Whether card abilities may create separate game areas (`Scenario.separateGameAreas` is present). Default false. */
@@ -606,6 +624,29 @@ export function createGame(requested: GameSetupConfig, deps: EngineDeps = DEFAUL
       ...(deck.buildAtSetup ? { buildAtSetup: true as const } : {}),
     };
   }
+  const setAsideModularSets: SetAsideModularSet[] = [];
+  for (const set of config.setAsideModularSets ?? []) {
+    if (setAsideModularSets.some((entry) => entry.encounterSetId === set.encounterSetId))
+      return invalid(`modular set ${set.encounterSetId} is set aside twice`);
+    const instanceIds: InstanceId[] = [];
+    for (const cardId of set.cardIds) {
+      const card = pool[cardId];
+      if (
+        !card ||
+        !("encounterSetIds" in card) ||
+        !(card.encounterSetIds as readonly string[]).includes(set.encounterSetId)
+      )
+        return invalid(`${cardId} is not a card of the set-aside modular set ${set.encounterSetId}`);
+      const id = nextId();
+      instances[id] = blankInstance(id, card.id, null, {
+        kind: "encounterDeck",
+        deckId: deckIds[0] as EncounterDeckId,
+      });
+      encounterSetAside.push(id);
+      instanceIds.push(id);
+    }
+    setAsideModularSets.push({ encounterSetId: set.encounterSetId, instanceIds });
+  }
   for (const cardId of config.setAsideVillainCardIds ?? []) {
     const card = pool[cardId];
     if (!card || card.type !== "villain") return invalid(`${cardId} is not a villain card`);
@@ -653,6 +694,14 @@ export function createGame(requested: GameSetupConfig, deps: EngineDeps = DEFAUL
     );
   }
 
+  // RRG 1.8 "Double-Sided Card" (p. 17): a "Standard Mode Only" / "Expert Mode Only" card shows the face of the mode
+  // being played, wherever it starts (docs/phase7-wave4.md §3.18). Every instance exists by now.
+  if (config.difficulty === "expert") {
+    for (const [id, instance] of Object.entries(instances)) {
+      const card = pool[instance.cardId];
+      if (card && modeOnlyFlipped(card, "expert")) instances[id] = { ...instance, flipped: true };
+    }
+  }
   const state: GameState = {
     round: 1,
     // A campaign game starts before Appendix II begins, so MC60 p. 9's pre-setup instructions can resolve first.
@@ -676,11 +725,13 @@ export function createGame(requested: GameSetupConfig, deps: EngineDeps = DEFAUL
     scenarioRules: {
       victory: config.victory ?? "finalVillainStage",
       ...(config.victoryCondition !== undefined ? { victoryCondition: config.victoryCondition } : {}),
+      ...(config.difficulty === "expert" ? { difficulty: "expert" as const } : {}),
       separateGameAreas: config.separateGameAreas ?? false,
     },
     encounterDecks,
     encounterDeckOrder: deckIds,
     encounterSetAside,
+    ...(config.setAsideModularSets ? { setAsideModularSets } : {}),
     scenarioDecks,
     villainArea: [],
     victoryDisplay: [],
