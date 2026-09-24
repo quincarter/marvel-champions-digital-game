@@ -353,12 +353,12 @@ stays data only.**
 | 3.3  | Villains protected by each other's hit points: one defeat sweep          | Tower Defense; Four Horsemen (`aoa`)       | landed      |
 | 3.4  | A main scheme stage's completion is replaceable                          | Tower Defense; Upgrading Adaptoids (`aos`) | landed      |
 | 3.5  | Damage on a card that is not a character (Avengers Tower)                | Tower Defense                              | landed      |
-| 3.6  | A modular set's own deck (the Infinity Stone deck)                       | Thanos, Loki, any scenario                 | not started |
+| 3.6  | A modular set's own deck (the Infinity Stone deck)                       | Thanos, Loki, any scenario                 | landed      |
 | 3.7  | Loki: random start, swap, a villain stage's Victory X, the victory count | Loki; God of Lies (`tt`)                   | not started |
 | 3.8  | An encounter ally attached to the main scheme (Odin)                     | Hela                                       | not started |
 | 3.9  | An ally treated as a minion                                              | Fallen Warrior, Beguiled; 5 other packs    | not started |
 | 3.10 | Flipping a card into a separately emitted face of another type           | MC21 campaign                              | not started |
-| 3.11 | Timing points when a deck runs out                                       | Soul World, Universal Church, Thanos       | not started |
+| 3.11 | Timing points when a deck runs out                                       | Soul World, Universal Church, Thanos       | landed      |
 | 3.12 | Counting different aspects; Adam Warlock's copy limit                    | Adam Warlock                               | not started |
 | 3.13 | Abilities active in hand; "cannot choose to discard this card"           | Pip the Troll, System Shock                | not started |
 | 3.14 | Player events shuffled into the encounter deck (Cosmic Entities)         | Adam Warlock precon                        | not started |
@@ -527,6 +527,19 @@ add the event if not. Other raw cards that put damage "here" are checked when th
 
 ### 3.6 A modular set's own deck: the Infinity Stone deck
 
+> **Status: landed (2026-09-24),** tested in `packages/engine/src/set-deck-and-run-out.test.ts` (§3.6: 2 tests — the deck
+> is built from the set's cards at setup and each card's discard home is the deck's own pile; the top card is put into
+> play, its Special resolves and it goes to that pile). **What landed:** `GameSetupConfig.scenarioDecks[].buildAtSetup`
+> (and `ScenarioDeckState.buildAtSetup`): scenario setup builds such a deck from the encounter deck right after shuffling
+> it, before the setup-keyword cards enter play, with no card text asking. `ScenarioSeparateDeck.contents.trait` and
+> `cardType: "environment"` are read by `buildScenarioDeck`. Everything else composed: "put the top card of the infinity
+> stone deck into play" is `selectCards` of `scenarioDeck(name, top 1)` then `putIntoPlay`; "Place this card in the
+> infinity stone deck discard pile" is `discard(self)` (its home); the empty-deck reshuffle is the existing `whenEmpty`.
+> **For the scenario builder (§5):** every `EncounterSet.separateDecks` of a set in the game becomes a
+> `GameSetupConfig.scenarioDecks` entry with `buildAtSetup: true`, and `singleVillainOnly` sets are refused with several
+> villains. **Not yet proven:** "Apply its boost icons … as if it were a boost card" ("I Am Inevitable", Infinite
+> Mischief) is expected to be `adjustBoostCount` by `boostIconsOn` of the discarded stone; the scripter confirms it.
+
 Schema §1.10. **Plan:** build `EncounterSet.separateDecks` at setup (the scenario-deck machinery of wave 2 §3.3);
 "put the top card of the infinity stone deck into play", "reveal the top card", "Place this card in the infinity stone
 deck discard pile" (the deck's discard home), reshuffle when empty without penalty, and the "runs out" timing point
@@ -576,6 +589,16 @@ discards attachments, tucked cards, status cards and tokens when the type change
 the victory display" readers), then becomes its other face in play.
 
 ### 3.11 Timing points when a deck runs out
+
+> **Status: landed (2026-09-24),** tested in `packages/engine/src/set-deck-and-run-out.test.ts` (§3.11: 2 tests — taking
+> a scenario deck's last card announces it once, then the deck takes its discard pile back with no penalty, replay
+> deep-equal; a player's deck that runs out and resets is announced to that player's cards). **What landed:**
+> `TriggerEvent deckRanOut { deck: "player" | "scenario", playerId?, name? }`, response window only, pushed between
+> frames and only when an ability listens. A player's deck: recorded as it resets (`resetPlayerDeck`). A scenario deck:
+> recorded by the move that took its last card (`settlePlayerDecks`), so a deck that starts empty before setup builds it
+> never counts. The record is `GameState.pendingDeckRunOuts` (absent until first used), drained by the flow
+> (`announceDeckRunOuts`). **DSL:** `on.yourDeckRunsOut()`, `on.aPlayerResetsTheirDeck()`, `on.scenarioDeckRunsOut(name)`.
+> A player deck that empties with an empty discard pile does not reset (RRG 1.8 p. 33) and is not announced until it does.
 
 Soul World ("After your deck runs out of cards"), Universal Church of Truth ("After a player resets their deck"), Thanos
 I–III ("After the infinity stone deck runs out"). The engine logs `playerDeckReset` (wave 3 §4 Q15) but announces no

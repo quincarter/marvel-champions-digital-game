@@ -331,6 +331,11 @@ function resetPlayerDeck(ctx: Ctx, playerId: PlayerId): boolean {
   const order = shuffleZone(ctx, { kind: "deck", playerId }, player.discard);
   updatePlayer(ctx, playerId, (p) => ({ ...p, deck: order, discard: [] }));
   emit(ctx, { type: "playerDeckReset", playerId });
+  // Announced between frames by the flow (`TriggerEvent deckRanOut`, docs/phase7-wave4.md §3.11).
+  ctx.state = {
+    ...ctx.state,
+    pendingDeckRunOuts: [...(ctx.state.pendingDeckRunOuts ?? []), { deck: "player", playerId }],
+  };
   dealEncounterCardTo(ctx, playerId);
   return true;
 }

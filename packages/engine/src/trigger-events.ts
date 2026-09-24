@@ -279,6 +279,18 @@ export type TriggerEventBody =
    */
   | { readonly kind: "mainSchemeCompleted"; readonly schemeInstanceId: InstanceId; readonly stageIndex: number }
   /**
+   * A deck ran out of cards (docs/phase7-wave4.md §3.11): "After your deck runs out of cards" (Soul World, `mts` 21033) and
+   * "After a player resets their deck" (Universal Church of Truth, 21068) are a player's deck, which resets the moment it
+   * empties (RRG 1.8 "Player Deck", p. 33); "After the infinity stone deck runs out" (Thanos I–III, 21111–21113) is a
+   * scenario deck. Announced between frames, and only when an ability listens.
+   */
+  | {
+      readonly kind: "deckRanOut";
+      readonly deck: "player" | "scenario";
+      readonly playerId?: PlayerId;
+      readonly name?: string;
+    }
+  /**
    * A main scheme stage **would be** completed by reaching its target threat (docs/phase7-wave4.md §3.4): "Forced
    * Interrupt: When this stage would be completed, remove all the threat from this stage instead." (Under Siege and The
    * Armies of Thanos, `mts` 21098b/21099b; Upgrading Adaptoids 1B, `aos` 50104b). Pushed only when an ability listens;
@@ -580,6 +592,8 @@ export function eventSubjects(event: TriggerEvent): EventSubjects {
       return of([], [event.instanceId], []);
     case "boostCardTurnedFaceup":
       return of([event.enemyInstanceId], [event.boostInstanceId], [event.playerId]);
+    case "deckRanOut":
+      return of([], [], [event.playerId ?? null]);
     case "formChanged":
       return of([], event.formCardInstanceId ? [event.formCardInstanceId] : [], [event.playerId]);
     case "turnStarted":

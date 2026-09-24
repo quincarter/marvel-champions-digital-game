@@ -904,6 +904,12 @@ export const on = {
    * on a forced interrupt, `forcedInterrupt(on.mainSchemeCompleting("self"), instead(…))`.
    */
   mainSchemeCompleting: (what: Who): EventPattern => pattern("mainSchemeCompleting", asTarget(what)),
+  /** "After your deck runs out of cards" (Soul World, `mts` 21033; docs/phase7-wave4.md §3.11): your deck reset. */
+  yourDeckRunsOut: (): EventPattern => pattern("deckRanOut", { playerIs: "controller", eventIs: { deck: "player" } }),
+  /** "After a player resets their deck" (Universal Church of Truth, 21068): any player's; name them with `eventPlayer`. */
+  aPlayerResetsTheirDeck: (): EventPattern => pattern("deckRanOut", { eventIs: { deck: "player" } }),
+  /** "After the infinity stone deck runs out" (Thanos I–III, 21111–21113): a scenario deck by name. */
+  scenarioDeckRunsOut: (name: string): EventPattern => pattern("deckRanOut", { eventIs: { deck: "scenario", name } }),
   /** "After you change to this form". */
   youChangeForm: (): EventPattern => pattern("formChanged", { playerIs: "controller" }),
   /**

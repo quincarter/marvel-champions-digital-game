@@ -167,7 +167,13 @@ export interface GameSetupConfig {
    * `Scenario.separateDecks` (docs/phase7-wave2.md §3.3). Each starts empty; the main scheme's 1A `Setup:` builds it
    * (`buildScenarioDeck`), moving the matching cards out of the encounter deck built at Appendix II step 10.
    */
-  readonly scenarioDecks?: readonly ScenarioSeparateDeck[];
+  readonly scenarioDecks?: readonly (ScenarioSeparateDeck & {
+    /**
+     * Built during scenario setup with no card text asking (an encounter set's own deck, `EncounterSet.separateDecks`:
+     * the Infinity Stone deck, MC21 p. 16). docs/phase7-wave4.md §3.6.
+     */
+    readonly buildAtSetup?: true;
+  })[];
   /**
    * Scenario cards that start set aside, out of play (RRG 1.8 "Set Aside", p. 39): Taskmaster's Captive allies, The
    * Sleeper, Kang's Dominion. Created in `encounterSetAside`, never in the encounter deck. A player card among them has
@@ -571,6 +577,7 @@ export function createGame(config: GameSetupConfig, deps: EngineDeps = DEFAULT_D
       discardPile: deck.discardPile,
       whenEmpty: deck.whenEmpty,
       contents: deck.contents,
+      ...(deck.buildAtSetup ? { buildAtSetup: true as const } : {}),
     };
   }
   for (const cardId of config.setAsideVillainCardIds ?? []) {
