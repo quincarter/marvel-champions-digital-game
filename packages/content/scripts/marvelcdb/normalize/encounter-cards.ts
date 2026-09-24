@@ -61,6 +61,7 @@ export function normalizeEncounterCard(
     ...(p.flavor ? { flavor: p.flavor } : {}),
     abilities,
     ...(flipSide ? { flipSide } : {}),
+    ...(parsed.modeOnly ? { modeOnly: parsed.modeOnly } : {}),
   };
   switch (r.type_code) {
     case "minion": {
@@ -153,6 +154,7 @@ export function normalizeEncounterCard(
         ...(p.flavor ? { flavor: p.flavor } : {}),
         abilities: abs,
         ...(parsed.signatureOf ? { signatureOf: parsed.signatureOf } : {}),
+        ...(parsed.modeOnly ? { modeOnly: parsed.modeOnly } : {}),
       };
       record(ctx, scheme, set, [p, ...flipParts]);
       return;

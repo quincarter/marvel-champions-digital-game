@@ -111,6 +111,8 @@ export interface ParsedText {
   readonly nemesisMinion?: boolean;
   /** "<Villain>'s Side Scheme." (The Wrecking Crew's signature side schemes, docs/phase7-wave1.md §1.1). */
   readonly signatureOf?: string;
+  /** "Standard Mode Only." / "Expert Mode Only." (docs/phase7-wave4.md §1.8, `EncounterCardCommon.modeOnly`). */
+  readonly modeOnly?: "standard" | "expert";
   /**
    * "If this stage/scheme is completed, the players lose the game." was printed somewhere in this main scheme
    * stage's B-side text (docs/phase7-wave3.md §3.37, `MainSchemeStage.completionLoses`) — plain or the two-clause
@@ -798,6 +800,7 @@ export function parseCardText(text: string, options: ParseOptions): ParsedText {
   let maxPerDeckText: number | undefined;
   let nemesisMinion: boolean | undefined;
   let signatureOf: string | undefined;
+  let modeOnly: "standard" | "expert" | undefined;
   let completionLoses: boolean | undefined;
 
   if (options.obligation) {
@@ -914,6 +917,14 @@ export function parseCardText(text: string, options: ParseOptions): ParsedText {
       if (keyword) {
         flushConstant();
         keywords.push(keyword);
+        continue;
+      }
+      // docs/phase7-wave4.md §1.8: "Standard Mode Only." / "Expert Mode Only." (Formidable Foe, `hood` 24049a/b) —
+      // which face a double-sided card is put into play with (RRG 1.8 "Double-Sided Card", p. 17). The sentence
+      // needs no ability ref, the same as `nemesisMinion` below.
+      const modeOnlyMatch = /^(Standard|Expert) Mode Only\.?$/.exec(sentence);
+      if (modeOnlyMatch) {
+        modeOnly = (modeOnlyMatch[1] as string).toLowerCase() as "standard" | "expert";
         continue;
       }
       if (/^\(.+ nemesis minion\.\)$/i.test(sentence)) {
@@ -1041,6 +1052,7 @@ export function parseCardText(text: string, options: ParseOptions): ParsedText {
     ...(attachesToVillainNamed ? { attachesToVillainNamed } : {}),
     ...(nemesisMinion ? { nemesisMinion } : {}),
     ...(signatureOf ? { signatureOf } : {}),
+    ...(modeOnly ? { modeOnly } : {}),
     ...(completionLoses ? { completionLoses } : {}),
     unclassified,
   };

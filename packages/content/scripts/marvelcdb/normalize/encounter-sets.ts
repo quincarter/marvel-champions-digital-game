@@ -47,6 +47,11 @@ export function normalizeEncounterSets(ctx: NormalizeContext): {
         // PvP "replaces the standard encounter set when playing in competitive mode". Competitive mode is not
         // built; `validateScenarioEncounterSets` refuses a standalone scenario that names this set.
         ...(id === "standard_pvp" ? { competitiveOnly: true } : {}),
+        // docs/phase7-wave4.md §1.9: RRG 1.8 "Standard Set" (p. 40) / "Expert Set" (p. 19) — a set in this
+        // classification is never a modular choice. Standard II / Expert II (`hood`) print "Standard II" /
+        // "Expert II" at the bottom of the card, so they're the same classification as Core's own Standard/Expert.
+        ...(id === "standard" || id === "standard_ii" ? { classification: "standard" as const } : {}),
+        ...(id === "expert" || id === "expert_ii" ? { classification: "expert" as const } : {}),
       };
     });
   return { encounterSets, setNames };

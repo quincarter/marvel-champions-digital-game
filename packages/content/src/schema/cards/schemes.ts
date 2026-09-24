@@ -3,6 +3,7 @@ import type { KeywordInstance } from "../keywords.js";
 import type { AbilityReference } from "../abilities.js";
 import type { EncounterSetId, ImageRef } from "../ids.js";
 import type { BaseCard } from "./base.js";
+import type { ModeOnly } from "./encounter-cards.js";
 
 /**
  * Icons printed in a scheme's threat box. Crisis blocks thwarting other
@@ -126,4 +127,11 @@ export interface SideSchemeCard extends BaseCard {
    * defeated." The printed "This card cannot leave play while [villain] is in play." is an ability, not this field.
    */
   readonly signatureOf?: string;
+  /**
+   * "Standard Mode Only." / "Expert Mode Only." printed on a side scheme whose standard/expert faces are emitted as
+   * two separate `SideSchemeCard`s rather than a `flipSide` (a mode choice at setup, not something flipped during
+   * play — Galaxy's Most Wanted's Campaign Challenge faces, 16178a/b–16182a/b, wave 3 §1.4; docs/phase7-wave4.md
+   * §1.8). Mirrors `EncounterCardCommon.modeOnly` / `CardFlipSide.modeOnly`.
+   */
+  readonly modeOnly?: ModeOnly;
 }
