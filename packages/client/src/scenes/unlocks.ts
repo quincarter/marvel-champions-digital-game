@@ -3,7 +3,7 @@
  * play through the campaigns. Champion points up top, one "Unlock everything" switch, then a scrolling list of the
  * campaigns and of every wave (with what opens it) and every hero in it, each campaign and hero with its own switch.
  *
- * Anything that costs points asks first, in a small confirm panel over the list, saying what it costs, that it
+ * Anything that costs points asks first (`scenes/unlock-confirm.ts`, shared with every screen that unlocks), saying what it costs, that it
  * isn't refunded, and how to earn the same thing by play. Switching something off never asks.
  *
  * Launched over Settings (`scenes/settings.ts`), the same ink-and-paper panel shape; ✕ or Escape stops only this
@@ -11,7 +11,7 @@
  * choice through `setUnlockPrefs`, which every picker reads the next time it draws.
  */
 import Phaser from "phaser";
-import { hit, ink, surface, typeRole } from "../tokens.js";
+import { ink, surface, typeRole } from "../tokens.js";
 import { caseOf, textStyle } from "../ui/theme.js";
 import { McButton, label } from "../ui/widgets.js";
 import { McVirtualList, type VirtualListRow } from "../ui/virtual-list.js";
@@ -29,11 +29,10 @@ import {
   tapOf,
   unlockAllRowOf,
   unlockListRowsOf,
-  type UnlockConfirm,
   type UnlockListRow,
   type UnlockTap,
 } from "../view/unlocks-model.js";
-import { unlockByHand } from "../progression/unlocks.js";
+import { askToUnlock } from "./unlock-confirm.js";
 import { setUnlockPrefs, unlocks } from "../progression/progression.js";
 import { FocusRoute, type FocusStop } from "./focus-route.js";
 import { SCENES } from "./keys.js";
@@ -52,12 +51,10 @@ export class UnlocksOverlay extends Phaser.Scene {
   #list: McVirtualList | null = null;
   #route: FocusRoute | null = null;
   #motion = new OverlayMotion();
-  #confirm: UnlockConfirm | null = null;
   /** Showing "How it works" (`view/progression-guide.ts`) in place of the switches. */
   #guide = false;
   #guideRegion: McScrollRegion | null = null;
   readonly #guideScroll = new VariableListScroll();
-  #confirmStops = new Map<string, FocusStop>();
   readonly #scroll = new ListScroll();
 
   constructor() {
@@ -66,16 +63,16 @@ export class UnlocksOverlay extends Phaser.Scene {
 
   create(): void {
     this.#motion = new OverlayMotion();
-    this.#confirm = null;
     this.#guide = false;
     this.#scroll.reset();
     const onResize = (): void => this.#draw();
     this.scale.on("resize", onResize, this);
     this.#route = new FocusRoute(this, {
-      onCancel: () => (this.#confirm ? this.#answer(false) : this.#guide ? this.#showGuide(false) : this.#close()),
+      blocked: () => this.scene.isActive(SCENES.unlockConfirm),
+      onCancel: () => (this.#guide ? this.#showGuide(false) : this.#close()),
       onPage: (direction) => {
         if (this.#guide) this.#guideRegion?.scrollByPx(direction * 240);
-        else if (!this.#confirm) this.#list?.scrollByPage(direction);
+        else this.#list?.scrollByPage(direction);
       },
     });
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
@@ -94,7 +91,7 @@ export class UnlocksOverlay extends Phaser.Scene {
   #apply(tap: UnlockTap): void {
     if (!tap) return;
     if (tap.kind === "apply") setUnlockPrefs(tap.prefs);
-    else this.#confirm = tap.confirm;
+    else askToUnlock(this, tap.confirm.target, () => this.#draw());
     this.#draw();
   }
 
@@ -105,22 +102,12 @@ export class UnlocksOverlay extends Phaser.Scene {
   }
 
   #toggleAll(): void {
-    if (this.#confirm) return;
     const current = unlocks();
     this.#apply(tapOf(current, { kind: "everything" }, current.prefs.unlockAll));
   }
 
   #tap(row: UnlockListRow): void {
-    // The list's rows are tapped through scene-level pointer events, which the confirm panel's blocker can't stop.
-    if (this.#confirm) return;
     this.#apply(rowTapOf(unlocks(), row));
-  }
-
-  #answer(confirmed: boolean): void {
-    const confirm = this.#confirm;
-    this.#confirm = null;
-    if (confirmed && confirm) setUnlockPrefs(unlockByHand(unlocks(), confirm.target));
-    this.#draw();
   }
 
   #draw(): void {
@@ -283,12 +270,7 @@ export class UnlocksOverlay extends Phaser.Scene {
     });
     this.#list = list;
 
-    if (this.#confirm) {
-      this.#drawConfirm(this.#confirm, panel);
-      this.#route?.set(["confirm-cancel", "confirm-ok"], this.#confirmStops);
-    } else {
-      this.#route?.set(order, stops);
-    }
+    this.#route?.set(order, stops);
     this.#motion.enter(this, { scrim: [scrim], panels: this.children.list.slice(panelsFrom) });
   }
 
@@ -327,62 +309,6 @@ export class UnlocksOverlay extends Phaser.Scene {
     const added = this.children.list.slice(before);
     this.#guideRegion = new McScrollRegion(this, { rect, heights: [contentHeight], scroll: this.#guideScroll });
     this.#guideRegion.content.add(added);
-  }
-
-  /** The "this costs points" question, centred over the panel. Drawn last, so it covers the list and the switches. */
-  #drawConfirm(confirm: UnlockConfirm, panel: Rect): void {
-    const { width, height } = this.scale.gameSize;
-    this.add.zone(0, 0, width, height).setOrigin(0, 0).setInteractive();
-    this.add.graphics().fillStyle(surface.void.hex, 0.6).fillRect(panel.x, panel.y, panel.width, panel.height);
-
-    const boxWidth = Math.min(440, panel.width - 32);
-    const textWidth = boxWidth - 40;
-    const ground = this.add.graphics();
-    const title = this.add
-      .text(0, 0, confirm.title, textStyle(typeRole.sectionHeader, surface.ink.hex))
-      .setWordWrapWidth(textWidth);
-    const bodyText = this.add
-      .text(0, 0, confirm.body, textStyle(typeRole.body, surface.ink.hex, 0.9))
-      .setFontSize(13)
-      .setWordWrapWidth(textWidth)
-      .setLineSpacing(3);
-    const buttonHeight = hit.target;
-    const boxHeight = 20 + title.height + 12 + bodyText.height + 20 + buttonHeight + 20;
-    const box: Rect = {
-      x: panel.x + (panel.width - boxWidth) / 2,
-      y: panel.y + Math.max(16, (panel.height - boxHeight) / 2),
-      width: boxWidth,
-      height: boxHeight,
-    };
-    ground.fillStyle(surface.paper.hex, 1).fillRect(box.x, box.y, box.width, box.height);
-    ground.lineStyle(4, surface.ink.hex, 1).strokeRect(box.x, box.y, box.width, box.height);
-    title.setPosition(box.x + 20, box.y + 20);
-    bodyText.setPosition(box.x + 20, title.y + title.height + 12);
-
-    const buttonWidth = (textWidth - 12) / 2;
-    const buttonY = box.y + box.height - 20 - buttonHeight;
-    const cancelRect: Rect = { x: box.x + 20, y: buttonY, width: buttonWidth, height: buttonHeight };
-    const okRect: Rect = { x: cancelRect.x + buttonWidth + 12, y: buttonY, width: buttonWidth, height: buttonHeight };
-    this.#buttons.push(
-      new McButton(this, {
-        kind: "secondary",
-        label: "Keep playing",
-        type: typeRole.label,
-        rect: cancelRect,
-        onClick: () => this.#answer(false),
-      }),
-      new McButton(this, {
-        kind: "primary",
-        label: confirm.confirmLabel,
-        type: typeRole.label,
-        rect: okRect,
-        onClick: () => this.#answer(true),
-      }),
-    );
-    this.#confirmStops = new Map([
-      ["confirm-cancel", { rect: cancelRect, activate: () => this.#answer(false) }],
-      ["confirm-ok", { rect: okRect, activate: () => this.#answer(true) }],
-    ]);
   }
 
   #renderRow(row: UnlockListRow, rect: Rect): VirtualListRow {

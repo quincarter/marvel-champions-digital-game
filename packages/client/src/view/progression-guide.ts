@@ -74,14 +74,16 @@ export function progressionGuideOf(): readonly GuideSection[] {
     {
       heading: "Unlocking by hand",
       paragraphs: [
-        "Don't want to play through? Switch a hero, a campaign or everything on here. It costs points instead of " +
-          "wins, and it asks first.",
+        "Don't want to play through? Unlock something right where you find it locked: a precon in Seats, a " +
+          "scenario in Scenario select, a campaign on the Saga shelf. Or switch it on here. It costs points " +
+          "instead of wins, and it asks first.",
       ],
       bullets: [
         `A hero's precon: ${POINTS.unlockHero} points.`,
         `A campaign: ${POINTS.unlockCampaign} points. Its cast comes with it.`,
-        `Unlock everything: ${POINTS.unlockHero} for each locked hero and ${POINTS.unlockCampaign} for each ` +
-          "locked campaign.",
+        `A scenario, on its own: ${POINTS.unlockScenario} points.`,
+        `Unlock everything: ${POINTS.unlockHero} for each locked hero, ${POINTS.unlockScenario} for each locked ` +
+          `scenario and ${POINTS.unlockCampaign} for each locked campaign.`,
         "Anything you've already earned by playing is free.",
         "Points are never refunded. Switching something off and on again doesn't charge twice.",
         "Your total can go below zero.",

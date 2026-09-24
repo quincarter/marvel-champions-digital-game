@@ -48,6 +48,8 @@ export const POINTS = {
   expertCampaign: 250,
   unlockHero: 150,
   unlockCampaign: 300,
+  /** One scenario, on its own: the same as the first win it stands in for. */
+  unlockScenario: 100,
 } as const;
 
 export type UnlockGate =
@@ -147,20 +149,30 @@ export interface UnlockPrefs {
   readonly heroIds: readonly string[];
   /** Campaign box ids (`Campaign.id`) opened one at a time. */
   readonly campaignIds: readonly string[];
+  /** Scenario ids opened one at a time. */
+  readonly scenarioIds: readonly string[];
   /** Everything ever charged. Never shrinks: switching something off refunds nothing. */
   readonly charges: readonly UnlockCharge[];
 }
 
-export const DEFAULT_UNLOCK_PREFS: UnlockPrefs = { unlockAll: false, heroIds: [], campaignIds: [], charges: [] };
+export const DEFAULT_UNLOCK_PREFS: UnlockPrefs = {
+  unlockAll: false,
+  heroIds: [],
+  campaignIds: [],
+  scenarioIds: [],
+  charges: [],
+};
 
 /** Something the player can open by hand. */
 export type UnlockTarget =
   | { readonly kind: "hero"; readonly identityCardId: string }
   | { readonly kind: "campaign"; readonly campaignId: string }
+  | { readonly kind: "scenario"; readonly scenarioId: string }
   | { readonly kind: "everything" };
 
 const heroKey = (identityCardId: string): string => `hero:${identityCardId}`;
 const campaignKey = (campaignId: string): string => `campaign:${campaignId}`;
+const scenarioKey = (scenarioId: string): string => `scenario:${scenarioId}`;
 
 const isExpert = (difficulty: string | undefined): boolean => difficulty === "expert" || difficulty === "extreme";
 const unique = (ids: readonly string[]): string[] => [...new Set(ids)].sort();
@@ -267,6 +279,12 @@ export const UNLOCK_CAMPAIGNS: readonly UnlockCampaign[] = UNLOCK_WAVES.flatMap(
     : [];
 });
 
+const campaignNameOf = (campaignId: string): string =>
+  SAGA_VOLUMES.find((v) => v.campaignId === campaignId)?.name ?? campaignId;
+
+/** A scenario's display name for a lock or a confirm: its villain, with the scenario when they differ. */
+export const scenarioNameOf = (scenarioId: string): string => villainLabelOf(scenarioId);
+
 export interface WaveStatus {
   readonly wave: UnlockWave;
   /** The gate is met (or there is none): opened by play, not by a setting. */
@@ -337,8 +355,17 @@ export class Unlocks {
     return this.#waves.get(cycleId)?.lockReason ?? null;
   }
 
-  scenarioLock(scenario: Pick<Scenario, "packCode">): string | null {
+  /** Null when the scenario may be played: its wave is open, or it was opened on its own. */
+  scenarioLock(scenario: Pick<Scenario, "id" | "packCode">): string | null {
+    if (this.prefs.scenarioIds.includes(scenario.id as string)) return null;
     return this.waveLock(scenarioCycleOf(scenario));
+  }
+
+  /** The scenario's wave was opened by play. */
+  scenarioEarned(scenarioId: string): boolean {
+    const scenario = POOL_SCENARIOS.find((s) => (s.id as string) === scenarioId);
+    const cycleId = scenario ? scenarioCycleOf(scenario) : undefined;
+    return cycleId === undefined || (this.#waves.get(cycleId)?.earned ?? true);
   }
 
   /** Opened by play: the hero's wave cast it from the start, or its villain has been beaten. */
@@ -413,6 +440,23 @@ export class Unlocks {
     return { earned, spent, total: earned - spent };
   }
 
+  /** Where the earned points came from, one line per source, for the Unlocks header. */
+  pointsSources(): readonly { readonly label: string; readonly points: number }[] {
+    const p = this.progress;
+    return [
+      ...p.wonScenarioIds.map((id) => ({ label: `First win: ${villainLabelOf(id)}`, points: POINTS.firstWin })),
+      ...p.wonExpertScenarioIds.map((id) => ({
+        label: `First Expert win: ${villainLabelOf(id)}`,
+        points: POINTS.firstExpertWin,
+      })),
+      ...p.wonCampaignIds.map((id) => ({ label: `Campaign: ${campaignNameOf(id)}`, points: POINTS.campaign })),
+      ...p.wonExpertCampaignIds.map((id) => ({
+        label: `Expert Campaign: ${campaignNameOf(id)}`,
+        points: POINTS.expertCampaign,
+      })),
+    ];
+  }
+
   /**
    * The charges opening `target` by hand would add: nothing already earned by play, already open by hand, or
    * already paid for once. "Everything" charges each locked hero and campaign separately, so a later single switch
@@ -426,14 +470,21 @@ export class Unlocks {
       this.campaignEarned(id) || paid.has(campaignKey(id))
         ? []
         : [{ id: campaignKey(id), points: POINTS.unlockCampaign }];
+    const scenario = (id: string): UnlockCharge[] =>
+      this.scenarioEarned(id) || paid.has(scenarioKey(id))
+        ? []
+        : [{ id: scenarioKey(id), points: POINTS.unlockScenario }];
     switch (target.kind) {
       case "hero":
         return hero(target.identityCardId);
       case "campaign":
         return campaign(target.campaignId);
+      case "scenario":
+        return scenario(target.scenarioId);
       case "everything":
         return [
           ...UNLOCK_CAMPAIGNS.flatMap((c) => campaign(c.campaignId)),
+          ...POOL_SCENARIOS.flatMap((s) => scenario(s.id as string)),
           // A campaign's cast comes with the campaign, so the cast isn't charged twice.
           ...UNLOCK_HEROES.filter((h) => !this.#castOfLockedCampaign(h.identityCardId)).flatMap((h) =>
             hero(h.identityCardId),
@@ -464,6 +515,8 @@ export function unlockByHand(unlocks: Unlocks, target: UnlockTarget): UnlockPref
       return { ...prefs, charges, heroIds: unique([...prefs.heroIds, target.identityCardId]) };
     case "campaign":
       return { ...prefs, charges, campaignIds: unique([...prefs.campaignIds, target.campaignId]) };
+    case "scenario":
+      return { ...prefs, charges, scenarioIds: unique([...prefs.scenarioIds, target.scenarioId]) };
     case "everything":
       return { ...prefs, charges, unlockAll: true };
   }
@@ -476,6 +529,8 @@ export function relock(prefs: UnlockPrefs, target: UnlockTarget): UnlockPrefs {
       return { ...prefs, heroIds: prefs.heroIds.filter((id) => id !== target.identityCardId) };
     case "campaign":
       return { ...prefs, campaignIds: prefs.campaignIds.filter((id) => id !== target.campaignId) };
+    case "scenario":
+      return { ...prefs, scenarioIds: prefs.scenarioIds.filter((id) => id !== target.scenarioId) };
     case "everything":
       return { ...prefs, unlockAll: false };
   }
@@ -520,6 +575,7 @@ export function parseUnlockPrefs(raw: string | null): UnlockPrefs {
       unlockAll: value.unlockAll === true,
       heroIds: strings(value.heroIds),
       campaignIds: strings(value.campaignIds),
+      scenarioIds: strings(value.scenarioIds),
       charges: charges.map((c) => ({ id: c.id, points: c.points })),
     };
   } catch {

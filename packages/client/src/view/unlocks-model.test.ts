@@ -23,7 +23,7 @@ const groot = UNLOCK_HEROES.find((h) => h.name === "Groot")!.identityCardId;
 const spiderMan = UNLOCK_HEROES.find((h) => h.name === "Spider-Man")!.identityCardId;
 const make = (prefs: UnlockPrefs = DEFAULT_UNLOCK_PREFS, wonScenarioIds: string[] = []) =>
   new Unlocks({ progress: { ...NO_PROGRESS, wonScenarioIds }, prefs });
-type SwitchRow = Extract<UnlockListRow, { kind: "hero" | "campaign" }>;
+type SwitchRow = Extract<UnlockListRow, { kind: "hero" | "campaign" | "scenario" }>;
 const rowOf = (rows: readonly UnlockListRow[], id: string) => rows.find((r) => r.id === id) as SwitchRow;
 
 describe("unlockListRowsOf", () => {
@@ -97,7 +97,7 @@ describe("taps", () => {
     const everything = tapOf(make(), { kind: "everything" }, false);
     expect(everything).toMatchObject({ kind: "confirm", confirm: { title: "Unlock everything?" } });
     if (everything?.kind !== "confirm") throw new Error("expected confirm");
-    expect(everything.confirm.body).toContain("2 campaigns and");
+    expect(everything.confirm.body).toMatch(/covers 2 campaigns, \d+ scenarios and \d+ heroes/);
   });
 });
 
@@ -115,5 +115,29 @@ describe("summaries", () => {
     const dev = new Unlocks({ progress: NO_PROGRESS, prefs: DEFAULT_UNLOCK_PREFS, devUnlockAll: true });
     expect(unlockAllRowOf(dev).detail).toContain("?unlock=all");
     expect(unlockAllRowOf(make()).on).toBe(false);
+  });
+});
+
+describe("points header", () => {
+  it("says where every point came from, and starts at none", () => {
+    expect(pointsRowOf(make()).detail).toMatch(/^No points yet: you earn them by winning\. Spent 0\./);
+    expect(pointsRowOf(make(DEFAULT_UNLOCK_PREFS, ["rhino"])).detail).toMatch(
+      /^Earned 100: First win: Rhino \(\+100\)\. Spent 0\./,
+    );
+  });
+});
+
+describe("scenario rows", () => {
+  it("lists each wave's scenarios with a switch, the Core Set's always open", () => {
+    const rows = unlockListRowsOf(make());
+    expect(rowOf(rows, "scenario:rhino")).toMatchObject({ state: "always" });
+    expect(rowOf(rows, "scenario:red-skull")).toMatchObject({
+      state: "off",
+      detail: "Beat Rhino to unlock The Rise of Red Skull",
+    });
+    expect(rowTapOf(make(), rowOf(rows, "scenario:red-skull"))).toMatchObject({
+      kind: "confirm",
+      confirm: { title: "Unlock Red Skull by hand?", confirmLabel: "Spend 100" },
+    });
   });
 });

@@ -1,6 +1,6 @@
 /**
  * Settings ▸ Unlocks: champion points, the "Unlock everything" switch, one switch per campaign, then every wave in
- * release order with what opens it and one row per hero in it. Pure, so the wording, each switch's state and what a
+ * release order with what opens it and one row per scenario and hero in it. Pure, so the wording, each switch's state and what a
  * tap costs are tested without a canvas; the scene (`scenes/unlocks.ts`) only draws these rows, asks before
  * anything costs points, and saves what a tap changes.
  */
@@ -10,6 +10,8 @@ import {
   UNLOCK_HEROES,
   UNLOCK_WAVES,
   relock,
+  scenarioCycleOf,
+  scenarioNameOf,
   unlockByHand,
   type UnlockCampaign,
   type UnlockHero,
@@ -17,6 +19,7 @@ import {
   type UnlockTarget,
   type Unlocks,
 } from "../progression/unlocks.js";
+import { POOL_SCENARIOS } from "../content/pool.js";
 
 const formatPoints = (points: number): string => points.toLocaleString("en-US");
 const plural = (count: number, one: string, many = `${one}s`): string => `${count} ${count === 1 ? one : many}`;
@@ -50,7 +53,7 @@ export type UnlockListRow =
       readonly open: boolean;
     }
   | {
-      readonly kind: "campaign" | "hero";
+      readonly kind: "campaign" | "scenario" | "hero";
       readonly id: string;
       readonly target: UnlockTarget;
       readonly title: string;
@@ -62,12 +65,17 @@ export function pointsRowOf(unlocks: Unlocks): UnlockHeaderRow {
   const { earned, spent, total } = unlocks.points();
   return {
     title: `Champion points: ${formatPoints(total)}`,
-    detail:
-      `Earned ${formatPoints(earned)} · spent ${formatPoints(spent)}. A feature of this app, not a card-game ` +
-      `rule; see How it works. A first win against a villain earns ` +
-      `${POINTS.firstWin} (+${POINTS.firstExpertWin} on Expert), a campaign ${POINTS.campaign} ` +
-      `(+${POINTS.expertCampaign} on Expert). Unlocking by hand costs points, and they're never refunded.`,
+    detail: `${earnedLineOf(unlocks, earned)} Spent ${formatPoints(spent)}. A feature of this app, not a card-game rule; see How it works.`,
   };
+}
+
+/** Where every earned point came from, so a total is never a mystery: "Earned 200: first win against Rhino (+100), …". */
+function earnedLineOf(unlocks: Unlocks, earned: number): string {
+  const sources = unlocks.pointsSources();
+  if (sources.length === 0) return "No points yet: you earn them by winning.";
+  const shown = sources.slice(0, 4).map((s) => `${s.label} (+${s.points})`);
+  const more = sources.length > 4 ? `, and ${sources.length - 4} more` : "";
+  return `Earned ${formatPoints(earned)}: ${shown.join(", ")}${more}.`;
 }
 
 export function unlockAllRowOf(unlocks: Unlocks): UnlockAllRow {
@@ -105,7 +113,11 @@ export function unlockListRowsOf(
     });
   }
 
-  rows.push({ kind: "section", id: "section:heroes", title: "Precon heroes by wave · your own decks always play" });
+  rows.push({
+    kind: "section",
+    id: "section:heroes",
+    title: "By wave · scenarios and precon heroes · your own decks always play",
+  });
   for (const status of unlocks.waves()) {
     rows.push({
       kind: "wave",
@@ -121,6 +133,30 @@ export function unlockListRowsOf(
               : (status.lockReason ?? "Locked"),
       open: status.unlocked,
     });
+    for (const scenario of POOL_SCENARIOS.filter((sc) => scenarioCycleOf(sc) === status.wave.cycleId)) {
+      const id = scenario.id as string;
+      const always = status.wave.gate === null;
+      const state: UnlockSwitchState = always
+        ? "always"
+        : switchStateOf(unlocks, unlocks.scenarioEarned(id), (u) => u.prefs.scenarioIds.includes(id));
+      rows.push({
+        kind: "scenario",
+        id: `scenario:${id}`,
+        target: { kind: "scenario", scenarioId: id },
+        title: `Scenario · ${scenarioNameOf(id)}`,
+        detail:
+          state === "always"
+            ? "Core Set"
+            : state === "earned"
+              ? "Earned"
+              : state === "off"
+                ? (unlocks.scenarioLock(scenario) ?? "Locked")
+                : state === "on"
+                  ? "Unlocked by hand"
+                  : "Unlocked by Unlock everything",
+        state,
+      });
+    }
     for (const hero of heroes.filter((h) => h.cycleId === status.wave.cycleId)) {
       const always = status.wave.gate === null;
       // A campaign opened by hand brings its cast; that hero's own switch has nothing to add until it's closed.
@@ -196,7 +232,8 @@ export function tapOf(unlocks: Unlocks, target: UnlockTarget, currentlyOn: boole
 
 /** A list row's tap. */
 export function rowTapOf(unlocks: Unlocks, row: UnlockListRow): UnlockTap {
-  if ((row.kind !== "hero" && row.kind !== "campaign") || !switchToggleable(row.state)) return null;
+  if ((row.kind !== "hero" && row.kind !== "campaign" && row.kind !== "scenario") || !switchToggleable(row.state))
+    return null;
   return tapOf(unlocks, row.target, row.state === "on");
 }
 
@@ -237,15 +274,30 @@ export function confirmOf(unlocks: Unlocks, target: UnlockTarget): UnlockConfirm
         confirmLabel: `Spend ${formatPoints(cost)}`,
       };
     }
+    case "scenario": {
+      const name = scenarioNameOf(target.scenarioId);
+      const scenario = POOL_SCENARIOS.find((sc) => (sc.id as string) === target.scenarioId);
+      const lock = scenario ? unlocks.waveLock(scenarioCycleOf(scenario)) : null;
+      const wave = UNLOCK_WAVES.find((w) => w.cycleId === (scenario ? scenarioCycleOf(scenario) : undefined));
+      return {
+        target,
+        title: `Unlock ${name} by hand?`,
+        body:
+          `${price} This opens ${name} on its own, not the rest of ${wave?.name ?? "its wave"}.` +
+          (lock ? ` Or ${lock.charAt(0).toLowerCase()}${lock.slice(1)}, for free.` : ""),
+        confirmLabel: `Spend ${formatPoints(cost)}`,
+      };
+    }
     case "everything": {
       const heroes = charges.filter((c) => c.id.startsWith("hero:")).length;
       const campaigns = charges.filter((c) => c.id.startsWith("campaign:")).length;
-      const what = [
+      const scenarios = charges.filter((c) => c.id.startsWith("scenario:")).length;
+      const parts = [
         campaigns > 0 ? plural(campaigns, "campaign") : null,
+        scenarios > 0 ? plural(scenarios, "scenario") : null,
         heroes > 0 ? plural(heroes, "hero", "heroes") : null,
-      ]
-        .filter((part) => part !== null)
-        .join(" and ");
+      ].filter((part): part is string => part !== null);
+      const what = parts.length > 1 ? `${parts.slice(0, -1).join(", ")} and ${parts.at(-1)}` : (parts[0] ?? "nothing");
       return {
         target,
         title: "Unlock everything?",

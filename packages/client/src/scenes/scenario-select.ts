@@ -49,6 +49,7 @@ import type { SeatsData } from "./seats.js";
 import { destroyChildren } from "../ui/destroy-children.js";
 import { fadeScreenIn, goToScreen } from "../ui/transitions.js";
 import { refreshUnlocks, unlocks } from "../progression/progression.js";
+import { unlockCostOf, unlockOrAsk } from "./unlock-confirm.js";
 
 export interface ScenarioSelectData {
   readonly draft: SetupDraft;
@@ -114,7 +115,10 @@ export class ScenarioSelectScene extends Phaser.Scene {
       this.#chipRail = null;
     });
     this.#route = new FocusRoute(this, {
-      blocked: () => this.scene.isActive(SCENES.inspect) || (this.#searchInput?.focused ?? false),
+      blocked: () =>
+        this.scene.isActive(SCENES.inspect) ||
+        this.scene.isActive(SCENES.unlockConfirm) ||
+        (this.#searchInput?.focused ?? false),
       onCancel: () => (this.#drill.packId !== null ? this.#drillOut() : this.#back()),
       onPage: (direction) => (this.#grid ?? this.#roster)?.scrollByPage(direction),
       onHomeEnd: (edge) => {
@@ -371,24 +375,27 @@ export class ScenarioSelectScene extends Phaser.Scene {
     this.#drawSidePanel(layout, detail, detailTextWidth);
 
     const lock = unlocks().scenarioLock(currentScenario);
+    // Locked, the CTA becomes the door to unlocking this one scenario with champion points, right here.
+    const unlockTarget = { kind: "scenario", scenarioId: currentScenario.id as string } as const;
     const next = (): void => {
-      if (lock) return;
+      if (lock) {
+        unlockOrAsk(this, unlockTarget, () => this.#rebuild());
+        return;
+      }
       this.scale.off("resize", this.#rebuild, this);
       goToScreen(this, SCENES.seats, { draft: this.#draft } satisfies SeatsData);
     };
     this.#buttons.push(
       new McButton(this, {
         kind: "primary",
-        label: lock ? "Locked" : "Choose heroes ▸",
+        label: lock ? `Unlock · ${unlockCostOf(unlockTarget)} pts` : "Choose heroes ▸",
         type: typeRole.barTitle,
         rect: layout.next,
-        enabled: lock === null,
-        ...(lock ? { reason: lock } : {}),
         onClick: next,
       }),
     );
     this.#stops.set("next", { rect: layout.next, activate: next });
-    // Locked: the footer says what opens it, since the CTA itself only has room for "Locked".
+    // Locked: the footer says how to open it for free, since the CTA itself is the paid way.
     const footer = label(
       this,
       layout.footer.x,
@@ -530,7 +537,7 @@ export class ScenarioSelectScene extends Phaser.Scene {
       title: cardDetail.villainName,
       subtitle,
       blockedBy: lock,
-      warning: lock,
+      warning: lock ? `${lock} · or ${unlockCostOf({ kind: "scenario", scenarioId: s.id as string })} pts` : null,
       tag: lock ? "LOCKED" : selected ? "SELECTED" : null,
       selected,
     });

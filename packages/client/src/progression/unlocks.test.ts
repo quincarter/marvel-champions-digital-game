@@ -224,6 +224,7 @@ describe("storage", () => {
       unlockAll: false,
       heroIds: ["03001a"],
       campaignIds: [],
+      scenarioIds: [],
       charges: [{ id: "hero:03001a", points: 150 }],
     });
   });
@@ -241,5 +242,28 @@ describe("your own decks", () => {
     expect(u.deckLock({ identityCardId: thor, source: { kind: "precon" } })).toBe("Beat Rhino to unlock Wave 1");
     expect(u.deckLock({ identityCardId: thor, source: { kind: "imported" } })).toBeNull();
     expect(u.deckLock({ identityCardId: thor, source: { kind: "built" } })).toBeNull();
+  });
+});
+
+describe("scenarios by hand", () => {
+  it("opens one scenario on its own, for the price of a first win", () => {
+    const u = make();
+    expect(u.chargesFor({ kind: "scenario", scenarioId: "klaw" })).toEqual([]);
+    expect(u.chargesFor({ kind: "scenario", scenarioId: "red-skull" })).toEqual([
+      { id: "scenario:red-skull", points: POINTS.unlockScenario },
+    ]);
+    const opened = make(NO_PROGRESS, unlockByHand(u, { kind: "scenario", scenarioId: "red-skull" }));
+    expect(opened.scenarioLock(scenario("red-skull"))).toBeNull();
+    expect(opened.scenarioLock(scenario("zola"))).not.toBeNull();
+    expect(opened.points().spent).toBe(POINTS.unlockScenario);
+  });
+
+  it("says where earned points came from", () => {
+    const u = make({ ...NO_PROGRESS, wonScenarioIds: ["rhino"], wonExpertScenarioIds: ["rhino"] });
+    expect(u.pointsSources()).toEqual([
+      { label: "First win: Rhino", points: 100 },
+      { label: "First Expert win: Rhino", points: 50 },
+    ]);
+    expect(make().pointsSources()).toEqual([]);
   });
 });

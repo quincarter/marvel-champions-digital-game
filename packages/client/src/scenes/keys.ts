@@ -54,6 +54,8 @@ export const SCENES = {
   settings: "SettingsOverlay",
   /** Settings ▸ Unlocks (`scenes/unlocks.ts`): unlock everything, or one hero at a time. Launched over Settings. */
   unlocks: "UnlocksOverlay",
+  /** "Unlock this by hand?" (`scenes/unlock-confirm.ts`), over whichever screen is spending champion points. */
+  unlockConfirm: "UnlockConfirmOverlay",
   /** C04: a villain's stage flip told as a comic splash, launched over the Board in a campaign game. */
   campaignBeat: "CampaignBeatOverlay",
   /** Background soundtrack controller running across screen transitions. */

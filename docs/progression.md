@@ -51,21 +51,32 @@ Only firsts count, so replaying a villain already beaten earns nothing more.
 Earned points are never stored. They're derived from the same rows the results history and the Saga shelf read:
 `won` saves in `mc-saves` and `won` campaign records in `mc-campaigns` (`progressOf`, `Unlocks.points`).
 
-### Unlocking by hand (Settings ▸ Unlocks)
+### Unlocking by hand
 
-| Unlocked by hand  | Cost                                          |
-| ----------------- | --------------------------------------------- |
-| One hero's precon | 150                                           |
-| One campaign      | 300 (its cast comes with it)                  |
-| Unlock everything | 150 per locked hero + 300 per locked campaign |
+A player can unlock something right where they find it locked, or in Settings ▸ Unlocks:
+
+- **Seats:** tapping a locked precon offers to unlock it, then seats it.
+- **Scenario select:** a locked scenario's button reads "Unlock · 100 pts".
+- **Saga shelf:** a sealed campaign this build can play reads "Unlock · 300 pts", and opens out of the shelf's order.
+- **Settings ▸ Unlocks:** a switch for everything, each campaign, each scenario and each hero.
+
+Every one of them goes through the same confirm (`scenes/unlock-confirm.ts`).
+
+| Unlocked by hand  | Cost                                                                    |
+| ----------------- | ----------------------------------------------------------------------- |
+| One hero's precon | 150                                                                     |
+| One scenario      | 100                                                                     |
+| One campaign      | 300 (its cast comes with it)                                            |
+| Unlock everything | 150 per locked hero + 100 per locked scenario + 300 per locked campaign |
 
 - Anything that costs points asks first. The confirm popup gives the cost, says it isn't refunded, and names the
   villain that would unlock it for free.
-- Anything already earned by play is free.
+- Anything already earned by play is free, and so is anything already paid for once.
 - Each thing is charged once and never refunded. Switching it off and on again doesn't charge twice.
-- "Unlock everything" is charged item by item, so a later single switch of something it covered is free, and a
+- "Unlock everything" is charged item by item, so a later single unlock of something it covered is free, and a
   campaign's cast isn't charged on top of the campaign.
-- The total is earned minus spent, and it can go below zero.
+- The total is earned minus spent, and it can go below zero. The Unlocks header lists where every earned point came
+  from ("First win: Rhino (+100)"), and says "No points yet" until the first win.
 
 What was switched on, and what it cost (`UnlockPrefs.charges`), is saved in `localStorage` under `mc-unlocks`.
 Clearing the app's saved data resets it; earned points survive in IndexedDB.

@@ -43,6 +43,7 @@ describe("docs/progression.md", () => {
       ["Completing it as an Expert Campaign", POINTS.expertCampaign],
       ["One hero's precon", POINTS.unlockHero],
       ["One campaign", POINTS.unlockCampaign],
+      ["One scenario", POINTS.unlockScenario],
     ];
     for (const [label, value] of rows) {
       const line = doc.split("\n").find((l) => l.includes(label));

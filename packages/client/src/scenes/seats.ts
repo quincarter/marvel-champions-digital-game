@@ -101,6 +101,7 @@ import type { TableSetupData } from "./table-setup.js";
 import { destroyChildren } from "../ui/destroy-children.js";
 import { fadeScreenIn, goToScreen } from "../ui/transitions.js";
 import { refreshUnlocks, unlocks } from "../progression/progression.js";
+import { unlockCostOf, unlockOrAsk } from "./unlock-confirm.js";
 
 export interface SeatsData {
   readonly draft: SetupDraft;
@@ -201,7 +202,10 @@ export class SeatsScene extends Phaser.Scene {
       this.#chipRail = null;
     });
     this.#route = new FocusRoute(this, {
-      blocked: () => this.scene.isActive(SCENES.inspect) || (this.#searchInput?.focused ?? false),
+      blocked: () =>
+        this.scene.isActive(SCENES.inspect) ||
+        this.scene.isActive(SCENES.unlockConfirm) ||
+        (this.#searchInput?.focused ?? false),
       onCancel: () => (this.#drill.packId !== null ? this.#drillOut() : this.#back()),
       onPage: (direction) => (this.#grid ?? this.#roster)?.scrollByPage(direction),
       onHomeEnd: (edge) => {
@@ -646,6 +650,7 @@ export class SeatsScene extends Phaser.Scene {
 
   #pickHero(option: DeckOption, active: ReadonlyMap<string, ActiveSeatRosterEntry>): void {
     const entry = active.get(option.deck.id as string);
+    if (this.#offerUnlock(option)) return;
     if (entry?.blockedBy) return;
     this.#draft = assignToActiveSeat(this.#draft, option.deck.id as string);
     this.#rebuild();
@@ -988,7 +993,12 @@ export class SeatsScene extends Phaser.Scene {
       subtitle: `${sourceText} · ${option.identityName ?? "unknown identity"}`,
       stamps: aspectStampsOf(option.deck.aspects),
       blockedBy,
-      warning: seatedElsewhere ? null : (lock ?? entry?.warning ?? null),
+      // Locked: the free way (the villain to beat) and the paid one (tap it to spend points), side by side.
+      warning: seatedElsewhere
+        ? null
+        : lock
+          ? `${lock} · or ${unlockCostOf({ kind: "hero", identityCardId: option.deck.identityCardId as string })} pts`
+          : (entry?.warning ?? null),
       tag,
       selected: entry?.isActiveSeat ?? false,
     });
@@ -1174,9 +1184,25 @@ export class SeatsScene extends Phaser.Scene {
     }));
   }
 
+  /**
+   * A locked precon, tapped: offer to unlock it with champion points (`scenes/unlock-confirm.ts`), and seat it once
+   * it's paid for. False when the deck isn't locked, so the tap goes on as usual.
+   */
+  #offerUnlock(option: DeckOption): boolean {
+    if (!unlocks().deckLock(option.deck)) return false;
+    const deckId = option.deck.id as string;
+    unlockOrAsk(this, { kind: "hero", identityCardId: option.deck.identityCardId as string }, () => {
+      if (!this.sys.isActive()) return;
+      this.#draft = assignToActiveSeat(this.#draft, deckId);
+      this.#rebuild();
+    });
+    return true;
+  }
+
   #onInspectChoose(rowId: string): void {
     const deckOptions = this.#deckOptions();
     const option = deckOptions.find((o) => (o.deck.id as string) === rowId);
+    if (option && this.#offerUnlock(option)) return;
     const seating = new Map(this.#seatOptionsExcludingActive(deckOptions).map((o) => [o.deckId, o]));
     if (option && !seating.get(rowId)?.blockedBy) {
       this.#draft = assignToActiveSeat(this.#draft, rowId);
