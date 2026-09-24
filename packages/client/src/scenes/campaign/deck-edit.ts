@@ -9,6 +9,11 @@
  * (`campaignDeckContextOf`) and a starting `Deck` from the seat's stored `DeckContents`, then hand off to
  * `SCENES.deckBuilder`. It never judges the deck itself — `campaignDeckEditModel`/`validateDeck`, read inside the
  * builder, own every verdict.
+ *
+ * **Once the deck is frozen (MC16 p. 5), this hands off to `SCENES.campaignFrozenDeck` instead** — a read-only
+ * summary (design tile 20) in place of the builder. The branch reads `frozenNonCampaignCardsOf`'s own result, not
+ * `current.campaignId`: any future box whose `DECK_FREEZE_POLICY` marks it `"mandatory"` gets this same swap for
+ * free, the way `isMarketPendingChoice` (`campaign-market-model.ts`) detects its own screen by shape.
  */
 import Phaser from "phaser";
 import { deckId, type Deck } from "@mc/content";
@@ -90,6 +95,16 @@ export class CampaignDeckEditScene extends Phaser.Scene {
     const identity = POOL_CARDS.find((card) => (card.id as string) === (seat.identityCardId as string));
     const identityName = identity?.name ?? (seat.identityCardId as string);
     const title = `${current.name} — Seat ${data.seatNumber}: ${identityName}`;
+
+    if (frozenNonCampaignCards) {
+      this.scene.start(SCENES.campaignFrozenDeck, {
+        runId: data.runId,
+        seatNumber: data.seatNumber,
+        returnTo: data.returnTo,
+        title: identityName,
+      });
+      return;
+    }
 
     const deck: Deck = {
       id: deckId(`campaign-${current.id}-seat-${data.seatNumber}`),
