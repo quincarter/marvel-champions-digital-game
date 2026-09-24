@@ -14,6 +14,9 @@
  *  - The run's own next issue (`data.nodeId` absent): `record.position.nextNodeId`. Skip/finish go to Briefing.
  *  - A reread of a finished issue (`data.nodeId` + `data.returnTo`, Run's "Reread issue #2"): the same panels, then
  *    back to `returnTo` instead of Briefing — nothing here needs to know it's a reread beyond that one branch.
+ *  - A read from Extras (`data.campaignId` + `data.nodeId` + `data.returnTo`, no `runId`): the same panels with no run
+ *    behind them, so the box's own cast (`CampaignStory.castIdentityIds`) stands in for the roster and the issue is
+ *    numbered by its place in the story.
  */
 import Phaser from "phaser";
 import { issueNumberOf, issueStoryFor, storyFor, type IssueStory } from "../../campaign/story.js";
@@ -45,7 +48,6 @@ import {
   type ResolvedComicBeat,
 } from "../../view/comic-reader-model.js";
 import { appSession, campaignService } from "../../session.js";
-import type { CampaignRecord } from "../../engine/campaign-storage.js";
 import { FocusRoute, type FocusStop } from "../focus-route.js";
 import { SCENES } from "../keys.js";
 import type { CampaignOpenerData } from "./routes.js";
@@ -60,7 +62,10 @@ const MIN_WRAP_WIDTH = 40;
 
 export class CampaignOpenerScene extends Phaser.Scene {
   #data!: CampaignOpenerData;
-  #record: CampaignRecord | null = null;
+  /** What the panels are read against: the run's box and roster, or (read from Extras) the box's own cast. */
+  #reading: { readonly campaignId: string; readonly rosterIds: readonly string[] } | null = null;
+  /** The run's next issue, when this is a run's opener rather than a reread. */
+  #nextNodeId: string | null = null;
   #story: IssueStory | null = null;
   #issueNumber = 1;
   #issueTotal = 1;
@@ -86,7 +91,8 @@ export class CampaignOpenerScene extends Phaser.Scene {
 
   init(data: CampaignOpenerData): void {
     this.#data = data;
-    this.#record = null;
+    this.#reading = null;
+    this.#nextNodeId = null;
     this.#story = null;
     this.#revealed = 1;
     this.#comicSteps = [];
@@ -121,6 +127,12 @@ export class CampaignOpenerScene extends Phaser.Scene {
   }
 
   async #load(): Promise<void> {
+    if (this.#data.runId === undefined) {
+      // Nothing to await here, so wait for CREATE: `#draw` draws only once the scene is running, which it isn't
+      // yet while `create` is still on the stack.
+      this.events.once(Phaser.Scenes.Events.CREATE, () => this.#loadFromStory());
+      return;
+    }
     const service = campaignService();
     const record = await service.load(this.#data.runId);
     if (!this.sys.isActive()) return;
@@ -133,13 +145,36 @@ export class CampaignOpenerScene extends Phaser.Scene {
       goToScreen(this, SCENES.campaignDossier, { runId: record.id });
       return;
     }
-    this.#record = record;
-    this.#story = issueStoryFor(record.campaignId, nodeId);
+    this.#reading = { campaignId: record.campaignId, rosterIds: record.seats.map((seat) => seat.identityCardId) };
+    this.#nextNodeId = record.position.nextNodeId;
     const definition = service.definitionFor(record);
-    const nodeIds = definition.graph.nodes.map((node) => node.id);
+    this.#startReading(
+      nodeId,
+      definition.graph.nodes.map((node) => node.id),
+    );
+  }
+
+  /** Extras' read: no run, so the story itself numbers the issue and its own cast is the roster. */
+  #loadFromStory(): void {
+    const campaignId = this.#data.campaignId;
+    const story = campaignId ? storyFor(campaignId) : undefined;
+    if (!campaignId || !story || !this.#data.nodeId) {
+      this.#leave();
+      return;
+    }
+    this.#reading = { campaignId, rosterIds: story.castIdentityIds };
+    this.#startReading(
+      this.#data.nodeId,
+      story.issues.map((issue) => issue.nodeId),
+    );
+  }
+
+  #startReading(nodeId: string, nodeIds: readonly string[]): void {
+    const campaignId = this.#reading!.campaignId;
+    this.#story = issueStoryFor(campaignId, nodeId);
     this.#issueNumber = issueNumberOf(nodeIds, nodeId);
     this.#issueTotal = nodeIds.length;
-    const pages = storyFor(record.campaignId)?.pages;
+    const pages = storyFor(campaignId)?.pages;
     this.#comicSteps = this.#story?.comicBeats && pages ? resolveComicBeats(pages, this.#story.comicBeats) : [];
     this.#comicCurrent = 0;
     this.#panTween?.stop();
@@ -150,7 +185,7 @@ export class CampaignOpenerScene extends Phaser.Scene {
   }
 
   #nodeId(): string | null {
-    return this.#data.nodeId ?? this.#record?.position.nextNodeId ?? null;
+    return this.#data.nodeId ?? this.#nextNodeId;
   }
 
   /** Skip, the last panel's CTA, or the auto-advance — always the same place: onward to Briefing or back to a reread's `returnTo`. */
@@ -158,7 +193,8 @@ export class CampaignOpenerScene extends Phaser.Scene {
     this.scale.off("resize", this.#draw, this);
     const returnTo = this.#data.returnTo;
     if (returnTo) goToScreen(this, returnTo.key, returnTo.data);
-    else goToScreen(this, SCENES.campaignBriefing, { runId: this.#data.runId });
+    else if (this.#data.runId !== undefined) goToScreen(this, SCENES.campaignBriefing, { runId: this.#data.runId });
+    else goToScreen(this, SCENES.title);
   }
 
   #reveal(): void {
@@ -236,18 +272,18 @@ export class CampaignOpenerScene extends Phaser.Scene {
     // `drawPicture`'s "the scan just arrived" callback — against drawing into a torn-down scene (`this.scale` is
     // the *game's* emitter and outlives the scene, so a resize mid-teardown can still reach here).
     if (!this.sys.isActive()) return;
-    const record = this.#record;
+    const reading = this.#reading;
     const story = this.#story;
     for (const button of this.#buttons) button.destroy();
     this.#buttons = [];
     destroyChildren(this);
-    if (!record || !story) return;
+    if (!reading || !story) return;
 
     const { width, height, phone } = campaignFrame(this);
-    const rosterIds = record.seats.map((seat) => seat.identityCardId);
+    const rosterIds = reading.rosterIds;
 
     if (this.#comicSteps.length > 0) {
-      this.#drawComicReader(record, width, height, phone, rosterIds);
+      this.#drawComicReader(reading.campaignId, width, height, phone, rosterIds);
       return;
     }
 
@@ -354,7 +390,7 @@ export class CampaignOpenerScene extends Phaser.Scene {
    * "◂ BACK" (once past the first beat) and the reader's own "NEXT ▸"/"SUIT UP ▸" CTA.
    */
   #drawComicReader(
-    record: CampaignRecord,
+    campaignId: string,
     width: number,
     height: number,
     phone: boolean,
@@ -415,7 +451,7 @@ export class CampaignOpenerScene extends Phaser.Scene {
     const tween: ComicReaderTween | undefined = this.#panTweenFrom
       ? { fromPanel: this.#panTweenFrom, progress: this.#panTweenProgress }
       : undefined;
-    drawComicReaderStep(this, readingRect, record.campaignId, view.step, () => this.#draw(), tween);
+    drawComicReaderStep(this, readingRect, campaignId, view.step, () => this.#draw(), tween);
 
     this.#drawBeatDots(width, height - actionBarHeight - dotsHeight / 2);
 
@@ -598,7 +634,7 @@ export class CampaignOpenerScene extends Phaser.Scene {
   }
 
   #artboard(name: string): Picture | null {
-    return this.#record ? artboardPicture(this.#record.campaignId, name) : null;
+    return this.#reading ? artboardPicture(this.#reading.campaignId, name) : null;
   }
 
   #drawArt(panel: OpenerPanelView, rect: Rect): void {
@@ -608,8 +644,7 @@ export class CampaignOpenerScene extends Phaser.Scene {
       artNote(this, rect, art.text);
       return;
     }
-    const record = this.#record;
-    if (!record) return;
+    if (!this.#reading) return;
     if (art.kind === "artboard") {
       const image = drawPicture(this, this.#artboard(art.name), rect, () => this.#draw(), {
         focusY: art.focusY ?? 0.4,

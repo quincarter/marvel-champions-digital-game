@@ -41,6 +41,10 @@ export interface MusicController {
   playOutcome(scenarioId: string, result: "win" | "loss" | "conceded", packCode?: string): void;
   /** The Finale screen: the campaign's `finale` track; keeps the current track when the campaign has none. */
   playFinale(campaignId: string): void;
+  /** Extras' jukebox: one chosen track, looped until another screen asks for its own music. */
+  playTrack(track: Track): void;
+  /** The track the jukebox was last asked for, while it is still the one playing; else null. */
+  jukeboxKey(): string | null;
   syncSettings(settings: Settings): void;
   stop(fadeDurationMs?: number): void;
 }
@@ -50,7 +54,7 @@ export class MusicScene extends Phaser.Scene implements MusicController {
   #currentKey: string | null = null;
   #targetKey: string | null = null;
   #lastTitleKey: string | null = null;
-  #mode: "title" | "battle" | "outcome" | "finale" | "stopped" = "stopped";
+  #mode: "title" | "battle" | "outcome" | "finale" | "jukebox" | "stopped" = "stopped";
   #targetVolume = DEFAULT_MUSIC_VOLUME;
 
   constructor() {
@@ -108,6 +112,15 @@ export class MusicScene extends Phaser.Scene implements MusicController {
     if (!track) return;
     this.#mode = "finale";
     this.#requestTrack(track);
+  }
+
+  playTrack(track: Track): void {
+    this.#mode = "jukebox";
+    this.#requestTrack(track);
+  }
+
+  jukeboxKey(): string | null {
+    return this.#mode === "jukebox" ? this.#targetKey : null;
   }
 
   syncSettings(settings: Settings): void {

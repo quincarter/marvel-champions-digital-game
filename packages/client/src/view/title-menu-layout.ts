@@ -9,7 +9,7 @@
  *   a small red eyebrow label, the Bangers "MARVEL CHAMPIONS" logo, a black
  *   rule, then the menu stacked full-width inside that panel — Continue (the
  *   one red fill on the screen, when there's a game to pick up), New game,
- *   Decks & Collection, Campaign (dashed/dimmed — locked), Settings
+ *   Decks & Collection, Campaign, Extras (the comics, art and music play has opened), Settings
  *   (dashed/dimmed until W4 lands it). A footer row sits at the paper panel's
  *   own bottom, card-pool coverage on the left and the build version on the
  *   right, one line, split apart rather than stacked.
@@ -58,6 +58,7 @@ export interface TitleMenuLayout {
   readonly newGame: Rect;
   readonly decks: Rect;
   readonly campaign: Rect;
+  readonly extras: Rect;
   readonly settings: Rect;
   readonly footer: Rect;
 }
@@ -68,6 +69,7 @@ export function titleMenuLayoutRects(layout: TitleMenuLayout): readonly Rect[] {
     layout.newGame,
     layout.decks,
     layout.campaign,
+    layout.extras,
     layout.settings,
     layout.footer,
   ];
@@ -111,6 +113,8 @@ export function titleMenuLayout(input: TitleMenuLayoutInput): TitleMenuLayout {
   y += hit.target + gap;
   const campaign: Rect = { x: left, y, width: column, height: hit.target };
   y += hit.target + gap;
+  const extras: Rect = { x: left, y, width: column, height: hit.target };
+  y += hit.target + gap;
   const settings: Rect = { x: left, y, width: column, height: hit.target };
   y += hit.target + gap;
 
@@ -132,6 +136,7 @@ export function titleMenuLayout(input: TitleMenuLayoutInput): TitleMenuLayout {
     newGame,
     decks,
     campaign,
+    extras,
     settings,
     footer,
   };

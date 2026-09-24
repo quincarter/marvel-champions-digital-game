@@ -55,6 +55,9 @@ import { CampaignDeckEditScene } from "./scenes/campaign/deck-edit.js";
 import { CampaignFrozenDeckScene } from "./scenes/campaign/frozen-deck.js";
 import { CampaignBeatOverlay } from "./scenes/campaign/beat.js";
 import { MusicScene } from "./audio/music-controller.js";
+import { ExtrasScene } from "./scenes/extras.js";
+import { ExtrasViewerScene } from "./scenes/extras-viewer.js";
+import { ExtrasReaderScene } from "./scenes/extras-reader.js";
 import { installDebugDump } from "./ui/debug-dump.js";
 import { installFrameGuard } from "./ui/frame-guard.js";
 
@@ -113,6 +116,8 @@ const game = new Phaser.Game({
     CampaignFinaleScene,
     CampaignDeckEditScene,
     CampaignFrozenDeckScene,
+    ExtrasScene,
+    ExtrasReaderScene,
     ChoiceOverlay,
     InspectOverlay,
     VillainPhaseOverlay,
@@ -123,6 +128,7 @@ const game = new Phaser.Game({
     UnlocksOverlay,
     UnlockConfirmOverlay,
     CampaignBeatOverlay,
+    ExtrasViewerScene,
     MusicScene,
   ],
 });

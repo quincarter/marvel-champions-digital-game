@@ -93,3 +93,12 @@ export function coverFit(
   const cropHeight = Math.min(image.height, panel.height / scale);
   return { scale, cropX: (image.width - cropWidth) / 2, cropY: (image.height - cropHeight) / 2, cropWidth, cropHeight };
 }
+
+/** The scale that fits all of `image` inside `panel`, letterboxing whichever dimension falls short (never cropping). */
+export function containScale(
+  image: { readonly width: number; readonly height: number },
+  panel: { readonly width: number; readonly height: number },
+): number {
+  if (image.width <= 0 || image.height <= 0) return 1;
+  return Math.min(panel.width / image.width, panel.height / image.height);
+}

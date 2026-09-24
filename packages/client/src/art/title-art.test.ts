@@ -1,5 +1,6 @@
 import { describe, expect, test } from "vitest";
 import { coverFit, pickTitleArt, type TitleArt } from "./title-art.js";
+import { containScale } from "./pictures.js";
 
 const pool: readonly TitleArt[] = [
   { key: "title-art:a.png", url: "/a.png" },
@@ -45,5 +46,13 @@ describe("coverFit", () => {
     expect(fit.scale).toBeCloseTo(800 / 300);
     expect(fit.cropWidth * fit.scale).toBeCloseTo(800);
     expect(fit.cropHeight * fit.scale).toBeCloseTo(800);
+  });
+});
+
+describe("containScale", () => {
+  test("fits the whole picture inside the panel, letterboxing the short side", () => {
+    expect(containScale({ width: 2000, height: 1000 }, { width: 500, height: 1000 })).toBe(0.25);
+    expect(containScale({ width: 1000, height: 2000 }, { width: 1000, height: 500 })).toBe(0.25);
+    expect(containScale({ width: 0, height: 0 }, { width: 100, height: 100 })).toBe(1);
   });
 });

@@ -11,7 +11,8 @@
  * writing the one `SetupDraft` `New game` hands off to the first of them.
  *
  * Campaign opens The Saga (`scenes/campaign/saga.ts`, C00b) — campaign mode's own shelf of boxes, not part of
- * this menu's own layout beyond the one button.
+ * this menu's own layout beyond the one button. Extras (`scenes/extras.ts`) opens the comics, artwork, hero and
+ * villain files and soundtrack that play has unlocked.
  */
 
 import Phaser from "phaser";
@@ -245,6 +246,21 @@ export class TitleScene extends Phaser.Scene {
       }),
     );
     this.#stops.set("campaign", { rect: layout.campaign, activate: openCampaign });
+
+    const openExtras = (): void => {
+      this.scale.off("resize", this.#rebuild, this);
+      goToScreen(this, SCENES.extras);
+    };
+    this.#buttons.push(
+      new McButton(this, {
+        kind: menuKind,
+        label: "Extras",
+        type: typeRole.rowTitle,
+        rect: layout.extras,
+        onClick: openExtras,
+      }),
+    );
+    this.#stops.set("extras", { rect: layout.extras, activate: openExtras });
 
     // W4's Settings is an overlay: launched over this scene, it stops itself on Back (`scenes/settings.ts`).
     const openSettings = (): void => {
