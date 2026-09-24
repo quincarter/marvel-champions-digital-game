@@ -1,0 +1,3 @@
+kind: Fixed
+body: 'Release: the macOS build names its signing certificate in the log, fails with the reason when it is the wrong one, and installs Apple''s Developer ID intermediate certificate'
+time: 2026-09-24T18:49:37.935614-04:00
