@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { TRORS_CAMPAIGN_DEFINITION } from "@mc/cards";
+import { GMW_CAMPAIGN_DEFINITION, TRORS_CAMPAIGN_DEFINITION } from "@mc/cards";
 import { cardId } from "@mc/content";
 import { CAMPAIGN_LOG_SCHEMA, createRng } from "@mc/engine";
 import type { CampaignRecord } from "../engine/campaign-storage.js";
@@ -85,6 +85,63 @@ describe("coverModelOf", () => {
     expect(model.rosterNames).toEqual(["Hawkeye", "Spider-Woman"]);
     expect(model.canReadIssue).toBe(true);
     expect(model.finished).toBeNull();
+  });
+
+  test("a box with no Market (MC10) has null market and the default Dossier subtitle", () => {
+    const model = coverModelOf({
+      campaignId: "trors",
+      boxCode: "MC10",
+      name: "The Rise of Red Skull",
+      record: record(),
+      definition: TRORS_CAMPAIGN_DEFINITION,
+      expertUnlocked: false,
+      identityNameOf: nameOf,
+    });
+    expect(model.market).toBeNull();
+    expect(model.dossierSubtitle).toBe("Campaign log · heroes & world");
+  });
+
+  test("a box with a Market (GMW) reports each seat's own units, and names Wallets/Bounty ladder in the Dossier subtitle", () => {
+    const gmwNameOf: (id: string) => string = (id) => ({ "16001a": "Groot", "16031a": "Rocket Raccoon" })[id] ?? id;
+    const model = coverModelOf({
+      campaignId: "gmw",
+      boxCode: "MC16",
+      name: "The Galaxy's Most Wanted",
+      record: record({
+        campaignId: GMW_CAMPAIGN_DEFINITION.campaignId,
+        seats: [
+          {
+            seatNumber: 1,
+            identityCardId: cardId("16001a"),
+            deck: { identityCardId: cardId("16001a"), aspects: [], cards: [] },
+            grants: [],
+            fields: { units: { kind: "number", value: 1 } },
+          },
+          {
+            seatNumber: 2,
+            identityCardId: cardId("16031a"),
+            deck: { identityCardId: cardId("16031a"), aspects: [], cards: [] },
+            grants: [],
+            fields: { units: { kind: "number", value: 0 } },
+          },
+        ],
+        position: {
+          nextNodeId: "infiltrate-the-museum",
+          resolved: { "brotherhood-of-badoon": "completed" },
+          progress: {},
+        },
+      }),
+      definition: GMW_CAMPAIGN_DEFINITION,
+      expertUnlocked: false,
+      identityNameOf: gmwNameOf,
+    });
+    expect(model.market).toEqual({
+      seats: [
+        { heroName: "Groot", balanceLabel: "1U" },
+        { heroName: "Rocket Raccoon", balanceLabel: "0U" },
+      ],
+    });
+    expect(model.dossierSubtitle).toBe("Wallets · Bounty ladder");
   });
 
   test("a won run has no next issue: all pips done, read-issue disabled", () => {

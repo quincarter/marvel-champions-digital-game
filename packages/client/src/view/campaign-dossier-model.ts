@@ -414,8 +414,11 @@ export function bountyLadderRungs(
 /**
  * The first shared number field (in printed order) an `ifThen(campaignLogAtLeast(field, N), moveCards(…))` reveals
  * cards for — the same shape `ladderCardsIn` reads, so a campaign with no such field (MC10) never shows a ladder.
+ *
+ * Exported so `campaign-cover-model.ts`'s Dossier button can name "Bounty ladder" in its subtitle for a box that
+ * has one, the same detect-by-shape way this whole module already finds Wallets — never by campaign id.
  */
-function ladderFieldOf(definition: CampaignDefinition): string | null {
+export function ladderFieldOf(definition: CampaignDefinition): string | null {
   for (const node of definition.graph.nodes) {
     for (const instruction of [...node.setup, ...node.victory, ...(node.defeat ?? [])]) {
       const step = instruction.step;
