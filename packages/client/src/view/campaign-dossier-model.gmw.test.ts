@@ -11,11 +11,13 @@ import { describe, expect, it } from "vitest";
 import { createCampaignLog, type CampaignHistoryEntry, type CampaignLog } from "@mc/engine";
 import { GMW_CAMPAIGN_DEFINITION } from "@mc/cards";
 import { cardId } from "@mc/content";
-import { bountyLadderRungs, campaignDossierOverview } from "./campaign-dossier-model.js";
+import { CARDS_BY_ID } from "../content/pool.js";
+import { bountyLadderRungs, campaignDossierHero, campaignDossierOverview } from "./campaign-dossier-model.js";
 import { frozenNonCampaignCardsOf } from "./campaign-deck-edit-model.js";
 
 const heroNameOf = (identityCardId: string): string => identityCardId;
 const cardName = (id: string): string => id;
+const cardOf = (id: string) => CARDS_BY_ID.get(id);
 
 function freshRecord(): CampaignLog & { readonly name: string } {
   const log = createCampaignLog(GMW_CAMPAIGN_DEFINITION, {
@@ -27,6 +29,11 @@ function freshRecord(): CampaignLog & { readonly name: string } {
         seatNumber: 1,
         identityCardId: cardId("rocket-raccoon"),
         deck: { identityCardId: cardId("rocket-raccoon"), aspects: [], cards: [] },
+      },
+      {
+        seatNumber: 2,
+        identityCardId: cardId("groot"),
+        deck: { identityCardId: cardId("groot"), aspects: [], cards: [] },
       },
     ],
     seed: 1,
@@ -77,6 +84,79 @@ describe("GMW's World box", () => {
     expect(rungs.map((r) => r.cardId)).toEqual(["16184", "16185", "16186", "16187"]);
     expect(rungs.every((r) => r.name.startsWith("Card 161"))).toBe(true);
     expect(rungs.map((r) => r.unlocked)).toEqual([true, true, false, false]);
+    expect(rungs.every((r) => /^#\d+$/.test(r.firstIssueLabel))).toBe(true);
+  });
+});
+
+describe("GMW's Wallets panel (Overview: detected by shape, never by campaignId)", () => {
+  it("reads each seat's currency field and Market grants, pluralized the same way the Run screen does", () => {
+    const base = freshRecord();
+    const record = {
+      ...base,
+      seats: [
+        {
+          ...base.seats[0]!,
+          fields: {
+            ...base.seats[0]!.fields,
+            units: { kind: "number" as const, value: 1 },
+            marketCards: { kind: "cardList" as const, cardIds: [cardId("16150")] },
+          },
+        },
+        {
+          ...base.seats[1]!,
+          fields: {
+            ...base.seats[1]!.fields,
+            units: { kind: "number" as const, value: 0 },
+            marketCards: { kind: "cardList" as const, cardIds: [] },
+          },
+        },
+      ],
+    };
+    const overview = campaignDossierOverview(record, GMW_CAMPAIGN_DEFINITION, heroNameOf, cardName);
+    expect(overview.wallets).not.toBeNull();
+    const wallets = overview.wallets!;
+    expect(wallets).toHaveLength(2);
+    expect(wallets[0]).toMatchObject({ seatNumber: 1, balanceLabel: "1 UNIT", cardNames: ["16150"] });
+    expect(wallets[1]).toMatchObject({ seatNumber: 2, balanceLabel: "0 UNITS", cardNames: [] });
+  });
+});
+
+describe("GMW's Bounty Ladder panel (Overview)", () => {
+  it("is null before any Headhunter mark, present with ACTIVE/NOT YET rungs once marks accrue", () => {
+    const zero = { ...freshRecord(), shared: { headhunterDefeated: { kind: "number" as const, value: 0 } } };
+    const ladderAtZero = campaignDossierOverview(zero, GMW_CAMPAIGN_DEFINITION, heroNameOf, cardName).bountyLadder;
+    // Rungs still exist at 0 marks (they're read off setup instructions, not off "has any mark yet"); none unlocked.
+    expect(ladderAtZero?.rungs.every((rung) => !rung.unlocked)).toBe(true);
+
+    const two = { ...freshRecord(), shared: { headhunterDefeated: { kind: "number" as const, value: 2 } } };
+    const ladder = campaignDossierOverview(two, GMW_CAMPAIGN_DEFINITION, heroNameOf, cardName).bountyLadder!;
+    expect(ladder.title).toBe("Badoon Bounty");
+    expect(ladder.marksLabel).toBe("2 HEADHUNTER MARKS");
+    expect(ladder.rungs.filter((rung) => rung.unlocked)).toHaveLength(2);
+    expect(ladder.rungs.filter((rung) => !rung.unlocked)).toHaveLength(2);
+  });
+});
+
+describe("Heroes tab: a Market card's line shows its ability, not its 'Unit Cost N.' price tag", () => {
+  it("skips the printed 'Unit Cost N.' sentence for a granted Market card", () => {
+    const base = freshRecord();
+    const record = {
+      ...base,
+      seats: [
+        {
+          ...base.seats[0]!,
+          grants: [
+            { cardId: cardId("16150"), permanence: "campaign" as const, grantedAtNodeId: "brotherhood-of-badoon" },
+          ],
+        },
+      ],
+    };
+    const hero = campaignDossierHero(record, GMW_CAMPAIGN_DEFINITION, 1, cardOf);
+    expect(hero?.campaignCards).toHaveLength(1);
+    const card = hero!.campaignCards[0]!;
+    expect(card.name).toBe("Brainstorm");
+    expect(card.textLine).not.toMatch(/unit cost/i);
+    expect(card.textLine).toMatch(/^Hero Action \(thwart\)/);
   });
 });
 

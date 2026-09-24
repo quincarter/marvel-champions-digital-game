@@ -29,9 +29,11 @@ import {
   campaignDossierHero,
   campaignDossierLog,
   campaignDossierOverview,
+  type DossierBountyLadder,
   type DossierHero,
   type DossierLog,
   type DossierOverview,
+  type DossierWalletSeat,
 } from "../../view/campaign-dossier-model.js";
 import { campaignRunModel, type RunIssueRow } from "../../view/campaign-run-model.js";
 import type { Rect } from "../../view/layout.js";
@@ -267,31 +269,53 @@ export class CampaignDossierScene extends Phaser.Scene {
 
   #drawOverview(loaded: LoadedDossier, frame: ReturnType<typeof campaignFrame>, body: Rect): void {
     const pad = frame.gutter;
-    // Desktop/tablet (#12): a fixed 320px "The world" column on the right; the seat cards wrap in what's left.
-    // Phone: one column, seat cards then the world box beneath — there is no room for a side column.
+    // Desktop/tablet (#12/#19): a fixed 320px "The world" column on the right; everything else wraps in what's
+    // left. Phone: one column, the left column's own content then the world box beneath — no room for a side
+    // column.
     const worldWidth = frame.phone ? body.width - pad * 2 : 320;
-    const seatAreaWidth = frame.phone ? body.width - pad * 2 : frame.width - pad * 2 - worldWidth - 24;
-    const cardWidth = frame.phone ? seatAreaWidth : Math.min(456, seatAreaWidth);
-    const gap = 24;
-    let x = pad;
-    let y = body.y + pad;
-    let rowBottom = y;
-    for (const seat of loaded.overview.seats) {
-      const rect: Rect = { x, y, width: cardWidth, height: 0 };
-      const height = this.#seatOverviewCard(seat, rect);
-      rowBottom = Math.max(rowBottom, y + height);
-      if (frame.phone) {
-        y += height + 16;
-      } else {
-        x += cardWidth + gap;
-        if (x + cardWidth > pad + seatAreaWidth) {
-          x = pad;
-          y = rowBottom + 16;
+    const leftWidth = frame.phone ? body.width - pad * 2 : frame.width - pad * 2 - worldWidth - 24;
+    const leftX = pad;
+    let leftY = body.y + pad;
+
+    // A box with a Wallets-shaped currency field (MC16) shows the wallet panel where MC10 shows seat art cards —
+    // there is no room, and no printed-sheet column, for both. A box with neither (nothing detected) falls back
+    // to the seat art cards MC10 has always shown, unchanged.
+    if (loaded.overview.wallets) {
+      leftY = this.#walletsPanel(loaded.overview.wallets, { x: leftX, y: leftY, width: leftWidth, height: 0 }) + 24;
+    } else {
+      const cardWidth = frame.phone ? leftWidth : Math.min(456, leftWidth);
+      const gap = 24;
+      let x = leftX;
+      let y = leftY;
+      let rowBottom = y;
+      for (const seat of loaded.overview.seats) {
+        const rect: Rect = { x, y, width: cardWidth, height: 0 };
+        const height = this.#seatOverviewCard(seat, rect);
+        rowBottom = Math.max(rowBottom, y + height);
+        if (frame.phone) {
+          y += height + 16;
+        } else {
+          x += cardWidth + gap;
+          if (x + cardWidth > leftX + leftWidth) {
+            x = leftX;
+            y = rowBottom + 16;
+          }
         }
       }
+      leftY = rowBottom + 16;
     }
+
+    if (loaded.overview.bountyLadder) {
+      leftY = this.#bountyLadderPanel(loaded.overview.bountyLadder, {
+        x: leftX,
+        y: leftY,
+        width: leftWidth,
+        height: 0,
+      });
+    }
+
     const worldX = frame.phone ? pad : frame.width - pad - worldWidth;
-    const worldY = frame.phone ? rowBottom + 16 : body.y + pad;
+    const worldY = frame.phone ? leftY + 16 : body.y + pad;
     if (loaded.overview.world.length > 0) {
       let wy = ruleHeading(this, worldX, worldY, worldWidth, "The world");
       const box = this.add.graphics();
@@ -369,6 +393,118 @@ export class CampaignDossierScene extends Phaser.Scene {
     }
     box.lineStyle(2, surface.ink.hex, 1).strokeRect(rect.x, boxTop, rect.width, y - boxTop);
     return y - rect.y;
+  }
+
+  /** Wallets (design tile 19): one bordered card per seat, two to a row, real balance + Market grants. */
+  #walletsPanel(wallets: readonly DossierWalletSeat[], rect: Rect): number {
+    let y = ruleHeading(this, rect.x, rect.y, rect.width, "Wallets");
+    const gap = 16;
+    const cardWidth = Math.min(360, (rect.width - gap) / 2);
+    let x = rect.x;
+    let rowStartY = y;
+    let rowBottom = y;
+    wallets.forEach((wallet, index) => {
+      const height = this.#walletCard(wallet, { x, y: rowStartY, width: cardWidth, height: 0 });
+      rowBottom = Math.max(rowBottom, rowStartY + height);
+      if (index % 2 === 1) {
+        x = rect.x;
+        rowStartY = rowBottom + 12;
+      } else {
+        x += cardWidth + gap;
+      }
+    });
+    return rowBottom;
+  }
+
+  #walletCard(wallet: DossierWalletSeat, rect: Rect): number {
+    const inset = 10;
+    let y = rect.y + inset;
+    this.add.text(rect.x + inset, y, `${wallet.heroName.toUpperCase()} · SEAT #${wallet.seatNumber}`, {
+      ...textStyle(typeRole.label, surface.ink.hex, 0.6),
+      fontSize: "10px",
+    });
+    y += 18;
+    this.add.text(rect.x + inset, y, wallet.balanceLabel, textStyle(bangers(22), surface.ink.hex));
+    y += 30;
+    if (wallet.cardNames.length === 0) {
+      this.add.text(rect.x + inset, y, "—", textStyle(typeRole.body, surface.ink.hex, 0.4)).setFontSize(11);
+      y += 18;
+    } else {
+      for (const name of wallet.cardNames) {
+        this.add
+          .text(rect.x + inset, y, name, textStyle(typeRole.body, surface.ink.hex, 0.8))
+          .setFontSize(11)
+          .setWordWrapWidth(rect.width - inset * 2);
+        y += 18;
+      }
+    }
+    const height = y - rect.y + inset;
+    this.add.graphics().lineStyle(2, surface.ink.hex, 1).strokeRect(rect.x, rect.y, rect.width, height);
+    return height;
+  }
+
+  /** The Bounty Ladder (design tile 19): a dark header bar, then one row per rung with an ACTIVE/NOT YET badge. */
+  #bountyLadderPanel(ladder: DossierBountyLadder, rect: Rect): number {
+    let y = ruleHeading(this, rect.x, rect.y, rect.width, "The bounty ladder");
+    const headerHeight = 30;
+    const header = this.add.graphics();
+    header.fillStyle(surface.ink.hex, 1).fillRect(rect.x, y, rect.width, headerHeight);
+    this.add
+      .text(rect.x + 10, y + headerHeight / 2, ladder.title.toUpperCase(), textStyle(bangers(15), surface.paper.hex))
+      .setOrigin(0, 0.5);
+    this.add
+      .text(rect.x + rect.width - 10, y + headerHeight / 2, ladder.marksLabel, {
+        ...textStyle(typeRole.label, signal.cost.hex, 1),
+        fontSize: "11px",
+        fontStyle: "700",
+      })
+      .setOrigin(1, 0.5);
+    y += headerHeight;
+    const bodyTop = y;
+    const box = this.add.graphics();
+    for (const rung of ladder.rungs) {
+      const rowHeight = 42;
+      this.add
+        .text(rect.x + 18, y + rowHeight / 2, String(rung.tier), {
+          ...textStyle(bangers(18), surface.ink.hex, rung.unlocked ? 1 : 0.4),
+        })
+        .setOrigin(0.5, 0.5);
+      this.add
+        .text(rect.x + 40, y + 6, rung.name, textStyle(typeRole.emphasis, surface.ink.hex, rung.unlocked ? 1 : 0.5))
+        .setFontSize(12);
+      this.add
+        .text(rect.x + 40, y + 22, `Joins from issue ${rung.firstIssueLabel}.`, {
+          ...textStyle(typeRole.body, surface.ink.hex, rung.unlocked ? 0.6 : 0.4),
+        })
+        .setFontSize(10)
+        .setWordWrapWidth(rect.width - 160);
+      const badgeWidth = 74;
+      const badgeHeight = 20;
+      const badgeRect: Rect = {
+        x: rect.x + rect.width - badgeWidth - 10,
+        y: y + rowHeight / 2 - badgeHeight / 2,
+        width: badgeWidth,
+        height: badgeHeight,
+      };
+      const badge = this.add.graphics();
+      badge
+        .fillStyle(rung.unlocked ? accent.heroRed.hex : 0xd9d2bd, 1)
+        .fillRect(badgeRect.x, badgeRect.y, badgeRect.width, badgeRect.height);
+      this.add
+        .text(badgeRect.x + badgeWidth / 2, badgeRect.y + badgeHeight / 2, rung.unlocked ? "ACTIVE" : "NOT YET", {
+          ...textStyle(typeRole.label, rung.unlocked ? surface.paper.hex : surface.ink.hex, 1),
+          fontSize: "9px",
+          fontStyle: "700",
+        })
+        .setOrigin(0.5);
+      y += rowHeight;
+      this.add.rectangle(rect.x, y, rect.width, 1, surface.ink.hex, 0.15).setOrigin(0, 0.5);
+    }
+    box.lineStyle(2, surface.ink.hex, 1).strokeRect(rect.x, bodyTop, rect.width, y - bodyTop);
+    const caption = this.add
+      .text(rect.x, y + 8, ladder.caption, { ...textStyle(typeRole.body, surface.ink.hex, 0.55), fontSize: "11px" })
+      .setWordWrapWidth(rect.width);
+    return caption.y + caption.height;
   }
 
   // -----------------------------------------------------------------------------------------------------------

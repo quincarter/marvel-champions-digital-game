@@ -119,6 +119,12 @@ describe("campaignDossierOverview / campaignDossierLog / campaignDossierHero", (
     expect(condition.note).toBe("earned in #2");
   });
 
+  it("MC10 has no perSeat-currency-spent-on-a-card-list shape: no Wallets panel, no Bounty Ladder", () => {
+    const overview = campaignDossierOverview(record, TRORS_CAMPAIGN_DEFINITION, heroNameOf, cardName);
+    expect(overview.wallets).toBeNull();
+    expect(overview.bountyLadder).toBeNull();
+  });
+
   it("world box carries the shared fields as real counted values, in short player-facing words", () => {
     const overview = campaignDossierOverview(record, TRORS_CAMPAIGN_DEFINITION, heroNameOf, cardName);
     const experimental = overview.world.find((row) => row.id === "experimental")!;

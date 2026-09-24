@@ -56,6 +56,13 @@ describe("seedGmwRun", () => {
     expect(marketCards.length).toBeGreaterThan(0);
   });
 
+  test("afterIssue2HeadhuntersDown reaches issue 3 with 2 Headhunter marks recorded", async () => {
+    const record = await seedGmwRun(service(), "afterIssue2HeadhuntersDown");
+    expect(record.position.nextNodeId).toBe("escape-the-museum");
+    const marks = record.shared.headhunterDefeated;
+    expect(marks?.kind === "number" ? marks.value : 0).toBe(2);
+  });
+
   test("expertAfterIssue1 gives frozenNonCampaignCardsOf a real snapshot to read", async () => {
     const record = await seedGmwRun(service(), "expertAfterIssue1");
     expect(record.modes.campaign?.expertCampaign).toBe(true);

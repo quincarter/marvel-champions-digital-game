@@ -23,7 +23,7 @@ import type {
 import { issueNumberOf, issueStoryFor, type CampaignStory } from "../campaign/story.js";
 import { campaignLogSheet, renderLogValue, type CardNameOf } from "./campaign-log-model.js";
 import type { RunIssueRow } from "./campaign-run-model.js";
-import { campaignRunModel, FIELD_SHORT_LABEL } from "./campaign-run-model.js";
+import { campaignRunModel, FIELD_SHORT_LABEL, PLURALIZED_FIELDS } from "./campaign-run-model.js";
 
 /** A field's short word if one is known, else the printed sheet label, lowercased so it reads mid-sentence. */
 function fieldLabelOf(definition: CampaignDefinition): (fieldId: string) => string {
@@ -131,9 +131,21 @@ export interface DossierWorldRow {
   readonly when: string;
 }
 
+export interface DossierWalletSeat {
+  readonly seatNumber: number;
+  readonly heroName: string;
+  /** e.g. "1 UNIT" / "0 UNITS" — the field's own short word, pluralized the same way the Run screen does. */
+  readonly balanceLabel: string;
+  /** Cards this seat has already added from the campaign's shop, in the order the log recorded them. */
+  readonly cardNames: readonly string[];
+}
+
 export interface DossierOverview {
   readonly seats: readonly DossierOverviewSeat[];
   readonly world: readonly DossierWorldRow[];
+  /** Null for a campaign whose definition never spends a perSeat currency field on a card list (MC10). */
+  readonly wallets: readonly DossierWalletSeat[] | null;
+  readonly bountyLadder: DossierBountyLadder | null;
 }
 
 /** The printed sheet's own per-seat columns this screen surfaces, matching MC10 p. 20's log sheet layout. */
@@ -228,7 +240,83 @@ export function campaignDossierOverview(
         when: presentation && "when" in presentation ? presentation.when : `${field.label} (${field.citation}).`,
       };
     });
-  return { seats, world };
+  return {
+    seats,
+    world,
+    wallets: dossierWallets(record, definition, heroNameOf, cardName),
+    bountyLadder: campaignDossierBountyLadder(record, definition, cardName),
+  };
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// Wallets (MC16 p. 5): a perSeat currency field spent, alongside a matching perSeat card list, on a shopping trip
+// — detected from the definition's own `betweenGames` ops (a `spend` on the currency field paired with an
+// `appendToList` onto the card list in the same `if`'s `then`, the exact shape `marketShoppingSetup` compiles to),
+// never by campaign id. A box with no such pairing (MC10) has no Wallets panel at all.
+// ---------------------------------------------------------------------------------------------------------------
+
+interface WalletFields {
+  readonly currencyField: string;
+  readonly cardListField: string;
+}
+
+function walletOpsIn(ops: readonly CampaignOp[]): WalletFields | null {
+  for (const op of ops) {
+    if (op.kind === "forEachSeat") {
+      const found = walletOpsIn(op.ops);
+      if (found) return found;
+    } else if (op.kind === "if") {
+      const spend = op.then.find((inner) => inner.kind === "spend");
+      const append = op.then.find((inner) => inner.kind === "appendToList");
+      if (spend?.kind === "spend" && append?.kind === "appendToList") {
+        return { currencyField: spend.field, cardListField: append.field };
+      }
+      const foundThen = walletOpsIn(op.then);
+      if (foundThen) return foundThen;
+      if (op.else) {
+        const foundElse = walletOpsIn(op.else);
+        if (foundElse) return foundElse;
+      }
+    }
+  }
+  return null;
+}
+
+function walletFieldsOf(definition: CampaignDefinition): WalletFields | null {
+  for (const node of definition.graph.nodes) {
+    for (const instruction of [...node.setup, ...node.victory, ...(node.defeat ?? [])]) {
+      const step = instruction.step;
+      if (step.kind !== "betweenGames") continue;
+      const found = walletOpsIn(step.ops);
+      if (found) return found;
+    }
+  }
+  return null;
+}
+
+function dossierWallets(
+  record: CampaignLog,
+  definition: CampaignDefinition,
+  heroNameOf: (identityCardId: string) => string,
+  cardName: CardNameOf,
+): readonly DossierWalletSeat[] | null {
+  const fields = walletFieldsOf(definition);
+  if (!fields) return null;
+  const shortLabel = FIELD_SHORT_LABEL[fields.currencyField] ?? fields.currencyField;
+  const plural = PLURALIZED_FIELDS.has(fields.currencyField);
+  return record.seats.map((seat) => {
+    const balance = seat.fields[fields.currencyField];
+    const amount = balance?.kind === "number" ? balance.value : 0;
+    const word = plural && amount !== 1 ? `${shortLabel}s` : shortLabel;
+    const cards = seat.fields[fields.cardListField];
+    const cardIds = cards?.kind === "cardList" ? cards.cardIds : [];
+    return {
+      seatNumber: seat.seatNumber,
+      heroName: heroNameOf(seat.identityCardId as string),
+      balanceLabel: `${amount} ${word.toUpperCase()}`,
+      cardNames: cardIds.map((id) => cardName(id)),
+    };
+  });
 }
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -243,6 +331,8 @@ export interface DossierBountyRung {
   readonly cardId: string;
   readonly name: string;
   readonly unlocked: boolean;
+  /** "#2" — the first issue (in printed order) whose setup instructions reveal this rung. */
+  readonly firstIssueLabel: string;
 }
 
 function conditionTier(condition: Predicate, fieldId: string): number | null {
@@ -287,19 +377,89 @@ export function bountyLadderRungs(
   currentMarks: number,
   cardName: CardNameOf = (id) => id as string,
 ): readonly DossierBountyRung[] {
-  const byCardId = new Map<string, number>();
+  const byCardId = new Map<string, { tier: number; nodeId: string }>();
   for (const node of definition.graph.nodes) {
     for (const instruction of [...node.setup, ...node.victory, ...(node.defeat ?? [])]) {
       const step = instruction.step;
       if (step.kind !== "inGame") continue;
       for (const found of ladderCardsIn(step.effects, fieldId)) {
-        if (!byCardId.has(found.cardId)) byCardId.set(found.cardId, found.tier);
+        if (!byCardId.has(found.cardId)) byCardId.set(found.cardId, { tier: found.tier, nodeId: node.id });
       }
     }
   }
+  const nodeIds = definition.graph.nodes.map((node) => node.id);
   return [...byCardId.entries()]
-    .sort(([, a], [, b]) => a - b)
-    .map(([cardId, tier]) => ({ tier, cardId, name: cardName(cardId as CardId), unlocked: currentMarks >= tier }));
+    .sort(([, a], [, b]) => a.tier - b.tier)
+    .map(([cardId, { tier, nodeId }]) => ({
+      tier,
+      cardId,
+      name: cardName(cardId as CardId),
+      unlocked: currentMarks >= tier,
+      firstIssueLabel: `#${issueNumberOf(nodeIds, nodeId)}`,
+    }));
+}
+
+/**
+ * The first shared number field (in printed order) an `ifThen(campaignLogAtLeast(field, N), moveCards(…))` reveals
+ * cards for — the same shape `ladderCardsIn` reads, so a campaign with no such field (MC10) never shows a ladder.
+ */
+function ladderFieldOf(definition: CampaignDefinition): string | null {
+  for (const node of definition.graph.nodes) {
+    for (const instruction of [...node.setup, ...node.victory, ...(node.defeat ?? [])]) {
+      const step = instruction.step;
+      if (step.kind !== "inGame") continue;
+      for (const effect of step.effects) {
+        if (effect.kind !== "if") continue;
+        if (effect.condition.kind !== "campaignLog" || typeof effect.condition.atLeast !== "number") continue;
+        const revealsCards = effect.then.some(
+          (inner) => inner.kind === "moveCards" && encounterSetAsidePrintedId(inner.cards) !== null,
+        );
+        if (revealsCards) return effect.condition.field;
+      }
+    }
+  }
+  return null;
+}
+
+/** Per-field flavor for the ladder's own title bar — the printed sheet's section name, in this box's own words. */
+const LADDER_FIELD_TITLE: Readonly<Record<string, string>> = {
+  headhunterDefeated: "Badoon Bounty",
+};
+
+export interface DossierBountyLadder {
+  readonly title: string;
+  /** "2 HEADHUNTER MARKS" — the field's live count, in the same words the World box already uses for it. */
+  readonly marksLabel: string;
+  readonly rungs: readonly DossierBountyRung[];
+  readonly caption: string;
+}
+
+/**
+ * The Bounty Ladder panel (design tile 19): null for a definition with no ladder-shaped field at all, or one whose
+ * setup never actually reveals a rung (nothing to show yet). Every rung, name and mark count comes straight off
+ * `bountyLadderRungs`/`record.shared` — the title bar is the one piece of box-specific flavor, keyed by field id
+ * like `WORLD_FIELD_PRESENTATION` above, never by campaign id.
+ */
+function campaignDossierBountyLadder(
+  record: CampaignLog,
+  definition: CampaignDefinition,
+  cardName: CardNameOf,
+): DossierBountyLadder | null {
+  const fieldId = ladderFieldOf(definition);
+  if (!fieldId) return null;
+  const marksValue = record.shared[fieldId];
+  const currentMarks = marksValue?.kind === "number" ? marksValue.value : 0;
+  const rungs = bountyLadderRungs(definition, fieldId, currentMarks, cardName);
+  if (rungs.length === 0) return null;
+  const fieldMeta = definition.logFields.find((field) => field.id === fieldId);
+  const presentation = WORLD_FIELD_PRESENTATION[fieldId];
+  const countLabel = presentation && "label" in presentation ? presentation.label : (fieldMeta?.label ?? fieldId);
+  return {
+    title: LADDER_FIELD_TITLE[fieldId] ?? (fieldMeta?.label ?? fieldId).toUpperCase(),
+    marksLabel: `${currentMarks} ${countLabel.toUpperCase()}`,
+    rungs,
+    caption: "Each rung stays in every remaining issue once it joins — the ladder only ever climbs.",
+  };
 }
 
 const HIDDEN_PLACEHOLDER = "not yet known";
@@ -599,8 +759,16 @@ export function campaignDossierHero(
   };
 }
 
+/**
+ * The card's own first non-empty line, skipping a leading "Unit Cost N." line (MC16 p. 5's Market price tag,
+ * carried on `PlayerCardCommon.unitCost`) — that's campaign data the wallet already shows as a price, not the
+ * card's effect, so a Market card's Heroes-tab row reads its ability instead of repeating the tag it was bought at.
+ */
 function firstLineOf(text: string): string {
-  const line = text.split("\n").find((candidate) => candidate.trim().length > 0);
+  const line = text.split("\n").find((candidate) => {
+    const trimmed = candidate.trim();
+    return trimmed.length > 0 && !/^unit cost \d+\.$/i.test(trimmed);
+  });
   return line ? line.trim() : "";
 }
 

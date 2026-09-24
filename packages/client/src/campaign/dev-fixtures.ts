@@ -10,7 +10,9 @@
  * verdict of a "won" game is substituted, exactly as `@mc/cards`' `trors.test.ts` does, because nothing here can
  * play a scenario to a win.
  */
-import type { CampaignChoiceAnswer, CampaignPendingChoice, GameState } from "@mc/engine";
+import type { CampaignChoiceAnswer, CampaignPendingChoice, CardInstance, GameState, InstanceId } from "@mc/engine";
+import { NO_STATUSES } from "@mc/engine";
+import { cardId } from "@mc/content";
 import { POOL_VERSION } from "../content/pool.js";
 import { MemoryGameStorage } from "../engine/game-storage.js";
 import type { CampaignRecord } from "../engine/campaign-storage.js";
@@ -58,6 +60,12 @@ async function playIssueWith(
   record: CampaignRecord,
   outcome: "win" | "loss",
   answerFor: (choice: CampaignPendingChoice) => CampaignChoiceAnswer,
+  /**
+   * Applied to the substituted win state before it's folded — the same "hand a real `GameState` to the runner"
+   * approach the win-outcome swap below already uses, so a fixture can seed a scenario-specific victory-display
+   * fact (e.g. `withHeadhunterDefeated`) without writing to the campaign log directly.
+   */
+  transformWon: (state: GameState) => GameState = (state) => state,
 ): Promise<CampaignRecord> {
   const composed = await settleWith((answers) => service.compose(record, answers), answerFor);
   const core = new EngineSessionCore({ storage: new MemoryGameStorage() });
@@ -68,18 +76,18 @@ async function playIssueWith(
     const saved = core.save();
     return settleWith((answers) => service.fold(composed, saved, answers), answerFor);
   }
-  const won: GameState = {
+  const won: GameState = transformWon({
     ...started.snapshot.state,
     cardPool: started.cardPool,
     outcome: { result: "win", reason: "villainDefeated" },
-  };
+  });
   return settleWith((answers) => service.foldState(composed, won, [], answers), answerFor);
 }
 
 const playIssue = (service: CampaignService, record: CampaignRecord, outcome: "win" | "loss") =>
   playIssueWith(service, record, outcome, autoAnswer);
 
-export type GmwRunStop = "fresh" | "afterIssue1" | "afterIssue2" | "expertAfterIssue1";
+export type GmwRunStop = "fresh" | "afterIssue1" | "afterIssue2" | "afterIssue2HeadhuntersDown" | "expertAfterIssue1";
 
 /**
  * The Market's own choices default to "decline" under `autoAnswer` (every `choose` slot in
@@ -99,8 +107,48 @@ function gmwAutoAnswer(choice: CampaignPendingChoice): CampaignChoiceAnswer {
   return autoAnswer(choice);
 }
 
-const playGmwIssue = (service: CampaignService, record: CampaignRecord, outcome: "win" | "loss") =>
-  playIssueWith(service, record, outcome, gmwAutoAnswer);
+/** MC16 p. 8's minion: `headhunterLadder`'s own setup only ever shuffles it into the *encounter deck*, so by the
+ * time a scenario's fake "win" substitutes a state (before the card is ever drawn, let alone defeated), no real
+ * instance of it exists to move into the victory display. */
+const BADOON_HEADHUNTER_ID = cardId("16183");
+
+/**
+ * Fabricates a won state where the Badoon Headhunter minion (16183) is in the victory display —
+ * `headhunterRecordVictory`'s own condition (MC16 p. 8/p. 10/p. 12/p. 14: "If Badoon Headhunter is in the victory
+ * display, mark the box…") — the same "hand the runner a real `GameState`" substitution `playIssueWith`'s win
+ * branch already uses for the villain-defeated outcome itself, not a write to `CampaignLog.shared` directly. The
+ * instance itself is fabricated (a fresh id, no home in the real setup this state never played out) because there
+ * is no way to *actually* defeat a minion inside a substituted win — `campaignResultOf`'s query only reads the
+ * card's id and its presence in `state.victoryDisplay`, so a minimal, correctly-shaped instance answers it exactly
+ * as a real one would.
+ */
+function withHeadhunterDefeated(state: GameState): GameState {
+  const instance: CardInstance = {
+    instanceId: "fixture-headhunter-defeated" as InstanceId,
+    cardId: BADOON_HEADHUNTER_ID,
+    ownerId: null,
+    controllerId: null,
+    home: { kind: "activeEncounterDeck" },
+    faceup: true,
+    exhausted: false,
+    damage: 0,
+    threat: 0,
+    statuses: NO_STATUSES,
+    counters: {},
+    attachedTo: null,
+    attachments: [],
+    boostCards: [],
+    tucked: [],
+    facedownAs: null,
+    engagedWith: null,
+    flipped: false,
+  };
+  return {
+    ...state,
+    instances: { ...state.instances, [instance.instanceId]: instance },
+    victoryDisplay: [...state.victoryDisplay, instance.instanceId],
+  };
+}
 
 /**
  * The Galaxy's Most Wanted (MC16), Groot and Rocket Raccoon: `"afterIssue1"` reaches the Market with units unspent
@@ -108,6 +156,9 @@ const playGmwIssue = (service: CampaignService, record: CampaignRecord, outcome:
  * `choose`/`spend`/`grantCard` loop is issue 2's *setup*, run the next time this record is composed). `"afterIssue2"`
  * plays through to issue 2 as well, taking the cheapest affordable Market card each visit
  * (`gmwAutoAnswer`), so the Dossier and Deck edit screens have real purchases and campaign cards to show.
+ * `"afterIssue2HeadhuntersDown"` plays the same two issues but with `withHeadhunterDefeated` applied to both wins,
+ * so `headhunterDefeated` reaches 2 and the Dossier's Bounty Ladder panel has real ACTIVE/NOT YET rungs to show
+ * (`"afterIssue2"` alone always shows 0 marks — a substituted win never puts anything in a real victory display).
  * `"expertAfterIssue1"` starts the run in expert mode: `packages/client/src/view/campaign-deck-edit-model.ts`'s
  * `frozenNonCampaignCardsOf` needs a history entry for scenario 1, which only exists once it has been played.
  */
@@ -130,9 +181,22 @@ export async function seedGmwRun(
     seed: 1616,
   });
   if (stop === "fresh") return record;
-  record = await playGmwIssue(service, record, "win");
+  const headhuntersDown = stop === "afterIssue2HeadhuntersDown";
+  record = await playIssueWith(
+    service,
+    record,
+    "win",
+    gmwAutoAnswer,
+    headhuntersDown ? withHeadhunterDefeated : undefined,
+  );
   if (stop === "afterIssue1" || stop === "expertAfterIssue1") return record;
-  record = await playGmwIssue(service, record, "win");
+  record = await playIssueWith(
+    service,
+    record,
+    "win",
+    gmwAutoAnswer,
+    headhuntersDown ? withHeadhunterDefeated : undefined,
+  );
   return record;
 }
 

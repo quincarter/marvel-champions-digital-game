@@ -27,8 +27,12 @@ export const FIELD_SHORT_LABEL: Readonly<Record<string, string>> = {
   units: "unit",
 };
 
-/** MC16's "units" is a countable noun ("1 unit" / "5 units"); every other short label above reads fine unpluralized. */
-const PLURALIZED_FIELDS: ReadonlySet<string> = new Set(["units"]);
+/**
+ * MC16's "units" is a countable noun ("1 unit" / "5 units"); every other short label above reads fine unpluralized.
+ * Exported so the Dossier's Wallets panel (`campaign-dossier-model.ts`) pluralizes the same currency field the
+ * same way, rather than re-deciding it.
+ */
+export const PLURALIZED_FIELDS: ReadonlySet<string> = new Set(["units"]);
 
 export type RunIssueStatus = "finished" | "current" | "sealed";
 
