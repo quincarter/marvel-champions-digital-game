@@ -1,8 +1,9 @@
 # Phase 7, Wave 4: Cycle 3 – The Mad Titan's Shadow – Sources & Implementation
 
 > **Unverified draft (content-release-tracker, 2026-09-24).** Spot checks found "p. NNNN" citations that are line
-> numbers in `mc_rulesreference_v18_compressed.md`, not printed RRG pages, and keyword claims to check (Steady and
-> Amplify predate cycle 3). `game-rules-architect` verifies each entry against the RRG PDF and the rulings file before
+> numbers in `mc_rulesreference_v18_compressed.md`, not printed RRG pages, and keyword claims to check: Amplify is
+> printed on 25 `gmw` cards (cycle 2), so it is not new here. Steady _is_ first printed in cycle 3 (`hood`), though the engine
+> already implements it from the RRG. `game-rules-architect` verifies each entry against the RRG PDF and the rulings file before
 > `docs/phase7-wave4.md` relies on it; treat anything here as a pointer until then.
 
 > **Status:** Cycle 3 implementation tracking for phase 7, wave 4.  
