@@ -45,6 +45,19 @@ export interface NormalizeContext extends Flattened {
   readonly usedImageOverrides: Set<string>;
   /** `PackCuration.encounterSets` keys matched (docs/phase7-wave4.md §1.10) — a stale entry is caught the same way. */
   readonly usedEncounterSetOverrides: Set<string>;
+  /** `PackCuration.artUnavailable` keys matched — a stale entry is caught the same way. */
+  readonly usedArtUnavailable: Set<string>;
+  /**
+   * Which MarvelCDB code each of a card's printed faces came from, in the exact order `printedFaces` (`art.ts`)
+   * enumerates them — the only way `checkCoverage` can resolve `PackCuration.artUnavailable`'s per-face codes back
+   * to a specific missing face, since the finished `AnyCard` carries no MarvelCDB provenance itself (the schema is
+   * pure game data). Populated explicitly by whichever card-type module needs exemption support for a
+   * many-code card (`normalize/villains.ts`); a single-record card (`record()`'s own `parts.length === 1` case)
+   * is filled in automatically, since its one code is always the card's own id. A card absent from this map, or
+   * whose code list doesn't match `printedFaces`' length, can never be exempted — `checkCoverage` falls back to
+   * its unconditional check, which is always safe (it just can't offer an exemption, not a wrong one).
+   */
+  readonly faceCodesByCardId: Map<string, readonly string[]>;
 }
 
 export function createContext(raw: readonly RawCard[], curation: PackCuration): NormalizeContext {
@@ -105,6 +118,8 @@ export function createContext(raw: readonly RawCard[], curation: PackCuration): 
     usedAbilityIds: new Set(),
     usedImageOverrides: new Set(),
     usedEncounterSetOverrides: new Set(),
+    usedArtUnavailable: new Set(),
+    faceCodesByCardId: new Map(),
   };
 }
 
@@ -167,6 +182,12 @@ export function abilityRefs(
 /** Emits a card with its provenance: the raw records it came from and every correction applied to them. */
 export function record(ctx: NormalizeContext, card: AnyCard, cardSetCode: string, parts: readonly Prepared[]): void {
   ctx.cards.push(card);
+  // A single-record card's one printed face is always its own MarvelCDB code — the trivial, always-correct case
+  // of `faceCodesByCardId` (a many-code card, e.g. a villain, sets its own richer mapping explicitly instead;
+  // this never overwrites one already set).
+  if (parts.length === 1 && !ctx.faceCodesByCardId.has(card.id)) {
+    ctx.faceCodesByCardId.set(card.id, [(parts[0] as Prepared).raw.code]);
+  }
   const note = ctx.curation.cardNotes[card.id];
   // MarvelCDB's `duplicate_of_code` on a verbatim reprint (see `RawCard`'s doc comment) — recorded, not resolved
   // against the reprint's pack, since that pack isn't loaded here; a consumer treats it as a hint.

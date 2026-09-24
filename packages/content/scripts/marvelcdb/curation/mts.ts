@@ -6,17 +6,17 @@
  * section numbers alongside MC21's own printed page (the rulebook conversion, `docs/campaign-modes/markdown/
  * mc21_the_mad_titans_shadow.md`) and RRG 1.8 page numbers.
  *
- * **Status: blocked on artwork for six double-sided-card back faces (see the bottom of this file).** Every other
- * survey issue (docs/phase7-wave4.md §1: 26 lines — 3 dash costs, 6 attach-rule shapes, 8 unlinked records, 3
- * side-scheme-foreign-back pairs, 4 missing-art faces, 1 boost-star mismatch) is resolved here or by the parser/
- * normalize changes landed alongside this file. The survey's own "4 missing-art faces" undercounts the real gap:
- * its two "no artwork reference for side B stage 1" lines name the *card* by its front face's code (21136a,
- * 21137a, which both already have MarvelCDB art) but the missing face is each one's linked back (21136b, 21137b).
- * `pnpm --filter @mc/content ingest -- --pack mts --dry-run` fails on six genuinely-art-less MarvelCDB records in
- * total (21136b, 21137b, 21182b, 21184b, 21186b, 21189b — confirmed absent from MarvelCDB's own
- * `/bundles/cards/<code>.png` path, HTTP 404, not merely missing from the cached `imagesrc` field, 2026-09-24), so
- * `mts` is not yet registered in `ingest-marvelcdb.ts`'s `REGISTERED_CURATIONS` and no `src/data/mts/**` module
- * has been emitted. See the note at the bottom of this file for what's needed to unblock.
+ * **Six faces have no artwork reference anywhere on MarvelCDB** (checked on the live API, not merely the cached
+ * raw file, 2026-09-24) and no independently-viewable second source could be located for any of them either — see
+ * `artUnavailable` below for the search each entry documents. Rather than block the whole box on six of 202
+ * records, `PackCuration.artUnavailable` (that field's own doc comment) tells `checkCoverage` to treat these six
+ * as a confirmed gap instead of a hard error. The client already draws a generated frame for a face with no
+ * `image` reference (`packages/client/src/art/art-source.ts`'s `artFor` returns `null` when a face has no
+ * `ImageRef` and no local `ArtRef`, and `packages/client/src/art/card-art.ts`'s `request` treats a `null` source
+ * as "no texture" rather than erroring — proven for exactly this shape, a villain stage with no `image`, by
+ * `art-source.test.ts`'s "returns null for a villain stage with no image" case) — this is that same,
+ * already-handled shape, not a new one; the other ~24 pool faces the build's own `vite-card-art.ts` art-coverage
+ * log already lists as backed by no local scan render the same way today.
  */
 import type { Trait } from "../../../src/schema/index.ts";
 import type { PackCuration } from "./types.ts";
@@ -33,6 +33,9 @@ export const MTS_CURATION: PackCuration = {
   },
   outDir: "src/data/mts",
   exportPrefix: "MTS",
+  // MarvelCDB has no campaign record at all (docs/campaign-mode-design.md §3) — `campaign.ts` is hand-authored,
+  // the same shape `gmw`/`trors` use for their own box's `Campaign` record.
+  handAuthoredModules: ["campaign"],
 
   corrections: [
     // docs/phase7-wave4.md §1.3: Gamma, Photon and Pulsar (21002-21004) print a dash cost ("—", RRG 1.8 "Dash
@@ -418,30 +421,44 @@ export const MTS_CURATION: PackCuration = {
       ],
     },
   },
-};
 
-// **Open item, not yet resolved:** six MarvelCDB records have no artwork reference at all, on the *live* API as of
-// 2026-09-24, not merely the cached raw file — checked directly (`curl https://marvelcdb.com/api/public/card/
-// 21182` and the individual `/bundles/cards/<code>.png` paths, all 404): `21136b`/`21137b` (Hela's own hidden
-// linked back faces — the front faces, 21136a/21137a, already have MarvelCDB art; only their backs don't),
-// `21182b` (Black Swan, the back of Save the Shawarma Place), `21184b` (Defensive Protocols, the back of Hack
-// Sanctuary's Computer), `21186b` (Retrieve Odin's Armor, the back of Find the Norn Stones), `21189b` (Jormungand,
-// the back of Open the Dungeons). Every other pack's analogous double-sided-card backs (`hood` 24049b, `gmw`
-// 16178b-16182b) DO have a MarvelCDB-hosted image; these six are a genuine gap in MarvelCDB's own data for this
-// one product, not a normalizer bug.
-//
-// Searched and did not find a second, independently-viewable source for any of the six: the MC21 rulebook (both
-// the compressed insert and the campaign log) prints no card-image plates at all; Hall of Heroes' two MC21
-// release-page galleries (`the-mad-titans-shadow`, `the-mad-titans-shadow-encounters-and-mods`) carry no
-// per-image captions or alt text identifying which of their ~300 combined images is which card, so matching one
-// to Hela's Mystic-side back or Black Swan/Defensive Protocols/Jormungand/Retrieve Odin's Armor without guessing
-// was not possible in this pass; a product-photo retailer page (crazyjackalope.com) shows only one thumbnail per
-// listing. CLAUDE.md's IP boundary and `imageOverrides`' own evidence bar both require a second source to be
-// independently viewed before it is cited, so none of these candidates is entered here.
-//
-// **To unblock:** either locate and view a second-source scan of these six specific backs (a full box unboxing
-// photo set, a higher-resolution Hall of Heroes gallery post with captions, or the physical cards) and add
-// `imageOverrides` entries citing it, or wait for MarvelCDB to publish the assets and re-run
-// `pnpm --filter @mc/content ingest -- --pack mts --dry-run --offline` to confirm `imagesrc` is populated. Once
-// either happens, register `MTS_CURATION` in `ingest-marvelcdb.ts`'s `REGISTERED_CURATIONS` and run
-// `pnpm --filter @mc/content ingest -- --pack mts`.
+  // docs/phase7-wave4.md §1 (this pass's own finding, not in the original 26-line survey list — see the file
+  // header): six MarvelCDB records have no artwork reference at all, on the *live* API as of 2026-09-24, not
+  // merely the cached raw file — checked directly (`curl https://marvelcdb.com/api/public/card/21182` and the
+  // individual `/bundles/cards/<code>.png` paths, all 404). Every other pack's analogous double-sided-card backs
+  // (`hood` 24049b, `gmw` 16178b-16182b) DO have a MarvelCDB-hosted image; these six are a genuine gap in
+  // MarvelCDB's own data for this one product, not a normalizer bug, and a second source was searched for and not
+  // found for any of them: the MC21 rulebook (both the compressed insert and the campaign log) prints no
+  // card-image plates at all; Hall of Heroes' two MC21 release-page galleries (`the-mad-titans-shadow`,
+  // `the-mad-titans-shadow-encounters-and-mods`) carry no per-image captions or alt text identifying which of
+  // their ~300 combined images is which card, so matching one to Hela's Mystic-side back or Black
+  // Swan/Defensive Protocols/Jormungand/Retrieve Odin's Armor without guessing was not possible; a product-photo
+  // retailer page (crazyjackalope.com) shows only one thumbnail per listing. CLAUDE.md's IP boundary and
+  // `imageOverrides`' own evidence bar both require a second source to be independently viewed before it is
+  // cited, so none of these candidates was entered as an `imageOverrides` URL. If one turns up later, prefer that
+  // (a real reference beats an acknowledged gap) and drop the matching entry here.
+  artUnavailable: {
+    // Hela's own hidden linked back faces — 21136a/21137a (the fronts, mode digit "1") already have MarvelCDB
+    // art; only their backs (digit "2") don't.
+    "21136b":
+      "MarvelCDB /bundles/cards/21136b.png and the live API both 404/null (checked 2026-09-24). No second-source " +
+      "scan of Hela's Mystic-side back found (MC21 rulebook has no card plates; Hall of Heroes' galleries have no " +
+      "per-image captions).",
+    "21137b":
+      "MarvelCDB /bundles/cards/21137b.png and the live API both 404/null (checked 2026-09-24). Same search as " +
+      "21136b, for Hela's expert-mode Mystic-side back.",
+    "21182b":
+      "Black Swan, the back of Save the Shawarma Place. MarvelCDB /bundles/cards/21182b.png and the live API " +
+      "both 404/null (checked 2026-09-24). No second-source scan found (searched as for 21136b, plus a " +
+      "crazyjackalope.com product listing, which shows only one thumbnail).",
+    "21184b":
+      "Defensive Protocols, the back of Hack Sanctuary's Computer. MarvelCDB /bundles/cards/21184b.png and the " +
+      "live API both 404/null (checked 2026-09-24). Same search as 21182b.",
+    "21186b":
+      "Retrieve Odin's Armor, the back of Find the Norn Stones. MarvelCDB /bundles/cards/21186b.png and the " +
+      "live API both 404/null (checked 2026-09-24). Same search as 21182b.",
+    "21189b":
+      "Jormungand, the back of Open the Dungeons. MarvelCDB /bundles/cards/21189b.png and the live API both " +
+      "404/null (checked 2026-09-24). Same search as 21182b.",
+  },
+};

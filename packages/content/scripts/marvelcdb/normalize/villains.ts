@@ -155,6 +155,9 @@ export function normalizeVillains(ctx: NormalizeContext): Map<string, string> {
               ? { activationOrder: front.activationOrder ?? back.activationOrder }
               : {}),
           };
+          // `printedFaces` enumerates a villain as `sides.flatMap(side => side.stages)` — side A (front) then side
+          // B (back), matching this card's own `sides` array above.
+          ctx.faceCodesByCardId.set(card.id, [r.code, linked.code]);
           record(ctx, card, set, [front.prepared, back.prepared]);
         }
       }
@@ -196,6 +199,12 @@ export function normalizeVillains(ctx: NormalizeContext): Map<string, string> {
             sides: [{ side: "A", name: first.prepared.name, stages: [first.stage, second.stage] }],
             ...(printedType ? { printedType } : {}),
           };
+          // `printedFaces` enumerates a single-side villain's stages in order — `built`/`pair` are already sorted
+          // that way above.
+          ctx.faceCodesByCardId.set(
+            card.id,
+            pair.map((face) => face.code),
+          );
           record(
             ctx,
             card,
@@ -322,6 +331,13 @@ export function normalizeVillains(ctx: NormalizeContext): Map<string, string> {
         ...(activationOrder !== undefined ? { activationOrder } : {}),
       };
       villainIdBySet.set(set, card.id);
+      // `printedFaces` enumerates `sides.flatMap(side => side.stages)` — side A's stages, then side B's, then
+      // (if three-sided) side C's, each already in stage order.
+      ctx.faceCodesByCardId.set(card.id, [
+        ...partsA.map((p) => p.raw.code),
+        ...partsB.map((p) => p.raw.code),
+        ...(threeSided ? partsC.map((p) => p.raw.code) : []),
+      ]);
       record(ctx, card, set, [...partsA, ...partsB, ...partsC]);
       continue;
     }
@@ -359,6 +375,11 @@ export function normalizeVillains(ctx: NormalizeContext): Map<string, string> {
       ...(activationOrder !== undefined ? { activationOrder } : {}),
     };
     villainIdBySet.set(set, card.id);
+    // `printedFaces` enumerates a single-side villain's stages in `stages`' own order.
+    ctx.faceCodesByCardId.set(
+      card.id,
+      parts.map((p) => p.raw.code),
+    );
     record(ctx, card, set, parts);
   }
   return villainIdBySet;
