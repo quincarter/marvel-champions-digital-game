@@ -128,6 +128,9 @@ export function normalizeMainSchemes(ctx: NormalizeContext): Map<string, string>
         // anywhere in the B-side text, final stage or not — a final stage already loses by the engine's default
         // rule, so the flag there just restates it; a non-final stage needs it to lose instead of advancing.
         ...(pb.completionLoses ? { completionLoses: true } : {}),
+        // docs/phase7-wave4.md §1.5: "Proxima Midnight's Scheme." / "Corvus Glaive's Scheme." (Tower Defense) — a
+        // main scheme stage that belongs to one of several villains in the scenario.
+        ...(pb.villainOf ? { villainOf: pb.villainOf } : {}),
         ...(bSideImage ? { image: bSideImage } : {}),
         aSide: {
           text: a.text,
