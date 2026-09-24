@@ -12,7 +12,7 @@ import {
   excludedFromAllyLimit,
   restrictedLimitFor,
 } from "../rules.js";
-import { controllerOf, restrictedCardsOf } from "../select.js";
+import { controllerOf, isAlly, restrictedCardsOf } from "../select.js";
 
 /**
  * RRG 1.8 "Ally Limit" (p. 7): "if a player **ever** controls a number of allies greater than their ally limit in play,
@@ -62,7 +62,7 @@ function checkAllyLimit(ctx: Ctx, playerId: PlayerId | null): boolean {
   if (!playerId || ctx.state.pendingChoice) return false;
   const allies = mustPlayer(ctx.state, playerId).playArea.filter(
     (id) =>
-      cardOf(ctx.state, id)?.type === "ally" &&
+      isAlly(ctx.state, id) &&
       controllerOf(ctx.state, id) === playerId &&
       !excludedFromAllyLimit(ctx.state, ctx.deps, id),
   );

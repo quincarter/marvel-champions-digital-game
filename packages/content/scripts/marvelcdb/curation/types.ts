@@ -368,4 +368,18 @@ export interface PackCuration {
    * `EncounterSetCuration`. Absent = no set in this pack needs one.
    */
   readonly encounterSets?: Readonly<Record<string, EncounterSetCuration>>;
+  /**
+   * MarvelCDB codes that genuinely have no artwork reference anywhere on MarvelCDB (checked on the live API, not
+   * merely the cached raw file) and for which no independently-viewable second source could be located either —
+   * `checkCoverage`'s "no artwork reference" check treats a listed code as satisfied instead of a hard error, so
+   * one missing scan doesn't block an otherwise-complete pack. Each value is the reason, naming what was searched
+   * (mirroring `Correction`/`Errata`'s own evidence bar, even though there is no evidence *for* an image — there's
+   * evidence that none exists). `checkCoverage` still hard-fails on any art-less face not listed here, and
+   * `checkStaleCuration`-style checking (in `checkCoverage`, since encounter-set-level entries need the sets to
+   * exist first — see `usedEncounterSetOverrides`) errors if an entry matches a face that does have art, the same
+   * way a stale `imageOverrides` entry does. Resolved per-face via `NormalizeContext.faceCodesByCardId`; a card
+   * type that doesn't populate that map for a given card can never have one of its faces exempted (a safe
+   * fallback: it just can't offer an exemption, never a wrong one).
+   */
+  readonly artUnavailable?: Readonly<Record<string, string>>;
 }

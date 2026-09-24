@@ -20,7 +20,7 @@ import { cardOf, playerOrder } from "./query.js";
 import { contextOf } from "./resolve/effects-frame.js";
 import { legalDefenders } from "./resolve/enemy-activation.js";
 import { mustDefendWithAlly } from "./rules.js";
-import { cardsInPlay, controllerOf, explainQuery, type QueryExclusion } from "./select.js";
+import { cardsInPlay, controllerOf, explainQuery, isAlly, type QueryExclusion } from "./select.js";
 import type { GameState } from "./state.js";
 
 /**
@@ -104,9 +104,7 @@ function defenderExclusions(
     existing === null &&
     mustDefendWithAlly(state, deps, frame.enemyInstanceId) &&
     [...eligible].some(
-      (id) =>
-        cardOf(state, id as InstanceId)?.type === "ally" &&
-        controllerOf(state, id as InstanceId) === frame.attackedPlayerId,
+      (id) => isAlly(state, id as InstanceId) && controllerOf(state, id as InstanceId) === frame.attackedPlayerId,
     );
 
   const exclusions: ChoiceExclusion[] = [];

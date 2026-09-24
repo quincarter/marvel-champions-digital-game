@@ -437,7 +437,7 @@ export function mainSchemeStageCount(state: GameState, scheme: MainSchemeState =
 export function isMinion(state: GameState, id: InstanceId): boolean {
   const instance = state.instances[id];
   if (!instance) return false;
-  if (instance.facedownAs?.kind === "minion") return true;
+  if (instance.facedownAs?.kind === "minion" || instance.treatedAs?.kind === "minion") return true;
   return state.cardPool[instance.cardId]?.type === "minion";
 }
 
@@ -500,6 +500,20 @@ export function printedProfile(state: GameState, id: InstanceId): CharacterProfi
   // A facedown minion has no printed stats of its own (card abilities set its base values).
   if (instance.facedownAs?.kind === "minion") {
     return { kind: "minion", missing: [], atk: 0, thw: 0, def: 0, rec: 0, sch: 0, maxHp: 0 };
+  }
+  // An ally treated as a minion: its printed ATK and hit points; "SCH is equal to its printed THW" (§3.9 of wave 4).
+  if (instance.treatedAs?.kind === "minion" && card.type === "ally") {
+    const sch = instance.treatedAs.schFromThw ? card.thw : 0;
+    return {
+      kind: "minion",
+      missing: dashes({ atk: card.atk, thw: 0, sch }),
+      atk: statValue(card.atk),
+      thw: 0,
+      def: 0,
+      rec: 0,
+      sch: statValue(sch),
+      maxHp: card.hp,
+    };
   }
 
   if (card.type === "hero_identity") {

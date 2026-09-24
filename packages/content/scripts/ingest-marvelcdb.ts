@@ -85,6 +85,7 @@ import { MOJO_CURATION } from "./marvelcdb/curation/mojo.ts";
 import { ANGEL_CURATION } from "./marvelcdb/curation/angel.ts";
 import { STORM_CURATION } from "./marvelcdb/curation/storm.ts";
 import { GMW_CURATION } from "./marvelcdb/curation/gmw.ts";
+import { MTS_CURATION } from "./marvelcdb/curation/mts.ts";
 import { bareCuration } from "./marvelcdb/curation/empty.ts";
 import type { PackCuration } from "./marvelcdb/curation/types.ts";
 
@@ -148,12 +149,10 @@ const REGISTERED_CURATIONS: Readonly<Record<string, PackCuration>> = {
   psylocke: PSYLOCKE_CURATION,
   jubilee: JUBILEE_CURATION,
   gmw: GMW_CURATION,
+  mts: MTS_CURATION,
   // hercules, fne: curated (survey.ts), but NOT registered here — each has at least one card
   // still blocked on a real parser/schema gap (docs/phase7-wave2-data.md's "Schema requests for
   // game-rules-architect" / parser-gap log).
-  // mts: curated (scripts/marvelcdb/curation/mts.ts), but NOT registered here — six MarvelCDB records (Hela's
-  // 21136b/21137b and four campaign-card backs) genuinely have no artwork reference anywhere on MarvelCDB (see
-  // that file's own trailing comment). Register it and re-run once art is sourced.
 };
 
 interface RawCache {

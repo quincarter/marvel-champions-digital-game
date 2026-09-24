@@ -437,6 +437,25 @@ export const uncancellable = (definition: AbilityDefinition): AbilityDefinition 
 export const cannotBeCanceled = (cards: TargetQuery, when?: Predicate): ConstantPart => ({
   rules: [{ kind: "cannotBeCanceled", cards, ...(when ? { while: when } : {}) }],
 });
+/**
+ * "Treat attached ally as an [Undead] minion with a blank text box. Attached minion's SCH is equal to its printed THW
+ * and it does not take consequential damage." (Fallen Warrior, Beguiled, `mts` 21153, 21178; the same family in
+ * `deadpool`, `jubilee`, `storm`): `constant(treatAttachedAllyAsMinion([UNDEAD]))`. "(except for traits)" (Manipulated
+ * Mind, `sm` 27171; Malice, `next_evol` 40199): `{ keepPrintedTraits: true }`. docs/phase7-wave4.md §3.9.
+ */
+export const treatAttachedAllyAsMinion = (
+  traits: readonly Trait[],
+  opts: { readonly keepPrintedTraits?: boolean } = {},
+): ConstantPart => ({
+  rules: [
+    {
+      kind: "treatHostAsMinion",
+      traits,
+      schFromThw: true,
+      ...(opts.keepPrintedTraits ? { keepPrintedTraits: true } : {}),
+    },
+  ],
+});
 /** "You cannot choose to discard this card from your hand." (System Shock): `inHand(constant(cannotChooseToDiscard))`. */
 export const cannotChooseToDiscard: ConstantPart = { rules: [{ kind: "cannotChooseToDiscard" }] };
 export const focusedMainScheme = (): ConstantPart => rule({ kind: "focusedMainScheme", scheme: { kind: "host" } });

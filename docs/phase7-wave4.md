@@ -85,6 +85,29 @@ authority; card images were checked where the raw data and the card disagree (§
 schemes with foreign backs 3, missing art 4, a boost star 1, "not this set's villain" 1). "Clean" is not "right":
 §1.1, §1.2 and §1.8 are data errors in packs that survey clean.
 
+> **Pipeline status: landed (card-data-pipeline, 2026-09-24).** `mts` is emitted (`packages/content/src/data/mts/**`,
+> curation in `curation/mts.ts`, registered in `ingest-marvelcdb.ts`), wired into `DATA_ONLY_CARDS`/
+> `DATA_ONLY_ENCOUNTER_SETS` (`data/index.ts`), 191 cards from 202 raw records (9 dropped aggregates, the normal
+> shape — see each subsection below for the per-issue fix and §1's own new field, `artUnavailable`, which the
+> 26-line survey didn't anticipate). Every other pack still normalizes cleanly (`pnpm --filter @mc/content ingest --
+--all --dry-run --offline` unaffected). Both box precons (Spectrum, Adam Warlock) validate under `validateDeck`/
+> `requiredIdentitySet` (`packages/cards/src/wave4-precon-legality.test.ts`, 29 tests). The five scenarios and
+> `MTS_CAMPAIGN` (`data/mts/campaign.ts`, the `gmw`/`trors` shape) are data; none is playable yet (§3's own gate).
+>
+> **One further schema-adjacent gap found and closed in this pass, not in the original 26-line list:**
+> `PackCuration.artUnavailable` (`curation/types.ts`) — six MarvelCDB records (`21136b`, `21137b`, Hela's own hidden
+> linked back faces, and four campaign-card backs: `21182b`, `21184b`, `21186b`, `21189b`) have no artwork reference
+> anywhere on MarvelCDB (checked on the live API, not just the cached raw file) and no independently-viewable second
+> source could be found either. Rather than block the whole box on six of 202 records, `checkCoverage` (`normalize/
+checks.ts`) now honours a per-code, per-reason exemption instead of hard-failing, resolved via a new
+> `NormalizeContext.faceCodesByCardId` map (populated explicitly in `normalize/villains.ts` for every villain
+> shape, and automatically for any single-record card, whose one face is always its own code) — mirrors the stale-
+> `imageOverrides` check both ways (errors on an unmatched entry, and on an entry that matches a face that already
+> has art). The client's existing missing-art fallback (`packages/client/src/art/art-source.ts`'s `artFor` returning
+> `null`, `card-art.ts`'s `request` treating that as "no texture") already draws a generated frame for exactly this
+> shape — proven for a villain stage specifically by a new case in `art-source.test.ts`. See `curation/mts.ts`'s own
+> header comment and its `artUnavailable` entries for the search each of the six documents.
+
 ### 1.1 The form keyword: "Energy form." / "Mass form." (`KeywordInstance form`)
 
 RRG 1.8 "Form, Change Form" (p. 21): "Cards with the '[type] form' keyword grant an identity unique forms." MC21 p. 2
@@ -282,6 +305,10 @@ RRG 1.8 Appendix II (p. 51) with the wave 1–3 engine. Step 13, "Campaign Setup
   does not apply to Avengers Tower", MC21 p. 11); Corvus Glaive / Proxima Midnight / Ebony Maw as villains and as
   Children of Thanos minions.
 - **Precons.** Only the box's two are printed in the repo (MC21 p. 3). The four hero packs' come from their inserts.
+- **Status (card-data-pipeline, 2026-09-24):** both `mts` precons emitted (`spectrum-leadership`, `adam-warlock-all-
+aspects`, `curation/mts.ts`'s `starterDecks`), verified legal (`wave4-precon-legality.test.ts`). Spectrum's own
+  printed lists (MC21 p. 3) sum to 43 cards, not 40 — transcribed verbatim rather than force-fit, flagged in §4.
+  Adam Warlock's `21031a` carries `{ aspectCount: 4, equalCardsPerAspect: true, maxCopiesPerTitle: 1 }` (§1.4).
 
 ### 2.2 The Mad Titan's Shadow scenarios
 
@@ -300,6 +327,23 @@ stage-I cards, §1.11).
   (single-villain scenarios only), Legions of Hel, Frost Giants, Enchantress.
 - **Tower Defense's optional setup damage** on Avengers Tower (1/2/3 per player by difficulty, MC21 p. 11) is a
   suggested difficulty option, not a rule; standalone play uses 0 unless a setup option is added (§4 Q4).
+
+**Status (card-data-pipeline, 2026-09-24):** all five emitted as `Scenario` records (`curation/mts.ts`'s own
+`evidence` field cites the exact printed sentence per scenario) and importable (`MTS_SCENARIOS`), data-only per
+§1's own status note (none is playable until its §3 primitives land).
+
+- `ebony-maw`: `villainSetCode: "ebony_maw"`, `modularSetCount: 2`, ordinary single-villain shape.
+- `tower-defense`: `multipleVillains.villainCardCodes: ["21092", "21095"]` (Proxima Midnight I, Corvus Glaive I) —
+  needed because both villains share one `card_set_code` (`tower_defense`) with colliding stage numbers, the same
+  shape `normalizeVillains` already gives Kang/Sinister Six, so `villainSetCodes` alone can't disambiguate them
+  (§1.6's own new `MultipleVillainsCuration.villainCardCodes` field). `encounterDecks: "shared"`.
+- `thanos`: `additionalEncounterSetCodes: ["infinity_gauntlet"]`; the Infinity Stone deck itself is on the
+  `infinity_gauntlet` `EncounterSet`, not this scenario (§1.10).
+- `hela`: `villainCardCode: "21136a"` (the A1/standard face, wave 3 §1.1's mode+face shape), `villainStages: {
+standard: [1, 1], expert: [1, 1] }`.
+- `loki`: `villainCardCode: "21160"`, `setAsideVillainCardCodes: ["21161", "21162", "21163", "21164"]`,
+  `startingVillain: "random"`, `victoryCondition: { skirmish: 1, standard: 2, expert: 3, heroic: 4 }`,
+  `victory: "cardAbility"` (§1.11).
 
 #### Campaign (MC21 pp. 4, 7, 13, 17, 21, 25)
 
@@ -324,6 +368,16 @@ and found it fits. Checked against the real cards:
   §3.13 (hand abilities, "cannot choose to discard") and Security Breach's "places a random card from their hand
   facedown here … Return each facedown card here to its owner's hand", which `tuckCards` may cover (to verify with the
   script). No `CampaignOp` change.
+- **Status (card-data-pipeline, 2026-09-24):** cards 180-193 are emitted with `specificTo: campaign` (player cards)
+  or as part of the `campaignSpecific: true` `mts_campaign` `EncounterSet` (encounter-side cards), per §1.13. The
+  five flip pairs (§1.7) are emitted as `otherFaceId`-linked cards. `MTS_CAMPAIGN` (`data/mts/campaign.ts`, the
+  `GMW_CAMPAIGN`/`TRORS_CAMPAIGN` hand-authored shape) names the five scenarios in box order and the
+  `mts_campaign` set, but is deliberately not added to `data/index.ts`'s `CAMPAIGNS` aggregate — that list gates
+  on a box being "ingested **and scripted**" (`data/index.ts`'s own comment on `CAMPAIGNS`), and `mts`'s campaign
+  _instructions_ (the `CampaignDefinition` DSL — what each scenario's setup/victory does, System Shock's hand
+  ability, each flip) are `ability-scripting-engineer`'s work, not emitted here. `MTS_CAMPAIGN` is importable
+  directly in the meantime, and `packages/cards/src/campaigns/mts.gate.test.ts`'s synthetic-id run above still
+  stands as the pre-check for that follow-up.
 
 ### 2.3 The Hood scenario
 
@@ -356,7 +410,7 @@ stays data only.**
 | 3.6  | A modular set's own deck (the Infinity Stone deck)                       | Thanos, Loki, any scenario                 | landed      |
 | 3.7  | Loki: random start, swap, a villain stage's Victory X, the victory count | Loki; God of Lies (`tt`)                   | landed      |
 | 3.8  | An encounter ally attached to the main scheme (Odin)                     | Hela                                       | landed      |
-| 3.9  | An ally treated as a minion                                              | Fallen Warrior, Beguiled; 5 other packs    | not started |
+| 3.9  | An ally treated as a minion                                              | Fallen Warrior, Beguiled; 5 other packs    | landed      |
 | 3.10 | Flipping a card into a separately emitted face of another type           | MC21 campaign                              | landed      |
 | 3.11 | Timing points when a deck runs out                                       | Soul World, Universal Church, Thanos       | landed      |
 | 3.12 | Counting different aspects; Adam Warlock's copy limit                    | Adam Warlock                               | landed      |
@@ -626,6 +680,24 @@ change.)" **Plan:** a `RuleSpec treatAsMinion { target: host, traits, schFromThw
 read where a card's categories are decided (`categoriesOf`, beside `facedownAs`), cheap because it reads only the
 card's own attachments. **Composes with:** 'Pool-ized (`deadpool` 44041), "Lost" Child (`jubilee` 47027), Manipulated
 Mind (`sm` 27171, "except for traits"), Possessed (`storm` 36038), Malice (`next_evol` 40199).
+
+> **Status: landed (2026-09-24),** tested in `packages/engine/src/treat-as-minion.test.ts` (3 tests: attached, the ally is
+> an engaged minion nobody controls, with a blank text box, the new trait, SCH equal to its printed THW, its damage
+> kept and no ally action offered, replay deep-equal; "(except for traits)" keeps the printed traits; when the
+> attachment is discarded it is its controller's ally again with its text and damage). **What landed:** the plan's
+> read-at-query-time rule would need the ability registry in `categoriesOf`/`isMinion`, which take none, so the
+> ruling's "essentially a status change" is kept as state instead: **`CardInstance.treatedAs`** (optional; `kind`,
+> `traits`, `keepPrintedTraits`, `schFromThw`, `source`, `controllerBefore`), set and cleared by `treat-as.ts
+syncTreatedAs`, which `relocateCard` calls whenever a card moves onto or off a host, from the host's attachments'
+> **`RuleSpec treatHostAsMinion {traits, keepPrintedTraits?, schFromThw?}`**. It is set the moment the attachment
+> lands, so the same ability's "Attached ally engages its controller" engages a minion. Readers: `categoriesOf`,
+> `isMinion`, printed traits, blank abilities and keywords, `printedProfile` (a minion profile from the ally's printed
+> ATK, THW-as-SCH and hit points). A new `select.ts isAlly` (the `ally` category) replaces the raw `type === "ally"`
+> play-area walks (legal attackers/thwarters, defenders, Melter's forced ally defense, the ally limit, Team-Up's
+> friendly characters, why-not). Leaving play clears it. Event `treatedAsChanged`. **DSL:**
+> `constant(treatAttachedAllyAsMinion(traits, { keepPrintedTraits? }))`. **Not covered:** Mind Control, Redemption,
+> Karma (a minion treated as an ally, the mirror; `TreatedAs.kind` is the place to add `"ally"`), and Reluctant Foe
+> (`aos` 50171, a hero treated as a minion with a replaced text box).
 
 ### 3.10 Flipping a card into a separately emitted face of another type
 
@@ -1094,24 +1166,37 @@ Each is implemented the way stated, or not at all, and named here rather than de
     the ref lists them (play-area order), before the original target, which is one legal order; the player is not
     asked. The only thing the order can change is which overkill spill or defeat happens first. Proposed: keep it
     until a card makes the order matter; a choice step is an `orderCards`-style prompt on top of this effect.
-12. **"If Valkyrie defeated that enemy"** (Death-Glow, §3.22) read as "her identity or an extension of it" (RRG 1.8
+12. **Spectrum's precon prints 43 cards, not 40** (card-data-pipeline, 2026-09-24). MC21 p. 3's own "Spectrum
+    cards"/"Leadership cards"/"Basic cards" lists sum to 18 + 16 + 9 = 43, cross-checked 1:1 against MarvelCDB's
+    names in order; no arithmetic error found in the transcription. Every other wave 4 precon is 40 (Vision's 41,
+    §5.2, is the only other exception). Implemented as: the printed lists win, transcribed verbatim
+    (`curation/mts.ts`'s own `starterDecks` note) — 43 is within RRG 1.8 p. 50's legal 40-50 range, and
+    `validateDeck` accepts it, so nothing is broken by leaving it as printed rather than guessing which card the
+    rulebook meant to drop. Needs a second source (the physical precon, once available) to confirm 43 is really
+    what ships, not a rulebook transcription slip on FFG's own part.
+13. **Six MarvelCDB records with no artwork anywhere** (§1, `PackCuration.artUnavailable`). Not a rules question —
+    a data-availability one, flagged here because it's a standing gap rather than a decision either way: if a
+    second-source scan of 21136b/21137b (Hela's Mystic-side backs) or 21182b/21184b/21186b/21189b (the four
+    campaign-card backs) turns up later, prefer it (drop the matching `artUnavailable` entry, add an
+    `imageOverrides` one instead) over leaving the acknowledged gap in place indefinitely.
+14. **"If Valkyrie defeated that enemy"** (Death-Glow, §3.22) read as "her identity or an extension of it" (RRG 1.8
     "You, Your", p. 49): her attacks, events she played (Have at Thee!, a non-attack "deal damage" event), resources
     she spent (Audacity) and her upgrades count; allies do not. No ruling names Death-Glow; the RRG's extension rule is
     the reading.
-13. **"When your hero defends against an attack"** (The Best Defense…, §3.22) is scripted on the basic defense's
+15. **"When your hero defends against an attack"** (The Best Defense…, §3.22) is scripted on the basic defense's
     `basicPowerUsing` interrupt, which is the moment before the DEF is read. RRG 1.8 p. 15 lets it also trigger off a
     defense-labeled ability, but only a basic defense reduces damage at all, so there it would do nothing; the engine
     does not offer it there.
-14. **A cancel ability aimed at a card that cannot be canceled** (§3.14). Nothing in RRG 1.8 "Cancel" or "'Cannot'"
+16. **A cancel ability aimed at a card that cannot be canceled** (§3.14). Nothing in RRG 1.8 "Cancel" or "'Cannot'"
     (p. 11) forbids initiating it; its costs are paid and it changes nothing. Implemented as: the cancel stays offered
     and fizzles. Proposed alternative for the user: withhold it from the legal actions (friendlier, but not a written
     rule).
-15. **Does a card that flips into a separately emitted face enter play?** (§3.10) RRG 1.8 "Flip" (p. 20) only says
+17. **Does a card that flips into a separately emitted face enter play?** (§3.10) RRG 1.8 "Flip" (p. 20) only says
     what stays on the card. But Defensive Protocols and Retrieve Odin's Armor (21184b, 21186b) print "Hinder 2", which
     only works on entering play, and a flipped-in side scheme at 0 threat could never be defeated; Black Swan's "After
     Black Swan engages you" needs an engagement. Implemented as: the new face is treated as entering play (starting
     threat plus hinder, engagement, "enters play" triggers). Needs a ruling or the MC21 insert's word.
-16. **Who pays Mister Fear's cost when another player's card readies the engaged player's hero?** (§3.19) The card
+18. **Who pays Mister Fear's cost when another player's card readies the engaged player's hero?** (§3.19) The card
     says "for the engaged player to ready"; RRG 1.8 "Ready" (p. 36) says "for a player to ready a card, that player".
     Implemented as: the player readying pays — the controller at the end-of-phase ready, the resolving player for a
     card effect — and `player` scopes the rule to the engaged player, so another player's Cosmic Alliance readies the
@@ -1120,12 +1205,14 @@ Each is implemented the way stated, or not at all, and named here rather than de
 ## 5. What this asks of the other agents
 
 - **`card-data-pipeline`** (after §1 lands):
-  - make `mts` survey clean and emit it, campaign cards included (§1.3, §1.6, §1.7, §1.10, §1.11, §1.13), with Spectrum
-    and Adam Warlock precons from MC21 p. 3;
-  - the form keyword (§1.1) and Vision's Dense face (§1.2), re-emitting `vision`;
-  - `modeOnly` (§1.8) and `classification` (§1.9), re-emitting `hood` and back-filling `gmw`'s split side schemes;
-  - `hood`'s `Scenario` record (§1.12, §2.3);
-  - the four hero-pack precons from their inserts.
+  - ~~make `mts` survey clean and emit it, campaign cards included (§1.3, §1.6, §1.7, §1.10, §1.11, §1.13), with
+    Spectrum and Adam Warlock precons from MC21 p. 3~~ — **done (2026-09-24)**, see §1's own status note;
+  - ~~the form keyword (§1.1) and Vision's Dense face (§1.2), re-emitting `vision`~~ — done (273ac126);
+  - ~~`modeOnly` (§1.8) and `classification` (§1.9), re-emitting `hood` and back-filling `gmw`'s split side
+    schemes~~ — done (5f3a4b37);
+  - ~~`hood`'s `Scenario` record (§1.12, §2.3)~~ — done (bd888fcc);
+  - the four hero-pack precons from their inserts — still open; the Nebula/War Machine/Valkyrie/Vision inserts
+    aren't in the repo (§2.1's own note), so sourcing them is a follow-up, not part of this pass.
 - **`ability-scripting-engineer`:** the `mts` scenario builder must map `MultipleVillains.encounterDecks: "shared"` to
   `GameSetupConfig.sharedEncounterDeck` (§3.2) — the wave 1 builder (`wave1/setup.ts` `buildMultiVillain`) knows only
   per-villain decks. Script each pack once its §3 primitives are "landed"; §3.23 lists what composes today.

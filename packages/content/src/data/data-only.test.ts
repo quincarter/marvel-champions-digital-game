@@ -63,6 +63,8 @@ import {
   PSYLOCKE_PACK,
   JUBILEE_CARDS,
   JUBILEE_PACK,
+  MTS_CARDS,
+  MTS_PACK,
 } from "./index.js";
 import { CORE_CARDS } from "./core/index.js";
 import { WAVE1_CARDS } from "./index.js";
@@ -101,6 +103,7 @@ const PACKS: readonly {
   { code: "storm", cards: STORM_CARDS, pack: STORM_PACK },
   { code: "psylocke", cards: PSYLOCKE_CARDS, pack: PSYLOCKE_PACK },
   { code: "jubilee", cards: JUBILEE_CARDS, pack: JUBILEE_PACK },
+  { code: "mts", cards: MTS_CARDS, pack: MTS_PACK },
 ];
 
 describe("data-only pool — integrity", () => {
@@ -111,8 +114,8 @@ describe("data-only pool — integrity", () => {
     expect(failures).toEqual([]);
   });
 
-  it("28 packs, no duplicate ids, and DATA_ONLY_CARDS is exactly their concatenation", () => {
-    expect(PACKS).toHaveLength(28);
+  it("29 packs, no duplicate ids, and DATA_ONLY_CARDS is exactly their concatenation", () => {
+    expect(PACKS).toHaveLength(29);
     const ids = DATA_ONLY_CARDS.map((c) => c.id);
     expect(new Set(ids).size).toBe(ids.length);
     expect(DATA_ONLY_CARDS.length).toBe(PACKS.reduce((n, p) => n + p.cards.length, 0));
@@ -136,8 +139,8 @@ describe("data-only pool — integrity", () => {
     // Cycle 3 (Guardians of the Galaxy) has moved entirely out of this pool: The Galaxy's Most Wanted, Star-Lord,
     // Gamora, Drax and Venom are now `WAVE3_CARDS` (wave3.test.ts), and Ronan (a promo, not cycle 3) moved with
     // them since all six are scripted together (docs/phase7-wave3.md).
-    // Cycle 4: Nebula, War Machine, Vision, The Hood, Valkyrie.
-    for (const code of ["nebu", "warm", "vision", "hood", "valk"]) expect(cycleOf(code), code).toBe("cycle4");
+    // Cycle 4: Nebula, The Mad Titan's Shadow, War Machine, Vision, The Hood, Valkyrie.
+    for (const code of ["nebu", "mts", "warm", "vision", "hood", "valk"]) expect(cycleOf(code), code).toBe("cycle4");
     // Cycle 6 (X-Men): Cyclops, Gambit, Wolverine, Rogue, Mojo Mania, Storm (Phoenix is not in this pool yet —
     // blocked, see curation/phoenix.ts).
     for (const code of ["cyclops", "gambit", "wolv", "rogue", "mojo", "storm"])

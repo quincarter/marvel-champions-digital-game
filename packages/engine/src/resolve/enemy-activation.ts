@@ -36,7 +36,7 @@ import {
   pairedMainSchemeId,
   schemeThreatDestination,
 } from "../rules.js";
-import { cardsInPlay, controllerOf, DEFENDER_SLOT } from "../select.js";
+import { cardsInPlay, controllerOf, DEFENDER_SLOT, isAlly } from "../select.js";
 import { currentActivationFrameId, type Vars } from "../stack.js";
 import type { GameState } from "../state.js";
 import type { TriggerEvent } from "../trigger-events.js";
@@ -321,7 +321,7 @@ export function legalDefenders(state: GameState, attackedPlayerId: PlayerId): re
       defenders.push(identity.instanceId);
     }
     for (const id of player.playArea) {
-      if (cardOf(state, id)?.type !== "ally") continue;
+      if (!isAlly(state, id)) continue;
       if (!mustInstance(state, id).exhausted) defenders.push(id);
     }
   }
@@ -449,9 +449,7 @@ export function executeEnemyAttackFrame(ctx: Ctx, frame: Frame<"enemyAttack">): 
       const all = legalDefenders(ctx.state, frame.attackedPlayerId);
       // "Must defend with an ally they control, if able" (Melter): only the engaged player's ready allies, no declining.
       const forcedAllies = mustDefendWithAlly(ctx.state, ctx.deps, frame.enemyInstanceId)
-        ? all.filter(
-            (id) => cardOf(ctx.state, id)?.type === "ally" && controllerOf(ctx.state, id) === frame.attackedPlayerId,
-          )
+        ? all.filter((id) => isAlly(ctx.state, id) && controllerOf(ctx.state, id) === frame.attackedPlayerId)
         : [];
       const defenders = existing ? all.filter((id) => id === existing) : forcedAllies.length > 0 ? forcedAllies : all;
       if (defenders.length === 0) {
