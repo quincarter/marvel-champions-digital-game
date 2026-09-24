@@ -103,6 +103,17 @@ export type GameEvent =
       readonly schemeInstanceId: InstanceId | null;
       readonly stageIndex: number;
     }
+  /** docs/phase7-wave4.md §3.1: an additional form changed; `instanceId` is the form card now showing it. */
+  | {
+      readonly type: "additionalFormChanged";
+      readonly playerId: PlayerId;
+      readonly formType: string;
+      readonly formName: string;
+      readonly instanceId: InstanceId;
+    }
+  /** A card in play turned facedown (`turnFacedown`) or faceup (`changeAdditionalForm`), docs/phase7-wave4.md §3.1. */
+  | { readonly type: "cardTurnedFacedown"; readonly instanceId: InstanceId }
+  | { readonly type: "cardTurnedFaceup"; readonly instanceId: InstanceId }
   | {
       readonly type: "formChanged";
       readonly playerId: PlayerId;

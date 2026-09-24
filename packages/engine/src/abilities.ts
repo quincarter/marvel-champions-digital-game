@@ -290,8 +290,17 @@ export type RuleSpec =
   | { readonly kind: "cannotThwart"; readonly player: PlayerRef; readonly while?: Predicate }
   /** "… cannot ready" (All Tied Up). */
   | { readonly kind: "cannotReady"; readonly target: TargetQuery; readonly while?: Predicate }
-  /** "You cannot change form" (All Tied Up). */
-  | { readonly kind: "cannotChangeForm"; readonly player: PlayerRef; readonly while?: Predicate }
+  /**
+   * "You cannot change form" (All Tied Up): the hero/alter-ego change. With `formType`, "You cannot change energy forms"
+   * (Loss of Control, `mts` 21026): the additional form of that type only (docs/phase7-wave4.md §3.1). Each reading
+   * blocks only its own kind of change; which additional forms a bare "cannot change form" reaches is §4 Q8.
+   */
+  | {
+      readonly kind: "cannotChangeForm";
+      readonly player: PlayerRef;
+      readonly formType?: string;
+      readonly while?: Predicate;
+    }
   /**
    * "Players cannot attack other villains." (Distracting Taunts): player attacks against a matching `target` are
    * illegal. `player` scopes the restriction to one player — "You cannot attack Kang" (Fear of Kang, `toafk` 11049).

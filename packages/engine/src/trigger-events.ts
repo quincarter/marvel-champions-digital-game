@@ -371,9 +371,19 @@ export type TriggerEventBody =
   | {
       readonly kind: "formChanged";
       readonly playerId: PlayerId;
+      /** The identity's form after the change (unchanged by an additional form change). */
       readonly to: "hero" | "alterEgo";
       readonly fromHeroForm?: number | null;
       readonly toHeroForm?: number | null;
+      /**
+       * `identity`: the hero/alter-ego flip. `additional`: an additional form ("[type] form" keyword; RRG 1.8 "Form,
+       * Change Form", p. 21, "it does count as changing form for the purpose of triggering card effects"), with its type,
+       * the name now showing and the form card as the event's target. docs/phase7-wave4.md §3.1.
+       */
+      readonly change: "identity" | "additional";
+      readonly formType?: string;
+      readonly formName?: string;
+      readonly formCardInstanceId?: InstanceId;
     }
   | { readonly kind: "playerPhaseEnded" }
   | { readonly kind: "villainPhaseEnded" }
@@ -553,8 +563,9 @@ export function eventSubjects(event: TriggerEvent): EventSubjects {
       return of([], [event.instanceId], []);
     case "boostCardTurnedFaceup":
       return of([event.enemyInstanceId], [event.boostInstanceId], [event.playerId]);
-    case "turnStarted":
     case "formChanged":
+      return of([], event.formCardInstanceId ? [event.formCardInstanceId] : [], [event.playerId]);
+    case "turnStarted":
     case "turnEnding":
       return of([], [], [event.playerId]);
     case "minionEngaged":

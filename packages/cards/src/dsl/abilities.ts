@@ -898,7 +898,24 @@ export const on = {
    * "After **a player** changes to [hero/alter-ego] form" (Taskmaster I–III, 04093–04095) — no `playerIs` scope, so
    * this is "a player", not "you" (`on.youChangeForm`'s own hardcoded scope). Name them with `eventPlayer`.
    */
-  playerChangesForm: (to: "hero" | "alterEgo"): EventPattern => pattern("formChanged", { eventIs: { to } }),
+  playerChangesForm: (to: "hero" | "alterEgo"): EventPattern =>
+    pattern("formChanged", { eventIs: { to, change: "identity" } }),
+  /**
+   * "After you change to this form" printed on an **identity face** whose player also has additional forms (Spectrum,
+   * Vision): the hero/alter-ego change only, never an energy or mass form change (docs/phase7-wave4.md §3.1). Plain
+   * `youChangeForm` hears both, which is what "After you change form" (Moxie) means (RRG 1.8 "Form, Change Form", p. 21).
+   */
+  youChangeIdentityForm: (): EventPattern =>
+    pattern("formChanged", { playerIs: "controller", eventIs: { change: "identity" } }),
+  /**
+   * "After you change to this energy form" / "After you change to this mass form" printed on the form card itself (Gamma,
+   * Dense): an additional form change that turned this card's face up (docs/phase7-wave4.md §3.1).
+   */
+  youChangeToThisForm: (): EventPattern =>
+    pattern("formChanged", { playerIs: "controller", selfIs: "target", eventIs: { change: "additional" } }),
+  /** "After you change energy forms" / "After you change mass form" (Density Control, `vision` 26007): any change of that type. */
+  youChangeAdditionalForm: (formType: string): EventPattern =>
+    pattern("formChanged", { playerIs: "controller", eventIs: { change: "additional", formType } }),
   /** "After your turn begins" (Quinjet, `cap` pack). */
   yourTurnBegins: (): EventPattern => pattern("turnStarted", { playerIs: "controller" }),
   /**
