@@ -35,6 +35,7 @@ import {
   notDefeatedWithoutThreat,
   patrolledBy,
   cannotReady,
+  damagePreventerOf,
   readyCostFor,
   threatCannotBeRemoved,
 } from "../rules.js";
@@ -442,6 +443,11 @@ function preventedByAttackFlag(ctx: Ctx, event: Extract<TriggerEvent, { kind: "d
   return parent?.kind === "event" && (parent.vars.preventAllDamage ?? 0) > 0;
 }
 
+/** `TriggerEvent damagePrevented`, pushed only when an ability listens (docs/phase7-wave4.md §3.20). */
+export function announceDamagePrevented(ctx: Ctx, event: Extract<TriggerEvent, { kind: "damagePrevented" }>): void {
+  if (event.amount > 0 && heard(ctx.state, ctx.deps, event)) pushEvent(ctx, event);
+}
+
 /** RRG "Tough": a tough status prevents all damage and is discarded instead. */
 /** `sweep` false: a `damageGroup` applies several at once and sweeps for defeats itself afterwards. */
 export function applyDamage(
@@ -490,6 +496,26 @@ export function applyDamage(
   // attack discards no tough status cards. RRG 1.8 "Piercing" (p. 32) exempts an attack that "would deal no damage",
   // and prevented damage is still *dealt* (p. 34), which argues the other way. No cycle 1 card reaches the case
   // (the one prevention effect answers a villain attack; the one piercing grant belongs to a minion's boost).
+  // "Prevent all damage to Ebony Maw" (`RuleSpec preventAllDamage`, docs/phase7-wave4.md §3.20): dealt and prevented,
+  // by that card, which "After Abjuration prevents …" hears.
+  const preventer = damagePreventerOf(ctx.state, ctx.deps, event.targetInstanceId);
+  if (preventer !== null) {
+    emit(ctx, {
+      type: "damagePrevented",
+      targetInstanceId: event.targetInstanceId,
+      amount: event.amount,
+      reason: "effect",
+    });
+    announceDamagePrevented(ctx, {
+      kind: "damagePrevented",
+      targetInstanceId: event.targetInstanceId,
+      amount: event.amount,
+      preventerInstanceId: preventer,
+      fromAttack: event.fromAttack,
+      sourceInstanceId: source,
+    });
+    return;
+  }
   if (event.fromAttack && preventedByAttackFlag(ctx, event)) {
     emit(ctx, {
       type: "damagePrevented",

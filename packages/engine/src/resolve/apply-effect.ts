@@ -98,7 +98,7 @@ import {
   removeVillains,
   revealMainSchemeStages,
 } from "./game-areas.js";
-import { readyOrAnnounce, threatRemovalBlocked } from "./event.js";
+import { announceDamagePrevented, readyOrAnnounce, threatRemovalBlocked } from "./event.js";
 import { heard } from "./triggers.js";
 import { dealBoostCard, declareDefenderByEffect, giveBoostCard } from "./enemy-activation.js";
 import { quickstrikeAttack } from "./enter-play.js";
@@ -1124,6 +1124,16 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
           targetInstanceId: target.event.targetInstanceId,
           amount: prevented,
           reason: "effect",
+        });
+        if (effect.kind === "preventDamage" && effect.bind)
+          addFrameVars(ctx, frame.frameId, { [`${effect.bind}.amount`]: prevented });
+        announceDamagePrevented(ctx, {
+          kind: "damagePrevented",
+          targetInstanceId: target.event.targetInstanceId,
+          amount: prevented,
+          preventerInstanceId: frame.selfInstanceId,
+          fromAttack: target.event.fromAttack,
+          sourceInstanceId: target.event.sourceInstanceId,
         });
       } else if (target.event.kind === "placeThreat") {
         emit(ctx, { type: "threatPrevented", schemeInstanceId: target.event.schemeInstanceId, amount: prevented });

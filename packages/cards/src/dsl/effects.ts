@@ -483,8 +483,15 @@ export const eachTimeUntil = (
   ...effects: readonly EffectArg[]
 ): EffectSpec => ({ kind: "eachTimeUntil", until, on, effects: flatten(effects) });
 /** "Prevent N of that damage" (absent = all of it). */
-export const preventDamage = (n?: Amount): EffectSpec =>
-  n === undefined ? { kind: "preventDamage" } : { kind: "preventDamage", amount: amount(n) };
+/**
+ * "Prevent [N of] that damage". `{ bind }`: `<bind>.amount` is how much was prevented ("the amount prevented this way",
+ * Deflection; "if 2 or more damage was prevented this way", Telekinetic Force Field; docs/phase7-wave4.md §3.20).
+ */
+export const preventDamage = (n?: Amount, opts: { readonly bind?: string } = {}): EffectSpec => ({
+  kind: "preventDamage",
+  ...(n !== undefined ? { amount: amount(n) } : {}),
+  ...withBind(opts.bind),
+});
 export const preventThreat = (n?: Amount): EffectSpec =>
   n === undefined ? { kind: "preventThreat" } : { kind: "preventThreat", amount: amount(n) };
 /** "… instead": the interrupted event doesn't happen; these resolve in its place (RRG "Replacement Effect"). */

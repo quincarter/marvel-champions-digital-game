@@ -407,6 +407,13 @@ export const additionalCostToReady = (
 export const cannotBeReadiedByPlayerCards = (target: TargetQuery): ConstantPart =>
   rule({ kind: "cannotReady", target, bySource: "playerCard" });
 /**
+ * "Prevent all damage to Ebony Maw" (Abjuration, `mts` 21082; docs/phase7-wave4.md §3.20): the damage is dealt and this
+ * card prevents it, so `on.thisPreventsDamage` hears it. `constant(preventAllDamageTo(query("villain", { name: "Ebony
+ * Maw" })))`, or `{ hostOfSelf: true }` for "attached villain".
+ */
+export const preventAllDamageTo = (target: TargetQuery, opts: { readonly while?: Predicate } = {}): ConstantPart =>
+  rule({ kind: "preventAllDamage", target, ...(opts.while ? { while: opts.while } : {}) });
+/**
  * Focused Defense (Tower Defense, `mts` 21101): "The villain who matches the attached scheme is the active villain." Its
  * host is also the scheme minions scheme onto and player constants mean by "the main scheme" (MC21 p. 10; errata RRG 1.8
  * p. 67). `constant(focusedMainScheme())`. docs/phase7-wave4.md §3.2.
@@ -918,6 +925,18 @@ export const on = {
   encounterCardRevealed: (what?: TargetQuery): EventPattern =>
     pattern("encounterCardRevealing", what ? { targetIs: what } : {}),
   /** "When/After X is defeated"; `byYou`: "after *you* defeat a minion". */
+  /**
+   * "After Abjuration prevents 2 or more damage from a single attack" (docs/phase7-wave4.md §3.20): this card prevented
+   * damage — by its `preventAllDamageTo` constant or a `preventDamage` effect of its own. `fromAttack`: the damage was an
+   * attack's; `atLeast`: at least that much was prevented at once.
+   */
+  thisPreventsDamage: (opts: { readonly fromAttack?: boolean; readonly atLeast?: number } = {}): EventPattern =>
+    pattern(
+      "damagePrevented",
+      { selfIs: "source" },
+      opts.fromAttack !== undefined ? { fromAttack: opts.fromAttack } : {},
+      opts.atLeast !== undefined ? { eventAtLeast: { amount: opts.atLeast } } : {},
+    ),
   defeated: (
     what: Who,
     opts: {

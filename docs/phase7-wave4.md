@@ -367,7 +367,7 @@ stays data only.**
 | 3.17 | Alliance: paying a card's costs as a group                               | `warm`, `valk`, `vision`; 9 later cards    | landed      |
 | 3.18 | Set-aside modular sets; mode-only faces; Standard II                     | The Hood; Wheel of Genres (`mojo`)         | landed      |
 | 3.19 | Readying as a costed act; "cannot be readied by player card effects"     | Mister Fear; Undermine Support (`aos`)     | landed      |
-| 3.20 | A trigger on damage a card prevented                                     | Abjuration                                 | not started |
+| 3.20 | A trigger on damage a card prevented                                     | Abjuration                                 | landed      |
 | 3.21 | An enemy attack against a chosen character                               | Speed Demon, Crossfire                     | not started |
 | 3.22 | Valkyrie's kit                                                           | `valk`                                     | landed      |
 | 3.23 | Reusable as is                                                           | —                                          | checked     |
@@ -915,6 +915,34 @@ a [mental] resource." Undermine Support (`aos` 50174), the same for a support. U
 cannot be readied by player card effects." **Plan:** a `RuleSpec readyCost` and `cannotReady.bySource`.
 
 ### 3.20 A trigger on damage a card prevented
+
+> **Status: landed (2026-09-24),** tested in `packages/engine/src/damage-prevented-trigger.test.ts` (4 tests: an attack
+> for 3 against a "prevent all damage" villain is prevented and the preventing card hears `damagePrevented` and
+> discards itself; an attack for 1 leaves it; 3 non-attack damage leaves it; a `preventDamage` effect's own amount
+> prevented is bound, 3 discards the card and 1 keeps it; replay deep-equal). DSL:
+> `packages/cards/src/dsl/wave4-hero-primitives.test.ts` (2 tests under §3.20).
+>
+> `damagePrevented` was only a log line (`reason: "tough" | "cancelled" | "effect" | "cannotTakeDamage" |
+"reduced"`), naming no card and heard by nothing.
+>
+> - **`RuleSpec preventAllDamage { target, while? }`** (`damagePreventerOf`, `rules.ts`): "Prevent all damage to Ebony
+>   Maw" is damage dealt and prevented (RRG 1.8 "Prevent", p. 34) by the card with the constant. Checked in
+>   `applyDamage` after "cannot take damage" (RRG 1.8 "'Cannot'", p. 11, wins) and before tough, reductions and
+>   piercing: excess damage is still measured, no tough card is used.
+> - **`TriggerEvent damagePrevented { targetInstanceId, amount, preventerInstanceId, fromAttack, sourceInstanceId }`**
+>   (response only, pushed when heard): the preventer is its source, so "After Abjuration prevents 2 or more damage
+>   from a single attack" is `selfIs: "source"`, `fromAttack: true`, `eventAtLeast: { amount: 2 }` (`fromAttack` now
+>   reads this event too). Announced for the constant and for a `preventDamage` effect (its card is the preventer); a
+>   tough status, a reduction and "cannot take damage" are not a card preventing damage and announce nothing. One
+>   attack deals one damage event per target, so "a single attack" is one event.
+> - **`EffectSpec preventDamage.bind`**: `<bind>.amount` is the amount prevented this way.
+>
+> **DSL:** `preventAllDamageTo(target)`, `on.thisPreventsDamage({ fromAttack, atLeast })` (`dsl/abilities.ts`),
+> `preventDamage(n, { bind })` (`dsl/effects.ts`).
+>
+> **Composes with:** Telekinetic Force Field (`next_evol` 40034, "If 2 or more damage was prevented this way"), Deflection
+> (`drax` 19015, "equal to the amount prevented this way"; up to 5, so the bound amount is not the event's); Biogram
+> Image (`gmw` 16074) already reads `eventAmount` and may keep it, as it prevents all.
 
 Abjuration: "Prevent all damage to Ebony Maw. Forced Response: After Abjuration prevents 2 or more damage from a single
 attack, discard it." **Plan:** check what `damagePrevented` carries; a trigger event naming the preventing card and

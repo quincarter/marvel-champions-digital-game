@@ -303,6 +303,13 @@ export type RuleSpec =
   | { readonly kind: "cannotThwart"; readonly player: PlayerRef; readonly while?: Predicate }
   /** "… cannot ready" (All Tied Up). */
   /**
+   * "Prevent all damage to Ebony Maw" (Abjuration, `mts` 21082; docs/phase7-wave4.md §3.20): damage dealt to a card
+   * `target` matches is dealt and prevented (RRG 1.8 "Prevent", p. 34), all of it, by the card carrying this rule —
+   * which is what makes "After Abjuration prevents 2 or more damage from a single attack" a trigger on that card
+   * (`TriggerEvent damagePrevented`). "Cannot take damage" (`cannotTakeDamage`) still wins over it (RRG 1.8 "'Cannot'").
+   */
+  | { readonly kind: "preventAllDamage"; readonly target: TargetQuery; readonly while?: Predicate }
+  /**
    * "… cannot ready" (All Tied Up). `bySource: "playerCard"`: "Heroes and allies cannot be readied by player card
    * effects" (Unnatural Storm, `mts` 21159; docs/phase7-wave4.md §3.19): only a ready caused by a player card's ability
    * is stopped; the end-of-phase ready and encounter card effects still ready them.

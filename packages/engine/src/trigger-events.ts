@@ -488,7 +488,23 @@ export type TriggerEventBody =
    * A card discarded from play went to a scenario area instead (`RuleSpec discardFromPlayDestination`; The Collection,
    * docs/phase7-wave3.md §3.14): "…, then place 1 threat on the main scheme" (Collector III) responds to it. Response only.
    */
-  | { readonly kind: "discardRedirected"; readonly instanceId: InstanceId; readonly area: string };
+  | { readonly kind: "discardRedirected"; readonly instanceId: InstanceId; readonly area: string }
+  /**
+   * Damage was prevented, by the card `preventerInstanceId` (docs/phase7-wave4.md §3.20): "After Abjuration prevents 2
+   * or more damage from a single attack, discard it" (Abjuration, `mts` 21082) is a forced response with `selfIs:
+   * "source"`, `fromAttack: true` and `eventAtLeast: { amount: 2 }`. Announced (response only) when an ability listens,
+   * for a `preventAllDamage` constant and for a `preventDamage` effect (whose card is the preventer). A tough status
+   * card, a reduction and "cannot take damage" are not a card preventing damage and announce nothing.
+   */
+  | {
+      readonly kind: "damagePrevented";
+      readonly targetInstanceId: InstanceId;
+      readonly amount: number;
+      readonly preventerInstanceId: InstanceId | null;
+      readonly fromAttack: boolean;
+      /** The card dealing the damage. */
+      readonly sourceInstanceId: InstanceId | null;
+    };
 
 /**
  * `results` is attached when the event's response window opens: what the event
@@ -589,6 +605,8 @@ export function eventSubjects(event: TriggerEvent): EventSubjects {
   switch (event.kind) {
     case "dealDamage":
       return of([event.sourceInstanceId], [event.targetInstanceId], []);
+    case "damagePrevented":
+      return of([event.preventerInstanceId], [event.targetInstanceId], []);
     case "healDamage":
       return of([], [event.targetInstanceId], []);
     case "placeThreat":

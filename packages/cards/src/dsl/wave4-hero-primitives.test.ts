@@ -8,6 +8,8 @@ import { trait } from "@mc/content";
 import { describe, expect, it } from "vitest";
 import {
   action,
+  forcedResponse,
+  preventAllDamageTo,
   additionalCostToReady,
   cannotBeReadiedByPlayerCards,
   constant,
@@ -59,6 +61,7 @@ import {
   engagedPlayerOf,
   setAsideModularSetCount,
   valueEquals,
+  varOf,
 } from "./values.js";
 
 const valid = (definition: Parameters<typeof validateDefinition>[0]) =>
@@ -214,5 +217,30 @@ describe("§3.19 readying as a costed act; cannot be readied by player card effe
     const storm = constant(cannotBeReadiedByPlayerCards(query(["hero", "ally"])));
     expect(storm.trigger).toMatchObject({ rules: [{ kind: "cannotReady", bySource: "playerCard" }] });
     valid(storm);
+  });
+});
+
+describe("§3.20 a trigger on damage a card prevented", () => {
+  it("Abjuration (21082): prevent all damage to Ebony Maw; after it prevents 2 or more from a single attack, discard it", () => {
+    valid(constant(preventAllDamageTo(query("villain", { hostOfSelf: true }))));
+    const discardIt = forcedResponse(
+      on.thisPreventsDamage({ fromAttack: true, atLeast: 2 }),
+      moveCards(cards(self), "discard"),
+    );
+    expect(discardIt.trigger).toMatchObject({
+      on: { on: "damagePrevented", selfIs: "source", fromAttack: true, eventAtLeast: { amount: 2 } },
+    });
+    valid(discardIt);
+  });
+
+  it("Telekinetic Force Field (40034) / Deflection (19015): the amount prevented this way", () => {
+    expect(preventDamage(undefined, { bind: "prevented" })).toEqual({ kind: "preventDamage", bind: "prevented" });
+    valid(
+      forcedInterrupt(
+        on.damage("host"),
+        preventDamage(undefined, { bind: "prevented" }),
+        ifThen(valueEquals(varOf("prevented.amount"), 2), moveCards(cards(self), "discard")),
+      ),
+    );
   });
 });
