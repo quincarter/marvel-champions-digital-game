@@ -333,6 +333,8 @@ export const TRACK_TITLES: Readonly<Record<string, string>> = {
   "scenarios/ultron/battle.mp3": "Battle with a Machine",
   "scenarios/ultron/villain-loses.mp3": "The Machines Fall",
   "scenarios/ultron/villain-wins.mp3": "The Machines Take Over",
+  "scenarios/crossbones/battle.mp3": "Concrete Engagement",
+  "scenarios/crossbones/villain-wins.mp3": "Calculated Finality",
   "scenarios/brotherhood-of-badoon/battle.mp3": "Under the Colossus",
   "scenarios/infiltrate-the-museum/battle.mp3": "Rows of Silent Glass",
   "scenarios/escape-the-museum/battle.mp3": "The Keeper's Iron Maze",
