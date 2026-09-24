@@ -10,6 +10,7 @@ import Phaser from "phaser";
 import { coverFit, ensurePictureLoaded } from "../art/pictures.js";
 import { accent, border, surface, typeRole } from "../tokens.js";
 import type { Rect } from "../view/layout.js";
+import type { ComicBeat } from "../campaign/story.js";
 import type { ComicReaderStepView } from "../view/comic-reader-model.js";
 import { campaignPagePicture, captionBox, speechBubble } from "./campaign-chrome.js";
 import { setMask } from "./rex.js";
@@ -24,10 +25,32 @@ export interface ComicReaderDrawResult {
 }
 
 /**
- * Draws one step into `rect`: the page image, the panel spotlight, its caption/lines/SFX, and the beat/page
- * counters. `onReady` is `ensurePictureLoaded`'s redraw hook — called once the page's own art file finishes loading.
- * Returns `{ lit: null }` (and draws only the dark ground) until then, so the caller's next `onReady`-triggered
- * redraw picks the real layout up.
+ * A guided-view pan/zoom in progress (`opener.ts` drives this off a Phaser tween): the panel the reader is
+ * moving *from*, and how far along (0 at the previous panel, 1 at `step.panel`) the camera is. Ignored for a
+ * non-lettered page (GMW's own cover-fit/spotlight draw never reads it).
+ */
+export interface ComicReaderTween {
+  readonly fromPanel: ComicBeat["panel"];
+  readonly progress: number;
+}
+
+/**
+ * Draws one step into `rect`.
+ *
+ * A **lettered** page (`step.page.lettered`, MC10's official rulebook pages) is drawn as a guided view: the
+ * reading area is zoomed to the current panel's own bounds — fit inside the frame, never cover-cropped, so a
+ * tall or wide panel letterboxes instead of losing its edges (and any balloon printed near them) — with no
+ * caption/line/SFX overlay of the reader's own, because the panel's printed lettering already carries the beat.
+ * `tween` interpolates the camera between the previous panel and this one for a smooth pan/zoom; omitted (or a
+ * `fromPanel` on a different page) draws the step at rest.
+ *
+ * An unlettered page (GMW today) keeps its original draw: the whole page cover-fit to `rect`, recentered on the
+ * current panel, that panel spotlit and dimmed elsewhere, with the reader's own caption/bubbles/SFX over it —
+ * `tween` is ignored for this path so GMW's reader is unchanged.
+ *
+ * `onReady` is `ensurePictureLoaded`'s redraw hook — called once the page's own art file finishes loading. Returns
+ * `{ lit: null }` (and draws only the dark ground) until then, so the caller's next `onReady`-triggered redraw
+ * picks the real layout up.
  */
 export function drawComicReaderStep(
   scene: Phaser.Scene,
@@ -35,6 +58,7 @@ export function drawComicReaderStep(
   campaignId: string,
   step: ComicReaderStepView,
   onReady: () => void,
+  tween?: ComicReaderTween,
 ): ComicReaderDrawResult {
   scene.add.rectangle(rect.x, rect.y, rect.width, rect.height, surface.ink.hex).setOrigin(0, 0);
   if (rect.width <= 0 || rect.height <= 0) return { lit: null };
@@ -44,6 +68,19 @@ export function drawComicReaderStep(
   if (!key) return { lit: null };
 
   const source = scene.textures.get(key).getSourceImage() as { width: number; height: number };
+  if (step.page.lettered) return drawGuidedStep(scene, rect, key, source, step, tween);
+  return drawSpotlightStep(scene, rect, key, source, step);
+}
+
+/** GMW's own draw, unchanged: cover-fit the whole page, recenter on the current panel, spotlight and dim, then
+ * the reader's own caption/lines/SFX. */
+function drawSpotlightStep(
+  scene: Phaser.Scene,
+  rect: Rect,
+  key: string,
+  source: { width: number; height: number },
+  step: ComicReaderStepView,
+): ComicReaderDrawResult {
   const fit = coverFit(source, rect);
   const panel = step.panel;
   // Cover-fits the whole page, but centers the crop on the *current panel* rather than the page's own middle —
@@ -87,6 +124,62 @@ export function drawComicReaderStep(
 
   if (lit.width > 0 && lit.height > 0) drawStepContent(scene, rect, lit, step);
   return { lit };
+}
+
+/**
+ * The guided view for a lettered page: zoom to the current panel's own bounds (interpolated from the previous
+ * panel while `tween` is in flight), fit inside `rect` rather than cover-cropped, letterboxed on whichever axis
+ * doesn't match the frame's own aspect. No dimming, no spotlight border, no caption/lines/SFX — the panel's
+ * printed lettering is the whole of what a step shows.
+ */
+function drawGuidedStep(
+  scene: Phaser.Scene,
+  rect: Rect,
+  key: string,
+  source: { width: number; height: number },
+  step: ComicReaderStepView,
+  tween: ComicReaderTween | undefined,
+): ComicReaderDrawResult {
+  const panel =
+    tween && tween.fromPanel !== step.panel
+      ? lerpPanel(tween.fromPanel, step.panel, clamp01(tween.progress))
+      : step.panel;
+
+  // Fit-not-cover: scaled so the *panel* (not the page) fits entirely inside `rect`, letterboxed on the axis that
+  // doesn't match — never cropped to cover, so a balloon flush against a panel's own edge is never cut off.
+  const scale = Math.min(rect.width / Math.max(1, panel.w), rect.height / Math.max(1, panel.h));
+  const drawWidth = panel.w * scale;
+  const drawHeight = panel.h * scale;
+  const offsetX = rect.x + (rect.width - drawWidth) / 2;
+  const offsetY = rect.y + (rect.height - drawHeight) / 2;
+
+  const cropX = clamp(0, Math.max(0, source.width - 1), panel.x);
+  const cropY = clamp(0, Math.max(0, source.height - 1), panel.y);
+  const cropWidth = clamp(1, source.width - cropX, panel.w);
+  const cropHeight = clamp(1, source.height - cropY, panel.h);
+  scene.add
+    .image(offsetX - cropX * scale, offsetY - cropY * scale, key)
+    .setOrigin(0, 0)
+    .setScale(scale)
+    .setCrop(cropX, cropY, cropWidth, cropHeight);
+
+  const lit: Rect = { x: offsetX, y: offsetY, width: drawWidth, height: drawHeight };
+  return { lit };
+}
+
+/** Linear interpolation between two panel rects — used only while the same page's camera is panning between
+ * two of its own panels (a page change never tweens; see `opener.ts`). */
+function lerpPanel(from: ComicBeat["panel"], to: ComicBeat["panel"], t: number): ComicBeat["panel"] {
+  return {
+    x: lerpNum(from.x, to.x, t),
+    y: lerpNum(from.y, to.y, t),
+    w: lerpNum(from.w, to.w, t),
+    h: lerpNum(from.h, to.h, t),
+  };
+}
+
+function lerpNum(a: number, b: number, t: number): number {
+  return a + (b - a) * t;
 }
 
 function drawStepContent(scene: Phaser.Scene, rect: Rect, lit: Rect, step: ComicReaderStepView): void {
