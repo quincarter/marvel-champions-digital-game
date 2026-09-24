@@ -4,8 +4,8 @@
  * Mirrors `wave3-precon-legality.test.ts`: lives in `@mc/cards` (not `@mc/content`'s own suite) because checking
  * legality means calling `@mc/engine`'s `validateDeck`/`requiredIdentitySet`, and `@mc/content` must never import
  * `@mc/engine` (`client → cards → engine → content`, CLAUDE.md). Uses `@mc/content`'s own per-pack `*_CARDS`/
- * `*_STARTER_DECKS` exports (the four wave 4 hero packs emitted so far: Nebula, War Machine, Valkyrie, Vision —
- * `mts`/`hood` are still in progress and are deliberately not touched here).
+ * `*_STARTER_DECKS` exports (the five wave 4 hero-carrying packs emitted so far: Nebula, War Machine, Valkyrie,
+ * Vision, and now the box's own two precons, `mts` — `hood` has no player cards at all and is not a precon pack).
  */
 import {
   NEBU_CARDS,
@@ -16,6 +16,8 @@ import {
   VALK_STARTER_DECKS,
   VISION_CARDS,
   VISION_STARTER_DECKS,
+  MTS_CARDS,
+  MTS_STARTER_DECKS,
   type AnyCard,
   type DeckContents,
   type HeroIdentityCard,
@@ -32,6 +34,7 @@ const packs: readonly {
   { label: "War Machine", cards: WARM_CARDS, decks: WARM_STARTER_DECKS },
   { label: "Valkyrie", cards: VALK_CARDS, decks: VALK_STARTER_DECKS },
   { label: "Vision", cards: VISION_CARDS, decks: VISION_STARTER_DECKS },
+  { label: "The Mad Titan's Shadow", cards: MTS_CARDS, decks: MTS_STARTER_DECKS },
 ];
 
 const contentsOf = (deck: StarterDeck): DeckContents => ({
@@ -40,14 +43,22 @@ const contentsOf = (deck: StarterDeck): DeckContents => ({
   cards: deck.cards,
 });
 
-describe("wave 4 precons — four hero packs emitted so far (Nebula, War Machine, Valkyrie, Vision)", () => {
-  it("there is exactly one precon per pack", () => {
-    for (const pack of packs) expect(pack.decks.length, pack.label).toBe(1);
+describe("wave 4 precons — four hero packs plus the box (Nebula, War Machine, Valkyrie, Vision, The Mad Titan's Shadow)", () => {
+  it("there is exactly one precon per hero pack, and two for the box (Spectrum, Adam Warlock — MC21 p. 3)", () => {
+    for (const pack of packs)
+      expect(pack.decks.length, pack.label).toBe(pack.label === "The Mad Titan's Shadow" ? 2 : 1);
   });
 
-  it("ids: nebula-justice, war-machine-leadership, valkyrie-aggression, vision-protection", () => {
+  it("ids: nebula-justice, war-machine-leadership, valkyrie-aggression, vision-protection, spectrum-leadership, adam-warlock-all-aspects", () => {
     expect(packs.flatMap((p) => p.decks.map((d) => d.id)).sort()).toEqual(
-      ["nebula-justice", "war-machine-leadership", "valkyrie-aggression", "vision-protection"].sort(),
+      [
+        "nebula-justice",
+        "war-machine-leadership",
+        "valkyrie-aggression",
+        "vision-protection",
+        "spectrum-leadership",
+        "adam-warlock-all-aspects",
+      ].sort(),
     );
   });
 
@@ -118,5 +129,28 @@ describe("wave 4 precons — four hero packs emitted so far (Nebula, War Machine
     expect(deck.cards.reduce((n, e) => n + e.quantity, 0)).toBe(41);
     const result = validateDeck(contentsOf(deck), VISION_CARDS);
     expect(result.ok).toBe(true);
+  });
+
+  it("Spectrum's precon is 43 cards, not 40 — MC21 p. 3's own printed card-name lists sum to 43, transcribed verbatim rather than force-fit to 40 (docs on MTS_CURATION)", () => {
+    const deck = MTS_STARTER_DECKS.find((d) => d.id === "spectrum-leadership");
+    expect(deck).toBeDefined();
+    if (!deck) return;
+    expect(deck.cards.reduce((n, e) => n + e.quantity, 0)).toBe(43);
+    const result = validateDeck(contentsOf(deck), MTS_CARDS);
+    expect(result.ok).toBe(true);
+  });
+
+  it("Adam Warlock's precon is legal under his own deckbuilding rule — an equal 6 cards from all 4 aspects and 1 copy of every card outside his own set (docs/phase7-wave4.md §1.4)", () => {
+    const deck = MTS_STARTER_DECKS.find((d) => d.id === "adam-warlock-all-aspects");
+    expect(deck).toBeDefined();
+    if (!deck) return;
+    const identity = MTS_CARDS.find((c) => c.id === deck.identityCardId);
+    expect(identity?.type).toBe("hero_identity");
+    if (identity?.type !== "hero_identity") return;
+    expect(identity.deckbuilding).toEqual({ aspectCount: 4, equalCardsPerAspect: true, maxCopiesPerTitle: 1 });
+    const result = validateDeck(contentsOf(deck), MTS_CARDS);
+    expect(result.ok, result.ok ? undefined : JSON.stringify((result as { problems: unknown }).problems, null, 2)).toBe(
+      true,
+    );
   });
 });

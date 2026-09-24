@@ -267,12 +267,20 @@ export const PLAYABLE_CARDS: readonly AnyCard[] = [
 /**
  * Every campaign box whose scenarios and encounter sets are ingested into `@mc/content` (PLAN.md §C3;
  * docs/campaign-mode-design.md §11 step 6). `trors` (The Rise of Red Skull, MC10) and `gmw` (The Galaxy's Most
- * Wanted, MC16) qualify today — the other seven campaign boxes with a campaign mode (MC21, MC27, MC32, MC40, MC45,
- * MC50, MC60) have only raw MarvelCDB JSON cached (`packages/content/raw/marvelcdb/`), not a normalized
+ * Wanted, MC16) qualify today — the other campaign boxes with a campaign mode (MC27, MC32, MC40, MC45, MC50, MC60)
+ * have only raw MarvelCDB JSON cached (`packages/content/raw/marvelcdb/`), not a normalized
  * `Pack`/`Scenario`/`EncounterSet` in this package yet (see docs/phase7-wave2-data.md's per-pack survey), so a
  * `Campaign` record naming their scenarios/sets would reference data that does not exist. Each is added here once
  * its own box is ingested and scripted, per PLAN.md §C2's gate ("That box's own heroes, villains and scenarios
  * scripted ... This gates the rest."). Civil War (MC56) has no campaign mode at all (MC56 p. 3) and is never added.
+ *
+ * **MC21 (The Mad Titan's Shadow, `mts`) is ingested but stays out of this list.** `MTS_CARDS`/`MTS_SCENARIOS`/
+ * `MTS_ENCOUNTER_SETS` exist (docs/phase7-wave4.md §1, §2.2) and `mts`'s own `MTS_CAMPAIGN` record is built
+ * (`./mts/campaign.js`, the same hand-authored shape as `GMW_CAMPAIGN`/`TRORS_CAMPAIGN`) — importable directly —
+ * but the box is data-only, same as every other wave 4 pack in `DATA_ONLY_CARDS` above: no ability script exists
+ * for its cards yet, so PLAN.md §C2's "scripted" half of the gate isn't met. Add it here once `ability-scripting-
+ * engineer` scripts the box and it's wired into a playable pool the way `WAVE1-3_*`/`PLAYABLE_CARDS` are (out of
+ * this pass's scope, docs/phase7-wave4.md's own "WAVE4_* exports and PLAYABLE_CARDS ... done at wiring time").
  */
 export const CAMPAIGNS: readonly Campaign[] = [TRORS_CAMPAIGN, GMW_CAMPAIGN];
 
@@ -315,6 +323,7 @@ export * from "./angel/index.js";
 export * from "./storm/index.js";
 export * from "./psylocke/index.js";
 export * from "./jubilee/index.js";
+export * from "./mts/index.js";
 
 import { BP_CARDS } from "./bp/cards.js";
 import { BP_ENCOUNTER_SETS } from "./bp/encounterSets.js";
@@ -372,6 +381,8 @@ import { PSYLOCKE_CARDS } from "./psylocke/cards.js";
 import { PSYLOCKE_ENCOUNTER_SETS } from "./psylocke/encounterSets.js";
 import { JUBILEE_CARDS } from "./jubilee/cards.js";
 import { JUBILEE_ENCOUNTER_SETS } from "./jubilee/encounterSets.js";
+import { MTS_CARDS } from "./mts/cards.js";
+import { MTS_ENCOUNTER_SETS } from "./mts/encounterSets.js";
 
 /**
  * Every card in the data-only pool: 27 packs across cycles 4, 5, 6, 7, 8, 9 and 10, in pack-code alphabetical
@@ -409,6 +420,7 @@ export const DATA_ONLY_CARDS: readonly AnyCard[] = [
   ...DEADPOOL_CARDS,
   ...SPIDERHAM_CARDS,
   ...MOJO_CARDS,
+  ...MTS_CARDS,
 ];
 
 /** Every data-only pool encounter set. */
@@ -441,4 +453,5 @@ export const DATA_ONLY_ENCOUNTER_SETS: readonly EncounterSet[] = [
   ...DEADPOOL_ENCOUNTER_SETS,
   ...SPIDERHAM_ENCOUNTER_SETS,
   ...MOJO_ENCOUNTER_SETS,
+  ...MTS_ENCOUNTER_SETS,
 ];
