@@ -51,12 +51,18 @@ export { TextArea, InputText, TextAreaInput };
  * shape's coordinates stay in world space — the same space `#layoutTrack`
  * (and every other caller) already draws the mask rect in.
  */
+/**
+ * `invert: true` shows `gameObject` everywhere *outside* `maskGameObject`'s shape instead of inside it — the comic
+ * reader's "rest of the page dimmed, one panel lit" effect draws as a single full-page dark overlay inverse-masked
+ * to the current panel's rect, rather than four hand-fitted strip rectangles around it.
+ */
 export function setMask(
   gameObject: Phaser.GameObjects.GameObject,
   maskGameObject: Phaser.GameObjects.GameObject,
   maskType: MaskType = "world",
+  invert = false,
 ): void {
-  SetMask(gameObject, maskGameObject, false, maskType);
+  SetMask(gameObject, maskGameObject, invert, maskType);
 }
 
 export function clearMask(gameObject: Phaser.GameObjects.GameObject): void {

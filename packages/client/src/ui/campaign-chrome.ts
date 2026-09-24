@@ -8,7 +8,7 @@
  * destroy them with the rest of its display list (`destroyChildren`).
  */
 import Phaser from "phaser";
-import { CAMPAIGN_ART, campaignArtboardFor, campaignCoverFor } from "../art/campaign-art.js";
+import { CAMPAIGN_ART, campaignArtboardFor, campaignCoverFor, campaignPageFor } from "../art/campaign-art.js";
 import { HERO_ART, heroArtFor } from "../art/hero-art.js";
 import { coverFit, ensurePictureLoaded, type Picture } from "../art/pictures.js";
 import { ART_CATALOG } from "../art/scenario-art.js";
@@ -332,6 +332,11 @@ export function artboardPicture(campaignId: string, name: string): Picture | nul
 /** A box's own cover art (`art/campaigns/<campaignId>/cover.*`), or null for a box that hasn't shipped one yet. */
 export function campaignCoverPicture(campaignId: string): Picture | null {
   return campaignCoverFor(CAMPAIGN_ART, campaignId);
+}
+
+/** A comic page's full art (`art/campaigns/<campaignId>/pages/<file>.*`), by `ComicPage.file`. */
+export function campaignPagePicture(campaignId: string, file: string): Picture | null {
+  return campaignPageFor(CAMPAIGN_ART, campaignId, file);
 }
 
 /** A hero's picture by identity card id (`art/heroes/<id>-*`), always the first variant so redraws don't flicker. */

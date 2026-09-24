@@ -4,13 +4,19 @@
  * the Briefing. All copy is `campaign/story.ts`'s (`issueStoryFor`); this scene only sequences the reveal
  * (`view/campaign-opener-model.ts`) and draws what it returns.
  *
+ * A box told as full comic pages (`CampaignStory.pages` set, GMW today) instead uses the page-based comic reader
+ * (`ui/comic-reader.ts` over `view/comic-reader-model.ts`) for any issue that names `comicBeats` — detected from the
+ * story's own data, never `campaignId`, so a later page-based box picks this up for free. An issue with no
+ * `comicBeats` (every MC10 issue, and any GMW issue not yet given a page split) keeps the three-panel opener below
+ * untouched.
+ *
  * Two entries (`routes.ts`'s `CampaignOpenerData`):
  *  - The run's own next issue (`data.nodeId` absent): `record.position.nextNodeId`. Skip/finish go to Briefing.
  *  - A reread of a finished issue (`data.nodeId` + `data.returnTo`, Run's "Reread issue #2"): the same panels, then
  *    back to `returnTo` instead of Briefing — nothing here needs to know it's a reread beyond that one branch.
  */
 import Phaser from "phaser";
-import { issueNumberOf, issueStoryFor, type IssueStory } from "../../campaign/story.js";
+import { issueNumberOf, issueStoryFor, storyFor, type IssueStory } from "../../campaign/story.js";
 import type { Picture } from "../../art/pictures.js";
 import {
   artNote,
@@ -22,6 +28,7 @@ import {
   speechBubble,
   villainPicture,
 } from "../../ui/campaign-chrome.js";
+import { drawComicReaderStep } from "../../ui/comic-reader.js";
 import { accent, dotGrid, ink, surface, typeRole } from "../../tokens.js";
 import { cssOf, textStyle } from "../../ui/theme.js";
 import { McButton, dashedRect, fitText, label, paintDotGrid } from "../../ui/widgets.js";
@@ -29,6 +36,13 @@ import { destroyChildren } from "../../ui/destroy-children.js";
 import { fadeScreenIn, goToScreen } from "../../ui/transitions.js";
 import type { Rect } from "../../view/layout.js";
 import { openerViewOf, type OpenerPanelView } from "../../view/campaign-opener-model.js";
+import {
+  comicReaderViewOf,
+  nextComicBeat,
+  prevComicBeat,
+  resolveComicBeats,
+  type ResolvedComicBeat,
+} from "../../view/comic-reader-model.js";
 import { campaignService } from "../../session.js";
 import type { CampaignRecord } from "../../engine/campaign-storage.js";
 import { FocusRoute, type FocusStop } from "../focus-route.js";
@@ -50,6 +64,9 @@ export class CampaignOpenerScene extends Phaser.Scene {
   #issueNumber = 1;
   #issueTotal = 1;
   #revealed = 1;
+  /** Set only when the story is page-based and this issue names `comicBeats` — see the class doc comment. */
+  #comicSteps: readonly ResolvedComicBeat[] = [];
+  #comicCurrent = 0;
   #buttons: McButton[] = [];
   #route: FocusRoute | null = null;
 
@@ -62,12 +79,29 @@ export class CampaignOpenerScene extends Phaser.Scene {
     this.#record = null;
     this.#story = null;
     this.#revealed = 1;
+    this.#comicSteps = [];
+    this.#comicCurrent = 0;
   }
 
   create(): void {
     this.cameras.main.setBackgroundColor(cssOf(surface.paper.hex));
     this.scale.on("resize", this.#draw, this);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.scale.off("resize", this.#draw, this));
+    // Direct beat stepping for the comic reader (a no-op outside it). `FocusRoute`'s own keyboard binding also
+    // treats these as "move the focused control" for Tab order — both firing on one press is a harmless overlap,
+    // not a double action: this steps the panel, that just moves which button the ring frames.
+    const onArrow = (event: KeyboardEvent): void => {
+      if (this.#comicSteps.length === 0) return;
+      if (event.key === "ArrowRight") {
+        event.preventDefault();
+        this.#advanceComic();
+      } else if (event.key === "ArrowLeft") {
+        event.preventDefault();
+        this.#backComic();
+      }
+    };
+    this.input.keyboard?.on("keydown", onArrow);
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.input.keyboard?.off("keydown", onArrow));
     void this.#load();
     fadeScreenIn(this);
   }
@@ -91,6 +125,9 @@ export class CampaignOpenerScene extends Phaser.Scene {
     const nodeIds = definition.graph.nodes.map((node) => node.id);
     this.#issueNumber = issueNumberOf(nodeIds, nodeId);
     this.#issueTotal = nodeIds.length;
+    const pages = storyFor(record.campaignId)?.pages;
+    this.#comicSteps = this.#story?.comicBeats && pages ? resolveComicBeats(pages, this.#story.comicBeats) : [];
+    this.#comicCurrent = 0;
     this.#draw();
   }
 
@@ -116,6 +153,23 @@ export class CampaignOpenerScene extends Phaser.Scene {
     this.#draw();
   }
 
+  /** The comic reader's own "NEXT ▸" / tap-anywhere / "→" action: advance a beat, or leave on the last one. */
+  #advanceComic(): void {
+    const total = this.#comicSteps.length;
+    if (this.#comicCurrent >= total - 1) {
+      this.#leave();
+      return;
+    }
+    this.#comicCurrent = nextComicBeat(this.#comicCurrent, total);
+    this.#draw();
+  }
+
+  /** "◂ BACK" / "←": one beat back, clamped at the first — never leaves the screen. */
+  #backComic(): void {
+    this.#comicCurrent = prevComicBeat(this.#comicCurrent);
+    this.#draw();
+  }
+
   #draw(): void {
     // Guards every redraw an async callback can trigger after this scene is gone — `#load`'s own `await`, and
     // `drawPicture`'s "the scan just arrived" callback — against drawing into a torn-down scene (`this.scale` is
@@ -130,6 +184,12 @@ export class CampaignOpenerScene extends Phaser.Scene {
 
     const { width, height, phone } = campaignFrame(this);
     const rosterIds = record.seats.map((seat) => seat.identityCardId);
+
+    if (this.#comicSteps.length > 0) {
+      this.#drawComicReader(record, width, height, phone, rosterIds);
+      return;
+    }
+
     const view = openerViewOf(story, this.#issueNumber, this.#issueTotal, rosterIds, this.#revealed);
 
     this.add.rectangle(0, 0, width, height, surface.paper.hex).setOrigin(0, 0);
@@ -225,6 +285,143 @@ export class CampaignOpenerScene extends Phaser.Scene {
       this.#drawPanel(panel, { x: gap, y, width: rect.width - gap * 2, height: panelHeight }, stops);
       y += panelHeight + innerGap;
     });
+  }
+
+  /**
+   * The page-based comic reader (`ui/comic-reader.ts`): ink header with the issue title and "PAGE N · PANEL M ·
+   * BEAT X OF Y", the current page spot-lit panel by panel, a beat-progress dot row, and an ink action bar with
+   * "◂ BACK" (once past the first beat) and the reader's own "NEXT ▸"/"SUIT UP ▸" CTA.
+   */
+  #drawComicReader(
+    record: CampaignRecord,
+    width: number,
+    height: number,
+    phone: boolean,
+    rosterIds: readonly string[],
+  ): void {
+    const story = this.#story!;
+    const view = comicReaderViewOf(this.#comicSteps, this.#comicCurrent, rosterIds);
+    const stops = new Map<string, FocusStop>();
+
+    this.add.rectangle(0, 0, width, height, surface.ink.hex).setOrigin(0, 0);
+
+    const headerPad = phone ? 16 : 24;
+    const skipRect: Rect = { x: width - headerPad - (phone ? 78 : 96), y: 14, width: phone ? 78 : 96, height: 30 };
+    this.#buttons.push(
+      new McButton(this, {
+        kind: "onInk",
+        label: "SKIP ▸▸",
+        type: typeRole.label,
+        rect: skipRect,
+        onClick: () => this.#leave(),
+      }),
+    );
+    stops.set("skip", { rect: skipRect, activate: () => this.#leave() });
+
+    label(
+      this,
+      headerPad,
+      14,
+      `ISSUE #${this.#issueNumber} OF ${this.#issueTotal}`,
+      typeRole.label,
+      surface.paper.hex,
+      ink.label,
+    );
+    const title = this.add
+      .text(
+        headerPad,
+        26,
+        story.title.toUpperCase(),
+        textStyle({ ...typeRole.barTitle, size: phone ? 22 : 30 }, surface.paper.hex),
+      )
+      .setOrigin(0, 0);
+    fitText(title, skipRect.x - headerPad - 12, phone ? 22 : 30);
+    const counter = this.add
+      .text(
+        headerPad,
+        26 + title.height + 4,
+        `${view.step.pageLabel} · ${view.step.beatLabel}`,
+        textStyle(typeRole.label, surface.paper.hex, ink.secondary),
+      )
+      .setOrigin(0, 0)
+      .setLetterSpacing(1);
+    const headerBottom = Math.max(counter.y + counter.height, 60) + 12;
+
+    const actionBarHeight = phone ? 68 : 88;
+    const dotsHeight = 22;
+    const readingBottom = height - actionBarHeight - dotsHeight;
+    const readingRect: Rect = { x: 0, y: headerBottom, width, height: Math.max(0, readingBottom - headerBottom) };
+    drawComicReaderStep(this, readingRect, record.campaignId, view.step, () => this.#draw());
+
+    this.#drawBeatDots(width, height - actionBarHeight - dotsHeight / 2);
+
+    // Bottom ink action bar: "◂ BACK" once past the first beat, the reader's own CTA otherwise filling the width.
+    this.add.rectangle(0, height - actionBarHeight, width, actionBarHeight, surface.ink.hex).setOrigin(0, 0);
+    const ctaPad = phone ? 12 : 16;
+    const barY = height - actionBarHeight;
+    const ctaHeight = 62;
+    const ctaY = barY + (actionBarHeight - ctaHeight) / 2;
+    const hasBack = !view.isFirst;
+    const backWidth = hasBack ? (phone ? 64 : 110) : 0;
+    const backGap = hasBack ? 10 : 0;
+    const ctaRect: Rect = phone
+      ? { x: ctaPad + backWidth + backGap, y: ctaY, width: width - ctaPad * 2 - backWidth - backGap, height: ctaHeight }
+      : {
+          x: width - ctaPad - Math.min(425, width - ctaPad * 2 - backWidth - backGap),
+          y: ctaY,
+          width: Math.min(425, width - ctaPad * 2 - backWidth - backGap),
+          height: ctaHeight,
+        };
+    this.#buttons.push(
+      new McButton(this, {
+        kind: "primary",
+        label: view.ctaLabel,
+        type: typeRole.barTitle,
+        rect: ctaRect,
+        onClick: () => this.#advanceComic(),
+      }),
+    );
+    stops.set("next", { rect: ctaRect, activate: () => this.#advanceComic() });
+
+    if (hasBack) {
+      const backRect: Rect = { x: ctaPad, y: ctaY, width: backWidth, height: ctaHeight };
+      this.#buttons.push(
+        new McButton(this, {
+          kind: "onInk",
+          label: "◂ BACK",
+          type: typeRole.label,
+          rect: backRect,
+          onClick: () => this.#backComic(),
+        }),
+      );
+      stops.set("back", { rect: backRect, activate: () => this.#backComic() });
+    }
+
+    // Tap-anywhere-on-the-page also advances, under the buttons in the display list so it never steals their clicks.
+    const tapZone = this.add
+      .zone(0, 0, width, height - actionBarHeight)
+      .setOrigin(0, 0)
+      .setInteractive();
+    tapZone.on("pointerup", () => this.#advanceComic());
+    this.children.sendToBack(tapZone);
+
+    this.#route = this.#route ?? new FocusRoute(this, { onCancel: () => this.#leave() });
+    this.#route.set(hasBack ? ["back", "next", "skip"] : ["next", "skip"], stops);
+  }
+
+  /** The beat-progress dot row between the page and the action bar — current beat lit, the rest dim. */
+  #drawBeatDots(width: number, y: number): void {
+    const total = this.#comicSteps.length;
+    if (total <= 1) return;
+    const dotSize = 8;
+    const gap = 10;
+    const totalWidth = total * dotSize + (total - 1) * gap;
+    let x = width / 2 - totalWidth / 2 + dotSize / 2;
+    for (let index = 0; index < total; index += 1) {
+      const active = index === this.#comicCurrent;
+      this.add.circle(x, y, dotSize / 2, active ? accent.heroRed.hex : surface.paper.hex, active ? 1 : 0.3);
+      x += dotSize + gap;
+    }
   }
 
   #drawPanel(panel: OpenerPanelView, rect: Rect, stops: Map<string, FocusStop>): void {
