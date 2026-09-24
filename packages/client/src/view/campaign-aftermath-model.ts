@@ -344,9 +344,12 @@ function countedLabel(label: string, count: number): string {
 /** One shared-field write (`write.seatNumber === null`) as a "LOGGED · …" tag, or null for a value kind this tag
  * stack doesn't have a plain-English rendering for yet (`cardList`/`strikeList`/`cardState`/`instructionList`/
  * `text`) — a future box's field of that shape simply doesn't tag rather than printing something unreadable. */
-function loggedTagFor(field: LogFieldDef, write: LogWrite, cardsById: ReadonlyMap<string, AnyCard>): string | null {
+function loggedTagFor(
+  field: LogFieldDef,
+  value: LogWrite["value"],
+  cardsById: ReadonlyMap<string, AnyCard>,
+): string | null {
   const label = tagLabel(field);
-  const value = write.value;
   if (value.kind === "number") {
     // Zero is deliberately skipped here (unlike `aftermathStamp`'s single tag, which keeps it): a boolean-ish
     // shared tally like `headhunterDefeated` writes 0 on every issue where the box wasn't in play, and a page
@@ -363,24 +366,50 @@ function loggedTagFor(field: LogFieldDef, write: LogWrite, cardsById: ReadonlyMa
   return null;
 }
 
-/** "+1 UNIT EACH": every participating seat's own total `add` for one per-seat number field, when every seat's
- * total came out the same positive number — the shape every GMW per-seat write takes today, since none of its
- * component queries (`keywordValueSum`, `threatOn`) currently vary by seat. A future write that *does* end up
- * different per seat simply doesn't produce this tag (there is no single number left to print). */
-function eachTagFor(field: LogFieldDef, totalsBySeat: ReadonlyMap<number, number>): string | null {
-  const totals = [...totalsBySeat.values()];
-  const first = totals[0];
-  if (first === undefined || first <= 0 || !totals.every((total) => total === first)) return null;
+/** "+1 UNIT EACH": every participating seat's own delta for one per-seat number field, when every seat's delta
+ * came out the same positive number — the shape every GMW per-seat write takes today, since none of its component
+ * queries (`keywordValueSum`, `threatOn`) currently vary by seat. A future write that *does* end up different per
+ * seat simply doesn't produce this tag (there is no single number left to print). */
+function eachTagFor(field: LogFieldDef, deltasBySeat: ReadonlyMap<number, number>): string | null {
+  const deltas = [...deltasBySeat.values()];
+  const first = deltas[0];
+  if (first === undefined || first <= 0 || !deltas.every((delta) => delta === first)) return null;
   return `+${first} ${countedLabel(tagLabel(field), first)} EACH`;
 }
 
 /**
+ * A field's own value before this history entry's instructions ran — `entry.logBefore`, the same snapshot
+ * `LossPolicy.retryBaseline: "nodeStart"` restores on a retry. 0 for a field this entry's own baseline never held
+ * (never recorded yet), which is exactly what an `add` write with nothing to add onto should read as.
+ */
+function baselineNumberOf(
+  logBefore: CampaignHistoryEntry["logBefore"],
+  field: string,
+  seatNumber: number | null,
+): number {
+  const value =
+    seatNumber === null
+      ? logBefore.shared[field]
+      : logBefore.seats.find((s) => s.seatNumber === seatNumber)?.fields[field];
+  return value?.kind === "number" ? value.value : 0;
+}
+
+/**
  * Every tag the Aftermath's comic page shows for the issue just folded: `nodeId`'s *last* history entry (as
- * `aftermathStamp` reads it — the one this fold just appended, even for a rewound-and-replayed node), walked for
- * every non-`hidden`, non-skipped write. `"logged"` tags print in the write order they actually happened in;
- * `"each"` tags (summed across the whole entry, since one per-seat field is written by several instructions in
- * sequence — MC16's "units" field alone has three) always come last, matching the tile's own layout (the shared
- * per-hero grant sits under the individual logged facts, not interleaved with them).
+ * `aftermathStamp` reads it — the one this fold just appended, even for a rewound-and-replayed node).
+ *
+ * **`mode: "add"` writes are cumulative, not deltas.** `CampaignStepTrace.writes`'s own doc comment says a write
+ * is recorded "as it goes into the log" — `applyLogWrite` (`engine/campaign/log.ts`) stores the field's *new
+ * running total* after each `add`, not the amount that one write alone contributed, because a field several
+ * instructions write in sequence (MC16's own "units" field is written by three separate specs in one victory
+ * block) chains onto the *previous* write, not onto zero. Reading every `add` write as an independent delta and
+ * summing them (an earlier version of this function did exactly that) double- and triple-counts every write after
+ * the first, and also folds in whatever the field already held from an earlier issue — GMW's own currency is
+ * cumulative across the whole campaign. The fix: for each `(field, seat-or-shared)` a step list touches, only the
+ * *last* write in step order matters (it already reflects every earlier one this entry made), and for `add` mode
+ * that last value has `entry.logBefore`'s own pre-entry value subtracted back out, so the tag shows what *this
+ * fold* contributed, never the campaign's running balance. `set`/`append`/etc. writes are never cumulative this
+ * way (`combine`'s own `"set"` case returns the write's value verbatim), so they're used as-is.
  */
 export function aftermathLogTags(
   log: Pick<CampaignLog, "history">,
@@ -391,31 +420,50 @@ export function aftermathLogTags(
   const entry = log.history.filter((candidate) => candidate.nodeId === nodeId).at(-1);
   if (!entry) return [];
   const fieldsById = new Map(fields.map((field) => [field.id, field]));
-  const logged: AftermathLogTag[] = [];
-  const perSeatTotals = new Map<string, Map<number, number>>();
 
+  // The last (non-skipped) write per field+seat this entry made, in the order each group was first touched.
+  const order: string[] = [];
+  const lastByGroup = new Map<string, LogWrite>();
   for (const step of entry.steps) {
     if (step.skipped) continue;
     for (const write of step.writes) {
       const field = fieldsById.get(write.field);
       if (!field || field.hidden) continue;
-      if (write.seatNumber === null) {
-        const text = loggedTagFor(field, write, cardsById);
-        if (text) logged.push({ text, kind: "logged" });
-        continue;
-      }
-      if (write.mode !== "add" || write.value.kind !== "number") continue;
-      const bySeat = perSeatTotals.get(write.field) ?? new Map<number, number>();
-      bySeat.set(write.seatNumber, (bySeat.get(write.seatNumber) ?? 0) + write.value.value);
-      perSeatTotals.set(write.field, bySeat);
+      const key = `${write.field}:${write.seatNumber ?? "shared"}`;
+      if (!lastByGroup.has(key)) order.push(key);
+      lastByGroup.set(key, write);
+    }
+  }
+
+  const logged: AftermathLogTag[] = [];
+  const perSeatDeltas = new Map<string, Map<number, number>>();
+  for (const key of order) {
+    const write = lastByGroup.get(key)!;
+    const field = fieldsById.get(write.field)!;
+    const isAdd = write.mode === "add" && write.value.kind === "number";
+    const value: LogWrite["value"] = isAdd
+      ? {
+          kind: "number",
+          value:
+            (write.value as { kind: "number"; value: number }).value -
+            baselineNumberOf(entry.logBefore, write.field, write.seatNumber),
+        }
+      : write.value;
+    if (write.seatNumber === null) {
+      const text = loggedTagFor(field, value, cardsById);
+      if (text) logged.push({ text, kind: "logged" });
+    } else if (value.kind === "number") {
+      const bySeat = perSeatDeltas.get(write.field) ?? new Map<number, number>();
+      bySeat.set(write.seatNumber, value.value);
+      perSeatDeltas.set(write.field, bySeat);
     }
   }
 
   const each: AftermathLogTag[] = [];
-  for (const [fieldId, totals] of perSeatTotals) {
+  for (const [fieldId, deltas] of perSeatDeltas) {
     const field = fieldsById.get(fieldId);
     if (!field || field.hidden) continue;
-    const text = eachTagFor(field, totals);
+    const text = eachTagFor(field, deltas);
     if (text) each.push({ text, kind: "each" });
   }
   return [...logged, ...each];
