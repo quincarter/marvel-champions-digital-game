@@ -53,10 +53,14 @@ const PAGES: readonly ComicPage[] = [
     height: 1800,
     lettered: true,
     beats: [
-      { panel: { x: 0, y: 0, w: 590, h: 1800 }, lines: [] },
-      { panel: { x: 610, y: 0, w: 1190, h: 395 }, lines: [] },
-      { panel: { x: 610, y: 415, w: 1190, h: 1000 }, lines: [] },
-      { panel: { x: 995, y: 1430, w: 805, h: 370 }, lines: [] },
+      // Left tall panel: Captain Marvel's takedown.
+      { panel: { x: 75, y: 77, w: 512, h: 1643 }, lines: [] },
+      // The whole right side is one panel — the "You fools!" close-up is an inset in its own top-left corner,
+      // the walking-away Absorbing Man/motorbike scene is the same continuous piece of bled art beneath it, no
+      // border between them (the tire graphic runs unbroken from one into the other).
+      { panel: { x: 614, y: 77, w: 1111, h: 1643 }, lines: [] },
+      // Bordered inset, bottom right of that same panel: Absorbing Man's true face, gripping the chains.
+      { panel: { x: 885, y: 1308, w: 815, h: 409 }, lines: [] },
     ],
   },
   {
@@ -65,11 +69,14 @@ const PAGES: readonly ComicPage[] = [
     height: 1800,
     lettered: true,
     beats: [
-      { panel: { x: 0, y: 0, w: 1310, h: 900 }, lines: [] },
-      { panel: { x: 1330, y: 0, w: 470, h: 900 }, lines: [] },
-      { panel: { x: 0, y: 920, w: 940, h: 290 }, lines: [] },
-      { panel: { x: 960, y: 920, w: 840, h: 320 }, lines: [] },
-      { panel: { x: 0, y: 1250, w: 1800, h: 550 }, lines: [] },
+      { panel: { x: 45, y: 45, w: 1285, h: 960 }, lines: [] },
+      { panel: { x: 1345, y: 45, w: 375, h: 855 }, lines: [] },
+      { panel: { x: 45, y: 1025, w: 1185, h: 280 }, lines: [] },
+      // Hulk's reaction bleeds with no border of its own, starting flush against the red-flash panel's own
+      // bottom border rather than the little of his hair that pokes above it (the panels above are complete
+      // without it, and this keeps every beat's rect inside its own space).
+      { panel: { x: 1230, y: 900, w: 500, h: 420 }, lines: [] },
+      { panel: { x: 45, y: 1320, w: 1690, h: 435 }, lines: [] },
     ],
   },
   {
@@ -78,10 +85,10 @@ const PAGES: readonly ComicPage[] = [
     height: 1800,
     lettered: true,
     beats: [
-      { panel: { x: 0, y: 0, w: 395, h: 1195 }, lines: [] },
-      { panel: { x: 415, y: 0, w: 395, h: 1195 }, lines: [] },
-      { panel: { x: 825, y: 0, w: 975, h: 1195 }, lines: [] },
-      { panel: { x: 0, y: 1215, w: 1800, h: 585 }, lines: [] },
+      { panel: { x: 43, y: 50, w: 374, h: 1145 }, lines: [] },
+      { panel: { x: 433, y: 50, w: 410, h: 1145 }, lines: [] },
+      { panel: { x: 858, y: 50, w: 898, h: 1145 }, lines: [] },
+      { panel: { x: 43, y: 1215, w: 1713, h: 546 }, lines: [] },
     ],
   },
   {
@@ -118,8 +125,8 @@ const PAGES: readonly ComicPage[] = [
     beats: [
       // The full-bleed battle spread; Hawkeye breaks its own frame in the foreground with no printed border.
       { panel: { x: 0, y: 0, w: 1800, h: 1800 }, lines: [] },
-      // The Red Skull inset, bottom right — two near-identical panels of him in the source art, boxed together.
-      { panel: { x: 605, y: 1215, w: 1045, h: 585 }, lines: [] },
+      // The Red Skull inset, bottom right.
+      { panel: { x: 570, y: 1195, w: 1160, h: 515 }, lines: [] },
     ],
   },
   {
@@ -130,12 +137,13 @@ const PAGES: readonly ComicPage[] = [
     height: 1800,
     lettered: true,
     beats: [
-      { panel: { x: 0, y: 0, w: 585, h: 1195 }, lines: [] },
-      { panel: { x: 605, y: 0, w: 320, h: 1195 }, lines: [] },
-      { panel: { x: 770, y: 0, w: 320, h: 1195 }, lines: [] },
-      { panel: { x: 1130, y: 0, w: 670, h: 1195 }, lines: [] },
-      { panel: { x: 0, y: 1215, w: 750, h: 585 }, lines: [] },
-      { panel: { x: 770, y: 1215, w: 1030, h: 585 }, lines: [] },
+      { panel: { x: 83, y: 78, w: 492, h: 1117 }, lines: [] },
+      // Iron Man and the flash he creates are one panel — the flash alone (a plain burst of light) is not a
+      // readable beat on its own.
+      { panel: { x: 592, y: 78, w: 496, h: 1117 }, lines: [] },
+      { panel: { x: 1108, y: 78, w: 609, h: 1117 }, lines: [] },
+      // The bottom row is one wide panel (bar to rooftop), not two — no border splits it.
+      { panel: { x: 83, y: 1215, w: 1634, h: 495 }, lines: [] },
     ],
   },
 ];
@@ -238,7 +246,6 @@ export const TRORS_STORY: CampaignStory = {
       comicBeats: [
         { page: "02-crossbones", beatIndex: 1 },
         { page: "02-crossbones", beatIndex: 2 },
-        { page: "02-crossbones", beatIndex: 3 },
         { page: "03-absorbing-man", beatIndex: 0 },
       ],
       stageLines: { 2: "Stone, steel, snow — pick one. I already did." },
