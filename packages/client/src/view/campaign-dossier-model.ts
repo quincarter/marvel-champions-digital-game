@@ -178,12 +178,30 @@ const OVERVIEW_SEAT_FIELD_IDS: readonly string[] = ["techUpgrade", "basicUpgrade
  * a player needs read out between issues. A field with neither an entry here nor a citation-based fallback is
  * still shown — the sheet's own label and citation, so an unmapped field never disappears silently.
  */
-const WORLD_FIELD_PRESENTATION: Readonly<
-  Record<string, { readonly label: string; readonly when: string } | { readonly hidden: true }>
-> = {
-  experimental: { label: "Stolen weapons", when: "Shuffled into every remaining issue." },
+/**
+ * A shared field's presentation, keyed by field id. `inForce` marks a field that also belongs on the Log tab's
+ * "In force now" box (`campaignDossierLog`'s `inForce` rows) — `true` reuses this same label/when there, an object
+ * overrides both with the shorter wording that box wants instead. A field with no `inForce` at all (MC10's
+ * `imprisonedAllies`, a decision made later rather than a live effect) shows on The World but not there.
+ */
+interface FieldPresentation {
+  readonly label: string;
+  readonly when: string;
+  readonly inForce?: true | { readonly label: string; readonly note: string };
+}
+
+const WORLD_FIELD_PRESENTATION: Readonly<Record<string, FieldPresentation | { readonly hidden: true }>> = {
+  experimental: {
+    label: "Stolen weapons",
+    when: "Shuffled into every remaining issue.",
+    inForce: { label: "Weapons", note: "in every encounter deck" },
+  },
   // Not a number: the threat is this count on Standard and this count per player on Expert (MC10 p. 15).
-  delayCounters: { label: "Delay counters", when: "Issue #5: added to Red Skull's starting threat." },
+  delayCounters: {
+    label: "Delay counters",
+    when: "Issue #5: added to Red Skull's starting threat.",
+    inForce: { label: "Delay", note: "starting threat, next issue" },
+  },
   imprisonedAllies: { label: "Lost allies", when: "Decided in #4." },
   hydraPrison: { hidden: true },
   heroForm: { hidden: true },
@@ -193,20 +211,38 @@ const WORLD_FIELD_PRESENTATION: Readonly<
   headhunterDefeated: {
     label: "Headhunter marks",
     when: "Each mark shuffles the ladder's next card into every remaining issue.",
+    inForce: true,
   },
   // MC16 p. 5/p. 10: the Collection is spent (and its cards removed from the game) once the group has few enough left.
   collection: { hidden: true },
   collectionCount: {
     label: "Cards in The Collection",
     when: "Removed from the game once 1 or fewer remain per player.",
+    inForce: true,
   },
   powerStoneControl: {
     label: "Power Stone control",
     when: "Whoever holds it when scenario 5 is lost loses the campaign.",
+    inForce: true,
   },
-  evasionCounters: { label: "Evasion counters on Nebula's Ship", when: "Fewer counters raise scenario 4's threat." },
+  evasionCounters: {
+    label: "Evasion counters on Nebula's Ship",
+    when: "Fewer counters raise scenario 4's threat.",
+    inForce: true,
+  },
   galacticArtifacts: { hidden: true },
   kreeSupremacyRevealed: { hidden: true },
+};
+
+/**
+ * MC10 p. 3 vs MC16 p. 4: both print the same "reset and try again with no penalty" retry rule (`LossPolicy`'s own
+ * doc comment), but a rewind isn't a log field the way every other "In force now" row above is, so it has no field
+ * id to key its wording off of — this is the one row on that box keyed by `campaignId` instead. A campaign with no
+ * entry here falls back to the generic printed rule rather than guessing a box-specific phrasing.
+ */
+const REWIND_NOTE_BY_CAMPAIGN: Readonly<Record<string, string>> = {
+  trors: "free on Standard",
+  gmw: "no penalty, any difficulty",
 };
 
 export function campaignDossierOverview(
@@ -512,6 +548,32 @@ function bigValueOf(
   }
 }
 
+/**
+ * The Log tab's "In force now" box, box-driven the same way The World is: every shared field this run tracks
+ * (mode-gated and hidden fields already dropped by `campaignLogSheet`) whose `WORLD_FIELD_PRESENTATION` entry
+ * marks it `inForce`, in the field's printed order. MC10 shows exactly what it always has (`experimental`,
+ * `delayCounters`); GMW shows the fields that feed a later setup (`headhunterDefeated`, `collectionCount`,
+ * `powerStoneControl`, `evasionCounters`) — nothing here checks `campaignId`.
+ */
+function inForceWorldRows(
+  record: CampaignLog,
+  definition: CampaignDefinition,
+  cardName: CardNameOf,
+  heroNameOf: (identityCardId: string) => string,
+): DossierInForceRow[] {
+  const sheet = campaignLogSheet(definition, record, cardName);
+  return sheet.shared.flatMap((field) => {
+    if (field.rendered === HIDDEN_PLACEHOLDER) return [];
+    const presentation = WORLD_FIELD_PRESENTATION[field.id];
+    if (!presentation || "hidden" in presentation || !presentation.inForce) return [];
+    const wording =
+      presentation.inForce === true ? { label: presentation.label, note: presentation.when } : presentation.inForce;
+    return [
+      { label: wording.label, value: bigValueOf(record.shared[field.id], heroNameOf, cardName), note: wording.note },
+    ];
+  });
+}
+
 // ---------------------------------------------------------------------------------------------------------------
 // Log
 // ---------------------------------------------------------------------------------------------------------------
@@ -563,6 +625,16 @@ function ordinal(n: number): string {
   }
 }
 
+/** `seatOfCard.get(cardId)` resolved to a hero name, or null when this card's grant has no known owning seat. */
+function heroNameOfSeatOrNull(
+  seatOfCard: ReadonlyMap<string, number>,
+  cardId: string,
+  heroNameOfSeat: (seatNumber: number) => string | null,
+): string | null {
+  const seatNumber = seatOfCard.get(cardId);
+  return seatNumber === undefined ? null : heroNameOfSeat(seatNumber);
+}
+
 export function campaignDossierLog(
   record: CampaignLog,
   definition: CampaignDefinition,
@@ -598,6 +670,14 @@ export function campaignDossierLog(
     });
     if (winning) {
       const fieldLabel = fieldLabelOf(definition);
+      // A `cardRef` write's seat, keyed by the card it names (`campaign-issue-model.ts`'s `seatOfCard`) — a
+      // single-card grant below reads the hero it belongs to off this map instead of showing no name at all.
+      const seatOfCard = new Map<string, number>();
+      for (const write of winning.steps.flatMap((step) => (step.skipped ? [] : step.writes))) {
+        if (write.value.kind === "cardRef" && write.seatNumber !== null) {
+          seatOfCard.set(write.value.cardId as string, write.seatNumber);
+        }
+      }
       // `resolvedWritesOf`: an `add`-mode number write only appears here at its group's *last* (delta-adjusted)
       // occurrence — every other write kind/mode still appears once per write, exactly as printed today.
       for (const group of resolvedWritesOf(winning)) {
@@ -627,11 +707,19 @@ export function campaignDossierLog(
       }
       winning.steps.forEach((step, stepIndex) => {
         if (step.skipped) return;
+        // A card this same step's own `cardList` write already named (a Market purchase, `+ A, B, C → Groot`) —
+        // the grant row below would only repeat it, the way a `cardRef` write's paired grant is skipped above.
+        const namedByListWrite = new Set(
+          step.writes.flatMap((write) => (write.value.kind === "cardList" ? write.value.cardIds : [])),
+        );
         step.grants.forEach((grant, grantIndex) => {
+          if (namedByListWrite.has(grant.cardId)) return;
+          const hero = heroNameOfSeatOrNull(seatOfCard, grant.cardId as string, heroNameOfSeat);
+          const forRest = grant.permanence === "campaign" ? "for the rest of the campaign" : "for this game only";
           entries.push({
             key: `${node.id}:grant:${stepIndex}:${grantIndex}`,
             headline: `${cardName(grant.cardId)} added`,
-            detail: grant.permanence === "campaign" ? "Permanent condition." : "For this game only.",
+            detail: hero ? `Added to ${hero}'s deck · ${forRest}.` : `Added to the deck · ${forRest}.`,
             citation: step.citation,
           });
         });
@@ -656,20 +744,21 @@ export function campaignDossierLog(
       }
     : null;
 
-  const experimental = record.shared.experimental;
-  const delay = record.shared.delayCounters;
   // "Struck" is `removedFromCampaign` (RRG 1.8 p. 29): the one campaign-wide removal every box shares. A box with
   // its own `strikeList` field (none of MC10's are perSeat/shared strike fields yet) would add to this count too.
   const removedCount = record.removedFromCampaign.length;
   const inForce: DossierInForceRow[] = [
-    { label: "Weapons", value: bigValueOf(experimental), note: "in every encounter deck" },
-    { label: "Delay", value: bigValueOf(delay), note: "starting threat, next issue" },
+    ...inForceWorldRows(record, definition, cardName, heroNameOf),
     {
       label: "Struck",
       value: String(removedCount),
       note: removedCount > 0 ? "removed from the campaign" : "nothing lost yet",
     },
-    { label: "Rewinds", value: String(rewinds), note: "free on Standard" },
+    {
+      label: "Rewinds",
+      value: String(rewinds),
+      note: REWIND_NOTE_BY_CAMPAIGN[definition.campaignId as string] ?? "no penalty",
+    },
   ];
   return { sections, next, inForce };
 }

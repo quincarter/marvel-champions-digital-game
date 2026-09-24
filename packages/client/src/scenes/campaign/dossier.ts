@@ -640,24 +640,32 @@ export class CampaignDossierScene extends Phaser.Scene {
       const box = this.add.graphics();
       const boxTop = ry;
       // Three columns, none overlapping: the label at the left edge, the big number in its own column starting
-      // ~130px in (design tile 13's own layout), the short note right-aligned at the far edge.
+      // ~130px in (design tile 13's own layout), the short note right-aligned at the far edge. A box with a longer
+      // label or note than MC10's (GMW's "Evasion counters on Nebula's Ship") wraps to more than one line, so the
+      // row's own height grows to fit both wrapped columns instead of a flat 36px letting them bleed into the row
+      // below.
       const valueColumnX = rx + 130;
+      // The value is a short number/word in its own column; the note starts far enough right of it that a wrapped
+      // note's first line never lands under the value the way an unpadded gap let it.
+      const noteLeftX = valueColumnX + 40;
+      const noteRightX = rx + rightWidth - 10;
       for (const row of loaded.log.inForce) {
-        const rowHeight = 36;
-        this.add
-          .text(rx + 10, ry + rowHeight / 2, row.label, textStyle(typeRole.emphasis, surface.ink.hex))
-          .setOrigin(0, 0.5)
-          .setFontSize(12);
-        this.add
-          .text(valueColumnX, ry + rowHeight / 2, row.value, textStyle(bangers(18), surface.ink.hex))
-          .setOrigin(0, 0.5);
-        this.add
-          .text(rx + rightWidth - 10, ry + rowHeight / 2, row.note, {
+        const label = this.add
+          .text(rx + 10, ry, row.label, textStyle(typeRole.emphasis, surface.ink.hex))
+          .setFontSize(12)
+          .setWordWrapWidth(valueColumnX - rx - 20);
+        const note = this.add
+          .text(noteRightX, ry, row.note, {
             ...textStyle(typeRole.body, surface.ink.hex, 0.5),
             fontSize: "10px",
           })
-          .setOrigin(1, 0.5)
-          .setWordWrapWidth(rightWidth - 140);
+          .setOrigin(1, 0)
+          .setWordWrapWidth(noteRightX - noteLeftX);
+        const rowHeight = Math.max(36, label.height + 12, note.height + 12);
+        const midY = ry + rowHeight / 2;
+        label.setOrigin(0, 0.5).setY(midY);
+        note.setOrigin(1, 0.5).setY(midY);
+        this.add.text(valueColumnX, midY, row.value, textStyle(bangers(18), surface.ink.hex)).setOrigin(0, 0.5);
         ry += rowHeight;
         this.add.rectangle(rx, ry, rightWidth, 1, surface.ink.hex, 0.12).setOrigin(0, 0.5);
       }

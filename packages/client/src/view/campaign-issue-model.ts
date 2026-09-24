@@ -127,13 +127,20 @@ function writeRowsOf(
   }
   entry.steps.forEach((step, stepIndex) => {
     if (step.skipped) return;
+    // A card this same step's own `cardList` write already named (a Market purchase, `+ A, B, C → Groot`) — the
+    // grant row below would only repeat it, the way a `cardRef` write's paired grant is skipped above.
+    const namedByListWrite = new Set(
+      step.writes.flatMap((write) => (write.value.kind === "cardList" ? write.value.cardIds : [])),
+    );
     step.grants.forEach((grant, grantIndex) => {
+      if (namedByListWrite.has(grant.cardId)) return;
       const hero = grantHeroName(seatOfCard, grant.cardId as string, heroNameOfSeat);
       const base = cardName(grant.cardId);
+      const forRest = grant.permanence === "campaign" ? "for the rest of the campaign" : "for this game only";
       rows.push({
         key: `grant:${stepIndex}:${grantIndex}`,
         headline: hero ? `${base} → ${hero}` : base,
-        detail: grant.permanence === "campaign" ? "Permanent condition." : "For this game only.",
+        detail: hero ? `Added to ${hero}'s deck · ${forRest}.` : `Added to the deck · ${forRest}.`,
         citation: step.citation,
         kind: "grant",
       });

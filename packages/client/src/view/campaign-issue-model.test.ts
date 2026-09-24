@@ -182,4 +182,33 @@ describe("campaignIssueModel", () => {
     const spendRow = unitRows.find((row) => row.headline.startsWith("-"));
     expect(spendRow?.detail).toMatch(/Market/);
   });
+
+  it("GMW issue #2's Market purchase is never shown twice: no per-card grant row duplicates its card-list write", async () => {
+    const service = new CampaignService({
+      storage: new MemoryCampaignStorage(),
+      campaignDeps: { pool: Object.fromEntries(POOL_CARDS.map((card) => [card.id as string, card])) },
+      engineDeps: POOL_DEPS,
+    });
+    const record = await seedGmwRun(service, "afterIssue2");
+    const model = campaignIssueModel(
+      record,
+      GMW_CAMPAIGN_DEFINITION,
+      storyFor("gmw"),
+      "infiltrate-the-museum",
+      cardName,
+    );
+    const listWrite = model?.writes.find((row) => row.headline.startsWith("+ "));
+    expect(listWrite).toBeDefined();
+    const purchasedIds = listWrite!.headline
+      .replace(/^\+ /, "")
+      .replace(/ → .*$/, "")
+      .split(", ");
+    for (const id of purchasedIds) {
+      expect(model?.writes.some((row) => row.kind === "grant" && row.headline.startsWith(id))).toBe(false);
+    }
+    // Any grant row that does remain reads as box wording, never the MC10-specific "Permanent condition.".
+    for (const row of model?.writes ?? []) {
+      if (row.kind === "grant") expect(row.detail).not.toBe("Permanent condition.");
+    }
+  });
 });
