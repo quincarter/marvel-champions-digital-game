@@ -65,6 +65,7 @@ import {
   categoriesOf,
   contextArea,
   controllerOf,
+  DEFENDER_SLOT,
   type EffectContext,
   evaluate,
   matchesQuery,
@@ -390,6 +391,34 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       moveCardsTo(ctx, still, "encounterDeckShuffle");
       emit(ctx, { type: "setAsideModularSetShuffledIn", encounterSetId: chosen.encounterSetId, instanceIds: still });
       if (effect.bind) addFrameVars(ctx, frame.frameId, { [`${effect.bind}.made`]: 1 });
+      return;
+    }
+    case "retargetAttack": {
+      const inPlay = cardsInPlay(ctx.state);
+      const [character] = targets(effect.character).filter(
+        (id) => inPlay.includes(id) && categoriesOf(ctx.state, id).includes("character"),
+      );
+      const playerId = character ? controllerOf(ctx.state, character) : null;
+      if (!character || !playerId) return;
+      const attack = ctx.state.stack.find(
+        (f): f is Frame<"event"> => f.kind === "event" && f.event.kind === "enemyAttack" && !f.cancelled,
+      );
+      if (!attack || attack.event.kind !== "enemyAttack") return;
+      const procedure = ctx.state.stack.find(
+        (f): f is Frame<"enemyAttack"> => f.kind === "enemyAttack" && f.eventFrameId === attack.frameId,
+      );
+      // Once a defender is declared the attack has its target; "he attacks X" happens as the attack is initiated.
+      if ((attack.slots[DEFENDER_SLOT] ?? []).length > 0 || (procedure && procedure.defenderInstanceId !== null))
+        return;
+      const retargeted = { targetInstanceId: character, targetPlayerId: playerId, attackedPlayerId: playerId };
+      setFrame(ctx, { ...attack, event: { ...attack.event, ...retargeted } });
+      if (procedure) setFrame(ctx, { ...procedure, ...retargeted });
+      emit(ctx, {
+        type: "attackRetargeted",
+        enemyInstanceId: attack.event.enemyInstanceId,
+        targetInstanceId: character,
+        playerId,
+      });
       return;
     }
     case "resolveAttackAgainst": {

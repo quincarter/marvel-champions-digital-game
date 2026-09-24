@@ -330,11 +330,18 @@ export const enemyAttack = (
     readonly afterCurrentActivation?: boolean;
     /** "Do not deal any boost cards for that attack." */
     readonly noBoost?: boolean;
+    /**
+     * "… attacks that character" (Speed Demon, `hood` 24046; docs/phase7-wave4.md §3.21) / "attacks the hero with the
+     * fewest hit points remaining" (Mad Genius): the attack is against this character, its controller the attacked
+     * player. `EffectSpec enemyAttack.targetCharacter` (wave 1 §3.6), which wave 1's packs wrapped locally.
+     */
+    readonly targetCharacter?: TargetRef;
   } = {},
 ): EffectSpec => ({
   kind: "enemyAttack",
   enemies,
   ...(opts.against ? { against: opts.against } : {}),
+  ...(opts.targetCharacter ? { targetCharacter: opts.targetCharacter } : {}),
   ...withBind(opts.bind),
   ...(opts.noBoost ? { boost: false } : {}),
   ...(opts.afterCurrentActivation ? { after: "currentActivation" as const } : {}),
@@ -449,6 +456,13 @@ export const shuffleInSetAsideModularSet = (bind?: string): EffectSpec => ({
   kind: "shuffleInSetAsideModularSet",
   ...withBind(bind),
 });
+/**
+ * "When Crossfire attacks, he attacks the friendly character with the fewest remaining hit points" (Crossfire, `hood`
+ * 24026; docs/phase7-wave4.md §3.21): the enemy attack being initiated is against that character instead, and its
+ * controller is the attacked player. A new attack against a character is `enemyAttack`'s `targetCharacter` (Speed
+ * Demon: "Speed Demon attacks that character").
+ */
+export const retargetAttack = (character: TargetRef): EffectSpec => ({ kind: "retargetAttack", character });
 export const resolveAttackAgainst = (targets: TargetRef): EffectSpec => ({ kind: "resolveAttackAgainst", targets });
 export const atEndOfAttack = (...effects: readonly EffectArg[]): EffectSpec => ({
   kind: "atEndOfAttack",

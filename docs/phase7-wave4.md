@@ -400,31 +400,31 @@ needed, and each section names cards from other packs that compose with it.
 in release order. Within that, rules the whole box leans on come first. **A pack whose cards need an unbuilt primitive
 stays data only.**
 
-| §    | Primitive                                                                | Needed by                                  | Status      |
-| ---- | ------------------------------------------------------------------------ | ------------------------------------------ | ----------- |
-| 3.1  | Additional forms (the form keyword)                                      | Spectrum, Vision; Shadowcat, Nick Fury     | landed      |
-| 3.2  | Two main schemes in play, each paired with a villain; Focused Defense    | Tower Defense                              | landed      |
-| 3.3  | Villains protected by each other's hit points: one defeat sweep          | Tower Defense; Four Horsemen (`aoa`)       | landed      |
-| 3.4  | A main scheme stage's completion is replaceable                          | Tower Defense; Upgrading Adaptoids (`aos`) | landed      |
-| 3.5  | Damage on a card that is not a character (Avengers Tower)                | Tower Defense                              | landed      |
-| 3.6  | A modular set's own deck (the Infinity Stone deck)                       | Thanos, Loki, any scenario                 | landed      |
-| 3.7  | Loki: random start, swap, a villain stage's Victory X, the victory count | Loki; God of Lies (`tt`)                   | landed      |
-| 3.8  | An encounter ally attached to the main scheme (Odin)                     | Hela                                       | landed      |
-| 3.9  | An ally treated as a minion                                              | Fallen Warrior, Beguiled; 5 other packs    | landed      |
-| 3.10 | Flipping a card into a separately emitted face of another type           | MC21 campaign                              | landed      |
-| 3.11 | Timing points when a deck runs out                                       | Soul World, Universal Church, Thanos       | landed      |
-| 3.12 | Counting different aspects; Adam Warlock's copy limit                    | Adam Warlock                               | landed      |
-| 3.13 | Abilities active in hand; "cannot choose to discard this card"           | Pip the Troll, System Shock                | landed      |
-| 3.14 | Player events shuffled into the encounter deck (Cosmic Entities)         | Adam Warlock precon                        | landed      |
-| 3.15 | "After the last X counter is removed from here"                          | Ebony Maw; `aos`, `phoenix`                | landed      |
-| 3.16 | Encounter cards in a player's play area                                  | Ebony Maw's Spells                         | landed      |
-| 3.17 | Alliance: paying a card's costs as a group                               | `warm`, `valk`, `vision`; 9 later cards    | landed      |
-| 3.18 | Set-aside modular sets; mode-only faces; Standard II                     | The Hood; Wheel of Genres (`mojo`)         | landed      |
-| 3.19 | Readying as a costed act; "cannot be readied by player card effects"     | Mister Fear; Undermine Support (`aos`)     | landed      |
-| 3.20 | A trigger on damage a card prevented                                     | Abjuration                                 | landed      |
-| 3.21 | An enemy attack against a chosen character                               | Speed Demon, Crossfire                     | not started |
-| 3.22 | Valkyrie's kit                                                           | `valk`                                     | landed      |
-| 3.23 | Reusable as is                                                           | —                                          | checked     |
+| §    | Primitive                                                                | Needed by                                  | Status  |
+| ---- | ------------------------------------------------------------------------ | ------------------------------------------ | ------- |
+| 3.1  | Additional forms (the form keyword)                                      | Spectrum, Vision; Shadowcat, Nick Fury     | landed  |
+| 3.2  | Two main schemes in play, each paired with a villain; Focused Defense    | Tower Defense                              | landed  |
+| 3.3  | Villains protected by each other's hit points: one defeat sweep          | Tower Defense; Four Horsemen (`aoa`)       | landed  |
+| 3.4  | A main scheme stage's completion is replaceable                          | Tower Defense; Upgrading Adaptoids (`aos`) | landed  |
+| 3.5  | Damage on a card that is not a character (Avengers Tower)                | Tower Defense                              | landed  |
+| 3.6  | A modular set's own deck (the Infinity Stone deck)                       | Thanos, Loki, any scenario                 | landed  |
+| 3.7  | Loki: random start, swap, a villain stage's Victory X, the victory count | Loki; God of Lies (`tt`)                   | landed  |
+| 3.8  | An encounter ally attached to the main scheme (Odin)                     | Hela                                       | landed  |
+| 3.9  | An ally treated as a minion                                              | Fallen Warrior, Beguiled; 5 other packs    | landed  |
+| 3.10 | Flipping a card into a separately emitted face of another type           | MC21 campaign                              | landed  |
+| 3.11 | Timing points when a deck runs out                                       | Soul World, Universal Church, Thanos       | landed  |
+| 3.12 | Counting different aspects; Adam Warlock's copy limit                    | Adam Warlock                               | landed  |
+| 3.13 | Abilities active in hand; "cannot choose to discard this card"           | Pip the Troll, System Shock                | landed  |
+| 3.14 | Player events shuffled into the encounter deck (Cosmic Entities)         | Adam Warlock precon                        | landed  |
+| 3.15 | "After the last X counter is removed from here"                          | Ebony Maw; `aos`, `phoenix`                | landed  |
+| 3.16 | Encounter cards in a player's play area                                  | Ebony Maw's Spells                         | landed  |
+| 3.17 | Alliance: paying a card's costs as a group                               | `warm`, `valk`, `vision`; 9 later cards    | landed  |
+| 3.18 | Set-aside modular sets; mode-only faces; Standard II                     | The Hood; Wheel of Genres (`mojo`)         | landed  |
+| 3.19 | Readying as a costed act; "cannot be readied by player card effects"     | Mister Fear; Undermine Support (`aos`)     | landed  |
+| 3.20 | A trigger on damage a card prevented                                     | Abjuration                                 | landed  |
+| 3.21 | An enemy attack against a chosen character                               | Speed Demon, Crossfire                     | landed  |
+| 3.22 | Valkyrie's kit                                                           | `valk`                                     | landed  |
+| 3.23 | Reusable as is                                                           | —                                          | checked |
 
 ### 3.1 Additional forms: the form keyword
 
@@ -714,7 +714,7 @@ the victory display" readers), then becomes its other face in play.
 > attachments and tucked cards and clears status cards, damage, threat and counters (RRG 1.8 "Flip", p. 20) and moves
 > the card where its new type lives (minion engaged with "you", ally/support/upgrade under "you", attachment on its
 > first legal host, scheme or environment in the villain's area; "you" is the first player for a side scheme's When
-> Defeated). The new face is then treated as entering play (§4 Q15). A defeated side scheme's leave-play step is now
+> Defeated). The new face is then treated as entering play (§4 Q17). A defeated side scheme's leave-play step is now
 > guarded by `refMatches self {printedId}`, so one that flipped during its own When Defeated stays in play; its
 > `schemeDefeated` event still fires (the campaign's "if Secure the Landing Pad was defeated"). Event
 > `cardFlippedToOtherFace`. **DSL:** none new (`flipCard(self)` in a `whenDefeated`). **Not covered:** a side scheme with
@@ -794,7 +794,7 @@ player reveals it; `uncancellable` on the ability; a discarded one goes to the e
 > nothing (`rules.ts revealCannotBeCanceled`). **Composes with:** Longshot and Cornered! (`mojo` 39071, 39017, "This
 > effect cannot be canceled"), Frequent Flyers and its siblings (`sm` 27108–27110, 27112, "In expert mode, … cannot be
 > canceled"), Dark Scepter (`tt` 55036, "Treacheries cannot be canceled"). **DSL:** `uncancellable(whenRevealed(…))`,
-> `cannotBeCanceled(query, when?)`. See §4 Q14.
+> `cannotBeCanceled(query, when?)`. See §4 Q16.
 
 ### 3.15 "After the last X counter is removed from here"
 
@@ -964,7 +964,7 @@ set-aside modular encounter sets remaining"); the Campaign Challenge faces (`gmw
 >   who readies and what readies it; when a cost applies it logs `readyCostAsked` and pushes an effects frame that asks
 >   the readier with the existing `spendResources` prompt, then readies the card only if it was paid
 >   (`EffectSpec ready.readyCostPaid`, set by that frame only, so the ready does not ask twice).
-> - **Who is asked:** the controller at the end-of-phase ready, the resolving player for a card effect (§4 Q16).
+> - **Who is asked:** the controller at the end-of-phase ready, the resolving player for a card effect (§4 Q18).
 > - **`RuleSpec cannotReady.bySource: "playerCard"`**: "cannot be readied by player card effects" stops a ready whose
 >   source is a player card (`isPlayerCard`); `cardReadying` gains `sourceInstanceId`, and `readyCard` /
 >   `cannotReady` take the source.
@@ -1022,6 +1022,34 @@ the amount.
 
 ### 3.21 An enemy attack against a chosen character
 
+> **Status: landed (2026-09-24),** tested in `packages/engine/src/attack-chosen-character.test.ts` (3 tests: Crossfire's
+> attack on P1 becomes an attack on P2's 1-hit-point ally, P2 is the one asked to defend, the ally is defeated, P1 is
+> untouched and "when he attacks" is heard once; with no ally the hero with the fewest remaining hit points is attacked;
+> Speed Demon's attack on the attacking ally resolves before the ally's attack; replay deep-equal). DSL:
+> `packages/cards/src/dsl/wave4-hero-primitives.test.ts` (2 tests under §3.21).
+>
+> Wave 1 §3.6 had `enemyAttack.targetCharacter` (a new attack against a character, Clash of the Titans), which
+> Speed Demon needs and nothing more; Crossfire's "When Crossfire attacks, he attacks …" is the same attack given a
+> different target, which a replacement would get wrong (a new attack would trigger "when Crossfire attacks" again).
+>
+> - **`EffectSpec retargetAttack { character }`**: the innermost enemy attack, before any defender is declared, is
+>   against that character; its controller becomes the attacked and target player (RRG 1.8 "Attack (Enemy
+>   Activation)", p. 8: an attack against an ally a player controls still attacks that player), so that player
+>   declares defenders. Updates the event and, if it has started, the procedure; logs `attackRetargeted`.
+> - **DSL:** `retargetAttack(character)`; `enemyAttack(enemies, { targetCharacter })`, the wave 1 field that packs
+>   had wrapped locally (`enemyAttackCharacter` in `wave1/hlk`, `wave1/gob`).
+> - **Speed Demon** is `forcedInterrupt({ on: "attack", selfIs: "target" }, enemyAttack(self, { targetCharacter:
+eventSource }))`: pushed from the interrupt window, it resolves before the player's attack ("Resolve Speed Demon's
+>   attack first"). What happens to that attack if Speed Demon's defeats its attacker is §4 Q19.
+> - **Crossfire** ties on "fewest remaining hit points" break with `bindTargets` + `chooseTarget` (first player), as any
+>   superlative does.
+>
+> **Composes with:** Leaping Kick (`aos` 50096, "Batroc attacks the ally with the most remaining hit points … If there
+> were no allies in play, Batroc attacks you"), Trample (`next_evol` 40128), Mad Genius (`gob` 02013) with
+> `targetCharacter`; Cottonmouth (`luke_cage` 62029, "he attacks the same character 2 additional times") with
+> `targetCharacter: eventTarget` and `afterCurrentActivation`; Make Me Angry / Energy Channel (`synthezoid`, `cw`
+> leader modes) the same way.
+
 Speed Demon: "When a character attacks Speed Demon, Speed Demon attacks that character. (Resolve Speed Demon's attack
 first.)"; Crossfire: "When Crossfire attacks, he attacks the friendly character with the fewest remaining hit points."
 **Plan:** check wave 1 §3.6's redirection first.
@@ -1049,7 +1077,7 @@ first.)"; Crossfire: "When Crossfire attacks, he attacks the friendly character 
 > - **`TargetQuery.extensionOf: PlayerRef`** (`isIdentityExtension`, `select.ts`): the player's identity, events they
 >   played, resources they spent, upgrades they control unless attached to another friendly character (RRG 1.8 "You,
 >   Your", p. 49). "If Valkyrie defeated that enemy" is `refMatches(eventSource, { extensionOf: you }, anywhere)`, so an
->   event she played counts as her and an ally does not (§4 Q12). Exclusion code `notIdentityExtension`.
+>   event she played counts as her and an ally does not (§4 Q14). Exclusion code `notIdentityExtension`.
 > - **`characterDefeated.attachedInstanceIds`** (stamped by `eventFrame` when the defeat goes on the stack, before any
 >   interrupt) and **`EventPattern.targetHadAttachment`**: "After the enemy with Death-Glow is defeated" still sees
 >   Death-Glow after its own forced interrupt set it aside and the enemy left play.
@@ -1064,7 +1092,7 @@ first.)"; Crossfire: "When Crossfire attacks, he attacks the friendly character 
 >   defender only makes the defense basic, not a second `defended`. It does not announce `basicPowerUsed`.
 > - **`modifyAttack.defenseUsesAtk`**: "use its ATK instead of its DEF for this attack"; `plannedAttackDamage` (the
 >   one damage formula the resolver and the defend preview share) reduces by ATK. "When your hero defends" is the
->   basic defense's interruptible `basicPowerUsing` (§4 Q13).
+>   basic defense's interruptible `basicPowerUsing` (§4 Q15).
 > - **`EffectSpec resolveAttackAgainst { targets }`** and `attack.additionalResolution`: Thor's "resolve this attack
 >   against each minion engaged with that player" pushes the same attack (attacker, damage, keywords, source) against
 >   every other target it can attack; the attacker's own "when it attacks" does not trigger again, and there is one
@@ -1201,6 +1229,11 @@ Each is implemented the way stated, or not at all, and named here rather than de
     Implemented as: the player readying pays — the controller at the end-of-phase ready, the resolving player for a
     card effect — and `player` scopes the rule to the engaged player, so another player's Cosmic Alliance readies the
     engaged player's hero without the cost. "A hero" is an identity in hero form; an alter-ego readies untaxed.
+19. **Does a player's attack still resolve if its attacker is defeated first?** (§3.21) Speed Demon's "(Resolve Speed
+    Demon's attack first.)" can defeat the attacking ally before its own attack resolves. RRG 1.8 "Attack (Player
+    Ability Type)" (p. 10) does not say; for an enemy, "Activation" (p. 6) ends an attack whose attacker leaves play.
+    Implemented as (unchanged engine behavior): the attack still resolves, for the attacker's ATK as it last was.
+    Proposed alternative: end a player attack whose attacker has left play, mirroring the enemy rule. Needs a ruling.
 
 ## 5. What this asks of the other agents
 

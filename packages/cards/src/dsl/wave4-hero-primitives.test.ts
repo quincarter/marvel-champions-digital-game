@@ -38,6 +38,8 @@ import {
   ready,
   resolveAttackAgainst,
   zone,
+  enemyAttack,
+  retargetAttack,
   shuffleInSetAsideModularSet,
   addAccelerationToken,
   endGame,
@@ -62,6 +64,8 @@ import {
   setAsideModularSetCount,
   valueEquals,
   varOf,
+  remainingHpOf,
+  superlative,
 } from "./values.js";
 
 const valid = (definition: Parameters<typeof validateDefinition>[0]) =>
@@ -242,5 +246,28 @@ describe("§3.20 a trigger on damage a card prevented", () => {
         ifThen(valueEquals(varOf("prevented.amount"), 2), moveCards(cards(self), "discard")),
       ),
     );
+  });
+});
+
+describe("§3.21 an enemy attack against a chosen character", () => {
+  it("Crossfire (24026): 'he attacks the friendly character with the fewest remaining hit points'", () => {
+    const fewest = superlative("lowest", each(query(["identity", "ally"])), remainingHpOf(chosen("candidate")));
+    expect(retargetAttack(fewest)).toEqual({ kind: "retargetAttack", character: fewest });
+    valid(
+      forcedInterrupt(
+        { on: "enemyAttack", selfIs: "source" },
+        retargetAttack(fewest),
+        modifyAttack({ keywords: ["overkill", "ranged"] }),
+      ),
+    );
+  });
+
+  it("Speed Demon (24046): 'When a character attacks Speed Demon, Speed Demon attacks that character'", () => {
+    const answer = forcedInterrupt(
+      { on: "attack", selfIs: "target" },
+      enemyAttack(self, { targetCharacter: eventSource }),
+    );
+    expect(answer.effects).toEqual([{ kind: "enemyAttack", enemies: self, targetCharacter: eventSource }]);
+    valid(answer);
   });
 });

@@ -933,6 +933,16 @@ export type EffectSpec =
    */
   | { readonly kind: "resolveAttackAgainst"; readonly targets: TargetRef }
   /**
+   * "When Crossfire attacks, he attacks the friendly character with the fewest remaining hit points" (Crossfire, `hood`
+   * 24026; docs/phase7-wave4.md §3.21): the enemy attack in progress (the innermost `enemyAttack`, from an interrupt to
+   * it) is against the first character `character` names instead, before any defender is declared. That character's
+   * controller becomes the attacked and target player (RRG 1.8 "Attack (Enemy Activation)", p. 8: an attack against an
+   * ally a player controls still attacks that player), so defenders are declared from their side. It is the same
+   * attack, so "when it attacks" does not trigger again. Nothing happens once a defender is declared, or with no
+   * character in play. A new attack against a character is `enemyAttack.targetCharacter` (Speed Demon).
+   */
+  | { readonly kind: "retargetAttack"; readonly character: TargetRef }
+  /**
    * "Choose 1 set-aside modular encounter set at random, then shuffle it into the encounter deck" (Making Connections 1A,
    * The Hood II/III, Promised Prosperity, Crime State, Field Recruitment; docs/phase7-wave4.md §3.18): one of
    * `GameState.setAsideModularSets`, chosen with the game's seeded RNG, has every card still in the set-aside area
