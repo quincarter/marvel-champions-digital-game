@@ -87,7 +87,13 @@ async function playIssueWith(
 const playIssue = (service: CampaignService, record: CampaignRecord, outcome: "win" | "loss") =>
   playIssueWith(service, record, outcome, autoAnswer);
 
-export type GmwRunStop = "fresh" | "afterIssue1" | "afterIssue2" | "afterIssue2HeadhuntersDown" | "expertAfterIssue1";
+export type GmwRunStop =
+  | "fresh"
+  | "afterIssue1"
+  | "afterIssue2"
+  | "afterIssue2HeadhuntersDown"
+  | "expertAfterIssue1"
+  | "finished";
 
 /**
  * The Market's own choices default to "decline" under `autoAnswer` (every `choose` slot in
@@ -161,6 +167,8 @@ function withHeadhunterDefeated(state: GameState): GameState {
  * (`"afterIssue2"` alone always shows 0 marks — a substituted win never puts anything in a real victory display).
  * `"expertAfterIssue1"` starts the run in expert mode: `packages/client/src/view/campaign-deck-edit-model.ts`'s
  * `frozenNonCampaignCardsOf` needs a history entry for scenario 1, which only exists once it has been played.
+ * `"finished"` plays through all five issues to a win, the way `seedDesignRun`'s own `"finished"` stop does, so the
+ * GMW Finale (reached only from a `status: "won"` run) has something to open.
  */
 export async function seedGmwRun(
   service: CampaignService,
@@ -197,6 +205,8 @@ export async function seedGmwRun(
     gmwAutoAnswer,
     headhuntersDown ? withHeadhunterDefeated : undefined,
   );
+  if (stop === "afterIssue2" || stop === "afterIssue2HeadhuntersDown") return record;
+  while (record.status === "active") record = await playIssueWith(service, record, "win", gmwAutoAnswer);
   return record;
 }
 
