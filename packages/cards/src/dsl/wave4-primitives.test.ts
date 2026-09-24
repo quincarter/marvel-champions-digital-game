@@ -18,6 +18,7 @@ import {
   rule,
   setup,
   stateCheck,
+  whenDefeated,
   whenRevealed,
 } from "./abilities.js";
 import {
@@ -26,6 +27,7 @@ import {
   attackAnEnemy,
   changeAdditionalForm,
   damageAnEnemy,
+  detach,
   chooseTarget,
   draw,
   endGame,
@@ -42,6 +44,7 @@ import {
   eventTarget,
   host,
   inAdditionalForm,
+  named,
   not,
   printedForm,
   query,
@@ -131,5 +134,17 @@ describe("§3.7 Loki", () => {
       ),
     );
     valid(whenRevealed(swapVillain(), enemyScheme(theVillain)));
+  });
+});
+
+describe("§3.8 an encounter ally attached to the main scheme", () => {
+  it("Hall of Nastrond and Odin (21141, 21139a)", () => {
+    valid(whenDefeated(detach(named("Odin"))));
+    valid(
+      constant(
+        rule({ kind: "cannotHaveAttachments", target: { self: true } }),
+        rule({ kind: "leavingPlayLoses", target: { self: true } }),
+      ),
+    );
   });
 });

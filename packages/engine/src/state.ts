@@ -358,6 +358,11 @@ export type GameOutcome =
   | { readonly result: "loss"; readonly reason: "mainSchemeCompleted" }
   | { readonly result: "loss"; readonly reason: "allPlayersDefeated" }
   /**
+   * A card's own rule lost the game: "If Odin leaves play, the players lose the game." (`RuleSpec leavingPlayLoses`,
+   * docs/phase7-wave4.md §3.8).
+   */
+  | { readonly result: "loss"; readonly reason: "cardAbility" }
+  /**
    * A player gave up (the `concede` command). A third result kind rather than a widened `loss`: the RRG has no
    * concede rule, so calling a concession a defeat would import a rules meaning the game does not have — and would
    * quietly turn it into a loss in a win/loss record. Readers that only distinguish "win" from "not win" are

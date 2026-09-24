@@ -627,7 +627,27 @@ export type RuleSpec =
    * scheme (`host`, on the attachment). Applied between frames: the villain whose title the scheme's `villainOf` names is
    * made active (`activeVillainChanged { reason: "focusedScheme" }`). docs/phase7-wave4.md §3.2.
    */
-  | { readonly kind: "focusedMainScheme"; readonly scheme: TargetRef; readonly while?: Predicate };
+  | { readonly kind: "focusedMainScheme"; readonly scheme: TargetRef; readonly while?: Predicate }
+  /**
+   * "Odin cannot have cards attached" / "Odin cannot have encounter cards attached" (Odin, `mts` 21139a/b; with Odin
+   * attached to the main scheme, ruling Aug 3, 2026 (4) #1: "Odin cannot have attachments while attached to the main
+   * scheme"); "Robert Kelly … cannot have upgrades attached" (Find the Senator, `mut_gen` 32065a). A matching card is no
+   * legal host for an attachment or upgrade from `from` (absent: any card; `"encounter"`: an encounter card; `"upgrade"`:
+   * a player upgrade), and an `attach` effect leaves such a card where it was. docs/phase7-wave4.md §3.8.
+   */
+  | {
+      readonly kind: "cannotHaveAttachments";
+      readonly target: TargetQuery;
+      readonly from?: "encounter" | "upgrade";
+      readonly while?: Predicate;
+    }
+  /**
+   * "If Odin leaves play, the players lose the game." (Odin, Captive side, `mts` 21139a); "If Robert Kelly leaves play …"
+   * (Stalked by Sabretooth, `mut_gen` 32063); "If Hope Summers leaves play …" (`next_evol` 40130). The moment a matching
+   * card leaves play the game ends as a loss. Moving between play areas or being detached is not leaving play.
+   * docs/phase7-wave4.md §3.8.
+   */
+  | { readonly kind: "leavingPlayLoses"; readonly target: TargetQuery; readonly while?: Predicate };
 
 /** Where a cost may pick a card from (outside play). */
 export interface CardZoneQuery {

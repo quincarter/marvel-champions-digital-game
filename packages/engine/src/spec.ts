@@ -1658,6 +1658,13 @@ export type EffectSpec =
    */
   | { readonly kind: "swapVillain"; readonly villain: TargetRef }
   /**
+   * "The first player detaches Odin from the main scheme and takes control of him" (Hall of Nastrond, `mts` 21141); "The
+   * first player detaches Robert Kelly from this scheme and takes control of him" (Find the Senator, `mut_gen` 32065a).
+   * Each attached card `card` names moves into `controller`'s play area under their control. It stays in play, so nothing
+   * enters or leaves play. docs/phase7-wave4.md §3.8.
+   */
+  | { readonly kind: "detach"; readonly card: TargetRef; readonly controller: PlayerRef }
+  /**
    * "When Loki is defeated, advance to a random set-aside Loki villain" (All Hail King Loki 1B, `mts` 21165b; MC21 p. 24:
    * "When a new version of Loki enters play, transfer all attachments, status cards, counters, and tokens that were on the
    * previous version of Loki to the one that enters play"), from an interrupt to the villain's defeat. The defeated card

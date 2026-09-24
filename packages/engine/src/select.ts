@@ -107,6 +107,10 @@ export function categoriesOf(state: GameState, id: InstanceId): readonly TargetC
   }
   switch (card.type) {
     case "ally":
+      // An ally attached to a card and controlled by no player — Odin, captive on the main scheme (docs/phase7-wave4.md
+      // §3.8): ruling Jun 25, 2026 (4) #5, "Characters not under player control are not friendly characters". It is in
+      // play but no character anything can target by category until a player takes control of it.
+      if (instance.controllerId === null && instance.attachedTo !== null) return [];
       return ["ally", "character"];
     case "minion":
       return ["minion", "enemy", "character"];

@@ -2,7 +2,9 @@ import type { EngineDeps } from "./abilities.js";
 import type { InstanceId, PlayerId } from "./ids.js";
 import { hasKeyword } from "./keywords.js";
 import {
+  cardOf,
   currentName,
+  getInstance,
   mainSchemeFor,
   mainSchemeStageOf,
   minionsEngagedWith,
@@ -64,6 +66,33 @@ export const threatCannotBeRemoved = (
 /** "While Baron Zemo is engaged with you, you cannot thwart." */
 export const cannotThwart = (state: GameState, deps: EngineDeps, playerId: PlayerId): boolean =>
   activeRules(state, deps, "cannotThwart").some((active) => rulePlayers(state, active.rule, active).includes(playerId));
+
+/** "If Odin leaves play, the players lose the game." (`leavingPlayLoses`, docs/phase7-wave4.md §3.8), read before it goes. */
+export const leavingPlayLoses = (state: GameState, deps: EngineDeps, id: InstanceId): boolean =>
+  activeRules(state, deps, "leavingPlayLoses").some(({ rule, context }) =>
+    matchesQuery(state, id, rule.target, context),
+  );
+
+/**
+ * Whether `hostId` may take `attachmentId` as an attachment (`cannotHaveAttachments`, docs/phase7-wave4.md §3.8). An
+ * attachment is an encounter card when no player owns it, an upgrade when it is a player's upgrade.
+ */
+export function canHaveAttached(
+  state: GameState,
+  deps: EngineDeps,
+  hostId: InstanceId,
+  attachmentId: InstanceId | null,
+): boolean {
+  const attaching = attachmentId !== null ? getInstance(state, attachmentId) : undefined;
+  const card = attachmentId !== null ? cardOf(state, attachmentId) : undefined;
+  const encounter = attaching !== undefined && attaching.ownerId === null;
+  const upgrade = card?.type === "upgrade";
+  return !activeRules(state, deps, "cannotHaveAttachments").some(
+    ({ rule, context }) =>
+      (rule.from === undefined || (rule.from === "encounter" ? encounter : upgrade)) &&
+      matchesQuery(state, hostId, rule.target, context),
+  );
+}
 
 /**
  * The main scheme a villain's scheme activation places its threat on when a main scheme in play belongs to it

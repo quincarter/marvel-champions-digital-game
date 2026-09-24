@@ -355,7 +355,7 @@ stays data only.**
 | 3.5  | Damage on a card that is not a character (Avengers Tower)                | Tower Defense                              | landed      |
 | 3.6  | A modular set's own deck (the Infinity Stone deck)                       | Thanos, Loki, any scenario                 | landed      |
 | 3.7  | Loki: random start, swap, a villain stage's Victory X, the victory count | Loki; God of Lies (`tt`)                   | landed      |
-| 3.8  | An encounter ally attached to the main scheme (Odin)                     | Hela                                       | not started |
+| 3.8  | An encounter ally attached to the main scheme (Odin)                     | Hela                                       | landed      |
 | 3.9  | An ally treated as a minion                                              | Fallen Warrior, Beguiled; 5 other packs    | not started |
 | 3.10 | Flipping a card into a separately emitted face of another type           | MC21 campaign                              | not started |
 | 3.11 | Timing points when a deck runs out                                       | Soul World, Universal Church, Thanos       | landed      |
@@ -583,6 +583,30 @@ Lies, Shatter the Illusion (`tt` God of Lies); Thunderbolt Backup's "swapping it
 (`aos` 50131b) is a different swap (both in play) and is not claimed.
 
 ### 3.8 An encounter ally attached to the main scheme (Odin)
+
+> **Status: landed (2026-09-24),** tested in `packages/engine/src/captive-ally.test.ts` (2 tests: attached, Odin is in
+> play but reached by no category and takes no attachment; detached, the first player controls him in play, and
+> defeated he is removed from the game and the players lose, replay deep-equal). DSL: `wave4-primitives.test.ts`.
+> **What landed:**
+>
+> - **An ally attached to a card and controlled by no player has no categories** (`categoriesOf`): ruling Jun 25, 2026
+>   (4) #5, "Characters not under player control are not friendly characters". It is in play (`cardsInPlay`, by name).
+> - **`EffectSpec detach { card, controller }`**: the attached card moves into the controller's play area under their
+>   control, staying in play (logs `cardDetached`, `controllerChanged { reason: "effect" }`).
+> - **`RuleSpec cannotHaveAttachments { target, from? }`**: no legal host for an attachment or upgrade from `from` (any,
+>   `"encounter"` for the King side's "encounter cards", `"upgrade"` for Robert Kelly), read by
+>   `attachmentHostCandidates` (so both encounter "attach to" and playing an upgrade) and by the `attach` effect.
+> - **`RuleSpec leavingPlayLoses { target }`**: `leavePlay` ends the game as **`GameOutcome { result: "loss", reason:
+"cardAbility" }`** (new) when a matching card leaves play.
+> - "When Odin leaves play, remove him from the game" needs nothing: Odin is double-sided, and RRG 1.8 "Double-Sided
+>   Card" (p. 17) already sends him out of the game (`leavePlay`), which also stops Med Lab (ruling Dec 17, 2025 (4) #2).
+>   `leavePlay` now counts a card with `otherFaceId` as double-sided too, so the campaign's Cosmo is removed the same way.
+> - The rest composes: "The first player gains control of Odin" is `controlledByFirstPlayer` with `while: not(isAttached
+self)`; "does not count against ally limit" is `excludedFromAllyLimit`; flipping to his King side is `flipCard`.
+>
+> **Composes with:** Robert Kelly (`mut_gen` 32063, 32065a: detached, taken control of, "cannot have upgrades attached",
+> "If Robert Kelly leaves play, the players lose"), Hope Summers (`next_evol` 40130). **Not built:** a general "when X
+> leaves play" interrupt window (Abduct Superhumans `aos` 50081, Spider-Man `sm` 27017); no `mts` card needs one.
 
 Odin's Torment 1A attaches Odin, captive side up, to the main scheme; Hall of Nastrond: "The first player detaches Odin
 from the main scheme and takes control of him"; Odin: "While Odin is not attached to the main scheme, he gains: 'The
