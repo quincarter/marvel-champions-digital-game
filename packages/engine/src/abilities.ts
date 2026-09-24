@@ -302,7 +302,35 @@ export type RuleSpec =
   /** "While Baron Zemo is engaged with you, you cannot thwart." `player` is resolved with "you" as the rule card's speaker (`speakerOf`). */
   | { readonly kind: "cannotThwart"; readonly player: PlayerRef; readonly while?: Predicate }
   /** "… cannot ready" (All Tied Up). */
-  | { readonly kind: "cannotReady"; readonly target: TargetQuery; readonly while?: Predicate }
+  /**
+   * "… cannot ready" (All Tied Up). `bySource: "playerCard"`: "Heroes and allies cannot be readied by player card
+   * effects" (Unnatural Storm, `mts` 21159; docs/phase7-wave4.md §3.19): only a ready caused by a player card's ability
+   * is stopped; the end-of-phase ready and encounter card effects still ready them.
+   */
+  | {
+      readonly kind: "cannotReady";
+      readonly target: TargetQuery;
+      readonly while?: Predicate;
+      readonly bySource?: "playerCard";
+    }
+  /**
+   * "As an additional cost for the engaged player to ready a hero or ally they control, the player must spend a
+   * [mental] resource" (Mister Fear, `hood` 24027); "As an additional cost for a player to ready a support, that player
+   * must spend 1 resource of any type" (Undermine Support, `aos` 50174). docs/phase7-wave4.md §3.19.
+   *
+   * RRG 1.8 "Ready" (p. 36): "If there is an additional cost for a player to ready a card, that player can choose not to
+   * pay that cost. If they do not pay the cost, the card does not ready." Every ready of a card `target` matches asks
+   * the player readying it (the controller at the end-of-phase ready; the resolving player for a card effect) to pay
+   * `resources`; `player` narrows whose readies are taxed ("the engaged player"). Several rules add up.
+   */
+  | {
+      readonly kind: "readyCost";
+      readonly target: TargetQuery;
+      /** A number is that many resources of any type (Undermine Support's "1 resource of any type"). */
+      readonly resources: number | ResourceRequirement;
+      readonly player?: PlayerRef;
+      readonly while?: Predicate;
+    }
   /**
    * "You cannot change form" (All Tied Up): the hero/alter-ego change. With `formType`, "You cannot change energy forms"
    * (Loss of Control, `mts` 21026): the additional form of that type only (docs/phase7-wave4.md §3.1). Each reading

@@ -382,6 +382,31 @@ export const gainsTraitsOf = (
 });
 export const rule = (r: RuleSpec): ConstantPart => ({ rules: [r] });
 /**
+ * "As an additional cost for the engaged player to ready a hero or ally they control, the player must spend a [mental]
+ * resource" (Mister Fear, `hood` 24027) → `constant(additionalCostToReady(query(["hero", "ally"], { controlledBy:
+ * engagedPlayerOf(self) }), { mental: 1 }, { player: engagedPlayerOf(self) }))`; "… for a player to ready a support, that
+ * player must spend 1 resource of any type" (Undermine Support, `aos` 50174) → `additionalCostToReady(query("support"),
+ * 1)`. The readier may decline, and then the card does not ready (RRG 1.8 "Ready", p. 36). docs/phase7-wave4.md §3.19.
+ */
+export const additionalCostToReady = (
+  target: TargetQuery,
+  resources: number | ResourceRequirement,
+  opts: { readonly player?: PlayerRef; readonly while?: Predicate } = {},
+): ConstantPart =>
+  rule({
+    kind: "readyCost",
+    target,
+    resources,
+    ...(opts.player ? { player: opts.player } : {}),
+    ...(opts.while ? { while: opts.while } : {}),
+  });
+/**
+ * "Heroes and allies cannot be readied by player card effects" (Unnatural Storm, `mts` 21159;
+ * docs/phase7-wave4.md §3.19): the end-of-phase ready and encounter card effects still ready them.
+ */
+export const cannotBeReadiedByPlayerCards = (target: TargetQuery): ConstantPart =>
+  rule({ kind: "cannotReady", target, bySource: "playerCard" });
+/**
  * Focused Defense (Tower Defense, `mts` 21101): "The villain who matches the attached scheme is the active villain." Its
  * host is also the scheme minions scheme onto and player constants mean by "the main scheme" (MC21 p. 10; errata RRG 1.8
  * p. 67). `constant(focusedMainScheme())`. docs/phase7-wave4.md §3.2.

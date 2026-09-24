@@ -127,6 +127,8 @@ export type GameEvent =
   | { readonly type: "cardDetached"; readonly instanceId: InstanceId; readonly from: InstanceId }
   /** A card in play turned facedown (`turnFacedown`) or faceup (`changeAdditionalForm`), docs/phase7-wave4.md §3.1. */
   | { readonly type: "cardTurnedFacedown"; readonly instanceId: InstanceId }
+  /** A card would ready and a rule asks its readier for an additional cost first (`RuleSpec readyCost`; §3.19). */
+  | { readonly type: "readyCostAsked"; readonly instanceId: InstanceId; readonly playerId: PlayerId }
   /** A set-aside modular set was chosen at random and shuffled into the encounter deck (docs/phase7-wave4.md §3.18). */
   | {
       readonly type: "setAsideModularSetShuffledIn";
