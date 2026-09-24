@@ -8,6 +8,8 @@ import { trait } from "@mc/content";
 import { describe, expect, it } from "vitest";
 import {
   action,
+  additionalCostToReady,
+  cannotBeReadiedByPlayerCards,
   constant,
   exhaustEachCost,
   forcedInterrupt,
@@ -54,6 +56,7 @@ import {
   you,
   YOUR_IDENTITY,
   yourIdentity,
+  engagedPlayerOf,
   setAsideModularSetCount,
   valueEquals,
 } from "./values.js";
@@ -186,5 +189,30 @@ describe("§3.18 set-aside modular sets", () => {
 
   it("Wheel of Genres (39026a): 'if there are no set-aside modular encounter sets remaining, the players lose'", () => {
     valid(whenRevealed(ifThen(valueEquals(setAsideModularSetCount, 0), endGame("loss"), flipCard(self))));
+  });
+});
+
+describe("§3.19 readying as a costed act; cannot be readied by player card effects", () => {
+  it("Mister Fear (24027) and Undermine Support (50174): an additional cost to ready", () => {
+    const fear = constant(
+      additionalCostToReady(
+        query(["hero", "ally"], { controlledBy: engagedPlayerOf(self) }),
+        { mental: 1 },
+        {
+          player: engagedPlayerOf(self),
+        },
+      ),
+    );
+    expect(fear.trigger).toMatchObject({
+      rules: [{ kind: "readyCost", resources: { mental: 1 }, player: { kind: "engagedWith", of: { kind: "self" } } }],
+    });
+    valid(fear);
+    valid(constant(additionalCostToReady(query("support"), 1)));
+  });
+
+  it("Unnatural Storm (21159): heroes and allies cannot be readied by player card effects", () => {
+    const storm = constant(cannotBeReadiedByPlayerCards(query(["hero", "ally"])));
+    expect(storm.trigger).toMatchObject({ rules: [{ kind: "cannotReady", bySource: "playerCard" }] });
+    valid(storm);
   });
 });

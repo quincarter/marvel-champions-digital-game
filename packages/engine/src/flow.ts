@@ -12,7 +12,7 @@ import { drawCards, drawUpTo, endLastingEffect, expireLastingEffects, expirePlay
 import { readyOrAnnounce } from "./resolve/event.js";
 import type { LastingEffect } from "./lasting.js";
 import { EngineInvariantError } from "./errors.js";
-import type { PlayerId } from "./ids.js";
+import type { InstanceId, PlayerId } from "./ids.js";
 import { getPlayer, handSize, mustCardOf, mustPlayer, playerOrder, undefeatedVillains } from "./query.js";
 import {
   announce,
@@ -94,7 +94,7 @@ function executeStep(ctx: Ctx): void {
     case "endPhaseDraw":
       return executeEndPhaseDraw(ctx);
     case "endPhaseReady":
-      return executeEndPhaseReady(ctx);
+      return executeEndPhaseReady(ctx, step.readied === true);
     // Villain phase steps one to five live in villain/phase.ts.
     case "placeThreat":
       return executePlaceThreat(ctx);
@@ -328,18 +328,51 @@ function executeEndPhaseDraw(ctx: Ctx): void {
   setStep(ctx, { phase: "player", kind: "endPhaseReady" });
 }
 
-function executeEndPhaseReady(ctx: Ctx): void {
+function executeEndPhaseReady(ctx: Ctx, readied: boolean): void {
+  if (!readied && readyEveryCard(ctx)) return;
+  finishPlayerPhase(ctx);
+}
+
+/**
+ * RRG 1.8 "End of Player Phase" (p. 18) step 4: every card readies. Returns true when that put something on the stack
+ * (an additional cost to ready, `RuleSpec readyCost`; a "would ready" interrupt), after marking the step `readied`, so
+ * step 5 runs only once it has resolved (docs/phase7-wave4.md §3.19). With nothing pushed, step 5 follows at once, as
+ * it always has.
+ */
+function readyEveryCard(ctx: Ctx): boolean {
+  const depth = ctx.state.stack.length;
+  // Each card once: a ready that waits on a cost is still exhausted when a later list names the same card again.
+  const readied = new Set<InstanceId>();
+  const ready = (id: InstanceId): void => {
+    if (readied.has(id)) return;
+    readied.add(id);
+    readyOrAnnounce(ctx, id);
+  };
   for (const player of playerOrder(ctx.state)) {
-    readyOrAnnounce(ctx, player.identity.instanceId);
-    for (const id of mustPlayer(ctx.state, player.playerId).playArea) readyOrAnnounce(ctx, id);
+    ready(player.identity.instanceId);
+    for (const id of mustPlayer(ctx.state, player.playerId).playArea) ready(id);
     // Every card the player controls readies, not just the play-area list: an upgrade attached to an identity
     // (Focused Rage, Web-Shooter) or to another card lives in its host's `attachments` instead.
     for (const id of cardsInPlay(ctx.state)) {
-      if (controllerOf(ctx.state, id) === player.playerId) readyOrAnnounce(ctx, id);
+      if (controllerOf(ctx.state, id) === player.playerId) ready(id);
     }
   }
-  for (const id of ctx.state.villainArea) readyOrAnnounce(ctx, id);
-  for (const villain of undefeatedVillains(ctx.state)) readyOrAnnounce(ctx, villain.instanceId);
+  for (const id of ctx.state.villainArea) ready(id);
+  for (const villain of undefeatedVillains(ctx.state)) ready(villain.instanceId);
+  const pushed = ctx.state.stack.length - depth;
+  if (pushed === 0) return false;
+  // Each push went on top of the last, so the last card readied would be asked first; put them back in ready order
+  // (player order, identity first), which is the order the table readies in.
+  ctx.state = {
+    ...ctx.state,
+    stack: [...ctx.state.stack.slice(0, pushed).reverse(), ...ctx.state.stack.slice(pushed)],
+  };
+  setStep(ctx, { phase: "player", kind: "endPhaseReady", readied: true });
+  return true;
+}
+
+/** RRG 1.8 "End of Player Phase" (p. 18) step 5 and the move to the villain phase. */
+function finishPlayerPhase(ctx: Ctx): void {
   setStep(ctx, { phase: "villain", kind: "placeThreat" });
   clearAbilityUses(ctx, "phase");
   ctx.state = { ...ctx.state, playedThisPhase: {} };

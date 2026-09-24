@@ -1433,7 +1433,11 @@ export type EffectSpec =
       readonly then: "discard" | "returnToTop";
     }
   | { readonly kind: "exhaust"; readonly target: TargetRef }
-  | { readonly kind: "ready"; readonly target: TargetRef }
+  /**
+   * "Ready X". `readyCostPaid` is set only by the engine's own frame for an additional cost to ready (`RuleSpec
+   * readyCost`, docs/phase7-wave4.md §3.19): the cost was just paid, so this ready does not ask again. Scripts omit it.
+   */
+  | { readonly kind: "ready"; readonly target: TargetRef; readonly readyCostPaid?: true }
   | { readonly kind: "giveStatus"; readonly target: TargetRef; readonly status: StatusName }
   | { readonly kind: "removeStatus"; readonly target: TargetRef; readonly status: StatusName }
   | {

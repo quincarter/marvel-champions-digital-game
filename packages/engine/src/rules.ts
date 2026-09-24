@@ -17,11 +17,13 @@ import {
   categoriesOf,
   focusedMainSchemeId,
   contextArea,
+  isPlayerCard,
   matchesQuery,
   resolveRef,
   rulePlayers,
   type EffectContext,
 } from "./select.js";
+import { combineRequirements, type ResolvedRequirement } from "./resources.js";
 import type { AttackKeyword, CardDestination } from "./spec.js";
 import type { Form, GameState } from "./state.js";
 
@@ -143,8 +145,41 @@ export const cannotChangeForm = (state: GameState, deps: EngineDeps, playerId: P
   );
 
 /** "… cannot ready." */
-export const cannotReady = (state: GameState, deps: EngineDeps, id: InstanceId): boolean =>
-  activeRules(state, deps, "cannotReady").some(({ rule, context }) => matchesQuery(state, id, rule.target, context));
+/**
+ * "… cannot ready" rules that stop this ready. `sourceInstanceId` is the card whose ability readies it (null for the
+ * end-of-phase ready or when unknown): a `bySource: "playerCard"` rule stops only a ready a player card caused.
+ */
+export const cannotReady = (
+  state: GameState,
+  deps: EngineDeps,
+  id: InstanceId,
+  sourceInstanceId: InstanceId | null = null,
+): boolean =>
+  activeRules(state, deps, "cannotReady").some(
+    ({ rule, context }) =>
+      (rule.bySource !== "playerCard" || isPlayerCard(state, sourceInstanceId)) &&
+      matchesQuery(state, id, rule.target, context),
+  );
+
+/**
+ * The resources `readierId` must spend to ready this card (`RuleSpec readyCost`, docs/phase7-wave4.md §3.19), every
+ * applicable rule added together, or null when none applies.
+ */
+export function readyCostFor(
+  state: GameState,
+  deps: EngineDeps,
+  id: InstanceId,
+  readierId: PlayerId,
+): ResolvedRequirement | null {
+  let total: ResolvedRequirement | null = null;
+  for (const active of activeRules(state, deps, "readyCost")) {
+    const { rule, context } = active;
+    if (!matchesQuery(state, id, rule.target, context)) continue;
+    if (rule.player && !rulePlayers(state, { player: rule.player }, active).includes(readierId)) continue;
+    total = combineRequirements(total ?? 0, rule.resources);
+  }
+  return total;
+}
 
 /** How many additional times this player resolves each When Revealed ability they reveal (Media Coverage). */
 export const whenRevealedRepeats = (state: GameState, deps: EngineDeps, playerId: PlayerId): number =>

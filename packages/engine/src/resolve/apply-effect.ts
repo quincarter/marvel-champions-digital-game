@@ -587,7 +587,13 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       for (const id of targets(effect.target)) exhaustCard(ctx, id);
       return;
     case "ready":
-      for (const id of targets(effect.target)) readyOrAnnounce(ctx, id);
+      for (const id of targets(effect.target)) {
+        readyOrAnnounce(ctx, id, {
+          readierId: frame.controllerId,
+          sourceInstanceId: frame.selfInstanceId,
+          costPaid: effect.readyCostPaid === true,
+        });
+      }
       return;
     case "giveStatus":
       for (const id of targets(effect.target)) giveStatus(ctx, id, effect.status);

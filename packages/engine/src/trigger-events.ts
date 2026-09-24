@@ -389,7 +389,15 @@ export type TriggerEventBody =
    * A card is about to ready (docs/phase7-wave2.md §3.11): "When attached character would ready, discard this card
    * instead" (Frozen in Time) replaces it. Pushed only when an ability could react; otherwise the card readies at once.
    */
-  | { readonly kind: "cardReadying"; readonly instanceId: InstanceId }
+  | {
+      readonly kind: "cardReadying";
+      readonly instanceId: InstanceId;
+      /**
+       * The card whose ability readies it, for "cannot be readied by player card effects" (Unnatural Storm;
+       * docs/phase7-wave4.md §3.19). Absent for the end-of-phase ready.
+       */
+      readonly sourceInstanceId?: InstanceId;
+    }
   /**
    * A card **has** readied (docs/phase7-wave2.md §21): "Hero Response: After you ready Quicksilver, ready this card."
    * (Friction Resistance, `qsv` 14009.) The "-ed" twin of `cardReadying`, in the same idiom as

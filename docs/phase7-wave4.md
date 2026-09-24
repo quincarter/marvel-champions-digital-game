@@ -366,7 +366,7 @@ stays data only.**
 | 3.16 | Encounter cards in a player's play area                                  | Ebony Maw's Spells                         | landed      |
 | 3.17 | Alliance: paying a card's costs as a group                               | `warm`, `valk`, `vision`; 9 later cards    | landed      |
 | 3.18 | Set-aside modular sets; mode-only faces; Standard II                     | The Hood; Wheel of Genres (`mojo`)         | landed      |
-| 3.19 | Readying as a costed act; "cannot be readied by player card effects"     | Mister Fear; Undermine Support (`aos`)     | not started |
+| 3.19 | Readying as a costed act; "cannot be readied by player card effects"     | Mister Fear; Undermine Support (`aos`)     | landed      |
 | 3.20 | A trigger on damage a card prevented                                     | Abjuration                                 | not started |
 | 3.21 | An enemy attack against a chosen character                               | Speed Demon, Crossfire                     | not started |
 | 3.22 | Valkyrie's kit                                                           | `valk`                                     | landed      |
@@ -849,6 +849,38 @@ set-aside modular encounter sets remaining"); the Campaign Challenge faces (`gmw
 
 ### 3.19 Readying as a costed act; "cannot be readied by player card effects"
 
+> **Status: landed (2026-09-24),** tested in `packages/engine/src/ready-cost.test.ts` (5 tests: at the end of the
+> player phase each taxed card asks in ready order, paid readies and declined stays exhausted; a card effect's ready
+> asks too; the other player's readies are not taxed; with nothing to pay with the ready is declined; "cannot be
+> readied by player card effects" stops a player card's ready but not the end-of-phase ready; replay deep-equal). DSL:
+> `packages/cards/src/dsl/wave4-hero-primitives.test.ts` (2 tests under §3.19).
+>
+> **What landed:**
+>
+> - **`RuleSpec readyCost { target, resources, player?, while? }`**, read by `readyCostFor` (`rules.ts`; several rules
+>   add up). RRG 1.8 "Ready" (p. 36): "If there is an additional cost for a player to ready a card, that player can
+>   choose not to pay that cost. If they do not pay the cost, the card does not ready." `readyOrAnnounce` now takes
+>   who readies and what readies it; when a cost applies it logs `readyCostAsked` and pushes an effects frame that asks
+>   the readier with the existing `spendResources` prompt, then readies the card only if it was paid
+>   (`EffectSpec ready.readyCostPaid`, set by that frame only, so the ready does not ask twice).
+> - **Who is asked:** the controller at the end-of-phase ready, the resolving player for a card effect (§4 Q14).
+> - **`RuleSpec cannotReady.bySource: "playerCard"`**: "cannot be readied by player card effects" stops a ready whose
+>   source is a player card (`isPlayerCard`); `cardReadying` gains `sourceInstanceId`, and `readyCard` /
+>   `cannotReady` take the source.
+> - **End of the player phase** (RRG 1.8 p. 18): each card is readied once (the three lists overlapped, harmless when a
+>   ready was instant, not when it waits on a cost), the pushed questions resolve in ready order (player order,
+>   identity first), and step 5 ("when the phase ends") waits for them: `GameStep endPhaseReady.readied` marks step 4
+>   done. With nothing pushed, the step runs exactly as before. The same wait now also orders a "would ready"
+>   interrupt (Frozen in Time) before "when the player phase ends", which it previously followed.
+>
+> **DSL:** `additionalCostToReady(target, resources, { player, while })`, `cannotBeReadiedByPlayerCards(target)`
+> (`dsl/abilities.ts`).
+>
+> **Composes with:** Undermine Support (`aos` 50174, "1 resource of any type": `resources: 1`); every "cannot ready"
+> card (All Tied Up, Restrained, Frozen, Wrapped in Chains, Captive Hope, Sowing Discord, Manufactured Drama) is the
+> unchanged `cannotReady`, and so is Delusion of Collusion's "You cannot ready allies or [Persona] supports you
+> control" (`sm` 27170, a `cannotReady` with `controller: "you"`).
+
 Mister Fear: "As an additional cost for the engaged player to ready a hero or ally they control, the player must spend
 a [mental] resource." Undermine Support (`aos` 50174), the same for a support. Unnatural Storm: "Heroes and allies
 cannot be readied by player card effects." **Plan:** a `RuleSpec readyCost` and `cannotReady.bySource`.
@@ -1013,6 +1045,11 @@ Each is implemented the way stated, or not at all, and named here rather than de
     `basicPowerUsing` interrupt, which is the moment before the DEF is read. RRG 1.8 p. 15 lets it also trigger off a
     defense-labeled ability, but only a basic defense reduces damage at all, so there it would do nothing; the engine
     does not offer it there.
+14. **Who pays Mister Fear's cost when another player's card readies the engaged player's hero?** (§3.19) The card
+    says "for the engaged player to ready"; RRG 1.8 "Ready" (p. 36) says "for a player to ready a card, that player".
+    Implemented as: the player readying pays — the controller at the end-of-phase ready, the resolving player for a
+    card effect — and `player` scopes the rule to the engaged player, so another player's Cosmic Alliance readies the
+    engaged player's hero without the cost. "A hero" is an identity in hero form; an alter-ego readies untaxed.
 
 ## 5. What this asks of the other agents
 
