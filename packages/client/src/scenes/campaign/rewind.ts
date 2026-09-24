@@ -22,12 +22,11 @@ import {
   villainPicture,
 } from "../../ui/campaign-chrome.js";
 import { destroyChildren } from "../../ui/destroy-children.js";
-import { ensurePictureLoaded } from "../../art/pictures.js";
+import { coverFit, ensurePictureLoaded } from "../../art/pictures.js";
 import { setMask } from "../../ui/rex.js";
 import { cssOf, textStyle } from "../../ui/theme.js";
 import { fadeScreenIn, goToScreen } from "../../ui/transitions.js";
 import { McButton, fitText, label, paintDotGrid } from "../../ui/widgets.js";
-import { coverCropFavoringBeats } from "../../view/comic-crop.js";
 import { rewindViewOf, type RewindView } from "../../view/campaign-rewind-model.js";
 import type { Rect } from "../../view/layout.js";
 import { FocusRoute, type FocusStop } from "../focus-route.js";
@@ -43,10 +42,7 @@ import type { CampaignRewindData } from "./routes.js";
  */
 interface LastPanelCrop {
   readonly file: string;
-  readonly width: number;
-  readonly height: number;
   readonly rect: { readonly x: number; readonly y: number; readonly w: number; readonly h: number };
-  readonly beats: readonly { readonly x: number; readonly y: number; readonly w: number; readonly h: number }[];
   readonly pageNumber: number;
 }
 
@@ -72,14 +68,7 @@ function lastPanelCropFor(
   const page = pages[pageIndex];
   const beat = page?.beats[ref.beatIndex];
   if (!page || !beat) return null;
-  return {
-    file: page.file,
-    width: page.width,
-    height: page.height,
-    rect: beat.panel,
-    beats: [beat.panel],
-    pageNumber: pageIndex + 1,
-  };
+  return { file: page.file, rect: beat.panel, pageNumber: pageIndex + 1 };
 }
 
 /** The bounding rect's own jagged-bottom outline (a sawtooth), in whatever coordinate space `rect` is given —
@@ -98,6 +87,22 @@ function sawtoothPoints(rect: Rect, teeth: number, toothDepth: number): Phaser.M
     points.push(new Phaser.Math.Vector2(x, y));
   }
   return points;
+}
+
+/** `points` (already centred on a local origin) rotated by `angleDeg` around that origin, then placed at
+ * `(cx, cy)` — the same transform a Phaser container with that angle applies to its children, used here to give a
+ * WebGL filter mask (which clips by final screen position, never by the masked object's own local transform) the
+ * same tilt as the container the masked image actually sits in. */
+function rotatedPoints(
+  points: readonly Phaser.Math.Vector2[],
+  angleDeg: number,
+  cx: number,
+  cy: number,
+): Phaser.Math.Vector2[] {
+  const rad = Phaser.Math.DegToRad(angleDeg);
+  const cos = Math.cos(rad);
+  const sin = Math.sin(rad);
+  return points.map((p) => new Phaser.Math.Vector2(p.x * cos - p.y * sin + cx, p.x * sin + p.y * cos + cy));
 }
 
 export class CampaignRewindScene extends Phaser.Scene {
@@ -136,7 +141,7 @@ export class CampaignRewindScene extends Phaser.Scene {
     this.#record = record;
     const definition = service.definitionFor(record);
     const nodeIds = definition.graph.nodes.map((node) => node.id);
-    this.#view = rewindViewOf(record, this.#data.nodeId, (id) => issueNumberOf(nodeIds, id), CARDS_BY_ID);
+    this.#view = rewindViewOf(record, this.#data.nodeId, (id) => issueNumberOf(nodeIds, id), CARDS_BY_ID, definition);
     this.#draw();
   }
 
@@ -228,6 +233,7 @@ export class CampaignRewindScene extends Phaser.Scene {
   #drawVillainFrame(rect: Rect, ctx: RewindFrameCtx): void {
     const cx = rect.x + rect.width / 2;
     const cy = rect.y + rect.height / 2;
+    const angle = -3;
     const teeth = 6;
     const toothDepth = 14;
     const localRect: Rect = { x: -rect.width / 2, y: -rect.height / 2, width: rect.width, height: rect.height };
@@ -235,35 +241,47 @@ export class CampaignRewindScene extends Phaser.Scene {
     frame.fillStyle(surface.paper.hex, 1);
     frame.fillPoints(sawtoothPoints(localRect, teeth, toothDepth), true);
     const container = this.add.container(cx, cy, [frame]);
-    container.setAngle(-3);
+    container.setAngle(angle);
 
-    const innerPad = 8;
-    const innerRect: Rect = {
-      x: rect.x + innerPad,
-      y: rect.y + innerPad,
-      width: rect.width - innerPad * 2,
-      height: rect.height - innerPad * 2 - toothDepth,
+    // The art sits *inside* the same tilted container as the paper — an even border all around, one object that
+    // tilts together — rather than a straight-drawn image laid over a separately rotated backing (which is what
+    // let the two disagree at the corners). Coordinates here are local to the container (centred on its own
+    // origin), exactly like the paper's own `localRect` above.
+    const innerPad = 10;
+    const localInnerRect: Rect = {
+      x: localRect.x + innerPad,
+      y: localRect.y + innerPad,
+      width: localRect.width - innerPad * 2,
+      height: localRect.height - innerPad * 2 - toothDepth,
     };
     const image = ctx.panel
-      ? this.#drawLastPanelPicture(ctx.campaignId, ctx.panel, innerRect)
-      : drawPicture(this, villainPicture(this.#data.nodeId), innerRect, () => this.#draw(), {
+      ? this.#drawLastPanelPicture(ctx.campaignId, ctx.panel, localInnerRect)
+      : drawPicture(this, villainPicture(this.#data.nodeId), localInnerRect, () => this.#draw(), {
           focusY: 0.2,
           grayscale: true,
         });
     if (image) {
-      // The photo's own torn bottom edge, cut with the same tooth pattern as the paper behind it — off the
-      // display list, so it is destroyed with the image it clips rather than lingering as an orphaned shape.
+      // Added after `frame`, so it renders on top of the paper within the container's own child order.
+      container.add(image);
+      // The photo's own torn bottom edge, cut with the same tooth pattern as the paper behind it. The mask has to
+      // be given in world (post-rotation) space — `ui/rex.ts`'s `setMask` clips by final screen position, not by
+      // the masked object's own local transform — so the inset tooth polygon is rotated by the container's own
+      // angle around its centre before being placed at (cx, cy), the same transform the container itself applies
+      // to `image`. Off the display list, so it is destroyed with the image it clips rather than lingering as an
+      // orphaned shape.
       const maskShape = this.make.graphics({}, false);
       maskShape.fillStyle(0xffffff, 1);
-      maskShape.fillPoints(sawtoothPoints(innerRect, teeth, toothDepth), true);
+      maskShape.fillPoints(rotatedPoints(sawtoothPoints(localInnerRect, teeth, toothDepth), angle, cx, cy), true);
       setMask(image, maskShape, "world");
       image.once(Phaser.GameObjects.Events.DESTROY, () => maskShape.destroy());
     }
 
+    // The taunt bubble sits low enough to overlap the torn bottom edge (the tile's own composition), not tucked
+    // neatly above it.
     if (ctx.taunt) {
       const bubbleWidth = Math.min(260, rect.width - 24);
       const bubbleX = Math.min(rect.x + rect.width - 40, rect.x + rect.width - bubbleWidth - 8);
-      speechBubble(this, bubbleX, rect.y + rect.height - 60, bubbleWidth, ctx.taunt, {
+      speechBubble(this, bubbleX, rect.y + rect.height - 54, bubbleWidth, ctx.taunt, {
         tail: "none",
         ...(ctx.speaker ? { speaker: ctx.speaker, shadow: accent.heroRed.hex } : {}),
       });
@@ -271,10 +289,15 @@ export class CampaignRewindScene extends Phaser.Scene {
   }
 
   /**
-   * A page-based box's last-read panel (`LastPanelCrop`), cover-fit into `rect` and desaturated — the same crop
-   * math The Run's own page crop uses (`scenes/campaign/run.ts`'s `drawPageCrop`, `beat.ts`'s
-   * `drawStagePanelPicture`), here for the issue's own final beat instead of a stage flip's. Null while the page's
-   * art hasn't loaded (or has none); `#draw` is `ensurePictureLoaded`'s redraw hook.
+   * A page-based box's last-read panel (`LastPanelCrop`), cover-fit into `rect` (in whatever coordinate space the
+   * caller gives — `#drawVillainFrame` passes container-local coordinates so the result tilts with the paper it
+   * sits in) and desaturated. `crop.rect` is the beat's own `ComicPanelRect` — its own printed panel bounds, not
+   * the page's — so the fit crops to that panel's own art window and nothing outside it: a plain `coverFit`
+   * against `crop.rect`'s own size, offset into the full-page texture by `crop.rect`'s own origin, rather than
+   * `comic-crop.ts`'s `coverCropFavoringBeats` (built to nudge a crop window *between* several unioned panels —
+   * meaningless for a single beat, and its own tie-break among equally-good offsets is a coin flip on floating-
+   * point rounding when, as here, `crop.beats` is just `[crop.rect]` again). Null while the page's art hasn't
+   * loaded (or has none); `#draw` is `ensurePictureLoaded`'s redraw hook.
    */
   #drawLastPanelPicture(campaignId: string, crop: LastPanelCrop, rect: Rect): Phaser.GameObjects.Image | null {
     if (rect.width <= 0 || rect.height <= 0) return null;
@@ -282,12 +305,14 @@ export class CampaignRewindScene extends Phaser.Scene {
     if (!picture) return null;
     const key = ensurePictureLoaded(this, picture, () => this.#draw());
     if (!key) return null;
-    const fit = coverCropFavoringBeats(crop, rect);
+    const fit = coverFit({ width: crop.rect.w, height: crop.rect.h }, rect);
+    const cropX = crop.rect.x + fit.cropX;
+    const cropY = crop.rect.y + fit.cropY;
     const image = this.add
-      .image(rect.x - fit.cropX * fit.scale, rect.y - fit.cropY * fit.scale, key)
+      .image(rect.x - cropX * fit.scale, rect.y - cropY * fit.scale, key)
       .setOrigin(0, 0)
       .setScale(fit.scale)
-      .setCrop(fit.cropX, fit.cropY, fit.cropWidth, fit.cropHeight);
+      .setCrop(cropX, cropY, fit.cropWidth, fit.cropHeight);
     desaturate(image);
     return image;
   }

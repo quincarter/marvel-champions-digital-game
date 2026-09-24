@@ -1,7 +1,7 @@
 import { describe, expect, test } from "vitest";
-import { TRORS_CAMPAIGN_DEFINITION } from "@mc/cards";
+import { GMW_CAMPAIGN_DEFINITION, TRORS_CAMPAIGN_DEFINITION } from "@mc/cards";
 import { CampaignService } from "../campaign/campaign-service.js";
-import { seedDesignRun } from "../campaign/dev-fixtures.js";
+import { seedDesignRun, seedGmwRun } from "../campaign/dev-fixtures.js";
 import { CARDS_BY_ID, POOL_CARDS, POOL_DEPS } from "../content/pool.js";
 import { MemoryCampaignStorage } from "../engine/campaign-storage.js";
 import { rewindViewOf } from "./campaign-rewind-model.js";
@@ -27,9 +27,11 @@ describe("campaign-rewind-model", () => {
     const lostEntry = record.history.find((entry) => entry.nodeId === "absorbing-man" && entry.outcome === "lost");
     expect(lostEntry).toBeDefined();
 
-    const view = rewindViewOf(record, "taskmaster", issueNumberOf, CARDS_BY_ID);
+    const view = rewindViewOf(record, "taskmaster", issueNumberOf, CARDS_BY_ID, TRORS_CAMPAIGN_DEFINITION);
     expect(view.campaignLost).toBe(false);
     expect(view.issueNumber).toBe(3);
+    // MC10's own kept things (TECH/Condition upgrades) are unique per-hero picks, not a shared-currency log
+    // field `KEPT_FIELD_PHRASE` names — the plain fallback line is the honest answer for this box, not GMW's.
     expect(view.keptSummary).toBe("Everything from issues #1–2.");
     // Nothing was removed from the campaign during the lost issue #3 attempt in this fixture (MC10's first three
     // issues never remove a card) — the "GONE" list is honestly empty rather than invented.
@@ -52,8 +54,22 @@ describe("campaign-rewind-model", () => {
         },
       ],
     } as never;
-    const view = rewindViewOf(emptyRecord, "crossbones", () => 1, CARDS_BY_ID);
+    const view = rewindViewOf(emptyRecord, "crossbones", () => 1, CARDS_BY_ID, TRORS_CAMPAIGN_DEFINITION);
     expect(view.keptSummary).toBe("Nothing kept yet — this is issue #1.");
+  });
+
+  test("GMW names what the log actually keeps: units, Market cards, bounty marks", async () => {
+    const record = await seedGmwRun(service(), "lostIssue3");
+    const nodeIds = GMW_CAMPAIGN_DEFINITION.graph.nodes.map((node) => node.id);
+    const view = rewindViewOf(
+      record,
+      "escape-the-museum",
+      (id) => nodeIds.indexOf(id) + 1,
+      CARDS_BY_ID,
+      GMW_CAMPAIGN_DEFINITION,
+    );
+    expect(view.issueNumber).toBe(3);
+    expect(view.keptSummary).toBe("Units, Market cards, bounty marks from #1–2.");
   });
 
   test("a removal during the lost attempt shows up as GONE, resolved by name", () => {
@@ -72,7 +88,7 @@ describe("campaign-rewind-model", () => {
         },
       ],
     } as never;
-    const view = rewindViewOf(record, "zola", () => 4, CARDS_BY_ID);
+    const view = rewindViewOf(record, "zola", () => 4, CARDS_BY_ID, TRORS_CAMPAIGN_DEFINITION);
     expect(view.gone).toEqual([{ cardId: "04159a", name: "Improved Thwart Upgrade", face: "Improved Thwart Upgrade" }]);
   });
 
@@ -92,7 +108,7 @@ describe("campaign-rewind-model", () => {
         },
       ],
     } as never;
-    const view = rewindViewOf(record, "red-skull", () => 5, CARDS_BY_ID);
+    const view = rewindViewOf(record, "red-skull", () => 5, CARDS_BY_ID, TRORS_CAMPAIGN_DEFINITION);
     expect(view.campaignLost).toBe(true);
   });
 });
