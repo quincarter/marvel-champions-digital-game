@@ -34,6 +34,13 @@ export interface IdentityDeckbuilding {
    */
   readonly offAspectAllowance?: OffAspectAllowance;
   /**
+   * Adam Warlock (`mts` 21031b), Avatar of Life: "You cannot include more than 1 copy of any non-Adam Warlock card."
+   * Every card outside the identity's own set (aspect and basic alike) is limited to this many copies by title, below
+   * its own `deckLimit` when that is higher. MC21 p. 3: "he cannot include more than one copy of any aspect card in his
+   * deck". A positive whole number. docs/phase7-wave4.md §1.4.
+   */
+  readonly maxCopiesPerTitle?: number;
+  /**
    * The printed text of requirements the fields above cannot express yet. A non-empty list makes
    * `validateDeck` report `unsupported_deckbuilding_requirement`, so the deck cannot be seated
    * until the requirement is modeled.

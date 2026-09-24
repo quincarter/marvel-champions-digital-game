@@ -165,6 +165,7 @@ function keywordListErrors(keywords: unknown, label: string): string[] {
     icon?: unknown;
     traits?: unknown;
     form?: unknown;
+    formType?: unknown;
   }[]) {
     if (!k || !isNonEmptyString(k.name)) errors.push(`${label} has a keyword without a name`);
     // `Uses (2[per_hero] ammo counters)` prints no flat part, so `count` may be 0 when `countPerPlayer` carries the
@@ -189,6 +190,9 @@ function keywordListErrors(keywords: unknown, label: string): string[] {
     if (k?.name === "requirement") errors.push(...requirementErrors(k, label));
     if (k?.name === "discount") errors.push(...discountErrors(k, label));
     if (k?.name === "prerequisite") errors.push(...prerequisiteErrors(k, label));
+    // docs/phase7-wave4.md §1.1: "Energy form." → `{ name: "form", formType: "energy" }`, lower case.
+    if (k?.name === "form" && (!isNonEmptyString(k.formType) || k.formType !== k.formType.toLowerCase()))
+      errors.push(`${label} form keyword needs a lower-case formType`);
   }
   return errors;
 }
@@ -337,8 +341,17 @@ function baseErrors(card: AnyCard): string[] {
   if (card.amplifyIcons !== undefined && !isPositiveInteger(card.amplifyIcons)) {
     errors.push("amplifyIcons must be a positive whole number when present");
   }
+  // docs/phase7-wave4.md §1.7: the other face, emitted as its own card.
+  if (card.otherFaceId !== undefined) {
+    if (!isNonEmptyString(card.otherFaceId)) errors.push("otherFaceId must be a card id when present");
+    else if (card.otherFaceId === card.id) errors.push("otherFaceId cannot name the card itself");
+    if ("flipSide" in card && card.flipSide !== undefined)
+      errors.push("a card with otherFaceId cannot also have a flipSide");
+  }
   return errors;
 }
+
+const MODE_ONLY: readonly string[] = ["standard", "expert"];
 
 /**
  * Printed boost icons: a whole number of at least 0. There is no upper bound: Joystick (51039), Fixer (53038) and
@@ -519,6 +532,9 @@ export function validateHeroIdentityCard(card: HeroIdentityCard): ValidationResu
       errors.push("offAspectAllowance anyTrait must list at least one trait");
     if (!isNonEmptyString(allowance.cardType)) errors.push("offAspectAllowance needs a cardType");
   }
+  // docs/phase7-wave4.md §1.4 (Adam Warlock's Avatar of Life).
+  if (card.deckbuilding?.maxCopiesPerTitle !== undefined && !isPositiveInteger(card.deckbuilding.maxCopiesPerTitle))
+    errors.push("deckbuilding maxCopiesPerTitle must be a positive whole number");
   if (!isNonNegativeNumber(card.hp) || card.hp < 1) errors.push("identity hp must be a positive number");
   if ("keywords" in card) errors.push("identity keywords live on each face, not on the card (Phase 2)");
   if (!isNonEmptyString(card.obligationCardId)) errors.push("identity must reference its obligationCardId");
@@ -759,6 +775,12 @@ function flipSideErrors(
   // docs/phase7-wave3.md §1.2: this face's own amplify icons, a positive whole number when present.
   if (back.amplifyIcons !== undefined && !isPositiveInteger(back.amplifyIcons))
     errors.push(`${side} amplifyIcons must be a positive whole number when present`);
+  // docs/phase7-wave4.md §1.8.
+  if (back.modeOnly !== undefined && !MODE_ONLY.includes(back.modeOnly))
+    errors.push(`${side} modeOnly must be 'standard' or 'expert'`);
+  const frontMode = (card as { readonly modeOnly?: unknown }).modeOnly;
+  if (back.modeOnly !== undefined && frontMode === back.modeOnly)
+    errors.push(`${side} modeOnly repeats the front face's; the two faces name different modes`);
   if (Array.isArray(back.abilities) && Array.isArray(card.abilities)) {
     const front = new Set((card.abilities as readonly AbilityReference[]).map((ref) => ref?.id));
     for (const ref of back.abilities) {
@@ -777,10 +799,14 @@ function encounterCommonErrors(
     text: unknown;
     flipSide?: EncounterCardFlipSide;
     separateDeck?: unknown;
+    modeOnly?: unknown;
   },
   label: string,
 ): string[] {
   return [
+    ...(card.modeOnly === undefined || (typeof card.modeOnly === "string" && MODE_ONLY.includes(card.modeOnly))
+      ? []
+      : [`${label} modeOnly must be 'standard' or 'expert'`]),
     ...boostErrors(card, label),
     ...keywordListErrors(card.keywords, label),
     ...abilityRefErrors(card.abilities, label),
@@ -882,6 +908,9 @@ export function validateMainSchemeCard(card: MainSchemeCard): ValidationResult {
       // docs/phase7-wave3.md §3.37: present only as `true`.
       if (stage.completionLoses !== undefined && stage.completionLoses !== true)
         errors.push(`${label} completionLoses must be true when present`);
+      // docs/phase7-wave4.md §1.5: "Proxima Midnight's Scheme."
+      if (stage.villainOf !== undefined && !isNonEmptyString(stage.villainOf))
+        errors.push(`${label} villainOf must name a villain when present`);
       // A main scheme side can be printed with no text, like a villain stage (Attack on Mount Athena 04061: stage 1's B
       // side, stages 2 and 3's A sides; docs/phase7-wave2.md §6.13).
       if (!isCardTextAllowEmpty(stage.text)) errors.push(`${label} text must have printed and current strings`);
@@ -1039,8 +1068,8 @@ export function validateScenario(scenario: Scenario): ValidationResult {
         }
       }
     }
-    if (multi.encounterDecks !== "perVillain")
-      errors.push("scenario multipleVillains.encounterDecks must be 'perVillain'");
+    if (multi.encounterDecks !== "perVillain" && multi.encounterDecks !== "shared")
+      errors.push("scenario multipleVillains.encounterDecks must be 'perVillain' or 'shared'");
     if (multi.activation !== "activeVillainOnly")
       errors.push("scenario multipleVillains.activation must be 'activeVillainOnly'");
     if (multi.winCondition !== "allVillainsDefeated")
@@ -1053,6 +1082,82 @@ export function validateScenario(scenario: Scenario): ValidationResult {
     errors.push("scenario modularSetCount must be a whole number of at least 0");
   }
   errors.push(...wave2ScenarioErrors(scenario));
+  errors.push(...wave4ScenarioErrors(scenario));
+  return result(errors);
+}
+
+/** Wave 4 scenario fields (docs/phase7-wave4.md §1.11, §1.12). */
+function wave4ScenarioErrors(scenario: Scenario): string[] {
+  const errors: string[] = [];
+  if (scenario.startingVillain !== undefined) {
+    if (scenario.startingVillain !== "random") errors.push("scenario startingVillain must be 'random'");
+    if ((scenario.setAsideVillainCardIds ?? []).length === 0)
+      errors.push("scenario startingVillain 'random' needs setAsideVillainCardIds to choose among");
+    if (scenario.multipleVillains !== undefined)
+      errors.push("scenario startingVillain is not defined for a scenario with multipleVillains");
+  }
+  const count = scenario.victoryCondition;
+  if (count !== undefined) {
+    for (const mode of ["standard", "expert", "skirmish", "heroic"] as const) {
+      const value = count[mode];
+      if ((mode === "standard" || mode === "expert" || value !== undefined) && !isPositiveInteger(value))
+        errors.push(`scenario victoryCondition.${mode} must be a positive whole number`);
+    }
+  }
+  if (scenario.setAsideModularSetCount !== undefined && !isPositiveInteger(scenario.setAsideModularSetCount))
+    errors.push("scenario setAsideModularSetCount must be a positive whole number");
+  return errors;
+}
+
+/**
+ * The shared check for a separate deck, whether a scenario or an encounter set brings it (docs/phase7-wave2.md §3.3,
+ * docs/phase7-wave4.md §1.10).
+ */
+function separateDeckListErrors(decks: unknown, owner: string): string[] {
+  const errors: string[] = [];
+  if (decks === undefined) return errors;
+  if (!Array.isArray(decks)) return [`${owner} separateDecks must be an array`];
+  const names = new Set<string>();
+  for (const deck of decks as readonly Partial<ScenarioSeparateDeck>[]) {
+    const label = `${owner} separate deck ${isNonEmptyString(deck?.name) ? deck.name : "(unnamed)"}`;
+    if (!isNonEmptyString(deck?.name)) errors.push(`${owner} separate deck needs a name`);
+    else if (names.has(deck.name)) errors.push(`${label} is listed twice`);
+    else names.add(deck.name);
+    const contents = deck?.contents;
+    const sets = contents?.encounterSetIds;
+    if (!contents || (sets === undefined && contents.cardType === undefined && contents.trait === undefined)) {
+      errors.push(`${label} contents must name encounter sets, a card type, a trait, or several`);
+    } else {
+      if (sets !== undefined && (!Array.isArray(sets) || sets.length === 0 || !sets.every(isNonEmptyString))) {
+        errors.push(`${label} contents.encounterSetIds must list encounter set ids`);
+      }
+      if (contents.cardType !== undefined && contents.cardType !== "side_scheme" && contents.cardType !== "environment")
+        errors.push(`${label} contents.cardType must be 'side_scheme' or 'environment'`);
+      if (contents.trait !== undefined && !isNonEmptyString(contents.trait))
+        errors.push(`${label} contents.trait must be a trait when present`);
+    }
+    if (deck?.discardPile !== "own" && deck?.discardPile !== "encounter")
+      errors.push(`${label} discardPile must be 'own' or 'encounter'`);
+    if (deck?.whenEmpty !== "reshuffleDiscardWithoutPenalty" && deck?.whenEmpty !== "remainsEmpty") {
+      errors.push(`${label} whenEmpty must be 'reshuffleDiscardWithoutPenalty' or 'remainsEmpty'`);
+    }
+    if (deck?.whenEmpty === "reshuffleDiscardWithoutPenalty" && deck.discardPile !== "own") {
+      errors.push(`${label} can only reshuffle a discard pile of its own`);
+    }
+  }
+  return errors;
+}
+
+/** An encounter set's own fields (docs/phase7-wave4.md §1.9, §1.10). */
+export function validateEncounterSet(set: EncounterSet): ValidationResult {
+  const errors: string[] = [];
+  if (!isNonEmptyString(set.id)) errors.push("encounter set missing id");
+  if (!isNonEmptyString(set.name)) errors.push("encounter set missing name");
+  if (set.classification !== undefined && set.classification !== "standard" && set.classification !== "expert")
+    errors.push(`encounter set ${set.id} classification must be 'standard' or 'expert'`);
+  if (set.singleVillainOnly !== undefined && set.singleVillainOnly !== true)
+    errors.push(`encounter set ${set.id} singleVillainOnly must be true when present`);
+  errors.push(...separateDeckListErrors(set.separateDecks, `encounter set ${set.id}`));
   return result(errors);
 }
 
@@ -1099,38 +1204,7 @@ function wave2ScenarioErrors(scenario: Scenario): string[] {
     if (scenario.multipleVillains !== undefined)
       errors.push("scenario separateGameAreas is not defined for a scenario with multipleVillains");
   }
-  const decks: unknown = scenario.separateDecks;
-  if (decks !== undefined) {
-    if (!Array.isArray(decks)) errors.push("scenario separateDecks must be an array");
-    else {
-      const names = new Set<string>();
-      for (const deck of decks as readonly Partial<ScenarioSeparateDeck>[]) {
-        const label = `scenario separate deck ${isNonEmptyString(deck?.name) ? deck.name : "(unnamed)"}`;
-        if (!isNonEmptyString(deck?.name)) errors.push("scenario separate deck needs a name");
-        else if (names.has(deck.name)) errors.push(`${label} is listed twice`);
-        else names.add(deck.name);
-        const contents = deck?.contents;
-        const sets = contents?.encounterSetIds;
-        if (!contents || (sets === undefined && contents.cardType === undefined)) {
-          errors.push(`${label} contents must name encounter sets, a card type, or both`);
-        } else {
-          if (sets !== undefined && (!Array.isArray(sets) || sets.length === 0 || !sets.every(isNonEmptyString))) {
-            errors.push(`${label} contents.encounterSetIds must list encounter set ids`);
-          }
-          if (contents.cardType !== undefined && contents.cardType !== "side_scheme")
-            errors.push(`${label} contents.cardType must be 'side_scheme'`);
-        }
-        if (deck?.discardPile !== "own" && deck?.discardPile !== "encounter")
-          errors.push(`${label} discardPile must be 'own' or 'encounter'`);
-        if (deck?.whenEmpty !== "reshuffleDiscardWithoutPenalty" && deck?.whenEmpty !== "remainsEmpty") {
-          errors.push(`${label} whenEmpty must be 'reshuffleDiscardWithoutPenalty' or 'remainsEmpty'`);
-        }
-        if (deck?.whenEmpty === "reshuffleDiscardWithoutPenalty" && deck.discardPile !== "own") {
-          errors.push(`${label} can only reshuffle a discard pile of its own`);
-        }
-      }
-    }
-  }
+  errors.push(...separateDeckListErrors(scenario.separateDecks, "scenario"));
   return errors;
 }
 
@@ -1185,6 +1259,12 @@ export function validateScenarioEncounterSets(
       );
     } else if (set.competitiveOnly)
       errors.push(`scenario ${scenario.id} names competitive-only set ${id}; competitive mode is not built`);
+    // RRG 1.8 "Standard Set" (p. 40) / "Expert Set" (p. 19): never a modular choice (docs/phase7-wave4.md §1.9).
+    if (set?.classification !== undefined && scenario.recommendedModularSetIds.includes(id))
+      errors.push(`scenario ${scenario.id} recommends ${set.classification} set ${id} as a modular set`);
+    // MC21 p. 16 (docs/phase7-wave4.md §1.10).
+    if (set?.singleVillainOnly && scenario.multipleVillains !== undefined)
+      errors.push(`scenario ${scenario.id} has several villains, so it cannot use set ${id}`);
   }
   return result(errors);
 }

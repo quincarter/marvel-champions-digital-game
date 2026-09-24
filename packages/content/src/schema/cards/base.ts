@@ -54,4 +54,16 @@ export interface BaseCard {
    * all of them. docs/phase7-wave3.md §1.2.
    */
   readonly amplifyIcons?: number;
+  /**
+   * The other face of a double-sided card whose two faces are emitted as two cards, set on both faces. Used where the
+   * faces differ in card type, or are cards `CardFlipSide` cannot describe: the Mad Titan's Shadow campaign side
+   * schemes that "Flip this card over" into an ally (Secure the Landing Pad → Cosmo, 21180a/b), a minion (Save the
+   * Shawarma Place → Black Swan, 21182a/b), an attachment (Open the Dungeons → Jormungand, 21189a/b) or another side
+   * scheme (21184a/b, 21186a/b; and the Galaxy's Most Wanted Campaign Challenge faces, 16178a/b–16182a/b, wave 3 §1.4).
+   *
+   * RRG 1.8 "Flip" (p. 20): when the new face has "a different card type from the previous face, all attached cards,
+   * tucked cards, status cards, and tokens are discarded from the card". A card with `otherFaceId` must not also have
+   * a `flipSide`. docs/phase7-wave4.md §1.7.
+   */
+  readonly otherFaceId?: CardId;
 }

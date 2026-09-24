@@ -68,8 +68,17 @@ authority; card images were checked where the raw data and the card disagree (§
 
 ## 1. Schema decisions (owner: `game-rules-architect`)
 
-> Status: not started. Lands in `packages/content/src/schema/**` with fixtures in
-> `packages/content/src/schema/wave4.test.ts`.
+> Status: **landed (2026-09-24)** in `packages/content/src/schema/**`, with fixtures in
+> `packages/content/src/schema/wave4.test.ts` (16 tests) and `packages/engine/src/max-copies-per-title.test.ts` (3
+> tests, `validateDeck` enforcing §1.4). New: `KeywordInstance form`, `IdentityDeckbuilding.maxCopiesPerTitle`,
+> `MainSchemeStage.villainOf`, `MultipleVillains.encounterDecks: "shared"`, `BaseCard.otherFaceId`, `ModeOnly` /
+> `modeOnly`, `EncounterSet.classification` / `separateDecks` / `singleVillainOnly` (and `validateEncounterSet`),
+> `ScenarioSeparateDeck.contents.trait` and `cardType: "environment"` (the engine's `buildScenarioDeck` reads both),
+> `Scenario.startingVillain` / `victoryCondition` / `setAsideModularSetCount`. No emitted card changed; every pack still
+> validates. **Data only until §3:** `encounterDecks: "shared"`, `otherFaceId`, `modeOnly`, `separateDecks` on a set,
+> `startingVillain`, `victoryCondition` and `setAsideModularSetCount` are not read by the engine yet, so no scenario
+> using them may be marked playable before its §3 section lands. `maxCopiesPerTitle` and the form keyword's validation
+> are enforced now.
 
 **The survey** (`scripts/marvelcdb/survey.ts --pack mts nebu warm hood valk vision`, 2026-09-24): `nebu`, `warm`, `hood`,
 `valk` and `vision` normalize cleanly; `mts` has 26 lines (dash costs 3, attach rules 6, unlinked records 8, side

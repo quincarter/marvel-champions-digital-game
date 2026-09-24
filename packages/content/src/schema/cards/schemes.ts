@@ -78,6 +78,13 @@ export interface MainSchemeStage {
    * other half is a script's (`stateCheck` + `endGame`). docs/phase7-wave3.md §3.37.
    */
   readonly completionLoses?: boolean;
+  /**
+   * The title of the villain this main scheme belongs to, printed "Proxima Midnight's Scheme." (Under Siege 1B, `mts`
+   * 21098b) / "Corvus Glaive's Scheme." (The Armies of Thanos 2B, 21099b). MC21 p. 10: "When either of the two villains
+   * schemes, place the threat on their matching main scheme card only." The main-scheme sibling of
+   * `SideSchemeCard.signatureOf`; the sentence needs no ability ref. docs/phase7-wave4.md §1.5.
+   */
+  readonly villainOf?: string;
   readonly icons: readonly SchemeIcon[];
   readonly text: CardText;
   readonly traits: readonly Trait[];

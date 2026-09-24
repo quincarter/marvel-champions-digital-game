@@ -114,6 +114,14 @@ const KEYWORD_GLOSSARY: Record<KeywordName, GlossaryEntry<KeywordName>> = {
       { kind: "ruling", date: "December 17, 2025 - Ruling 4" },
     ],
   },
+  form: {
+    id: "form",
+    kind: "keyword",
+    displayName: "[Type] Form",
+    definition:
+      'A card with this keyword ("Energy form.", "Mass form.") gives your identity an extra form beside hero and alter-ego while it is face up. Changing it doesn\'t use your once-per-round form change, but it does count as changing form for card effects.',
+    sources: [{ kind: "rrg", page: 21 }],
+  },
   guard: {
     id: "guard",
     kind: "keyword",
