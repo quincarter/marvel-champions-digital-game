@@ -195,7 +195,7 @@ export function baseFields(
     setCode: ctx.setCode,
     cycleId: ctx.cycleId,
     collectorNumber: collector(codes),
-    quantityInSet: p.raw.quantity,
+    quantityInSet: p.quantityInSet,
     unique: Boolean(p.raw.is_unique),
     ...(images ? { images } : {}),
     ...(p.errata ? { errata: errataStatus(p.errata) } : {}),

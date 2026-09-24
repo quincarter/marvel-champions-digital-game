@@ -102,6 +102,7 @@ function syntheticPrepared(ctx: NormalizeContext, code: string, name: string, no
     text: { printed: "", current: "" },
     notes: [note],
     ignored: new Set(),
+    quantityInSet: 1,
   };
 }
 

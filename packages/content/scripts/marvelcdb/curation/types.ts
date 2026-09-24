@@ -34,6 +34,15 @@ export interface Correction {
    * automatically, with no correction.
    */
   readonly specialCost?: SpecialCost;
+  /**
+   * Overrides MarvelCDB's `quantity` (physical copies printed in this pack) — wave 4, Nebula's `22017` ("The
+   * Power of Justice") sends `quantity: 1` despite the box's own printed decklist card (Hall of Heroes'
+   * `nebula-starter-deck.jpg`) listing "17 The Power of Justice x2" and the card's own errata-free text ("Max 2
+   * per deck"); the analogous card in other packs (e.g. Star-Lord's `17018` "The Power of Leadership") sends
+   * `quantity: 2` for the same role, so this is MarvelCDB undercounting one pack's duplicate-of record rather
+   * than a real one-copy print. Only ever a correction to a MarvelCDB data error, never errata.
+   */
+  readonly quantityInSet?: number;
 }
 
 /**

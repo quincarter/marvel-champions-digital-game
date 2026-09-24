@@ -689,7 +689,10 @@ export const VISION_CARDS: readonly AnyCard[] = [
       printed: "Give to the Vision player.\nTreat your mass form upgrade's text box as if it were blank, except for keywords.\nAlter-Ego Action: Exhaust your identity → remove Corrupted Programming from the game.",
       current: "Give to the Vision player.\nTreat your mass form upgrade's text box as if it were blank, except for keywords.\nAlter-Ego Action: Exhaust your identity → remove Corrupted Programming from the game.",
     },
-    abilities: [{ id: abilityId("26028.obligation") }],
+    abilities: [
+      { id: abilityId("26028.corrupted-programming-constant") },
+      { id: abilityId("26028.corrupted-programming-action") },
+    ],
   },
   {
     id: cardId("26029"),

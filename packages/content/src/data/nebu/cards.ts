@@ -284,6 +284,16 @@ export const NEBU_CARDS: readonly AnyCard[] = [
     quantityInSet: 1,
     unique: true,
     images: { front: imageRef("/bundles/cards/22011.png") },
+    errata: {
+      currentVersion: "RRG 1.8 p. 67",
+      history: [
+        {
+          version: "RRG 1.8 p. 67",
+          changedFields: ["text"],
+          note: "Eros' Response \"confuse a minion for each [mental] resource you used to pay for him\" reads \"for each [mental] resource you used to pay for him, choose a minion and confuse it\" — the updated \"for each\" rules wording (letting each resource confuse a separately-chosen minion). MarvelCDB's cached text is still the pre-errata wording.",
+        },
+      ],
+    },
     cost: 2,
     resourceIcons: { mental: 1 },
     atk: 1,
@@ -296,7 +306,7 @@ export const NEBU_CARDS: readonly AnyCard[] = [
     deckLimit: 1,
     text: {
       printed: "Response: After you play Eros from your hand, confuse a minion for each [mental] resource you used to pay for him.",
-      current: "Response: After you play Eros from your hand, confuse a minion for each [mental] resource you used to pay for him.",
+      current: "Response: After you play Eros from your hand, for each [mental] resource you used to pay for him, choose a minion and confuse it.",
     },
     flavor: "\"This will not be easy, but we will save this universe...we will guard this galaxy.\"",
     abilities: [{ id: abilityId("22011.eros-response") }],
@@ -431,7 +441,7 @@ export const NEBU_CARDS: readonly AnyCard[] = [
     setCode: setCode("nebu"),
     cycleId: cycleId("cycle4"),
     collectorNumber: "17",
-    quantityInSet: 1,
+    quantityInSet: 2,
     unique: false,
     images: { front: imageRef("/bundles/cards/01062.png") },
     producesIcons: { wild: 1 },

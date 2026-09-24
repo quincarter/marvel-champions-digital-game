@@ -726,13 +726,13 @@ export const WARM_CARDS: readonly AnyCard[] = [
     icons: ["crisis"],
     boostIcons: 3,
     traits: [],
-    keywords: [],
+    keywords: [{ name: "hinder", value: 0, perPlayer: 1 }],
     text: {
       printed: "Hinder 1[per_hero]\nWhen Defeated: Deal 1 damage to each identity.",
       current: "Hinder 1[per_hero]\nWhen Defeated: Deal 1 damage to each identity.",
     },
     flavor: "Living Laser is attacking a government office. The employees inside need help!",
-    abilities: [{ id: abilityId("23030.deadly-light-show-constant") }, { id: abilityId("23030.when-defeated") }],
+    abilities: [{ id: abilityId("23030.when-defeated") }],
   },
   {
     id: cardId("23031"),
