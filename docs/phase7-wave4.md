@@ -400,31 +400,32 @@ needed, and each section names cards from other packs that compose with it.
 in release order. Within that, rules the whole box leans on come first. **A pack whose cards need an unbuilt primitive
 stays data only.**
 
-| §    | Primitive                                                                | Needed by                                  | Status      |
-| ---- | ------------------------------------------------------------------------ | ------------------------------------------ | ----------- |
-| 3.1  | Additional forms (the form keyword)                                      | Spectrum, Vision; Shadowcat, Nick Fury     | landed      |
-| 3.2  | Two main schemes in play, each paired with a villain; Focused Defense    | Tower Defense                              | landed      |
-| 3.3  | Villains protected by each other's hit points: one defeat sweep          | Tower Defense; Four Horsemen (`aoa`)       | landed      |
-| 3.4  | A main scheme stage's completion is replaceable                          | Tower Defense; Upgrading Adaptoids (`aos`) | landed      |
-| 3.5  | Damage on a card that is not a character (Avengers Tower)                | Tower Defense                              | landed      |
-| 3.6  | A modular set's own deck (the Infinity Stone deck)                       | Thanos, Loki, any scenario                 | landed      |
-| 3.7  | Loki: random start, swap, a villain stage's Victory X, the victory count | Loki; God of Lies (`tt`)                   | landed      |
-| 3.8  | An encounter ally attached to the main scheme (Odin)                     | Hela                                       | landed      |
-| 3.9  | An ally treated as a minion                                              | Fallen Warrior, Beguiled; 5 other packs    | landed      |
-| 3.10 | Flipping a card into a separately emitted face of another type           | MC21 campaign                              | landed      |
-| 3.11 | Timing points when a deck runs out                                       | Soul World, Universal Church, Thanos       | landed      |
-| 3.12 | Counting different aspects; Adam Warlock's copy limit                    | Adam Warlock                               | landed      |
-| 3.13 | Abilities active in hand; "cannot choose to discard this card"           | Pip the Troll, System Shock                | landed      |
-| 3.14 | Player events shuffled into the encounter deck (Cosmic Entities)         | Adam Warlock precon                        | landed      |
-| 3.15 | "After the last X counter is removed from here"                          | Ebony Maw; `aos`, `phoenix`                | landed      |
-| 3.16 | Encounter cards in a player's play area                                  | Ebony Maw's Spells                         | landed      |
-| 3.17 | Alliance: paying a card's costs as a group                               | `warm`, `valk`, `vision`; 9 later cards    | landed      |
-| 3.18 | Set-aside modular sets; mode-only faces; Standard II                     | The Hood; Wheel of Genres (`mojo`)         | landed      |
-| 3.19 | Readying as a costed act; "cannot be readied by player card effects"     | Mister Fear; Undermine Support (`aos`)     | landed      |
-| 3.20 | A trigger on damage a card prevented                                     | Abjuration                                 | not started |
-| 3.21 | An enemy attack against a chosen character                               | Speed Demon, Crossfire                     | not started |
-| 3.22 | Valkyrie's kit                                                           | `valk`                                     | landed      |
-| 3.23 | Reusable as is                                                           | —                                          | checked     |
+| §    | Primitive                                                                | Needed by                                              | Status      |
+| ---- | ------------------------------------------------------------------------ | ------------------------------------------------------ | ----------- |
+| 3.1  | Additional forms (the form keyword)                                      | Spectrum, Vision; Shadowcat, Nick Fury                 | landed      |
+| 3.2  | Two main schemes in play, each paired with a villain; Focused Defense    | Tower Defense                                          | landed      |
+| 3.3  | Villains protected by each other's hit points: one defeat sweep          | Tower Defense; Four Horsemen (`aoa`)                   | landed      |
+| 3.4  | A main scheme stage's completion is replaceable                          | Tower Defense; Upgrading Adaptoids (`aos`)             | landed      |
+| 3.5  | Damage on a card that is not a character (Avengers Tower)                | Tower Defense                                          | landed      |
+| 3.6  | A modular set's own deck (the Infinity Stone deck)                       | Thanos, Loki, any scenario                             | landed      |
+| 3.7  | Loki: random start, swap, a villain stage's Victory X, the victory count | Loki; God of Lies (`tt`)                               | landed      |
+| 3.8  | An encounter ally attached to the main scheme (Odin)                     | Hela                                                   | landed      |
+| 3.9  | An ally treated as a minion                                              | Fallen Warrior, Beguiled; 5 other packs                | landed      |
+| 3.10 | Flipping a card into a separately emitted face of another type           | MC21 campaign                                          | landed      |
+| 3.11 | Timing points when a deck runs out                                       | Soul World, Universal Church, Thanos                   | landed      |
+| 3.12 | Counting different aspects; Adam Warlock's copy limit                    | Adam Warlock                                           | landed      |
+| 3.13 | Abilities active in hand; "cannot choose to discard this card"           | Pip the Troll, System Shock                            | landed      |
+| 3.14 | Player events shuffled into the encounter deck (Cosmic Entities)         | Adam Warlock precon                                    | landed      |
+| 3.15 | "After the last X counter is removed from here"                          | Ebony Maw; `aos`, `phoenix`                            | landed      |
+| 3.16 | Encounter cards in a player's play area                                  | Ebony Maw's Spells                                     | landed      |
+| 3.17 | Alliance: paying a card's costs as a group                               | `warm`, `valk`, `vision`; 9 later cards                | landed      |
+| 3.18 | Set-aside modular sets; mode-only faces; Standard II                     | The Hood; Wheel of Genres (`mojo`)                     | landed      |
+| 3.19 | Readying as a costed act; "cannot be readied by player card effects"     | Mister Fear; Undermine Support (`aos`)                 | landed      |
+| 3.20 | A trigger on damage a card prevented                                     | Abjuration                                             | not started |
+| 3.21 | An enemy attack against a chosen character                               | Speed Demon, Crossfire                                 | not started |
+| 3.22 | Valkyrie's kit                                                           | `valk`                                                 | landed      |
+| 3.23 | Reusable as is                                                           | —                                                      | checked     |
+| 3.24 | A character that ignores guard, patrol and the crisis icon               | Evasive Maneuvering; Wasp, Shadowcat, Psionic Training | landed      |
 
 ### 3.1 Additional forms: the form keyword
 
@@ -714,7 +715,7 @@ the victory display" readers), then becomes its other face in play.
 > attachments and tucked cards and clears status cards, damage, threat and counters (RRG 1.8 "Flip", p. 20) and moves
 > the card where its new type lives (minion engaged with "you", ally/support/upgrade under "you", attachment on its
 > first legal host, scheme or environment in the villain's area; "you" is the first player for a side scheme's When
-> Defeated). The new face is then treated as entering play (§4 Q15). A defeated side scheme's leave-play step is now
+> Defeated). The new face is then treated as entering play (§4 Q17, user decision: it enters play). A defeated side scheme's leave-play step is now
 > guarded by `refMatches self {printedId}`, so one that flipped during its own When Defeated stays in play; its
 > `schemeDefeated` event still fires (the campaign's "if Secure the Landing Pad was defeated"). Event
 > `cardFlippedToOtherFace`. **DSL:** none new (`flipCard(self)` in a `whenDefeated`). **Not covered:** a side scheme with
@@ -794,7 +795,7 @@ player reveals it; `uncancellable` on the ability; a discarded one goes to the e
 > nothing (`rules.ts revealCannotBeCanceled`). **Composes with:** Longshot and Cornered! (`mojo` 39071, 39017, "This
 > effect cannot be canceled"), Frequent Flyers and its siblings (`sm` 27108–27110, 27112, "In expert mode, … cannot be
 > canceled"), Dark Scepter (`tt` 55036, "Treacheries cannot be canceled"). **DSL:** `uncancellable(whenRevealed(…))`,
-> `cannotBeCanceled(query, when?)`. See §4 Q14.
+> `cannotBeCanceled(query, when?)`. See §4 Q16 (decided: a cancel that can do nothing is not offered; §3.27).
 
 ### 3.15 "After the last X counter is removed from here"
 
@@ -1095,6 +1096,28 @@ against the vocabulary when `valk` comes up.
 
 ---
 
+### 3.24 A character that ignores guard, patrol and the crisis icon
+
+Evasive Maneuvering (`nebu` 22005): "While in hero form, Nebula ignores the guard keyword, the patrol keyword, and the
+crisis icon." Survey (every raw pack, "ignore(s) … guard/patrol/crisis"): the same standing exemption on Wasp
+(`ironheart` 29034), Shadowcat's ally and Phased form (`mut_gen` 32002, 32030a) and Psionic Training (`psylocke` 41010,
+guard and patrol). Every other hit is one effect's own (Cable Arrow, Natural Flight, Photon Speed, Retinal Display,
+Grapnel Launcher, Just Passing Through, …) and is the existing `ignoreCrisis` on `thwart` / `removeThreat`.
+
+> **Status: landed (2026-09-24),** tested in `packages/engine/src/character-ignores.test.ts` (4 tests: guard no longer
+> stops the exempt hero attacking the villain; its basic thwart and "(thwart)" ability remove threat from the main
+> scheme past patrol and a crisis icon; a removal that is neither its thwart nor its own is still stopped by the
+> crisis icon; a character the rule does not match is not exempt) and in a real game in
+> `packages/cards/src/wave4/nebu/nebula-kit.test.ts` (Nebula against Rhino, Hydra Mercenary engaged and Crowd Control
+> in play). **What landed:** **`RuleSpec characterIgnores {target, ignores: ("guard" | "patrol" | "crisis")[],
+while?}`**, read by `select.ts characterIgnores`: `canAttack` lets a matching attacker past guard; `threatRemovalBlocked`
+> (now told the thwart's character) skips patrol for a matching thwarter and the crisis icon for a matching thwarter
+> or removal source; the basic-thwart command's own crisis and patrol checks use the thwarting character. **DSL:**
+> `constant(ignores(query, what, when?))`. **Scripted:** `22005.evasive-maneuvering-constant`, off `KNOWN_SKIPPED`.
+> **Composes with:** Wasp, Shadowcat, Psionic Training as printed. The response cards that fire after a character
+> ignores guard or crisis (Acute Control, Intangible Interference, `mut_gen` 32034–32035) need an event; not built.
+> See §4 Q19 for the reading of "ignores the crisis icon" on removal that is not a thwart.
+
 ## 4. Open questions (for the user or FFG)
 
 Each is implemented the way stated, or not at all, and named here rather than decided silently.
@@ -1127,6 +1150,8 @@ Each is implemented the way stated, or not at all, and named here rather than de
    play is by that flip, and MC21 p. 11 says its When Revealed "reinforces the unique rule by discarding each other copy
    of Avengers Tower from play". Proposed: follow the rulings (no When Revealed on a flip) and have the Stronghold side's
    script discard the other Avengers Towers as it flips, which is what MC21 p. 11 describes. Needs the user's call.
+   **USER DECISION 2026-09-24:** follow the rulings. The flip does not resolve the Damaged side's When Revealed; the
+   Stronghold side's script discards the other Towers as it flips (the proposal, kept as is).
 
 10. **Who agrees to spend another player's cards for an alliance card?** (§3.17) RRG 1.8 "Alliance" (p. 6) says any
     player "may help pay", so each contribution is that player's choice. The engine takes one command from the player
@@ -1162,17 +1187,25 @@ Each is implemented the way stated, or not at all, and named here rather than de
 16. **A cancel ability aimed at a card that cannot be canceled** (§3.14). Nothing in RRG 1.8 "Cancel" or "'Cannot'"
     (p. 11) forbids initiating it; its costs are paid and it changes nothing. Implemented as: the cancel stays offered
     and fizzles. Proposed alternative for the user: withhold it from the legal actions (friendlier, but not a written
-    rule).
+    rule). **USER DECISION 2026-09-24:** change it. A cancel whose only target cannot be canceled is not offered, so no
+    cost is paid. Built generically in the legal-action layer (§3.27).
 17. **Does a card that flips into a separately emitted face enter play?** (§3.10) RRG 1.8 "Flip" (p. 20) only says
     what stays on the card. But Defensive Protocols and Retrieve Odin's Armor (21184b, 21186b) print "Hinder 2", which
     only works on entering play, and a flipped-in side scheme at 0 threat could never be defeated; Black Swan's "After
     Black Swan engages you" needs an engagement. Implemented as: the new face is treated as entering play (starting
-    threat plus hinder, engagement, "enters play" triggers). Needs a ruling or the MC21 insert's word.
+    threat plus hinder, engagement, "enters play" triggers). Needs a ruling or the MC21 insert's word. **USER
+    DECISION 2026-09-24:** yes, it enters play (starting threat plus hinder, engagement, "enters play" triggers). Kept
+    as implemented.
 18. **Who pays Mister Fear's cost when another player's card readies the engaged player's hero?** (§3.19) The card
     says "for the engaged player to ready"; RRG 1.8 "Ready" (p. 36) says "for a player to ready a card, that player".
     Implemented as: the player readying pays — the controller at the end-of-phase ready, the resolving player for a
     card effect — and `player` scopes the rule to the engaged player, so another player's Cosmic Alliance readies the
     engaged player's hero without the cost. "A hero" is an identity in hero form; an alter-ego readies untaxed.
+19. **"Nebula ignores … the crisis icon" on removal that is not her thwart** (§3.24). RRG 1.8 "Ignore" (p. 23) treats
+    the icon as absent "while that ability is resolving", and a crisis icon blocks any player removal from the main
+    scheme. Implemented as: the exemption covers the character's own thwarts (basic or "(thwart)", whose thwarting
+    character she is) and removal sourced to the character itself; a non-thwart event she plays ("remove 2 threat
+    from the main scheme") is still stopped. Proposed: keep; no card in the survey depends on the wider reading.
 
 ## 5. What this asks of the other agents
 

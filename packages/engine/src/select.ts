@@ -813,6 +813,19 @@ const guardEngagedWith = (state: GameState, playerId: PlayerId, deps: EngineDeps
       isMinion(state, id) && getInstance(state, id)?.engagedWith === playerId && hasKeyword(state, id, "guard", deps),
   );
 
+/** A `characterIgnores` rule exempts this character from guard, patrol or the crisis icon (docs/phase7-wave4.md §3.24). */
+export function characterIgnores(
+  state: GameState,
+  deps: EngineDeps,
+  id: InstanceId | null | undefined,
+  what: "guard" | "patrol" | "crisis",
+): boolean {
+  if (!id) return false;
+  return activeRules(state, deps, "characterIgnores").some(
+    ({ rule, context }) => rule.ignores.includes(what) && matchesQuery(state, id, rule.target, context),
+  );
+}
+
 /**
  * RRG "Guard": while a minion with guard is engaged with a player, that player
  * cannot use cards they control to attack a villain without this keyword. It
@@ -835,6 +848,7 @@ export function canAttack(
   if (controller === null) return true;
   if (!isVillain(state, targetId)) return true;
   if (hasKeyword(state, targetId, "guard", deps)) return true;
+  if (characterIgnores(state, deps, attackerId, "guard")) return true;
   return !guardEngagedWith(state, controller, deps);
 }
 

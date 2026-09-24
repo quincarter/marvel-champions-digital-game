@@ -1,6 +1,9 @@
 import {
   activeEncounterDeck,
+  activeEncounterDeckId,
   activeVillain,
+  applyCommand,
+  canAttack,
   characterProfile,
   hasKeyword,
   type GameState,
@@ -22,6 +25,7 @@ import {
   resourceAbility,
   runWith,
   settle,
+  stackEncounterDeck,
   toHero,
   type Picker,
 } from "../../testing/harness.js";
@@ -186,6 +190,48 @@ describe("Technique upgrades (22004–22008)", () => {
     const villain = activeVillain(withTech).instanceId;
     const after = resolveSpecialViaLethalIntent(withTech, accepting(villain, "Stun it"));
     expect(inst(after, villain).statuses.stunned).toBe(1);
+  });
+
+  it("Evasive Maneuvering (22005.evasive-maneuvering-constant): in hero form Nebula attacks past guard and thwarts the main scheme past patrol and the crisis icon", () => {
+    // Hydra Mercenary (guard, 01101) engaged with Nebula and Crowd Control (crisis, 01108) in play.
+    const board = (state: GameState): GameState => {
+      const stacked = stackEncounterDeck(state, "01101", "01108");
+      const [mercenary, crowd] = activeEncounterDeck(stacked).deck as [InstanceId, InstanceId];
+      const deckId = activeEncounterDeckId(stacked);
+      const piles = stacked.encounterDecks[deckId]!;
+      const p1 = playerOf(stacked, P1);
+      return {
+        ...stacked,
+        encounterDecks: { ...stacked.encounterDecks, [deckId]: { ...piles, deck: piles.deck.slice(2) } },
+        villainArea: [...stacked.villainArea, crowd],
+        players: stacked.players.map((p) => (p === p1 ? { ...p, playArea: [...p.playArea, mercenary] } : p)),
+        instances: {
+          ...stacked.instances,
+          [mercenary]: { ...stacked.instances[mercenary]!, faceup: true, engagedWith: P1 },
+          [crowd]: { ...stacked.instances[crowd]!, faceup: true, threat: 2 },
+          [stacked.mainScheme.instanceId]: { ...stacked.instances[stacked.mainScheme.instanceId]!, threat: 5 },
+        },
+      };
+    };
+    const hero = runWith(WAVE4_DEPS, nebulaVsRhino(9), toHero());
+    const identity = identityOf(hero, P1);
+    const thwart = (state: GameState) =>
+      applyCommand(
+        state,
+        { type: "basicThwart", playerId: P1, thwarterInstanceId: identity, schemeInstanceId: mainSchemeId(state) },
+        WAVE4_DEPS,
+      );
+    const bare = board(hero);
+    expect(canAttack(bare, identity, activeVillain(bare).instanceId, WAVE4_DEPS)).toBe(false);
+    expect(thwart(bare).ok).toBe(false);
+    const equipped = board(playFromHand(hero, "22005", 1).state);
+    expect(canAttack(equipped, identity, activeVillain(equipped).instanceId, WAVE4_DEPS)).toBe(true);
+    const thwarted = thwart(equipped);
+    expect(thwarted.ok).toBe(true);
+    if (thwarted.ok)
+      expect(
+        inst(settle(thwarted.state, firstLegal, undefined, WAVE4_DEPS), mainSchemeId(equipped)).threat,
+      ).toBeLessThan(5);
   });
 
   it("Unyielding Persistence (22006.unyielding-persistence-constant, 22006.unyielding-persistence-constant-2): +1 THW, +1 ATK, and stalwart while in hero form; Special gives Nebula a tough status", () => {

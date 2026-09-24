@@ -691,6 +691,21 @@ export type RuleSpec =
    * on or leaves an ally (`CardInstance.treatedAs`); a minion takes no consequential damage by definition, so that
    * clause needs nothing. docs/phase7-wave4.md §3.9.
    */
+  /**
+   * "While in hero form, Nebula ignores the guard keyword, the patrol keyword, and the crisis icon." (Evasive
+   * Maneuvering, `nebu` 22005); "Wasp ignores the guard keyword, patrol keyword, and crisis icon" (`ironheart` 29034);
+   * Shadowcat, ally and Phased form (`mut_gen` 32002, 32030a); "Psylocke ignores the guard and patrol keywords"
+   * (Psionic Training, `psylocke` 41010). A standing exemption a character carries, not one effect's: a matching
+   * character's attacks are not stopped by guard, and its thwarts (basic or "(thwart)", the thwart's own character)
+   * are not stopped by patrol or the crisis icon; a removal whose source is the character itself skips the crisis icon
+   * too. RRG 1.8 "Ignore" (p. 23). docs/phase7-wave4.md §3.24.
+   */
+  | {
+      readonly kind: "characterIgnores";
+      readonly target: TargetQuery;
+      readonly ignores: readonly ("guard" | "patrol" | "crisis")[];
+      readonly while?: Predicate;
+    }
   | {
       readonly kind: "treatHostAsMinion";
       readonly traits: readonly Trait[];

@@ -10,7 +10,7 @@
  * an attachment on its first legal host (none: it leaves play, and a double-sided card leaving play is removed from the
  * game), a scheme or environment in the villain's area. Either way the new face is then treated as entering play: a
  * side scheme gets its starting threat and hinder, a minion engages, "enters play" triggers fire. The RRG does not say
- * a flip enters play; the printed faces assume it (Defensive Protocols' "Hinder 2"). docs/phase7-wave4.md §4 Q15.
+ * a flip enters play; the printed faces assume it (Defensive Protocols' "Hinder 2"). docs/phase7-wave4.md §4 Q17 (user decision 2026-09-24).
  */
 
 import type { AnyCard, CardId } from "@mc/content";
@@ -56,7 +56,7 @@ export function flipToOtherFace(ctx: Ctx, id: InstanceId, playerId: PlayerId, de
   emit(ctx, { type: "cardFlippedToOtherFace", instanceId: id, from: from.id, to: to.id, typeChanged });
   if (typeChanged) relocate(ctx, id, to, playerId, deps);
   if (!cardsInPlay(ctx.state).includes(id)) return true;
-  // The new face is treated as entering play (§4 Q15): Defensive Protocols' and Retrieve Odin's Armor's "Hinder 2" and
+  // The new face is treated as entering play (§4 Q17, user decision): Defensive Protocols' and Retrieve Odin's Armor's "Hinder 2" and
   // starting threat, Black Swan's "After Black Swan engages you", "enters play" responses.
   const events: TriggerEvent[] = [];
   if (to.type === "side_scheme") {

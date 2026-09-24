@@ -449,6 +449,18 @@ export const treatAttachedAllyAsMinion = (
     },
   ],
 });
+/**
+ * "Nebula ignores the guard keyword, the patrol keyword, and the crisis icon" (Evasive Maneuvering, `nebu` 22005; Wasp,
+ * `ironheart` 29034; Shadowcat, `mut_gen` 32002/32030a; Psionic Training, `psylocke` 41010, guard and patrol only):
+ * `constant(ignores(YOUR_IDENTITY, ["guard", "patrol", "crisis"], isHero()))`. docs/phase7-wave4.md §3.24.
+ */
+export const ignores = (
+  target: TargetQuery,
+  what: readonly ("guard" | "patrol" | "crisis")[],
+  when?: Predicate,
+): ConstantPart => ({
+  rules: [{ kind: "characterIgnores", target, ignores: what, ...(when ? { while: when } : {}) }],
+});
 /** "You cannot choose to discard this card from your hand." (System Shock): `inHand(constant(cannotChooseToDiscard))`. */
 export const cannotChooseToDiscard: ConstantPart = { rules: [{ kind: "cannotChooseToDiscard" }] };
 export const focusedMainScheme = (): ConstantPart => rule({ kind: "focusedMainScheme", scheme: { kind: "host" } });

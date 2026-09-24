@@ -7,7 +7,7 @@
  *
  * Sources: the cards' own text; RRG 1.8 "Flip" (p. 20: a different card type discards "all attached cards, tucked
  * cards, status cards, and tokens"; the same type keeps them), "When Defeated Abilities" (p. 48: "A defeated card leaves
- * play after its 'When Defeated' ability is resolved"), "Double-Sided Card" (p. 17); §4 Q15 (the new face is treated as
+ * play after its 'When Defeated' ability is resolved"), "Double-Sided Card" (p. 17); §4 Q17, user decision 2026-09-24 (the new face is treated as
  * entering play).
  */
 

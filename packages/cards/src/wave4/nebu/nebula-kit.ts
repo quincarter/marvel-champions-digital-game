@@ -25,6 +25,7 @@ import {
   gets,
   giveTough,
   heroAction,
+  ignores,
   isHero,
   moveCards,
   on,
@@ -69,9 +70,8 @@ const YOUR_TECHNIQUE_UPGRADES = query("upgrade", { controller: "you", trait: TEC
  * of their own, so a player can play one during alter-ego form specifically to trigger this draw before flipping
  * to hero.
  *
- * **Evasive Maneuvering's "ignores the guard keyword, the patrol keyword, and the crisis icon" (22005) is a
- * primitive gap, not scripted** — see `KNOWN_SKIPPED["nebu"]` in `../coverage.test.ts` for the exact reason. Its
- * Special ("choose to either stun or confuse an enemy") is scripted normally.
+ * **Evasive Maneuvering's "ignores the guard keyword, the patrol keyword, and the crisis icon" (22005)** is the
+ * standing `characterIgnores` exemption (docs/phase7-wave4.md §3.24), scoped to hero form.
  */
 export const NEBULA_KIT = defineAbilities({
   // Nebula (hero, 22001a) — Combat Protocols, Forced Response: After your turn begins, resolve the "Special"
@@ -113,8 +113,8 @@ export const NEBULA_KIT = defineAbilities({
   "22004.cutthroat-ambition-special": special({ label: "thwart" }, thwartAScheme(3)),
 
   // Evasive Maneuvering (upgrade, 22005) — While in hero form, Nebula ignores the guard keyword, the patrol
-  // keyword, and the crisis icon (KNOWN_SKIPPED — no primitive for a per-character exemption from guard/patrol/
-  // crisis exists yet). Special: Choose to either stun or confuse an enemy.
+  // keyword, and the crisis icon (§3.24). Special: Choose to either stun or confuse an enemy.
+  "22005.evasive-maneuvering-constant": constant(ignores(YOUR_IDENTITY, ["guard", "patrol", "crisis"], isHero())),
   "22005.evasive-maneuvering-constant-2": special(
     anEnemy("enemy"),
     chooseOne(option("Stun it", stun(chosen("enemy"))), option("Confuse it", confuse(chosen("enemy")))),
