@@ -22,7 +22,7 @@ import {
   handCardResources,
   paymentOptions,
   paymentsFromOptionIds,
-  inPlayCostCandidates,
+  defaultInPlayPicks,
   planCost,
   playableFromAttachment,
   playableFromDiscard,
@@ -262,30 +262,6 @@ function discardPicks(
   return cheapest.slice(0, min);
 }
 
-/**
- * Default picks for costs paid with cards in play (`InPlayCostPick`), so an ability whose choice isn't forced is still
- * listed. The first `min` candidates in play-area order are the smallest payment. The player's own picks replace them.
- */
-function inPlayCostPicks(
-  state: GameState,
-  deps: EngineDeps,
-  playerId: PlayerId,
-  source: InstanceId,
-  cost: AbilityCost | undefined,
-): CostChoices {
-  const picks: Record<string, readonly InstanceId[]> = {};
-  for (const [mode, pick] of [
-    ["exhaust", cost?.exhaustCards],
-    ["return", cost?.returnToHand],
-  ] as const) {
-    if (!pick) continue;
-    const candidates = inPlayCostCandidates(state, deps, source, playerId, mode, pick);
-    // With too few candidates, leave the slot empty so the engine reports why the cost can't be paid.
-    if (candidates.length >= pick.min) picks[pick.slot] = candidates.slice(0, pick.min);
-  }
-  return picks;
-}
-
 /** The `costChoices` to try, one per candidate for a "pay the printed cost of …" pick. */
 function costChoiceSets(
   state: GameState,
@@ -296,7 +272,7 @@ function costChoiceSets(
   picks: readonly InstanceId[],
 ): readonly { readonly costChoices: CostChoices | undefined; readonly target: InstanceId | null }[] {
   const base: CostChoices = {
-    ...inPlayCostPicks(state, deps, playerId, source, cost),
+    ...defaultInPlayPicks(state, deps, source, playerId, cost),
     ...(cost?.discardFromHand ? { discard: picks } : {}),
   };
   const baseChoices = Object.keys(base).length > 0 ? base : undefined;
@@ -510,12 +486,17 @@ function actionAbilities(
   playerId: PlayerId,
 ): readonly { readonly instanceId: InstanceId; readonly abilityId: AbilityId }[] {
   const found: { instanceId: InstanceId; abilityId: AbilityId }[] = [];
-  for (const id of cardsInPlay(state)) {
-    const controller = controllerOf(state, id);
+  // The cards in play, then the player's own hand for abilities that work in hand (docs/phase7-wave4.md §3.13).
+  const hand = getPlayer(state, playerId)?.hand ?? [];
+  for (const id of [...cardsInPlay(state), ...hand]) {
+    const inHand = hand.includes(id);
+    const controller = inHand ? playerId : controllerOf(state, id);
     if (controller !== null && controller !== playerId) continue;
     for (const ref of activeAbilityRefs(state, id, deps)) {
-      const trigger = deps.abilities[ref.id]?.trigger;
+      const definition = deps.abilities[ref.id];
+      const trigger = definition?.trigger;
       if (trigger?.kind !== "action") continue;
+      if ((definition?.activeIn === "hand") !== inHand) continue;
       // "First Player Action" (docs/phase7-wave3.md §3.13).
       if (trigger.firstPlayerOnly === true && playerId !== state.firstPlayerId) continue;
       found.push({ instanceId: id, abilityId: ref.id });

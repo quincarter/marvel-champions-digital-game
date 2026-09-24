@@ -3,7 +3,13 @@
  * us (or gives us wrong). Every entry cites the evidence it rests on, so a
  * reviewer can re-check it without re-deriving it.
  */
-import type { CoreAspect, IdentityDeckbuilding, SeparateGameAreas, SpecialCost } from "../../../src/schema/index.ts";
+import type {
+  CoreAspect,
+  IdentityDeckbuilding,
+  SeparateGameAreas,
+  SpecialCost,
+  Trait,
+} from "../../../src/schema/index.ts";
 
 /**
  * A correction to MarvelCDB's transcription of the *physical card*. Applies to
@@ -43,6 +49,17 @@ export interface Correction {
    * than a real one-copy print. Only ever a correction to a MarvelCDB data error, never errata.
    */
   readonly quantityInSet?: number;
+  /**
+   * The host of an attachment that prints no "Attach to X." sentence at all — its host is established by another
+   * card's own effect instead of the ordinary reveal-and-attach rule (wave 4, docs/phase7-wave4.md §1.13): Focused
+   * Defense (`mts` 21101) is put into play "attached to this stage" by The Armies of Thanos 2A's own When Revealed;
+   * Fallen Warrior (`mts` 21153) puts the ally it discards for into play "with Fallen Warrior attached to it" by
+   * its own When Revealed. Unlike every other `Correction` field, this is never applied to text — the printed card
+   * really has no attach sentence, and the pipeline must not fabricate one just to satisfy the schema's mandatory
+   * `attachesTo` field. Limited to the two structural kinds these cards need; widen only with a cited card that
+   * needs a different one.
+   */
+  readonly impliedAttachHost?: "mainScheme" | "ally";
 }
 
 /**
@@ -105,8 +122,26 @@ export interface StarterDeckCuration {
 export interface MultipleVillainsCuration {
   /** Every villain's encounter set, in printed order. Must start with the curation's own `villainSetCode`. */
   readonly villainSetCodes: readonly string[];
-  /** Each villain's signature side scheme MarvelCDB code, parallel to `villainSetCodes`. */
-  readonly signatureSideSchemeCodes: readonly string[];
+  /**
+   * Each villain's signature side scheme MarvelCDB code, parallel to `villainSetCodes` (The Wrecking Crew's
+   * "Wrecker's Side Scheme."-style cards). Absent/empty when the scenario's villains have none (Tower Defense,
+   * whose villains are told apart by `MainSchemeStage.villainOf` instead, docs/phase7-wave4.md §1.5).
+   */
+  readonly signatureSideSchemeCodes?: readonly string[];
+  /**
+   * Direct MarvelCDB villain-card codes, parallel to `villainSetCodes`, overriding the normal per-set lookup
+   * (wave 4, docs/phase7-wave4.md §1.6) — Tower Defense's Proxima Midnight and Corvus Glaive share one
+   * `card_set_code` (`tower_defense`) with colliding stage numbers (each I–III), the same "several single-stage
+   * villains, one set" shape `normalizeVillains` already gives Kang/Sinister-Six, which leaves `villainIdBySet`
+   * unset for that set — so each villain must be named by its own stage-I card code instead. Absent = resolve via
+   * `villainIdBySet.get(villainSetCodes[i])`, the normal (Wrecking Crew) case.
+   */
+  readonly villainCardCodes?: readonly string[];
+  /**
+   * `MultipleVillains.encounterDecks` (docs/phase7-wave4.md §1.6) — Tower Defense's one shared deck built from the
+   * scenario's own sets, instead of The Wrecking Crew's one deck per villain. Absent = `"perVillain"`.
+   */
+  readonly encounterDecks?: "perVillain" | "shared";
 }
 
 /**
@@ -116,9 +151,25 @@ export interface MultipleVillainsCuration {
  */
 export interface ScenarioSeparateDeckCuration {
   readonly name: string;
-  readonly contents: { readonly encounterSetCodes?: readonly string[]; readonly cardType?: "side_scheme" };
+  readonly contents: {
+    readonly encounterSetCodes?: readonly string[];
+    readonly cardType?: "side_scheme" | "environment";
+    /** Wave 4 (docs/phase7-wave4.md §1.10): only cards with this printed trait (the Infinity Stone deck). */
+    readonly trait?: Trait;
+  };
   readonly discardPile: "own" | "encounter";
   readonly whenEmpty: "reshuffleDiscardWithoutPenalty" | "remainsEmpty";
+}
+
+/**
+ * Per-`EncounterSet` overrides keyed by MarvelCDB `card_set_code` (wave 4, docs/phase7-wave4.md §1.10) — fields
+ * `EncounterSet` itself carries that no other curation input produces (unlike `classification`, which the
+ * normalizer derives structurally from the set id). The Infinity Gauntlet set's own separate deck and
+ * single-villain restriction.
+ */
+export interface EncounterSetCuration {
+  readonly separateDecks?: readonly ScenarioSeparateDeckCuration[];
+  readonly singleVillainOnly?: true;
 }
 
 export interface ScenarioCuration {
@@ -180,6 +231,15 @@ export interface ScenarioCuration {
   readonly separateGameAreas?: SeparateGameAreas;
   /** See `Scenario.separateDecks` (wave 2 — Crossbones' Experimental Weapons deck, Red Skull's side-scheme deck). */
   readonly separateDecks?: readonly ScenarioSeparateDeckCuration[];
+  /** See `Scenario.startingVillain` (wave 4, docs/phase7-wave4.md §1.11 — Loki). */
+  readonly startingVillain?: "random";
+  /** See `Scenario.victoryCondition` (wave 4, docs/phase7-wave4.md §1.11 — Loki). */
+  readonly victoryCondition?: {
+    readonly standard: number;
+    readonly expert: number;
+    readonly skirmish?: number;
+    readonly heroic?: number;
+  };
 }
 
 /**
@@ -303,4 +363,9 @@ export interface PackCuration {
    * file is missing, so the barrel never names a module that doesn't exist. Absent = none.
    */
   readonly handAuthoredModules?: readonly string[];
+  /**
+   * `EncounterSet` overrides keyed by MarvelCDB `card_set_code` (wave 4, docs/phase7-wave4.md §1.10) — see
+   * `EncounterSetCuration`. Absent = no set in this pack needs one.
+   */
+  readonly encounterSets?: Readonly<Record<string, EncounterSetCuration>>;
 }

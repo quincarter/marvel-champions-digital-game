@@ -3,6 +3,7 @@
 import {
   announceResourcesSpent,
   commitPlay,
+  inPlayCostCandidates,
   isPriceFault,
   payCost,
   paymentOptions,
@@ -14,12 +15,14 @@ import {
   pricePlay,
   resourceVars,
 } from "../actions.js";
+import { inPlayPicksOf } from "../abilities.js";
 import type { ChoiceOption } from "../choices.js";
+import type { CostChoices } from "../commands.js";
 import { type Ctx, emit, findFrame, popFrame, pushFrames, requestChoice, setFrame } from "../ctx.js";
 import { costReductionFor } from "../effects.js";
 import { EngineInvariantError } from "../errors.js";
-import type { FrameId, PlayerId } from "../ids.js";
-import { cardOf, mustPlayer, playerOrder } from "../query.js";
+import type { FrameId, InstanceId, PlayerId } from "../ids.js";
+import { cardOf, mustCardOf, mustPlayer, playerOrder } from "../query.js";
 import { combineRequirements, requirementTotal, satisfies } from "../resources.js";
 import type { TriggerCandidate, WindowTiming } from "../stack.js";
 import type { GameState } from "../state.js";
@@ -63,6 +66,7 @@ export function executeWindowFrame(ctx: Ctx, frame: Frame<"window">): void {
   if (frame.queue.length > 0) {
     const [next, ...rest] = frame.queue;
     if (!next) throw new EngineInvariantError("empty trigger queue");
+    if (askCostPick(ctx, frame, next, rest)) return;
     if (next.fromHand) return requestWindowPayment(ctx, frame, next, rest);
     return triggerCandidate(ctx, { ...frame, queue: rest }, next);
   }
@@ -168,6 +172,86 @@ function windowEventCost(ctx: Ctx, candidate: TriggerCandidate): number {
   return requirementTotal(combineRequirements(reduced, abilityCost));
 }
 
+const candidateKey = (candidate: TriggerCandidate): string => `${candidate.instanceId}:${candidate.abilityId}`;
+
+/** The cards in play the player has picked for this candidate's cost so far (`Frame<"window">.costPicks`). */
+function costChoicesFor(frame: Frame<"window">, candidate: TriggerCandidate): CostChoices {
+  return frame.costPicks?.key === candidateKey(candidate) ? frame.costPicks.choices : {};
+}
+
+/**
+ * Asks the candidate's controller for the next cost pick of cards in play that is their choice, if one is left
+ * (docs/phase7-wave4.md §3.17: Stand Together's "exhaust an [Avenger] character and a [Guardian] character" played
+ * inside an interrupt window). RRG 1.8 "Initiating Abilities" (p. 24): the costs are determined (step 3) before they
+ * are paid (step 5), so every pick is made before the payment sheet. A forced pick (exactly `min` candidates) and a pick
+ * with too few candidates are not asked; `planCost` pays the one and refuses the other.
+ */
+function askCostPick(
+  ctx: Ctx,
+  frame: Frame<"window">,
+  candidate: TriggerCandidate,
+  rest: readonly TriggerCandidate[],
+): boolean {
+  const controller = candidate.controllerId;
+  const cost = ctx.deps.abilities[candidate.abilityId]?.cost;
+  if (!controller || !cost) return false;
+  const choices = costChoicesFor(frame, candidate);
+  const taken = new Set(Object.values(choices).flat());
+  for (const { mode, pick } of inPlayPicksOf(cost)) {
+    if (choices[pick.slot] !== undefined) continue;
+    const candidates = inPlayCostCandidates(ctx.state, ctx.deps, candidate.instanceId, controller, mode, pick).filter(
+      (id) => !taken.has(id),
+    );
+    if (candidates.length <= pick.min) continue;
+    setFrame(ctx, {
+      ...frame,
+      queue: rest,
+      awaiting: "costPick",
+      paying: candidate,
+      costPicks: { key: candidateKey(candidate), choices, asking: pick.slot },
+    });
+    requestChoice(ctx, {
+      playerId: controller,
+      prompt: {
+        kind: "chooseCostCards",
+        instanceId: candidate.instanceId,
+        abilityId: candidate.abilityId,
+        slot: pick.slot,
+        mode,
+      },
+      options: candidates.map((id) => ({
+        optionId: id,
+        label: mustCardOf(ctx.state, id).name,
+        ref: { kind: "card", instanceId: id },
+      })),
+      minSelections: 0,
+      maxSelections: Math.min(candidates.length, pick.max ?? candidates.length),
+      frameId: frame.frameId,
+    });
+    return true;
+  }
+  return false;
+}
+
+/**
+ * The answer to a `chooseCostCards` choice: record the pick and put the candidate back at the head of the queue, so the
+ * next pick (or its payment) is asked. Fewer than the pick's `min` backs out of the candidate.
+ */
+function absorbCostPick(ctx: Ctx, frame: Frame<"window">, answer: readonly string[], slot: string | null): void {
+  const candidate = frame.paying;
+  const { costPicks: _dropped, ...cleared } = { ...frame, answer: null, awaiting: null, paying: null };
+  const pick = candidate
+    ? inPlayPicksOf(ctx.deps.abilities[candidate.abilityId]?.cost).find((entry) => entry.pick.slot === slot)?.pick
+    : undefined;
+  if (!candidate || !pick || answer.length < pick.min) return setFrame(ctx, cleared);
+  const picked = answer.map((id) => id as InstanceId);
+  setFrame(ctx, {
+    ...cleared,
+    queue: [candidate, ...frame.queue],
+    costPicks: { key: candidateKey(candidate), choices: { ...costChoicesFor(frame, candidate), [pick.slot]: picked } },
+  });
+}
+
 /**
  * Resolves the next queued candidate, paying its cost first (RRG "Cost"). A
  * cost that can no longer be paid means the ability doesn't resolve; a cost
@@ -181,7 +265,15 @@ function triggerCandidate(ctx: Ctx, frame: Frame<"window">, candidate: TriggerCa
     pushFrames(ctx, [abilityFrame(ctx, candidate, frame.event, frame.eventFrameId)]);
     return;
   }
-  const plan = planCost(ctx.state, ctx.deps, candidate.instanceId, controller, definition.cost, {}, new Set());
+  const plan = planCost(
+    ctx.state,
+    ctx.deps,
+    candidate.instanceId,
+    controller,
+    definition.cost,
+    costChoicesFor(frame, candidate),
+    new Set(),
+  );
   if (isPriceFault(plan)) return;
   const needed = requirementTotal(plan.requirement);
   if (needed > 0) {
@@ -209,7 +301,15 @@ function payWindowAbility(ctx: Ctx, frame: Frame<"window">, answer: readonly str
   const definition = candidate ? ctx.deps.abilities[candidate.abilityId] : undefined;
   if (!candidate || !controller || !definition) return;
   const payment = paymentsFromOptionIds(answer);
-  const plan = planCost(ctx.state, ctx.deps, candidate.instanceId, controller, definition.cost, {}, new Set());
+  const plan = planCost(
+    ctx.state,
+    ctx.deps,
+    candidate.instanceId,
+    controller,
+    definition.cost,
+    costChoicesFor(frame, candidate),
+    new Set(),
+  );
   if (isPriceFault(plan)) return;
   const pool = priceOrNull(ctx, controller, payment, null, plan.payingFor);
   if (!pool || !satisfies(pool, plan.requirement)) return;
@@ -291,7 +391,14 @@ function playWindowEvent(ctx: Ctx, frame: Frame<"window">, answer: readonly stri
   if (!mustPlayer(ctx.state, controller).hand.includes(candidate.instanceId)) return;
   const payment = paymentsFromOptionIds(answer);
   const abilityCost = ctx.deps.abilities[candidate.abilityId]?.cost;
-  const priced = pricePlay(ctx, controller, candidate.instanceId, abilityCost, payment, {});
+  const priced = pricePlay(
+    ctx,
+    controller,
+    candidate.instanceId,
+    abilityCost,
+    payment,
+    costChoicesFor(frame, candidate),
+  );
   if (isPriceFault(priced)) return;
   const spent = commitPlay(ctx, controller, candidate.instanceId, payment, priced);
   pushPlayCardFrame(
@@ -307,6 +414,7 @@ function playWindowEvent(ctx: Ctx, frame: Frame<"window">, answer: readonly stri
 }
 
 function absorbWindowAnswer(ctx: Ctx, frame: Frame<"window">, answer: readonly string[]): void {
+  if (frame.awaiting === "costPick") return absorbCostPick(ctx, frame, answer, frame.costPicks?.asking ?? null);
   if (frame.awaiting === "pay") {
     return frame.paying?.fromHand === false
       ? payWindowAbility(ctx, frame, answer)

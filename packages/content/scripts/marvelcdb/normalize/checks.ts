@@ -30,6 +30,13 @@ export function checkCoverage(ctx: NormalizeContext): void {
   const covered = new Set(ctx.provenance.flatMap((p) => p.marvelcdbCodes));
   for (const c of allCodes) if (!covered.has(c)) errors.push(`MarvelCDB record ${c} was not turned into any card`);
 
+  // `PackCuration.encounterSets` matched something (docs/phase7-wave4.md §1.10) — checked here rather than in
+  // `checkStaleCuration` (step 7) because encounter sets don't exist until `normalizeEncounterSets` (steps 8-10),
+  // which runs after it.
+  for (const id of Object.keys(ctx.curation.encounterSets ?? {})) {
+    if (!ctx.usedEncounterSetOverrides.has(id)) errors.push(`curation encounterSets entry for ${id} matched no set`);
+  }
+
   // A hard error rather than a warning: a silently art-less card would only show up as a
   // blank frame in the client, long after ingestion.
   for (const card of ctx.cards) {

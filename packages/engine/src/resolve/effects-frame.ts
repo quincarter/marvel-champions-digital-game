@@ -32,7 +32,7 @@ import {
   mustCardOf,
   playerOrder,
 } from "../query.js";
-import { cannotTakeDamage } from "../rules.js";
+import { cannotChooseToDiscard, cannotTakeDamage } from "../rules.js";
 import { combineRequirements, satisfies } from "../resources.js";
 import {
   activeAbilityRefs,
@@ -42,6 +42,8 @@ import {
   controllerOf,
   type EffectContext,
   evaluate,
+  isPlayerCard,
+  MAIN_SCHEME_CHOICE,
   matchesQuery,
   resolvePlayers,
   resolveRef,
@@ -78,6 +80,22 @@ export function executeEffectsFrame(ctx: Ctx, frame: Frame<"effects">): void {
   }
   const context = contextOf(frame, ctx.deps);
 
+  // Two main schemes (Tower Defense, docs/phase7-wave4.md §3.2): "When a someone plays a card that refers to 'the main
+  // scheme,' that card's controller must choose which of the two schemes it is referring to" (MC21 p. 10). Asked once
+  // per ability, just before the first effect that names it, and read by `resolveRef` from the binding.
+  if (needsMainSchemeChoice(ctx, frame, effect)) {
+    const choose: EffectSpec = {
+      kind: "chooseTarget",
+      slot: MAIN_SCHEME_CHOICE,
+      query: { categories: ["mainScheme"] },
+      chooser: { kind: "controller" },
+    };
+    setFrame(ctx, {
+      ...frame,
+      effects: [...frame.effects.slice(0, frame.cursor), choose, ...frame.effects.slice(frame.cursor)],
+    });
+    return;
+  }
   if (effect.kind === "chooseCards") return executeChooseCards(ctx, frame, effect, context);
   if (effect.kind === "chooseOne") return executeChooseOne(ctx, frame, effect, context);
   if (effect.kind === "choosePlayer") return executeChoosePlayer(ctx, frame, effect, context);
@@ -115,6 +133,17 @@ export function executeEffectsFrame(ctx: Ctx, frame: Frame<"effects">): void {
 }
 
 /**
+ * Whether a player card's effect about to resolve names "the main scheme" while two are in play in the shared area and
+ * the player has not yet chosen one for this ability (docs/phase7-wave4.md §3.2).
+ */
+function needsMainSchemeChoice(ctx: Ctx, frame: Frame<"effects">, effect: EffectSpec): boolean {
+  if ((ctx.state.extraMainSchemes ?? []).length === 0 || frame.bindings[MAIN_SCHEME_CHOICE]) return false;
+  if (frame.controllerId === null || !isPlayerCard(ctx.state, frame.selfInstanceId)) return false;
+  if (contextArea(ctx.state, contextOf(frame, ctx.deps))) return false;
+  return JSON.stringify(effect).includes('{"kind":"mainScheme"}');
+}
+
+/**
  * `EffectSpec playFromHand` (docs/phase7-wave2.md §3.8, §9): the player picks a card from their hand and plays it,
  * either ignoring its cost (Chaos Magic) or paying a reduced one (Team-Building Exercise).
  *
@@ -135,10 +164,11 @@ function executePlayFromHand(
       ? 0
       : Math.max(0, resolveValue(ctx.state, effect.costReduction, context, ctx.deps));
   const paying = effect.ignoreCost !== true;
+  const from = effect.from ?? "hand";
   const fault = (id: InstanceId, player: PlayerId): string | null =>
-    paying ? playWithPaymentFault(ctx, player, id, reduction) : playIgnoringCostFault(ctx, player, id);
+    paying ? playWithPaymentFault(ctx, player, id, reduction, from) : playIgnoringCostFault(ctx, player, id, from);
   const candidates = playerId
-    ? (getPlayer(ctx.state, playerId)?.hand ?? []).filter(
+    ? (getPlayer(ctx.state, playerId)?.[from] ?? []).filter(
         (id) => !fault(id, playerId) && (!effect.filter || matchesQuery(ctx.state, id, effect.filter, context)),
       )
     : [];
@@ -165,7 +195,7 @@ function executePlayFromHand(
     if (!playerId || !picked) return done();
     if (!paying) {
       done();
-      playIgnoringCost(ctx, playerId, picked);
+      playIgnoringCost(ctx, playerId, picked, from);
       return;
     }
     // A host is only a question when the upgrade names one and several are legal (RRG 1.8 "Attach To", p. 8).
@@ -478,7 +508,10 @@ function executeDiscardFromHand(
     const playerId = players[index];
     const player = playerId ? getPlayer(ctx.state, playerId) : undefined;
     if (!playerId || !player) continue;
-    const candidates = filter ? player.hand.filter((id) => matchesQuery(ctx.state, id, filter, context)) : player.hand;
+    // "You cannot choose to discard this card from your hand" (docs/phase7-wave4.md §3.13).
+    const candidates = (
+      filter ? player.hand.filter((id) => matchesQuery(ctx.state, id, filter, context)) : player.hand
+    ).filter((id) => !cannotChooseToDiscard(ctx.state, ctx.deps, id));
     const amount = Math.min(resolveValue(ctx.state, effect.amount, context, ctx.deps), candidates.length);
     if (amount <= 0) continue;
     setFrame(ctx, { ...frame, answer: null, vars: { ...vars, [`${DISCARD_HAND}index`]: index } });

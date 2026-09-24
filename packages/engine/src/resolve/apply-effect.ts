@@ -1,5 +1,6 @@
 /** Applying one non-interactive effect from an effects frame. */
 
+import { nextInt } from "../rng.js";
 import {
   type Ctx,
   emit,
@@ -78,19 +79,28 @@ import { matchingCardInPlay } from "../unique.js";
 import { campaignSeatNumber } from "../campaign-state.js";
 import { campaignLogValueOf, recordCampaignRemoval, recordCampaignWrite } from "./campaign.js";
 import { damageGroupFrame } from "./damage-group.js";
+import { advanceToSetAsideVillain, swapVillain } from "./villain-swap.js";
+import { flipToOtherFace } from "./other-face.js";
 import { buildScenarioDeck, moveCardsTo, selectCards, shuffleEncounterDeck } from "./cards.js";
-import { cannotBeUnattached, cannotChangeForm, cannotThwart } from "../rules.js";
+import {
+  canHaveAttached,
+  cannotBeUnattached,
+  cannotChangeForm,
+  cannotThwart,
+  revealCannotBeCanceled,
+} from "../rules.js";
 import { advanceMainSchemeStage, checkDefeats, completeMainScheme } from "./defeat.js";
 import {
   addVillains,
   createGameArea,
+  putMainSchemeStageIntoPlay,
   removeMainSchemeStage,
   removeVillains,
   revealMainSchemeStages,
 } from "./game-areas.js";
 import { readyOrAnnounce, threatRemovalBlocked } from "./event.js";
 import { heard } from "./triggers.js";
-import { dealBoostCard, giveBoostCard } from "./enemy-activation.js";
+import { dealBoostCard, declareDefenderByEffect, giveBoostCard } from "./enemy-activation.js";
 import { quickstrikeAttack } from "./enter-play.js";
 import { addFrameVars, eventFrame, type Frame, gameAbilityFrames, pushEffects, pushEvents } from "./frames.js";
 import { enterPlayOnReveal, revealFrame } from "./reveal.js";
@@ -346,6 +356,7 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       if (effect.preventAllDamage) delta.preventAllDamage = 1;
       if (effect.atkBonus) delta.atkBonus = value(effect.atkBonus);
       if (effect.threatBonus) delta.threatBonus = value(effect.threatBonus);
+      if (effect.defenseUsesAtk) delta.defenseUsesAtk = 1;
       const extra =
         effect.extraBoostCards === undefined
           ? 0
@@ -363,6 +374,52 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
         delta.extraBoost = extra;
       }
       addFrameVars(ctx, activation, delta);
+      return;
+    }
+    case "shuffleInSetAsideModularSet": {
+      const sets = ctx.state.setAsideModularSets ?? [];
+      if (sets.length === 0) {
+        if (effect.bind) addFrameVars(ctx, frame.frameId, { [`${effect.bind}.made`]: 0 });
+        return;
+      }
+      const [pick, rng] = nextInt(ctx.state.rng, sets.length);
+      const chosen = sets[pick]!;
+      ctx.state = { ...ctx.state, rng, setAsideModularSets: sets.filter((_, index) => index !== pick) };
+      // Only the cards still set aside: one an ability already took out ("search … the set-aside area") stays where it is.
+      const still = chosen.instanceIds.filter((id) => ctx.state.encounterSetAside.includes(id));
+      moveCardsTo(ctx, still, "encounterDeckShuffle");
+      emit(ctx, { type: "setAsideModularSetShuffledIn", encounterSetId: chosen.encounterSetId, instanceIds: still });
+      if (effect.bind) addFrameVars(ctx, frame.frameId, { [`${effect.bind}.made`]: 1 });
+      return;
+    }
+    case "resolveAttackAgainst": {
+      const attack = ctx.state.stack.find(
+        (f): f is Frame<"event"> => f.kind === "event" && f.event.kind === "attack" && !f.cancelled,
+      );
+      if (!attack || attack.event.kind !== "attack") return;
+      const original = attack.event;
+      const inPlay = cardsInPlay(ctx.state);
+      if (!inPlay.includes(original.attackerInstanceId)) return;
+      const { results: _results, ...body } = original;
+      pushEvents(
+        ctx,
+        targets(effect.targets)
+          .filter(
+            (id) =>
+              id !== original.targetInstanceId &&
+              inPlay.includes(id) &&
+              canAttack(ctx.state, original.attackerInstanceId, id, ctx.deps),
+          )
+          .map((id) => ({ ...body, targetInstanceId: id, additionalResolution: true as const })),
+      );
+      return;
+    }
+    case "declareDefender": {
+      const inPlay = cardsInPlay(ctx.state);
+      const [defender] = targets(effect.character).filter(
+        (id) => inPlay.includes(id) && categoriesOf(ctx.state, id).includes("character"),
+      );
+      if (defender) declareDefenderByEffect(ctx, defender, effect.exhaust === true);
       return;
     }
     case "modifyBasicPower": {
@@ -537,7 +594,13 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       for (const id of targets(effect.target)) exhaustCard(ctx, id);
       return;
     case "ready":
-      for (const id of targets(effect.target)) readyOrAnnounce(ctx, id);
+      for (const id of targets(effect.target)) {
+        readyOrAnnounce(ctx, id, {
+          readierId: frame.controllerId,
+          sourceInstanceId: frame.selfInstanceId,
+          costPaid: effect.readyCostPaid === true,
+        });
+      }
       return;
     case "giveStatus":
       for (const id of targets(effect.target)) giveStatus(ctx, id, effect.status);
@@ -580,7 +643,24 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
     }
     case "removeCounters": {
       const amount = value(effect.amount);
-      for (const id of targets(effect.target)) removeCounters(ctx, id, effect.counterType, amount);
+      // With an ability listening ("When/After the last invocation counter is removed", docs/phase7-wave4.md §3.15), each
+      // removal is an event whose apply step removes them; otherwise they go at once, as before.
+      const events: TriggerEvent[] = [];
+      for (const id of targets(effect.target)) {
+        const held = getInstance(ctx.state, id)?.counters[effect.counterType] ?? 0;
+        const removing = Math.min(amount, held);
+        if (removing <= 0) continue;
+        const event: TriggerEvent = {
+          kind: "countersRemoved",
+          instanceId: id,
+          counterType: effect.counterType,
+          amount: removing,
+          remaining: held - removing,
+        };
+        if (heard(ctx.state, ctx.deps, event)) events.push(event);
+        else removeCounters(ctx, id, effect.counterType, amount);
+      }
+      if (events.length > 0) pushEvents(ctx, events);
       return;
     }
     case "attach": {
@@ -590,6 +670,8 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
         // "The Power Stone cannot be unattached from Ronan the Accuser" (docs/phase7-wave3.md §3.19).
         const current = getInstance(ctx.state, id)?.attachedTo ?? null;
         if (current !== null && current !== host && cannotBeUnattached(ctx.state, ctx.deps, id)) continue;
+        // "Odin cannot have cards attached" (docs/phase7-wave4.md §3.8): the card stays where it was.
+        if (!canHaveAttached(ctx.state, ctx.deps, host, id)) continue;
         moveCard(ctx, id, { kind: "attachment", hostInstanceId: host });
         // "Attach 1 card from your hand facedown here" (Bruno Carrelli): no title, traits, keywords or abilities
         // while it is facedown; it is itself again when it leaves play (`leavePlay`).
@@ -763,6 +845,10 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
           if (!other?.stages[villain.stageIndex]) continue;
           flipVillain(ctx, id, other.side);
           frames.push(...gameAbilityFrames(ctx, id, ["whenRevealed"], null, undefined, ctx.state.firstPlayerId));
+        } else if (card?.otherFaceId !== undefined) {
+          // docs/phase7-wave4.md §3.10. Its new face goes to "you" (the first player, for a side scheme's When Defeated).
+          const playerId = context.controllerId ?? ctx.state.firstPlayerId;
+          if (!flipToOtherFace(ctx, id, playerId)) continue;
         } else if (card && "flipSide" in card && card.flipSide) {
           const flipped = !mustInstance(ctx.state, id).flipped;
           updateInstance(ctx, id, (i) => ({ ...i, flipped }));
@@ -910,6 +996,38 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       pushFrames(ctx, revealMainSchemeStages(ctx, players, effect.stageNumber, effect.removeUnused ?? false));
       return;
     }
+    case "detach": {
+      // "The first player detaches Odin from the main scheme and takes control of him" (Hall of Nastrond, `mts` 21141;
+      // Find the Senator, `mut_gen` 32065a; docs/phase7-wave4.md §3.8). The card stays in play: it moves from its host to
+      // its new controller's play area, which is not leaving or entering play.
+      const [playerId] = resolvePlayers(ctx.state, effect.controller, context);
+      if (!playerId) return;
+      for (const id of targets(effect.card)) {
+        const instance = getInstance(ctx.state, id);
+        if (!instance || instance.attachedTo === null) continue;
+        const from = instance.controllerId;
+        moveCard(ctx, id, { kind: "playArea", playerId });
+        updateInstance(ctx, id, (i) => ({ ...i, controllerId: playerId }));
+        emit(ctx, { type: "cardDetached", instanceId: id, from: instance.attachedTo });
+        if (from !== playerId)
+          emit(ctx, { type: "controllerChanged", instanceId: id, from, to: playerId, reason: "effect" });
+      }
+      return;
+    }
+    case "swapVillain":
+      for (const id of targets(effect.villain)) if (villainOf(ctx.state, id)) swapVillain(ctx, id);
+      return;
+    case "advanceToSetAsideVillain": {
+      for (const id of targets(effect.villain)) {
+        if (!villainOf(ctx.state, id)) continue;
+        const frames = advanceToSetAsideVillain(ctx, id);
+        if (frames) pushFrames(ctx, frames);
+      }
+      return;
+    }
+    case "putMainSchemeStageIntoPlay":
+      pushFrames(ctx, putMainSchemeStageIntoPlay(ctx, effect.stageNumber, effect.name, ctx.state.firstPlayerId));
+      return;
     case "createGameArea": {
       const player = context.scopedPlayerId ?? context.controllerId;
       if (!player) return;
@@ -1035,6 +1153,8 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
         (f): f is Frame<"reveal"> => f.kind === "reveal" && f.instanceId === revealing,
       );
       if (!reveal) return;
+      // "This effect cannot be canceled." (RRG 1.8 "'Cannot'", p. 11: "cannot" is absolute.) The cancel's costs stay paid.
+      if (revealCannotBeCanceled(ctx.state, ctx.deps, reveal.instanceId)) return;
       const all = effect.kind === "cancelRevealedCard";
       setFrame(ctx, all ? { ...reveal, effectsCancelled: true } : { ...reveal, whenRevealedCancelled: true });
       emit(ctx, { type: "revealCancelled", instanceId: reveal.instanceId, scope: all ? "allEffects" : "whenRevealed" });

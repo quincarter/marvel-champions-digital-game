@@ -30,9 +30,14 @@ import {
   areaOfCard,
   mainSchemeFor,
 } from "../query.js";
-import { attacksDealIndirectDamage, mustDefendWithAlly, schemeThreatDestination } from "../rules.js";
+import {
+  attacksDealIndirectDamage,
+  mustDefendWithAlly,
+  pairedMainSchemeId,
+  schemeThreatDestination,
+} from "../rules.js";
 import { cardsInPlay, controllerOf, DEFENDER_SLOT } from "../select.js";
-import type { Vars } from "../stack.js";
+import { currentActivationFrameId, type Vars } from "../stack.js";
 import type { GameState } from "../state.js";
 import type { TriggerEvent } from "../trigger-events.js";
 import {
@@ -229,6 +234,50 @@ export function setDefender(
   });
 }
 
+/**
+ * "Declare Valkyrie the defender without exhausting her" (Shieldmaiden, 25011) / "declare him the defender without
+ * exhausting him" (Colossus, Bamf!) / "Exhaust it and declare it the defender" (Mutant Protectors): `EffectSpec
+ * declareDefender` (docs/phase7-wave4.md §3.22). RRG 1.8 "Defend, Defense" (p. 15): "When a card ability says to
+ * 'declare [a hero] the defender' of an attack, that hero is considered to be making a basic defense" (so the hero's DEF
+ * reduces the damage), "When a card ability says to 'declare [an ally] the defender' of an attack, that ally becomes
+ * the defender", and a defense-labeled ability's hero "can still be declared the defender … by another card ability".
+ *
+ * Works on the innermost enemy attack: its procedure once it runs, or its event while the attack is being initiated
+ * ("When the enemy … attacks"), where `pushEnemyAttackFrame` picks the declaration up. Re-declaring the character that
+ * already defends (a "(defense)" ability's hero) only makes the defense basic; it is not a second defense.
+ */
+export function declareDefenderByEffect(ctx: Ctx, defenderId: InstanceId, exhaust: boolean): void {
+  const defenderPlayer = controllerOf(ctx.state, defenderId);
+  if (!defenderPlayer) return;
+  const basic = cardOf(ctx.state, defenderId)?.type === "hero_identity";
+  if (exhaust) exhaustCard(ctx, defenderId);
+  const procedure = ctx.state.stack.find((f): f is Frame<"enemyAttack"> => f.kind === "enemyAttack");
+  if (procedure) {
+    if (procedure.defenderInstanceId === defenderId) setFrame(ctx, { ...procedure, basicDefense: basic });
+    else setDefender(ctx, procedure, defenderId, defenderPlayer, basic);
+    return;
+  }
+  const activation = currentActivationFrameId(ctx.state.stack);
+  const frame = activation ? ctx.state.stack.find((f) => f.frameId === activation) : undefined;
+  if (frame?.kind !== "event" || frame.event.kind !== "enemyAttack") return;
+  const already = (frame.slots[DEFENDER_SLOT] ?? [])[0] === defenderId;
+  setFrame(ctx, {
+    ...frame,
+    event: { ...frame.event, targetInstanceId: defenderId, targetPlayerId: defenderPlayer },
+    vars: { ...frame.vars, declaredDefense: 1, declaredBasicDefense: basic ? 1 : 0 },
+    slots: { ...frame.slots, [DEFENDER_SLOT]: [defenderId] },
+  });
+  if (!already) {
+    announce(ctx, {
+      kind: "defended",
+      defenderInstanceId: defenderId,
+      enemyInstanceId: frame.event.enemyInstanceId,
+      playerId: defenderPlayer,
+      basic,
+    });
+  }
+}
+
 export function pushEnemyAttackFrame(
   ctx: Ctx,
   event: Extract<TriggerEvent, { kind: "enemyAttack" }>,
@@ -242,9 +291,14 @@ export function pushEnemyAttackFrame(
       attackedPlayerId: event.attackedPlayerId,
       targetPlayerId: event.targetPlayerId,
       targetInstanceId: event.targetInstanceId,
-      // A "(defense)" ability used while the attack was initiated already made the identity the defender.
-      defenderInstanceId: (activationVars(ctx, eventFrameId).labeledDefense ?? 0) > 0 ? event.targetInstanceId : null,
-      basicDefense: false,
+      // A "(defense)" ability used while the attack was initiated already made the identity the defender; a
+      // `declareDefender` effect named a defender (a hero's being a basic defense, §3.22).
+      defenderInstanceId:
+        (activationVars(ctx, eventFrameId).labeledDefense ?? 0) > 0 ||
+        (activationVars(ctx, eventFrameId).declaredDefense ?? 0) > 0
+          ? event.targetInstanceId
+          : null,
+      basicDefense: (activationVars(ctx, eventFrameId).declaredBasicDefense ?? 0) > 0,
       boostIcons: 0,
       stage: "giveBoost",
       eventFrameId,
@@ -378,6 +432,15 @@ export function executeEnemyAttackFrame(ctx: Ctx, frame: Frame<"enemyAttack">): 
           playerId: defenderPlayer,
         };
         if (heard(ctx.state, ctx.deps, using)) announce(ctx, using);
+        return;
+      }
+      // A defender an effect declared (`declareDefender`, §3.22): an ally, or a hero already making a basic defense,
+      // leaves nothing to declare.
+      if (
+        frame.defenderInstanceId !== null &&
+        (frame.basicDefense || cardOf(ctx.state, frame.defenderInstanceId)?.type !== "hero_identity")
+      ) {
+        setFrame(ctx, { ...frame, stage: "flipBoosts" });
         return;
       }
       // RRG "Defend, Defense": with a "(defense)" defender already set, only that
@@ -569,6 +632,7 @@ export function executeEnemySchemeFrame(ctx: Ctx, frame: Frame<"enemyScheme">): 
       // With separate game areas, "the main scheme" is the enemy's own area's (docs/phase7-wave2.md §3.1).
       const schemeInstanceId =
         schemeThreatDestination(ctx.state, ctx.deps, frame.enemyInstanceId) ??
+        pairedMainSchemeId(ctx.state, ctx.deps, frame.enemyInstanceId) ??
         mainSchemeFor(ctx.state, areaOfCard(ctx.state, frame.enemyInstanceId))?.instanceId ??
         ctx.state.mainScheme.instanceId;
       const threatBonus = vars.threatBonus ?? 0;

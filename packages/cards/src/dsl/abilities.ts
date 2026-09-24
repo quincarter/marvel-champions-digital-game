@@ -382,6 +382,58 @@ export const gainsTraitsOf = (
 });
 export const rule = (r: RuleSpec): ConstantPart => ({ rules: [r] });
 /**
+ * "As an additional cost for the engaged player to ready a hero or ally they control, the player must spend a [mental]
+ * resource" (Mister Fear, `hood` 24027) → `constant(additionalCostToReady(query(["hero", "ally"], { controlledBy:
+ * engagedPlayerOf(self) }), { mental: 1 }, { player: engagedPlayerOf(self) }))`; "… for a player to ready a support, that
+ * player must spend 1 resource of any type" (Undermine Support, `aos` 50174) → `additionalCostToReady(query("support"),
+ * 1)`. The readier may decline, and then the card does not ready (RRG 1.8 "Ready", p. 36). docs/phase7-wave4.md §3.19.
+ */
+export const additionalCostToReady = (
+  target: TargetQuery,
+  resources: number | ResourceRequirement,
+  opts: { readonly player?: PlayerRef; readonly while?: Predicate } = {},
+): ConstantPart =>
+  rule({
+    kind: "readyCost",
+    target,
+    resources,
+    ...(opts.player ? { player: opts.player } : {}),
+    ...(opts.while ? { while: opts.while } : {}),
+  });
+/**
+ * "Heroes and allies cannot be readied by player card effects" (Unnatural Storm, `mts` 21159;
+ * docs/phase7-wave4.md §3.19): the end-of-phase ready and encounter card effects still ready them.
+ */
+export const cannotBeReadiedByPlayerCards = (target: TargetQuery): ConstantPart =>
+  rule({ kind: "cannotReady", target, bySource: "playerCard" });
+/**
+ * Focused Defense (Tower Defense, `mts` 21101): "The villain who matches the attached scheme is the active villain." Its
+ * host is also the scheme minions scheme onto and player constants mean by "the main scheme" (MC21 p. 10; errata RRG 1.8
+ * p. 67). `constant(focusedMainScheme())`. docs/phase7-wave4.md §3.2.
+ */
+/**
+ * "While Pip the Troll is in your hand, he gains '…'" / "While this card is in your hand, it gains: '…'" (Pip the Troll,
+ * System Shock, `mts` 21032, 21185): the ability works only while its card is in its owner's hand
+ * (`AbilityDefinition.activeIn`, docs/phase7-wave4.md §3.13). `inHand(interrupt(…))`.
+ */
+export const inHand = (definition: AbilityDefinition): AbilityDefinition => ({ ...definition, activeIn: "hand" });
+/**
+ * "… This effect cannot be canceled." (the Cosmic Entities, `mts` 21042/21048/21054/21060; Longshot, `mojo` 39071):
+ * `uncancellable(whenRevealed(…))`. "This card cannot be canceled" read from the card itself or from play is the
+ * constant `cannotBeCanceled(query)`. docs/phase7-wave4.md §3.14.
+ */
+export const uncancellable = (definition: AbilityDefinition): AbilityDefinition => ({
+  ...definition,
+  uncancellable: true,
+});
+/** "Treacheries cannot be canceled." (Dark Scepter, `tt` 55036); "this card … cannot be canceled" (`sm` 27108). */
+export const cannotBeCanceled = (cards: TargetQuery, when?: Predicate): ConstantPart => ({
+  rules: [{ kind: "cannotBeCanceled", cards, ...(when ? { while: when } : {}) }],
+});
+/** "You cannot choose to discard this card from your hand." (System Shock): `inHand(constant(cannotChooseToDiscard))`. */
+export const cannotChooseToDiscard: ConstantPart = { rules: [{ kind: "cannotChooseToDiscard" }] };
+export const focusedMainScheme = (): ConstantPart => rule({ kind: "focusedMainScheme", scheme: { kind: "host" } });
+/**
  * "The first [X] the engaged player reveals each villain phase gains surge." (Mister Knife, `stld` 17026); "The
  * first [Technique] attachment revealed each round gains surge." (Nebula I–III, `gmw`; docs/phase7-wave3.md §3.8).
  * `revealer` narrows *who* has to reveal it ("the engaged player" is `engagedPlayerOf(self)`); absent matches
@@ -653,6 +705,18 @@ const inPlayPick = (q: TargetQuery, opts: InPlayCostOptions, defaultSlot: string
 export const exhaustCardsCost = (q: TargetQuery, opts: InPlayCostOptions = {}): AbilityCost => ({
   exhaustCards: inPlayPick(q, opts, "exhausted"),
 });
+/**
+ * "Exhaust an [Avenger] character and a [Guardian] character →" (As One!, Stand Together, Problem Solvers; Combine
+ * Forces' X-Force and X-Men; docs/phase7-wave4.md §3.17): one card per slot, each slot its own query, and one card
+ * cannot pay two slots. `exhaustEachCost({ avenger: query(["identity", "ally"], { trait: AVENGER }), guardian: … })` binds each card to its slot, so "the combined ATK of those characters" is `sum(statOf(chosen("avenger"),
+ * "atk"), statOf(chosen("guardian"), "atk"))`. On an alliance card the picks may be any player's characters; otherwise
+ * the payer's own, as for `exhaustCardsCost`.
+ */
+export const exhaustEachCost = (picks: Readonly<Record<string, TargetQuery>>): AbilityCost => {
+  const entries = Object.entries(picks);
+  if (entries.length < 2) throw new Error("exhaustEachCost: name at least two slots (one pick is exhaustCardsCost)");
+  return { exhaustCards: entries.map(([slot, q]) => inPlayPick(q, { slot }, slot)) };
+};
 /** "… return [cards you control] from play to your hand →" (Shield Toss). Same picking rules as `exhaustCardsCost`. */
 export const returnToHandCost = (q: TargetQuery, opts: InPlayCostOptions = {}): AbilityCost => ({
   returnToHand: inPlayPick(q, opts, "returned"),
@@ -863,6 +927,11 @@ export const on = {
        * defeating damage was attack damage from a card matching this query — `{ categories: ["enemy"] }`.
        */
       readonly byAttackFrom?: TargetQuery;
+      /**
+       * "After the enemy **with Death-Glow** is defeated" (Flight of the Valkyrior, Valhalla; docs/phase7-wave4.md
+       * §3.22): a card matching this was attached when the defeat was initiated, read after the character left play.
+       */
+      readonly withAttachment?: TargetQuery;
     } = {},
   ): EventPattern =>
     pattern(
@@ -870,6 +939,7 @@ export const on = {
       asTarget(what),
       opts.byYou ? { playerIs: "controller" } : {},
       opts.byAttackFrom ? { fromAttack: true, sourceIs: opts.byAttackFrom } : {},
+      opts.withAttachment ? { targetHadAttachment: opts.withAttachment } : {},
     ),
   /**
    * "After [X] (or an event you play) defeats a minion or side scheme" (Small but Mighty, 13001a; docs/phase7-
@@ -898,6 +968,19 @@ export const on = {
    * on a forced interrupt, `forcedInterrupt(on.mainSchemeCompleting("self"), instead(…))`.
    */
   mainSchemeCompleting: (what: Who): EventPattern => pattern("mainSchemeCompleting", asTarget(what)),
+  /**
+   * "After the last invocation counter is removed from Fireball" (`mts` 21076–21079) / "When the last lock counter is
+   * removed from here" (Holding Cell, `aos` 50105a) / "After the last power counter is removed from here" (Phoenix Force):
+   * counters of `counterType` removed from this card by an effect, leaving none (docs/phase7-wave4.md §3.15).
+   */
+  lastCounterRemoved: (counterType: string): EventPattern =>
+    pattern("countersRemoved", { selfIs: "target", eventIs: { counterType }, eventAtMost: { remaining: 0 } }),
+  /** "After your deck runs out of cards" (Soul World, `mts` 21033; docs/phase7-wave4.md §3.11): your deck reset. */
+  yourDeckRunsOut: (): EventPattern => pattern("deckRanOut", { playerIs: "controller", eventIs: { deck: "player" } }),
+  /** "After a player resets their deck" (Universal Church of Truth, 21068): any player's; name them with `eventPlayer`. */
+  aPlayerResetsTheirDeck: (): EventPattern => pattern("deckRanOut", { eventIs: { deck: "player" } }),
+  /** "After the infinity stone deck runs out" (Thanos I–III, 21111–21113): a scenario deck by name. */
+  scenarioDeckRunsOut: (name: string): EventPattern => pattern("deckRanOut", { eventIs: { deck: "scenario", name } }),
   /** "After you change to this form". */
   youChangeForm: (): EventPattern => pattern("formChanged", { playerIs: "controller" }),
   /**

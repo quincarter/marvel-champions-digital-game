@@ -176,6 +176,11 @@ export const hasAttachment = (q: TargetQuery): Pick<TargetQuery, "hasAttachment"
  * `query("upgrade", printedForm("energy"), { facedown: true, controller: "you" })`.
  */
 export const printedForm = (formType: string): Pick<TargetQuery, "printedForm"> => ({ printedForm: formType });
+/**
+ * "Each Spell card in your play area" (Ebony Maw I–III, `mts` 21071–21073): a query fragment for cards in that player's
+ * play area, controlled by them or not (docs/phase7-wave4.md §3.16).
+ */
+export const inPlayAreaOf = (player: PlayerRef = you): Pick<TargetQuery, "inPlayAreaOf"> => ({ inPlayAreaOf: player });
 
 /** "Friendly character": any identity or ally (every player's, RRG "Friendly"). */
 export const FRIENDLY_CHARACTER: TargetQuery = query(["identity", "ally"]);
@@ -299,6 +304,11 @@ export const printedCostOf = (of: TargetRef): ValueSpec => ({ kind: "printedCost
 export const countersOn = (of: TargetRef, counterType: string): ValueSpec => ({ kind: "counters", of, counterType });
 /** "For each different resource type discarded this way" (wild counts as its own type). */
 export const resourceTypesOf = (cardsRef: TargetRef): ValueSpec => ({ kind: "resourceTypes", cards: cardsRef });
+/**
+ * "For each different aspect discarded this way (Aggression, Justice, Leadership and Protection)" (Karmic Blast, Cosmic
+ * Awareness, Regeneration Cycle, `mts`; docs/phase7-wave4.md §3.12).
+ */
+export const distinctAspectsOf = (cardsRef: TargetRef): ValueSpec => ({ kind: "distinctAspects", cards: cardsRef });
 /** "That damage" / "it" in an interrupt: the triggering event's amount. */
 export const eventAmount: ValueSpec = { kind: "eventAmount" };
 export const eventResult = (key: string): ValueSpec => ({ kind: "eventResult", key });
@@ -337,6 +347,13 @@ export const victoryDisplayCount = (filter?: TargetQuery): ValueSpec => ({
   kind: "victoryDisplayCount",
   ...(filter ? { filter } : {}),
 });
+/** "The victory condition" (All Hail King Loki 1B): `Scenario.victoryCondition` for the modes played (§3.7 of wave 4). */
+export const victoryCondition: ValueSpec = { kind: "victoryCondition" };
+/**
+ * How many modular encounter sets are still set aside: Wheel of Genres (`mojo` 39026a), "if there are no set-aside
+ * modular encounter sets remaining" → `valueEquals(setAsideModularSetCount, 0)` (docs/phase7-wave4.md §3.18).
+ */
+export const setAsideModularSetCount: ValueSpec = { kind: "setAsideModularSetCount" };
 
 /**
  * Arithmetic: "2 damage for each counter (to a maximum of 10)" → `scaled(counters, { times: 2, max: 10 })`;
@@ -388,6 +405,18 @@ export const ifElse = (condition: Predicate, then: Amount, otherwise: Amount): V
 
 export const inForm = (form: Form, player: PlayerRef = you): Predicate => ({ kind: "form", player, form });
 export const isHero = (player: PlayerRef = you): Predicate => inForm("hero", player);
+/**
+ * "While attacking the enemy with Death-Glow attached" (Dragonfang, 25006), "while defending against the enemy with
+ * Death Glow attached" (Valkyrie's Spear, 25005), "while attacking a character with the [Aerial] trait" (Harpoon): the
+ * innermost attack on the stack matches every query given (docs/phase7-wave4.md §3.22). Use it as a stat modifier's
+ * condition: `gets("atk", ifElse(attackInProgress({ attacker: YOUR_IDENTITY, target: query("enemy", { hasAttachment:
+ * query("upgrade", { name: "Death-Glow" }) }) }), 2, 1), YOUR_IDENTITY)`.
+ */
+export const attackInProgress = (of: {
+  readonly attacker?: TargetQuery;
+  readonly target?: TargetQuery;
+  readonly defender?: TargetQuery;
+}): Predicate => ({ kind: "attackInProgress", ...of });
 /**
  * "If you were already in Gamma energy form" (Gamma Blast, `mts` 21007) / "While you are in Dense mass form" / "Play only
  * if Vision is in Intangible mass form" (`vision`): `player` controls a faceup card with the form keyword of `formType`,

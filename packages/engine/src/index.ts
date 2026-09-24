@@ -1,4 +1,4 @@
-export const ENGINE_VERSION = "0.5.0";
+export const ENGINE_VERSION = "0.5.1";
 
 export type { PlayerId, InstanceId, ChoiceId, EncounterDeckId, FrameId } from "./ids.js";
 export { playerId, instanceId, choiceId, encounterDeckId, frameId } from "./ids.js";
@@ -146,7 +146,7 @@ export { characterTitledAs, identityCardTitledAs } from "./titles.js";
 export type { CostChoices, CostSelection } from "./commands.js";
 export type { DeferredEffects, ReportTarget, Vars } from "./stack.js";
 export { currentActivationFrameId } from "./stack.js";
-export { abilityUseKey, DEFAULT_DEPS, NO_ABILITIES } from "./abilities.js";
+export { abilityUseKey, DEFAULT_DEPS, inPlayPicksOf, NO_ABILITIES } from "./abilities.js";
 
 export type {
   CardDestination,

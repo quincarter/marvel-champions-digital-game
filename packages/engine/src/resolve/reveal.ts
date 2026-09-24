@@ -14,6 +14,7 @@ import {
   discardZoneFor,
   getInstance,
   getPlayer,
+  locateCard,
   mustCardOf,
   mustInstance,
   printedProfile,
@@ -29,7 +30,7 @@ import type { TargetQuery } from "../spec.js";
 import type { StackFrame } from "../stack.js";
 import type { GameState } from "../state.js";
 import type { TriggerEvent } from "../trigger-events.js";
-import { firstRevealGainsSurge, whenRevealedRepeats } from "../rules.js";
+import { canHaveAttached, entersRevealersPlayArea, firstRevealGainsSurge, whenRevealedRepeats } from "../rules.js";
 import { encounterTargetSelector } from "../villain/authority.js";
 import { engagedEvent } from "./apply-effect.js";
 import { enterPlay, quickstrikeAttack } from "./enter-play.js";
@@ -175,6 +176,14 @@ export function attachmentHostCandidates(
   host: AttachmentHost,
   context: EffectContext,
 ): readonly InstanceId[] {
+  // "Odin cannot have cards attached" (`cannotHaveAttachments`, docs/phase7-wave4.md §3.8): never a legal host.
+  const deps = context.deps ?? DEFAULT_DEPS;
+  return rawHostCandidates(state, host, context).filter((id) =>
+    canHaveAttached(state, deps, id, context.selfInstanceId),
+  );
+}
+
+function rawHostCandidates(state: GameState, host: AttachmentHost, context: EffectContext): readonly InstanceId[] {
   const deps = context.deps ?? DEFAULT_DEPS;
   switch (host.kind) {
     case "villain":
@@ -382,7 +391,11 @@ export function executeRevealFrame(ctx: Ctx, frame: Frame<"reveal">): void {
     }
     case "finish": {
       setFrame(ctx, { ...frame, stage: "done" });
-      if (card.type === "treachery" && getInstance(ctx.state, frame.instanceId)) {
+      // A revealed player event (a Cosmic Entity whose effects left it where it was) is discarded like a treachery,
+      // to its encounter discard pile (docs/phase7-wave4.md §3.14).
+      const unresolvedEvent =
+        card.type === "event" && locateCard(ctx.state, frame.instanceId)?.kind === "dealtEncounter";
+      if ((card.type === "treachery" || unresolvedEvent) && getInstance(ctx.state, frame.instanceId)) {
         // Its home deck's discard (docs/phase7-wave1.md §4.3, proposed; see `discardZoneFor`).
         moveCard(ctx, frame.instanceId, discardZoneFor(ctx.state, frame.instanceId), "top");
       }
@@ -452,7 +465,11 @@ export function enterPlayOnReveal(ctx: Ctx, id: InstanceId, playerId: PlayerId):
       });
       break;
     case "environment":
-      moveCard(ctx, id, { kind: "villainArea" });
+      // "They place that card in front of them in their play area" (Spell environments; docs/phase7-wave4.md §3.16).
+      if (entersRevealersPlayArea(ctx.state, ctx.deps, id)) {
+        moveCard(ctx, id, { kind: "playArea", playerId });
+        updateInstance(ctx, id, (i) => ({ ...i, controllerId: null }));
+      } else moveCard(ctx, id, { kind: "villainArea" });
       entered = true;
       break;
     case "attachment": {

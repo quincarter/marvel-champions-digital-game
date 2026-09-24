@@ -30,6 +30,7 @@ import { statBonus } from "./modifiers.js";
 import {
   canDivideBasicPower,
   cannotChangeForm,
+  cannotChooseToDiscard,
   cannotLeavePlay,
   cannotPlayCard,
   cannotThwart,
@@ -38,7 +39,7 @@ import {
   patrolledBy,
   restrictedLimitFor,
 } from "./rules.js";
-import type { InPlayCostPick } from "./abilities.js";
+import { inPlayPicksOf, type InPlayCostPick } from "./abilities.js";
 import type { TriggerEvent } from "./trigger-events.js";
 import { instanceId as asInstanceId, type InstanceId, type PlayerId } from "./ids.js";
 import { hasKeyword, statusActive } from "./keywords.js";
@@ -522,6 +523,37 @@ interface PriceFault {
 
 const isFault = (value: object): value is PriceFault => "code" in value;
 
+/**
+ * RRG 1.8 "Alliance" (p. 6): "When a player declares their intention to play a card with the alliance keyword, any
+ * player(s) may help pay the costs for that card", equivalent to "While paying costs for this card, any player may
+ * contribute to paying those costs." Read from the card whose costs are being paid (docs/phase7-wave4.md §3.17), so a
+ * gained alliance counts as a printed one. Only the paying player resolves the card; the contributors only pay.
+ */
+export function paidAsGroup(state: GameState, deps: EngineDeps, ...cards: readonly (InstanceId | null)[]): boolean {
+  return cards.some(
+    (id) => id !== null && getInstance(state, id) !== undefined && hasKeyword(state, id, "alliance", deps),
+  );
+}
+
+/**
+ * Who spends a resource ability used in a payment by `playerId`: the paying player for their own card and for a card
+ * that generates "for any player" (the Milano), and otherwise the card's controller, contributing to an alliance cost.
+ * That player's form, limit and discard pile are the ones the ability reads, and they pay its own cost.
+ */
+function resourceSpender(
+  state: GameState,
+  deps: EngineDeps,
+  instanceId: InstanceId,
+  abilityId: string,
+  playerId: PlayerId,
+) {
+  const controller = controllerOf(state, instanceId);
+  if (controller === null || controller === playerId) return playerId;
+  return deps.abilities[abilityId]?.trigger.kind === "resource" && deps.abilities[abilityId]?.trigger.forAnyPlayer
+    ? playerId
+    : controller;
+}
+
 function resourceAbilityFault(
   state: GameState,
   deps: EngineDeps,
@@ -529,6 +561,7 @@ function resourceAbilityFault(
   abilityId: string,
   playerId: PlayerId,
   payingFor: InstanceId | null,
+  group = false,
 ): PriceFault | null {
   const definition = deps.abilities[abilityId];
   if (!definition || definition.trigger.kind !== "resource") {
@@ -537,22 +570,24 @@ function resourceAbilityFault(
   if (!activeAbilityRefs(state, instanceId, deps).some((ref) => ref.id === abilityId)) {
     return { code: "no_valid_target", message: `${abilityId} is not active on ${instanceId}` };
   }
-  // "…generate a [wild] resource for any player" (the Milano; docs/phase7-wave3.md §3.13).
-  if (controllerOf(state, instanceId) !== playerId && definition.trigger.forAnyPlayer !== true) {
+  // "…generate a [wild] resource for any player" (the Milano; docs/phase7-wave3.md §3.13); any player's, for an
+  // alliance card (§3.17).
+  if (controllerOf(state, instanceId) !== playerId && definition.trigger.forAnyPlayer !== true && !group) {
     return { code: "no_valid_target", message: "resource abilities must be on cards you control" };
   }
+  const spender = resourceSpender(state, deps, instanceId, abilityId, playerId);
   const form = definition.trigger.form;
-  if (form && getPlayer(state, playerId)?.identity.form !== form) {
+  if (form && getPlayer(state, spender)?.identity.form !== form) {
     return { code: "wrong_form", message: `${abilityId} requires ${form} form` };
   }
-  if (limitReached(state, instanceId, asAbilityId(abilityId), definition, null, playerId)) {
+  if (limitReached(state, instanceId, asAbilityId(abilityId), definition, null, spender)) {
     return { code: "limit_reached", message: `${abilityId} has reached its limit` };
   }
   // "Generate a [wild] resource for an event": only while paying for a matching card.
   if (definition.generatesFor) {
     const context: EffectContext = {
       selfInstanceId: instanceId,
-      controllerId: playerId,
+      controllerId: spender,
       event: null,
       bindings: {},
       deps,
@@ -561,7 +596,7 @@ function resourceAbilityFault(
       return { code: "no_valid_target", message: `${abilityId} only generates resources for a certain kind of card` };
     }
   }
-  const plan = planCost(state, deps, instanceId, playerId, definition.cost, {}, new Set());
+  const plan = planCost(state, deps, instanceId, spender, definition.cost, {}, new Set());
   return isFault(plan) ? plan : null;
 }
 
@@ -578,9 +613,13 @@ function priceOf(
   excludeInstanceId: InstanceId | null,
   payingFor: InstanceId | null,
 ): ResourcePool | PriceFault {
-  const player = mustPlayer(ctx.state, playerId);
+  // An alliance card (RRG 1.8 "Alliance", p. 6; docs/phase7-wave4.md §3.17): any player's hand cards and resource
+  // abilities may pay. Each card is read from its own player's point of view (their form, their discard pile).
+  const group = paidAsGroup(ctx.state, ctx.deps, excludeInstanceId, payingFor);
   const seen = new Set<string>();
-  let discardTop: InstanceId | null = player.discard[0] ?? null;
+  const discardTop = new Map<PlayerId, InstanceId | null>();
+  const topOf = (id: PlayerId): InstanceId | null =>
+    discardTop.has(id) ? (discardTop.get(id) ?? null) : (mustPlayer(ctx.state, id).discard[0] ?? null);
   let pool = EMPTY_POOL;
   for (const entry of payment) {
     if ("fromHand" in entry) {
@@ -590,9 +629,12 @@ function priceOf(
       if (entry.fromHand === excludeInstanceId) {
         return { code: "insufficient_resources", message: "a card cannot pay for itself" };
       }
-      if (!player.hand.includes(entry.fromHand)) {
+      const zone = locateCard(ctx.state, entry.fromHand);
+      const ownerId = zone?.kind === "hand" ? zone.playerId : null;
+      if (ownerId === null || (ownerId !== playerId && !group)) {
         return { code: "card_not_in_zone", message: `payment card ${entry.fromHand} is not in hand` };
       }
+      const player = mustPlayer(ctx.state, ownerId);
       if (!cardOf(ctx.state, entry.fromHand))
         return { code: "unknown_card", message: `no card data for ${entry.fromHand}` };
       // "Spend this card only in hero form."
@@ -605,17 +647,18 @@ function priceOf(
           message: `${mustCardOf(ctx.state, entry.fromHand).name} can only be spent in ${spendableIn} form`,
         };
       }
-      pool = addPools(pool, handCardResources(ctx.state, ctx.deps, entry.fromHand, playerId, payingFor));
-      discardTop = entry.fromHand;
+      pool = addPools(pool, handCardResources(ctx.state, ctx.deps, entry.fromHand, ownerId, payingFor));
+      discardTop.set(ownerId, entry.fromHand);
       continue;
     }
     const { instanceId, abilityId } = entry.ability;
     const key = `ability:${instanceId}:${abilityId}`;
     if (seen.has(key)) return { code: "insufficient_resources", message: "duplicate resource ability" };
     seen.add(key);
-    const fault = resourceAbilityFault(ctx.state, ctx.deps, instanceId, abilityId, playerId, payingFor);
+    const fault = resourceAbilityFault(ctx.state, ctx.deps, instanceId, abilityId, playerId, payingFor, group);
     if (fault) return fault;
-    pool = addPools(pool, generatedResources(ctx.state, ctx.deps.abilities[abilityId]?.generates, discardTop));
+    const spender = resourceSpender(ctx.state, ctx.deps, instanceId, abilityId, playerId);
+    pool = addPools(pool, generatedResources(ctx.state, ctx.deps.abilities[abilityId]?.generates, topOf(spender)));
   }
   // "You can only spend [physical] resources to pay for this card." A wild can be declared as that type; a cost of 0
   // needs no resources at all (FAQ "Crushing Blow (#2)", p. 60).
@@ -654,24 +697,31 @@ export function paymentOptions(
   payingFor: InstanceId | null = excludeInstanceId,
 ): readonly ChoiceOption[] {
   const options: ChoiceOption[] = [];
-  const form = mustPlayer(ctx.state, playerId).identity.form;
-  for (const id of mustPlayer(ctx.state, playerId).hand) {
-    if (id === excludeInstanceId) continue;
-    const spendableIn = printedConstants(ctx.state, ctx.deps, id).find((trigger) => trigger.spendableIn)?.spendableIn;
-    if (spendableIn && spendableIn !== form) continue;
-    options.push({
-      optionId: `hand:${id}`,
-      label: mustCardOf(ctx.state, id).name,
-      ref: { kind: "card", instanceId: id },
-    });
+  // An alliance card: every player's hand, the paying player's first (docs/phase7-wave4.md §3.17).
+  const group = paidAsGroup(ctx.state, ctx.deps, excludeInstanceId, payingFor);
+  const payers = group
+    ? [playerId, ...playerOrder(ctx.state).flatMap((p) => (p.playerId === playerId ? [] : [p.playerId]))]
+    : [playerId];
+  for (const payerId of payers) {
+    const payer = mustPlayer(ctx.state, payerId);
+    for (const id of payer.hand) {
+      if (id === excludeInstanceId) continue;
+      const spendableIn = printedConstants(ctx.state, ctx.deps, id).find((trigger) => trigger.spendableIn)?.spendableIn;
+      if (spendableIn && spendableIn !== payer.identity.form) continue;
+      options.push({
+        optionId: `hand:${id}`,
+        label: mustCardOf(ctx.state, id).name,
+        ref: { kind: "card", instanceId: id },
+      });
+    }
   }
   for (const id of cardsInPlay(ctx.state)) {
     const controlled = controllerOf(ctx.state, id) === playerId;
     for (const ref of activeAbilityRefs(ctx.state, id, ctx.deps)) {
       const trigger = ctx.deps.abilities[ref.id]?.trigger;
       if (trigger?.kind !== "resource") continue;
-      if (!controlled && trigger.forAnyPlayer !== true) continue;
-      if (resourceAbilityFault(ctx.state, ctx.deps, id, ref.id, playerId, payingFor)) continue;
+      if (!controlled && trigger.forAnyPlayer !== true && !group) continue;
+      if (resourceAbilityFault(ctx.state, ctx.deps, id, ref.id, playerId, payingFor, group)) continue;
       options.push({
         optionId: `ability:${id}:${ref.id}`,
         label: mustCardOf(ctx.state, id).name,
@@ -702,24 +752,27 @@ export function payPayment(ctx: Ctx, playerId: PlayerId, payment: readonly Payme
   const spent: InstanceId[] = [];
   for (const entry of payment) {
     if ("fromHand" in entry) {
-      discardFromHand(ctx, playerId, entry.fromHand);
+      // From the hand it is in: another player's, when they help pay for an alliance card (§3.17).
+      const zone = locateCard(ctx.state, entry.fromHand);
+      discardFromHand(ctx, zone?.kind === "hand" ? zone.playerId : playerId, entry.fromHand);
       spent.push(entry.fromHand);
       continue;
     }
     const { instanceId, abilityId } = entry.ability;
     const definition = ctx.deps.abilities[abilityId];
     if (!definition) continue;
+    const spender = resourceSpender(ctx.state, ctx.deps, instanceId, abilityId, playerId);
     const generated = generatedResources(
       ctx.state,
       definition.generates,
-      mustPlayer(ctx.state, playerId).discard[0] ?? null,
+      mustPlayer(ctx.state, spender).discard[0] ?? null,
     );
-    const plan = planCost(ctx.state, ctx.deps, instanceId, playerId, definition.cost, {}, new Set());
-    if (!isFault(plan)) payCost(ctx, instanceId, playerId, definition.cost, plan);
-    recordAbilityUse(ctx, instanceId, abilityId, definition, null, playerId);
+    const plan = planCost(ctx.state, ctx.deps, instanceId, spender, definition.cost, {}, new Set());
+    if (!isFault(plan)) payCost(ctx, instanceId, spender, definition.cost, plan);
+    recordAbilityUse(ctx, instanceId, abilityId, definition, null, spender);
     emit(ctx, {
       type: "resourcesGenerated",
-      playerId,
+      playerId: spender,
       instanceId,
       abilityId,
       amount: poolTotal(generated),
@@ -745,15 +798,24 @@ export function announceResourcesSpent(
   purpose: "playCard" | "ability" | "effect",
 ): void {
   if (spent.length === 0) return;
-  const event: TriggerEvent = {
-    kind: "resourcesSpent",
-    cardInstanceIds: spent,
-    playerId,
-    forPlayerId: playerId,
-    payingForInstanceId,
-    purpose,
-  };
-  if (heard(ctx.state, ctx.deps, event)) pushEvent(ctx, event);
+  // One event per player who spent cards: an alliance payment (§3.17) spans players, and "After you spend this card
+  // for a player" (Everyday Hero) names both the spender and the player paid for. Pushed in reverse player order from
+  // the paying player, so the paying player's own event resolves first. Spenders are the cards' owners (a hand card
+  // is in its owner's hand).
+  const spenders = [playerId, ...ctx.state.players.flatMap((p) => (p.playerId === playerId ? [] : [p.playerId]))];
+  for (const spender of [...spenders].reverse()) {
+    const theirs = spent.filter((id) => (getInstance(ctx.state, id)?.ownerId ?? playerId) === spender);
+    if (theirs.length === 0) continue;
+    const event: TriggerEvent = {
+      kind: "resourcesSpent",
+      cardInstanceIds: theirs,
+      playerId: spender,
+      forPlayerId: playerId,
+      payingForInstanceId,
+      purpose,
+    };
+    if (heard(ctx.state, ctx.deps, event)) pushEvent(ctx, event);
+  }
 }
 
 /**
@@ -993,12 +1055,20 @@ export function planCost(
       bindings: {},
       deps,
     };
+    // An alliance card's discards may come from any player's hand (§3.17).
+    const group = paidAsGroup(state, deps, sourceId);
+    const inAHand = (id: InstanceId): boolean =>
+      player.hand.includes(id) || (group && locateCard(state, id)?.kind === "hand");
     for (const id of picks) {
-      if (!player.hand.includes(id) || id === sourceId || reserved.has(id)) {
+      if (!inAHand(id) || id === sourceId || reserved.has(id)) {
         return { code: "card_not_in_zone", message: `${id} cannot be discarded from hand for this cost` };
       }
       if (filter && !matchesQuery(state, id, filter, filterContext)) {
         return { code: "no_valid_target", message: `${id} does not match what this cost must be paid with` };
+      }
+      // "You cannot choose to discard this card from your hand" (docs/phase7-wave4.md §3.13).
+      if (cannotChooseToDiscard(state, deps, id)) {
+        return { code: "no_valid_target", message: `${id} cannot be chosen to be discarded` };
       }
     }
     if (new Set(picks).size !== picks.length) return { code: "invalid_choice", message: "duplicate discard choice" };
@@ -1050,30 +1120,24 @@ export function planCost(
   }
   // Costs paid with cards in play: "exhaust Captain America's Shield →", "exhaust any number of allies you control →",
   // "return Captain America's Shield from play to your hand →" (`InPlayCostPick`).
-  const exhausting = cost.exhaustCards
-    ? planInPlayPick(state, deps, sourceId, playerId, "exhaust", cost.exhaustCards, choices)
-    : [];
-  if (isFault(exhausting)) return exhausting;
-  const returning = cost.returnToHand
-    ? planInPlayPick(state, deps, sourceId, playerId, "return", cost.returnToHand, choices)
-    : [];
-  if (isFault(returning)) return returning;
+  const picked: { readonly pick: InPlayCostPick; readonly ids: readonly InstanceId[] }[] = [];
+  for (const { mode, pick } of inPlayPicksOf(cost)) {
+    const ids = planInPlayPick(state, deps, sourceId, playerId, mode, pick, choices);
+    if (isFault(ids)) return ids;
+    picked.push({ pick, ids });
+  }
+  const inPlayIds = picked.flatMap((entry) => entry.ids);
   // RRG 1.8 "Cost" (p. 13): a cost's components are paid simultaneously, so one card can't pay two of them. It can't
   // be exhausted twice, exhausted and also returned, or picked here and also exhausted for a resource in the payment.
   const spentInPlay = [
     ...(cost.exhaustSelf ? [sourceId] : []),
     ...(cost.exhaustIdentity ? [identity.instanceId] : []),
-    ...exhausting,
-    ...returning,
+    ...inPlayIds,
   ];
-  if (
-    new Set(spentInPlay).size !== spentInPlay.length ||
-    [...exhausting, ...returning].some((id) => reserved.has(id))
-  ) {
+  if (new Set(spentInPlay).size !== spentInPlay.length || inPlayIds.some((id) => reserved.has(id))) {
     return { code: "invalid_choice", message: "one card cannot pay two parts of a cost" };
   }
-  if (cost.exhaustCards) bindInPlayPick(cost.exhaustCards, exhausting, bindings, vars);
-  if (cost.returnToHand) bindInPlayPick(cost.returnToHand, returning, bindings, vars);
+  for (const { pick, ids } of picked) bindInPlayPick(pick, ids, bindings, vars);
   return { requirement, bindings, vars, payingFor, ...(selected ? { cost } : {}) };
 }
 
@@ -1104,6 +1168,32 @@ export function inPlayCostCandidates(
   );
 }
 
+/**
+ * Default picks for costs paid with cards in play (`InPlayCostPick`), so an ability whose choice isn't forced can still
+ * be judged payable: the first `min` candidates of each pick in play-area order, the smallest payment, with a card
+ * taken by an earlier pick kept out of later ones ("an [Avenger] character and a [Guardian] character" needs two). A
+ * pick with too few candidates is left out, so `planCost` reports why the cost can't be paid. The player's own picks
+ * replace these (`legalActions`' example commands; a window's trigger candidates).
+ */
+export function defaultInPlayPicks(
+  state: GameState,
+  deps: EngineDeps,
+  sourceId: InstanceId,
+  playerId: PlayerId,
+  cost: AbilityCost | undefined,
+): CostChoices {
+  const picks: Record<string, readonly InstanceId[]> = {};
+  const taken = new Set<InstanceId>();
+  for (const { mode, pick } of inPlayPicksOf(cost)) {
+    const candidates = inPlayCostCandidates(state, deps, sourceId, playerId, mode, pick).filter((id) => !taken.has(id));
+    if (candidates.length < pick.min) continue;
+    const chosen = candidates.slice(0, pick.min);
+    picks[pick.slot] = chosen;
+    for (const id of chosen) taken.add(id);
+  }
+  return picks;
+}
+
 function eligibleForInPlayPick(
   state: GameState,
   deps: EngineDeps,
@@ -1112,8 +1202,12 @@ function eligibleForInPlayPick(
   pick: InPlayCostPick,
 ): readonly InstanceId[] {
   const context: EffectContext = { selfInstanceId: sourceId, controllerId: playerId, event: null, bindings: {}, deps };
+  // RRG 1.8 "Cost" (p. 14): costs are paid with cards the player controls, except for an alliance card, whose costs
+  // any player may help pay (RRG 1.8 "Alliance", p. 6): "exhaust an [Avenger] character and a [Guardian] character"
+  // may take another player's characters (docs/phase7-wave4.md §3.17).
+  const group = paidAsGroup(state, deps, sourceId);
   return cardsInPlay(state).filter(
-    (id) => controllerOf(state, id) === playerId && matchesQuery(state, id, pick.query, context),
+    (id) => (group || controllerOf(state, id) === playerId) && matchesQuery(state, id, pick.query, context),
   );
 }
 
@@ -1250,7 +1344,10 @@ export function payCost(
   if (cost.healIdentity) healDamage(ctx, identityId, cost.healIdentity);
   // "Deal yourself 1 facedown encounter card →" (docs/phase7-wave3.md §3.20).
   for (let i = 0; i < (cost.dealEncounterCards ?? 0); i++) dealEncounterCardTo(ctx, playerId);
-  for (const id of plan.bindings.discard ?? []) discardFromHand(ctx, playerId, id);
+  for (const id of plan.bindings.discard ?? []) {
+    const zone = locateCard(ctx.state, id);
+    discardFromHand(ctx, zone?.kind === "hand" ? zone.playerId : playerId, id);
+  }
   if (cost.discardFromDeck) discardFromDeckAsCost(ctx, playerId, cost.discardFromDeck);
   // After the payment and the chosen discards have left the hand, so the random pick is among what remains.
   if (cost.discardRandomFromHand) discardRandomFromHand(ctx, playerId, cost.discardRandomFromHand, [sourceId]);
@@ -1273,10 +1370,10 @@ export function payCost(
     });
   }
   if (cost.discardSelf && getInstance(ctx.state, sourceId)) discardFromPlay(ctx, sourceId);
-  if (cost.exhaustCards) {
-    for (const id of plan.bindings[cost.exhaustCards.slot] ?? []) exhaustCard(ctx, id);
+  for (const { mode, pick } of inPlayPicksOf(cost)) {
+    if (mode === "exhaust") for (const id of plan.bindings[pick.slot] ?? []) exhaustCard(ctx, id);
+    else moveCardsTo(ctx, plan.bindings[pick.slot] ?? [], "hand");
   }
-  if (cost.returnToHand) moveCardsTo(ctx, plan.bindings[cost.returnToHand.slot] ?? [], "hand");
 }
 
 // ---------------------------------------------------------------------------
@@ -1737,15 +1834,23 @@ export function playCard(ctx: Ctx, command: Command & { type: "playCard" }): Eng
   return null;
 }
 
+/** Where an effect plays a card from "as if it were in your hand" (`EffectSpec playFromHand.from`). */
+export type PlayFromZone = "hand" | "setAside";
+
 /**
  * The play restrictions every "play a card from your hand" effect checks, whatever it does about the cost. RRG 1.8
  * "Play, Put Into Play" (p. 32) and "Play Restrictions and Permissions" (p. 33): playing a card through an effect is
  * still *playing* it, so form, "max per", Restricted, the unique rule and `cannotPlay` all apply.
  */
-function playFromEffectRestrictionFault(ctx: Ctx, playerId: PlayerId, id: InstanceId): string | null {
+function playFromEffectRestrictionFault(
+  ctx: Ctx,
+  playerId: PlayerId,
+  id: InstanceId,
+  from: PlayFromZone = "hand",
+): string | null {
   const card = cardOf(ctx.state, id);
   const player = getPlayer(ctx.state, playerId);
-  if (!card || !player || !player.hand.includes(id)) return "not in hand";
+  if (!card || !player || !player[from].includes(id)) return from === "hand" ? "not in hand" : "not set aside";
   if (!("cost" in card)) return "not a card that is played";
   if ("specialCost" in card && card.specialCost === "dash") return "a '—' cost cannot be played";
   const restrictions = "playRestrictions" in card ? card.playRestrictions : undefined;
@@ -1771,8 +1876,13 @@ function playFromEffectRestrictionFault(ctx: Ctx, playerId: PlayerId, id: Instan
  * required resources cannot be paid for it"), nor a dash cost (RRG 1.8 "Dash (Value)", p. 15). Kept conservative: an
  * event is playable only through an action ability with no cost of its own, and an upgrade only onto its own identity.
  */
-export function playIgnoringCostFault(ctx: Ctx, playerId: PlayerId, id: InstanceId): string | null {
-  const restriction = playFromEffectRestrictionFault(ctx, playerId, id);
+export function playIgnoringCostFault(
+  ctx: Ctx,
+  playerId: PlayerId,
+  id: InstanceId,
+  from: PlayFromZone = "hand",
+): string | null {
+  const restriction = playFromEffectRestrictionFault(ctx, playerId, id, from);
   if (restriction) return restriction;
   const card = mustCardOf(ctx.state, id);
   const player = mustPlayer(ctx.state, playerId);
@@ -1806,8 +1916,9 @@ export function playWithPaymentFault(
   playerId: PlayerId,
   id: InstanceId,
   extraReduction: number,
+  from: PlayFromZone = "hand",
 ): string | null {
-  const restriction = playFromEffectRestrictionFault(ctx, playerId, id);
+  const restriction = playFromEffectRestrictionFault(ctx, playerId, id, from);
   if (restriction) return restriction;
   const card = mustCardOf(ctx.state, id);
   const player = mustPlayer(ctx.state, playerId);
@@ -1924,8 +2035,8 @@ export function playWithPayment(
  * the purpose of card effects, that card is considered to have been played with zero resources paid for its cost." So
  * `paid.*` are all 0. It counts as played (max per round/phase, "the first ally played each round").
  */
-export function playIgnoringCost(ctx: Ctx, playerId: PlayerId, id: InstanceId): void {
-  if (playIgnoringCostFault(ctx, playerId, id)) return;
+export function playIgnoringCost(ctx: Ctx, playerId: PlayerId, id: InstanceId, from: PlayFromZone = "hand"): void {
+  if (playIgnoringCostFault(ctx, playerId, id, from)) return;
   const plan = planCost(ctx.state, ctx.deps, id, playerId, undefined, {}, new Set());
   if (isFault(plan)) return;
   const vars = {
@@ -1956,6 +2067,12 @@ export function useAbility(ctx: Ctx, command: Command & { type: "useAbility" }):
   }
   if (!activeAbilityRefs(ctx.state, command.cardInstanceId, ctx.deps).some((ref) => ref.id === command.abilityId)) {
     return engineError("no_valid_target", `${command.abilityId} is not active on that card`, command);
+  }
+  // An ability that works in hand works only there, and only for the hand's owner; every other ability only in play
+  // (`AbilityDefinition.activeIn`, docs/phase7-wave4.md §3.13).
+  const inHand = mustPlayer(ctx.state, command.playerId).hand.includes(command.cardInstanceId);
+  if ((definition.activeIn === "hand") !== inHand) {
+    return engineError("no_valid_target", `${command.abilityId} is not active where that card is`, command);
   }
   // "Players cannot trigger 'Alter-Ego Action' abilities on obligations." (`cannotTriggerActions`, §3.11).
   if (cannotTriggerAction(ctx.state, ctx.deps, command.cardInstanceId, definition.trigger.form)) {

@@ -414,6 +414,8 @@ export const modifyAttack = (change: {
    * excess measured), but the target takes none, so no tough card is used.
    */
   readonly preventAllDamage?: boolean;
+  /** "Use its ATK instead of its DEF for this attack" (The Best Defense…, 25020; docs/phase7-wave4.md §3.22). */
+  readonly defenseUsesAtk?: boolean;
 }): EffectSpec => ({
   kind: "modifyAttack",
   ...(change.overkill ? { overkill: true } : {}),
@@ -422,7 +424,32 @@ export const modifyAttack = (change: {
   ...(change.threatBonus !== undefined ? { threatBonus: amount(change.threatBonus) } : {}),
   ...(change.keywords && change.keywords.length > 0 ? { keywords: change.keywords } : {}),
   ...(change.preventAllDamage ? { preventAllDamage: true } : {}),
+  ...(change.defenseUsesAtk ? { defenseUsesAtk: true } : {}),
 });
+/**
+ * "Declare Valkyrie the defender without exhausting her" (Shieldmaiden, 25011) / "declare him the defender without
+ * exhausting him" (Colossus, Bamf!) / "Exhaust it and declare it the defender" (Mutant Protectors, `{ exhaust: true
+ * }`): docs/phase7-wave4.md §3.22. A hero declared this way makes a basic defense (its DEF reduces the damage).
+ */
+export const declareDefender = (character: TargetRef, opts: { readonly exhaust?: boolean } = {}): EffectSpec => ({
+  kind: "declareDefender",
+  character,
+  ...(opts.exhaust ? { exhaust: true } : {}),
+});
+/**
+ * "Resolve this attack against each minion engaged with that player" (Thor, 25013; docs/phase7-wave4.md §3.22): the
+ * player attack in progress also hits every other card `targets` names, as additional resolutions of one attack.
+ */
+/**
+ * "Choose 1 set-aside modular encounter set at random, then shuffle it into the encounter deck" (The Hood: Making
+ * Connections 1A's Setup, The Hood II/III, Promised Prosperity, Crime State, Field Recruitment; docs/phase7-wave4.md
+ * §3.18). `bind`: `<bind>.made`.
+ */
+export const shuffleInSetAsideModularSet = (bind?: string): EffectSpec => ({
+  kind: "shuffleInSetAsideModularSet",
+  ...withBind(bind),
+});
+export const resolveAttackAgainst = (targets: TargetRef): EffectSpec => ({ kind: "resolveAttackAgainst", targets });
 export const atEndOfAttack = (...effects: readonly EffectArg[]): EffectSpec => ({
   kind: "atEndOfAttack",
   effects: flatten(effects),
@@ -1048,6 +1075,18 @@ export const playFromHandReducingCost = (
   ...(opts.filter ? { filter: opts.filter } : {}),
   ...(opts.optional ? { optional: true } : {}),
 });
+/**
+ * "Play the set-aside Death-Glow upgrade as if it were in your hand" (Valkyrie's Death Perception, 25001a;
+ * docs/phase7-wave4.md §3.22): a card from your set-aside area, played and paid for as from hand (its host chosen if
+ * it has several). `playSetAside(query("upgrade", { name: "Death-Glow" }))`.
+ */
+export const playSetAside = (filter?: TargetQuery, player: PlayerRef = you): EffectSpec => ({
+  kind: "playFromHand",
+  player,
+  from: "setAside",
+  costReduction: amount(0),
+  ...(filter ? { filter } : {}),
+});
 
 /** "Advance the main scheme to stage N" (docs/phase7-wave2.md §1.6/§3.4). */
 export const advanceMainScheme = (
@@ -1121,6 +1160,37 @@ export const changeAdditionalForm = (
   formType,
   ...(opts.to !== undefined ? { to: opts.to } : {}),
   ...(opts.toName !== undefined ? { toName: opts.toName } : {}),
+});
+/**
+ * "Reveal stage 2A and put it into play next to this stage so there are two main schemes and two villains in play"
+ * (Under Siege 1A, Tower Defense, `mts` 21098a; docs/phase7-wave4.md §3.2).
+ */
+export const putMainSchemeStageIntoPlay = (stageNumber: number, name?: string): EffectSpec => ({
+  kind: "putMainSchemeStageIntoPlay",
+  stageNumber,
+  ...(name !== undefined ? { name } : {}),
+});
+/**
+ * "Swap Loki with a random set-aside Loki villain" (The Trickster, Casket of Ancient Winters, `mts`; Stories and Lies,
+ * `tt`): RRG 1.8 "'Swap'" (p. 42), everything on the villain stays, dial included (docs/phase7-wave4.md §3.7).
+ */
+export const swapVillain = (villain: TargetRef = { kind: "villain" }): EffectSpec => ({ kind: "swapVillain", villain });
+/**
+ * "When Loki is defeated, advance to a random set-aside Loki villain" (All Hail King Loki 1B): from a forced interrupt
+ * to the villain's defeat, `advanceToSetAsideVillain(eventTarget)` (docs/phase7-wave4.md §3.7).
+ */
+export const advanceToSetAsideVillain = (villain: TargetRef = { kind: "villain" }): EffectSpec => ({
+  kind: "advanceToSetAsideVillain",
+  villain,
+});
+/**
+ * "The first player detaches Odin from the main scheme and takes control of him" (Hall of Nastrond, `mts` 21141; Find the
+ * Senator, `mut_gen` 32065a; docs/phase7-wave4.md §3.8): the card stays in play, under `controller`'s control.
+ */
+export const detach = (card: TargetRef, controller: PlayerRef = { kind: "firstPlayer" }): EffectSpec => ({
+  kind: "detach",
+  card,
+  controller,
 });
 /** "Turn all your energy form upgrades facedown" (Monica Rambeau, `mts` 21001b; docs/phase7-wave4.md §3.1). */
 export const turnFacedown = (target: TargetRef): EffectSpec => ({ kind: "turnFacedown", target });

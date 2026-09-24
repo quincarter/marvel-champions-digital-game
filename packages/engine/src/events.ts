@@ -63,7 +63,8 @@ export type GameEvent =
       readonly instanceId: InstanceId;
       readonly from: PlayerId | null;
       readonly to: PlayerId;
-      readonly reason: "firstPlayer";
+      /** `effect`: a card took control of it ("detaches Odin … and takes control of him", docs/phase7-wave4.md §3.8). */
+      readonly reason: "firstPlayer" | "effect";
     }
   /** A player became a card's owner by taking it (RRG 1.8 "Ownership and Control", p. 31; docs/phase7-wave2.md §3.10). */
   | { readonly type: "ownershipChanged"; readonly instanceId: InstanceId; readonly playerId: PlayerId }
@@ -111,8 +112,29 @@ export type GameEvent =
       readonly formName: string;
       readonly instanceId: InstanceId;
     }
+  /**
+   * The villain instance took another card of its title (docs/phase7-wave4.md §3.7): `swap` (RRG 1.8 "'Swap'", p. 42;
+   * dial kept) or `advance` (the defeated card went to the victory display or out of the game; dial reset).
+   */
+  | {
+      readonly type: "villainReplaced";
+      readonly instanceId: InstanceId;
+      readonly fromCardId: CardId;
+      readonly toCardId: CardId;
+      readonly reason: "swap" | "advance";
+    }
+  /** An attached card was detached into a play area (`EffectSpec detach`, docs/phase7-wave4.md §3.8). */
+  | { readonly type: "cardDetached"; readonly instanceId: InstanceId; readonly from: InstanceId }
   /** A card in play turned facedown (`turnFacedown`) or faceup (`changeAdditionalForm`), docs/phase7-wave4.md §3.1. */
   | { readonly type: "cardTurnedFacedown"; readonly instanceId: InstanceId }
+  /** A card would ready and a rule asks its readier for an additional cost first (`RuleSpec readyCost`; §3.19). */
+  | { readonly type: "readyCostAsked"; readonly instanceId: InstanceId; readonly playerId: PlayerId }
+  /** A set-aside modular set was chosen at random and shuffled into the encounter deck (docs/phase7-wave4.md §3.18). */
+  | {
+      readonly type: "setAsideModularSetShuffledIn";
+      readonly encounterSetId: string;
+      readonly instanceIds: readonly InstanceId[];
+    }
   | { readonly type: "cardTurnedFaceup"; readonly instanceId: InstanceId }
   | {
       readonly type: "formChanged";
@@ -275,6 +297,17 @@ export type GameEvent =
        */
       readonly hitPointsReset?: true;
     }
+  /**
+   * A card whose other face is a card of its own turned over (`otherFaceId`, docs/phase7-wave4.md §3.10). `typeChanged`:
+   * the new face is another card type, so its attachments, tucked cards, status cards and tokens were discarded.
+   */
+  | {
+      readonly type: "cardFlippedToOtherFace";
+      readonly instanceId: InstanceId;
+      readonly from: CardId;
+      readonly to: CardId;
+      readonly typeChanged: boolean;
+    }
   /** A double-sided encounter card turned over; `flipped` is true when its other face is now up. */
   | { readonly type: "cardFlipped"; readonly instanceId: InstanceId; readonly flipped: boolean }
   /** The active counter moved (The Wrecking Crew insert, "The Active Villain"). */
@@ -282,7 +315,8 @@ export type GameEvent =
       readonly type: "activeVillainChanged";
       readonly from: InstanceId;
       readonly to: InstanceId;
-      readonly reason: "effect" | "activeVillainDefeated";
+      /** `focusedScheme`: the villain of the main scheme Focused Defense is attached to (docs/phase7-wave4.md §3.2). */
+      readonly reason: "effect" | "activeVillainDefeated" | "focusedScheme";
     }
   /** `schemeInstanceId` only for a separate game area's own stage (docs/phase7-wave2.md §3.1); absent is the central one. */
   | { readonly type: "mainSchemeCompleted"; readonly stageIndex: number; readonly schemeInstanceId?: InstanceId }

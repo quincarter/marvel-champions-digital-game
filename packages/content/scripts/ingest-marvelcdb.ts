@@ -151,6 +151,9 @@ const REGISTERED_CURATIONS: Readonly<Record<string, PackCuration>> = {
   // hercules, fne: curated (survey.ts), but NOT registered here — each has at least one card
   // still blocked on a real parser/schema gap (docs/phase7-wave2-data.md's "Schema requests for
   // game-rules-architect" / parser-gap log).
+  // mts: curated (scripts/marvelcdb/curation/mts.ts), but NOT registered here — six MarvelCDB records (Hela's
+  // 21136b/21137b and four campaign-card backs) genuinely have no artwork reference anywhere on MarvelCDB (see
+  // that file's own trailing comment). Register it and re-run once art is sourced.
 };
 
 interface RawCache {

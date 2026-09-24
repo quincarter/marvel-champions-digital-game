@@ -225,7 +225,17 @@ export interface ScenarioDeckState {
     /** Only cards printing this trait (the Infinity Stones; docs/phase7-wave4.md §1.10). */
     readonly trait?: string;
   };
+  /**
+   * Built from the encounter deck during scenario setup, with no card text asking: a deck an encounter set brings to any
+   * game it is in (`EncounterSet.separateDecks`, the Infinity Stone deck; MC21 p. 16). docs/phase7-wave4.md §3.6.
+   */
+  readonly buildAtSetup?: true;
 }
+
+/** A deck that ran out, waiting to be announced between frames (`TriggerEvent deckRanOut`, docs/phase7-wave4.md §3.11). */
+export type DeckRunOut =
+  | { readonly deck: "player"; readonly playerId: PlayerId }
+  | { readonly deck: "scenario"; readonly name: string };
 
 /** One encounter deck and its discard pile (RRG 1.8 "Encounter Deck", p. 17). */
 export interface EncounterDeckState {
@@ -280,6 +290,24 @@ export interface GameAreaState {
 export interface ScenarioRules {
   readonly victory: "finalVillainStage" | "cardAbility";
   readonly separateGameAreas: boolean;
+  /** `GameSetupConfig.victoryCondition` (Loki's count; docs/phase7-wave4.md §3.7). Absent in every other game. */
+  readonly victoryCondition?: number;
+  /**
+   * `GameSetupConfig.difficulty`: `"expert"` in expert mode; absent in standard mode, so every older save reads as
+   * standard. Read by the mode-only faces rule (`modeOnlyFlipped`; docs/phase7-wave4.md §3.18).
+   */
+  readonly difficulty?: "expert";
+}
+
+/**
+ * A modular encounter set chosen at setup and set aside rather than shuffled in (`GameSetupConfig.setAsideModularSets`;
+ * Making Connections 1A: "Choose 7 modular encounter sets and set them aside"; docs/phase7-wave4.md §3.18). Its cards
+ * are in `encounterSetAside`; `instanceIds` names them, so "choose 1 set-aside modular encounter set at random, then
+ * shuffle it into the encounter deck" takes exactly that set's cards.
+ */
+export interface SetAsideModularSet {
+  readonly encounterSetId: string;
+  readonly instanceIds: readonly InstanceId[];
 }
 
 /**
@@ -315,7 +343,11 @@ export type GameStep =
     }
   | { readonly phase: "player"; readonly kind: "endPhaseDiscard"; readonly remainingPlayerIds: readonly PlayerId[] }
   | { readonly phase: "player"; readonly kind: "endPhaseDraw" }
-  | { readonly phase: "player"; readonly kind: "endPhaseReady" }
+  /**
+   * `readied`: step 4's readies are done but put something on the stack (an additional cost to ready, a "would ready"
+   * interrupt; docs/phase7-wave4.md §3.19), so step 5 waits for it to resolve.
+   */
+  | { readonly phase: "player"; readonly kind: "endPhaseReady"; readonly readied?: true }
   /** `placed`: step one's threat has been pushed; the step stays current until it (and its responses) resolve. */
   | { readonly phase: "villain"; readonly kind: "placeThreat"; readonly placed?: boolean }
   | {
@@ -345,6 +377,11 @@ export type GameOutcome =
   | { readonly result: "win"; readonly reason: "allVillainsDefeated" }
   | { readonly result: "loss"; readonly reason: "mainSchemeCompleted" }
   | { readonly result: "loss"; readonly reason: "allPlayersDefeated" }
+  /**
+   * A card's own rule lost the game: "If Odin leaves play, the players lose the game." (`RuleSpec leavingPlayLoses`,
+   * docs/phase7-wave4.md §3.8).
+   */
+  | { readonly result: "loss"; readonly reason: "cardAbility" }
   /**
    * A player gave up (the `concede` command). A third result kind rather than a widened `loss`: the RRG has no
    * concede rule, so calling a concession a defeat would import a rules meaning the game does not have — and would
@@ -389,6 +426,14 @@ export interface GameState {
    * area's own stage is its `GameAreaState.mainScheme`.
    */
   readonly mainScheme: MainSchemeState;
+  /**
+   * Other stages of the main scheme deck in play at the same time as `mainScheme`, in the same game area: Tower
+   * Defense's "Reveal stage 2A and put it into play next to this stage so there are two main schemes and two villains in
+   * play" (Under Siege 1A, `mts` 21098a; MC21 p. 10: "Both main schemes are active each round"). Each is a main scheme
+   * like the central one — it gains threat in step one, feels acceleration and crisis icons, and can be completed.
+   * Absent in every other game, so saves are unchanged. docs/phase7-wave4.md §3.2.
+   */
+  readonly extraMainSchemes?: readonly MainSchemeState[];
   /** Separate game areas, in creation order. Empty while the players share one game area (every scenario but Kang). */
   readonly gameAreas: readonly GameAreaState[];
   readonly nextGameAreaSeq: number;
@@ -407,8 +452,20 @@ export interface GameState {
   readonly encounterDecks: Readonly<Record<string, EncounterDeckState>>;
   readonly encounterDeckOrder: readonly EncounterDeckId[];
   readonly encounterSetAside: readonly InstanceId[];
+  /**
+   * The modular sets still set aside, in the order chosen (`SetAsideModularSet`). Absent in a game that set none aside,
+   * so its save is unchanged; an empty list once the last has been shuffled in ("if there are no set-aside modular
+   * encounter sets remaining", Wheel of Genres). docs/phase7-wave4.md §3.18.
+   */
+  readonly setAsideModularSets?: readonly SetAsideModularSet[];
   /** Scenario decks by name (docs/phase7-wave2.md §3.3). Empty for every scenario that has none. */
   readonly scenarioDecks: Readonly<Record<string, ScenarioDeckState>>;
+  /**
+   * Decks that ran out since the flow last looked, oldest first: a player's deck as it resets, a scenario deck as it
+   * empties. The flow announces each as `deckRanOut` between frames (when an ability listens) and empties the list.
+   * Absent until a deck first runs out, so a fresh game serializes as before. docs/phase7-wave4.md §3.11.
+   */
+  readonly pendingDeckRunOuts?: readonly DeckRunOut[];
   readonly villainArea: readonly InstanceId[];
   readonly victoryDisplay: readonly InstanceId[];
   readonly removedFromGame: readonly InstanceId[];

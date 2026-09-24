@@ -34,7 +34,7 @@ export interface StackEntry {
   /** The frame's own step within its procedure, verbatim ("declareDefender", "flipBoosts", "responses", …). */
   readonly stage: string | null;
   /** What a `window` frame is waiting on: an order, a selection, or a payment. */
-  readonly awaiting: "order" | "select" | "pay" | null;
+  readonly awaiting: "order" | "select" | "pay" | "costPick" | null;
   /** This is the frame the open `PendingChoice` belongs to. At most one entry has it. */
   readonly openWindow: boolean;
   /**

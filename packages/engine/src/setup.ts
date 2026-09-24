@@ -1,3 +1,4 @@
+import { modeOnlyFlipped } from "./query.js";
 import type {
   AnyCard,
   CardId,
@@ -15,7 +16,7 @@ import { createCtx, emit, type Ctx } from "./ctx.js";
 import { engineError, type EngineError } from "./errors.js";
 import { runFlow } from "./flow.js";
 import { encounterDeckId, instanceId, playerId, type EncounterDeckId, type InstanceId, type PlayerId } from "./ids.js";
-import { createRng } from "./rng.js";
+import { createRng, nextInt } from "./rng.js";
 import { FIRST_CAMPAIGN_STEP, FIRST_STANDALONE_STEP, resolveScenarioSetup } from "./setup-steps.js";
 import { cardsMatch } from "./unique.js";
 import {
@@ -28,6 +29,7 @@ import {
   type ScenarioDeckState,
   type SeparateDeckState,
   type VillainState,
+  type SetAsideModularSet,
 } from "./state.js";
 import type { GameEvent } from "./events.js";
 
@@ -129,6 +131,12 @@ export interface GameSetupConfig {
    */
   readonly villains?: readonly VillainSetup[];
   /**
+   * With `villains`: every villain shares the one encounter deck `encounterDeck` builds, instead of each having its own
+   * (Tower Defense, `MultipleVillains.encounterDecks: "shared"`; MC21 p. 10, "Encounter Deck: Tower Defense, Armies of
+   * Titan, and Standard sets"). Each villain's own `encounterDeck` must then be empty. docs/phase7-wave4.md §3.2.
+   */
+  readonly sharedEncounterDeck?: boolean;
+  /**
    * RRG Appendix II: each identity's obligation (`HeroIdentityCard.obligationCardId`) is shuffled into the
    * encounter deck and its nemesis set (`nemesisEncounterSetId`, `quantityInSet` copies of each card) is set
    * aside. Cards missing from `cards` are skipped unless `requireIdentitySets` is set. Default true.
@@ -153,6 +161,34 @@ export interface GameSetupConfig {
    * (`Scenario.expertVillains`) is the scenario builder's: pass the expert cards here (`villainsForDifficulty`).
    */
   readonly setAsideVillainCardIds?: readonly CardId[];
+  /**
+   * `Scenario.startingVillain: "random"` (Loki, MC21 p. 24: "choose one Loki villain card at random, reveal it and put
+   * it into play. Set the remaining four versions of Loki aside"): the villain that starts is chosen with the game's
+   * seeded RNG among `villainCardId` and `setAsideVillainCardIds`, and the rest are set aside. docs/phase7-wave4.md §3.7.
+   */
+  readonly randomStartingVillain?: true;
+  /**
+   * The number `Scenario.victoryCondition` gives for the modes being played (the scenario builder picks it): "If the
+   * number of Lokis in the victory display is equal to the victory condition, the players win the game" (All Hail King
+   * Loki 1B). Read by `ValueSpec victoryCondition`. docs/phase7-wave4.md §3.7.
+   */
+  readonly victoryCondition?: number;
+  /**
+   * The mode being played, standard (default) or expert (RRG 1.8 "Modes of Play", p. 29). Villain stages and the
+   * expert set are the scenario builder's; the engine reads this only for "Standard Mode Only" / "Expert Mode Only"
+   * faces (`modeOnly`): RRG 1.8 "Double-Sided Card" (p. 17), such a card "is put into play with the 'Expert Mode Only'
+   * side faceup if the players are playing expert mode". docs/phase7-wave4.md §3.18.
+   */
+  readonly difficulty?: "standard" | "expert";
+  /**
+   * Modular encounter sets set aside at setup instead of shuffled in (`Scenario.setAsideModularSetCount`; Making
+   * Connections 1A, The Hood: "Choose 7 modular encounter sets and set them aside (you may choose randomly)"). Each is
+   * its set id and its cards, one entry per copy; they are created in `encounterSetAside` and recorded in
+   * `GameState.setAsideModularSets` for `EffectSpec shuffleInSetAsideModularSet`. Which sets, and that none is a
+   * Standard/Expert classification set (RRG 1.8 "Standard Set", p. 40), is the scenario builder's choice.
+   * docs/phase7-wave4.md §3.18.
+   */
+  readonly setAsideModularSets?: readonly { readonly encounterSetId: string; readonly cardIds: readonly CardId[] }[];
   /** `Scenario.victory`. Absent: `"finalVillainStage"` (RRG 1.8 "Villain Defeat", p. 47). */
   readonly victory?: "finalVillainStage" | "cardAbility";
   /** Whether card abilities may create separate game areas (`Scenario.separateGameAreas` is present). Default false. */
@@ -161,7 +197,13 @@ export interface GameSetupConfig {
    * `Scenario.separateDecks` (docs/phase7-wave2.md §3.3). Each starts empty; the main scheme's 1A `Setup:` builds it
    * (`buildScenarioDeck`), moving the matching cards out of the encounter deck built at Appendix II step 10.
    */
-  readonly scenarioDecks?: readonly ScenarioSeparateDeck[];
+  readonly scenarioDecks?: readonly (ScenarioSeparateDeck & {
+    /**
+     * Built during scenario setup with no card text asking (an encounter set's own deck, `EncounterSet.separateDecks`:
+     * the Infinity Stone deck, MC21 p. 16). docs/phase7-wave4.md §3.6.
+     */
+    readonly buildAtSetup?: true;
+  })[];
   /**
    * Scenario cards that start set aside, out of play (RRG 1.8 "Set Aside", p. 39): Taskmaster's Captive allies, The
    * Sleeper, Kang's Dominion. Created in `encounterSetAside`, never in the encounter deck. A player card among them has
@@ -268,7 +310,10 @@ function planVillains(
     const [first] = config.villains;
     if (!first) return "villains must list at least one villain";
     if (first.villainCardId !== config.villainCardId) return "villainCardId must name the first of villains";
-    if (config.encounterDeck.length > 0)
+    if (config.sharedEncounterDeck) {
+      if (config.villains.some((villain) => villain.encounterDeck.length > 0))
+        return "with a shared encounter deck, each villain's own encounterDeck must be empty";
+    } else if (config.encounterDeck.length > 0)
       return "with villains, each villain has its own encounterDeck; encounterDeck must be empty";
     if (
       config.villainSide !== undefined ||
@@ -279,7 +324,12 @@ function planVillains(
     }
     const ids = config.villains.map((v) => v.villainCardId);
     if (new Set(ids).size !== ids.length) return "villains lists the same villain twice";
-    setups = config.villains;
+    // The shared deck is built once, as the first villain's (docs/phase7-wave4.md §3.2).
+    setups = config.sharedEncounterDeck
+      ? config.villains.map((villain, index) =>
+          index === 0 ? { ...villain, encounterDeck: config.encounterDeck } : villain,
+        )
+      : config.villains;
   } else {
     setups = [
       {
@@ -322,7 +372,21 @@ function planVillains(
 }
 
 /** RRG Appendix II: Setup, minus obligations/nemesis sets/setup abilities (they need slice 2). */
-export function createGame(config: GameSetupConfig, deps: EngineDeps = DEFAULT_DEPS): SetupResult {
+export function createGame(requested: GameSetupConfig, deps: EngineDeps = DEFAULT_DEPS): SetupResult {
+  // A random starting villain (Loki; docs/phase7-wave4.md §3.7) is drawn first, from the game's own seeded RNG.
+  let rng = createRng(requested.seed);
+  let config = requested;
+  if (requested.randomStartingVillain) {
+    const candidates = [requested.villainCardId, ...(requested.setAsideVillainCardIds ?? [])];
+    const [pick, next] = nextInt(rng, candidates.length);
+    rng = next;
+    const chosen = candidates[pick] as CardId;
+    config = {
+      ...requested,
+      villainCardId: chosen,
+      setAsideVillainCardIds: candidates.filter((id) => id !== chosen),
+    };
+  }
   if (config.players.length < 1 || config.players.length > 4) {
     return invalid("a game has 1–4 players");
   }
@@ -359,12 +423,17 @@ export function createGame(config: GameSetupConfig, deps: EngineDeps = DEFAULT_D
 
   // One encounter deck per villain, "e1", "e2", … in villain order; a single villain has one deck (RRG 1.8
   // "Encounter Deck", p. 17), as before.
-  const deckIds: EncounterDeckId[] = plannedVillains.map((_, index) => encounterDeckId(`e${index + 1}`));
+  const shared = config.villains !== undefined && config.sharedEncounterDeck === true;
+  const deckIds: EncounterDeckId[] = shared
+    ? [encounterDeckId("e1")]
+    : plannedVillains.map((_, index) => encounterDeckId(`e${index + 1}`));
+  /** The encounter deck villain `index` draws from: its own, or the one they share (docs/phase7-wave4.md §3.2). */
+  const deckOf = (index: number): EncounterDeckId => deckIds[shared ? 0 : index] as EncounterDeckId;
   const villainInstanceIds: InstanceId[] = [];
   for (const [index, planned] of plannedVillains.entries()) {
     const id = nextId();
     instances[id] = {
-      ...blankInstance(id, planned.card.id, null, { kind: "encounterDeck", deckId: deckIds[index] as EncounterDeckId }),
+      ...blankInstance(id, planned.card.id, null, { kind: "encounterDeck", deckId: deckOf(index) }),
       faceup: true,
     };
     villainInstanceIds.push(id);
@@ -508,7 +577,8 @@ export function createGame(config: GameSetupConfig, deps: EngineDeps = DEFAULT_D
 
   const encounterDecks: Record<string, EncounterDeckState> = {};
   for (const [index, planned] of plannedVillains.entries()) {
-    const deckId = deckIds[index] as EncounterDeckId;
+    if (shared && index > 0) continue;
+    const deckId = deckOf(index);
     const deck: InstanceId[] = [];
     for (const cardId of planned.encounterDeck) {
       const card = pool[cardId];
@@ -551,7 +621,31 @@ export function createGame(config: GameSetupConfig, deps: EngineDeps = DEFAULT_D
       discardPile: deck.discardPile,
       whenEmpty: deck.whenEmpty,
       contents: deck.contents,
+      ...(deck.buildAtSetup ? { buildAtSetup: true as const } : {}),
     };
+  }
+  const setAsideModularSets: SetAsideModularSet[] = [];
+  for (const set of config.setAsideModularSets ?? []) {
+    if (setAsideModularSets.some((entry) => entry.encounterSetId === set.encounterSetId))
+      return invalid(`modular set ${set.encounterSetId} is set aside twice`);
+    const instanceIds: InstanceId[] = [];
+    for (const cardId of set.cardIds) {
+      const card = pool[cardId];
+      if (
+        !card ||
+        !("encounterSetIds" in card) ||
+        !(card.encounterSetIds as readonly string[]).includes(set.encounterSetId)
+      )
+        return invalid(`${cardId} is not a card of the set-aside modular set ${set.encounterSetId}`);
+      const id = nextId();
+      instances[id] = blankInstance(id, card.id, null, {
+        kind: "encounterDeck",
+        deckId: deckIds[0] as EncounterDeckId,
+      });
+      encounterSetAside.push(id);
+      instanceIds.push(id);
+    }
+    setAsideModularSets.push({ encounterSetId: set.encounterSetId, instanceIds });
   }
   for (const cardId of config.setAsideVillainCardIds ?? []) {
     const card = pool[cardId];
@@ -568,7 +662,7 @@ export function createGame(config: GameSetupConfig, deps: EngineDeps = DEFAULT_D
       signatureSideSchemeId = nextId();
       instances[signatureSideSchemeId] = blankInstance(signatureSideSchemeId, planned.signatureSideSchemeCardId, null, {
         kind: "encounterDeck",
-        deckId: deckIds[index] as EncounterDeckId,
+        deckId: deckOf(index),
       });
       encounterSetAside.push(signatureSideSchemeId);
     }
@@ -579,7 +673,7 @@ export function createGame(config: GameSetupConfig, deps: EngineDeps = DEFAULT_D
       stageIndex: planned.startStageIndex,
       lastStageIndex: planned.lastStageIndex,
       defeated: false,
-      encounterDeckId: deckIds[index] as EncounterDeckId,
+      encounterDeckId: deckOf(index),
       signatureSideSchemeId,
     };
   });
@@ -600,6 +694,14 @@ export function createGame(config: GameSetupConfig, deps: EngineDeps = DEFAULT_D
     );
   }
 
+  // RRG 1.8 "Double-Sided Card" (p. 17): a "Standard Mode Only" / "Expert Mode Only" card shows the face of the mode
+  // being played, wherever it starts (docs/phase7-wave4.md §3.18). Every instance exists by now.
+  if (config.difficulty === "expert") {
+    for (const [id, instance] of Object.entries(instances)) {
+      const card = pool[instance.cardId];
+      if (card && modeOnlyFlipped(card, "expert")) instances[id] = { ...instance, flipped: true };
+    }
+  }
   const state: GameState = {
     round: 1,
     // A campaign game starts before Appendix II begins, so MC60 p. 9's pre-setup instructions can resolve first.
@@ -622,11 +724,14 @@ export function createGame(config: GameSetupConfig, deps: EngineDeps = DEFAULT_D
     revealedMainSchemes: [],
     scenarioRules: {
       victory: config.victory ?? "finalVillainStage",
+      ...(config.victoryCondition !== undefined ? { victoryCondition: config.victoryCondition } : {}),
+      ...(config.difficulty === "expert" ? { difficulty: "expert" as const } : {}),
       separateGameAreas: config.separateGameAreas ?? false,
     },
     encounterDecks,
     encounterDeckOrder: deckIds,
     encounterSetAside,
+    ...(config.setAsideModularSets ? { setAsideModularSets } : {}),
     scenarioDecks,
     villainArea: [],
     victoryDisplay: [],
@@ -645,7 +750,7 @@ export function createGame(config: GameSetupConfig, deps: EngineDeps = DEFAULT_D
     ...(config.campaign ? { campaign: config.campaign, campaignWrites: NO_CAMPAIGN_WRITES } : {}),
     pendingChoice: null,
     outcome: null,
-    rng: createRng(config.seed),
+    rng,
     nextInstanceSeq: seq,
     nextChoiceSeq: 1,
     nextFrameSeq: 1,

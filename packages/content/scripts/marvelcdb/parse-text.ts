@@ -111,6 +111,11 @@ export interface ParsedText {
   readonly nemesisMinion?: boolean;
   /** "<Villain>'s Side Scheme." (The Wrecking Crew's signature side schemes, docs/phase7-wave1.md §1.1). */
   readonly signatureOf?: string;
+  /**
+   * "<Villain>'s Scheme." on a main scheme B side (Tower Defense, docs/phase7-wave4.md §1.5) — the main-scheme
+   * sibling of `signatureOf`, naming which villain the stage belongs to when several villains share a scenario.
+   */
+  readonly villainOf?: string;
   /** "Standard Mode Only." / "Expert Mode Only." (docs/phase7-wave4.md §1.8, `EncounterCardCommon.modeOnly`). */
   readonly modeOnly?: "standard" | "expert";
   /**
@@ -800,6 +805,7 @@ export function parseCardText(text: string, options: ParseOptions): ParsedText {
   let maxPerDeckText: number | undefined;
   let nemesisMinion: boolean | undefined;
   let signatureOf: string | undefined;
+  let villainOf: string | undefined;
   let modeOnly: "standard" | "expert" | undefined;
   let completionLoses: boolean | undefined;
 
@@ -955,6 +961,32 @@ export function parseCardText(text: string, options: ParseOptions): ParsedText {
         if (attach.villainName) attachesToVillainNamed = attach.villainName;
         continue;
       }
+      // A host description with a trailing behavioral clause on the same sentence ("Attach to a friendly
+      // character with the highest ATK and exhaust it.", Restrained `mts` 21083, docs/phase7-wave4.md §1.13):
+      // unlike the general case the file header describes (where the clause is left in place so no printed text
+      // is dropped), this one is resolved by splitting the clause into its own ordinary sentence — "Exhaust it."
+      // — which flows into the constant buffer below like any other printed sentence, so
+      // `ability-scripting-engineer` still sees it verbatim; only the host itself is pulled out of the sentence.
+      if (sentence.startsWith("Attach to ")) {
+        const clauseSplit = /^(Attach to .+?) and (exhaust it)\.?$/i.exec(sentence);
+        if (clauseSplit) {
+          const hostOnly = parseAttach(
+            `${clauseSplit[1] as string}.`,
+            options.villainNames,
+            options.multipleVillains ?? false,
+          );
+          if (hostOnly) {
+            flushConstant();
+            if (attachesTo) unclassified.push(`second attach rule: ${sentence}`);
+            attachesTo = hostOnly.host;
+            if (hostOnly.villainName) attachesToVillainNamed = hostOnly.villainName;
+            constantBuffer.push(
+              `${(clauseSplit[2] as string)[0]?.toUpperCase()}${(clauseSplit[2] as string).slice(1)}.`,
+            );
+            continue;
+          }
+        }
+      }
       if (sentence.startsWith("Attach to ")) {
         unclassified.push(`unrecognized attach rule: ${sentence}`);
         continue;
@@ -964,6 +996,12 @@ export function parseCardText(text: string, options: ParseOptions): ParsedText {
       // name is captured separately.
       const signature = /^(.+)'s Side Scheme\.$/.exec(sentence);
       if (signature) signatureOf = signature[1] as string;
+      // "Proxima Midnight's Scheme." / "Corvus Glaive's Scheme." (Tower Defense, docs/phase7-wave4.md §1.5) — the
+      // main-scheme-stage sibling of the "'s Side Scheme." signature above. Checked after it so a real "'s Side
+      // Scheme." sentence isn't also read as a (wrong) "'s Scheme." match — the two regexes are mutually exclusive
+      // anyway ("Side Scheme" vs "Scheme" require different trailing text), but this keeps the intent explicit.
+      const villainScheme = /^(.+)'s Scheme\.$/.exec(sentence);
+      if (villainScheme) villainOf = villainScheme[1] as string;
       constantBuffer.push(sentence);
     }
     flushConstant();
@@ -1052,6 +1090,7 @@ export function parseCardText(text: string, options: ParseOptions): ParsedText {
     ...(attachesToVillainNamed ? { attachesToVillainNamed } : {}),
     ...(nemesisMinion ? { nemesisMinion } : {}),
     ...(signatureOf ? { signatureOf } : {}),
+    ...(villainOf ? { villainOf } : {}),
     ...(modeOnly ? { modeOnly } : {}),
     ...(completionLoses ? { completionLoses } : {}),
     unclassified,
