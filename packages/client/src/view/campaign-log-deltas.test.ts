@@ -1,7 +1,7 @@
 /**
- * `campaign-log-deltas.ts` against hand-built `CampaignHistoryEntry`s: `mode: "add"` writes must read as the
- * entry's own delta (baseline subtracted), never the cumulative running total `applyLogWrite` actually stores, and
- * every other write kind/mode must be untouched.
+ * `campaign-log-deltas.ts` against hand-built `CampaignHistoryEntry`s: `mode: "add"` writes and `mode: "append"`
+ * cardList writes must both read as the entry's own delta (baseline subtracted/sliced off), never the cumulative
+ * running total/list `applyLogWrite` actually stores, and every other write kind/mode must be untouched.
  */
 import { describe, expect, test } from "vitest";
 import type { CardId } from "@mc/content";
@@ -100,7 +100,10 @@ describe("resolvedWritesOf", () => {
     expect(resolved[1]?.value).toEqual({ kind: "number", value: 3 });
   });
 
-  test("a cardList append write passes through unchanged, at every occurrence", () => {
+  test("two chained `append` writes to the same cardList field+seat collapse to one delta of everything added this fold", () => {
+    // GMW's `marketCards`, one `appendToList` per card a seat buys in the same victory block: each write carries
+    // every earlier purchase too (`appended()`'s own `[...existing, ...next]`), so the raw second write ("a", "b")
+    // must never render as if only "b" were bought this fold.
     const first: LogWrite = {
       field: "collection",
       seatNumber: null,
@@ -111,13 +114,38 @@ describe("resolvedWritesOf", () => {
       field: "collection",
       seatNumber: null,
       mode: "append",
-      value: { kind: "cardList", cardIds: ["b" as CardId] },
+      value: { kind: "cardList", cardIds: ["a" as CardId, "b" as CardId] },
     };
     const entry: Entry = { logBefore: logBeforeOf(), steps: [stepOf([first, second])] };
     const resolved = resolvedWritesOf(entry);
-    expect(resolved).toHaveLength(2);
-    expect(resolved[0]?.value).toEqual({ kind: "cardList", cardIds: ["a" as CardId] });
-    expect(resolved[1]?.value).toEqual({ kind: "cardList", cardIds: ["b" as CardId] });
+    expect(resolved).toHaveLength(1);
+    expect(resolved[0]?.value).toEqual({ kind: "cardList", cardIds: ["a" as CardId, "b" as CardId] });
+  });
+
+  test("a nonzero cardList baseline is sliced off, not just the running total's own length", () => {
+    const write: LogWrite = {
+      field: "collection",
+      seatNumber: null,
+      mode: "append",
+      value: { kind: "cardList", cardIds: ["a" as CardId, "b" as CardId, "c" as CardId] },
+    };
+    const logBefore = {
+      ...logBeforeOf(),
+      shared: { collection: { kind: "cardList", cardIds: ["a" as CardId] } as LogValue },
+    } as CampaignHistoryEntry["logBefore"];
+    const entry: Entry = { logBefore, steps: [stepOf([write])] };
+    expect(resolvedWritesOf(entry)[0]?.value).toEqual({ kind: "cardList", cardIds: ["b" as CardId, "c" as CardId] });
+  });
+
+  test("a `set`-mode cardList write is never collapsed, only `append`", () => {
+    const write: LogWrite = {
+      field: "collection",
+      seatNumber: null,
+      mode: "set",
+      value: { kind: "cardList", cardIds: ["a" as CardId] },
+    };
+    const entry: Entry = { logBefore: logBeforeOf(), steps: [stepOf([write])] };
+    expect(resolvedWritesOf(entry)[0]?.value).toEqual({ kind: "cardList", cardIds: ["a" as CardId] });
   });
 
   test("a `fieldFilter` drops writes for fields it rejects", () => {
@@ -142,5 +170,24 @@ describe("lastWriteGroupsOf", () => {
     const delay = groups.find((g) => g.field === "delayCounters");
     expect(units?.value).toEqual({ kind: "number", value: 5 });
     expect(delay?.value).toEqual({ kind: "number", value: 1 });
+  });
+
+  test("also delta-adjusts a chained `append` cardList to the group's last write", () => {
+    const first: LogWrite = {
+      field: "collection",
+      seatNumber: null,
+      mode: "append",
+      value: { kind: "cardList", cardIds: ["a" as CardId] },
+    };
+    const second: LogWrite = {
+      field: "collection",
+      seatNumber: null,
+      mode: "append",
+      value: { kind: "cardList", cardIds: ["a" as CardId, "b" as CardId] },
+    };
+    const entry: Entry = { logBefore: logBeforeOf(), steps: [stepOf([first, second])] };
+    const groups = lastWriteGroupsOf(entry);
+    expect(groups).toHaveLength(1);
+    expect(groups[0]?.value).toEqual({ kind: "cardList", cardIds: ["a" as CardId, "b" as CardId] });
   });
 });

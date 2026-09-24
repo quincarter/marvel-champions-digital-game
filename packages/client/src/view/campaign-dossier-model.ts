@@ -567,7 +567,14 @@ export function campaignDossierLog(
   record: CampaignLog,
   definition: CampaignDefinition,
   cardName: CardNameOf = (id) => id as string,
+  heroNameOf: (identityCardId: string) => string = (id) => id,
 ): DossierLog {
+  // A seat's own printed name, the same way the Issue detail's write list names a per-seat write's hero
+  // (`campaign-issue-model.ts`'s `heroNameOfSeatFrom`) — so "+3 units" reads "+3 units → Groot" here too.
+  const heroNameOfSeat = (seatNumber: number): string | null => {
+    const seat = record.seats.find((candidate) => candidate.seatNumber === seatNumber);
+    return seat ? heroNameOf(seat.identityCardId as string) : null;
+  };
   const nodeIds = definition.graph.nodes.map((node) => node.id);
   const sections: DossierLogSection[] = [];
   let rewinds = 0;
@@ -594,7 +601,7 @@ export function campaignDossierLog(
       // `resolvedWritesOf`: an `add`-mode number write only appears here at its group's *last* (delta-adjusted)
       // occurrence — every other write kind/mode still appears once per write, exactly as printed today.
       for (const group of resolvedWritesOf(winning)) {
-        const { field, value, stepIndex, writeIndex, step } = group;
+        const { field, seatNumber, value, stepIndex, writeIndex, step } = group;
         // A `cardRef` write is always paired with this same step's `grantCard` — the grant row below already
         // names the card, so the write row would only repeat it. An unset flag is a non-event on the sheet.
         if (value.kind === "cardRef") continue;
@@ -602,15 +609,18 @@ export function campaignDossierLog(
         if (value.kind === "cardList" && value.cardIds.length === 0) continue;
         // A number write that stayed at (or fell back to) zero is a non-event, the same as an unset flag above.
         if (value.kind === "number" && value.value === 0) continue;
-        const headline =
+        const base =
           value.kind === "flag"
             ? fieldLabel(field)
             : value.kind === "number"
               ? `${signedCount(value.value)} ${pluralizeFieldWord(fieldLabel(field), field, value.value)}`
-              : `${renderLogValue(value, cardName)} ${fieldLabel(field)}`;
+              : value.kind === "cardList"
+                ? `+ ${value.cardIds.map((id) => cardName(id)).join(", ")}`
+                : `${renderLogValue(value, cardName)} ${fieldLabel(field)}`;
+        const hero = seatNumber !== null ? heroNameOfSeat(seatNumber) : null;
         entries.push({
           key: `${node.id}:write:${stepIndex}:${writeIndex}`,
-          headline,
+          headline: hero ? `${base} → ${hero}` : base,
           detail: step.text,
           citation: step.citation,
         });

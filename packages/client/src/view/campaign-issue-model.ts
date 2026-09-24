@@ -114,7 +114,9 @@ function writeRowsOf(
         ? fieldLabel(field)
         : value.kind === "number"
           ? `${signedCount(value.value)} ${pluralizeFieldWord(fieldLabel(field), field, value.value)}`
-          : `${renderLogValue(value, cardName)} ${fieldLabel(field)}`;
+          : value.kind === "cardList"
+            ? `+ ${value.cardIds.map((id) => cardName(id)).join(", ")}`
+            : `${renderLogValue(value, cardName)} ${fieldLabel(field)}`;
     rows.push({
       key: `write:${stepIndex}:${writeIndex}`,
       headline: hero ? `${base} → ${hero}` : base,

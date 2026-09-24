@@ -119,7 +119,7 @@ export class CampaignDossierScene extends Phaser.Scene {
     this.#definition = definition;
     const withMeta = { ...record, name: record.name, box: record.box };
     const overview = campaignDossierOverview(withMeta, definition, heroNameOf, cardName);
-    const log = campaignDossierLog(record, definition, cardName);
+    const log = campaignDossierLog(record, definition, cardName, heroNameOf);
     const run = campaignRunModel(withMeta, definition, storyFor(record.campaignId as string), cardName);
     // "After issue #N" names the *last finished* issue, not the current/next one `run.issueNumber` tracks — the
     // highest 1-based position among nodes marked `completed`, in the definition's own printed order. Null on a
@@ -539,20 +539,38 @@ export class CampaignDossierScene extends Phaser.Scene {
       const minRowHeight = 38;
       const detailTop = 22;
       const detailBottomPad = 8;
+      // Phone has no room for a right-aligned citation column beside the headline (`leftWidth` is the full frame
+      // width there) — the citation drops under the detail line instead of squeezing/overlapping the headline.
+      const citationColumnWidth = frame.phone ? 0 : 150;
       for (const entry of section.entries) {
         const rowTop = y;
-        this.add.text(pad + 24, y + 6, entry.headline, textStyle(typeRole.emphasis, surface.ink.hex)).setFontSize(12);
+        this.add
+          .text(pad + 24, y + 6, entry.headline, textStyle(typeRole.emphasis, surface.ink.hex))
+          .setFontSize(12)
+          .setWordWrapWidth(leftWidth - 34 - citationColumnWidth);
         const detail = this.add
           .text(pad + 24, y + detailTop, entry.detail, textStyle(typeRole.body, surface.ink.hex, 0.6))
           .setFontSize(10)
-          .setWordWrapWidth(leftWidth - 150);
-        this.add
-          .text(pad + leftWidth - 8, y + 6, entry.citation, textStyle(typeRole.label, surface.ink.hex, 0.45))
-          .setOrigin(1, 0)
-          .setFontSize(9);
+          .setWordWrapWidth(leftWidth - 34 - citationColumnWidth);
         // Sized from the detail text's own measured (possibly wrapped) height, never a fixed height a long
         // instruction's printed text can run past — see `scenes/campaign/issue.ts`'s own writes list.
-        const rowHeight = Math.max(minRowHeight, detailTop + detail.height + detailBottomPad);
+        let rowHeight = Math.max(minRowHeight, detailTop + detail.height + detailBottomPad);
+        if (frame.phone) {
+          const citation = this.add
+            .text(
+              pad + 24,
+              y + detailTop + detail.height + 4,
+              entry.citation,
+              textStyle(typeRole.label, surface.ink.hex, 0.45),
+            )
+            .setFontSize(9);
+          rowHeight = Math.max(rowHeight, citation.y - y + citation.height + detailBottomPad);
+        } else {
+          this.add
+            .text(pad + leftWidth - 8, y + 6, entry.citation, textStyle(typeRole.label, surface.ink.hex, 0.45))
+            .setOrigin(1, 0)
+            .setFontSize(9);
+        }
         this.add.rectangle(pad + 10, rowTop + rowHeight / 2, 8, 8, signal.cost.hex);
         y += rowHeight;
       }
