@@ -41,6 +41,8 @@ export const SCENES = {
   campaignFrozenDeck: "CampaignFrozenDeck",
   /** Extras (`scenes/extras.ts`): the comics, artwork, hero and villain files and the soundtrack, opened by play. */
   extras: "Extras",
+  /** One rulebook as plain text (`scenes/extras-reader.ts`), reached from Extras' Rulebooks tab. */
+  extrasReader: "ExtrasReader",
   // Overlays.
   choice: "ChoiceOverlay",
   inspect: "InspectOverlay",

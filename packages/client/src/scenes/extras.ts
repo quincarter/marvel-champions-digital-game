@@ -1,6 +1,6 @@
 /**
- * Extras: the comics, artwork, hero and villain files and the soundtrack, reached from Title. Five tabs (Stories,
- * Heroes, Villains, Artwork, Music), each a shelf of tiles; a locked tile shows its picture pixelated and says what
+ * Extras: the comics, rulebooks, artwork, hero and villain files and the soundtrack, reached from Title. Six tabs
+ * (Stories, Rulebooks, Heroes, Villains, Artwork, Music), each a shelf of tiles; a locked tile shows its picture pixelated and says what
  * opens it, an open one reads, views or plays.
  *
  * What is open is `progression/extras.ts`'s (read through `extras()`, refreshed from storage when the screen opens);
@@ -8,6 +8,7 @@
  *
  * - **Stories** start the campaign opener with no run behind it (`CampaignOpenerData`'s Extras read), which comes
  *   back here to the same tab.
+ * - **Rulebooks** open the reader (`scenes/extras-reader.ts`): the book as plain text, with links to its PDFs.
  * - **Heroes, Villains, Artwork** open the viewer overlay (`scenes/extras-viewer.ts`) over this screen.
  * - **Music** plays the song through the music controller's jukebox, until Title (or any other screen) asks for its
  *   own music again.
@@ -40,6 +41,7 @@ import { FocusRoute, type FocusStop } from "./focus-route.js";
 import { SCENES } from "./keys.js";
 import type { CampaignOpenerData } from "./campaign/routes.js";
 import type { ExtrasViewerData } from "./extras-viewer.js";
+import type { ExtrasReaderData } from "./extras-reader.js";
 
 export interface ExtrasSceneData {
   /** The tab to open on: a story read comes back to Stories. Defaults to the tab open last time. */
@@ -127,6 +129,11 @@ export class ExtrasScene extends Phaser.Scene {
         nodeId: content.nodeId,
         returnTo: { key: SCENES.extras, data: { tab: "stories" } satisfies ExtrasSceneData },
       } satisfies CampaignOpenerData);
+      return;
+    }
+    if (content.kind === "book") {
+      this.scale.off("resize", this.#draw, this);
+      goToScreen(this, SCENES.extrasReader, { bookId: content.bookId } satisfies ExtrasReaderData);
       return;
     }
     if (content.kind === "track") {

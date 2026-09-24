@@ -139,6 +139,14 @@ describe("what opens what", () => {
     expect(open({}).isOpen(byPath("title/main-title.mp3").unlock)).toBe(true);
   });
 
+  it("keeps every rulebook open from the start, read in the reader", () => {
+    expect(EXTRAS_ENTRIES.books.length).toBeGreaterThan(0);
+    for (const book of EXTRAS_ENTRIES.books) {
+      expect(open({}).isOpen(book.unlock), book.id).toBe(true);
+      expect(book.content.kind).toBe("book");
+    }
+  });
+
   it("opens everything while Unlock everything is on", () => {
     const all = new Extras(NO_EXTRAS_PROGRESS, { everything: true });
     for (const tab of EXTRAS_TABS) {

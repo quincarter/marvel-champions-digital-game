@@ -37,12 +37,16 @@ export interface ExtrasTileView {
 export function extrasTabsOf(extras: Extras): readonly ExtrasTabView[] {
   return EXTRAS_TABS.map((tab) => {
     const { open, total } = extras.countOf(EXTRAS_ENTRIES[tab.id]);
-    return { id: tab.id, label: `${tab.label} ${open}/${total}`, name: tab.label };
+    return { id: tab.id, label: `${tab.label} ${open}/${total}`, name: tab.short };
   });
 }
 
 const actionOf = (entry: ExtrasEntry): string =>
-  entry.content.kind === "issue" ? "READ" : entry.content.kind === "track" ? "PLAY" : "VIEW";
+  entry.content.kind === "issue" || entry.content.kind === "book"
+    ? "READ"
+    : entry.content.kind === "track"
+      ? "PLAY"
+      : "VIEW";
 
 export function extrasTilesOf(extras: Extras, tab: ExtrasTab): readonly ExtrasTileView[] {
   return EXTRAS_ENTRIES[tab].map((entry) => {
@@ -96,7 +100,7 @@ export function extrasGridOf(width: number, tab: ExtrasTab, phone: boolean): Ext
   }
   const columns = Math.max(2, Math.floor((width + gap) / (MIN_TILE_WIDTH + gap)));
   const tileWidth = Math.max(1, (width - gap * (columns - 1)) / columns);
-  // Heroes and villains are portraits; stories and artwork are landscape panels.
+  // Heroes and villains are portraits; stories, rulebooks and artwork are landscape panels.
   const pictureHeight = tab === "heroes" || tab === "villains" ? tileWidth * 1.1 : tileWidth * 0.62;
   const tileHeight = Math.round(pictureHeight + TILE_CAPTION);
   return { columns, gap, tileWidth, tileHeight, rowHeight: tileHeight + gap };

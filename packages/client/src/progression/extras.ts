@@ -16,6 +16,8 @@
  * - **Music:** a track opens where it plays: a scenario's battle theme by playing it, its victory and defeat themes by
  *   winning and losing it, a campaign's finale by completing the campaign. The title theme and the default battle
  *   theme are always open.
+ * - **Rulebooks:** always open. The Rules Reference, FFG's rulings since RRG 1.7 and every campaign box's rulebook,
+ *   as plain text with links to the PDFs (`content/books.ts`). They are references, not rewards.
  * - **Artwork:** the title wallpapers are always open; the generic victory and defeat scenes open with a first win
  *   and a first loss, and a campaign box's cover with its first run.
  *
@@ -34,6 +36,8 @@ import type { Picture } from "../art/pictures.js";
 import { MUSIC_CATALOG, type MusicCatalog, type Track } from "../audio/music-catalog.js";
 import { SAGA_VOLUMES, storyFor } from "../campaign/story.js";
 import { CARDS_BY_ID, POOL_PACKS, POOL_SCENARIOS, POOL_STARTER_DECKS } from "../content/pool.js";
+import { BOOKS } from "../content/books.js";
+import { CAMPAIGN_RECORDS } from "../campaign/campaign-service.js";
 import { UNLOCK_HEROES, villainLabelOf } from "./unlocks.js";
 
 /** What the player has done, as far as Extras cares, read from storage by `extrasProgressOf`. */
@@ -162,14 +166,16 @@ export type ExtrasUnlock =
   /** One track filed in several slots (the same song as a campaign finale and a pack's victory theme). */
   | { readonly kind: "any"; readonly of: readonly ExtrasUnlock[] };
 
-export type ExtrasTab = "stories" | "heroes" | "villains" | "art" | "music";
+export type ExtrasTab = "stories" | "books" | "heroes" | "villains" | "art" | "music";
 
-export const EXTRAS_TABS: readonly { readonly id: ExtrasTab; readonly label: string }[] = [
-  { id: "stories", label: "Stories" },
-  { id: "heroes", label: "Heroes" },
-  { id: "villains", label: "Villains" },
-  { id: "art", label: "Artwork" },
-  { id: "music", label: "Music" },
+/** `short` is a phone's tab label, where six tabs share 390px. */
+export const EXTRAS_TABS: readonly { readonly id: ExtrasTab; readonly label: string; readonly short: string }[] = [
+  { id: "stories", label: "Stories", short: "Stories" },
+  { id: "books", label: "Rulebooks", short: "Rules" },
+  { id: "heroes", label: "Heroes", short: "Heroes" },
+  { id: "villains", label: "Villains", short: "Villains" },
+  { id: "art", label: "Artwork", short: "Art" },
+  { id: "music", label: "Music", short: "Music" },
 ];
 
 /** One picture of a gallery, opened on its own: a villain's defeat scene opens on a win, not on the first game. */
@@ -184,7 +190,9 @@ export type ExtrasContent =
   | { readonly kind: "issue"; readonly campaignId: string; readonly nodeId: string }
   /** Pictures and a few lines of text (a hero's or villain's file, a piece of artwork). */
   | { readonly kind: "gallery"; readonly slides: readonly ExtrasSlide[]; readonly lines: readonly string[] }
-  | { readonly kind: "track"; readonly track: Track };
+  | { readonly kind: "track"; readonly track: Track }
+  /** A rulebook, read in the Extras reader (`content/books.ts`). */
+  | { readonly kind: "book"; readonly bookId: string };
 
 export interface ExtrasEntry {
   readonly id: string;
@@ -567,9 +575,39 @@ export function artEntriesOf(): ExtrasEntry[] {
   ];
 }
 
+/**
+ * The rulebooks, always open. A campaign rulebook wears its box's cover, or its final villain until the box ships a
+ * cover; the Rules Reference wears the Core Set box.
+ */
+export function bookEntriesOf(): ExtrasEntry[] {
+  const coreBox = TITLE_ART.find((picture) => picture.key.includes("box-core-set")) ?? null;
+  return BOOKS.map((book): ExtrasEntry => {
+    const finalScenario = book.campaignId
+      ? (CAMPAIGN_RECORDS[book.campaignId]?.scenarioIds.at(-1) as string | undefined)
+      : undefined;
+    const thumb = book.campaignId
+      ? (CAMPAIGN_ART.covers.get(book.campaignId) ??
+        (finalScenario ? ART_CATALOG.scenarios.get(finalScenario)?.villain[0] : undefined) ??
+        null)
+      : book.id === "book:rrg"
+        ? coreBox
+        : null;
+    return {
+      id: book.id,
+      tab: "books",
+      title: book.title,
+      subtitle: book.subtitle,
+      thumb,
+      unlock: { kind: "always" },
+      content: { kind: "book", bookId: book.id },
+    };
+  });
+}
+
 /** Every extra, by tab. Built once: the catalogs are build-time globs and the pool never changes at runtime. */
 export const EXTRAS_ENTRIES: Readonly<Record<ExtrasTab, readonly ExtrasEntry[]>> = {
   stories: storyEntriesOf(),
+  books: bookEntriesOf(),
   heroes: heroEntriesOf(),
   villains: villainEntriesOf(),
   art: artEntriesOf(),

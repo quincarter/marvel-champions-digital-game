@@ -33,3 +33,12 @@ export function detectPlatform(global: object = globalThis): Platform {
 export function isNativeShell(platform: Platform = detectPlatform()): boolean {
   return platform !== "web";
 }
+
+/**
+ * Opens `url` outside the game: a new browser tab on the web. Capacitor hands a navigation away from the app's own
+ * origin to the system browser. Tauri has no opener plugin wired yet (a Phase 8 packaging item), so there this is
+ * the webview's own `window.open`, which a desktop build may ignore.
+ */
+export function openExternal(url: string): void {
+  globalThis.open?.(url, "_blank", "noopener,noreferrer");
+}

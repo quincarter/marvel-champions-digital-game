@@ -96,19 +96,22 @@ Version 2 made "Unlock everything" free, so charges saved before it (when it cos
 
 ## Extras
 
-**Extras** (on the Title menu, `scenes/extras.ts`) is the reward shelf: the campaign comics, a file for every hero
-and villain, the artwork and the soundtrack. Nothing in it is bought with points; each thing opens when the player
+**Extras** (on the Title menu, `scenes/extras.ts`) is the reward shelf: the campaign comics, the rulebooks, a file
+for every hero and villain, the artwork and the soundtrack. Nothing in it is bought with points; each thing opens when the player
 does what it belongs to (`progression/extras.ts`):
 
-| Tab      | Opens when                                                                                                                                                                                          |
-| -------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Stories  | A campaign run reaches the issue (signing a run opens issue #1); every issue once the campaign is won                                                                                               |
-| Heroes   | A game played as that hero ends (won, lost or conceded), in a campaign or on its own                                                                                                                |
-| Villains | A game against that scenario ends. Its "villain loses" picture opens on a win, its "villain wins" on a loss                                                                                         |
-| Artwork  | The title wallpapers always; the generic victory and defeat scenes with a first win and loss; a box's cover with its first run                                                                      |
-| Music    | Where the track plays: a battle theme by playing that scenario, victory and defeat themes by winning and losing it, a finale by completing the campaign. The title and default battle themes always |
+| Tab       | Opens when                                                                                                                                                                                          |
+| --------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Stories   | A campaign run reaches the issue (signing a run opens issue #1); every issue once the campaign is won                                                                                               |
+| Rulebooks | Always: the Rules Reference, FFG's rulings since RRG 1.7 and every campaign box's rulebook, as plain text with links to the PDFs                                                                    |
+| Heroes    | A game played as that hero ends (won, lost or conceded), in a campaign or on its own                                                                                                                |
+| Villains  | A game against that scenario ends. Its "villain loses" picture opens on a win, its "villain wins" on a loss                                                                                         |
+| Artwork   | The title wallpapers always; the generic victory and defeat scenes with a first win and loss; a box's cover with its first run                                                                      |
+| Music     | Where the track plays: a battle theme by playing that scenario, victory and defeat themes by winning and losing it, a finale by completing the campaign. The title and default battle themes always |
 
-A story is reread through the campaign opener with no run behind it, told to the box's own cast. A song plays through
+A rulebook opens in the reader (`scenes/extras-reader.ts`): the repo's markdown conversion as plain text, one section
+per glossary entry, page or ruling, with a search and a button per PDF. The PDFs aren't in the build (they're about
+170 MB); the button opens the repo's own copy on GitHub (`content/books.ts`). A story is reread through the campaign opener with no run behind it, told to the box's own cast. A song plays through
 the music controller's jukebox until another screen asks for its own music. Game over's ribbon says how many things
 the game just opened ("3 new in Extras"), win or lose. Like everything else here it is derived from `mc-saves` and
 `mc-campaigns`, never stored, and "Unlock everything" (or `?unlock=all`) opens all of it. `?screen=extras&tab=music`
