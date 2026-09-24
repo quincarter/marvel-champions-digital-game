@@ -1,3 +1,0 @@
-kind: Fixed
-body: Export GMW_CAMPAIGN_DEFINITION from @mc/cards' top-level index (it was only reachable via campaigns/index.ts)
-time: 2026-09-23T18:49:29.641821-04:00

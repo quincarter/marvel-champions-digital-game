@@ -1,6 +1,6 @@
 [package]
 name = "marvel-champions"
-version = "0.4.0"
+version = "0.5.0"
 description = "Marvel Champions: Digital Edition (desktop shell)"
 authors = ["Quin Carter"]
 license = ""

@@ -1,3 +1,0 @@
-kind: Engine
-body: excessDamageBonus is now exported for card-side tests to read directly
-time: 2026-09-22T18:56:07.343982-04:00
