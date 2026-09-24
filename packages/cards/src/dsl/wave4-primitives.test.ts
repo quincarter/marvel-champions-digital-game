@@ -8,6 +8,7 @@ import { describe, expect, it } from "vitest";
 import {
   action,
   constant,
+  focusedMainScheme,
   forcedResponse,
   heroAction,
   heroResponse,
@@ -17,16 +18,18 @@ import {
   setup,
 } from "./abilities.js";
 import {
+  attachCard,
   attackAnEnemy,
   changeAdditionalForm,
   damageAnEnemy,
   chooseTarget,
   draw,
   ifThen,
+  putMainSchemeStageIntoPlay,
   turnFacedown,
 } from "./effects.js";
 import { validateDefinition } from "./validate.js";
-import { chosen, each, inAdditionalForm, not, printedForm, query, you } from "./values.js";
+import { chosen, each, host, inAdditionalForm, not, printedForm, query, self, you } from "./values.js";
 
 const valid = (definition: Parameters<typeof validateDefinition>[0]) =>
   expect(validateDefinition(definition)).toEqual([]);
@@ -83,5 +86,15 @@ describe("§3.1 additional forms", () => {
     const density = heroResponse(on.youChangeAdditionalForm("mass"), draw(1));
     expect(density.trigger).toMatchObject({ on: { eventIs: { change: "additional", formType: "mass" } } });
     valid(density);
+  });
+});
+
+describe("§3.2 two main schemes", () => {
+  it("Under Siege 1A and Focused Defense (21098a, 21101)", () => {
+    valid(setup(putMainSchemeStageIntoPlay(2)));
+    const focused = constant(focusedMainScheme());
+    expect(focused.trigger).toMatchObject({ rules: [{ kind: "focusedMainScheme", scheme: { kind: "host" } }] });
+    valid(focused);
+    valid(forcedResponse(on.phaseEnding("player"), attachCard(self, each(query("mainScheme", { excluding: host })))));
   });
 });

@@ -1633,6 +1633,14 @@ export type EffectSpec =
    */
   | { readonly kind: "turnFacedown"; readonly target: TargetRef }
   /**
+   * "Reveal stage 2A and put it into play next to this stage so there are two main schemes and two villains in play"
+   * (Under Siege 1A, Tower Defense, `mts` 21098a): the main scheme card's stage `stageNumber` (named `name`, when the
+   * card prints alternatives) becomes a second main scheme in the shared game area (`GameState.extraMainSchemes`). Its
+   * A and B sides' When Revealed resolve with the first player as "you", then its starting threat is placed.
+   * docs/phase7-wave4.md §3.2.
+   */
+  | { readonly kind: "putMainSchemeStageIntoPlay"; readonly stageNumber: number; readonly name?: string }
+  /**
    * "Change Apocalypse to [Giant] form" (Staggering Strength, Biomorphic Blast; The Age of Apocalypse): a three-sided
    * villain (`VillainSideLetter` "C") turns to the face of its current stage card whose traits include `toFaceWithTrait`.
    * `flipCard` is undefined for such a villain, since "flip" doesn't say which of the two other faces. Resolves as a flip

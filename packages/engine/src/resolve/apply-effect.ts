@@ -84,6 +84,7 @@ import { advanceMainSchemeStage, checkDefeats, completeMainScheme } from "./defe
 import {
   addVillains,
   createGameArea,
+  putMainSchemeStageIntoPlay,
   removeMainSchemeStage,
   removeVillains,
   revealMainSchemeStages,
@@ -910,6 +911,9 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       pushFrames(ctx, revealMainSchemeStages(ctx, players, effect.stageNumber, effect.removeUnused ?? false));
       return;
     }
+    case "putMainSchemeStageIntoPlay":
+      pushFrames(ctx, putMainSchemeStageIntoPlay(ctx, effect.stageNumber, effect.name, ctx.state.firstPlayerId));
+      return;
     case "createGameArea": {
       const player = context.scopedPlayerId ?? context.controllerId;
       if (!player) return;

@@ -351,8 +351,21 @@ export function areaOfCard(state: GameState, id: InstanceId): GameAreaState | nu
 
 /** Every main scheme instance in play: the central (or only) one, then each area's own, in area order. */
 export function mainSchemeStates(state: GameState): readonly MainSchemeState[] {
-  return [state.mainScheme, ...state.gameAreas.flatMap((area) => (area.mainScheme ? [area.mainScheme] : []))];
+  return [
+    state.mainScheme,
+    ...(state.extraMainSchemes ?? []),
+    ...state.gameAreas.flatMap((area) => (area.mainScheme ? [area.mainScheme] : [])),
+  ];
 }
+
+/**
+ * The main schemes in the shared game area: the central one and any stage put into play beside it (Tower Defense's
+ * two main schemes, docs/phase7-wave4.md §3.2). A separate game area's own stage is not one of them.
+ */
+export const sharedMainSchemes = (state: GameState): readonly MainSchemeState[] => [
+  state.mainScheme,
+  ...(state.extraMainSchemes ?? []),
+];
 
 /** The main scheme state of a main scheme instance, central or an area's. */
 export const mainSchemeStateOf = (state: GameState, id: InstanceId): MainSchemeState | undefined =>

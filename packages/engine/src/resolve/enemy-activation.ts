@@ -30,7 +30,12 @@ import {
   areaOfCard,
   mainSchemeFor,
 } from "../query.js";
-import { attacksDealIndirectDamage, mustDefendWithAlly, schemeThreatDestination } from "../rules.js";
+import {
+  attacksDealIndirectDamage,
+  mustDefendWithAlly,
+  pairedMainSchemeId,
+  schemeThreatDestination,
+} from "../rules.js";
 import { cardsInPlay, controllerOf, DEFENDER_SLOT } from "../select.js";
 import type { Vars } from "../stack.js";
 import type { GameState } from "../state.js";
@@ -569,6 +574,7 @@ export function executeEnemySchemeFrame(ctx: Ctx, frame: Frame<"enemyScheme">): 
       // With separate game areas, "the main scheme" is the enemy's own area's (docs/phase7-wave2.md §3.1).
       const schemeInstanceId =
         schemeThreatDestination(ctx.state, ctx.deps, frame.enemyInstanceId) ??
+        pairedMainSchemeId(ctx.state, ctx.deps, frame.enemyInstanceId) ??
         mainSchemeFor(ctx.state, areaOfCard(ctx.state, frame.enemyInstanceId))?.instanceId ??
         ctx.state.mainScheme.instanceId;
       const threatBonus = vars.threatBonus ?? 0;

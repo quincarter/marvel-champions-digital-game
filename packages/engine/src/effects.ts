@@ -241,7 +241,11 @@ export function flipVillain(ctx: Ctx, id: InstanceId, to: VillainSideLetter): vo
  * Moves the active counter (The Wrecking Crew insert, "The Active Villain"). Only an undefeated villain can hold it.
  * `reason` says why it moved in the log: an ability, or the rule that replaces a defeated active villain.
  */
-export function setActiveVillain(ctx: Ctx, to: InstanceId, reason: "effect" | "activeVillainDefeated"): void {
+export function setActiveVillain(
+  ctx: Ctx,
+  to: InstanceId,
+  reason: "effect" | "activeVillainDefeated" | "focusedScheme",
+): void {
   const from = ctx.state.activeVillainId;
   if (from === to || mustVillain(ctx.state, to).defeated) return;
   ctx.state = { ...ctx.state, activeVillainId: to };
@@ -256,6 +260,15 @@ export function updateMainSchemeState(
 ): void {
   if (ctx.state.mainScheme.instanceId === id) {
     ctx.state = { ...ctx.state, mainScheme: update(ctx.state.mainScheme) };
+    return;
+  }
+  if (ctx.state.extraMainSchemes?.some((scheme) => scheme.instanceId === id)) {
+    ctx.state = {
+      ...ctx.state,
+      extraMainSchemes: ctx.state.extraMainSchemes.map((scheme) =>
+        scheme.instanceId === id ? update(scheme) : scheme,
+      ),
+    };
     return;
   }
   ctx.state = {

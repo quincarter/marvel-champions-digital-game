@@ -129,6 +129,12 @@ export interface GameSetupConfig {
    */
   readonly villains?: readonly VillainSetup[];
   /**
+   * With `villains`: every villain shares the one encounter deck `encounterDeck` builds, instead of each having its own
+   * (Tower Defense, `MultipleVillains.encounterDecks: "shared"`; MC21 p. 10, "Encounter Deck: Tower Defense, Armies of
+   * Titan, and Standard sets"). Each villain's own `encounterDeck` must then be empty. docs/phase7-wave4.md §3.2.
+   */
+  readonly sharedEncounterDeck?: boolean;
+  /**
    * RRG Appendix II: each identity's obligation (`HeroIdentityCard.obligationCardId`) is shuffled into the
    * encounter deck and its nemesis set (`nemesisEncounterSetId`, `quantityInSet` copies of each card) is set
    * aside. Cards missing from `cards` are skipped unless `requireIdentitySets` is set. Default true.
@@ -268,7 +274,10 @@ function planVillains(
     const [first] = config.villains;
     if (!first) return "villains must list at least one villain";
     if (first.villainCardId !== config.villainCardId) return "villainCardId must name the first of villains";
-    if (config.encounterDeck.length > 0)
+    if (config.sharedEncounterDeck) {
+      if (config.villains.some((villain) => villain.encounterDeck.length > 0))
+        return "with a shared encounter deck, each villain's own encounterDeck must be empty";
+    } else if (config.encounterDeck.length > 0)
       return "with villains, each villain has its own encounterDeck; encounterDeck must be empty";
     if (
       config.villainSide !== undefined ||
@@ -279,7 +288,12 @@ function planVillains(
     }
     const ids = config.villains.map((v) => v.villainCardId);
     if (new Set(ids).size !== ids.length) return "villains lists the same villain twice";
-    setups = config.villains;
+    // The shared deck is built once, as the first villain's (docs/phase7-wave4.md §3.2).
+    setups = config.sharedEncounterDeck
+      ? config.villains.map((villain, index) =>
+          index === 0 ? { ...villain, encounterDeck: config.encounterDeck } : villain,
+        )
+      : config.villains;
   } else {
     setups = [
       {
@@ -359,12 +373,17 @@ export function createGame(config: GameSetupConfig, deps: EngineDeps = DEFAULT_D
 
   // One encounter deck per villain, "e1", "e2", … in villain order; a single villain has one deck (RRG 1.8
   // "Encounter Deck", p. 17), as before.
-  const deckIds: EncounterDeckId[] = plannedVillains.map((_, index) => encounterDeckId(`e${index + 1}`));
+  const shared = config.villains !== undefined && config.sharedEncounterDeck === true;
+  const deckIds: EncounterDeckId[] = shared
+    ? [encounterDeckId("e1")]
+    : plannedVillains.map((_, index) => encounterDeckId(`e${index + 1}`));
+  /** The encounter deck villain `index` draws from: its own, or the one they share (docs/phase7-wave4.md §3.2). */
+  const deckOf = (index: number): EncounterDeckId => deckIds[shared ? 0 : index] as EncounterDeckId;
   const villainInstanceIds: InstanceId[] = [];
   for (const [index, planned] of plannedVillains.entries()) {
     const id = nextId();
     instances[id] = {
-      ...blankInstance(id, planned.card.id, null, { kind: "encounterDeck", deckId: deckIds[index] as EncounterDeckId }),
+      ...blankInstance(id, planned.card.id, null, { kind: "encounterDeck", deckId: deckOf(index) }),
       faceup: true,
     };
     villainInstanceIds.push(id);
@@ -508,7 +527,8 @@ export function createGame(config: GameSetupConfig, deps: EngineDeps = DEFAULT_D
 
   const encounterDecks: Record<string, EncounterDeckState> = {};
   for (const [index, planned] of plannedVillains.entries()) {
-    const deckId = deckIds[index] as EncounterDeckId;
+    if (shared && index > 0) continue;
+    const deckId = deckOf(index);
     const deck: InstanceId[] = [];
     for (const cardId of planned.encounterDeck) {
       const card = pool[cardId];
@@ -568,7 +588,7 @@ export function createGame(config: GameSetupConfig, deps: EngineDeps = DEFAULT_D
       signatureSideSchemeId = nextId();
       instances[signatureSideSchemeId] = blankInstance(signatureSideSchemeId, planned.signatureSideSchemeCardId, null, {
         kind: "encounterDeck",
-        deckId: deckIds[index] as EncounterDeckId,
+        deckId: deckOf(index),
       });
       encounterSetAside.push(signatureSideSchemeId);
     }
@@ -579,7 +599,7 @@ export function createGame(config: GameSetupConfig, deps: EngineDeps = DEFAULT_D
       stageIndex: planned.startStageIndex,
       lastStageIndex: planned.lastStageIndex,
       defeated: false,
-      encounterDeckId: deckIds[index] as EncounterDeckId,
+      encounterDeckId: deckOf(index),
       signatureSideSchemeId,
     };
   });

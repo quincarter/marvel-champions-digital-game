@@ -147,7 +147,10 @@ export function completeMainScheme(ctx: Ctx, schemeId: InstanceId): void {
     stageIndex: scheme.stageIndex,
     ...(central ? {} : { schemeInstanceId: schemeId }),
   });
-  const next = central ? nextMainSchemeStage(ctx.state, scheme) : "alternatives";
+  // A stage in play beside the central one (Tower Defense, docs/phase7-wave4.md §3.2) completes like the central one:
+  // its final stage loses, any other advances. Only a separate game area's own stage is left to its card text.
+  const shared = central || (ctx.state.extraMainSchemes ?? []).some((extra) => extra.instanceId === schemeId);
+  const next = shared ? nextMainSchemeStage(ctx.state, scheme) : "alternatives";
   // "If this stage is completed, the players lose the game." on a stage that is not the last (docs/phase7-wave3.md
   // §3.37): its completion loses exactly as the final stage's does (RRG 1.8 "Main Scheme", p. 27), not advance.
   if (next === null || mainSchemeStageOf(ctx.state, scheme).completionLoses === true) {

@@ -9,29 +9,46 @@
  */
 
 import type { AbilityId } from "@mc/content";
-import type { AbilityRegistry } from "../abilities.js";
+import type { AbilityRegistry, RuleSpec } from "../abilities.js";
+import { setActiveVillain } from "../effects.js";
+import { currentName, mainSchemeStageOf, mainSchemeStateOf, undefeatedVillains } from "../query.js";
 import { type Ctx, emit, moveCard, pushFrames, updateInstance } from "../ctx.js";
 import { statusCapacity } from "../keywords.js";
 import type { InstanceId } from "../ids.js";
-import { activeAbilityRefs, activeRules, cardsInPlay, controllerOf, evaluate, matchesQuery } from "../select.js";
+import {
+  activeAbilityRefs,
+  activeRules,
+  cardsInPlay,
+  controllerOf,
+  evaluate,
+  focusedMainSchemeId,
+  matchesQuery,
+} from "../select.js";
 import type { StackFrame } from "../stack.js";
 import { limitReached } from "./ability.js";
 import { checkAllyLimits } from "./enter-play.js";
 import { abilityFrame } from "./frames.js";
 
 const registriesWithChecks = new WeakMap<AbilityRegistry, boolean>();
-const registriesWithControlRules = new WeakMap<AbilityRegistry, boolean>();
+const registriesWithRuleKind = new Map<RuleSpec["kind"], WeakMap<AbilityRegistry, boolean>>();
 
-/** Whether any ability declares `controlledByFirstPlayer`; the rule scan runs between frames, so skip it when none can. */
-function hasControlRule(registry: AbilityRegistry): boolean {
-  let known = registriesWithControlRules.get(registry);
+/**
+ * Whether any printed constant in the registry declares a rule of `kind`. The continuous rules below are scanned between
+ * frames, so a game whose registry has none skips them.
+ */
+function hasRuleKind(registry: AbilityRegistry, kind: RuleSpec["kind"]): boolean {
+  let byRegistry = registriesWithRuleKind.get(kind);
+  if (!byRegistry) {
+    byRegistry = new WeakMap();
+    registriesWithRuleKind.set(kind, byRegistry);
+  }
+  let known = byRegistry.get(registry);
   if (known === undefined) {
     known = Object.values(registry).some(
       (definition) =>
-        definition.trigger.kind === "constant" &&
-        (definition.trigger.rules ?? []).some((rule) => rule.kind === "controlledByFirstPlayer"),
+        definition.trigger.kind === "constant" && (definition.trigger.rules ?? []).some((rule) => rule.kind === kind),
     );
-    registriesWithControlRules.set(registry, known);
+    byRegistry.set(registry, known);
   }
   return known;
 }
@@ -59,6 +76,8 @@ export function checkStateTriggers(ctx: Ctx): boolean {
   clearForbiddenStatuses(ctx);
   // …and a card the first player controls follows the first player token (the Milano; §3.13).
   applyFirstPlayerControl(ctx);
+  // …and the active villain is the villain of the main scheme Focused Defense is attached to (§3.2 of wave 4).
+  applyFocusedActiveVillain(ctx);
   if (!hasStateChecks(ctx.deps.abilities)) return false;
   const observed: Record<string, boolean> = {};
   const firing: { readonly instanceId: InstanceId; readonly abilityId: AbilityId }[] = [];
@@ -129,7 +148,7 @@ function clearForbiddenStatuses(ctx: Ctx): void {
  * someone else. Moving between play areas is not leaving play, so a permanent card moves too.
  */
 function applyFirstPlayerControl(ctx: Ctx): void {
-  if (!hasControlRule(ctx.deps.abilities)) return;
+  if (!hasRuleKind(ctx.deps.abilities, "controlledByFirstPlayer")) return;
   const first = ctx.state.firstPlayerId;
   for (const { rule, context } of activeRules(ctx.state, ctx.deps, "controlledByFirstPlayer")) {
     for (const id of cardsInPlay(ctx.state)) {
@@ -142,6 +161,24 @@ function applyFirstPlayerControl(ctx: Ctx): void {
       emit(ctx, { type: "controllerChanged", instanceId: id, from, to: first, reason: "firstPlayer" });
     }
   }
+}
+
+/**
+ * Focused Defense (Tower Defense, `mts` 21101): "The villain who matches the attached scheme is the active villain."
+ * (`RuleSpec focusedMainScheme`; docs/phase7-wave4.md §3.2.) The villain whose title the scheme's `villainOf` names, if
+ * it is undefeated, takes the active counter the moment the attachment moves ("After the player phase ends, attach this
+ * card to the other main scheme").
+ */
+function applyFocusedActiveVillain(ctx: Ctx): void {
+  if (!hasRuleKind(ctx.deps.abilities, "focusedMainScheme")) return;
+  const schemeId = focusedMainSchemeId(ctx.state, ctx.deps);
+  const scheme = schemeId ? mainSchemeStateOf(ctx.state, schemeId) : undefined;
+  if (!scheme) return;
+  const name = mainSchemeStageOf(ctx.state, scheme).villainOf;
+  if (name === undefined) return;
+  const villain = undefeatedVillains(ctx.state).find((v) => currentName(ctx.state, v.instanceId) === name);
+  if (villain && villain.instanceId !== ctx.state.activeVillainId)
+    setActiveVillain(ctx, villain.instanceId, "focusedScheme");
 }
 
 function sameValues(a: Readonly<Record<string, boolean>>, b: Readonly<Record<string, boolean>>): boolean {

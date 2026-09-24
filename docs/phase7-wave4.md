@@ -349,7 +349,7 @@ stays data only.**
 | §    | Primitive                                                                | Needed by                                  | Status      |
 | ---- | ------------------------------------------------------------------------ | ------------------------------------------ | ----------- |
 | 3.1  | Additional forms (the form keyword)                                      | Spectrum, Vision; Shadowcat, Nick Fury     | landed      |
-| 3.2  | Two main schemes in play, each paired with a villain; Focused Defense    | Tower Defense                              | not started |
+| 3.2  | Two main schemes in play, each paired with a villain; Focused Defense    | Tower Defense                              | landed      |
 | 3.3  | Villains protected by each other's hit points: one defeat sweep          | Tower Defense; Four Horsemen (`aoa`)       | landed      |
 | 3.4  | A main scheme stage's completion is replaceable                          | Tower Defense; Upgrading Adaptoids (`aos`) | landed      |
 | 3.5  | Damage on a card that is not a character (Avengers Tower)                | Tower Defense                              | landed      |
@@ -437,19 +437,40 @@ threat in step 1 and feel acceleration and crisis; each villain schemes onto its
 scheme with Focused Defense; encounter cards' "the main scheme" is both, a player card's is the controller's choice, a
 player constant's is Focused Defense's scheme; the active villain is the one "who matches the attached scheme".
 
-**Plan.**
+**What landed:**
 
-- **`GameState.extraMainSchemes?: MainSchemeState[]`** (absent otherwise, so saves are unchanged), listed by
-  `mainSchemeStates` after the central one, so step 1, acceleration, crisis and completion reach both. `EffectSpec
-putMainSchemeStageIntoPlay { stage }` ("reveal stage 2A and put it into play next to this stage") resolves its A
-  side and places it.
-- **`TargetRef mainScheme`** resolves to every main scheme for an encounter card, to a choice for a player card's
-  effect, and to the Focused Defense scheme for a player constant (a `RuleSpec mainSchemeForPlayerCards { scheme }`
-  carried by Focused Defense).
-- **`RuleSpec activeVillainOfScheme { scheme }`** (Focused Defense's constant): the villain whose title the scheme's
-  `villainOf` names is active, applied between frames like `controlledByFirstPlayer`, logged `activeVillainChanged`.
-- **Scheme threat:** `schemeThreatDestination` gains `scheme: "ownMainScheme"` (villains) and a scenario-level minion
-  destination (the scheme with Focused Defense), read in `enemyScheme`.
+- **`GameState.extraMainSchemes`** (absent otherwise, so saves are unchanged): stages in play beside the central one in
+  the shared game area. `mainSchemeStates` and the new `sharedMainSchemes` list them, so completion (§3.4), crisis and
+  `cardsInPlay` (with their attachments) reach them. **Step one** places each shared main scheme's own acceleration plus
+  its own tokens plus the icons in play. A completed extra stage loses on its final stage and advances otherwise, like
+  the central one.
+- **`EffectSpec putMainSchemeStageIntoPlay { stageNumber, name? }`**: the main scheme card's first unspent stage of that
+  number becomes an extra main scheme, in play before its A and B When Revealed resolve (so 2A's "attached to this stage"
+  finds it), then its starting threat. The stage is spent.
+- **`RuleSpec focusedMainScheme { scheme }`** (Focused Defense's constant, `scheme: host`): between frames the villain
+  whose title the scheme's `villainOf` names takes the active counter (`activeVillainChanged { reason:
+"focusedScheme" }`), and the same scheme is the one minions scheme onto and player constants mean.
+- **Scheme threat** (`pairedMainSchemeId`, read in `enemyScheme` after `schemeThreatDestination`): with extra main schemes
+  in play, a villain places threat on the main scheme whose `villainOf` is its title, a minion on the Focused Defense
+  scheme.
+- **"The main scheme"** (`TargetRef mainScheme`) with extra main schemes and no separate game area: on an encounter card,
+  every shared main scheme; on a player card, the one its controller chose for this ability, else the Focused Defense
+  scheme. **The choice:** before a player card's effect that names the main scheme resolves, the effects frame inserts a
+  `chooseTarget` among the main schemes (chooser: its controller, slot `MAIN_SCHEME_CHOICE`), once per ability. A
+  constant never asks, so it reads the Focused Defense scheme.
+- **`GameSetupConfig.sharedEncounterDeck`** (with `villains`): one deck `e1` built from `encounterDeck`, every villain's
+  `encounterDeckId`. The scenario builder maps `MultipleVillains.encounterDecks: "shared"` to it (§5).
+- **DSL:** `putMainSchemeStageIntoPlay`, `focusedMainScheme()`.
+
+> **Status: landed (2026-09-24),** tested in `packages/engine/src/two-main-schemes.test.ts` (5 tests: setup puts stage 2
+> beside stage 1 with one shared deck, and Focused Defense makes Corvus active; after the player phase ends Focused
+> Defense moves, both schemes gain step one's threat and the new active villain schemes onto her own scheme only, replay
+> deep-equal; a minion schemes onto the Focused Defense scheme; a player card's "the main scheme" asks its controller
+> which; an encounter card's is both and a player constant's is Focused Defense's). DSL:
+> `packages/cards/src/dsl/wave4-primitives.test.ts`. **Known limits:** `nextMainSchemeStage` does not skip spent stages,
+> so if Under Siege (stage 1) were ever completed without its replacement it would advance to the stage already beside
+> it; both Tower Defense stages always replace their completion (§3.4), so no printed card reaches it. "The other
+> villain" (Proxima's Power's boost) is the existing non-active villain ref (wave 2 §6.8), not re-tested here.
 
 ### 3.3 Villains protected by each other's hit points: one defeat sweep
 
@@ -703,7 +724,9 @@ Each is implemented the way stated, or not at all, and named here rather than de
   - `modeOnly` (§1.8) and `classification` (§1.9), re-emitting `hood` and back-filling `gmw`'s split side schemes;
   - `hood`'s `Scenario` record (§1.12, §2.3);
   - the four hero-pack precons from their inserts.
-- **`ability-scripting-engineer`:** script each pack once its §3 primitives are "landed"; §3.23 lists what composes today.
+- **`ability-scripting-engineer`:** the `mts` scenario builder must map `MultipleVillains.encounterDecks: "shared"` to
+  `GameSetupConfig.sharedEncounterDeck` (§3.2) — the wave 1 builder (`wave1/setup.ts` `buildMultiVillain`) knows only
+  per-villain decks. Script each pack once its §3 primitives are "landed"; §3.23 lists what composes today.
 - **`rules-qa-engineer`:** a Tower Defense test where both villains reach 0 in one attack (§3.3); a Loki swap carrying
   attachments, status cards and the dial (§3.7); the campaign's full run, retry and permanent removal.
 - **`game-client-engineer`:** energy/mass form display and the form choice (§3.1); two main schemes and the Focused

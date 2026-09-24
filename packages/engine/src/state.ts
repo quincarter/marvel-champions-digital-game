@@ -389,6 +389,14 @@ export interface GameState {
    * area's own stage is its `GameAreaState.mainScheme`.
    */
   readonly mainScheme: MainSchemeState;
+  /**
+   * Other stages of the main scheme deck in play at the same time as `mainScheme`, in the same game area: Tower
+   * Defense's "Reveal stage 2A and put it into play next to this stage so there are two main schemes and two villains in
+   * play" (Under Siege 1A, `mts` 21098a; MC21 p. 10: "Both main schemes are active each round"). Each is a main scheme
+   * like the central one — it gains threat in step one, feels acceleration and crisis icons, and can be completed.
+   * Absent in every other game, so saves are unchanged. docs/phase7-wave4.md §3.2.
+   */
+  readonly extraMainSchemes?: readonly MainSchemeState[];
   /** Separate game areas, in creation order. Empty while the players share one game area (every scenario but Kang). */
   readonly gameAreas: readonly GameAreaState[];
   readonly nextGameAreaSeq: number;

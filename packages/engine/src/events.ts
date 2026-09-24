@@ -282,7 +282,8 @@ export type GameEvent =
       readonly type: "activeVillainChanged";
       readonly from: InstanceId;
       readonly to: InstanceId;
-      readonly reason: "effect" | "activeVillainDefeated";
+      /** `focusedScheme`: the villain of the main scheme Focused Defense is attached to (docs/phase7-wave4.md §3.2). */
+      readonly reason: "effect" | "activeVillainDefeated" | "focusedScheme";
     }
   /** `schemeInstanceId` only for a separate game area's own stage (docs/phase7-wave2.md §3.1); absent is the central one. */
   | { readonly type: "mainSchemeCompleted"; readonly stageIndex: number; readonly schemeInstanceId?: InstanceId }

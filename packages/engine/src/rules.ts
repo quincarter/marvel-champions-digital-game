@@ -1,11 +1,19 @@
 import type { EngineDeps } from "./abilities.js";
 import type { InstanceId, PlayerId } from "./ids.js";
 import { hasKeyword } from "./keywords.js";
-import { mainSchemeFor, minionsEngagedWith, villainOf } from "./query.js";
+import {
+  currentName,
+  mainSchemeFor,
+  mainSchemeStageOf,
+  minionsEngagedWith,
+  sharedMainSchemes,
+  villainOf,
+} from "./query.js";
 import {
   activeRules,
   cardsInPlay,
   categoriesOf,
+  focusedMainSchemeId,
   contextArea,
   matchesQuery,
   resolveRef,
@@ -56,6 +64,22 @@ export const threatCannotBeRemoved = (
 /** "While Baron Zemo is engaged with you, you cannot thwart." */
 export const cannotThwart = (state: GameState, deps: EngineDeps, playerId: PlayerId): boolean =>
   activeRules(state, deps, "cannotThwart").some((active) => rulePlayers(state, active.rule, active).includes(playerId));
+
+/**
+ * The main scheme a villain's scheme activation places its threat on when a main scheme in play belongs to it
+ * (`MainSchemeStage.villainOf`, "Proxima Midnight's Scheme."; MC21 p. 10: "When either of the two villains schemes, place
+ * the threat on their matching main scheme card only"), and a minion's when a `focusedMainScheme` names one (errata, RRG
+ * 1.8 p. 67). Null when neither applies: the enemy's ordinary main scheme. docs/phase7-wave4.md §3.2.
+ */
+export function pairedMainSchemeId(state: GameState, deps: EngineDeps, enemyId: InstanceId): InstanceId | null {
+  if ((state.extraMainSchemes ?? []).length === 0) return null;
+  if (villainOf(state, enemyId)) {
+    const name = currentName(state, enemyId);
+    const own = sharedMainSchemes(state).find((scheme) => mainSchemeStageOf(state, scheme).villainOf === name);
+    return own?.instanceId ?? null;
+  }
+  return focusedMainSchemeId(state, deps);
+}
 
 /**
  * "You cannot change form." (no `formType`: the hero/alter-ego change) / "You cannot change energy forms." (`formType`

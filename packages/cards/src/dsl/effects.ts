@@ -1122,6 +1122,15 @@ export const changeAdditionalForm = (
   ...(opts.to !== undefined ? { to: opts.to } : {}),
   ...(opts.toName !== undefined ? { toName: opts.toName } : {}),
 });
+/**
+ * "Reveal stage 2A and put it into play next to this stage so there are two main schemes and two villains in play"
+ * (Under Siege 1A, Tower Defense, `mts` 21098a; docs/phase7-wave4.md §3.2).
+ */
+export const putMainSchemeStageIntoPlay = (stageNumber: number, name?: string): EffectSpec => ({
+  kind: "putMainSchemeStageIntoPlay",
+  stageNumber,
+  ...(name !== undefined ? { name } : {}),
+});
 /** "Turn all your energy form upgrades facedown" (Monica Rambeau, `mts` 21001b; docs/phase7-wave4.md §3.1). */
 export const turnFacedown = (target: TargetRef): EffectSpec => ({ kind: "turnFacedown", target });
 
