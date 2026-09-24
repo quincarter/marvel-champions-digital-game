@@ -241,6 +241,28 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
+      # Signs and notarizes the macOS bundle once the Apple secrets exist (see
+      # README, "macOS signing"). Only the secrets that are set are exported:
+      # Tauri treats an empty APPLE_CERTIFICATE or APPLE_ID as present and
+      # fails, so with no secrets the build stays unsigned, as before.
+      - name: macOS signing secrets
+        if: runner.os == 'macOS'
+        env:
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          for name in APPLE_CERTIFICATE APPLE_CERTIFICATE_PASSWORD APPLE_SIGNING_IDENTITY APPLE_ID APPLE_PASSWORD APPLE_TEAM_ID; do
+            if [ -n "${!name}" ]; then
+              delim="EOF_$(uuidgen)"
+              { echo "$name<<$delim"; echo "${!name}"; echo "$delim"; } >> "$GITHUB_ENV"
+              echo "$name is set"
+            fi
+          done
+
       - name: Build Tauri desktop bundles
         uses: tauri-apps/tauri-action@v0
         env:
