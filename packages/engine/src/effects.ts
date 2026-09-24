@@ -381,9 +381,10 @@ export function drawCards(ctx: Ctx, playerId: PlayerId, count: number): void {
 }
 
 /**
- * Draws one card at a time until `playerId`'s hand holds `target()` cards: refilling to hand size. That is the setup
- * draw and the mulligan (RRG 1.8 Appendix II steps 14-15, p. 51), the end-of-phase draw ("checking after each card is
- * drawn whether they are at their hand size", RRG 1.8 "Hand Size", p. 21) and "draw up to your hand size" effects.
+ * Draws one card at a time until `playerId`'s hand holds `target()` cards: refilling to hand size. That is the
+ * end-of-phase draw ("checking after each card is drawn whether they are at their hand size", RRG 1.8 "Hand Size",
+ * p. 21) and "draw up to your hand size" effects. The setup draw and the mulligan are counted draws instead
+ * (`flow.ts`; docs/campaign-mode-design.md Q20).
  * `target` is read again after every card, so a drawn Martial Law's "Your hand size is reduced by 1" counts from the
  * next card on. A drawn obligation is not in hand, so the drawing goes on past it (RRG 1.8 "Obligation", p. 30: "unless
  * they are refilling their hand to their hand size"). Every card drawn leaves deck and discard for good (a reset

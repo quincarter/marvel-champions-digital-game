@@ -7,9 +7,9 @@
  * their hand to their hand size."; "Only the player with the obligation in their play area can trigger abilities or
  * pay costs on that obligation." MC10 p. 17, "Obligations in Player Decks": "they must immediately put that card into
  * play in their play area. They do not draw a card to replace that obligation. … only the player with the obligation
- * in their play area can use its Alter-Ego Action to deal with that card." RRG 1.8 Appendix II steps 14-15 (p. 51) for
- * the opening hand and the mulligan, both "draw up to" hand size (docs/campaign-mode-design.md, "Obligations drawn at
- * setup").
+ * in their play area can use its Alter-Ego Action to deal with that card." The opening hand and the mulligan (RRG 1.8
+ * Appendix II steps 14-15, p. 51) are counted draws, not refills: a maintainer decision of 2026-09-23 adopting a
+ * community reading, not an FFG ruling (docs/campaign-mode-design.md Q20).
  */
 
 import type { CardId } from "@mc/content";
@@ -24,7 +24,7 @@ import type { GameState } from "./state.js";
 import { depsOf, stubAbility } from "./testing/abilities.js";
 import { driveSession } from "./testing/drive.js";
 import { stubEvent, stubObligation } from "./testing/fixtures.js";
-import { newGameAtMulligan, RESOURCE, settle } from "./testing/scenario.js";
+import { newGameAtMulligan, RESOURCE, runWith } from "./testing/scenario.js";
 import { copiesOf, gameAtFirstTurn, P1, P2 } from "./testing/wave3.js";
 
 const you = { kind: "controller" } as const;
@@ -216,29 +216,77 @@ describe("only the player with the obligation in their play area can use its Alt
   });
 });
 
-describe("obligations drawn at setup (RRG 1.8 Appendix II steps 14-15)", () => {
-  // Half the deck is obligations, so the opening draw (seeded) is certain to hit some.
-  const setupDeck = [...copiesOf(FILL, 12), ...copiesOf(OBLIGATION.id, 12)];
-  const atMulligan = () => newGameAtMulligan({ extraCards: [OBLIGATION], deck: setupDeck, deps, seed: 7 });
+describe("obligations drawn at setup: counted draws (maintainer decision 2026-09-23, Q20)", () => {
+  /** "Your hand size is reduced by 1." (Martial Law's shape.) */
+  const HAND_SIZE_DOWN = stubAbility("hand-size-down.constant", {
+    trigger: {
+      kind: "constant",
+      modifiers: [{ stat: "handSize", amount: -1, target: { categories: ["identity"], controller: "you" } }],
+    },
+    effects: [],
+  });
+  const MARTIAL = stubObligation({ id: "hand-size-down", abilities: [HAND_SIZE_DOWN.ref] });
+  const setupDeps: EngineDeps = { ...deps, abilities: { ...deps.abilities, ...depsOf(HAND_SIZE_DOWN).abilities } };
 
-  it("the opening hand is drawn up to hand size; each obligation drawn is in play, not in hand", () => {
-    const state = atMulligan();
-    const player = mustPlayer(state, P1);
-    expect(player.hand).toHaveLength(handSize(state, P1, deps));
-    expect(obligationsIn(state, player.hand)).toEqual([]);
-    expect(obligationsIn(state, player.playArea).length).toBeGreaterThan(0);
-    for (const id of obligationsIn(state, player.playArea)) expect(mustInstance(state, id).faceup).toBe(true);
-    expect(obligationsIn(state, [...player.deck, ...player.playArea])).toHaveLength(12);
+  /** One obligation among 23 fillers; the first seed whose shuffle puts it where `wanted` says (deterministic). */
+  function atMulligan(card: typeof OBLIGATION, wanted: (drawn: boolean) => boolean) {
+    for (let seed = 1; seed < 500; seed++) {
+      const state = newGameAtMulligan({
+        extraCards: [OBLIGATION, MARTIAL],
+        deck: [...copiesOf(FILL, 23), card.id],
+        deps: setupDeps,
+        seed,
+      });
+      const obligation = Object.values(state.instances).find((i) => i.cardId === card.id)!.instanceId;
+      if (wanted(mustPlayer(state, P1).playArea.includes(obligation))) return { state, obligation };
+    }
+    throw new Error("no seed fits");
+  }
+  const mulligan = (state: GameState, discard: readonly InstanceId[]) =>
+    runWith(setupDeps, state, {
+      type: "resolveChoice",
+      playerId: P1,
+      choiceId: state.pendingChoice!.choiceId,
+      selectedOptionIds: discard,
+    });
+
+  it("an opening hand that hits one is a card short; a mulligan that discards nothing fills it", () => {
+    const { state, obligation } = atMulligan(OBLIGATION, (drawn) => drawn);
+    const limit = handSize(state, P1, setupDeps);
+    expect(mustPlayer(state, P1).playArea).toContain(obligation);
+    expect(mustInstance(state, obligation).faceup).toBe(true);
+    expect(mustPlayer(state, P1).hand).toHaveLength(limit - 1);
+    const kept = mulligan(state, []);
+    expect(mustPlayer(kept, P1).hand).toHaveLength(limit);
+    expect(mustPlayer(kept, P1).playArea).toContain(obligation);
   });
 
-  it("a mulligan draws back up to hand size, placing any obligation it draws", () => {
-    const state = atMulligan();
-    const before = obligationsIn(state, mustPlayer(state, P1).playArea).length;
-    // Mulligan the whole hand.
-    const after = settle(state, (s) => s.pendingChoice?.options.map((o) => o.optionId) ?? [], deps);
-    const player = mustPlayer(after, P1);
-    expect(player.hand).toHaveLength(handSize(after, P1, deps));
-    expect(obligationsIn(after, player.hand)).toEqual([]);
-    expect(obligationsIn(after, player.playArea).length).toBeGreaterThan(before);
+  it("an obligation the mulligan draws goes into play and is not replaced: the hand ends a card short", () => {
+    const found = atMulligan(OBLIGATION, (drawn) => !drawn);
+    const limit = handSize(found.state, P1, setupDeps);
+    const player = mustPlayer(found.state, P1);
+    expect(player.hand).toHaveLength(limit);
+    // Deck order only: the obligation is the next card the mulligan draws.
+    const stacked: GameState = {
+      ...found.state,
+      players: found.state.players.map((p) =>
+        p.playerId === P1 ? { ...p, deck: [found.obligation, ...p.deck.filter((id) => id !== found.obligation)] } : p,
+      ),
+    };
+    const after = mulligan(stacked, player.hand.slice(0, 2));
+    expect(mustPlayer(after, P1).playArea).toContain(found.obligation);
+    expect(mustPlayer(after, P1).hand).toHaveLength(limit - 1);
+  });
+
+  it("a hand-size-lowering obligation in the opening hand: the mulligan draws up to the reduced hand size", () => {
+    const { state, obligation } = atMulligan(MARTIAL, (drawn) => drawn);
+    expect(mustPlayer(state, P1).playArea).toContain(obligation);
+    const printed = 6;
+    expect(handSize(state, P1, setupDeps)).toBe(printed - 1);
+    // The opening draw counted 6 cards, one of them this obligation.
+    expect(mustPlayer(state, P1).hand).toHaveLength(printed - 1);
+    const hand = mustPlayer(state, P1).hand;
+    const after = mulligan(state, hand.slice(0, 2));
+    expect(mustPlayer(after, P1).hand).toHaveLength(printed - 1);
   });
 });
