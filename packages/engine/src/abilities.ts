@@ -683,6 +683,20 @@ export type RuleSpec =
    * "When Revealed" effects canceled. docs/phase7-wave4.md §3.14.
    */
   | { readonly kind: "cannotBeCanceled"; readonly cards: TargetQuery; readonly while?: Predicate }
+  /**
+   * On an attachment: "Treat attached ally as an [Undead] minion with a blank text box. Attached minion's SCH is equal
+   * to its printed THW and it does not take consequential damage." (Fallen Warrior, Beguiled, `mts` 21153, 21178;
+   * 'Pool-ized, `deadpool` 44041; "Lost" Child, `jubilee` 47027; Possessed, `storm` 36038; Manipulated Mind, `sm`
+   * 27171 and Malice, `next_evol` 40199, "(except for traits)" → `keepPrintedTraits`). Read as the attachment arrives
+   * on or leaves an ally (`CardInstance.treatedAs`); a minion takes no consequential damage by definition, so that
+   * clause needs nothing. docs/phase7-wave4.md §3.9.
+   */
+  | {
+      readonly kind: "treatHostAsMinion";
+      readonly traits: readonly Trait[];
+      readonly keepPrintedTraits?: boolean;
+      readonly schFromThw?: boolean;
+    }
   | {
       readonly kind: "cannotHaveAttachments";
       readonly target: TargetQuery;
