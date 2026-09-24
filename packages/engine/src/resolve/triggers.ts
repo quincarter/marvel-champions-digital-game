@@ -32,6 +32,7 @@ function matchesPattern(
   if (!kinds.includes(event.kind)) return false;
   // The same attack resolved against another player doesn't re-trigger the attacker's own "when it attacks".
   if (event.kind === "enemyAttack" && event.additionalResolution && event.enemyInstanceId === selfId) return false;
+  if (event.kind === "attack" && event.additionalResolution && event.attackerInstanceId === selfId) return false;
   const subjects = eventSubjects(event);
   if (pattern.selfIs === "source" && !subjects.sources.includes(selfId)) return false;
   if (pattern.selfIs === "target" && !subjects.targets.includes(selfId)) return false;
@@ -114,6 +115,11 @@ function matchesRest(
     for (const [key, expected] of Object.entries(pattern.eventIs)) {
       if (carried[key] !== expected) return false;
     }
+  }
+  if (pattern.targetHadAttachment) {
+    if (event.kind !== "characterDefeated") return false;
+    const query: TargetQuery = pattern.targetHadAttachment;
+    if (!(event.attachedInstanceIds ?? []).some((id) => matchesQuery(state, id, query, context))) return false;
   }
   if (pattern.attackKind) {
     if (event.kind !== "attack" && event.kind !== "thwart") return false;

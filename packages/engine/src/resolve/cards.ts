@@ -232,6 +232,13 @@ export function moveCardsTo(ctx: Ctx, ids: readonly InstanceId[], destination: C
       case "encounterSetAside":
         to = { kind: "encounterSetAside" };
         break;
+      case "setAside":
+        // "Set this card aside, out of play" on a player card (Death-Glow, docs/phase7-wave4.md §3.22): its owner's
+        // set-aside area, where "the set-aside Death-Glow" is found again (`CardSelector setAside`).
+        if (!owner) continue;
+        to = { kind: "setAside", playerId: owner };
+        position = "bottom";
+        break;
       case "encounterDeckShuffle":
         if (owner) continue;
         to = { kind: "encounterDeck", deckId: activeEncounterDeckId(ctx.state) };
@@ -260,7 +267,7 @@ export function moveCardsTo(ctx: Ctx, ids: readonly InstanceId[], destination: C
     else moveCard(ctx, id, to, position);
     // Discard piles are faceup; a separate deck's faces are set below (`syncSeparateDeckTop`).
     if (destination === "separateDiscard") updateInstance(ctx, id, (i) => ({ ...i, faceup: true }));
-    else if (destination !== "discard" && destination !== "removedFromGame") {
+    else if (destination !== "discard" && destination !== "removedFromGame" && destination !== "setAside") {
       updateInstance(ctx, id, (i) => ({ ...i, faceup: destination === "hand" ? i.faceup : false }));
     }
   }

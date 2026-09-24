@@ -414,6 +414,8 @@ export const modifyAttack = (change: {
    * excess measured), but the target takes none, so no tough card is used.
    */
   readonly preventAllDamage?: boolean;
+  /** "Use its ATK instead of its DEF for this attack" (The Best Defense…, 25020; docs/phase7-wave4.md §3.22). */
+  readonly defenseUsesAtk?: boolean;
 }): EffectSpec => ({
   kind: "modifyAttack",
   ...(change.overkill ? { overkill: true } : {}),
@@ -422,7 +424,23 @@ export const modifyAttack = (change: {
   ...(change.threatBonus !== undefined ? { threatBonus: amount(change.threatBonus) } : {}),
   ...(change.keywords && change.keywords.length > 0 ? { keywords: change.keywords } : {}),
   ...(change.preventAllDamage ? { preventAllDamage: true } : {}),
+  ...(change.defenseUsesAtk ? { defenseUsesAtk: true } : {}),
 });
+/**
+ * "Declare Valkyrie the defender without exhausting her" (Shieldmaiden, 25011) / "declare him the defender without
+ * exhausting him" (Colossus, Bamf!) / "Exhaust it and declare it the defender" (Mutant Protectors, `{ exhaust: true
+ * }`): docs/phase7-wave4.md §3.22. A hero declared this way makes a basic defense (its DEF reduces the damage).
+ */
+export const declareDefender = (character: TargetRef, opts: { readonly exhaust?: boolean } = {}): EffectSpec => ({
+  kind: "declareDefender",
+  character,
+  ...(opts.exhaust ? { exhaust: true } : {}),
+});
+/**
+ * "Resolve this attack against each minion engaged with that player" (Thor, 25013; docs/phase7-wave4.md §3.22): the
+ * player attack in progress also hits every other card `targets` names, as additional resolutions of one attack.
+ */
+export const resolveAttackAgainst = (targets: TargetRef): EffectSpec => ({ kind: "resolveAttackAgainst", targets });
 export const atEndOfAttack = (...effects: readonly EffectArg[]): EffectSpec => ({
   kind: "atEndOfAttack",
   effects: flatten(effects),
@@ -1047,6 +1065,18 @@ export const playFromHandReducingCost = (
   costReduction: amount(n),
   ...(opts.filter ? { filter: opts.filter } : {}),
   ...(opts.optional ? { optional: true } : {}),
+});
+/**
+ * "Play the set-aside Death-Glow upgrade as if it were in your hand" (Valkyrie's Death Perception, 25001a;
+ * docs/phase7-wave4.md §3.22): a card from your set-aside area, played and paid for as from hand (its host chosen if
+ * it has several). `playSetAside(query("upgrade", { name: "Death-Glow" }))`.
+ */
+export const playSetAside = (filter?: TargetQuery, player: PlayerRef = you): EffectSpec => ({
+  kind: "playFromHand",
+  player,
+  from: "setAside",
+  costReduction: amount(0),
+  ...(filter ? { filter } : {}),
 });
 
 /** "Advance the main scheme to stage N" (docs/phase7-wave2.md §1.6/§3.4). */

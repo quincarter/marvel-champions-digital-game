@@ -1829,15 +1829,23 @@ export function playCard(ctx: Ctx, command: Command & { type: "playCard" }): Eng
   return null;
 }
 
+/** Where an effect plays a card from "as if it were in your hand" (`EffectSpec playFromHand.from`). */
+export type PlayFromZone = "hand" | "setAside";
+
 /**
  * The play restrictions every "play a card from your hand" effect checks, whatever it does about the cost. RRG 1.8
  * "Play, Put Into Play" (p. 32) and "Play Restrictions and Permissions" (p. 33): playing a card through an effect is
  * still *playing* it, so form, "max per", Restricted, the unique rule and `cannotPlay` all apply.
  */
-function playFromEffectRestrictionFault(ctx: Ctx, playerId: PlayerId, id: InstanceId): string | null {
+function playFromEffectRestrictionFault(
+  ctx: Ctx,
+  playerId: PlayerId,
+  id: InstanceId,
+  from: PlayFromZone = "hand",
+): string | null {
   const card = cardOf(ctx.state, id);
   const player = getPlayer(ctx.state, playerId);
-  if (!card || !player || !player.hand.includes(id)) return "not in hand";
+  if (!card || !player || !player[from].includes(id)) return from === "hand" ? "not in hand" : "not set aside";
   if (!("cost" in card)) return "not a card that is played";
   if ("specialCost" in card && card.specialCost === "dash") return "a '—' cost cannot be played";
   const restrictions = "playRestrictions" in card ? card.playRestrictions : undefined;
@@ -1863,8 +1871,13 @@ function playFromEffectRestrictionFault(ctx: Ctx, playerId: PlayerId, id: Instan
  * required resources cannot be paid for it"), nor a dash cost (RRG 1.8 "Dash (Value)", p. 15). Kept conservative: an
  * event is playable only through an action ability with no cost of its own, and an upgrade only onto its own identity.
  */
-export function playIgnoringCostFault(ctx: Ctx, playerId: PlayerId, id: InstanceId): string | null {
-  const restriction = playFromEffectRestrictionFault(ctx, playerId, id);
+export function playIgnoringCostFault(
+  ctx: Ctx,
+  playerId: PlayerId,
+  id: InstanceId,
+  from: PlayFromZone = "hand",
+): string | null {
+  const restriction = playFromEffectRestrictionFault(ctx, playerId, id, from);
   if (restriction) return restriction;
   const card = mustCardOf(ctx.state, id);
   const player = mustPlayer(ctx.state, playerId);
@@ -1898,8 +1911,9 @@ export function playWithPaymentFault(
   playerId: PlayerId,
   id: InstanceId,
   extraReduction: number,
+  from: PlayFromZone = "hand",
 ): string | null {
-  const restriction = playFromEffectRestrictionFault(ctx, playerId, id);
+  const restriction = playFromEffectRestrictionFault(ctx, playerId, id, from);
   if (restriction) return restriction;
   const card = mustCardOf(ctx.state, id);
   const player = mustPlayer(ctx.state, playerId);
@@ -2016,8 +2030,8 @@ export function playWithPayment(
  * the purpose of card effects, that card is considered to have been played with zero resources paid for its cost." So
  * `paid.*` are all 0. It counts as played (max per round/phase, "the first ally played each round").
  */
-export function playIgnoringCost(ctx: Ctx, playerId: PlayerId, id: InstanceId): void {
-  if (playIgnoringCostFault(ctx, playerId, id)) return;
+export function playIgnoringCost(ctx: Ctx, playerId: PlayerId, id: InstanceId, from: PlayFromZone = "hand"): void {
+  if (playIgnoringCostFault(ctx, playerId, id, from)) return;
   const plan = planCost(ctx.state, ctx.deps, id, playerId, undefined, {}, new Set());
   if (isFault(plan)) return;
   const vars = {

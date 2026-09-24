@@ -195,6 +195,13 @@ export interface TargetQuery {
   readonly inSlot?: string;
   /** Controlled by one of these players: "each character *that player* controls" (a chosen player). */
   readonly controlledBy?: PlayerRef;
+  /**
+   * The player's identity or a card that is an extension of it (RRG 1.8 "You, Your", p. 49: events they play,
+   * resources they spend, upgrades they control unless attached to another friendly character): "If Valkyrie defeated
+   * that enemy" (Death-Glow, 25002) is `refMatches(eventSource, { extensionOf: you }, anywhere)`, true for her attack,
+   * an event she played or an upgrade of hers (`isIdentityExtension`; docs/phase7-wave4.md §3.22).
+   */
+  readonly extensionOf?: PlayerRef;
   /** Engaged with one of these players: "each enemy engaged with *that player*". */
   readonly engagedWithPlayer?: PlayerRef;
   /** A villain's signature side scheme (true) or any other card (false): The Wrecking Crew insert, "Signature Side Schemes". */
@@ -727,6 +734,21 @@ export type Predicate =
    */
   | { readonly kind: "currentActivationIs"; readonly activation: "attack" | "scheme" }
   /**
+   * "While attacking the enemy with Death-Glow attached" (Dragonfang, 25006) / "while defending against the enemy with
+   * Death Glow attached" (Valkyrie's Spear, 25005) / "while attacking a character with the [Aerial] trait" (Harpoon):
+   * the innermost attack on the stack (a player's attack, an enemy attack, or an enemy attacking an enemy) matches
+   * every query given. `attacker` is the attacking character; `target` the character attacked (for an enemy attack,
+   * the defender once one is declared, else the attacked character); `defender` the character declared the defender
+   * of an enemy attack (none for an undefended one or a player's attack). False with no attack on the stack, so a
+   * stat modifier gated by it applies only while that attack resolves. docs/phase7-wave4.md §3.22.
+   */
+  | {
+      readonly kind: "attackInProgress";
+      readonly attacker?: TargetQuery;
+      readonly target?: TargetQuery;
+      readonly defender?: TargetQuery;
+    }
+  /**
    * "If you were already in Gamma energy form" (Gamma Blast, `mts` 21007) / "While you are in Dense mass form" (Vision,
    * `vision` 26001b) / "Play only if Vision is in Intangible mass form": the player controls a faceup card with the form
    * keyword of `formType`, titled `name` when given (any form of that type when not). RRG 1.8 "Form, Change Form"
@@ -869,7 +891,29 @@ export type EffectSpec =
       readonly atkBonus?: ValueSpec;
       /** Scheme activations: "reduce the amount of threat placed on the scheme by 1" (Emergency) → `-1`. */
       readonly threatBonus?: ValueSpec;
+      /**
+       * "Use its ATK instead of its DEF for this attack" (The Best Defense…, 25020; docs/phase7-wave4.md §3.22): the
+       * defending hero's basic defense reduces the damage by its ATK. Only a basic defense reduces damage at all (RRG
+       * 1.8 "Defend, Defense", p. 15), so with a "(defense)" defender alone it changes nothing.
+       */
+      readonly defenseUsesAtk?: boolean;
     }
+  /**
+   * "Declare [character] the defender [without exhausting them]" (Shieldmaiden, Colossus, "I Can Do This All Day",
+   * Bamf!, Mutant Protectors; docs/phase7-wave4.md §3.22): the first card `character` names becomes the defender of the
+   * innermost enemy attack; a hero is making a basic defense, so its DEF reduces the damage (RRG 1.8 "Defend, Defense",
+   * p. 15). `exhaust`: "exhaust it and declare it the defender"; absent, the character is not exhausted (and may already
+   * be). Nothing happens outside an enemy attack.
+   */
+  | { readonly kind: "declareDefender"; readonly character: TargetRef; readonly exhaust?: boolean }
+  /**
+   * "Resolve this attack against each minion engaged with that player" (Thor, 25013; docs/phase7-wave4.md §3.22): the
+   * player attack in progress (the innermost `attack` event) is also resolved against every other card `targets` names
+   * that its attacker can attack, as separate attack events with the same attacker, damage, keywords and source, marked
+   * `additionalResolution` so the attacker's own "when it attacks" abilities do not trigger again. They resolve in the
+   * order `targets` lists them, before the original resolves (§4 Q11). One attack, so no further consequential damage.
+   */
+  | { readonly kind: "resolveAttackAgainst"; readonly targets: TargetRef }
   /**
    * "Get +N to that power for this use" (Rapid Growth 13005; Venom's Pistol; Scarlet Witch ally `qsv`): a bonus to the
    * basic power currently being used, on the character using it, for that use only.
@@ -1237,6 +1281,12 @@ export type EffectSpec =
   | {
       readonly kind: "playFromHand";
       readonly player: PlayerRef;
+      /**
+       * Where the card is played from, "as if it were in your hand": `"setAside"` is the player's own set-aside area
+       * ("Play the set-aside Death-Glow upgrade as if it were in your hand", Valkyrie's Death Perception, 25001a;
+       * docs/phase7-wave4.md §3.22). Default `"hand"`. Every play restriction and the cost still apply.
+       */
+      readonly from?: "hand" | "setAside";
       readonly ignoreCost?: true;
       readonly costReduction?: ValueSpec;
       readonly filter?: TargetQuery;
@@ -1917,4 +1967,10 @@ export type CardDestination =
    * `ZoneId.encounterSetAside`/`CardSelector.encounterSetAside` already reads from (a signature side scheme's own
    * home before it enters play). No card printed before this needed *sending* a card there rather than reading it.
    */
-  | "encounterSetAside";
+  | "encounterSetAside"
+  /**
+   * "Set this card aside, out of play" for a player card (Death-Glow, Valkyrie's Setup and "Not this Day.";
+   * docs/phase7-wave4.md §3.22): the owner's own set-aside area (`PlayerState.setAside`), which `CardSelector setAside`
+   * reads and `playFromHand.from: "setAside"` plays from. A card with no owning player is not moved.
+   */
+  | "setAside";

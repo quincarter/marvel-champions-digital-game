@@ -181,6 +181,7 @@ const EXCLUSION_WORDING: Record<ExclusionCode, string> = {
   wrongSelf: "wrong card for this effect",
   wrongCategory: "not the right kind of card",
   wrongController: "controlled by the wrong player",
+  notIdentityExtension: "not that hero or one of their events, resources or upgrades",
   notEngagedWithYou: "not engaged with you",
   notEngaged: "not engaged with anyone",
   missingTrait: "missing the required trait",

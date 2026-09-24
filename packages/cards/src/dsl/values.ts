@@ -391,6 +391,18 @@ export const ifElse = (condition: Predicate, then: Amount, otherwise: Amount): V
 export const inForm = (form: Form, player: PlayerRef = you): Predicate => ({ kind: "form", player, form });
 export const isHero = (player: PlayerRef = you): Predicate => inForm("hero", player);
 /**
+ * "While attacking the enemy with Death-Glow attached" (Dragonfang, 25006), "while defending against the enemy with
+ * Death Glow attached" (Valkyrie's Spear, 25005), "while attacking a character with the [Aerial] trait" (Harpoon): the
+ * innermost attack on the stack matches every query given (docs/phase7-wave4.md §3.22). Use it as a stat modifier's
+ * condition: `gets("atk", ifElse(attackInProgress({ attacker: YOUR_IDENTITY, target: query("enemy", { hasAttachment:
+ * query("upgrade", { name: "Death-Glow" }) }) }), 2, 1), YOUR_IDENTITY)`.
+ */
+export const attackInProgress = (of: {
+  readonly attacker?: TargetQuery;
+  readonly target?: TargetQuery;
+  readonly defender?: TargetQuery;
+}): Predicate => ({ kind: "attackInProgress", ...of });
+/**
  * "If you were already in Gamma energy form" (Gamma Blast, `mts` 21007) / "While you are in Dense mass form" / "Play only
  * if Vision is in Intangible mass form" (`vision`): `player` controls a faceup card with the form keyword of `formType`,
  * titled `name` when given (docs/phase7-wave4.md §3.1).

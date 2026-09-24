@@ -92,7 +92,7 @@ import {
 } from "./game-areas.js";
 import { readyOrAnnounce, threatRemovalBlocked } from "./event.js";
 import { heard } from "./triggers.js";
-import { dealBoostCard, giveBoostCard } from "./enemy-activation.js";
+import { dealBoostCard, declareDefenderByEffect, giveBoostCard } from "./enemy-activation.js";
 import { quickstrikeAttack } from "./enter-play.js";
 import { addFrameVars, eventFrame, type Frame, gameAbilityFrames, pushEffects, pushEvents } from "./frames.js";
 import { enterPlayOnReveal, revealFrame } from "./reveal.js";
@@ -348,6 +348,7 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       if (effect.preventAllDamage) delta.preventAllDamage = 1;
       if (effect.atkBonus) delta.atkBonus = value(effect.atkBonus);
       if (effect.threatBonus) delta.threatBonus = value(effect.threatBonus);
+      if (effect.defenseUsesAtk) delta.defenseUsesAtk = 1;
       const extra =
         effect.extraBoostCards === undefined
           ? 0
@@ -365,6 +366,36 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
         delta.extraBoost = extra;
       }
       addFrameVars(ctx, activation, delta);
+      return;
+    }
+    case "resolveAttackAgainst": {
+      const attack = ctx.state.stack.find(
+        (f): f is Frame<"event"> => f.kind === "event" && f.event.kind === "attack" && !f.cancelled,
+      );
+      if (!attack || attack.event.kind !== "attack") return;
+      const original = attack.event;
+      const inPlay = cardsInPlay(ctx.state);
+      if (!inPlay.includes(original.attackerInstanceId)) return;
+      const { results: _results, ...body } = original;
+      pushEvents(
+        ctx,
+        targets(effect.targets)
+          .filter(
+            (id) =>
+              id !== original.targetInstanceId &&
+              inPlay.includes(id) &&
+              canAttack(ctx.state, original.attackerInstanceId, id, ctx.deps),
+          )
+          .map((id) => ({ ...body, targetInstanceId: id, additionalResolution: true as const })),
+      );
+      return;
+    }
+    case "declareDefender": {
+      const inPlay = cardsInPlay(ctx.state);
+      const [defender] = targets(effect.character).filter(
+        (id) => inPlay.includes(id) && categoriesOf(ctx.state, id).includes("character"),
+      );
+      if (defender) declareDefenderByEffect(ctx, defender, effect.exhaust === true);
       return;
     }
     case "modifyBasicPower": {

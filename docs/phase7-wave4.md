@@ -369,7 +369,7 @@ stays data only.**
 | 3.19 | Readying as a costed act; "cannot be readied by player card effects"     | Mister Fear; Undermine Support (`aos`)     | not started |
 | 3.20 | A trigger on damage a card prevented                                     | Abjuration                                 | not started |
 | 3.21 | An enemy attack against a chosen character                               | Speed Demon, Crossfire                     | not started |
-| 3.22 | Valkyrie's kit                                                           | `valk`                                     | not started |
+| 3.22 | Valkyrie's kit                                                           | `valk`                                     | landed      |
 | 3.23 | Reusable as is                                                           | —                                          | checked     |
 
 ### 3.1 Additional forms: the form keyword
@@ -753,6 +753,68 @@ first.)"; Crossfire: "When Crossfire attacks, he attacks the friendly character 
 
 ### 3.22 Valkyrie's kit
 
+> **Status: landed (2026-09-24),** tested in `packages/engine/src/valkyrie-kit.test.ts` (10 tests: Death Perception
+> plays the set-aside Death-Glow, paid for, onto the chosen enemy, and offers nothing when it is in hand instead; a
+> basic attack by her defeats the Death-Glow enemy, Death-Glow goes to her set-aside area, she readies and "after the
+> enemy with Death-Glow is defeated" fires; an event she played dealt the damage and she still readies; an ally's
+> attack sets Death-Glow aside without readying her; Dragonfang +2/+1 by target; Valkyrie's Spear +2 DEF defending
+> against the Death-Glow enemy; Shieldmaiden makes an exhausted hero a basic defender, DEF reducing the damage, nobody
+> asked to declare, one `defended` event; The Best Defense… reduces by ATK; Thor's attack resolved against each engaged
+> minion once, one consequential damage, his interrupt heard once; replay deep-equal). DSL:
+> `packages/cards/src/dsl/wave4-hero-primitives.test.ts` (5 tests under §3.22).
+>
+> **Checked against every `valk` card** (`packages/content/raw/marvelcdb/valk.json`). Seven wordings needed something;
+> the rest compose from existing vocabulary (below).
+>
+> - **`CardDestination "setAside"`**: "set this card aside, out of play" for a player card goes to its owner's
+>   `PlayerState.setAside` (Valkyrie's Setup, "Not this Day.", Death-Glow). There was only `encounterSetAside`.
+> - **`EffectSpec playFromHand.from: "setAside"`**: "Play the set-aside Death-Glow upgrade as if it were in your hand"
+>   is `playFromHand` over the set-aside area, paid for (`costReduction: 0`), host chosen when several; every play
+>   restriction still applies (`playFromEffectRestrictionFault` takes the zone).
+> - **`TargetQuery.extensionOf: PlayerRef`** (`isIdentityExtension`, `select.ts`): the player's identity, events they
+>   played, resources they spent, upgrades they control unless attached to another friendly character (RRG 1.8 "You,
+>   Your", p. 49). "If Valkyrie defeated that enemy" is `refMatches(eventSource, { extensionOf: you }, anywhere)`, so an
+>   event she played counts as her and an ally does not (§4 Q12). Exclusion code `notIdentityExtension`.
+> - **`characterDefeated.attachedInstanceIds`** (stamped by `eventFrame` when the defeat goes on the stack, before any
+>   interrupt) and **`EventPattern.targetHadAttachment`**: "After the enemy with Death-Glow is defeated" still sees
+>   Death-Glow after its own forced interrupt set it aside and the enemy left play.
+> - **`Predicate attackInProgress { attacker?, target?, defender? }`**: the innermost attack on the stack (player
+>   attack, enemy attack, enemy attacking an enemy) matches every query. Dragonfang's "+2 ATK instead while attacking
+>   the enemy with Death-Glow" is a stat modifier whose amount is `ifElse(attackInProgress(…), 2, 1)`.
+> - **`EffectSpec declareDefender { character, exhaust? }`**: RRG 1.8 "Defend, Defense" (p. 15), "When a card ability
+>   says to 'declare [a hero] the defender' of an attack, that hero is considered to be making a basic defense", and a
+>   defense-labeled ability's hero "can still be declared the defender … by another card ability". Works on the
+>   attack's procedure or, at "When … attacks", on its event (`declaredDefense` / `declaredBasicDefense` vars read by
+>   `pushEnemyAttackFrame`); the declare-defender step is skipped once an effect named one. Re-declaring the labeled
+>   defender only makes the defense basic, not a second `defended`. It does not announce `basicPowerUsed`.
+> - **`modifyAttack.defenseUsesAtk`**: "use its ATK instead of its DEF for this attack"; `plannedAttackDamage` (the
+>   one damage formula the resolver and the defend preview share) reduces by ATK. "When your hero defends" is the
+>   basic defense's interruptible `basicPowerUsing` (§4 Q13).
+> - **`EffectSpec resolveAttackAgainst { targets }`** and `attack.additionalResolution`: Thor's "resolve this attack
+>   against each minion engaged with that player" pushes the same attack (attacker, damage, keywords, source) against
+>   every other target it can attack; the attacker's own "when it attacks" does not trigger again, and there is one
+>   consequential damage. Order: §4 Q11.
+>
+> **Compose as is:** "the enemy with Death-Glow attached" is `hasAttachment`; Shieldmaiden's "+2 DEF for this attack" is
+> `modifyStat(…, "endOfAttack")`; Have at Thee! (`if` + `attack` with overkill); Trouble in Otherworld (`cannotAttack`
+> with `attacker` and `target`); Chooser of the Slain, Angela (encounter searches, `putIntoPlay` engaged); Hall of Heroes
+> (`on.defeated(…, { byYou })`, counters); Aragorn (`gets("hp")`, `gainsTrait`); Combat Training (`anyPlayerControl`);
+> Throg, Visit Valhalla, Godlike Stamina, The Bifrost. Beguiled is §3.9; Problem Solvers and Cosmic Alliance §3.17.
+>
+> **DSL:** `playSetAside(filter)`, `declareDefender(character, { exhaust })`, `resolveAttackAgainst(targets)`,
+> `modifyAttack({ defenseUsesAtk })` (`dsl/effects.ts`); `attackInProgress({ attacker, target, defender })`
+> (`dsl/values.ts`); `on.defeated(what, { withAttachment })` (`dsl/abilities.ts`); `moveCards(…, "setAside")` and
+> `query(…, { extensionOf: you })` need no builder.
+>
+> **Composes with:** Colossus (`aoa` 45031), "I Can Do This All Day" (`cw` 56047), Bamf! (`ncrawler` 48006) and Mutant
+> Protectors (`mut_gen` 32017, `{ exhaust: true }`) with `declareDefender`; Two-Gun Kid (`cw` 56010, "resolve this
+> attack against each of them") with `resolveAttackAgainst`; Harpoon (`angel` 42025) and Flash Freeze (`storm` 36012,
+> "while attacking you") with `attackInProgress`; every "if [hero] defeated" / "after [hero] attacks" with
+> `extensionOf`.
+>
+> **Client:** log and show `setAside` for player cards (the player's set-aside area) and the `notIdentityExtension`
+> exclusion label (added to `view/highlights.ts`).
+
 Death Perception ("Play the set-aside Death-Glow upgrade as if it were in your hand"), "the enemy with Death-Glow
 attached" (`hasAttachment`, landed), Dragonfang / Valkyrie's Spear (+2 while attacking / defending against that enemy),
 Shieldmaiden ("declare Valkyrie the defender without exhausting her"), The Best Defense… ("use its ATK instead of its
@@ -825,6 +887,18 @@ Each is implemented the way stated, or not at all, and named here rather than de
     as: the engine accepts it; asking the other seats before the command is sent is a client/netcode step, not an
     engine rule. The order the per-spender `resourcesSpent` events resolve in (the paying player's first, then seat
     order) is our default; no ruling covers it.
+11. **Thor's "(in the order of your choice)"** (§3.22). `resolveAttackAgainst` resolves the extra targets in the order
+    the ref lists them (play-area order), before the original target, which is one legal order; the player is not
+    asked. The only thing the order can change is which overkill spill or defeat happens first. Proposed: keep it
+    until a card makes the order matter; a choice step is an `orderCards`-style prompt on top of this effect.
+12. **"If Valkyrie defeated that enemy"** (Death-Glow, §3.22) read as "her identity or an extension of it" (RRG 1.8
+    "You, Your", p. 49): her attacks, events she played (Have at Thee!, a non-attack "deal damage" event), resources
+    she spent (Audacity) and her upgrades count; allies do not. No ruling names Death-Glow; the RRG's extension rule is
+    the reading.
+13. **"When your hero defends against an attack"** (The Best Defense…, §3.22) is scripted on the basic defense's
+    `basicPowerUsing` interrupt, which is the moment before the DEF is read. RRG 1.8 p. 15 lets it also trigger off a
+    defense-labeled ability, but only a basic defense reduces damage at all, so there it would do nothing; the engine
+    does not offer it there.
 
 ## 5. What this asks of the other agents
 
