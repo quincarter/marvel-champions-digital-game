@@ -21,3 +21,4 @@ packages/content/scripts/raw/
 
 # Python bytecode from scripts/
 __pycache__/
+extracted_pngs/
