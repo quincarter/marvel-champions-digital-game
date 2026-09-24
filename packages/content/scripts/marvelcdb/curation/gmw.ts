@@ -79,6 +79,8 @@ export const GMW_CURATION: PackCuration = {
   },
   outDir: "src/data/gmw",
   exportPrefix: "GMW",
+  // `campaign.ts` (GMW_CAMPAIGN) is hand-authored — no MarvelCDB source (docs/campaign-mode-design.md §3).
+  handAuthoredModules: ["campaign"],
 
   corrections: [
     {
