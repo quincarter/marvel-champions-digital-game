@@ -392,6 +392,19 @@ export const rule = (r: RuleSpec): ConstantPart => ({ rules: [r] });
  * (`AbilityDefinition.activeIn`, docs/phase7-wave4.md §3.13). `inHand(interrupt(…))`.
  */
 export const inHand = (definition: AbilityDefinition): AbilityDefinition => ({ ...definition, activeIn: "hand" });
+/**
+ * "… This effect cannot be canceled." (the Cosmic Entities, `mts` 21042/21048/21054/21060; Longshot, `mojo` 39071):
+ * `uncancellable(whenRevealed(…))`. "This card cannot be canceled" read from the card itself or from play is the
+ * constant `cannotBeCanceled(query)`. docs/phase7-wave4.md §3.14.
+ */
+export const uncancellable = (definition: AbilityDefinition): AbilityDefinition => ({
+  ...definition,
+  uncancellable: true,
+});
+/** "Treacheries cannot be canceled." (Dark Scepter, `tt` 55036); "this card … cannot be canceled" (`sm` 27108). */
+export const cannotBeCanceled = (cards: TargetQuery, when?: Predicate): ConstantPart => ({
+  rules: [{ kind: "cannotBeCanceled", cards, ...(when ? { while: when } : {}) }],
+});
 /** "You cannot choose to discard this card from your hand." (System Shock): `inHand(constant(cannotChooseToDiscard))`. */
 export const cannotChooseToDiscard: ConstantPart = { rules: [{ kind: "cannotChooseToDiscard" }] };
 export const focusedMainScheme = (): ConstantPart => rule({ kind: "focusedMainScheme", scheme: { kind: "host" } });

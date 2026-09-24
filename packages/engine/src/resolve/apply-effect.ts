@@ -80,7 +80,13 @@ import { campaignLogValueOf, recordCampaignRemoval, recordCampaignWrite } from "
 import { damageGroupFrame } from "./damage-group.js";
 import { advanceToSetAsideVillain, swapVillain } from "./villain-swap.js";
 import { buildScenarioDeck, moveCardsTo, selectCards, shuffleEncounterDeck } from "./cards.js";
-import { canHaveAttached, cannotBeUnattached, cannotChangeForm, cannotThwart } from "../rules.js";
+import {
+  canHaveAttached,
+  cannotBeUnattached,
+  cannotChangeForm,
+  cannotThwart,
+  revealCannotBeCanceled,
+} from "../rules.js";
 import { advanceMainSchemeStage, checkDefeats, completeMainScheme } from "./defeat.js";
 import {
   addVillains,
@@ -1119,6 +1125,8 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
         (f): f is Frame<"reveal"> => f.kind === "reveal" && f.instanceId === revealing,
       );
       if (!reveal) return;
+      // "This effect cannot be canceled." (RRG 1.8 "'Cannot'", p. 11: "cannot" is absolute.) The cancel's costs stay paid.
+      if (revealCannotBeCanceled(ctx.state, ctx.deps, reveal.instanceId)) return;
       const all = effect.kind === "cancelRevealedCard";
       setFrame(ctx, all ? { ...reveal, effectsCancelled: true } : { ...reveal, whenRevealedCancelled: true });
       emit(ctx, { type: "revealCancelled", instanceId: reveal.instanceId, scope: all ? "allEffects" : "whenRevealed" });

@@ -9,6 +9,8 @@ import { describe, expect, it } from "vitest";
 import {
   action,
   alterEgoAction,
+  cannotBeCanceled,
+  uncancellable,
   cannotChooseToDiscard,
   inHand,
   interrupt,
@@ -208,5 +210,22 @@ describe("§3.13 abilities active in hand", () => {
     valid(pip);
     valid(inHand(constant(cannotChooseToDiscard)));
     valid(inHand(alterEgoAction({ cost: spend({ mental: 1 }) }, moveCards(cards(self), "removedFromGame"))));
+  });
+});
+
+describe("§3.14 player events shuffled into the encounter deck", () => {
+  it("In-Betweener (21042): shuffle into the encounter deck; an uncancellable When Revealed that removes itself", () => {
+    const shuffle = action(moveCards(cards(self), "encounterDeckShuffle"));
+    const revealed = uncancellable(whenRevealed(dealDamage(2, theVillain), moveCards(cards(self), "removedFromGame")));
+    expect(revealed.uncancellable).toBe(true);
+    valid(shuffle);
+    valid(revealed);
+    // Dark Scepter (`tt` 55036): "Treacheries cannot be canceled."
+    const scepter = constant(cannotBeCanceled(query("treachery")));
+    expect(scepter.trigger).toEqual({
+      kind: "constant",
+      rules: [{ kind: "cannotBeCanceled", cards: { categories: ["treachery"] } }],
+    });
+    valid(scepter);
   });
 });

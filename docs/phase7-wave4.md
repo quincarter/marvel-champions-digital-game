@@ -361,7 +361,7 @@ stays data only.**
 | 3.11 | Timing points when a deck runs out                                       | Soul World, Universal Church, Thanos       | landed      |
 | 3.12 | Counting different aspects; Adam Warlock's copy limit                    | Adam Warlock                               | landed      |
 | 3.13 | Abilities active in hand; "cannot choose to discard this card"           | Pip the Troll, System Shock                | landed      |
-| 3.14 | Player events shuffled into the encounter deck (Cosmic Entities)         | Adam Warlock precon                        | not started |
+| 3.14 | Player events shuffled into the encounter deck (Cosmic Entities)         | Adam Warlock precon                        | landed      |
 | 3.15 | "After the last X counter is removed from here"                          | Ebony Maw; `aos`, `phoenix`                | landed      |
 | 3.16 | Encounter cards in a player's play area                                  | Ebony Maw's Spells                         | landed      |
 | 3.17 | Alliance: paying a card's costs as a group                               | `warm`, `valk`, `vision`; 9 later cards    | landed      |
@@ -695,6 +695,21 @@ resolved as a boost card, it goes to the encounter discard pile. Ruling Jan 17, 
 the active villain's. **Plan:** a player card in the encounter deck keeps its owner; its When Revealed resolves when a
 player reveals it; `uncancellable` on the ability; a discarded one goes to the encounter discard pile.
 
+> **Status: landed (2026-09-24),** tested in `packages/engine/src/cosmic-entity.test.ts` (3 tests: played, the event
+> joins the active villain's encounter deck owned by its player, controlled by nobody, and discards to the encounter
+> discard pile; revealed, its When Revealed resolves and removes it from the game even with a forced "cancel its effects
+> and discard it" in play, replay deep-equal; "you" on it is the player who revealed it). **What landed:**
+> `moveCards … "encounterDeckShuffle"` now takes a player card: it keeps `ownerId`, loses its controller and is homed to
+> the active villain's encounter deck (`CardHome encounterDeck`), so `discardZoneFor` sends it (as a boost card or a
+> canceled reveal) to that encounter discard pile, and `gameAbilityFrames` makes the revealing player its "you". A
+> revealed event still where it was dealt when its reveal finishes is discarded like a treachery.
+> **`AbilityDefinition.uncancellable`** on a When Revealed, and **`RuleSpec cannotBeCanceled {cards, while?}`** (read
+> from the revealed card itself wherever it is, and from play), make `cancelRevealedCard` / `cancelWhenRevealed` change
+> nothing (`rules.ts revealCannotBeCanceled`). **Composes with:** Longshot and Cornered! (`mojo` 39071, 39017, "This
+> effect cannot be canceled"), Frequent Flyers and its siblings (`sm` 27108–27110, 27112, "In expert mode, … cannot be
+> canceled"), Dark Scepter (`tt` 55036, "Treacheries cannot be canceled"). **DSL:** `uncancellable(whenRevealed(…))`,
+> `cannotBeCanceled(query, when?)`. See §4 Q14.
+
 ### 3.15 "After the last X counter is removed from here"
 
 > **Status: landed (2026-09-24),** tested in `packages/engine/src/spell-environments.test.ts` (§3.15: fires on the last
@@ -963,6 +978,10 @@ Each is implemented the way stated, or not at all, and named here rather than de
     `basicPowerUsing` interrupt, which is the moment before the DEF is read. RRG 1.8 p. 15 lets it also trigger off a
     defense-labeled ability, but only a basic defense reduces damage at all, so there it would do nothing; the engine
     does not offer it there.
+14. **A cancel ability aimed at a card that cannot be canceled** (§3.14). Nothing in RRG 1.8 "Cancel" or "'Cannot'"
+    (p. 11) forbids initiating it; its costs are paid and it changes nothing. Implemented as: the cancel stays offered
+    and fizzles. Proposed alternative for the user: withhold it from the legal actions (friendlier, but not a written
+    rule).
 
 ## 5. What this asks of the other agents
 
