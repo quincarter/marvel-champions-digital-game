@@ -104,6 +104,7 @@ pnpm typecheck
 Automated cross-platform releases are published via GitHub Actions whenever changes are merged into `main`:
 - **Desktop (Tauri)**: macOS universal (`.dmg`, `.app.tar.gz`), Linux (`.deb`, `.rpm`, `.AppImage`), Windows 11 (`.msi`, `-setup.exe`).
 - **Mobile (Capacitor)**: Android release APK (`.apk`).
+- **macOS signing**: the `.dmg` is signed and notarized only when these repository secrets are set: `APPLE_CERTIFICATE` (Developer ID Application `.p12`, base64-encoded), `APPLE_CERTIFICATE_PASSWORD`, `APPLE_SIGNING_IDENTITY` (e.g. `Developer ID Application: Name (TEAMID)`), and for notarization `APPLE_ID`, `APPLE_PASSWORD` (an app-specific password) and `APPLE_TEAM_ID`. Without them the app is unsigned and macOS blocks it on first launch: allow it in System Settings → Privacy & Security → Open Anyway, or run `xattr -dr com.apple.quarantine "/Applications/Marvel Champions.app"`.
 - **Changelog & Versioning**: Managed via [Changie](https://github.com/miniscruff/changie). Use `changie new` to record changes during development.
 - **Local Release Pipeline**: `mise ship-it` (or `pnpm ship-it`) builds and stages all native packages locally.
 

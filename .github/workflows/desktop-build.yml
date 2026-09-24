@@ -11,9 +11,9 @@
 # Run it by hand from the Actions tab to get the installers as workflow
 # artifacts, or push a `v*` tag to also attach them to a draft GitHub release.
 #
-# Nothing here is code-signed. macOS will say the app is from an unidentified
-# developer (right-click > Open) and Windows SmartScreen will warn once;
-# signing needs an Apple Developer ID and a Windows certificate as secrets.
+# The macOS bundle is signed and notarized when the APPLE_* secrets are set
+# (README, "macOS signing"); without them it is unsigned and Gatekeeper blocks
+# it. Windows is not signed yet, so SmartScreen warns once.
 name: Desktop build
 
 # Trigger manually from GitHub Actions tab for standalone desktop verification.
@@ -81,6 +81,28 @@ jobs:
       # The same gate a merge has to pass; a red suite never ships an installer.
       - run: pnpm typecheck
       - run: pnpm test
+
+      # Signs and notarizes the macOS bundle once the Apple secrets exist (see
+      # README, "macOS signing"). Only the secrets that are set are exported:
+      # Tauri treats an empty APPLE_CERTIFICATE or APPLE_ID as present and
+      # fails, so with no secrets the build stays unsigned, as before.
+      - name: macOS signing secrets
+        if: runner.os == 'macOS'
+        env:
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          for name in APPLE_CERTIFICATE APPLE_CERTIFICATE_PASSWORD APPLE_SIGNING_IDENTITY APPLE_ID APPLE_PASSWORD APPLE_TEAM_ID; do
+            if [ -n "${!name}" ]; then
+              delim="EOF_$(uuidgen)"
+              { echo "$name<<$delim"; echo "${!name}"; echo "$delim"; } >> "$GITHUB_ENV"
+              echo "$name is set"
+            fi
+          done
 
       # Runs `pnpm build` (tauri.conf.json's beforeBuildCommand: the Vite build,
       # which copies the pool's card scans into dist/) and then bundles.
