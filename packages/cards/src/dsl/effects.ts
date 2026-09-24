@@ -440,6 +440,15 @@ export const declareDefender = (character: TargetRef, opts: { readonly exhaust?:
  * "Resolve this attack against each minion engaged with that player" (Thor, 25013; docs/phase7-wave4.md §3.22): the
  * player attack in progress also hits every other card `targets` names, as additional resolutions of one attack.
  */
+/**
+ * "Choose 1 set-aside modular encounter set at random, then shuffle it into the encounter deck" (The Hood: Making
+ * Connections 1A's Setup, The Hood II/III, Promised Prosperity, Crime State, Field Recruitment; docs/phase7-wave4.md
+ * §3.18). `bind`: `<bind>.made`.
+ */
+export const shuffleInSetAsideModularSet = (bind?: string): EffectSpec => ({
+  kind: "shuffleInSetAsideModularSet",
+  ...withBind(bind),
+});
 export const resolveAttackAgainst = (targets: TargetRef): EffectSpec => ({ kind: "resolveAttackAgainst", targets });
 export const atEndOfAttack = (...effects: readonly EffectArg[]): EffectSpec => ({
   kind: "atEndOfAttack",

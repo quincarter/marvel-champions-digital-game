@@ -600,6 +600,12 @@ export type ValueSpec =
    */
   | { readonly kind: "victoryCondition" }
   /**
+   * How many modular encounter sets are still set aside (`GameState.setAsideModularSets`): "if there are no set-aside
+   * modular encounter sets remaining, the players lose the game" (Wheel of Genres, `mojo` 39026a). 0 in a game that set
+   * none aside. docs/phase7-wave4.md §3.18.
+   */
+  | { readonly kind: "setAsideModularSetCount" }
+  /**
    * A number recorded in the campaign log: "Place threat on the main scheme equal to the number of delay counters
    * recorded in the campaign log" (MC10 p. 15), "set each player's hit points to their remaining hit point value"
    * (MC10 p. 7, per seat).
@@ -926,6 +932,14 @@ export type EffectSpec =
    * order `targets` lists them, before the original resolves (§4 Q11). One attack, so no further consequential damage.
    */
   | { readonly kind: "resolveAttackAgainst"; readonly targets: TargetRef }
+  /**
+   * "Choose 1 set-aside modular encounter set at random, then shuffle it into the encounter deck" (Making Connections 1A,
+   * The Hood II/III, Promised Prosperity, Crime State, Field Recruitment; docs/phase7-wave4.md §3.18): one of
+   * `GameState.setAsideModularSets`, chosen with the game's seeded RNG, has every card still in the set-aside area
+   * shuffled into the active encounter deck, and leaves the list. Nothing happens when none is left. `bind`:
+   * `<bind>.made` (1 when a set was shuffled in).
+   */
+  | { readonly kind: "shuffleInSetAsideModularSet"; readonly bind?: string }
   /**
    * "Get +N to that power for this use" (Rapid Growth 13005; Venom's Pistol; Scarlet Witch ally `qsv`): a bonus to the
    * basic power currently being used, on the character using it, for that use only.

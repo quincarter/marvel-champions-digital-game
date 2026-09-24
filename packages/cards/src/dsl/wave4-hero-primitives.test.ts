@@ -16,6 +16,7 @@ import {
   heroInterrupt,
   interrupt,
   on,
+  whenRevealed,
   response,
   setup,
 } from "./abilities.js";
@@ -33,6 +34,10 @@ import {
   ready,
   resolveAttackAgainst,
   zone,
+  shuffleInSetAsideModularSet,
+  addAccelerationToken,
+  endGame,
+  flipCard,
 } from "./effects.js";
 import { validateDefinition } from "./validate.js";
 import {
@@ -49,6 +54,8 @@ import {
   you,
   YOUR_IDENTITY,
   yourIdentity,
+  setAsideModularSetCount,
+  valueEquals,
 } from "./values.js";
 
 const valid = (definition: Parameters<typeof validateDefinition>[0]) =>
@@ -167,5 +174,17 @@ describe("§3.22 Valkyrie's kit", () => {
         resolveAttackAgainst(each(query("minion", { engagedWith: "you" }))),
       ),
     );
+  });
+});
+
+describe("§3.18 set-aside modular sets", () => {
+  it("Making Connections 1A (24004a) Setup, Promised Prosperity 2A: shuffle in one set-aside modular set at random", () => {
+    expect(shuffleInSetAsideModularSet()).toEqual({ kind: "shuffleInSetAsideModularSet" });
+    valid(setup(shuffleInSetAsideModularSet()));
+    valid(whenRevealed(shuffleInSetAsideModularSet(), addAccelerationToken()));
+  });
+
+  it("Wheel of Genres (39026a): 'if there are no set-aside modular encounter sets remaining, the players lose'", () => {
+    valid(whenRevealed(ifThen(valueEquals(setAsideModularSetCount, 0), endGame("loss"), flipCard(self))));
   });
 });

@@ -1170,6 +1170,8 @@ export function resolveValue(
     }
     case "victoryCondition":
       return state.scenarioRules.victoryCondition ?? 0;
+    case "setAsideModularSetCount":
+      return (state.setAsideModularSets ?? []).length;
     case "victoryDisplayCount": {
       // docs/phase7-wave3.md §3.42: out of play, so only a read of the pile itself reaches it.
       const filter = value.filter;

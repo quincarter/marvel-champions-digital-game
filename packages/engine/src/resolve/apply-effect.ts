@@ -1,5 +1,6 @@
 /** Applying one non-interactive effect from an effects frame. */
 
+import { nextInt } from "../rng.js";
 import {
   type Ctx,
   emit,
@@ -372,6 +373,22 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
         delta.extraBoost = extra;
       }
       addFrameVars(ctx, activation, delta);
+      return;
+    }
+    case "shuffleInSetAsideModularSet": {
+      const sets = ctx.state.setAsideModularSets ?? [];
+      if (sets.length === 0) {
+        if (effect.bind) addFrameVars(ctx, frame.frameId, { [`${effect.bind}.made`]: 0 });
+        return;
+      }
+      const [pick, rng] = nextInt(ctx.state.rng, sets.length);
+      const chosen = sets[pick]!;
+      ctx.state = { ...ctx.state, rng, setAsideModularSets: sets.filter((_, index) => index !== pick) };
+      // Only the cards still set aside: one an ability already took out ("search … the set-aside area") stays where it is.
+      const still = chosen.instanceIds.filter((id) => ctx.state.encounterSetAside.includes(id));
+      moveCardsTo(ctx, still, "encounterDeckShuffle");
+      emit(ctx, { type: "setAsideModularSetShuffledIn", encounterSetId: chosen.encounterSetId, instanceIds: still });
+      if (effect.bind) addFrameVars(ctx, frame.frameId, { [`${effect.bind}.made`]: 1 });
       return;
     }
     case "resolveAttackAgainst": {

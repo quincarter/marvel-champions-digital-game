@@ -742,3 +742,19 @@ export function titleShowing(state: GameState, id: InstanceId): string | undefin
  */
 export const turnInProgress = (state: GameState): boolean =>
   state.step.phase === "player" && state.step.kind === "turn";
+
+/**
+ * Whether a "Standard Mode Only" / "Expert Mode Only" card shows its back face in this mode (RRG 1.8 "Double-Sided
+ * Card", p. 17: "If a double-sided card has 'Standard Mode Only' and 'Expert Mode Only' sides, it is put into play with
+ * the 'Expert Mode Only' side faceup if the players are playing expert mode"; Formidable Foe, `hood` 24049a/b;
+ * docs/phase7-wave4.md §3.18). True when the front names the other mode and the card has a back that does not name the
+ * same one: a back with no `modeOnly` of its own is read as the other mode's, since the rule is about a card with one
+ * side of each (the emitted Formidable Foe carries `modeOnly` on its front only). Every other card shows its front.
+ */
+export function modeOnlyFlipped(card: AnyCard, difficulty: "standard" | "expert"): boolean {
+  const front = "modeOnly" in card ? card.modeOnly : undefined;
+  if (front === undefined || front === difficulty) return false;
+  if (!("flipSide" in card) || !card.flipSide) return false;
+  const back = "modeOnly" in card.flipSide ? card.flipSide.modeOnly : undefined;
+  return back === undefined || back === difficulty;
+}
