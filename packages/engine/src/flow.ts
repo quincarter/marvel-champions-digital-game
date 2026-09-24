@@ -26,6 +26,7 @@ import {
 import { resetEmptySeparateDecks } from "./resolve/separate-decks.js";
 import { announceDeckRunOuts, resetEmptyScenarioDecks } from "./resolve/cards.js";
 import { checkStateTriggers } from "./resolve/state-checks.js";
+import { cannotChooseToDiscard } from "./rules.js";
 import { cardsInPlay, controllerOf } from "./select.js";
 import { describeFrame } from "./stack.js";
 import type { GameState, GameStep } from "./state.js";
@@ -115,12 +116,15 @@ function executeStep(ctx: Ctx): void {
 const livePlayers = (state: GameState, ids: readonly PlayerId[]): readonly PlayerId[] =>
   ids.filter((id) => getPlayer(state, id)?.eliminated === false);
 
+/** The hand cards a player may choose to discard ("You cannot choose to discard this card", docs/phase7-wave4.md §3.13). */
 const handOptions = (ctx: Ctx, playerId: PlayerId): readonly ChoiceOption[] =>
-  mustPlayer(ctx.state, playerId).hand.map((id) => ({
-    optionId: id,
-    label: mustCardOf(ctx.state, id).name,
-    ref: { kind: "card", instanceId: id },
-  }));
+  mustPlayer(ctx.state, playerId)
+    .hand.filter((id) => !cannotChooseToDiscard(ctx.state, ctx.deps, id))
+    .map((id) => ({
+      optionId: id,
+      label: mustCardOf(ctx.state, id).name,
+      ref: { kind: "card", instanceId: id },
+    }));
 
 /**
  * A campaign's setup instructions for one window (campaign games only; design §6.1).
@@ -305,8 +309,8 @@ function executeEndPhaseDiscard(ctx: Ctx, remainingPlayerIds: readonly PlayerId[
     playerId: current,
     prompt: { kind: "discardDownToHandSize", handSize: limit },
     options: handOptions(ctx, current),
-    minSelections: Math.max(0, player.hand.length - limit),
-    maxSelections: player.hand.length,
+    minSelections: Math.min(Math.max(0, player.hand.length - limit), handOptions(ctx, current).length),
+    maxSelections: handOptions(ctx, current).length,
   });
 }
 

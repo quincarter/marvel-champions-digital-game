@@ -667,7 +667,13 @@ export type RuleSpec =
    * revealed or put into play goes to that player's play area, controlled by no one, instead of the villain's area. A
    * scenario rule, carried by the scenario's own cards. docs/phase7-wave4.md §3.16.
    */
-  | { readonly kind: "entersRevealersPlayArea"; readonly cards: TargetQuery; readonly while?: Predicate };
+  | { readonly kind: "entersRevealersPlayArea"; readonly cards: TargetQuery; readonly while?: Predicate }
+  /**
+   * "You cannot choose to discard this card from your hand." (System Shock, `mts` 21185). On a constant with `activeIn:
+   * "hand"`, it keeps the card itself out of every discard its owner chooses from hand (an effect's "discard N cards",
+   * a cost, the end-of-phase discard, the mulligan). A random discard can still take it. docs/phase7-wave4.md §3.13.
+   */
+  | { readonly kind: "cannotChooseToDiscard" };
 
 /** Where a cost may pick a card from (outside play). */
 export interface CardZoneQuery {
@@ -956,6 +962,14 @@ export interface AbilityDefinition {
    * its controller may use it, in the trigger's `form`. docs/phase7-wave3.md §3.20 and §4 Q6.
    */
   readonly playCostReduction?: { readonly amount: number; readonly cards?: TargetQuery; readonly fromHand?: boolean };
+  /**
+   * `"hand"`: the ability works while its card is in its owner's hand, and only then — "While Pip the Troll is in your
+   * hand, he gains 'Interrupt: When a player is attacked, spend [energy][mental] resources → put Pip the Troll into play
+   * under that player's control.'" (Pip the Troll, `mts` 21032); "While this card is in your hand, it gains: 'Alter-Ego
+   * Action: Spend a [mental] resource → remove this card from the game.'" (System Shock, 21185). Using it is not playing
+   * the card: its owner pays the ability's own cost. docs/phase7-wave4.md §3.13.
+   */
+  readonly activeIn?: "hand";
 }
 
 /** Ability definitions are engine-side data keyed by the `AbilityId` printed on cards. */

@@ -30,6 +30,7 @@ import { statBonus } from "./modifiers.js";
 import {
   canDivideBasicPower,
   cannotChangeForm,
+  cannotChooseToDiscard,
   cannotLeavePlay,
   cannotPlayCard,
   cannotThwart,
@@ -1065,6 +1066,10 @@ export function planCost(
       if (filter && !matchesQuery(state, id, filter, filterContext)) {
         return { code: "no_valid_target", message: `${id} does not match what this cost must be paid with` };
       }
+      // "You cannot choose to discard this card from your hand" (docs/phase7-wave4.md §3.13).
+      if (cannotChooseToDiscard(state, deps, id)) {
+        return { code: "no_valid_target", message: `${id} cannot be chosen to be discarded` };
+      }
     }
     if (new Set(picks).size !== picks.length) return { code: "invalid_choice", message: "duplicate discard choice" };
     bindings.discard = picks;
@@ -2062,6 +2067,12 @@ export function useAbility(ctx: Ctx, command: Command & { type: "useAbility" }):
   }
   if (!activeAbilityRefs(ctx.state, command.cardInstanceId, ctx.deps).some((ref) => ref.id === command.abilityId)) {
     return engineError("no_valid_target", `${command.abilityId} is not active on that card`, command);
+  }
+  // An ability that works in hand works only there, and only for the hand's owner; every other ability only in play
+  // (`AbilityDefinition.activeIn`, docs/phase7-wave4.md §3.13).
+  const inHand = mustPlayer(ctx.state, command.playerId).hand.includes(command.cardInstanceId);
+  if ((definition.activeIn === "hand") !== inHand) {
+    return engineError("no_valid_target", `${command.abilityId} is not active where that card is`, command);
   }
   // "Players cannot trigger 'Alter-Ego Action' abilities on obligations." (`cannotTriggerActions`, §3.11).
   if (cannotTriggerAction(ctx.state, ctx.deps, command.cardInstanceId, definition.trigger.form)) {
