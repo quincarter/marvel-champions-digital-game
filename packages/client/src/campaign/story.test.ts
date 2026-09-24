@@ -37,6 +37,56 @@ describe("campaign story", () => {
     }
   });
 
+  test("MC10's comicBeats ref points at a page and beat that exist, every page file is used or is the unwired epilogue, and every issue's own beats climb in reading order", () => {
+    const story = storyFor("trors")!;
+    const pages = story.pages!;
+    const usedFiles = new Set<string>();
+    for (const issue of story.issues) {
+      const refs = issue.comicBeats ?? [];
+      let lastPage: string | null = null;
+      let lastBeatIndex = -1;
+      for (const ref of refs) {
+        const page = pages.find((p) => p.file === ref.page);
+        expect(page, `trors comicBeats: unknown page "${ref.page}"`).toBeDefined();
+        expect(page!.beats[ref.beatIndex], `trors comicBeats: ${ref.page}#${ref.beatIndex}`).toBeDefined();
+        usedFiles.add(ref.page);
+        // Reading order within one page climbs (a page shared across two issues, like GMW's museum split, can
+        // pick up mid-page rather than always starting at beat 0 — the prior issue already claimed the earlier
+        // beats), but this issue's own refs never repeat or reverse a beat on the same page.
+        if (ref.page === lastPage) {
+          expect(ref.beatIndex, `${issue.nodeId}: ${ref.page} beats out of reading order`).toBeGreaterThan(
+            lastBeatIndex,
+          );
+        }
+        lastPage = ref.page;
+        lastBeatIndex = ref.beatIndex;
+      }
+    }
+    // 08-epilogue is the finale's own page — recorded for a later comic pass over the Finale screen, not wired
+    // to any issue yet (see the story file's own header note).
+    const unwired = new Set(["08-epilogue"]);
+    for (const page of pages) {
+      if (!usedFiles.has(page.file)) expect(unwired.has(page.file), `trors page never used: ${page.file}`).toBe(true);
+    }
+  });
+
+  test("every MC10 page is marked lettered — the reader draws none of its own captions/bubbles over the box's official art", () => {
+    for (const page of storyFor("trors")!.pages ?? []) expect(page.lettered, page.file).toBe(true);
+  });
+
+  test("every trors page file on disk exists in art/campaigns/trors/pages, matching the story's own page list", async () => {
+    const { readdirSync } = await import("node:fs");
+    const { dirname, join } = await import("node:path");
+    const { fileURLToPath } = await import("node:url");
+    const dir = join(dirname(fileURLToPath(import.meta.url)), "../../../../art/campaigns/trors/pages");
+    const onDisk = readdirSync(dir)
+      .filter((file) => !file.startsWith("."))
+      .map((file) => file.slice(0, file.lastIndexOf(".")))
+      .sort();
+    const named = (storyFor("trors")!.pages ?? []).map((page) => page.file).sort();
+    expect(onDisk).toEqual(named);
+  });
+
   test("every gmw stagePanels ref points at a page and beat that exist", () => {
     const story = storyFor("gmw")!;
     const pages = story.pages!;
@@ -59,15 +109,17 @@ describe("campaign story", () => {
     }
   });
 
-  test("every gmw panel rect sits inside its page's own bounds", () => {
-    const story = storyFor("gmw")!;
-    for (const page of story.pages ?? []) {
-      for (const beat of page.beats) {
-        const { x, y, w, h } = beat.panel;
-        expect(x, page.file).toBeGreaterThanOrEqual(0);
-        expect(y, page.file).toBeGreaterThanOrEqual(0);
-        expect(x + w, page.file).toBeLessThanOrEqual(page.width);
-        expect(y + h, page.file).toBeLessThanOrEqual(page.height);
+  test("every gmw and trors panel rect sits inside its page's own bounds", () => {
+    for (const campaignId of ["gmw", "trors"]) {
+      const story = storyFor(campaignId)!;
+      for (const page of story.pages ?? []) {
+        for (const beat of page.beats) {
+          const { x, y, w, h } = beat.panel;
+          expect(x, `${campaignId}/${page.file}`).toBeGreaterThanOrEqual(0);
+          expect(y, `${campaignId}/${page.file}`).toBeGreaterThanOrEqual(0);
+          expect(x + w, `${campaignId}/${page.file}`).toBeLessThanOrEqual(page.width);
+          expect(y + h, `${campaignId}/${page.file}`).toBeLessThanOrEqual(page.height);
+        }
       }
     }
   });

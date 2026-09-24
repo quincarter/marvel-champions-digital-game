@@ -91,6 +91,15 @@ export interface ComicPage {
   readonly height: number;
   /** In reading order. */
   readonly beats: readonly ComicBeat[];
+  /**
+   * True for a page that is the box's own official, lettered art (captions and speech balloons already printed
+   * into it — The Rise of Red Skull's rulebook pages, copied into `pages/` rather than redrawn unlettered). The
+   * reader draws none of its own lettering over a page like this (the printed balloons are the story) and fits
+   * each panel into the reading area instead of cover-cropping it, letterboxing where a panel's own aspect ratio
+   * doesn't match the screen's — never cropping a panel's own art to fill the frame. Omitted/false keeps the
+   * GMW behavior: the reader's own captions/bubbles over a cover-fit, recentered page.
+   */
+  readonly lettered?: boolean;
 }
 
 /** Points an issue at one beat of one page, in the order the issue's guided read shows them. */
