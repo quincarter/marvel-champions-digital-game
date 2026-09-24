@@ -18,6 +18,9 @@ import { McVirtualList, type VirtualListRow } from "../ui/virtual-list.js";
 import { overlayPanelLayout } from "../view/overlay-layout.js";
 import { toggleRowHeight, type Rect } from "../view/layout.js";
 import { ListScroll } from "../view/list-scroll.js";
+import { VariableListScroll } from "../view/variable-list-scroll.js";
+import { McScrollRegion } from "../ui/scroll-region.js";
+import { progressionGuideOf } from "../view/progression-guide.js";
 import {
   pointsRowOf,
   rowTapOf,
@@ -50,6 +53,10 @@ export class UnlocksOverlay extends Phaser.Scene {
   #route: FocusRoute | null = null;
   #motion = new OverlayMotion();
   #confirm: UnlockConfirm | null = null;
+  /** Showing "How it works" (`view/progression-guide.ts`) in place of the switches. */
+  #guide = false;
+  #guideRegion: McScrollRegion | null = null;
+  readonly #guideScroll = new VariableListScroll();
   #confirmStops = new Map<string, FocusStop>();
   readonly #scroll = new ListScroll();
 
@@ -60,13 +67,15 @@ export class UnlocksOverlay extends Phaser.Scene {
   create(): void {
     this.#motion = new OverlayMotion();
     this.#confirm = null;
+    this.#guide = false;
     this.#scroll.reset();
     const onResize = (): void => this.#draw();
     this.scale.on("resize", onResize, this);
     this.#route = new FocusRoute(this, {
-      onCancel: () => (this.#confirm ? this.#answer(false) : this.#close()),
+      onCancel: () => (this.#confirm ? this.#answer(false) : this.#guide ? this.#showGuide(false) : this.#close()),
       onPage: (direction) => {
-        if (!this.#confirm) this.#list?.scrollByPage(direction);
+        if (this.#guide) this.#guideRegion?.scrollByPx(direction * 240);
+        else if (!this.#confirm) this.#list?.scrollByPage(direction);
       },
     });
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
@@ -86,6 +95,12 @@ export class UnlocksOverlay extends Phaser.Scene {
     if (!tap) return;
     if (tap.kind === "apply") setUnlockPrefs(tap.prefs);
     else this.#confirm = tap.confirm;
+    this.#draw();
+  }
+
+  #showGuide(on: boolean): void {
+    this.#guide = on;
+    this.#guideScroll.reset();
     this.#draw();
   }
 
@@ -114,6 +129,8 @@ export class UnlocksOverlay extends Phaser.Scene {
     this.#buttons = [];
     this.#list?.destroy();
     this.#list = null;
+    this.#guideRegion?.destroy();
+    this.#guideRegion = null;
     destroyChildren(this);
 
     const { width, height } = this.scale.gameSize;
@@ -153,11 +170,37 @@ export class UnlocksOverlay extends Phaser.Scene {
     );
     stops.set("back", { rect: closeRect, activate: () => this.#close() });
     this.add
-      .text(header.x + 16, header.y + header.height / 2, caseOf(typeRole.barTitle, "Unlocks"), {
-        ...textStyle(typeRole.barTitle, surface.paper.hex),
-        fontSize: "24px",
-      })
+      .text(
+        header.x + 16,
+        header.y + header.height / 2,
+        caseOf(typeRole.barTitle, this.#guide ? "How it works" : "Unlocks"),
+        {
+          ...textStyle(typeRole.barTitle, surface.paper.hex),
+          fontSize: "24px",
+        },
+      )
       .setOrigin(0, 0.5);
+
+    // The door between the switches and the explanation of what they mean.
+    const guideRect: Rect = { x: closeRect.x - 12 - 128, y: closeRect.y, width: 128, height: closeRect.height };
+    const toggleGuide = (): void => this.#showGuide(!this.#guide);
+    this.#buttons.push(
+      new McButton(this, {
+        kind: "quiet",
+        label: this.#guide ? "◂ Unlocks" : "How it works",
+        type: typeRole.label,
+        rect: guideRect,
+        onClick: toggleGuide,
+      }),
+    );
+    stops.set("guide", { rect: guideRect, activate: toggleGuide });
+
+    if (this.#guide) {
+      this.#drawGuide({ x: body.x + 16, y: body.y + 12, width: body.width - 32, height: body.height - 24 });
+      this.#route?.set(["back", "guide"], stops);
+      this.#motion.enter(this, { scrim: [scrim], panels: this.children.list.slice(panelsFrom) });
+      return;
+    }
 
     // Champion points: the reason to play for it rather than switch it on.
     const rowWidth = body.width - 32;
@@ -219,7 +262,7 @@ export class UnlocksOverlay extends Phaser.Scene {
 
     const renderRow = (index: number, rect: Rect): VirtualListRow => this.#renderRow(rows[index]!, rect);
     let list: McVirtualList;
-    const order: string[] = ["back", "row:all"];
+    const order: string[] = ["back", "guide", "row:all"];
     rows.forEach((row, index) => {
       if (row.kind !== "hero" && row.kind !== "campaign") return;
       order.push(`row:${row.id}`);
@@ -247,6 +290,43 @@ export class UnlocksOverlay extends Phaser.Scene {
       this.#route?.set(order, stops);
     }
     this.#motion.enter(this, { scrim: [scrim], panels: this.children.list.slice(panelsFrom) });
+  }
+
+  /** "How it works": every section of the guide, top to bottom, in one scrolling region. */
+  #drawGuide(rect: Rect): void {
+    const before = this.children.list.length;
+    const textWidth = rect.width - 16;
+    let y = rect.y;
+    for (const section of progressionGuideOf()) {
+      const heading = this.add
+        .text(rect.x, y, section.heading, textStyle(typeRole.sectionHeader, surface.paper.hex))
+        .setWordWrapWidth(textWidth);
+      y += heading.height + 6;
+      for (const paragraph of section.paragraphs) {
+        const text = this.add
+          .text(rect.x, y, paragraph, textStyle(typeRole.body, surface.paper.hex, 0.85))
+          .setFontSize(12)
+          .setWordWrapWidth(textWidth)
+          .setLineSpacing(2);
+        y += text.height + 6;
+      }
+      for (const bullet of section.bullets) {
+        const dot = this.add
+          .text(rect.x + 4, y, "•", textStyle(typeRole.body, surface.paper.hex, 0.85))
+          .setFontSize(12);
+        const text = this.add
+          .text(rect.x + 18, y, bullet, textStyle(typeRole.body, surface.paper.hex, 0.85))
+          .setFontSize(12)
+          .setWordWrapWidth(textWidth - 18)
+          .setLineSpacing(2);
+        y += Math.max(dot.height, text.height) + 4;
+      }
+      y += 14;
+    }
+    const contentHeight = Math.max(1, y - rect.y);
+    const added = this.children.list.slice(before);
+    this.#guideRegion = new McScrollRegion(this, { rect, heights: [contentHeight], scroll: this.#guideScroll });
+    this.#guideRegion.content.add(added);
   }
 
   /** The "this costs points" question, centred over the panel. Drawn last, so it covers the list and the switches. */

@@ -63,7 +63,8 @@ export function pointsRowOf(unlocks: Unlocks): UnlockHeaderRow {
   return {
     title: `Champion points: ${formatPoints(total)}`,
     detail:
-      `Earned ${formatPoints(earned)} · spent ${formatPoints(spent)}. A first win against a villain earns ` +
+      `Earned ${formatPoints(earned)} · spent ${formatPoints(spent)}. A feature of this app, not a card-game ` +
+      `rule; see How it works. A first win against a villain earns ` +
       `${POINTS.firstWin} (+${POINTS.firstExpertWin} on Expert), a campaign ${POINTS.campaign} ` +
       `(+${POINTS.expertCampaign} on Expert). Unlocking by hand costs points, and they're never refunded.`,
   };
