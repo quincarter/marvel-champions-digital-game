@@ -365,7 +365,11 @@ export type GameStep =
     }
   | { readonly phase: "player"; readonly kind: "endPhaseDiscard"; readonly remainingPlayerIds: readonly PlayerId[] }
   | { readonly phase: "player"; readonly kind: "endPhaseDraw" }
-  | { readonly phase: "player"; readonly kind: "endPhaseReady" }
+  /**
+   * `readied`: step 4's readies are done but put something on the stack (an additional cost to ready, a "would ready"
+   * interrupt; docs/phase7-wave4.md §3.19), so step 5 waits for it to resolve.
+   */
+  | { readonly phase: "player"; readonly kind: "endPhaseReady"; readonly readied?: true }
   /** `placed`: step one's threat has been pushed; the step stays current until it (and its responses) resolve. */
   | { readonly phase: "villain"; readonly kind: "placeThreat"; readonly placed?: boolean }
   | {

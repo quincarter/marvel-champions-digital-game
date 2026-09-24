@@ -34,6 +34,8 @@ import {
   excessDamageThreatSchemes,
   notDefeatedWithoutThreat,
   patrolledBy,
+  cannotReady,
+  readyCostFor,
   threatCannotBeRemoved,
 } from "../rules.js";
 import { canAttack, cardsInPlay, controllerOf } from "../select.js";
@@ -321,7 +323,7 @@ function applyEvent(ctx: Ctx, frame: Frame<"event">): boolean | void {
       return removed > 0;
     }
     case "cardReadying":
-      readyAndAnnounce(ctx, event.instanceId);
+      readyAndAnnounce(ctx, event.instanceId, event.sourceInstanceId ?? null);
       return;
     case "cardEntersPlay":
       // The keywords that resolve as a card enters play are this event's change, so an "Interrupt: when X enters
@@ -918,12 +920,47 @@ function applyEnemyAttacksEnemy(
  * Readies a card, through a `cardReadying` event when an ability could replace it ("When attached character would
  * ready, discard this card instead", Frozen in Time; docs/phase7-wave2.md §3.11), else at once as before.
  */
-export function readyOrAnnounce(ctx: Ctx, id: InstanceId): void {
+export function readyOrAnnounce(
+  ctx: Ctx,
+  id: InstanceId,
+  how: {
+    /** The player readying it: the controller at the end-of-phase ready, the resolving player for an effect. */
+    readonly readierId?: PlayerId | null;
+    /** The card whose ability readies it; absent for the end-of-phase ready. */
+    readonly sourceInstanceId?: InstanceId | null;
+    /** The additional cost to ready was just paid (`EffectSpec ready.readyCostPaid`). */
+    readonly costPaid?: boolean;
+  } = {},
+): void {
   const instance = getInstance(ctx.state, id);
   if (!instance?.exhausted) return;
-  const event: TriggerEvent = { kind: "cardReadying", instanceId: id };
+  const source = how.sourceInstanceId ?? null;
+  if (cannotReady(ctx.state, ctx.deps, id, source)) return;
+  // RRG 1.8 "Ready" (p. 36): "If there is an additional cost for a player to ready a card, that player can choose not
+  // to pay that cost. If they do not pay the cost, the card does not ready." (`RuleSpec readyCost`; §3.19.) The
+  // question is an effects frame the player answers with a payment; paying readies the card through this same path.
+  const readier = how.readierId ?? controllerOf(ctx.state, id);
+  const cost = !how.costPaid && readier ? readyCostFor(ctx.state, ctx.deps, id, readier) : null;
+  if (cost && readier) {
+    emit(ctx, { type: "readyCostAsked", instanceId: id, playerId: readier });
+    pushEffects(ctx, {
+      effects: [
+        { kind: "spendResources", player: { kind: "controller" }, resources: cost, bind: "readyCost" },
+        {
+          kind: "if",
+          condition: { kind: "varAtLeast", name: "readyCost.made", amount: 1 },
+          then: [{ kind: "ready", target: { kind: "slot", slot: "readyTarget" }, readyCostPaid: true }],
+        },
+      ],
+      selfInstanceId: source,
+      controllerId: readier,
+      bindings: { readyTarget: [id] },
+    });
+    return;
+  }
+  const event: TriggerEvent = { kind: "cardReadying", instanceId: id, ...(source ? { sourceInstanceId: source } : {}) };
   if (heard(ctx.state, ctx.deps, event)) pushEvent(ctx, event);
-  else readyAndAnnounce(ctx, id);
+  else readyAndAnnounce(ctx, id, source);
 }
 
 /**
@@ -935,9 +972,9 @@ export function readyOrAnnounce(ctx: Ctx, id: InstanceId): void {
  * ready X" is a fact about a ready that happened. Like every other optional announcement it goes on the stack only
  * when an ability could react, so the end-of-phase ready of a whole table resolves exactly as it did before.
  */
-function readyAndAnnounce(ctx: Ctx, id: InstanceId): void {
+function readyAndAnnounce(ctx: Ctx, id: InstanceId, sourceInstanceId: InstanceId | null = null): void {
   if (!getInstance(ctx.state, id)?.exhausted) return;
-  readyCard(ctx, id);
+  readyCard(ctx, id, sourceInstanceId);
   if (getInstance(ctx.state, id)?.exhausted !== false) return;
   const readied: TriggerEvent = { kind: "cardReadied", instanceId: id };
   if (heard(ctx.state, ctx.deps, readied)) pushEvent(ctx, readied);

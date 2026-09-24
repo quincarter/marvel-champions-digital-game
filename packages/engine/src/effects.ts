@@ -105,11 +105,12 @@ export function exhaustCard(ctx: Ctx, id: InstanceId): void {
   emit(ctx, { type: "cardExhausted", instanceId: id });
 }
 
-export function readyCard(ctx: Ctx, id: InstanceId): void {
+export function readyCard(ctx: Ctx, id: InstanceId, sourceInstanceId: InstanceId | null = null): void {
   const instance = mustInstance(ctx.state, id);
   if (!instance.exhausted) return;
-  // "… cannot ready" (All Tied Up): RRG 1.8 "'Cannot'" (p. 11) is absolute.
-  if (cannotReady(ctx.state, ctx.deps, id)) return;
+  // "… cannot ready" (All Tied Up): RRG 1.8 "'Cannot'" (p. 11) is absolute. "… by player card effects" (Unnatural
+  // Storm) reads what readies it.
+  if (cannotReady(ctx.state, ctx.deps, id, sourceInstanceId)) return;
   updateInstance(ctx, id, (i) => ({ ...i, exhausted: false }));
   emit(ctx, { type: "cardReadied", instanceId: id });
 }
