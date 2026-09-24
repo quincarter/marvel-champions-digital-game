@@ -68,4 +68,6 @@ The per-box checklist is PLAN.md Phase 7 "Campaign mode" C2 and [campaign-client
 
 - [ ] `pnpm check` green and the PR's CI green.
 - [ ] Changie fragments for each landed step.
+- [ ] **A wave is a minor release** (0.x.0): it carries at least one `Added` fragment so the release job's
+      `changie next auto` bumps the minor version, not the patch. Check `changie next auto` before merging.
 - [ ] PLAN.md Phase 7 says the wave is done; the PR's boxes are all ticked.
