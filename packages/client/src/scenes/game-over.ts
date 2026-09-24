@@ -38,6 +38,8 @@ import { FocusRoute, type FocusStop } from "./focus-route.js";
 import { SCENES } from "./keys.js";
 import { destroyChildren } from "../ui/destroy-children.js";
 import { fadeScreenIn, goToScreen } from "../ui/transitions.js";
+import { Unlocks, newsBetween, withWin, type UnlockNews } from "../progression/unlocks.js";
+import { refreshUnlocks, unlocks } from "../progression/progression.js";
 
 /** Dots on the outcome ground, darker than the paper grid so they read on red and green. */
 const GROUND_DOTS = { spacing: 9, radius: 1, alpha: 0.22 } as const;
@@ -64,6 +66,8 @@ export class GameOverScene extends Phaser.Scene {
   #outcomeArt: Picture | null = null;
   /** The picture key whose load is in flight, so a redraw while waiting doesn't queue it twice. */
   #loadingArt: string | null = null;
+  /** What this win earned toward progression (`progression/unlocks.ts`), shown as a ribbon. Null on a loss. */
+  #news: UnlockNews | null = null;
 
   constructor() {
     super(SCENES.gameOver);
@@ -86,6 +90,20 @@ export class GameOverScene extends Phaser.Scene {
     const { game, config } = appSession().store.state;
     this.#outcomeArt =
       game?.outcome && config ? outcomeArtFor(ART_CATALOG, config.scenarioId, game.outcome.result) : null;
+    this.#news = null;
+    if (game?.outcome?.result === "win" && config) {
+      // Worked out from this result rather than read back from storage, which may not have the save's final
+      // status yet; the cache itself catches up on the refresh below.
+      const before = unlocks();
+      const after = new Unlocks({
+        progress: withWin(before.progress, config.scenarioId, config.difficulty),
+        prefs: before.prefs,
+        devUnlockAll: before.devUnlockAll,
+      });
+      const news = newsBetween(before, after);
+      this.#news = news.points > 0 || news.unlocked.length > 0 ? news : null;
+      void refreshUnlocks().catch(() => false);
+    }
     if (game?.outcome && config) {
       const packCode = POOL_SCENARIOS.find((s) => s.id === config.scenarioId)?.packCode;
       appSession().music?.playOutcome(config.scenarioId, game.outcome.result, packCode);
@@ -123,8 +141,26 @@ export class GameOverScene extends Phaser.Scene {
       // The wide loss screen is Hero Red from edge to edge, which would swallow a red ring.
       if (!tall && model.tone === "loss") ringColor = surface.ink.hex;
     }
+    if (this.#news) this.#drawNews(this.#news, width);
     // Last, so the ring sits over the button it frames.
     this.#route?.set(this.#order, this.#stops, ringColor);
+  }
+
+  /** A paper ribbon across the top: the points this win earned and anything it opened. */
+  #drawNews(news: UnlockNews, width: number): void {
+    const parts = [
+      news.points > 0 ? `+${news.points} champion points` : null,
+      news.unlocked.length > 0 ? `Unlocked: ${news.unlocked.join(", ")}` : null,
+    ].filter((part): part is string => part !== null);
+    const text = label(this, 0, 0, parts.join("  ·  "), typeRole.label, surface.ink.hex, 1).setOrigin(0.5, 0.5);
+    fitText(text, width - 64, typeRole.label.size);
+    const ribbonWidth = Math.min(width - 32, text.width + 40);
+    const ribbon: Rect = { x: (width - ribbonWidth) / 2, y: 10, width: ribbonWidth, height: 34 };
+    const ground = this.add.graphics();
+    ground.fillStyle(surface.paper.hex, 1).fillRect(ribbon.x, ribbon.y, ribbon.width, ribbon.height);
+    ground.lineStyle(3, surface.ink.hex, 1).strokeRect(ribbon.x, ribbon.y, ribbon.width, ribbon.height);
+    text.setPosition(width / 2, ribbon.y + ribbon.height / 2);
+    this.children.bringToTop(text);
   }
 
   /** Screens - Desktop #12. */

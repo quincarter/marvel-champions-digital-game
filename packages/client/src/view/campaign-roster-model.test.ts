@@ -4,6 +4,7 @@ import { TRORS_STORY } from "../campaign/stories/trors.js";
 import { POOL_CARDS, POOL_VERSION } from "../content/pool.js";
 import { preconDecks } from "./deck-list-model.js";
 import { preconRosterOf, rosterDeckOptions, rosterModelOf } from "./campaign-roster-model.js";
+import { DEFAULT_UNLOCK_PREFS, NO_PROGRESS, Unlocks } from "../progression/unlocks.js";
 
 const precons = preconDecks(POOL_VERSION);
 const hawkeye = precons.find((d) => d.identityCardId === "04001a")!;
@@ -71,5 +72,30 @@ describe("rosterDeckOptions", () => {
     const seats: (Deck | null)[] = [hawkeye, spiderWoman, null, null];
     const options = rosterDeckOptions(seats, 3, [], POOL_VERSION);
     expect(options.length).toBe(precons.length);
+  });
+});
+
+describe("rosterDeckOptions with progression", () => {
+  test("a hero the player hasn't unlocked is listed, blocked, with what opens it", () => {
+    const seats = preconRosterOf(TRORS_STORY.castIdentityIds as readonly CardId[], POOL_VERSION);
+    const options = rosterDeckOptions(seats, 3, [], POOL_VERSION, (deck) =>
+      deck.identityCardId === "03001a" ? "Beat Rhino to unlock Wave 1" : null,
+    );
+    const cap = options.find((o) => o.deck.identityCardId === "03001a")!;
+    expect(cap).toMatchObject({ blocked: true, blockedReason: "Beat Rhino to unlock Wave 1" });
+    expect(options.find((o) => o.deck.identityCardId === "01001a")).toMatchObject({ blocked: false });
+    // Already seated wins over a lock: that is the reason the player can act on here.
+    expect(options.find((o) => o.deck.identityCardId === "04001a")?.blockedReason).toBe("Already seated at #1");
+  });
+});
+
+describe("rosterDeckOptions with the real unlocks", () => {
+  test("locks a precon, never a deck the player imported or built", () => {
+    const u = new Unlocks({ progress: NO_PROGRESS, prefs: DEFAULT_UNLOCK_PREFS });
+    const capPrecon = precons.find((d) => d.identityCardId === "03001a")!;
+    const built = { ...capPrecon, id: "my-cap", source: { kind: "built" } } as unknown as Deck;
+    const options = rosterDeckOptions([null, null, null, null], 1, [built], POOL_VERSION, (deck) => u.deckLock(deck));
+    expect(options.find((o) => o.deck.id === capPrecon.id)).toMatchObject({ blocked: true });
+    expect(options.find((o) => o.deck.id === built.id)).toMatchObject({ blocked: false, blockedReason: null });
   });
 });

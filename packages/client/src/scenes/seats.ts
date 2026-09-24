@@ -100,6 +100,8 @@ import type { ScenarioSelectData } from "./scenario-select.js";
 import type { TableSetupData } from "./table-setup.js";
 import { destroyChildren } from "../ui/destroy-children.js";
 import { fadeScreenIn, goToScreen } from "../ui/transitions.js";
+import { refreshUnlocks, unlocks } from "../progression/progression.js";
+import { unlockCostOf, unlockOrAsk } from "./unlock-confirm.js";
 
 export interface SeatsData {
   readonly draft: SetupDraft;
@@ -200,7 +202,10 @@ export class SeatsScene extends Phaser.Scene {
       this.#chipRail = null;
     });
     this.#route = new FocusRoute(this, {
-      blocked: () => this.scene.isActive(SCENES.inspect) || (this.#searchInput?.focused ?? false),
+      blocked: () =>
+        this.scene.isActive(SCENES.inspect) ||
+        this.scene.isActive(SCENES.unlockConfirm) ||
+        (this.#searchInput?.focused ?? false),
       onCancel: () => (this.#drill.packId !== null ? this.#drillOut() : this.#back()),
       onPage: (direction) => (this.#grid ?? this.#roster)?.scrollByPage(direction),
       onHomeEnd: (edge) => {
@@ -216,6 +221,9 @@ export class SeatsScene extends Phaser.Scene {
     this.#savedDecks = this.#seedDecks;
     this.#rebuild();
     fadeScreenIn(this);
+    void refreshUnlocks().then((changed) => {
+      if (changed && this.sys.isActive()) this.#rebuild();
+    });
     void deckStorage()
       .list()
       .then((decks) => {
@@ -247,7 +255,23 @@ export class SeatsScene extends Phaser.Scene {
    */
   #seatOptionsExcludingActive(deckOptions: readonly DeckOption[]): readonly SeatOption[] {
     const seatsExcludingActive = this.#draft.seats.filter((_, i) => i !== this.#draft.activeSeatIndex);
-    return seatOptions(deckOptions, seatsExcludingActive, CARDS_BY_ID, MAX_SEATS);
+    // A hero the player hasn't unlocked is shown, dimmed, with what opens it — never hidden.
+    return seatOptions(deckOptions, seatsExcludingActive, CARDS_BY_ID, MAX_SEATS).map((option) => {
+      if (option.seated) return option;
+      const deck = deckOptions.find((candidate) => (candidate.deck.id as string) === option.deckId);
+      const lock = deck ? unlocks().deckLock(deck.deck) : null;
+      return lock ? { ...option, blockedBy: lock } : option;
+    });
+  }
+
+  /** Why the table can't be dealt yet: a seated hero that has since been locked again (Settings ▸ Unlocks). */
+  #tableLock(deckOptions: readonly DeckOption[]): string | null {
+    for (const deckId of this.#draft.seats) {
+      const deck = deckOptions.find((candidate) => (candidate.deck.id as string) === deckId);
+      const lock = deck ? unlocks().deckLock(deck.deck) : null;
+      if (lock) return `${deck!.identityName ?? deck!.deck.name}: ${lock}`;
+    }
+    return null;
   }
 
   #rebuild(): void {
@@ -549,16 +573,22 @@ export class SeatsScene extends Phaser.Scene {
     // The two actions at the panel's own foot: the primary "Play N heroes ▸" on to Table setup, and a quiet
     // "Deck check ▸" for the active seat's own deck. D03 draws them the other way round; the owner's call
     // (2026-09-18) is that the way forward is the red one and looking at a deck is the side trip.
+    const tableLock = this.#tableLock(deckOptions);
     const play = (): void => {
+      if (tableLock) return;
       this.scale.off("resize", this.#rebuild, this);
       goToScreen(this, SCENES.setup, { draft: this.#draft } satisfies TableSetupData);
     };
     this.#buttons.push(
       new McButton(this, {
         kind: "primary",
-        label: `Play ${this.#draft.seats.length} hero${this.#draft.seats.length === 1 ? "" : "es"} ▸`,
+        label: tableLock
+          ? "Hero locked"
+          : `Play ${this.#draft.seats.length} hero${this.#draft.seats.length === 1 ? "" : "es"} ▸`,
         type: typeRole.barTitle,
         rect: layout.play,
+        enabled: tableLock === null,
+        ...(tableLock ? { reason: tableLock } : {}),
         onClick: play,
       }),
     );
@@ -620,6 +650,7 @@ export class SeatsScene extends Phaser.Scene {
 
   #pickHero(option: DeckOption, active: ReadonlyMap<string, ActiveSeatRosterEntry>): void {
     const entry = active.get(option.deck.id as string);
+    if (this.#offerUnlock(option)) return;
     if (entry?.blockedBy) return;
     this.#draft = assignToActiveSeat(this.#draft, option.deck.id as string);
     this.#rebuild();
@@ -945,13 +976,16 @@ export class SeatsScene extends Phaser.Scene {
     // full sentence ("Captain Marvel is already at the table"), which used to truncate in the subtitle line — the
     // full reason is still one Inspect away (`#inspectOption`'s own `note`).
     const blockedBy = seatedElsewhere ? null : (entry?.blockedBy ?? null);
+    const lock = seatedElsewhere ? null : unlocks().deckLock(option.deck);
     const tag = entry?.isActiveSeat
       ? `SEAT ${this.#draft.activeSeatIndex + 1}`
       : seatedElsewhere
         ? `SEAT ${entry!.seatIndex! + 1}`
-        : blockedBy
-          ? "AT THE TABLE"
-          : null;
+        : lock
+          ? "LOCKED"
+          : blockedBy
+            ? "AT THE TABLE"
+            : null;
     return renderShelfCard(this, rect, {
       artKey,
       titleRole: typeRole.barTitle,
@@ -959,7 +993,12 @@ export class SeatsScene extends Phaser.Scene {
       subtitle: `${sourceText} · ${option.identityName ?? "unknown identity"}`,
       stamps: aspectStampsOf(option.deck.aspects),
       blockedBy,
-      warning: seatedElsewhere ? null : (entry?.warning ?? null),
+      // Locked: the free way (the villain to beat) and the paid one (tap it to spend points), side by side.
+      warning: seatedElsewhere
+        ? null
+        : lock
+          ? `${lock} · or ${unlockCostOf({ kind: "hero", identityCardId: option.deck.identityCardId as string })} pts`
+          : (entry?.warning ?? null),
       tag,
       selected: entry?.isActiveSeat ?? false,
     });
@@ -1145,9 +1184,25 @@ export class SeatsScene extends Phaser.Scene {
     }));
   }
 
+  /**
+   * A locked precon, tapped: offer to unlock it with champion points (`scenes/unlock-confirm.ts`), and seat it once
+   * it's paid for. False when the deck isn't locked, so the tap goes on as usual.
+   */
+  #offerUnlock(option: DeckOption): boolean {
+    if (!unlocks().deckLock(option.deck)) return false;
+    const deckId = option.deck.id as string;
+    unlockOrAsk(this, { kind: "hero", identityCardId: option.deck.identityCardId as string }, () => {
+      if (!this.sys.isActive()) return;
+      this.#draft = assignToActiveSeat(this.#draft, deckId);
+      this.#rebuild();
+    });
+    return true;
+  }
+
   #onInspectChoose(rowId: string): void {
     const deckOptions = this.#deckOptions();
     const option = deckOptions.find((o) => (o.deck.id as string) === rowId);
+    if (option && this.#offerUnlock(option)) return;
     const seating = new Map(this.#seatOptionsExcludingActive(deckOptions).map((o) => [o.deckId, o]));
     if (option && !seating.get(rowId)?.blockedBy) {
       this.#draft = assignToActiveSeat(this.#draft, rowId);

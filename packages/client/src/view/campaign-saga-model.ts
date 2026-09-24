@@ -12,6 +12,11 @@
  * `CampaignDefinition` for can never be opened regardless of the unlock rule — `campaignDefinitionOf` is the one
  * source of truth for "is this box playable here", exactly as `campaign-list-model.ts`'s own
  * `incompatibleReasonOf` uses it.
+ *
+ * **Progression** (`progression/unlocks.ts`) sits on top: a volume whose wave the player hasn't opened stays sealed
+ * with that wave's own reason ("Beat Rhino to unlock The Rise of Red Skull"), and
+ * a volume opened by hand (Settings ▸ Unlocks: one campaign, or "Unlock everything") opens regardless of the
+ * Standard-win order.
  */
 import { campaignDefinitionOf } from "@mc/cards";
 import type { CardId } from "@mc/content";
@@ -51,6 +56,10 @@ export interface SagaModelOptions {
   readonly definitionOf?: (campaignId: string) => CampaignDefinition | undefined;
   /** A hero identity's current display name — injected so this stays Vitest-pure, no `@mc/content` pool import. */
   readonly identityNameOf?: (id: CardId) => string;
+  /** Why a box's wave is still locked (`Unlocks.campaignLock`), or null. Default: nothing is wave-locked. */
+  readonly waveLockOf?: (campaignId: string) => string | null;
+  /** Opened by hand in Settings ▸ Unlocks (one campaign, everything, or `?unlock=all`): opens out of order. */
+  readonly openedByHandOf?: (campaignId: string) => boolean;
 }
 
 const defaultIdentityNameOf = (id: CardId): string => id as string;
@@ -67,6 +76,8 @@ export function campaignSagaRows(
 ): readonly SagaVolumeRow[] {
   const definitionOf = options.definitionOf ?? campaignDefinitionOf;
   const identityNameOf = options.identityNameOf ?? defaultIdentityNameOf;
+  const waveLockOf = options.waveLockOf ?? (() => null);
+  const openedByHandOf = options.openedByHandOf ?? (() => false);
   const rows = campaignListRows(summaries, definitionOf);
 
   const rowsByCampaign = new Map<string, CampaignListRow[]>();
@@ -86,7 +97,9 @@ export function campaignSagaRows(
     const wonExpert = wonRows.some((r) => r.modes.campaign?.expertCampaign === true);
     const definition = definitionOf(volume.campaignId);
     const hasDefinition = definition !== undefined;
-    const unlocked = previousWonStandard;
+    const byHand = openedByHandOf(volume.campaignId);
+    const waveLock = byHand ? null : waveLockOf(volume.campaignId);
+    const unlocked = byHand || (previousWonStandard && waveLock === null);
 
     const summary = summaries.find((s) => s.id === (activeRow?.id ?? wonRows[0]?.id ?? "")) ?? null;
 
@@ -104,6 +117,7 @@ export function campaignSagaRows(
     } else {
       status = "sealed";
       if (unlocked && !hasDefinition) lockReason = "Not in this build yet";
+      else if (waveLock !== null) lockReason = waveLock;
     }
 
     const total = totalIssuesOf(definition);

@@ -107,3 +107,43 @@ describe("campaignSagaRows", () => {
     expect(doneVolumeCount(rows)).toBe(0);
   });
 });
+
+describe("campaignSagaRows with progression", () => {
+  const gmwLookup = (id: string): CampaignDefinition | undefined => campaignDefinitionOf(id);
+
+  test("a volume whose wave is still locked stays sealed, with that wave's reason", () => {
+    const reason = "Beat Rhino to unlock The Rise of Red Skull";
+    const rows = campaignSagaRows([], {
+      definitionOf: lookup,
+      identityNameOf: nameOf,
+      waveLockOf: (id) => (id === "trors" ? reason : null),
+    });
+    expect(rows[0]).toMatchObject({ status: "sealed", unlocked: false, lockReason: reason });
+  });
+
+  test("unlock everything opens every volume this build can play, in any order", () => {
+    const rows = campaignSagaRows([], {
+      definitionOf: gmwLookup,
+      identityNameOf: nameOf,
+      waveLockOf: () => "locked",
+      openedByHandOf: () => true,
+    });
+    expect(rows[0]).toMatchObject({ status: "fresh", unlocked: true });
+    expect(rows[1]).toMatchObject({ status: "fresh", unlocked: true });
+    // A box with no definition in this build is still honest about it.
+    expect(rows[2]).toMatchObject({ status: "sealed", hasDefinition: false, lockReason: "Not in this build yet" });
+  });
+});
+
+describe("campaignSagaRows with a campaign opened by hand", () => {
+  test("opens that volume alone, out of the Standard-win order", () => {
+    const rows = campaignSagaRows([], {
+      definitionOf: (id) => campaignDefinitionOf(id),
+      identityNameOf: nameOf,
+      waveLockOf: () => "locked",
+      openedByHandOf: (id) => id === "gmw",
+    });
+    expect(rows[0]).toMatchObject({ status: "sealed", unlocked: false });
+    expect(rows[1]).toMatchObject({ status: "fresh", unlocked: true });
+  });
+});

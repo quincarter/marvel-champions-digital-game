@@ -258,9 +258,9 @@ export const SAGA_VOLUMES: readonly SagaVolume[] = [
 ];
 
 // Matches the current design canvas (`Marvel Champions game screens/Campaign - *.dc.html`'s `saga()`), the
-// sequential-unlock wording — this client has no "every volume open" mode for the other branch to apply to.
+// sequential-unlock wording, plus the way out of it: Settings ▸ Unlocks opens every volume (`progression/`).
 export const SAGA_NOTE =
-  "Win a volume on Standard to open the next. Finished volumes can be reread or started again. Civil War (MC56) is competitive only, so it has no campaign.";
+  "Win a volume on Standard to open the next, or open everything in Settings ▸ Unlocks. Finished volumes can be reread or started again. Civil War (MC56) is competitive only, so it has no campaign.";
 
 /** Every box's story, by `Campaign.id`. Adding a box's story is one entry. */
 const STORIES: Readonly<Record<string, CampaignStory>> = {

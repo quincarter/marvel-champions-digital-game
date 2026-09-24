@@ -39,6 +39,7 @@ import {
 import { storyFor } from "../../campaign/story.js";
 import { FocusRoute, type FocusStop } from "../focus-route.js";
 import { SCENES } from "../keys.js";
+import { unlocks } from "../../progression/progression.js";
 import type { CampaignRosterData } from "./routes.js";
 
 const CAST_NOTE =
@@ -378,7 +379,9 @@ export class CampaignRosterScene extends Phaser.Scene {
       y += 50;
     }
 
-    const options = rosterDeckOptions(this.#seats, seatNumber, this.#savedDecks, POOL_VERSION);
+    const options = rosterDeckOptions(this.#seats, seatNumber, this.#savedDecks, POOL_VERSION, (deck) =>
+      unlocks().deckLock(deck),
+    );
     const listRect: Rect = { x: panelRect.x + 20, y, width: rowWidth, height: panelRect.y + panelRect.height - 16 - y };
     const gap = 8;
 

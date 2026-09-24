@@ -38,6 +38,11 @@ import { FocusRoute, type FocusStop } from "./focus-route.js";
 import { SCENES } from "./keys.js";
 import { destroyChildren } from "../ui/destroy-children.js";
 import { OverlayMotion } from "../ui/transitions.js";
+import { unlocks } from "../progression/progression.js";
+import { unlocksSummaryOf } from "../view/unlocks-model.js";
+
+/** The Unlocks row's own id: a door to `scenes/unlocks.ts`, drawn after the Table toggles and only on this screen. */
+const UNLOCKS_ROW = "unlocks";
 
 export class SettingsOverlay extends Phaser.Scene {
   #buttons: McButton[] = [];
@@ -50,15 +55,31 @@ export class SettingsOverlay extends Phaser.Scene {
 
   create(): void {
     this.#motion = new OverlayMotion();
+    this.input.enabled = true;
     const onResize = (): void => this.#draw();
     this.scale.on("resize", onResize, this);
-    this.#route = new FocusRoute(this, { onCancel: () => this.#close() });
+    this.#route = new FocusRoute(this, {
+      blocked: () => this.scene.isActive(SCENES.unlocks),
+      onCancel: () => this.#close(),
+    });
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.scale.off("resize", onResize, this);
       for (const button of this.#buttons) button.destroy();
       this.#buttons = [];
     });
     this.#draw();
+  }
+
+  #openUnlocks(): void {
+    if (this.scene.isActive(SCENES.unlocks)) return;
+    // Unlocks' panel sits exactly over this one, so a tap on its blank space must not reach a toggle underneath.
+    this.input.enabled = false;
+    this.scene.launch(SCENES.unlocks);
+    // Back from Unlocks: redraw so the summary line reads what was just changed.
+    this.scene.get(SCENES.unlocks).events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      this.input.enabled = true;
+      if (this.sys.isActive()) this.#draw();
+    });
   }
 
   #close(): void {
@@ -84,10 +105,11 @@ export class SettingsOverlay extends Phaser.Scene {
 
     const { width, height } = this.scale.gameSize;
     const rows = settingsRowInfoOf(appSession().settings);
-    const layout = settingsLayout(
-      { x: 0, y: 0, width, height },
-      rows.map((row) => row.unavailable ?? row.detail),
-    );
+    const unlocksDetail = unlocksSummaryOf(unlocks());
+    const layout = settingsLayout({ x: 0, y: 0, width, height }, [
+      ...rows.map((row) => row.unavailable ?? row.detail),
+      unlocksDetail,
+    ]);
 
     const scrim = this.add.graphics();
     scrim.fillStyle(surface.void.hex, 0.7).fillRect(0, 0, width, height);
@@ -139,9 +161,30 @@ export class SettingsOverlay extends Phaser.Scene {
       ink.secondary,
     );
     rows.forEach((row, index) => this.#drawRow(layout.rows[index]!, row, stops));
+    this.#drawUnlocksRow(layout.rows[rows.length]!, unlocksDetail, stops);
 
-    this.#route?.set(settingsFocusOrder(rows.map((row) => row.id)), stops);
+    this.#route?.set(settingsFocusOrder([...rows.map((row) => row.id), UNLOCKS_ROW]), stops);
     this.#motion.enter(this, { scrim: [scrim], panels: this.children.list.slice(panelsFrom) });
+  }
+
+  #drawUnlocksRow(rect: Rect, detail: string, stops: Map<string, FocusStop>): void {
+    label(this, rect.x, rect.y + 2, "Unlocks", typeRole.label, surface.paper.hex, ink.secondary).setFontSize(12);
+    this.add
+      .text(rect.x, rect.y + 20, detail, textStyle(typeRole.body, surface.paper.hex, 0.8))
+      .setFontSize(10)
+      .setWordWrapWidth(rect.width - 100);
+    const openRect: Rect = { x: rect.x + rect.width - 84, y: rect.y + (rect.height - 32) / 2, width: 84, height: 32 };
+    const activate = (): void => this.#openUnlocks();
+    this.#buttons.push(
+      new McButton(this, {
+        kind: "secondary",
+        label: "Open ▸",
+        type: typeRole.label,
+        rect: openRect,
+        onClick: activate,
+      }),
+    );
+    stops.set(`row:${UNLOCKS_ROW}`, { rect, activate });
   }
 
   #drawRow(rect: Rect, row: SettingsRowInfo, stops: Map<string, FocusStop>): void {

@@ -93,6 +93,11 @@ export class McScrollRegion {
     if (this.#scroll.scrollIntoView(index, this.#heights, this.#rect.height)) this.#applyOffset();
   }
 
+  /** Scrolls by `amount` pixels (positive is down), clamped — a keyboard or pad's page step. */
+  scrollByPx(amount: number): void {
+    if (this.#scroll.scrollByPx(amount, this.#heights, this.#rect.height)) this.#applyOffset();
+  }
+
   destroy(): void {
     this.#scene.input.off(Phaser.Input.Events.POINTER_WHEEL, this.#onWheel, this);
     this.#scene.input.off(Phaser.Input.Events.POINTER_DOWN, this.#onPointerDown, this);

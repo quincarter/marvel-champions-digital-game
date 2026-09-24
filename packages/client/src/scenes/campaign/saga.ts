@@ -42,6 +42,8 @@ import type { Rect } from "../../view/layout.js";
 import { ListScroll } from "../../view/list-scroll.js";
 import { FocusRoute, type FocusStop } from "../focus-route.js";
 import { SCENES } from "../keys.js";
+import { refreshUnlocks, unlocks } from "../../progression/progression.js";
+import { unlockCostOf, unlockOrAsk } from "../unlock-confirm.js";
 import type { CampaignSagaData } from "./routes.js";
 
 const identityNameOf = (id: string): string => CARDS_BY_ID.get(id)?.name ?? id;
@@ -72,6 +74,7 @@ export class CampaignSagaScene extends Phaser.Scene {
     this.scale.on("resize", this.#rebuild, this);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.scale.off("resize", this.#rebuild, this));
     this.#route = new FocusRoute(this, {
+      blocked: () => this.scene.isActive(SCENES.unlockConfirm),
       onCancel: () => goToScreen(this, SCENES.title),
       onPage: (direction) => this.#phoneList?.scrollByPage(direction),
       onHomeEnd: (edge) => (edge === "home" ? this.#phoneList?.scrollToStart() : this.#phoneList?.scrollToEnd()),
@@ -85,9 +88,14 @@ export class CampaignSagaScene extends Phaser.Scene {
   }
 
   async #load(): Promise<void> {
-    const summaries = await campaignService().storage.list();
+    const [summaries] = await Promise.all([campaignService().storage.list(), refreshUnlocks().catch(() => false)]);
     if (!this.sys.isActive()) return;
-    this.#rows = campaignSagaRows(summaries, { identityNameOf });
+    const unlocked = unlocks();
+    this.#rows = campaignSagaRows(summaries, {
+      identityNameOf,
+      waveLockOf: (campaignId) => unlocked.campaignLock(campaignId),
+      openedByHandOf: (campaignId) => unlocked.campaignManual(campaignId),
+    });
     this.#featured = defaultFeaturedVolume(this.#rows);
     this.#rebuild();
   }
@@ -201,7 +209,7 @@ export class CampaignSagaScene extends Phaser.Scene {
         return "Open";
       case "sealed":
       default:
-        return row.lockReason ?? "Sealed";
+        return row.unlocked && !row.hasDefinition ? (row.lockReason ?? "Sealed") : "Sealed";
     }
   }
 
@@ -532,9 +540,13 @@ export class CampaignSagaScene extends Phaser.Scene {
         return {
           status: "Sealed",
           right: "",
-          sub: row.lockReason
-            ? `This build doesn't ship Vol. ${n} yet.`
-            : `Win Vol. ${n - 1} on Standard to open it. Its villains stay hidden until then.`,
+          sub: !row.hasDefinition
+            ? row.unlocked
+              ? `This build doesn't ship Vol. ${n} yet.`
+              : `Win Vol. ${n - 1} on Standard to open it. Its villains stay hidden until then.`
+            : row.lockReason
+              ? `${row.lockReason}, or unlock it now with champion points.`
+              : `Win Vol. ${n - 1} on Standard to open it, or unlock it now with champion points.`,
           hasPips: false,
           hasAlt: false,
           alt: [],
@@ -568,8 +580,18 @@ export class CampaignSagaScene extends Phaser.Scene {
           onClick: () => goToScreen(this, SCENES.campaignCover, { campaignId: row.volume.campaignId }),
         };
       case "sealed":
-      default:
-        return { label: "Locked", enabled: false, reason: row.lockReason ?? "Sealed", onClick: () => {} };
+      default: {
+        // A box this build can play opens here and now with champion points (`scenes/unlock-confirm.ts`), out of
+        // the Saga's order; one it can't play stays honestly locked.
+        if (!row.hasDefinition)
+          return { label: "Locked", enabled: false, reason: row.lockReason ?? "Sealed", onClick: () => {} };
+        const target = { kind: "campaign", campaignId: row.volume.campaignId } as const;
+        return {
+          label: `Unlock · ${unlockCostOf(target)} pts`,
+          enabled: true,
+          onClick: () => unlockOrAsk(this, target, () => void this.#load()),
+        };
+      }
     }
   }
 
