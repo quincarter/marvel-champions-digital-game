@@ -42,6 +42,8 @@ import {
   controllerOf,
   type EffectContext,
   evaluate,
+  isPlayerCard,
+  MAIN_SCHEME_CHOICE,
   matchesQuery,
   resolvePlayers,
   resolveRef,
@@ -78,6 +80,22 @@ export function executeEffectsFrame(ctx: Ctx, frame: Frame<"effects">): void {
   }
   const context = contextOf(frame, ctx.deps);
 
+  // Two main schemes (Tower Defense, docs/phase7-wave4.md §3.2): "When a someone plays a card that refers to 'the main
+  // scheme,' that card's controller must choose which of the two schemes it is referring to" (MC21 p. 10). Asked once
+  // per ability, just before the first effect that names it, and read by `resolveRef` from the binding.
+  if (needsMainSchemeChoice(ctx, frame, effect)) {
+    const choose: EffectSpec = {
+      kind: "chooseTarget",
+      slot: MAIN_SCHEME_CHOICE,
+      query: { categories: ["mainScheme"] },
+      chooser: { kind: "controller" },
+    };
+    setFrame(ctx, {
+      ...frame,
+      effects: [...frame.effects.slice(0, frame.cursor), choose, ...frame.effects.slice(frame.cursor)],
+    });
+    return;
+  }
   if (effect.kind === "chooseCards") return executeChooseCards(ctx, frame, effect, context);
   if (effect.kind === "chooseOne") return executeChooseOne(ctx, frame, effect, context);
   if (effect.kind === "choosePlayer") return executeChoosePlayer(ctx, frame, effect, context);
@@ -112,6 +130,17 @@ export function executeEffectsFrame(ctx: Ctx, frame: Frame<"effects">): void {
 
   setFrame(ctx, { ...frame, cursor: frame.cursor + 1 });
   applyEffect(ctx, effect, context, frame);
+}
+
+/**
+ * Whether a player card's effect about to resolve names "the main scheme" while two are in play in the shared area and
+ * the player has not yet chosen one for this ability (docs/phase7-wave4.md §3.2).
+ */
+function needsMainSchemeChoice(ctx: Ctx, frame: Frame<"effects">, effect: EffectSpec): boolean {
+  if ((ctx.state.extraMainSchemes ?? []).length === 0 || frame.bindings[MAIN_SCHEME_CHOICE]) return false;
+  if (frame.controllerId === null || !isPlayerCard(ctx.state, frame.selfInstanceId)) return false;
+  if (contextArea(ctx.state, contextOf(frame, ctx.deps))) return false;
+  return JSON.stringify(effect).includes('{"kind":"mainScheme"}');
 }
 
 /**

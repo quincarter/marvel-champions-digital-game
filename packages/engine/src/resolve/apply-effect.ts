@@ -78,12 +78,14 @@ import { matchingCardInPlay } from "../unique.js";
 import { campaignSeatNumber } from "../campaign-state.js";
 import { campaignLogValueOf, recordCampaignRemoval, recordCampaignWrite } from "./campaign.js";
 import { damageGroupFrame } from "./damage-group.js";
+import { advanceToSetAsideVillain, swapVillain } from "./villain-swap.js";
 import { buildScenarioDeck, moveCardsTo, selectCards, shuffleEncounterDeck } from "./cards.js";
 import { cannotBeUnattached, cannotChangeForm, cannotThwart } from "../rules.js";
 import { advanceMainSchemeStage, checkDefeats, completeMainScheme } from "./defeat.js";
 import {
   addVillains,
   createGameArea,
+  putMainSchemeStageIntoPlay,
   removeMainSchemeStage,
   removeVillains,
   revealMainSchemeStages,
@@ -910,6 +912,20 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       pushFrames(ctx, revealMainSchemeStages(ctx, players, effect.stageNumber, effect.removeUnused ?? false));
       return;
     }
+    case "swapVillain":
+      for (const id of targets(effect.villain)) if (villainOf(ctx.state, id)) swapVillain(ctx, id);
+      return;
+    case "advanceToSetAsideVillain": {
+      for (const id of targets(effect.villain)) {
+        if (!villainOf(ctx.state, id)) continue;
+        const frames = advanceToSetAsideVillain(ctx, id);
+        if (frames) pushFrames(ctx, frames);
+      }
+      return;
+    }
+    case "putMainSchemeStageIntoPlay":
+      pushFrames(ctx, putMainSchemeStageIntoPlay(ctx, effect.stageNumber, effect.name, ctx.state.firstPlayerId));
+      return;
     case "createGameArea": {
       const player = context.scopedPlayerId ?? context.controllerId;
       if (!player) return;

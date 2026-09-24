@@ -18,6 +18,7 @@ import {
   getPlayer,
   isMinion,
   mainSchemeValue,
+  sharedMainSchemes,
   mustCardOf,
   mustPlayer,
   nextClockwisePlayer,
@@ -38,16 +39,20 @@ export function executePlaceThreat(ctx: Ctx): void {
   if (step.kind === "placeThreat" && !step.placed) {
     setStep(ctx, { phase: "villain", kind: "placeThreat", placed: true });
     if (ctx.state.gameAreas.length === 0) {
-      const amount =
-        mainSchemeValue(ctx.state, "acceleration", ctx.deps) +
-        ctx.state.mainScheme.accelerationTokens +
-        countSchemeIcons(ctx.state, "acceleration");
-      pushEvent(ctx, {
-        kind: "placeThreat",
-        schemeInstanceId: ctx.state.mainScheme.instanceId,
-        amount,
+      // Every main scheme in play gains threat, each from its own acceleration and tokens plus the icons in play: MC21
+      // p. 10, "Each main scheme gains threat during step 1 of the villain phase, and they are each affected by any
+      // acceleration and crisis icons in play" (docs/phase7-wave4.md §3.2). One main scheme is every other game.
+      const events = sharedMainSchemes(ctx.state).map((scheme) => ({
+        kind: "placeThreat" as const,
+        schemeInstanceId: scheme.instanceId,
+        amount:
+          mainSchemeValue(ctx.state, "acceleration", ctx.deps, scheme) +
+          scheme.accelerationTokens +
+          countSchemeIcons(ctx.state, "acceleration"),
         sourceInstanceId: null,
-      });
+      }));
+      if (events.length === 1) pushEvent(ctx, events[0]!);
+      else pushEvents(ctx, events);
       return;
     }
     // Separate game areas (docs/phase7-wave2.md §3.1): each area places threat on its own stage, from its own

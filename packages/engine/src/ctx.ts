@@ -146,6 +146,14 @@ export function moveCard(ctx: Ctx, id: InstanceId, to: ZoneId, position: ZonePos
 export function settlePlayerDecks(ctx: Ctx, from: ZoneId | null, to: ZoneId): void {
   if (from?.kind === "deck") resetPlayerDeckIfEmpty(ctx, from.playerId);
   if (to.kind === "discard") resetPlayerDeckIfEmpty(ctx, to.playerId);
+  // "After the infinity stone deck runs out" (docs/phase7-wave4.md §3.11): the move that took its last card. The flow
+  // announces it between frames.
+  if (from?.kind === "scenarioDeck" && ctx.state.scenarioDecks[from.name]?.deck.length === 0) {
+    ctx.state = {
+      ...ctx.state,
+      pendingDeckRunOuts: [...(ctx.state.pendingDeckRunOuts ?? []), { deck: "scenario", name: from.name }],
+    };
+  }
 }
 
 /**

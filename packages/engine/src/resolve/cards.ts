@@ -28,6 +28,9 @@ import {
 } from "../select.js";
 import type { CardDestination, CardSelector, TargetQuery } from "../spec.js";
 import type { ZoneId } from "../state.js";
+import type { TriggerEvent } from "../trigger-events.js";
+import { announce } from "./frames.js";
+import { heard } from "./triggers.js";
 
 /** The cards a selector names right now (out of play included), in zone order. */
 export function selectCards(ctx: Ctx, selector: CardSelector, context: EffectContext): readonly InstanceId[] {
@@ -330,6 +333,28 @@ export function resetEmptyScenarioDecks(ctx: Ctx): void {
     shuffleScenarioDeck(ctx, name);
     emit(ctx, { type: "scenarioDeckReset", name });
   }
+}
+
+/**
+ * Announces each deck that ran out since the last look (`TriggerEvent deckRanOut`, docs/phase7-wave4.md §3.11), oldest
+ * first, when an ability listens, and empties the list. Returns true when it pushed a frame.
+ */
+export function announceDeckRunOuts(ctx: Ctx): boolean {
+  const pending = ctx.state.pendingDeckRunOuts;
+  if (!pending || pending.length === 0) return false;
+  const { pendingDeckRunOuts: _, ...rest } = ctx.state;
+  ctx.state = rest;
+  const events: TriggerEvent[] = pending
+    .map((run): TriggerEvent =>
+      run.deck === "player"
+        ? { kind: "deckRanOut", deck: "player", playerId: run.playerId }
+        : { kind: "deckRanOut", deck: "scenario", name: run.name },
+    )
+    .filter((event) => heard(ctx.state, ctx.deps, event));
+  if (events.length === 0) return false;
+  // Pushed last-first so the oldest resolves first.
+  for (const event of [...events].reverse()) announce(ctx, event);
+  return true;
 }
 
 /** Shuffles an encounter deck: "the encounter deck" is the active villain's. */

@@ -617,7 +617,17 @@ export type RuleSpec =
    * while the Avengers Tower environment card Stronghold side is in play." By printed title, since the entering card is
    * not in play yet. docs/phase7-wave4.md §3.5.
    */
-  | { readonly kind: "uniqueRuleExempt"; readonly title: string; readonly while?: Predicate };
+  | { readonly kind: "uniqueRuleExempt"; readonly title: string; readonly while?: Predicate }
+  /**
+   * Focused Defense (Tower Defense, `mts` 21101), attached to one of the two main schemes: "The villain who matches the
+   * attached scheme is the active villain." With it, the same scheme is the one MC21 names by the attachment: "If a
+   * constant effect on a player card refers to 'the main scheme,' that card always refers to the scheme card with the
+   * attachment 'Focused Defense' attached to it" (MC21 p. 10), and "When a minion schemes, that threat is placed on the
+   * main scheme with the attachment 'Focused Defense' attached to it" (errata, RRG 1.8 p. 67). `scheme` names that main
+   * scheme (`host`, on the attachment). Applied between frames: the villain whose title the scheme's `villainOf` names is
+   * made active (`activeVillainChanged { reason: "focusedScheme" }`). docs/phase7-wave4.md §3.2.
+   */
+  | { readonly kind: "focusedMainScheme"; readonly scheme: TargetRef; readonly while?: Predicate };
 
 /** Where a cost may pick a card from (outside play). */
 export interface CardZoneQuery {

@@ -15,6 +15,7 @@ import {
   getInstance,
   mainSchemeStageOf,
   mainSchemeValue,
+  mainSchemeStates,
   mustCard,
   mustInstance,
   playerOrder,
@@ -130,6 +131,80 @@ export function revealMainSchemeStages(
     }
   }
   return frames;
+}
+
+/**
+ * "Reveal stage 2A and put it into play next to this stage so there are two main schemes and two villains in play"
+ * (Under Siege 1A, Tower Defense, `mts` 21098a; docs/phase7-wave4.md §3.2). The main scheme card's first unspent stage
+ * with `stageNumber` (and `name`, when given) becomes a second main scheme in the shared game area
+ * (`GameState.extraMainSchemes`), in play at once, so its A side's When Revealed ("Put the Focused Defense attachment
+ * into play attached to this stage") finds it. Returns the frames: its A-side When Revealed, its B-side When Revealed,
+ * then its starting threat, as an advance resolves them (RRG 1.8 "Main Scheme", p. 27). The stage is spent, so no reveal
+ * or named advance can reach it again.
+ */
+export function putMainSchemeStageIntoPlay(
+  ctx: Ctx,
+  stageNumber: number,
+  name: string | undefined,
+  playerId: PlayerId,
+): readonly StackFrame[] {
+  const card = mustCard(ctx.state, ctx.state.mainScheme.cardId);
+  if (card.type !== "main_scheme") return [];
+  const inPlay = new Set(mainSchemeStates(ctx.state).map((scheme) => `${scheme.cardId}:${scheme.stageIndex}`));
+  const stageIndex = card.stages.findIndex(
+    (stage, index) =>
+      stage.stageNumber === stageNumber &&
+      (name === undefined || stage.name === name) &&
+      !ctx.state.spentMainSchemeStages.includes(index) &&
+      !inPlay.has(`${card.id}:${index}`),
+  );
+  if (stageIndex < 0) return [];
+  const id = nextInstanceId(ctx);
+  const instance: CardInstance = {
+    instanceId: id,
+    cardId: card.id,
+    ownerId: null,
+    controllerId: null,
+    home: { kind: "activeEncounterDeck" },
+    faceup: true,
+    exhausted: false,
+    damage: 0,
+    threat: 0,
+    statuses: NO_STATUSES,
+    counters: {},
+    attachedTo: null,
+    attachments: [],
+    boostCards: [],
+    tucked: [],
+    facedownAs: null,
+    engagedWith: null,
+    flipped: false,
+  };
+  const scheme: MainSchemeState = {
+    instanceId: id,
+    cardId: card.id,
+    stageIndex,
+    completed: false,
+    accelerationTokens: 0,
+  };
+  ctx.state = {
+    ...ctx.state,
+    instances: { ...ctx.state.instances, [id]: instance },
+    spentMainSchemeStages: [...ctx.state.spentMainSchemeStages, stageIndex],
+    extraMainSchemes: [...(ctx.state.extraMainSchemes ?? []), scheme],
+  };
+  emit(ctx, { type: "mainSchemeStageRevealed", schemeInstanceId: id, stageIndex, playerId });
+  const stage = mainSchemeStageOf(ctx.state, scheme);
+  return [
+    ...gameAbilityFrames(ctx, id, ["whenRevealed"], null, stage.aSide.abilities, playerId),
+    ...gameAbilityFrames(ctx, id, ["whenRevealed"], null, stage.abilities, playerId),
+    eventFrame(ctx, {
+      kind: "placeThreat",
+      schemeInstanceId: id,
+      amount: mainSchemeValue(ctx.state, "startingThreat", ctx.deps, scheme),
+      sourceInstanceId: null,
+    }),
+  ];
 }
 
 /**

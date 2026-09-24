@@ -225,7 +225,17 @@ export interface ScenarioDeckState {
     /** Only cards printing this trait (the Infinity Stones; docs/phase7-wave4.md §1.10). */
     readonly trait?: string;
   };
+  /**
+   * Built from the encounter deck during scenario setup, with no card text asking: a deck an encounter set brings to any
+   * game it is in (`EncounterSet.separateDecks`, the Infinity Stone deck; MC21 p. 16). docs/phase7-wave4.md §3.6.
+   */
+  readonly buildAtSetup?: true;
 }
+
+/** A deck that ran out, waiting to be announced between frames (`TriggerEvent deckRanOut`, docs/phase7-wave4.md §3.11). */
+export type DeckRunOut =
+  | { readonly deck: "player"; readonly playerId: PlayerId }
+  | { readonly deck: "scenario"; readonly name: string };
 
 /** One encounter deck and its discard pile (RRG 1.8 "Encounter Deck", p. 17). */
 export interface EncounterDeckState {
@@ -280,6 +290,8 @@ export interface GameAreaState {
 export interface ScenarioRules {
   readonly victory: "finalVillainStage" | "cardAbility";
   readonly separateGameAreas: boolean;
+  /** `GameSetupConfig.victoryCondition` (Loki's count; docs/phase7-wave4.md §3.7). Absent in every other game. */
+  readonly victoryCondition?: number;
 }
 
 /**
@@ -389,6 +401,14 @@ export interface GameState {
    * area's own stage is its `GameAreaState.mainScheme`.
    */
   readonly mainScheme: MainSchemeState;
+  /**
+   * Other stages of the main scheme deck in play at the same time as `mainScheme`, in the same game area: Tower
+   * Defense's "Reveal stage 2A and put it into play next to this stage so there are two main schemes and two villains in
+   * play" (Under Siege 1A, `mts` 21098a; MC21 p. 10: "Both main schemes are active each round"). Each is a main scheme
+   * like the central one — it gains threat in step one, feels acceleration and crisis icons, and can be completed.
+   * Absent in every other game, so saves are unchanged. docs/phase7-wave4.md §3.2.
+   */
+  readonly extraMainSchemes?: readonly MainSchemeState[];
   /** Separate game areas, in creation order. Empty while the players share one game area (every scenario but Kang). */
   readonly gameAreas: readonly GameAreaState[];
   readonly nextGameAreaSeq: number;
@@ -409,6 +429,12 @@ export interface GameState {
   readonly encounterSetAside: readonly InstanceId[];
   /** Scenario decks by name (docs/phase7-wave2.md §3.3). Empty for every scenario that has none. */
   readonly scenarioDecks: Readonly<Record<string, ScenarioDeckState>>;
+  /**
+   * Decks that ran out since the flow last looked, oldest first: a player's deck as it resets, a scenario deck as it
+   * empties. The flow announces each as `deckRanOut` between frames (when an ability listens) and empties the list.
+   * Absent until a deck first runs out, so a fresh game serializes as before. docs/phase7-wave4.md §3.11.
+   */
+  readonly pendingDeckRunOuts?: readonly DeckRunOut[];
   readonly villainArea: readonly InstanceId[];
   readonly victoryDisplay: readonly InstanceId[];
   readonly removedFromGame: readonly InstanceId[];

@@ -25,6 +25,7 @@ import {
   gameAbilityFrames,
   shuffleSeparateDeck,
 } from "./resolve/index.js";
+import { buildScenarioDeck } from "./resolve/cards.js";
 import { base } from "./resolve/frames.js";
 import type { StackFrame } from "./stack.js";
 import type { GameState, GameStep } from "./state.js";
@@ -61,6 +62,11 @@ export function resolveScenarioSetup(ctx: Ctx): void {
       encounterDecks: { ...ctx.state.encounterDecks, [deckId]: { deck: shuffled, discard: [] } },
     };
   }
+
+  // An encounter set's own deck (the Infinity Stone deck) is made from its cards in the encounter deck (MC21 p. 16:
+  // "shuffle the six Infinity Stone environment cards together and set them aside, facedown"; docs/phase7-wave4.md §3.6).
+  for (const [name, piles] of Object.entries(ctx.state.scenarioDecks))
+    if (piles.buildAtSetup) buildScenarioDeck(ctx, name);
 
   const startingThreat = mainSchemeValue(ctx.state, "startingThreat", ctx.deps);
   if (startingThreat > 0) {

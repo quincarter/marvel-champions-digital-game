@@ -1,4 +1,4 @@
-import type { AbilityId } from "@mc/content";
+import type { AbilityId, CardId } from "@mc/content";
 import type { FrameId, InstanceId, PlayerId } from "./ids.js";
 import type { CardDestination } from "./spec.js";
 import type { Vars } from "./stack.js";
@@ -278,6 +278,28 @@ export type TriggerEventBody =
    * alternatives that card text must choose among (docs/phase7-wave2.md §3.1, §3.4).
    */
   | { readonly kind: "mainSchemeCompleted"; readonly schemeInstanceId: InstanceId; readonly stageIndex: number }
+  /**
+   * A deck ran out of cards (docs/phase7-wave4.md §3.11): "After your deck runs out of cards" (Soul World, `mts` 21033) and
+   * "After a player resets their deck" (Universal Church of Truth, 21068) are a player's deck, which resets the moment it
+   * empties (RRG 1.8 "Player Deck", p. 33); "After the infinity stone deck runs out" (Thanos I–III, 21111–21113) is a
+   * scenario deck. Announced between frames, and only when an ability listens.
+   */
+  | {
+      readonly kind: "deckRanOut";
+      readonly deck: "player" | "scenario";
+      readonly playerId?: PlayerId;
+      readonly name?: string;
+    }
+  /**
+   * "After Loki is swapped with a set-aside Loki villain" (Loki's Cape, `mts` 21172): `EffectSpec swapVillain` exchanged
+   * the villain's card (docs/phase7-wave4.md §3.7). Response window only; pushed only when an ability listens.
+   */
+  | {
+      readonly kind: "villainSwapped";
+      readonly villainInstanceId: InstanceId;
+      readonly fromCardId: CardId;
+      readonly toCardId: CardId;
+    }
   /**
    * A main scheme stage **would be** completed by reaching its target threat (docs/phase7-wave4.md §3.4): "Forced
    * Interrupt: When this stage would be completed, remove all the threat from this stage instead." (Under Siege and The
@@ -580,6 +602,10 @@ export function eventSubjects(event: TriggerEvent): EventSubjects {
       return of([], [event.instanceId], []);
     case "boostCardTurnedFaceup":
       return of([event.enemyInstanceId], [event.boostInstanceId], [event.playerId]);
+    case "villainSwapped":
+      return of([], [event.villainInstanceId], []);
+    case "deckRanOut":
+      return of([], [], [event.playerId ?? null]);
     case "formChanged":
       return of([], event.formCardInstanceId ? [event.formCardInstanceId] : [], [event.playerId]);
     case "turnStarted":

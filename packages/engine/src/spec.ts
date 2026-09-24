@@ -575,6 +575,12 @@ export type ValueSpec =
    */
   | { readonly kind: "villainStageNumber"; readonly of?: TargetRef }
   /**
+   * "The victory condition" (All Hail King Loki 1B, `mts` 21165b): the number the scenario sets for the modes being played
+   * (`Scenario.victoryCondition`, rookie 1 / standard 2 / expert 3 / heroic 4). 0 in a game that sets none.
+   * docs/phase7-wave4.md §3.7.
+   */
+  | { readonly kind: "victoryCondition" }
+  /**
    * A number recorded in the campaign log: "Place threat on the main scheme equal to the number of delay counters
    * recorded in the campaign log" (MC10 p. 15), "set each player's hit points to their remaining hit point value"
    * (MC10 p. 7, per seat).
@@ -1632,6 +1638,36 @@ export type EffectSpec =
    * change of form (no form is changed to), so it announces nothing. It is itself again when it leaves play.
    */
   | { readonly kind: "turnFacedown"; readonly target: TargetRef }
+  /**
+   * "Reveal stage 2A and put it into play next to this stage so there are two main schemes and two villains in play"
+   * (Under Siege 1A, Tower Defense, `mts` 21098a): the main scheme card's stage `stageNumber` (named `name`, when the
+   * card prints alternatives) becomes a second main scheme in the shared game area (`GameState.extraMainSchemes`). Its
+   * A and B sides' When Revealed resolve with the first player as "you", then its starting threat is placed.
+   * docs/phase7-wave4.md §3.2.
+   */
+  | { readonly kind: "putMainSchemeStageIntoPlay"; readonly stageNumber: number; readonly name?: string }
+  /**
+   * "Swap Loki with a random set-aside Loki villain" (Casket of Ancient Winters, The Trickster, `mts` 21166–21176; Stories
+   * and Lies, `tt` 55051). RRG 1.8 "'Swap'" (p. 42): the in-play villain and a set-aside villain sharing its title
+   * exchange places; "neither card is considered to enter or leave play. Tokens, attached cards, tucked cards, and status
+   * cards on the previously in-play card are transferred to the other card and the other card maintains the state (ready
+   * or exhausted) of the previously in-play card. If the swapped card has an associated hit point dial, that dial remains
+   * at the same value." MC21 p. 24: the swapped-out Loki "should be set-aside with the other remaining set-aside versions".
+   * Announces `villainSwapped`. With no set-aside villain of that title, nothing happens (RRG: "A swap cannot be completed
+   * if there is not a component in both locations"). docs/phase7-wave4.md §3.7.
+   */
+  | { readonly kind: "swapVillain"; readonly villain: TargetRef }
+  /**
+   * "When Loki is defeated, advance to a random set-aside Loki villain" (All Hail King Loki 1B, `mts` 21165b; MC21 p. 24:
+   * "When a new version of Loki enters play, transfer all attachments, status cards, counters, and tokens that were on the
+   * previous version of Loki to the one that enters play"), from an interrupt to the villain's defeat. The defeated card
+   * leaves play — to the victory display with Victory X, else removed from the game (RRG 1.8 "Villain Defeat", p. 47;
+   * "Victory X", p. 46) — and a random set-aside villain sharing its title takes its place as the same villain: its
+   * attachments, status cards and counters stay, its damage does not (§4 Q3), its When Revealed resolves, and toughness
+   * gives it a tough status card. The defeat itself then does not apply, since the dial is no longer at zero.
+   * docs/phase7-wave4.md §3.7.
+   */
+  | { readonly kind: "advanceToSetAsideVillain"; readonly villain: TargetRef }
   /**
    * "Change Apocalypse to [Giant] form" (Staggering Strength, Biomorphic Blast; The Age of Apocalypse): a three-sided
    * villain (`VillainSideLetter` "C") turns to the face of its current stage card whose traits include `toFaceWithTrait`.

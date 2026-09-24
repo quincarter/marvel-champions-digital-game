@@ -24,7 +24,7 @@ import {
   pushEvent,
 } from "./resolve/index.js";
 import { resetEmptySeparateDecks } from "./resolve/separate-decks.js";
-import { resetEmptyScenarioDecks } from "./resolve/cards.js";
+import { announceDeckRunOuts, resetEmptyScenarioDecks } from "./resolve/cards.js";
 import { checkStateTriggers } from "./resolve/state-checks.js";
 import { cardsInPlay, controllerOf } from "./select.js";
 import { describeFrame } from "./stack.js";
@@ -52,6 +52,8 @@ export function runFlow(ctx: Ctx): void {
     resetEmptySeparateDecks(ctx);
     // …and so does a scenario deck whose rules say so (the side-scheme deck; docs/phase7-wave2.md §3.3).
     resetEmptyScenarioDecks(ctx);
+    // "After your deck runs out of cards" / "After the infinity stone deck runs out" (docs/phase7-wave4.md §3.11).
+    if (announceDeckRunOuts(ctx)) continue;
     // Condition-triggered forced abilities go on the stack the moment their condition becomes true, ahead of whatever
     // was about to resolve next (docs/phase7-wave1.md §3.4; FAQ "Green Goblin (#1B)", p. 59).
     if (checkStateTriggers(ctx)) continue;
