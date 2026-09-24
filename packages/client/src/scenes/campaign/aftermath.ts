@@ -20,9 +20,9 @@
  * because by the time it's known the screen has already moved on.
  */
 import type { CardId } from "@mc/content";
-import type { CampaignChoiceAnswer } from "@mc/engine";
+import type { CampaignChoiceAnswer, CampaignDefinition } from "@mc/engine";
 import Phaser from "phaser";
-import { issueNumberOf, issueStoryFor, type IssueStory } from "../../campaign/story.js";
+import { issueNumberOf, issueStoryFor, storyFor, type IssueStory } from "../../campaign/story.js";
 import { CARDS_BY_ID } from "../../content/pool.js";
 import type { CampaignRecord } from "../../engine/campaign-storage.js";
 import type { SavedGame } from "../../engine/host.js";
@@ -37,6 +37,7 @@ import {
   stamp,
   villainPicture,
 } from "../../ui/campaign-chrome.js";
+import { drawComicReaderStep } from "../../ui/comic-reader.js";
 import { destroyChildren } from "../../ui/destroy-children.js";
 import { cssOf, textStyle } from "../../ui/theme.js";
 import { fadeScreenIn, goToScreen } from "../../ui/transitions.js";
@@ -44,11 +45,13 @@ import { McButton, fitText, label } from "../../ui/widgets.js";
 import {
   advanceAftermathGroup,
   aftermathColumns,
+  aftermathLogTags,
   aftermathOptionOf,
   aftermathStamp,
   answerForPending,
   continuesGroup,
   decideForSeat,
+  nextIssueRaisesMarket,
   offersAnswer,
   readyToCommit,
   startAftermathGroup,
@@ -56,6 +59,13 @@ import {
   type AftermathColumn,
   type AftermathSeat,
 } from "../../view/campaign-aftermath-model.js";
+import {
+  comicReaderViewOf,
+  nextComicBeat,
+  prevComicBeat,
+  resolveComicBeats,
+  type ResolvedComicBeat,
+} from "../../view/comic-reader-model.js";
 import type { Rect } from "../../view/layout.js";
 import { FocusRoute, type FocusStop } from "../focus-route.js";
 import { SCENES } from "../keys.js";
@@ -84,6 +94,10 @@ export class CampaignAftermathScene extends Phaser.Scene {
   #errorText = "";
   #buttons: McButton[] = [];
   #route: FocusRoute | null = null;
+  /** Set only once the fold reaches "summary" for a page-based box's issue that names `aftermathBeats` — see the
+   * class doc comment's page-based section. Empty keeps the plain single-picture summary (MC10) untouched. */
+  #comicSteps: readonly ResolvedComicBeat[] = [];
+  #comicCurrent = 0;
 
   constructor() {
     super(SCENES.campaignAftermath);
@@ -98,6 +112,8 @@ export class CampaignAftermathScene extends Phaser.Scene {
     this.#group = null;
     this.#phase = "loading";
     this.#busy = false;
+    this.#comicSteps = [];
+    this.#comicCurrent = 0;
   }
 
   create(): void {
@@ -192,6 +208,11 @@ export class CampaignAftermathScene extends Phaser.Scene {
     // — the tile keeps each hero's pick on screen (YOURS / WITH …), it doesn't clear the columns. A win with no
     // pending choice at all (MC10 has none, but a future box might) leaves `#group` null, which the summary phase
     // reads as "nothing to hand out this issue".
+    const nodeId = this.#nodeId;
+    const pages = storyFor(record.campaignId as string)?.pages;
+    const story = nodeId ? issueStoryFor(record.campaignId as string, nodeId) : null;
+    this.#comicSteps = story?.aftermathBeats && pages ? resolveComicBeats(pages, story.aftermathBeats) : [];
+    this.#comicCurrent = 0;
     this.#phase = "summary";
     this.#draw();
   }
@@ -267,6 +288,14 @@ export class CampaignAftermathScene extends Phaser.Scene {
     const nodeIds = definition.graph.nodes.map((node) => node.id);
     const number = issueNumberOf(nodeIds, nodeId);
     const story = issueStoryFor(record.campaignId as string, nodeId);
+
+    if (this.#phase === "summary" && this.#comicSteps.length > 0) {
+      this.#drawComicAftermath(record, definition, nodeId, number, width, height, phone, order, stops);
+      this.#route = this.#route ?? new FocusRoute(this, { onCancel: () => this.#leaveToNext() });
+      this.#route.set(order, stops);
+      return;
+    }
+
     const loggedTag =
       this.#phase === "summary" ? aftermathStamp(record, nodeId, (id) => issueNumberOf(nodeIds, id)).loggedTag : null;
 
@@ -275,6 +304,140 @@ export class CampaignAftermathScene extends Phaser.Scene {
 
     this.#route = this.#route ?? new FocusRoute(this);
     this.#route.set(order, stops);
+  }
+
+  /** The comic-based summary phase (C05, page-based boxes): the aftermath's own guided read, the fold's real log
+   * writes stacked as tags top-left, and a CTA that names the Market when the next issue's setup raises one. */
+  #drawComicAftermath(
+    record: CampaignRecord,
+    definition: CampaignDefinition,
+    nodeId: string,
+    number: number,
+    width: number,
+    height: number,
+    phone: boolean,
+    order: string[],
+    stops: Map<string, FocusStop>,
+  ): void {
+    const rosterIds = record.seats.map((seat) => seat.identityCardId);
+    const view = comicReaderViewOf(this.#comicSteps, this.#comicCurrent, rosterIds);
+
+    const headerPad = phone ? 16 : 24;
+    label(this, headerPad, 14, `AFTER ISSUE #${number}`, typeRole.label, surface.paper.hex, ink.label);
+    const title = this.add
+      .text(
+        headerPad,
+        26,
+        (issueStoryFor(record.campaignId as string, nodeId)?.villain ?? "").toUpperCase(),
+        textStyle({ ...typeRole.barTitle, size: phone ? 20 : 28 }, surface.paper.hex),
+      )
+      .setOrigin(0, 0);
+    fitText(title, width - headerPad * 2, phone ? 20 : 28);
+    const counter = this.add
+      .text(
+        width - headerPad,
+        14,
+        `${view.step.pageLabel} · ${view.step.beatLabel}`,
+        textStyle(typeRole.label, surface.paper.hex, ink.secondary),
+      )
+      .setOrigin(1, 0)
+      .setLetterSpacing(1);
+    void counter;
+    const headerBottom = Math.max(26 + title.height, 60) + 12;
+
+    const actionBarHeight = phone ? 68 : 88;
+    const dotsHeight = 22;
+    const readingBottom = height - actionBarHeight - dotsHeight;
+    const readingRect: Rect = { x: 0, y: headerBottom, width, height: Math.max(0, readingBottom - headerBottom) };
+    drawComicReaderStep(this, readingRect, record.campaignId as string, view.step, () => this.#draw());
+
+    // The fold's real log writes, stacked top-left over the art — never the tile's own hardcoded words.
+    const definitionFields = definition.logFields;
+    const tags = aftermathLogTags(record, nodeId, definitionFields, CARDS_BY_ID);
+    let tagY = readingRect.y + 12;
+    const { rect: wonRect } = stamp(this, 12, tagY, `Issue #${number} · Won`, { ground: signal.caution.hex });
+    tagY = wonRect.y + wonRect.height + 8;
+    for (const tag of tags) {
+      const { rect } = stamp(this, 12, tagY, tag.text, {
+        ground: surface.void.hex,
+        color: surface.paper.hex,
+        outline: tag.kind === "each" ? signal.heal.hex : surface.paper.hex,
+        size: 12,
+      });
+      tagY = rect.y + rect.height + 8;
+    }
+
+    this.#drawBeatDots(width, height - actionBarHeight - dotsHeight / 2);
+
+    this.add.rectangle(0, height - actionBarHeight, width, actionBarHeight, surface.ink.hex).setOrigin(0, 0);
+    const ctaPad = phone ? 12 : 16;
+    const barY = height - actionBarHeight;
+    const ctaHeight = 62;
+    const ctaY = barY + (actionBarHeight - ctaHeight) / 2;
+    const hasBack = !view.isFirst;
+    const backWidth = hasBack ? (phone ? 64 : 110) : 0;
+    const backGap = hasBack ? 10 : 0;
+    const isLastBeat = view.isLast;
+    const ctaLabel = isLastBeat
+      ? nextIssueRaisesMarket(definition, nodeId)
+        ? "TO THE MARKET ▸"
+        : this.#nextLabel()
+      : "NEXT ▸";
+    const ctaRect: Rect = phone
+      ? { x: ctaPad + backWidth + backGap, y: ctaY, width: width - ctaPad * 2 - backWidth - backGap, height: ctaHeight }
+      : {
+          x: width - ctaPad - Math.min(425, width - ctaPad * 2 - backWidth - backGap),
+          y: ctaY,
+          width: Math.min(425, width - ctaPad * 2 - backWidth - backGap),
+          height: ctaHeight,
+        };
+    const onCta = (): void => {
+      if (isLastBeat) this.#leaveToNext();
+      else {
+        this.#comicCurrent = nextComicBeat(this.#comicCurrent, this.#comicSteps.length);
+        this.#draw();
+      }
+    };
+    this.#buttons.push(
+      new McButton(this, { kind: "primary", label: ctaLabel, type: typeRole.barTitle, rect: ctaRect, onClick: onCta }),
+    );
+    order.push("next");
+    stops.set("next", { rect: ctaRect, activate: onCta });
+
+    if (hasBack) {
+      const backRect: Rect = { x: ctaPad, y: ctaY, width: backWidth, height: ctaHeight };
+      const onBack = (): void => {
+        this.#comicCurrent = prevComicBeat(this.#comicCurrent);
+        this.#draw();
+      };
+      this.#buttons.push(
+        new McButton(this, { kind: "onInk", label: "◂ BACK", type: typeRole.label, rect: backRect, onClick: onBack }),
+      );
+      order.push("back");
+      stops.set("back", { rect: backRect, activate: onBack });
+    }
+
+    const tapZone = this.add
+      .zone(0, 0, width, height - actionBarHeight)
+      .setOrigin(0, 0)
+      .setInteractive();
+    tapZone.on("pointerup", onCta);
+    this.children.sendToBack(tapZone);
+  }
+
+  /** The beat-progress dot row between the page and the action bar — current beat lit, the rest dim. */
+  #drawBeatDots(width: number, y: number): void {
+    const total = this.#comicSteps.length;
+    if (total <= 1) return;
+    const dotSize = 8;
+    const gap = 10;
+    const totalWidth = total * dotSize + (total - 1) * gap;
+    let x = width / 2 - totalWidth / 2 + dotSize / 2;
+    for (let index = 0; index < total; index += 1) {
+      const active = index === this.#comicCurrent;
+      this.add.circle(x, y, dotSize / 2, active ? accent.heroRed.hex : surface.paper.hex, active ? 1 : 0.3);
+      x += dotSize + gap;
+    }
   }
 
   // ---------------------------------------------------------------------------------------------------------------

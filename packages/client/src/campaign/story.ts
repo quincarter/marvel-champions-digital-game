@@ -116,6 +116,12 @@ export interface IssueStory {
    * issue opener uses the comic reader over these beats instead of the three-panel `opener` above.
    */
   readonly comicBeats?: readonly ComicBeatRef[];
+  /**
+   * For a page-based box (`CampaignStory.pages` is set): the Aftermath's (C05) own guided read on a win, tapped
+   * through the same way `comicBeats` is before the screen's tags/CTA (`scenes/campaign/aftermath.ts`). Absent
+   * (or a box with no `pages`) keeps the plain single-picture Aftermath (MC10) untouched.
+   */
+  readonly aftermathBeats?: readonly ComicBeatRef[];
   /** The villain's line when it flips to a stage (C04), by stage number (2 = stage II). */
   readonly stageLines: Readonly<Record<number, string>>;
   /** A short rule reminder shown under the stage-flip splash ("Piercing while armed"). */
