@@ -1,5 +1,6 @@
 import type { AbilityId } from "@mc/content";
 import type { AbilitySource } from "./abilities.js";
+import type { CostChoices } from "./commands.js";
 import type { FrameId, InstanceId, PlayerId } from "./ids.js";
 import type { EffectSpec } from "./spec.js";
 import type { TriggerEvent } from "./trigger-events.js";
@@ -130,9 +131,15 @@ export type StackFrame =
       /** Optional tiers ask each controller in player order; this is who is left to ask. */
       readonly askingPlayerIds: readonly PlayerId[];
       readonly pending: readonly TriggerCandidate[];
-      readonly awaiting: "order" | "select" | "pay" | null;
+      readonly awaiting: "order" | "select" | "pay" | "costPick" | null;
       /** The in-hand event whose cost the window is currently collecting. */
       readonly paying: TriggerCandidate | null;
+      /**
+       * The cards in play the player picked so far for the queued candidate's cost ("exhaust an [Avenger] character
+       * and a [Guardian] character", docs/phase7-wave4.md §3.17), keyed by `<instanceId>:<abilityId>` so picks never
+       * outlive their candidate. Absent until a window asks for one.
+       */
+      readonly costPicks?: { readonly key: string; readonly choices: CostChoices; readonly asking?: string };
     })
   /** Resolves one ability: checks its limit, records the use, runs its effects. */
   | (FrameBase & {

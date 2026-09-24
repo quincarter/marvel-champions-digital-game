@@ -183,9 +183,9 @@ export type TriggerEventBody =
    * - `cardInstanceIds`: the cards discarded from hand, in payment order. A "Resource:" ability of a card in play is not
    *   a card being spent, so it is not listed.
    * - `playerId`: whose hand they came from ("you"). `forPlayerId`: the player whose cost they paid — "After you spend
-   *   this card **for a player**, heal 1 damage from that player's identity" (Everyday Hero 28019). The same player
-   *   today, since no payment yet spans players (Alliance, RRG 1.8 p. 6, is not built); kept apart so that card is
-   *   right the day it is.
+   *   this card **for a player**, heal 1 damage from that player's identity" (Everyday Hero 28019). They differ when
+   *   another player helps pay for an alliance card (RRG 1.8 "Alliance", p. 6; docs/phase7-wave4.md §3.17): one event
+   *   per spender, each naming the paying player as `forPlayerId`.
    * - `payingForInstanceId` / `purpose`: what the payment was for — the card being played (`playCard`), the card whose
    *   ability's cost it paid (`ability`), or neither (`effect`: "spend X resources" inside an effect). The played card
    *   is the event's *target*, so "When you spend this card to play a THWART event" is a `targetIs` query; an

@@ -22,7 +22,7 @@ import {
   handCardResources,
   paymentOptions,
   paymentsFromOptionIds,
-  inPlayCostCandidates,
+  defaultInPlayPicks,
   planCost,
   playableFromAttachment,
   playableFromDiscard,
@@ -262,30 +262,6 @@ function discardPicks(
   return cheapest.slice(0, min);
 }
 
-/**
- * Default picks for costs paid with cards in play (`InPlayCostPick`), so an ability whose choice isn't forced is still
- * listed. The first `min` candidates in play-area order are the smallest payment. The player's own picks replace them.
- */
-function inPlayCostPicks(
-  state: GameState,
-  deps: EngineDeps,
-  playerId: PlayerId,
-  source: InstanceId,
-  cost: AbilityCost | undefined,
-): CostChoices {
-  const picks: Record<string, readonly InstanceId[]> = {};
-  for (const [mode, pick] of [
-    ["exhaust", cost?.exhaustCards],
-    ["return", cost?.returnToHand],
-  ] as const) {
-    if (!pick) continue;
-    const candidates = inPlayCostCandidates(state, deps, source, playerId, mode, pick);
-    // With too few candidates, leave the slot empty so the engine reports why the cost can't be paid.
-    if (candidates.length >= pick.min) picks[pick.slot] = candidates.slice(0, pick.min);
-  }
-  return picks;
-}
-
 /** The `costChoices` to try, one per candidate for a "pay the printed cost of …" pick. */
 function costChoiceSets(
   state: GameState,
@@ -296,7 +272,7 @@ function costChoiceSets(
   picks: readonly InstanceId[],
 ): readonly { readonly costChoices: CostChoices | undefined; readonly target: InstanceId | null }[] {
   const base: CostChoices = {
-    ...inPlayCostPicks(state, deps, playerId, source, cost),
+    ...defaultInPlayPicks(state, deps, source, playerId, cost),
     ...(cost?.discardFromHand ? { discard: picks } : {}),
   };
   const baseChoices = Object.keys(base).length > 0 ? base : undefined;

@@ -838,10 +838,27 @@ export interface AbilityCost {
    * "Exhaust Captain America's Shield →" (min 1, max 1) / "Exhaust any number of allies you control →" (min 1, no
    * max): exhaust cards in play, other than this ability's own card (`exhaustSelf`) or your identity
    * (`exhaustIdentity`). See `InPlayCostPick` for how the cards are picked and when the cost is payable.
+   *
+   * A list is several picks paid together, each into its own slot: "Exhaust an [Avenger] character and a [Guardian]
+   * character →" (As One!, Problem Solvers; docs/phase7-wave4.md §3.17) is two picks of one card, and one card cannot
+   * pay both (RRG 1.8 "Cost", p. 13).
    */
-  readonly exhaustCards?: InPlayCostPick;
+  readonly exhaustCards?: InPlayCostPick | readonly InPlayCostPick[];
   /** "… return Captain America's Shield from play to your hand →": cards in play go to their owner's hand. See `InPlayCostPick`. */
   readonly returnToHand?: InPlayCostPick;
+}
+
+/** Every `InPlayCostPick` a cost makes, in the order they are checked: the exhaust picks, then the return pick. */
+export function inPlayPicksOf(
+  cost: AbilityCost | undefined,
+): readonly { readonly mode: "exhaust" | "return"; readonly pick: InPlayCostPick }[] {
+  if (!cost) return [];
+  const exhaust =
+    cost.exhaustCards === undefined ? [] : "slot" in cost.exhaustCards ? [cost.exhaustCards] : cost.exhaustCards;
+  return [
+    ...exhaust.map((pick) => ({ mode: "exhaust" as const, pick })),
+    ...(cost.returnToHand ? [{ mode: "return" as const, pick: cost.returnToHand }] : []),
+  ];
 }
 
 /**

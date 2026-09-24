@@ -364,7 +364,7 @@ stays data only.**
 | 3.14 | Player events shuffled into the encounter deck (Cosmic Entities)         | Adam Warlock precon                        | not started |
 | 3.15 | "After the last X counter is removed from here"                          | Ebony Maw; `aos`, `phoenix`                | not started |
 | 3.16 | Encounter cards in a player's play area                                  | Ebony Maw's Spells                         | not started |
-| 3.17 | Alliance: paying a card's costs as a group                               | `warm`, `valk`, `vision`; 9 later cards    | not started |
+| 3.17 | Alliance: paying a card's costs as a group                               | `warm`, `valk`, `vision`; 9 later cards    | landed      |
 | 3.18 | Set-aside modular sets; mode-only faces; Standard II                     | The Hood; Wheel of Genres (`mojo`)         | not started |
 | 3.19 | Readying as a costed act; "cannot be readied by player card effects"     | Mister Fear; Undermine Support (`aos`)     | not started |
 | 3.20 | A trigger on damage a card prevented                                     | Abjuration                                 | not started |
@@ -687,6 +687,65 @@ card in your play area". **Plan:** verify where `putIntoPlay` places an environm
 
 ### 3.17 Alliance: paying a card's costs as a group
 
+> **Status: landed (2026-09-24),** tested in `packages/engine/src/alliance.test.ts` (10 tests: a resource cost paid
+> from two players' hands, each card to its owner's discard pile, only the playing player resolving the card; another
+> player's hand card refused without alliance; another player's resource ability used, its controller paying its cost
+> and logged as the generator, refused without alliance; "exhaust an [Avenger] character and a [Guardian] character"
+> taking another player's character, refused without alliance; one character with both traits cannot pay both slots;
+> `legalActions` offers the card when only the table can pay it, and not its non-alliance twin; "After you spend this
+> card" heard by the spender with `forPlayerId` the paying player; in a timing window, a `chooseCostCards` prompt per
+> unforced pick before the payment, a forced pick not asked; declining a pick backs out; replay deep-equal). DSL:
+> `packages/cards/src/dsl/wave4-hero-primitives.test.ts` (5 tests).
+>
+> **What landed:**
+>
+> - **One reading, from the card data.** `paidAsGroup(state, deps, ...cards)` (`actions.ts`) is true when the card
+>   whose costs are paid has the alliance keyword (printed or gained, `hasKeyword`). Every payment path reads it:
+>   `priceOf` (a command's `payment` may name any player's hand cards and resource abilities), `paymentOptions` (the
+>   payment sheets and `legalActions`' wallets list every player's hand, the paying player's first), `planCost`'s
+>   in-play picks (`eligibleForInPlayPick`: any player's cards, not only the payer's, RRG 1.8 "Cost" p. 14 being the
+>   rule alliance lifts) and its `discardFromHand` picks. Each contributed card is read from its owner's point of view:
+>   their form for "spend only in hero form", their discard pile for a "top card of your discard pile" resource.
+> - **A contributed resource ability** is used by its controller (`resourceSpender`): its form, its limit, its own cost
+>   and the `resourcesGenerated` log line are theirs. A "for any player" ability (the Milano) is still the payer's.
+> - **`resourcesSpent`, one event per spender.** `playerId` is the spender ("you" for "After you spend this card"),
+>   `forPlayerId` the player playing the card (Everyday Hero's "for a player"). The paying player's event resolves
+>   first. Hand cards go to the discard pile of the hand they came from.
+> - **Several picks in one cost.** `AbilityCost.exhaustCards` may be a list of `InPlayCostPick`s, each with its own slot;
+>   one card cannot pay two of them (RRG 1.8 "Cost", p. 13). `inPlayPicksOf(cost)` (exported) lists every pick;
+>   `planCost`, `payCost`, `legalActions`, the validator and the window read it. `defaultInPlayPicks` (moved from
+>   `legal.ts` to `actions.ts`) is the smallest default, a card taken by one slot kept out of the next.
+> - **Picks inside a timing window** (Stand Together, Serve and Protect are interrupts). A window used to price every
+>   cost with no picks, so an unforced "exhaust a …" pick was unpayable there. Now the window asks
+>   **`ChoicePrompt chooseCostCards { instanceId, abilityId, slot, mode }`** for each unforced pick before the payment
+>   sheet (RRG 1.8 "Initiating Abilities", p. 24: costs are determined before they are paid), keeping the picks on the
+>   frame (`Frame<"window">.costPicks`, keyed by candidate, optional so saves are unchanged; `awaiting: "costPick"`).
+>   Selecting fewer than the pick's `min` backs out. In-play trigger candidates are judged payable with the default
+>   picks, so an ability with an unforced pick is offered at all.
+> - **Engine code names no card.** Alliance is read from `KeywordInstance { name: "alliance" }` on the emitted cards.
+>
+> **DSL:** `exhaustEachCost({ avenger: query(["identity", "ally"], { trait: AVENGER }), guardian: … })`
+> (`dsl/abilities.ts`); "the combined ATK of those characters" is `sum(statOf(chosen("avenger"), "atk"),
+statOf(chosen("guardian"), "atk"))`. No builder for the keyword itself: it is card data.
+>
+> **Checked against every raw card printing "Alliance."** (14; `grep -il alliance packages/content/raw/marvelcdb/*.json`):
+> resource costs only (Cosmic Alliance, Joining Forces, Team Investigation, Strength in Diversity, Joys of Life,
+> Flying Formation, Break Time, Mutant Mayhem) pay from any player's hand; two-slot exhaust costs (As One!, Stand
+> Together, Problem Solvers, Combine Forces, Gunboat Diplomacy, Serve and Protect) compose with `exhaustEachCost`.
+> Joys of Life's "Choose: • Exhaust a [Civilian] alter-ego → … • Exhaust a hero or ally → …" is `eitherCost` with an
+> `exhaustCardsCost` per branch, the branch read from var `cost.branch`. Effects that act "as a group" (Joining Forces'
+> "the players put a total of 1 [Avenger] ally and 1 [Guardian] ally into play from their hand(s)"; Mutant Mayhem's
+> "those players play those allies") are effects, not costs, and belong to the scripting pass (`zone("hand",
+eachPlayer, …)` with `chooseCards`/`putIntoPlay` to be confirmed there).
+>
+> **Composes with:** Everyday Hero (`28019`, "After you spend this card for a player"), now reachable across players;
+> the Milano's "for any player" resource (`gmw`), unchanged; any "Exhaust an X character and a Y character" cost
+> (Combine Forces and Gunboat Diplomacy, `ncrawler` 48031/48032; Serve and Protect, `jubilee` 47029).
+>
+> **Client:** `chooseCostCards` needs a prompt title (the choice scene falls back to "Choose") and the payment sheet
+> should show whose hand each option comes from (`ref.instanceId` locates it). **Netcode:** a command may now spend
+> another seat's cards; the table's consent to that is a client/netcode concern (§4 Q10).
+
 RRG 1.8 "Alliance" (p. 6). As One!, Stand Together, Problem Solvers, Cosmic Alliance, Joining Forces; also `angel`
 42031, `deadpool` 44046, `falcon` 53019, `jj` 61026, `jubilee` 47028/47029, `ncrawler` 48031/48032, `next_evol` 40053. **Plan:** other players' resources (and "exhaust an Avenger character and a Guardian character" costs) usable
 while paying for a card with the keyword; only the playing player resolves it.
@@ -783,6 +842,13 @@ Each is implemented the way stated, or not at all, and named here rather than de
    play is by that flip, and MC21 p. 11 says its When Revealed "reinforces the unique rule by discarding each other copy
    of Avengers Tower from play". Proposed: follow the rulings (no When Revealed on a flip) and have the Stronghold side's
    script discard the other Avengers Towers as it flips, which is what MC21 p. 11 describes. Needs the user's call.
+
+10. **Who agrees to spend another player's cards for an alliance card?** (§3.17) RRG 1.8 "Alliance" (p. 6) says any
+    player "may help pay", so each contribution is that player's choice. The engine takes one command from the player
+    playing the card, naming every card spent, as it already does for the Milano's "for any player" resource. Implemented
+    as: the engine accepts it; asking the other seats before the command is sent is a client/netcode step, not an
+    engine rule. The order the per-spender `resourcesSpent` events resolve in (the paying player's first, then seat
+    order) is our default; no ruling covers it.
 
 ## 5. What this asks of the other agents
 
