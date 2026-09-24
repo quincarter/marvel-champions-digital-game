@@ -337,6 +337,8 @@ export const victoryDisplayCount = (filter?: TargetQuery): ValueSpec => ({
   kind: "victoryDisplayCount",
   ...(filter ? { filter } : {}),
 });
+/** "The victory condition" (All Hail King Loki 1B): `Scenario.victoryCondition` for the modes played (§3.7 of wave 4). */
+export const victoryCondition: ValueSpec = { kind: "victoryCondition" };
 
 /**
  * Arithmetic: "2 damage for each counter (to a maximum of 10)" → `scaled(counters, { times: 2, max: 10 })`;

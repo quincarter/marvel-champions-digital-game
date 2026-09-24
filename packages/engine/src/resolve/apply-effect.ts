@@ -78,6 +78,7 @@ import { matchingCardInPlay } from "../unique.js";
 import { campaignSeatNumber } from "../campaign-state.js";
 import { campaignLogValueOf, recordCampaignRemoval, recordCampaignWrite } from "./campaign.js";
 import { damageGroupFrame } from "./damage-group.js";
+import { advanceToSetAsideVillain, swapVillain } from "./villain-swap.js";
 import { buildScenarioDeck, moveCardsTo, selectCards, shuffleEncounterDeck } from "./cards.js";
 import { cannotBeUnattached, cannotChangeForm, cannotThwart } from "../rules.js";
 import { advanceMainSchemeStage, checkDefeats, completeMainScheme } from "./defeat.js";
@@ -909,6 +910,17 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       if (!ctx.state.scenarioRules.separateGameAreas) return;
       const players = resolvePlayers(ctx.state, effect.player, context);
       pushFrames(ctx, revealMainSchemeStages(ctx, players, effect.stageNumber, effect.removeUnused ?? false));
+      return;
+    }
+    case "swapVillain":
+      for (const id of targets(effect.villain)) if (villainOf(ctx.state, id)) swapVillain(ctx, id);
+      return;
+    case "advanceToSetAsideVillain": {
+      for (const id of targets(effect.villain)) {
+        if (!villainOf(ctx.state, id)) continue;
+        const frames = advanceToSetAsideVillain(ctx, id);
+        if (frames) pushFrames(ctx, frames);
+      }
       return;
     }
     case "putMainSchemeStageIntoPlay":

@@ -1123,6 +1123,8 @@ export function resolveValue(
       const filter = value.filter;
       return filter ? ids.filter((id) => matchesQuery(state, id, filter, { ...context, deps })).length : ids.length;
     }
+    case "victoryCondition":
+      return state.scenarioRules.victoryCondition ?? 0;
     case "victoryDisplayCount": {
       // docs/phase7-wave3.md §3.42: out of play, so only a read of the pile itself reaches it.
       const filter = value.filter;

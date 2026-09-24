@@ -1131,6 +1131,19 @@ export const putMainSchemeStageIntoPlay = (stageNumber: number, name?: string): 
   stageNumber,
   ...(name !== undefined ? { name } : {}),
 });
+/**
+ * "Swap Loki with a random set-aside Loki villain" (The Trickster, Casket of Ancient Winters, `mts`; Stories and Lies,
+ * `tt`): RRG 1.8 "'Swap'" (p. 42), everything on the villain stays, dial included (docs/phase7-wave4.md §3.7).
+ */
+export const swapVillain = (villain: TargetRef = { kind: "villain" }): EffectSpec => ({ kind: "swapVillain", villain });
+/**
+ * "When Loki is defeated, advance to a random set-aside Loki villain" (All Hail King Loki 1B): from a forced interrupt
+ * to the villain's defeat, `advanceToSetAsideVillain(eventTarget)` (docs/phase7-wave4.md §3.7).
+ */
+export const advanceToSetAsideVillain = (villain: TargetRef = { kind: "villain" }): EffectSpec => ({
+  kind: "advanceToSetAsideVillain",
+  villain,
+});
 /** "Turn all your energy form upgrades facedown" (Monica Rambeau, `mts` 21001b; docs/phase7-wave4.md §3.1). */
 export const turnFacedown = (target: TargetRef): EffectSpec => ({ kind: "turnFacedown", target });
 

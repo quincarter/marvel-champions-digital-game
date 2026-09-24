@@ -111,6 +111,17 @@ export type GameEvent =
       readonly formName: string;
       readonly instanceId: InstanceId;
     }
+  /**
+   * The villain instance took another card of its title (docs/phase7-wave4.md §3.7): `swap` (RRG 1.8 "'Swap'", p. 42;
+   * dial kept) or `advance` (the defeated card went to the victory display or out of the game; dial reset).
+   */
+  | {
+      readonly type: "villainReplaced";
+      readonly instanceId: InstanceId;
+      readonly fromCardId: CardId;
+      readonly toCardId: CardId;
+      readonly reason: "swap" | "advance";
+    }
   /** A card in play turned facedown (`turnFacedown`) or faceup (`changeAdditionalForm`), docs/phase7-wave4.md §3.1. */
   | { readonly type: "cardTurnedFacedown"; readonly instanceId: InstanceId }
   | { readonly type: "cardTurnedFaceup"; readonly instanceId: InstanceId }

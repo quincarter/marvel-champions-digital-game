@@ -290,6 +290,8 @@ export interface GameAreaState {
 export interface ScenarioRules {
   readonly victory: "finalVillainStage" | "cardAbility";
   readonly separateGameAreas: boolean;
+  /** `GameSetupConfig.victoryCondition` (Loki's count; docs/phase7-wave4.md §3.7). Absent in every other game. */
+  readonly victoryCondition?: number;
 }
 
 /**

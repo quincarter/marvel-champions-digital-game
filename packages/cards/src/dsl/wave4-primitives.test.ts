@@ -9,6 +9,7 @@ import {
   action,
   constant,
   focusedMainScheme,
+  forcedInterrupt,
   forcedResponse,
   heroAction,
   heroResponse,
@@ -16,20 +17,41 @@ import {
   playOnlyIf,
   rule,
   setup,
+  stateCheck,
+  whenRevealed,
 } from "./abilities.js";
 import {
+  advanceToSetAsideVillain,
   attachCard,
   attackAnEnemy,
   changeAdditionalForm,
   damageAnEnemy,
   chooseTarget,
   draw,
+  endGame,
+  enemyScheme,
   ifThen,
   putMainSchemeStageIntoPlay,
+  swapVillain,
   turnFacedown,
 } from "./effects.js";
 import { validateDefinition } from "./validate.js";
-import { chosen, each, host, inAdditionalForm, not, printedForm, query, self, you } from "./values.js";
+import {
+  chosen,
+  each,
+  eventTarget,
+  host,
+  inAdditionalForm,
+  not,
+  printedForm,
+  query,
+  self,
+  theVillain,
+  valueAtLeast,
+  victoryCondition,
+  victoryDisplayCount,
+  you,
+} from "./values.js";
 
 const valid = (definition: Parameters<typeof validateDefinition>[0]) =>
   expect(validateDefinition(definition)).toEqual([]);
@@ -96,5 +118,18 @@ describe("§3.2 two main schemes", () => {
     expect(focused.trigger).toMatchObject({ rules: [{ kind: "focusedMainScheme", scheme: { kind: "host" } }] });
     valid(focused);
     valid(forcedResponse(on.phaseEnding("player"), attachCard(self, each(query("mainScheme", { excluding: host })))));
+  });
+});
+
+describe("§3.7 Loki", () => {
+  it("All Hail King Loki 1B, The Trickster (21165b, 21176)", () => {
+    valid(forcedInterrupt(on.defeated(query("villain", { name: "Loki" })), advanceToSetAsideVillain(eventTarget)));
+    valid(
+      stateCheck(
+        valueAtLeast(victoryDisplayCount(query("villain", { name: "Loki" })), victoryCondition),
+        endGame("win"),
+      ),
+    );
+    valid(whenRevealed(swapVillain(), enemyScheme(theVillain)));
   });
 });

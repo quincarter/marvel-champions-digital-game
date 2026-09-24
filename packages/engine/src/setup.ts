@@ -15,7 +15,7 @@ import { createCtx, emit, type Ctx } from "./ctx.js";
 import { engineError, type EngineError } from "./errors.js";
 import { runFlow } from "./flow.js";
 import { encounterDeckId, instanceId, playerId, type EncounterDeckId, type InstanceId, type PlayerId } from "./ids.js";
-import { createRng } from "./rng.js";
+import { createRng, nextInt } from "./rng.js";
 import { FIRST_CAMPAIGN_STEP, FIRST_STANDALONE_STEP, resolveScenarioSetup } from "./setup-steps.js";
 import { cardsMatch } from "./unique.js";
 import {
@@ -159,6 +159,18 @@ export interface GameSetupConfig {
    * (`Scenario.expertVillains`) is the scenario builder's: pass the expert cards here (`villainsForDifficulty`).
    */
   readonly setAsideVillainCardIds?: readonly CardId[];
+  /**
+   * `Scenario.startingVillain: "random"` (Loki, MC21 p. 24: "choose one Loki villain card at random, reveal it and put
+   * it into play. Set the remaining four versions of Loki aside"): the villain that starts is chosen with the game's
+   * seeded RNG among `villainCardId` and `setAsideVillainCardIds`, and the rest are set aside. docs/phase7-wave4.md §3.7.
+   */
+  readonly randomStartingVillain?: true;
+  /**
+   * The number `Scenario.victoryCondition` gives for the modes being played (the scenario builder picks it): "If the
+   * number of Lokis in the victory display is equal to the victory condition, the players win the game" (All Hail King
+   * Loki 1B). Read by `ValueSpec victoryCondition`. docs/phase7-wave4.md §3.7.
+   */
+  readonly victoryCondition?: number;
   /** `Scenario.victory`. Absent: `"finalVillainStage"` (RRG 1.8 "Villain Defeat", p. 47). */
   readonly victory?: "finalVillainStage" | "cardAbility";
   /** Whether card abilities may create separate game areas (`Scenario.separateGameAreas` is present). Default false. */
@@ -342,7 +354,21 @@ function planVillains(
 }
 
 /** RRG Appendix II: Setup, minus obligations/nemesis sets/setup abilities (they need slice 2). */
-export function createGame(config: GameSetupConfig, deps: EngineDeps = DEFAULT_DEPS): SetupResult {
+export function createGame(requested: GameSetupConfig, deps: EngineDeps = DEFAULT_DEPS): SetupResult {
+  // A random starting villain (Loki; docs/phase7-wave4.md §3.7) is drawn first, from the game's own seeded RNG.
+  let rng = createRng(requested.seed);
+  let config = requested;
+  if (requested.randomStartingVillain) {
+    const candidates = [requested.villainCardId, ...(requested.setAsideVillainCardIds ?? [])];
+    const [pick, next] = nextInt(rng, candidates.length);
+    rng = next;
+    const chosen = candidates[pick] as CardId;
+    config = {
+      ...requested,
+      villainCardId: chosen,
+      setAsideVillainCardIds: candidates.filter((id) => id !== chosen),
+    };
+  }
   if (config.players.length < 1 || config.players.length > 4) {
     return invalid("a game has 1–4 players");
   }
@@ -649,6 +675,7 @@ export function createGame(config: GameSetupConfig, deps: EngineDeps = DEFAULT_D
     revealedMainSchemes: [],
     scenarioRules: {
       victory: config.victory ?? "finalVillainStage",
+      ...(config.victoryCondition !== undefined ? { victoryCondition: config.victoryCondition } : {}),
       separateGameAreas: config.separateGameAreas ?? false,
     },
     encounterDecks,
@@ -672,7 +699,7 @@ export function createGame(config: GameSetupConfig, deps: EngineDeps = DEFAULT_D
     ...(config.campaign ? { campaign: config.campaign, campaignWrites: NO_CAMPAIGN_WRITES } : {}),
     pendingChoice: null,
     outcome: null,
-    rng: createRng(config.seed),
+    rng,
     nextInstanceSeq: seq,
     nextChoiceSeq: 1,
     nextFrameSeq: 1,

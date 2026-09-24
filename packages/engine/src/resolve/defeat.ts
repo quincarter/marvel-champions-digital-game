@@ -435,7 +435,12 @@ export function defeatVillainStage(ctx: Ctx, villainId: InstanceId): StackFrame 
     ctx.state.firstPlayerId,
   );
   if (nextIndex > villain.lastStageIndex || nextIndex >= villainStageCount(ctx.state, villainId)) {
+    // RRG 1.8 "Victory X" (p. 46): a defeated character with the keyword is placed in the victory display — here the
+    // villain's last stage card (Loki I, `mts` 21160–21164; the Brotherhood of Mutants, `mut_gen` 32121–32124;
+    // docs/phase7-wave4.md §3.7). A defeated villain is out of play either way.
+    const toVictoryDisplay = hasKeyword(ctx.state, villainId, "victory", ctx.deps);
     updateVillain(ctx, villainId, (v) => ({ ...v, defeated: true }));
+    if (toVictoryDisplay) ctx.state = { ...ctx.state, victoryDisplay: [...ctx.state.victoryDisplay, villainId] };
     emit(ctx, { type: "characterDefeated", instanceId: villainId, cardId: villain.cardId });
     pushFrames(ctx, whenDefeated);
     // `victory: "cardAbility"` (The Once and Future Kang): only a card ability wins (docs/phase7-wave2.md §3.4).

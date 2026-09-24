@@ -354,7 +354,7 @@ stays data only.**
 | 3.4  | A main scheme stage's completion is replaceable                          | Tower Defense; Upgrading Adaptoids (`aos`) | landed      |
 | 3.5  | Damage on a card that is not a character (Avengers Tower)                | Tower Defense                              | landed      |
 | 3.6  | A modular set's own deck (the Infinity Stone deck)                       | Thanos, Loki, any scenario                 | landed      |
-| 3.7  | Loki: random start, swap, a villain stage's Victory X, the victory count | Loki; God of Lies (`tt`)                   | not started |
+| 3.7  | Loki: random start, swap, a villain stage's Victory X, the victory count | Loki; God of Lies (`tt`)                   | landed      |
 | 3.8  | An encounter ally attached to the main scheme (Odin)                     | Hela                                       | not started |
 | 3.9  | An ally treated as a minion                                              | Fallen Warrior, Beguiled; 5 other packs    | not started |
 | 3.10 | Flipping a card into a separately emitted face of another type           | MC21 campaign                              | not started |
@@ -547,6 +547,28 @@ deck discard pile" (the deck's discard home), reshuffle when empty without penal
 card (to confirm).
 
 ### 3.7 Loki: random start, swap, a villain stage's Victory X, the victory count
+
+> **Status: landed (2026-09-24),** tested in `packages/engine/src/villain-swap.test.ts` (5 tests: one Loki starts at random
+> from the seed and the rest are set aside; a swap keeps the villain instance, its dial, status cards and counters, sets
+> the old card aside and fires "after Loki is swapped", replay deep-equal; a swapped-in stalwart Loki sheds its status
+> cards; a defeated Loki goes to the victory display and a random set-aside one takes over (dial reset, status and
+> counters kept), and at the victory condition the players win, replay deep-equal; a villain whose last stage has
+> Victory X goes to the victory display on an ordinary defeat). DSL: `wave4-primitives.test.ts`.
+>
+> **What landed:** `GameSetupConfig.randomStartingVillain` (the choice is the game's first RNG draw) and
+> `GameSetupConfig.victoryCondition` (→ `ScenarioRules.victoryCondition`, read by **`ValueSpec victoryCondition`**; the
+> scenario builder picks the number for the modes played). **`EffectSpec swapVillain { villain }`** and
+> **`EffectSpec advanceToSetAsideVillain { villain }`** (`resolve/villain-swap.ts`): the villain stays one instance and
+> takes a random set-aside villain card of its title; the set-aside instance takes the old card, so everything on the
+> villain simply stays. A swap keeps the dial's value (its remaining hit points) and announces **`TriggerEvent
+villainSwapped`** (log `villainReplaced { reason: "swap" }`); an advance resets the dial, sends the old card to the
+> victory display (Victory X) or out of the game, gives toughness its tough status card and resolves the new card's When
+> Revealed (log `villainReplaced { reason: "advance" }`); used from a forced interrupt to the defeat, it leaves the
+> dial above zero, so the defeat does not apply. **Victory X on a villain:** `defeatVillainStage` puts a defeated last
+> stage with the keyword in the victory display (wave 3 §3.4's open item; also the Brotherhood of Mutants, `mut_gen`).
+> A stalwart Loki's status cards go by the existing stalwart rule (wave 3 §3.7). **DSL:** `swapVillain`,
+> `advanceToSetAsideVillain`, `victoryCondition`. **Not covered:** a non-final villain stage with Victory X (no printed
+> card has one); Thunderbolt Backup's in-play swap (`aos` 50131b).
 
 Schema §1.11. RRG 1.8 "'Swap'" (p. 42): swapping an in-play card with an out-of-play card that shares its title means
 "neither card is considered to enter or leave play. Tokens, attached cards, tucked cards, and status cards on the
