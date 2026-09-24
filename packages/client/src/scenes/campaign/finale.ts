@@ -9,7 +9,7 @@
  */
 import Phaser from "phaser";
 import { CARDS_BY_ID } from "../../content/pool.js";
-import { storyFor } from "../../campaign/story.js";
+import { crewLineForSeat, storyFor } from "../../campaign/story.js";
 import { ensurePictureLoaded } from "../../art/pictures.js";
 import { coverCropFavoringBeats } from "../../view/comic-crop.js";
 import type { CampaignRecord } from "../../engine/campaign-storage.js";
@@ -129,11 +129,14 @@ export class CampaignFinaleScene extends Phaser.Scene {
     const m = CampaignFinaleScene.#MARGIN;
     if (pageCrop) {
       // A page-based spread reads full-bleed across the top, the yellow copy band below it — not the side-by-side
-      // grid/copy split the plain villain-picture layout uses (that split exists to fit a tall villain panel).
-      const spreadHeight = Math.round(height * 0.65);
+      // grid/copy split the plain villain-picture layout uses (that split exists to fit a tall villain panel). The
+      // band gets exactly what its own content needs (`#copyBandHeight`); the art gets whatever height is left, so
+      // neither button is ever clipped off the bottom of the screen.
+      const bandHeight = this.#copyBandHeight(width - m * 2, story, false);
+      const spreadHeight = Math.max(160, height - bandHeight - m * 2);
       this.#drawPageSpread({ x: 0, y: 0, width, height: spreadHeight }, story, pageCrop);
       this.#drawCopy(
-        { x: m, y: spreadHeight + m, width: width - m * 2, height: height - spreadHeight - m * 2 },
+        { x: m, y: spreadHeight + m, width: width - m * 2, height: bandHeight },
         view,
         story,
         order,
@@ -169,10 +172,11 @@ export class CampaignFinaleScene extends Phaser.Scene {
   ): void {
     const m = CampaignFinaleScene.#MARGIN;
     if (pageCrop) {
-      const spreadHeight = Math.round(height * 0.63);
+      const bandHeight = this.#copyBandHeight(width - m * 2, story, true);
+      const spreadHeight = Math.max(160, height - bandHeight - m * 2);
       this.#drawPageSpread({ x: 0, y: 0, width, height: spreadHeight }, story, pageCrop);
       this.#drawCopy(
-        { x: m, y: spreadHeight + m, width: width - m * 2, height: height - spreadHeight - m * 2 },
+        { x: m, y: spreadHeight + m, width: width - m * 2, height: bandHeight },
         view,
         story,
         order,
@@ -192,6 +196,32 @@ export class CampaignFinaleScene extends Phaser.Scene {
       stops,
       true,
     );
+  }
+
+  /**
+   * The exact height a page-based spread's copy band needs at `width` — headline (its own real, possibly
+   * font-shrunk, wrapped height; `hideCaption` drops the caption box's variable height entirely for this layout)
+   * plus the fixed-height stat row and both buttons, matching `#drawCopy`'s own gaps below exactly so its
+   * bottom-align "offset" (`rect.height - bottom`) comes out to zero — the art above gets whatever height is left
+   * (`Math.max(160, screenHeight - bandHeight - margins)`), so neither button is ever clipped off-screen.
+   */
+  #copyBandHeight(
+    width: number,
+    story: NonNullable<ReturnType<typeof storyFor>>["finale"] | null,
+    phone: boolean,
+  ): number {
+    const startSize = phone ? 44 : 64;
+    const probe = this.add
+      .text(-10000, -10000, (story?.headline ?? "The campaign is won.").split(" ").join("\n"), {
+        ...textStyle({ ...typeRole.barTitle, size: startSize }, surface.ink.hex),
+      })
+      .setLineSpacing(-8);
+    fitText(probe, width, startSize);
+    const headlineHeight = probe.height;
+    probe.destroy();
+    // Mirrors `#drawCopy`'s own running `y`: headline + 20 gap, the 66px stat row + 20 gap, the 54px primary
+    // button + 10 gap, the 48px outline button.
+    return headlineHeight + 20 + 66 + 20 + 54 + 10 + 48;
   }
 
   /**
@@ -223,9 +253,18 @@ export class CampaignFinaleScene extends Phaser.Scene {
     border.lineStyle(3, surface.ink.hex, 1).strokeRect(rect.x, rect.y, rect.width, rect.height);
 
     const seat = record?.seats[0];
-    const line = story ? finaleHeroLineFor(story.heroLines, 0) : "";
+    const rosterIds = record?.seats.map((s) => s.identityCardId as string) ?? [];
+    // `crewLines` (a `StoryLine` per seat) is what a labeled bubble needs — some heroes have only one real line
+    // (Groot's "I am Groot.") that `heroLines`' plain roster-agnostic strings can't say. No `crewLines` declared
+    // falls back to the old unlabeled behavior rather than risk a name over the wrong words.
+    const resolved = story?.crewLines ? crewLineForSeat(story.crewLines, 0, rosterIds) : null;
+    const line = resolved?.text ?? (!story?.crewLines && story ? finaleHeroLineFor(story.heroLines, 0) : "");
     if (seat && line) {
-      const speakerName = (CARDS_BY_ID.get(seat.identityCardId as string)?.name ?? "").toUpperCase();
+      const speakerName = resolved
+        ? resolved.speaker.kind === "hero" || resolved.speaker.kind === "npc"
+          ? resolved.speaker.name.toUpperCase()
+          : ""
+        : (CARDS_BY_ID.get(seat.identityCardId as string)?.name ?? "").toUpperCase();
       const maxWidth = Math.min(320, rect.width - 32);
       speechBubble(this, rect.x + rect.width - maxWidth - 16, rect.y + rect.height - 90, maxWidth, line, {
         ...(speakerName ? { speaker: speakerName } : {}),

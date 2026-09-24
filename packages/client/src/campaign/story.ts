@@ -207,7 +207,30 @@ export interface CampaignStory {
     readonly page?: string;
     /** This box's own extra stat boxes, in display order. Unset keeps `DEFAULT_FINALE_STATS` (MC10's own two). */
     readonly stats?: readonly FinaleStatSpec[];
+    /**
+     * For a page-based box's spread (`page` set): one `StoryLine` per seat, in seat order — resolved through
+     * `crewLineForSeat` exactly like every other hero line in this file (`lineForRoster`'s "not on the roster ⇒
+     * narrator fallback" rule), because the spread's single bubble is labeled by name and a bare positional string
+     * (`heroLines`) can't say who a character actually is. Some heroes only have one real line at all (Groot's
+     * `"I am Groot."`), so this is not the same text as `heroLines` even where the seats line up. Unset falls back
+     * to `heroLines` with no name label, which is the MC10 grid's own (unlabeled) behavior.
+     */
+    readonly crewLines?: readonly StoryLine[];
   };
+}
+
+/**
+ * `finale.crewLines[seatIndex]` resolved for this roster (`lineForRoster`'s hero/fallback rule), with the last
+ * line reused for a seat count longer than the box wrote for (`finaleHeroLineFor`'s own rule, restated here since
+ * a `StoryLine` array needs the same clamp `campaign-finale-model.ts`'s plain-string version does).
+ */
+export function crewLineForSeat(
+  crewLines: readonly StoryLine[],
+  seatIndex: number,
+  rosterIdentityIds: readonly string[],
+): { readonly speaker: StorySpeaker; readonly text: string } | null {
+  const line = crewLines[Math.min(seatIndex, crewLines.length - 1)];
+  return line ? lineForRoster(line, rosterIdentityIds) : null;
 }
 
 /** A volume on The Saga shelf: every campaign box in release order, playable or not. */
