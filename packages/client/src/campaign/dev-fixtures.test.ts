@@ -70,4 +70,10 @@ describe("seedGmwRun", () => {
     expect(frozen).not.toBeNull();
     expect(frozen!.length).toBeGreaterThan(0);
   });
+
+  test("finished is a won run through all five issues", async () => {
+    const record = await seedGmwRun(service(), "finished");
+    expect(record.status).toBe("won");
+    expect(record.history.filter((entry) => entry.outcome === "won")).toHaveLength(5);
+  }, 30_000);
 });

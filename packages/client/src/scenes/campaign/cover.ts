@@ -24,12 +24,15 @@ import { fitText, McButton } from "../../ui/widgets.js";
 import { fadeScreenIn, goToScreen } from "../../ui/transitions.js";
 import { campaignService } from "../../session.js";
 import { coverModelOf, type CoverModel } from "../../view/campaign-cover-model.js";
+import { isMarketPendingChoice } from "../../view/campaign-market-model.js";
 import { wonStandardOf } from "../../view/campaign-saga-model.js";
 import type { Rect } from "../../view/layout.js";
 import type { CampaignRecord } from "../../engine/campaign-storage.js";
 import { FocusRoute, type FocusStop } from "../focus-route.js";
 import { SCENES } from "../keys.js";
 import type { CampaignCoverData } from "./routes.js";
+
+const cardOf = (id: string) => CARDS_BY_ID.get(id);
 
 const identityNameOf = (id: string): string => CARDS_BY_ID.get(id)?.name ?? id;
 
@@ -39,6 +42,10 @@ export class CampaignCoverScene extends Phaser.Scene {
   #model: CoverModel | null = null;
   #campaignId = "";
   #runId: string | null = null;
+  /** A one-shot, throwaway peek at whether the runner's very next question is Market-shaped — see
+   * `scenes/campaign/frozen-deck.ts`'s own doc comment for why `compose(record, [])` is safe to call here. Only
+   * computed for a box `model.market` says has a Market at all; false otherwise. */
+  #marketOpenNow = false;
 
   constructor() {
     super(SCENES.campaignCover);
@@ -73,6 +80,15 @@ export class CampaignCoverScene extends Phaser.Scene {
       expertUnlocked: wonStandardOf(this.#campaignId, summaries),
       identityNameOf,
     });
+    this.#marketOpenNow = false;
+    if (record && this.#model.market) {
+      const service = campaignService();
+      const current = record.attempt ? await service.discardAttempt(record) : record;
+      const nextNodeId = current.attempt?.nodeId ?? current.position.nextNodeId;
+      const peeked = nextNodeId ? await service.compose(current, []) : null;
+      if (!this.sys.isActive()) return;
+      this.#marketOpenNow = peeked?.kind === "pending" && isMarketPendingChoice(peeked.choice, cardOf);
+    }
     this.#rebuild();
   }
 
@@ -86,7 +102,7 @@ export class CampaignCoverScene extends Phaser.Scene {
     if (frame.phone) this.#drawPhone(frame, model);
     else this.#drawWide(frame, model);
 
-    const order = ["back", "cta", "dossier", "issues", "expert"].filter((key) => this.#stops.has(key));
+    const order = ["back", "cta", "dossier", "issues", "market", "expert"].filter((key) => this.#stops.has(key));
     this.#route?.set(order, this.#stops);
   }
 
@@ -290,12 +306,12 @@ export class CampaignCoverScene extends Phaser.Scene {
       y -= 64;
       const halfWidth = (width - 12) / 2;
       const dossierRect: Rect = { x, y, width: halfWidth, height: 64 };
-      const issuesRect: Rect = { x: x + halfWidth + 12, y, width: halfWidth, height: 64 };
+      const secondRect: Rect = { x: x + halfWidth + 12, y, width: halfWidth, height: 64 };
       campaignActionButton(this, {
         kind: "onInk",
         rect: dossierRect,
         title: "Dossier ▸",
-        subtitle: "Campaign log · heroes & world",
+        subtitle: model.dossierSubtitle,
         subtitleStyle: "label",
         enabled: model.canOpenDossier,
         onClick: () => goToScreen(this, SCENES.campaignDossier, { runId: this.#runId }),
@@ -305,20 +321,47 @@ export class CampaignCoverScene extends Phaser.Scene {
         rect: dossierRect,
         activate: () => goToScreen(this, SCENES.campaignDossier, { runId: this.#runId }),
       });
-      campaignActionButton(this, {
-        kind: "onInk",
-        rect: issuesRect,
-        title: "Issues ▸",
-        subtitle: "All 5 issues · reread",
-        subtitleStyle: "label",
-        enabled: model.canOpenRun,
-        onClick: () => goToScreen(this, SCENES.campaignRun, { runId: this.#runId }),
-        titleSize: 20,
-      });
-      this.#stops.set("issues", {
-        rect: issuesRect,
-        activate: () => goToScreen(this, SCENES.campaignRun, { runId: this.#runId }),
-      });
+
+      // A box with a Market (`model.market`, `walletFieldsOf`) trades the Issues button for THE MARKET — Issues is
+      // still one tap away, as the Dossier's own Issues tab (`scenes/campaign/dossier.ts`'s `TABS`). A box with no
+      // Market (MC10) keeps this second button as Issues, unchanged.
+      if (model.market) {
+        const goToMarket = (): void => {
+          if (this.#marketOpenNow) goToScreen(this, SCENES.campaignMarket, { runId: this.#runId, answers: [] });
+          else goToScreen(this, SCENES.campaignBriefing, { runId: this.#runId });
+        };
+        // First word only ("Rocket Raccoon" → "Rocket") — design tile 16's own compact form for this tight
+        // two-column row; `model.market.seats[].heroName` stays the full name for anything else that reads it.
+        const walletLine = model.market.seats
+          .map((seat) => `${seat.heroName.split(" ")[0]} ${seat.balanceLabel}`)
+          .join(" · ");
+        campaignActionButton(this, {
+          kind: "onInk",
+          rect: secondRect,
+          title: "The Market ▸",
+          subtitle: walletLine,
+          subtitleStyle: "label",
+          enabled: model.canOpenDossier,
+          onClick: goToMarket,
+          titleSize: 20,
+        });
+        this.#stops.set("market", { rect: secondRect, activate: goToMarket });
+      } else {
+        campaignActionButton(this, {
+          kind: "onInk",
+          rect: secondRect,
+          title: "Issues ▸",
+          subtitle: "All 5 issues · reread",
+          subtitleStyle: "label",
+          enabled: model.canOpenRun,
+          onClick: () => goToScreen(this, SCENES.campaignRun, { runId: this.#runId }),
+          titleSize: 20,
+        });
+        this.#stops.set("issues", {
+          rect: secondRect,
+          activate: () => goToScreen(this, SCENES.campaignRun, { runId: this.#runId }),
+        });
+      }
       y -= 10;
     }
 

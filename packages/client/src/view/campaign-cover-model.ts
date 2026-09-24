@@ -8,6 +8,8 @@ import type { CampaignDefinition, CampaignStatus } from "@mc/engine";
 import { storyFor, type CampaignStory } from "../campaign/story.js";
 import type { CampaignRecord } from "../engine/campaign-storage.js";
 import type { PipState } from "../ui/campaign-chrome.js";
+import { ladderFieldOf, walletFieldsOf } from "./campaign-dossier-model.js";
+import { FIELD_SHORT_LABEL } from "./campaign-run-model.js";
 
 export interface CoverModel {
   readonly campaignId: string;
@@ -32,6 +34,25 @@ export interface CoverModel {
   readonly canOpenDossier: boolean;
   readonly canOpenRun: boolean;
   readonly expertUnlocked: boolean;
+  /** Null for a box with no Market (`walletFieldsOf` finds no currency/card-list pair, e.g. MC10) — the Cover
+   * keeps its ISSUES button in that case instead of THE MARKET. */
+  readonly market: CoverMarket | null;
+  /** DOSSIER's own subtitle — "Wallets · Bounty ladder" for a box that has both (found the same shape-based way
+   * `market` is), else the plain "Campaign log · heroes & world" every box's Dossier always shows. */
+  readonly dossierSubtitle: string;
+}
+
+const DEFAULT_DOSSIER_SUBTITLE = "Campaign log · heroes & world";
+
+export interface CoverMarketSeat {
+  readonly heroName: string;
+  /** "1U" — the currency field's own short word (`FIELD_SHORT_LABEL`), first letter only, the compact form design
+   * tile 16 prints beside each seat's name on the Cover's tight two-button row. */
+  readonly balanceLabel: string;
+}
+
+export interface CoverMarket {
+  readonly seats: readonly CoverMarketSeat[];
 }
 
 export interface CoverModelInput {
@@ -115,6 +136,39 @@ export function coverModelOf(input: CoverModelInput): CoverModel {
     canOpenDossier,
     canOpenRun,
     expertUnlocked: input.expertUnlocked,
+    market: coverMarketOf(record, definition, identityNameOf),
+    dossierSubtitle: dossierSubtitleOf(definition),
+  };
+}
+
+/** "Wallets · Bounty ladder" for a box whose definition has both panels' shapes, else the default sentence — every
+ * word here is a panel the Dossier Overview actually shows (`campaign-dossier-model.ts`'s `dossierWallets`/
+ * `campaignDossierBountyLadder`), never invented copy. */
+function dossierSubtitleOf(definition: CampaignDefinition | undefined): string {
+  if (!definition) return DEFAULT_DOSSIER_SUBTITLE;
+  const parts: string[] = [];
+  if (walletFieldsOf(definition)) parts.push("Wallets");
+  if (ladderFieldOf(definition)) parts.push("Bounty ladder");
+  return parts.length > 0 ? parts.join(" · ") : DEFAULT_DOSSIER_SUBTITLE;
+}
+
+/** THE MARKET's per-seat wallet summary, or null for a box with no Market at all (`walletFieldsOf`). */
+function coverMarketOf(
+  record: CampaignRecord | null,
+  definition: CampaignDefinition | undefined,
+  identityNameOf: (id: CardId) => string,
+): CoverMarket | null {
+  if (!record || !definition) return null;
+  const wallet = walletFieldsOf(definition);
+  if (!wallet) return null;
+  const shortLabel = FIELD_SHORT_LABEL[wallet.currencyField] ?? wallet.currencyField;
+  const unitLetter = shortLabel.slice(0, 1).toUpperCase();
+  return {
+    seats: record.seats.map((seat) => {
+      const balance = seat.fields[wallet.currencyField];
+      const amount = balance?.kind === "number" ? balance.value : 0;
+      return { heroName: identityNameOf(seat.identityCardId), balanceLabel: `${amount}${unitLetter}` };
+    }),
   };
 }
 
