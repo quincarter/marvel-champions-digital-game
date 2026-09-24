@@ -1,3 +1,3 @@
-kind: Changed
+kind: Fixed
 body: 'Release: the Linux .rpm bundles in about a second instead of 18+ minutes (its payload is left uncompressed; the card art and audio in it are already compressed)'
 time: 2026-09-24T17:57:14.68332-04:00
