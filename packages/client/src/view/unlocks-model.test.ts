@@ -33,7 +33,7 @@ describe("unlockListRowsOf", () => {
     expect(rowOf(rows, "campaign:trors")).toMatchObject({
       title: "Vol. 1 · The Rise of Red Skull",
       state: "off",
-      detail: "Beat Green Goblin or the Wrecking Crew to unlock The Rise of Red Skull",
+      detail: "Beat Rhino to unlock The Rise of Red Skull",
     });
     expect(rows.find((r) => r.id === "wave:core")).toMatchObject({ status: "Always open" });
     expect(rowOf(rows, `hero:${spiderMan}`)).toMatchObject({ state: "always", detail: "Core Set" });

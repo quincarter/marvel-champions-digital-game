@@ -78,21 +78,25 @@ describe("the unlock path", () => {
     expect(rhino.heroLock(heroNamed("Thor"))).toBe("Beat Ultron to unlock Thor");
     expect(rhino.heroLock(heroNamed("Black Widow"))).toBe("Beat Norman Osborn (Risky Business) to unlock Black Widow");
     expect(rhino.scenarioLock(scenario("breakout"))).toBeNull();
+    // One Rhino win leaves the Core Set: The Rise of Red Skull opens with Wave 1.
+    expect(rhino.scenarioLock(scenario("red-skull"))).toBeNull();
+    expect(rhino.campaignLock("trors")).toBeNull();
+    expect(rhino.campaignLock("gmw")).not.toBeNull();
     expect(make(won(["rhino", "ultron"])).heroLock(heroNamed("Thor"))).toBeNull();
   });
 
   it("seats a campaign box's cast when its wave opens, and the rest as its villains fall", () => {
-    const goblin = make(won(["rhino", "mutagen-formula"]));
+    const goblin = make(won(["rhino"]));
     expect(goblin.campaignLock("trors")).toBeNull();
     expect(goblin.heroLock(heroNamed("Hawkeye"))).toBeNull();
     expect(goblin.heroLock(heroNamed("Spider-Woman"))).toBeNull();
     expect(goblin.heroLock(heroNamed("Ant-Man"))).toBe("Beat Crossbones to unlock Ant-Man");
-    expect(make(won(["rhino", "mutagen-formula", "crossbones"])).heroLock(heroNamed("Ant-Man"))).toBeNull();
+    expect(make(won(["rhino", "crossbones"])).heroLock(heroNamed("Ant-Man"))).toBeNull();
     expect(goblin.campaignLock("gmw")).toBe(
       "Complete The Rise of Red Skull campaign to unlock The Galaxy's Most Wanted",
     );
 
-    const skull = make(won(["rhino", "mutagen-formula"], ["trors"]));
+    const skull = make(won(["rhino"], ["trors"]));
     expect(skull.campaignLock("gmw")).toBeNull();
     expect(skull.heroLock(heroNamed("Groot"))).toBeNull();
     expect(skull.heroLock(heroNamed("Venom"))).toBe("Beat Nebula to unlock Venom");
@@ -135,7 +139,7 @@ describe("opening things by hand", () => {
 
   it("charges nothing for what play already opened", () => {
     expect(make(won(["rhino"])).chargesFor({ kind: "hero", identityCardId: heroNamed("Captain America") })).toEqual([]);
-    expect(make(won(["rhino", "breakout"])).chargesFor({ kind: "campaign", campaignId: "trors" })).toEqual([]);
+    expect(make(won(["rhino"])).chargesFor({ kind: "campaign", campaignId: "trors" })).toEqual([]);
   });
 
   it("opens a campaign with its cast, out of the Saga's order", () => {
@@ -173,7 +177,10 @@ describe("points and news", () => {
   it("says what a win just opened", () => {
     const before = make();
     const after = make(withWin(before.progress, "rhino", "expert"));
-    expect(newsBetween(before, after)).toEqual({ points: 150, unlocked: ["Wave 1", "Captain America"] });
+    expect(newsBetween(before, after)).toEqual({
+      points: 150,
+      unlocked: ["Wave 1", "The Rise of Red Skull", "Captain America", "Hawkeye", "Spider-Woman"],
+    });
     const again = make(withWin(after.progress, "rhino", "standard"));
     expect(newsBetween(after, again)).toEqual({ points: 0, unlocked: [] });
   });

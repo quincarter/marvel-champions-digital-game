@@ -6,8 +6,8 @@
  * fully open — every villain, every hero, no switch. Every later wave opens once the player has done what the wave
  * before it asks:
  *
- * - **Wave 1** (Green Goblin, The Wrecking Crew and their heroes): beat Rhino, the Core Set's first villain.
- * - **The Rise of Red Skull**: beat a Wave 1 villain. Wave 1 ships no campaign box, so its villains stand in.
+ * - **Wave 1** (Green Goblin, The Wrecking Crew and their heroes) and **The Rise of Red Skull**: beat Rhino, the
+ *   Core Set's first villain. One win is all it takes to leave the Core Set; Wave 1 ships no campaign box to finish.
  * - **The Galaxy's Most Wanted**: complete The Rise of Red Skull campaign.
  *
  * **Heroes come one villain at a time.** An open wave seats its box's own cast straight away (Hawkeye and
@@ -93,11 +93,7 @@ export const UNLOCK_WAVES: readonly UnlockWave[] = [
   {
     cycleId: "cycle1",
     name: "The Rise of Red Skull",
-    gate: {
-      kind: "scenarioWin",
-      scenarioIds: ["risky-business", "mutagen-formula", "breakout"],
-      hint: "Beat Green Goblin or the Wrecking Crew",
-    },
+    gate: { kind: "scenarioWin", scenarioIds: ["rhino"], hint: "Beat Rhino" },
     campaignId: "trors",
     starterHeroIds: ["04001a", "04031a"], // Hawkeye, Spider-Woman: MC10's own cast
     heroRewards: [

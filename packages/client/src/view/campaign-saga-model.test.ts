@@ -112,7 +112,7 @@ describe("campaignSagaRows with progression", () => {
   const gmwLookup = (id: string): CampaignDefinition | undefined => campaignDefinitionOf(id);
 
   test("a volume whose wave is still locked stays sealed, with that wave's reason", () => {
-    const reason = "Beat Green Goblin or the Wrecking Crew to unlock The Rise of Red Skull";
+    const reason = "Beat Rhino to unlock The Rise of Red Skull";
     const rows = campaignSagaRows([], {
       definitionOf: lookup,
       identityNameOf: nameOf,

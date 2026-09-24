@@ -14,7 +14,7 @@
  * `incompatibleReasonOf` uses it.
  *
  * **Progression** (`progression/unlocks.ts`) sits on top: a volume whose wave the player hasn't opened stays sealed
- * with that wave's own reason ("Beat Green Goblin or the Wrecking Crew to unlock The Rise of Red Skull"), and
+ * with that wave's own reason ("Beat Rhino to unlock The Rise of Red Skull"), and
  * a volume opened by hand (Settings ▸ Unlocks: one campaign, or "Unlock everything") opens regardless of the
  * Standard-win order.
  */
