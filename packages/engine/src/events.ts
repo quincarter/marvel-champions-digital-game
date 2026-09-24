@@ -295,6 +295,17 @@ export type GameEvent =
        */
       readonly hitPointsReset?: true;
     }
+  /**
+   * A card whose other face is a card of its own turned over (`otherFaceId`, docs/phase7-wave4.md §3.10). `typeChanged`:
+   * the new face is another card type, so its attachments, tucked cards, status cards and tokens were discarded.
+   */
+  | {
+      readonly type: "cardFlippedToOtherFace";
+      readonly instanceId: InstanceId;
+      readonly from: CardId;
+      readonly to: CardId;
+      readonly typeChanged: boolean;
+    }
   /** A double-sided encounter card turned over; `flipped` is true when its other face is now up. */
   | { readonly type: "cardFlipped"; readonly instanceId: InstanceId; readonly flipped: boolean }
   /** The active counter moved (The Wrecking Crew insert, "The Active Villain"). */
