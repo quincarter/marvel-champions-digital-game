@@ -486,12 +486,17 @@ function actionAbilities(
   playerId: PlayerId,
 ): readonly { readonly instanceId: InstanceId; readonly abilityId: AbilityId }[] {
   const found: { instanceId: InstanceId; abilityId: AbilityId }[] = [];
-  for (const id of cardsInPlay(state)) {
-    const controller = controllerOf(state, id);
+  // The cards in play, then the player's own hand for abilities that work in hand (docs/phase7-wave4.md §3.13).
+  const hand = getPlayer(state, playerId)?.hand ?? [];
+  for (const id of [...cardsInPlay(state), ...hand]) {
+    const inHand = hand.includes(id);
+    const controller = inHand ? playerId : controllerOf(state, id);
     if (controller !== null && controller !== playerId) continue;
     for (const ref of activeAbilityRefs(state, id, deps)) {
-      const trigger = deps.abilities[ref.id]?.trigger;
+      const definition = deps.abilities[ref.id];
+      const trigger = definition?.trigger;
       if (trigger?.kind !== "action") continue;
+      if ((definition?.activeIn === "hand") !== inHand) continue;
       // "First Player Action" (docs/phase7-wave3.md §3.13).
       if (trigger.firstPlayerOnly === true && playerId !== state.firstPlayerId) continue;
       found.push({ instanceId: id, abilityId: ref.id });

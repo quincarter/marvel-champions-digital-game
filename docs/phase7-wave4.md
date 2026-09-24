@@ -360,7 +360,7 @@ stays data only.**
 | 3.10 | Flipping a card into a separately emitted face of another type           | MC21 campaign                              | not started |
 | 3.11 | Timing points when a deck runs out                                       | Soul World, Universal Church, Thanos       | landed      |
 | 3.12 | Counting different aspects; Adam Warlock's copy limit                    | Adam Warlock                               | landed      |
-| 3.13 | Abilities active in hand; "cannot choose to discard this card"           | Pip the Troll, System Shock                | not started |
+| 3.13 | Abilities active in hand; "cannot choose to discard this card"           | Pip the Troll, System Shock                | landed      |
 | 3.14 | Player events shuffled into the encounter deck (Cosmic Entities)         | Adam Warlock precon                        | not started |
 | 3.15 | "After the last X counter is removed from here"                          | Ebony Maw; `aos`, `phoenix`                | landed      |
 | 3.16 | Encounter cards in a player's play area                                  | Ebony Maw's Spells                         | landed      |
@@ -668,6 +668,18 @@ distinctCardTypes` exists (Time Stone's "different card type"); **plan:** `Value
 `refMatches` with `aspect`. Deckbuilding is §1.4 plus `validateDeck`.
 
 ### 3.13 Abilities active in hand; "cannot choose to discard this card"
+
+> **Status: landed (2026-09-24),** tested in `packages/engine/src/hand-abilities.test.ts` (3 tests: an action that works in
+> hand is offered and used from hand and not once the card is in play, replay deep-equal; a response that works in hand
+> is offered from hand and puts the card into play; a chosen discard never offers a card that cannot be chosen). **What
+> landed:** **`AbilityDefinition.activeIn: "hand"`**: `useAbility` and `legalActions` accept such an action only while
+> the card is in its user's hand (and every other action only in play); `inHandCandidates` offers such a triggered
+> ability to the hand's owner (its "you"), as an ability, not a play of the card; `candidatesFor` never offers it in
+> play. **`RuleSpec cannotChooseToDiscard`** on a hand-active constant keeps the card out of an effect's chosen discard,
+> a discard-from-hand cost, the end-of-phase discard and the mulligan (`handOptions`); a random discard still takes it.
+> **DSL:** `inHand(definition)`, `cannotChooseToDiscard`. **Behaviour change to know:** a non-event card's action
+> ability could previously be used from hand through a hand-crafted `useAbility` command (no legal move offered it);
+> that is now refused.
 
 Pip the Troll: "While Pip the Troll is in your hand, he gains 'Interrupt: When a player is attacked, spend [energy][mental]
 resources → put Pip the Troll into play under that player's control.'" System Shock (campaign): "You cannot choose to

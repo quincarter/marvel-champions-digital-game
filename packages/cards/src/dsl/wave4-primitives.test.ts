@@ -8,6 +8,11 @@ import { trait } from "@mc/content";
 import { describe, expect, it } from "vitest";
 import {
   action,
+  alterEgoAction,
+  cannotChooseToDiscard,
+  inHand,
+  interrupt,
+  spend,
   constant,
   focusedMainScheme,
   forcedInterrupt,
@@ -43,6 +48,7 @@ import {
   endGame,
   enemyScheme,
   ifThen,
+  putIntoPlay,
   putMainSchemeStageIntoPlay,
   removeCountersFrom,
   swapVillain,
@@ -53,6 +59,7 @@ import {
   chosen,
   distinctAspectsOf,
   each,
+  eventPlayer,
   eventTarget,
   host,
   inAdditionalForm,
@@ -189,5 +196,17 @@ describe("§3.12 different aspects", () => {
         attack(sum(4, distinctAspectsOf(chosen("discarded"))), chosen("enemy")),
       ),
     );
+  });
+});
+
+describe("§3.13 abilities active in hand", () => {
+  it("Pip the Troll and System Shock (21032, 21185)", () => {
+    const pip = inHand(
+      interrupt(on.villainAttacks(), { cost: spend({ energy: 1, mental: 1 }) }, putIntoPlay(self, eventPlayer)),
+    );
+    expect(pip.activeIn).toBe("hand");
+    valid(pip);
+    valid(inHand(constant(cannotChooseToDiscard)));
+    valid(inHand(alterEgoAction({ cost: spend({ mental: 1 }) }, moveCards(cards(self), "removedFromGame"))));
   });
 });

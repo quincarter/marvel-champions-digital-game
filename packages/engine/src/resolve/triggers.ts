@@ -158,6 +158,8 @@ export function candidatesFor(
       if (trigger.kind !== timing || trigger.forced !== forced) continue;
       // A cost reduction is used while paying, not offered in the play's window (docs/phase7-wave3.md §3.20).
       if (definition.playCostReduction) continue;
+      // An ability that works only in hand does nothing in play (docs/phase7-wave4.md §3.13).
+      if (definition.activeIn === "hand") continue;
       const controllerId = controllerOf(state, id);
       // "First Player Interrupt/Response": the first player is the one offered it and resolving it (§3.13).
       if (trigger.firstPlayerOnly === true && controllerId !== null && controllerId !== state.firstPlayerId) continue;
@@ -273,7 +275,29 @@ function inHandCandidates(
   for (const player of playerOrder(state)) {
     for (const id of player.hand) {
       const card = cardOf(state, id);
-      if (card?.type !== "event") continue;
+      if (!card) continue;
+      // "While Pip the Troll is in your hand, he gains 'Interrupt: …'" (`activeIn: "hand"`, docs/phase7-wave4.md §3.13):
+      // an ability of the card, used from hand, not a play of it.
+      if (card.type !== "event") {
+        for (const ref of "abilities" in card ? card.abilities : []) {
+          const definition = deps.abilities[ref.id];
+          if (!definition || definition.activeIn !== "hand") continue;
+          const trigger = definition.trigger;
+          if (trigger.kind !== timing || trigger.forced) continue;
+          if (!formSatisfied(state, player.playerId, trigger.form)) continue;
+          if (limitReached(state, id, ref.id, definition, event, player.playerId)) continue;
+          // The card's "you" is the player whose hand it is in.
+          if (!matchesPattern(state, trigger.on, event, id, deps, player.playerId)) continue;
+          found.push({
+            instanceId: id,
+            abilityId: ref.id,
+            controllerId: player.playerId,
+            forced: false,
+            fromHand: false,
+          });
+        }
+        continue;
+      }
       // "Max 1 per round", "Play only if …": a window never offers a card its restrictions forbid.
       if (playRestrictionFault(state, deps, player.playerId, card, id)) continue;
       for (const ref of card.abilities) {

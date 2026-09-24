@@ -67,6 +67,23 @@ export const threatCannotBeRemoved = (
 export const cannotThwart = (state: GameState, deps: EngineDeps, playerId: PlayerId): boolean =>
   activeRules(state, deps, "cannotThwart").some((active) => rulePlayers(state, active.rule, active).includes(playerId));
 
+/**
+ * The card's own "You cannot choose to discard this card from your hand" (`cannotChooseToDiscard` on a constant that works
+ * in hand, docs/phase7-wave4.md §3.13).
+ */
+export function cannotChooseToDiscard(state: GameState, deps: EngineDeps, id: InstanceId): boolean {
+  const card = cardOf(state, id);
+  if (!card || !("abilities" in card)) return false;
+  return card.abilities.some((ref) => {
+    const definition = deps.abilities[ref.id];
+    return (
+      definition?.trigger.kind === "constant" &&
+      definition.activeIn === "hand" &&
+      (definition.trigger.rules ?? []).some((rule) => rule.kind === "cannotChooseToDiscard")
+    );
+  });
+}
+
 /** A revealed environment goes to the revealer's play area (`entersRevealersPlayArea`, docs/phase7-wave4.md §3.16). */
 export const entersRevealersPlayArea = (state: GameState, deps: EngineDeps, id: InstanceId): boolean =>
   activeRules(state, deps, "entersRevealersPlayArea").some(({ rule, context }) =>
