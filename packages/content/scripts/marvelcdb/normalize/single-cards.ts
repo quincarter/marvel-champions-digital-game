@@ -110,7 +110,7 @@ function readFlipSide(
       code: backCode,
       name: r.back_name ?? r.name,
       real_name: r.back_name ?? r.name,
-      subname: undefined,
+      subname: null,
       text: r.back_text,
       real_text: r.back_text,
       imagesrc: r.backimagesrc ?? null,

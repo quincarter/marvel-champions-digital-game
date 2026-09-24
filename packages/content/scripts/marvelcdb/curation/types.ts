@@ -158,6 +158,11 @@ export interface ScenarioCuration {
   /** Absent = 1 (one modular encounter set). The Wrecking Crew insert sets this 0. */
   readonly modularSetCount?: number;
   /**
+   * See `Scenario.setAsideModularSetCount` (docs/phase7-wave4.md §1.12) — The Hood's Making Connections 1A:
+   * "Choose 7 modular encounter sets and set them aside (you may choose randomly)." Absent = none set aside.
+   */
+  readonly setAsideModularSetCount?: number;
+  /**
    * MarvelCDB codes of villain cards set aside at setup rather than started in the villain deck (wave 2 — The
    * Once and Future Kang insert, "Setup": Kang (II) and Kang (III) are set aside; only Kang (I) starts in the
    * deck). Resolved to card ids the same way `villainCardCode` is. Absent = none.

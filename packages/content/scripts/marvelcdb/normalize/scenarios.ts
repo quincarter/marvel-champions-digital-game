@@ -134,6 +134,7 @@ export function normalizeScenarios(
       ...(multipleVillains ? { multipleVillains } : {}),
       ...(s.usesIdentityEncounterSets === false ? { usesIdentityEncounterSets: false as const } : {}),
       ...(s.modularSetCount !== undefined ? { modularSetCount: s.modularSetCount } : {}),
+      ...(s.setAsideModularSetCount !== undefined ? { setAsideModularSetCount: s.setAsideModularSetCount } : {}),
       ...(setAsideVillainCardIds.length > 0 ? { setAsideVillainCardIds } : {}),
       ...(expertVillains ? { expertVillains } : {}),
       ...(s.victory ? { victory: s.victory } : {}),
