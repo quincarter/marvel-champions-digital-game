@@ -160,6 +160,38 @@ describe("campaignRunModel", () => {
     expect(first?.resultLine).toMatch(/\bunits?\b/);
   });
 
+  it("GMW's 'Won · N units' is the issue's own award, never the cumulative running total `add` stores", async () => {
+    const service = new CampaignService({
+      storage: new MemoryCampaignStorage(),
+      campaignDeps: { pool: Object.fromEntries(POOL_CARDS.map((card) => [card.id as string, card])) },
+      engineDeps: POOL_DEPS,
+    });
+    const record = await seedGmwRun(service, "afterIssue1");
+    const model = campaignRunModel(
+      { ...record, name: "Galaxy's Most Wanted", box: "MC16" },
+      GMW_CAMPAIGN_DEFINITION,
+      storyFor("gmw"),
+      cardName,
+    );
+    // MC16 p. 15's units are written by three separate specs in one victory block, chaining onto each other
+    // (`applyLogWrite`'s own running total) — the line must read the fold's own delta, not that running total.
+    expect(model.issues[0]?.resultLine).toBe("Won · 3 units each");
+  });
+
+  it("MC10's grant-only win still reads 'Won · N cards granted' — no number field to collapse", () => {
+    const won = winCurrentNode(freshLog(), [
+      { instructionId: "mc10.s1.victory.tech", slot: "tech", seatNumber: 1, picked: ["04155"] },
+      { instructionId: "mc10.s1.victory.tech", slot: "tech", seatNumber: 2, picked: ["04156"] },
+    ]);
+    const model = campaignRunModel(
+      { ...won, name: "The Rise of Red Skull", box: "MC10" },
+      TRORS_CAMPAIGN_DEFINITION,
+      storyFor("trors"),
+      cardName,
+    );
+    expect(model.issues[0]?.resultLine).toBe("Won · 2 cards granted");
+  });
+
   it("GMW's and MC10's page-based issues each carry their own comic-page crop", async () => {
     const service = new CampaignService({
       storage: new MemoryCampaignStorage(),

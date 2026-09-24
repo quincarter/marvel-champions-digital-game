@@ -11,6 +11,7 @@ import type { CampaignDefinition, CampaignHistoryEntry, CampaignLog } from "@mc/
 import { issueNumberOf, issueStoryFor, type CampaignStory } from "../campaign/story.js";
 import { renderLogValue, type CardNameOf } from "./campaign-log-model.js";
 import { FIELD_SHORT_LABEL } from "./campaign-run-model.js";
+import { resolvedWritesOf } from "./campaign-log-deltas.js";
 
 /** A field's short word if one is known, else the printed sheet label, lowercased so it reads mid-sentence. */
 /**
@@ -85,33 +86,38 @@ function writeRowsOf(
   heroNameOfSeat: HeroNameOfSeat,
 ): readonly IssueWriteRow[] {
   const rows: IssueWriteRow[] = [];
+  // A `cardRef` write's seat, keyed by the card it names — a grant for that same card (below) reads the hero it
+  // belongs to off this map rather than guessing from array position, which a declined `optional` choice (fewer
+  // grants than seats) would otherwise misalign.
+  const seatOfCard = new Map<string, number>();
+  for (const write of entry.steps.flatMap((step) => (step.skipped ? [] : step.writes))) {
+    if (write.value.kind === "cardRef" && write.seatNumber !== null) {
+      seatOfCard.set(write.value.cardId as string, write.seatNumber);
+    }
+  }
+  // `resolvedWritesOf`: an `add`-mode number write only appears here at its group's *last* (delta-adjusted)
+  // occurrence — every other write kind/mode still appears once per write, exactly as printed today.
+  for (const group of resolvedWritesOf(entry)) {
+    const { field, seatNumber, value, stepIndex, writeIndex, step } = group;
+    // A `cardRef` write (a TECH/Condition upgrade) is always paired with this same step's `grantCard` — the
+    // grant row below already says which card, so the write row would only repeat it.
+    if (value.kind === "cardRef") continue;
+    // An unset flag ("false") is a non-event on the printed sheet; only a flag actually raised is worth a line.
+    if (value.kind === "flag" && !value.value) continue;
+    if (value.kind === "cardList" && value.cardIds.length === 0) continue;
+    const rendered = renderLogValue(value, cardName);
+    const hero = seatNumber !== null ? heroNameOfSeat(seatNumber) : null;
+    const base = value.kind === "flag" ? fieldLabel(field) : `${rendered} ${fieldLabel(field)}`;
+    rows.push({
+      key: `write:${stepIndex}:${writeIndex}`,
+      headline: hero ? `${base} → ${hero}` : base,
+      detail: step.text,
+      citation: step.citation,
+      kind: value.kind === "flag" ? "flag" : "number",
+    });
+  }
   entry.steps.forEach((step, stepIndex) => {
     if (step.skipped) return;
-    // A `cardRef` write's seat, keyed by the card it names — a grant for that same card (below) reads the hero
-    // it belongs to off this map rather than guessing from array position, which a declined `optional` choice
-    // (fewer grants than seats) would otherwise misalign.
-    const seatOfCard = new Map<string, number>();
-    step.writes.forEach((write, writeIndex) => {
-      if (write.value.kind === "cardRef" && write.seatNumber !== null) {
-        seatOfCard.set(write.value.cardId as string, write.seatNumber);
-      }
-      // A `cardRef` write (a TECH/Condition upgrade) is always paired with this same step's `grantCard` — the
-      // grant row below already says which card, so the write row would only repeat it.
-      if (write.value.kind === "cardRef") return;
-      // An unset flag ("false") is a non-event on the printed sheet; only a flag actually raised is worth a line.
-      if (write.value.kind === "flag" && !write.value.value) return;
-      if (write.value.kind === "cardList" && write.value.cardIds.length === 0) return;
-      const rendered = renderLogValue(write.value, cardName);
-      const hero = write.seatNumber !== null ? heroNameOfSeat(write.seatNumber) : null;
-      const base = write.value.kind === "flag" ? fieldLabel(write.field) : `${rendered} ${fieldLabel(write.field)}`;
-      rows.push({
-        key: `write:${stepIndex}:${writeIndex}`,
-        headline: hero ? `${base} → ${hero}` : base,
-        detail: step.text,
-        citation: step.citation,
-        kind: write.value.kind === "flag" ? "flag" : "number",
-      });
-    });
     step.grants.forEach((grant, grantIndex) => {
       const hero = grantHeroName(seatOfCard, grant.cardId as string, heroNameOfSeat);
       const base = cardName(grant.cardId);

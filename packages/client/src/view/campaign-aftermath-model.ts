@@ -25,6 +25,7 @@ import type {
   LogFieldDef,
   LogWrite,
 } from "@mc/engine";
+import { lastWriteGroupsOf } from "./campaign-log-deltas.js";
 
 export interface AftermathOption {
   readonly cardId: CardId;
@@ -378,38 +379,11 @@ function eachTagFor(field: LogFieldDef, deltasBySeat: ReadonlyMap<number, number
 }
 
 /**
- * A field's own value before this history entry's instructions ran — `entry.logBefore`, the same snapshot
- * `LossPolicy.retryBaseline: "nodeStart"` restores on a retry. 0 for a field this entry's own baseline never held
- * (never recorded yet), which is exactly what an `add` write with nothing to add onto should read as.
- */
-function baselineNumberOf(
-  logBefore: CampaignHistoryEntry["logBefore"],
-  field: string,
-  seatNumber: number | null,
-): number {
-  const value =
-    seatNumber === null
-      ? logBefore.shared[field]
-      : logBefore.seats.find((s) => s.seatNumber === seatNumber)?.fields[field];
-  return value?.kind === "number" ? value.value : 0;
-}
-
-/**
  * Every tag the Aftermath's comic page shows for the issue just folded: `nodeId`'s *last* history entry (as
  * `aftermathStamp` reads it — the one this fold just appended, even for a rewound-and-replayed node).
  *
- * **`mode: "add"` writes are cumulative, not deltas.** `CampaignStepTrace.writes`'s own doc comment says a write
- * is recorded "as it goes into the log" — `applyLogWrite` (`engine/campaign/log.ts`) stores the field's *new
- * running total* after each `add`, not the amount that one write alone contributed, because a field several
- * instructions write in sequence (MC16's own "units" field is written by three separate specs in one victory
- * block) chains onto the *previous* write, not onto zero. Reading every `add` write as an independent delta and
- * summing them (an earlier version of this function did exactly that) double- and triple-counts every write after
- * the first, and also folds in whatever the field already held from an earlier issue — GMW's own currency is
- * cumulative across the whole campaign. The fix: for each `(field, seat-or-shared)` a step list touches, only the
- * *last* write in step order matters (it already reflects every earlier one this entry made), and for `add` mode
- * that last value has `entry.logBefore`'s own pre-entry value subtracted back out, so the tag shows what *this
- * fold* contributed, never the campaign's running balance. `set`/`append`/etc. writes are never cumulative this
- * way (`combine`'s own `"set"` case returns the write's value verbatim), so they're used as-is.
+ * The delta math (`mode: "add"` writes are cumulative running totals, not amounts) lives in
+ * `campaign-log-deltas.ts`'s `lastWriteGroupsOf` — see its module doc comment.
  */
 export function aftermathLogTags(
   log: Pick<CampaignLog, "history">,
@@ -421,41 +395,22 @@ export function aftermathLogTags(
   if (!entry) return [];
   const fieldsById = new Map(fields.map((field) => [field.id, field]));
 
-  // The last (non-skipped) write per field+seat this entry made, in the order each group was first touched.
-  const order: string[] = [];
-  const lastByGroup = new Map<string, LogWrite>();
-  for (const step of entry.steps) {
-    if (step.skipped) continue;
-    for (const write of step.writes) {
-      const field = fieldsById.get(write.field);
-      if (!field || field.hidden) continue;
-      const key = `${write.field}:${write.seatNumber ?? "shared"}`;
-      if (!lastByGroup.has(key)) order.push(key);
-      lastByGroup.set(key, write);
-    }
-  }
+  const groups = lastWriteGroupsOf(entry, (fieldId) => {
+    const field = fieldsById.get(fieldId);
+    return !!field && !field.hidden;
+  });
 
   const logged: AftermathLogTag[] = [];
   const perSeatDeltas = new Map<string, Map<number, number>>();
-  for (const key of order) {
-    const write = lastByGroup.get(key)!;
-    const field = fieldsById.get(write.field)!;
-    const isAdd = write.mode === "add" && write.value.kind === "number";
-    const value: LogWrite["value"] = isAdd
-      ? {
-          kind: "number",
-          value:
-            (write.value as { kind: "number"; value: number }).value -
-            baselineNumberOf(entry.logBefore, write.field, write.seatNumber),
-        }
-      : write.value;
-    if (write.seatNumber === null) {
-      const text = loggedTagFor(field, value, cardsById);
+  for (const group of groups) {
+    const field = fieldsById.get(group.field)!;
+    if (group.seatNumber === null) {
+      const text = loggedTagFor(field, group.value, cardsById);
       if (text) logged.push({ text, kind: "logged" });
-    } else if (value.kind === "number") {
-      const bySeat = perSeatDeltas.get(write.field) ?? new Map<number, number>();
-      bySeat.set(write.seatNumber, value.value);
-      perSeatDeltas.set(write.field, bySeat);
+    } else if (group.value.kind === "number") {
+      const bySeat = perSeatDeltas.get(group.field) ?? new Map<number, number>();
+      bySeat.set(group.seatNumber, group.value.value);
+      perSeatDeltas.set(group.field, bySeat);
     }
   }
 

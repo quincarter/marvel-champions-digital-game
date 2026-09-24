@@ -24,6 +24,7 @@ import { issueNumberOf, issueStoryFor, type CampaignStory } from "../campaign/st
 import { campaignLogSheet, renderLogValue, type CardNameOf } from "./campaign-log-model.js";
 import type { RunIssueRow } from "./campaign-run-model.js";
 import { campaignRunModel, FIELD_SHORT_LABEL, PLURALIZED_FIELDS } from "./campaign-run-model.js";
+import { resolvedWritesOf } from "./campaign-log-deltas.js";
 
 /** A field's short word if one is known, else the printed sheet label, lowercased so it reads mid-sentence. */
 function fieldLabelOf(definition: CampaignDefinition): (fieldId: string) => string {
@@ -584,22 +585,25 @@ export function campaignDossierLog(
     });
     if (winning) {
       const fieldLabel = fieldLabelOf(definition);
+      // `resolvedWritesOf`: an `add`-mode number write only appears here at its group's *last* (delta-adjusted)
+      // occurrence — every other write kind/mode still appears once per write, exactly as printed today.
+      for (const group of resolvedWritesOf(winning)) {
+        const { field, value, stepIndex, writeIndex, step } = group;
+        // A `cardRef` write is always paired with this same step's `grantCard` — the grant row below already
+        // names the card, so the write row would only repeat it. An unset flag is a non-event on the sheet.
+        if (value.kind === "cardRef") continue;
+        if (value.kind === "flag" && !value.value) continue;
+        if (value.kind === "cardList" && value.cardIds.length === 0) continue;
+        const rendered = renderLogValue(value, cardName);
+        entries.push({
+          key: `${node.id}:write:${stepIndex}:${writeIndex}`,
+          headline: value.kind === "flag" ? fieldLabel(field) : `${rendered} ${fieldLabel(field)}`,
+          detail: step.text,
+          citation: step.citation,
+        });
+      }
       winning.steps.forEach((step, stepIndex) => {
         if (step.skipped) return;
-        step.writes.forEach((write, writeIndex) => {
-          // A `cardRef` write is always paired with this same step's `grantCard` — the grant row below already
-          // names the card, so the write row would only repeat it. An unset flag is a non-event on the sheet.
-          if (write.value.kind === "cardRef") return;
-          if (write.value.kind === "flag" && !write.value.value) return;
-          if (write.value.kind === "cardList" && write.value.cardIds.length === 0) return;
-          const rendered = renderLogValue(write.value, cardName);
-          entries.push({
-            key: `${node.id}:write:${stepIndex}:${writeIndex}`,
-            headline: write.value.kind === "flag" ? fieldLabel(write.field) : `${rendered} ${fieldLabel(write.field)}`,
-            detail: step.text,
-            citation: step.citation,
-          });
-        });
         step.grants.forEach((grant, grantIndex) => {
           entries.push({
             key: `${node.id}:grant:${stepIndex}:${grantIndex}`,

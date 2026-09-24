@@ -19,6 +19,7 @@ import {
   type ComicPanelRect,
 } from "../campaign/story.js";
 import type { CardNameOf } from "./campaign-log-model.js";
+import { resolvedWritesOf, type LogWriteGroup } from "./campaign-log-deltas.js";
 
 /**
  * Short, on-brand words for a log field, matching the design's own examples ("2 prototypes", "3 delay"). Exported
@@ -161,16 +162,44 @@ function ordinal(n: number): string {
   }
 }
 
+/** A seat number to its hero's printed name, falling back to "Seat N" so a join never drops a seat silently. */
+function heroLabelOf(seats: CampaignLog["seats"], cardName: CardNameOf): (seatNumber: number) => string {
+  return (seatNumber) => {
+    const seat = seats.find((candidate) => candidate.seatNumber === seatNumber);
+    return seat ? cardName(seat.identityCardId) : `Seat ${seatNumber}`;
+  };
+}
+
+/** "3 units" (shared or every seat matched), "3 units each" (every seat's own award, all equal), or "Groot 3,
+ * Rocket 2 units" (seats differ) — one field's own deltas from `resolvedWritesOf`, never a running total. */
+function numberDetailFor(
+  field: string,
+  deltas: readonly LogWriteGroup[],
+  heroLabel: (seatNumber: number) => string,
+): string {
+  const base = FIELD_SHORT_LABEL[field] ?? field;
+  const values = deltas.map((delta) => (delta.value as { kind: "number"; value: number }).value);
+  const label = (forCount: number): string => (PLURALIZED_FIELDS.has(field) && forCount !== 1 ? `${base}s` : base);
+  const seated = deltas.filter((delta) => delta.seatNumber !== null);
+  if (seated.length === 0) return `${values[0]} ${label(values[0]!)}`;
+  const allEqual = values.every((value) => value === values[0]);
+  if (allEqual) return `${values[0]} ${label(values[0]!)} each`;
+  const parts = seated.map((delta) => `${heroLabel(delta.seatNumber!)} ${(delta.value as { value: number }).value}`);
+  const anyPlural = values.some((value) => value !== 1);
+  return `${parts.join(", ")} ${label(anyPlural ? 2 : 1)}`;
+}
+
 /** A short, honest detail line for a won attempt, from what its steps actually wrote — never invented. */
-function detailFor(entry: CampaignHistoryEntry, cardName: CardNameOf): string | null {
-  for (const step of entry.steps) {
-    for (const write of step.writes) {
-      if (write.value.kind === "number" && write.value.value > 0) {
-        const base = FIELD_SHORT_LABEL[write.field] ?? write.field;
-        const label = PLURALIZED_FIELDS.has(write.field) && write.value.value !== 1 ? `${base}s` : base;
-        return `${write.value.value} ${label}`;
-      }
-    }
+function detailFor(
+  entry: CampaignHistoryEntry,
+  cardName: CardNameOf,
+  heroLabel: (seatNumber: number) => string,
+): string | null {
+  const resolved = resolvedWritesOf(entry);
+  const firstPositive = resolved.find((write) => write.value.kind === "number" && write.value.value > 0);
+  if (firstPositive) {
+    const sameField = resolved.filter((write) => write.field === firstPositive.field && write.value.kind === "number");
+    return numberDetailFor(firstPositive.field, sameField, heroLabel);
   }
   const grants = entry.steps.flatMap((step) => step.grants);
   if (grants.length > 0) {
@@ -179,11 +208,16 @@ function detailFor(entry: CampaignHistoryEntry, cardName: CardNameOf): string | 
   return null;
 }
 
-function resultLineFor(nodeId: string, history: readonly CampaignHistoryEntry[], cardName: CardNameOf): string {
+function resultLineFor(
+  nodeId: string,
+  history: readonly CampaignHistoryEntry[],
+  cardName: CardNameOf,
+  heroLabel: (seatNumber: number) => string,
+): string {
   const attempts = history.filter((entry) => entry.nodeId === nodeId);
   const winning = attempts.find((entry) => entry.outcome === "won") ?? attempts[attempts.length - 1];
   if (!winning || winning.outcome !== "won") return attempts.length > 0 ? "Lost" : "";
-  const detail = detailFor(winning, cardName);
+  const detail = detailFor(winning, cardName, heroLabel);
   const tryNumber = attempts.indexOf(winning) + 1;
   const head = tryNumber <= 1 ? "Won" : `Won on ${ordinal(tryNumber)} try`;
   return detail ? `${head} · ${detail}` : head;
@@ -197,6 +231,7 @@ export function campaignRunModel(
 ): CampaignRunModel {
   const nodeIds = definition.graph.nodes.map((node) => node.id);
   const currentId = record.position.nextNodeId;
+  const heroLabel = heroLabelOf(record.seats, cardName);
   const issues: RunIssueRow[] = definition.graph.nodes.map((node) => {
     const resolved = record.position.resolved[node.id];
     const isCurrent = node.id === currentId;
@@ -215,7 +250,7 @@ export function campaignRunModel(
         title,
         status,
         won: resolved === "completed",
-        resultLine: resultLineFor(node.id, record.history, cardName),
+        resultLine: resultLineFor(node.id, record.history, cardName, heroLabel),
         teaser: null,
         blurb: null,
         pageProgressLine: null,

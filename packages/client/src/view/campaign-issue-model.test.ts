@@ -14,11 +14,14 @@ import {
   type CampaignRunnerResult,
   type CampaignSeatSetup,
 } from "@mc/engine";
-import { TRORS_CAMPAIGN_DEFINITION } from "@mc/cards";
+import { GMW_CAMPAIGN_DEFINITION, TRORS_CAMPAIGN_DEFINITION } from "@mc/cards";
 import { TRORS_STARTER_DECKS } from "@mc/content";
 import { buildScenario, CARDS_BY_ID, POOL_CARDS, POOL_DEPS } from "../content/pool.js";
 import type { SessionConfig } from "../engine/host.js";
 import { storyFor } from "../campaign/story.js";
+import { CampaignService } from "../campaign/campaign-service.js";
+import { seedGmwRun } from "../campaign/dev-fixtures.js";
+import { MemoryCampaignStorage } from "../engine/campaign-storage.js";
 import { campaignLaunchConfig, campaignPostGameFold } from "./campaign-step-model.js";
 import { campaignIssueModel } from "./campaign-issue-model.js";
 
@@ -132,5 +135,26 @@ describe("campaignIssueModel", () => {
     // "0 delay counters", not the raw field id "delayCounters" or a bare "0".
     const numberRows = model?.writes.filter((row) => row.kind === "number") ?? [];
     for (const row of numberRows) expect(row.headline).not.toMatch(/[a-z][A-Z]/); // no raw camelCase field id leaked
+  });
+
+  it("GMW's 'units' write is one row per seat with the fold's own delta, not one row per cumulative add", async () => {
+    const service = new CampaignService({
+      storage: new MemoryCampaignStorage(),
+      campaignDeps: { pool: Object.fromEntries(POOL_CARDS.map((card) => [card.id as string, card])) },
+      engineDeps: POOL_DEPS,
+    });
+    const record = await seedGmwRun(service, "afterIssue1");
+    const model = campaignIssueModel(
+      record,
+      GMW_CAMPAIGN_DEFINITION,
+      storyFor("gmw"),
+      "brotherhood-of-badoon",
+      cardName,
+    );
+    const unitRows = model?.writes.filter((row) => row.headline.includes("unit")) ?? [];
+    // Two seats, each their own award — not six rows for MC16's three chained `add` specs per seat, and never the
+    // running total (this issue's own bonus, e.g. "3 unit"), not the campaign's whole balance.
+    expect(unitRows).toHaveLength(2);
+    for (const row of unitRows) expect(row.headline).toMatch(/^3 unit → /);
   });
 });
