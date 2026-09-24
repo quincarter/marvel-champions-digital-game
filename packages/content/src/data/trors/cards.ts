@@ -1533,13 +1533,12 @@ export const TRORS_CARDS: readonly AnyCard[] = [
     encounterSetIds: [encounterSetId("crossbones")],
     boostIcons: 3,
     traits: [trait("WEAPON")],
-    keywords: [],
+    keywords: [{ name: "uses", count: 0, countPerPlayer: 2, counterType: "ammo" }],
     text: {
       printed: "Attach to Crossbones. Uses (2[per_hero] ammo counters).\n[star] Forced Interrupt: When Crossbones attacks you, remove 1 ammo counter from this card and discard the top card of the encounter deck → take indirect damage equal to the number of boost icons on the discarded card.",
       current: "Attach to Crossbones. Uses (2[per_hero] ammo counters).\n[star] Forced Interrupt: When Crossbones attacks you, remove 1 ammo counter from this card and discard the top card of the encounter deck → take indirect damage equal to the number of boost icons on the discarded card.",
     },
     abilities: [
-      { id: abilityId("04064.crossbones-machine-gun-constant") },
       {
         id: abilityId("04064.crossbones-machine-gun-forced-interrupt"),
       },

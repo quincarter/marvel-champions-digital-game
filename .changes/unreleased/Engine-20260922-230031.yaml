@@ -1,0 +1,3 @@
+kind: Engine
+body: 'MainSchemeStage.completionLoses: completing a non-final stage that prints ''If this stage is completed, the players lose the game'' now loses instead of advancing (Escape the Museum 1B/2B; Kang''s Arrival 1B once re-emitted); first tests for indirect damage ''among players'' (docs/phase7-wave3.md §3.37, §3.38)'
+time: 2026-09-22T23:00:31.299335-04:00

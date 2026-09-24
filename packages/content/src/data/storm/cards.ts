@@ -709,7 +709,10 @@ export const STORM_CARDS: readonly AnyCard[] = [
       printed: "Give to the Ororo Munroe player.\nFlip to alter-ego form. You cannot change to hero form.\nAlter-Ego Action: Exhaust Ororo Munroe → remove Claustrophobia from the game.",
       current: "Give to the Ororo Munroe player.\nFlip to alter-ego form. You cannot change to hero form.\nAlter-Ego Action: Exhaust Ororo Munroe → remove Claustrophobia from the game.",
     },
-    abilities: [{ id: abilityId("36030.obligation") }],
+    abilities: [
+      { id: abilityId("36030.claustrophobia-constant") },
+      { id: abilityId("36030.claustrophobia-action") },
+    ],
   },
   {
     id: cardId("36031"),
@@ -745,6 +748,7 @@ export const STORM_CARDS: readonly AnyCard[] = [
     quantityInSet: 1,
     unique: false,
     images: { front: imageRef("/bundles/cards/36032.png") },
+    amplifyIcons: 1,
     encounterSetIds: [encounterSetId("storm_nemesis")],
     startingThreat: { base: 0, perPlayer: 2 },
     icons: [],

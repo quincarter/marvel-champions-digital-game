@@ -1366,7 +1366,10 @@ export class McHpPlate {
 
     const meter = Math.max(3, Math.round(height * 0.14));
     const body = height - meter - 3;
-    const ratio = max > 0 ? Math.max(0, Math.min(1, current / max)) : 0;
+    // An ∞-hit-point villain face (docs/phase7-wave3.md §3.1) always reads full — there is no "how much of
+    // infinity is used up" — and never divides Infinity by Infinity, which would otherwise leave `ratio` NaN.
+    const infinite = max === Infinity;
+    const ratio = infinite ? 1 : max > 0 ? Math.max(0, Math.min(1, current / max)) : 0;
     this.#graphics.clear();
     this.#graphics.fillStyle(surface.paper.hex, alpha).fillRect(0, 0, width, height);
     if (tough) hatchRect(this.#graphics, { x: 0, y: 0, width, height }, status.tough.hex, alpha * 0.28, 9, 3);
@@ -1396,10 +1399,11 @@ export class McHpPlate {
     }
 
     // The current value as large as the plate allows, shrinking only until the
-    // whole reading ("HP 9/11 +2") fits.
+    // whole reading ("HP 9/11 +2") fits. An ∞ face reads as the bare symbol, with no "/max" beside it — there is
+    // no printed maximum to repeat (docs/phase7-wave3.md §3.1).
     const left = 6 + Math.ceil(this.#caption.width) + 6;
-    this.#current.setText(String(current)).setColor(cssOf(surface.ink.hex, alpha));
-    this.#max.setText(`/${max}`).setColor(cssOf(surface.ink.hex, ink.meta * alpha));
+    this.#current.setText(infinite ? "∞" : String(current)).setColor(cssOf(surface.ink.hex, alpha));
+    this.#max.setText(infinite ? "" : `/${max}`).setColor(cssOf(surface.ink.hex, ink.meta * alpha));
     let big = Math.max(CAPTION_FLOOR + 2, Math.round(body * 0.86));
     for (;;) {
       this.#current.setFontSize(big);

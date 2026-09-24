@@ -57,6 +57,12 @@ export type ZoneId =
    */
   | { readonly kind: "scenarioDeck"; readonly name: string }
   | { readonly kind: "scenarioDiscard"; readonly name: string }
+  /**
+   * A scenario's own out-of-play game area (docs/phase7-wave3.md §3.14): Infiltrate the Museum's The Collection, "an
+   * out-of-play game area shared by all players and specific to this scenario. Cards in The Collection follow the
+   * standard rules for out-of-play cards" (MC16 p. 10). Created by the scenario's setup (`createScenarioArea`).
+   */
+  | { readonly kind: "scenarioArea"; readonly name: string }
   | { readonly kind: "villainArea" }
   | { readonly kind: "attachment"; readonly hostInstanceId: InstanceId }
   | { readonly kind: "boost"; readonly hostInstanceId: InstanceId }
@@ -345,6 +351,13 @@ export type GameOutcome =
    */
   | { readonly result: "conceded"; readonly reason: "playerConceded"; readonly byPlayerId: PlayerId };
 
+/** One reveal in `GameState.revealedThisRound`. `phase` is the phase it happened in (a round has one of each). */
+export interface RevealRecord {
+  readonly instanceId: InstanceId;
+  readonly playerId: PlayerId;
+  readonly phase: GameStep["phase"];
+}
+
 /** One attack in `GameState.attackedThisTurn`: who made it, and the title they were showing when they did. */
 export interface AttackRecord {
   readonly attackerInstanceId: InstanceId;
@@ -434,6 +447,26 @@ export interface GameState {
    *   to Laura Kinney still attacked as X-23, and nothing an alter-ego does is recorded under the hero's title.
    */
   readonly attackedThisTurn: Readonly<Record<string, readonly AttackRecord[]>>;
+  /**
+   * Every card revealed this round, in order, with who revealed it and in which phase (RRG 1.8 "Reveal", p. 37): "The
+   * first [Technique] attachment revealed each round gains surge" (Nebula I–III, `gmw`), "The first treachery the engaged
+   * player reveals each villain phase gains surge" (Mister Knife, `stld`). Written by every reveal whatever is in play,
+   * because "the first" counts cards revealed before the rule's card arrived; emptied when the round ends. Absent until a
+   * game's first reveal, so a freshly set-up game serializes as before. docs/phase7-wave3.md §3.8.
+   */
+  readonly revealedThisRound?: readonly RevealRecord[];
+  /**
+   * The cards each player has played **this turn**, in order: "7 damage instead if you have played a [Thwart] event this
+   * turn" (Decisive Blow, `gam`), "5 threat instead if you have played an [Attack] event this turn" (Forward Momentum).
+   * Written when a play commits (so a card counts from the moment it is played), emptied when a turn begins and ends, as
+   * `attackedThisTurn` is. Absent until a game's first play. docs/phase7-wave3.md §3.24 (specified in wave 2 §13.4).
+   */
+  readonly playedThisTurn?: Readonly<Record<string, readonly InstanceId[]>>;
+  /**
+   * The scenario's own out-of-play game areas by name (`ZoneId scenarioArea`; The Collection, docs/phase7-wave3.md
+   * §3.14), each in the order cards entered it. Absent until a scenario creates one, so other games serialize as before.
+   */
+  readonly scenarioAreas?: Readonly<Record<string, readonly InstanceId[]>>;
   /**
    * The campaign this game is a scenario of, exactly as the runner composed it (design §7.1) — **frozen**: nothing
    * in a game ever writes here. Because it lands in the replay baseline, a saved campaign game replays without

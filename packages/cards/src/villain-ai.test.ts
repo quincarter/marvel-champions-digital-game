@@ -83,7 +83,11 @@ function playPassively(initial: GameState, maxCommands = 5_000): GameSession {
 const SCENARIOS = ["rhino", "klaw", "ultron"] as const;
 const DIFFICULTIES = ["standard", "expert"] as const;
 
-describe("the villain side runs itself against scripted players", () => {
+// Each case plays a whole game (up to 4 seats) to an outcome and audits every villain phase. A slow case takes a
+// few seconds alone, well past vitest's 5 s default once several test runs share the machine.
+const FULL_GAME = { timeout: 30_000 } as const;
+
+describe("the villain side runs itself against scripted players", FULL_GAME, () => {
   for (const scenario of SCENARIOS) {
     for (const difficulty of DIFFICULTIES) {
       for (const players of [1, 2, 3, 4]) {
@@ -108,7 +112,7 @@ describe("the villain side runs itself against scripted players", () => {
   }
 });
 
-describe("decisions made on the encounter side's behalf", () => {
+describe("decisions made on the encounter side's behalf", FULL_GAME, () => {
   it("always go to the first player, and the audit records who made each one and why", () => {
     const initial = setup(coreScenario("ultron", { players: seats(4, 0), seed: 1138 }));
     const { session } = playToOutcome(initial, CORE_DEPS);

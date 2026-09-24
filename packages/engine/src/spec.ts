@@ -12,7 +12,7 @@ export type LastingUntil = "endOfPhase" | "endOfRound" | "endOfAttack" | "endOfT
 // Type-only, and the only reference spec.ts makes to `abilities.ts` (which imports types back from here):
 // `EffectSpec applyRuleUntil` carries the same `RuleSpec` union a constant ability's own `rules` do, so a
 // restriction is written once whether a card in play or a lasting effect imposes it (docs/phase7-wave2.md §22).
-import type { RuleSpec } from "./abilities.js";
+import type { EventPattern, RuleSpec } from "./abilities.js";
 // Type-only, and erased at compile time, so the cycle with `campaign.ts` (which names `EffectSpec` and friends) is
 // only in the type graph: the campaign *vocabulary* is data, and the campaign *primitives* are effects.
 import type { CampaignLogValueSpec, LogWriteMode } from "./campaign.js";
@@ -93,6 +93,15 @@ export interface TargetQuery {
    * works on a card (an event) that is not itself an attachment. An unattached card never matches.
    */
   readonly host?: TargetRef;
+  /**
+   * The card has at least one card attached to it that matches this query: "When an ally **with a weapon attachment
+   * upgrade** makes an attack" (Target Practice, `stld` 17017) is `{ categories: ["ally"], hasAttachment: {
+   * categories: ["upgrade"], trait: WEAPON } }`; "the identity the Power Stone is attached to" is `{ categories:
+   * ["identity"], hasAttachment: { name: "Power Stone" } }`. The other direction of `host`, which asks what the
+   * candidate is attached *to*; this asks what is attached to the candidate. The inner query is read in the same
+   * context as the outer one, so its `self`/`you` mean what they mean here. docs/phase7-wave3.md §3.40.
+   */
+  readonly hasAttachment?: TargetQuery;
   /** In play facedown as something else ("each facedown Drone minion"). */
   readonly facedown?: boolean;
   /**
@@ -105,6 +114,12 @@ export interface TargetQuery {
    * boost icon, so this says nothing about the card's pip count.
    */
   readonly starIcon?: boolean;
+  /**
+   * The card carries the unique (⬡) icon: "against a unique enemy" (Godslayer, `gam` 18018), the printed fact
+   * `isUnique` (`unique.ts`) already reads for the deckbuilding unique rule — every hero identity is unique whether
+   * or not its own card prints the icon (RRG 1.8 "Unique", p. 46). docs/phase7-wave3.md §3.26.
+   */
+  readonly unique?: boolean;
   /** Cards with at least one printed icon of this resource type ("each card with a printed [mental] resource"). Wild is its own type. */
   readonly printedResource?: "physical" | "mental" | "energy" | "wild";
   /**
@@ -151,6 +166,14 @@ export interface TargetQuery {
   readonly maxPrintedCost?: number | ValueSpec;
   /** Only enemies this character is allowed to attack right now (RRG "Guard"). */
   readonly attackableBy?: TargetRef;
+  /**
+   * The mirror of `attackableBy`: only characters that could attack, right now, at least one *other* card in play this
+   * query matches (`canAttack`, so a `cannotAttack` rule counts and guard does not bind an enemy). "Choose a minion.
+   * That minion attacks another enemy of your choice" (Moondragon, `drax` 19013) is `{ canAttackOneOf: { categories:
+   * ["enemy"] } }` on the minion choice: a minion with no other enemy to attack is not a valid target, because nothing
+   * in the ability could affect it (RRG 1.8 "Target", pp. 42–43; docs/phase7-wave3.md §3.23).
+   */
+  readonly canAttackOneOf?: TargetQuery;
   /** Excludes cards already bound to these slots: "remove 2 threat from a *different* scheme". */
   readonly excludeSlots?: readonly string[];
   /**
@@ -228,7 +251,33 @@ export interface TargetQuery {
    * card *data* — it matches wherever the card is, and a game with no campaign input matches nothing.
    */
   readonly inCampaignLogField?: { readonly field: string; readonly seat?: PlayerRef };
+  /**
+   * The character is named by one of these names (docs/phase7-wave3.md §3.34): "Ready Cyclops and Phoenix", "Heal 3
+   * damage each from Gwen Stacy and Miles Morales", "Place 2 growth counters on Groot" (the Team-Up cards). An identity
+   * matches by the title on its faceup side, any other character by its title or subtitle (RRG 1.8 "Team-Up", p. 43;
+   * "Identity", p. 23; `titles.ts`). Whoever controls it — pair with `categories: ["identity", "ally"]` for "friendly".
+   */
+  readonly titled?: CharacterNames;
+  /**
+   * The card belongs to the identity-specific set of an identity card named by one of these names, whoever controls
+   * it: "a Rocket Raccoon upgrade" (Flora and Fauna), "a Cyclops card from your discard pile" (Psychic Rapport). RRG 1.8
+   * "Identity-Specific Card" (p. 23): a card of an identity's "set of accompanying cards", its set icon, which the data
+   * carries as `aspect: "hero:<identity card id>"`. Unlike `identitySetOf` (a *player's* identity), this names the
+   * identity itself, so a Team-Up card in either player's hand finds the same cards. Docs/phase7-wave3.md §3.34.
+   */
+  readonly identitySetTitled?: CharacterNames;
 }
+
+/**
+ * Character names as a card prints them (docs/phase7-wave3.md §3.34). `names` is written out; `teamUpOf` reads them
+ * from the Team-Up keyword of the card(s) the ref names (`self` for the Team-Up card itself), so a script never
+ * hard-codes a name its card data already carries. `index` picks one of the keyword's two names (0 or 1): "Place 2
+ * growth counters on **Groot**" is name 0 of "Team-Up (Groot and Rocket Raccoon)". A name "Hero/Alter-ego" ("Black
+ * Panther/T'Challa") names one identity card by both sides (`titles.ts`).
+ */
+export type CharacterNames =
+  | { readonly names: readonly string[] }
+  | { readonly teamUpOf: TargetRef; readonly index?: 0 | 1 };
 
 /** Names one instance without knowing its id at authoring time. */
 export type TargetRef =
@@ -321,13 +370,50 @@ export type PlayerRef =
   /** The player a card is engaged with: "the engaged player" on a minion's own ability. */
   | { readonly kind: "engagedWith"; readonly of: TargetRef }
   /**
+   * The player(s) who control the cards the ref names, in player order: "the player who controls that identity", "a
+   * player who controls a [Web-Warrior] character" (a query ref, then `choosePlayer { among }` to pick one), and "the
+   * player who controls the Power Stone" (Single-Minded Fury, `gmw` 16114), which names the identity the stone is
+   * attached to: `controllerOf(each({ categories: ["identity"], hasAttachment: { name: "Power Stone" } }))`.
+   *
+   * RRG 1.8 "Ownership and Control" (p. 31): a player controls their identity and the player cards in their play
+   * area; "Encounter cards are considered to be under the control of the scenario". So a card no player controls (a
+   * minion, an encounter attachment, the villain) names nobody, and an effect aimed at nobody does nothing — the
+   * Power Stone on the villain gives Single-Minded Fury no player to attack. Not `ownerOf`, which reads who brought
+   * the card into the game and differs once control changes hands. docs/phase7-wave3.md §3.39.
+   */
+  | { readonly kind: "controllerOf"; readonly target: TargetRef }
+  /**
    * "The player who defeated this scheme" (Crossbones' Assault 04070) / "the defeating player" (Mystique's
    * Manipulations, errata RRG 1.8 p. 66): the defeating player recorded on the `schemeDefeated` or
    * `characterDefeated` event in context. Unlike an `on.defeated({ byYou: true })` trigger filter, which is a yes/no
    * gate, this hands the player back as a value a later effect can use. Empty outside a defeat, and for a defeat no
    * player caused (an encounter card's own effect).
    */
-  | { readonly kind: "defeatingPlayer" };
+  | { readonly kind: "defeatingPlayer" }
+  /**
+   * "The player who is engaged with the fewest minions" (Drang III, `gmw` 16060), "the player with the most threat
+   * on their side schemes", "the hero with the fewest remaining hit points" read as a player: the `TargetRef
+   * superlative` for players (docs/phase7-wave3.md §3.35). `measure` is evaluated once per player in `among` (default:
+   * each player), with that player as the scoped player — `PlayerRef scoped` (DSL `thatPlayer`) — so "engaged with
+   * the fewest minions" is `count({ categories: ["minion"], engagedWithPlayer: { kind: "scoped" } })`.
+   *
+   * It is read fresh every time the ref is resolved, so "each time a minion is discarded this way, put it into play
+   * engaged with the player who is engaged with the fewest minions" re-ranks the players for each minion.
+   *
+   * **Ties resolve to every tied player** (`ties: "all"`, the default), as the card superlative does: a ref is
+   * resolved without asking anyone. An effect that needs one player breaks the tie with `choosePlayer { among }`:
+   * RRG 1.8 "First Player" (p. 19), "If an encounter card targets a specific player or card, and there are multiple
+   * eligible targets, the first player selects among the eligible options" — `chooser: firstPlayer` on an encounter
+   * card; the resolving player on a player card (RRG 1.8 "Choose (Game Element)", p. 12). `ties: "first"` takes the
+   * first tied player in player order, for text where the choice cannot matter.
+   */
+  | {
+      readonly kind: "superlative";
+      readonly order: "highest" | "lowest";
+      readonly measure: ValueSpec;
+      readonly among?: PlayerRef;
+      readonly ties?: "all" | "first";
+    };
 
 export type ValueSpec =
   | { readonly kind: "const"; readonly value: number }
@@ -369,6 +455,31 @@ export type ValueSpec =
    */
   | { readonly kind: "sum"; readonly values: readonly ValueSpec[] }
   /**
+   * The least / greatest of several values: "+1 hand size for each facedown encounter card in front of you (to a maximum
+   * of +3 hand size)" (Star-Lord's Helmet, `stld` 17010) is `min(count, 3)`; ruling, Mar 30, 2026 (1): that maximum caps
+   * the Helmet's own bonus. docs/phase7-wave3.md §3.10.
+   */
+  | { readonly kind: "min"; readonly values: readonly [ValueSpec, ...ValueSpec[]] }
+  | { readonly kind: "max"; readonly values: readonly [ValueSpec, ...ValueSpec[]] }
+  /**
+   * The facedown encounter cards dealt to a player and not yet revealed, "in front of" them (RRG 1.8 "Deal", p. 14):
+   * "for each facedown encounter card in front of you" (Star-Lord: Gutsy Move, Sliding Shot, Jet Boots, Star-Lord's
+   * Helmet, `stld`). docs/phase7-wave3.md §3.10.
+   */
+  | { readonly kind: "dealtEncounterCount"; readonly player: PlayerRef }
+  /**
+   * The cards in a scenario out-of-play area, optionally filtered: "If there are at least 5 cards in The Collection" (The
+   * Grand Collection 1B), "for each card in The Collection" (Collector III). docs/phase7-wave3.md §3.14.
+   */
+  | { readonly kind: "scenarioAreaCount"; readonly name: string; readonly filter?: TargetQuery }
+  /**
+   * The cards in the victory display (docs/phase7-wave3.md §3.4), optionally filtered: "Play only if there is a side
+   * scheme in the victory display" (Mission Planning, Critical Hit, Predictable Ploy, Anticipated Attack) is
+   * `compare(victoryDisplayCount({ categories: ["sideScheme"] }), "atLeast", 1)` as a `playOnlyIf` (§3.42). The
+   * victory display is out of play, which is why `exists`/`count` (cards in play) cannot read it.
+   */
+  | { readonly kind: "victoryDisplayCount"; readonly filter?: TargetQuery }
+  /**
    * How many of the cards a ref names match a query, wherever they are (not restricted to in play, unlike `count`):
    * "for each treachery looked at this way" (Falcon, `cap` pack, over `selectCards`' non-in-play "look") reads the
    * cards bound to a slot. Resolved the same way `resourceTypes`/`distinctCardTypes` already read a ref's cards.
@@ -382,6 +493,13 @@ export type ValueSpec =
   | { readonly kind: "damage"; readonly of: TargetRef }
   /** Threat on a scheme: "X is the amount of threat on Bomb Scare". */
   | { readonly kind: "threat"; readonly of: TargetRef }
+  /**
+   * The main scheme's printed stage number, as it reads now: "[Collector] gets +X SCH and +X ATK, where X is equal
+   * to the main scheme's current stage number" (Collector I/II, `gmw` 16080a/16081a). Defaults to the central main
+   * scheme; a separate game area's own stage (Kang's `expertVillains` shape) is unreachable from a card that has no
+   * `TargetRef` for "that area's main scheme" yet — none printed needs it.
+   */
+  | { readonly kind: "mainSchemeStageNumber" }
   /** Boost icons printed on a card: "1 more than the number of boost icons on the discarded card" (with `scaled`). */
   | { readonly kind: "boostIcons"; readonly of: TargetRef }
   /**
@@ -513,8 +631,29 @@ export type Predicate =
    * that type or a wild declared as it. FAQ "Unstoppable Force (#6)" (p. 60): at a cost of 0 it fails.
    */
   | { readonly kind: "paidWithOnly"; readonly resource: TypedResource }
-  /** How many cards of a type a player has played this round is at most `atMost`: "the first ally played each round" → 0. */
-  | { readonly kind: "playedThisRound"; readonly player: PlayerRef; readonly cardType: string; readonly atMost: number }
+  /**
+   * "If you have played a [Thwart] event this turn" (Decisive Blow, Forward Momentum, `gam`): at least `atLeast` (default 1)
+   * of the cards `player` played this turn (`GameState.playedThisTurn`) match `cards`, read wherever those cards are now.
+   * docs/phase7-wave3.md §3.24.
+   */
+  | {
+      readonly kind: "playedThisTurn";
+      readonly player: PlayerRef;
+      readonly cards: TargetQuery;
+      readonly atLeast?: number;
+    }
+  /**
+   * How many cards of a type a player has played this round is at most `atMost`: "the first ally played each round" → 0.
+   * `cardType` absent counts every card type: "If this is the first card you have played this round, return this card to
+   * your hand" (Clobber, Impede, `gam`) reads `atMost: 1` while the card itself resolves, since it counts as played
+   * from the moment it is played (docs/phase7-wave3.md §3.11).
+   */
+  | {
+      readonly kind: "playedThisRound";
+      readonly player: PlayerRef;
+      readonly cardType?: string;
+      readonly atMost: number;
+    }
   /**
    * Compares two live values: "if there is 10 or more threat here" (the Wrecking Crew signature side schemes) →
    * `{ left: { kind: "threat", of: self }, op: "atLeast", right: 10 }`.
@@ -558,7 +697,14 @@ export type Predicate =
       readonly atLeast?: number;
       readonly of?: "count";
       readonly isSet?: boolean;
-    };
+    }
+  /**
+   * "If this activation is an attack/scheme" (Badoon Warlord, Badoon Lieutenant, `gmw` 16121/16119): reads the
+   * enclosing `enemyAttack`/`enemyScheme` event frame (`currentActivationFrameId`), so it also works from inside a
+   * Boost ability, which has no `context.event` of its own. False with no such frame on the stack (a player's own
+   * attack/thwart is a different event kind and doesn't match either reading).
+   */
+  | { readonly kind: "currentActivationIs"; readonly activation: "attack" | "scheme" };
 
 export type StatusName = "stunned" | "confused" | "tough";
 
@@ -621,6 +767,34 @@ export type EffectSpec =
       readonly bind?: string;
     }
   /**
+   * "That minion attacks another enemy of your choice" (Moondragon, `drax` 19013): an enemy attacks another enemy.
+   * docs/phase7-wave3.md §3.23, on §4 Q12 as the user decided it (2026-09-23; no FFG ruling exists): it is **an
+   * attack, not an activation**, although RRG 1.8 "Activation" (p. 6) calls an attack a card ability causes an
+   * activation. So:
+   *
+   * - no boost card (villainous or not), and nothing keyed on `enemyAttack` ("when this minion attacks/activates")
+   *   fires: this resolves as its own `enemyAttacksEnemy` event, never as an `enemyAttack`;
+   * - nobody defends: the target is an enemy, with no controller to defend it or assign its damage;
+   * - the attacker's ATK is dealt to the target as attack damage (`dealDamage.fromAttack`) with the attacker's attack
+   *   keywords, so the target's tough status, damage reductions and retaliate apply as to any attack, and a
+   *   `characterAttacked` event names the target;
+   * - overkill follows RRG 1.8 "Overkill" (p. 31) as written, whoever attacks: a minion the attack defeats spills its
+   *   excess to the (active) villain; a villain target spills nowhere;
+   * - guard does not restrict it: guard binds the engaged *player's* attacks (RRG 1.8 "Guard", p. 21), and an enemy's
+   *   attack is nobody's (`canAttack`); an `attacker`- or `target`-scoped `cannotAttack` rule still does;
+   * - a stunned attacker removes its stunned status card instead of attacking (RRG 1.8 "Stun", p. 41: "When this
+   *   character would attack"), since this is an attack;
+   * - a "—" ATK attacker does not attack, as `attack` treats one (RRG 1.8 "Dash (Value)", p. 15).
+   *
+   * The first card each ref names is used. `bind`: `<bind>.made`, `.damage`, `.damaged`, `.defeated`, as `attack`.
+   */
+  | {
+      readonly kind: "enemyAttacksEnemy";
+      readonly attacker: TargetRef;
+      readonly target: TargetRef;
+      readonly bind?: string;
+    }
+  /**
    * "(thwart)": "Remove N threat from a scheme" resolved as a thwart by your identity (or `thwarter`). Pair with
    * `label: ["thwart"]`. `ignoreCrisis` is `removeThreat.ignoreCrisis`, carried through to the removal this makes.
    */
@@ -678,6 +852,13 @@ export type EffectSpec =
    * `amount` is signed: a negative is "reduce your hero's ATK for that attack" (Ultimate Nullifier).
    */
   | { readonly kind: "modifyBasicPower"; readonly amount: ValueSpec }
+  /**
+   * "Cosmo does not take consequential damage for this use." (Cosmo, `stld` 17020, errata RRG 1.8 p. 67): the pending
+   * consequential damage of each target's current attack or thwart is cancelled. Consequential damage is put on the stack
+   * with the basic power and resolves after it (RRG 1.8 "Consequential Damage", p. 13), so an interrupt to the attack or
+   * thwart finds it still waiting. Does nothing when there is none. docs/phase7-wave3.md §3.21.
+   */
+  | { readonly kind: "cancelConsequentialDamage"; readonly character: TargetRef }
   /** "At the end of this attack, …" — runs after the current attack's responses. The triggering event carries its `results`. */
   | { readonly kind: "atEndOfAttack"; readonly effects: readonly EffectSpec[] }
   /** "After this activation ends, shuffle this card into the encounter deck" (Goblin Knight's boost): `atEndOfAttack`'s timing, for an attack or a scheme. */
@@ -766,6 +947,18 @@ export type EffectSpec =
       readonly until: "endOfPhase" | "endOfRound" | "endOfTurn" | "endOfNextTurn";
       readonly player?: PlayerRef;
     }
+  /**
+   * "Until the end of the turn, heal 2 damage from Rocket Raccoon each time you deal any amount of damage to an enemy."
+   * (Schadenfreude): a lasting `eachTime` effect — every event matching `on` until then resolves `effects`, after the
+   * event and before its responses (docs/phase7-wave3.md §3.17). Like `applyRuleUntil`, "until the end of the turn"
+   * outside a turn is not created (RRG 1.8 "Lasting Effects", p. 26).
+   */
+  | {
+      readonly kind: "eachTimeUntil";
+      readonly until: "endOfPhase" | "endOfRound" | "endOfTurn";
+      readonly on: EventPattern;
+      readonly effects: readonly EffectSpec[];
+    }
   /** "Gain the Aerial trait until the end of the phase" (Rocket Boots). */
   | {
       readonly kind: "grantTraitUntil";
@@ -852,9 +1045,24 @@ export type EffectSpec =
       readonly among: TargetQuery;
       readonly chooser: PlayerRef;
       readonly bind?: string;
+      /**
+       * "Remove a total of **up to** 5 threat from among schemes (as you choose)" (Agile Flight, `stld` 17029;
+       * docs/phase7-wave3.md §3.41): `amount` is the most the chooser may divide, and they may divide fewer points,
+       * but **at least 1** whenever something can be targeted (§4 Q16, decided by the user on 2026-09-23: an
+       * effect's "up to N" chooses at least one when possible, unless a printed "may" makes it optional). Only valid
+       * targets are offered (RRG 1.8 "Target", p. 43: valid "if any part of that ability can affect that target"): a
+       * scheme with threat that can be removed, a character that can take damage. With none, nothing is asked and
+       * nothing happens. The choice is asked even with a single candidate, since how many is still the chooser's.
+       */
+      readonly upTo?: true;
     }
   /** "Choose a player." Binds that player (their identity) into `slot`; use `PlayerRef` `slot` to refer to them. */
-  | { readonly kind: "choosePlayer"; readonly slot: string; readonly chooser: PlayerRef }
+  /**
+   * "Choose a player." `among` limits the choice to the players it names — the tie of a `PlayerRef superlative` ("the
+   * player engaged with the fewest minions", docs/phase7-wave3.md §3.35). With `among`, a single eligible player is
+   * bound without asking (there is no choice to make), and none binds nothing.
+   */
+  | { readonly kind: "choosePlayer"; readonly slot: string; readonly chooser: PlayerRef; readonly among?: PlayerRef }
   /** "Each player …": runs `effects` once per player in player order, with `PlayerRef` `scoped` = that player. */
   | { readonly kind: "forEachPlayer"; readonly players: PlayerRef; readonly effects: readonly EffectSpec[] }
   /**
@@ -1019,9 +1227,9 @@ export type EffectSpec =
    * A deck and discard pile both empty discard nothing and bind nothing (p. 33: "the deck does not reset until there
    * is at least one card in the player's discard pile").
    *
-   * The reset itself is the engine's usual deferred one (`takeTopOfDeck`/`drawCards`): the reshuffle and its dealt
-   * encounter card happen at the next draw from that deck rather than the instant it empties. That is a pre-existing
-   * engine-wide modeling choice, not one this effect makes.
+   * The reset happens the moment the deck empties (`settlePlayerDecks`, `ctx.ts`; ruling, Apr 30, 2026 (3) answer 7;
+   * docs/phase7-wave3.md §4 Q15), so a match that was the deck's last card is already in the new deck when this effect
+   * binds it. A `moveCards` of the slot still finds it there (§4 Q18).
    */
   | {
       readonly kind: "discardDeckUntil";
@@ -1081,6 +1289,11 @@ export type EffectSpec =
       readonly to: PlayerRef | "group";
       readonly amount: ValueSpec;
       readonly bind?: string;
+      /**
+       * Set by the engine for an enemy's attack that deals indirect damage (docs/phase7-wave3.md §3.16): the shares are
+       * that attack's damage (`fromAttack`, reported to the frame's event, the attack), not a card effect's.
+       */
+      readonly fromAttack?: boolean;
     }
   | { readonly kind: "draw"; readonly player: PlayerRef; readonly amount: ValueSpec }
   /**
@@ -1119,6 +1332,16 @@ export type EffectSpec =
       readonly target: TargetRef;
       readonly counterType: string;
       readonly amount: ValueSpec;
+      /**
+       * "(to a maximum of 10)" (Groot's growth counters, `gmw`; Drax's vengeance counters, `drax`): this effect places
+       * at most as many as bring the card to `upTo`, and none when it already holds that many or more. Ruling, Mar 30,
+       * 2026 (1): "'(to a maximum of X)' applies **locally** to that specific ability" — another card may take the card
+       * past it (Captain Americat's counter on Drax, a fourth), and this does not remove the extra. docs/phase7-wave3.md
+       * §3.10.
+       */
+      readonly upTo?: ValueSpec;
+      /** `<bind>.amount`: how many were placed (summed over the targets) — "If you cannot, draw 1 card." (Drax). */
+      readonly bind?: string;
     }
   | {
       readonly kind: "removeCounters";
@@ -1131,7 +1354,34 @@ export type EffectSpec =
    * card in play has no title, traits, keywords or abilities until it is turned faceup or leaves play.
    */
   | { readonly kind: "attach"; readonly card: TargetRef; readonly to: TargetRef; readonly facedown?: boolean }
-  | { readonly kind: "discardFromPlay"; readonly target: TargetRef }
+  /**
+   * `defeated`: the card leaves play because it was defeated, so Victory X sends it (and any Victory X attachment on it)
+   * to the victory display instead (`defeatFromPlay`; RRG 1.8 "Victory X", p. 46). Set by the engine's side-scheme
+   * defeat; a card that says "discard" never sets it. docs/phase7-wave3.md §3.4.
+   */
+  | { readonly kind: "discardFromPlay"; readonly target: TargetRef; readonly defeated?: boolean }
+  /**
+   * "Create 'The Collection' game area" (The Grand Collection 1A, `gmw` 16073a): an empty scenario out-of-play area named
+   * `name` (`GameState.scenarioAreas`, docs/phase7-wave3.md §3.14). Nothing happens if it exists.
+   */
+  | { readonly kind: "createScenarioArea"; readonly name: string }
+  /**
+   * "Defeat a non-[Elite] minion." (Nova Prime, `stld` 17002): each target character is defeated outright, whatever its
+   * remaining hit points (RRG 1.8 "Defeat", p. 15). It is a `characterDefeated` event marked `byEffect`, so "when X would
+   * be defeated" interrupts, When Defeated, Victory X and responses all see it; `cannotBeDefeated` and the permanent
+   * keyword still stop it. An ally or minion is discarded, an identity's player is eliminated, and a villain's stage falls
+   * (RRG 1.8 "Villain Defeat", p. 47). Characters only. docs/phase7-wave3.md §3.9.
+   */
+  | { readonly kind: "defeat"; readonly target: TargetRef }
+  /**
+   * "Interrupt: When an ally is defeated by an enemy attack, return it to its owner's hand **instead of discarding
+   * it**." (Regroup, `drax` 19032; docs/phase7-wave3.md §3.45): from an interrupt to a `characterDefeated` event, the
+   * defeated card goes to `to` instead of its discard pile. `"hand"` and the deck destinations are its owner's. The
+   * card is still defeated: When Defeated, "after … is defeated" and a `defeated` result all still apply. Only the
+   * discard is replaced, so a Victory X card still goes to the victory display (RRG 1.8 "Victory X", p. 46: it is not
+   * being discarded). A later interrupt's destination replaces an earlier one's. Does nothing outside that window.
+   */
+  | { readonly kind: "setDefeatDestination"; readonly to: CardDestination }
   /**
    * "Engage that enemy" (Get Over Here!). RRG 1.8 "Engage" (p. 18): "If a card ability instructs a player to engage a
    * minion, that minion is also considered to have engaged that player", and "while a minion is engaged with a
@@ -1180,6 +1430,15 @@ export type EffectSpec =
    * before the next player's. One player receiving cards is dealt without asking.
    */
   | { readonly kind: "dealEncounterCard"; readonly player: PlayerRef; readonly count?: ValueSpec }
+  /**
+   * "Deal that card to yourself as a facedown encounter card" (You Dare Oppose Me?, `ron` 90005; docs/phase7-wave3.md
+   * §3.47): a card already identified, not the encounter deck's top card. Each card `cards` names that is an encounter
+   * card that can be dealt (attachment, environment, minion, obligation, side scheme, treachery) and is out of play
+   * (the encounter deck or a discard pile, where "discarded this way" leaves it) goes facedown to the first player
+   * `player` names, in `cards` order, into the same zone the villain phase deals to (RRG 1.8 "Deal", p. 15). A card in
+   * play is not dealt: no printed card deals one. Logged as `cardMoved`, like every deal.
+   */
+  | { readonly kind: "dealAsEncounterCard"; readonly cards: TargetRef; readonly player: PlayerRef }
   | { readonly kind: "revealEncounterCard"; readonly player: PlayerRef }
   /**
    * "Give the villain 1 facedown boost card" (Hired Gun 02007, Intimidation 02035), outside any activation. Cards
@@ -1322,9 +1581,14 @@ export type EffectSpec =
    * Parks a `chooseTarget` choice for `chooser` and binds the answer to `slot`.
    *
    * `count` is how many are chosen (default 1) and may be a `ValueSpec`: "deal 1 damage to X enemies", where X was
-   * bound by the ability's cost (Shield Toss). With `optional`, "up to X" (Thunderclap). The choices are distinct
-   * cards, so "different enemies" needs nothing further — and a villain is one enemy however many stages its deck
-   * has (FAQ "Melee (#30)", p. 59: "different stages of the villain are considered to be the same enemy").
+   * bound by the ability's cost (Shield Toss). The choices are distinct cards, so "different enemies" needs nothing
+   * further — and a villain is one enemy however many stages its deck has (FAQ "Melee (#30)", p. 59: "different
+   * stages of the villain are considered to be the same enemy"). With no legal target nothing is asked and the slot
+   * is bound empty (RRG 1.8 "Choose (Game Element)", p. 12).
+   *
+   * - `upTo`: "up to X" (Thunderclap, Air Supremacy, Muster Courage): from 1 to `count`. §4 Q16, decided by the user
+   *   on 2026-09-23: an effect's "up to N" chooses at least one whenever a legal target exists.
+   * - `optional`: a printed "may" — the chooser may choose none. Never the reading of a bare "up to".
    */
   | {
       readonly kind: "chooseTarget";
@@ -1332,6 +1596,7 @@ export type EffectSpec =
       readonly query: TargetQuery;
       readonly chooser: PlayerRef;
       readonly count?: number | ValueSpec;
+      readonly upTo?: true;
       readonly optional?: boolean;
     }
   | {
@@ -1467,6 +1732,8 @@ export type CardSelector =
    * list cannot.
    */
   | { readonly kind: "anyOf"; readonly of: readonly CardSelector[] }
+  /** The cards in a scenario out-of-play area ("discard 1 card from The Collection"; docs/phase7-wave3.md §3.14). */
+  | { readonly kind: "scenarioArea"; readonly name: string; readonly filter?: TargetQuery }
   /**
    * The cards a campaign-log field names, wherever they are in the game: "Shuffle each EXPERIMENTAL attachment
    * recorded in the campaign log into the encounter deck" (MC10 p. 7), MC21 p. 7's campaign pool, MC50 p. 19.
@@ -1496,6 +1763,16 @@ export type CardSelector =
       readonly top?: ValueSpec;
       /** Only the first matching card from the top ("the topmost Tech upgrade"). */
       readonly topmostOnly?: boolean;
+      /**
+       * Only the last matching card from the top, i.e. the one closest to the actual bottom of the zone ("return
+       * the bottommost attack or thwart event from your discard pile", Conditioning Room, `gam` 18008;
+       * docs/phase7-wave3.md §3.26's own reading, promoted once the wording turned out not to compose from
+       * existing vocabulary): the mirror of `topmostOnly`, over the same (optionally filtered) pool. Discarded
+       * cards are prepended (`ctx.ts`'s `moveCard`, "top" position on discard), so the discard pile's own array
+       * order already runs newest-first — the bottommost card is the pile's *last* element, exactly as the deck's
+       * top is its first.
+       */
+      readonly bottommostOnly?: boolean;
       /** N cards chosen at random from the (filtered) zone, per player ("1 card at random from your hand"). */
       readonly random?: ValueSpec;
     };
@@ -1510,6 +1787,8 @@ export type CardSelector =
  * deck faceup", "Shuffle the Invocation card under here into the Invocation deck"); any other card is left where it is.
  */
 export type CardDestination =
+  /** "Put it faceup into The Collection": a scenario out-of-play area, cards faceup (docs/phase7-wave3.md §3.14). */
+  | { readonly scenarioArea: string }
   | "hand"
   | "discard"
   | "deckTop"
@@ -1519,4 +1798,10 @@ export type CardDestination =
   | "encounterDeckShuffle"
   | "separateDiscard"
   | "separateDeckTop"
-  | "separateDeckShuffle";
+  | "separateDeckShuffle"
+  /**
+   * "Set aside the [X] modular encounter set" (Escape the Museum 1A, `gmw` 16082a): the shared set-aside pile
+   * `ZoneId.encounterSetAside`/`CardSelector.encounterSetAside` already reads from (a signature side scheme's own
+   * home before it enters play). No card printed before this needed *sending* a card there rather than reading it.
+   */
+  | "encounterSetAside";

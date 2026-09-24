@@ -19,8 +19,14 @@ import { allAbilityRefIds } from "../src/ability-refs.js";
 import { CORE_ABILITIES } from "../src/core/index.js";
 import { WAVE1_ABILITIES } from "../src/wave1/index.js";
 import { WAVE2_ABILITIES } from "../src/wave2/index.js";
+import { WAVE3_ABILITIES } from "../src/wave3/index.js";
 
-const REGISTRY: Record<string, unknown> = { ...CORE_ABILITIES, ...WAVE1_ABILITIES, ...WAVE2_ABILITIES };
+const REGISTRY: Record<string, unknown> = {
+  ...CORE_ABILITIES,
+  ...WAVE1_ABILITIES,
+  ...WAVE2_ABILITIES,
+  ...WAVE3_ABILITIES,
+};
 
 /** Every `<PACK>_CARDS` array `@mc/content` exports, keyed by the lowercase pack code. */
 function packsFromContent(): Map<string, readonly content.AnyCard[]> {
@@ -30,7 +36,7 @@ function packsFromContent(): Map<string, readonly content.AnyCard[]> {
     if (!match || !Array.isArray(value)) continue;
     const code = match[1]!.toLowerCase();
     // WAVE1_CARDS / WAVE2_CARDS / DATA_ONLY_CARDS are unions of other packs, not packs.
-    if (code === "wave1" || code === "wave2" || code === "data_only") continue;
+    if (code === "wave1" || code === "wave2" || code === "wave3" || code === "data_only") continue;
     packs.set(code, value as readonly content.AnyCard[]);
   }
   return packs;

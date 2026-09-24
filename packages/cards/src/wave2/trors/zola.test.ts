@@ -40,12 +40,27 @@ describe("Zola scenario", () => {
     expect(WAVE2_DEPS.abilities["04110.when-revealed"]).toBeDefined();
   });
 
-  it("The Island of Dr. Zola: places 1 test counter after resolving step one of the villain phase, every round", () => {
+  it("The Island of Dr. Zola (04112b.the-island-of-dr-zola-forced-response): places exactly 1 test counter per villain phase", () => {
     const start = zolaVsHeroes();
     const scheme = start.mainScheme.instanceId;
     expect(inst(start, scheme).counters.test ?? 0).toBe(0);
     const afterRound1 = settle(runWave2(start, toHero(), endTurn()), firstLegal, undefined, WAVE2_DEPS);
-    expect(inst(afterRound1, scheme).counters.test ?? 0).toBeGreaterThanOrEqual(1);
+    expect(inst(afterRound1, scheme).counters.test ?? 0).toBe(1);
+  });
+
+  /**
+   * Found the same bug independently of docs/phase7-wave3-qa.md Finding 1's own three named cards while fixing
+   * them (docs/phase7-wave3.md §3.2/§5): the same "After resolving step one of the villain phase" wording, wired
+   * the same way (`on.threatPlaced(query("mainScheme"))`), on both `zola` stages — fixed alongside The Mad Doctor.
+   */
+  it("The Island of Dr. Zola (04112b.the-island-of-dr-zola-forced-response): does not fire again when Technological Enhancements' Incite (04121) places threat on the main scheme outside step one", () => {
+    const start = zolaVsHeroes();
+    const scheme = start.mainScheme.instanceId;
+    const stacked = stackEncounterDeck(start, ADVANCE, "04121");
+    // Technological Enhancements: Incite 1 (places 1 threat when revealed) plus its own When Revealed, which also
+    // places 1 *test* counter — a retrigger would add a second test counter from the same phase.
+    const settled = settle(runWave2(stacked, toHero(), endTurn()), firstLegal, undefined, WAVE2_DEPS);
+    expect(inst(settled, scheme).counters.test ?? 0).toBe(2);
   });
 
   it("Ultimate Bio-Servant: gets +1 ATK for each attachment on it", () => {

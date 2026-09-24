@@ -1,20 +1,30 @@
-import { PLAYABLE_CARDS, WAVE1_CARDS, WAVE1_STARTER_DECKS, WAVE2_CARDS, WAVE2_STARTER_DECKS } from "@mc/content";
+import {
+  PLAYABLE_CARDS,
+  WAVE1_CARDS,
+  WAVE1_STARTER_DECKS,
+  WAVE2_CARDS,
+  WAVE2_STARTER_DECKS,
+  WAVE3_CARDS,
+  WAVE3_SCENARIOS,
+  WAVE3_STARTER_DECKS,
+} from "@mc/content";
 import { createGame, replay } from "@mc/engine";
 import { playToOutcome } from "../testing/driver.js";
 import { WAVE1_ABILITIES } from "../wave1/index.js";
 import { WAVE2_ABILITIES } from "../wave2/index.js";
+import { WAVE3_ABILITIES } from "../wave3/index.js";
 import { PLAYABLE_ABILITIES, PLAYABLE_DEPS, playableScenario } from "./index.js";
 
-describe("the playable pool is both waves, once", () => {
+describe("the playable pool is every wave, once", () => {
   test("no card id appears twice, and every wave's cards are present", () => {
     const ids = PLAYABLE_CARDS.map((card) => card.id as string);
     expect(new Set(ids).size).toBe(ids.length);
     const known = new Set(ids);
-    for (const card of [...WAVE1_CARDS, ...WAVE2_CARDS]) expect(known.has(card.id)).toBe(true);
+    for (const card of [...WAVE1_CARDS, ...WAVE2_CARDS, ...WAVE3_CARDS]) expect(known.has(card.id)).toBe(true);
   });
 
-  test("every ability either wave scripts is registered, unchanged", () => {
-    for (const registry of [WAVE1_ABILITIES, WAVE2_ABILITIES])
+  test("every ability any wave scripts is registered, unchanged", () => {
+    for (const registry of [WAVE1_ABILITIES, WAVE2_ABILITIES, WAVE3_ABILITIES])
       for (const [id, ability] of Object.entries(registry)) expect(PLAYABLE_ABILITIES[id]).toBe(ability);
   });
 });
@@ -63,4 +73,35 @@ describe("a deck from one wave against a scenario from the other", () => {
       }),
     ).toThrow(/extreme/);
   });
+
+  test("Groot (gmw) vs. a Core villain (Rhino) sets up", () => {
+    const config = playableScenario("rhino", {
+      players: [{ starterDeckId: WAVE3_STARTER_DECKS[0]!.id }],
+      seed: 11,
+    });
+    expect(createGame(config, PLAYABLE_DEPS).ok).toBe(true);
+  });
+
+  test("Spider-Man (Core) vs. Nebula (gmw) sets up", () => {
+    const config = playableScenario("nebula", {
+      players: [{ starterDeckId: "core-spider-man-justice" }],
+      seed: 12,
+    });
+    expect(createGame(config, PLAYABLE_DEPS).ok).toBe(true);
+  });
+});
+
+describe("every wave 3 (gmw) scenario, every wave 3 precon", () => {
+  const cases: readonly [scenario: string, deck: string][] = WAVE3_SCENARIOS.flatMap((scenario) =>
+    WAVE3_STARTER_DECKS.map((deck): [string, string] => [scenario.id as string, deck.id as string]),
+  );
+
+  test.each(cases)(
+    "%s builds with %s",
+    (scenarioId, starterDeckId) => {
+      const config = playableScenario(scenarioId, { players: [{ starterDeckId }], seed: 2026 });
+      expect(createGame(config, PLAYABLE_DEPS).ok).toBe(true);
+    },
+    30_000,
+  );
 });

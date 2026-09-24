@@ -20,6 +20,12 @@ export type GameEvent =
   | { readonly type: "turnStarted"; readonly playerId: PlayerId }
   | { readonly type: "turnEnded"; readonly playerId: PlayerId }
   | { readonly type: "deckShuffled"; readonly zone: ZoneId; readonly order: readonly InstanceId[] }
+  /**
+   * A player's deck emptied and was reset (RRG 1.8 "Player Deck", p. 33): the `deckShuffled` just before this made their
+   * discard pile the new deck, and the `cardMoved` just after deals them their facedown encounter card, if the encounter
+   * deck had one.
+   */
+  | { readonly type: "playerDeckReset"; readonly playerId: PlayerId }
   | {
       readonly type: "cardMoved";
       readonly instanceId: InstanceId;
@@ -43,6 +49,17 @@ export type GameEvent =
    * `fromHeroFormIndex` / `heroFormIndex` are the hero faces before and after (null for alter-ego), present only for an
    * identity with more than one hero face (docs/phase7-wave2.md §3.2), so every other identity logs exactly as before.
    */
+  /**
+   * A card changed controller because a rule says who controls it: "The first player controls the Milano." when the
+   * first player token passes (docs/phase7-wave3.md §3.13).
+   */
+  | {
+      readonly type: "controllerChanged";
+      readonly instanceId: InstanceId;
+      readonly from: PlayerId | null;
+      readonly to: PlayerId;
+      readonly reason: "firstPlayer";
+    }
   /** A player became a card's owner by taking it (RRG 1.8 "Ownership and Control", p. 31; docs/phase7-wave2.md §3.10). */
   | { readonly type: "ownershipChanged"; readonly instanceId: InstanceId; readonly playerId: PlayerId }
   /** A scenario deck took its discard pile back, with no penalty (docs/phase7-wave2.md §3.3). */
@@ -99,7 +116,8 @@ export type GameEvent =
       readonly type: "damagePrevented";
       readonly targetInstanceId: InstanceId;
       readonly amount: number;
-      readonly reason: "tough" | "cancelled" | "effect" | "cannotTakeDamage";
+      /** `reduced`: constant reductions and caps brought it to 0 (docs/phase7-wave3.md §3.15). */
+      readonly reason: "tough" | "cancelled" | "effect" | "cannotTakeDamage" | "reduced";
     }
   | { readonly type: "threatPrevented"; readonly schemeInstanceId: InstanceId; readonly amount: number }
   | {
@@ -121,7 +139,14 @@ export type GameEvent =
       readonly type: "statusRemoved";
       readonly instanceId: InstanceId;
       readonly status: "stunned" | "confused" | "tough";
-      readonly reason: "cancelledAttack" | "cancelledSchemeOrThwart" | "preventedDamage" | "piercing" | "effect";
+      /** `cannotHave`: stalwart, or a `cannotHaveStatus` rule, began to apply (docs/phase7-wave3.md §3.7). */
+      readonly reason:
+        | "cancelledAttack"
+        | "cancelledSchemeOrThwart"
+        | "preventedDamage"
+        | "piercing"
+        | "effect"
+        | "cannotHave";
     }
   | {
       readonly type: "threatPlaced";
@@ -191,6 +216,18 @@ export type GameEvent =
       readonly damageDealt: number;
     }
   /**
+   * An enemy attacked another enemy (`EffectSpec enemyAttacksEnemy`, docs/phase7-wave3.md §3.23): not an activation, so
+   * no boost and no defense, and `damageDealt` is the attacker's ATK. `skipped` says why nothing was dealt: the
+   * attacker or target left play before the attack resolved, a rule forbids the attack now, or the ATK is "—".
+   */
+  | {
+      readonly type: "enemyAttackedEnemy";
+      readonly attackerInstanceId: InstanceId;
+      readonly targetInstanceId: InstanceId;
+      readonly damageDealt: number;
+      readonly skipped?: "leftPlay" | "cannotAttack" | "dashedStat";
+    }
+  /**
    * The scheme half of `attackResolved`: how an activation's threat total was arrived at, each term separately, so a
    * client can show "SCH 1 + 2 boost" rather than one number (RRG 1.8 "Scheme (Enemy Activation)", p. 39, and "Boost",
    * p. 11). `baseSch` already includes an `schBonus` on this activation; `threatBonus` is a change to the *threat*
@@ -215,6 +252,12 @@ export type GameEvent =
       readonly instanceId: InstanceId;
       readonly from: VillainSideLetter;
       readonly to: VillainSideLetter;
+      /**
+       * Present (true) when one of the two faces prints ∞ hit points, so the flip set the dial to the new face's hit
+       * points instead of keeping the damage (docs/phase7-wave3.md §3.1). Absent on every other flip, whose log is
+       * unchanged.
+       */
+      readonly hitPointsReset?: true;
     }
   /** A double-sided encounter card turned over; `flipped` is true when its other face is now up. */
   | { readonly type: "cardFlipped"; readonly instanceId: InstanceId; readonly flipped: boolean }
@@ -261,6 +304,11 @@ export type GameEvent =
       readonly event: TriggerEvent;
       readonly phase: "initiated" | "resolved" | "cancelled";
     }
+  /**
+   * A tough status card will prevent this damage, so the interrupts waiting on it get no window (docs/phase7-wave3.md
+   * §3.12). Logged only when some interrupt was waiting.
+   */
+  | { readonly type: "interruptsPreempted"; readonly event: TriggerEvent; readonly reason: "tough" }
   | {
       readonly type: "windowOpened";
       readonly event: TriggerEvent;
@@ -321,6 +369,16 @@ export type GameEvent =
       readonly amount: number;
     }
   | { readonly type: "surgeTriggered"; readonly instanceId: InstanceId; readonly playerId: PlayerId }
+  /** A `playCostReduction` ability reduced the cost of a card being played (docs/phase7-wave3.md §3.20). */
+  | {
+      readonly type: "playCostReduced";
+      readonly cardInstanceId: InstanceId;
+      readonly instanceId: InstanceId;
+      readonly abilityId: AbilityId;
+      readonly amount: number;
+    }
+  /** A revealed card gained surge from a `firstRevealGainsSurge` rule as it was revealed (docs/phase7-wave3.md §3.8). */
+  | { readonly type: "surgeGranted"; readonly instanceId: InstanceId; readonly playerId: PlayerId }
   | { readonly type: "optionChosen"; readonly label: string; readonly index: number }
   | {
       readonly type: "cardPutIntoPlayFacedown";
@@ -346,7 +404,12 @@ export type GameEvent =
       readonly id: string;
       readonly reason: "expired" | "consumed" | "sourceLeftPlay" | "fired";
     }
-  | { readonly type: "threatRemovalBlocked"; readonly schemeInstanceId: InstanceId; readonly reason: "crisis" | "rule" }
+  /** `patrol`: a thwart by a player a patrol minion is engaged with, against the main scheme (docs/phase7-wave3.md §3.5). */
+  | {
+      readonly type: "threatRemovalBlocked";
+      readonly schemeInstanceId: InstanceId;
+      readonly reason: "crisis" | "patrol" | "rule";
+    }
   /** A card that "cannot leave play" stayed where it was (RRG 1.8 "'Cannot'", p. 11). */
   | { readonly type: "leavePlayBlocked"; readonly instanceId: InstanceId; readonly reason: "cannotLeavePlay" }
   /**

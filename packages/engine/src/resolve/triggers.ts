@@ -4,9 +4,17 @@ import type { EngineDeps, EventPattern } from "../abilities.js";
 import { isPriceFault, planCost, playRestrictionFault } from "../actions.js";
 import type { InstanceId, PlayerId } from "../ids.js";
 import { cardOf, getPlayer, playerOrder } from "../query.js";
-import { activeAbilityRefs, cardsInPlay, controllerOf, type EffectContext, matchesQuery } from "../select.js";
+import {
+  activeAbilityRefs,
+  cardsInPlay,
+  controllerOf,
+  type EffectContext,
+  matchesQuery,
+  uncontrolledYouOf,
+} from "../select.js";
 import type { TargetQuery } from "../spec.js";
 import { candidateOf, type TriggerCandidate, type WindowTiming } from "../stack.js";
+import type { LastingEffect } from "../lasting.js";
 import type { Form, GameState } from "../state.js";
 import { eventSubjects, type TriggerEvent } from "../trigger-events.js";
 import { limitReached } from "./ability.js";
@@ -32,9 +40,15 @@ function matchesPattern(
   }
   const controller = controllerOverride ?? controllerOf(state, selfId);
   if (pattern.playerIs === "controller") {
-    // An encounter card has no controller: its "you" is the player the event is about.
-    if (!controller)
-      return actingPlayerOf(event, pattern) !== null && matchesRest(state, pattern, event, selfId, null, deps);
+    // An encounter card has no controller: its "you" is the player the event is about — unless the rules name its
+    // "you" (an attachment on a player card, an obligation: `uncontrolledYouOf`), when the event must be about them.
+    if (!controller) {
+      const acting = actingPlayerOf(event, pattern);
+      if (acting === null) return false;
+      const named = uncontrolledYouOf(state, selfId);
+      if (named !== null && acting !== named) return false;
+      return matchesRest(state, pattern, event, selfId, null, deps);
+    }
     // RRG p.9: "after [enemy] attacks you" resolves for the attacked player, not the defender.
     const attackedPlayer = pattern.usesAttackedPlayer && event.kind === "enemyAttack" ? event.attackedPlayerId : null;
     if (attackedPlayer !== null) {
@@ -57,7 +71,14 @@ function matchesRest(
 ): boolean {
   const subjects = eventSubjects(event);
   if (pattern.fromAttack !== undefined) {
-    if (event.kind !== "dealDamage" || event.fromAttack !== pattern.fromAttack) return false;
+    // Damage from an attack, or a defeat by attack damage ("defeated by an enemy attack"; docs/phase7-wave3.md §3.45).
+    const fromAttack =
+      event.kind === "dealDamage"
+        ? event.fromAttack
+        : event.kind === "characterDefeated"
+          ? event.fromAttack === true
+          : undefined;
+    if (fromAttack !== pattern.fromAttack) return false;
   }
   const context: EffectContext = { selfInstanceId: selfId, controllerId: controller, event, bindings: {}, deps };
   if (pattern.targetIs) {
@@ -128,9 +149,15 @@ export function candidatesFor(
       if (!definition) continue;
       const trigger = definition.trigger;
       if (trigger.kind !== timing || trigger.forced !== forced) continue;
+      // A cost reduction is used while paying, not offered in the play's window (docs/phase7-wave3.md §3.20).
+      if (definition.playCostReduction) continue;
       const controllerId = controllerOf(state, id);
+      // "First Player Interrupt/Response": the first player is the one offered it and resolving it (§3.13).
+      if (trigger.firstPlayerOnly === true && controllerId !== null && controllerId !== state.firstPlayerId) continue;
       if (!formSatisfied(state, controllerId, trigger.form)) continue;
-      if (limitReached(state, id, ref.id, definition, event)) continue;
+      const limitPlayer =
+        controllerId ?? (trigger.firstPlayerOnly === true ? state.firstPlayerId : actingPlayerOf(event, trigger.on));
+      if (limitReached(state, id, ref.id, definition, event, limitPlayer)) continue;
       if (!matchesPattern(state, trigger.on, event, id, deps)) continue;
       // RRG "Cost": an ability whose cost can't be paid can't be triggered.
       if (
@@ -140,7 +167,8 @@ export function candidatesFor(
       ) {
         continue;
       }
-      const acting = controllerId ?? actingPlayerOf(event, trigger.on);
+      const acting =
+        controllerId ?? (trigger.firstPlayerOnly === true ? state.firstPlayerId : actingPlayerOf(event, trigger.on));
       found.push(candidateOf({ instanceId: id, abilityId: ref.id, controllerId: acting, definition }, forced));
     }
   }
@@ -182,7 +210,7 @@ function spentCardCandidates(
         typeof trigger.on.on === "string" ? [trigger.on.on] : trigger.on.on;
       if (!kinds.includes("resourcesSpent")) continue;
       if (!formSatisfied(state, controllerId, trigger.form)) continue;
-      if (limitReached(state, id, ref.id, definition, event)) continue;
+      if (limitReached(state, id, ref.id, definition, event, controllerId)) continue;
       if (!matchesPattern(state, trigger.on, event, id, deps, controllerId)) continue;
       if (definition.cost && isPriceFault(planCost(state, deps, id, controllerId, definition.cost, {}, new Set())))
         continue;
@@ -211,7 +239,7 @@ function inHandCandidates(
       const card = cardOf(state, id);
       if (card?.type !== "event") continue;
       // "Max 1 per round", "Play only if …": a window never offers a card its restrictions forbid.
-      if (playRestrictionFault(state, deps, player.playerId, card)) continue;
+      if (playRestrictionFault(state, deps, player.playerId, card, id)) continue;
       for (const ref of card.abilities) {
         const definition = deps.abilities[ref.id];
         if (!definition) continue;
@@ -238,7 +266,34 @@ function inHandCandidates(
  * listening resolves exactly as it did before those events existed.
  */
 export const heard = (state: GameState, deps: EngineDeps, event: TriggerEvent): boolean =>
-  hasCandidates(state, deps, event, "interrupt") || hasCandidates(state, deps, event, "response");
+  hasCandidates(state, deps, event, "interrupt") ||
+  hasCandidates(state, deps, event, "response") ||
+  eachTimeEffectsFor(state, deps, event).length > 0;
+
+/**
+ * The lasting "each time …" effects this event sets off (`LastingEffectBody eachTime`, docs/phase7-wave3.md §3.17), in
+ * the order they were created. Each is matched with its scope's card as "self" and its controller as "you", which is
+ * what an event card in its discard pile needs (Schadenfreude).
+ */
+export function eachTimeEffectsFor(
+  state: GameState,
+  deps: EngineDeps,
+  event: TriggerEvent,
+): readonly Extract<LastingEffect, { kind: "eachTime" }>[] {
+  return state.lastingEffects.filter(
+    (effect): effect is Extract<LastingEffect, { kind: "eachTime" }> =>
+      effect.kind === "eachTime" &&
+      effect.scope.selfInstanceId !== null &&
+      matchesPattern(
+        state,
+        effect.on,
+        event,
+        effect.scope.selfInstanceId,
+        deps,
+        effect.scope.controllerId ?? undefined,
+      ),
+  );
+}
 
 export const hasCandidates = (state: GameState, deps: EngineDeps, event: TriggerEvent, timing: WindowTiming): boolean =>
   candidatesFor(state, deps, event, timing, true).length > 0 ||

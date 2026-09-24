@@ -10,6 +10,7 @@ import { POOL_DEPS } from "../content/pool.js";
 import { LocalEngineHost } from "../engine/local-host.js";
 import { SessionStore } from "../store/session-store.js";
 import { appendEvents, emptyLog, logLine, type LogState } from "./log-lines.js";
+import { cardName } from "./names.js";
 
 /** Plays a real Rhino solo game far enough to produce a villain phase. */
 async function playedGame(): Promise<{ log: LogState; state: GameState; viewer: PlayerId }> {
@@ -248,6 +249,77 @@ describe("game log", () => {
       deps,
     );
     expect(beat).toBeNull();
+  });
+});
+
+/**
+ * A card moving into a scenario area (The Collection, docs/phase7-wave3.md §3.14) reads differently depending on
+ * *why* it moved: a card the Collector redirected away from a discard pile ("instead of a discard pile") versus a
+ * card a plain effect put there directly (The Grand Collection's own Setup, Collector II/III's When Revealed) —
+ * reported from play: the plain-move case was wrongly carrying the redirect's own wording. `appendEvents`'s own
+ * lookback (a `cardDiscardedFromPlay` immediately before the `cardMoved`, per `leavePlay`'s emit order) is what
+ * tells them apart; `logLine`'s own `redirected` parameter is the same signal for a single event in isolation.
+ */
+describe("a card moving into a scenario area", () => {
+  let played: Awaited<ReturnType<typeof playedGame>>;
+
+  beforeAll(async () => {
+    played = await playedGame();
+  }, 60_000);
+
+  test("a plain move (no preceding cardDiscardedFromPlay) never claims a redirect", () => {
+    const villain = activeVillain(played.state).instanceId;
+    const cardId = played.state.instances[villain]!.cardId;
+    const beat = logLine(
+      {
+        type: "cardMoved",
+        instanceId: villain,
+        cardId,
+        from: { kind: "deck", playerId: played.viewer },
+        to: { kind: "scenarioArea", name: "The Collection" },
+      },
+      played.state,
+      played.viewer,
+      POOL_DEPS,
+    );
+    expect(beat!.text).toBe(`${cardName(played.state, villain)} is put into The Collection.`);
+    expect(beat!.text).not.toContain("instead of a discard pile");
+  });
+
+  test("a real redirect (a cardDiscardedFromPlay right before it) keeps the redirect wording", () => {
+    const villain = activeVillain(played.state).instanceId;
+    const cardId = played.state.instances[villain]!.cardId;
+    const events: GameEvent[] = [
+      { type: "cardDiscardedFromPlay", instanceId: villain, cardId },
+      {
+        type: "cardMoved",
+        instanceId: villain,
+        cardId,
+        from: { kind: "villainArea" },
+        to: { kind: "scenarioArea", name: "The Collection" },
+      },
+    ];
+    const log = appendEvents(emptyLog(), events, played.state, played.viewer, POOL_DEPS);
+    const moveLine = log.lines.find((line) => line.text.includes("The Collection"));
+    expect(moveLine!.text).toContain("instead of a discard pile");
+  });
+
+  test("the same cardMoved, with no cardDiscardedFromPlay in front of it, drops the redirect wording", () => {
+    const villain = activeVillain(played.state).instanceId;
+    const cardId = played.state.instances[villain]!.cardId;
+    const events: GameEvent[] = [
+      {
+        type: "cardMoved",
+        instanceId: villain,
+        cardId,
+        from: { kind: "villainArea" },
+        to: { kind: "scenarioArea", name: "The Collection" },
+      },
+    ];
+    const log = appendEvents(emptyLog(), events, played.state, played.viewer, POOL_DEPS);
+    const moveLine = log.lines.find((line) => line.text.includes("The Collection"));
+    expect(moveLine!.text).not.toContain("instead of a discard pile");
+    expect(moveLine!.text).toContain("is put into The Collection");
   });
 });
 

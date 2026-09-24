@@ -16,7 +16,7 @@ import { activationVarsOf, plannedAttackDamage } from "../defend-preview.js";
 import { drawEncounterCard, exhaustCard } from "../effects.js";
 import { type FrameId, type InstanceId, instanceId as asInstanceId, type PlayerId } from "../ids.js";
 import { attackKeywordsOf } from "../keywords.js";
-import { boostIconsFor } from "../modifiers.js";
+import { amplifyIconsInPlay, boostIconsFor } from "../modifiers.js";
 import {
   cardOf,
   characterProfile,
@@ -30,7 +30,7 @@ import {
   areaOfCard,
   mainSchemeFor,
 } from "../query.js";
-import { mustDefendWithAlly, schemeThreatDestination } from "../rules.js";
+import { attacksDealIndirectDamage, mustDefendWithAlly, schemeThreatDestination } from "../rules.js";
 import { cardsInPlay, controllerOf, DEFENDER_SLOT } from "../select.js";
 import type { Vars } from "../stack.js";
 import type { GameState } from "../state.js";
@@ -42,6 +42,7 @@ import {
   base,
   type Frame,
   gameAbilityFrames,
+  pushEffects,
   pushEvent,
   pushEvents,
 } from "./frames.js";
@@ -134,7 +135,9 @@ function stepBoostCard(
     );
     if (!boostId) return null;
     updateInstance(ctx, boostId, (i) => ({ ...i, faceup: true }));
-    const icons = boostIconsFor(ctx.state, ctx.deps, boostId);
+    // "When a boost card is turned faceup during an enemy activation, add one additional boost icon to that card for
+    // each amplify icon in play" (RRG 1.8 "Amplify Icon", p. 7; docs/phase7-wave3.md §3.6).
+    const icons = boostIconsFor(ctx.state, ctx.deps, boostId) + amplifyIconsInPlay(ctx.state);
     emit(ctx, {
       type: "boostCardFlipped",
       enemyInstanceId: frame.enemyInstanceId,
@@ -175,7 +178,13 @@ function stepBoostCard(
       return "busy";
     }
   }
-  const counted = boostIconsFor(ctx.state, ctx.deps, boost.countFrom ?? boost.instanceId) + (boost.countAdjust ?? 0);
+  // Amplify is read again at the count, not carried from the flip: "Each amplify icon is equivalent to the following
+  // constant ability: 'Each boost card gains [boost]'" (RRG 1.8 p. 7), and a constant applies while its card is in play
+  // (the Fearless Determination ruling, Jan 11, 2026 (1): its amplify icon "remains in effect" until it leaves play).
+  const counted =
+    boostIconsFor(ctx.state, ctx.deps, boost.countFrom ?? boost.instanceId) +
+    amplifyIconsInPlay(ctx.state) +
+    (boost.countAdjust ?? 0);
   const icons = boost.iconsCancelled ? 0 : Math.max(0, counted);
   // Discarded to its home deck's discard (docs/phase7-wave1.md §4.3, proposed), unless its own Boost ability already
   // moved it ("Put Goblin Thrall into play engaged with you").
@@ -451,6 +460,34 @@ export function executeEnemyAttackFrame(ctx: Ctx, frame: Frame<"enemyAttack">): 
       // "The attack gains piercing/ranged" (Crossfire's boost, Crossfire's Rifle): a `modifyAttack` grant made during
       // this activation, folded in with the enemy's own keywords once and stamped on the events below.
       const keywords = attackKeywordsOf(ctx.state, ctx.deps, { attackerInstanceId: frame.enemyInstanceId, vars });
+      // "Starshark's attacks deal indirect damage" (RRG 1.8 "Indirect Damage", p. 24; docs/phase7-wave3.md §3.16): step
+      // four deals the attack's damage as indirect damage to the player it targets, who assigns it; only the defender
+      // (or the identity) is attacked, so `characterAttacked` still names it and resolves after the damage.
+      if (attacksDealIndirectDamage(ctx.state, ctx.deps, frame.enemyInstanceId)) {
+        pushEvents(ctx, [
+          {
+            kind: "characterAttacked",
+            attackerInstanceId: frame.enemyInstanceId,
+            targetInstanceId: frame.targetInstanceId,
+            playerId: frame.attackedPlayerId,
+            ...(keywords.includes("ranged") ? { ranged: true } : {}),
+          },
+        ]);
+        pushEffects(ctx, {
+          effects: [
+            {
+              kind: "dealIndirectDamage",
+              to: { kind: "id", playerId: frame.targetPlayerId },
+              amount: { kind: "const", value: planned.damage },
+              fromAttack: true,
+            },
+          ],
+          selfInstanceId: frame.enemyInstanceId,
+          controllerId: null,
+          eventFrameId: frame.eventFrameId,
+        });
+        return;
+      }
       pushEvents(ctx, [
         {
           kind: "dealDamage",

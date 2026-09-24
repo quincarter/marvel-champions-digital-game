@@ -9,11 +9,14 @@
 
 import { POOL_DEPS } from "../../content/pool.js";
 import type { AbilityId } from "@mc/content";
-import type { Command, GameState, InstanceId, LegalAction, PlayerId } from "@mc/engine";
+import type { Command, CostSelection, GameState, InstanceId, LegalAction, PlayerId } from "@mc/engine";
+import { tryPayment } from "@mc/engine";
 import { appSession } from "../../session.js";
 import { abilityLabelOf, abilityShortLabelOf } from "../../view/ability-label.js";
 import type { BoardModel } from "../../view/board-model.js";
 import { characterPanel } from "../../view/board-model.js";
+import { costChoicePromptFor, type CostChoicePrompt } from "../../view/cost-choice-model.js";
+import type { CostReductionOption } from "../../view/cost-reduction-model.js";
 import {
   beginDiscardChoice,
   discardChoiceView as buildDiscardChoiceView,
@@ -28,7 +31,13 @@ import {
   type UsableAbilityAction,
 } from "../../view/highlights.js";
 import { cardName, seatIdentityName } from "../../view/names.js";
-import { beginPayment, paymentView, togglePayment, type PaymentView } from "../../view/payment-model.js";
+import {
+  beginPayment,
+  paymentView,
+  toggleCostReduction,
+  togglePayment,
+  type PaymentView,
+} from "../../view/payment-model.js";
 import { targetingPanelOf, type TargetingPanel, type TargetingSource } from "../../view/targeting-panel.js";
 import { BASIC_TO_KIND, retarget, type Selection } from "./selection.js";
 
@@ -398,6 +407,7 @@ export class BoardController {
   }
 
   async #playAs(entry: LegalAction, controllerId: PlayerId | null, confirmFree = false): Promise<void> {
+    if (this.#tryOpenCostChoice(entry, null, controllerId)) return;
     if (entry.needsPayment && this.#openPayment(entry, null, controllerId)) return;
     if (confirmFree) {
       this.#selection = { kind: "confirmingPlay", action: entry, controllerId };
@@ -469,6 +479,7 @@ export class BoardController {
       return;
     }
     const target = entry.targets[0] ?? null;
+    if (this.#tryOpenCostChoice(entry, target, null)) return;
     if (entry.needsPayment && this.#openPayment(entry, target)) return;
     void this.#dispatch(entry.example);
   }
@@ -555,15 +566,73 @@ export class BoardController {
    * Enters payment mode for an action. Returns false when the engine says the
    * action needs no payment after all, so the caller can just dispatch it.
    */
-  #openPayment(entry: LegalAction, target: InstanceId | null, controllerId: PlayerId | null = null): boolean {
+  #openPayment(
+    entry: LegalAction,
+    target: InstanceId | null,
+    controllerId: PlayerId | null = null,
+    costSelection?: CostSelection,
+  ): boolean {
     const { store } = appSession();
     const { game, perspectiveId } = store.state;
     if (!game || perspectiveId === null) return false;
-    const payment = beginPayment(game, perspectiveId, entry.action, target, POOL_DEPS, controllerId);
+    const payment = beginPayment(game, perspectiveId, entry.action, target, POOL_DEPS, controllerId, costSelection);
     if (!payment) return false;
     this.#selection = { kind: "paying", payment };
     this.#host.redraw();
     return true;
+  }
+
+  /**
+   * Opens the either/or branch or "up to N" counter picker for an action whose cost has one
+   * (docs/phase7-wave3.md §3.32, §3.36; `view/cost-choice-model.ts`). Returns false when there is nothing to ask —
+   * no such cost, or only one legal answer — so the caller falls through to its usual payment/dispatch path.
+   */
+  #tryOpenCostChoice(entry: LegalAction, target: InstanceId | null, controllerId: PlayerId | null): boolean {
+    const { game } = appSession().store.state;
+    if (!game) return false;
+    const prompt = costChoicePromptFor(game, POOL_DEPS, entry);
+    if (!prompt) return false;
+    this.#selection = { kind: "choosingCostSelection", action: entry, target, controllerId, prompt };
+    this.#host.redraw();
+    return true;
+  }
+
+  /** The branch/counter prompt open right now, or null outside that mode. */
+  costChoiceView(): CostChoicePrompt | null {
+    return this.#selection.kind === "choosingCostSelection" ? this.#selection.prompt : null;
+  }
+
+  /** Picks an either/or cost's branch, then continues exactly as an ordinary play/ability use would. */
+  async chooseCostBranch(branch: number): Promise<void> {
+    if (this.#readOnly) return;
+    await this.#continueWithCostSelection({ branch });
+  }
+
+  /** Picks how many counters an "up to N" cost removes, then continues as usual. */
+  async chooseCostCounters(counters: number): Promise<void> {
+    if (this.#readOnly) return;
+    await this.#continueWithCostSelection({ counters });
+  }
+
+  async #continueWithCostSelection(costSelection: CostSelection): Promise<void> {
+    if (this.#selection.kind !== "choosingCostSelection") return;
+    const { action, target, controllerId } = this.#selection;
+    this.#selection = { kind: "idle" };
+    if (this.#openPayment(action, target, controllerId, costSelection)) return;
+    // Nothing to pay (a free branch, or a fixed cost the engine already sizes) — build the command directly, the
+    // same way a free card's own confirm path does, rather than opening a payment mode with nothing to spend.
+    const { store } = appSession();
+    const { game, perspectiveId } = store.state;
+    if (!game || perspectiveId === null) return;
+    const attempt = tryPayment(
+      game,
+      perspectiveId,
+      action.action,
+      [],
+      { target, ...(controllerId ? { controllerId } : {}), costSelection },
+      POOL_DEPS,
+    );
+    if (attempt.ok) await this.#dispatch(attempt.command);
   }
 
   /** Tapping a card during payment spends it, if the engine listed it as spendable. */
@@ -603,6 +672,13 @@ export class BoardController {
   #togglePayment(optionId: string): void {
     if (this.#selection.kind !== "paying") return;
     this.#selection = { kind: "paying", payment: togglePayment(this.#selection.payment, optionId) };
+    this.#host.redraw();
+  }
+
+  /** Names or un-names one `playCostReduction` ability on the play (docs/phase7-wave3.md §3.20). */
+  toggleCostReduction(option: CostReductionOption): void {
+    if (this.#readOnly || this.#selection.kind !== "paying") return;
+    this.#selection = { kind: "paying", payment: toggleCostReduction(this.#selection.payment, option) };
     this.#host.redraw();
   }
 

@@ -8,6 +8,7 @@ import {
   type CardInstance,
   type Command,
   type CostChoices,
+  type CostSelection,
   type EngineDeps,
   type GameEvent,
   type GameSetupConfig,
@@ -111,6 +112,7 @@ export const play = (
     readonly attachToInstanceId?: InstanceId;
     readonly costChoices?: CostChoices;
     readonly abilities?: readonly Payment[];
+    readonly costSelection?: CostSelection;
   } = {},
 ): Command => ({
   type: "playCard",
@@ -119,6 +121,7 @@ export const play = (
   payment: [...(extra.abilities ?? []), ...payment.map((fromHand) => ({ fromHand }))],
   attachToInstanceId: extra.attachToInstanceId ?? null,
   ...(extra.costChoices ? { costChoices: extra.costChoices } : {}),
+  ...(extra.costSelection ? { costSelection: extra.costSelection } : {}),
 });
 export const use = (
   player: PlayerId,
@@ -126,6 +129,7 @@ export const use = (
   ability: string,
   payment: readonly Payment[] = [],
   costChoices?: CostChoices,
+  costSelection?: CostSelection,
 ): Command => ({
   type: "useAbility",
   playerId: player,
@@ -133,6 +137,7 @@ export const use = (
   abilityId: ability as never,
   payment,
   ...(costChoices ? { costChoices } : {}),
+  ...(costSelection ? { costSelection } : {}),
 });
 export const resourceAbility = (id: InstanceId, ability: string): Payment => ({
   ability: { instanceId: id, abilityId: ability as never },

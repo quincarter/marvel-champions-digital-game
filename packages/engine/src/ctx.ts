@@ -15,6 +15,7 @@ import type { ChoiceOption, ChoicePrompt, DecisionAuthority, PendingChoice } fro
 import type { CardInstance, GameState, GameStep, PlayerState, ZoneId } from "./state.js";
 import { describeFrame, type StackFrame } from "./stack.js";
 import type { EngineDeps } from "./abilities.js";
+import { resetPlayerDeckIfEmpty } from "./effects.js";
 
 /**
  * Working context for one command. `state` is replaced (never mutated) by each
@@ -89,6 +90,8 @@ function setZone(state: GameState, zone: ZoneId, ids: readonly InstanceId[]): Ga
       const next = zone.kind === "scenarioDeck" ? { ...piles, deck: ids } : { ...piles, discard: ids };
       return { ...state, scenarioDecks: { ...state.scenarioDecks, [zone.name]: next } };
     }
+    case "scenarioArea":
+      return { ...state, scenarioAreas: { ...state.scenarioAreas, [zone.name]: ids } };
     case "villainArea":
       return { ...state, villainArea: ids };
     case "victoryDisplay":
@@ -123,9 +126,33 @@ export type ZonePosition = "top" | "bottom";
 
 /**
  * The single way a card changes zones. Emits `cardMoved` so the log always
- * explains how a card got where it is.
+ * explains how a card got where it is, then resets a player deck the move
+ * emptied (`settlePlayerDecks`).
  */
 export function moveCard(ctx: Ctx, id: InstanceId, to: ZoneId, position: ZonePosition = "bottom"): void {
+  const from = relocateCard(ctx, id, to, position);
+  settlePlayerDecks(ctx, from, to);
+}
+
+/**
+ * RRG 1.8 "Player Deck" (p. 33): "If a player deck empties, the player shuffles their discard pile to make a new deck.
+ * That player immediately deals themself one facedown encounter card", and a deck that empties with no discard pile
+ * resets as soon as "there is at least one card in the player's discard pile". Ruling, Apr 30, 2026 (3) answer 7: "The
+ * deck is reshuffled **before** the currently resolving card enters the discard pile" — so the reset happens the moment
+ * the deck empties, not on its next read (docs/phase7-wave3.md §4 Q15). Every draw, discard, search and mill moves its
+ * cards through `moveCard`, so this one check after a move out of a player's deck or into a player's discard pile is
+ * the rule for all of them.
+ */
+export function settlePlayerDecks(ctx: Ctx, from: ZoneId | null, to: ZoneId): void {
+  if (from?.kind === "deck") resetPlayerDeckIfEmpty(ctx, from.playerId);
+  if (to.kind === "discard") resetPlayerDeckIfEmpty(ctx, to.playerId);
+}
+
+/**
+ * `moveCard` without `settlePlayerDecks`, for a caller that logs its own step between the move and the reset (a draw's
+ * `cardDrawn` comes before the reshuffle it caused). The caller must call `settlePlayerDecks` itself.
+ */
+export function relocateCard(ctx: Ctx, id: InstanceId, to: ZoneId, position: ZonePosition = "bottom"): ZoneId | null {
   const from = locateCard(ctx.state, id);
   if (from) {
     const remaining = zoneOf(ctx.state, from).filter((x) => x !== id);
@@ -152,6 +179,7 @@ export function moveCard(ctx: Ctx, id: InstanceId, to: ZoneId, position: ZonePos
   for (const zone of [from, to]) {
     if (zone?.kind === "separateDeck") syncSeparateDeckTop(ctx, zone.playerId, zone.name);
   }
+  return from ?? null;
 }
 
 /**

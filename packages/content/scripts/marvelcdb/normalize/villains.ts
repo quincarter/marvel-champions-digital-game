@@ -17,19 +17,34 @@ import { prepare, type Prepared } from "./prepare.ts";
 import { ROMAN, scalingOf } from "./values.ts";
 
 /**
- * Stage order: a roman numeral (Core, and wave 1's single-sided villains) or, per The Wrecking Crew, a printed
- * version letter (docs/phase7-wave1.md §1.2 — position A=1, B=2, kept as `VillainStage.stageLabel`).
+ * A "mode + face" stage label (docs/phase7-wave3.md §1.1): The Galaxy's Most Wanted's Collector (`gmw` 16080a/b,
+ * 16081a/b) and The Mad Titan's Shadow's Hela (`mts` 21136a/b, 21137a/b) print `"A1"`/`"A2"` for their standard
+ * double-sided villain card and `"B1"`/`"B2"` for their expert double-sided villain card — **the letter is the
+ * mode and the digit is the face**, unlike The Wrecking Crew's bare `"A"`/`"B"` version letters (§ below) or
+ * MojoMania's MaGog `"A"`/`"B"` *stage* pair. Comparing whole labels would misfile the Collector as MaGog-style
+ * A/B versions (docs/phase7-wave2.md §15.2).
+ */
+const MODE_LABEL_RE = /^([A-Z])(\d+)$/;
+
+/**
+ * Stage order: a roman numeral (Core, and wave 1's single-sided villains), per The Wrecking Crew, a printed
+ * version letter (docs/phase7-wave1.md §1.2 — position A=1, B=2, kept as `VillainStage.stageLabel`), or a
+ * mode+face label (`MODE_LABEL_RE`), whose digit is the face position within its mode's own double-sided card.
  */
 const stageOrder = (rec: RawCard): number => {
   const s = rec.stage ?? "";
   if (ROMAN[s] !== undefined) return ROMAN[s];
+  const modeMatch = MODE_LABEL_RE.exec(s);
+  if (modeMatch) return Number(modeMatch[2]);
   if (/^[A-Z]$/.test(s)) return s.charCodeAt(0) - 64;
   return 0;
 };
 
 const stageLabelOf = (rec: RawCard): string | undefined => {
   const s = rec.stage ?? "";
-  return ROMAN[s] === undefined && /^[A-Z]$/.test(s) ? s : undefined;
+  if (ROMAN[s] !== undefined) return undefined;
+  if (MODE_LABEL_RE.test(s)) return s;
+  return /^[A-Z]$/.test(s) ? s : undefined;
 };
 
 /** MarvelCDB prints a villain's activation order value as a trait ("Activation Order 1") rather than a stat field
@@ -68,10 +83,15 @@ function buildVillainStage(
   if (r.attack === null || r.attack === undefined) dashedStats.push("atk");
   if (r.scheme === null || r.scheme === undefined) dashedStats.push("sch");
   const { traits: stageTraits, activationOrder } = extractActivationOrder(p.traits);
+  // ∞ hit points (docs/phase7-wave3.md §1.1): MarvelCDB encodes a printed ∞ as `health: 0` on a mode+face
+  // record's back face — the Collector's and Hela's "Wounded" faces. `hp` is `flat(0)` either way (`scalingOf`
+  // below), the same encoding `dashedStats` uses for a printed "—".
+  const infiniteHp = MODE_LABEL_RE.test(r.stage ?? "") && r.health === 0;
   const stage: VillainStage = {
     stageNumber,
     ...(stageLabel ? { stageLabel } : {}),
     hp: scalingOf(r.health ?? 0, Boolean(r.health_per_hero)),
+    ...(infiniteHp ? { infiniteHp: true } : {}),
     atk: r.attack ?? 0,
     sch: r.scheme ?? 0,
     ...(dashedStats.length > 0 ? { dashedStats } : {}),
@@ -99,6 +119,50 @@ export function normalizeVillains(ctx: NormalizeContext): Map<string, string> {
       .filter((r) => isVillainLike(r) && r.card_set_code === set)
       .sort((x, y) => stageOrder(x) - stageOrder(y));
     const printedType = stageRecords.some((r) => r.type_code === "leader") ? ("leader" as const) : undefined;
+
+    // Mode + face labels (docs/phase7-wave3.md §1.1): the Collector (`gmw`) and Hela (`mts`) each print two
+    // double-sided villain cards sharing one `card_set_code` — a standard mode card (`"A1"`/`"A2"`) and an expert
+    // mode card (`"B1"`/`"B2"`) — not two stages of one card. Each mode's front record (digit 1, top-level) links
+    // to its own hidden back record (digit 2); the mode letter, not the digit, decides which physical card a
+    // record belongs to. Handled before `versionPairs`/`doubleSided` below, which would otherwise read the
+    // digit as a *stage* number and misfile the pair the MaGog way (docs/phase7-wave2.md §15.2).
+    const modeLabelled = stageRecords.length > 0 && stageRecords.every((r) => MODE_LABEL_RE.test(r.stage ?? ""));
+    if (modeLabelled) {
+      const modeOf = (r: RawCard) => (MODE_LABEL_RE.exec(r.stage ?? "") as RegExpExecArray)[1] as string;
+      const modes = [...new Set(stageRecords.map(modeOf))];
+      for (const mode of modes) {
+        for (const r of stageRecords.filter((rec) => modeOf(rec) === mode)) {
+          const linked = r.linked_card;
+          if (!linked || linked.type_code !== "villain") {
+            errors.push(`${r.code}: expected a mode+face villain stage linked to its other face`);
+            continue;
+          }
+          const front = buildVillainStage(ctx, r);
+          const back = buildVillainStage(ctx, linked);
+          if (front.prepared.name !== back.prepared.name) errors.push(`${r.code}: villain face names differ`);
+          // Both faces are the same single stage, flipped (VillainCard doc: "every side lists the same stage
+          // numbers"); the printed digit told them apart as records, not as stages.
+          const card: VillainCard = {
+            ...baseFields(ctx, front.prepared, front.prepared.raw.code, [r.code, linked.code], null),
+            type: "villain",
+            encounterSetIds: [brand("encounterSet", set)],
+            sides: [
+              { side: "A", name: front.prepared.name, stages: [{ ...front.stage, stageNumber: 1 }] },
+              { side: "B", name: back.prepared.name, stages: [{ ...back.stage, stageNumber: 1 }] },
+            ],
+            ...(printedType ? { printedType } : {}),
+            ...(front.activationOrder !== undefined || back.activationOrder !== undefined
+              ? { activationOrder: front.activationOrder ?? back.activationOrder }
+              : {}),
+          };
+          record(ctx, card, set, [front.prepared, back.prepared]);
+        }
+      }
+      // Standard and expert are different physical cards, so there is no single "the villain" of this set for
+      // `villainIdBySet` to point at — the scenario names each card id directly (`villainCardId` and
+      // `expertVillains.villainCardId`, the same shape The Once and Future Kang's colliding-stage sets use below).
+      continue;
+    }
 
     // A linked pair whose two faces print *different* stages is one card carrying two difficulty versions, not
     // two faces of the same stage: MojoMania's MaGog (39001a "A" / 39001b "B"), main scheme 1A "Contents": "MaGog

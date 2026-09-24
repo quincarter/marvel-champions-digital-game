@@ -13,14 +13,6 @@ import {
   CYCLOPS_PACK,
   GAMBIT_CARDS,
   GAMBIT_PACK,
-  DRAX_CARDS,
-  DRAX_PACK,
-  GAM_CARDS,
-  GAM_PACK,
-  STLD_CARDS,
-  STLD_PACK,
-  VNM_CARDS,
-  VNM_PACK,
   NEBU_CARDS,
   NEBU_PACK,
   WARM_CARDS,
@@ -35,8 +27,6 @@ import {
   WINTER_PACK,
   FALCON_CARDS,
   FALCON_PACK,
-  RON_CARDS,
-  RON_PACK,
   NOVA_CARDS,
   NOVA_PACK,
   SILK_CARDS,
@@ -86,10 +76,6 @@ const PACKS: readonly {
   { code: "bp", cards: BP_CARDS, pack: BP_PACK },
   { code: "cyclops", cards: CYCLOPS_CARDS, pack: CYCLOPS_PACK },
   { code: "gambit", cards: GAMBIT_CARDS, pack: GAMBIT_PACK },
-  { code: "drax", cards: DRAX_CARDS, pack: DRAX_PACK },
-  { code: "gam", cards: GAM_CARDS, pack: GAM_PACK },
-  { code: "stld", cards: STLD_CARDS, pack: STLD_PACK },
-  { code: "vnm", cards: VNM_CARDS, pack: VNM_PACK },
   { code: "nebu", cards: NEBU_CARDS, pack: NEBU_PACK },
   { code: "warm", cards: WARM_CARDS, pack: WARM_PACK },
   { code: "vision", cards: VISION_CARDS, pack: VISION_PACK },
@@ -97,7 +83,6 @@ const PACKS: readonly {
   { code: "magneto", cards: MAGNETO_CARDS, pack: MAGNETO_PACK },
   { code: "winter", cards: WINTER_CARDS, pack: WINTER_PACK },
   { code: "falcon", cards: FALCON_CARDS, pack: FALCON_PACK },
-  { code: "ron", cards: RON_CARDS, pack: RON_PACK },
   { code: "nova", cards: NOVA_CARDS, pack: NOVA_PACK },
   { code: "silk", cards: SILK_CARDS, pack: SILK_PACK },
   { code: "spdr", cards: SPDR_CARDS, pack: SPDR_PACK },
@@ -126,8 +111,8 @@ describe("data-only pool — integrity", () => {
     expect(failures).toEqual([]);
   });
 
-  it("33 packs, no duplicate ids, and DATA_ONLY_CARDS is exactly their concatenation", () => {
-    expect(PACKS).toHaveLength(33);
+  it("28 packs, no duplicate ids, and DATA_ONLY_CARDS is exactly their concatenation", () => {
+    expect(PACKS).toHaveLength(28);
     const ids = DATA_ONLY_CARDS.map((c) => c.id);
     expect(new Set(ids).size).toBe(ids.length);
     expect(DATA_ONLY_CARDS.length).toBe(PACKS.reduce((n, p) => n + p.cards.length, 0));
@@ -148,8 +133,9 @@ describe("data-only pool — integrity", () => {
 
   it("cycle grouping matches the Hall of Heroes card database navigation (https://hallofheroeslcg.com/browse/)", () => {
     const cycleOf = (code: string) => PACKS.find((p) => p.code === code)?.pack.cycleId;
-    // Cycle 3 (Guardians of the Galaxy): Star-Lord, Gamora, Drax, Venom.
-    for (const code of ["stld", "gam", "drax", "vnm"]) expect(cycleOf(code), code).toBe("cycle3");
+    // Cycle 3 (Guardians of the Galaxy) has moved entirely out of this pool: The Galaxy's Most Wanted, Star-Lord,
+    // Gamora, Drax and Venom are now `WAVE3_CARDS` (wave3.test.ts), and Ronan (a promo, not cycle 3) moved with
+    // them since all six are scripted together (docs/phase7-wave3.md).
     // Cycle 4: Nebula, War Machine, Vision, The Hood, Valkyrie.
     for (const code of ["nebu", "warm", "vision", "hood", "valk"]) expect(cycleOf(code), code).toBe("cycle4");
     // Cycle 6 (X-Men): Cyclops, Gambit, Wolverine, Rogue, Mojo Mania, Storm (Phoenix is not in this pool yet —
@@ -166,8 +152,6 @@ describe("data-only pool — integrity", () => {
     for (const code of ["nova", "spdr", "ironheart", "spiderham"]) expect(cycleOf(code), code).toBe("cycle5");
     // Cycle 10: Wonder Man (Hercules/Fear No Evil are not in this pool yet).
     expect(cycleOf("wonder_man")).toBe("cycle10");
-    // Ronan is a Print and Play promotional release, not part of any numbered cycle.
-    expect(cycleOf("ron")).toBe("promo");
   });
 
   it("every hero-pack identity carries a real name (no dangling/placeholder faces)", () => {

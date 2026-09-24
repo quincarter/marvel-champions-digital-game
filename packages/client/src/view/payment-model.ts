@@ -16,7 +16,7 @@
  * a selection is enough. This model counts pips for the bar and nothing else.
  */
 
-import type { ResourceIconType } from "@mc/content";
+import type { AbilityId, ResourceIconType } from "@mc/content";
 import {
   locateCard,
   paymentFor,
@@ -24,6 +24,7 @@ import {
   tryPayment,
   type ActionRef,
   type Command,
+  type CostSelection,
   type EngineDeps,
   type GameState,
   type InstanceId,
@@ -31,6 +32,12 @@ import {
   type PaymentSource,
   type PlayerId,
 } from "@mc/engine";
+import {
+  costReductionOptionsFor,
+  costReductionTotal,
+  tryReducedPlay,
+  type CostReductionOption,
+} from "./cost-reduction-model.js";
 import { faceUpName } from "./names.js";
 
 export interface PaymentState {
@@ -39,9 +46,22 @@ export interface PaymentState {
   readonly target: InstanceId | null;
   /** The seat a "play under any player's control" card was sent to, when it isn't the payer's own. */
   readonly controllerId?: PlayerId | null;
+  /**
+   * The either/or branch and "up to N" counter count, made up front like every other cost pick
+   * (docs/phase7-wave3.md §3.32, §3.36) — chosen before payment opens (`view/cost-choice-model.ts`), since it can
+   * change what `query` even offers (an either/or branch's own components, an "up to N" cost's own size).
+   */
+  readonly costSelection?: CostSelection;
   readonly query: PaymentQuery;
   /** Option ids picked so far, in the order they were picked. */
   readonly picked: readonly string[];
+  /**
+   * `playCostReduction` abilities named on this play (docs/phase7-wave3.md §3.20; Star-Lord's "What could go
+   * wrong?") — opted into here, not guessed, since spending an interrupt's own cost (dealing yourself a facedown
+   * encounter card) is a real decision the player makes, not a free saving the game applies on its own. Empty for
+   * every action but `playCard`.
+   */
+  readonly reductions: readonly { readonly instanceId: InstanceId; readonly abilityId: AbilityId }[];
 }
 
 /**
@@ -124,6 +144,14 @@ export interface PaymentView {
    */
   readonly command: Command | null;
   readonly blockedBy: string | null;
+  /**
+   * `playCostReduction` abilities the player could name on this play (docs/phase7-wave3.md §3.20), for a
+   * "reduce the cost" toggle beside the bar. Empty for anything but `playCard`, and for a `playCard` with none in
+   * play — the overwhelmingly common case, which draws nothing extra.
+   */
+  readonly costReductionOptions: readonly CostReductionOption[];
+  /** Which of `costReductionOptions` are currently named on the play. */
+  readonly reductions: readonly { readonly instanceId: InstanceId; readonly abilityId: AbilityId }[];
 }
 
 /**
@@ -143,14 +171,26 @@ export function beginPayment(
   target: InstanceId | null,
   deps: EngineDeps,
   controllerId: PlayerId | null = null,
+  costSelection?: CostSelection,
 ): PaymentState | null {
-  const query = paymentFor(state, playerId, action, paymentContext(target, controllerId), deps);
+  const query = paymentFor(state, playerId, action, paymentContext(target, controllerId, costSelection), deps);
   if (!query) return null;
-  return { action, target, controllerId, query, picked: [] };
+  return {
+    action,
+    target,
+    controllerId,
+    ...(costSelection ? { costSelection } : {}),
+    query,
+    picked: [],
+    reductions: [],
+  };
 }
 
-const paymentContext = (target: InstanceId | null, controllerId: PlayerId | null | undefined) =>
-  controllerId ? { target, controllerId } : { target };
+const paymentContext = (
+  target: InstanceId | null,
+  controllerId: PlayerId | null | undefined,
+  costSelection?: CostSelection,
+) => ({ target, ...(controllerId ? { controllerId } : {}), ...(costSelection ? { costSelection } : {}) });
 
 /** Toggles one source in or out of the payment. */
 export function togglePayment(payment: PaymentState, optionId: string): PaymentState {
@@ -160,8 +200,22 @@ export function togglePayment(payment: PaymentState, optionId: string): PaymentS
   return { ...payment, picked };
 }
 
+/**
+ * Toggles one `playCostReduction` ability in or out of the play (docs/phase7-wave3.md §3.20). A no-op for anything
+ * but a `playCard` action — nothing else carries `costReductionAbilities`.
+ */
+export function toggleCostReduction(payment: PaymentState, option: CostReductionOption): PaymentState {
+  if (payment.action.kind !== "playCard") return payment;
+  const matches = (r: { readonly instanceId: InstanceId; readonly abilityId: AbilityId }) =>
+    r.instanceId === option.instanceId && r.abilityId === option.abilityId;
+  const reductions = payment.reductions.some(matches)
+    ? payment.reductions.filter((r) => !matches(r))
+    : [...payment.reductions, { instanceId: option.instanceId, abilityId: option.abilityId }];
+  return { ...payment, reductions };
+}
+
 /** Clears the selection, so a player can start the payment over without cancelling. */
-export const clearPayment = (payment: PaymentState): PaymentState => ({ ...payment, picked: [] });
+export const clearPayment = (payment: PaymentState): PaymentState => ({ ...payment, picked: [], reductions: [] });
 
 export function paymentView(
   state: GameState,
@@ -181,25 +235,48 @@ export function paymentView(
   }
 
   const paid = picked.reduce((total, optionId) => total + poolTotal(byOption.get(optionId)?.pool), 0);
-  const attempt = tryPayment(
-    state,
-    playerId,
-    payment.action,
-    picked,
-    paymentContext(payment.target, payment.controllerId),
-    deps,
-  );
 
   const { action } = payment;
   const subject = action.kind === "playCard" || action.kind === "useAbility" ? action.instanceId : null;
+  const costReductionOptions =
+    action.kind === "playCard" ? costReductionOptionsFor(state, playerId, action.instanceId, deps) : [];
+  const reductionAmount = costReductionTotal(payment.reductions, deps);
+
+  const attempt =
+    action.kind === "playCard" && payment.reductions.length > 0
+      ? tryReducedPlay(
+          state,
+          playerId,
+          action.instanceId,
+          picked,
+          query.sources,
+          payment.reductions,
+          deps,
+          payment.target,
+          payment.controllerId ?? null,
+          payment.costSelection,
+        )
+      : tryPayment(
+          state,
+          playerId,
+          payment.action,
+          picked,
+          paymentContext(payment.target, payment.controllerId, payment.costSelection),
+          deps,
+        );
+
+  const requirement =
+    reductionAmount > 0
+      ? { ...query.requirement, generic: Math.max(0, query.requirement.generic - reductionAmount) }
+      : query.requirement;
   const sources = query.sources.map((source) => ({ ...source, spent: picked.includes(source.optionId) }));
   return {
     headline,
     subject,
     paid,
-    required: poolTotal(query.requirement),
+    required: poolTotal(requirement),
     priceNote: subject !== null && action.kind === "playCard" ? priceNoteFor(state, playerId, subject, deps) : null,
-    outstanding: outstandingTypes(query, picked, byOption),
+    outstanding: outstandingTypes({ ...query, requirement }, picked, byOption),
     spendable,
     spent,
     sources,
@@ -207,6 +284,8 @@ export function paymentView(
     subjectInHand: subject !== null && locateCard(state, subject)?.kind === "hand",
     command: attempt.ok ? attempt.command : null,
     blockedBy: attempt.ok ? null : attempt.message,
+    costReductionOptions,
+    reductions: payment.reductions,
   };
 }
 

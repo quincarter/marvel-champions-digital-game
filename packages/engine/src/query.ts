@@ -541,7 +541,10 @@ export function printedProfile(state: GameState, id: InstanceId): CharacterProfi
       def: 0,
       rec: 0,
       sch: stage.sch,
-      maxHp: scale(stage.hp, state.startingPlayerCount),
+      // A face printed with ∞ (RRG 1.8 "Hit Points", p. 22): damage is still dealt and taken, but "will never cause its
+      // remaining hit points to reach zero", so the defeat sweep's `damage >= maxHp` can never hold. Infinity is never
+      // stored in state: only `damage` is, and this is recomputed on each read (docs/phase7-wave3.md §3.1).
+      maxHp: stage.infiniteHp ? Number.POSITIVE_INFINITY : scale(stage.hp, state.startingPlayerCount),
     };
   }
   return undefined;
@@ -647,6 +650,8 @@ export function zoneContents(state: GameState, zone: ZoneId): readonly InstanceI
       return state.scenarioDecks[zone.name]?.discard ?? [];
     case "villainArea":
       return state.villainArea;
+    case "scenarioArea":
+      return state.scenarioAreas?.[zone.name] ?? [];
     case "victoryDisplay":
       return state.victoryDisplay;
     case "removedFromGame":
@@ -685,6 +690,9 @@ export function locateCard(state: GameState, id: InstanceId): ZoneId | null {
     if (piles.discard.includes(id)) return { kind: "scenarioDiscard", name };
   }
   if (state.villainArea.includes(id)) return { kind: "villainArea" };
+  for (const [name, ids] of Object.entries(state.scenarioAreas ?? {})) {
+    if (ids.includes(id)) return { kind: "scenarioArea", name };
+  }
   if (state.victoryDisplay.includes(id)) return { kind: "victoryDisplay" };
   if (state.removedFromGame.includes(id)) return { kind: "removedFromGame" };
   const instance = getInstance(state, id);

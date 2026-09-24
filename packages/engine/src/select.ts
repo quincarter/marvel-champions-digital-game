@@ -43,7 +43,16 @@ import { boostIconsFor } from "./modifiers.js";
 import { printedResources, RESOURCE_TYPES } from "./resources.js";
 import { currentActivationFrameId, type Bindings, type Vars } from "./stack.js";
 import type { LastingReach, LastingScope } from "./lasting.js";
-import type { PlayerRef, Predicate, TargetCategory, TargetQuery, TargetRef, ValueSpec } from "./spec.js";
+import type {
+  CharacterNames,
+  PlayerRef,
+  Predicate,
+  TargetCategory,
+  TargetQuery,
+  TargetRef,
+  ValueSpec,
+} from "./spec.js";
+import { characterTitledAs, identityCardTitledAs } from "./titles.js";
 import { STATUS_NAMES, type GameAreaState, type GameState } from "./state.js";
 import type { TriggerEvent } from "./trigger-events.js";
 import { eventSubjects } from "./trigger-events.js";
@@ -254,8 +263,11 @@ export type QueryExclusion =
   | "wrongName"
   | "wrongFacedown"
   | "wrongStarIcon"
+  | "wrongUnique"
   | "notHostOfSelf"
   | "notAttachedToHost"
+  /** No card attached to it matches the query's `hasAttachment`. */
+  | "missingAttachment"
   | "wrongOwner"
   | "missingPrintedResource"
   | "wrongAspect"
@@ -270,6 +282,8 @@ export type QueryExclusion =
   | "printedHpTooHigh"
   | "printedCostTooHigh"
   | "cannotBeAttacked"
+  /** `canAttackOneOf`: there is no other card in play the query matches that this character could attack. */
+  | "nothingToAttack"
   | "alreadyChosen"
   | "notInSlot"
   | "wrongSignatureSideScheme"
@@ -330,6 +344,15 @@ export function explainQuery(
   // read of the ability registry: see docs/phase7-wave2.md §18.6. RRG 1.8 "Boost, Boost Icon" (p. 11) — a star is not
   // a boost icon, so this clause says nothing about the card's pip count.
   if (query.starIcon !== undefined && hasStarIcon(state, id) !== query.starIcon) return "wrongStarIcon";
+  // "Against a unique enemy" (Godslayer, `gam` 18018): the same printed-fact reading `unique.ts`'s `isUnique` uses
+  // for the deckbuilding unique rule (RRG 1.8 "Unique", p. 46) — every hero identity is unique whether or not its
+  // own card prints the icon. Read inline here (not `isUnique` itself) to avoid a `select.ts` ↔ `unique.ts` import
+  // cycle (`unique.ts` already imports `cardsInPlay` from here).
+  if (query.unique !== undefined) {
+    const card = cardOf(state, id);
+    const printedUnique = (card?.unique ?? false) || card?.type === "hero_identity";
+    if (printedUnique !== query.unique) return "wrongUnique";
+  }
   if (query.hostOfSelf !== undefined) {
     const host = context.selfInstanceId ? getInstance(state, context.selfInstanceId)?.attachedTo : null;
     if ((host === id) !== query.hostOfSelf) return "notHostOfSelf";
@@ -339,6 +362,12 @@ export function explainQuery(
   if (query.host !== undefined) {
     const attachedTo = instance.attachedTo;
     if (attachedTo === null || !resolveRef(state, query.host, context).includes(attachedTo)) return "notAttachedToHost";
+  }
+  // "An ally with a weapon attachment upgrade" (docs/phase7-wave3.md §3.40): the other direction of `host`.
+  if (query.hasAttachment !== undefined) {
+    const wanted = query.hasAttachment;
+    if (!instance.attachments.some((attached) => matchesQuery(state, attached, wanted, context)))
+      return "missingAttachment";
   }
   if (query.owner === "you" && instance.ownerId !== context.controllerId) return "wrongOwner";
   if (query.printedResource !== undefined) {
@@ -396,6 +425,14 @@ export function explainQuery(
   if (query.attackableBy) {
     const [attacker] = resolveRef(state, query.attackableBy, context);
     if (!attacker || !canAttack(state, attacker, id, context.deps)) return "cannotBeAttacked";
+  }
+  if (query.canAttackOneOf) {
+    const among = query.canAttackOneOf;
+    const any = cardsInPlay(state).some(
+      (other) =>
+        other !== id && matchesQuery(state, other, among, context) && canAttack(state, id, other, context.deps),
+    );
+    if (!any) return "nothingToAttack";
   }
   if (query.excludeSlots?.some((slot) => (context.bindings[slot] ?? []).includes(id))) return "alreadyChosen";
   // "each *other* environment card in play": everything this ref names is out.
@@ -459,6 +496,20 @@ export function explainQuery(
       resolveRef(state, query.encounterSetOf, context).flatMap((other) => encounterSetsOf(state, other)),
     );
     if (!sets.some((setId) => wanted.has(setId))) return "wrongEncounterSet";
+  }
+  // Team-Up names (docs/phase7-wave3.md §3.34; `titles.ts`): the character showing that title, or a card of the
+  // identity-specific set of the identity with that title, whoever controls either.
+  if (query.titled !== undefined) {
+    const names = characterNames(state, query.titled, context);
+    if (!names.some((name) => characterTitledAs(state, id, name))) return "wrongName";
+  }
+  if (query.identitySetTitled !== undefined) {
+    const card = cardOf(state, id);
+    const aspect = card && "aspect" in card ? String(card.aspect) : "";
+    const identity = aspect.startsWith("hero:") ? state.cardPool[aspect.slice("hero:".length)] : undefined;
+    const names = identity?.type === "hero_identity" ? characterNames(state, query.identitySetTitled, context) : [];
+    if (identity?.type !== "hero_identity" || !names.some((name) => identityCardTitledAs(identity, name)))
+      return "wrongIdentitySet";
   }
   if (query.inCampaignLogField) {
     // "Each EXPERIMENTAL attachment recorded in the campaign log" (MC10 p. 7) as a filter. Membership only: the
@@ -630,6 +681,23 @@ export function speakerOf(state: GameState, sourceId: InstanceId | null): Player
   return state.players.find((p) => p.playArea.includes(sourceId))?.playerId ?? null;
 }
 
+/**
+ * Who a triggered ability's "you"/"your" is on an uncontrolled card whose "you" the rules name: an attachment on a
+ * player card ("it refers to the attached player card's controller", RRG 1.8 "Attachment", p. 8), or an obligation
+ * ("apply only to the player whose play area the obligation is in", RRG 1.8 "Obligation", p. 30). Null for every
+ * other uncontrolled card (an enemy, a scheme), whose "you" is still the player the event is about.
+ *
+ * Narrower than `speakerOf` on purpose: an engaged minion is in a player's area too, but "after you attack this
+ * minion" means whichever player attacks it.
+ */
+export function uncontrolledYouOf(state: GameState, id: InstanceId): PlayerId | null {
+  const instance = getInstance(state, id);
+  if (!instance) return null;
+  if (instance.attachedTo) return controllerOf(state, instance.attachedTo);
+  if (cardOf(state, id)?.type !== "obligation") return null;
+  return state.players.find((p) => p.playArea.includes(id))?.playerId ?? null;
+}
+
 /** The players a rule's `player` ref binds, with "you" read as the rule's speaker rather than the card's controller. */
 export const rulePlayers = (
   state: GameState,
@@ -659,9 +727,10 @@ export function canAttack(
   deps: EngineDeps = DEFAULT_DEPS,
 ): boolean {
   const controller = controllerOf(state, attackerId);
-  // An attack by an enemy is nobody's attack: neither guard nor `cannotAttack` (both worded about *players*) apply.
+  // An attack by an enemy is nobody's attack: neither guard nor a player-scoped `cannotAttack` (an `attacker`-scoped
+  // one still can, and does apply to an enemy attacker — see `attackForbidden`).
+  if (attackForbidden(state, attackerId, controller, targetId, deps)) return false;
   if (controller === null) return true;
-  if (attackForbidden(state, controller, targetId, deps)) return false;
   if (!isVillain(state, targetId)) return true;
   if (hasKeyword(state, targetId, "guard", deps)) return true;
   return !guardEngagedWith(state, controller, deps);
@@ -670,7 +739,10 @@ export function canAttack(
 /**
  * A `cannotAttack` rule in force forbids this attack: "Players cannot attack other villains" (Distracting Taunts,
  * `twc` 07035 — no `player`, so the whole table) or "You cannot attack Kang" (Fear of Kang, `toafk` 11049 — a
- * `player`, so only them). docs/phase7-wave2.md §25.
+ * `player`, so only them). docs/phase7-wave2.md §25. "Drax cannot attack minions" (`gam` 18019, docs/phase7-wave3.md
+ * §3.26) is scoped by `attacker` instead — the attacking *character*, checked regardless of controller (so it
+ * reaches an enemy's own attack too, unlike every `player`-scoped rule, which a controller-less attacker can never
+ * match).
  *
  * `attackerPlayerId` is the **attacker's controller**, which is what "you cannot attack" restricts: RRG 1.8 "Guard"
  * (p. 21) equates "that player cannot use cards they control to attack a villain" with the constant ability "The
@@ -679,13 +751,19 @@ export function canAttack(
  */
 function attackForbidden(
   state: GameState,
-  attackerPlayerId: PlayerId,
+  attackerId: InstanceId,
+  attackerPlayerId: PlayerId | null,
   targetId: InstanceId,
   deps: EngineDeps,
 ): boolean {
   return activeRules(state, deps, "cannotAttack").some((active) => {
-    const { player, target } = active.rule;
-    if (player && !rulePlayers(state, { player }, active).includes(attackerPlayerId)) return false;
+    const { player, target, attacker } = active.rule;
+    if (attacker && !matchesQuery(state, attackerId, attacker, active.speakerContext)) return false;
+    if (player) {
+      if (attackerPlayerId === null || !rulePlayers(state, { player }, active).includes(attackerPlayerId)) {
+        return false;
+      }
+    }
     return matchesQuery(state, targetId, target, active.speakerContext);
   });
 }
@@ -697,6 +775,20 @@ export function controllerOf(state: GameState, id: InstanceId): PlayerId | null 
   const player = state.players.find((p) => p.identity.instanceId === id);
   if (player) return player.playerId;
   return instance.controllerId;
+}
+
+/**
+ * The names a `CharacterNames` spec stands for (docs/phase7-wave3.md §3.34): written out, or read from the Team-Up
+ * keyword of the card(s) a ref names — wherever that card is, since a Team-Up event resolves out of play.
+ */
+export function characterNames(state: GameState, spec: CharacterNames, context: EffectContext): readonly string[] {
+  if ("names" in spec) return spec.names;
+  return resolveRef(state, spec.teamUpOf, context).flatMap((id) => {
+    const card = cardOf(state, id);
+    const teamUp = card && "keywords" in card ? card.keywords.find((k) => k.name === "teamUp") : undefined;
+    const names = teamUp?.name === "teamUp" && teamUp.names ? teamUp.names : [];
+    return spec.index === undefined ? names : names.slice(spec.index, spec.index + 1);
+  });
 }
 
 export const selectTargets = (state: GameState, query: TargetQuery, context: EffectContext): readonly InstanceId[] =>
@@ -742,6 +834,13 @@ export function resolvePlayers(state: GameState, ref: PlayerRef, context: Effect
         .filter((id): id is PlayerId => id !== null);
       return [...new Set(owners)];
     }
+    case "controllerOf": {
+      // docs/phase7-wave3.md §3.39: encounter cards are controlled by the scenario (RRG 1.8 p. 31), so they name no one.
+      const controllers = new Set(resolveRef(state, ref.target, context).map((id) => controllerOf(state, id)));
+      return playerOrder(state)
+        .map((p) => p.playerId)
+        .filter((id) => controllers.has(id));
+    }
     case "engagedWith": {
       const engaged = resolveRef(state, ref.of, context)
         .map((id) => getInstance(state, id)?.engagedWith ?? null)
@@ -753,6 +852,19 @@ export function resolvePlayers(state: GameState, ref: PlayerRef, context: Effect
       if (event?.kind !== "schemeDefeated" && event?.kind !== "characterDefeated") return [];
       const player = event.defeatedByPlayerId ?? null;
       return player !== null && getPlayer(state, player) ? [player] : [];
+    }
+    case "superlative": {
+      // docs/phase7-wave3.md §3.35: each candidate measured with itself as the scoped player, in player order.
+      const pool = resolvePlayers(state, ref.among ?? { kind: "each" }, context);
+      const scored = pool.map((playerId) => ({
+        playerId,
+        score: resolveValue(state, ref.measure, { ...context, scopedPlayerId: playerId }),
+      }));
+      if (scored.length === 0) return [];
+      const scores = scored.map((s) => s.score);
+      const best = ref.order === "lowest" ? Math.min(...scores) : Math.max(...scores);
+      const tied = scored.filter((s) => s.score === best).map((s) => s.playerId);
+      return ref.ties === "first" ? tied.slice(0, 1) : tied;
     }
   }
 }
@@ -915,6 +1027,8 @@ export function resolveValue(
       const [id] = resolveRef(state, value.of, context);
       return id ? (getInstance(state, id)?.threat ?? 0) : 0;
     }
+    case "mainSchemeStageNumber":
+      return mainSchemeStage(state).stageNumber;
     case "boostIcons": {
       // One counting function for every read (docs/phase7-wave2.md §3.6): printed icons plus boost icon modifiers.
       const [counted] = resolveRef(state, value.of, context);
@@ -948,6 +1062,25 @@ export function resolveValue(
       const [playerId] = resolvePlayers(state, value.player, context);
       return playerId ? (getPlayer(state, playerId)?.hand.length ?? 0) : 0;
     }
+    case "scenarioAreaCount": {
+      const ids = state.scenarioAreas?.[value.name] ?? [];
+      const filter = value.filter;
+      return filter ? ids.filter((id) => matchesQuery(state, id, filter, { ...context, deps })).length : ids.length;
+    }
+    case "victoryDisplayCount": {
+      // docs/phase7-wave3.md §3.42: out of play, so only a read of the pile itself reaches it.
+      const filter = value.filter;
+      const ids = state.victoryDisplay;
+      return filter ? ids.filter((id) => matchesQuery(state, id, filter, { ...context, deps })).length : ids.length;
+    }
+    case "dealtEncounterCount": {
+      const [playerId] = resolvePlayers(state, value.player, context);
+      return playerId ? (getPlayer(state, playerId)?.dealtEncounter.length ?? 0) : 0;
+    }
+    case "min":
+      return Math.min(...value.values.map((part) => resolveValue(state, part, context, deps)));
+    case "max":
+      return Math.max(...value.values.map((part) => resolveValue(state, part, context, deps)));
     case "deckCount": {
       // The player deck only: a separate deck (`PlayerState.separateDecks`) is its own deck, not part of this one.
       const [playerId] = resolvePlayers(state, value.player, context);
@@ -1039,6 +1172,14 @@ export function evaluate(state: GameState, predicate: Predicate, context: Effect
       const frame = id ? state.stack.find((f) => f.frameId === id) : undefined;
       return frame?.kind === "event" && (frame.vars[predicate.key] ?? 0) >= predicate.atLeast;
     }
+    case "currentActivationIs": {
+      const id = currentActivationFrameId(state.stack);
+      const frame = id ? state.stack.find((f) => f.frameId === id) : undefined;
+      if (frame?.kind !== "event") return false;
+      return predicate.activation === "attack"
+        ? frame.event.kind === "enemyAttack"
+        : frame.event.kind === "enemyScheme";
+    }
     case "refMatches": {
       const inPlay = predicate.anywhere === true ? null : cardsInPlay(state);
       return resolveRef(state, predicate.ref, context).some(
@@ -1064,12 +1205,23 @@ export function evaluate(state: GameState, predicate: Predicate, context: Effect
         (type) => type === predicate.resource || (vars[`paid.${type}`] ?? 0) === 0,
       );
     }
+    case "playedThisTurn": {
+      const [playerId] = resolvePlayers(state, predicate.player, context);
+      if (playerId === undefined) return false;
+      const played = state.playedThisTurn?.[playerId] ?? [];
+      const matching = played.filter((id) => matchesQuery(state, id, predicate.cards, context)).length;
+      return matching >= (predicate.atLeast ?? 1);
+    }
     case "playedThisRound": {
       const [playerId] = resolvePlayers(state, predicate.player, context);
-      return (
-        playerId !== undefined &&
-        (state.playedByPlayerThisRound[`${playerId}:${predicate.cardType}`] ?? 0) <= predicate.atMost
-      );
+      if (playerId === undefined) return false;
+      const played =
+        predicate.cardType === undefined
+          ? Object.entries(state.playedByPlayerThisRound)
+              .filter(([key]) => key.startsWith(`${playerId}:`))
+              .reduce((sum, [, count]) => sum + count, 0)
+          : (state.playedByPlayerThisRound[`${playerId}:${predicate.cardType}`] ?? 0);
+      return played <= predicate.atMost;
     }
     case "compare": {
       const left = resolveValue(state, predicate.left, context);

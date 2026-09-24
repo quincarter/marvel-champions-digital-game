@@ -44,6 +44,7 @@ import {
 import { artFor, type ArtSource, type CardBack, type CardFace } from "../art/art-source.js";
 import { faceVisible } from "./visibility.js";
 import { STATUS_DISABLES } from "../tokens.js";
+import { hpFraction } from "./hp-format.js";
 import type { StatusName } from "./log-lines.js";
 import { faceUpName, playerName } from "./names.js";
 
@@ -103,7 +104,8 @@ export function profileStatTiles(
       bonus: dashed || !printed ? 0 : profile[stat] - printed[stat],
     };
   });
-  if (current !== undefined && max !== undefined) tiles.push({ label: "HP", value: `${current}/${max}`, bonus: 0 });
+  if (current !== undefined && max !== undefined)
+    tiles.push({ label: "HP", value: hpFraction(current, max), bonus: 0 });
   return tiles;
 }
 
@@ -258,6 +260,21 @@ export interface EnvironmentPanel {
   readonly art: ArtSource | null;
 }
 
+/**
+ * A scenario's own out-of-play game area — "The Collection" (Infiltrate/Escape the Museum, `gmw`; docs/phase7-
+ * wave3.md §3.14), the shape `ZoneId scenarioArea`/`GameState.scenarioAreas` names generically, since a later
+ * scenario may add one of its own. Every card in it is faceup (MC16 p. 10: "put ... faceup into The Collection"),
+ * so unlike a deck this shows every card, not just a count — a scenario area is shared table information, closer
+ * to a discard pile than to a hidden zone.
+ */
+export interface ScenarioAreaPanel {
+  readonly name: string;
+  readonly instanceIds: readonly InstanceId[];
+  /** The topmost card's art, for the pile's own face — null when the area is empty. */
+  readonly topArt: ArtSource | null;
+  readonly count: number;
+}
+
 export interface HandCardView {
   readonly instanceId: InstanceId;
   readonly name: string;
@@ -344,6 +361,8 @@ export interface BoardModel {
   readonly minions: readonly CharacterPanel[];
   /** Environment cards in the villain area, in play order. Empty for every scenario that uses none. */
   readonly environments: readonly EnvironmentPanel[];
+  /** The scenario's own out-of-play areas (The Collection, docs/phase7-wave3.md §3.14). Empty for every scenario that has none. */
+  readonly scenarioAreas: readonly ScenarioAreaPanel[];
   readonly me: CharacterPanel;
   readonly myForm: Form;
   readonly myPlayArea: readonly CharacterPanel[];
@@ -481,6 +500,7 @@ export function boardModel(state: GameState, perspectiveId: PlayerId, deps: Engi
     environments: state.villainArea
       .filter((id) => cardOf(state, id)?.type === "environment")
       .map((id) => environmentPanel(state, id)),
+    scenarioAreas: scenarioAreaPanels(state),
     me: characterPanel(state, me.identity.instanceId, deps),
     myForm: me.identity.form,
     // An attachment is drawn on its host — except an upgrade on your own
@@ -853,6 +873,22 @@ export function schemePanel(state: GameState, id: InstanceId, _deps: EngineDeps,
     tuckedCount: instance.tucked.length,
     art: artFor(card, { kind: "front" }),
   };
+}
+
+/**
+ * Every scenario area in play, by name, in a stable order (`Object.entries`' own insertion order — the order
+ * `createScenarioArea` created them in, since `GameState.scenarioAreas` is a plain record built one
+ * `EffectSpec createScenarioArea` at a time). Empty for every scenario that has none — `GameState.scenarioAreas`
+ * is absent until a scenario's own Setup creates one, so this reads as `[]` rather than needing a special case at
+ * every call site.
+ */
+export function scenarioAreaPanels(state: GameState): readonly ScenarioAreaPanel[] {
+  return Object.entries(state.scenarioAreas ?? {}).map(([name, instanceIds]) => ({
+    name,
+    instanceIds,
+    topArt: instanceIds[0] ? artFor(cardOf(state, instanceIds[0]), faceOf(state, instanceIds[0])) : null,
+    count: instanceIds.length,
+  }));
 }
 
 export function environmentPanel(state: GameState, id: InstanceId): EnvironmentPanel {

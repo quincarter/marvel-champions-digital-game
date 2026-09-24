@@ -71,7 +71,7 @@ export const BLACK_PANTHER_KIT = defineAbilities({
   ),
   // Ancestral Knowledge — Alter-Ego Action: Choose up to 3 different cards in your discard pile and shuffle them into your deck.
   "01042.ancestral-knowledge-action": alterEgoAction(
-    chooseCards("cards", zone("discard"), { min: 0, max: 3, distinctNames: true }),
+    chooseCards("cards", zone("discard"), { min: 1, max: 3, distinctNames: true }),
     moveCards(cards(chosen("cards")), "deckShuffle"),
   ),
   // Wakanda Forever! (four printings with different resource icons; the same ability).

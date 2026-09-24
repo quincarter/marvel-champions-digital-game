@@ -1,12 +1,22 @@
 import type { VillainSideLetter } from "@mc/content";
 import type { EngineDeps } from "./abilities.js";
 import type { EncounterDeckId, InstanceId, PlayerId } from "./ids.js";
-import { emit, moveCard, setStep, updateInstance, updatePlayer, type Ctx } from "./ctx.js";
+import {
+  emit,
+  moveCard,
+  relocateCard,
+  setStep,
+  settlePlayerDecks,
+  updateInstance,
+  updatePlayer,
+  type Ctx,
+} from "./ctx.js";
 import { hasKeyword, statusCapacity, usesKeyword } from "./keywords.js";
 import {
   activeEncounterDeckId,
   discardZoneFor,
   encounterDeckOf,
+  getInstance,
   heroFacesOf,
   mustCard,
   mustInstance,
@@ -15,7 +25,14 @@ import {
 } from "./query.js";
 import type { TriggerEvent } from "./trigger-events.js";
 import { nextInt, shuffle } from "./rng.js";
-import { accelerationTokenRedirect, cannotLeavePlay, cannotReady } from "./rules.js";
+import {
+  accelerationTokenRedirect,
+  cannotLeavePlay,
+  cannotReady,
+  discardRedirectArea,
+  mainSchemeForRedirect,
+} from "./rules.js";
+import { pushEvent } from "./resolve/frames.js";
 import { matchesQuery, type EffectContext } from "./select.js";
 import type { StatusName } from "./spec.js";
 import type { GameOutcome, GameState, MainSchemeState, ZoneId } from "./state.js";
@@ -144,11 +161,15 @@ export function removeCounters(ctx: Ctx, id: InstanceId, counterType: string, am
     counters: { ...i.counters, [counterType]: (i.counters[counterType] ?? 0) - removed },
   }));
   emit(ctx, { type: "counterRemoved", instanceId: id, counterType, amount: removed });
-  // RRG "Uses (X 'type')": when the last counter is removed from the card, discard it.
+  // RRG "Uses (X 'type')": when the last counter is removed from the card, discard it — or, with Victory X, "add this
+  // card to the victory display instead of discarding it" (RRG 1.8 "Victory X", p. 46; docs/phase7-wave3.md §3.4).
   const uses = usesKeyword(ctx.state, id, ctx.deps);
   if (uses && uses.counterType === counterType) {
     const left = mustInstance(ctx.state, id).counters[counterType] ?? 0;
-    if (left <= 0) discardFromPlay(ctx, id);
+    if (left <= 0) {
+      if (hasKeyword(ctx.state, id, "victory", ctx.deps)) leavePlay(ctx, id, { kind: "victoryDisplay" });
+      else discardFromPlay(ctx, id);
+    }
   }
   return removed;
 }
@@ -182,12 +203,36 @@ export function drawEncounterCard(
  * attachments, boost cards, counters (Green Goblin insert, Risky Business "New Rules": "all attachment cards, status
  * cards, boost cards, damage, and other game elements associated with the villain remain as they are"; RRG 1.8
  * "Flip", p. 20).
+ *
+ * **Except the damage, when either face prints ∞ hit points** (docs/phase7-wave3.md §3.1): the dial is set to the new
+ * face's hit points. RRG 1.8 "Flip" is silent on the dial, and the two products that print ∞ both reset it:
+ * - The Mad Titan's Shadow rulebook, Hela (MC21 p. 20): "Flipping Hela from her Mystic side to her Wounded side and
+ *   vice versa is resolved just like advancing to the next villain stage: her hit points are reset and any status
+ *   cards attached to Hela remain attached."
+ * - The Collector's ∞ face (`gmw` 16080b): "flip this card, then set Collector's hit point dial to his printed hit
+ *   points." Resetting on the flip makes that second clause a no-op rather than leaving a window, between the two
+ *   effects, in which the defeat sweep would see the old damage against the front face's hit points.
+ * Onto an ∞ face the kept damage could never matter (the remaining hit points are ∞ whatever it is), so clearing it
+ * there only keeps a stale number from resurfacing on the next flip.
  */
 export function flipVillain(ctx: Ctx, id: InstanceId, to: VillainSideLetter): void {
   const villain = mustVillain(ctx.state, id);
   if (villain.side === to) return;
+  const infinite = (side: VillainSideLetter): boolean => {
+    const card = ctx.state.cardPool[villain.cardId];
+    const face = card?.type === "villain" ? card.sides.find((s) => s.side === side) : undefined;
+    return face?.stages[villain.stageIndex]?.infiniteHp === true;
+  };
+  const reset = infinite(villain.side) || infinite(to);
   ctx.state = { ...ctx.state, villains: ctx.state.villains.map((v) => (v.instanceId === id ? { ...v, side: to } : v)) };
-  emit(ctx, { type: "villainFlipped", instanceId: id, from: villain.side, to });
+  if (reset) updateInstance(ctx, id, (instance) => ({ ...instance, damage: 0 }));
+  emit(ctx, {
+    type: "villainFlipped",
+    instanceId: id,
+    from: villain.side,
+    to,
+    ...(reset ? { hitPointsReset: true } : {}),
+  });
 }
 
 /**
@@ -270,29 +315,70 @@ function resetPlayerDeck(ctx: Ctx, playerId: PlayerId): boolean {
   if (player.discard.length === 0) return false;
   const order = shuffleZone(ctx, { kind: "deck", playerId }, player.discard);
   updatePlayer(ctx, playerId, (p) => ({ ...p, deck: order, discard: [] }));
+  emit(ctx, { type: "playerDeckReset", playerId });
   dealEncounterCardTo(ctx, playerId);
   return true;
 }
 
 /**
- * The top card of a player's deck, resetting the deck first if it is empty (RRG
- * "Player Deck": reshuffle the discard pile and deal that player a facedown
- * encounter card). Null if deck and discard are both empty.
+ * Resets `playerId`'s deck if it is empty and their discard pile is not (`settlePlayerDecks`, `ctx.ts`, runs it after
+ * every move that could make that true). An eliminated player's zones are leaving the game, so never theirs.
+ */
+export function resetPlayerDeckIfEmpty(ctx: Ctx, playerId: PlayerId): boolean {
+  const player = ctx.state.players.find((p) => p.playerId === playerId);
+  if (!player || player.eliminated || player.deck.length > 0) return false;
+  return resetPlayerDeck(ctx, playerId);
+}
+
+/**
+ * How many times `playerId`'s deck has been reset so far in this command. A discard from the deck compares it before
+ * and after each card: "If the player's deck empties while the player was discarding cards from their deck, no further
+ * cards are discarded from the newly shuffled deck" (RRG 1.8 "Player Deck", p. 33).
+ */
+export const playerDeckResets = (ctx: Ctx, playerId: PlayerId): number =>
+  ctx.events.filter((event) => event.type === "playerDeckReset" && event.playerId === playerId).length;
+
+/**
+ * The top card of a player's deck. A deck is reset the moment it empties (`settlePlayerDecks`), so it is only found
+ * empty here when the discard pile was empty too, or in a state built before that rule (a save, a test's surgery): it
+ * is reset here then. Null if deck and discard are both empty.
  */
 export function takeTopOfDeck(ctx: Ctx, playerId: PlayerId): InstanceId | null {
   if (mustPlayer(ctx.state, playerId).deck.length === 0 && !resetPlayerDeck(ctx, playerId)) return null;
   return mustPlayer(ctx.state, playerId).deck[0] ?? null;
 }
 
+/**
+ * "Discard the top card of your deck →" as a cost (`AbilityCost.discardFromDeck`; docs/phase7-wave3.md §3.33). A deck
+ * this cost empties is reset at once (`settlePlayerDecks`; ruling, Apr 30, 2026 (3) answer 7), so its facedown
+ * encounter card is dealt before the ability's effects resolve, and the discarding stops there (RRG 1.8 "Player Deck",
+ * p. 33: "no further cards are discarded from the newly shuffled deck"). `planCost` has already refused a deck that
+ * cannot supply every card. Each card moved is logged as `cardMoved`.
+ */
+export function discardFromDeckAsCost(ctx: Ctx, playerId: PlayerId, count: number): readonly InstanceId[] {
+  const discarded: InstanceId[] = [];
+  for (let i = 0; i < count; i++) {
+    const top = takeTopOfDeck(ctx, playerId);
+    if (!top) break;
+    const resets = playerDeckResets(ctx, playerId);
+    moveCard(ctx, top, { kind: "discard", playerId }, "top");
+    discarded.push(top);
+    if (playerDeckResets(ctx, playerId) > resets) break;
+  }
+  return discarded;
+}
+
+/**
+ * Draws one card at a time. A deck the draw empties is reset at once, after the draw is logged, and the drawing goes on
+ * from the new deck (RRG 1.8 "Player Deck", p. 33: "the player continues to draw cards up to the specified number").
+ */
 export function drawCards(ctx: Ctx, playerId: PlayerId, count: number): void {
   for (let i = 0; i < count; i++) {
-    let player = mustPlayer(ctx.state, playerId);
-    if (player.deck.length === 0 && !resetPlayerDeck(ctx, playerId)) return;
-    player = mustPlayer(ctx.state, playerId);
-    const top = player.deck[0];
+    const top = takeTopOfDeck(ctx, playerId);
     if (!top) return;
-    moveCard(ctx, top, { kind: "hand", playerId });
+    const from = relocateCard(ctx, top, { kind: "hand", playerId });
     emit(ctx, { type: "cardDrawn", playerId, instanceId: top });
+    settlePlayerDecks(ctx, from, { kind: "hand", playerId });
   }
 }
 
@@ -332,6 +418,27 @@ export function discardFromPlay(ctx: Ctx, id: InstanceId): void {
 }
 
 /**
+ * A **defeated** ally, minion, side scheme or player side scheme leaves play (RRG 1.8 "Defeat", p. 15: "If an ally,
+ * minion, or side scheme is defeated, it is discarded"). RRG 1.8 "Victory X" (p. 46; docs/phase7-wave3.md §3.4):
+ * - "A character or side scheme with the victory X keyword is placed in the victory display when it is defeated";
+ * - "An attachment or upgrade with the victory X keyword is placed in the victory display when the card to which it is
+ *   attached is defeated. (The card the attachment or upgrade was attached to is discarded as normal.)" — so those go
+ *   first, before the host's own attachments are discarded with it.
+ * Only a defeat does this: a card discarded any other way ("discard this side scheme") goes to its discard pile.
+ */
+export function defeatFromPlay(ctx: Ctx, id: InstanceId, insteadOfDiscard?: () => void): void {
+  const instance = getInstance(ctx.state, id);
+  if (!instance) return;
+  for (const attachment of [...instance.attachments]) {
+    if (hasKeyword(ctx.state, attachment, "victory", ctx.deps)) leavePlay(ctx, attachment, { kind: "victoryDisplay" });
+  }
+  if (hasKeyword(ctx.state, id, "victory", ctx.deps)) leavePlay(ctx, id, { kind: "victoryDisplay" });
+  // "… instead of discarding it" (a defeat destination, docs/phase7-wave3.md §3.45) replaces only the discard.
+  else if (insteadOfDiscard) insteadOfDiscard();
+  else discardFromPlay(ctx, id);
+}
+
+/**
  * A card leaves play for `to` (discard, hand, deck, removed from game): its
  * attachments are discarded and its in-play state (damage, threat, counters,
  * statuses, exhaust, engagement) is cleared. RRG "Permanent": a permanent card
@@ -356,9 +463,14 @@ export function leavePlay(
   const doubleSided = card !== undefined && "flipSide" in card && card.flipSide !== undefined;
   const keepsCard =
     requested.kind === "victoryDisplay" || requested.kind === "setAside" || requested.kind === "encounterSetAside";
-  const to: ZoneId = doubleSided && !keepsCard ? { kind: "removedFromGame" } : requested;
+  let to: ZoneId = doubleSided && !keepsCard ? { kind: "removedFromGame" } : requested;
+  // "When a card would be placed into a discard pile from play, put it faceup into The Collection instead"
+  // (`discardFromPlayDestination`, docs/phase7-wave3.md §3.14). The discard is still attempted (RRG 1.8 FAQ "Rocket
+  // Raccoon (#29A)", p. 61), so it is logged as one.
+  const redirect = discarded && to === requested ? discardRedirectArea(ctx.state, ctx.deps, id) : null;
   if (discarded && to === requested)
     emit(ctx, { type: "cardDiscardedFromPlay", instanceId: id, cardId: instance.cardId });
+  if (redirect !== null) to = { kind: "scenarioArea", name: redirect.area };
   for (const attachment of [...instance.attachments]) discardFromPlay(ctx, attachment);
   // RRG "Tuck": when a card leaves play, each card tucked under it is discarded.
   for (const tuckedId of [...instance.tucked]) {
@@ -367,7 +479,7 @@ export function leavePlay(
   }
   // Boost cards still on an enemy that leaves play mid-activation go with it (RRG 1.8 "Boost": they are discarded).
   for (const boostId of [...instance.boostCards]) moveCard(ctx, boostId, discardZoneFor(ctx.state, boostId), "top");
-  moveCard(ctx, id, to, position);
+  moveCard(ctx, id, to, redirect !== null ? "bottom" : position);
   updateInstance(ctx, id, (i) => ({
     ...i,
     damage: 0,
@@ -378,9 +490,26 @@ export function leavePlay(
     engagedWith: null,
     // A facedown card is itself again once it leaves play, and a flipped card shows its front.
     facedownAs: null,
-    faceup: i.facedownAs ? true : i.faceup,
+    faceup: redirect !== null ? true : i.facedownAs ? true : i.faceup,
     flipped: false,
   }));
+  if (redirect !== null) {
+    pushEvent(ctx, { kind: "discardRedirected", instanceId: id, area: redirect.area });
+    // Collector III's own "…, then place 1 threat on the main scheme" (`thenPlaceThreat`, docs/phase7-wave3.md §3.14):
+    // one Forced Interrupt box, so the follow-up runs right after the redirect it belongs to, through the ordinary
+    // interruptible `placeThreat` event rather than a second card's response to `discardRedirected`.
+    if (redirect.thenPlaceThreat !== undefined) {
+      const schemeInstanceId = mainSchemeForRedirect(ctx.state, ctx.deps, redirect);
+      if (schemeInstanceId !== null) {
+        pushEvent(ctx, {
+          kind: "placeThreat",
+          schemeInstanceId,
+          amount: redirect.thenPlaceThreat,
+          sourceInstanceId: redirect.sourceInstanceId,
+        });
+      }
+    }
+  }
 }
 
 // ---------------------------------------------------------------------------

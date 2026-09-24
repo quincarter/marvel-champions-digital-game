@@ -485,12 +485,12 @@ export const ROGUE_CARDS: readonly AnyCard[] = [
     traits: [],
     keywords: [],
     deckLimit: 3,
-    playRestrictions: { requiresIdentityTrait: trait("MUTANT") },
+    playRestrictions: { requiresIdentityTrait: trait("MUTANT"), maxPerPlayer: 1 },
     text: {
       printed: "Play only if your identity has the MUTANT trait. Max 1 per player\nResource: Exhaust X-Gene → generate a [wild] resource for an identity-specific event.",
       current: "Play only if your identity has the MUTANT trait. Max 1 per player\nResource: Exhaust X-Gene → generate a [wild] resource for an identity-specific event.",
     },
-    abilities: [{ id: abilityId("38019.x-gene-constant") }, { id: abilityId("38019.x-gene-resource") }],
+    abilities: [{ id: abilityId("38019.x-gene-resource") }],
   },
   {
     id: cardId("38020"),

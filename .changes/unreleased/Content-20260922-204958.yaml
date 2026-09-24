@@ -1,0 +1,3 @@
+kind: Content
+body: 'gmw: backfill behavioral tests for untested-but-registered abilities (Drang II/III, Protect the Planet, Badoon Engineer, Bombardment); add a coverage guard requiring every registered ability id be named in its pack''s own tests'
+time: 2026-09-22T20:49:58.125593-04:00

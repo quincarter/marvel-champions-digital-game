@@ -56,7 +56,7 @@ const AVENGER = trait("AVENGER");
  *   read live through `traitsOf`, so a granted trait counts on either end (RRG 1.8 "Gains", p. 21).
  * - `12032.muster-courage-action` — "give up to X friendly characters a tough status card (to a maximum of 3),
  *   where X is the villain's stage number" is `chooseTarget`'s `count: ValueSpec` (`scaled(villainStageNumberOf(),
- *   { max: 3 })`) plus `optional: true` for "up to" — not `chooseCards.max` (the *out-of-play* selector), which
+ *   { max: 3 })`) plus `upTo: true` for "up to" (at least 1; docs/phase7-wave3.md §4 Q16) — not `chooseCards.max` (the *out-of-play* selector), which
  *   the original skip named. docs/phase7-wave2.md §18.5.
  * - `12011.ant-man-interrupt` — "place 1 pym counter on him (to a maximum of 4) for each resource you overpaid for
  *   Ant-Man's cost" reads `overpaid.total` from the `cardEntersPlay` interrupt itself: `abilityFrame` merges the
@@ -137,11 +137,11 @@ export const ANT_PACK_CARDS = defineAbilities({
   // maximum of 3), where X is the villain's stage number. Not `EffectSpec.chooseCards` (the *out-of-play* selector
   // — "search your deck", "look at the top 3") — a choice among characters already in play is `chooseTarget`,
   // whose `count` has been `Amount` (a plain number or a live `ValueSpec`) since Shield Toss, and whose
-  // `optional: true` is exactly "up to" (RRG 1.8 "Choose (Game Element)", p. 12: an effect resolves as much as it
-  // can). docs/phase7-wave2.md §18.5.
+  // `upTo: true` is "up to": 1 to X when any character can be chosen (docs/phase7-wave3.md §4 Q16, decided by the
+  // user on 2026-09-23). docs/phase7-wave2.md §18.5.
   "12032.muster-courage-action": heroAction(
     chooseTarget("brave", query(["hero", "ally"], { controller: "any" }), {
-      optional: true,
+      upTo: true,
       count: scaled(villainStageNumberOf(), { max: 3 }),
     }),
     giveTough(chosen("brave")),

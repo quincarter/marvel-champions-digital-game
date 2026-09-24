@@ -650,7 +650,7 @@ export const CYCLOPS_CARDS: readonly AnyCard[] = [
       printed: "Give to the Scott Summers player.\nSearch your hand, deck, discard pile, and play area for Ruby Quartz Visor and place it facedown under this card.\nCyclops cannot attack.\nAlter-Ego Action: Exhaust Scott Summers → add Ruby Quartz Visor to your hand and remove Lost Visor from the game.",
       current: "Give to the Scott Summers player.\nSearch your hand, deck, discard pile, and play area for Ruby Quartz Visor and place it facedown under this card.\nCyclops cannot attack.\nAlter-Ego Action: Exhaust Scott Summers → add Ruby Quartz Visor to your hand and remove Lost Visor from the game.",
     },
-    abilities: [{ id: abilityId("33027.obligation") }],
+    abilities: [{ id: abilityId("33027.lost-visor-constant") }, { id: abilityId("33027.lost-visor-action") }],
   },
   {
     id: cardId("33028"),
@@ -686,6 +686,7 @@ export const CYCLOPS_CARDS: readonly AnyCard[] = [
     quantityInSet: 1,
     unique: false,
     images: { front: imageRef("/bundles/cards/33029.png") },
+    amplifyIcons: 1,
     encounterSetIds: [encounterSetId("cyclops_nemesis")],
     startingThreat: { base: 0, perPlayer: 2 },
     icons: [],

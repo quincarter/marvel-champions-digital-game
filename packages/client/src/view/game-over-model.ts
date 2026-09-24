@@ -28,6 +28,7 @@ import {
 } from "@mc/engine";
 import type { GameRecord } from "../engine/game-record.js";
 import type { SessionConfig } from "../engine/host.js";
+import { hpFraction, hpNumber } from "./hp-format.js";
 import { cardName, playerName } from "./names.js";
 
 export type GameOverTone = "win" | "loss";
@@ -108,7 +109,7 @@ export function gameOverModel(
   const schemeName = scheme.name ?? cardName(state, state.mainScheme.instanceId);
   const schemeTarget = scale(scheme.targetThreat, state.startingPlayerCount);
 
-  const villainHp = remainingHitPoints(state, villainState.instanceId, deps) ?? 0;
+  const villainHp = hpNumber(remainingHitPoints(state, villainState.instanceId, deps) ?? 0);
   const heroesDown = record.seats.filter((seat) => seat.defeatedInRound !== null);
   const firstDown = [...heroesDown].sort((a, b) => (a.defeatedInRound ?? 0) - (b.defeatedInRound ?? 0))[0];
 
@@ -228,7 +229,7 @@ export function gameOverModel(
     const id = player.identity.instanceId;
     const hp = remainingHitPoints(state, id, deps);
     const max = maxHitPoints(state, id, deps);
-    const health = hp !== undefined && max !== undefined ? `${hp}/${max} HP · ` : "";
+    const health = hp !== undefined && max !== undefined ? `${hpFraction(hp, max)} HP · ` : "";
     return { name: playerName(state, seat.playerId), detail: `${health}${played}`, defeated: false };
   });
 

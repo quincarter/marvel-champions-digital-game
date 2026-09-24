@@ -25,21 +25,26 @@ export interface VillainStage {
    * Either every stage of a side has a label or none does.
    */
   readonly stageLabel?: string;
+  /** Printed hit points. `{ base: 0, perPlayer: 0 }` when `infiniteHp` is set. */
   readonly hp: ScalingValue;
   /**
-   * True on a face that prints **no** hit points of its own — The Collector's and Hela's back faces (`gmw`
-   * 16080b/16081b, `mts` 21136b/21137b), which read "cannot be defeated" and carry no hit point value at all.
+   * True on a face that prints **infinite** hit points (∞): the "Wounded" back faces of The Collector (`gmw`
+   * 16080b/16081b, Escape the Museum) and Hela (`mts` 21136b/21137b). MarvelCDB encodes ∞ as `health: 0`.
    *
-   * `hp` still holds the value that applies, because the hit point dial carries across the flip (RRG 1.8 "Flip",
-   * p. 20; the Green Goblin insert, Risky Business "New Rules": "all attachment cards, status cards, boost cards,
-   * damage, and other game elements associated with the villain remain as they are") — which is also why the back
-   * face's own text has to say "set [the villain's] hit point dial to his printed hit points" when it flips back.
-   * The validator checks that it repeats the same stage number's hit points from the face that does print them, so
-   * the value is a *verified* carry-over rather than a number the pipeline invented, and every reader keeps working.
+   * - RRG 1.8 "Hit Points" (p. 22): "Some characters may have an infinite number of hit points. A character with
+   *   infinite hit points cannot be defeated by taking damage, as the amount of damage that character takes will never
+   *   cause its remaining hit points to reach zero. However, damage may still be dealt to a character with infinite hit
+   *   points through attacks and card abilities."
+   * - The Galaxy's Most Wanted rulebook, Escape the Museum, "Infinite Hit Points (New)" (MC16 p. 12), and The Mad
+   *   Titan's Shadow rulebook, Hela, "Infinite Hit Points" (MC21 p. 20): "In this scenario, the villain has infinite
+   *   hit points (∞)."
    *
-   * Only a later side may set it. docs/phase7-wave2.md §11.2.
+   * `hp` holds `{ base: 0, perPlayer: 0 }`, as `dashedStats` holds 0 for a dashed stat. The flag replaces wave 2's
+   * `hpNotPrinted` (docs/phase7-wave2.md §11.2), which read the face as printing *no* hit points and carried the front's
+   * dial across the flip. The rulebooks above say the face prints ∞, and MC21 p. 20 says Hela's flip "is resolved just
+   * like advancing to the next villain stage: her hit points are reset". docs/phase7-wave3.md §1.1.
    */
-  readonly hpNotPrinted?: boolean;
+  readonly infiniteHp?: boolean;
   /** Printed ATK. 0 when `dashedStats` lists `"atk"`. */
   readonly atk: number;
   /** Printed SCH. 0 when `dashedStats` lists `"sch"`. */

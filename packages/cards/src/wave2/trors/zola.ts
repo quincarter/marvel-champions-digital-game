@@ -106,9 +106,13 @@ export const ZOLA_SET = defineAbilities({
   ),
   // The Island of Dr. Zola — Forced Response: after resolving step one of the villain phase, place 1 test counter
   // here. Then, if there are 3+ test counters, discard cards from the top of the encounter deck until a minion is
-  // discarded, put it into play engaged with the first player, and remove 3 test counters.
+  // discarded, put it into play engaged with the first player, and remove 3 test counters. Wave 3 §3.2's
+  // `villainStepResolved { step: "placeThreat" }` (docs/phase7-wave3.md §3.2, §5) is the step-one-completing
+  // event; `on.threatPlaced(mainScheme)` fired on every threat placement on the main scheme from any source, not
+  // once per villain phase (docs/phase7-wave3-qa.md Finding 1, and the same bug found here independently, which
+  // Finding 1's own list of three cards didn't name).
   "04112b.the-island-of-dr-zola-forced-response": forcedResponse(
-    on.threatPlaced(query("mainScheme")),
+    on.villainStepResolved(),
     addCounters(TEST, 1, theMainScheme),
     ifThenHighTest("spawned"),
   ),
@@ -126,9 +130,10 @@ export const ZOLA_SET = defineAbilities({
     ]),
     shuffleEncounterDeck(),
   ),
-  // The Mad Doctor 2B — same Forced Response as 1B. "If this scheme is completed, the players lose" is data.
+  // The Mad Doctor 2B — same Forced Response as 1B (see 04112b's comment above for the `villainStepResolved` fix).
+  // "If this scheme is completed, the players lose" is data.
   "04113b.the-mad-doctor-forced-response": forcedResponse(
-    on.threatPlaced(query("mainScheme")),
+    on.villainStepResolved(),
     addCounters(TEST, 1, theMainScheme),
     ifThenHighTest("spawned2"),
   ),

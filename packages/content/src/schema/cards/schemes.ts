@@ -65,6 +65,19 @@ export interface MainSchemeStage {
    * from the card image. A field may not be both dashed and `printedX`.
    */
   readonly dashedValues?: readonly MainSchemeThreatField[];
+  /**
+   * The B side prints "If this stage is completed, the players lose the game." (or "If this scheme is completed, …").
+   * RRG 1.8 "Main Scheme, Main Scheme Deck" (p. 27): only completing the **final** stage makes the villain win; any
+   * other stage advances. This sentence makes completing *this* stage a loss too, even with stages after it — the
+   * stages the players leave some other way: The Missing Milano 1B and Lost in the Museum 2B (`gmw` 16082b, 16083b,
+   * "When the last threat is removed from this scheme, advance"), Kang's Arrival 1B (`toafk` 11007b, advanced by
+   * defeating Kang I), Infiltrate A.I.M. Island Embassy 1B / Locate Missing Person 2B (`aos` 50087b, 50088b), Zemo's
+   * Manipulations 1B (`aos` 50167b), Gotta Get Away 1B and Uncontrollable Power 1B (`next_evol` 40103b, 40166b).
+   * Emitted on every stage that prints the sentence, final or not (on a final stage it restates the rule). A
+   * compound sentence ("If this stage is completed or there are no Morlock allies in play, …") still sets it; its
+   * other half is a script's (`stateCheck` + `endGame`). docs/phase7-wave3.md §3.37.
+   */
+  readonly completionLoses?: boolean;
   readonly icons: readonly SchemeIcon[];
   readonly text: CardText;
   readonly traits: readonly Trait[];

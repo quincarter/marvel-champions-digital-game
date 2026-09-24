@@ -1,0 +1,3 @@
+kind: Engine
+body: AbilityCost.spendCounters can now spend counters off a target other than the ability's own card
+time: 2026-09-22T18:27:02.044952-04:00

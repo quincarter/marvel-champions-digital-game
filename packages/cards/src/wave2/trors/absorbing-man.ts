@@ -81,12 +81,13 @@ const HIGH_DELAY = valueAtLeast(countersOn(theMainScheme, DELAY), 5);
  * its own beyond `trors/hawkeye-obligation-nemesis.ts`'s Hydra-nemesis pool): the villain (04076–04078), main
  * scheme "None Shall Pass" (04079), and his own encounter set (04080–04092).
  *
- * **Reading: "After resolving step one of the villain phase."** The engine has no dedicated trigger event for a
- * villain-phase step completing; step one's entire job (RRG 1.8 "Villain Phase", p. 46) is placing threat on the
- * main scheme from acceleration, and that IS an interruptible `placeThreat` event (`on.threatPlaced`). For a
- * standalone (non-separate-game-area) scenario, "after resolving step one" and "after the main scheme's step-one
- * threat is placed" are the same moment, so `forcedResponse(on.threatPlaced(query("mainScheme")), …)` is used
- * rather than inventing a new primitive for an event the engine already announces under a different name.
+ * **Reading: "After resolving step one of the villain phase."** `on.villainStepResolved()` (default step
+ * `"placeThreat"`, docs/phase7-wave3.md §3.2, engine event `villainStepResolved { step: "placeThreat" }`) is the
+ * dedicated timing point for this: announced once, after step one's threat and its own windows have resolved,
+ * before step two. Wave 2 originally wired None Shall Pass's Forced Response to `on.threatPlaced(mainScheme)`
+ * instead, which fires on *every* threat placement on the main scheme from any source (a minion's scheme, Incite,
+ * a card's effect), not once per villain phase — fixed per docs/phase7-wave3.md §5 / docs/phase7-wave3-qa.md
+ * Finding 1.
  *
  * **Reading: "Absorbing Man activates against you"** (04078's `[star]`) as "attacks you" (`on.villainAttacks`),
  * matching every other "against you" phrasing in this pack (Mockingbird, docs/phase7-wave2-scripting.md §6.6) —
@@ -135,10 +136,10 @@ export const ABSORBING_MAN_SET = defineAbilities({
     moveCards(encounterCards(["discard"]), "encounterDeckShuffle"),
   ),
   // None Shall Pass — Forced Response: after resolving step one of the villain phase, place 1 delay counter here.
-  "04079b.none-shall-pass-forced-response": forcedResponse(
-    on.threatPlaced(query("mainScheme")),
-    addCounters(DELAY, 1, self),
-  ),
+  // Wave 3 §3.2's `villainStepResolved { step: "placeThreat" }` (docs/phase7-wave3.md §3.2, §5) is the villain
+  // phase's own step-one-completing event; `on.threatPlaced(mainScheme)` (the wave 2 wiring) fired on every threat
+  // placement on the main scheme from any source, not once per villain phase (docs/phase7-wave3-qa.md Finding 1).
+  "04079b.none-shall-pass-forced-response": forcedResponse(on.villainStepResolved(), addCounters(DELAY, 1, self)),
   // None Shall Pass — Forced Interrupt: when an environment enters play, discard each other environment card in
   // play. `cardEntersPlay` is now interruptible (its own enter-play keywords resolve as that event's *apply* step,
   // not before it's announced), and `TargetQuery.excluding` names "every environment except the one that just

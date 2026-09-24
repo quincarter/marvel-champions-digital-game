@@ -9,8 +9,10 @@ import {
   paymentsFromOptionIds,
   payPayment,
   planCost,
+  playCostModifier,
   priceOrNull,
   pricePlay,
+  resourceVars,
 } from "../actions.js";
 import type { ChoiceOption } from "../choices.js";
 import { type Ctx, emit, findFrame, popFrame, pushFrames, requestChoice, setFrame } from "../ctx.js";
@@ -18,8 +20,8 @@ import { costReductionFor } from "../effects.js";
 import { EngineInvariantError } from "../errors.js";
 import type { FrameId, PlayerId } from "../ids.js";
 import { cardOf, mustPlayer, playerOrder } from "../query.js";
-import { combineRequirements, poolTotal, requirementTotal, satisfies } from "../resources.js";
-import type { TriggerCandidate, Vars, WindowTiming } from "../stack.js";
+import { combineRequirements, requirementTotal, satisfies } from "../resources.js";
+import type { TriggerCandidate, WindowTiming } from "../stack.js";
 import type { GameState } from "../state.js";
 import type { TriggerEvent } from "../trigger-events.js";
 import { simultaneousOrderer } from "../villain/authority.js";
@@ -149,9 +151,18 @@ function windowEventCost(ctx: Ctx, candidate: TriggerCandidate): number {
   const card = cardOf(ctx.state, candidate.instanceId);
   if (!card || !candidate.controllerId) return 0;
   const printed = "cost" in card ? card.cost : 0;
+  // A card played straight from hand at its own trigger window (Crosscounter, Knife Leap, …) is priced the same
+  // way `ownPlayCost` prices a normally-played card: printed cost, then every in-play/hand-active `CostModifierSpec`
+  // constant (`playCostModifier` — this path previously read only `costReductionFor`'s older "reduce the next card"
+  // lasting-effect mechanism, so a constant cost reduction like Knife Leap's "reduce the cost to play this card by
+  // 1 for each vengeance counter on Drax" silently never applied here), then the older reduction, never below 0.
+  const modified = Math.max(
+    0,
+    printed + playCostModifier(ctx.state, ctx.deps, candidate.controllerId, candidate.instanceId, null),
+  );
   const reduced = Math.max(
     0,
-    printed - costReductionFor(ctx.state, ctx.deps, candidate.controllerId, candidate.instanceId),
+    modified - costReductionFor(ctx.state, ctx.deps, candidate.controllerId, candidate.instanceId),
   );
   const abilityCost = ctx.deps.abilities[candidate.abilityId]?.cost?.resources;
   return requirementTotal(combineRequirements(reduced, abilityCost));
@@ -202,14 +213,11 @@ function payWindowAbility(ctx: Ctx, frame: Frame<"window">, answer: readonly str
   if (isPriceFault(plan)) return;
   const pool = priceOrNull(ctx, controller, payment, null, plan.payingFor);
   if (!pool || !satisfies(pool, plan.requirement)) return;
+  // The same checks and vars an action's payment gets: "of the same type" / "of different types", X
+  // (docs/phase7-wave3.md §3.43). A payment that fails one is a decline, as an under-payment is.
+  const paidVars = resourceVars(pool, plan.cost ?? definition.cost, plan.requirement);
+  if (isPriceFault(paidVars)) return;
   const spent = payPayment(ctx, controller, payment);
-  const paidVars: Vars = {
-    "paid.physical": pool.physical,
-    "paid.mental": pool.mental,
-    "paid.energy": pool.energy,
-    "paid.wild": pool.wild,
-    "paid.total": poolTotal(pool),
-  };
   pushFrames(ctx, [
     abilityFrame(ctx, candidate, frame.event, frame.eventFrameId, plan.bindings, { ...plan.vars, ...paidVars }),
   ]);

@@ -1,5 +1,5 @@
 import type { Trait } from "@mc/content";
-import type { RuleSpec } from "./abilities.js";
+import type { EventPattern, RuleSpec } from "./abilities.js";
 import type { FrameId, InstanceId, PlayerId } from "./ids.js";
 import type { EffectSpec, StatName, TargetQuery, ValueSpec } from "./spec.js";
 import type { Bindings, Vars } from "./stack.js";
@@ -124,7 +124,21 @@ export type LastingEffectBody =
    * `scope` is the creating ability's, so the rule's `player`/`target` read "you" as that ability's controller even
    * though its card is gone.
    */
-  | { readonly kind: "ruleGrant"; readonly rule: RuleSpec; readonly scope: LastingScope };
+  | { readonly kind: "ruleGrant"; readonly rule: RuleSpec; readonly scope: LastingScope }
+  /**
+   * "Until the end of the turn, heal 2 damage from Rocket Raccoon each time you deal any amount of damage to an enemy."
+   * (Schadenfreude, `gmw` 16032): every event matching `on` while this lasts resolves `effects`, automatically, after the
+   * event and before its responses — a delayed effect that repeats (RRG 1.8 "Delayed Effect", p. 15: delayed effects
+   * "resolve automatically and immediately after their specified timing point … and before responses", and are "not
+   * treated as a new triggered ability"). `on` is matched with the scope's card as "self" and its controller as "you".
+   * docs/phase7-wave3.md §3.17.
+   */
+  | {
+      readonly kind: "eachTime";
+      readonly on: EventPattern;
+      readonly effects: readonly EffectSpec[];
+      readonly scope: LastingScope;
+    };
 
 export type LastingEffect = LastingEffectBody & {
   readonly id: string;

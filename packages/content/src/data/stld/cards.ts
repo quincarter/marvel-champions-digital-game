@@ -613,13 +613,13 @@ export const STLD_CARDS: readonly AnyCard[] = [
     icons: ["hazard"],
     boostIcons: 3,
     traits: [],
-    keywords: [],
+    keywords: [{ name: "hinder", value: 0, perPlayer: 2 }],
     text: {
       printed: "Hinder 2[per_hero]. (When revealed, place 2[per_hero] threat here.)",
       current: "Hinder 2[per_hero]. (When revealed, place 2[per_hero] threat here.)",
     },
     flavor: "\"In your tiny head, the line between a criminal enterprise and an empire is thin. In reality, nobody cares. All they care about is who holds the gun.\" —J'son",
-    abilities: [{ id: abilityId("17025.budding-crime-syndicate-constant") }],
+    abilities: [],
   },
   {
     id: cardId("17026"),

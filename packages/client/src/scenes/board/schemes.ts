@@ -10,6 +10,7 @@ import { label, paintPanel } from "../../ui/widgets.js";
 import type { BoardModel, SchemePanel } from "../../view/board-model.js";
 import { CARD_ASPECT, type Rect } from "../../view/layout.js";
 import { threatFromValue } from "../../view/threat-motion.js";
+import { drawFootStrip } from "./character-panel.js";
 import type { BoardDrawContext } from "./context.js";
 import { dimAlpha, targetState } from "./selection.js";
 
@@ -96,6 +97,17 @@ function drawScheme(ctx: BoardDrawContext, rect: Rect, scheme: SchemePanel): num
   label(scene, textLeft, rect.y + 30, scheme.subtitle, typeRole.label, surface.ink.hex, ink.label * dim);
 
   const meter: Rect = { x: textLeft, y: rect.y + rect.height - 26, width: textWidth, height: 18 };
+
+  // A printed Hero/Alter-Ego Action or resource ability on the scheme itself
+  // (The Grand Collection's "discard 1 card from The Collection", the Milano's
+  // exhaust-to-remove-threat abilities printed on several cycle 2 schemes) —
+  // the same `▶` affordance a character panel's foot strip gives its own
+  // usable ability, drawn only where it fits above the threat meter.
+  const abilityLine = ctx.controller.abilityLine(scheme.instanceId);
+  const abilityTop = rect.y + 48;
+  if (abilityLine && abilityTop + 18 <= meter.y - 4) {
+    drawFootStrip(scene, { x: textLeft, y: abilityTop, width: textWidth, height: 18 }, abilityLine, "ability", dim);
+  }
   const mg = scene.add.graphics();
   const meterText = scene.add
     .text(
@@ -139,6 +151,6 @@ function drawScheme(ctx: BoardDrawContext, rect: Rect, scheme: SchemePanel): num
     paintMeter(scheme.threat);
   }
 
-  ctx.makeTapTarget(rect, scheme.instanceId);
+  ctx.makeTapTarget(rect, scheme.instanceId, () => ctx.controller.onCharacterTap(scheme.instanceId));
   return rect.y + rect.height;
 }

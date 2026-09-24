@@ -730,7 +730,10 @@ export const BP_CARDS: readonly AnyCard[] = [
       printed: "Give to the Shuri player.\nUses (4 doubt counters). Victory 0.\nIncrease the resource cost of each card you play by 1.\nForced Response: After you thwart, attack, or defend, remove 1 doubt counter from here.",
       current: "Give to the Shuri player.\nUses (4 doubt counters). Victory 0.\nIncrease the resource cost of each card you play by 1.\nForced Response: After you thwart, attack, or defend, remove 1 doubt counter from here.",
     },
-    abilities: [{ id: abilityId("51031.obligation") }],
+    abilities: [
+      { id: abilityId("51031.tchallas-shadow-constant") },
+      { id: abilityId("51031.tchallas-shadow-forced-response") },
+    ],
   },
   {
     id: cardId("51032"),
@@ -767,6 +770,7 @@ export const BP_CARDS: readonly AnyCard[] = [
     quantityInSet: 1,
     unique: false,
     images: { front: imageRef("/bundles/cards/51033.jpg") },
+    amplifyIcons: 1,
     encounterSetIds: [encounterSetId("black_panther_shuri_nemesis")],
     startingThreat: { base: 5, perPlayer: 0 },
     icons: [],
@@ -790,6 +794,7 @@ export const BP_CARDS: readonly AnyCard[] = [
     quantityInSet: 1,
     unique: true,
     images: { front: imageRef("/bundles/cards/51034.jpg") },
+    amplifyIcons: 1,
     atk: 0,
     sch: 0,
     hp: 1,

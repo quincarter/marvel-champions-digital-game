@@ -197,6 +197,71 @@ test("useAbility pays an exhaust-plus-counter cost and enforces its limit", () =
   if (!again.ok) expect(again.error.code).toBe("limit_reached");
 });
 
+// docs/phase7-wave3.md's Groot kit (`gmw` 16008/16010/16011): "remove 1 growth counter from him [Groot] and
+// exhaust [this upgrade] →" spends counters off the *paying player's identity*, not the upgrade card carrying the
+// ability — `AbilityCost.spendCounters.target: "identity"`.
+test("useAbility can pay a counter cost off the paying player's identity, not the ability's own card", () => {
+  const ability = stubAbility("vine-spikes", {
+    trigger: { kind: "action" },
+    cost: { exhaustSelf: true, spendCounters: { counterType: "growth", amount: 1, target: "identity" } },
+    effects: [{ kind: "dealDamage", target: { kind: "villain" }, amount: { kind: "const", value: 2 } }],
+  });
+  const upgrade = stubUpgrade({ id: "vine-spikes-card", cost: 0, resources: 1, abilities: [ability.ref] });
+  const deps = depsOf(ability);
+  const start = newGame({
+    villain: VILLAIN,
+    mainScheme: SCHEME,
+    extraCards: [upgrade],
+    deck: deckOf(upgrade.id, 24),
+    deps,
+  });
+  const upgradeId = findInHand(start, p1, upgrade.id);
+  const inPlay = runWith(deps, start, toHero, {
+    type: "playCard",
+    playerId: p1,
+    cardInstanceId: upgradeId,
+    payment: [],
+    attachToInstanceId: null,
+  });
+  const identityId = mustPlayer(inPlay, p1).identity.instanceId;
+  const grown = {
+    ...inPlay,
+    instances: {
+      ...inPlay.instances,
+      [identityId]: { ...mustInstance(inPlay, identityId), counters: { growth: 3 } },
+    },
+  };
+
+  // Unpayable while the upgrade card itself (not the identity) is what's checked for counters: it carries none.
+  const use = {
+    type: "useAbility",
+    playerId: p1,
+    cardInstanceId: upgradeId,
+    abilityId: ability.ref.id,
+    payment: [],
+  } as const;
+  const used = runWith(deps, grown, use);
+  expect(remainingHitPoints(used, activeVillain(used).instanceId)).toBe(18);
+  expect(mustInstance(used, upgradeId).exhausted).toBe(true);
+  expect(mustInstance(used, upgradeId).counters.growth ?? 0).toBe(0); // never touched
+  expect(mustInstance(used, identityId).counters.growth).toBe(2); // 3 - 1, spent off the identity instead
+
+  // Ready the card back up (it's already exhausted from the first use, which would otherwise mask the check this
+  // test cares about) and drain the identity's growth counters to 0, so a second attempt is unpayable only for
+  // lacking counters.
+  const readiedAndDrained = {
+    ...used,
+    instances: {
+      ...used.instances,
+      [upgradeId]: { ...mustInstance(used, upgradeId), exhausted: false },
+      [identityId]: { ...mustInstance(used, identityId), counters: { growth: 0 } },
+    },
+  };
+  const again = applyCommand(readiedAndDrained, use, deps);
+  expect(again.ok).toBe(false);
+  if (!again.ok) expect(again.error.code).toBe("insufficient_resources");
+});
+
 test("a once-per-round limit resets when the round does", () => {
   const ability = stubAbility("once", {
     trigger: { kind: "action" },

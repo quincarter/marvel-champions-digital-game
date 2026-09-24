@@ -140,15 +140,13 @@ export const QSV_CARDS: readonly AnyCard[] = [
     traits: [trait("SUPERPOWER")],
     keywords: [],
     deckLimit: 2,
+    playRestrictions: { maxPerPhase: 1 },
     text: {
       printed: "Max 1 per phase.\nHero Action: You get +2 THW, +2 ATK, and +2 DEF until the end of the round.",
       current: "Max 1 per phase.\nHero Action: You get +2 THW, +2 ATK, and +2 DEF until the end of the round.",
     },
     flavor: "\"Ever been punched at supersonic speed?\" —Quicksilver",
-    abilities: [
-      { id: abilityId("14005.maximum-velocity-constant") },
-      { id: abilityId("14005.maximum-velocity-action") },
-    ],
+    abilities: [{ id: abilityId("14005.maximum-velocity-action") }],
   },
   {
     id: cardId("14006"),

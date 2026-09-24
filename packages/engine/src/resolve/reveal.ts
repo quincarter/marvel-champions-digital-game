@@ -29,7 +29,7 @@ import type { TargetQuery } from "../spec.js";
 import type { StackFrame } from "../stack.js";
 import type { GameState } from "../state.js";
 import type { TriggerEvent } from "../trigger-events.js";
-import { whenRevealedRepeats } from "../rules.js";
+import { firstRevealGainsSurge, whenRevealedRepeats } from "../rules.js";
 import { encounterTargetSelector } from "../villain/authority.js";
 import { engagedEvent } from "./apply-effect.js";
 import { enterPlay, quickstrikeAttack } from "./enter-play.js";
@@ -292,7 +292,18 @@ export function executeRevealFrame(ctx: Ctx, frame: Frame<"reveal">): void {
         cardId: card.id,
         playerId: frame.playerId,
       });
-      setFrame(ctx, { ...frame, stage: "enterPlay" });
+      // "The first … revealed each round gains surge" is read as the card is revealed, against the reveals before it
+      // (docs/phase7-wave3.md §3.8); then this reveal joins the round's history.
+      const surges = firstRevealGainsSurge(ctx.state, ctx.deps, frame.instanceId, frame.playerId);
+      ctx.state = {
+        ...ctx.state,
+        revealedThisRound: [
+          ...(ctx.state.revealedThisRound ?? []),
+          { instanceId: frame.instanceId, playerId: frame.playerId, phase: ctx.state.step.phase },
+        ],
+      };
+      if (surges) emit(ctx, { type: "surgeGranted", instanceId: frame.instanceId, playerId: frame.playerId });
+      setFrame(ctx, { ...frame, stage: "enterPlay", ...(surges ? { surgeGained: true } : {}) });
       // The card is faceup and about to resolve: cancel effects interrupt here
       // (FFG ruling: Black Widow triggers after the flip, before its effects).
       pushEvent(ctx, { kind: "encounterCardRevealing", instanceId: frame.instanceId, playerId: frame.playerId });
@@ -430,10 +441,13 @@ export function enterPlayOnReveal(ctx: Ctx, id: InstanceId, playerId: PlayerId):
       // With separate game areas, a side scheme enters the revealing player's area (docs/phase7-wave2.md §3.1).
       assignToArea(ctx, id, playerId);
       entered = true;
+      // RRG 1.8 "Hinder X" (p. 22): "enters play with X threat on it", "in addition to any threat it normally enters
+      // play with, such as a side scheme's starting threat" — one placement, however the scheme entered play
+      // (docs/phase7-wave3.md §3.3).
       pushEvent(ctx, {
         kind: "placeThreat",
         schemeInstanceId: id,
-        amount: startingThreatOf(ctx.state, id, ctx.deps),
+        amount: startingThreatOf(ctx.state, id, ctx.deps) + keywordTotal(ctx.state, id, "hinder", ctx.deps),
         sourceInstanceId: null,
       });
       break;
@@ -462,6 +476,18 @@ export function enterPlayOnReveal(ctx: Ctx, id: InstanceId, playerId: PlayerId):
     }
     case "obligation":
       moveCard(ctx, id, { kind: "playArea", playerId });
+      entered = true;
+      break;
+    /**
+     * A player-typed support with no owner (`putIntoPlay`'s own "encounter cards other than minions" reading also
+     * catches an ownerless player card, docs/phase7-wave3.md's `gmw` Milano, 16142: "Permanent. Setup." — a
+     * `specificTo: { kind: "scenario" }` support nobody's deck ever holds). It needs a play area to sit in like any
+     * other card; `playerId` is only its initial home; `RuleSpec controlledByFirstPlayer` (already declared by its
+     * own constant ability) reassigns control on the very next state-trigger sweep if that isn't the first player.
+     */
+    case "support":
+      moveCard(ctx, id, { kind: "playArea", playerId });
+      updateInstance(ctx, id, (i) => ({ ...i, controllerId: playerId }));
       entered = true;
       break;
     default:

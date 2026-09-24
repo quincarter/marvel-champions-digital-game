@@ -1,8 +1,18 @@
 import type { EngineDeps } from "./abilities.js";
 import type { InstanceId, PlayerId } from "./ids.js";
-import { villainOf } from "./query.js";
-import { activeRules, cardsInPlay, categoriesOf, matchesQuery, resolveRef, rulePlayers } from "./select.js";
-import type { AttackKeyword } from "./spec.js";
+import { hasKeyword } from "./keywords.js";
+import { mainSchemeFor, minionsEngagedWith, villainOf } from "./query.js";
+import {
+  activeRules,
+  cardsInPlay,
+  categoriesOf,
+  contextArea,
+  matchesQuery,
+  resolveRef,
+  rulePlayers,
+  type EffectContext,
+} from "./select.js";
+import type { AttackKeyword, CardDestination } from "./spec.js";
 import type { Form, GameState } from "./state.js";
 
 /** "X cannot take damage [while …] [from …]". `sources` are the damage's source and the card it came through. */
@@ -20,16 +30,28 @@ export function cannotTakeDamage(
   });
 }
 
-/** "Threat cannot be removed from this scheme" (Countdown to Oblivion); a `by: "thwart"` rule only stops a thwart. */
+/**
+ * "Threat cannot be removed from this scheme" (Countdown to Oblivion); a `by: "thwart"` rule only stops a thwart.
+ * `removerId` is the player attempting the removal (the thwart's player, else the removing card's controller; null
+ * for a removal no player made) — read only by a rule that scopes itself with `player` ("Players other than Gamora
+ * cannot remove threat from Sibling Rivalry", `gam` 18025, docs/phase7-wave3.md §3.26): such a rule blocks only a
+ * removal whose `removerId` is one of `rulePlayers(rule.player)`, so a removal with no player is never blocked by a
+ * scoped rule (there is nothing to compare) but is still blocked by an unscoped one, exactly as before this field.
+ */
 export const threatCannotBeRemoved = (
   state: GameState,
   deps: EngineDeps,
   schemeId: InstanceId,
   byThwart = false,
+  removerId: PlayerId | null = null,
 ): boolean =>
-  activeRules(state, deps, "threatCannotBeRemoved").some(
-    ({ rule, context }) => (rule.by !== "thwart" || byThwart) && matchesQuery(state, schemeId, rule.target, context),
-  );
+  activeRules(state, deps, "threatCannotBeRemoved").some((active) => {
+    const { rule, context } = active;
+    if (rule.by === "thwart" && !byThwart) return false;
+    if (!matchesQuery(state, schemeId, rule.target, context)) return false;
+    if (!rule.player) return true;
+    return removerId !== null && rulePlayers(state, { player: rule.player }, active).includes(removerId);
+  });
 
 /** "While Baron Zemo is engaged with you, you cannot thwart." */
 export const cannotThwart = (state: GameState, deps: EngineDeps, playerId: PlayerId): boolean =>
@@ -126,11 +148,21 @@ export const cannotTriggerAction = (
     ({ rule, context }) => (rule.form === undefined || rule.form === form) && matchesQuery(state, id, rule.on, context),
   );
 
-/** Whether a defeated side scheme is shuffled into the encounter deck instead of discarded (`defeatedIntoEncounterDeck`). */
-export const defeatedIntoEncounterDeck = (state: GameState, deps: EngineDeps, id: InstanceId): boolean =>
-  activeRules(state, deps, "defeatedIntoEncounterDeck").some(({ rule, context }) =>
+/**
+ * Where a defeated card goes instead of its discard pile, from a constant rule (docs/phase7-wave3.md §3.45): the first
+ * matching `defeatDestination`, else `"encounterDeckShuffle"` for the older `defeatedIntoEncounterDeck` (Time Portal),
+ * else null (the discard pile). An interrupt's `setDefeatDestination` on the defeat event itself wins over both.
+ */
+export function defeatDestinationRule(state: GameState, deps: EngineDeps, id: InstanceId): CardDestination | null {
+  const general = activeRules(state, deps, "defeatDestination").find(({ rule, context }) =>
     matchesQuery(state, id, rule.target, context),
   );
+  if (general) return general.rule.to;
+  const intoDeck = activeRules(state, deps, "defeatedIntoEncounterDeck").some(({ rule, context }) =>
+    matchesQuery(state, id, rule.target, context),
+  );
+  return intoDeck ? "encounterDeckShuffle" : null;
+}
 
 /** Whether this character may divide its basic `power` among several targets (`divideBasicPower`). */
 export const canDivideBasicPower = (
@@ -146,6 +178,162 @@ export const canDivideBasicPower = (
 /** "This card cannot leave play while …" (`cannotLeavePlay`). */
 export const cannotLeavePlay = (state: GameState, deps: EngineDeps, id: InstanceId): boolean =>
   activeRules(state, deps, "cannotLeavePlay").some(({ rule, context }) =>
+    matchesQuery(state, id, rule.target, context),
+  );
+
+/**
+ * Whether the card being revealed right now gains surge from a `firstRevealGainsSurge` rule (docs/phase7-wave3.md
+ * §3.8). Call it before the reveal is recorded in `revealedThisRound`: the history is every earlier reveal.
+ */
+export function firstRevealGainsSurge(
+  state: GameState,
+  deps: EngineDeps,
+  revealedId: InstanceId,
+  revealerId: PlayerId,
+): boolean {
+  const phase = state.step.phase;
+  const history = state.revealedThisRound ?? [];
+  return activeRules(state, deps, "firstRevealGainsSurge").some((active) => {
+    const { rule, context } = active;
+    if (!matchesQuery(state, revealedId, rule.cards, context)) return false;
+    const revealers = rule.revealer ? rulePlayers(state, { player: rule.revealer }, active) : null;
+    if (revealers && !revealers.includes(revealerId)) return false;
+    return !history.some(
+      (earlier) =>
+        (rule.each === "round" || earlier.phase === phase) &&
+        (!revealers || revealers.includes(earlier.playerId)) &&
+        matchesQuery(state, earlier.instanceId, rule.cards, context),
+    );
+  });
+}
+
+/**
+ * The damage a character takes from one damage event once constant reductions and caps apply (`reduceDamageTaken`,
+ * `maxDamageTakenPerAttack`; docs/phase7-wave3.md §3.15). Reductions first, then the lowest cap: a cap is the last word
+ * on what one attack can make the character take (§4 Q9).
+ */
+export function damageTakenAfterConstants(
+  state: GameState,
+  deps: EngineDeps,
+  targetId: InstanceId,
+  amount: number,
+  fromAttack: boolean,
+): number {
+  let taken = amount;
+  for (const { rule, context } of activeRules(state, deps, "reduceDamageTaken")) {
+    if (rule.fromAttack === true && !fromAttack) continue;
+    if (matchesQuery(state, targetId, rule.target, context)) taken -= rule.amount;
+  }
+  if (fromAttack) {
+    for (const { rule, context } of activeRules(state, deps, "maxDamageTakenPerAttack")) {
+      if (matchesQuery(state, targetId, rule.target, context)) taken = Math.min(taken, rule.amount);
+    }
+  }
+  return Math.max(0, taken);
+}
+
+/** Whether this enemy's attacks deal indirect damage (`attacksDealIndirectDamage`; docs/phase7-wave3.md §3.16). */
+export const attacksDealIndirectDamage = (state: GameState, deps: EngineDeps, attackerId: InstanceId): boolean =>
+  activeRules(state, deps, "attacksDealIndirectDamage").some(({ rule, context }) =>
+    matchesQuery(state, attackerId, rule.attacker, context),
+  );
+
+/** The excess damage an attack by this character adds (`excessDamageBonus`; docs/phase7-wave3.md §3.18). */
+export const excessDamageBonus = (state: GameState, deps: EngineDeps, attackerId: InstanceId): number =>
+  activeRules(state, deps, "excessDamageBonus")
+    .filter(({ rule, context }) => matchesQuery(state, attackerId, rule.attacker, context))
+    .reduce((sum, { rule }) => sum + rule.amount, 0);
+
+/** "The Power Stone cannot be unattached from Ronan the Accuser." (`cannotBeUnattached`; docs/phase7-wave3.md §3.19). */
+export const cannotBeUnattached = (state: GameState, deps: EngineDeps, id: InstanceId): boolean =>
+  activeRules(state, deps, "cannotBeUnattached").some(({ rule, context }) =>
+    matchesQuery(state, id, rule.target, context),
+  );
+
+/** Where `discardRedirectArea` sends a card, and the follow-up (if any) that redirect itself carries. */
+export interface DiscardRedirect {
+  readonly area: string;
+  /** Collector III's "…, then place 1 threat on the main scheme" (`thenPlaceThreat`, docs/phase7-wave3.md §3.14). */
+  readonly thenPlaceThreat?: number;
+  readonly sourceInstanceId: InstanceId | null;
+}
+
+/** The scenario area a card discarded from play goes to instead, or null (`discardFromPlayDestination`; §3.14). */
+export function discardRedirectArea(state: GameState, deps: EngineDeps, id: InstanceId): DiscardRedirect | null {
+  const match = activeRules(state, deps, "discardFromPlayDestination").find(({ rule, context }) =>
+    matchesQuery(state, id, rule.cards, context),
+  );
+  if (!match) return null;
+  return {
+    area: match.rule.area,
+    ...(match.rule.thenPlaceThreat !== undefined ? { thenPlaceThreat: match.rule.thenPlaceThreat } : {}),
+    sourceInstanceId: match.context.selfInstanceId,
+  };
+}
+
+/** The main scheme a redirect's follow-up threat lands on: the redirecting rule's own game area's stage. */
+export function mainSchemeForRedirect(
+  state: GameState,
+  deps: EngineDeps,
+  redirect: DiscardRedirect,
+): InstanceId | null {
+  const context: EffectContext = {
+    selfInstanceId: redirect.sourceInstanceId,
+    controllerId: null,
+    event: null,
+    bindings: {},
+    deps,
+  };
+  return mainSchemeFor(state, contextArea(state, context))?.instanceId ?? null;
+}
+
+/** RRG 1.8 "Restricted" (p. 38): "A player cannot have more than two cards with the restricted keyword in play". */
+export const BASE_RESTRICTED_LIMIT = 2;
+
+/**
+ * How many restricted cards `playerId` may control if they held exactly `held` (docs/phase7-wave3.md §3.22): two, plus
+ * each `restrictedLimit` rule for that player — a rule with `cards` adds room only for as many of `held` as match it.
+ */
+export function restrictedLimitFor(
+  state: GameState,
+  deps: EngineDeps,
+  playerId: PlayerId,
+  held: readonly InstanceId[],
+): number {
+  let limit = BASE_RESTRICTED_LIMIT;
+  for (const active of activeRules(state, deps, "restrictedLimit")) {
+    const { rule, context } = active;
+    const players = rule.player ? rulePlayers(state, { player: rule.player }, active) : [active.speakerId];
+    if (!players.includes(playerId)) continue;
+    const cards = rule.cards;
+    limit += cards
+      ? Math.min(rule.amount, held.filter((id) => matchesQuery(state, id, cards, context)).length)
+      : rule.amount;
+  }
+  return limit;
+}
+
+/** "Ronan the Accuser cannot be stunned." (`cannotHaveStatus`; docs/phase7-wave3.md §3.7). */
+export const cannotHaveStatus = (
+  state: GameState,
+  deps: EngineDeps,
+  id: InstanceId,
+  status: "stunned" | "confused" | "tough",
+): boolean =>
+  activeRules(state, deps, "cannotHaveStatus").some(
+    ({ rule, context }) => rule.statuses.includes(status) && matchesQuery(state, id, rule.target, context),
+  );
+
+/**
+ * RRG 1.8 "Patrol" (p. 32): "While a minion with the patrol keyword is engaged with a player, that player cannot use
+ * cards they control to thwart the main scheme" (docs/phase7-wave3.md §3.5).
+ */
+export const patrolledBy = (state: GameState, deps: EngineDeps, playerId: PlayerId): InstanceId | null =>
+  minionsEngagedWith(state, playerId).find((id) => hasKeyword(state, id, "patrol", deps)) ?? null;
+
+/** "X cannot be defeated" (`cannotBeDefeated`; docs/phase7-wave3.md §3.1). */
+export const cannotBeDefeated = (state: GameState, deps: EngineDeps, id: InstanceId): boolean =>
+  activeRules(state, deps, "cannotBeDefeated").some(({ rule, context }) =>
     matchesQuery(state, id, rule.target, context),
   );
 

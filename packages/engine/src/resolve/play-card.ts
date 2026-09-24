@@ -3,7 +3,7 @@
 import type { AbilityId } from "@mc/content";
 import { type Ctx, moveCard, popFrame, pushFrames, setFrame, updateInstance } from "../ctx.js";
 import type { FrameId, InstanceId, PlayerId } from "../ids.js";
-import { getInstance, mustCardOf, mustPlayer, scale } from "../query.js";
+import { locateCard, mustCardOf, mustPlayer, scale } from "../query.js";
 import { printedAbilityRefs } from "../select.js";
 import type { Bindings, StackFrame, Vars } from "../stack.js";
 import type { TriggerEvent } from "../trigger-events.js";
@@ -134,7 +134,11 @@ export function executePlayCardFrame(ctx: Ctx, frame: Frame<"playCard">): void {
     }
     case "discardEvent": {
       setFrame(ctx, { ...frame, stage: "done" });
-      if (card.type === "event" && getInstance(ctx.state, frame.instanceId)) {
+      // An event its own ability moved on ("If this is the first card you have played this round, return this card to
+      // your hand", Clobber / Impede, `gam`) is no longer being resolved, so it is not discarded (docs/phase7-wave3.md
+      // §3.11). RRG 1.8 "Event" (p. 19): an event is placed in the discard pile once its effects resolve.
+      const location = locateCard(ctx.state, frame.instanceId);
+      if (card.type === "event" && location?.kind === "resolving") {
         moveCard(ctx, frame.instanceId, { kind: "discard", playerId: frame.playerId }, "top");
       }
       announce(ctx, { kind: "cardPlayed", instanceId: frame.instanceId, playerId: frame.playerId });

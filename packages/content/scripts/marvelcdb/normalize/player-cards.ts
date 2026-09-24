@@ -85,10 +85,14 @@ export function normalizePlayerCard(
   // correct value, not a workaround (docs/phase7-wave2.md §5.1: "deckLimit: 1 (they are unique; campaign mode
   // may add them to decks)" — originally observed only on unique scenario/campaign cards, but the same reasoning
   // holds for any unique card missing `deck_limit`: Hercules' Gift Deck, 59005–59007, `is_unique: true` with no
-  // `specificTo` at all, hits the identical gap as a plain identity-specific hero-kit card). A non-unique
-  // specific card with no printed deck_limit (none observed yet) still defaults to 0 and stays exempt from the
-  // check below, since no evidence supports a value. A *present* deck_limit (the Hydra Campaign upgrades print 1)
-  // is still read and kept either way.
+  // `specificTo` at all, hits the identical gap as a plain identity-specific hero-kit card).
+  // wave3 §5 (`the_market`, `gmw`): now *observed* — 28 non-unique cards (Unit Cost items bought individually from
+  // The Market during a campaign, MC16 p. 5, never part of ordinary deckbuilding at all) print no `deck_limit`
+  // either, each at MarvelCDB `quantity: 1`. `validateCard` still requires a positive integer regardless of
+  // `specificTo`, so the same "1, not a fabricated count" default now applies whether or not the card is unique:
+  // `exemptFromDeckLimit` already skips the deck-limit *shape* check below for every `specificTo` card (unique or
+  // not), so this only supplies a schema-legal placeholder, never a claim about how many copies a real deck may
+  // hold. A *present* deck_limit (the Hydra Campaign upgrades print 1) is still read and kept either way.
   // A card with the Linked keyword (RRG 1.8 p. 27: "Cards with the linked keyword cannot be included in a
   // player's deck") never prints a `deck_limit` either — MarvelCDB's Redemption (51036, `bp`) has none. It is
   // refused from deckbuilding by `validateDeck`'s own `linked_card` check regardless of this number (PLAN.md
@@ -96,7 +100,7 @@ export function normalizePlayerCard(
   // positive integer" — defaulted to 1 the same way a unique card is, for the same reason.
   const isLinked = parsed.keywords.some((k) => k.name === "linked");
   const exemptFromDeckLimit = Boolean(separateDeck) || isLinked || (specificTo !== undefined && !r.is_unique);
-  const deckLimit = separateDeck ? 0 : (r.deck_limit ?? (isLinked || r.is_unique ? 1 : 0));
+  const deckLimit = separateDeck ? 0 : (r.deck_limit ?? (isLinked || r.is_unique || specificTo !== undefined ? 1 : 0));
   if (!exemptFromDeckLimit && (!Number.isInteger(deckLimit) || deckLimit < 1)) {
     errors.push(`${r.code}: deck_limit ${String(r.deck_limit)} invalid`);
   }

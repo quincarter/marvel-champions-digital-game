@@ -2,6 +2,7 @@ import type {
   CampaignLogValueSpec,
   CardDestination,
   CardSelector,
+  EventPattern,
   EffectSpec,
   FacedownRole,
   LastingUntil,
@@ -189,11 +190,44 @@ export const exhaust = (target: TargetRef): EffectSpec => ({ kind: "exhaust", ta
 export const ready = (target: TargetRef): EffectSpec => ({ kind: "ready", target });
 /** "Discard X" for a card in play. */
 export const discard = (target: TargetRef): EffectSpec => ({ kind: "discardFromPlay", target });
-export const addCounters = (counterType: string, n: Amount, target: TargetRef = self): EffectSpec => ({
+/**
+ * "Defeat a non-[Elite] minion." (Nova Prime, `stld` 17002; docs/phase7-wave3.md §3.9): a character defeated by
+ * effect rather than by damage. Everything that sees an ordinary defeat sees this one (interrupts, When Defeated,
+ * Victory X, `cannotBeDefeated`); a villain's stage falls the same way "Villain Defeat" (RRG 1.8 p. 47) describes,
+ * and an identity's player is eliminated. Characters only.
+ */
+export const defeat = (target: TargetRef): EffectSpec => ({ kind: "defeat", target });
+/**
+ * "… return it to its owner's hand **instead of discarding it**" (Regroup, `drax` 19032; docs/phase7-wave3.md §3.45):
+ * from an interrupt to a character's defeat, the card goes to `to` instead of its discard pile. It is still defeated.
+ */
+export const setDefeatDestination = (to: CardDestination): EffectSpec => ({ kind: "setDefeatDestination", to });
+/**
+ * "Cosmo does not take consequential damage for this use." (Cosmo, `stld` 17020, errata RRG 1.8 p. 67; docs/phase7-
+ * wave3.md §3.21): cancels the named character's pending consequential damage from its current attack or thwart.
+ * `character` defaults to the ability's own card.
+ */
+export const cancelConsequentialDamage = (character: TargetRef = self): EffectSpec => ({
+  kind: "cancelConsequentialDamage",
+  character,
+});
+/**
+ * `opts.upTo`: "(to a maximum of 10)" (Growth Spurt, `gmw` 16001b; Drax's vengeance counters, `drax`) — places at
+ * most as many as bring the card to that total, locally to this effect (docs/phase7-wave3.md §3.10). `opts.bind`:
+ * `<bind>.amount` reports how many were actually placed.
+ */
+export const addCounters = (
+  counterType: string,
+  n: Amount,
+  target: TargetRef = self,
+  opts: { readonly upTo?: Amount; readonly bind?: string } = {},
+): EffectSpec => ({
   kind: "addCounters",
   target,
   counterType,
   amount: amount(n),
+  ...(opts.upTo !== undefined ? { upTo: amount(opts.upTo) } : {}),
+  ...(opts.bind !== undefined ? { bind: opts.bind } : {}),
 });
 export const surge = (): EffectSpec => ({ kind: "gainSurge" });
 
@@ -227,10 +261,21 @@ export const chooseOneBy = (chooser: PlayerRef, ...options: readonly ChoiceOptio
   options,
 });
 /** "Choose a player." Refer to them with `chosenPlayer(slot)`. */
-export const choosePlayer = (slot = "player", chooser: PlayerRef = you): EffectSpec => ({
+export const choosePlayer = (
+  slot = "player",
+  chooser: PlayerRef = you,
+  opts: {
+    /**
+     * Only these players are eligible — the tie of a `superlativePlayer` ("the player engaged with the fewest
+     * minions", Drang III; docs/phase7-wave3.md §3.35). One eligible player is bound without asking.
+     */
+    readonly among?: PlayerRef;
+  } = {},
+): EffectSpec => ({
   kind: "choosePlayer",
   slot,
   chooser,
+  ...(opts.among ? { among: opts.among } : {}),
 });
 /** "Each player …": the effects run once per player with `thatPlayer`. */
 export const forEachPlayer = (players: PlayerRef, ...effects: readonly EffectArg[]): EffectSpec => ({
@@ -238,15 +283,26 @@ export const forEachPlayer = (players: PlayerRef, ...effects: readonly EffectArg
   players,
   effects: flatten(effects),
 });
+/**
+ * "Choose a/an X" (`count` for "X enemies"). `upTo`: a printed "up to X" — at least one whenever a legal target exists
+ * (docs/phase7-wave3.md §4 Q16, decided by the user on 2026-09-23). `optional`: only for a printed "may", which lets the
+ * chooser pick none. With no legal target nothing is asked either way, so neither is needed for "if able".
+ */
 export const chooseTarget = (
   slot: string,
   q: TargetQuery,
-  opts: { readonly chooser?: PlayerRef; readonly optional?: boolean; readonly count?: Amount } = {},
+  opts: {
+    readonly chooser?: PlayerRef;
+    readonly upTo?: boolean;
+    readonly optional?: boolean;
+    readonly count?: Amount;
+  } = {},
 ): EffectSpec => ({
   kind: "chooseTarget",
   slot,
   query: q,
   chooser: opts.chooser ?? you,
+  ...(opts.upTo ? { upTo: true as const } : {}),
   ...(opts.optional ? { optional: true } : {}),
   ...(opts.count !== undefined ? { count: amount(opts.count) } : {}),
 });
@@ -297,6 +353,42 @@ export const enemyScheme = (
   ...(opts.schBonus !== undefined ? { schBonus: amount(opts.schBonus) } : {}),
 });
 /**
+ * "That minion attacks another enemy" (Moondragon, `drax` 19013): `attacker` attacks `target`, an enemy attacking an
+ * enemy. An attack, not an activation (docs/phase7-wave3.md §3.23, §4 Q12): no boost card, no defense, and "when this
+ * enemy attacks" abilities stay silent; the target's tough, retaliate and the attacker's overkill apply. Pair with
+ * `enemyToAttack` for the two choices. `bind`: `<bind>.made`, `.damage`, `.defeated`.
+ */
+export const enemyAttacksEnemy = (
+  attacker: TargetRef,
+  target: TargetRef,
+  opts: { readonly bind?: string } = {},
+): EffectSpec => ({ kind: "enemyAttacksEnemy", attacker, target, ...withBind(opts.bind) });
+/**
+ * "Choose a minion. That minion attacks another enemy of your choice." — both choices, then the attack. The first
+ * choice only offers a card with another enemy it could attack (`canAttackOneOf`), so an ability with none has no
+ * valid target (RRG 1.8 "Target", pp. 42–43); pair the action with `while: enemyCanAttackAnother(...)` so it cannot be
+ * initiated (and its cost paid) for nothing. `attackers` is the printed "a minion"; the target is any other enemy the
+ * chosen one may attack.
+ */
+export const enemyToAttack = (
+  attackers: TargetQuery,
+  opts: { readonly attackerSlot?: string; readonly targetSlot?: string; readonly bind?: string } = {},
+): EffectSpec[] => {
+  const attackerSlot = opts.attackerSlot ?? "attacker";
+  const targetSlot = opts.targetSlot ?? "attacked";
+  const who: TargetRef = { kind: "slot", slot: attackerSlot };
+  return [
+    chooseTarget(attackerSlot, { ...attackers, canAttackOneOf: { categories: ["enemy"] } }),
+    chooseTarget(targetSlot, { categories: ["enemy"], attackableBy: who, excluding: who }),
+    enemyAttacksEnemy(who, { kind: "slot", slot: targetSlot }, opts.bind ? { bind: opts.bind } : {}),
+  ];
+};
+/** The `while` for `enemyToAttack`: some card `attackers` matches has another enemy it could attack. */
+export const enemyCanAttackAnother = (attackers: TargetQuery): Predicate => ({
+  kind: "exists",
+  query: { ...attackers, canAttackOneOf: { categories: ["enemy"] } },
+});
+/**
  * `extraBoostCards` accepts a live `Amount`, not just a literal number — "give him an additional boost card for
  * each side scheme in play" (Master Strategist, `trors`, docs/phase7-wave2.md §3.11) needs `countOf(query
  * ("sideScheme"))`, and the engine's own `EffectSpec` (`packages/engine/src/spec.ts`) already types the field as
@@ -339,6 +431,30 @@ export const atEndOfRound = (...effects: readonly EffectArg[]): EffectSpec => ({
   kind: "atEndOfRound",
   effects: flatten(effects),
 });
+/**
+ * "After that thwart ends, …" (Making an Entrance, `vnm` 20013) — the generic sibling of `atEndOfAttack` for
+ * either an attack or a scheme/thwart activation (`EffectSpec atEndOfActivation`, already landed for a Boost
+ * ability's own "after this activation ends"; this is its first DSL wrapper for a player-side interrupt). Reads
+ * `currentActivationFrameId`, which already matches a `thwart` event frame alongside `attack`/`enemyAttack`/
+ * `enemyScheme`, so an interrupt to `basicPowerUsing` on a thwart still finds the right frame to defer onto.
+ */
+export const atEndOfActivation = (...effects: readonly EffectArg[]): EffectSpec => ({
+  kind: "atEndOfActivation",
+  effects: flatten(effects),
+});
+/**
+ * "Until the end of the turn, heal 2 damage from Rocket Raccoon **each time** you deal any amount of damage to an
+ * enemy." (Schadenfreude, `gmw` 16032; docs/phase7-wave3.md §3.17, §3.30): a lasting "each time …" effect. Every
+ * event matching `on` until `until` resolves `effects` — mandatory, before that event's responses (RRG 1.8 "Delayed
+ * Effect", p. 15), matched with this card as "self" and its controller as "you". `on` is any `EventPattern`
+ * (`on.youDealDamage(ENEMY)` for Schadenfreude). Not created outside the period it names (RRG 1.8 "Lasting
+ * Effects", p. 26).
+ */
+export const eachTimeUntil = (
+  until: "endOfPhase" | "endOfRound" | "endOfTurn",
+  on: EventPattern,
+  ...effects: readonly EffectArg[]
+): EffectSpec => ({ kind: "eachTimeUntil", until, on, effects: flatten(effects) });
 /** "Prevent N of that damage" (absent = all of it). */
 export const preventDamage = (n?: Amount): EffectSpec =>
   n === undefined ? { kind: "preventDamage" } : { kind: "preventDamage", amount: amount(n) };
@@ -496,6 +612,8 @@ export const zone = (
     readonly filter?: TargetQuery;
     readonly top?: Amount;
     readonly topmostOnly?: boolean;
+    /** "The bottommost [X] from your discard pile" (Conditioning Room, `gam` 18008): `zone`'s mirror of `topmostOnly`. */
+    readonly bottommostOnly?: boolean;
     readonly random?: Amount;
   } = {},
 ): CardSelector => ({
@@ -505,6 +623,7 @@ export const zone = (
   ...(opts.filter ? { filter: opts.filter } : {}),
   ...(opts.top !== undefined ? { top: amount(opts.top) } : {}),
   ...(opts.topmostOnly ? { topmostOnly: true } : {}),
+  ...(opts.bottommostOnly ? { bottommostOnly: true } : {}),
   ...(opts.random !== undefined ? { random: amount(opts.random) } : {}),
 });
 /** "The top N cards of your deck". */
@@ -542,6 +661,18 @@ export const setAside = (player: PlayerRef = you, filter?: TargetQuery): CardSel
   player,
   ...(filter ? { filter } : {}),
 });
+/**
+ * The cards in a scenario out-of-play area, e.g. "The Collection" (docs/phase7-wave3.md §3.14): `scenarioArea(name)`
+ * as a `CardSelector` ("discard 1 card from The Collection"); `{ scenarioArea: name }` is already a valid
+ * `CardDestination` for `moveCards`' own `to`, with no wrapper needed ("put it faceup into The Collection").
+ */
+export const scenarioArea = (name: string, filter?: TargetQuery): CardSelector => ({
+  kind: "scenarioArea",
+  name,
+  ...(filter ? { filter } : {}),
+});
+/** "Create '[name]' game area" (The Grand Collection 1A, docs/phase7-wave3.md §3.14). Empty; a no-op if it exists. */
+export const createScenarioArea = (name: string): EffectSpec => ({ kind: "createScenarioArea", name });
 export const tuckedUnder = (under: TargetRef): CardSelector => ({ kind: "tucked", under });
 /**
  * "Search the encounter deck, discard pile, **and set-aside area** for X" (Kang's Wrath 4B, 11013b; docs/phase7-
@@ -596,6 +727,14 @@ export const resolveSpecials = (cardsQuery: TargetQuery): EffectSpec => ({
   kind: "resolveSpecials",
   cards: cardsQuery,
 });
+/**
+ * `resolveSpecials` for a card named by reference rather than found by query — "attach this card to Nebula and
+ * resolve its 'Special' ability" (Nebula's Technique attachments, `gmw` 16094–16098): `self` is this exact
+ * instance, not "any Technique attachment in play" (which could match a different already-attached copy of the
+ * same non-unique card). The engine's `EffectSpec resolveSpecials` already carries an `of` field for this
+ * (`separate-deck.test.ts`'s own Invocation-deck usage); this is its first DSL exposure.
+ */
+export const resolveSpecialsOf = (ref: TargetRef): EffectSpec => ({ kind: "resolveSpecials", of: ref });
 /**
  * "Discard N cards from your hand". `player` may be `eachPlayer`: each chooses from their own hand, in player order.
  *
@@ -694,6 +833,16 @@ export const assignDamage = (n: Amount, among: TargetQuery, chooser: PlayerRef =
   chooser,
 });
 export const dealEncounterCard = (player: PlayerRef = you): EffectSpec => ({ kind: "dealEncounterCard", player });
+/**
+ * "Deal that card to yourself as a facedown encounter card" (You Dare Oppose Me?, `ron` 90005): deals the card(s)
+ * `cards` names, already identified and out of play, rather than the encounter deck's top card (docs/phase7-wave3.md
+ * §3.47).
+ */
+export const dealAsEncounterCard = (cards: TargetRef, player: PlayerRef = you): EffectSpec => ({
+  kind: "dealAsEncounterCard",
+  cards,
+  player,
+});
 export const revealEncounterCard = (player: PlayerRef = you): EffectSpec => ({ kind: "revealEncounterCard", player });
 /**
  * "Give the villain 1 facedown boost card" (Hired Gun 02007, Intimidation 02035): dealt outside an activation, it
@@ -783,7 +932,15 @@ export const divide = (
   what: "damage" | "threat",
   n: Amount,
   among: TargetQuery,
-  opts: { readonly chooser?: PlayerRef; readonly bind?: string } = {},
+  opts: {
+    readonly chooser?: PlayerRef;
+    readonly bind?: string;
+    /**
+     * "A total of **up to** N" (Agile Flight, `stld` 17029; docs/phase7-wave3.md §3.41): the chooser divides at most
+     * N points, possibly none, and is asked even with a single candidate.
+     */
+    readonly upTo?: boolean;
+  } = {},
 ): EffectSpec => ({
   kind: "divide",
   what,
@@ -791,6 +948,7 @@ export const divide = (
   among,
   chooser: opts.chooser ?? you,
   ...withBind(opts.bind),
+  ...(opts.upTo ? { upTo: true as const } : {}),
 });
 
 /**

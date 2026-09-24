@@ -26,6 +26,14 @@ export interface IdentityDeckbuilding {
   /** Bundles of cards the deck may take from outside its chosen aspect(s). All or nothing (see `OffAspectPackage`). */
   readonly offAspectPackages?: readonly OffAspectPackage[];
   /**
+   * Gamora (`gam` 18001b), Skilled Tactician: "You may include up to 6 attack and/or thwart events in your deck from
+   * aspects other than your chosen aspect." → `{ cardType: "event", anyTrait: [ATTACK, THWART], maxCards: 6 }`: any
+   * number of titles, at most `maxCards` cards in total, each of `cardType` with at least one of `anyTrait`, from any
+   * aspect not chosen. Unlike `offAspectPackages` (Maria Hill's all-or-nothing), taking fewer is legal.
+   * docs/phase7-wave3.md §1.5.
+   */
+  readonly offAspectAllowance?: OffAspectAllowance;
+  /**
    * The printed text of requirements the fields above cannot express yet. A non-empty list makes
    * `validateDeck` report `unsupported_deckbuilding_requirement`, so the deck cannot be seated
    * until the requirement is modeled.
@@ -44,6 +52,14 @@ export interface OffAspectPackage {
   readonly trait: Trait;
   /** Exactly this many distinct titles, each at its maximum copies, or none at all. */
   readonly titles: number;
+}
+
+/** See `IdentityDeckbuilding.offAspectAllowance`. */
+export interface OffAspectAllowance {
+  readonly cardType: CardType;
+  readonly anyTrait: readonly Trait[];
+  /** Cards in total, not titles: a whole number of at least 1. */
+  readonly maxCards: number;
 }
 
 export interface HeroFace {

@@ -11,6 +11,8 @@
 
 import { type Ctx, popFrame, pushFrames, setFrame } from "../ctx.js";
 import { characterProfile, getInstance } from "../query.js";
+import { excessDamageBonus } from "../rules.js";
+import { controllerOf } from "../select.js";
 import type { ReportTarget, StackFrame, Vars } from "../stack.js";
 import type { TriggerEvent } from "../trigger-events.js";
 import { checkDefeats } from "./defeat.js";
@@ -71,12 +73,36 @@ export function executeDamageGroupFrame(ctx: Ctx, frame: Frame<"damageGroup">): 
         const vars: Record<string, number> = {};
         const taken = (getInstance(ctx.state, target)?.damage ?? before) - before;
         if (taken > 0) vars.amount = taken;
-        const excessDealt = maxHp === undefined ? 0 : member.event.amount - Math.max(0, maxHp - before);
+        const measured = maxHp === undefined ? 0 : member.event.amount - Math.max(0, maxHp - before);
+        // The same excess bonus `applyDamage` adds (Follow Through; docs/phase7-wave3.md §3.18).
+        const source = member.event.sourceInstanceId;
+        const bonus =
+          measured > 0 && member.event.fromAttack && source !== null
+            ? excessDamageBonus(ctx.state, ctx.deps, source)
+            : 0;
+        const excessDealt = measured + bonus;
         if (excessDealt > 0) vars.excessDealt = excessDealt;
         members.push({ ...member, vars: vars as Vars });
       }
       setFrame(ctx, { ...frame, members, stage: "responses" });
-      checkDefeats(ctx);
+      // What dealt each member's damage, so a defeat knows its source and whether it was an attack's (an enemy attack
+      // that deals indirect damage, docs/phase7-wave3.md §3.16 and §3.45).
+      checkDefeats(
+        ctx,
+        frame.members
+          .filter((member) => !member.cancelled)
+          .map((member) => {
+            const source = member.event.sourceInstanceId;
+            return {
+              targetId: member.event.targetInstanceId,
+              parentFrameId: member.event.parentFrameId ?? null,
+              overkill: undefined,
+              defeatedByPlayerId: source !== null ? controllerOf(ctx.state, source) : null,
+              sourceInstanceId: source,
+              fromAttack: member.event.fromAttack,
+            };
+          }),
+      );
       return;
     }
     case "responses": {

@@ -5,7 +5,13 @@ import { addCounters, giveStatus } from "../effects.js";
 import type { InstanceId, PlayerId } from "../ids.js";
 import { hasKeyword, keywordsOf } from "../keywords.js";
 import { cardOf, getInstance, getPlayer, mustCardOf, mustPlayer } from "../query.js";
-import { allyLimitFor, BASE_ALLY_LIMIT, excludedFromAllyLimit } from "../rules.js";
+import {
+  allyLimitFor,
+  BASE_ALLY_LIMIT,
+  BASE_RESTRICTED_LIMIT,
+  excludedFromAllyLimit,
+  restrictedLimitFor,
+} from "../rules.js";
 import { controllerOf, restrictedCardsOf } from "../select.js";
 
 /**
@@ -34,7 +40,14 @@ import { announce } from "./frames.js";
 export function applyEnterPlayKeywords(ctx: Ctx, id: InstanceId): void {
   for (const keyword of keywordsOf(ctx.state, id, ctx.deps)) {
     if (keyword.name === "toughness") giveStatus(ctx, id, "tough");
-    if (keyword.name === "uses") addCounters(ctx, id, keyword.counterType, keyword.count);
+    // "Uses (2[per_hero] ammo counters)": RRG 1.8 "Per Player Icon" (p. 32); docs/phase7-wave3.md §1.3.
+    if (keyword.name === "uses")
+      addCounters(
+        ctx,
+        id,
+        keyword.counterType,
+        keyword.count + (keyword.countPerPlayer ?? 0) * ctx.state.startingPlayerCount,
+      );
   }
   if (hasKeyword(ctx.state, id, "restricted", ctx.deps)) checkRestricted(ctx, controllerOf(ctx.state, id));
   if (cardOf(ctx.state, id)?.type === "ally") checkAllyLimit(ctx, controllerOf(ctx.state, id));
@@ -79,17 +92,20 @@ function checkAllyLimit(ctx: Ctx, playerId: PlayerId | null): boolean {
 function checkRestricted(ctx: Ctx, playerId: PlayerId | null): void {
   if (!playerId) return;
   const held = restrictedCardsOf(ctx.state, playerId, ctx.deps);
-  if (held.length <= 2) return;
+  if (held.length <= BASE_RESTRICTED_LIMIT) return;
+  // Two, or more with "you can control 1 additional … restricted" (`restrictedLimit`, docs/phase7-wave3.md §3.22).
+  const limit = restrictedLimitFor(ctx.state, ctx.deps, playerId, held);
+  if (held.length <= limit) return;
   requestChoice(ctx, {
     playerId,
-    prompt: { kind: "discardRestricted", limit: 2 },
+    prompt: { kind: "discardRestricted", limit },
     options: held.map((id) => ({
       optionId: id,
       label: mustCardOf(ctx.state, id).name,
       ref: { kind: "card", instanceId: id } as const,
     })),
-    minSelections: held.length - 2,
-    maxSelections: held.length - 2,
+    minSelections: held.length - limit,
+    maxSelections: held.length - limit,
   });
 }
 

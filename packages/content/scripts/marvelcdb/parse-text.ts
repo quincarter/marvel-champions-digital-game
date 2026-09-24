@@ -21,9 +21,11 @@
  *   suffix (`-2`) as a last resort.
  * - Keyword lines (`Guard.`, `Toughness.`), reminder text in parentheses,
  *   restrictions (`Max 1 per player.`), attachment rules (`Attach to a
- *   minion.`), a main scheme's `Contents:` paragraph and the final-stage
- *   reminder "If this stage is completed, the players lose the game." are data
- *   or rules reminders, not abilities.
+ *   minion.`), a main scheme's `Contents:` paragraph and the stage-completion
+ *   reminder "If this stage/scheme is completed, the players lose the game."
+ *   are data or rules reminders, not abilities: the reminder instead sets
+ *   `ParsedText.completionLoses` (docs/phase7-wave3.md §3.37,
+ *   `MainSchemeStage.completionLoses`), whether or not the stage is final.
  * - A leading `[star]` marker is a printed reminder icon, not part of the
  *   ability kind; it stays in the card text.
  */
@@ -91,6 +93,7 @@ export interface ParsedRestrictions {
   readonly form?: "hero" | "alterEgo";
   readonly anyPlayerControl?: boolean;
   readonly maxPerRound?: number;
+  readonly maxPerPhase?: number;
   readonly requiresIdentityTrait?: string;
   readonly requiresControlledCharacterTrait?: string;
 }
@@ -108,6 +111,16 @@ export interface ParsedText {
   readonly nemesisMinion?: boolean;
   /** "<Villain>'s Side Scheme." (The Wrecking Crew's signature side schemes, docs/phase7-wave1.md §1.1). */
   readonly signatureOf?: string;
+  /**
+   * "If this stage/scheme is completed, the players lose the game." was printed somewhere in this main scheme
+   * stage's B-side text (docs/phase7-wave3.md §3.37, `MainSchemeStage.completionLoses`) — plain or the two-clause
+   * compound ("...or there are no Rescued Captive allies in play..."). The caller sets `completionLoses` on
+   * every stage this fires on, final or not: a final stage already loses by the engine's default rule, so the
+   * flag there just restates it, while a non-final stage needs it to lose instead of advancing. The plain
+   * sentence is a rules reminder, not an ability (stripped here, no ref); the compound sentence's other clause
+   * is real scripted behavior and stays in the card text/constant ability for `ability-scripting-engineer`.
+   */
+  readonly completionLoses?: boolean;
   readonly unclassified: string[];
 }
 
@@ -283,6 +296,21 @@ const RESOURCE_ICON_RE = /\[(energy|mental|physical|wild)\]/g;
 function parseKeyword(sentence: string): KeywordInstance | undefined {
   // `Uses (N type counters)` carries its parameter in parentheses, so match it
   // before reminder text is stripped.
+  // Per player forms (docs/phase7-wave3.md §1.3): `Uses (N[per_hero] type counters).` (Crossbones' Machine Gun,
+  // `trors` 04064) and `Uses (N type counter, plus N[per_hero] additional type counters).` (Fanaticism, `gmw`
+  // 16110) both scale by the per player icon on top of a flat count.
+  const usesPerHero = /^Uses \((\d+)\[per_hero\] ([\w\- ]+?) counters?\)\.?$/.exec(sentence);
+  if (usesPerHero)
+    return { name: "uses", count: 0, countPerPlayer: Number(usesPerHero[1]), counterType: usesPerHero[2] as string };
+  const usesPlusPerHero =
+    /^Uses \((\d+) ([\w\- ]+?) counters?, plus (\d+)\[per_hero\] additional [\w\- ]+? counters?\)\.?$/.exec(sentence);
+  if (usesPlusPerHero)
+    return {
+      name: "uses",
+      count: Number(usesPlusPerHero[1]),
+      countPerPlayer: Number(usesPlusPerHero[3]),
+      counterType: usesPlusPerHero[2] as string,
+    };
   const uses = /^Uses \((\d+) ([\w\- ]+?) counters?\)\.?$/.exec(sentence);
   if (uses) return { name: "uses", count: Number(uses[1]), counterType: uses[2] as string };
   const teamUp = /^Team-Up \((.+?) and (.+)\)\.?$/.exec(sentence);
@@ -333,6 +361,10 @@ function parseKeyword(sentence: string): KeywordInstance | undefined {
   if (simple) return { name: simple } as KeywordInstance;
   // "Setup." (keyword, card starts in play) vs "Setup:" (ability) — only the keyword reaches here.
   if (s === "Setup" && /^Setup\.?$/.test(sentence)) return { name: "setup" };
+  // Hinder scales by the per player icon on 88 printed cards (docs/phase7-wave3.md §1.3): `Hinder N[per_hero].` →
+  // `{ value: 0, perPlayer: N }`; a bare `Hinder N.` (the expert Campaign Challenge faces) keeps `value`.
+  const hinderPerHero = /^Hinder (\d+)\[per_hero\]$/.exec(s);
+  if (hinderPerHero) return { name: "hinder", value: 0, perPlayer: Number(hinderPerHero[1]) };
   const m = /^(Retaliate|Incite|Hinder|Victory) (\d+)$/.exec(s);
   if (m) {
     const name = (m[1] as string).toLowerCase() as "retaliate" | "incite" | "hinder" | "victory";
@@ -659,28 +691,43 @@ interface MutableRestrictions {
   form?: "hero" | "alterEgo";
   anyPlayerControl?: boolean;
   maxPerRound?: number;
+  maxPerPhase?: number;
   /** Plain uppercased trait text; the caller brands it as a `Trait`. */
   requiresIdentityTrait?: string;
   requiresControlledCharacterTrait?: string;
 }
 
-/** Wave 1 play restrictions (docs/phase7-wave1.md §1.8), in addition to the Phase 2 shapes above. */
+/**
+ * Wave 1 play restrictions (docs/phase7-wave1.md §1.8), in addition to the Phase 2 shapes above.
+ *
+ * Every `Max N per …` form's trailing period is optional (maxperphase-fix pass): MarvelCDB drops it on a card
+ * whose "Max N per …" sentence is immediately followed by a line break rather than another sentence — observed
+ * on "Max 1 per deck" (Flora and Fauna, `gmw` 16020/16048), "Max 1 per player" (X-Gene, `jubilee` 47020/`rogue`
+ * 38019) — so every branch below tolerates it rather than only the one printing that dropped it first.
+ */
 function parseRestriction(sentence: string, into: MutableRestrictions): { maxPerDeck?: number } | undefined {
-  let m = /^Max (\d+) per deck\.$/.exec(sentence);
+  let m = /^Max (\d+) per deck\.?$/.exec(sentence);
   if (m) return { maxPerDeck: Number(m[1]) };
-  m = /^Max (\d+) per player\.$/.exec(sentence);
+  m = /^Max (\d+) per player\.?$/.exec(sentence);
   if (m) {
     into.maxPerPlayer = Number(m[1]);
     return {};
   }
-  m = /^Max (\d+) per round\.$/.exec(sentence);
+  m = /^Max (\d+) per round\.?$/.exec(sentence);
   if (m) {
     into.maxPerRound = Number(m[1]);
     return {};
   }
+  // "Max N per phase." (Maximum Velocity `qsv` 14005, "Bring It!" `drax` 19030) — the only two printed instances
+  // across all emitted data. Mirrors `maxPerRound` exactly.
+  m = /^Max (\d+) per phase\.?$/.exec(sentence);
+  if (m) {
+    into.maxPerPhase = Number(m[1]);
+    return {};
+  }
   // docs/phase7-wave2.md §7.2: "Max 1 per encounter card." (Coordinated Effort, 58032) — the second sentence of
   // its printed pair with "Attach to an encounter card in play.".
-  m = /^Max (\d+) per (?:enemy|ally|minion|character|hero|encounter card)\.$/.exec(sentence);
+  m = /^Max (\d+) per (?:enemy|ally|minion|character|hero|encounter card)\.?$/.exec(sentence);
   if (m) {
     into.maxPerHost = Number(m[1]);
     return {};
@@ -723,7 +770,17 @@ function parseRestriction(sentence: string, into: MutableRestrictions): { maxPer
   return undefined;
 }
 
-const STAGE_LOSS_REMINDER = /^If this stage is completed, the players lose the game\.?$/;
+// Both "stage" and "scheme" are printed across the corpus (mts 21138b, aoa 45062b, trors 04113b, … all print
+// "scheme"; most others print "stage") — docs/phase7-wave3.md §3.37.
+const STAGE_LOSS_REMINDER = /^If this (?:stage|scheme) is completed, the players lose the game\.?$/;
+// The two-clause compound: "if this stage/scheme is completed" joined by "or" to another loss condition, either
+// order — Extract Captives `aos` 50089b ("If this stage is completed or there are no Rescued Captive allies in
+// play, the players lose the game."), Mutant Massacre `next_evol` 40078b (same shape), and The Grand Collection
+// `gmw` 16073b ("If there are at least 5[per_hero] cards in The Collection or if this stage is completed, the
+// players lose the game." — the other clause leads). Only the "completed" half is the reminder; the other half
+// is real scripted behavior and is left in the card text (a `constant` ability ref).
+const STAGE_LOSS_COMPOUND_HALF = /\bif this (?:stage|scheme) is completed\b/i;
+const STAGE_LOSS_COMPOUND_TAIL = /the players lose the game\.?$/i;
 
 export function parseCardText(text: string, options: ParseOptions): ParsedText {
   const keywords: KeywordInstance[] = [];
@@ -735,6 +792,7 @@ export function parseCardText(text: string, options: ParseOptions): ParsedText {
   let maxPerDeckText: number | undefined;
   let nemesisMinion: boolean | undefined;
   let signatureOf: string | undefined;
+  let completionLoses: boolean | undefined;
 
   if (options.obligation) {
     const lines = text.split("\n");
@@ -857,7 +915,15 @@ export function parseCardText(text: string, options: ParseOptions): ParsedText {
         continue;
       }
       if (/^\(.*\)\.?$/.test(sentence)) continue; // reminder text
-      if (STAGE_LOSS_REMINDER.test(sentence)) continue;
+      if (STAGE_LOSS_REMINDER.test(sentence)) {
+        completionLoses = true;
+        continue;
+      }
+      if (STAGE_LOSS_COMPOUND_HALF.test(sentence) && STAGE_LOSS_COMPOUND_TAIL.test(sentence)) {
+        // The "completed" half is the reminder; the "or …" half is scripted behavior, so the sentence stays
+        // (falls through to the constant buffer below) instead of being stripped like the plain form.
+        completionLoses = true;
+      }
       const restriction = parseRestriction(sentence, restrictions);
       if (restriction) {
         flushConstant();
@@ -930,7 +996,9 @@ export function parseCardText(text: string, options: ParseOptions): ParsedText {
           }
         }
       }
-      // Final-stage loss reminder glued after an ability body is not part of the ability.
+      // The "If this stage/scheme is completed, the players lose the game." reminder always prints on its own
+      // line in the corpus (never glued onto a header's own line), so it's caught by the preamble sentence loop
+      // above on that following line, not here.
       abilities.push({
         kind,
         ...(form ? { form } : {}),
@@ -967,6 +1035,7 @@ export function parseCardText(text: string, options: ParseOptions): ParsedText {
     ...(attachesToVillainNamed ? { attachesToVillainNamed } : {}),
     ...(nemesisMinion ? { nemesisMinion } : {}),
     ...(signatureOf ? { signatureOf } : {}),
+    ...(completionLoses ? { completionLoses } : {}),
     unclassified,
   };
 }

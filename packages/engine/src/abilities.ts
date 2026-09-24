@@ -3,6 +3,7 @@ import type { InstanceId, PlayerId } from "./ids.js";
 import type { ResourcePool, ResourceRequirement, TypedResource } from "./resources.js";
 import type {
   AttackKeyword,
+  CardDestination,
   EffectSpec,
   PlayerRef,
   Predicate,
@@ -84,12 +85,37 @@ export type AbilityTriggerSpec =
    * `while`: a condition printed before the cost ("Hero Action: If you are in Tiny hero form, exhaust Army of Ants →
    * deal 1 damage to an enemy."). While it is false the action cannot be triggered, so no cost is paid for nothing.
    */
-  | { readonly kind: "action"; readonly form?: Form; readonly while?: Predicate }
-  /** "Resource:" / "Hero Resource:" — triggered while paying a cost. */
-  | { readonly kind: "resource"; readonly form?: Form }
-  /** `form` is the "Hero Interrupt" / "Alter-Ego Response" gate on the controller. */
-  | { readonly kind: "interrupt"; readonly forced: boolean; readonly on: EventPattern; readonly form?: Form }
-  | { readonly kind: "response"; readonly forced: boolean; readonly on: EventPattern; readonly form?: Form }
+  /**
+   * `firstPlayerOnly`: "First Player Action" (The Galaxy's Most Wanted's side schemes and main schemes: "First Player
+   * Action: Exhaust the Milano → remove 3 threat from this scheme"). Only the first player may trigger it, on their turn
+   * like any action (RRG 1.8 "Action", p. 6). docs/phase7-wave3.md §3.13.
+   */
+  | { readonly kind: "action"; readonly form?: Form; readonly while?: Predicate; readonly firstPlayerOnly?: boolean }
+  /**
+   * "Resource:" / "Hero Resource:" — triggered while paying a cost. `forAnyPlayer`: "Piloting — Resource: Exhaust the
+   * Milano → generate a [wild] resource for any player." Any player paying a cost may use it, not only its controller
+   * (docs/phase7-wave3.md §3.13).
+   */
+  | { readonly kind: "resource"; readonly form?: Form; readonly forAnyPlayer?: boolean }
+  /**
+   * `form` is the "Hero Interrupt" / "Alter-Ego Response" gate on the controller. `firstPlayerOnly`: "First Player
+   * Interrupt" (Kree Command Ship, `gmw` 16108) — only the first player is offered it, and they are the one who resolves
+   * it (docs/phase7-wave3.md §3.13).
+   */
+  | {
+      readonly kind: "interrupt";
+      readonly forced: boolean;
+      readonly on: EventPattern;
+      readonly form?: Form;
+      readonly firstPlayerOnly?: boolean;
+    }
+  | {
+      readonly kind: "response";
+      readonly forced: boolean;
+      readonly on: EventPattern;
+      readonly form?: Form;
+      readonly firstPlayerOnly?: boolean;
+    }
   | { readonly kind: "whenRevealed" }
   | { readonly kind: "whenDefeated" }
   /**
@@ -141,6 +167,20 @@ export type AbilityTriggerSpec =
        * discard pile").
        */
       readonly playableFrom?: readonly "discard"[];
+      /**
+       * "Play only if you control an Element Gun." (Sliding Shot, `stld` 17005): a play restriction whose condition is
+       * any `Predicate`, read from the card itself while it is being played (RRG 1.8 "Initiating Abilities", p. 24,
+       * step 2: "Check play restrictions"; "Play Restrictions and Permissions", p. 33: "all of its play restrictions
+       * must be observed"). The card is not in play when this is checked, which is why it cannot be a `cannotPlay` rule:
+       * those are read only from cards in play. `you` is the player playing the card and `self` the card. Enforced
+       * wherever `playRestrictionFault` is: a play command, `legalActions`, a play from an effect, and an event offered
+       * in a timing window. docs/phase7-wave3.md §3.42.
+       *
+       * The general form of the printed `PlayRestrictions` fields (`requiresIdentityTrait`,
+       * `requiresControlledCharacterTrait`), for the conditions card data cannot say: a named card, a trait on any card
+       * type, "any player controls", "at least 3 characters with the [Posse] trait".
+       */
+      readonly playOnlyIf?: Predicate;
       /**
        * "You may play [Arrow] events attached to this card as if they were in your hand" (Hawkeye's Quiver; docs/phase7-
        * wave2.md §3.10): cards attached to this card that match may be played by its controller as if from hand. A
@@ -230,12 +270,21 @@ export type RuleSpec =
       readonly while?: Predicate;
       readonly fromSource?: TargetQuery;
     }
-  /** "Threat cannot be removed from this scheme" (Countdown to Oblivion); `by: "thwart"`: "… from attached scheme by thwarting" (Held Hostage). */
+  /**
+   * "Threat cannot be removed from this scheme" (Countdown to Oblivion); `by: "thwart"`: "… from attached scheme by
+   * thwarting" (Held Hostage). `player`, resolved with "you" as the rule card's speaker exactly as `cannotAttack`'s own
+   * field docs (docs/phase7-wave2.md §25), scopes *who* is blocked rather than restricting every player: absent, it
+   * blocks any removal, as every rule before this field existed did; given, only a removal whose player (the thwart's
+   * player, else the removing card's controller; a removal with neither is never scoped out) is one of `player`'s
+   * players is blocked. "Players other than Gamora cannot remove threat from Sibling Rivalry" (`gam` 18025,
+   * docs/phase7-wave3.md §3.26) is `{ player: others(ownerOf(gamorasIdentity)) }`.
+   */
   | {
       readonly kind: "threatCannotBeRemoved";
       readonly target: TargetQuery;
       readonly while?: Predicate;
       readonly by?: "thwart";
+      readonly player?: PlayerRef;
     }
   /** "While Baron Zemo is engaged with you, you cannot thwart." `player` is resolved with "you" as the rule card's speaker (`speakerOf`). */
   | { readonly kind: "cannotThwart"; readonly player: PlayerRef; readonly while?: Predicate }
@@ -261,6 +310,13 @@ export type RuleSpec =
       readonly target: TargetQuery;
       readonly player?: PlayerRef;
       readonly while?: Predicate;
+      /**
+       * "Drax cannot attack minions." (`gam` 18019, docs/phase7-wave3.md §3.26): restricts *this character*, not
+       * the controlling player — a different attack by the same player (another ally, their own hero) is unaffected.
+       * The mirror of `attackKeywords.attacker`, over the same "who is making the attack" question. Matched against
+       * the attacking character itself, before `player` (if also given) narrows further by controller.
+       */
+      readonly attacker?: TargetQuery;
     }
   /** "Resolve each 'When Revealed' ability that you reveal 1 additional time." (Media Coverage). */
   | {
@@ -339,6 +395,19 @@ export type RuleSpec =
    * side scheme that is defeated goes into the encounter deck, which is shuffled, instead of the discard pile.
    */
   | { readonly kind: "defeatedIntoEncounterDeck"; readonly target: TargetQuery; readonly while?: Predicate }
+  /**
+   * The general form of `defeatedIntoEncounterDeck` (docs/phase7-wave3.md §3.45): a matching card that is defeated — a
+   * side scheme, an ally or a minion — goes to `to` instead of its discard pile ("… shuffle it into the encounter deck
+   * instead of discarding it", Time Portal, is `to: "encounterDeckShuffle"`). The constant sibling of the interrupt-time
+   * `EffectSpec setDefeatDestination`, which wins when both apply (it is the more specific, later choice). The card is
+   * still defeated; Victory X still sends it to the victory display.
+   */
+  | {
+      readonly kind: "defeatDestination";
+      readonly target: TargetQuery;
+      readonly to: CardDestination;
+      readonly while?: Predicate;
+    }
   /** "The engaged player must defend against [attacker]'s attacks with an ally they control, if able" (Melter). */
   | { readonly kind: "mustDefendWithAlly"; readonly attacker: TargetQuery; readonly while?: Predicate }
   /**
@@ -397,6 +466,137 @@ export type RuleSpec =
   /** "This card cannot leave play while [villain] is in play." RRG 1.8 "'Cannot'" (p. 11): absolute, like the permanent keyword. */
   | { readonly kind: "cannotLeavePlay"; readonly target: TargetQuery; readonly while?: Predicate }
   /**
+   * "Collector cannot be defeated." / "Hela cannot be defeated." (their ∞ back faces, `gmw` 16080b/16081b, `mts`
+   * 21136b/21137b); "Citizen V cannot be defeated unless there are at least 1[per_hero] Thunderbolt minions in the
+   * victory display" (`aos` 50129, a `while`). RRG 1.8 "'Cannot'" (p. 11) makes it absolute: a matching character at zero
+   * remaining hit points is not defeated, and its pending defeat does not apply. It stops defeat only; damage is still
+   * dealt and taken. docs/phase7-wave3.md §3.1.
+   */
+  | { readonly kind: "cannotBeDefeated"; readonly target: TargetQuery; readonly while?: Predicate }
+  /**
+   * "Ronan the Accuser cannot be stunned." (Kree Fanatic, `ron` 90001). The stalwart keyword is the same rule for
+   * stunned and confused (RRG 1.8 "Stalwart", p. 40: "This character cannot have confused or stunned status cards"), so a
+   * matching character is never given one, and one it already holds is removed the moment the rule applies (the
+   * stalwart entry's "If a character gains the stalwart keyword while they have a stunned and/or confused status card,
+   * each [...] is removed"). docs/phase7-wave3.md §3.7.
+   */
+  /**
+   * "The first [Technique] attachment revealed each round gains surge." (Nebula I–III, `gmw` 16088–16090); "The first
+   * treachery the engaged player reveals each villain phase gains surge." (Mister Knife, `stld` 17026). Read once, **as
+   * the card is revealed** (the reveal's faceup step), so only a rule already in play applies: FAQ "Mister Knife (#26)"
+   * (RRG 1.8 p. 62): "Mister Knife was not in play when Shadow of the Past was revealed, so his ability does not cause
+   * Shadow of the Past to gain surge." The revealed card must match `cards` and be the first card matching it revealed
+   * this `each` period (`GameState.revealedThisRound`) — by a player `revealer` names, when given, which is resolved with
+   * "you" as the rule's speaker (the engaged player, for an engaged minion). docs/phase7-wave3.md §3.8.
+   */
+  /**
+   * "Reduce the amount of damage Nebula takes from each attack by 1." (Wide Stance, `gmw` 16098); "Reduce the amount of
+   * damage attached character takes from each attack by 1." (Kree Combat Armor, 16131). A constant on the damage a
+   * matching character **takes** (`fromAttack`: only an attack's): the damage dealt, and so excess damage, is unchanged
+   * (ruling, Jan 26, 2026 (3)). Constants resolve before a tough status (RRG 1.8 FAQ p. 58: "A hero can keep their tough
+   * status card if … A constant effect reduces the damage the hero takes to zero"). docs/phase7-wave3.md §3.15.
+   */
+  | {
+      readonly kind: "reduceDamageTaken";
+      readonly target: TargetQuery;
+      readonly amount: number;
+      readonly fromAttack?: boolean;
+      readonly while?: Predicate;
+    }
+  /**
+   * "Nebula cannot take more than 5 damage from a single attack." (Cutthroat Ambition, `gmw` 16094). Applied after every
+   * `reduceDamageTaken`, as the last bound on what one attack's damage event makes the character take; the lowest cap
+   * wins. docs/phase7-wave3.md §3.15.
+   */
+  | {
+      readonly kind: "maxDamageTakenPerAttack";
+      readonly target: TargetQuery;
+      readonly amount: number;
+      readonly while?: Predicate;
+    }
+  /**
+   * "[star] Starshark's attacks deal indirect damage." (Menagerie Medley, `gmw` 16137). RRG 1.8 "Indirect Damage" (p. 24):
+   * "If an enemy's attack deals indirect damage, the indirect damage is dealt during step four of the enemy activation
+   * (after player's have the opportunity to defend against the attack). Only the defending character, or the attacked
+   * player's identity if the attack was undefended, is considered to have been attacked, even if other characters were
+   * assigned some or all of the indirect damage." docs/phase7-wave3.md §3.16.
+   */
+  | { readonly kind: "attacksDealIndirectDamage"; readonly attacker: TargetQuery; readonly while?: Predicate }
+  /**
+   * "Hero Interrupt: When your hero's attack deals any amount of excess damage, increase that amount by 1." (Follow
+   * Through, Aggression, `gmw` 16045). Each matching rule adds `amount` to the excess damage an attack by a matching
+   * `attacker` deals — the excess reported to "for each point of excess damage" (Into the Fray) and "after you deal
+   * excess damage" (Rocket Raccoon), and the overkill damage that spills on. Modeled as a constant, not an optional
+   * interrupt: see docs/phase7-wave3.md §3.18 and §4 Q10.
+   */
+  | {
+      readonly kind: "excessDamageBonus";
+      readonly attacker: TargetQuery;
+      readonly amount: number;
+      readonly while?: Predicate;
+    }
+  | {
+      readonly kind: "firstRevealGainsSurge";
+      readonly cards: TargetQuery;
+      readonly each: "round" | "phase";
+      readonly revealer?: PlayerRef;
+      readonly while?: Predicate;
+    }
+  /**
+   * "The first player controls the Milano." (`gmw` 16142): a matching card in play is always under the first player's
+   * control, in their play area, and moves there when the first player token passes (RRG 1.8 "First Player", p. 19) or a
+   * first player is eliminated. A continuous rule, applied between frames (docs/phase7-wave3.md §3.13).
+   */
+  | { readonly kind: "controlledByFirstPlayer"; readonly target: TargetQuery; readonly while?: Predicate }
+  /**
+   * "The Power Stone cannot be unattached from Ronan the Accuser." (Superior Tactics, `gmw` 16113): an effect that would
+   * attach a matching attachment to another card does nothing to it while this applies (RRG 1.8 "'Cannot'", p. 11).
+   * docs/phase7-wave3.md §3.19.
+   */
+  | { readonly kind: "cannotBeUnattached"; readonly target: TargetQuery; readonly while?: Predicate }
+  /**
+   * "Forced Interrupt: When a card (player or encounter) would be placed into a discard pile from play, put it faceup into
+   * The Collection instead." (Collector I–III, Infiltrate the Museum, `gmw` 16070–16072). A matching card leaving play for
+   * a discard pile goes, faceup, to the scenario area `area` instead (`leavePlay`), and `discardRedirected` is announced
+   * for what follows. MC16 FAQ p. 21: only a card *in play* placed *into a discard pile* — not one set aside, removed
+   * from the game, shuffled into a deck, returned to hand, or discarded from an out-of-play area. RRG 1.8 FAQ "Rocket
+   * Raccoon (#29A)" (p. 61): the discard was still attempted, so a cost to discard it is paid. docs/phase7-wave3.md §3.14.
+   *
+   * `thenPlaceThreat`: Collector III's own printed ability is one Forced Interrupt box ("…instead, then place 1 threat
+   * on the main scheme"), and every villain stage's abilities are only the ones printed on that stage's own face (RRG
+   * 1.8 "Villain Defeat", p. 47) — so the redirect and its follow-up have to be one `AbilityDefinition` (one ability id,
+   * `16072.collector-forced-interrupt`), not the redirect plus a second card's own response to `discardRedirected` (the
+   * engine's own `scenario-area.test.ts` uses two cards only to exercise the event generically). `leavePlay` places this
+   * many threat on the redirecting rule's own game area's main scheme, through the ordinary interruptible `placeThreat`
+   * event, immediately after announcing the redirect — so a "prevent threat from being placed" effect still applies.
+   */
+  | {
+      readonly kind: "discardFromPlayDestination";
+      readonly cards: TargetQuery;
+      readonly area: string;
+      readonly thenPlaceThreat?: number;
+      readonly while?: Predicate;
+    }
+  /**
+   * "You can control 1 additional upgrade that has the restricted keyword." (Venom / Flash Thompson, `vnm` 20001a/b);
+   * "You can control 1 additional [Weapon] upgrade that has the restricted keyword." (Side Holster, 20021). RRG 1.8
+   * "Restricted" (p. 38) fixes the limit at two; each rule raises it by `amount` for `player` (absent: the rule's speaker,
+   * the card's controller). With `cards`, the extra room holds only matching cards. docs/phase7-wave3.md §3.22.
+   */
+  | {
+      readonly kind: "restrictedLimit";
+      readonly amount: number;
+      readonly cards?: TargetQuery;
+      readonly player?: PlayerRef;
+      readonly while?: Predicate;
+    }
+  | {
+      readonly kind: "cannotHaveStatus";
+      readonly target: TargetQuery;
+      readonly statuses: readonly ("stunned" | "confused" | "tough")[];
+      readonly while?: Predicate;
+    }
+  /**
    * The Wrecking Crew insert, "Signature Side Schemes": "These side schemes are not discarded when they have no threat on
    * them." A scenario rule overriding RRG 1.8 "Defeat" (p. 15) under the Golden Rules (p. 4), carried by the main scheme.
    */
@@ -431,9 +631,74 @@ export interface AbilityCost {
    * "Spend X [energy] resources →": X is every resource in the payment usable
    * as that type (beyond any fixed `resources`), bound to var `bind`.
    */
-  readonly resourcesX?: { readonly resource: TypedResource; readonly bind: string; readonly min?: number };
-  /** "Remove 1 web counter from it →". */
-  readonly spendCounters?: { readonly counterType: string; readonly amount: number };
+  readonly resourcesX?: {
+    /**
+     * `"any"`: "spend up to 2 resources of any type" (Nebula's Ship, `gmw` 16093): every resource paid beyond the fixed
+     * requirement counts, whatever its type (docs/phase7-wave3.md §3.25).
+     */
+    readonly resource: TypedResource | "any";
+    readonly bind: string;
+    readonly min?: number;
+    /**
+     * "Up to 2": X is at most this. Paying more is still legal — RRG 1.8 "Cost": overpaying is allowed and the excess is
+     * lost — so X is capped rather than the payment refused (docs/phase7-wave3.md §3.25).
+     */
+    readonly max?: number;
+  };
+  /**
+   * "Remove 1 web counter from it →" (`target` absent/`"self"`: the ability's own card). "Remove 1 growth counter
+   * from him [Groot] and exhaust Entangling Vines →" (`gmw` 16008, 16010, 16011) is `target: "identity"`: the
+   * paying player's own identity, wherever the counters actually live — a different card than the one carrying
+   * the ability. docs/phase7-wave3.md's Groot kit is the first printed text needing counters spent off a target
+   * other than the ability's own source.
+   */
+  readonly spendCounters?: {
+    readonly counterType: string;
+    /** How many; with `upTo`, the most that may be removed. */
+    readonly amount: number;
+    readonly target?: "self" | "identity";
+    /**
+     * "Remove **up to** 4 growth counters from Groot →" ("We Are Groot", `gmw` 16006; docs/phase7-wave3.md §3.32): the
+     * player chooses how many, from 1 to `amount` (and no more than the card holds), in the command's
+     * `costSelection.counters`. RRG 1.8 "Cost" (p. 14): "A cost requiring 'any number' or 'up to' some number of game
+     * elements requires a minimum of one such game element", so 0 is not a payment. With no choice given, the most
+     * that can be removed is.
+     */
+    readonly upTo?: boolean;
+    /** The number of counters removed, bound to this var for the effects ("choose that many friendly characters"). */
+    readonly bind?: string;
+  };
+  /**
+   * "Discard the top card of your deck →" (Booster Boots, `gmw` 16052; docs/phase7-wave3.md §3.33): that many cards
+   * from the top of the paying player's deck go to their discard pile as the cost.
+   *
+   * - **Payable only if the deck can supply them all.** RRG 1.8 "Cost" (p. 13): a cost is paid in full; RRG 1.8
+   *   "Player Deck" (p. 33): "If the player's deck empties while the player was discarding cards from their deck, no
+   *   further cards are discarded from the newly shuffled deck", so a deck of fewer cards cannot pay more.
+   * - **An empty deck is not an excuse.** The RRG never leaves a deck empty while the discard pile holds cards: "If
+   *   a player deck empties, the player shuffles their discard pile to make a new deck" (p. 33), at once (ruling, Apr
+   *   30, 2026 (3) answer 7: "The deck is reshuffled **before** the currently resolving card enters the discard
+   *   pile"), and so does the engine (`settlePlayerDecks`, docs/phase7-wave3.md §4 Q15). An empty deck with cards in
+   *   the discard pile only exists in a state built before that (a save, a test's surgery): it is reset first (with
+   *   its facedown encounter card) and pays from the new deck. With both deck and
+   *   discard pile empty there is nothing to discard, and the ability cannot be initiated.
+   * - **A deck the cost empties resets immediately** (the same ruling), before the ability's effects resolve.
+   */
+  readonly discardFromDeck?: number;
+  /**
+   * "Choose to either exhaust your hero or spend 2 resources of any type →" (The Grand Collection 1B, `gmw` 16073b;
+   * docs/phase7-wave3.md §3.36): pay exactly **one** of these costs, the player's choice, together with every other
+   * component of this cost. The command names the branch (`costSelection.branch`, 0-based); with none, the first
+   * branch that can be paid is. The ability can be initiated if any branch can be paid (RRG 1.8 "Choose (Option)",
+   * p. 12: an option whose cost cannot be paid cannot be chosen), and `legalActions` lists the payable branches.
+   * A branch may not itself contain `either`.
+   */
+  readonly either?: readonly AbilityCost[];
+  /**
+   * "Deal yourself 1 facedown encounter card →" (Star-Lord; Daring Escape; Library Labyrinth; Universal Weapon): the
+   * paying player is dealt that many encounter cards, facedown, as the cost (docs/phase7-wave3.md §3.20).
+   */
+  readonly dealEncounterCards?: number;
   /** "Take 1 damage →" (Focused Rage): the controller's identity takes the damage. */
   readonly damageSelf?: number;
   /** "Deal 2 damage to him →" (War Machine): this card takes the damage. */
@@ -493,6 +758,14 @@ export interface AbilityCost {
   /** "Spend 2 resources of different types" (Red Dagger): the payment must hold this many types; a wild can be any one. */
   readonly distinctResourceTypes?: number;
   /**
+   * "Spend 3 resources of the same type →" (Kree Combat Armor, `gmw` 16131; docs/phase7-wave3.md §3.43): every resource
+   * this cost's `resources` asks for (a generic number) must be of one type, the payer's choice. A wild counts as any
+   * type; a card that generates two types can give one of them and overpay the other (`payableWithOneType`). Checked
+   * wherever the payment is (`resourceVars`), so an action, a window's payment and a play all refuse a mixed payment, and
+   * `legalActions` offers the ability only when the player's resources can pay it.
+   */
+  readonly sameResourceType?: true;
+  /**
    * "Exhaust Captain America's Shield →" (min 1, max 1) / "Exhaust any number of allies you control →" (min 1, no
    * max): exhaust cards in play, other than this ability's own card (`exhaustSelf`) or your identity
    * (`exhaustIdentity`). See `InPlayCostPick` for how the cards are picked and when the cost is payable.
@@ -541,7 +814,12 @@ export interface AbilityLimit {
    * Only meaningful on a triggered ability: with no triggering event (an "Action" used by command) the ability falls
    * back to one shared count, exactly as an unqualified limit behaves today.
    */
-  readonly per?: "aspectOfEventCard";
+  /**
+   * - `"player"`: "(Limit once per round **per player**.)" (The Grand Collection 1B, Library Labyrinth 16085a, `gmw`;
+   *   docs/phase7-wave3.md §3.36): a shared card's ability keeps one count for each player who uses it, keyed by the
+   *   ability's controller — for an encounter card's action, the player who triggers it.
+   */
+  readonly per?: "aspectOfEventCard" | "player";
 }
 
 /**
@@ -562,6 +840,16 @@ export interface AbilityDefinition {
   readonly generates?: ResourceGeneration;
   /** Resource abilities only: "generate a [wild] resource for an event" — usable only while paying for a matching card. */
   readonly generatesFor?: TargetQuery;
+  /**
+   * Star-Lord, "What could go wrong?" (`stld` 17001a): "Interrupt: When you play a card from your hand, deal yourself 1
+   * facedown encounter card → reduce the cost to play that card by 3. (Limit once per round.)" On an `interrupt` trigger
+   * (its printed timing, `on: cardBeingPlayed`), this makes it a cost modifier the player opts into while playing a card
+   * (`playCard.costReductionAbilities`) instead of an ability offered in that window: its cost is paid and its limit
+   * counted with the play, and the card costs `amount` less (RRG 1.8 "Initiating Abilities", p. 24, step 4: "Apply any
+   * modifiers to the cost(s)"). `cards` is what it may reduce; `fromHand` requires the card to be played from hand. Only
+   * its controller may use it, in the trigger's `form`. docs/phase7-wave3.md §3.20 and §4 Q6.
+   */
+  readonly playCostReduction?: { readonly amount: number; readonly cards?: TargetQuery; readonly fromHand?: boolean };
 }
 
 /** Ability definitions are engine-side data keyed by the `AbilityId` printed on cards. */

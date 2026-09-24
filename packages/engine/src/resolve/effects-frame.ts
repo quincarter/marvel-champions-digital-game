@@ -57,6 +57,7 @@ import { damageGroupFrame } from "./damage-group.js";
 import { selectCards } from "./cards.js";
 import { abilityFrame, type Frame, pushEffects, pushEvents } from "./frames.js";
 import { candidateOption } from "./window.js";
+import { threatRemovalBlocked } from "./event.js";
 
 /** The `EffectContext` an effects frame resolves in. Exported so `why-not.ts` can rebuild it exactly. */
 export const contextOf = (frame: Frame<"effects">, deps: EngineDeps): EffectContext => ({
@@ -231,6 +232,21 @@ function executePlayFromHand(
   playWithPayment(ctx, playerId, card, payment, attachTo, reduction);
 }
 
+/**
+ * Whether a point of an "up to" division could do anything to `id` (RRG 1.8 "Target", p. 43): a scheme holding threat
+ * this removal is allowed to take (the same check `removeThreat` makes as it applies, crisis and rules included), or a
+ * character that can take damage from this card.
+ */
+function divisionCanAffect(ctx: Ctx, what: "damage" | "threat", id: InstanceId, frame: Frame<"effects">): boolean {
+  if (what === "damage") return !cannotTakeDamage(ctx.state, ctx.deps, id, [frame.selfInstanceId]);
+  const scheme = getInstance(ctx.state, id);
+  return (
+    scheme !== undefined &&
+    scheme.threat > 0 &&
+    threatRemovalBlocked(ctx.state, ctx.deps, id, frame.selfInstanceId) === null
+  );
+}
+
 /** `EffectSpec divide` (docs/phase7-wave2.md §3.7): see there. */
 function executeDivide(
   ctx: Ctx,
@@ -239,9 +255,14 @@ function executeDivide(
   context: EffectContext,
 ): void {
   const amount = Math.max(0, resolveValue(ctx.state, effect.amount, context, ctx.deps));
-  const candidates = selectTargets(ctx.state, effect.among, context);
+  const matched = selectTargets(ctx.state, effect.among, context);
+  // "Up to" (docs/phase7-wave3.md §3.41, §4 Q16): at least 1 point whenever something can be targeted, so only
+  // targets the division can affect are offered (RRG 1.8 "Target", p. 43), and with none nothing happens.
+  const candidates = effect.upTo ? matched.filter((id) => divisionCanAffect(ctx, effect.what, id, frame)) : matched;
   const [chooser] = resolvePlayers(ctx.state, effect.chooser, context);
-  if (frame.answer === null && candidates.length > 1 && amount > 0 && chooser) {
+  // "Up to" (docs/phase7-wave3.md §3.41): how many is the chooser's, so even a single candidate is asked.
+  const asks = candidates.length > 1 || (effect.upTo === true && candidates.length === 1);
+  if (frame.answer === null && asks && amount > 0 && chooser) {
     requestChoice(ctx, {
       playerId: chooser,
       authority: effectChoiceAuthority(ctx.state, frame.selfInstanceId, effect.chooser),
@@ -253,7 +274,7 @@ function executeDivide(
           ref: { kind: "card", instanceId: id } as const,
         })),
       ),
-      minSelections: amount,
+      minSelections: effect.upTo ? 1 : amount,
       maxSelections: amount,
       frameId: frame.frameId,
     });
@@ -769,9 +790,12 @@ function executeChoosePlayer(
     return;
   }
   const [chooser] = resolvePlayers(ctx.state, effect.chooser, context);
-  const players = playerOrder(ctx.state);
-  if (!chooser || players.length === 0) {
-    setFrame(ctx, { ...frame, cursor: frame.cursor + 1, bindings: { ...frame.bindings, [effect.slot]: [] } });
+  // `among` (docs/phase7-wave3.md §3.35): only those players are eligible, and one eligible player is no choice.
+  const eligible = effect.among ? resolvePlayers(ctx.state, effect.among, context) : null;
+  const players = playerOrder(ctx.state).filter((p) => eligible === null || eligible.includes(p.playerId));
+  if (!chooser || players.length === 0 || (eligible !== null && players.length === 1)) {
+    const bound = eligible !== null && players.length === 1 ? [players[0]!.identity.instanceId] : [];
+    setFrame(ctx, { ...frame, cursor: frame.cursor + 1, bindings: { ...frame.bindings, [effect.slot]: bound } });
     return;
   }
   requestChoice(ctx, {
@@ -988,7 +1012,8 @@ function executeDealIndirectDamage(
         targetInstanceId: asInstanceId(key.slice(`${INDIRECT}to.`.length)),
         amount: points,
         sourceInstanceId: frame.selfInstanceId,
-        fromAttack: false,
+        fromAttack: effect.fromAttack === true,
+        ...(effect.fromAttack === true ? { parentFrameId: frame.eventFrameId } : {}),
       })),
       effect.bind ? { frameId: frame.frameId, prefix: effect.bind } : null,
     ),
@@ -1015,7 +1040,13 @@ function executeResolveSpecials(
       steps.push({
         instanceId: id,
         abilityId: ref.id,
-        controllerId: controllerOf(ctx.state, id),
+        // An encounter card resolving its own Special has no controller of its own (e.g. Nebula's Technique
+        // attachments, `gmw` 16094-16098, attached to the villain); "you" inside that Special's text ("You are
+        // stunned") then falls back to whoever the *instructing* ability's own "you" was (RRG 1.8 "You, Your",
+        // p. 49) — the player the villain's activation concerns, already resolved onto `context.controllerId` by
+        // the calling `forcedInterrupt`/Boost frame. docs/phase7-wave3.md §3's "Special" pattern; found scripting
+        // `gmw/nebula.ts`.
+        controllerId: controllerOf(ctx.state, id) ?? context.controllerId,
         forced: true,
         fromHand: false,
       });
@@ -1084,7 +1115,8 @@ function requestTargetChoice(
       label: mustCardOf(ctx.state, id).name,
       ref: { kind: "card", instanceId: id } as const,
     })),
-    minSelections: effect.optional ? 0 : count,
+    // "Up to X" chooses at least one (§4 Q16, the user's decision); only a printed "may" (`optional`) allows none.
+    minSelections: effect.optional ? 0 : effect.upTo ? 1 : count,
     maxSelections: count,
     frameId: frame.frameId,
   });

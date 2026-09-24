@@ -1,0 +1,3 @@
+kind: Engine
+body: 'The Collection: a scenario out-of-play area (ZoneId scenarioArea, createScenarioArea, a destination, selector and count) and RuleSpec discardFromPlayDestination redirecting cards discarded from play'
+time: 2026-09-22T16:49:24.835811-04:00

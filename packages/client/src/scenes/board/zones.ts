@@ -11,6 +11,7 @@ import { accent, ink, signal, status, surface, typeRole } from "../../tokens.js"
 import { cssOf, textStyle } from "../../ui/theme.js";
 import { fitText, hatchRect, label, paintPanel } from "../../ui/widgets.js";
 import type { BoardModel, EnvironmentPanel, SeatRow, SeparateDeckPile, VillainPanel } from "../../view/board-model.js";
+import { hpFraction, hpRatio } from "../../view/hp-format.js";
 import {
   CARD_ASPECT,
   PANEL_TEXT_INSETS,
@@ -19,7 +20,7 @@ import {
   villainRowSlots,
   type Rect,
 } from "../../view/layout.js";
-import { drawCharacter } from "./character-panel.js";
+import { drawCharacter, drawFootStrip } from "./character-panel.js";
 import { pileKey, type BoardDrawContext } from "./context.js";
 import { drawPile } from "./piles.js";
 import { addTapTarget } from "./tap-target.js";
@@ -246,7 +247,7 @@ function drawCompactVillain(ctx: BoardDrawContext, rect: Rect, villain: VillainP
       width: rect.width - 8,
       height: barHeight,
     };
-    const ratio = panel.hp.max > 0 ? Math.max(0, Math.min(1, panel.hp.current / panel.hp.max)) : 0;
+    const ratio = hpRatio(panel.hp.current, panel.hp.max);
     const bar = scene.add.graphics();
     bar.fillStyle(surface.parchment.hex, dim).fillRect(barRect.x, barRect.y, barRect.width, barRect.height);
     // `signal.heal` fills proportional to *remaining* HP, matching `McHpPlate`'s own meter — the same "how much is
@@ -254,7 +255,7 @@ function drawCompactVillain(ctx: BoardDrawContext, rect: Rect, villain: VillainP
     bar.fillStyle(signal.heal.hex, dim).fillRect(barRect.x, barRect.y, barRect.width * ratio, barRect.height);
     bar.lineStyle(1.5, surface.ink.hex, dim).strokeRect(barRect.x, barRect.y, barRect.width, barRect.height);
     scene.add
-      .text(barRect.x + barRect.width / 2, barRect.y - 7, `${panel.hp.current}/${panel.hp.max}`, {
+      .text(barRect.x + barRect.width / 2, barRect.y - 7, hpFraction(panel.hp.current, panel.hp.max), {
         ...textStyle(typeRole.label, surface.ink.hex, dim),
         fontSize: "9px",
       })
@@ -333,6 +334,21 @@ function drawEnvironment(ctx: BoardDrawContext, rect: Rect, environment: Environ
   // Each counter kind as its own chip along the bottom: the number big, the kind spelled out beside it, so
   // "4 INFAMY" never has to be inferred from a colour or a pip count.
   const chipHeight = 24;
+  const counterCount = Math.min(environment.counters.length, 2);
+  const countersTop =
+    counterCount > 0
+      ? inner.y + inner.height - 4 - counterCount * chipHeight - (counterCount - 1) * 3
+      : inner.y + inner.height - 22;
+
+  // A printed Hero/Alter-Ego Action or resource ability on the environment itself (Library Labyrinth's "This
+  // way?"), the same `▶` affordance a character panel's own foot strip gives its usable ability — drawn only
+  // where it fits between the title band and the counter chips.
+  const abilityLine = ctx.controller.abilityLine(environment.instanceId);
+  const abilityTop = titleBox.y + titleBox.height + 4;
+  if (abilityLine && abilityTop + 18 <= countersTop - 4) {
+    drawFootStrip(scene, { x: inner.x, y: abilityTop, width: inner.width, height: 18 }, abilityLine, "ability", dim);
+  }
+
   environment.counters.slice(0, 2).forEach((counter, index) => {
     const chip: Rect = {
       x: inner.x + 4,
@@ -369,47 +385,62 @@ function drawEnvironment(ctx: BoardDrawContext, rect: Rect, environment: Environ
     label(scene, inner.x + 6, inner.y + inner.height - 18, "no counters", typeRole.label, onArt, ink.meta * dim);
   }
 
-  ctx.makeTapTarget(rect, environment.instanceId, () => ctx.inspect(environment.instanceId));
+  ctx.makeTapTarget(rect, environment.instanceId, () => ctx.controller.onCharacterTap(environment.instanceId));
 }
 
 /**
- * The encounter piles. The deck is a facedown stack, so it shows the
- * encounter back — the same back every facedown encounter card shows, which
- * is what makes a stack read as a stack rather than as a number in a box.
- * The discard is faceup at the table, so it shows its top card.
+ * The encounter piles, plus one more tile per scenario area in play (The Collection, docs/phase7-wave3.md §3.14) —
+ * a scenario with none draws exactly the two-pile column this was before. The deck is a facedown stack, so it
+ * shows the encounter back — the same back every facedown encounter card shows, which is what makes a stack read
+ * as a stack rather than as a number in a box. The discard, and a scenario area, are faceup at the table, so each
+ * shows its top card; a scenario area's whole contents (not just the top) are then a tap away, the same "◂ ▸
+ * through the rest of the pile" Inspect already gives the discard (`piles.ts`'s own docblock).
  */
 export function drawEncounter(ctx: BoardDrawContext, rect: Rect, model: BoardModel): void {
   const { scene } = ctx;
-  const half = (rect.height - 6) / 2;
-  const piles: readonly {
-    kind: "encounterDeck" | "encounterDiscard";
-    name: string;
-    count: number;
-    y: number;
-    art: ArtSource | null;
-    instanceId: InstanceId | null;
-  }[] = [
+  type Pile = {
+    readonly kind: "encounterDeck" | "encounterDiscard" | "scenarioArea";
+    readonly name: string;
+    readonly count: number;
+    readonly art: ArtSource | null;
+    readonly instanceId: InstanceId | null;
+    /** Every card in the pile, for a tap to open browsable through — only a scenario area needs more than one. */
+    readonly siblings: readonly InstanceId[];
+  };
+  const piles: readonly Pile[] = [
     {
       kind: "encounterDeck",
       name: "ENC DECK",
       count: model.encounterPiles.deck,
-      y: rect.y,
       art: CARD_BACKS.encounter,
       instanceId: model.encounterDeckTopInstanceId,
+      siblings: [],
     },
     {
       kind: "encounterDiscard",
       name: "DISCARD",
       count: model.encounterPiles.discard,
-      y: rect.y + half + 6,
       art: model.encounterDiscardTop,
       instanceId: model.encounterDiscardTopInstanceId,
+      siblings: [],
     },
+    ...model.scenarioAreas.map((area): Pile => ({
+      kind: "scenarioArea",
+      name: area.name.toUpperCase(),
+      count: area.count,
+      art: area.topArt,
+      instanceId: area.instanceIds[0] ?? null,
+      siblings: area.instanceIds,
+    })),
   ];
-  for (const { kind, name, count, y, art, instanceId } of piles) {
-    const box: Rect = { x: rect.x, y, width: rect.width, height: half };
-    // A card revealed from the deck or discarded to the pile travels from or to this box itself, not the whole column.
-    ctx.frame.pileRects.set(pileKey(kind), box);
+  const gap = 6;
+  const slot = (rect.height - gap * (piles.length - 1)) / piles.length;
+  piles.forEach(({ kind, name, count, art, instanceId, siblings }, index) => {
+    const box: Rect = { x: rect.x, y: rect.y + index * (slot + gap), width: rect.width, height: slot };
+    // A card revealed from the deck or discarded to the pile travels from or to this box itself, not the whole
+    // column. A scenario area is not a travel-animation anchor yet — no printed effect moves a card there with a
+    // motion this app plays — so only the two encounter piles register one.
+    if (kind !== "scenarioArea") ctx.frame.pileRects.set(pileKey(kind), box);
     const g = scene.add.graphics();
     paintPanel(g, box, count > 0 ? "card" : "quiet", count > 0 ? "rest" : "unavailable");
 
@@ -442,12 +473,14 @@ export function drawEncounter(ctx: BoardDrawContext, rect: Rect, model: BoardMod
 
     // Every pile with a card in it is readable, the deck's own facedown top included (D08's own subtitle: "any
     // card, anywhere, including facedown counts") — Inspect already draws the honest "facedown" face for it via
-    // `faceVisible`; this box only had no tap target to reach that with.
+    // `faceVisible`; this box only had no tap target to reach that with. A scenario area opens every card it
+    // holds, not only the top one — it's a shared, faceup zone, closer to the discard than to a deck.
     if (count > 0 && instanceId) {
       ctx.frame.hitRects.set(instanceId, box);
-      addTapTarget(scene, box, { onTap: () => ctx.inspect(instanceId), onInspect: () => ctx.inspect(instanceId) });
+      const open = (): void => ctx.inspect(instanceId, siblings.length > 0 ? siblings : undefined);
+      addTapTarget(scene, box, { onTap: open, onInspect: open });
     }
-  }
+  });
 }
 
 export function drawPlayArea(ctx: BoardDrawContext, rect: Rect, model: BoardModel): void {

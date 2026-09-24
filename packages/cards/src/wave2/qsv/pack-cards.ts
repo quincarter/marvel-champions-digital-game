@@ -152,7 +152,7 @@ export const QSV_PACK_CARDS = defineAbilities({
   // number (`villainStageNumberOf`, docs/phase7-wave2.md; the same reading Running Interference, `wsp/pack-
   // cards.ts`, already uses for the identical "X is the villain's stage number" phrase).
   "14031.united-we-stand-action": heroAction(
-    chooseTarget("healed", FRIENDLY_CHARACTER, { optional: true, count: scaled(villainStageNumberOf(), { max: 3 }) }),
+    chooseTarget("healed", FRIENDLY_CHARACTER, { upTo: true, count: scaled(villainStageNumberOf(), { max: 3 }) }),
     heal(1, chosen("healed")),
   ),
 

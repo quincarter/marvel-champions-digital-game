@@ -18,6 +18,17 @@ export type Payment =
 export type CostChoices = Readonly<Record<string, readonly InstanceId[]>>;
 
 /**
+ * The non-card decisions a cost leaves to the player, made up front like `CostChoices` (docs/phase7-wave3.md §3.32,
+ * §3.36). Absent fields take the engine's default, so a command without this is exactly what it was before.
+ */
+export interface CostSelection {
+  /** Which branch of an either/or cost (`AbilityCost.either`), 0-based. Default: the first branch that can be paid. */
+  readonly branch?: number;
+  /** How many counters an "up to N" counter cost removes (`spendCounters.upTo`). Default: as many as it can. */
+  readonly counters?: number;
+}
+
+/**
  * Every command names the player issuing it so authority can be checked here
  * rather than in a client (and so the netcode layer has one thing to validate).
  */
@@ -53,6 +64,17 @@ export type Command =
        * amount paid may be modified by effects without changing the value of X". Bound as the play's var `x`. Absent is 0.
        */
       readonly x?: number;
+      /**
+       * `playCostReduction` abilities the player uses on this play ("When you play a card from your hand, deal yourself
+       * 1 facedown encounter card → reduce the cost to play that card by 3", Star-Lord): each is validated, its cost paid
+       * and its limit counted with the play, and the card costs that much less (docs/phase7-wave3.md §3.20).
+       */
+      readonly costReductionAbilities?: readonly {
+        readonly instanceId: InstanceId;
+        readonly abilityId: AbilityId;
+      }[];
+      /** The branch / counter count of the played event's action cost (`CostSelection`). */
+      readonly costSelection?: CostSelection;
     }
   | {
       readonly type: "useAbility";
@@ -61,6 +83,8 @@ export type Command =
       readonly abilityId: AbilityId;
       readonly payment: readonly Payment[];
       readonly costChoices?: CostChoices;
+      /** Which branch of an either/or cost, how many counters an "up to N" cost removes (`CostSelection`). */
+      readonly costSelection?: CostSelection;
     }
   | {
       readonly type: "basicAttack";

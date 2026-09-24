@@ -1,5 +1,6 @@
 import type { AbilityId } from "@mc/content";
 import type { FrameId, InstanceId, PlayerId } from "./ids.js";
+import type { CardDestination } from "./spec.js";
 import type { Vars } from "./stack.js";
 
 /**
@@ -30,6 +31,8 @@ export type TriggerEventBody =
       readonly piercing?: boolean;
       /** The card whose ability produced this damage when that isn't the source ("damage from Black Panther upgrades"). */
       readonly viaInstanceId?: InstanceId | null;
+      /** An ally's consequential damage (RRG 1.8 "Consequential Damage", p. 13), so "for this use" can cancel it (§3.21). */
+      readonly consequential?: true;
     }
   | { readonly kind: "healDamage"; readonly targetInstanceId: InstanceId; readonly amount: number }
   | {
@@ -118,6 +121,21 @@ export type TriggerEventBody =
       readonly playerId: PlayerId;
     }
   /**
+   * An enemy attacks another enemy ("That minion attacks another enemy of your choice", Moondragon; `EffectSpec
+   * enemyAttacksEnemy`, docs/phase7-wave3.md §3.23). An attack but not an activation (§4 Q12, the user's decision,
+   * 2026-09-23), so it is deliberately not an `enemyAttack`: no boost card, no defense, and no "when this enemy
+   * attacks/activates" ability hears it. Its interrupt window comes before the damage; its apply step deals the
+   * attacker's ATK to the target as attack damage and names the target in a `characterAttacked` event (retaliate).
+   * No player is a subject: nobody is attacked, and the player whose ability caused it is not attacking.
+   */
+  | {
+      readonly kind: "enemyAttacksEnemy";
+      readonly attackerInstanceId: InstanceId;
+      readonly targetInstanceId: InstanceId;
+      /** The card whose ability made the attack (Moondragon), for the log. */
+      readonly sourceInstanceId: InstanceId | null;
+    }
+  /**
    * "After [character] is attacked", named after the attack's damage resolves so
    * the target is the character that was actually hit (the defender, if one was
    * declared). Retaliate X hangs off this; so does any card ability worded the
@@ -190,6 +208,23 @@ export type TriggerEventBody =
   | {
       readonly kind: "characterDefeated";
       readonly instanceId: InstanceId;
+      /**
+       * Defeated by an effect that says "defeat" (`EffectSpec defeat`; Nova Prime), not by reaching zero remaining hit
+       * points, so applying it does not re-check the dial (docs/phase7-wave3.md §3.9).
+       */
+      readonly byEffect?: true;
+      /**
+       * The defeating damage was attack damage (`dealDamage.fromAttack`: an attack's damage, or its overkill spill), so
+       * "When an ally is defeated by an enemy attack" (Regroup, `drax` 19032) is `fromAttack: true` with `sourceIs` an
+       * enemy (docs/phase7-wave3.md §3.45). Absent for any other defeat.
+       */
+      readonly fromAttack?: true;
+      /**
+       * "Return it to its owner's hand instead of discarding it" (Regroup): where the defeated card goes instead of its
+       * discard pile, set by an interrupt's `EffectSpec setDefeatDestination` (docs/phase7-wave3.md §3.45). It is still
+       * defeated — When Defeated, Victory X and "after … is defeated" all still apply; only the discard is replaced.
+       */
+      readonly destination?: CardDestination;
       readonly parentFrameId?: FrameId | null;
       readonly overkill?: {
         readonly amount: number;
@@ -341,7 +376,37 @@ export type TriggerEventBody =
       readonly toHeroForm?: number | null;
     }
   | { readonly kind: "playerPhaseEnded" }
-  | { readonly kind: "villainPhaseEnded" };
+  | { readonly kind: "villainPhaseEnded" }
+  /**
+   * "When/After the [player|villain] phase begins" (docs/phase7-wave3.md §3.2): Museum Ship and Nebula's Ship (`gmw`),
+   * Blazing Inferno (`gmw`), Sibling Rivalry (`gam`), Ronan the Accuser (`ron`), and 15 more in the pool. RRG 1.8 "Round
+   * Overview" (p. 4) steps 1 and 4 make the phase's beginning its own point, before its first step: an interrupt and a
+   * response window, then the player phase's first turn or the villain phase's step one. Pushed only when an ability is
+   * listening, so every game without one logs exactly as before.
+   */
+  | { readonly kind: "phaseBeginning"; readonly phase: "player" | "villain" }
+  /**
+   * "When/After the [player|villain] phase ends" and "When/After the round ends" (docs/phase7-wave3.md §3.2). RRG 1.8
+   * "End of Player Phase" (p. 18) step 5 and "Villain Phase" (p. 47) step 6b: "Resolve any 'when/after the [villain]
+   * phase ends' or 'when/after the round ends' effects" — so the villain phase's end **is** the round's end, one timing
+   * point, after "until the end of the phase/round" effects have ended (steps 4 and 6a). Its apply step resolves the
+   * "at the end of the phase/round" delayed effects, which RRG 1.8 "Delayed Effect" (p. 15) places "immediately after
+   * their specified timing point [...] and before responses". The Collector's and Hela's ∞ faces, Rogue Vessel (`gmw`),
+   * Regroup (`drax`), Magical Enhancements (`drs`), the temporary keyword. Pushed only when an ability is listening.
+   */
+  | { readonly kind: "phaseEnding"; readonly phase: "player" | "villain" }
+  /**
+   * "After resolving step one of the villain phase" (docs/phase7-wave3.md §3.2): 36 printed cards, among them
+   * Terrestrial Invasion 1B, Protect the Planet 2B and Bombardment (`gmw`). Announced once step one's threat and its
+   * own interrupts and responses have resolved, before step two begins (RRG 1.8 "Villain Phase", p. 47). Not a
+   * `placeThreat` response: that also fires on every scheme, incite and card-placed threat. Response window only.
+   */
+  | { readonly kind: "villainStepResolved"; readonly step: "placeThreat" }
+  /**
+   * A card discarded from play went to a scenario area instead (`RuleSpec discardFromPlayDestination`; The Collection,
+   * docs/phase7-wave3.md §3.14): "…, then place 1 threat on the main scheme" (Collector III) responds to it. Response only.
+   */
+  | { readonly kind: "discardRedirected"; readonly instanceId: InstanceId; readonly area: string };
 
 /**
  * `results` is attached when the event's response window opens: what the event
@@ -367,6 +432,7 @@ export function isAnnouncement(event: TriggerEvent): boolean {
     case "thwart":
     case "enemyAttack":
     case "enemyScheme":
+    case "enemyAttacksEnemy":
     // RRG 1.8 "Defend, Defense" (p. 15) names abilities that trigger "when your hero defends against an attack"
     // (Expert Defense, Desperate Defense), and "Interrupt" (p. 25) resolves them as the triggering condition
     // initiates. The defender is recorded before this event is pushed, so the interrupt window sees it.
@@ -386,8 +452,18 @@ export function isAnnouncement(event: TriggerEvent): boolean {
     // "When you use one of your hero's basic powers" (§17.4): the power is still to come.
     case "basicPowerUsing":
     case "turnEnding":
+    // "Forced Interrupt: When your turn begins, …" (The Poison, `gmw` 16125). A turn beginning is a timing point like a
+    // phase beginning (below): RRG 1.8 "Interrupt" (p. 25) resolves an interrupt "immediately before that triggering
+    // condition resolves", and nothing in the RRG makes a "begins" timing point response-only. The turn's state
+    // (`beginTurn`) is set before the event is pushed, but no player action can be taken until its frame has left the
+    // stack, so an interrupt still resolves before anything the turn does. Its apply step changes nothing, and
+    // "After your turn begins" (Quinjet, `cap` 03019) still answers in the response window as before.
+    case "turnStarted":
     case "surgeResolving":
     case "cardBeingPlayed":
+    // docs/phase7-wave3.md §3.2: "When the villain phase begins/ends" are interrupts to these timing points.
+    case "phaseBeginning":
+    case "phaseEnding":
     // "When you spend this card" (an interrupt) and "After you spend this card" (a response) both have a window. The
     // cards are already discarded when it is pushed — every cost is paid at once (RRG 1.8 "Cost", p. 13) — so its
     // apply step changes nothing; see docs/phase7-wave2.md §12.2 for what that does and does not let an interrupt do.
@@ -442,6 +518,8 @@ export function eventSubjects(event: TriggerEvent): EventSubjects {
       return of([event.enemyInstanceId], [], [event.playerId]);
     case "characterAttacked":
       return of([event.attackerInstanceId], [event.targetInstanceId], [event.playerId]);
+    case "enemyAttacksEnemy":
+      return of([event.attackerInstanceId], [event.targetInstanceId], []);
     case "defended":
       return of([event.enemyInstanceId], [event.defenderInstanceId], [event.playerId]);
     case "cardEntersPlay":
@@ -458,6 +536,7 @@ export function eventSubjects(event: TriggerEvent): EventSubjects {
       // The defeating player, so "after *you* defeat a side scheme" reads like the `characterDefeated` case above.
       return of([event.sourceInstanceId ?? null], [event.instanceId], [event.defeatedByPlayerId ?? null]);
     case "cardFlipped":
+    case "discardRedirected":
       return of([], [event.instanceId], []);
     case "mainSchemeCompleted":
       return of([], [event.schemeInstanceId], []);

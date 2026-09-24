@@ -90,7 +90,7 @@ export const WASP_KIT = defineAbilities({
   // deck. (Limit once per round.)
   "13001b.girl": action(
     { limit: oncePerRound },
-    chooseCards("mental", zone("discard", you, { filter: { printedResource: "mental" } }), { min: 0, max: 2 }),
+    chooseCards("mental", zone("discard", you, { filter: { printedResource: "mental" } }), { min: 1, max: 2 }),
     moveCards(cards(chosen("mental")), "deckShuffle"),
   ),
 

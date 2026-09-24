@@ -234,13 +234,13 @@ export const DRS_KIT = defineAbilities({
   },
 
   // Seven Rings of Raggadorr (Invocation) — Special: Give up to 3 characters each a tough status card. Place this
-  // card in the Invocation deck discard pile. "Up to 3" is `chooseTarget`'s `optional` + `count` (docs/
-  // phase7-wave1.md §3.12); `giveTough` applies to every character bound to the slot (the same "a slot can resolve
+  // card in the Invocation deck discard pile. "Up to 3" is `chooseTarget`'s `upTo` + `count` (docs/
+  // phase7-wave1.md §3.12; at least 1 when possible, docs/phase7-wave3.md §4 Q16); `giveTough` applies to every character bound to the slot (the same "a slot can resolve
   // to several cards" reading `ready(each(...))`/`dealDamage(1, each(...))` already rely on).
   "09034.seven-rings-of-raggadorr-special": {
     trigger: { kind: "special" },
     effects: [
-      chooseTarget("characters", query("character"), { optional: true, count: 3 }),
+      chooseTarget("characters", query("character"), { upTo: true, count: 3 }),
       giveTough(chosen("characters")),
       moveCards(cards(self), "separateDiscard"),
     ],

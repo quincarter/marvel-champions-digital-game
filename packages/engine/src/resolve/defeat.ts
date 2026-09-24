@@ -29,6 +29,7 @@ import {
   villainStageCount,
   villainStageOf,
 } from "../query.js";
+import { cannotBeDefeated } from "../rules.js";
 import { cardsInPlay } from "../select.js";
 import type { StackFrame } from "../stack.js";
 import type { GameState, MainSchemeState, VillainState } from "../state.js";
@@ -36,6 +37,7 @@ import type { TriggerEvent } from "../trigger-events.js";
 import { engagedEvent } from "./apply-effect.js";
 import { announce, base, eventFrame, gameAbilityFrames } from "./frames.js";
 import { leaveAreaOnDefeat } from "./game-areas.js";
+import { attachmentHostCandidates } from "./reveal.js";
 import { heard } from "./triggers.js";
 
 /** A completion's When Completed abilities are resolving and its advance is still queued. */
@@ -107,7 +109,9 @@ export function completeMainScheme(ctx: Ctx, schemeId: InstanceId): void {
     ...(central ? {} : { schemeInstanceId: schemeId }),
   });
   const next = central ? nextMainSchemeStage(ctx.state, scheme) : "alternatives";
-  if (next === null) {
+  // "If this stage is completed, the players lose the game." on a stage that is not the last (docs/phase7-wave3.md
+  // §3.37): its completion loses exactly as the final stage's does (RRG 1.8 "Main Scheme", p. 27), not advance.
+  if (next === null || mainSchemeStageOf(ctx.state, scheme).completionLoses === true) {
     updateMainSchemeState(ctx, schemeId, (s) => ({ ...s, completed: true }));
     endGame(ctx, { result: "loss", reason: "mainSchemeCompleted" });
     return;
@@ -219,6 +223,8 @@ interface DefeatHint {
   readonly defeatedByPlayerId?: PlayerId | null;
   /** The damage's source card itself ("after *Wasp* — or an event you play — defeats a minion"). */
   readonly sourceInstanceId?: InstanceId | null;
+  /** The damage was attack damage: "defeated by an enemy attack" (Regroup; docs/phase7-wave3.md §3.45). */
+  readonly fromAttack?: boolean;
 }
 
 const defeatPending = (state: GameState, id: InstanceId): boolean =>
@@ -230,20 +236,53 @@ const defeatPending = (state: GameState, id: InstanceId): boolean =>
       (f.stage === "interrupts" || f.stage === "apply"),
   );
 
-/** Sweeps every character in play for zero remaining hit points, in a fixed order. */
-export function checkDefeats(ctx: Ctx, hint?: DefeatHint): void {
+/**
+ * Sweeps every character in play for zero remaining hit points, in a fixed order. `hints` say what dealt the damage to
+ * each character that took some: one for a single damage event, one per member for a simultaneous damage group.
+ */
+export function checkDefeats(ctx: Ctx, hints?: DefeatHint | readonly DefeatHint[]): void {
   if (ctx.state.outcome) return;
+  const all: readonly DefeatHint[] = hints === undefined ? [] : "targetId" in hints ? [hints] : hints;
+  const hintFor = (id: InstanceId): DefeatHint | undefined => all.find((candidate) => candidate.targetId === id);
 
   // Villains first, in printed order: a villain stage falls the moment its dial reaches zero.
   const activeChoices: StackFrame[] = [];
+  // "When Collector would be defeated, … flip this card instead" (docs/phase7-wave3.md §3.1): a villain's defeat is an
+  // event with an interrupt window when an ability could react to it, the way an identity's already is below. It
+  // applies through `applyDefeat`, which re-checks the dial, so a flip to an ∞ face or a reset dial replaces it. With
+  // nothing listening the stage falls right here, exactly as it did before.
+  const villainDefeats: StackFrame[] = [];
+  // A villain and an identity defeated by the same sweep are defeated simultaneously, and if that eliminates the last
+  // player the players lose: "there aren't any ties in Marvel Champions between the villain and the heroes, so if the
+  // heroes don't win, they have lost" (FFG ruling, May 18, 2023, The Kraken's "each other character takes 1 damage";
+  // docs/phase7-wave3.md §4 Q1). So while an identity falls in this sweep, the villain's defeat waits on the stack
+  // until the eliminations below have applied: the last one ends the game as a loss, and otherwise the villain falls.
+  const identityFalls = playerOrder(ctx.state).some((player) => identityAtZero(ctx, player.identity.instanceId));
   for (const { instanceId } of undefeatedVillains(ctx.state)) {
     const villainProfile = characterProfile(ctx.state, instanceId, ctx.deps);
     const villain = getInstance(ctx.state, instanceId);
-    if (villainProfile && villain && villain.damage >= villainProfile.maxHp) {
-      const choice = defeatVillainStage(ctx, instanceId);
-      if (ctx.state.outcome) return;
-      if (choice) activeChoices.push(choice);
+    if (!villainProfile || !villain || villain.damage < villainProfile.maxHp) continue;
+    if (cannotBeDefeated(ctx.state, ctx.deps, instanceId) || defeatPending(ctx.state, instanceId)) continue;
+    const hint = hintFor(instanceId);
+    const defeat: TriggerEvent = {
+      kind: "characterDefeated",
+      instanceId,
+      ...(hint
+        ? {
+            parentFrameId: hint.parentFrameId,
+            ...(hint.defeatedByPlayerId ? { defeatedByPlayerId: hint.defeatedByPlayerId } : {}),
+            ...(hint.sourceInstanceId ? { sourceInstanceId: hint.sourceInstanceId } : {}),
+            ...(hint.fromAttack ? { fromAttack: true as const } : {}),
+          }
+        : {}),
+    };
+    if (identityFalls || heard(ctx.state, ctx.deps, defeat)) {
+      villainDefeats.push(eventFrame(ctx, defeat));
+      continue;
     }
+    const choice = defeatVillainStage(ctx, instanceId);
+    if (ctx.state.outcome) return;
+    if (choice) activeChoices.push(choice);
   }
 
   // One batch for the whole sweep, in sweep order. Each defeat is an event with
@@ -257,16 +296,18 @@ export function checkDefeats(ctx: Ctx, hint?: DefeatHint): void {
       if (profile.kind !== "ally" && profile.kind !== "minion") continue;
       if (instance.damage < profile.maxHp) continue;
       if (hasKeyword(ctx.state, id, "permanent", ctx.deps)) continue;
+      if (cannotBeDefeated(ctx.state, ctx.deps, id)) continue;
       if (defeatPending(ctx.state, id)) continue;
-      const context =
-        hint?.targetId === id
-          ? {
-              parentFrameId: hint.parentFrameId,
-              ...(hint.overkill ? { overkill: hint.overkill } : {}),
-              ...(hint.defeatedByPlayerId ? { defeatedByPlayerId: hint.defeatedByPlayerId } : {}),
-              ...(hint.sourceInstanceId ? { sourceInstanceId: hint.sourceInstanceId } : {}),
-            }
-          : {};
+      const hint = hintFor(id);
+      const context = hint
+        ? {
+            parentFrameId: hint.parentFrameId,
+            ...(hint.overkill ? { overkill: hint.overkill } : {}),
+            ...(hint.defeatedByPlayerId ? { defeatedByPlayerId: hint.defeatedByPlayerId } : {}),
+            ...(hint.sourceInstanceId ? { sourceInstanceId: hint.sourceInstanceId } : {}),
+            ...(hint.fromAttack ? { fromAttack: true as const } : {}),
+          }
+        : {};
       defeatFrames.push(eventFrame(ctx, { kind: "characterDefeated", instanceId: id, ...context }));
     }
   }
@@ -274,17 +315,32 @@ export function checkDefeats(ctx: Ctx, hint?: DefeatHint): void {
   // Choosing who holds the active counter next resolves before anything else queued by this sweep, so no effect
   // can read "the villain" while the counter still sits on a defeated one.
   pushFrames(ctx, activeChoices);
+  // A villain's defeat event resolves before the minions' and allies', keeping the sweep's villains-first order.
+  pushFrames(ctx, villainDefeats);
 
   for (const player of playerOrder(ctx.state)) {
     const identityId = player.identity.instanceId;
-    const profile = characterProfile(ctx.state, identityId, ctx.deps);
-    const instance = getInstance(ctx.state, identityId);
-    if (!profile || !instance) continue;
-    if (instance.damage < profile.maxHp) continue;
+    if (!identityAtZero(ctx, identityId)) continue;
     // "When [your hero] would be defeated, … instead" (Captain America's Helmet) needs an interrupt window, so the
     // defeat goes on the stack as an event when an ability could react to it and the player is eliminated when it
     // applies. With nothing listening the elimination happens right here, exactly as it did before.
-    const defeat: TriggerEvent = { kind: "characterDefeated", instanceId: identityId };
+    // The same hint the ally/minion and villain paths above thread through (`fromAttack`/`sourceInstanceId`/
+    // `defeatedByPlayerId`, docs/phase7-wave3.md §3.45): an identity's own defeat previously carried none of it, so
+    // "defeated by an enemy attack" could never distinguish an identity killed by a villain's attack from one
+    // killed by, say, a treachery's own damage (`ron` 90002's own docblock, `wave3/ron/kree-fanatic.ts`).
+    const hint = hintFor(identityId);
+    const defeat: TriggerEvent = {
+      kind: "characterDefeated",
+      instanceId: identityId,
+      ...(hint
+        ? {
+            parentFrameId: hint.parentFrameId,
+            ...(hint.defeatedByPlayerId ? { defeatedByPlayerId: hint.defeatedByPlayerId } : {}),
+            ...(hint.sourceInstanceId ? { sourceInstanceId: hint.sourceInstanceId } : {}),
+            ...(hint.fromAttack ? { fromAttack: true as const } : {}),
+          }
+        : {}),
+    };
     if (!defeatPending(ctx.state, identityId) && heard(ctx.state, ctx.deps, defeat)) {
       pushFrames(ctx, [eventFrame(ctx, defeat)]);
       continue;
@@ -292,6 +348,14 @@ export function checkDefeats(ctx: Ctx, hint?: DefeatHint): void {
     eliminatePlayer(ctx, player.playerId);
     if (ctx.state.outcome) return;
   }
+}
+
+/** An identity at zero remaining hit points that can be defeated: the sweep defeats it. */
+function identityAtZero(ctx: Ctx, identityId: InstanceId): boolean {
+  const profile = characterProfile(ctx.state, identityId, ctx.deps);
+  const instance = getInstance(ctx.state, identityId);
+  if (!profile || !instance || instance.damage < profile.maxHp) return false;
+  return !cannotBeDefeated(ctx.state, ctx.deps, identityId);
 }
 
 const updateVillain = (ctx: Ctx, id: InstanceId, update: (villain: VillainState) => VillainState): void => {
@@ -306,7 +370,7 @@ const updateVillain = (ctx: Ctx, id: InstanceId, update: (villain: VillainState)
  * villain is defeated. The game is won when every villain is (The Wrecking Crew insert: "If the players defeat all
  * 4 villains, they win the game!"). Returns the frame that chooses the next active villain, when one is needed.
  */
-function defeatVillainStage(ctx: Ctx, villainId: InstanceId): StackFrame | null {
+export function defeatVillainStage(ctx: Ctx, villainId: InstanceId): StackFrame | null {
   const villain = mustVillain(ctx.state, villainId);
   const nextIndex = villain.stageIndex + 1;
   // The defeated stage's own "When Defeated" (Kang (I): "Advance the main scheme to stage 2 at the end of the phase";
@@ -427,7 +491,14 @@ function removeDefeatedVillain(ctx: Ctx, villainId: InstanceId): StackFrame | nu
   };
 }
 
-/** RRG "Player Elimination" steps 1–5, minus permanent-keyword handling. */
+/**
+ * RRG 1.8 "Player Elimination" (p. 34), steps 1–5. Step 3, for "each card in the eliminated player's play area that [is]
+ * not owned by that player": a permanent attachment resolves its "attach to" text (removed from the game when it has no
+ * valid target), any other permanent card is removed from the game, the rest go to their owners' discard piles. That
+ * covers an encounter attachment on the identity (the Power Stone; FAQ "Power Stone (#149)", RRG 1.8 p. 62: "they
+ * resolve the 'attach to' text of that attachment. In this case, the Power Stone would be attached to the villain").
+ * docs/phase7-wave3.md §3.19.
+ */
 export function eliminatePlayer(ctx: Ctx, playerId: PlayerId): void {
   const player = mustPlayer(ctx.state, playerId);
   if (player.eliminated) return;
@@ -441,17 +512,41 @@ export function eliminatePlayer(ctx: Ctx, playerId: PlayerId): void {
   }
 
   const nextSeat = nextClockwisePlayer(ctx.state, playerId);
+  // Step 3: a card in play there that the player does not own, and is permanent (the one case the keyword does not stop).
+  const notOwnedPermanent = (id: InstanceId): boolean =>
+    getInstance(ctx.state, id)?.ownerId !== playerId && hasKeyword(ctx.state, id, "permanent", ctx.deps);
+  const reattachOrRemove = (id: InstanceId): void => {
+    const card = ctx.state.cardPool[mustInstance(ctx.state, id).cardId];
+    const attachesTo = card && "attachesTo" in card ? card.attachesTo : undefined;
+    const context = { selfInstanceId: id, controllerId: null, event: null, bindings: {}, deps: ctx.deps };
+    const [host] = attachesTo
+      ? attachmentHostCandidates(ctx.state, attachesTo, context).filter((candidate) => candidate !== identityId)
+      : [];
+    if (host) moveCard(ctx, id, { kind: "attachment", hostInstanceId: host });
+    else moveCard(ctx, id, { kind: "removedFromGame" });
+  };
+  const identityId = player.identity.instanceId;
+  for (const id of [...mustInstance(ctx.state, identityId).attachments]) {
+    if (notOwnedPermanent(id)) reattachOrRemove(id);
+    else moveCard(ctx, id, discardZoneFor(ctx.state, id), "top");
+  }
   for (const id of [...player.playArea]) {
-    // RRG "Permanent": a permanent card cannot leave play, elimination included.
-    if (hasKeyword(ctx.state, id, "permanent", ctx.deps)) continue;
     if (isMinion(ctx.state, id) && nextSeat) {
       moveCard(ctx, id, { kind: "playArea", playerId: nextSeat.playerId });
       updateInstance(ctx, id, (i) => ({ ...i, engagedWith: nextSeat.playerId }));
       for (const engaged of engagedEvent(ctx, id)) announce(ctx, engaged);
       continue;
     }
+    if (notOwnedPermanent(id)) {
+      if (ctx.state.cardPool[mustInstance(ctx.state, id).cardId]?.type === "attachment") reattachOrRemove(id);
+      else moveCard(ctx, id, { kind: "removedFromGame" });
+      continue;
+    }
     moveCard(ctx, id, discardZoneFor(ctx.state, id), "top");
   }
+  // Marked eliminated before its hand, deck and the rest are emptied into its discard pile, so the emptied deck is not
+  // reset (`settlePlayerDecks`): step 5 removes these zones from the game.
+  updatePlayer(ctx, playerId, (p) => ({ ...p, eliminated: true }));
   for (const id of [...mustPlayer(ctx.state, playerId).hand]) {
     moveCard(ctx, id, { kind: "discard", playerId }, "top");
   }
@@ -465,7 +560,6 @@ export function eliminatePlayer(ctx: Ctx, playerId: PlayerId): void {
     moveCard(ctx, id, { kind: "discard", playerId }, "top");
   }
 
-  updatePlayer(ctx, playerId, (p) => ({ ...p, eliminated: true }));
   emit(ctx, { type: "playerEliminated", playerId });
 
   if (ctx.state.players.every((p) => p.eliminated)) {

@@ -145,7 +145,12 @@ describe("`discardDeckUntil`: discard from the top of a player deck until a matc
     const set = arrange(spiritGame(), p1, { hand: [SPIRIT.id], deck: copies(FILLER.id, 3) });
     const state = play(set.state, spiritDeps, set.hand[0] as InstanceId);
 
-    expect(mustPlayer(state, p1).deck).toEqual([]);
+    // The last discard emptied the deck, which was reset at once (ruling, Apr 30, 2026 (3) answer 7): the three
+    // discarded fillers are the new deck, and the event, still resolving then, went to the discard pile after it.
+    expect(mustPlayer(state, p1).deck).toHaveLength(3);
+    expect(mustPlayer(state, p1).deck).toEqual(expect.arrayContaining([...set.deck]));
+    expect(mustPlayer(state, p1).discard).toEqual([set.hand[0]]);
+    expect(mustPlayer(state, p1).dealtEncounter).toHaveLength(1);
     expect(cardIdsIn(state, mustPlayer(state, p1).hand)).not.toContain(SIGNATURE.id);
     // `<bind>.count` is 0, and the `moveCards` after it moved nothing rather than erroring.
     expect(counter(state, "found")).toBeUndefined();
@@ -162,11 +167,12 @@ describe("`discardDeckUntil`: discard from the top of a player deck until a matc
     const state = play(set.state, spiritDeps, set.hand[0] as InstanceId);
 
     expect(mustPlayer(state, p1).hand).not.toContain(match);
-    expect(mustPlayer(state, p1).discard).toContain(match);
     expect(counter(state, "found")).toBeUndefined();
-    // Both fillers were discarded, and the deck was left empty rather than refilled by this effect.
-    expect(mustPlayer(state, p1).deck).toEqual([]);
-    expect(mustPlayer(state, p1).discard).toEqual(expect.arrayContaining([...set.deck]));
+    // Both fillers were discarded; the second emptied the deck, which was reset at once (ruling, Apr 30, 2026 (3)
+    // answer 7): the match and both fillers are the new deck, and the discarding stopped there.
+    expect(mustPlayer(state, p1).deck).toHaveLength(3);
+    expect(mustPlayer(state, p1).deck).toEqual(expect.arrayContaining([match, ...set.deck]));
+    expect(mustPlayer(state, p1).dealtEncounter).toHaveLength(1);
   });
 
   /**
@@ -189,8 +195,12 @@ describe("`discardDeckUntil`: discard from the top of a player deck until a matc
     const state = play(set.state, spiritDeps, set.hand[0] as InstanceId);
 
     expect(counter(state, "found")).toBeUndefined();
-    // p. 33: "the deck does not reset until there is at least one card in the player's discard pile" — so no penalty.
-    expect(mustPlayer(state, p1).dealtEncounter).toHaveLength(0);
+    // p. 33: "the deck does not reset until there is at least one card in the player's discard pile, then the player
+    // deals themself one facedown encounter card". The effect discards nothing; the first card to reach the discard
+    // pile is the event itself once it has resolved, and the deck resets then, with its one penalty.
+    expect(mustPlayer(state, p1).deck).toEqual([set.hand[0]]);
+    expect(mustPlayer(state, p1).discard).toEqual([]);
+    expect(mustPlayer(state, p1).dealtEncounter).toHaveLength(1);
   });
 
   it("searches each named player's own deck in player order, every match landing in the one slot", () => {
@@ -220,7 +230,10 @@ describe("`discardDeckUntil`: discard from the top of a player deck until a matc
     const state = play(second.state, deps, first.hand[0] as InstanceId);
 
     expect(counter(state, "found")).toBe(2);
-    expect(cardIdsIn(state, mustPlayer(state, p1).discard)).toEqual(expect.arrayContaining([FILLER.id, SIGNATURE.id]));
+    // p1's match was the last card of the deck: discarding it emptied the deck, which was reset at once (ruling, Apr
+    // 30, 2026 (3) answer 7), so both discards are p1's new deck.
+    expect(cardIdsIn(state, mustPlayer(state, p1).deck)).toEqual(expect.arrayContaining([FILLER.id, SIGNATURE.id]));
+    expect(mustPlayer(state, p1).dealtEncounter).toHaveLength(1);
     expect(cardIdsIn(state, mustPlayer(state, p2).discard)).toContain(SIGNATURE.id);
     // p2's second card was never reached: the search stopped at its match.
     expect(mustPlayer(state, p2).deck).toEqual([second.deck[1]]);
@@ -352,8 +365,10 @@ describe("`discardFromHand` with a `filter`: 'discard 1 resource of any type fro
 
   it("asks each player in player order, one choice at a time, and skips a player with no match", () => {
     const first = arrange(drainGame(3), p1, { hand: [ICONLESS.id, DRAIN_ONE.card.id] });
-    const second = arrange(first.state, p2, { hand: [PHYSICAL.id, ICONLESS.id] });
-    const third = arrange(second.state, playerId("p3"), { hand: [FILLER.id] });
+    // p2's and p3's other cards stay in their decks: an empty deck would reset the moment a card is discarded (RRG 1.8
+    // "Player Deck", p. 33), which is not what this test is about.
+    const second = arrange(first.state, p2, { hand: [PHYSICAL.id, ICONLESS.id], rest: "deck" });
+    const third = arrange(second.state, playerId("p3"), { hand: [FILLER.id], rest: "deck" });
     const started = playRaw(third.state, first.hand[1] as InstanceId);
 
     // p1 holds nothing that matches, so p1 is skipped without a choice and p2 is asked first.

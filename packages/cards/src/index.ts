@@ -26,6 +26,16 @@ export {
   wave2StarterDeckSetup,
 } from "./wave2/index.js";
 export type { Wave2ScenarioOptions } from "./wave2/index.js";
+export {
+  WAVE3_ABILITIES,
+  WAVE3_CARDS,
+  WAVE3_DEPS,
+  WAVE3_REPRINT_ABILITIES,
+  wave3ReprintPairs,
+  wave3Scenario,
+  wave3StarterDeckSetup,
+} from "./wave3/index.js";
+export type { Wave3ScenarioOptions } from "./wave3/index.js";
 export { PLAYABLE_ABILITIES, PLAYABLE_DEPS, playableScenario, playableStarterDeckSetup } from "./playable/index.js";
 export type { PlayableScenarioOptions } from "./playable/index.js";
 export { CAMPAIGNS, campaignDefinitionOf, TRORS_CAMPAIGN_DEFINITION } from "./campaigns/index.js";

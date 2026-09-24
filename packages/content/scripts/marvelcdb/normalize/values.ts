@@ -52,6 +52,17 @@ export function schemeIcons(r: RawCard): SchemeIcon[] {
   return icons;
 }
 
+/**
+ * The printed amplify icon count, as a ready-to-spread field (`BaseCard.amplifyIcons` / `CardFlipSide.amplifyIcons`).
+ * docs/phase7-wave3.md §1.2: MarvelCDB's `scheme_amplify` is set on a positive whole number of printed icons;
+ * undefined/0 means none. Returns the spreadable object rather than `number | undefined` so every call site can
+ * write `...amplifyIconsField(r)` once instead of re-narrowing a repeated `!== undefined` call under
+ * `exactOptionalPropertyTypes`.
+ */
+export function amplifyIconsField(r: RawCard): { amplifyIcons: number } | Record<string, never> {
+  return r.scheme_amplify ? { amplifyIcons: r.scheme_amplify } : {};
+}
+
 export function errataStatus(e: Errata): ErrataStatus {
   return {
     currentVersion: e.version,

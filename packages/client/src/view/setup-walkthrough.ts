@@ -49,6 +49,7 @@ import {
 } from "@mc/engine";
 import type { ArtSource } from "../art/art-source.js";
 import { characterPanel, deckAspect, handCardView, schemePanel, type HandCardView } from "./board-model.js";
+import { hpNumber } from "./hp-format.js";
 import { inspectModel } from "./inspect-model.js";
 import { appendEvents, emptyLog, type LogLine, type LogState } from "./log-lines.js";
 import { playerName } from "./names.js";
@@ -285,7 +286,7 @@ export function staticSetupLines(
 
   const texts = [
     seed !== null ? `Seed ${seed} · encounter deck shuffled (${deckSize})` : null,
-    `${villainPanel.name} placed at stage ${villain.stageIndex + 1}${villainPanel.hp ? ` — ${villainPanel.hp.max} HP` : ""}`,
+    `${villainPanel.name} placed at stage ${villain.stageIndex + 1}${villainPanel.hp ? ` — ${hpNumber(villainPanel.hp.max)} HP` : ""}`,
     `${mainSchemeName} — ${scheme.threat} starting threat`,
     obligationCount > 0
       ? `${obligationCount} obligation${obligationCount === 1 ? "" : "s"} shuffled into the encounter deck`

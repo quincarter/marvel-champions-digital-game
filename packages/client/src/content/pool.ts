@@ -1,12 +1,12 @@
 /**
- * The one card pool this app runs: Core, wave 1 and cycle 1 (PLAN.md Phase 7). Every
+ * The one card pool this app runs: Core, wave 1, cycle 1 and cycle 2 (PLAN.md Phase 7). Every
  * scene, the deck screens and the engine worker read the app's pool from here
  * — never from `@mc/content`'s `CORE_*` exports or `@mc/cards`' `CORE_DEPS`
  * directly — so the client can only ever run one pool at a time and adding a
  * later wave is a one-file change.
  *
  * `playableScenario` is the app's scenario builder: it hands a scenario to
- * its own wave's builder (Core's, wave 1's or cycle 1's) and widens the game's
+ * its own wave's builder (Core's, wave 1's, cycle 1's or cycle 2's) and widens the game's
  * card pool to every playable card, so any deck can sit at any scenario.
  */
 import { PLAYABLE_DEPS, playableScenario, type PlayableScenarioOptions } from "@mc/cards";
@@ -34,7 +34,16 @@ import {
   WAVE2_ENCOUNTER_SETS,
   WAVE2_SCENARIOS,
   WAVE2_STARTER_DECKS,
+  WAVE3_ENCOUNTER_SETS,
+  WAVE3_SCENARIOS,
+  WAVE3_STARTER_DECKS,
   WSP_PACK,
+  DRAX_PACK,
+  GAM_PACK,
+  GMW_PACK,
+  RON_PACK,
+  STLD_PACK,
+  VNM_PACK,
   poolVersionOf,
   type AnyCard,
   type EncounterSet,
@@ -56,6 +65,7 @@ export const POOL_ENCOUNTER_SETS: readonly EncounterSet[] = [
   ...CORE_ENCOUNTER_SETS,
   ...WAVE1_ENCOUNTER_SETS,
   ...WAVE2_ENCOUNTER_SETS,
+  ...WAVE3_ENCOUNTER_SETS,
 ];
 
 /**
@@ -80,14 +90,20 @@ export const CORE_MODULAR_SET_IDS: readonly string[] = [
 /** Every ability script for `POOL_CARDS` (Core's own scripts included — every wave's registry starts from `CORE_ABILITIES`). */
 export const POOL_DEPS: EngineDeps = PLAYABLE_DEPS;
 
-/** Every scenario, Core first (Rhino, Klaw, Ultron), then wave 1 (Risky Business, Mutagen Formula, Breakout), then cycle 1 (The Rise of Red Skull's five, and Kang). */
-export const POOL_SCENARIOS: readonly Scenario[] = [...CORE_SCENARIOS, ...WAVE1_SCENARIOS, ...WAVE2_SCENARIOS];
+/** Every scenario, Core first (Rhino, Klaw, Ultron), then wave 1 (Risky Business, Mutagen Formula, Breakout), then cycle 1 (The Rise of Red Skull's five, and Kang), then cycle 2 (The Galaxy's Most Wanted's five). */
+export const POOL_SCENARIOS: readonly Scenario[] = [
+  ...CORE_SCENARIOS,
+  ...WAVE1_SCENARIOS,
+  ...WAVE2_SCENARIOS,
+  ...WAVE3_SCENARIOS,
+];
 
-/** Every starter deck, Core's six precons first, then the six wave 1 hero packs', then cycle 1's six. */
+/** Every starter deck, Core's six precons first, then the six wave 1 hero packs', then cycle 1's six, then cycle 2's six (Groot, Rocket Raccoon, Star-Lord, Gamora, Drax, Venom). */
 export const POOL_STARTER_DECKS: readonly StarterDeck[] = [
   ...CORE_STARTER_DECKS,
   ...WAVE1_STARTER_DECKS,
   ...WAVE2_STARTER_DECKS,
+  ...WAVE3_STARTER_DECKS,
 ];
 
 /** This build's pool version — bumps whenever `POOL_CARDS` changes shape, which retires an older save/deck against it. */
@@ -116,6 +132,12 @@ export const POOL_PACKS: readonly Pack[] = [
   WSP_PACK,
   QSV_PACK,
   SCW_PACK,
+  GMW_PACK,
+  STLD_PACK,
+  GAM_PACK,
+  DRAX_PACK,
+  VNM_PACK,
+  RON_PACK,
 ];
 
 /** A pack's own display name ("The Wrecking Crew") by its code ("twc"), falling back to the code itself if the pool ever names one this list doesn't have. */
@@ -123,7 +145,7 @@ export function packNameOf(code: string): string {
   return POOL_PACKS.find((pack) => (pack.code as string) === code)?.name ?? code;
 }
 
-/** The app's one scenario builder: Core, wave 1 and cycle 1 scenarios alike. */
+/** The app's one scenario builder: Core, wave 1, cycle 1 and cycle 2 scenarios alike. */
 export const buildScenario = playableScenario;
 
 export type { PlayableScenarioOptions };

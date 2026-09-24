@@ -618,7 +618,7 @@ export const WONDER_MAN_CARDS: readonly AnyCard[] = [
       printed: "Give to the Simon Williams player.\nWonder Man cannot attack.\nAlter-Ego Action: Exhaust Simon Williams or discard 3 cards tucked under Ionic Physiology → discard this card.",
       current: "Give to the Simon Williams player.\nWonder Man cannot attack.\nAlter-Ego Action: Exhaust Simon Williams or discard 3 cards tucked under Ionic Physiology → discard this card.",
     },
-    abilities: [{ id: abilityId("58025.obligation") }],
+    abilities: [{ id: abilityId("58025.pacifism-constant") }, { id: abilityId("58025.pacifism-action") }],
   },
   {
     id: cardId("58026"),
@@ -653,6 +653,7 @@ export const WONDER_MAN_CARDS: readonly AnyCard[] = [
     quantityInSet: 1,
     unique: false,
     images: { front: imageRef("/bundles/cards/58027.jpg") },
+    amplifyIcons: 1,
     encounterSetIds: [encounterSetId("wonder_man_nemesis")],
     startingThreat: { base: 0, perPlayer: 2 },
     icons: [],

@@ -115,9 +115,25 @@ export type KeywordInstance =
       | "starting"
     >
   | (KeywordBase<"retaliate"> & { readonly value: number })
-  | (KeywordBase<"uses"> & { readonly count: number; readonly counterType: string })
+  /**
+   * RRG 1.8 "Uses (X 'Type')" (p. 46). `countPerPlayer` is the printed per player icon (RRG 1.8 "Per Player Icon",
+   * p. 32: it "multiplies that value by the number of players who started the scenario"), so the card enters play with
+   * `count + countPerPlayer × players` counters:
+   * - `Uses (2[per_hero] ammo counters).` (Crossbones' Machine Gun 04064) → `{ count: 0, countPerPlayer: 2 }`;
+   * - `Uses (1 fury counter, plus 1[per_hero] additional fury counters).` (Fanaticism 16110) → `{ count: 1,
+   *   countPerPlayer: 1 }`.
+   * docs/phase7-wave3.md §1.3.
+   */
+  | (KeywordBase<"uses"> & { readonly count: number; readonly countPerPlayer?: number; readonly counterType: string })
   | (KeywordBase<"incite"> & { readonly value: number })
-  | (KeywordBase<"hinder"> & { readonly value: number })
+  /**
+   * RRG 1.8 "Hinder X" (p. 22): "A card with the hinder X keyword enters play with X threat on it", in addition to any
+   * threat it normally enters play with. 88 printed cards scale it by the per player icon (`Hinder 3[per_hero].`, most of
+   * The Galaxy's Most Wanted's side schemes), so `perPlayer` holds the multiplier and X is `value + perPlayer × players`
+   * (RRG 1.8 "Per Player Icon", p. 32). `Hinder 2[per_hero].` → `{ value: 0, perPlayer: 2 }`; `Hinder 4.` (the expert
+   * Campaign Challenge side schemes, 16178b–16182b) → `{ value: 4 }`. docs/phase7-wave3.md §1.3.
+   */
+  | (KeywordBase<"hinder"> & { readonly value: number; readonly perPlayer?: number })
   | (KeywordBase<"victory"> & { readonly value: number })
   /**
    * RRG 1.8 "Requirement (Resources)" (p. 37): "A card with the requirement keyword cannot be played unless each
