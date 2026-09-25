@@ -209,6 +209,18 @@ is put into play with the 'Expert Mode Only' side faceup if the players are play
 - **New `modeOnly?: "standard" | "expert"`** on `EncounterCardCommon` and `CardFlipSide`. The sentence needs no ref.
 - Seventeen raw cards print it: `hood` 24049a/b, `gmw` 16178a/b–16182a/b (wave 3 §1.4's split side schemes, which may
   carry it too), `sm` 27174a/b, `next_evol` 40081a/b.
+- **Status (card-data-pipeline, 2026-09-25):** back-filled onto `gmw`'s five `SideSchemeCard`s (16178a/b–16182a/b;
+  `SideSchemeCard.modeOnly`, mirroring `EncounterCardCommon.modeOnly`) and onto `otherFaceId` for the same five pairs
+  (§1.7's own back-fill, since a mode-only face is also "the other face of one physical card"). Re-emitting `gmw`
+  (only; `mts` was re-emitted separately for §1.6) turned each card's "Standard/Expert Mode Only." sentence from an
+  ability ref into data, which deleted the ten now-empty `*-constant` refs `gmw/campaign-challenge.ts` registered
+  purely to hold that sentence (`16178a.badoon-blitz-constant` etc., the `wave1/twc/breakout.ts` "printed text, no
+  behavior" shape) — every one of them was already a no-op `constant()` with nothing else in its stage's text, so
+  the fix is deleting the refs from the script (not moving them to new ids: there is no new sentence needing one).
+  Kree Supremacy's two faces (16182a/16182b, which print no `When Defeated:`) now register no ability ref at all.
+  `campaign-challenge.ts` and its test are updated in the same commit; `campaign-challenge.test.ts` now asserts
+  `modeOnly` directly off `GMW_CARDS` instead of naming the deleted refs, and its `When Defeated:`/campaign-reveal
+  tests are unchanged in what they assert. No other pack was re-emitted.
 
 ### 1.9 Standard II and Expert II: `EncounterSet.classification`
 
