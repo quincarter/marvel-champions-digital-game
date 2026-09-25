@@ -7,9 +7,19 @@
  * `VISION_CARDS`/`MTS_CARDS`/`VALK_CARDS` share a card with `WAVE3_CARDS` or each other, so nothing here is
  * double-counted.
  */
-import { MTS_CARDS, NEBU_CARDS, PLAYABLE_CARDS, VALK_CARDS, VISION_CARDS, WARM_CARDS, type AnyCard } from "@mc/content";
+import {
+  HOOD_CARDS,
+  MTS_CARDS,
+  NEBU_CARDS,
+  PLAYABLE_CARDS,
+  VALK_CARDS,
+  VISION_CARDS,
+  WARM_CARDS,
+  type AnyCard,
+} from "@mc/content";
 
-/** Every playable card through wave 3, plus Nebula, War Machine, Vision, The Mad Titan's Shadow and Valkyrie. */
+/** Every playable card through wave 3, plus Nebula, War Machine, Vision, The Mad Titan's Shadow, Valkyrie and The
+ * Hood. */
 export const WAVE4_CARDS: readonly AnyCard[] = [
   ...PLAYABLE_CARDS,
   ...NEBU_CARDS,
@@ -17,4 +27,5 @@ export const WAVE4_CARDS: readonly AnyCard[] = [
   ...VISION_CARDS,
   ...MTS_CARDS,
   ...VALK_CARDS,
+  ...HOOD_CARDS,
 ];

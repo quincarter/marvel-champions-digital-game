@@ -4,6 +4,7 @@ import type { CostChoices } from "./commands.js";
 import type { FrameId, InstanceId, PlayerId } from "./ids.js";
 import type { EffectSpec } from "./spec.js";
 import type { TriggerEvent } from "./trigger-events.js";
+import type { ZoneId } from "./state.js";
 
 /**
  * The resolution stack. `state.stack[0]` is what is resolving right now;
@@ -219,6 +220,13 @@ export type StackFrame =
       readonly effectsCancelled: boolean;
       /** "This card gains surge" resolved while it was being revealed. */
       readonly surgeGained: boolean;
+      /**
+       * Where the card was when its reveal began (the player's dealt encounter cards, or wherever `revealCard` found
+       * it). A treachery or revealed event still there when the reveal finishes is discarded; one an effect already
+       * moved ("Remove this card from the game", "shuffle it into the encounter deck") stays where it went
+       * (docs/phase7-wave4.md §3.45).
+       */
+      readonly revealedFrom?: ZoneId | null;
       readonly stage: "faceup" | "enterPlay" | "whenRevealed" | "finish" | "done";
     })
   /** RRG "Initiating Abilities" steps 6–7, after costs are paid. */

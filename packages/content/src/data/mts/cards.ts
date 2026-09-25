@@ -2163,7 +2163,7 @@ export const MTS_CARDS: readonly AnyCard[] = [
     name: "Proxima Midnight",
     setCode: setCode("mts"),
     cycleId: cycleId("cycle4"),
-    collectorNumber: "92",
+    collectorNumber: "92/93/94",
     quantityInSet: 1,
     unique: true,
     encounterSetIds: [encounterSetId("tower_defense")],
@@ -2189,25 +2189,6 @@ export const MTS_CARDS: readonly AnyCard[] = [
             ],
             image: imageRef("/bundles/cards/21092.png"),
           },
-        ],
-      },
-    ],
-  },
-  {
-    id: cardId("21093"),
-    type: "villain",
-    name: "Proxima Midnight",
-    setCode: setCode("mts"),
-    cycleId: cycleId("cycle4"),
-    collectorNumber: "93",
-    quantityInSet: 1,
-    unique: true,
-    encounterSetIds: [encounterSetId("tower_defense")],
-    sides: [
-      {
-        side: "A",
-        name: "Proxima Midnight",
-        stages: [
           {
             stageNumber: 2,
             hp: { base: 0, perPlayer: 12 },
@@ -2225,25 +2206,6 @@ export const MTS_CARDS: readonly AnyCard[] = [
             ],
             image: imageRef("/bundles/cards/21093.png"),
           },
-        ],
-      },
-    ],
-  },
-  {
-    id: cardId("21094"),
-    type: "villain",
-    name: "Proxima Midnight",
-    setCode: setCode("mts"),
-    cycleId: cycleId("cycle4"),
-    collectorNumber: "94",
-    quantityInSet: 1,
-    unique: true,
-    encounterSetIds: [encounterSetId("tower_defense")],
-    sides: [
-      {
-        side: "A",
-        name: "Proxima Midnight",
-        stages: [
           {
             stageNumber: 3,
             hp: { base: 0, perPlayer: 15 },
@@ -2271,7 +2233,7 @@ export const MTS_CARDS: readonly AnyCard[] = [
     name: "Corvus Glaive",
     setCode: setCode("mts"),
     cycleId: cycleId("cycle4"),
-    collectorNumber: "95",
+    collectorNumber: "95/96/97",
     quantityInSet: 1,
     unique: true,
     encounterSetIds: [encounterSetId("tower_defense")],
@@ -2297,25 +2259,6 @@ export const MTS_CARDS: readonly AnyCard[] = [
             ],
             image: imageRef("/bundles/cards/21095.png"),
           },
-        ],
-      },
-    ],
-  },
-  {
-    id: cardId("21096"),
-    type: "villain",
-    name: "Corvus Glaive",
-    setCode: setCode("mts"),
-    cycleId: cycleId("cycle4"),
-    collectorNumber: "96",
-    quantityInSet: 1,
-    unique: true,
-    encounterSetIds: [encounterSetId("tower_defense")],
-    sides: [
-      {
-        side: "A",
-        name: "Corvus Glaive",
-        stages: [
           {
             stageNumber: 2,
             hp: { base: 0, perPlayer: 11 },
@@ -2333,25 +2276,6 @@ export const MTS_CARDS: readonly AnyCard[] = [
             ],
             image: imageRef("/bundles/cards/21096.png"),
           },
-        ],
-      },
-    ],
-  },
-  {
-    id: cardId("21097"),
-    type: "villain",
-    name: "Corvus Glaive",
-    setCode: setCode("mts"),
-    cycleId: cycleId("cycle4"),
-    collectorNumber: "97",
-    quantityInSet: 1,
-    unique: true,
-    encounterSetIds: [encounterSetId("tower_defense")],
-    sides: [
-      {
-        side: "A",
-        name: "Corvus Glaive",
-        stages: [
           {
             stageNumber: 3,
             hp: { base: 0, perPlayer: 14 },

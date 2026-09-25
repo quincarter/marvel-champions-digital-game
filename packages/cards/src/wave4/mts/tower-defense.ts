@@ -6,10 +6,10 @@
  * 21106, Corvus's Cunning 21107, Bound by Blood 21108, Rain Fire 21109, City Under Attack 21110).
  *
  * These ability scripts name Proxima Midnight/Corvus Glaive only by printed title (`named("Proxima Midnight")`) or
- * by data field (`villainOf` on the main scheme stages), never by importing the villain cards directly — so they
- * don't care that `villain-merge.ts` (`../mts/tower-defense-setup.ts`'s own import) currently builds those two
- * `VillainCard`s by merging split per-stage records rather than reading them straight from `@mc/content`; see that
- * file's own docblock for the gap and its planned removal.
+ * by data field (`villainOf` on the main scheme stages), never by importing the villain cards directly. Their
+ * per-stage ability refs (`21092`/`21093`/`21094`, `21095`/`21096`/`21097`) are unaffected by `@mc/content` emitting
+ * each villain as one three-stage `VillainCard` rather than three one-stage cards (docs/phase7-wave4.md §1.6):
+ * ability refs are keyed by each stage's own printed card code either way.
  */
 import {
   allOf,

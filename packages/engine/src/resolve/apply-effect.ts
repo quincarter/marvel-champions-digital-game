@@ -932,7 +932,12 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       const frames: StackFrame[] = [];
       for (const playerId of resolvePlayers(ctx.state, effect.player, context)) {
         const id = drawEncounterCard(ctx);
-        if (id) frames.push(revealFrame(ctx, playerId, id));
+        if (!id) continue;
+        // Out of the deck while it resolves, like `revealCard` below, so a When Revealed that shuffles it back into
+        // the encounter deck is a move the reveal's finish can see (docs/phase7-wave4.md §3.45).
+        updateInstance(ctx, id, (i) => ({ ...i, faceup: false }));
+        moveCard(ctx, id, { kind: "dealtEncounter", playerId }, "top");
+        frames.push(revealFrame(ctx, playerId, id));
       }
       pushFrames(ctx, frames);
       return;

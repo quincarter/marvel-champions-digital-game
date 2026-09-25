@@ -3,10 +3,11 @@
  * which packs are fully scripted, which are not started, and — for a pack that isn't started — nothing resolves
  * that isn't already covered by an earlier wave.
  */
-import { MTS_CARDS, NEBU_CARDS, VALK_CARDS, VISION_CARDS, WARM_CARDS, type AnyCard } from "@mc/content";
+import { HOOD_CARDS, MTS_CARDS, NEBU_CARDS, VALK_CARDS, VISION_CARDS, WARM_CARDS, type AnyCard } from "@mc/content";
 import type { AbilityRegistry } from "@mc/engine";
 import { WAVE3_ABILITIES } from "../wave3/index.js";
 import { WAVE4_ABILITIES } from "./index.js";
+import { HOOD_ABILITIES } from "./hood/index.js";
 import { MTS_ABILITIES } from "./mts/index.js";
 import { NEBU_ABILITIES } from "./nebu/index.js";
 import { VALK_ABILITIES } from "./valk/index.js";
@@ -27,6 +28,7 @@ const PACK_STATUS: Readonly<Record<string, "scripted" | "in progress" | "not sta
   valk: "scripted",
   vision: "scripted",
   mts: "in progress",
+  hood: "in progress",
 };
 
 /**
@@ -55,54 +57,19 @@ const KNOWN_SKIPPED: Readonly<Record<string, readonly string[]>> = {
   // Children of Thanos (21125–21128, `mts/children-of-thanos.ts`, Thanos's own other recommended modular): every
   // ref resolves; no genuine gap found. The Loki scenario and Enchantress modular stay skipped below for that pass.
   mts: [
+    // hela (mts/hela.ts): every ref below except these two genuine gaps is now scripted.
+    // `21136a.hela-constant`/`21137a.hela-constant`: the villain's own "+2[per_hero]/+3[per_hero] hit points for
+    // each side scheme in victory display" needs a `ValueSpec` that multiplies two dynamic values (a per-player
+    // count by a live card count) — no such primitive exists (`hela.ts`'s own module docblock has the exact gap).
     "21136a.hela-constant",
-    "21136a.hela-constant-2",
-    "21136b.hela-constant",
-    "21136b.hela-forced-response",
     "21137a.hela-constant",
-    "21137a.hela-constant-2",
-    "21137b.hela-constant",
-    "21137b.hela-forced-response",
-    "21138a.setup",
-    "21138b.odins-torment-forced-interrupt",
-    "21139a.odin-constant",
-    "21139a.odin-constant-2",
-    "21139b.odin-constant",
-    "21139b.odin-constant-2",
+    // `21139b.odin-forced-interrupt`: needs no script at all (`hela.ts`'s own module docblock) — the engine's
+    // generic double-sided-card `leavePlay` rule (docs/phase7-wave4.md §3.8) already removes Odin from the game the
+    // moment his King side leaves play, with no "when this leaves play" trigger exposed to attach a redundant
+    // no-op effect to. Left out of the registry rather than pinned as a false "still unscripted" gap.
     "21139b.odin-forced-interrupt",
-    "21140.when-defeated",
-    "21141.when-defeated",
-    "21142.when-defeated",
-    "21143.garm-constant",
-    "21143.garm-constant-2",
-    "21144.skurge-constant",
-    "21144.skurge-constant-2",
-    "21144.skurge-constant-3",
-    "21145.nidhogg-constant",
-    "21145.nidhogg-constant-2",
-    "21145.nidhogg-constant-3",
-    "21146.nightsword-constant",
-    "21146.boost",
-    "21147.helas-crown-forced-response",
-    "21147.boost",
-    "21148.helas-cloak-constant",
-    "21148.boost",
-    "21149.when-revealed",
-    "21149.boost",
-    "21150.when-revealed-alter-ego",
-    "21150.when-revealed-hero",
-    "21151.when-revealed",
-    "21151.boost",
-    "21152.when-revealed",
-    "21153.fallen-warrior-constant",
-    "21153.when-revealed",
-    "21154.when-revealed",
-    "21155.when-revealed",
-    "21156.laufey-forced-response",
-    "21158.frozen-constant",
-    "21158.frozen-action",
-    "21159.unnatural-storm-constant",
-    "21159.when-revealed",
+    // legions-of-hel.ts and frost-giants.ts (Hela's own two recommended modular sets): every ref resolves; no
+    // genuine gap found.
     "21160.loki-constant",
     "21160.when-defeated",
     "21161.when-defeated",
@@ -163,6 +130,102 @@ const KNOWN_SKIPPED: Readonly<Record<string, readonly string[]>> = {
     "21191.fandral-constant",
     "21192.hogun-constant",
   ],
+  // hood: the villain (24001-24003), the main scheme (24004-24006) and The Hood's own encounter set (24007-24013)
+  // are scripted (`hood/hood.ts`). Everything below is the pack's nine modular sets (Beasty Boys, Brothers Grimm,
+  // Crossfire's Crew, Mister Hyde, Ransacked Armory, Sinister Syndicate, State of Emergency, Streets of Mayhem,
+  // Wrecking Crew) plus Standard II / Expert II, left for the next scripting pass on this pack (24041 and 24067
+  // have no ability refs at all — plain-stat cards — and 24053's "Shadow of the Past" ref already resolves as a
+  // reprint alias via `../reprints.ts`; none of the three are listed below).
+  hood: [
+    "24014.beast-mode-forced-interrupt",
+    "24015.griffin-forced-response",
+    "24015.when-defeated",
+    "24016.mandrill-constant",
+    "24016.when-revealed",
+    "24017.when-revealed",
+    "24017.boost",
+    "24018.brothers-grimm-forced-interrupt",
+    "24018.boost",
+    "24019.blackbird-pellets-forced-response",
+    "24020.corrosive-egg-bomb-forced-response",
+    "24021.paralytic-stardust-forced-response",
+    "24022.unbreakable-thread-forced-response",
+    "24023.when-revealed",
+    "24023.boost",
+    "24024.controller-forced-interrupt",
+    "24025.when-revealed",
+    "24025.boost",
+    "24026.crossfire-forced-interrupt",
+    "24027.mister-fear-constant",
+    "24027.boost",
+    "24028.when-revealed",
+    "24029.when-revealed",
+    "24029.boost",
+    "24030.when-revealed",
+    "24031.when-revealed",
+    "24032.when-revealed",
+    "24032.boost",
+    "24033.when-revealed",
+    "24033.self-experimentation-forced-interrupt",
+    "24034.when-revealed",
+    "24034.when-defeated",
+    "24035.when-revealed",
+    "24036.when-revealed",
+    "24037.flamethrower-constant",
+    "24037.flamethrower-constant-2",
+    "24038.holoshield-generator-constant",
+    "24038.holoshield-generator-constant-2",
+    "24039.jetpack-constant",
+    "24039.jetpack-forced-interrupt",
+    "24040.tech-gauntlets-constant",
+    "24040.tech-gauntlets-constant-2",
+    "24040.tech-gauntlets-constant-3",
+    "24042.when-revealed",
+    "24043.beetle-forced-response",
+    "24043.boost",
+    "24044.boomerang-forced-response",
+    "24044.boost",
+    "24045.shocker-forced-response",
+    "24045.boost",
+    "24046.speed-demon-forced-interrupt",
+    "24046.boost",
+    "24047.white-rabbit-forced-interrupt",
+    "24047.boost",
+    "24048.when-revealed-alter-ego",
+    "24048.when-revealed-hero",
+    "24049a.formidable-foe-constant",
+    "24049b.formidable-foe-constant",
+    "24050.when-revealed",
+    "24050.boost",
+    "24051.when-revealed-alter-ego",
+    "24051.when-revealed-hero",
+    "24052.when-revealed",
+    "24052.boost",
+    "24054.when-revealed-hero",
+    "24054.boost",
+    "24055.when-revealed",
+    "24056.when-revealed",
+    "24057.when-revealed",
+    "24058.when-revealed",
+    "24059.when-revealed",
+    "24059.boost",
+    "24060.when-revealed",
+    "24060.back-alley-enclave-constant",
+    "24061.when-revealed",
+    "24061.secret-lair-constant",
+    "24061.secret-lair-constant-2",
+    "24062.when-revealed",
+    "24062.sewer-tunnels-constant",
+    "24063.when-revealed",
+    "24063.warehouse-district-constant",
+    "24064.top-talent-constant",
+    "24065.wrecker-constant",
+    "24066.bulldozer-constant",
+    "24068.thunderball-forced-response",
+    "24069.when-revealed",
+    "24069.boost",
+    "24070.when-revealed",
+  ],
 };
 
 const PACKS: ReadonlyArray<{ readonly code: string; readonly cards: readonly AnyCard[] }> = [
@@ -171,6 +234,7 @@ const PACKS: ReadonlyArray<{ readonly code: string; readonly cards: readonly Any
   { code: "valk", cards: VALK_CARDS },
   { code: "vision", cards: VISION_CARDS },
   { code: "mts", cards: MTS_CARDS },
+  { code: "hood", cards: HOOD_CARDS },
 ];
 
 describe("wave 4 pack ability coverage", () => {
@@ -231,6 +295,7 @@ describe("wave 4 pack ability id coverage (every registered ability id is named 
     { code: "valk", registry: VALK_ABILITIES },
     { code: "vision", registry: VISION_ABILITIES },
     { code: "mts", registry: MTS_ABILITIES },
+    { code: "hood", registry: HOOD_ABILITIES },
   ];
 
   it("checks every pack PACK_STATUS marks started, so a new pack can't skip the guard by not being listed here", () => {

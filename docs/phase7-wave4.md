@@ -166,6 +166,23 @@ The Wrecking Crew (`MultipleVillains`, wave 1 §1.1) gives each villain its own 
 "allVillainsDefeated"` are unchanged. Which villain is active is Focused Defense's rule (§3.2), not data.
 - **Parser:** "Attach to Corvus Glaive." (21104) failed because the set has two villains; it is `AttachmentHost
 { kind: "namedVillain", name }`, which exists.
+- **Status (card-data-pipeline, 2026-09-25):** fixed upstream. `normalizeVillains` (`villains.ts`) treated Proxima
+  Midnight I/II/III and Corvus Glaive I/II/III as one "colliding stage numbers" set the Once and Future Kang's
+  branching-stage-II shape and The Sinister Six's six-independent-villains shape already use (wave 2 §1.8) — every
+  record split into its own one-stage `VillainCard` (21092–21094, 21095–21097 apiece), because the normalizer had no
+  way to tell "several distinct single-stage villains" apart from "two villains that each advance stage-to-stage
+  sharing one set". Fixed by grouping colliding records by title (the roman numeral stripped) first: if more than one
+  group results and every group's own stage numbers are a complete, gapless run starting at 1, each group becomes its
+  own multi-stage `VillainCard` (Tower Defense: two 3-stage cards, ids 21092/21095); Kang's groups have a gap (`{I,
+III}` skipping the branching II) and Sinister Six's are trivially single-stage, so both fall through to the
+  unchanged per-record behavior. Re-emitted `mts` only (`pnpm --filter @mc/content ingest -- --pack mts --offline`):
+  `packages/content/src/data/mts/cards.ts` now emits 21092 and 21095 as three-stage villains (21093/21094/21096/21097
+  folded in as `sides[0].stages[1]`/`[2]`, ability refs unchanged since they're keyed by each stage's own printed
+  code); `provenance.ts`'s two `CardProvenance` records gained the folded-in `marvelcdbCodes`. No other card, pack, or
+  scenario record changed. `packages/cards/src/wave4/mts/villain-merge.ts` (the scripting workaround) is deleted;
+  `tower-defense-setup.ts` reads `WAVE4_CARDS` directly and looks up 21092/21095 by id, `tower-defense.ts`'s docblock
+  no longer mentions the merge, and `tower-defense.test.ts` names the two ids directly instead of importing the
+  merged cards. All 29 Tower Defense tests pass unchanged in what they assert.
 
 ### 1.7 A card whose faces are two separately emitted cards: `BaseCard.otherFaceId`
 
@@ -192,6 +209,18 @@ is put into play with the 'Expert Mode Only' side faceup if the players are play
 - **New `modeOnly?: "standard" | "expert"`** on `EncounterCardCommon` and `CardFlipSide`. The sentence needs no ref.
 - Seventeen raw cards print it: `hood` 24049a/b, `gmw` 16178a/b–16182a/b (wave 3 §1.4's split side schemes, which may
   carry it too), `sm` 27174a/b, `next_evol` 40081a/b.
+- **Status (card-data-pipeline, 2026-09-25):** back-filled onto `gmw`'s five `SideSchemeCard`s (16178a/b–16182a/b;
+  `SideSchemeCard.modeOnly`, mirroring `EncounterCardCommon.modeOnly`) and onto `otherFaceId` for the same five pairs
+  (§1.7's own back-fill, since a mode-only face is also "the other face of one physical card"). Re-emitting `gmw`
+  (only; `mts` was re-emitted separately for §1.6) turned each card's "Standard/Expert Mode Only." sentence from an
+  ability ref into data, which deleted the ten now-empty `*-constant` refs `gmw/campaign-challenge.ts` registered
+  purely to hold that sentence (`16178a.badoon-blitz-constant` etc., the `wave1/twc/breakout.ts` "printed text, no
+  behavior" shape) — every one of them was already a no-op `constant()` with nothing else in its stage's text, so
+  the fix is deleting the refs from the script (not moving them to new ids: there is no new sentence needing one).
+  Kree Supremacy's two faces (16182a/16182b, which print no `When Defeated:`) now register no ability ref at all.
+  `campaign-challenge.ts` and its test are updated in the same commit; `campaign-challenge.test.ts` now asserts
+  `modeOnly` directly off `GMW_CARDS` instead of naming the deleted refs, and its `When Defeated:`/campaign-reveal
+  tests are unchanged in what they assert. No other pack was re-emitted.
 
 ### 1.9 Standard II and Expert II: `EncounterSet.classification`
 
@@ -446,6 +475,7 @@ stays data only.**
 | 3.42 | A deck-discard cost sized by the triggering event                        | Shield Spell                                                                 | landed  |
 | 3.43 | A branch's bindings reach the effects after it                           | chooseOne/if bindings (scripter question)                                    | landed  |
 | 3.44 | Players cannot discard these cards                                       | Powerful Enchantments                                                        | landed  |
+| 3.45 | A revealed treachery that moved itself stays where it went               | Field Recruitment (engine bug)                                               | landed  |
 
 ### 3.1 Additional forms: the form keyword
 
@@ -1561,6 +1591,26 @@ absolute rule `cannotLeavePlay`-shaped, not this).
 > `25030.powerful-enchantments-constant` (attachments whose host is an identity or an ally a player controls), off
 > `KNOWN_SKIPPED`; Valkyrie now has none. **Not covered:** a protected card paid as a cost (a "discard this card →"
 > cost on an encounter attachment, or an in-play discard cost); no printed card combines the two.
+
+### 3.45 A revealed treachery that moved itself stays where it went
+
+Engine bug (Field Recruitment, `hood` 24012, "… Remove this card from the game."): the reveal's finish step discarded
+any treachery that still existed after its When Revealed, even one an effect had already moved, so "remove this card
+from the game" did not stick. RRG 1.8 "Treachery" (p. 45) discards the card after it resolves, which says nothing
+about a card its own text sent elsewhere.
+
+> **Status: landed (2026-09-25),** tested in `packages/engine/src/reveal-self-move.test.ts` (3 tests: "remove this card
+> from the game" sticks; "shuffle it into the encounter deck" sticks; a treachery that did not move itself is still
+> discarded) and in a real game in `packages/cards/src/wave4/hood/hood.test.ts` (Field Recruitment ends in
+> `removedFromGame`). **What landed:** the reveal frame records **`revealedFrom`**, the zone the card was in when its
+> reveal began; at the finish a treachery (or revealed event, §3.14) is discarded only if it is still there. A card
+> revealed from the top of the encounter deck (`revealEncounterCard`) is now parked with the revealing player's dealt
+> encounter cards while it resolves, as `revealCard` already did, so a When Revealed that shuffles it back into the
+> deck is a visible move. **Existing cards checked** (every registered script, Core through wave 4, 1,523 cards, for a
+> treachery whose own When Revealed moves itself; and the raw text of every pack): only Field Recruitment is scripted
+> and affected. Infiltration and Shapeshifter Surprise (`mut_gen` 32082, 32083), Misled (`rogue` 38027) and Smear
+> Campaign (`sm` 27175) print the same shape and are not scripted yet; they get the right behaviour when they are.
+> The full suite is unchanged.
 
 ## 4. Open questions (for the user or FFG)
 
