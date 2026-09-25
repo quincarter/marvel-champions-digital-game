@@ -1211,11 +1211,13 @@ function executeResolveSpecials(
     return;
   }
   setFrame(ctx, { ...frame, answer: null, cursor: frame.cursor + 1 });
-  // Incite X and surge are each "equivalent to" a When Revealed ability (RRG 1.8 "Incite X", p. 24; "Surge", p. 42),
-  // resolved in the order a reveal resolves them: incite first, the printed abilities, surge last (§3.56, §4 Q23).
+  // Only on request (`includeKeywords`): incite X and surge are each "equivalent to" a When Revealed ability (RRG 1.8
+  // "Incite X", p. 24; "Surge", p. 42), resolved in the order a reveal resolves them: incite first, the printed
+  // abilities, surge last. Off by default: the user decided Citywide Crisis re-resolves printed abilities only, since
+  // a card already in play is not being revealed (§3.56, §4 Q23, 2026-09-25).
   const incites: { readonly id: InstanceId; readonly amount: number }[] = [];
   const surges: InstanceId[] = [];
-  if (trigger === "whenRevealed") {
+  if (trigger === "whenRevealed" && effect.includeKeywords === true) {
     for (const id of sources) {
       const amount = keywordTotal(ctx.state, id, "incite", ctx.deps);
       if (amount > 0) incites.push({ id, amount });

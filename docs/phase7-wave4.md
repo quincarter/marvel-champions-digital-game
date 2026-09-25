@@ -1859,11 +1859,19 @@ the following triggered ability: 'When Revealed: …'".
 > incite 2 and its surge all resolve and the fallback does not; with nothing to resolve the fallback places 5) and in
 > `hood-gaps.test.ts` (Disaster at the Docks' "take 3 indirect damage" resolves again; with only Unbridled Ambition in
 > play, 2 threat on the main scheme and on it; as a boost card, the Docks deal 3 again). **What landed:**
-> **`resolveSpecials.trigger?: "special" | "whenRevealed"`** and **`resolveSpecials.bind`** (`<bind>.count`). For
-> `"whenRevealed"`, each card's incite (placeThreat on the main scheme, sourced by that card) and surge (reveal the
-> top card) resolve too, in a reveal's own order: incite, the printed abilities (the controller orders several), surge
-> (§4 Q23). A card's "this card gains surge" has no reveal of its own to change when resolved this way. **DSL:**
-> `resolveWhenRevealedOf(ref, { bind })`. **Scripted:** `24059.when-revealed`, `24059.boost`, `24023.boost`.
+> **`resolveSpecials.trigger?: "special" | "whenRevealed"`** and **`resolveSpecials.bind`** (`<bind>.count`).
+> **Changed 2026-09-25 (§4 Q23, user decision):** `"whenRevealed"` resolves the printed When Revealed abilities only
+> (the controller orders several), and only they count toward `<bind>.count`. **`resolveSpecials.includeKeywords?:
+boolean`** (default off) also resolves each card's incite (placeThreat on the main scheme, sourced by that card) and
+> surge (reveal the top card), in a reveal's own order: incite, the printed abilities, surge, each counting as one; no
+> card uses it yet. A card's "this card gains surge" has no reveal of its own to change when resolved this way.
+> **DSL:** `resolveWhenRevealedOf(ref, { bind, includeKeywords })`. **Scripted:** `24059.when-revealed`, `24059.boost`,
+> `24023.boost` (all default: printed abilities only; neither Citywide Crisis nor Out for Blood has incite or surge of
+> its own, so the two boosts are unchanged). **Tests now:** `hood-primitives.test.ts` 5 under §3.56 (default: a side
+> scheme's printed ability resolves but not its incite 2 or surge, and no fallback; a side scheme with only incite and
+> surge resolves nothing, so the fallback places 5 and no card is revealed; `includeKeywords`: all three resolve, and
+> incite plus surge alone count; nothing at all: the fallback places 5); `hood-gaps.test.ts` adds Disaster at the Docks
+> beside Beast Mode (no When Revealed): the Docks deal 3, no fallback threat, only Citywide Crisis is revealed.
 
 ### 3.57 Icons gained from constant abilities
 
@@ -2043,6 +2051,8 @@ Each is implemented the way stated, or not at all, and named here rather than de
     scheme. Implemented as: the exemption covers the character's own thwarts (basic or "(thwart)", whose thwarting
     character she is) and removal sourced to the character itself; a non-thwart event she plays ("remove 2 threat
     from the main scheme") is still stopped. Proposed: keep; no card in the survey depends on the wider reading.
+    **USER DECISION 2026-09-25:** keep. The exemption covers her own thwarts and removal she makes; a non-thwart event
+    she plays is still blocked. No change.
 20. **Does a player's attack still resolve if its attacker is defeated first?** (§3.21) Speed Demon's "(Resolve Speed
     Demon's attack first.)" can defeat the attacking ally before its own attack resolves. RRG 1.8 "Attack (Player
     Ability Type)" (p. 10) does not say; for an enemy, "Activation" (p. 6) ends an attack whose attacker leaves play.
@@ -2064,21 +2074,31 @@ Each is implemented the way stated, or not at all, and named here rather than de
     or ruling says where the minion goes. Implemented as: it stays in the play area it is in and is engaged with the
     player who controlled it (a minion in a player's area is engaged with them, RRG 1.8 "Engaged", p. 18), without an
     engage event (nothing new engaged; it is "essentially a status change", ruling Dec 17, 2025 (1) #3). Proposed:
-    keep.
+    keep. **USER DECISION 2026-09-25:** keep. The minion reverts to a minion in play where it is, engaged with the
+    player who controlled it, with no new engage trigger. No change.
 22. **Order of Loki's two defeat interrupts** (§3.48): All Hail King Loki 1B's advance and the defeated Loki's own When
     Defeated are simultaneous forced interrupts, which RRG 1.8 "Priority of Simultaneous Resolution" has the first
     player order. Implemented as: the advance resolves first and the defeated Loki's When Defeated right after, with
     no prompt. The order changes nothing a player can see (the side scheme is revealed either way, and the new Loki is
-    in play when it is); asking is a later refinement if a card makes it matter.
+    in play when it is); asking is a later refinement if a card makes it matter. **Still open (2026-09-25):** the user
+    has not decided this one; the default above (advance first, no prompt) stands.
 23. **Does "Resolve each 'When Revealed' ability on each side scheme" include incite and surge?** (§3.56, Citywide
     Crisis.) RRG 1.8 calls each keyword "equivalent to the following triggered ability: 'When Revealed: …'" ("Incite X",
     p. 24; "Surge", p. 42); hinder is a constant ("enters play with X threat", p. 22) and is not included. Implemented as:
     yes, both, in a reveal's order (incite, the printed abilities, surge), each counting as one ability resolved for
-    "If no 'When Revealed' ability was resolved this way". No ruling names Citywide Crisis.
+    "If no 'When Revealed' ability was resolved this way". No ruling names Citywide Crisis. **USER DECISION
+    2026-09-25:** change it. Citywide Crisis re-resolves only printed When Revealed abilities, not incite or surge: the
+    user's reading is that incite and surge fire only when a card is revealed, and side schemes already in play are not
+    being revealed. This is the user's decision against the letter of RRG 1.8's "equivalent to the following triggered
+    ability: 'When Revealed: …'" ("Incite X", p. 24; "Surge", p. 42), recorded as such. "If no 'When Revealed' ability
+    was resolved this way" counts printed abilities only, so a side scheme with only incite or surge leaves the
+    fallback's 2 threat on each scheme in force. **Implemented** (§3.56): `resolveSpecials.includeKeywords`, default
+    off, is how a future card that should include them opts in.
 24. **Who breaks a tie for "the highest-cost card from your hand"?** (§3.55, Feisty Heist.) RRG 1.8 "First Player"
     (p. 19) gives the first player an encounter card's choice among "multiple eligible targets", but a hand is hidden
     information its owner holds. Implemented as: the player whose hand it is picks among the tied cards (the same in
-    solo). Proposed: keep; needs a ruling to change.
+    solo). Proposed: keep; needs a ruling to change. **USER DECISION 2026-09-25:** keep. The hand's owner breaks the
+    tie. No change.
 
 ## 5. What this asks of the other agents
 

@@ -138,6 +138,13 @@ describe("§3.56 resolveWhenRevealedOf", () => {
       bind: "resolved",
     });
     valid(boost(resolveWhenRevealedOf(self)));
+    // Keywords only on request (§4 Q23: Citywide Crisis re-resolves printed When Revealed abilities only).
+    expect(resolveWhenRevealedOf(self, { includeKeywords: true })).toEqual({
+      kind: "resolveSpecials",
+      of: { kind: "self" },
+      trigger: "whenRevealed",
+      includeKeywords: true,
+    });
   });
 });
 

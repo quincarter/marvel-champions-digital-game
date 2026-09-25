@@ -1343,11 +1343,18 @@ export type EffectSpec =
       /**
        * Which printed abilities to resolve: `"special"` (absent) or `"whenRevealed"`: "Resolve each 'When Revealed'
        * ability on each side scheme in play" (Citywide Crisis, `hood` 24059), "[star] Boost: Resolve this card's 'When
-       * Revealed' ability" (Out for Blood, Double Trouble, Sandslide, A.I.M. Interference). For `"whenRevealed"` a card's
-       * incite and surge keywords are resolved too: RRG 1.8 calls each "equivalent to the following triggered ability:
-       * 'When Revealed: …'" ("Incite X", p. 24; "Surge", p. 42). docs/phase7-wave4.md §3.56.
+       * Revealed' ability" (Out for Blood, Double Trouble, Sandslide, A.I.M. Interference). Only the printed abilities
+       * resolve unless `includeKeywords` says otherwise. docs/phase7-wave4.md §3.56.
        */
       readonly trigger?: "special" | "whenRevealed";
+      /**
+       * With `trigger: "whenRevealed"`, also resolve each card's incite and surge keywords, which RRG 1.8 calls
+       * "equivalent to the following triggered ability: 'When Revealed: …'" ("Incite X", p. 24; "Surge", p. 42), in a
+       * reveal's order (incite, the printed abilities, surge), each counting toward `<bind>.count`. Absent/false: printed
+       * When Revealed abilities only — the user's reading of Citywide Crisis (docs/phase7-wave4.md §4 Q23, 2026-09-25):
+       * incite and surge fire only when a card is revealed, and a card already in play is not being revealed.
+       */
+      readonly includeKeywords?: boolean;
       /** `<bind>.count`: how many abilities were resolved ("If no 'When Revealed' ability was resolved this way"). */
       readonly bind?: string;
     }
