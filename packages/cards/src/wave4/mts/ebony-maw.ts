@@ -55,8 +55,12 @@ import {
   yourIdentity,
   dealDamage,
   defineAbilities,
+  moveCards,
+  not,
+  you,
 } from "../../dsl/index.js";
 import type { EffectArg } from "../../dsl/index.js";
+import type { PlayerRef, RuleSpec } from "@mc/engine";
 
 /**
  * Ebony Maw (`mts` scenario, docs/phase7-wave4.md §2.2, §3.15, §3.16): the villain Ebony Maw I–III (21071–21073),
@@ -66,21 +70,12 @@ import type { EffectArg } from "../../dsl/index.js";
  * (21089–21091).
  *
  * **The general rule "when a player reveals a Spell environment, they place that card in front of them in their
- * play area" (MC21 p. 6) is a rulebook instruction, not printed on any single card.** The engine's own
- * `entersRevealersPlayArea` RuleSpec (docs/phase7-wave4.md §3.16, "landed") only takes effect while it is granted by
- * a `constant` ability on a card currently in play (`activeRules`, `packages/engine/src/select.ts`) — but no Ebony
- * Maw scenario card carries a `constant`-kind ability ref that could host it: the villain's own three stages print
- * only the repeated Forced Interrupt (`.ebony-maw-forced-interrupt`), and the main scheme's own reveal abilities are
- * one-shot `whenRevealed` triggers. `GameSetupConfig` has no field to seed a `RuleSpec` at setup independent of a
- * card ability either. Every ability whose *entire* printed effect is "puts that card into play in their play area"
- * is therefore left in `KNOWN_SKIPPED` (`../coverage.test.ts`) rather than registered with a `putIntoPlay` call that
- * would — as written today — misroute the card to the villain's area (RRG 1.8 environment default) instead: 21072/
- * 21073's own `.when-revealed`, 21074b.when-revealed, 21075a.when-revealed, and Channeling Trance (21081.when-
- * revealed, whose "else" branch needs the same placement). This needs either a synthetic always-on ability ref
- * added to Ebony Maw's villain card in content (`card-data-pipeline`) or a `GameSetupConfig`/`ScenarioRules` field
- * that seeds a `RuleSpec` without a card ability (`game-rules-architect`) — flagged, not guessed around.
+ * play area" (MC21 p. 6) is a rulebook instruction, not printed on any single card.** It is seeded at setup as a
+ * scenario rule (`EBONY_MAW_SCENARIO_RULES`, `GameSetupConfig.scenarioRuleSpecs`, docs/phase7-wave4.md §3.40), so
+ * every Spell revealed or put into play by an effect ("puts that card into play in their play area") goes to that
+ * player's area through the engine's `entersRevealersPlayArea`.
  *
- * Every other ability below is independent of that routing gap: the Forced Interrupt only reads whichever Spell
+ * The rest of the set does not depend on that routing: the Forced Interrupt only reads whichever Spell
  * cards *are already* in a play area (`inPlayAreaOf`), and each Spell's own "enters play with N counters" / "last
  * counter removed" pair fires regardless of which area the card sits in.
  */
@@ -88,6 +83,23 @@ import type { EffectArg } from "../../dsl/index.js";
 const SPELL = trait("SPELL");
 const BLACK_ORDER = trait("BLACK ORDER");
 const SPELLS_IN_YOUR_PLAY_AREA = query([], { trait: SPELL, ...inPlayAreaOf() });
+
+/** MC21 p. 6: "When a player reveals a Spell environment, they place that card in front of them in their play area." */
+export const EBONY_MAW_SCENARIO_RULES: readonly RuleSpec[] = [
+  { kind: "entersRevealersPlayArea", cards: { trait: SPELL } },
+];
+
+/** "… discards cards from the top of the encounter deck until they discard a Spell card and puts that card into play
+ * in their play area" for `player` (the scenario rule places it). */
+const spellIntoPlayFor = (player: PlayerRef): EffectArg[] => [
+  discardEncounterUntil(query([], { trait: SPELL }), "spell"),
+  putIntoPlay(chosen("spell"), player),
+];
+/** "Each player discards cards from the top of the encounter deck until they discard a Spell card and puts that card
+ * into play in their play area." */
+const eachPlayerSpell = (): EffectArg => forEachPlayer(eachPlayer, ...spellIntoPlayFor(thatPlayer));
+/** "Shuffle the encounter discard pile into the encounter deck." */
+const shuffleDiscardIn = (): EffectArg => moveCards(encounterCards(["discard"]), "encounterDeckShuffle");
 
 /** "[star] Forced Interrupt: When Ebony Maw activates against you, remove an invocation counter from each Spell
  * card in your play area." — identical text on all three stages (docs/phase7-wave4.md §3.15/§3.16 worked example:
@@ -105,11 +117,20 @@ const lastCounterDiscards = (...then: readonly EffectArg[]) =>
   forcedResponse(on.lastCounterRemoved("invocation"), discard(self), ...then);
 
 export const EBONY_MAW = defineAbilities({
-  // Ebony Maw (I/II/III, 21071–21073) — Forced Interrupt as above; stages II/III's own "When Revealed" (discard
-  // until Spell, put into play in play area) is left unscripted (module docblock).
+  // Ebony Maw (I/II/III, 21071–21073) — Forced Interrupt as above. II/III — When Revealed: Each player discards cards
+  // from the top of the encounter deck until they discard a Spell card and puts that card into play in their play area.
   "21071.ebony-maw-forced-interrupt": ebonyMawForcedInterrupt(),
   "21072.ebony-maw-forced-interrupt": ebonyMawForcedInterrupt(),
   "21073.ebony-maw-forced-interrupt": ebonyMawForcedInterrupt(),
+  "21072.when-revealed": whenRevealed(eachPlayerSpell()),
+  "21073.when-revealed": whenRevealed(eachPlayerSpell()),
+
+  // Attack on Knowhere (21074b) — When Revealed: Each player … puts that [Spell] card into play in their play area.
+  // Shuffle the encounter discard pile into the encounter deck.
+  "21074b.when-revealed": whenRevealed(eachPlayerSpell(), shuffleDiscardIn()),
+  // The Power Stone (21075a) — When Revealed: Shuffle the encounter discard pile into the encounter deck. Each player …
+  // puts that [Spell] card into play in their play area.
+  "21075a.when-revealed": whenRevealed(shuffleDiscardIn(), eachPlayerSpell()),
 
   // Fireball (21076, environment) — Surge (data). Enters play with 4 invocation counters. Forced Response: After
   // the last invocation counter is removed, discard it → deal 4 damage to your identity.
@@ -144,6 +165,15 @@ export const EBONY_MAW = defineAbilities({
   ),
   "21080.when-revealed-hero": whenRevealedHero(
     ifThen(exists(SPELLS_IN_YOUR_PLAY_AREA), dealDamage(countOf(SPELLS_IN_YOUR_PLAY_AREA), yourIdentity), surge()),
+  ),
+
+  // Channeling Trance (21081, treachery) — When Revealed: Remove 1 invocation counter from each Spell environment in
+  // your play area. If you have no Spell environments in your play area, discard cards from the top of the encounter
+  // deck until a Spell environment is discarded. Put that card into play in your play area. "If you have no" is read
+  // after the removal (a Spell whose last counter went is discarded by its own forced response, which follows).
+  "21081.when-revealed": whenRevealed(
+    removeCountersFrom(each(SPELLS_IN_YOUR_PLAY_AREA), "invocation", 1),
+    ifThen(not(exists(SPELLS_IN_YOUR_PLAY_AREA)), spellIntoPlayFor(you)),
   ),
 
   // Abjuration (21082, attachment; "Attach to Ebony Maw" is data-driven) — Prevent all damage to Ebony Maw. Forced

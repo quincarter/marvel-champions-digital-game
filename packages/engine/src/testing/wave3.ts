@@ -11,7 +11,7 @@ import { startSession, type GameSession } from "../engine.js";
 import type { GameEvent } from "../events.js";
 import { playerId, type InstanceId, type PlayerId } from "../ids.js";
 import { activeEncounterDeckId, mustInstance, mustPlayer } from "../query.js";
-import { createGame } from "../setup.js";
+import { createGame, type GameSetupConfig } from "../setup.js";
 import type { GameState } from "../state.js";
 import { driveSession } from "./drive.js";
 import {
@@ -41,6 +41,8 @@ export interface Wave3Game {
   readonly deck?: readonly CardId[];
   readonly players?: 1 | 2;
   readonly seed?: number;
+  /** `GameSetupConfig.scenarioRuleSpecs` (docs/phase7-wave4.md §3.40). */
+  readonly scenarioRuleSpecs?: GameSetupConfig["scenarioRuleSpecs"];
 }
 
 /** A game past setup, at the first player's first turn. */
@@ -59,6 +61,7 @@ export function gameAtFirstTurn(options: Wave3Game): GameState {
         identityCardId: identity.id,
         deck: [...DEFAULT_DECK, ...(options.deck ?? [])],
       })),
+      ...(options.scenarioRuleSpecs ? { scenarioRuleSpecs: options.scenarioRuleSpecs } : {}),
     },
     options.deps,
   );

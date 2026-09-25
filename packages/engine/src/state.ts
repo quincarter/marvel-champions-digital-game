@@ -5,6 +5,7 @@ import type { PendingChoice } from "./choices.js";
 import type { RngState } from "./rng.js";
 import type { StackFrame } from "./stack.js";
 import type { LastingEffect } from "./lasting.js";
+import type { RuleSpec } from "./abilities.js";
 
 export type Form = "hero" | "alterEgo";
 
@@ -341,6 +342,8 @@ export interface ScenarioRules {
    * standard. Read by the mode-only faces rule (`modeOnlyFlipped`; docs/phase7-wave4.md §3.18).
    */
   readonly difficulty?: "expert";
+  /** `GameSetupConfig.scenarioRuleSpecs`: rules the scenario imposes without a card (docs/phase7-wave4.md §3.40). */
+  readonly rules?: readonly RuleSpec[];
 }
 
 /**

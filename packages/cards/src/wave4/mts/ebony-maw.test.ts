@@ -1,5 +1,12 @@
 import { cardId } from "@mc/content";
-import { activeEncounterDeckId, cardsInPlay, type GameState, type InstanceId, type PlayerId } from "@mc/engine";
+import {
+  activeEncounterDeckId,
+  cardsInPlay,
+  traitsOf,
+  type GameState,
+  type InstanceId,
+  type PlayerId,
+} from "@mc/engine";
 import { describe, expect, it } from "vitest";
 import {
   endTurn,
@@ -29,10 +36,8 @@ const ebonyMawGame = (seed = 1) => startWave4Game(spectrumScenario("ebony-maw", 
 
 /** Test-only surgery, `encounterCardInVillainArea`'s sibling for the "in a player's play area" shape §3.16 needs
  * (docs/phase7-wave4.md §3.16): moves an encounter card straight from the encounter deck/discard into `player`'s
- * play area, uncontrolled, the way a correctly-routed Spell environment reveal would land. Stands in for the
- * general `entersRevealersPlayArea` wiring this scenario can't attach anywhere yet (module docblock on
- * `ebony-maw.ts`) so the *other* abilities that read "Spell environments in your play area" can still be exercised
- * for real. */
+ * play area, uncontrolled, the way the scenario's Spell rule routes a revealed one (docs/phase7-wave4.md §3.40), with
+ * a chosen counter count, so abilities that read "Spell environments in your play area" can be set up exactly. */
 function encounterCardInPlayerArea(
   state: GameState,
   code: string,
@@ -78,9 +83,15 @@ function revealTopEncounterCard(
   // itself: the villain's own activation deals itself a boost card from the top of the deck *before* this player's
   // own encounter card is revealed, so with no filler that boost draw would consume `code` as fodder instead
   // (`wave2/trors/crossbones.test.ts`'s own `stageNemesisCardForReveal` comment, same shape here).
-  const staged = stackEncounterDeck(stackEncounterDeck(state, code), "01186");
+  // A second filler under `code`: a Spell has surge, and the card it surges into must not be one that touches it
+  // (Channeling Trance removes a counter from each Spell in your play area).
+  const staged = stackEncounterDeck(state, "01186", code, "01186");
+  // Not a copy already in play before the reveal (Attack on Knowhere 1B's setup Spell may be one).
+  const already = new Set(cardsInPlay(staged));
   const revealed = settle(runWave4(staged, endTurn(player)), pick, undefined, WAVE4_DEPS);
-  const id = instancesOf(revealed, code).find((candidate) => cardsInPlay(revealed).includes(candidate))!;
+  const id = instancesOf(revealed, code).find(
+    (candidate) => cardsInPlay(revealed).includes(candidate) && !already.has(candidate),
+  )!;
   return { state: revealed, id };
 }
 
@@ -163,7 +174,9 @@ describe("Rubblestorm (21079)", () => {
 
 describe("Agent of Thanos (21080)", () => {
   it("21080.when-revealed-alter-ego: places 1 threat on the main scheme per Spell environment in your play area", () => {
-    const state = ebonyMawGame(9);
+    // Start the main scheme at 0 so the villain phase's threat cannot complete 1B (6 threat) and reset the count.
+    const game = ebonyMawGame(9);
+    const state = patchInstance(game, game.mainScheme.instanceId, { threat: 0 });
     const { state: staged } = encounterCardInPlayerArea(state, "21076", P1, { invocation: 4 });
     const before = inst(staged, staged.mainScheme.instanceId).threat;
     const { state: revealed } = revealTopEncounterCard(staged, "21080");
@@ -346,5 +359,53 @@ describe("Landing Craft (21091)", () => {
       (i) => i.engagedWith === P1 && i.instanceId !== landingCraft,
     );
     expect(engagedMinion).toBeDefined();
+  });
+});
+
+describe("MC21 p. 6's Spell rule, seeded at setup (docs/phase7-wave4.md §3.40)", () => {
+  const spellsIn = (state: GameState, player: PlayerId) =>
+    playerOf(state, player).playArea.filter((id) => traitsOf(state, id, WAVE4_DEPS).includes("SPELL" as never));
+
+  it("the scenario carries the rule, and 21074b.when-revealed puts a Spell into each player's play area at setup", () => {
+    const state = ebonyMawGame(3);
+    expect(state.scenarioRules.rules).toEqual([{ kind: "entersRevealersPlayArea", cards: { trait: "SPELL" } }]);
+    expect(spellsIn(state, P1)).toHaveLength(1);
+    expect(state.villainArea.some((id) => traitsOf(state, id, WAVE4_DEPS).includes("SPELL" as never))).toBe(false);
+  });
+
+  it("21072.when-revealed / 21073.when-revealed / 21075a.when-revealed: each player puts a Spell into play in their own area (the same effect 21074b.when-revealed runs at setup)", () => {
+    for (const ref of ["21072.when-revealed", "21073.when-revealed", "21075a.when-revealed", "21074b.when-revealed"]) {
+      const json = JSON.stringify(WAVE4_DEPS.abilities[ref]!.effects);
+      expect(json, ref).toContain('"kind":"forEachPlayer"');
+      expect(json, ref).toContain('"kind":"discardEncounterUntil"');
+      expect(json, ref).toContain(
+        '"kind":"putIntoPlay","card":{"kind":"slot","slot":"spell"},"controller":{"kind":"scoped"}',
+      );
+    }
+    // The Power Stone shuffles the encounter discard pile back first, Attack on Knowhere after.
+    const powerStone = JSON.stringify(WAVE4_DEPS.abilities["21075a.when-revealed"]!.effects);
+    expect(powerStone.indexOf("encounterDeckShuffle")).toBeLessThan(powerStone.indexOf("forEachPlayer"));
+  });
+
+  it("21081.when-revealed: with no Spell in your play area, Channeling Trance puts one there", () => {
+    const start = ebonyMawGame(4);
+    const [spell] = spellsIn(start, P1);
+    // Clear the setup Spell (test surgery) so Channeling Trance takes its "if you have no Spell" branch.
+    const cleared: GameState = {
+      ...start,
+      players: start.players.map((p) =>
+        p.playerId === P1 ? { ...p, playArea: p.playArea.filter((id) => id !== spell) } : p,
+      ),
+      removedFromGame: [...start.removedFromGame, spell!],
+    };
+    expect(spellsIn(cleared, P1)).toHaveLength(0);
+    const staged = stackEncounterDeck(cleared, "01186", "21081");
+    const after = settle(
+      runWave4(staged, endTurn()),
+      firstLegal,
+      (s) => s.step.phase === "player" && s.round > staged.round,
+      WAVE4_DEPS,
+    );
+    expect(spellsIn(after, P1).length).toBeGreaterThanOrEqual(1);
   });
 });

@@ -1,3 +1,5 @@
+import { EBONY_MAW_SCENARIO_RULES } from "./mts/ebony-maw.js";
+import type { RuleSpec } from "@mc/engine";
 import {
   CORE_STARTER_DECKS,
   MTS_SCENARIOS,
@@ -55,6 +57,11 @@ function wave4EncounterCardsOf(setIds: readonly string[]): CardId[] {
 }
 
 /** A single-villain `MTS_SCENARIOS` record (`wave3/setup.ts`'s `buildSingleVillain`, re-pointed at `mts`). */
+/** Scenario rules printed in a rulebook, not on a card, by scenario id (`GameSetupConfig.scenarioRuleSpecs`, §3.40). */
+const SCENARIO_RULE_SPECS: Readonly<Record<string, readonly RuleSpec[]>> = {
+  "ebony-maw": EBONY_MAW_SCENARIO_RULES,
+};
+
 function buildMtsSingleVillain(
   scenario: (typeof MTS_SCENARIOS)[number],
   options: Wave4ScenarioOptions,
@@ -90,6 +97,8 @@ function buildMtsSingleVillain(
     mainSchemeCardId: scenario.mainSchemeCardId,
     encounterDeck: wave4EncounterCardsOf(sets),
     players: seatsOf(options.players),
+    // Rules the scenario's rulebook imposes without a card (docs/phase7-wave4.md §3.40).
+    ...(SCENARIO_RULE_SPECS[scenario.id] ? { scenarioRuleSpecs: SCENARIO_RULE_SPECS[scenario.id] } : {}),
     includeIdentitySets: true,
     requireIdentitySets: true,
     requireLegalDecks: true,

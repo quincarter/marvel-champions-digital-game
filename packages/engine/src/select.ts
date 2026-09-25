@@ -797,6 +797,13 @@ export function activeRules<K extends RuleSpec["kind"]>(
     if ("while" in effect.rule && effect.rule.while && !evaluate(state, effect.rule.while, context)) continue;
     record(effect.rule, context, effect.scope.controllerId);
   }
+  // Rules the scenario imposes without a card (`ScenarioRules.rules`, docs/phase7-wave4.md §3.40).
+  for (const rule of state.scenarioRules.rules ?? []) {
+    if (rule.kind !== kind) continue;
+    const context: EffectContext = { selfInstanceId: null, controllerId: null, event: null, bindings: {}, deps };
+    if ("while" in rule && rule.while && !evaluate(state, rule.while, context)) continue;
+    record(rule, context, null);
+  }
   return found;
 }
 

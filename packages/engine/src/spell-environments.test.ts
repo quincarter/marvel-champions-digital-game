@@ -126,3 +126,28 @@ describe("§3.15 'after the last X counter is removed from here'", () => {
     expect(replayed.state).toEqual(session.state);
   });
 });
+
+describe("§3.40 a scenario rule with no card behind it", () => {
+  it("MC21 p. 6's Spell rule seeded at setup routes a revealed Spell to the revealer's play area, with no villain constant", () => {
+    const PLAIN_MAW = stubVillain({ id: "plain-maw", name: "Ebony Maw", stages: [{ hp: flat(30), atk: 0, sch: 0 }] });
+    const base = gameAtFirstTurn({
+      cards: [PLAIN_MAW, FIREBALL, PLAIN, ...EVENTS.map((e) => e.card)],
+      deps,
+      villain: PLAIN_MAW,
+      encounter: [FIREBALL.id, PLAIN.id, ...copiesOf(TREACHERY.id, 10)],
+      deck: EVENTS.flatMap((e) => copiesOf(e.card.id, 3)),
+      scenarioRuleSpecs: [{ kind: "entersRevealersPlayArea", cards: { trait: SPELL } }],
+    });
+    const revealed = playFree(onTopOfEncounterDeck(base, FIREBALL.id), deps, REVEAL.card.id).state;
+    expect(locateCard(revealed, idOf(revealed, FIREBALL))).toEqual({ kind: "playArea", playerId: P1 });
+    const without = gameAtFirstTurn({
+      cards: [PLAIN_MAW, FIREBALL, PLAIN, ...EVENTS.map((e) => e.card)],
+      deps,
+      villain: PLAIN_MAW,
+      encounter: [FIREBALL.id, PLAIN.id, ...copiesOf(TREACHERY.id, 10)],
+      deck: EVENTS.flatMap((e) => copiesOf(e.card.id, 3)),
+    });
+    const plain = playFree(onTopOfEncounterDeck(without, FIREBALL.id), deps, REVEAL.card.id).state;
+    expect(locateCard(plain, idOf(plain, FIREBALL))).toEqual({ kind: "villainArea" });
+  });
+});
