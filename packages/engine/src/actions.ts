@@ -100,6 +100,7 @@ import {
   canAttack,
   cardsInPlay,
   categoriesOf,
+  characterIgnores,
   controllerOf,
   evaluate,
   isAlly,
@@ -2380,12 +2381,20 @@ function basicThwartPaying(
     // RRG "Crisis Icon": while any crisis icon is in play, player cards cannot remove threat from the main scheme. For a
     // divided thwart this holds "even if the card [...] is removed from play during her basic thwart's resolution" (FAQ
     // "Wasp (#1C)"), which checking every share now gives.
-    if (isMainScheme && countSchemeIcons(ctx.state, "crisis", thwarterArea) > 0) {
+    if (
+      isMainScheme &&
+      countSchemeIcons(ctx.state, "crisis", thwarterArea) > 0 &&
+      !characterIgnores(ctx.state, ctx.deps, command.thwarterInstanceId, "crisis")
+    ) {
       return engineError("no_valid_target", "a crisis icon blocks thwarting the main scheme", command);
     }
     // RRG 1.8 "Patrol" (p. 32): the engaged player "cannot use cards they control to thwart the main scheme" — checked
     // per share, as the crisis icon is (FAQ "Wasp (#1C)", p. 61, names both). docs/phase7-wave3.md §3.5.
-    if (isMainScheme && patrolledBy(ctx.state, ctx.deps, command.playerId)) {
+    if (
+      isMainScheme &&
+      patrolledBy(ctx.state, ctx.deps, command.playerId) &&
+      !characterIgnores(ctx.state, ctx.deps, command.thwarterInstanceId, "patrol")
+    ) {
       return engineError(
         "no_valid_target",
         "a minion with patrol engaged with you blocks thwarting the main scheme",

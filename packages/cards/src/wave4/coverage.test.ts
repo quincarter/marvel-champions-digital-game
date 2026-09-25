@@ -28,12 +28,6 @@ const PACK_STATUS: Readonly<Record<string, "scripted" | "in progress" | "not sta
 const KNOWN_SKIPPED: Readonly<Record<string, readonly string[]>> = {
   // nebu: two genuine primitive gaps, both flagged for a game-rules-architect follow-up (docs/phase7-wave4.md §3
   // has no entry for either yet):
-  //  - 22005.evasive-maneuvering-constant ("While in hero form, Nebula ignores the guard keyword, the patrol
-  //    keyword, and the crisis icon.") — there is no per-character exemption from `guardEngagedWith`/`patrolledBy`
-  //    (`packages/engine/src/select.ts`/`rules.ts`) or from the crisis-icon threat-removal block
-  //    (`packages/engine/src/resolve/event.ts`); every existing `ignoreCrisis` option is per-*effect*
-  //    (`EffectSpec.removeThreat`/`thwart`), not a standing exemption a character can carry. The card's Special
-  //    ("choose to either stun or confuse an enemy") is scripted normally, `22005.evasive-maneuvering-constant-2`.
   //  - 22030.lethal-weapon-action ("Discard an upgrade you control → discard this attachment.") — the engine's
   //    in-play cost pickers are `AbilityCost.exhaustCards`/`.returnToHand` only (`packages/engine/src/abilities.ts`);
   //    there is no "discard cards you control" in-play cost kind to pay "discard an upgrade you control →" as a
@@ -43,7 +37,7 @@ const KNOWN_SKIPPED: Readonly<Record<string, readonly string[]>> = {
   //    activation (exhausts the attacker, runs `enemy-activation.ts`); there's no way to make a *friendly*
   //    character attack its own controller without exhausting it.
   // Regenerated with `MC_REFS_PACKS=nebu pnpm refs` (docs/card-scripting-process.md) — never hand-typed.
-  nebu: ["22005.evasive-maneuvering-constant", "22030.lethal-weapon-action", "22031.when-revealed"],
+  nebu: ["22030.lethal-weapon-action", "22031.when-revealed"],
 };
 
 const PACKS: ReadonlyArray<{ readonly code: string; readonly cards: readonly AnyCard[] }> = [

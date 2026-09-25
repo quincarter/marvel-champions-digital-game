@@ -39,7 +39,7 @@ import {
   readyCostFor,
   threatCannotBeRemoved,
 } from "../rules.js";
-import { canAttack, cardsInPlay, controllerOf } from "../select.js";
+import { canAttack, cardsInPlay, characterIgnores, controllerOf } from "../select.js";
 import { currentActivationFrameId, type StackFrame, type Vars } from "../stack.js";
 import type { GameState } from "../state.js";
 import type { TriggerEvent } from "../trigger-events.js";
@@ -702,7 +702,10 @@ export function threatRemovalBlocked(
   byThwart = false,
   ignoreCrisis = false,
   thwartingPlayerId: PlayerId | null = null,
+  /** The thwart's own character, for a removal made by a thwart (`characterIgnores`, docs/phase7-wave4.md §3.24). */
+  thwarterInstanceId: InstanceId | null = null,
 ): "crisis" | "patrol" | "rule" | null {
+  const acting = thwarterInstanceId ?? sourceInstanceId;
   // RRG "Crisis Icon": while a crisis icon is in play, players cannot remove threat from the main scheme. One effect
   // may step over that check ("ignoring any crisis icons in play"), but never over a `threatCannotBeRemoved` rule.
   const byPlayer = sourceInstanceId === null || controllerOf(state, sourceInstanceId) !== null;
@@ -711,7 +714,8 @@ export function threatRemovalBlocked(
     !ignoreCrisis &&
     mainSchemeStateOf(state, schemeId) &&
     byPlayer &&
-    countSchemeIcons(state, "crisis", areaOfCard(state, schemeId)) > 0
+    countSchemeIcons(state, "crisis", areaOfCard(state, schemeId)) > 0 &&
+    !characterIgnores(state, deps, acting, "crisis")
   )
     return "crisis";
   // RRG 1.8 "Patrol" (p. 32): a thwart — basic or a "(thwart)" ability — by a player a patrol minion is engaged with
@@ -721,7 +725,8 @@ export function threatRemovalBlocked(
     byThwart &&
     thwartingPlayerId &&
     mainSchemeStateOf(state, schemeId) &&
-    patrolledBy(state, deps, thwartingPlayerId)
+    patrolledBy(state, deps, thwartingPlayerId) &&
+    !characterIgnores(state, deps, thwarterInstanceId, "patrol")
   )
     return "patrol";
   // The removing player, for a `threatCannotBeRemoved` rule scoped with `player` (docs/phase7-wave3.md §3.26): the
@@ -771,6 +776,7 @@ function applyRemoveThreat(ctx: Ctx, event: Extract<TriggerEvent, { kind: "remov
     byThwart,
     event.ignoreCrisis === true,
     thwart?.playerId ?? null,
+    thwart?.thwarterInstanceId ?? null,
   );
   if (blocked) {
     emit(ctx, { type: "threatRemovalBlocked", schemeInstanceId: event.schemeInstanceId, reason: blocked });
