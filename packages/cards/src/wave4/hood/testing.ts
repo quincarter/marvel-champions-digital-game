@@ -131,7 +131,9 @@ export function attachedTo(
  */
 export function foldModularSetIntoDeck(state: GameState, setId: string): GameState {
   const entry = state.setAsideModularSets?.find((s) => s.encounterSetId === setId);
-  if (!entry) throw new Error(`${setId} is not one of this game's set-aside modular sets`);
+  // Already shuffled in by the scenario's own Setup ability (seeded RNG picked this exact set): nothing to do —
+  // its cards are already reachable in the encounter deck.
+  if (!entry) return state;
   const deck = deckId(state);
   const pile = state.encounterDecks[deck]!;
   return {

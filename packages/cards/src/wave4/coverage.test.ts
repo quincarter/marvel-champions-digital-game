@@ -93,9 +93,10 @@ const KNOWN_SKIPPED: Readonly<Record<string, readonly string[]>> = {
   ],
   // hood: the villain (24001-24003), the main scheme (24004-24006), The Hood's own encounter set (24007-24013) and
   // Beasty Boys (24014-24017, `hood/beasty-boys.ts`), Brothers Grimm (24018-24022, `hood/brothers-grimm.ts`) and
-  // Crossfire's Crew (24023-24028, `hood/crossfire-crew.ts`) are scripted. Everything below is the pack's
-  // remaining six modular sets (Mister Hyde, Ransacked Armory, Sinister Syndicate, State of Emergency, Streets of
-  // Mayhem, Wrecking Crew) plus Standard II / Expert II, left for the next scripting pass
+  // Crossfire's Crew (24023-24028, `hood/crossfire-crew.ts`) and Mister Hyde (24033-24036, `hood/mister-hyde.ts`)
+  // are scripted. Everything below is the pack's remaining five modular sets (Ransacked Armory, Sinister
+  // Syndicate, State of Emergency, Streets of Mayhem, Wrecking Crew) plus Standard II / Expert II, left for the
+  // next scripting pass
   // (24041 and 24067 have no ability refs at all — plain-stat cards — and 24053's "Shadow of the Past" ref already
   // resolves as a reprint alias via `../reprints.ts`; none of the three are listed below).
   hood: [
@@ -115,12 +116,7 @@ const KNOWN_SKIPPED: Readonly<Record<string, readonly string[]>> = {
     "24031.when-revealed",
     "24032.when-revealed",
     "24032.boost",
-    "24033.when-revealed",
-    "24033.self-experimentation-forced-interrupt",
-    "24034.when-revealed",
-    "24034.when-defeated",
-    "24035.when-revealed",
-    "24036.when-revealed",
+    // Mister Hyde (`hood/mister-hyde.ts`): every ref resolves; no genuine gap found.
     "24037.flamethrower-constant",
     "24037.flamethrower-constant-2",
     "24038.holoshield-generator-constant",
