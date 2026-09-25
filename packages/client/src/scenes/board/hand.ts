@@ -19,7 +19,7 @@ import { handRow, type HandRowLayout } from "../../view/hand-row.js";
 import type { Rect } from "../../view/layout.js";
 import type { PaymentView } from "../../view/payment-model.js";
 import type { BoardDrawContext } from "./context.js";
-import { drawControllerBar, drawPlayConfirmBar } from "./controller-bar.js";
+import { SOURCE_BAR_NOTE, drawControllerBar, drawPlayConfirmBar, drawSourceBar } from "./controller-bar.js";
 import { drawCostChoiceBar } from "./cost-choice-bar.js";
 import { drawDiscardBar } from "./discard-bar.js";
 import { drawPaymentBar } from "./payment-bar.js";
@@ -59,8 +59,13 @@ export function drawHand(ctx: BoardDrawContext, rect: Rect, model: BoardModel): 
   const controllerChoice = ctx.controller.controllerChoice();
   const playConfirmation = ctx.controller.playConfirmation();
   const costChoice = ctx.controller.costChoiceView();
+  const sourceChoice = ctx.controller.sourceChoice();
   let top = rect.y + HAND_CAPTION_HEIGHT;
-  if (playConfirmation) {
+  if (sourceChoice) {
+    const height = hit.target + SOURCE_BAR_NOTE;
+    drawSourceBar(ctx, { x: rect.x, y: rect.y, width: rect.width, height }, sourceChoice);
+    top = rect.y + height + 4;
+  } else if (playConfirmation) {
     drawPlayConfirmBar(ctx, { x: rect.x, y: rect.y, width: rect.width, height: hit.target }, playConfirmation);
     top = rect.y + hit.target + 4;
   } else if (controllerChoice) {
