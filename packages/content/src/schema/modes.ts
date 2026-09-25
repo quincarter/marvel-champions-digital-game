@@ -18,8 +18,8 @@
  * campaign.
  */
 
-import type { CampaignId } from "./ids.js";
-import type { ScenarioDifficulty } from "./sets.js";
+import type { CampaignId, EncounterSetId } from "./ids.js";
+import type { EncounterSet, Scenario, ScenarioDifficulty } from "./sets.js";
 
 /**
  * Which campaign a scenario is being played as part of.
@@ -84,3 +84,57 @@ export const difficultyOf = (modes: PlayModes): ScenarioDifficulty => (modes.exp
 
 /** The mode set a bare `ScenarioDifficulty` means — the read path for callers (and saves) that predate `PlayModes`. */
 export const modesOf = (difficulty: ScenarioDifficulty): PlayModes => (difficulty === "expert" ? { expert: true } : {});
+
+/**
+ * Which Standard and Expert encounter sets a game uses (docs/phase7-wave4.md §4 Q5). The Hood insert, p. 2,
+ * "Alternative Sets": "When a scenario requires the Standard encounter set, the Standard II encounter set may be used
+ * instead. When a scenario requires the Expert encounter set (most notably during Expert or Heroic modes of play), the
+ * Expert II encounter set may be used instead." So an alternative set is a player's choice at setup, made for each of
+ * the two independently, and it *replaces* the printed set rather than joining it. Absent (both fields) is the printed
+ * default: the scenario's own `standardEncounterSetIds` / `expertEncounterSetIds`.
+ *
+ * Like `PlayModes`, nothing here reaches `GameState`: the engine sees the resolved card ids.
+ */
+export interface DifficultySetChoice {
+  /** Used instead of the Standard set wherever a scenario requires it; a set of the `"standard"` classification. */
+  readonly standard?: EncounterSetId;
+  /** Used instead of the Expert set wherever a scenario requires it; a set of the `"expert"` classification. */
+  readonly expert?: EncounterSetId;
+}
+
+/** The printed Standard and Expert sets: no alternative chosen. */
+export const PRINTED_DIFFICULTY_SETS: DifficultySetChoice = {};
+
+/**
+ * The Standard (and in expert mode, Expert) encounter set ids a scenario is built with under `choice`. A scenario
+ * that requires no Standard set (`standardEncounterSetIds: []`, The Wrecking Crew) gets none, chosen alternative or
+ * not: the insert substitutes a set "when a scenario requires" it and never adds one.
+ */
+export function difficultyEncounterSetIds(
+  scenario: Pick<Scenario, "standardEncounterSetIds" | "expertEncounterSetIds">,
+  difficulty: ScenarioDifficulty,
+  choice: DifficultySetChoice = PRINTED_DIFFICULTY_SETS,
+): readonly EncounterSetId[] {
+  const replace = (printed: readonly EncounterSetId[], alternative: EncounterSetId | undefined) =>
+    printed.length > 0 && alternative !== undefined ? [alternative] : printed;
+  return [
+    ...replace(scenario.standardEncounterSetIds, choice.standard),
+    ...(difficulty === "expert" ? replace(scenario.expertEncounterSetIds, choice.expert) : []),
+  ];
+}
+
+/**
+ * Why `choice` is not a legal difficulty-set choice among `sets` (empty when it is): each chosen set must be a known
+ * set of the matching classification (RRG 1.8 "Standard Set", p. 40; "Expert Set", p. 19).
+ */
+export function difficultySetChoiceErrors(choice: DifficultySetChoice, sets: readonly EncounterSet[]): string[] {
+  const errors: string[] = [];
+  for (const slot of ["standard", "expert"] as const) {
+    const id = choice[slot];
+    if (id === undefined) continue;
+    const set = sets.find((s) => s.id === id);
+    if (!set) errors.push(`${slot} set ${id} is not a known encounter set`);
+    else if (set.classification !== slot) errors.push(`${slot} set ${id} is not in the ${slot} classification`);
+  }
+  return errors;
+}

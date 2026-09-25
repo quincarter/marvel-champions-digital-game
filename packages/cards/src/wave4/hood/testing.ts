@@ -32,20 +32,51 @@ export function heroified(state: GameState, player: PlayerId = P1): GameState {
   return withForm(state, { heroForm: 0 }, player);
 }
 
-/** Stacks the encounter deck's very top with `codes` (`codes[0]` ends up on top). */
+/**
+ * Stacks the encounter deck's very top with `codes` (`codes[0]` ends up on top). A copy is taken from the deck first,
+ * then from the discard pile or a player's facedown dealt cards (setup's own Foul Play can discard or deal any card
+ * before a test starts, depending on the seed).
+ */
 export function stackTop(state: GameState, ...codes: readonly string[]): GameState {
   const id = deckId(state);
   const pile = state.encounterDecks[id]!;
+  const dealtPiles = state.players.flatMap((p) => p.dealtEncounter);
   const used = new Set<InstanceId>();
   const picked = codes.map((code) => {
     const wanted = cardId(code);
-    const found = pile.deck.find((i) => state.instances[i]?.cardId === wanted && !used.has(i));
-    if (!found) throw new Error(`no ${code} left in the encounter deck`);
+    const found = [...pile.deck, ...pile.discard, ...dealtPiles].find(
+      (i) => state.instances[i]?.cardId === wanted && !used.has(i),
+    );
+    if (!found) throw new Error(`no ${code} left in the encounter deck, its discard pile or a dealt pile`);
     used.add(found);
     return found;
   });
   const rest = pile.deck.filter((i) => !used.has(i));
-  return { ...state, encounterDecks: { ...state.encounterDecks, [id]: { ...pile, deck: [...picked, ...rest] } } };
+  return {
+    ...state,
+    players: state.players.map((p) => ({ ...p, dealtEncounter: p.dealtEncounter.filter((i) => !used.has(i)) })),
+    instances: Object.fromEntries(
+      Object.entries(state.instances).map(([key, inst]) =>
+        used.has(key as InstanceId) ? [key, { ...inst, faceup: false }] : [key, inst],
+      ),
+    ) as GameState["instances"],
+    encounterDecks: {
+      ...state.encounterDecks,
+      [id]: { deck: [...picked, ...rest], discard: pile.discard.filter((i) => !used.has(i)) },
+    },
+  };
+}
+
+/** Returns every player's facedown dealt encounter cards to the bottom of the encounter deck (a clean villain phase). */
+export function withoutDealtCards(state: GameState): GameState {
+  const id = deckId(state);
+  const pile = state.encounterDecks[id]!;
+  const dealtIds = state.players.flatMap((p) => p.dealtEncounter);
+  return {
+    ...state,
+    players: state.players.map((p) => ({ ...p, dealtEncounter: [] })),
+    encounterDecks: { ...state.encounterDecks, [id]: { ...pile, deck: [...pile.deck, ...dealtIds] } },
+  };
 }
 
 /** Places `code` engaged with `player`, faceup, in `player`'s own `playArea` — a minion's real zone once revealed. */

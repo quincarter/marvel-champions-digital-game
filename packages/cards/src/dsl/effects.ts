@@ -343,6 +343,12 @@ export const enemyAttack = (
      * player. `EffectSpec enemyAttack.targetCharacter` (wave 1 §3.6), which wave 1's packs wrapped locally.
      */
     readonly targetCharacter?: TargetRef;
+    /**
+     * "The villain attacks you. That attack gains overkill" (Total Annihilation; Avatar of Death; Calvin Zabo): keywords
+     * for exactly the attacks this effect initiates (docs/phase7-wave4.md §3.51). Not `modifyAttack` after it, which
+     * runs once the attack has already resolved.
+     */
+    readonly keywords?: readonly AttackKeyword[];
   } = {},
 ): EffectSpec => ({
   kind: "enemyAttack",
@@ -354,6 +360,7 @@ export const enemyAttack = (
   ...(opts.afterCurrentActivation ? { after: "currentActivation" as const } : {}),
   ...(opts.additionalResolution ? { additionalResolution: true } : {}),
   ...(opts.atkBonus !== undefined ? { atkBonus: amount(opts.atkBonus) } : {}),
+  ...(opts.keywords && opts.keywords.length > 0 ? { keywords: opts.keywords } : {}),
 });
 /** "The villain schemes" / "Green Goblin schemes with +X SCH" — `enemyAttack`'s `atkBonus`, for a scheme activation. */
 export const enemyScheme = (

@@ -1367,6 +1367,13 @@ export type EffectSpec =
        * covers. A dashed ATK is "an unmodifiable 0" (RRG 1.8 "Dash (Value)", p. 15), so this does not raise it.
        */
       readonly atkBonus?: ValueSpec;
+      /**
+       * "The villain attacks you. **That attack gains overkill**" (Total Annihilation, `hood` 24054; Avatar of Death,
+       * `mts` 21120, "overkill and piercing"; Calvin Zabo, `hood` 24034): attack keywords carried by exactly the
+       * attacks this effect initiates, like `atkBonus` (docs/phase7-wave4.md §3.51). A following `modifyAttack` cannot
+       * say it: the attack this effect pushes resolves completely before the next effect in the list runs.
+       */
+      readonly keywords?: readonly AttackKeyword[];
     }
   /** "The villain schemes" / "Ultron schemes": a scheme activation; a confused enemy discards its confusion instead. `bind`: `<bind>.made`, `<bind>.threatPlaced`. */
   | {

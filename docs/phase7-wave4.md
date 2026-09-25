@@ -232,8 +232,9 @@ likewise. Standard II and Expert II print "Standard II" / "Expert II", so they a
 - **New `EncounterSet.classification?: "standard" | "expert"`**: such a set is never a modular choice
   (`validateScenario`, and The Hood's "Choose 7 modular encounter sets"). Emit it on `standard_ii`, `expert_ii`, and on
   Core's `standard` and `expert` for uniformity.
-- Whether a game uses Standard II instead of or beside Standard is a setup choice the insert states (§4 Q5); the
-  scenario's `standardEncounterSetIds` is unchanged.
+- Whether a game uses Standard II instead of or beside Standard is a setup choice the insert states (§4 Q5): instead,
+  optionally, each independently. The scenario's `standardEncounterSetIds` is unchanged; `difficultyEncounterSetIds`
+  substitutes the chosen set at build time.
 
 ### 1.10 A modular set that brings its own deck: `EncounterSet.separateDecks`
 
@@ -480,6 +481,8 @@ stays data only.**
 | 3.47 | A product of values; Hela's scaling and expert villain                       | Hela (21136a/21137a), Odin 21139b, hela expertVillains                       | landed  |
 | 3.48 | An advance to a set-aside villain does not pre-empt the card's When Defeated | Loki (rules bug)                                                             | landed  |
 | 3.49 | Shuffling a scenario deck's discard pile back in on demand                   | Infinite Mischief                                                            | landed  |
+| 3.50 | A nemesis set's only minion is its nemesis minion                            | Seek and Destroy (Expert II) with a Core hero; Kang's Wrath 4B               | landed  |
+| 3.51 | An attack an effect initiates carries its own keywords                       | Total Annihilation; Avatar of Death, Calvin Zabo (engine bug)                | landed  |
 
 ### 3.1 Additional forms: the form keyword
 
@@ -973,8 +976,9 @@ while paying for a card with the keyword; only the playing player resolves it.
 >   (the reset in `leavePlay`), so it enters play (Setup keyword, reveal, put into play) on the right face. The emitted
 >   Formidable Foe carries `modeOnly: "standard"` on its front only; a back with no `modeOnly` is read as the other
 >   mode's. **Pipeline:** emit `flipSide.modeOnly: "expert"` on 24049 (§1.8 says both faces).
-> - **Standard II:** unchanged (§4 Q5): `classification` keeps Standard II / Expert II out of modular choices; whether a
->   game uses them is the insert's setup rule, still unread.
+> - **Standard II:** `classification` keeps Standard II / Expert II out of modular choices; the insert's setup rule
+>   (an optional replacement for Standard / Expert, chosen at setup) is settled and built in §4 Q5
+>   (`difficultySets`).
 >
 > **Steady, checked against The Hood's cards.** Every Hood printing grants it: The Hood's Mantle ("The Hood gains
 > retaliate 1 and steady"), Formidable Foe ("The villain gains steady" / "Each enemy gains steady"), Warehouse District
@@ -1695,6 +1699,46 @@ per-player `separateDeckShuffle` only.
 > `21175.when-revealed` (`moveCards(scenarioDeck(STONE_DECK, { zones: ["discard"] }), "scenarioDeckShuffle")`, then
 > reveal the top card), off `KNOWN_SKIPPED`.
 
+### 3.50 A nemesis set's only minion is its nemesis minion
+
+Seek and Destroy (`hood` 24031, Expert II): "Search the encounter deck, discard pile, and set-aside area for your nemesis
+minion and put it into play engaged with you." `TargetQuery.nemesisMinionOf` (wave 2 §17.1) required the card data's
+`nemesisMinion` flag, which only a set with several minions prints ("(Captain America's nemesis minion.)"). RRG 1.8
+"Nemesis Encounter Set" (p. 30): "An identity's 'nemesis minion' is the minion belonging to that identity's nemesis set.
+If a nemesis set has multiple minions in it, the 'nemesis minion' is designated by parenthetical text". Every Core
+nemesis set has one minion and no parenthetical, so Seek and Destroy (and Kang's Wrath 4B, 11013b) found nothing for a
+Core hero. Survey (every raw pack, "your nemesis minion" / "their nemesis minion"): Kang's Wrath 4B, Seek and Destroy,
+Face the Past (`magneto` 49022), Summoned Back (`mts` 21188), Old Grudge (`sm` 27172), Nano-Sentinel Tech (`mut_gen`
+32170), all "search … for your nemesis minion", which this query answers for any hero's set.
+
+> **Status: landed (2026-09-25),** tested in `packages/engine/src/hood-primitives.test.ts` (2 tests: a lone unflagged
+> minion of the player's nemesis set matches; with a second unflagged minion neither does) and in a real game in
+> `packages/cards/src/wave4/hood/standard-expert-ii.test.ts` (Seek and Destroy puts Spider-Man's set-aside Vulture into
+> play engaged with him, the rest of his nemesis set stays set aside; with Vulture already in play nothing enters).
+> **What landed:** `nemesisMinionOf` accepts a minion without the flag when it is the only minion card of that nemesis
+> set in the card pool (`soleMinionOfSet`, `select.ts`, cached per pool). A flagged minion matches as before; the
+> wave 2 test's unflagged second minion in a two-minion set still does not.
+
+### 3.51 An attack an effect initiates carries its own keywords
+
+Total Annihilation (`hood` 24054, Standard II): "When Revealed (Hero): The villain attacks you. That attack gains
+overkill." Scripted as `enemyAttack(...)` then `modifyAttack({ overkill: true })`, the second effect runs only after the
+attack the first one pushed has resolved completely (the stack is last-in first-out), so no attack is in progress and
+the keyword is lost. **An engine-visible bug in two landed scripts with the same shape:** Avatar of Death (`mts`
+21120, "That attack gains overkill and piercing") and Calvin Zabo (`hood` 24034, "+2 ATK. That attack gains overkill")
+never had the keywords; their tests only asserted that the ability fired or that damage was dealt. Survey (every raw
+pack, "attacks you … That attack gains"): those three; the interrupt forms ("When X attacks, … That attack gains",
+Fanaticism, Warbringer, Sandman) modify the attack in progress and are right as `modifyAttack`.
+
+> **Status: landed (2026-09-25),** tested in `packages/engine/src/hood-primitives.test.ts` (3 tests: a treachery's
+> overkill attack of 4 against a 3-hit-point defending ally spills 1 onto the hero, the same attack without the
+> keyword spills nothing, replay deep-equal) and in real games in `standard-expert-ii.test.ts` (Total Annihilation's
+> attack of 3 against Black Cat at 1 remaining deals Spider-Man the excess 2; as a boost card, "if the villain is
+> attacking, this attack gains overkill" spills 1). **What landed:** **`EffectSpec enemyAttack.keywords?:
+AttackKeyword[]`**, carried on each activation the effect initiates as the same vars `modifyAttack` sets (so
+> `attackKeywordsOf` reads them), scoped exactly like `atkBonus`. **DSL:** `enemyAttack(enemies, { keywords })`.
+> **Re-scripted:** `24054.when-revealed-hero`, `21120.when-revealed-hero`, `24034.when-revealed`.
+
 ## 4. Open questions (for the user or FFG)
 
 Each is implemented the way stated, or not at all, and named here rather than decided silently.
@@ -1709,8 +1753,25 @@ Each is implemented the way stated, or not at all, and named here rather than de
    RRG 1.8 "Villain Defeat" (p. 47) carries "non-damage tokens" to a same-title stage and "Excess damage … does not carry
    over". Implemented as: damage does not carry on defeat; on a swap the dial stays (RRG "'Swap'").
 4. **Tower Defense's suggested setup damage** (MC21 p. 11) is a difficulty option. Standalone default: none.
-5. **Standard II / Expert II** replace or join Standard / Expert? The Hood insert (not in the repo) says; until it is
-   read, games use Standard / Expert and Standard II is never chosen.
+5. **Standard II / Expert II** replace or join Standard / Expert? **Settled (2026-09-25) from The Hood insert, p. 2,
+   "Alternative Sets"** (the insert Hall of Heroes' The Hood page links, `the-hood-pdf.pdf`, read page by page): "In The
+   Hood Scenario Pack, there are two alternative encounter sets, Standard II and Expert II. Each encounter set is more
+   powerful than its preceding version, offering players the option of a greater challenge. When a scenario requires
+   the Standard encounter set, the Standard II encounter set may be used instead. When a scenario requires the Expert
+   encounter set (most notably during Expert or Heroic modes of play), the Expert II encounter set may be used instead."
+   RRG 1.8 and the post-1.7 rulings never name either set (grepped for "Standard II"/"Expert II"); RRG 1.8 "Modes of
+   Play" (p. 28) adds "the Expert encounter set" in expert mode and "Standard Set" (p. 40) says it "is added to most
+   scenarios", which the insert's "instead" substitutes into. So: **each is an optional replacement, chosen by the
+   players at setup, independently of the other, in any scenario that requires the set it replaces (not only The
+   Hood), and never added where no Standard/Expert set is required** (The Wrecking Crew). **Implemented as**
+   `DifficultySetChoice { standard?, expert? }` (`@mc/content` `schema/modes.ts`, `difficultyEncounterSetIds`,
+   `difficultySetChoiceErrors`), read by every scenario builder through `CoreScenarioOptions.difficultySets` (Core,
+   waves 1-4, Tower Defense; wave 4's builders refuse a set of the wrong classification, `checkWave4DifficultySets`).
+   **Default: the printed Standard / Expert sets** (absent choice). Expert mode now also reaches the engine from the
+   Core, `mts` and Tower Defense builders (`GameSetupConfig.difficulty`), so Standard II's Formidable Foe enters play
+   on its Expert face in an expert game on any scenario. **Client:** the setup screen needs two toggles ("Standard II
+   instead of Standard", "Expert II instead of Expert", the latter shown only in expert mode), offered once The Hood's
+   cards are in the playable pool (§5). Scripted: `hood/standard-expert-ii.ts` (§3.50, §3.51 were found on the way).
 6. **An eliminated player in the expert campaign** (§2.2): MC21 p. 25 lets them rejoin "by placing an acceleration token";
    the gate lets them decline the heal and start at 0 hit points. Proposed: an identity whose recorded hit points are 0
    must take the heal.
@@ -1815,7 +1876,8 @@ Each is implemented the way stated, or not at all, and named here rather than de
   per-villain decks. Script each pack once its §3 primitives are "landed"; §3.23 lists what composes today.
 - **`rules-qa-engineer`:** a Tower Defense test where both villains reach 0 in one attack (§3.3); a Loki swap carrying
   attachments, status cards and the dial (§3.7); the campaign's full run, retry and permanent removal.
-- **`game-client-engineer`:** energy/mass form display and the form choice (§3.1); two main schemes and the Focused
+- **`game-client-engineer`:** the Standard II / Expert II setup toggles, `difficultySets` (§4 Q5); energy/mass form
+  display and the form choice (§3.1); two main schemes and the Focused
   Defense marker (§3.2); damage on Avengers Tower (§3.5); the Infinity Stone deck and its discard pile (§3.6); Loki's
   set-aside versions and the victory count (§3.7); Odin on the main scheme (§3.8); an ally shown as a minion (§3.9);
   MC21's campaign-pool design pass (`docs/campaign-client-per-box.md` §3: Dossier and Briefing).
