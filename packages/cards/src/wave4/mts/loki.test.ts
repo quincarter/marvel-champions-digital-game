@@ -33,11 +33,9 @@ import { spectrumScenario } from "./support.js";
  * entry (`GameState.villains[].cardId`, which `advanceToSetAsideVillain`/`swapVillain` read) and its `CardInstance`
  * (which ability lookup reads) — either alone leaves the two out of sync and the wrong ability fires.
  *
- * **21160–21164's own "When Defeated" only fires when there is nothing left to advance to.** `on.defeated` here is
- * a Forced Interrupt (RRG "Forced Interrupt" always precedes the event it names), and `advanceToSetAsideVillain`
- * resets the dial to 0 as part of replacing the card, so a genuine defeat never actually completes while a
- * set-aside Loki remains to swap in — proven empirically (a defeat with `encounterSetAside` cleared resolves both
- * the main scheme's Forced Interrupt, which does nothing with no candidate, and the stage's own When Defeated).
+ * **A Loki's own "When Defeated" resolves on every defeat**, also when All Hail King Loki 1B advances to a set-aside
+ * Loki: both are forced interrupts to the same defeat (RRG 1.8 "When Defeated Abilities", p. 48), and the advance
+ * no longer pre-empts it (docs/phase7-wave4.md §3.48).
  */
 const lokiGame = (seed: number) => startWave4Game(spectrumScenario("loki", { seed }));
 
@@ -208,6 +206,29 @@ describe("§3.7 All Hail King Loki 1B (21165b)", () => {
     const after = defeatWithAttack(deps, hero, state.activeVillainId);
     expectResolved(trace, "21165b.all-hail-king-loki-constant");
     expect(after.outcome?.result).toBe("win");
+  });
+
+  it("Loki I defeated with others set aside: his When Defeated reveals a side scheme, the next Loki comes in, and he is in the victory display (21160.when-defeated with 21165b.all-hail-king-loki-forced-interrupt)", () => {
+    const state0 = forceLoki(lokiGame(1), "21160");
+    // No side scheme in play, so Loki I can take damage (his own constant); the set-aside Lokis stay.
+    const state = {
+      ...state0,
+      villainArea: state0.villainArea.filter((id) => state0.instances[id]?.cardId !== ("21167" as never)),
+    };
+    const staged = stackEncounterDeck(state, "01186", "21168");
+    const hero = settle(runWave4(staged, toHero(P1)), firstLegal, undefined, WAVE4_DEPS);
+    const { deps, trace } = traceAbilities(WAVE4_DEPS);
+    const after = defeatWithAttack(deps, hero, hero.activeVillainId);
+    expectResolved(trace, "21165b.all-hail-king-loki-forced-interrupt");
+    expectResolved(trace, "21160.when-defeated");
+    expect(after.villainArea.some((id) => after.instances[id]?.cardId === cardId("21168"))).toBe(true);
+    // A set-aside Loki took over (`forceLoki` leaves the original starter's card in the set-aside pool, so the next
+    // one may carry any Loki code): the villain is undefeated, at full health, and the set-aside pool is one smaller.
+    expect(after.villains[0]!.defeated).toBe(false);
+    expect(after.instances[after.activeVillainId]!.damage).toBe(0);
+    expect(after.encounterSetAside.length).toBe(hero.encounterSetAside.length - 1);
+    expect(after.victoryDisplay.map((id) => after.instances[id]?.cardId)).toEqual([cardId("21160")]);
+    expect(after.outcome).toBeNull();
   });
 
   it("with nothing left set aside, a genuine defeat resolves normally (proves the stage's own When Defeated can fire)", () => {
@@ -455,6 +476,41 @@ describe("Infinite Mischief (21175)", () => {
     const after = settle(runWith(deps, staged, endTurn(P1)), firstLegal, undefined, deps);
     expectResolved(trace, "21175.boost");
     expect(after.scenarioDecks["Infinity Stone"]!.deck.length).toBeLessThan(stoneDeckBefore);
+  });
+
+  it("21175.when-revealed: shuffles the infinity stone discard pile back into its deck and reveals the top card", () => {
+    const state = lokiGame(3);
+    const piles = state.scenarioDecks["Infinity Stone"]!;
+    // Two stones in the Infinity Stone discard pile (surgery for reach).
+    const moved = piles.deck.slice(0, 2);
+    const staged0: GameState = {
+      ...state,
+      scenarioDecks: {
+        ...state.scenarioDecks,
+        "Infinity Stone": { ...piles, deck: piles.deck.slice(2), discard: [...piles.discard, ...moved] },
+      },
+    };
+    const inPlay = (s: GameState) => [...s.villainArea, ...s.players.flatMap((p) => p.playArea)];
+    const isStone = (s: GameState, id: InstanceId) => INFINITY_STONES.includes(s.instances[id]?.cardId as string);
+    // `revealTopEncounterCard` clears the stones in play before the villain phase, so two stones leave the deck
+    // this round: the Infinity Gauntlet's own "otherwise, put the top card of the infinity stone deck into play"
+    // (21129, after the villain activates with no stone in play) and Infinite Mischief's reveal after its shuffle.
+    const noStones = { ...staged0, villainArea: staged0.villainArea.filter((id) => !isStone(staged0, id)) };
+    const { deps, trace } = traceAbilities(WAVE4_DEPS);
+    const after = settle(
+      runWith(deps, stackEncounterDeck(noStones, "21166", "21175"), endTurn(P1)),
+      firstLegal,
+      undefined,
+      deps,
+    );
+    expectResolved(trace, "21129.infinity-gauntlet-forced-response");
+    expectResolved(trace, "21175.when-revealed");
+    const stoneDeck = after.scenarioDecks["Infinity Stone"]!;
+    expect(stoneDeck.discard).toHaveLength(0);
+    // The two discarded stones were shuffled back, so none is lost: each is in the deck or was revealed into play.
+    for (const id of moved) expect(stoneDeck.deck.includes(id) || inPlay(after).includes(id)).toBe(true);
+    expect(stoneDeck.deck).toHaveLength(piles.deck.length - 2);
+    expect(inPlay(after).filter((id) => isStone(after, id))).toHaveLength(2);
   });
 });
 

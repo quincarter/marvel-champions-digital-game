@@ -1154,7 +1154,7 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
     case "advanceToSetAsideVillain": {
       for (const id of targets(effect.villain)) {
         if (!villainOf(ctx.state, id)) continue;
-        const frames = advanceToSetAsideVillain(ctx, id);
+        const frames = advanceToSetAsideVillain(ctx, id, frame.event);
         if (frames) pushFrames(ctx, frames);
       }
       return;
