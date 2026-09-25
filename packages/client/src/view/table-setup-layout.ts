@@ -81,6 +81,8 @@ export const MODULAR_CARD_HEIGHT = 58;
 const MODULAR_CARD_MIN_WIDTH = 170;
 /** A seat card: a radio dot, the hero's name, and a small "FIRST PLAYER"/"SEAT N" label. Wide only — narrow uses `NARROW_SEATING_CARD_HEIGHT`. */
 export const SEAT_CARD_HEIGHT = 60;
+/** The Standard II/Expert II toggle row (wide, docs/phase7-wave4.md §4 Q5): a single full-width card, name plus a one-line state description — right under the Difficulty row, only for a scenario whose pack has an alternate. */
+export const ALT_DIFFICULTY_ROW_HEIGHT = 56;
 /** One row inside a description-only panel (Composition / What's in there / Nemesis / the sidebar's own summary rows). */
 export const PANEL_ROW_HEIGHT = 18;
 export const PANEL_HEADER_HEIGHT = 22;
@@ -110,6 +112,10 @@ export interface TableSetupLayoutInput {
   readonly whatsInThereRows: number;
   /** The nemesis panel's own body: 0 when there's nothing held back (the panel still gets its header), else the wrapped sentence's line count plus one for the "N CARDS ON STANDBY" foot line. */
   readonly nemesisLines: number;
+  /** Standard II/Expert II (docs/phase7-wave4.md §4 Q5): true only for a scenario whose pack has an alternate. Wide only — defaults to `false`. */
+  readonly hasAlternateDifficultySets?: boolean;
+  /** The Hood's own "choose which modular sets are in" candidate count (`view/hood-modular-sets.ts`) — 0 for every other scenario. Wide only — defaults to `0`. */
+  readonly hoodSetCount?: number;
 }
 
 export interface EncounterPanelsLayout {
@@ -130,7 +136,14 @@ export interface TableSetupLayout {
   readonly sidebar: Rect | null;
   readonly difficultyHeader: Rect;
   readonly difficultyRow: Rect;
+  /** Standard II/Expert II (docs/phase7-wave4.md §4 Q5): a full-width toggle row right under `difficultyRow`, wide only — zero-area unless `TableSetupLayoutInput.hasAlternateDifficultySets`. */
+  readonly difficultyAltRow: Rect;
   readonly modularHeader: Rect;
+  /** The Hood's own "choose which modular sets are in" section header (`view/hood-modular-sets.ts`), wide only — zero-area unless `TableSetupLayoutInput.hoodSetCount` is above 0. */
+  readonly hoodHeader: Rect;
+  readonly hoodGrid: Rect;
+  readonly hoodColumns: number;
+  readonly hoodRows: number;
   readonly seatingHeader: Rect;
   /**
    * The "Random" control. On `wide` it sits on the seating header's own line
@@ -172,6 +185,11 @@ export function tableSetupLayoutRects(layout: TableSetupLayout): readonly Rect[]
     layout.modularHeader,
     layout.modularGrid,
     layout.seatingHeader,
+    // Zero-area unless offered (`hasAlternateDifficultySets`/`hoodSetCount`) — a zero-height/width rect can still
+    // register as "overlapping" a sibling whose y/x-range it sits strictly inside (`rectsOverlap`'s own strict
+    // inequalities), so these are only added to the overlap check when they're real, drawn rects.
+    ...(layout.difficultyAltRow.height > 0 ? [layout.difficultyAltRow] : []),
+    ...(layout.hoodHeader.height > 0 ? [layout.hoodHeader, layout.hoodGrid] : []),
     layout.randomControl,
     layout.seatingRow,
     layout.encounterHeader,
@@ -236,11 +254,22 @@ function wideLayout(input: TableSetupLayoutInput, formFactor: FormFactor): Table
   const bodyLeft = GUTTER;
   const bodyWidth = sidebar.x - GUTTER - bodyLeft;
 
+  const hasAlternateDifficultySets = input.hasAlternateDifficultySets ?? false;
+  const hoodSetCount = input.hoodSetCount ?? 0;
+
   let y = bodyTop;
   const difficultyHeader: Rect = { x: bodyLeft, y, width: bodyWidth, height: SECTION_HEADER_HEIGHT };
   y += SECTION_HEADER_HEIGHT + 8;
   const difficultyRow: Rect = { x: bodyLeft, y, width: bodyWidth, height: DIFFICULTY_CARD_HEIGHT };
-  y += DIFFICULTY_CARD_HEIGHT + SECTION_GAP;
+  y += DIFFICULTY_CARD_HEIGHT;
+
+  // Standard II/Expert II (docs/phase7-wave4.md §4 Q5): a full-width toggle row right under the difficulty cards,
+  // only for a scenario whose pack has an alternate — every other scenario's layout is unchanged (zero-area rect).
+  const difficultyAltRow: Rect = hasAlternateDifficultySets
+    ? { x: bodyLeft, y: y + ROW_GAP, width: bodyWidth, height: ALT_DIFFICULTY_ROW_HEIGHT }
+    : { x: bodyLeft, y, width: 0, height: 0 };
+  if (hasAlternateDifficultySets) y += ROW_GAP + ALT_DIFFICULTY_ROW_HEIGHT;
+  y += SECTION_GAP;
 
   const modularHeader: Rect = { x: bodyLeft, y, width: bodyWidth, height: SECTION_HEADER_HEIGHT };
   y += SECTION_HEADER_HEIGHT + 8;
@@ -253,6 +282,21 @@ function wideLayout(input: TableSetupLayoutInput, formFactor: FormFactor): Table
     height: modularRows * MODULAR_CARD_HEIGHT + (modularRows - 1) * ROW_GAP,
   };
   y += modularGrid.height + SECTION_GAP;
+
+  // The Hood's own "choose which modular sets are in" (docs/phase7-wave4.md §2.3, §3.18): its own header and grid,
+  // right under Modular sets, only for a scenario with the choice at all (`hoodSetCount` 0 otherwise).
+  const hoodColumns = hoodSetCount > 0 ? modularColumnsFor(bodyWidth) : 0;
+  const hoodRows = hoodSetCount > 0 ? Math.max(1, Math.ceil(hoodSetCount / hoodColumns)) : 0;
+  const hoodHeader: Rect =
+    hoodSetCount > 0
+      ? { x: bodyLeft, y, width: bodyWidth, height: SECTION_HEADER_HEIGHT }
+      : { x: bodyLeft, y, width: 0, height: 0 };
+  if (hoodSetCount > 0) y += SECTION_HEADER_HEIGHT + 8;
+  const hoodGrid: Rect =
+    hoodSetCount > 0
+      ? { x: bodyLeft, y, width: bodyWidth, height: hoodRows * MODULAR_CARD_HEIGHT + (hoodRows - 1) * ROW_GAP }
+      : { x: bodyLeft, y, width: 0, height: 0 };
+  if (hoodSetCount > 0) y += hoodGrid.height + SECTION_GAP;
 
   const randomWidth = 90;
   const seatingHeader: Rect = { x: bodyLeft, y, width: bodyWidth - randomWidth - 10, height: SECTION_HEADER_HEIGHT };
@@ -325,7 +369,12 @@ function wideLayout(input: TableSetupLayoutInput, formFactor: FormFactor): Table
     sidebar,
     difficultyHeader,
     difficultyRow,
+    difficultyAltRow,
     modularHeader,
+    hoodHeader,
+    hoodGrid,
+    hoodColumns,
+    hoodRows,
     seatingHeader,
     randomControl,
     modularGrid,
@@ -500,7 +549,15 @@ function narrowLayout(input: TableSetupLayoutInput, formFactor: FormFactor): Tab
     sidebar: null,
     difficultyHeader,
     difficultyRow,
+    // Standard II/Expert II and The Hood's own modular-set choice are wide-layout only today (`wideLayout`'s own
+    // doc comment) — narrow (tablet portrait) keeps its existing composition unchanged, so these are always
+    // zero-area here regardless of `hasAlternateDifficultySets`/`hoodSetCount`.
+    difficultyAltRow: { x: left, y: difficultyRow.y, width: 0, height: 0 },
     modularHeader,
+    hoodHeader: { x: left, y: modularHeader.y, width: 0, height: 0 },
+    hoodGrid: { x: left, y: modularHeader.y, width: 0, height: 0 },
+    hoodColumns: 0,
+    hoodRows: 0,
     seatingHeader,
     randomControl,
     modularGrid,

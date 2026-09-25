@@ -12,6 +12,7 @@ import { accent, border, surface, typeRole } from "../tokens.js";
 import type { Rect } from "../view/layout.js";
 import type { BubblePlacement, ComicBeat, PagePoint } from "../campaign/story.js";
 import type { ComicReaderStepView } from "../view/comic-reader-model.js";
+import { containFit, panCropAt, panelFitsInPageCrop, planPan } from "../view/comic-pan.js";
 import { campaignPagePicture, captionBox, speechBubble } from "./campaign-chrome.js";
 import { setMask } from "./rex.js";
 import { textStyle } from "./theme.js";
@@ -38,6 +39,23 @@ export interface ComicReaderTween {
 }
 
 /**
+ * The **within-beat** camera pan for a spotlight (unlettered) page whose current panel doesn't fit the page's own
+ * cover-fit crop (`view/comic-pan.ts`): `t` is the caller's own auto-running progress (0 at the panel's own top/left,
+ * 1 at its bottom/right — `opener.ts` drives this off a Phaser tween the moment a beat like this becomes current, so
+ * every part of an overflowing panel is shown at some point without a player having to do anything). `reducedMotion`
+ * skips the pan entirely and falls back to a static, whole-panel contain-fit (letterboxed) instead — motion off
+ * means "never crop," not "the same crop, held still." Ignored when the panel already fits the page-level crop
+ * (the ordinary case, e.g. GMW), and ignored for a lettered page (that pans panel-to-panel over `ComicReaderTween`,
+ * a different pan already keyed to the player's own advance rather than the current beat's).
+ */
+export interface SpotlightPan {
+  readonly t: number;
+  readonly reducedMotion: boolean;
+}
+
+const NO_SPOTLIGHT_PAN: SpotlightPan = { t: 0, reducedMotion: false };
+
+/**
  * Draws one step into `rect`.
  *
  * A **lettered** page (`step.page.lettered`, MC10's official rulebook pages) is drawn as a guided view: the
@@ -62,8 +80,17 @@ export function drawComicReaderStep(
   step: ComicReaderStepView,
   onReady: () => void,
   tween?: ComicReaderTween,
+  spotPan?: SpotlightPan,
 ): ComicReaderDrawResult {
-  return drawComicReaderPicture(scene, rect, campaignPagePicture(campaignId, step.page.file), step, onReady, tween);
+  return drawComicReaderPicture(
+    scene,
+    rect,
+    campaignPagePicture(campaignId, step.page.file),
+    step,
+    onReady,
+    tween,
+    spotPan,
+  );
 }
 
 /**
@@ -77,6 +104,7 @@ export function drawComicReaderPicture(
   step: ComicReaderStepView,
   onReady: () => void,
   tween?: ComicReaderTween,
+  spotPan?: SpotlightPan,
 ): ComicReaderDrawResult {
   scene.add.rectangle(rect.x, rect.y, rect.width, rect.height, surface.ink.hex).setOrigin(0, 0);
   if (rect.width <= 0 || rect.height <= 0) return { lit: null };
@@ -86,12 +114,43 @@ export function drawComicReaderPicture(
 
   const source = scene.textures.get(key).getSourceImage() as { width: number; height: number };
   if (step.page.lettered) return drawGuidedStep(scene, rect, key, source, step, tween);
-  return drawSpotlightStep(scene, rect, key, source, step);
+  return drawSpotlightStep(scene, rect, key, source, step, spotPan ?? NO_SPOTLIGHT_PAN);
+}
+
+/**
+ * The spotlight (unlettered) draw: when the current panel fits inside the page's own cover-fit crop window
+ * (`view/comic-pan.ts`'s `panelFitsInPageCrop` — the ordinary case, GMW today), the whole page is cover-fit and
+ * recentered on the panel exactly as before (just clamped so the panel is never partly outside the window, rather
+ * than blindly centered past it). When it doesn't (a dense MTS spread whose panel is proportioned nothing like the
+ * reading area), the reader instead fills the frame with the *panel's* own cover-fit and pans the excess along
+ * whichever axis overflows (`drawSpotlightPan`) — or, under reduced motion, holds the whole panel letterboxed
+ * (`drawSpotlightContain`) rather than crop or animate.
+ */
+function drawSpotlightStep(
+  scene: Phaser.Scene,
+  rect: Rect,
+  key: string,
+  source: { width: number; height: number },
+  step: ComicReaderStepView,
+  spotPan: SpotlightPan,
+): ComicReaderDrawResult {
+  const fitsInPage = panelFitsInPageCrop(step.panel, { width: step.page.width, height: step.page.height }, rect);
+  if (fitsInPage) return drawSpotlightPageContext(scene, rect, key, source, step);
+  return spotPan.reducedMotion
+    ? drawSpotlightContain(scene, rect, key, source, step)
+    : drawSpotlightPan(scene, rect, key, source, step, spotPan.t);
 }
 
 /** GMW's own draw, unchanged: cover-fit the whole page, recenter on the current panel, spotlight and dim, then
- * the reader's own caption/lines/SFX. */
-function drawSpotlightStep(
+ * the reader's own caption/lines/SFX. Only reached once `panelFitsInPageCrop` has already established the panel
+ * lands acceptably in this crop (a full-bleed panel, or a sub-panel the page-level window is big enough for) — this
+ * function itself is deliberately the exact pre-existing math, not reworked to also try to fully contain an
+ * arbitrary sub-panel: an earlier version of this fix clamped the crop to guarantee that, and it traded one
+ * GMW page's own already-fine crop (a few pixels of a panel's own edge, invisibly outside the frame) for a worse
+ * one (Groot's own head, now cut) on `01-badoon`'s third panel — biasing crop position by geometry alone, with no
+ * sense of where a panel's *content* actually sits, isn't reliably better than the plain center this always used.
+ */
+function drawSpotlightPageContext(
   scene: Phaser.Scene,
   rect: Rect,
   key: string,
@@ -140,6 +199,71 @@ function drawSpotlightStep(
   }
 
   if (lit.width > 0 && lit.height > 0) drawStepContent(scene, rect, lit, step);
+  return { lit };
+}
+
+/**
+ * The full-bleed guided pan for a spotlight panel that doesn't fit the page's own crop (`view/comic-pan.ts`):
+ * fills `rect` with the panel's own cover-fit and pans the overflowing axis to `t` — the caller's own auto-running
+ * progress. No dimming or spotlight border (the panel already fills the whole reading area), same caption/lines/SFX
+ * overlay as the page-context draw.
+ */
+function drawSpotlightPan(
+  scene: Phaser.Scene,
+  rect: Rect,
+  key: string,
+  source: { width: number; height: number },
+  step: ComicReaderStepView,
+  t: number,
+): ComicReaderDrawResult {
+  const panel = step.panel;
+  const plan = planPan(panel, { width: rect.width, height: rect.height }, step.pan ?? undefined);
+  const raw = panCropAt(panel, plan, t);
+  const cropX = clamp(0, Math.max(0, source.width - 1), raw.cropX);
+  const cropY = clamp(0, Math.max(0, source.height - 1), raw.cropY);
+  const cropWidth = clamp(1, source.width - cropX, raw.cropWidth);
+  const cropHeight = clamp(1, source.height - cropY, raw.cropHeight);
+  const imageX = rect.x - cropX * plan.scale;
+  const imageY = rect.y - cropY * plan.scale;
+  scene.add
+    .image(imageX, imageY, key)
+    .setOrigin(0, 0)
+    .setScale(plan.scale)
+    .setCrop(cropX, cropY, cropWidth, cropHeight);
+
+  const lit: Rect = { x: rect.x, y: rect.y, width: rect.width, height: rect.height };
+  drawStepContent(scene, rect, lit, step);
+  return { lit };
+}
+
+/**
+ * The reduced-motion fallback for a spotlight panel that doesn't fit the page's own crop: the whole panel, fit
+ * (never cover-cropped) inside `rect` and letterboxed on whichever axis doesn't match — the same "never crop"
+ * shape as the lettered guided view's own `drawGuidedStep`, just without its panel-to-panel tween.
+ */
+function drawSpotlightContain(
+  scene: Phaser.Scene,
+  rect: Rect,
+  key: string,
+  source: { width: number; height: number },
+  step: ComicReaderStepView,
+): ComicReaderDrawResult {
+  const panel = step.panel;
+  const { scale, drawWidth, drawHeight } = containFit(panel, rect);
+  const offsetX = rect.x + (rect.width - drawWidth) / 2;
+  const offsetY = rect.y + (rect.height - drawHeight) / 2;
+  const cropX = clamp(0, Math.max(0, source.width - 1), panel.x);
+  const cropY = clamp(0, Math.max(0, source.height - 1), panel.y);
+  const cropWidth = clamp(1, source.width - cropX, panel.w);
+  const cropHeight = clamp(1, source.height - cropY, panel.h);
+  scene.add
+    .image(offsetX - cropX * scale, offsetY - cropY * scale, key)
+    .setOrigin(0, 0)
+    .setScale(scale)
+    .setCrop(cropX, cropY, cropWidth, cropHeight);
+
+  const lit: Rect = { x: offsetX, y: offsetY, width: drawWidth, height: drawHeight };
+  drawStepContent(scene, rect, lit, step);
   return { lit };
 }
 
@@ -347,4 +471,64 @@ function drawPlacedBubble(
   );
   const pointAt = line.speaker.kind === "narrator" ? undefined : toScreen(placement.speaker);
   speechBubble(scene, x, y, width, line.text, { ...options, ...(pointAt ? { pointAt } : {}) });
+}
+
+/** How long a spotlight panel's own within-beat pan (`SpotlightAutoPan`) takes to cross the whole overflow. */
+const SPOTLIGHT_PAN_DURATION_MS = 3200;
+
+/**
+ * Drives a spotlight panel's own within-beat pan (`SpotlightPan`) as a Phaser tween: call `progressFor` every
+ * redraw with the step about to be drawn — starts (or restarts) the pan the moment the current beat's own panel
+ * changes, runs once to completion and then holds at `t = 1` until the next beat changes it again. Reduced motion
+ * never starts a tween at all (`t` stays 0 and `drawSpotlightStep` falls back to a static contain-fit instead of
+ * animating a crop — motion off means "never crop," not "the same crop, held still").
+ *
+ * One instance per scene (`opener.ts`, `aftermath.ts`, `scenario-intro.ts` each own one, the same shape as their
+ * existing `#panTween` field for the lettered guided view's own panel-to-panel pan): call `destroy` on shutdown to
+ * stop its own tween without touching the scene's others.
+ */
+export class SpotlightAutoPan {
+  readonly #scene: Phaser.Scene;
+  readonly #onTick: () => void;
+  #key: string | null = null;
+  #tween: Phaser.Tweens.Tween | null = null;
+  #t = 0;
+
+  constructor(scene: Phaser.Scene, onTick: () => void) {
+    this.#scene = scene;
+    this.#onTick = onTick;
+  }
+
+  progressFor(step: ComicReaderStepView, reducedMotion: boolean): SpotlightPan {
+    const key = `${step.page.file}:${step.panel.x},${step.panel.y},${step.panel.w},${step.panel.h}`;
+    if (key !== this.#key) {
+      this.#key = key;
+      this.#tween?.stop();
+      this.#tween = null;
+      this.#t = 0;
+      if (!reducedMotion) {
+        const state = { t: 0 };
+        this.#tween = this.#scene.tweens.add({
+          targets: state,
+          t: 1,
+          duration: SPOTLIGHT_PAN_DURATION_MS,
+          ease: "Sine.easeInOut",
+          onUpdate: () => {
+            this.#t = state.t;
+            this.#onTick();
+          },
+          onComplete: () => {
+            this.#tween = null;
+          },
+        });
+      }
+    }
+    return { t: this.#t, reducedMotion };
+  }
+
+  /** Stops the in-flight tween, if any — the scene's own SHUTDOWN handler, matching `#panTween?.stop()`. */
+  destroy(): void {
+    this.#tween?.stop();
+    this.#tween = null;
+  }
 }

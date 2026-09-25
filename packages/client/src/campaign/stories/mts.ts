@@ -88,8 +88,9 @@ const PAGES: readonly ComicPage[] = [
         lines: [{ speaker: VILLAIN, text: "Bring me the Stones. Bring me every one." }],
       },
       {
-        // Middle: Thanos's fists close over the gauntlet.
-        panel: { x: 0, y: 822, w: 1500, h: 310 },
+        // Middle: Thanos's fists close over the gauntlet — his close-up head (and Ebony Maw's, walking off in the
+        // background) breaks out above beat 0's own throne-room panel border, reaching up to about y=700.
+        panel: { x: 0, y: 700, w: 1500, h: 432 },
         lines: [],
       },
       {
