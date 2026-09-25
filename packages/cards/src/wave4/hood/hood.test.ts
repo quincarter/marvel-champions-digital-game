@@ -379,16 +379,15 @@ describe("The Hood (villain, main scheme and The Hood's own encounter set)", () 
   });
 
   it("24012.when-revealed: shuffles a set-aside set in and resolves Foul Play", () => {
-    // NOTE: "Remove this card from the game" is scripted (`moveCards(cards(self), "removedFromGame")`) but a
-    // pre-existing engine behavior in `resolve/reveal.ts`'s reveal-frame "finish" stage unconditionally re-discards
-    // ANY still-existing treachery instance after its When Revealed resolves, without checking whether an effect
-    // already relocated it — so the card ends up in the encounter discard pile instead of `removedFromGame` here.
-    // Flagged for `game-rules-architect`; not a scripting gap (the ability itself issues the right effect).
+    // "Remove this card from the game" sticks: the reveal's finish discards only a treachery still where its reveal
+    // found it (docs/phase7-wave4.md §3.45).
     const base = onStage(game(), 0);
     const before = base.setAsideModularSets!.length;
     const staged = stackTop(base, "01186", "24012");
     const revealed = settle(runWave4(staged, { type: "endTurn", playerId: P1 }), firstLegal, undefined, WAVE4_DEPS);
     expect(revealed.setAsideModularSets!.length).toBe(before - 1);
+    const recruitment = Object.values(revealed.instances).find((i) => i.cardId === ("24012" as never))!.instanceId;
+    expect(revealed.removedFromGame).toContain(recruitment);
   });
 
   it("24012.boost: after this activation ends, resolve Foul Play", () => {
