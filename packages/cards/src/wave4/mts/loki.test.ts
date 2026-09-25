@@ -487,7 +487,7 @@ describe("Infinite Mischief (21175)", () => {
       ...state,
       scenarioDecks: {
         ...state.scenarioDecks,
-        "Infinity Stone": { deck: piles.deck.slice(2), discard: [...piles.discard, ...moved] },
+        "Infinity Stone": { ...piles, deck: piles.deck.slice(2), discard: [...piles.discard, ...moved] },
       },
     };
     const inPlay = (s: GameState) => [...s.villainArea, ...s.players.flatMap((p) => p.playArea)];
