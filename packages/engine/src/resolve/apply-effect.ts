@@ -1489,6 +1489,16 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
             : f,
         );
       }
+      if (effect.assignOwnerTo) {
+        const [owner] = resolvePlayers(ctx.state, effect.assignOwnerTo, context);
+        if (owner) {
+          for (const id of ids) {
+            if (getInstance(ctx.state, id)?.ownerId === null) {
+              updateInstance(ctx, id, (i) => ({ ...i, ownerId: owner, controllerId: owner }));
+            }
+          }
+        }
+      }
       moveCardsTo(ctx, ids, effect.to);
       return;
     }
