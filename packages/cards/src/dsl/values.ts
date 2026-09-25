@@ -84,6 +84,8 @@ export const theVillain: TargetRef = { kind: "villain" };
  * Empty for an undefended attack or outside an enemy attack. Works in a Boost ability, which has no triggering event.
  */
 export const defendingCharacter: TargetRef = { kind: "defendingCharacter" };
+/** "The attacking enemy" from a trigger that is not the attack's own (Flow Like Water; docs/phase7-wave4.md §3.34). */
+export const attackingEnemy: TargetRef = { kind: "attackingEnemy" };
 export const theMainScheme: TargetRef = { kind: "mainScheme" };
 /**
  * The central main scheme stage, outside every separate game area (docs/phase7-wave2.md §3.1): "place 1 set-aside

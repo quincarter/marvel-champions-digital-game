@@ -1,5 +1,5 @@
 import type { AbilityReference, AnyCard, Trait } from "@mc/content";
-import { DEFAULT_DEPS, type EngineDeps, type RuleSpec } from "./abilities.js";
+import { type AbilityTriggerSpec, DEFAULT_DEPS, type EngineDeps, type RuleSpec } from "./abilities.js";
 import type { InstanceId, PlayerId } from "./ids.js";
 import { activeFormType, hasKeyword, printedFormTypes } from "./keywords.js";
 import {
@@ -52,9 +52,10 @@ import type {
   TargetQuery,
   TargetRef,
   ValueSpec,
+  AbilityTimingWord,
 } from "./spec.js";
 import { characterTitledAs, identityCardTitledAs } from "./titles.js";
-import { STATUS_NAMES, type GameAreaState, type GameState } from "./state.js";
+import { STATUS_NAMES, type Form, type GameAreaState, type GameState } from "./state.js";
 import type { TriggerEvent } from "./trigger-events.js";
 import { eventSubjects } from "./trigger-events.js";
 
@@ -178,6 +179,27 @@ export function categoriesOf(state: GameState, id: InstanceId): readonly TargetC
  */
 export function isAlly(state: GameState, id: InstanceId): boolean {
   return categoriesOf(state, id).includes("ally");
+}
+
+/** The printed timing word of an ability's trigger, or null for one with none (a constant, When Revealed, …; §3.33). */
+export function timingWordOf(trigger: AbilityTriggerSpec): AbilityTimingWord | null {
+  const form = (base: "action" | "interrupt" | "response" | "resource", f: Form | undefined): AbilityTimingWord =>
+    f === "hero"
+      ? (`hero${base[0]!.toUpperCase()}${base.slice(1)}` as AbilityTimingWord)
+      : f === "alterEgo"
+        ? (`alterEgo${base[0]!.toUpperCase()}${base.slice(1)}` as AbilityTimingWord)
+        : base;
+  switch (trigger.kind) {
+    case "action":
+    case "resource":
+      return form(trigger.kind, trigger.form);
+    case "interrupt":
+      return trigger.forced ? "forcedInterrupt" : form("interrupt", trigger.form);
+    case "response":
+      return trigger.forced ? "forcedResponse" : form("response", trigger.form);
+    default:
+      return null;
+  }
 }
 
 function printedTraitsOf(state: GameState, id: InstanceId): readonly Trait[] {
@@ -354,6 +376,8 @@ export type QueryExclusion =
   | "wrongFacedown"
   /** The card prints no form keyword of the query's `printedForm` type (docs/phase7-wave4.md §3.1). */
   | "wrongForm"
+  /** No ability with one of the query's `abilityTiming` words (docs/phase7-wave4.md §3.33). */
+  | "noSuchAbility"
   | "wrongStarIcon"
   | "wrongUnique"
   | "notHostOfSelf"
@@ -436,6 +460,16 @@ export function explainQuery(
   if (query.printedId !== undefined && instance.cardId !== query.printedId) return "wrongPrintedId";
   if (query.facedown !== undefined && (instance.facedownAs !== null) !== query.facedown) return "wrongFacedown";
   if (query.printedForm !== undefined && !printedFormTypes(state, id).includes(query.printedForm)) return "wrongForm";
+  if (query.abilityTiming !== undefined) {
+    const wanted = query.abilityTiming;
+    const deps = context.deps ?? DEFAULT_DEPS;
+    const has = activeAbilityRefs(state, id, deps).some((ref) => {
+      const trigger = deps.abilities[ref.id]?.trigger;
+      const word = trigger ? timingWordOf(trigger) : null;
+      return word !== null && wanted.includes(word);
+    });
+    if (!has) return "noSuchAbility";
+  }
   // "If that card has a star icon (★) in the boost area" (Longshot, `wolv`). A printed fact (`hasStarIcon`), not a
   // read of the ability registry: see docs/phase7-wave2.md §18.6. RRG 1.8 "Boost, Boost Icon" (p. 11) — a star is not
   // a boost icon, so this clause says nothing about the card's pip count.
@@ -1015,6 +1049,13 @@ export function resolveRef(state: GameState, ref: TargetRef, context: EffectCont
       if (attack?.kind !== "event") return [];
       const inPlay = cardsInPlay(state);
       return (attack.slots[DEFENDER_SLOT] ?? []).filter((id) => inPlay.includes(id));
+    }
+    case "attackingEnemy": {
+      // docs/phase7-wave4.md §3.34: the sibling of `defendingCharacter`, the same innermost attack.
+      const attack = state.stack.find((f) => f.kind === "event" && f.event.kind === "enemyAttack");
+      if (attack?.kind !== "event" || attack.event.kind !== "enemyAttack") return [];
+      const enemy = attack.event.enemyInstanceId;
+      return cardsInPlay(state).includes(enemy) ? [enemy] : [];
     }
     case "villain": {
       // "The villain" is the active villain (The Wrecking Crew insert, "The Active Villain"); in a separate game area,

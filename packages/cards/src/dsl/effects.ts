@@ -154,13 +154,20 @@ export const attack = (
 export const thwart = (
   n: Amount,
   target: TargetRef,
-  opts: { readonly thwarter?: TargetRef; readonly bind?: string; readonly ignoreCrisis?: boolean } = {},
+  opts: {
+    readonly thwarter?: TargetRef;
+    readonly bind?: string;
+    readonly ignoreCrisis?: boolean;
+    /** "…, ignoring the patrol keyword" (Just Passing Through, `vision` 26010; docs/phase7-wave4.md §3.32). */
+    readonly ignorePatrol?: boolean;
+  } = {},
 ): EffectSpec => ({
   kind: "thwart",
   target,
   amount: amount(n),
   ...(opts.thwarter ? { thwarter: opts.thwarter } : {}),
   ...(opts.ignoreCrisis ? { ignoreCrisis: true } : {}),
+  ...(opts.ignorePatrol ? { ignorePatrol: true } : {}),
   ...withBind(opts.bind),
 });
 
@@ -382,6 +389,15 @@ export const treatAsAlly = (target: TargetRef, traits: readonly Trait[], consequ
   traits,
   thwFromSch: true,
   consequential,
+});
+/**
+ * "When a boost card on an enemy attacking you would be turned faceup, discard it instead." (Defiance, `vision`
+ * 26018): the boost card resolving now is discarded, its Boost ability and icons never applied. docs/phase7-wave4.md
+ * §3.35.
+ */
+export const discardBoostCard = (opts: { readonly bind?: string } = {}): EffectSpec => ({
+  kind: "discardBoostCard",
+  ...withBind(opts.bind),
 });
 export const friendlyCharacterAttacks = (
   attacker: TargetRef,

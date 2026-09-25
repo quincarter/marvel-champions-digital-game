@@ -98,6 +98,12 @@ const TARGET_RESPONSE = stubAbility("target.response", {
   effects: [{ kind: "cancelBoostAbility" }],
 });
 const TARGET = stubSupport({ id: "target", cost: 0, abilities: [TARGET_RESPONSE.ref] });
+/** Defiance's shape (`vision` 26018, docs/phase7-wave4.md §3.35): "When a boost card on an enemy attacking you would be turned faceup, discard it instead." */
+const DEFY_INTERRUPT = stubAbility("defy.interrupt", {
+  trigger: { kind: "interrupt", forced: true, on: { on: "boostCardTurnedFaceup", activation: "attack" } },
+  effects: [{ kind: "discardBoostCard" }],
+});
+const DEFY = stubSupport({ id: "defy", cost: 0, abilities: [DEFY_INTERRUPT.ref] });
 
 const deps: EngineDeps = depsOf(
   BOOSTED,
@@ -108,8 +114,9 @@ const deps: EngineDeps = depsOf(
   ACRO_INTERRUPT,
   FOIL_INTERRUPT,
   TARGET_RESPONSE,
+  DEFY_INTERRUPT,
 );
-const SUPPORTS: readonly AnyCard[] = [ACRO, FOIL, TARGET];
+const SUPPORTS: readonly AnyCard[] = [ACRO, FOIL, TARGET, DEFY];
 
 /** p1's first turn; `top` is the first encounter card (the villain's first boost card), `supports` are in p1's play area. */
 function game(top: AnyCard, supports: readonly AnyCard[] = []): GameState {
@@ -172,6 +179,16 @@ describe("§3.9 boost cards as events", () => {
     expect(ofType(events, "schemeResolved").filter((e) => e.enemyInstanceId === villain)).toHaveLength(2);
     // Both boost cards were discarded when their activations ended.
     expect(mustInstance(state, villain).boostCards).toEqual([]);
+  });
+
+  it("'discard it instead' (Defiance, §3.35 of wave 4): no Boost ability, no icons, and the card goes to the discard", () => {
+    const { state, events } = runCommands(game(TWO, [DEFY]), deps, toHero, endTurn);
+    const villain = villainId(state);
+    expect(villainAttack(events, villain)).toEqual([expect.objectContaining({ baseAtk: 1, boostIcons: 0 })]);
+    expect(mustInstance(state, villain).counters.boosted ?? 0).toBe(0);
+    expect(ofType(events, "boostCancelled")).toContainEqual(expect.objectContaining({ scope: "discarded" }));
+    const two = Object.values(state.instances).find((i) => i.cardId === TWO.id)!.instanceId;
+    expect(activeEncounterDeck(state).discard).toContain(two);
   });
 
   it("a boost card with no icons offers nothing to cancel (FAQ 'Attacrobatics (#6)', p. 59)", () => {

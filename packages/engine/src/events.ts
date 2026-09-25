@@ -230,7 +230,11 @@ export type GameEvent =
       readonly outsideActivation?: true;
     }
   /** A boost card's icons, or its "Boost" ability, were cancelled (Attacrobatics, Target Acquired). */
-  | { readonly type: "boostCancelled"; readonly instanceId: InstanceId; readonly scope: "icons" | "ability" }
+  | {
+      readonly type: "boostCancelled";
+      readonly instanceId: InstanceId;
+      readonly scope: "icons" | "ability" | "discarded";
+    }
   | {
       readonly type: "boostCardFlipped";
       readonly enemyInstanceId: InstanceId;
@@ -316,6 +320,13 @@ export type GameEvent =
       readonly typeChanged: boolean;
     }
   /** An ally started (`as: "minion"`) or stopped (`as: null`) being treated as a minion (docs/phase7-wave4.md §3.9). */
+  /** A resource ability used in a payment put its own effects on the stack (docs/phase7-wave4.md §3.30). */
+  | {
+      readonly type: "resourceAbilityEffects";
+      readonly instanceId: InstanceId;
+      readonly abilityId: AbilityId;
+      readonly playerId: PlayerId;
+    }
   | { readonly type: "treatedAsChanged"; readonly instanceId: InstanceId; readonly as: "minion" | "ally" | null }
   /** A double-sided encounter card turned over; `flipped` is true when its other face is now up. */
   | { readonly type: "cardFlipped"; readonly instanceId: InstanceId; readonly flipped: boolean }
