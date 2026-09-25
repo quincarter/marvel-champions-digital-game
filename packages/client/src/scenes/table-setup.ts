@@ -531,7 +531,7 @@ export class TableSetupScene extends Phaser.Scene {
     this.#compactRegion = null;
     this.#compactSeedBoxRect = null;
 
-    const villainName = scenarioDetailOf(scenario, CARDS_BY_ID, POOL_ENCOUNTER_SETS).villainName;
+    const villainName = scenarioDetailOf(scenario, CARDS_BY_ID, POOL_ENCOUNTER_SETS).displayName;
     const modularRightLabel = `${requiredSets.length} required · ${modularCap} chosen`.toUpperCase();
 
     const layout = tableSetupCompactLayout({
@@ -1200,7 +1200,7 @@ export class TableSetupScene extends Phaser.Scene {
     const cellHeight =
       layout.modularRows > 0 ? (rect.height - (layout.modularRows - 1) * gap) / layout.modularRows : rect.height;
     const cellWidth = (rect.width - (columns - 1) * gap) / columns;
-    const villainName = scenarioDetailOf(scenario, CARDS_BY_ID, POOL_ENCOUNTER_SETS).villainName;
+    const villainName = scenarioDetailOf(scenario, CARDS_BY_ID, POOL_ENCOUNTER_SETS).displayName;
 
     const cellAt = (index: number): Rect => {
       const row = Math.floor(index / columns);
