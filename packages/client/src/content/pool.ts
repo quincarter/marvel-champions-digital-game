@@ -1,12 +1,12 @@
 /**
- * The one card pool this app runs: Core, wave 1, cycle 1 and cycle 2 (PLAN.md Phase 7). Every
+ * The one card pool this app runs: Core, wave 1, cycle 1, cycle 2 and cycle 3 (PLAN.md Phase 7). Every
  * scene, the deck screens and the engine worker read the app's pool from here
  * — never from `@mc/content`'s `CORE_*` exports or `@mc/cards`' `CORE_DEPS`
  * directly — so the client can only ever run one pool at a time and adding a
  * later wave is a one-file change.
  *
  * `playableScenario` is the app's scenario builder: it hands a scenario to
- * its own wave's builder (Core's, wave 1's, cycle 1's or cycle 2's) and widens the game's
+ * its own wave's builder (Core's, wave 1's, cycle 1's, cycle 2's or cycle 3's) and widens the game's
  * card pool to every playable card, so any deck can sit at any scenario.
  */
 import { PLAYABLE_DEPS, playableScenario, type PlayableScenarioOptions } from "@mc/cards";
@@ -34,8 +34,14 @@ import {
   GOB_PACK,
   HLK_CYCLE,
   HLK_PACK,
+  HOOD_CYCLE,
+  HOOD_PACK,
   MSM_CYCLE,
   MSM_PACK,
+  MTS_CYCLE,
+  MTS_PACK,
+  NEBU_CYCLE,
+  NEBU_PACK,
   QSV_CYCLE,
   QSV_PACK,
   RON_CYCLE,
@@ -52,8 +58,14 @@ import {
   TRORS_PACK,
   TWC_CYCLE,
   TWC_PACK,
+  VALK_CYCLE,
+  VALK_PACK,
+  VISION_CYCLE,
+  VISION_PACK,
   VNM_CYCLE,
   VNM_PACK,
+  WARM_CYCLE,
+  WARM_PACK,
   WAVE1_ENCOUNTER_SETS,
   WAVE1_SCENARIOS,
   WAVE1_STARTER_DECKS,
@@ -63,6 +75,9 @@ import {
   WAVE3_ENCOUNTER_SETS,
   WAVE3_SCENARIOS,
   WAVE3_STARTER_DECKS,
+  WAVE4_ENCOUNTER_SETS,
+  WAVE4_SCENARIOS,
+  WAVE4_STARTER_DECKS,
   WSP_CYCLE,
   WSP_PACK,
   poolVersionOf,
@@ -89,6 +104,7 @@ export const POOL_ENCOUNTER_SETS: readonly EncounterSet[] = [
   ...WAVE1_ENCOUNTER_SETS,
   ...WAVE2_ENCOUNTER_SETS,
   ...WAVE3_ENCOUNTER_SETS,
+  ...WAVE4_ENCOUNTER_SETS,
 ];
 
 /**
@@ -113,20 +129,22 @@ export const CORE_MODULAR_SET_IDS: readonly string[] = [
 /** Every ability script for `POOL_CARDS` (Core's own scripts included — every wave's registry starts from `CORE_ABILITIES`). */
 export const POOL_DEPS: EngineDeps = PLAYABLE_DEPS;
 
-/** Every scenario, Core first (Rhino, Klaw, Ultron), then wave 1 (Risky Business, Mutagen Formula, Breakout), then cycle 1 (The Rise of Red Skull's five, and Kang), then cycle 2 (The Galaxy's Most Wanted's five). */
+/** Every scenario, Core first (Rhino, Klaw, Ultron), then wave 1 (Risky Business, Mutagen Formula, Breakout), then cycle 1 (The Rise of Red Skull's five, and Kang), then cycle 2 (The Galaxy's Most Wanted's five), then cycle 3 (The Mad Titan's Shadow's five, and The Hood). */
 export const POOL_SCENARIOS: readonly Scenario[] = [
   ...CORE_SCENARIOS,
   ...WAVE1_SCENARIOS,
   ...WAVE2_SCENARIOS,
   ...WAVE3_SCENARIOS,
+  ...WAVE4_SCENARIOS,
 ];
 
-/** Every starter deck, Core's six precons first, then the six wave 1 hero packs', then cycle 1's six, then cycle 2's six (Groot, Rocket Raccoon, Star-Lord, Gamora, Drax, Venom). */
+/** Every starter deck, Core's six precons first, then the six wave 1 hero packs', then cycle 1's six, then cycle 2's six (Groot, Rocket Raccoon, Star-Lord, Gamora, Drax, Venom), then cycle 3's six (Spectrum, Adam Warlock, Nebula, War Machine, Vision, Valkyrie). */
 export const POOL_STARTER_DECKS: readonly StarterDeck[] = [
   ...CORE_STARTER_DECKS,
   ...WAVE1_STARTER_DECKS,
   ...WAVE2_STARTER_DECKS,
   ...WAVE3_STARTER_DECKS,
+  ...WAVE4_STARTER_DECKS,
 ];
 
 /** This build's pool version — bumps whenever `POOL_CARDS` changes shape, which retires an older save/deck against it. */
@@ -161,6 +179,12 @@ export const POOL_PACKS: readonly Pack[] = [
   DRAX_PACK,
   VNM_PACK,
   RON_PACK,
+  MTS_PACK,
+  NEBU_PACK,
+  WARM_PACK,
+  VISION_PACK,
+  HOOD_PACK,
+  VALK_PACK,
 ];
 
 /** A pack's own display name ("The Wrecking Crew") by its code ("twc"), falling back to the code itself if the pool ever names one this list doesn't have. */
@@ -195,6 +219,12 @@ const POOL_PACK_CYCLES: readonly (readonly [Pack, Cycle])[] = [
   [DRAX_PACK, DRAX_CYCLE],
   [VNM_PACK, VNM_CYCLE],
   [RON_PACK, RON_CYCLE],
+  [MTS_PACK, MTS_CYCLE],
+  [NEBU_PACK, NEBU_CYCLE],
+  [WARM_PACK, WARM_CYCLE],
+  [VISION_PACK, VISION_CYCLE],
+  [HOOD_PACK, HOOD_CYCLE],
+  [VALK_PACK, VALK_CYCLE],
 ];
 
 /**
@@ -211,7 +241,7 @@ export const POOL_HERO_SHELF_PACKS: readonly ShelfPack[] = POOL_PACK_CYCLES.map(
   ...(pack.releaseDate !== undefined ? { releaseDate: pack.releaseDate } : {}),
 }));
 
-/** The app's one scenario builder: Core, wave 1, cycle 1 and cycle 2 scenarios alike. */
+/** The app's one scenario builder: Core, wave 1, cycle 1, cycle 2 and cycle 3 scenarios alike. */
 export const buildScenario = playableScenario;
 
 export type { PlayableScenarioOptions };
