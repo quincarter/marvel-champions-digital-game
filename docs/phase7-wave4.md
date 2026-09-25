@@ -1725,7 +1725,15 @@ Face the Past (`magneto` 49022), Summoned Back (`mts` 21188), Old Grudge (`sm` 2
 > play engaged with him, the rest of his nemesis set stays set aside; with Vulture already in play nothing enters).
 > **What landed:** `nemesisMinionOf` accepts a minion without the flag when it is the only minion card of that nemesis
 > set in the card pool (`soleMinionOfSet`, `select.ts`, cached per pool). A flagged minion matches as before; the
-> wave 2 test's unflagged second minion in a two-minion set still does not.
+> wave 2 test's unflagged second minion in a two-minion set still does not. No card data was re-emitted.
+>
+> **Also exercised (coordinator follow-up, 2026-09-25):** Summoned Back (`mts` 21188) now has a Spectrum case in
+> `packages/cards/src/wave4/mts/mts-campaign-cards.test.ts` (Radioactive Man, 21027, the only minion of
+> `spectrum_nemesis`, enters play engaged with her) beside the Adam Warlock case (The Magus, flagged, a multi-card set);
+> `toafk/kang.test.ts`'s split-and-rejoin test asserts Kang's Wrath 4B bringing in Hawkeye's Crossfire (04027), and its
+> Ant-Man test's comment now describes the flagged case instead of a Hawkeye workaround. `toafk/kang.ts` needed no code
+> change (its 11013b script already asked `nemesisMinionOf`); its docblock is updated. docs/phase7-wave2-scripting.md's
+> two "data-completeness gap" notes are marked resolved.
 
 ### 3.51 An attack an effect initiates carries its own keywords
 

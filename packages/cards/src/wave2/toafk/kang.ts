@@ -88,9 +88,9 @@ const TEMPORAL = trait("TEMPORAL");
  *   nemesis minion and puts it into play engaged with them." The "search several zones as one pool" half (§10.1,
  *   `CardSelector { kind: "anyOf" }`, `anyOfCards` here) already had its worked example be this exact card; what was
  *   still missing was the *identification* half, now `TargetQuery.nemesisMinionOf?: PlayerRef` (§17.1) — "belongs to
- *   *that player's own* nemesis set", checked both by the card's own `(X's nemesis minion.)` parenthetical
- *   (`nemesisMinion: true`) and by encounter-set membership against that player's identity's own
- *   `nemesisEncounterSetId`. One `forEachPlayer`/`selectCards`/`putIntoPlay` triple, no per-player special-casing.
+ *   *that player's own* nemesis set", checked by encounter-set membership against that player's identity's own
+ *   `nemesisEncounterSetId` and, when the set has several minions, by the card's own `(X's nemesis minion.)`
+ *   parenthetical (`nemesisMinion: true`); a set's only minion needs none (docs/phase7-wave4.md §3.50). One `forEachPlayer`/`selectCards`/`putIntoPlay` triple, no per-player special-casing.
  *   "Puts it into play engaged with them" needs no separate `engage` effect: `putIntoPlay`'s own `controller`
  *   already engages a minion with that player (`zola.ts`'s Island of Dr. Zola setup uses the same shape). Kang
  *   insert, "Setup" (§2.3): "Kang's Wrath 4B searches for each player's nemesis minion."

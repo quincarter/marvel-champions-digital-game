@@ -552,14 +552,24 @@ describe("Norn Stone (21187a front / 21187b back)", () => {
 });
 
 describe("Summoned Back (21188)", () => {
+  it("21188.when-revealed: Spectrum's nemesis minion, Radioactive Man, the only minion of her nemesis set (no parenthetical), enters play engaged with her", () => {
+    // RRG 1.8 "Nemesis Encounter Set" (p. 30): "An identity's 'nemesis minion' is the minion belonging to that
+    // identity's nemesis set"; the parenthetical designates it only "if a nemesis set has multiple minions".
+    // `spectrum_nemesis` has one minion, Radioactive Man (21027), which prints none (docs/phase7-wave4.md §3.50).
+    const config = spectrumScenario("hela", { seed: 1 });
+    const state = startWave4Game({ ...config, encounterDeck: [...config.encounterDeck, cardId("21188")] });
+    const radioactiveMan = playerOf(state, P1).setAside.find((i) => state.instances[i]?.cardId === cardId("21027"))!;
+    expect(radioactiveMan).toBeDefined();
+    const staged = stackEncounterDeck(state, "01186", "21188");
+    const { state: revealed } = driveEvents(WAVE4_DEPS, staged, { type: "endTurn", playerId: P1 });
+    expect(playerOf(revealed, P1).setAside).not.toContain(radioactiveMan);
+    expect(cardsInPlay(revealed)).toContain(radioactiveMan);
+    expect(inst(revealed, radioactiveMan).engagedWith).toBe(P1);
+  });
+
   it("When Revealed searches for the revealer's own nemesis minion and puts it into play engaged with them (21188.when-revealed)", () => {
-    // Adam Warlock, not Spectrum: `nemesisMinionOf` requires the card data's own `nemesisMinion: true` flag
-    // (`select.ts`), which only a *multi*-card nemesis set's disambiguating parenthetical carries (RRG 1.8 "Nemesis
-    // Encounter Set", p. 30). Spectrum's own nemesis set (`spectrum_nemesis`) has just one minion (Radioactive
-    // Man, 21027) and so prints no such parenthetical — the same real-card data-completeness gap `toafk/kang.ts`'s
-    // own 11013b test already names for Hawkeye's single-minion Crossfire set — while Adam Warlock's own nemesis
-    // set (`warlock_nemesis`) has several cards and so does flag its one minion, The Magus (21067,
-    // `nemesisMinion: true`).
+    // Adam Warlock's nemesis set (`warlock_nemesis`) has several cards and flags its one minion, The Magus (21067,
+    // `nemesisMinion: true`): the parenthetical case of the same rule.
     const config = adamWarlockScenario("hela", { seed: 1 });
     const state = startWave4Game({ ...config, encounterDeck: [...config.encounterDeck, cardId("21188")] });
     const theMagus = playerOf(state, P1).setAside.find((i) => state.instances[i]?.cardId === cardId("21067"))!;

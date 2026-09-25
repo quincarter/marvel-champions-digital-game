@@ -172,11 +172,10 @@ describe("Kang scenario", () => {
   });
 
   it("Kang's Wrath 4B: each player searches the encounter deck, discard pile, and set-aside area for their nemesis minion and puts it into play engaged with them (docs/phase7-wave2.md §17.1)", () => {
-    // Ant-Man, not Hawkeye: Ant-Man's nemesis minion (Yellowjacket, 12027) carries the `nemesisMinion` parenthetical
-    // flag `TargetQuery.nemesisMinionOf` reads; Hawkeye's own single-minion nemesis set (Crossfire, 04027) does not
-    // print one (real card behavior — a single-minion set needs no disambiguating parenthetical, RRG 1.8 "Nemesis
-    // Encounter Set" p. 30), so `nemesisMinionOf` correctly finds nothing for a Hawkeye player — a data-completeness
-    // gap flagged in docs/phase7-wave2-scripting.md, not a scripting bug in this ability.
+    // Ant-Man: his nemesis set has several minions, so his nemesis minion is the one printing the parenthetical
+    // (Yellowjacket, 12027, `nemesisMinion: true`). The single-minion case (Hawkeye's Crossfire, 04027, no
+    // parenthetical; RRG 1.8 "Nemesis Encounter Set", p. 30) is asserted by the split-and-rejoin test above
+    // (docs/phase7-wave4.md §3.50).
     // A three-sided identity's `changeForm` needs an explicit hero form (`toHero()` alone is ambiguous, Tiny or
     // Giant); which one is irrelevant here, since the test only cares about Yellowjacket's own defeat/engage state.
     // `settle`: Ant-Man's own kit responds to "after you change to hero form" (Puny Pest/Giant Nuisance) with an

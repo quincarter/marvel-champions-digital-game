@@ -272,6 +272,10 @@ the crash (§6.15's own "Scripted once as…" quote), now safe under §17.5's gu
 read-traits test, not just re-added on faith. `wsp` moved from "in progress" to "scripted" (§7): its only remaining
 skip is `13012.wasp-interrupt`, a pre-existing missing-primitive block unrelated to this batch.
 
+**Resolved (2026-09-25) as an engine rule, not a data re-emit (docs/phase7-wave4.md §3.50):** `nemesisMinionOf` now
+accepts a nemesis set's only minion without the flag; `kang.test.ts` asserts Hawkeye's Crossfire entering from Kang's
+Wrath 4B. The note below is kept as found.
+
 **A data-completeness gap found while testing `11013b.when-revealed`, not a primitive gap:** `TargetQuery.
 nemesisMinionOf` (§17.1) requires the `nemesisMinion: true` card-data flag _unconditionally_ (`packages/engine/src/
 select.ts`'s `matchesQuery`), but RRG 1.8 "Nemesis Encounter Set" (p. 30) only requires the parenthetical (and
@@ -919,7 +923,8 @@ pack-cards.test.ts` already uses), confirming the raised damage (Tiny ATK 1 → 
   effect, the same technique `primitives-wave2c.test.ts`'s own §17.3 tests use) distinguishing a basic attack (gets
   piercing) from Pinpoint Strike's own "(attack)" ability (does not, even while Tiny).
 
-**A data-completeness gap found while testing 11013b, not a primitive gap, flagged for `card-data-pipeline` (full
+**(Resolved 2026-09-25 as an engine rule, docs/phase7-wave4.md §3.50.)** **A data-completeness gap found while testing
+11013b, not a primitive gap, flagged for `card-data-pipeline` (full
 write-up above, §6, new subsection after §6.19):** `nemesisMinionOf` requires the `nemesisMinion: true` flag
 unconditionally, but Hawkeye's own single-minion nemesis set (Crossfire, 04027, `trors`) carries no such flag —
 real MarvelCDB text only prints the disambiguating parenthetical for a multi-minion set (RRG 1.8 p. 30), so a
