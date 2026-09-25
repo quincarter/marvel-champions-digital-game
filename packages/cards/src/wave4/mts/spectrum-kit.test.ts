@@ -116,7 +116,7 @@ describe("Gamma Blast / Photon Speed / Speed of Light (21007, 21008, 21010)", ()
     const villain = activeVillain(hero).instanceId;
     const before = inst(hero, villain).damage;
     const { state } = playFromHand(hero, "21007", 3, accepting(villain));
-    expect(inst(state, villain).damage).toBeGreaterThanOrEqual(before + 7);
+    expect(inst(state, villain).damage).toBe(before + 7);
     expect(inst(state, instancesOf(state, "21002")[0]!).faceup).toBe(true);
   });
 
@@ -186,6 +186,6 @@ describe("Pulsar Shield (event, 21009)", () => {
     const attacked = settle(runWith(WAVE4_DEPS, given.state, endTurn()), pick, undefined, WAVE4_DEPS);
     expect(playerOf(attacked, P1).discard).toContain(shield);
     // Retaliate 1 dealt to Rhino when he attacked Spectrum.
-    expect(inst(attacked, villain).damage).toBeGreaterThanOrEqual(before + 1);
+    expect(inst(attacked, villain).damage).toBe(before + 1);
   });
 });

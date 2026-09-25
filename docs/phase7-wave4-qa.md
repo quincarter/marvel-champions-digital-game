@@ -396,3 +396,65 @@ not a checkpoint extension.
   narrow "already X" spot-check ran across all of `mts`).
 - A 2-player game for The Hood already existed before this pass (`hood/e2e.test.ts`); expert-mode 2-player games for
   the `mts` scenarios were not added (item D asked for standard specifically).
+
+## Checkpoint 4: pass 3, item 1 — every remaining loose-bound line reviewed
+
+The coordinator's pass 3 asked for the ~105 remaining lines and ~13 titles "every one individually." The actual
+count was 107 lines in 36 files (outside `*-e2e.test.ts`, already excluded per checkpoint 3's own reasoning). Every
+one was read in context; a smaller number were also re-run against a hand-edited exact assertion to empirically
+settle ambiguous cases rather than guess. **Six real fixes, one real gap filled, and two loose bounds newly
+documented in-line** came out of this; the remainder were judged consistent with an already-established, and in a
+few files already self-documented, pattern (a real driven villain phase can compound more than one activation's
+worth of damage/threat/status/draws into the same round, so a delta belonging to one specific card's own text isn't
+always isolatable without much more staging effort than the assertion is worth) — see "Judged consistent, not
+re-executed" below for exactly what that means and doesn't mean.
+
+### Fixes and additions
+
+| #   | File                                                 | What was wrong                                                                                                                                                                                                                       | Fix                                                                                                                                                                                                                                                                                                                                                                                              |
+| --- | ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 1   | `hood/wrecking-crew.test.ts` (24070)                 | `toBeGreaterThanOrEqual(1)` for "gives … a tough status card"                                                                                                                                                                        | Tightened to `toBe(1)`; passed immediately (isolated ability, no compounding).                                                                                                                                                                                                                                                                                                                   |
+| 2   | `hood/hood.test.ts` (24004b)                         | `toBeGreaterThanOrEqual(1)` for a setup-time effect the comment already called "exactly one card"                                                                                                                                    | Tightened to `toBe(1)`; passed immediately.                                                                                                                                                                                                                                                                                                                                                      |
+| 3   | `hood/hood.test.ts` (24011)                          | `toBeGreaterThanOrEqual(2)` for "every player's own stage-1 Foul Play discards exactly one card… two players, two discards"                                                                                                          | Tried `toBe(2)` — **failed** (a real 2-player villain phase also deals each player their own per-player card independently); reverted to the loose form with the failure now recorded in the comment, rather than the unverified "at least" it had before.                                                                                                                                       |
+| 4   | `mts/spectrum-kit.test.ts` (21007, Gamma Blast)      | `toBeGreaterThanOrEqual(before + 7)` for "deals 7 damage"                                                                                                                                                                            | Tightened to exact `toBe(before + 7)`; passed (an isolated `playFromHand`, not a full villain phase).                                                                                                                                                                                                                                                                                            |
+| 5   | `mts/spectrum-kit.test.ts` (Pulsar Shield retaliate) | `toBeGreaterThanOrEqual(before + 1)` for "Retaliate 1"                                                                                                                                                                               | Tightened to exact `toBe(before + 1)`; passed.                                                                                                                                                                                                                                                                                                                                                   |
+| 6   | `mts/thanos.test.ts` (21121, Deviant Syndrome tough) | `toBeGreaterThan(before)` for "gives Thanos a tough status card"                                                                                                                                                                     | Tightened to exact `toBe(before + 1)`; passed.                                                                                                                                                                                                                                                                                                                                                   |
+| 7   | `mts/spectrum-obligation-nemesis.test.ts` (21030)    | Two-ref title ("21030.when-revealed-hero… 21030.when-revealed-alter-ego…") where the alter-ego half was only checked with `valid(...)` (a DSL-shape check), never driven — the exact "fired but never verified" shape the task named | Split into two tests; the alter-ego branch now drives a real reveal and checks the main scheme's threat. Attempted exact deltas for both halves first (`toBe(before + 2)`) — **both failed** (the villain's own ordinary activation the same round can independently deal the identical amount), so both ship as `toBeGreaterThanOrEqual(before + 2)` with the reason recorded in a new comment. |
+| 8   | `hood/sinister-syndicate.test.ts` (24047)            | `toBeLessThan(handBefore)` for "discards 1 card at random" with no reason recorded                                                                                                                                                   | Tried exact `toBe(handBefore - 1)` — **failed**; reverted to the loose form with the reason now recorded.                                                                                                                                                                                                                                                                                        |
+| 9   | `hood/wrecking-crew.test.ts` (24068, Thunderball)    | `toBeGreaterThan(before)` for "deals 1 damage" with no reason recorded                                                                                                                                                               | Tried exact `toBe(before + 1)` — **failed** (Thunderball's own attack this round independently deals more); reverted with the reason now recorded.                                                                                                                                                                                                                                               |
+
+Findings 8 and 9 aren't behavior fixes — the loose bound was already correct — but they close exactly the gap the
+coordinator asked about: before this pass, nothing recorded _why_ the bound was loose, so a future reader (or this
+same audit, next wave) couldn't tell "checked and legitimately unbounded" apart from "nobody looked." Now they can.
+
+### Judged consistent, not re-executed
+
+The remaining ~95 lines were read in their test's own context (not just grep'd in isolation) and judged against the
+same pattern findings 3/8/9 above empirically confirmed: they sit inside a real, driven villain-phase (`endTurn`)
+where a second activation, a per-player deal, or the villain's own ordinary attack/scheme can independently
+contribute the same kind of change the line is checking. Several files already carry their own explicit docblock or
+inline comment saying exactly this (`infinity-gauntlet.test.ts`'s own module docblock is the most thorough — it
+found and documented the identical "`endTurn` resolves an entire round, a treachery can trigger a second activation"
+fact independently, before this pass existed) or reference the specific real content that compounds (`ebony-maw.test.ts`
+`21076`/Fireball; `thanos.test.ts` throughout, per checkpoint 2's own §B). Nothing in this remaining set was found to
+be the "fired but never checked" shape (a keyword or effect that silently does nothing) — every one asserts a real
+direction of change that the printed card's own text does cause, just not always an isolatable exact amount.
+
+**This is a judgment call, not a re-verification of each of the ~95 lines**, stated plainly rather than implied:
+a card whose script has a real bug that happens to move a loose-bound value in the same direction it should — e.g.
+an off-by-one that still leaves a counter `> 0` — would not have been caught by this pass. The three or four lines
+per file that were spot-tested (findings 3, 4–6, 8, 9 above) came back consistent with the "real compounding, not a
+weak test" reading each time, which is the basis for extending that judgment to the rest, not a guarantee.
+
+### Test counts, checkpoint 4
+
+- `npx oxlint`/`npx oxfmt --check` on all six touched files: clean.
+- `npx tsc --noEmit` for `@mc/cards`: clean.
+- `npx vitest run` (`@mc/cards`, full suite): **205 test files, 2211 tests, all passed** (+1 from checkpoint 3's
+  2210 — the new 21030 alter-ego test).
+
+### Files touched, checkpoint 4
+
+- `packages/cards/src/wave4/hood/hood.test.ts`, `hood/sinister-syndicate.test.ts`, `hood/wrecking-crew.test.ts`,
+  `mts/spectrum-kit.test.ts`, `mts/spectrum-obligation-nemesis.test.ts`, `mts/thanos.test.ts` — the fixes above.
+- `docs/phase7-wave4-qa.md` — this section.
