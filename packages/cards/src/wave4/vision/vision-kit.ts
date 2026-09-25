@@ -67,11 +67,9 @@ const ANDROID = trait("ANDROID");
  * reasoning kept next to the ref. A `cannotDefend`/defender-exclusion `RuleSpec` (the sibling of `cannotAttack`,
  * read by `legalDefenders`) is the natural fix, flagged for `game-rules-architect`.
  *
- * **Corrupted Programming's "blank, except for keywords" (26028.corrupted-programming-constant, obligation) is the
- * same already-documented gap** (docs/phase7-wave4.md §3.1's own "Not done" note: `blankTextBox` has no keyword
- * exception, so blanking Vision's mass form upgrade would also blank its `form` keyword and strip his mass form
- * entirely — backwards from the printed card, which keeps the form and only strips its text) — scripted in
- * `vision-obligation-nemesis.ts`, skipped there for the identical reason.
+ * **Corrupted Programming's "blank, except for keywords" (26028.corrupted-programming-constant, obligation)**
+ * landed after this pack's own "Not done" note (docs/phase7-wave4.md §3.28): `blankTextBox` gained `exceptKeywords`,
+ * so the obligation is fully scripted in `vision-obligation-nemesis.ts`, not skipped.
  *
  * **Just Passing Through's "ignoring the patrol keyword" (26010.just-passing-through-action) and Phase Disruption's
  * "Choose an attachment … with the text 'Hero Action' or 'Hero Response'" (26011.phase-disruption-action) are

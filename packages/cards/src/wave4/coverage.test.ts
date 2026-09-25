@@ -3,12 +3,13 @@
  * which packs are fully scripted, which are not started, and — for a pack that isn't started — nothing resolves
  * that isn't already covered by an earlier wave.
  */
-import { NEBU_CARDS, VISION_CARDS, type AnyCard } from "@mc/content";
+import { NEBU_CARDS, VISION_CARDS, WARM_CARDS, type AnyCard } from "@mc/content";
 import type { AbilityRegistry } from "@mc/engine";
 import { WAVE3_ABILITIES } from "../wave3/index.js";
 import { WAVE4_ABILITIES } from "./index.js";
 import { NEBU_ABILITIES } from "./nebu/index.js";
 import { VISION_ABILITIES } from "./vision/index.js";
+import { WARM_ABILITIES } from "./warm/index.js";
 import { abilityRefIds } from "../ability-refs.js";
 
 describe("wave 4 ability registry", () => {
@@ -20,6 +21,7 @@ describe("wave 4 ability registry", () => {
 /** One row per wave 4 pack (docs/phase7-wave4.md). */
 const PACK_STATUS: Readonly<Record<string, "scripted" | "in progress" | "not started">> = {
   nebu: "scripted",
+  warm: "scripted",
   vision: "scripted",
 };
 
@@ -28,19 +30,10 @@ const PACK_STATUS: Readonly<Record<string, "scripted" | "in progress" | "not sta
  * record and skip"). Pinned exactly: every other ref must resolve, and each listed ref must still be unresolved.
  */
 const KNOWN_SKIPPED: Readonly<Record<string, readonly string[]>> = {
-  // nebu: two genuine primitive gaps, both flagged for a game-rules-architect follow-up (docs/phase7-wave4.md §3
-  // has no entry for either yet):
-  //  - 22030.lethal-weapon-action ("Discard an upgrade you control → discard this attachment.") — the engine's
-  //    in-play cost pickers are `AbilityCost.exhaustCards`/`.returnToHand` only (`packages/engine/src/abilities.ts`);
-  //    there is no "discard cards you control" in-play cost kind to pay "discard an upgrade you control →" as a
-  //    real, un-payable-without-a-target cost.
-  //  - 22031.when-revealed ("Gamora attacks you. If the Gamora hero or ally is in play, she attacks you (resolve
-  //    her ATK against you without exhausting her.)") — `EffectSpec.enemyAttack` always resolves as a genuine enemy
-  //    activation (exhausts the attacker, runs `enemy-activation.ts`); there's no way to make a *friendly*
-  //    character attack its own controller without exhausting it.
-  // Regenerated with `MC_REFS_PACKS=nebu pnpm refs` (docs/card-scripting-process.md) — never hand-typed.
-  nebu: ["22030.lethal-weapon-action", "22031.when-revealed"],
-  // vision: seven genuine primitive gaps, each flagged for a game-rules-architect follow-up and documented in
+  // nebu: both of its earlier primitive gaps (an in-play "discard cards you control" cost kind, and a friendly
+  // character attacking its own controller without exhausting) landed since (`nebula-obligation-nemesis.ts` now
+  // scripts both 22030.lethal-weapon-action and 22031.when-revealed); nothing left unresolved.
+  // vision: six genuine primitive gaps, each flagged for a game-rules-architect follow-up and documented in
   // detail next to its own ref (`vision/vision-kit.ts`, `vision/vision-obligation-nemesis.ts`,
   // `vision/vision-pack-cards.ts`):
   //  - 26002.intangible-constant ("Vision cannot attack or defend.") — no `RuleSpec` at all forbids a character
@@ -57,10 +50,6 @@ const KNOWN_SKIPPED: Readonly<Record<string, readonly string[]>> = {
   //    interceptor, `EffectSpec.cancelBoostIcons`, zeroes icons but still turns the card faceup into the boost pool.
   //  - 26022.machine-man-interrupt ("attacks or thwarts") — `EventPattern.eventIs` matches one exact value, so
   //    "attack or thwart" (excluding defense) can't be expressed in one trigger.
-  //  - 26028.corrupted-programming-constant ("Treat your mass form upgrade's text box as if it were blank, except
-  //    for keywords.") — already flagged, unfinished, in docs/phase7-wave4.md §3.1's own "Not done" note:
-  //    `blankTextBox` has no keyword exception, so blanking would also strip the `form` keyword and leave Vision
-  //    with no mass form at all — backwards from the printed card.
   //  - 26034.chance-encounter-interrupt ("Interrupt: When attached side scheme is defeated …") — `schemeDefeated`
   //    is response-only (`isAnnouncement`, `packages/engine/src/trigger-events.ts`, the same substitution
   //    `wave2/trors/red-skull.ts`'s own Twisted Reality already documents), but a defeated scheme's own attachments
@@ -75,13 +64,14 @@ const KNOWN_SKIPPED: Readonly<Record<string, readonly string[]>> = {
     "26016.flow-like-water-response",
     "26018.defiance-interrupt",
     "26022.machine-man-interrupt",
-    "26028.corrupted-programming-constant",
     "26034.chance-encounter-interrupt",
   ],
+  // warm: no primitive gaps found; every ability ref resolves.
 };
 
 const PACKS: ReadonlyArray<{ readonly code: string; readonly cards: readonly AnyCard[] }> = [
   { code: "nebu", cards: NEBU_CARDS },
+  { code: "warm", cards: WARM_CARDS },
   { code: "vision", cards: VISION_CARDS },
 ];
 
@@ -139,6 +129,7 @@ describe("wave 4 pack ability id coverage (every registered ability id is named 
 
   const PACKS_WITH_OWN_REGISTRIES: ReadonlyArray<{ readonly code: string; readonly registry: AbilityRegistry }> = [
     { code: "nebu", registry: NEBU_ABILITIES },
+    { code: "warm", registry: WARM_ABILITIES },
     { code: "vision", registry: VISION_ABILITIES },
   ];
 

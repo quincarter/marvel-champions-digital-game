@@ -26,6 +26,7 @@ import { ScenarioSelectScene } from "./scenes/scenario-select.js";
 import { SeatsScene } from "./scenes/seats.js";
 import { TableSetupScene } from "./scenes/table-setup.js";
 import { SetupDealScene } from "./scenes/setup-deal.js";
+import { ScenarioIntroScene } from "./scenes/scenario-intro.js";
 import { BoardScene } from "./scenes/board.js";
 import { ChoiceOverlay } from "./scenes/choice.js";
 import { InspectOverlay } from "./scenes/inspect.js";
@@ -98,6 +99,7 @@ const game = new Phaser.Game({
     SeatsScene,
     TableSetupScene,
     SetupDealScene,
+    ScenarioIntroScene,
     BoardScene,
     DecksScene,
     DeckBuilderScene,

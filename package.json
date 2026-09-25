@@ -1,7 +1,8 @@
 {
   "name": "marvel-champions-game",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "private": true,
+  "license": "AGPL-3.0-or-later",
   "scripts": {
     "dev": "pnpm --filter @mc/client dev",
     "preview": "pnpm --filter @mc/client build && pnpm --filter @mc/client preview",

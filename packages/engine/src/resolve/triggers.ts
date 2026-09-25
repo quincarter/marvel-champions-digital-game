@@ -18,6 +18,22 @@ import type { LastingEffect } from "../lasting.js";
 import type { Form, GameState } from "../state.js";
 import { eventSubjects, type TriggerEvent } from "../trigger-events.js";
 import { limitReached } from "./ability.js";
+import type { AbilityDefinition } from "../abilities.js";
+import { revealCannotBeCanceled } from "../rules.js";
+
+/**
+ * A cancel with nothing it can cancel is not offered (docs/phase7-wave4.md §3.27, §4 Q16 as the user decided it on
+ * 2026-09-24): an ability whose effects cancel the card being revealed ("cancel its 'When Revealed' effects", "cancel
+ * the effects of that card") has that card as its target, and when the card cannot be canceled ("This effect cannot be
+ * canceled.", `revealCannotBeCanceled`) it has no valid target, so it can't be initiated (RRG 1.8 "Initiating
+ * Abilities", p. 24, step 2) and no cost is paid. Read from the ability's own top-level effects, where every printed
+ * reveal cancel sits.
+ */
+function cancelHasNoTarget(state: GameState, deps: EngineDeps, definition: AbilityDefinition, event: TriggerEvent) {
+  if (event.kind !== "encounterCardRevealing") return false;
+  const cancels = definition.effects.some((e) => e.kind === "cancelWhenRevealed" || e.kind === "cancelRevealedCard");
+  return cancels && revealCannotBeCanceled(state, deps, event.instanceId);
+}
 
 function matchesPattern(
   state: GameState,
@@ -174,6 +190,7 @@ export function candidatesFor(
         controllerId ?? (trigger.firstPlayerOnly === true ? state.firstPlayerId : actingPlayerOf(event, trigger.on));
       if (limitReached(state, id, ref.id, definition, event, limitPlayer)) continue;
       if (!matchesPattern(state, trigger.on, event, id, deps)) continue;
+      if (cancelHasNoTarget(state, deps, definition, event)) continue;
       // RRG "Cost": an ability whose cost can't be paid can't be triggered. A pick of cards in play the player makes
       // later (`costPick`, docs/phase7-wave4.md §3.17) is judged by the default picks.
       if (
@@ -294,6 +311,7 @@ function inHandCandidates(
           if (limitReached(state, id, ref.id, definition, event, player.playerId)) continue;
           // The card's "you" is the player whose hand it is in.
           if (!matchesPattern(state, trigger.on, event, id, deps, player.playerId)) continue;
+          if (cancelHasNoTarget(state, deps, definition, event)) continue;
           found.push({
             instanceId: id,
             abilityId: ref.id,
@@ -313,6 +331,7 @@ function inHandCandidates(
         if (trigger.kind !== timing || trigger.forced) continue;
         if (!formSatisfied(state, player.playerId, trigger.form)) continue;
         if (!matchesPattern(state, trigger.on, event, id, deps)) continue;
+        if (cancelHasNoTarget(state, deps, definition, event)) continue;
         found.push({
           instanceId: id,
           abilityId: ref.id,

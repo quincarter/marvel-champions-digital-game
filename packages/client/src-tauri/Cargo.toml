@@ -1,9 +1,9 @@
 [package]
 name = "marvel-champions"
-version = "0.6.0"
+version = "0.7.0"
 description = "Marvel Champions: Digital Edition (desktop shell)"
 authors = ["Quin Carter"]
-license = ""
+license = "AGPL-3.0-or-later"
 repository = ""
 edition = "2021"
 rust-version = "1.77.2"

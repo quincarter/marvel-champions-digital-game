@@ -400,32 +400,38 @@ needed, and each section names cards from other packs that compose with it.
 in release order. Within that, rules the whole box leans on come first. **A pack whose cards need an unbuilt primitive
 stays data only.**
 
-| §    | Primitive                                                                | Needed by                                              | Status  |
-| ---- | ------------------------------------------------------------------------ | ------------------------------------------------------ | ------- |
-| 3.1  | Additional forms (the form keyword)                                      | Spectrum, Vision; Shadowcat, Nick Fury                 | landed  |
-| 3.2  | Two main schemes in play, each paired with a villain; Focused Defense    | Tower Defense                                          | landed  |
-| 3.3  | Villains protected by each other's hit points: one defeat sweep          | Tower Defense; Four Horsemen (`aoa`)                   | landed  |
-| 3.4  | A main scheme stage's completion is replaceable                          | Tower Defense; Upgrading Adaptoids (`aos`)             | landed  |
-| 3.5  | Damage on a card that is not a character (Avengers Tower)                | Tower Defense                                          | landed  |
-| 3.6  | A modular set's own deck (the Infinity Stone deck)                       | Thanos, Loki, any scenario                             | landed  |
-| 3.7  | Loki: random start, swap, a villain stage's Victory X, the victory count | Loki; God of Lies (`tt`)                               | landed  |
-| 3.8  | An encounter ally attached to the main scheme (Odin)                     | Hela                                                   | landed  |
-| 3.9  | An ally treated as a minion                                              | Fallen Warrior, Beguiled; 5 other packs                | landed  |
-| 3.10 | Flipping a card into a separately emitted face of another type           | MC21 campaign                                          | landed  |
-| 3.11 | Timing points when a deck runs out                                       | Soul World, Universal Church, Thanos                   | landed  |
-| 3.12 | Counting different aspects; Adam Warlock's copy limit                    | Adam Warlock                                           | landed  |
-| 3.13 | Abilities active in hand; "cannot choose to discard this card"           | Pip the Troll, System Shock                            | landed  |
-| 3.14 | Player events shuffled into the encounter deck (Cosmic Entities)         | Adam Warlock precon                                    | landed  |
-| 3.15 | "After the last X counter is removed from here"                          | Ebony Maw; `aos`, `phoenix`                            | landed  |
-| 3.16 | Encounter cards in a player's play area                                  | Ebony Maw's Spells                                     | landed  |
-| 3.17 | Alliance: paying a card's costs as a group                               | `warm`, `valk`, `vision`; 9 later cards                | landed  |
-| 3.18 | Set-aside modular sets; mode-only faces; Standard II                     | The Hood; Wheel of Genres (`mojo`)                     | landed  |
-| 3.19 | Readying as a costed act; "cannot be readied by player card effects"     | Mister Fear; Undermine Support (`aos`)                 | landed  |
-| 3.20 | A trigger on damage a card prevented                                     | Abjuration                                             | landed  |
-| 3.21 | An enemy attack against a chosen character                               | Speed Demon, Crossfire                                 | landed  |
-| 3.22 | Valkyrie's kit                                                           | `valk`                                                 | landed  |
-| 3.23 | Reusable as is                                                           | —                                                      | checked |
-| 3.24 | A character that ignores guard, patrol and the crisis icon               | Evasive Maneuvering; Wasp, Shadowcat, Psionic Training | landed  |
+| §    | Primitive                                                                | Needed by                                                        | Status  |
+| ---- | ------------------------------------------------------------------------ | ---------------------------------------------------------------- | ------- |
+| 3.1  | Additional forms (the form keyword)                                      | Spectrum, Vision; Shadowcat, Nick Fury                           | landed  |
+| 3.2  | Two main schemes in play, each paired with a villain; Focused Defense    | Tower Defense                                                    | landed  |
+| 3.3  | Villains protected by each other's hit points: one defeat sweep          | Tower Defense; Four Horsemen (`aoa`)                             | landed  |
+| 3.4  | A main scheme stage's completion is replaceable                          | Tower Defense; Upgrading Adaptoids (`aos`)                       | landed  |
+| 3.5  | Damage on a card that is not a character (Avengers Tower)                | Tower Defense                                                    | landed  |
+| 3.6  | A modular set's own deck (the Infinity Stone deck)                       | Thanos, Loki, any scenario                                       | landed  |
+| 3.7  | Loki: random start, swap, a villain stage's Victory X, the victory count | Loki; God of Lies (`tt`)                                         | landed  |
+| 3.8  | An encounter ally attached to the main scheme (Odin)                     | Hela                                                             | landed  |
+| 3.9  | An ally treated as a minion                                              | Fallen Warrior, Beguiled; 5 other packs                          | landed  |
+| 3.10 | Flipping a card into a separately emitted face of another type           | MC21 campaign                                                    | landed  |
+| 3.11 | Timing points when a deck runs out                                       | Soul World, Universal Church, Thanos                             | landed  |
+| 3.12 | Counting different aspects; Adam Warlock's copy limit                    | Adam Warlock                                                     | landed  |
+| 3.13 | Abilities active in hand; "cannot choose to discard this card"           | Pip the Troll, System Shock                                      | landed  |
+| 3.14 | Player events shuffled into the encounter deck (Cosmic Entities)         | Adam Warlock precon                                              | landed  |
+| 3.15 | "After the last X counter is removed from here"                          | Ebony Maw; `aos`, `phoenix`                                      | landed  |
+| 3.16 | Encounter cards in a player's play area                                  | Ebony Maw's Spells                                               | landed  |
+| 3.17 | Alliance: paying a card's costs as a group                               | `warm`, `valk`, `vision`; 9 later cards                          | landed  |
+| 3.18 | Set-aside modular sets; mode-only faces; Standard II                     | The Hood; Wheel of Genres (`mojo`)                               | landed  |
+| 3.19 | Readying as a costed act; "cannot be readied by player card effects"     | Mister Fear; Undermine Support (`aos`)                           | landed  |
+| 3.20 | A trigger on damage a card prevented                                     | Abjuration                                                       | landed  |
+| 3.21 | An enemy attack against a chosen character                               | Speed Demon, Crossfire                                           | landed  |
+| 3.22 | Valkyrie's kit                                                           | `valk`                                                           | landed  |
+| 3.23 | Reusable as is                                                           | —                                                                | checked |
+| 3.24 | A character that ignores guard, patrol and the crisis icon               | Evasive Maneuvering; Wasp, Shadowcat, Psionic Training           | landed  |
+| 3.25 | Discarding cards you control as a cost                                   | Lethal Weapon; Noble Sacrifice, Repurpose, Delusion of Collusion | landed  |
+| 3.26 | A friendly character attacks its own player                              | Old Rivals                                                       | landed  |
+| 3.27 | A cancel with nothing it can cancel is not offered                       | §4 Q16 (user decision)                                           | landed  |
+| 3.28 | A blank text box except for keywords                                     | Corrupted Programming (§3.1's open item)                         | landed  |
+| 3.29 | A minion treated as an ally (the mirror of §3.9)                         | Mind Control, Redemption, Karma                                  | landed  |
+| 3.30 | A resource ability's own effects                                         | Gauntlet Gun; War Cry family, Psi-Knife, Cybernetic Arm          | landed  |
 
 ### 3.1 Additional forms: the form keyword
 
@@ -434,9 +440,8 @@ stays data only.**
 > "After you change form" and by the form card's own "this form" but not by an identity-only listener, and never uses the
 > once-per-round change; one energy form at a time; no change, no trigger; `cannotChangeForm { formType }` stops only its
 > type; a double-sided form card flips; the hero/alter-ego flip is an identity change; replay deep-equal). DSL:
-> `packages/cards/src/dsl/wave4-primitives.test.ts` (5 tests). **Not done:** Corrupted Programming's "blank, except for
-> keywords" (`blankTextBox` has no keyword exception, so a blanked mass form card grants no form); it lands with the
-> `vision` scripting. **Client:** log lines for `additionalFormChanged`, `cardTurnedFacedown` and `cardTurnedFaceup`,
+> `packages/cards/src/dsl/wave4-primitives.test.ts` (5 tests). Corrupted Programming's "blank, except for keywords"
+> landed later as §3.28. **Client:** log lines for `additionalFormChanged`, `cardTurnedFacedown` and `cardTurnedFaceup`,
 > and a view of which form is up.
 
 **Cards.** Spectrum: Monica Rambeau's Setup puts Gamma, Photon and Pulsar into play facedown; Energy Transformation
@@ -696,8 +701,7 @@ syncTreatedAs`, which `relocateCard` calls whenever a card moves onto or off a h
 > ATK, THW-as-SCH and hit points). A new `select.ts isAlly` (the `ally` category) replaces the raw `type === "ally"`
 > play-area walks (legal attackers/thwarters, defenders, Melter's forced ally defense, the ally limit, Team-Up's
 > friendly characters, why-not). Leaving play clears it. Event `treatedAsChanged`. **DSL:**
-> `constant(treatAttachedAllyAsMinion(traits, { keepPrintedTraits? }))`. **Not covered:** Mind Control, Redemption,
-> Karma (a minion treated as an ally, the mirror; `TreatedAs.kind` is the place to add `"ally"`), and Reluctant Foe
+> `constant(treatAttachedAllyAsMinion(traits, { keepPrintedTraits? }))`. **Not covered here:** Mind Control, Redemption and Karma landed as §3.29; Reluctant Foe
 > (`aos` 50171, a hero treated as a minion with a replaced text box).
 
 ### 3.10 Flipping a card into a separately emitted face of another type
@@ -1140,7 +1144,7 @@ against the vocabulary when `valk` comes up.
 | "generate a [wild] resource for a War Machine event"                               | Gauntlet Gun 23005                                    | `resource … generatesFor` (FAQ p. 62)                                |
 | "resolve the 'Special' ability on each [Technique] upgrade you control"            | Nebula, Gamora ally, Lethal Intent, Combat Ready      | `resolveSpecials` / `resolveSpecialsOf`                              |
 | "Reduce the amount of damage Vision takes from each attack by 2"                   | Intangible, Victor Mancha                             | `reduceDamageTaken`                                                  |
-| "Treat your mass form upgrade's text box as if it were blank, except for keywords" | Corrupted Programming                                 | `blankTextBox` (keywords kept: to confirm)                           |
+| "Treat your mass form upgrade's text box as if it were blank, except for keywords" | Corrupted Programming                                 | `blanksTextBox(q, { exceptKeywords: true })` (§3.28)                 |
 | "The villain gains steady" / "each enemy gains steady"                             | Formidable Foe, The Hood's Mantle, Warehouse District | `gainsKeyword` + the RRG Steady rule (`keywords.ts`)                 |
 | "For each different card type discarded this way"                                  | Time Stone                                            | `distinctCardTypes`                                                  |
 | "Spend up to 3 resources of any type → … for each resource spent"                  | Machine Man 26022                                     | `spendUpTo` (wave 3 §3.25)                                           |
@@ -1173,6 +1177,126 @@ while?}`**, read by `select.ts characterIgnores`: `canAttack` lets a matching at
 > **Composes with:** Wasp, Shadowcat, Psionic Training as printed. The response cards that fire after a character
 > ignores guard or crisis (Acute Control, Intangible Interference, `mut_gen` 32034–32035) need an event; not built.
 > See §4 Q19 for the reading of "ignores the crisis icon" on removal that is not a thwart.
+
+### 3.25 Discarding cards you control as a cost
+
+Lethal Weapon (`nebu` 22030): "Hero Action: Discard an upgrade you control → discard this attachment." Survey (every raw
+pack, "discard a/an <X> you control →"): Noble Sacrifice and "You Got This!" (`magneto` 49018, 49019, an ally), Repurpose
+(`spdr` 31016, a [Tech] upgrade), Delusion of Collusion (`sm` 27170, an ally or [persona] support), Tinkering (`gmw`
+16029b, already scripted as a chosen discard in its effects, which lets it be used with nothing to discard; it can move
+to this cost), The Ends Justify the Means (`aos` 50177, a chooseOne branch whose cost this is). Haywire and Air Static
+(`ironheart` 29038, 29039) put the discard inside a "choose to either … or take 2 indirect damage" cost, which this
+does not cover.
+
+> **Status: landed (2026-09-24),** tested in `packages/engine/src/discard-cost.test.ts` (3 tests: the only matching card
+> is discarded to pay, then the effect resolves, replay deep-equal; with no matching card the cost cannot be paid, so
+> the card is neither offered nor playable; with a choice, the player names the card and the other stays) and in a real
+> game in `packages/cards/src/wave4/nebu/nebula-obligation-nemesis.test.ts` (Lethal Weapon on the Gamora ally,
+> discarding Evasive Maneuvering). **What landed:** **`AbilityCost.discardCards: InPlayCostPick`**, a third
+> `InPlayCostMode` ("discard") beside exhaust and return: the same candidates (cards in play the payer controls that
+> match, or any player's for an alliance card), payable only by a card that can leave play, paid by discarding each
+> pick; the window's cost-card prompt (`chooseCostCards.mode`) carries it. **DSL:** `discardCardsCost(query, opts)`,
+> binding `"discarded"`. **Scripted:** `22030.lethal-weapon-action`, off `KNOWN_SKIPPED`.
+
+### 3.26 A friendly character attacks its own player
+
+Old Rivals (`nebu` 22031, errata RRG 1.8 p. 67): "When Revealed: Gamora attacks you. If the Gamora hero or ally is in
+play, she attacks you (resolve her ATK against you without exhausting her). If no attack was made this way, this card
+gains surge." Ruling Jun 25, 2026 (4) #1: the first sentence is the Gamora minion, the second the hero or ally. FAQ (RRG
+1.8 p. 62): she "is considered to have attacked", and an ally takes consequential damage. Survey (every raw pack, "X
+attacks you" naming a hero or ally): no other card makes a friendly character attack its own player; every other "X
+attacks you" is an enemy (`enemyAttack`).
+
+> **Status: landed (2026-09-24),** tested in `packages/engine/src/friendly-attack.test.ts` (3 tests: the ally's ATK is
+> dealt to you as her attack, she is not exhausted, takes her consequential damage, no surge, replay deep-equal; with no
+> Gamora in play no attack is made and the card surges; a stunned Gamora discards the stun instead and the card surges)
+> and in a real game in `packages/cards/src/wave4/nebu/nebula-obligation-nemesis.test.ts` (Nebula against Rhino, the
+> Gamora ally in play, Old Rivals revealed in the villain phase; and alone, where it surges). **What landed:**
+> **`EffectSpec friendlyCharacterAttacks {attacker, player, bind?}`**: the first friendly character the ref names (a
+> hero-form identity or an ally a player controls) makes her controller's `attack` against `player`'s identity, with
+> no boost, no defense step and no exhausting, followed by an ally's consequential damage (`pushConsequentialDamage`,
+> now exported); a stunned attacker or a "—" ATK makes no attack, reported as `<bind>.made` 0. **DSL:**
+> `friendlyCharacterAttacks(attacker, player?, { bind })`. **Scripted:** `22031.when-revealed` (the minion's
+> `enemyAttack`, then this, then surge if neither was made); Nebula's `KNOWN_SKIPPED` is now empty.
+
+### 3.27 A cancel with nothing it can cancel is not offered
+
+§4 Q16, as the user decided it on 2026-09-24: a cancel aimed at a card that cannot be canceled (the Cosmic Entities,
+§3.14; Longshot, Cornered!, the `sm` expert treacheries, anything under Dark Scepter) is hidden from the legal actions,
+so it is never offered and no cost is paid.
+
+> **Status: landed (2026-09-24),** tested in `packages/engine/src/cancel-no-target.test.ts` (2 tests: against an
+> ordinary treachery the optional cancel is offered and its exhaust cost paid; against a card that cannot be canceled
+> it is never offered, nothing is exhausted, and the card's When Revealed resolves). **What landed:** the trigger
+> candidate scan (`resolve/triggers.ts cancelHasNoTarget`) drops any ability whose top-level effects cancel the card
+> being revealed (`cancelWhenRevealed`, `cancelRevealedCard`) when `revealCannotBeCanceled` holds for it: in play, used
+> from hand (`activeIn: "hand"`), and events played from hand in the window, forced or optional. The reading is RRG 1.8
+> "Initiating Abilities" (p. 24, step 2): the revealed card is the cancel's target, and with no valid target the
+> ability cannot be initiated, so the whole ability (Order and Chaos's damage and Black Widow's extra reveal included)
+> is not offered. The §3.14 check in the cancel effect itself stays as the backstop.
+
+### 3.28 A blank text box except for keywords
+
+Corrupted Programming (`vision` 26028): "Treat your mass form upgrade's text box as if it were blank, except for
+keywords." RRG 1.8 "Blank" (p. 10) blanks keywords with the text box, so the exception has to be carried. Survey (every
+raw pack, "blank … except"): every other card says "except for [Traits]", which the engine already keeps (a blanked
+card's traits are untouched). This was §3.1's open item.
+
+> **Status: landed (2026-09-24),** tested in `packages/engine/src/blank-except-keywords.test.ts` (2 tests: blanked
+> "except for keywords", a mass form upgrade loses its abilities but keeps its form and other keywords; a plain blank
+> takes the keywords too, and with no blank everything is live). **What landed:** **`RuleSpec blankTextBox.exceptKeywords`**:
+> `blankedByConstantRules` now keeps two sets, every blanked card and those whose keywords go too; `keywordsBlankFor`
+> (`select.ts`) is what `printedKeywordsOf` (and so `activeFormType`, `hasKeyword`) reads. **DSL:**
+> `blanksTextBox(query, { exceptKeywords: true })`. The `vision` scripter targets "your mass form upgrade" with
+> `query("upgrade", { controller: "you", printedForm: "mass" })`.
+
+### 3.29 A minion treated as an ally (the mirror of §3.9)
+
+The mirror of §3.9. Survey (every raw pack, "treat … as a [X] ally"): Mind Control (`phoenix` 34009) and Redemption
+(`bp` 51036), upgrades on a minion; Karma (`rogue` 38011), an effect lasting "while Karma is in play". Each: "take
+control of [the] minion and treat it as a [Controlled/Redeemed] ally with a blank text box. Its THW is equal to its
+printed SCH and it takes 1 (Karma: 2) consequential damage after it thwarts or attacks."
+
+> **Status: landed (2026-09-24),** tested in `packages/engine/src/treat-as-ally.test.ts` (4 tests: under a Mind Control
+> upgrade the minion is the player's ally, in their play area, not engaged, [Controlled] only, text box blank, THW =
+> printed SCH, still attached, replay deep-equal; it thwarts with that THW and takes 1 consequential damage; with the
+> upgrade discarded it is a minion again, engaged with the player who controlled it; a Karma-like effect's minion is an
+> ally while the card is in play and a minion again once it leaves). **What landed:** `TreatedAs` is now a union;
+> kind **`ally`** (`traits`, `thwFromSch`, `consequential`, `source`, `controller`, `engagedBefore`) comes from
+> **`RuleSpec treatHostAsAlly {traits, thwFromSch?, consequential}`** on an attachment (the attachment's controller
+> takes control; `syncTreatedAs` as for §3.9) or from **`EffectSpec treatAsAlly {target, traits, thwFromSch?,
+consequential}`** (source = the effect's card; `leavePlay` calls `releaseTreatedBy`). Readers: `categoriesOf`
+> (`ally`, `character`), `isMinion` false, traits, blank abilities and keywords, `printedProfile` (an ally profile from
+> printed ATK, SCH-as-THW and hit points), `pushConsequentialDamage` (its own amount; an ally treated as a minion takes
+> none). The `isAlly` play-area readers from §3.9 pick it up as an attacker, thwarter and defender, and it counts
+> toward the ally limit (none of the three cards says otherwise). **DSL:** `constant(treatAttachedMinionAsAlly(traits,
+n))`, `treatAsAlly(target, traits, n)`. **Not covered:** Reluctant Foe (`aos` 50171: a hero from the collection
+> treated as an [Elite] minion with a replaced text box).
+
+### 3.30 A resource ability's own effects
+
+Gauntlet Gun (`warm` 23005): "Resource: Exhaust Gauntlet Gun → generate a [wild] resource for a War Machine event and
+place 1 ammo counter on War Machine." Survey (every raw pack, "Resource: … generate … resource … and/then …" and
+"Resource: … . <effect>"): War Cry, Improvisation, Bodyguard, Fortitude (`mut_gen` 32180, 32185, 32190, 32195: "Gain a
+tough status card" / "Ready an ally and heal 2 damage from it" / "Draw 1 card" / "Stun an enemy", then "Remove this card
+from the game and the campaign pool"); Psi-Knife / Psi-Katana (`psylocke` 41002a/b, "You may flip this card");
+Cybernetic Arm (`winter` 54002, "That event deals 1 additional damage") and Ruby Quartz Visor (`cyclops` 33003, "That
+attack gains piercing and ranged"), which modify the card paid for.
+
+> **Status: landed (2026-09-24),** tested in `packages/engine/src/resource-effects.test.ts` (2 tests: used to pay, the
+> resource ability's effect resolves with the payment and before the card paid for, replay deep-equal; not used,
+> nothing happens) and in a real game in `packages/cards/src/wave4/warm/war-machine-kit.test.ts` (Repulsor Beam paid
+> with the Gun's resource gets the ammo counter; paid from hand, the Gun stays ready and no counter lands).
+> **What landed:** `payPayment` now returns a **`SpentPayment`** (`cards` discarded, and `resourceAbilities` used
+> that carry effects); **`announceResourcesSpent`** takes it and, after the "after you spend" events, pushes each used
+> resource ability's `effects` (so they resolve first: part of paying, RRG 1.8 "Initiating Abilities", p. 24, steps
+> 5–6), with "you" the player who used it, "self" its card, and slot **`paidFor`** the card or ability paid for (for
+> "that event deals 1 additional damage"). A resource ability used for nothing (never put in a payment) does nothing.
+> Log event `resourceAbilityEffects`. **DSL:** `resource(generates, options, ...effects)` / `heroResource(...)`.
+> **Scripted:** `23005.gauntlet-gun-resource` now places the counter. **Composes with:** the `mut_gen` campaign
+> upgrades (effects plus `moveCards(self, "removedFromGame")` and the campaign-pool removal), Psi-Knife (an optional
+> `flipCard(self)`), Cybernetic Arm and Ruby Quartz Visor (a modifier on `chosen("paidFor")`; the "that attack"
+> modifier itself is the scripter's to pick from the existing attack modifiers).
 
 ## 4. Open questions (for the user or FFG)
 
@@ -1267,6 +1391,11 @@ Each is implemented the way stated, or not at all, and named here rather than de
     Ability Type)" (p. 10) does not say; for an enemy, "Activation" (p. 6) ends an attack whose attacker leaves play.
     Implemented as (unchanged engine behavior): the attack still resolves, for the attacker's ATK as it last was.
     Proposed alternative: end a player attack whose attacker has left play, mirroring the enemy rule. Needs a ruling.
+21. **A minion treated as an ally that stops being one** (§3.29): Mind Control discarded, Karma leaving play. No card
+    or ruling says where the minion goes. Implemented as: it stays in the play area it is in and is engaged with the
+    player who controlled it (a minion in a player's area is engaged with them, RRG 1.8 "Engaged", p. 18), without an
+    engage event (nothing new engaged; it is "essentially a status change", ruling Dec 17, 2025 (1) #3). Proposed:
+    keep.
 
 ## 5. What this asks of the other agents
 

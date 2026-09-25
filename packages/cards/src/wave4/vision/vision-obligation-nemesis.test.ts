@@ -1,8 +1,10 @@
-import { activeEncounterDeckId, type GameState, type InstanceId } from "@mc/engine";
+import { activeAbilityRefs, activeEncounterDeckId, type GameState, type InstanceId } from "@mc/engine";
 import { describe, expect, it } from "vitest";
 import {
   endTurn,
   firstLegal,
+  identityOf,
+  inst,
   instancesOf,
   P1,
   patchInstance,
@@ -55,8 +57,28 @@ describe("Corrupted Programming (obligation, 26028)", () => {
     );
     expect(after.removedFromGame).toContain(obligation);
   });
-  // 26028.corrupted-programming-constant is KNOWN_SKIPPED (../coverage.test.ts): `blankTextBox` has no keyword
-  // exception yet.
+
+  it("26028.corrupted-programming-constant: blanks the mass form upgrade's text box, but not its form keyword", () => {
+    const start = visionVsRhino(2);
+    const identity = identityOf(start, P1);
+    const mass = instancesOf(start, "26002")[0]!;
+    // Dense's own printed ability (a "form"-keyword flip response) is live before the obligation is in play.
+    expect(activeAbilityRefs(start, mass, WAVE4_DEPS).length).toBeGreaterThan(0);
+    const staged = stageObligation(start, "26028");
+    const revealed = settle(runWith(WAVE4_DEPS, staged, endTurn()), firstLegal, undefined, WAVE4_DEPS);
+    // With Corrupted Programming in play, the mass form upgrade's own abilities are blanked…
+    expect(activeAbilityRefs(revealed, mass, WAVE4_DEPS)).toEqual([]);
+    // …but the "mass" form keyword itself survives (`exceptKeywords`): Density Manipulation (26001a's own action,
+    // which finds "the only" printed-form-mass card to flip) still works.
+    const hero = runWith(WAVE4_DEPS, revealed, toHero());
+    const flipped = settle(
+      runWith(WAVE4_DEPS, hero, use(P1, identity, "26001a.vision-constant")),
+      firstLegal,
+      undefined,
+      WAVE4_DEPS,
+    );
+    expect(inst(flipped, mass).flipped).toBe(true);
+  });
 });
 
 describe("Vision's nemesis set (Ultron, Ultron Unleashed, Relentless Android)", () => {

@@ -1,7 +1,9 @@
 import {
   alterEgoAction,
   anyOfCards,
+  blanksTextBox,
   chosen,
+  constant,
   defineAbilities,
   discardAtRandom,
   droneFromDeck,
@@ -12,9 +14,12 @@ import {
   inPlay,
   moveCards,
   cards,
+  ofIdentitySetTitled,
   oneCopyOf,
   on,
+  printedForm,
   putIntoPlay,
+  query,
   self,
   selectCards,
   setAside,
@@ -38,11 +43,21 @@ import {
  */
 export const VISION_OBLIGATION_NEMESIS = defineAbilities({
   // Corrupted Programming (26028) — Give to the Vision player. Treat your mass form upgrade's text box as if it
-  // were blank, except for keywords (KNOWN_SKIPPED: `blankTextBox` has no keyword exception yet, docs/phase7-
-  // wave4.md §3.1's own "Not done" note and `../vision-kit.ts`'s module docblock — blanking would also strip the
-  // `form` keyword, leaving Vision with no mass form at all, backwards from the printed card. See
-  // `KNOWN_SKIPPED["vision"]` in `../coverage.test.ts`). Alter-Ego Action: Exhaust your identity → remove Corrupted
-  // Programming from the game.
+  // were blank, except for keywords: `blankTextBox` gained `exceptKeywords` (docs/phase7-wave4.md §3.28, landed
+  // after this pack's own "Not done" note) — the mass form upgrade keeps its `form` keyword (so Vision's mass form
+  // itself is unaffected) but loses every printed ability while this obligation is in play. Alter-Ego Action:
+  // Exhaust your identity → remove Corrupted Programming from the game.
+  // `printedForm("mass")` alone isn't enough: the natural `{ controller: "you" }` reads `null` here, not Vision's
+  // player — an obligation's own instance has no controller (`packages/engine/src/select.ts`'s `blankedSets` reads
+  // `controllerOf(state, sourceId)` directly, not the "speaker" convention `activeRules` uses for exactly this
+  // "a card no player controls but that still speaks to one" shape, docs/phase7-wave2.md §25.3). `ofIdentitySetTitled
+  // ("Vision")` finds "your mass form upgrade" a different, unambiguous way: Intangible/Dense is printed `aspect:
+  // "hero:26001a"`, Vision's own identity-specific set, which no other player's card can share.
+  "26028.corrupted-programming-constant": constant(
+    blanksTextBox(query("upgrade", { ...printedForm("mass"), ...ofIdentitySetTitled("Vision") }), {
+      exceptKeywords: true,
+    }),
+  ),
   "26028.corrupted-programming-action": alterEgoAction(
     { cost: exhaustYourHero },
     moveCards(cards(self), "removedFromGame"),

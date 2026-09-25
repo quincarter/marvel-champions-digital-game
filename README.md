@@ -134,3 +134,31 @@ pnpm --filter @mc/content ingest -- --pack core --offline
 - [ ] **Phase 7 — Expansions & Content Cycles**: Post-core hero packs, campaign expansions, and new mechanics.
 
 Refer to [`PLAN.md`](PLAN.md) and [`CLAUDE.md`](CLAUDE.md) for full architectural documentation and roadmap details.
+
+---
+
+## License
+
+Copyright (C) 2026 Quin Carter
+
+The source code in this repository is licensed under the **GNU Affero General Public License v3.0 or later** — see [LICENSE](LICENSE).
+
+```text
+Marvel Champions: Digital Edition
+Copyright (C) 2026  Quin Carter
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program.  If not, see <https://www.gnu.org/licenses/>.
+```
+
+The license covers this project's own code only. _Marvel Champions: The Card Game_, its card text, rules, artwork, characters and trademarks are the property of Fantasy Flight Games and Marvel and are **not** licensed under the AGPL; neither is any third-party artwork, music or other material in this repository, which remains its owners' under their own terms.

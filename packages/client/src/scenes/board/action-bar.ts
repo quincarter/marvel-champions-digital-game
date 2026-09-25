@@ -63,18 +63,23 @@ export function drawActionBar(ctx: BoardDrawContext, rect: Rect, model: BoardMod
     // stunned hatches Attack, confused hatches Thwart, in that status's hue.
     // Still pressable when the engine allows it — attacking while stunned is a
     // legal play that spends the stun, and sometimes the right one.
+    const power = action === "attack" || action === "thwart" ? action : null;
     const cancelledBy =
-      (action === "attack" || action === "thwart") && model.me.disabledActions.includes(action)
-        ? status[action === "attack" ? "stunned" : "confused"]
-        : null;
+      power && model.me.disabledActions.includes(power) ? status[power === "attack" ? "stunned" : "confused"] : null;
+    // How many characters could go. More than one opens the "Attack with" picker, so the count is on the button;
+    // and the ✕ only stays while every one of them is cancelled — a stunned hero with a ready ally can still attack.
+    const sources = power ? controller.powerSourcesFor(power) : [];
+    const allCancelled = sources.every((source) => source.cancelledBy !== null);
+    const choosing = selection.kind === "choosingSource" && selection.power === action;
     ctx.frame.buttons.push(
       new McButton(scene, {
         kind: "onInk",
-        label: cancelledBy ? `${labels[action]} ✕` : labels[action],
+        label: cancelledBy && allCancelled ? `${labels[action]} ✕` : labels[action],
+        ...(sources.length > 1 ? { value: `×${sources.length}` } : {}),
         type: typeRole.label,
         rect: cell,
         enabled: button?.enabled ?? false,
-        selected: targeting,
+        selected: targeting || choosing,
         ...(cancelledBy ? { hatch: cancelledBy.hex } : {}),
         ...(button?.reason ? { reason: button.reason } : {}),
         onClick: () => controller.chooseBasic(action),
