@@ -8,6 +8,7 @@ import {
   outcomeTrackFor,
   parseMusicCatalog,
   titleTrackFor,
+  villainTracksFor,
 } from "./music-catalog.js";
 
 const mockCatalog = parseMusicCatalog({
@@ -77,6 +78,33 @@ describe("parseMusicCatalog", () => {
       "scenarios/rhino/nested/battle.mp3",
       "scenarios/rhino/typo.mp3",
     ]);
+  });
+});
+
+describe("villainTracksFor", () => {
+  test("is only the scenario's own battle tracks", () => {
+    expect(
+      villainTracksFor(mockCatalog, "rhino")
+        .map((track) => track.url)
+        .sort(),
+    ).toEqual(["/rhino-b.mp3", "/rhino-b2.mp3"]);
+  });
+
+  test("has no fallback: a villain without battle music gets none, not the campaign's, pack's or gameplay's", () => {
+    expect(villainTracksFor(mockCatalog, "klaw")).toEqual([]);
+    expect(villainTracksFor(mockCatalog, "nobody")).toEqual([]);
+  });
+
+  test("every Rise of Red Skull and Galaxy's Most Wanted villain with a battle folder resolves by its node id", () => {
+    for (const nodeId of [
+      "crossbones",
+      "brotherhood-of-badoon",
+      "infiltrate-the-museum",
+      "escape-the-museum",
+      "nebula",
+    ]) {
+      expect(villainTracksFor(MUSIC_CATALOG, nodeId).length, nodeId).toBeGreaterThan(0);
+    }
   });
 });
 

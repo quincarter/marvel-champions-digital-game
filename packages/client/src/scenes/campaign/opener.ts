@@ -176,6 +176,8 @@ export class CampaignOpenerScene extends Phaser.Scene {
     this.#issueTotal = nodeIds.length;
     const pages = storyFor(campaignId)?.pages;
     this.#comicSteps = this.#story?.comicBeats && pages ? resolveComicBeats(pages, this.#story.comicBeats) : [];
+    // A campaign's node ids are its scenario ids: the issue opens on the theme of the villain it's about.
+    appSession().music?.playVillainTheme(nodeId);
     this.#comicCurrent = 0;
     this.#panTween?.stop();
     this.#panTween = null;
