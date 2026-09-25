@@ -186,6 +186,12 @@ export interface BubbleOptions {
   readonly size?: number;
   /** The design's offset "print shadow" under a bubble: ink by default, Hero Red on the aftermath narrator. */
   readonly shadow?: number;
+  /**
+   * A tail that runs from the bubble's nearest straight edge to (just short of) this screen point — the speaker, in
+   * the comic reader's placed bubbles. Drawn as one shape with the bubble (shared shadow, one continuous outline),
+   * and takes precedence over `tail`.
+   */
+  readonly pointAt?: { readonly x: number; readonly y: number };
 }
 
 /** A white speech bubble with a 3px ink border and an offset shadow (C04, C05, C07, C09, C11). */
@@ -229,14 +235,25 @@ export function speechBubble(
     height: top - y + body.height + padY,
   };
   const radius = Math.min(16, rect.height / 2);
-  graphics
-    .fillStyle(options.shadow ?? surface.ink.hex, 1)
-    .fillRoundedRect(rect.x + 5, rect.y + 5, rect.width, rect.height, radius);
+  const pointer = options.pointAt ? pointerTail(rect, radius, options.pointAt) : null;
+  const shadow = options.shadow ?? surface.ink.hex;
+  graphics.fillStyle(shadow, 1).fillRoundedRect(rect.x + 5, rect.y + 5, rect.width, rect.height, radius);
+  if (pointer) {
+    const [a, b, tip] = pointer;
+    graphics.fillTriangle(a.x + 5, a.y + 5, b.x + 5, b.y + 5, tip.x + 5, tip.y + 5);
+    // The tail's outline, twice the border's width: the bubble and the tail's own fill then cover its inner half,
+    // leaving an outline outside the tail exactly as thick as the bubble's.
+    graphics.lineStyle(border.object * 2, surface.ink.hex, 1).strokeTriangle(a.x, a.y, b.x, b.y, tip.x, tip.y);
+  }
   graphics.fillStyle(surface.card.hex, 1).fillRoundedRect(rect.x, rect.y, rect.width, rect.height, radius);
   graphics
     .lineStyle(border.object, surface.ink.hex, 1)
     .strokeRoundedRect(rect.x, rect.y, rect.width, rect.height, radius);
-  if (options.tail === "left") {
+  if (pointer) {
+    // Filled last, reaching into the bubble past its border, so the border opens where the tail joins it.
+    const [a, b, tip] = pointer;
+    graphics.fillStyle(surface.card.hex, 1).fillTriangle(a.x, a.y, b.x, b.y, tip.x, tip.y);
+  } else if (options.tail === "left") {
     const ty = rect.y + Math.min(rect.height / 2, 22);
     graphics.fillStyle(surface.card.hex, 1).fillTriangle(rect.x + 2, ty - 8, rect.x + 2, ty + 8, rect.x - 12, ty);
     graphics.lineStyle(border.object, surface.ink.hex, 1).lineBetween(rect.x, ty - 8, rect.x - 12, ty);
@@ -249,6 +266,58 @@ export function speechBubble(
     graphics.lineBetween(tx - 2, by + 12, tx + 8, by);
   }
   return { objects, rect };
+}
+
+/**
+ * A pointing tail's triangle for `speechBubble`'s `pointAt`: its base on the bubble's edge facing `target`, slid
+ * along that edge clear of the rounded corners (a base on a curve can't join the outline cleanly) and sunk a few
+ * pixels inside so its fill can open the border; its tip just short of `target`. Null when the target is inside or
+ * touching the bubble.
+ */
+function pointerTail(
+  rect: Rect,
+  radius: number,
+  target: { readonly x: number; readonly y: number },
+): readonly [{ x: number; y: number }, { x: number; y: number }, { x: number; y: number }] | null {
+  const half = 10;
+  const inset = 6;
+  const cx = rect.x + rect.width / 2;
+  const cy = rect.y + rect.height / 2;
+  const dx = target.x - cx;
+  const dy = target.y - cy;
+  // Which edge faces the target, by where the centre-to-target ray leaves the box.
+  const tx = Math.abs(dx) > 1e-6 ? rect.width / 2 / Math.abs(dx) : Infinity;
+  const ty = Math.abs(dy) > 1e-6 ? rect.height / 2 / Math.abs(dy) : Infinity;
+  const t = Math.min(tx, ty);
+  if (!Number.isFinite(t) || t >= 1) return null;
+  const clampTo = (lo: number, hi: number, v: number): number =>
+    lo > hi ? (lo + hi) / 2 : Math.min(hi, Math.max(lo, v));
+  const keep = radius + half + 4;
+  let base: { x: number; y: number };
+  let inward: { x: number; y: number };
+  if (ty <= tx) {
+    // Top or bottom edge.
+    const edgeY = dy > 0 ? rect.y + rect.height : rect.y;
+    base = { x: clampTo(rect.x + keep, rect.x + rect.width - keep, cx + dx * t), y: edgeY };
+    inward = { x: 0, y: dy > 0 ? -1 : 1 };
+  } else {
+    const edgeX = dx > 0 ? rect.x + rect.width : rect.x;
+    base = { x: edgeX, y: clampTo(rect.y + keep, rect.y + rect.height - keep, cy + dy * t) };
+    inward = { x: dx > 0 ? -1 : 1, y: 0 };
+  }
+  const distance = Math.hypot(target.x - base.x, target.y - base.y);
+  if (distance < 16) return null;
+  const ux = (target.x - base.x) / distance;
+  const uy = (target.y - base.y) / distance;
+  const tip = { x: target.x - ux * 4, y: target.y - uy * 4 };
+  // The base runs along the edge, not across the tail's direction, so it lies flush with the bubble's side.
+  const along = { x: Math.abs(inward.y), y: Math.abs(inward.x) };
+  const sunk = { x: base.x + inward.x * inset, y: base.y + inward.y * inset };
+  return [
+    { x: sunk.x - along.x * half, y: sunk.y - along.y * half },
+    { x: sunk.x + along.x * half, y: sunk.y + along.y * half },
+    tip,
+  ];
 }
 
 /** A boxed Bangers stamp ("ISSUE #1 · WON", "WON", "VOL. 1"): solid ground, paper border on ink. */
