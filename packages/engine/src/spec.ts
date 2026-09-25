@@ -1623,7 +1623,17 @@ export type EffectSpec =
    * readyCost`, docs/phase7-wave4.md §3.19): the cost was just paid, so this ready does not ask again. Scripts omit it.
    */
   | { readonly kind: "ready"; readonly target: TargetRef; readonly readyCostPaid?: true }
-  | { readonly kind: "giveStatus"; readonly target: TargetRef; readonly status: StatusName }
+  | {
+      readonly kind: "giveStatus";
+      readonly target: TargetRef;
+      readonly status: StatusName;
+      /**
+       * `<bind>.amount`: how many status cards were actually given, summed over the targets. A character already at
+       * its capacity (RRG "Status Cards") gets none, so "If no tough status card was given this way" (Magic Muscle,
+       * `hood` 24070) is `<bind>.amount` equal to 0, not "no target existed". docs/phase7-wave4.md §3.60.
+       */
+      readonly bind?: string;
+    }
   | { readonly kind: "removeStatus"; readonly target: TargetRef; readonly status: StatusName }
   | {
       readonly kind: "addCounters";

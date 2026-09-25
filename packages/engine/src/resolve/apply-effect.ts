@@ -753,9 +753,13 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
         });
       }
       return;
-    case "giveStatus":
-      for (const id of targets(effect.target)) giveStatus(ctx, id, effect.status);
+    case "giveStatus": {
+      let given = 0;
+      for (const id of targets(effect.target)) if (giveStatus(ctx, id, effect.status)) given += 1;
+      // docs/phase7-wave4.md §3.60: "If no tough status card was given this way" reads `<bind>.amount`.
+      if (effect.bind) addFrameVars(ctx, frame.frameId, { [`${effect.bind}.amount`]: given });
       return;
+    }
     case "removeStatus":
       for (const id of targets(effect.target)) removeStatus(ctx, id, effect.status);
       return;

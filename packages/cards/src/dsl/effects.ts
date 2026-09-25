@@ -175,15 +175,25 @@ export const thwart = (
 // Statuses, exhaust, counters, discard
 // ---------------------------------------------------------------------------
 
-export const giveStatus = (target: TargetRef, status: StatusName): EffectSpec => ({
+/**
+ * `opts.bind`: `<bind>.amount` is how many were actually given (none to a character already at capacity) — "If no
+ * tough status card was given this way" (Magic Muscle, `hood` 24070; docs/phase7-wave4.md §3.60).
+ */
+export const giveStatus = (
+  target: TargetRef,
+  status: StatusName,
+  opts: { readonly bind?: string } = {},
+): EffectSpec => ({
   kind: "giveStatus",
   target,
   status,
+  ...(opts.bind !== undefined ? { bind: opts.bind } : {}),
 });
 export const stun = (target: TargetRef): EffectSpec => giveStatus(target, "stunned");
 export const confuse = (target: TargetRef): EffectSpec => giveStatus(target, "confused");
 /** "Give X a tough status card". */
-export const giveTough = (target: TargetRef): EffectSpec => giveStatus(target, "tough");
+export const giveTough = (target: TargetRef, opts: { readonly bind?: string } = {}): EffectSpec =>
+  giveStatus(target, "tough", opts);
 /**
  * "Remove a [status] card from X" / the removal half of "replace that status card with a different status card"
  * (Vapors of Valtorr, `drs` pack). One card of that type; a character with none is unaffected.
