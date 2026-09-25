@@ -29,6 +29,7 @@ import { fadeScreenIn, goToScreen } from "../../ui/transitions.js";
 import type { Rect } from "../../view/layout.js";
 import { formFactorFor } from "../../view/layout.js";
 import { briefingViewOf, type BriefingView, type HandledRow } from "../../view/campaign-briefing-model.js";
+import type { BriefingPoolRow, BriefingPoolView } from "../../view/campaign-pool-model.js";
 import { isMarketPendingChoice } from "../../view/campaign-market-model.js";
 import { CARDS_BY_ID } from "../../content/pool.js";
 import { appSession, campaignService } from "../../session.js";
@@ -38,6 +39,11 @@ import { SCENES } from "../keys.js";
 import type { CampaignBriefingData } from "./routes.js";
 
 const cardName = (id: string): string => CARDS_BY_ID.get(id)?.name ?? id;
+/** See `scenes/campaign/dossier.ts`'s own copy of this helper — a pool field names a card by name, never an id. */
+const cardTypeOf = (name: string): { readonly type: string } | undefined => {
+  for (const card of CARDS_BY_ID.values()) if (card.name === name) return { type: card.type };
+  return undefined;
+};
 
 export class CampaignBriefingScene extends Phaser.Scene {
   #data!: CampaignBriefingData;
@@ -218,7 +224,7 @@ export class CampaignBriefingScene extends Phaser.Scene {
     const contentBottom = actionBar.y - 16;
 
     const view = record.attempt
-      ? briefingViewOf(record, cardName, this.#issueNumber, this.#definition ?? undefined, this.#nodeIds)
+      ? briefingViewOf(record, cardName, this.#issueNumber, this.#definition ?? undefined, this.#nodeIds, cardTypeOf)
       : null;
     const gutter = phone ? 16 : 24;
     const columnGap = 32;
@@ -231,6 +237,9 @@ export class CampaignBriefingScene extends Phaser.Scene {
     };
 
     let leftBottom = this.#drawSpeaker(leftRect, record, phone);
+    if (view?.pool) {
+      leftBottom = this.#drawPool({ x: leftRect.x, y: leftBottom + 20, width: leftRect.width, height: 0 }, view.pool);
+    }
     leftBottom = this.#drawHandled(
       { x: leftRect.x, y: leftBottom + 20, width: leftRect.width, height: contentBottom - leftBottom - 20 },
       view,
@@ -353,6 +362,59 @@ export class CampaignBriefingScene extends Phaser.Scene {
       },
     );
     return Math.max(rect.y + portraitSize, bubbleRect.y + bubbleRect.height);
+  }
+
+  /**
+   * "From the pool" (design tiles 24/26): one row per resolved pool card this issue's own setup reads back, each
+   * with its own colored stripe and a ✓ (helps)/✗ (hurts) mark — or, for the box's finale, one section per
+   * destination (into play / encounter deck / each player's deck / upgrades), the whole pool's own recap.
+   */
+  #drawPool(rect: Rect, pool: BriefingPoolView): number {
+    let y = ruleHeading(
+      this,
+      rect.x,
+      rect.y,
+      rect.width,
+      pool.groups ? `From the pool · ${pool.rows.length} cards` : "From the pool",
+      surface.ink.hex,
+      20,
+    );
+    const rowRect = (row: BriefingPoolRow, top: number): number => {
+      const rowHeight = 54;
+      const stripeColor = row.helps ? signal.heal.hex : accent.heroRed.hex;
+      const box = this.add.graphics();
+      box.fillStyle(surface.card.hex, 1).fillRect(rect.x, top, rect.width, rowHeight);
+      box.lineStyle(2, surface.ink.hex, 1).strokeRect(rect.x, top, rect.width, rowHeight);
+      box.fillStyle(stripeColor, 1).fillRect(rect.x, top, 6, rowHeight);
+      this.add.text(rect.x + 16, top + 8, row.name.toUpperCase(), textStyle(bangers(15), surface.ink.hex));
+      this.add
+        .text(rect.x + 16, top + 28, row.destination, textStyle(typeRole.body, surface.ink.hex, 0.7))
+        .setFontSize(11)
+        .setWordWrapWidth(rect.width - 80);
+      this.add
+        .text(rect.x + rect.width - 24, top + rowHeight / 2, row.helps ? "✓" : "✗", {
+          ...textStyle({ ...typeRole.rowTitle, size: 16 }, stripeColor),
+        })
+        .setOrigin(0.5);
+      return top + rowHeight + 10;
+    };
+    if (!pool.groups) {
+      for (const row of pool.rows) y = rowRect(row, y);
+      return y;
+    }
+    for (const group of pool.groups) {
+      const headerHeight = 22;
+      this.add.rectangle(rect.x, y, rect.width, headerHeight, surface.ink.hex, 0.08).setOrigin(0, 0);
+      this.add.text(rect.x + 8, y + 4, group.title.toUpperCase(), {
+        ...textStyle(typeRole.label, surface.ink.hex, 0.7),
+        fontSize: "10px",
+        fontStyle: "700",
+      });
+      y += headerHeight + 6;
+      for (const row of group.rows) y = rowRect(row, y);
+      y += 6;
+    }
+    return y;
   }
 
   #drawHandled(rect: Rect, view: BriefingView | null, stops: Map<string, FocusStop>): number {
