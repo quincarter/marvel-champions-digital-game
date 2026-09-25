@@ -107,7 +107,7 @@ function costVariants(cost: AbilityCost): readonly AbilityCost[] {
 
 function checkCostShape(cost: AbilityCost, problems: string[]): void {
   for (const { mode, pick } of inPlayPicksOf(cost)) {
-    const name = mode === "exhaust" ? "exhaustCards" : "returnToHand";
+    const name = mode === "exhaust" ? "exhaustCards" : mode === "discard" ? "discardCards" : "returnToHand";
     // RRG 1.8 "Cost" (p. 14): "A cost requiring 'any number' or 'up to' some number of game elements requires a minimum of one".
     if (!Number.isInteger(pick.min) || pick.min < 1)
       problems.push(`cost ${name}: min must be a whole number of at least 1 (RRG 1.8 "Cost", p. 14)`);

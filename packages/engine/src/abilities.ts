@@ -943,18 +943,29 @@ export interface AbilityCost {
   readonly exhaustCards?: InPlayCostPick | readonly InPlayCostPick[];
   /** "… return Captain America's Shield from play to your hand →": cards in play go to their owner's hand. See `InPlayCostPick`. */
   readonly returnToHand?: InPlayCostPick;
+  /**
+   * "Discard an upgrade you control →" (Lethal Weapon, `nebu` 22030); "Discard an ally you control →" (Noble Sacrifice,
+   * `magneto` 49018); "Discard a [Tech] upgrade you control →" (Repurpose, `spdr` 31016); "Discard an ally or
+   * [persona] support you control →" (Delusion of Collusion, `sm` 27170): cards in play discarded as part of the cost.
+   * A candidate must be able to leave play. See `InPlayCostPick`; docs/phase7-wave4.md §3.25.
+   */
+  readonly discardCards?: InPlayCostPick;
 }
 
-/** Every `InPlayCostPick` a cost makes, in the order they are checked: the exhaust picks, then the return pick. */
+/** How an `InPlayCostPick` spends its cards. */
+export type InPlayCostMode = "exhaust" | "return" | "discard";
+
+/** Every `InPlayCostPick` a cost makes, in the order they are checked: the exhaust picks, the return pick, the discard pick. */
 export function inPlayPicksOf(
   cost: AbilityCost | undefined,
-): readonly { readonly mode: "exhaust" | "return"; readonly pick: InPlayCostPick }[] {
+): readonly { readonly mode: InPlayCostMode; readonly pick: InPlayCostPick }[] {
   if (!cost) return [];
   const exhaust =
     cost.exhaustCards === undefined ? [] : "slot" in cost.exhaustCards ? [cost.exhaustCards] : cost.exhaustCards;
   return [
     ...exhaust.map((pick) => ({ mode: "exhaust" as const, pick })),
     ...(cost.returnToHand ? [{ mode: "return" as const, pick: cost.returnToHand }] : []),
+    ...(cost.discardCards ? [{ mode: "discard" as const, pick: cost.discardCards }] : []),
   ];
 }
 

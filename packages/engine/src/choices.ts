@@ -1,4 +1,5 @@
 import type { AbilityId } from "@mc/content";
+import type { InPlayCostMode } from "./abilities.js";
 import type { ChoiceId, FrameId, InstanceId, PlayerId } from "./ids.js";
 import type { ResourceRequirement } from "./resources.js";
 import type { WindowTiming } from "./stack.js";
@@ -70,7 +71,7 @@ export type ChoicePrompt =
       readonly instanceId: InstanceId;
       readonly abilityId: AbilityId;
       readonly slot: string;
-      readonly mode: "exhaust" | "return";
+      readonly mode: InPlayCostMode;
     }
   /** Paying for an interrupt/response event played from hand inside a timing window. */
   | {

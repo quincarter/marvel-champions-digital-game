@@ -39,7 +39,7 @@ import {
   patrolledBy,
   restrictedLimitFor,
 } from "./rules.js";
-import { inPlayPicksOf, type InPlayCostPick } from "./abilities.js";
+import { inPlayPicksOf, type InPlayCostMode, type InPlayCostPick } from "./abilities.js";
 import type { TriggerEvent } from "./trigger-events.js";
 import { instanceId as asInstanceId, type InstanceId, type PlayerId } from "./ids.js";
 import { hasKeyword, statusActive } from "./keywords.js";
@@ -1162,7 +1162,7 @@ export function inPlayCostCandidates(
   deps: EngineDeps,
   sourceId: InstanceId,
   playerId: PlayerId,
-  mode: "exhaust" | "return",
+  mode: InPlayCostMode,
   pick: InPlayCostPick,
 ): readonly InstanceId[] {
   return eligibleForInPlayPick(state, deps, sourceId, playerId, pick).filter((id) =>
@@ -1213,10 +1213,12 @@ function eligibleForInPlayPick(
   );
 }
 
-function canPayInPlayPick(state: GameState, deps: EngineDeps, id: InstanceId, mode: "exhaust" | "return"): boolean {
+function canPayInPlayPick(state: GameState, deps: EngineDeps, id: InstanceId, mode: InPlayCostMode): boolean {
   const instance = mustInstance(state, id);
   // Returning goes to the owner's hand (RRG 1.8 "Ownership and Control", p. 30); a card with no owning player can't go there.
-  return mode === "exhaust" ? !instance.exhausted : instance.ownerId !== null && !cannotLeavePlay(state, deps, id);
+  if (mode === "exhaust") return !instance.exhausted;
+  if (mode === "discard") return !cannotLeavePlay(state, deps, id);
+  return instance.ownerId !== null && !cannotLeavePlay(state, deps, id);
 }
 
 /** Checks an `InPlayCostPick` against the command's picks (or the forced pick) without paying anything. */
@@ -1225,11 +1227,11 @@ function planInPlayPick(
   deps: EngineDeps,
   sourceId: InstanceId,
   playerId: PlayerId,
-  mode: "exhaust" | "return",
+  mode: InPlayCostMode,
   pick: InPlayCostPick,
   choices: CostChoices,
 ): readonly InstanceId[] | PriceFault {
-  const verb = mode === "exhaust" ? "exhaust" : "return to hand";
+  const verb = mode === "exhaust" ? "exhaust" : mode === "discard" ? "discard" : "return to hand";
   const eligible = eligibleForInPlayPick(state, deps, sourceId, playerId, pick);
   const candidates = eligible.filter((id) => canPayInPlayPick(state, deps, id, mode));
   const whyNot = (id: InstanceId): PriceFault =>
@@ -1373,8 +1375,14 @@ export function payCost(
   }
   if (cost.discardSelf && getInstance(ctx.state, sourceId)) discardFromPlay(ctx, sourceId);
   for (const { mode, pick } of inPlayPicksOf(cost)) {
-    if (mode === "exhaust") for (const id of plan.bindings[pick.slot] ?? []) exhaustCard(ctx, id);
-    else moveCardsTo(ctx, plan.bindings[pick.slot] ?? [], "hand");
+    const ids = plan.bindings[pick.slot] ?? [];
+    if (mode === "exhaust") {
+      for (const id of ids) exhaustCard(ctx, id);
+    } else if (mode === "discard") {
+      for (const id of ids) if (getInstance(ctx.state, id)) discardFromPlay(ctx, id);
+    } else {
+      moveCardsTo(ctx, ids, "hand");
+    }
   }
 }
 
