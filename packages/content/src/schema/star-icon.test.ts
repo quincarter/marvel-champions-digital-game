@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { CORE_CARDS, DATA_ONLY_CARDS, WAVE1_CARDS, WAVE2_CARDS, WAVE3_CARDS } from "../data/index.js";
+import { CORE_CARDS, DATA_ONLY_CARDS, WAVE1_CARDS, WAVE2_CARDS, WAVE3_CARDS, WAVE4_CARDS } from "../data/index.js";
 import { abilityId, starIconAbilityMismatch, validateMinionCard, validateSideSchemeCard } from "./index.js";
 import type {
   AnyCard,
@@ -30,14 +30,14 @@ type EncounterSideCard =
 const ENCOUNTER_SIDE_TYPES = new Set(["treachery", "minion", "attachment", "obligation", "environment", "side_scheme"]);
 
 /**
- * `WAVE1_CARDS`, `WAVE2_CARDS` and `WAVE3_CARDS` each already include `CORE_CARDS` (`data/index.ts`), so a plain
- * concatenation of all five pools would count every Core card four times over. De-duplicate by id instead of
- * picking one "canonical" pool, since that is exactly the shape `data-only.test.ts`'s own "no data-only id
- * collides with Core/wave 1/wave 2/wave 3" test already assumes elsewhere.
+ * `WAVE1_CARDS`, `WAVE2_CARDS`, `WAVE3_CARDS` and `WAVE4_CARDS` each already include `CORE_CARDS` (`data/index.ts`),
+ * so a plain concatenation of all six pools would count every Core card five times over. De-duplicate by id
+ * instead of picking one "canonical" pool, since that is exactly the shape `data-only.test.ts`'s own "no
+ * data-only id collides with Core/wave 1/wave 2/wave 3/wave 4" test already assumes elsewhere.
  */
 function allEncounterSideCards(): readonly EncounterSideCard[] {
   const byId = new Map<string, AnyCard>();
-  for (const c of [...CORE_CARDS, ...WAVE1_CARDS, ...WAVE2_CARDS, ...WAVE3_CARDS, ...DATA_ONLY_CARDS]) {
+  for (const c of [...CORE_CARDS, ...WAVE1_CARDS, ...WAVE2_CARDS, ...WAVE3_CARDS, ...WAVE4_CARDS, ...DATA_ONLY_CARDS]) {
     byId.set(c.id as string, c);
   }
   return [...byId.values()].filter((c): c is EncounterSideCard => ENCOUNTER_SIDE_TYPES.has(c.type));
