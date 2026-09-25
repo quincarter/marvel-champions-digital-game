@@ -1,5 +1,6 @@
 /**
- * The threat zone: the main scheme and up to three side schemes.
+ * The threat zone: the main scheme (and, for Tower Defense, its own extra main scheme — MC21 p. 10: "Both main
+ * schemes are active each round" — `BoardModel.extraMainSchemes`) and up to three side schemes.
  */
 
 import { drawArt } from "../../art/card-art.js";
@@ -29,19 +30,32 @@ export function drawSchemes(ctx: BoardDrawContext, rect: Rect, model: BoardModel
   // and thumbnail a 1440×900 table does, with the rest empty), but only as far as every scheme still fits: with
   // three side schemes up the rows are exactly what they always were. The phone's tabbed board keeps its rows.
   const sides = model.sideSchemes.slice(0, 3);
-  const available = rect.height - 20 - 6 * sides.length;
+  // Tower Defense's own second main scheme is drawn at the same height as the first, one row shorter than a side
+  // scheme's own thumbnail height would give it — a main scheme still reads at a glance among side schemes taller
+  // than usual only when there are extras, exactly the room this reserves.
+  const mains = [model.mainScheme, ...model.extraMainSchemes];
+  const available = rect.height - 20 - 6 * (sides.length + mains.length - 1);
   const mainHeight = ctx.tabbed
     ? MAIN_SCHEME_HEIGHT
-    : Math.max(MAIN_SCHEME_HEIGHT, Math.min(MAIN_SCHEME_MAX_HEIGHT, available - sides.length * SIDE_SCHEME_HEIGHT));
+    : Math.max(
+        MAIN_SCHEME_HEIGHT,
+        Math.min(MAIN_SCHEME_MAX_HEIGHT, (available - sides.length * SIDE_SCHEME_HEIGHT) / mains.length),
+      );
   const sideHeight =
     ctx.tabbed || sides.length === 0
       ? SIDE_SCHEME_HEIGHT
       : Math.max(
           SIDE_SCHEME_HEIGHT,
-          Math.min(SIDE_SCHEME_MAX_HEIGHT, Math.floor((available - mainHeight) / sides.length)),
+          Math.min(SIDE_SCHEME_MAX_HEIGHT, Math.floor((available - mainHeight * mains.length) / sides.length)),
         );
 
-  y = drawScheme(ctx, { x: rect.x + 10, y, width: rect.width - 20, height: mainHeight }, model.mainScheme);
+  mains.forEach((main, index) => {
+    y = drawScheme(
+      ctx,
+      { x: rect.x + 10, y: index === 0 ? y : y + 6, width: rect.width - 20, height: mainHeight },
+      main,
+    );
+  });
   for (const side of sides) {
     y = drawScheme(ctx, { x: rect.x + 10, y: y + 6, width: rect.width - 20, height: sideHeight }, side);
   }
