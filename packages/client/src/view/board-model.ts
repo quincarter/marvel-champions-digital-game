@@ -823,6 +823,12 @@ function subtitleOf(state: GameState, instance: CardInstance, card: AnyCard | un
       return "Upgrade";
     case "support":
       return "Support";
+    case "environment":
+      // A Spell card put into a player's own play area (Ebony Maw's own "puts that card into play in their play
+      // area", `mts` 21076-21078, docs/phase7-wave4.md §3.17/§5) is drawn through here — the ordinary
+      // `characterPanel` play-area path, not the villain-area-only `environmentPanel` — so it needs its own title
+      // case rather than falling through to the generic snake_case default below.
+      return "Environment";
     default:
       return card.type.replace(/_/g, " ");
   }
