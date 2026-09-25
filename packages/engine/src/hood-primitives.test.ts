@@ -7,7 +7,8 @@
  * - §3.52 `increaseDamage` and the steady-aware `hasStatus.active` (Beast Mode, Controller).
  * - §3.53 `KeywordGrantSpec.value` (Mandrill's retaliate X).
  * - §3.54 `repeatWhile`, and a card's own damage reporting the defeat it caused (Out for Blood).
- * - §3.56 `resolveSpecials.trigger: "whenRevealed"` with incite and surge (Citywide Crisis).
+ * - §3.56 `resolveSpecials.trigger: "whenRevealed"`: printed abilities only by default (Citywide Crisis, §4 Q23, user
+ *   decision 2026-09-25), incite and surge too with `includeKeywords`.
  * - §3.57 `RuleSpec gainsIcon` (Secret Lair).
  * - §3.59 `putIntoPlay.bind` (Crime Pays).
  */
@@ -410,43 +411,79 @@ describe("§3.56 resolving a card's When Revealed abilities on demand", () => {
     abilities: [OWN.ref],
   });
   const MUTE = stubSideScheme({ id: "mute", startingThreat: 0, boostIcons: 0 });
-  /** "Resolve each 'When Revealed' ability on each side scheme in play. If none was resolved, place 5 threat on the main scheme." */
-  const CRISIS = stubAbility("crisis.when-revealed", {
-    trigger: { kind: "whenRevealed" },
-    effects: [
-      {
-        kind: "resolveSpecials",
-        of: { kind: "each", query: { categories: ["sideScheme"] } },
-        trigger: "whenRevealed",
-        bind: "r",
-      },
-      {
-        kind: "if",
-        condition: { kind: "not", of: { kind: "varAtLeast", name: "r.count", amount: 1 } },
-        then: [{ kind: "placeThreat", target: { kind: "mainScheme" }, amount: { kind: "const", value: 5 } }],
-      },
-    ],
+  /** Incite 2 and surge, and no printed When Revealed. */
+  const KEYWORDS_ONLY = stubSideScheme({
+    id: "keywords-only",
+    startingThreat: 0,
+    boostIcons: 0,
+    keywords: [{ name: "incite", value: 2 }, { name: "surge" }],
   });
+  /** "Resolve each 'When Revealed' ability on each side scheme in play. If none was resolved, place 5 threat on the main scheme." */
+  const crisis = (id: string, includeKeywords: boolean) =>
+    stubAbility(id, {
+      trigger: { kind: "whenRevealed" },
+      effects: [
+        {
+          kind: "resolveSpecials",
+          of: { kind: "each", query: { categories: ["sideScheme"] } },
+          trigger: "whenRevealed",
+          ...(includeKeywords ? { includeKeywords: true } : {}),
+          bind: "r",
+        },
+        {
+          kind: "if",
+          condition: { kind: "not", of: { kind: "varAtLeast", name: "r.count", amount: 1 } },
+          then: [{ kind: "placeThreat", target: { kind: "mainScheme" }, amount: { kind: "const", value: 5 } }],
+        },
+      ],
+    });
+  /** Citywide Crisis as the user reads it (§4 Q23): printed When Revealed abilities only. */
+  const CRISIS = crisis("crisis.when-revealed", false);
   const CRISIS_CARD = stubTreachery({ id: "crisis", boostIcons: 0, abilities: [CRISIS.ref] });
-  const deps = depsOf(OWN, CRISIS);
+  /** The same with `includeKeywords`: incite and surge as RRG 1.8's "equivalent to … 'When Revealed'" wording has it. */
+  const WIDE = crisis("wide.when-revealed", true);
+  const WIDE_CARD = stubTreachery({ id: "wide", boostIcons: 0, abilities: [WIDE.ref] });
+  const deps = depsOf(OWN, CRISIS, WIDE);
 
-  function reveal(scheme: typeof LOUD) {
-    let state = heroTable([LOUD, MUTE, CRISIS_CARD], deps, QUIET_HITTER, [
+  function reveal(scheme: typeof LOUD, card: typeof CRISIS_CARD = CRISIS_CARD) {
+    let state = heroTable([LOUD, MUTE, KEYWORDS_ONLY, CRISIS_CARD, WIDE_CARD], deps, QUIET_HITTER, [
       scheme.id,
-      CRISIS_CARD.id,
+      card.id,
       ...Array.from({ length: 10 }, () => BLANK_BOOST.id),
     ]);
     const placed = inVillainArea(state, scheme.id);
-    state = onTopOfEncounterDeck(onTopOfEncounterDeck(placed.state, CRISIS_CARD.id), BLANK_BOOST.id);
+    state = onTopOfEncounterDeck(onTopOfEncounterDeck(placed.state, card.id), BLANK_BOOST.id);
     return { ...run(state, deps), scheme: placed.id };
   }
+  const idOf = (state: GameState, card: typeof CRISIS_CARD) =>
+    Object.values(state.instances).find((i) => i.cardId === card.id)!.instanceId;
   const threatOn = (events: readonly GameEvent[], scheme: InstanceId) =>
     events.flatMap((e) =>
       e.type === "threatPlaced" && e.schemeInstanceId === scheme ? [[e.amount, e.sourceInstanceId]] : [],
     );
 
-  it("the side scheme's own ability, its incite 2 and its surge all resolve; no fallback threat", () => {
+  it("default (Citywide Crisis, §4 Q23): only the printed ability resolves — no incite, no surge; no fallback", () => {
     const { session, events, scheme } = reveal(LOUD);
+    const main = session.state.mainScheme.instanceId;
+    expect(threatOn(events, scheme)).toEqual([[1, scheme]]);
+    // Step one's acceleration only: no incite 2, and the printed ability counted, so no fallback 5.
+    expect(threatOn(events, main)).toEqual([[1, null]]);
+    // Crisis only: no surge.
+    expect(events.filter((e) => e.type === "encounterCardRevealed")).toHaveLength(1);
+  });
+
+  it("default: a side scheme with only incite and surge resolves nothing, so the fallback places 5", () => {
+    const { session, events, scheme } = reveal(KEYWORDS_ONLY);
+    expect(threatOn(events, scheme)).toEqual([]);
+    expect(threatOn(events, session.state.mainScheme.instanceId)).toEqual([
+      [1, null],
+      [5, idOf(session.state, CRISIS_CARD)],
+    ]);
+    expect(events.filter((e) => e.type === "encounterCardRevealed")).toHaveLength(1);
+  });
+
+  it("includeKeywords: the side scheme's own ability, its incite 2 and its surge all resolve; no fallback threat", () => {
+    const { session, events, scheme } = reveal(LOUD, WIDE_CARD);
     const main = session.state.mainScheme.instanceId;
     expect(threatOn(events, scheme)).toEqual([[1, scheme]]);
     // Step one's acceleration (source null), then the side scheme's incite 2; never the fallback 5.
@@ -458,12 +495,20 @@ describe("§3.56 resolving a card's When Revealed abilities on demand", () => {
     expect(events.filter((e) => e.type === "encounterCardRevealed")).toHaveLength(2);
   });
 
-  it("with nothing to resolve, the fallback places 5", () => {
-    const { session, events } = reveal(MUTE);
-    const crisis = Object.values(session.state.instances).find((i) => i.cardId === CRISIS_CARD.id)!.instanceId;
+  it("includeKeywords: incite and surge alone count as abilities resolved, so no fallback", () => {
+    const { session, events, scheme } = reveal(KEYWORDS_ONLY, WIDE_CARD);
     expect(threatOn(events, session.state.mainScheme.instanceId)).toEqual([
       [1, null],
-      [5, crisis],
+      [2, scheme],
+    ]);
+    expect(events.filter((e) => e.type === "encounterCardRevealed")).toHaveLength(2);
+  });
+
+  it("with nothing to resolve, the fallback places 5", () => {
+    const { session, events } = reveal(MUTE);
+    expect(threatOn(events, session.state.mainScheme.instanceId)).toEqual([
+      [1, null],
+      [5, idOf(session.state, CRISIS_CARD)],
     ]);
   });
 });

@@ -898,13 +898,18 @@ export const resolveSpecialsOf = (ref: TargetRef, player?: PlayerRef): EffectSpe
 /**
  * "Resolve this card's 'When Revealed' ability" (`of: self`; the boost of Out for Blood, Double Trouble, Sandslide),
  * "Resolve each 'When Revealed' ability on each side scheme in play" (`of: each(query("sideScheme"))`; Citywide Crisis,
- * `hood` 24059). Incite and surge resolve too (RRG 1.8: each is "equivalent to" a When Revealed ability). `bind`:
+ * `hood` 24059). Printed When Revealed abilities only, by default (the user's reading of Citywide Crisis, §4 Q23);
+ * `includeKeywords` also resolves incite and surge (RRG 1.8: each is "equivalent to" a When Revealed ability). `bind`:
  * `<bind>.count`, how many were resolved. docs/phase7-wave4.md §3.56.
  */
-export const resolveWhenRevealedOf = (ref: TargetRef, opts: { readonly bind?: string } = {}): EffectSpec => ({
+export const resolveWhenRevealedOf = (
+  ref: TargetRef,
+  opts: { readonly bind?: string; readonly includeKeywords?: boolean } = {},
+): EffectSpec => ({
   kind: "resolveSpecials",
   of: ref,
   trigger: "whenRevealed",
+  ...(opts.includeKeywords ? { includeKeywords: true } : {}),
   ...withBind(opts.bind),
 });
 /** Records `value` now as var `name`, for a comparison later in the same ability (docs/phase7-wave4.md §3.46). */

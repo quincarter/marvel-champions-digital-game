@@ -291,6 +291,13 @@ function describe(
           : `${card(event.attackerInstanceId)} attacks ${card(event.targetInstanceId)} for ${event.damageDealt}.`,
         voice: "villain",
       };
+    // A player's attack whose attacker left play first (Speed Demon's attack defeating the attacking ally;
+    // docs/phase7-wave4.md §4 Q20): without this line the attack silently does nothing.
+    case "playerAttackEnded":
+      return {
+        text: `${card(event.attackerInstanceId)}'s attack on ${card(event.targetInstanceId)} ends — ${card(event.attackerInstanceId)} left play first.`,
+        voice: "player",
+      };
     // The scheme half of the same breakdown, worded the same way. The third term only appears when something actually
     // changed the threat ("reduce the amount of threat placed … by 1"); an attack always has a defense term, a scheme
     // has no equivalent that is always present.

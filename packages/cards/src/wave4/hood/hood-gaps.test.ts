@@ -288,9 +288,26 @@ describe("Citywide Crisis (24059)", () => {
   it("24059.when-revealed: Disaster at the Docks' When Revealed resolves again (3 damage to Spider-Man), so no threat", () => {
     const base = cleanGame({ fold: ["state_of_emergency"] });
     const docks = encounterCardInVillainArea(base, "24056", 3);
-    const { state, events } = villainPhaseWith(docks.state, [BOOST, "24059"]);
+    const { state, events, staged } = villainPhaseWith(docks.state, [BOOST, "24059"]);
     expect(damageDealt(eventsFrom(events, docks.id))).toEqual([[hero(base), 3]]);
     expect(state.instances[docks.id]!.threat).toBe(3);
+    const card = staged.encounterDecks[deckId(staged)]!.deck[1]!;
+    expect(eventsFrom(events, card).some((e) => e.type === "threatPlaced")).toBe(false);
+    expect(revealedCodes(events)).toEqual(["24059"]);
+  });
+
+  // §4 Q23 (user decision 2026-09-25): only printed When Revealed abilities are resolved and counted.
+  it("24059.when-revealed: the Docks' printed ability resolves and counts; Beast Mode (no When Revealed) adds nothing", () => {
+    const base = cleanGame({ fold: ["state_of_emergency", "beasty_boys"] });
+    const docks = encounterCardInVillainArea(base, "24056", 3);
+    const beastMode = encounterCardInVillainArea(docks.state, "24014", 4);
+    const { state, events, staged } = villainPhaseWith(beastMode.state, [BOOST, "24059"]);
+    const card = staged.encounterDecks[deckId(staged)]!.deck[1]!;
+    expect(damageDealt(eventsFrom(events, docks.id))).toEqual([[hero(base), 3]]);
+    expect(eventsFrom(events, card).some((e) => e.type === "threatPlaced")).toBe(false);
+    expect(state.instances[docks.id]!.threat).toBe(3);
+    expect(state.instances[beastMode.id]!.threat).toBe(4);
+    expect(revealedCodes(events)).toEqual(["24059"]);
   });
 
   it("24059.when-revealed: with no When Revealed on the side schemes in play, 2 threat on each scheme", () => {

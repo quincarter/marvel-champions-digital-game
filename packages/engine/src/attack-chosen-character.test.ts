@@ -15,7 +15,7 @@ import type { Command } from "./commands.js";
 import type { GameEvent } from "./events.js";
 import { replay, startSession } from "./engine.js";
 import type { InstanceId, PlayerId } from "./ids.js";
-import { mustInstance, mustPlayer } from "./query.js";
+import { characterProfile, mustInstance, mustPlayer } from "./query.js";
 import type { GameState } from "./state.js";
 import { depsOf, stubAbility } from "./testing/abilities.js";
 import { driveSession } from "./testing/drive.js";
@@ -72,14 +72,15 @@ const PROVOKE_ACTION = stubAbility(
 );
 const PROVOKE = stubEvent({ id: "provoke", cost: 0, abilities: [PROVOKE_ACTION.ref] });
 const FRAIL = stubAlly({ id: "frail", cost: 0, atk: 1, thw: 1, hp: 1 });
+const STURDY = stubAlly({ id: "sturdy", cost: 0, atk: 2, thw: 1, hp: 3 });
 const BLANK = stubTreachery({ id: "blank", boostIcons: 0 });
 
 const deps = depsOf(CROSSFIRE_INTERRUPT, SPEED_INTERRUPT, PROVOKE_ACTION);
-const DECK: readonly CardId[] = [PROVOKE.id, FRAIL.id, FRAIL.id];
+const DECK: readonly CardId[] = [PROVOKE.id, FRAIL.id, FRAIL.id, STURDY.id];
 
 function start(): GameState {
   const base = gameAtFirstTurn({
-    cards: [CROSSFIRE, SPEED, PROVOKE, FRAIL, BLANK],
+    cards: [CROSSFIRE, SPEED, PROVOKE, FRAIL, STURDY, BLANK],
     deps,
     deck: DECK,
     players: 2,
@@ -150,17 +151,81 @@ describe("§3.21 'When Crossfire attacks, he attacks the friendly character with
 });
 
 describe("§3.21 'When a character attacks Speed Demon, Speed Demon attacks that character' (targetCharacter)", () => {
-  it("the attacking ally is attacked first, and the ally's attack still resolves after", () => {
+  const attack = (attacker: InstanceId, target: InstanceId): Command => ({
+    type: "basicAttack",
+    playerId: P1,
+    attackerInstanceId: attacker,
+    targetInstanceId: target,
+  });
+  const damageDealt = (events: readonly GameEvent[]) =>
+    events.filter((e): e is Extract<GameEvent, { type: "damageDealt" }> => e.type === "damageDealt");
+
+  // §4 Q20, user decision 2026-09-25: a player's attack whose attacker has left play ends, as an enemy's does (RRG 1.8
+  // "Activation", p. 6).
+  it("Speed Demon defeats the attacking ally first, so the ally's attack ends: no damage to Speed Demon", () => {
     const base = start();
     const speed = minionEngagedWith(base, SPEED.id, P1);
     const frail = playerCardIntoPlay(speed.state, FRAIL.id, P1);
-    const { state, events } = run(frail.state, [
-      { type: "basicAttack", playerId: P1, attackerInstanceId: frail.id, targetInstanceId: speed.id },
-    ]);
-    const dealt = events.filter((e): e is Extract<GameEvent, { type: "damageDealt" }> => e.type === "damageDealt");
-    // Speed Demon's 1 damage to the ally comes first; then the ally's 1 damage to Speed Demon.
+    const { state, events, session } = run(frail.state, [attack(frail.id, speed.id)]);
+    const dealt = damageDealt(events);
+    // Only Speed Demon's damage: no attack damage, and no consequential damage on the discarded ally.
+    expect(dealt).toHaveLength(1);
     expect(dealt[0]).toMatchObject({ targetInstanceId: frail.id, sourceInstanceId: speed.id });
-    expect(dealt.some((e) => e.targetInstanceId === speed.id)).toBe(true);
     expect(discarded(state, frail.id, P1)).toBe(true);
+    expect(mustInstance(state, speed.id).damage).toBe(0);
+    expect(mustInstance(state, frail.id).damage).toBe(0);
+    expect(events.filter((e) => e.type === "playerAttackEnded")).toEqual([
+      {
+        type: "playerAttackEnded",
+        attackerInstanceId: frail.id,
+        targetInstanceId: speed.id,
+        reason: "attackerLeftPlay",
+      },
+    ]);
+    // Nothing hangs off an attack that ended (retaliate, "after … attacks").
+    const attackedBy = (e: GameEvent, id: InstanceId) =>
+      e.type === "triggerEvent" && e.event.kind === "characterAttacked" && e.event.attackerInstanceId === id;
+    expect(events.some((e) => attackedBy(e, frail.id))).toBe(false);
+    expect(events.some((e) => attackedBy(e, speed.id))).toBe(true);
+    const replayed = replay(session.log, deps);
+    if (!replayed.ok) throw new Error(replayed.error.message);
+    expect(replayed.state).toEqual(state);
+  });
+
+  it("baseline: an ally that survives Speed Demon's attack still deals its damage after", () => {
+    const base = start();
+    const speed = minionEngagedWith(base, SPEED.id, P1);
+    const sturdy = playerCardIntoPlay(speed.state, STURDY.id, P1);
+    const { state, events } = run(sturdy.state, [attack(sturdy.id, speed.id)]);
+    const dealt = damageDealt(events);
+    expect(dealt.map((e) => [e.sourceInstanceId, e.targetInstanceId])).toEqual([
+      [speed.id, sturdy.id],
+      [sturdy.id, speed.id],
+      [sturdy.id, sturdy.id], // its 1 consequential damage, after the attack
+    ]);
+    expect(mustInstance(state, sturdy.id).damage).toBe(2);
+    expect(mustInstance(state, speed.id).damage).toBe(2);
+    expect(events.some((e) => e.type === "playerAttackEnded")).toBe(false);
+    expect(
+      events.some(
+        (e) =>
+          e.type === "triggerEvent" && e.event.kind === "characterAttacked" && e.event.attackerInstanceId === sturdy.id,
+      ),
+    ).toBe(true);
+  });
+
+  it("baseline: a hero's attack is answered by Speed Demon's first, then deals its damage", () => {
+    const base = start();
+    const speed = minionEngagedWith(base, SPEED.id, P1);
+    const hero = identityOf(speed.state, P1);
+    const heroAtk = characterProfile(speed.state, hero, deps)?.atk ?? 0;
+    const { state, events } = run(speed.state, [attack(hero, speed.id)]);
+    expect(damageDealt(events).map((e) => [e.sourceInstanceId, e.targetInstanceId])).toEqual([
+      [speed.id, hero],
+      [hero, speed.id],
+    ]);
+    expect(mustInstance(state, hero).damage).toBe(1);
+    expect(mustInstance(state, speed.id).damage).toBe(heroAtk);
+    expect(events.some((e) => e.type === "playerAttackEnded")).toBe(false);
   });
 });
