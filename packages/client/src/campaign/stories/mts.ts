@@ -23,6 +23,52 @@
  * behind Ebony Maw, the snowfield behind Asgard) is left as the seam between beats rather than boxed on its own.
  */
 import type { CampaignStory, ComicPage, StorySpeaker } from "../story.js";
+import type { PoolCopy } from "../../view/campaign-pool-model.js";
+
+/**
+ * The campaign pool's own short voice (`view/campaign-pool-model.ts`'s `PoolCopy`), one entry per
+ * `packages/cards/src/campaigns/mts.ts` pool field. Citations below are the reading (or writing) instruction's own
+ * printed page (verified against `docs/campaign-modes/markdown/mc21_the_mad_titans_shadow.md`: p. 7 for issue #1's
+ * SETUP/VICTORY, p. 13 for #2, p. 17 for #3, p. 21 for #4, p. 25 for #5) — never the log field's own citation
+ * ("MC21 p. 28", where the printed log sheet itself lives), which `campaign-pool-model.ts` no longer reads for this.
+ */
+export const MTS_POOL_COPY: PoolCopy = {
+  cosmoInPool: {
+    destination: "In play, under {firstPlayer}'s control.",
+    source: "Won in #1 · landing pad held",
+    stillInPlayFor: "#1 · hold the landing pad",
+  },
+  securityBreachInPool: {
+    destination: "Shuffled into the encounter deck.",
+    source: "Let slip in #1 · Knowhere 1B completed",
+    stillInPlayFor: "#1 · if Knowhere 1B is completed",
+  },
+  shawarmaInPool: {
+    destination: "One copy shuffled into each deck.",
+    source: "Won in #2 · the shop survived",
+    stillInPlayFor: "#2 · keep the shop standing",
+  },
+  blackSwanInPool: {
+    destination: "In play, engaged with {firstPlayer}.",
+    source: "Escaped in #2 · not in the victory display",
+    stillInPlayFor: "#2 · if she escapes",
+  },
+  systemShockInPool: {
+    destination: "One copy shuffled into each deck.",
+    source: "Let slip in #3 · Defensive Protocols wasn't beaten",
+    stillInPlayFor: "#3: goes into the pool if Defensive Protocols isn't beaten.",
+  },
+  nornStoneInPool: {
+    destination: "One copy shuffled into each deck.",
+    source: "Won in #4 · Find the Norn Stones defeated",
+    stillInPlayFor: "#4: win Find the Norn Stones.",
+  },
+  odinInPool: {
+    destination: "In play, on his King side.",
+    source: "Won in #4 · Odin recovered",
+    stillInPlayFor: "#4: put Retrieve Odin's Armor in the victory display. You'll want him for Loki.",
+  },
+};
 
 const SPECTRUM: StorySpeaker = { kind: "hero", identityId: "21001a", name: "Spectrum" };
 const ADAM_WARLOCK: StorySpeaker = { kind: "hero", identityId: "21031a", name: "Adam Warlock" };
@@ -213,6 +259,7 @@ export const MTS_STORY: CampaignStory = {
   rosterBanner:
     "The campaign pool travels with the group, not with any one seat. What one issue wins or loses, every issue after inherits.",
   castIdentityIds: ["21001a", "21031a"],
+  poolCopy: MTS_POOL_COPY,
   pages: PAGES,
   issues: [
     {

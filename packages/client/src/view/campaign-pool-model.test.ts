@@ -1,7 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { MTS_CAMPAIGN_DEFINITION, TRORS_CAMPAIGN_DEFINITION } from "@mc/cards";
 import type { CampaignLog } from "@mc/engine";
-import { campaignBriefingPool, campaignDossierPool, poolFieldsOf, type CardMetaOf } from "./campaign-pool-model.js";
+import {
+  campaignBriefingPool,
+  campaignDossierPool,
+  poolFieldsOf,
+  type CardMetaOf,
+  type PoolCopy,
+} from "./campaign-pool-model.js";
 
 const flag = (value: boolean) => ({ kind: "flag" as const, value });
 
@@ -105,6 +111,36 @@ describe("campaignDossierPool", () => {
     const overview = campaignDossierPool(shared({ blackSwanInPool: true }), MTS_CAMPAIGN_DEFINITION)!;
     expect(overview.cards[0]!.helps).toBe(true);
   });
+
+  it("cites the reading/writing instruction's own page, never the log field's own citation (MC21 p. 28)", () => {
+    const withOneWon = campaignDossierPool(shared({ cosmoInPool: true }), MTS_CAMPAIGN_DEFINITION, MTS_CARD_META)!;
+    const systemShock = withOneWon.stillInPlayFor.find((row) => row.name === "System Shock")!;
+    expect(systemShock.citation).toBe("MC21 p. 17");
+    const nornStone = withOneWon.stillInPlayFor.find((row) => row.name === "Norn Stone")!;
+    expect(nornStone.citation).toBe("MC21 p. 21");
+  });
+
+  it("an authored PoolCopy overrides destination/source/stillInPlayFor, substituting {firstPlayer}", () => {
+    const copy: PoolCopy = {
+      cosmoInPool: {
+        destination: "In play, under {firstPlayer}'s control.",
+        source: "Won in #1 · landing pad held",
+        stillInPlayFor: "#1 · hold the landing pad",
+      },
+    };
+    const empty = campaignDossierPool(shared({}), MTS_CAMPAIGN_DEFINITION, MTS_CARD_META, copy, "Adam Warlock")!;
+    expect(empty.emptySlots.find((slot) => slot.name === "Cosmo")!.note).toBe("#1 · hold the landing pad");
+    const resolved = campaignDossierPool(
+      shared({ cosmoInPool: true }),
+      MTS_CAMPAIGN_DEFINITION,
+      MTS_CARD_META,
+      copy,
+      "Adam Warlock",
+    )!;
+    const cosmo = resolved.cards.find((card) => card.name === "Cosmo")!;
+    expect(cosmo.destination).toBe("In play, under Adam Warlock's control.");
+    expect(cosmo.source).toBe("Won in #1 · landing pad held");
+  });
 });
 
 describe("campaignBriefingPool", () => {
@@ -161,5 +197,13 @@ describe("campaignBriefingPool", () => {
       ["Each player's deck", ["Shawarma", "System Shock"]],
       ["Upgrades", ["Norn Stone"]],
     ]);
+    // ALLY/ENEMY for cards that become real game objects; HELPS/AGAINST for cards that only ride in a deck.
+    const byName = new Map(view.rows.map((row) => [row.name, row.badgeLabel]));
+    expect(byName.get("Cosmo")).toBe("ALLY");
+    expect(byName.get("Black Swan")).toBe("ENEMY");
+    expect(byName.get("Security Breach")).toBe("ENEMY");
+    expect(byName.get("Shawarma")).toBe("HELPS");
+    expect(byName.get("System Shock")).toBe("AGAINST");
+    expect(view.groups!.find((group) => group.kind === "encounterDeck")!.subtitle).toBe("Shuffled in.");
   });
 });
