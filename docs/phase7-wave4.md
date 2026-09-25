@@ -433,6 +433,7 @@ stays data only.**
 | 3.29 | A minion treated as an ally (the mirror of §3.9)                         | Mind Control, Redemption, Karma                                  | landed  |
 | 3.30 | A resource ability's own effects                                         | Gauntlet Gun; War Cry family, Psi-Knife, Cybernetic Arm          | landed  |
 | 3.31 | A character that cannot defend                                           | Intangible; Grant Ward, Tracking Display                         | landed  |
+| 3.32 | One thwart that ignores patrol                                           | Just Passing Through; Natural Flight, Grapnel Launcher           | landed  |
 
 ### 3.1 Additional forms: the form keyword
 
@@ -1315,6 +1316,22 @@ is scoped to one attack and is not covered here.
 > (exclusion `cannotDefend`, with a client label) and by a "(defense)" ability, which does not make such a character
 > the defender. **Scripted:** `26002.intangible-constant` (`cannotAttack` on the attacking host plus this), off
 > `KNOWN_SKIPPED`.
+
+### 3.32 One thwart that ignores patrol
+
+Just Passing Through (`vision` 26010): "Hero Action (thwart): Remove 3 threat from a scheme, ignoring the patrol keyword
+and the crisis icon." The one-shot sibling of §3.24. Survey (every raw pack, "ignor… patrol"): Natural Flight (`angel`
+42006, "If you are Angel, this thwart ignores the crisis icon and the patrol keyword"), Grapnel Launcher (`jj` 61023, "For
+this thwart … ignores the patrol keyword and any crisis icons", a basic thwart made by effect), Retinal Display's back
+(`sm` 27186b, "your hero's basic thwarts ignore the crisis icon and the patrol keyword", standing: `characterIgnores`
+scoped to basic thwarts is not built).
+
+> **Status: landed (2026-09-24),** tested in `packages/engine/src/character-ignores.test.ts` (1 new test: the thwart
+> removes threat from the main scheme past patrol, with and without a crisis icon, and the next ordinary thwart is
+> stopped, by patrol or crisis) and in a real game in `packages/cards/src/wave4/vision/vision-kit.test.ts` (Intangible
+> Vision against Rhino with Crowd Control's crisis icon in play). **What landed:** **`EffectSpec thwart.ignorePatrol`**,
+> carried on the `thwart` event and read by `threatRemovalBlocked` for the removal that thwart makes. **DSL:**
+> `thwart(n, target, { ignorePatrol: true })`. **Scripted:** `26010.just-passing-through-action`, off `KNOWN_SKIPPED`.
 
 ## 4. Open questions (for the user or FFG)
 

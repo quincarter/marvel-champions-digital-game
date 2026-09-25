@@ -704,6 +704,8 @@ export function threatRemovalBlocked(
   thwartingPlayerId: PlayerId | null = null,
   /** The thwart's own character, for a removal made by a thwart (`characterIgnores`, docs/phase7-wave4.md §3.24). */
   thwarterInstanceId: InstanceId | null = null,
+  /** "…, ignoring the patrol keyword" on the thwart itself (docs/phase7-wave4.md §3.32). */
+  ignorePatrol = false,
 ): "crisis" | "patrol" | "rule" | null {
   const acting = thwarterInstanceId ?? sourceInstanceId;
   // RRG "Crisis Icon": while a crisis icon is in play, players cannot remove threat from the main scheme. One effect
@@ -723,6 +725,7 @@ export function threatRemovalBlocked(
   // (docs/phase7-wave3.md §3.5).
   if (
     byThwart &&
+    !ignorePatrol &&
     thwartingPlayerId &&
     mainSchemeStateOf(state, schemeId) &&
     patrolledBy(state, deps, thwartingPlayerId) &&
@@ -777,6 +780,7 @@ function applyRemoveThreat(ctx: Ctx, event: Extract<TriggerEvent, { kind: "remov
     event.ignoreCrisis === true,
     thwart?.playerId ?? null,
     thwart?.thwarterInstanceId ?? null,
+    thwart?.ignorePatrol === true,
   );
   if (blocked) {
     emit(ctx, { type: "threatRemovalBlocked", schemeInstanceId: event.schemeInstanceId, reason: blocked });

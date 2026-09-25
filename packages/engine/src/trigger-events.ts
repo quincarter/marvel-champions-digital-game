@@ -83,6 +83,8 @@ export type TriggerEventBody =
       readonly useAtk?: boolean;
       /** "…, ignoring any crisis icons in play": passed to the threat removal this thwart makes. */
       readonly ignoreCrisis?: boolean;
+      /** "…, ignoring the patrol keyword": this thwart is not stopped by patrol (docs/phase7-wave4.md §3.32). */
+      readonly ignorePatrol?: boolean;
       readonly sourceInstanceId?: InstanceId | null;
     }
   /** A defender was declared (basic defense) or a "(defense)" ability made the identity the defender. */

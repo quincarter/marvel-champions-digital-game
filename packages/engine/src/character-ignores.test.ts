@@ -55,14 +55,23 @@ const actionEvent = (id: string, effects: readonly EffectSpec[]) => {
 const THWART_MAIN = actionEvent("thwart-main", [{ kind: "thwart", target: mainScheme, amount: n(3) }]);
 /** "Remove 2 threat from the main scheme." — not a thwart, and not the character's own removal. */
 const REMOVE_MAIN = actionEvent("remove-main", [{ kind: "removeThreat", target: mainScheme, amount: n(2) }]);
-const deps: EngineDeps = depsOf(EVASIVE, THWART_MAIN.ability, REMOVE_MAIN.ability);
+/** "Remove 3 threat from a scheme, ignoring the patrol keyword and the crisis icon." (Just Passing Through, §3.32.) */
+const PASS_THROUGH = actionEvent("pass-through", [
+  { kind: "thwart", target: mainScheme, amount: n(3), ignorePatrol: true, ignoreCrisis: true },
+]);
+const deps: EngineDeps = depsOf(EVASIVE, THWART_MAIN.ability, REMOVE_MAIN.ability, PASS_THROUGH.ability);
 
 function start(options: { evasive: boolean; crisis: boolean; form?: "hero" | "alterEgo" }): GameState {
   let state = gameAtFirstTurn({
-    cards: [SENTRY, CRISIS, EVASIVE_CARD, THWART_MAIN.card, REMOVE_MAIN.card],
+    cards: [SENTRY, CRISIS, EVASIVE_CARD, THWART_MAIN.card, REMOVE_MAIN.card, PASS_THROUGH.card],
     deps,
     encounter: [SENTRY.id, CRISIS.id, ...copiesOf(SENTRY.id, 5)],
-    deck: [EVASIVE_CARD.id, ...copiesOf(THWART_MAIN.card.id, 2), ...copiesOf(REMOVE_MAIN.card.id, 2)],
+    deck: [
+      EVASIVE_CARD.id,
+      ...copiesOf(THWART_MAIN.card.id, 2),
+      ...copiesOf(REMOVE_MAIN.card.id, 2),
+      ...copiesOf(PASS_THROUGH.card.id, 2),
+    ],
   });
   const form = options.form ?? "hero";
   state = {
@@ -115,5 +124,19 @@ describe("§3.24 a character that ignores guard, patrol and the crisis icon", ()
   it("a character the rule does not match is not exempt (the alter-ego, here)", () => {
     const state = start({ evasive: true, crisis: false, form: "alterEgo" });
     expect(canAttack(state, hero(state), state.activeVillainId, deps)).toBe(false);
+  });
+});
+
+describe("§3.32 one thwart that ignores patrol", () => {
+  it("that thwart removes threat from the main scheme past patrol and crisis; the next ordinary thwart is stopped", () => {
+    for (const crisis of [false, true]) {
+      const state = start({ evasive: false, crisis });
+      const passed = playFree(state, deps, PASS_THROUGH.card.id).state;
+      expect(mainThreat(passed)).toBe(2);
+      const { events } = playFree(passed, deps, THWART_MAIN.card.id);
+      expect(events).toContainEqual(
+        expect.objectContaining({ type: "threatRemovalBlocked", reason: crisis ? "crisis" : "patrol" }),
+      );
+    }
   });
 });

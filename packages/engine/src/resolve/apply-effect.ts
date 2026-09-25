@@ -403,6 +403,7 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
           amount,
           basic: false,
           ...(effect.ignoreCrisis ? { ignoreCrisis: true } : {}),
+          ...(effect.ignorePatrol ? { ignorePatrol: true } : {}),
           sourceInstanceId: frame.selfInstanceId,
         })),
         reportTo(effect.bind),

@@ -900,6 +900,8 @@ export type EffectSpec =
   /**
    * "(thwart)": "Remove N threat from a scheme" resolved as a thwart by your identity (or `thwarter`). Pair with
    * `label: ["thwart"]`. `ignoreCrisis` is `removeThreat.ignoreCrisis`, carried through to the removal this makes.
+   * `ignorePatrol`: "…, ignoring the patrol keyword" for this thwart only (Just Passing Through, `vision` 26010;
+   * Natural Flight, `angel` 42006; docs/phase7-wave4.md §3.32) — the one-shot sibling of `RuleSpec characterIgnores`.
    */
   | {
       readonly kind: "thwart";
@@ -907,6 +909,7 @@ export type EffectSpec =
       readonly amount: ValueSpec;
       readonly thwarter?: TargetRef;
       readonly ignoreCrisis?: boolean;
+      readonly ignorePatrol?: boolean;
       readonly bind?: string;
     }
   /**
