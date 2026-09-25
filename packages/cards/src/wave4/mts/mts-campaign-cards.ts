@@ -218,7 +218,8 @@ export const MTS_CAMPAIGN_CARDS = defineAbilities({
   // face already is its Setup side.)
   "21186a.when-defeated": whenDefeated(
     forEachPlayer(eachPlayer, [
-      selectCards("nornstone", encounterSetAside({ name: "Norn Stone" })),
+      // "a copy": one of the four set-aside copies per player (all four went to the first player before).
+      selectCards("nornstone", encounterSetAside({ name: "Norn Stone" }, { random: 1 })),
       // `putIntoPlay`'s own ownerless-non-minion branch treats an unowned card as an encounter-side reveal
       // (RRG 1.8 "Enters Play"); this card is a player upgrade with no owner yet (it comes from the shared
       // `encounterSetAside` pool, never anyone's deck), so ownership is assigned first (`assignOwnerTo`) to take

@@ -457,12 +457,17 @@ export async function seedMtsRun(service: CampaignService, stop: MtsRunStop = "a
   record = await playIssueWith(service, record, "win", autoAnswer, (state) =>
     withSideSchemeDefeated(state, "Save the Shawarma Place"),
   );
-  if (
-    !record.shared.securityBreachInPool ||
-    record.shared.securityBreachInPool.kind !== "flag" ||
-    !record.shared.securityBreachInPool.value
-  ) {
-    record = await patchPoolFields(service, record, { securityBreachInPool: true });
+  // "Was defeated" now reads the game's defeat events (`@mc/cards` `campaigns/mts.ts`, `notDefeated`), which a
+  // substituted win cannot produce, and the launch path does not yet set the campaign's side schemes aside
+  // (`campaignLaunchConfig` ignores `CampaignGameStart.encounterSets`), so Cosmo and Shawarma join the same
+  // documented exception as Security Breach.
+  const unset = (field: string) => {
+    const value = record.shared[field];
+    return !value || value.kind !== "flag" || !value.value;
+  };
+  const missing = ["cosmoInPool", "securityBreachInPool", "shawarmaInPool"].filter(unset);
+  if (missing.length > 0) {
+    record = await patchPoolFields(service, record, Object.fromEntries(missing.map((field) => [field, true])));
   }
   if (stop === "afterIssue2") return record;
 

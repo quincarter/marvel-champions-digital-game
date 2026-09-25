@@ -145,7 +145,7 @@ describe("MTS_CAMPAIGN_DEFINITION", () => {
     );
     expect(listed).toEqual({
       "ebony-maw": {
-        composition: [],
+        composition: ["mc21.s1.composition.campaign-set"],
         setup: ["mc21.s1.setup.identity", "mc21.s1.setup.landing-pad", "mc21.s1.setup.security-breach"],
         victory: [
           "mc21.s1.victory.landing-pad.record",
@@ -156,7 +156,7 @@ describe("MTS_CAMPAIGN_DEFINITION", () => {
         defeat: [],
       },
       "tower-defense": {
-        composition: ["mc21.s2.compose.security-breach"],
+        composition: ["mc21.s2.composition.campaign-set", "mc21.s2.compose.security-breach"],
         setup: [
           "mc21.s2.setup.shawarma-place",
           "mc21.s2.setup.security-breach",
@@ -174,7 +174,12 @@ describe("MTS_CAMPAIGN_DEFINITION", () => {
         defeat: [],
       },
       thanos: {
-        composition: ["mc21.s3.compose.cosmo", "mc21.s3.compose.security-breach", "mc21.s3.compose.black-swan"],
+        composition: [
+          "mc21.s3.composition.campaign-set",
+          "mc21.s3.compose.cosmo",
+          "mc21.s3.compose.security-breach",
+          "mc21.s3.compose.black-swan",
+        ],
         setup: [
           "mc21.s3.setup.sanctuarys-computer",
           "mc21.s3.setup.cosmo",
@@ -194,7 +199,7 @@ describe("MTS_CAMPAIGN_DEFINITION", () => {
         defeat: [],
       },
       hela: {
-        composition: [],
+        composition: ["mc21.s4.composition.campaign-set"],
         setup: [
           "mc21.s4.setup.norn-stones",
           "mc21.s4.setup.summoned-back",
@@ -213,7 +218,7 @@ describe("MTS_CAMPAIGN_DEFINITION", () => {
         defeat: [],
       },
       loki: {
-        composition: ["mc21.s5.compose.odin"],
+        composition: ["mc21.s5.composition.campaign-set", "mc21.s5.compose.odin"],
         setup: [
           "mc21.s5.setup.dungeons",
           "mc21.s5.setup.summoned-back",

@@ -10,6 +10,7 @@ import { GMW_CAMPAIGN_DEFINITION } from "./gmw.js";
 import { MTS_CAMPAIGN_DEFINITION } from "./mts.js";
 import { TRORS_CAMPAIGN_DEFINITION } from "./trors.js";
 
+export { cardsOfComposedSets } from "./composed-sets.js";
 export { GMW_CAMPAIGN_DEFINITION } from "./gmw.js";
 export { MTS_CAMPAIGN_DEFINITION } from "./mts.js";
 export { TRORS_CAMPAIGN_DEFINITION } from "./trors.js";
