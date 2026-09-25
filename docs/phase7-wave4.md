@@ -428,6 +428,7 @@ stays data only.**
 | 3.24 | A character that ignores guard, patrol and the crisis icon               | Evasive Maneuvering; Wasp, Shadowcat, Psionic Training           | landed  |
 | 3.25 | Discarding cards you control as a cost                                   | Lethal Weapon; Noble Sacrifice, Repurpose, Delusion of Collusion | landed  |
 | 3.26 | A friendly character attacks its own player                              | Old Rivals                                                       | landed  |
+| 3.27 | A cancel with nothing it can cancel is not offered                       | §4 Q16 (user decision)                                           | landed  |
 
 ### 3.1 Additional forms: the form keyword
 
@@ -1216,6 +1217,22 @@ attacks you" is an enemy (`enemyAttack`).
 > now exported); a stunned attacker or a "—" ATK makes no attack, reported as `<bind>.made` 0. **DSL:**
 > `friendlyCharacterAttacks(attacker, player?, { bind })`. **Scripted:** `22031.when-revealed` (the minion's
 > `enemyAttack`, then this, then surge if neither was made); Nebula's `KNOWN_SKIPPED` is now empty.
+
+### 3.27 A cancel with nothing it can cancel is not offered
+
+§4 Q16, as the user decided it on 2026-09-24: a cancel aimed at a card that cannot be canceled (the Cosmic Entities,
+§3.14; Longshot, Cornered!, the `sm` expert treacheries, anything under Dark Scepter) is hidden from the legal actions,
+so it is never offered and no cost is paid.
+
+> **Status: landed (2026-09-24),** tested in `packages/engine/src/cancel-no-target.test.ts` (2 tests: against an
+> ordinary treachery the optional cancel is offered and its exhaust cost paid; against a card that cannot be canceled
+> it is never offered, nothing is exhausted, and the card's When Revealed resolves). **What landed:** the trigger
+> candidate scan (`resolve/triggers.ts cancelHasNoTarget`) drops any ability whose top-level effects cancel the card
+> being revealed (`cancelWhenRevealed`, `cancelRevealedCard`) when `revealCannotBeCanceled` holds for it: in play, used
+> from hand (`activeIn: "hand"`), and events played from hand in the window, forced or optional. The reading is RRG 1.8
+> "Initiating Abilities" (p. 24, step 2): the revealed card is the cancel's target, and with no valid target the
+> ability cannot be initiated, so the whole ability (Order and Chaos's damage and Black Widow's extra reveal included)
+> is not offered. The §3.14 check in the cancel effect itself stays as the backstop.
 
 ## 4. Open questions (for the user or FFG)
 
