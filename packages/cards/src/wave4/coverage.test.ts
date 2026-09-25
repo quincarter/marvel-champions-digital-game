@@ -3,11 +3,12 @@
  * which packs are fully scripted, which are not started, and — for a pack that isn't started — nothing resolves
  * that isn't already covered by an earlier wave.
  */
-import { NEBU_CARDS, WARM_CARDS, type AnyCard } from "@mc/content";
+import { NEBU_CARDS, VALK_CARDS, WARM_CARDS, type AnyCard } from "@mc/content";
 import type { AbilityRegistry } from "@mc/engine";
 import { WAVE3_ABILITIES } from "../wave3/index.js";
 import { WAVE4_ABILITIES } from "./index.js";
 import { NEBU_ABILITIES } from "./nebu/index.js";
+import { VALK_ABILITIES } from "./valk/index.js";
 import { WARM_ABILITIES } from "./warm/index.js";
 import { abilityRefIds } from "../ability-refs.js";
 
@@ -21,17 +22,28 @@ describe("wave 4 ability registry", () => {
 const PACK_STATUS: Readonly<Record<string, "scripted" | "in progress" | "not started">> = {
   nebu: "scripted",
   warm: "scripted",
+  valk: "scripted",
 };
 
 /**
- * Ability refs Nebula deliberately leaves unscripted (docs/phase7-wave1-scripting.md §4, "missing primitive →
+ * Ability refs a pack deliberately leaves unscripted (docs/phase7-wave1-scripting.md §4, "missing primitive →
  * record and skip"). Pinned exactly: every other ref must resolve, and each listed ref must still be unresolved.
  */
-const KNOWN_SKIPPED: Readonly<Record<string, readonly string[]>> = {};
+const KNOWN_SKIPPED: Readonly<Record<string, readonly string[]>> = {
+  // valk: Powerful Enchantments (25030), "Players cannot discard attachments that are attached to friendly
+  // characters." No primitive exists for preventing a category of cards from being *discarded* as a target or cost
+  // pick short of the absolute `RuleSpec cannotLeavePlay` (`packages/engine/src/abilities.ts`), which would also
+  // block the host's own defeat from discarding its attachments and every other way such a card could leave play —
+  // not only being chosen for discard, which is all the printed sentence restricts. A `game-rules-architect`
+  // follow-up needs a narrower "cannot be chosen to discard" rule, the in-play sibling of the existing hand-only
+  // `cannotChooseToDiscard`. Its Hinder keyword is data, not this ref.
+  valk: ["25030.powerful-enchantments-constant"],
+};
 
 const PACKS: ReadonlyArray<{ readonly code: string; readonly cards: readonly AnyCard[] }> = [
   { code: "nebu", cards: NEBU_CARDS },
   { code: "warm", cards: WARM_CARDS },
+  { code: "valk", cards: VALK_CARDS },
 ];
 
 describe("wave 4 pack ability coverage", () => {
@@ -89,6 +101,7 @@ describe("wave 4 pack ability id coverage (every registered ability id is named 
   const PACKS_WITH_OWN_REGISTRIES: ReadonlyArray<{ readonly code: string; readonly registry: AbilityRegistry }> = [
     { code: "nebu", registry: NEBU_ABILITIES },
     { code: "warm", registry: WARM_ABILITIES },
+    { code: "valk", registry: VALK_ABILITIES },
   ];
 
   it("checks every pack PACK_STATUS marks started, so a new pack can't skip the guard by not being listed here", () => {
