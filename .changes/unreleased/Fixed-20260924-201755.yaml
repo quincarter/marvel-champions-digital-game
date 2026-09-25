@@ -1,0 +1,3 @@
+kind: Fixed
+body: An exhausted ally that also took damage in the same attack (e.g. consequential damage) no longer slides off the bottom of the play area on phones
+time: 2026-09-24T20:17:55.202378-04:00
