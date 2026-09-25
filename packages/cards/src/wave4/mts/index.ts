@@ -11,6 +11,7 @@ import { HELA } from "./hela.js";
 import { INFINITY_GAUNTLET } from "./infinity-gauntlet.js";
 import { LEGIONS_OF_HEL } from "./legions-of-hel.js";
 import { LOKI } from "./loki.js";
+import { MTS_CAMPAIGN_CARDS } from "./mts-campaign-cards.js";
 import { SPECTRUM_KIT } from "./spectrum-kit.js";
 import { SPECTRUM_OBLIGATION_NEMESIS } from "./spectrum-obligation-nemesis.js";
 import { SPECTRUM_PACK_CARDS } from "./spectrum-pack-cards.js";
@@ -44,4 +45,5 @@ export const MTS_ABILITIES: AbilityRegistry = mergeRegistries(
   FROST_GIANTS,
   ENCHANTRESS,
   LOKI,
+  MTS_CAMPAIGN_CARDS,
 );
