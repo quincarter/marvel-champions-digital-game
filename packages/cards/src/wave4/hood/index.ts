@@ -5,6 +5,7 @@ import { BROTHERS_GRIMM } from "./brothers-grimm.js";
 import { CROSSFIRE_CREW } from "./crossfire-crew.js";
 import { HOOD } from "./hood.js";
 import { MISTER_HYDE_SET } from "./mister-hyde.js";
+import { STATE_OF_EMERGENCY } from "./state-of-emergency.js";
 
 /**
  * Every The Hood (`hood`) ability scripted directly (docs/phase7-wave4.md §2.3): the villain, the main scheme and
@@ -17,4 +18,5 @@ export const HOOD_ABILITIES: AbilityRegistry = mergeRegistries(
   BROTHERS_GRIMM,
   CROSSFIRE_CREW,
   MISTER_HYDE_SET,
+  STATE_OF_EMERGENCY,
 );

@@ -93,10 +93,10 @@ const KNOWN_SKIPPED: Readonly<Record<string, readonly string[]>> = {
   ],
   // hood: the villain (24001-24003), the main scheme (24004-24006), The Hood's own encounter set (24007-24013) and
   // Beasty Boys (24014-24017, `hood/beasty-boys.ts`), Brothers Grimm (24018-24022, `hood/brothers-grimm.ts`) and
-  // Crossfire's Crew (24023-24028, `hood/crossfire-crew.ts`) and Mister Hyde (24033-24036, `hood/mister-hyde.ts`)
-  // are scripted. Everything below is the pack's remaining five modular sets (Ransacked Armory, Sinister
-  // Syndicate, State of Emergency, Streets of Mayhem, Wrecking Crew) plus Standard II / Expert II, left for the
-  // next scripting pass
+  // Crossfire's Crew (24023-24028, `hood/crossfire-crew.ts`), Mister Hyde (24033-24036, `hood/mister-hyde.ts`) and
+  // State of Emergency (24055-24059, `hood/state-of-emergency.ts`) are scripted. Everything below is the pack's
+  // remaining four modular sets (Ransacked Armory, Sinister Syndicate, Streets of Mayhem, Wrecking Crew) plus
+  // Standard II / Expert II, left for the next scripting pass
   // (24041 and 24067 have no ability refs at all — plain-stat cards — and 24053's "Shadow of the Past" ref already
   // resolves as a reprint alias via `../reprints.ts`; none of the three are listed below).
   hood: [
@@ -149,10 +149,10 @@ const KNOWN_SKIPPED: Readonly<Record<string, readonly string[]>> = {
     "24052.boost",
     "24054.when-revealed-hero",
     "24054.boost",
+    // State of Emergency (`hood/state-of-emergency.ts`): every ref resolves except two genuine gaps (the module's
+    // own docblock) — Feisty Heist's "highest-cost card from your hand" and Citywide Crisis's own re-triggered
+    // "When Revealed" ability.
     "24055.when-revealed",
-    "24056.when-revealed",
-    "24057.when-revealed",
-    "24058.when-revealed",
     "24059.when-revealed",
     "24059.boost",
     "24060.when-revealed",
