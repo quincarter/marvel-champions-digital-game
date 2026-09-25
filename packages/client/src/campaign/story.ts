@@ -12,6 +12,7 @@
  */
 import { TRORS_STORY } from "./stories/trors.js";
 import { GMW_STORY } from "./stories/gmw.js";
+import { MTS_STORY } from "./stories/mts.js";
 
 export type StorySpeaker =
   | { readonly kind: "narrator" }
@@ -285,6 +286,7 @@ export const SAGA_NOTE =
 const STORIES: Readonly<Record<string, CampaignStory>> = {
   [TRORS_STORY.campaignId]: TRORS_STORY,
   [GMW_STORY.campaignId]: GMW_STORY,
+  [MTS_STORY.campaignId]: MTS_STORY,
 };
 
 export const storyFor = (campaignId: string): CampaignStory | undefined => STORIES[campaignId];
