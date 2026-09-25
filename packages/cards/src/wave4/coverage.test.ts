@@ -27,7 +27,7 @@ const PACK_STATUS: Readonly<Record<string, "scripted" | "in progress" | "not sta
   warm: "scripted",
   valk: "scripted",
   vision: "scripted",
-  mts: "in progress",
+  mts: "scripted",
   hood: "in progress",
 };
 
@@ -60,36 +60,20 @@ const KNOWN_SKIPPED: Readonly<Record<string, readonly string[]>> = {
   //
   // The Loki scenario (`mts/loki.ts`, `mts` 21160–21176, the box's fifth): every ref resolves (Infinite Mischief's
   // When Revealed uses `scenarioDeckShuffle`, docs/phase7-wave4.md §3.49).
+  //
+  // The Mad Titan's Shadow Campaign (`mts/mts-campaign-cards.ts`, `mts` 21180–21193): every ref resolves except
+  // three: two genuine "no script needed" cases (the module's own docblock) — a flip's new-face controller already
+  // defaults to the first player by construction (`packages/engine/src/resolve/other-face.ts`), the same shape
+  // `hela.ts` already established for Garm/Skurge/Nidhogg's own "engages the first player" — and one genuine
+  // content-pipeline gap: System Shock (21185) prints two independent ability clauses under a single ref, which
+  // `parse-text.ts`'s existing Martial Law/Anti-Hero Propaganda split doesn't recognize for this card's exact
+  // shape (module docblock); needs a `card-data-pipeline` fix, not scripted here.
   mts: [
     // legions-of-hel.ts and frost-giants.ts (Hela's own two recommended modular sets): every ref resolves; no
     // genuine gap found.
-    "21180a.when-defeated",
     "21180b.cosmo-constant",
-    "21180b.cosmo-constant-2",
-    "21180b.cosmo-forced-interrupt",
-    "21181.when-revealed",
-    "21181.when-defeated",
-    "21182a.when-defeated",
     "21182b.black-swan-constant",
-    "21182b.black-swan-forced-response",
-    "21184a.when-defeated",
-    "21184b.defensive-protocols-forced-interrupt",
     "21185.obligation",
-    "21186a.find-the-norn-stones-constant",
-    "21186a.when-defeated",
-    "21186b.retrieve-odins-armor-constant",
-    "21186b.when-defeated",
-    "21187a.norn-stone-constant",
-    "21187a.norn-stone-action",
-    "21187b.norn-stone-constant",
-    "21187b.norn-stone-action",
-    "21188.when-revealed",
-    "21189a.when-defeated",
-    "21189b.jormungand-constant",
-    "21189b.jormungand-forced-interrupt",
-    "21190.lady-sif-action",
-    "21191.fandral-constant",
-    "21192.hogun-constant",
   ],
   // hood: the villain (24001-24003), the main scheme (24004-24006), The Hood's own encounter set (24007-24013) and
   // all nine of the pack's modular sets — Beasty Boys (24014-24017), Brothers Grimm (24018-24022), Crossfire's
