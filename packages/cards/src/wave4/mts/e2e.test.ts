@@ -1,7 +1,7 @@
 import { createGame, replay } from "@mc/engine";
 import { playToOutcome } from "../../testing/driver.js";
 import { WAVE4_DEPS } from "../index.js";
-import { spectrumScenario } from "./support.js";
+import { adamWarlockScenario, spectrumScenario } from "./support.js";
 
 /**
  * A real game test for Spectrum's own real precon (`spectrum-leadership`, docs/phase7-wave4.md §2.1) against Rhino
@@ -19,6 +19,27 @@ test("Rhino (standard), solo: Spectrum", () => {
   const result = playToOutcome(created.state, WAVE4_DEPS);
   console.info(
     `[wave4 e2e] Rhino (standard) — Spectrum: ${result.outcome ? `${result.outcome.result} (${result.outcome.reason})` : "no outcome"} in round ${result.rounds}, ${result.commands} commands`,
+  );
+  expect(result.outcome).not.toBeNull();
+  expect(result.rounds).toBeGreaterThanOrEqual(1);
+  const replayed = replay(result.session.log, WAVE4_DEPS);
+  expect(replayed.ok).toBe(true);
+  if (replayed.ok) expect(replayed.state).toEqual(result.session.state);
+}, 120_000);
+
+/**
+ * A real game test for Adam Warlock's own real precon (`adam-warlock-all-aspects`, docs/phase7-wave4.md §2.1)
+ * against Rhino, played headlessly to a real win or loss, then the session log replayed to a deep-equal final
+ * state. This exists to catch a Battle Mage branch, a Cosmic Entity's shuffle-in, or a distinct-aspect count that's
+ * individually well-tested but breaks when the generic driver actually drives them through a full turn cycle.
+ */
+test("Rhino (standard), solo: Adam Warlock", () => {
+  const config = adamWarlockScenario("rhino", { seed: 2026 });
+  const created = createGame(config, WAVE4_DEPS);
+  if (!created.ok) throw new Error(`setup failed: ${created.error.message}`);
+  const result = playToOutcome(created.state, WAVE4_DEPS);
+  console.info(
+    `[wave4 e2e] Rhino (standard) — Adam Warlock: ${result.outcome ? `${result.outcome.result} (${result.outcome.reason})` : "no outcome"} in round ${result.rounds}, ${result.commands} commands`,
   );
   expect(result.outcome).not.toBeNull();
   expect(result.rounds).toBeGreaterThanOrEqual(1);
