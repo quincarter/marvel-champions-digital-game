@@ -694,7 +694,7 @@ export class ScenarioSelectScene extends Phaser.Scene {
         .text(
           rect.x + 24,
           y + 6,
-          `${stageLabel} · ${detail.displayName.toUpperCase()}`,
+          `${stageLabel} · ${detail.villainName.toUpperCase()}`,
           textStyle(typeRole.sectionHeader, surface.paper.hex, current ? 1 : ink.disabled),
         )
         .setFontSize(15);
