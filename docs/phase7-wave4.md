@@ -443,6 +443,7 @@ stays data only.**
 | 3.39 | A keyword granted until a duration ends                                  | Pulsar Shield; Cuts Both Ways                                                | landed  |
 | 3.40 | Scenario rules with no card behind them                                  | Ebony Maw (MC21 p. 6's Spell rule)                                           | landed  |
 | 3.41 | A stat totalled over several cards                                       | Mass Attack; Fastball Special, Partnership of Pain                           | landed  |
+| 3.42 | A deck-discard cost sized by the triggering event                        | Shield Spell                                                                 | landed  |
 
 ### 3.1 Additional forms: the form keyword
 
@@ -1505,6 +1506,20 @@ Exodus's "his total ATK" is one card. "Share a trait with your hero" is the exis
 > Attack; Rhino takes their ATK plus hers). **What landed:** **`ValueSpec stat.total`**. **DSL:** `totalStatOf(ref,
 stat)`. **Scripted:** `21016.mass-attack-action` (`exhaustCardsCost` of 3 allies sharing a trait with your identity,
 > bound to `allies`), off `KNOWN_SKIPPED`.
+
+### 3.42 A deck-discard cost sized by the triggering event
+
+Shield Spell (`mts` 21061): "Hero Interrupt (defense): When you would take any amount of damage from an attack, discard
+that many cards from the top of your deck → prevent all damage from this attack." A cost sized by the triggering event;
+`AbilityCost.discardFromDeck` was a fixed number.
+
+> **Status: landed (2026-09-25),** tested in a real game in `packages/cards/src/wave4/mts/adam-warlock-pack-cards.test.ts`
+> (Adam Warlock takes Rhino's attack undefended and plays Shield Spell: exactly that many cards leave his deck and the
+> whole amount is prevented). **What landed:** **`AbilityCost.discardFromDeck: number | ValueSpec`**; a value is read
+> against the event of the innermost open window (the one the ability is used in), both when the cost is checked
+> (enough cards in the deck) and when it is paid (`actions.ts deckDiscardCount`); outside a window it reads with no
+> event. **DSL:** `discardTopOfDeckCost(eventAmount)`. **Scripted:** `21061.shield-spell-interrupt`, off
+> `KNOWN_SKIPPED`.
 
 ## 4. Open questions (for the user or FFG)
 

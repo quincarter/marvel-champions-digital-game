@@ -1,7 +1,9 @@
-import { activeVillain, characterProfile } from "@mc/engine";
+import { activeVillain, characterProfile, type InstanceId } from "@mc/engine";
 import { describe, expect, it } from "vitest";
 import { validateDefinition } from "../../dsl/validate.js";
 import {
+  applyOk,
+  endTurn,
   firstLegal,
   identityOf,
   inst,
@@ -332,5 +334,43 @@ describe("Martinex (21065)", () => {
     const paidBare = payWith(given.state, P1, 3, [martinex]);
     const after = runWith(WAVE4_DEPS, given.state, play(P1, martinex, paidBare));
     expect(playerOf(after, P1).playArea).toContain(martinex);
+  });
+});
+
+describe("Shield Spell (event, 21061)", () => {
+  it("21061.shield-spell-interrupt: an undefended attack's damage is prevented by discarding that many cards from the deck", () => {
+    const hero = settle(runWith(WAVE4_DEPS, adamVsRhino(11), toHero()), firstLegal, undefined, WAVE4_DEPS);
+    const given = moveToHand(hero, P1, "21061");
+    const [shield] = given.ids as [InstanceId];
+    const identity = identityOf(given.state, P1);
+    let state = runWith(WAVE4_DEPS, given.state, endTurn());
+    const events: { type: string; targetInstanceId?: string; amount?: number; playerId?: string }[] = [];
+    let prevented = 0;
+    let deckBefore = 0;
+    while (state.pendingChoice && !state.outcome) {
+      const choice = state.pendingChoice;
+      let selected = firstLegal(state);
+      if (choice.prompt.kind === "declareDefender") selected = ["decline"]; // undefended: Adam takes it
+      const hit = choice.options.find((o) => o.optionId.endsWith("21061.shield-spell-interrupt"));
+      if (hit) {
+        const window = state.stack.find((f) => f.kind === "window");
+        if (window?.kind === "window" && window.event.kind === "dealDamage") prevented = window.event.amount;
+        deckBefore = playerOf(state, P1).deck.length;
+        selected = [hit.optionId];
+      }
+      const result = applyOk(
+        state,
+        { type: "resolveChoice", playerId: choice.playerId, choiceId: choice.choiceId, selectedOptionIds: selected },
+        WAVE4_DEPS,
+      );
+      state = result.state;
+      events.push(...(result.events as never[]));
+      if (hit) expect(deckBefore - playerOf(state, P1).deck.length).toBe(prevented); // "that many cards"
+    }
+    expect(prevented).toBeGreaterThan(0);
+    expect(events).toContainEqual(
+      expect.objectContaining({ type: "damagePrevented", targetInstanceId: identity, amount: prevented }),
+    );
+    expect(playerOf(state, P1).discard).toContain(shield);
   });
 });

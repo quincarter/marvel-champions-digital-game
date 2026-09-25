@@ -57,7 +57,6 @@ const KNOWN_SKIPPED: Readonly<Record<string, readonly string[]>> = {
   // for the same ref with `mergeRegistries`'s "defined twice" guard). Not this pack's own scripting work; removed
   // here because leaving them would silently pin a wrong (unresolved) expectation now that they resolve.
   mts: [
-    "21061.shield-spell-interrupt",
     "21092.proxima-midnight-forced-interrupt",
     "21092.proxima-midnight-constant",
     "21093.proxima-midnight-forced-interrupt",
