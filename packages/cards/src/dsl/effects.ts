@@ -795,6 +795,17 @@ export const moveCards = (from: CardSelector, to: CardDestination, bind?: string
   to,
   ...withBind(bind),
 });
+/**
+ * "Each player shuffles 1 copy of Shawarma into their deck" (Save the Shawarma Place, `mts` 21182a): `from` is an
+ * unowned, shared pool (`encounterSetAside`), so `to` needs an owner to send the card to; `player` supplies it
+ * (`EffectSpec.moveCards.assignOwnerTo`, docs/phase7-wave4.md §3.10's own campaign-card family).
+ */
+export const grantOwnedCards = (from: CardSelector, to: CardDestination, player: PlayerRef = you): EffectSpec => ({
+  kind: "moveCards",
+  cards: from,
+  to,
+  assignOwnerTo: player,
+});
 export const chooseCards = (
   slot: string,
   from: CardSelector,

@@ -1193,7 +1193,21 @@ export type EffectSpec =
    * to your hand". `bind` records the moved cards in slot `bind`, their count in
    * var `<bind>.count` and their printed resource icons in `<bind>.<type>`.
    */
-  | { readonly kind: "moveCards"; readonly cards: CardSelector; readonly to: CardDestination; readonly bind?: string }
+  | {
+      readonly kind: "moveCards";
+      readonly cards: CardSelector;
+      readonly to: CardDestination;
+      readonly bind?: string;
+      /**
+       * "Each player shuffles 1 copy of Shawarma into their deck" (Save the Shawarma Place, `mts` 21182a): the card
+       * comes from a shared, unowned pool (`encounterSetAside`), not from that player's own deck/discard/hand, so it
+       * has no `ownerId` to send it `"hand"`/`"deckTop"`/`"deckBottom"`/`"deckShuffle"` with (those destinations read
+       * each card's own owner, `resolve/cards.ts` `moveCardsTo`). `assignOwnerTo` sets the owner (and its
+       * controller) to this player, for any moved card that has none, before the move itself resolves — additive:
+       * a card that already has an owner is unaffected, so no existing script's behavior changes.
+       */
+      readonly assignOwnerTo?: PlayerRef;
+    }
   /** Choose cards outside play ("look at the top 3 … add 1", "search your deck for an upgrade", "choose up to 3 different cards in your discard"). */
   | {
       readonly kind: "chooseCards";
