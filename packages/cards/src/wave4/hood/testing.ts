@@ -8,8 +8,14 @@ import { hoodScenario } from "./support.js";
 /** Shared test helpers for every `hood/*.test.ts` file (re-derived from `hood.test.ts`'s own local helpers so each
  * modular set's test file can import them without depending on that file directly). */
 
-export const game = (seed = 1, extraPlayers: readonly { readonly starterDeckId: string }[] = []) =>
-  startWave4Game(hoodScenario("the-hood", { seed, extraPlayers }));
+export const game = (
+  seed = 1,
+  extraPlayers: readonly { readonly starterDeckId: string }[] = [],
+  setAsideModularSetIds?: readonly string[],
+) =>
+  startWave4Game(
+    hoodScenario("the-hood", { seed, extraPlayers, ...(setAsideModularSetIds ? { setAsideModularSetIds } : {}) }),
+  );
 
 export const villainId = (state: GameState): InstanceId => state.villains[0]!.instanceId;
 export const deckId = (state: GameState): string => Object.keys(state.encounterDecks)[0]!;
