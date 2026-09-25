@@ -13,12 +13,6 @@ import {
   CYCLOPS_PACK,
   GAMBIT_CARDS,
   GAMBIT_PACK,
-  NEBU_CARDS,
-  NEBU_PACK,
-  WARM_CARDS,
-  WARM_PACK,
-  VISION_CARDS,
-  VISION_PACK,
   NCRAWLER_CARDS,
   NCRAWLER_PACK,
   MAGNETO_CARDS,
@@ -37,8 +31,6 @@ import {
   ROGUE_PACK,
   WOLV_CARDS,
   WOLV_PACK,
-  HOOD_CARDS,
-  HOOD_PACK,
   IRONHEART_CARDS,
   IRONHEART_PACK,
   ICEMAN_CARDS,
@@ -47,8 +39,6 @@ import {
   WONDER_MAN_PACK,
   X23_CARDS,
   X23_PACK,
-  VALK_CARDS,
-  VALK_PACK,
   DEADPOOL_CARDS,
   DEADPOOL_PACK,
   SPIDERHAM_CARDS,
@@ -63,12 +53,12 @@ import {
   PSYLOCKE_PACK,
   JUBILEE_CARDS,
   JUBILEE_PACK,
-  MTS_CARDS,
-  MTS_PACK,
 } from "./index.js";
 import { CORE_CARDS } from "./core/index.js";
 import { WAVE1_CARDS } from "./index.js";
 import { WAVE2_CARDS } from "./index.js";
+import { WAVE3_CARDS } from "./index.js";
+import { WAVE4_CARDS } from "./index.js";
 
 const PACKS: readonly {
   readonly code: string;
@@ -78,9 +68,6 @@ const PACKS: readonly {
   { code: "bp", cards: BP_CARDS, pack: BP_PACK },
   { code: "cyclops", cards: CYCLOPS_CARDS, pack: CYCLOPS_PACK },
   { code: "gambit", cards: GAMBIT_CARDS, pack: GAMBIT_PACK },
-  { code: "nebu", cards: NEBU_CARDS, pack: NEBU_PACK },
-  { code: "warm", cards: WARM_CARDS, pack: WARM_PACK },
-  { code: "vision", cards: VISION_CARDS, pack: VISION_PACK },
   { code: "ncrawler", cards: NCRAWLER_CARDS, pack: NCRAWLER_PACK },
   { code: "magneto", cards: MAGNETO_CARDS, pack: MAGNETO_PACK },
   { code: "winter", cards: WINTER_CARDS, pack: WINTER_PACK },
@@ -90,12 +77,10 @@ const PACKS: readonly {
   { code: "spdr", cards: SPDR_CARDS, pack: SPDR_PACK },
   { code: "rogue", cards: ROGUE_CARDS, pack: ROGUE_PACK },
   { code: "wolv", cards: WOLV_CARDS, pack: WOLV_PACK },
-  { code: "hood", cards: HOOD_CARDS, pack: HOOD_PACK },
   { code: "ironheart", cards: IRONHEART_CARDS, pack: IRONHEART_PACK },
   { code: "iceman", cards: ICEMAN_CARDS, pack: ICEMAN_PACK },
   { code: "wonder_man", cards: WONDER_MAN_CARDS, pack: WONDER_MAN_PACK },
   { code: "x23", cards: X23_CARDS, pack: X23_PACK },
-  { code: "valk", cards: VALK_CARDS, pack: VALK_PACK },
   { code: "deadpool", cards: DEADPOOL_CARDS, pack: DEADPOOL_PACK },
   { code: "spiderham", cards: SPIDERHAM_CARDS, pack: SPIDERHAM_PACK },
   { code: "mojo", cards: MOJO_CARDS, pack: MOJO_PACK },
@@ -103,7 +88,6 @@ const PACKS: readonly {
   { code: "storm", cards: STORM_CARDS, pack: STORM_PACK },
   { code: "psylocke", cards: PSYLOCKE_CARDS, pack: PSYLOCKE_PACK },
   { code: "jubilee", cards: JUBILEE_CARDS, pack: JUBILEE_PACK },
-  { code: "mts", cards: MTS_CARDS, pack: MTS_PACK },
 ];
 
 describe("data-only pool — integrity", () => {
@@ -114,15 +98,17 @@ describe("data-only pool — integrity", () => {
     expect(failures).toEqual([]);
   });
 
-  it("29 packs, no duplicate ids, and DATA_ONLY_CARDS is exactly their concatenation", () => {
-    expect(PACKS).toHaveLength(29);
+  it("23 packs, no duplicate ids, and DATA_ONLY_CARDS is exactly their concatenation", () => {
+    expect(PACKS).toHaveLength(23);
     const ids = DATA_ONLY_CARDS.map((c) => c.id);
     expect(new Set(ids).size).toBe(ids.length);
     expect(DATA_ONLY_CARDS.length).toBe(PACKS.reduce((n, p) => n + p.cards.length, 0));
   });
 
-  it("no data-only card id collides with Core, wave 1 or wave 2 (cycle 1)", () => {
-    const known = new Set([...CORE_CARDS, ...WAVE1_CARDS, ...WAVE2_CARDS].map((c) => c.id as string));
+  it("no data-only card id collides with Core, wave 1, wave 2 (cycle 1), wave 3 (cycle 2) or wave 4 (cycle 3)", () => {
+    const known = new Set(
+      [...CORE_CARDS, ...WAVE1_CARDS, ...WAVE2_CARDS, ...WAVE3_CARDS, ...WAVE4_CARDS].map((c) => c.id as string),
+    );
     for (const c of DATA_ONLY_CARDS) expect(known.has(c.id as string), c.id as string).toBe(false);
   });
 
@@ -139,8 +125,8 @@ describe("data-only pool — integrity", () => {
     // Cycle 3 (Guardians of the Galaxy) has moved entirely out of this pool: The Galaxy's Most Wanted, Star-Lord,
     // Gamora, Drax and Venom are now `WAVE3_CARDS` (wave3.test.ts), and Ronan (a promo, not cycle 3) moved with
     // them since all six are scripted together (docs/phase7-wave3.md).
-    // Cycle 4: Nebula, The Mad Titan's Shadow, War Machine, Vision, The Hood, Valkyrie.
-    for (const code of ["nebu", "mts", "warm", "vision", "hood", "valk"]) expect(cycleOf(code), code).toBe("cycle4");
+    // Cycle 4 has also moved entirely out of this pool: Nebula, The Mad Titan's Shadow, War Machine, Vision,
+    // The Hood and Valkyrie are now `WAVE4_CARDS` (wave4.test.ts), scripted together (docs/phase7-wave4.md).
     // Cycle 6 (X-Men): Cyclops, Gambit, Wolverine, Rogue, Mojo Mania, Storm (Phoenix is not in this pool yet —
     // blocked, see curation/phoenix.ts).
     for (const code of ["cyclops", "gambit", "wolv", "rogue", "mojo", "storm"])

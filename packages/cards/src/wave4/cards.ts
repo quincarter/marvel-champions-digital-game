@@ -1,38 +1,26 @@
 /**
- * The wave 4 (cycle 4) card pool: every wave 3 playable card, plus the Nebula (`nebu`), War Machine (`warm`), Vision
- * (`vision`) and Valkyrie (`valk`) hero packs and The Mad Titan's Shadow (`mts`) box scripted so far
- * (docs/phase7-wave4.md). `@mc/content` does not fold a wave 4 pack into `PLAYABLE_CARDS` yet (wiring a new wave into
- * the shared playable pool happens once for the whole wave, not per pack), so this pool concatenates each pack itself
- * the same way `wave3/setup.ts`'s own docblock describes for `WAVE3_CARDS`: none of `NEBU_CARDS`/`WARM_CARDS`/
- * `VISION_CARDS`/`MTS_CARDS`/`VALK_CARDS` share a card with `WAVE3_CARDS` or each other, so nothing here is
- * double-counted.
+ * The wave 4 (cycle 3) card pool: every earlier playable card plus the six cycle 3 packs.
+ *
+ * `@mc/content` now wires cycle 3 into its own `PLAYABLE_CARDS` directly (`card-data-pipeline`, wave 4 content
+ * pass, docs/phase7-wave4.md), the same way wave 1/cycle 1/cycle 2 already were — so `PLAYABLE_CARDS` alone is the
+ * full pool here. **Do not also append `NEBU_CARDS`/`WARM_CARDS`/`VISION_CARDS`/`MTS_CARDS`/`VALK_CARDS`/
+ * `HOOD_CARDS`**: that was this file's own historical shape (before `@mc/content` grew a `WAVE4_CARDS` of its own),
+ * and doing so now double-counts every cycle 3 card, exactly the `wave3/cards.ts` regression its own docblock
+ * warns about (duplicate instances placed at setup, `engagedWith`/`attachedTo` reads returning the wrong
+ * duplicate, duplicate ability ids at reprint-generation time, etc.) the moment `PLAYABLE_CARDS` grew cycle 3.
+ * `reprints.ts`, `setup.ts` and `names.ts` all import this rather than assembling their own copy.
  */
 import {
   difficultySetChoiceErrors,
-  HOOD_CARDS,
   HOOD_ENCOUNTER_SETS,
-  MTS_CARDS,
   MTS_ENCOUNTER_SETS,
-  NEBU_CARDS,
   PLAYABLE_CARDS,
-  VALK_CARDS,
-  VISION_CARDS,
-  WARM_CARDS,
   type AnyCard,
   type DifficultySetChoice,
 } from "@mc/content";
 
-/** Every playable card through wave 3, plus Nebula, War Machine, Vision, The Mad Titan's Shadow, Valkyrie and The
- * Hood. */
-export const WAVE4_CARDS: readonly AnyCard[] = [
-  ...PLAYABLE_CARDS,
-  ...NEBU_CARDS,
-  ...WARM_CARDS,
-  ...VISION_CARDS,
-  ...MTS_CARDS,
-  ...VALK_CARDS,
-  ...HOOD_CARDS,
-];
+/** Every playable card: Core, wave 1, cycle 1, cycle 2, and cycle 3, in release order. */
+export const WAVE4_CARDS: readonly AnyCard[] = PLAYABLE_CARDS;
 
 /**
  * Refuses a Standard II / Expert II choice (docs/phase7-wave4.md §4 Q5) that names no set of the matching
