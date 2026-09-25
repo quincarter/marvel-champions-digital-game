@@ -71,16 +71,8 @@ const KNOWN_SKIPPED: Readonly<Record<string, readonly string[]>> = {
     // moment his King side leaves play, with no "when this leaves play" trigger exposed to attach a redundant
     // no-op effect to. Left out of the registry rather than pinned as a false "still unscripted" gap.
     "21139b.odin-forced-interrupt",
-    "21152.when-revealed",
-    "21153.fallen-warrior-constant",
-    "21153.when-revealed",
-    "21154.when-revealed",
-    "21155.when-revealed",
-    "21156.laufey-forced-response",
-    "21158.frozen-constant",
-    "21158.frozen-action",
-    "21159.unnatural-storm-constant",
-    "21159.when-revealed",
+    // legions-of-hel.ts and frost-giants.ts (Hela's own two recommended modular sets): every ref resolves; no
+    // genuine gap found.
     "21160.loki-constant",
     "21160.when-defeated",
     "21161.when-defeated",
