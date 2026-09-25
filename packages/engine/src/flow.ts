@@ -49,7 +49,8 @@ const MAX_STEPS_PER_COMMAND = 5000;
 export function runFlow(ctx: Ctx): void {
   for (let i = 0; i < MAX_STEPS_PER_COMMAND; i++) {
     if (ctx.state.outcome || ctx.state.pendingChoice) return;
-    // An emptied separate deck (the Invocation deck) takes its discard pile back at once, with no penalty.
+    // An emptied separate deck (the Invocation deck) takes its discard pile back, with no penalty. The move that empties
+    // one already resets it (`settlePlayerDecks`); this only catches a state built another way (an older save).
     resetEmptySeparateDecks(ctx);
     // …and so does a scenario deck whose rules say so (the side-scheme deck; docs/phase7-wave2.md §3.3).
     resetEmptyScenarioDecks(ctx);

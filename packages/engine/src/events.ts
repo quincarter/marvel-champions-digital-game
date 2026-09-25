@@ -351,7 +351,7 @@ export type GameEvent =
       readonly cardId: CardId;
       readonly playerId: PlayerId;
     }
-  /** An empty separate deck took its discard pile back and was shuffled, with no penalty (`resetEmptySeparateDecks`). */
+  /** An empty separate deck took its discard pile back and was shuffled, with no penalty (`resetSeparateDeckIfEmpty`). */
   | { readonly type: "separateDeckReset"; readonly playerId: PlayerId; readonly name: string }
   /** `schemeInstanceId` is present only when the token went somewhere other than the central main scheme (§10.3). */
   | { readonly type: "accelerationTokenAdded"; readonly total: number; readonly schemeInstanceId?: InstanceId }

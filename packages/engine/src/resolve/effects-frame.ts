@@ -29,6 +29,7 @@ import {
   getInstance,
   getPlayer,
   heroFacesOf,
+  locateCard,
   mustCardOf,
   playerOrder,
 } from "../query.js";
@@ -1211,6 +1212,15 @@ function executeResolveSpecials(
     return;
   }
   setFrame(ctx, { ...frame, answer: null, cursor: frame.cursor + 1 });
+  // A card whose Special resolves from an identity's separate deck (an Invocation card) leaves the deck as it starts
+  // resolving, like a played event (RRG 1.8 "Event", p. 19), and is out of play in its owner's `resolving` area until its
+  // own text moves it on. If it was the last card, the deck resets now, without it (`settlePlayerDecks`): ruling, Apr 30,
+  // 2026 (3) answer 7, "The deck is reshuffled **before** the currently resolving card enters the discard pile"
+  // (docs/phase7-wave1.md §4 Q9, resolved 2026-09-25).
+  for (const id of new Set(ordered.map((step) => step.instanceId))) {
+    const zone = locateCard(ctx.state, id);
+    if (zone?.kind === "separateDeck") moveCard(ctx, id, { kind: "resolving", playerId: zone.playerId });
+  }
   // Incite X and surge are each "equivalent to" a When Revealed ability (RRG 1.8 "Incite X", p. 24; "Surge", p. 42),
   // resolved in the order a reveal resolves them: incite first, the printed abilities, surge last (§3.56, §4 Q23).
   const incites: { readonly id: InstanceId; readonly amount: number }[] = [];
