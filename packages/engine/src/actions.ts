@@ -2522,6 +2522,10 @@ function basicThwartPaying(
     command.divide,
   );
   if ("code" in shares) return shares;
+  // RRG 1.8 "Confuse, Confused" (p. 13): "A confused character can attempt to thwart or use a thwart ability even if it
+  // has no valid target for a thwart." So crisis and patrol do not refuse a confused character's basic thwart against
+  // the main scheme: the attempt removes the confused status card and no threat (below).
+  const confused = statusActive(ctx.state, command.thwarterInstanceId, "confused", ctx.deps);
   for (const { targetInstanceId: schemeId } of shares) {
     const schemeCard = cardOf(ctx.state, schemeId);
     const isMainScheme = mainSchemeStateOf(ctx.state, schemeId) !== undefined;
@@ -2541,6 +2545,7 @@ function basicThwartPaying(
     // "Wasp (#1C)"), which checking every share now gives.
     if (
       isMainScheme &&
+      !confused &&
       iconsInPlay(ctx.state, ctx.deps, "crisis", thwarterArea) > 0 &&
       !characterIgnores(ctx.state, ctx.deps, command.thwarterInstanceId, "crisis")
     ) {
@@ -2550,6 +2555,7 @@ function basicThwartPaying(
     // per share, as the crisis icon is (FAQ "Wasp (#1C)", p. 61, names both). docs/phase7-wave3.md §3.5.
     if (
       isMainScheme &&
+      !confused &&
       patrolledBy(ctx.state, ctx.deps, command.playerId) &&
       !characterIgnores(ctx.state, ctx.deps, command.thwarterInstanceId, "patrol")
     ) {
@@ -2580,7 +2586,6 @@ function basicThwartPaying(
       command,
     );
   }
-  const confused = statusActive(ctx.state, command.thwarterInstanceId, "confused", ctx.deps);
   const scheme = mustInstance(ctx.state, command.schemeInstanceId);
   if (scheme.threat < 1 && !confused) {
     return engineError("no_valid_target", "scheme has no threat to remove", command);

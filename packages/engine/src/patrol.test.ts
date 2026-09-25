@@ -220,6 +220,51 @@ describe("§3.5 Patrol", () => {
   });
 });
 
+/** `state` with P1's hero confused (test surgery). */
+function confuseHero(state: GameState): GameState {
+  const hero = mustPlayer(state, P1).identity.instanceId;
+  const instance = mustInstance(state, hero);
+  return {
+    ...state,
+    instances: { ...state.instances, [hero]: { ...instance, statuses: { ...instance.statuses, confused: 1 } } },
+  };
+}
+
+/**
+ * RRG 1.8 "Confuse, Confused" (p. 13): "A confused character can attempt to thwart or use a thwart ability even if it
+ * has no valid target for a thwart." A confused hero's basic thwart against the main scheme is not refused under patrol
+ * or crisis: the attempt removes the confused status card and no threat, and the hero exhausts.
+ */
+describe("§3.5 a confused hero may attempt a basic thwart it has no valid target for", () => {
+  const attemptThwart = (state: GameState) => {
+    const hero = mustPlayer(state, P1).identity.instanceId;
+    const { session, events } = driveSession(startSession(state), deps, [
+      basicThwart(P1, state.mainScheme.instanceId, state),
+    ]);
+    return { after: session.state, events, hero };
+  };
+
+  it("while patrolled", () => {
+    const { after, events, hero } = attemptThwart(confuseHero(start(P1)));
+    expect(mustInstance(after, hero).statuses.confused).toBe(0);
+    expect(mustInstance(after, hero).exhausted).toBe(true);
+    expect(mainThreat(after)).toBe(5);
+    expect(events).toContainEqual(expect.objectContaining({ type: "statusRemoved", status: "confused" }));
+  });
+
+  it("under a crisis icon", () => {
+    const crisis = encounterCardInVillainArea(start(null), CRISIS.id, 2).state;
+    const { after, hero } = attemptThwart(confuseHero(crisis));
+    expect(mustInstance(after, hero).statuses.confused).toBe(0);
+    expect(mainThreat(after)).toBe(5);
+  });
+
+  it("…while an unconfused hero is still refused", () => {
+    const result = applyCommand(start(P1), basicThwart(P1, start(P1).mainScheme.instanceId, start(P1)), deps);
+    expect(result).toMatchObject({ ok: false, error: { code: "no_valid_target" } });
+  });
+});
+
 /**
  * §4 Q5, resolved 2026-09-25: target validity. RRG 1.8 "Target" (pp. 42–43): "A target that cannot be thwarted is not
  * a valid target for a thwart-labeled ability", and an ability with multiple effects on its target keeps it as a valid
@@ -234,15 +279,8 @@ describe("§3.5 Patrol and crisis: target validity (§4 Q5)", () => {
   });
 
   it("…unless the hero is confused: a confused character may attempt it, and the attempt discards the card", () => {
-    const state = start(P1);
-    const hero = mustPlayer(state, P1).identity.instanceId;
-    const confused: GameState = {
-      ...state,
-      instances: {
-        ...state.instances,
-        [hero]: { ...mustInstance(state, hero), statuses: { ...mustInstance(state, hero).statuses, confused: 1 } },
-      },
-    };
+    const confused = confuseHero(start(P1));
+    const hero = mustPlayer(confused, P1).identity.instanceId;
     const { result } = attempt(confused, THWART_A_SCHEME.card.id);
     expect(result.ok).toBe(true);
     const after = playFree(confused, deps, THWART_A_SCHEME.card.id).state;
