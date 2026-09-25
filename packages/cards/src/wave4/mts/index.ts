@@ -10,6 +10,7 @@ import { FROST_GIANTS } from "./frost-giants.js";
 import { HELA } from "./hela.js";
 import { INFINITY_GAUNTLET } from "./infinity-gauntlet.js";
 import { LEGIONS_OF_HEL } from "./legions-of-hel.js";
+import { LOKI } from "./loki.js";
 import { SPECTRUM_KIT } from "./spectrum-kit.js";
 import { SPECTRUM_OBLIGATION_NEMESIS } from "./spectrum-obligation-nemesis.js";
 import { SPECTRUM_PACK_CARDS } from "./spectrum-pack-cards.js";
@@ -22,9 +23,9 @@ import { TOWER_DEFENSE } from "./tower-defense.js";
  * `tower-defense.ts`), Thanos (its third, `thanos.ts` plus its own Infinity Gauntlet modular set,
  * `infinity-gauntlet.ts`, and Children of Thanos, `children-of-thanos.ts`, Thanos's own other recommended modular),
  * Hela (its fourth, `hela.ts`, plus the two modular sets it recommends, `legions-of-hel.ts` and `frost-giants.ts` —
- * the latter also reused by the Loki scenario) and Enchantress (`enchantress.ts`, one of Loki's own two recommended
- * modular sets — Frost Giants above is the other), then the box's remaining scenarios/campaign in a later pass (§3,
- * step 3 — see `KNOWN_SKIPPED.mts` in `../coverage.test.ts`).
+ * the latter also reused by the Loki scenario) and Loki (its fifth, `loki.ts`, plus its own other recommended
+ * modular, Enchantress, `enchantress.ts`), then the box's remaining campaign material in a later pass (§3, step 3
+ * — see `KNOWN_SKIPPED.mts` in `../coverage.test.ts`).
  */
 export const MTS_ABILITIES: AbilityRegistry = mergeRegistries(
   SPECTRUM_KIT,
@@ -42,4 +43,5 @@ export const MTS_ABILITIES: AbilityRegistry = mergeRegistries(
   LEGIONS_OF_HEL,
   FROST_GIANTS,
   ENCHANTRESS,
+  LOKI,
 );

@@ -1098,6 +1098,13 @@ export const on = {
   aPlayerResetsTheirDeck: (): EventPattern => pattern("deckRanOut", { eventIs: { deck: "player" } }),
   /** "After the infinity stone deck runs out" (Thanos I–III, 21111–21113): a scenario deck by name. */
   scenarioDeckRunsOut: (name: string): EventPattern => pattern("deckRanOut", { eventIs: { deck: "scenario", name } }),
+  /**
+   * "After Loki is swapped with a set-aside Loki villain" (Loki's Cape, `mts` 21172): the `villainSwapped` event
+   * `EffectSpec swapVillain` announces (docs/phase7-wave4.md §3.7; `packages/engine/src/villain-swap.test.ts`'s own
+   * `villainSwapped` trigger). There is only ever one villain in play whenever this fires, so no `Who` scope is
+   * needed to say which one — the same reading `on.mainSchemeCompleted` gives a scenario with one main scheme.
+   */
+  villainSwapped: (): EventPattern => pattern("villainSwapped"),
   /** "After you change to this form". */
   youChangeForm: (): EventPattern => pattern("formChanged", { playerIs: "controller" }),
   /**
