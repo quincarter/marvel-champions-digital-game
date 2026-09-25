@@ -521,9 +521,12 @@ export function boardModel(state: GameState, perspectiveId: PlayerId, deps: Engi
   if (!me) throw new Error(`no seat ${perspectiveId}`);
 
   const schemes = schemesInPlay(state);
-  const sideSchemes = schemes
-    .filter((id) => id !== state.mainScheme.instanceId)
-    .map((id) => schemePanel(state, id, deps, false));
+  // Every main scheme in play (Tower Defense has two, §3.2) is drawn as a main scheme, never again as a side scheme.
+  const mainSchemeIds = new Set([
+    state.mainScheme.instanceId,
+    ...(state.extraMainSchemes ?? []).map((scheme) => scheme.instanceId),
+  ]);
+  const sideSchemes = schemes.filter((id) => !mainSchemeIds.has(id)).map((id) => schemePanel(state, id, deps, false));
 
   return {
     round: state.round,
