@@ -382,11 +382,18 @@ export class TableSetupScene extends Phaser.Scene {
       "Difficulty",
       bodyColor,
     );
-    this.#drawDifficultyRow(layout.difficultyRow, difficultyCards, layout.wide);
-
-    // Standard II/Expert II (docs/phase7-wave4.md §4 Q5): a full-width toggle right under Difficulty, only for a
-    // scenario whose pack has an alternate — zero-area on every other scenario's layout, so this is a no-op there.
-    if (layout.wide && layout.difficultyAltRow.height > 0) {
+    // Standard II/Expert II (docs/phase7-wave4.md §4 Q5), wide layout: fills the difficulty row's own reserved
+    // third slot when there's room for it (`tableSetupLayout`'s own `altFitsInDifficultyRow` — every scenario that
+    // offers this today, since none has three difficulty cards) rather than spending a whole extra row on it;
+    // falls back to `layout.difficultyAltRow`'s own full-width row only when that slot doesn't exist.
+    const canInlineAlt = layout.wide && alternateDifficultySets !== null && difficultyCards.length < 3;
+    this.#drawDifficultyRow(
+      layout.difficultyRow,
+      difficultyCards,
+      layout.wide,
+      canInlineAlt ? alternateDifficultySets : null,
+    );
+    if (layout.wide && !canInlineAlt && layout.difficultyAltRow.height > 0) {
       this.#drawAlternateDifficultySetsRow(layout.difficultyAltRow, alternateDifficultySets);
     }
 
@@ -1279,8 +1286,17 @@ export class TableSetupScene extends Phaser.Scene {
    * shape); narrow sizes cards to exactly `cards.length` instead — reserving a third of the row for nothing
    * would leave a real description ("Standard encounter set only. Starts at stage I.") only ~110px to wrap into,
    * clipping mid-sentence on a phone (`docs/design-renders` fidelity pass, 2026-09-18).
+   *
+   * `inlineAlt` (docs/phase7-wave4.md §4 Q5): when given, fills that reserved third slot with the Standard
+   * II/Expert II toggle instead of leaving it blank — the caller only ever passes it when the slot is actually
+   * spare (`tableSetupLayout`'s own `altFitsInDifficultyRow`), so this never has to make room for a fourth card.
    */
-  #drawDifficultyRow(rect: Rect, cards: readonly DifficultyCard[], wide: boolean): void {
+  #drawDifficultyRow(
+    rect: Rect,
+    cards: readonly DifficultyCard[],
+    wide: boolean,
+    inlineAlt: DifficultySetChoice | null = null,
+  ): void {
     const slots = wide ? Math.max(3, cards.length) : cards.length;
     const gap = 12;
     const slotWidth = (rect.width - gap * (slots - 1)) / slots;
@@ -1318,6 +1334,15 @@ export class TableSetupScene extends Phaser.Scene {
         .setWordWrapWidth(cardRect.width - 20)
         .setMaxLines(Math.max(1, Math.floor((cardRect.height - 34) / 14)));
     });
+    if (inlineAlt !== undefined && inlineAlt !== null) {
+      const altRect: Rect = {
+        x: rect.x + cards.length * (slotWidth + gap),
+        y: rect.y,
+        width: slotWidth,
+        height: rect.height,
+      };
+      this.#drawAlternateDifficultySetsRow(altRect, inlineAlt);
+    }
   }
 
   /**

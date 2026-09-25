@@ -263,12 +263,18 @@ function wideLayout(input: TableSetupLayoutInput, formFactor: FormFactor): Table
   const difficultyRow: Rect = { x: bodyLeft, y, width: bodyWidth, height: DIFFICULTY_CARD_HEIGHT };
   y += DIFFICULTY_CARD_HEIGHT;
 
-  // Standard II/Expert II (docs/phase7-wave4.md §4 Q5): a full-width toggle row right under the difficulty cards,
-  // only for a scenario whose pack has an alternate — every other scenario's layout is unchanged (zero-area rect).
-  const difficultyAltRow: Rect = hasAlternateDifficultySets
+  // Standard II/Expert II (docs/phase7-wave4.md §4 Q5): the difficulty row already reserves a third, otherwise-
+  // empty slot whenever there are fewer than three difficulty cards (Heroic stays out of scope, so that's every
+  // scenario except Breakout's own three-way, and no scenario offers both today) — `#drawDifficultyRow` fills that
+  // slot with the toggle instead of leaving it blank, so no extra row (and no extra vertical room) is needed at
+  // all. Only a scenario with *three* difficulty cards **and** an alternate (no such scenario exists yet, kept for
+  // correctness rather than assumed away) falls back to a full-width row of its own below the difficulty cards.
+  const altFitsInDifficultyRow = hasAlternateDifficultySets && input.difficultyCount < 3;
+  const needsDifficultyAltRow = hasAlternateDifficultySets && !altFitsInDifficultyRow;
+  const difficultyAltRow: Rect = needsDifficultyAltRow
     ? { x: bodyLeft, y: y + ROW_GAP, width: bodyWidth, height: ALT_DIFFICULTY_ROW_HEIGHT }
     : { x: bodyLeft, y, width: 0, height: 0 };
-  if (hasAlternateDifficultySets) y += ROW_GAP + ALT_DIFFICULTY_ROW_HEIGHT;
+  if (needsDifficultyAltRow) y += ROW_GAP + ALT_DIFFICULTY_ROW_HEIGHT;
   y += SECTION_GAP;
 
   const modularHeader: Rect = { x: bodyLeft, y, width: bodyWidth, height: SECTION_HEADER_HEIGHT };
