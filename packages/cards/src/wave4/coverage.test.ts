@@ -28,16 +28,12 @@ const PACK_STATUS: Readonly<Record<string, "scripted" | "in progress" | "not sta
 const KNOWN_SKIPPED: Readonly<Record<string, readonly string[]>> = {
   // nebu: two genuine primitive gaps, both flagged for a game-rules-architect follow-up (docs/phase7-wave4.md §3
   // has no entry for either yet):
-  //  - 22030.lethal-weapon-action ("Discard an upgrade you control → discard this attachment.") — the engine's
-  //    in-play cost pickers are `AbilityCost.exhaustCards`/`.returnToHand` only (`packages/engine/src/abilities.ts`);
-  //    there is no "discard cards you control" in-play cost kind to pay "discard an upgrade you control →" as a
-  //    real, un-payable-without-a-target cost.
   //  - 22031.when-revealed ("Gamora attacks you. If the Gamora hero or ally is in play, she attacks you (resolve
   //    her ATK against you without exhausting her.)") — `EffectSpec.enemyAttack` always resolves as a genuine enemy
   //    activation (exhausts the attacker, runs `enemy-activation.ts`); there's no way to make a *friendly*
   //    character attack its own controller without exhausting it.
   // Regenerated with `MC_REFS_PACKS=nebu pnpm refs` (docs/card-scripting-process.md) — never hand-typed.
-  nebu: ["22030.lethal-weapon-action", "22031.when-revealed"],
+  nebu: ["22031.when-revealed"],
 };
 
 const PACKS: ReadonlyArray<{ readonly code: string; readonly cards: readonly AnyCard[] }> = [

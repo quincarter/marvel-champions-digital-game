@@ -8,6 +8,8 @@ import {
   constant,
   defineAbilities,
   discard,
+  discardCardsCost,
+  heroAction,
   each,
   forcedInterrupt,
   forcedResponse,
@@ -16,6 +18,7 @@ import {
   moveCards,
   on,
   query,
+  self,
   surge,
   valueEquals,
   varOf,
@@ -90,10 +93,11 @@ export const NEBULA_OBLIGATION_NEMESIS = defineAbilities({
   ),
 
   // Lethal Weapon (attachment, 22030) — Attach to Gamora, or the villain if unable (data). Hero Action: Discard an
-  // upgrade you control → discard this attachment. KNOWN_SKIPPED: the engine has an in-play `exhaustCards`/
-  // `returnToHand` cost picker (`AbilityCost.exhaustCards`/`.returnToHand`, `packages/engine/src/abilities.ts`) but
-  // no equivalent "discard cards you control" in-play cost kind, so "discard an upgrade you control →" (as a paid
-  // cost, not a resolved effect) can't be expressed yet — see `KNOWN_SKIPPED["nebu"]` in `../coverage.test.ts`.
+  // upgrade you control → discard this attachment (the in-play discard cost, docs/phase7-wave4.md §3.25).
+  "22030.lethal-weapon-action": heroAction(
+    { cost: discardCardsCost(query("upgrade", { controller: "you" })) },
+    discard(self),
+  ),
 
   // Old Rivals (treachery ×2, 22031) — When Revealed: Gamora attacks you. If the Gamora hero or ally is in play,
   // she attacks you (resolve her ATK against you without exhausting her). If no attack was made this way, this

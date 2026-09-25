@@ -759,6 +759,14 @@ export const exhaustEachCost = (picks: Readonly<Record<string, TargetQuery>>): A
 export const returnToHandCost = (q: TargetQuery, opts: InPlayCostOptions = {}): AbilityCost => ({
   returnToHand: inPlayPick(q, opts, "returned"),
 });
+/**
+ * "Discard an upgrade you control →" (Lethal Weapon, `nebu` 22030); "Discard an ally you control →" (Noble Sacrifice);
+ * "Discard a [Tech] upgrade you control →" (Repurpose): cards in play discarded to pay. Same picking rules as
+ * `exhaustCardsCost`; the cards are bound to `"discarded"` ("that ally's printed hit points"). docs/phase7-wave4.md §3.25.
+ */
+export const discardCardsCost = (q: TargetQuery, opts: InPlayCostOptions = {}): AbilityCost => ({
+  discardCards: inPlayPick(q, opts, "discarded"),
+});
 /** "Pay the printed cost of [a card] →" */
 /**
  * "Pay the printed cost of an ally in any player's discard pile →" (Make the Call).

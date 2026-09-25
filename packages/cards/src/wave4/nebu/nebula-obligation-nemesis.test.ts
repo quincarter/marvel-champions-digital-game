@@ -15,6 +15,7 @@ import {
   runWith,
   settle,
   toHero,
+  use,
   type Picker,
 } from "../../testing/harness.js";
 import { revealFromEncounterDeck } from "../../testing/staging.js";
@@ -200,6 +201,57 @@ describe("Nebula's nemesis set (Gamora, Self-Preservation, Lethal Weapon, Old Ri
     expect(after.def).toBe(before.def - 1);
     const gamoraAfter = characterProfile(withScheme, gamoraAllyId, WAVE4_DEPS)!;
     expect(gamoraAfter.atk).toBe(gamoraBefore.atk + 1);
+  });
+
+  it("Lethal Weapon (22030.lethal-weapon-action): discard an upgrade you control → discard this attachment", () => {
+    const hero = runWith(WAVE4_DEPS, nebulaVsRhino(4), toHero());
+    const givenAlly = moveToHand(hero, P1, "22002");
+    const [gamora] = givenAlly.ids as [InstanceId];
+    const withAlly = settle(
+      runWith(WAVE4_DEPS, givenAlly.state, play(P1, gamora, payWith(givenAlly.state, P1, 3, [gamora]))),
+      firstLegal,
+      undefined,
+      WAVE4_DEPS,
+    );
+    const { state: withTech, id: tech } = playFromHand(withAlly, "22005", 1);
+    // Lethal Weapon, attached to the Gamora ally as its reveal would ("Attach to Gamora").
+    const weapon = "lethal-weapon-test" as InstanceId;
+    const staged: GameState = {
+      ...withTech,
+      instances: {
+        ...withTech.instances,
+        [gamora]: { ...inst(withTech, gamora), attachments: [weapon] },
+        [weapon]: {
+          instanceId: weapon,
+          cardId: "22030" as never,
+          ownerId: null,
+          controllerId: null,
+          home: { kind: "activeEncounterDeck" },
+          faceup: true,
+          exhausted: false,
+          damage: 0,
+          threat: 0,
+          statuses: { stunned: 0, confused: 0, tough: 0 },
+          counters: {},
+          attachedTo: gamora,
+          attachments: [],
+          boostCards: [],
+          tucked: [],
+          facedownAs: null,
+          engagedWith: null,
+          flipped: false,
+        } as never,
+      },
+    };
+    const after = settle(
+      runWith(WAVE4_DEPS, staged, use(P1, weapon, "22030.lethal-weapon-action", [], { discarded: [tech] })),
+      firstLegal,
+      undefined,
+      WAVE4_DEPS,
+    );
+    expect(playerOf(after, P1).discard).toContain(tech);
+    expect(inst(after, gamora).attachments).not.toContain(weapon);
+    expect(after.encounterDecks[activeEncounterDeckId(after)]!.discard).toContain(weapon);
   });
 });
 

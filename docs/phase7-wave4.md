@@ -400,32 +400,33 @@ needed, and each section names cards from other packs that compose with it.
 in release order. Within that, rules the whole box leans on come first. **A pack whose cards need an unbuilt primitive
 stays data only.**
 
-| §    | Primitive                                                                | Needed by                                              | Status  |
-| ---- | ------------------------------------------------------------------------ | ------------------------------------------------------ | ------- |
-| 3.1  | Additional forms (the form keyword)                                      | Spectrum, Vision; Shadowcat, Nick Fury                 | landed  |
-| 3.2  | Two main schemes in play, each paired with a villain; Focused Defense    | Tower Defense                                          | landed  |
-| 3.3  | Villains protected by each other's hit points: one defeat sweep          | Tower Defense; Four Horsemen (`aoa`)                   | landed  |
-| 3.4  | A main scheme stage's completion is replaceable                          | Tower Defense; Upgrading Adaptoids (`aos`)             | landed  |
-| 3.5  | Damage on a card that is not a character (Avengers Tower)                | Tower Defense                                          | landed  |
-| 3.6  | A modular set's own deck (the Infinity Stone deck)                       | Thanos, Loki, any scenario                             | landed  |
-| 3.7  | Loki: random start, swap, a villain stage's Victory X, the victory count | Loki; God of Lies (`tt`)                               | landed  |
-| 3.8  | An encounter ally attached to the main scheme (Odin)                     | Hela                                                   | landed  |
-| 3.9  | An ally treated as a minion                                              | Fallen Warrior, Beguiled; 5 other packs                | landed  |
-| 3.10 | Flipping a card into a separately emitted face of another type           | MC21 campaign                                          | landed  |
-| 3.11 | Timing points when a deck runs out                                       | Soul World, Universal Church, Thanos                   | landed  |
-| 3.12 | Counting different aspects; Adam Warlock's copy limit                    | Adam Warlock                                           | landed  |
-| 3.13 | Abilities active in hand; "cannot choose to discard this card"           | Pip the Troll, System Shock                            | landed  |
-| 3.14 | Player events shuffled into the encounter deck (Cosmic Entities)         | Adam Warlock precon                                    | landed  |
-| 3.15 | "After the last X counter is removed from here"                          | Ebony Maw; `aos`, `phoenix`                            | landed  |
-| 3.16 | Encounter cards in a player's play area                                  | Ebony Maw's Spells                                     | landed  |
-| 3.17 | Alliance: paying a card's costs as a group                               | `warm`, `valk`, `vision`; 9 later cards                | landed  |
-| 3.18 | Set-aside modular sets; mode-only faces; Standard II                     | The Hood; Wheel of Genres (`mojo`)                     | landed  |
-| 3.19 | Readying as a costed act; "cannot be readied by player card effects"     | Mister Fear; Undermine Support (`aos`)                 | landed  |
-| 3.20 | A trigger on damage a card prevented                                     | Abjuration                                             | landed  |
-| 3.21 | An enemy attack against a chosen character                               | Speed Demon, Crossfire                                 | landed  |
-| 3.22 | Valkyrie's kit                                                           | `valk`                                                 | landed  |
-| 3.23 | Reusable as is                                                           | —                                                      | checked |
-| 3.24 | A character that ignores guard, patrol and the crisis icon               | Evasive Maneuvering; Wasp, Shadowcat, Psionic Training | landed  |
+| §    | Primitive                                                                | Needed by                                                        | Status  |
+| ---- | ------------------------------------------------------------------------ | ---------------------------------------------------------------- | ------- |
+| 3.1  | Additional forms (the form keyword)                                      | Spectrum, Vision; Shadowcat, Nick Fury                           | landed  |
+| 3.2  | Two main schemes in play, each paired with a villain; Focused Defense    | Tower Defense                                                    | landed  |
+| 3.3  | Villains protected by each other's hit points: one defeat sweep          | Tower Defense; Four Horsemen (`aoa`)                             | landed  |
+| 3.4  | A main scheme stage's completion is replaceable                          | Tower Defense; Upgrading Adaptoids (`aos`)                       | landed  |
+| 3.5  | Damage on a card that is not a character (Avengers Tower)                | Tower Defense                                                    | landed  |
+| 3.6  | A modular set's own deck (the Infinity Stone deck)                       | Thanos, Loki, any scenario                                       | landed  |
+| 3.7  | Loki: random start, swap, a villain stage's Victory X, the victory count | Loki; God of Lies (`tt`)                                         | landed  |
+| 3.8  | An encounter ally attached to the main scheme (Odin)                     | Hela                                                             | landed  |
+| 3.9  | An ally treated as a minion                                              | Fallen Warrior, Beguiled; 5 other packs                          | landed  |
+| 3.10 | Flipping a card into a separately emitted face of another type           | MC21 campaign                                                    | landed  |
+| 3.11 | Timing points when a deck runs out                                       | Soul World, Universal Church, Thanos                             | landed  |
+| 3.12 | Counting different aspects; Adam Warlock's copy limit                    | Adam Warlock                                                     | landed  |
+| 3.13 | Abilities active in hand; "cannot choose to discard this card"           | Pip the Troll, System Shock                                      | landed  |
+| 3.14 | Player events shuffled into the encounter deck (Cosmic Entities)         | Adam Warlock precon                                              | landed  |
+| 3.15 | "After the last X counter is removed from here"                          | Ebony Maw; `aos`, `phoenix`                                      | landed  |
+| 3.16 | Encounter cards in a player's play area                                  | Ebony Maw's Spells                                               | landed  |
+| 3.17 | Alliance: paying a card's costs as a group                               | `warm`, `valk`, `vision`; 9 later cards                          | landed  |
+| 3.18 | Set-aside modular sets; mode-only faces; Standard II                     | The Hood; Wheel of Genres (`mojo`)                               | landed  |
+| 3.19 | Readying as a costed act; "cannot be readied by player card effects"     | Mister Fear; Undermine Support (`aos`)                           | landed  |
+| 3.20 | A trigger on damage a card prevented                                     | Abjuration                                                       | landed  |
+| 3.21 | An enemy attack against a chosen character                               | Speed Demon, Crossfire                                           | landed  |
+| 3.22 | Valkyrie's kit                                                           | `valk`                                                           | landed  |
+| 3.23 | Reusable as is                                                           | —                                                                | checked |
+| 3.24 | A character that ignores guard, patrol and the crisis icon               | Evasive Maneuvering; Wasp, Shadowcat, Psionic Training           | landed  |
+| 3.25 | Discarding cards you control as a cost                                   | Lethal Weapon; Noble Sacrifice, Repurpose, Delusion of Collusion | landed  |
 
 ### 3.1 Additional forms: the form keyword
 
@@ -1173,6 +1174,26 @@ while?}`**, read by `select.ts characterIgnores`: `canAttack` lets a matching at
 > **Composes with:** Wasp, Shadowcat, Psionic Training as printed. The response cards that fire after a character
 > ignores guard or crisis (Acute Control, Intangible Interference, `mut_gen` 32034–32035) need an event; not built.
 > See §4 Q19 for the reading of "ignores the crisis icon" on removal that is not a thwart.
+
+### 3.25 Discarding cards you control as a cost
+
+Lethal Weapon (`nebu` 22030): "Hero Action: Discard an upgrade you control → discard this attachment." Survey (every raw
+pack, "discard a/an <X> you control →"): Noble Sacrifice and "You Got This!" (`magneto` 49018, 49019, an ally), Repurpose
+(`spdr` 31016, a [Tech] upgrade), Delusion of Collusion (`sm` 27170, an ally or [persona] support), Tinkering (`gmw`
+16029b, already scripted as a chosen discard in its effects, which lets it be used with nothing to discard; it can move
+to this cost), The Ends Justify the Means (`aos` 50177, a chooseOne branch whose cost this is). Haywire and Air Static
+(`ironheart` 29038, 29039) put the discard inside a "choose to either … or take 2 indirect damage" cost, which this
+does not cover.
+
+> **Status: landed (2026-09-24),** tested in `packages/engine/src/discard-cost.test.ts` (3 tests: the only matching card
+> is discarded to pay, then the effect resolves, replay deep-equal; with no matching card the cost cannot be paid, so
+> the card is neither offered nor playable; with a choice, the player names the card and the other stays) and in a real
+> game in `packages/cards/src/wave4/nebu/nebula-obligation-nemesis.test.ts` (Lethal Weapon on the Gamora ally,
+> discarding Evasive Maneuvering). **What landed:** **`AbilityCost.discardCards: InPlayCostPick`**, a third
+> `InPlayCostMode` ("discard") beside exhaust and return: the same candidates (cards in play the payer controls that
+> match, or any player's for an alliance card), payable only by a card that can leave play, paid by discarding each
+> pick; the window's cost-card prompt (`chooseCostCards.mode`) carries it. **DSL:** `discardCardsCost(query, opts)`,
+> binding `"discarded"`. **Scripted:** `22030.lethal-weapon-action`, off `KNOWN_SKIPPED`.
 
 ## 4. Open questions (for the user or FFG)
 
