@@ -30,6 +30,7 @@ import {
   setScenarioFilter,
   setSeed,
   setSetAsideModularSetIds,
+  toggleDifficultySets,
   toSessionConfig,
   withSeatOne,
   usePreconstructedForAllSeats,
@@ -126,6 +127,17 @@ describe("setDifficultySets / setSetAsideModularSetIds", () => {
     draft = setSetAsideModularSetIds(draft, null);
     expect(draft.difficultySets).toBeNull();
     expect(draft.setAsideModularSetIds).toBeNull();
+  });
+});
+
+describe("toggleDifficultySets", () => {
+  test("on with the given alternate, off back to the printed default — a single switch", () => {
+    const alternate = { standard: encounterSetId("standard_ii"), expert: encounterSetId("expert_ii") };
+    let draft = initialSetupDraft({ scenarioId: THE_HOOD.id as string, seatDeckId: DEFAULT_DECK_ID, seed: 1 });
+    draft = toggleDifficultySets(draft, alternate);
+    expect(draft.difficultySets).toEqual(alternate);
+    draft = toggleDifficultySets(draft, alternate);
+    expect(draft.difficultySets).toBeNull();
   });
 });
 

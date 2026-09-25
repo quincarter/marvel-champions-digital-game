@@ -161,6 +161,17 @@ export function setDifficultySets(draft: SetupDraft, difficultySets: DifficultyS
   return { ...draft, difficultySets };
 }
 
+/**
+ * The Standard II/Expert II toggle's own on/off: off (`null`) uses `alternateDifficultySetsFor`'s printed
+ * default when toggled on, on (a `DifficultySetChoice`) clears back to `null` when toggled off. A single switch
+ * rather than choosing "Standard" and "Expert" independently, since a pack with either alternate has printed
+ * both together so far (The Hood's own `standard_ii`/`expert_ii`) — a future pack with only one would need its
+ * own widget, not this one.
+ */
+export function toggleDifficultySets(draft: SetupDraft, alternate: DifficultySetChoice | null): SetupDraft {
+  return setDifficultySets(draft, draft.difficultySets ? null : alternate);
+}
+
 /** `null` to go back to the scenario builder's own default (The Hood's own first seven, docs/phase7-wave4.md §2.3). */
 export function setSetAsideModularSetIds(
   draft: SetupDraft,
