@@ -7,9 +7,11 @@ import {
   handSize,
   hasKeyword,
   legalDefenders,
+  traitsOf,
   type GameState,
   type InstanceId,
 } from "@mc/engine";
+import { trait } from "@mc/content";
 import { describe, expect, it } from "vitest";
 import {
   endTurn,
@@ -20,7 +22,9 @@ import {
   moveToHand,
   P1,
   patchInstance,
+  play,
   playerOf,
+  resourceAbility,
   runWith,
   settle,
   stackEncounterDeck,
@@ -175,12 +179,38 @@ describe("616 Hickory Branch Lane (support, 26004)", () => {
 });
 
 describe("Solar Gem (upgrade, 26005)", () => {
-  it("26005.solar-gem-constant / 26005.solar-gem-resource: grants Aerial; attaches to Vision", () => {
+  // Weak-test finding (rules-qa-engineer, docs/phase7-wave4-qa.md): the prior version of this test named both
+  // 26005.solar-gem-constant and 26005.solar-gem-resource but exercised neither — it only checked the upgrade
+  // attached, never that it actually grants the AERIAL trait, and never drove the resource ability at all.
+  it("26005.solar-gem-constant: grants Vision the AERIAL trait", () => {
     const hero = runWith(WAVE4_DEPS, visionVsRhino(8), toHero());
     const identity = identityOf(hero, P1);
+    expect(traitsOf(hero, identity, WAVE4_DEPS)).not.toContain(trait("AERIAL"));
     const { state: withGem } = playFromHandTyped(hero, "26005", 2, "26025");
     const [gem] = instancesOf(withGem, "26005") as [InstanceId];
     expect(inst(withGem, identity).attachments).toContain(gem);
+    expect(traitsOf(withGem, identity, WAVE4_DEPS)).toContain(trait("AERIAL"));
+  });
+
+  it("26005.solar-gem-resource: exhausts Solar Gem to generate a wild resource, paying for another card", () => {
+    const hero = runWith(WAVE4_DEPS, visionVsRhino(8), toHero());
+    const { state: withGem, id: gem } = playFromHandTyped(hero, "26005", 2, "26025");
+    const identity = identityOf(withGem, P1);
+    const given = moveToHand(withGem, P1, "26017"); // Indomitable, cost 1, an upgrade with no play restriction.
+    const [indomitable] = given.ids as [InstanceId];
+    const after = settle(
+      runWith(
+        WAVE4_DEPS,
+        given.state,
+        play(P1, indomitable, [], { abilities: [resourceAbility(gem, "26005.solar-gem-resource")] }),
+      ),
+      firstLegal,
+      undefined,
+      WAVE4_DEPS,
+    );
+    // Solar Gem is exhausted, spent as the entire cost of a card no other hand card paid for.
+    expect(inst(after, gem).exhausted).toBe(true);
+    expect(inst(after, identity).attachments).toContain(indomitable);
   });
 });
 
