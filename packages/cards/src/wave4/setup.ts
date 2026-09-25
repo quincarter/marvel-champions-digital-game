@@ -2,6 +2,8 @@ import { EBONY_MAW_SCENARIO_RULES } from "./mts/ebony-maw.js";
 import type { RuleSpec } from "@mc/engine";
 import {
   CORE_STARTER_DECKS,
+  HOOD_ENCOUNTER_SETS,
+  HOOD_SCENARIOS,
   MTS_ENCOUNTER_SETS,
   MTS_SCENARIOS,
   MTS_STARTER_DECKS,
@@ -35,6 +37,15 @@ export type Wave4Difficulty = CoreDifficulty;
 
 export interface Wave4ScenarioOptions extends Omit<CoreScenarioOptions, "cardPool" | "difficulty"> {
   readonly difficulty?: Wave4Difficulty;
+  /**
+   * The Hood only (docs/phase7-wave4.md §2.3, §3.18): which of the pack's nine modular encounter sets to set aside
+   * at setup ("Choose 7 modular encounter sets and set them aside — you may choose randomly"). Defaults to the
+   * first seven of `HOOD_ENCOUNTER_SETS` with no `classification` (excluding `the_hood` itself), in encounter-set
+   * declaration order — a fixed, reproducible "you may choose randomly" rather than an RNG draw, since choosing
+   * which sets even enter the game is a setup decision the scenario builder makes once, before the seeded game
+   * state exists to draw from.
+   */
+  readonly setAsideModularSetIds?: readonly string[];
 }
 
 const cardsById = new Map<string, AnyCard>(WAVE4_CARDS.map((card) => [card.id, card]));
@@ -115,6 +126,66 @@ function buildMtsSingleVillain(
   };
 }
 
+/** The Hood's own nine modular encounter sets, in declaration order (docs/phase7-wave4.md §2.3): every
+ * `HOOD_ENCOUNTER_SETS` member that is not `the_hood` itself and carries no `classification` (Standard II/Expert II
+ * are difficulty sets, never drafted here). */
+const HOOD_MODULAR_SET_IDS: readonly string[] = HOOD_ENCOUNTER_SETS.filter(
+  (set) => set.id !== "the_hood" && !set.classification,
+).map((set) => set.id);
+
+/** The Hood (docs/phase7-wave4.md §2.3, §3.18): a single-villain `HOOD_SCENARIOS` record, built like
+ * `buildMtsSingleVillain` but with the pack's own "set aside 7 modular sets, shuffle 1 in" setup passed to the
+ * engine as `GameSetupConfig.setAsideModularSets`, and `difficulty` threaded through so the villain's own
+ * `modeOnly`-faced cards (Formidable Foe) enter play on the right side (§1.8/§3.18). */
+function buildHoodSingleVillain(
+  scenario: (typeof HOOD_SCENARIOS)[number],
+  options: Wave4ScenarioOptions,
+): GameSetupConfig {
+  const difficulty = difficultyOf(resolveModes(options.difficulty, options.modes));
+  const villain = cardsById.get(scenario.villainCardId);
+  if (!villain || villain.type !== "villain") throw new Error(`${scenario.villainCardId} is not a villain`);
+  const side = villain.sides[0];
+  if (!side) throw new Error(`${villain.name} has no sides`);
+  const stageIndex = (stageNumber: number): number => {
+    const index = side.stages.findIndex((stage) => stage.stageNumber === stageNumber);
+    if (index < 0) throw new Error(`${villain.name} has no stage ${stageNumber}`);
+    return index;
+  };
+  const [firstStage, lastStage] = scenario.villainStages[difficulty];
+  const sets = [
+    ...scenario.encounterSetIds,
+    ...scenario.standardEncounterSetIds,
+    ...(difficulty === "expert" ? scenario.expertEncounterSetIds : []),
+  ];
+  if (options.players.length < 1 || options.players.length > 4) throw new Error("a game has 1-4 players");
+  const setAsideSetIds =
+    options.setAsideModularSetIds ?? HOOD_MODULAR_SET_IDS.slice(0, scenario.setAsideModularSetCount);
+  if (setAsideSetIds.length !== scenario.setAsideModularSetCount) {
+    throw new Error(`${scenario.name}: expected ${scenario.setAsideModularSetCount} set-aside modular sets`);
+  }
+  const setAsideModularSets = setAsideSetIds.map((encounterSetId) => ({
+    encounterSetId,
+    cardIds: wave4EncounterCardsOf([encounterSetId]),
+  }));
+  return {
+    seed: options.seed,
+    cards: WAVE4_CARDS,
+    villainCardId: scenario.villainCardId,
+    villainSide: side.side,
+    villainStartStageIndex: stageIndex(firstStage),
+    villainLastStageIndex: stageIndex(lastStage),
+    mainSchemeCardId: scenario.mainSchemeCardId,
+    encounterDeck: wave4EncounterCardsOf(sets),
+    players: seatsOf(options.players),
+    setAsideModularSets,
+    ...(difficulty === "expert" ? { difficulty: "expert" as const } : {}),
+    includeIdentitySets: true,
+    requireIdentitySets: true,
+    requireLegalDecks: true,
+    ...(options.firstPlayerIndex !== undefined ? { firstPlayerIndex: options.firstPlayerIndex } : {}),
+  };
+}
+
 /** A wave 4 (Nebula, War Machine, Vision, Valkyrie) or Core/box (The Mad Titan's Shadow) starter deck as a player
  * seat (quantities expanded). */
 export function wave4StarterDeckSetup(starterDeckId: string): PlayerSetup {
@@ -146,6 +217,8 @@ const seatsOf = (players: readonly CorePlayer[]): PlayerSetup[] =>
 export function wave4Scenario(scenarioId: string, options: Wave4ScenarioOptions) {
   const mts = MTS_SCENARIOS.find((s) => s.id === scenarioId);
   if (mts) return buildMtsSingleVillain(mts, options);
+  const hood = HOOD_SCENARIOS.find((s) => s.id === scenarioId);
+  if (hood) return buildHoodSingleVillain(hood, options);
   const players: readonly CorePlayer[] = options.players.map((seat) => {
     if (!("starterDeckId" in seat)) return seat;
     const setup = wave4StarterDeckSetup(seat.starterDeckId);
