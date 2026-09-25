@@ -77,9 +77,11 @@ const KNOWN_SKIPPED: Readonly<Record<string, readonly string[]>> = {
   ],
   // hood: the villain (24001-24003), the main scheme (24004-24006), The Hood's own encounter set (24007-24013) and
   // Beasty Boys (24014-24017, `hood/beasty-boys.ts`), Brothers Grimm (24018-24022, `hood/brothers-grimm.ts`) and
-  // Crossfire's Crew (24023-24028, `hood/crossfire-crew.ts`) are scripted. Everything below is the pack's
-  // remaining six modular sets (Mister Hyde, Ransacked Armory, Sinister Syndicate, State of Emergency, Streets of
-  // Mayhem, Wrecking Crew) plus Standard II / Expert II, left for the next scripting pass
+  // Crossfire's Crew (24023-24028, `hood/crossfire-crew.ts`), Mister Hyde (24033-24036, `hood/mister-hyde.ts`) and
+  // State of Emergency (24055-24059, `hood/state-of-emergency.ts`) and Streets of Mayhem (24060-24063,
+  // `hood/streets-of-mayhem.ts`) are scripted. Everything below is the pack's remaining three modular sets
+  // (Ransacked Armory, Sinister Syndicate, Wrecking Crew) plus Standard II / Expert II, left for the next
+  // scripting pass
   // (24041 and 24067 have no ability refs at all — plain-stat cards — and 24053's "Shadow of the Past" ref already
   // resolves as a reprint alias via `../reprints.ts`; none of the three are listed below).
   hood: [
@@ -99,12 +101,7 @@ const KNOWN_SKIPPED: Readonly<Record<string, readonly string[]>> = {
     "24031.when-revealed",
     "24032.when-revealed",
     "24032.boost",
-    "24033.when-revealed",
-    "24033.self-experimentation-forced-interrupt",
-    "24034.when-revealed",
-    "24034.when-defeated",
-    "24035.when-revealed",
-    "24036.when-revealed",
+    // Mister Hyde (`hood/mister-hyde.ts`): every ref resolves; no genuine gap found.
     "24037.flamethrower-constant",
     "24037.flamethrower-constant-2",
     "24038.holoshield-generator-constant",
@@ -137,21 +134,17 @@ const KNOWN_SKIPPED: Readonly<Record<string, readonly string[]>> = {
     "24052.boost",
     "24054.when-revealed-hero",
     "24054.boost",
+    // State of Emergency (`hood/state-of-emergency.ts`): every ref resolves except two genuine gaps (the module's
+    // own docblock) — Feisty Heist's "highest-cost card from your hand" and Citywide Crisis's own re-triggered
+    // "When Revealed" ability.
     "24055.when-revealed",
-    "24056.when-revealed",
-    "24057.when-revealed",
-    "24058.when-revealed",
     "24059.when-revealed",
     "24059.boost",
-    "24060.when-revealed",
-    "24060.back-alley-enclave-constant",
+    // Streets of Mayhem (`hood/streets-of-mayhem.ts`): every ref resolves except Secret Lair's own genuine gap
+    // (the module's own docblock) — "each enemy gains 1 acceleration icon" has no keyword-grant equivalent.
     "24061.when-revealed",
     "24061.secret-lair-constant",
     "24061.secret-lair-constant-2",
-    "24062.when-revealed",
-    "24062.sewer-tunnels-constant",
-    "24063.when-revealed",
-    "24063.warehouse-district-constant",
     "24064.top-talent-constant",
     "24065.wrecker-constant",
     "24066.bulldozer-constant",
