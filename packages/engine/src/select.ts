@@ -129,6 +129,8 @@ export function categoriesOf(state: GameState, id: InstanceId): readonly TargetC
   if (instance.facedownAs?.kind === "minion") return ["minion", "enemy", "character"];
   // An ally an attachment treats as a minion (docs/phase7-wave4.md §3.9).
   if (instance.treatedAs?.kind === "minion") return ["minion", "enemy", "character"];
+  // A minion a player controls as an ally (Mind Control, Karma; §3.29).
+  if (instance.treatedAs?.kind === "ally") return ["ally", "character"];
   const player = state.players.find((p) => p.identity.instanceId === id);
   if (card.type === "hero_identity" && player) {
     return player.identity.form === "hero" ? ["identity", "hero", "character"] : ["identity", "alterEgo", "character"];
@@ -185,6 +187,7 @@ function printedTraitsOf(state: GameState, id: InstanceId): readonly Trait[] {
   if (facedown) return facedown.traits;
   const treated = getInstance(state, id)?.treatedAs;
   if (treated) {
+    if (treated.kind === "ally") return treated.traits;
     const printed = card.type === "ally" ? card.traits : [];
     return treated.keepPrintedTraits ? [...treated.traits, ...printed] : treated.traits;
   }

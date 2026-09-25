@@ -723,6 +723,18 @@ export type RuleSpec =
       readonly ignores: readonly ("guard" | "patrol" | "crisis")[];
       readonly while?: Predicate;
     }
+  /**
+   * On an upgrade attached to a minion: "Take control of attached minion and treat it as a [Controlled] ally with a
+   * blank text box. Its THW is equal to its printed SCH and it takes 1 consequential damage after it thwarts or
+   * attacks." (Mind Control, `phoenix` 34009; Redemption, `bp` 51036). The attachment's controller takes control.
+   * `CardInstance.treatedAs` kind `ally`; docs/phase7-wave4.md §3.29.
+   */
+  | {
+      readonly kind: "treatHostAsAlly";
+      readonly traits: readonly Trait[];
+      readonly thwFromSch?: boolean;
+      readonly consequential: number;
+    }
   | {
       readonly kind: "treatHostAsMinion";
       readonly traits: readonly Trait[];

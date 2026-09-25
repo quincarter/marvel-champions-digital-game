@@ -430,6 +430,7 @@ stays data only.**
 | 3.26 | A friendly character attacks its own player                              | Old Rivals                                                       | landed  |
 | 3.27 | A cancel with nothing it can cancel is not offered                       | §4 Q16 (user decision)                                           | landed  |
 | 3.28 | A blank text box except for keywords                                     | Corrupted Programming (§3.1's open item)                         | landed  |
+| 3.29 | A minion treated as an ally (the mirror of §3.9)                         | Mind Control, Redemption, Karma                                  | landed  |
 
 ### 3.1 Additional forms: the form keyword
 
@@ -699,8 +700,7 @@ syncTreatedAs`, which `relocateCard` calls whenever a card moves onto or off a h
 > ATK, THW-as-SCH and hit points). A new `select.ts isAlly` (the `ally` category) replaces the raw `type === "ally"`
 > play-area walks (legal attackers/thwarters, defenders, Melter's forced ally defense, the ally limit, Team-Up's
 > friendly characters, why-not). Leaving play clears it. Event `treatedAsChanged`. **DSL:**
-> `constant(treatAttachedAllyAsMinion(traits, { keepPrintedTraits? }))`. **Not covered:** Mind Control, Redemption,
-> Karma (a minion treated as an ally, the mirror; `TreatedAs.kind` is the place to add `"ally"`), and Reluctant Foe
+> `constant(treatAttachedAllyAsMinion(traits, { keepPrintedTraits? }))`. **Not covered here:** Mind Control, Redemption and Karma landed as §3.29; Reluctant Foe
 > (`aos` 50171, a hero treated as a minion with a replaced text box).
 
 ### 3.10 Flipping a card into a separately emitted face of another type
@@ -1249,6 +1249,29 @@ card's traits are untouched). This was §3.1's open item.
 > `blanksTextBox(query, { exceptKeywords: true })`. The `vision` scripter targets "your mass form upgrade" with
 > `query("upgrade", { controller: "you", printedForm: "mass" })`.
 
+### 3.29 A minion treated as an ally (the mirror of §3.9)
+
+The mirror of §3.9. Survey (every raw pack, "treat … as a [X] ally"): Mind Control (`phoenix` 34009) and Redemption
+(`bp` 51036), upgrades on a minion; Karma (`rogue` 38011), an effect lasting "while Karma is in play". Each: "take
+control of [the] minion and treat it as a [Controlled/Redeemed] ally with a blank text box. Its THW is equal to its
+printed SCH and it takes 1 (Karma: 2) consequential damage after it thwarts or attacks."
+
+> **Status: landed (2026-09-24),** tested in `packages/engine/src/treat-as-ally.test.ts` (4 tests: under a Mind Control
+> upgrade the minion is the player's ally, in their play area, not engaged, [Controlled] only, text box blank, THW =
+> printed SCH, still attached, replay deep-equal; it thwarts with that THW and takes 1 consequential damage; with the
+> upgrade discarded it is a minion again, engaged with the player who controlled it; a Karma-like effect's minion is an
+> ally while the card is in play and a minion again once it leaves). **What landed:** `TreatedAs` is now a union;
+> kind **`ally`** (`traits`, `thwFromSch`, `consequential`, `source`, `controller`, `engagedBefore`) comes from
+> **`RuleSpec treatHostAsAlly {traits, thwFromSch?, consequential}`** on an attachment (the attachment's controller
+> takes control; `syncTreatedAs` as for §3.9) or from **`EffectSpec treatAsAlly {target, traits, thwFromSch?,
+consequential}`** (source = the effect's card; `leavePlay` calls `releaseTreatedBy`). Readers: `categoriesOf`
+> (`ally`, `character`), `isMinion` false, traits, blank abilities and keywords, `printedProfile` (an ally profile from
+> printed ATK, SCH-as-THW and hit points), `pushConsequentialDamage` (its own amount; an ally treated as a minion takes
+> none). The `isAlly` play-area readers from §3.9 pick it up as an attacker, thwarter and defender, and it counts
+> toward the ally limit (none of the three cards says otherwise). **DSL:** `constant(treatAttachedMinionAsAlly(traits,
+n))`, `treatAsAlly(target, traits, n)`. **Not covered:** Reluctant Foe (`aos` 50171: a hero from the collection
+> treated as an [Elite] minion with a replaced text box).
+
 ## 4. Open questions (for the user or FFG)
 
 Each is implemented the way stated, or not at all, and named here rather than decided silently.
@@ -1342,6 +1365,11 @@ Each is implemented the way stated, or not at all, and named here rather than de
     Ability Type)" (p. 10) does not say; for an enemy, "Activation" (p. 6) ends an attack whose attacker leaves play.
     Implemented as (unchanged engine behavior): the attack still resolves, for the attacker's ATK as it last was.
     Proposed alternative: end a player attack whose attacker has left play, mirroring the enemy rule. Needs a ruling.
+21. **A minion treated as an ally that stops being one** (§3.29): Mind Control discarded, Karma leaving play. No card
+    or ruling says where the minion goes. Implemented as: it stays in the play area it is in and is engaged with the
+    player who controlled it (a minion in a player's area is engaged with them, RRG 1.8 "Engaged", p. 18), without an
+    engage event (nothing new engaged; it is "essentially a status change", ruling Dec 17, 2025 (1) #3). Proposed:
+    keep.
 
 ## 5. What this asks of the other agents
 

@@ -316,7 +316,7 @@ export type GameEvent =
       readonly typeChanged: boolean;
     }
   /** An ally started (`as: "minion"`) or stopped (`as: null`) being treated as a minion (docs/phase7-wave4.md §3.9). */
-  | { readonly type: "treatedAsChanged"; readonly instanceId: InstanceId; readonly as: "minion" | null }
+  | { readonly type: "treatedAsChanged"; readonly instanceId: InstanceId; readonly as: "minion" | "ally" | null }
   /** A double-sided encounter card turned over; `flipped` is true when its other face is now up. */
   | { readonly type: "cardFlipped"; readonly instanceId: InstanceId; readonly flipped: boolean }
   /** The active counter moved (The Wrecking Crew insert, "The Active Villain"). */

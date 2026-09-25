@@ -468,6 +468,14 @@ export const ignores = (
 ): ConstantPart => ({
   rules: [{ kind: "characterIgnores", target, ignores: what, ...(when ? { while: when } : {}) }],
 });
+/**
+ * "Take control of attached minion and treat it as a [Controlled] ally with a blank text box. Its THW is equal to its
+ * printed SCH and it takes 1 consequential damage after it thwarts or attacks." (Mind Control, `phoenix` 34009;
+ * Redemption, `bp` 51036): `constant(treatAttachedMinionAsAlly([CONTROLLED], 1))`. docs/phase7-wave4.md §3.29.
+ */
+export const treatAttachedMinionAsAlly = (traits: readonly Trait[], consequential: number): ConstantPart => ({
+  rules: [{ kind: "treatHostAsAlly", traits, thwFromSch: true, consequential }],
+});
 /** "You cannot choose to discard this card from your hand." (System Shock): `inHand(constant(cannotChooseToDiscard))`. */
 export const cannotChooseToDiscard: ConstantPart = { rules: [{ kind: "cannotChooseToDiscard" }] };
 export const focusedMainScheme = (): ConstantPart => rule({ kind: "focusedMainScheme", scheme: { kind: "host" } });

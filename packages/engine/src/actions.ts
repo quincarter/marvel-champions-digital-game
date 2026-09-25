@@ -2220,8 +2220,20 @@ export function pushConsequentialDamage(
   kind: "attack" | "thwart",
 ): ReportTarget | null {
   const card = cardOf(ctx.state, characterId);
-  if (card?.type !== "ally") return null;
-  const printed = kind === "attack" ? card.consequentialDamage.attack : card.consequentialDamage.thwart;
+  const treated = getInstance(ctx.state, characterId)?.treatedAs;
+  // A minion treated as an ally "takes 1 consequential damage after it thwarts or attacks" (§3.29 of wave 4); an ally
+  // treated as a minion takes none.
+  if (treated) {
+    if (treated.kind !== "ally") return null;
+  } else if (card?.type !== "ally") return null;
+  const printed =
+    treated?.kind === "ally"
+      ? treated.consequential
+      : card?.type === "ally"
+        ? kind === "attack"
+          ? card.consequentialDamage.attack
+          : card.consequentialDamage.thwart
+        : 0;
   // "Takes +1 consequential damage after it attacks" (Enraged): a modifier on the printed value.
   const amount = Math.max(
     0,

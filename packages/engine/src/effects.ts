@@ -36,6 +36,7 @@ import {
   mainSchemeForRedirect,
 } from "./rules.js";
 import { pushEvent } from "./resolve/frames.js";
+import { releaseTreatedBy } from "./treat-as.js";
 import { matchesQuery, type EffectContext } from "./select.js";
 import type { StatusName } from "./spec.js";
 import type { GameOutcome, GameState, MainSchemeState, ZoneId } from "./state.js";
@@ -559,6 +560,8 @@ export function leavePlay(
     faceup: redirect !== null ? true : i.facedownAs ? true : i.faceup,
     flipped: card !== undefined && modeOnlyFlipped(card, ctx.state.scenarioRules.difficulty ?? "standard"),
   }));
+  // "While Karma is in play": a minion it took goes back when it leaves (docs/phase7-wave4.md §3.29).
+  releaseTreatedBy(ctx, id);
   if (loses) endGame(ctx, { result: "loss", reason: "cardAbility" });
   if (redirect !== null) {
     pushEvent(ctx, { kind: "discardRedirected", instanceId: id, area: redirect.area });

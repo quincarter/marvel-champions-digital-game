@@ -877,6 +877,20 @@ export type EffectSpec =
    * instead (RRG 1.8 "Stun", p. 41) and no attack is made; a "—" ATK makes none. The first friendly character the
    * ref names is used. `bind`: `<bind>.made`, `.damage`, `.damaged`, as `attack`.
    */
+  /**
+   * "Choose a non-[Elite] minion. While Karma is in play, take control of that minion and treat it as a [Controlled]
+   * ally with a blank text box. Its THW is equal to its printed SCH and it takes 2 consequential damage after it thwarts
+   * or attacks." (Karma, `rogue` 38011): the effect's controller takes control of each target minion, treated as an ally
+   * for as long as this card stays in play (`CardInstance.treatedAs` kind `ally`, `source` this card). docs/phase7-wave4.md
+   * §3.29.
+   */
+  | {
+      readonly kind: "treatAsAlly";
+      readonly target: TargetRef;
+      readonly traits: readonly Trait[];
+      readonly thwFromSch?: boolean;
+      readonly consequential: number;
+    }
   | {
       readonly kind: "friendlyCharacterAttacks";
       readonly attacker: TargetRef;

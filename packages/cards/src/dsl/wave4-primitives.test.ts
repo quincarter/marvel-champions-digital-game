@@ -11,6 +11,7 @@ import {
   alterEgoAction,
   cannotBeCanceled,
   treatAttachedAllyAsMinion,
+  treatAttachedMinionAsAlly,
   uncancellable,
   cannotChooseToDiscard,
   inHand,
@@ -55,6 +56,7 @@ import {
   putMainSchemeStageIntoPlay,
   removeCountersFrom,
   swapVillain,
+  treatAsAlly,
   turnFacedown,
 } from "./effects.js";
 import { validateDefinition } from "./validate.js";
@@ -241,5 +243,21 @@ describe("§3.9 an ally treated as a minion", () => {
     });
     valid(treat);
     valid(constant(treatAttachedAllyAsMinion([], { keepPrintedTraits: true })));
+  });
+});
+
+describe("§3.29 a minion treated as an ally", () => {
+  it("Mind Control (34009) and Karma (38011)", () => {
+    const CONTROLLED = trait("CONTROLLED");
+    valid(constant(treatAttachedMinionAsAlly([CONTROLLED], 1)));
+    const karma = heroAction(chooseTarget("minion", query("minion")), treatAsAlly(chosen("minion"), [CONTROLLED], 2));
+    valid(karma);
+    expect(karma.effects.at(-1)).toEqual({
+      kind: "treatAsAlly",
+      target: { kind: "slot", slot: "minion" },
+      traits: [CONTROLLED],
+      thwFromSch: true,
+      consequential: 2,
+    });
   });
 });

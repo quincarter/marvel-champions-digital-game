@@ -114,6 +114,7 @@ import {
   pushEvents,
 } from "./frames.js";
 import { pushConsequentialDamage } from "../actions.js";
+import { treatAsAlly } from "../treat-as.js";
 import { enterPlayOnReveal, revealFrame } from "./reveal.js";
 
 /**
@@ -302,6 +303,23 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
         })),
         reportTo(effect.bind),
       );
+      return;
+    }
+    case "treatAsAlly": {
+      // Karma (docs/phase7-wave4.md §3.29): the effect's controller takes each target minion, as an ally, for as long as
+      // this card is in play (`releaseTreatedBy` when it leaves).
+      const controller = frame.controllerId;
+      const source = frame.selfInstanceId;
+      if (!controller || !source || !cardsInPlay(ctx.state).includes(source)) return;
+      for (const id of targets(effect.target)) {
+        treatAsAlly(ctx, id, {
+          traits: effect.traits,
+          thwFromSch: effect.thwFromSch === true,
+          consequential: effect.consequential,
+          source,
+          controller,
+        });
+      }
       return;
     }
     case "friendlyCharacterAttacks": {

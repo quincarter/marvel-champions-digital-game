@@ -370,6 +370,19 @@ export const enemyScheme = (
  * Rivals, `nebu` 22031): a friendly character (hero-form identity or controlled ally) attacks `player`'s identity, as
  * her controller's attack. `bind`: `<bind>.made` (0 when no attack was made). docs/phase7-wave4.md §3.26.
  */
+/**
+ * "While Karma is in play, take control of that minion and treat it as a [Controlled] ally with a blank text box. Its
+ * THW is equal to its printed SCH and it takes 2 consequential damage after it thwarts or attacks." (Karma, `rogue`
+ * 38011): `treatAsAlly(chosen("minion"), [CONTROLLED], 2)`, lasting while this card is in play. docs/phase7-wave4.md
+ * §3.29.
+ */
+export const treatAsAlly = (target: TargetRef, traits: readonly Trait[], consequential: number): EffectSpec => ({
+  kind: "treatAsAlly",
+  target,
+  traits,
+  thwFromSch: true,
+  consequential,
+});
 export const friendlyCharacterAttacks = (
   attacker: TargetRef,
   player: PlayerRef = you,

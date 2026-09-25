@@ -95,13 +95,35 @@ export interface FacedownRole {
  * ones when `keepPrintedTraits`, "a blank text box (except for traits)"); its SCH is its printed THW when `schFromThw`.
  * `controllerBefore` is who controlled it as an ally, who gets it back when the attachment goes.
  */
-export interface TreatedAs {
+export type TreatedAs = TreatedAsMinion | TreatedAsAlly;
+
+export interface TreatedAsMinion {
   readonly kind: "minion";
   readonly traits: readonly Trait[];
   readonly keepPrintedTraits: boolean;
   readonly schFromThw: boolean;
   readonly source: InstanceId;
   readonly controllerBefore: PlayerId | null;
+}
+
+/**
+ * The mirror (docs/phase7-wave4.md §3.29): a minion a player takes control of and treats as an ally — "Take control of
+ * attached minion and treat it as a [Controlled] ally with a blank text box. Its THW is equal to its printed SCH and it
+ * takes 1 consequential damage after it thwarts or attacks." (Mind Control, `phoenix` 34009; Redemption, `bp` 51036,
+ * [Redeemed]); Karma (`rogue` 38011, "While Karma is in play", 2 consequential damage). While set the card is an ally
+ * and character that `controller` controls, not a minion or an enemy; its text box is blank; its traits are `traits`;
+ * its THW is its printed SCH when `thwFromSch` and its ATK its printed ATK; it takes `consequential` damage after it
+ * attacks or thwarts. `source` is the attachment or the card whose effect did it; when that is gone it is a minion
+ * again, engaged with the player who controlled it (§4 Q20). `engagedBefore` is who it was engaged with.
+ */
+export interface TreatedAsAlly {
+  readonly kind: "ally";
+  readonly traits: readonly Trait[];
+  readonly thwFromSch: boolean;
+  readonly consequential: number;
+  readonly source: InstanceId;
+  readonly controller: PlayerId;
+  readonly engagedBefore: PlayerId | null;
 }
 
 /**
