@@ -28,7 +28,7 @@ const PACK_STATUS: Readonly<Record<string, "scripted" | "in progress" | "not sta
   valk: "scripted",
   vision: "scripted",
   mts: "scripted",
-  hood: "in progress",
+  hood: "scripted",
 };
 
 /**

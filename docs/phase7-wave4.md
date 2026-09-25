@@ -20,7 +20,7 @@ The Hood, a scenario pack with no player cards, is released in the same window. 
 | `nebu`   | Nebula hero pack              | Sep 17, 2021 | emitted, data only                                |
 | `mts`    | The Mad Titan's Shadow (MC21) | Oct 29, 2021 | **not emitted** (§1, 26 survey lines)             |
 | `warm`   | War Machine hero pack         | Nov 12, 2021 | emitted, data only                                |
-| `hood`   | The Hood scenario pack        | Nov 26, 2021 | emitted, data only; no scenario record yet (§2.3) |
+| `hood`   | The Hood scenario pack        | Nov 26, 2021 | **scripted** (2026-09-25; §2.3, e2e)              |
 | `vision` | Vision hero pack              | Jan 14, 2022 | emitted, data only; **Dense face missing** (§1.2) |
 | `valk`   | Valkyrie hero pack            | Jan 21, 2022 | emitted, data only                                |
 
@@ -418,6 +418,16 @@ and found it fits. Checked against the real cards:
 - `hood` has no `Scenario` record yet (`curation/hood.ts`: "scenario curation is a follow-up").
 - "Each player must resolve The Hood's 'Foul Play' ability in player order": `resolveSpecials` with a scoped player
   (§3.23).
+
+> **Status: scripted (2026-09-25).** Every `hood` ability ref resolves (`KNOWN_SKIPPED.hood` is empty and `PACK_STATUS`
+> is `"scripted"` in `packages/cards/src/wave4/coverage.test.ts`): the villain, main scheme and The Hood's set, the nine
+> modular sets, and Standard II / Expert II (§4 Q5), with §3.50–§3.59 built for the last gaps. **E2E:**
+> `packages/cards/src/wave4/hood/e2e.test.ts` plays Spider-Man (standard, solo), Spider-Man and Captain Marvel
+> (standard, two players) and Spider-Man in expert with Standard II and Expert II to a real outcome with the greedy
+> driver, replays each log to a deep-equal state, runs the villain-phase audit clean, and checks every modular set the
+> villain and main scheme shuffle in during play (at least one per game) came whole out of the set-aside area. **Client:**
+> The Hood needs the seven-set choice (or random) at setup (`setAsideModularSetIds`) and the Standard II / Expert II
+> toggles (`difficultySets`, §4 Q5) when wave 4 is wired into the playable pool.
 
 ---
 
