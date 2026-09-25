@@ -499,3 +499,82 @@ touched. `pnpm check`-equivalent state is unchanged from checkpoint 4's own clea
 ### Files touched, checkpoint 5
 
 - `docs/phase7-wave4-qa.md` — this section only (no code changes; `warm` and `valk` came out clean).
+
+## Checkpoint 6: pass 3 — `hood` (the remaining budget)
+
+Budget remained after `warm`/`valk`, so this checkpoint reads `hood`'s own scripts in full: the central villain/main-
+scheme/encounter-set file (`hood.ts`) and all nine modular sets (`beasty-boys.ts`, `brothers-grimm.ts`,
+`crossfire-crew.ts`, `mister-hyde.ts`, `ransacked-armory.ts`, `sinister-syndicate.ts`, `standard-expert-ii.ts`,
+`state-of-emergency.ts`, `streets-of-mayhem.ts`, `wrecking-crew.ts`) against `docs/cards/by_pack/hood.md`. **Not**
+`mts` — the coordinator is running a separate parallel QA agent on the rest of `mts`; this pass didn't touch it.
+
+### One real bug found and fixed
+
+**Disaster at the Docks (`hood` 24056): "Take 3 indirect damage" was scripted as plain identity damage, not RRG
+1.8's "Indirect Damage."** `state-of-emergency.ts` used `takeDamage(3)` (`dealDamage` straight to the identity),
+not `dealIndirectDamage(you, 3)` — the primitive its own sibling cards in the same pack use for the identical
+printed phrase (Corrosive Egg Bomb, `hood` 24020; Caught in the Crossfire, `hood` 24028). RRG 1.8 "Indirect Damage"
+(p. 24): "Indirect damage dealt to a player can be divided as that player chooses among characters under their
+control" — `takeDamage` forces it onto the identity unconditionally, denying the player the choice to put some or
+all of it on an ally instead. **Fixed** (a one-line swap, in scope for this agent): `state-of-emergency.ts`'s
+`24056.when-revealed` now uses `dealIndirectDamage(you, 3)`. **New regression test**,
+`state-of-emergency.test.ts`: puts Black Cat (Core 01002, the scenario's own default starter's ally) into play,
+reveals 24056, and picks to split the 3 damage 1-to-the-ally/2-to-the-identity via the real `assignIndirectDamage`
+choice — verified to fail against the pre-fix script first (temporarily reverted the fix, re-ran, confirmed the
+test fails because the choice never appears at all; restored the fix, `git diff` clean on the source file
+afterward). The pack's own pre-existing solo test ("takes exactly 3 indirect damage," no ally in play) still passes
+unchanged, since with only the identity to assign to, indirect damage and direct damage look identical.
+
+### One "already X" pattern investigated, not confirmed
+
+**Magic Muscle (`hood` 24070): "If no tough status card was given this way" is scripted as `exists(BRUTE_ENEMY)`
+(whether a Brute enemy exists), not whether `giveTough` actually gave one.** `giveStatus`
+(`packages/engine/src/effects.ts`) is a no-op once a character is already at its tough capacity — no event, no
+state change — so a Brute enemy that's already tough would make `exists(BRUTE_ENEMY)` true (taking the give-tough
+branch) while giving nothing, which by the printed text should still trigger the fallback (discard until a Brute is
+found and reveal it). **Attempted to prove this live and could not get a clean result**: staging a Brute minion
+already toughened and revealing Magic Muscle in a real villain phase, the fallback's own `encounterCardRevealed`
+event _did_ appear — but the same round's own other activations (multiple modular sets folded in for setup reasons,
+per `wrecking-crew.test.ts`'s own `SETS_WITH_WRECKING_CREW` comment) also produce encounter-card-revealed events,
+and isolating which one specifically came from 24070's own fallback rather than an unrelated reveal elsewhere in
+the round needed more staging precision than the time budget allowed. **Not filed as a confirmed finding** — the
+speculative test was written, found ambiguous, and reverted rather than committed with a misleading pass/fail.
+Flagged here as worth a second look with better isolation (a minimal single-modular-set deck, or tracing the
+specific `abilityResolved`/`cardMoved` events adjacent to 24070's own frame) rather than asserted as a bug.
+
+### Everything else — clean
+
+`hood.ts`'s central "Foul Play" building block (invoked by name in nineteen-plus other refs across the pack) reads
+correctly everywhere it's used, including the two counting patterns that need a snapshot rather than a live check
+(Promised Prosperity 24005b's "not dealt at least 1 card," Corruptor 24025's "for each ally exhausted this way,"
+both `setVar`-based, both checked against the actual effect's own result rather than a pre-condition). Every other
+modular set's targets, "you" vs. "each player," may/must, timing words, costs vs. effects, and keyword grants
+matched their printed text. Standard II/Expert II's own two-mode Formidable Foe face-split and Total Annihilation's
+overkill (already regression-pinned per Checkpoint 1's §3.51 fix) were both re-confirmed correct on this read too.
+
+### Test counts, checkpoint 6
+
+- `npx oxlint`/`npx oxfmt --check` on both touched files: clean.
+- `npx tsc --noEmit` for `@mc/cards`: clean.
+- `npx vitest run` (`@mc/cards`, full suite): **205 test files, 2212 tests, all passed** (+1 from checkpoint 5's
+  2211 test count — the new Disaster at the Docks regression test).
+
+### Files touched, checkpoint 6
+
+- `packages/cards/src/wave4/hood/state-of-emergency.ts` — the `takeDamage` → `dealIndirectDamage` fix.
+- `packages/cards/src/wave4/hood/state-of-emergency.test.ts` — new regression test for the fix.
+- `docs/phase7-wave4-qa.md` — this section.
+
+### What this checkpoint did not do / overall pass-3 status
+
+- **Done, all clean or with findings as noted above**: `warm` (checkpoint 5), `valk` (checkpoint 5), `hood`
+  (checkpoint 6, one bug fixed).
+- **Not done, explicitly left for the parallel agent**: the rest of `mts` (Thanos/Hela/Ebony Maw/Loki/Tower
+  Defense/Adam Warlock/Spectrum kits, obligations, nemesis sets, villains/main-schemes/side-schemes) — per the
+  coordinator's own instruction not to duplicate that work.
+- **Not done, time budget**: the Magic Muscle finding above needs a cleaner live repro or a structural (plain-data)
+  check before it can be filed as a real bug; `hood`'s own test files (`hood-gaps.test.ts`,
+  `standard-expert-ii.test.ts`, etc.) were read only where directly relevant to the scripts above, not independently
+  re-audited for weak-test patterns the way the earlier checkpoints did for `mts`/wave-3 packs (pass 3 item 1's own
+  sweep was scoped to the ~107-line list already gathered before `hood` was read this checkpoint, so any
+  `hood`-specific loose bounds not already on that list were not separately re-swept).
