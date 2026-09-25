@@ -67,8 +67,21 @@ describe("Mister Hyde (24033-24036)", () => {
     // staged reveal) — she still exists in play, which is all Calvin Zabo's own condition checks.
     const unengaged = patchInstance(withHyde.state, withHyde.id, { engagedWith: null });
     const staged = stackTop(unengaged, "01186", "24034");
+    const identity = staged.players[0]!.identity.instanceId;
     const { events } = driveEvents(WAVE4_DEPS, staged, { type: "endTurn", playerId: P1 });
     expect(fired(events, "24034.when-revealed")).toBe(true);
+    // Mister Hyde's printed ATK is 3 (packages/content/src/data/hood/cards.ts, 24035): confirmed live below, that's
+    // exactly what his own ordinary villain-phase activation deals (undefended, unengaged, no boost). +2 from Calvin
+    // Zabo's own text should make a *second*, distinct attack from him this same phase deal 5 — isolated from his
+    // ordinary activation by amount, since both are sourced from the same physical instance. Weak-test finding
+    // (rules-qa-engineer, docs/phase7-wave4-qa.md): the prior version of this test only asserted the ability
+    // *fired*, the same "fired but never took effect" shape §3.51 found for this exact card's overkill/ATK-bonus
+    // keywords before the fix landed.
+    const dealtToIdentity = events.filter(
+      (e): e is Extract<(typeof events)[number], { type: "damageDealt" }> =>
+        e.type === "damageDealt" && e.targetInstanceId === identity && e.sourceInstanceId === withHyde.id,
+    );
+    expect(dealtToIdentity.map((e) => e.amount).sort()).toEqual([3, 5]);
   });
 
   it("24034.when-defeated: searches for and puts Mister Hyde into play engaged with Calvin Zabo's own player", () => {
