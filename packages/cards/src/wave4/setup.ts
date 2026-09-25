@@ -11,12 +11,14 @@ import {
   VALK_STARTER_DECKS,
   VISION_STARTER_DECKS,
   WARM_STARTER_DECKS,
+  cardId,
   difficultyEncounterSetIds,
   difficultyOf,
   type AnyCard,
   type CardId,
+  type VillainCard,
 } from "@mc/content";
-import type { GameSetupConfig, PlayerSetup } from "@mc/engine";
+import type { GameSetupConfig, PlayerSetup, VillainSetup } from "@mc/engine";
 import {
   coreScenario,
   resolveModes,
@@ -29,10 +31,10 @@ import { checkWave4DifficultySets, WAVE4_CARDS } from "./cards.js";
 /**
  * A wave 4 scenario builder: `MTS_SCENARIOS`' own single-villain records (today, only Ebony Maw —
  * docs/phase7-wave4.md §2.2 — is scripted; the others stay data-only per `../mts/coverage.test.ts`'s own
- * `KNOWN_SKIPPED`), else `coreScenario`'s fallback — a Core scenario seated with the wave 4 card pool, the same
- * "no scenario of its own yet" precedent `wave3/setup.ts` used before `gmw` landed. Modeled directly on
- * `wave3Scenario`'s own `buildSingleVillain`; Tower Defense's `multipleVillains` shape is left to whoever scripts
- * it next (`buildSingleVillain` below refuses it explicitly rather than silently building it wrong).
+ * `KNOWN_SKIPPED`) via `buildMtsSingleVillain`, its own `multipleVillains` records (Tower Defense, MC21 p. 10-11)
+ * via `buildMtsMultipleVillains`, else `coreScenario`'s fallback — a Core scenario seated with the wave 4 card
+ * pool, the same "no scenario of its own yet" precedent `wave3/setup.ts` used before `gmw` landed. Modeled
+ * directly on `wave3Scenario`'s own `buildSingleVillain`.
  */
 export type Wave4Difficulty = CoreDifficulty;
 
@@ -87,12 +89,23 @@ function scenarioSpecificSetAside(setIds: readonly string[]): CardId[] {
   ).map((card) => card.id);
 }
 
+/**
+ * Cards a `multipleVillains` scenario's own rulebook sets aside by name at setup rather than shuffling into the
+ * shared encounter deck, even though they carry an ordinary `encounterSetIds` membership (Tower Defense's Avengers
+ * Tower and Focused Defense, MC21 p. 10-11 — both `tower_defense` set members with no `specificTo` flag to key off
+ * of, unlike a single-villain scenario's own `Odin`/`Norn Stone`-style scenario-specific cards, so this is keyed by
+ * scenario id instead, `SCENARIO_RULE_SPECS`' own precedent).
+ */
+const MULTI_VILLAIN_SET_ASIDE: Readonly<Record<string, readonly CardId[]>> = {
+  "tower-defense": [cardId("21100a"), cardId("21101")],
+};
+
 function buildMtsSingleVillain(
   scenario: (typeof MTS_SCENARIOS)[number],
   options: Wave4ScenarioOptions,
 ): GameSetupConfig {
   if (scenario.multipleVillains) {
-    throw new Error(`${scenario.name}: multipleVillains scenarios are not built by wave4Scenario yet`);
+    throw new Error(`${scenario.name}: buildMtsSingleVillain does not build multipleVillains scenarios`);
   }
   checkWave4DifficultySets(options.difficultySets);
   const modes = resolveModes(options.difficulty, options.modes);
@@ -153,6 +166,77 @@ function buildMtsSingleVillain(
     requireIdentitySets: true,
     requireLegalDecks: true,
     ...(scenarioDecks.length > 0 ? { scenarioDecks } : {}),
+    // Expert mode reaches the engine for "Standard/Expert Mode Only" faces (Formidable Foe, Standard II; §3.18).
+    ...(difficulty === "expert" ? { difficulty: "expert" as const } : {}),
+    ...(options.firstPlayerIndex !== undefined ? { firstPlayerIndex: options.firstPlayerIndex } : {}),
+  };
+}
+
+/** `villain.sides[0]`'s own stage list, by printed stage number — the per-villain half of `buildMtsSingleVillain`'s
+ * own `stageIndex`, reused across every villain in a `multipleVillains` scenario (each of which may have its own
+ * stage list, unlike a single villain's expert-side swap). */
+function villainStageIndexOf(villain: VillainCard, stageNumber: number): number {
+  const side = villain.sides[0];
+  if (!side) throw new Error(`${villain.name} has no sides`);
+  const index = side.stages.findIndex((stage) => stage.stageNumber === stageNumber);
+  if (index < 0) throw new Error(`${villain.name} has no stage ${stageNumber}`);
+  return index;
+}
+
+/**
+ * A `multipleVillains` `MTS_SCENARIOS` record (today, only Tower Defense, MC21 p. 10-11: two villains, one shared
+ * encounter deck, `activeVillainOnly` activation — `packages/engine/src/setup.ts`'s own `MultipleVillains` support,
+ * `GameSetupConfig.villains`/`sharedEncounterDeck`). Built alongside `buildMtsSingleVillain` rather than folded into
+ * it: a shared deck has no per-villain `encounterSetIds` to draw from (`ScenarioVillain.encounterSetIds` is empty
+ * for Tower Defense, MC21 p. 10's own "one deck for both villains"), and every villain needs its own stage-index
+ * pair instead of the one `buildMtsSingleVillain` resolves for its single villain card.
+ */
+function buildMtsMultipleVillains(
+  scenario: (typeof MTS_SCENARIOS)[number],
+  options: Wave4ScenarioOptions,
+): GameSetupConfig {
+  const multi = scenario.multipleVillains;
+  if (!multi) throw new Error(`${scenario.name}: buildMtsMultipleVillains needs a multipleVillains scenario`);
+  if (multi.encounterDecks !== "shared") {
+    throw new Error(`${scenario.name}: only sharedEncounterDeck multipleVillains scenarios are built by wave4Scenario`);
+  }
+  checkWave4DifficultySets(options.difficultySets);
+  const modes = resolveModes(options.difficulty, options.modes);
+  const difficulty = difficultyOf(modes);
+  const [firstStage, lastStage] = scenario.villainStages[difficulty];
+  const sets = [
+    ...scenario.encounterSetIds,
+    ...(options.modularSetIds ?? scenario.recommendedModularSetIds),
+    ...difficultyEncounterSetIds(scenario, difficulty, options.difficultySets),
+  ];
+  if (options.players.length < 1 || options.players.length > 4) throw new Error("a game has 1-4 players");
+  const setAsideIds = MULTI_VILLAIN_SET_ASIDE[scenario.id] ?? [];
+  const setAsideIdSet = new Set<string>(setAsideIds);
+  const villains: readonly VillainSetup[] = multi.villains.map((entry) => {
+    const villain = cardsById.get(entry.villainCardId);
+    if (!villain || villain.type !== "villain") throw new Error(`${entry.villainCardId} is not a villain`);
+    return {
+      villainCardId: entry.villainCardId,
+      encounterDeck: wave4EncounterCardsOf(entry.encounterSetIds),
+      startStageIndex: villainStageIndexOf(villain, firstStage),
+      lastStageIndex: villainStageIndexOf(villain, lastStage),
+    };
+  });
+  return {
+    seed: options.seed,
+    cards: WAVE4_CARDS,
+    villainCardId: scenario.villainCardId,
+    villains,
+    sharedEncounterDeck: true,
+    // Avengers Tower and Focused Defense are `sets` members but placed by name at setup (`MULTI_VILLAIN_SET_ASIDE`
+    // docblock above), not shuffled into the shared deck twice over.
+    encounterDeck: wave4EncounterCardsOf(sets).filter((id) => !setAsideIdSet.has(id)),
+    mainSchemeCardId: scenario.mainSchemeCardId,
+    setAside: [...scenarioSpecificSetAside(sets), ...setAsideIds],
+    players: seatsOf(options.players),
+    includeIdentitySets: true,
+    requireIdentitySets: true,
+    requireLegalDecks: true,
     // Expert mode reaches the engine for "Standard/Expert Mode Only" faces (Formidable Foe, Standard II; §3.18).
     ...(difficulty === "expert" ? { difficulty: "expert" as const } : {}),
     ...(options.firstPlayerIndex !== undefined ? { firstPlayerIndex: options.firstPlayerIndex } : {}),
@@ -261,7 +345,7 @@ const seatsOf = (players: readonly CorePlayer[]): PlayerSetup[] =>
 
 export function wave4Scenario(scenarioId: string, options: Wave4ScenarioOptions) {
   const mts = MTS_SCENARIOS.find((s) => s.id === scenarioId);
-  if (mts) return buildMtsSingleVillain(mts, options);
+  if (mts) return mts.multipleVillains ? buildMtsMultipleVillains(mts, options) : buildMtsSingleVillain(mts, options);
   const hood = HOOD_SCENARIOS.find((s) => s.id === scenarioId);
   if (hood) return buildHoodSingleVillain(hood, options);
   const players: readonly CorePlayer[] = options.players.map((seat) => {
