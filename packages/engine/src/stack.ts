@@ -166,6 +166,18 @@ export type StackFrame =
       readonly controllerId: PlayerId | null;
       readonly event: TriggerEvent | null;
       readonly eventFrameId: FrameId | null;
+      /**
+       * A branch (`chooseOne`'s chosen option, `if`'s taken branch): when it finishes, its bindings and vars are
+       * written back to this frame, so an effect after the `chooseOne`/`if` reads "the card discarded this way"
+       * whichever branch bound it (docs/phase7-wave4.md §3.43).
+       */
+      readonly returnBindingsTo?: FrameId;
+      /**
+       * The effects of an ability a player uses: an ability on a player card, an action, or an optional interrupt or
+       * response (not a forced ability, When Revealed, boost or setup on an encounter card). "Players cannot discard
+       * attachments …" (Powerful Enchantments, `valk` 25030) reads it. docs/phase7-wave4.md §3.44.
+       */
+      readonly byPlayer?: true;
     })
   /** RRG "Attack (Enemy Activation)" steps 1–5; step 6 is the event frame's response window. */
   | (FrameBase & {

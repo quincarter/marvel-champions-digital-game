@@ -9,6 +9,7 @@ import {
   runWith,
   settle,
   toHero,
+  use,
   type Picker,
 } from "../../testing/harness.js";
 import { revealFromEncounterDeck, withForm } from "../../testing/staging.js";
@@ -146,5 +147,63 @@ describe("Valkyrie's nemesis set: Enchantress, Beguiled, Seduced", () => {
     // discard pile (RRG 1.8's "corresponding encounter deck" rule).
     expect(activeEncounterDeck(state).discard).toContain(seduced);
     expect(inst(state, seduced).attachedTo).toBeNull();
+  });
+});
+
+describe("Powerful Enchantments (side scheme, 25030)", () => {
+  const encounterInstance = (id: InstanceId, cardId: string, extra: Record<string, unknown> = {}) =>
+    ({
+      instanceId: id,
+      cardId: cardId as never,
+      ownerId: null,
+      controllerId: null,
+      home: { kind: "activeEncounterDeck" },
+      faceup: true,
+      exhausted: false,
+      damage: 0,
+      threat: 0,
+      statuses: { stunned: 0, confused: 0, tough: 0 },
+      counters: {},
+      attachedTo: null,
+      attachments: [],
+      boostCards: [],
+      tucked: [],
+      facedownAs: null,
+      engagedWith: null,
+      flipped: false,
+      ...extra,
+    }) as never;
+
+  const staged = (withEnchantments: boolean) => {
+    const hero = settle(runWith(WAVE4_DEPS, valkyrieVsRhino(12), toHero()), firstLegal, undefined, WAVE4_DEPS);
+    const { state: withSpear, id: spear } = playFromHand(hero, "25005", 1);
+    const identity = identityOf(withSpear, P1);
+    // Lethal Weapon (`nebu` 22030, "Hero Action: Discard an upgrade you control → discard this attachment") on Valkyrie.
+    const weapon = "enchant-test-weapon" as InstanceId;
+    const scheme = "enchant-test-scheme" as InstanceId;
+    const state: GameState = {
+      ...withSpear,
+      villainArea: withEnchantments ? [...withSpear.villainArea, scheme] : withSpear.villainArea,
+      instances: {
+        ...withSpear.instances,
+        [identity]: { ...inst(withSpear, identity), attachments: [...inst(withSpear, identity).attachments, weapon] },
+        [weapon]: encounterInstance(weapon, "22030", { attachedTo: identity }),
+        ...(withEnchantments ? { [scheme]: encounterInstance(scheme, "25030", { threat: 2 }) } : {}),
+      },
+    };
+    const after = settle(
+      runWith(WAVE4_DEPS, state, use(P1, weapon, "22030.lethal-weapon-action", [], { discarded: [spear] })),
+      firstLegal,
+      undefined,
+      WAVE4_DEPS,
+    );
+    return { after, weapon, identity };
+  };
+
+  it("25030.powerful-enchantments-constant: a player's ability cannot discard an attachment on their hero while it is in play", () => {
+    const { after, weapon, identity } = staged(true);
+    expect(inst(after, weapon).attachedTo).toBe(identity);
+    const control = staged(false);
+    expect(inst(control.after, control.weapon).attachedTo).toBeNull();
   });
 });

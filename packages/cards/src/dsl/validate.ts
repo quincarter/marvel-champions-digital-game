@@ -132,7 +132,7 @@ function checkCostShape(cost: AbilityCost, problems: string[]): void {
   // docs/phase7-wave3.md §3.43: "N resources of the same type" is a generic count.
   if (cost.sameResourceType && (typeof cost.resources !== "number" || cost.resources < 1))
     problems.push("cost sameResourceType: needs `resources` as a whole number of at least 1");
-  if (cost.discardFromDeck !== undefined && (!Number.isInteger(cost.discardFromDeck) || cost.discardFromDeck < 1))
+  if (typeof cost.discardFromDeck === "number" && (!Number.isInteger(cost.discardFromDeck) || cost.discardFromDeck < 1))
     problems.push("cost discardFromDeck: must be a whole number of at least 1");
   if (cost.either) {
     if (cost.either.length < 2) problems.push("cost either: needs at least two branches");

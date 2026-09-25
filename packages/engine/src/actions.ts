@@ -40,6 +40,7 @@ import {
   restrictedLimitFor,
 } from "./rules.js";
 import { inPlayPicksOf, type InPlayCostMode, type InPlayCostPick } from "./abilities.js";
+import type { ValueSpec } from "./spec.js";
 import type { TriggerEvent } from "./trigger-events.js";
 import { instanceId as asInstanceId, type InstanceId, type PlayerId } from "./ids.js";
 import { hasKeyword, statusActive } from "./keywords.js";
@@ -1072,6 +1073,24 @@ function zoneMatches(
  * Checks every non-resource component of a cost and binds what it produces.
  * `reserved` holds hand cards already committed to the resource payment.
  */
+/**
+ * How many cards a "discard the top N cards of your deck →" cost takes (docs/phase7-wave4.md §3.42): a number, or a value
+ * read against the event of the innermost open window ("discard that many cards", Shield Spell), none outside one.
+ */
+function deckDiscardCount(
+  state: GameState,
+  deps: EngineDeps,
+  sourceId: InstanceId,
+  playerId: PlayerId,
+  spec: number | ValueSpec,
+): number {
+  if (typeof spec === "number") return spec;
+  const window = state.stack.find((f) => f.kind === "window");
+  const event = window?.kind === "window" ? window.event : null;
+  const context: EffectContext = { selfInstanceId: sourceId, controllerId: playerId, event, bindings: {}, deps };
+  return Math.max(0, resolveValue(state, spec, context, deps));
+}
+
 export function planCost(
   state: GameState,
   deps: EngineDeps,
@@ -1112,9 +1131,10 @@ export function planCost(
   // have reshuffled from the discard pile (an empty deck beside a discard pile is a state built before §4 Q15's
   // immediate reset), must hold them all.
   if (cost.discardFromDeck !== undefined) {
+    const count = deckDiscardCount(state, deps, sourceId, playerId, cost.discardFromDeck);
     const supply = player.deck.length > 0 ? player.deck.length : player.discard.length;
-    if (supply < cost.discardFromDeck) {
-      return { code: "card_not_in_zone", message: `discard the top ${cost.discardFromDeck} card(s) of your deck` };
+    if (supply < count) {
+      return { code: "card_not_in_zone", message: `discard the top ${count} card(s) of your deck` };
     }
   }
   if (cost.exhaustIdentity && identity.exhausted) {
@@ -1443,7 +1463,10 @@ export function payCost(
     const zone = locateCard(ctx.state, id);
     discardFromHand(ctx, zone?.kind === "hand" ? zone.playerId : playerId, id);
   }
-  if (cost.discardFromDeck) discardFromDeckAsCost(ctx, playerId, cost.discardFromDeck);
+  if (cost.discardFromDeck !== undefined) {
+    const count = deckDiscardCount(ctx.state, ctx.deps, sourceId, playerId, cost.discardFromDeck);
+    if (count > 0) discardFromDeckAsCost(ctx, playerId, count);
+  }
   // After the payment and the chosen discards have left the hand, so the random pick is among what remains.
   if (cost.discardRandomFromHand) discardRandomFromHand(ctx, playerId, cost.discardRandomFromHand, [sourceId]);
   if (cost.damageSelf) {

@@ -38,14 +38,6 @@ const PACK_STATUS: Readonly<Record<string, "scripted" | "in progress" | "not sta
  * mts scenario passes (wave 4 step 3)" — a reason the next agent removes as that ref lands.
  */
 const KNOWN_SKIPPED: Readonly<Record<string, readonly string[]>> = {
-  // valk: Powerful Enchantments (25030), "Players cannot discard attachments that are attached to friendly
-  // characters." No primitive exists for preventing a category of cards from being *discarded* as a target or cost
-  // pick short of the absolute `RuleSpec cannotLeavePlay` (`packages/engine/src/abilities.ts`), which would also
-  // block the host's own defeat from discarding its attachments and every other way such a card could leave play —
-  // not only being chosen for discard, which is all the printed sentence restricts. A `game-rules-architect`
-  // follow-up needs a narrower "cannot be chosen to discard" rule, the in-play sibling of the existing hand-only
-  // `cannotChooseToDiscard`. Its Hinder keyword is data, not this ref.
-  valk: ["25030.powerful-enchantments-constant"],
   // nebu: both of its earlier primitive gaps (an in-play "discard cards you control" cost kind, and a friendly
   // character attacking its own controller without exhausting) landed since (`nebula-obligation-nemesis.ts` now
   // scripts both 22030.lethal-weapon-action and 22031.when-revealed); nothing left unresolved.
@@ -57,7 +49,6 @@ const KNOWN_SKIPPED: Readonly<Record<string, readonly string[]>> = {
   // for the same ref with `mergeRegistries`'s "defined twice" guard). Not this pack's own scripting work; removed
   // here because leaving them would silently pin a wrong (unresolved) expectation now that they resolve.
   mts: [
-    "21061.shield-spell-interrupt",
     "21111.thanos-forced-response",
     "21112.when-revealed",
     "21112.thanos-forced-response",

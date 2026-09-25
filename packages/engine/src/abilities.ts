@@ -482,6 +482,13 @@ export type RuleSpec =
    * `attacker` the host). A matching character is never a legal defender (basic defense) and a "(defense)" ability
    * does not make it the defender; `attacker` limits it to that enemy's attacks. docs/phase7-wave4.md §3.31.
    */
+  /**
+   * "Players cannot discard attachments that are attached to friendly characters." (Powerful Enchantments, `valk`
+   * 25030): a matching card is not discarded by an ability a player uses (the effects frame's `byPlayer`: a player
+   * card's ability, an action, an optional interrupt or response). Its host's defeat, or an encounter card's own forced
+   * effect, still discards it. Narrower than `cannotLeavePlay`. docs/phase7-wave4.md §3.44.
+   */
+  | { readonly kind: "playersCannotDiscard"; readonly target: TargetQuery; readonly while?: Predicate }
   | {
       readonly kind: "cannotDefend";
       readonly target: TargetQuery;
@@ -870,8 +877,12 @@ export interface AbilityCost {
    *   its facedown encounter card) and pays from the new deck. With both deck and
    *   discard pile empty there is nothing to discard, and the ability cannot be initiated.
    * - **A deck the cost empties resets immediately** (the same ruling), before the ability's effects resolve.
+   * - **A value**: "When you would take any amount of damage from an attack, discard that many cards from the top of
+   *   your deck →" (Shield Spell, `mts` 21061) is `{ kind: "eventAmount" }`, read against the event whose window the
+   *   ability is being used in (the innermost open window), when the cost is checked and again when it is paid.
+   *   docs/phase7-wave4.md §3.42.
    */
-  readonly discardFromDeck?: number;
+  readonly discardFromDeck?: number | ValueSpec;
   /**
    * "Choose to either exhaust your hero or spend 2 resources of any type →" (The Grand Collection 1B, `gmw` 16073b;
    * docs/phase7-wave3.md §3.36): pay exactly **one** of these costs, the player's choice, together with every other

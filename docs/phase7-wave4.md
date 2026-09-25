@@ -443,6 +443,9 @@ stays data only.**
 | 3.39 | A keyword granted until a duration ends                                  | Pulsar Shield; Cuts Both Ways                                                | landed  |
 | 3.40 | Scenario rules with no card behind them                                  | Ebony Maw (MC21 p. 6's Spell rule)                                           | landed  |
 | 3.41 | A stat totalled over several cards                                       | Mass Attack; Fastball Special, Partnership of Pain                           | landed  |
+| 3.42 | A deck-discard cost sized by the triggering event                        | Shield Spell                                                                 | landed  |
+| 3.43 | A branch's bindings reach the effects after it                           | chooseOne/if bindings (scripter question)                                    | landed  |
+| 3.44 | Players cannot discard these cards                                       | Powerful Enchantments                                                        | landed  |
 
 ### 3.1 Additional forms: the form keyword
 
@@ -1505,6 +1508,59 @@ Exodus's "his total ATK" is one card. "Share a trait with your hero" is the exis
 > Attack; Rhino takes their ATK plus hers). **What landed:** **`ValueSpec stat.total`**. **DSL:** `totalStatOf(ref,
 stat)`. **Scripted:** `21016.mass-attack-action` (`exhaustCardsCost` of 3 allies sharing a trait with your identity,
 > bound to `allies`), off `KNOWN_SKIPPED`.
+
+### 3.42 A deck-discard cost sized by the triggering event
+
+Shield Spell (`mts` 21061): "Hero Interrupt (defense): When you would take any amount of damage from an attack, discard
+that many cards from the top of your deck → prevent all damage from this attack." A cost sized by the triggering event;
+`AbilityCost.discardFromDeck` was a fixed number.
+
+> **Status: landed (2026-09-25),** tested in a real game in `packages/cards/src/wave4/mts/adam-warlock-pack-cards.test.ts`
+> (Adam Warlock takes Rhino's attack undefended and plays Shield Spell: exactly that many cards leave his deck and the
+> whole amount is prevented). **What landed:** **`AbilityCost.discardFromDeck: number | ValueSpec`**; a value is read
+> against the event of the innermost open window (the one the ability is used in), both when the cost is checked
+> (enough cards in the deck) and when it is paid (`actions.ts deckDiscardCount`); outside a window it reads with no
+> event. **DSL:** `discardTopOfDeckCost(eventAmount)`. **Scripted:** `21061.shield-spell-interrupt`, off
+> `KNOWN_SKIPPED`.
+
+### 3.43 A branch's bindings reach the effects after it
+
+The scripter's question: a `selectCards` (or any) binding made inside a `chooseOne` option, which runs as a child frame,
+was not visible to a sibling effect after the `chooseOne`; the same held for `if` branches. It failed silently (an
+empty slot: 0 damage, nothing moved). **Decision: propagate.** Printed text reads that way ("Choose one: … . Then …
+the card discarded this way"), only one branch runs so the binding is well defined, and a slot no taken branch bound
+still reads empty, which is what "if you discarded one" wants. Rejecting it in the validator would have forced every
+such card to duplicate its tail into each branch.
+
+> **Status: landed (2026-09-25),** tested in `packages/engine/src/branch-bindings.test.ts` (2 tests: a binding made in
+> a `chooseOne` option and in an `if` branch is read by the effect after it; both fail without the change). **What
+> landed:** an effects frame pushed for a branch carries **`returnBindingsTo`** (the frame that ran it); when the
+> branch finishes, its bindings and vars are written back to that frame (`chooseOne`, its multi-pick form, and `if`).
+> **Scan of every registered script** (`WAVE4_DEPS`, which includes Core through wave 4) for an effect that reads a
+> slot bound only inside an earlier `chooseOne`/`if` branch: one hit, Adam Warlock (`stld` 17011), a false positive
+> (each later branch rebinds `scheme`/`enemy` before reading it). No other script had the latent bug; the four the
+> scripter already restructured (Magic Attack, Zone of Silence, Karmic Blast, Cosmic Awareness) are correct as they
+> are and can be simplified if wanted. Full suite unchanged.
+
+### 3.44 Players cannot discard these cards
+
+Powerful Enchantments (`valk` 25030): "Players cannot discard attachments that are attached to friendly characters."
+`cannotLeavePlay` is too strong: the host's defeat must still discard them, and so must an encounter card's own effect.
+Survey (every raw pack, "cannot discard" / "cannot be discarded"): Mission Team (`aoa` 45171, "cannot be discarded", an
+absolute rule `cannotLeavePlay`-shaped, not this).
+
+> **Status: landed (2026-09-25),** tested in `packages/engine/src/players-cannot-discard.test.ts` (2 tests: a player's
+> event cannot discard the attachment on their hero, and says why; an encounter treachery's When Revealed still
+> discards it) and in a real game in `packages/cards/src/wave4/valk/valkyrie-obligation-nemesis.test.ts` (with
+> Powerful Enchantments in play, Lethal Weapon's own "discard this attachment" leaves it on Valkyrie; without, it goes).
+> **What landed:** **`RuleSpec playersCannotDiscard {target, while?}`**, read by `discardFromPlay` and by
+> `moveCards … "discard"` when the effects frame is **`byPlayer`**. `byPlayer` is set when an ability frame pushes its
+> effects: an ability on a player card, an action or resource ability, or an optional interrupt or response (a forced
+> ability, When Revealed, boost or setup on an encounter card is not a player's), and it carries into `chooseOne`/`if`
+> branches. Game event `discardRefused`. **DSL:** `constant(playersCannotDiscard(query))`. **Scripted:**
+> `25030.powerful-enchantments-constant` (attachments whose host is an identity or an ally a player controls), off
+> `KNOWN_SKIPPED`; Valkyrie now has none. **Not covered:** a protected card paid as a cost (a "discard this card →"
+> cost on an encounter attachment, or an in-play discard cost); no printed card combines the two.
 
 ## 4. Open questions (for the user or FFG)
 

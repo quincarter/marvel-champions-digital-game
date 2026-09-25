@@ -319,6 +319,8 @@ export type GameEvent =
       readonly to: CardId;
       readonly typeChanged: boolean;
     }
+  /** A player's ability tried to discard a card a `playersCannotDiscard` rule protects (docs/phase7-wave4.md §3.44). */
+  | { readonly type: "discardRefused"; readonly instanceId: InstanceId }
   /** An ally started (`as: "minion"`) or stopped (`as: null`) being treated as a minion (docs/phase7-wave4.md §3.9). */
   /** A resource ability used in a payment put its own effects on the stack (docs/phase7-wave4.md §3.30). */
   | {
