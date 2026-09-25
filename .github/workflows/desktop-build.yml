@@ -29,8 +29,27 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # The same gate release-on-merge.yml runs before its builds, once, instead of
+  # once per OS: a red suite never ships an installer.
+  checks:
+    name: Checks (lint, format, typecheck, test)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm lint
+      - run: pnpm fmt:check
+      - run: pnpm typecheck
+      - run: pnpm test
+
   build:
     name: ${{ matrix.name }}
+    needs: checks
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -78,10 +97,6 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
-      # The same gate a merge has to pass; a red suite never ships an installer.
-      - run: pnpm typecheck
-      - run: pnpm test
-
       # Signs and notarizes the macOS bundle once the Apple secrets exist (see
       # README, "macOS signing"). Only the secrets that are set are exported:
       # Tauri treats an empty APPLE_CERTIFICATE or APPLE_ID as present and
@@ -103,6 +118,35 @@ jobs:
               echo "$name is set"
             fi
           done
+
+      # Names the certificate in the log (subject, issuer, expiry) and checks it
+      # against APPLE_SIGNING_IDENTITY, so a wrong .p12 fails here with a reason
+      # instead of as "failed to resolve signing identity". It also installs
+      # Apple's Developer ID G2 intermediate, without which the runner cannot
+      # validate a certificate exported without its chain.
+      - name: macOS certificate check
+        if: runner.os == 'macOS' && env.APPLE_CERTIFICATE != ''
+        run: |
+          P12="$RUNNER_TEMP/cert.p12"
+          echo "$APPLE_CERTIFICATE" | base64 --decode > "$P12"
+          SUBJECT=$(/usr/bin/openssl pkcs12 -in "$P12" -clcerts -nokeys -passin env:APPLE_CERTIFICATE_PASSWORD \
+            | /usr/bin/openssl x509 -noout -subject -issuer -enddate) || SUBJECT=""
+          rm -f "$P12"
+          if [ -z "$SUBJECT" ]; then
+            echo "::error::APPLE_CERTIFICATE could not be read with APPLE_CERTIFICATE_PASSWORD."
+            exit 1
+          fi
+          echo "$SUBJECT"
+          case "$SUBJECT" in
+            *"Developer ID Application:"*) ;;
+            *) echo "::error::APPLE_CERTIFICATE is not a Developer ID Application certificate."; exit 1 ;;
+          esac
+          case "$SUBJECT" in
+            *"$APPLE_SIGNING_IDENTITY"*) ;;
+            *) echo "::error::APPLE_SIGNING_IDENTITY does not match the certificate's name (CN above)."; exit 1 ;;
+          esac
+          curl -fsSL -o "$RUNNER_TEMP/DeveloperIDG2CA.cer" https://www.apple.com/certificateauthority/DeveloperIDG2CA.cer
+          sudo security add-certificates -k /Library/Keychains/System.keychain "$RUNNER_TEMP/DeveloperIDG2CA.cer" || true
 
       # Runs `pnpm build` (tauri.conf.json's beforeBuildCommand: the Vite build,
       # which copies the pool's card scans into dist/) and then bundles.
