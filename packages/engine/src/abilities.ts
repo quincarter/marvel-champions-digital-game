@@ -507,7 +507,17 @@ export type RuleSpec =
    * ability-lookup leaf: the rule's own target is matched on *printed* characteristics so the lookup cannot recurse,
    * and a rule never blanks its own source.
    */
-  | { readonly kind: "blankTextBox"; readonly target: TargetQuery; readonly while?: Predicate }
+  | {
+      readonly kind: "blankTextBox";
+      readonly target: TargetQuery;
+      readonly while?: Predicate;
+      /**
+       * "Treat your mass form upgrade's text box as if it were blank, except for keywords." (Corrupted Programming,
+       * `vision` 26028): the card keeps its printed keywords (its form keyword, so the mass form still counts as
+       * one) while losing every ability. docs/phase7-wave4.md §3.28.
+       */
+      readonly exceptKeywords?: true;
+    }
   /**
    * "Forced Interrupt: When an acceleration token would be placed on another scheme, place it here instead." (The
    * Master of Time 2B, 11008b; docs/phase7-wave2.md §10.3.) A constant redirect read at the moment the token is
@@ -712,6 +722,18 @@ export type RuleSpec =
       readonly target: TargetQuery;
       readonly ignores: readonly ("guard" | "patrol" | "crisis")[];
       readonly while?: Predicate;
+    }
+  /**
+   * On an upgrade attached to a minion: "Take control of attached minion and treat it as a [Controlled] ally with a
+   * blank text box. Its THW is equal to its printed SCH and it takes 1 consequential damage after it thwarts or
+   * attacks." (Mind Control, `phoenix` 34009; Redemption, `bp` 51036). The attachment's controller takes control.
+   * `CardInstance.treatedAs` kind `ally`; docs/phase7-wave4.md §3.29.
+   */
+  | {
+      readonly kind: "treatHostAsAlly";
+      readonly traits: readonly Trait[];
+      readonly thwFromSch?: boolean;
+      readonly consequential: number;
     }
   | {
       readonly kind: "treatHostAsMinion";

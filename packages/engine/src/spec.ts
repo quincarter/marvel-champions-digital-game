@@ -868,6 +868,36 @@ export type EffectSpec =
       readonly bind?: string;
     }
   /**
+   * "If the Gamora hero or ally is in play, she attacks you (resolve her ATK against you without exhausting her)."
+   * (Old Rivals, `nebu` 22031, errata RRG 1.8 p. 67): a friendly character, a hero-form identity or an ally a player
+   * controls, attacks `player`'s identity. docs/phase7-wave4.md §3.26. FAQ (RRG 1.8 p. 62): "Gamora is considered to
+   * have attacked, so abilities triggered by her attacking can be resolved", and an ally "always take[s] consequential
+   * damage after they attack". So it is her controller's attack (`attack` event, not an enemy activation): no boost, no
+   * defense step, not exhausted; an ally's consequential damage follows it; a stunned attacker discards the stun
+   * instead (RRG 1.8 "Stun", p. 41) and no attack is made; a "—" ATK makes none. The first friendly character the
+   * ref names is used. `bind`: `<bind>.made`, `.damage`, `.damaged`, as `attack`.
+   */
+  /**
+   * "Choose a non-[Elite] minion. While Karma is in play, take control of that minion and treat it as a [Controlled]
+   * ally with a blank text box. Its THW is equal to its printed SCH and it takes 2 consequential damage after it thwarts
+   * or attacks." (Karma, `rogue` 38011): the effect's controller takes control of each target minion, treated as an ally
+   * for as long as this card stays in play (`CardInstance.treatedAs` kind `ally`, `source` this card). docs/phase7-wave4.md
+   * §3.29.
+   */
+  | {
+      readonly kind: "treatAsAlly";
+      readonly target: TargetRef;
+      readonly traits: readonly Trait[];
+      readonly thwFromSch?: boolean;
+      readonly consequential: number;
+    }
+  | {
+      readonly kind: "friendlyCharacterAttacks";
+      readonly attacker: TargetRef;
+      readonly player: PlayerRef;
+      readonly bind?: string;
+    }
+  /**
    * "(thwart)": "Remove N threat from a scheme" resolved as a thwart by your identity (or `thwarter`). Pair with
    * `label: ["thwart"]`. `ignoreCrisis` is `removeThreat.ignoreCrisis`, carried through to the removal this makes.
    */

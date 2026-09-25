@@ -7,10 +7,10 @@
  * Rewind, the Aftermath, the Finale) draws through the same function over its own `ComicBeatRef` list.
  */
 import Phaser from "phaser";
-import { coverFit, ensurePictureLoaded } from "../art/pictures.js";
+import { coverFit, ensurePictureLoaded, type Picture } from "../art/pictures.js";
 import { accent, border, surface, typeRole } from "../tokens.js";
 import type { Rect } from "../view/layout.js";
-import type { ComicBeat } from "../campaign/story.js";
+import type { BubblePlacement, ComicBeat, PagePoint } from "../campaign/story.js";
 import type { ComicReaderStepView } from "../view/comic-reader-model.js";
 import { campaignPagePicture, captionBox, speechBubble } from "./campaign-chrome.js";
 import { setMask } from "./rex.js";
@@ -18,6 +18,9 @@ import { textStyle } from "./theme.js";
 
 /** Below this, a text wrap throws in Phaser (`Text.setWordWrapWidth`) — the same floor `opener.ts` clamps to. */
 const MIN_WRAP_WIDTH = 40;
+
+/** Below this reading-area width (a phone), placed bubbles fall back to the stacked layout under the panel. */
+const PLACED_MIN_WIDTH = 600;
 
 export interface ComicReaderDrawResult {
   /** The current panel's own on-screen rect, clamped to the reading area — null while its page art hasn't loaded. */
@@ -60,10 +63,24 @@ export function drawComicReaderStep(
   onReady: () => void,
   tween?: ComicReaderTween,
 ): ComicReaderDrawResult {
+  return drawComicReaderPicture(scene, rect, campaignPagePicture(campaignId, step.page.file), step, onReady, tween);
+}
+
+/**
+ * `drawComicReaderStep` over a picture the caller already resolved — a one-off scenario's intro artboard
+ * (`campaign/scenario-intros.ts`) lives under `art/scenarios/`, not a campaign's `pages/`.
+ */
+export function drawComicReaderPicture(
+  scene: Phaser.Scene,
+  rect: Rect,
+  picture: Picture | null,
+  step: ComicReaderStepView,
+  onReady: () => void,
+  tween?: ComicReaderTween,
+): ComicReaderDrawResult {
   scene.add.rectangle(rect.x, rect.y, rect.width, rect.height, surface.ink.hex).setOrigin(0, 0);
   if (rect.width <= 0 || rect.height <= 0) return { lit: null };
 
-  const picture = campaignPagePicture(campaignId, step.page.file);
   const key = picture ? ensurePictureLoaded(scene, picture, onReady) : null;
   if (!key) return { lit: null };
 
@@ -182,6 +199,15 @@ function lerpNum(a: number, b: number, t: number): number {
   return a + (b - a) * t;
 }
 
+/**
+ * The reader's own caption, SFX and speech bubbles for a step, over `lit` inside `rect`. The unlettered page draw
+ * calls it itself; a guided (`lettered`) page whose art carries no lettering of its own — a one-off scenario intro
+ * artboard — calls it once the pan has settled.
+ */
+export function drawComicLettering(scene: Phaser.Scene, rect: Rect, lit: Rect, step: ComicReaderStepView): void {
+  drawStepContent(scene, rect, lit, step);
+}
+
 function drawStepContent(scene: Phaser.Scene, rect: Rect, lit: Rect, step: ComicReaderStepView): void {
   // Caption: pinned to the reading area's own top edge, like a comic's own caption box overlaid on its art —
   // never covers the panel's readable center regardless of where the panel currently sits.
@@ -204,7 +230,16 @@ function drawStepContent(scene: Phaser.Scene, rect: Rect, lit: Rect, step: Comic
       .setAngle(-6);
   }
 
-  if (step.lines.length === 0) return;
+  // Wide enough to letter over the art (tablet, desktop): a line with its own spot sits there, tail on its speaker.
+  // A phone keeps every line in the stacked layout below, where the art is too small to letter over.
+  const placedHere = rect.width >= PLACED_MIN_WIDTH;
+  const loose = placedHere ? step.lines.filter((line) => !line.placement) : step.lines;
+  if (placedHere) {
+    for (const line of step.lines) {
+      if (line.placement) drawPlacedBubble(scene, rect, lit, bubbleTop, step.panel, line, line.placement);
+    }
+  }
+  if (loose.length === 0) return;
   const belowRoom = rect.y + rect.height - (lit.y + lit.height) - 16;
   const rightRoom = rect.x + rect.width - (lit.x + lit.width) - 16;
   const bubbleWidth = Math.max(MIN_WRAP_WIDTH, Math.min(360, rightRoom > 160 ? rightRoom : rect.width - 24));
@@ -212,7 +247,7 @@ function drawStepContent(scene: Phaser.Scene, rect: Rect, lit: Rect, step: Comic
   if (rightRoom > 160) {
     // Room to the panel's right: bubbles stack there, beside the art rather than over it.
     let y = Math.max(bubbleTop, lit.y);
-    for (const line of step.lines) {
+    for (const line of loose) {
       const speaker = line.speaker.kind === "hero" || line.speaker.kind === "npc" ? line.speaker.name : undefined;
       const { rect: bubbleRect } = speechBubble(scene, lit.x + lit.width + 12, y, bubbleWidth, line.text, {
         ...(speaker ? { speaker } : {}),
@@ -224,7 +259,7 @@ function drawStepContent(scene: Phaser.Scene, rect: Rect, lit: Rect, step: Comic
   } else if (belowRoom > 90) {
     // Room below the panel: bubbles stack there instead.
     let y = lit.y + lit.height + 10;
-    for (const line of step.lines) {
+    for (const line of loose) {
       if (y > rect.y + rect.height - 20) break;
       const speaker = line.speaker.kind === "hero" || line.speaker.kind === "npc" ? line.speaker.name : undefined;
       const { rect: bubbleRect } = speechBubble(
@@ -245,7 +280,7 @@ function drawStepContent(scene: Phaser.Scene, rect: Rect, lit: Rect, step: Comic
     // No clear room beside or below the panel (a full-bleed panel filling the reading area): fall back to
     // overlapping its own lower edge, the same last resort the three-panel opener uses for a full-art panel.
     let bottom = lit.y + lit.height - 14;
-    for (const line of [...step.lines].reverse()) {
+    for (const line of [...loose].reverse()) {
       const speaker = line.speaker.kind === "hero" || line.speaker.kind === "npc" ? line.speaker.name : undefined;
       const overlapWidth = Math.max(MIN_WRAP_WIDTH, lit.width * 0.7);
       const probe = speechBubble(scene, -10000, -10000, overlapWidth, line.text, {
@@ -272,4 +307,44 @@ function clamp(lo: number, hi: number, v: number): number {
 
 function clamp01(v: number): number {
   return clamp(0, 1, v);
+}
+
+/**
+ * One line's bubble at its own spot (`BubblePlacement`), mapped from page pixels through the panel's current
+ * on-screen rect. It may run past the art into the reading area's gutter — a spot just outside the panel keeps the
+ * scene clear — but stays inside the reading area and below any caption, with a tail from the bubble's edge to the
+ * speaker. A narrator line (a hero's fallback) keeps the spot but has no one to point at.
+ */
+function drawPlacedBubble(
+  scene: Phaser.Scene,
+  area: Rect,
+  lit: Rect,
+  minTop: number,
+  panel: ComicBeat["panel"],
+  line: ComicReaderStepView["lines"][number],
+  placement: BubblePlacement,
+): void {
+  const scale = lit.width / Math.max(1, panel.w);
+  const toScreen = (point: PagePoint): { x: number; y: number } => ({
+    x: lit.x + (point.x - panel.x) * scale,
+    y: lit.y + (point.y - panel.y) * scale,
+  });
+  const speaker = line.speaker.kind === "hero" || line.speaker.kind === "npc" ? line.speaker.name : undefined;
+  const width = Math.max(MIN_WRAP_WIDTH, Math.min(260, lit.width * 0.3));
+  const options = { ...(speaker ? { speaker } : {}), tail: "none" as const, size: 15 };
+  // Measured off-screen first: the bubble is centred on its spot, so its height has to be known before it is placed.
+  const probe = speechBubble(scene, -10000, -10000, width, line.text, options);
+  const { width: w, height: h } = probe.rect;
+  for (const object of probe.objects) object.destroy();
+
+  const centre = toScreen(placement.bubble);
+  const margin = 10;
+  const x = clamp(area.x + margin, Math.max(area.x + margin, area.x + area.width - margin - w), centre.x - w / 2);
+  const y = clamp(
+    Math.max(area.y + margin, minTop),
+    Math.max(area.y + margin, minTop, area.y + area.height - margin - h),
+    centre.y - h / 2,
+  );
+  const pointAt = line.speaker.kind === "narrator" ? undefined : toScreen(placement.speaker);
+  speechBubble(scene, x, y, width, line.text, { ...options, ...(pointAt ? { pointAt } : {}) });
 }

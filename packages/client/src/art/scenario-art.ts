@@ -5,6 +5,7 @@
  *   art/scenarios/<scenarioId>/villain.<ext>         the villain, for that scenario
  *   art/scenarios/<scenarioId>/villain-wins.<ext>    shown when the players lose to it
  *   art/scenarios/<scenarioId>/villain-loses.<ext>   shown when the players beat it
+ *   art/scenarios/<scenarioId>/intro.<ext>           OPTIONAL: the artboard a one-off game opens on (`campaign/scenario-intros.ts`)
  *   art/outcomes/defeat.<ext>                        any loss with no scene of its own
  *   art/outcomes/victory.<ext>                       any win with no scene of its own
  *   art/packs/<packCode>/cover.<ext>                 OPTIONAL: a pack's shelf-header thumbnail (W2b)
@@ -23,7 +24,7 @@
 import { pickPicture, type Picture } from "./pictures.js";
 
 /** Longest first: `villain-wins-2` must match `villain-wins`, not read as a variant of `villain`. */
-const SCENARIO_SLOTS = ["villain-wins", "villain-loses", "villain"] as const;
+const SCENARIO_SLOTS = ["villain-wins", "villain-loses", "villain", "intro"] as const;
 const OUTCOME_SLOTS = ["defeat", "victory"] as const;
 const PACK_SLOTS = ["cover"] as const;
 export type ScenarioArtSlot = (typeof SCENARIO_SLOTS)[number];
@@ -69,7 +70,7 @@ export function parseArtCatalog(files: Readonly<Record<string, string>>): ArtCat
         continue;
       }
       const scenarioId = parts[1]!;
-      const entry = scenarios.get(scenarioId) ?? { villain: [], "villain-wins": [], "villain-loses": [] };
+      const entry = scenarios.get(scenarioId) ?? { villain: [], "villain-wins": [], "villain-loses": [], intro: [] };
       entry[slot].push(picture);
       scenarios.set(scenarioId, entry);
     } else if (parts[0] === "outcomes" && parts.length === 2) {
@@ -100,6 +101,11 @@ export function villainArtFor(
   random: () => number = Math.random,
 ): Picture | null {
   return pickPicture(catalog.scenarios.get(scenarioId)?.villain ?? [], null, random);
+}
+
+/** The artboard a scenario's one-off intro is read over (`campaign/scenario-intros.ts`), or null when it has none. */
+export function introArtFor(catalog: ArtCatalog, scenarioId: string): Picture | null {
+  return catalog.scenarios.get(scenarioId)?.intro[0] ?? null;
 }
 
 /** A pack's own cover art (W2b's shelf-header thumbnail), or null when this pack has none — the common case today, since no pack ships one yet. */

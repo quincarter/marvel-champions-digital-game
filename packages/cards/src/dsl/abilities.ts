@@ -468,6 +468,14 @@ export const ignores = (
 ): ConstantPart => ({
   rules: [{ kind: "characterIgnores", target, ignores: what, ...(when ? { while: when } : {}) }],
 });
+/**
+ * "Take control of attached minion and treat it as a [Controlled] ally with a blank text box. Its THW is equal to its
+ * printed SCH and it takes 1 consequential damage after it thwarts or attacks." (Mind Control, `phoenix` 34009;
+ * Redemption, `bp` 51036): `constant(treatAttachedMinionAsAlly([CONTROLLED], 1))`. docs/phase7-wave4.md §3.29.
+ */
+export const treatAttachedMinionAsAlly = (traits: readonly Trait[], consequential: number): ConstantPart => ({
+  rules: [{ kind: "treatHostAsAlly", traits, thwFromSch: true, consequential }],
+});
 /** "You cannot choose to discard this card from your hand." (System Shock): `inHand(constant(cannotChooseToDiscard))`. */
 export const cannotChooseToDiscard: ConstantPart = { rules: [{ kind: "cannotChooseToDiscard" }] };
 export const focusedMainScheme = (): ConstantPart => rule({ kind: "focusedMainScheme", scheme: { kind: "host" } });
@@ -526,8 +534,19 @@ export const restrictedLimit = (
  * play. `target` is a category list, not `controller: "you"` — the rule sits on an encounter card, which has no
  * controller for "you" to resolve to, and the printed text says "each", not "your".
  */
-export const blanksTextBox = (target: TargetQuery, opts: { readonly while?: Predicate } = {}): ConstantPart => ({
-  rules: [{ kind: "blankTextBox", target, ...(opts.while ? { while: opts.while } : {}) }],
+export const blanksTextBox = (
+  target: TargetQuery,
+  opts: { readonly while?: Predicate; readonly exceptKeywords?: boolean } = {},
+): ConstantPart => ({
+  rules: [
+    {
+      kind: "blankTextBox",
+      target,
+      ...(opts.while ? { while: opts.while } : {}),
+      // "…, except for keywords" (Corrupted Programming, `vision` 26028; docs/phase7-wave4.md §3.28).
+      ...(opts.exceptKeywords ? { exceptKeywords: true as const } : {}),
+    },
+  ],
 });
 /**
  * "Each of your [trait] attacks gain [keyword]" (Hawkeye's Bow, `trors`): an `AttackKeyword` granted to attacks
@@ -758,6 +777,14 @@ export const exhaustEachCost = (picks: Readonly<Record<string, TargetQuery>>): A
 /** "… return [cards you control] from play to your hand →" (Shield Toss). Same picking rules as `exhaustCardsCost`. */
 export const returnToHandCost = (q: TargetQuery, opts: InPlayCostOptions = {}): AbilityCost => ({
   returnToHand: inPlayPick(q, opts, "returned"),
+});
+/**
+ * "Discard an upgrade you control →" (Lethal Weapon, `nebu` 22030); "Discard an ally you control →" (Noble Sacrifice);
+ * "Discard a [Tech] upgrade you control →" (Repurpose): cards in play discarded to pay. Same picking rules as
+ * `exhaustCardsCost`; the cards are bound to `"discarded"` ("that ally's printed hit points"). docs/phase7-wave4.md §3.25.
+ */
+export const discardCardsCost = (q: TargetQuery, opts: InPlayCostOptions = {}): AbilityCost => ({
+  discardCards: inPlayPick(q, opts, "discarded"),
 });
 /** "Pay the printed cost of [a card] →" */
 /**

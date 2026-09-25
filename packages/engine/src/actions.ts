@@ -604,9 +604,10 @@ function resourceAbilityFault(
 
 /**
  * RRG "Cost": resources come from cards discarded from hand and from "Resource"
- * abilities. Overpaying is legal; the excess is simply lost. Payments are
- * evaluated in order, so "the top card of your discard pile" sees any card
- * discarded earlier in the same payment.
+ * abilities. Overpaying is legal; the excess is simply lost. Every resource in
+ * one payment is generated simultaneously, so "the top card of your discard
+ * pile" is the pile as it stood before the payment — never a card this same
+ * payment is spending (FAQ "Pepper Potts (#33)", RRG 1.8 p. 58).
  */
 function priceOf(
   ctx: Ctx,
@@ -619,9 +620,9 @@ function priceOf(
   // abilities may pay. Each card is read from its own player's point of view (their form, their discard pile).
   const group = paidAsGroup(ctx.state, ctx.deps, excludeInstanceId, payingFor);
   const seen = new Set<string>();
-  const discardTop = new Map<PlayerId, InstanceId | null>();
-  const topOf = (id: PlayerId): InstanceId | null =>
-    discardTop.has(id) ? (discardTop.get(id) ?? null) : (mustPlayer(ctx.state, id).discard[0] ?? null);
+  // Each player's pile as it stood before the payment (FAQ "Pepper Potts (#33)", RRG 1.8 p. 58): never a card this
+  // same payment is spending. Pricing changes no state, so the live pile is that snapshot.
+  const topOf = (id: PlayerId): InstanceId | null => mustPlayer(ctx.state, id).discard[0] ?? null;
   let pool = EMPTY_POOL;
   for (const entry of payment) {
     if ("fromHand" in entry) {
@@ -650,7 +651,6 @@ function priceOf(
         };
       }
       pool = addPools(pool, handCardResources(ctx.state, ctx.deps, entry.fromHand, ownerId, payingFor));
-      discardTop.set(ownerId, entry.fromHand);
       continue;
     }
     const { instanceId, abilityId } = entry.ability;
@@ -752,6 +752,9 @@ export function paymentsFromOptionIds(optionIds: readonly string[]): readonly Pa
  */
 export function payPayment(ctx: Ctx, playerId: PlayerId, payment: readonly Payment[]): readonly InstanceId[] {
   const spent: InstanceId[] = [];
+  // Read before anything is discarded: the payment's resources are generated simultaneously (see `priceOf`).
+  // Each player's pile top before any card of this payment is discarded (FAQ "Pepper Potts (#33)", RRG 1.8 p. 58).
+  const discardTopBefore = new Map(ctx.state.players.map((p) => [p.playerId, p.discard[0] ?? null] as const));
   for (const entry of payment) {
     if ("fromHand" in entry) {
       // From the hand it is in: another player's, when they help pay for an alliance card (§3.17).
@@ -764,11 +767,7 @@ export function payPayment(ctx: Ctx, playerId: PlayerId, payment: readonly Payme
     const definition = ctx.deps.abilities[abilityId];
     if (!definition) continue;
     const spender = resourceSpender(ctx.state, ctx.deps, instanceId, abilityId, playerId);
-    const generated = generatedResources(
-      ctx.state,
-      definition.generates,
-      mustPlayer(ctx.state, spender).discard[0] ?? null,
-    );
+    const generated = generatedResources(ctx.state, definition.generates, discardTopBefore.get(spender) ?? null);
     const plan = planCost(ctx.state, ctx.deps, instanceId, spender, definition.cost, {}, new Set());
     if (!isFault(plan)) payCost(ctx, instanceId, spender, definition.cost, plan);
     recordAbilityUse(ctx, instanceId, abilityId, definition, null, spender);
@@ -2214,10 +2213,26 @@ function payBasicPowerCost(
  * window. The damage is pushed first and so resolves after the power (LIFO); the power's frame reports into it as it
  * finishes, before the damage applies. Null when the ally takes none.
  */
-function pushConsequentialDamage(ctx: Ctx, characterId: InstanceId, kind: "attack" | "thwart"): ReportTarget | null {
+export function pushConsequentialDamage(
+  ctx: Ctx,
+  characterId: InstanceId,
+  kind: "attack" | "thwart",
+): ReportTarget | null {
   const card = cardOf(ctx.state, characterId);
-  if (card?.type !== "ally") return null;
-  const printed = kind === "attack" ? card.consequentialDamage.attack : card.consequentialDamage.thwart;
+  const treated = getInstance(ctx.state, characterId)?.treatedAs;
+  // A minion treated as an ally "takes 1 consequential damage after it thwarts or attacks" (§3.29 of wave 4); an ally
+  // treated as a minion takes none.
+  if (treated) {
+    if (treated.kind !== "ally") return null;
+  } else if (card?.type !== "ally") return null;
+  const printed =
+    treated?.kind === "ally"
+      ? treated.consequential
+      : card?.type === "ally"
+        ? kind === "attack"
+          ? card.consequentialDamage.attack
+          : card.consequentialDamage.thwart
+        : 0;
   // "Takes +1 consequential damage after it attacks" (Enraged): a modifier on the printed value.
   const amount = Math.max(
     0,

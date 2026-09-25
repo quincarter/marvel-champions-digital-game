@@ -343,6 +343,7 @@ function bindsOf(effect: EffectSpec, scope: Scope): void {
     case "cancelBoostIcons":
     case "cancelBoostAbility":
     case "enemyAttacksEnemy":
+    case "friendlyCharacterAttacks":
     case "dealIndirectDamage":
     case "moveThreat":
     case "divide":

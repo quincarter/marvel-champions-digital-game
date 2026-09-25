@@ -10,6 +10,7 @@ list to edit. Formats: `png`, `jpg`, `jpeg`, `webp`, `avif`.
 | `scenarios/<scenarioId>/`     | `villain.<ext>`         | The villain's artwork for that scenario                                                               |
 | `scenarios/<scenarioId>/`     | `villain-wins.<ext>`    | Game Over, when the players lose to it                                                                |
 | `scenarios/<scenarioId>/`     | `villain-loses.<ext>`   | Game Over, when the players beat it                                                                   |
+| `scenarios/<scenarioId>/`     | `intro.<ext>`           | OPTIONAL: a one-off game's intro artboard, read beat by beat before the deal (`scenario-intros.ts`)   |
 | `outcomes/`                   | `defeat.<ext>`          | Game Over for any loss with no scene of its own, and for a concession                                 |
 | `outcomes/`                   | `victory.<ext>`         | Game Over for any win with no scene of its own                                                        |
 | `heroes/<identityId>-<slug>/` | `hero.<ext>`            | The hero's artwork on hero select (Take your seats), the way a villain's shows on Scenario select     |

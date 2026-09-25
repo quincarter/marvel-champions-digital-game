@@ -44,6 +44,7 @@ import type { LastingDuration, LastingScope } from "../lasting.js";
 import {
   activeEncounterDeckId,
   cardOf,
+  characterProfile,
   currentName,
   discardZoneFor,
   encounterDeckOf,
@@ -103,7 +104,17 @@ import { announceDamagePrevented, readyOrAnnounce, threatRemovalBlocked } from "
 import { heard } from "./triggers.js";
 import { dealBoostCard, declareDefenderByEffect, giveBoostCard } from "./enemy-activation.js";
 import { quickstrikeAttack } from "./enter-play.js";
-import { addFrameVars, eventFrame, type Frame, gameAbilityFrames, pushEffects, pushEvents } from "./frames.js";
+import {
+  addFrameVars,
+  eventFrame,
+  type Frame,
+  gameAbilityFrames,
+  pushEffects,
+  pushEvent,
+  pushEvents,
+} from "./frames.js";
+import { pushConsequentialDamage } from "../actions.js";
+import { treatAsAlly } from "../treat-as.js";
 import { enterPlayOnReveal, revealFrame } from "./reveal.js";
 
 /**
@@ -291,6 +302,58 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
           sourceInstanceId: frame.selfInstanceId,
         })),
         reportTo(effect.bind),
+      );
+      return;
+    }
+    case "treatAsAlly": {
+      // Karma (docs/phase7-wave4.md §3.29): the effect's controller takes each target minion, as an ally, for as long as
+      // this card is in play (`releaseTreatedBy` when it leaves).
+      const controller = frame.controllerId;
+      const source = frame.selfInstanceId;
+      if (!controller || !source || !cardsInPlay(ctx.state).includes(source)) return;
+      for (const id of targets(effect.target)) {
+        treatAsAlly(ctx, id, {
+          traits: effect.traits,
+          thwFromSch: effect.thwFromSch === true,
+          consequential: effect.consequential,
+          source,
+          controller,
+        });
+      }
+      return;
+    }
+    case "friendlyCharacterAttacks": {
+      // docs/phase7-wave4.md §3.26 (Old Rivals). A friendly character: a hero-form identity or an ally a player controls.
+      const inPlay = cardsInPlay(ctx.state);
+      const [attacker] = targets(effect.attacker).filter((id) => {
+        if (!inPlay.includes(id) || controllerOf(ctx.state, id) === null) return false;
+        const categories = categoriesOf(ctx.state, id);
+        return categories.includes("hero") || categories.includes("ally");
+      });
+      const [playerId] = resolvePlayers(ctx.state, effect.player, context);
+      const player = playerId ? getPlayer(ctx.state, playerId) : undefined;
+      const noAttack = () => {
+        if (effect.bind) addFrameVars(ctx, frame.frameId, { [`${effect.bind}.made`]: 0 });
+      };
+      if (!attacker || !player || player.eliminated) return noAttack();
+      if (characterProfile(ctx.state, attacker, ctx.deps)?.missing.includes("atk")) return noAttack();
+      if (statusActive(ctx.state, attacker, "stunned", ctx.deps)) {
+        updateInstance(ctx, attacker, (i) => ({ ...i, statuses: { ...i.statuses, stunned: 0 } }));
+        emit(ctx, { type: "statusRemoved", instanceId: attacker, status: "stunned", reason: "cancelledAttack" });
+        return noAttack();
+      }
+      const consequential = pushConsequentialDamage(ctx, attacker, "attack");
+      pushEvent(
+        ctx,
+        {
+          kind: "attack",
+          attackerInstanceId: attacker,
+          targetInstanceId: player.identity.instanceId,
+          playerId: controllerOf(ctx.state, attacker)!,
+          basic: false,
+          sourceInstanceId: frame.selfInstanceId,
+        },
+        reportTo(effect.bind) ?? consequential,
       );
       return;
     }

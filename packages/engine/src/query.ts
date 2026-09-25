@@ -438,6 +438,7 @@ export function isMinion(state: GameState, id: InstanceId): boolean {
   const instance = state.instances[id];
   if (!instance) return false;
   if (instance.facedownAs?.kind === "minion" || instance.treatedAs?.kind === "minion") return true;
+  if (instance.treatedAs?.kind === "ally") return false;
   return state.cardPool[instance.cardId]?.type === "minion";
 }
 
@@ -512,6 +513,20 @@ export function printedProfile(state: GameState, id: InstanceId): CharacterProfi
       def: 0,
       rec: 0,
       sch: statValue(sch),
+      maxHp: card.hp,
+    };
+  }
+  // A minion treated as an ally: its printed ATK and hit points; "Its THW is equal to its printed SCH" (§3.29).
+  if (instance.treatedAs?.kind === "ally" && card.type === "minion") {
+    const thw = instance.treatedAs.thwFromSch ? card.sch : 0;
+    return {
+      kind: "ally",
+      missing: dashes({ atk: card.atk === "X" ? 0 : card.atk, thw: thw === "X" ? 0 : thw, sch: 0 }),
+      atk: statValue(card.atk === "X" ? 0 : card.atk),
+      thw: statValue(thw === "X" ? 0 : thw),
+      def: 0,
+      rec: 0,
+      sch: 0,
       maxHp: card.hp,
     };
   }

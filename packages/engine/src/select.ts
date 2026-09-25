@@ -129,6 +129,8 @@ export function categoriesOf(state: GameState, id: InstanceId): readonly TargetC
   if (instance.facedownAs?.kind === "minion") return ["minion", "enemy", "character"];
   // An ally an attachment treats as a minion (docs/phase7-wave4.md §3.9).
   if (instance.treatedAs?.kind === "minion") return ["minion", "enemy", "character"];
+  // A minion a player controls as an ally (Mind Control, Karma; §3.29).
+  if (instance.treatedAs?.kind === "ally") return ["ally", "character"];
   const player = state.players.find((p) => p.identity.instanceId === id);
   if (card.type === "hero_identity" && player) {
     return player.identity.form === "hero" ? ["identity", "hero", "character"] : ["identity", "alterEgo", "character"];
@@ -185,6 +187,7 @@ function printedTraitsOf(state: GameState, id: InstanceId): readonly Trait[] {
   if (facedown) return facedown.traits;
   const treated = getInstance(state, id)?.treatedAs;
   if (treated) {
+    if (treated.kind === "ally") return treated.traits;
     const printed = card.type === "ally" ? card.traits : [];
     return treated.keepPrintedTraits ? [...treated.traits, ...printed] : treated.traits;
   }
@@ -1467,7 +1470,14 @@ function blankRuleIds(deps: EngineDeps): ReadonlySet<string> {
   return ids;
 }
 
-const BLANKED_BY_RULES = new WeakMap<GameState, WeakMap<EngineDeps, ReadonlySet<InstanceId>>>();
+interface BlankedSets {
+  /** Every card a constant rule blanks. */
+  readonly text: ReadonlySet<InstanceId>;
+  /** The ones blanked by a rule that does not keep keywords ("except for keywords", §3.28 of wave 4). */
+  readonly keywords: ReadonlySet<InstanceId>;
+}
+const NO_BLANKED_SETS: BlankedSets = { text: NO_BLANKED, keywords: NO_BLANKED };
+const BLANKED_BY_RULES = new WeakMap<GameState, WeakMap<EngineDeps, BlankedSets>>();
 
 /**
  * Every card a constant `blankTextBox` rule in play treats as blank right now. A rule never blanks its own source
@@ -1475,12 +1485,17 @@ const BLANKED_BY_RULES = new WeakMap<GameState, WeakMap<EngineDeps, ReadonlySet<
  * answer does not depend on the order cards are visited.
  */
 export function blankedByConstantRules(state: GameState, deps: EngineDeps): ReadonlySet<InstanceId> {
+  return blankedSets(state, deps).text;
+}
+
+function blankedSets(state: GameState, deps: EngineDeps): BlankedSets {
   const ruleIds = blankRuleIds(deps);
-  if (ruleIds.size === 0) return NO_BLANKED;
-  const perDeps = BLANKED_BY_RULES.get(state) ?? new WeakMap<EngineDeps, ReadonlySet<InstanceId>>();
+  if (ruleIds.size === 0) return NO_BLANKED_SETS;
+  const perDeps = BLANKED_BY_RULES.get(state) ?? new WeakMap<EngineDeps, BlankedSets>();
   const cached = perDeps.get(deps);
   if (cached) return cached;
   const blanked = new Set<InstanceId>();
+  const keywordsBlanked = new Set<InstanceId>();
   const inPlay = cardsInPlay(state);
   for (const sourceId of inPlay) {
     for (const ref of activeAbilityRefs(state, sourceId)) {
@@ -1499,19 +1514,26 @@ export function blankedByConstantRules(state: GameState, deps: EngineDeps): Read
         };
         if (rule.while && !evaluate(state, rule.while, context)) continue;
         for (const id of inPlay) {
-          if (id !== sourceId && matchesQuery(state, id, rule.target, context)) blanked.add(id);
+          if (id === sourceId || !matchesQuery(state, id, rule.target, context)) continue;
+          blanked.add(id);
+          if (!rule.exceptKeywords) keywordsBlanked.add(id);
         }
       }
     }
   }
-  perDeps.set(deps, blanked);
+  const sets: BlankedSets = { text: blanked, keywords: keywordsBlanked };
+  perDeps.set(deps, sets);
   BLANKED_BY_RULES.set(state, perDeps);
-  return blanked;
+  return sets;
 }
 
 /** Whether this card's printed text box is blank right now, from a lasting effect or a constant rule in play. */
 export const textBoxBlankFor = (state: GameState, id: InstanceId, deps: EngineDeps = DEFAULT_DEPS): boolean =>
   textBoxBlank(state, id) || blankedByConstantRules(state, deps).has(id);
+
+/** Whether this card's printed keywords are blank: as `textBoxBlankFor`, less a rule "except for keywords" (§3.28). */
+export const keywordsBlankFor = (state: GameState, id: InstanceId, deps: EngineDeps = DEFAULT_DEPS): boolean =>
+  textBoxBlank(state, id) || blankedSets(state, deps).keywords.has(id);
 
 /**
  * The ability slots that are live on a card right now (active identity face, current stage).

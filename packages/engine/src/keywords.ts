@@ -17,7 +17,7 @@ import {
   controllerOf,
   evaluate,
   matchesQuery,
-  textBoxBlankFor,
+  keywordsBlankFor,
   type EffectContext,
 } from "./select.js";
 import type { AttackKeyword, StatusName } from "./spec.js";
@@ -42,7 +42,7 @@ export function printedKeywordsOf(
   if (!card) return [];
   // RRG 1.8 "Blank" (p. 10): no printed text in the text box, keywords included. `deps` makes a *constant*
   // class-wide blank visible (Tech Theft); the lasting kind needs no registry.
-  if (state.instances[id]?.facedownAs || state.instances[id]?.treatedAs || textBoxBlankFor(state, id, deps)) return [];
+  if (state.instances[id]?.facedownAs || state.instances[id]?.treatedAs || keywordsBlankFor(state, id, deps)) return [];
   const face = encounterFace(state, id);
   if (face) return face.keywords;
   if (card.type === "villain") {
