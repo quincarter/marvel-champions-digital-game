@@ -17,7 +17,7 @@ import type {
   TargetQuery,
   TargetRef,
 } from "@mc/engine";
-import type { Trait } from "@mc/content";
+import type { KeywordInstance, Trait } from "@mc/content";
 import {
   amount,
   chosen,
@@ -390,6 +390,15 @@ export const treatAsAlly = (target: TargetRef, traits: readonly Trait[], consequ
   thwFromSch: true,
   consequential,
 });
+/**
+ * "When a boost card on an enemy attacking you would be turned faceup, discard it instead." (Defiance, `vision`
+ * 26018): the boost card resolving now is discarded, its Boost ability and icons never applied. docs/phase7-wave4.md
+ * §3.35.
+ */
+export const discardBoostCard = (opts: { readonly bind?: string } = {}): EffectSpec => ({
+  kind: "discardBoostCard",
+  ...withBind(opts.bind),
+});
 export const friendlyCharacterAttacks = (
   attacker: TargetRef,
   player: PlayerRef = you,
@@ -578,6 +587,16 @@ export const modifyStatOf = (
   stat,
   amount: amount(n),
   affects,
+  until,
+});
+/**
+ * "She gains retaliate 1 until the end of the phase." (Pulsar Shield, `mts` 21009; Cuts Both Ways, `cw` 56050):
+ * `gainKeywordUntil({ name: "retaliate", value: 1 }, yourIdentity, "endOfPhase")`. docs/phase7-wave4.md §3.39.
+ */
+export const gainKeywordUntil = (keyword: KeywordInstance, target: TargetRef, until: LastingUntil): EffectSpec => ({
+  kind: "grantKeywordUntil",
+  keyword,
+  target,
   until,
 });
 export const gainTraitUntil = (t: Trait, target: TargetRef, until: LastingUntil): EffectSpec => ({

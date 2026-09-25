@@ -9,7 +9,7 @@ import type {
   ScenarioSeparateDeck,
   VillainSideLetter,
 } from "@mc/content";
-import { DEFAULT_DEPS, type EngineDeps } from "./abilities.js";
+import { DEFAULT_DEPS, type EngineDeps, type RuleSpec } from "./abilities.js";
 import { NO_CAMPAIGN_WRITES, type CampaignGameInput } from "./campaign.js";
 import { unbuildableSeparateDeck, validateDeck, type DeckContext } from "./deck.js";
 import { createCtx, emit, type Ctx } from "./ctx.js";
@@ -173,6 +173,13 @@ export interface GameSetupConfig {
    * Loki 1B). Read by `ValueSpec victoryCondition`. docs/phase7-wave4.md §3.7.
    */
   readonly victoryCondition?: number;
+  /**
+   * Rules the scenario itself imposes, printed in its rulebook rather than on any card: "When a player reveals a Spell
+   * environment, they place that card in front of them in their play area" (Ebony Maw, MC21 p. 6) is
+   * `[{ kind: "entersRevealersPlayArea", cards: { trait: SPELL } }]`. In force for the whole game, read by `activeRules`
+   * like a constant on a card in play, with no card as "self" and nobody as "you". docs/phase7-wave4.md §3.40.
+   */
+  readonly scenarioRuleSpecs?: readonly RuleSpec[];
   /**
    * The mode being played, standard (default) or expert (RRG 1.8 "Modes of Play", p. 29). Villain stages and the
    * expert set are the scenario builder's; the engine reads this only for "Standard Mode Only" / "Expert Mode Only"
@@ -726,6 +733,7 @@ export function createGame(requested: GameSetupConfig, deps: EngineDeps = DEFAUL
       victory: config.victory ?? "finalVillainStage",
       ...(config.victoryCondition !== undefined ? { victoryCondition: config.victoryCondition } : {}),
       ...(config.difficulty === "expert" ? { difficulty: "expert" as const } : {}),
+      ...(config.scenarioRuleSpecs && config.scenarioRuleSpecs.length > 0 ? { rules: config.scenarioRuleSpecs } : {}),
       separateGameAreas: config.separateGameAreas ?? false,
     },
     encounterDecks,

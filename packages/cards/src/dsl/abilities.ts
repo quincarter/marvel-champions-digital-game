@@ -282,7 +282,21 @@ export interface ConstantPart {
    * restriction read from the card itself while it is being played. Several are ANDed.
    */
   readonly playOnlyIf?: Predicate;
+  /**
+   * "This card generates [wild] for each ally you control (to a maximum of 3)" (Band Together, `mts` 21018): what the
+   * card generates when spent from hand. docs/phase7-wave4.md §3.38.
+   */
+  readonly handGenerates?: ResourceGeneration;
 }
+
+/** `handGenerates` "[resource] for each [card] … (to a maximum of N)" (Band Together). */
+export const generatesPerCard = (
+  resource: "energy" | "mental" | "physical" | "wild",
+  per: TargetQuery,
+  max?: number,
+): ResourceGeneration => ({ kind: "perCard", resource, per, ...(max !== undefined ? { max } : {}) });
+/** "Generate the printed resource on [a card in play]" (Energy Duplication, `mts` 21006). */
+export const printedResourcesOf = (cards: TargetQuery): ResourceGeneration => ({ kind: "printedResourcesOf", cards });
 
 export function constant(...parts: readonly ConstantPart[]): AbilityDefinition {
   const all = <
@@ -302,6 +316,8 @@ export function constant(...parts: readonly ConstantPart[]): AbilityDefinition {
   if (multipliers.length > 1) throw new Error("a constant ability has at most one resource multiplier");
   const spendableInList = parts.flatMap((p) => (p.spendableIn ? [p.spendableIn] : []));
   if (spendableInList.length > 1) throw new Error("a constant ability has at most one spendableIn form");
+  const handGeneratesList = parts.flatMap((p) => (p.handGenerates !== undefined ? [p.handGenerates] : []));
+  if (handGeneratesList.length > 1) throw new Error("a constant ability has at most one handGenerates");
   const playableAttachmentsList = parts.flatMap((p) => (p.playableAttachments ? [p.playableAttachments] : []));
   if (playableAttachmentsList.length > 1)
     throw new Error("a constant ability has at most one playableAttachments query");
@@ -324,6 +340,7 @@ export function constant(...parts: readonly ConstantPart[]): AbilityDefinition {
       ...(traitGrants.length ? { traitGrants } : {}),
       ...(rules.length ? { rules } : {}),
       ...(multipliers[0] ? { resourceMultiplier: multipliers[0] } : {}),
+      ...(handGeneratesList[0] !== undefined ? { handGenerates: handGeneratesList[0] } : {}),
       ...(costModifiers.length ? { costModifiers } : {}),
       ...(paymentOnly.length ? { paymentOnly } : {}),
       ...(spendableInList[0] ? { spendableIn: spendableInList[0] } : {}),
@@ -850,6 +867,9 @@ const enemyAttacks = (
     opts.damages ? { requireResults: { damage: 1 } } : {},
   );
 
+/** A basic power, as `basicPowerUsing`/`basicPowerUsed` name it. */
+type BasicPowerName = "attack" | "thwart" | "defense" | "recover";
+
 export const on = {
   /** "When/After [enemy] attacks (you)" — `by: "self"` for the card's own attacks, `"host"` for the attached enemy. */
   enemyAttacks,
@@ -1111,7 +1131,10 @@ export const on = {
    */
   basicPowerUsing: (
     who: Who,
-    opts: { readonly power?: "attack" | "thwart" | "defense" | "recover" } = {},
+    opts: {
+      /** One power, or several: `["attack", "thwart"]` is "When X attacks or thwarts" (Machine Man, §3.36 of wave 4). */
+      readonly power?: BasicPowerName | readonly BasicPowerName[];
+    } = {},
   ): EventPattern => pattern("basicPowerUsing", asTarget(who), opts.power ? { eventIs: { power: opts.power } } : {}),
   /** "When attached character would ready" (Frozen in Time; docs/phase7-wave2.md §3.11). */
   cardReadying: (what: Who): EventPattern => pattern("cardReadying", asTarget(what)),

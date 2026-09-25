@@ -276,7 +276,9 @@ function triggerCandidate(ctx: Ctx, frame: Frame<"window">, candidate: TriggerCa
   );
   if (isPriceFault(plan)) return;
   const needed = requirementTotal(plan.requirement);
-  if (needed > 0) {
+  // An "X" cost ("spend up to 3 resources", Machine Man) totals 0 fixed resources but is still the player's decision
+  // (the same guard `requestWindowPayment` has; docs/phase7-wave4.md §3.36).
+  if (needed > 0 || definition.cost.resourcesX !== undefined) {
     const options = paymentOptions(ctx, controller, null);
     setFrame(ctx, { ...frame, awaiting: "pay", paying: candidate });
     requestChoice(ctx, {

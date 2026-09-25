@@ -88,14 +88,10 @@ const HYDRA = trait("HYDRA");
  * against this scheme resolves, the same way `cannotTakeDamage` (this card's own first sentence) is a constant
  * despite reading like an ongoing prevention rather than a trigger.
  *
- * **Reading: "Forced Interrupt: when attached side scheme is defeated"** (Twisted Reality, 04135) is scripted as a
- * `forcedResponse`, not a `forcedInterrupt`: `schemeDefeated` isn't in `isAnnouncement`'s explicit interruptible
- * list (`packages/engine/src/trigger-events.ts`), so it defaults to announcement-only (response-timing only,
- * like `cardEntersPlay` — docs/phase7-wave2-scripting.md §6.9's same shape). Unlike that Interrupt (None Shall
- * Pass) or Mockingbird's, this one's effect ("deal the first player an encounter card") has no interaction with
- * the defeat it's reacting to — nothing to prevent or redirect — so a Response produces the identical observable
- * outcome a moment later; this is a faithful restatement, not an approximation, but is flagged here rather than
- * silently assumed.
+ * **"Forced Interrupt: when attached side scheme is defeated"** (Twisted Reality, 04135) was once scripted as a
+ * `forcedResponse`, on the reading that it made no difference. It did: the attachment is discarded with its scheme
+ * before the response window opens, so it never fired. `schemeDefeated` now has an interrupt window while the scheme
+ * and its attachments are still in play (docs/phase7-wave4.md §3.37), and this is a true forced interrupt.
  */
 export const RED_SKULL_SET = defineAbilities({
   // Red Skull (I/II/III) — [star] gets +1 ATK for each side scheme in play.
@@ -183,9 +179,11 @@ export const RED_SKULL_SET = defineAbilities({
     discard(self),
   ),
 
-  // Twisted Reality — Incite 1 (data). Attach to a side scheme (data). Forced Response (module docblock): after
-  // attached side scheme is defeated, deal the first player an encounter card.
-  "04135.twisted-reality-forced-interrupt": forcedResponse(on.schemeDefeated("host"), dealEncounterCard(firstPlayer)),
+  // Twisted Reality — Incite 1 (data). Attach to a side scheme (data). Forced Interrupt: when attached side scheme is
+  // defeated, deal the first player an encounter card.
+  // A true forced interrupt since docs/phase7-wave4.md §3.37 gave `schemeDefeated` an interrupt window; as a response
+  // it never fired, because the attachment is discarded with its scheme before the response window opens.
+  "04135.twisted-reality-forced-interrupt": forcedInterrupt(on.schemeDefeated("host"), dealEncounterCard(firstPlayer)),
 
   // Bitter Rival — When Revealed (current, errata RRG 1.8 p. 66): for each side scheme in play, choose and
   // exhaust a character you control. [star] Boost: exhaust a character you control.

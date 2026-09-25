@@ -75,7 +75,7 @@ export interface BoostCardBeat {
   /** From the *unmodified* flip; `cancelled` says whether the icons still count. */
   readonly boostIcons: number;
   /** Set once a `boostCancelled` names this card — "icons" (the icons don't count) or "ability" (its Boost text didn't fire). */
-  readonly cancelled: "icons" | "ability" | null;
+  readonly cancelled: "icons" | "ability" | "discarded" | null;
 }
 
 /** `attackResolved`'s own terms, once the activation actually resolves. */

@@ -53,6 +53,7 @@ import {
   hasStarIcon,
   inAnyEncounterDiscard,
   isMinion,
+  locateCard,
   maxHitPoints,
   mustInstance,
   mustPlayer,
@@ -612,6 +613,37 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
         setFrame(ctx, { ...turned, event: { ...turned.event, boostIcons: 0 } });
       emit(ctx, { type: "boostCancelled", instanceId: boost.instanceId, scope: "icons" });
       return report(1, icons);
+    }
+    case "discardBoostCard": {
+      // docs/phase7-wave4.md §3.35 (Defiance): "discard it instead" of turning it faceup and applying it.
+      const procedure = ctx.state.stack.find(
+        (f): f is Frame<"enemyAttack"> | Frame<"enemyScheme"> =>
+          (f.kind === "enemyAttack" || f.kind === "enemyScheme") && Boolean(f.boost),
+      );
+      const boost = procedure?.boost;
+      const made = (n: number): void => {
+        if (effect.bind) addFrameVars(ctx, frame.frameId, { [`${effect.bind}.made`]: n });
+      };
+      if (
+        !procedure ||
+        !boost ||
+        boost.step !== "window" ||
+        locateCard(ctx.state, boost.instanceId)?.kind !== "boost"
+      ) {
+        return made(0);
+      }
+      setFrame(ctx, { ...procedure, boost: { ...boost, iconsCancelled: true, abilityCancelled: true } });
+      const turned = ctx.state.stack.find(
+        (f) =>
+          f.kind === "event" &&
+          f.event.kind === "boostCardTurnedFaceup" &&
+          f.event.boostInstanceId === boost.instanceId,
+      );
+      if (turned?.kind === "event" && turned.event.kind === "boostCardTurnedFaceup")
+        setFrame(ctx, { ...turned, event: { ...turned.event, boostIcons: 0 } });
+      moveCard(ctx, boost.instanceId, discardZoneFor(ctx.state, boost.instanceId), "top");
+      emit(ctx, { type: "boostCancelled", instanceId: boost.instanceId, scope: "discarded" });
+      return made(1);
     }
     case "adjustBoostCount":
     case "replaceBoostCount": {
@@ -1281,7 +1313,8 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       return;
     }
     case "modifyStatUntil":
-    case "grantTraitUntil": {
+    case "grantTraitUntil":
+    case "grantKeywordUntil": {
       let duration: LastingDuration;
       if (effect.until === "endOfAttack") {
         const activation = currentActivationFrameId(ctx.state.stack);
@@ -1306,7 +1339,9 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
         ctx,
         effect.kind === "modifyStatUntil"
           ? { kind: "statModifier", stat: effect.stat, amount: effect.amount, scope, ...reach }
-          : { kind: "traitGrant", trait: effect.trait, scope, ...reach },
+          : effect.kind === "grantKeywordUntil"
+            ? { kind: "keywordGrant", keyword: effect.keyword, scope, ...reach }
+            : { kind: "traitGrant", trait: effect.trait, scope, ...reach },
         duration,
       );
       return;

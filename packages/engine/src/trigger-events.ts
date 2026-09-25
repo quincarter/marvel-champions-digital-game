@@ -580,6 +580,11 @@ export function isAnnouncement(event: TriggerEvent): boolean {
     case "mainSchemeCompleting":
     // "When the last lock counter is removed from here" (docs/phase7-wave4.md §3.15): the removal is still to come.
     case "countersRemoved":
+    // "Interrupt: When attached side scheme is defeated" (Chance Encounter, Followed, Ambush, Twisted Reality;
+    // docs/phase7-wave4.md §3.37): the scheme and its attachments are still in play; its When Defeated and its leaving
+    // play are this event's apply step (RRG 1.8 "When Defeated Abilities", p. 48: a forced interrupt; the card "leaves
+    // play after its 'When Defeated' ability is resolved").
+    case "schemeDefeated":
       return false;
     default:
       return true;

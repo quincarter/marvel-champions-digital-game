@@ -230,7 +230,11 @@ export type GameEvent =
       readonly outsideActivation?: true;
     }
   /** A boost card's icons, or its "Boost" ability, were cancelled (Attacrobatics, Target Acquired). */
-  | { readonly type: "boostCancelled"; readonly instanceId: InstanceId; readonly scope: "icons" | "ability" }
+  | {
+      readonly type: "boostCancelled";
+      readonly instanceId: InstanceId;
+      readonly scope: "icons" | "ability" | "discarded";
+    }
   | {
       readonly type: "boostCardFlipped";
       readonly enemyInstanceId: InstanceId;

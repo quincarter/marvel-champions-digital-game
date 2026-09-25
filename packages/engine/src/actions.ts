@@ -480,7 +480,14 @@ export function handCardResources(
 ): ResourcePool {
   const card = cardOf(state, cardInstanceId);
   if (!card) return EMPTY_POOL;
-  const pool = printedResources(card);
+  // "This card generates [wild] for each ally you control" (`handGenerates`, docs/phase7-wave4.md §3.38).
+  const instead = printedAbilityRefs(card)
+    .map((ref) => deps.abilities[ref.id]?.trigger)
+    .find((trigger) => trigger?.kind === "constant" && trigger.handGenerates !== undefined);
+  const pool =
+    instead?.kind === "constant" && instead.handGenerates !== undefined
+      ? generatedResources(state, instead.handGenerates, null, { deps, sourceId: cardInstanceId, playerId })
+      : printedResources(card);
   if (!payingFor) return pool;
   const context: EffectContext = {
     selfInstanceId: cardInstanceId,
@@ -508,13 +515,36 @@ export function generatedResources(
   state: GameState,
   generation: ResourceGeneration | undefined,
   discardTop: InstanceId | null,
+  /** The card generating and the player using it, for a generation that reads the table (§3.38 of wave 4). */
+  from?: { readonly deps: EngineDeps; readonly sourceId: InstanceId; readonly playerId: PlayerId },
 ): ResourcePool {
   if (generation === undefined) return poolOf({ wild: 1 });
   if (typeof generation === "number") return poolOf({ wild: generation });
   if ("kind" in generation) {
-    // Pepper Potts: "equal in quantity and type to the resources on the top card of the discard pile" (FFG ruling).
-    const top = discardTop ? cardOf(state, discardTop) : undefined;
-    return top ? printedResources(top) : EMPTY_POOL;
+    if (generation.kind === "topCardOfDiscard") {
+      // Pepper Potts: "equal in quantity and type to the resources on the top card of the discard pile" (FFG ruling).
+      const top = discardTop ? cardOf(state, discardTop) : undefined;
+      return top ? printedResources(top) : EMPTY_POOL;
+    }
+    if (!from) return EMPTY_POOL;
+    const context: EffectContext = {
+      selfInstanceId: from.sourceId,
+      controllerId: from.playerId,
+      event: null,
+      bindings: {},
+      deps: from.deps,
+    };
+    const matching = cardsInPlay(state).filter((id) =>
+      matchesQuery(state, id, generation.kind === "perCard" ? generation.per : generation.cards, context),
+    );
+    if (generation.kind === "perCard") {
+      const n = Math.min(matching.length, generation.max ?? Infinity);
+      return poolOf({ [generation.resource]: n });
+    }
+    return matching.reduce((pool, id) => {
+      const card = cardOf(state, id);
+      return card ? addPools(pool, printedResources(card)) : pool;
+    }, EMPTY_POOL);
   }
   return poolOf(generation);
 }
@@ -661,7 +691,14 @@ function priceOf(
     const fault = resourceAbilityFault(ctx.state, ctx.deps, instanceId, abilityId, playerId, payingFor, group);
     if (fault) return fault;
     const spender = resourceSpender(ctx.state, ctx.deps, instanceId, abilityId, playerId);
-    pool = addPools(pool, generatedResources(ctx.state, ctx.deps.abilities[abilityId]?.generates, topOf(spender)));
+    pool = addPools(
+      pool,
+      generatedResources(ctx.state, ctx.deps.abilities[abilityId]?.generates, topOf(spender), {
+        deps: ctx.deps,
+        sourceId: instanceId,
+        playerId: spender,
+      }),
+    );
   }
   // "You can only spend [physical] resources to pay for this card." A wild can be declared as that type; a cost of 0
   // needs no resources at all (FAQ "Crushing Blow (#2)", p. 60).
@@ -791,7 +828,11 @@ export function payPayment(ctx: Ctx, playerId: PlayerId, payment: readonly Payme
     const definition = ctx.deps.abilities[abilityId];
     if (!definition) continue;
     const spender = resourceSpender(ctx.state, ctx.deps, instanceId, abilityId, playerId);
-    const generated = generatedResources(ctx.state, definition.generates, discardTopBefore.get(spender) ?? null);
+    const generated = generatedResources(ctx.state, definition.generates, discardTopBefore.get(spender) ?? null, {
+      deps: ctx.deps,
+      sourceId: instanceId,
+      playerId: spender,
+    });
     const plan = planCost(ctx.state, ctx.deps, instanceId, spender, definition.cost, {}, new Set());
     if (!isFault(plan)) payCost(ctx, instanceId, spender, definition.cost, plan);
     recordAbilityUse(ctx, instanceId, abilityId, definition, null, spender);

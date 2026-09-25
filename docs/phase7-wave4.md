@@ -400,40 +400,48 @@ needed, and each section names cards from other packs that compose with it.
 in release order. Within that, rules the whole box leans on come first. **A pack whose cards need an unbuilt primitive
 stays data only.**
 
-| §    | Primitive                                                                | Needed by                                                        | Status  |
-| ---- | ------------------------------------------------------------------------ | ---------------------------------------------------------------- | ------- |
-| 3.1  | Additional forms (the form keyword)                                      | Spectrum, Vision; Shadowcat, Nick Fury                           | landed  |
-| 3.2  | Two main schemes in play, each paired with a villain; Focused Defense    | Tower Defense                                                    | landed  |
-| 3.3  | Villains protected by each other's hit points: one defeat sweep          | Tower Defense; Four Horsemen (`aoa`)                             | landed  |
-| 3.4  | A main scheme stage's completion is replaceable                          | Tower Defense; Upgrading Adaptoids (`aos`)                       | landed  |
-| 3.5  | Damage on a card that is not a character (Avengers Tower)                | Tower Defense                                                    | landed  |
-| 3.6  | A modular set's own deck (the Infinity Stone deck)                       | Thanos, Loki, any scenario                                       | landed  |
-| 3.7  | Loki: random start, swap, a villain stage's Victory X, the victory count | Loki; God of Lies (`tt`)                                         | landed  |
-| 3.8  | An encounter ally attached to the main scheme (Odin)                     | Hela                                                             | landed  |
-| 3.9  | An ally treated as a minion                                              | Fallen Warrior, Beguiled; 5 other packs                          | landed  |
-| 3.10 | Flipping a card into a separately emitted face of another type           | MC21 campaign                                                    | landed  |
-| 3.11 | Timing points when a deck runs out                                       | Soul World, Universal Church, Thanos                             | landed  |
-| 3.12 | Counting different aspects; Adam Warlock's copy limit                    | Adam Warlock                                                     | landed  |
-| 3.13 | Abilities active in hand; "cannot choose to discard this card"           | Pip the Troll, System Shock                                      | landed  |
-| 3.14 | Player events shuffled into the encounter deck (Cosmic Entities)         | Adam Warlock precon                                              | landed  |
-| 3.15 | "After the last X counter is removed from here"                          | Ebony Maw; `aos`, `phoenix`                                      | landed  |
-| 3.16 | Encounter cards in a player's play area                                  | Ebony Maw's Spells                                               | landed  |
-| 3.17 | Alliance: paying a card's costs as a group                               | `warm`, `valk`, `vision`; 9 later cards                          | landed  |
-| 3.18 | Set-aside modular sets; mode-only faces; Standard II                     | The Hood; Wheel of Genres (`mojo`)                               | landed  |
-| 3.19 | Readying as a costed act; "cannot be readied by player card effects"     | Mister Fear; Undermine Support (`aos`)                           | landed  |
-| 3.20 | A trigger on damage a card prevented                                     | Abjuration                                                       | landed  |
-| 3.21 | An enemy attack against a chosen character                               | Speed Demon, Crossfire                                           | landed  |
-| 3.22 | Valkyrie's kit                                                           | `valk`                                                           | landed  |
-| 3.23 | Reusable as is                                                           | —                                                                | checked |
-| 3.24 | A character that ignores guard, patrol and the crisis icon               | Evasive Maneuvering; Wasp, Shadowcat, Psionic Training           | landed  |
-| 3.25 | Discarding cards you control as a cost                                   | Lethal Weapon; Noble Sacrifice, Repurpose, Delusion of Collusion | landed  |
-| 3.26 | A friendly character attacks its own player                              | Old Rivals                                                       | landed  |
-| 3.27 | A cancel with nothing it can cancel is not offered                       | §4 Q16 (user decision)                                           | landed  |
-| 3.28 | A blank text box except for keywords                                     | Corrupted Programming (§3.1's open item)                         | landed  |
-| 3.29 | A minion treated as an ally (the mirror of §3.9)                         | Mind Control, Redemption, Karma                                  | landed  |
-| 3.30 | A resource ability's own effects                                         | Gauntlet Gun; War Cry family, Psi-Knife, Cybernetic Arm          | landed  |
-| 3.31 | A character that cannot defend                                           | Intangible; Grant Ward, Tracking Display                         | landed  |
-| 3.32 | One thwart that ignores patrol                                           | Just Passing Through; Natural Flight, Grapnel Launcher           | landed  |
+| §    | Primitive                                                                | Needed by                                                                    | Status  |
+| ---- | ------------------------------------------------------------------------ | ---------------------------------------------------------------------------- | ------- |
+| 3.1  | Additional forms (the form keyword)                                      | Spectrum, Vision; Shadowcat, Nick Fury                                       | landed  |
+| 3.2  | Two main schemes in play, each paired with a villain; Focused Defense    | Tower Defense                                                                | landed  |
+| 3.3  | Villains protected by each other's hit points: one defeat sweep          | Tower Defense; Four Horsemen (`aoa`)                                         | landed  |
+| 3.4  | A main scheme stage's completion is replaceable                          | Tower Defense; Upgrading Adaptoids (`aos`)                                   | landed  |
+| 3.5  | Damage on a card that is not a character (Avengers Tower)                | Tower Defense                                                                | landed  |
+| 3.6  | A modular set's own deck (the Infinity Stone deck)                       | Thanos, Loki, any scenario                                                   | landed  |
+| 3.7  | Loki: random start, swap, a villain stage's Victory X, the victory count | Loki; God of Lies (`tt`)                                                     | landed  |
+| 3.8  | An encounter ally attached to the main scheme (Odin)                     | Hela                                                                         | landed  |
+| 3.9  | An ally treated as a minion                                              | Fallen Warrior, Beguiled; 5 other packs                                      | landed  |
+| 3.10 | Flipping a card into a separately emitted face of another type           | MC21 campaign                                                                | landed  |
+| 3.11 | Timing points when a deck runs out                                       | Soul World, Universal Church, Thanos                                         | landed  |
+| 3.12 | Counting different aspects; Adam Warlock's copy limit                    | Adam Warlock                                                                 | landed  |
+| 3.13 | Abilities active in hand; "cannot choose to discard this card"           | Pip the Troll, System Shock                                                  | landed  |
+| 3.14 | Player events shuffled into the encounter deck (Cosmic Entities)         | Adam Warlock precon                                                          | landed  |
+| 3.15 | "After the last X counter is removed from here"                          | Ebony Maw; `aos`, `phoenix`                                                  | landed  |
+| 3.16 | Encounter cards in a player's play area                                  | Ebony Maw's Spells                                                           | landed  |
+| 3.17 | Alliance: paying a card's costs as a group                               | `warm`, `valk`, `vision`; 9 later cards                                      | landed  |
+| 3.18 | Set-aside modular sets; mode-only faces; Standard II                     | The Hood; Wheel of Genres (`mojo`)                                           | landed  |
+| 3.19 | Readying as a costed act; "cannot be readied by player card effects"     | Mister Fear; Undermine Support (`aos`)                                       | landed  |
+| 3.20 | A trigger on damage a card prevented                                     | Abjuration                                                                   | landed  |
+| 3.21 | An enemy attack against a chosen character                               | Speed Demon, Crossfire                                                       | landed  |
+| 3.22 | Valkyrie's kit                                                           | `valk`                                                                       | landed  |
+| 3.23 | Reusable as is                                                           | —                                                                            | checked |
+| 3.24 | A character that ignores guard, patrol and the crisis icon               | Evasive Maneuvering; Wasp, Shadowcat, Psionic Training                       | landed  |
+| 3.25 | Discarding cards you control as a cost                                   | Lethal Weapon; Noble Sacrifice, Repurpose, Delusion of Collusion             | landed  |
+| 3.26 | A friendly character attacks its own player                              | Old Rivals                                                                   | landed  |
+| 3.27 | A cancel with nothing it can cancel is not offered                       | §4 Q16 (user decision)                                                       | landed  |
+| 3.28 | A blank text box except for keywords                                     | Corrupted Programming (§3.1's open item)                                     | landed  |
+| 3.29 | A minion treated as an ally (the mirror of §3.9)                         | Mind Control, Redemption, Karma                                              | landed  |
+| 3.30 | A resource ability's own effects                                         | Gauntlet Gun; War Cry family, Psi-Knife, Cybernetic Arm                      | landed  |
+| 3.31 | A character that cannot defend                                           | Intangible; Grant Ward, Tracking Display                                     | landed  |
+| 3.32 | One thwart that ignores patrol                                           | Just Passing Through; Natural Flight, Grapnel Launcher                       | landed  |
+| 3.33 | A card with a given timing word in its text                              | Phase Disruption; Phase Strike, Sunfire, Target Lock, Warpath                | landed  |
+| 3.34 | The attacking enemy from any trigger                                     | Flow Like Water; Riposte, Spider-UK, Daredevil                               | landed  |
+| 3.35 | Discard a boost card instead of applying it                              | Defiance                                                                     | landed  |
+| 3.36 | An event pattern that accepts several values                             | Machine Man; Absorbing Man (tt)                                              | landed  |
+| 3.37 | Interrupts to a side scheme's defeat                                     | Chance Encounter; Followed, Ambush, Twisted Reality                          | landed  |
+| 3.38 | Resources generated by reading the table                                 | Energy Duplication, Band Together; Storm's Crown, Cat's Head Amulet, Olympus | landed  |
+| 3.39 | A keyword granted until a duration ends                                  | Pulsar Shield; Cuts Both Ways                                                | landed  |
+| 3.40 | Scenario rules with no card behind them                                  | Ebony Maw (MC21 p. 6's Spell rule)                                           | landed  |
 
 ### 3.1 Additional forms: the form keyword
 
@@ -1332,6 +1340,155 @@ scoped to basic thwarts is not built).
 > Vision against Rhino with Crowd Control's crisis icon in play). **What landed:** **`EffectSpec thwart.ignorePatrol`**,
 > carried on the `thwart` event and read by `threatRemovalBlocked` for the removal that thwart makes. **DSL:**
 > `thwart(n, target, { ignorePatrol: true })`. **Scripted:** `26010.just-passing-through-action`, off `KNOWN_SKIPPED`.
+
+### 3.33 A card with a given timing word in its text
+
+Phase Disruption (`vision` 26011): "Confuse an enemy. Choose an attachment on that enemy with the text 'Hero Action' or
+'Hero Response' and discard that attachment." Survey (every raw pack, "with the text" / "with a '…' ability"): Phase
+Strike (`mut_gen` 32038), Sunfire (`wolv` 35014), Electromagnetic Blast (`magneto` 49008), Disarming Defense
+(`wonder_man` 58033), all "Hero Action" or "Hero Response"; Target Lock and Phased Out (`cw` 56130, `synthezoid` 57076),
+"Hero Response" or "Hero Interrupt"; Warpath (`angel` 42013), "an event with a 'Hero Action' ability".
+
+> **Status: landed (2026-09-24),** tested in `packages/engine/src/ability-timing-query.test.ts` (3 tests: matches the
+> attachments carrying the named timing words and not a Forced Response; a blanked text box has none; each trigger
+> shape maps to its printed timing word) and in a real game in `packages/cards/src/wave4/vision/vision-kit.test.ts`
+> (Rhino with Lethal Weapon attached: Phase Disruption confuses him and discards it). **What landed:** **`TargetQuery
+abilityTiming: AbilityTimingWord[]`** ("heroAction", "heroResponse", "forcedInterrupt", …) matched against the card's
+> live abilities through `select.ts timingWordOf` (trigger kind + form label + forced), exclusion `noSuchAbility`
+> with a client label. The printed word is read from the script's trigger shape, which the ability DSL already makes
+> match the printed label (`heroAction`, `heroResponse`, …). **Scripted:** `26011.phase-disruption-action`, off
+> `KNOWN_SKIPPED`.
+
+### 3.34 The attacking enemy from any trigger
+
+Flow Like Water (`vision` 26016): "Response: After you play a [Defense] card, deal 1 damage to the attacking enemy." The
+trigger is the play, not the attack, so `eventSource` names the played card. Survey (every raw pack, "the attacking
+enemy"): Riposte, Tally Ho! (`ncrawler` 48018, 48011), Spider-UK (`sm` 27012), Daredevil (`spdr` 31014), Never Back Down
+(`qsv` 14014), Disarming Defense (`wonder_man` 58033); most sit on an attack-scoped trigger and already read
+`eventSource`, but any of them can use this ref.
+
+> **Status: landed (2026-09-24),** tested in `packages/engine/src/attacking-enemy.test.ts` (2 tests: nothing outside an
+> attack; the innermost attack's enemy during one) and in a real game in
+> `packages/cards/src/wave4/vision/vision-pack-cards.test.ts` (Dense Vision with Flow Like Water plays Mass Increase
+> against Rhino's attack; Rhino takes 1 damage). **What landed:** **`TargetRef attackingEnemy`**, the sibling of
+> `defendingCharacter`: the enemy of the innermost `enemyAttack` on the stack, if in play. **DSL:** `attackingEnemy`.
+> **Scripted:** `26016.flow-like-water-response`, off `KNOWN_SKIPPED`.
+
+### 3.35 Discard a boost card instead of applying it
+
+Defiance (`vision` 26018): "Hero Interrupt (defense): When a boost card on an enemy attacking you would be turned faceup,
+discard it instead." `cancelBoostIcons` / `cancelBoostAbility` cancel parts of a boost card that is still applied; this
+removes the card from the activation altogether. Survey: Close Call (`gmw` 16158, "cancel that card's 'Boost' ability and all of its boost icons, then discard it") is the same outcome.
+
+> **Status: landed (2026-09-24),** tested in `packages/engine/src/boost.test.ts` (1 new test: the boost card's ability
+> does not resolve, its icons are not added, and it goes to the encounter discard pile) and in a real game in
+> `packages/cards/src/wave4/vision/vision-pack-cards.test.ts` (Defiance against Rhino's attack). **What landed:**
+> **`EffectSpec discardBoostCard {bind?}`**: in the resolving boost card's turned-faceup window, it cancels the card's
+> ability and icons and moves it to its discard pile at once, so the count step finds nothing to apply; game event
+> `boostCancelled` gains scope `"discarded"` (client log line and villain-phase breakdown label added). The engine turns
+> the card faceup and then opens that window, so "would be turned faceup" is answered there. A response "after a
+> boost card is turned faceup" still sees the event; no printed card combines the two. **DSL:** `discardBoostCard()`.
+> **Scripted:** `26018.defiance-interrupt`, off `KNOWN_SKIPPED`.
+
+### 3.36 An event pattern that accepts several values
+
+Machine Man (`vision` 26022): "Interrupt: When Machine Man attacks or thwarts, spend up to 3 resources of any type →
+Machine Man gets +1 THW and +1 ATK for this use for each resource spent this way." "For this use" needs the
+`basicPowerUsing` interrupt (before the power's value is read), which also carries his defense. Survey (every raw pack,
+"attacks or thwarts"): Elixir, Power Gloves, Gamora (`drax`), Adam Warlock, Falcon, Agent 13, Spider-Man (`silk`, `sm`),
+Spider-Ham, Absorbing Man (`tt`), Cosmo; all but Machine Man and Absorbing Man are responses to the attack/thwart
+events and already use `on.attacksOrThwarts`.
+
+> **Status: landed (2026-09-24),** tested in `packages/engine/src/event-is-list.test.ts` (1 test: `{ power: ["attack",
+"thwart"] }` matches an attack or a thwart and not a defense) and in a real game in
+> `packages/cards/src/wave4/vision/vision-pack-cards.test.ts` (Machine Man thwarts, the player spends two cards, and
+> he removes his THW plus the resources spent, to a maximum of 3). **What landed:** **`EventPattern.eventIs` values
+> may be lists** (any one matches). DSL `on.basicPowerUsing(who, { power: [...] })`. **Engine fix found on the way:**
+> an in-play triggered ability whose only resource cost is an X ("spend up to 3") skipped the payment prompt and
+> resolved with X = 0; `triggerCandidate` now asks for payment whenever the cost has `resourcesX`, as the window-event
+> path already did. **Scripted:** `26022.machine-man-interrupt`, off `KNOWN_SKIPPED`.
+
+### 3.37 Interrupts to a side scheme's defeat
+
+Chance Encounter (`vision` 26034, reprinted `fne` 60025): "Interrupt: When attached side scheme is defeated, search your
+deck and discard pile for an ally and add it to your hand." Survey (every raw pack, "when attached (side) scheme is
+defeated"): Followed (`cap` 03032, `spiderham` 30018), Ambush (`deadpool` 44051), Twisted Reality (`trors` 04135, forced).
+`schemeDefeated` was response-only, and the scheme's attachments leave play with it before the response window, so
+none of these could fire. **Decision (the RRG-correct one of the two asked about):** give the defeat an interrupt
+window, not a `targetHadAttachment` escape hatch. RRG 1.8 "When Defeated Abilities" (p. 48) makes a scheme's own When
+Defeated a forced interrupt and says the card "leaves play after its 'When Defeated' ability is resolved", so the
+scheme, and everything attached to it, is in play while "when … is defeated" interrupts resolve.
+
+> **Status: landed (2026-09-24),** tested in `packages/engine/src/scheme-defeat-interrupt.test.ts` (1 test: an
+> attachment's forced interrupt fires with the scheme still in play, the same ability as a response does not fire, the
+> scheme then leaves play; replay deep-equal) and in a real game in `packages/cards/src/wave4/vision/vision-pack-cards.test.ts`
+> (Chance Encounter on Crowd Control; Vision thwarts it to 0 and an ally comes to hand). **What landed:**
+> `schemeDefeated` is now interruptible (`isAnnouncement`); `applyRemoveThreat` pushes only the event, whose apply
+> step (`applySchemeDefeated`) pushes the scheme's When Defeated and its leave-play step (the flip-guard from §3.10
+> kept), so the order is: interrupts → When Defeated → leaves play (attachments with it) → responses. A scheme an
+> interrupt already removed does nothing more. **Scripted:** `26034.chance-encounter-interrupt`, off `KNOWN_SKIPPED`
+> (Vision now has none). **Fixed on the way:** Twisted Reality (`trors` 04135) was scripted as a forced _response_
+> and never fired; it is now the forced interrupt it prints. Followed (`cap` 03032) was already an interrupt and now
+> actually fires. Ambush (`deadpool`) and the `fne` Chance Encounter are not scripted yet.
+
+### 3.38 Resources generated by reading the table
+
+Energy Duplication (`mts` 21006): "Hero Resource: Exhaust Energy Duplication → generate the printed resource on your
+faceup energy form upgrade." Band Together (`mts` 21018, a resource card): "This card generates [wild] for each ally you
+control (to a maximum of 3)." Survey (every raw pack, "generate … resource … on / for each"): Storm's Crown (`storm`
+36006, "the printed resource on your [Weather] support"); Cat's Head Amulet (`cw` 56004, "[physical] for each minion
+engaged with you, to a maximum of 3"); Olympus (`hercules` 59012, "[wild] for each [Gift] card you control"); Titanium
+Muscles (`mut_gen` 32005, "for each tough status card on Colossus", a status count, not a card count: not covered);
+Montage (`deadpool` 44007, "1 additional [wild] for each acceleration token", additive: not covered).
+
+> **Status: landed (2026-09-24),** tested in `packages/engine/src/resource-generation-read.test.ts` (2 tests: "[wild]
+> for each ally you control, to a maximum of 3" at 0, 2 and 5 allies; "the printed resource on" a named card, none
+> without it) and in real games in `packages/cards/src/wave4/mts/spectrum-kit.test.ts` (Energy Duplication generates
+> Gamma's [physical], nothing with every form facedown) and `spectrum-pack-cards.test.ts` (Band Together is worth one
+> [wild] per ally Spectrum controls). **What landed:** two `ResourceGeneration` variants read when the resource is
+> generated: **`printedResourcesOf {cards}`** and **`perCard {resource, per, max?}`**; `generatedResources` now takes
+> the generating card and its user (every caller passes them). **`ConstantTrigger.handGenerates`**: what a card
+> generates when spent from hand instead of its printed resources (read by `handCardResources`). `generatedResources`
+> and `handCardResources` are exported. **DSL:** `printedResourcesOf(query)`, `generatesPerCard(resource, query, max?)`,
+> `constant({ handGenerates })`. **Scripted:** `21006.energy-duplication-resource`, `21018.band-together-constant`,
+> off `KNOWN_SKIPPED`.
+
+### 3.39 A keyword granted until a duration ends
+
+Pulsar Shield (`mts` 21009): "… If you were already in Pulsar energy form, she gains retaliate 1 until the end of the
+phase." Survey (every raw pack, "gain(s) [keyword] … until"): Cuts Both Ways (`cw` 56050, "you gain retaliate 1 until
+the end of the phase"); Claw Mastery (`x23` 43005, "her attacks gain overkill" until the end of the round, an attack
+keyword, which the existing attack-keyword grants cover).
+
+> **Status: landed (2026-09-24),** tested in `packages/engine/src/keyword-until.test.ts` (1 test: the identity has
+> retaliate 1 for the rest of the phase and not after, replay deep-equal) and in a real game in
+> `packages/cards/src/wave4/mts/spectrum-kit.test.ts` (Spectrum already in Pulsar defends Rhino's attack with Pulsar
+> Shield; Rhino takes the retaliate damage, and with a retaliate 0 grant he does not). **What landed:**
+> **`EffectSpec grantKeywordUntil {keyword, target?, affects?, until}`**, a lasting `keywordGrant` read by
+> `grantedKeywords` beside constant grants, expiring like the other lasting effects. **DSL:** `gainKeywordUntil(keyword,
+target, until)`. **Scripted:** `21009.pulsar-shield-interrupt`, off `KNOWN_SKIPPED`.
+
+### 3.40 Scenario rules with no card behind them
+
+MC21 p. 6 (Ebony Maw): "When a player reveals a Spell environment, they place that card in front of them in their play
+area." A rulebook rule printed on no card, so the §3.16 `entersRevealersPlayArea` RuleSpec had nothing to hang on. No
+earlier scenario did this: wave 3's Collection rules are printed on the Collector's own cards. Other rulebook-only
+rules the same field can carry as they are reached: any scenario insert rule expressible as a `RuleSpec`.
+
+> **Status: landed (2026-09-25),** tested in `packages/engine/src/spell-environments.test.ts` (1 new test: with the
+> rule seeded at setup and no card granting it, a revealed Spell goes to the revealer's play area; without it, to the
+> villain's area) and in real games in `packages/cards/src/wave4/mts/ebony-maw.test.ts` (the Ebony Maw scenario
+> carries the rule; Attack on Knowhere 1B's When Revealed puts a Spell into the player's area at setup and none into
+> the villain's area; Channeling Trance with no Spell in your play area puts one there). **What landed:**
+> **`GameSetupConfig.scenarioRuleSpecs: RuleSpec[]`**, stored as **`ScenarioRules.rules`** and read by `activeRules`
+> like a constant on a card in play, with no card as "self" and nobody as "you" (the state-check gates for
+> `controlledByFirstPlayer` and `focusedMainScheme` see them too). `putIntoPlay` of an encounter card already routes
+> through the reveal placement, so "puts that card into play in their play area" follows the rule as well.
+> **Cards:** `wave4/setup.ts` keeps `SCENARIO_RULE_SPECS` by scenario id, and `mts/ebony-maw.ts` exports
+> `EBONY_MAW_SCENARIO_RULES`. **Scripted:** 21072/21073 `.when-revealed`, `21074b.when-revealed`,
+> `21075a.when-revealed`, `21081.when-revealed`, all off `KNOWN_SKIPPED`. Two existing Ebony Maw tests were adjusted:
+> the setup Spell now exists (pick the newly revealed copy; start the scheme at 0 so the phase cannot complete 1B),
+> and a filler goes under a staged Spell so its surge cannot reveal Channeling Trance.
 
 ## 4. Open questions (for the user or FFG)
 

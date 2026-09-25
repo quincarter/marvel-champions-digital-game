@@ -136,7 +136,10 @@ function matchesRest(
   if (pattern.eventIs) {
     const carried = event as unknown as Readonly<Record<string, unknown>>;
     for (const [key, expected] of Object.entries(pattern.eventIs)) {
-      if (carried[key] !== expected) return false;
+      // A list: any one of its values (docs/phase7-wave4.md §3.36).
+      const matches =
+        typeof expected === "string" ? carried[key] === expected : expected.includes(carried[key] as string);
+      if (!matches) return false;
     }
   }
   if (pattern.targetHadAttachment) {

@@ -73,8 +73,11 @@ export interface EventPattern {
    *
    * Pair it with *no* `playerIs`, and the pattern is "after **a player** …" rather than "after **you** …"; the
    * effect body then names them with `PlayerRef { kind: "eventPlayer" }`.
+   *
+   * A list is any one of those values: `{ power: ["attack", "thwart"] }` is "When Machine Man **attacks or thwarts**"
+   * (Machine Man, `vision` 26022) on `basicPowerUsing`, excluding his defense. docs/phase7-wave4.md §3.36.
    */
-  readonly eventIs?: Readonly<Record<string, string>>;
+  readonly eventIs?: Readonly<Record<string, string | readonly string[]>>;
   /**
    * "After the enemy **with Death-Glow** is defeated" (Flight of the Valkyrior, 25008) / "after Valkyrie attacks and
    * defeats the enemy that has Death-Glow attached" (Valhalla, 25004): one of the cards attached to the defeated
@@ -168,6 +171,12 @@ export type AbilityTriggerSpec =
        * resources when it is discarded to pay for a card matching the query.
        */
       readonly resourceMultiplier?: { readonly factor: number; readonly whilePayingFor: TargetQuery };
+      /**
+       * "This card generates [wild] for each ally you control (to a maximum of 3)" (Band Together, `mts` 21018): what
+       * this card generates when it is spent from hand, instead of its printed resources ("you" is the spender).
+       * docs/phase7-wave4.md §3.38.
+       */
+      readonly handGenerates?: ResourceGeneration;
       /** Changes to the cost of playing cards (docs/phase7-wave1.md §3.10). */
       readonly costModifiers?: readonly CostModifierSpec[];
       /** "You can only spend [physical] resources to pay for this card." (Crushing Blow). Read from the card being paid for. */
@@ -1056,7 +1065,26 @@ export interface AbilityLimit {
  * `topCardOfDiscard` copies the printed resources of the top card of the
  * controller's discard pile (Pepper Potts).
  */
-export type ResourceGeneration = number | Partial<ResourcePool> | { readonly kind: "topCardOfDiscard" };
+export type ResourceGeneration =
+  | number
+  | Partial<ResourcePool>
+  | { readonly kind: "topCardOfDiscard" }
+  /**
+   * "Generate the printed resource on your faceup energy form upgrade" (Energy Duplication, `mts` 21006): the printed
+   * resources of the matching card(s) in play, read as they are when the resource is generated. docs/phase7-wave4.md
+   * §3.38.
+   */
+  | { readonly kind: "printedResourcesOf"; readonly cards: TargetQuery }
+  /**
+   * "This card generates [wild] for each ally you control (to a maximum of 3)" (Band Together, `mts` 21018): one
+   * `resource` per matching card in play, to `max`. docs/phase7-wave4.md §3.38.
+   */
+  | {
+      readonly kind: "perCard";
+      readonly resource: keyof ResourcePool;
+      readonly per: TargetQuery;
+      readonly max?: number;
+    };
 
 export interface AbilityDefinition {
   readonly trigger: AbilityTriggerSpec;
