@@ -275,6 +275,8 @@ export const countOf = (q: TargetQuery): ValueSpec => ({ kind: "count", query: q
  * a query's `trait` applies to every category it lists.
  */
 export const sum = (...values: readonly Amount[]): ValueSpec => ({ kind: "sum", values: values.map(amount) });
+/** "N per hero for each X": the product of values read now (Hela, `mts` 21136a; docs/phase7-wave4.md §3.47). */
+export const product = (...values: readonly Amount[]): ValueSpec => ({ kind: "product", values: values.map(amount) });
 /**
  * How many of a bound-slot's cards match a query, wherever they are (unlike `countOf`, not restricted to in play):
  * "for each treachery looked at this way" (Falcon: `countAmong(chosen("looked"), query("treachery"))`).

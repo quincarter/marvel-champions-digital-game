@@ -477,6 +477,7 @@ stays data only.**
 | 3.44 | Players cannot discard these cards                                       | Powerful Enchantments                                                        | landed  |
 | 3.45 | A revealed treachery that moved itself stays where it went               | Field Recruitment (engine bug)                                               | landed  |
 | 3.46 | Per-player snapshots; each player resolving a Special as themself        | Promised Prosperity; Hail Hydra!, It's Alive!                                | landed  |
+| 3.47 | A product of values; Hela's scaling and expert villain                   | Hela (21136a/21137a), Odin 21139b, hela expertVillains                       | landed  |
 
 ### 3.1 Additional forms: the form keyword
 
@@ -1635,6 +1636,26 @@ player?)`. **Scripted:** `24005b.when-revealed` is now complete (forEachPlayer: 
 dealtEncounterCount(thatPlayer))`, that player's Foul Play, `ifThen(valueAtMost(dealtEncounterCount(thatPlayer),
 varOf("dealtBefore")), placeThreat(2, self))`). Every "each player must resolve Foul Play" in `hood.ts` (Promised
 > Prosperity, Crime State 24006a/b, Unbridled Ambition) now passes `thatPlayer`.
+
+### 3.47 A product of values; Hela's scaling and expert villain
+
+Hela (`mts` 21136a standard, 21137a expert): "Hela gets +1 SCH, +1 ATK and +2[per_hero] (+3[per_hero]) hit points for
+each side scheme in victory display." The hit points are the product of two values known only when read (a
+per-player amount and a live count); `scaled.times` was a constant. Also in this batch: Odin's King side (21139b)
+"Forced Interrupt: When Odin leaves play, remove him from the game" registered as engine-covered, and the `hela`
+scenario's `expertVillains` (21137a) added to the data.
+
+> **Status: landed (2026-09-25),** tested in `packages/engine/src/stat-total.test.ts` (1 new test: `product` multiplies
+> its parts) and in real games in `packages/cards/src/wave4/mts/hela.test.ts`: exact Hela hit points, ATK and SCH at
+> 0, 1 and 2 side schemes in victory display with 1 and 2 players (standard +2 per player per scheme, expert +3,
+> expert games reading 21137a from the data), and Odin on his King side, defeated defending Hela's attack, ends in
+> `removedFromGame` without the game being lost. **What landed:** **`ValueSpec product {values}`**; DSL
+> `product(...)`. **Scripted:** `21136a.hela-constant`, `21137a.hela-constant` (`gets("hp", product(perHero(N),
+victoryDisplayCount(sideScheme)), self)` beside the SCH/ATK grants); `21139b.odin-forced-interrupt` is
+> `coveredByEngineRule()` (the double-sided `leavePlay` rule, §3.8), all off `KNOWN_SKIPPED`. **Data:**
+> `curation/mts.ts` gives `hela` `expertVillains: { villainCardCode: "21137a" }`; mts re-emitted offline (one line in
+> `src/data/mts/scenarios.ts`); the hand-built expert configs in `hela.test.ts` / `hela-e2e.test.ts` are gone, and
+> `wave4/setup.ts` already reads the field.
 
 ## 4. Open questions (for the user or FFG)
 

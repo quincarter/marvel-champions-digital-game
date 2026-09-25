@@ -68,6 +68,7 @@ export const MTS_SCENARIOS: readonly Scenario[] = [
     expertEncounterSetIds: [encounterSetId("expert")],
     villainStages: { standard: [1, 1], expert: [1, 1] },
     modularSetCount: 2,
+    expertVillains: { villainCardId: cardId("21137a"), setAsideVillainCardIds: [] },
   },
   {
     id: scenarioId("loki"),

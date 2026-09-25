@@ -222,6 +222,9 @@ export const MTS_CURATION: PackCuration = {
       name: "Hela",
       villainSetCode: "hela",
       villainCardCode: "21136a", // The A1 (standard, Mystic side) face — wave 3 §1.1's mode+face shape.
+      // "Villain deck Hela A (Hela B instead for expert mode)": the expert villain is its own card, 21137a (the
+      // Escape the Museum Collector shape, `gmw` 16081a).
+      expertVillains: { villainCardCode: "21137a", setAsideVillainCardCodes: [] },
       recommendedModularSetCodes: ["legions_of_hel", "frost_giants"],
       standardSetCodes: ["standard"],
       expertSetCodes: ["expert"],

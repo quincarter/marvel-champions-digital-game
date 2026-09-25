@@ -62,17 +62,6 @@ const KNOWN_SKIPPED: Readonly<Record<string, readonly string[]>> = {
     "21126.boost",
     "21127.boost",
     "21128.when-defeated",
-    // hela (mts/hela.ts): every ref below except these two genuine gaps is now scripted.
-    // `21136a.hela-constant`/`21137a.hela-constant`: the villain's own "+2[per_hero]/+3[per_hero] hit points for
-    // each side scheme in victory display" needs a `ValueSpec` that multiplies two dynamic values (a per-player
-    // count by a live card count) — no such primitive exists (`hela.ts`'s own module docblock has the exact gap).
-    "21136a.hela-constant",
-    "21137a.hela-constant",
-    // `21139b.odin-forced-interrupt`: needs no script at all (`hela.ts`'s own module docblock) — the engine's
-    // generic double-sided-card `leavePlay` rule (docs/phase7-wave4.md §3.8) already removes Odin from the game the
-    // moment his King side leaves play, with no "when this leaves play" trigger exposed to attach a redundant
-    // no-op effect to. Left out of the registry rather than pinned as a false "still unscripted" gap.
-    "21139b.odin-forced-interrupt",
     // legions-of-hel.ts and frost-giants.ts (Hela's own two recommended modular sets): every ref resolves; no
     // genuine gap found.
     "21160.loki-constant",

@@ -95,11 +95,8 @@ function buildMtsSingleVillain(
   }
   const difficulty = difficultyOf(resolveModes(options.difficulty, options.modes));
   // A whole separate villain card for expert mode (Escape the Museum's Collector, `gmw/scenarios.ts`'s own
-  // `expertVillains` shape) rather than a later stage of the same one. MC21 p. 20's own Hela contents line ("Villain
-  // deck Hela A (Hela B instead for expert mode)") names exactly this shape, but `MTS_SCENARIOS`' own `hela` record
-  // does not set `expertVillains` yet (a `card-data-pipeline` gap, `mts/hela.ts`'s own module docblock) — this
-  // branch is here so the moment that field lands, `wave4Scenario("hela", { difficulty: "expert" })` picks it up
-  // with no further change here.
+  // `expertVillains` shape) rather than a later stage of the same one: MC21 p. 20's Hela contents line ("Villain deck
+  // Hela A (Hela B instead for expert mode)"), `MTS_SCENARIOS`' `hela.expertVillains` (21137a).
   const useExpertVillain = difficulty === "expert" && scenario.expertVillains;
   const villainCardId = useExpertVillain ? scenario.expertVillains!.villainCardId : scenario.villainCardId;
   const villain = cardsById.get(villainCardId);
