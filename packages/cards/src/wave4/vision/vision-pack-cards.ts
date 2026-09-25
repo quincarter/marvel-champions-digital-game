@@ -40,6 +40,7 @@ import {
   modifyBasicPower,
   spendUpTo,
   varOf,
+  shuffleDeck,
 } from "../../dsl/index.js";
 
 const ANDROID = trait("ANDROID");
@@ -132,19 +133,14 @@ export const VISION_PACK_CARDS = defineAbilities({
   // side scheme is defeated, search your deck and discard pile for an ally and add it to your hand. Shuffle your
   // deck.
   "26034.chance-encounter-constant": coveredByEngineRule(),
-  // KNOWN_SKIPPED: 26034.chance-encounter-interrupt. `schemeDefeated` isn't in `isAnnouncement`'s explicit
-  // interruptible list (`packages/engine/src/trigger-events.ts`), so — same substitution `wave2/trors/red-skull.ts`'s
-  // own Twisted Reality (04135) documents for the identical "[Forced] Interrupt: when attached side scheme is
-  // defeated" wording — it can only be scripted as a `response`. But unlike Twisted Reality (whose ability lives on
-  // the *side scheme itself*), Chance Encounter's ability lives on the *attachment*, and RRG 1.8 "Flip"/discard rules
-  // remove a defeated scheme's attachments as part of the same cleanup that announces `schemeDefeated` — confirmed
-  // with `traceAbilities` (`packages/cards/src/testing/trace.ts`): the ability is `considered` (looked up while
-  // Chance Encounter is still in play, before the thwart resolves) but never `resolved`, because by the time the
-  // response window opens the attachment is already gone. `characterDefeated` has a documented escape hatch for
-  // exactly this shape (`EventPattern.targetHadAttachment`, "a card matching this was attached when the defeat was
-  // initiated, read after the character left play" — Flight of the Valkyrior, Valhalla, docs/phase7-wave4.md §3.22);
-  // `schemeDefeated` has no equivalent, so there is no way to read "the ally search Chance Encounter itself printed"
-  // once its own host scheme is gone. See `KNOWN_SKIPPED["vision"]` in `../coverage.test.ts`.
+  // `schemeDefeated` has an interrupt window while the scheme and this attachment are still in play (docs/phase7-wave4.md
+  // §3.37).
+  "26034.chance-encounter-interrupt": interrupt(
+    on.schemeDefeated("host"),
+    chooseCards("ally", zone(["deck", "discard"], you, { filter: query("ally") }), { min: 1, max: 1 }),
+    moveCards(cards(chosen("ally")), "hand"),
+    shuffleDeck(),
+  ),
 
   // Joining Forces (event, 26035) — Alliance (data). Hero Action: As a group, the players put a total of 1 Avenger
   // ally and 1 Guardian ally into play from their hand(s). `zone("hand", eachPlayer, …)` pools every player's hand

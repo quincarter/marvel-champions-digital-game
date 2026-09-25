@@ -49,17 +49,6 @@ const KNOWN_SKIPPED: Readonly<Record<string, readonly string[]>> = {
   // nebu: both of its earlier primitive gaps (an in-play "discard cards you control" cost kind, and a friendly
   // character attacking its own controller without exhausting) landed since (`nebula-obligation-nemesis.ts` now
   // scripts both 22030.lethal-weapon-action and 22031.when-revealed); nothing left unresolved.
-  // vision: the remaining genuine primitive gaps, each flagged for a game-rules-architect follow-up and documented in
-  // detail next to its own ref (`vision/vision-kit.ts`, `vision/vision-obligation-nemesis.ts`,
-  // `vision/vision-pack-cards.ts`):
-  //  - 26034.chance-encounter-interrupt ("Interrupt: When attached side scheme is defeated …") — `schemeDefeated`
-  //    is response-only (`isAnnouncement`, `packages/engine/src/trigger-events.ts`, the same substitution
-  //    `wave2/trors/red-skull.ts`'s own Twisted Reality already documents), but a defeated scheme's own attachments
-  //    are discarded before that response window opens, so the ability (on the attachment, not the scheme itself)
-  //    is `considered` but never `resolved` (checked with `traceAbilities`). `characterDefeated` has an escape
-  //    hatch for exactly this shape (`EventPattern.targetHadAttachment`); `schemeDefeated` has none.
-  // Regenerated with `MC_REFS_PACKS=vision pnpm refs` (docs/card-scripting-process.md) — never hand-typed.
-  vision: ["26034.chance-encounter-interrupt"],
   // warm: no primitive gaps found; every ability ref resolves.
   // mts: nine refs pulled out of this list here (21044, 21045, 21049, 21051, 21056, 21057, 21062, 21063, 21157) —
   // exact reprints of earlier cards (Uppercut, Combat Training, …) that `../reprints.ts` only started auto-aliasing

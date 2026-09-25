@@ -438,6 +438,7 @@ stays data only.**
 | 3.34 | The attacking enemy from any trigger                                     | Flow Like Water; Riposte, Spider-UK, Daredevil                   | landed  |
 | 3.35 | Discard a boost card instead of applying it                              | Defiance                                                         | landed  |
 | 3.36 | An event pattern that accepts several values                             | Machine Man; Absorbing Man (tt)                                  | landed  |
+| 3.37 | Interrupts to a side scheme's defeat                                     | Chance Encounter; Followed, Ambush, Twisted Reality              | landed  |
 
 ### 3.1 Additional forms: the form keyword
 
@@ -1403,6 +1404,29 @@ events and already use `on.attacksOrThwarts`.
 > an in-play triggered ability whose only resource cost is an X ("spend up to 3") skipped the payment prompt and
 > resolved with X = 0; `triggerCandidate` now asks for payment whenever the cost has `resourcesX`, as the window-event
 > path already did. **Scripted:** `26022.machine-man-interrupt`, off `KNOWN_SKIPPED`.
+
+### 3.37 Interrupts to a side scheme's defeat
+
+Chance Encounter (`vision` 26034, reprinted `fne` 60025): "Interrupt: When attached side scheme is defeated, search your
+deck and discard pile for an ally and add it to your hand." Survey (every raw pack, "when attached (side) scheme is
+defeated"): Followed (`cap` 03032, `spiderham` 30018), Ambush (`deadpool` 44051), Twisted Reality (`trors` 04135, forced).
+`schemeDefeated` was response-only, and the scheme's attachments leave play with it before the response window, so
+none of these could fire. **Decision (the RRG-correct one of the two asked about):** give the defeat an interrupt
+window, not a `targetHadAttachment` escape hatch. RRG 1.8 "When Defeated Abilities" (p. 48) makes a scheme's own When
+Defeated a forced interrupt and says the card "leaves play after its 'When Defeated' ability is resolved", so the
+scheme, and everything attached to it, is in play while "when … is defeated" interrupts resolve.
+
+> **Status: landed (2026-09-24),** tested in `packages/engine/src/scheme-defeat-interrupt.test.ts` (1 test: an
+> attachment's forced interrupt fires with the scheme still in play, the same ability as a response does not fire, the
+> scheme then leaves play; replay deep-equal) and in a real game in `packages/cards/src/wave4/vision/vision-pack-cards.test.ts`
+> (Chance Encounter on Crowd Control; Vision thwarts it to 0 and an ally comes to hand). **What landed:**
+> `schemeDefeated` is now interruptible (`isAnnouncement`); `applyRemoveThreat` pushes only the event, whose apply
+> step (`applySchemeDefeated`) pushes the scheme's When Defeated and its leave-play step (the flip-guard from §3.10
+> kept), so the order is: interrupts → When Defeated → leaves play (attachments with it) → responses. A scheme an
+> interrupt already removed does nothing more. **Scripted:** `26034.chance-encounter-interrupt`, off `KNOWN_SKIPPED`
+> (Vision now has none). **Fixed on the way:** Twisted Reality (`trors` 04135) was scripted as a forced _response_
+> and never fired; it is now the forced interrupt it prints. Followed (`cap` 03032) was already an interrupt and now
+> actually fires. Ambush (`deadpool`) and the `fne` Chance Encounter are not scripted yet.
 
 ## 4. Open questions (for the user or FFG)
 

@@ -310,11 +310,7 @@ describe("Assault Training (support, 26033)", () => {
 });
 
 describe("Chance Encounter (upgrade, 26034)", () => {
-  // 26034.chance-encounter-interrupt is KNOWN_SKIPPED (../coverage.test.ts, and `vision-pack-cards.ts`'s own long
-  // comment next to it): `schemeDefeated` is response-only, and by the time that response window opens, the
-  // defeated scheme's own attachments (Chance Encounter included) are already discarded — confirmed with
-  // `traceAbilities`, which shows the ability `considered` but never `resolved`.
-  it("26034.chance-encounter-constant: attaches to a side scheme (data-driven `attachesTo`)", () => {
+  const attached = () => {
     const hero = runWith(
       WAVE4_DEPS,
       startWave4Game(visionScenarioWithExtras("rhino", { seed: 8, extraCodes: ["26034"] })),
@@ -343,7 +339,35 @@ describe("Chance Encounter (upgrade, 26034)", () => {
       undefined,
       WAVE4_DEPS,
     );
-    expect(inst(withChance, chance).attachedTo).toBe(scheme);
+    return { state: withChance, chance, scheme };
+  };
+
+  it("26034.chance-encounter-constant: attaches to a side scheme (data-driven `attachesTo`)", () => {
+    const { state, chance, scheme } = attached();
+    expect(inst(state, chance).attachedTo).toBe(scheme);
+  });
+
+  it("26034.chance-encounter-interrupt: when that scheme is defeated, an ally goes from deck or discard to hand", () => {
+    const { state, chance, scheme } = attached();
+    const identity = identityOf(state, P1);
+    const primed = patchInstance(patchInstance(state, scheme, { threat: 1 }), identity, { exhausted: false });
+    const allies = (s: GameState) =>
+      playerOf(s, P1).hand.filter((id) => s.cardPool[s.instances[id]!.cardId]?.type === "ally").length;
+    const before = allies(primed);
+    const defeated = settle(
+      runWith(WAVE4_DEPS, primed, {
+        type: "basicThwart",
+        playerId: P1,
+        thwarterInstanceId: identity,
+        schemeInstanceId: scheme,
+      } as never),
+      accepting("26034.chance-encounter-interrupt"),
+      undefined,
+      WAVE4_DEPS,
+    );
+    expect(defeated.villainArea).not.toContain(scheme);
+    expect(playerOf(defeated, P1).discard).toContain(chance);
+    expect(allies(defeated)).toBe(before + 1);
   });
 });
 
