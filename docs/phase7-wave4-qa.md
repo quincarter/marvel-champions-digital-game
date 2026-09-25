@@ -607,6 +607,10 @@ setup error) before being marked `.fails`, per the standing rule. **Owner**: `ga
 `bind`/count-given field to `giveStatus`, mirroring `addCounters.bind`), then `ability-scripting-engineer` (rewrite
 24070's script to branch on that count instead of `exists(BRUTE_ENEMY)`).
 
+> **Fixed (2026-09-25), docs/phase7-wave4.md §3.60:** `giveStatus` gained a `bind` (`<bind>.amount`, how many were
+> actually given), 24070 branches on it equalling 0, and the pin is a plain passing `it` (re-confirmed failing on the
+> Piledriver-revealed assertion before the fix).
+
 ### Printed-text-vs-script audit: the rest of `mts` — complete, no findings
 
 Read every remaining `mts` script in full against `docs/cards/by_pack/mts.md` (the pieces `docs/phase7-wave4-qa.md`

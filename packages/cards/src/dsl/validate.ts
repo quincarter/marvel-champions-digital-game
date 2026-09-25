@@ -374,6 +374,8 @@ function bindsOf(effect: EffectSpec, scope: Scope): void {
     // 1 card." (Drax, `wave3/drax/drax-kit.ts` 19001a) needed this case; it was documented on `EffectSpec
     // addCounters` itself but never wired into the validator's own bind tracking.
     case "addCounters":
+    // `<bind>.amount`: how many status cards were actually given (docs/phase7-wave4.md §3.60).
+    case "giveStatus":
       if (effect.bind) scope.prefixes.add(`${effect.bind}.`);
       return;
     default:

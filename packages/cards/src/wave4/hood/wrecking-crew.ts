@@ -26,6 +26,8 @@ import {
   revealCard,
   thatPlayer,
   undefendedAttack,
+  valueEquals,
+  varOf,
   whenRevealed,
 } from "../../dsl/index.js";
 
@@ -80,9 +82,11 @@ export const WRECKING_CREW = defineAbilities({
 
   // Magic Muscle (24070, treachery) — When Revealed: give each Brute enemy in play a tough status card. If none
   // given this way, discard cards from the top of the encounter deck until a Brute minion is discarded and reveal
-  // that minion.
+  // that minion. Branches on how many were actually given (docs/phase7-wave4.md §3.60): a Brute already holding
+  // a tough card gets none, so an only-Brute that is already tough still takes the fallback.
   "24070.when-revealed": whenRevealed(
-    ifThen(exists(BRUTE_ENEMY), giveTough(each(BRUTE_ENEMY)), [
+    giveTough(each(BRUTE_ENEMY), { bind: "given" }),
+    ifThen(valueEquals(varOf("given.amount"), 0), [
       discardEncounterUntil(query("minion", { trait: BRUTE }), "found"),
       revealCard(chosen("found")),
     ]),
