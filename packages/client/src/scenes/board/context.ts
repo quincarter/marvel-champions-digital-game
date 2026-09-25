@@ -59,7 +59,15 @@ export const emptyFrame = (): BoardFrame => ({
  * Strange's Invocation deck).
  */
 export const pileKey = (
-  kind: "deck" | "discard" | "encounterDeck" | "encounterDiscard" | "separateDeck" | "separateDiscard",
+  kind:
+    | "deck"
+    | "discard"
+    | "encounterDeck"
+    | "encounterDiscard"
+    | "separateDeck"
+    | "separateDiscard"
+    | "scenarioDeck"
+    | "scenarioDiscard",
   playerId?: PlayerId,
   name?: string,
 ): string => [kind, playerId, name].filter((part) => part !== undefined).join(":");

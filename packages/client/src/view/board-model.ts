@@ -393,6 +393,8 @@ export interface BoardModel {
   readonly environments: readonly EnvironmentPanel[];
   /** The scenario's own out-of-play areas (The Collection, docs/phase7-wave3.md §3.14). Empty for every scenario that has none. */
   readonly scenarioAreas: readonly ScenarioAreaPanel[];
+  /** Every named scenario deck in play — the Infinity Stone deck (`GameState.scenarioDecks`). Empty for every scenario that has none. */
+  readonly scenarioDecks: readonly ScenarioDeckPanel[];
   readonly me: CharacterPanel;
   readonly myForm: Form;
   readonly myPlayArea: readonly CharacterPanel[];
@@ -532,6 +534,7 @@ export function boardModel(state: GameState, perspectiveId: PlayerId, deps: Engi
       .filter((id) => cardOf(state, id)?.type === "environment")
       .map((id) => environmentPanel(state, id)),
     scenarioAreas: scenarioAreaPanels(state),
+    scenarioDecks: scenarioDeckPanels(state),
     me: characterPanel(state, me.identity.instanceId, deps),
     myForm: me.identity.form,
     // An attachment is drawn on its host — except an upgrade on your own
@@ -970,6 +973,37 @@ function attachmentChipsOf(state: GameState, instance: CardInstance): readonly A
  * is absent until a scenario's own Setup creates one, so this reads as `[]` rather than needing a special case at
  * every call site.
  */
+/**
+ * A named scenario deck (`GameState.scenarioDecks`, docs/phase7-wave2.md §3.3) — the Infinity Stone deck (`mts`
+ * MC21 p. 16: every card printing the Infinity Stone trait, built from the encounter deck at setup with no card
+ * text asking, docs/phase7-wave4.md §3.6). The board had no zone for one at all before this wave: the deck itself
+ * is facedown like any encounter deck, and its own discard pile is separate from the encounter discard (a stone
+ * that resolves its own Special boost text is placed "in the infinity stone deck discard pile" by name, not the
+ * ordinary one).
+ */
+export interface ScenarioDeckPanel {
+  readonly name: string;
+  readonly deckCount: number;
+  readonly discardCount: number;
+  /** Faceup, like every discard pile (`view/visibility.ts`). Null with an empty pile. */
+  readonly discardTopInstanceId: InstanceId | null;
+  readonly discardTopArt: ArtSource | null;
+}
+
+/** Every scenario deck in play, by name, in `GameState.scenarioDecks`' own (insertion) order. */
+export function scenarioDeckPanels(state: GameState): readonly ScenarioDeckPanel[] {
+  return Object.entries(state.scenarioDecks ?? {}).map(([name, deck]) => {
+    const topId = deck.discard[0] ?? null;
+    return {
+      name,
+      deckCount: deck.deck.length,
+      discardCount: deck.discard.length,
+      discardTopInstanceId: topId,
+      discardTopArt: topId ? artFor(cardOf(state, topId), faceOf(state, topId)) : null,
+    };
+  });
+}
+
 export function scenarioAreaPanels(state: GameState): readonly ScenarioAreaPanel[] {
   return Object.entries(state.scenarioAreas ?? {}).map(([name, instanceIds]) => ({
     name,
