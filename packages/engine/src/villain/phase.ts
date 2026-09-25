@@ -137,8 +137,9 @@ export function executeEnemyActivations(ctx: Ctx, step: Extract<GameStep, { kind
     return;
   }
   if (minions.length > 1) {
-    // The RRG says each engaged minion activates but not in what order; the
-    // engaged player picks (the table convention; see docs/phase3-encounter-ai.md).
+    // The engaged player chooses the order: RRG 1.8 "Villain Phase" (p. 47) step 2b, "Each minion engaged with the
+    // player activates against them, in the order of that player's choice"; "Activation" (p. 6), "followed by minion
+    // activations in the order of your choice".
     requestChoice(ctx, {
       playerId: current.playerId,
       prompt: { kind: "chooseMinionToActivate" },

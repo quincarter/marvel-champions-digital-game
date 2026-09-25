@@ -889,7 +889,10 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       return;
     case "discardFromPlay":
       for (const id of targets(effect.target)) {
-        if (effect.defeated === true) defeatFromPlay(ctx, id);
+        if (effect.defeated === true) {
+          const to = effect.insteadTo;
+          defeatFromPlay(ctx, id, to === undefined ? undefined : () => moveCardsTo(ctx, [id], to));
+        }
         // "Players cannot discard attachments that are attached to friendly characters." (§3.44 of wave 4.)
         else if (frame.byPlayer && playersCannotDiscard(ctx.state, ctx.deps, id)) {
           emit(ctx, { type: "discardRefused", instanceId: id });

@@ -1673,8 +1673,18 @@ export type EffectSpec =
    * `defeated`: the card leaves play because it was defeated, so Victory X sends it (and any Victory X attachment on it)
    * to the victory display instead (`defeatFromPlay`; RRG 1.8 "Victory X", p. 46). Set by the engine's side-scheme
    * defeat; a card that says "discard" never sets it. docs/phase7-wave3.md §3.4.
+   *
+   * `insteadTo` (only with `defeated`): where the defeated card goes instead of its discard pile ("return it to its
+   * owner's hand instead of discarding it", Regroup; a constant `defeatDestination`). Victory X still wins, since the
+   * victory display replaces the defeat's placement, not a discard (docs/phase7-wave3.md §3.45). Set by the engine's
+   * ally and minion defeat, which leaves play only after its When Defeated abilities (RRG 1.8 p. 48).
    */
-  | { readonly kind: "discardFromPlay"; readonly target: TargetRef; readonly defeated?: boolean }
+  | {
+      readonly kind: "discardFromPlay";
+      readonly target: TargetRef;
+      readonly defeated?: boolean;
+      readonly insteadTo?: CardDestination;
+    }
   /**
    * "Create 'The Collection' game area" (The Grand Collection 1A, `gmw` 16073a): an empty scenario out-of-play area named
    * `name` (`GameState.scenarioAreas`, docs/phase7-wave3.md §3.14). Nothing happens if it exists.

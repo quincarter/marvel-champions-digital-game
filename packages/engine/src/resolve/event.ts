@@ -1,15 +1,9 @@
 /** Event frames (interrupts → apply → responses) and the state change each event kind makes. */
 
+import type { CardId } from "@mc/content";
 import { type Ctx, emit, findFrame, popFrame, pushFrames, setFrame, updateFrame, updateInstance } from "../ctx.js";
 import { overkillRecipient } from "../defend-preview.js";
-import {
-  defeatFromPlay,
-  expireEventLastingEffects,
-  healDamage,
-  pierceTough,
-  readyCard,
-  removeCounters,
-} from "../effects.js";
+import { expireEventLastingEffects, healDamage, pierceTough, readyCard, removeCounters } from "../effects.js";
 import type { FrameId, InstanceId, PlayerId } from "../ids.js";
 import { attackKeywordsOf, hasKeyword, keywordTotal } from "../keywords.js";
 import {
@@ -44,7 +38,6 @@ import { currentActivationFrameId, type StackFrame, type Vars } from "../stack.j
 import type { GameState } from "../state.js";
 import type { TriggerEvent } from "../trigger-events.js";
 import type { EffectSpec } from "../spec.js";
-import { moveCardsTo } from "./cards.js";
 import {
   applyMainSchemeCompleting,
   checkDefeats,
@@ -184,6 +177,42 @@ export function executeEventFrame(ctx: Ctx, frame: Frame<"event">): void {
       return;
     }
   }
+}
+
+/**
+ * The step after a defeated card's When Defeated abilities: it leaves play by `leave` (RRG 1.8 "When Defeated
+ * Abilities", p. 48: "A defeated card leaves play after its 'When Defeated' ability is resolved, if any"). Only if it is
+ * still in play showing the face that was defeated: a When Defeated that moved it ("shuffle this card into the encounter
+ * deck") or flipped it into its other face (Secure the Landing Pad → Cosmo; docs/phase7-wave4.md §3.10) has already
+ * placed it. Shared by allies, minions and side schemes.
+ */
+function leaveAfterWhenDefeated(
+  ctx: Ctx,
+  id: InstanceId,
+  printedId: CardId,
+  leave: EffectSpec,
+  controllerId: PlayerId | null,
+): StackFrame {
+  return {
+    ...base(ctx),
+    kind: "effects",
+    effects: [
+      {
+        kind: "if",
+        condition: { kind: "refMatches", ref: { kind: "self" }, query: { printedId } },
+        then: [leave],
+      },
+    ],
+    cursor: 0,
+    bindings: {},
+    vars: {},
+    scopedPlayerId: null,
+    selfInstanceId: id,
+    controllerId,
+    event: null,
+    eventFrameId: null,
+    defeatedLeaving: id,
+  };
 }
 
 /**
@@ -343,6 +372,13 @@ function applyEvent(ctx: Ctx, frame: Frame<"event">): boolean | void {
  * defeated and discarded (attachments with it). Runs after the defeat's
  * interrupt window, so a "would be defeated … instead" effect that healed it
  * means nothing happens. Overkill excess is dealt only if the defeat happens.
+ *
+ * RRG 1.8 "When Defeated Abilities" (p. 48): "A defeated card leaves play after its 'When Defeated' ability is resolved,
+ * if any." So the defeat happens here (logged, reported to the attack) but the card stays in play while its own When
+ * Defeated abilities resolve, then leaves (`leaveAfterWhenDefeated`), then any overkill spill is dealt. The spill's
+ * amount was fixed by the damage that caused the defeat (`applyDamage`), so it does not depend on where the card is.
+ * A side scheme already worked this way (ruling, Jan 11, 2026 (1); `applySchemeDefeated`). Before 2026-09-25 an ally
+ * or minion was discarded before its When Defeated resolved (docs/phase7-wave3.md §4 Q4).
  */
 function applyDefeat(ctx: Ctx, event: Extract<TriggerEvent, { kind: "characterDefeated" }>): boolean {
   const id = event.instanceId;
@@ -385,14 +421,22 @@ function applyDefeat(ctx: Ctx, event: Extract<TriggerEvent, { kind: "characterDe
   );
   // Victory X sends a defeated character to the victory display instead (docs/phase7-wave3.md §3.4). Otherwise an
   // interrupt's `setDefeatDestination` ("return it to its owner's hand instead of discarding it", Regroup), else a
-  // constant `defeatDestination` rule, replaces the discard (docs/phase7-wave3.md §3.45).
+  // constant `defeatDestination` rule, replaces the discard (docs/phase7-wave3.md §3.45). Read now, at the defeat.
   const destination = event.destination ?? defeatDestinationRule(ctx.state, ctx.deps, id);
-  defeatFromPlay(ctx, id, destination === null ? undefined : () => moveCardsTo(ctx, [id], destination));
+  const leave: EffectSpec = {
+    kind: "discardFromPlay",
+    target: { kind: "self" },
+    defeated: true,
+    ...(destination === null ? {} : { insteadTo: destination }),
+  };
   addFrameVars(ctx, event.parentFrameId, { defeated: 1 });
   if (event.reportFrameId && event.reportFrameId !== event.parentFrameId) {
     addFrameVars(ctx, event.reportFrameId, { defeated: 1 });
   }
-  const frames: StackFrame[] = [...whenDefeated];
+  const frames: StackFrame[] = [
+    ...whenDefeated,
+    leaveAfterWhenDefeated(ctx, id, instance.cardId, leave, controllerOf(ctx.state, id)),
+  ];
   if (event.overkill && !ctx.state.outcome && getInstance(ctx.state, event.overkill.toInstanceId)) {
     emit(ctx, {
       type: "overkillSpilled",
@@ -861,28 +905,15 @@ function applySchemeDefeated(ctx: Ctx, event: Extract<TriggerEvent, { kind: "sch
   const schemeId = event.instanceId;
   const scheme = getInstance(ctx.state, schemeId);
   if (!scheme || !cardsInPlay(ctx.state).includes(schemeId)) return;
-  const effectsFrame: StackFrame = {
-    ...base(ctx),
-    kind: "effects",
-    // "Shuffle it into the encounter deck instead of discarding it." (Time Portal; `defeatedIntoEncounterDeck`, §3.11;
-    // the general `defeatDestination`, docs/phase7-wave3.md §3.45). Unless it flipped into its other face during its
-    // "When Defeated" (Secure the Landing Pad → Cosmo; docs/phase7-wave4.md §3.10).
-    effects: [
-      {
-        kind: "if",
-        condition: { kind: "refMatches", ref: { kind: "self" }, query: { printedId: scheme.cardId } },
-        then: [schemeDefeatDestination(ctx.state, ctx.deps, schemeId)],
-      },
-    ],
-    cursor: 0,
-    bindings: {},
-    vars: {},
-    scopedPlayerId: null,
-    selfInstanceId: schemeId,
-    controllerId: null,
-    event: null,
-    eventFrameId: null,
-  };
+  // "Shuffle it into the encounter deck instead of discarding it." (Time Portal; `defeatedIntoEncounterDeck`, §3.11;
+  // the general `defeatDestination`, docs/phase7-wave3.md §3.45).
+  const effectsFrame = leaveAfterWhenDefeated(
+    ctx,
+    schemeId,
+    scheme.cardId,
+    schemeDefeatDestination(ctx.state, ctx.deps, schemeId),
+    null,
+  );
   pushFrames(ctx, [
     ...gameAbilityFrames(ctx, schemeId, ["whenDefeated"], event, undefined, ctx.state.firstPlayerId),
     effectsFrame,

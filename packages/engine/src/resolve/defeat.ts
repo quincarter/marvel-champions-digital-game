@@ -271,13 +271,20 @@ interface DefeatHint {
   readonly reportFrameId?: FrameId | null;
 }
 
+/**
+ * A defeat of this card is already under way: its event is on the stack, or it has been defeated and is waiting to leave
+ * play after its When Defeated abilities (RRG 1.8 p. 48). A When Defeated that deals damage ("When Defeated: deal 1
+ * damage to the engaged player's identity") sweeps again while the defeated card is still in play at zero remaining hit
+ * points, and it must not be defeated a second time.
+ */
 const defeatPending = (state: GameState, id: InstanceId): boolean =>
   state.stack.some(
     (f) =>
-      f.kind === "event" &&
-      f.event.kind === "characterDefeated" &&
-      f.event.instanceId === id &&
-      (f.stage === "interrupts" || f.stage === "apply"),
+      (f.kind === "event" &&
+        f.event.kind === "characterDefeated" &&
+        f.event.instanceId === id &&
+        (f.stage === "interrupts" || f.stage === "apply")) ||
+      (f.kind === "effects" && f.defeatedLeaving === id),
   );
 
 /**
