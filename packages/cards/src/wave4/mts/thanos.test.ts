@@ -406,7 +406,7 @@ describe("Deviant Syndrome (21121)", () => {
     const villain = villainOf(state);
     const before = inst(state, villain).statuses.tough ?? 0;
     const { state: revealed } = revealTopEncounterCard(state, "21121");
-    expect(inst(revealed, villain).statuses.tough ?? 0).toBeGreaterThan(before);
+    expect(inst(revealed, villain).statuses.tough ?? 0).toBe(before + 1);
   });
 
   it("21121.when-revealed: with Thanos already tough, places 2 threat on the main scheme instead", () => {

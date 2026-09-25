@@ -18,7 +18,7 @@ import {
   selectCards,
   self,
   superlative,
-  takeDamage,
+  dealIndirectDamage,
   varAtLeast,
   whenRevealed,
   you,
@@ -55,7 +55,10 @@ export const STATE_OF_EMERGENCY = defineAbilities({
   "24059.boost": boost(resolveWhenRevealedOf(self)),
 
   // Disaster at the Docks (24056, side scheme; acceleration icon is data) — When Revealed: take 3 indirect damage.
-  "24056.when-revealed": whenRevealed(takeDamage(3)),
+  // Bug fixed (rules-qa-engineer, docs/phase7-wave4-qa.md): was `takeDamage(3)` (forces it onto the identity), not
+  // `dealIndirectDamage` (RRG 1.8 "Indirect Damage", p. 24 — the affected player divides it among characters they
+  // control, the same as this pack's own Corrosive Egg Bomb (24020) and Caught in the Crossfire (24028)).
+  "24056.when-revealed": whenRevealed(dealIndirectDamage(you, 3)),
 
   // Offshore Inferno (24057, side scheme; acceleration icon is data) — When Revealed: discard the lowest-cost card
   // you control.

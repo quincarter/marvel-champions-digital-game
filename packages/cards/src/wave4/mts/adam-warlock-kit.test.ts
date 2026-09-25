@@ -160,14 +160,21 @@ describe("Warlock's Cape (21035) and Mystic Senses (21037)", () => {
       instances: { ...withCards.instances, [identity]: { ...inst(withCards, identity), exhausted: true } },
     };
     const before = playerOf(exhausted, P1).hand.length;
+    const deckBefore = playerOf(exhausted, P1).deck.length;
     const after = settle(
       runWith(WAVE4_DEPS, exhausted, use(P1, identity, "21031a.adam-warlock-constant")),
       accepting("21035.warlocks-cape-response", "21037.mystic-senses-response"),
       undefined,
       WAVE4_DEPS,
     );
+    // Weak-test finding (rules-qa-engineer, docs/phase7-wave4-qa.md): the original assertion
+    // (`toBeGreaterThan(before - 2)`) is satisfied even if *neither* Response actually fired. Warlock's Cape
+    // (21035) readies Adam Warlock; Mystic Senses (21037) draws exactly 1 card, proven by the deck shrinking by
+    // exactly 1 (`before`'s own hand-length snapshot predates Battle Mage's own cost, a Justice card discarded
+    // from hand, which is why the *hand* total nets back to unchanged: -1 cost, +1 draw).
     expect(inst(after, identity).exhausted).toBe(false);
-    expect(playerOf(after, P1).hand.length).toBeGreaterThan(before - 2);
+    expect(playerOf(after, P1).deck.length).toBe(deckBefore - 1);
+    expect(playerOf(after, P1).hand.length).toBe(before);
   });
 });
 

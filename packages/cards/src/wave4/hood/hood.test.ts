@@ -234,7 +234,10 @@ describe("The Hood (villain, main scheme and The Hood's own encounter set)", () 
     const p1Gained = dealt(afterVillainPhase, P1).length - before.p1;
     const p2Gained = dealt(afterVillainPhase, P2).length - before.p2;
     const discardGrowth = afterVillainPhase.encounterDecks[deckId(afterVillainPhase)]!.discard.length;
-    // Every player's own stage-1 Foul Play discards exactly one card (dealt or not) — two players, two discards.
+    // Every player's own stage-1 Foul Play discards exactly one card (dealt or not) — two players, two
+    // discards, at least; a real 2-player villain phase can also deal each player their own per-player
+    // encounter card independently, which is not guaranteed to be distinguishable from this ability's own
+    // discard by this sum alone (confirmed: `toBe(2)` fails at this seed).
     expect(p1Gained + p2Gained + discardGrowth).toBeGreaterThanOrEqual(2);
   });
 
@@ -262,7 +265,7 @@ describe("The Hood (villain, main scheme and The Hood's own encounter set)", () 
   it("24004b.when-revealed: Making Connections' own When Revealed resolves Foul Play for the player at setup", () => {
     const state = game();
     // Stage 1's own Foul Play discards exactly one card at setup, dealt or not.
-    expect(state.encounterDecks[deckId(state)]!.discard.length + dealt(state, P1).length).toBeGreaterThanOrEqual(1);
+    expect(state.encounterDecks[deckId(state)]!.discard.length + dealt(state, P1).length).toBe(1);
   });
 
   it("24005a.when-revealed / 24005b.when-revealed: completing Making Connections flips to Promised Prosperity, shuffling another set-aside set in and resolving Foul Play for the player", () => {

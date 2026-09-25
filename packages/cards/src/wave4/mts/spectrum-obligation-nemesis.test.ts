@@ -84,7 +84,21 @@ describe("Radioactive Blast (21030)", () => {
     const identity = identityOf(hero, P1);
     const before = inst(hero, identity).damage;
     const { state } = revealFromEncounterDeck(hero, "21030");
+    // Loose by design (rules-qa-engineer, docs/phase7-wave4-qa.md): the ordinary villain-phase activation this
+    // same round can independently deal damage too, so the identity's total isn't isolated to this card's own 2.
     expect(inst(state, identity).damage).toBeGreaterThanOrEqual(before + 2);
-    valid("21030.when-revealed-alter-ego");
+  });
+
+  it("21030.when-revealed-alter-ego: places 2 threat on the main scheme", () => {
+    // Weak-test finding (rules-qa-engineer, docs/phase7-wave4-qa.md): the prior version of this test named this
+    // ref in its title but only ran `valid(...)` (a DSL-shape check) against it, never driving it in a real game.
+    const state = spectrumVsRhino(35);
+    const mainSchemeId = state.mainScheme.instanceId;
+    const before = inst(state, mainSchemeId).threat;
+    const { state: revealed } = revealFromEncounterDeck(state, "21030");
+    // Loose by design (rules-qa-engineer, docs/phase7-wave4-qa.md): the ordinary villain-phase activation this
+    // same round can independently place threat too, so the main scheme's total isn't isolated to this card's
+    // own 2.
+    expect(inst(revealed, mainSchemeId).threat).toBeGreaterThanOrEqual(before + 2);
   });
 });

@@ -291,3 +291,290 @@ afterward — the source file is unchanged from before this checkpoint).
 - `npx vitest run src/wave4/mts` (`@mc/cards`): **21 test files, 279 tests, all passed.**
 - `npx vitest run src/campaigns/mts.qa.test.ts src/wave4/mts/tower-defense.test.ts`: 32 tests, all passed
   (re-confirming item A.1/A.2 rather than assuming their prior "landed" status).
+
+## Checkpoint 3: C (toBeGreaterThan/two-ref sweep), D (2-player `mts` games), E (printed-text audit)
+
+Time-boxed given the scale found (121 `toBeGreaterThan`/`toBeLessThan` lines across 36 files, not the ~35/~17
+originally estimated) — went as deep as the budget allowed, flagged everything not individually re-verified rather
+than assumed clean. Full `pnpm cards` suite re-run clean after every change (see counts below).
+
+### C. The `toBeGreaterThan`/`toBeLessThan`/two-ref sweep
+
+**Scale, corrected:** `grep -c "toBeGreaterThan\|toBeLessThan"` across `packages/cards/src/wave4/*/*.test.ts`
+returns **121** hits in 36 files (107 outside the `*-e2e.test.ts` files, which are real multi-round smoke games
+where a loose bound is the right call, not a weak-test smell — `tower-defense.test.ts`'s own docblock states this
+distinction explicitly: "every `.when-revealed`/`.boost` ref is asserted by its exact effect… not a loose
+`toBeGreaterThan`/`<=`/`\|\|`", reserving the loose form for its own §3.3 AI-driven smoke section). Two real fixes
+were made from this sweep, each verified against the actual game mechanics rather than guessed:
+
+1. **`packages/cards/src/wave4/mts/adam-warlock-kit.test.ts`, "21035.warlocks-cape-response,
+   21037.mystic-senses-response"** — named both refs, but the original `toBeGreaterThan(before - 2)` assertion is
+   satisfied even if _neither_ Response fired. **Found live while fixing it:** the two abilities do different
+   things (Warlock's Cape _readies_ Adam Warlock; only Mystic Senses _draws_), and the hand-length snapshot
+   ("before") is taken _before_ Battle Mage's own cost (discarding a Justice card) is paid, so the net hand-size
+   change across the whole `use()` is 0 (−1 cost, +1 draw) even though the draw genuinely fires — an initial "fix"
+   to `toBe(before + 2)`, then `toBe(before + 1)`, both failed against the real trace before this was diagnosed.
+   Tightened to check the _deck_ shrinking by exactly 1 (isolating the draw from the cost) and the identity's
+   `exhausted` flag (isolating the ready) — each keyword's own effect proven independently. Re-ran clean.
+2. Spot-checked roughly 15 more two-ref titles by reading the ability definitions and their tests side by side
+   (not re-run individually beyond the file's own existing suite): `hood-gaps.test.ts` (24039/24040, looped over
+   both codes), `ebony-maw.test.ts` (21083's two constants, checked via `toMatchObject` on the plain ability
+   data — both refs genuinely asserted), `war-machine-pack-cards.test.ts` (23012, both the attach and the
+   play-as-if-from-hand halves exercised), `vision-kit.test.ts` (26003 Vivian, both stat deltas checked exactly).
+   All came out clean — each test does exercise both named refs, just not always the same way (some drive a real
+   game, some assert the compiled `AbilityDefinition` shape directly, which is legitimate for two abilities documented
+   as intentionally identical, e.g. 21072/21073 mirroring 21071 verbatim).
+
+**Not individually re-verified this pass** (flagged, not assumed clean): the remaining ~105 `toBeGreaterThan`/
+`toBeLessThan` lines and ~13 more two-ref titles. A representative sample (`infinity-gauntlet.test.ts`,
+`ebony-maw.test.ts`, `hela.test.ts`, `loki.test.ts`, `thanos.test.ts`) was read for shape rather than executed against
+alternate scripts: most guard against real, AI-driven villain-phase games where more than one activation can land in
+the same round (the exact trap the Avatar of Death fix below hit), so a loose bound there is plausibly the right
+call by the same logic `tower-defense.test.ts` states outright — but "plausibly right by the same pattern" is not
+"independently confirmed," and this file should not be read as having cleared all 105.
+
+### B (continued): Avatar of Death, done properly this checkpoint
+
+(Already reported above under "Findings not tightened, filed instead" and Checkpoint 2 §B — recorded here again only
+to cross-reference: this is the same fix, item B of the coordinator's follow-up.)
+
+### D. A 2-player game for each `mts` scenario
+
+**New file:** `packages/cards/src/wave4/mts/two-player-e2e.test.ts` — table-driven across all five `mts` scenarios
+(Ebony Maw, Thanos, Hela, Loki, Tower Defense), Spectrum + Adam Warlock (both real precons), standard mode, one
+seed, played headlessly to a real outcome with a deterministic replay check (the same shape every existing solo
+`*-e2e.test.ts` file already uses). All five passed on the first run with no debugging needed — `spectrumScenario`'s
+own `extraPlayers` option (already used by `hela.test.ts`'s own 2-player tests) made this straightforward once item
+B's own lesson (activation-order surprises) was already learned the hard way.
+
+### E. Printed-text-vs-script audit: `nebu` (full), `warm`/`valk`/rest-of-`mts`/`hood` (not reached)
+
+**`nebu` (Nebula), full pack, line-by-line against `docs/cards/by_pack/nebu.md`:** identity (22001a/b), full kit
+(22002–22010), obligation (Inferiority Complex, 22027), nemesis set (Gamora minion 22028, Self-Preservation 22029,
+Lethal Weapon 22030, Old Rivals 22031), and every remaining pack card (22011–22026, 22032–22035) — `nebula-kit.ts`,
+`nebula-obligation-nemesis.ts`, `nebula-pack-cards.ts` read in full. All clean: target, "you" vs. "each player",
+may/must, timing word, cost vs. effect, and the "already X" ordering pattern (`22027.obligation`'s "if no upgrade
+was discarded this way" reads a bound var set by the actual `chooseCards`/`moveCards` result, not a guess; Old
+Rivals' errata'd two-part attack is scripted as two independent `enemyAttack`/`friendlyCharacterAttacks` calls with a
+surge fallback exactly matching the printed "if no attack was made this way," cited to ruling Jun 25, 2026 (4) #1
+in the script's own comment). No findings.
+
+**Also spot-checked (not a full audit): the "already X" pattern specifically, across `mts`.** Grepped every wave 4
+pack script for "already" and read the two clearest hits: Mind Stone (21130) and Power Stone (21131) in
+`mts/infinity-gauntlet.ts` — both correctly check `hasStatus(...)` _before_ applying the new status
+(`ifThen(hasStatus(...), <already-true branch>, <apply-status branch>)`), the same ordering Deviant Syndrome (`mts` 21121) already got right per the earlier `docs/phase7-wave3-qa.md`-style audit convention. No findings.
+
+**Not reached this checkpoint** (flagged explicitly, not assumed clean): `warm` (War Machine), `valk` (Valkyrie), the
+rest of `mts` (Thanos/Hela/Ebony Maw/Loki/Tower Defense/Adam Warlock/Spectrum kits, obligations, nemesis sets, and
+every villain/main-scheme/side-scheme text — only spot-checked for the "already X" pattern above, not read in
+full), and `hood` (The Hood's own full kit set) — none of these got the `nebu`-style full line-by-line pass. Given
+each pack is comparably sized to `nebu` (§ "Scale" above: ~1,600 more lines of transcribed printed text across
+`warm`/`valk` alone, `mts`/`hood` considerably larger still), completing this properly is a multi-session effort,
+not a checkpoint extension.
+
+### Test counts, checkpoint 3
+
+- `npx oxlint`/`npx oxfmt --check` on the three touched/new files: clean.
+- `npx tsc --noEmit` for `@mc/cards`: clean.
+- `npx vitest run` (`@mc/cards`, full suite): **205 test files, 2210 tests, all passed** (up from 204/2205 at the
+  start of this checkpoint — 5 new 2-player games, 0 net test-count change from the adam-warlock-kit fix since it
+  tightened an existing test rather than adding one).
+
+### Files touched, checkpoint 3
+
+- `packages/cards/src/wave4/mts/adam-warlock-kit.test.ts` — tightened the Warlock's Cape/Mystic Senses test
+  (item C, finding 1).
+- `packages/cards/src/wave4/mts/two-player-e2e.test.ts` — new: 2-player standard games for all five `mts` scenarios
+  (item D).
+- `docs/phase7-wave4-qa.md` — this section.
+
+### What checkpoint 3 did not do
+
+- The ~105 remaining `toBeGreaterThan`/`toBeLessThan` lines and ~13 two-ref titles — sampled, not individually
+  re-verified.
+- `warm`, `valk`, the rest of `mts`, and `hood` — no full printed-text-vs-script audit (only `nebu` got one; a
+  narrow "already X" spot-check ran across all of `mts`).
+- A 2-player game for The Hood already existed before this pass (`hood/e2e.test.ts`); expert-mode 2-player games for
+  the `mts` scenarios were not added (item D asked for standard specifically).
+
+## Checkpoint 4: pass 3, item 1 — every remaining loose-bound line reviewed
+
+The coordinator's pass 3 asked for the ~105 remaining lines and ~13 titles "every one individually." The actual
+count was 107 lines in 36 files (outside `*-e2e.test.ts`, already excluded per checkpoint 3's own reasoning). Every
+one was read in context; a smaller number were also re-run against a hand-edited exact assertion to empirically
+settle ambiguous cases rather than guess. **Six real fixes, one real gap filled, and two loose bounds newly
+documented in-line** came out of this; the remainder were judged consistent with an already-established, and in a
+few files already self-documented, pattern (a real driven villain phase can compound more than one activation's
+worth of damage/threat/status/draws into the same round, so a delta belonging to one specific card's own text isn't
+always isolatable without much more staging effort than the assertion is worth) — see "Judged consistent, not
+re-executed" below for exactly what that means and doesn't mean.
+
+### Fixes and additions
+
+| #   | File                                                 | What was wrong                                                                                                                                                                                                                       | Fix                                                                                                                                                                                                                                                                                                                                                                                              |
+| --- | ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 1   | `hood/wrecking-crew.test.ts` (24070)                 | `toBeGreaterThanOrEqual(1)` for "gives … a tough status card"                                                                                                                                                                        | Tightened to `toBe(1)`; passed immediately (isolated ability, no compounding).                                                                                                                                                                                                                                                                                                                   |
+| 2   | `hood/hood.test.ts` (24004b)                         | `toBeGreaterThanOrEqual(1)` for a setup-time effect the comment already called "exactly one card"                                                                                                                                    | Tightened to `toBe(1)`; passed immediately.                                                                                                                                                                                                                                                                                                                                                      |
+| 3   | `hood/hood.test.ts` (24011)                          | `toBeGreaterThanOrEqual(2)` for "every player's own stage-1 Foul Play discards exactly one card… two players, two discards"                                                                                                          | Tried `toBe(2)` — **failed** (a real 2-player villain phase also deals each player their own per-player card independently); reverted to the loose form with the failure now recorded in the comment, rather than the unverified "at least" it had before.                                                                                                                                       |
+| 4   | `mts/spectrum-kit.test.ts` (21007, Gamma Blast)      | `toBeGreaterThanOrEqual(before + 7)` for "deals 7 damage"                                                                                                                                                                            | Tightened to exact `toBe(before + 7)`; passed (an isolated `playFromHand`, not a full villain phase).                                                                                                                                                                                                                                                                                            |
+| 5   | `mts/spectrum-kit.test.ts` (Pulsar Shield retaliate) | `toBeGreaterThanOrEqual(before + 1)` for "Retaliate 1"                                                                                                                                                                               | Tightened to exact `toBe(before + 1)`; passed.                                                                                                                                                                                                                                                                                                                                                   |
+| 6   | `mts/thanos.test.ts` (21121, Deviant Syndrome tough) | `toBeGreaterThan(before)` for "gives Thanos a tough status card"                                                                                                                                                                     | Tightened to exact `toBe(before + 1)`; passed.                                                                                                                                                                                                                                                                                                                                                   |
+| 7   | `mts/spectrum-obligation-nemesis.test.ts` (21030)    | Two-ref title ("21030.when-revealed-hero… 21030.when-revealed-alter-ego…") where the alter-ego half was only checked with `valid(...)` (a DSL-shape check), never driven — the exact "fired but never verified" shape the task named | Split into two tests; the alter-ego branch now drives a real reveal and checks the main scheme's threat. Attempted exact deltas for both halves first (`toBe(before + 2)`) — **both failed** (the villain's own ordinary activation the same round can independently deal the identical amount), so both ship as `toBeGreaterThanOrEqual(before + 2)` with the reason recorded in a new comment. |
+| 8   | `hood/sinister-syndicate.test.ts` (24047)            | `toBeLessThan(handBefore)` for "discards 1 card at random" with no reason recorded                                                                                                                                                   | Tried exact `toBe(handBefore - 1)` — **failed**; reverted to the loose form with the reason now recorded.                                                                                                                                                                                                                                                                                        |
+| 9   | `hood/wrecking-crew.test.ts` (24068, Thunderball)    | `toBeGreaterThan(before)` for "deals 1 damage" with no reason recorded                                                                                                                                                               | Tried exact `toBe(before + 1)` — **failed** (Thunderball's own attack this round independently deals more); reverted with the reason now recorded.                                                                                                                                                                                                                                               |
+
+Findings 8 and 9 aren't behavior fixes — the loose bound was already correct — but they close exactly the gap the
+coordinator asked about: before this pass, nothing recorded _why_ the bound was loose, so a future reader (or this
+same audit, next wave) couldn't tell "checked and legitimately unbounded" apart from "nobody looked." Now they can.
+
+### Judged consistent, not re-executed
+
+The remaining ~95 lines were read in their test's own context (not just grep'd in isolation) and judged against the
+same pattern findings 3/8/9 above empirically confirmed: they sit inside a real, driven villain-phase (`endTurn`)
+where a second activation, a per-player deal, or the villain's own ordinary attack/scheme can independently
+contribute the same kind of change the line is checking. Several files already carry their own explicit docblock or
+inline comment saying exactly this (`infinity-gauntlet.test.ts`'s own module docblock is the most thorough — it
+found and documented the identical "`endTurn` resolves an entire round, a treachery can trigger a second activation"
+fact independently, before this pass existed) or reference the specific real content that compounds (`ebony-maw.test.ts`
+`21076`/Fireball; `thanos.test.ts` throughout, per checkpoint 2's own §B). Nothing in this remaining set was found to
+be the "fired but never checked" shape (a keyword or effect that silently does nothing) — every one asserts a real
+direction of change that the printed card's own text does cause, just not always an isolatable exact amount.
+
+**This is a judgment call, not a re-verification of each of the ~95 lines**, stated plainly rather than implied:
+a card whose script has a real bug that happens to move a loose-bound value in the same direction it should — e.g.
+an off-by-one that still leaves a counter `> 0` — would not have been caught by this pass. The three or four lines
+per file that were spot-tested (findings 3, 4–6, 8, 9 above) came back consistent with the "real compounding, not a
+weak test" reading each time, which is the basis for extending that judgment to the rest, not a guarantee.
+
+### Test counts, checkpoint 4
+
+- `npx oxlint`/`npx oxfmt --check` on all six touched files: clean.
+- `npx tsc --noEmit` for `@mc/cards`: clean.
+- `npx vitest run` (`@mc/cards`, full suite): **205 test files, 2211 tests, all passed** (+1 from checkpoint 3's
+  2210 — the new 21030 alter-ego test).
+
+### Files touched, checkpoint 4
+
+- `packages/cards/src/wave4/hood/hood.test.ts`, `hood/sinister-syndicate.test.ts`, `hood/wrecking-crew.test.ts`,
+  `mts/spectrum-kit.test.ts`, `mts/spectrum-obligation-nemesis.test.ts`, `mts/thanos.test.ts` — the fixes above.
+- `docs/phase7-wave4-qa.md` — this section.
+
+## Checkpoint 5: pass 3, item 2 — full printed-text-vs-script audits, `warm` then `valk`
+
+**Both packs read in full, script against `docs/cards/by_pack/{warm,valk}.md`. No findings in either pack.**
+
+### `warm` (War Machine) — clean
+
+`war-machine-kit.ts` (identity 23001a/b, full kit 23002–23011), `war-machine-obligation-nemesis.ts` (Equipment
+Malfunction 23028, Living Laser 23029, Deadly Light Show 23030, Laser Strike 23031), `war-machine-pack-cards.ts`
+(23012–23027, 23032–23035) — every ability read against its printed text for target, "you" vs. "each player",
+may/must, timing word, cost vs. effect, keyword, and the "already X"/"if you cannot" ordering pattern. Nothing
+found: the ammo-counter mechanic's every printed line matches its script exactly (including the two-step "move all
+ammo here to War Machine" reading, documented as intentional in the module's own docblock), Equipment Malfunction's
+"if 2 or fewer were removed" checks the counter count _before_ the removal effect runs, and Laser Strike's boost
+correctly has no surge fallback (only its own When Revealed prints one).
+
+### `valk` (Valkyrie) — clean
+
+`valkyrie-kit.ts` (identity 25001a/b, full kit 25002–25012), `valkyrie-obligation-nemesis.ts` (Trouble in
+Otherworld 25028, Enchantress 25029, Powerful Enchantments 25030, Beguiled 25031, Seduced 25032),
+`valkyrie-pack-cards.ts` (25013–25024, 25033–25036) — same method. Nothing found: the Death-Glow "attached enemy"
+query is shared and correctly scoped everywhere it's read (Valhalla, Valkyrie's Spear, Dragonfang, Flight of the
+Valkyrior, Shieldmaiden, Have at Thee!), Death-Glow's own "ready her" correctly reads `extensionOf` rather than a
+literal identity match (matching §4 Q14's own decided reading), Seduced's "cannot make basic attacks or play attack
+events" is scripted as the two separate restrictions it prints (not just one), and Beguiled's "if you cannot
+[attach]" correctly reads the same `isAttached` predicate the module cites as precedent from `wave1/gob`.
+
+### What this checkpoint did not do
+
+`hood` was not started this checkpoint (see the next checkpoint for whether it was reached, or the coordinator's
+plan to run a separate parallel agent on the rest of `mts` — this pass did not touch `mts` further this checkpoint,
+per the coordinator's own instruction not to duplicate that agent's work).
+
+### Test counts, checkpoint 5
+
+No test files were changed this checkpoint (a read-only audit); the full suite was not re-run since nothing was
+touched. `pnpm check`-equivalent state is unchanged from checkpoint 4's own clean run.
+
+### Files touched, checkpoint 5
+
+- `docs/phase7-wave4-qa.md` — this section only (no code changes; `warm` and `valk` came out clean).
+
+## Checkpoint 6: pass 3 — `hood` (the remaining budget)
+
+Budget remained after `warm`/`valk`, so this checkpoint reads `hood`'s own scripts in full: the central villain/main-
+scheme/encounter-set file (`hood.ts`) and all nine modular sets (`beasty-boys.ts`, `brothers-grimm.ts`,
+`crossfire-crew.ts`, `mister-hyde.ts`, `ransacked-armory.ts`, `sinister-syndicate.ts`, `standard-expert-ii.ts`,
+`state-of-emergency.ts`, `streets-of-mayhem.ts`, `wrecking-crew.ts`) against `docs/cards/by_pack/hood.md`. **Not**
+`mts` — the coordinator is running a separate parallel QA agent on the rest of `mts`; this pass didn't touch it.
+
+### One real bug found and fixed
+
+**Disaster at the Docks (`hood` 24056): "Take 3 indirect damage" was scripted as plain identity damage, not RRG
+1.8's "Indirect Damage."** `state-of-emergency.ts` used `takeDamage(3)` (`dealDamage` straight to the identity),
+not `dealIndirectDamage(you, 3)` — the primitive its own sibling cards in the same pack use for the identical
+printed phrase (Corrosive Egg Bomb, `hood` 24020; Caught in the Crossfire, `hood` 24028). RRG 1.8 "Indirect Damage"
+(p. 24): "Indirect damage dealt to a player can be divided as that player chooses among characters under their
+control" — `takeDamage` forces it onto the identity unconditionally, denying the player the choice to put some or
+all of it on an ally instead. **Fixed** (a one-line swap, in scope for this agent): `state-of-emergency.ts`'s
+`24056.when-revealed` now uses `dealIndirectDamage(you, 3)`. **New regression test**,
+`state-of-emergency.test.ts`: puts Black Cat (Core 01002, the scenario's own default starter's ally) into play,
+reveals 24056, and picks to split the 3 damage 1-to-the-ally/2-to-the-identity via the real `assignIndirectDamage`
+choice — verified to fail against the pre-fix script first (temporarily reverted the fix, re-ran, confirmed the
+test fails because the choice never appears at all; restored the fix, `git diff` clean on the source file
+afterward). The pack's own pre-existing solo test ("takes exactly 3 indirect damage," no ally in play) still passes
+unchanged, since with only the identity to assign to, indirect damage and direct damage look identical.
+
+### One "already X" pattern investigated, not confirmed
+
+**Magic Muscle (`hood` 24070): "If no tough status card was given this way" is scripted as `exists(BRUTE_ENEMY)`
+(whether a Brute enemy exists), not whether `giveTough` actually gave one.** `giveStatus`
+(`packages/engine/src/effects.ts`) is a no-op once a character is already at its tough capacity — no event, no
+state change — so a Brute enemy that's already tough would make `exists(BRUTE_ENEMY)` true (taking the give-tough
+branch) while giving nothing, which by the printed text should still trigger the fallback (discard until a Brute is
+found and reveal it). **Attempted to prove this live and could not get a clean result**: staging a Brute minion
+already toughened and revealing Magic Muscle in a real villain phase, the fallback's own `encounterCardRevealed`
+event _did_ appear — but the same round's own other activations (multiple modular sets folded in for setup reasons,
+per `wrecking-crew.test.ts`'s own `SETS_WITH_WRECKING_CREW` comment) also produce encounter-card-revealed events,
+and isolating which one specifically came from 24070's own fallback rather than an unrelated reveal elsewhere in
+the round needed more staging precision than the time budget allowed. **Not filed as a confirmed finding** — the
+speculative test was written, found ambiguous, and reverted rather than committed with a misleading pass/fail.
+Flagged here as worth a second look with better isolation (a minimal single-modular-set deck, or tracing the
+specific `abilityResolved`/`cardMoved` events adjacent to 24070's own frame) rather than asserted as a bug.
+
+### Everything else — clean
+
+`hood.ts`'s central "Foul Play" building block (invoked by name in nineteen-plus other refs across the pack) reads
+correctly everywhere it's used, including the two counting patterns that need a snapshot rather than a live check
+(Promised Prosperity 24005b's "not dealt at least 1 card," Corruptor 24025's "for each ally exhausted this way,"
+both `setVar`-based, both checked against the actual effect's own result rather than a pre-condition). Every other
+modular set's targets, "you" vs. "each player," may/must, timing words, costs vs. effects, and keyword grants
+matched their printed text. Standard II/Expert II's own two-mode Formidable Foe face-split and Total Annihilation's
+overkill (already regression-pinned per Checkpoint 1's §3.51 fix) were both re-confirmed correct on this read too.
+
+### Test counts, checkpoint 6
+
+- `npx oxlint`/`npx oxfmt --check` on both touched files: clean.
+- `npx tsc --noEmit` for `@mc/cards`: clean.
+- `npx vitest run` (`@mc/cards`, full suite): **205 test files, 2212 tests, all passed** (+1 from checkpoint 5's
+  2211 test count — the new Disaster at the Docks regression test).
+
+### Files touched, checkpoint 6
+
+- `packages/cards/src/wave4/hood/state-of-emergency.ts` — the `takeDamage` → `dealIndirectDamage` fix.
+- `packages/cards/src/wave4/hood/state-of-emergency.test.ts` — new regression test for the fix.
+- `docs/phase7-wave4-qa.md` — this section.
+
+### What this checkpoint did not do / overall pass-3 status
+
+- **Done, all clean or with findings as noted above**: `warm` (checkpoint 5), `valk` (checkpoint 5), `hood`
+  (checkpoint 6, one bug fixed).
+- **Not done, explicitly left for the parallel agent**: the rest of `mts` (Thanos/Hela/Ebony Maw/Loki/Tower
+  Defense/Adam Warlock/Spectrum kits, obligations, nemesis sets, villains/main-schemes/side-schemes) — per the
+  coordinator's own instruction not to duplicate that work.
+- **Not done, time budget**: the Magic Muscle finding above needs a cleaner live repro or a structural (plain-data)
+  check before it can be filed as a real bug; `hood`'s own test files (`hood-gaps.test.ts`,
+  `standard-expert-ii.test.ts`, etc.) were read only where directly relevant to the scripts above, not independently
+  re-audited for weak-test patterns the way the earlier checkpoints did for `mts`/wave-3 packs (pass 3 item 1's own
+  sweep was scoped to the ~107-line list already gathered before `hood` was read this checkpoint, so any
+  `hood`-specific loose bounds not already on that list were not separately re-swept).

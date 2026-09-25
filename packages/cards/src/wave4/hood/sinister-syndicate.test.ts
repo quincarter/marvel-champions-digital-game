@@ -116,6 +116,9 @@ describe("Sinister Syndicate (24043-24048)", () => {
       undefined,
       WAVE4_DEPS,
     );
+    // Loose by design (rules-qa-engineer, docs/phase7-wave4-qa.md): a real villain phase can also draw an
+    // extra encounter card/boost this round, so the hand can shrink by more than White Rabbit's own 1; only a
+    // decrease at all is guaranteed by this card's text alone.
     expect(activated.players[0]!.hand.length).toBeLessThan(handBefore);
   });
 
