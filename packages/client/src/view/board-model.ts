@@ -423,6 +423,13 @@ export interface BoardModel {
   readonly separateDecks: readonly SeparateDeckPile[];
   readonly team: readonly SeatRow[];
   readonly outcome: GameState["outcome"];
+  /**
+   * Loki's own victory count (`ScenarioRules.victoryCondition`, docs/phase7-wave4.md §3.7): "If the number of Lokis
+   * in the victory display is equal to the victory condition, the players win the game" (21165b). Null for every
+   * other scenario — the board had no reader for either field at all before this wave, so a Loki win in progress
+   * showed nothing counting toward it.
+   */
+  readonly victoryCondition: { readonly count: number; readonly target: number } | null;
 }
 
 export interface SeparateDeckPile {
@@ -575,6 +582,10 @@ export function boardModel(state: GameState, perspectiveId: PlayerId, deps: Engi
       .filter((player) => player.playerId !== perspectiveId)
       .map((player) => seatRow(state, player.playerId, deps)),
     outcome: state.outcome,
+    victoryCondition:
+      state.scenarioRules.victoryCondition !== undefined
+        ? { count: state.victoryDisplay.length, target: state.scenarioRules.victoryCondition }
+        : null,
   };
 }
 
@@ -784,7 +795,14 @@ function subtitleOf(state: GameState, instance: CardInstance, card: AnyCard | un
   switch (card.type) {
     case "villain": {
       const villain = villainOf(state, instance.instanceId) ?? activeVillain(state);
-      return `Villain · Stage ${ROMAN[villain.stageIndex] ?? String(villain.stageIndex + 1)}`;
+      // Loki's own victory count (docs/phase7-wave4.md §3.7): defeating one stage only ever advances to another
+      // random set-aside Loki, never wins by itself, so the running count toward ScenarioRules.victoryCondition is
+      // the only sign of progress the villain panel can give.
+      const victory =
+        state.scenarioRules.victoryCondition !== undefined
+          ? ` · Victory ${state.victoryDisplay.length}/${state.scenarioRules.victoryCondition}`
+          : "";
+      return `Villain · Stage ${ROMAN[villain.stageIndex] ?? String(villain.stageIndex + 1)}${victory}`;
     }
     case "hero_identity": {
       const player = state.players.find((seat) => seat.identity.instanceId === instance.instanceId);
