@@ -19,7 +19,7 @@ import { POOL_DEPS } from "../content/pool.js";
 import { LocalEngineHost } from "../engine/local-host.js";
 import { SessionStore } from "../store/session-store.js";
 import { cardName } from "./names.js";
-import { choiceHeaderInstanceId, choiceHeaderText, choiceSourceOf } from "./choice-source.js";
+import { choiceHeaderInstanceId, choiceHeaderText, choiceSourceOf, costCardsPromptTitleOf } from "./choice-source.js";
 
 describe("choiceSourceOf: a real Doctor Strange game", () => {
   test("names Crimson Bands of Cyttorak's own Special, not just 'choose a target' — the reported bug", async () => {
@@ -340,5 +340,18 @@ describe("choiceHeaderText", () => {
       prompt: { kind: "mulligan", handSize: 5 },
     };
     expect(choiceHeaderText(state, choice, POOL_DEPS, "Mulligan")).toBe("Mulligan");
+  });
+});
+
+describe("costCardsPromptTitleOf", () => {
+  test("one verb per InPlayCostMode (docs/phase7-wave4.md §3.17)", () => {
+    expect(costCardsPromptTitleOf("exhaust")).toBe("Choose a card to exhaust");
+    expect(costCardsPromptTitleOf("return")).toBe("Choose a card to return to hand");
+    expect(costCardsPromptTitleOf("discard")).toBe("Choose a card to discard");
+  });
+
+  test("falls back to a generic phrase for an unrecognized or missing mode", () => {
+    expect(costCardsPromptTitleOf(undefined)).toBe("Choose a card for this cost");
+    expect(costCardsPromptTitleOf("nope")).toBe("Choose a card for this cost");
   });
 });
