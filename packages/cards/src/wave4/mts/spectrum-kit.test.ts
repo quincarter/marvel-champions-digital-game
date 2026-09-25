@@ -1,4 +1,4 @@
-import { activeVillain, characterProfile, generatedResources, type GameState } from "@mc/engine";
+import { activeVillain, characterProfile, generatedResources, type GameState, type InstanceId } from "@mc/engine";
 import { describe, expect, it } from "vitest";
 import {
   endTurn,
@@ -9,6 +9,7 @@ import {
   P1,
   playerOf,
   runWith,
+  moveToHand,
   settle,
   toHero,
   type Picker,
@@ -159,5 +160,32 @@ describe("Energy Duplication (upgrade, 21006)", () => {
       },
     };
     expect(generatedResources(facedown, generates, null, from).physical).toBe(0);
+  });
+});
+
+describe("Pulsar Shield (event, 21009)", () => {
+  it("21009.pulsar-shield-interrupt: already in Pulsar, Spectrum defends, readies, and retaliates against the attacker", () => {
+    const state = spectrumVsRhino(5);
+    const pulsar = instancesOf(state, "21004")[0]!;
+    const hero = settle(runWith(WAVE4_DEPS, state, toHero()), accepting(pulsar), undefined, WAVE4_DEPS);
+    expect(inst(hero, pulsar).faceup).toBe(true);
+    const given = moveToHand(hero, P1, "21009");
+    const [shield] = given.ids as [InstanceId];
+    const identity = identityOf(given.state, P1);
+    const villain = activeVillain(given.state).instanceId;
+    const before = inst(given.state, villain).damage;
+    const pick: Picker = (s) => {
+      const choice = s.pendingChoice;
+      if (!choice) return [];
+      if (choice.prompt.kind === "declareDefender") return [identity];
+      if (choice.prompt.kind === "payForCard")
+        return [choice.options.find((o) => o.optionId.startsWith("hand:"))!.optionId];
+      const hits = choice.options.filter((o) => o.optionId.endsWith("21009.pulsar-shield-interrupt"));
+      return hits.length > 0 ? [hits[0]!.optionId] : firstLegal(s);
+    };
+    const attacked = settle(runWith(WAVE4_DEPS, given.state, endTurn()), pick, undefined, WAVE4_DEPS);
+    expect(playerOf(attacked, P1).discard).toContain(shield);
+    // Retaliate 1 dealt to Rhino when he attacked Spectrum.
+    expect(inst(attacked, villain).damage).toBeGreaterThanOrEqual(before + 1);
   });
 });

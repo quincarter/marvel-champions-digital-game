@@ -1,4 +1,4 @@
-import type { Trait } from "@mc/content";
+import type { KeywordInstance, Trait } from "@mc/content";
 import type { EventPattern, RuleSpec } from "./abilities.js";
 import type { FrameId, InstanceId, PlayerId } from "./ids.js";
 import type { EffectSpec, StatName, TargetQuery, ValueSpec } from "./spec.js";
@@ -96,6 +96,8 @@ export type LastingEffectBody =
     })
   /** "Gain the [trait] trait until the end of the phase". */
   | (LastingReach & { readonly kind: "traitGrant"; readonly trait: Trait; readonly scope: LastingScope })
+  /** "She gains retaliate 1 until the end of the phase" (docs/phase7-wave4.md §3.39). */
+  | (LastingReach & { readonly kind: "keywordGrant"; readonly keyword: KeywordInstance; readonly scope: LastingScope })
   /** "Treat this card's printed text box as if it were blank" (`textBoxBlank`). */
   | { readonly kind: "blankTextBox"; readonly targets: readonly InstanceId[] }
   /** A delayed effect ("At the end of the round, …"): fires when its duration ends. */

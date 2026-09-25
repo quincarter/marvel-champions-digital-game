@@ -17,7 +17,7 @@ import type {
   TargetQuery,
   TargetRef,
 } from "@mc/engine";
-import type { Trait } from "@mc/content";
+import type { KeywordInstance, Trait } from "@mc/content";
 import {
   amount,
   chosen,
@@ -587,6 +587,16 @@ export const modifyStatOf = (
   stat,
   amount: amount(n),
   affects,
+  until,
+});
+/**
+ * "She gains retaliate 1 until the end of the phase." (Pulsar Shield, `mts` 21009; Cuts Both Ways, `cw` 56050):
+ * `gainKeywordUntil({ name: "retaliate", value: 1 }, yourIdentity, "endOfPhase")`. docs/phase7-wave4.md §3.39.
+ */
+export const gainKeywordUntil = (keyword: KeywordInstance, target: TargetRef, until: LastingUntil): EffectSpec => ({
+  kind: "grantKeywordUntil",
+  keyword,
+  target,
   until,
 });
 export const gainTraitUntil = (t: Trait, target: TargetRef, until: LastingUntil): EffectSpec => ({

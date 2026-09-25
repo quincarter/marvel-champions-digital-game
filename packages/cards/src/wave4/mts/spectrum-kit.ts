@@ -31,6 +31,9 @@ import {
   heroResource,
   printedResourcesOf,
   exhaustThis,
+  heroInterrupt,
+  gainKeywordUntil,
+  ready,
 } from "../../dsl/index.js";
 
 const FACEDOWN_ENERGY_FORM = query("upgrade", { ...printedForm("energy"), facedown: true, controller: "you" });
@@ -44,11 +47,7 @@ const YOUR_ENERGY_FORMS = query("upgrade", { ...printedForm("energy"), controlle
  *
  * **Energy Duplication (21006)** generates `printedResourcesOf` the faceup energy form (docs/phase7-wave4.md §3.38).
  *
- * **Pulsar Shield's (21009) retaliate grant is a primitive gap.** The change-to-Pulsar-and-ready half is scriptable,
- * but "she gains retaliate 1 until the end of the phase" is a one-shot lasting *keyword* grant from a triggered
- * ability, and only `modifyStatUntil`/`grantTraitUntil` exist as lasting effects (`packages/engine/src/spec.ts`) —
- * there is no `grantKeywordUntil`. Since the whole card is one ability ref, it is skipped whole rather than half-
- * scripted.
+ * **Pulsar Shield's (21009) retaliate grant** is `gainKeywordUntil` (docs/phase7-wave4.md §3.39).
  */
 export const SPECTRUM_KIT = defineAbilities({
   // Spectrum (hero, 21001a) — Energy Transformation, Forced Response: After you change to this form, choose a
@@ -131,7 +130,22 @@ export const SPECTRUM_KIT = defineAbilities({
     ),
   ),
 
-  // Pulsar Shield (21009): see module docblock — KNOWN_SKIPPED.
+  // Pulsar Shield (21009) — Hero Interrupt (defense): When Spectrum defends, change to Pulsar energy form and ready
+  // Spectrum. If you were already in Pulsar energy form, she gains retaliate 1 until the end of the phase (a lasting
+  // keyword grant, docs/phase7-wave4.md §3.39). "Already" is read before the change, as Gamma Blast does.
+  "21009.pulsar-shield-interrupt": heroInterrupt(
+    on.defends(YOUR_IDENTITY),
+    { label: "defense" },
+    ifThen(
+      inAdditionalForm("energy", "Pulsar"),
+      [
+        changeAdditionalForm("energy", { toName: "Pulsar" }),
+        ready(yourIdentity),
+        gainKeywordUntil({ name: "retaliate", value: 1 }, yourIdentity, "endOfPhase"),
+      ],
+      [changeAdditionalForm("energy", { toName: "Pulsar" }), ready(yourIdentity)],
+    ),
+  ),
 
   // Speed of Light (21010) — Hero Action: Change energy forms and draw 1 card.
   // Speed of Light (21010) — Hero Action: Change energy forms and draw 1 card. Same ambiguity as Blue Marvel above:
