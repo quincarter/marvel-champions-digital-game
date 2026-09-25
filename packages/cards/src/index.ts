@@ -42,5 +42,6 @@ export {
   CAMPAIGNS,
   campaignDefinitionOf,
   GMW_CAMPAIGN_DEFINITION,
+  MTS_CAMPAIGN_DEFINITION,
   TRORS_CAMPAIGN_DEFINITION,
 } from "./campaigns/index.js";

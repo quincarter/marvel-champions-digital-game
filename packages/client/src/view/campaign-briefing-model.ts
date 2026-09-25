@@ -8,6 +8,7 @@
 import type { CardId } from "@mc/content";
 import type { CampaignAttempt, CampaignDefinition, CampaignStepTrace, LogValue } from "@mc/engine";
 import type { CampaignRecord } from "../engine/campaign-storage.js";
+import { campaignBriefingPool, type BriefingPoolView, type CardMetaOf } from "./campaign-pool-model.js";
 import { campaignStepRows, type CampaignStepRow } from "./campaign-step-model.js";
 
 export type CardNameOf = (id: CardId) => string;
@@ -35,6 +36,8 @@ export interface BriefingView {
   readonly issueNumber: number;
   readonly handled: readonly HandledRow[];
   readonly decks: readonly DeckRow[];
+  /** Null for a box with no campaign pool, or an issue whose own setup reads none of it back (issue #1). */
+  readonly pool: BriefingPoolView | null;
 }
 
 const ASPECT_ABBREVIATION: Readonly<Record<string, string>> = {
@@ -269,18 +272,26 @@ export function deckRowsOf(record: CampaignRecord, cardName: CardNameOf): readon
   });
 }
 
-/** Both halves of the Briefing's real data, from a record whose issue is already composed (`record.attempt` set). */
+/**
+ * Both halves of the Briefing's real data, from a record whose issue is already composed (`record.attempt` set).
+ * `cardTypeOf` feeds the pool panel's helps/hurts classification (`campaign-pool-model.ts`); omit it on a box with
+ * no pool, or where a card lookup isn't handy yet — a pool card just reads "helps" by default (its own doc comment).
+ */
 export function briefingViewOf(
   record: CampaignRecord,
   cardName: CardNameOf,
   issueNumber: number,
   definition?: CampaignDefinition,
   nodeIds: readonly string[] = [],
+  cardTypeOf?: CardMetaOf,
 ): BriefingView | null {
   if (!record.attempt) return null;
+  const node = definition?.graph.nodes.find((candidate) => candidate.id === record.attempt!.nodeId);
+  const isFinale = definition ? nodeIds[nodeIds.length - 1] === record.attempt.nodeId : false;
   return {
     issueNumber,
     handled: handledRowsOf(record.attempt, record, cardName, definition, nodeIds),
+    pool: definition && node ? campaignBriefingPool(record, definition, node, cardTypeOf, isFinale) : null,
     decks: deckRowsOf(record, cardName),
   };
 }

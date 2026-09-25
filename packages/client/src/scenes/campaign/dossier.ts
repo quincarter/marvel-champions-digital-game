@@ -22,7 +22,7 @@ import {
   speechBubble,
   villainPicture,
 } from "../../ui/campaign-chrome.js";
-import { McButton, McTabs } from "../../ui/widgets.js";
+import { dashedRect, McButton, McTabs } from "../../ui/widgets.js";
 import { McScrollRegion } from "../../ui/scroll-region.js";
 import { destroyChildren } from "../../ui/destroy-children.js";
 import { fadeScreenIn, goToScreen } from "../../ui/transitions.js";
@@ -37,6 +37,7 @@ import {
   type DossierWalletSeat,
 } from "../../view/campaign-dossier-model.js";
 import { campaignRunModel, type RunIssueRow } from "../../view/campaign-run-model.js";
+import type { CampaignPoolOverview, PoolStillInPlayRow } from "../../view/campaign-pool-model.js";
 import type { Rect } from "../../view/layout.js";
 import { VariableListScroll } from "../../view/variable-list-scroll.js";
 import { FocusRoute, type FocusStop } from "../focus-route.js";
@@ -45,6 +46,16 @@ import type { CampaignDossierData, DossierTab } from "./routes.js";
 
 const cardName = (id: string): string => CARDS_BY_ID.get(id)?.name ?? id;
 const cardOf = (id: string): AnyCard | undefined => CARDS_BY_ID.get(id);
+/**
+ * A pool card's own type, resolved by name (`campaign-pool-model.ts`'s own doc comment: a pool field names a card,
+ * never an id, since a carried-forward card has no id of its own until it's composed into a game). A card whose
+ * pack isn't in this build's pool yet (`content/pool.ts`) simply isn't found — `helpsOf`'s own documented default
+ * ("helps") applies, so a box lands correctly the moment its pack is wired in, with no change needed here.
+ */
+const cardTypeOf = (name: string): { readonly type: string } | undefined => {
+  for (const card of CARDS_BY_ID.values()) if (card.name === name) return { type: card.type };
+  return undefined;
+};
 const heroNameOf = (identityCardId: string): string => {
   const card = cardOf(identityCardId);
   return card && card.type === "hero_identity" ? card.hero.faceName : identityCardId;
@@ -124,7 +135,7 @@ export class CampaignDossierScene extends Phaser.Scene {
     this.#record = record;
     this.#definition = definition;
     const withMeta = { ...record, name: record.name, box: record.box };
-    const overview = campaignDossierOverview(withMeta, definition, heroNameOf, cardName);
+    const overview = campaignDossierOverview(withMeta, definition, heroNameOf, cardName, cardTypeOf);
     const log = campaignDossierLog(record, definition, cardName, heroNameOf);
     const run = campaignRunModel(withMeta, definition, storyFor(record.campaignId as string), cardName);
     // "After issue #N" names the *last finished* issue, not the current/next one `run.issueNumber` tracks — the
@@ -288,11 +299,13 @@ export class CampaignDossierScene extends Phaser.Scene {
     const leftX = pad;
     let leftY = body.y + pad;
 
-    // A box with a Wallets-shaped currency field (MC16) shows the wallet panel where MC10 shows seat art cards —
-    // there is no room, and no printed-sheet column, for both. A box with neither (nothing detected) falls back
-    // to the seat art cards MC10 has always shown, unchanged.
+    // A box with a Wallets-shaped currency field (MC16) or a campaign pool (MC21) shows that panel where MC10 shows
+    // seat art cards — there is no room, and no printed-sheet column, for both. A box with none of these detected
+    // falls back to the seat art cards MC10 has always shown, unchanged.
     if (loaded.overview.wallets) {
       leftY = this.#walletsPanel(loaded.overview.wallets, { x: leftX, y: leftY, width: leftWidth, height: 0 }) + 24;
+    } else if (loaded.overview.pool) {
+      leftY = this.#poolPanel(loaded.overview.pool, { x: leftX, y: leftY, width: leftWidth, height: 0 }) + 24;
     } else {
       const cardWidth = frame.phone ? leftWidth : Math.min(456, leftWidth);
       const gap = 24;
@@ -326,7 +339,16 @@ export class CampaignDossierScene extends Phaser.Scene {
     }
 
     const worldX = frame.phone ? pad : frame.width - pad - worldWidth;
-    const worldY = frame.phone ? leftY + 16 : body.y + pad;
+    let worldY = frame.phone ? leftY + 16 : body.y + pad;
+    if (loaded.overview.pool && loaded.overview.pool.stillInPlayFor.length > 0) {
+      worldY = this.#stillInPlayForPanel(loaded.overview.pool.stillInPlayFor, {
+        x: worldX,
+        y: worldY,
+        width: worldWidth,
+        height: 0,
+      });
+      worldY += 16;
+    }
     if (loaded.overview.world.length > 0) {
       let wy = ruleHeading(this, worldX, worldY, worldWidth, "The world");
       const box = this.add.graphics();
@@ -452,6 +474,149 @@ export class CampaignDossierScene extends Phaser.Scene {
     const height = y - rect.y + inset;
     this.add.graphics().lineStyle(2, surface.ink.hex, 1).strokeRect(rect.x, rect.y, rect.width, height);
     return height;
+  }
+
+  /**
+   * The Campaign Pool (design tiles 23/25): a header card with the ON YOUR SIDE / AGAINST YOU counts, then one row
+   * per resolved card with its own colored stripe and badge — or, before anything has been won, the dashed empty
+   * state listing every slot the pool can ever hold (`23-…-dossier-pool.png` / `25-…-dossier-empty-pool.png`).
+   */
+  #poolPanel(pool: CampaignPoolOverview, rect: Rect): number {
+    let y = rect.y;
+    const headerHeight = 74;
+    const header = this.add.graphics();
+    header.fillStyle(0xe4dcc6, 1).fillRect(rect.x, y, rect.width, headerHeight);
+    header.lineStyle(2, surface.ink.hex, 1).strokeRect(rect.x, y, rect.width, headerHeight);
+    this.add.text(rect.x + 12, y + 8, "THE CAMPAIGN POOL", textStyle(bangers(20), surface.ink.hex));
+    this.add
+      .text(
+        rect.x + 12,
+        y + 32,
+        pool.filledSlots === 0
+          ? "Empty. Cards you win or let slip land here and come back at setup."
+          : "Everything you carried out of an issue, good or bad. It all comes back at setup.",
+        { ...textStyle(typeRole.body, surface.ink.hex, 0.7), fontSize: "11px" },
+      )
+      .setWordWrapWidth(rect.width - 24);
+    const badgeY = y + headerHeight - 24;
+    if (pool.filledSlots === 0) {
+      const badgeRect: Rect = { x: rect.x + 12, y: badgeY, width: 130, height: 20 };
+      const badge = this.add.graphics();
+      badge.fillStyle(surface.ink.hex, 1).fillRect(badgeRect.x, badgeRect.y, badgeRect.width, badgeRect.height);
+      this.add
+        .text(badgeRect.x + badgeRect.width / 2, badgeRect.y + badgeRect.height / 2, `0 OF ${pool.totalSlots} CARDS`, {
+          ...textStyle(typeRole.label, surface.paper.hex, 1),
+          fontSize: "10px",
+          fontStyle: "700",
+        })
+        .setOrigin(0.5);
+    } else {
+      let bx = rect.x + 12;
+      const badges: readonly [string, number][] = [
+        [`${pool.helpsCount} ON YOUR SIDE`, signal.heal.hex],
+        [`${pool.hurtsCount} AGAINST YOU`, accent.heroRed.hex],
+      ];
+      for (const [text, color] of badges) {
+        const badgeWidth = 12 + text.length * 7;
+        const badge = this.add.graphics();
+        badge.fillStyle(color, 1).fillRect(bx, badgeY, badgeWidth, 20);
+        this.add
+          .text(bx + badgeWidth / 2, badgeY + 10, text, {
+            ...textStyle(typeRole.label, surface.paper.hex, 1),
+            fontSize: "10px",
+            fontStyle: "700",
+          })
+          .setOrigin(0.5);
+        bx += badgeWidth + 8;
+      }
+    }
+    y += headerHeight + 16;
+
+    if (pool.filledSlots === 0) {
+      for (const slot of pool.emptySlots) {
+        const rowHeight = 58;
+        dashedRect(this.add.graphics(), { x: rect.x, y, width: rect.width, height: rowHeight }, 2);
+        this.add.text(rect.x + 12, y + 10, slot.name.toUpperCase(), textStyle(bangers(14), surface.ink.hex, 0.6));
+        this.add
+          .text(rect.x + 12, y + 30, slot.note ?? "", {
+            ...textStyle(typeRole.body, surface.ink.hex, 0.45),
+            fontSize: "10px",
+          })
+          .setWordWrapWidth(rect.width - 24);
+        y += rowHeight + 10;
+      }
+      return y - 10;
+    }
+
+    for (const card of pool.cards) {
+      const rowHeight = 62;
+      const stripeColor = card.helps ? signal.heal.hex : accent.heroRed.hex;
+      const box = this.add.graphics();
+      box.fillStyle(surface.card.hex, 1).fillRect(rect.x, y, rect.width, rowHeight);
+      box.lineStyle(2, surface.ink.hex, 1).strokeRect(rect.x, y, rect.width, rowHeight);
+      box.fillStyle(stripeColor, 1).fillRect(rect.x, y, 6, rowHeight);
+      this.add.text(rect.x + 16, y + 8, card.name.toUpperCase(), textStyle(bangers(15), surface.ink.hex));
+      this.add
+        .text(rect.x + 16, y + 28, card.destination, textStyle(typeRole.body, surface.ink.hex, 0.75))
+        .setFontSize(11)
+        .setWordWrapWidth(rect.width - 190);
+      this.add
+        .text(rect.x + 16, y + 46, card.source, { ...textStyle(typeRole.body, surface.ink.hex, 0.5), fontSize: "9px" })
+        .setWordWrapWidth(rect.width - 190);
+      const badgeText = card.helps ? "ON YOUR SIDE" : "AGAINST YOU";
+      const badgeWidth = 110;
+      const badgeRect: Rect = { x: rect.x + rect.width - badgeWidth - 10, y: y + 8, width: badgeWidth, height: 18 };
+      const badge = this.add.graphics();
+      badge.fillStyle(stripeColor, 1).fillRect(badgeRect.x, badgeRect.y, badgeRect.width, badgeRect.height);
+      this.add
+        .text(badgeRect.x + badgeWidth / 2, badgeRect.y + badgeRect.height / 2, badgeText, {
+          ...textStyle(typeRole.label, surface.paper.hex, 1),
+          fontSize: "9px",
+          fontStyle: "700",
+        })
+        .setOrigin(0.5);
+      y += rowHeight + 10;
+    }
+    return y - 10;
+  }
+
+  /** "Still in play for" (design tile 23): every not-yet-resolved pool slot, with the citation of the printed bullet that can still fill it. */
+  #stillInPlayForPanel(rows: readonly PoolStillInPlayRow[], rect: Rect): number {
+    let y = ruleHeading(this, rect.x, rect.y, rect.width, "Still in play for");
+    const box = this.add.graphics();
+    const boxTop = y;
+    for (const row of rows) {
+      this.add.text(rect.x + 10, y + 8, "?", { ...textStyle(bangers(16), surface.ink.hex, 0.45) });
+      this.add
+        .text(rect.x + 28, y + 6, row.name, textStyle(typeRole.emphasis, surface.ink.hex))
+        .setFontSize(12)
+        .setWordWrapWidth(rect.width - 110);
+      this.add
+        .text(rect.x + rect.width - 8, y + 6, row.citation, {
+          ...textStyle(typeRole.label, surface.ink.hex, 0.4),
+          fontSize: "9px",
+        })
+        .setOrigin(1, 0);
+      const note = this.add
+        .text(rect.x + 28, y + 22, row.note, { ...textStyle(typeRole.body, surface.ink.hex, 0.55), fontSize: "10px" })
+        .setWordWrapWidth(rect.width - 40);
+      const rowHeight = Math.max(48, note.y + note.height - y + 10);
+      y += rowHeight;
+      this.add.rectangle(rect.x, y, rect.width, 1, surface.ink.hex, 0.15).setOrigin(0, 0.5);
+    }
+    box.lineStyle(2, surface.ink.hex, 1).strokeRect(rect.x, boxTop, rect.width, y - boxTop);
+    const caption = this.add
+      .text(
+        rect.x,
+        y + 8,
+        "Green stripe helps you, red stripe hurts you. Each card says where it lands, so the briefing never has to explain it again.",
+        {
+          ...textStyle(typeRole.body, surface.ink.hex, 0.55),
+          fontSize: "11px",
+        },
+      )
+      .setWordWrapWidth(rect.width);
+    return caption.y + caption.height;
   }
 
   /** The Bounty Ladder (design tile 19): a dark header bar, then one row per rung with an ACTIVE/NOT YET badge. */

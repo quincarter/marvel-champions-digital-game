@@ -21,6 +21,12 @@ import type {
   Predicate,
 } from "@mc/engine";
 import { issueNumberOf, issueStoryFor, type CampaignStory } from "../campaign/story.js";
+import {
+  campaignDossierPool,
+  poolFieldsOf,
+  type CardMetaOf,
+  type CampaignPoolOverview,
+} from "./campaign-pool-model.js";
 import { campaignLogSheet, renderLogValue, type CardNameOf } from "./campaign-log-model.js";
 import type { RunIssueRow } from "./campaign-run-model.js";
 import {
@@ -165,6 +171,8 @@ export interface DossierOverview {
   /** Null for a campaign whose definition never spends a perSeat currency field on a card list (MC10). */
   readonly wallets: readonly DossierWalletSeat[] | null;
   readonly bountyLadder: DossierBountyLadder | null;
+  /** Null for a campaign with no pool-shaped log fields at all (`campaign-pool-model.ts`'s `poolFieldsOf`). */
+  readonly pool: CampaignPoolOverview | null;
 }
 
 /** The printed sheet's own per-seat columns this screen surfaces, matching MC10 p. 20's log sheet layout. */
@@ -232,6 +240,17 @@ const WORLD_FIELD_PRESENTATION: Readonly<Record<string, FieldPresentation | { re
   },
   galacticArtifacts: { hidden: true },
   kreeSupremacyRevealed: { hidden: true },
+  // MC21 p. 7/p. 13/p. 17/p. 21's bridging fields (modeling choice 2, `mts.ts`'s own doc comment): read by an
+  // instruction within one scenario, printed nowhere on the log sheet — mirroring `trors.ts`'s own four above. The
+  // pool flags themselves (`cosmoInPool`, etc.) never reach here at all: `campaignDossierOverview` drops every
+  // field `poolFieldsOf` recognizes before this map is even consulted, so a pool card is never shown twice.
+  secureLandingPadInPlay: { hidden: true },
+  saveShawarmaPlaceInPlay: { hidden: true },
+  blackSwanDefeated: { hidden: true },
+  defensiveProtocolsDefeated: { hidden: true },
+  findNornStonesInPlay: { hidden: true },
+  infinityStones1BCompleted: { hidden: true },
+  avengersTowerDamaged: { hidden: true },
 };
 
 /**
@@ -250,8 +269,10 @@ export function campaignDossierOverview(
   definition: CampaignDefinition,
   heroNameOf: (identityCardId: string) => string,
   cardName: CardNameOf = (id) => id as string,
+  cardTypeOf?: CardMetaOf,
 ): DossierOverview {
   const sheet = campaignLogSheet(definition, record, cardName);
+  const poolFieldIds = new Set(poolFieldsOf(definition).map((field) => field.fieldId));
   // `campaignLogSheet` already drops a field whose `whenModes` doesn't match this log's modes (an Expert Campaign
   // field on a Standard run) — `sheet.*.fields` simply doesn't carry it. This screen must not resurrect it by
   // falling back to `OVERVIEW_SEAT_FIELD_IDS`' own label when the lookup misses: a field this run never tracks is
@@ -281,6 +302,7 @@ export function campaignDossierOverview(
 
   const world: DossierWorldRow[] = sheet.shared
     .filter((field) => field.rendered !== HIDDEN_PLACEHOLDER)
+    .filter((field) => !poolFieldIds.has(field.id))
     .filter(
       (field) => WORLD_FIELD_PRESENTATION[field.id] === undefined || !("hidden" in WORLD_FIELD_PRESENTATION[field.id]!),
     )
@@ -300,6 +322,7 @@ export function campaignDossierOverview(
     world,
     wallets: dossierWallets(record, definition, heroNameOf, cardName),
     bountyLadder: campaignDossierBountyLadder(record, definition, cardName),
+    pool: campaignDossierPool(record, definition, cardTypeOf),
   };
 }
 
