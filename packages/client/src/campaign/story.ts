@@ -99,6 +99,14 @@ export interface ComicBeat {
   readonly caption?: string;
   readonly lines: readonly StoryLine[];
   readonly sfx?: string;
+  /**
+   * Which end of the overflowing axis a spotlight (unlettered) reader's within-beat pan starts at, when this
+   * panel doesn't fit the page's own cover-fit crop (`view/comic-pan.ts`; `ui/comic-reader.ts`'s `drawSpotlightPan`
+   * — a dense MTS spread whose panel is proportioned nothing like the reading area). Omit to default to the panel's
+   * own top/left; ignored entirely once the panel fits (the ordinary case) or on a lettered page (which pans
+   * panel-to-panel over the player's own advance instead).
+   */
+  readonly pan?: "down" | "up" | "left" | "right";
 }
 
 /**

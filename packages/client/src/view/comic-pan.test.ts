@@ -1,0 +1,167 @@
+import { describe, expect, it } from "vitest";
+import { storyFor } from "../campaign/story.js";
+import { containFit, panCropAt, panelFitsInPageCrop, planPan } from "./comic-pan.js";
+
+describe("panelFitsInPageCrop", () => {
+  it("is true for a panel narrower/shorter than the page's own cover-fit crop window", () => {
+    // 1500x1500 page cover-fit into a 1440x718 desktop reading area (the wide/short strip that caused the bug):
+    // scale = max(1440/1500, 718/1500) = 0.96, crop window 1500x747.9.
+    expect(
+      panelFitsInPageCrop(
+        { x: 0, y: 355, w: 1500, h: 400 },
+        { width: 1500, height: 1500 },
+        { width: 1440, height: 718 },
+      ),
+    ).toBe(true);
+  });
+
+  it("is false for MTS p1 beat 1 (h 820) against the same desktop reading area — the actual crop bug", () => {
+    expect(
+      panelFitsInPageCrop({ x: 0, y: 0, w: 1500, h: 820 }, { width: 1500, height: 1500 }, { width: 1440, height: 718 }),
+    ).toBe(false);
+  });
+
+  it("is true for a panel spanning the whole page even when the page's own cover-fit crop is smaller than the page — GMW's own full-bleed background panels", () => {
+    // 01-badoon beat 0 (`stories/gmw.ts`): the full-bleed starfield behind the bordered insets, panel === page.
+    // At the desktop reading area, the page's own cover-fit crop is only 747.9px tall against a 1500px-tall page —
+    // smaller than the panel on that axis — but this must still read as "fits," or every GMW full-bleed background
+    // panel would wrongly pan across empty sky instead of holding its usual plain centered crop.
+    expect(
+      panelFitsInPageCrop(
+        { x: 0, y: 0, w: 1500, h: 1500 },
+        { width: 1500, height: 1500 },
+        { width: 1440, height: 718 },
+      ),
+    ).toBe(true);
+  });
+});
+
+describe("planPan", () => {
+  it("covers the target exactly on the binding axis with no overflow when the panel's own aspect matches", () => {
+    const plan = planPan({ x: 0, y: 0, w: 1000, h: 500 }, { width: 800, height: 400 });
+    expect(plan.axis).toBe("none");
+    expect(plan.cropWidth).toBeCloseTo(1000, 0);
+    expect(plan.cropHeight).toBeCloseTo(500, 0);
+  });
+
+  it("pans vertically, starting at the panel's own top by default, when width binds and height overflows", () => {
+    // MTS p1 beat 0 at the desktop reading area: width binds (scale 0.96), height overflows by ~72px.
+    const panel = { x: 0, y: 0, w: 1500, h: 820 };
+    const plan = planPan(panel, { width: 1440, height: 718 });
+    expect(plan.axis).toBe("y");
+    expect(plan.from).toBe(0);
+    expect(plan.to).toBeGreaterThan(0);
+    expect(plan.to).toBeCloseTo(panel.h - plan.cropHeight, 1);
+
+    const atStart = panCropAt(panel, plan, 0);
+    const atEnd = panCropAt(panel, plan, 1);
+    // The pan's own start frame includes the panel's very top edge (the head on the throne) — the bug this fixes.
+    expect(atStart.cropY).toBe(panel.y);
+    // The end frame's own crop bottom reaches the panel's bottom edge (the throne's base).
+    expect(atEnd.cropY + atEnd.cropHeight).toBeCloseTo(panel.y + panel.h, 1);
+  });
+
+  it("honors an explicit reverse direction that matches the overflowing axis", () => {
+    const panel = { x: 0, y: 0, w: 1500, h: 820 };
+    const plan = planPan(panel, { width: 1440, height: 718 }, "up");
+    expect(plan.from).toBeGreaterThan(plan.to);
+    expect(plan.to).toBe(0);
+  });
+
+  it("falls back to the axis's own top/left start when the requested direction doesn't match the overflowing axis", () => {
+    const panel = { x: 0, y: 0, w: 1500, h: 820 };
+    const plan = planPan(panel, { width: 1440, height: 718 }, "left");
+    expect(plan.axis).toBe("y");
+    expect(plan.from).toBe(0);
+  });
+
+  it("pans horizontally, starting at the panel's own left by default, when height binds and width overflows", () => {
+    const panel = { x: 0, y: 0, w: 1500, h: 820 };
+    // A tall, narrow target: height binds this time.
+    const plan = planPan(panel, { width: 300, height: 700 });
+    expect(plan.axis).toBe("x");
+    expect(plan.from).toBe(0);
+    expect(plan.to).toBeGreaterThan(0);
+  });
+});
+
+describe("panCropAt", () => {
+  it("clamps t into 0..1", () => {
+    const panel = { x: 10, y: 20, w: 1500, h: 820 };
+    const plan = planPan(panel, { width: 1440, height: 718 });
+    const beforeStart = panCropAt(panel, plan, -1);
+    const afterEnd = panCropAt(panel, plan, 2);
+    expect(beforeStart.cropY).toBe(panCropAt(panel, plan, 0).cropY);
+    expect(afterEnd.cropY).toBe(panCropAt(panel, plan, 1).cropY);
+  });
+
+  it("keeps the non-overflowing axis pinned to the panel's own edge, matching exactly (no drift)", () => {
+    const panel = { x: 5, y: 0, w: 1500, h: 820 };
+    const plan = planPan(panel, { width: 1440, height: 718 });
+    const crop = panCropAt(panel, plan, 0.5);
+    expect(crop.cropX).toBe(panel.x);
+  });
+});
+
+describe("containFit", () => {
+  it("never exceeds the target on either axis — the reduced-motion fallback's own 'never crop' guarantee", () => {
+    const panel = { x: 0, y: 0, w: 1500, h: 820 };
+    const target = { width: 1440, height: 718 };
+    const { drawWidth, drawHeight } = containFit(panel, target);
+    expect(drawWidth).toBeLessThanOrEqual(target.width + 0.01);
+    expect(drawHeight).toBeLessThanOrEqual(target.height + 0.01);
+  });
+});
+
+// Every unlettered (spotlight) page's own panel, over a beat's pan (or reduced motion's static contain-fit), at
+// two representative reading-area sizes (`opener.ts`'s desktop and phone layouts once the header/action bar/dots
+// are subtracted). TRORS is excluded: every one of its pages is `lettered` (`story.test.ts` already checks that),
+// so it never reaches this module at all — it pans panel-to-panel over `ui/comic-reader.ts`'s own `ComicReaderTween`
+// instead, fitting (never cropping) by construction.
+const READING_AREAS = [
+  { name: "desktop", width: 1440, height: 718 },
+  { name: "phone", width: 390, height: 664 },
+];
+
+describe("every gmw/mts panel, panned (or reduced-motion contained), shows its own full self", () => {
+  for (const campaignId of ["gmw", "mts"]) {
+    const story = storyFor(campaignId)!;
+    for (const page of story.pages ?? []) {
+      for (const [beatIndex, beat] of page.beats.entries()) {
+        for (const area of READING_AREAS) {
+          const label = `${campaignId}/${page.file}#${beatIndex} @ ${area.name}`;
+          const target = { width: area.width, height: area.height };
+
+          it(`${label}: reduced motion never crops (contain-fit stays within the reading area)`, () => {
+            const { drawWidth, drawHeight } = containFit(beat.panel, target);
+            expect(drawWidth, label).toBeLessThanOrEqual(target.width + 0.01);
+            expect(drawHeight, label).toBeLessThanOrEqual(target.height + 0.01);
+          });
+
+          if (!panelFitsInPageCrop(beat.panel, { width: page.width, height: page.height }, target)) {
+            it(`${label}: the pan's own start/end frames together cover the panel's full overflowing axis`, () => {
+              const plan = planPan(beat.panel, target);
+              const start = panCropAt(beat.panel, plan, 0);
+              const end = panCropAt(beat.panel, plan, 1);
+              if (plan.axis === "y") {
+                expect(start.cropY, label).toBeCloseTo(beat.panel.y, 1);
+                expect(end.cropY + end.cropHeight, label).toBeCloseTo(beat.panel.y + beat.panel.h, 1);
+              } else if (plan.axis === "x") {
+                expect(start.cropX, label).toBeCloseTo(beat.panel.x, 1);
+                expect(end.cropX + end.cropWidth, label).toBeCloseTo(beat.panel.x + beat.panel.w, 1);
+              }
+              // Every frame of the pan stays within the panel's own bounds (never opens onto blank space past it).
+              for (const t of [0, 0.25, 0.5, 0.75, 1]) {
+                const crop = panCropAt(beat.panel, plan, t);
+                expect(crop.cropX, label).toBeGreaterThanOrEqual(beat.panel.x - 0.5);
+                expect(crop.cropY, label).toBeGreaterThanOrEqual(beat.panel.y - 0.5);
+                expect(crop.cropX + crop.cropWidth, label).toBeLessThanOrEqual(beat.panel.x + beat.panel.w + 0.5);
+                expect(crop.cropY + crop.cropHeight, label).toBeLessThanOrEqual(beat.panel.y + beat.panel.h + 0.5);
+              }
+            });
+          }
+        }
+      }
+    }
+  }
+});

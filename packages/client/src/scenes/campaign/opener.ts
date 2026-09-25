@@ -31,7 +31,7 @@ import {
   speechBubble,
   villainPicture,
 } from "../../ui/campaign-chrome.js";
-import { drawComicReaderStep, type ComicReaderTween } from "../../ui/comic-reader.js";
+import { drawComicReaderStep, SpotlightAutoPan, type ComicReaderTween } from "../../ui/comic-reader.js";
 import type { ComicBeat } from "../../campaign/story.js";
 import { accent, dotGrid, ink, surface, typeRole } from "../../tokens.js";
 import { cssOf, textStyle } from "../../ui/theme.js";
@@ -82,6 +82,8 @@ export class CampaignOpenerScene extends Phaser.Scene {
   #panTweenFrom: ComicBeat["panel"] | null = null;
   #panTweenProgress = 1;
   #panTween: Phaser.Tweens.Tween | null = null;
+  /** The spotlight (unlettered) reader's own within-beat pan — see `ui/comic-reader.ts`'s `SpotlightAutoPan`. */
+  #spotPan: SpotlightAutoPan | null = null;
   #buttons: McButton[] = [];
   #route: FocusRoute | null = null;
 
@@ -122,6 +124,8 @@ export class CampaignOpenerScene extends Phaser.Scene {
     this.input.keyboard?.on("keydown", onArrow);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.input.keyboard?.off("keydown", onArrow));
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.#panTween?.stop());
+    this.#spotPan = new SpotlightAutoPan(this, () => this.#draw());
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.#spotPan?.destroy());
     void this.#load();
     fadeScreenIn(this);
   }
@@ -453,7 +457,8 @@ export class CampaignOpenerScene extends Phaser.Scene {
     const tween: ComicReaderTween | undefined = this.#panTweenFrom
       ? { fromPanel: this.#panTweenFrom, progress: this.#panTweenProgress }
       : undefined;
-    drawComicReaderStep(this, readingRect, campaignId, view.step, () => this.#draw(), tween);
+    const spotPan = this.#spotPan?.progressFor(view.step, appSession().settings.reducedMotion);
+    drawComicReaderStep(this, readingRect, campaignId, view.step, () => this.#draw(), tween, spotPan);
 
     this.#drawBeatDots(width, height - actionBarHeight - dotsHeight / 2);
 

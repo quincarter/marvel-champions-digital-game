@@ -24,6 +24,8 @@ export interface ComicReaderLineView {
 export interface ComicReaderStepView {
   readonly page: ComicPage;
   readonly panel: ComicBeat["panel"];
+  /** See `ComicBeat.pan` — the spotlight reader's own within-beat pan start, when this panel needs one. */
+  readonly pan: ComicBeat["pan"] | null;
   readonly caption: string | null;
   readonly lines: readonly ComicReaderLineView[];
   readonly sfx: string | null;
@@ -92,6 +94,7 @@ export function comicReaderViewOf(
     step: {
       page: resolved.page,
       panel: resolved.beat.panel,
+      pan: resolved.beat.pan ?? null,
       caption: resolved.beat.caption ?? null,
       lines,
       sfx: resolved.beat.sfx ?? null,
