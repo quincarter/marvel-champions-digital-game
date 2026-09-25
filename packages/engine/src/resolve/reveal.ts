@@ -508,8 +508,12 @@ export function enterPlayOnReveal(ctx: Ctx, id: InstanceId, playerId: PlayerId):
      * `specificTo: { kind: "scenario" }` support nobody's deck ever holds). It needs a play area to sit in like any
      * other card; `playerId` is only its initial home; `RuleSpec controlledByFirstPlayer` (already declared by its
      * own constant ability) reassigns control on the very next state-trigger sweep if that isn't the first player.
+     * An ownerless ally or upgrade is the same case: MC21's campaign puts Cosmo (21180b) and Odin (21139a) "into play
+     * under the first player's control" (MC21 p. 17, p. 25) from the set-aside cards, where nobody owns them.
      */
     case "support":
+    case "ally":
+    case "upgrade":
       moveCard(ctx, id, { kind: "playArea", playerId });
       updateInstance(ctx, id, (i) => ({ ...i, controllerId: playerId }));
       entered = true;

@@ -780,9 +780,12 @@ export const encounterCards = (
   ...(deckOf ? { deckOf } : {}),
 });
 /** Scenario cards set aside at setup (a signature side scheme before Breakout 1A puts it into play). */
-export const encounterSetAside = (filter?: TargetQuery): CardSelector => ({
+/** `opts.random`: that many of the matching cards, picked by the game's seeded RNG (also "one copy" of a card with
+ * several identical set-aside copies, e.g. "a copy of the Norn Stone upgrade", `mts` 21186a). */
+export const encounterSetAside = (filter?: TargetQuery, opts: { readonly random?: Amount } = {}): CardSelector => ({
   kind: "encounterSetAside",
   ...(filter ? { filter } : {}),
+  ...(opts.random !== undefined ? { random: amount(opts.random) } : {}),
 });
 /** "Place the active counter on Wrecker" / "Move the active counter to …" (The Wrecking Crew insert). */
 export const setActiveVillain = (villain: TargetRef): EffectSpec => ({ kind: "setActiveVillain", villain });

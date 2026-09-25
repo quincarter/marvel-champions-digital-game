@@ -17,6 +17,7 @@ import { describe, expect, it } from "vitest";
 import { campaignId, cardId, encounterSetId, flat, scenarioId, type PlayModes } from "@mc/content";
 import { DEFAULT_DEPS } from "../abilities.js";
 import type { CampaignDefinition, CampaignGameResult, LogWrite } from "../campaign.js";
+import type { GameEvent } from "../events.js";
 import type { InstanceId } from "../ids.js";
 import { stubEvent, stubMainScheme, stubSideScheme } from "../testing/fixtures.js";
 import { DEFAULT_CARDS, HERO, MAIN_SCHEME, VILLAIN, seatIdentities } from "../testing/scenario.js";
@@ -559,5 +560,66 @@ describe("CampaignDefinition.elimination (design §4.6b; MC16 p. 5 'Elimination 
       expect(field(2, "units")).toEqual({ kind: "number", value: 2 });
       expect(field(2, "hp")).toEqual({ kind: "number", value: 0 });
     }
+  });
+});
+
+describe("CampaignGameQuery.cardsDefeated", () => {
+  // MC21 p. 7/13/21: "If Secure the Landing Pad was defeated, add Cosmo to the campaign pool." Read off the defeat
+  // events, by the name the card had when it was defeated: a card never in play was not defeated, and a side scheme
+  // that flipped on defeat (Find the Norn Stones → Retrieve Odin's Armor) was, though no card of that name remains.
+  const definition = definitionWith(
+    [],
+    [
+      {
+        id: "only.victory.defeated",
+        text: "test",
+        citation: "test",
+        step: {
+          kind: "record",
+          writes: [
+            {
+              field: "flag",
+              mode: "set",
+              value: { kind: "atLeast", of: { kind: "cardsDefeated", name: "Front Scheme" }, amount: 1 },
+            },
+          ],
+        },
+      },
+    ],
+  );
+  const front = { ...stubSideScheme({ id: "front-scheme", startingThreat: 1 }), name: "Front Scheme" };
+  const back = { ...stubSideScheme({ id: "back-scheme", startingThreat: 1 }), name: "Back Scheme" };
+
+  function recordedWith(events: readonly GameEvent[]): LogWrite | undefined {
+    const identities = seatIdentities(HERO, 1);
+    const created = createGame(
+      {
+        seed: 1,
+        cards: [...DEFAULT_CARDS, ...identities, front, back],
+        villainCardId: VILLAIN.id,
+        mainSchemeCardId: MAIN_SCHEME.id,
+        encounterDeck: [],
+        setAside: [front.id],
+        players: identities.map((identity) => ({ identityCardId: identity.id, deck: [] })),
+      },
+      DEFAULT_DEPS,
+    );
+    if (!created.ok) throw new Error(`setup failed: ${created.error.message}`);
+    const finished = { ...created.state, outcome: { result: "win" as const, reason: "villainDefeated" as const } };
+    const composed = resolveBetweenGames(definition, newLog(definition), { pool: [] }, MODES);
+    if (composed.kind !== "done") throw new Error("unexpected pending choice");
+    const result = campaignResultOf(definition, composed.value, finished, events, DEFAULT_DEPS);
+    return result.records.find((record) => record.instructionId === "only.victory.defeated")?.write;
+  }
+
+  it("a card that never entered play was not defeated", () => {
+    expect(recordedWith([])?.value).toEqual({ kind: "flag", value: false });
+  });
+
+  it("a defeat reads by the face defeated, whatever face the instance ends on", () => {
+    const defeat: GameEvent = { type: "schemeDefeated", instanceId: "i-front" as InstanceId, cardId: front.id };
+    expect(recordedWith([defeat])?.value).toEqual({ kind: "flag", value: true });
+    const otherDefeat: GameEvent = { type: "schemeDefeated", instanceId: "i-back" as InstanceId, cardId: back.id };
+    expect(recordedWith([otherDefeat])?.value).toEqual({ kind: "flag", value: false });
   });
 });

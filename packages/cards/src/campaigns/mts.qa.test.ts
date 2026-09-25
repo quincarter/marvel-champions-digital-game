@@ -18,10 +18,12 @@
  *   scenarios in turn, Tower Defense's own shared-encounter-deck `multipleVillains` build included.
  */
 import { describe, expect, it } from "vitest";
-import { MTS_STARTER_DECKS, type CardId, type PlayModes } from "@mc/content";
+import { cardId, MTS_STARTER_DECKS, type PlayModes } from "@mc/content";
 import {
   applyCampaignResult,
   campaignChoiceKey,
+  campaignResultOf,
+  cardsInPlay,
   createCampaignLog,
   createGame,
   resolveBetweenGames,
@@ -33,12 +35,17 @@ import {
   type CampaignPendingChoice,
   type CampaignRunnerResult,
   type CampaignSeatSetup,
+  type GameEvent,
   type GameSetupConfig,
   type GameState,
+  type InstanceId,
+  type PlayerId,
 } from "@mc/engine";
-import { firstLegal, settle as settleGame } from "../testing/harness.js";
+import { firstLegal, identityOf, P1, settle as settleGame, toHero } from "../testing/harness.js";
+import { driveEvents } from "../testing/staging.js";
 import { WAVE4_CARDS, WAVE4_DEPS } from "../wave4/index.js";
 import { wave4Scenario } from "../wave4/setup.js";
+import { cardsOfComposedSets } from "./composed-sets.js";
 import { MTS_CAMPAIGN_DEFINITION } from "./mts.js";
 
 const DEPS: CampaignDeps = { pool: WAVE4_CARDS };
@@ -174,7 +181,7 @@ describe("MTS_CAMPAIGN_DEFINITION: the runner, end to end", () => {
       resolveBetweenGames(MTS_CAMPAIGN_DEFINITION, log, DEPS, log.modes, answers),
     );
     const thanosStart = startGameFromLog(MTS_CAMPAIGN_DEFINITION, thanosComposed.value);
-    expect(thanosStart.encounterSets.deck).toEqual(
+    expect(thanosStart.encounterSets.setAside).toEqual(
       expect.arrayContaining(["mts.pool.cosmo", "mts.pool.security-breach"]),
     );
     const thanosApplied = settle((answers) =>
@@ -215,7 +222,7 @@ describe("MTS_CAMPAIGN_DEFINITION: the runner, end to end", () => {
       resolveBetweenGames(MTS_CAMPAIGN_DEFINITION, log, DEPS, log.modes, answers),
     );
     const lokiStart = startGameFromLog(MTS_CAMPAIGN_DEFINITION, lokiComposed.value);
-    expect(lokiStart.encounterSets.deck).toEqual(["mts.pool.odin"]);
+    expect(lokiStart.encounterSets.setAside).toEqual(["mts_campaign", "mts.pool.odin"]);
     const lokiApplied = settle((answers) =>
       applyCampaignResult(
         MTS_CAMPAIGN_DEFINITION,
@@ -292,20 +299,6 @@ describe("MTS_CAMPAIGN_DEFINITION: the runner, end to end", () => {
   });
 });
 
-/** Every card belonging to these (campaign-composed, set-aside) encounter sets, one instance per printed copy —
- * `gmw.qa.test.ts`'s own `cardsOfSets`, re-pointed at `WAVE4_CARDS` (neither is exported, so duplicated rather
- * than reaching into another test file). */
-function cardsOfSets(setIds: readonly string[]): CardId[] {
-  const out: CardId[] = [];
-  for (const setId of setIds) {
-    const members = WAVE4_CARDS.filter(
-      (card) => "encounterSetIds" in card && (card.encounterSetIds as readonly string[]).includes(setId),
-    );
-    for (const card of members) for (let copy = 0; copy < card.quantityInSet; copy++) out.push(card.id);
-  }
-  return out;
-}
-
 /**
  * Composes `targetNode` from `log` (MTS's own campaign asks nothing between games besides the victory-instruction
  * records already folded into `log` by `play`, so no choice script is needed here), builds the real
@@ -314,6 +307,11 @@ function cardsOfSets(setIds: readonly string[]): CardId[] {
  * choice point. `gmw.qa.test.ts`'s own `realGameAt`, generalized to this campaign.
  */
 function realGameAt(log: CampaignLog, targetNode: string): GameState {
+  return realGame(log, targetNode).state;
+}
+
+/** `realGameAt`, also handing back the composed log the game was built from (what the fold reads). */
+function realGame(log: CampaignLog, targetNode: string): { readonly composed: CampaignLog; readonly state: GameState } {
   const composed = settle((answers) =>
     resolveBetweenGames(MTS_CAMPAIGN_DEFINITION, log, DEPS, log.modes, answers),
   ).value;
@@ -331,11 +329,12 @@ function realGameAt(log: CampaignLog, targetNode: string): GameState {
   });
   const withSetAside: GameSetupConfig = {
     ...config,
-    setAside: [...(config.setAside ?? []), ...cardsOfSets(start.encounterSets.setAside)],
+    encounterDeck: [...config.encounterDeck, ...cardsOfComposedSets(WAVE4_CARDS, start.encounterSets.deck)],
+    setAside: [...(config.setAside ?? []), ...cardsOfComposedSets(WAVE4_CARDS, start.encounterSets.setAside)],
   };
   const created = createGame({ ...withSetAside, campaign: start.input }, WAVE4_DEPS);
   if (!created.ok) throw new Error(`${targetNode}: setup failed: ${created.error.message}`);
-  return settleGame(created.state, firstLegal, (s) => s.step.phase === "player", WAVE4_DEPS);
+  return { composed, state: settleGame(created.state, firstLegal, (s) => s.step.phase === "player", WAVE4_DEPS) };
 }
 
 describe("a real game, set up from the composed log, for each of the five scenarios", () => {
@@ -409,5 +408,147 @@ describe("a real game, set up from the composed log, for each of the five scenar
     log = play("loki", outcome("loki", true));
 
     expect(log.status).toBe("won");
+  });
+});
+
+// ---------------------------------------------------------------------------------------------------------------
+// The campaign's own side schemes, played for real (MC21 p. 7/21/25)
+// ---------------------------------------------------------------------------------------------------------------
+
+const instanceOf = (state: GameState, code: string): InstanceId | undefined =>
+  (Object.keys(state.instances) as InstanceId[]).find((id) => state.instances[id]?.cardId === cardId(code));
+
+/** A log that has won every node before `targetNode`, with hand-authored results (the between-games walk above). */
+function logBefore(targetNode: string, seed = 4242): CampaignLog {
+  let log = createCampaignLog(MTS_CAMPAIGN_DEFINITION, {
+    id: `mts-qa-${targetNode}`,
+    seats: SEATS,
+    modes: STANDARD,
+    poolVersion: "qa-test",
+    seed,
+  });
+  for (const nodeId of ["ebony-maw", "tower-defense", "thanos", "hela", "loki"]) {
+    if (nodeId === targetNode) return log;
+    const composed = settle((answers) => resolveBetweenGames(MTS_CAMPAIGN_DEFINITION, log, DEPS, log.modes, answers));
+    log = settle((answers) =>
+      applyCampaignResult(MTS_CAMPAIGN_DEFINITION, composed.value, outcome(nodeId, true), { at: 1 }, DEPS, answers),
+    ).value;
+  }
+  throw new Error(`no node ${targetNode}`);
+}
+
+/** Folds a finished real game (state + every event it raised) into its composed log, as the client does. */
+function fold(composed: CampaignLog, finished: GameState, events: readonly GameEvent[]): CampaignLog {
+  const won: GameState = { ...finished, outcome: { result: "win", reason: "villainDefeated" } };
+  const result = campaignResultOf(MTS_CAMPAIGN_DEFINITION, composed, won, events, WAVE4_DEPS);
+  return settle((answers) => applyCampaignResult(MTS_CAMPAIGN_DEFINITION, composed, result, { at: 1 }, DEPS, answers))
+    .value;
+}
+
+/** A real basic thwart by `player`'s hero (ready, and in hero form) that removes `scheme`'s last threat. */
+function thwartAway(
+  state: GameState,
+  scheme: InstanceId,
+  player: PlayerId,
+): { readonly state: GameState; readonly events: readonly GameEvent[] } {
+  const identity = identityOf(state, player);
+  const staged: GameState = {
+    ...state,
+    instances: {
+      ...state.instances,
+      [scheme]: { ...state.instances[scheme]!, threat: 1 },
+      [identity]: { ...state.instances[identity]!, exhausted: false },
+    },
+  };
+  const form = staged.players.find((p) => p.playerId === player)!.identity.form;
+  const commands = [
+    ...(form === "alterEgo" ? [toHero(player)] : []),
+    { type: "basicThwart" as const, playerId: player, thwarterInstanceId: identity, schemeInstanceId: scheme },
+  ];
+  return driveEvents(WAVE4_DEPS, staged, ...commands);
+}
+
+describe("MC21's campaign side schemes in a real game, set up from the composed log", () => {
+  it("Hela: Find the Norn Stones is in play at setup; defeated it flips, Retrieve Odin's Armor reaches the victory display, and the fold adds Norn Stone and Odin", () => {
+    const { composed, state } = realGame(logBefore("hela"), "hela");
+    const norn = instanceOf(state, "21186a");
+    expect(norn, "Find the Norn Stones has an instance").toBeDefined();
+    expect(cardsInPlay(state)).toContain(norn);
+
+    // Free Odin the scenario's own way: Hall of Nastrond (21141) defeated detaches him under the first player's
+    // control (state surgery only to put the scheme in play, `hela.test.ts`'s own reach), which Retrieve Odin's
+    // Armor needs before its threat can be removed.
+    const nastrond = instanceOf(state, "21141")!;
+    const withNastrond: GameState = {
+      ...state,
+      villainArea: [...state.villainArea, nastrond],
+      encounterSetAside: state.encounterSetAside.filter((id) => id !== nastrond),
+    };
+    const freed = thwartAway(withNastrond, nastrond, P1);
+    const odin = instanceOf(freed.state, "21139a")!;
+    expect(freed.state.instances[odin]?.controllerId).toBe(freed.state.firstPlayerId);
+
+    // "Threat cannot be removed from this scheme unless Hela has the Wounded trait": Hela on her Wounded side.
+    const wounded: GameState = {
+      ...freed.state,
+      villains: freed.state.villains.map((v) => ({ ...v, side: "B" as const })),
+    };
+    const nornDefeated = thwartAway(wounded, norn!, P1);
+    // Flipped in place to Retrieve Odin's Armor (still in play), and each player has a Norn Stone.
+    expect(nornDefeated.state.instances[norn!]?.cardId).toBe(cardId("21186b"));
+    expect(cardsInPlay(nornDefeated.state)).toContain(norn);
+    for (const player of nornDefeated.state.players) {
+      expect(player.playArea.some((id) => nornDefeated.state.instances[id]?.cardId === cardId("21187a"))).toBe(true);
+    }
+
+    const armorDefeated = thwartAway(nornDefeated.state, norn!, P1);
+    expect(armorDefeated.state.victoryDisplay).toContain(norn);
+    expect(armorDefeated.state.instances[odin]?.flipped).toBe(true); // King side (21186b's When Defeated)
+
+    const folded = fold(composed, armorDefeated.state, [
+      ...freed.events,
+      ...nornDefeated.events,
+      ...armorDefeated.events,
+    ]);
+    expect(folded.shared.nornStoneInPool).toEqual({ kind: "flag", value: true });
+    expect(folded.shared.odinInPool).toEqual({ kind: "flag", value: true });
+  });
+
+  it("a campaign side scheme that was never defeated earns nothing: Cosmo, Shawarma, Norn Stone and Odin are not free", () => {
+    const ebony = realGame(logBefore("ebony-maw"), "ebony-maw");
+    expect(cardsInPlay(ebony.state)).toContain(instanceOf(ebony.state, "21180a"));
+    expect(fold(ebony.composed, ebony.state, []).shared.cosmoInPool).toBeUndefined();
+
+    const tower = realGame(logBefore("tower-defense"), "tower-defense");
+    expect(cardsInPlay(tower.state)).toContain(instanceOf(tower.state, "21182a"));
+    expect(fold(tower.composed, tower.state, []).shared.shawarmaInPool).toBeUndefined();
+
+    const hela = realGame(logBefore("hela"), "hela");
+    const heldBack = fold(hela.composed, hela.state, []);
+    expect(heldBack.shared.nornStoneInPool).toBeUndefined();
+    expect(heldBack.shared.odinInPool).toEqual({ kind: "flag", value: false });
+  });
+
+  it("Loki: Odin, earned at Hela, is composed in and put into play on his King side", () => {
+    let log = logBefore("hela");
+    const composed = settle((answers) => resolveBetweenGames(MTS_CAMPAIGN_DEFINITION, log, DEPS, log.modes, answers));
+    log = settle((answers) =>
+      applyCampaignResult(
+        MTS_CAMPAIGN_DEFINITION,
+        composed.value,
+        outcome("hela", true, [{ instructionId: "mc21.s4.victory.odin", write: flagWrite("odinInPool", true) }]),
+        { at: 1 },
+        DEPS,
+        answers,
+      ),
+    ).value;
+    const loki = realGameAt(log, "loki");
+    const odin = instanceOf(loki, "21139a");
+    expect(odin, "Odin has an instance at Loki").toBeDefined();
+    expect(cardsInPlay(loki)).toContain(odin);
+    expect(loki.instances[odin!]?.flipped).toBe(true);
+    expect(loki.instances[odin!]?.controllerId).toBe(loki.firstPlayerId);
+    // And Open the Dungeons, the campaign's own Loki side scheme, is in play.
+    expect(cardsInPlay(loki)).toContain(instanceOf(loki, "21189a"));
   });
 });
