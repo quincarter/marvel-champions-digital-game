@@ -38,3 +38,31 @@ describe("scenario intros", () => {
     expect(scenarioIntroFor("klaw")).toBeNull();
   });
 });
+
+describe("scenario intro bubble placement", () => {
+  test("every quip's tail lands inside its beat's crop, and the reader view carries the pin", async () => {
+    const { comicReaderViewOf, resolveComicBeats } = await import("../view/comic-reader-model.js");
+    const { page } = scenarioIntroFor("rhino")!;
+    const steps = resolveComicBeats(
+      [page],
+      page.beats.map((_, beatIndex) => ({ page: page.file, beatIndex })),
+    );
+    page.beats.forEach(({ panel, lines }, index) => {
+      for (const line of lines) {
+        const placement = line.placement!;
+        expect(placement).toBeDefined();
+        // The bubble may sit past the panel's edge (into the gutter); the speaker it points at must be in the shot.
+        const { speaker } = placement;
+        expect(speaker.x).toBeGreaterThanOrEqual(panel.x);
+        expect(speaker.x).toBeLessThanOrEqual(panel.x + panel.w);
+        expect(speaker.y).toBeGreaterThanOrEqual(panel.y);
+        expect(speaker.y).toBeLessThanOrEqual(panel.y + panel.h);
+      }
+      // With Spider-Man at the table and without him (his lines become narration), the pin comes along.
+      for (const roster of [["01001a"], []]) {
+        const view = comicReaderViewOf(steps, index, roster);
+        expect(view.step.lines.every((line) => line.placement !== undefined)).toBe(true);
+      }
+    });
+  });
+});
