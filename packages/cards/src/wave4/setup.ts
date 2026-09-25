@@ -62,6 +62,18 @@ const SCENARIO_RULE_SPECS: Readonly<Record<string, readonly RuleSpec[]>> = {
   "ebony-maw": EBONY_MAW_SCENARIO_RULES,
 };
 
+/**
+ * A wave 4 card scoped to a specific scenario (`specificTo.kind === "scenario"`, e.g. Odin, `mts` 21139a) starts set
+ * aside so that scenario's own `Setup:` ability can find it by name (`encounterSetAside({ name })`) and place it —
+ * `wave3/setup.ts`'s own `scenarioSpecificSetAside`, re-pointed at `WAVE4_CARDS`.
+ */
+function scenarioSpecificSetAside(setIds: readonly string[]): CardId[] {
+  return WAVE4_CARDS.filter(
+    (card) =>
+      "specificTo" in card && card.specificTo?.kind === "scenario" && setIds.includes(card.specificTo.encounterSetId),
+  ).map((card) => card.id);
+}
+
 function buildMtsSingleVillain(
   scenario: (typeof MTS_SCENARIOS)[number],
   options: Wave4ScenarioOptions,
@@ -70,8 +82,16 @@ function buildMtsSingleVillain(
     throw new Error(`${scenario.name}: multipleVillains scenarios are not built by wave4Scenario yet`);
   }
   const difficulty = difficultyOf(resolveModes(options.difficulty, options.modes));
-  const villain = cardsById.get(scenario.villainCardId);
-  if (!villain || villain.type !== "villain") throw new Error(`${scenario.villainCardId} is not a villain`);
+  // A whole separate villain card for expert mode (Escape the Museum's Collector, `gmw/scenarios.ts`'s own
+  // `expertVillains` shape) rather than a later stage of the same one. MC21 p. 20's own Hela contents line ("Villain
+  // deck Hela A (Hela B instead for expert mode)") names exactly this shape, but `MTS_SCENARIOS`' own `hela` record
+  // does not set `expertVillains` yet (a `card-data-pipeline` gap, `mts/hela.ts`'s own module docblock) — this
+  // branch is here so the moment that field lands, `wave4Scenario("hela", { difficulty: "expert" })` picks it up
+  // with no further change here.
+  const useExpertVillain = difficulty === "expert" && scenario.expertVillains;
+  const villainCardId = useExpertVillain ? scenario.expertVillains!.villainCardId : scenario.villainCardId;
+  const villain = cardsById.get(villainCardId);
+  if (!villain || villain.type !== "villain") throw new Error(`${villainCardId} is not a villain`);
   const side = villain.sides[0];
   if (!side) throw new Error(`${villain.name} has no sides`);
   const stageIndex = (stageNumber: number): number => {
@@ -90,13 +110,15 @@ function buildMtsSingleVillain(
   return {
     seed: options.seed,
     cards: WAVE4_CARDS,
-    villainCardId: scenario.villainCardId,
+    villainCardId,
     villainSide: side.side,
     villainStartStageIndex: stageIndex(firstStage),
     villainLastStageIndex: stageIndex(lastStage),
     mainSchemeCardId: scenario.mainSchemeCardId,
     encounterDeck: wave4EncounterCardsOf(sets),
     players: seatsOf(options.players),
+    setAside: scenarioSpecificSetAside(sets),
+    ...(useExpertVillain ? { setAsideVillainCardIds: scenario.expertVillains!.setAsideVillainCardIds } : {}),
     // Rules the scenario's rulebook imposes without a card (docs/phase7-wave4.md §3.40).
     ...(SCENARIO_RULE_SPECS[scenario.id] ? { scenarioRuleSpecs: SCENARIO_RULE_SPECS[scenario.id] } : {}),
     includeIdentitySets: true,

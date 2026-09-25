@@ -4,6 +4,7 @@ import { ADAM_WARLOCK_KIT } from "./adam-warlock-kit.js";
 import { ADAM_WARLOCK_OBLIGATION_NEMESIS } from "./adam-warlock-obligation-nemesis.js";
 import { ADAM_WARLOCK_PACK_CARDS } from "./adam-warlock-pack-cards.js";
 import { EBONY_MAW } from "./ebony-maw.js";
+import { HELA } from "./hela.js";
 import { SPECTRUM_KIT } from "./spectrum-kit.js";
 import { SPECTRUM_OBLIGATION_NEMESIS } from "./spectrum-obligation-nemesis.js";
 import { SPECTRUM_PACK_CARDS } from "./spectrum-pack-cards.js";
@@ -24,4 +25,5 @@ export const MTS_ABILITIES: AbilityRegistry = mergeRegistries(
   ADAM_WARLOCK_OBLIGATION_NEMESIS,
   EBONY_MAW,
   TOWER_DEFENSE,
+  HELA,
 );
