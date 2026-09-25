@@ -3,12 +3,13 @@
  * which packs are fully scripted, which are not started, and — for a pack that isn't started — nothing resolves
  * that isn't already covered by an earlier wave.
  */
-import { MTS_CARDS, NEBU_CARDS, WARM_CARDS, type AnyCard } from "@mc/content";
+import { MTS_CARDS, NEBU_CARDS, VISION_CARDS, WARM_CARDS, type AnyCard } from "@mc/content";
 import type { AbilityRegistry } from "@mc/engine";
 import { WAVE3_ABILITIES } from "../wave3/index.js";
 import { WAVE4_ABILITIES } from "./index.js";
 import { MTS_ABILITIES } from "./mts/index.js";
 import { NEBU_ABILITIES } from "./nebu/index.js";
+import { VISION_ABILITIES } from "./vision/index.js";
 import { WARM_ABILITIES } from "./warm/index.js";
 import { abilityRefIds } from "../ability-refs.js";
 
@@ -22,6 +23,7 @@ describe("wave 4 ability registry", () => {
 const PACK_STATUS: Readonly<Record<string, "scripted" | "in progress" | "not started">> = {
   nebu: "scripted",
   warm: "scripted",
+  vision: "scripted",
   mts: "in progress",
 };
 
@@ -34,6 +36,45 @@ const PACK_STATUS: Readonly<Record<string, "scripted" | "in progress" | "not sta
  * mts scenario passes (wave 4 step 3)" — a reason the next agent removes as that ref lands.
  */
 const KNOWN_SKIPPED: Readonly<Record<string, readonly string[]>> = {
+  // nebu: both of its earlier primitive gaps (an in-play "discard cards you control" cost kind, and a friendly
+  // character attacking its own controller without exhausting) landed since (`nebula-obligation-nemesis.ts` now
+  // scripts both 22030.lethal-weapon-action and 22031.when-revealed); nothing left unresolved.
+  // vision: six genuine primitive gaps, each flagged for a game-rules-architect follow-up and documented in
+  // detail next to its own ref (`vision/vision-kit.ts`, `vision/vision-obligation-nemesis.ts`,
+  // `vision/vision-pack-cards.ts`):
+  //  - 26010.just-passing-through-action ("… ignoring the patrol keyword …") — no one-shot `ignorePatrol` sibling
+  //    of `EffectSpec.thwart.ignoreCrisis`; the only patrol exemption that exists, `RuleSpec characterIgnores`, is a
+  //    persistent per-character rule with no duration shorter than "end of phase".
+  //  - 26011.phase-disruption-action ("Choose an attachment … with the text 'Hero Action' or 'Hero Response'") —
+  //    no `TargetQuery` reads a card's own ability/trigger shapes or printed text.
+  //  - 26016.flow-like-water-response ("deal 1 damage to the attacking enemy") — no `TargetRef` resolves "the
+  //    enemy currently attacking you" from a trigger that isn't itself attack-scoped.
+  //  - 26018.defiance-interrupt ("discard [a boost card] instead [of turning it faceup]") — the only boost-reveal
+  //    interceptor, `EffectSpec.cancelBoostIcons`, zeroes icons but still turns the card faceup into the boost pool.
+  //  - 26022.machine-man-interrupt ("attacks or thwarts") — `EventPattern.eventIs` matches one exact value, so
+  //    "attack or thwart" (excluding defense) can't be expressed in one trigger.
+  //  - 26034.chance-encounter-interrupt ("Interrupt: When attached side scheme is defeated …") — `schemeDefeated`
+  //    is response-only (`isAnnouncement`, `packages/engine/src/trigger-events.ts`, the same substitution
+  //    `wave2/trors/red-skull.ts`'s own Twisted Reality already documents), but a defeated scheme's own attachments
+  //    are discarded before that response window opens, so the ability (on the attachment, not the scheme itself)
+  //    is `considered` but never `resolved` (checked with `traceAbilities`). `characterDefeated` has an escape
+  //    hatch for exactly this shape (`EventPattern.targetHadAttachment`); `schemeDefeated` has none.
+  // Regenerated with `MC_REFS_PACKS=vision pnpm refs` (docs/card-scripting-process.md) — never hand-typed.
+  vision: [
+    "26010.just-passing-through-action",
+    "26011.phase-disruption-action",
+    "26016.flow-like-water-response",
+    "26018.defiance-interrupt",
+    "26022.machine-man-interrupt",
+    "26034.chance-encounter-interrupt",
+  ],
+  // warm: no primitive gaps found; every ability ref resolves.
+  // mts: nine refs pulled out of this list here (21044, 21045, 21049, 21051, 21056, 21057, 21062, 21063, 21157) —
+  // exact reprints of earlier cards (Uppercut, Combat Training, …) that `../reprints.ts` only started auto-aliasing
+  // once its `PACK_OWN_ABILITIES` protection set grew to include `MTS_ABILITIES` (needed regardless, to stop a
+  // coincidental name/type match — White Tiger, 21013, reprinted from `trors` — from clobbering mts's own script
+  // for the same ref with `mergeRegistries`'s "defined twice" guard). Not this pack's own scripting work; removed
+  // here because leaving them would silently pin a wrong (unresolved) expectation now that they resolve.
   mts: [
     "21006.energy-duplication-resource",
     "21009.pulsar-shield-interrupt",
@@ -191,7 +232,6 @@ const KNOWN_SKIPPED: Readonly<Record<string, readonly string[]>> = {
     "21154.when-revealed",
     "21155.when-revealed",
     "21156.laufey-forced-response",
-    "21157.boost",
     "21158.frozen-constant",
     "21158.frozen-action",
     "21159.unnatural-storm-constant",
@@ -261,6 +301,7 @@ const KNOWN_SKIPPED: Readonly<Record<string, readonly string[]>> = {
 const PACKS: ReadonlyArray<{ readonly code: string; readonly cards: readonly AnyCard[] }> = [
   { code: "nebu", cards: NEBU_CARDS },
   { code: "warm", cards: WARM_CARDS },
+  { code: "vision", cards: VISION_CARDS },
   { code: "mts", cards: MTS_CARDS },
 ];
 
@@ -319,6 +360,7 @@ describe("wave 4 pack ability id coverage (every registered ability id is named 
   const PACKS_WITH_OWN_REGISTRIES: ReadonlyArray<{ readonly code: string; readonly registry: AbilityRegistry }> = [
     { code: "nebu", registry: NEBU_ABILITIES },
     { code: "warm", registry: WARM_ABILITIES },
+    { code: "vision", registry: VISION_ABILITIES },
     { code: "mts", registry: MTS_ABILITIES },
   ];
 

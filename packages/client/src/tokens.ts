@@ -194,6 +194,8 @@ export const typeRole = {
   label: { family: font.body, size: 9, weight: 800, lineHeight: 1.2, letterSpacing: 1.2, uppercase: true },
   /** Strong row title, 11/800. */
   rowTitle: { family: font.body, size: 11, weight: 800, lineHeight: 1.25, letterSpacing: 0, uppercase: false },
+  /** A full-width menu button's label (title screen, game-over side column): a row title sized to read at desk distance. */
+  menuButton: { family: font.body, size: 16, weight: 800, lineHeight: 1.25, letterSpacing: 0, uppercase: false },
   emphasis: { family: font.body, size: 11, weight: 700, lineHeight: 1.4, letterSpacing: 0, uppercase: false },
   /** Rules text, card effects, advisory copy. Two sentences maximum on the table. */
   body: { family: font.body, size: 11, weight: 400, lineHeight: 1.45, letterSpacing: 0, uppercase: false },

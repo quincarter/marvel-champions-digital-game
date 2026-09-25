@@ -432,6 +432,7 @@ stays data only.**
 | 3.28 | A blank text box except for keywords                                     | Corrupted Programming (§3.1's open item)                         | landed  |
 | 3.29 | A minion treated as an ally (the mirror of §3.9)                         | Mind Control, Redemption, Karma                                  | landed  |
 | 3.30 | A resource ability's own effects                                         | Gauntlet Gun; War Cry family, Psi-Knife, Cybernetic Arm          | landed  |
+| 3.31 | A character that cannot defend                                           | Intangible; Grant Ward, Tracking Display                         | landed  |
 
 ### 3.1 Additional forms: the form keyword
 
@@ -1297,6 +1298,23 @@ attack gains piercing and ranged"), which modify the card paid for.
 > upgrades (effects plus `moveCards(self, "removedFromGame")` and the campaign-pool removal), Psi-Knife (an optional
 > `flipCard(self)`), Cybernetic Arm and Ruby Quartz Visor (a modifier on `chosen("paidFor")`; the "that attack"
 > modifier itself is the scripter's to pick from the existing attack modifiers).
+
+### 3.31 A character that cannot defend
+
+Intangible (`vision` 26002): "Vision cannot attack or defend." Survey (every raw pack, "cannot defend"): Grant Ward
+(`aos` 50022, "Grant Ward cannot defend."), Tracking Display (`sm` 27152, "Each character cannot defend against
+attached villain's attacks."). Taunt (`angel` 42016, `cw` 56048, "Other characters cannot defend against this attack")
+is scoped to one attack and is not covered here.
+
+> **Status: landed (2026-09-24),** tested in `packages/engine/src/cannot-defend.test.ts` (2 tests: a character that
+> cannot defend is never offered, the others are; scoped to the villain's attacks, nobody may defend the villain but a
+> minion's attack is defended as usual) and in a real game in `packages/cards/src/wave4/vision/vision-kit.test.ts`
+> (Intangible Vision can neither attack the villain nor defend; Dense Vision can do both). **What landed:**
+> **`RuleSpec cannotDefend {target, attacker?, while?}`** (`rules.ts cannotDefend`), read by `legalDefenders` (now
+> given the registry and the attacking enemy, and exported from `@mc/engine`), by the defender prompt's why-not
+> (exclusion `cannotDefend`, with a client label) and by a "(defense)" ability, which does not make such a character
+> the defender. **Scripted:** `26002.intangible-constant` (`cannotAttack` on the attacking host plus this), off
+> `KNOWN_SKIPPED`.
 
 ## 4. Open questions (for the user or FFG)
 

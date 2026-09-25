@@ -544,6 +544,19 @@ export function accelerationTokenRedirect(state: GameState, deps: EngineDeps, sc
   return null;
 }
 
+/** "X cannot defend [against Y's attacks]" (`RuleSpec cannotDefend`, docs/phase7-wave4.md §3.31). */
+export const cannotDefend = (
+  state: GameState,
+  deps: EngineDeps,
+  characterId: InstanceId,
+  attackerId: InstanceId | null,
+): boolean =>
+  activeRules(state, deps, "cannotDefend").some(
+    ({ rule, context }) =>
+      matchesQuery(state, characterId, rule.target, context) &&
+      (rule.attacker === undefined || (attackerId !== null && matchesQuery(state, attackerId, rule.attacker, context))),
+  );
+
 /** "The engaged player must defend against [this enemy]'s attacks with an ally they control, if able" (Melter). */
 export const mustDefendWithAlly = (state: GameState, deps: EngineDeps, attackerId: InstanceId): boolean =>
   activeRules(state, deps, "mustDefendWithAlly").some(({ rule, context }) =>

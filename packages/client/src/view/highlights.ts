@@ -225,6 +225,7 @@ const EXCLUSION_WORDING: Record<ExclusionCode, string> = {
   alterEgoForm: "in alter-ego form",
   notHeroOrAlly: "not a hero or ally",
   defenderAlreadyDeclared: "someone else already declared as defender",
+  cannotDefend: "cannot defend",
   mustDefendWithAlly: "a ready ally must defend instead",
 };
 

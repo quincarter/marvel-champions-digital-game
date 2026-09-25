@@ -588,7 +588,7 @@ export class GameOverScene extends Phaser.Scene {
       new McButton(this, {
         kind,
         label: text,
-        type: kind === "primary" ? typeRole.barTitle : typeRole.rowTitle,
+        type: kind === "primary" ? typeRole.barTitle : typeRole.menuButton,
         rect,
         onClick,
         enabled: unavailable === undefined,

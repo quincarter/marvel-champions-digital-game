@@ -2,6 +2,7 @@ import {
   CORE_STARTER_DECKS,
   MTS_STARTER_DECKS,
   NEBU_STARTER_DECKS,
+  VISION_STARTER_DECKS,
   WARM_STARTER_DECKS,
   type CardId,
 } from "@mc/content";
@@ -22,11 +23,13 @@ export interface Wave4ScenarioOptions extends Omit<CoreScenarioOptions, "cardPoo
   readonly difficulty?: Wave4Difficulty;
 }
 
-/** A wave 4 (currently: Nebula, War Machine) or Core starter deck as a player seat (quantities expanded). */
+/** A wave 4 (Nebula, War Machine, Vision) or Core/box (The Mad Titan's Shadow) starter deck as a player seat
+ * (quantities expanded). */
 export function wave4StarterDeckSetup(starterDeckId: string): PlayerSetup {
   const starter =
     NEBU_STARTER_DECKS.find((d) => d.id === starterDeckId) ??
     WARM_STARTER_DECKS.find((d) => d.id === starterDeckId) ??
+    VISION_STARTER_DECKS.find((d) => d.id === starterDeckId) ??
     MTS_STARTER_DECKS.find((d) => d.id === starterDeckId) ??
     CORE_STARTER_DECKS.find((d) => d.id === starterDeckId);
   if (!starter) throw new Error(`no wave 4 or Core starter deck ${starterDeckId}`);
