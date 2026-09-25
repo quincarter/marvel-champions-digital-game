@@ -491,14 +491,26 @@ describe("Infinite Mischief (21175)", () => {
       },
     };
     const inPlay = (s: GameState) => [...s.villainArea, ...s.players.flatMap((p) => p.playArea)];
-    const stonesBefore = moved.length + piles.deck.length - 2;
-    const { state: after } = revealTopEncounterCard(staged0, "21175");
+    const isStone = (s: GameState, id: InstanceId) => INFINITY_STONES.includes(s.instances[id]?.cardId as string);
+    // `revealTopEncounterCard` clears the stones in play before the villain phase, so two stones leave the deck
+    // this round: the Infinity Gauntlet's own "otherwise, put the top card of the infinity stone deck into play"
+    // (21129, after the villain activates with no stone in play) and Infinite Mischief's reveal after its shuffle.
+    const noStones = { ...staged0, villainArea: staged0.villainArea.filter((id) => !isStone(staged0, id)) };
+    const { deps, trace } = traceAbilities(WAVE4_DEPS);
+    const after = settle(
+      runWith(deps, stackEncounterDeck(noStones, "21166", "21175"), endTurn(P1)),
+      firstLegal,
+      undefined,
+      deps,
+    );
+    expectResolved(trace, "21129.infinity-gauntlet-forced-response");
+    expectResolved(trace, "21175.when-revealed");
     const stoneDeck = after.scenarioDecks["Infinity Stone"]!;
     expect(stoneDeck.discard).toHaveLength(0);
-    // The stones that were in the discard pile are back in the deck or in play (revealed); none is left discarded,
-    // and at least one stone came into play from the deck.
+    // The two discarded stones were shuffled back, so none is lost: each is in the deck or was revealed into play.
     for (const id of moved) expect(stoneDeck.deck.includes(id) || inPlay(after).includes(id)).toBe(true);
-    expect(stoneDeck.deck.length).toBeLessThan(stonesBefore);
+    expect(stoneDeck.deck).toHaveLength(piles.deck.length - 2);
+    expect(inPlay(after).filter((id) => isStone(after, id))).toHaveLength(2);
   });
 });
 
