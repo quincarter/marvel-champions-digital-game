@@ -20,7 +20,7 @@
  * border** on an otherwise-white card, never a red or ink fill.
  */
 import Phaser from "phaser";
-import type { Deck, Scenario } from "@mc/content";
+import type { DifficultySetChoice, Deck, Scenario } from "@mc/content";
 import {
   buildScenario,
   CARDS_BY_ID,
@@ -63,13 +63,21 @@ import {
   type TableSetupPreview,
 } from "../view/table-setup-preview.js";
 import {
+  alternateDifficultySetsFor,
   setDifficulty,
   setFirstPlayerIndex,
   setSeed,
   rerollSeed,
+  toggleDifficultySets,
   toSessionConfig,
   type SetupDraft,
 } from "../view/setup-draft.js";
+import {
+  hasSetAsideModularChoice,
+  hoodModularSetOptionsFor,
+  toggleHoodIncludedSet,
+  type HoodModularSetOption,
+} from "../view/hood-modular-sets.js";
 import { tableSetupFocusOrder } from "../view/screen-focus.js";
 import {
   COMPACT_DIFFICULTY_ROW_HEIGHT,
@@ -125,6 +133,10 @@ interface CompactRowData {
   readonly compositionRows: readonly CompositionRow[];
   readonly whatsInThereRows: readonly CompositionRow[];
   readonly nemesisStandby: NemesisStandby | null;
+  /** Standard II/Expert II (docs/phase7-wave4.md §4 Q5): null when the scenario's own pack has no alternate. */
+  readonly alternateDifficultySets: DifficultySetChoice | null;
+  /** The Hood's own nine modular set candidates, by id — empty for every other scenario. */
+  readonly hoodOptionById: ReadonlyMap<string, HoodModularSetOption>;
 }
 
 export class TableSetupScene extends Phaser.Scene {
@@ -226,6 +238,13 @@ export class TableSetupScene extends Phaser.Scene {
     const modularCardCount = requiredSets.length + modularOptions.length;
     const modularCap = scenario.modularSetCount ?? 1;
 
+    // Standard II/Expert II (docs/phase7-wave4.md §4 Q5): offered only when the scenario's own pack has one.
+    const alternateDifficultySets = alternateDifficultySetsFor(scenario, POOL_ENCOUNTER_SETS);
+    // The Hood's own "choose 7 modular encounter sets and set them aside" (§2.3, §3.18): empty for every other scenario.
+    const hoodOptions = hasSetAsideModularChoice(scenario)
+      ? hoodModularSetOptionsFor(this.#draft, scenario, CARDS_BY_ID)
+      : [];
+
     let compositionRows: readonly CompositionRow[] = [];
     let whatsInThereRows: readonly CompositionRow[] = [];
     let nemesisStandby: NemesisStandby | null = null;
@@ -261,6 +280,8 @@ export class TableSetupScene extends Phaser.Scene {
         nemesisStandby,
         encounterDeckSize,
         preview,
+        alternateDifficultySets,
+        hoodOptions,
       );
       return;
     }
@@ -526,12 +547,14 @@ export class TableSetupScene extends Phaser.Scene {
     nemesisStandby: NemesisStandby | null,
     encounterDeckSize: number,
     preview: TableSetupPreview | null,
+    alternateDifficultySets: DifficultySetChoice | null,
+    hoodOptions: readonly HoodModularSetOption[],
   ): void {
     this.#compactRegion?.destroy();
     this.#compactRegion = null;
     this.#compactSeedBoxRect = null;
 
-    const villainName = scenarioDetailOf(scenario, CARDS_BY_ID, POOL_ENCOUNTER_SETS).villainName;
+    const villainName = scenarioDetailOf(scenario, CARDS_BY_ID, POOL_ENCOUNTER_SETS).displayName;
     const modularRightLabel = `${requiredSets.length} required · ${modularCap} chosen`.toUpperCase();
 
     const layout = tableSetupCompactLayout({
@@ -541,6 +564,8 @@ export class TableSetupScene extends Phaser.Scene {
       requiredModularIds: requiredSets.map((r) => r.id as string),
       candidateModularIds: modularOptions.map((o) => o.id),
       modularHeaderRightLabel: modularRightLabel,
+      hasStandardII: alternateDifficultySets !== null,
+      hoodSetIds: hoodOptions.map((o) => o.id),
       seatCount: this.#draft.seats.length,
       compositionRows: compositionRows.length,
       whatsInThereRows: whatsInThereRows.length,
@@ -566,6 +591,7 @@ export class TableSetupScene extends Phaser.Scene {
     const seatCells = this.#seatCells(deckOptions);
     const requiredById = new Map(requiredSets.map((r) => [r.id as string, r]));
     const candidateById = new Map(modularOptions.map((o) => [o.id, o]));
+    const hoodOptionById = new Map(hoodOptions.map((o) => [o.id, o]));
     const rowData: CompactRowData = {
       difficultyCards,
       villainName,
@@ -576,6 +602,8 @@ export class TableSetupScene extends Phaser.Scene {
       compositionRows,
       whatsInThereRows,
       nemesisStandby,
+      alternateDifficultySets,
+      hoodOptionById,
     };
 
     const rects = compactRowRects(layout);
@@ -620,7 +648,9 @@ export class TableSetupScene extends Phaser.Scene {
     this.#route?.set(
       tableSetupFocusOrder({
         difficulties: difficultyCards.map((c) => c.id),
+        hasStandardII: alternateDifficultySets !== null,
         modularSetIds: modularOptions.map((o) => o.id),
+        hoodSetIds: hoodOptions.map((o) => o.id),
         firstPlayerOptionIds: [...seatCells.map((c) => c.id), "random"],
       }),
       this.#stops,
@@ -711,6 +741,51 @@ export class TableSetupScene extends Phaser.Scene {
       }
       const option = data.candidateById.get(setId);
       if (option) this.#drawCompactModularRow(rect, option);
+      return;
+    }
+    if (id === "standardII") {
+      this.#drawCompactToggleRow(rect, {
+        selected: this.#draft.difficultySets !== null,
+        name: "Standard II / Expert II",
+        meta: this.#draft.difficultySets !== null ? "Chosen · replaces the printed set" : "Off · uses the printed set",
+        onClick: () => {
+          this.#draft = toggleDifficultySets(this.#draft, data.alternateDifficultySets);
+          this.#rebuild();
+        },
+        stopId: "standardII",
+      });
+      return;
+    }
+    if (id.startsWith("hoodSet:")) {
+      const setId = id.slice("hoodSet:".length);
+      const option = data.hoodOptionById.get(setId);
+      if (option) {
+        this.#drawCompactToggleRow(rect, {
+          selected: option.included,
+          name: option.name,
+          meta: option.included
+            ? `In the game · ${modularCardLabel({ selected: true, cardCount: option.cardCount, descriptor: option.descriptor })}`
+            : `Set aside · ${option.cardCount} card${option.cardCount === 1 ? "" : "s"}`,
+          onClick: () => {
+            const scenario = POOL_SCENARIOS.find((s) => (s.id as string) === this.#draft.scenarioId)!;
+            this.#draft = toggleHoodIncludedSet(this.#draft, scenario, option.id);
+            this.#rebuild();
+          },
+          stopId: `hoodSet:${option.id}`,
+        });
+      }
+      return;
+    }
+    if (id === "header:hoodSets") {
+      sectionHeader(
+        this,
+        rect.x,
+        rect.y + 2,
+        rect.width,
+        "The Hood's own modular sets",
+        surface.ink.hex,
+        "CHOOSE 2 TO INCLUDE",
+      );
       return;
     }
     if (id === "header:firstPlayer") {
@@ -858,6 +933,53 @@ export class TableSetupScene extends Phaser.Scene {
       surface.ink.hex,
       ink.label,
     );
+    fitText(meta, textWidth, typeRole.label.size);
+  }
+
+  /**
+   * A generic checkbox row: Standard II/Expert II's single toggle, and each of The Hood's own nine modular set
+   * candidates — the same paper-card/checkbox/name/meta shape `#drawCompactModularRow` draws for the ordinary
+   * modular picker, but with a caller-supplied click rather than `toggleModularSet` (neither of these two toggles
+   * shares that function's own draft-field/cap shape).
+   */
+  #drawCompactToggleRow(
+    rect: Rect,
+    row: {
+      readonly selected: boolean;
+      readonly name: string;
+      readonly meta: string;
+      readonly onClick: () => void;
+      readonly stopId: string;
+    },
+  ): void {
+    const h = COMPACT_MODULAR_ROW_HEIGHT;
+    const cellRect: Rect = { ...rect, height: h };
+    this.#buttons.push(
+      new McButton(this, {
+        kind: "quiet",
+        label: "",
+        type: typeRole.label,
+        rect: cellRect,
+        onClick: row.onClick,
+        clip: this.#compactClip,
+        suppressClick: this.#compactSuppressClick,
+      }),
+    );
+    this.#stops.set(row.stopId, this.#compactStop(cellRect, row.onClick, row.stopId));
+    const g = this.add.graphics();
+    g.fillStyle(surface.card.hex, 1).fillRect(rect.x, rect.y, rect.width, h);
+    g.lineStyle(2.5, surface.ink.hex, 1).strokeRect(rect.x + 1.25, rect.y + 1.25, rect.width - 2.5, h - 2.5);
+    const boxRect = this.#drawCompactCheckbox(rect, h, row.selected, surface.ink.hex);
+    const textX = boxRect.x + boxRect.width + 11;
+    const textWidth = rect.x + rect.width - textX - 10;
+    const name = this.add.text(
+      textX,
+      rect.y + 11,
+      row.name,
+      textStyle({ ...typeRole.rowTitle, size: 13 }, surface.ink.hex),
+    );
+    fitText(name, textWidth, 13);
+    const meta = label(this, textX, rect.y + 11 + 18, row.meta, typeRole.label, surface.ink.hex, ink.label);
     fitText(meta, textWidth, typeRole.label.size);
   }
 
@@ -1200,7 +1322,7 @@ export class TableSetupScene extends Phaser.Scene {
     const cellHeight =
       layout.modularRows > 0 ? (rect.height - (layout.modularRows - 1) * gap) / layout.modularRows : rect.height;
     const cellWidth = (rect.width - (columns - 1) * gap) / columns;
-    const villainName = scenarioDetailOf(scenario, CARDS_BY_ID, POOL_ENCOUNTER_SETS).villainName;
+    const villainName = scenarioDetailOf(scenario, CARDS_BY_ID, POOL_ENCOUNTER_SETS).displayName;
 
     const cellAt = (index: number): Rect => {
       const row = Math.floor(index / columns);

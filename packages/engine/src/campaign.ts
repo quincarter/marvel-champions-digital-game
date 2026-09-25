@@ -338,6 +338,15 @@ export type CampaignGameQuery =
   | { readonly kind: "cardsThatEnteredPlay"; readonly query: TargetQuery }
   /** MC60 p. 13: "Record the title of each unique ally and support that was removed from the game in the campaign log." */
   | { readonly kind: "cardsRemovedFromGame"; readonly query: TargetQuery }
+  /**
+   * MC21 p. 7/13/21: "If Secure the Landing Pad **was defeated**, add Cosmo to the campaign pool." Every scheme or
+   * character defeated during the game whose printed name was `name` *when it was defeated*, read off the defeat
+   * events (`schemeDefeated`, `characterDefeated`), one entry per defeat. Not "no longer in play": a card that never
+   * entered play was not defeated, and a side scheme whose When Defeated flips it (Find the Norn Stones → Retrieve
+   * Odin's Armor) was, though no card of that name remains anywhere. Matched by name only, because the defeated
+   * face may no longer be the instance's current face, which `TargetQuery` would read.
+   */
+  | { readonly kind: "cardsDefeated"; readonly name: string }
   /** MC50 p. 11: "Record the number of Rescued Captive allies in play in the campaign log." */
   | { readonly kind: "cardsInPlay"; readonly query: TargetQuery }
   /**

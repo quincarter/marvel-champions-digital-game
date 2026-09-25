@@ -14,7 +14,7 @@
  */
 
 import type { CorePlayer } from "@mc/cards";
-import type { AnyCard, PlayModes } from "@mc/content";
+import type { AnyCard, DifficultySetChoice, PlayModes } from "@mc/content";
 import type { CampaignGameInput, Command, EngineError, GameEvent, GameState, LegalActions, PlayerId } from "@mc/engine";
 import type { GameRecord } from "./game-record.js";
 import type { SaveMeta } from "./game-storage.js";
@@ -55,6 +55,19 @@ export interface SessionConfig {
   /** Multi-villain scenarios only: each villain's own version, overriding `difficulty` for that one villain. */
   readonly villainVersions?: readonly ("A" | "B" | "extreme")[];
   /**
+   * Standard II / Expert II (docs/phase7-wave4.md §4 Q5): a `DifficultySetChoice` replacing the printed Standard/
+   * Expert set with one of the matching classification wherever the scenario's own pack has one (The Hood, `hood`
+   * `standard_ii`/`expert_ii`). Absent everywhere else — the printed default `CoreScenarioOptions.difficultySets`
+   * documents, and `@mc/cards`' own `checkWave4DifficultySets` refuses a set outside its pack's classification.
+   */
+  readonly difficultySets?: DifficultySetChoice;
+  /**
+   * The Hood's own seven-of-nine modular encounter set choice (docs/phase7-wave4.md §2.3, §3.18: "Choose 7 modular
+   * encounter sets and set them aside — you may choose randomly"). Absent for every other scenario — the scenario
+   * builder's own default (the pack's first seven in declaration order) applies.
+   */
+  readonly setAsideModularSetIds?: readonly string[];
+  /**
    * This game is one scenario of a campaign, as `startGameFromLog` composed it (docs/campaign-mode-design.md §7.1,
    * §10.1). Goes straight into `GameSetupConfig.campaign` (`session-core.ts`'s `scenarioFor`) and therefore into
    * the replay baseline: **a saved campaign game replays without consulting the live `CampaignLog` at all**, which
@@ -62,6 +75,19 @@ export interface SessionConfig {
    * Absent for every standalone game — additive, like `modes`.
    */
   readonly campaign?: CampaignGameInput;
+  /**
+   * `CampaignGameStart.encounterSets` (`startGameFromLog`, `@mc/engine`'s campaign runner): the sets a campaign
+   * composed for this attempt, by id, split into cards that join the encounter deck and cards that are set aside
+   * (MC16 p. 8 / MC60 p. 9's gathering step). `session-core.ts`'s `scenarioFor` turns these ids into actual cards
+   * (`@mc/cards`'s `cardsOfComposedSets`) after `buildScenario` runs, the same way `campaign` itself is attached
+   * afterward rather than threaded through the scenario builder's own options.
+   *
+   * Additive, like `campaign` and `modes`: absent on every save written before this field existed, including a
+   * campaign save from before this fix. Such a save has no composed-set cards recorded anywhere else either, so
+   * replaying it exactly as before — with none added — is the only baseline-preserving reading; it is not treated
+   * as incompatible.
+   */
+  readonly campaignEncounterSets?: { readonly deck: readonly string[]; readonly setAside: readonly string[] };
 }
 
 /**

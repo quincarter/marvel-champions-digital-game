@@ -612,6 +612,10 @@ export interface TableSetupCompactLayoutInput {
   /** Every candidate modular set id, in draw order — becomes this row's own stable id (`modular:<id>`), matching `tableSetupFocusOrder`'s own `modular:<id>` stop ids exactly, so a scene can map one to the other with no lookup table. */
   readonly candidateModularIds: readonly string[];
   readonly modularHeaderRightLabel: string;
+  /** Standard II/Expert II (docs/phase7-wave4.md §4 Q5): true only for a scenario whose pack has an alternate. */
+  readonly hasStandardII: boolean;
+  /** The Hood's own nine modular set candidates (`view/hood-modular-sets.ts`), empty for every other scenario. */
+  readonly hoodSetIds: readonly string[];
   readonly seatCount: number;
   readonly compositionRows: number;
   readonly whatsInThereRows: number;
@@ -689,6 +693,9 @@ export function tableSetupCompactLayout(input: TableSetupCompactLayoutInput): Ta
   rows.push({ id: "spacer:top", height: COMPACT_CONTENT_PAD_TOP });
   rows.push({ id: "header:difficulty", height: COMPACT_HEADER_ROW_HEIGHT });
   rows.push({ id: "difficulty", height: COMPACT_DIFFICULTY_ROW_HEIGHT + COMPACT_ROW_GAP });
+  // Standard II/Expert II (docs/phase7-wave4.md §4 Q5): a single toggle row, only for a scenario whose pack has
+  // an alternate (The Hood today) — every other scenario's layout is unchanged.
+  if (input.hasStandardII) rows.push({ id: "standardII", height: COMPACT_DIFFICULTY_ROW_HEIGHT + COMPACT_ROW_GAP });
   rows.push({
     id: "header:modular",
     height: modularHeaderStacked ? COMPACT_HEADER_ROW_HEIGHT_STACKED : COMPACT_HEADER_ROW_HEIGHT,
@@ -697,6 +704,13 @@ export function tableSetupCompactLayout(input: TableSetupCompactLayoutInput): Ta
     rows.push({ id: `modular:${id}`, height: COMPACT_MODULAR_ROW_HEIGHT + COMPACT_ROW_GAP });
   for (const id of input.candidateModularIds)
     rows.push({ id: `modular:${id}`, height: COMPACT_MODULAR_ROW_HEIGHT + COMPACT_ROW_GAP });
+  // The Hood's own "choose 7 modular encounter sets and set them aside" (docs/phase7-wave4.md §2.3, §3.18): its own
+  // header and one row per candidate, only for a scenario that has the choice at all (`hoodSetIds` empty otherwise).
+  if (input.hoodSetIds.length > 0) {
+    rows.push({ id: "header:hoodSets", height: COMPACT_HEADER_ROW_HEIGHT });
+    for (const id of input.hoodSetIds)
+      rows.push({ id: `hoodSet:${id}`, height: COMPACT_MODULAR_ROW_HEIGHT + COMPACT_ROW_GAP });
+  }
   rows.push({ id: "header:firstPlayer", height: COMPACT_HEADER_ROW_HEIGHT });
   rows.push({ id: "firstPlayer", height: COMPACT_FIRST_PLAYER_ROW_HEIGHT + COMPACT_ROW_GAP });
   rows.push({ id: "header:seed", height: COMPACT_HEADER_ROW_HEIGHT });

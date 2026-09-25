@@ -31,6 +31,18 @@ describe("scenarioDetailOf", () => {
     const detail = scenarioDetailOf(breakout, CARDS_BY_ID, POOL_ENCOUNTER_SETS);
     expect(detail.otherVillainNames.length).toBe(3);
     expect(detail.otherVillainNames).not.toContain(detail.villainName);
+    // Four names don't fit a shelf card: the lead villain's name stands for the scenario.
+    expect(detail.displayName).toBe(detail.villainName);
+  });
+
+  test("a two-villain scenario (Tower Defense) is shown under both names", () => {
+    const towerDefense = POOL_SCENARIOS.find((s) => (s.id as string) === "tower-defense")!;
+    const detail = scenarioDetailOf(towerDefense, CARDS_BY_ID, POOL_ENCOUNTER_SETS);
+    expect(detail.displayName).toBe("Proxima Midnight / Corvus Glaive");
+  });
+
+  test("a single-villain scenario is shown under the villain's own name", () => {
+    expect(scenarioDetailOf(rhino, CARDS_BY_ID, POOL_ENCOUNTER_SETS).displayName).toBe("Rhino");
   });
 
   test("Breakout uses no modular sets", () => {

@@ -1,6 +1,8 @@
 import { describe, expect, test } from "vitest";
-import { POOL_CARDS, POOL_DEPS } from "../content/pool.js";
+import { CARDS_BY_ID, POOL_CARDS, POOL_DEPS } from "../content/pool.js";
 import { MemoryCampaignStorage } from "../engine/campaign-storage.js";
+import { MemoryGameStorage } from "../engine/game-storage.js";
+import { EngineSessionCore } from "../engine/session-core.js";
 import { CampaignService } from "./campaign-service.js";
 import {
   seedDesignRun,
@@ -12,6 +14,16 @@ import {
 } from "./dev-fixtures.js";
 import { frozenNonCampaignCardsOf } from "../view/campaign-deck-edit-model.js";
 import { GMW_CAMPAIGN_DEFINITION } from "@mc/cards";
+import type { GameState } from "@mc/engine";
+
+/** Every real card instance in `state`, by printed name — the "is this campaign card actually in play" check every
+ * test below needs, since the bug this file guards against (`campaignLaunchConfig` dropping a campaign's composed
+ * encounter sets) manifests as a setup instruction finding nothing rather than throwing. Takes only `instances`
+ * (`Snapshot.state` is `StateWithoutPool`, missing `cardPool`), which is all this needs to read. */
+const namesInPlay = (state: Pick<GameState, "instances">): readonly string[] =>
+  Object.values(state.instances)
+    .map((instance) => CARDS_BY_ID.get(instance.cardId as string)?.name)
+    .filter((name): name is string => name !== undefined);
 
 const service = () =>
   new CampaignService({
@@ -154,5 +166,58 @@ describe("seedMtsComposed", () => {
   test("composes the finale (issue #5) for real", async () => {
     const record = await seedMtsComposed(service(), "beforeFinale");
     expect(record.attempt?.nodeId).toBe("loki");
+  }, 30_000);
+});
+
+// ---------------------------------------------------------------------------------------------------------------
+// Regression coverage for the client dropping a campaign's composed encounter sets
+// (`campaignLaunchConfig` never read `CampaignGameStart.encounterSets`, so `session-core.ts`'s `scenarioFor` never
+// added them to `GameSetupConfig`): a client-launched campaign game must actually contain the campaign cards its
+// setup instructions look for, not just a folded log that says it found them.
+// ---------------------------------------------------------------------------------------------------------------
+
+describe("a client-launched campaign game actually contains its composed encounter-set cards", () => {
+  test("MTS at Hela: Find the Norn Stones is in play (MC21 p. 21's own side scheme, mc21.s4.setup.norn-stones)", async () => {
+    const svc = service();
+    const composed = await seedMtsComposed(svc, "afterIssue3");
+    expect(composed.attempt?.nodeId).toBe("hela");
+    const core = new EngineSessionCore({ storage: new MemoryGameStorage() });
+    const started = await core.start(svc.launchConfig(composed));
+    expect(namesInPlay(started.snapshot.state)).toContain("Find the Norn Stones");
+  }, 30_000);
+
+  test("MTS at Loki: Odin (earned at Hela) is put into play on his King side (MC21 p. 25's mc21.s5.setup.odin)", async () => {
+    const svc = service();
+    const composed = await seedMtsComposed(svc, "beforeFinale");
+    expect(composed.attempt?.nodeId).toBe("loki");
+    const core = new EngineSessionCore({ storage: new MemoryGameStorage() });
+    const started = await core.start(svc.launchConfig(composed));
+    expect(namesInPlay(started.snapshot.state)).toContain("Odin");
+  }, 30_000);
+
+  test("GMW at Brotherhood of Badoon: its Campaign Challenge side scheme (Badoon Blitz) is in play (MC16 p. 8)", async () => {
+    const svc = service();
+    const grown = await seedGmwRun(svc, "fresh");
+    const composed = await svc.compose(grown, []);
+    if (composed.kind !== "done") throw new Error("expected Brotherhood of Badoon to compose without a pending choice");
+    const core = new EngineSessionCore({ storage: new MemoryGameStorage() });
+    const started = await core.start(svc.launchConfig(composed.record));
+    expect(namesInPlay(started.snapshot.state)).toContain("Badoon Blitz");
+  }, 30_000);
+});
+
+describe("a saved campaign game replays the same composed encounter-set cards", () => {
+  test("resuming an MTS Hela save still has Find the Norn Stones in play", async () => {
+    const svc = service();
+    const composed = await seedMtsComposed(svc, "afterIssue3");
+    const storage = new MemoryGameStorage();
+    const core = new EngineSessionCore({ storage });
+    await core.start(svc.launchConfig(composed));
+
+    const saveMeta = await storage.latestActive();
+    if (!saveMeta) throw new Error("expected a saved game");
+    const resumedCore = new EngineSessionCore({ storage });
+    const resumed = await resumedCore.resume(saveMeta.id);
+    expect(namesInPlay(resumed.snapshot.state)).toContain("Find the Norn Stones");
   }, 30_000);
 });

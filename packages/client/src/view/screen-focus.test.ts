@@ -567,6 +567,47 @@ describe("screen focus routes", () => {
     ]);
   });
 
+  test("The Hood: Standard II/Expert II's own stop, and one per modular-set candidate, both keyboard/gamepad reachable", () => {
+    const order = tableSetupFocusOrder({
+      difficulties: ["standard", "expert"],
+      hasStandardII: true,
+      modularSetIds: ["the_hood"],
+      hoodSetIds: ["beasty_boys", "brothers_grimm"],
+      firstPlayerOptionIds: ["0", "random"],
+    });
+    expect(order).toEqual([
+      "back",
+      "difficulty:standard",
+      "difficulty:expert",
+      "standardII",
+      "modular:the_hood",
+      "hoodSet:beasty_boys",
+      "hoodSet:brothers_grimm",
+      "first-player:0",
+      "first-player:random",
+      "seed",
+      "reroll",
+      "deal-it-out",
+    ]);
+  });
+
+  test("a scenario with neither Standard II/Expert II nor a set-aside modular choice omits both stretches (every scenario before wave 4)", () => {
+    const order = tableSetupFocusOrder({
+      difficulties: ["standard"],
+      modularSetIds: ["rhino"],
+      firstPlayerOptionIds: ["0"],
+    });
+    expect(order).toEqual([
+      "back",
+      "difficulty:standard",
+      "modular:rhino",
+      "first-player:0",
+      "seed",
+      "reroll",
+      "deal-it-out",
+    ]);
+  });
+
   test("Setup deal & mulligan: the deciding seat's own hand, then Mulligan, then Keep all — Keep all is always a stop", () => {
     expect(setupWalkthroughFocusOrder({ optionIds: ["i38", "i40", "i16"] })).toEqual([
       "option:i38",

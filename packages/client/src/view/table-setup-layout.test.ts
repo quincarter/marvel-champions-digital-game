@@ -208,6 +208,8 @@ function compactInputFor(width: number, height: number, seatCount: 1 | 4): Table
     requiredModularIds: ["rhino"],
     candidateModularIds: ["bomb_scare", "masters_of_evil", "under_attack", "legions_of_hydra", "the_doomsday_chair"],
     modularHeaderRightLabel: "1 REQUIRED · 1 CHOSEN",
+    hasStandardII: false,
+    hoodSetIds: [],
     seatCount,
     compositionRows: 4,
     whatsInThereRows: 5,

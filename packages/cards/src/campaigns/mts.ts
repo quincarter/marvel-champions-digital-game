@@ -28,7 +28,8 @@
  *    System Shock, Norn Stone), which need a `CardId` because `grantCard` addresses cards by id.
  * 2. "Was defeated" / "is NOT in the victory display" is a bridge-then-negate pair (`bridgeThenAddToPool`): a
  *    `record` instruction writes the positive fact, then a `betweenGames` instruction gated on its negation adds
- *    to the pool.
+ *    to the pool. "Was defeated" reads the game's defeat events (`notDefeated`), so a card never in play is not
+ *    defeated.
  * 3. "1B was completed" reads the *next* stage (stage 2, whose printed name is known) entering play — a causal
  *    equivalence for a main scheme deck that only ever advances forward (RRG 1.8 "Main Scheme").
  * 4. Carried-forward pool cards (Cosmo, Security Breach, Black Swan, Odin) are composed in via `CampaignOp
@@ -47,6 +48,8 @@
  *    reads `avengersTowerDamaged` exactly as recorded in scenario 2; scenario 5's Odin composition flips him to
  *    his King side after entering play (choice 6 above), since `composeCarriedForward`'s own `putIntoPlay` always
  *    enters a card on its printed default face.
+ * 8. Every node composes `mts_campaign` set-aside (`composeCampaignSet`), so the campaign cards its setup and card
+ *    abilities find by name exist as instances in a real game.
  */
 
 import { cardId, campaignId, scenarioId, trait, type CampaignId, type CardId } from "@mc/content";
@@ -104,6 +107,22 @@ const COSMO_SET = "mts.pool.cosmo";
 const SECURITY_BREACH_SET = "mts.pool.security-breach";
 const BLACK_SWAN_SET = "mts.pool.black-swan";
 const ODIN_SET = "mts.pool.odin";
+
+/**
+ * What each synthetic carry-forward set holds, for `cardsOfComposedSets`. Odin (21139a) belongs to the `hela`
+ * scenario only (`specificTo`), so Loki's game gets him only through this set. Cosmo, Security Breach and Black Swan
+ * are `mts_campaign` cards, set aside at every node by `composeCampaignSet` already; their sets add nothing more,
+ * and stay as the record of *why* the card is in this game.
+ */
+export const MTS_POOL_SET_CARDS: Readonly<Record<string, readonly CardId[]>> = {
+  [COSMO_SET]: [],
+  [SECURITY_BREACH_SET]: [],
+  [BLACK_SWAN_SET]: [],
+  [ODIN_SET]: [cardId("21139a")],
+};
+
+/** The campaign's own encounter set (`MTS_CAMPAIGN.campaignSetIds`, `@mc/content`), composed set-aside at every node. */
+const MTS_CAMPAIGN_SET = "mts_campaign";
 
 // ---------------------------------------------------------------------------------------------------------------
 // Repeated shapes, factored once — mirrors `trors.ts`'s `repeatedSetup`/`hpRecordVictory` factories.
@@ -327,8 +346,43 @@ function composeCarriedForward(
     text: `(Composition half of putting ${name} into play: bring its card into this scenario's pool, since it was earned in an earlier one.)`,
     citation,
     when: { kind: "fieldIsSet", field: poolField },
-    step: { kind: "betweenGames", ops: [{ kind: "composeEncounterSets", sets: [{ kind: "const", value: set }] }] },
+    // Set aside, not into the encounter deck: every carried-forward card is put into play or shuffled in by a
+    // setup instruction that finds it in `encounterSetAside` (Odin at Loki, MC21 p. 25), never dealt at random.
+    step: {
+      kind: "betweenGames",
+      ops: [{ kind: "composeEncounterSets", sets: [{ kind: "const", value: set }], into: "setAside" }],
+    },
   };
+}
+
+/**
+ * Modeling choice 8: every node composes the campaign's own set (`mts_campaign`, 21180-21193) as set-aside cards,
+ * `gmw.ts`'s own `composition(...)` precedent. Every campaign card an MC21 setup instruction or card ability reaches
+ * is found by name in `encounterSetAside` (Find the Norn Stones, Secure the Landing Pad, Summoned Back, Security
+ * Breach, Cosmo, the Norn Stones 21186a's When Defeated hands out, ...), and `encounterSetAside` only matches an
+ * existing instance. Without this no such instance existed in a real game: each `putSideSchemeIntoPlay` selected
+ * nothing, and a "was defeated" bridge (`cardsInPlay` of a card never in play) read every one as defeated.
+ */
+function composeCampaignSet(prefix: string, citation: string): CampaignInstruction {
+  return {
+    id: `${prefix}.composition.campaign-set`,
+    text: "(Not printed: makes this box's campaign cards available to this scenario's own setup instructions and card abilities.)",
+    citation,
+    step: {
+      kind: "betweenGames",
+      ops: [{ kind: "composeEncounterSets", sets: [{ kind: "const", value: MTS_CAMPAIGN_SET }], into: "setAside" }],
+    },
+  };
+}
+
+/**
+ * The bridge half of "If <name> was defeated" (MC21 p. 7/13/21): true when no defeat of a card named `name` happened
+ * this game. Read off the defeat events (`cardsDefeated`), not "no longer in play": a side scheme the setup never
+ * put into play was not defeated, and Find the Norn Stones, which flips to Retrieve Odin's Armor as it is defeated,
+ * was, though nothing named Find the Norn Stones is left anywhere.
+ */
+function notDefeated(name: string): CampaignGameQuery {
+  return { kind: "atMost", of: { kind: "cardsDefeated", name }, amount: 0 };
 }
 
 /**
@@ -481,17 +535,18 @@ export const MTS_CAMPAIGN_DEFINITION: CampaignDefinition = {
       type: { kind: "flag" },
       citation: "MC21 p. 28",
     },
-    // Bridging fields the printed sheet has no column for (modeling choice 2), mirroring `trors.ts`'s own four.
+    // Bridging fields the printed sheet has no column for (modeling choice 2), mirroring `trors.ts`'s own four. The
+    // three `…InPlay` ids predate `notDefeated` and are kept so a saved log still reads; they now hold "not defeated".
     {
       id: "secureLandingPadInPlay",
-      label: "Secure the Landing Pad still in play",
+      label: "Secure the Landing Pad not defeated",
       scope: "shared",
       type: { kind: "flag" },
       citation: "MC21 p. 7",
     },
     {
       id: "saveShawarmaPlaceInPlay",
-      label: "Save the Shawarma Place still in play",
+      label: "Save the Shawarma Place not defeated",
       scope: "shared",
       type: { kind: "flag" },
       citation: "MC21 p. 13",
@@ -512,7 +567,7 @@ export const MTS_CAMPAIGN_DEFINITION: CampaignDefinition = {
     },
     {
       id: "findNornStonesInPlay",
-      label: "Find the Norn Stones still in play",
+      label: "Find the Norn Stones not defeated",
       scope: "shared",
       type: { kind: "flag" },
       citation: "MC21 p. 21",
@@ -528,6 +583,7 @@ export const MTS_CAMPAIGN_DEFINITION: CampaignDefinition = {
         id: "ebony-maw",
         label: "Scenario #1 - Ebony Maw",
         scenario: { kind: "fixed", scenarioId: scenarioId("ebony-maw") },
+        composition: [composeCampaignSet("mc21.s1", "MC21 p. 7")],
         setup: [
           {
             id: "mc21.s1.setup.identity",
@@ -544,11 +600,7 @@ export const MTS_CAMPAIGN_DEFINITION: CampaignDefinition = {
             citation: "MC21 p. 7",
             text: "If Secure the Landing Pad was defeated, add Cosmo to the campaign pool.",
             bridgeField: "secureLandingPadInPlay",
-            bridgeQuery: {
-              kind: "atLeast",
-              of: { kind: "cardsInPlay", query: { name: "Secure the Landing Pad" } },
-              amount: 1,
-            },
+            bridgeQuery: notDefeated("Secure the Landing Pad"),
             poolField: "cosmoInPool",
           }),
           {
@@ -578,6 +630,7 @@ export const MTS_CAMPAIGN_DEFINITION: CampaignDefinition = {
         label: "Scenario #2 - Tower Defense",
         scenario: { kind: "fixed", scenarioId: scenarioId("tower-defense") },
         composition: [
+          composeCampaignSet("mc21.s2", "MC21 p. 13"),
           composeCarriedForward(
             "mc21.s2.compose.security-breach",
             "MC21 p. 13",
@@ -603,11 +656,7 @@ export const MTS_CAMPAIGN_DEFINITION: CampaignDefinition = {
             citation: "MC21 p. 13",
             text: "If Save the Shawarma Place was defeated, add Shawarma to the campaign pool.",
             bridgeField: "saveShawarmaPlaceInPlay",
-            bridgeQuery: {
-              kind: "atLeast",
-              of: { kind: "cardsInPlay", query: { name: "Save the Shawarma Place" } },
-              amount: 1,
-            },
+            bridgeQuery: notDefeated("Save the Shawarma Place"),
             poolField: "shawarmaInPool",
           }),
           ...bridgeThenAddToPool({
@@ -649,6 +698,7 @@ export const MTS_CAMPAIGN_DEFINITION: CampaignDefinition = {
         label: "Scenario #3 - Thanos",
         scenario: { kind: "fixed", scenarioId: scenarioId("thanos") },
         composition: [
+          composeCampaignSet("mc21.s3", "MC21 p. 17"),
           composeCarriedForward("mc21.s3.compose.cosmo", "MC21 p. 17", "cosmoInPool", COSMO_SET, "Cosmo"),
           composeCarriedForward(
             "mc21.s3.compose.security-breach",
@@ -746,6 +796,7 @@ export const MTS_CAMPAIGN_DEFINITION: CampaignDefinition = {
         id: "hela",
         label: "Scenario #4 - Hela",
         scenario: { kind: "fixed", scenarioId: scenarioId("hela") },
+        composition: [composeCampaignSet("mc21.s4", "MC21 p. 21")],
         setup: [
           putSideSchemeIntoPlay("mc21.s4.setup.norn-stones", "MC21 p. 21", "Find the Norn Stones"),
           shuffleIntoEncounterDeck("mc21.s4.setup.summoned-back", "MC21 p. 21", "Summoned Back", "treachery"),
@@ -761,11 +812,7 @@ export const MTS_CAMPAIGN_DEFINITION: CampaignDefinition = {
             citation: "MC21 p. 21",
             text: "If Find the Norn Stones was defeated, add Norn Stone to the campaign pool.",
             bridgeField: "findNornStonesInPlay",
-            bridgeQuery: {
-              kind: "atLeast",
-              of: { kind: "cardsInPlay", query: { name: "Find the Norn Stones" } },
-              amount: 1,
-            },
+            bridgeQuery: notDefeated("Find the Norn Stones"),
             poolField: "nornStoneInPool",
           }),
           {
@@ -794,7 +841,10 @@ export const MTS_CAMPAIGN_DEFINITION: CampaignDefinition = {
         id: "loki",
         label: "Scenario #5 - Loki",
         scenario: { kind: "fixed", scenarioId: scenarioId("loki") },
-        composition: [composeCarriedForward("mc21.s5.compose.odin", "MC21 p. 25", "odinInPool", ODIN_SET, "Odin")],
+        composition: [
+          composeCampaignSet("mc21.s5", "MC21 p. 25"),
+          composeCarriedForward("mc21.s5.compose.odin", "MC21 p. 25", "odinInPool", ODIN_SET, "Odin"),
+        ],
         setup: [
           putSideSchemeIntoPlay("mc21.s5.setup.dungeons", "MC21 p. 25", "Open the Dungeons"),
           shuffleIntoEncounterDeck("mc21.s5.setup.summoned-back", "MC21 p. 25", "Summoned Back", "treachery"),

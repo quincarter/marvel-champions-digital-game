@@ -329,7 +329,7 @@ export async function seedDesignWonGame(
 // set up for real, never a card no real instance of exists.
 // ---------------------------------------------------------------------------------------------------------------
 
-export type MtsRunStop = "fresh" | "afterIssue2" | "beforeFinale";
+export type MtsRunStop = "fresh" | "afterIssue2" | "afterIssue3" | "beforeFinale";
 
 const cardOf = (id: CardId): AnyCard | undefined => CARDS_BY_ID.get(id as string);
 
@@ -343,17 +343,33 @@ function instanceNamed(state: GameState, name: string): InstanceId | null {
 }
 
 /**
- * Stands in for "the players defeated `name`" (MC21 p. 7's Cosmo/p. 13's Shawarma conditions, both read
- * `cardsInPlay`): removes the real side scheme instance this scenario's own setup put into play from
- * `villainArea`, the one place `cardsInPlay` (`packages/engine/src/select.ts`) reads a side scheme from. A name
- * this scenario's setup never actually put into play (a typo, or the wrong issue) leaves the state untouched
- * rather than throwing — the pool field simply won't resolve true, which is the same outcome a real game that
- * failed to defeat it would produce.
+ * Stands in for "the players defeated `name`" (MC21 p. 7's Cosmo/p. 13's Shawarma/p. 21's Norn Stone conditions):
+ * removes the real side scheme instance this scenario's own setup put into play from `villainArea`, the one place
+ * `cardsInPlay` (`packages/engine/src/select.ts`) reads a side scheme from. A name this scenario's setup never
+ * actually put into play (a typo, or the wrong issue) leaves the state untouched rather than throwing — the pool
+ * field simply won't resolve true, which is the same outcome a real game that failed to defeat it would produce.
+ *
+ * Pair with `schemeDefeatedEventFor` (same `name`, called against the *pre-transform* state) — `notDefeated`
+ * (`@mc/cards`' `campaigns/mts.ts`) reads the defeat off the event log (`cardsDefeated`), not off `villainArea`,
+ * so removing the instance here is necessary for "not in play" but not sufficient on its own for the pool field.
  */
 function withSideSchemeDefeated(state: GameState, name: string): GameState {
   const id = instanceNamed(state, name);
   if (!id) return state;
   return { ...state, villainArea: state.villainArea.filter((candidate) => candidate !== id) };
+}
+
+/**
+ * A synthetic `schemeDefeated` event for the real side scheme instance named `name` — the event `notDefeated`
+ * (`@mc/cards`' `campaigns/mts.ts`) actually reads, since a substituted win produces no defeat resolution of its
+ * own. Read against the *pre-transform* state (before `withSideSchemeDefeated`/`withSideSchemeFlippedAndDefeated`
+ * edits it), so the recorded `cardId` is the scheme's face at the moment of defeat — Find the Norn Stones' own id,
+ * never Retrieve Odin's Armor's, matching `cardsDefeated`'s own "the card it was at the moment of defeat".
+ */
+function schemeDefeatedEventFor(state: GameState, name: string): readonly GameEvent[] {
+  const id = instanceNamed(state, name);
+  if (!id) return [];
+  return [{ type: "schemeDefeated", instanceId: id, cardId: state.instances[id]!.cardId }];
 }
 
 /**
@@ -403,22 +419,10 @@ const mtsDeck = (hero: string): { readonly identityCardId: CardId; readonly deck
 };
 
 /**
- * `"afterIssue2"`: issue #1 (Ebony Maw) and #2 (Tower Defense) played and folded for real, each with the one state
- * edit its own victory bullet needs — Cosmo/Security Breach for #1, Shawarma for #2. Black Swan needs no edit at
- * all: "If Black Swan is NOT in the victory display" (MC21 p. 13) is already true of any fresh, unplayed victory
- * display. `"beforeFinale"` plays on through #3 (Thanos, no edit needed either — System Shock's own "Defensive
- * Protocols is NOT in the victory display" is the same free condition Black Swan's was) and #4 (Hela, Norn
- * Stone/Odin's shared flip-and-defeat edit).
- */
-/**
- * Forces `fields` true directly on a *real, already-folded* record — the one remaining exception, for a pool
- * condition this fixture's own `transformWon` edits can't reach because the fact they need only exists once the
- * engine has actually resolved a main scheme's stage advance (Security Breach's own "Attack on Knowhere 1B was
- * completed") or the modular side scheme this scenario reveals at setup (Norn Stone/Odin's own "Find the Norn
- * Stones" instance never materializes from a substituted setup the way Secure the Landing Pad/Save the Shawarma
- * Place did — the same win-substitution limits `withHeadhunterDefeated` above already lives with). Everything else
- * this fixture resolves is a real fact off a real played-and-folded game; this is the narrow, documented exception,
- * not a return to fabricating the whole record.
+ * Forces `fields` true directly on a *real, already-folded* record — the one remaining exception (narrowed to
+ * `securityBreachInPool` alone, see `seedMtsRun`'s own doc comment for why): a pool condition this fixture's own
+ * `transformWon` edits can't reach because the fact it needs only exists once the engine has actually resolved a
+ * main scheme's stage advance, which never happens in a game whose win is fabricated at the post-setup state.
  */
 async function patchPoolFields(
   service: CampaignService,
@@ -437,6 +441,22 @@ async function patchPoolFields(
   return (await service.load(patched.id))!;
 }
 
+/**
+ * `"afterIssue2"`: issue #1 (Ebony Maw) and #2 (Tower Defense) played and folded for real, each with the one state
+ * edit its own victory bullet needs — Cosmo/Security Breach for #1, Shawarma for #2. Black Swan needs no edit at
+ * all: "If Black Swan is NOT in the victory display" (MC21 p. 13) is already true of any fresh, unplayed victory
+ * display. `"afterIssue3"` plays on through #3 (Thanos, no edit needed either — System Shock's own "Defensive
+ * Protocols is NOT in the victory display" is the same free condition Black Swan's was), so the next issue composed
+ * against this record is #4 ("hela"). `"beforeFinale"` plays #4 as well (Hela, Norn Stone/Odin's shared
+ * flip-and-defeat edit), so the next issue composed is the finale ("loki"). Almost every pool field these issues
+ * need is now a real fact off a real played-and-folded game: `campaignLaunchConfig` carries the composed encounter
+ * sets into the launch path, so each side scheme setup instruction (`putSideSchemeIntoPlay`) finds a real instance,
+ * and `schemeDefeatedEventFor` hands `foldState` the synthetic defeat event `notDefeated` reads. `patchPoolFields`
+ * (below) is kept, narrowed to `securityBreachInPool` alone: "Attack on Knowhere 1B was completed" reads a real
+ * main-scheme *stage advance* (`cardsThatEnteredPlay` for The Power Stone, its flip side), which a substituted win
+ * fabricated at the post-setup state — before any stage ever advances — cannot produce, encounter-sets fix or not.
+ */
+
 export async function seedMtsRun(service: CampaignService, stop: MtsRunStop = "afterIssue2"): Promise<CampaignRecord> {
   let record = await service.start({
     campaignId: "mts",
@@ -446,35 +466,47 @@ export async function seedMtsRun(service: CampaignService, stop: MtsRunStop = "a
   });
   if (stop === "fresh") return record;
 
+  // The launch path now sets the campaign's own side schemes aside for real (`campaignLaunchConfig` carries
+  // `CampaignGameStart.encounterSets`, `session-core.ts`'s `scenarioFor` turns them into `setAside` cards), so
+  // `putSideSchemeIntoPlay` finds a real instance of each and a synthetic `schemeDefeated` event
+  // (`schemeDefeatedEventFor`) is enough to drive `notDefeated` — Cosmo/Shawarma need no pool-field patching here
+  // anymore. `enteredPlayEventsFor("The Power Stone")` still can't produce a real stage-advance fact from a
+  // substituted win (see the module doc comment above), so `securityBreachInPool` is patched directly below.
   record = await playIssueWith(
     service,
     record,
     "win",
     autoAnswer,
     (state) => withSideSchemeDefeated(state, "Secure the Landing Pad"),
-    (state) => enteredPlayEventsFor(state, "The Power Stone"),
+    (state) => [
+      ...enteredPlayEventsFor(state, "The Power Stone"),
+      ...schemeDefeatedEventFor(state, "Secure the Landing Pad"),
+    ],
   );
-  record = await playIssueWith(service, record, "win", autoAnswer, (state) =>
-    withSideSchemeDefeated(state, "Save the Shawarma Place"),
-  );
-  if (
-    !record.shared.securityBreachInPool ||
-    record.shared.securityBreachInPool.kind !== "flag" ||
-    !record.shared.securityBreachInPool.value
-  ) {
+  if (!(record.shared.securityBreachInPool?.kind === "flag" && record.shared.securityBreachInPool.value)) {
     record = await patchPoolFields(service, record, { securityBreachInPool: true });
   }
+  record = await playIssueWith(
+    service,
+    record,
+    "win",
+    autoAnswer,
+    (state) => withSideSchemeDefeated(state, "Save the Shawarma Place"),
+    (state) => schemeDefeatedEventFor(state, "Save the Shawarma Place"),
+  );
   if (stop === "afterIssue2") return record;
 
   record = await playIssueWith(service, record, "win", autoAnswer);
-  record = await playIssueWith(service, record, "win", autoAnswer, (state) =>
-    withSideSchemeFlippedAndDefeated(state, "Find the Norn Stones"),
+  if (stop === "afterIssue3") return record;
+
+  record = await playIssueWith(
+    service,
+    record,
+    "win",
+    autoAnswer,
+    (state) => withSideSchemeFlippedAndDefeated(state, "Find the Norn Stones"),
+    (state) => schemeDefeatedEventFor(state, "Find the Norn Stones"),
   );
-  const nornStoneOk = record.shared.nornStoneInPool?.kind === "flag" && record.shared.nornStoneInPool.value;
-  const odinOk = record.shared.odinInPool?.kind === "flag" && record.shared.odinInPool.value;
-  if (!nornStoneOk || !odinOk) {
-    record = await patchPoolFields(service, record, { nornStoneInPool: true, odinInPool: true });
-  }
   return record;
 }
 
