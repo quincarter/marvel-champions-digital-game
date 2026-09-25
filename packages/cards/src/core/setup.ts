@@ -2,10 +2,12 @@ import {
   CORE_CARDS,
   CORE_SCENARIOS,
   CORE_STARTER_DECKS,
+  difficultyEncounterSetIds,
   difficultyOf,
   type AnyCard,
   type CardId,
   type CoreAspect,
+  type DifficultySetChoice,
   type PlayModes,
 } from "@mc/content";
 import type { GameSetupConfig, PlayerSetup } from "@mc/engine";
@@ -80,6 +82,13 @@ export interface CoreScenarioOptions {
    * that doesn't set this keeps exactly the old behavior.
    */
   readonly cardPool?: readonly AnyCard[];
+  /**
+   * Standard II / Expert II in place of the scenario's printed Standard / Expert set (docs/phase7-wave4.md §4 Q5; The
+   * Hood insert p. 2, "Alternative Sets"). A player's choice at setup; absent is the printed sets. The chosen set's
+   * cards are read from `cardPool`, so a builder whose pool lacks them refuses the choice ("has no … cards") rather
+   * than silently building the printed set.
+   */
+  readonly difficultySets?: DifficultySetChoice;
 }
 
 const cardsById = new Map<string, AnyCard>(CORE_CARDS.map((card) => [card.id, card]));
@@ -96,10 +105,10 @@ export function starterDeckSetup(starterDeckId: string): PlayerSetup {
 }
 
 /** Every encounter card in these sets (`quantityInSet` copies each); the villain and main scheme cards aren't dealt. */
-export function encounterCardsOf(setIds: readonly string[]): CardId[] {
+export function encounterCardsOf(setIds: readonly string[], pool: readonly AnyCard[] = CORE_CARDS): CardId[] {
   const deck: CardId[] = [];
   for (const setId of setIds) {
-    const members = CORE_CARDS.filter(
+    const members = pool.filter(
       (card) =>
         "encounterSetIds" in card &&
         (card.encounterSetIds as readonly string[]).includes(setId) &&
@@ -133,12 +142,11 @@ export function coreScenario(scenarioId: string, options: CoreScenarioOptions): 
     return index;
   };
   const [firstStage, lastStage] = scenario.villainStages[difficulty];
-  const sets = [
-    ...scenario.encounterSetIds,
-    ...(options.modularSetIds ?? scenario.recommendedModularSetIds),
-    ...scenario.standardEncounterSetIds,
-    ...(difficulty === "expert" ? scenario.expertEncounterSetIds : []),
-  ];
+  const sets = [...scenario.encounterSetIds, ...(options.modularSetIds ?? scenario.recommendedModularSetIds)];
+  // The Standard/Expert sets, or the alternatives chosen in their place (§4 Q5). An alternative (Standard II) is
+  // not a Core card, so a chosen one is read from the whole pool.
+  const difficultySets = difficultyEncounterSetIds(scenario, difficulty, options.difficultySets);
+  const difficultyPool = options.difficultySets ? (options.cardPool ?? CORE_CARDS) : CORE_CARDS;
   if (options.players.length < 1 || options.players.length > 4) throw new Error("a game has 1–4 players");
   return {
     seed: options.seed,
@@ -148,7 +156,7 @@ export function coreScenario(scenarioId: string, options: CoreScenarioOptions): 
     villainStartStageIndex: stageIndex(firstStage),
     villainLastStageIndex: stageIndex(lastStage),
     mainSchemeCardId: scenario.mainSchemeCardId,
-    encounterDeck: encounterCardsOf(sets),
+    encounterDeck: [...encounterCardsOf(sets), ...encounterCardsOf(difficultySets, difficultyPool)],
     players: options.players.map((seat) =>
       "starterDeckId" in seat
         ? starterDeckSetup(seat.starterDeckId)
@@ -160,6 +168,8 @@ export function coreScenario(scenarioId: string, options: CoreScenarioOptions): 
     ),
     requireIdentitySets: true,
     requireLegalDecks: true,
+    // Expert mode reaches the engine for "Standard/Expert Mode Only" faces (Formidable Foe, Standard II; §3.18).
+    ...(difficulty === "expert" ? { difficulty: "expert" as const } : {}),
     ...(options.firstPlayerIndex !== undefined ? { firstPlayerIndex: options.firstPlayerIndex } : {}),
   };
 }

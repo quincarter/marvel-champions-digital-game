@@ -59,6 +59,25 @@ import { STATUS_NAMES, type Form, type GameAreaState, type GameState } from "./s
 import type { TriggerEvent } from "./trigger-events.js";
 import { eventSubjects } from "./trigger-events.js";
 
+/** Minion card ids per encounter set, per card pool (a pool never changes during a game, so this is read once). */
+const minionsBySetCache = new WeakMap<GameState["cardPool"], ReadonlyMap<string, readonly string[]>>();
+
+/** Whether `cardId` is the only minion card in `setId` (RRG 1.8 "Nemesis Encounter Set", p. 30). */
+function soleMinionOfSet(state: GameState, setId: string, cardId: string): boolean {
+  let bySet = minionsBySetCache.get(state.cardPool);
+  if (!bySet) {
+    const built = new Map<string, string[]>();
+    for (const card of Object.values(state.cardPool)) {
+      if (card.type !== "minion") continue;
+      for (const set of card.encounterSetIds) built.set(set, [...(built.get(set) ?? []), card.id]);
+    }
+    bySet = built;
+    minionsBySetCache.set(state.cardPool, bySet);
+  }
+  const minions = bySet.get(setId) ?? [];
+  return minions.length === 1 && minions[0] === cardId;
+}
+
 /** Everything an effect needs to turn authoring-time refs into concrete ids. */
 export interface EffectContext {
   readonly selfInstanceId: InstanceId | null;
@@ -603,16 +622,20 @@ export function explainQuery(
       return "wrongIdentitySet";
   }
   if (query.nemesisMinionOf) {
-    // RRG 1.8 "Nemesis Encounter Set" (p. 30): the minion belonging to that identity's nemesis set, designated by the
-    // parenthetical text a set with several minions prints on one of them (the card data's `nemesisMinion` flag).
+    // RRG 1.8 "Nemesis Encounter Set" (p. 30): "An identity's 'nemesis minion' is the minion belonging to that
+    // identity's nemesis set. If a nemesis set has multiple minions in it, the 'nemesis minion' is designated by
+    // parenthetical text" (the card data's `nemesisMinion` flag). A set with one minion prints no parenthetical
+    // (every Core nemesis set), so its only minion is the nemesis minion (docs/phase7-wave4.md §3.50).
     const card = cardOf(state, id);
-    if (!card || !("nemesisMinion" in card) || card.nemesisMinion !== true) return "notNemesisMinion";
-    const sets = "encounterSetIds" in card ? card.encounterSetIds : [];
+    if (!card || card.type !== "minion") return "notNemesisMinion";
+    const sets = card.encounterSetIds;
     const owned = resolvePlayers(state, query.nemesisMinionOf, context)
       .map((playerId) => getPlayer(state, playerId)?.identity.instanceId)
       .map((instanceId) => (instanceId === undefined ? undefined : cardOf(state, instanceId)))
       .map((identity) => (identity?.type === "hero_identity" ? identity.nemesisEncounterSetId : undefined));
-    if (!owned.some((setId) => setId !== undefined && sets.includes(setId))) return "notNemesisMinion";
+    const nemesisSet = owned.find((setId) => setId !== undefined && sets.includes(setId));
+    if (nemesisSet === undefined) return "notNemesisMinion";
+    if (card.nemesisMinion !== true && !soleMinionOfSet(state, nemesisSet, card.id)) return "notNemesisMinion";
   }
   if (query.sharesTraitWith) {
     // "A card that shares a trait with your hero" (docs/phase7-wave2.md §20.1): both sides read live, so a granted

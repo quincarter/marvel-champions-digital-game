@@ -11,6 +11,7 @@ import {
   VALK_STARTER_DECKS,
   VISION_STARTER_DECKS,
   WARM_STARTER_DECKS,
+  difficultyEncounterSetIds,
   difficultyOf,
   type AnyCard,
   type CardId,
@@ -23,7 +24,7 @@ import {
   type CorePlayer,
   type CoreScenarioOptions,
 } from "../core/setup.js";
-import { WAVE4_CARDS } from "./cards.js";
+import { checkWave4DifficultySets, WAVE4_CARDS } from "./cards.js";
 
 /**
  * A wave 4 scenario builder: `MTS_SCENARIOS`' own single-villain records (today, only Ebony Maw —
@@ -93,6 +94,7 @@ function buildMtsSingleVillain(
   if (scenario.multipleVillains) {
     throw new Error(`${scenario.name}: multipleVillains scenarios are not built by wave4Scenario yet`);
   }
+  checkWave4DifficultySets(options.difficultySets);
   const modes = resolveModes(options.difficulty, options.modes);
   const difficulty = difficultyOf(modes);
   // A whole separate villain card for expert mode (Escape the Museum's Collector, `gmw/scenarios.ts`'s own
@@ -113,8 +115,7 @@ function buildMtsSingleVillain(
   const sets = [
     ...scenario.encounterSetIds,
     ...(options.modularSetIds ?? scenario.recommendedModularSetIds),
-    ...scenario.standardEncounterSetIds,
-    ...(difficulty === "expert" ? scenario.expertEncounterSetIds : []),
+    ...difficultyEncounterSetIds(scenario, difficulty, options.difficultySets),
   ];
   if (options.players.length < 1 || options.players.length > 4) throw new Error("a game has 1-4 players");
   // A modular set that brings its own deck (`EncounterSet.separateDecks`; the Infinity Gauntlet set's Infinity
@@ -152,6 +153,8 @@ function buildMtsSingleVillain(
     requireIdentitySets: true,
     requireLegalDecks: true,
     ...(scenarioDecks.length > 0 ? { scenarioDecks } : {}),
+    // Expert mode reaches the engine for "Standard/Expert Mode Only" faces (Formidable Foe, Standard II; §3.18).
+    ...(difficulty === "expert" ? { difficulty: "expert" as const } : {}),
     ...(options.firstPlayerIndex !== undefined ? { firstPlayerIndex: options.firstPlayerIndex } : {}),
   };
 }
@@ -183,6 +186,7 @@ function buildHoodSingleVillain(
   scenario: (typeof HOOD_SCENARIOS)[number],
   options: Wave4ScenarioOptions,
 ): GameSetupConfig {
+  checkWave4DifficultySets(options.difficultySets);
   const difficulty = difficultyOf(resolveModes(options.difficulty, options.modes));
   const villain = cardsById.get(scenario.villainCardId);
   if (!villain || villain.type !== "villain") throw new Error(`${scenario.villainCardId} is not a villain`);
@@ -196,8 +200,7 @@ function buildHoodSingleVillain(
   const [firstStage, lastStage] = scenario.villainStages[difficulty];
   const sets = [
     ...scenario.encounterSetIds,
-    ...scenario.standardEncounterSetIds,
-    ...(difficulty === "expert" ? scenario.expertEncounterSetIds : []),
+    ...difficultyEncounterSetIds(scenario, difficulty, options.difficultySets),
   ];
   if (options.players.length < 1 || options.players.length > 4) throw new Error("a game has 1-4 players");
   const setAsideSetIds =
@@ -270,5 +273,6 @@ export function wave4Scenario(scenarioId: string, options: Wave4ScenarioOptions)
       ...(setup.aspects ? { aspects: setup.aspects } : {}),
     };
   });
+  checkWave4DifficultySets(options.difficultySets);
   return coreScenario(scenarioId, { ...options, players, cardPool: WAVE4_CARDS });
 }

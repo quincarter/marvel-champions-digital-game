@@ -10,11 +10,12 @@ import { WRECKING_CREW } from "./wrecking-crew.js";
 import { MISTER_HYDE_SET } from "./mister-hyde.js";
 import { STATE_OF_EMERGENCY } from "./state-of-emergency.js";
 import { STREETS_OF_MAYHEM } from "./streets-of-mayhem.js";
+import { STANDARD_EXPERT_II } from "./standard-expert-ii.js";
 
 /**
  * Every The Hood (`hood`) ability scripted directly (docs/phase7-wave4.md §2.3): the villain, the main scheme and
- * The Hood's own encounter set (`hood.ts`), then one file per modular set as each is scripted. Standard II and
- * Expert II are scripted in a later pass — see `KNOWN_SKIPPED.hood` in `../coverage.test.ts`.
+ * The Hood's own encounter set (`hood.ts`), then one file per modular set, and Standard II / Expert II
+ * (`standard-expert-ii.ts`, the alternative difficulty sets, §4 Q5).
  */
 export const HOOD_ABILITIES: AbilityRegistry = mergeRegistries(
   HOOD,
@@ -27,4 +28,5 @@ export const HOOD_ABILITIES: AbilityRegistry = mergeRegistries(
   RANSACKED_ARMORY,
   SINISTER_SYNDICATE,
   WRECKING_CREW,
+  STANDARD_EXPERT_II,
 );

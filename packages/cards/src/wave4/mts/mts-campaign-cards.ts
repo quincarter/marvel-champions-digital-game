@@ -77,15 +77,20 @@ import {
  * for every flip below (the same "covered by construction" shape `hela.ts` uses for Garm/Skurge/Nidhogg's own
  * "engages the first player").
  *
- * - **Secure the Landing Pad (21180a) → Cosmo (21180b)**: "The first player gains control of Cosmo" is the flip's
- *   own default (by construction, above); "Cosmo does not count against the ally limit" is a genuine standing
- *   rule (`21180b.cosmo-constant-2`); "Forced Interrupt: When Cosmo leaves play, remove him from the game" is
- *   `coveredByEngineRule()` — Cosmo is double-sided, and RRG 1.8 "Double-Sided Card" (p. 17) already sends a
- *   double-sided card leaving play out of the game (the same reasoning `hela.ts`'s Odin uses).
+ * - **Secure the Landing Pad (21180a) → Cosmo (21180b)**: "The first player gains control of Cosmo" is
+ *   `coveredByEngineRule()` (`21180b.cosmo-constant`) — a side scheme's own `whenDefeated` has no `context.
+ *   controllerId`, so `apply-effect.ts`'s `flipCard` case already resolves the new face's controller to
+ *   `ctx.state.firstPlayerId` by construction (`other-face.ts`'s own doc comment names this exact sentence);
+ *   "Cosmo does not count against the ally limit" is a genuine standing rule (`21180b.cosmo-constant-2`); "Forced
+ *   Interrupt: When Cosmo leaves play, remove him from the game" is `coveredByEngineRule()` — Cosmo is
+ *   double-sided, and RRG 1.8 "Double-Sided Card" (p. 17) already sends a double-sided card leaving play out of the
+ *   game (the same reasoning `hela.ts`'s Odin uses).
  * - **Security Breach (21181)**: a facedown-tuck-then-return pair, `tuckCards`/`tuckedUnder`.
- * - **Save the Shawarma Place (21182a) → Black Swan (21182b)**: "Black Swan engages the first player" is the
- *   flip's own default (by construction); "Forced Response: After Black Swan engages you, discard 1 card from
- *   your hand" is genuinely triggered (`21182b.black-swan-forced-response`).
+ * - **Save the Shawarma Place (21182a) → Black Swan (21182b)**: "Black Swan engages the first player" is
+ *   `coveredByEngineRule()` (`21182b.black-swan-constant`) — the same `flipCard`/`firstPlayerId` default as Cosmo
+ *   above, and `other-face.ts`'s own `engagedEvent` push for the newly-flipped minion face; "Forced Response: After
+ *   Black Swan engages you, discard 1 card from your hand" is genuinely triggered
+ *   (`21182b.black-swan-forced-response`).
  * - **Hack Sanctuary's Computer (21184a) → Defensive Protocols (21184b)**: a plain "search deck+discard for 1
  *   card" reward, then a crash-counter countdown to System Shock, scripted with a pack-local `counterAtLeast`
  *   predicate (the same `gob/local.ts` shape — no `dsl` wrapper exists for it yet).
@@ -129,8 +134,8 @@ export const MTS_CAMPAIGN_CARDS = defineAbilities({
   // --- Secure the Landing Pad (21180a) / Cosmo (21180b) --------------------------------------------------------
   // "Hinder 1[per_hero] (data).\nWhen Defeated: Flip this card over."
   "21180a.when-defeated": whenDefeated(flipCard(self)),
-  // "The first player gains control of Cosmo." — the flip's own default (module docblock); no script needed, so
-  // this ref is not registered (see the file header's own accounting of every ref).
+  // "The first player gains control of Cosmo." — the flip's own default (module docblock).
+  "21180b.cosmo-constant": coveredByEngineRule(),
   // "Cosmo does not count against the ally limit."
   "21180b.cosmo-constant-2": constant({ rules: [{ kind: "excludedFromAllyLimit", target: { self: true } }] }),
   // "Forced Interrupt: When Cosmo leaves play, remove him from the game." — double-sided leave-play (module docblock).
@@ -159,7 +164,8 @@ export const MTS_CAMPAIGN_CARDS = defineAbilities({
     forEachPlayer(eachPlayer, grantOwnedCards(encounterSetAside({ name: "Shawarma" }), "deckShuffle", thatPlayer)),
     flipCard(self),
   ),
-  // "Black Swan engages the first player." — the flip's own default (module docblock); no script needed.
+  // "Black Swan engages the first player." — the flip's own default (module docblock).
+  "21182b.black-swan-constant": coveredByEngineRule(),
   // "Forced Response: After Black Swan engages you, discard 1 card from your hand."
   "21182b.black-swan-forced-response": forcedResponse({ on: "minionEngaged", selfIs: "source" }, discardFromHand(1)),
 

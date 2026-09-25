@@ -8,14 +8,18 @@
  * double-counted.
  */
 import {
+  difficultySetChoiceErrors,
   HOOD_CARDS,
+  HOOD_ENCOUNTER_SETS,
   MTS_CARDS,
+  MTS_ENCOUNTER_SETS,
   NEBU_CARDS,
   PLAYABLE_CARDS,
   VALK_CARDS,
   VISION_CARDS,
   WARM_CARDS,
   type AnyCard,
+  type DifficultySetChoice,
 } from "@mc/content";
 
 /** Every playable card through wave 3, plus Nebula, War Machine, Vision, The Mad Titan's Shadow, Valkyrie and The
@@ -29,3 +33,14 @@ export const WAVE4_CARDS: readonly AnyCard[] = [
   ...VALK_CARDS,
   ...HOOD_CARDS,
 ];
+
+/**
+ * Refuses a Standard II / Expert II choice (docs/phase7-wave4.md §4 Q5) that names no set of the matching
+ * classification among the wave 4 pool's encounter sets. Every wave 4 builder calls it before building, so a typo or a
+ * modular set passed as "Standard" fails loudly instead of building a deck without its Standard set.
+ */
+export function checkWave4DifficultySets(choice: DifficultySetChoice | undefined): void {
+  if (!choice) return;
+  const errors = difficultySetChoiceErrors(choice, [...HOOD_ENCOUNTER_SETS, ...MTS_ENCOUNTER_SETS]);
+  if (errors.length > 0) throw new Error(`difficultySets: ${errors.join("; ")}`);
+}
