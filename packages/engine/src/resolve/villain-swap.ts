@@ -13,6 +13,7 @@ import { hasKeyword } from "../keywords.js";
 import { cardOf, characterProfile, currentName, mustCard, mustInstance, mustVillain } from "../query.js";
 import { nextInt } from "../rng.js";
 import type { StackFrame } from "../stack.js";
+import type { TriggerEvent } from "../trigger-events.js";
 import { eventFrame, gameAbilityFrames } from "./frames.js";
 import { heard } from "./triggers.js";
 
@@ -92,15 +93,31 @@ export function swapVillain(ctx: Ctx, villainId: InstanceId): boolean {
  * from the game) and a random set-aside villain of the same title takes over as the same villain, dial reset to its
  * printed hit points. Returns the frames to push (its When Revealed), or null when none was set aside.
  */
-export function advanceToSetAsideVillain(ctx: Ctx, villainId: InstanceId): readonly StackFrame[] | null {
+export function advanceToSetAsideVillain(
+  ctx: Ctx,
+  villainId: InstanceId,
+  /** The defeat this advance interrupts, handed to the defeated card's own When Defeated abilities. */
+  defeat: TriggerEvent | null = null,
+): readonly StackFrame[] | null {
   const setAsideId = randomSetAsideVillain(ctx, villainId);
   if (setAsideId === null) return null;
   const victory = hasKeyword(ctx.state, villainId, "victory", ctx.deps);
+  // The defeated card's own "When Defeated" (Loki's "discard … until a side scheme is discarded; reveal it"): RRG 1.8
+  // "When Defeated Abilities" (p. 48) is a forced interrupt to the same defeat this advance interrupts, and every
+  // When Defeated on the card resolves. The advance replaces the defeat's usual course (the dial resets, so the
+  // defeat sweep never reaches `defeatVillainStage`), so its abilities are read here, from the card being defeated,
+  // before the exchange, and resolve after the advance (docs/phase7-wave4.md §3.48, §4 Q21).
+  const whenDefeated = gameAbilityFrames(ctx, villainId, ["whenDefeated"], defeat, undefined, ctx.state.firstPlayerId);
   const { from, to } = exchangeCards(ctx, villainId, setAsideId);
   // RRG 1.8 "Villain Defeat" (p. 47): "Excess damage … does not carry over", the new card's dial is its own.
   updateInstance(ctx, villainId, (i) => ({ ...i, damage: 0 }));
   moveCard(ctx, setAsideId, victory ? { kind: "victoryDisplay" } : { kind: "removedFromGame" });
   emit(ctx, { type: "villainReplaced", instanceId: villainId, fromCardId: from, toCardId: to, reason: "advance" });
   if (hasKeyword(ctx.state, villainId, "toughness", ctx.deps)) giveStatus(ctx, villainId, "tough");
-  return gameAbilityFrames(ctx, villainId, ["whenRevealed"], null, undefined, ctx.state.firstPlayerId);
+  // The When Defeated frames name the defeated card's instance, now the one in the victory display (`exchangeCards`).
+  const defeatedCardFrames = whenDefeated.map((f) => (f.kind === "ability" ? { ...f, instanceId: setAsideId } : f));
+  return [
+    ...defeatedCardFrames,
+    ...gameAbilityFrames(ctx, villainId, ["whenRevealed"], null, undefined, ctx.state.firstPlayerId),
+  ];
 }

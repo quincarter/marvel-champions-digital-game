@@ -24,6 +24,18 @@ import { stubEvent, stubMainScheme, stubSupport, stubTreachery, stubVillain } fr
 import { DEFAULT_CARDS, DEFAULT_DECK, HERO } from "./testing/scenario.js";
 import { copiesOf, playerCardIntoPlay, playFree } from "./testing/wave3.js";
 
+/** Loki's own "When Defeated: …" (counted on the tracker here; docs/phase7-wave4.md §3.48). */
+const LOKI_WHEN_DEFEATED = stubAbility("loki.when-defeated", {
+  trigger: { kind: "whenDefeated" },
+  effects: [
+    {
+      kind: "addCounters",
+      target: { kind: "each", query: { categories: ["support"], name: "tracker" } },
+      counterType: "lokiWhenDefeated",
+      amount: { kind: "const", value: 1 },
+    },
+  ],
+});
 const loki = (id: string, extra: "stalwart" | null = null): VillainCard =>
   stubVillain({
     id,
@@ -34,6 +46,7 @@ const loki = (id: string, extra: "stalwart" | null = null): VillainCard =>
         atk: 0,
         sch: 0,
         keywords: [{ name: "victory", value: 1 }, ...(extra ? [{ name: extra } as const] : [])],
+        abilities: [LOKI_WHEN_DEFEATED.ref],
       },
     ],
   });
@@ -88,7 +101,7 @@ const MARK = event("mark", [
 const SLAY = event("slay", [{ kind: "dealDamage", target: theVillain, amount: { kind: "const", value: 10 } }]);
 const EVENTS = [TRICKSTER, MARK, SLAY];
 
-const deps: EngineDeps = depsOf(ADVANCE, WIN, CAPE, ...EVENTS.map((e) => e.ability));
+const deps: EngineDeps = depsOf(ADVANCE, WIN, CAPE, LOKI_WHEN_DEFEATED, ...EVENTS.map((e) => e.ability));
 
 function start(options: { lokis: readonly VillainCard[]; scheme?: typeof KING_LOKI; random?: boolean }): GameState {
   const [first, ...rest] = options.lokis;
@@ -194,5 +207,20 @@ describe("§3.7 'advance to a random set-aside Loki villain', Victory X on a vil
     const after = playFree(state, deps, SLAY.card.id).state;
     expect(after.outcome?.result).toBe("win");
     expect(after.victoryDisplay).toContain(state.activeVillainId);
+  });
+});
+
+describe("§3.48 an advance does not pre-empt the defeated card's own When Defeated", () => {
+  it("Loki defeated with others set aside: his When Defeated resolves, the next Loki comes in, and he is in the victory display", () => {
+    const marked = start({ lokis: LOKIS, random: false });
+    const first = mustInstance(marked, marked.activeVillainId).cardId;
+    const { state: after, session } = playFree(marked, deps, SLAY.card.id);
+    expect(trackerCount(after, "lokiWhenDefeated")).toBe(1);
+    expect(villain(after).cardId).not.toBe(first);
+    expect(after.victoryDisplay.map((id) => mustInstance(after, id).cardId)).toEqual([first]);
+    expect(after.outcome).toBeNull();
+    const replayed = replay(session.log, deps);
+    if (!replayed.ok) throw new Error(replayed.error.message);
+    expect(replayed.state).toEqual(session.state);
   });
 });
