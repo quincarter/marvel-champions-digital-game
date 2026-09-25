@@ -4,15 +4,18 @@ import { ADAM_WARLOCK_KIT } from "./adam-warlock-kit.js";
 import { ADAM_WARLOCK_OBLIGATION_NEMESIS } from "./adam-warlock-obligation-nemesis.js";
 import { ADAM_WARLOCK_PACK_CARDS } from "./adam-warlock-pack-cards.js";
 import { EBONY_MAW } from "./ebony-maw.js";
+import { INFINITY_GAUNTLET } from "./infinity-gauntlet.js";
 import { SPECTRUM_KIT } from "./spectrum-kit.js";
 import { SPECTRUM_OBLIGATION_NEMESIS } from "./spectrum-obligation-nemesis.js";
 import { SPECTRUM_PACK_CARDS } from "./spectrum-pack-cards.js";
+import { THANOS } from "./thanos.js";
 import { TOWER_DEFENSE } from "./tower-defense.js";
 
 /**
  * Every Mad Titan's Shadow (`mts`) ability scripted directly (docs/phase7-wave4.md): Spectrum and Adam Warlock (both
- * heroes now scripted), Ebony Maw (the box's first scenario, `ebony-maw.ts`) and Tower Defense (its second,
- * `tower-defense.ts`), then the box's remaining scenarios/modulars/campaign in a later pass (§3, step 3 — see
+ * heroes now scripted), Ebony Maw (the box's first scenario, `ebony-maw.ts`), Tower Defense (its second,
+ * `tower-defense.ts`) and Thanos (its third, `thanos.ts` plus its own Infinity Gauntlet modular set,
+ * `infinity-gauntlet.ts`), then the box's remaining scenarios/campaign in a later pass (§3, step 3 — see
  * `KNOWN_SKIPPED.mts` in `../coverage.test.ts`).
  */
 export const MTS_ABILITIES: AbilityRegistry = mergeRegistries(
@@ -24,4 +27,6 @@ export const MTS_ABILITIES: AbilityRegistry = mergeRegistries(
   ADAM_WARLOCK_OBLIGATION_NEMESIS,
   EBONY_MAW,
   TOWER_DEFENSE,
+  THANOS,
+  INFINITY_GAUNTLET,
 );

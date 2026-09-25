@@ -48,42 +48,18 @@ const KNOWN_SKIPPED: Readonly<Record<string, readonly string[]>> = {
   // coincidental name/type match — White Tiger, 21013, reprinted from `trors` — from clobbering mts's own script
   // for the same ref with `mergeRegistries`'s "defined twice" guard). Not this pack's own scripting work; removed
   // here because leaving them would silently pin a wrong (unresolved) expectation now that they resolve.
+  //
+  // Thanos (`mts/thanos.ts`) and the Infinity Gauntlet modular set (`mts/infinity-gauntlet.ts`), the box's third
+  // scenario: every ref in scope (the villain, the main scheme, the `thanos` encounter set, and the `infinity_
+  // gauntlet` set) resolves; no genuine gap found. Black Order (21100–21110, scripted by Tower Defense) and
+  // Children of Thanos (21125–21128), a modular set Thanos also recommends, stay skipped below for whichever
+  // scenario pass scripts the latter.
   mts: [
-    "21111.thanos-forced-response",
-    "21112.when-revealed",
-    "21112.thanos-forced-response",
-    "21113.when-revealed",
-    "21113.thanos-forced-response",
-    "21114b.when-revealed",
-    "21115b.when-revealed",
-    "21116.sanctuary-constant",
-    "21116.when-defeated",
-    "21117.thanoss-armor-forced-interrupt",
-    "21117.thanoss-armor-response",
-    "21118.thanoss-helmet-constant",
-    "21118.thanoss-helmet-response",
-    "21119.master-of-the-stones-forced-interrupt",
-    "21120.when-revealed-alter-ego",
-    "21120.when-revealed-hero",
-    "21121.when-revealed",
-    "21121.boost",
-    "21122.when-revealed",
-    "21122.boost",
-    "21123.when-revealed",
-    "21123.boost",
-    "21124.when-revealed",
     "21125.boost",
     "21126.proxima-midnight-constant",
     "21126.boost",
     "21127.boost",
     "21128.when-defeated",
-    "21129.infinity-gauntlet-forced-response",
-    "21130.mind-stone-special",
-    "21131.power-stone-special",
-    "21132.reality-stone-special",
-    "21133.soul-stone-special",
-    "21134.space-stone-special",
-    "21135.time-stone-special",
     "21136a.hela-constant",
     "21136a.hela-constant-2",
     "21136b.hela-constant",
