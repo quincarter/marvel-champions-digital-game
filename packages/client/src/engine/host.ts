@@ -14,7 +14,7 @@
  */
 
 import type { CorePlayer } from "@mc/cards";
-import type { AnyCard, PlayModes } from "@mc/content";
+import type { AnyCard, DifficultySetChoice, PlayModes } from "@mc/content";
 import type { CampaignGameInput, Command, EngineError, GameEvent, GameState, LegalActions, PlayerId } from "@mc/engine";
 import type { GameRecord } from "./game-record.js";
 import type { SaveMeta } from "./game-storage.js";
@@ -54,6 +54,19 @@ export interface SessionConfig {
   readonly firstPlayerIndex?: number;
   /** Multi-villain scenarios only: each villain's own version, overriding `difficulty` for that one villain. */
   readonly villainVersions?: readonly ("A" | "B" | "extreme")[];
+  /**
+   * Standard II / Expert II (docs/phase7-wave4.md §4 Q5): a `DifficultySetChoice` replacing the printed Standard/
+   * Expert set with one of the matching classification wherever the scenario's own pack has one (The Hood, `hood`
+   * `standard_ii`/`expert_ii`). Absent everywhere else — the printed default `CoreScenarioOptions.difficultySets`
+   * documents, and `@mc/cards`' own `checkWave4DifficultySets` refuses a set outside its pack's classification.
+   */
+  readonly difficultySets?: DifficultySetChoice;
+  /**
+   * The Hood's own seven-of-nine modular encounter set choice (docs/phase7-wave4.md §2.3, §3.18: "Choose 7 modular
+   * encounter sets and set them aside — you may choose randomly"). Absent for every other scenario — the scenario
+   * builder's own default (the pack's first seven in declaration order) applies.
+   */
+  readonly setAsideModularSetIds?: readonly string[];
   /**
    * This game is one scenario of a campaign, as `startGameFromLog` composed it (docs/campaign-mode-design.md §7.1,
    * §10.1). Goes straight into `GameSetupConfig.campaign` (`session-core.ts`'s `scenarioFor`) and therefore into

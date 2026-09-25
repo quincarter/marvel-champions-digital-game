@@ -35,7 +35,7 @@
  * test), because `SessionConfig` is also the save shape and Phase 5's future
  * network shape.
  */
-import type { Scenario } from "@mc/content";
+import type { DifficultySetChoice, EncounterSet, Scenario } from "@mc/content";
 import type { CorePlayer } from "@mc/cards";
 import type { SessionConfig } from "../engine/host.js";
 import type { DeckOption } from "./deck-list-model.js";
@@ -69,6 +69,19 @@ export interface SetupDraft {
    * and back, per the brief.
    */
   readonly activeSeatIndex: number;
+  /**
+   * Standard II / Expert II (docs/phase7-wave4.md §4 Q5): `null` means the printed default —
+   * `SessionConfig.difficultySets`' own doc comment. Only ever set for a scenario whose pack actually has an
+   * alternate Standard/Expert set (`alternateDifficultySetsFor`); switching to a scenario that doesn't resets it,
+   * the same way `setScenario` already resets `difficulty` when the new scenario drops "extreme".
+   */
+  readonly difficultySets: DifficultySetChoice | null;
+  /**
+   * The Hood's own seven-of-nine modular set choice (docs/phase7-wave4.md §2.3, §3.18). `null` means the scenario
+   * builder's own default (the pack's first seven in declaration order) — never a random draw the client makes
+   * itself, so the same draft always seats the same game.
+   */
+  readonly setAsideModularSetIds: readonly string[] | null;
 }
 
 /** RRG: 1–4 players. */
@@ -93,6 +106,8 @@ export function initialSetupDraft(options: InitialSetupDraftOptions): SetupDraft
     heroFilter: EMPTY_ROSTER_FILTER,
     heroSortMode: "wave",
     activeSeatIndex: 0,
+    difficultySets: null,
+    setAsideModularSetIds: null,
   };
 }
 
@@ -102,12 +117,34 @@ export function difficultyOptionsFor(scenario: Scenario | undefined): readonly S
 }
 
 /**
- * Picking a new scenario. Resets the difficulty when the new scenario doesn't
- * offer the current one (e.g. leaving Breakout drops "extreme").
+ * Standard II / Expert II (docs/phase7-wave4.md §4 Q5): the scenario's own pack's alternate Standard/Expert sets,
+ * if it has any — `RRG 1.8` "Standard Set"/"Expert Set" (pp. 40, 19) name the printed ones every scenario already
+ * uses by default, so this is only ever non-empty for a pack that prints a second pair (The Hood, `hood`
+ * `standard_ii`/`expert_ii`). Read from `encounterSets` rather than cached, so a wider pool (a later wave's own
+ * alternates) needs no change here.
+ */
+export function alternateDifficultySetsFor(
+  scenario: Scenario | undefined,
+  encounterSets: readonly EncounterSet[],
+): DifficultySetChoice | null {
+  if (!scenario) return null;
+  const standard = encounterSets.find(
+    (set) => set.classification === "standard" && set.packCodes.includes(scenario.packCode),
+  )?.id;
+  const expert = encounterSets.find(
+    (set) => set.classification === "expert" && set.packCodes.includes(scenario.packCode),
+  )?.id;
+  return standard || expert ? { ...(standard ? { standard } : {}), ...(expert ? { expert } : {}) } : null;
+}
+
+/**
+ * Picking a new scenario. Resets the difficulty when the new scenario doesn't offer the current one (e.g. leaving
+ * Breakout drops "extreme"), and resets the Standard II/Expert II choice and The Hood's own modular set choice —
+ * both are scenario-specific, so carrying either into an unrelated scenario would silently misapply it.
  */
 export function setScenario(draft: SetupDraft, scenario: Scenario | undefined, scenarioId: string): SetupDraft {
   const difficulty = difficultyOptionsFor(scenario).includes(draft.difficulty) ? draft.difficulty : "standard";
-  return { ...draft, scenarioId, difficulty };
+  return { ...draft, scenarioId, difficulty, difficultySets: null, setAsideModularSetIds: null };
 }
 
 /** Picking a difficulty for the current scenario. */
@@ -117,6 +154,30 @@ export function setDifficulty(draft: SetupDraft, difficulty: SetupDifficulty): S
 
 export function setModularSetIds(draft: SetupDraft, modularSetIds: readonly string[] | null): SetupDraft {
   return { ...draft, modularSetIds };
+}
+
+/** `null` to go back to the printed default (`alternateDifficultySetsFor`'s own doc comment). */
+export function setDifficultySets(draft: SetupDraft, difficultySets: DifficultySetChoice | null): SetupDraft {
+  return { ...draft, difficultySets };
+}
+
+/**
+ * The Standard II/Expert II toggle's own on/off: off (`null`) uses `alternateDifficultySetsFor`'s printed
+ * default when toggled on, on (a `DifficultySetChoice`) clears back to `null` when toggled off. A single switch
+ * rather than choosing "Standard" and "Expert" independently, since a pack with either alternate has printed
+ * both together so far (The Hood's own `standard_ii`/`expert_ii`) — a future pack with only one would need its
+ * own widget, not this one.
+ */
+export function toggleDifficultySets(draft: SetupDraft, alternate: DifficultySetChoice | null): SetupDraft {
+  return setDifficultySets(draft, draft.difficultySets ? null : alternate);
+}
+
+/** `null` to go back to the scenario builder's own default (The Hood's own first seven, docs/phase7-wave4.md §2.3). */
+export function setSetAsideModularSetIds(
+  draft: SetupDraft,
+  setAsideModularSetIds: readonly string[] | null,
+): SetupDraft {
+  return { ...draft, setAsideModularSetIds };
 }
 
 export function setFirstPlayerIndex(draft: SetupDraft, firstPlayerIndex: number | null): SetupDraft {
@@ -334,5 +395,7 @@ export function toSessionConfig(draft: SetupDraft, players: readonly CorePlayer[
     seed: draft.seed,
     ...(draft.modularSetIds ? { modularSetIds: draft.modularSetIds } : {}),
     ...(draft.firstPlayerIndex !== null ? { firstPlayerIndex: draft.firstPlayerIndex } : {}),
+    ...(draft.difficultySets ? { difficultySets: draft.difficultySets } : {}),
+    ...(draft.setAsideModularSetIds ? { setAsideModularSetIds: draft.setAsideModularSetIds } : {}),
   };
 }
