@@ -27,7 +27,6 @@ import {
   giveTough,
   hasStatus,
   ifThen,
-  modifyAttack,
   moveCards,
   not,
   option,
@@ -222,9 +221,9 @@ export const THANOS = defineAbilities({
   // Avatar of Death (21120) — When Revealed (Alter-Ego): Thanos schemes. When Revealed (Hero): Thanos attacks you.
   // That attack gains overkill and piercing.
   "21120.when-revealed-alter-ego": whenRevealedAlterEgo(enemyScheme(theVillain)),
+  // "That attack gains overkill and piercing": carried by the attack itself (docs/phase7-wave4.md §3.51).
   "21120.when-revealed-hero": whenRevealedHero(
-    enemyAttack(theVillain, { against: you }),
-    modifyAttack({ keywords: ["overkill", "piercing"] }),
+    enemyAttack(theVillain, { against: you, keywords: ["overkill", "piercing"] }),
   ),
 
   // Deviant Syndrome (21121) — Incite 1 (data). When Revealed: Give Thanos a tough status card. If you cannot,

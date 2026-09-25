@@ -3,6 +3,7 @@ import {
   WAVE2_CARDS,
   WAVE2_SCENARIOS,
   WAVE2_STARTER_DECKS,
+  difficultyEncounterSetIds,
   difficultyOf,
   type AnyCard,
   type CardId,
@@ -125,8 +126,7 @@ function buildSingleVillain(
   const sets = [
     ...scenario.encounterSetIds,
     ...(options.modularSetIds ?? scenario.recommendedModularSetIds),
-    ...scenario.standardEncounterSetIds,
-    ...(difficulty === "expert" ? scenario.expertEncounterSetIds : []),
+    ...difficultyEncounterSetIds(scenario, difficulty, options.difficultySets),
   ];
   if (options.players.length < 1 || options.players.length > 4) throw new Error("a game has 1-4 players");
   const setAside = SETASIDE_BY_SCENARIO[scenario.id];
@@ -167,8 +167,7 @@ function kangScenario(options: Wave2ScenarioOptions): GameSetupConfig {
   const sets = [
     ...scenario.encounterSetIds,
     ...(options.modularSetIds ?? scenario.recommendedModularSetIds),
-    ...scenario.standardEncounterSetIds,
-    ...(difficulty === "expert" ? scenario.expertEncounterSetIds : []),
+    ...difficultyEncounterSetIds(scenario, difficulty, options.difficultySets),
   ];
   if (options.players.length < 1 || options.players.length > 4) throw new Error("a game has 1-4 players");
   return {

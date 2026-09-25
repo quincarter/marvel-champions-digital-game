@@ -1614,11 +1614,13 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       }
       // "Green Goblin attacks with +X ATK" / "schemes with +X SCH": evaluated once, now, and carried by each
       // activation this effect initiates, so it applies to exactly those and never leaks into a later one.
+      // "That attack gains overkill" (§3.51): each keyword is the same activation var `modifyAttack` sets.
       const bonus =
         effect.kind === "enemyAttack"
-          ? effect.atkBonus
-            ? { atkBonus: value(effect.atkBonus) }
-            : {}
+          ? {
+              ...(effect.atkBonus ? { atkBonus: value(effect.atkBonus) } : {}),
+              ...Object.fromEntries((effect.keywords ?? []).map((keyword) => [keyword, 1])),
+            }
           : effect.schBonus
             ? { schBonus: value(effect.schBonus) }
             : {};

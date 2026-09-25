@@ -15,7 +15,6 @@ import {
   forcedInterrupt,
   giveTough,
   ifThen,
-  modifyAttack,
   on,
   oneCopyOf,
   preventDamage,
@@ -70,8 +69,8 @@ export const MISTER_HYDE_SET = defineAbilities({
   "24034.when-revealed": whenRevealed(
     ifThen(exists(query("minion", MISTER_HYDE)), [
       discard(self),
-      enemyAttack(named("Mister Hyde"), { atkBonus: 2 }),
-      modifyAttack({ overkill: true }),
+      // "That attack gains overkill": carried by the attack itself (docs/phase7-wave4.md §3.51).
+      enemyAttack(named("Mister Hyde"), { atkBonus: 2, keywords: ["overkill"] }),
     ]),
   ),
   "24034.when-defeated": whenDefeated(...searchAndPutHydeInto(you)),

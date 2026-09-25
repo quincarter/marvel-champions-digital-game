@@ -152,6 +152,9 @@ describe("Kang scenario", () => {
     // Defeat that area's Kang (II): its own "When Defeated" removes the stage and (at the end of the phase) joins
     // another game area — the only one left is the central stage, so this dissolves the split entirely.
     state = defeatWithAttack(state, areaKang);
+    // Full health first: Kang's Wrath 4B brings Hawkeye's nemesis minion in (below), and Crossfire's quickstrike plus
+    // Kang (III)'s attack would otherwise end the game before the assertions.
+    state = patchInstance(state, identityOf(state), { damage: 0 });
     state = settle(runWave2(state, endTurn()), firstLegal, undefined, WAVE2_DEPS);
     expect(state.gameAreas).toHaveLength(0);
 
@@ -163,6 +166,9 @@ describe("Kang scenario", () => {
     expect(state.mainScheme.stageIndex).toBe(6);
     expect(state.villains.some((v) => v.cardId === "11006")).toBe(true);
     expect(cardsInPlay(state).some((id) => state.instances[id]?.cardId === "11023")).toBe(true);
+    // Kang's Wrath 4B's When Revealed (11013b): Hawkeye's nemesis minion, Crossfire (04027), the only minion of his
+    // nemesis set and so printing no parenthetical, is found and put into play (docs/phase7-wave4.md §3.50).
+    expect(instancesOf(state, "04027").some((id) => playerOf(state, P1).playArea.includes(id))).toBe(true);
   });
 
   it("Kang's Wrath 4B: each player searches the encounter deck, discard pile, and set-aside area for their nemesis minion and puts it into play engaged with them (docs/phase7-wave2.md §17.1)", () => {

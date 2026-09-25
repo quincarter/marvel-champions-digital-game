@@ -1,7 +1,16 @@
 import { describe, expect, test } from "vitest";
-import { campaignId } from "./ids.js";
-import { difficultyOf, matchesModes, modesOf, STANDARD_MODES, type PlayModes } from "./modes.js";
-import type { ScenarioDifficulty } from "./sets.js";
+import { campaignId, encounterSetId } from "./ids.js";
+import {
+  difficultyEncounterSetIds,
+  difficultyOf,
+  difficultySetChoiceErrors,
+  matchesModes,
+  modesOf,
+  PRINTED_DIFFICULTY_SETS,
+  STANDARD_MODES,
+  type PlayModes,
+} from "./modes.js";
+import type { EncounterSet, ScenarioDifficulty } from "./sets.js";
 
 const TRORS = campaignId("trors");
 
@@ -89,5 +98,56 @@ describe("matchesModes", () => {
     expect(matchesModes(modes, { expert: true, expertCampaign: true, heroicAtLeast: 3 })).toBe(true);
     expect(matchesModes(modes, { expert: true, expertCampaign: true, heroicAtLeast: 4 })).toBe(false);
     expect(matchesModes(modes, { expert: false, expertCampaign: true })).toBe(false);
+  });
+});
+
+/**
+ * The Hood insert, p. 2, "Alternative Sets" (docs/phase7-wave4.md §4 Q5): Standard II / Expert II may be used *instead
+ * of* the Standard / Expert set, each chosen independently, only where the scenario requires that set.
+ */
+describe("difficultyEncounterSetIds / difficultySetChoiceErrors", () => {
+  const STANDARD = encounterSetId("standard");
+  const EXPERT = encounterSetId("expert");
+  const STANDARD_II = encounterSetId("standard_ii");
+  const EXPERT_II = encounterSetId("expert_ii");
+  const scenario = { standardEncounterSetIds: [STANDARD], expertEncounterSetIds: [EXPERT] };
+
+  test("the printed default is the scenario's own sets", () => {
+    expect(difficultyEncounterSetIds(scenario, "standard")).toEqual([STANDARD]);
+    expect(difficultyEncounterSetIds(scenario, "expert", PRINTED_DIFFICULTY_SETS)).toEqual([STANDARD, EXPERT]);
+  });
+
+  test("each alternative replaces its printed set, independently", () => {
+    expect(difficultyEncounterSetIds(scenario, "standard", { standard: STANDARD_II })).toEqual([STANDARD_II]);
+    expect(difficultyEncounterSetIds(scenario, "expert", { standard: STANDARD_II })).toEqual([STANDARD_II, EXPERT]);
+    expect(difficultyEncounterSetIds(scenario, "expert", { expert: EXPERT_II })).toEqual([STANDARD, EXPERT_II]);
+    expect(difficultyEncounterSetIds(scenario, "expert", { standard: STANDARD_II, expert: EXPERT_II })).toEqual([
+      STANDARD_II,
+      EXPERT_II,
+    ]);
+  });
+
+  test("Expert II is not added in standard mode, and nothing is added where no set is required", () => {
+    expect(difficultyEncounterSetIds(scenario, "standard", { expert: EXPERT_II })).toEqual([STANDARD]);
+    const none = { standardEncounterSetIds: [], expertEncounterSetIds: [] };
+    expect(difficultyEncounterSetIds(none, "expert", { standard: STANDARD_II, expert: EXPERT_II })).toEqual([]);
+  });
+
+  test("a chosen set must be known and of the matching classification", () => {
+    const sets = [
+      { id: STANDARD_II, name: "Standard II", packCodes: [], classification: "standard" },
+      { id: EXPERT_II, name: "Expert II", packCodes: [], classification: "expert" },
+      { id: encounterSetId("beasty_boys"), name: "Beasty Boys", packCodes: [] },
+    ] as unknown as readonly EncounterSet[];
+    expect(difficultySetChoiceErrors({ standard: STANDARD_II, expert: EXPERT_II }, sets)).toEqual([]);
+    expect(difficultySetChoiceErrors({ standard: EXPERT_II }, sets)).toEqual([
+      "standard set expert_ii is not in the standard classification",
+    ]);
+    expect(difficultySetChoiceErrors({ expert: encounterSetId("beasty_boys") }, sets)).toEqual([
+      "expert set beasty_boys is not in the expert classification",
+    ]);
+    expect(difficultySetChoiceErrors({ standard: encounterSetId("nope") }, sets)).toEqual([
+      "standard set nope is not a known encounter set",
+    ]);
   });
 });

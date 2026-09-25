@@ -8,6 +8,7 @@
 import {
   cardId,
   CORE_STARTER_DECKS,
+  difficultyEncounterSetIds,
   difficultyOf,
   MTS_SCENARIOS,
   MTS_STARTER_DECKS,
@@ -16,11 +17,12 @@ import {
   WARM_STARTER_DECKS,
   type AnyCard,
   type CardId,
+  type DifficultySetChoice,
   type VillainCard,
 } from "@mc/content";
 import type { GameSetupConfig, PlayerSetup, VillainSetup } from "@mc/engine";
 import { resolveModes, type CoreDifficulty, type CorePlayer } from "../../core/setup.js";
-import { WAVE4_CARDS } from "../cards.js";
+import { checkWave4DifficultySets, WAVE4_CARDS } from "../cards.js";
 
 /** Villain cards set aside at setup, found by name via the main scheme's own "Setup"/"When Revealed" abilities
  * (MC21 p. 10-11): the environment and the Focused Defense attachment are scenario furniture, not shuffled into
@@ -79,6 +81,8 @@ export interface TowerDefenseOptions {
   readonly difficulty?: TowerDefenseDifficulty;
   readonly modularSetIds?: readonly string[];
   readonly firstPlayerIndex?: number;
+  /** Standard II / Expert II instead of the printed sets (docs/phase7-wave4.md §4 Q5); absent is the printed sets. */
+  readonly difficultySets?: DifficultySetChoice;
 }
 
 /** Every card in these encounter sets, read from `WAVE4_CARDS`, except the ones `TOWER_DEFENSE_SET_ASIDE_IDS`
@@ -111,6 +115,7 @@ const stageIndexOf = (stageNumber: number): number => {
 /** Tower Defense: two villains sharing one encounter deck, two main schemes, Focused Defense (§3.2-§3.5). */
 export function towerDefenseScenario(options: TowerDefenseOptions): GameSetupConfig {
   const scenario = SCENARIO!;
+  checkWave4DifficultySets(options.difficultySets);
   const difficulty = difficultyOf(resolveModes(options.difficulty, undefined));
   const [firstStage, lastStage] = scenario.villainStages[difficulty];
   const startStageIndex = stageIndexOf(firstStage);
@@ -118,8 +123,7 @@ export function towerDefenseScenario(options: TowerDefenseOptions): GameSetupCon
   const sets = [
     ...scenario.encounterSetIds,
     ...(options.modularSetIds ?? scenario.recommendedModularSetIds),
-    ...scenario.standardEncounterSetIds,
-    ...(difficulty === "expert" ? scenario.expertEncounterSetIds : []),
+    ...difficultyEncounterSetIds(scenario, difficulty, options.difficultySets),
   ];
   if (options.players.length < 1 || options.players.length > 4) throw new Error("a game has 1-4 players");
   const villains: readonly VillainSetup[] = [
@@ -138,6 +142,8 @@ export function towerDefenseScenario(options: TowerDefenseOptions): GameSetupCon
     players: seatsOf(options.players),
     requireIdentitySets: true,
     requireLegalDecks: true,
+    // Expert mode reaches the engine for "Standard/Expert Mode Only" faces (Formidable Foe, Standard II; §3.18).
+    ...(difficulty === "expert" ? { difficulty: "expert" as const } : {}),
     ...(options.firstPlayerIndex !== undefined ? { firstPlayerIndex: options.firstPlayerIndex } : {}),
   };
 }
