@@ -4,8 +4,19 @@
  * such pair programmatically against "every earlier card" and, for pairs whose ability ids carry the same slug and
  * count, aliases the wave 4 id straight to the earlier `AbilityDefinition` — one script, two or more ids.
  *
- * **"Earlier" is `WAVE3_CARDS`**, which already includes Core through cycle 2 (`wave3/cards.ts`'s own docblock), so
- * unlike `wave3/reprints.ts` (which unions two pre-cycle-2 sibling pools) this only needs the one accumulated pool.
+ * **"Earlier" is `@mc/content`'s own fixed `WAVE1_CARDS` ∪ `WAVE2_CARDS` ∪ `WAVE3_CARDS` (deduped by id, all three
+ * already include Core) — every card printed before cycle 3 — not `../wave3/index.js`'s re-export of
+ * `PLAYABLE_CARDS`.** `wave3/cards.ts`'s own `WAVE3_CARDS` is deliberately an alias to `PLAYABLE_CARDS`, which now
+ * includes cycle 3 itself once this wave's own content pass wired it in (docs/phase7-wave4.md); using it here as
+ * "earlier" is wrong in both directions: cycle 3 cards checking against a pool that already contains them would
+ * silently skip every wave 4 card (`earlierCardIds.has(card.id)` always true, zero reprint pairs), but the pool
+ * this file actually loops over — `WAVE4_CARDS` (`./cards.js`, also `PLAYABLE_CARDS`) — carries wave 1/cycle 1
+ * cards too, and `@mc/content`'s own `WAVE3_CARDS` (Core + cycle 2 only) doesn't cover those, so wave 1/cycle 1's
+ * own generic staple cards (Avengers Mansion, The Power of Aggression, Make the Call, ...) fell through the
+ * `earlierCardIds` skip and got auto-aliased a second time under their own already-scripted ids, colliding with
+ * `WAVE3_ABILITIES` the moment `mergeRegistries` ran (`../wave3/reprints.ts`'s own docblock names the same class
+ * of hazard for `PLAYABLE_CARDS` at cycle 2). The three-pool union below is fixed and never grows, so unlike
+ * `wave3/reprints.ts` (which unions the two pre-cycle-2 sibling pools) this needs all three pre-cycle-3 ones.
  *
  * **Matched by (name, type), then confirmed by ability shape — never assumed from the name alone.** A mismatched
  * pair (same name/type, different ability shape) is recorded in `WAVE4_REPRINT_PROBLEMS` (pinned by
@@ -21,9 +32,8 @@
  * `PACK_OWN_ABILITIES` below (one line per pack, the same "additive" convention as `../index.ts`) and its refs are
  * never overwritten by a false-positive alias, no matter what `wave4ReprintPairs` finds.
  */
-import { WAVE3_CARDS } from "../wave3/index.js";
 import { WAVE3_ABILITIES } from "../wave3/index.js";
-import type { AbilityReference, AnyCard } from "@mc/content";
+import { WAVE1_CARDS, WAVE2_CARDS, WAVE3_CARDS, type AbilityReference, type AnyCard } from "@mc/content";
 import type { AbilityDefinition, AbilityRegistry } from "@mc/engine";
 import { WAVE4_CARDS } from "./cards.js";
 import { HOOD_ABILITIES } from "./hood/index.js";
@@ -66,8 +76,16 @@ function abilityRefsOf(card: AnyCard): readonly AbilityReference[] {
 
 const reprintKey = (card: AnyCard): string => `${card.name} ${card.type}`;
 
-const earlierCardIds = new Set(WAVE3_CARDS.map((c) => c.id as string));
-const earlierByReprintKey = new Map<string, AnyCard>(WAVE3_CARDS.map((c) => [reprintKey(c), c]));
+/** Every card printed before cycle 3: `WAVE1_CARDS` ∪ `WAVE2_CARDS` ∪ `WAVE3_CARDS`, deduped by id (all three
+ * already include Core). */
+const EARLIER_CARDS: readonly AnyCard[] = (() => {
+  const byId = new Map<string, AnyCard>();
+  for (const c of [...WAVE1_CARDS, ...WAVE2_CARDS, ...WAVE3_CARDS]) byId.set(c.id as string, c);
+  return [...byId.values()];
+})();
+
+const earlierCardIds = new Set(EARLIER_CARDS.map((c) => c.id as string));
+const earlierByReprintKey = new Map<string, AnyCard>(EARLIER_CARDS.map((c) => [reprintKey(c), c]));
 
 /** Every (wave 4 card, matched earlier card) pair by (name, type), whether or not it ends up aliased. */
 export function wave4ReprintPairs(): ReadonlyArray<{ readonly wave4: AnyCard; readonly earlier: AnyCard }> {

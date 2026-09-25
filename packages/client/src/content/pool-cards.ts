@@ -9,5 +9,5 @@
  */
 import { PLAYABLE_CARDS, type AnyCard } from "@mc/content";
 
-/** Every card the app knows about: Core, the eight wave 1 packs and the six cycle 1 packs. */
+/** Every card the app knows about: Core, wave 1, cycle 1, cycle 2 and cycle 3. */
 export const POOL_CARDS: readonly AnyCard[] = PLAYABLE_CARDS;

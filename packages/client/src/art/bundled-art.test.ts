@@ -46,6 +46,12 @@ const KNOWN_MISSING: readonly string[] = [
   "bundles/cards/11012a.jpg",
   "bundles/cards/11013a.jpg",
   "https://hallofheroeslcg.com/wp-content/uploads/2020/12/0b.jpg",
+  // Cycle 3: The Hood's later main scheme stages, and Vision's own second identity face/alter-ego.
+  "bundles/cards/24004a.jpg",
+  "bundles/cards/24005a.jpg",
+  "bundles/cards/24006a.jpg",
+  "bundles/cards/26002a.jpg",
+  "bundles/cards/26002b.png",
 ];
 
 describe("bundledArtPaths", () => {

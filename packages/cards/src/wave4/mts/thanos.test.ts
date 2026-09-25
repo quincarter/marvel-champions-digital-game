@@ -2,6 +2,8 @@ import {
   activeEncounterDeckId,
   activeVillain,
   cardsInPlay,
+  type Command,
+  type GameEvent,
   type GameState,
   type InstanceId,
   type PlayerId,
@@ -10,6 +12,7 @@ import { cardId } from "@mc/content";
 import { describe, expect, it } from "vitest";
 import {
   answer,
+  applyOk,
   endTurn,
   firstLegal,
   identityOf,
@@ -28,6 +31,44 @@ import { driveEvents } from "../../testing/staging.js";
 import { WAVE4_DEPS } from "../index.js";
 import { runWave4, startWave4Game } from "../testing.js";
 import { spectrumScenario } from "./support.js";
+
+/** `../../testing/staging.js`'s own `driveEvents`, but with a caller-supplied `Picker` instead of a hardcoded
+ * `firstLegal` — needed to steer a `declareDefender` choice while still collecting the full event log. */
+/** A `Picker` that also sees every event produced so far this call — declaring a defender correctly sometimes needs
+ * to know which ability's attack is currently in progress, which the abilities stack alone doesn't always show (an
+ * "ability" frame pops as soon as its own effects begin, before the attack it initiated resolves; see
+ * "21120.when-revealed-hero" below), but an `abilityResolved` event for it is already in the log by then. */
+type EventAwarePicker = (state: GameState, eventsSoFar: readonly GameEvent[]) => readonly string[];
+
+function driveEventsWith(
+  state: GameState,
+  pick: EventAwarePicker,
+  ...commands: readonly Command[]
+): { readonly state: GameState; readonly events: readonly GameEvent[] } {
+  let current = state;
+  const events: GameEvent[] = [];
+  const settleOne = () => {
+    while (current.pendingChoice && !current.outcome) {
+      const result = applyOk(current, answerCommand(current, pick(current, events)), WAVE4_DEPS);
+      current = result.state;
+      events.push(...result.events);
+    }
+  };
+  settleOne();
+  for (const command of commands) {
+    const result = applyOk(current, command, WAVE4_DEPS);
+    current = result.state;
+    events.push(...result.events);
+    settleOne();
+  }
+  return { state: current, events };
+}
+
+function answerCommand(state: GameState, selected: readonly string[]): Command {
+  const choice = state.pendingChoice;
+  if (!choice) throw new Error("no pending choice");
+  return { type: "resolveChoice", playerId: choice.playerId, choiceId: choice.choiceId, selectedOptionIds: selected };
+}
 
 /**
  * Real-game tests for the Thanos scenario's own scripted refs (`thanos.ts`). Every test seats Spectrum's own precon
@@ -293,12 +334,69 @@ describe("Avatar of Death (21120)", () => {
     expect(inst(revealed, revealed.mainScheme.instanceId).threat).toBeGreaterThan(before);
   });
 
-  it("21120.when-revealed-hero: Thanos attacks the hero, and that attack gains overkill and piercing", () => {
+  it("21120.when-revealed-hero: the attack it initiates gains overkill (an exact spill) and piercing (an exact tough bypass)", () => {
+    // Weak-test finding (rules-qa-engineer, docs/phase7-wave4-qa.md): the prior version of this test only checked
+    // damage `toBeGreaterThan` an undefended attack against the identity — the same "fired but never took effect"
+    // shape §3.51 found (and this pass fixed) for Calvin Zabo's own overkill/ATK-bonus keywords, never
+    // independently re-verified here after that fix landed.
+    //
+    // Asserted on `driveEvents`'s own typed events (`overkillSpilled`, `statusRemoved` reason `"piercing"`) rather
+    // than the identity's aggregate end-of-phase damage total: Thanos also has his own separate, undefended,
+    // non-piercing regular villain-phase activation this same round (`21122.boost`'s own docblock, above, already
+    // documents this scenario's own encounter deck compounding a round's activations unpredictably), which would
+    // make an aggregate damage total ambiguous — it can't tell "21120's own attack pierced" apart from "the other
+    // activation's ordinary attack landed after tough had already been spent by 21120's". These two event types
+    // are each emitted only by the specific attack that caused them, so they aren't affected by what else the round
+    // also does.
     const hero = settle(runWave4(thanosGame(1), toHero()), firstLegal, undefined, WAVE4_DEPS);
     const identity = identityOf(hero, P1);
-    const before = inst(hero, identity).damage;
-    const { state: revealed } = revealTopEncounterCard(hero, "21120");
-    expect(inst(revealed, identity).damage).toBeGreaterThan(before);
+    // Captain America (21011, 4 hit points) at 3 damage: 1 remaining hit point, less than Thanos stage 1's own ATK
+    // (2) — and toughened, so without piercing this attack would be fully prevented (tough discarded, no damage
+    // dealt at all, RRG 1.8 "Tough", p. 46) instead of defeating her and spilling the remainder onto the hero.
+    const { state: withAlly, id: ally } = putAllyIntoPlay(hero, "21011", P1, 3);
+    const toughened = patchInstance(withAlly, ally, {
+      exhausted: false,
+      statuses: { ...inst(withAlly, ally).statuses, tough: 1 },
+    });
+    // Stacked like `revealTopEncounterCard`: 21120 dealt to the player first, a harmless "01186" filler underneath
+    // so Thanos's own separate activation this round draws a boost instead of consuming 21120 itself.
+    const staged = stackEncounterDeck(stackEncounterDeck(toughened, "21120"), "01186");
+    // Thanos also has his own separate regular villain-phase activation this same round, with its own
+    // `declareDefender` prompt — found live while writing this test: it resolves *before* 21120 is even revealed,
+    // so a defender picker that greedily takes any prompt offering Captain America spends her tough on the wrong
+    // (non-piercing) attack instead, which the engine's own event log shows as `damagePrevented`/`statusRemoved`
+    // (`reason: "preventedDamage"`), not the piercing bypass this test is about. `21120.when-revealed-hero`'s own
+    // "ability" stack frame pops as soon as its effects begin, before the attack it initiates resolves, so instead
+    // this waits for that ability's own `abilityResolved` event (already in the log by the time its attack's
+    // `declareDefender` prompt appears) to declare her only for the right attack.
+    const pick: EventAwarePicker = (s, eventsSoFar) => {
+      const choice = s.pendingChoice;
+      const avatarOfDeathResolved = eventsSoFar.some(
+        (e) => e.type === "abilityResolved" && e.abilityId === "21120.when-revealed-hero",
+      );
+      if (
+        choice?.prompt.kind === "declareDefender" &&
+        avatarOfDeathResolved &&
+        choice.options.some((o) => o.optionId === ally)
+      )
+        return [ally];
+      return firstLegal(s);
+    };
+    const { events } = driveEventsWith(staged, pick, endTurn());
+    // The attack's own total (base ATK plus whatever boost icons this activation happens to draw) minus Captain
+    // America's 1 remaining hit point, read from the same attack's own `attackResolved` event rather than
+    // hardcoded, since the boost card is real content, not staged.
+    const attackTotal = events.find(
+      (e): e is Extract<GameEvent, { type: "attackResolved" }> =>
+        e.type === "attackResolved" && e.targetInstanceId === ally,
+    )!;
+    expect(attackTotal.damageDealt).toBe(attackTotal.baseAtk + attackTotal.boostIcons);
+    const spills = events.filter((e) => e.type === "overkillSpilled");
+    expect(spills).toEqual([
+      { type: "overkillSpilled", fromInstanceId: ally, toInstanceId: identity, amount: attackTotal.damageDealt - 1 },
+    ]);
+    const pierced = events.filter((e) => e.type === "statusRemoved" && e.reason === "piercing");
+    expect(pierced).toEqual([{ type: "statusRemoved", instanceId: ally, status: "tough", reason: "piercing" }]);
   });
 });
 
