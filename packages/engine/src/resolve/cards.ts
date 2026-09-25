@@ -194,6 +194,7 @@ export function moveCardsTo(ctx: Ctx, ids: readonly InstanceId[], destination: C
   const inPlay = new Set(cardsInPlay(ctx.state));
   const shuffleOwners = new Set<PlayerId>();
   let shuffleEncounter = false;
+  const scenarioDecksToShuffle = new Set<string>();
   const separateDecks = new Map<string, { readonly playerId: PlayerId; readonly name: string }>();
   for (const id of ids) {
     const instance = getInstance(ctx.state, id);
@@ -239,6 +240,13 @@ export function moveCardsTo(ctx: Ctx, ids: readonly InstanceId[], destination: C
         to = { kind: "setAside", playerId: owner };
         position = "bottom";
         break;
+      case "scenarioDeckShuffle": {
+        // docs/phase7-wave4.md §3.49: back into the shared scenario deck it belongs to.
+        if (instance.home.kind !== "scenarioDeck" || !ctx.state.scenarioDecks[instance.home.name]) continue;
+        to = { kind: "scenarioDeck", name: instance.home.name };
+        scenarioDecksToShuffle.add(instance.home.name);
+        break;
+      }
       case "encounterDeckShuffle": {
         const deckId = activeEncounterDeckId(ctx.state);
         to = { kind: "encounterDeck", deckId };
@@ -283,6 +291,12 @@ export function moveCardsTo(ctx: Ctx, ids: readonly InstanceId[], destination: C
     updatePlayer(ctx, owner, (p) => ({ ...p, deck: order }));
   }
   if (shuffleEncounter) shuffleEncounterDeck(ctx);
+  for (const name of scenarioDecksToShuffle) {
+    const piles = ctx.state.scenarioDecks[name];
+    if (!piles) continue;
+    const order = shuffleZone(ctx, { kind: "scenarioDeck", name }, piles.deck);
+    ctx.state = { ...ctx.state, scenarioDecks: { ...ctx.state.scenarioDecks, [name]: { ...piles, deck: order } } };
+  }
   for (const { playerId, name } of separateDecks.values()) {
     if (destination === "separateDeckShuffle") shuffleSeparateDeck(ctx, playerId, name);
     else syncSeparateDeckTop(ctx, playerId, name);

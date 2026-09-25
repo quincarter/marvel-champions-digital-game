@@ -477,6 +477,29 @@ describe("Infinite Mischief (21175)", () => {
     expectResolved(trace, "21175.boost");
     expect(after.scenarioDecks["Infinity Stone"]!.deck.length).toBeLessThan(stoneDeckBefore);
   });
+
+  it("21175.when-revealed: shuffles the infinity stone discard pile back into its deck and reveals the top card", () => {
+    const state = lokiGame(3);
+    const piles = state.scenarioDecks["Infinity Stone"]!;
+    // Two stones in the Infinity Stone discard pile (surgery for reach).
+    const moved = piles.deck.slice(0, 2);
+    const staged0: GameState = {
+      ...state,
+      scenarioDecks: {
+        ...state.scenarioDecks,
+        "Infinity Stone": { deck: piles.deck.slice(2), discard: [...piles.discard, ...moved] },
+      },
+    };
+    const inPlay = (s: GameState) => [...s.villainArea, ...s.players.flatMap((p) => p.playArea)];
+    const stonesBefore = moved.length + piles.deck.length - 2;
+    const { state: after } = revealTopEncounterCard(staged0, "21175");
+    const stoneDeck = after.scenarioDecks["Infinity Stone"]!;
+    expect(stoneDeck.discard).toHaveLength(0);
+    // The stones that were in the discard pile are back in the deck or in play (revealed); none is left discarded,
+    // and at least one stone came into play from the deck.
+    for (const id of moved) expect(stoneDeck.deck.includes(id) || inPlay(after).includes(id)).toBe(true);
+    expect(stoneDeck.deck.length).toBeLessThan(stonesBefore);
+  });
 });
 
 describe("The Trickster (21176)", () => {

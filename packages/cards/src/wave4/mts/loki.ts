@@ -107,14 +107,9 @@ import { cardName } from "../names.js";
  * docblock), this is a forcing effect that must commit to one activation kind, and the DSL primitives test already
  * settled which for this card.
  *
- * **Infinite Mischief's own When Revealed** ("Shuffle the infinity stone deck discard pile into the infinity stone
- * deck and reveal the top card") needs a scenario-deck-discard-into-itself shuffle **on demand** — distinct from the
- * automatic "if the Infinity Stone deck is ever empty, shuffle its discard back in" reset already wired generically
- * for every scenario deck (`resetEmptyScenarioDecks`, `ScenarioDeckState.whenEmpty`) — and no `EffectSpec` exposes
- * that (`CardDestination` has `encounterDeckShuffle` and the per-player `separateDeckShuffle`, nothing for a shared
- * `scenarioDeck`). Left in `KNOWN_SKIPPED` as a genuine primitive gap; its own `[star] Boost` line needs no such
- * primitive (`replaceBoostCount`, the same shape `thanos.ts`'s own "I Am Inevitable" 21122 boost already proves) and
- * is scripted here.
+ * **Infinite Mischief's own When Revealed** shuffles the Infinity Stone discard pile back into its deck on demand
+ * (`scenarioDeckShuffle`, docs/phase7-wave4.md §3.49), distinct from the automatic empty-deck reset
+ * (`ScenarioDeckState.whenEmpty`), then reveals the top card.
  */
 
 const STONE_DECK = "Infinity Stone";
@@ -215,10 +210,15 @@ export const LOKI = defineAbilities({
     ifThen(hasStatus(yourIdentity, "stunned"), takeDamage(2), stun(yourIdentity)),
   ),
 
-  // Infinite Mischief (treachery x2, 21175) — When Revealed: left in KNOWN_SKIPPED (module docblock: no scenario-
-  // deck on-demand shuffle primitive). [star] Boost: Discard the top card of the infinity stone deck. Apply its
-  // boost icons for this activation as if it were a boost card (`replaceBoostCount`, `thanos.ts`'s own "I Am
-  // Inevitable" shape).
+  // Infinite Mischief (treachery x2, 21175) — When Revealed: Shuffle the infinity stone deck discard pile into the
+  // infinity stone deck (`scenarioDeckShuffle`, docs/phase7-wave4.md §3.49) and reveal the top card. [star] Boost:
+  // Discard the top card of the infinity stone deck. Apply its boost icons for this activation as if it were a boost
+  // card (`replaceBoostCount`, `thanos.ts`'s own "I Am Inevitable" shape).
+  "21175.when-revealed": whenRevealed(
+    moveCards(scenarioDeck(STONE_DECK, { zones: ["discard"] }), "scenarioDeckShuffle"),
+    selectCards("stone", scenarioDeck(STONE_DECK, { top: 1 })),
+    revealCard(chosen("stone")),
+  ),
   "21175.boost": boost(
     selectCards("stone", scenarioDeck(STONE_DECK, { top: 1 })),
     moveCards(cards(chosen("stone")), "discard"),

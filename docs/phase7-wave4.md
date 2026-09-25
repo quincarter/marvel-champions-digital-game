@@ -479,6 +479,7 @@ stays data only.**
 | 3.46 | Per-player snapshots; each player resolving a Special as themself            | Promised Prosperity; Hail Hydra!, It's Alive!                                | landed  |
 | 3.47 | A product of values; Hela's scaling and expert villain                       | Hela (21136a/21137a), Odin 21139b, hela expertVillains                       | landed  |
 | 3.48 | An advance to a set-aside villain does not pre-empt the card's When Defeated | Loki (rules bug)                                                             | landed  |
+| 3.49 | Shuffling a scenario deck's discard pile back in on demand                   | Infinite Mischief                                                            | landed  |
 
 ### 3.1 Additional forms: the form keyword
 
@@ -1677,6 +1678,22 @@ Defeated only fired when no set-aside Loki remained.
 > cards checked** (every forced interrupt to a villain's defeat, Core through wave 4): only Loki advances to a set-aside
 > villain. Collector (`gmw`) and Hela flip "instead", a replacement of the defeat, so their card's When Defeated
 > correctly does not resolve; Kang has no villain-defeat interrupt. See §4 Q21 for the order.
+
+### 3.49 Shuffling a scenario deck's discard pile back in on demand
+
+Infinite Mischief (`mts` 21175): "When Revealed: Shuffle the infinity stone deck discard pile into the infinity stone
+deck and reveal the top card." An on-demand shuffle of a shared scenario deck's discard pile into itself, distinct from
+the automatic empty-deck reset (`ScenarioDeckState.whenEmpty`); `CardDestination` had `encounterDeckShuffle` and the
+per-player `separateDeckShuffle` only.
+
+> **Status: landed (2026-09-25),** tested in `packages/engine/src/set-deck-and-run-out.test.ts` (1 new test: the
+> discarded stone returns to the Infinity Stone deck, which is shuffled) and in a real game in
+> `packages/cards/src/wave4/mts/loki.test.ts` (with two stones in the Infinity Stone discard pile, Infinite Mischief
+> leaves it empty, the stones are back in the deck or revealed into play). **What landed:** **`CardDestination
+"scenarioDeckShuffle"`**: a card whose home is a scenario deck goes back into it, and each deck touched is shuffled
+> (`deckShuffled` with the scenario deck's zone); any other card is left where it is. **Scripted:**
+> `21175.when-revealed` (`moveCards(scenarioDeck(STONE_DECK, { zones: ["discard"] }), "scenarioDeckShuffle")`, then
+> reveal the top card), off `KNOWN_SKIPPED`.
 
 ## 4. Open questions (for the user or FFG)
 

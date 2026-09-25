@@ -58,14 +58,11 @@ const KNOWN_SKIPPED: Readonly<Record<string, readonly string[]>> = {
   // Enchantress (21177–21179, `mts/enchantress.ts`, one of Loki's own two recommended modulars): every ref
   // resolves; no genuine gap found.
   //
-  // The Loki scenario (`mts/loki.ts`, `mts` 21160–21176, the box's fifth): every ref resolves except one genuine
-  // gap. `21175.when-revealed` (Infinite Mischief) needs a scenario-deck-discard-into-itself shuffle on demand —
-  // no `EffectSpec` exposes that (`loki.ts`'s own module docblock; `CardDestination` has `encounterDeckShuffle` and
-  // the per-player `separateDeckShuffle`, nothing for a shared `scenarioDeck`). Its own Boost line is scripted.
+  // The Loki scenario (`mts/loki.ts`, `mts` 21160–21176, the box's fifth): every ref resolves (Infinite Mischief's
+  // When Revealed uses `scenarioDeckShuffle`, docs/phase7-wave4.md §3.49).
   mts: [
     // legions-of-hel.ts and frost-giants.ts (Hela's own two recommended modular sets): every ref resolves; no
     // genuine gap found.
-    "21175.when-revealed",
     "21180a.when-defeated",
     "21180b.cosmo-constant",
     "21180b.cosmo-constant-2",
