@@ -63,9 +63,17 @@ async function devScreenJump(): Promise<{ readonly key: string; readonly data?: 
   if (!screen) return null;
 
   if (screen === "scenario-select" || screen === "seats" || screen === "table-setup") {
+    // `&scenario=<id>&deck=<precon deck id>`: which scenario/precon this dev jump seats, for screenshotting a
+    // specific setup screen (Standard II/Expert II, The Hood's own modular choice) without clicking through
+    // Scenario select/Seats by hand. Falls back to the original fixed Rhino/first-precon draft when either param
+    // is absent or names something the pool doesn't have.
+    const params = new URLSearchParams(location.search);
+    const scenario = POOL_SCENARIOS.find((s) => s.id === params.get("scenario")) ?? POOL_SCENARIOS[0]!;
+    const decks = preconDecks(POOL_VERSION);
+    const deck = decks.find((d) => (d.id as string) === params.get("deck")) ?? decks[0]!;
     const draft = initialSetupDraft({
-      scenarioId: POOL_SCENARIOS[0]!.id as string,
-      seatDeckId: preconDecks(POOL_VERSION)[0]!.id as string,
+      scenarioId: scenario.id as string,
+      seatDeckId: deck.id as string,
       seed: rollSeed(),
     });
     if (screen === "scenario-select")
