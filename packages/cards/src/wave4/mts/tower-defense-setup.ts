@@ -17,7 +17,7 @@ import {
 } from "@mc/content";
 import type { GameSetupConfig, PlayerSetup, VillainSetup } from "@mc/engine";
 import { resolveModes, type CoreDifficulty, type CorePlayer } from "../../core/setup.js";
-import { CORVUS_GLAIVE, PROXIMA_MIDNIGHT, TOWER_DEFENSE_CARDS, TOWER_DEFENSE_SET_ASIDE_IDS } from "./tower-defense.js";
+import { CORVUS_GLAIVE, PROXIMA_MIDNIGHT, TOWER_DEFENSE_CARDS, TOWER_DEFENSE_SET_ASIDE_IDS } from "./villain-merge.js";
 
 const SET_ASIDE = new Set<string>(TOWER_DEFENSE_SET_ASIDE_IDS);
 

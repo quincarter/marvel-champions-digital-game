@@ -16,10 +16,19 @@
  * 21104.corvuss-glaive-action, 21105.direct-assault-forced-interrupt, 21106.when-revealed, 21106.boost,
  * 21107.when-revealed, 21107.boost, 21108.when-revealed, 21108.boost, 21109.when-revealed, 21109.boost,
  * 21110.when-defeated.
+ *
+ * Every `.boost` ref is driven as an actual boost card of a real villain activation (stacked as the literal top of
+ * the shared encounter deck, so it is the one boost card revealed for that activation — `stackEncounterDeck`'s own
+ * docblock), not merely revealed to a player; every `.when-revealed` ref is asserted by its exact effect (an
+ * `attackResolved` event's own `baseAtk`/`boostIcons`/`damageDealt`, or an exact damage/heal/status delta), not a
+ * loose `toBeGreaterThan`/`<=`/`||`.
  */
 import {
+  cardOf,
+  characterProfile,
   createGame,
   hasKeyword,
+  printedResources,
   replay,
   sessionApply,
   startSession,
@@ -27,28 +36,34 @@ import {
   type GameEvent,
   type GameState,
   type InstanceId,
+  type PlayerId,
 } from "@mc/engine";
 import { describe, expect, it } from "vitest";
 import { playToOutcome } from "../../testing/driver.js";
 import {
   P1,
+  applyOk,
   endTurn,
   firstLegal,
   identityOf,
   inst,
   instancesOf,
   patchInstance,
+  playerOf,
   runWith,
   settle,
   stackEncounterDeck,
   toHero,
+  use,
   type Picker,
 } from "../../testing/harness.js";
 import { defeatWithAttack } from "../../testing/staging.js";
 import { WAVE4_DEPS } from "../index.js";
-import { startWave4Game } from "../testing.js";
-import { CORVUS_GLAIVE, PROXIMA_MIDNIGHT } from "./tower-defense.js";
+import { playFromHand, startWave4Game } from "../testing.js";
+import { CORVUS_GLAIVE, PROXIMA_MIDNIGHT } from "./villain-merge.js";
 import { towerDefenseScenario } from "./tower-defense-setup.js";
+
+type AttackResolvedEvent = Extract<GameEvent, { readonly type: "attackResolved" }>;
 
 const start = (
   seed = 1,
@@ -85,13 +100,77 @@ const corvus = (state: GameState): InstanceId => {
 };
 const activeCardId = (state: GameState): string => inst(state, state.activeVillainId).cardId;
 const towerId = (state: GameState): InstanceId => instancesOf(state, "21100a")[0]!;
+const atk = (state: GameState, id: InstanceId): number => characterProfile(state, id, WAVE4_DEPS)!.atk;
 
-/** Ends P1's turn and drains every pending choice through the villain phase into the next player phase. Draining
- * unconditionally (not stopping the moment `step.phase` reports "player") matters here: Focused Defense's own
- * "after the player phase ends" response can still have a pending choice open at that exact boundary. */
-function endRound(state: GameState, pick: Picker = firstLegal) {
-  return settle(runWith(WAVE4_DEPS, state, endTurn(P1)), pick, undefined, WAVE4_DEPS);
+/** Drives P1's turn end through the full villain phase into the next player phase, collecting every event along
+ * the way (so a specific villain's `attackResolved` can be told apart from another attack the same round). */
+function driveRound(state: GameState, pick: Picker = firstLegal): { state: GameState; events: readonly GameEvent[] } {
+  let session = startSession(state);
+  const events: GameEvent[] = [];
+  const first = sessionApply(session, endTurn(P1), WAVE4_DEPS);
+  if (!first.ok) throw new Error(first.error.message);
+  session = first.session;
+  events.push(...first.events);
+  for (let guard = 0; session.state.pendingChoice && guard < 200; guard++) {
+    const choice = session.state.pendingChoice;
+    const answer = sessionApply(
+      session,
+      {
+        type: "resolveChoice",
+        playerId: choice.playerId,
+        choiceId: choice.choiceId,
+        selectedOptionIds: pick(session.state),
+      },
+      WAVE4_DEPS,
+    );
+    if (!answer.ok) throw new Error(answer.error.message);
+    session = answer.session;
+    events.push(...answer.events);
+  }
+  return { state: session.state, events };
 }
+
+/** Ends P1's turn and drains every pending choice through the villain phase into the next player phase (the
+ * `driveRound` shape, for tests that only need the resulting state). Draining unconditionally (not stopping the
+ * moment `step.phase` reports "player") matters here: Focused Defense's own "after the player phase ends" response
+ * can still have a pending choice open at that exact boundary. */
+function endRound(state: GameState, pick: Picker = firstLegal): GameState {
+  return driveRound(state, pick).state;
+}
+
+/** Every `attackResolved` event this round whose enemy was `enemyId` — exactly one per villain per round unless it
+ * both scheduled-activates and is separately made to attack again by a card effect. */
+const attacksBy = (events: readonly GameEvent[], enemyId: InstanceId): readonly AttackResolvedEvent[] =>
+  events.filter((e): e is AttackResolvedEvent => e.type === "attackResolved" && e.enemyInstanceId === enemyId);
+
+/** A card resource-typed cost's own hand payment: the first hand card printing (or wilding) each named type, in
+ * order — `spend({ energy: 1, mental: 1 })`'s own test-side pairing. */
+function payTyped(
+  state: GameState,
+  player: PlayerId,
+  need: readonly ("energy" | "mental" | "physical")[],
+): InstanceId[] {
+  const remaining = [...playerOf(state, player).hand];
+  const picked: InstanceId[] = [];
+  for (const type of need) {
+    const index = remaining.findIndex((id) => {
+      const card = cardOf(state, id);
+      if (!card) return false;
+      const pool = printedResources(card);
+      return (pool[type] ?? 0) > 0 || (pool.wild ?? 0) > 0;
+    });
+    if (index < 0) throw new Error(`${player} has no ${type} resource card in hand`);
+    picked.push(remaining[index]!);
+    remaining.splice(index, 1);
+  }
+  return picked;
+}
+
+// The villain's own boost card is drawn from the top of the (shared) encounter deck before any player is dealt one
+// (`stackEncounterDeck`'s own docblock), so a filler card ("01186", Standard, 0 boost icons, harmless "the villain
+// schemes" text) absorbs that draw and the named card underneath it is the one actually dealt to (and, for an
+// attachment, attached by) the player as their own encounter card that round.
+const stackBehindBoost = (state: GameState, code: string): GameState => stackEncounterDeck(state, "01186", code);
 
 describe("setup (§2.2, §3.2)", () => {
   it("puts two main schemes and two villains into play, Avengers Tower stronghold-side, Focused Defense on Corvus's scheme", () => {
@@ -159,9 +238,7 @@ describe("villains (§3.3 mutual protection; Forced Interrupts)", () => {
     const bothNearZero = patchInstance(
       patchInstance(lastStage, proxima(lastStage), { damage: 999 }),
       corvus(lastStage),
-      {
-        damage: 999,
-      },
+      { damage: 999 },
     );
     // Killing one with an ordinary attack pushes both through `checkDefeats` at once (docs/phase7-wave4.md §3.3).
     const after = defeatWithAttack(WAVE4_DEPS, bothNearZero, proxima(bothNearZero));
@@ -172,26 +249,35 @@ describe("villains (§3.3 mutual protection; Forced Interrupts)", () => {
     expect(after.outcome?.result).toBe("win");
   });
 
-  it("21092.proxima-midnight-forced-interrupt: when she attacks you, choose 1 damage to Avengers Tower or +2 ATK", () => {
-    // Make Proxima the active villain (Focused Defense starts on Corvus's scheme) and drive her activation.
-    const round1 = endRound(start());
-    expect(activeCardId(round1)).toBe(PROXIMA_MIDNIGHT.id);
-    if (round1.outcome) return; // the round can end the game outright at low seeds/threat targets
-    const tower = towerId(round1);
-    const before = inst(round1, tower).damage;
-    const after = endRound(round1, accepting("Deal 1 damage to Avengers Tower"));
-    expect(inst(after, tower).damage).toBeGreaterThanOrEqual(before);
+  it("21092.proxima-midnight-forced-interrupt: when she attacks you, choosing '1 damage to Avengers Tower' deals exactly 1", () => {
+    // Round 1: Focused Defense has already swapped to Proxima's scheme before this round's own step one, so she is
+    // the round's scheduled activation (`activeCardId`, checked below). Two "01186" fillers (0 boost icons, harmless
+    // "the villain schemes" text) soak up her own boost draw and the per-player dealt card, so nothing else touches
+    // the tower this round; her own chooseOne is answered by `accepting` throughout the one round it's driven in.
+    const before = start();
+    expect(activeCardId(before)).toBe(CORVUS_GLAIVE.id); // before the round; Focused Defense swaps first
+    const tower = towerId(before);
+    const beforeDamage = inst(before, tower).damage;
+    const after = endRound(stackEncounterDeck(before, "01186", "01186"), accepting("Deal 1 damage to Avengers Tower"));
+    if (after.outcome) return; // the round can end the game outright at low seeds/threat targets
+    expect(activeCardId(after)).toBe(PROXIMA_MIDNIGHT.id); // confirms this was her round
+    expect(inst(after, tower).damage).toBe(beforeDamage + 1);
   });
 
-  it("21095.corvus-glaive-forced-interrupt: after his undefended attack, damage from the discarded card's boost icons hits Avengers Tower", () => {
-    const state = start();
-    expect(activeCardId(state)).toBe(CORVUS_GLAIVE.id);
-    const tower = towerId(state);
-    const before = inst(state, tower).damage;
-    const after = endRound(state, firstLegal);
-    // Corvus's undefended attack always discards a card and deals its boost icons to the tower (>= 0); the ref
-    // itself is exercised regardless of the exact icon count this seed draws.
-    expect(inst(after, tower).damage).toBeGreaterThanOrEqual(before);
+  it("21095.corvus-glaive-forced-interrupt: after his undefended attack, damage equals the discarded card's boost icons exactly", () => {
+    // Round 2: one round transition puts Proxima active (round 1), a second swaps back to Corvus (round 2), so his
+    // own scheduled activation is what this ref reacts to. Stack: his own boost draw (0 icons), the card his own
+    // Forced Interrupt discards ("21105" Direct Assault, printed 2 boost icons), then a harmless filler for the
+    // per-player dealt card.
+    const round1 = endRound(start());
+    if (round1.outcome) return;
+    expect(activeCardId(round1)).toBe(PROXIMA_MIDNIGHT.id);
+    const tower = towerId(round1);
+    const before = inst(round1, tower).damage;
+    const after = endRound(stackEncounterDeck(round1, "01186", "21105", "01186"), firstLegal);
+    if (after.outcome) return;
+    expect(activeCardId(after)).toBe(CORVUS_GLAIVE.id); // confirms this was his round
+    expect(inst(after, tower).damage).toBe(before + 2);
   });
 });
 
@@ -204,9 +290,12 @@ describe("Avengers Tower (§3.5)", () => {
   it("21100a.avengers-tower-forced-response: at 9[per_hero]+ damage it clears and flips to Damaged", () => {
     const state = start();
     const tower = towerId(state);
-    // 8 already there, plus Rain Fire's own "Deal 3 damage to Avengers Tower" (21109.when-revealed) lands the 9th.
-    const near = stackEncounterDeck(patchInstance(state, tower, { damage: 8 }), "21109");
-    const after = endRound(near);
+    // 8 already there, plus Rain Fire's own "Deal 3 damage to Avengers Tower" (21109.when-revealed, dealt as the
+    // player's own revealed encounter card, not its boost card) lands the 9th and 10th. Round 1 makes her the
+    // scheduled activation, so her own Forced Interrupt also offers a choice this round; steer it to "+2 ATK" (not
+    // "1 damage to Avengers Tower") so Rain Fire's 3 is the only damage the tower takes.
+    const near = stackBehindBoost(patchInstance(state, tower, { damage: 8 }), "21109");
+    const after = endRound(near, accepting("gets +2 ATK"));
     expect(inst(after, tower).damage).toBe(0);
     expect(inst(after, tower).flipped).toBe(true);
   });
@@ -214,27 +303,22 @@ describe("Avengers Tower (§3.5)", () => {
   it("21100b.avengers-tower-forced-response: at 9[per_hero]+ more on the Damaged side, the players lose", () => {
     const state = start();
     const tower = towerId(state);
-    const flippedAndDamaged = patchInstance(stackEncounterDeck(state, "21109"), tower, { damage: 6, flipped: true });
+    const flippedAndDamaged = patchInstance(stackBehindBoost(state, "21109"), tower, { damage: 6, flipped: true });
     const after = endRound(flippedAndDamaged);
     expect(after.outcome?.result).toBe("loss");
   });
 });
 
 describe("modular set: Black Order Besieger, weapons, Direct Assault, treacheries, City Under Attack", () => {
-  it("21102.black-order-besieger-forced-response: engaging (at setup) deals 1 to Avengers Tower or 2 to the identity", () => {
+  it("21102.black-order-besieger-forced-response: engaging (at setup) deals exactly 1 to Avengers Tower", () => {
     const state = start();
     const besieger = instancesOf(state, "21102").find((id) => inst(state, id).engagedWith === P1)!;
     expect(besieger).toBeDefined();
-    // firstLegal picks the first option ("Deal 1 damage to Avengers Tower") for the setup-time engagement.
-    expect(inst(state, towerId(state)).damage).toBeGreaterThanOrEqual(1);
+    // firstLegal picks the first option ("Deal 1 damage to Avengers Tower"); nothing else has touched the tower yet.
+    expect(inst(state, towerId(state)).damage).toBe(1);
   });
 
-  // The villain's own boost card is drawn from the top of the (shared) encounter deck before any player is dealt
-  // one (`stackEncounterDeck`'s own docblock), so a filler card ("01186", Standard) absorbs that draw and the
-  // named card underneath it is the one actually dealt to (and, for an attachment, attached by) the player.
-  const stackBehindBoost = (state: GameState, code: string): GameState => stackEncounterDeck(state, "01186", code);
-
-  it("21103.proximas-spear-constant/action: attached to Proxima Midnight, grants overkill and piercing", () => {
+  it("21103.proximas-spear-constant: attached to Proxima Midnight, grants overkill and piercing", () => {
     const revealed = endRound(stackBehindBoost(start(), "21103"));
     const attachedTo = inst(
       revealed,
@@ -245,7 +329,29 @@ describe("modular set: Black Order Besieger, weapons, Direct Assault, treacherie
     expect(hasKeyword(revealed, attachedTo, "piercing", WAVE4_DEPS)).toBe(true);
   });
 
-  it("21104.corvuss-glaive-constant/action: attached to Corvus Glaive, grants retaliate 1", () => {
+  it("21103.proximas-spear-action: taking 1 damage and spending [energy][mental] discards it", () => {
+    const revealed = endRound(stackBehindBoost(start(), "21103"));
+    const spear = instancesOf(revealed, "21103").find((id) => inst(revealed, id).attachedTo)!;
+    const payment = payTyped(revealed, P1, ["energy", "mental"]);
+    const identity = identityOf(revealed, P1);
+    const identityDamageBefore = inst(revealed, identity).damage;
+    const applied = applyOk(
+      revealed,
+      use(
+        P1,
+        spear,
+        "21103.proximas-spear-action",
+        payment.map((fromHand) => ({ fromHand })),
+      ),
+      WAVE4_DEPS,
+    );
+    const after = settle(applied.state, firstLegal, undefined, WAVE4_DEPS);
+    expect(inst(after, identity).damage).toBe(identityDamageBefore + 1);
+    expect(inst(after, spear).attachedTo).toBeNull();
+    for (const id of payment) expect(playerOf(after, P1).hand).not.toContain(id);
+  });
+
+  it("21104.corvuss-glaive-constant: attached to Corvus Glaive, grants retaliate 1", () => {
     const revealed = endRound(stackBehindBoost(start(), "21104"));
     const attachedTo = inst(
       revealed,
@@ -253,6 +359,32 @@ describe("modular set: Black Order Besieger, weapons, Direct Assault, treacherie
     ).attachedTo!;
     expect(attachedTo).toBe(corvus(revealed));
     expect(hasKeyword(revealed, attachedTo, "retaliate", WAVE4_DEPS)).toBe(true);
+  });
+
+  it("21104.corvuss-glaive-action: taking 1 damage and spending [energy][physical] discards it", () => {
+    const revealed = endRound(stackBehindBoost(start(), "21104"));
+    const glaive = instancesOf(revealed, "21104").find((id) => inst(revealed, id).attachedTo)!;
+    const payment = payTyped(revealed, P1, ["energy", "physical"]);
+    const identity = identityOf(revealed, P1);
+    const identityDamageBefore = inst(revealed, identity).damage;
+    const after = settle(
+      runWith(
+        WAVE4_DEPS,
+        revealed,
+        use(
+          P1,
+          glaive,
+          "21104.corvuss-glaive-action",
+          payment.map((fromHand) => ({ fromHand })),
+        ),
+      ),
+      firstLegal,
+      undefined,
+      WAVE4_DEPS,
+    );
+    expect(inst(after, identity).damage).toBe(identityDamageBefore + 1);
+    expect(inst(after, glaive).attachedTo).toBeNull();
+    for (const id of payment) expect(playerOf(after, P1).hand).not.toContain(id);
   });
 
   it("21105.direct-assault-forced-interrupt: attaches to the non-active villain", () => {
@@ -265,38 +397,125 @@ describe("modular set: Black Order Besieger, weapons, Direct Assault, treacherie
     expect(activeCardId(revealed)).toBe(PROXIMA_MIDNIGHT.id);
   });
 
-  it("21106.when-revealed/boost: Proxima Midnight activates against you, boosted by Corvus Glaive's SCH/ATK", () => {
-    const before = start();
-    const beforeDamage = inst(before, before.players[0]!.identity.instanceId).damage;
-    const after = endRound(stackBehindBoost(before, "21106"), firstLegal);
-    // Undefended (firstLegal declines), her attack damages the identity.
-    expect(inst(after, after.players[0]!.identity.instanceId).damage).toBeGreaterThan(beforeDamage);
+  it("21106.when-revealed: Proxima Midnight activates against you for exactly her printed ATK, undefended", () => {
+    // Round 2 (Corvus scheduled-active): her own attack this round comes only from this card's "activates against
+    // you", so it is the round's only `attackResolved` event naming her. Round 1 makes Proxima active; round 2
+    // (driven below) swaps back to Corvus.
+    const round1 = endRound(start());
+    if (round1.outcome) return;
+    expect(activeCardId(round1)).toBe(PROXIMA_MIDNIGHT.id);
+    const expected = atk(round1, proxima(round1));
+    // Corvus's own scheduled attack draws a boost card, and so does the Black Order Besieger engaged with P1
+    // (minions activate too, RRG 1.8 "Villain Phase" step 2) — two boost draws before any player is dealt a card.
+    // Her own "activates against you" is a brand-new attack (`additionalResolution: true`) with its own boost draw
+    // too, so: two fillers, the card itself, one more filler.
+    const { state: after, events } = driveRound(
+      stackEncounterDeck(round1, "01186", "01187", "21106", "01186"),
+      firstLegal,
+    );
+    if (after.outcome) return;
+    expect(activeCardId(after)).toBe(CORVUS_GLAIVE.id); // confirms this round's own scheduled attack was his
+    const hers = attacksBy(events, proxima(after));
+    expect(hers).toHaveLength(1);
+    expect(hers[0]!.boostIcons).toBe(0);
+    expect(hers[0]!.defenseReduction).toBe(0);
+    expect(hers[0]!.damageDealt).toBe(expected);
   });
 
-  it("21107.when-revealed/boost: Corvus's Cunning mirrors Proxima's Power for Corvus Glaive", () => {
-    const before = start();
-    const beforeDamage = inst(before, before.players[0]!.identity.instanceId).damage;
-    const after = endRound(stackBehindBoost(before, "21107"), firstLegal);
-    expect(inst(after, after.players[0]!.identity.instanceId).damage).toBeGreaterThan(beforeDamage);
+  it("21106.boost: as the boost card of a real activation, adds Corvus Glaive's SCH/ATK to the activating villain's", () => {
+    // Round 1 (Proxima scheduled-active): stack the card as the literal top of the deck so it is her activation's
+    // one boost card, not a player's dealt one.
+    const start1 = start();
+    const expectedAtk = atk(start1, proxima(start1)) + atk(start1, corvus(start1));
+    const { state: after, events } = driveRound(stackEncounterDeck(start1, "21106"), firstLegal);
+    expect(activeCardId(start1)).toBe(CORVUS_GLAIVE.id); // still true before the round; Focused Defense swaps first
+    const hers = attacksBy(events, proxima(after));
+    expect(hers).toHaveLength(1);
+    expect(hers[0]!.boostIcons).toBe(0); // 21106 prints 0 boost icons of its own
+    expect(hers[0]!.defenseReduction).toBe(0);
+    expect(hers[0]!.damageDealt).toBe(expectedAtk);
   });
 
-  it("21108.when-revealed/boost: Bound by Blood heals 2 from each villain and gives each a tough status card", () => {
+  it("21107.when-revealed: Corvus Glaive activates against you for exactly his printed ATK, undefended", () => {
+    // Round 1 (Proxima scheduled-active): his own attack this round comes only from this card.
+    const before = start();
+    expect(activeCardId(before)).toBe(CORVUS_GLAIVE.id);
+    const expected = atk(before, corvus(before));
+    // Third filler: his own "activates against you" is a brand-new attack (`additionalResolution: true`), which
+    // draws its own boost card too — without this it would draw whatever is next in the (unstacked) shared deck.
+    const { state: after, events } = driveRound(stackEncounterDeck(before, "01186", "21107", "01186"), firstLegal);
+    const his = attacksBy(events, corvus(after));
+    expect(his).toHaveLength(1);
+    expect(his[0]!.boostIcons).toBe(0);
+    expect(his[0]!.defenseReduction).toBe(0);
+    expect(his[0]!.damageDealt).toBe(expected);
+  });
+
+  it("21107.boost: as the boost card of a real activation, adds Proxima Midnight's SCH/ATK to the activating villain's", () => {
+    const start1 = start();
+    const expectedAtk = atk(start1, proxima(start1)) + atk(start1, corvus(start1));
+    const { state: after, events } = driveRound(stackEncounterDeck(start1, "21107"), firstLegal);
+    const hers = attacksBy(events, proxima(after));
+    expect(hers).toHaveLength(1);
+    expect(hers[0]!.boostIcons).toBe(0); // 21107 prints 0 boost icons of its own
+    expect(hers[0]!.defenseReduction).toBe(0);
+    expect(hers[0]!.damageDealt).toBe(expectedAtk);
+  });
+
+  it("21108.when-revealed: heals exactly 2 from EACH villain and gives EACH a tough status card", () => {
     const p = proxima(start());
     const c = corvus(start());
     const damaged = patchInstance(patchInstance(start(), p, { damage: 3 }), c, { damage: 3 });
     const after = endRound(stackBehindBoost(damaged, "21108"));
-    expect(inst(after, p).damage).toBeLessThanOrEqual(3);
-    expect(statusActive(after, p, "tough", WAVE4_DEPS) || statusActive(after, c, "tough", WAVE4_DEPS)).toBe(true);
+    expect(inst(after, p).damage).toBe(1);
+    expect(inst(after, c).damage).toBe(1);
+    expect(statusActive(after, p, "tough", WAVE4_DEPS)).toBe(true);
+    expect(statusActive(after, c, "tough", WAVE4_DEPS)).toBe(true);
   });
 
-  it("21109.when-revealed/boost: Rain Fire deals 3 to Avengers Tower", () => {
+  it("21108.boost: as the boost card of a real activation, heals exactly 2 from and toughens ONLY the active villain", () => {
+    const start1 = start();
+    // Round 1: Proxima is the scheduled activation (Focused Defense has already swapped). Damage only the active one
+    // and confirm the other is untouched by the boost.
+    const p = proxima(start1);
+    const c = corvus(start1);
+    const damaged = patchInstance(patchInstance(start1, p, { damage: 3 }), c, { damage: 3 });
+    const after = endRound(stackEncounterDeck(damaged, "21108"));
+    expect(inst(after, p).damage).toBe(1);
+    expect(statusActive(after, p, "tough", WAVE4_DEPS)).toBe(true);
+    // Corvus, not the active villain this round, is untouched by the boost.
+    expect(inst(after, c).damage).toBe(3);
+    expect(statusActive(after, c, "tough", WAVE4_DEPS)).toBe(false);
+  });
+
+  it("21109.when-revealed: deals exactly 3 damage to Avengers Tower", () => {
     const before = start();
     const beforeDamage = inst(before, towerId(before)).damage;
-    const after = endRound(stackBehindBoost(before, "21109"));
-    expect(inst(after, towerId(after)).damage).toBeGreaterThanOrEqual(beforeDamage + 3);
+    // Round 1 makes her the scheduled activation, so her own Forced Interrupt also offers a choice this round;
+    // steer it to "+2 ATK" (not "1 damage to Avengers Tower") so Rain Fire's 3 is the only damage the tower takes.
+    const after = endRound(stackBehindBoost(before, "21109"), accepting("gets +2 ATK"));
+    expect(inst(after, towerId(after)).damage).toBe(beforeDamage + 3);
   });
 
-  it("21110.when-defeated: City Under Attack's defeater draws a card", () => {
+  it("21109.boost: as the boost card of a real attack that defeats an ally (White Tiger, defended), deals 3 more to Avengers Tower", () => {
+    // Play White Tiger (21013: ATK 2, THW 2, HP 2, no printed DEF) and declare her the defender for the round's
+    // scheduled attack; stacked as the literal top of the deck, 21109 is that attack's own boost card (+1 icon),
+    // so its damage (Proxima's printed ATK 2 + 1 boost icon = 3) defeats White Tiger's 2 hit points outright. Her
+    // own Forced Interrupt (a separate choice, offered because she is undefended... no: she IS defended here by
+    // White Tiger, so it still offers "1 damage to Avengers Tower or +2 ATK" independent of the defend choice);
+    // steer both prompts with one picker that also declares White Tiger the defender.
+    const withTiger = playFromHand(start(), "21013", 3);
+    const tower = towerId(withTiger.state);
+    const beforeDamage = inst(withTiger.state, tower).damage;
+    const { state: after } = driveRound(
+      stackEncounterDeck(withTiger.state, "21109"),
+      accepting(withTiger.id, "gets +2 ATK"),
+    );
+    expect(inst(after, withTiger.id).damage >= 2 || !after.players[0]!.playArea.includes(withTiger.id)).toBe(true);
+    expect(inst(after, tower).damage).toBe(beforeDamage + 3);
+  });
+
+  it("21110.when-defeated: City Under Attack's defeater draws exactly 1 card", () => {
     const revealed = endRound(stackBehindBoost(start(), "21110"));
     if (revealed.outcome) return; // the round can end the game outright at low seeds/threat targets
     const city = instancesOf(revealed, "21110").find((id) => !revealed.removedFromGame.includes(id))!;
