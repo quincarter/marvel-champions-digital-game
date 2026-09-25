@@ -229,6 +229,10 @@ if (import.meta.env.DEV) {
         stop?: Parameters<typeof fixtures.seedDesignWonGame>[1],
         options?: { expertCampaign?: boolean },
       ) => seedWon(() => fixtures.seedDesignWonGame(session.campaignService(), stop, options)),
+      seedMts: (stop?: Parameters<typeof fixtures.seedMtsRun>[1]) =>
+        fixtures.seedMtsRun(session.campaignService(), stop),
+      seedMtsComposed: (stop?: Parameters<typeof fixtures.seedMtsComposed>[1]) =>
+        fixtures.seedMtsComposed(session.campaignService(), stop),
     };
   });
 }

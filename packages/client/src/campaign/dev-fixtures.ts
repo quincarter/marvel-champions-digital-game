@@ -12,7 +12,7 @@
  */
 import type { CampaignChoiceAnswer, CampaignPendingChoice, CardInstance, GameState, InstanceId } from "@mc/engine";
 import { NO_STATUSES } from "@mc/engine";
-import { cardId } from "@mc/content";
+import { cardId, deckId, type CoreAspect, type DeckCardEntry } from "@mc/content";
 import { POOL_VERSION } from "../content/pool.js";
 import { MemoryGameStorage } from "../engine/game-storage.js";
 import type { CampaignRecord } from "../engine/campaign-storage.js";
@@ -305,4 +305,89 @@ export async function seedDesignWonGame(
 ): Promise<WonGame> {
   const record = await seedDesignRun(service, stop, options);
   return composeAndFabricateWin(service, record, autoAnswer);
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// The Mad Titan's Shadow (MC21), Spectrum and Adam Warlock — test-only, campaign-pool screen states.
+//
+// Unlike every fixture above, this one never plays a game at all, real or substituted: wave 4's own MC21 scenario
+// scripting isn't registered in this build's `EngineDeps` yet (`docs/phase7-wave4-qa.md`), so `EngineSessionCore`
+// can't start an MC21 game to fold, real or fabricated. `service.start` and `service.compose` both work anyway —
+// `start` only needs an identity id and a deck's own contents (never validated against the pool a real seat would
+// need), and `compose` (`resolveBetweenGames`) only resolves `record`/`betweenGames` instructions, which never read
+// a card's ability script — so this seeds a real, stored `CampaignRecord` through those two real service calls,
+// then fabricates the two "finished issues" a real fold would have written (`position.resolved`, the pool's own
+// shared flags) with a direct `storage.put`, the one step that has no pool-free real path yet. Every field
+// fabricated here is exactly what a real fold would have written; `campaign-pool-model.ts`'s own field detection
+// reads the log, not how it got there.
+// ---------------------------------------------------------------------------------------------------------------
+
+export type MtsRunStop = "fresh" | "afterIssue2" | "beforeFinale";
+
+const mtsFlag = (value: boolean) => ({ kind: "flag" as const, value });
+
+/** `"afterIssue2"`'s own four resolved pool cards (MC21 p. 7/p. 13's own setup/victory bullets). */
+const MTS_AFTER_ISSUE_2_POOL = {
+  cosmoInPool: mtsFlag(true),
+  securityBreachInPool: mtsFlag(true),
+  shawarmaInPool: mtsFlag(true),
+  blackSwanInPool: mtsFlag(true),
+};
+
+/** `"beforeFinale"` adds the three cards only #3/#4 can add (MC21 p. 17/p. 21). */
+const MTS_BEFORE_FINALE_POOL = {
+  ...MTS_AFTER_ISSUE_2_POOL,
+  systemShockInPool: mtsFlag(true),
+  nornStoneInPool: mtsFlag(true),
+  odinInPool: mtsFlag(true),
+};
+
+export async function seedMtsRun(service: CampaignService, stop: MtsRunStop = "afterIssue2"): Promise<CampaignRecord> {
+  const emptyDeck = (identityCardId: string) => ({
+    id: deckId(`mts-fixture-${identityCardId}`),
+    name: "MC21 fixture deck",
+    identityCardId: cardId(identityCardId),
+    aspects: [] as CoreAspect[],
+    cards: [] as DeckCardEntry[],
+    poolVersion: POOL_VERSION,
+    source: { kind: "userBuilt" as const, createdAt: new Date(0).toISOString() },
+  });
+  const started = await service.start({
+    campaignId: "mts",
+    seats: [
+      { identityCardId: cardId("21001a"), deck: emptyDeck("21001a") },
+      { identityCardId: cardId("21031a"), deck: emptyDeck("21031a") },
+    ],
+    poolVersion: POOL_VERSION,
+    seed: 2121,
+  });
+  if (stop === "fresh") return started;
+
+  const resolvedThroughIssue2 = { "ebony-maw": "completed" as const, "tower-defense": "completed" as const };
+  const resolvedThroughIssue4 = {
+    ...resolvedThroughIssue2,
+    thanos: "completed" as const,
+    hela: "completed" as const,
+  };
+  const fabricated: CampaignRecord = {
+    ...started,
+    position: {
+      ...started.position,
+      nextNodeId: stop === "afterIssue2" ? "thanos" : "loki",
+      resolved: stop === "afterIssue2" ? resolvedThroughIssue2 : resolvedThroughIssue4,
+    },
+    shared: { ...started.shared, ...(stop === "afterIssue2" ? MTS_AFTER_ISSUE_2_POOL : MTS_BEFORE_FINALE_POOL) },
+    updatedAt: Date.now(),
+  };
+  await service.storage.put(fabricated);
+  return (await service.load(fabricated.id))!;
+}
+
+/** `stop`'s own record, composed for real (`service.compose`, pool-free — see the module doc comment above). */
+export async function seedMtsComposed(
+  service: CampaignService,
+  stop: MtsRunStop = "afterIssue2",
+): Promise<CampaignRecord> {
+  const record = await seedMtsRun(service, stop);
+  return settle((answers) => service.compose(record, answers));
 }
