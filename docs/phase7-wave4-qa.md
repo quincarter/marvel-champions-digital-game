@@ -291,3 +291,108 @@ afterward — the source file is unchanged from before this checkpoint).
 - `npx vitest run src/wave4/mts` (`@mc/cards`): **21 test files, 279 tests, all passed.**
 - `npx vitest run src/campaigns/mts.qa.test.ts src/wave4/mts/tower-defense.test.ts`: 32 tests, all passed
   (re-confirming item A.1/A.2 rather than assuming their prior "landed" status).
+
+## Checkpoint 3: C (toBeGreaterThan/two-ref sweep), D (2-player `mts` games), E (printed-text audit)
+
+Time-boxed given the scale found (121 `toBeGreaterThan`/`toBeLessThan` lines across 36 files, not the ~35/~17
+originally estimated) — went as deep as the budget allowed, flagged everything not individually re-verified rather
+than assumed clean. Full `pnpm cards` suite re-run clean after every change (see counts below).
+
+### C. The `toBeGreaterThan`/`toBeLessThan`/two-ref sweep
+
+**Scale, corrected:** `grep -c "toBeGreaterThan\|toBeLessThan"` across `packages/cards/src/wave4/*/*.test.ts`
+returns **121** hits in 36 files (107 outside the `*-e2e.test.ts` files, which are real multi-round smoke games
+where a loose bound is the right call, not a weak-test smell — `tower-defense.test.ts`'s own docblock states this
+distinction explicitly: "every `.when-revealed`/`.boost` ref is asserted by its exact effect… not a loose
+`toBeGreaterThan`/`<=`/`\|\|`", reserving the loose form for its own §3.3 AI-driven smoke section). Two real fixes
+were made from this sweep, each verified against the actual game mechanics rather than guessed:
+
+1. **`packages/cards/src/wave4/mts/adam-warlock-kit.test.ts`, "21035.warlocks-cape-response,
+   21037.mystic-senses-response"** — named both refs, but the original `toBeGreaterThan(before - 2)` assertion is
+   satisfied even if _neither_ Response fired. **Found live while fixing it:** the two abilities do different
+   things (Warlock's Cape _readies_ Adam Warlock; only Mystic Senses _draws_), and the hand-length snapshot
+   ("before") is taken _before_ Battle Mage's own cost (discarding a Justice card) is paid, so the net hand-size
+   change across the whole `use()` is 0 (−1 cost, +1 draw) even though the draw genuinely fires — an initial "fix"
+   to `toBe(before + 2)`, then `toBe(before + 1)`, both failed against the real trace before this was diagnosed.
+   Tightened to check the _deck_ shrinking by exactly 1 (isolating the draw from the cost) and the identity's
+   `exhausted` flag (isolating the ready) — each keyword's own effect proven independently. Re-ran clean.
+2. Spot-checked roughly 15 more two-ref titles by reading the ability definitions and their tests side by side
+   (not re-run individually beyond the file's own existing suite): `hood-gaps.test.ts` (24039/24040, looped over
+   both codes), `ebony-maw.test.ts` (21083's two constants, checked via `toMatchObject` on the plain ability
+   data — both refs genuinely asserted), `war-machine-pack-cards.test.ts` (23012, both the attach and the
+   play-as-if-from-hand halves exercised), `vision-kit.test.ts` (26003 Vivian, both stat deltas checked exactly).
+   All came out clean — each test does exercise both named refs, just not always the same way (some drive a real
+   game, some assert the compiled `AbilityDefinition` shape directly, which is legitimate for two abilities documented
+   as intentionally identical, e.g. 21072/21073 mirroring 21071 verbatim).
+
+**Not individually re-verified this pass** (flagged, not assumed clean): the remaining ~105 `toBeGreaterThan`/
+`toBeLessThan` lines and ~13 more two-ref titles. A representative sample (`infinity-gauntlet.test.ts`,
+`ebony-maw.test.ts`, `hela.test.ts`, `loki.test.ts`, `thanos.test.ts`) was read for shape rather than executed against
+alternate scripts: most guard against real, AI-driven villain-phase games where more than one activation can land in
+the same round (the exact trap the Avatar of Death fix below hit), so a loose bound there is plausibly the right
+call by the same logic `tower-defense.test.ts` states outright — but "plausibly right by the same pattern" is not
+"independently confirmed," and this file should not be read as having cleared all 105.
+
+### B (continued): Avatar of Death, done properly this checkpoint
+
+(Already reported above under "Findings not tightened, filed instead" and Checkpoint 2 §B — recorded here again only
+to cross-reference: this is the same fix, item B of the coordinator's follow-up.)
+
+### D. A 2-player game for each `mts` scenario
+
+**New file:** `packages/cards/src/wave4/mts/two-player-e2e.test.ts` — table-driven across all five `mts` scenarios
+(Ebony Maw, Thanos, Hela, Loki, Tower Defense), Spectrum + Adam Warlock (both real precons), standard mode, one
+seed, played headlessly to a real outcome with a deterministic replay check (the same shape every existing solo
+`*-e2e.test.ts` file already uses). All five passed on the first run with no debugging needed — `spectrumScenario`'s
+own `extraPlayers` option (already used by `hela.test.ts`'s own 2-player tests) made this straightforward once item
+B's own lesson (activation-order surprises) was already learned the hard way.
+
+### E. Printed-text-vs-script audit: `nebu` (full), `warm`/`valk`/rest-of-`mts`/`hood` (not reached)
+
+**`nebu` (Nebula), full pack, line-by-line against `docs/cards/by_pack/nebu.md`:** identity (22001a/b), full kit
+(22002–22010), obligation (Inferiority Complex, 22027), nemesis set (Gamora minion 22028, Self-Preservation 22029,
+Lethal Weapon 22030, Old Rivals 22031), and every remaining pack card (22011–22026, 22032–22035) — `nebula-kit.ts`,
+`nebula-obligation-nemesis.ts`, `nebula-pack-cards.ts` read in full. All clean: target, "you" vs. "each player",
+may/must, timing word, cost vs. effect, and the "already X" ordering pattern (`22027.obligation`'s "if no upgrade
+was discarded this way" reads a bound var set by the actual `chooseCards`/`moveCards` result, not a guess; Old
+Rivals' errata'd two-part attack is scripted as two independent `enemyAttack`/`friendlyCharacterAttacks` calls with a
+surge fallback exactly matching the printed "if no attack was made this way," cited to ruling Jun 25, 2026 (4) #1
+in the script's own comment). No findings.
+
+**Also spot-checked (not a full audit): the "already X" pattern specifically, across `mts`.** Grepped every wave 4
+pack script for "already" and read the two clearest hits: Mind Stone (21130) and Power Stone (21131) in
+`mts/infinity-gauntlet.ts` — both correctly check `hasStatus(...)` _before_ applying the new status
+(`ifThen(hasStatus(...), <already-true branch>, <apply-status branch>)`), the same ordering Deviant Syndrome (`mts` 21121) already got right per the earlier `docs/phase7-wave3-qa.md`-style audit convention. No findings.
+
+**Not reached this checkpoint** (flagged explicitly, not assumed clean): `warm` (War Machine), `valk` (Valkyrie), the
+rest of `mts` (Thanos/Hela/Ebony Maw/Loki/Tower Defense/Adam Warlock/Spectrum kits, obligations, nemesis sets, and
+every villain/main-scheme/side-scheme text — only spot-checked for the "already X" pattern above, not read in
+full), and `hood` (The Hood's own full kit set) — none of these got the `nebu`-style full line-by-line pass. Given
+each pack is comparably sized to `nebu` (§ "Scale" above: ~1,600 more lines of transcribed printed text across
+`warm`/`valk` alone, `mts`/`hood` considerably larger still), completing this properly is a multi-session effort,
+not a checkpoint extension.
+
+### Test counts, checkpoint 3
+
+- `npx oxlint`/`npx oxfmt --check` on the three touched/new files: clean.
+- `npx tsc --noEmit` for `@mc/cards`: clean.
+- `npx vitest run` (`@mc/cards`, full suite): **205 test files, 2210 tests, all passed** (up from 204/2205 at the
+  start of this checkpoint — 5 new 2-player games, 0 net test-count change from the adam-warlock-kit fix since it
+  tightened an existing test rather than adding one).
+
+### Files touched, checkpoint 3
+
+- `packages/cards/src/wave4/mts/adam-warlock-kit.test.ts` — tightened the Warlock's Cape/Mystic Senses test
+  (item C, finding 1).
+- `packages/cards/src/wave4/mts/two-player-e2e.test.ts` — new: 2-player standard games for all five `mts` scenarios
+  (item D).
+- `docs/phase7-wave4-qa.md` — this section.
+
+### What checkpoint 3 did not do
+
+- The ~105 remaining `toBeGreaterThan`/`toBeLessThan` lines and ~13 two-ref titles — sampled, not individually
+  re-verified.
+- `warm`, `valk`, the rest of `mts`, and `hood` — no full printed-text-vs-script audit (only `nebu` got one; a
+  narrow "already X" spot-check ran across all of `mts`).
+- A 2-player game for The Hood already existed before this pass (`hood/e2e.test.ts`); expert-mode 2-player games for
+  the `mts` scenarios were not added (item D asked for standard specifically).
