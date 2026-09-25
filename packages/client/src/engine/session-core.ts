@@ -126,6 +126,8 @@ const scenarioFor = (config: SessionConfig) => {
     ...(config.modularSetIds ? { modularSetIds: config.modularSetIds } : {}),
     ...(config.firstPlayerIndex !== undefined ? { firstPlayerIndex: config.firstPlayerIndex } : {}),
     ...(config.villainVersions ? { villainVersions: config.villainVersions } : {}),
+    ...(config.difficultySets ? { difficultySets: config.difficultySets } : {}),
+    ...(config.setAsideModularSetIds ? { setAsideModularSetIds: config.setAsideModularSetIds } : {}),
   });
   return config.campaign ? { ...setup, campaign: config.campaign } : setup;
 };
