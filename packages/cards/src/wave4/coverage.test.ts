@@ -54,8 +54,9 @@ const KNOWN_SKIPPED: Readonly<Record<string, readonly string[]>> = {
   // Thanos (`mts/thanos.ts`) and the Infinity Gauntlet modular set (`mts/infinity-gauntlet.ts`), the box's third
   // scenario: every ref in scope (the villain, the main scheme, the `thanos` encounter set, and the `infinity_
   // gauntlet` set) resolves; no genuine gap found. Black Order (21100–21110, scripted by Tower Defense) and
-  // Children of Thanos (21125–21128, `mts/children-of-thanos.ts`, Thanos's own other recommended modular): every
-  // ref resolves; no genuine gap found. The Loki scenario and Enchantress modular stay skipped below for that pass.
+  // Children of Thanos (21125–21128, `mts/children-of-thanos.ts`, Thanos's own other recommended modular) and
+  // Enchantress (21177–21179, `mts/enchantress.ts`, one of Loki's own two recommended modulars): every ref
+  // resolves; no genuine gap found. The Loki scenario itself stays skipped below for that pass.
   mts: [
     // hela (mts/hela.ts): every ref below except these two genuine gaps is now scripted.
     // `21136a.hela-constant`/`21137a.hela-constant`: the villain's own "+2[per_hero]/+3[per_hero] hit points for
@@ -97,11 +98,6 @@ const KNOWN_SKIPPED: Readonly<Record<string, readonly string[]>> = {
     "21175.boost",
     "21176.when-revealed",
     "21176.boost",
-    "21177.when-revealed",
-    "21178.beguiled-constant",
-    "21178.when-revealed",
-    "21179.seduced-constant",
-    "21179.seduced-action",
     "21180a.when-defeated",
     "21180b.cosmo-constant",
     "21180b.cosmo-constant-2",
