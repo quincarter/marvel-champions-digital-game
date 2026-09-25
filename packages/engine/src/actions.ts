@@ -1,4 +1,4 @@
-import { abilityId as asAbilityId, requirementResources, type AnyCard } from "@mc/content";
+import { abilityId as asAbilityId, requirementResources, type AbilityId, type AnyCard } from "@mc/content";
 import {
   DEFAULT_DEPS,
   type AbilityCost,
@@ -69,6 +69,7 @@ import {
   attachmentHostCandidates,
   heard,
   pushActionAbility,
+  pushEffects,
   pushEvent,
   pushEvents,
   pushPlayCardFrame,
@@ -604,9 +605,10 @@ function resourceAbilityFault(
 
 /**
  * RRG "Cost": resources come from cards discarded from hand and from "Resource"
- * abilities. Overpaying is legal; the excess is simply lost. Payments are
- * evaluated in order, so "the top card of your discard pile" sees any card
- * discarded earlier in the same payment.
+ * abilities. Overpaying is legal; the excess is simply lost. Every resource in
+ * one payment is generated simultaneously, so "the top card of your discard
+ * pile" is the pile as it stood before the payment — never a card this same
+ * payment is spending (FAQ "Pepper Potts (#33)", RRG 1.8 p. 58).
  */
 function priceOf(
   ctx: Ctx,
@@ -619,9 +621,9 @@ function priceOf(
   // abilities may pay. Each card is read from its own player's point of view (their form, their discard pile).
   const group = paidAsGroup(ctx.state, ctx.deps, excludeInstanceId, payingFor);
   const seen = new Set<string>();
-  const discardTop = new Map<PlayerId, InstanceId | null>();
-  const topOf = (id: PlayerId): InstanceId | null =>
-    discardTop.has(id) ? (discardTop.get(id) ?? null) : (mustPlayer(ctx.state, id).discard[0] ?? null);
+  // Each player's pile as it stood before the payment (FAQ "Pepper Potts (#33)", RRG 1.8 p. 58): never a card this
+  // same payment is spending. Pricing changes no state, so the live pile is that snapshot.
+  const topOf = (id: PlayerId): InstanceId | null => mustPlayer(ctx.state, id).discard[0] ?? null;
   let pool = EMPTY_POOL;
   for (const entry of payment) {
     if ("fromHand" in entry) {
@@ -650,7 +652,6 @@ function priceOf(
         };
       }
       pool = addPools(pool, handCardResources(ctx.state, ctx.deps, entry.fromHand, ownerId, payingFor));
-      discardTop.set(ownerId, entry.fromHand);
       continue;
     }
     const { instanceId, abilityId } = entry.ability;
@@ -746,12 +747,38 @@ export function paymentsFromOptionIds(optionIds: readonly string[]): readonly Pa
   return payments;
 }
 
+/** A resource ability a payment used, and who used it: its own effects resolve with the payment (§3.30 of wave 4). */
+export interface UsedResourceAbility {
+  readonly instanceId: InstanceId;
+  readonly abilityId: AbilityId;
+  readonly spender: PlayerId;
+}
+
+/** What a payment spent: hand cards discarded (in payment order) and resource abilities used. */
+export interface SpentPayment {
+  readonly cards: readonly InstanceId[];
+  readonly resourceAbilities: readonly UsedResourceAbility[];
+}
+
+export const NOTHING_SPENT: SpentPayment = { cards: [], resourceAbilities: [] };
+
+/** Two payments' spending together (a basic power's extra cost). */
+export const joinSpent = (a: SpentPayment, b: SpentPayment): SpentPayment => ({
+  cards: [...a.cards, ...b.cards],
+  resourceAbilities: [...a.resourceAbilities, ...b.resourceAbilities],
+});
+
 /**
- * Spends a priced payment. Returns the cards it discarded from hand, in payment order — the cards that were *spent*,
- * which the caller announces with `announceResourcesSpent` once the thing being paid for is on the stack.
+ * Spends a priced payment. Returns the cards it discarded from hand, in payment order — the cards that were *spent* —
+ * and the resource abilities it used, which the caller announces with `announceResourcesSpent` once the thing being
+ * paid for is on the stack.
  */
-export function payPayment(ctx: Ctx, playerId: PlayerId, payment: readonly Payment[]): readonly InstanceId[] {
+export function payPayment(ctx: Ctx, playerId: PlayerId, payment: readonly Payment[]): SpentPayment {
   const spent: InstanceId[] = [];
+  const used: UsedResourceAbility[] = [];
+  // Read before anything is discarded: the payment's resources are generated simultaneously (see `priceOf`).
+  // Each player's pile top before any card of this payment is discarded (FAQ "Pepper Potts (#33)", RRG 1.8 p. 58).
+  const discardTopBefore = new Map(ctx.state.players.map((p) => [p.playerId, p.discard[0] ?? null] as const));
   for (const entry of payment) {
     if ("fromHand" in entry) {
       // From the hand it is in: another player's, when they help pay for an alliance card (§3.17).
@@ -764,11 +791,7 @@ export function payPayment(ctx: Ctx, playerId: PlayerId, payment: readonly Payme
     const definition = ctx.deps.abilities[abilityId];
     if (!definition) continue;
     const spender = resourceSpender(ctx.state, ctx.deps, instanceId, abilityId, playerId);
-    const generated = generatedResources(
-      ctx.state,
-      definition.generates,
-      mustPlayer(ctx.state, spender).discard[0] ?? null,
-    );
+    const generated = generatedResources(ctx.state, definition.generates, discardTopBefore.get(spender) ?? null);
     const plan = planCost(ctx.state, ctx.deps, instanceId, spender, definition.cost, {}, new Set());
     if (!isFault(plan)) payCost(ctx, instanceId, spender, definition.cost, plan);
     recordAbilityUse(ctx, instanceId, abilityId, definition, null, spender);
@@ -780,8 +803,9 @@ export function payPayment(ctx: Ctx, playerId: PlayerId, payment: readonly Payme
       amount: poolTotal(generated),
       pool: generated,
     });
+    if (definition.effects.length > 0) used.push({ instanceId, abilityId, spender });
   }
-  return spent;
+  return { cards: spent, resourceAbilities: used };
 }
 
 /**
@@ -793,6 +817,32 @@ export function payPayment(ctx: Ctx, playerId: PlayerId, payment: readonly Payme
  * Pushed only when an ability could react, so a payment nothing cares about leaves the stack and the log as they were.
  */
 export function announceResourcesSpent(
+  ctx: Ctx,
+  playerId: PlayerId,
+  paid: SpentPayment,
+  payingForInstanceId: InstanceId | null,
+  purpose: "playCard" | "ability" | "effect",
+): void {
+  announceCardsSpent(ctx, playerId, paid.cards, payingForInstanceId, purpose);
+  // "Resource: Exhaust Gauntlet Gun → generate a [wild] resource for a War Machine event **and place 1 ammo counter on
+  // War Machine**" (docs/phase7-wave4.md §3.30): a resource ability's own effects are part of using it, so they resolve
+  // with the payment — pushed last, they resolve before the "after you spend" windows and before the card or ability
+  // paid for (RRG 1.8 "Initiating Abilities", p. 24, steps 5–6; "Resource Ability", p. 37). "That event deals 1
+  // additional damage" (Cybernetic Arm) reads the card paid for from slot `paidFor`.
+  for (const { instanceId, abilityId, spender } of [...paid.resourceAbilities].reverse()) {
+    const definition = ctx.deps.abilities[abilityId];
+    if (!definition || definition.effects.length === 0) continue;
+    emit(ctx, { type: "resourceAbilityEffects", instanceId, abilityId, playerId: spender });
+    pushEffects(ctx, {
+      effects: definition.effects,
+      selfInstanceId: instanceId,
+      controllerId: spender,
+      bindings: payingForInstanceId ? { paidFor: [payingForInstanceId] } : {},
+    });
+  }
+}
+
+function announceCardsSpent(
   ctx: Ctx,
   playerId: PlayerId,
   spent: readonly InstanceId[],
@@ -1557,7 +1607,7 @@ export function commitPlay(
   cardInstanceId: InstanceId,
   payment: readonly Payment[],
   priced: PricedPlay,
-): readonly InstanceId[] {
+): SpentPayment {
   consumeCostReductions(ctx, ctx.deps, playerId, cardInstanceId);
   const spent = payPayment(ctx, playerId, payment);
   // Counted as played now, so a card cancelled later still counts toward "Max N per round" (RRG 1.8 "Max, Maximum").
@@ -2175,8 +2225,8 @@ function payBasicPowerCost(
   command: Command & { type: "basicAttack" | "basicThwart" },
   characterId: InstanceId,
   power: "attack" | "thwart",
-  /** Receives the cards the payment spent, for the caller to announce once the power is on the stack. */
-  spentOut: InstanceId[],
+  /** Receives what the payment spent, for the caller to announce once the power is on the stack. */
+  spentOut: SpentPayment[],
 ): EngineError | null {
   const cost = basicPowerCost(ctx.state, ctx.deps, characterId, power);
   if (!cost) return null;
@@ -2200,7 +2250,7 @@ function payBasicPowerCost(
       command,
     );
   }
-  spentOut.push(...payPayment(ctx, command.playerId, payment));
+  spentOut.push(payPayment(ctx, command.playerId, payment));
   payCost(ctx, characterId, command.playerId, cost, plan);
   return null;
 }
@@ -2258,13 +2308,20 @@ export function pushConsequentialDamage(
  * power, since its costs are still paid (RRG 1.8 "Stun, Stunned", p. 41; "Confuse, Confused", p. 13).
  */
 function withSpentAnnounced<C extends Command & { type: "basicAttack" | "basicThwart" }>(
-  run: (ctx: Ctx, command: C, spent: InstanceId[]) => EngineError | null,
+  run: (ctx: Ctx, command: C, spent: SpentPayment[]) => EngineError | null,
   characterOf: (command: C) => InstanceId,
 ): (ctx: Ctx, command: C) => EngineError | null {
   return (ctx, command) => {
-    const spent: InstanceId[] = [];
+    const spent: SpentPayment[] = [];
     const error = run(ctx, command, spent);
-    if (!error) announceResourcesSpent(ctx, command.playerId, spent, characterOf(command), "ability");
+    if (!error)
+      announceResourcesSpent(
+        ctx,
+        command.playerId,
+        spent.reduce(joinSpent, NOTHING_SPENT),
+        characterOf(command),
+        "ability",
+      );
     return error;
   };
 }
@@ -2275,7 +2332,7 @@ export const basicThwart = withSpentAnnounced(basicThwartPaying, (command) => co
 function basicAttackPaying(
   ctx: Ctx,
   command: Command & { type: "basicAttack" },
-  spent: InstanceId[],
+  spent: SpentPayment[],
 ): EngineError | null {
   const invalid = requireActivePlayer(ctx.state, command.playerId, command);
   if (invalid) return invalid;
@@ -2369,7 +2426,7 @@ function basicAttackPaying(
 function basicThwartPaying(
   ctx: Ctx,
   command: Command & { type: "basicThwart" },
-  spent: InstanceId[],
+  spent: SpentPayment[],
 ): EngineError | null {
   const invalid = requireActivePlayer(ctx.state, command.playerId, command);
   if (invalid) return invalid;

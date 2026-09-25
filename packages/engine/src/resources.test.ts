@@ -213,7 +213,9 @@ describe("typed costs and payment", () => {
     expect(rejected(deps, after, play(c2, [ability(deskId, "scientist")] as never))).toBe("limit_reached");
   });
 
-  it("Pepper Potts copies the top card of the discard pile as it stands during the payment", () => {
+  it("Pepper Potts copies the discard pile as it stood before the payment, never a card that payment spends", () => {
+    // FAQ "Pepper Potts (#33)", RRG 1.8 p. 58: resources are generated simultaneously, so a card being spent is not
+    // yet on top of the discard pile when Pepper generates — whatever order the payment lists them in.
     const pepper = stubAbility(
       "pepper",
       def({
@@ -224,19 +226,46 @@ describe("typed costs and payment", () => {
       }),
     );
     const potts = stubSupport({ id: "potts", cost: 0, abilities: [pepper.ref] });
-    const pricey = stubEvent({ id: "pricey", cost: 4 });
-    const { deps, state } = setup([potts, pricey], pepper);
-    const given = giveCards(state, p1, "potts", "pricey", "energy");
-    const [pottsId, priceyId, energyId] = given.ids as [InstanceId, InstanceId, InstanceId];
+    const pricey = stubEvent({ id: "pricey", cost: 3 });
+    // Worth 1, not Energy's 2: under the old in-order pricing Pepper would copy this card instead and the payment fall short.
+    const onePip = stubEvent({ id: "one-pip", cost: 5, resources: 1 });
+    const { deps, state } = setup([potts, pricey, onePip], pepper);
+    const given = giveCards(state, p1, "potts", "pricey", "energy", "one-pip", "energy");
+    const [pottsId, priceyId, energyId, cheapId, spareEnergyId] = given.ids as [
+      InstanceId,
+      InstanceId,
+      InstanceId,
+      InstanceId,
+      InstanceId,
+    ];
     const inPlay = runWith(deps, given.state, play(pottsId, []));
 
-    // Pepper first: the discard pile is empty, so only the Energy card's 2 count.
+    // Empty discard pile: spending an Energy doesn't give Pepper anything to copy, in either order.
+    expect(rejected(deps, inPlay, play(priceyId, [...hand(energyId), ability(pottsId, "pepper")] as never))).toBe(
+      "insufficient_resources",
+    );
     expect(rejected(deps, inPlay, play(priceyId, [ability(pottsId, "pepper"), ...hand(energyId)] as never))).toBe(
       "insufficient_resources",
     );
-    // Energy first: it is now the top of the discard pile, so Pepper generates 2 more.
-    const paid = runWith(deps, inPlay, play(priceyId, [...hand(energyId), ability(pottsId, "pepper")] as never));
+
+    // An Energy already on top of the discard pile: Pepper copies its 2, and the card spent from hand (1) is added —
+    // listed first, as the client does, it must not replace the Energy as what Pepper sees.
+    const player = mustPlayer(inPlay, p1);
+    const energyOnTop: GameState = {
+      ...inPlay,
+      players: inPlay.players.map((seat) =>
+        seat.playerId === p1
+          ? {
+              ...player,
+              hand: player.hand.filter((id) => id !== spareEnergyId),
+              discard: [spareEnergyId, ...player.discard],
+            }
+          : seat,
+      ),
+    };
+    const paid = runWith(deps, energyOnTop, play(priceyId, [...hand(cheapId), ability(pottsId, "pepper")] as never));
     expect(mustInstance(paid, pottsId).exhausted).toBe(true);
+    expect(mustPlayer(paid, p1).discard).toContain(priceyId);
   });
 
   it("a hero-form resource ability can't be used in alter-ego form", () => {

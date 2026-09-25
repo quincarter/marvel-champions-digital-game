@@ -431,6 +431,7 @@ stays data only.**
 | 3.27 | A cancel with nothing it can cancel is not offered                       | §4 Q16 (user decision)                                           | landed  |
 | 3.28 | A blank text box except for keywords                                     | Corrupted Programming (§3.1's open item)                         | landed  |
 | 3.29 | A minion treated as an ally (the mirror of §3.9)                         | Mind Control, Redemption, Karma                                  | landed  |
+| 3.30 | A resource ability's own effects                                         | Gauntlet Gun; War Cry family, Psi-Knife, Cybernetic Arm          | landed  |
 
 ### 3.1 Additional forms: the form keyword
 
@@ -1271,6 +1272,31 @@ consequential}`** (source = the effect's card; `leavePlay` calls `releaseTreated
 > toward the ally limit (none of the three cards says otherwise). **DSL:** `constant(treatAttachedMinionAsAlly(traits,
 n))`, `treatAsAlly(target, traits, n)`. **Not covered:** Reluctant Foe (`aos` 50171: a hero from the collection
 > treated as an [Elite] minion with a replaced text box).
+
+### 3.30 A resource ability's own effects
+
+Gauntlet Gun (`warm` 23005): "Resource: Exhaust Gauntlet Gun → generate a [wild] resource for a War Machine event and
+place 1 ammo counter on War Machine." Survey (every raw pack, "Resource: … generate … resource … and/then …" and
+"Resource: … . <effect>"): War Cry, Improvisation, Bodyguard, Fortitude (`mut_gen` 32180, 32185, 32190, 32195: "Gain a
+tough status card" / "Ready an ally and heal 2 damage from it" / "Draw 1 card" / "Stun an enemy", then "Remove this card
+from the game and the campaign pool"); Psi-Knife / Psi-Katana (`psylocke` 41002a/b, "You may flip this card");
+Cybernetic Arm (`winter` 54002, "That event deals 1 additional damage") and Ruby Quartz Visor (`cyclops` 33003, "That
+attack gains piercing and ranged"), which modify the card paid for.
+
+> **Status: landed (2026-09-24),** tested in `packages/engine/src/resource-effects.test.ts` (2 tests: used to pay, the
+> resource ability's effect resolves with the payment and before the card paid for, replay deep-equal; not used,
+> nothing happens) and in a real game in `packages/cards/src/wave4/warm/war-machine-kit.test.ts` (Repulsor Beam paid
+> with the Gun's resource gets the ammo counter; paid from hand, the Gun stays ready and no counter lands).
+> **What landed:** `payPayment` now returns a **`SpentPayment`** (`cards` discarded, and `resourceAbilities` used
+> that carry effects); **`announceResourcesSpent`** takes it and, after the "after you spend" events, pushes each used
+> resource ability's `effects` (so they resolve first: part of paying, RRG 1.8 "Initiating Abilities", p. 24, steps
+> 5–6), with "you" the player who used it, "self" its card, and slot **`paidFor`** the card or ability paid for (for
+> "that event deals 1 additional damage"). A resource ability used for nothing (never put in a payment) does nothing.
+> Log event `resourceAbilityEffects`. **DSL:** `resource(generates, options, ...effects)` / `heroResource(...)`.
+> **Scripted:** `23005.gauntlet-gun-resource` now places the counter. **Composes with:** the `mut_gen` campaign
+> upgrades (effects plus `moveCards(self, "removedFromGame")` and the campaign-pool removal), Psi-Knife (an optional
+> `flipCard(self)`), Cybernetic Arm and Ruby Quartz Visor (a modifier on `chosen("paidFor")`; the "that attack"
+> modifier itself is the scripter's to pick from the existing attack modifiers).
 
 ## 4. Open questions (for the user or FFG)
 

@@ -3,6 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "description": "Headless Marvel Champions rules engine: game state, turn structure, effect/trigger stack, keywords. No rendering, no I/O.",
+  "license": "AGPL-3.0-or-later",
   "type": "module",
   "main": "./src/index.ts",
   "types": "./src/index.ts",

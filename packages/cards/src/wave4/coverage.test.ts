@@ -3,12 +3,13 @@
  * which packs are fully scripted, which are not started, and — for a pack that isn't started — nothing resolves
  * that isn't already covered by an earlier wave.
  */
-import { MTS_CARDS, NEBU_CARDS, type AnyCard } from "@mc/content";
+import { MTS_CARDS, NEBU_CARDS, WARM_CARDS, type AnyCard } from "@mc/content";
 import type { AbilityRegistry } from "@mc/engine";
 import { WAVE3_ABILITIES } from "../wave3/index.js";
 import { WAVE4_ABILITIES } from "./index.js";
 import { MTS_ABILITIES } from "./mts/index.js";
 import { NEBU_ABILITIES } from "./nebu/index.js";
+import { WARM_ABILITIES } from "./warm/index.js";
 import { abilityRefIds } from "../ability-refs.js";
 
 describe("wave 4 ability registry", () => {
@@ -20,6 +21,7 @@ describe("wave 4 ability registry", () => {
 /** One row per wave 4 pack (docs/phase7-wave4.md). */
 const PACK_STATUS: Readonly<Record<string, "scripted" | "in progress" | "not started">> = {
   nebu: "scripted",
+  warm: "scripted",
   mts: "in progress",
 };
 
@@ -309,6 +311,7 @@ const KNOWN_SKIPPED: Readonly<Record<string, readonly string[]>> = {
 
 const PACKS: ReadonlyArray<{ readonly code: string; readonly cards: readonly AnyCard[] }> = [
   { code: "nebu", cards: NEBU_CARDS },
+  { code: "warm", cards: WARM_CARDS },
   { code: "mts", cards: MTS_CARDS },
 ];
 
@@ -366,6 +369,7 @@ describe("wave 4 pack ability id coverage (every registered ability id is named 
 
   const PACKS_WITH_OWN_REGISTRIES: ReadonlyArray<{ readonly code: string; readonly registry: AbilityRegistry }> = [
     { code: "nebu", registry: NEBU_ABILITIES },
+    { code: "warm", registry: WARM_ABILITIES },
     { code: "mts", registry: MTS_ABILITIES },
   ];
 

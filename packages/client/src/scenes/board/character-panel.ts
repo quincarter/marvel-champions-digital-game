@@ -259,12 +259,8 @@ export function drawCharacter(
   // After the panel, so an attachment chip wins the pointer over the host it
   // is drawn on top of.
   for (const target of chipTargets) {
-    ctx.makeTapTarget(target.rect, target.instanceId, () => {
-      // A tap uses it when there is something to use; otherwise it shows the
-      // card, which is the other half of what was being asked for.
-      if (controller.usableAbilitiesFor(target.instanceId).length > 0) controller.onCharacterTap(target.instanceId);
-      else ctx.inspect(target.instanceId);
-    });
+    // A tap shows the card; its sheet offers any ability it has, so nothing is used by a stray tap.
+    ctx.makeTapTarget(target.rect, target.instanceId, () => controller.onCharacterTap(target.instanceId));
   }
 }
 
@@ -453,12 +449,12 @@ function turnSideways(
   const cx = rect.x + rect.width / 2;
   const cy = rect.y + rect.height / 2;
   const fit = Math.min(rect.width / rect.height, rect.height / rect.width);
-  for (const object of drawn) {
-    const placed = object as Phaser.GameObjects.GameObject & { x?: number; y?: number };
-    if (typeof placed.x === "number") placed.x -= cx;
-    if (typeof placed.y === "number") placed.y -= cy;
-  }
-  const container = scene.add.container(cx, cy, [...drawn]);
+  // The pivot is an inner container offset by the centre, not a shift of each object's own x/y: one of those
+  // objects is `nudgeOnDamage`'s container, whose running tween drives its x back to 0 — so an ally that took
+  // consequential damage and exhausted in one attack lost the shift, and the quarter turn carried that into a drop
+  // of half the board's width, off the bottom of the play area (reported from play, Daredevil on a phone).
+  const pivot = scene.add.container(-cx, -cy, [...drawn]);
+  const container = scene.add.container(cx, cy, [pivot]);
 
   if (!active) {
     container.setRotation(exhausted ? Math.PI / 2 : 0).setScale(exhausted ? fit : 1);

@@ -5,7 +5,7 @@
  * itself the same way `wave3/setup.ts`'s own docblock describes for `WAVE3_CARDS`: `NEBU_CARDS` shares no cards
  * with `WAVE3_CARDS`, so nothing here is double-counted.
  */
-import { MTS_CARDS, NEBU_CARDS, PLAYABLE_CARDS, type AnyCard } from "@mc/content";
+import { MTS_CARDS, NEBU_CARDS, PLAYABLE_CARDS, WARM_CARDS, type AnyCard } from "@mc/content";
 
-/** Every playable card through wave 3, plus Nebula and The Mad Titan's Shadow. */
-export const WAVE4_CARDS: readonly AnyCard[] = [...PLAYABLE_CARDS, ...NEBU_CARDS, ...MTS_CARDS];
+/** Every playable card through wave 3, plus Nebula, War Machine and The Mad Titan's Shadow. */
+export const WAVE4_CARDS: readonly AnyCard[] = [...PLAYABLE_CARDS, ...NEBU_CARDS, ...WARM_CARDS, ...MTS_CARDS];
