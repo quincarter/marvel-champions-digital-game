@@ -25,7 +25,7 @@ import type { Rect } from "../view/layout.js";
 import { cardRow, formFactorFor } from "../view/layout.js";
 import { decisionLabel } from "../view/villain-walkthrough.js";
 import { abilityShortLabelOf } from "../view/ability-label.js";
-import { choiceHeaderText } from "../view/choice-source.js";
+import { choiceHeaderText, costCardsPromptTitleOf } from "../view/choice-source.js";
 import { choiceSheetAction, stuckSheetShouldRecover } from "../view/choice-sheet-sync.js";
 import { choiceSourcePanelOf } from "../view/choice-source-panel.js";
 import {
@@ -1115,11 +1115,12 @@ function playerOptionLabel(game: GameState, playerId: PlayerId, perspectiveId: P
  * two different piles — give each its own title instead of reusing the top pile's for both, and for the split step
  * itself, rather than falling back to the generic "Choose".
  */
-function promptTitle(prompt: { readonly kind: string; readonly to?: string }): string {
+function promptTitle(prompt: { readonly kind: string; readonly to?: string; readonly mode?: string }): string {
   const kind = prompt.kind;
   if (kind === "orderCards") {
     return prompt.to === "encounterDeckBottom" ? "Put the bottom pile back in order" : "Put the top pile back in order";
   }
+  if (kind === "chooseCostCards") return costCardsPromptTitleOf(prompt.mode);
   const titles: Record<string, string> = {
     declareDefender: "Declare a defender",
     discardDownToHandSize: "Discard to hand size",
