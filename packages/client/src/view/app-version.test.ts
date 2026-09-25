@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { appVersionText, buildCommit } from "./app-version.js";
+import { appVersionText, buildCommit, releaseNotesUrl } from "./app-version.js";
 
 describe("appVersionText", () => {
   test("the web build carries its commit, since it runs ahead of the last release", () => {
@@ -17,5 +17,11 @@ describe("appVersionText", () => {
 
   test("a test run has no build commit", () => {
     expect(buildCommit()).toBe("");
+  });
+
+  test("the release notes link is the release's own GitHub page", () => {
+    expect(releaseNotesUrl("0.7.0")).toBe(
+      "https://github.com/quincarter/marvel-champions-digital-game/releases/tag/v0.7.0",
+    );
   });
 });
