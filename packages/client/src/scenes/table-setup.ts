@@ -306,6 +306,8 @@ export class TableSetupScene extends Phaser.Scene {
       compositionRows: compositionRows.length,
       whatsInThereRows: whatsInThereRows.length,
       nemesisLines,
+      hasAlternateDifficultySets: alternateDifficultySets !== null,
+      hoodSetCount: hoodOptions.length,
     });
 
     // Ground: paper body (dot grid) under the ink header on wide, where the body is a real paper page beside the
@@ -382,6 +384,12 @@ export class TableSetupScene extends Phaser.Scene {
     );
     this.#drawDifficultyRow(layout.difficultyRow, difficultyCards, layout.wide);
 
+    // Standard II/Expert II (docs/phase7-wave4.md §4 Q5): a full-width toggle right under Difficulty, only for a
+    // scenario whose pack has an alternate — zero-area on every other scenario's layout, so this is a no-op there.
+    if (layout.wide && layout.difficultyAltRow.height > 0) {
+      this.#drawAlternateDifficultySetsRow(layout.difficultyAltRow, alternateDifficultySets);
+    }
+
     const modularRight = `${requiredSets.length} required · ${modularCap} chosen`.toUpperCase();
     sectionHeader(
       this,
@@ -393,6 +401,22 @@ export class TableSetupScene extends Phaser.Scene {
       modularRight,
     );
     this.#drawModularGrid(layout, requiredSets, modularOptions, scenario);
+
+    // The Hood's own "choose which modular sets are in" (docs/phase7-wave4.md §2.3, §3.18): its own section right
+    // under Modular sets, only for a scenario with the choice at all (`hoodOptions` empty otherwise).
+    if (layout.wide && layout.hoodHeader.height > 0 && hoodOptions.length > 0) {
+      const includedCount = hoodOptions.filter((o) => o.included).length;
+      sectionHeader(
+        this,
+        layout.hoodHeader.x,
+        layout.hoodHeader.y,
+        layout.hoodHeader.width,
+        "The Hood's own modular sets",
+        bodyColor,
+        `${includedCount} of ${hoodOptions.length} in the game`.toUpperCase(),
+      );
+      this.#drawHoodModularGrid(layout, hoodOptions);
+    }
 
     sectionHeader(
       this,
@@ -518,7 +542,9 @@ export class TableSetupScene extends Phaser.Scene {
     this.#route?.set(
       tableSetupFocusOrder({
         difficulties: difficultyCards.map((c) => c.id),
+        hasStandardII: alternateDifficultySets !== null,
         modularSetIds: modularOptions.map((o) => o.id),
+        hoodSetIds: hoodOptions.map((o) => o.id),
         firstPlayerOptionIds: [...seatCells.map((c) => c.id), "random"],
       }),
       this.#stops,
@@ -1292,6 +1318,91 @@ export class TableSetupScene extends Phaser.Scene {
         .setWordWrapWidth(cardRect.width - 20)
         .setMaxLines(Math.max(1, Math.floor((cardRect.height - 34) / 14)));
     });
+  }
+
+  /**
+   * Standard II/Expert II (docs/phase7-wave4.md §4 Q5), wide layout: a single full-width toggle card right under
+   * Difficulty — same white-ground/red-border shape `#cardFrame` gives every difficulty card, but one row rather
+   * than a segmented choice, since it's a plain on/off (`toggleDifficultySets`), not a pick among several.
+   */
+  #drawAlternateDifficultySetsRow(rect: Rect, alternate: DifficultySetChoice | null): void {
+    const selected = this.#draft.difficultySets !== null;
+    const onClick = (): void => {
+      this.#draft = toggleDifficultySets(this.#draft, alternate);
+      this.#rebuild();
+    };
+    this.#buttons.push(new McButton(this, { kind: "quiet", label: "", type: typeRole.label, rect, onClick }));
+    this.#stops.set("standardII", { rect, activate: onClick });
+    this.#cardFrame(rect, selected);
+    const name = this.add.text(
+      rect.x + 10,
+      rect.y + 8,
+      "Standard II / Expert II",
+      textStyle({ ...typeRole.sectionHeader, size: 18 }, surface.ink.hex, selected ? 1 : ink.disabled),
+    );
+    fitText(name, rect.width - 20, 18);
+    this.add.text(
+      rect.x + 10,
+      rect.y + 8 + 22,
+      selected ? "Chosen · replaces the printed set" : "Off · uses the printed set",
+      textStyle(typeRole.body, surface.ink.hex, selected ? ink.secondary : ink.disabled),
+    );
+  }
+
+  /**
+   * The Hood's own "choose which modular sets are in" (docs/phase7-wave4.md §2.3, §3.18), wide layout: the same
+   * card grid `#drawModularGrid` draws for the ordinary modular picker, one card per candidate — `option.included`
+   * stands in for `ModularSetOption.selected`, and toggling calls `toggleHoodIncludedSet` instead of
+   * `toggleModularSet` (neither shares the ordinary picker's draft-field/cap shape).
+   */
+  #drawHoodModularGrid(layout: TableSetupLayout, options: readonly HoodModularSetOption[]): void {
+    const rect = layout.hoodGrid;
+    const columns = layout.hoodColumns;
+    const gap = ROW_GAP;
+    const cellHeight =
+      layout.hoodRows > 0 ? (rect.height - (layout.hoodRows - 1) * gap) / layout.hoodRows : rect.height;
+    const cellWidth = (rect.width - (columns - 1) * gap) / columns;
+    options.forEach((option, index) => {
+      const row = Math.floor(index / columns);
+      const col = index % columns;
+      const cellRect: Rect = {
+        x: rect.x + col * (cellWidth + gap),
+        y: rect.y + row * (cellHeight + gap),
+        width: cellWidth,
+        height: cellHeight,
+      };
+      this.#drawHoodModularCard(cellRect, option);
+    });
+  }
+
+  /** One of The Hood's own candidates: white, included = 4px red border, set aside = dim border + dim text — the same shape `#drawModularCard` uses for the ordinary picker. */
+  #drawHoodModularCard(rect: Rect, option: HoodModularSetOption): void {
+    const onClick = (): void => {
+      const scenario = POOL_SCENARIOS.find((s) => (s.id as string) === this.#draft.scenarioId)!;
+      this.#draft = toggleHoodIncludedSet(this.#draft, scenario, option.id);
+      this.#rebuild();
+    };
+    this.#buttons.push(new McButton(this, { kind: "quiet", label: "", type: typeRole.label, rect, onClick }));
+    this.#stops.set(`hoodSet:${option.id}`, { rect, activate: onClick });
+    this.#cardFrame(rect, option.included);
+    const dim = option.included ? 1 : ink.disabled;
+    const name = this.add.text(
+      rect.x + 10,
+      rect.y + 8,
+      option.name,
+      textStyle({ ...typeRole.sectionHeader, size: 15 }, surface.ink.hex, dim),
+    );
+    fitText(name, rect.width - 20, 15);
+    const metaText = option.included
+      ? modularCardLabel({ selected: true, cardCount: option.cardCount, descriptor: option.descriptor })
+      : `Set aside · ${option.cardCount} card${option.cardCount === 1 ? "" : "s"}`;
+    this.#drawModularCardLabel(
+      rect,
+      rect.y + 8 + name.height + 4,
+      metaText.toUpperCase(),
+      surface.ink.hex,
+      option.included ? ink.label : ink.disabled,
+    );
   }
 
   /** A card's white ground and border — 4px Hero Red when selected, a thin dim ink outline otherwise. Never a fill besides "Deal it out". */

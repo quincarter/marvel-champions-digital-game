@@ -96,6 +96,16 @@ describe("tableSetupLayout: no overlap", () => {
     });
   });
 
+  test("wide: Standard II/Expert II and The Hood's own modular sets still don't overlap anything", () => {
+    for (const size of [
+      { width: 1440, height: 900 },
+      { width: 1024, height: 768 },
+      { width: 1870, height: 1050 },
+    ]) {
+      noOverlap({ ...REALISTIC, ...size, hasAlternateDifficultySets: true, hoodSetCount: 9 });
+    }
+  });
+
   test("a very short viewport never overlaps, even if content is heavily trimmed", () => {
     // Below this, even the *mandatory* controls (Difficulty/Modular/Seating, four seats, six modular cards) no
     // longer fit above the pinned seed field at all — a real fit failure this module can't paper over without
@@ -176,6 +186,38 @@ describe("tableSetupLayout: composition", () => {
     expect(wide.randomControl.width).toBeGreaterThan(0);
     const narrow = tableSetupLayout({ ...REALISTIC, width: 390, height: 844 });
     expect(narrow.randomControl.width).toBe(0);
+  });
+
+  test("wide: Standard II/Expert II and The Hood's own modular sets are zero-area unless offered", () => {
+    const plain = tableSetupLayout({ ...REALISTIC, width: 1440, height: 900 });
+    expect(plain.difficultyAltRow.height).toBe(0);
+    expect(plain.hoodHeader.height).toBe(0);
+    expect(plain.hoodGrid.height).toBe(0);
+
+    const withBoth = tableSetupLayout({
+      ...REALISTIC,
+      width: 1440,
+      height: 900,
+      hasAlternateDifficultySets: true,
+      hoodSetCount: 9,
+    });
+    expect(withBoth.difficultyAltRow.height).toBeGreaterThan(0);
+    expect(withBoth.difficultyAltRow.y).toBeGreaterThan(withBoth.difficultyRow.y);
+    expect(withBoth.hoodHeader.height).toBeGreaterThan(0);
+    expect(withBoth.hoodGrid.height).toBeGreaterThan(0);
+    expect(withBoth.hoodHeader.y).toBeGreaterThan(withBoth.modularGrid.y);
+    expect(withBoth.hoodColumns).toBeLessThanOrEqual(4);
+    expect(withBoth.hoodColumns * withBoth.hoodRows).toBeGreaterThanOrEqual(9);
+    // Narrow (tablet portrait) doesn't offer either yet — always zero-area regardless of the input.
+    const narrowWithBoth = tableSetupLayout({
+      ...REALISTIC,
+      width: 768,
+      height: 1024,
+      hasAlternateDifficultySets: true,
+      hoodSetCount: 9,
+    });
+    expect(narrowWithBoth.difficultyAltRow.height).toBe(0);
+    expect(narrowWithBoth.hoodHeader.height).toBe(0);
   });
 
   test("panel row budgets never exceed what was asked for, and are never negative", () => {
