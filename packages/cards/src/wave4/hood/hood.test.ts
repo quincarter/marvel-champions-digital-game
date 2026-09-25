@@ -1,7 +1,9 @@
 import { cardId } from "@mc/content";
 import { cardOf, hasKeyword, printedResources, type GameState, type InstanceId, type PlayerId } from "@mc/engine";
+import type { GameEvent } from "@mc/engine";
 import { describe, expect, it } from "vitest";
 import {
+  applyOk,
   P1,
   P2,
   firstLegal,
@@ -278,6 +280,58 @@ describe("The Hood (villain, main scheme and The Hood's own encounter set)", () 
     expect(advanced.setAsideModularSets!.length).toBe(before - 1); // 24005a.when-revealed's own shuffle-in.
     const dealtAfter = dealt(advanced, P1).length + advanced.encounterDecks[deckId(advanced)]!.discard.length;
     expect(dealtAfter).toBeGreaterThan(dealtBefore); // 24005b.when-revealed's own Foul Play.
+  });
+
+  it("24005b.when-revealed: with two players, each resolves Foul Play as themself (the per-player 'you')", () => {
+    const base = onStage(game(3, [P1, P2]), 0);
+    const def = WAVE4_DEPS.abilities["24005b.when-revealed"]!;
+    const json = JSON.stringify(def.effects);
+    // The shape whose exact threat counts (2 per player dealt nothing) are proven in
+    // packages/engine/src/per-player-snapshot.test.ts.
+    expect(json).toContain('"kind":"setVar","name":"dealtBefore"');
+    expect(json).toContain('"kind":"resolveSpecials","of":{"kind":"villain"},"player":{"kind":"scoped"}');
+    expect(json).toContain('"kind":"placeThreat"');
+    const overThreshold = patchInstance(base, base.mainScheme.instanceId, { threat: 999 });
+    // Two players: both turns end before the villain phase, whose step one completes Making Connections.
+    let state = settle(runWave4(overThreshold, { type: "endTurn", playerId: P1 }), firstLegal, undefined, WAVE4_DEPS);
+    const result = applyOk(state, { type: "endTurn", playerId: P2 }, WAVE4_DEPS);
+    state = result.state;
+    const events: GameEvent[] = [...result.events];
+    while (state.pendingChoice && !state.outcome) {
+      const choice = state.pendingChoice;
+      const next = applyOk(
+        state,
+        {
+          type: "resolveChoice",
+          playerId: choice.playerId,
+          choiceId: choice.choiceId,
+          selectedOptionIds: firstLegal(state),
+        },
+        WAVE4_DEPS,
+      );
+      state = next.state;
+      events.push(...next.events);
+    }
+    // Between Promised Prosperity's arrival and the next step change: each player's own Foul Play.
+    const start = events.findIndex((e) => e.type === "mainSchemeAdvanced");
+    expect(start).toBeGreaterThanOrEqual(0);
+    const end = events.findIndex((e, k) => k > start && e.type === "stepChanged");
+    const window = events.slice(start, end < 0 ? undefined : end);
+    const discards = window.filter(
+      (e) => e.type === "cardMoved" && (e.to as { kind: string }).kind === "encounterDiscard",
+    ).length;
+    const dealtTo = (player: PlayerId) =>
+      window.filter(
+        (e) =>
+          e.type === "cardMoved" &&
+          (e.to as { kind: string; playerId?: string }).kind === "dealtEncounter" &&
+          (e.to as { playerId?: string }).playerId === player,
+      ).length;
+    // Each player's Foul Play discarded its own card (dealt cards leave the discard again), and neither player's
+    // pass dealt to the other: P2 got at most its own one card.
+    expect(discards).toBeGreaterThanOrEqual(2);
+    expect(dealtTo(P1)).toBeLessThanOrEqual(1);
+    expect(dealtTo(P2)).toBeLessThanOrEqual(1);
   });
 
   it("24006a.when-revealed / 24006b.crime-state-forced-response: completing Promised Prosperity flips to Crime State, and step one of the next villain phase resolves Foul Play again", () => {

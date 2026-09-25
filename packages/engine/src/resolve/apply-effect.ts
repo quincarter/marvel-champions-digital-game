@@ -1842,6 +1842,10 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       if (reveal) setFrame(ctx, { ...reveal, surgeGained: true });
       return;
     }
+    case "setVar":
+      // docs/phase7-wave4.md §3.46: a snapshot for a later comparison in the same ability.
+      addFrameVars(ctx, frame.frameId, { [effect.name]: value(effect.value) });
+      return;
     case "chooseCards":
     case "chooseOne":
     case "choosePlayer":

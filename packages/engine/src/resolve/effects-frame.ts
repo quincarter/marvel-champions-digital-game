@@ -1170,6 +1170,7 @@ function executeResolveSpecials(
     : effect.cards
       ? selectTargets(ctx.state, effect.cards, context)
       : [];
+  const resolvingPlayer = effect.player ? (resolvePlayers(ctx.state, effect.player, context)[0] ?? null) : null;
   for (const id of sources) {
     for (const ref of activeAbilityRefs(ctx.state, id, ctx.deps)) {
       if (ctx.deps.abilities[ref.id]?.trigger.kind !== "special") continue;
@@ -1182,7 +1183,8 @@ function executeResolveSpecials(
         // p. 49) — the player the villain's activation concerns, already resolved onto `context.controllerId` by
         // the calling `forcedInterrupt`/Boost frame. docs/phase7-wave3.md §3's "Special" pattern; found scripting
         // `gmw/nebula.ts`.
-        controllerId: controllerOf(ctx.state, id) ?? context.controllerId,
+        // `player` names the resolving player outright ("each player must resolve …", docs/phase7-wave4.md §3.46).
+        controllerId: controllerOf(ctx.state, id) ?? resolvingPlayer ?? context.controllerId,
         forced: true,
         fromHand: false,
       });
