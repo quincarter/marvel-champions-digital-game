@@ -77,6 +77,7 @@ import {
   recordAbilityUse,
 } from "./resolve/index.js";
 import { limitReached } from "./resolve/ability.js";
+import { abilityLacksValidTarget } from "./resolve/target-validity.js";
 import { moveCardsTo } from "./resolve/cards.js";
 import {
   addPools,
@@ -1808,6 +1809,13 @@ export function playCard(ctx: Ctx, command: Command & { type: "playCard" }): Eng
   ) {
     return engineError("no_valid_target", "this event's condition is not met", command);
   }
+  // RRG 1.8 "Target" (pp. 42–43): no valid target, no play (the main scheme, for a "(thwart)" while patrolled; §3.5).
+  if (
+    card.type === "event" &&
+    abilityLacksValidTarget(ctx.state, ctx.deps, ability, command.cardInstanceId, command.playerId)
+  ) {
+    return engineError("no_valid_target", "this event has no valid target", command);
+  }
 
   // RRG "Restricted": a player cannot control more than two at a time, so playing
   // a third is not a legal action in the first place.
@@ -2020,6 +2028,7 @@ export function playIgnoringCostFault(
     if (ability.trigger.kind === "action" && ability.trigger.form && player.identity.form !== ability.trigger.form)
       return "wrong form";
     if (actionConditionUnmet(ctx.state, ctx.deps, ability, id, playerId)) return "its condition is not met";
+    if (abilityLacksValidTarget(ctx.state, ctx.deps, ability, id, playerId)) return "it has no valid target";
   }
   return null;
 }
@@ -2053,6 +2062,7 @@ export function playWithPaymentFault(
     if (ability.trigger.kind === "action" && ability.trigger.form && player.identity.form !== ability.trigger.form)
       return "wrong form";
     if (actionConditionUnmet(ctx.state, ctx.deps, ability, id, playerId)) return "its condition is not met";
+    if (abilityLacksValidTarget(ctx.state, ctx.deps, ability, id, playerId)) return "it has no valid target";
   }
   // The ability's own cost has to be settleable without asking: `planCost` fills in a pick with exactly one legal
   // candidate, and anything more ambiguous has nowhere to prompt from inside this effect (§9's capability note).
@@ -2204,6 +2214,9 @@ export function useAbility(ctx: Ctx, command: Command & { type: "useAbility" }):
   }
   if (actionConditionUnmet(ctx.state, ctx.deps, definition, command.cardInstanceId, command.playerId)) {
     return engineError("no_valid_target", "that ability cannot be triggered: its condition is not met", command);
+  }
+  if (abilityLacksValidTarget(ctx.state, ctx.deps, definition, command.cardInstanceId, command.playerId)) {
+    return engineError("no_valid_target", "that ability has no valid target", command);
   }
   const controller = controllerOf(ctx.state, command.cardInstanceId);
   if (controller !== null && controller !== command.playerId) {

@@ -20,6 +20,7 @@ import { eventSubjects, type TriggerEvent } from "../trigger-events.js";
 import { limitReached } from "./ability.js";
 import type { AbilityDefinition } from "../abilities.js";
 import { revealCannotBeCanceled } from "../rules.js";
+import { abilityLacksValidTarget } from "./target-validity.js";
 
 /**
  * A cancel with nothing it can cancel is not offered (docs/phase7-wave4.md §3.27, §4 Q16 as the user decided it on
@@ -194,6 +195,8 @@ export function candidatesFor(
       if (limitReached(state, id, ref.id, definition, event, limitPlayer)) continue;
       if (!matchesPattern(state, trigger.on, event, id, deps)) continue;
       if (cancelHasNoTarget(state, deps, definition, event)) continue;
+      // RRG 1.8 "Target" (pp. 42–43): an optional ability with no valid target is not offered (docs/phase7-wave3.md §3.5).
+      if (!forced && abilityLacksValidTarget(state, deps, definition, id, limitPlayer, event)) continue;
       // RRG "Cost": an ability whose cost can't be paid can't be triggered. A pick of cards in play the player makes
       // later (`costPick`, docs/phase7-wave4.md §3.17) is judged by the default picks.
       if (
@@ -315,6 +318,7 @@ function inHandCandidates(
           // The card's "you" is the player whose hand it is in.
           if (!matchesPattern(state, trigger.on, event, id, deps, player.playerId)) continue;
           if (cancelHasNoTarget(state, deps, definition, event)) continue;
+          if (abilityLacksValidTarget(state, deps, definition, id, player.playerId, event)) continue;
           found.push({
             instanceId: id,
             abilityId: ref.id,
@@ -335,6 +339,7 @@ function inHandCandidates(
         if (!formSatisfied(state, player.playerId, trigger.form)) continue;
         if (!matchesPattern(state, trigger.on, event, id, deps)) continue;
         if (cancelHasNoTarget(state, deps, definition, event)) continue;
+        if (abilityLacksValidTarget(state, deps, definition, id, player.playerId, event)) continue;
         found.push({
           instanceId: id,
           abilityId: ref.id,

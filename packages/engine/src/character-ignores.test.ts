@@ -116,9 +116,10 @@ describe("§3.24 a character that ignores guard, patrol and the crisis icon", ()
   });
 
   it("a removal that is neither the character's thwart nor its own is still stopped by the crisis icon", () => {
-    const { state, events } = playFree(start({ evasive: true, crisis: true }), deps, REMOVE_MAIN.card.id);
-    expect(mainThreat(state)).toBe(5);
-    expect(events).toContainEqual(expect.objectContaining({ type: "threatRemovalBlocked", reason: "crisis" }));
+    // Its only target is the main scheme, which it cannot affect, so it cannot be played (docs/phase7-wave3.md §4 Q5).
+    expect(() => playFree(start({ evasive: true, crisis: true }), deps, REMOVE_MAIN.card.id)).toThrow(
+      /no valid target/,
+    );
   });
 
   it("a character the rule does not match is not exempt (the alter-ego, here)", () => {
@@ -133,10 +134,8 @@ describe("§3.32 one thwart that ignores patrol", () => {
       const state = start({ evasive: false, crisis });
       const passed = playFree(state, deps, PASS_THROUGH.card.id).state;
       expect(mainThreat(passed)).toBe(2);
-      const { events } = playFree(passed, deps, THWART_MAIN.card.id);
-      expect(events).toContainEqual(
-        expect.objectContaining({ type: "threatRemovalBlocked", reason: crisis ? "crisis" : "patrol" }),
-      );
+      // The ordinary thwart has no valid target and cannot be played (docs/phase7-wave3.md §4 Q5).
+      expect(() => playFree(passed, deps, THWART_MAIN.card.id)).toThrow(/no valid target/);
     }
   });
 });
