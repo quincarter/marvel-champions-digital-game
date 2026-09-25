@@ -2,9 +2,11 @@
  * The Tower Defense scenario's own `GameSetupConfig` builder (docs/phase7-wave4.md §2.2, §3.2, §5's own note that
  * "the wave 4 builder (`wave1/setup.ts` `buildMultiVillain`) knows only per-villain decks" — this scenario needs
  * `MultipleVillains.encounterDecks: "shared"` (`GameSetupConfig.sharedEncounterDeck`), two paired main schemes
- * (`putMainSchemeStageIntoPlay`, wired by `21098a.setup`), and the merged villain cards from `tower-defense.ts`.
+ * (`putMainSchemeStageIntoPlay`, wired by `21098a.setup`), and Proxima Midnight/Corvus Glaive's own three-stage
+ * `VillainCard`s (`@mc/content`'s `MTS_CARDS`, 21092/21095 — docs/phase7-wave4.md §1.6).
  */
 import {
+  cardId,
   CORE_STARTER_DECKS,
   difficultyOf,
   MTS_SCENARIOS,
@@ -14,12 +16,28 @@ import {
   WARM_STARTER_DECKS,
   type AnyCard,
   type CardId,
+  type VillainCard,
 } from "@mc/content";
 import type { GameSetupConfig, PlayerSetup, VillainSetup } from "@mc/engine";
 import { resolveModes, type CoreDifficulty, type CorePlayer } from "../../core/setup.js";
-import { CORVUS_GLAIVE, PROXIMA_MIDNIGHT, TOWER_DEFENSE_CARDS, TOWER_DEFENSE_SET_ASIDE_IDS } from "./villain-merge.js";
+import { WAVE4_CARDS } from "../cards.js";
 
+/** Villain cards set aside at setup, found by name via the main scheme's own "Setup"/"When Revealed" abilities
+ * (MC21 p. 10-11): the environment and the Focused Defense attachment are scenario furniture, not shuffled into
+ * the encounter deck like an ordinary treachery/minion, even though both carry `encounterSetIds: [tower_defense]`. */
+const TOWER_DEFENSE_SET_ASIDE_IDS: readonly CardId[] = [cardId("21100a"), cardId("21101")];
 const SET_ASIDE = new Set<string>(TOWER_DEFENSE_SET_ASIDE_IDS);
+
+function villainCardOf(id: CardId): VillainCard {
+  const card = WAVE4_CARDS.find((c) => c.id === id);
+  if (!card || card.type !== "villain") throw new Error(`${id} is not a villain card`);
+  return card;
+}
+
+/** Proxima Midnight I/II/III, one three-stage `VillainCard` (docs/phase7-wave4.md §1.6). */
+const PROXIMA_MIDNIGHT = villainCardOf(cardId("21092"));
+/** Corvus Glaive I/II/III, the same shape. */
+const CORVUS_GLAIVE = villainCardOf(cardId("21095"));
 
 /** A wave 4 or Core starter deck as a player seat (quantities expanded) — copied from `../setup.js`'s
  * `wave4StarterDeckSetup` rather than imported, so this module (which `../setup.js` will come to route
@@ -63,14 +81,14 @@ export interface TowerDefenseOptions {
   readonly firstPlayerIndex?: number;
 }
 
-/** Every card in these encounter sets, read from `TOWER_DEFENSE_CARDS` (the merged-villain pool), except the ones
- * `TOWER_DEFENSE_SET_ASIDE_IDS` already places in `GameSetupConfig.setAside` — Avengers Tower and Focused Defense
- * are members of the `tower_defense` set (MC21 p. 10-11's own "Setup"/"When Revealed" find them by name) but must
- * not also be shuffled into the deck, or they'd exist as two instances apiece. */
+/** Every card in these encounter sets, read from `WAVE4_CARDS`, except the ones `TOWER_DEFENSE_SET_ASIDE_IDS`
+ * already places in `GameSetupConfig.setAside` — Avengers Tower and Focused Defense are members of the
+ * `tower_defense` set (MC21 p. 10-11's own "Setup"/"When Revealed" find them by name) but must not also be
+ * shuffled into the deck, or they'd exist as two instances apiece. */
 function towerDefenseEncounterCardsOf(setIds: readonly string[]): CardId[] {
   const deck: CardId[] = [];
   for (const setId of setIds) {
-    const members = TOWER_DEFENSE_CARDS.filter(
+    const members = WAVE4_CARDS.filter(
       (card: AnyCard) =>
         "encounterSetIds" in card &&
         (card.encounterSetIds as readonly string[]).includes(setId) &&
@@ -110,7 +128,7 @@ export function towerDefenseScenario(options: TowerDefenseOptions): GameSetupCon
   ];
   return {
     seed: options.seed,
-    cards: TOWER_DEFENSE_CARDS,
+    cards: WAVE4_CARDS,
     villainCardId: PROXIMA_MIDNIGHT.id,
     villains,
     sharedEncounterDeck: true,

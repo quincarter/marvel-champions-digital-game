@@ -278,39 +278,15 @@ export const MTS_PROVENANCE: readonly CardProvenance[] = [
   {
     cardId: cardId("21092"),
     cardSetCode: "tower_defense",
-    marvelcdbCodes: ["21092"],
+    marvelcdbCodes: ["21092", "21093", "21094"],
     corrections: [
       "data decision: Proxima Midnight I (Tower Defense): \"Proxima Midnight cannot be defeated while Corvus Glaive has any hit points remaining\" and the mirror on Corvus Glaive (21095) are the mutual-protection primitive (docs/phase7-wave4.md §3.3, landed).",
     ],
   },
   {
-    cardId: cardId("21093"),
-    cardSetCode: "tower_defense",
-    marvelcdbCodes: ["21093"],
-    corrections: [],
-  },
-  {
-    cardId: cardId("21094"),
-    cardSetCode: "tower_defense",
-    marvelcdbCodes: ["21094"],
-    corrections: [],
-  },
-  {
     cardId: cardId("21095"),
     cardSetCode: "tower_defense",
-    marvelcdbCodes: ["21095"],
-    corrections: [],
-  },
-  {
-    cardId: cardId("21096"),
-    cardSetCode: "tower_defense",
-    marvelcdbCodes: ["21096"],
-    corrections: [],
-  },
-  {
-    cardId: cardId("21097"),
-    cardSetCode: "tower_defense",
-    marvelcdbCodes: ["21097"],
+    marvelcdbCodes: ["21095", "21096", "21097"],
     corrections: [],
   },
   {

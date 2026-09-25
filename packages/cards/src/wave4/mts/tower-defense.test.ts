@@ -23,6 +23,7 @@
  * `attackResolved` event's own `baseAtk`/`boostIcons`/`damageDealt`, or an exact damage/heal/status delta), not a
  * loose `toBeGreaterThan`/`<=`/`||`.
  */
+import { cardId } from "@mc/content";
 import {
   cardOf,
   characterProfile,
@@ -60,10 +61,13 @@ import {
 import { defeatWithAttack } from "../../testing/staging.js";
 import { WAVE4_DEPS } from "../index.js";
 import { playFromHand, startWave4Game } from "../testing.js";
-import { CORVUS_GLAIVE, PROXIMA_MIDNIGHT } from "./villain-merge.js";
 import { towerDefenseScenario } from "./tower-defense-setup.js";
 
 type AttackResolvedEvent = Extract<GameEvent, { readonly type: "attackResolved" }>;
+
+/** Proxima Midnight/Corvus Glaive's own three-stage `VillainCard` ids (docs/phase7-wave4.md §1.6). */
+const PROXIMA_MIDNIGHT = { id: cardId("21092") };
+const CORVUS_GLAIVE = { id: cardId("21095") };
 
 const start = (
   seed = 1,

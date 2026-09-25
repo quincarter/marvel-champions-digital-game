@@ -166,6 +166,23 @@ The Wrecking Crew (`MultipleVillains`, wave 1 §1.1) gives each villain its own 
 "allVillainsDefeated"` are unchanged. Which villain is active is Focused Defense's rule (§3.2), not data.
 - **Parser:** "Attach to Corvus Glaive." (21104) failed because the set has two villains; it is `AttachmentHost
 { kind: "namedVillain", name }`, which exists.
+- **Status (card-data-pipeline, 2026-09-25):** fixed upstream. `normalizeVillains` (`villains.ts`) treated Proxima
+  Midnight I/II/III and Corvus Glaive I/II/III as one "colliding stage numbers" set the Once and Future Kang's
+  branching-stage-II shape and The Sinister Six's six-independent-villains shape already use (wave 2 §1.8) — every
+  record split into its own one-stage `VillainCard` (21092–21094, 21095–21097 apiece), because the normalizer had no
+  way to tell "several distinct single-stage villains" apart from "two villains that each advance stage-to-stage
+  sharing one set". Fixed by grouping colliding records by title (the roman numeral stripped) first: if more than one
+  group results and every group's own stage numbers are a complete, gapless run starting at 1, each group becomes its
+  own multi-stage `VillainCard` (Tower Defense: two 3-stage cards, ids 21092/21095); Kang's groups have a gap (`{I,
+III}` skipping the branching II) and Sinister Six's are trivially single-stage, so both fall through to the
+  unchanged per-record behavior. Re-emitted `mts` only (`pnpm --filter @mc/content ingest -- --pack mts --offline`):
+  `packages/content/src/data/mts/cards.ts` now emits 21092 and 21095 as three-stage villains (21093/21094/21096/21097
+  folded in as `sides[0].stages[1]`/`[2]`, ability refs unchanged since they're keyed by each stage's own printed
+  code); `provenance.ts`'s two `CardProvenance` records gained the folded-in `marvelcdbCodes`. No other card, pack, or
+  scenario record changed. `packages/cards/src/wave4/mts/villain-merge.ts` (the scripting workaround) is deleted;
+  `tower-defense-setup.ts` reads `WAVE4_CARDS` directly and looks up 21092/21095 by id, `tower-defense.ts`'s docblock
+  no longer mentions the merge, and `tower-defense.test.ts` names the two ids directly instead of importing the
+  merged cards. All 29 Tower Defense tests pass unchanged in what they assert.
 
 ### 1.7 A card whose faces are two separately emitted cards: `BaseCard.otherFaceId`
 
