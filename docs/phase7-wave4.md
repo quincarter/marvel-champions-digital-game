@@ -444,6 +444,7 @@ stays data only.**
 | 3.40 | Scenario rules with no card behind them                                  | Ebony Maw (MC21 p. 6's Spell rule)                                           | landed  |
 | 3.41 | A stat totalled over several cards                                       | Mass Attack; Fastball Special, Partnership of Pain                           | landed  |
 | 3.42 | A deck-discard cost sized by the triggering event                        | Shield Spell                                                                 | landed  |
+| 3.43 | A branch's bindings reach the effects after it                           | chooseOne/if bindings (scripter question)                                    | landed  |
 
 ### 3.1 Additional forms: the form keyword
 
@@ -1520,6 +1521,25 @@ that many cards from the top of your deck → prevent all damage from this attac
 > (enough cards in the deck) and when it is paid (`actions.ts deckDiscardCount`); outside a window it reads with no
 > event. **DSL:** `discardTopOfDeckCost(eventAmount)`. **Scripted:** `21061.shield-spell-interrupt`, off
 > `KNOWN_SKIPPED`.
+
+### 3.43 A branch's bindings reach the effects after it
+
+The scripter's question: a `selectCards` (or any) binding made inside a `chooseOne` option, which runs as a child frame,
+was not visible to a sibling effect after the `chooseOne`; the same held for `if` branches. It failed silently (an
+empty slot: 0 damage, nothing moved). **Decision: propagate.** Printed text reads that way ("Choose one: … . Then …
+the card discarded this way"), only one branch runs so the binding is well defined, and a slot no taken branch bound
+still reads empty, which is what "if you discarded one" wants. Rejecting it in the validator would have forced every
+such card to duplicate its tail into each branch.
+
+> **Status: landed (2026-09-25),** tested in `packages/engine/src/branch-bindings.test.ts` (2 tests: a binding made in
+> a `chooseOne` option and in an `if` branch is read by the effect after it; both fail without the change). **What
+> landed:** an effects frame pushed for a branch carries **`returnBindingsTo`** (the frame that ran it); when the
+> branch finishes, its bindings and vars are written back to that frame (`chooseOne`, its multi-pick form, and `if`).
+> **Scan of every registered script** (`WAVE4_DEPS`, which includes Core through wave 4) for an effect that reads a
+> slot bound only inside an earlier `chooseOne`/`if` branch: one hit, Adam Warlock (`stld` 17011), a false positive
+> (each later branch rebinds `scheme`/`enemy` before reading it). No other script had the latent bug; the four the
+> scripter already restructured (Magic Attack, Zone of Silence, Karmic Blast, Cosmic Awareness) are correct as they
+> are and can be simplified if wanted. Full suite unchanged.
 
 ## 4. Open questions (for the user or FFG)
 

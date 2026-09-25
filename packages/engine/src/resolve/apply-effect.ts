@@ -1215,6 +1215,7 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
         bindings: frame.bindings,
         vars: frame.vars,
         scopedPlayerId: frame.scopedPlayerId,
+        returnBindingsTo: frame.frameId,
       });
       return;
     }

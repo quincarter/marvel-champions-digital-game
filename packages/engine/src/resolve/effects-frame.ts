@@ -16,7 +16,7 @@ import {
   priceOrNull,
 } from "../actions.js";
 import type { ChoiceOption, ChoicePrompt } from "../choices.js";
-import { type Ctx, emit, moveCard, popFrame, pushFrames, requestChoice, setFrame } from "../ctx.js";
+import { type Ctx, emit, moveCard, popFrame, pushFrames, requestChoice, setFrame, updateFrame } from "../ctx.js";
 import { dealEncounterCardTo, discardFromHand, setForm } from "../effects.js";
 import { cannotChangeForm } from "../rules.js";
 import type { GameState } from "../state.js";
@@ -76,6 +76,14 @@ export function executeEffectsFrame(ctx: Ctx, frame: Frame<"effects">): void {
   const effect = frame.effects[frame.cursor];
   if (!effect) {
     popFrame(ctx);
+    // A finished branch hands what it bound back to the frame that ran it (docs/phase7-wave4.md §3.43).
+    if (frame.returnBindingsTo) {
+      updateFrame(ctx, frame.returnBindingsTo, (parent) =>
+        parent.kind === "effects"
+          ? { ...parent, bindings: { ...parent.bindings, ...frame.bindings }, vars: { ...parent.vars, ...frame.vars } }
+          : parent,
+      );
+    }
     return;
   }
   const context = contextOf(frame, ctx.deps);
@@ -829,6 +837,7 @@ function executeChooseOne(
     bindings: frame.bindings,
     vars: frame.vars,
     scopedPlayerId: frame.scopedPlayerId,
+    returnBindingsTo: frame.frameId,
   });
 }
 
@@ -891,6 +900,7 @@ function executeChooseSeveral(
       bindings: frame.bindings,
       vars: frame.vars,
       scopedPlayerId: frame.scopedPlayerId,
+      returnBindingsTo: frame.frameId,
     });
   }
 }

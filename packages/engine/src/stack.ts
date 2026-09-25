@@ -166,6 +166,12 @@ export type StackFrame =
       readonly controllerId: PlayerId | null;
       readonly event: TriggerEvent | null;
       readonly eventFrameId: FrameId | null;
+      /**
+       * A branch (`chooseOne`'s chosen option, `if`'s taken branch): when it finishes, its bindings and vars are
+       * written back to this frame, so an effect after the `chooseOne`/`if` reads "the card discarded this way"
+       * whichever branch bound it (docs/phase7-wave4.md §3.43).
+       */
+      readonly returnBindingsTo?: FrameId;
     })
   /** RRG "Attack (Enemy Activation)" steps 1–5; step 6 is the event frame's response window. */
   | (FrameBase & {
