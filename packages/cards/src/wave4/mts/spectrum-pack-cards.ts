@@ -43,6 +43,13 @@ import {
   yourIdentity,
   zone,
   generatesPerCard,
+  heroAction,
+  exhaustCardsCost,
+  anAttackableEnemy,
+  attack,
+  sum,
+  totalStatOf,
+  statOf,
 } from "../../dsl/index.js";
 
 const AVENGER = trait("AVENGER");
@@ -51,9 +58,7 @@ const AVENGER = trait("AVENGER");
  * Spectrum's precon Leadership/basic cards (21011–21025, MC21 p. 3). Several reuse a card the pool already scripted
  * under a different printed id (same image, same text) — the docblock on each entry names the reprint.
  *
- * **Mass Attack (21016) is a primitive gap, not scripted**: no `ValueSpec` sums a stat across a *single* multi-card
- * bound cost pick ("the total ATK of those [3] allies and your hero"). `exhaustEachCost` (§3.17) sums separately
- * bound single-card slots, not one slot of several cards at once — see `KNOWN_SKIPPED["mts"]`.
+ * **Mass Attack (21016)** sums the three allies' ATK with `totalStatOf` (docs/phase7-wave4.md §3.41).
  *
  * **Band Together (21018)** is `handGenerates: generatesPerCard(...)` (docs/phase7-wave4.md §3.38).
  */
@@ -104,7 +109,17 @@ export const SPECTRUM_PACK_CARDS = defineAbilities({
     }),
   ),
 
-  // Mass Attack (21016): see module docblock — KNOWN_SKIPPED.
+  // Mass Attack (21016) — Hero Action (attack): Exhaust 3 allies you control that share a Trait with your hero → deal
+  // X damage to an enemy, where X is the total ATK of those allies and your hero (`totalStatOf`, docs/phase7-wave4.md
+  // §3.41).
+  "21016.mass-attack-action": heroAction(
+    {
+      label: "attack",
+      cost: exhaustCardsCost(query("ally", { sharesTraitWith: yourIdentity }), { min: 3, max: 3, slot: "allies" }),
+    },
+    anAttackableEnemy("enemy"),
+    attack(sum(totalStatOf(chosen("allies"), "atk"), statOf(yourIdentity, "atk")), chosen("enemy")),
+  ),
 
   // Moxie (21017) — Hero Response: After you change form, your hero gets +1 THW, +1 ATK, +1 DEF until the end of
   // the round (`wave2/ant/pack-cards.ts` `12016.moxie-response`, reprinted verbatim).

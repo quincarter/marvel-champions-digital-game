@@ -1155,10 +1155,12 @@ export function resolveValue(
     case "perPlayer":
       return value.base + value.perPlayer * state.startingPlayerCount;
     case "stat": {
-      const [id] = resolveRef(state, value.of, context);
-      if (!id) return 0;
-      const profile = characterProfile(state, id, deps);
-      return profile ? profile[value.stat] : 0;
+      const ids = resolveRef(state, value.of, context);
+      const statOfCard = (id: InstanceId): number => characterProfile(state, id, deps)?.[value.stat] ?? 0;
+      // "The total ATK of those allies and your hero" (docs/phase7-wave4.md §3.41).
+      if (value.total) return ids.reduce((sum, id) => sum + statOfCard(id), 0);
+      const [id] = ids;
+      return id ? statOfCard(id) : 0;
     }
     case "counters": {
       const [id] = resolveRef(state, value.of, context);
