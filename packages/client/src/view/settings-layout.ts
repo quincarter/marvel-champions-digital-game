@@ -8,7 +8,7 @@
  * large card text, sound-drawn-unavailable) — kept a parameter rather than a
  * hardcoded 4 so a later setting doesn't need this module touched to grow.
  */
-import { toggleRowHeight, type Rect } from "./layout.js";
+import { formFactorFor, toggleRowHeight, type Rect } from "./layout.js";
 import { overlayPanelLayout } from "./overlay-layout.js";
 
 const HEADER_HEIGHT = 60;
@@ -36,9 +36,10 @@ export function settingsLayout(bounds: Rect, rowDetails: readonly string[]): Set
   const rowsTop = tableHeading.y + tableHeading.height + 6;
   const rowWidth = body.width - 32;
   const rows: Rect[] = [];
+  const onDesktop = formFactorFor(bounds.width, bounds.height) === "desktop";
   let y = rowsTop;
   for (const detail of rowDetails) {
-    const height = toggleRowHeight(detail, rowWidth);
+    const height = toggleRowHeight(detail, rowWidth, onDesktop);
     rows.push({ x: body.x + 16, y, width: rowWidth, height });
     y += height + ROW_GAP;
   }

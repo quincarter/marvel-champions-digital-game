@@ -39,6 +39,7 @@
  * Back returns to Pause (`this.scene.stop()` — Pause is still running underneath, since it
  * launched this the same way every other overlay in this app is launched).
  */
+import { isDesktopType } from "../ui/desktop-type.js";
 import Phaser from "phaser";
 import type { AnyCard, CardId } from "@mc/content";
 import { getInstance, type GameState, type InstanceId } from "@mc/engine";
@@ -783,7 +784,7 @@ export class RulesOverlay extends Phaser.Scene {
       return [];
     }
 
-    const geometry = poolGridGeometry(rect.width, 1);
+    const geometry = poolGridGeometry(rect.width, 1, isDesktopType());
     const slots: CardListSlot[] = [];
     let sawInGame = false;
     let sawNotInGame = false;

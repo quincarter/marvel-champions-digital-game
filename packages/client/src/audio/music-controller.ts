@@ -23,6 +23,8 @@ import {
   titleTrackFor,
   type Track,
   finaleTrackFor,
+  pickTrack,
+  villainTracksFor,
 } from "./music-catalog.js";
 
 /** Default BGM volume when unmuted (0.0 to 1.0). Sits cleanly under UI sound. */
@@ -39,6 +41,13 @@ export interface MusicController {
     readonly packCode?: string | undefined;
   }): void;
   playOutcome(scenarioId: string, result: "win" | "loss" | "conceded", packCode?: string): void;
+  /**
+   * A campaign issue's opener: the theme of the villain about to be fought (`villainTracksFor`), carried on through
+   * Setup into the game. Leaves whatever is playing alone when that villain has no battle music yet.
+   */
+  playVillainTheme(scenarioId: string): void;
+  /** Setup: title music, unless `scenarioId`'s own theme is already up (an issue opener started it) — then that. */
+  playSetup(scenarioId: string | undefined): void;
   /** The Finale screen: the campaign's `finale` track; keeps the current track when the campaign has none. */
   playFinale(campaignId: string): void;
   /** Extras' jukebox: one chosen track, looped until another screen asks for its own music. */
@@ -88,6 +97,11 @@ export class MusicScene extends Phaser.Scene implements MusicController {
     readonly campaignId?: string | undefined;
     readonly packCode?: string | undefined;
   }): void {
+    // An issue opener already started this villain's theme: keep it rather than cutting to another pick.
+    if (context.scenarioId && this.#isPlayingOneOf(villainTracksFor(MUSIC_CATALOG, context.scenarioId))) {
+      this.#mode = "battle";
+      return;
+    }
     this.#mode = "battle";
     const track = battleTrackFor(MUSIC_CATALOG, context);
     if (track) {
@@ -105,6 +119,25 @@ export class MusicScene extends Phaser.Scene implements MusicController {
     } else {
       this.stop();
     }
+  }
+
+  playVillainTheme(scenarioId: string): void {
+    const tracks = villainTracksFor(MUSIC_CATALOG, scenarioId);
+    if (tracks.length === 0) return;
+    this.#mode = "battle";
+    if (this.#isPlayingOneOf(tracks)) return;
+    const track = pickTrack(tracks, null);
+    if (track) this.#requestTrack(track);
+  }
+
+  playSetup(scenarioId: string | undefined): void {
+    if (scenarioId && this.#isPlayingOneOf(villainTracksFor(MUSIC_CATALOG, scenarioId))) return;
+    this.playTitle();
+  }
+
+  /** Whether one of `tracks` is playing now, or is the one being loaded to play next. */
+  #isPlayingOneOf(tracks: readonly Track[]): boolean {
+    return this.#targetKey !== null && tracks.some((track) => track.key === this.#targetKey);
   }
 
   playFinale(campaignId: string): void {
