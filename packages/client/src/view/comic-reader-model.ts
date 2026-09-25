@@ -5,7 +5,7 @@
  * in-game stage beat, Rewind, the Aftermath, the Finale) share this model over their own `ComicBeatRef` list.
  */
 import { lineForRoster } from "../campaign/story.js";
-import type { ComicBeat, ComicPage, ComicBeatRef, StorySpeaker } from "../campaign/story.js";
+import type { BubblePlacement, ComicBeat, ComicPage, ComicBeatRef, StorySpeaker } from "../campaign/story.js";
 
 export interface ResolvedComicBeat {
   readonly page: ComicPage;
@@ -17,6 +17,8 @@ export interface ResolvedComicBeat {
 export interface ComicReaderLineView {
   readonly speaker: StorySpeaker;
   readonly text: string;
+  /** The line's own spot over the art, when it has one — kept for a narrator fallback too, minus the tail. */
+  readonly placement?: BubblePlacement;
 }
 
 export interface ComicReaderStepView {
@@ -72,9 +74,12 @@ export function comicReaderViewOf(
   const total = steps.length;
   const clamped = Math.max(0, Math.min(current, total - 1));
   const resolved = steps[clamped]!;
-  const lines = resolved.beat.lines
-    .map((line) => lineForRoster(line, rosterIdentityIds))
-    .filter((line): line is ComicReaderLineView => line !== null);
+  const lines = resolved.beat.lines.flatMap((line): ComicReaderLineView[] => {
+    const shown = lineForRoster(line, rosterIdentityIds);
+    if (!shown) return [];
+    const view = { speaker: shown.speaker, text: shown.text };
+    return [line.placement ? { ...view, placement: line.placement } : view];
+  });
 
   const orderedPageFiles: string[] = [];
   for (const step of steps) if (!orderedPageFiles.includes(step.page.file)) orderedPageFiles.push(step.page.file);

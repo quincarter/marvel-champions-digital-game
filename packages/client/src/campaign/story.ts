@@ -22,11 +22,30 @@ export type StorySpeaker =
   /** A supporting voice with a printed role ("S.H.I.E.L.D. quartermaster"). */
   | { readonly kind: "npc"; readonly name: string };
 
+/** A point on a comic page, in that page's own pixel coordinates (top-left origin, matching the image file). */
+export interface PagePoint {
+  readonly x: number;
+  readonly y: number;
+}
+
+/**
+ * Where a comic reader line's bubble sits over the art, for a reading area wide enough to letter over the picture
+ * (tablet and desktop): `bubble` is the bubble's centre, in a quiet part of the panel or just past its edge (the
+ * bubble may run into the reading area's gutter), and `speaker` where its tail ends — the edge of the speaker's head
+ * nearest the bubble. A phone ignores it and stacks bubbles under the panel as before.
+ */
+export interface BubblePlacement {
+  readonly bubble: PagePoint;
+  readonly speaker: PagePoint;
+}
+
 export interface StoryLine {
   readonly speaker: StorySpeaker;
   readonly text: string;
   /** For a hero line: the narrator caption used when that hero is not on the roster. Omit to drop the line. */
   readonly fallback?: string;
+  /** Comic reader only: where this line's bubble sits over the page. See `BubblePlacement`. */
+  readonly placement?: BubblePlacement;
 }
 
 /**

@@ -9,6 +9,7 @@ import type { Command, InstanceId, LegalAction, PlayerId } from "@mc/engine";
 import { ink } from "../../tokens.js";
 import type { CostChoicePrompt } from "../../view/cost-choice-model.js";
 import type { DiscardChoiceState } from "../../view/discard-choice-model.js";
+import type { PowerKind, PowerSource } from "../../view/attacker-choice.js";
 import type { FocusTarget } from "../../view/focus.js";
 import type { BasicAction } from "../../view/highlights.js";
 import type { PaymentState } from "../../view/payment-model.js";
@@ -45,6 +46,12 @@ export type Selection =
    */
   | { readonly kind: "confirmingPlay"; readonly action: LegalAction; readonly controllerId: PlayerId | null }
   /**
+   * Attack (or Thwart) was pressed while more than one character could make it — the hero and an ally, say — so
+   * which one goes first is the player's call, not whichever `legalActions` listed first. Each attack is its own
+   * action, so the order the player picks them in is the order their effects happen in.
+   */
+  | { readonly kind: "choosingSource"; readonly power: PowerKind; readonly sources: readonly PowerSource[] }
+  /**
    * An either/or cost branch, or how many counters an "up to N" cost removes, needs choosing before payment can
    * even be priced — a branch changes what the cost *is* (docs/phase7-wave3.md §3.32, §3.36), so this happens
    * before, not during, the payment mode (`view/cost-choice-model.ts`).
@@ -79,6 +86,9 @@ export function targetState(selection: Selection, id: InstanceId): TargetState {
     // The card being asked about wears the ring; everything else steps back, as in any other open decision.
     const { action } = selection.action;
     return action.kind === "playCard" && action.instanceId === id ? "selected" : "unavailable";
+  }
+  if (selection.kind === "choosingSource") {
+    return selection.sources.some((source) => source.instanceId === id) ? "selected" : "unavailable";
   }
   return "rest";
 }
