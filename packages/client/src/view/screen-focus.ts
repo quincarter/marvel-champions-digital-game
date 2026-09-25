@@ -317,7 +317,15 @@ export function settingsFocusOrder(rowIds: readonly string[]): readonly string[]
  * `titleFocusOrder` already applies to a blocked hero seat.
  */
 export function titleMenuFocusOrder(input: { readonly continuable: boolean }): readonly string[] {
-  return [...(input.continuable ? ["continue"] : []), "new-game", "decks", "campaign", "extras", "settings"];
+  return [
+    ...(input.continuable ? ["continue"] : []),
+    "new-game",
+    "decks",
+    "campaign",
+    "extras",
+    "settings",
+    "release-notes",
+  ];
 }
 
 export interface ScenarioSelectFocusInput {

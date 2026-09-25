@@ -1,0 +1,3 @@
+kind: Changed
+body: Small text (12px and under) draws two sizes up on desktop-width screens, across every screen; phone and tablet are unchanged
+time: 2026-09-24T22:14:23.821012-04:00

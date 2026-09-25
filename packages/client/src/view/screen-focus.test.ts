@@ -419,13 +419,14 @@ describe("screen focus routes", () => {
     expect(settingsFocusOrder([])).toEqual(["back"]);
   });
 
-  test("the Title menu (W2's D01) is Continue (when there's one), New game, Decks, Campaign, Extras, Settings", () => {
+  test("the Title menu (W2's D01) is Continue (when there's one), New game, Decks, Campaign, Extras, Settings, then the footer's Release notes link", () => {
     expect(titleMenuFocusOrder({ continuable: false })).toEqual([
       "new-game",
       "decks",
       "campaign",
       "extras",
       "settings",
+      "release-notes",
     ]);
     expect(titleMenuFocusOrder({ continuable: true })).toEqual([
       "continue",
@@ -434,6 +435,7 @@ describe("screen focus routes", () => {
       "campaign",
       "extras",
       "settings",
+      "release-notes",
     ]);
   });
 

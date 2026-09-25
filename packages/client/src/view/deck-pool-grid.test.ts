@@ -83,6 +83,14 @@ describe("poolColumnAt", () => {
     const beyondShortRow = poolCellRect(geometry, rowRect, 2);
     expect(poolColumnAt(geometry, rowRect, beyondShortRow.x + beyondShortRow.width / 2, 2)).toBeNull();
   });
+
+  test("desktop gives the caption more room, for its name and type lines drawn a size up", () => {
+    const phone = poolGridGeometry(781, 30);
+    const desktop = poolGridGeometry(781, 30, true);
+    expect(desktop.captionHeight).toBeGreaterThan(phone.captionHeight);
+    expect(desktop.cellHeight - desktop.artHeight).toBeCloseTo(desktop.captionHeight);
+    expect(desktop.columns).toBe(phone.columns);
+  });
 });
 
 const POOL_GRID_GAP_HALF = 6;
