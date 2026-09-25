@@ -2,6 +2,7 @@
 
 import type { AbilityId } from "@mc/content";
 import { type AbilityDefinition, abilityUseKey } from "../abilities.js";
+import { cannotDefend } from "../rules.js";
 import { type Ctx, emit, popFrame, setFrame, updateInstance } from "../ctx.js";
 import type { InstanceId, PlayerId } from "../ids.js";
 import { statusActive } from "../keywords.js";
@@ -110,6 +111,9 @@ function labelCancels(ctx: Ctx, playerId: PlayerId, labels: readonly string[]): 
 function declareLabeledDefense(ctx: Ctx, playerId: PlayerId): void {
   const identity = mustPlayer(ctx.state, playerId).identity.instanceId;
   const attack = ctx.state.stack.find((f): f is Frame<"enemyAttack"> => f.kind === "enemyAttack");
+  // A character that cannot defend is not made the defender by a "(defense)" ability either (§3.31 of wave 4).
+  const attackerOf = attack?.enemyInstanceId ?? null;
+  if (cannotDefend(ctx.state, ctx.deps, identity, attackerOf)) return;
   if (attack) {
     if (attack.defenderInstanceId === null) setDefender(ctx, attack, identity, playerId, false);
     return;

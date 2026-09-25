@@ -1,4 +1,13 @@
-import { activeVillain, characterProfile, handSize, hasKeyword, type GameState, type InstanceId } from "@mc/engine";
+import {
+  activeVillain,
+  canAttack,
+  characterProfile,
+  handSize,
+  hasKeyword,
+  legalDefenders,
+  type GameState,
+  type InstanceId,
+} from "@mc/engine";
 import { describe, expect, it } from "vitest";
 import {
   endTurn,
@@ -96,6 +105,18 @@ describe("Intangible / Dense (upgrade, 26002/26002b)", () => {
     const attacked = settle(runWith(WAVE4_DEPS, hero, endTurn()), firstLegal, undefined, WAVE4_DEPS);
     const dealt = inst(attacked, identity).damage - before;
     expect(dealt).toBe(Math.max(0, villainAtk - 2));
+  });
+
+  it("26002.intangible-constant: Intangible Vision cannot attack or defend; Dense Vision can", () => {
+    const hero = runWith(WAVE4_DEPS, visionVsRhino(6), toHero());
+    const identity = identityOf(hero, P1);
+    const villain = activeVillain(hero).instanceId;
+    const intangible = setMassForm(hero, "Intangible");
+    expect(canAttack(intangible, identity, villain, WAVE4_DEPS)).toBe(false);
+    expect(legalDefenders(intangible, P1, WAVE4_DEPS, villain)).not.toContain(identity);
+    const dense = setMassForm(hero, "Dense");
+    expect(canAttack(dense, identity, villain, WAVE4_DEPS)).toBe(true);
+    expect(legalDefenders(dense, P1, WAVE4_DEPS, villain)).toContain(identity);
   });
 
   it("26002b.dense-constant: +2 ATK and +2 DEF while in hero form and Dense", () => {
