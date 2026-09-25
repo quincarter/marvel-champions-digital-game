@@ -54,14 +54,9 @@ const KNOWN_SKIPPED: Readonly<Record<string, readonly string[]>> = {
   // Thanos (`mts/thanos.ts`) and the Infinity Gauntlet modular set (`mts/infinity-gauntlet.ts`), the box's third
   // scenario: every ref in scope (the villain, the main scheme, the `thanos` encounter set, and the `infinity_
   // gauntlet` set) resolves; no genuine gap found. Black Order (21100–21110, scripted by Tower Defense) and
-  // Children of Thanos (21125–21128), a modular set Thanos also recommends, stay skipped below for whichever
-  // scenario pass scripts the latter.
+  // Children of Thanos (21125–21128, `mts/children-of-thanos.ts`, Thanos's own other recommended modular): every
+  // ref resolves; no genuine gap found. The Loki scenario and Enchantress modular stay skipped below for that pass.
   mts: [
-    "21125.boost",
-    "21126.proxima-midnight-constant",
-    "21126.boost",
-    "21127.boost",
-    "21128.when-defeated",
     // hela (mts/hela.ts): every ref below except these two genuine gaps is now scripted.
     // `21136a.hela-constant`/`21137a.hela-constant`: the villain's own "+2[per_hero]/+3[per_hero] hit points for
     // each side scheme in victory display" needs a `ValueSpec` that multiplies two dynamic values (a per-player

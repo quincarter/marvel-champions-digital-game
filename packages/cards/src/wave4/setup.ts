@@ -93,7 +93,8 @@ function buildMtsSingleVillain(
   if (scenario.multipleVillains) {
     throw new Error(`${scenario.name}: multipleVillains scenarios are not built by wave4Scenario yet`);
   }
-  const difficulty = difficultyOf(resolveModes(options.difficulty, options.modes));
+  const modes = resolveModes(options.difficulty, options.modes);
+  const difficulty = difficultyOf(modes);
   // A whole separate villain card for expert mode (Escape the Museum's Collector, `gmw/scenarios.ts`'s own
   // `expertVillains` shape) rather than a later stage of the same one. MC21 p. 20's own Hela contents line ("Villain
   // deck Hela A (Hela B instead for expert mode)") names exactly this shape, but `MTS_SCENARIOS`' own `hela` record
@@ -138,6 +139,16 @@ function buildMtsSingleVillain(
     players: seatsOf(options.players),
     setAside: scenarioSpecificSetAside(sets),
     ...(useExpertVillain ? { setAsideVillainCardIds: scenario.expertVillains!.setAsideVillainCardIds } : {}),
+    // Loki's own random start and victory count (docs/phase7-wave4.md §3.7): the villain that starts is drawn from
+    // the game's own seeded RNG among `villainCardId` and `setAsideVillainCardIds`, so the latter is passed
+    // through even though `buildMtsSingleVillain` never reads it for anything else.
+    ...(scenario.startingVillain === "random"
+      ? { randomStartingVillain: true as const, setAsideVillainCardIds: scenario.setAsideVillainCardIds ?? [] }
+      : {}),
+    ...(scenario.victoryCondition
+      ? { victoryCondition: scenario.victoryCondition[victoryConditionModeOf(modes)] }
+      : {}),
+    ...(scenario.victory ? { victory: scenario.victory } : {}),
     // Rules the scenario's rulebook imposes without a card (docs/phase7-wave4.md §3.40).
     ...(SCENARIO_RULE_SPECS[scenario.id] ? { scenarioRuleSpecs: SCENARIO_RULE_SPECS[scenario.id] } : {}),
     includeIdentitySets: true,
@@ -146,6 +157,18 @@ function buildMtsSingleVillain(
     ...(scenarioDecks.length > 0 ? { scenarioDecks } : {}),
     ...(options.firstPlayerIndex !== undefined ? { firstPlayerIndex: options.firstPlayerIndex } : {}),
   };
+}
+
+/**
+ * `Scenario.victoryCondition`'s own key (Loki, docs/phase7-wave4.md §3.7): skirmish and heroic aren't a two-value
+ * `ScenarioDifficulty`, so this reads the mode set directly rather than through `difficultyOf` — the same "typed,
+ * not built until a scenario actually needs it" gap `@mc/content`'s own `schema/modes.ts` docblock names, closed
+ * here for the one scenario that does.
+ */
+function victoryConditionModeOf(modes: ReturnType<typeof resolveModes>): "skirmish" | "standard" | "expert" | "heroic" {
+  if (modes.skirmish) return "skirmish";
+  if (modes.heroic) return "heroic";
+  return difficultyOf(modes);
 }
 
 /** The Hood's own nine modular encounter sets, in declaration order (docs/phase7-wave4.md §2.3): every

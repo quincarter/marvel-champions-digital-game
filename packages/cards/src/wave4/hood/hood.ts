@@ -40,6 +40,11 @@ import {
   whenRevealedHero,
   you,
   setup,
+  setVar,
+  dealtEncounterCount,
+  thatPlayer,
+  valueAtMost,
+  varOf,
 } from "../../dsl/index.js";
 import type { EffectArg } from "../../dsl/index.js";
 
@@ -66,22 +71,16 @@ import type { EffectArg } from "../../dsl/index.js";
  * by discarding one card at a time (functionally identical to discarding both at once, since neither draw can see
  * the other) and short-circuiting with a nested `ifThen`, rather than any new "first matching" primitive.
  *
- * **Known gap (not modeled — see `../coverage.test.ts`'s `KNOWN_SKIPPED.hood`):** Promised Prosperity's (24005b)
- * "For each player who was not dealt at least 1 facedown encounter card this way, place 2 threat here" needs a way
- * to measure, per player, how many facedown encounter cards a *nested* resolution (`resolveSpecials`) dealt them —
- * there is no `bind` on `resolveSpecials`/`dealAsEncounterCard` reporting a count the way `discardEncounterCards`
- * reports `<bind>.count`, and no primitive to snapshot a `dealtEncounterCount(player)` before an effect runs and
- * compare it after. The ability's first sentence ("each player must resolve Foul Play in player order") is fully
- * scripted; only the "place 2 threat" half is skipped, as `24005b.when-revealed-threat-if-not-dealt` is not
- * registered (the base `24005b.when-revealed` ref *is* registered and covers the first sentence — see the ref
- * table in the module's own test file for exactly which text each ref covers).
+ * **Promised Prosperity (24005b)** snapshots each player's dealt encounter cards before their Foul Play and places 2
+ * threat when none were added (`setVar`, docs/phase7-wave4.md §3.46). Every "each player must resolve Foul Play"
+ * passes that player as the Special's "you" (`resolveSpecialsOf(theVillain, thatPlayer)`).
  */
 
 /** "The player must resolve The Hood's 'Foul Play' ability" for the ambient "you" (whoever the calling ability's
  * controller already is: the engaged/revealing/defeating player). */
 const foulPlay = (): EffectArg => resolveSpecialsOf(theVillain);
 /** "Each player must resolve The Hood's 'Foul Play' ability in player order." */
-const foulPlayForEachPlayer = (): EffectArg => forEachPlayer(eachPlayer, foulPlay());
+const foulPlayForEachPlayer = (): EffectArg => forEachPlayer(eachPlayer, resolveSpecialsOf(theVillain, thatPlayer));
 
 /** "If that card does not belong to The Hood encounter set, deal it to yourself as a facedown encounter card" for a
  * card already bound to `slot` by an earlier `discardEncounterCards`. */
@@ -141,10 +140,18 @@ export const HOOD = defineAbilities({
   // Promised Prosperity (24005a, main scheme stage 2 front) — When Revealed: choose 1 set-aside modular set at
   // random, shuffle it into the encounter deck. Place 1 acceleration token on the main scheme.
   "24005a.when-revealed": whenRevealed(shuffleInSetAsideModularSet(), addAccelerationToken()),
-  // Promised Prosperity (24005b, main scheme stage 2 back) — When Revealed: each player resolves Foul Play in
-  // player order. (The "place 2 threat for each player not dealt a card this way" half is the module docblock's
-  // known gap — not modeled.)
-  "24005b.when-revealed": whenRevealed(foulPlayForEachPlayer()),
+  // Promised Prosperity (24005b, main scheme stage 2 back) — When Revealed: each player must resolve Foul Play in
+  // player order. For each player who was not dealt at least 1 facedown encounter card this way, place 2 threat here.
+  // Per player: the count of their dealt encounter cards before their Foul Play, compared after it (`setVar`,
+  // docs/phase7-wave4.md §3.46).
+  "24005b.when-revealed": whenRevealed(
+    forEachPlayer(
+      eachPlayer,
+      setVar("dealtBefore", dealtEncounterCount(thatPlayer)),
+      resolveSpecialsOf(theVillain, thatPlayer),
+      ifThen(valueAtMost(dealtEncounterCount(thatPlayer), varOf("dealtBefore")), placeThreat(2, self)),
+    ),
+  ),
 
   // Crime State (24006a, main scheme stage 3 front) — When Revealed: choose 1 set-aside modular set at random,
   // shuffle it into the encounter deck. Place 1 acceleration token on the main scheme. Each player resolves Foul

@@ -842,7 +842,14 @@ export const resolveSpecials = (cardsQuery: TargetQuery): EffectSpec => ({
  * same non-unique card). The engine's `EffectSpec resolveSpecials` already carries an `of` field for this
  * (`separate-deck.test.ts`'s own Invocation-deck usage); this is its first DSL exposure.
  */
-export const resolveSpecialsOf = (ref: TargetRef): EffectSpec => ({ kind: "resolveSpecials", of: ref });
+/** "Resolve the 'Special' ability of [ref]"; `player`: "[that player] must resolve …" (docs/phase7-wave4.md §3.46). */
+export const resolveSpecialsOf = (ref: TargetRef, player?: PlayerRef): EffectSpec => ({
+  kind: "resolveSpecials",
+  of: ref,
+  ...(player ? { player } : {}),
+});
+/** Records `value` now as var `name`, for a comparison later in the same ability (docs/phase7-wave4.md §3.46). */
+export const setVar = (name: string, value: Amount): EffectSpec => ({ kind: "setVar", name, value: amount(value) });
 /**
  * "Discard N cards from your hand". `player` may be `eachPlayer`: each chooses from their own hand, in player order.
  *

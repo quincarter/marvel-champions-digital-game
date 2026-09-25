@@ -1286,7 +1286,23 @@ export type EffectSpec =
    * card of the Invocation deck]". Resolving a Special is not playing the card, so no `cardPlayed` event (FAQ
    * "Depowered (#20)", p. 60: "merely resolved, not played").
    */
-  | { readonly kind: "resolveSpecials"; readonly cards?: TargetQuery; readonly of?: TargetRef }
+  /**
+   * `player`: who "you" is inside a Special whose card has no controller ("Each player must resolve The Hood's 'Foul
+   * Play' ability in player order", Promised Prosperity and Crime State, `hood` 24005, 24006, with `thatPlayer`).
+   * Absent: the calling ability's "you". docs/phase7-wave4.md §3.46.
+   */
+  | {
+      readonly kind: "resolveSpecials";
+      readonly cards?: TargetQuery;
+      readonly of?: TargetRef;
+      readonly player?: PlayerRef;
+    }
+  /**
+   * Records a value now, as var `name` on this effects frame, to compare later in the same ability: "For each player
+   * who was not dealt at least 1 facedown encounter card this way" (Promised Prosperity, `hood` 24005b) is a snapshot of
+   * `dealtEncounterCount(thatPlayer)` before that player's Foul Play and a comparison after. docs/phase7-wave4.md §3.46.
+   */
+  | { readonly kind: "setVar"; readonly name: string; readonly value: ValueSpec }
   /**
    * "Rhino attacks you" / "The villain and each minion engaged with you attacks
    * you" / "Each Masters of Evil minion attacks the hero it is engaged with" /

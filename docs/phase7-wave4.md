@@ -476,6 +476,7 @@ stays data only.**
 | 3.43 | A branch's bindings reach the effects after it                           | chooseOne/if bindings (scripter question)                                    | landed  |
 | 3.44 | Players cannot discard these cards                                       | Powerful Enchantments                                                        | landed  |
 | 3.45 | A revealed treachery that moved itself stays where it went               | Field Recruitment (engine bug)                                               | landed  |
+| 3.46 | Per-player snapshots; each player resolving a Special as themself        | Promised Prosperity; Hail Hydra!, It's Alive!                                | landed  |
 
 ### 3.1 Additional forms: the form keyword
 
@@ -1611,6 +1612,29 @@ about a card its own text sent elsewhere.
 > and affected. Infiltration and Shapeshifter Surprise (`mut_gen` 32082, 32083), Misled (`rogue` 38027) and Smear
 > Campaign (`sm` 27175) print the same shape and are not scripted yet; they get the right behaviour when they are.
 > The full suite is unchanged.
+
+### 3.46 Per-player snapshots; each player resolving a Special as themself
+
+Promised Prosperity (`hood` 24005b): "When Revealed: Each player must resolve The Hood's 'Foul Play' ability in player
+order. For each player who was not dealt at least 1 facedown encounter card this way, place 2 threat here." Two gaps:
+nothing could measure, per player, what a nested resolution dealt them; and **a bug found on the way**: inside
+`forEachPlayer`, `resolveSpecials` gave an uncontrolled card's Special the _calling_ ability's "you" (the first player),
+not the player whose pass it was, so every "each player must resolve Foul Play" dealt every card to the same player.
+Survey (every raw pack, "each player who was not / did not … this way"): Hail Hydra! (`cap` 03030, `trors` 04057/04147,
+"each player who was not attacked this way"), "It's Alive!" (`aos` 50123, "each player who did not engage a minion this
+way"): the same snapshot-and-compare shape.
+
+> **Status: landed (2026-09-25),** tested in `packages/engine/src/per-player-snapshot.test.ts` (1 test, exact threat:
+> +4 when neither of two players is dealt a card, +2 when one is, 0 when both are; each player's Foul Play deals to
+> that player) and in a real game in `packages/cards/src/wave4/hood/hood.test.ts` (two players at Making Connections
+> advance to Promised Prosperity; between the advance and the next step, neither player's Foul Play deals to the
+> other; this test fails with the old "you"). **What landed:** **`EffectSpec setVar {name, value}`** (a snapshot for a
+> later comparison in the same ability; `varOf(name)` reads it) and **`resolveSpecials.player`** (the resolving
+> player for a Special on a card with no controller). **DSL:** `setVar(name, value)`, `resolveSpecialsOf(ref,
+player?)`. **Scripted:** `24005b.when-revealed` is now complete (forEachPlayer: `setVar("dealtBefore",
+dealtEncounterCount(thatPlayer))`, that player's Foul Play, `ifThen(valueAtMost(dealtEncounterCount(thatPlayer),
+varOf("dealtBefore")), placeThreat(2, self))`). Every "each player must resolve Foul Play" in `hood.ts` (Promised
+> Prosperity, Crime State 24006a/b, Unbridled Ambition) now passes `thatPlayer`.
 
 ## 4. Open questions (for the user or FFG)
 
