@@ -58,13 +58,20 @@ import {
   youHaveTrait,
   zone,
 } from "../../dsl/index.js";
+import { cardId } from "@mc/content";
 import { cardName } from "../names.js";
 import { obligation } from "../obligations.js";
 
-/** "If you are Carol Danvers": your identity is Captain Marvel's card, in alter-ego form. */
+/**
+ * "If you are Carol Danvers": your identity is Captain Marvel's card, in alter-ego form. Matched by `printedId`
+ * (the card itself), not `name` — a `name` check would read the alter-ego's own showing title ("Carol Danvers",
+ * `currentName`; docs/phase7-wave2.md §14.3), not the hero title `cardName("01010a")` returns, so it could never
+ * match. RRG 1.8 "Identity" (p. 23): a title names one side of the card, not "the identity regardless of side",
+ * which is what this check means.
+ */
 const youAreCarolDanvers = allOf(
   isAlterEgo(),
-  exists(query("alterEgo", { controller: "you", name: cardName("01010a") })),
+  exists(query("alterEgo", { controller: "you", printedId: cardId("01010a") })),
 );
 
 /** Captain Marvel (01010a/b) and her hero kit (01011–01018). */

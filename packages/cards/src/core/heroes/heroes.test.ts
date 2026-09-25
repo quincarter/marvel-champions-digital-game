@@ -22,6 +22,7 @@ import {
   stackEncounterDeck,
   startCoreGame,
   toHero,
+  use,
 } from "../../testing/harness.js";
 
 const vsRhino = (...decks: readonly string[]) =>
@@ -54,6 +55,38 @@ describe("Captain Marvel", () => {
     const after = settle(answer(second, [breakin]));
     expect(mainThreat(after)).toBe(mainBefore - 2);
     expect(inst(after, breakin).threat).toBe(sideBefore - 2);
+  });
+
+  it('Alpha Flight Station draws 2 in alter-ego form ("if you are Carol Danvers"), 1 in hero form (§14.3)', () => {
+    // docs/phase7-wave2.md §14.3 (Resolved 2026-09-25): before the fix, `youAreCarolDanvers` matched
+    // `query("alterEgo", { name: cardName("01010a") })` against the identity's *hero* title ("Captain Marvel"),
+    // which `currentName` used to return in every form — so the check was backwards by accident until it was
+    // rewritten to match `printedId` instead of a title.
+    // Alter-ego form (the default after setup): drawing 2.
+    const setup = vsRhino("core-captain-marvel-leadership");
+    const stationInHand = moveToHand(setup, P1, "01015");
+    const [station] = stationInHand.ids as [InstanceId];
+    const paid = payWith(stationInHand.state, P1, 1, [station]);
+    const alterEgoPlayed = run(stationInHand.state, play(P1, station, paid));
+    const alterEgoHandBefore = playerOf(alterEgoPlayed, P1).hand.length;
+    const [fodder1] = payWith(alterEgoPlayed, P1, 1, [station]) as [InstanceId];
+    const alterEgoDrawn = settle(
+      run(alterEgoPlayed, use(P1, station, "01015.alpha-flight-station-action", [], { discard: [fodder1] })),
+    );
+    expect(playerOf(alterEgoDrawn, P1).hand.length).toBe(alterEgoHandBefore - 1 + 2);
+
+    // Hero form: drawing 1.
+    const hero = run(vsRhino("core-captain-marvel-leadership"), toHero());
+    const stationInHand2 = moveToHand(hero, P1, "01015");
+    const [station2] = stationInHand2.ids as [InstanceId];
+    const paid2 = payWith(stationInHand2.state, P1, 1, [station2]);
+    const heroPlayed = run(stationInHand2.state, play(P1, station2, paid2));
+    const heroHandBefore = playerOf(heroPlayed, P1).hand.length;
+    const [fodder2] = payWith(heroPlayed, P1, 1, [station2]) as [InstanceId];
+    const heroDrawn = settle(
+      run(heroPlayed, use(P1, station2, "01015.alpha-flight-station-action", [], { discard: [fodder2] })),
+    );
+    expect(playerOf(heroDrawn, P1).hand.length).toBe(heroHandBefore - 1 + 1);
   });
 
   it("Lead from the Front: +1 THW/+1 ATK for each character the chosen player controls, until the end of the phase", () => {

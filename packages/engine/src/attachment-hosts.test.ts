@@ -7,7 +7,7 @@
  * "Counterspell (#30)" (p. 60); The Wrecking Crew insert, "Signature Side Schemes".
  */
 
-import { flat, trait, type AttachmentHost, type CardId } from "@mc/content";
+import { flat, trait, type AttachmentHost, type CardId, type HeroIdentityCard } from "@mc/content";
 import { describe, expect, it } from "vitest";
 import type { EngineDeps } from "./abilities.js";
 import type { Command } from "./commands.js";
@@ -24,6 +24,7 @@ import { runCommands } from "./testing/drive.js";
 import {
   stubAlly,
   stubAttachment,
+  stubIdentity,
   stubMainScheme,
   stubMinion,
   stubSideScheme,
@@ -451,6 +452,48 @@ describe("§7 hosts added for the data pipeline's confirmed gaps", () => {
     };
     expect(hosts(state, { kind: "qualified", category: "character", titleContains: "Spider" })).toEqual([given.id]);
     expect(hosts(state, { kind: "qualified", category: "character", titleContains: "Hulk" })).toEqual([]);
+  });
+
+  it("`titleContains` reads an identity's current face, not the other side of the card (docs/phase7-wave2.md §14.3)", () => {
+    const spiderWomanStub = stubIdentity({
+      id: "spider-woman",
+      hp: 10,
+      atk: 2,
+      thw: 2,
+      def: 2,
+      rec: 3,
+      heroHandSize: 5,
+      alterEgoHandSize: 6,
+    });
+    const spiderWoman: HeroIdentityCard = {
+      ...spiderWomanStub,
+      name: "Spider-Woman",
+      hero: { ...spiderWomanStub.hero, faceName: "Spider-Woman" },
+      alterEgo: { ...spiderWomanStub.alterEgo, faceName: "Jessica Drew" },
+    };
+    const result = createGame(
+      {
+        seed: 9,
+        cards: [...CARDS.filter((c) => c.type !== "hero_identity"), spiderWoman],
+        villainCardId: QUIET_VILLAIN.id,
+        mainSchemeCardId: LONG_SCHEME.id,
+        encounterDeck: copies(BLANK.id, 16),
+        includeIdentitySets: false,
+        players: [{ identityCardId: spiderWoman.id, deck: [...DEFAULT_DECK, AVENGER_ALLY.id] }],
+      },
+      deps,
+    );
+    if (!result.ok) throw new Error(result.error.message);
+    const alterEgo = runCommands(result.state, deps).state;
+    // Setup starts every player in alter-ego form (RRG 1.8 "Setup", p. 41): "Jessica Drew" is showing, not
+    // "Spider-Woman" — RRG 1.8 "Identity" (p. 23), "not the other side of the card".
+    expect(hosts(alterEgo, { kind: "qualified", category: "character", titleContains: "Spider" }, p1)).toEqual([]);
+
+    const heroForm = applyCommand(alterEgo, { type: "changeForm", playerId: p1 });
+    if (!heroForm.ok) throw new Error(heroForm.error.message);
+    expect(hosts(heroForm.state, { kind: "qualified", category: "character", titleContains: "Spider" }, p1)).toEqual([
+      mustPlayer(heroForm.state, p1).identity.instanceId,
+    ]);
   });
 
   /**

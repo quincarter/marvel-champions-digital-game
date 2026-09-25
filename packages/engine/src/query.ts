@@ -274,8 +274,17 @@ export function encounterFace(state: GameState, id: InstanceId): EncounterCardFl
 }
 
 /**
- * The title showing right now: a villain's current face ("Norman Osborn" / "Green Goblin"), a flipped card's other
- * face, or the printed name. A facedown card has none. `named` targets and `name` queries read this.
+ * The title showing right now: a villain's current face ("Norman Osborn" / "Green Goblin"), a hero identity's
+ * current form ("Spider-Woman" / "Jessica Drew"), a flipped card's other face, or the printed name. A facedown
+ * card has none. `named` targets, `TargetQuery.name`, the `name`/`faceNamed` predicates and `titleContains` all
+ * read this.
+ *
+ * RRG 1.8 "Identity" (p. 23): "If a card refers to a hero or alter-ego by title, it refers only to the identity
+ * with that title, and not to the other side of the card." Before this read the identity's printed card title in
+ * both forms — so an alter-ego matched its hero's name — flagged as a known gap in docs/phase7-wave2.md §14.3 and
+ * closed there (Resolved 2026-09-25). A caller that means "this identity card regardless of which side is up"
+ * (an identity's whole set of titles, for deckbuilding or an identity-specific card) has its own primitive —
+ * `identityCardTitledAs` (`titles.ts`) — rather than going through this single name string.
  */
 export function currentName(state: GameState, id: InstanceId): string | undefined {
   const instance = getInstance(state, id);
@@ -284,6 +293,10 @@ export function currentName(state: GameState, id: InstanceId): string | undefine
   const villain = villainOf(state, id);
   if (villain && card.type === "villain")
     return card.sides.find((side) => side.side === villain.side)?.name ?? card.name;
+  if (card.type === "hero_identity") {
+    const player = state.players.find((p) => p.identity.instanceId === id);
+    if (player) return identityFace(state, player).face.faceName;
+  }
   // A main scheme stage with its own title ("Remove the Chronopolis from the game"; `MainSchemeStage.name`).
   const scheme = card.type === "main_scheme" ? mainSchemeStateOf(state, id) : undefined;
   if (scheme) return mainSchemeStageOf(state, scheme).name ?? card.name;
@@ -749,20 +762,13 @@ export function locateCard(state: GameState, id: InstanceId): ZoneId | null {
 export const isTerminal = (state: GameState): boolean => state.outcome !== null;
 
 /**
- * The title a card is showing right now, with an identity read from its **faceup side**: RRG 1.8 "Identity" (p. 23),
- * "If a card refers to a hero or alter-ego by title, it refers only to the identity with that title, and not to the
- * other side of the card." Everything else is `currentName`.
- *
- * Used where a title is captured for later (`attackedThisTurn`, docs/phase7-wave2.md §14). `currentName` itself still
- * answers an identity's card title whatever its form; that is a known discrepancy with p. 23, recorded in §14.3 rather
- * than changed here, because every name-matching reader (`namedCard`, target-query `name`, the name predicate) goes
- * through it.
+ * The title a card is showing right now (RRG 1.8 "Identity", p. 23). Kept as its own name for callers that capture
+ * a title for later (`attackedThisTurn`) or compare it against Team-Up's names (`titles.ts`), even though it is now
+ * exactly `currentName` — the two were split by a gap that closed docs/phase7-wave2.md §14.3 (Resolved 2026-09-25):
+ * `currentName` used to answer an identity's printed card title in every form, and this function was the one place
+ * that read the identity's faceup side correctly. `currentName` folded that branch in, so this is an alias.
  */
-export function titleShowing(state: GameState, id: InstanceId): string | undefined {
-  const player = state.players.find((p) => p.identity.instanceId === id);
-  if (player && cardOf(state, id)?.type === "hero_identity") return identityFace(state, player).face.faceName;
-  return currentName(state, id);
-}
+export const titleShowing = currentName;
 
 /**
  * Whether a player's turn is in progress (RRG 1.8 "Player Turn", p. 34) — the only time "until the end of this turn"

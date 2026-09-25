@@ -38,7 +38,9 @@ const TECHNIQUE = trait("TECHNIQUE");
 const YOUR_TECHNIQUE_UPGRADES = query("upgrade", { controller: "you", trait: TECHNIQUE });
 
 /** Nebula's own hero identity, whoever controls it (the shared "Gamora" precedent, `wave3/gam/gamora-obligation-
- * nemesis.ts`'s own docblock: an identity query, not `named`, so it still matches whichever face is up). */
+ * nemesis.ts`'s own docblock: an identity query, not `named`, so it still matches whichever face is up). Both of
+ * Nebula's faces are titled "Nebula" (docs/phase7-wave2.md §14.3), so `currentName`'s per-face read still matches
+ * her in either form. */
 const NEBULA = query("identity", { name: "Nebula" });
 /** The Gamora character currently in play against Nebula — the ally (22002) or her own nemesis minion (22028):
  * both are titled "Gamora", and the nemesis interrupt below guarantees at most one is ever in play at once. */
