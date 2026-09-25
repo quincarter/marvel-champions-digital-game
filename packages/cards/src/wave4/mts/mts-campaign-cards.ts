@@ -5,6 +5,7 @@ import {
   alterEgoAction,
   anyOfCards,
   cards,
+  cannotChooseToDiscard,
   chooseCards,
   chosen,
   constant,
@@ -26,6 +27,7 @@ import {
   heroAction,
   ifThen,
   ignores,
+  inHand,
   moveCards,
   named,
   not,
@@ -75,31 +77,33 @@ import {
  * for every flip below (the same "covered by construction" shape `hela.ts` uses for Garm/Skurge/Nidhogg's own
  * "engages the first player").
  *
- * - **Secure the Landing Pad (21180a) → Cosmo (21180b)**: "The first player gains control of Cosmo" is the flip's
- *   own default (by construction, above); "Cosmo does not count against the ally limit" is a genuine standing
- *   rule (`21180b.cosmo-constant-2`); "Forced Interrupt: When Cosmo leaves play, remove him from the game" is
- *   `coveredByEngineRule()` — Cosmo is double-sided, and RRG 1.8 "Double-Sided Card" (p. 17) already sends a
- *   double-sided card leaving play out of the game (the same reasoning `hela.ts`'s Odin uses).
+ * - **Secure the Landing Pad (21180a) → Cosmo (21180b)**: "The first player gains control of Cosmo" is
+ *   `coveredByEngineRule()` (`21180b.cosmo-constant`) — a side scheme's own `whenDefeated` has no `context.
+ *   controllerId`, so `apply-effect.ts`'s `flipCard` case already resolves the new face's controller to
+ *   `ctx.state.firstPlayerId` by construction (`other-face.ts`'s own doc comment names this exact sentence);
+ *   "Cosmo does not count against the ally limit" is a genuine standing rule (`21180b.cosmo-constant-2`); "Forced
+ *   Interrupt: When Cosmo leaves play, remove him from the game" is `coveredByEngineRule()` — Cosmo is
+ *   double-sided, and RRG 1.8 "Double-Sided Card" (p. 17) already sends a double-sided card leaving play out of the
+ *   game (the same reasoning `hela.ts`'s Odin uses).
  * - **Security Breach (21181)**: a facedown-tuck-then-return pair, `tuckCards`/`tuckedUnder`.
- * - **Save the Shawarma Place (21182a) → Black Swan (21182b)**: "Black Swan engages the first player" is the
- *   flip's own default (by construction); "Forced Response: After Black Swan engages you, discard 1 card from
- *   your hand" is genuinely triggered (`21182b.black-swan-forced-response`).
+ * - **Save the Shawarma Place (21182a) → Black Swan (21182b)**: "Black Swan engages the first player" is
+ *   `coveredByEngineRule()` (`21182b.black-swan-constant`) — the same `flipCard`/`firstPlayerId` default as Cosmo
+ *   above, and `other-face.ts`'s own `engagedEvent` push for the newly-flipped minion face; "Forced Response: After
+ *   Black Swan engages you, discard 1 card from your hand" is genuinely triggered
+ *   (`21182b.black-swan-forced-response`).
  * - **Hack Sanctuary's Computer (21184a) → Defensive Protocols (21184b)**: a plain "search deck+discard for 1
  *   card" reward, then a crash-counter countdown to System Shock, scripted with a pack-local `counterAtLeast`
  *   predicate (the same `gob/local.ts` shape — no `dsl` wrapper exists for it yet).
- * - **System Shock (21185) — left unscripted, a genuine gap.** An obligation that lives in its owner's *hand*
- *   rather than their play area (unlike every other obligation, RRG 1.8 "Obligation", p. 30's "if a player draws
- *   an obligation card from their player deck, they place that obligation into their play area" — overridden by
- *   this card's own printed text, which only makes sense read as staying in hand), printing two independent
- *   clauses — a standing "you cannot choose to discard" restriction, and an unrelated hand-only Alter-Ego Action
- *   (`AbilityDefinition.activeIn: "hand"`, docs/phase7-wave4.md §3.13, this exact card's own worked example in
- *   that field's doc comment) — under a *single* `21185.obligation` ref. An `AbilityDefinition` has exactly one
- *   `AbilityTriggerSpec`, so one ref cannot hold both a `constant` rule and a player-chosen action; the ordinary
- *   fix (`trors/campaign-cards.ts`'s own Martial Law/Anti-Hero Propaganda precedent: a generalized parser rule in
- *   `parse-text.ts` splits a bare-preamble-plus-one-header obligation into `-constant`/`-action` refs) does not
- *   fire for this card's exact shape (the header is nested inside a quoted "gains: '...'" clause, not printed
- *   bare) — a `card-data-pipeline` fix, not a DSL gap, and out of scope here since
- *   `packages/content/src/data/mts/cards.ts` is a generated file this pass must not hand-edit.
+ * - **System Shock (21185)**: an obligation that lives in its owner's *hand* rather than their play area (unlike
+ *   every other obligation, RRG 1.8 "Obligation", p. 30's "if a player draws an obligation card from their player
+ *   deck, they place that obligation into their play area" — overridden by this card's own printed text, which
+ *   only makes sense read as staying in hand), printing two independent clauses — a standing "you cannot choose to
+ *   discard" restriction, and an unrelated hand-only Alter-Ego Action — now split into two refs by `parse-text.ts`
+ *   (`QUOTED_HEADER_RE`, `card-data-pipeline`'s fix for a trigger header nested inside a quoted "gains: '...'"
+ *   clause rather than printed bare, the one shape the existing Martial Law/Anti-Hero Propaganda generalization
+ *   didn't cover). Both are `inHand(...)` (`AbilityDefinition.activeIn: "hand"`, docs/phase7-wave4.md §3.13, this
+ *   exact card's own worked example in that field's doc comment): the constant rule is `cannotChooseToDiscard`,
+ *   and the action removes the card from the game.
  * - **Find the Norn Stones (21186a) → Retrieve Odin's Armor (21186b)**: both a same-type (side scheme → side
  *   scheme) flip, so no relocation; each has a `threatCannotBeRemoved` gate and its own `whenDefeated` reward.
  * - **Norn Stone (21187a/b)**: an ordinary double-sided player upgrade — Setup/Permanent front granting stats and
@@ -130,8 +134,8 @@ export const MTS_CAMPAIGN_CARDS = defineAbilities({
   // --- Secure the Landing Pad (21180a) / Cosmo (21180b) --------------------------------------------------------
   // "Hinder 1[per_hero] (data).\nWhen Defeated: Flip this card over."
   "21180a.when-defeated": whenDefeated(flipCard(self)),
-  // "The first player gains control of Cosmo." — the flip's own default (module docblock); no script needed, so
-  // this ref is not registered (see the file header's own accounting of every ref).
+  // "The first player gains control of Cosmo." — the flip's own default (module docblock).
+  "21180b.cosmo-constant": coveredByEngineRule(),
   // "Cosmo does not count against the ally limit."
   "21180b.cosmo-constant-2": constant({ rules: [{ kind: "excludedFromAllyLimit", target: { self: true } }] }),
   // "Forced Interrupt: When Cosmo leaves play, remove him from the game." — double-sided leave-play (module docblock).
@@ -160,7 +164,8 @@ export const MTS_CAMPAIGN_CARDS = defineAbilities({
     forEachPlayer(eachPlayer, grantOwnedCards(encounterSetAside({ name: "Shawarma" }), "deckShuffle", thatPlayer)),
     flipCard(self),
   ),
-  // "Black Swan engages the first player." — the flip's own default (module docblock); no script needed.
+  // "Black Swan engages the first player." — the flip's own default (module docblock).
+  "21182b.black-swan-constant": coveredByEngineRule(),
   // "Forced Response: After Black Swan engages you, discard 1 card from your hand."
   "21182b.black-swan-forced-response": forcedResponse({ on: "minionEngaged", selfIs: "source" }, discardFromHand(1)),
 
@@ -187,13 +192,15 @@ export const MTS_CAMPAIGN_CARDS = defineAbilities({
     ]),
   ),
 
-  // --- System Shock (21185) — left unscripted (see `../coverage.test.ts`'s own `KNOWN_SKIPPED.mts` and the module
-  // docblock above): the printed text box carries two independent clauses (a standing "you cannot choose to
-  // discard" restriction, and an unrelated hand-only Alter-Ego Action) under a single `21185.obligation` ref,
-  // which cannot hold both — an `AbilityDefinition` has exactly one `AbilityTriggerSpec`. This needs a
-  // `card-data-pipeline` ref split (the same shape the Martial Law/Anti-Hero Propaganda generalization in
-  // `parse-text.ts` already gives ordinary two-clause obligations, `trors` 04165/04166) before it can be scripted;
-  // not hand-edited here, since `packages/content/src/data/mts/cards.ts` is generated.
+  // --- System Shock (21185) --------------------------------------------------------------------------------------
+  // "You cannot choose to discard this card from your hand." — active only while the card is in hand (module
+  // docblock, docs/phase7-wave4.md §3.13).
+  "21185.system-shock-constant": inHand(constant(cannotChooseToDiscard)),
+  // "While this card is in your hand, it gains: 'Alter-Ego Action: Spend a [mental] resource → remove this card
+  // from the game.'"
+  "21185.system-shock-action": inHand(
+    alterEgoAction({ cost: spend({ mental: 1 }) }, moveCards(cards(self), "removedFromGame")),
+  ),
 
   // --- Find the Norn Stones (21186a) / Retrieve Odin's Armor (21186b) -------------------------------------------
   // "Threat cannot be removed from this scheme unless Hela has the Wounded trait."

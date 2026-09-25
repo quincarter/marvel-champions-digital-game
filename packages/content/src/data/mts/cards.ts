@@ -4584,7 +4584,7 @@ export const MTS_CARDS: readonly AnyCard[] = [
       printed: "You cannot choose to discard this card from your hand.\nWhile this card is in your hand, it gains: \"Alter-Ego Action: Spend a [mental] resource → remove this card from the game.\"",
       current: "You cannot choose to discard this card from your hand.\nWhile this card is in your hand, it gains: \"Alter-Ego Action: Spend a [mental] resource → remove this card from the game.\"",
     },
-    abilities: [{ id: abilityId("21185.obligation") }],
+    abilities: [{ id: abilityId("21185.system-shock-constant") }, { id: abilityId("21185.system-shock-action") }],
   },
   {
     id: cardId("21186a"),

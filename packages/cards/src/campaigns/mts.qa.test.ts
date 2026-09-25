@@ -12,11 +12,13 @@
  *   instruction to exercise a permanent removal against; the closest analogous "survives a retry" fact this box
  *   actually prints is exactly this — a pool flag, once set, is never rolled back by a later loss), and that an
  *   expert campaign's persistent hit points carry from each scenario into the next and cap at the base value.
- * - A **real game**, set up from a composed log via `wave4Scenario`/`createGame`, proving the campaign's own
- *   composed carry-forward sets (Cosmo, Security Breach) are accepted by real content.
+ * - A **real game at every node**, set up from a composed log via `wave4Scenario`/`createGame` and settled to the
+ *   first player-phase choice point (`gmw.qa.test.ts`'s own `realGameAt` shape) — proving the campaign's own
+ *   composed carry-forward sets (Cosmo, Security Breach, Odin) are accepted by real content at each of the five
+ *   scenarios in turn, Tower Defense's own shared-encounter-deck `multipleVillains` build included.
  */
 import { describe, expect, it } from "vitest";
-import { cardId, MTS_STARTER_DECKS, type PlayModes } from "@mc/content";
+import { MTS_STARTER_DECKS, type CardId, type PlayModes } from "@mc/content";
 import {
   applyCampaignResult,
   campaignChoiceKey,
@@ -26,14 +28,15 @@ import {
   startGameFromLog,
   type CampaignChoiceAnswer,
   type CampaignDeps,
-  type CampaignGameInput,
   type CampaignGameResult,
   type CampaignLog,
   type CampaignPendingChoice,
   type CampaignRunnerResult,
   type CampaignSeatSetup,
   type GameSetupConfig,
+  type GameState,
 } from "@mc/engine";
+import { firstLegal, settle as settleGame } from "../testing/harness.js";
 import { WAVE4_CARDS, WAVE4_DEPS } from "../wave4/index.js";
 import { wave4Scenario } from "../wave4/setup.js";
 import { MTS_CAMPAIGN_DEFINITION } from "./mts.js";
@@ -289,49 +292,122 @@ describe("MTS_CAMPAIGN_DEFINITION: the runner, end to end", () => {
   });
 });
 
-/**
- * A minimal `CampaignGameInput` for the `thanos` scenario directly — Tower Defense's own `multipleVillains` build
- * is not supported by `wave4Scenario` yet (`buildMtsSingleVillain`'s own guard, `../wave4/setup.ts`), so this
- * proves the same fact (`createGame` accepts campaign-composed set-aside content) against `thanos` instead of
- * walking the runner through Tower Defense first. No real box instructions are exercised here — that's
- * `MTS_CAMPAIGN_DEFINITION`'s own `describe` block above's job.
- */
-function thanosCampaignInputFor(seats: readonly CampaignSeatSetup[]): CampaignGameInput {
-  return {
-    campaignId: MTS_CAMPAIGN_DEFINITION.campaignId,
-    nodeId: "thanos",
-    definitionVersion: "1",
-    modes: STANDARD,
-    log: { shared: {}, perSeat: [] },
-    instructions: [],
-    removedFromCampaign: [],
-    seats: seats.map((seat) => ({
-      seatNumber: seat.seatNumber,
-      identityCardId: seat.identityCardId,
-      deck: seat.deck.cards.flatMap(({ cardId: id, quantity }) => Array.from({ length: quantity }, () => id)),
-      aspects: seat.deck.aspects,
-      grantedCardIds: [],
-    })),
-    seed: 1,
-  };
+/** Every card belonging to these (campaign-composed, set-aside) encounter sets, one instance per printed copy —
+ * `gmw.qa.test.ts`'s own `cardsOfSets`, re-pointed at `WAVE4_CARDS` (neither is exported, so duplicated rather
+ * than reaching into another test file). */
+function cardsOfSets(setIds: readonly string[]): CardId[] {
+  const out: CardId[] = [];
+  for (const setId of setIds) {
+    const members = WAVE4_CARDS.filter(
+      (card) => "encounterSetIds" in card && (card.encounterSetIds as readonly string[]).includes(setId),
+    );
+    for (const card of members) for (let copy = 0; copy < card.quantityInSet; copy++) out.push(card.id);
+  }
+  return out;
 }
 
-describe("a real game, set up from the composed log", () => {
-  it("accepts the campaign's composed Cosmo/Security Breach carry-forward cards", () => {
-    const input = thanosCampaignInputFor(SEATS);
-    const config: GameSetupConfig = wave4Scenario("thanos", {
-      players: input.seats.map((seat) => ({
-        identityCardId: seat.identityCardId,
-        deck: seat.deck,
-        aspects: seat.aspects,
-      })),
-      seed: input.seed,
+/**
+ * Composes `targetNode` from `log` (MTS's own campaign asks nothing between games besides the victory-instruction
+ * records already folded into `log` by `play`, so no choice script is needed here), builds the real
+ * `GameSetupConfig` via `wave4Scenario` — including Tower Defense's own `multipleVillains` build, now that
+ * `buildMtsMultipleVillains` (`../wave4/setup.ts`) exists — and settles `createGame` up to the first player-phase
+ * choice point. `gmw.qa.test.ts`'s own `realGameAt`, generalized to this campaign.
+ */
+function realGameAt(log: CampaignLog, targetNode: string): GameState {
+  const composed = settle((answers) =>
+    resolveBetweenGames(MTS_CAMPAIGN_DEFINITION, log, DEPS, log.modes, answers),
+  ).value;
+  const start = startGameFromLog(MTS_CAMPAIGN_DEFINITION, composed);
+  if (start.nodeId !== targetNode) throw new Error(`expected to compose ${targetNode}, got ${start.nodeId}`);
+  if (!start.scenarioId) throw new Error(`node ${start.nodeId} has no fixed scenario`);
+  const config: GameSetupConfig = wave4Scenario(start.scenarioId, {
+    players: start.input.seats.map((seat) => ({
+      identityCardId: seat.identityCardId,
+      deck: seat.deck,
+      aspects: seat.aspects,
+    })),
+    seed: start.input.seed,
+    modes: log.modes,
+  });
+  const withSetAside: GameSetupConfig = {
+    ...config,
+    setAside: [...(config.setAside ?? []), ...cardsOfSets(start.encounterSets.setAside)],
+  };
+  const created = createGame({ ...withSetAside, campaign: start.input }, WAVE4_DEPS);
+  if (!created.ok) throw new Error(`${targetNode}: setup failed: ${created.error.message}`);
+  return settleGame(created.state, firstLegal, (s) => s.step.phase === "player", WAVE4_DEPS);
+}
+
+describe("a real game, set up from the composed log, for each of the five scenarios", () => {
+  it("builds and settles a real game at every node the campaign walks through, including Tower Defense's own multipleVillains build", () => {
+    let log: CampaignLog = createCampaignLog(MTS_CAMPAIGN_DEFINITION, {
+      id: "mts-qa-real-games",
+      seats: SEATS,
+      modes: STANDARD,
+      poolVersion: "qa-test",
+      seed: 4242,
     });
-    const withSetAside: GameSetupConfig = {
-      ...config,
-      setAside: [...(config.setAside ?? []), cardId("21180b"), cardId("21181")],
+
+    const play = (nodeId: string, result: CampaignGameResult): CampaignLog => {
+      const composed = settle((answers) => resolveBetweenGames(MTS_CAMPAIGN_DEFINITION, log, DEPS, log.modes, answers));
+      const applied = settle((answers) =>
+        applyCampaignResult(
+          MTS_CAMPAIGN_DEFINITION,
+          composed.value,
+          result,
+          { at: 1_700_000_000_000, gameId: `qa-real-${nodeId}` },
+          DEPS,
+          answers,
+        ),
+      );
+      return applied.value;
     };
-    const created = createGame({ ...withSetAside, campaign: input }, WAVE4_DEPS);
-    expect(created.ok ? "ok" : created.error.message).toBe("ok");
+
+    expect(realGameAt(log, "ebony-maw").step.phase).toBe("player");
+    log = play(
+      "ebony-maw",
+      outcome("ebony-maw", true, [
+        { instructionId: "mc21.s1.victory.landing-pad.record", write: flagWrite("secureLandingPadInPlay", false) },
+        { instructionId: "mc21.s1.victory.security-breach", write: flagWrite("securityBreachInPool", true) },
+      ]),
+    );
+
+    // Cosmo (earned above, a real `otherFaceId` ally) and Security Breach (a real side scheme) both really build
+    // into Tower Defense's own shared-encounter-deck, two-villain `GameSetupConfig` without error.
+    expect(realGameAt(log, "tower-defense").step.phase).toBe("player");
+    log = play(
+      "tower-defense",
+      outcome("tower-defense", true, [
+        { instructionId: "mc21.s2.victory.shawarma-place.record", write: flagWrite("saveShawarmaPlaceInPlay", false) },
+        { instructionId: "mc21.s2.victory.black-swan.record", write: flagWrite("blackSwanDefeated", true) },
+        { instructionId: "mc21.s2.victory.tower-damaged", write: flagWrite("avengersTowerDamaged", true) },
+      ]),
+    );
+
+    expect(realGameAt(log, "thanos").step.phase).toBe("player");
+    log = play(
+      "thanos",
+      outcome("thanos", true, [
+        {
+          instructionId: "mc21.s3.victory.defensive-protocols.record",
+          write: flagWrite("defensiveProtocolsDefeated", false),
+        },
+        { instructionId: "mc21.s3.victory.infinity-stones", write: flagWrite("infinityStones1BCompleted", true) },
+      ]),
+    );
+
+    expect(realGameAt(log, "hela").step.phase).toBe("player");
+    log = play(
+      "hela",
+      outcome("hela", true, [
+        { instructionId: "mc21.s4.victory.norn-stones.record", write: flagWrite("findNornStonesInPlay", false) },
+        { instructionId: "mc21.s4.victory.odin", write: flagWrite("odinInPool", true) },
+      ]),
+    );
+
+    expect(realGameAt(log, "loki").step.phase).toBe("player");
+    log = play("loki", outcome("loki", true));
+
+    expect(log.status).toBe("won");
   });
 });

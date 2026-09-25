@@ -1,21 +1,32 @@
 import { cardId, MTS_STARTER_DECKS, type AnyCard } from "@mc/content";
-import { cardsInPlay, instanceId, NO_STATUSES, type GameState, type InstanceId, type PlayerId } from "@mc/engine";
+import {
+  cardsInPlay,
+  characterProfile,
+  handSize,
+  instanceId,
+  NO_STATUSES,
+  type GameState,
+  type InstanceId,
+  type PlayerId,
+} from "@mc/engine";
 import { describe, expect, it } from "vitest";
 import {
   firstLegal,
   identityOf,
   inst,
+  instancesOf,
   P1,
   patchInstance,
   playerOf,
   settle,
+  stackEncounterDeck,
   toHero,
   use,
 } from "../../testing/harness.js";
 import { driveEvents } from "../../testing/staging.js";
 import { WAVE4_CARDS, WAVE4_DEPS } from "../index.js";
 import { runWave4, startWave4Game } from "../testing.js";
-import { spectrumScenario } from "./support.js";
+import { adamWarlockScenario, spectrumScenario } from "./support.js";
 
 /**
  * Real-game tests for the campaign cards scripted in `mts-campaign-cards.ts` (`mts` 21180-21193). Every one is
@@ -27,6 +38,19 @@ import { spectrumScenario } from "./support.js";
 function campaignGame(extra: readonly string[], seed = 1): GameState {
   const config = spectrumScenario("ebony-maw", { seed });
   return startWave4Game({ ...config, setAside: [...(config.setAside ?? []), ...extra.map((c) => cardId(c))] });
+}
+
+/**
+ * Like `campaignGame`, but for a card that must be *revealed* from the actual encounter deck (Security Breach,
+ * Summoned Back — both genuinely `shuffleIntoEncounterDeck`d by the campaign, `../../campaigns/mts.ts`). Built on
+ * "hela" rather than "ebony-maw": Ebony Maw's own scenario deck deals extra facedown cards during setup (its Spell
+ * environments), which makes staging a plain top-of-deck reveal for one of these cards unreliable; Hela's own
+ * setup only removes/reveals encounter-deck cards it names by title (module docblock elsewhere in this repo,
+ * `hela.ts`), which never collides with a campaign card added here.
+ */
+function campaignEncounterGame(extra: readonly string[], seed = 1): GameState {
+  const config = spectrumScenario("hela", { seed });
+  return startWave4Game({ ...config, encounterDeck: [...config.encounterDeck, ...extra.map((c) => cardId(c))] });
 }
 
 /** The one instance of `code` sitting in the shared `encounterSetAside` pool (`GameSetupConfig.setAside`'s home). */
@@ -97,13 +121,17 @@ function defeatScheme(state: GameState, id: InstanceId, player: PlayerId = P1): 
 }
 
 describe("Secure the Landing Pad (21180a) / Cosmo (21180b)", () => {
-  it("flips into Cosmo, controlled by the first player, on defeat (21180a.when-defeated)", () => {
+  it("flips into Cosmo, controlled by the first player, on defeat (21180a.when-defeated, 21180b.cosmo-constant: covered by the engine's own flip-controller default)", () => {
     const base = campaignGame(["21180a"]);
     const staged = schemeInPlay(base, "21180a");
+    expect(base.firstPlayerId).toBe(P1);
     const defeated = defeatScheme(staged.state, staged.id);
     expect(cardsInPlay(defeated)).toContain(staged.id);
     expect(inst(defeated, staged.id).cardId).toBe(cardId("21180b"));
-    expect(inst(defeated, staged.id).controllerId).toBe(P1);
+    // "The first player gains control of Cosmo" (21180b.cosmo-constant, coveredByEngineRule): a side scheme's own
+    // When Defeated has no ability controller, so `apply-effect.ts`'s `flipCard` case resolves the new face's
+    // controller to `ctx.state.firstPlayerId` by construction (`other-face.ts`'s own doc comment).
+    expect(inst(defeated, staged.id).controllerId).toBe(base.firstPlayerId);
   });
 
   it("does not count against the ally limit (21180b.cosmo-constant-2)", () => {
@@ -121,38 +149,52 @@ describe("Secure the Landing Pad (21180a) / Cosmo (21180b)", () => {
     expect(defeated.pendingChoice).toBeNull();
   });
 
-  it("leaving play removes him from the game (21180b.cosmo-forced-interrupt: covered by the engine's own double-sided-card rule)", () => {
-    // Cosmo cannot be attacked by his own controller to prove this (a friendly ally is never a legal `basicAttack`
-    // target), so this checks the one fact the printed sentence depends on — that Cosmo really is double-sided
-    // (`otherFaceId` set) — RRG 1.8 "Double-Sided Card" (p. 17) already sends any such card leaving play out of the
-    // game (`coveredByEngineRule()`, this ref's own registration); that generic rule is proven once, by the
-    // engine's own test suite, not re-proven per card here.
-    const cosmo = WAVE4_CARDS.find((c) => (c.id as string) === "21180b")!;
-    expect("otherFaceId" in cosmo && cosmo.otherFaceId).toBe(cardId("21180a"));
+  it("leaving play removes him from the game, not the discard pile (21180b.cosmo-forced-interrupt: covered by the engine's own double-sided-card rule)", () => {
+    // A real "hela" game (not "ebony-maw"), so a real minion (Garm, already engaged with the first player from
+    // Hela's own setup) exists to attack Cosmo (a friendly ally is never a legal `basicAttack` target, so his own
+    // defeat has to come from declaring him as a defender against an enemy attack, the same shape `hela.test.ts`'s
+    // own Odin test uses) — merged with 21180a the same way the Find the Norn Stones test above merges Hela's own
+    // game with a set-aside campaign card.
+    const withSchemeCard = campaignGame(["21180a"]);
+    const schemeId = fromSetAside(withSchemeCard, "21180a");
+    const game = startWave4Game(spectrumScenario("hela", { seed: 1 }));
+    const merged: GameState = {
+      ...game,
+      encounterSetAside: [...game.encounterSetAside, schemeId],
+      instances: { ...game.instances, [schemeId]: withSchemeCard.instances[schemeId]! },
+    };
+    const staged = schemeInPlay(merged, "21180a");
+    const defeated = defeatScheme(staged.state, staged.id);
+    const cosmo = staged.id;
+    expect(inst(defeated, cosmo).cardId).toBe(cardId("21180b")); // flipped, and now controlled by P1
+    // `defeatScheme` already put P1 into hero form (a real `changeForm` this round, so a second one would be
+    // rejected) — 2 of Cosmo's 3 hit points already spent: Garm's own 2 ATK finishes him off as a declared defender.
+    const wounded = patchInstance(defeated, cosmo, { damage: 2 });
+    const pick = (s: GameState) => {
+      const choice = s.pendingChoice;
+      if (choice?.prompt.kind === "declareDefender" && choice.options.some((o) => o.optionId === cosmo)) return [cosmo];
+      return firstLegal(s);
+    };
+    const after = settle(runWave4(wounded, { type: "endTurn", playerId: P1 }), pick, undefined, WAVE4_DEPS);
+    expect(after.removedFromGame).toContain(cosmo);
+    expect(playerOf(after, P1).discard).not.toContain(cosmo);
   });
 });
 
 describe("Security Breach (21181)", () => {
-  it("When Revealed: each player places a random card from their hand facedown here (structural: exact effect shape)", () => {
-    // Ebony Maw's own scenario deals extra facedown cards during setup (its Spell environments), which makes
-    // staging a plain encounter-deck reveal for this one card unreliable in a test; the effect shape itself —
-    // "each player tucks a random hand card facedown here" — is asserted directly instead.
-    const ability = WAVE4_DEPS.abilities["21181.when-revealed"]!;
-    expect(ability.trigger.kind).toBe("whenRevealed");
-    expect(ability.effects).toEqual([
-      {
-        kind: "forEachPlayer",
-        players: { kind: "each" },
-        effects: [
-          {
-            kind: "tuckCards",
-            cards: { kind: "zone", zone: "hand", player: { kind: "scoped" }, random: { kind: "const", value: 1 } },
-            under: { kind: "self" },
-            facedown: true,
-          },
-        ],
-      },
-    ]);
+  it("When Revealed: each player places a random card from their hand facedown here (21181.when-revealed)", () => {
+    const state = campaignEncounterGame(["21181"]);
+    const handBefore = playerOf(state, P1).hand.length;
+    // "01186" filler absorbs the villain's own unconditional boost draw (`staging.ts`'s own documented trap), so
+    // 21181 is dealt to the first player as their own reveal instead.
+    const staged = stackEncounterDeck(state, "01186", "21181");
+    const { state: revealed } = driveEvents(WAVE4_DEPS, staged, { type: "endTurn", playerId: P1 });
+    const scheme = instancesOf(revealed, "21181").find((id) => revealed.villainArea.includes(id))!;
+    expect(revealed.villainArea).toContain(scheme);
+    expect(playerOf(revealed, P1).hand.length).toBe(handBefore - 1);
+    expect(inst(revealed, scheme).tucked).toHaveLength(1);
+    const [tuckedCard] = inst(revealed, scheme).tucked;
+    expect(playerOf(revealed, P1).hand).not.toContain(tuckedCard);
   });
 
   it("When Defeated: returns each facedown card here to its owner's hand (21181.when-defeated)", () => {
@@ -188,12 +230,16 @@ describe("Save the Shawarma Place (21182a) / Black Swan (21182b)", () => {
     expect(inDeck).toBe(true);
   });
 
-  it("engages the first player, and discards a hand card in response (21182b.black-swan-forced-response)", () => {
+  it("engages the first player, and discards a hand card in response (21182b.black-swan-constant: covered by the engine's own flip-controller default, 21182b.black-swan-forced-response)", () => {
     const base = campaignGame(["21182a", "21183"]);
     const staged = schemeInPlay(base, "21182a");
+    expect(base.firstPlayerId).toBe(P1);
     const handBefore = playerOf(heroForm(staged.state, P1), P1).hand.length;
     const defeated = defeatScheme(staged.state, staged.id);
-    expect(inst(defeated, staged.id).engagedWith).toBe(P1);
+    // "Black Swan engages the first player" (21182b.black-swan-constant, coveredByEngineRule): the same
+    // `ctx.state.firstPlayerId` default `flipCard` resolves for a flip with no ability controller, feeding the
+    // newly-minion-typed face's own `engagedEvent` push (`other-face.ts`).
+    expect(inst(defeated, staged.id).engagedWith).toBe(base.firstPlayerId);
     expect(playerOf(defeated, P1).hand.length).toBe(handBefore - 1);
   });
 });
@@ -232,6 +278,37 @@ describe("Hack Sanctuary's Computer (21184a) / Defensive Protocols (21184b)", ()
       from: { kind: "encounterSetAside" },
       to: { kind: "hand", playerId: P1 },
     });
+  });
+});
+
+describe("System Shock (21185)", () => {
+  it("Alter-Ego Action spends a [mental] resource to remove itself from the game (21185.system-shock-action)", () => {
+    const base = campaignGame(["21185"]); // players start in alter-ego form
+    const shock = cardInHand(base, "21185");
+    const paidWith = mentalCardInHand(shock.state, P1);
+    const used = settle(
+      runWave4(paidWith.state, use(P1, shock.id, "21185.system-shock-action", [{ fromHand: paidWith.id }])),
+      firstLegal,
+      undefined,
+      WAVE4_DEPS,
+    );
+    expect(used.removedFromGame).toContain(shock.id);
+    expect(playerOf(used, P1).hand).not.toContain(shock.id);
+  });
+
+  it("cannot be chosen for the end-of-round 'discard down to hand size' step, even with an over-limit hand (21185.system-shock-constant)", () => {
+    const base = campaignGame(["21185"]);
+    const shock = cardInHand(base, "21185");
+    const limit = handSize(shock.state, P1, WAVE4_DEPS);
+    const overfull = overfillHand(shock.state, P1, limit);
+    expect(playerOf(overfull, P1).hand.length).toBeGreaterThan(limit);
+    const afterDiscard = settle(
+      runWave4(overfull, { type: "endTurn", playerId: P1 }),
+      firstLegal,
+      undefined,
+      WAVE4_DEPS,
+    );
+    expect(playerOf(afterDiscard, P1).hand).toContain(shock.id);
   });
 });
 
@@ -378,6 +455,67 @@ function physicalCardInHand(state: GameState, player: PlayerId): InstanceId {
   return id;
 }
 
+/** Same as `physicalCardInHand`, but for a printed [mental] resource icon (System Shock's own spend cost) — and,
+ * unlike `physicalCardInHand`, pulled from the deck into hand if the opening hand doesn't happen to have one
+ * (Spectrum's Leadership starter deck doesn't reliably draw one at this seed). */
+function mentalCardInHand(state: GameState, player: PlayerId): { readonly state: GameState; readonly id: InstanceId } {
+  const byId = new Map(WAVE4_CARDS.map((c) => [c.id as string, c]));
+  const isMental = (i: InstanceId): boolean => {
+    const card = byId.get(state.instances[i]?.cardId as string) as
+      | { readonly resourceIcons?: Readonly<Record<string, number>> }
+      | undefined;
+    return (card?.resourceIcons?.mental ?? 0) > 0;
+  };
+  const owner = playerOf(state, player);
+  const inHand = owner.hand.find(isMental);
+  if (inHand) return { state, id: inHand };
+  const fromDeck = owner.deck.find(isMental);
+  if (!fromDeck) throw new Error(`${player} has no mental-resource card in hand or deck`);
+  return {
+    id: fromDeck,
+    state: {
+      ...state,
+      players: state.players.map((p) =>
+        p.playerId === player ? { ...p, deck: p.deck.filter((i) => i !== fromDeck), hand: [...p.hand, fromDeck] } : p,
+      ),
+    },
+  };
+}
+
+/** Moves a set-aside `code` into `player`'s own hand — System Shock's own home, unlike every other obligation
+ * (module docblock: RRG 1.8 "Obligation", p. 30's play-area default is overridden by this card's printed text). */
+function cardInHand(
+  state: GameState,
+  code: string,
+  player: PlayerId = P1,
+): { readonly state: GameState; readonly id: InstanceId } {
+  const id = fromSetAside(state, code);
+  return {
+    id,
+    state: {
+      ...state,
+      encounterSetAside: state.encounterSetAside.filter((i) => i !== id),
+      players: state.players.map((p) => (p.playerId === player ? { ...p, hand: [...p.hand, id] } : p)),
+      instances: {
+        ...state.instances,
+        [id]: { ...state.instances[id]!, ownerId: player, controllerId: player, faceup: true },
+      },
+    },
+  };
+}
+
+/** Moves `extra` cards from the top of `player`'s deck into their hand — enough to force the end-of-round "discard
+ * down to hand size" choice regardless of the starter deck's own draws. */
+function overfillHand(state: GameState, player: PlayerId, extra: number): GameState {
+  const moved = playerOf(state, player).deck.slice(0, extra);
+  return {
+    ...state,
+    players: state.players.map((p) =>
+      p.playerId === player ? { ...p, hand: [...p.hand, ...moved], deck: p.deck.slice(extra) } : p,
+    ),
+  };
+}
+
 describe("Norn Stone (21187a front / 21187b back)", () => {
   it("Hero Action readies your hero and flips it to the back face (21187a.norn-stone-constant, 21187a.norn-stone-action)", () => {
     const base = heroForm(campaignGame(["21187a"]));
@@ -414,68 +552,44 @@ describe("Norn Stone (21187a front / 21187b back)", () => {
 });
 
 describe("Summoned Back (21188)", () => {
-  // Ebony Maw's own scenario deck (its Spell environments dealt during setup) makes staging a plain top-of-deck
-  // reveal for this one treachery unreliable in a test (the same reason Security Breach's own When Revealed is
-  // asserted structurally); the effect shape — search deck/discard/set-aside for your nemesis minion, put it into
-  // play engaged with you, reshuffle — is asserted directly, matching `toafk/kang.ts`'s own 11013b precedent.
-  it("When Revealed searches for the revealer's own nemesis minion and puts it into play engaged with them", () => {
-    const ability = WAVE4_DEPS.abilities["21188.when-revealed"]!;
-    expect(ability.trigger.kind).toBe("whenRevealed");
-    const you = { kind: "controller" } as const;
-    const nemesisQuery = { categories: ["minion"], nemesisMinionOf: you } as const;
-    expect(ability.effects).toEqual([
-      {
-        kind: "selectCards",
-        slot: "nemesis",
-        cards: {
-          kind: "anyOf",
-          of: [
-            { kind: "encounter", zones: ["deck", "discard"], filter: nemesisQuery },
-            { kind: "setAside", player: you, filter: nemesisQuery },
-          ],
-        },
-      },
-      { kind: "putIntoPlay", card: { kind: "slot", slot: "nemesis" }, controller: you },
-      { kind: "shuffleEncounterDeck" },
-    ]);
+  it("When Revealed searches for the revealer's own nemesis minion and puts it into play engaged with them (21188.when-revealed)", () => {
+    // Adam Warlock, not Spectrum: `nemesisMinionOf` requires the card data's own `nemesisMinion: true` flag
+    // (`select.ts`), which only a *multi*-card nemesis set's disambiguating parenthetical carries (RRG 1.8 "Nemesis
+    // Encounter Set", p. 30). Spectrum's own nemesis set (`spectrum_nemesis`) has just one minion (Radioactive
+    // Man, 21027) and so prints no such parenthetical — the same real-card data-completeness gap `toafk/kang.ts`'s
+    // own 11013b test already names for Hawkeye's single-minion Crossfire set — while Adam Warlock's own nemesis
+    // set (`warlock_nemesis`) has several cards and so does flag its one minion, The Magus (21067,
+    // `nemesisMinion: true`).
+    const config = adamWarlockScenario("hela", { seed: 1 });
+    const state = startWave4Game({ ...config, encounterDeck: [...config.encounterDeck, cardId("21188")] });
+    const theMagus = playerOf(state, P1).setAside.find((i) => state.instances[i]?.cardId === cardId("21067"))!;
+    expect(theMagus).toBeDefined();
+    // "01186" filler absorbs the villain's own unconditional boost draw (`staging.ts`'s own documented trap), so
+    // 21188 is dealt to the first player as their own reveal instead.
+    const staged = stackEncounterDeck(state, "01186", "21188");
+    const { state: revealed, events } = driveEvents(WAVE4_DEPS, staged, { type: "endTurn", playerId: P1 });
+    expect(playerOf(revealed, P1).setAside).not.toContain(theMagus);
+    expect(cardsInPlay(revealed)).toContain(theMagus);
+    expect(inst(revealed, theMagus).engagedWith).toBe(P1);
+    // "Shuffle the encounter deck": a real `deckShuffled` event fired for the active encounter deck.
+    expect(events.some((e) => e.type === "deckShuffled")).toBe(true);
   });
 });
 
-describe("Open the Dungeons (21189a) / Jormungand (21189b)", () => {
-  it("on defeat, each player chooses a Captive ally and puts it into play; the scheme flips (21189a.when-defeated)", () => {
-    const base = campaignGame(["21189a", "21190", "21191", "21192", "21193"]);
-    const staged = schemeInPlay(base, "21189a");
-    const defeated = defeatScheme(staged.state, staged.id);
-    expect(inst(defeated, staged.id).cardId).toBe(cardId("21189b"));
-    const captiveIds = new Set([cardId("21190"), cardId("21191"), cardId("21192"), cardId("21193")]);
-    const gained = playerOf(defeated, P1).playArea.filter((i) => captiveIds.has(defeated.instances[i]!.cardId));
-    expect(gained).toHaveLength(1);
-  });
-
-  it("[star] grants Loki +4[per_hero] hit points while attached (21189b.jormungand-constant)", () => {
-    const ability = WAVE4_DEPS.abilities["21189b.jormungand-constant"]!;
-    expect(ability.trigger.kind).toBe("constant");
-    expect(ability.trigger.kind === "constant" ? ability.trigger.modifiers : undefined).toEqual([
-      {
-        stat: "hp",
-        amount: { kind: "perPlayer", base: 0, perPlayer: 4 },
-        target: { categories: ["villain"], hostOfSelf: true },
-      },
-    ]);
-  });
-
-  it("attaches to Loki, and is removed from the game (not discarded) when Loki is defeated (21189b.jormungand-forced-interrupt)", () => {
-    // A real "loki" game (not "ebony-maw"), so Loki exists as a properly-tracked villain instance a real
-    // `basicAttack` can target (a raw injected instance has no `VillainState` entry to make that legal).
-    const base = heroForm(startWave4Game(spectrumScenario("loki", { seed: 1 })));
-    const loki = cardsInPlay(base).find(
-      (i) => base.instances[i]?.cardId && `${base.instances[i]?.cardId}`.startsWith("2116"),
-    )!;
-    const jormungand = instanceId("test-jormungand");
-    const attached: GameState = {
-      ...base,
+/** Attaches a raw Jormungand (21189b) instance to `loki` directly (there is no "attach an encounter card to a
+ * villain" player command to drive this through) — the shape both Jormungand tests below need. */
+function attachJormungandTo(
+  state: GameState,
+  loki: InstanceId,
+  rawId: string,
+): { readonly state: GameState; readonly id: InstanceId } {
+  const jormungand = instanceId(rawId);
+  return {
+    id: jormungand,
+    state: {
+      ...state,
       instances: {
-        ...base.instances,
+        ...state.instances,
         [jormungand]: {
           instanceId: jormungand,
           cardId: cardId("21189b"),
@@ -496,9 +610,45 @@ describe("Open the Dungeons (21189a) / Jormungand (21189b)", () => {
           engagedWith: null,
           flipped: false,
         },
-        [loki]: { ...base.instances[loki]!, attachments: [...base.instances[loki]!.attachments, jormungand] },
+        [loki]: { ...state.instances[loki]!, attachments: [...state.instances[loki]!.attachments, jormungand] },
       },
-    };
+    },
+  };
+}
+
+describe("Open the Dungeons (21189a) / Jormungand (21189b)", () => {
+  it("on defeat, each player chooses a Captive ally and puts it into play; the scheme flips (21189a.when-defeated)", () => {
+    const base = campaignGame(["21189a", "21190", "21191", "21192", "21193"]);
+    const staged = schemeInPlay(base, "21189a");
+    const defeated = defeatScheme(staged.state, staged.id);
+    expect(inst(defeated, staged.id).cardId).toBe(cardId("21189b"));
+    const captiveIds = new Set([cardId("21190"), cardId("21191"), cardId("21192"), cardId("21193")]);
+    const gained = playerOf(defeated, P1).playArea.filter((i) => captiveIds.has(defeated.instances[i]!.cardId));
+    expect(gained).toHaveLength(1);
+  });
+
+  it("[star] grants Loki +4[per_hero] hit points while attached (21189b.jormungand-constant)", () => {
+    // A real "loki" game (not "ebony-maw"), so Loki exists as a properly-tracked villain instance `characterProfile`
+    // can read a real `maxHp` for (a raw injected instance has no `VillainState` entry).
+    const base = heroForm(startWave4Game(spectrumScenario("loki", { seed: 1 })));
+    const loki = cardsInPlay(base).find(
+      (i) => base.instances[i]?.cardId && `${base.instances[i]?.cardId}`.startsWith("2116"),
+    )!;
+    const before = characterProfile(base, loki, WAVE4_DEPS)!;
+    const { state: attached } = attachJormungandTo(base, loki, "test-jormungand-hp");
+    const after = characterProfile(attached, loki, WAVE4_DEPS)!;
+    // 1 player in this game (`spectrumScenario`'s own single Spectrum seat): perHero(4) is +4.
+    expect(after.maxHp - before.maxHp).toBe(4);
+  });
+
+  it("attaches to Loki, and is removed from the game (not discarded) when Loki is defeated (21189b.jormungand-forced-interrupt)", () => {
+    // A real "loki" game (not "ebony-maw"), so Loki exists as a properly-tracked villain instance a real
+    // `basicAttack` can target (a raw injected instance has no `VillainState` entry to make that legal).
+    const base = heroForm(startWave4Game(spectrumScenario("loki", { seed: 1 })));
+    const loki = cardsInPlay(base).find(
+      (i) => base.instances[i]?.cardId && `${base.instances[i]?.cardId}`.startsWith("2116"),
+    )!;
+    const { state: attached, id: jormungand } = attachJormungandTo(base, loki, "test-jormungand");
     const identity = identityOf(attached, P1);
     const nearDeath = patchInstance(attached, loki, { damage: 999 });
     const defeated = settle(

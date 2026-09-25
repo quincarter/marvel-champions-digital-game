@@ -127,3 +127,50 @@ describe("stage-completion loss reminder: MainSchemeStage.completionLoses", () =
     );
   });
 });
+
+/**
+ * docs/phase7-wave2-data.md "Part 8": a persistent constant clause printed alongside exactly one triggered clause
+ * under a single obligation splits into a `constant` ref + the triggered ref, since an `AbilityDefinition` carries
+ * exactly one trigger. Martial Law (`trors` 04165) prints the trigger header bare, at a sentence boundary, so
+ * `HEADER_RE`'s ordinary boundaries (line start / `.`/`)`/`!` + space) already find it.
+ */
+describe("obligation preamble split: a bare trigger header (trors 04165 Martial Law)", () => {
+  it("splits into a constant ref (the hand-size clause) and an alter-ego-action ref (the trigger)", () => {
+    const text =
+      "Your hand size is reduced by 1.\nAlter-Ego Action: Deal yourself an encounter card and spend a [energy] resource → discard this card.";
+    const parsed = parseCardText(text, { obligation: true, villainNames: new Set() });
+
+    expect(parsed.abilities).toEqual([
+      { kind: "constant", text: "Your hand size is reduced by 1." },
+      {
+        kind: "action",
+        form: "alter-ego",
+        text: "Alter-Ego Action: Deal yourself an encounter card and spend a [energy] resource → discard this card.",
+      },
+    ]);
+  });
+});
+
+/**
+ * System Shock (`mts` 21185) prints the same constant + single-trigger shape as Martial Law, but the trigger
+ * header is nested inside a quoted "it gains: '…'" clause rather than printed bare — `HEADER_RE`'s ordinary
+ * boundaries never match a header immediately after an opening quote mark with no following space, so this shape
+ * fell through to the whole-text `obligation` catchall (one ref, unscriptable: an `AbilityDefinition` has exactly
+ * one trigger) until `QUOTED_HEADER_RE` added the quote-mark boundary for obligation parsing specifically.
+ */
+describe("obligation preamble split: a quoted trigger header (mts 21185 System Shock)", () => {
+  it("splits into a constant ref (the discard restriction) and an alter-ego-action ref (the quoted trigger)", () => {
+    const text =
+      'You cannot choose to discard this card from your hand.\nWhile this card is in your hand, it gains: "Alter-Ego Action: Spend a [mental] resource → remove this card from the game."';
+    const parsed = parseCardText(text, { obligation: true, villainNames: new Set() });
+
+    expect(parsed.abilities).toEqual([
+      { kind: "constant", text: "You cannot choose to discard this card from your hand." },
+      {
+        kind: "action",
+        form: "alter-ego",
+        text: 'Alter-Ego Action: Spend a [mental] resource → remove this card from the game."',
+      },
+    ]);
+  });
+});
