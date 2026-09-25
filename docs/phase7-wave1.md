@@ -1116,3 +1116,6 @@ was already proven and was checked rather than rebuilt.
    - Proposed: the card is in the deck until its last sentence moves it, then the reshuffle happens.
 10. **The active villain in step 2.** Read at each player's activation (proposed), or fixed at the start of step 2?
 11. **Saved games.** The `villains` list and `encounterDecks` change `GameState`'s shape. Should old local saves migrate, or be discarded? This is a product call, and replay logs are affected the same way.
+    - **Answered (2026-09-13, user decision):** retired, not migrated. A save from before the multi-villain state
+      change is marked `incompatible` and no longer offered as Continue (PLAN.md, "Decided by the user (2026-09-13):
+      games saved before the multi-villain state change are retired, not migrated").

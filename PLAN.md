@@ -936,6 +936,12 @@ Owner: `card-data-pipeline` + `ability-scripting-engineer`, tracked by `content-
         - **Rules:** any damage the source deals, not only attacks. Measured as excess dealt (RRG 1.8 "Excess Damage", p. 19), so a tough or "cannot take damage" target still yields threat (ruling, Jan 26, 2026 (3)).
         - **Order:** after that damage's defeats, before the damage event's responses.
         - **Open question for the user:** with overkill, does the excess still spill as well as become threat? The engine applies both, because overkill counts damage taken and this counts damage dealt. No wave 1 card combines them.
+          - **Resolved (2026-09-25): both apply, as the engine already does.** FFG ruling, February 8, 2026 (2)
+            (Hercules' Golden Mace into Thumbelina): the excess damage _taken_ (2) spills as overkill, and an effect
+            keyed to excess damage _dealt_ reads the larger number (3). **Conflict flagged, not picked:** RRG 1.8
+            "Overkill" (p. 31), later than the ruling, says an ability that "counts excess damage dealt" counts "the
+            same value … calculated when resolving the overkill keyword". The engine follows the ruling
+            (`primitives-wave1c.test.ts`, "counts excess damage dealt, not taken").
         - Tests: four engine tests (a defended ally, threat placed before the discard response; a tough ally; no excess; the villain-printed `ownSignatureSideScheme` form plus a no-rule control). Typecheck clean, 1,545 tests (engine 488). No e2e outcome changed.
       - **12 landed, "the defending character" (Energy Projectiles' boost, 07027):** `TargetRef { kind: "defendingCharacter" }`, DSL `defendingCharacter`. It names the defender of the innermost enemy attack on the stack while that defender is in play. It is read from a new `defender` slot on the `enemyAttack` event frame, set by a basic defense (`setDefender`) and by a "(defense)" ability. A Boost ability has no triggering event, so `eventTarget` couldn't do this. It is empty for an undefended attack, a scheme activation or a player attack.
         - **Engine rule gap found and fixed with it:** RRG 1.8 p. 9 step 5 and "Defend, Defense" p. 16. A defending ally that leaves play before damage (Energy Projectiles' boost defeating a 1-HP defender is the RRG's own example) makes the attack undefended, and its controller's identity becomes the target. Before this, the engine dealt the damage to the discarded ally's instance.
@@ -954,6 +960,8 @@ Owner: `card-data-pipeline` + `ability-scripting-engineer`, tracked by `content-
     - **Scripts (`ability-scripting-engineer`):** Teen Spirit (05001b); Power Drain (02041), reading "1 resource of any type" as any card with a printed resource icon (RRG "Resource", p. 37; ruling Jan 11, 2026 (3); Tombstone precedent), not the Resource card type; Death from Above (02029), whose old `modifyStat(…, "endOfPhase")` workaround was a proven bug (the second copy in a phase got +2X). No e2e outcome or seed changed.
     - **Open, next engine batch + rules QA — a targeted ability with no legal target is still offered and still runs its "Then".** RRG 1.8 "Target" (pp. 42–43): an ability that requires a target can only be initiated with a valid one; "Then" (p. 44): post-"then" text doesn't resolve if the pre-"then" text didn't fully resolve. `executeChooseCards` binds `[]` and continues, and there is no initiation-time gate for a `chooseCards` in an ability body (Quinjet 03019 would discard itself for nothing). Affects every `chooseCards` in the pool.
     - **Flagged, unchanged:** a player deck reshuffles lazily at the next draw; ruling Apr 30, 2026 (3) answer 7 implies it happens the instant the deck empties.
+      - **Resolved (2026-09-23):** a player deck now resets the moment it empties (`settlePlayerDecks`, `ctx.ts`;
+        `packages/engine/src/player-deck-reset.test.ts`). See docs/phase7-wave3.md §4 Q15.
     - **Client fixes landed (two `game-client-engineer` runs, 2026-09-17), verified by the main session: root typecheck clean, 1,770 tests pass (content 268, engine 507, cards 441, client 554).** Seen in the browser at 800×600 by the main session: Title's Breakout row reads "Breakout / The Wrecking Crew · twc", extreme is offered, the A/B chip row is gone and Start game stays reachable; a Breakout game draws all four villains as compact panels with an ACTIVE tag; a basic attack highlights all four and tapping Thunderball (not active) dealt 2 to it. This closes the open "Wrecker can't be played from Title" item below.
       - **Landed:** `BoardModel.villains` (`view/board-model-multi-villain.test.ts`), `villainRowSlots`, the `activeVillainChanged` log line, the villain panel's stat badges no longer painting over its subtitle; `abilityResolved` log lines and beats ("Crimson Bands of Cyttorak — Special."), `view/choice-source.ts` naming a target prompt's source card; `withSelectionPinned` so a Title filter can't hide the selected row; `view/hand-scroll.ts` and a larger Fan out pill that no longer draws over the discard/controller bars.
       - **Still open:** (1) the compact villain panel truncates its stage ("VILLAIN · S…") and shows no per-villain deck count, and the scheme column clips with Breakout's four signature side schemes (the fourth is cut off and the owner label isn't visible at 800×600); (2) the Fan out pill's show/hide logic tested correct, so the user's "disappears and never comes back" report was not reproduced — only its tiny touch target was fixed; (3) engine: the `"effects"` `StackFrame` doesn't carry the resolving `AbilityId`, so a `chooseTarget` prompt can only name the ability when its card has exactly one; (4) not checked at 375×812 by the main session.
@@ -984,6 +992,8 @@ Owner: `card-data-pipeline` + `ability-scripting-engineer`, tracked by `content-
     - **Primitives:** `TargetQuery.anyTrait`, `ValueSpec` `sum` (DSL `sum(...)`), and `AbilityCost.discardRandomFromHand` (DSL `discardRandomFromHandCost(n)`) on the seeded RNG, which replays identically. `legal.ts` now also offers a payment that holds hand cards back for it.
     - **Core log change, not outcome:** each defense logs one extra `defended` initiation.
     - **Open rules question for the user:** RRG p. 16 says abilities that trigger _after_ a character defends resolve after that attack ends. The engine resolves them when the defender is declared, before damage. That affects Core's Counter-Punch (01077) and Indomitable (01082), and Unflappable (09020) needs the RRG timing. Left unchanged because it changes Core.
+      - **Resolved (2026-09-15):** changed at the user's request; see "'After you defend' timing fixed" above
+        (`engine/src/attacks.test.ts`, `cards/src/core/aspects/protection.test.ts`).
     - **Also open:** an ability paying its own resources doesn't see its card's play payment; `modifyAttack`'s ATK bonus is still read for enemy attacks only; random discards aren't bound for later effects.
   - **Core scripts merged into `WAVE1_DEPS` (main session, 2026-09-15).** Confirmed: `WAVE1_ABILITIES` now starts from `CORE_ABILITIES`, pinned by a test in `wave1/coverage.test.ts`. Root typecheck clean, 1,390 tests pass (cards 388).
     - **Five wave 1 tests had passed only because Core's encounter cards were inert.** No engine bug behind any of them, each checked with a diagnostic run:
@@ -1259,8 +1269,14 @@ Today a game can only be seated from the six hardcoded `CORE_STARTER_DECKS`. Thr
 - **Decks record the card-pool version** they were built against.
 - **No taboo list** for now.
 - **Multi-aspect rules are still open.** `validateDeck` is being written from the RRG's text rather than assuming one aspect per deck.
+  - **Resolved (2026-09-25):** `validateDeck` reads the identity's `IdentityDeckbuilding.aspectCount` (1 unless the
+    identity says otherwise; Spider-Woman 2, Adam Warlock 4) and checks the deck's chosen aspects against it
+    (`packages/engine/src/deck.ts`; `deck.test.ts`, "aspect_choice").
 
 ### Decisions to settle before building
+
+**Resolved (2026-09-25):** all four are settled. Illegal decks, the taboo list and the card-pool version are answered by
+"Decided (2026-09-13)" above; multi-aspect deckbuilding by `validateDeck`'s `aspectCount` (the note under that list).
 
 - **May a player knowingly play an illegal deck?** Several digital implementations allow it for solo play and testing. It is a product call, not a rules one — the RRG simply says what a legal deck is. Default to enforcing, and decide deliberately whether to offer an opt-out rather than letting one appear by accident.
 - **Taboo list support.** Hall of Heroes tracks an unofficial taboo list and MarvelCDB decks can be built against one. Decide whether a deck records the list it was built under, or whether this stays out entirely.

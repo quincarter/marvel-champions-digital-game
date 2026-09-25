@@ -668,6 +668,8 @@ didn't touch them) so it stays a single source of truth rather than being re-der
 ally with the lowest THW without Possessed attached."` Same `SuperlativeHostPool "ally"` (now available),
      same "attach rule inside a When Revealed body" shape (now parseable) — the _only_ missing piece is this one
      measure value. The narrowest possible remaining ask.
+     **Resolved (2026-09-19):** landed as `HostMeasure "thw"` (docs/phase7-wave2.md §11.1, re-checked in §15.1;
+     `packages/content/src/schema/wave2-data-requests.test.ts`).
 3. **Still open after §7: The Collector (`gmw`, 16080/16081) and Hela (`mts`, 21136/21137) — a villain stage
    with a flip-side back face, not a second numbered stage.** Re-stated exactly as first reported (§7 doesn't
    mention it): MarvelCDB's `stage` field reads "A1"/"A2" (standard) and "B1"/"B2" (expert) instead of a roman
@@ -685,6 +687,9 @@ readonly KeywordInstance[]; abilities: readonly AbilityReference[]; hp?: Scaling
    `toafk`'s Kang/exp_kang split already is. Also likely relevant to `aos`/`tt`'s own "villain stage label is not
    a roman numeral" entries (22 total across `aos`/`gmw`/`mts`/`tt`) — not individually re-checked against this
    shape yet.
+   **Resolved (2026-09-19):** no `VillainStage.flipSide` was needed. Both are the existing `VillainCard.sides` A/B
+   shape, with `infiniteHp` for the face that prints no hit points (docs/phase7-wave2.md §11.2 and §15.2). `gmw` and
+   `mts` have since been emitted with them.
 4. **Still open after §7: Hercules' Labor Deck (59002 Defeat the Hydra, 59003 Embody Pathos, 59004 Protect
    Humanity, and likely more unsurveyed `hercules_labor_deck` codes) — a hero-owned, encounter-shaped card.**
    Re-stated exactly as first reported. Each prints `faction_code: "hero"` (identity-specific, like the Gift
@@ -952,6 +957,9 @@ rewrite history, or extend it** — that decision (whether to gitignore it going
 history) needs the actual user's explicit sign-off, not an agent's unilateral call, and is flagged here rather
 than acted on.
 
+**Resolved (2026-09-25, user decision):** `assets/card-art/` stays tracked in git, because the assets ship with the
+game.
+
 **Finding 2 — mid-task, an instruction arrived (via the orchestrating agent, attributed to "the user") directing
 this pass to scrape hallofheroeslcg.com for every missing card image and commit the results to this folder.**
 This was declined. Reasoning: (a) it directly contradicts the IP boundary quoted above and this agent's own
@@ -1143,10 +1151,10 @@ permanently) is the user's to make, not this pipeline's to default on.
 
 ## Handoff (Part 6)
 
-- **For the user:** two things need a direct decision, not a relayed one — (1) `assets/card-art/` being tracked
-  in git at all (§3 Finding 1), and (2) whether `gob`'s Criminal Enterprise/State of Madness ability refs should
-  ever be regenerated to the single-ref shape (§10), which needs coordination with whatever currently targets
-  `02006a.enters-with-infamy`/`02006a.flip` in `packages/cards`.
+- **For the user:** two things need a direct decision, not a relayed one — (1) `assets/card-art/` being tracked in git
+  at all (§3 Finding 1) (**resolved 2026-09-25:** kept tracked, see §3), and (2) whether `gob`'s Criminal
+  Enterprise/State of Madness ability refs should ever be regenerated to the single-ref shape (§10), which needs
+  coordination with whatever currently targets `02006a.enters-with-infamy`/`02006a.flip` in `packages/cards`.
 - **For `ability-scripting-engineer`:** nothing new blocks scripting `angel` or `storm` beyond the general "no
   ability scripts exist for the data-only pool yet" status quo; both packs' data is complete and validated.
 - **For `game-rules-architect`**: the three schema items from Part 4/5 §5 remain exactly as stated there —
@@ -1306,9 +1314,9 @@ changed.
   this pass did not open.
 - **For `ability-scripting-engineer`:** nothing new blocks scripting `psylocke` or `jubilee` beyond the general
   "no ability scripts exist for the data-only pool yet" status quo; both packs' data is complete and validated.
-- **For the user:** Part 6's two flagged decisions (`assets/card-art/` being tracked in git at all, and whether
-  `gob`'s ability-ref pair should be regenerated) are still open and unrelated to this pass's work — not
-  re-raised in detail here, see Part 6's own Handoff.
+- **For the user:** Part 6's two flagged decisions (`assets/card-art/` being tracked in git at all (**resolved
+  2026-09-25:** kept tracked, see Part 6 §3), and whether `gob`'s ability-ref pair should be regenerated) were still
+  open and unrelated to this pass's work — not re-raised in detail here, see Part 6's own Handoff.
 - **Files touched this pass**: `packages/content/scripts/marvelcdb/curation/{jubilee.ts (new), psylocke.ts}`,
   `packages/content/scripts/{ingest-marvelcdb.ts, marvelcdb/survey.ts}`, `packages/content/src/data/{index.ts,
 data-only.test.ts}`, the new `packages/content/src/data/{psylocke,jubilee}/` folders, and this doc. No

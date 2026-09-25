@@ -880,6 +880,11 @@ today; what is undecided is whether Chaos Control (`scw`, not started) can repla
    - Are they ever in the encounter deck? RRG 1.8 "Scenario-Specific Card" (p. 38) excludes allies from the encounter deck; Hunting Down Heroes 1A still says "Set each Captive ally aside".
    - **Proposed:** set aside at setup, never shuffled in.
    - MarvelCDB's extra record 10098 (a second Shang-Chi, `faction_code: hero`, `deck_limit: 1`) looks like a hook for campaign rewards. It is not a printed card (§5).
+   - **Resolved (2026-09-25):** all three parts. Classification is `"none"`, confirmed from all four card images
+     (docs/phase7-wave2-data.md Part 1 §2, "Captive allies' classification"). They are set aside at setup and never
+     shuffled in (`GameSetupConfig.setAside`, §3.3), as RRG 1.8 "Scenario-Specific Card" (p. 39; cited as p. 38
+     above) requires, since it excludes allies from the encounter deck. Record 10098 is dropped (`ignoredRecords` in
+     `curation/trors.ts`; the same Part 1 §2 table, "Drop `10098`").
 6. **A voluntary change between two hero forms** (§3.2). Does it use the player's once-per-round voluntary change?
    - **Proposed: yes.** The insert says the three-sided card "follows the standard rules for changing form" and allows "from one hero form to the other" as a change of form.
 7. **The side-scheme deck's discard.** Red Skull rulebook p. 15: "When a side-scheme is defeated or otherwise discarded, place it in the side-scheme discard pile." Does that include side schemes that were never in the side-scheme deck, such as a nemesis side scheme revealed by Shadow of the Past?
@@ -1622,6 +1627,9 @@ does the same thing with no attack in progress. Pinned by a test that also check
 at the same moment _is_ created.
 
 ### 13.4 Open: "if you have played a [trait] event this turn" (Gamora)
+
+> **Resolved (2026-09-22):** built in wave 3 as `GameState.playedThisTurn` and `Predicate playedThisTurn`, in the shape
+> below (docs/phase7-wave3.md §3.24; `packages/engine/src/played-this-turn.test.ts`).
 
 This is a _read_ of play history, not a duration, so it is not part of this primitive. It needs a per-turn record of
 the cards each player played, readable by trait (a thwart _event_ is the `Thwart` trait on an event). The existing

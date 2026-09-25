@@ -81,6 +81,9 @@ While building the audit, every discrepancy it raised traced back to the audit's
 ## Readings and open questions
 
 - **Minion activation order.** The RRG says each engaged minion activates, not in what order. The engine asks the engaged player. The first player would be the other defensible reading, under "the first player decides …" for game decisions. Revisit if an FAQ rules on it.
+  - **Resolved (2026-09-25): the engine's reading is the rule.** RRG 1.8 "Villain Phase" (p. 47), step 2b: "Each minion
+    engaged with the player activates against them, in the order of that player's choice"; "Activation" (p. 6) says the
+    same. The comment in `villain/phase.ts` saying the RRG gives no order is out of date.
 - **Caught Off Guard** is read literally under RRG "First Player", because the card targets and doesn't say "choose". Many tables let the revealing player pick. In solo the two readings are identical.
 - **Ordering identical enemies** (Swarm Attack's facedown Drones) is still asked. The prompt is legal but low value; a client may auto-answer it when every option is interchangeable.
 - **Setup-keyword attachments** still take the first legal host with no choice point. No Core card needs one (carried from Phase 2).
