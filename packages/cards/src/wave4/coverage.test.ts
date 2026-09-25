@@ -3,10 +3,11 @@
  * which packs are fully scripted, which are not started, and — for a pack that isn't started — nothing resolves
  * that isn't already covered by an earlier wave.
  */
-import { MTS_CARDS, NEBU_CARDS, VALK_CARDS, VISION_CARDS, WARM_CARDS, type AnyCard } from "@mc/content";
+import { HOOD_CARDS, MTS_CARDS, NEBU_CARDS, VALK_CARDS, VISION_CARDS, WARM_CARDS, type AnyCard } from "@mc/content";
 import type { AbilityRegistry } from "@mc/engine";
 import { WAVE3_ABILITIES } from "../wave3/index.js";
 import { WAVE4_ABILITIES } from "./index.js";
+import { HOOD_ABILITIES } from "./hood/index.js";
 import { MTS_ABILITIES } from "./mts/index.js";
 import { NEBU_ABILITIES } from "./nebu/index.js";
 import { VALK_ABILITIES } from "./valk/index.js";
@@ -27,6 +28,7 @@ const PACK_STATUS: Readonly<Record<string, "scripted" | "in progress" | "not sta
   valk: "scripted",
   vision: "scripted",
   mts: "in progress",
+  hood: "in progress",
 };
 
 /**
@@ -133,6 +135,102 @@ const KNOWN_SKIPPED: Readonly<Record<string, readonly string[]>> = {
     "21191.fandral-constant",
     "21192.hogun-constant",
   ],
+  // hood: the villain (24001-24003), the main scheme (24004-24006) and The Hood's own encounter set (24007-24013)
+  // are scripted (`hood/hood.ts`). Everything below is the pack's nine modular sets (Beasty Boys, Brothers Grimm,
+  // Crossfire's Crew, Mister Hyde, Ransacked Armory, Sinister Syndicate, State of Emergency, Streets of Mayhem,
+  // Wrecking Crew) plus Standard II / Expert II, left for the next scripting pass on this pack (24041 and 24067
+  // have no ability refs at all — plain-stat cards — and 24053's "Shadow of the Past" ref already resolves as a
+  // reprint alias via `../reprints.ts`; none of the three are listed below).
+  hood: [
+    "24014.beast-mode-forced-interrupt",
+    "24015.griffin-forced-response",
+    "24015.when-defeated",
+    "24016.mandrill-constant",
+    "24016.when-revealed",
+    "24017.when-revealed",
+    "24017.boost",
+    "24018.brothers-grimm-forced-interrupt",
+    "24018.boost",
+    "24019.blackbird-pellets-forced-response",
+    "24020.corrosive-egg-bomb-forced-response",
+    "24021.paralytic-stardust-forced-response",
+    "24022.unbreakable-thread-forced-response",
+    "24023.when-revealed",
+    "24023.boost",
+    "24024.controller-forced-interrupt",
+    "24025.when-revealed",
+    "24025.boost",
+    "24026.crossfire-forced-interrupt",
+    "24027.mister-fear-constant",
+    "24027.boost",
+    "24028.when-revealed",
+    "24029.when-revealed",
+    "24029.boost",
+    "24030.when-revealed",
+    "24031.when-revealed",
+    "24032.when-revealed",
+    "24032.boost",
+    "24033.when-revealed",
+    "24033.self-experimentation-forced-interrupt",
+    "24034.when-revealed",
+    "24034.when-defeated",
+    "24035.when-revealed",
+    "24036.when-revealed",
+    "24037.flamethrower-constant",
+    "24037.flamethrower-constant-2",
+    "24038.holoshield-generator-constant",
+    "24038.holoshield-generator-constant-2",
+    "24039.jetpack-constant",
+    "24039.jetpack-forced-interrupt",
+    "24040.tech-gauntlets-constant",
+    "24040.tech-gauntlets-constant-2",
+    "24040.tech-gauntlets-constant-3",
+    "24042.when-revealed",
+    "24043.beetle-forced-response",
+    "24043.boost",
+    "24044.boomerang-forced-response",
+    "24044.boost",
+    "24045.shocker-forced-response",
+    "24045.boost",
+    "24046.speed-demon-forced-interrupt",
+    "24046.boost",
+    "24047.white-rabbit-forced-interrupt",
+    "24047.boost",
+    "24048.when-revealed-alter-ego",
+    "24048.when-revealed-hero",
+    "24049a.formidable-foe-constant",
+    "24049b.formidable-foe-constant",
+    "24050.when-revealed",
+    "24050.boost",
+    "24051.when-revealed-alter-ego",
+    "24051.when-revealed-hero",
+    "24052.when-revealed",
+    "24052.boost",
+    "24054.when-revealed-hero",
+    "24054.boost",
+    "24055.when-revealed",
+    "24056.when-revealed",
+    "24057.when-revealed",
+    "24058.when-revealed",
+    "24059.when-revealed",
+    "24059.boost",
+    "24060.when-revealed",
+    "24060.back-alley-enclave-constant",
+    "24061.when-revealed",
+    "24061.secret-lair-constant",
+    "24061.secret-lair-constant-2",
+    "24062.when-revealed",
+    "24062.sewer-tunnels-constant",
+    "24063.when-revealed",
+    "24063.warehouse-district-constant",
+    "24064.top-talent-constant",
+    "24065.wrecker-constant",
+    "24066.bulldozer-constant",
+    "24068.thunderball-forced-response",
+    "24069.when-revealed",
+    "24069.boost",
+    "24070.when-revealed",
+  ],
 };
 
 const PACKS: ReadonlyArray<{ readonly code: string; readonly cards: readonly AnyCard[] }> = [
@@ -141,6 +239,7 @@ const PACKS: ReadonlyArray<{ readonly code: string; readonly cards: readonly Any
   { code: "valk", cards: VALK_CARDS },
   { code: "vision", cards: VISION_CARDS },
   { code: "mts", cards: MTS_CARDS },
+  { code: "hood", cards: HOOD_CARDS },
 ];
 
 describe("wave 4 pack ability coverage", () => {
@@ -201,6 +300,7 @@ describe("wave 4 pack ability id coverage (every registered ability id is named 
     { code: "valk", registry: VALK_ABILITIES },
     { code: "vision", registry: VISION_ABILITIES },
     { code: "mts", registry: MTS_ABILITIES },
+    { code: "hood", registry: HOOD_ABILITIES },
   ];
 
   it("checks every pack PACK_STATUS marks started, so a new pack can't skip the guard by not being listed here", () => {
