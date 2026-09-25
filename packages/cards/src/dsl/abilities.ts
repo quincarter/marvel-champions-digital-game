@@ -526,8 +526,19 @@ export const restrictedLimit = (
  * play. `target` is a category list, not `controller: "you"` — the rule sits on an encounter card, which has no
  * controller for "you" to resolve to, and the printed text says "each", not "your".
  */
-export const blanksTextBox = (target: TargetQuery, opts: { readonly while?: Predicate } = {}): ConstantPart => ({
-  rules: [{ kind: "blankTextBox", target, ...(opts.while ? { while: opts.while } : {}) }],
+export const blanksTextBox = (
+  target: TargetQuery,
+  opts: { readonly while?: Predicate; readonly exceptKeywords?: boolean } = {},
+): ConstantPart => ({
+  rules: [
+    {
+      kind: "blankTextBox",
+      target,
+      ...(opts.while ? { while: opts.while } : {}),
+      // "…, except for keywords" (Corrupted Programming, `vision` 26028; docs/phase7-wave4.md §3.28).
+      ...(opts.exceptKeywords ? { exceptKeywords: true as const } : {}),
+    },
+  ],
 });
 /**
  * "Each of your [trait] attacks gain [keyword]" (Hawkeye's Bow, `trors`): an `AttackKeyword` granted to attacks

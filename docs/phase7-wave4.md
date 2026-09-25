@@ -429,6 +429,7 @@ stays data only.**
 | 3.25 | Discarding cards you control as a cost                                   | Lethal Weapon; Noble Sacrifice, Repurpose, Delusion of Collusion | landed  |
 | 3.26 | A friendly character attacks its own player                              | Old Rivals                                                       | landed  |
 | 3.27 | A cancel with nothing it can cancel is not offered                       | §4 Q16 (user decision)                                           | landed  |
+| 3.28 | A blank text box except for keywords                                     | Corrupted Programming (§3.1's open item)                         | landed  |
 
 ### 3.1 Additional forms: the form keyword
 
@@ -437,9 +438,8 @@ stays data only.**
 > "After you change form" and by the form card's own "this form" but not by an identity-only listener, and never uses the
 > once-per-round change; one energy form at a time; no change, no trigger; `cannotChangeForm { formType }` stops only its
 > type; a double-sided form card flips; the hero/alter-ego flip is an identity change; replay deep-equal). DSL:
-> `packages/cards/src/dsl/wave4-primitives.test.ts` (5 tests). **Not done:** Corrupted Programming's "blank, except for
-> keywords" (`blankTextBox` has no keyword exception, so a blanked mass form card grants no form); it lands with the
-> `vision` scripting. **Client:** log lines for `additionalFormChanged`, `cardTurnedFacedown` and `cardTurnedFaceup`,
+> `packages/cards/src/dsl/wave4-primitives.test.ts` (5 tests). Corrupted Programming's "blank, except for keywords"
+> landed later as §3.28. **Client:** log lines for `additionalFormChanged`, `cardTurnedFacedown` and `cardTurnedFaceup`,
 > and a view of which form is up.
 
 **Cards.** Spectrum: Monica Rambeau's Setup puts Gamma, Photon and Pulsar into play facedown; Energy Transformation
@@ -1143,7 +1143,7 @@ against the vocabulary when `valk` comes up.
 | "generate a [wild] resource for a War Machine event"                               | Gauntlet Gun 23005                                    | `resource … generatesFor` (FAQ p. 62)                                |
 | "resolve the 'Special' ability on each [Technique] upgrade you control"            | Nebula, Gamora ally, Lethal Intent, Combat Ready      | `resolveSpecials` / `resolveSpecialsOf`                              |
 | "Reduce the amount of damage Vision takes from each attack by 2"                   | Intangible, Victor Mancha                             | `reduceDamageTaken`                                                  |
-| "Treat your mass form upgrade's text box as if it were blank, except for keywords" | Corrupted Programming                                 | `blankTextBox` (keywords kept: to confirm)                           |
+| "Treat your mass form upgrade's text box as if it were blank, except for keywords" | Corrupted Programming                                 | `blanksTextBox(q, { exceptKeywords: true })` (§3.28)                 |
 | "The villain gains steady" / "each enemy gains steady"                             | Formidable Foe, The Hood's Mantle, Warehouse District | `gainsKeyword` + the RRG Steady rule (`keywords.ts`)                 |
 | "For each different card type discarded this way"                                  | Time Stone                                            | `distinctCardTypes`                                                  |
 | "Spend up to 3 resources of any type → … for each resource spent"                  | Machine Man 26022                                     | `spendUpTo` (wave 3 §3.25)                                           |
@@ -1233,6 +1233,21 @@ so it is never offered and no cost is paid.
 > "Initiating Abilities" (p. 24, step 2): the revealed card is the cancel's target, and with no valid target the
 > ability cannot be initiated, so the whole ability (Order and Chaos's damage and Black Widow's extra reveal included)
 > is not offered. The §3.14 check in the cancel effect itself stays as the backstop.
+
+### 3.28 A blank text box except for keywords
+
+Corrupted Programming (`vision` 26028): "Treat your mass form upgrade's text box as if it were blank, except for
+keywords." RRG 1.8 "Blank" (p. 10) blanks keywords with the text box, so the exception has to be carried. Survey (every
+raw pack, "blank … except"): every other card says "except for [Traits]", which the engine already keeps (a blanked
+card's traits are untouched). This was §3.1's open item.
+
+> **Status: landed (2026-09-24),** tested in `packages/engine/src/blank-except-keywords.test.ts` (2 tests: blanked
+> "except for keywords", a mass form upgrade loses its abilities but keeps its form and other keywords; a plain blank
+> takes the keywords too, and with no blank everything is live). **What landed:** **`RuleSpec blankTextBox.exceptKeywords`**:
+> `blankedByConstantRules` now keeps two sets, every blanked card and those whose keywords go too; `keywordsBlankFor`
+> (`select.ts`) is what `printedKeywordsOf` (and so `activeFormType`, `hasKeyword`) reads. **DSL:**
+> `blanksTextBox(query, { exceptKeywords: true })`. The `vision` scripter targets "your mass form upgrade" with
+> `query("upgrade", { controller: "you", printedForm: "mass" })`.
 
 ## 4. Open questions (for the user or FFG)
 
