@@ -92,14 +92,12 @@ const KNOWN_SKIPPED: Readonly<Record<string, readonly string[]>> = {
     "21192.hogun-constant",
   ],
   // hood: the villain (24001-24003), the main scheme (24004-24006), The Hood's own encounter set (24007-24013) and
-  // Beasty Boys (24014-24017, `hood/beasty-boys.ts`), Brothers Grimm (24018-24022, `hood/brothers-grimm.ts`) and
-  // Crossfire's Crew (24023-24028, `hood/crossfire-crew.ts`), Mister Hyde (24033-24036, `hood/mister-hyde.ts`) and
-  // State of Emergency (24055-24059, `hood/state-of-emergency.ts`), Streets of Mayhem (24060-24063,
-  // `hood/streets-of-mayhem.ts`), Ransacked Armory (24037-24041, `hood/ransacked-armory.ts`) and Sinister Syndicate
-  // (24042-24048, `hood/sinister-syndicate.ts`) are scripted. Everything below is the pack's remaining modular set
-  // (Wrecking Crew) plus Standard II / Expert II, left for the next scripting pass
-  // (24041 and 24067 have no ability refs at all — plain-stat cards — and 24053's "Shadow of the Past" ref already
-  // resolves as a reprint alias via `../reprints.ts`; none of the three are listed below).
+  // all nine of the pack's modular sets — Beasty Boys (24014-24017), Brothers Grimm (24018-24022), Crossfire's
+  // Crew (24023-24028), Mister Hyde (24033-24036), Ransacked Armory (24037-24041), Sinister Syndicate
+  // (24042-24048), State of Emergency (24055-24059), Streets of Mayhem (24060-24063) and Wrecking Crew
+  // (24064-24070), one file per set under `hood/` — are scripted. Standard II / Expert II are left for the next
+  // scripting pass (24041 and 24067 have no ability refs at all — plain-stat cards — and 24053's "Shadow of the
+  // Past" ref already resolves as a reprint alias via `../reprints.ts`; none of the three are listed below).
   hood: [
     // Beasty Boys (`hood/beasty-boys.ts`): every ref resolves except two genuine gaps (the module's own docblock).
     "24014.beast-mode-forced-interrupt",
@@ -148,13 +146,7 @@ const KNOWN_SKIPPED: Readonly<Record<string, readonly string[]>> = {
     "24061.when-revealed",
     "24061.secret-lair-constant",
     "24061.secret-lair-constant-2",
-    "24064.top-talent-constant",
-    "24065.wrecker-constant",
-    "24066.bulldozer-constant",
-    "24068.thunderball-forced-response",
-    "24069.when-revealed",
-    "24069.boost",
-    "24070.when-revealed",
+    // Wrecking Crew (`hood/wrecking-crew.ts`): every ref resolves; no genuine gap found.
   ],
 };
 
