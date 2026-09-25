@@ -173,7 +173,8 @@ export const ROCKET_KIT = defineAbilities({
 
   // Into the Fray (16042) reprints an earlier "Deal 6 damage to a minion. For each point of excess damage dealt
   // by this attack, remove 1 threat from the main scheme" card verbatim — aliased by `../reprints.ts`, not
-  // scripted here (the wording docs/phase7-wave3.md §0's Jan 26, 2026 (3) ruling names is the earlier printing).
+  // scripted here (the wording docs/phase7-wave3.md §0's Jan 26, 2026 (3) ruling names is the earlier printing). That
+  // ruling's "excess dealt" count is superseded by RRG 1.8 "Overkill" (p. 31): it counts what overkill would spill.
 
   // Looking for Trouble — Hero Action (thwart): Discard cards from the top of the encounter deck until you
   // discard a minion. Put that minion into play engaged with you → remove 3 threat from the main scheme.

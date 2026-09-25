@@ -842,7 +842,7 @@ export type StatusName = "stunned" | "confused" | "tough";
  * vars when it finishes: `<bind>.amount` (damage taken / damage healed / threat
  * placed or removed), `<bind>.made` (1 if it happened), and for attacks
  * `<bind>.damage`, `<bind>.defeated`, `<bind>.undefended`, `<bind>.excessDealt`
- * (damage dealt beyond remaining hit points; RRG 1.8 "Excess Damage", p. 19).
+ * (the excess overkill would spill: damage taken beyond remaining hit points; RRG 1.8 "Overkill", p. 31).
  */
 export type EffectSpec =
   /**
@@ -988,9 +988,9 @@ export type EffectSpec =
        * and is read when that attack finally deals its damage, so it survives `declareDefender` and the defense
        * arithmetic, and it expires with the attack.
        *
-       * RRG 1.8 "Prevent" (p. 34): the damage is still *dealt* (excess damage is measured, and "the attacking
-       * character is considered to have dealt damage"), but the target takes none, so no tough status card is used,
-       * "attacked and damaged" is false, and the attack's `damage`/`damaged` results stay 0.
+       * RRG 1.8 "Prevent" (p. 34): the damage is still *dealt* ("the attacking character is considered to have dealt
+       * damage"), but the target takes none, so no tough status card is used, "attacked and damaged" is false, the
+       * attack's `damage`/`damaged` results stay 0, and there is no excess damage (RRG 1.8 "Overkill", p. 31).
        */
       readonly preventAllDamage?: boolean;
       /** A number, or a value: "give him an additional boost card for each side scheme in play" (Master Strategist; §3.11). */

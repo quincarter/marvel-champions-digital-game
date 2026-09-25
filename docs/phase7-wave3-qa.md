@@ -303,7 +303,9 @@ June 25, 2026 (4) #1's "nemesis sets belong to that identity"). Confirmed alread
 
 - **Jan 26, 2026 (3)** — Rocket Raccoon's "Murdered You!" (16029a) reads excess damage dealt, not taken;
   `on.attacks("self", { excessDamage: true })` already does this (matches checkpoint 1's own citation of the same
-  ruling for Follow Through).
+  ruling for Follow Through). **Superseded (2026-09-25):** RRG 1.8 "Overkill" (p. 31) supersedes it (user decision 2026-09-25; PLAN.md's Overkill note): "excess damage dealt" is now the value
+  overkill would spill, damage taken beyond remaining hit points, so an attack whose target takes no excess (a tough
+  card, a reduction) no longer triggers "Murdered You!". `resolve/event.ts` `excessDamageOf`.
 - **Aug 3, 2026 (4) #4** — Drax retains vengeance counters above 3; `addCounters("vengeance", 1, ..., { upTo: 3 })`
   caps the placement, not the total, so a counter added by another source (Captain Americat, unscripted this
   wave) isn't capped. Already confirmed in the drax-kit.ts audit above.

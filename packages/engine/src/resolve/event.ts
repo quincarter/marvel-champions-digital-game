@@ -453,6 +453,36 @@ export function announceDamagePrevented(ctx: Ctx, event: Extract<TriggerEvent, {
   if (event.amount > 0 && heard(ctx.state, ctx.deps, event)) pushEvent(ctx, event);
 }
 
+/**
+ * The excess damage one `dealDamage` event deals: the damage the target takes beyond its remaining hit points, plus any
+ * `excessDamageBonus` ("When your hero's attack deals any amount of excess damage, increase that amount by 1", Follow
+ * Through; docs/phase7-wave3.md §3.18), added only when there is some.
+ *
+ * RRG 1.8 "Overkill" (p. 31, revised in 1.8): "If a card ability counts excess damage dealt, that ability counts the
+ * same value of excess damage that is calculated when resolving the overkill keyword", and overkill deals "any damage
+ * on that [character] beyond its hit points". So excess is measured on the damage *taken*, after constant reductions,
+ * and a tough status, "cannot take damage" or a prevention leaves none. This supersedes rulings Jan 26, 2026 (3) and
+ * Feb 8, 2026 (2), which measured it on the damage dealt (user decision 2026-09-25; PLAN.md's Overkill note): Hercules's
+ * 6 against Thumbelina (3 HP, takes 1 less) spills 2 and Prince of Power heals 2, not 3.
+ *
+ * The same number with or without overkill: an attack without it (Into the Fray, "Murdered You!", Radioactive Buildup's
+ * "excess damage dealt by Thunderball") counts what overkill would have spilled. It is measured when the damage lands,
+ * whether or not the defeat that follows happens, since the counting abilities read the damage, not the defeat.
+ */
+export function excessDamageOf(
+  ctx: Ctx,
+  event: Extract<TriggerEvent, { kind: "dealDamage" }>,
+  damageBefore: number,
+  taken: number,
+  maxHp: number | undefined,
+): number {
+  if (maxHp === undefined || taken <= 0) return 0;
+  const measured = taken - Math.max(0, maxHp - damageBefore);
+  if (measured <= 0) return 0;
+  const source = event.sourceInstanceId;
+  return measured + (event.fromAttack && source !== null ? excessDamageBonus(ctx.state, ctx.deps, source) : 0);
+}
+
 /** RRG "Tough": a tough status prevents all damage and is discarded instead. */
 /** `sweep` false: a `damageGroup` applies several at once and sweeps for defeats itself afterwards. */
 export function applyDamage(
@@ -466,22 +496,7 @@ export function applyDamage(
   // on the stack for a card that has since left play (an ally's consequential damage after Speed Demon's attack
   // defeated it, docs/phase7-wave4.md §4 Q20) is not dealt, rather than left on the discarded card.
   if (!cardsInPlay(ctx.state).includes(event.targetInstanceId)) return;
-  // RRG 1.8 "Excess Damage" (p. 19): damage dealt beyond remaining hit points. Ruling, Jan 26, 2026 (3): it is dealt
-  // even when the target does not take it, so it is measured before tough and "cannot take damage".
-  const hit = getInstance(ctx.state, event.targetInstanceId);
-  const maxHp = characterProfile(ctx.state, event.targetInstanceId, ctx.deps)?.maxHp;
   const source = event.sourceInstanceId;
-  const measured = hit && maxHp !== undefined ? event.amount - Math.max(0, maxHp - hit.damage) : 0;
-  // "When your hero's attack deals any amount of excess damage, increase that amount by 1" (Follow Through;
-  // `excessDamageBonus`, docs/phase7-wave3.md §3.18): added only when the attack deals some.
-  const bonus =
-    measured > 0 && event.fromAttack && source !== null ? excessDamageBonus(ctx.state, ctx.deps, source) : 0;
-  const excessDealt = measured + bonus;
-  if (excessDealt > 0) {
-    addFrameVars(ctx, frameId, { excessDealt });
-    addFrameVars(ctx, event.parentFrameId, { excessDealt });
-    placeExcessDamageAsThreat(ctx, event, excessDealt);
-  }
   // The attacker's own keyword, or one granted to this attack alone and stamped on the event (`attackKeywordsOf`).
   const attackKeyword = (name: "piercing" | "overkill"): boolean =>
     event.fromAttack && (event[name] === true || (source !== null && hasKeyword(ctx.state, source, name, ctx.deps)));
@@ -498,8 +513,8 @@ export function applyDamage(
   }
   // "Prevent all damage from that attack" (`modifyAttack.preventAllDamage`, set at attack initiation): the flag lives
   // on the attack's own event frame, so it reaches whatever damage that attack eventually deals, whoever defends.
-  // RRG 1.8 "Prevent" (p. 34): the damage is dealt but not taken — excess damage above has already been measured, and
-  // nothing below runs, so no tough card is used and the attack records no `damage`/`damaged` result.
+  // RRG 1.8 "Prevent" (p. 34): the damage is dealt but not taken, so nothing below runs: no tough card is used, the
+  // attack records no `damage`/`damaged` result, and there is no excess damage (`excessDamageOf`, RRG 1.8 p. 31).
   //
   // UNCONFIRMED READING, flagged rather than hidden: this returns before piercing, so a fully prevented piercing
   // attack discards no tough status cards. RRG 1.8 "Piercing" (p. 32) exempts an attack that "would deal no damage",
@@ -580,6 +595,8 @@ export function applyDamage(
       reason: "reduced",
     });
   }
+  const maxHp = characterProfile(ctx.state, event.targetInstanceId, ctx.deps)?.maxHp;
+  const excessDealt = excessDamageOf(ctx, event, target.damage, taken, maxHp);
   updateInstance(ctx, event.targetInstanceId, (i) => ({ ...i, damage: i.damage + taken }));
   emit(ctx, {
     type: "damageDealt",
@@ -590,13 +607,16 @@ export function applyDamage(
   addFrameVars(ctx, frameId, { amount: taken });
   addFrameVars(ctx, event.parentFrameId, { damage: taken, damaged: 1 });
   addFrameSlots(ctx, event.parentFrameId, { damaged: [event.targetInstanceId] });
+  if (excessDealt > 0) {
+    addFrameVars(ctx, frameId, { excessDealt });
+    addFrameVars(ctx, event.parentFrameId, { excessDealt });
+    placeExcessDamageAsThreat(ctx, event, excessDealt);
+  }
   if (!sweep) return;
 
-  const profile = characterProfile(ctx.state, event.targetInstanceId, ctx.deps);
-  const damage = mustInstance(ctx.state, event.targetInstanceId).damage;
+  // Overkill spills the same excess every "excess damage dealt" ability counts (RRG 1.8 "Overkill", p. 31).
   const overkill = event.fromAttack && (event.overkill === true || attackKeyword("overkill"));
-  const overflow = overkill && profile ? damage - profile.maxHp : 0;
-  const excess = overflow > 0 ? overflow + bonus : 0;
+  const excess = overkill ? excessDealt : 0;
   const recipient = excess > 0 ? overkillRecipient(ctx.state, event.targetInstanceId) : null;
   const villainBefore = villainOf(ctx.state, event.targetInstanceId);
 
@@ -627,16 +647,16 @@ export function applyDamage(
  * Radioactive Buildup 07022): one `placeThreat` event per scheme, sourced by the dealing card and reported to the
  * damage's parent (an attack's `threatPlaced` result), announced by an `excessDamageAsThreat` log entry.
  *
- * - **Measured as dealt, not taken** (RRG 1.8 "Excess Damage", p. 19; ruling, Jan 26, 2026 (3)), so it is called
- *   before the tough / "cannot take damage" checks below and a prevented hit still places threat. It inherits the
- *   flagged §3.6 reading that a prevention *interrupt* lowers `event.amount` first (ruling, Mar 6, 2026 (1)).
- * - **Order:** it is pushed before the damage lands, so it resolves after this damage's defeats (pushed later, on
- *   top) and before the damage event's own response window. The RRG gives a constant conversion no step of its own;
- *   the observable difference is only "when defeated" vs. "after threat is placed" ordering.
- * - **Open, flagged for the user:** whether the excess still spills with overkill. Overkill uses excess damage
- *   *taken* and this uses excess damage *dealt* (ruling, Jan 26, 2026 (3) keeps them apart), so the engine applies
- *   both independently; "placed as threat" could instead be read as the damage no longer existing to spill. No wave 1
- *   card gives Thunderball overkill.
+ * - **Measured as overkill measures it** (RRG 1.8 "Overkill", p. 31; `excessDamageOf`): damage taken beyond remaining
+ *   hit points, so a tough, "cannot take damage" or prevented hit places no threat. This supersedes the reading of
+ *   ruling Jan 26, 2026 (3) the engine followed before 2026-09-25 (excess measured as dealt, before tough).
+ * - **Order:** it is pushed as the damage lands and before the defeat sweep, so it resolves after this damage's
+ *   defeats (pushed later, on top) and before the damage event's own response window. The RRG gives a constant
+ *   conversion no step of its own; the observable difference is only "when defeated" vs. "after threat is placed"
+ *   ordering.
+ * - **Open, flagged for the user:** whether the excess still spills with overkill. The engine applies both
+ *   independently (they now count the same number); "placed as threat" could instead be read as the damage no longer
+ *   existing to spill. No card in the pool gives Thunderball overkill.
  */
 function placeExcessDamageAsThreat(
   ctx: Ctx,

@@ -583,7 +583,7 @@ Quantities are MarvelCDB `quantity`.
 - `RuleSpec schemeThreatDestination { enemy, scheme: "ownSignatureSideScheme", while? }` (`rules.ts`), read by the scheme procedure's step 3. It falls back to the main scheme when the signature side scheme is not in play.
 - `EffectSpec enemyAttack` gains `boost: false`, `targetCharacter` and `after: "currentActivation"`; `enemyScheme` gains `boost` and `after`. `boost: false` sets `noBoost` on the trigger event and procedure frame. It deals no boost card at all, additional ones included, and the audit's `boost.villain` count skips it.
 - `after: "currentActivation"` appends to the activation event's `endEffects`, which run after its response window. Several queued activations resolve in the order they were queued; the first player is **not** asked to order them (RRG 1.8 "Activation", p. 6) — not needed in wave 1.
-- `excessDealt` is reported by every `dealDamage` event and added to its parent attack's results, measured before tough / "cannot take damage" (ruling, Jan 26, 2026 (3)). It uses the amount after interrupts, so a prevention interrupt lowers it; ruling Mar 6, 2026 (1) says prevention reduces damage _taken_. Flagged; no wave 1 card combines the two.
+- `excessDealt` is reported by every `dealDamage` event and added to its parent attack's results. **Since 2026-09-25 (user decision) it is the value overkill would spill:** damage _taken_ beyond remaining hit points, after constant reductions, so a tough status, a prevention or "cannot take damage" leaves none (RRG 1.8 "Overkill", p. 31, which supersedes ruling Jan 26, 2026 (3); `resolve/event.ts` `excessDamageOf`). Before, it was measured before tough / "cannot take damage", and the flagged prevention-interrupt question (ruling Mar 6, 2026 (1)) no longer arises: prevented damage is not taken, so it is not excess.
 - `TargetRef villainOfSideScheme { scheme }` and `signatureSideSchemeOf { villain }`.
 
 **Rules and cards:**
@@ -606,6 +606,7 @@ Quantities are MarvelCDB `quantity`.
 - **Excess damage placed as threat.**
   - "Excess damage dealt by Thunderball is placed as threat on his corresponding side scheme." (Radioactive Buildup)
   - Ruling, Jan 26, 2026 (ruling 3): "Excess Damage is damage dealt beyond remaining hit points."
+  - **Superseded (2026-09-25, user decision):** RRG 1.8 "Overkill" (p. 31): an ability that "counts excess damage dealt" counts "the same value of excess damage that is calculated when resolving the overkill keyword". See PLAN.md's Overkill note.
 - **An attack against a chosen character.**
   - "The enemy with the highest ATK attacks the hero or ally with the highest ATK" (Clash of the Titans).
   - RRG 1.8 "Attacks Against Allies" (p. 10).

@@ -4,7 +4,8 @@
  *
  * Sources: Green Goblin insert ("no attack activation was performed"); RRG 1.8 "Activation" (p. 6), "Attack (Enemy
  * Activation)" (pp. 8–9), "Scheme (Enemy Activation)" (p. 38), "Replacement Effect" (p. 37), "Excess Damage" (p. 19);
- * rulings Feb 28, 2026 (1) answer 2 and (6); Jan 26, 2026 (3); FAQ "Clash of Titans (#28)" (p. 60).
+ * "Overkill" (p. 31, which makes excess damage dealt the value overkill would spill, superseding ruling Jan 26, 2026
+ * (3)); rulings Feb 28, 2026 (1) answer 2 and (6); FAQ "Clash of Titans (#28)" (p. 60).
  */
 
 import { flat, type AbilityReference, type CardId, type HeroIdentityCard } from "@mc/content";

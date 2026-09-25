@@ -139,8 +139,9 @@ export const THUNDERBALL_SET = defineAbilities({
   // Radioactive Buildup — Attach to Thunderball. Excess damage dealt by Thunderball is placed as threat on his
   // corresponding side scheme. `RuleSpec.excessDamageAsThreat` (wave B primitives batch,
   // docs/phase7-wave1-scripting.md §6) is a **constant**, not a forced response on the attack: as a response it
-  // would race this card's own "After Thunderball attacks, discard this card" below. Excess damage counts even
-  // against a tough target (ruling, Jan 26, 2026 (3)); its interaction with overkill is open (both apply today).
+  // would race this card's own "After Thunderball attacks, discard this card" below. Excess damage is what
+  // overkill would spill (RRG 1.8 "Overkill", p. 31, superseding ruling Jan 26, 2026 (3)), so a tough, prevented or
+  // "cannot take damage" target yields no threat; its interaction with overkill is open (both apply today).
   "07022.radioactive-buildup-constant": constant(
     rule({ kind: "excessDamageAsThreat", source: { hostOfSelf: true }, scheme: signatureSideSchemeOf(host) }),
   ),
