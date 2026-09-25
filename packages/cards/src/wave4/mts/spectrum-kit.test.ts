@@ -1,4 +1,4 @@
-import { activeVillain, characterProfile, type GameState } from "@mc/engine";
+import { activeVillain, characterProfile, generatedResources, type GameState, type InstanceId } from "@mc/engine";
 import { describe, expect, it } from "vitest";
 import {
   endTurn,
@@ -9,6 +9,7 @@ import {
   P1,
   playerOf,
   runWith,
+  moveToHand,
   settle,
   toHero,
   type Picker,
@@ -135,5 +136,56 @@ describe("Gamma Blast / Photon Speed / Speed of Light (21007, 21008, 21010)", ()
     const { state: after } = playFromHand(hero, "21010", 0, accepting(facedown));
     // -1 playing the card itself, +1 the draw = net 0.
     expect(playerOf(after, P1).hand.length).toBe(before - 1 + 1);
+  });
+});
+
+describe("Energy Duplication (upgrade, 21006)", () => {
+  it("21006.energy-duplication-resource: generates the printed resource of the faceup energy form", () => {
+    const state = spectrumVsRhino(4);
+    const gamma = instancesOf(state, "21002")[0]!;
+    const hero = settle(runWith(WAVE4_DEPS, state, toHero()), accepting(gamma), undefined, WAVE4_DEPS);
+    const { state: withDup, id: dup } = playFromHand(hero, "21006", 2);
+    const generates = WAVE4_DEPS.abilities["21006.energy-duplication-resource"]!.generates;
+    const from = { deps: WAVE4_DEPS, sourceId: dup, playerId: P1 };
+    // Gamma prints a [physical] resource.
+    expect(generatedResources(withDup, generates, null, from)).toEqual(
+      expect.objectContaining({ physical: 1, energy: 0, mental: 0, wild: 0 }),
+    );
+    // With every form facedown there is no faceup form, so nothing.
+    const facedown: GameState = {
+      ...withDup,
+      instances: {
+        ...withDup.instances,
+        [gamma]: { ...withDup.instances[gamma]!, faceup: false, facedownAs: { kind: "blank", traits: [] } },
+      },
+    };
+    expect(generatedResources(facedown, generates, null, from).physical).toBe(0);
+  });
+});
+
+describe("Pulsar Shield (event, 21009)", () => {
+  it("21009.pulsar-shield-interrupt: already in Pulsar, Spectrum defends, readies, and retaliates against the attacker", () => {
+    const state = spectrumVsRhino(5);
+    const pulsar = instancesOf(state, "21004")[0]!;
+    const hero = settle(runWith(WAVE4_DEPS, state, toHero()), accepting(pulsar), undefined, WAVE4_DEPS);
+    expect(inst(hero, pulsar).faceup).toBe(true);
+    const given = moveToHand(hero, P1, "21009");
+    const [shield] = given.ids as [InstanceId];
+    const identity = identityOf(given.state, P1);
+    const villain = activeVillain(given.state).instanceId;
+    const before = inst(given.state, villain).damage;
+    const pick: Picker = (s) => {
+      const choice = s.pendingChoice;
+      if (!choice) return [];
+      if (choice.prompt.kind === "declareDefender") return [identity];
+      if (choice.prompt.kind === "payForCard")
+        return [choice.options.find((o) => o.optionId.startsWith("hand:"))!.optionId];
+      const hits = choice.options.filter((o) => o.optionId.endsWith("21009.pulsar-shield-interrupt"));
+      return hits.length > 0 ? [hits[0]!.optionId] : firstLegal(s);
+    };
+    const attacked = settle(runWith(WAVE4_DEPS, given.state, endTurn()), pick, undefined, WAVE4_DEPS);
+    expect(playerOf(attacked, P1).discard).toContain(shield);
+    // Retaliate 1 dealt to Rhino when he attacked Spectrum.
+    expect(inst(attacked, villain).damage).toBeGreaterThanOrEqual(before + 1);
   });
 });

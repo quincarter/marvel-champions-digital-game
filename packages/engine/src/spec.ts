@@ -1,4 +1,4 @@
-import type { CardId, Trait } from "@mc/content";
+import type { CardId, KeywordInstance, Trait } from "@mc/content";
 /**
  * When a lasting effect ends: "until the end of the phase" / "…of the round" / "…of this attack" / "…of this turn".
  *
@@ -1151,6 +1151,18 @@ export type EffectSpec =
       readonly until: "endOfPhase" | "endOfRound" | "endOfTurn";
       readonly on: EventPattern;
       readonly effects: readonly EffectSpec[];
+    }
+  /**
+   * "She gains retaliate 1 until the end of the phase." (Pulsar Shield, `mts` 21009); "you gain retaliate 1 until the
+   * end of the phase" (Cuts Both Ways, `cw` 56050): a keyword granted for a duration, as a lasting effect. Read with the
+   * card's printed and constant-granted keywords. docs/phase7-wave4.md §3.39.
+   */
+  | {
+      readonly kind: "grantKeywordUntil";
+      readonly keyword: KeywordInstance;
+      readonly target?: TargetRef;
+      readonly affects?: TargetQuery;
+      readonly until: LastingUntil;
     }
   /** "Gain the Aerial trait until the end of the phase" (Rocket Boots). */
   | {

@@ -42,6 +42,7 @@ import {
   you,
   yourIdentity,
   zone,
+  generatesPerCard,
 } from "../../dsl/index.js";
 
 const AVENGER = trait("AVENGER");
@@ -54,9 +55,7 @@ const AVENGER = trait("AVENGER");
  * bound cost pick ("the total ATK of those [3] allies and your hero"). `exhaustEachCost` (§3.17) sums separately
  * bound single-card slots, not one slot of several cards at once — see `KNOWN_SKIPPED["mts"]`.
  *
- * **Band Together (21018) is a primitive gap, not scripted**: `ResourceGeneration` has no variant that scales with
- * a live count ("[wild] for each ally you control, to a maximum of 3") — only a fixed number/`ResourcePool`, or the
- * one special-cased `topCardOfDiscard` (`packages/engine/src/abilities.ts`) exist.
+ * **Band Together (21018)** is `handGenerates: generatesPerCard(...)` (docs/phase7-wave4.md §3.38).
  */
 export const SPECTRUM_PACK_CARDS = defineAbilities({
   // Captain America (21011) — Toughness (data). Reduce the cost to play Captain America by 1 for each avenger
@@ -116,7 +115,11 @@ export const SPECTRUM_PACK_CARDS = defineAbilities({
     modifyStat("def", 1, yourIdentity, "endOfRound"),
   ),
 
-  // Band Together (21018): see module docblock — KNOWN_SKIPPED.
+  // Band Together (21018) — This card generates [wild] for each ally you control (to a maximum of 3) (`handGenerates`,
+  // docs/phase7-wave4.md §3.38).
+  "21018.band-together-constant": constant({
+    handGenerates: generatesPerCard("wild", query("ally", { controller: "you" }), 3),
+  }),
 
   // Blade (21019) — [star] Forced Response: After Blade thwarts or attacks, choose to either spend a [physical]
   // resource from your hand or discard Blade.

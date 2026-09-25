@@ -1,4 +1,4 @@
-import { activeVillain, applyCommand, characterProfile } from "@mc/engine";
+import { activeVillain, applyCommand, characterProfile, handCardResources, type InstanceId } from "@mc/engine";
 import { describe, expect, it } from "vitest";
 import {
   firstLegal,
@@ -178,5 +178,20 @@ describe("Ready to Rumble (21022)", () => {
       WAVE4_DEPS,
     );
     expect(inst(after, identity).exhausted).toBe(false);
+  });
+});
+
+describe("Band Together (resource, 21018)", () => {
+  it("21018.band-together-constant: generates [wild] for each ally you control, spent from hand", () => {
+    const hero = settle(runWith(WAVE4_DEPS, spectrumVsRhino(6), toHero()), firstLegal, undefined, WAVE4_DEPS);
+    const given = moveToHand(hero, P1, "21018");
+    const [band] = given.ids as [InstanceId];
+    expect(handCardResources(given.state, WAVE4_DEPS, band, P1, null).wild).toBe(0);
+    const { state: withAlly } = playFromHand(given.state, "21005", 3, firstLegal);
+    const allies = withAlly.players[0]!.playArea.filter(
+      (id) => withAlly.cardPool[withAlly.instances[id]!.cardId]?.type === "ally",
+    ).length;
+    expect(allies).toBeGreaterThan(0);
+    expect(handCardResources(withAlly, WAVE4_DEPS, band, P1, null).wild).toBe(Math.min(3, allies));
   });
 });

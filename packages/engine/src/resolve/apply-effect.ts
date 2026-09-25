@@ -1313,7 +1313,8 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       return;
     }
     case "modifyStatUntil":
-    case "grantTraitUntil": {
+    case "grantTraitUntil":
+    case "grantKeywordUntil": {
       let duration: LastingDuration;
       if (effect.until === "endOfAttack") {
         const activation = currentActivationFrameId(ctx.state.stack);
@@ -1338,7 +1339,9 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
         ctx,
         effect.kind === "modifyStatUntil"
           ? { kind: "statModifier", stat: effect.stat, amount: effect.amount, scope, ...reach }
-          : { kind: "traitGrant", trait: effect.trait, scope, ...reach },
+          : effect.kind === "grantKeywordUntil"
+            ? { kind: "keywordGrant", keyword: effect.keyword, scope, ...reach }
+            : { kind: "traitGrant", trait: effect.trait, scope, ...reach },
         duration,
       );
       return;

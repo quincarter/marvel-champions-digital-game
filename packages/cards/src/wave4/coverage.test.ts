@@ -69,10 +69,7 @@ const KNOWN_SKIPPED: Readonly<Record<string, readonly string[]>> = {
   // without a card ability (`game-rules-architect`): 21072.when-revealed, 21073.when-revealed, 21074b.when-revealed,
   // 21075a.when-revealed, 21081.when-revealed (Channeling Trance's own "if none, put one into play" branch).
   mts: [
-    "21006.energy-duplication-resource",
-    "21009.pulsar-shield-interrupt",
     "21016.mass-attack-action",
-    "21018.band-together-constant",
     "21061.shield-spell-interrupt",
     "21072.when-revealed",
     "21073.when-revealed",

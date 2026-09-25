@@ -864,7 +864,11 @@ export function paymentFor(
           kind: "resourceAbility",
           instanceId: option.ref.instanceId,
           label: option.label,
-          pool: generatedResources(state, deps.abilities[option.ref.abilityId]?.generates, discardTop),
+          pool: generatedResources(state, deps.abilities[option.ref.abilityId]?.generates, discardTop, {
+            deps,
+            sourceId: option.ref.instanceId,
+            playerId,
+          }),
         },
       ];
     },
