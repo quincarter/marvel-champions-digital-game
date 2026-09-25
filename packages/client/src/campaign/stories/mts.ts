@@ -372,6 +372,25 @@ export const MTS_STORY: CampaignStory = {
         text: "Thanos himself, and every Stone he's still missing. This is the whole fight.",
         fallback: "Thanos himself, in person, for whatever Stones are left.",
       },
+      briefingNotes: [
+        {
+          status: "done",
+          title: "Pool resolved in printed order",
+          detail: "Allies and deck cards first, then enemies.",
+          citation: "MC21 p. 17",
+        },
+        {
+          status: "done",
+          title: "Infinity Gauntlet attached to Thanos",
+          detail: "Six Stone environments shuffled into their own deck.",
+          citation: "MC21 p. 16",
+        },
+        {
+          status: "later",
+          title: "Pool keeps growing",
+          detail: "A win here can add System Shock. It hurts, so beat Defensive Protocols.",
+        },
+      ],
       aftermath: {
         speaker: SPECTRUM,
         text: "He'll be back for the rest. Pool everything that's still standing — we'll need it.",
@@ -455,6 +474,25 @@ export const MTS_STORY: CampaignStory = {
         text: "Everything we carried, all at once. Odin's here. So is everything we let slip.",
         fallback: "Everything the campaign carried comes due here, all at once.",
       },
+      briefingNotes: [
+        {
+          status: "done",
+          title: "Pool resolved in printed order",
+          detail: "Groups run top to bottom, matching the printed setup.",
+          citation: "MC21 p. 25",
+        },
+        {
+          status: "done",
+          title: "Infinity Gauntlet attached to Loki",
+          detail: "Six Stone environments shuffled into their own deck.",
+          citation: "MC21 p. 16",
+        },
+        {
+          status: "later",
+          title: "Pool closes",
+          detail: "Final issue. Nothing more is added. The log closes after this one.",
+        },
+      ],
       rewindTaunt: "There is always another Loki behind the throne.",
     },
   ],
