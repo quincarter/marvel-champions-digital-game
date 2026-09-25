@@ -37,6 +37,9 @@ import {
   dealDamage,
   discardBoostCard,
   heroInterrupt,
+  modifyBasicPower,
+  spendUpTo,
+  varOf,
 } from "../../dsl/index.js";
 
 const ANDROID = trait("ANDROID");
@@ -53,7 +56,7 @@ const GUARDIAN = trait("GUARDIAN");
  * **Flow Like Water's "deal 1 damage to the attacking enemy" (26016.flow-like-water-response)** is `attackingEnemy`
  * (docs/phase7-wave4.md §3.34). **Defiance's "discard [a boost card] instead [of turning it faceup]"
  * (26018.defiance-interrupt)** is `discardBoostCard` (§3.35). **Machine Man's "attacks or thwarts"
- * (26022.machine-man-interrupt)** is documented at its ref below.
+ * (26022.machine-man-interrupt)** is an `eventIs` list (§3.36).
  */
 export const VISION_PACK_CARDS = defineAbilities({
   // Jocasta (ally, 26013) — You may play the event attached to Jocasta as if it were in your hand. Response: After
@@ -94,14 +97,15 @@ export const VISION_PACK_CARDS = defineAbilities({
   // damage from your hero.
   "26021.preservation-response": heroResponse(on.youSpendThis(), heal(1, self)),
 
-  // KNOWN_SKIPPED: 26022.machine-man-interrupt — "Interrupt: When Machine Man attacks or thwarts, spend up to 3
-  // resources of any type → Machine Man gets +1 THW and +1 ATK for this use for each resource spent this way." The
-  // engine's `EventPattern.eventIs` (`packages/engine/src/resolve/triggers.ts`) matches one exact value per key, no
-  // set — `basicPowerUsing`'s own `power` field is a single "attack" | "thwart" | "defense" | "recover", so there is
-  // no way to match "attack or thwart" while excluding "defense" in one trigger. Omitting the filter entirely (any
-  // basic power) would let this ability also fire on Machine Man's own defense, buffing his DEF with
-  // `modifyBasicPower` — a real over-trigger the printed card does not grant. See `KNOWN_SKIPPED["vision"]` in
-  // `../coverage.test.ts`.
+  // Machine Man (ally, 26022) — Interrupt: When Machine Man attacks or thwarts, spend up to 3 resources of any type →
+  // Machine Man gets +1 THW and +1 ATK for this use for each resource spent this way. "Attacks or thwarts" is his
+  // basic attack or thwart, not his defense (`eventIs` list, docs/phase7-wave4.md §3.36); "+1 THW and +1 ATK for this
+  // use" raises whichever power is being used.
+  "26022.machine-man-interrupt": interrupt(
+    on.basicPowerUsing("self", { power: ["attack", "thwart"] }),
+    { cost: spendUpTo(3) },
+    modifyBasicPower(varOf("x")),
+  ),
 
   // Avengers Mansion is a reprint (26023, module docblock).
 

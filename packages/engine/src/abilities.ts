@@ -73,8 +73,11 @@ export interface EventPattern {
    *
    * Pair it with *no* `playerIs`, and the pattern is "after **a player** …" rather than "after **you** …"; the
    * effect body then names them with `PlayerRef { kind: "eventPlayer" }`.
+   *
+   * A list is any one of those values: `{ power: ["attack", "thwart"] }` is "When Machine Man **attacks or thwarts**"
+   * (Machine Man, `vision` 26022) on `basicPowerUsing`, excluding his defense. docs/phase7-wave4.md §3.36.
    */
-  readonly eventIs?: Readonly<Record<string, string>>;
+  readonly eventIs?: Readonly<Record<string, string | readonly string[]>>;
   /**
    * "After the enemy **with Death-Glow** is defeated" (Flight of the Valkyrior, 25008) / "after Valkyrie attacks and
    * defeats the enemy that has Death-Glow attached" (Valhalla, 25004): one of the cards attached to the defeated

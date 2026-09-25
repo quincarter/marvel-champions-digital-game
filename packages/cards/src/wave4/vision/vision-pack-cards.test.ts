@@ -1,4 +1,4 @@
-import { activeVillain, characterProfile, type GameState, type InstanceId } from "@mc/engine";
+import { activeVillain, characterProfile, printedResources, type GameState, type InstanceId } from "@mc/engine";
 import { describe, expect, it } from "vitest";
 import {
   applyOk,
@@ -184,6 +184,48 @@ describe("Defiance (event, 26018)", () => {
     }
     expect(playerOf(state, P1).discard).toContain(defiance);
     expect(events).toContainEqual(expect.objectContaining({ type: "boostCancelled", scope: "discarded" }));
+  });
+});
+
+describe("Machine Man (ally, 26022)", () => {
+  it("26022.machine-man-interrupt: resources spent as he thwarts add that much THW, up to 3", () => {
+    const hero = runWith(WAVE4_DEPS, visionVsRhino(23), toHero());
+    const { state: withAlly, id: machine } = playFromHand(hero, "26022", 3);
+    const ready = patchInstance(withAlly, machine, { exhausted: false });
+    const main = ready.mainScheme.instanceId;
+    const primed = patchInstance(ready, main, { threat: 8 });
+    const thw = characterProfile(primed, machine, WAVE4_DEPS)!.thw;
+    const spare = playerOf(primed, P1).hand.slice(0, 2);
+    const seen: string[] = [];
+    const pick: Picker = (state) => {
+      const choice = state.pendingChoice;
+      if (!choice) return [];
+      seen.push(choice.prompt.kind + ":" + choice.options.map((o) => o.optionId).join("|"));
+      const offered = choice.options.find((o) => o.optionId.endsWith("26022.machine-man-interrupt"));
+      if (offered) return [offered.optionId];
+      const hand = choice.options.filter((o) => spare.some((id) => o.optionId === `hand:${id}`));
+      if (hand.length > 0) return hand.map((o) => o.optionId).slice(0, choice.maxSelections);
+      return firstLegal(state);
+    };
+    const thwarted = settle(
+      runWith(WAVE4_DEPS, primed, {
+        type: "basicThwart",
+        playerId: P1,
+        thwarterInstanceId: machine,
+        schemeInstanceId: main,
+      } as never),
+      pick,
+      undefined,
+      WAVE4_DEPS,
+    );
+    // X is every resource those cards print, to a maximum of 3 ("up to 3").
+    const printed = spare
+      .map((id) => Object.values(printedResources(primed.cardPool[primed.instances[id]!.cardId]!)))
+      .flat()
+      .reduce((a, b) => a + b, 0);
+    expect(printed).toBeGreaterThan(0);
+    expect(inst(thwarted, main).threat).toBe(8 - (thw + Math.min(3, printed)));
+    for (const id of spare) expect(playerOf(thwarted, P1).discard).toContain(id);
   });
 });
 

@@ -437,6 +437,7 @@ stays data only.**
 | 3.33 | A card with a given timing word in its text                              | Phase Disruption; Phase Strike, Sunfire, Target Lock, Warpath    | landed  |
 | 3.34 | The attacking enemy from any trigger                                     | Flow Like Water; Riposte, Spider-UK, Daredevil                   | landed  |
 | 3.35 | Discard a boost card instead of applying it                              | Defiance                                                         | landed  |
+| 3.36 | An event pattern that accepts several values                             | Machine Man; Absorbing Man (tt)                                  | landed  |
 
 ### 3.1 Additional forms: the form keyword
 
@@ -1384,6 +1385,24 @@ removes the card from the activation altogether. Survey: Close Call (`gmw` 16158
 > the card faceup and then opens that window, so "would be turned faceup" is answered there. A response "after a
 > boost card is turned faceup" still sees the event; no printed card combines the two. **DSL:** `discardBoostCard()`.
 > **Scripted:** `26018.defiance-interrupt`, off `KNOWN_SKIPPED`.
+
+### 3.36 An event pattern that accepts several values
+
+Machine Man (`vision` 26022): "Interrupt: When Machine Man attacks or thwarts, spend up to 3 resources of any type →
+Machine Man gets +1 THW and +1 ATK for this use for each resource spent this way." "For this use" needs the
+`basicPowerUsing` interrupt (before the power's value is read), which also carries his defense. Survey (every raw pack,
+"attacks or thwarts"): Elixir, Power Gloves, Gamora (`drax`), Adam Warlock, Falcon, Agent 13, Spider-Man (`silk`, `sm`),
+Spider-Ham, Absorbing Man (`tt`), Cosmo; all but Machine Man and Absorbing Man are responses to the attack/thwart
+events and already use `on.attacksOrThwarts`.
+
+> **Status: landed (2026-09-24),** tested in `packages/engine/src/event-is-list.test.ts` (1 test: `{ power: ["attack",
+"thwart"] }` matches an attack or a thwart and not a defense) and in a real game in
+> `packages/cards/src/wave4/vision/vision-pack-cards.test.ts` (Machine Man thwarts, the player spends two cards, and
+> he removes his THW plus the resources spent, to a maximum of 3). **What landed:** **`EventPattern.eventIs` values
+> may be lists** (any one matches). DSL `on.basicPowerUsing(who, { power: [...] })`. **Engine fix found on the way:**
+> an in-play triggered ability whose only resource cost is an X ("spend up to 3") skipped the payment prompt and
+> resolved with X = 0; `triggerCandidate` now asks for payment whenever the cost has `resourcesX`, as the window-event
+> path already did. **Scripted:** `26022.machine-man-interrupt`, off `KNOWN_SKIPPED`.
 
 ## 4. Open questions (for the user or FFG)
 
