@@ -1,4 +1,4 @@
-import { CORE_STARTER_DECKS, NEBU_STARTER_DECKS, type CardId } from "@mc/content";
+import { CORE_STARTER_DECKS, NEBU_STARTER_DECKS, VISION_STARTER_DECKS, type CardId } from "@mc/content";
 import type { PlayerSetup } from "@mc/engine";
 import { coreScenario, type CoreDifficulty, type CorePlayer, type CoreScenarioOptions } from "../core/setup.js";
 import { WAVE4_CARDS } from "./cards.js";
@@ -16,10 +16,12 @@ export interface Wave4ScenarioOptions extends Omit<CoreScenarioOptions, "cardPoo
   readonly difficulty?: Wave4Difficulty;
 }
 
-/** A wave 4 (currently: Nebula) or Core starter deck as a player seat (quantities expanded). */
+/** A wave 4 (Nebula, Vision) or Core starter deck as a player seat (quantities expanded). */
 export function wave4StarterDeckSetup(starterDeckId: string): PlayerSetup {
   const starter =
-    NEBU_STARTER_DECKS.find((d) => d.id === starterDeckId) ?? CORE_STARTER_DECKS.find((d) => d.id === starterDeckId);
+    NEBU_STARTER_DECKS.find((d) => d.id === starterDeckId) ??
+    VISION_STARTER_DECKS.find((d) => d.id === starterDeckId) ??
+    CORE_STARTER_DECKS.find((d) => d.id === starterDeckId);
   if (!starter) throw new Error(`no wave 4 or Core starter deck ${starterDeckId}`);
   return {
     identityCardId: starter.identityCardId as CardId,

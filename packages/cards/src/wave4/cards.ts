@@ -1,11 +1,11 @@
 /**
- * The wave 4 (cycle 4) card pool: every wave 3 playable card, plus the Nebula (`nebu`) hero pack — the first wave 4
- * pack scripted (docs/phase7-wave4.md). `@mc/content` does not fold `nebu` into `PLAYABLE_CARDS` yet (wiring a new
- * wave into the shared playable pool happens once for the whole wave, not per pack), so this pool concatenates it
- * itself the same way `wave3/setup.ts`'s own docblock describes for `WAVE3_CARDS`: `NEBU_CARDS` shares no cards
- * with `WAVE3_CARDS`, so nothing here is double-counted.
+ * The wave 4 (cycle 4) card pool: every wave 3 playable card, plus the Nebula (`nebu`) and Vision (`vision`) hero
+ * packs scripted so far (docs/phase7-wave4.md). `@mc/content` does not fold a wave 4 pack into `PLAYABLE_CARDS` yet
+ * (wiring a new wave into the shared playable pool happens once for the whole wave, not per pack), so this pool
+ * concatenates each pack itself the same way `wave3/setup.ts`'s own docblock describes for `WAVE3_CARDS`: none of
+ * `NEBU_CARDS`/`VISION_CARDS` share a card with `WAVE3_CARDS` or each other, so nothing here is double-counted.
  */
-import { NEBU_CARDS, PLAYABLE_CARDS, type AnyCard } from "@mc/content";
+import { NEBU_CARDS, PLAYABLE_CARDS, VISION_CARDS, type AnyCard } from "@mc/content";
 
-/** Every playable card through wave 3, plus Nebula. */
-export const WAVE4_CARDS: readonly AnyCard[] = [...PLAYABLE_CARDS, ...NEBU_CARDS];
+/** Every playable card through wave 3, plus Nebula and Vision. */
+export const WAVE4_CARDS: readonly AnyCard[] = [...PLAYABLE_CARDS, ...NEBU_CARDS, ...VISION_CARDS];
