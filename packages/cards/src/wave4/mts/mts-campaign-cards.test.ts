@@ -2,6 +2,7 @@ import { cardId, MTS_STARTER_DECKS, type AnyCard } from "@mc/content";
 import {
   cardsInPlay,
   characterProfile,
+  handSize,
   instanceId,
   NO_STATUSES,
   type GameState,
@@ -280,6 +281,37 @@ describe("Hack Sanctuary's Computer (21184a) / Defensive Protocols (21184b)", ()
   });
 });
 
+describe("System Shock (21185)", () => {
+  it("Alter-Ego Action spends a [mental] resource to remove itself from the game (21185.system-shock-action)", () => {
+    const base = campaignGame(["21185"]); // players start in alter-ego form
+    const shock = cardInHand(base, "21185");
+    const paidWith = mentalCardInHand(shock.state, P1);
+    const used = settle(
+      runWave4(paidWith.state, use(P1, shock.id, "21185.system-shock-action", [{ fromHand: paidWith.id }])),
+      firstLegal,
+      undefined,
+      WAVE4_DEPS,
+    );
+    expect(used.removedFromGame).toContain(shock.id);
+    expect(playerOf(used, P1).hand).not.toContain(shock.id);
+  });
+
+  it("cannot be chosen for the end-of-round 'discard down to hand size' step, even with an over-limit hand (21185.system-shock-constant)", () => {
+    const base = campaignGame(["21185"]);
+    const shock = cardInHand(base, "21185");
+    const limit = handSize(shock.state, P1, WAVE4_DEPS);
+    const overfull = overfillHand(shock.state, P1, limit);
+    expect(playerOf(overfull, P1).hand.length).toBeGreaterThan(limit);
+    const afterDiscard = settle(
+      runWave4(overfull, { type: "endTurn", playerId: P1 }),
+      firstLegal,
+      undefined,
+      WAVE4_DEPS,
+    );
+    expect(playerOf(afterDiscard, P1).hand).toContain(shock.id);
+  });
+});
+
 describe("Find the Norn Stones (21186a) / Retrieve Odin's Armor (21186b)", () => {
   it("threat cannot be removed while Hela is not Wounded, but can once she is (21186a.find-the-norn-stones-constant)", () => {
     // A real "hela" game (not "ebony-maw"): Hela's own Wounded trait is read off `VillainState.side` (`select.ts`'s
@@ -421,6 +453,67 @@ function physicalCardInHand(state: GameState, player: PlayerId): InstanceId {
   });
   if (!id) throw new Error(`${player} has no physical-resource card in hand`);
   return id;
+}
+
+/** Same as `physicalCardInHand`, but for a printed [mental] resource icon (System Shock's own spend cost) — and,
+ * unlike `physicalCardInHand`, pulled from the deck into hand if the opening hand doesn't happen to have one
+ * (Spectrum's Leadership starter deck doesn't reliably draw one at this seed). */
+function mentalCardInHand(state: GameState, player: PlayerId): { readonly state: GameState; readonly id: InstanceId } {
+  const byId = new Map(WAVE4_CARDS.map((c) => [c.id as string, c]));
+  const isMental = (i: InstanceId): boolean => {
+    const card = byId.get(state.instances[i]?.cardId as string) as
+      | { readonly resourceIcons?: Readonly<Record<string, number>> }
+      | undefined;
+    return (card?.resourceIcons?.mental ?? 0) > 0;
+  };
+  const owner = playerOf(state, player);
+  const inHand = owner.hand.find(isMental);
+  if (inHand) return { state, id: inHand };
+  const fromDeck = owner.deck.find(isMental);
+  if (!fromDeck) throw new Error(`${player} has no mental-resource card in hand or deck`);
+  return {
+    id: fromDeck,
+    state: {
+      ...state,
+      players: state.players.map((p) =>
+        p.playerId === player ? { ...p, deck: p.deck.filter((i) => i !== fromDeck), hand: [...p.hand, fromDeck] } : p,
+      ),
+    },
+  };
+}
+
+/** Moves a set-aside `code` into `player`'s own hand — System Shock's own home, unlike every other obligation
+ * (module docblock: RRG 1.8 "Obligation", p. 30's play-area default is overridden by this card's printed text). */
+function cardInHand(
+  state: GameState,
+  code: string,
+  player: PlayerId = P1,
+): { readonly state: GameState; readonly id: InstanceId } {
+  const id = fromSetAside(state, code);
+  return {
+    id,
+    state: {
+      ...state,
+      encounterSetAside: state.encounterSetAside.filter((i) => i !== id),
+      players: state.players.map((p) => (p.playerId === player ? { ...p, hand: [...p.hand, id] } : p)),
+      instances: {
+        ...state.instances,
+        [id]: { ...state.instances[id]!, ownerId: player, controllerId: player, faceup: true },
+      },
+    },
+  };
+}
+
+/** Moves `extra` cards from the top of `player`'s deck into their hand — enough to force the end-of-round "discard
+ * down to hand size" choice regardless of the starter deck's own draws. */
+function overfillHand(state: GameState, player: PlayerId, extra: number): GameState {
+  const moved = playerOf(state, player).deck.slice(0, extra);
+  return {
+    ...state,
+    players: state.players.map((p) =>
+      p.playerId === player ? { ...p, hand: [...p.hand, ...moved], deck: p.deck.slice(extra) } : p,
+    ),
+  };
 }
 
 describe("Norn Stone (21187a front / 21187b back)", () => {
