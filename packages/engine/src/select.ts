@@ -1188,6 +1188,9 @@ export function resolveValue(
       return selectTargets(state, value.query, { ...context, deps }).length;
     case "sum":
       return value.values.reduce((total, part) => total + resolveValue(state, part, context, deps), 0);
+    case "product":
+      // docs/phase7-wave4.md §3.47: "N per hero … for each side scheme in victory display".
+      return value.values.reduce((total, part) => total * resolveValue(state, part, context, deps), 1);
     case "countInRef": {
       const withDeps = { ...context, deps };
       return resolveRef(state, value.cards, withDeps).filter((id) => matchesQuery(state, id, value.query, withDeps))

@@ -1,5 +1,5 @@
 import { cardId } from "@mc/content";
-import type { GameState, InstanceId } from "@mc/engine";
+import { characterProfile, type GameState, type InstanceId, type PlayerId } from "@mc/engine";
 import { describe, expect, it } from "vitest";
 import {
   firstLegal,
@@ -15,7 +15,6 @@ import {
 } from "../../testing/harness.js";
 import { defeatWithAttack as defeatWithAttackWith } from "../../testing/staging.js";
 import { WAVE4_DEPS } from "../index.js";
-import { wave4Scenario } from "../setup.js";
 import { runWave4, startWave4Game } from "../testing.js";
 import { spectrumScenario } from "./support.js";
 
@@ -26,14 +25,9 @@ import { spectrumScenario } from "./support.js";
 
 const helaGame = (seed = 1) => startWave4Game(spectrumScenario("hela", { seed }));
 
-/** Hela's own expert villain (21137a/21137b) is a whole separate card, not a later stage of 21136a/b (MC21 p. 20:
- * "Villain deck Hela A (Hela B instead for expert mode)") — built by hand, `hela-e2e.test.ts`'s own module docblock
- * has the exact `card-data-pipeline` gap (`MTS_SCENARIOS`'s `hela` record has no `expertVillains` yet). */
-const expertHelaGame = (seed = 1) =>
-  startWave4Game({
-    ...wave4Scenario("hela", { players: [{ starterDeckId: "spectrum-leadership" }], seed, difficulty: "expert" }),
-    villainCardId: cardId("21137a"),
-  });
+/** Hela's own expert villain (21137a/21137b) is a whole separate card (MC21 p. 20: "Villain deck Hela A (Hela B instead
+ * for expert mode)"), read from `MTS_SCENARIOS`'s `hela.expertVillains`. */
+const expertHelaGame = (seed = 1) => startWave4Game(spectrumScenario("hela", { seed, difficulty: "expert" }));
 
 const heroForm = (state: GameState): GameState =>
   settle(runWave4(state, toHero(P1)), firstLegal, undefined, WAVE4_DEPS);
@@ -609,5 +603,91 @@ describe("the villain/main-scheme interrupt composes with a real scenario game (
     const before = defeatWithAttack(hero, villain.instanceId);
     expect(before.villains[0]!.side).toBe("B"); // Odin was never detached in this short run — flips instead of dying
     expect(before.outcome).toBeNull();
+  });
+});
+
+describe("Hela's scaling (21136a.hela-constant, 21137a.hela-constant)", () => {
+  /** Puts `n` of the scenario's side schemes into the victory display (state surgery for reach only). */
+  const withSideSchemesInVictory = (state: GameState, n: number): GameState => {
+    const schemes = Object.values(state.instances)
+      .filter((i) => state.cardPool[i.cardId]?.type === "side_scheme" && !state.victoryDisplay.includes(i.instanceId))
+      .slice(0, n)
+      .map((i) => i.instanceId);
+    return {
+      ...state,
+      villainArea: state.villainArea.filter((id) => !schemes.includes(id)),
+      encounterSetAside: state.encounterSetAside.filter((id) => !schemes.includes(id)),
+      encounterDecks: Object.fromEntries(
+        Object.entries(state.encounterDecks).map(([k, p]) => [
+          k,
+          {
+            deck: p.deck.filter((id) => !schemes.includes(id)),
+            discard: p.discard.filter((id) => !schemes.includes(id)),
+          },
+        ]),
+      ) as GameState["encounterDecks"],
+      victoryDisplay: [...state.victoryDisplay, ...schemes],
+    };
+  };
+  const hela = (state: GameState) => characterProfile(state, state.villains[0]!.instanceId, WAVE4_DEPS)!;
+  const twoPlayers = (difficulty?: "expert") =>
+    startWave4Game(
+      spectrumScenario("hela", {
+        seed: 1,
+        ...(difficulty ? { difficulty } : {}),
+        extraPlayers: [{ starterDeckId: "core-black-panther-protection" }],
+      }),
+    );
+
+  it("standard: +1 SCH, +1 ATK and +2 per player hit points for each side scheme in victory display, at 0/1/2 schemes and 1 vs 2 players", () => {
+    for (const [game, players] of [
+      [helaGame(1), 1],
+      [twoPlayers(), 2],
+    ] as const) {
+      const base = hela(withSideSchemesInVictory(game, 0));
+      for (const n of [1, 2]) {
+        const scaled = hela(withSideSchemesInVictory(game, n));
+        expect(scaled.maxHp - base.maxHp, `${players}p, ${n} schemes`).toBe(2 * players * n);
+        expect(scaled.atk - base.atk).toBe(n);
+        expect(scaled.sch - base.sch).toBe(n);
+      }
+    }
+  });
+
+  it("expert: +3 per player hit points for each side scheme in victory display", () => {
+    for (const [game, players] of [
+      [expertHelaGame(1), 1],
+      [twoPlayers("expert"), 2],
+    ] as const) {
+      expect(game.villains[0]!.cardId).toBe(cardId("21137a"));
+      const base = hela(game);
+      expect(hela(withSideSchemesInVictory(game, 2)).maxHp - base.maxHp).toBe(3 * players * 2);
+    }
+  });
+});
+
+describe("Odin, King side leaving play (21139b.odin-forced-interrupt)", () => {
+  it("is removed from the game by the engine's double-sided rule, and the King side does not lose the game", () => {
+    const game = heroForm(helaGame(2));
+    const odin = odinId(game);
+    const scheme = game.mainScheme.instanceId;
+    // Odin freed and on his King side, under the first player's control, one hit from defeat (surgery for reach).
+    const staged: GameState = {
+      ...game,
+      players: game.players.map((p) => (p.playerId === P1 ? { ...p, playArea: [...p.playArea, odin] } : p)),
+      instances: {
+        ...game.instances,
+        [scheme]: { ...inst(game, scheme), attachments: inst(game, scheme).attachments.filter((id) => id !== odin) },
+        [odin]: { ...inst(game, odin), attachedTo: null, controllerId: P1 as PlayerId, flipped: true, damage: 5 },
+      },
+    };
+    const pick = (s: GameState) => {
+      const choice = s.pendingChoice;
+      if (choice?.prompt.kind === "declareDefender" && choice.options.some((o) => o.optionId === odin)) return [odin];
+      return firstLegal(s);
+    };
+    const after = settle(runWave4(staged, { type: "endTurn", playerId: P1 }), pick, undefined, WAVE4_DEPS);
+    expect(after.removedFromGame).toContain(odin);
+    expect(after.outcome?.result).not.toBe("loss");
   });
 });

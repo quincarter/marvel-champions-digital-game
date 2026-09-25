@@ -522,6 +522,11 @@ export type ValueSpec =
    */
   | { readonly kind: "sum"; readonly values: readonly ValueSpec[] }
   /**
+   * The product of several values, each read now: "+2[per_hero] hit points for each side scheme in victory display"
+   * (Hela, `mts` 21136a/21137a) is `perPlayer(0, 2)` × `victoryDisplayCount(sideScheme)`. docs/phase7-wave4.md §3.47.
+   */
+  | { readonly kind: "product"; readonly values: readonly ValueSpec[] }
+  /**
    * The least / greatest of several values: "+1 hand size for each facedown encounter card in front of you (to a maximum
    * of +3 hand size)" (Star-Lord's Helmet, `stld` 17010) is `min(count, 3)`; ruling, Mar 30, 2026 (1): that maximum caps
    * the Helmet's own bonus. docs/phase7-wave3.md §3.10.

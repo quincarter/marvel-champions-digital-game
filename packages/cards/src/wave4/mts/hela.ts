@@ -52,6 +52,9 @@ import {
   endGame,
   giveBoostCard,
   modifyAttack,
+  gets,
+  product,
+  perHero,
 } from "../../dsl/index.js";
 
 /**
@@ -72,28 +75,13 @@ import {
  * ever defeated for real (only possible with Odin *not* attached to the main scheme, since the interrupt above
  * would otherwise have intercepted it), the players win (21136a/21137a's own `whenDefeated`, `hela-constant-2`).
  *
- * **`21136a.hela-constant`/`21137a.hela-constant` (the whole first sentence, "gets +1 SCH, +1 ATK and +2[per_hero]/
- * +3[per_hero] hit points for each side scheme in victory display") is a genuine DSL/engine gap, left in
- * `KNOWN_SKIPPED`.** The SCH/ATK clauses alone are `scaled(victoryDisplayCount(query("sideScheme")), { times: 1 })`
- * (or `{times: N}`) — easy. The hit point clause needs the *product* of two values that are each only known at
- * read time: "N per hero" (`ValueSpec.perPlayer`, scaled by the live player count) and "the number of side schemes
- * in victory display right now" (`ValueSpec.count`/`victoryDisplayCount`). `ValueSpec scaled`'s own `times` field is
- * a compile-time `number`, and no `ValueSpec` kind multiplies two other `ValueSpec`s together — every existing
- * scaling primitive (`scaled`, `perPlayer`, `sum`, `min`/`max`) combines a dynamic value with either a constant or
- * another *pre-computed* dynamic value, never two dynamic values as a product. Since this ref's *one* text box
- * bundles the SCH/ATK clauses with the unscriptable HP clause, and "a subtly wrong ability implementation is worse
- * than an unimplemented one" (partial credit here would silently under-scale Hela's hit points), the whole ref stays
- * unscripted rather than half-implementing it. Needs a `game-rules-architect` primitive: a `ValueSpec` kind for the
- * product of two `ValueSpec`s (or a `perPlayer` field that itself accepts a `ValueSpec` for its per-player amount,
- * rather than only a literal `number`).
+ * **`21136a.hela-constant`/`21137a.hela-constant`** ("gets +1 SCH, +1 ATK and +2[per_hero]/+3[per_hero] hit points for
+ * each side scheme in victory display") is `perHero(N)` × `victoryDisplayCount(sideScheme)` (`product`,
+ * docs/phase7-wave4.md §3.47).
  *
- * **`21139b.odin-forced-interrupt` ("Forced Interrupt: When Odin leaves play, remove him from the game") needs no
- * script and is left out of the registry (not a gap — nothing to add).** docs/phase7-wave4.md §3.8: Odin is
- * double-sided, and RRG 1.8 "Double-Sided Card" (p. 17) already sends a double-sided card out of the game on
- * `leavePlay`, generically, with no ability hook to attach a redundant no-op effect to (there is no "when this
- * leaves play" trigger exposed to card scripts at all — the removal happens structurally inside `leavePlay` itself).
- * `packages/engine/src/captive-ally.test.ts`'s own Odin-shaped fixture proves the composition directly. Left in
- * `KNOWN_SKIPPED` with this reasoning, distinct from the genuine gap above.
+ * **`21139b.odin-forced-interrupt`** ("When Odin leaves play, remove him from the game") is `coveredByEngineRule()`:
+ * Odin is double-sided, and RRG 1.8 "Double-Sided Card" (p. 17) already sends a double-sided card leaving play out of
+ * the game (`leavePlay`, docs/phase7-wave4.md §3.8); the test proves the King side ends in `removedFromGame`.
  *
  * **Odin (21139a/b) is scripted exactly on the `captive-ally.test.ts` model** (docs/phase7-wave4.md §3.8, landed
  * 2026-09-24): while not attached to the main scheme, the first player controls him and he doesn't count against
@@ -117,13 +105,8 @@ import {
  * `coveredByEngineRule()`, the same "no ability needed" precedent `wave2/trors/red-skull.ts`'s New World Hydra
  * constant already uses for a similarly-subsumed sentence.
  *
- * **A card-data-pipeline gap, noted but not fixed here (out of scope, `packages/content/**` is off limits):** MC21
- * p. 20's own contents line reads "Villain deck Hela A (Hela B instead for expert mode)" — two distinct printed
- * villain cards (21136 standard, 21137 expert), the same shape `Scenario.expertVillains` already models for Escape
- * the Museum's Collector (`gmw/scenarios.ts`). `MTS_SCENARIOS`'s own `hela` record (`content/src/data/mts/
- * scenarios.ts`) does not set `expertVillains`, so `wave4Scenario("hela", { difficulty: "expert" })` would build
- * with 21136a (the standard villain) regardless of difficulty. This module's own e2e test builds the expert game
- * directly (bypassing `wave4Scenario`) rather than guess at the missing field's value.
+ * **Expert mode** plays the separate expert villain card, 21137a, which `MTS_SCENARIOS`' `hela.expertVillains` names
+ * (MC21 p. 20: "Villain deck Hela A (Hela B instead for expert mode)"; the Escape the Museum Collector shape).
  */
 
 // ---------------------------------------------------------------------------
@@ -319,14 +302,26 @@ const WASTES_OF_NIFFLEHEIM_BOOST = boost(
   }),
 );
 
+/** "Hela gets +1 SCH, +1 ATK and +N[per_hero] hit points for each side scheme in victory display." (21136a/21137a) */
+const helaScales = (hpPerHero: number) => {
+  const fallen = victoryDisplayCount(query("sideScheme"));
+  return constant(
+    gets("sch", fallen, { self: true }),
+    gets("atk", fallen, { self: true }),
+    gets("hp", product(perHero(hpPerHero), fallen), { self: true }),
+  );
+};
+
 export const HELA = defineAbilities({
-  // Hela, Mystic side (standard, 21136a) — scaling ability (`-constant`) is a genuine DSL/engine gap (module
-  // docblock), left unscripted/`KNOWN_SKIPPED`. Win condition (`-constant-2`) is scripted.
+  // Hela, Mystic side (standard, 21136a) — [star] Hela gets +1 SCH, +1 ATK and +2[per_hero] hit points for each side
+  // scheme in victory display (`product`, docs/phase7-wave4.md §3.47). Win condition (`-constant-2`).
+  "21136a.hela-constant": helaScales(2),
   "21136a.hela-constant-2": helaWinsIfOdinIsFree(),
   // Hela, Wounded side (standard, 21136b).
   "21136b.hela-constant": helaCannotBeDefeated(),
   "21136b.hela-forced-response": helaFlipsBackAfterASideSchemeFalls(),
-  // Hela, Mystic side (expert, 21137a) — same shape as 21136a.
+  // Hela, Mystic side (expert, 21137a) — same shape as 21136a, +3[per_hero] hit points.
+  "21137a.hela-constant": helaScales(3),
   "21137a.hela-constant-2": helaWinsIfOdinIsFree(),
   // Hela, Wounded side (expert, 21137b) — same shape as 21136b.
   "21137b.hela-constant": helaCannotBeDefeated(),
@@ -342,6 +337,9 @@ export const HELA = defineAbilities({
   // Odin, King side (21139b) — `-forced-interrupt` needs no script (module docblock), left out of the registry.
   "21139b.odin-constant": ODIN_KING_CONSTANT,
   "21139b.odin-constant-2": ODIN_KING_CONSTANT_2,
+  // "Forced Interrupt: When Odin leaves play, remove him from the game." The engine's double-sided `leavePlay` rule
+  // (docs/phase7-wave4.md §3.8) already does it.
+  "21139b.odin-forced-interrupt": coveredByEngineRule(),
 
   // Side schemes.
   "21140.when-defeated": GNIPAHELLIR_WHEN_DEFEATED,

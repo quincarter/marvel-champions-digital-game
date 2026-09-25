@@ -54,54 +54,18 @@ const KNOWN_SKIPPED: Readonly<Record<string, readonly string[]>> = {
   // Thanos (`mts/thanos.ts`) and the Infinity Gauntlet modular set (`mts/infinity-gauntlet.ts`), the box's third
   // scenario: every ref in scope (the villain, the main scheme, the `thanos` encounter set, and the `infinity_
   // gauntlet` set) resolves; no genuine gap found. Black Order (21100–21110, scripted by Tower Defense) and
-  // Children of Thanos (21125–21128, `mts/children-of-thanos.ts`, Thanos's own other recommended modular): every
-  // ref resolves; no genuine gap found. The Loki scenario and Enchantress modular stay skipped below for that pass.
+  // Children of Thanos (21125–21128, `mts/children-of-thanos.ts`, Thanos's own other recommended modular) and
+  // Enchantress (21177–21179, `mts/enchantress.ts`, one of Loki's own two recommended modulars): every ref
+  // resolves; no genuine gap found.
+  //
+  // The Loki scenario (`mts/loki.ts`, `mts` 21160–21176, the box's fifth): every ref resolves except one genuine
+  // gap. `21175.when-revealed` (Infinite Mischief) needs a scenario-deck-discard-into-itself shuffle on demand —
+  // no `EffectSpec` exposes that (`loki.ts`'s own module docblock; `CardDestination` has `encounterDeckShuffle` and
+  // the per-player `separateDeckShuffle`, nothing for a shared `scenarioDeck`). Its own Boost line is scripted.
   mts: [
-    // hela (mts/hela.ts): every ref below except these two genuine gaps is now scripted.
-    // `21136a.hela-constant`/`21137a.hela-constant`: the villain's own "+2[per_hero]/+3[per_hero] hit points for
-    // each side scheme in victory display" needs a `ValueSpec` that multiplies two dynamic values (a per-player
-    // count by a live card count) — no such primitive exists (`hela.ts`'s own module docblock has the exact gap).
-    "21136a.hela-constant",
-    "21137a.hela-constant",
-    // `21139b.odin-forced-interrupt`: needs no script at all (`hela.ts`'s own module docblock) — the engine's
-    // generic double-sided-card `leavePlay` rule (docs/phase7-wave4.md §3.8) already removes Odin from the game the
-    // moment his King side leaves play, with no "when this leaves play" trigger exposed to attach a redundant
-    // no-op effect to. Left out of the registry rather than pinned as a false "still unscripted" gap.
-    "21139b.odin-forced-interrupt",
     // legions-of-hel.ts and frost-giants.ts (Hela's own two recommended modular sets): every ref resolves; no
     // genuine gap found.
-    "21160.loki-constant",
-    "21160.when-defeated",
-    "21161.when-defeated",
-    "21162.when-defeated",
-    "21163.when-defeated",
-    "21164.loki-constant",
-    "21164.when-defeated",
-    "21165a.setup",
-    "21165b.all-hail-king-loki-forced-interrupt",
-    "21165b.all-hail-king-loki-constant",
-    "21166.when-defeated",
-    "21167.when-defeated",
-    "21168.when-defeated",
-    "21169.when-defeated",
-    "21170.lokis-staff-response",
-    "21170.boost",
-    "21171.lokis-crown-response",
-    "21171.boost",
-    "21172.lokis-cape-forced-response",
-    "21172.lokis-cape-response",
-    "21173.master-of-illusions-forced-interrupt",
-    "21174.when-revealed-alter-ego",
-    "21174.when-revealed-hero",
     "21175.when-revealed",
-    "21175.boost",
-    "21176.when-revealed",
-    "21176.boost",
-    "21177.when-revealed",
-    "21178.beguiled-constant",
-    "21178.when-revealed",
-    "21179.seduced-constant",
-    "21179.seduced-action",
     "21180a.when-defeated",
     "21180b.cosmo-constant",
     "21180b.cosmo-constant-2",
