@@ -5,6 +5,7 @@
  */
 import Phaser from "phaser";
 import type { AnyCard } from "@mc/content";
+import { MTS_CARDS } from "@mc/content";
 import { CARDS_BY_ID } from "../../content/pool.js";
 import { storyFor } from "../../campaign/story.js";
 import { campaignService } from "../../session.js";
@@ -48,13 +49,20 @@ const cardName = (id: string): string => CARDS_BY_ID.get(id)?.name ?? id;
 const cardOf = (id: string): AnyCard | undefined => CARDS_BY_ID.get(id);
 /**
  * A pool card's own type, resolved by name (`campaign-pool-model.ts`'s own doc comment: a pool field names a card,
- * never an id, since a carried-forward card has no id of its own until it's composed into a game). A card whose
- * pack isn't in this build's pool yet (`content/pool.ts`) simply isn't found — `helpsOf`'s own documented default
- * ("helps") applies, so a box lands correctly the moment its pack is wired in, with no change needed here.
+ * never an id, since a carried-forward card has no id of its own until it's composed into a game). Looked up first
+ * against this build's own playable pool (`content/pool.ts`), then against `@mc/content`'s own per-box card data
+ * directly (MC21's `MTS_CARDS`) for a box whose pack isn't wired into the playable pool yet (wave 4, in progress)
+ * — display-only, never used for deck legality or anything a rule depends on, so reading past the pool boundary
+ * here doesn't relitigate it. A card found in neither simply isn't classified: `helpsOf`'s own documented default
+ * ("helps") applies.
  */
+const POOL_CARD_NAME_TYPES = new Map<string, string>([
+  ...[...CARDS_BY_ID.values()].map((card) => [card.name, card.type] as const),
+  ...MTS_CARDS.map((card) => [card.name, card.type] as const),
+]);
 const cardTypeOf = (name: string): { readonly type: string } | undefined => {
-  for (const card of CARDS_BY_ID.values()) if (card.name === name) return { type: card.type };
-  return undefined;
+  const type = POOL_CARD_NAME_TYPES.get(name);
+  return type ? { type } : undefined;
 };
 const heroNameOf = (identityCardId: string): string => {
   const card = cardOf(identityCardId);
@@ -340,7 +348,13 @@ export class CampaignDossierScene extends Phaser.Scene {
 
     const worldX = frame.phone ? pad : frame.width - pad - worldWidth;
     let worldY = frame.phone ? leftY + 16 : body.y + pad;
-    if (loaded.overview.pool && loaded.overview.pool.stillInPlayFor.length > 0) {
+    // Not shown on the empty-pool state (design tile 25): the dashed slot list already names every card that can
+    // still fill the pool, so a second "still in play for" list beside it would only repeat the same rows.
+    if (
+      loaded.overview.pool &&
+      loaded.overview.pool.filledSlots > 0 &&
+      loaded.overview.pool.stillInPlayFor.length > 0
+    ) {
       worldY = this.#stillInPlayForPanel(loaded.overview.pool.stillInPlayFor, {
         x: worldX,
         y: worldY,
@@ -483,20 +497,25 @@ export class CampaignDossierScene extends Phaser.Scene {
    */
   #poolPanel(pool: CampaignPoolOverview, rect: Rect): number {
     let y = rect.y;
-    const headerHeight = 74;
+    const captionLine =
+      pool.filledSlots === 0
+        ? "Empty. Cards you win or let slip land here and come back at setup."
+        : "Everything you carried out of an issue, good or bad. It all comes back at setup.";
+    // Measured invisibly first (a wrapped caption can run to two lines on a narrow phone column), so the header's
+    // own fill/border is drawn before any text lands on top of it — `campaign-chrome.ts`'s own "graphics is a
+    // z-order slot" rule, the same trap `#heroSidePanel`'s stat box avoids above.
+    const measured = this.add
+      .text(0, 0, captionLine, { ...textStyle(typeRole.body, surface.ink.hex, 0.7), fontSize: "11px" })
+      .setWordWrapWidth(rect.width - 24)
+      .setVisible(false);
+    const headerHeight = Math.max(74, 32 + measured.height + 28);
+    measured.destroy();
     const header = this.add.graphics();
     header.fillStyle(0xe4dcc6, 1).fillRect(rect.x, y, rect.width, headerHeight);
     header.lineStyle(2, surface.ink.hex, 1).strokeRect(rect.x, y, rect.width, headerHeight);
     this.add.text(rect.x + 12, y + 8, "THE CAMPAIGN POOL", textStyle(bangers(20), surface.ink.hex));
     this.add
-      .text(
-        rect.x + 12,
-        y + 32,
-        pool.filledSlots === 0
-          ? "Empty. Cards you win or let slip land here and come back at setup."
-          : "Everything you carried out of an issue, good or bad. It all comes back at setup.",
-        { ...textStyle(typeRole.body, surface.ink.hex, 0.7), fontSize: "11px" },
-      )
+      .text(rect.x + 12, y + 32, captionLine, { ...textStyle(typeRole.body, surface.ink.hex, 0.7), fontSize: "11px" })
       .setWordWrapWidth(rect.width - 24);
     const badgeY = y + headerHeight - 24;
     if (pool.filledSlots === 0) {
@@ -517,7 +536,7 @@ export class CampaignDossierScene extends Phaser.Scene {
         [`${pool.hurtsCount} AGAINST YOU`, accent.heroRed.hex],
       ];
       for (const [text, color] of badges) {
-        const badgeWidth = 12 + text.length * 7;
+        const badgeWidth = 20 + text.length * 7;
         const badge = this.add.graphics();
         badge.fillStyle(color, 1).fillRect(bx, badgeY, badgeWidth, 20);
         this.add
@@ -548,9 +567,28 @@ export class CampaignDossierScene extends Phaser.Scene {
       return y - 10;
     }
 
+    const badgeWidth = 110;
+    const textWidth = rect.width - 32 - badgeWidth - 10;
     for (const card of pool.cards) {
-      const rowHeight = 62;
       const stripeColor = card.helps ? signal.heal.hex : accent.heroRed.hex;
+      // Measured invisibly first — a narrow (phone-width) column wraps `destination` to more than one line, so the
+      // row's own height (and the source line under it) must follow the destination's real, wrapped height rather
+      // than a flat guess (the same "measure before drawing the fill" rule `#poolPanel`'s header above follows).
+      const destinationMeasure = this.add
+        .text(0, 0, card.destination, textStyle(typeRole.body, surface.ink.hex, 0.75))
+        .setFontSize(11)
+        .setWordWrapWidth(textWidth)
+        .setVisible(false);
+      const destinationHeight = destinationMeasure.height;
+      destinationMeasure.destroy();
+      const sourceTop = 28 + destinationHeight + 4;
+      const sourceMeasure = this.add
+        .text(0, 0, card.source, { ...textStyle(typeRole.body, surface.ink.hex, 0.5), fontSize: "9px" })
+        .setWordWrapWidth(textWidth)
+        .setVisible(false);
+      const rowHeight = Math.max(62, sourceTop + sourceMeasure.height + 10);
+      sourceMeasure.destroy();
+
       const box = this.add.graphics();
       box.fillStyle(surface.card.hex, 1).fillRect(rect.x, y, rect.width, rowHeight);
       box.lineStyle(2, surface.ink.hex, 1).strokeRect(rect.x, y, rect.width, rowHeight);
@@ -559,12 +597,14 @@ export class CampaignDossierScene extends Phaser.Scene {
       this.add
         .text(rect.x + 16, y + 28, card.destination, textStyle(typeRole.body, surface.ink.hex, 0.75))
         .setFontSize(11)
-        .setWordWrapWidth(rect.width - 190);
+        .setWordWrapWidth(textWidth);
       this.add
-        .text(rect.x + 16, y + 46, card.source, { ...textStyle(typeRole.body, surface.ink.hex, 0.5), fontSize: "9px" })
-        .setWordWrapWidth(rect.width - 190);
+        .text(rect.x + 16, y + sourceTop, card.source, {
+          ...textStyle(typeRole.body, surface.ink.hex, 0.5),
+          fontSize: "9px",
+        })
+        .setWordWrapWidth(textWidth);
       const badgeText = card.helps ? "ON YOUR SIDE" : "AGAINST YOU";
-      const badgeWidth = 110;
       const badgeRect: Rect = { x: rect.x + rect.width - badgeWidth - 10, y: y + 8, width: badgeWidth, height: 18 };
       const badge = this.add.graphics();
       badge.fillStyle(stripeColor, 1).fillRect(badgeRect.x, badgeRect.y, badgeRect.width, badgeRect.height);

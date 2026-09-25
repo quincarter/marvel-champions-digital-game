@@ -31,6 +31,7 @@ import { formFactorFor } from "../../view/layout.js";
 import { briefingViewOf, type BriefingView, type HandledRow } from "../../view/campaign-briefing-model.js";
 import type { BriefingPoolRow, BriefingPoolView } from "../../view/campaign-pool-model.js";
 import { isMarketPendingChoice } from "../../view/campaign-market-model.js";
+import { MTS_CARDS } from "@mc/content";
 import { CARDS_BY_ID } from "../../content/pool.js";
 import { appSession, campaignService } from "../../session.js";
 import type { CampaignRecord } from "../../engine/campaign-storage.js";
@@ -40,9 +41,13 @@ import type { CampaignBriefingData } from "./routes.js";
 
 const cardName = (id: string): string => CARDS_BY_ID.get(id)?.name ?? id;
 /** See `scenes/campaign/dossier.ts`'s own copy of this helper — a pool field names a card by name, never an id. */
+const POOL_CARD_NAME_TYPES = new Map<string, string>([
+  ...[...CARDS_BY_ID.values()].map((card) => [card.name, card.type] as const),
+  ...MTS_CARDS.map((card) => [card.name, card.type] as const),
+]);
 const cardTypeOf = (name: string): { readonly type: string } | undefined => {
-  for (const card of CARDS_BY_ID.values()) if (card.name === name) return { type: card.type };
-  return undefined;
+  const type = POOL_CARD_NAME_TYPES.get(name);
+  return type ? { type } : undefined;
 };
 
 export class CampaignBriefingScene extends Phaser.Scene {
