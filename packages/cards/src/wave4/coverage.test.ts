@@ -3,12 +3,13 @@
  * which packs are fully scripted, which are not started, and — for a pack that isn't started — nothing resolves
  * that isn't already covered by an earlier wave.
  */
-import { MTS_CARDS, NEBU_CARDS, VISION_CARDS, WARM_CARDS, type AnyCard } from "@mc/content";
+import { MTS_CARDS, NEBU_CARDS, VALK_CARDS, VISION_CARDS, WARM_CARDS, type AnyCard } from "@mc/content";
 import type { AbilityRegistry } from "@mc/engine";
 import { WAVE3_ABILITIES } from "../wave3/index.js";
 import { WAVE4_ABILITIES } from "./index.js";
 import { MTS_ABILITIES } from "./mts/index.js";
 import { NEBU_ABILITIES } from "./nebu/index.js";
+import { VALK_ABILITIES } from "./valk/index.js";
 import { VISION_ABILITIES } from "./vision/index.js";
 import { WARM_ABILITIES } from "./warm/index.js";
 import { abilityRefIds } from "../ability-refs.js";
@@ -23,6 +24,7 @@ describe("wave 4 ability registry", () => {
 const PACK_STATUS: Readonly<Record<string, "scripted" | "in progress" | "not started">> = {
   nebu: "scripted",
   warm: "scripted",
+  valk: "scripted",
   vision: "scripted",
   mts: "in progress",
 };
@@ -36,6 +38,14 @@ const PACK_STATUS: Readonly<Record<string, "scripted" | "in progress" | "not sta
  * mts scenario passes (wave 4 step 3)" — a reason the next agent removes as that ref lands.
  */
 const KNOWN_SKIPPED: Readonly<Record<string, readonly string[]>> = {
+  // valk: Powerful Enchantments (25030), "Players cannot discard attachments that are attached to friendly
+  // characters." No primitive exists for preventing a category of cards from being *discarded* as a target or cost
+  // pick short of the absolute `RuleSpec cannotLeavePlay` (`packages/engine/src/abilities.ts`), which would also
+  // block the host's own defeat from discarding its attachments and every other way such a card could leave play —
+  // not only being chosen for discard, which is all the printed sentence restricts. A `game-rules-architect`
+  // follow-up needs a narrower "cannot be chosen to discard" rule, the in-play sibling of the existing hand-only
+  // `cannotChooseToDiscard`. Its Hinder keyword is data, not this ref.
+  valk: ["25030.powerful-enchantments-constant"],
   // nebu: both of its earlier primitive gaps (an in-play "discard cards you control" cost kind, and a friendly
   // character attacking its own controller without exhausting) landed since (`nebula-obligation-nemesis.ts` now
   // scripts both 22030.lethal-weapon-action and 22031.when-revealed); nothing left unresolved.
@@ -283,6 +293,7 @@ const KNOWN_SKIPPED: Readonly<Record<string, readonly string[]>> = {
 const PACKS: ReadonlyArray<{ readonly code: string; readonly cards: readonly AnyCard[] }> = [
   { code: "nebu", cards: NEBU_CARDS },
   { code: "warm", cards: WARM_CARDS },
+  { code: "valk", cards: VALK_CARDS },
   { code: "vision", cards: VISION_CARDS },
   { code: "mts", cards: MTS_CARDS },
 ];
@@ -342,6 +353,7 @@ describe("wave 4 pack ability id coverage (every registered ability id is named 
   const PACKS_WITH_OWN_REGISTRIES: ReadonlyArray<{ readonly code: string; readonly registry: AbilityRegistry }> = [
     { code: "nebu", registry: NEBU_ABILITIES },
     { code: "warm", registry: WARM_ABILITIES },
+    { code: "valk", registry: VALK_ABILITIES },
     { code: "vision", registry: VISION_ABILITIES },
     { code: "mts", registry: MTS_ABILITIES },
   ];
