@@ -421,7 +421,7 @@ and found it fits. Checked against the real cards:
 
 > **Status: scripted (2026-09-25).** Every `hood` ability ref resolves (`KNOWN_SKIPPED.hood` is empty and `PACK_STATUS`
 > is `"scripted"` in `packages/cards/src/wave4/coverage.test.ts`): the villain, main scheme and The Hood's set, the nine
-> modular sets, and Standard II / Expert II (§4 Q5), with §3.50–§3.59 built for the last gaps. **E2E:**
+> modular sets, and Standard II / Expert II (§4 Q5), with §3.50–§3.60 built for the last gaps. **E2E:**
 > `packages/cards/src/wave4/hood/e2e.test.ts` plays Spider-Man (standard, solo), Spider-Man and Captain Marvel
 > (standard, two players) and Spider-Man in expert with Standard II and Expert II to a real outcome with the greedy
 > driver, replays each log to a deep-equal state, runs the villain-phase audit clean, and checks every modular set the
@@ -501,6 +501,7 @@ stays data only.**
 | 3.57 | Icons gained from constant abilities                                         | Secret Lair; Coordinated Effort, Mad Science, Bora, Rule by Force            | landed  |
 | 3.58 | "Attach to X. If you cannot, …" as a When Revealed                           | Flamethrower, Holoshield Generator, Jetpack, Tech Gauntlets (scripting bug)  | checked |
 | 3.59 | "If no minion was put into play this way"                                    | Crime Pays; Surprise!, Sinister Beatdown, Shadow of the Past                 | landed  |
+| 3.60 | "If no tough status card was given this way"                                 | Magic Muscle (scripting bug); Tough It Out (`nova`)                          | landed  |
 
 ### 3.1 Additional forms: the form keyword
 
@@ -1907,6 +1908,26 @@ today read from the selected count).
 > in play to slot `bind`, their number to `<bind>.count`. **DSL:** `putIntoPlay(card, controller, { bind })`.
 > **Scripted:** `24042.when-revealed`; White Rabbit's boost `24047.boost` is `discardFromHand` with `identitySetOf: you`
 > (wave 2, reusable as is).
+
+### 3.60 "If no tough status card was given this way"
+
+Magic Muscle (`hood` 24070): "When Revealed: Give each [Brute] enemy in play a tough status card. If no tough status
+card was given this way, discard cards from the top of the encounter deck until a [Brute] minion is discarded and
+reveal that minion." A character holds at most one tough card (RRG 1.8 "Status Cards"), and `giveStatus` gives nothing
+to one already at capacity, so "given" is what the give reports, not whether a Brute exists. **A scripting bug found in
+QA (docs/phase7-wave4-qa.md Checkpoint 7):** 24070 was `ifThen(exists(BRUTE_ENEMY), giveTough(...), [fallback])`, so a
+lone Brute already holding a tough card made the card do nothing. Survey ("given this way" / "status card … given" in
+every raw pack): Magic Muscle and Tough It Out (`nova` 28032, "If 1 or fewer tough status cards were given this way,
+this card gains surge", not yet scripted). The "if it is already stunned/confused" cards (Electric Arrow, Scorpion,
+Senyaka, Upside the Head, …) are a pre-check on the target, not a count, and Uncanny Resilience (`twc` 07045, "If no
+status cards were removed") is already read as "none held" before the removal.
+
+> **Status: landed (2026-09-25),** tested in `packages/engine/src/give-status-bind.test.ts` (3 tests: two minions with
+> none given 2 and skip the fallback; one already tough gives 1 and skips it; both already tough give 0, and the
+> fallback runs) and in `wrecking-crew.test.ts` (the former `it.fails` pin, now a plain `it`: Wrecker already tough,
+> Magic Muscle discards to Piledriver and reveals it). **What landed:** **`giveStatus.bind`**: `<bind>.amount` is how
+> many status cards were given, summed over the targets; the DSL validator knows the binding. **DSL:**
+> `giveStatus(target, status, { bind })`, `giveTough(target, { bind })`. **Scripted:** `24070.when-revealed`.
 
 ## 4. Open questions (for the user or FFG)
 

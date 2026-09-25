@@ -20,7 +20,8 @@ import {
   isMinion,
   traitsOf,
   keywordsOf,
-  mainSchemeStage,
+  mainSchemeStageOf,
+  mainSchemeStateOf,
   maxHitPoints,
   activeEncounterDeck,
   activeVillain,
@@ -220,6 +221,12 @@ export interface SchemePanel {
    */
   readonly tuckedCount: number;
   readonly art: ArtSource | null;
+  /**
+   * Cards attached to this scheme — Odin attached to the main scheme, captive side faceup (Hela, `mts` 21139a,
+   * docs/phase7-wave4.md §3.8), and Focused Defense attached to whichever main scheme is currently active (Tower
+   * Defense, §3.2). Empty for every scheme nothing is attached to, which is every scheme before wave 4.
+   */
+  readonly attachments: readonly AttachmentChip[];
 }
 
 /**
@@ -266,6 +273,13 @@ export interface EnvironmentPanel {
   /** Every counter kind on the card, with its count: `[{ name: "infamy", count: 4 }]`. */
   readonly counters: readonly { readonly name: string; readonly count: number }[];
   readonly art: ArtSource | null;
+  /**
+   * Damage placed on this environment (Avengers Tower, Tower Defense's own "Forced Response: After damage is
+   * placed here...", `mts` 21100a, docs/phase7-wave4.md §5) — 0 for every environment nothing damages, which is
+   * every environment before wave 4. An environment prints no HP of its own (unlike a character), so this is a
+   * running count, not a fraction of a max.
+   */
+  readonly damage: number;
 }
 
 /**
@@ -365,12 +379,22 @@ export interface BoardModel {
    */
   readonly villains: readonly VillainPanel[];
   readonly mainScheme: SchemePanel;
+  /**
+   * Other main schemes active at the same time as `mainScheme` — Tower Defense's own two (`mts` 21098a, MC21 p. 10:
+   * "Both main schemes are active each round"), empty for every other scenario (`GameState.extraMainSchemes`,
+   * docs/phase7-wave4.md §3.2). Each is a full main scheme: it gains threat, feels acceleration/crisis icons, and
+   * can be completed, the same as `mainScheme` — the board must show both, or a second main scheme accelerating
+   * unseen would look like nothing happened.
+   */
+  readonly extraMainSchemes: readonly SchemePanel[];
   readonly sideSchemes: readonly SchemePanel[];
   readonly minions: readonly CharacterPanel[];
   /** Environment cards in the villain area, in play order. Empty for every scenario that uses none. */
   readonly environments: readonly EnvironmentPanel[];
   /** The scenario's own out-of-play areas (The Collection, docs/phase7-wave3.md §3.14). Empty for every scenario that has none. */
   readonly scenarioAreas: readonly ScenarioAreaPanel[];
+  /** Every named scenario deck in play — the Infinity Stone deck (`GameState.scenarioDecks`). Empty for every scenario that has none. */
+  readonly scenarioDecks: readonly ScenarioDeckPanel[];
   readonly me: CharacterPanel;
   readonly myForm: Form;
   readonly myPlayArea: readonly CharacterPanel[];
@@ -503,12 +527,14 @@ export function boardModel(state: GameState, perspectiveId: PlayerId, deps: Engi
     villain: characterPanel(state, activeVillain(state).instanceId, deps),
     villains: villainPanels(state, deps),
     mainScheme: schemePanel(state, state.mainScheme.instanceId, deps, true),
+    extraMainSchemes: (state.extraMainSchemes ?? []).map((scheme) => schemePanel(state, scheme.instanceId, deps, true)),
     sideSchemes,
     minions: minionsOf(state).map((id) => characterPanel(state, id, deps)),
     environments: state.villainArea
       .filter((id) => cardOf(state, id)?.type === "environment")
       .map((id) => environmentPanel(state, id)),
     scenarioAreas: scenarioAreaPanels(state),
+    scenarioDecks: scenarioDeckPanels(state),
     me: characterPanel(state, me.identity.instanceId, deps),
     myForm: me.identity.form,
     // An attachment is drawn on its host — except an upgrade on your own
@@ -634,23 +660,7 @@ export function characterPanel(state: GameState, id: InstanceId, deps: EngineDep
     disabledActions: statuses
       .map(({ status }) => STATUS_DISABLES[status])
       .filter((action): action is "attack" | "thwart" => action !== null),
-    attachments: instance.attachments.map((attachmentId) => {
-      const attachmentInstance = getInstance(state, attachmentId);
-      const faceup = attachmentInstance?.faceup ?? true;
-      return {
-        instanceId: attachmentId,
-        // `currentName` (not the printed `card.name`): a flippable "form" upgrade (Vision's mass form, docs/phase7-
-        // wave4.md §3.1) shows its other face's name once flipped — "Dense" once Density Manipulation flips it over,
-        // not the "Intangible" it printed at setup. A facedown one (Spectrum's own inactive energy forms, §5) names
-        // nothing, the same as the card's own picture in play.
-        name: faceup
-          ? (currentName(state, attachmentId) ?? cardOf(state, attachmentId)?.name ?? "Attachment")
-          : "Facedown card",
-        exhausted: attachmentInstance?.exhausted ?? false,
-        counters: countersOf(state, attachmentId),
-        faceup,
-      };
-    }),
+    attachments: attachmentChipsOf(state, instance),
     counters: countersOf(state, id),
     ownerName:
       instance.ownerId !== null && instance.controllerId !== null && instance.ownerId !== instance.controllerId
@@ -870,29 +880,41 @@ export function schemePanel(state: GameState, id: InstanceId, _deps: EngineDeps,
   const instance = getInstance(state, id);
   if (!instance) throw new Error(`no card instance ${id}`);
   const card = cardOf(state, id);
-  // Crisis is a printed icon in the threat box (RRG "Crisis Icon"), not a keyword.
-  const crisis =
-    card?.type === "side_scheme" ? card.icons.includes("crisis") : mainSchemeStage(state).icons.includes("crisis");
 
   if (isMain) {
-    const stage = mainSchemeStage(state);
-    const accel = state.mainScheme.accelerationTokens;
+    // `mainSchemeStateOf` (not `state.mainScheme` unconditionally): Tower Defense's own second main scheme
+    // (`GameState.extraMainSchemes`, docs/phase7-wave4.md §3.2) has its own stage index and acceleration tokens,
+    // not the central scheme's — reading `state.mainScheme` here regardless of `id` would draw both main scheme
+    // panels identically, borrowing the central one's numbers for the other.
+    const scheme = mainSchemeStateOf(state, id) ?? state.mainScheme;
+    const stage = mainSchemeStageOf(state, scheme);
+    const accel = scheme.accelerationTokens;
+    const attachments = attachmentChipsOf(state, instance);
+    // Odin (Hela, docs/phase7-wave4.md §3.8) and Focused Defense (Tower Defense, §3.2) are printed abilities that
+    // attach to a main scheme rather than a character — the subtitle line is the only room a scheme panel has for
+    // this, the same "· X tucked" pattern already appends here.
+    const attachedNote = attachments.length > 0 ? ` · ${attachments.map((a) => a.name).join(", ")}` : "";
     return {
       instanceId: id,
       name: stage.name ?? card?.name ?? "Main scheme",
-      subtitle: `Main scheme ${state.mainScheme.stageIndex + 1}${accel > 0 ? ` · Accel ×${accel}` : ""}${instance.tucked.length > 0 ? ` · ${instance.tucked.length} tucked` : ""}`,
+      subtitle: `Main scheme ${scheme.stageIndex + 1}${accel > 0 ? ` · Accel ×${accel}` : ""}${instance.tucked.length > 0 ? ` · ${instance.tucked.length} tucked` : ""}${attachedNote}`,
       threat: instance.threat,
       // The stage's target threat, scaled the way the engine scales it: the
       // player count is fixed at setup, so eliminations don't change it.
       target: scale(stage.targetThreat, state.startingPlayerCount),
       meterMax: scale(stage.targetThreat, state.startingPlayerCount),
       isMain: true,
-      crisis,
+      // Crisis is a printed icon in the threat box (RRG "Crisis Icon"), not a keyword.
+      crisis: stage.icons.includes("crisis"),
       accelerationTokens: accel,
       tuckedCount: instance.tucked.length,
       art: artFor(card, faceOf(state, id)),
+      attachments,
     };
   }
+
+  // Crisis is a printed icon in the threat box (RRG "Crisis Icon"), not a keyword.
+  const crisis = card?.type === "side_scheme" ? card.icons.includes("crisis") : false;
 
   // A signature side scheme (The Wrecking Crew's Thunderstruck, Pile It On!, …) is tied to one villain (`VillainState.
   // signatureSideSchemeId`), and the table has to say whose: with four in play at once under one "side schemes"
@@ -918,7 +940,30 @@ export function schemePanel(state: GameState, id: InstanceId, _deps: EngineDeps,
     accelerationTokens: 0,
     tuckedCount: instance.tucked.length,
     art: artFor(card, { kind: "front" }),
+    attachments: attachmentChipsOf(state, instance),
   };
+}
+
+/**
+ * `CardInstance.attachments`, as chips — shared by `characterPanel` and `schemePanel`: Odin attached to the main
+ * scheme captive-side faceup (Hela, `mts` 21139a, docs/phase7-wave4.md §3.8) and Focused Defense attached to
+ * whichever main scheme is active (Tower Defense, `mts` 21101, §3.2) are both scheme attachments, not character
+ * ones, and used to be invisible for it — `SchemePanel` had no `attachments` field at all.
+ */
+function attachmentChipsOf(state: GameState, instance: CardInstance): readonly AttachmentChip[] {
+  return instance.attachments.map((attachmentId): AttachmentChip => {
+    const attachmentInstance = getInstance(state, attachmentId);
+    const faceup = attachmentInstance?.faceup ?? true;
+    return {
+      instanceId: attachmentId,
+      name: faceup
+        ? (currentName(state, attachmentId) ?? cardOf(state, attachmentId)?.name ?? "Attachment")
+        : "Facedown card",
+      exhausted: attachmentInstance?.exhausted ?? false,
+      counters: countersOf(state, attachmentId),
+      faceup,
+    };
+  });
 }
 
 /**
@@ -928,6 +973,37 @@ export function schemePanel(state: GameState, id: InstanceId, _deps: EngineDeps,
  * is absent until a scenario's own Setup creates one, so this reads as `[]` rather than needing a special case at
  * every call site.
  */
+/**
+ * A named scenario deck (`GameState.scenarioDecks`, docs/phase7-wave2.md §3.3) — the Infinity Stone deck (`mts`
+ * MC21 p. 16: every card printing the Infinity Stone trait, built from the encounter deck at setup with no card
+ * text asking, docs/phase7-wave4.md §3.6). The board had no zone for one at all before this wave: the deck itself
+ * is facedown like any encounter deck, and its own discard pile is separate from the encounter discard (a stone
+ * that resolves its own Special boost text is placed "in the infinity stone deck discard pile" by name, not the
+ * ordinary one).
+ */
+export interface ScenarioDeckPanel {
+  readonly name: string;
+  readonly deckCount: number;
+  readonly discardCount: number;
+  /** Faceup, like every discard pile (`view/visibility.ts`). Null with an empty pile. */
+  readonly discardTopInstanceId: InstanceId | null;
+  readonly discardTopArt: ArtSource | null;
+}
+
+/** Every scenario deck in play, by name, in `GameState.scenarioDecks`' own (insertion) order. */
+export function scenarioDeckPanels(state: GameState): readonly ScenarioDeckPanel[] {
+  return Object.entries(state.scenarioDecks ?? {}).map(([name, deck]) => {
+    const topId = deck.discard[0] ?? null;
+    return {
+      name,
+      deckCount: deck.deck.length,
+      discardCount: deck.discard.length,
+      discardTopInstanceId: topId,
+      discardTopArt: topId ? artFor(cardOf(state, topId), faceOf(state, topId)) : null,
+    };
+  });
+}
+
 export function scenarioAreaPanels(state: GameState): readonly ScenarioAreaPanel[] {
   return Object.entries(state.scenarioAreas ?? {}).map(([name, instanceIds]) => ({
     name,
@@ -939,13 +1015,15 @@ export function scenarioAreaPanels(state: GameState): readonly ScenarioAreaPanel
 
 export function environmentPanel(state: GameState, id: InstanceId): EnvironmentPanel {
   const card = cardOf(state, id);
+  const damage = getInstance(state, id)?.damage ?? 0;
   return {
     instanceId: id,
     // `currentName`, not `card.name`: a flipped card is a different card as far as the table is concerned.
     name: currentName(state, id) ?? card?.name ?? "Environment",
-    subtitle: "Environment",
+    subtitle: damage > 0 ? `Environment · ${damage} damage` : "Environment",
     counters: countersOf(state, id),
     art: artFor(card, faceOf(state, id)),
+    damage,
   };
 }
 

@@ -349,6 +349,8 @@ export {
   printedHandSize,
   locateCard,
   mainSchemeStage,
+  mainSchemeStageOf,
+  mainSchemeStateOf,
   mainSchemeValue,
   startingThreatOf,
   minionsEngagedWith,

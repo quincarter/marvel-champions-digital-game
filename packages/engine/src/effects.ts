@@ -124,14 +124,19 @@ export function healDamage(ctx: Ctx, targetId: InstanceId, amount: number): void
   emit(ctx, { type: "damageHealed", targetInstanceId: targetId, amount: healed });
 }
 
-/** RRG "Status Cards": one of each type, two for steady, none for stalwart. */
-export function giveStatus(ctx: Ctx, id: InstanceId, status: StatusName): void {
+/**
+ * RRG "Status Cards": one of each type, two for steady, none for stalwart. Returns whether a card was given — a
+ * character already at capacity gets nothing ("if no tough status card was given this way", docs/phase7-wave4.md
+ * §3.60).
+ */
+export function giveStatus(ctx: Ctx, id: InstanceId, status: StatusName): boolean {
   const instance = mustInstance(ctx.state, id);
   const capacity = statusCapacity(ctx.state, id, status, ctx.deps);
-  if (instance.statuses[status] >= capacity) return;
+  if (instance.statuses[status] >= capacity) return false;
   const held = instance.statuses[status] + 1;
   updateInstance(ctx, id, (i) => ({ ...i, statuses: { ...i.statuses, [status]: held } }));
   emit(ctx, { type: "statusGiven", instanceId: id, status });
+  return true;
 }
 
 export function removeStatus(ctx: Ctx, id: InstanceId, status: StatusName): void {
