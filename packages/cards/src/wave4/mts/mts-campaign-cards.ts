@@ -3,12 +3,15 @@ import { trait } from "@mc/content";
 import {
   action,
   alterEgoAction,
+  anyOfCards,
+  cards,
   chooseCards,
+  chosen,
   constant,
   coveredByEngineRule,
   defineAbilities,
   discardFromHand,
-  each,
+  encounterCards,
   encounterSetAside,
   exists,
   flipCard,
@@ -29,10 +32,14 @@ import {
   hasTrait,
   on,
   perHero,
+  putIntoPlay,
   query,
   ready,
+  selectCards,
   self,
+  setAside,
   shuffleDeck,
+  shuffleEncounterDeck,
   spend,
   thatPlayer,
   eachPlayer,
@@ -195,7 +202,7 @@ export const MTS_CAMPAIGN_CARDS = defineAbilities({
       {
         kind: "threatCannotBeRemoved",
         target: query("sideScheme", { name: "Find the Norn Stones" }),
-        while: not(hasTrait(each(query("villain")), WOUNDED)),
+        while: not(hasTrait(named("Hela"), WOUNDED)),
       },
     ] satisfies readonly RuleSpec[],
   }),
@@ -204,8 +211,13 @@ export const MTS_CAMPAIGN_CARDS = defineAbilities({
   // face already is its Setup side.)
   "21186a.when-defeated": whenDefeated(
     forEachPlayer(eachPlayer, [
-      { kind: "selectCards", slot: "nornstone", cards: encounterSetAside({ name: "Norn Stone" }) },
-      { kind: "putIntoPlay", card: { kind: "slot", slot: "nornstone" }, controller: thatPlayer },
+      selectCards("nornstone", encounterSetAside({ name: "Norn Stone" })),
+      // `putIntoPlay`'s own ownerless-non-minion branch treats an unowned card as an encounter-side reveal
+      // (RRG 1.8 "Enters Play"); this card is a player upgrade with no owner yet (it comes from the shared
+      // `encounterSetAside` pool, never anyone's deck), so ownership is assigned first (`assignOwnerTo`) to take
+      // the ordinary "player card, put under a controller" path instead.
+      grantOwnedCards(cards(chosen("nornstone")), "hand", thatPlayer),
+      putIntoPlay(chosen("nornstone"), thatPlayer),
     ]),
     flipCard(self),
   ),
@@ -246,19 +258,15 @@ export const MTS_CAMPAIGN_CARDS = defineAbilities({
   // nemesis minion and put it into play engaged with you. Shuffle the encounter deck." (`toafk/kang.ts`'s own
   // 11013b precedent for the identification half, `TargetQuery.nemesisMinionOf`.)
   "21188.when-revealed": whenRevealed(
-    {
-      kind: "selectCards",
-      slot: "nemesis",
-      cards: {
-        kind: "anyOf",
-        of: [
-          { kind: "encounter", zones: ["deck", "discard"], filter: { categories: ["minion"], nemesisMinionOf: you } },
-          { kind: "setAside", player: you, filter: { categories: ["minion"], nemesisMinionOf: you } },
-        ],
-      },
-    },
-    { kind: "putIntoPlay", card: { kind: "slot", slot: "nemesis" }, controller: you },
-    { kind: "shuffleEncounterDeck" },
+    selectCards(
+      "nemesis",
+      anyOfCards(
+        encounterCards(["deck", "discard"], query("minion", { nemesisMinionOf: you })),
+        setAside(you, query("minion", { nemesisMinionOf: you })),
+      ),
+    ),
+    putIntoPlay(chosen("nemesis"), you),
+    shuffleEncounterDeck(),
   ),
 
   // --- Open the Dungeons (21189a) / Jormungand (21189b) ----------------------------------------------------------
@@ -271,7 +279,9 @@ export const MTS_CAMPAIGN_CARDS = defineAbilities({
         max: 1,
         chooser: thatPlayer,
       }),
-      { kind: "putIntoPlay", card: { kind: "slot", slot: "captive" }, controller: thatPlayer },
+      // Same ownerless-non-minion `putIntoPlay` branch as Norn Stone above: assign ownership first.
+      grantOwnedCards(cards(chosen("captive")), "hand", thatPlayer),
+      putIntoPlay(chosen("captive"), thatPlayer),
     ]),
     flipCard(self),
   ),
