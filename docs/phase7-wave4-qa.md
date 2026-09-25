@@ -458,3 +458,44 @@ weak test" reading each time, which is the basis for extending that judgment to 
 - `packages/cards/src/wave4/hood/hood.test.ts`, `hood/sinister-syndicate.test.ts`, `hood/wrecking-crew.test.ts`,
   `mts/spectrum-kit.test.ts`, `mts/spectrum-obligation-nemesis.test.ts`, `mts/thanos.test.ts` — the fixes above.
 - `docs/phase7-wave4-qa.md` — this section.
+
+## Checkpoint 5: pass 3, item 2 — full printed-text-vs-script audits, `warm` then `valk`
+
+**Both packs read in full, script against `docs/cards/by_pack/{warm,valk}.md`. No findings in either pack.**
+
+### `warm` (War Machine) — clean
+
+`war-machine-kit.ts` (identity 23001a/b, full kit 23002–23011), `war-machine-obligation-nemesis.ts` (Equipment
+Malfunction 23028, Living Laser 23029, Deadly Light Show 23030, Laser Strike 23031), `war-machine-pack-cards.ts`
+(23012–23027, 23032–23035) — every ability read against its printed text for target, "you" vs. "each player",
+may/must, timing word, cost vs. effect, keyword, and the "already X"/"if you cannot" ordering pattern. Nothing
+found: the ammo-counter mechanic's every printed line matches its script exactly (including the two-step "move all
+ammo here to War Machine" reading, documented as intentional in the module's own docblock), Equipment Malfunction's
+"if 2 or fewer were removed" checks the counter count _before_ the removal effect runs, and Laser Strike's boost
+correctly has no surge fallback (only its own When Revealed prints one).
+
+### `valk` (Valkyrie) — clean
+
+`valkyrie-kit.ts` (identity 25001a/b, full kit 25002–25012), `valkyrie-obligation-nemesis.ts` (Trouble in
+Otherworld 25028, Enchantress 25029, Powerful Enchantments 25030, Beguiled 25031, Seduced 25032),
+`valkyrie-pack-cards.ts` (25013–25024, 25033–25036) — same method. Nothing found: the Death-Glow "attached enemy"
+query is shared and correctly scoped everywhere it's read (Valhalla, Valkyrie's Spear, Dragonfang, Flight of the
+Valkyrior, Shieldmaiden, Have at Thee!), Death-Glow's own "ready her" correctly reads `extensionOf` rather than a
+literal identity match (matching §4 Q14's own decided reading), Seduced's "cannot make basic attacks or play attack
+events" is scripted as the two separate restrictions it prints (not just one), and Beguiled's "if you cannot
+[attach]" correctly reads the same `isAttached` predicate the module cites as precedent from `wave1/gob`.
+
+### What this checkpoint did not do
+
+`hood` was not started this checkpoint (see the next checkpoint for whether it was reached, or the coordinator's
+plan to run a separate parallel agent on the rest of `mts` — this pass did not touch `mts` further this checkpoint,
+per the coordinator's own instruction not to duplicate that agent's work).
+
+### Test counts, checkpoint 5
+
+No test files were changed this checkpoint (a read-only audit); the full suite was not re-run since nothing was
+touched. `pnpm check`-equivalent state is unchanged from checkpoint 4's own clean run.
+
+### Files touched, checkpoint 5
+
+- `docs/phase7-wave4-qa.md` — this section only (no code changes; `warm` and `valk` came out clean).
