@@ -18,6 +18,7 @@ import type {
   StatModifierSpec,
   StatName,
   TargetQuery,
+  ValueSpec,
   InPlayCostPick,
   PlayerRef,
   TraitGrantSpec,
@@ -503,6 +504,14 @@ export const ignores = (
 export const treatAttachedMinionAsAlly = (traits: readonly Trait[], consequential: number): ConstantPart => ({
   rules: [{ kind: "treatHostAsAlly", traits, thwFromSch: true, consequential }],
 });
+/**
+ * "Players cannot discard attachments that are attached to friendly characters." (Powerful Enchantments, `valk`
+ * 25030): `constant(playersCannotDiscard(query))`. A player's ability does not discard a matching card; its host's
+ * defeat and encounter effects still do. docs/phase7-wave4.md §3.44.
+ */
+export const playersCannotDiscard = (target: TargetQuery): ConstantPart => ({
+  rules: [{ kind: "playersCannotDiscard", target }],
+});
 /** "You cannot choose to discard this card from your hand." (System Shock): `inHand(constant(cannotChooseToDiscard))`. */
 export const cannotChooseToDiscard: ConstantPart = { rules: [{ kind: "cannotChooseToDiscard" }] };
 export const focusedMainScheme = (): ConstantPart => rule({ kind: "focusedMainScheme", scheme: { kind: "host" } });
@@ -698,7 +707,8 @@ export const removeUpToCounters = (
  * deck can supply every card; an empty deck with a discard pile is reset first, and a deck the cost empties is reset
  * at once (RRG 1.8 "Player Deck", p. 33; ruling, Apr 30, 2026 (3) answer 7).
  */
-export const discardTopOfDeckCost = (n = 1): AbilityCost => ({ discardFromDeck: n });
+/** "Discard the top N cards of your deck →"; a value for "discard that many cards" (Shield Spell, §3.42 of wave 4). */
+export const discardTopOfDeckCost = (n: number | ValueSpec = 1): AbilityCost => ({ discardFromDeck: n });
 /**
  * "Choose to either exhaust your hero or spend 2 resources of any type →" (The Grand Collection 1B, `gmw` 16073b;
  * docs/phase7-wave3.md §3.36): exactly one branch is paid, the player's choice (`costSelection.branch`, the branch's

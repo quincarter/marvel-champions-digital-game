@@ -122,6 +122,10 @@ export function pushEffects(
     readonly bindings?: Bindings;
     readonly vars?: Vars;
     readonly scopedPlayerId?: PlayerId | null;
+    /** A branch whose bindings go back to this frame when it finishes (docs/phase7-wave4.md §3.43). */
+    readonly returnBindingsTo?: FrameId;
+    /** The effects of an ability a player uses (docs/phase7-wave4.md §3.44). */
+    readonly byPlayer?: boolean;
   },
 ): void {
   if (spec.effects.length === 0) return;
@@ -138,6 +142,8 @@ export function pushEffects(
       controllerId: spec.controllerId,
       event: spec.event ?? null,
       eventFrameId: spec.eventFrameId ?? null,
+      ...(spec.returnBindingsTo ? { returnBindingsTo: spec.returnBindingsTo } : {}),
+      ...(spec.byPlayer ? { byPlayer: true as const } : {}),
     },
   ]);
 }

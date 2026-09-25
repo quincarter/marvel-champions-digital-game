@@ -38,14 +38,6 @@ const PACK_STATUS: Readonly<Record<string, "scripted" | "in progress" | "not sta
  * mts scenario passes (wave 4 step 3)" — a reason the next agent removes as that ref lands.
  */
 const KNOWN_SKIPPED: Readonly<Record<string, readonly string[]>> = {
-  // valk: Powerful Enchantments (25030), "Players cannot discard attachments that are attached to friendly
-  // characters." No primitive exists for preventing a category of cards from being *discarded* as a target or cost
-  // pick short of the absolute `RuleSpec cannotLeavePlay` (`packages/engine/src/abilities.ts`), which would also
-  // block the host's own defeat from discarding its attachments and every other way such a card could leave play —
-  // not only being chosen for discard, which is all the printed sentence restricts. A `game-rules-architect`
-  // follow-up needs a narrower "cannot be chosen to discard" rule, the in-play sibling of the existing hand-only
-  // `cannotChooseToDiscard`. Its Hinder keyword is data, not this ref.
-  valk: ["25030.powerful-enchantments-constant"],
   // nebu: both of its earlier primitive gaps (an in-play "discard cards you control" cost kind, and a friendly
   // character attacking its own controller without exhausting) landed since (`nebula-obligation-nemesis.ts` now
   // scripts both 22030.lethal-weapon-action and 22031.when-revealed); nothing left unresolved.
@@ -57,70 +49,12 @@ const KNOWN_SKIPPED: Readonly<Record<string, readonly string[]>> = {
   // for the same ref with `mergeRegistries`'s "defined twice" guard). Not this pack's own scripting work; removed
   // here because leaving them would silently pin a wrong (unresolved) expectation now that they resolve.
   //
-  // Ebony Maw (`mts/ebony-maw.ts`): every ref scripted except five that all share one genuine gap (module docblock
-  // on `ebony-maw.ts`): "when a player reveals a Spell environment, they place that card in front of them in their
-  // play area" (MC21 p. 6) is a rulebook instruction printed on no card, so the engine's own (landed)
-  // `entersRevealersPlayArea` RuleSpec has no `constant`-kind ability ref on any Ebony Maw scenario card to attach
-  // to — the villain's three stages print only the repeated Forced Interrupt, and the main scheme's own reveal
-  // abilities are one-shot `whenRevealed` triggers. Registering these with `putIntoPlay` today would misroute the
-  // card to the villain's area instead of the revealer's, which is a wrong implementation, not a partial one, so
-  // they stay skipped until either a synthetic always-on ability ref is added to Ebony Maw's villain card in
-  // content (`card-data-pipeline`) or `GameSetupConfig`/`ScenarioRules` gains a way to seed a `RuleSpec` at setup
-  // without a card ability (`game-rules-architect`): 21072.when-revealed, 21073.when-revealed, 21074b.when-revealed,
-  // 21075a.when-revealed, 21081.when-revealed (Channeling Trance's own "if none, put one into play" branch).
-  //
   // Thanos (`mts/thanos.ts`) and the Infinity Gauntlet modular set (`mts/infinity-gauntlet.ts`), the box's third
   // scenario: every ref in scope (the villain, the main scheme, the `thanos` encounter set, and the `infinity_
-  // gauntlet` set) resolves; no genuine gap found. Black Order (21100–21110) and Children of Thanos (21125–21128),
-  // recommended modular sets Thanos shares with Ebony Maw/Tower Defense, are out of this pass's scope and stay
-  // skipped below for whichever scenario pass scripts them.
+  // gauntlet` set) resolves; no genuine gap found. Black Order (21100–21110, scripted by Tower Defense) and
+  // Children of Thanos (21125–21128), a modular set Thanos also recommends, stay skipped below for whichever
+  // scenario pass scripts the latter.
   mts: [
-    "21016.mass-attack-action",
-    "21061.shield-spell-interrupt",
-    "21072.when-revealed",
-    "21073.when-revealed",
-    "21074b.when-revealed",
-    "21075a.when-revealed",
-    "21081.when-revealed",
-    "21092.proxima-midnight-forced-interrupt",
-    "21092.proxima-midnight-constant",
-    "21093.proxima-midnight-forced-interrupt",
-    "21093.proxima-midnight-constant",
-    "21094.proxima-midnight-forced-interrupt",
-    "21094.proxima-midnight-constant",
-    "21095.corvus-glaive-forced-interrupt",
-    "21095.corvus-glaive-constant",
-    "21096.corvus-glaive-forced-interrupt",
-    "21096.corvus-glaive-constant",
-    "21097.corvus-glaive-forced-interrupt",
-    "21097.corvus-glaive-constant",
-    "21098a.setup",
-    "21098b.under-siege-constant",
-    "21098b.under-siege-forced-interrupt",
-    "21099a.when-revealed",
-    "21099b.the-armies-of-thanos-constant",
-    "21099b.the-armies-of-thanos-forced-interrupt",
-    "21100a.avengers-tower-constant",
-    "21100a.avengers-tower-forced-response",
-    "21100b.when-revealed",
-    "21100b.avengers-tower-forced-response",
-    "21101.focused-defense-constant",
-    "21101.focused-defense-forced-response",
-    "21102.black-order-besieger-forced-response",
-    "21103.proximas-spear-constant",
-    "21103.proximas-spear-action",
-    "21104.corvuss-glaive-constant",
-    "21104.corvuss-glaive-action",
-    "21105.direct-assault-forced-interrupt",
-    "21106.when-revealed",
-    "21106.boost",
-    "21107.when-revealed",
-    "21107.boost",
-    "21108.when-revealed",
-    "21108.boost",
-    "21109.when-revealed",
-    "21109.boost",
-    "21110.when-defeated",
     "21125.boost",
     "21126.proxima-midnight-constant",
     "21126.boost",

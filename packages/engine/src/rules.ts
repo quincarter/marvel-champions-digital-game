@@ -544,6 +544,12 @@ export function accelerationTokenRedirect(state: GameState, deps: EngineDeps, sc
   return null;
 }
 
+/** "Players cannot discard [these cards]" (`RuleSpec playersCannotDiscard`, docs/phase7-wave4.md §3.44). */
+export const playersCannotDiscard = (state: GameState, deps: EngineDeps, id: InstanceId): boolean =>
+  activeRules(state, deps, "playersCannotDiscard").some(({ rule, context }) =>
+    matchesQuery(state, id, rule.target, context),
+  );
+
 /** "X cannot defend [against Y's attacks]" (`RuleSpec cannotDefend`, docs/phase7-wave4.md §3.31). */
 export const cannotDefend = (
   state: GameState,

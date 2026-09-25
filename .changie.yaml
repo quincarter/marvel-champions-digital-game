@@ -40,7 +40,7 @@ replacements:
   - path: packages/engine/src/index.ts
     find: 'export const ENGINE_VERSION = ".*";'
     replace: 'export const ENGINE_VERSION = "{{.VersionNoPrefix}}";'
-  - path: packages/client/src/index.ts
+  - path: packages/client/src/version.ts
     find: 'export const CLIENT_VERSION = ".*";'
     replace: 'export const CLIENT_VERSION = "{{.VersionNoPrefix}}";'
   - path: packages/content/src/index.ts

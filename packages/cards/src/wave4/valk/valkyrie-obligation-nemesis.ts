@@ -26,6 +26,7 @@ import {
   whenRevealed,
   you,
   yourIdentity,
+  playersCannotDiscard,
 } from "../../dsl/index.js";
 import type { Predicate, TargetRef } from "@mc/engine";
 
@@ -85,10 +86,13 @@ export const VALKYRIE_OBLIGATION_NEMESIS = defineAbilities({
   ),
 
   // Powerful Enchantments (side scheme, 25030) — Hinder 1[per_hero] (data). Players cannot discard attachments that
-  // are attached to friendly characters. KNOWN_SKIPPED (`../coverage.test.ts`): the engine has no primitive for
-  // preventing a category of cards from being *discarded* as a target or cost pick short of the absolute
-  // `cannotLeavePlay` (which would also block the host's own defeat from discarding its attachments, and every other
-  // way such a card could leave play, not only being chosen for discard) — see the coverage file for the exact gap.
+  // are attached to friendly characters (`playersCannotDiscard`, docs/phase7-wave4.md §3.44: a friendly character is a
+  // hero or alter-ego identity or an ally a player controls; the host's defeat still discards them).
+  "25030.powerful-enchantments-constant": constant(
+    playersCannotDiscard(
+      query("attachment", { host: { kind: "each", query: query(["identity", "ally"], { controller: "any" }) } }),
+    ),
+  ),
 
   // Beguiled (attachment, 25031, errata RRG 1.8 p. 67: Condition trait, already in data) — Treat attached ally as an
   // Enthralled minion with a blank text box. Attached minion's SCH is equal to its printed THW and it does not take

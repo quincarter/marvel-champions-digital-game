@@ -139,6 +139,15 @@ export function pickTrack(
 }
 
 /**
+ * A villain's own theme: the scenario's `battle` tracks and nothing else — no campaign, pack or generic gameplay
+ * fallback, since a campaign issue's opener plays it as "the villain you're about to fight" and a stand-in track
+ * wouldn't be theirs. Empty when the scenario has no battle music yet.
+ */
+export function villainTracksFor(catalog: MusicCatalog, scenarioId: string): readonly Track[] {
+  return catalog.scenarios.get(scenarioId)?.battle ?? [];
+}
+
+/**
  * The battle track for a game in progress.
  *
  * Priority (most specific first, per music/README.md):

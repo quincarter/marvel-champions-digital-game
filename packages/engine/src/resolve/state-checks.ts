@@ -36,6 +36,10 @@ const registriesWithRuleKind = new Map<RuleSpec["kind"], WeakMap<AbilityRegistry
  * Whether any printed constant in the registry declares a rule of `kind`. The continuous rules below are scanned between
  * frames, so a game whose registry has none skips them.
  */
+/** A rule the scenario imposes without a card (§3.40 of wave 4) counts as present too. */
+const scenarioHasRule = (ctx: Ctx, kind: RuleSpec["kind"]): boolean =>
+  (ctx.state.scenarioRules.rules ?? []).some((rule) => rule.kind === kind);
+
 function hasRuleKind(registry: AbilityRegistry, kind: RuleSpec["kind"]): boolean {
   let byRegistry = registriesWithRuleKind.get(kind);
   if (!byRegistry) {
@@ -148,7 +152,8 @@ function clearForbiddenStatuses(ctx: Ctx): void {
  * someone else. Moving between play areas is not leaving play, so a permanent card moves too.
  */
 function applyFirstPlayerControl(ctx: Ctx): void {
-  if (!hasRuleKind(ctx.deps.abilities, "controlledByFirstPlayer")) return;
+  if (!hasRuleKind(ctx.deps.abilities, "controlledByFirstPlayer") && !scenarioHasRule(ctx, "controlledByFirstPlayer"))
+    return;
   const first = ctx.state.firstPlayerId;
   for (const { rule, context } of activeRules(ctx.state, ctx.deps, "controlledByFirstPlayer")) {
     for (const id of cardsInPlay(ctx.state)) {
@@ -170,7 +175,7 @@ function applyFirstPlayerControl(ctx: Ctx): void {
  * card to the other main scheme").
  */
 function applyFocusedActiveVillain(ctx: Ctx): void {
-  if (!hasRuleKind(ctx.deps.abilities, "focusedMainScheme")) return;
+  if (!hasRuleKind(ctx.deps.abilities, "focusedMainScheme") && !scenarioHasRule(ctx, "focusedMainScheme")) return;
   const schemeId = focusedMainSchemeId(ctx.state, ctx.deps);
   const scheme = schemeId ? mainSchemeStateOf(ctx.state, schemeId) : undefined;
   if (!scheme) return;

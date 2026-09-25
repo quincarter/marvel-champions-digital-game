@@ -14,6 +14,7 @@
  *    (Components.dc.html section 06, "thumb parks the action").
  */
 
+import { desktopTypeSize } from "./desktop-type.js";
 import { hit } from "../tokens.js";
 
 export interface Rect {
@@ -53,10 +54,12 @@ export function rectsOverlap(a: Rect, b: Rect): boolean {
  * `#drawRow` — one formula so the two screens can't drift into two different
  * row heights for what a player sees as the identical row).
  */
-export function toggleRowHeight(detail: string, width: number): number {
+export function toggleRowHeight(detail: string, width: number, onDesktop = false): number {
+  // The detail is drawn at 10px, which desktop draws a size up (`view/desktop-type.ts`): wider glyphs, taller lines.
+  const grow = desktopTypeSize(10, onDesktop) / 10;
   const DETAIL_TOP = 20;
-  const DETAIL_LINE_HEIGHT = 14.5;
-  const DETAIL_CHAR_WIDTH = 5.4;
+  const DETAIL_LINE_HEIGHT = 14.5 * grow;
+  const DETAIL_CHAR_WIDTH = 5.4 * grow;
   const BOTTOM_PADDING = 8;
   const MIN_HEIGHT = 44;
   const wrapWidth = Math.max(1, width - 100);

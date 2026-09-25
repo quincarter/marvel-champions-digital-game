@@ -53,6 +53,12 @@ import {
   yourIdentity,
   youHaveTrait,
   zone,
+  heroInterrupt,
+  when,
+  YOUR_IDENTITY,
+  discardTopOfDeckCost,
+  eventAmount,
+  preventDamage,
 } from "../../dsl/index.js";
 
 const GUARDIAN = trait("GUARDIAN");
@@ -84,10 +90,7 @@ const discardUpTo = (max: number, effectFor: (n: number) => EffectArg) =>
  * leadership/protection plus Martinex (basic). Several reuse a card the pool already scripted elsewhere under a
  * different printed id — the docblock on each entry names the reprint.
  *
- * **Shield Spell (21061) is a primitive gap, not scripted**: "discard that many cards from the top of your deck"
- * (equal to the amount of damage this interrupt prevents) needs a dynamic `AbilityCost.discardFromDeck`, which is a
- * fixed `number` (`packages/engine/src/abilities.ts`), not a `ValueSpec` reading the triggering event's amount — see
- * `KNOWN_SKIPPED["mts"]`.
+ * **Shield Spell (21061)** sizes its deck-discard cost from the damage event (docs/phase7-wave4.md §3.42).
  */
 export const ADAM_WARLOCK_PACK_CARDS = defineAbilities({
   // Karmic Blast (21038) — Hero Action (attack): Deal 4 damage to an enemy and discard up to 4 cards from the top
@@ -220,7 +223,15 @@ export const ADAM_WARLOCK_PACK_CARDS = defineAbilities({
   "21060.the-gardener-action": action(moveCards(cards(self), "encounterDeckShuffle")),
   "21060.when-revealed": uncancellable(whenRevealed(heal(2, yourIdentity), moveCards(cards(self), "removedFromGame"))),
 
-  // Shield Spell (21061): see module docblock — KNOWN_SKIPPED.
+  // Shield Spell (21061) — Play only if your identity has the Mystic trait. Max 1 per deck (data). Hero Interrupt
+  // (defense): When you would take any amount of damage from an attack, discard that many cards from the top of your
+  // deck → prevent all damage from this attack. "That many" sizes the cost from the damage event
+  // (`discardTopOfDeckCost(eventAmount)`, docs/phase7-wave4.md §3.42).
+  "21061.shield-spell-interrupt": heroInterrupt(
+    when.damage(YOUR_IDENTITY, { fromAttack: true }),
+    { label: "defense", cost: discardTopOfDeckCost(eventAmount) },
+    preventDamage(),
+  ),
 
   // Counter-Punch (21062) — Core's own Counter-Punch (01077), reprinted verbatim.
   "21062.counter-punch-response": response(
