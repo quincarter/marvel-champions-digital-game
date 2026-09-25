@@ -61,6 +61,8 @@ import { ExtrasViewerScene } from "./scenes/extras-viewer.js";
 import { ExtrasReaderScene } from "./scenes/extras-reader.js";
 import { installDebugDump } from "./ui/debug-dump.js";
 import { installFrameGuard } from "./ui/frame-guard.js";
+import { installDesktopType, setDesktopType } from "./ui/desktop-type.js";
+import { formFactorFor } from "./view/layout.js";
 
 // The one `Settings` instance for the whole app (`appSession().settings`), not a
 // second copy: `scenes/settings.ts` mutates that same object, and every text
@@ -72,6 +74,8 @@ const settings = appSession().settings;
 setTextResolution(settings.textResolution);
 
 installLazyText();
+installDesktopType();
+setDesktopType(formFactorFor(window.innerWidth, window.innerHeight) === "desktop");
 
 const game = new Phaser.Game({
   type: Phaser.WEBGL,
@@ -134,6 +138,10 @@ const game = new Phaser.Game({
     MusicScene,
   ],
 });
+// Registered before any scene's own resize listener, so a screen redrawing on resize already draws at the new size.
+game.scale.on("resize", (size: Phaser.Structs.Size) =>
+  setDesktopType(formFactorFor(size.width, size.height) === "desktop"),
+);
 
 // Right-click is the desktop Inspect gesture, so the browser's own menu has to
 // stay out of the way of it. Phaser 4 has no game-config flag for this, only

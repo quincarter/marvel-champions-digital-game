@@ -16,7 +16,7 @@ import { caseOf, textStyle } from "../ui/theme.js";
 import { McButton, label } from "../ui/widgets.js";
 import { McVirtualList, type VirtualListRow } from "../ui/virtual-list.js";
 import { overlayPanelLayout } from "../view/overlay-layout.js";
-import { toggleRowHeight, type Rect } from "../view/layout.js";
+import { formFactorFor, toggleRowHeight, type Rect } from "../view/layout.js";
 import { ListScroll } from "../view/list-scroll.js";
 import { VariableListScroll } from "../view/variable-list-scroll.js";
 import { McScrollRegion } from "../ui/scroll-region.js";
@@ -212,7 +212,7 @@ export class UnlocksOverlay extends Phaser.Scene {
       x: body.x + 16,
       y: pointsDetail.y + pointsDetail.height + 14,
       width: rowWidth,
-      height: toggleRowHeight(allRow.detail, rowWidth),
+      height: toggleRowHeight(allRow.detail, rowWidth, formFactorFor(width, height) === "desktop"),
     };
     label(this, allRect.x, allRect.y + 2, allRow.title, typeRole.label, surface.paper.hex, ink.secondary).setFontSize(
       12,
