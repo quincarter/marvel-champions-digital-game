@@ -33,6 +33,8 @@ import {
   spend,
   you,
   zone,
+  attackingEnemy,
+  dealDamage,
 } from "../../dsl/index.js";
 
 const ANDROID = trait("ANDROID");
@@ -46,10 +48,10 @@ const GUARDIAN = trait("GUARDIAN");
  * (26020), Avengers Mansion (26023) — are exact Core/`qsv` cards, aliased automatically by `../reprints.ts`, not
  * scripted here.
  *
- * **Flow Like Water's "deal 1 damage to the attacking enemy" (26016.flow-like-water-response), Defiance's "discard
- * [a boost card] instead [of turning it faceup]" (26018.defiance-interrupt) and Machine Man's "attacks or thwarts"
- * (26022.machine-man-interrupt) are primitive gaps, not scripted** — see each ref's own comment below and
- * `KNOWN_SKIPPED["vision"]` in `../coverage.test.ts`.
+ * **Flow Like Water's "deal 1 damage to the attacking enemy" (26016.flow-like-water-response)** is `attackingEnemy`
+ * (docs/phase7-wave4.md §3.34). **Defiance's "discard [a boost card] instead [of turning it faceup]"
+ * (26018.defiance-interrupt) and Machine Man's "attacks or thwarts" (26022.machine-man-interrupt)** are documented at
+ * each ref below.
  */
 export const VISION_PACK_CARDS = defineAbilities({
   // Jocasta (ally, 26013) — You may play the event attached to Jocasta as if it were in your hand. Response: After
@@ -74,13 +76,9 @@ export const VISION_PACK_CARDS = defineAbilities({
     rule({ kind: "reduceDamageTaken", target: query("ally", { self: true }), amount: 1, fromAttack: true }),
   ),
 
-  // KNOWN_SKIPPED: 26016.flow-like-water-response — "Response: After you play a Defense card, deal 1 damage to the
-  // attacking enemy." No `TargetRef` resolves "the enemy currently attacking you" independent of the response's own
-  // triggering event: `eventSource`/`eventTarget` read the *triggering* event's own subjects (here, the played
-  // card, not an attack), and the only stack-walking `TargetRef` that finds an in-progress `enemyAttack` frame from
-  // an unrelated trigger, `defendingCharacter` (`packages/engine/src/select.ts`), resolves the *defender*, not the
-  // attacker. A sibling `TargetRef { kind: "attackingCharacter" }` (the same frame's `enemyInstanceId`) is the
-  // natural fix, flagged for `game-rules-architect`. See `KNOWN_SKIPPED["vision"]` in `../coverage.test.ts`.
+  // Flow Like Water (upgrade, 26016) — Response: After you play a Defense card, deal 1 damage to the attacking enemy
+  // (the attack in progress, `attackingEnemy`, docs/phase7-wave4.md §3.34; none outside an attack).
+  "26016.flow-like-water-response": response(on.youPlayedCard({ trait: DEFENSE }), dealDamage(1, attackingEnemy)),
 
   // KNOWN_SKIPPED: 26018.defiance-interrupt — "Hero Interrupt (defense): When a boost card on an enemy attacking
   // you would be turned faceup, discard it instead." The trigger itself exists (`{ on: "boostCardTurnedFaceup",

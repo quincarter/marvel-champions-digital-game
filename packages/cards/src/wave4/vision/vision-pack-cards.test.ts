@@ -134,6 +134,31 @@ describe("Protector (ally, 26014)", () => {
   });
 });
 
+describe("Flow Like Water (upgrade, 26016)", () => {
+  it("26016.flow-like-water-response: after Vision plays a Defense card during an attack, 1 damage to the attacker", () => {
+    const hero = runWith(WAVE4_DEPS, visionVsRhino(21), toHero());
+    const dense = patchInstance(hero, instancesOf(hero, "26002")[0]!, { flipped: true });
+    const { state: withFlow } = playFromHand(dense, "26016", 2);
+    const given = moveToHand(withFlow, P1, "26012");
+    const [massIncrease] = given.ids as [InstanceId];
+    const givenResource = moveToHand(given.state, P1, "26027");
+    const [strength] = givenResource.ids as [InstanceId];
+    const identity = identityOf(givenResource.state, P1);
+    const villain = activeVillain(givenResource.state).instanceId;
+    const before = inst(givenResource.state, villain).damage;
+    const pick: Picker = (state) => {
+      const choice = state.pendingChoice;
+      if (!choice) return [];
+      if (choice.prompt.kind === "declareDefender") return [identity];
+      if (choice.prompt.kind === "payForCard") return [`hand:${strength}`];
+      return accepting("26012.mass-increase-interrupt", "26016.flow-like-water-response")(state);
+    };
+    const attacked = settle(runWith(WAVE4_DEPS, givenResource.state, endTurn()), pick, undefined, WAVE4_DEPS);
+    expect(playerOf(attacked, P1).discard).toContain(massIncrease);
+    expect(inst(attacked, villain).damage).toBe(before + 1);
+  });
+});
+
 describe("Victor Mancha (ally, 26015)", () => {
   it("26015.victor-mancha-constant: reduces damage he takes from an attack by 1", () => {
     const hero = runWith(WAVE4_DEPS, visionVsRhino(4), toHero());

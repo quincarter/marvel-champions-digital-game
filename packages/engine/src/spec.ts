@@ -358,6 +358,12 @@ export type TargetRef =
    */
   | { readonly kind: "defendingCharacter" }
   /**
+   * "The attacking enemy" from a trigger that is not the attack's own (Flow Like Water, `vision` 26016: "After you play
+   * a Defense card, deal 1 damage to the attacking enemy"; Riposte, Tally Ho!, Spider-UK, Daredevil): the enemy of the
+   * attack in progress, innermost first, if it is in play; none outside an attack. docs/phase7-wave4.md §3.34.
+   */
+  | { readonly kind: "attackingEnemy" }
+  /**
    * "The villain": the active villain (The Wrecking Crew insert, "The Active Villain": "Any card effect that refers
    * to 'the villain' only refers to the active villain."). "A villain" is `each`/`chooseTarget` over the
    * `villain` category, which matches every villain in play.

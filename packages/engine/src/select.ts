@@ -1050,6 +1050,13 @@ export function resolveRef(state: GameState, ref: TargetRef, context: EffectCont
       const inPlay = cardsInPlay(state);
       return (attack.slots[DEFENDER_SLOT] ?? []).filter((id) => inPlay.includes(id));
     }
+    case "attackingEnemy": {
+      // docs/phase7-wave4.md §3.34: the sibling of `defendingCharacter`, the same innermost attack.
+      const attack = state.stack.find((f) => f.kind === "event" && f.event.kind === "enemyAttack");
+      if (attack?.kind !== "event" || attack.event.kind !== "enemyAttack") return [];
+      const enemy = attack.event.enemyInstanceId;
+      return cardsInPlay(state).includes(enemy) ? [enemy] : [];
+    }
     case "villain": {
       // "The villain" is the active villain (The Wrecking Crew insert, "The Active Villain"); in a separate game area,
       // that area's (docs/phase7-wave2.md §3.1).

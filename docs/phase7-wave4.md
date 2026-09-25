@@ -435,6 +435,7 @@ stays data only.**
 | 3.31 | A character that cannot defend                                           | Intangible; Grant Ward, Tracking Display                         | landed  |
 | 3.32 | One thwart that ignores patrol                                           | Just Passing Through; Natural Flight, Grapnel Launcher           | landed  |
 | 3.33 | A card with a given timing word in its text                              | Phase Disruption; Phase Strike, Sunfire, Target Lock, Warpath    | landed  |
+| 3.34 | The attacking enemy from any trigger                                     | Flow Like Water; Riposte, Spider-UK, Daredevil                   | landed  |
 
 ### 3.1 Additional forms: the form keyword
 
@@ -1351,6 +1352,21 @@ abilityTiming: AbilityTimingWord[]`** ("heroAction", "heroResponse", "forcedInte
 > with a client label. The printed word is read from the script's trigger shape, which the ability DSL already makes
 > match the printed label (`heroAction`, `heroResponse`, …). **Scripted:** `26011.phase-disruption-action`, off
 > `KNOWN_SKIPPED`.
+
+### 3.34 The attacking enemy from any trigger
+
+Flow Like Water (`vision` 26016): "Response: After you play a [Defense] card, deal 1 damage to the attacking enemy." The
+trigger is the play, not the attack, so `eventSource` names the played card. Survey (every raw pack, "the attacking
+enemy"): Riposte, Tally Ho! (`ncrawler` 48018, 48011), Spider-UK (`sm` 27012), Daredevil (`spdr` 31014), Never Back Down
+(`qsv` 14014), Disarming Defense (`wonder_man` 58033); most sit on an attack-scoped trigger and already read
+`eventSource`, but any of them can use this ref.
+
+> **Status: landed (2026-09-24),** tested in `packages/engine/src/attacking-enemy.test.ts` (2 tests: nothing outside an
+> attack; the innermost attack's enemy during one) and in a real game in
+> `packages/cards/src/wave4/vision/vision-pack-cards.test.ts` (Dense Vision with Flow Like Water plays Mass Increase
+> against Rhino's attack; Rhino takes 1 damage). **What landed:** **`TargetRef attackingEnemy`**, the sibling of
+> `defendingCharacter`: the enemy of the innermost `enemyAttack` on the stack, if in play. **DSL:** `attackingEnemy`.
+> **Scripted:** `26016.flow-like-water-response`, off `KNOWN_SKIPPED`.
 
 ## 4. Open questions (for the user or FFG)
 
