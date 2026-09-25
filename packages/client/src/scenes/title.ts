@@ -190,7 +190,7 @@ export class TitleScene extends Phaser.Scene {
         new McButton(this, {
           kind: "primary",
           label: continueLabel(save),
-          type: typeRole.rowTitle,
+          type: typeRole.menuButton,
           rect,
           enabled: !this.#starting,
           onClick: () => void this.#resume(save.id),
@@ -225,7 +225,7 @@ export class TitleScene extends Phaser.Scene {
       new McButton(this, {
         kind: menuKind,
         label: "Decks & Collection",
-        type: typeRole.rowTitle,
+        type: typeRole.menuButton,
         rect: layout.decks,
         onClick: openDecks,
       }),
@@ -240,7 +240,7 @@ export class TitleScene extends Phaser.Scene {
       new McButton(this, {
         kind: menuKind,
         label: "Campaign",
-        type: typeRole.rowTitle,
+        type: typeRole.menuButton,
         rect: layout.campaign,
         onClick: openCampaign,
       }),
@@ -255,7 +255,7 @@ export class TitleScene extends Phaser.Scene {
       new McButton(this, {
         kind: menuKind,
         label: "Extras",
-        type: typeRole.rowTitle,
+        type: typeRole.menuButton,
         rect: layout.extras,
         onClick: openExtras,
       }),
@@ -270,7 +270,7 @@ export class TitleScene extends Phaser.Scene {
       new McButton(this, {
         kind: menuKind,
         label: "Settings",
-        type: typeRole.rowTitle,
+        type: typeRole.menuButton,
         rect: layout.settings,
         onClick: openSettings,
       }),
