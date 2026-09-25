@@ -154,9 +154,10 @@ export function campaignStepView<T>(
 /**
  * A composed log (`log.attempt` present — `resolveBetweenGames`'s `"done"` result) as the `SessionConfig` the
  * existing host path starts (`session-core.ts`'s `scenarioFor` attaches `config.campaign` to `GameSetupConfig`
- * unchanged). Throws for a `composed` node (MC60 p. 9's villain-choice scenarios): no box with that graph shape
- * ships yet (design §11 step 7's own MC10-only scope), so there is nothing real to build a `scenarioId` from —
- * flagged rather than guessed at.
+ * unchanged, and turns `config.campaignEncounterSets` into the composed sets' actual cards the same way). Throws
+ * for a `composed` node (MC60 p. 9's villain-choice scenarios): no box with that graph shape ships yet (design
+ * §11 step 7's own MC10-only scope), so there is nothing real to build a `scenarioId` from — flagged rather than
+ * guessed at.
  */
 export function campaignLaunchConfig(definition: CampaignDefinition, log: CampaignLog): SessionConfig {
   const start = startGameFromLog(definition, log);
@@ -177,6 +178,7 @@ export function campaignLaunchConfig(definition: CampaignDefinition, log: Campai
     })),
     seed: start.input.seed,
     campaign: start.input,
+    campaignEncounterSets: start.encounterSets,
   };
 }
 
