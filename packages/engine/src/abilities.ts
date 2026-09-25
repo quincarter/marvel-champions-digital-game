@@ -73,8 +73,11 @@ export interface EventPattern {
    *
    * Pair it with *no* `playerIs`, and the pattern is "after **a player** …" rather than "after **you** …"; the
    * effect body then names them with `PlayerRef { kind: "eventPlayer" }`.
+   *
+   * A list is any one of those values: `{ power: ["attack", "thwart"] }` is "When Machine Man **attacks or thwarts**"
+   * (Machine Man, `vision` 26022) on `basicPowerUsing`, excluding his defense. docs/phase7-wave4.md §3.36.
    */
-  readonly eventIs?: Readonly<Record<string, string>>;
+  readonly eventIs?: Readonly<Record<string, string | readonly string[]>>;
   /**
    * "After the enemy **with Death-Glow** is defeated" (Flight of the Valkyrior, 25008) / "after Valkyrie attacks and
    * defeats the enemy that has Death-Glow attached" (Valhalla, 25004): one of the cards attached to the defeated
@@ -467,6 +470,18 @@ export type RuleSpec =
     }
   /** "The engaged player must defend against [attacker]'s attacks with an ally they control, if able" (Melter). */
   | { readonly kind: "mustDefendWithAlly"; readonly attacker: TargetQuery; readonly while?: Predicate }
+  /**
+   * "Vision cannot attack or defend." (Intangible, `vision` 26002); "Grant Ward cannot defend." (`aos` 50022); "Each
+   * character cannot defend against attached villain's attacks." (Tracking Display, `sm` 27152: `target` any character,
+   * `attacker` the host). A matching character is never a legal defender (basic defense) and a "(defense)" ability
+   * does not make it the defender; `attacker` limits it to that enemy's attacks. docs/phase7-wave4.md §3.31.
+   */
+  | {
+      readonly kind: "cannotDefend";
+      readonly target: TargetQuery;
+      readonly attacker?: TargetQuery;
+      readonly while?: Predicate;
+    }
   /**
    * "When Wrecker schemes, place the threat on his side scheme instead of the main scheme" — printed as a constant ★
    * ability on each Wrecking Crew villain (docs/phase7-wave1.md §3.6). A scheme activation by a matching enemy places

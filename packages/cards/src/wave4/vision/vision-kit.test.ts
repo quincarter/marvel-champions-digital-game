@@ -1,4 +1,15 @@
-import { activeVillain, characterProfile, handSize, hasKeyword, type GameState, type InstanceId } from "@mc/engine";
+import {
+  activeEncounterDeck,
+  activeEncounterDeckId,
+  activeVillain,
+  canAttack,
+  characterProfile,
+  handSize,
+  hasKeyword,
+  legalDefenders,
+  type GameState,
+  type InstanceId,
+} from "@mc/engine";
 import { describe, expect, it } from "vitest";
 import {
   endTurn,
@@ -12,6 +23,7 @@ import {
   playerOf,
   runWith,
   settle,
+  stackEncounterDeck,
   toHero,
   use,
   type Picker,
@@ -96,6 +108,18 @@ describe("Intangible / Dense (upgrade, 26002/26002b)", () => {
     const attacked = settle(runWith(WAVE4_DEPS, hero, endTurn()), firstLegal, undefined, WAVE4_DEPS);
     const dealt = inst(attacked, identity).damage - before;
     expect(dealt).toBe(Math.max(0, villainAtk - 2));
+  });
+
+  it("26002.intangible-constant: Intangible Vision cannot attack or defend; Dense Vision can", () => {
+    const hero = runWith(WAVE4_DEPS, visionVsRhino(6), toHero());
+    const identity = identityOf(hero, P1);
+    const villain = activeVillain(hero).instanceId;
+    const intangible = setMassForm(hero, "Intangible");
+    expect(canAttack(intangible, identity, villain, WAVE4_DEPS)).toBe(false);
+    expect(legalDefenders(intangible, P1, WAVE4_DEPS, villain)).not.toContain(identity);
+    const dense = setMassForm(hero, "Dense");
+    expect(canAttack(dense, identity, villain, WAVE4_DEPS)).toBe(true);
+    expect(legalDefenders(dense, P1, WAVE4_DEPS, villain)).toContain(identity);
   });
 
   it("26002b.dense-constant: +2 ATK and +2 DEF while in hero form and Dense", () => {
@@ -247,8 +271,28 @@ describe("Just Passing Through (event, 26010)", () => {
     const hero = setMassForm(runWith(WAVE4_DEPS, visionVsRhino(16), toHero()), "Dense");
     expect(() => playFromHand(hero, "26010", 1)).toThrow();
   });
-  // 26010.just-passing-through-action is KNOWN_SKIPPED (../coverage.test.ts): "ignoring the patrol keyword" has no
-  // engine primitive yet.
+
+  it("26010.just-passing-through-action: removes 3 threat from the main scheme despite a crisis icon", () => {
+    const hero = setMassForm(runWith(WAVE4_DEPS, visionVsRhino(16), toHero()), "Intangible");
+    // Crowd Control (crisis, 01108) in the villain's area; 5 threat on the main scheme.
+    const stacked = stackEncounterDeck(hero, "01108");
+    const deckId = activeEncounterDeckId(stacked);
+    const [crowd] = activeEncounterDeck(stacked).deck as [InstanceId];
+    const piles = stacked.encounterDecks[deckId]!;
+    const main = stacked.mainScheme.instanceId;
+    const staged: GameState = {
+      ...stacked,
+      encounterDecks: { ...stacked.encounterDecks, [deckId]: { ...piles, deck: piles.deck.slice(1) } },
+      villainArea: [...stacked.villainArea, crowd],
+      instances: {
+        ...stacked.instances,
+        [crowd]: { ...stacked.instances[crowd]!, faceup: true, threat: 2 },
+        [main]: { ...stacked.instances[main]!, threat: 5 },
+      },
+    };
+    const { state } = playFromHand(staged, "26010", 1, accepting(main));
+    expect(inst(state, main).threat).toBe(2);
+  });
 });
 
 describe("Phase Disruption (event, 26011)", () => {
@@ -256,7 +300,43 @@ describe("Phase Disruption (event, 26011)", () => {
     const hero = setMassForm(runWith(WAVE4_DEPS, visionVsRhino(17), toHero()), "Dense");
     expect(() => playFromHand(hero, "26011", 2)).toThrow();
   });
-  // 26011.phase-disruption-action is KNOWN_SKIPPED (../coverage.test.ts): no text-based attachment query exists.
+
+  it("26011.phase-disruption-action: confuses the enemy and discards its attachment that has a Hero Action", () => {
+    const hero = setMassForm(runWith(WAVE4_DEPS, visionVsRhino(17), toHero()), "Intangible");
+    const villain = activeVillain(hero).instanceId;
+    // Lethal Weapon (`nebu` 22030, "Hero Action: Discard an upgrade you control → discard this attachment") on Rhino.
+    const weapon = "phase-disruption-weapon" as InstanceId;
+    const staged: GameState = {
+      ...hero,
+      instances: {
+        ...hero.instances,
+        [villain]: { ...inst(hero, villain), attachments: [...inst(hero, villain).attachments, weapon] },
+        [weapon]: {
+          instanceId: weapon,
+          cardId: "22030" as never,
+          ownerId: null,
+          controllerId: null,
+          home: { kind: "activeEncounterDeck" },
+          faceup: true,
+          exhausted: false,
+          damage: 0,
+          threat: 0,
+          statuses: { stunned: 0, confused: 0, tough: 0 },
+          counters: {},
+          attachedTo: villain,
+          attachments: [],
+          boostCards: [],
+          tucked: [],
+          facedownAs: null,
+          engagedWith: null,
+          flipped: false,
+        } as never,
+      },
+    };
+    const { state } = playFromHand(staged, "26011", 2, accepting(villain, weapon));
+    expect(inst(state, villain).statuses.confused).toBe(1);
+    expect(inst(state, villain).attachments).not.toContain(weapon);
+  });
 });
 
 describe("Mass Increase (event, 26012)", () => {

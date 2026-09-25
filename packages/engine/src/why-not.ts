@@ -19,7 +19,7 @@ import type { InstanceId } from "./ids.js";
 import { cardOf, playerOrder } from "./query.js";
 import { contextOf } from "./resolve/effects-frame.js";
 import { legalDefenders } from "./resolve/enemy-activation.js";
-import { mustDefendWithAlly } from "./rules.js";
+import { cannotDefend, mustDefendWithAlly } from "./rules.js";
 import { cardsInPlay, controllerOf, explainQuery, isAlly, type QueryExclusion } from "./select.js";
 import type { GameState } from "./state.js";
 
@@ -40,7 +40,9 @@ export type ExclusionCode =
   /** A "(defense)" ability already made someone the defender, so nobody else may defend this attack (p. 16). */
   | "defenderAlreadyDeclared"
   /** "Must defend with an ally they control, if able": only the engaged player's ready allies are offered. */
-  | "mustDefendWithAlly";
+  | "mustDefendWithAlly"
+  /** "Vision cannot attack or defend." (`RuleSpec cannotDefend`, docs/phase7-wave4.md §3.31). */
+  | "cannotDefend";
 
 export interface ChoiceExclusion {
   readonly instanceId: InstanceId;
@@ -98,7 +100,7 @@ function defenderExclusions(
   const frame = choice ? state.stack.find((f) => f.frameId === choice.frameId) : undefined;
   if (frame?.kind !== "enemyAttack") return [];
 
-  const eligible = new Set<string>(legalDefenders(state, frame.attackedPlayerId));
+  const eligible = new Set<string>(legalDefenders(state, frame.attackedPlayerId, deps, frame.enemyInstanceId));
   const existing = frame.defenderInstanceId;
   const forcedAlly =
     existing === null &&
@@ -118,6 +120,8 @@ function defenderExclusions(
       const owner = playerOrder(state).find((player) => player.identity.instanceId === id);
       if (owner && owner.identity.form !== "hero") exclusions.push({ instanceId: id, reason: "alterEgoForm" });
       else if (state.instances[id]?.exhausted) exclusions.push({ instanceId: id, reason: "exhausted" });
+      else if (cannotDefend(state, deps, id, frame.enemyInstanceId))
+        exclusions.push({ instanceId: id, reason: "cannotDefend" });
       else exclusions.push({ instanceId: id, reason: "notHeroOrAlly" });
       continue;
     }

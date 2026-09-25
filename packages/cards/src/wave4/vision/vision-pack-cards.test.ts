@@ -1,4 +1,4 @@
-import { activeVillain, characterProfile, type GameState, type InstanceId } from "@mc/engine";
+import { activeVillain, characterProfile, printedResources, type GameState, type InstanceId } from "@mc/engine";
 import { describe, expect, it } from "vitest";
 import {
   applyOk,
@@ -134,6 +134,101 @@ describe("Protector (ally, 26014)", () => {
   });
 });
 
+describe("Flow Like Water (upgrade, 26016)", () => {
+  it("26016.flow-like-water-response: after Vision plays a Defense card during an attack, 1 damage to the attacker", () => {
+    const hero = runWith(WAVE4_DEPS, visionVsRhino(21), toHero());
+    const dense = patchInstance(hero, instancesOf(hero, "26002")[0]!, { flipped: true });
+    const { state: withFlow } = playFromHand(dense, "26016", 2);
+    const given = moveToHand(withFlow, P1, "26012");
+    const [massIncrease] = given.ids as [InstanceId];
+    const givenResource = moveToHand(given.state, P1, "26027");
+    const [strength] = givenResource.ids as [InstanceId];
+    const identity = identityOf(givenResource.state, P1);
+    const villain = activeVillain(givenResource.state).instanceId;
+    const before = inst(givenResource.state, villain).damage;
+    const pick: Picker = (state) => {
+      const choice = state.pendingChoice;
+      if (!choice) return [];
+      if (choice.prompt.kind === "declareDefender") return [identity];
+      if (choice.prompt.kind === "payForCard") return [`hand:${strength}`];
+      return accepting("26012.mass-increase-interrupt", "26016.flow-like-water-response")(state);
+    };
+    const attacked = settle(runWith(WAVE4_DEPS, givenResource.state, endTurn()), pick, undefined, WAVE4_DEPS);
+    expect(playerOf(attacked, P1).discard).toContain(massIncrease);
+    expect(inst(attacked, villain).damage).toBe(before + 1);
+  });
+});
+
+describe("Defiance (event, 26018)", () => {
+  it("26018.defiance-interrupt: the boost card on Rhino's attack is discarded instead, never applied", () => {
+    const hero = runWith(WAVE4_DEPS, visionVsRhino(22), toHero());
+    const given = moveToHand(hero, P1, "26018");
+    const [defiance] = given.ids as [InstanceId];
+    let state = runWith(WAVE4_DEPS, given.state, endTurn());
+    const events: { type: string; scope?: string }[] = [];
+    while (state.pendingChoice && !state.outcome) {
+      const choice = state.pendingChoice;
+      const offered = choice.options.find((o) => o.optionId.endsWith("26018.defiance-interrupt"));
+      const result = applyOk(
+        state,
+        {
+          type: "resolveChoice",
+          playerId: choice.playerId,
+          choiceId: choice.choiceId,
+          selectedOptionIds: offered ? [offered.optionId] : firstLegal(state),
+        },
+        WAVE4_DEPS,
+      );
+      state = result.state;
+      events.push(...(result.events as never[]));
+    }
+    expect(playerOf(state, P1).discard).toContain(defiance);
+    expect(events).toContainEqual(expect.objectContaining({ type: "boostCancelled", scope: "discarded" }));
+  });
+});
+
+describe("Machine Man (ally, 26022)", () => {
+  it("26022.machine-man-interrupt: resources spent as he thwarts add that much THW, up to 3", () => {
+    const hero = runWith(WAVE4_DEPS, visionVsRhino(23), toHero());
+    const { state: withAlly, id: machine } = playFromHand(hero, "26022", 3);
+    const ready = patchInstance(withAlly, machine, { exhausted: false });
+    const main = ready.mainScheme.instanceId;
+    const primed = patchInstance(ready, main, { threat: 8 });
+    const thw = characterProfile(primed, machine, WAVE4_DEPS)!.thw;
+    const spare = playerOf(primed, P1).hand.slice(0, 2);
+    const seen: string[] = [];
+    const pick: Picker = (state) => {
+      const choice = state.pendingChoice;
+      if (!choice) return [];
+      seen.push(choice.prompt.kind + ":" + choice.options.map((o) => o.optionId).join("|"));
+      const offered = choice.options.find((o) => o.optionId.endsWith("26022.machine-man-interrupt"));
+      if (offered) return [offered.optionId];
+      const hand = choice.options.filter((o) => spare.some((id) => o.optionId === `hand:${id}`));
+      if (hand.length > 0) return hand.map((o) => o.optionId).slice(0, choice.maxSelections);
+      return firstLegal(state);
+    };
+    const thwarted = settle(
+      runWith(WAVE4_DEPS, primed, {
+        type: "basicThwart",
+        playerId: P1,
+        thwarterInstanceId: machine,
+        schemeInstanceId: main,
+      } as never),
+      pick,
+      undefined,
+      WAVE4_DEPS,
+    );
+    // X is every resource those cards print, to a maximum of 3 ("up to 3").
+    const printed = spare
+      .map((id) => Object.values(printedResources(primed.cardPool[primed.instances[id]!.cardId]!)))
+      .flat()
+      .reduce((a, b) => a + b, 0);
+    expect(printed).toBeGreaterThan(0);
+    expect(inst(thwarted, main).threat).toBe(8 - (thw + Math.min(3, printed)));
+    for (const id of spare) expect(playerOf(thwarted, P1).discard).toContain(id);
+  });
+});
+
 describe("Victor Mancha (ally, 26015)", () => {
   it("26015.victor-mancha-constant: reduces damage he takes from an attack by 1", () => {
     const hero = runWith(WAVE4_DEPS, visionVsRhino(4), toHero());
@@ -215,11 +310,7 @@ describe("Assault Training (support, 26033)", () => {
 });
 
 describe("Chance Encounter (upgrade, 26034)", () => {
-  // 26034.chance-encounter-interrupt is KNOWN_SKIPPED (../coverage.test.ts, and `vision-pack-cards.ts`'s own long
-  // comment next to it): `schemeDefeated` is response-only, and by the time that response window opens, the
-  // defeated scheme's own attachments (Chance Encounter included) are already discarded — confirmed with
-  // `traceAbilities`, which shows the ability `considered` but never `resolved`.
-  it("26034.chance-encounter-constant: attaches to a side scheme (data-driven `attachesTo`)", () => {
+  const attached = () => {
     const hero = runWith(
       WAVE4_DEPS,
       startWave4Game(visionScenarioWithExtras("rhino", { seed: 8, extraCodes: ["26034"] })),
@@ -248,7 +339,35 @@ describe("Chance Encounter (upgrade, 26034)", () => {
       undefined,
       WAVE4_DEPS,
     );
-    expect(inst(withChance, chance).attachedTo).toBe(scheme);
+    return { state: withChance, chance, scheme };
+  };
+
+  it("26034.chance-encounter-constant: attaches to a side scheme (data-driven `attachesTo`)", () => {
+    const { state, chance, scheme } = attached();
+    expect(inst(state, chance).attachedTo).toBe(scheme);
+  });
+
+  it("26034.chance-encounter-interrupt: when that scheme is defeated, an ally goes from deck or discard to hand", () => {
+    const { state, chance, scheme } = attached();
+    const identity = identityOf(state, P1);
+    const primed = patchInstance(patchInstance(state, scheme, { threat: 1 }), identity, { exhausted: false });
+    const allies = (s: GameState) =>
+      playerOf(s, P1).hand.filter((id) => s.cardPool[s.instances[id]!.cardId]?.type === "ally").length;
+    const before = allies(primed);
+    const defeated = settle(
+      runWith(WAVE4_DEPS, primed, {
+        type: "basicThwart",
+        playerId: P1,
+        thwarterInstanceId: identity,
+        schemeInstanceId: scheme,
+      } as never),
+      accepting("26034.chance-encounter-interrupt"),
+      undefined,
+      WAVE4_DEPS,
+    );
+    expect(defeated.villainArea).not.toContain(scheme);
+    expect(playerOf(defeated, P1).discard).toContain(chance);
+    expect(allies(defeated)).toBe(before + 1);
   });
 });
 

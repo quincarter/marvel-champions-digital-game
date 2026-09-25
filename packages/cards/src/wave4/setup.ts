@@ -3,6 +3,7 @@ import {
   MTS_SCENARIOS,
   MTS_STARTER_DECKS,
   NEBU_STARTER_DECKS,
+  VALK_STARTER_DECKS,
   VISION_STARTER_DECKS,
   WARM_STARTER_DECKS,
   difficultyOf,
@@ -96,12 +97,13 @@ function buildMtsSingleVillain(
   };
 }
 
-/** A wave 4 (Nebula, War Machine, Vision) or Core/box (The Mad Titan's Shadow) starter deck as a player seat
- * (quantities expanded). */
+/** A wave 4 (Nebula, War Machine, Vision, Valkyrie) or Core/box (The Mad Titan's Shadow) starter deck as a player
+ * seat (quantities expanded). */
 export function wave4StarterDeckSetup(starterDeckId: string): PlayerSetup {
   const starter =
     NEBU_STARTER_DECKS.find((d) => d.id === starterDeckId) ??
     WARM_STARTER_DECKS.find((d) => d.id === starterDeckId) ??
+    VALK_STARTER_DECKS.find((d) => d.id === starterDeckId) ??
     VISION_STARTER_DECKS.find((d) => d.id === starterDeckId) ??
     MTS_STARTER_DECKS.find((d) => d.id === starterDeckId) ??
     CORE_STARTER_DECKS.find((d) => d.id === starterDeckId);

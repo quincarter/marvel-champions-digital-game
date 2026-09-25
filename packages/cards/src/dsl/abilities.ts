@@ -850,6 +850,9 @@ const enemyAttacks = (
     opts.damages ? { requireResults: { damage: 1 } } : {},
   );
 
+/** A basic power, as `basicPowerUsing`/`basicPowerUsed` name it. */
+type BasicPowerName = "attack" | "thwart" | "defense" | "recover";
+
 export const on = {
   /** "When/After [enemy] attacks (you)" — `by: "self"` for the card's own attacks, `"host"` for the attached enemy. */
   enemyAttacks,
@@ -1111,7 +1114,10 @@ export const on = {
    */
   basicPowerUsing: (
     who: Who,
-    opts: { readonly power?: "attack" | "thwart" | "defense" | "recover" } = {},
+    opts: {
+      /** One power, or several: `["attack", "thwart"]` is "When X attacks or thwarts" (Machine Man, §3.36 of wave 4). */
+      readonly power?: BasicPowerName | readonly BasicPowerName[];
+    } = {},
   ): EventPattern => pattern("basicPowerUsing", asTarget(who), opts.power ? { eventIs: { power: opts.power } } : {}),
   /** "When attached character would ready" (Frozen in Time; docs/phase7-wave2.md §3.11). */
   cardReadying: (what: Who): EventPattern => pattern("cardReadying", asTarget(what)),

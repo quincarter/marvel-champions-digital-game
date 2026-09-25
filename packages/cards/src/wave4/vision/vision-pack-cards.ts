@@ -33,6 +33,14 @@ import {
   spend,
   you,
   zone,
+  attackingEnemy,
+  dealDamage,
+  discardBoostCard,
+  heroInterrupt,
+  modifyBasicPower,
+  spendUpTo,
+  varOf,
+  shuffleDeck,
 } from "../../dsl/index.js";
 
 const ANDROID = trait("ANDROID");
@@ -46,10 +54,10 @@ const GUARDIAN = trait("GUARDIAN");
  * (26020), Avengers Mansion (26023) — are exact Core/`qsv` cards, aliased automatically by `../reprints.ts`, not
  * scripted here.
  *
- * **Flow Like Water's "deal 1 damage to the attacking enemy" (26016.flow-like-water-response), Defiance's "discard
- * [a boost card] instead [of turning it faceup]" (26018.defiance-interrupt) and Machine Man's "attacks or thwarts"
- * (26022.machine-man-interrupt) are primitive gaps, not scripted** — see each ref's own comment below and
- * `KNOWN_SKIPPED["vision"]` in `../coverage.test.ts`.
+ * **Flow Like Water's "deal 1 damage to the attacking enemy" (26016.flow-like-water-response)** is `attackingEnemy`
+ * (docs/phase7-wave4.md §3.34). **Defiance's "discard [a boost card] instead [of turning it faceup]"
+ * (26018.defiance-interrupt)** is `discardBoostCard` (§3.35). **Machine Man's "attacks or thwarts"
+ * (26022.machine-man-interrupt)** is an `eventIs` list (§3.36).
  */
 export const VISION_PACK_CARDS = defineAbilities({
   // Jocasta (ally, 26013) — You may play the event attached to Jocasta as if it were in your hand. Response: After
@@ -74,34 +82,31 @@ export const VISION_PACK_CARDS = defineAbilities({
     rule({ kind: "reduceDamageTaken", target: query("ally", { self: true }), amount: 1, fromAttack: true }),
   ),
 
-  // KNOWN_SKIPPED: 26016.flow-like-water-response — "Response: After you play a Defense card, deal 1 damage to the
-  // attacking enemy." No `TargetRef` resolves "the enemy currently attacking you" independent of the response's own
-  // triggering event: `eventSource`/`eventTarget` read the *triggering* event's own subjects (here, the played
-  // card, not an attack), and the only stack-walking `TargetRef` that finds an in-progress `enemyAttack` frame from
-  // an unrelated trigger, `defendingCharacter` (`packages/engine/src/select.ts`), resolves the *defender*, not the
-  // attacker. A sibling `TargetRef { kind: "attackingCharacter" }` (the same frame's `enemyInstanceId`) is the
-  // natural fix, flagged for `game-rules-architect`. See `KNOWN_SKIPPED["vision"]` in `../coverage.test.ts`.
+  // Flow Like Water (upgrade, 26016) — Response: After you play a Defense card, deal 1 damage to the attacking enemy
+  // (the attack in progress, `attackingEnemy`, docs/phase7-wave4.md §3.34; none outside an attack).
+  "26016.flow-like-water-response": response(on.youPlayedCard({ trait: DEFENSE }), dealDamage(1, attackingEnemy)),
 
-  // KNOWN_SKIPPED: 26018.defiance-interrupt — "Hero Interrupt (defense): When a boost card on an enemy attacking
-  // you would be turned faceup, discard it instead." The trigger itself exists (`{ on: "boostCardTurnedFaceup",
-  // playerIs: "controller", eventIs: { activation: "attack" } }`, `packages/engine/src/trigger-events.ts`), but the
-  // only effect that intercepts it, `cancelBoostIcons` (`packages/engine/src/spec.ts`), zeroes the card's icons —
-  // it still turns faceup and joins the boost pool, rather than being discarded outright and never counted at all,
-  // which is what "discard it instead" (of turning faceup) means. See `KNOWN_SKIPPED["vision"]` in
-  // `../coverage.test.ts`.
+  // Defiance (event, 26018) — Hero Interrupt (defense): When a boost card on an enemy attacking you would be turned
+  // faceup, discard it instead (`discardBoostCard`, docs/phase7-wave4.md §3.35).
+  "26018.defiance-interrupt": heroInterrupt(
+    { on: "boostCardTurnedFaceup", playerIs: "controller", activation: "attack" },
+    { label: "defense" },
+    discardBoostCard(),
+  ),
 
   // Preservation (resource, 26021) — Max 1 per deck (data). Hero Response: After you spend this card, heal 1
   // damage from your hero.
   "26021.preservation-response": heroResponse(on.youSpendThis(), heal(1, self)),
 
-  // KNOWN_SKIPPED: 26022.machine-man-interrupt — "Interrupt: When Machine Man attacks or thwarts, spend up to 3
-  // resources of any type → Machine Man gets +1 THW and +1 ATK for this use for each resource spent this way." The
-  // engine's `EventPattern.eventIs` (`packages/engine/src/resolve/triggers.ts`) matches one exact value per key, no
-  // set — `basicPowerUsing`'s own `power` field is a single "attack" | "thwart" | "defense" | "recover", so there is
-  // no way to match "attack or thwart" while excluding "defense" in one trigger. Omitting the filter entirely (any
-  // basic power) would let this ability also fire on Machine Man's own defense, buffing his DEF with
-  // `modifyBasicPower` — a real over-trigger the printed card does not grant. See `KNOWN_SKIPPED["vision"]` in
-  // `../coverage.test.ts`.
+  // Machine Man (ally, 26022) — Interrupt: When Machine Man attacks or thwarts, spend up to 3 resources of any type →
+  // Machine Man gets +1 THW and +1 ATK for this use for each resource spent this way. "Attacks or thwarts" is his
+  // basic attack or thwart, not his defense (`eventIs` list, docs/phase7-wave4.md §3.36); "+1 THW and +1 ATK for this
+  // use" raises whichever power is being used.
+  "26022.machine-man-interrupt": interrupt(
+    on.basicPowerUsing("self", { power: ["attack", "thwart"] }),
+    { cost: spendUpTo(3) },
+    modifyBasicPower(varOf("x")),
+  ),
 
   // Avengers Mansion is a reprint (26023, module docblock).
 
@@ -128,19 +133,14 @@ export const VISION_PACK_CARDS = defineAbilities({
   // side scheme is defeated, search your deck and discard pile for an ally and add it to your hand. Shuffle your
   // deck.
   "26034.chance-encounter-constant": coveredByEngineRule(),
-  // KNOWN_SKIPPED: 26034.chance-encounter-interrupt. `schemeDefeated` isn't in `isAnnouncement`'s explicit
-  // interruptible list (`packages/engine/src/trigger-events.ts`), so — same substitution `wave2/trors/red-skull.ts`'s
-  // own Twisted Reality (04135) documents for the identical "[Forced] Interrupt: when attached side scheme is
-  // defeated" wording — it can only be scripted as a `response`. But unlike Twisted Reality (whose ability lives on
-  // the *side scheme itself*), Chance Encounter's ability lives on the *attachment*, and RRG 1.8 "Flip"/discard rules
-  // remove a defeated scheme's attachments as part of the same cleanup that announces `schemeDefeated` — confirmed
-  // with `traceAbilities` (`packages/cards/src/testing/trace.ts`): the ability is `considered` (looked up while
-  // Chance Encounter is still in play, before the thwart resolves) but never `resolved`, because by the time the
-  // response window opens the attachment is already gone. `characterDefeated` has a documented escape hatch for
-  // exactly this shape (`EventPattern.targetHadAttachment`, "a card matching this was attached when the defeat was
-  // initiated, read after the character left play" — Flight of the Valkyrior, Valhalla, docs/phase7-wave4.md §3.22);
-  // `schemeDefeated` has no equivalent, so there is no way to read "the ally search Chance Encounter itself printed"
-  // once its own host scheme is gone. See `KNOWN_SKIPPED["vision"]` in `../coverage.test.ts`.
+  // `schemeDefeated` has an interrupt window while the scheme and this attachment are still in play (docs/phase7-wave4.md
+  // §3.37).
+  "26034.chance-encounter-interrupt": interrupt(
+    on.schemeDefeated("host"),
+    chooseCards("ally", zone(["deck", "discard"], you, { filter: query("ally") }), { min: 1, max: 1 }),
+    moveCards(cards(chosen("ally")), "hand"),
+    shuffleDeck(),
+  ),
 
   // Joining Forces (event, 26035) — Alliance (data). Hero Action: As a group, the players put a total of 1 Avenger
   // ally and 1 Guardian ally into play from their hand(s). `zone("hand", eachPlayer, …)` pools every player's hand

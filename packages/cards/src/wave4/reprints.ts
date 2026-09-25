@@ -28,6 +28,7 @@ import type { AbilityDefinition, AbilityRegistry } from "@mc/engine";
 import { WAVE4_CARDS } from "./cards.js";
 import { MTS_ABILITIES } from "./mts/index.js";
 import { NEBU_ABILITIES } from "./nebu/index.js";
+import { VALK_ABILITIES } from "./valk/index.js";
 import { VISION_ABILITIES } from "./vision/index.js";
 import { WARM_ABILITIES } from "./warm/index.js";
 
@@ -40,6 +41,7 @@ const PACK_OWN_ABILITIES: AbilityRegistry = {
   ...WARM_ABILITIES,
   ...VISION_ABILITIES,
   ...MTS_ABILITIES,
+  ...VALK_ABILITIES,
 };
 
 /** Ability refs in print order: both identity faces (plus any extra hero forms), every villain stage, every main scheme side, or the flat list. */

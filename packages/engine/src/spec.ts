@@ -293,7 +293,35 @@ export interface TargetQuery {
    * own facedown cards (RRG 1.8 "Facedown", owner may look), so this is the owner's reading.
    */
   readonly printedForm?: string;
+  /**
+   * The card has an ability with one of these timing words in its text box: "an attachment … with the text 'Hero
+   * Action' or 'Hero Response'" (Phase Disruption, `vision` 26011; Phase Strike, `mut_gen` 32038; Sunfire, `wolv`
+   * 35014; Electromagnetic Blast, `magneto` 49008), "'Hero Response' or 'Hero Interrupt'" (Target Lock, Phased Out),
+   * "an event with a 'Hero Action' ability" (Warpath, `angel` 42013). Read from the card's live abilities, so a blanked
+   * text box has none. docs/phase7-wave4.md §3.33.
+   */
+  readonly abilityTiming?: readonly AbilityTimingWord[];
 }
+
+/**
+ * A printed timing word (RRG 1.8 "Action", "Interrupt", "Response", "Resource Ability"; "Hero"/"Alter-Ego" is the form
+ * label, "Forced" the forced prefix): the ability-trigger shape `select.ts timingWordOf` maps each script to.
+ */
+export type AbilityTimingWord =
+  | "action"
+  | "heroAction"
+  | "alterEgoAction"
+  | "interrupt"
+  | "heroInterrupt"
+  | "alterEgoInterrupt"
+  | "forcedInterrupt"
+  | "response"
+  | "heroResponse"
+  | "alterEgoResponse"
+  | "forcedResponse"
+  | "resource"
+  | "heroResource"
+  | "alterEgoResource";
 
 /**
  * Character names as a card prints them (docs/phase7-wave3.md §3.34). `names` is written out; `teamUpOf` reads them
@@ -329,6 +357,12 @@ export type TargetRef =
    * attack is considered undefended".
    */
   | { readonly kind: "defendingCharacter" }
+  /**
+   * "The attacking enemy" from a trigger that is not the attack's own (Flow Like Water, `vision` 26016: "After you play
+   * a Defense card, deal 1 damage to the attacking enemy"; Riposte, Tally Ho!, Spider-UK, Daredevil): the enemy of the
+   * attack in progress, innermost first, if it is in play; none outside an attack. docs/phase7-wave4.md §3.34.
+   */
+  | { readonly kind: "attackingEnemy" }
   /**
    * "The villain": the active villain (The Wrecking Crew insert, "The Active Villain": "Any card effect that refers
    * to 'the villain' only refers to the active villain."). "A villain" is `each`/`chooseTarget` over the
@@ -900,6 +934,8 @@ export type EffectSpec =
   /**
    * "(thwart)": "Remove N threat from a scheme" resolved as a thwart by your identity (or `thwarter`). Pair with
    * `label: ["thwart"]`. `ignoreCrisis` is `removeThreat.ignoreCrisis`, carried through to the removal this makes.
+   * `ignorePatrol`: "…, ignoring the patrol keyword" for this thwart only (Just Passing Through, `vision` 26010;
+   * Natural Flight, `angel` 42006; docs/phase7-wave4.md §3.32) — the one-shot sibling of `RuleSpec characterIgnores`.
    */
   | {
       readonly kind: "thwart";
@@ -907,6 +943,7 @@ export type EffectSpec =
       readonly amount: ValueSpec;
       readonly thwarter?: TargetRef;
       readonly ignoreCrisis?: boolean;
+      readonly ignorePatrol?: boolean;
       readonly bind?: string;
     }
   /**
@@ -1026,6 +1063,13 @@ export type EffectSpec =
   | { readonly kind: "replaceBoostCount"; readonly card: TargetRef }
   /** "Cancel that card's boost ability" (Target Acquired): only before that ability resolves. `bind`: `<bind>.made`. */
   | { readonly kind: "cancelBoostAbility"; readonly bind?: string }
+  /**
+   * "When a boost card on an enemy attacking you would be turned faceup, discard it instead." (Defiance, `vision`
+   * 26018): the boost card resolving in the current activation is discarded now, in its turned-faceup window, so its
+   * "Boost" ability never resolves and its icons are never counted (both cancelled), and it is not applied to the
+   * activation at all. `bind`: `<bind>.made`. docs/phase7-wave4.md §3.35.
+   */
+  | { readonly kind: "discardBoostCard"; readonly bind?: string }
   /** Interrupt to damage: "prevent N of that damage" (Cosmic Flight) / "prevent all" (Backflip, `amount` absent). */
   /**
    * "Prevent [N of] that damage" (an interrupt to a `dealDamage` event). `bind`: `<bind>.amount` is how much was

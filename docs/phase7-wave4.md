@@ -432,6 +432,13 @@ stays data only.**
 | 3.28 | A blank text box except for keywords                                     | Corrupted Programming (§3.1's open item)                         | landed  |
 | 3.29 | A minion treated as an ally (the mirror of §3.9)                         | Mind Control, Redemption, Karma                                  | landed  |
 | 3.30 | A resource ability's own effects                                         | Gauntlet Gun; War Cry family, Psi-Knife, Cybernetic Arm          | landed  |
+| 3.31 | A character that cannot defend                                           | Intangible; Grant Ward, Tracking Display                         | landed  |
+| 3.32 | One thwart that ignores patrol                                           | Just Passing Through; Natural Flight, Grapnel Launcher           | landed  |
+| 3.33 | A card with a given timing word in its text                              | Phase Disruption; Phase Strike, Sunfire, Target Lock, Warpath    | landed  |
+| 3.34 | The attacking enemy from any trigger                                     | Flow Like Water; Riposte, Spider-UK, Daredevil                   | landed  |
+| 3.35 | Discard a boost card instead of applying it                              | Defiance                                                         | landed  |
+| 3.36 | An event pattern that accepts several values                             | Machine Man; Absorbing Man (tt)                                  | landed  |
+| 3.37 | Interrupts to a side scheme's defeat                                     | Chance Encounter; Followed, Ambush, Twisted Reality              | landed  |
 
 ### 3.1 Additional forms: the form keyword
 
@@ -1297,6 +1304,129 @@ attack gains piercing and ranged"), which modify the card paid for.
 > upgrades (effects plus `moveCards(self, "removedFromGame")` and the campaign-pool removal), Psi-Knife (an optional
 > `flipCard(self)`), Cybernetic Arm and Ruby Quartz Visor (a modifier on `chosen("paidFor")`; the "that attack"
 > modifier itself is the scripter's to pick from the existing attack modifiers).
+
+### 3.31 A character that cannot defend
+
+Intangible (`vision` 26002): "Vision cannot attack or defend." Survey (every raw pack, "cannot defend"): Grant Ward
+(`aos` 50022, "Grant Ward cannot defend."), Tracking Display (`sm` 27152, "Each character cannot defend against
+attached villain's attacks."). Taunt (`angel` 42016, `cw` 56048, "Other characters cannot defend against this attack")
+is scoped to one attack and is not covered here.
+
+> **Status: landed (2026-09-24),** tested in `packages/engine/src/cannot-defend.test.ts` (2 tests: a character that
+> cannot defend is never offered, the others are; scoped to the villain's attacks, nobody may defend the villain but a
+> minion's attack is defended as usual) and in a real game in `packages/cards/src/wave4/vision/vision-kit.test.ts`
+> (Intangible Vision can neither attack the villain nor defend; Dense Vision can do both). **What landed:**
+> **`RuleSpec cannotDefend {target, attacker?, while?}`** (`rules.ts cannotDefend`), read by `legalDefenders` (now
+> given the registry and the attacking enemy, and exported from `@mc/engine`), by the defender prompt's why-not
+> (exclusion `cannotDefend`, with a client label) and by a "(defense)" ability, which does not make such a character
+> the defender. **Scripted:** `26002.intangible-constant` (`cannotAttack` on the attacking host plus this), off
+> `KNOWN_SKIPPED`.
+
+### 3.32 One thwart that ignores patrol
+
+Just Passing Through (`vision` 26010): "Hero Action (thwart): Remove 3 threat from a scheme, ignoring the patrol keyword
+and the crisis icon." The one-shot sibling of §3.24. Survey (every raw pack, "ignor… patrol"): Natural Flight (`angel`
+42006, "If you are Angel, this thwart ignores the crisis icon and the patrol keyword"), Grapnel Launcher (`jj` 61023, "For
+this thwart … ignores the patrol keyword and any crisis icons", a basic thwart made by effect), Retinal Display's back
+(`sm` 27186b, "your hero's basic thwarts ignore the crisis icon and the patrol keyword", standing: `characterIgnores`
+scoped to basic thwarts is not built).
+
+> **Status: landed (2026-09-24),** tested in `packages/engine/src/character-ignores.test.ts` (1 new test: the thwart
+> removes threat from the main scheme past patrol, with and without a crisis icon, and the next ordinary thwart is
+> stopped, by patrol or crisis) and in a real game in `packages/cards/src/wave4/vision/vision-kit.test.ts` (Intangible
+> Vision against Rhino with Crowd Control's crisis icon in play). **What landed:** **`EffectSpec thwart.ignorePatrol`**,
+> carried on the `thwart` event and read by `threatRemovalBlocked` for the removal that thwart makes. **DSL:**
+> `thwart(n, target, { ignorePatrol: true })`. **Scripted:** `26010.just-passing-through-action`, off `KNOWN_SKIPPED`.
+
+### 3.33 A card with a given timing word in its text
+
+Phase Disruption (`vision` 26011): "Confuse an enemy. Choose an attachment on that enemy with the text 'Hero Action' or
+'Hero Response' and discard that attachment." Survey (every raw pack, "with the text" / "with a '…' ability"): Phase
+Strike (`mut_gen` 32038), Sunfire (`wolv` 35014), Electromagnetic Blast (`magneto` 49008), Disarming Defense
+(`wonder_man` 58033), all "Hero Action" or "Hero Response"; Target Lock and Phased Out (`cw` 56130, `synthezoid` 57076),
+"Hero Response" or "Hero Interrupt"; Warpath (`angel` 42013), "an event with a 'Hero Action' ability".
+
+> **Status: landed (2026-09-24),** tested in `packages/engine/src/ability-timing-query.test.ts` (3 tests: matches the
+> attachments carrying the named timing words and not a Forced Response; a blanked text box has none; each trigger
+> shape maps to its printed timing word) and in a real game in `packages/cards/src/wave4/vision/vision-kit.test.ts`
+> (Rhino with Lethal Weapon attached: Phase Disruption confuses him and discards it). **What landed:** **`TargetQuery
+abilityTiming: AbilityTimingWord[]`** ("heroAction", "heroResponse", "forcedInterrupt", …) matched against the card's
+> live abilities through `select.ts timingWordOf` (trigger kind + form label + forced), exclusion `noSuchAbility`
+> with a client label. The printed word is read from the script's trigger shape, which the ability DSL already makes
+> match the printed label (`heroAction`, `heroResponse`, …). **Scripted:** `26011.phase-disruption-action`, off
+> `KNOWN_SKIPPED`.
+
+### 3.34 The attacking enemy from any trigger
+
+Flow Like Water (`vision` 26016): "Response: After you play a [Defense] card, deal 1 damage to the attacking enemy." The
+trigger is the play, not the attack, so `eventSource` names the played card. Survey (every raw pack, "the attacking
+enemy"): Riposte, Tally Ho! (`ncrawler` 48018, 48011), Spider-UK (`sm` 27012), Daredevil (`spdr` 31014), Never Back Down
+(`qsv` 14014), Disarming Defense (`wonder_man` 58033); most sit on an attack-scoped trigger and already read
+`eventSource`, but any of them can use this ref.
+
+> **Status: landed (2026-09-24),** tested in `packages/engine/src/attacking-enemy.test.ts` (2 tests: nothing outside an
+> attack; the innermost attack's enemy during one) and in a real game in
+> `packages/cards/src/wave4/vision/vision-pack-cards.test.ts` (Dense Vision with Flow Like Water plays Mass Increase
+> against Rhino's attack; Rhino takes 1 damage). **What landed:** **`TargetRef attackingEnemy`**, the sibling of
+> `defendingCharacter`: the enemy of the innermost `enemyAttack` on the stack, if in play. **DSL:** `attackingEnemy`.
+> **Scripted:** `26016.flow-like-water-response`, off `KNOWN_SKIPPED`.
+
+### 3.35 Discard a boost card instead of applying it
+
+Defiance (`vision` 26018): "Hero Interrupt (defense): When a boost card on an enemy attacking you would be turned faceup,
+discard it instead." `cancelBoostIcons` / `cancelBoostAbility` cancel parts of a boost card that is still applied; this
+removes the card from the activation altogether. Survey: Close Call (`gmw` 16158, "cancel that card's 'Boost' ability and all of its boost icons, then discard it") is the same outcome.
+
+> **Status: landed (2026-09-24),** tested in `packages/engine/src/boost.test.ts` (1 new test: the boost card's ability
+> does not resolve, its icons are not added, and it goes to the encounter discard pile) and in a real game in
+> `packages/cards/src/wave4/vision/vision-pack-cards.test.ts` (Defiance against Rhino's attack). **What landed:**
+> **`EffectSpec discardBoostCard {bind?}`**: in the resolving boost card's turned-faceup window, it cancels the card's
+> ability and icons and moves it to its discard pile at once, so the count step finds nothing to apply; game event
+> `boostCancelled` gains scope `"discarded"` (client log line and villain-phase breakdown label added). The engine turns
+> the card faceup and then opens that window, so "would be turned faceup" is answered there. A response "after a
+> boost card is turned faceup" still sees the event; no printed card combines the two. **DSL:** `discardBoostCard()`.
+> **Scripted:** `26018.defiance-interrupt`, off `KNOWN_SKIPPED`.
+
+### 3.36 An event pattern that accepts several values
+
+Machine Man (`vision` 26022): "Interrupt: When Machine Man attacks or thwarts, spend up to 3 resources of any type →
+Machine Man gets +1 THW and +1 ATK for this use for each resource spent this way." "For this use" needs the
+`basicPowerUsing` interrupt (before the power's value is read), which also carries his defense. Survey (every raw pack,
+"attacks or thwarts"): Elixir, Power Gloves, Gamora (`drax`), Adam Warlock, Falcon, Agent 13, Spider-Man (`silk`, `sm`),
+Spider-Ham, Absorbing Man (`tt`), Cosmo; all but Machine Man and Absorbing Man are responses to the attack/thwart
+events and already use `on.attacksOrThwarts`.
+
+> **Status: landed (2026-09-24),** tested in `packages/engine/src/event-is-list.test.ts` (1 test: `{ power: ["attack",
+"thwart"] }` matches an attack or a thwart and not a defense) and in a real game in
+> `packages/cards/src/wave4/vision/vision-pack-cards.test.ts` (Machine Man thwarts, the player spends two cards, and
+> he removes his THW plus the resources spent, to a maximum of 3). **What landed:** **`EventPattern.eventIs` values
+> may be lists** (any one matches). DSL `on.basicPowerUsing(who, { power: [...] })`. **Engine fix found on the way:**
+> an in-play triggered ability whose only resource cost is an X ("spend up to 3") skipped the payment prompt and
+> resolved with X = 0; `triggerCandidate` now asks for payment whenever the cost has `resourcesX`, as the window-event
+> path already did. **Scripted:** `26022.machine-man-interrupt`, off `KNOWN_SKIPPED`.
+
+### 3.37 Interrupts to a side scheme's defeat
+
+Chance Encounter (`vision` 26034, reprinted `fne` 60025): "Interrupt: When attached side scheme is defeated, search your
+deck and discard pile for an ally and add it to your hand." Survey (every raw pack, "when attached (side) scheme is
+defeated"): Followed (`cap` 03032, `spiderham` 30018), Ambush (`deadpool` 44051), Twisted Reality (`trors` 04135, forced).
+`schemeDefeated` was response-only, and the scheme's attachments leave play with it before the response window, so
+none of these could fire. **Decision (the RRG-correct one of the two asked about):** give the defeat an interrupt
+window, not a `targetHadAttachment` escape hatch. RRG 1.8 "When Defeated Abilities" (p. 48) makes a scheme's own When
+Defeated a forced interrupt and says the card "leaves play after its 'When Defeated' ability is resolved", so the
+scheme, and everything attached to it, is in play while "when … is defeated" interrupts resolve.
+
+> **Status: landed (2026-09-24),** tested in `packages/engine/src/scheme-defeat-interrupt.test.ts` (1 test: an
+> attachment's forced interrupt fires with the scheme still in play, the same ability as a response does not fire, the
+> scheme then leaves play; replay deep-equal) and in a real game in `packages/cards/src/wave4/vision/vision-pack-cards.test.ts`
+> (Chance Encounter on Crowd Control; Vision thwarts it to 0 and an ally comes to hand). **What landed:**
+> `schemeDefeated` is now interruptible (`isAnnouncement`); `applyRemoveThreat` pushes only the event, whose apply
+> step (`applySchemeDefeated`) pushes the scheme's When Defeated and its leave-play step (the flip-guard from §3.10
+> kept), so the order is: interrupts → When Defeated → leaves play (attachments with it) → responses. A scheme an
+> interrupt already removed does nothing more. **Scripted:** `26034.chance-encounter-interrupt`, off `KNOWN_SKIPPED`
+> (Vision now has none). **Fixed on the way:** Twisted Reality (`trors` 04135) was scripted as a forced _response_
+> and never fired; it is now the forced interrupt it prints. Followed (`cap` 03032) was already an interrupt and now
+> actually fires. Ambush (`deadpool`) and the `fne` Chance Encounter are not scripted yet.
 
 ## 4. Open questions (for the user or FFG)
 

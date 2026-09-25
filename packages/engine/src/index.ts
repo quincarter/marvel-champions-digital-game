@@ -359,3 +359,4 @@ export {
   villainStage,
   zoneContents,
 } from "./query.js";
+export { legalDefenders } from "./resolve/enemy-activation.js";

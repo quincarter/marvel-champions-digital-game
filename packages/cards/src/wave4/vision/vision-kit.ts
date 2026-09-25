@@ -1,5 +1,6 @@
 import { trait } from "@mc/content";
 import {
+  aScheme,
   action,
   alterEgoAction,
   anAttackableEnemy,
@@ -45,6 +46,11 @@ import {
   yourIdentity,
   YOUR_IDENTITY,
   zone,
+  thwart,
+  anEnemy,
+  confuse,
+  chooseTarget,
+  discard,
 } from "../../dsl/index.js";
 
 const ANDROID = trait("ANDROID");
@@ -57,23 +63,16 @@ const ANDROID = trait("ANDROID");
  * hero/alter-ego flip: `action({ limit: { count: 1, period: "round" } }, changeAdditionalForm("mass"))` never uses
  * `changedFormThisRound`, RRG 1.8 "Form, Change Form" p. 21, docs/phase7-wave4.md §3.1's own worked example).
  *
- * **Intangible's "Vision cannot attack or defend." (26002.intangible-constant) is a primitive gap, not scripted.**
- * The attack half is expressible (`rule({ kind: "cannotAttack", attacker: { hostOfSelf: true }, target:
- * query("enemy") })`, `packages/engine/src/select.ts`'s `attackForbidden`), but there is no engine primitive at all
- * for "this character cannot be declared as a defender": `legalDefenders`
- * (`packages/engine/src/resolve/enemy-activation.ts`) filters only by hero form and exhaustion, with no `RuleSpec`
- * hook a card could add to. Scripting only the attack half would leave Intangible Vision able to defend, which is
- * exactly backwards from the printed card — see `KNOWN_SKIPPED["vision"]` in `../coverage.test.ts` for the same
- * reasoning kept next to the ref. A `cannotDefend`/defender-exclusion `RuleSpec` (the sibling of `cannotAttack`,
- * read by `legalDefenders`) is the natural fix, flagged for `game-rules-architect`.
+ * **Intangible's "Vision cannot attack or defend." (26002.intangible-constant)** is `cannotAttack` scoped to the
+ * attacking character plus `RuleSpec cannotDefend` (docs/phase7-wave4.md §3.31), both on the upgrade's host.
  *
  * **Corrupted Programming's "blank, except for keywords" (26028.corrupted-programming-constant, obligation)**
  * landed after this pack's own "Not done" note (docs/phase7-wave4.md §3.28): `blankTextBox` gained `exceptKeywords`,
  * so the obligation is fully scripted in `vision-obligation-nemesis.ts`, not skipped.
  *
- * **Just Passing Through's "ignoring the patrol keyword" (26010.just-passing-through-action) and Phase Disruption's
- * "Choose an attachment … with the text 'Hero Action' or 'Hero Response'" (26011.phase-disruption-action) are
- * further gaps**, documented at each ref below and in `KNOWN_SKIPPED["vision"]`.
+ * **Just Passing Through's "ignoring the patrol keyword" (26010.just-passing-through-action)** is the one-shot
+ * `thwart.ignorePatrol` (docs/phase7-wave4.md §3.32). **Phase Disruption's "Choose an attachment … with the text
+ * 'Hero Action' or 'Hero Response'" (26011.phase-disruption-action)** is `TargetQuery.abilityTiming` (§3.33).
  */
 export const VISION_KIT = defineAbilities({
   // Vision (hero, 26001a) — Density Manipulation - Action: Change mass form by flipping your mass form upgrade
@@ -105,8 +104,12 @@ export const VISION_KIT = defineAbilities({
     shuffleDeck(),
   ),
 
-  // Intangible (upgrade, 26002) — Mass form. Permanent. Vision cannot attack or defend (KNOWN_SKIPPED, module
-  // docblock). Reduce the amount of damage Vision takes from each attack by 2.
+  // Intangible (upgrade, 26002) — Mass form. Permanent. Vision cannot attack or defend (§3.31). Reduce the amount
+  // of damage Vision takes from each attack by 2.
+  "26002.intangible-constant": constant(
+    rule({ kind: "cannotAttack", attacker: { hostOfSelf: true }, target: query("enemy") }),
+    rule({ kind: "cannotDefend", target: { hostOfSelf: true } }),
+  ),
   "26002.intangible-constant-2": constant(
     rule({ kind: "reduceDamageTaken", target: { hostOfSelf: true }, amount: 2, fromAttack: true }),
   ),
@@ -189,25 +192,28 @@ export const VISION_KIT = defineAbilities({
   // Just Passing Through (event, 26010) — Play only if Vision is in Intangible mass form. Hero Action (thwart):
   // Remove 3 threat from a scheme, ignoring the patrol keyword and the crisis icon.
   "26010.just-passing-through-constant": constant(playOnlyIf(inAdditionalForm("mass", "Intangible"))),
-  // KNOWN_SKIPPED: 26010.just-passing-through-action — "ignoring the patrol keyword" has no one-shot equivalent of
-  // `EffectSpec.thwart.ignoreCrisis`. The only patrol exemption that landed (docs/phase7-wave4.md §3.24, `RuleSpec
-  // characterIgnores`/`ignores()`) is a *persistent* per-character rule applied via `constant(...)` or, for a
-  // limited-duration grant, `applyRuleUntil(rule, "endOfPhase" | "endOfRound" | "endOfTurn" | "endOfNextTurn")` —
-  // no duration shorter than "end of phase" exists, so applying it here would let *every* thwart Vision makes for
-  // the rest of the phase ignore patrol too, not only this one, which is a real (if narrow) rules bug of its own.
-  // The correct primitive is a `thwart`/`removeThreat` sibling of `ignoreCrisis` (`ignorePatrol?: boolean`,
-  // `packages/engine/src/spec.ts`, read by `threatRemovalBlocked`), flagged for `game-rules-architect`. See
-  // `KNOWN_SKIPPED["vision"]` in `../coverage.test.ts`.
+  // "…, ignoring the patrol keyword and the crisis icon": this thwart only (docs/phase7-wave4.md §3.32).
+  "26010.just-passing-through-action": heroAction(
+    { label: "thwart" },
+    aScheme("scheme"),
+    thwart(3, chosen("scheme"), { ignorePatrol: true, ignoreCrisis: true }),
+  ),
 
   // Phase Disruption (event, 26011) — Play only if Vision is in Intangible mass form. Hero Action: Confuse an
   // enemy. Choose an attachment on that enemy with the text "Hero Action" or "Hero Response" and discard that
   // attachment.
   "26011.phase-disruption-constant": constant(playOnlyIf(inAdditionalForm("mass", "Intangible"))),
-  // KNOWN_SKIPPED: 26011.phase-disruption-action — "an attachment … with the text 'Hero Action' or 'Hero
-  // Response'" needs a `TargetQuery` that reads which trigger *kind* a card's own abilities carry (or a search over
-  // its printed text), and neither exists: `TargetQuery` filters card shape (type/traits/keywords/host/…), never a
-  // card's own ability shapes, and the engine holds no per-card "printed timing word" field to match against. See
-  // `KNOWN_SKIPPED["vision"]` in `../coverage.test.ts`.
+  // "…with the text 'Hero Action' or 'Hero Response'" reads the attachment's own abilities (`TargetQuery.abilityTiming`,
+  // docs/phase7-wave4.md §3.33). No such attachment: nothing to choose, and the confuse still happens.
+  "26011.phase-disruption-action": heroAction(
+    anEnemy("enemy"),
+    confuse(chosen("enemy")),
+    chooseTarget(
+      "attachment",
+      query("attachment", { host: chosen("enemy"), abilityTiming: ["heroAction", "heroResponse"] }),
+    ),
+    discard(chosen("attachment")),
+  ),
 
   // Mass Increase (event, 26012) — Play only if Vision is in Dense mass form. Hero Interrupt (defense): When
   // Vision defends, prevent all damage from that attack. Stun the attacking enemy after that attack resolves. The

@@ -190,6 +190,7 @@ const EXCLUSION_WORDING: Record<ExclusionCode, string> = {
   wrongPrintedId: "not the exact printed card",
   wrongFacedown: "wrong face up or down",
   wrongForm: "not that kind of form card",
+  noSuchAbility: "has no such ability",
   wrongStarIcon: "wrong star icon in the boost area",
   wrongUnique: "wrong unique icon",
   notHostOfSelf: "isn't hosting this card",
@@ -225,6 +226,7 @@ const EXCLUSION_WORDING: Record<ExclusionCode, string> = {
   alterEgoForm: "in alter-ego form",
   notHeroOrAlly: "not a hero or ally",
   defenderAlreadyDeclared: "someone else already declared as defender",
+  cannotDefend: "cannot defend",
   mustDefendWithAlly: "a ready ally must defend instead",
 };
 

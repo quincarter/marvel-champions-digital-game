@@ -341,6 +341,7 @@ function bindsOf(effect: EffectSpec, scope: Scope): void {
     // docs/phase7-wave1.md §3.6 (cancelBoostIcons/cancelBoostAbility), §3.7 (dealIndirectDamage) and §3.8 (moveThreat)
     // each flagged this as a gap for `ability-scripting-engineer` before their cards could be scripted.
     case "cancelBoostIcons":
+    case "discardBoostCard":
     case "cancelBoostAbility":
     case "enemyAttacksEnemy":
     case "friendlyCharacterAttacks":

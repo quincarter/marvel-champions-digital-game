@@ -1,6 +1,6 @@
 /** Enemy attack and scheme procedures: boost cards, defenders, damage and threat. */
 
-import type { EngineDeps } from "../abilities.js";
+import { DEFAULT_DEPS, type EngineDeps } from "../abilities.js";
 import {
   type Ctx,
   emit,
@@ -35,6 +35,7 @@ import {
   mustDefendWithAlly,
   pairedMainSchemeId,
   schemeThreatDestination,
+  cannotDefend,
 } from "../rules.js";
 import { cardsInPlay, controllerOf, DEFENDER_SLOT, isAlly } from "../select.js";
 import { currentActivationFrameId, type Vars } from "../stack.js";
@@ -313,7 +314,12 @@ export function pushEnemyAttackFrame(
  * target. The attacked player is the one who decides (co-op table convention;
  * the engine gives the decision to a single seat so it stays deterministic).
  */
-export function legalDefenders(state: GameState, attackedPlayerId: PlayerId): readonly InstanceId[] {
+export function legalDefenders(
+  state: GameState,
+  attackedPlayerId: PlayerId,
+  deps: EngineDeps = DEFAULT_DEPS,
+  attackerId: InstanceId | null = null,
+): readonly InstanceId[] {
   const defenders: InstanceId[] = [];
   for (const player of playerOrder(state)) {
     const identity = getInstance(state, player.identity.instanceId);
@@ -328,7 +334,8 @@ export function legalDefenders(state: GameState, attackedPlayerId: PlayerId): re
   const attacked = mustPlayer(state, attackedPlayerId);
   const ownFirst = (id: InstanceId): number =>
     id === attacked.identity.instanceId || attacked.playArea.includes(id) ? 0 : 1;
-  return [...defenders].sort((a, b) => ownFirst(a) - ownFirst(b));
+  // "Vision cannot attack or defend." (`RuleSpec cannotDefend`, docs/phase7-wave4.md §3.31).
+  return defenders.filter((id) => !cannotDefend(state, deps, id, attackerId)).sort((a, b) => ownFirst(a) - ownFirst(b));
 }
 
 /** RRG 1.8 "Activation" (p. 6): an enemy that left play mid-activation ends it; nothing further resolves. */
@@ -446,7 +453,7 @@ export function executeEnemyAttackFrame(ctx: Ctx, frame: Frame<"enemyAttack">): 
       // RRG "Defend, Defense": with a "(defense)" defender already set, only that
       // hero may still make a basic defense; nobody else can defend this attack.
       const existing = frame.defenderInstanceId;
-      const all = legalDefenders(ctx.state, frame.attackedPlayerId);
+      const all = legalDefenders(ctx.state, frame.attackedPlayerId, ctx.deps, frame.enemyInstanceId);
       // "Must defend with an ally they control, if able" (Melter): only the engaged player's ready allies, no declining.
       const forcedAllies = mustDefendWithAlly(ctx.state, ctx.deps, frame.enemyInstanceId)
         ? all.filter((id) => isAlly(ctx.state, id) && controllerOf(ctx.state, id) === frame.attackedPlayerId)

@@ -316,6 +316,8 @@ function applyEvent(ctx: Ctx, frame: Frame<"event">): boolean | void {
       return applyRetaliate(ctx, event);
     case "characterDefeated":
       return applyDefeat(ctx, event);
+    case "schemeDefeated":
+      return applySchemeDefeated(ctx, event);
     case "mainSchemeCompleting":
       return applyMainSchemeCompleting(ctx, event);
     case "countersRemoved": {
@@ -704,6 +706,8 @@ export function threatRemovalBlocked(
   thwartingPlayerId: PlayerId | null = null,
   /** The thwart's own character, for a removal made by a thwart (`characterIgnores`, docs/phase7-wave4.md §3.24). */
   thwarterInstanceId: InstanceId | null = null,
+  /** "…, ignoring the patrol keyword" on the thwart itself (docs/phase7-wave4.md §3.32). */
+  ignorePatrol = false,
 ): "crisis" | "patrol" | "rule" | null {
   const acting = thwarterInstanceId ?? sourceInstanceId;
   // RRG "Crisis Icon": while a crisis icon is in play, players cannot remove threat from the main scheme. One effect
@@ -723,6 +727,7 @@ export function threatRemovalBlocked(
   // (docs/phase7-wave3.md §3.5).
   if (
     byThwart &&
+    !ignorePatrol &&
     thwartingPlayerId &&
     mainSchemeStateOf(state, schemeId) &&
     patrolledBy(state, deps, thwartingPlayerId) &&
@@ -777,6 +782,7 @@ function applyRemoveThreat(ctx: Ctx, event: Extract<TriggerEvent, { kind: "remov
     event.ignoreCrisis === true,
     thwart?.playerId ?? null,
     thwart?.thwarterInstanceId ?? null,
+    thwart?.ignorePatrol === true,
   );
   if (blocked) {
     emit(ctx, { type: "threatRemovalBlocked", schemeInstanceId: event.schemeInstanceId, reason: blocked });
@@ -798,29 +804,10 @@ function applyRemoveThreat(ctx: Ctx, event: Extract<TriggerEvent, { kind: "remov
   const isSideScheme = card?.type === "side_scheme" || card?.type === "player_side_scheme";
   if (isSideScheme && after.threat === 0 && !notDefeatedWithoutThreat(ctx.state, ctx.deps, event.schemeInstanceId)) {
     emit(ctx, { type: "schemeDefeated", instanceId: event.schemeInstanceId, cardId: after.cardId });
-    // Its "When Defeated" resolves first, then it leaves play (so tucked cards it returns aren't discarded first).
-    const effectsFrame: StackFrame = {
-      ...base(ctx),
-      kind: "effects",
-      // "Shuffle it into the encounter deck instead of discarding it." (Time Portal; `defeatedIntoEncounterDeck`, §3.11;
-      // the general `defeatDestination`, docs/phase7-wave3.md §3.45).
-      // Unless it flipped into its other face during its "When Defeated" (Secure the Landing Pad → Cosmo; §3.10).
-      effects: [
-        {
-          kind: "if",
-          condition: { kind: "refMatches", ref: { kind: "self" }, query: { printedId: after.cardId } },
-          then: [schemeDefeatDestination(ctx.state, ctx.deps, event.schemeInstanceId)],
-        },
-      ],
-      cursor: 0,
-      bindings: {},
-      vars: {},
-      scopedPlayerId: null,
-      selfInstanceId: event.schemeInstanceId,
-      controllerId: null,
-      event: null,
-      eventFrameId: null,
-    };
+    // "When the defeat is initiated" interrupts (Chance Encounter, "When attached side scheme is defeated") answer
+    // while the scheme and its attachments are still in play; the scheme's When Defeated and its leaving play are the
+    // event's apply step (`applySchemeDefeated`), and "after … is defeated" responds after both (docs/phase7-wave4.md
+    // §3.37).
     // "When Defeated: … the player who defeated this scheme" (Crossbones' Assault): the defeat event is handed to the
     // When Defeated abilities too — a minion's already got its `characterDefeated` event — so `defeatingPlayer`
     // resolves inside them. No Core or wave 1 When Defeated script reads an event-scoped ref, so nothing changes.
@@ -832,12 +819,45 @@ function applyRemoveThreat(ctx: Ctx, event: Extract<TriggerEvent, { kind: "remov
       // (`applyPlayerThwart`), so this needs no thwart special case of its own, unlike the defeating *player* above.
       sourceInstanceId: event.sourceInstanceId,
     };
-    pushFrames(ctx, [
-      ...gameAbilityFrames(ctx, event.schemeInstanceId, ["whenDefeated"], defeated, undefined, ctx.state.firstPlayerId),
-      effectsFrame,
-      eventFrame(ctx, defeated),
-    ]);
+    pushFrames(ctx, [eventFrame(ctx, defeated)]);
   }
+}
+
+/**
+ * A side scheme's defeat, after its interrupt window (docs/phase7-wave4.md §3.37): its "When Defeated" resolves first,
+ * then it leaves play (so tucked cards it returns aren't discarded first). A scheme an interrupt already removed from
+ * play has nothing left to do.
+ */
+function applySchemeDefeated(ctx: Ctx, event: Extract<TriggerEvent, { kind: "schemeDefeated" }>): void {
+  const schemeId = event.instanceId;
+  const scheme = getInstance(ctx.state, schemeId);
+  if (!scheme || !cardsInPlay(ctx.state).includes(schemeId)) return;
+  const effectsFrame: StackFrame = {
+    ...base(ctx),
+    kind: "effects",
+    // "Shuffle it into the encounter deck instead of discarding it." (Time Portal; `defeatedIntoEncounterDeck`, §3.11;
+    // the general `defeatDestination`, docs/phase7-wave3.md §3.45). Unless it flipped into its other face during its
+    // "When Defeated" (Secure the Landing Pad → Cosmo; docs/phase7-wave4.md §3.10).
+    effects: [
+      {
+        kind: "if",
+        condition: { kind: "refMatches", ref: { kind: "self" }, query: { printedId: scheme.cardId } },
+        then: [schemeDefeatDestination(ctx.state, ctx.deps, schemeId)],
+      },
+    ],
+    cursor: 0,
+    bindings: {},
+    vars: {},
+    scopedPlayerId: null,
+    selfInstanceId: schemeId,
+    controllerId: null,
+    event: null,
+    eventFrameId: null,
+  };
+  pushFrames(ctx, [
+    ...gameAbilityFrames(ctx, schemeId, ["whenDefeated"], event, undefined, ctx.state.firstPlayerId),
+    effectsFrame,
+  ]);
 }
 
 function applyPlayerAttack(ctx: Ctx, event: Extract<TriggerEvent, { kind: "attack" }>, frameId: FrameId): void {

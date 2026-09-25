@@ -867,9 +867,11 @@ export class VillainPhaseOverlay extends Phaser.Scene {
       const status =
         boost.cancelled === "icons"
           ? "Icons cancelled — 0 added."
-          : boost.cancelled === "ability"
-            ? `${boost.boostIcons} icon${boost.boostIcons === 1 ? "" : "s"} · Boost ability cancelled.`
-            : `${boost.boostIcons} icon${boost.boostIcons === 1 ? "" : "s"}.`;
+          : boost.cancelled === "discarded"
+            ? "Discarded instead — not applied."
+            : boost.cancelled === "ability"
+              ? `${boost.boostIcons} icon${boost.boostIcons === 1 ? "" : "s"} · Boost ability cancelled.`
+              : `${boost.boostIcons} icon${boost.boostIcons === 1 ? "" : "s"}.`;
       const statusText = this.add
         .text(
           textX,

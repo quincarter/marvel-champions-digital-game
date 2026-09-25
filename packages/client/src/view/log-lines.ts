@@ -268,7 +268,9 @@ function describe(
         text:
           event.scope === "ability"
             ? `${card(event.instanceId)}'s Boost ability is cancelled.`
-            : `${card(event.instanceId)}'s boost icons are cancelled.`,
+            : event.scope === "discarded"
+              ? `${card(event.instanceId)} is discarded instead of being turned faceup.`
+              : `${card(event.instanceId)}'s boost icons are cancelled.`,
         voice: "player",
       };
     case "defenderDeclared":
