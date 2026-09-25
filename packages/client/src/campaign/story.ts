@@ -13,6 +13,7 @@
 import { TRORS_STORY } from "./stories/trors.js";
 import { GMW_STORY } from "./stories/gmw.js";
 import { MTS_STORY } from "./stories/mts.js";
+import type { PoolCopy } from "../view/campaign-pool-model.js";
 
 export type StorySpeaker =
   | { readonly kind: "narrator" }
@@ -203,6 +204,13 @@ export interface CampaignStory {
   readonly issues: readonly IssueStory[];
   /** Set only for a box told as comic pages (`art/README.md`); its issues' `comicBeats` index into this. */
   readonly pages?: readonly ComicPage[];
+  /**
+   * A campaign-pool box's own short voice for each pool field (`view/campaign-pool-model.ts`'s `PoolCopy`), keyed
+   * by the box's own `CampaignDefinition` log field id ("cosmoInPool"). Unset for a box with no pool at all; a pool
+   * field with no entry here still renders, from the real printed instruction text (`PoolFieldCopy`'s own doc
+   * comment) — this is flavor on top of real data, never a second source of truth for it.
+   */
+  readonly poolCopy?: PoolCopy;
   /**
    * Rewind's (C09) campaign-lost variant: shown only when a scenario's defeat instructions end the whole campaign
    * outright (MC10's Expert-only Red Skull loss, MC16's Expert Campaign Only Ronan loss) — there is no "REWIND ▸"

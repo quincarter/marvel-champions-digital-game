@@ -2,7 +2,14 @@ import { describe, expect, test } from "vitest";
 import { POOL_CARDS, POOL_DEPS } from "../content/pool.js";
 import { MemoryCampaignStorage } from "../engine/campaign-storage.js";
 import { CampaignService } from "./campaign-service.js";
-import { seedDesignRun, seedDesignWonGame, seedGmwRun, seedGmwWonGame } from "./dev-fixtures.js";
+import {
+  seedDesignRun,
+  seedDesignWonGame,
+  seedGmwRun,
+  seedGmwWonGame,
+  seedMtsComposed,
+  seedMtsRun,
+} from "./dev-fixtures.js";
 import { frozenNonCampaignCardsOf } from "../view/campaign-deck-edit-model.js";
 import { GMW_CAMPAIGN_DEFINITION } from "@mc/cards";
 
@@ -112,4 +119,40 @@ describe("seedGmwWonGame / seedDesignWonGame", () => {
     expect(record.attempt?.nodeId).toBe("taskmaster");
     expect(won.outcome).toEqual({ result: "win", reason: "villainDefeated" });
   });
+});
+
+describe("seedMtsRun", () => {
+  test("afterIssue2 plays #1 and #2 for real: two won games, the campaign pool's own four cards resolved", async () => {
+    const record = await seedMtsRun(service(), "afterIssue2");
+    expect(record.position.nextNodeId).toBe("thanos");
+    expect(record.history.map((entry) => `${entry.nodeId}:${entry.outcome}`)).toEqual([
+      "ebony-maw:won",
+      "tower-defense:won",
+    ]);
+    expect(record.shared.cosmoInPool).toEqual({ kind: "flag", value: true });
+    expect(record.shared.securityBreachInPool).toEqual({ kind: "flag", value: true });
+    expect(record.shared.shawarmaInPool).toEqual({ kind: "flag", value: true });
+    // Black Swan's own condition ("NOT in the victory display") is free on any fresh, unplayed victory display.
+    expect(record.shared.blackSwanInPool).toEqual({ kind: "flag", value: true });
+  }, 30_000);
+
+  test("beforeFinale plays on through #3 and #4: Norn Stone and Odin both resolved", async () => {
+    const record = await seedMtsRun(service(), "beforeFinale");
+    expect(record.position.nextNodeId).toBe("loki");
+    expect(record.shared.systemShockInPool).toEqual({ kind: "flag", value: true });
+    expect(record.shared.nornStoneInPool).toEqual({ kind: "flag", value: true });
+    expect(record.shared.odinInPool).toEqual({ kind: "flag", value: true });
+  }, 30_000);
+});
+
+describe("seedMtsComposed", () => {
+  test("composes issue #3 for real", async () => {
+    const record = await seedMtsComposed(service(), "afterIssue2");
+    expect(record.attempt?.nodeId).toBe("thanos");
+  }, 30_000);
+
+  test("composes the finale (issue #5) for real", async () => {
+    const record = await seedMtsComposed(service(), "beforeFinale");
+    expect(record.attempt?.nodeId).toBe("loki");
+  }, 30_000);
 });

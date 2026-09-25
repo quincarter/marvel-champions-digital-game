@@ -10,7 +10,7 @@
 import Phaser from "phaser";
 import type { CampaignChoiceAnswer, CampaignDefinition, CampaignPendingChoice } from "@mc/engine";
 import { CAMPAIGN_ACCEPT } from "@mc/engine";
-import { issueNumberOf, issueStoryFor, lineForRoster, type IssueStory } from "../../campaign/story.js";
+import { issueNumberOf, issueStoryFor, lineForRoster, storyFor, type IssueStory } from "../../campaign/story.js";
 import {
   bangers,
   drawActionBar,
@@ -29,10 +29,12 @@ import { fadeScreenIn, goToScreen } from "../../ui/transitions.js";
 import type { Rect } from "../../view/layout.js";
 import { formFactorFor } from "../../view/layout.js";
 import { briefingViewOf, type BriefingView, type HandledRow } from "../../view/campaign-briefing-model.js";
-import type { BriefingPoolRow, BriefingPoolView } from "../../view/campaign-pool-model.js";
+import type { BriefingPoolGroup, BriefingPoolRow, BriefingPoolView } from "../../view/campaign-pool-model.js";
 import { isMarketPendingChoice } from "../../view/campaign-market-model.js";
-import { MTS_CARDS } from "@mc/content";
 import { CARDS_BY_ID } from "../../content/pool.js";
+import { artFor } from "../../art/art-source.js";
+import { cardArt, drawArt } from "../../art/card-art.js";
+import type { AnyCard } from "@mc/content";
 import { appSession, campaignService } from "../../session.js";
 import type { CampaignRecord } from "../../engine/campaign-storage.js";
 import { FocusRoute, type FocusStop } from "../focus-route.js";
@@ -41,13 +43,11 @@ import type { CampaignBriefingData } from "./routes.js";
 
 const cardName = (id: string): string => CARDS_BY_ID.get(id)?.name ?? id;
 /** See `scenes/campaign/dossier.ts`'s own copy of this helper — a pool field names a card by name, never an id. */
-const POOL_CARD_NAME_TYPES = new Map<string, string>([
-  ...[...CARDS_BY_ID.values()].map((card) => [card.name, card.type] as const),
-  ...MTS_CARDS.map((card) => [card.name, card.type] as const),
-]);
+const CARD_BY_NAME = new Map<string, AnyCard>([...CARDS_BY_ID.values()].map((card) => [card.name, card] as const));
+const cardOfName = (name: string): AnyCard | undefined => CARD_BY_NAME.get(name);
 const cardTypeOf = (name: string): { readonly type: string } | undefined => {
-  const type = POOL_CARD_NAME_TYPES.get(name);
-  return type ? { type } : undefined;
+  const card = cardOfName(name);
+  return card ? { type: card.type } : undefined;
 };
 
 export class CampaignBriefingScene extends Phaser.Scene {
@@ -88,7 +88,11 @@ export class CampaignBriefingScene extends Phaser.Scene {
   create(): void {
     this.cameras.main.setBackgroundColor(cssOf(surface.paper.hex));
     this.scale.on("resize", this.#draw, this);
-    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.scale.off("resize", this.#draw, this));
+    const artOff = cardArt(this).onArrived(() => this.#draw());
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      this.scale.off("resize", this.#draw, this);
+      artOff();
+    });
     void this.#load();
     fadeScreenIn(this);
   }
@@ -228,8 +232,20 @@ export class CampaignBriefingScene extends Phaser.Scene {
     const actionBar = drawActionBar(this);
     const contentBottom = actionBar.y - 16;
 
+    const campaignStory = storyFor(record.campaignId as string);
+    const firstPlayerSeat = record.seats.find((seat) => seat.seatNumber === 1) ?? record.seats[0];
+    const firstPlayerName = firstPlayerSeat ? cardName(firstPlayerSeat.identityCardId as string) : undefined;
     const view = record.attempt
-      ? briefingViewOf(record, cardName, this.#issueNumber, this.#definition ?? undefined, this.#nodeIds, cardTypeOf)
+      ? briefingViewOf(
+          record,
+          cardName,
+          this.#issueNumber,
+          this.#definition ?? undefined,
+          this.#nodeIds,
+          cardTypeOf,
+          campaignStory?.poolCopy,
+          firstPlayerName,
+        )
       : null;
     const gutter = phone ? 16 : 24;
     const columnGap = 32;
@@ -241,15 +257,25 @@ export class CampaignBriefingScene extends Phaser.Scene {
       height: contentBottom - (top.height + 20),
     };
 
+    // A pool issue (design tiles 24/26): the left column is the speaker plus "From the pool", "Handled for you"
+    // moves to the right column, and the Decks panel drops entirely (the bottom bar's own DECKS button still opens
+    // it) — there's no room, and no printed sheet, for a pool box's own list beside a Decks table too. A box with
+    // no pool (MC10/MC16) keeps the original layout: left column speaker + Handled for you, right column Decks.
+    const hasPool = !!view?.pool;
     let leftBottom = this.#drawSpeaker(leftRect, record, phone);
-    if (view?.pool) {
-      leftBottom = this.#drawPool({ x: leftRect.x, y: leftBottom + 20, width: leftRect.width, height: 0 }, view.pool);
+    if (hasPool) {
+      leftBottom = this.#drawPool(
+        { x: leftRect.x, y: leftBottom + 20, width: leftRect.width, height: 0 },
+        view!.pool!,
+        phone,
+      );
+    } else {
+      leftBottom = this.#drawHandled(
+        { x: leftRect.x, y: leftBottom + 20, width: leftRect.width, height: contentBottom - leftBottom - 20 },
+        view,
+        stops,
+      );
     }
-    leftBottom = this.#drawHandled(
-      { x: leftRect.x, y: leftBottom + 20, width: leftRect.width, height: contentBottom - leftBottom - 20 },
-      view,
-      stops,
-    );
     if (this.#pending) {
       this.#drawYourCall(
         {
@@ -272,7 +298,15 @@ export class CampaignBriefingScene extends Phaser.Scene {
         width: width - gutter - (leftRect.x + leftRect.width + columnGap),
         height: contentBottom - (top.height + 20),
       };
-      this.#drawDecks(rightRect, view);
+      if (hasPool) this.#drawHandled(rightRect, view, stops);
+      else this.#drawDecks(rightRect, view);
+    } else if (hasPool) {
+      const handledTop = leftBottom + (this.#pending ? 140 : 20);
+      this.#drawHandled(
+        { x: gutter, y: handledTop, width: width - gutter * 2, height: Math.max(1, contentBottom - handledTop) },
+        view,
+        stops,
+      );
     } else if (view) {
       const decksRect: Rect = {
         x: gutter,
@@ -369,12 +403,33 @@ export class CampaignBriefingScene extends Phaser.Scene {
     return Math.max(rect.y + portraitSize, bubbleRect.y + bubbleRect.height);
   }
 
+  /** A pool row's own small card-art thumbnail — see `scenes/campaign/dossier.ts`'s identical `#poolCardThumb`. */
+  #poolCardThumb(name: string, rect: Rect): void {
+    const fill = this.add.graphics();
+    fill.fillStyle(0xe4dcc6, 1).fillRect(rect.x, rect.y, rect.width, rect.height);
+    const card = cardOfName(name);
+    const key = card ? cardArt(this).request(this, artFor(card, { kind: "front" })) : null;
+    const art = drawArt(this, key, rect);
+    if (!art) {
+      this.add
+        .text(rect.x + rect.width / 2, rect.y + rect.height / 2, "no\nscan", {
+          ...textStyle(typeRole.label, surface.ink.hex, 0.4),
+          fontSize: "8px",
+          align: "center",
+        })
+        .setOrigin(0.5);
+    }
+    this.add.graphics().lineStyle(1, surface.ink.hex, 0.6).strokeRect(rect.x, rect.y, rect.width, rect.height);
+  }
+
   /**
    * "From the pool" (design tiles 24/26): one row per resolved pool card this issue's own setup reads back, each
-   * with its own colored stripe and a ✓ (helps)/✗ (hurts) mark — or, for the box's finale, one section per
-   * destination (into play / encounter deck / each player's deck / upgrades), the whole pool's own recap.
+   * with its own colored stripe, art thumbnail and a ✓ (helps)/✗ (hurts) mark — or, for the box's finale on a
+   * desktop/tablet-width column, one boxed group per destination with a small row of art tiles (design tile 26's
+   * own grid); the finale on a phone keeps the same flat, full-width rows every other issue uses (design tile 24's
+   * own phone layout never grew a second column to grid into).
    */
-  #drawPool(rect: Rect, pool: BriefingPoolView): number {
+  #drawPool(rect: Rect, pool: BriefingPoolView, phone: boolean): number {
     let y = ruleHeading(
       this,
       rect.x,
@@ -384,6 +439,7 @@ export class CampaignBriefingScene extends Phaser.Scene {
       surface.ink.hex,
       20,
     );
+    const thumbSize = 44;
     const rowRect = (row: BriefingPoolRow, top: number): number => {
       const rowHeight = 54;
       const stripeColor = row.helps ? signal.heal.hex : accent.heroRed.hex;
@@ -391,11 +447,18 @@ export class CampaignBriefingScene extends Phaser.Scene {
       box.fillStyle(surface.card.hex, 1).fillRect(rect.x, top, rect.width, rowHeight);
       box.lineStyle(2, surface.ink.hex, 1).strokeRect(rect.x, top, rect.width, rowHeight);
       box.fillStyle(stripeColor, 1).fillRect(rect.x, top, 6, rowHeight);
-      this.add.text(rect.x + 16, top + 8, row.name.toUpperCase(), textStyle(bangers(15), surface.ink.hex));
+      const textX = rect.x + 6 + 8 + thumbSize + 10;
+      this.#poolCardThumb(row.name, {
+        x: rect.x + 6 + 8,
+        y: top + (rowHeight - thumbSize) / 2,
+        width: thumbSize,
+        height: thumbSize,
+      });
+      this.add.text(textX, top + 8, row.name.toUpperCase(), textStyle(bangers(15), surface.ink.hex));
       this.add
-        .text(rect.x + 16, top + 28, row.destination, textStyle(typeRole.body, surface.ink.hex, 0.7))
+        .text(textX, top + 28, row.destination, textStyle(typeRole.body, surface.ink.hex, 0.7))
         .setFontSize(11)
-        .setWordWrapWidth(rect.width - 80);
+        .setWordWrapWidth(rect.x + rect.width - 24 - textX);
       this.add
         .text(rect.x + rect.width - 24, top + rowHeight / 2, row.helps ? "✓" : "✗", {
           ...textStyle({ ...typeRole.rowTitle, size: 16 }, stripeColor),
@@ -407,19 +470,100 @@ export class CampaignBriefingScene extends Phaser.Scene {
       for (const row of pool.rows) y = rowRect(row, y);
       return y;
     }
-    for (const group of pool.groups) {
-      const headerHeight = 22;
-      this.add.rectangle(rect.x, y, rect.width, headerHeight, surface.ink.hex, 0.08).setOrigin(0, 0);
-      this.add.text(rect.x + 8, y + 4, group.title.toUpperCase(), {
-        ...textStyle(typeRole.label, surface.ink.hex, 0.7),
-        fontSize: "10px",
+    if (phone) {
+      for (const group of pool.groups) {
+        const headerHeight = 22;
+        this.add.rectangle(rect.x, y, rect.width, headerHeight, surface.ink.hex, 0.08).setOrigin(0, 0);
+        this.add.text(rect.x + 8, y + 4, group.title.toUpperCase(), {
+          ...textStyle(typeRole.label, surface.ink.hex, 0.7),
+          fontSize: "10px",
+          fontStyle: "700",
+        });
+        y += headerHeight + 6;
+        for (const row of group.rows) y = rowRect(row, y);
+        y += 6;
+      }
+      return y;
+    }
+    return this.#drawPoolGroupGrid(rect, pool.groups, y);
+  }
+
+  /**
+   * The finale's own desktop/tablet grid (design tile 26): a 2-column layout of boxed groups, each a header bar
+   * (title + a generic one-line subtitle, `campaign-pool-model.ts`'s own `GROUP_SUBTITLES`) over a row of small art
+   * tiles, one per card, each with its name and its own ALLY/ENEMY/HELPS/AGAINST badge underneath.
+   */
+  #drawPoolGroupGrid(rect: Rect, groups: readonly BriefingPoolGroup[], top: number): number {
+    const columnGap = 24;
+    const columnWidth = (rect.width - columnGap) / 2;
+    const tileSize = 64;
+    // Wider than the thumbnail itself: a two-word name wraps to two lines inside its *own* column
+    // (`nameWrapWidth`, narrower than the tile's own pitch), so neighboring tiles' text never bleeds into each
+    // other even when Bangers' real glyph widths run wider than the wrap estimate (`tileGap`'s own safety margin).
+    const tileGap = 18;
+    const nameWrapWidth = tileSize;
+    let leftY = top;
+    let rightY = top;
+    groups.forEach((group, index) => {
+      const columnX = index % 2 === 0 ? rect.x : rect.x + columnWidth + columnGap;
+      const groupTop = index % 2 === 0 ? leftY : rightY;
+      const headerHeight = 40;
+      const header = this.add.graphics();
+      header.fillStyle(0xe4dcc6, 1).fillRect(columnX, groupTop, columnWidth, headerHeight);
+      this.add.text(columnX + 10, groupTop + 4, group.title.toUpperCase(), {
+        ...textStyle(typeRole.label, surface.ink.hex, 0.8),
+        fontSize: "11px",
         fontStyle: "700",
       });
-      y += headerHeight + 6;
-      for (const row of group.rows) y = rowRect(row, y);
-      y += 6;
-    }
-    return y;
+      this.add
+        .text(columnX + 10, groupTop + 20, group.subtitle, {
+          ...textStyle(typeRole.body, surface.ink.hex, 0.55),
+          fontSize: "10px",
+        })
+        .setWordWrapWidth(columnWidth - 20);
+      let tileY = groupTop + headerHeight + 10;
+      let tileX = columnX + 10;
+      // Measured once per group from its own longest name — every tile in the group then reserves the same
+      // height under its thumbnail, so the badge line never has to guess how many lines the name above it took.
+      const nameHeight = Math.max(
+        ...group.rows.map((row) => {
+          const measure = this.add
+            .text(0, 0, row.name.toUpperCase(), textStyle(bangers(11), 0))
+            .setWordWrapWidth(nameWrapWidth)
+            .setVisible(false);
+          const height = measure.height;
+          measure.destroy();
+          return height;
+        }),
+      );
+      const rowHeight = tileSize + 10 + nameHeight + 16;
+      for (const row of group.rows) {
+        if (tileX + tileSize > columnX + columnWidth - 10) {
+          tileX = columnX + 10;
+          tileY += rowHeight;
+        }
+        const stripeColor = row.helps ? signal.heal.hex : accent.heroRed.hex;
+        this.#poolCardThumb(row.name, { x: tileX, y: tileY, width: tileSize, height: tileSize });
+        this.add.rectangle(tileX, tileY + tileSize, tileSize, 3, stripeColor).setOrigin(0, 0);
+        this.add
+          .text(tileX, tileY + tileSize + 6, row.name.toUpperCase(), textStyle(bangers(11), surface.ink.hex))
+          .setWordWrapWidth(nameWrapWidth);
+        this.add.text(tileX, tileY + tileSize + 8 + nameHeight, row.badgeLabel, {
+          ...textStyle(typeRole.label, stripeColor, 1),
+          fontSize: "9px",
+          fontStyle: "700",
+        });
+        tileX += tileSize + tileGap;
+      }
+      const groupBottom = tileY + rowHeight + 6;
+      this.add
+        .graphics()
+        .lineStyle(2, surface.ink.hex, 1)
+        .strokeRect(columnX, groupTop, columnWidth, groupBottom - groupTop);
+      if (index % 2 === 0) leftY = groupBottom + 16;
+      else rightY = groupBottom + 16;
+    });
+    return Math.max(leftY, rightY);
   }
 
   #drawHandled(rect: Rect, view: BriefingView | null, stops: Map<string, FocusStop>): number {

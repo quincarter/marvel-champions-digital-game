@@ -44,6 +44,29 @@ export interface PoolCardMeta {
 
 export type CardMetaOf = (name: string) => PoolCardMeta | undefined;
 
+/**
+ * A box's own authored voice for one pool field (`docs/campaign-client-per-box.md` §2: a box's flavor lives in its
+ * own `stories/<box>.ts`, never invented here). `destination`/`source` may contain the literal token `{firstPlayer}`,
+ * substituted with that seat's hero name by the caller (`firstPlayerName` below) — the printed instructions this
+ * module reads always say "the first player", never a name, so only authored copy can say "under Adam Warlock's
+ * control" the way the design does. A field with no entry here (or a box with no `copy` table at all) falls back to
+ * the real printed instruction text, exactly as before — a missing story never blocks the pool from rendering.
+ */
+export interface PoolFieldCopy {
+  /** "In play, under {firstPlayer}'s control." */
+  readonly destination: string;
+  /** "Won in #1 · landing pad held" */
+  readonly source: string;
+  /** "#3: goes into the pool if Defensive Protocols isn't beaten." Falls back to `source`'s own wording if absent. */
+  readonly stillInPlayFor?: string;
+}
+export type PoolCopy = Readonly<Record<string, PoolFieldCopy>>;
+
+const withFirstPlayer = (text: string, firstPlayerName: string | undefined): string =>
+  firstPlayerName
+    ? text.replace(/\{firstPlayer\}/g, firstPlayerName)
+    : text.replace(/\{firstPlayer\}/g, "the first player");
+
 const POOL_FIELD_LABEL = /^(.+?) added to campaign pool$/i;
 const DESTINATION_PREFIX = /^if .+? is in the campaign pool,\s*/i;
 
@@ -167,6 +190,8 @@ export interface PoolCardRow {
 export interface PoolStillInPlayRow {
   readonly fieldId: string;
   readonly name: string;
+  /** The *reading* instruction's own citation (the setup/victory bullet's own printed page) — never the log
+   * field's own citation, which only names where the log *sheet* prints its column (MC21 p. 28 for every field). */
   readonly citation: string;
   /** "#3 · If Defensive Protocols is NOT in the victory display, add System Shock to the campaign pool." */
   readonly note: string;
@@ -192,11 +217,17 @@ export interface CampaignPoolOverview {
   readonly emptySlots: readonly PoolEmptySlot[];
 }
 
-/** Null for a definition with no pool-shaped fields at all — the Dossier/Briefing render exactly as they do today. */
+/**
+ * Null for a definition with no pool-shaped fields at all — the Dossier/Briefing render exactly as they do today.
+ * `copy`/`firstPlayerName` are the box's own authored voice (`PoolFieldCopy`'s own doc comment) — both optional,
+ * falling back to the real printed instruction text with no story at all.
+ */
 export function campaignDossierPool(
   record: Pick<CampaignLog, "shared">,
   definition: CampaignDefinition,
   cardTypeOf?: CardMetaOf,
+  copy?: PoolCopy,
+  firstPlayerName?: string,
 ): CampaignPoolOverview | null {
   const fields = poolFieldsOf(definition);
   if (fields.length === 0) return null;
@@ -210,25 +241,32 @@ export function campaignDossierPool(
   const stillInPlayFor: PoolStillInPlayRow[] = [];
   const emptySlots: PoolEmptySlot[] = [];
   for (const field of fields) {
+    const fieldCopy = copy?.[field.fieldId];
     const source = firstSourceInstructionOf(definition, field);
-    const emptyNote = source ? `${nodeIssueLabel(definition, source.node)} · ${source.instruction.text}` : null;
+    const generatedNote = source ? `${nodeIssueLabel(definition, source.node)} · ${source.instruction.text}` : null;
+    const emptyNote = fieldCopy
+      ? withFirstPlayer(fieldCopy.stillInPlayFor ?? fieldCopy.source, firstPlayerName)
+      : generatedNote;
     emptySlots.push({ fieldId: field.fieldId, name: field.name, note: emptyNote });
     if (isSet(field.fieldId)) {
       const destinationEntry = firstDestinationInstructionOf(definition, field);
-      const destination = destinationEntry ? destinationTextOf(destinationEntry.instruction.text) : "";
+      const generatedDestination = destinationEntry ? destinationTextOf(destinationEntry.instruction.text) : "";
+      const destination = fieldCopy ? withFirstPlayer(fieldCopy.destination, firstPlayerName) : generatedDestination;
       cards.push({
         fieldId: field.fieldId,
         name: field.name,
         helps: helpsOf(field.name, cardTypeOf),
         destination,
-        source: emptyNote ?? "",
+        source: fieldCopy ? withFirstPlayer(fieldCopy.source, firstPlayerName) : (generatedNote ?? ""),
       });
     } else if (source) {
       stillInPlayFor.push({
         fieldId: field.fieldId,
         name: field.name,
-        citation: field.citation,
-        note: emptyNote ?? source.instruction.text,
+        citation: source.instruction.citation,
+        note: fieldCopy
+          ? withFirstPlayer(fieldCopy.stillInPlayFor ?? fieldCopy.source, firstPlayerName)
+          : (generatedNote ?? source.instruction.text),
       });
     }
   }
@@ -258,11 +296,17 @@ export interface BriefingPoolRow {
   readonly helps: boolean;
   readonly destination: string;
   readonly destinationKind: PoolDestinationKind;
+  /** "ALLY"/"ENEMY" for a card that becomes a real game object (into play / the encounter deck); "HELPS"/"AGAINST"
+   * for one that only rides in a deck (design tile 26's own two badge vocabularies, one per group). */
+  readonly badgeLabel: string;
 }
 
 export interface BriefingPoolGroup {
   readonly kind: PoolDestinationKind;
   readonly title: string;
+  /** The group's own one-line caption under its header bar (design tile 26) — generic per `PoolDestinationKind`, not
+   * authored per box: "Shuffled in." reads the same whichever card is shuffled into whichever box's encounter deck. */
+  readonly subtitle: string;
   readonly rows: readonly BriefingPoolRow[];
 }
 
@@ -278,7 +322,19 @@ const GROUP_TITLES: Readonly<Record<PoolDestinationKind, string>> = {
   eachPlayersDeck: "Each player's deck",
   upgrades: "Upgrades",
 };
+const GROUP_SUBTITLES: Readonly<Record<PoolDestinationKind, string>> = {
+  intoPlay: "Put into play at setup.",
+  encounterDeck: "Shuffled in.",
+  eachPlayersDeck: "One copy per hero.",
+  upgrades: "Attached at setup.",
+};
 const GROUP_ORDER: readonly PoolDestinationKind[] = ["intoPlay", "encounterDeck", "eachPlayersDeck", "upgrades"];
+
+const badgeLabelFor = (kind: PoolDestinationKind, helps: boolean): string => {
+  const real = kind === "intoPlay" || kind === "encounterDeck";
+  if (real) return helps ? "ALLY" : "ENEMY";
+  return helps ? "HELPS" : "AGAINST";
+};
 
 /**
  * Not-grouped (an ordinary issue): every pooled card *this node's own* setup/composition actually reads back
@@ -299,6 +355,8 @@ export function campaignBriefingPool(
   node: CampaignNode,
   cardTypeOf?: CardMetaOf,
   grouped = false,
+  copy?: PoolCopy,
+  firstPlayerName?: string,
 ): BriefingPoolView | null {
   const fields = grouped
     ? poolFieldsOf(definition)
@@ -312,14 +370,19 @@ export function campaignBriefingPool(
     if (!isSet(field.fieldId)) continue;
     const destinationEntry = firstDestinationInstructionOf(definition, field);
     if (!destinationEntry) continue;
-    const destination = destinationTextOf(destinationEntry.instruction.text);
+    const fieldCopy = copy?.[field.fieldId];
+    const generatedDestination = destinationTextOf(destinationEntry.instruction.text);
+    const destination = fieldCopy ? withFirstPlayer(fieldCopy.destination, firstPlayerName) : generatedDestination;
     const meta = cardTypeOf?.(field.name);
+    const helps = helpsOf(field.name, cardTypeOf);
+    const destinationKind = destinationKindOf(generatedDestination, meta);
     rows.push({
       fieldId: field.fieldId,
       name: field.name,
-      helps: helpsOf(field.name, cardTypeOf),
+      helps,
       destination,
-      destinationKind: destinationKindOf(destination, meta),
+      destinationKind,
+      badgeLabel: badgeLabelFor(destinationKind, helps),
     });
   }
   if (rows.length === 0) return null;
@@ -327,6 +390,7 @@ export function campaignBriefingPool(
 
   const groups: BriefingPoolGroup[] = GROUP_ORDER.map((kind) => ({
     kind,
+    subtitle: GROUP_SUBTITLES[kind],
     title: GROUP_TITLES[kind],
     rows: rows.filter((row) => row.destinationKind === kind),
   })).filter((group) => group.rows.length > 0);

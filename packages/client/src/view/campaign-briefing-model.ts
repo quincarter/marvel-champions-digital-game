@@ -8,7 +8,7 @@
 import type { CardId } from "@mc/content";
 import type { CampaignAttempt, CampaignDefinition, CampaignStepTrace, LogValue } from "@mc/engine";
 import type { CampaignRecord } from "../engine/campaign-storage.js";
-import { campaignBriefingPool, type BriefingPoolView, type CardMetaOf } from "./campaign-pool-model.js";
+import { campaignBriefingPool, type BriefingPoolView, type CardMetaOf, type PoolCopy } from "./campaign-pool-model.js";
 import { campaignStepRows, type CampaignStepRow } from "./campaign-step-model.js";
 
 export type CardNameOf = (id: CardId) => string;
@@ -284,6 +284,8 @@ export function briefingViewOf(
   definition?: CampaignDefinition,
   nodeIds: readonly string[] = [],
   cardTypeOf?: CardMetaOf,
+  poolCopy?: PoolCopy,
+  firstPlayerName?: string,
 ): BriefingView | null {
   if (!record.attempt) return null;
   const node = definition?.graph.nodes.find((candidate) => candidate.id === record.attempt!.nodeId);
@@ -291,7 +293,10 @@ export function briefingViewOf(
   return {
     issueNumber,
     handled: handledRowsOf(record.attempt, record, cardName, definition, nodeIds),
-    pool: definition && node ? campaignBriefingPool(record, definition, node, cardTypeOf, isFinale) : null,
+    pool:
+      definition && node
+        ? campaignBriefingPool(record, definition, node, cardTypeOf, isFinale, poolCopy, firstPlayerName)
+        : null,
     decks: deckRowsOf(record, cardName),
   };
 }
