@@ -104,6 +104,12 @@ async function devScreenJump(): Promise<{ readonly key: string; readonly data?: 
     return { key: SCENES.board, data: {} };
   }
 
+  // `?screen=scenario-intro[&scenario=rhino]`: a one-off scenario's intro artboard over a started dev game.
+  if (screen === "scenario-intro") {
+    await startDevGame();
+    return { key: SCENES.scenarioIntro, data: { scenarioId: params.get("scenario") ?? "rhino" } };
+  }
+
   if (screen === "setup-deal") {
     await startDevSetupGame();
     return { key: SCENES.setupDeal, data: {} };

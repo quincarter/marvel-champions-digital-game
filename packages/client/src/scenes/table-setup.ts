@@ -94,6 +94,9 @@ import { SCENES } from "./keys.js";
 import { appSession, deckStorage } from "../session.js";
 import type { DecksSceneData } from "./decks.js";
 import type { SeatsData } from "./seats.js";
+import type { ScenarioIntroData } from "./scenario-intro.js";
+import { scenarioIntroFor } from "../campaign/scenario-intros.js";
+import { ART_CATALOG, introArtFor } from "../art/scenario-art.js";
 import { destroyChildren } from "../ui/destroy-children.js";
 import { fadeScreenIn, goToScreen } from "../ui/transitions.js";
 
@@ -1537,6 +1540,13 @@ export class TableSetupScene extends Phaser.Scene {
     this.scale.off("resize", this.#rebuild, this);
     // W3 (docs/phase4-screen-gaps.md §3): "Deal it out" routes through the dedicated setup deal & mulligan screen,
     // never straight to the Board — that scene hands off to the Board itself once `state.step.phase` leaves "setup".
+    // A scenario with a one-off intro (`campaign/scenario-intros.ts`) and its artboard reads that first; the intro
+    // hands off to the deal itself.
+    const scenarioId = this.#draft.scenarioId;
+    if (scenarioIntroFor(scenarioId) && introArtFor(ART_CATALOG, scenarioId)) {
+      goToScreen(this, SCENES.scenarioIntro, { scenarioId } satisfies ScenarioIntroData);
+      return;
+    }
     goToScreen(this, SCENES.setupDeal);
   }
 }
