@@ -1063,6 +1063,13 @@ export type EffectSpec =
   | { readonly kind: "replaceBoostCount"; readonly card: TargetRef }
   /** "Cancel that card's boost ability" (Target Acquired): only before that ability resolves. `bind`: `<bind>.made`. */
   | { readonly kind: "cancelBoostAbility"; readonly bind?: string }
+  /**
+   * "When a boost card on an enemy attacking you would be turned faceup, discard it instead." (Defiance, `vision`
+   * 26018): the boost card resolving in the current activation is discarded now, in its turned-faceup window, so its
+   * "Boost" ability never resolves and its icons are never counted (both cancelled), and it is not applied to the
+   * activation at all. `bind`: `<bind>.made`. docs/phase7-wave4.md §3.35.
+   */
+  | { readonly kind: "discardBoostCard"; readonly bind?: string }
   /** Interrupt to damage: "prevent N of that damage" (Cosmic Flight) / "prevent all" (Backflip, `amount` absent). */
   /**
    * "Prevent [N of] that damage" (an interrupt to a `dealDamage` event). `bind`: `<bind>.amount` is how much was

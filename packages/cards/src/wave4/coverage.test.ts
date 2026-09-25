@@ -39,11 +39,9 @@ const KNOWN_SKIPPED: Readonly<Record<string, readonly string[]>> = {
   // nebu: both of its earlier primitive gaps (an in-play "discard cards you control" cost kind, and a friendly
   // character attacking its own controller without exhausting) landed since (`nebula-obligation-nemesis.ts` now
   // scripts both 22030.lethal-weapon-action and 22031.when-revealed); nothing left unresolved.
-  // vision: six genuine primitive gaps, each flagged for a game-rules-architect follow-up and documented in
+  // vision: the remaining genuine primitive gaps, each flagged for a game-rules-architect follow-up and documented in
   // detail next to its own ref (`vision/vision-kit.ts`, `vision/vision-obligation-nemesis.ts`,
   // `vision/vision-pack-cards.ts`):
-  //  - 26018.defiance-interrupt ("discard [a boost card] instead [of turning it faceup]") — the only boost-reveal
-  //    interceptor, `EffectSpec.cancelBoostIcons`, zeroes icons but still turns the card faceup into the boost pool.
   //  - 26022.machine-man-interrupt ("attacks or thwarts") — `EventPattern.eventIs` matches one exact value, so
   //    "attack or thwart" (excluding defense) can't be expressed in one trigger.
   //  - 26034.chance-encounter-interrupt ("Interrupt: When attached side scheme is defeated …") — `schemeDefeated`
@@ -53,7 +51,7 @@ const KNOWN_SKIPPED: Readonly<Record<string, readonly string[]>> = {
   //    is `considered` but never `resolved` (checked with `traceAbilities`). `characterDefeated` has an escape
   //    hatch for exactly this shape (`EventPattern.targetHadAttachment`); `schemeDefeated` has none.
   // Regenerated with `MC_REFS_PACKS=vision pnpm refs` (docs/card-scripting-process.md) — never hand-typed.
-  vision: ["26018.defiance-interrupt", "26022.machine-man-interrupt", "26034.chance-encounter-interrupt"],
+  vision: ["26022.machine-man-interrupt", "26034.chance-encounter-interrupt"],
   // warm: no primitive gaps found; every ability ref resolves.
   // mts: nine refs pulled out of this list here (21044, 21045, 21049, 21051, 21056, 21057, 21062, 21063, 21157) —
   // exact reprints of earlier cards (Uppercut, Combat Training, …) that `../reprints.ts` only started auto-aliasing

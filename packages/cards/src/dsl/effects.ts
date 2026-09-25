@@ -390,6 +390,15 @@ export const treatAsAlly = (target: TargetRef, traits: readonly Trait[], consequ
   thwFromSch: true,
   consequential,
 });
+/**
+ * "When a boost card on an enemy attacking you would be turned faceup, discard it instead." (Defiance, `vision`
+ * 26018): the boost card resolving now is discarded, its Boost ability and icons never applied. docs/phase7-wave4.md
+ * §3.35.
+ */
+export const discardBoostCard = (opts: { readonly bind?: string } = {}): EffectSpec => ({
+  kind: "discardBoostCard",
+  ...withBind(opts.bind),
+});
 export const friendlyCharacterAttacks = (
   attacker: TargetRef,
   player: PlayerRef = you,

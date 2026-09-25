@@ -436,6 +436,7 @@ stays data only.**
 | 3.32 | One thwart that ignores patrol                                           | Just Passing Through; Natural Flight, Grapnel Launcher           | landed  |
 | 3.33 | A card with a given timing word in its text                              | Phase Disruption; Phase Strike, Sunfire, Target Lock, Warpath    | landed  |
 | 3.34 | The attacking enemy from any trigger                                     | Flow Like Water; Riposte, Spider-UK, Daredevil                   | landed  |
+| 3.35 | Discard a boost card instead of applying it                              | Defiance                                                         | landed  |
 
 ### 3.1 Additional forms: the form keyword
 
@@ -1367,6 +1368,22 @@ enemy"): Riposte, Tally Ho! (`ncrawler` 48018, 48011), Spider-UK (`sm` 27012), D
 > against Rhino's attack; Rhino takes 1 damage). **What landed:** **`TargetRef attackingEnemy`**, the sibling of
 > `defendingCharacter`: the enemy of the innermost `enemyAttack` on the stack, if in play. **DSL:** `attackingEnemy`.
 > **Scripted:** `26016.flow-like-water-response`, off `KNOWN_SKIPPED`.
+
+### 3.35 Discard a boost card instead of applying it
+
+Defiance (`vision` 26018): "Hero Interrupt (defense): When a boost card on an enemy attacking you would be turned faceup,
+discard it instead." `cancelBoostIcons` / `cancelBoostAbility` cancel parts of a boost card that is still applied; this
+removes the card from the activation altogether. Survey: Close Call (`gmw` 16158, "cancel that card's 'Boost' ability and all of its boost icons, then discard it") is the same outcome.
+
+> **Status: landed (2026-09-24),** tested in `packages/engine/src/boost.test.ts` (1 new test: the boost card's ability
+> does not resolve, its icons are not added, and it goes to the encounter discard pile) and in a real game in
+> `packages/cards/src/wave4/vision/vision-pack-cards.test.ts` (Defiance against Rhino's attack). **What landed:**
+> **`EffectSpec discardBoostCard {bind?}`**: in the resolving boost card's turned-faceup window, it cancels the card's
+> ability and icons and moves it to its discard pile at once, so the count step finds nothing to apply; game event
+> `boostCancelled` gains scope `"discarded"` (client log line and villain-phase breakdown label added). The engine turns
+> the card faceup and then opens that window, so "would be turned faceup" is answered there. A response "after a
+> boost card is turned faceup" still sees the event; no printed card combines the two. **DSL:** `discardBoostCard()`.
+> **Scripted:** `26018.defiance-interrupt`, off `KNOWN_SKIPPED`.
 
 ## 4. Open questions (for the user or FFG)
 

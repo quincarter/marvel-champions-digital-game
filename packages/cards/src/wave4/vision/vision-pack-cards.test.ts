@@ -159,6 +159,34 @@ describe("Flow Like Water (upgrade, 26016)", () => {
   });
 });
 
+describe("Defiance (event, 26018)", () => {
+  it("26018.defiance-interrupt: the boost card on Rhino's attack is discarded instead, never applied", () => {
+    const hero = runWith(WAVE4_DEPS, visionVsRhino(22), toHero());
+    const given = moveToHand(hero, P1, "26018");
+    const [defiance] = given.ids as [InstanceId];
+    let state = runWith(WAVE4_DEPS, given.state, endTurn());
+    const events: { type: string; scope?: string }[] = [];
+    while (state.pendingChoice && !state.outcome) {
+      const choice = state.pendingChoice;
+      const offered = choice.options.find((o) => o.optionId.endsWith("26018.defiance-interrupt"));
+      const result = applyOk(
+        state,
+        {
+          type: "resolveChoice",
+          playerId: choice.playerId,
+          choiceId: choice.choiceId,
+          selectedOptionIds: offered ? [offered.optionId] : firstLegal(state),
+        },
+        WAVE4_DEPS,
+      );
+      state = result.state;
+      events.push(...(result.events as never[]));
+    }
+    expect(playerOf(state, P1).discard).toContain(defiance);
+    expect(events).toContainEqual(expect.objectContaining({ type: "boostCancelled", scope: "discarded" }));
+  });
+});
+
 describe("Victor Mancha (ally, 26015)", () => {
   it("26015.victor-mancha-constant: reduces damage he takes from an attack by 1", () => {
     const hero = runWith(WAVE4_DEPS, visionVsRhino(4), toHero());

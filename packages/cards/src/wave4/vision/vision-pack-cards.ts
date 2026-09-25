@@ -35,6 +35,8 @@ import {
   zone,
   attackingEnemy,
   dealDamage,
+  discardBoostCard,
+  heroInterrupt,
 } from "../../dsl/index.js";
 
 const ANDROID = trait("ANDROID");
@@ -50,8 +52,8 @@ const GUARDIAN = trait("GUARDIAN");
  *
  * **Flow Like Water's "deal 1 damage to the attacking enemy" (26016.flow-like-water-response)** is `attackingEnemy`
  * (docs/phase7-wave4.md §3.34). **Defiance's "discard [a boost card] instead [of turning it faceup]"
- * (26018.defiance-interrupt) and Machine Man's "attacks or thwarts" (26022.machine-man-interrupt)** are documented at
- * each ref below.
+ * (26018.defiance-interrupt)** is `discardBoostCard` (§3.35). **Machine Man's "attacks or thwarts"
+ * (26022.machine-man-interrupt)** is documented at its ref below.
  */
 export const VISION_PACK_CARDS = defineAbilities({
   // Jocasta (ally, 26013) — You may play the event attached to Jocasta as if it were in your hand. Response: After
@@ -80,13 +82,13 @@ export const VISION_PACK_CARDS = defineAbilities({
   // (the attack in progress, `attackingEnemy`, docs/phase7-wave4.md §3.34; none outside an attack).
   "26016.flow-like-water-response": response(on.youPlayedCard({ trait: DEFENSE }), dealDamage(1, attackingEnemy)),
 
-  // KNOWN_SKIPPED: 26018.defiance-interrupt — "Hero Interrupt (defense): When a boost card on an enemy attacking
-  // you would be turned faceup, discard it instead." The trigger itself exists (`{ on: "boostCardTurnedFaceup",
-  // playerIs: "controller", eventIs: { activation: "attack" } }`, `packages/engine/src/trigger-events.ts`), but the
-  // only effect that intercepts it, `cancelBoostIcons` (`packages/engine/src/spec.ts`), zeroes the card's icons —
-  // it still turns faceup and joins the boost pool, rather than being discarded outright and never counted at all,
-  // which is what "discard it instead" (of turning faceup) means. See `KNOWN_SKIPPED["vision"]` in
-  // `../coverage.test.ts`.
+  // Defiance (event, 26018) — Hero Interrupt (defense): When a boost card on an enemy attacking you would be turned
+  // faceup, discard it instead (`discardBoostCard`, docs/phase7-wave4.md §3.35).
+  "26018.defiance-interrupt": heroInterrupt(
+    { on: "boostCardTurnedFaceup", playerIs: "controller", activation: "attack" },
+    { label: "defense" },
+    discardBoostCard(),
+  ),
 
   // Preservation (resource, 26021) — Max 1 per deck (data). Hero Response: After you spend this card, heal 1
   // damage from your hero.
