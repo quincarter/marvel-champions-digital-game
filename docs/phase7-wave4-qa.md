@@ -194,3 +194,100 @@ narrow a change set; the two touched files were individually lint/format/typeche
 - `packages/cards/src/wave4/vision/vision-kit.test.ts` — split the Solar Gem test into two, each exercising its own
   ref (Finding 2).
 - `docs/phase7-wave4-qa.md` — this report (new).
+
+## Checkpoint 2: §5's three items verified/built (A), Avatar of Death tightened (B)
+
+Addressed the coordinator's follow-up items A and B, in order. C (the ~35/~17 sweep), D (2-player `mts` games) and
+E (the `nebu`/`warm`/`valk`/rest-of-`mts`/`hood` printed-text audit) are the next items, not started this checkpoint.
+
+### A. §5's three pre-assigned items
+
+Verified two are real (not rebuilt); wrote the third, which did not previously have a card-level test.
+
+1. **Tower Defense double defeat** (§3.3) — **verified, real.**
+   `packages/cards/src/wave4/mts/tower-defense.test.ts`, `"§3.3: both villains reaching 0 in one attack are both
+defeated (Jun 2, 2026 (2) simultaneous damage)"`: both Proxima Midnight and Corvus Glaive are patched to lethal
+   damage, one is killed with a real `basicAttack`, and the test asserts **both** villains' own `defeated` flags are
+   `true` and `after.outcome?.result === "win"` — a real, driven simultaneous-defeat, not a synthetic state check.
+   Re-ran clean.
+2. **The campaign's full run, retry and permanent removal** — **verified, real, and correctly scoped.**
+   `packages/cards/src/campaigns/mts.qa.test.ts`'s own header explains why there is no "permanent removal" test:
+   MC21's five scenarios (pp. 4–28, checked) print no `removeFromCampaign`-shaped instruction to exercise one
+   against. What the file proves instead, driven through the real campaign runner
+   (`createCampaignLog`/`resolveBetweenGames`/`applyCampaignResult`, not a synthetic shortcut):
+   - `"plays all five scenarios in standard mode, with a loss and a retry on Tower Defense, to a pinned final log"` —
+     a full 5-node walk, Tower Defense lost then retried and won, ending `log.status === "won"` with the exact
+     per-node history pinned.
+   - The loss-and-retry step specifically proves `cosmoInPool`/`securityBreachInPool` (earned at Ebony Maw, the
+     scenario _before_ the loss) survive the Tower Defense retry unchanged — the closest analogue MC21 actually
+     prints to "a permanent effect survives a retry," since it has no printed removal instruction of its own.
+   - `"expert campaign: hit points carry over scenario to scenario, capped at base, and losing the last scenario
+loses the campaign"` — the box's own persistent-HP rule, separately proven.
+     Re-ran clean (`packages/cards/src/campaigns/mts.qa.test.ts` + `tower-defense.test.ts`, 32 tests, all pass).
+3. **The Loki swap carrying attachments, status cards and the dial (§3.7)** — **no card-level test existed; written
+   this checkpoint.** `packages/cards/src/wave4/mts/loki.test.ts`, new test `"§3.7: an advance-swap carries
+attachments and status cards on the same instance, and each Loki's own dial (single-stage: stageIndex 0) stays"`:
+   attaches Loki's Staff (21170) and gives the villain a confused status card (not "tough" — that would intercept
+   the test's own lethal attack and prevent the advance-swap this test needs to happen at all), triggers the
+   advance-to-set-aside-villain path (All Hail King Loki 1B's forced interrupt, the same shape `loki.test.ts`
+   already drives for its own When Defeated test), and confirms on the **same InstanceId**, post-swap: the
+   attachment is still `attachedTo` it (both directions), the status card is still present, and the dial
+   (`stageIndex`) is unchanged at 0. Cites `docs/phase7-wave4.md` §3.7/§4 (damage does not carry on a
+   defeat-advance, already proven by the pre-existing "at full health" assertion in the neighboring test) and
+   `packages/engine/src/resolve/villain-swap.ts`'s own `exchangeCards`/`advanceToSetAsideVillain` (only `cardId` and
+   `stageIndex` are touched; `attachments`/`statuses` are keyed to the instance and untouched by either function).
+   Every Loki is single-stage (`packages/content/src/data/mts/cards.ts`), so "the dial stays" is trivially
+   `stageIndex 0` before and after here — asserted explicitly rather than left implicit. **Found and worked around
+   live while writing this test:** `forceLoki`'s own docblock caveat ("the next one may carry any Loki code") is
+   real — the random set-aside pick can legitimately land back on the same code (21160) it started at, just a
+   different instance underneath; the test does not assert which code comes back, only that the instance, its
+   attachment and its status card persist. Re-ran clean (34 tests in the file, all pass).
+
+### B. Avatar of Death (`mts` 21120) tightened
+
+`packages/cards/src/wave4/mts/thanos.test.ts`, `"21120.when-revealed-hero: the attack it initiates gains overkill
+(an exact spill) and piercing (an exact tough bypass)"` replaces the old `toBeGreaterThan` test. **Not a simple
+port of the Calvin Zabo fix** — three real complications, found live, are recorded in the test's own comments:
+
+1. **Thanos also has his own separate, undefended, non-piercing regular villain-phase activation the same round**
+   (unrelated to 21120), with its own `declareDefender` prompt that resolves _before_ 21120 is even revealed. A
+   defender picker that greedily declares Captain America for the first prompt it sees spends her tough on the
+   _wrong_ attack (confirmed live: the engine's own event log showed `damagePrevented`/`statusRemoved
+{reason: "preventedDamage"}` for that attack, not `{reason: "piercing"}`), leaving nothing for the piercing test
+   to prove by the time 21120's own attack happens.
+2. **`21120.when-revealed-hero`'s own "ability" stack frame pops as soon as its effects begin**, before the
+   `enemyAttack` those effects push resolves — so a picker that checks `state.stack` for that ability id at
+   `declareDefender` time never finds it. Fixed by watching for the ability's own `abilityResolved` event (already
+   in the accumulated event log by then) instead of the live stack, via a small local `driveEventsWith` helper
+   (`../../testing/staging.js`'s own `driveEvents`, generalized to take a caller `Picker` instead of a hardcoded
+   `firstLegal`, so a `declareDefender` choice can be steered while the full event log is still collected).
+3. **Aggregate identity damage across the whole villain phase is not a reliable signal** for either keyword, since
+   it can't distinguish "21120's own attack pierced" from "the other activation's ordinary attack landed after tough
+   had already been spent by 21120's" — both produce the same total. The test instead asserts on two
+   engine-typed events **`overkillSpilled`** and **`statusRemoved` (`reason: "piercing"`)**, each emitted only by the
+   specific attack that causes it, so the assertion is exact and unambiguous regardless of what else the round does.
+   The overkill amount is cross-checked against the same attack's own `attackResolved.damageDealt` minus Captain
+   America's 1 remaining hit point (a real content boost card contributes to the total, so the exact number is
+   read from the attack's own event rather than hardcoded, but the _relationship_ — spilled equals damage dealt
+   minus what the target could absorb — is the actual rule being proven, not a tautology: `overkillSpilled` would
+   be absent entirely, not merely a smaller number, if overkill weren't active).
+
+**Verified as a real pin, not just a passing assertion**, per the standing "run it once as a plain test to see it
+fail" lesson: temporarily stripped `keywords: ["overkill", "piercing"]` from `21120.when-revealed-hero`'s script,
+confirmed the new test fails (no `overkillSpilled` event at all), then restored the script (`git diff` empty
+afterward — the source file is unchanged from before this checkpoint).
+
+### Files touched, checkpoint 2
+
+- `packages/cards/src/wave4/mts/loki.test.ts` — new test for §3.7's attachment/status/dial carry-over (item A.3).
+- `packages/cards/src/wave4/mts/thanos.test.ts` — Avatar of Death's test rewritten (item B); adds a local
+  `driveEventsWith`/`EventAwarePicker` helper.
+- `docs/phase7-wave4-qa.md` — this section.
+
+### Test counts, checkpoint 2
+
+- `npx oxlint` and `npx oxfmt --check` on both touched test files: clean.
+- `npx tsc --noEmit` for `@mc/cards`: clean.
+- `npx vitest run src/wave4/mts` (`@mc/cards`): **21 test files, 279 tests, all passed.**
+- `npx vitest run src/campaigns/mts.qa.test.ts src/wave4/mts/tower-defense.test.ts`: 32 tests, all passed
+  (re-confirming item A.1/A.2 rather than assuming their prior "landed" status).

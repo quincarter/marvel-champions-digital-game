@@ -231,6 +231,45 @@ describe("§3.7 All Hail King Loki 1B (21165b)", () => {
     expect(after.outcome).toBeNull();
   });
 
+  it("§3.7: an advance-swap carries attachments and status cards on the same instance, and each Loki's own dial (single-stage: stageIndex 0) stays", () => {
+    // docs/phase7-wave4.md §3.7/§4 Q3: damage does not carry on a defeat-advance (already proven above, "at full
+    // health"), but nothing clears attachments or status cards — they are keyed to the villain's own InstanceId,
+    // which `advanceToSetAsideVillain`/`exchangeCards` never changes (only `cardId` and `stageIndex` swap). This
+    // test proves that for real: attach Loki's Staff (21170) and give the villain a confused status card before
+    // the advance (not "tough" — that would intercept `defeatWithAttack`'s own lethal attack and prevent the
+    // defeat this test needs), then confirm both are still there on the (same-instance, new-card) Loki afterward.
+    const state0 = forceLoki(lokiGame(1), "21160");
+    const villainId = state0.activeVillainId;
+    const noSideScheme = {
+      ...state0,
+      villainArea: state0.villainArea.filter((id) => state0.instances[id]?.cardId !== ("21167" as never)),
+    };
+    const { state: withStaff, id: staff } = attachToHost(noSideScheme, "21170", villainId);
+    const withStatus = patchInstance(withStaff, villainId, {
+      statuses: { ...withStaff.instances[villainId]!.statuses, confused: 1 },
+    });
+    expect(withStatus.villains[0]!.stageIndex).toBe(0);
+    const staged = stackEncounterDeck(withStatus, "01186", "21168");
+    const hero = settle(runWave4(staged, toHero(P1)), firstLegal, undefined, WAVE4_DEPS);
+    const { deps, trace } = traceAbilities(WAVE4_DEPS);
+    const after = defeatWithAttack(deps, hero, hero.activeVillainId);
+    expectResolved(trace, "21165b.all-hail-king-loki-forced-interrupt");
+    // Same instance (`forceLoki` leaves the original 21160 in the set-aside pool too, so the random pick can
+    // legitimately land on 21160 again — a different instance underneath the same card code — as it does at this
+    // seed; the villain's own defeat is what proves the advance-swap happened, not which code comes back).
+    expect(after.activeVillainId).toBe(villainId);
+    expect(after.villains[0]!.defeated).toBe(false);
+    expect(after.instances[after.activeVillainId]!.damage).toBe(0);
+    // The attachment is still attached to this same instance, both directions.
+    expect(after.instances[staff]!.attachedTo).toBe(villainId);
+    expect(after.instances[after.activeVillainId]!.attachments).toContain(staff);
+    // The status card the villain was holding carries too — nothing in the advance clears `statuses`.
+    expect(after.instances[after.activeVillainId]!.statuses.confused).toBeGreaterThanOrEqual(1);
+    // The dial: every Loki is single-stage (packages/content/src/data/mts/cards.ts), so "stays" is stageIndex 0
+    // before and after — confirmed explicitly rather than assumed from the single-stage shape.
+    expect(after.villains[0]!.stageIndex).toBe(0);
+  });
+
   it("with nothing left set aside, a genuine defeat resolves normally (proves the stage's own When Defeated can fire)", () => {
     const state0 = lokiGame(1);
     const state = { ...state0, encounterSetAside: [] };
