@@ -54,14 +54,10 @@ const KNOWN_SKIPPED: Readonly<Record<string, readonly string[]>> = {
   // Thanos (`mts/thanos.ts`) and the Infinity Gauntlet modular set (`mts/infinity-gauntlet.ts`), the box's third
   // scenario: every ref in scope (the villain, the main scheme, the `thanos` encounter set, and the `infinity_
   // gauntlet` set) resolves; no genuine gap found. Black Order (21100–21110, scripted by Tower Defense) and
-  // Children of Thanos (21125–21128), a modular set Thanos also recommends, stay skipped below for whichever
-  // scenario pass scripts the latter.
+  // Children of Thanos (21125–21128, `mts/children-of-thanos.ts`, Thanos's own other recommended modular) and
+  // Enchantress (21177–21179, `mts/enchantress.ts`, one of Loki's own two recommended modulars): every ref
+  // resolves; no genuine gap found. The Loki scenario itself stays skipped below for that pass.
   mts: [
-    "21125.boost",
-    "21126.proxima-midnight-constant",
-    "21126.boost",
-    "21127.boost",
-    "21128.when-defeated",
     // legions-of-hel.ts and frost-giants.ts (Hela's own two recommended modular sets): every ref resolves; no
     // genuine gap found.
     "21160.loki-constant",
@@ -91,11 +87,6 @@ const KNOWN_SKIPPED: Readonly<Record<string, readonly string[]>> = {
     "21175.boost",
     "21176.when-revealed",
     "21176.boost",
-    "21177.when-revealed",
-    "21178.beguiled-constant",
-    "21178.when-revealed",
-    "21179.seduced-constant",
-    "21179.seduced-action",
     "21180a.when-defeated",
     "21180b.cosmo-constant",
     "21180b.cosmo-constant-2",
@@ -124,20 +115,16 @@ const KNOWN_SKIPPED: Readonly<Record<string, readonly string[]>> = {
     "21191.fandral-constant",
     "21192.hogun-constant",
   ],
-  // hood: the villain (24001-24003), the main scheme (24004-24006) and The Hood's own encounter set (24007-24013)
-  // are scripted (`hood/hood.ts`). Everything below is the pack's nine modular sets (Beasty Boys, Brothers Grimm,
-  // Crossfire's Crew, Mister Hyde, Ransacked Armory, Sinister Syndicate, State of Emergency, Streets of Mayhem,
-  // Wrecking Crew) plus Standard II / Expert II, left for the next scripting pass on this pack (24041 and 24067
-  // have no ability refs at all — plain-stat cards — and 24053's "Shadow of the Past" ref already resolves as a
-  // reprint alias via `../reprints.ts`; none of the three are listed below).
+  // hood: the villain (24001-24003), the main scheme (24004-24006), The Hood's own encounter set (24007-24013) and
+  // Beasty Boys (24014-24017, `hood/beasty-boys.ts`) are scripted. Everything below is the pack's remaining eight
+  // modular sets (Brothers Grimm, Crossfire's Crew, Mister Hyde, Ransacked Armory, Sinister Syndicate, State of
+  // Emergency, Streets of Mayhem, Wrecking Crew) plus Standard II / Expert II, left for the next scripting pass
+  // (24041 and 24067 have no ability refs at all — plain-stat cards — and 24053's "Shadow of the Past" ref already
+  // resolves as a reprint alias via `../reprints.ts`; none of the three are listed below).
   hood: [
+    // Beasty Boys (`hood/beasty-boys.ts`): every ref resolves except two genuine gaps (the module's own docblock).
     "24014.beast-mode-forced-interrupt",
-    "24015.griffin-forced-response",
-    "24015.when-defeated",
     "24016.mandrill-constant",
-    "24016.when-revealed",
-    "24017.when-revealed",
-    "24017.boost",
     "24018.brothers-grimm-forced-interrupt",
     "24018.boost",
     "24019.blackbird-pellets-forced-response",
