@@ -82,7 +82,15 @@ const GAUNTLET = event("gauntlet", [{ kind: "resolveSpecials", cards: { trait: I
 const DRAW_ALL = event("draw-all", [
   { kind: "draw", player: { kind: "controller" }, amount: { kind: "deckCount", player: { kind: "controller" } } },
 ]);
-const EVENTS = [NEXT_STONE, GAUNTLET, DRAW_ALL];
+/** "Shuffle the infinity stone deck discard pile into the infinity stone deck" (Infinite Mischief, §3.49). */
+const MISCHIEF = event("mischief", [
+  {
+    kind: "moveCards",
+    cards: { kind: "scenarioDeck", name: DECK, zones: ["discard"] },
+    to: "scenarioDeckShuffle",
+  },
+]);
+const EVENTS = [NEXT_STONE, GAUNTLET, DRAW_ALL, MISCHIEF];
 
 const deps: EngineDeps = depsOf(
   THANOS_RAN_OUT,
@@ -171,5 +179,21 @@ describe("§3.11 timing points when a deck runs out", () => {
     const after = playFree(state, deps, DRAW_ALL.card.id, P1).state;
     expect(mustPlayer(after, P1).deck.length).toBeGreaterThan(0); // It reset from the discard pile.
     expect(counter(after, tracker, "soul")).toBe(1);
+  });
+});
+
+describe("§3.49 shuffling a scenario deck's discard pile back in, on demand", () => {
+  it("the discarded stone goes back into the Infinity Stone deck, which is shuffled", () => {
+    const { state } = start();
+    const discarded = playFree(playFree(state, deps, NEXT_STONE.card.id).state, deps, GAUNTLET.card.id).state;
+    expect(discarded.scenarioDecks[DECK]?.discard).toHaveLength(1);
+    const [stone] = discarded.scenarioDecks[DECK]!.discard;
+    const { state: after, events } = playFree(discarded, deps, MISCHIEF.card.id);
+    expect(after.scenarioDecks[DECK]?.discard).toHaveLength(0);
+    expect(after.scenarioDecks[DECK]?.deck).toHaveLength(2);
+    expect(locateCard(after, stone!)).toEqual({ kind: "scenarioDeck", name: DECK });
+    expect(events).toContainEqual(
+      expect.objectContaining({ type: "deckShuffled", zone: { kind: "scenarioDeck", name: DECK } }),
+    );
   });
 });

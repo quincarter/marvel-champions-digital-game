@@ -2129,6 +2129,12 @@ export type CardDestination =
   | "separateDeckTop"
   | "separateDeckShuffle"
   /**
+   * "Shuffle the infinity stone deck discard pile into the infinity stone deck" (Infinite Mischief, `mts` 21175): a card
+   * whose home is a shared scenario deck goes back into that deck, which is then shuffled (docs/phase7-wave4.md
+   * §3.49). Any other card is left where it is.
+   */
+  | "scenarioDeckShuffle"
+  /**
    * "Set aside the [X] modular encounter set" (Escape the Museum 1A, `gmw` 16082a): the shared set-aside pile
    * `ZoneId.encounterSetAside`/`CardSelector.encounterSetAside` already reads from (a signature side scheme's own
    * home before it enters play). No card printed before this needed *sending* a card there rather than reading it.
