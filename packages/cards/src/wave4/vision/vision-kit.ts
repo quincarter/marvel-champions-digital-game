@@ -1,5 +1,6 @@
 import { trait } from "@mc/content";
 import {
+  aScheme,
   action,
   alterEgoAction,
   anAttackableEnemy,
@@ -45,6 +46,7 @@ import {
   yourIdentity,
   YOUR_IDENTITY,
   zone,
+  thwart,
 } from "../../dsl/index.js";
 
 const ANDROID = trait("ANDROID");
@@ -64,9 +66,9 @@ const ANDROID = trait("ANDROID");
  * landed after this pack's own "Not done" note (docs/phase7-wave4.md §3.28): `blankTextBox` gained `exceptKeywords`,
  * so the obligation is fully scripted in `vision-obligation-nemesis.ts`, not skipped.
  *
- * **Just Passing Through's "ignoring the patrol keyword" (26010.just-passing-through-action) and Phase Disruption's
- * "Choose an attachment … with the text 'Hero Action' or 'Hero Response'" (26011.phase-disruption-action) are
- * further gaps**, documented at each ref below and in `KNOWN_SKIPPED["vision"]`.
+ * **Just Passing Through's "ignoring the patrol keyword" (26010.just-passing-through-action)** is the one-shot
+ * `thwart.ignorePatrol` (docs/phase7-wave4.md §3.32). **Phase Disruption's "Choose an attachment … with the text
+ * 'Hero Action' or 'Hero Response'" (26011.phase-disruption-action)** is documented at its ref below.
  */
 export const VISION_KIT = defineAbilities({
   // Vision (hero, 26001a) — Density Manipulation - Action: Change mass form by flipping your mass form upgrade
@@ -186,15 +188,12 @@ export const VISION_KIT = defineAbilities({
   // Just Passing Through (event, 26010) — Play only if Vision is in Intangible mass form. Hero Action (thwart):
   // Remove 3 threat from a scheme, ignoring the patrol keyword and the crisis icon.
   "26010.just-passing-through-constant": constant(playOnlyIf(inAdditionalForm("mass", "Intangible"))),
-  // KNOWN_SKIPPED: 26010.just-passing-through-action — "ignoring the patrol keyword" has no one-shot equivalent of
-  // `EffectSpec.thwart.ignoreCrisis`. The only patrol exemption that landed (docs/phase7-wave4.md §3.24, `RuleSpec
-  // characterIgnores`/`ignores()`) is a *persistent* per-character rule applied via `constant(...)` or, for a
-  // limited-duration grant, `applyRuleUntil(rule, "endOfPhase" | "endOfRound" | "endOfTurn" | "endOfNextTurn")` —
-  // no duration shorter than "end of phase" exists, so applying it here would let *every* thwart Vision makes for
-  // the rest of the phase ignore patrol too, not only this one, which is a real (if narrow) rules bug of its own.
-  // The correct primitive is a `thwart`/`removeThreat` sibling of `ignoreCrisis` (`ignorePatrol?: boolean`,
-  // `packages/engine/src/spec.ts`, read by `threatRemovalBlocked`), flagged for `game-rules-architect`. See
-  // `KNOWN_SKIPPED["vision"]` in `../coverage.test.ts`.
+  // "…, ignoring the patrol keyword and the crisis icon": this thwart only (docs/phase7-wave4.md §3.32).
+  "26010.just-passing-through-action": heroAction(
+    { label: "thwart" },
+    aScheme("scheme"),
+    thwart(3, chosen("scheme"), { ignorePatrol: true, ignoreCrisis: true }),
+  ),
 
   // Phase Disruption (event, 26011) — Play only if Vision is in Intangible mass form. Hero Action: Confuse an
   // enemy. Choose an attachment on that enemy with the text "Hero Action" or "Hero Response" and discard that

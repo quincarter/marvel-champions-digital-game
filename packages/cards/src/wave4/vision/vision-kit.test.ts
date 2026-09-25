@@ -1,4 +1,6 @@
 import {
+  activeEncounterDeck,
+  activeEncounterDeckId,
   activeVillain,
   canAttack,
   characterProfile,
@@ -21,6 +23,7 @@ import {
   playerOf,
   runWith,
   settle,
+  stackEncounterDeck,
   toHero,
   use,
   type Picker,
@@ -268,8 +271,28 @@ describe("Just Passing Through (event, 26010)", () => {
     const hero = setMassForm(runWith(WAVE4_DEPS, visionVsRhino(16), toHero()), "Dense");
     expect(() => playFromHand(hero, "26010", 1)).toThrow();
   });
-  // 26010.just-passing-through-action is KNOWN_SKIPPED (../coverage.test.ts): "ignoring the patrol keyword" has no
-  // engine primitive yet.
+
+  it("26010.just-passing-through-action: removes 3 threat from the main scheme despite a crisis icon", () => {
+    const hero = setMassForm(runWith(WAVE4_DEPS, visionVsRhino(16), toHero()), "Intangible");
+    // Crowd Control (crisis, 01108) in the villain's area; 5 threat on the main scheme.
+    const stacked = stackEncounterDeck(hero, "01108");
+    const deckId = activeEncounterDeckId(stacked);
+    const [crowd] = activeEncounterDeck(stacked).deck as [InstanceId];
+    const piles = stacked.encounterDecks[deckId]!;
+    const main = stacked.mainScheme.instanceId;
+    const staged: GameState = {
+      ...stacked,
+      encounterDecks: { ...stacked.encounterDecks, [deckId]: { ...piles, deck: piles.deck.slice(1) } },
+      villainArea: [...stacked.villainArea, crowd],
+      instances: {
+        ...stacked.instances,
+        [crowd]: { ...stacked.instances[crowd]!, faceup: true, threat: 2 },
+        [main]: { ...stacked.instances[main]!, threat: 5 },
+      },
+    };
+    const { state } = playFromHand(staged, "26010", 1, accepting(main));
+    expect(inst(state, main).threat).toBe(2);
+  });
 });
 
 describe("Phase Disruption (event, 26011)", () => {

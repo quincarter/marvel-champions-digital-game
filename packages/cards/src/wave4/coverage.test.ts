@@ -42,9 +42,6 @@ const KNOWN_SKIPPED: Readonly<Record<string, readonly string[]>> = {
   // vision: six genuine primitive gaps, each flagged for a game-rules-architect follow-up and documented in
   // detail next to its own ref (`vision/vision-kit.ts`, `vision/vision-obligation-nemesis.ts`,
   // `vision/vision-pack-cards.ts`):
-  //  - 26010.just-passing-through-action ("… ignoring the patrol keyword …") — no one-shot `ignorePatrol` sibling
-  //    of `EffectSpec.thwart.ignoreCrisis`; the only patrol exemption that exists, `RuleSpec characterIgnores`, is a
-  //    persistent per-character rule with no duration shorter than "end of phase".
   //  - 26011.phase-disruption-action ("Choose an attachment … with the text 'Hero Action' or 'Hero Response'") —
   //    no `TargetQuery` reads a card's own ability/trigger shapes or printed text.
   //  - 26016.flow-like-water-response ("deal 1 damage to the attacking enemy") — no `TargetRef` resolves "the
@@ -61,7 +58,6 @@ const KNOWN_SKIPPED: Readonly<Record<string, readonly string[]>> = {
   //    hatch for exactly this shape (`EventPattern.targetHadAttachment`); `schemeDefeated` has none.
   // Regenerated with `MC_REFS_PACKS=vision pnpm refs` (docs/card-scripting-process.md) — never hand-typed.
   vision: [
-    "26010.just-passing-through-action",
     "26011.phase-disruption-action",
     "26016.flow-like-water-response",
     "26018.defiance-interrupt",
