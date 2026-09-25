@@ -2,6 +2,7 @@ import { EBONY_MAW_SCENARIO_RULES } from "./mts/ebony-maw.js";
 import type { RuleSpec } from "@mc/engine";
 import {
   CORE_STARTER_DECKS,
+  MTS_ENCOUNTER_SETS,
   MTS_SCENARIOS,
   MTS_STARTER_DECKS,
   NEBU_STARTER_DECKS,
@@ -107,6 +108,13 @@ function buildMtsSingleVillain(
     ...(difficulty === "expert" ? scenario.expertEncounterSetIds : []),
   ];
   if (options.players.length < 1 || options.players.length > 4) throw new Error("a game has 1-4 players");
+  // A modular set that brings its own deck (`EncounterSet.separateDecks`; the Infinity Gauntlet set's Infinity
+  // Stone deck, docs/phase7-wave4.md §1.10/§3.6/§5): every such set among this game's own `sets` becomes a
+  // `GameSetupConfig.scenarioDecks` entry, built at setup with no card text asking. `singleVillainOnly` sets are
+  // refused with more than one villain (checked above: `buildMtsSingleVillain` only ever builds a single villain).
+  const scenarioDecks = MTS_ENCOUNTER_SETS.filter((set) => sets.includes(set.id) && set.separateDecks).flatMap((set) =>
+    set.separateDecks!.map((deck) => ({ ...deck, buildAtSetup: true as const })),
+  );
   return {
     seed: options.seed,
     cards: WAVE4_CARDS,
@@ -124,6 +132,7 @@ function buildMtsSingleVillain(
     includeIdentitySets: true,
     requireIdentitySets: true,
     requireLegalDecks: true,
+    ...(scenarioDecks.length > 0 ? { scenarioDecks } : {}),
     ...(options.firstPlayerIndex !== undefined ? { firstPlayerIndex: options.firstPlayerIndex } : {}),
   };
 }

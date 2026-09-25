@@ -72,6 +72,8 @@ export class ScenarioIntroScene extends Phaser.Scene {
       return;
     }
     this.cameras.main.setBackgroundColor(cssOf(surface.ink.hex));
+    // As a campaign issue's opener does: the comic opens on the villain's theme, which Setup and the Board then keep.
+    appSession().music?.playVillainTheme(this.#intro.scenarioId);
     this.scale.on("resize", this.#draw, this);
     const onArrow = (event: KeyboardEvent): void => {
       if (event.key === "ArrowRight") {
