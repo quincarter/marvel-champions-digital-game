@@ -62,6 +62,19 @@ export interface SessionConfig {
    * Absent for every standalone game — additive, like `modes`.
    */
   readonly campaign?: CampaignGameInput;
+  /**
+   * `CampaignGameStart.encounterSets` (`startGameFromLog`, `@mc/engine`'s campaign runner): the sets a campaign
+   * composed for this attempt, by id, split into cards that join the encounter deck and cards that are set aside
+   * (MC16 p. 8 / MC60 p. 9's gathering step). `session-core.ts`'s `scenarioFor` turns these ids into actual cards
+   * (`@mc/cards`'s `cardsOfComposedSets`) after `buildScenario` runs, the same way `campaign` itself is attached
+   * afterward rather than threaded through the scenario builder's own options.
+   *
+   * Additive, like `campaign` and `modes`: absent on every save written before this field existed, including a
+   * campaign save from before this fix. Such a save has no composed-set cards recorded anywhere else either, so
+   * replaying it exactly as before — with none added — is the only baseline-preserving reading; it is not treated
+   * as incompatible.
+   */
+  readonly campaignEncounterSets?: { readonly deck: readonly string[]; readonly setAside: readonly string[] };
 }
 
 /**

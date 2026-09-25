@@ -25,7 +25,8 @@
  * loses nothing `LocalEngineHost` (same thread, no serialization) keeps for free.
  */
 
-import { POOL_DEPS, buildScenario } from "../content/pool.js";
+import { cardsOfComposedSets } from "@mc/cards";
+import { POOL_CARDS, POOL_DEPS, buildScenario } from "../content/pool.js";
 import {
   applyCommand,
   createGame,
@@ -116,6 +117,12 @@ const stripPool = (state: GameState): StateWithoutPool => {
  * never threaded through its options: it becomes `GameSetupConfig.campaign` verbatim, exactly as
  * `createGame({ ...config, campaign: start.input }, deps)` does in the campaign runner's own tests
  * (`@mc/cards`'s `trors.test.ts`). Absent for every standalone game, so its setup is unchanged.
+ *
+ * `campaignEncounterSets` (`CampaignGameStart.encounterSets`) is folded in the same way, after `buildScenario`:
+ * its ids are turned into actual cards (`@mc/cards`'s `cardsOfComposedSets`, against this app's own `POOL_CARDS`,
+ * the same pool every scenario is built against) and appended to `encounterDeck`/`setAside`, mirroring exactly
+ * what `mts.qa.test.ts`'s `realGame` and `gmw.qa.test.ts`'s own equivalent do for a "real game" test. Absent for
+ * every standalone game and for a campaign save written before this field existed, so neither's setup changes.
  */
 const scenarioFor = (config: SessionConfig) => {
   const setup = buildScenario(config.scenarioId, {
@@ -127,7 +134,17 @@ const scenarioFor = (config: SessionConfig) => {
     ...(config.firstPlayerIndex !== undefined ? { firstPlayerIndex: config.firstPlayerIndex } : {}),
     ...(config.villainVersions ? { villainVersions: config.villainVersions } : {}),
   });
-  return config.campaign ? { ...setup, campaign: config.campaign } : setup;
+  const withEncounterSets = config.campaignEncounterSets
+    ? {
+        ...setup,
+        encounterDeck: [...setup.encounterDeck, ...cardsOfComposedSets(POOL_CARDS, config.campaignEncounterSets.deck)],
+        setAside: [
+          ...(setup.setAside ?? []),
+          ...cardsOfComposedSets(POOL_CARDS, config.campaignEncounterSets.setAside),
+        ],
+      }
+    : setup;
+  return config.campaign ? { ...withEncounterSets, campaign: config.campaign } : withEncounterSets;
 };
 
 const statusOf = (state: GameState): SaveStatus =>
