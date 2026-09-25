@@ -78,6 +78,9 @@ describe("Wrecking Crew (24064-24070)", () => {
       undefined,
       WAVE4_DEPS,
     );
+    // Loose by design (rules-qa-engineer, docs/phase7-wave4-qa.md): Thunderball's own attack this villain
+    // phase also deals damage independently of his Forced Response, so the identity's total is not isolated
+    // to the +1 this ability alone contributes; only an increase is guaranteed here.
     expect(activated.instances[identity]!.damage).toBeGreaterThan(before);
   });
 
@@ -103,6 +106,6 @@ describe("Wrecking Crew (24064-24070)", () => {
     const staged = stackTop(withBrute.state, "01186", "01187", "24070");
     const { state: revealed, events } = driveEvents(WAVE4_DEPS, staged, { type: "endTurn", playerId: P1 });
     expect(fired(events, "24070.when-revealed")).toBe(true);
-    expect(revealed.instances[withBrute.id]?.statuses.tough).toBeGreaterThanOrEqual(1);
+    expect(revealed.instances[withBrute.id]?.statuses.tough).toBe(1);
   });
 });
