@@ -14,6 +14,7 @@ import { CAMPAIGNS, TRORS_CAMPAIGN_DEFINITION } from "./index.js";
 const CAMPAIGN_STATUS: Readonly<Record<string, "scripted">> = {
   trors: "scripted",
   gmw: "scripted",
+  mts: "scripted",
 };
 
 describe("CAMPAIGNS registry", () => {

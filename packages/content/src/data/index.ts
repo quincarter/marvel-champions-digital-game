@@ -194,6 +194,7 @@ import { GMW_ENCOUNTER_SETS } from "./gmw/encounterSets.js";
 import { GMW_SCENARIOS } from "./gmw/scenarios.js";
 import { GMW_STARTER_DECKS } from "./gmw/starterDecks.js";
 import { GMW_CAMPAIGN } from "./gmw/campaign.js";
+import { MTS_CAMPAIGN } from "./mts/campaign.js";
 import { STLD_CARDS } from "./stld/cards.js";
 import { STLD_ENCOUNTER_SETS } from "./stld/encounterSets.js";
 import { STLD_STARTER_DECKS } from "./stld/starterDecks.js";
@@ -268,23 +269,21 @@ export const PLAYABLE_CARDS: readonly AnyCard[] = [
 
 /**
  * Every campaign box whose scenarios and encounter sets are ingested into `@mc/content` (PLAN.md §C3;
- * docs/campaign-mode-design.md §11 step 6). `trors` (The Rise of Red Skull, MC10) and `gmw` (The Galaxy's Most
- * Wanted, MC16) qualify today — the other campaign boxes with a campaign mode (MC27, MC32, MC40, MC45, MC50, MC60)
- * have only raw MarvelCDB JSON cached (`packages/content/raw/marvelcdb/`), not a normalized
- * `Pack`/`Scenario`/`EncounterSet` in this package yet (see docs/phase7-wave2-data.md's per-pack survey), so a
- * `Campaign` record naming their scenarios/sets would reference data that does not exist. Each is added here once
- * its own box is ingested and scripted, per PLAN.md §C2's gate ("That box's own heroes, villains and scenarios
- * scripted ... This gates the rest."). Civil War (MC56) has no campaign mode at all (MC56 p. 3) and is never added.
+ * docs/campaign-mode-design.md §11 step 6). `trors` (The Rise of Red Skull, MC10), `gmw` (The Galaxy's Most Wanted,
+ * MC16) and `mts` (The Mad Titan's Shadow, MC21) qualify today — the other campaign boxes with a campaign mode
+ * (MC27, MC32, MC40, MC45, MC50, MC60) have only raw MarvelCDB JSON cached (`packages/content/raw/marvelcdb/`),
+ * not a normalized `Pack`/`Scenario`/`EncounterSet` in this package yet (see docs/phase7-wave2-data.md's per-pack
+ * survey), so a `Campaign` record naming their scenarios/sets would reference data that does not exist. Each is
+ * added here once its own box is ingested and scripted, per PLAN.md §C2's gate ("That box's own heroes, villains
+ * and scenarios scripted ... This gates the rest."). Civil War (MC56) has no campaign mode at all (MC56 p. 3) and
+ * is never added.
  *
- * **MC21 (The Mad Titan's Shadow, `mts`) is ingested but stays out of this list.** `MTS_CARDS`/`MTS_SCENARIOS`/
- * `MTS_ENCOUNTER_SETS` exist (docs/phase7-wave4.md §1, §2.2) and `mts`'s own `MTS_CAMPAIGN` record is built
- * (`./mts/campaign.js`, the same hand-authored shape as `GMW_CAMPAIGN`/`TRORS_CAMPAIGN`) — importable directly —
- * but the box is data-only, same as every other wave 4 pack in `DATA_ONLY_CARDS` above: no ability script exists
- * for its cards yet, so PLAN.md §C2's "scripted" half of the gate isn't met. Add it here once `ability-scripting-
- * engineer` scripts the box and it's wired into a playable pool the way `WAVE1-3_*`/`PLAYABLE_CARDS` are (out of
- * this pass's scope, docs/phase7-wave4.md's own "WAVE4_* exports and PLAYABLE_CARDS ... done at wiring time").
+ * **MC21's own `CampaignDefinition`** — the setup/victory instructions, the campaign pool, System Shock's hand
+ * ability, and the a/b flip pairs (Secure the Landing Pad → Cosmo, and so on) — is `@mc/cards`'
+ * `packages/cards/src/campaigns/mts.ts` (`ability-scripting-engineer`'s work, docs/campaign-mode-design.md §3),
+ * not this record, which is only the plain-data box/scenario/set membership half.
  */
-export const CAMPAIGNS: readonly Campaign[] = [TRORS_CAMPAIGN, GMW_CAMPAIGN];
+export const CAMPAIGNS: readonly Campaign[] = [TRORS_CAMPAIGN, GMW_CAMPAIGN, MTS_CAMPAIGN];
 
 // ---------------------------------------------------------------------------------------------------------------
 // Data-only pool (PLAN.md Phase 7, "All 62 non-Core packs become card data; only wave 1 is scripted"/"Wave 2
