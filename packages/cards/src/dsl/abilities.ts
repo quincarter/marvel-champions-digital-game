@@ -504,6 +504,14 @@ export const ignores = (
 export const treatAttachedMinionAsAlly = (traits: readonly Trait[], consequential: number): ConstantPart => ({
   rules: [{ kind: "treatHostAsAlly", traits, thwFromSch: true, consequential }],
 });
+/**
+ * "Players cannot discard attachments that are attached to friendly characters." (Powerful Enchantments, `valk`
+ * 25030): `constant(playersCannotDiscard(query))`. A player's ability does not discard a matching card; its host's
+ * defeat and encounter effects still do. docs/phase7-wave4.md §3.44.
+ */
+export const playersCannotDiscard = (target: TargetQuery): ConstantPart => ({
+  rules: [{ kind: "playersCannotDiscard", target }],
+});
 /** "You cannot choose to discard this card from your hand." (System Shock): `inHand(constant(cannotChooseToDiscard))`. */
 export const cannotChooseToDiscard: ConstantPart = { rules: [{ kind: "cannotChooseToDiscard" }] };
 export const focusedMainScheme = (): ConstantPart => rule({ kind: "focusedMainScheme", scheme: { kind: "host" } });

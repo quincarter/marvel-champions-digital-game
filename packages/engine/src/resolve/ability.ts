@@ -6,7 +6,7 @@ import { cannotDefend } from "../rules.js";
 import { type Ctx, emit, popFrame, setFrame, updateInstance } from "../ctx.js";
 import type { InstanceId, PlayerId } from "../ids.js";
 import { statusActive } from "../keywords.js";
-import { cardOf, mustPlayer } from "../query.js";
+import { cardOf, getInstance, mustPlayer } from "../query.js";
 import { DEFENDER_SLOT } from "../select.js";
 import { currentActivationFrameId } from "../stack.js";
 import type { GameState } from "../state.js";
@@ -74,6 +74,13 @@ export function executeAbilityFrame(ctx: Ctx, frame: Frame<"ability">): void {
     controllerId: frame.controllerId,
   };
   if (definition.effects.length > 0 && heard(ctx.state, ctx.deps, resolved)) announce(ctx, resolved);
+  // A player's own ability, or one a player chose to use (docs/phase7-wave4.md §3.44).
+  const trigger = definition.trigger;
+  const byPlayer =
+    (getInstance(ctx.state, frame.instanceId)?.ownerId ?? null) !== null ||
+    trigger.kind === "action" ||
+    trigger.kind === "resource" ||
+    ((trigger.kind === "interrupt" || trigger.kind === "response") && !trigger.forced);
   pushEffects(ctx, {
     effects: definition.effects,
     selfInstanceId: frame.instanceId,
@@ -82,6 +89,7 @@ export function executeAbilityFrame(ctx: Ctx, frame: Frame<"ability">): void {
     eventFrameId: frame.eventFrameId,
     bindings: frame.bindings,
     vars: frame.vars,
+    byPlayer,
   });
 }
 

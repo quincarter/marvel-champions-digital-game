@@ -90,6 +90,7 @@ import {
   cannotBeUnattached,
   cannotChangeForm,
   cannotThwart,
+  playersCannotDiscard,
   revealCannotBeCanceled,
 } from "../rules.js";
 import { advanceMainSchemeStage, checkDefeats, completeMainScheme } from "./defeat.js";
@@ -860,7 +861,10 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
     case "discardFromPlay":
       for (const id of targets(effect.target)) {
         if (effect.defeated === true) defeatFromPlay(ctx, id);
-        else discardFromPlay(ctx, id);
+        // "Players cannot discard attachments that are attached to friendly characters." (§3.44 of wave 4.)
+        else if (frame.byPlayer && playersCannotDiscard(ctx.state, ctx.deps, id)) {
+          emit(ctx, { type: "discardRefused", instanceId: id });
+        } else discardFromPlay(ctx, id);
       }
       return;
     case "putIntoPlay": {
@@ -1216,6 +1220,7 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
         vars: frame.vars,
         scopedPlayerId: frame.scopedPlayerId,
         returnBindingsTo: frame.frameId,
+        byPlayer: frame.byPlayer === true,
       });
       return;
     }
@@ -1436,7 +1441,17 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       );
       return;
     case "moveCards": {
-      const ids = selectCards(ctx, effect.cards, context);
+      const inPlayNow = cardsInPlay(ctx.state);
+      // "Players cannot discard attachments that are attached to friendly characters." (§3.44 of wave 4.)
+      const ids = selectCards(ctx, effect.cards, context).filter((id) => {
+        const refused =
+          effect.to === "discard" &&
+          frame.byPlayer === true &&
+          inPlayNow.includes(id) &&
+          playersCannotDiscard(ctx.state, ctx.deps, id);
+        if (refused) emit(ctx, { type: "discardRefused", instanceId: id });
+        return !refused;
+      });
       if (effect.bind) {
         // Record what moved (and its printed resources / boost icons) before it moves.
         const pool = ids.reduce((sum, id) => {

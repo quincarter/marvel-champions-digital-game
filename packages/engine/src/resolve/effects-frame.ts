@@ -838,6 +838,7 @@ function executeChooseOne(
     vars: frame.vars,
     scopedPlayerId: frame.scopedPlayerId,
     returnBindingsTo: frame.frameId,
+    byPlayer: frame.byPlayer === true,
   });
 }
 
@@ -901,6 +902,7 @@ function executeChooseSeveral(
       vars: frame.vars,
       scopedPlayerId: frame.scopedPlayerId,
       returnBindingsTo: frame.frameId,
+      byPlayer: frame.byPlayer === true,
     });
   }
 }

@@ -482,6 +482,13 @@ export type RuleSpec =
    * `attacker` the host). A matching character is never a legal defender (basic defense) and a "(defense)" ability
    * does not make it the defender; `attacker` limits it to that enemy's attacks. docs/phase7-wave4.md §3.31.
    */
+  /**
+   * "Players cannot discard attachments that are attached to friendly characters." (Powerful Enchantments, `valk`
+   * 25030): a matching card is not discarded by an ability a player uses (the effects frame's `byPlayer`: a player
+   * card's ability, an action, an optional interrupt or response). Its host's defeat, or an encounter card's own forced
+   * effect, still discards it. Narrower than `cannotLeavePlay`. docs/phase7-wave4.md §3.44.
+   */
+  | { readonly kind: "playersCannotDiscard"; readonly target: TargetQuery; readonly while?: Predicate }
   | {
       readonly kind: "cannotDefend";
       readonly target: TargetQuery;

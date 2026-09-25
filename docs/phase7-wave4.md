@@ -445,6 +445,7 @@ stays data only.**
 | 3.41 | A stat totalled over several cards                                       | Mass Attack; Fastball Special, Partnership of Pain                           | landed  |
 | 3.42 | A deck-discard cost sized by the triggering event                        | Shield Spell                                                                 | landed  |
 | 3.43 | A branch's bindings reach the effects after it                           | chooseOne/if bindings (scripter question)                                    | landed  |
+| 3.44 | Players cannot discard these cards                                       | Powerful Enchantments                                                        | landed  |
 
 ### 3.1 Additional forms: the form keyword
 
@@ -1540,6 +1541,26 @@ such card to duplicate its tail into each branch.
 > (each later branch rebinds `scheme`/`enemy` before reading it). No other script had the latent bug; the four the
 > scripter already restructured (Magic Attack, Zone of Silence, Karmic Blast, Cosmic Awareness) are correct as they
 > are and can be simplified if wanted. Full suite unchanged.
+
+### 3.44 Players cannot discard these cards
+
+Powerful Enchantments (`valk` 25030): "Players cannot discard attachments that are attached to friendly characters."
+`cannotLeavePlay` is too strong: the host's defeat must still discard them, and so must an encounter card's own effect.
+Survey (every raw pack, "cannot discard" / "cannot be discarded"): Mission Team (`aoa` 45171, "cannot be discarded", an
+absolute rule `cannotLeavePlay`-shaped, not this).
+
+> **Status: landed (2026-09-25),** tested in `packages/engine/src/players-cannot-discard.test.ts` (2 tests: a player's
+> event cannot discard the attachment on their hero, and says why; an encounter treachery's When Revealed still
+> discards it) and in a real game in `packages/cards/src/wave4/valk/valkyrie-obligation-nemesis.test.ts` (with
+> Powerful Enchantments in play, Lethal Weapon's own "discard this attachment" leaves it on Valkyrie; without, it goes).
+> **What landed:** **`RuleSpec playersCannotDiscard {target, while?}`**, read by `discardFromPlay` and by
+> `moveCards … "discard"` when the effects frame is **`byPlayer`**. `byPlayer` is set when an ability frame pushes its
+> effects: an ability on a player card, an action or resource ability, or an optional interrupt or response (a forced
+> ability, When Revealed, boost or setup on an encounter card is not a player's), and it carries into `chooseOne`/`if`
+> branches. Game event `discardRefused`. **DSL:** `constant(playersCannotDiscard(query))`. **Scripted:**
+> `25030.powerful-enchantments-constant` (attachments whose host is an identity or an ally a player controls), off
+> `KNOWN_SKIPPED`; Valkyrie now has none. **Not covered:** a protected card paid as a cost (a "discard this card →"
+> cost on an encounter attachment, or an in-play discard cost); no printed card combines the two.
 
 ## 4. Open questions (for the user or FFG)
 
