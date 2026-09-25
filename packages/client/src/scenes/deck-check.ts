@@ -67,6 +67,7 @@
  * `#drawCardListTab`) rather than wiring `ui/hold-target.ts`'s separate
  * tap/long-press gesture for a second action this screen has no use for.
  */
+import { isDesktopType } from "../ui/desktop-type.js";
 import Phaser from "phaser";
 import type { Deck } from "@mc/content";
 import { CARDS_BY_ID, POOL_CARDS, POOL_DEPS, POOL_VERSION } from "../content/pool.js";
@@ -674,7 +675,7 @@ export class DeckCheckScene extends Phaser.Scene {
     }
 
     const totalCount = groups.reduce((sum, g) => sum + g.entries.length, 0);
-    const geometry = poolGridGeometry(rect.width, totalCount);
+    const geometry = poolGridGeometry(rect.width, totalCount, isDesktopType());
     const slots: CardGridSlot[] = [];
     for (const group of groups) {
       slots.push({ kind: "header", group });

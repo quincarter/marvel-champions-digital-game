@@ -14,12 +14,29 @@
 
 import Phaser from "phaser";
 import { desktopFont } from "../view/desktop-type.js";
+import { SCENES } from "../scenes/keys.js";
 
 let desktop = false;
+
+/**
+ * Screens that keep the original sizes on desktop. Decks & Collection and the deck builder pack a card grid, a deck
+ * list and a stats rail side by side; their small type was laid out to that density and reads fine there, while a
+ * size up only crowds captions out of their cells.
+ */
+const ORIGINAL_SIZE_SCENES: ReadonlySet<string> = new Set([SCENES.decks, SCENES.deckBuilder]);
 
 /** Whether the viewport is desktop-sized (`formFactorFor(...) === "desktop"`). Set on boot and on every resize. */
 export function setDesktopType(value: boolean): void {
   desktop = value;
+}
+
+/** Whether small text is drawn a size up right now, for a layout that has to leave room for it. */
+export const isDesktopType = (): boolean => desktop;
+
+/** The two fields of Phaser's `TextStyle` this reads: its own font string, and the label it belongs to. */
+interface StyleWithFont {
+  mcFont?: string;
+  readonly parent?: Phaser.GameObjects.Text;
 }
 
 let installed = false;
@@ -34,11 +51,12 @@ export function installDesktopType(): void {
   installed = true;
   Object.defineProperty(Phaser.GameObjects.TextStyle.prototype, "_font", {
     configurable: true,
-    get(this: { mcFont?: string }): string {
+    get(this: StyleWithFont): string {
       return this.mcFont ?? "";
     },
-    set(this: { mcFont?: string }, value: string) {
-      this.mcFont = desktopFont(value, desktop);
+    set(this: StyleWithFont, value: string) {
+      const sceneKey = this.parent?.scene?.sys.settings.key;
+      this.mcFont = desktopFont(value, desktop && !(sceneKey !== undefined && ORIGINAL_SIZE_SCENES.has(sceneKey)));
     },
   });
 }

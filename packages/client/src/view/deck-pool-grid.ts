@@ -28,6 +28,8 @@ const MIN_CELL_WIDTH = 110;
 const MAX_COLUMNS = 8;
 /** Room for the name line and the "Type · X of Y in deck" line under the art. */
 const CAPTION_HEIGHT = 46;
+/** The same two lines drawn a size up on desktop (`view/desktop-type.ts`): a wrapped caption needs the extra room. */
+const DESKTOP_CAPTION_HEIGHT = 58;
 /** Height / width of a printed card, the same ratio `drawArt`'s `"contain"` fit already respects. */
 const CARD_ASPECT = 3.5 / 2.5;
 
@@ -42,7 +44,7 @@ export interface PoolGridGeometry {
 }
 
 /** How the pool grid divides a pane of `width` px holding `cardCount` cards. `columns` is always at least 1, even at a width narrower than `MIN_CELL_WIDTH` (a single, slightly-too-narrow column beats an empty grid). */
-export function poolGridGeometry(width: number, cardCount: number): PoolGridGeometry {
+export function poolGridGeometry(width: number, cardCount: number, onDesktop = false): PoolGridGeometry {
   const usable = Math.max(1, width);
   const columns = Math.max(
     1,
@@ -50,9 +52,10 @@ export function poolGridGeometry(width: number, cardCount: number): PoolGridGeom
   );
   const cellWidth = Math.max(MIN_CELL_WIDTH, (usable - (columns - 1) * POOL_GRID_GAP) / columns);
   const artHeight = cellWidth * CARD_ASPECT;
-  const cellHeight = artHeight + CAPTION_HEIGHT;
+  const captionHeight = onDesktop ? DESKTOP_CAPTION_HEIGHT : CAPTION_HEIGHT;
+  const cellHeight = artHeight + captionHeight;
   const rows = Math.max(1, Math.ceil(cardCount / columns));
-  return { columns, cellWidth, artHeight, captionHeight: CAPTION_HEIGHT, cellHeight, rows };
+  return { columns, cellWidth, artHeight, captionHeight, cellHeight, rows };
 }
 
 /** Cell `column`'s rect within one grid row (`rowRect` is that row's own rect — `McVirtualList` already applies the vertical scroll offset to it). */
