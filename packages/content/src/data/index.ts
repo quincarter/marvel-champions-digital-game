@@ -6,6 +6,8 @@
 export type { CardProvenance, DroppedSourceRecord } from "./types.js";
 export * from "./core/index.js";
 export * from "./pool-version.js";
+export * from "./catalog.js";
+export * from "./catalog-codes.js";
 
 // ---------------------------------------------------------------------------------------------------------------
 // Wave 1 (PLAN.md Phase 7): the Green Goblin and The Wrecking Crew scenario packs, plus the Captain America,

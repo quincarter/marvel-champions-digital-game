@@ -195,3 +195,50 @@ describe("Band Together (resource, 21018)", () => {
     expect(handCardResources(withAlly, WAVE4_DEPS, band, P1, null).wild).toBe(Math.min(3, allies));
   });
 });
+
+describe("Mass Attack (event, 21016)", () => {
+  it("21016.mass-attack-action: exhausts 3 allies sharing a trait with Spectrum, dealing their total ATK plus hers", () => {
+    const hero = settle(runWith(WAVE4_DEPS, spectrumVsRhino(7), toHero()), firstLegal, undefined, WAVE4_DEPS);
+    // Blue Marvel, Kaluu and Blade (all Avengers, like Spectrum) put into play under her control (test surgery).
+    let state = hero;
+    const allies: InstanceId[] = [];
+    for (const code of ["21005", "21014", "21019"]) {
+      const given = moveToHand(state, P1, code);
+      const [id] = given.ids as [InstanceId];
+      state = {
+        ...given.state,
+        players: given.state.players.map((p) =>
+          p.playerId === P1 ? { ...p, hand: p.hand.filter((h) => h !== id), playArea: [...p.playArea, id] } : p,
+        ),
+        instances: {
+          ...given.state.instances,
+          [id]: { ...given.state.instances[id]!, controllerId: P1, faceup: true },
+        },
+      };
+      allies.push(id);
+    }
+    const identity = identityOf(state, P1);
+    const villain = activeVillain(state).instanceId;
+    const x =
+      allies.reduce((sum, id) => sum + characterProfile(state, id, WAVE4_DEPS)!.atk, 0) +
+      characterProfile(state, identity, WAVE4_DEPS)!.atk;
+    const given = moveToHand(state, P1, "21016");
+    const [mass] = given.ids as [InstanceId];
+    const payment = playerOf(given.state, P1)
+      .hand.filter((id) => id !== mass)
+      .slice(0, 3);
+    const before = inst(given.state, villain).damage;
+    const after = settle(
+      runWith(WAVE4_DEPS, given.state, play(P1, mass, payment, { costChoices: { allies } })),
+      (s) => {
+        const choice = s.pendingChoice;
+        const hit = choice?.options.find((o) => o.optionId.includes(villain));
+        return hit ? [hit.optionId] : firstLegal(s);
+      },
+      undefined,
+      WAVE4_DEPS,
+    );
+    for (const id of allies) expect(inst(after, id).exhausted).toBe(true);
+    expect(inst(after, villain).damage).toBe(before + x);
+  });
+});

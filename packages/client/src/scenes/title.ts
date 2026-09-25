@@ -16,7 +16,8 @@
  */
 
 import Phaser from "phaser";
-import { accent, dotGrid, ink, surface, typeRole } from "../tokens.js";
+import { accent, dotGrid, hit, ink, surface, typeRole } from "../tokens.js";
+import type { Rect } from "../view/layout.js";
 import { cssOf, textStyle } from "../ui/theme.js";
 import { McButton, paintDotGrid } from "../ui/widgets.js";
 import { TITLE_ART, coverFit, pickTitleArt, type TitleArt } from "../art/title-art.js";
@@ -29,6 +30,9 @@ import {
   POOL_VERSION,
 } from "../content/pool.js";
 import { cardPoolCoverageOf, cardPoolCoverageText } from "../view/card-pool-coverage.js";
+import { appVersionText, buildCommit, releaseNotesUrl } from "../view/app-version.js";
+import { CLIENT_VERSION } from "../version.js";
+import { detectPlatform, openExternal } from "../platform/platform.js";
 import { preconDecks } from "../view/deck-list-model.js";
 import { initialSetupDraft, withSeatOne } from "../view/setup-draft.js";
 import { rollSeed } from "../view/seed.js";
@@ -290,10 +294,33 @@ export class TitleScene extends Phaser.Scene {
     const versionText = this.add.text(
       0,
       layout.footer.y,
-      `v${APP_VERSION}`,
+      appVersionText(CLIENT_VERSION, detectPlatform(), buildCommit()),
       textStyle(typeRole.label, textColor, ink.meta),
     );
     versionText.setX(layout.footer.x + layout.footer.width - versionText.width);
+
+    // The release this build is on, on GitHub: its notes and downloads. Underlined in the footer's own ink rather
+    // than red, which is the screen's one forward action.
+    const releaseNotes = (): void => openExternal(releaseNotesUrl(CLIENT_VERSION));
+    const linkText = this.add.text(0, layout.footer.y, "Release notes ↗", textStyle(typeRole.label, textColor));
+    linkText.setX(versionText.x - 16 - linkText.width);
+    this.add
+      .graphics()
+      .fillStyle(textColor, 0.6)
+      .fillRect(linkText.x, linkText.y + linkText.height, linkText.width, 1);
+    // A touch-sized target around the small label.
+    const linkRect: Rect = {
+      x: linkText.x - 6,
+      y: linkText.y + linkText.height / 2 - hit.target / 2,
+      width: linkText.width + 12,
+      height: hit.target,
+    };
+    this.add
+      .zone(linkRect.x, linkRect.y, linkRect.width, linkRect.height)
+      .setOrigin(0, 0)
+      .setInteractive({ useHandCursor: true })
+      .on("pointerup", releaseNotes);
+    this.#stops.set("release-notes", { rect: linkRect, activate: releaseNotes });
 
     this.#status = this.add
       .text(layout.left, layout.footer.y - 24, "", textStyle(typeRole.body, textColor))
@@ -379,9 +406,6 @@ const ART_SCRIM_DEPTH = -1;
 
 /** The picture the last Title visit showed, so the next visit shows a different one (`pickTitleArt`). */
 let lastTitleArtKey: string | null = null;
-
-/** Bump alongside `package.json`'s own `version` until a build step reads it directly. */
-const APP_VERSION = "0.0.0";
 
 /** "Continue — Rhino · Spider-Man · round 4". Names from content, never from the save's own text. */
 function continueLabel(save: SaveMeta): string {

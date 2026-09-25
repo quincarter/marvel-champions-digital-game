@@ -1,0 +1,3 @@
+kind: Changed
+body: 'Title footer counts live cards against every card in the game (from the MarvelCDB catalog), and shows the real client version: the release on native apps, the release plus build commit on the web'
+time: 2026-09-24T22:37:25.636362-04:00

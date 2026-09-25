@@ -479,7 +479,13 @@ export type PlayerRef =
 export type ValueSpec =
   | { readonly kind: "const"; readonly value: number }
   | { readonly kind: "perPlayer"; readonly base: number; readonly perPlayer: number }
-  | { readonly kind: "stat"; readonly of: TargetRef; readonly stat: StatName }
+  /**
+   * A character's current stat, the first card `of` names. `total`: the sum over every card it names — "the total ATK
+   * of those allies and your hero" (Mass Attack, `mts` 21016), "the total ATK of Colossus and Wolverine" (Fastball
+   * Special, `wolv` 35023), "the total SCH of all other villains" (Partnership of Pain, `sm` 27111).
+   * docs/phase7-wave4.md §3.41.
+   */
+  | { readonly kind: "stat"; readonly of: TargetRef; readonly stat: StatName; readonly total?: true }
   | { readonly kind: "counters"; readonly of: TargetRef; readonly counterType: string }
   | { readonly kind: "eventAmount" }
   /**
