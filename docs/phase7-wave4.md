@@ -475,6 +475,7 @@ stays data only.**
 | 3.42 | A deck-discard cost sized by the triggering event                        | Shield Spell                                                                 | landed  |
 | 3.43 | A branch's bindings reach the effects after it                           | chooseOne/if bindings (scripter question)                                    | landed  |
 | 3.44 | Players cannot discard these cards                                       | Powerful Enchantments                                                        | landed  |
+| 3.45 | A revealed treachery that moved itself stays where it went               | Field Recruitment (engine bug)                                               | landed  |
 
 ### 3.1 Additional forms: the form keyword
 
@@ -1590,6 +1591,26 @@ absolute rule `cannotLeavePlay`-shaped, not this).
 > `25030.powerful-enchantments-constant` (attachments whose host is an identity or an ally a player controls), off
 > `KNOWN_SKIPPED`; Valkyrie now has none. **Not covered:** a protected card paid as a cost (a "discard this card →"
 > cost on an encounter attachment, or an in-play discard cost); no printed card combines the two.
+
+### 3.45 A revealed treachery that moved itself stays where it went
+
+Engine bug (Field Recruitment, `hood` 24012, "… Remove this card from the game."): the reveal's finish step discarded
+any treachery that still existed after its When Revealed, even one an effect had already moved, so "remove this card
+from the game" did not stick. RRG 1.8 "Treachery" (p. 45) discards the card after it resolves, which says nothing
+about a card its own text sent elsewhere.
+
+> **Status: landed (2026-09-25),** tested in `packages/engine/src/reveal-self-move.test.ts` (3 tests: "remove this card
+> from the game" sticks; "shuffle it into the encounter deck" sticks; a treachery that did not move itself is still
+> discarded) and in a real game in `packages/cards/src/wave4/hood/hood.test.ts` (Field Recruitment ends in
+> `removedFromGame`). **What landed:** the reveal frame records **`revealedFrom`**, the zone the card was in when its
+> reveal began; at the finish a treachery (or revealed event, §3.14) is discarded only if it is still there. A card
+> revealed from the top of the encounter deck (`revealEncounterCard`) is now parked with the revealing player's dealt
+> encounter cards while it resolves, as `revealCard` already did, so a When Revealed that shuffles it back into the
+> deck is a visible move. **Existing cards checked** (every registered script, Core through wave 4, 1,523 cards, for a
+> treachery whose own When Revealed moves itself; and the raw text of every pack): only Field Recruitment is scripted
+> and affected. Infiltration and Shapeshifter Surprise (`mut_gen` 32082, 32083), Misled (`rogue` 38027) and Smear
+> Campaign (`sm` 27175) print the same shape and are not scripted yet; they get the right behaviour when they are.
+> The full suite is unchanged.
 
 ## 4. Open questions (for the user or FFG)
 

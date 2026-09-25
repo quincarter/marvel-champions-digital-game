@@ -28,7 +28,7 @@ import { cardsInPlay, contextArea, controllerOf, type EffectContext, selectTarge
 import { DEFAULT_DEPS, type EngineDeps } from "../abilities.js";
 import type { TargetQuery } from "../spec.js";
 import type { StackFrame } from "../stack.js";
-import type { GameState } from "../state.js";
+import type { GameState, ZoneId } from "../state.js";
 import type { TriggerEvent } from "../trigger-events.js";
 import { canHaveAttached, entersRevealersPlayArea, firstRevealGainsSurge, whenRevealedRepeats } from "../rules.js";
 import { encounterTargetSelector } from "../villain/authority.js";
@@ -45,8 +45,12 @@ export const revealFrame = (ctx: Ctx, playerId: PlayerId, id: InstanceId): Stack
   whenRevealedCancelled: false,
   effectsCancelled: false,
   surgeGained: false,
+  revealedFrom: locateCard(ctx.state, id) ?? null,
   stage: "faceup",
 });
+
+const sameZone = (a: ZoneId | null | undefined, b: ZoneId | null | undefined): boolean =>
+  a !== undefined && a !== null && b !== undefined && b !== null && JSON.stringify(a) === JSON.stringify(b);
 
 export function pushRevealFrame(ctx: Ctx, playerId: PlayerId, id: InstanceId): void {
   pushFrames(ctx, [revealFrame(ctx, playerId, id)]);
@@ -393,9 +397,12 @@ export function executeRevealFrame(ctx: Ctx, frame: Frame<"reveal">): void {
       setFrame(ctx, { ...frame, stage: "done" });
       // A revealed player event (a Cosmic Entity whose effects left it where it was) is discarded like a treachery,
       // to its encounter discard pile (docs/phase7-wave4.md §3.14).
-      const unresolvedEvent =
-        card.type === "event" && locateCard(ctx.state, frame.instanceId)?.kind === "dealtEncounter";
-      if ((card.type === "treachery" || unresolvedEvent) && getInstance(ctx.state, frame.instanceId)) {
+      // Only a card still where its reveal found it (docs/phase7-wave4.md §3.45): a treachery whose When Revealed
+      // removed it from the game or shuffled it back into the encounter deck stays where it went.
+      const here = locateCard(ctx.state, frame.instanceId);
+      const unmoved =
+        frame.revealedFrom === undefined ? here?.kind === "dealtEncounter" : sameZone(here, frame.revealedFrom);
+      if ((card.type === "treachery" || card.type === "event") && unmoved && getInstance(ctx.state, frame.instanceId)) {
         // Its home deck's discard (docs/phase7-wave1.md §4.3, proposed; see `discardZoneFor`).
         moveCard(ctx, frame.instanceId, discardZoneFor(ctx.state, frame.instanceId), "top");
       }
