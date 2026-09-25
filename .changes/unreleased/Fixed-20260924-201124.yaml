@@ -1,3 +1,0 @@
-kind: Fixed
-body: Tapping a hero, ally or other card in play opens it in Inspect instead of using its ability, so a stray tap no longer exhausts it; abilities are used from the card's Inspect buttons
-time: 2026-09-24T20:11:24.062788-04:00
