@@ -61,18 +61,16 @@ const KNOWN_SKIPPED: Readonly<Record<string, readonly string[]>> = {
   // The Loki scenario (`mts/loki.ts`, `mts` 21160–21176, the box's fifth): every ref resolves (Infinite Mischief's
   // When Revealed uses `scenarioDeckShuffle`, docs/phase7-wave4.md §3.49).
   //
-  // The Mad Titan's Shadow Campaign (`mts/mts-campaign-cards.ts`, `mts` 21180–21193): every ref resolves except
-  // three: two genuine "no script needed" cases (the module's own docblock) — a flip's new-face controller already
-  // defaults to the first player by construction (`packages/engine/src/resolve/other-face.ts`), the same shape
-  // `hela.ts` already established for Garm/Skurge/Nidhogg's own "engages the first player" — and one genuine
-  // content-pipeline gap: System Shock (21185) prints two independent ability clauses under a single ref, which
-  // `parse-text.ts`'s existing Martial Law/Anti-Hero Propaganda split doesn't recognize for this card's exact
-  // shape (module docblock); needs a `card-data-pipeline` fix, not scripted here.
+  // The Mad Titan's Shadow Campaign (`mts/mts-campaign-cards.ts`, `mts` 21180–21193): every ref resolves except one
+  // genuine content-pipeline gap: System Shock (21185) prints two independent ability clauses under a single ref,
+  // which `parse-text.ts`'s existing Martial Law/Anti-Hero Propaganda split doesn't recognize for this card's exact
+  // shape (module docblock); needs a `card-data-pipeline` fix, not scripted here. (The two flip-controller-default
+  // sentences, Cosmo's and Black Swan's, are now registered as `coveredByEngineRule()` with real-game tests — the
+  // same shape `hela.ts` already established for Garm/Skurge/Nidhogg's own "engages the first player" — so they
+  // resolve and are no longer listed here.)
   mts: [
     // legions-of-hel.ts and frost-giants.ts (Hela's own two recommended modular sets): every ref resolves; no
     // genuine gap found.
-    "21180b.cosmo-constant",
-    "21182b.black-swan-constant",
     "21185.obligation",
   ],
   // hood: the villain (24001-24003), the main scheme (24004-24006), The Hood's own encounter set (24007-24013) and
