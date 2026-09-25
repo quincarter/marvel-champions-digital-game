@@ -221,6 +221,17 @@ export type GameEvent =
       readonly reason: "dashedStat" | "leftPlay";
     }
   /**
+   * A player's attack ended before dealing damage because its attacker left play first (docs/phase7-wave4.md §4 Q20,
+   * user decision 2026-09-25: Speed Demon's "(Resolve Speed Demon's attack first.)" defeating the attacking ally). No
+   * damage is dealt and nothing hangs off it (no `characterAttacked`, so no retaliate).
+   */
+  | {
+      readonly type: "playerAttackEnded";
+      readonly attackerInstanceId: InstanceId;
+      readonly targetInstanceId: InstanceId;
+      readonly reason: "attackerLeftPlay";
+    }
+  /**
    * `outsideActivation`: a card ability dealt this one, not the activation procedure ("give the villain 1 facedown
    * boost card"). RRG 1.8 "Boost, Boost Icon" (p. 11): it "remains facedown on that enemy until that enemy
    * activates", so it is expected *not* to be turned faceup in the villain phase it was dealt in.

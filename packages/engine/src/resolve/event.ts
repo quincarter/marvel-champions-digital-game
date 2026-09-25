@@ -462,6 +462,10 @@ export function applyDamage(
   sweep = true,
 ): void {
   if (event.amount <= 0) return;
+  // RRG 1.8 "In Play and Out of Play" (p. 23): abilities "only interact with … cards that are in play". Damage waiting
+  // on the stack for a card that has since left play (an ally's consequential damage after Speed Demon's attack
+  // defeated it, docs/phase7-wave4.md §4 Q20) is not dealt, rather than left on the discarded card.
+  if (!cardsInPlay(ctx.state).includes(event.targetInstanceId)) return;
   // RRG 1.8 "Excess Damage" (p. 19): damage dealt beyond remaining hit points. Ruling, Jan 26, 2026 (3): it is dealt
   // even when the target does not take it, so it is measured before tough and "cannot take damage".
   const hit = getInstance(ctx.state, event.targetInstanceId);
@@ -865,7 +869,24 @@ function applySchemeDefeated(ctx: Ctx, event: Extract<TriggerEvent, { kind: "sch
   ]);
 }
 
+/**
+ * A player's attack, after its interrupt window. An attack whose attacker has left play by now ends: no damage, and none
+ * of its other results (`characterAttacked`, which retaliate and "after … attacks" hang off). This mirrors RRG 1.8
+ * "Activation" (p. 6), which ends an enemy's attack when the enemy leaves play; RRG 1.8 "Attack (Player Ability Type)"
+ * (p. 10) is silent, and the reading is the user's decision (docs/phase7-wave4.md §4 Q20, 2026-09-25; community
+ * pointer: BoardGameGeek ruling thread, Mar 23 2023 — not an FFG ruling). A villain whose stage is defeated and
+ * advances mid-attack is the same character still in play, so its attack is unaffected (`enemy-activation.ts`).
+ */
 function applyPlayerAttack(ctx: Ctx, event: Extract<TriggerEvent, { kind: "attack" }>, frameId: FrameId): void {
+  if (!cardsInPlay(ctx.state).includes(event.attackerInstanceId)) {
+    emit(ctx, {
+      type: "playerAttackEnded",
+      attackerInstanceId: event.attackerInstanceId,
+      targetInstanceId: event.targetInstanceId,
+      reason: "attackerLeftPlay",
+    });
+    return;
+  }
   const profile = characterProfile(ctx.state, event.attackerInstanceId, ctx.deps);
   if (!getInstance(ctx.state, event.targetInstanceId)) return;
   if (profile?.missing.includes("atk")) return;

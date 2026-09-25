@@ -1102,7 +1102,16 @@ the amount.
 > attack on P1 becomes an attack on P2's 1-hit-point ally, P2 is the one asked to defend, the ally is defeated, P1 is
 > untouched and "when he attacks" is heard once; with no ally the hero with the fewest remaining hit points is attacked;
 > Speed Demon's attack on the attacking ally resolves before the ally's attack; replay deep-equal). DSL:
-> `packages/cards/src/dsl/wave4-hero-primitives.test.ts` (2 tests under §3.21).
+> `packages/cards/src/dsl/wave4-hero-primitives.test.ts` (2 tests under §3.21). **Changed 2026-09-25 (§4 Q20, user
+> decision):** a player's attack whose attacker has left play ends (`applyPlayerAttack` logs `playerAttackEnded` and
+> deals nothing, so no `characterAttacked` either), and damage waiting for a card that is no longer in play is not
+> dealt (`applyDamage`; RRG 1.8 "In Play and Out of Play", p. 23), so the defeated ally takes no consequential damage
+> in the discard pile. Now 5 tests in `attack-chosen-character.test.ts`: Speed Demon defeats the attacking 1-hit-point
+> ally and takes no damage (replay deep-equal); an ally that survives still deals its damage, then takes its
+> consequential damage; a hero's attack still deals its damage after Speed Demon's. The contrasting villain case is in
+> `packages/cards/src/wave1/msm/pack-cards.test.ts`: Preemptive Strike defeats Klaw I (real Core content) on a boost
+> card mid-attack, Klaw II comes in as the same villain card, and the attack deals Klaw II's ATK 1 plus the other boost
+> card's icon.
 >
 > Wave 1 §3.6 had `enemyAttack.targetCharacter` (a new attack against a character, Clash of the Titans), which
 > Speed Demon needs and nothing more; Crossfire's "When Crossfire attacks, he attacks …" is the same attack given a
@@ -1116,7 +1125,7 @@ the amount.
 >   had wrapped locally (`enemyAttackCharacter` in `wave1/hlk`, `wave1/gob`).
 > - **Speed Demon** is `forcedInterrupt({ on: "attack", selfIs: "target" }, enemyAttack(self, { targetCharacter:
 eventSource }))`: pushed from the interrupt window, it resolves before the player's attack ("Resolve Speed Demon's
->   attack first"). What happens to that attack if Speed Demon's defeats its attacker is §4 Q20.
+>   attack first"). If Speed Demon's attack defeats the attacker, the attacker's attack ends (§4 Q20, user decision).
 > - **Crossfire** ties on "fewest remaining hit points" break with `bindTargets` + `chooseTarget` (first player), as any
 >   superlative does.
 >
@@ -1700,7 +1709,7 @@ Defeated only fired when no set-aside Loki remained.
 > instance, now in the victory display) ahead of the new card's When Revealed; it is handed the defeat event. **Other
 > cards checked** (every forced interrupt to a villain's defeat, Core through wave 4): only Loki advances to a set-aside
 > villain. Collector (`gmw`) and Hela flip "instead", a replacement of the defeat, so their card's When Defeated
-> correctly does not resolve; Kang has no villain-defeat interrupt. See §4 Q21 for the order.
+> correctly does not resolve; Kang has no villain-defeat interrupt. See §4 Q22 for the order.
 
 ### 3.49 Shuffling a scenario deck's discard pile back in on demand
 
@@ -2039,6 +2048,18 @@ Each is implemented the way stated, or not at all, and named here rather than de
     Ability Type)" (p. 10) does not say; for an enemy, "Activation" (p. 6) ends an attack whose attacker leaves play.
     Implemented as (unchanged engine behavior): the attack still resolves, for the attacker's ATK as it last was.
     Proposed alternative: end a player attack whose attacker has left play, mirroring the enemy rule. Needs a ruling.
+    **USER DECISION 2026-09-25:** change it. A player's attack whose attacker has left play ends: it deals no damage and
+    its other attack results don't happen, mirroring the enemy rule (RRG 1.8 "Activation", p. 6). The user's pointer is
+    a community ruling thread (BoardGameGeek, Mar 23, 2023), not an FFG ruling, so this is recorded as the user's
+    decision. The same thread's contrasting case keeps working: a villain whose stage is defeated mid-attack and
+    advances is the same character, still in play, so its attack continues with the new stage's ATK at damage time.
+    **Implemented** generically in the engine (§3.21): `applyPlayerAttack` checks that the attacker is still in play
+    before dealing damage, and logs `playerAttackEnded { attackerInstanceId, targetInstanceId, reason:
+"attackerLeftPlay" }` instead; no `characterAttacked` follows (so no retaliate or "after … attacks"). Damage still
+    on the stack for a card no longer in play is not dealt at all (`applyDamage`, RRG 1.8 "In Play and Out of Play",
+    p. 23), which is what stops the defeated ally's consequential damage from landing on it in the discard pile (before
+    this, the discarded card was left with 1 damage on it). Effects printed after the attack in the same ability still
+    resolve; no scripted card depends on that yet.
 21. **A minion treated as an ally that stops being one** (§3.29): Mind Control discarded, Karma leaving play. No card
     or ruling says where the minion goes. Implemented as: it stays in the play area it is in and is engaged with the
     player who controlled it (a minion in a player's area is engaged with them, RRG 1.8 "Engaged", p. 18), without an

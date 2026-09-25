@@ -1,16 +1,20 @@
 import { activeVillain, characterProfile, remainingHitPoints } from "@mc/engine";
+import type { GameEvent, GameState } from "@mc/engine";
 import {
+  applyOk,
   endTurn,
   firstLegal,
   identityOf,
   inst,
   moveToHand,
   P1,
+  patchInstance,
   payWith,
   picking,
   play,
   playerOf,
   settle,
+  stackEncounterDeck,
   toHero,
 } from "../../testing/harness.js";
 import { wave1Scenario } from "../setup.js";
@@ -147,5 +151,71 @@ describe("Ms. Marvel pack cards", () => {
     );
     expect(remainingHitPoints(after, villain)).toBe(hpBefore! - 4);
     expect(inst(after, reflexes).counters.energy).toBe(2);
+  });
+
+  // docs/phase7-wave4.md §4 Q20 (user decision 2026-09-25): a player's attack whose attacker left play ends, but a
+  // villain whose stage is defeated mid-attack advances and is the same character still in play, so its attack goes on
+  // and deals damage with the new stage's ATK (RRG 1.8 "Villain Defeat", p. 47; "Activation", p. 6 only ends an attack
+  // whose enemy left play).
+  it("Preemptive Strike defeats Klaw I mid-attack: the attack continues at Klaw II's ATK", () => {
+    const start = startMsmGame(wave1Scenario("klaw", { players: [{ starterDeckId: "msm-protection" }], seed: 3 }));
+    const given = moveToHand(start, P1, "05014", "05005"); // Preemptive Strike (cost 1), Wiggle Room (to pay)
+    const [strike, payment] = given.ids as [never, never];
+    const hero = runMsm(given.state, toHero());
+    const villain = activeVillain(hero).instanceId;
+    expect(activeVillain(hero).stageIndex).toBe(0);
+    expect(characterProfile(hero, villain, MSM_DEPS)!.atk).toBe(0);
+    // Klaw I at 1 remaining hit point. His two boost cards (his forced interrupt gives him the second) are Armored
+    // Guards, 1 boost icon each, so cancelling the first one's icon deals the 1 damage that defeats the stage.
+    const primed = stackEncounterDeck(
+      patchInstance(hero, villain, { damage: remainingHitPoints(hero, villain)! - 1 + inst(hero, villain).damage }),
+      "01120",
+      "01120",
+    );
+    const option = `${strike}:05014.preemptive-strike-interrupt`;
+    let used = false;
+    const pick = (s: GameState): readonly string[] => {
+      const prompt = s.pendingChoice?.prompt;
+      if (!used && s.pendingChoice?.options.some((o) => o.optionId === option)) {
+        used = true;
+        return [option];
+      }
+      if (prompt?.kind === "payForCard" && prompt.instanceId === strike) return [`hand:${payment}`];
+      // End of turn: keep the two cards this test needs.
+      if (prompt?.kind === "discardDownToHandSize") {
+        const keep: readonly string[] = [strike, payment];
+        const spare = s.pendingChoice!.options.filter((o) => !keep.includes(o.optionId));
+        return spare.slice(0, s.pendingChoice!.minSelections).map((o) => o.optionId);
+      }
+      return firstLegal(s);
+    };
+    // Drive the villain phase until Klaw's attack has dealt its damage, keeping every event.
+    const events: GameEvent[] = [];
+    let state = applyOk(primed, endTurn(), MSM_DEPS).state;
+    const attackDone = () => events.some((e) => e.type === "attackResolved" && e.enemyInstanceId === villain);
+    for (let guard = 0; state.pendingChoice && !attackDone(); guard++) {
+      if (guard > 200) throw new Error(`stuck on ${state.pendingChoice.prompt.kind}`);
+      const choice = state.pendingChoice;
+      const step = applyOk(
+        state,
+        { type: "resolveChoice", playerId: choice.playerId, choiceId: choice.choiceId, selectedOptionIds: pick(state) },
+        MSM_DEPS,
+      );
+      events.push(...step.events);
+      state = step.state;
+    }
+    expect(used).toBe(true);
+    // The same villain card, now on stage II (ATK 1); the stage defeat is not a villain defeat.
+    expect(events.filter((e) => e.type === "villainStageAdvanced")).toEqual([
+      { type: "villainStageAdvanced", stageIndex: 1, instanceId: villain },
+    ]);
+    expect(activeVillain(state).instanceId).toBe(villain);
+    expect(activeVillain(state).stageIndex).toBe(1);
+    // The attack was not ended: Klaw II's ATK 1 plus the other Armored Guard's 1 icon, undefended.
+    const resolved = events.filter((e) => e.type === "attackResolved" && e.enemyInstanceId === villain);
+    expect(resolved).toEqual([
+      expect.objectContaining({ baseAtk: 1, boostIcons: 1, defenseReduction: 0, damageDealt: 2 }),
+    ]);
+    expect(inst(state, identityOf(state)).damage).toBe(2);
   });
 });
