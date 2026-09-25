@@ -544,8 +544,9 @@ export function leavePlay(
   for (const attachment of [...instance.attachments]) discardFromPlay(ctx, attachment);
   // RRG "Tuck": when a card leaves play, each card tucked under it is discarded.
   for (const tuckedId of [...instance.tucked]) {
-    moveCard(ctx, tuckedId, discardZoneFor(ctx.state, tuckedId), "top");
+    // Faceup first: a discard into an emptied deck's discard pile can reset that deck at once (`settlePlayerDecks`).
     updateInstance(ctx, tuckedId, (i) => ({ ...i, faceup: true }));
+    moveCard(ctx, tuckedId, discardZoneFor(ctx.state, tuckedId), "top");
   }
   // Boost cards still on an enemy that leaves play mid-activation go with it (RRG 1.8 "Boost": they are discarded).
   for (const boostId of [...instance.boostCards]) moveCard(ctx, boostId, discardZoneFor(ctx.state, boostId), "top");

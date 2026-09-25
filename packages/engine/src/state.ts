@@ -222,8 +222,8 @@ export interface PlayerState {
 
 /**
  * One separate deck and its own discard pile (docs/phase7-wave1.md §3.5). The top card's `faceup` follows the
- * identity's `topCardFaceup` after every change (`syncSeparateDeckTop`); an empty deck with cards in its discard is
- * reshuffled at once, with no penalty (`resetEmptySeparateDecks`).
+ * identity's `topCardFaceup` after every change (`syncSeparateDeckTop`); a deck that empties with cards in its discard is
+ * reshuffled at once, by the move that emptied it, with no penalty (`resetSeparateDeckIfEmpty`).
  */
 export interface SeparateDeckState {
   readonly deck: readonly InstanceId[];

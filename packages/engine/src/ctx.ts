@@ -16,6 +16,7 @@ import type { CardInstance, GameState, GameStep, PlayerState, ZoneId } from "./s
 import { describeFrame, type StackFrame } from "./stack.js";
 import type { EngineDeps } from "./abilities.js";
 import { resetPlayerDeckIfEmpty } from "./effects.js";
+import { resetSeparateDeckIfEmpty } from "./resolve/separate-decks.js";
 import { syncTreatedAs } from "./treat-as.js";
 
 /**
@@ -127,8 +128,8 @@ export type ZonePosition = "top" | "bottom";
 
 /**
  * The single way a card changes zones. Emits `cardMoved` so the log always
- * explains how a card got where it is, then resets a player deck the move
- * emptied (`settlePlayerDecks`).
+ * explains how a card got where it is, then resets a player deck or separate
+ * deck the move emptied (`settlePlayerDecks`).
  */
 export function moveCard(ctx: Ctx, id: InstanceId, to: ZoneId, position: ZonePosition = "bottom"): void {
   const from = relocateCard(ctx, id, to, position);
@@ -143,10 +144,15 @@ export function moveCard(ctx: Ctx, id: InstanceId, to: ZoneId, position: ZonePos
  * the deck empties, not on its next read (docs/phase7-wave3.md §4 Q15). Every draw, discard, search and mill moves its
  * cards through `moveCard`, so this one check after a move out of a player's deck or into a player's discard pile is
  * the rule for all of them.
+ *
+ * An identity's separate deck (the Invocation deck) follows the same ruling with its own reset, which has no penalty
+ * (`resetSeparateDeckIfEmpty`; docs/phase7-wave1.md §4 Q9).
  */
 export function settlePlayerDecks(ctx: Ctx, from: ZoneId | null, to: ZoneId): void {
   if (from?.kind === "deck") resetPlayerDeckIfEmpty(ctx, from.playerId);
   if (to.kind === "discard") resetPlayerDeckIfEmpty(ctx, to.playerId);
+  if (from?.kind === "separateDeck") resetSeparateDeckIfEmpty(ctx, from.playerId, from.name);
+  if (to.kind === "separateDiscard") resetSeparateDeckIfEmpty(ctx, to.playerId, to.name);
   // "After the infinity stone deck runs out" (docs/phase7-wave4.md §3.11): the move that took its last card. The flow
   // announces it between frames.
   if (from?.kind === "scenarioDeck" && ctx.state.scenarioDecks[from.name]?.deck.length === 0) {

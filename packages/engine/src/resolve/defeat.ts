@@ -496,8 +496,9 @@ function removeDefeatedVillain(ctx: Ctx, villainId: InstanceId): StackFrame | nu
   for (const attachment of [...instance.attachments]) discardFromPlay(ctx, attachment);
   for (const boost of [...instance.boostCards]) moveCard(ctx, boost, discardZoneFor(ctx.state, boost), "top");
   for (const tucked of [...instance.tucked]) {
-    moveCard(ctx, tucked, discardZoneFor(ctx.state, tucked), "top");
+    // Faceup first: a discard into an emptied deck's discard pile can reset that deck at once (`settlePlayerDecks`).
     updateInstance(ctx, tucked, (i) => ({ ...i, faceup: true }));
+    moveCard(ctx, tucked, discardZoneFor(ctx.state, tucked), "top");
   }
 
   const scheme = villain.signatureSideSchemeId;
@@ -617,8 +618,9 @@ export function eliminatePlayer(ctx: Ctx, playerId: PlayerId): void {
   for (const id of [...mustPlayer(ctx.state, playerId).dealtEncounter]) {
     moveCard(ctx, id, discardZoneFor(ctx.state, id), "top");
   }
+  // An event, or an Invocation card mid-Special (`executeResolveSpecials`), which goes to its own deck's discard pile.
   for (const id of [...mustPlayer(ctx.state, playerId).resolving]) {
-    moveCard(ctx, id, { kind: "discard", playerId }, "top");
+    moveCard(ctx, id, discardZoneFor(ctx.state, id), "top");
   }
 
   emit(ctx, { type: "playerEliminated", playerId });

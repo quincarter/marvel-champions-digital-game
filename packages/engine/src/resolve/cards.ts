@@ -278,11 +278,14 @@ export function moveCardsTo(ctx: Ctx, ids: readonly InstanceId[], destination: C
       }
     }
     const discarding = destination === "discard" || destination === "separateDiscard";
+    // Discard piles are faceup; a separate deck's faces are set below (`syncSeparateDeckTop`). Turned faceup before the
+    // move, because a move that empties the deck resets it at once (`settlePlayerDecks`), and this card may be in the
+    // new deck by the time the move returns.
+    if (destination === "separateDiscard") updateInstance(ctx, id, (i) => ({ ...i, faceup: true }));
     if (inPlay.has(id)) leavePlay(ctx, id, to, position, discarding);
     else moveCard(ctx, id, to, position);
-    // Discard piles are faceup; a separate deck's faces are set below (`syncSeparateDeckTop`).
-    if (destination === "separateDiscard") updateInstance(ctx, id, (i) => ({ ...i, faceup: true }));
-    else if (destination !== "discard" && destination !== "removedFromGame" && destination !== "setAside") {
+    const keepsFace = ["discard", "separateDiscard", "removedFromGame", "setAside"].includes(destination);
+    if (!keepsFace) {
       updateInstance(ctx, id, (i) => ({ ...i, faceup: destination === "hand" ? i.faceup : false }));
     }
   }

@@ -17,6 +17,7 @@ import { playerId, type InstanceId } from "./ids.js";
 import { mustInstance, mustPlayer, separateDeckOf } from "./query.js";
 import { createGame } from "./setup.js";
 import type { CardZoneQuery } from "./abilities.js";
+import type { EffectSpec } from "./spec.js";
 import type { GameState } from "./state.js";
 import { depsOf, stubAbility } from "./testing/abilities.js";
 import { runCommands } from "./testing/drive.js";
@@ -64,18 +65,24 @@ const SPELL_MASTERY = stubAbility("sorcerer.spell-mastery", {
   cost: { exhaustSelf: true, payPrintedCostOf: { slot: "invocation", from: topOfInvocation } },
   effects: [{ kind: "resolveSpecials", of: slot }],
 });
+/** "Discard the top card of the Invocation deck." */
+const DISCARD_INVOCATION_TOP: EffectSpec = {
+  kind: "moveCards",
+  cards: { kind: "separateDeck", player: { kind: "controller" }, name: INVOCATION, top: one },
+  to: "separateDiscard",
+};
 /** Natural Talent: "Discard the top card of the Invocation deck. (Limit once per phase.)" */
 const NATURAL_TALENT = stubAbility("sorcerer.natural-talent", {
   trigger: { kind: "action" },
   limit: { count: 1, period: "phase" },
-  effects: [
-    {
-      kind: "moveCards",
-      cards: { kind: "separateDeck", player: { kind: "controller" }, name: INVOCATION, top: one },
-      to: "separateDiscard",
-    },
-  ],
+  effects: [DISCARD_INVOCATION_TOP],
 });
+/** Two single-card discards in one resolution, to show the deck is reset between them rather than on the next frame. */
+const DISCARD_TOP_TWICE_ACTION = stubAbility("discard-twice.action", {
+  trigger: { kind: "action" },
+  effects: [DISCARD_INVOCATION_TOP, DISCARD_INVOCATION_TOP],
+});
+const DISCARD_TOP_TWICE = stubEvent({ id: "discard-twice", cost: 0, abilities: [DISCARD_TOP_TWICE_ACTION.ref] });
 const SORCERER: HeroIdentityCard = {
   ...stubIdentity({
     id: "sorcerer",
@@ -156,6 +163,7 @@ const deps: EngineDeps = depsOf(
   DARK_REVEALED,
   DARK_DEFEATED,
   DISCARD_SCHEMES_ACTION,
+  DISCARD_TOP_TWICE_ACTION,
 );
 const copies = (id: CardId, n: number): readonly CardId[] => Array.from({ length: n }, () => id);
 
@@ -163,14 +171,24 @@ function setup(encounter: readonly CardId[] = copies(BLANK.id, 12)) {
   const result = createGame(
     {
       seed: 11,
-      cards: [...DEFAULT_CARDS, SORCERER, ...SPELLS, MYSTIC_ARTS, WATCHER, DARK, DISCARD_SCHEMES, BLANK],
+      cards: [
+        ...DEFAULT_CARDS,
+        SORCERER,
+        ...SPELLS,
+        MYSTIC_ARTS,
+        WATCHER,
+        DARK,
+        DISCARD_SCHEMES,
+        DISCARD_TOP_TWICE,
+        BLANK,
+      ],
       villainCardId: VILLAIN.id,
       mainSchemeCardId: MAIN_SCHEME.id,
       encounterDeck: encounter,
       players: [
         {
           identityCardId: SORCERER.id,
-          deck: [...DEFAULT_DECK, MYSTIC_ARTS.id, WATCHER.id, ...copies(DISCARD_SCHEMES.id, 2)],
+          deck: [...DEFAULT_DECK, MYSTIC_ARTS.id, WATCHER.id, ...copies(DISCARD_SCHEMES.id, 2), DISCARD_TOP_TWICE.id],
         },
       ],
     },
@@ -194,6 +212,20 @@ const endTurn: Command = { type: "endTurn", playerId: p1 };
 const ofType = <T extends GameEvent["type"]>(events: readonly GameEvent[], type: T) =>
   events.filter((e): e is Extract<GameEvent, { type: T }> => e.type === type);
 const faceups = (state: GameState, ids: readonly InstanceId[]) => ids.map((id) => mustInstance(state, id).faceup);
+
+/** The Invocation deck down to its top card, the other four in its discard pile (faceup, as a discard pile is). */
+function lastCardLeft(state: GameState): GameState {
+  const [last, ...others] = invocation(state).deck as [InstanceId, ...InstanceId[]];
+  const instances = { ...state.instances };
+  for (const id of others) instances[id] = { ...mustInstance(state, id), faceup: true };
+  return {
+    ...state,
+    instances,
+    players: state.players.map((p) =>
+      p.playerId === p1 ? { ...p, separateDecks: { [INVOCATION]: { deck: [last], discard: others } } } : p,
+    ),
+  };
+}
 
 const spellMastery = (
   state: GameState,
@@ -271,28 +303,81 @@ describe("§3.5 an identity's separate deck (Invocation)", () => {
     expect(mustInstance(state, watcher).counters.sawPlay).toBe(sawPlay);
   });
 
-  it("the deck that empties takes its discard pile back at once, with no encounter card and no acceleration token", () => {
+  it("the last card's Special leaves the deck as it starts resolving: the deck resets without it, with no penalty, and it lands in the discard pile (ruling, Apr 30, 2026 (3) answer 7; §4 Q9)", () => {
     const { state: start, resources } = game();
     const hero = runCommands(start, deps, toHero).state;
-    const [last, ...others] = invocation(hero).deck as [InstanceId, ...InstanceId[]];
-    const primed: GameState = {
-      ...hero,
-      players: hero.players.map((p) =>
-        p.playerId === p1 ? { ...p, separateDecks: { [INVOCATION]: { deck: [last], discard: others } } } : p,
-      ),
-    };
+    const primed = lastCardLeft(hero);
+    const [last] = invocation(primed).deck as [InstanceId];
     const dealtBefore = mustPlayer(primed, p1).dealtEncounter;
 
     const { state, events } = runCommands(primed, deps, spellMastery(primed, resources, last));
-    expect(invocation(state).deck).toHaveLength(5);
-    expect(invocation(state).discard).toEqual([]);
-    expect(faceups(state, invocation(state).deck).filter(Boolean)).toHaveLength(1);
+    // The new deck is the other four cards; the resolved card is in the discard pile, faceup.
+    expect(invocation(state).deck).toHaveLength(4);
+    expect(invocation(state).deck).not.toContain(last);
+    expect(invocation(state).discard).toEqual([last]);
+    expect(mustInstance(state, last).faceup).toBe(true);
+    expect(faceups(state, invocation(state).deck)).toEqual([true, false, false, false]);
+    // Its Special did resolve.
+    expect(mustInstance(state, identityId(state)).counters.spells).toBe(1);
+    // The log: out of the deck, the reset, then into the discard pile.
+    const movesOfLast = ofType(events, "cardMoved").filter((e) => e.instanceId === last);
+    expect(movesOfLast.map((e) => [e.from.kind, e.to.kind])).toEqual([
+      ["separateDeck", "resolving"],
+      ["resolving", "separateDiscard"],
+    ]);
+    const reset = events.findIndex((e) => e.type === "separateDeckReset");
+    expect(reset).toBeGreaterThan(events.indexOf(movesOfLast[0]!));
+    expect(reset).toBeLessThan(events.indexOf(movesOfLast[1]!));
     expect(ofType(events, "separateDeckReset")).toEqual([
       { type: "separateDeckReset", playerId: p1, name: INVOCATION },
     ]);
     expect(ofType(events, "accelerationTokenAdded")).toEqual([]);
     expect(mustPlayer(state, p1).dealtEncounter).toEqual(dealtBefore);
     expect(state.mainScheme.accelerationTokens).toBe(0);
+    expect(mustPlayer(state, p1).resolving).toEqual([]);
+  });
+
+  it("Master of the Mystic Arts on the last card: the deck resets without it, then it goes back on top faceup", () => {
+    const { state: start, resources } = game();
+    const primed = lastCardLeft(playFree(start, MYSTIC_ARTS).state);
+    const [last] = invocation(primed).deck as [InstanceId];
+    const { state, events } = runCommands(primed, deps, {
+      type: "useAbility",
+      playerId: p1,
+      cardInstanceId: inPlay(primed, MYSTIC_ARTS),
+      abilityId: MYSTIC_ARTS_ACTION.ref.id,
+      payment: fromHand(...resources),
+      costChoices: { invocation: [last] },
+    });
+    expect(ofType(events, "separateDeckReset")).toHaveLength(1);
+    expect(invocation(state).deck).toHaveLength(5);
+    expect(invocation(state).deck[0]).toBe(last);
+    expect(invocation(state).discard).toEqual([]);
+    expect(faceups(state, invocation(state).deck)).toEqual([true, false, false, false, false]);
+    expect(mustInstance(state, identityId(state)).counters.spells).toBe(1);
+  });
+
+  it("a discard that empties the deck resets it at once, within the same resolution", () => {
+    const { state: start } = game();
+    const primed = lastCardLeft(start);
+    const [last] = invocation(primed).deck as [InstanceId];
+    // "Discard the top card" twice: the first takes the last card and resets the deck (the discarded card included:
+    // it reached the discard pile first); the second discards the new top card.
+    const { state, events } = playFree(primed, DISCARD_TOP_TWICE);
+    expect(ofType(events, "separateDeckReset")).toHaveLength(1);
+    expect(invocation(state).deck).toHaveLength(4);
+    expect(invocation(state).discard).toHaveLength(1);
+    expect(faceups(state, invocation(state).deck)).toEqual([true, false, false, false]);
+    expect(faceups(state, invocation(state).discard)).toEqual([true]);
+    const reset = events.findIndex((e) => e.type === "separateDeckReset");
+    const lastDiscarded = events.findIndex(
+      (e) => e.type === "cardMoved" && e.instanceId === last && e.to.kind === "separateDiscard",
+    );
+    expect(reset).toBeGreaterThan(lastDiscarded);
+    const [, second] = ofType(events, "cardMoved").filter(
+      (e) => e.from.kind === "separateDeck" && e.to.kind === "separateDiscard",
+    );
+    expect(events.indexOf(second!)).toBeGreaterThan(reset);
   });
 
   it("Master of the Mystic Arts resolves the top card and places it back on top faceup", () => {
@@ -375,5 +460,15 @@ describe("§3.5 an identity's separate deck (Invocation)", () => {
     if (!replayed.ok) throw new Error(replayed.error.message);
     expect(replayed.state).toEqual(session.state);
     expect(flat(0)).toEqual({ base: 0, perPlayer: 0 });
+  });
+
+  it("replay reproduces a game whose Invocation deck reset under its last card's Special", () => {
+    const { state: start, resources } = game(copies(DARK.id, 12));
+    const hero = lastCardLeft(runCommands(start, deps, toHero).state);
+    const { session, events } = runCommands(hero, deps, spellMastery(hero, resources), endTurn);
+    expect(ofType(events, "separateDeckReset").length).toBeGreaterThan(0);
+    const replayed = replay(session.log, deps);
+    if (!replayed.ok) throw new Error(replayed.error.message);
+    expect(replayed.state).toEqual(session.state);
   });
 });
