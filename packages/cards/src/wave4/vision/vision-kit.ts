@@ -47,6 +47,10 @@ import {
   YOUR_IDENTITY,
   zone,
   thwart,
+  anEnemy,
+  confuse,
+  chooseTarget,
+  discard,
 } from "../../dsl/index.js";
 
 const ANDROID = trait("ANDROID");
@@ -68,7 +72,7 @@ const ANDROID = trait("ANDROID");
  *
  * **Just Passing Through's "ignoring the patrol keyword" (26010.just-passing-through-action)** is the one-shot
  * `thwart.ignorePatrol` (docs/phase7-wave4.md §3.32). **Phase Disruption's "Choose an attachment … with the text
- * 'Hero Action' or 'Hero Response'" (26011.phase-disruption-action)** is documented at its ref below.
+ * 'Hero Action' or 'Hero Response'" (26011.phase-disruption-action)** is `TargetQuery.abilityTiming` (§3.33).
  */
 export const VISION_KIT = defineAbilities({
   // Vision (hero, 26001a) — Density Manipulation - Action: Change mass form by flipping your mass form upgrade
@@ -199,11 +203,17 @@ export const VISION_KIT = defineAbilities({
   // enemy. Choose an attachment on that enemy with the text "Hero Action" or "Hero Response" and discard that
   // attachment.
   "26011.phase-disruption-constant": constant(playOnlyIf(inAdditionalForm("mass", "Intangible"))),
-  // KNOWN_SKIPPED: 26011.phase-disruption-action — "an attachment … with the text 'Hero Action' or 'Hero
-  // Response'" needs a `TargetQuery` that reads which trigger *kind* a card's own abilities carry (or a search over
-  // its printed text), and neither exists: `TargetQuery` filters card shape (type/traits/keywords/host/…), never a
-  // card's own ability shapes, and the engine holds no per-card "printed timing word" field to match against. See
-  // `KNOWN_SKIPPED["vision"]` in `../coverage.test.ts`.
+  // "…with the text 'Hero Action' or 'Hero Response'" reads the attachment's own abilities (`TargetQuery.abilityTiming`,
+  // docs/phase7-wave4.md §3.33). No such attachment: nothing to choose, and the confuse still happens.
+  "26011.phase-disruption-action": heroAction(
+    anEnemy("enemy"),
+    confuse(chosen("enemy")),
+    chooseTarget(
+      "attachment",
+      query("attachment", { host: chosen("enemy"), abilityTiming: ["heroAction", "heroResponse"] }),
+    ),
+    discard(chosen("attachment")),
+  ),
 
   // Mass Increase (event, 26012) — Play only if Vision is in Dense mass form. Hero Interrupt (defense): When
   // Vision defends, prevent all damage from that attack. Stun the attacking enemy after that attack resolves. The

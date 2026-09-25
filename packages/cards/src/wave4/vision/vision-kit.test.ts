@@ -300,7 +300,43 @@ describe("Phase Disruption (event, 26011)", () => {
     const hero = setMassForm(runWith(WAVE4_DEPS, visionVsRhino(17), toHero()), "Dense");
     expect(() => playFromHand(hero, "26011", 2)).toThrow();
   });
-  // 26011.phase-disruption-action is KNOWN_SKIPPED (../coverage.test.ts): no text-based attachment query exists.
+
+  it("26011.phase-disruption-action: confuses the enemy and discards its attachment that has a Hero Action", () => {
+    const hero = setMassForm(runWith(WAVE4_DEPS, visionVsRhino(17), toHero()), "Intangible");
+    const villain = activeVillain(hero).instanceId;
+    // Lethal Weapon (`nebu` 22030, "Hero Action: Discard an upgrade you control → discard this attachment") on Rhino.
+    const weapon = "phase-disruption-weapon" as InstanceId;
+    const staged: GameState = {
+      ...hero,
+      instances: {
+        ...hero.instances,
+        [villain]: { ...inst(hero, villain), attachments: [...inst(hero, villain).attachments, weapon] },
+        [weapon]: {
+          instanceId: weapon,
+          cardId: "22030" as never,
+          ownerId: null,
+          controllerId: null,
+          home: { kind: "activeEncounterDeck" },
+          faceup: true,
+          exhausted: false,
+          damage: 0,
+          threat: 0,
+          statuses: { stunned: 0, confused: 0, tough: 0 },
+          counters: {},
+          attachedTo: villain,
+          attachments: [],
+          boostCards: [],
+          tucked: [],
+          facedownAs: null,
+          engagedWith: null,
+          flipped: false,
+        } as never,
+      },
+    };
+    const { state } = playFromHand(staged, "26011", 2, accepting(villain, weapon));
+    expect(inst(state, villain).statuses.confused).toBe(1);
+    expect(inst(state, villain).attachments).not.toContain(weapon);
+  });
 });
 
 describe("Mass Increase (event, 26012)", () => {

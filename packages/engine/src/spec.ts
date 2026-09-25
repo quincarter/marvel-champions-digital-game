@@ -293,7 +293,35 @@ export interface TargetQuery {
    * own facedown cards (RRG 1.8 "Facedown", owner may look), so this is the owner's reading.
    */
   readonly printedForm?: string;
+  /**
+   * The card has an ability with one of these timing words in its text box: "an attachment … with the text 'Hero
+   * Action' or 'Hero Response'" (Phase Disruption, `vision` 26011; Phase Strike, `mut_gen` 32038; Sunfire, `wolv`
+   * 35014; Electromagnetic Blast, `magneto` 49008), "'Hero Response' or 'Hero Interrupt'" (Target Lock, Phased Out),
+   * "an event with a 'Hero Action' ability" (Warpath, `angel` 42013). Read from the card's live abilities, so a blanked
+   * text box has none. docs/phase7-wave4.md §3.33.
+   */
+  readonly abilityTiming?: readonly AbilityTimingWord[];
 }
+
+/**
+ * A printed timing word (RRG 1.8 "Action", "Interrupt", "Response", "Resource Ability"; "Hero"/"Alter-Ego" is the form
+ * label, "Forced" the forced prefix): the ability-trigger shape `select.ts timingWordOf` maps each script to.
+ */
+export type AbilityTimingWord =
+  | "action"
+  | "heroAction"
+  | "alterEgoAction"
+  | "interrupt"
+  | "heroInterrupt"
+  | "alterEgoInterrupt"
+  | "forcedInterrupt"
+  | "response"
+  | "heroResponse"
+  | "alterEgoResponse"
+  | "forcedResponse"
+  | "resource"
+  | "heroResource"
+  | "alterEgoResource";
 
 /**
  * Character names as a card prints them (docs/phase7-wave3.md §3.34). `names` is written out; `teamUpOf` reads them

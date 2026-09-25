@@ -434,6 +434,7 @@ stays data only.**
 | 3.30 | A resource ability's own effects                                         | Gauntlet Gun; War Cry family, Psi-Knife, Cybernetic Arm          | landed  |
 | 3.31 | A character that cannot defend                                           | Intangible; Grant Ward, Tracking Display                         | landed  |
 | 3.32 | One thwart that ignores patrol                                           | Just Passing Through; Natural Flight, Grapnel Launcher           | landed  |
+| 3.33 | A card with a given timing word in its text                              | Phase Disruption; Phase Strike, Sunfire, Target Lock, Warpath    | landed  |
 
 ### 3.1 Additional forms: the form keyword
 
@@ -1332,6 +1333,24 @@ scoped to basic thwarts is not built).
 > Vision against Rhino with Crowd Control's crisis icon in play). **What landed:** **`EffectSpec thwart.ignorePatrol`**,
 > carried on the `thwart` event and read by `threatRemovalBlocked` for the removal that thwart makes. **DSL:**
 > `thwart(n, target, { ignorePatrol: true })`. **Scripted:** `26010.just-passing-through-action`, off `KNOWN_SKIPPED`.
+
+### 3.33 A card with a given timing word in its text
+
+Phase Disruption (`vision` 26011): "Confuse an enemy. Choose an attachment on that enemy with the text 'Hero Action' or
+'Hero Response' and discard that attachment." Survey (every raw pack, "with the text" / "with a '…' ability"): Phase
+Strike (`mut_gen` 32038), Sunfire (`wolv` 35014), Electromagnetic Blast (`magneto` 49008), Disarming Defense
+(`wonder_man` 58033), all "Hero Action" or "Hero Response"; Target Lock and Phased Out (`cw` 56130, `synthezoid` 57076),
+"Hero Response" or "Hero Interrupt"; Warpath (`angel` 42013), "an event with a 'Hero Action' ability".
+
+> **Status: landed (2026-09-24),** tested in `packages/engine/src/ability-timing-query.test.ts` (3 tests: matches the
+> attachments carrying the named timing words and not a Forced Response; a blanked text box has none; each trigger
+> shape maps to its printed timing word) and in a real game in `packages/cards/src/wave4/vision/vision-kit.test.ts`
+> (Rhino with Lethal Weapon attached: Phase Disruption confuses him and discards it). **What landed:** **`TargetQuery
+abilityTiming: AbilityTimingWord[]`** ("heroAction", "heroResponse", "forcedInterrupt", …) matched against the card's
+> live abilities through `select.ts timingWordOf` (trigger kind + form label + forced), exclusion `noSuchAbility`
+> with a client label. The printed word is read from the script's trigger shape, which the ability DSL already makes
+> match the printed label (`heroAction`, `heroResponse`, …). **Scripted:** `26011.phase-disruption-action`, off
+> `KNOWN_SKIPPED`.
 
 ## 4. Open questions (for the user or FFG)
 
