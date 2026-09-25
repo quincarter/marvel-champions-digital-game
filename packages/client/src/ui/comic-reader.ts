@@ -7,7 +7,7 @@
  * Rewind, the Aftermath, the Finale) draws through the same function over its own `ComicBeatRef` list.
  */
 import Phaser from "phaser";
-import { coverFit, ensurePictureLoaded } from "../art/pictures.js";
+import { coverFit, ensurePictureLoaded, type Picture } from "../art/pictures.js";
 import { accent, border, surface, typeRole } from "../tokens.js";
 import type { Rect } from "../view/layout.js";
 import type { ComicBeat } from "../campaign/story.js";
@@ -60,10 +60,24 @@ export function drawComicReaderStep(
   onReady: () => void,
   tween?: ComicReaderTween,
 ): ComicReaderDrawResult {
+  return drawComicReaderPicture(scene, rect, campaignPagePicture(campaignId, step.page.file), step, onReady, tween);
+}
+
+/**
+ * `drawComicReaderStep` over a picture the caller already resolved — a one-off scenario's intro artboard
+ * (`campaign/scenario-intros.ts`) lives under `art/scenarios/`, not a campaign's `pages/`.
+ */
+export function drawComicReaderPicture(
+  scene: Phaser.Scene,
+  rect: Rect,
+  picture: Picture | null,
+  step: ComicReaderStepView,
+  onReady: () => void,
+  tween?: ComicReaderTween,
+): ComicReaderDrawResult {
   scene.add.rectangle(rect.x, rect.y, rect.width, rect.height, surface.ink.hex).setOrigin(0, 0);
   if (rect.width <= 0 || rect.height <= 0) return { lit: null };
 
-  const picture = campaignPagePicture(campaignId, step.page.file);
   const key = picture ? ensurePictureLoaded(scene, picture, onReady) : null;
   if (!key) return { lit: null };
 
@@ -180,6 +194,15 @@ function lerpPanel(from: ComicBeat["panel"], to: ComicBeat["panel"], t: number):
 
 function lerpNum(a: number, b: number, t: number): number {
   return a + (b - a) * t;
+}
+
+/**
+ * The reader's own caption, SFX and speech bubbles for a step, over `lit` inside `rect`. The unlettered page draw
+ * calls it itself; a guided (`lettered`) page whose art carries no lettering of its own — a one-off scenario intro
+ * artboard — calls it once the pan has settled.
+ */
+export function drawComicLettering(scene: Phaser.Scene, rect: Rect, lit: Rect, step: ComicReaderStepView): void {
+  drawStepContent(scene, rect, lit, step);
 }
 
 function drawStepContent(scene: Phaser.Scene, rect: Rect, lit: Rect, step: ComicReaderStepView): void {
