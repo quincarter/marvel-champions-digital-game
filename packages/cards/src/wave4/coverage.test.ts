@@ -95,9 +95,9 @@ const KNOWN_SKIPPED: Readonly<Record<string, readonly string[]>> = {
   // Beasty Boys (24014-24017, `hood/beasty-boys.ts`), Brothers Grimm (24018-24022, `hood/brothers-grimm.ts`) and
   // Crossfire's Crew (24023-24028, `hood/crossfire-crew.ts`), Mister Hyde (24033-24036, `hood/mister-hyde.ts`) and
   // State of Emergency (24055-24059, `hood/state-of-emergency.ts`), Streets of Mayhem (24060-24063,
-  // `hood/streets-of-mayhem.ts`) and Ransacked Armory (24037-24041, `hood/ransacked-armory.ts`) are scripted.
-  // Everything below is the pack's remaining two modular sets (Sinister Syndicate, Wrecking Crew) plus Standard II
-  // / Expert II, left for the next scripting pass
+  // `hood/streets-of-mayhem.ts`), Ransacked Armory (24037-24041, `hood/ransacked-armory.ts`) and Sinister Syndicate
+  // (24042-24048, `hood/sinister-syndicate.ts`) are scripted. Everything below is the pack's remaining modular set
+  // (Wrecking Crew) plus Standard II / Expert II, left for the next scripting pass
   // (24041 and 24067 have no ability refs at all — plain-stat cards — and 24053's "Shadow of the Past" ref already
   // resolves as a reprint alias via `../reprints.ts`; none of the three are listed below).
   hood: [
@@ -122,19 +122,11 @@ const KNOWN_SKIPPED: Readonly<Record<string, readonly string[]>> = {
     // module's own docblock) — "attacks deal indirect damage" has no attack-damage-type modifier.
     "24037.flamethrower-constant",
     "24037.flamethrower-constant-2",
+    // Sinister Syndicate (`hood/sinister-syndicate.ts`): every ref resolves except two genuine gaps (the module's
+    // own docblock) — Crime Pays' own "was a minion put into play" report and White Rabbit's own dynamic
+    // "identity-specific card" filter.
     "24042.when-revealed",
-    "24043.beetle-forced-response",
-    "24043.boost",
-    "24044.boomerang-forced-response",
-    "24044.boost",
-    "24045.shocker-forced-response",
-    "24045.boost",
-    "24046.speed-demon-forced-interrupt",
-    "24046.boost",
-    "24047.white-rabbit-forced-interrupt",
     "24047.boost",
-    "24048.when-revealed-alter-ego",
-    "24048.when-revealed-hero",
     "24049a.formidable-foe-constant",
     "24049b.formidable-foe-constant",
     "24050.when-revealed",

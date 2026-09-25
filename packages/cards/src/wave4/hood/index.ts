@@ -5,6 +5,7 @@ import { BROTHERS_GRIMM } from "./brothers-grimm.js";
 import { CROSSFIRE_CREW } from "./crossfire-crew.js";
 import { HOOD } from "./hood.js";
 import { RANSACKED_ARMORY } from "./ransacked-armory.js";
+import { SINISTER_SYNDICATE } from "./sinister-syndicate.js";
 import { MISTER_HYDE_SET } from "./mister-hyde.js";
 import { STATE_OF_EMERGENCY } from "./state-of-emergency.js";
 import { STREETS_OF_MAYHEM } from "./streets-of-mayhem.js";
@@ -23,4 +24,5 @@ export const HOOD_ABILITIES: AbilityRegistry = mergeRegistries(
   STATE_OF_EMERGENCY,
   STREETS_OF_MAYHEM,
   RANSACKED_ARMORY,
+  SINISTER_SYNDICATE,
 );
