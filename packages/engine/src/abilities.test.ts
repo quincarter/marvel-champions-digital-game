@@ -114,7 +114,7 @@ test("an event's effect targets a minion through a chooseTarget choice", () => {
   expect(activeEncounterDeck(resolved).discard).toContain(minionId);
 });
 
-test("an event with no legal target for its choice resolves without effect and is still discarded", () => {
+test("an event with no legal target for its choice cannot be played (RRG 1.8 'Choose (Game Element)', p. 12)", () => {
   const ability = stubAbility("blade-strike", {
     trigger: { kind: "action" },
     effects: [
@@ -137,15 +137,15 @@ test("an event with no legal target for its choice resolves without effect and i
     deps,
   });
   const instanceId = findInHand(start, p1, event.id);
-  const state = runWith(deps, start, {
-    type: "playCard",
-    playerId: p1,
-    cardInstanceId: instanceId,
-    payment: [],
-    attachToInstanceId: null,
-  });
-  expect(state.pendingChoice).toBeNull();
-  expect(mustPlayer(state, p1).discard).toContain(instanceId);
+  // "If a player card ability requires the choosing of one or more targets, and there are no valid targets for any
+  // part of the ability, the ability cannot be initiated": refused, and the card stays in hand.
+  const result = applyCommand(
+    start,
+    { type: "playCard", playerId: p1, cardInstanceId: instanceId, payment: [], attachToInstanceId: null },
+    deps,
+  );
+  expect(result).toMatchObject({ ok: false, error: { code: "no_valid_target" } });
+  expect(mustPlayer(start, p1).hand).toContain(instanceId);
 });
 
 test("useAbility pays an exhaust-plus-counter cost and enforces its limit", () => {

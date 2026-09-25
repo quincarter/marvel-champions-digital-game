@@ -417,6 +417,13 @@ export type GameEvent =
       readonly uses: number;
     }
   | { readonly type: "targetChosen"; readonly slot: string; readonly instanceIds: readonly InstanceId[] }
+  /**
+   * A required choice found nothing to choose (RRG 1.8 "Choose (Game Element)", p. 12), so the text before a "then"
+   * did not fully resolve: `thenSkipped` follows for each "then" it gates.
+   */
+  | { readonly type: "choiceFoundNothing"; readonly slot: string }
+  /** RRG 1.8 "'Then'" (p. 44): the pre-"then" text did not fully resolve, so the post-"then" text was skipped. */
+  | { readonly type: "thenSkipped" }
   | {
       readonly type: "resourcesGenerated";
       readonly playerId: PlayerId;

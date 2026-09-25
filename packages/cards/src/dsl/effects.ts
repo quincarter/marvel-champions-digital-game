@@ -259,6 +259,14 @@ export const ifThen = (condition: Predicate, then: EffectArg, otherwise?: Effect
   ...(otherwise !== undefined ? { otherwise: flatten([otherwise]) } : {}),
 });
 
+/**
+ * The printed "Then": "…. Then, discard Quinjet." The effects run only if the text before them fully resolved (RRG 1.8
+ * "'Then'", p. 44): a required choice before it that found nothing skips them. Post-"then" text is also not a part of
+ * the ability of its own when the engine asks whether the ability can be initiated at all (RRG 1.8 "Choose (Game
+ * Element)", p. 12). Plain "and"/a new sentence is not a "then": list those effects after the choice as usual.
+ */
+export const andThen = (...effects: readonly EffectArg[]): EffectSpec => ({ kind: "then", effects: flatten(effects) });
+
 export interface ChoiceOption {
   readonly label: string;
   readonly condition?: Predicate;

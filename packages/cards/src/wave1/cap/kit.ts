@@ -1,5 +1,6 @@
 import { trait } from "@mc/content";
 import {
+  andThen,
   action,
   addCounters,
   after,
@@ -182,6 +183,8 @@ export const CAP_KIT = defineAbilities({
   "03019.quinjet-response": response(after.yourTurnBegins(), addCounters("time", 1)),
   // Quinjet — Action: Put an Avenger ally from your hand into play with printed cost equal to or less than the
   // number of time counters on Quinjet. Then, discard Quinjet. `maxPrintedCost` reads a live counter (new).
+  // With no such ally in hand the action cannot be used, and "Then, discard Quinjet" never runs without the ally
+  // (RRG 1.8 "Choose (Game Element)", p. 12; "'Then'", p. 44).
   "03019.quinjet-action": action(
     chooseCards(
       "ally",
@@ -189,7 +192,7 @@ export const CAP_KIT = defineAbilities({
       { min: 1, max: 1 },
     ),
     putIntoPlay(chosen("ally")),
-    discard(self),
+    andThen(discard(self)),
   ),
 
   // Avengers Tower — If each of your allies has the Avenger trait, increase your ally limit by 1. Vacuously true

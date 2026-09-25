@@ -1,5 +1,12 @@
 import { cardId } from "@mc/content";
-import { activeVillain, characterProfile, type CardInstance, type GameState, type InstanceId } from "@mc/engine";
+import {
+  activeVillain,
+  applyCommand,
+  characterProfile,
+  type CardInstance,
+  type GameState,
+  type InstanceId,
+} from "@mc/engine";
 import { describe, expect, it } from "vitest";
 import {
   endTurn,
@@ -334,7 +341,7 @@ describe("As One! / Stand Together (Alliance events, 23032/23034)", () => {
 });
 
 describe("Vigilante Training (support ×2, 23033)", () => {
-  it("23033.vigilante-training-action: exhausts and removes 1 training counter (no Justice event of War Machine's own to find, so nothing shuffles)", () => {
+  it("23033.vigilante-training-action: with no Justice event in the discard pile it cannot be used, and nothing is paid", () => {
     // Vigilante Training is Justice-aspect; War Machine's own precon deck is Leadership, so no real deck could ever
     // legally hold a copy — a synthetic hand card (`injectIntoHand`) is the only way to exercise this ability at all.
     const { state: given, id: training } = injectIntoHand(warMachineVsRhino(1), P1, "23033");
@@ -344,17 +351,13 @@ describe("Vigilante Training (support ×2, 23033)", () => {
       undefined,
       WAVE4_DEPS,
     );
-    // None of War Machine's own pack cards are Justice-aspect, so this exercises the exhaust-and-counter cost with
-    // an empty candidate set (0 found) rather than the shuffle itself, which `nebu/nebula-pack-cards.ts`'s identical
-    // "Defensive Training" shape already covers with a Protection event in scope.
-    const used = settle(
-      runWith(WAVE4_DEPS, played, use(P1, training, "23033.vigilante-training-action")),
-      firstLegal,
-      undefined,
-      WAVE4_DEPS,
-    );
-    expect(inst(used, training).exhausted).toBe(true);
-    expect(inst(used, training).counters.training).toBe(1);
+    // None of War Machine's own pack cards are Justice-aspect, so the choice has no candidate. RRG 1.8 "Choose (Game
+    // Element)" (p. 12): the ability cannot be initiated, so neither the exhaust nor the counter is paid.
+    // `nebu/nebula-pack-cards.ts`'s identical "Defensive Training" shape covers the shuffle with an event in scope.
+    const result = applyCommand(played, use(P1, training, "23033.vigilante-training-action"), WAVE4_DEPS);
+    expect(result).toMatchObject({ ok: false, error: { code: "no_valid_target" } });
+    expect(inst(played, training).exhausted).toBe(false);
+    expect(inst(played, training).counters.training).toBe(2);
   });
 });
 

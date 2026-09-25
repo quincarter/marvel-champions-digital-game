@@ -103,6 +103,7 @@ import {
   revealMainSchemeStages,
 } from "./game-areas.js";
 import { announceDamagePrevented, readyOrAnnounce, threatRemovalBlocked } from "./event.js";
+import { UNRESOLVED_VAR } from "./target-validity.js";
 import { heard } from "./triggers.js";
 import { dealBoostCard, declareDefenderByEffect, giveBoostCard } from "./enemy-activation.js";
 import { quickstrikeAttack } from "./enter-play.js";
@@ -1264,6 +1265,26 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       const branch = evaluate(ctx.state, effect.condition, context) ? effect.then : (effect.otherwise ?? []);
       pushEffects(ctx, {
         effects: branch,
+        selfInstanceId: frame.selfInstanceId,
+        controllerId: frame.controllerId,
+        event: frame.event,
+        eventFrameId: frame.eventFrameId,
+        bindings: frame.bindings,
+        vars: frame.vars,
+        scopedPlayerId: frame.scopedPlayerId,
+        returnBindingsTo: frame.frameId,
+        byPlayer: frame.byPlayer === true,
+      });
+      return;
+    }
+    case "then": {
+      // RRG 1.8 "'Then'" (p. 44): the post-"then" text resolves only if the text before it fully resolved.
+      if ((frame.vars[UNRESOLVED_VAR] ?? 0) > 0) {
+        emit(ctx, { type: "thenSkipped" });
+        return;
+      }
+      pushEffects(ctx, {
+        effects: effect.effects,
         selfInstanceId: frame.selfInstanceId,
         controllerId: frame.controllerId,
         event: frame.event,

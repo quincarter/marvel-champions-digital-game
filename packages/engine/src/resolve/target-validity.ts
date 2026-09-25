@@ -8,9 +8,10 @@
  *
  * One place judges it, read three ways (docs/phase7-wave3.md §3.5, §4 Q5):
  *
- * - **at initiation** (`abilityLacksValidTarget`): an ability whose leading `chooseTarget` has candidates but no valid
- *   one cannot be initiated (RRG 1.8 "Initiating Abilities", p. 24, step 2), so `playCard`/`useAbility` refuse it with
- *   `no_valid_target`, `legalActions` does not offer it, and a window does not offer an optional interrupt/response;
+ * - **at initiation** (`abilityLacksValidTarget`): a player ability whose opening required choice has no valid
+ *   candidate, and nothing else of its own to do, cannot be initiated (RRG 1.8 "Initiating Abilities", p. 24, step 2;
+ *   "Choose (Game Element)", p. 12), so `playCard`/`useAbility` refuse it with `no_valid_target`, `legalActions` does
+ *   not offer it, and a window does not offer an optional interrupt/response;
  * - **at the choice** (`requestTargetChoice` in `effects-frame.ts`): only valid targets are offered;
  * - **"up to" divisions** (`divisionCanAffect`), through the same per-effect checks.
  *
@@ -32,6 +33,8 @@ import { activeRules, type EffectContext, resolveRef, selectTargets } from "../s
 import type { EffectSpec, TargetRef } from "../spec.js";
 import type { GameState } from "../state.js";
 import type { TriggerEvent } from "../trigger-events.js";
+import { createCtx } from "../ctx.js";
+import { selectCards } from "./cards.js";
 import { threatRemovalBlocked } from "./event.js";
 
 /** Whether this card can take damage from `source` (a `cannotTakeDamage` rule aside). */
@@ -141,9 +144,8 @@ export function slotTargetValid(
 /**
  * Whether anything in play could make a judged effect unable to affect its target right now: a patrol minion engaged
  * with `playerId`, a crisis icon in their game area, or a `threatCannotBeRemoved` or `cannotTakeDamage` rule. The
- * common case (none of them) answers without reading the ability's effects, which the offer paths (`legalActions`,
- * every trigger window) ask about constantly, and which keeps a card-test trace's "its effects were read" signal
- * meaning "it resolved" (`@mc/cards` `testing/trace.ts`).
+ * common case (none of them) skips judging each candidate, which the offer paths (`legalActions`, every trigger
+ * window) ask about constantly.
  */
 function targetsCanBeInvalid(state: GameState, deps: EngineDeps, playerId: PlayerId | null): boolean {
   if (playerId !== null && patrolledBy(state, deps, playerId) !== null) return true;
@@ -154,12 +156,89 @@ function targetsCanBeInvalid(state: GameState, deps: EngineDeps, playerId: Playe
   );
 }
 
+/** The frame var a required choice that found nothing sets, read by `then` (RRG 1.8 "'Then'", p. 44). */
+export const UNRESOLVED_VAR = "_then.unresolved";
+
+type Choice = Extract<EffectSpec, { kind: "chooseTarget" | "chooseCards" }>;
+
+/** Whether a card selector reads a deck: a search or a look at the top of a deck (RRG 1.8 "Target", p. 43). */
+function readsDeck(value: unknown): boolean {
+  if (Array.isArray(value)) return value.some(readsDeck);
+  if (value === null || typeof value !== "object") return false;
+  const record = value as Readonly<Record<string, unknown>>;
+  if (record.zone === "deck") return true;
+  if (Array.isArray(record.zones) && record.zones.includes("deck")) return true;
+  if ((record.kind === "scenarioDeck" || record.kind === "separateDeck") && record.zones === undefined) return true;
+  if (record.kind === "encounter" && record.zones === undefined) return true;
+  return Object.values(record).some(readsDeck);
+}
+
 /**
- * Whether this ability cannot be initiated for want of a valid target (RRG 1.8 "Target", p. 42: an ability that
- * requires a target "can only be initiated if it has at least one valid target"). Read from the `chooseTarget`s that
- * open the ability's effects, where every printed "(thwart): Remove N threat from a scheme" chooses its target. A
- * mandatory choice with candidates, none of them valid, blocks it. A choice with no candidates at all is left to
- * resolve as before (nothing is chosen), and a printed "may" (`optional`) never blocks.
+ * A choice the ability cannot resolve without (RRG 1.8 "Choose (Game Element)", p. 12): a `chooseTarget` of a fixed
+ * count that is neither "up to" nor a printed "may", or a `chooseCards` with a minimum of at least 1. Not a choice
+ * among a deck's cards: "An ability with a search effect requires only a searchable game area in order to initiate"
+ * ("Target", p. 43). "Any number" (`min: 0`), "up to" and "may" choices never require a target.
+ */
+export function isRequiredChoice(effect: EffectSpec): effect is Choice {
+  if (effect.kind === "chooseTarget") {
+    if (effect.optional || effect.upTo) return false;
+    return effect.count === undefined || (typeof effect.count === "number" && effect.count >= 1);
+  }
+  return effect.kind === "chooseCards" && effect.min >= 1 && !readsDeck(effect.from);
+}
+
+/** Whether a choice reads a value or a card the ability's cost binds (`var`, `slot`, `inSlot`, `excludeSlots`). */
+function readsBindings(value: unknown): boolean {
+  if (Array.isArray(value)) return value.some(readsBindings);
+  if (value === null || typeof value !== "object") return false;
+  const record = value as Readonly<Record<string, unknown>>;
+  if (record.kind === "var" || record.kind === "slot") return true;
+  if (record.inSlot !== undefined || record.excludeSlots !== undefined) return true;
+  return Object.values(record).some(readsBindings);
+}
+
+/**
+ * Whether some effect after a choice is a part of the ability of its own: one that does not name the chosen slot and
+ * is not post-"then" text (`then`). "Shuffle a Spell card from your discard pile into your deck and draw 1 card"
+ * (Sanctum Sanctorum) keeps its draw with no Spell to choose (RRG 1.8 "Choose (Game Element)", p. 12: the ability
+ * cannot be initiated only if there are "no valid targets for any part of the ability"; "Target", p. 42: a draw has a
+ * valid target while its deck holds a card). Engine reading: an effect that reads a value the choice's own effects
+ * bind (Into the Fray's excess damage) counts as its own part, so such an ability still initiates and resolves to
+ * nothing, as it did before.
+ */
+function hasIndependentPart(rest: readonly EffectSpec[], slot: string): boolean {
+  return rest.some((effect) => effect.kind !== "then" && !refersToSlot(effect, slot));
+}
+
+/** The targets a choice could choose right now: its candidates, less any the rest of the ability cannot affect. */
+function choiceCandidates(
+  state: GameState,
+  deps: EngineDeps,
+  effect: Choice,
+  rest: readonly EffectSpec[],
+  context: EffectContext,
+  judge: boolean,
+): readonly InstanceId[] {
+  if (effect.kind === "chooseCards") return selectCards(createCtx(state, deps), effect.from, context);
+  const candidates = selectTargets(state, effect.query, context);
+  return judge ? candidates.filter((id) => slotTargetValid(state, deps, rest, effect.slot, id, context)) : candidates;
+}
+
+/**
+ * Whether this player-initiated ability cannot be initiated for want of a valid target: RRG 1.8 "Target" (p. 42),
+ * "If an ability or game function requires one or more targets, that ability or game function can only be initiated
+ * if it has at least one valid target", and "Choose (Game Element)" (p. 12), "If a player card ability requires the
+ * choosing of one or more targets, and there are no valid targets for any part of the ability, the ability cannot be
+ * initiated."
+ *
+ * Read from the choices that open the ability's effects, where printed text chooses its targets: a required choice
+ * (`isRequiredChoice`) with no valid candidate blocks the ability unless some later effect is a part of its own
+ * (`hasIndependentPart`). A candidate is valid if some effect naming it can affect it (`slotTargetValid`), so the main
+ * scheme is no target for a "(thwart)" while patrolled. The resolving side of the same rule is the choice itself
+ * (`requestTargetChoice`, `executeChooseCards`) and `then`.
+ *
+ * Only abilities a player initiates ask this (`playCard`, `useAbility`, the play-from-hand effects and optional
+ * interrupts and responses): an encounter card or a forced ability resolves as far as it can.
  */
 export function abilityLacksValidTarget(
   state: GameState,
@@ -169,7 +248,7 @@ export function abilityLacksValidTarget(
   playerId: PlayerId | null,
   event: TriggerEvent | null = null,
 ): boolean {
-  if (!definition || !targetsCanBeInvalid(state, deps, playerId)) return false;
+  if (!definition) return false;
   // RRG 1.8 "Confuse, Confused" (p. 13): "A confused character can attempt to thwart or use a thwart ability even if it
   // has no valid target for a thwart." The attempt discards the confused card (`labelCancels`, `resolve/ability.ts`).
   if (definition.label?.includes("thwart") && playerId !== null) {
@@ -177,17 +256,18 @@ export function abilityLacksValidTarget(
     if (identity && statusActive(state, identity, "confused", deps)) return false;
   }
   const context: EffectContext = { selfInstanceId: sourceId, controllerId: playerId, event, bindings: {}, deps };
+  const judge = targetsCanBeInvalid(state, deps, playerId);
   const effects = definition.effects;
   for (let index = 0; index < effects.length; index++) {
     const effect = effects[index];
-    if (effect?.kind !== "chooseTarget") break;
-    if (effect.optional) continue;
-    const candidates = selectTargets(state, effect.query, context);
-    if (candidates.length === 0) continue;
+    if (effect?.kind !== "chooseTarget" && effect?.kind !== "chooseCards") break;
+    // A choice that reads what the cost binds (a var, a slot: Shield Toss's X) is judged only as it resolves.
+    if (!isRequiredChoice(effect) || readsBindings(effect)) continue;
     const rest = effects.slice(index + 1);
-    if (!candidates.some((id) => slotTargetValid(state, deps, rest, effect.slot, id, context))) return true;
+    if (choiceCandidates(state, deps, effect, rest, context, judge).length > 0) continue;
+    if (!hasIndependentPart(rest, effect.slot)) return true;
   }
-  return fixedTargetsAllInvalid(state, deps, effects, context);
+  return judge && fixedTargetsAllInvalid(state, deps, effects, context);
 }
 
 /**

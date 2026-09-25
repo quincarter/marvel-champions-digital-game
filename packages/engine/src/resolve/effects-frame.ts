@@ -61,7 +61,13 @@ import { selectCards } from "./cards.js";
 import { abilityFrame, addFrameVars, type Frame, pushEffects, pushEvents } from "./frames.js";
 import { hasKeyword, keywordTotal } from "../keywords.js";
 import { candidateOption } from "./window.js";
-import { canDealDamageTo, canRemoveThreatFrom, slotTargetValid } from "./target-validity.js";
+import {
+  canDealDamageTo,
+  canRemoveThreatFrom,
+  isRequiredChoice,
+  slotTargetValid,
+  UNRESOLVED_VAR,
+} from "./target-validity.js";
 
 /** The `EffectContext` an effects frame resolves in. Exported so `why-not.ts` can rebuild it exactly. */
 export const contextOf = (frame: Frame<"effects">, deps: EngineDeps): EffectContext => ({
@@ -746,6 +752,28 @@ const cardOptions = (ctx: Ctx, ids: readonly InstanceId[]): readonly ChoiceOptio
     ref: { kind: "card", instanceId: id } as const,
   }));
 
+/**
+ * A choice that chooses nothing binds its slot empty and moves on. A required one (`isRequiredChoice`) that found no
+ * candidate leaves the text before a "then" not fully resolved (RRG 1.8 "'Then'", p. 44), so the frame is marked and a
+ * later `then` in it is skipped. Every other effect still resolves as far as it can, which is how an encounter card or
+ * a forced ability resolves, and how a player ability resolves if its target left play after it was initiated.
+ */
+function choseNothing(
+  ctx: Ctx,
+  frame: Frame<"effects">,
+  effect: Extract<EffectSpec, { kind: "chooseTarget" | "chooseCards" }>,
+  noCandidates: boolean,
+): void {
+  const unresolved = noCandidates && isRequiredChoice(effect);
+  if (unresolved) emit(ctx, { type: "choiceFoundNothing", slot: effect.slot });
+  setFrame(ctx, {
+    ...frame,
+    cursor: frame.cursor + 1,
+    bindings: { ...frame.bindings, [effect.slot]: [] },
+    ...(unresolved ? { vars: { ...frame.vars, [UNRESOLVED_VAR]: 1 } } : {}),
+  });
+}
+
 function executeChooseCards(
   ctx: Ctx,
   frame: Frame<"effects">,
@@ -776,7 +804,7 @@ function executeChooseCards(
   }
   const max = Math.min(effect.max, candidates.length);
   if (!chooser || max === 0) {
-    setFrame(ctx, { ...frame, cursor: frame.cursor + 1, bindings: { ...frame.bindings, [effect.slot]: [] } });
+    choseNothing(ctx, frame, effect, candidates.length === 0);
     return;
   }
   requestChoice(ctx, {
@@ -1287,7 +1315,7 @@ function requestTargetChoice(
         : Math.max(0, resolveValue(ctx.state, effect.count, context, ctx.deps));
   if (!chooser || legal.length === 0 || wanted <= 0) {
     // RRG "Choose (Game Element)": with no legal target there is nothing to choose.
-    setFrame(ctx, { ...frame, cursor: frame.cursor + 1, bindings: { ...frame.bindings, [effect.slot]: [] } });
+    choseNothing(ctx, frame, effect, legal.length === 0);
     return;
   }
   const count = Math.min(wanted, legal.length);

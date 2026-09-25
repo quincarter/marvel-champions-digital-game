@@ -1189,7 +1189,7 @@ describe("`TargetQuery.anyPrintedResource`: a card printing any of several resou
     expect(mustPlayer(after, p1).hand).toContain(mental);
   });
 
-  it("'if able': with neither type in hand nothing is asked and nothing is discarded", () => {
+  it("with neither type in hand, a player's event whose only part is that choice cannot be played", () => {
     const given = giveCards(tossGame(), p1, ENERGY.id, WILD.id);
     const noEither = {
       ...given.state,
@@ -1201,11 +1201,9 @@ describe("`TargetQuery.anyPrintedResource`: a card printing any of several resou
         }),
       })),
     };
-    const handBefore = mustPlayer(noEither, p1).hand;
-    const after = playToss(noEither);
-    expect(after.pendingChoice).toBeNull();
-    expect(mustPlayer(after, p1).hand).toEqual(handBefore); // the event itself was given, then played
-    expect(mustPlayer(after, p1).discard.map((id) => after.instances[id]?.cardId)).toEqual([TOSS.id]);
+    // RRG 1.8 "Choose (Game Element)" (p. 12): no valid target for any part of a player card ability, so it cannot
+    // be initiated. (Power Drain's "if able" is an encounter card, which resolves as far as it can.)
+    expect(() => playToss(noEither)).toThrow(/no_valid_target/);
   });
 });
 

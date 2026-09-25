@@ -2007,6 +2007,19 @@ export type EffectSpec =
       readonly then: readonly EffectSpec[];
       readonly otherwise?: readonly EffectSpec[];
     }
+  /**
+   * The printed "Then": RRG 1.8 "'Then'" (p. 44): "If the pre-'then' text of an effect does not fully resolve, the
+   * post-'then' text does not attempt to resolve." `effects` is the post-"then" text. The pre-"then" text is every
+   * effect before this one in the same program. The engine judges it not fully resolved when a required choice in it
+   * (`chooseTarget` without `upTo`/`optional`, or `chooseCards` with `min` ≥ 1 outside a deck) found nothing to
+   * choose (the frame var `_then.unresolved`); `effects` are then skipped and `thenSkipped` is logged.
+   *
+   * A post-"then" effect is also not an independent part of the ability when judging whether it can be initiated
+   * (RRG 1.8 "Choose (Game Element)", p. 12; `abilityLacksValidTarget`). Quinjet (`cap` 03019): "Put an Avenger ally
+   * from your hand into play … Then, discard Quinjet." is `[chooseCards, putIntoPlay, then([discard self])]`, and with
+   * no such ally in hand it cannot be used.
+   */
+  | { readonly kind: "then"; readonly effects: readonly EffectSpec[] }
   /** RRG "Cancel": stops the interrupted event from resolving (its responses do not fire). */
   | { readonly kind: "cancelTriggeringEvent" }
   /**
