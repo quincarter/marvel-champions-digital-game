@@ -1527,12 +1527,17 @@ MC56 p. 3: "_the Civil War expansion does not include five interconnected scenar
 custom-scenario + competitive expansion, and its "2 scenarios" are four preconstructed scenarios plus a builder.
 **Recommendation:** remove MC56 from the campaign table; its competitive mode is a separate capability with its own
 `competitiveOnly` refusal already in the code. Needs sign-off because it edits the roadmap.
+**Resolved (2026-09-25):** done. PLAN.md §C3 no longer lists MC56 and explains why ("Civil War (MC56) is not in this
+table", citing MC56 p. 3).
 
 **Q3. Do we build MC60's `kind: "choice"` graph and the `beforeScenarioSetup` / `beforePlayerSetup` windows now?**
 MC10 uses neither. Retrofitting them later means changing `CampaignGraph` (a type every box's definition is written
 against) and `GameStep` (which `flow.ts` switches on) — precisely the engine change the requirement forbids.
 **Recommendation: yes, build both in steps 2–3.** The cost is two union members and two step kinds; the cost of not
 doing it is a foundation rewrite when MC60 lands.
+**Resolved (2026-09-25):** built. `CampaignGraph` has the `kind: "choice"` member and `CampaignWindow` has
+`beforeScenarioSetup` and `beforePlayerSetup` (`packages/engine/src/campaign.ts`), exercised by the synthetic fixture in
+`packages/engine/src/campaign.test.ts` ("the synthetic fixture exercises the shapes the first box does not").
 
 **Q4. MC50's hidden evidence in local storage.**
 Three cards are drawn at random and never revealed (MC50 p. 5). Single-player local IndexedDB means a determined player
@@ -1546,6 +1551,8 @@ If a seat points at a `DeckId` in `mc-decks`, editing that deck outside the camp
 next scenario. **Recommendation:** the campaign owns a _copy_ (`CampaignSeat.deck: DeckContents`), and the between-
 scenario deck-edit step edits the campaign's copy; `history[n].logBefore` keeps the copy as it stood, so a retry
 replays the deck the lost game used. The standalone deck in `mc-decks` is the _starting point_ only.
+**Resolved (2026-09-25):** built as recommended. `CampaignSeat.deck` is the campaign's own `DeckContents` copy
+(`packages/engine/src/campaign.ts`), and grants are written into it (`packages/engine/src/campaign/runner.test.ts`).
 
 **Q6. Retry baseline.**
 MC40 p. 7 is the sharpest case: on a retry "_they must choose the same player side scheme … and defeat it in order to

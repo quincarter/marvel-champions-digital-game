@@ -153,6 +153,12 @@ targets), then Q17 (RRG's own general forced-before-optional rule looks like it 
 specific modeling sidesteps it), then Q14 (looks like an oversight in one reveal path, not a considered reading).
 Q4, Q13, Q16, Q18 all look like reasonable, low-risk readings as implemented.
 
+**Resolved (2026-09-25):** Q1 and Q14 are closed. Q1's doc/code contradiction was reconciled on 2026-09-23: a
+multi-target `dealDamage` is now one simultaneous damage group and a tie is a loss (docs/phase7-wave3.md §4 Q1;
+`packages/engine/src/simultaneous-damage.test.ts`, `wave3-q1-simultaneous-defeat.test.ts`). Q14 was fixed in wave 4:
+`revealEncounterCard` takes the card out of the deck while it resolves (docs/phase7-wave4.md §3.45;
+`packages/engine/src/reveal-self-move.test.ts`). Q4 and Q13 remain readings.
+
 ## What came out clean
 
 - Fanaticism, Single-Minded Fury, Kree Physiology, "You Stand Accused!" (`gmw/ronan.ts`) — printed text vs. script,
@@ -187,6 +193,8 @@ Q4, Q13, Q16, Q18 all look like reasonable, low-risk readings as implemented.
 | 5   | Tooling: `pnpm card`/`pnpm dsl`/`pnpm refs` don't know about `WAVE3_ABILITIES`                                   | —                                                                                                          | —                                                                                                                                                              | manual repro (`MC_CARD=16110 pnpm card`), not a test                         | Cosmetic (dev tooling only)                                                                                                                                                                              | **Fixed during this pass** (commit `821aa2b`)                                                                                                                                                                |
 | 6   | **Waylay (`gam` 18028): stuns/confuses whoever reveals it, not "Gamora"** — checkpoint 2's own finding           | "When Revealed: Stun and confuse Gamora. If Gamora is already stunned or confused, this card gains surge." | RRG 1.8 "You, Your" p. 49 (a named character overrides the generic "you" reveal-default); ruling June 25, 2026 (4) #1 ("Nemesis sets belong to that identity") | `packages/cards/src/wave3/gam/gamora-obligation-nemesis.test.ts`, `it.fails` | **Wrong result** — invisible in every solo test (the revealer is always Gamora there); in any 2+ player game where someone else reveals it, the wrong player is stunned/confused and Gamora is untouched | `ability-scripting-engineer` (`gam/gamora-obligation-nemesis.ts`, `18028.when-revealed`; swap `yourIdentity` for the `GAMORA_PLAYER` binding `18025`'s own abilities in the same file already use correctly) |
 | 7   | Escape the Museum's `completionLoses` docblock is stale — checkpoint 2's own finding                             | "If this stage is completed, the players lose the game" (16082b/16083b)                                    | RRG 1.8 "Villain Defeat" p. 47; docs/phase7-wave3.md §3.37                                                                                                     | `packages/cards/src/wave3/gmw/escape-the-museum.test.ts` (new passing test)  | **Not a bug** — documentation drift only; the game behaves correctly, the comment describing it as broken does not                                                                                       | `ability-scripting-engineer` (correct the docblock in `escape-the-museum.ts`)                                                                                                                                |
+
+**Resolved (2026-09-25):** finding 2 (§4 Q1) is reconciled; see the note under "Open questions" above.
 
 ## What could not be checked (time budget)
 
