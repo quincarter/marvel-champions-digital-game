@@ -29,6 +29,9 @@ import {
   POOL_VERSION,
 } from "../content/pool.js";
 import { cardPoolCoverageOf, cardPoolCoverageText } from "../view/card-pool-coverage.js";
+import { appVersionText, buildCommit } from "../view/app-version.js";
+import { CLIENT_VERSION } from "../version.js";
+import { detectPlatform } from "../platform/platform.js";
 import { preconDecks } from "../view/deck-list-model.js";
 import { initialSetupDraft, withSeatOne } from "../view/setup-draft.js";
 import { rollSeed } from "../view/seed.js";
@@ -290,7 +293,7 @@ export class TitleScene extends Phaser.Scene {
     const versionText = this.add.text(
       0,
       layout.footer.y,
-      `v${APP_VERSION}`,
+      appVersionText(CLIENT_VERSION, detectPlatform(), buildCommit()),
       textStyle(typeRole.label, textColor, ink.meta),
     );
     versionText.setX(layout.footer.x + layout.footer.width - versionText.width);
@@ -379,9 +382,6 @@ const ART_SCRIM_DEPTH = -1;
 
 /** The picture the last Title visit showed, so the next visit shows a different one (`pickTitleArt`). */
 let lastTitleArtKey: string | null = null;
-
-/** Bump alongside `package.json`'s own `version` until a build step reads it directly. */
-const APP_VERSION = "0.0.0";
 
 /** "Continue — Rhino · Spider-Man · round 4". Names from content, never from the save's own text. */
 function continueLabel(save: SaveMeta): string {

@@ -1,3 +1,4 @@
+import { execSync } from "node:child_process";
 import { defineConfig } from "vite";
 import { cardArtPlugin } from "./vite-card-art.js";
 import { marvelcdbImportPlugin } from "./vite-marvelcdb-import.js";
@@ -14,7 +15,24 @@ import { marvelcdbImportPlugin } from "./vite-marvelcdb-import.js";
  * is the fallback that works in a production build). See
  * vite-marvelcdb-import.ts.
  */
+/**
+ * The commit this bundle is built from, for the Title footer's version stamp (`src/view/app-version.ts`). Netlify
+ * sets `COMMIT_REF` on every deploy; a local or CI build asks git; with neither, the stamp is just the release.
+ */
+function buildCommit(): string {
+  const fromNetlify = process.env.COMMIT_REF?.trim();
+  if (fromNetlify) return fromNetlify.slice(0, 7);
+  try {
+    return execSync("git rev-parse --short=7 HEAD", { stdio: ["ignore", "pipe", "ignore"] })
+      .toString()
+      .trim();
+  } catch {
+    return "";
+  }
+}
+
 export default defineConfig({
+  define: { __BUILD_COMMIT__: JSON.stringify(buildCommit()) },
   plugins: [cardArtPlugin(), marvelcdbImportPlugin()],
   worker: { format: "es" },
   build: {
