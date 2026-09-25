@@ -1411,10 +1411,33 @@ export class InspectOverlay extends Phaser.Scene {
     // "Dim, don't hide": PLAY stays in place (disabled, with the engine's own reason) for a hand card that cannot be
     // played this instant, and PAY WITH stays whenever this card could ever be paid with — the same convention
     // `#drawPlayAndPayButtons` follows for panels mode. Neither is omitted just because now is not the moment.
+    // A card in play with a usable ability gets its ability buttons instead, as in panels mode (`#drawButtons`):
+    // `status.playable` is true for a `useAbility` match too, and Aunt May's sheet offered "Play 1", which sent a
+    // play for a card already in play and did nothing.
     const canPlay = model.status.playable === true;
     const showPlay = canPlay || (model.status.playable === false && this.#isHandCard());
     const showPay = model.resourceIcons.length > 0 && this.#isHandCard();
-    if (showPlay || showPay) {
+    if (model.abilities.length > 0) {
+      const instanceId = this.#instanceId;
+      const gap = 6;
+      const width = (primaryRow.width - gap * (model.abilities.length - 1)) / model.abilities.length;
+      model.abilities.forEach((ability, index) => {
+        const use = (): void => {
+          this.#close();
+          if (instanceId) this.game.events.emit("mc-use-ability", instanceId, ability.abilityId);
+        };
+        if (index === 0) this.#primaryAction = use;
+        this.#buttons.push(
+          new McButton(this, {
+            kind: index === 0 ? "primary" : "onInk",
+            label: ability.label,
+            type: model.abilities.length === 1 ? typeRole.rowTitle : typeRole.label,
+            rect: { x: primaryRow.x + index * (width + gap), y: primaryRow.y, width, height: primaryRow.height },
+            onClick: use,
+          }),
+        );
+      });
+    } else if (showPlay || showPay) {
       const gap = showPlay && showPay ? 6 : 0;
       // P14's own 1.4:1 split when both show; either one alone takes the full row.
       const split = sheetPlayPayWidths(primaryRow.width, gap);
