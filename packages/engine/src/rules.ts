@@ -1,13 +1,17 @@
 import type { EngineDeps } from "./abilities.js";
 import type { InstanceId, PlayerId } from "./ids.js";
 import { hasKeyword } from "./keywords.js";
+import type { SchemeIcon } from "@mc/content";
 import {
+  areaOfCard,
   cardOf,
+  countSchemeIcons,
   currentName,
   getInstance,
   mainSchemeFor,
   mainSchemeStageOf,
   minionsEngagedWith,
+  sameGameArea,
   sharedMainSchemes,
   villainOf,
 } from "./query.js";
@@ -27,7 +31,7 @@ import {
 } from "./select.js";
 import { combineRequirements, type ResolvedRequirement } from "./resources.js";
 import type { AttackKeyword, CardDestination } from "./spec.js";
-import type { Form, GameState } from "./state.js";
+import type { Form, GameAreaState, GameState } from "./state.js";
 
 /**
  * Whether a revealed encounter card's effects are beyond canceling: an "uncancellable" ability of its own ("This effect
@@ -568,3 +572,33 @@ export const mustDefendWithAlly = (state: GameState, deps: EngineDeps, attackerI
   activeRules(state, deps, "mustDefendWithAlly").some(({ rule, context }) =>
     matchesQuery(state, attackerId, rule.attacker, context),
   );
+
+/**
+ * Icons cards in play gain from constant abilities ("Each enemy in play gains 1 acceleration icon", `RuleSpec gainsIcon`,
+ * docs/phase7-wave4.md §3.57): for each rule, `count` per matching card in play, in `area` when the players are split.
+ */
+export function grantedIcons(
+  state: GameState,
+  deps: EngineDeps,
+  icon: SchemeIcon,
+  area: GameAreaState | null = null,
+): number {
+  let total = 0;
+  const inPlay = cardsInPlay(state);
+  for (const { rule, context } of activeRules(state, deps, "gainsIcon")) {
+    if (rule.icon !== icon) continue;
+    for (const id of inPlay) {
+      if (area && !sameGameArea(area, areaOfCard(state, id))) continue;
+      if (matchesQuery(state, id, rule.target, context)) total += rule.count ?? 1;
+    }
+  }
+  return total;
+}
+
+/** Every `icon` in play, printed (`countSchemeIcons`) and gained (`grantedIcons`): RRG 1.8 "Acceleration Icon" (p. 5). */
+export const iconsInPlay = (
+  state: GameState,
+  deps: EngineDeps,
+  icon: SchemeIcon,
+  area: GameAreaState | null = null,
+): number => countSchemeIcons(state, icon, area) + grantedIcons(state, deps, icon, area);

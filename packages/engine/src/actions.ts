@@ -35,6 +35,7 @@ import {
   cannotPlayCard,
   cannotThwart,
   cannotTriggerAction,
+  iconsInPlay,
   mayThwartWithAtk,
   patrolledBy,
   restrictedLimitFor,
@@ -48,7 +49,6 @@ import {
   cardOf,
   cardZoneCandidates,
   characterProfile,
-  countSchemeIcons,
   getCard,
   getInstance,
   getPlayer,
@@ -2528,7 +2528,7 @@ function basicThwartPaying(
     // "Wasp (#1C)"), which checking every share now gives.
     if (
       isMainScheme &&
-      countSchemeIcons(ctx.state, "crisis", thwarterArea) > 0 &&
+      iconsInPlay(ctx.state, ctx.deps, "crisis", thwarterArea) > 0 &&
       !characterIgnores(ctx.state, ctx.deps, command.thwarterInstanceId, "crisis")
     ) {
       return engineError("no_valid_target", "a crisis icon blocks thwarting the main scheme", command);

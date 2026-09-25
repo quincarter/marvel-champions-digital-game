@@ -190,6 +190,31 @@ const DEALABLE_TYPES: ReadonlySet<string> = new Set([
   "treachery",
 ]);
 
+/** A var on an effects frame counting `repeatWhile` repetitions (docs/phase7-wave4.md §3.54). */
+const REPEAT_DEPTH_VAR = "repeatWhile.depth";
+/** Repetitions `repeatWhile` allows before it stops: far past any printed "repeat this effect" (one per character). */
+export const REPEAT_LIMIT = 50;
+
+/** Every slot and bind name the effects (nested lists included) bind: what a repetition must start without. */
+function boundNamesOf(effects: readonly EffectSpec[]): readonly string[] {
+  const names = new Set<string>();
+  const visit = (value: unknown): void => {
+    if (Array.isArray(value)) {
+      for (const item of value) visit(item);
+      return;
+    }
+    if (typeof value !== "object" || value === null) return;
+    const record = value as Record<string, unknown>;
+    if (typeof record.bind === "string") names.add(record.bind);
+    if (typeof record.slot === "string" && record.kind !== "slot" && record.kind !== "superlative")
+      names.add(record.slot);
+    if (typeof record.name === "string" && record.kind === "setVar") names.add(record.name);
+    for (const item of Object.values(record)) visit(item);
+  };
+  visit(effects);
+  return [...names];
+}
+
 export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext, frame: Frame<"effects">): void {
   const targets = (ref: Parameters<typeof resolveRef>[1]): readonly InstanceId[] =>
     resolveRef(ctx.state, ref, context).filter((id) => getInstance(ctx.state, id) !== undefined);
@@ -909,6 +934,21 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       }
       // After the keywords: "After you engage a minion" (ruling, Jan 17, 2026 (3) answer 2).
       for (const id of entering) entered.push(...engagedEvent(ctx, id));
+      // "If no minion was put into play this way" (docs/phase7-wave4.md §3.59): only what is in play now entered.
+      if (effect.bind) {
+        const inPlay = cardsInPlay(ctx.state);
+        const entered_ = admitted.filter((id) => inPlay.includes(id));
+        const slot = effect.bind;
+        updateFrame(ctx, frame.frameId, (f) =>
+          f.kind === "effects"
+            ? {
+                ...f,
+                bindings: { ...f.bindings, [slot]: entered_ },
+                vars: { ...f.vars, [`${slot}.count`]: entered_.length },
+              }
+            : f,
+        );
+      }
       pushEvents(ctx, entered);
       return;
     }
@@ -1274,6 +1314,39 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       } else if (target.event.kind === "placeThreat") {
         emit(ctx, { type: "threatPrevented", schemeInstanceId: target.event.schemeInstanceId, amount: prevented });
       }
+      return;
+    }
+    case "increaseDamage": {
+      // The mirror of `preventDamage` (docs/phase7-wave4.md §3.52): the interrupted damage event's own amount grows.
+      const target = frame.eventFrameId ? findFrame(ctx.state, frame.eventFrameId) : undefined;
+      if (target?.kind !== "event" || target.event.kind !== "dealDamage" || target.cancelled) return;
+      const added = value(effect.amount);
+      if (added <= 0) return;
+      setFrame(ctx, { ...target, event: { ...target.event, amount: target.event.amount + added } });
+      emit(ctx, { type: "damageIncreased", targetInstanceId: target.event.targetInstanceId, amount: added });
+      return;
+    }
+    case "repeatWhile": {
+      // "Repeat this effect" (docs/phase7-wave4.md §3.54): the effects, then `while` read in the same frame (it sees
+      // what they bound); a repetition starts with those bindings cleared, so "that character" is always its own.
+      const depth = frame.vars[REPEAT_DEPTH_VAR] ?? 0;
+      if (depth >= REPEAT_LIMIT) return;
+      const own = boundNamesOf(effect.effects);
+      const isOwn = (key: string) => own.some((name) => key === name || key.startsWith(`${name}.`));
+      pushEffects(ctx, {
+        effects: [...effect.effects, { kind: "if", condition: effect.while, then: [effect] }],
+        selfInstanceId: frame.selfInstanceId,
+        controllerId: frame.controllerId,
+        event: frame.event,
+        eventFrameId: frame.eventFrameId,
+        bindings: Object.fromEntries(Object.entries(frame.bindings).filter(([key]) => !isOwn(key))),
+        vars: {
+          ...Object.fromEntries(Object.entries(frame.vars).filter(([key]) => !isOwn(key))),
+          [REPEAT_DEPTH_VAR]: depth + 1,
+        },
+        scopedPlayerId: frame.scopedPlayerId,
+        byPlayer: frame.byPlayer === true,
+      });
       return;
     }
     case "replaceTriggeringEvent": {

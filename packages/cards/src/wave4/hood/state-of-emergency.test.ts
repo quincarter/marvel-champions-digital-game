@@ -6,8 +6,8 @@ import { foldModularSetIntoDeck, game, onStage, stackTop } from "./testing.js";
 
 /**
  * Real-game tests for the State of Emergency modular set (`state-of-emergency.ts`): Disaster at the Docks (24056),
- * Offshore Inferno (24057) and Hot Pursuit (24058). Feisty Heist (24055) and Citywide Crisis (24059) are genuine
- * engine gaps (`state-of-emergency.ts`'s own docblock) — not scripted.
+ * Offshore Inferno (24057) and Hot Pursuit (24058). Feisty Heist (24055) and Citywide Crisis (24059) are tested in
+ * `hood-gaps.test.ts`.
  *
  * Ref -> covering test:
  *  24056.when-revealed -> "takes exactly 3 indirect damage"

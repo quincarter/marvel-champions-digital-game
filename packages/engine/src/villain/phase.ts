@@ -10,11 +10,11 @@ import { emit, requestChoice, setStep, updateInstance, type Ctx } from "../ctx.j
 import { dealEncounterCardTo } from "../effects.js";
 import type { InstanceId, PlayerId } from "../ids.js";
 import { statusActive } from "../keywords.js";
+import { iconsInPlay } from "../rules.js";
 import {
   activeVillainIdFor,
   areaOfPlayer,
   villainOf,
-  countSchemeIcons,
   getPlayer,
   isMinion,
   mainSchemeValue,
@@ -48,7 +48,7 @@ export function executePlaceThreat(ctx: Ctx): void {
         amount:
           mainSchemeValue(ctx.state, "acceleration", ctx.deps, scheme) +
           scheme.accelerationTokens +
-          countSchemeIcons(ctx.state, "acceleration"),
+          iconsInPlay(ctx.state, ctx.deps, "acceleration"),
         sourceInstanceId: null,
       }));
       if (events.length === 1) pushEvent(ctx, events[0]!);
@@ -67,7 +67,7 @@ export function executePlaceThreat(ctx: Ctx): void {
           mainSchemeValue(ctx.state, "acceleration", ctx.deps, area.mainScheme) +
           area.mainScheme.accelerationTokens +
           ctx.state.mainScheme.accelerationTokens +
-          countSchemeIcons(ctx.state, "acceleration", area);
+          iconsInPlay(ctx.state, ctx.deps, "acceleration", area);
         return [
           {
             kind: "placeThreat" as const,
@@ -204,7 +204,7 @@ export function activateEnemy(ctx: Ctx, enemyId: InstanceId, playerId: PlayerId)
 export function executeDealEncounterCards(ctx: Ctx): void {
   const order = playerOrder(ctx.state);
   for (const player of order) dealEncounterCardTo(ctx, player.playerId);
-  const hazards = countSchemeIcons(ctx.state, "hazard");
+  const hazards = iconsInPlay(ctx.state, ctx.deps, "hazard");
   for (let i = 0; i < hazards; i++) {
     const player = order[i % order.length];
     if (player) dealEncounterCardTo(ctx, player.playerId);

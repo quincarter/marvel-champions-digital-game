@@ -83,38 +83,10 @@ const KNOWN_SKIPPED: Readonly<Record<string, readonly string[]>> = {
   // (`hood/standard-expert-ii.ts`; 24053's "Shadow of the Past" resolves as a reprint alias via `../reprints.ts`).
   // 24041 and 24067 have no ability refs at all (plain-stat cards).
   hood: [
-    // Beasty Boys (`hood/beasty-boys.ts`): every ref resolves except two genuine gaps (the module's own docblock).
-    "24014.beast-mode-forced-interrupt",
-    "24016.mandrill-constant",
-    // Brothers Grimm (`hood/brothers-grimm.ts`): every ref resolves; no genuine gap found.
-    // Crossfire's Crew (`hood/crossfire-crew.ts`): every ref resolves except two genuine gaps (the module's own
-    // docblock) — Out for Blood's own "repeat this effect" and Controller's "increase that amount" (Beast Mode's
-    // same gap).
-    "24023.when-revealed",
-    "24023.boost",
-    "24024.controller-forced-interrupt",
-    // Mister Hyde (`hood/mister-hyde.ts`): every ref resolves; no genuine gap found.
-    // Ransacked Armory (`hood/ransacked-armory.ts`): every ref resolves except Flamethrower's own genuine gap (the
-    // module's own docblock) — "attacks deal indirect damage" has no attack-damage-type modifier.
-    "24037.flamethrower-constant",
-    "24037.flamethrower-constant-2",
-    // Sinister Syndicate (`hood/sinister-syndicate.ts`): every ref resolves except two genuine gaps (the module's
-    // own docblock) — Crime Pays' own "was a minion put into play" report and White Rabbit's own dynamic
-    // "identity-specific card" filter.
-    "24042.when-revealed",
-    "24047.boost",
-    // State of Emergency (`hood/state-of-emergency.ts`): every ref resolves except two genuine gaps (the module's
-    // own docblock) — Feisty Heist's "highest-cost card from your hand" and Citywide Crisis's own re-triggered
-    // "When Revealed" ability.
-    "24055.when-revealed",
-    "24059.when-revealed",
-    "24059.boost",
-    // Streets of Mayhem (`hood/streets-of-mayhem.ts`): every ref resolves except Secret Lair's own genuine gap
-    // (the module's own docblock) — "each enemy gains 1 acceleration icon" has no keyword-grant equivalent.
-    "24061.when-revealed",
-    "24061.secret-lair-constant",
-    "24061.secret-lair-constant-2",
-    // Wrecking Crew (`hood/wrecking-crew.ts`): every ref resolves; no genuine gap found.
+    // Every other ref resolves: Beast Mode, Controller (increaseDamage, docs/phase7-wave4.md §3.52), Mandrill (§3.53),
+    // Out for Blood (repeatWhile, §3.54), Feisty Heist (§3.55), Citywide Crisis and the "resolve this card's When
+    // Revealed" boosts (§3.56), Secret Lair (gainsIcon, §3.57), Crime Pays (putIntoPlay bind, §3.59), Flamethrower and
+    // White Rabbit (reusable as is).
   ],
 };
 

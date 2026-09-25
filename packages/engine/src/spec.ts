@@ -677,7 +677,18 @@ export type SchemeValueName = "acceleration" | "targetThreat" | "startingThreat"
 
 export type Predicate =
   | { readonly kind: "form"; readonly player: PlayerRef; readonly form: Form }
-  | { readonly kind: "hasStatus"; readonly of: TargetRef; readonly status: "stunned" | "confused" | "tough" }
+  /**
+   * The card has a status card of this type. `active`: it *is* stunned/confused by the rules, which with steady takes two
+   * cards (RRG 1.8 "Steady", p. 41: "not stunned unless they have two stunned status cards") — "When a stunned or
+   * confused friendly character would take any amount of damage" (Beast Mode, `hood` 24014), where Warehouse District
+   * (24063, same pack) gives every character steady. docs/phase7-wave4.md §3.52.
+   */
+  | {
+      readonly kind: "hasStatus";
+      readonly of: TargetRef;
+      readonly status: "stunned" | "confused" | "tough";
+      readonly active?: true;
+    }
   | { readonly kind: "exists"; readonly query: TargetQuery }
   | { readonly kind: "counterAtLeast"; readonly of: TargetRef; readonly counterType: string; readonly amount: number }
   | { readonly kind: "damagedAtLeast"; readonly of: TargetRef; readonly amount: number }
@@ -1089,6 +1100,20 @@ export type EffectSpec =
    * ability this is is the preventer of the `damagePrevented` event it announces (docs/phase7-wave4.md §3.20).
    */
   | { readonly kind: "preventDamage"; readonly amount?: ValueSpec; readonly bind?: string }
+  /**
+   * An interrupt to a `dealDamage` event: "increase that amount by 1" (Beast Mode, `hood` 24014), "increase that amount
+   * by that character's ATK" (Controller, `hood` 24024). The mirror of `preventDamage`: the pending amount grows before
+   * the damage is applied, keeping the event's source, attack flag and keywords (docs/phase7-wave4.md §3.52). A
+   * non-positive amount, or a cancelled/other event, changes nothing.
+   */
+  | { readonly kind: "increaseDamage"; readonly amount: ValueSpec }
+  /**
+   * "… If that character is defeated this way, **repeat this effect**" (Out for Blood, `hood` 24023): `effects` resolve,
+   * then `while` is read (with what those effects bound); while it holds they resolve again. Each repetition starts with
+   * the slots and vars the repeated effects bind cleared, so "that character" is always this repetition's. Capped at
+   * `REPEAT_LIMIT` repetitions as a guard against a script that never stops (docs/phase7-wave4.md §3.54).
+   */
+  | { readonly kind: "repeatWhile"; readonly effects: readonly EffectSpec[]; readonly while: Predicate }
   /** Interrupt to threat being placed: "prevent 1 of that threat" (Jennifer Walters). `amount` absent = all. */
   | { readonly kind: "preventThreat"; readonly amount?: ValueSpec }
   /**
@@ -1315,6 +1340,16 @@ export type EffectSpec =
       readonly cards?: TargetQuery;
       readonly of?: TargetRef;
       readonly player?: PlayerRef;
+      /**
+       * Which printed abilities to resolve: `"special"` (absent) or `"whenRevealed"`: "Resolve each 'When Revealed'
+       * ability on each side scheme in play" (Citywide Crisis, `hood` 24059), "[star] Boost: Resolve this card's 'When
+       * Revealed' ability" (Out for Blood, Double Trouble, Sandslide, A.I.M. Interference). For `"whenRevealed"` a card's
+       * incite and surge keywords are resolved too: RRG 1.8 calls each "equivalent to the following triggered ability:
+       * 'When Revealed: …'" ("Incite X", p. 24; "Surge", p. 42). docs/phase7-wave4.md §3.56.
+       */
+      readonly trigger?: "special" | "whenRevealed";
+      /** `<bind>.count`: how many abilities were resolved ("If no 'When Revealed' ability was resolved this way"). */
+      readonly bind?: string;
     }
   /**
    * Records a value now, as var `name` on this effects frame, to compare later in the same ability: "For each player
@@ -1691,7 +1726,12 @@ export type EffectSpec =
       readonly damage?: ValueSpec;
       readonly threatRemoved?: ValueSpec;
     }
-  | { readonly kind: "putIntoPlay"; readonly card: TargetRef; readonly controller: PlayerRef }
+  /**
+   * `bind`: the cards that entered play to slot `bind`, their number to `<bind>.count` — "If no minion was put into play
+   * this way, this card gains surge" (Crime Pays, `hood` 24042). A card the unique rule turned away, or an attachment
+   * with no legal host, did not enter (docs/phase7-wave4.md §3.59).
+   */
+  | { readonly kind: "putIntoPlay"; readonly card: TargetRef; readonly controller: PlayerRef; readonly bind?: string }
   /**
    * "Deal an encounter card to each player" / "Deal 2 encounter cards to each player" (Green Goblin II). Cards come
    * from the active villain's deck (§3.2). With more than one player receiving cards the first player chooses the

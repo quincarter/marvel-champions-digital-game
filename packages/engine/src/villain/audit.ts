@@ -18,6 +18,7 @@ import { applyCommand, type GameLog } from "../engine.js";
 import type { GameEvent } from "../events.js";
 import type { ChoiceId, InstanceId, PlayerId } from "../ids.js";
 import { isMinion, mainSchemeValue } from "../query.js";
+import { grantedIcons } from "../rules.js";
 import type { Form, GameState, GameStep } from "../state.js";
 
 export interface VillainActivationRecord {
@@ -238,7 +239,7 @@ class PhaseTracker {
         if (event.to.kind === "dealEncounterCards") {
           this.dealAtStep = {
             players: this.order.filter((p) => !shadow.eliminated.has(p)),
-            hazards: schemeIcons(this.state, shadow, "hazard"),
+            hazards: schemeIcons(this.state, shadow, "hazard") + grantedIcons(this.state, this.deps, "hazard"),
           };
         }
         if (finished && event.from.kind === "dealEncounterCards" && event.to.kind !== "dealEncounterCards")
@@ -265,8 +266,9 @@ class PhaseTracker {
           trigger.sourceInstanceId === null &&
           trigger.schemeInstanceId === this.state.mainScheme.instanceId
         ) {
-          // The stage's acceleration with its modifiers ("X is equal to the number of Goblin enemies"), read from the
-          // state at the start of the command that opened this phase: the one engine rule this audit borrows.
+          // The stage's acceleration with its modifiers ("X is equal to the number of Goblin enemies") and the icons
+          // cards in play gain ("each enemy gains 1 acceleration icon", docs/phase7-wave4.md §3.57), read from the state
+          // at the start of the command that opened this phase: the two engine rules this audit borrows.
           const atStage: GameState = {
             ...this.state,
             mainScheme: { ...this.state.mainScheme, stageIndex: shadow.mainStage },
@@ -274,7 +276,8 @@ class PhaseTracker {
           const expected =
             mainSchemeValue(atStage, "acceleration", this.deps) +
             shadow.tokens +
-            schemeIcons(this.state, shadow, "acceleration");
+            schemeIcons(this.state, shadow, "acceleration") +
+            grantedIcons(this.state, this.deps, "acceleration");
           this.accelerationThreat = { placed: trigger.amount, expected };
           if (trigger.amount !== expected) {
             this.violate(

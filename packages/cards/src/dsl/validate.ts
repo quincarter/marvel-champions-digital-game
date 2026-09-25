@@ -227,6 +227,8 @@ function nestedLists(effect: EffectSpec): (readonly EffectSpec[])[] {
       return [effect.effects];
     case "replaceTriggeringEvent":
       return [effect.with];
+    case "repeatWhile":
+      return [effect.effects];
     default:
       return [];
   }
@@ -312,6 +314,17 @@ function bindsOf(effect: EffectSpec, scope: Scope): void {
       scope.slots.add(effect.slot);
       scope.vars.add(`${effect.slot}.count`);
       return;
+    // The cards that entered play and `<bind>.count` (docs/phase7-wave4.md §3.59).
+    case "putIntoPlay":
+      if (effect.bind) {
+        scope.slots.add(effect.bind);
+        scope.vars.add(`${effect.bind}.count`);
+      }
+      return;
+    // `<bind>.count`: how many abilities were resolved (docs/phase7-wave4.md §3.56).
+    case "resolveSpecials":
+      if (effect.bind) scope.vars.add(`${effect.bind}.count`);
+      return;
     case "discardEncounterUntil":
     case "discardDeckUntil":
       scope.slots.add(effect.bind);
@@ -376,6 +389,13 @@ function walk(effects: readonly EffectSpec[], scope: Scope, path: string, proble
         if (option.condition) checkRefs(option.condition, scope, `${where} option ${i}`, problems);
         walk(option.effects, scope, `${where}.options[${i}]`, problems);
       });
+      return;
+    }
+    // "Repeat this effect" (docs/phase7-wave4.md §3.54): the condition is read after the repeated effects, so it may
+    // read what they bind.
+    if (effect.kind === "repeatWhile") {
+      walk(effect.effects, scope, `${where}/0`, problems);
+      checkRefs(effect.while, scope, `${where} while`, problems);
       return;
     }
     checkRefs(effect, scope, where, problems);

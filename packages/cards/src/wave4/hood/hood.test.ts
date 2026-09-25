@@ -15,7 +15,7 @@ import {
   settle,
   use,
 } from "../../testing/harness.js";
-import { defeatWithAttack, encounterCardInVillainArea, withForm } from "../../testing/staging.js";
+import { defeatWithAttack, driveEvents, encounterCardInVillainArea, withForm } from "../../testing/staging.js";
 import { runWave4, startWave4Game, WAVE4_DEPS } from "../testing.js";
 import { hoodScenario } from "./support.js";
 
@@ -339,16 +339,19 @@ describe("The Hood (villain, main scheme and The Hood's own encounter set)", () 
     // `onStage` uses for the villain, then advance it by threat exactly like the 24005 test does for stage 1.
     const base = game();
     const withStage2 = { ...base, mainScheme: { ...base.mainScheme, stageIndex: 1 } };
-    const before = withStage2.setAsideModularSets!.length;
     const overThreshold = patchInstance(withStage2, withStage2.mainScheme.instanceId, { threat: 999 });
-    const advanced = settle(
-      runWave4(overThreshold, { type: "endTurn", playerId: P1 }),
-      firstLegal,
-      undefined,
-      WAVE4_DEPS,
-    );
+    const { state: advanced, events } = driveEvents(WAVE4_DEPS, overThreshold, { type: "endTurn", playerId: P1 });
     expect(advanced.mainScheme.stageIndex).toBe(2); // Crime State
-    expect(advanced.setAsideModularSets!.length).toBe(before - 1); // 24006a.when-revealed's own shuffle-in.
+    // 24006a.when-revealed's own shuffle-in is the next thing after it resolves (later reveals in the same phase, such
+    // as a surging Tech Gauntlets into Field Recruitment, may shuffle in more sets).
+    const resolvedAt = events.findIndex(
+      (e) => e.type === "abilityResolved" && (e as { abilityId?: string }).abilityId === "24006a.when-revealed",
+    );
+    const next = events
+      .slice(resolvedAt + 1)
+      .find((e) => e.type === "abilityResolved" || e.type === "setAsideModularSetShuffledIn");
+    expect(resolvedAt).toBeGreaterThanOrEqual(0);
+    expect(next?.type).toBe("setAsideModularSetShuffledIn");
     // Crime State's own Forced Response fires after step one of the *next* villain phase — advance one more round.
     const dealtBefore = dealt(advanced, P1).length + advanced.encounterDecks[deckId(advanced)]!.discard.length;
     const readied = patchInstance(advanced, identityOf(advanced, P1), { exhausted: false });

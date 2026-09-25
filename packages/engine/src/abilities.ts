@@ -1,4 +1,4 @@
-import type { AbilityId, KeywordInstance, Trait } from "@mc/content";
+import type { AbilityId, KeywordInstance, SchemeIcon, Trait } from "@mc/content";
 import type { InstanceId, PlayerId } from "./ids.js";
 import type { ResourcePool, ResourceRequirement, TypedResource } from "./resources.js";
 import type {
@@ -267,6 +267,13 @@ export interface KeywordGrantSpec {
   readonly keyword: KeywordInstance;
   readonly target: TargetQuery;
   readonly while?: Predicate;
+  /**
+   * "Mandrill gains retaliate X, where X is equal to the number of confused characters in play" (`hood` 24016), "Juggernaut
+   * gains retaliate X, where X is the number of momentum counters on Juggernaut" (Head of Steam, `next_evol` 40123): the
+   * granted keyword's number, read live from the granting card's point of view in place of `keyword.value`. A value of 0
+   * or less grants nothing (docs/phase7-wave4.md §3.53).
+   */
+  readonly value?: ValueSpec;
 }
 
 /** "X gains the [trait] trait" while the granting card is in play. */
@@ -617,6 +624,19 @@ export type RuleSpec =
    * assigned some or all of the indirect damage." docs/phase7-wave3.md §3.16.
    */
   | { readonly kind: "attacksDealIndirectDamage"; readonly attacker: TargetQuery; readonly while?: Predicate }
+  /**
+   * "Each enemy in play gains 1 acceleration icon" (Secret Lair, `hood` 24061; Coordinated Effort, `sm` 27143; Mad
+   * Science, `aos` 50085; Bora, `spdr` 30031; Mojo in the Middle, `mojo` 39060), "this card gains a hazard icon" (Rule by
+   * Force, `sm` 29029): each card in play matching `target` counts as printing `count` more `icon`s (RRG 1.8
+   * "Acceleration Icon", p. 5: "the number of acceleration icons in play"). docs/phase7-wave4.md §3.57.
+   */
+  | {
+      readonly kind: "gainsIcon";
+      readonly icon: SchemeIcon;
+      readonly target: TargetQuery;
+      readonly count?: number;
+      readonly while?: Predicate;
+    }
   /**
    * "Hero Interrupt: When your hero's attack deals any amount of excess damage, increase that amount by 1." (Follow
    * Through, Aggression, `gmw` 16045). Each matching rule adds `amount` to the excess damage an attack by a matching

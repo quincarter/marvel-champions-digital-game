@@ -267,6 +267,8 @@ interface DefeatHint {
   readonly sourceInstanceId?: InstanceId | null;
   /** The damage was attack damage: "defeated by an enemy attack" (Regroup; docs/phase7-wave3.md §3.45). */
   readonly fromAttack?: boolean;
+  /** The damage event's own frame: its `defeated` result, so `dealDamage`'s `<bind>.defeated` reads it (§3.54). */
+  readonly reportFrameId?: FrameId | null;
 }
 
 const defeatPending = (state: GameState, id: InstanceId): boolean =>
@@ -323,6 +325,7 @@ export function checkDefeats(ctx: Ctx, hints?: DefeatHint | readonly DefeatHint[
             ...(hint.defeatedByPlayerId ? { defeatedByPlayerId: hint.defeatedByPlayerId } : {}),
             ...(hint.sourceInstanceId ? { sourceInstanceId: hint.sourceInstanceId } : {}),
             ...(hint.fromAttack ? { fromAttack: true as const } : {}),
+            ...(hint.reportFrameId ? { reportFrameId: hint.reportFrameId } : {}),
           }
         : {}),
       ...(together ? { protectionChecked: true as const } : {}),
@@ -357,6 +360,7 @@ export function checkDefeats(ctx: Ctx, hints?: DefeatHint | readonly DefeatHint[
             ...(hint.defeatedByPlayerId ? { defeatedByPlayerId: hint.defeatedByPlayerId } : {}),
             ...(hint.sourceInstanceId ? { sourceInstanceId: hint.sourceInstanceId } : {}),
             ...(hint.fromAttack ? { fromAttack: true as const } : {}),
+            ...(hint.reportFrameId ? { reportFrameId: hint.reportFrameId } : {}),
           }
         : {};
       defeatFrames.push(eventFrame(ctx, { kind: "characterDefeated", instanceId: id, ...context }));
@@ -389,6 +393,7 @@ export function checkDefeats(ctx: Ctx, hints?: DefeatHint | readonly DefeatHint[
             ...(hint.defeatedByPlayerId ? { defeatedByPlayerId: hint.defeatedByPlayerId } : {}),
             ...(hint.sourceInstanceId ? { sourceInstanceId: hint.sourceInstanceId } : {}),
             ...(hint.fromAttack ? { fromAttack: true as const } : {}),
+            ...(hint.reportFrameId ? { reportFrameId: hint.reportFrameId } : {}),
           }
         : {}),
     };

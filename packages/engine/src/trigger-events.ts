@@ -240,6 +240,12 @@ export type TriggerEventBody =
        */
       readonly destination?: CardDestination;
       readonly parentFrameId?: FrameId | null;
+      /**
+       * The damage event that dealt the defeating damage, told "defeated" as well as its parent: "If that character is
+       * defeated this way" after a card's own `dealDamage` (Out for Blood; docs/phase7-wave4.md §3.54), which has no
+       * attack to be the parent.
+       */
+      readonly reportFrameId?: FrameId | null;
       readonly overkill?: {
         readonly amount: number;
         readonly toInstanceId: InstanceId;

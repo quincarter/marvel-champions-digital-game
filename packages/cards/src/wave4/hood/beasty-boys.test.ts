@@ -14,7 +14,7 @@ import {
 
 /**
  * Real-game tests for the Beasty Boys modular set (`beasty-boys.ts`): Griffin (24015), Mandrill (24016) and Double
- * Trouble (24017). Beast Mode (24014) is a genuine engine gap (`beasty-boys.ts`'s own docblock) — not scripted.
+ * Trouble (24017). Beast Mode (24014) and Mandrill's retaliate X are tested in `hood-gaps.test.ts`.
  *
  * Ref -> covering test:
  *  24015.griffin-forced-response -> "after Griffin attacks and damages a character, stun it"

@@ -1,4 +1,4 @@
-import type { KeywordInstance, Trait } from "@mc/content";
+import type { KeywordInstance, SchemeIcon, Trait } from "@mc/content";
 import type {
   AbilityCost,
   AbilityDefinition,
@@ -26,7 +26,7 @@ import type {
   TypedResource,
 } from "@mc/engine";
 import { flatten, ifThen, type EffectArg } from "./effects.js";
-import { isAlterEgo, isHero, type Amount, type AttackKeyword } from "./values.js";
+import { amount, isAlterEgo, isHero, type Amount, type AttackKeyword } from "./values.js";
 
 /**
  * Abilities — the sentence structure of the DSL. `heroInterrupt(when.x, …)`
@@ -393,6 +393,31 @@ export const gainsKeyword = (
 ): ConstantPart => ({
   keywordGrants: [{ keyword, target, ...(opts.while ? { while: opts.while } : {}) }],
 });
+/**
+ * "Mandrill gains retaliate X, where X is equal to the number of confused characters in play" (`hood` 24016): a numbered
+ * keyword whose number is `value`, read live (docs/phase7-wave4.md §3.53). 0 or less grants nothing.
+ */
+export const gainsKeywordX = (
+  name: "retaliate" | "incite" | "hinder" | "victory",
+  value: Amount,
+  target: TargetQuery,
+  opts: { readonly while?: Predicate } = {},
+): ConstantPart => ({
+  keywordGrants: [
+    {
+      keyword: { name, value: 0 } as KeywordInstance,
+      target,
+      value: amount(value),
+      ...(opts.while ? { while: opts.while } : {}),
+    },
+  ],
+});
+/**
+ * "Each enemy in play gains 1 acceleration icon" (Secret Lair, `hood` 24061): each card in play `target` matches counts
+ * as `count` more `icon`s (docs/phase7-wave4.md §3.57).
+ */
+export const gainsIcon = (icon: SchemeIcon, target: TargetQuery, count = 1): ConstantPart =>
+  rule({ kind: "gainsIcon", icon, target, ...(count !== 1 ? { count } : {}) });
 /** "X gains the [trait] trait". */
 export const gainsTrait = (t: Trait, target: TargetQuery, opts: { readonly while?: Predicate } = {}): ConstantPart => ({
   traitGrants: [{ trait: t, target, ...(opts.while ? { while: opts.while } : {}) }],

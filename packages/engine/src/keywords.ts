@@ -19,6 +19,7 @@ import {
   matchesQuery,
   keywordsBlankFor,
   lastingReaches,
+  resolveValue,
   type EffectContext,
 } from "./select.js";
 import type { AttackKeyword, StatusName } from "./spec.js";
@@ -86,6 +87,9 @@ export function activeFormType(state: GameState, id: InstanceId, deps: EngineDep
   return form?.name === "form" ? form.formType : undefined;
 }
 
+/** Set while a live keyword value (`KeywordGrantSpec.value`) is being read: a re-entrancy guard, not game state. */
+let readingGrantValue = false;
+
 /** Keywords granted by constant abilities in play ("X gains retaliate 1"); RRG "Gains": not printed. */
 function grantedKeywords(state: GameState, deps: EngineDeps, id: InstanceId): readonly KeywordInstance[] {
   const granted: KeywordInstance[] = [];
@@ -107,7 +111,22 @@ function grantedKeywords(state: GameState, deps: EngineDeps, id: InstanceId): re
       };
       for (const grant of definition.trigger.keywordGrants) {
         if (grant.while && !evaluate(state, grant.while, context)) continue;
-        if (matchesQuery(state, id, grant.target, context)) granted.push(grant.keyword);
+        if (!matchesQuery(state, id, grant.target, context)) continue;
+        if (!grant.value) {
+          granted.push(grant.keyword);
+          continue;
+        }
+        // "Retaliate X, where X is …" (docs/phase7-wave4.md §3.53): read live. While one such X is being read, other
+        // live-valued grants are skipped, so an X that asks about keywords cannot re-enter this scan.
+        if (readingGrantValue) continue;
+        readingGrantValue = true;
+        let value: number;
+        try {
+          value = resolveValue(state, grant.value, context, deps);
+        } finally {
+          readingGrantValue = false;
+        }
+        if (value > 0 && "value" in grant.keyword) granted.push({ ...grant.keyword, value });
       }
     }
   }

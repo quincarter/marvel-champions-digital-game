@@ -454,6 +454,17 @@ export const varAtLeast = (name: string, n = 1): Predicate => ({ kind: "varAtLea
 /** An event-producing effect with `bind` happened ("if no attacks were made this way" = `not(made(b))`). */
 export const made = (bind: string): Predicate => varAtLeast(`${bind}.made`, 1);
 export const hasStatus = (of: TargetRef, status: StatusName): Predicate => ({ kind: "hasStatus", of, status });
+/**
+ * "Attach to X. If you cannot, …" (Goblin Glider; Jetpack, Flamethrower, `hood` 24037–24040): whether the card `of`
+ * names is attached right now, read in its own When Revealed after the engine tried its `attachesTo`.
+ */
+export const isAttached = (of: TargetRef): Predicate => ({ kind: "isAttached", of });
+/**
+ * "A stunned / confused character" by the rules: with steady, two status cards of the type (RRG 1.8 "Steady", p. 41).
+ * `hasStatus` only asks whether a status card is there. docs/phase7-wave4.md §3.52.
+ */
+export const isStunned = (of: TargetRef): Predicate => ({ kind: "hasStatus", of, status: "stunned", active: true });
+export const isConfused = (of: TargetRef): Predicate => ({ kind: "hasStatus", of, status: "confused", active: true });
 export const hasTrait = (of: TargetRef, t: Trait): Predicate => ({ kind: "hasTrait", of, trait: t });
 /** "If you have the Aerial trait". */
 export const youHaveTrait = (t: Trait): Predicate => hasTrait(yourIdentity, t);

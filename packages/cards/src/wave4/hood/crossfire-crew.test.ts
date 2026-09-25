@@ -14,8 +14,8 @@ import {
 
 /**
  * Real-game tests for the Crossfire's Crew modular set (`crossfire-crew.ts`): Corruptor (24025), Crossfire (24026),
- * Mister Fear (24027) and Caught in the Crossfire (24028). Out for Blood (24023) and Controller (24024) are genuine
- * engine gaps (`crossfire-crew.ts`'s own docblock) — not scripted.
+ * Mister Fear (24027) and Caught in the Crossfire (24028). Out for Blood (24023) and Controller (24024) are tested in
+ * `hood-gaps.test.ts`.
  *
  * Ref -> covering test:
  *  24025.when-revealed -> "exhausts each ally and places threat for each"

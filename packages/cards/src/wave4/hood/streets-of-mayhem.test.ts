@@ -6,8 +6,8 @@ import { encounterCardInVillainArea, foldModularSetIntoDeck, game, onStage, stac
 
 /**
  * Real-game tests for the Streets of Mayhem modular set (`streets-of-mayhem.ts`): Back-Alley Enclave (24060), Sewer
- * Tunnels (24062) and Warehouse District (24063). Secret Lair (24061) is a genuine engine gap
- * (`streets-of-mayhem.ts`'s own docblock) — not scripted.
+ * Tunnels (24062) and Warehouse District (24063). Secret Lair (24061) is tested in
+ * `hood-gaps.test.ts`.
  *
  * Ref -> covering test:
  *  24060.when-revealed               -> "discards each other Setting environment already in play"

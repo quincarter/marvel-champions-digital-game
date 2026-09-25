@@ -4,6 +4,7 @@ import {
   defineAbilities,
   discard,
   each,
+  gainsIcon,
   gainsKeyword,
   gets,
   query,
@@ -16,9 +17,7 @@ import {
  * (Back-Alley Enclave, Secret Lair, Sewer Tunnels, Warehouse District) sharing "Surge. When Revealed: discard each
  * other Setting environment in play" (Surge is data).
  *
- * **Secret Lair (24061, `when-revealed`/`secret-lair-constant`) is not scripted — a genuine engine gap.** "Each
- * enemy in play gains 1 acceleration icon" needs a way to grant a printed icon (normally static card data) to a
- * character; nothing in the DSL grants icons the way `gainsKeyword`/`gets` grant keywords/stats.
+ * Secret Lair's "each enemy in play gains 1 acceleration icon" is `gainsIcon` (docs/phase7-wave4.md §3.57).
  */
 
 const SETTING = trait("SETTING");
@@ -26,6 +25,12 @@ const SETTING = trait("SETTING");
 const discardOtherSettings = () => discard(each(query("environment", { trait: SETTING, excluding: self })));
 
 export const STREETS_OF_MAYHEM = defineAbilities({
+  // Secret Lair (24061, environment; LOCATION/SETTING, Surge are data) — When Revealed: discard each other Setting
+  // environment in play. Each enemy in play gains 1 acceleration icon. Each hero and ally in play gets +1 THW.
+  "24061.when-revealed": whenRevealed(discardOtherSettings()),
+  "24061.secret-lair-constant": constant(gainsIcon("acceleration", query("enemy"))),
+  "24061.secret-lair-constant-2": constant(gets("thw", 1, query(["hero", "ally"]))),
+
   // Back-Alley Enclave (24060, environment; LOCATION/SETTING, Surge are data) — When Revealed: discard each other
   // Setting environment in play. Each character in play gets +1 ATK.
   "24060.when-revealed": whenRevealed(discardOtherSettings()),

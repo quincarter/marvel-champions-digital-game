@@ -14,8 +14,8 @@ import {
 
 /**
  * Real-game tests for the Sinister Syndicate modular set (`sinister-syndicate.ts`): Beetle (24043), Boomerang
- * (24044), Shocker (24045), Speed Demon (24046) and White Rabbit (24047). Crime Pays (24042) is a genuine engine
- * gap (`sinister-syndicate.ts`'s own docblock) — not scripted.
+ * (24044), Shocker (24045), Speed Demon (24046) and White Rabbit (24047). Crime Pays (24042) and White Rabbit's boost are tested in
+ * `hood-gaps.test.ts`.
  *
  * Ref -> covering test:
  *  24043.beetle-forced-response  -> "discards the lowest-cost upgrade after attacking and damaging P1"

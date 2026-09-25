@@ -483,6 +483,14 @@ stays data only.**
 | 3.49 | Shuffling a scenario deck's discard pile back in on demand                   | Infinite Mischief                                                            | landed  |
 | 3.50 | A nemesis set's only minion is its nemesis minion                            | Seek and Destroy (Expert II) with a Core hero; Kang's Wrath 4B               | landed  |
 | 3.51 | An attack an effect initiates carries its own keywords                       | Total Annihilation; Avatar of Death, Calvin Zabo (engine bug)                | landed  |
+| 3.52 | Increasing an in-flight damage amount; "stunned" by the rules (steady)       | Beast Mode, Controller; Follow Through (constant form)                       | landed  |
+| 3.53 | A granted keyword whose number is read live ("retaliate X")                  | Mandrill; Head of Steam (`next_evol`)                                        | landed  |
+| 3.54 | "Repeat this effect"; a card's own damage reports the defeat it caused       | Out for Blood                                                                | landed  |
+| 3.55 | "The highest-cost card from your hand"                                       | Feisty Heist; Burn Notice (in play)                                          | checked |
+| 3.56 | Resolving a card's "When Revealed" abilities on demand                       | Citywide Crisis; Double Trouble, Sandslide, Mighty Avengers, A.I.M. Interf.  | landed  |
+| 3.57 | Icons gained from constant abilities                                         | Secret Lair; Coordinated Effort, Mad Science, Bora, Rule by Force            | landed  |
+| 3.58 | "Attach to X. If you cannot, …" as a When Revealed                           | Flamethrower, Holoshield Generator, Jetpack, Tech Gauntlets (scripting bug)  | checked |
+| 3.59 | "If no minion was put into play this way"                                    | Crime Pays; Surprise!, Sinister Beatdown, Shadow of the Past                 | landed  |
 
 ### 3.1 Additional forms: the form keyword
 
@@ -1739,6 +1747,149 @@ AttackKeyword[]`**, carried on each activation the effect initiates as the same 
 > `attackKeywordsOf` reads them), scoped exactly like `atkBonus`. **DSL:** `enemyAttack(enemies, { keywords })`.
 > **Re-scripted:** `24054.when-revealed-hero`, `21120.when-revealed-hero`, `24034.when-revealed`.
 
+### 3.52 Increasing an in-flight damage amount; "stunned" by the rules
+
+Beast Mode (`hood` 24014): "Forced Interrupt: When a stunned or confused friendly character would take any amount of
+damage, increase that amount by 1." Controller (24024): "[star] Forced Interrupt: When Controller's attack would deal any
+amount of damage to a character, increase that amount by that character's ATK." `preventDamage` lowers the pending amount
+of the interrupted `dealDamage` event; nothing raised it, and replacing the event would lose its source, attack flag and
+keywords. Survey (every raw pack, "increase that amount"): these two and Follow Through (`gmw` 16045, excess damage,
+already the constant `excessDamageBonus`, wave 3 §3.18). Beast Mode also needs "stunned" read by the rules: RRG 1.8
+"Steady" (p. 41), "That character is not stunned unless they have two stunned status cards", and Warehouse District
+(24063, the same pack) gives every character steady; `Predicate hasStatus` only asked whether a status card is there.
+
+> **Status: landed (2026-09-25),** tested in `packages/engine/src/hood-primitives.test.ts` (3 tests: a stunned hero takes
+> the villain's 2 plus 2 as one `damageDealt` from the villain, with a `damageIncreased` log entry; no status, no
+> increase; with steady one stun card is not stunned and two are) and in real games in
+> `packages/cards/src/wave4/hood/hood-gaps.test.ts` (Beast Mode: a stunned Spider-Man takes The Hood's 1 + 1 boost + 1 =
+> 3, unstunned 2, with Warehouse District's steady and one stun card 2; Controller: undefended 1 + Spider-Man's ATK 2 =
+> 3, defended by Daredevil 1 + his ATK 2 = 3 to Daredevil). **What landed:** **`EffectSpec increaseDamage { amount }`**
+> (the mirror of `preventDamage`; log `damageIncreased { targetInstanceId, amount }`) and **`Predicate hasStatus.active`**
+> (`statusActive`, steady-aware). Plain `hasStatus` is unchanged (it counts status cards, and constant grants read it,
+> where a steady-aware read could re-enter the keyword scan). **DSL:** `increaseDamage(n)`, `isStunned(ref)`,
+> `isConfused(ref)`. **Scripted:** `24014.beast-mode-forced-interrupt`, `24024.controller-forced-interrupt`.
+
+### 3.53 A granted keyword whose number is read live
+
+Mandrill (`hood` 24016): "Mandrill gains retaliate X, where X is equal to the number of confused characters (friendly or
+enemy) in play." `KeywordGrantSpec` carried a printed `KeywordInstance`. Survey ("gains retaliate X" and other numbered
+keywords with an X): Mandrill and Head of Steam (`next_evol` 40123, "retaliate X, where X is the number of momentum
+counters on Juggernaut").
+
+> **Status: landed (2026-09-25),** tested in `hood-primitives.test.ts` (1 test: retaliate X is the number of minions in
+> play, 0 → no keyword, 1, 2) and in `hood-gaps.test.ts` (Mandrill: no confused character, no retaliate; one, 1; two,
+> 2). **What landed:** **`KeywordGrantSpec.value?: ValueSpec`**, read from the granting card's point of view in place of
+> `keyword.value`; 0 or less grants nothing. While one live value is read, other live-valued grants are skipped (a
+> re-entrancy guard in `keywords.ts`, so an X that asks about keywords cannot loop). Mandrill's "confused" counts a
+> confused status card (`TargetQuery.hasStatus`), not the steady-aware reading §3.52 gives predicates: a steady
+> character with one confused card still counts (no card composes the two yet). **DSL:** `gainsKeywordX(name, value,
+target)`. **Scripted:** `24016.mandrill-constant`.
+
+### 3.54 "Repeat this effect"; a card's own damage reports the defeat it caused
+
+Out for Blood (`hood` 24023): "Deal 1 damage to the friendly character with the fewest remaining hit points. If that
+character is defeated this way, repeat this effect." Two gaps: no effect re-ran itself on its own outcome, and **a bug
+found on the way**: a card's own `dealDamage` never reported a defeat to its `bind` (`<bind>.defeated`), because the
+defeat reported only to the damage's parent, which a card effect's damage does not have (an attack's does). Survey
+("repeat this effect", "repeat this", "do this again"): Out for Blood only in the raw data; the defeat report also serves
+every "if that character is defeated this way" after a plain `dealDamage`.
+
+> **Status: landed (2026-09-25),** tested in `hood-primitives.test.ts` (2 tests: two allies at 1 remaining are defeated in
+> turn and then the hero takes 1 and it stops; an always-true condition stops after `REPEAT_LIMIT` = 50 repetitions)
+> and in `hood-gaps.test.ts` (Out for Blood defeats Black Cat at 1 remaining, repeats onto Spider-Man, stops; as a boost
+> card, the same). **What landed:** **`EffectSpec repeatWhile { effects, while }`**: the effects, then `while` read in
+> the same frame (it sees their bindings); each repetition starts with the slots and vars the effects bind cleared.
+> **`characterDefeated.reportFrameId`**: the damage event's own frame hears "defeated" as well as its parent. **DSL:**
+> `repeatWhile(condition, ...effects)`; the validator reads `while` after walking the effects. **Scripted:**
+> `24023.when-revealed` (a tie for fewest is the first player's pick, RRG 1.8 "First Player", p. 19).
+
+### 3.55 "The highest-cost card from your hand"
+
+Feisty Heist (`hood` 24055): "When Revealed: Discard the highest-cost card from your hand." Recorded as a gap ("no
+TargetQuery → hand bridge"), but the bridge is there: `selectCards` binds the hand as a slot, `TargetRef.superlative`
+takes a slot as its pool ("a slot an earlier `selectCards` bound for cards out of play", wave 1 §3.12), and
+`discardFromHand`'s `filter` accepts `inSlot`, so the discard is a real discard among the tied cards. Other cards: Burn
+Notice (`bkw`, the in-play form), and any "the highest/lowest-cost card in your hand".
+
+> **Status: checked (2026-09-25), no engine change,** tested in `hood-gaps.test.ts` (Avengers Mansion, cost 4, is
+> discarded from a hand of 5; with Helicarrier and Swinging Web Kick tied at 3, exactly one of them). A tie is chosen by
+> the player whose hand it is (`discardFromHand` asks them), not the first player: see §4 Q24. **Scripted:**
+> `24055.when-revealed`.
+
+### 3.56 Resolving a card's "When Revealed" abilities on demand
+
+Citywide Crisis (`hood` 24059): "When Revealed: Resolve each 'When Revealed' ability on each side scheme in play. If no
+'When Revealed' ability was resolved this way, place 2 threat on each scheme. [star] Boost: Resolve this card's 'When
+Revealed' ability." `resolveSpecials` resolved `special` abilities only. Survey ("Resolve … 'When Revealed'", 15
+printings): the boost "Resolve this card's 'When Revealed' ability" (Out for Blood, Double Trouble 24017, Sandslide
+27070, For Whom the Bell Tolls 27083, A.I.M. Interference 50184a–c), "Resolve the 'When Revealed' ability of each minion
+in play" (Mighty Avengers 56076/56081, Teenage Superheroes 57058), Moon Knight 57065 (the topmost treachery in the
+discard pile), Scarlet Witch 58014. RRG 1.8 "Incite X" (p. 24) and "Surge" (p. 42) each call the keyword "equivalent to
+the following triggered ability: 'When Revealed: …'".
+
+> **Status: landed (2026-09-25),** tested in `hood-primitives.test.ts` (2 tests: a side scheme's own When Revealed, its
+> incite 2 and its surge all resolve and the fallback does not; with nothing to resolve the fallback places 5) and in
+> `hood-gaps.test.ts` (Disaster at the Docks' "take 3 indirect damage" resolves again; with only Unbridled Ambition in
+> play, 2 threat on the main scheme and on it; as a boost card, the Docks deal 3 again). **What landed:**
+> **`resolveSpecials.trigger?: "special" | "whenRevealed"`** and **`resolveSpecials.bind`** (`<bind>.count`). For
+> `"whenRevealed"`, each card's incite (placeThreat on the main scheme, sourced by that card) and surge (reveal the
+> top card) resolve too, in a reveal's own order: incite, the printed abilities (the controller orders several), surge
+> (§4 Q23). A card's "this card gains surge" has no reveal of its own to change when resolved this way. **DSL:**
+> `resolveWhenRevealedOf(ref, { bind })`. **Scripted:** `24059.when-revealed`, `24059.boost`, `24023.boost`.
+
+### 3.57 Icons gained from constant abilities
+
+Secret Lair (`hood` 24061): "Each enemy in play gains 1 acceleration icon." RRG 1.8 "Acceleration Icon" (p. 5): "place X
+additional threat on the main scheme, where X is the number of acceleration icons in play"; the engine counted only the
+icons printed on schemes. Survey ("gains … acceleration icon" / "hazard icon" / "crisis icon"): Coordinated Effort (`sm`
+27143), Mad Science (`aos` 50085), Bora (`spdr` 30031), Mojo in the Middle (`mojo` 39060), Rule by Force (`sm` 29029,
+"this card gains a hazard icon" / "an acceleration icon").
+
+> **Status: landed (2026-09-25),** tested in `hood-primitives.test.ts` (3 tests: step one places the stage's 1 plus 1 per
+> enemy; the villain-phase audit agrees; a gained crisis icon stops a thwart of the main scheme) and in
+> `hood-gaps.test.ts` (Secret Lair with The Hood and Beetle in play: step one places exactly 2 more). **What landed:**
+> **`RuleSpec gainsIcon { icon, target, count?, while? }`**; `grantedIcons` / `iconsInPlay` (`rules.ts`) are read by step
+> one, the hazard deal, both crisis checks and `villain/audit.ts` (the audit's second borrowed engine rule, beside the
+> stage's acceleration). **DSL:** `gainsIcon(icon, target, count?)`. **Scripted:** `24061.secret-lair-constant` (and the
+> card's `when-revealed` and `-constant-2`, reusable as is).
+
+### 3.58 "Attach to X. If you cannot, …" as a When Revealed
+
+Flamethrower and Holoshield Generator (`hood` 24037, 24038): "Attach to the minion with the most remaining hit points. If
+you cannot, search the encounter deck and discard pile for a minion, put it into play engaged with you, and attach this
+card to it. (Shuffle.)"; Jetpack and Tech Gauntlets (24039, 24040): "… If you cannot, this card gains surge." The host is
+data (`attachesTo`); the fallback is a When Revealed read after the engine tried to attach (`Predicate isAttached`, the
+Goblin Glider precedent, `wave1/gob`). **A scripting bug found on the way:** Jetpack's and Tech Gauntlets' `-constant`
+refs were `coveredByEngineRule()`, but no engine rule gives surge to an unattached attachment (RRG 1.8 "Attach To": it is
+discarded), and Holoshield Generator's fallback sentence had been scripted as its stat grant. Flamethrower's "attached
+minion's attacks deal indirect damage" is wave 3's `attacksDealIndirectDamage` (§3.16 there) with `attacker: {
+hostOfSelf: true }`.
+
+> **Status: checked (2026-09-25), no engine change,** tested in `hood-gaps.test.ts` (Flamethrower on Armored Guard: its
+> attack of 1 + 3 is indirect, one prompt for 4; with no minion in play, Flamethrower and Holoshield Generator each
+> find one, which enters engaged with P1, and attach, Holoshield's host at printed hit points + 4; Jetpack and Tech
+> Gauntlets with no minion surge, Jetpack with Armored Guard in play attaches and does not). **DSL:** `isAttached(ref)`
+> (was local to two modules). **Scripted:** `24037.flamethrower-constant`, `-constant-2`,
+> `24038.holoshield-generator-constant` (the search; `-constant-2` now carries both the +4 hit points and retaliate 2),
+> `24039.jetpack-constant`, `24040.tech-gauntlets-constant`.
+
+### 3.59 "If no minion was put into play this way"
+
+Crime Pays (`hood` 24042): "Search the encounter deck for a [Criminal] minion and put it into play engaged with you.
+(Shuffle.) If no minion was put into play this way, this card gains surge." A search can find nothing, and a found
+unique minion can be turned away by the unique rule, so "put into play" is what `putIntoPlay` reports, not what was
+selected. Survey ("was put into play this way" / "does not enter"): Crime Pays, Sinister Beatdown (`sm` 27101a,
+villains), Surprise! (`sm` 27112), Shadow of the Past (Core, "If your nemesis minion does not enter the game this way",
+today read from the selected count).
+
+> **Status: landed (2026-09-25),** tested in `hood-primitives.test.ts` (2 tests: a minion that enters counts and there is
+> no surge; a unique minion already in play is turned away, `uniqueEntryBlocked`, and the card surges) and in
+> `hood-gaps.test.ts` (Crime Pays puts one Criminal minion into play engaged with P1 and does not surge; with no
+> Criminal minion left in the deck nothing enters and it surges). **What landed:** **`putIntoPlay.bind`**: the cards now
+> in play to slot `bind`, their number to `<bind>.count`. **DSL:** `putIntoPlay(card, controller, { bind })`.
+> **Scripted:** `24042.when-revealed`; White Rabbit's boost `24047.boost` is `discardFromHand` with `identitySetOf: you`
+> (wave 2, reusable as is).
+
 ## 4. Open questions (for the user or FFG)
 
 Each is implemented the way stated, or not at all, and named here rather than decided silently.
@@ -1859,6 +2010,15 @@ Each is implemented the way stated, or not at all, and named here rather than de
     player order. Implemented as: the advance resolves first and the defeated Loki's When Defeated right after, with
     no prompt. The order changes nothing a player can see (the side scheme is revealed either way, and the new Loki is
     in play when it is); asking is a later refinement if a card makes it matter.
+23. **Does "Resolve each 'When Revealed' ability on each side scheme" include incite and surge?** (§3.56, Citywide
+    Crisis.) RRG 1.8 calls each keyword "equivalent to the following triggered ability: 'When Revealed: …'" ("Incite X",
+    p. 24; "Surge", p. 42); hinder is a constant ("enters play with X threat", p. 22) and is not included. Implemented as:
+    yes, both, in a reveal's order (incite, the printed abilities, surge), each counting as one ability resolved for
+    "If no 'When Revealed' ability was resolved this way". No ruling names Citywide Crisis.
+24. **Who breaks a tie for "the highest-cost card from your hand"?** (§3.55, Feisty Heist.) RRG 1.8 "First Player"
+    (p. 19) gives the first player an encounter card's choice among "multiple eligible targets", but a hand is hidden
+    information its owner holds. Implemented as: the player whose hand it is picks among the tied cards (the same in
+    solo). Proposed: keep; needs a ruling to change.
 
 ## 5. What this asks of the other agents
 

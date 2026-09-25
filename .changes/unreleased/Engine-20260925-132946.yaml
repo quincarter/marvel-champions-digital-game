@@ -1,0 +1,3 @@
+kind: Engine
+body: putIntoPlay.bind reports the cards that actually entered play
+time: 2026-09-25T13:29:46.358513-04:00

@@ -57,7 +57,8 @@ import { applyEffect } from "./apply-effect.js";
 import { controllerOfArea, joinGameArea } from "./game-areas.js";
 import { damageGroupFrame } from "./damage-group.js";
 import { selectCards } from "./cards.js";
-import { abilityFrame, type Frame, pushEffects, pushEvents } from "./frames.js";
+import { abilityFrame, addFrameVars, type Frame, pushEffects, pushEvents } from "./frames.js";
+import { hasKeyword, keywordTotal } from "../keywords.js";
 import { candidateOption } from "./window.js";
 import { threatRemovalBlocked } from "./event.js";
 
@@ -1171,9 +1172,11 @@ function executeResolveSpecials(
       ? selectTargets(ctx.state, effect.cards, context)
       : [];
   const resolvingPlayer = effect.player ? (resolvePlayers(ctx.state, effect.player, context)[0] ?? null) : null;
+  // "Resolve this card's 'When Revealed' ability" / "each 'When Revealed' ability on each side scheme" (§3.56).
+  const trigger = effect.trigger ?? "special";
   for (const id of sources) {
     for (const ref of activeAbilityRefs(ctx.state, id, ctx.deps)) {
-      if (ctx.deps.abilities[ref.id]?.trigger.kind !== "special") continue;
+      if (ctx.deps.abilities[ref.id]?.trigger.kind !== trigger) continue;
       steps.push({
         instanceId: id,
         abilityId: ref.id,
@@ -1208,6 +1211,28 @@ function executeResolveSpecials(
     return;
   }
   setFrame(ctx, { ...frame, answer: null, cursor: frame.cursor + 1 });
+  // Incite X and surge are each "equivalent to" a When Revealed ability (RRG 1.8 "Incite X", p. 24; "Surge", p. 42),
+  // resolved in the order a reveal resolves them: incite first, the printed abilities, surge last (§3.56, §4 Q23).
+  const incites: { readonly id: InstanceId; readonly amount: number }[] = [];
+  const surges: InstanceId[] = [];
+  if (trigger === "whenRevealed") {
+    for (const id of sources) {
+      const amount = keywordTotal(ctx.state, id, "incite", ctx.deps);
+      if (amount > 0) incites.push({ id, amount });
+      if (hasKeyword(ctx.state, id, "surge", ctx.deps)) surges.push(id);
+    }
+  }
+  if (effect.bind) {
+    addFrameVars(ctx, frame.frameId, { [`${effect.bind}.count`]: ordered.length + incites.length + surges.length });
+  }
+  const whoFor = (id: InstanceId) => controllerOf(ctx.state, id) ?? resolvingPlayer ?? context.controllerId;
+  for (const id of [...surges].reverse()) {
+    pushEffects(ctx, {
+      effects: [{ kind: "revealEncounterCard", player: { kind: "controller" } }],
+      selfInstanceId: id,
+      controllerId: whoFor(id),
+    });
+  }
   pushFrames(
     ctx,
     ordered.map((step, index) =>
@@ -1221,6 +1246,13 @@ function executeResolveSpecials(
       ),
     ),
   );
+  for (const { id, amount } of [...incites].reverse()) {
+    pushEffects(ctx, {
+      effects: [{ kind: "placeThreat", target: { kind: "mainScheme" }, amount: { kind: "const", value: amount } }],
+      selfInstanceId: id,
+      controllerId: whoFor(id),
+    });
+  }
 }
 
 function requestTargetChoice(

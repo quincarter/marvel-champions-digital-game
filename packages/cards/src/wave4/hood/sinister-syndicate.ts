@@ -3,6 +3,15 @@ import {
   after,
   bindTargets,
   boost,
+  chooseCards,
+  discardFromHand,
+  encounterCards,
+  firstPlayer,
+  not,
+  putIntoPlay,
+  shuffleEncounterDeck,
+  varAtLeast,
+  whenRevealed,
   chooseTarget,
   chosen,
   dealDamage,
@@ -34,24 +43,34 @@ import {
  * The Sinister Syndicate modular set (`hood` 24042-24048, docs/phase7-wave4.md §2.3): a side scheme (Crime Pays),
  * five minions (Beetle, Boomerang, Shocker, Speed Demon, White Rabbit) and a treachery (Sinister Onslaught).
  *
- * **Crime Pays (24042, `when-revealed`) is not scripted — a genuine engine gap.** "Search the encounter deck for a
- * Criminal minion and put it into play engaged with you" needs a search that CAN find nothing (unlike
- * `searchAndPutHydeInto`, where the named card is guaranteed to exist) and then read "was a minion put into play
- * this way" for the surge branch — no DSL primitive currently reports whether a search-and-put found a match.
+ * Crime Pays reads "if no minion was put into play this way" from `putIntoPlay`'s own report (`bind`,
+ * docs/phase7-wave4.md §3.59), so a search that finds nothing, or a minion the unique rule turns away, surges.
  *
  * **Speed Demon (24046, `speed-demon-forced-interrupt`) is docs/phase7-wave4.md §3.21's own worked example** —
  * `forcedInterrupt({ on: "attack", selfIs: "target" }, enemyAttack(self, { targetCharacter: eventSource }))`.
  *
- * **White Rabbit's own Boost (24047, `boost`) is not scripted — a genuine engine gap.** "Discard 1
- * identity-specific card from your hand" needs a `TargetQuery` filter matching "the current player's own printed
- * identity set," dynamically — `identitySetTitled` only matches a fixed, printed list of names (Team-Up cards), not
- * whichever hero happens to be in the game.
+ * White Rabbit's boost, "choose and discard 1 identity-specific card from your hand", is `discardFromHand` filtered by
+ * `identitySetOf: you` (wave 2's "a card of this player's identity set", reusable as is).
  */
 
 const CRIMINAL = trait("CRIMINAL");
 const CRIMINAL_ENEMY = query("enemy", { trait: CRIMINAL });
 
 export const SINISTER_SYNDICATE = defineAbilities({
+  // Crime Pays (24042, side scheme; acceleration icon is data) — When Revealed: search the encounter deck for a
+  // Criminal minion and put it into play engaged with you (shuffle). If no minion was put into play this way, this
+  // card gains surge. The first player picks among several (RRG 1.8 "First Player", p. 19).
+  "24042.when-revealed": whenRevealed(
+    chooseCards("criminal", encounterCards(["deck"], query("minion", { trait: CRIMINAL })), {
+      min: 1,
+      max: 1,
+      chooser: firstPlayer,
+    }),
+    putIntoPlay(chosen("criminal"), you, { bind: "entered" }),
+    shuffleEncounterDeck(),
+    ifThen(not(varAtLeast("entered.count")), surge()),
+  ),
+
   // Beetle (24043, minion; CRIMINAL, starIcon are data) — [star] Forced Response: after Beetle attacks and damages
   // you, discard the lowest-cost upgrade you control. [star] Boost: choose and discard an upgrade you control.
   "24043.beetle-forced-response": forcedResponse(
@@ -108,6 +127,8 @@ export const SINISTER_SYNDICATE = defineAbilities({
     on.enemyAttacks("self", { againstYou: true }),
     discardAtRandom(1),
   ),
+  // [star] Boost: choose and discard 1 identity-specific card from your hand.
+  "24047.boost": boost(discardFromHand(1, you, { filter: { identitySetOf: you } })),
 
   // Sinister Onslaught (24048, treachery) — When Revealed (Alter-Ego): each Criminal enemy in play schemes; if
   // none, this card gains surge. When Revealed (Hero): each Criminal enemy in play attacks you; if none, surge.

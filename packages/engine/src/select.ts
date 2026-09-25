@@ -1,7 +1,7 @@
 import type { AbilityReference, AnyCard, Trait } from "@mc/content";
 import { type AbilityTriggerSpec, DEFAULT_DEPS, type EngineDeps, type RuleSpec } from "./abilities.js";
 import type { InstanceId, PlayerId } from "./ids.js";
-import { activeFormType, hasKeyword, printedFormTypes } from "./keywords.js";
+import { activeFormType, hasKeyword, printedFormTypes, statusActive } from "./keywords.js";
 import {
   activeVillain,
   cardOf,
@@ -1368,7 +1368,9 @@ export function evaluate(state: GameState, predicate: Predicate, context: Effect
     }
     case "hasStatus": {
       const [id] = resolveRef(state, predicate.of, context);
-      return id ? (getInstance(state, id)?.statuses[predicate.status] ?? 0) > 0 : false;
+      if (!id) return false;
+      if (predicate.active) return statusActive(state, id, predicate.status, context.deps ?? DEFAULT_DEPS);
+      return (getInstance(state, id)?.statuses[predicate.status] ?? 0) > 0;
     }
     case "exists":
       return selectTargets(state, predicate.query, context).length > 0;

@@ -12,13 +12,24 @@ import {
   discardEncounterUntil,
   each,
   engagedPlayerOf,
+  eventTarget,
+  dealDamage,
   exhaust,
+  firstPlayer,
   forcedInterrupt,
+  increaseDamage,
+  repeatWhile,
+  resolveWhenRevealedOf,
+  statOf,
+  varAtLeast,
+  bindTargets,
   modifyAttack,
   placeThreat,
   query,
   remainingHpOf,
   retargetAttack,
+  setVar,
+  varOf,
   revealCard,
   self,
   superlative,
@@ -32,24 +43,48 @@ import {
  * three minions (Controller, Corruptor, Crossfire), Mister Fear (already scripted below via the printed
  * `additionalCostToReady` example, docs/phase7-wave4.md §3.19) and a treachery (Caught in the Crossfire).
  *
- * **Not scripted (genuine engine gaps — see `../coverage.test.ts`'s `KNOWN_SKIPPED.hood`):**
- * - **Out for Blood (24023, `when-revealed`/`boost`)**: "Deal 1 damage to the friendly character with the fewest
- *   remaining hit points. If that character is defeated this way, repeat this effect" needs a repeat-until-nothing
- *   -happens primitive; nothing in the DSL re-runs an effect conditioned on its own outcome.
- * - **Controller (24024, `controller-forced-interrupt`)**: "When Controller's attack would deal any amount of
- *   damage to a character, increase that amount by that character's ATK" is the same "modify an in-flight damage
- *   event's amount" gap as Beast Mode (`beasty-boys.ts`'s own docblock).
+ * Out for Blood's "repeat this effect" is `repeatWhile` (docs/phase7-wave4.md §3.54) and its boost re-resolves its own
+ * When Revealed (`resolveWhenRevealedOf`, §3.56); Controller's "increase that amount by that character's ATK" is
+ * `increaseDamage` (§3.52).
  */
 
 const CROSSFIRES_CREW = trait("CROSSFIRE'S CREW");
 
+/**
+ * "Deal 1 damage to the friendly character with the fewest remaining hit points. If that character is defeated this
+ * way, repeat this effect." A tie is the first player's choice (RRG 1.8 "First Player", p. 19).
+ */
+const outForBlood = () =>
+  repeatWhile(
+    varAtLeast("hit.defeated"),
+    bindTargets("fewest", superlative("lowest", each(query(["identity", "ally"])), remainingHpOf(chosen("candidate")))),
+    chooseTarget("pick", { inSlot: "fewest" }, { chooser: firstPlayer }),
+    dealDamage(1, chosen("pick"), { bind: "hit" }),
+  );
+
 export const CROSSFIRE_CREW = defineAbilities({
+  // Out for Blood (24023, side scheme; hazard icon, starIcon are data) — When Revealed: deal 1 damage to the friendly
+  // character with the fewest remaining hit points; if that character is defeated this way, repeat this effect.
+  // [star] Boost: resolve this card's "When Revealed" ability.
+  "24023.when-revealed": whenRevealed(outForBlood()),
+  "24023.boost": boost(resolveWhenRevealedOf(self)),
+
+  // Controller (24024, minion; BRUTE/CROSSFIRE'S CREW are data) — [star] Forced Interrupt: when Controller's attack
+  // would deal any amount of damage to a character, increase that amount by that character's ATK.
+  "24024.controller-forced-interrupt": forcedInterrupt(
+    { on: "dealDamage", selfIs: "source", fromAttack: true },
+    increaseDamage(statOf(eventTarget, "atk")),
+  ),
+
   // Corruptor (24025, minion; CRIMINAL/CROSSFIRE'S CREW, starIcon are data) — When Revealed: exhaust each ally you
   // control; place 1 threat on the main scheme for each ally exhausted this way. [star] Boost: choose and exhaust
   // a character you control.
+  // "Exhausted this way": only the allies that were ready count (a snapshot before the exhaust, docs/phase7-wave4.md
+  // §3.46's `setVar`).
   "24025.when-revealed": whenRevealed(
+    setVar("ready", countOf(query("ally", { controller: "you", exhausted: false }))),
     exhaust(each(query("ally", { controller: "you" }))),
-    placeThreat(countOf(query("ally", { controller: "you" })), theMainScheme),
+    placeThreat(varOf("ready"), theMainScheme),
   ),
   "24025.boost": boost(
     chooseTarget("exhausted", query("character", { controller: "you" })),

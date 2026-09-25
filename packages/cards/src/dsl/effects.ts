@@ -552,6 +552,22 @@ export const preventDamage = (n?: Amount, opts: { readonly bind?: string } = {})
   ...(n !== undefined ? { amount: amount(n) } : {}),
   ...withBind(opts.bind),
 });
+/**
+ * "Increase that amount by N" on an interrupted damage event (Beast Mode, `hood` 24014: "When a stunned or confused
+ * friendly character would take any amount of damage, increase that amount by 1"; Controller, 24024: "… by that
+ * character's ATK"). The mirror of `preventDamage`. docs/phase7-wave4.md §3.52.
+ */
+export const increaseDamage = (n: Amount): EffectSpec => ({ kind: "increaseDamage", amount: amount(n) });
+/**
+ * "… If [condition], repeat this effect" (Out for Blood, `hood` 24023): `effects` resolve, then `condition` is read with
+ * what they bound, and while it holds they resolve again, each time with their own bindings cleared.
+ * docs/phase7-wave4.md §3.54.
+ */
+export const repeatWhile = (condition: Predicate, ...effects: readonly EffectArg[]): EffectSpec => ({
+  kind: "repeatWhile",
+  effects: flatten(effects),
+  while: condition,
+});
 export const preventThreat = (n?: Amount): EffectSpec =>
   n === undefined ? { kind: "preventThreat" } : { kind: "preventThreat", amount: amount(n) };
 /** "… instead": the interrupted event doesn't happen; these resolve in its place (RRG "Replacement Effect"). */
@@ -866,6 +882,18 @@ export const resolveSpecialsOf = (ref: TargetRef, player?: PlayerRef): EffectSpe
   of: ref,
   ...(player ? { player } : {}),
 });
+/**
+ * "Resolve this card's 'When Revealed' ability" (`of: self`; the boost of Out for Blood, Double Trouble, Sandslide),
+ * "Resolve each 'When Revealed' ability on each side scheme in play" (`of: each(query("sideScheme"))`; Citywide Crisis,
+ * `hood` 24059). Incite and surge resolve too (RRG 1.8: each is "equivalent to" a When Revealed ability). `bind`:
+ * `<bind>.count`, how many were resolved. docs/phase7-wave4.md §3.56.
+ */
+export const resolveWhenRevealedOf = (ref: TargetRef, opts: { readonly bind?: string } = {}): EffectSpec => ({
+  kind: "resolveSpecials",
+  of: ref,
+  trigger: "whenRevealed",
+  ...withBind(opts.bind),
+});
 /** Records `value` now as var `name`, for a comparison later in the same ability (docs/phase7-wave4.md §3.46). */
 export const setVar = (name: string, value: Amount): EffectSpec => ({ kind: "setVar", name, value: amount(value) });
 /**
@@ -905,10 +933,16 @@ export const ANY_ASPECT_CARD: TargetQuery = query(["ally", "event", "upgrade", "
 /** "Discard 1 card at random from your hand". */
 export const discardAtRandom = (n: Amount = 1, player: PlayerRef = you): EffectSpec =>
   discardFromHand(n, player, { random: true });
-export const putIntoPlay = (card: TargetRef, controller: PlayerRef = you): EffectSpec => ({
+/** `bind`: the cards that entered play, and `<bind>.count` ("If no minion was put into play this way", §3.59). */
+export const putIntoPlay = (
+  card: TargetRef,
+  controller: PlayerRef = you,
+  opts: { readonly bind?: string } = {},
+): EffectSpec => ({
   kind: "putIntoPlay",
   card,
   controller,
+  ...withBind(opts.bind),
 });
 /** "Put the top card of your deck into play facedown, engaged with you as a [Drone] minion." */
 export const putIntoPlayFacedown = (player: PlayerRef, as: FacedownRole, count?: Amount): EffectSpec => ({

@@ -14,12 +14,12 @@ import {
 
 /**
  * Real-game tests for the Ransacked Armory modular set (`ransacked-armory.ts`): Holoshield Generator (24038),
- * Jetpack (24039) and Tech Gauntlets (24040). Flamethrower (24037) is a genuine engine gap
- * (`ransacked-armory.ts`'s own docblock) — not scripted.
+ * Jetpack (24039) and Tech Gauntlets (24040). The attach fallbacks and Flamethrower (24037) are in `hood-gaps.test.ts`
+ * (docs/phase7-wave4.md §3.52-§3.59).
  *
  * Ref -> covering test:
- *  24038.holoshield-generator-constant / 24038.holoshield-generator-constant-2 -> "attached minion gets +4 hit points and retaliate 2"
- *  24039.jetpack-constant, 24039.jetpack-forced-interrupt -> "discards the top card and reduces damage by its boost icons"
+ *  24038.holoshield-generator-constant-2 -> "attached minion gets +4 hit points and retaliate 2"
+ *  24039.jetpack-forced-interrupt -> "discards the top card and reduces damage by its boost icons"
  *  24040.tech-gauntlets-constant-2 / -constant-3     -> "attached minion gets +3 hit points; its attacks gain overkill"
  */
 
@@ -27,7 +27,7 @@ import {
 const withSet = (seed = 1) => foldModularSetIntoDeck(game(seed), "ransacked_armory");
 
 describe("Ransacked Armory (24038, 24039, 24040)", () => {
-  it("24038.holoshield-generator-constant / 24038.holoshield-generator-constant-2: attached minion gets +4 hit points and retaliate 2", () => {
+  it("24038.holoshield-generator-constant-2: attached minion gets +4 hit points and retaliate 2", () => {
     const base = onStage(withSet(), 0);
     const host = encounterCardInVillainArea(base, "24041"); // Armored Guard: a plain minion host.
     const before = characterProfile(host.state, host.id, WAVE4_DEPS)!.maxHp;

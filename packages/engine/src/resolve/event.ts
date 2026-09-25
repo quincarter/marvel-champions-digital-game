@@ -15,7 +15,6 @@ import { attackKeywordsOf, hasKeyword, keywordTotal } from "../keywords.js";
 import {
   cardOf,
   characterProfile,
-  countSchemeIcons,
   titleShowing,
   getInstance,
   mustInstance,
@@ -38,6 +37,7 @@ import {
   damagePreventerOf,
   readyCostFor,
   threatCannotBeRemoved,
+  iconsInPlay,
 } from "../rules.js";
 import { canAttack, cardsInPlay, characterIgnores, controllerOf } from "../select.js";
 import { currentActivationFrameId, type StackFrame, type Vars } from "../stack.js";
@@ -389,6 +389,9 @@ function applyDefeat(ctx: Ctx, event: Extract<TriggerEvent, { kind: "characterDe
   const destination = event.destination ?? defeatDestinationRule(ctx.state, ctx.deps, id);
   defeatFromPlay(ctx, id, destination === null ? undefined : () => moveCardsTo(ctx, [id], destination));
   addFrameVars(ctx, event.parentFrameId, { defeated: 1 });
+  if (event.reportFrameId && event.reportFrameId !== event.parentFrameId) {
+    addFrameVars(ctx, event.reportFrameId, { defeated: 1 });
+  }
   const frames: StackFrame[] = [...whenDefeated];
   if (event.overkill && !ctx.state.outcome && getInstance(ctx.state, event.overkill.toInstanceId)) {
     emit(ctx, {
@@ -600,6 +603,7 @@ export function applyDamage(
     overkill: recipient ? { amount: excess, toInstanceId: recipient, sourceInstanceId: source } : undefined,
     defeatedByPlayerId: source !== null ? controllerOf(ctx.state, source) : null,
     sourceInstanceId: source,
+    reportFrameId: frameId,
   });
 
   // Allies and minions report their defeat when the defeat event applies; a villain stage falls now.
@@ -610,6 +614,7 @@ export function applyDamage(
     (villainAfter.stageIndex !== villainBefore.stageIndex || villainAfter.defeated)
   ) {
     addFrameVars(ctx, event.parentFrameId, { defeated: 1 });
+    addFrameVars(ctx, frameId, { defeated: 1 });
   }
 }
 
@@ -718,7 +723,7 @@ export function threatRemovalBlocked(
     !ignoreCrisis &&
     mainSchemeStateOf(state, schemeId) &&
     byPlayer &&
-    countSchemeIcons(state, "crisis", areaOfCard(state, schemeId)) > 0 &&
+    iconsInPlay(state, deps, "crisis", areaOfCard(state, schemeId)) > 0 &&
     !characterIgnores(state, deps, acting, "crisis")
   )
     return "crisis";
