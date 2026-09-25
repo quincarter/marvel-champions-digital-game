@@ -79,6 +79,18 @@ const KNOWN_SKIPPED: Readonly<Record<string, readonly string[]>> = {
   // coincidental name/type match — White Tiger, 21013, reprinted from `trors` — from clobbering mts's own script
   // for the same ref with `mergeRegistries`'s "defined twice" guard). Not this pack's own scripting work; removed
   // here because leaving them would silently pin a wrong (unresolved) expectation now that they resolve.
+  //
+  // Ebony Maw (`mts/ebony-maw.ts`): every ref scripted except five that all share one genuine gap (module docblock
+  // on `ebony-maw.ts`): "when a player reveals a Spell environment, they place that card in front of them in their
+  // play area" (MC21 p. 6) is a rulebook instruction printed on no card, so the engine's own (landed)
+  // `entersRevealersPlayArea` RuleSpec has no `constant`-kind ability ref on any Ebony Maw scenario card to attach
+  // to — the villain's three stages print only the repeated Forced Interrupt, and the main scheme's own reveal
+  // abilities are one-shot `whenRevealed` triggers. Registering these with `putIntoPlay` today would misroute the
+  // card to the villain's area instead of the revealer's, which is a wrong implementation, not a partial one, so
+  // they stay skipped until either a synthetic always-on ability ref is added to Ebony Maw's villain card in
+  // content (`card-data-pipeline`) or `GameSetupConfig`/`ScenarioRules` gains a way to seed a `RuleSpec` at setup
+  // without a card ability (`game-rules-architect`): 21072.when-revealed, 21073.when-revealed, 21074b.when-revealed,
+  // 21075a.when-revealed, 21081.when-revealed (Channeling Trance's own "if none, put one into play" branch).
   mts: [
     "21006.energy-duplication-resource",
     "21009.pulsar-shield-interrupt",
@@ -128,39 +140,11 @@ const KNOWN_SKIPPED: Readonly<Record<string, readonly string[]>> = {
     "21069.zealot-of-truth-constant",
     "21069.boost",
     "21070.when-revealed",
-    "21071.ebony-maw-forced-interrupt",
-    "21072.ebony-maw-forced-interrupt",
     "21072.when-revealed",
-    "21073.ebony-maw-forced-interrupt",
     "21073.when-revealed",
     "21074b.when-revealed",
     "21075a.when-revealed",
-    "21076.fireball-constant",
-    "21076.fireball-forced-response",
-    "21077.manipulation-constant",
-    "21077.manipulation-forced-response",
-    "21078.pacification-constant",
-    "21078.pacification-forced-response",
-    "21079.rubblestorm-constant",
-    "21079.rubblestorm-forced-response",
-    "21080.when-revealed-alter-ego",
-    "21080.when-revealed-hero",
     "21081.when-revealed",
-    "21082.abjuration-constant",
-    "21082.abjuration-forced-response",
-    "21083.restrained-constant",
-    "21083.restrained-constant-2",
-    "21083.restrained-action",
-    "21084.when-revealed",
-    "21085.black-dwarf-constant",
-    "21086.supergiant-forced-response",
-    "21087.the-black-order-constant",
-    "21088.when-revealed",
-    "21089.when-defeated",
-    "21089.boost",
-    "21090.when-revealed",
-    "21090.boost",
-    "21091.when-defeated",
     "21092.proxima-midnight-forced-interrupt",
     "21092.proxima-midnight-constant",
     "21093.proxima-midnight-forced-interrupt",
