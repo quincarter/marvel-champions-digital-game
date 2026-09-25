@@ -92,21 +92,17 @@ const KNOWN_SKIPPED: Readonly<Record<string, readonly string[]>> = {
     "21192.hogun-constant",
   ],
   // hood: the villain (24001-24003), the main scheme (24004-24006), The Hood's own encounter set (24007-24013) and
-  // Beasty Boys (24014-24017, `hood/beasty-boys.ts`) are scripted. Everything below is the pack's remaining eight
-  // modular sets (Brothers Grimm, Crossfire's Crew, Mister Hyde, Ransacked Armory, Sinister Syndicate, State of
-  // Emergency, Streets of Mayhem, Wrecking Crew) plus Standard II / Expert II, left for the next scripting pass
+  // Beasty Boys (24014-24017, `hood/beasty-boys.ts`) and Brothers Grimm (24018-24022, `hood/brothers-grimm.ts`) are
+  // scripted. Everything below is the pack's remaining seven modular sets (Crossfire's Crew, Mister Hyde, Ransacked
+  // Armory, Sinister Syndicate, State of Emergency, Streets of Mayhem, Wrecking Crew) plus Standard II / Expert II,
+  // left for the next scripting pass
   // (24041 and 24067 have no ability refs at all — plain-stat cards — and 24053's "Shadow of the Past" ref already
   // resolves as a reprint alias via `../reprints.ts`; none of the three are listed below).
   hood: [
     // Beasty Boys (`hood/beasty-boys.ts`): every ref resolves except two genuine gaps (the module's own docblock).
     "24014.beast-mode-forced-interrupt",
     "24016.mandrill-constant",
-    "24018.brothers-grimm-forced-interrupt",
-    "24018.boost",
-    "24019.blackbird-pellets-forced-response",
-    "24020.corrosive-egg-bomb-forced-response",
-    "24021.paralytic-stardust-forced-response",
-    "24022.unbreakable-thread-forced-response",
+    // Brothers Grimm (`hood/brothers-grimm.ts`): every ref resolves; no genuine gap found.
     "24023.when-revealed",
     "24023.boost",
     "24024.controller-forced-interrupt",

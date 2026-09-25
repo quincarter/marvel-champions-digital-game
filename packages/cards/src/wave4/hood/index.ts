@@ -1,6 +1,7 @@
 import type { AbilityRegistry } from "@mc/engine";
 import { mergeRegistries } from "../../dsl/index.js";
 import { BEASTY_BOYS } from "./beasty-boys.js";
+import { BROTHERS_GRIMM } from "./brothers-grimm.js";
 import { HOOD } from "./hood.js";
 
 /**
@@ -8,4 +9,4 @@ import { HOOD } from "./hood.js";
  * The Hood's own encounter set (`hood.ts`), then one file per modular set as each is scripted. Standard II and
  * Expert II are scripted in a later pass — see `KNOWN_SKIPPED.hood` in `../coverage.test.ts`.
  */
-export const HOOD_ABILITIES: AbilityRegistry = mergeRegistries(HOOD, BEASTY_BOYS);
+export const HOOD_ABILITIES: AbilityRegistry = mergeRegistries(HOOD, BEASTY_BOYS, BROTHERS_GRIMM);
