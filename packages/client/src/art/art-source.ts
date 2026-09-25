@@ -52,6 +52,13 @@ export type CardFace =
   | { readonly kind: "back"; readonly back: CardBack }
   | { readonly kind: "hero" }
   | { readonly kind: "alterEgo" }
+  /**
+   * An additional hero face beyond the identity's own printed `hero` — Spectrum's energy/density/mass forms
+   * (`mts` 21001a), the same `additionalHeroForms` mechanic Ant-Man's Giant form introduced (docs/phase7-wave2.md
+   * §3.2). `index` is 1-based into `HeroIdentityCard.additionalHeroForms` (0 is `hero` itself, drawn as `{ kind:
+   * "hero" }` instead) — `IdentityState.heroFormIndex` straight off `@mc/engine`'s own `heroFacesOf`.
+   */
+  | { readonly kind: "heroForm"; readonly index: number }
   | { readonly kind: "villainStage"; readonly sideIndex: number; readonly stageIndex: number }
   /** A main scheme stage. The B side carries the threat values the table shows. */
   | { readonly kind: "mainSchemeStage"; readonly stageIndex: number; readonly side: "A" | "B" }
@@ -88,6 +95,7 @@ function localRefFor(card: AnyCard, face: CardFace): ArtRef | undefined {
   if (card.type === "hero_identity") {
     if (face.kind === "hero") return card.hero.art;
     if (face.kind === "alterEgo") return card.alterEgo.art;
+    if (face.kind === "heroForm") return card.additionalHeroForms?.[face.index - 1]?.art ?? card.hero.art;
   }
   return "art" in card ? card.art : undefined;
 }
@@ -98,6 +106,10 @@ function imageRefFor(card: AnyCard, face: CardFace): ImageRef | undefined {
       return card.type === "hero_identity" ? (card.hero.image ?? card.images?.front) : card.images?.front;
     case "alterEgo":
       return card.type === "hero_identity" ? (card.alterEgo.image ?? card.images?.back) : card.images?.front;
+    case "heroForm":
+      return card.type === "hero_identity"
+        ? (card.additionalHeroForms?.[face.index - 1]?.image ?? card.hero.image ?? card.images?.front)
+        : card.images?.front;
     case "villainStage": {
       if (card.type !== "villain") return card.images?.front;
       const side = card.sides[face.sideIndex] ?? card.sides[0];
@@ -155,7 +167,10 @@ export function artPathOf(art: ArtSource): string {
  */
 export function allArtFor(card: AnyCard): readonly ArtSource[] {
   const faces: CardFace[] = [{ kind: "front" }];
-  if (card.type === "hero_identity") faces.push({ kind: "hero" }, { kind: "alterEgo" });
+  if (card.type === "hero_identity") {
+    faces.push({ kind: "hero" }, { kind: "alterEgo" });
+    card.additionalHeroForms?.forEach((_, i) => faces.push({ kind: "heroForm", index: i + 1 }));
+  }
   if (card.type === "villain") {
     card.sides.forEach((side, sideIndex) =>
       side.stages.forEach((_, stageIndex) => faces.push({ kind: "villainStage", sideIndex, stageIndex })),

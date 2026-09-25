@@ -317,7 +317,7 @@ export { createGame } from "./setup.js";
 export type { CommandResult, GameLog, GameSession, ReplayResult, SessionResult } from "./engine.js";
 export { appendCommand, applyCommand, applyCommands, createLog, replay, sessionApply, startSession } from "./engine.js";
 
-export type { CharacterKind, CharacterProfile } from "./query.js";
+export type { CharacterKind, CharacterProfile, HeroFaceWithTraits } from "./query.js";
 export {
   activeEncounterDeck,
   activeEncounterDeckId,
@@ -329,6 +329,8 @@ export {
   separateDeckOf,
   discardZoneFor,
   encounterDeckOf,
+  heroFacesOf,
+  identityFace,
   isVillain,
   undefeatedVillains,
   villainOf,

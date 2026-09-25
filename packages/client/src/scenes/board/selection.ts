@@ -10,6 +10,7 @@ import { ink } from "../../tokens.js";
 import type { CostChoicePrompt } from "../../view/cost-choice-model.js";
 import type { DiscardChoiceState } from "../../view/discard-choice-model.js";
 import type { PowerKind, PowerSource } from "../../view/attacker-choice.js";
+import type { FormSource } from "../../view/change-form-choice.js";
 import type { FocusTarget } from "../../view/focus.js";
 import type { BasicAction } from "../../view/highlights.js";
 import type { PaymentState } from "../../view/payment-model.js";
@@ -51,6 +52,12 @@ export type Selection =
    * action, so the order the player picks them in is the order their effects happen in.
    */
   | { readonly kind: "choosingSource"; readonly power: PowerKind; readonly sources: readonly PowerSource[] }
+  /**
+   * Change Form was pressed while more than one destination form is legal — Spectrum's energy/density/mass forms,
+   * Ant-Man/Wasp's Giant form (`view/change-form-choice.ts`) — so which form to become is the player's call, not
+   * whichever `legalActions` listed first.
+   */
+  | { readonly kind: "choosingForm"; readonly sources: readonly FormSource[] }
   /**
    * An either/or cost branch, or how many counters an "up to N" cost removes, needs choosing before payment can
    * even be priced — a branch changes what the cost *is* (docs/phase7-wave3.md §3.32, §3.36), so this happens

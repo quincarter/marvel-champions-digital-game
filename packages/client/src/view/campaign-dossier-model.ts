@@ -26,6 +26,7 @@ import {
   poolFieldsOf,
   type CardMetaOf,
   type CampaignPoolOverview,
+  type PoolCopy,
 } from "./campaign-pool-model.js";
 import { campaignLogSheet, renderLogValue, type CardNameOf } from "./campaign-log-model.js";
 import type { RunIssueRow } from "./campaign-run-model.js";
@@ -270,6 +271,8 @@ export function campaignDossierOverview(
   heroNameOf: (identityCardId: string) => string,
   cardName: CardNameOf = (id) => id as string,
   cardTypeOf?: CardMetaOf,
+  poolCopy?: PoolCopy,
+  firstPlayerName?: string,
 ): DossierOverview {
   const sheet = campaignLogSheet(definition, record, cardName);
   const poolFieldIds = new Set(poolFieldsOf(definition).map((field) => field.fieldId));
@@ -322,7 +325,7 @@ export function campaignDossierOverview(
     world,
     wallets: dossierWallets(record, definition, heroNameOf, cardName),
     bountyLadder: campaignDossierBountyLadder(record, definition, cardName),
-    pool: campaignDossierPool(record, definition, cardTypeOf),
+    pool: campaignDossierPool(record, definition, cardTypeOf, poolCopy, firstPlayerName),
   };
 }
 

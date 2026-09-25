@@ -14,6 +14,7 @@ import { tryPayment } from "@mc/engine";
 import { appSession } from "../../session.js";
 import { abilityLabelOf, abilityShortLabelOf } from "../../view/ability-label.js";
 import { powerEntries, powerSources, type PowerKind, type PowerSource } from "../../view/attacker-choice.js";
+import { formEntries, formSources, needsFormChoice, type FormSource } from "../../view/change-form-choice.js";
 import type { BoardModel } from "../../view/board-model.js";
 import { characterPanel } from "../../view/board-model.js";
 import { costChoicePromptFor, type CostChoicePrompt } from "../../view/cost-choice-model.js";
@@ -62,6 +63,11 @@ export interface ControllerChoiceView {
 export interface SourceChoiceView {
   readonly power: PowerKind;
   readonly sources: readonly PowerSource[];
+}
+
+/** What the "Which form?" bar shows: Spectrum's energy/density/mass, Ant-Man/Wasp's Giant form (`view/change-form-choice.js`). */
+export interface FormChoiceView {
+  readonly sources: readonly FormSource[];
 }
 
 /** What the "Play it / Decline" bar shows: the free card waiting on a yes. */
@@ -310,6 +316,16 @@ export class BoardController {
         return;
       }
     }
+    if (action === "changeForm") {
+      // A three-or-more-sided identity (Spectrum's energy/density/mass forms, Ant-Man/Wasp's Giant form) offers a
+      // distinct `changeForm` entry per destination — which one is the player's call (`view/change-form-choice.ts`).
+      const sources = this.formSourcesFor();
+      if (needsFormChoice(sources.map((source) => source.entry))) {
+        this.#selection = { kind: "choosingForm", sources };
+        this.#host.redraw();
+        return;
+      }
+    }
     const entry = this.#legalFor(action);
     if (!entry) return;
     this.#aim(entry, action);
@@ -324,10 +340,22 @@ export class BoardController {
     this.#aim(source.entry, basicKindOf(source.entry));
   }
 
+  /** The "Which form?" bar's answer: that destination form's `changeForm`, dispatched straight away (it needs no target). */
+  chooseForm(source: FormSource): void {
+    if (this.#readOnly || this.#selection.kind !== "choosingForm") return;
+    this.#selection = { kind: "idle" };
+    this.#aim(source.entry, "changeForm");
+  }
+
   /** The characters the "Who attacks?" bar offers, or null when it isn't open. */
   sourceChoice(): SourceChoiceView | null {
     if (this.#selection.kind !== "choosingSource") return null;
     return { power: this.#selection.power, sources: this.#selection.sources };
+  }
+
+  /** The forms the "Which form?" bar offers, or null when it isn't open. */
+  formChoice(): FormChoiceView | null {
+    return this.#selection.kind === "choosingForm" ? { sources: this.#selection.sources } : null;
   }
 
   /** Every character that could make this basic power right now, with what going costs it. */
@@ -335,6 +363,13 @@ export class BoardController {
     const { game, legal } = appSession().store.state;
     if (!game) return [];
     return powerSources(game, powerEntries(legal?.actions, power), power, POOL_DEPS);
+  }
+
+  /** Every legal `changeForm` destination right now, labeled. */
+  formSourcesFor(): readonly FormSource[] {
+    const { game, legal } = appSession().store.state;
+    if (!game) return [];
+    return formSources(game, formEntries(legal?.actions), POOL_DEPS);
   }
 
   /**

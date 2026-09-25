@@ -5,8 +5,9 @@
  */
 import Phaser from "phaser";
 import type { AnyCard } from "@mc/content";
-import { MTS_CARDS } from "@mc/content";
 import { CARDS_BY_ID } from "../../content/pool.js";
+import { artFor } from "../../art/art-source.js";
+import { cardArt, drawArt } from "../../art/card-art.js";
 import { storyFor } from "../../campaign/story.js";
 import { campaignService } from "../../session.js";
 import { accent, signal, surface, typeRole } from "../../tokens.js";
@@ -48,21 +49,17 @@ import type { CampaignDossierData, DossierTab } from "./routes.js";
 const cardName = (id: string): string => CARDS_BY_ID.get(id)?.name ?? id;
 const cardOf = (id: string): AnyCard | undefined => CARDS_BY_ID.get(id);
 /**
- * A pool card's own type, resolved by name (`campaign-pool-model.ts`'s own doc comment: a pool field names a card,
- * never an id, since a carried-forward card has no id of its own until it's composed into a game). Looked up first
- * against this build's own playable pool (`content/pool.ts`), then against `@mc/content`'s own per-box card data
- * directly (MC21's `MTS_CARDS`) for a box whose pack isn't wired into the playable pool yet (wave 4, in progress)
- * — display-only, never used for deck legality or anything a rule depends on, so reading past the pool boundary
- * here doesn't relitigate it. A card found in neither simply isn't classified: `helpsOf`'s own documented default
- * ("helps") applies.
+ * A pool card's own type/art, resolved by name (`campaign-pool-model.ts`'s own doc comment: a pool field names a
+ * card, never an id, since a carried-forward card has no id of its own until it's composed into a game), against
+ * this build's own playable pool (`content/pool.ts`) — the same pool every other lookup in this file already reads.
+ * A card found in neither simply isn't classified: `helpsOf`'s own documented default ("helps") applies, and the
+ * pool row's own art thumbnail falls back to its "no scan" label like any other card art slot in this build.
  */
-const POOL_CARD_NAME_TYPES = new Map<string, string>([
-  ...[...CARDS_BY_ID.values()].map((card) => [card.name, card.type] as const),
-  ...MTS_CARDS.map((card) => [card.name, card.type] as const),
-]);
+const CARD_BY_NAME = new Map<string, AnyCard>([...CARDS_BY_ID.values()].map((card) => [card.name, card] as const));
+const cardOfName = (name: string): AnyCard | undefined => CARD_BY_NAME.get(name);
 const cardTypeOf = (name: string): { readonly type: string } | undefined => {
-  const type = POOL_CARD_NAME_TYPES.get(name);
-  return type ? { type } : undefined;
+  const card = CARD_BY_NAME.get(name);
+  return card ? { type: card.type } : undefined;
 };
 const heroNameOf = (identityCardId: string): string => {
   const card = cardOf(identityCardId);
@@ -117,8 +114,10 @@ export class CampaignDossierScene extends Phaser.Scene {
     this.#route = new FocusRoute(this, { onCancel: () => this.#back() });
     const onResize = (): void => this.#draw();
     this.scale.on("resize", onResize, this);
+    const artOff = cardArt(this).onArrived(() => this.#draw());
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.scale.off("resize", onResize, this);
+      artOff();
       for (const button of this.#buttons) button.destroy();
       this.#buttons = [];
       this.#tabs?.destroy();
@@ -143,7 +142,18 @@ export class CampaignDossierScene extends Phaser.Scene {
     this.#record = record;
     this.#definition = definition;
     const withMeta = { ...record, name: record.name, box: record.box };
-    const overview = campaignDossierOverview(withMeta, definition, heroNameOf, cardName, cardTypeOf);
+    const story = storyFor(record.campaignId as string);
+    const firstPlayerSeat = record.seats.find((seat) => seat.seatNumber === 1) ?? record.seats[0];
+    const firstPlayerName = firstPlayerSeat ? heroNameOf(firstPlayerSeat.identityCardId as string) : undefined;
+    const overview = campaignDossierOverview(
+      withMeta,
+      definition,
+      heroNameOf,
+      cardName,
+      cardTypeOf,
+      story?.poolCopy,
+      firstPlayerName,
+    );
     const log = campaignDossierLog(record, definition, cardName, heroNameOf);
     const run = campaignRunModel(withMeta, definition, storyFor(record.campaignId as string), cardName);
     // "After issue #N" names the *last finished* issue, not the current/next one `run.issueNumber` tracks — the
@@ -495,6 +505,28 @@ export class CampaignDossierScene extends Phaser.Scene {
    * per resolved card with its own colored stripe and badge — or, before anything has been won, the dashed empty
    * state listing every slot the pool can ever hold (`23-…-dossier-pool.png` / `25-…-dossier-empty-pool.png`).
    */
+  /** A pool row's own small card-art thumbnail (design tiles 23/24/26), by the card's name (`cardOfName`) — the
+   * same `cardArt`/`artFor`/`drawArt` pipeline every other card art slot in this build uses. A card with no scan
+   * yet, or one this build's pool doesn't carry at all, shows the same "no scan" label `decks.ts`'s own pool grid
+   * shows rather than a blank box. */
+  #poolCardThumb(name: string, rect: Rect): void {
+    const fill = this.add.graphics();
+    fill.fillStyle(0xe4dcc6, 1).fillRect(rect.x, rect.y, rect.width, rect.height);
+    const card = cardOfName(name);
+    const key = card ? cardArt(this).request(this, artFor(card, { kind: "front" })) : null;
+    const art = drawArt(this, key, rect);
+    if (!art) {
+      this.add
+        .text(rect.x + rect.width / 2, rect.y + rect.height / 2, "no\nscan", {
+          ...textStyle(typeRole.label, surface.ink.hex, 0.4),
+          fontSize: "8px",
+          align: "center",
+        })
+        .setOrigin(0.5);
+    }
+    this.add.graphics().lineStyle(1, surface.ink.hex, 0.6).strokeRect(rect.x, rect.y, rect.width, rect.height);
+  }
+
   #poolPanel(pool: CampaignPoolOverview, rect: Rect): number {
     let y = rect.y;
     const captionLine =
@@ -568,7 +600,10 @@ export class CampaignDossierScene extends Phaser.Scene {
     }
 
     const badgeWidth = 110;
-    const textWidth = rect.width - 32 - badgeWidth - 10;
+    const thumbSize = 56;
+    const thumbGap = 12;
+    const textX = 6 + thumbGap + thumbSize + 10;
+    const textWidth = rect.width - textX - badgeWidth - 10;
     for (const card of pool.cards) {
       const stripeColor = card.helps ? signal.heal.hex : accent.heroRed.hex;
       // Measured invisibly first — a narrow (phone-width) column wraps `destination` to more than one line, so the
@@ -586,20 +621,26 @@ export class CampaignDossierScene extends Phaser.Scene {
         .text(0, 0, card.source, { ...textStyle(typeRole.body, surface.ink.hex, 0.5), fontSize: "9px" })
         .setWordWrapWidth(textWidth)
         .setVisible(false);
-      const rowHeight = Math.max(62, sourceTop + sourceMeasure.height + 10);
+      const rowHeight = Math.max(thumbSize + 12, sourceTop + sourceMeasure.height + 10);
       sourceMeasure.destroy();
 
       const box = this.add.graphics();
       box.fillStyle(surface.card.hex, 1).fillRect(rect.x, y, rect.width, rowHeight);
       box.lineStyle(2, surface.ink.hex, 1).strokeRect(rect.x, y, rect.width, rowHeight);
       box.fillStyle(stripeColor, 1).fillRect(rect.x, y, 6, rowHeight);
-      this.add.text(rect.x + 16, y + 8, card.name.toUpperCase(), textStyle(bangers(15), surface.ink.hex));
+      this.#poolCardThumb(card.name, {
+        x: rect.x + 6 + thumbGap,
+        y: y + (rowHeight - thumbSize) / 2,
+        width: thumbSize,
+        height: thumbSize,
+      });
+      this.add.text(rect.x + textX, y + 8, card.name.toUpperCase(), textStyle(bangers(15), surface.ink.hex));
       this.add
-        .text(rect.x + 16, y + 28, card.destination, textStyle(typeRole.body, surface.ink.hex, 0.75))
+        .text(rect.x + textX, y + 28, card.destination, textStyle(typeRole.body, surface.ink.hex, 0.75))
         .setFontSize(11)
         .setWordWrapWidth(textWidth);
       this.add
-        .text(rect.x + 16, y + sourceTop, card.source, {
+        .text(rect.x + textX, y + sourceTop, card.source, {
           ...textStyle(typeRole.body, surface.ink.hex, 0.5),
           fontSize: "9px",
         })
