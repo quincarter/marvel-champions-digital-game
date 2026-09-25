@@ -18,7 +18,7 @@ import {
   use,
   type Picker,
 } from "../../testing/harness.js";
-import { revealFromEncounterDeck } from "../../testing/staging.js";
+import { driveEvents, revealFromEncounterDeck, stageNemesisCardForReveal } from "../../testing/staging.js";
 import { WAVE4_DEPS } from "../index.js";
 import { playFromHand, startWave4Game } from "../testing.js";
 import { nebulaScenario } from "./support.js";
@@ -201,6 +201,30 @@ describe("Nebula's nemesis set (Gamora, Self-Preservation, Lethal Weapon, Old Ri
     expect(after.def).toBe(before.def - 1);
     const gamoraAfter = characterProfile(withScheme, gamoraAllyId, WAVE4_DEPS)!;
     expect(gamoraAfter.atk).toBe(gamoraBefore.atk + 1);
+  });
+
+  it("Old Rivals (22031.when-revealed): the Gamora ally attacks you without exhausting (no surge); with no Gamora it surges", () => {
+    const hero = runWith(WAVE4_DEPS, nebulaVsRhino(5), toHero());
+    const identity = identityOf(hero, P1);
+    const givenAlly = moveToHand(hero, P1, "22002");
+    const [gamora] = givenAlly.ids as [InstanceId];
+    const withAlly = settle(
+      runWith(WAVE4_DEPS, givenAlly.state, play(P1, gamora, payWith(givenAlly.state, P1, 3, [gamora]))),
+      firstLegal,
+      undefined,
+      WAVE4_DEPS,
+    );
+    const gamoraAtk = characterProfile(withAlly, gamora, WAVE4_DEPS)!.atk;
+    const rivalsSurged = (events: readonly GameEvent[], state: GameState) =>
+      events.some((e) => e.type === "surgeTriggered" && state.instances[e.instanceId]?.cardId === ("22031" as never));
+    const withGamora = driveEvents(WAVE4_DEPS, stageNemesisCardForReveal(withAlly, "22031"), endTurn(P1));
+    expect(withGamora.events).toContainEqual(
+      expect.objectContaining({ type: "damageDealt", targetInstanceId: identity, sourceInstanceId: gamora }),
+    );
+    expect(gamoraAtk).toBeGreaterThan(0);
+    expect(rivalsSurged(withGamora.events, withGamora.state)).toBe(false);
+    const alone = driveEvents(WAVE4_DEPS, stageNemesisCardForReveal(hero, "22031"), endTurn(P1));
+    expect(rivalsSurged(alone.events, alone.state)).toBe(true);
   });
 
   it("Lethal Weapon (22030.lethal-weapon-action): discard an upgrade you control → discard this attachment", () => {

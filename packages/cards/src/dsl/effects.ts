@@ -365,6 +365,16 @@ export const enemyScheme = (
  * enemy attacks" abilities stay silent; the target's tough, retaliate and the attacker's overkill apply. Pair with
  * `enemyToAttack` for the two choices. `bind`: `<bind>.made`, `.damage`, `.defeated`.
  */
+/**
+ * "If the Gamora hero or ally is in play, she attacks you (resolve her ATK against you without exhausting her)." (Old
+ * Rivals, `nebu` 22031): a friendly character (hero-form identity or controlled ally) attacks `player`'s identity, as
+ * her controller's attack. `bind`: `<bind>.made` (0 when no attack was made). docs/phase7-wave4.md §3.26.
+ */
+export const friendlyCharacterAttacks = (
+  attacker: TargetRef,
+  player: PlayerRef = you,
+  opts: { readonly bind?: string } = {},
+): EffectSpec => ({ kind: "friendlyCharacterAttacks", attacker, player, ...withBind(opts.bind) });
 export const enemyAttacksEnemy = (
   attacker: TargetRef,
   target: TargetRef,

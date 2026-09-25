@@ -427,6 +427,7 @@ stays data only.**
 | 3.23 | Reusable as is                                                           | —                                                                | checked |
 | 3.24 | A character that ignores guard, patrol and the crisis icon               | Evasive Maneuvering; Wasp, Shadowcat, Psionic Training           | landed  |
 | 3.25 | Discarding cards you control as a cost                                   | Lethal Weapon; Noble Sacrifice, Repurpose, Delusion of Collusion | landed  |
+| 3.26 | A friendly character attacks its own player                              | Old Rivals                                                       | landed  |
 
 ### 3.1 Additional forms: the form keyword
 
@@ -1194,6 +1195,27 @@ does not cover.
 > match, or any player's for an alliance card), payable only by a card that can leave play, paid by discarding each
 > pick; the window's cost-card prompt (`chooseCostCards.mode`) carries it. **DSL:** `discardCardsCost(query, opts)`,
 > binding `"discarded"`. **Scripted:** `22030.lethal-weapon-action`, off `KNOWN_SKIPPED`.
+
+### 3.26 A friendly character attacks its own player
+
+Old Rivals (`nebu` 22031, errata RRG 1.8 p. 67): "When Revealed: Gamora attacks you. If the Gamora hero or ally is in
+play, she attacks you (resolve her ATK against you without exhausting her). If no attack was made this way, this card
+gains surge." Ruling Jun 25, 2026 (4) #1: the first sentence is the Gamora minion, the second the hero or ally. FAQ (RRG
+1.8 p. 62): she "is considered to have attacked", and an ally takes consequential damage. Survey (every raw pack, "X
+attacks you" naming a hero or ally): no other card makes a friendly character attack its own player; every other "X
+attacks you" is an enemy (`enemyAttack`).
+
+> **Status: landed (2026-09-24),** tested in `packages/engine/src/friendly-attack.test.ts` (3 tests: the ally's ATK is
+> dealt to you as her attack, she is not exhausted, takes her consequential damage, no surge, replay deep-equal; with no
+> Gamora in play no attack is made and the card surges; a stunned Gamora discards the stun instead and the card surges)
+> and in a real game in `packages/cards/src/wave4/nebu/nebula-obligation-nemesis.test.ts` (Nebula against Rhino, the
+> Gamora ally in play, Old Rivals revealed in the villain phase; and alone, where it surges). **What landed:**
+> **`EffectSpec friendlyCharacterAttacks {attacker, player, bind?}`**: the first friendly character the ref names (a
+> hero-form identity or an ally a player controls) makes her controller's `attack` against `player`'s identity, with
+> no boost, no defense step and no exhausting, followed by an ally's consequential damage (`pushConsequentialDamage`,
+> now exported); a stunned attacker or a "—" ATK makes no attack, reported as `<bind>.made` 0. **DSL:**
+> `friendlyCharacterAttacks(attacker, player?, { bind })`. **Scripted:** `22031.when-revealed` (the minion's
+> `enemyAttack`, then this, then surge if neither was made); Nebula's `KNOWN_SKIPPED` is now empty.
 
 ## 4. Open questions (for the user or FFG)
 

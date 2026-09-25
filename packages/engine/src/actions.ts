@@ -2214,7 +2214,11 @@ function payBasicPowerCost(
  * window. The damage is pushed first and so resolves after the power (LIFO); the power's frame reports into it as it
  * finishes, before the damage applies. Null when the ally takes none.
  */
-function pushConsequentialDamage(ctx: Ctx, characterId: InstanceId, kind: "attack" | "thwart"): ReportTarget | null {
+export function pushConsequentialDamage(
+  ctx: Ctx,
+  characterId: InstanceId,
+  kind: "attack" | "thwart",
+): ReportTarget | null {
   const card = cardOf(ctx.state, characterId);
   if (card?.type !== "ally") return null;
   const printed = kind === "attack" ? card.consequentialDamage.attack : card.consequentialDamage.thwart;

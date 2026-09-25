@@ -1,5 +1,6 @@
 import { trait } from "@mc/content";
 import {
+  allOf,
   attacksGainKeywords,
   cards,
   chooseCards,
@@ -9,19 +10,25 @@ import {
   defineAbilities,
   discard,
   discardCardsCost,
-  heroAction,
   each,
+  enemyAttack,
   forcedInterrupt,
   forcedResponse,
+  friendlyCharacterAttacks,
   gets,
+  heroAction,
   ifThen,
+  made,
   moveCards,
+  not,
   on,
   query,
   self,
   surge,
   valueEquals,
   varOf,
+  whenRevealed,
+  you,
 } from "../../dsl/index.js";
 import { obligation } from "../../core/obligations.js";
 
@@ -99,10 +106,13 @@ export const NEBULA_OBLIGATION_NEMESIS = defineAbilities({
     discard(self),
   ),
 
-  // Old Rivals (treachery ×2, 22031) — When Revealed: Gamora attacks you. If the Gamora hero or ally is in play,
-  // she attacks you (resolve her ATK against you without exhausting her). If no attack was made this way, this
-  // card gains surge. KNOWN_SKIPPED: `EffectSpec enemyAttack` always resolves as a genuine enemy activation
-  // (exhausts the attacker, runs it through `enemy-activation.ts`); it has no way to make a *friendly* character
-  // (the Gamora ally, or Nebula's own hero if some other card put "Gamora" there) attack its own controller
-  // without exhausting it — see `KNOWN_SKIPPED["nebu"]` in `../coverage.test.ts`.
+  // Old Rivals (treachery ×2, 22031) — errata (RRG 1.8 p. 67): When Revealed: Gamora attacks you. If the Gamora hero or
+  // ally is in play, she attacks you (resolve her ATK against you without exhausting her). If no attack was made this
+  // way, this card gains surge. Ruling, Jun 25, 2026 (4) #1: the first sentence is the Gamora minion, the second the
+  // hero or ally (a friendly character's own attack, docs/phase7-wave4.md §3.26).
+  "22031.when-revealed": whenRevealed(
+    enemyAttack(each(query("minion", { name: "Gamora" })), { against: you, bind: "minion" }),
+    friendlyCharacterAttacks(each(query(["hero", "ally"], { name: "Gamora" })), you, { bind: "friendly" }),
+    ifThen(allOf(not(made("minion")), not(made("friendly"))), surge()),
+  ),
 });
