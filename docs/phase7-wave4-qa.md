@@ -578,3 +578,75 @@ overkill (already regression-pinned per Checkpoint 1's §3.51 fix) were both re-
   re-audited for weak-test patterns the way the earlier checkpoints did for `mts`/wave-3 packs (pass 3 item 1's own
   sweep was scoped to the ~107-line list already gathered before `hood` was read this checkpoint, so any
   `hood`-specific loose bounds not already on that list were not separately re-swept).
+
+## Checkpoint 7: Magic Muscle isolated and proven (confirmed bug, not fixed), full audit of the rest of `mts`
+
+### Magic Muscle (`hood` 24070) — confirmed real bug, isolated cleanly this checkpoint
+
+Checkpoint 6 could not isolate this from cross-set noise. Isolated it with a minimal repro: `wrecking-crew.test.ts`'s
+own `withSet()` deck (only `wrecking_crew_modular` folded in, no other sets), Wrecker (24065, the only Brute in play)
+pre-toughened to capacity via `patchInstance` before the deck is stacked, then the deck stacked (`01186`/`01187`
+filler boost cards, then `24070`, then `24067` — a second Brute, Piledriver) so exactly one card is revealed for the
+round. Traced the full event log live: `24070.when-revealed` fires; no `statusGiven` event is ever emitted (`giveStatus`,
+`packages/engine/src/effects.ts`, is a documented no-op at status capacity); and no `encounterCardRevealed` for
+Piledriver (24067) ever happens either — the fallback search never runs. The ability does nothing at all that round,
+which the printed text ("If no tough status card was given this way, discard cards from the top of the encounter
+deck until a Brute minion is discarded and reveal that minion") does not allow.
+
+**Root cause**: `ifThen(exists(BRUTE_ENEMY), giveTough(each(BRUTE_ENEMY)), [fallback])` branches on whether a Brute
+_exists_, not on whether the give actually happened. **Not a one-line script fix**: `giveStatus`'s `EffectSpec`
+(`packages/engine/src/spec.ts`) has no way to report which targets actually received the status — unlike
+`addCounters`, which already has a `bind` field reporting how many counters were actually placed
+(`packages/engine/src/resolve/apply-effect.ts` line ~773), no comparable primitive exists for `giveStatus`. Per this
+agent's own scope (find and prove bugs; fix only obvious one-liners), this needed an engine change first, so it was
+filed rather than fixed.
+
+**Pin**: `packages/cards/src/wave4/hood/wrecking-crew.test.ts`, `it.fails("24070.when-revealed (bug): a Brute
+already at tough capacity must still trigger the fallback search")`. Confirmed failing on its own assertion (not a
+setup error) before being marked `.fails`, per the standing rule. **Owner**: `game-rules-architect` (add a
+`bind`/count-given field to `giveStatus`, mirroring `addCounters.bind`), then `ability-scripting-engineer` (rewrite
+24070's script to branch on that count instead of `exists(BRUTE_ENEMY)`).
+
+### Printed-text-vs-script audit: the rest of `mts` — complete, no findings
+
+Read every remaining `mts` script in full against `docs/cards/by_pack/mts.md` (the pieces `docs/phase7-wave4-qa.md`
+had not yet covered): `children-of-thanos.ts`, `frost-giants.ts`, `legions-of-hel.ts`, `enchantress.ts`,
+`spectrum-kit.ts`, `spectrum-pack-cards.ts`, `spectrum-obligation-nemesis.ts`, `adam-warlock-kit.ts`,
+`adam-warlock-pack-cards.ts`, `adam-warlock-obligation-nemesis.ts`, `ebony-maw.ts` (including its Black Order/Armies
+of Titan modulars), `thanos.ts`, `infinity-gauntlet.ts`, `loki.ts`, `hela.ts`, `tower-defense.ts`, and
+`mts-campaign-cards.ts`. Every ability's target ("each"/"a"/"that"), "you" vs. "each player"/"each other player",
+may/must, timing word, cost vs. effect, keyword grant, and "already X"/"if none" ordering was checked against the
+printed text; watched specifically for the patterns the task named (indirect damage scripted as plain damage,
+"if...this way" scripted as existence checks, missing "(Limit once per round)", boost/When Revealed mismatches).
+
+**No new findings.** Two patterns worth recording as confirmed-clean rather than assumed:
+
+- **Agent of Thanos (`mts` 21080)** uses the same `exists(...)`-guard shape as Magic Muscle ("if you place no threat
+  this way"/"if you take no damage this way" scripted as `ifThen(exists(SPELLS_IN_YOUR_PLAY_AREA), ...)`) but is
+  **not** the same bug: `placeThreat`/`dealDamage` are not capped, idempotent effects the way `giveStatus` is, so
+  "a Spell exists" and "threat/damage was actually placed" are equivalent here. Checked directly, not assumed.
+- **Infinity Gauntlet's Mind Stone/Power Stone (21130/21131)** correctly use `ifThen(hasStatus(identityOf(you),
+...), <already-true branch>, <apply-status branch>)` — reading the identity's own current status directly, not an
+  existence check on some other query — which is the correct pattern Magic Muscle should have used instead of
+  `exists(BRUTE_ENEMY)`.
+
+Every scenario's win/loss shape (Hela's flip-instead-of-defeat, Loki's random-swap/victory-display count, Tower
+Defense's twin-villain mutual protection and Avengers Tower flip), every "already X" gate, and every campaign card's
+flip-and-reward pair matched the printed text exactly. **Wave 4's rules-QA step (docs/wave-definition-of-done.md §4)
+is now complete for `mts`**: `nebu` (checkpoint 3), `warm`/`valk` (checkpoint 5), `hood` (checkpoint 6, one bug
+found and fixed), and `mts` (checkpoint 7, one bug found and filed) have all had a full printed-text-vs-script audit.
+The one open item is Magic Muscle above (filed, not fixed) — everything else across all six wave 4 packs came back
+clean.
+
+### Test counts, checkpoint 7
+
+- `npx oxlint`/`npx oxfmt --check` on the touched file: clean.
+- `npx tsc --noEmit` for `@mc/cards`: clean.
+- `pnpm check` (full monorepo: lint, fmt:check, typecheck, test, build): **green**. `@mc/cards` test run: **2212
+  tests passed, 1 expected fail** (the new Magic Muscle pin).
+
+### Files touched, checkpoint 7
+
+- `packages/cards/src/wave4/hood/wrecking-crew.test.ts` — new `it.fails` pin for the Magic Muscle bug (isolated
+  live, root cause identified, not fixed — filed for `game-rules-architect`/`ability-scripting-engineer`).
+- `docs/phase7-wave4-qa.md` — this section; wave 4's rules-QA step is now marked complete.

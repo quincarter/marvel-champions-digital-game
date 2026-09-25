@@ -1,6 +1,6 @@
 import { characterProfile, hasKeyword } from "@mc/engine";
 import { describe, expect, it } from "vitest";
-import { P1, firstLegal, settle } from "../../testing/harness.js";
+import { P1, firstLegal, patchInstance, settle } from "../../testing/harness.js";
 import { driveEvents } from "../../testing/staging.js";
 import { runWave4, WAVE4_DEPS } from "../testing.js";
 import {
@@ -107,5 +107,49 @@ describe("Wrecking Crew (24064-24070)", () => {
     const { state: revealed, events } = driveEvents(WAVE4_DEPS, staged, { type: "endTurn", playerId: P1 });
     expect(fired(events, "24070.when-revealed")).toBe(true);
     expect(revealed.instances[withBrute.id]?.statuses.tough).toBe(1);
+  });
+
+  // BUG (confirmed, not fixed this pass — see docs/phase7-wave4-qa.md): printed text is "When Revealed: Give each
+  // Brute enemy in play a tough status card. If no tough status card was given this way, discard cards from the top
+  // of the encounter deck until a Brute minion is discarded and reveal that minion." (docs/cards/by_pack/hood.md
+  // 24070). `giveStatus` (packages/engine/src/effects.ts) is a documented no-op once a character is already at its
+  // tough capacity (RRG 1.8 "Status Cards": one of each type) — it emits no `statusGiven` event and changes nothing.
+  // The script's `ifThen(exists(BRUTE_ENEMY), giveTough(...), [fallback])` only checks whether a Brute *exists*, not
+  // whether the give actually happened, so when the only Brute enemy in play is already tough, the true-branch is
+  // taken, `giveTough` silently no-ops, and the fallback search never runs — contradicting "if no tough status card
+  // was given this way". Isolated live (this test): with Wrecker (24065) pre-toughened to capacity and the deck
+  // stacked so 24070 is the only thing revealed this round, `24070.when-revealed` fires, no `statusGiven` event is
+  // emitted, and no `encounterCardRevealed` for Piledriver (24067, the deck's next Brute) ever happens either — the
+  // ability silently does nothing at all, which the printed text does not allow.
+  //
+  // Not a one-line script fix: `giveStatus`'s EffectSpec (packages/engine/src/spec.ts) has no way to report which
+  // targets actually received the status (unlike `addCounters`, which already has a `bind` reporting how many
+  // counters were actually placed) — the card script has no primitive available to ask "did the give actually do
+  // anything" the way the printed text needs. Filed for `game-rules-architect` (add a `bind`/count-given field to
+  // `giveStatus`, mirroring `addCounters.bind`) then `ability-scripting-engineer` (rewrite 24070's script to branch
+  // on that count instead of `exists(BRUTE_ENEMY)`). `it.fails`: passes once either fix lands and this starts
+  // passing; per the standing rule this was first run as a plain `it` and confirmed to fail on its own assertion
+  // (not a setup error) before being marked `.fails`.
+  it.fails("24070.when-revealed (bug): a Brute already at tough capacity must still trigger the fallback search", () => {
+    const base = heroified(onStage(withSet(), 0), P1);
+    const withBrute = minionEngagedWith(base, "24065", P1); // Wrecker: BRUTE trait.
+    // Pre-toughen Wrecker to capacity (1) so `giveTough` is guaranteed to be a no-op per RRG 1.8's own rule.
+    const preToughened = patchInstance(withBrute.state, withBrute.id, {
+      statuses: { ...withBrute.state.instances[withBrute.id]!.statuses, tough: 1 },
+    });
+    // Piledriver (24067) is also BRUTE — it's the card the fallback search should find and reveal. 01186/01187
+    // (Core box boost cards, same filler the passing "gives each Brute enemy" test above uses) absorb the villain's
+    // and Wrecker's own boost draws first, so 24070 lands on the per-player deal/reveal step untouched, and 24067
+    // is what's left on top of the deck for the fallback search to find.
+    const staged = stackTop(preToughened, "01186", "01187", "24070", "24067");
+    const { state: revealed, events } = driveEvents(WAVE4_DEPS, staged, { type: "endTurn", playerId: P1 });
+    expect(fired(events, "24070.when-revealed")).toBe(true);
+    // No new tough status was granted — Wrecker was already at capacity, confirming `giveTough` was a real no-op.
+    expect(revealed.instances[withBrute.id]?.statuses.tough).toBe(1);
+    // Per the printed text, "if no tough status card was given this way" must be true here, and the fallback
+    // search should have discarded down to and revealed Piledriver (24067).
+    expect(
+      events.some((e) => e.type === "encounterCardRevealed" && String((e as { cardId?: unknown }).cardId) === "24067"),
+    ).toBe(true);
   });
 });
