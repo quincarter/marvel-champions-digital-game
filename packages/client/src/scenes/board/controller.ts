@@ -13,6 +13,7 @@ import type { Command, CostSelection, GameState, InstanceId, LegalAction, Player
 import { tryPayment } from "@mc/engine";
 import { appSession } from "../../session.js";
 import { abilityLabelOf, abilityShortLabelOf } from "../../view/ability-label.js";
+import { powerEntries, powerSources, type PowerKind, type PowerSource } from "../../view/attacker-choice.js";
 import type { BoardModel } from "../../view/board-model.js";
 import { characterPanel } from "../../view/board-model.js";
 import { costChoicePromptFor, type CostChoicePrompt } from "../../view/cost-choice-model.js";
@@ -39,7 +40,7 @@ import {
   type PaymentView,
 } from "../../view/payment-model.js";
 import { targetingPanelOf, type TargetingPanel, type TargetingSource } from "../../view/targeting-panel.js";
-import { BASIC_TO_KIND, retarget, type Selection } from "./selection.js";
+import { BASIC_TO_KIND, basicKindOf, retarget, type Selection } from "./selection.js";
 
 /** What the controller reads from, and asks of, the scene that owns it. */
 export interface BoardControllerHost {
@@ -55,6 +56,12 @@ export interface BoardControllerHost {
 export interface ControllerChoiceView {
   readonly subject: string;
   readonly options: readonly { readonly playerId: PlayerId; readonly label: string }[];
+}
+
+/** What the "Who attacks?" bar shows: every character that could make the power, in the engine's order. */
+export interface SourceChoiceView {
+  readonly power: PowerKind;
+  readonly sources: readonly PowerSource[];
 }
 
 /** What the "Play it / Decline" bar shows: the free card waiting on a yes. */
@@ -194,6 +201,9 @@ export class BoardController {
       // Same route shape as "paying": only the candidates are worth stepping through.
       return focusOrder({ kind: "paying", sources: this.#selection.choice.candidates }, marks);
     }
+    if (this.#selection.kind === "choosingSource") {
+      return focusOrder({ kind: "targeting", targets: this.#selection.sources.map((s) => s.instanceId) }, marks);
+    }
     if (this.#selection.kind === "confirmingPlay") {
       // The card itself (Enter on it is "Play it") and the way out, the same two stops targeting offers.
       const { action } = this.#selection.action;
@@ -245,7 +255,7 @@ export class BoardController {
     if (this.tapInMode(focus.instanceId)) return;
     // A card in play with a usable ability, not a hand card: `playCard` only
     // ever looks for a `playCard` entry, so a card that's on the focus route
-    // solely because of `usableAbilities` needs the ability path instead.
+    // solely because of `usableAbilities` opens the card, whose sheet offers the ability.
     if (this.#host.marks()?.usableAbilities.has(focus.instanceId)) this.onCharacterTap(focus.instanceId);
     else void this.playCard(focus.instanceId, { confirmFree: true });
   }
@@ -269,6 +279,11 @@ export class BoardController {
       void this.#commitTarget(id);
       return true;
     }
+    if (this.#selection.kind === "choosingSource") {
+      // Tapping one of the offered characters on the table picks it, the same as its button in the bar.
+      this.chooseSource(id);
+      return true;
+    }
     if (this.#selection.kind === "confirmingPlay") {
       // A second tap on the card being asked about puts it back — a tap selects, a tap deselects, and only the
       // bar's own "Play it" plays. A tap anywhere else changes nothing.
@@ -285,18 +300,58 @@ export class BoardController {
    */
   chooseBasic(action: BasicAction): void {
     if (this.#readOnly) return;
+    if (action === "attack" || action === "thwart") {
+      // More than one character could go — the hero and an ally, say — so who goes (and so in what order their
+      // effects land) is the player's pick, not whichever the engine happened to list first.
+      const sources = this.powerSourcesFor(action);
+      if (sources.length > 1) {
+        this.#selection = { kind: "choosingSource", power: action, sources };
+        this.#host.redraw();
+        return;
+      }
+    }
     const entry = this.#legalFor(action);
     if (!entry) return;
-    if (entry.targets.length === 0) {
+    this.#aim(entry, action);
+  }
+
+  /** The "Who attacks?" bar's answer (or a tap on that character): that character's attack, aimed next. */
+  chooseSource(id: InstanceId): void {
+    if (this.#readOnly || this.#selection.kind !== "choosingSource") return;
+    const source = this.#selection.sources.find((candidate) => candidate.instanceId === id);
+    if (!source) return;
+    this.#selection = { kind: "idle" };
+    this.#aim(source.entry, basicKindOf(source.entry));
+  }
+
+  /** The characters the "Who attacks?" bar offers, or null when it isn't open. */
+  sourceChoice(): SourceChoiceView | null {
+    if (this.#selection.kind !== "choosingSource") return null;
+    return { power: this.#selection.power, sources: this.#selection.sources };
+  }
+
+  /** Every character that could make this basic power right now, with what going costs it. */
+  powerSourcesFor(power: PowerKind): readonly PowerSource[] {
+    const { game, legal } = appSession().store.state;
+    if (!game) return [];
+    return powerSources(game, powerEntries(legal?.actions, power), power, POOL_DEPS);
+  }
+
+  /**
+   * Dispatches a basic action straight away when it needs no target or has only one, and otherwise enters
+   * target-select mode. The prompt names who is acting, since with allies in play "attack" alone doesn't say.
+   */
+  #aim(entry: LegalAction, action: BasicAction | null): void {
+    if (entry.targets.length <= 1) {
+      // No target, or one legal target: not a decision; aim and go.
       void this.#dispatch(entry.example);
       return;
     }
-    if (entry.targets.length === 1) {
-      // One legal target is not a decision; aim and go.
-      void this.#dispatch(entry.example);
-      return;
-    }
-    this.#selection = { kind: "targeting", action: entry, prompt: `Choose a target to ${action}` };
+    const { game } = appSession().store.state;
+    const ref = entry.action;
+    const who = game && "instanceId" in ref ? cardName(game, ref.instanceId) : null;
+    const prompt = who && action ? `Choose a target for ${who}'s ${action}` : `Choose a target to ${action ?? "act"}`;
+    this.#selection = { kind: "targeting", action: entry, prompt };
     this.#host.redraw();
   }
 
@@ -424,31 +479,13 @@ export class BoardController {
   }
 
   /**
-   * A tap on a card in play, while idle: nothing when it has no usable
-   * ability (the common case, for most cards, most of the time); the ability
-   * itself when it has exactly one, the same "a decisive gesture just acts"
-   * rule the hand already follows for playing a card; the Inspect sheet when
-   * it has more than one, because a real choice between two abilities needs
-   * a real picker — Inspect already shows the card's full rules text, so the
-   * player can read what each one does before committing to one
-   * (`inspectModel.abilities`, `scenes/inspect.ts`). No Core card reaches the
-   * second case today (checked by replaying three full games through
-   * `legalActions`), but the ability DSL doesn't rule it out.
+   * A tap on a card in play, while idle: opens it in Inspect, and never uses it. A tap used to fire a card's one
+   * usable ability on the spot, and since most of those cost "exhaust this card", a stray tap on the hero or an
+   * ally exhausted it with no way back — reported from play, more than once. Inspect shows the card's full text
+   * and one button per usable ability (`inspectModel.abilities`, `scenes/inspect.ts`), so using one is a
+   * deliberate second tap on a button that names it, the same two steps a free hand card already takes.
    */
   onCharacterTap(instanceId: InstanceId): void {
-    // Read-only: never auto-trigger an ability (and never even consult the
-    // *live* session's `usableAbilitiesFor` to decide whether to) — a tap
-    // just opens the card, the same as when it has more than one ability.
-    if (this.#readOnly) {
-      this.#host.inspect(instanceId);
-      return;
-    }
-    const abilities = this.usableAbilitiesFor(instanceId);
-    if (abilities.length === 0) return;
-    if (abilities.length === 1) {
-      this.#useAbility(abilities[0]!);
-      return;
-    }
     this.#host.inspect(instanceId);
   }
 
@@ -508,7 +545,7 @@ export class BoardController {
     const text =
       abilities.length === 1
         ? (abilityShortLabelOf(game, instanceId, abilities[0]!.action.abilityId, POOL_DEPS) ?? "use")
-        : `${abilities.length} abilities — tap to choose`;
+        : `${abilities.length} abilities — tap to see`;
     return `▶ ${text}`;
   }
 

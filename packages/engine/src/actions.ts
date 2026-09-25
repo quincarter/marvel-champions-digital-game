@@ -567,9 +567,10 @@ function resourceAbilityFault(
 
 /**
  * RRG "Cost": resources come from cards discarded from hand and from "Resource"
- * abilities. Overpaying is legal; the excess is simply lost. Payments are
- * evaluated in order, so "the top card of your discard pile" sees any card
- * discarded earlier in the same payment.
+ * abilities. Overpaying is legal; the excess is simply lost. Every resource in
+ * one payment is generated simultaneously, so "the top card of your discard
+ * pile" is the pile as it stood before the payment — never a card this same
+ * payment is spending (FAQ "Pepper Potts (#33)", RRG 1.8 p. 58).
  */
 function priceOf(
   ctx: Ctx,
@@ -580,7 +581,7 @@ function priceOf(
 ): ResourcePool | PriceFault {
   const player = mustPlayer(ctx.state, playerId);
   const seen = new Set<string>();
-  let discardTop: InstanceId | null = player.discard[0] ?? null;
+  const discardTop: InstanceId | null = player.discard[0] ?? null;
   let pool = EMPTY_POOL;
   for (const entry of payment) {
     if ("fromHand" in entry) {
@@ -606,7 +607,6 @@ function priceOf(
         };
       }
       pool = addPools(pool, handCardResources(ctx.state, ctx.deps, entry.fromHand, playerId, payingFor));
-      discardTop = entry.fromHand;
       continue;
     }
     const { instanceId, abilityId } = entry.ability;
@@ -700,6 +700,8 @@ export function paymentsFromOptionIds(optionIds: readonly string[]): readonly Pa
  */
 export function payPayment(ctx: Ctx, playerId: PlayerId, payment: readonly Payment[]): readonly InstanceId[] {
   const spent: InstanceId[] = [];
+  // Read before anything is discarded: the payment's resources are generated simultaneously (see `priceOf`).
+  const discardTop = mustPlayer(ctx.state, playerId).discard[0] ?? null;
   for (const entry of payment) {
     if ("fromHand" in entry) {
       discardFromHand(ctx, playerId, entry.fromHand);
@@ -709,11 +711,7 @@ export function payPayment(ctx: Ctx, playerId: PlayerId, payment: readonly Payme
     const { instanceId, abilityId } = entry.ability;
     const definition = ctx.deps.abilities[abilityId];
     if (!definition) continue;
-    const generated = generatedResources(
-      ctx.state,
-      definition.generates,
-      mustPlayer(ctx.state, playerId).discard[0] ?? null,
-    );
+    const generated = generatedResources(ctx.state, definition.generates, discardTop);
     const plan = planCost(ctx.state, ctx.deps, instanceId, playerId, definition.cost, {}, new Set());
     if (!isFault(plan)) payCost(ctx, instanceId, playerId, definition.cost, plan);
     recordAbilityUse(ctx, instanceId, abilityId, definition, null, playerId);
