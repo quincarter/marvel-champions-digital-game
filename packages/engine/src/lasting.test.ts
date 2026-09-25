@@ -3,7 +3,7 @@ import { withEncounterPiles } from "./testing/scenario.js";
 import { flat, trait, type AnyCard, type CardId } from "@mc/content";
 import type { AbilityDefinition, EngineDeps } from "./abilities.js";
 import type { Command } from "./commands.js";
-import { replay, sessionApply, startSession, type GameSession } from "./engine.js";
+import { applyCommand, replay, sessionApply, startSession, type GameSession } from "./engine.js";
 import { playerId, type InstanceId } from "./ids.js";
 import { characterProfile, handSize, mustInstance, mustPlayer } from "./query.js";
 import type { CardInstance, GameState } from "./state.js";
@@ -549,8 +549,12 @@ describe("constant abilities with computed amounts, grants and rules", () => {
     const THWART = stubEvent({ id: "thwart", cost: 0, abilities: [thwart.ref] });
     const { deps, state } = setup({ cards: [THWART], abilities: [countdown, thwart], scheme });
     const given = giveCards(state, p1, "thwart");
-    const after = runWith(deps, given.state, toHero, play(given.ids[0] as InstanceId));
-    expect(mustInstance(after, after.mainScheme.instanceId).threat).toBe(5);
+    const hero = runWith(deps, given.state, toHero);
+    // The main scheme cannot be thwarted, so it is no valid target and the thwart cannot be played at all (RRG 1.8
+    // "Target", pp. 42–43; docs/phase7-wave3.md §4 Q5). The threat stays.
+    const result = applyCommand(hero, play(given.ids[0] as InstanceId), deps);
+    expect(result).toMatchObject({ ok: false, error: { code: "no_valid_target" } });
+    expect(mustInstance(hero, hero.mainScheme.instanceId).threat).toBe(5);
   });
 
   it("RRG 'Ally Limit': a fourth ally forces a discard, unless the ally limit was increased (The Triskelion)", () => {

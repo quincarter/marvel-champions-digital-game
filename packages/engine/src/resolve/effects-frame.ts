@@ -60,7 +60,7 @@ import { selectCards } from "./cards.js";
 import { abilityFrame, addFrameVars, type Frame, pushEffects, pushEvents } from "./frames.js";
 import { hasKeyword, keywordTotal } from "../keywords.js";
 import { candidateOption } from "./window.js";
-import { threatRemovalBlocked } from "./event.js";
+import { canDealDamageTo, canRemoveThreatFrom, slotTargetValid } from "./target-validity.js";
 
 /** The `EffectContext` an effects frame resolves in. Exported so `why-not.ts` can rebuild it exactly. */
 export const contextOf = (frame: Frame<"effects">, deps: EngineDeps): EffectContext => ({
@@ -277,12 +277,10 @@ function executePlayFromHand(
  * character that can take damage from this card.
  */
 function divisionCanAffect(ctx: Ctx, what: "damage" | "threat", id: InstanceId, frame: Frame<"effects">): boolean {
-  if (what === "damage") return !cannotTakeDamage(ctx.state, ctx.deps, id, [frame.selfInstanceId]);
+  if (what === "damage") return canDealDamageTo(ctx.state, ctx.deps, id, frame.selfInstanceId);
   const scheme = getInstance(ctx.state, id);
   return (
-    scheme !== undefined &&
-    scheme.threat > 0 &&
-    threatRemovalBlocked(ctx.state, ctx.deps, id, frame.selfInstanceId) === null
+    scheme !== undefined && scheme.threat > 0 && canRemoveThreatFrom(ctx.state, ctx.deps, id, frame.selfInstanceId)
   );
 }
 
@@ -1262,7 +1260,12 @@ function requestTargetChoice(
   context: EffectContext,
 ): void {
   const [chooser] = resolvePlayers(ctx.state, effect.chooser, context);
-  const legal = selectTargets(ctx.state, effect.query, context);
+  // Only valid targets are offered (RRG 1.8 "Target", pp. 42–43): those some effect in the rest of this program can
+  // affect. The main scheme is no target for a "(thwart)" while its player is patrolled (docs/phase7-wave3.md §3.5).
+  const rest = frame.effects.slice(frame.cursor + 1);
+  const legal = selectTargets(ctx.state, effect.query, context).filter((id) =>
+    slotTargetValid(ctx.state, ctx.deps, rest, effect.slot, id, context),
+  );
   // "X enemies": the count can be a value bound earlier in the ability (Shield Toss).
   const wanted =
     effect.count === undefined
