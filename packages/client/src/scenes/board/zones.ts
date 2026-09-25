@@ -10,7 +10,14 @@ import { CARD_BACKS, type ArtSource } from "../../art/art-source.js";
 import { accent, ink, signal, status, surface, typeRole } from "../../tokens.js";
 import { cssOf, textStyle } from "../../ui/theme.js";
 import { fitText, hatchRect, label, paintPanel } from "../../ui/widgets.js";
-import type { BoardModel, EnvironmentPanel, SeatRow, SeparateDeckPile, VillainPanel } from "../../view/board-model.js";
+import type {
+  BoardModel,
+  EnvironmentPanel,
+  ScenarioDeckPanel,
+  SeatRow,
+  SeparateDeckPile,
+  VillainPanel,
+} from "../../view/board-model.js";
 import { hpFraction, hpRatio } from "../../view/hp-format.js";
 import {
   CARD_ASPECT,
@@ -389,23 +396,49 @@ function drawEnvironment(ctx: BoardDrawContext, rect: Rect, environment: Environ
 }
 
 /**
- * The encounter piles, plus one more tile per scenario area in play (The Collection, docs/phase7-wave3.md §3.14) —
- * a scenario with none draws exactly the two-pile column this was before. The deck is a facedown stack, so it
- * shows the encounter back — the same back every facedown encounter card shows, which is what makes a stack read
- * as a stack rather than as a number in a box. The discard, and a scenario area, are faceup at the table, so each
- * shows its top card; a scenario area's whole contents (not just the top) are then a tap away, the same "◂ ▸
- * through the rest of the pile" Inspect already gives the discard (`piles.ts`'s own docblock).
+ * The encounter piles, plus one more tile per scenario area in play (The Collection, docs/phase7-wave3.md §3.14)
+ * and a deck-and-discard pair per named scenario deck (the Infinity Stone deck, `GameState.scenarioDecks`,
+ * docs/phase7-wave4.md §3.6) — a scenario with none of either draws exactly the two-pile column this was before.
+ * The deck (encounter or scenario) is a facedown stack, so it shows the encounter back — the same back every
+ * facedown encounter card shows, which is what makes a stack read as a stack rather than as a number in a box.
+ * The discard, and a scenario area, are faceup at the table, so each shows its top card; a scenario area's whole
+ * contents (not just the top) are then a tap away, the same "◂ ▸ through the rest of the pile" Inspect already
+ * gives the discard (`piles.ts`'s own docblock).
  */
 export function drawEncounter(ctx: BoardDrawContext, rect: Rect, model: BoardModel): void {
   const { scene } = ctx;
   type Pile = {
-    readonly kind: "encounterDeck" | "encounterDiscard" | "scenarioArea";
+    readonly kind: "encounterDeck" | "encounterDiscard" | "scenarioArea" | "scenarioDeck" | "scenarioDiscard";
     readonly name: string;
     readonly count: number;
     readonly art: ArtSource | null;
     readonly instanceId: InstanceId | null;
     /** Every card in the pile, for a tap to open browsable through — only a scenario area needs more than one. */
     readonly siblings: readonly InstanceId[];
+  };
+  // The pile column is narrow (the same width "ENC DECK"/"DISCARD" are tuned for), so a scenario deck's own
+  // printed name ("Infinity Stone") is abbreviated to its last word rather than shown in full — "STONE DECK", not
+  // "INFINITY STONE DECK" overlapping the count chip.
+  const scenarioDeckPiles = (deck: ScenarioDeckPanel): readonly Pile[] => {
+    const short = deck.name.trim().split(/\s+/).at(-1) ?? deck.name;
+    return [
+      {
+        kind: "scenarioDeck",
+        name: `${short.toUpperCase()} DECK`,
+        count: deck.deckCount,
+        art: CARD_BACKS.encounter,
+        instanceId: null,
+        siblings: [],
+      },
+      {
+        kind: "scenarioDiscard",
+        name: `${short.toUpperCase()} DISCARD`,
+        count: deck.discardCount,
+        art: deck.discardTopArt,
+        instanceId: deck.discardTopInstanceId,
+        siblings: [],
+      },
+    ];
   };
   const piles: readonly Pile[] = [
     {
@@ -424,6 +457,7 @@ export function drawEncounter(ctx: BoardDrawContext, rect: Rect, model: BoardMod
       instanceId: model.encounterDiscardTopInstanceId,
       siblings: [],
     },
+    ...model.scenarioDecks.flatMap(scenarioDeckPiles),
     ...model.scenarioAreas.map((area): Pile => ({
       kind: "scenarioArea",
       name: area.name.toUpperCase(),
@@ -438,9 +472,9 @@ export function drawEncounter(ctx: BoardDrawContext, rect: Rect, model: BoardMod
   piles.forEach(({ kind, name, count, art, instanceId, siblings }, index) => {
     const box: Rect = { x: rect.x, y: rect.y + index * (slot + gap), width: rect.width, height: slot };
     // A card revealed from the deck or discarded to the pile travels from or to this box itself, not the whole
-    // column. A scenario area is not a travel-animation anchor yet — no printed effect moves a card there with a
-    // motion this app plays — so only the two encounter piles register one.
-    if (kind !== "scenarioArea") ctx.frame.pileRects.set(pileKey(kind), box);
+    // column. A scenario area or scenario deck is not a travel-animation anchor yet — no printed effect moves a
+    // card there with a motion this app plays — so only the two encounter piles register one.
+    if (kind === "encounterDeck" || kind === "encounterDiscard") ctx.frame.pileRects.set(pileKey(kind), box);
     const g = scene.add.graphics();
     paintPanel(g, box, count > 0 ? "card" : "quiet", count > 0 ? "rest" : "unavailable");
 

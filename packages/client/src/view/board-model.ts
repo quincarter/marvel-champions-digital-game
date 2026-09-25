@@ -393,6 +393,8 @@ export interface BoardModel {
   readonly environments: readonly EnvironmentPanel[];
   /** The scenario's own out-of-play areas (The Collection, docs/phase7-wave3.md §3.14). Empty for every scenario that has none. */
   readonly scenarioAreas: readonly ScenarioAreaPanel[];
+  /** Every named scenario deck in play — the Infinity Stone deck (`GameState.scenarioDecks`). Empty for every scenario that has none. */
+  readonly scenarioDecks: readonly ScenarioDeckPanel[];
   readonly me: CharacterPanel;
   readonly myForm: Form;
   readonly myPlayArea: readonly CharacterPanel[];
@@ -421,6 +423,13 @@ export interface BoardModel {
   readonly separateDecks: readonly SeparateDeckPile[];
   readonly team: readonly SeatRow[];
   readonly outcome: GameState["outcome"];
+  /**
+   * Loki's own victory count (`ScenarioRules.victoryCondition`, docs/phase7-wave4.md §3.7): "If the number of Lokis
+   * in the victory display is equal to the victory condition, the players win the game" (21165b). Null for every
+   * other scenario — the board had no reader for either field at all before this wave, so a Loki win in progress
+   * showed nothing counting toward it.
+   */
+  readonly victoryCondition: { readonly count: number; readonly target: number } | null;
 }
 
 export interface SeparateDeckPile {
@@ -532,6 +541,7 @@ export function boardModel(state: GameState, perspectiveId: PlayerId, deps: Engi
       .filter((id) => cardOf(state, id)?.type === "environment")
       .map((id) => environmentPanel(state, id)),
     scenarioAreas: scenarioAreaPanels(state),
+    scenarioDecks: scenarioDeckPanels(state),
     me: characterPanel(state, me.identity.instanceId, deps),
     myForm: me.identity.form,
     // An attachment is drawn on its host — except an upgrade on your own
@@ -572,6 +582,10 @@ export function boardModel(state: GameState, perspectiveId: PlayerId, deps: Engi
       .filter((player) => player.playerId !== perspectiveId)
       .map((player) => seatRow(state, player.playerId, deps)),
     outcome: state.outcome,
+    victoryCondition:
+      state.scenarioRules.victoryCondition !== undefined
+        ? { count: state.victoryDisplay.length, target: state.scenarioRules.victoryCondition }
+        : null,
   };
 }
 
@@ -781,7 +795,14 @@ function subtitleOf(state: GameState, instance: CardInstance, card: AnyCard | un
   switch (card.type) {
     case "villain": {
       const villain = villainOf(state, instance.instanceId) ?? activeVillain(state);
-      return `Villain · Stage ${ROMAN[villain.stageIndex] ?? String(villain.stageIndex + 1)}`;
+      // Loki's own victory count (docs/phase7-wave4.md §3.7): defeating one stage only ever advances to another
+      // random set-aside Loki, never wins by itself, so the running count toward ScenarioRules.victoryCondition is
+      // the only sign of progress the villain panel can give.
+      const victory =
+        state.scenarioRules.victoryCondition !== undefined
+          ? ` · Victory ${state.victoryDisplay.length}/${state.scenarioRules.victoryCondition}`
+          : "";
+      return `Villain · Stage ${ROMAN[villain.stageIndex] ?? String(villain.stageIndex + 1)}${victory}`;
     }
     case "hero_identity": {
       const player = state.players.find((seat) => seat.identity.instanceId === instance.instanceId);
@@ -802,6 +823,12 @@ function subtitleOf(state: GameState, instance: CardInstance, card: AnyCard | un
       return "Upgrade";
     case "support":
       return "Support";
+    case "environment":
+      // A Spell card put into a player's own play area (Ebony Maw's own "puts that card into play in their play
+      // area", `mts` 21076-21078, docs/phase7-wave4.md §3.17/§5) is drawn through here — the ordinary
+      // `characterPanel` play-area path, not the villain-area-only `environmentPanel` — so it needs its own title
+      // case rather than falling through to the generic snake_case default below.
+      return "Environment";
     default:
       return card.type.replace(/_/g, " ");
   }
@@ -970,6 +997,37 @@ function attachmentChipsOf(state: GameState, instance: CardInstance): readonly A
  * is absent until a scenario's own Setup creates one, so this reads as `[]` rather than needing a special case at
  * every call site.
  */
+/**
+ * A named scenario deck (`GameState.scenarioDecks`, docs/phase7-wave2.md §3.3) — the Infinity Stone deck (`mts`
+ * MC21 p. 16: every card printing the Infinity Stone trait, built from the encounter deck at setup with no card
+ * text asking, docs/phase7-wave4.md §3.6). The board had no zone for one at all before this wave: the deck itself
+ * is facedown like any encounter deck, and its own discard pile is separate from the encounter discard (a stone
+ * that resolves its own Special boost text is placed "in the infinity stone deck discard pile" by name, not the
+ * ordinary one).
+ */
+export interface ScenarioDeckPanel {
+  readonly name: string;
+  readonly deckCount: number;
+  readonly discardCount: number;
+  /** Faceup, like every discard pile (`view/visibility.ts`). Null with an empty pile. */
+  readonly discardTopInstanceId: InstanceId | null;
+  readonly discardTopArt: ArtSource | null;
+}
+
+/** Every scenario deck in play, by name, in `GameState.scenarioDecks`' own (insertion) order. */
+export function scenarioDeckPanels(state: GameState): readonly ScenarioDeckPanel[] {
+  return Object.entries(state.scenarioDecks ?? {}).map(([name, deck]) => {
+    const topId = deck.discard[0] ?? null;
+    return {
+      name,
+      deckCount: deck.deck.length,
+      discardCount: deck.discard.length,
+      discardTopInstanceId: topId,
+      discardTopArt: topId ? artFor(cardOf(state, topId), faceOf(state, topId)) : null,
+    };
+  });
+}
+
 export function scenarioAreaPanels(state: GameState): readonly ScenarioAreaPanel[] {
   return Object.entries(state.scenarioAreas ?? {}).map(([name, instanceIds]) => ({
     name,

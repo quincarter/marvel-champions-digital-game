@@ -70,6 +70,11 @@ const withFirstPlayer = (text: string, firstPlayerName: string | undefined): str
 const POOL_FIELD_LABEL = /^(.+?) added to campaign pool$/i;
 const DESTINATION_PREFIX = /^if .+? is in the campaign pool,\s*/i;
 
+/** Whether `text` is one of this module's own "reads a pool card back" sentences — exported so a generic step
+ * list (`campaign-briefing-model.ts`'s "Handled for you") can drop a row already shown, in better words, under
+ * "From the pool" instead of repeating it. */
+export const isPoolDestinationText = (text: string): boolean => DESTINATION_PREFIX.test(text);
+
 export interface PoolField {
   readonly fieldId: string;
   readonly name: string;

@@ -14,6 +14,7 @@ import { TRORS_STORY } from "./stories/trors.js";
 import { GMW_STORY } from "./stories/gmw.js";
 import { MTS_STORY } from "./stories/mts.js";
 import type { PoolCopy } from "../view/campaign-pool-model.js";
+import type { BriefingNoteCopy } from "../view/campaign-briefing-model.js";
 
 export type StorySpeaker =
   | { readonly kind: "narrator" }
@@ -165,6 +166,14 @@ export interface IssueStory {
   readonly stagePanels?: Readonly<Record<number, ComicBeatRef>>;
   /** The Briefing's opening line, spoken by a roster hero where possible. */
   readonly briefing: StoryLine;
+  /**
+   * A pool box's own authored replacement for this issue's whole "Handled for you" list
+   * (`view/campaign-briefing-model.ts`'s own `BriefingNoteCopy`/`handledRowsOf` doc comments) — a short summary of
+   * the automated setup this issue's own composition/setup instructions run, plus a forward-looking note about the
+   * pool. Unset (every non-pool issue, and a pool issue before its own three lines are written) falls back to the
+   * generic per-step/per-field assembly every box has always had.
+   */
+  readonly briefingNotes?: readonly BriefingNoteCopy[];
   /** Who hands out this issue's rewards on a win (C05/C06). */
   readonly aftermath?: StoryLine;
   /** The aftermath art note while there is no panel art. */

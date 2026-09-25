@@ -245,6 +245,7 @@ export class CampaignBriefingScene extends Phaser.Scene {
           cardTypeOf,
           campaignStory?.poolCopy,
           firstPlayerName,
+          this.#story?.briefingNotes,
         )
       : null;
     const gutter = phone ? 16 : 24;
@@ -602,10 +603,19 @@ export class CampaignBriefingScene extends Phaser.Scene {
           textStyle({ ...typeRole.rowTitle, size: 14 }, glyphColor),
         )
         .setOrigin(0.5, 0);
+      const citationWidth = row.citation ? 90 : 0;
       const title = this.add
         .text(rowXs.text, rowY + 8, row.title, textStyle({ ...typeRole.rowTitle, size: 14 }, surface.ink.hex))
         .setOrigin(0, 0)
-        .setWordWrapWidth(rect.width - 48);
+        .setWordWrapWidth(rect.width - 48 - citationWidth);
+      if (row.citation) {
+        this.add
+          .text(rect.x + rect.width - 12, rowY + 10, row.citation, {
+            ...textStyle(typeRole.label, surface.ink.hex, 0.4),
+            fontSize: "10px",
+          })
+          .setOrigin(1, 0);
+      }
       this.add
         .text(
           rowXs.text,
@@ -622,7 +632,7 @@ export class CampaignBriefingScene extends Phaser.Scene {
   #measureHandledRow(row: HandledRow, width: number): number {
     const title = this.add
       .text(0, 0, row.title, textStyle({ ...typeRole.rowTitle, size: 14 }, 0))
-      .setWordWrapWidth(width)
+      .setWordWrapWidth(row.citation ? width - 90 : width)
       .setVisible(false);
     const detail = this.add
       .text(0, 0, row.detail, textStyle(typeRole.body, 0))

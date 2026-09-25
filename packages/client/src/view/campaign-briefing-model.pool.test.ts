@@ -6,7 +6,7 @@ import { describe, expect, it } from "vitest";
 import { createCampaignLog, type CampaignAttempt, type CampaignLog } from "@mc/engine";
 import { MTS_CAMPAIGN_DEFINITION } from "@mc/cards";
 import { cardId } from "@mc/content";
-import { briefingViewOf } from "./campaign-briefing-model.js";
+import { briefingViewOf, handledRowsOf } from "./campaign-briefing-model.js";
 import type { CampaignRecord } from "../engine/campaign-storage.js";
 
 const cardName = (id: string): string => id;
@@ -49,6 +49,72 @@ function recordAt(
     updatedAt: 0,
   };
 }
+
+describe("handledRowsOf's own MC21 grants row", () => {
+  const mtsCardName = (id: string): string => ({ "21183": "Shawarma", "04157": "Emergency Teleporter" })[id] ?? id;
+
+  it("never names a pool card (Shawarma) — 'From the pool' already shows it, correctly", () => {
+    const record = recordAt("thanos", { shawarmaInPool: { kind: "flag", value: true } });
+    const attempt = {
+      ...record.attempt!,
+      steps: [],
+    };
+    const withGrant: CampaignRecord = {
+      ...record,
+      attempt,
+      seats: [
+        {
+          ...record.seats[0]!,
+          grants: [{ cardId: cardId("21183"), permanence: "thisGame", grantedAtNodeId: "tower-defense" }],
+        },
+      ],
+    };
+    const rows = handledRowsOf(attempt, withGrant, mtsCardName, MTS_CAMPAIGN_DEFINITION, nodeIds);
+    expect(rows.find((row) => row.key === "grants")).toBeUndefined();
+  });
+
+  it("still names a real start-in-play grant (not a pool card)", () => {
+    const record = recordAt("ebony-maw", {});
+    const attempt = { ...record.attempt!, steps: [] };
+    const withGrant: CampaignRecord = {
+      ...record,
+      attempt,
+      seats: [
+        {
+          ...record.seats[0]!,
+          grants: [{ cardId: cardId("04157"), permanence: "campaign", grantedAtNodeId: "ebony-maw" }],
+        },
+      ],
+    };
+    const rows = handledRowsOf(attempt, withGrant, mtsCardName, MTS_CAMPAIGN_DEFINITION, nodeIds);
+    const grantsRow = rows.find((row) => row.key === "grants");
+    expect(grantsRow?.detail).toContain("Emergency Teleporter");
+  });
+});
+
+describe("handledRowsOf's briefingNotes override", () => {
+  it("replaces the generic assembly entirely when notes are given", () => {
+    const record = recordAt("thanos", { cosmoInPool: { kind: "flag", value: true } });
+    const rows = handledRowsOf(record.attempt!, record, cardName, MTS_CAMPAIGN_DEFINITION, nodeIds, [
+      { status: "done", title: "Pool resolved in printed order", detail: "Allies first.", citation: "MC21 p. 17" },
+    ]);
+    expect(rows).toEqual([
+      {
+        key: "note:0",
+        status: "done",
+        title: "Pool resolved in printed order",
+        detail: "Allies first.",
+        citation: "MC21 p. 17",
+      },
+    ]);
+  });
+
+  it("falls back to the generic assembly when there are no notes", () => {
+    const record = recordAt("thanos", {});
+    const rows = handledRowsOf(record.attempt!, record, cardName, MTS_CAMPAIGN_DEFINITION, nodeIds, []);
+    expect(rows.some((row) => row.key.startsWith("note:"))).toBe(false);
+  });
+});
 
 describe("briefingViewOf's pool section", () => {
   it("is null for issue #1", () => {
