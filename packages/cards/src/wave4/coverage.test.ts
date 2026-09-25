@@ -95,10 +95,10 @@ const KNOWN_SKIPPED: Readonly<Record<string, readonly string[]>> = {
     "21192.hogun-constant",
   ],
   // hood: the villain (24001-24003), the main scheme (24004-24006), The Hood's own encounter set (24007-24013) and
-  // Beasty Boys (24014-24017, `hood/beasty-boys.ts`) and Brothers Grimm (24018-24022, `hood/brothers-grimm.ts`) are
-  // scripted. Everything below is the pack's remaining seven modular sets (Crossfire's Crew, Mister Hyde, Ransacked
-  // Armory, Sinister Syndicate, State of Emergency, Streets of Mayhem, Wrecking Crew) plus Standard II / Expert II,
-  // left for the next scripting pass
+  // Beasty Boys (24014-24017, `hood/beasty-boys.ts`), Brothers Grimm (24018-24022, `hood/brothers-grimm.ts`) and
+  // Crossfire's Crew (24023-24028, `hood/crossfire-crew.ts`) are scripted. Everything below is the pack's
+  // remaining six modular sets (Mister Hyde, Ransacked Armory, Sinister Syndicate, State of Emergency, Streets of
+  // Mayhem, Wrecking Crew) plus Standard II / Expert II, left for the next scripting pass
   // (24041 and 24067 have no ability refs at all — plain-stat cards — and 24053's "Shadow of the Past" ref already
   // resolves as a reprint alias via `../reprints.ts`; none of the three are listed below).
   hood: [
@@ -106,15 +106,12 @@ const KNOWN_SKIPPED: Readonly<Record<string, readonly string[]>> = {
     "24014.beast-mode-forced-interrupt",
     "24016.mandrill-constant",
     // Brothers Grimm (`hood/brothers-grimm.ts`): every ref resolves; no genuine gap found.
+    // Crossfire's Crew (`hood/crossfire-crew.ts`): every ref resolves except two genuine gaps (the module's own
+    // docblock) — Out for Blood's own "repeat this effect" and Controller's "increase that amount" (Beast Mode's
+    // same gap).
     "24023.when-revealed",
     "24023.boost",
     "24024.controller-forced-interrupt",
-    "24025.when-revealed",
-    "24025.boost",
-    "24026.crossfire-forced-interrupt",
-    "24027.mister-fear-constant",
-    "24027.boost",
-    "24028.when-revealed",
     "24029.when-revealed",
     "24029.boost",
     "24030.when-revealed",
