@@ -47,7 +47,8 @@ import type { ExtrasTab } from "../progression/extras.js";
  * `pause` / `rules` / `settings` need one, since D13/P16/L07's status line and
  * glossary/card-list content only mean anything against a real table — those
  * four start a real one-seat Rhino/Spider-Man game through the same
- * `store.start`/`toSessionConfig` path Table setup uses, then jump: `board`
+ * `store.start`/`toSessionConfig` path Table setup uses (`board` alone also takes `&scenario=`/`&deck=`/`&seed=`
+ * to pick which one, `startDevGame`'s own doc comment), then jump: `board`
  * alone, `pause` launches the Pause overlay over it, `rules`/`settings` skip
  * straight past Pause to the overlay itself (`initialTab`/`initialQuery` via
  * `?tab=`/`?q=`, mirroring `RulesSceneData`). `setup-deal` (W3,
@@ -172,15 +173,27 @@ function gameRunning(store: SessionStore): boolean {
   return store.state.game !== null;
 }
 
+/**
+ * `?screen=board&scenario=<id>&deck=<starterDeckId>[&seed=<n>]`: any pool scenario against any pool precon, for
+ * screenshotting a specific mechanic (Tower Defense's two schemes, Spectrum's energy forms, …) without clicking
+ * through Title/Seats/Table setup by hand. Falls back to the original fixed Rhino/first-precon game when either
+ * param is absent or names something the pool doesn't have, so every existing `?screen=board` caller is unchanged.
+ */
 async function startDevGame(): Promise<void> {
   const { store } = appSession();
   if (store.state.game) return;
-  const scenario = POOL_SCENARIOS[0]!;
-  const seat = deckOptionsOf([], POOL_CARDS, POOL_VERSION, POOL_DEPS)[0]!;
+  const params = new URLSearchParams(location.search);
+  const scenario = POOL_SCENARIOS.find((s) => s.id === params.get("scenario")) ?? POOL_SCENARIOS[0]!;
+  const options = deckOptionsOf([], POOL_CARDS, POOL_VERSION, POOL_DEPS);
+  const wantedDeck = params.get("deck");
+  const seat =
+    options.find((o) => o.deck.source.kind === "precon" && (o.deck.source.starterDeckId as string) === wantedDeck) ??
+    options[0]!;
+  const seed = Number(params.get("seed"));
   const draft = initialSetupDraft({
     scenarioId: scenario.id as string,
     seatDeckId: seat.deck.id as string,
-    seed: rollSeed(),
+    seed: Number.isFinite(seed) && params.get("seed") ? seed : rollSeed(),
   });
   await store.start(toSessionConfig(draft, [corePlayerForSeat(seat)]));
 }

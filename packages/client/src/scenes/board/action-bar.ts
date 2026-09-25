@@ -29,19 +29,26 @@ export function drawActionBar(ctx: BoardDrawContext, rect: Rect, model: BoardMod
   g.fillStyle(surface.ink.hex, 1).fillRect(rect.x, rect.y, rect.width, rect.height);
 
   const stacked = rect.height >= hit.target + hit.primary;
+  // Spectrum's energy/density/mass forms, Ant-Man/Wasp's Giant form: more than one destination is legal, so the
+  // button can no longer say *which* way the flip goes — it opens the "Which form?" picker instead
+  // (`view/change-form-choice.ts`, `controller-bar.ts`'s own `drawFormBar`).
+  const formSources = controller.formSourcesFor();
   const labels: Record<BasicAction, string> = {
     attack: "Attack",
     thwart: "Thwart",
     recover: "Recover",
     // "Flip to alter-ego" does not fit a quarter of a phone; the short form
     // still says which way the flip goes.
-    changeForm: stacked
-      ? model.myForm === "hero"
-        ? "To A-E"
-        : "To hero"
-      : model.myForm === "hero"
-        ? "Flip to alter-ego"
-        : "Flip to hero",
+    changeForm:
+      formSources.length > 1
+        ? "Change form"
+        : stacked
+          ? model.myForm === "hero"
+            ? "To A-E"
+            : "To hero"
+          : model.myForm === "hero"
+            ? "Flip to alter-ego"
+            : "Flip to hero",
     endTurn: "End turn",
   };
 
@@ -70,16 +77,18 @@ export function drawActionBar(ctx: BoardDrawContext, rect: Rect, model: BoardMod
     // and the ✕ only stays while every one of them is cancelled — a stunned hero with a ready ally can still attack.
     const sources = power ? controller.powerSourcesFor(power) : [];
     const allCancelled = sources.every((source) => source.cancelledBy !== null);
-    const choosing = selection.kind === "choosingSource" && selection.power === action;
+    const choosingSource = selection.kind === "choosingSource" && selection.power === action;
+    const choosingForm = action === "changeForm" && selection.kind === "choosingForm";
     ctx.frame.buttons.push(
       new McButton(scene, {
         kind: "onInk",
         label: cancelledBy && allCancelled ? `${labels[action]} ✕` : labels[action],
         ...(sources.length > 1 ? { value: `×${sources.length}` } : {}),
+        ...(action === "changeForm" && formSources.length > 1 ? { value: `×${formSources.length}` } : {}),
         type: typeRole.label,
         rect: cell,
         enabled: button?.enabled ?? false,
-        selected: targeting || choosing,
+        selected: targeting || choosingSource || choosingForm,
         ...(cancelledBy ? { hatch: cancelledBy.hex } : {}),
         ...(button?.reason ? { reason: button.reason } : {}),
         onClick: () => controller.chooseBasic(action),

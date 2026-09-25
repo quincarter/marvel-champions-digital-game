@@ -16,7 +16,9 @@ import {
   currentName,
   getInstance,
   getPlayer,
+  identityFace,
   isMinion,
+  traitsOf,
   keywordsOf,
   mainSchemeStage,
   maxHitPoints,
@@ -165,6 +167,12 @@ export interface AttachmentChip {
   readonly exhausted: boolean;
   /** Counters left on it ("web" ×2), so a Uses card shows how many uses remain. */
   readonly counters: readonly { readonly name: string; readonly count: number }[];
+  /**
+   * Attached facedown — Spectrum's own two inactive "energy form" upgrades (`mts` 21001b's Setup: "Put all 3
+   * energy form upgrades into play, facedown," docs/phase7-wave4.md §5): the chip must not name a facedown card
+   * any more than the table's own picture of it does (`faceOf`'s own `back` branch).
+   */
+  readonly faceup: boolean;
 }
 
 /** "Web-Shooter · 2 web · exhausted" — everything a chip has room to say. */
@@ -611,7 +619,10 @@ export function characterPanel(state: GameState, id: InstanceId, deps: EngineDep
     instanceId: id,
     name: displayName(state, instance, card),
     subtitle: subtitleOf(state, instance, card),
-    traits: card && "traits" in card ? (card.traits as readonly string[]) : [],
+    // `traitsOf` (not the printed `card.traits`): a card "treated as" another kind shows its new traits — Fallen
+    // Warrior's ally treated as an [Undead] minion, and the mirror, a minion treated as an ally (docs/phase7-
+    // wave4.md §3.9, §3.29) — and any trait a lasting effect has granted, which the printed field never carried.
+    traits: card ? traitsOf(state, id, deps) : [],
     keywords: keywordsOf(state, id, deps).map((keyword) => keyword.name),
     statuses,
     stats: statTiles(state, id, profile, identityForm(state, instance), current, max),
@@ -623,12 +634,23 @@ export function characterPanel(state: GameState, id: InstanceId, deps: EngineDep
     disabledActions: statuses
       .map(({ status }) => STATUS_DISABLES[status])
       .filter((action): action is "attack" | "thwart" => action !== null),
-    attachments: instance.attachments.map((attachmentId) => ({
-      instanceId: attachmentId,
-      name: cardOf(state, attachmentId)?.name ?? "Attachment",
-      exhausted: getInstance(state, attachmentId)?.exhausted ?? false,
-      counters: countersOf(state, attachmentId),
-    })),
+    attachments: instance.attachments.map((attachmentId) => {
+      const attachmentInstance = getInstance(state, attachmentId);
+      const faceup = attachmentInstance?.faceup ?? true;
+      return {
+        instanceId: attachmentId,
+        // `currentName` (not the printed `card.name`): a flippable "form" upgrade (Vision's mass form, docs/phase7-
+        // wave4.md §3.1) shows its other face's name once flipped — "Dense" once Density Manipulation flips it over,
+        // not the "Intangible" it printed at setup. A facedown one (Spectrum's own inactive energy forms, §5) names
+        // nothing, the same as the card's own picture in play.
+        name: faceup
+          ? (currentName(state, attachmentId) ?? cardOf(state, attachmentId)?.name ?? "Attachment")
+          : "Facedown card",
+        exhausted: attachmentInstance?.exhausted ?? false,
+        counters: countersOf(state, attachmentId),
+        faceup,
+      };
+    }),
     counters: countersOf(state, id),
     ownerName:
       instance.ownerId !== null && instance.controllerId !== null && instance.ownerId !== instance.controllerId
@@ -683,8 +705,15 @@ export function faceOf(state: GameState, instanceId: InstanceId): CardFace {
     return { kind: "back", back: backKindOf(state, instance) };
   }
   switch (card.type) {
-    case "hero_identity":
-      return (identityForm(state, instance) ?? "hero") === "hero" ? { kind: "hero" } : { kind: "alterEgo" };
+    case "hero_identity": {
+      const player = state.players.find((seat) => seat.identity.instanceId === instance.instanceId);
+      if (!player) return { kind: "hero" };
+      if (player.identity.form === "alterEgo") return { kind: "alterEgo" };
+      // Spectrum's energy/density/mass forms and Ant-Man/Wasp's Giant form (docs/phase7-wave2.md §3.2, docs/
+      // phase7-wave4.md §5): `heroFormIndex` 0 is the printed `hero` face itself, n > 0 is `additionalHeroForms[n - 1]`.
+      const formIndex = player.identity.heroFormIndex ?? 0;
+      return formIndex > 0 ? { kind: "heroForm", index: formIndex } : { kind: "hero" };
+    }
     case "villain": {
       const villain = villainOf(state, instanceId) ?? activeVillain(state);
       return {
@@ -715,11 +744,23 @@ function identityForm(state: GameState, instance: CardInstance): Form | null {
 }
 
 function displayName(state: GameState, instance: CardInstance, card: AnyCard | undefined): string {
-  if (!instance.faceup) return instance.facedownAs ? instance.facedownAs.traits.join(" ") : "Facedown card";
+  if (!instance.faceup) {
+    // `facedownAs.kind === "blank"` (Bruno Carrelli's own "attach 1 card from your hand facedown here" — RRG says
+    // it "has no title" while facedown, `state.ts`'s own docblock) can print no traits at all: Spectrum's own three
+    // energy form upgrades sit facedown, untitled, unattached (`mts` 21001b's Setup, docs/phase7-wave4.md §5).
+    // "No title" is correct for the rules (nothing reads it), but an empty label reads as a bug on the table, so
+    // this still shows something legible rather than blank text.
+    const traits = instance.facedownAs?.traits.join(" ");
+    return traits ? traits : "Facedown card";
+  }
   if (!card) return "Unknown card";
-  // A hero identity card carries both faces; the panel names the one in play.
+  // A hero identity card carries both faces (and, for Spectrum/Ant-Man/Wasp, more than one hero face); the panel
+  // names the one in play, straight off the engine's own `identityFace` so a client-side "hero or alter-ego" guess
+  // can't disagree with `heroFormIndex`.
   if (card.type === "hero_identity") {
-    return (identityForm(state, instance) ?? "hero") === "hero" ? card.hero.faceName : card.alterEgo.faceName;
+    const player = state.players.find((seat) => seat.identity.instanceId === instance.instanceId);
+    if (!player) return card.hero.faceName;
+    return identityFace(state, player).face.faceName;
   }
   // Every other double-sided card is named for the face in play too, and only the engine knows which that is: a
   // villain's active side (Risky Business's card is titled "Norman Osborn", but once he flips the table is facing
@@ -742,9 +783,14 @@ function subtitleOf(state: GameState, instance: CardInstance, card: AnyCard | un
       return `${form === "hero" ? "Hero" : "Alter-ego"}${aspect ? ` · ${aspectLabel(aspect)}` : ""}`;
     }
     case "minion":
-      return "Minion";
+      // Mind Control, Redemption, Karma (docs/phase7-wave4.md §3.29): a minion "treated as an ally" for its
+      // controller stays the same printed card — the badge is the only sign anything changed.
+      return instance.treatedAs?.kind === "ally" ? "Ally (treated as)" : "Minion";
     case "ally":
-      return "Ally";
+      // Fallen Warrior, Beguiled (docs/phase7-wave4.md §3.9): the attached ally "is essentially a status change"
+      // (Dec 17, 2025 ruling (1) #3) — it never leaves play, so the subtitle is the only visible sign it is now a
+      // minion engaged with its controller rather than an ordinary ally.
+      return instance.treatedAs?.kind === "minion" ? "Minion (treated as)" : "Ally";
     case "upgrade":
       return "Upgrade";
     case "support":
