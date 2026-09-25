@@ -1,4 +1,4 @@
-import { activeVillain, characterProfile, type GameState } from "@mc/engine";
+import { activeVillain, characterProfile, generatedResources, type GameState } from "@mc/engine";
 import { describe, expect, it } from "vitest";
 import {
   endTurn,
@@ -135,5 +135,29 @@ describe("Gamma Blast / Photon Speed / Speed of Light (21007, 21008, 21010)", ()
     const { state: after } = playFromHand(hero, "21010", 0, accepting(facedown));
     // -1 playing the card itself, +1 the draw = net 0.
     expect(playerOf(after, P1).hand.length).toBe(before - 1 + 1);
+  });
+});
+
+describe("Energy Duplication (upgrade, 21006)", () => {
+  it("21006.energy-duplication-resource: generates the printed resource of the faceup energy form", () => {
+    const state = spectrumVsRhino(4);
+    const gamma = instancesOf(state, "21002")[0]!;
+    const hero = settle(runWith(WAVE4_DEPS, state, toHero()), accepting(gamma), undefined, WAVE4_DEPS);
+    const { state: withDup, id: dup } = playFromHand(hero, "21006", 2);
+    const generates = WAVE4_DEPS.abilities["21006.energy-duplication-resource"]!.generates;
+    const from = { deps: WAVE4_DEPS, sourceId: dup, playerId: P1 };
+    // Gamma prints a [physical] resource.
+    expect(generatedResources(withDup, generates, null, from)).toEqual(
+      expect.objectContaining({ physical: 1, energy: 0, mental: 0, wild: 0 }),
+    );
+    // With every form facedown there is no faceup form, so nothing.
+    const facedown: GameState = {
+      ...withDup,
+      instances: {
+        ...withDup.instances,
+        [gamma]: { ...withDup.instances[gamma]!, faceup: false, facedownAs: { kind: "blank", traits: [] } },
+      },
+    };
+    expect(generatedResources(facedown, generates, null, from).physical).toBe(0);
   });
 });

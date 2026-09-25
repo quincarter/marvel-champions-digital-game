@@ -400,45 +400,46 @@ needed, and each section names cards from other packs that compose with it.
 in release order. Within that, rules the whole box leans on come first. **A pack whose cards need an unbuilt primitive
 stays data only.**
 
-| §    | Primitive                                                                | Needed by                                                        | Status  |
-| ---- | ------------------------------------------------------------------------ | ---------------------------------------------------------------- | ------- |
-| 3.1  | Additional forms (the form keyword)                                      | Spectrum, Vision; Shadowcat, Nick Fury                           | landed  |
-| 3.2  | Two main schemes in play, each paired with a villain; Focused Defense    | Tower Defense                                                    | landed  |
-| 3.3  | Villains protected by each other's hit points: one defeat sweep          | Tower Defense; Four Horsemen (`aoa`)                             | landed  |
-| 3.4  | A main scheme stage's completion is replaceable                          | Tower Defense; Upgrading Adaptoids (`aos`)                       | landed  |
-| 3.5  | Damage on a card that is not a character (Avengers Tower)                | Tower Defense                                                    | landed  |
-| 3.6  | A modular set's own deck (the Infinity Stone deck)                       | Thanos, Loki, any scenario                                       | landed  |
-| 3.7  | Loki: random start, swap, a villain stage's Victory X, the victory count | Loki; God of Lies (`tt`)                                         | landed  |
-| 3.8  | An encounter ally attached to the main scheme (Odin)                     | Hela                                                             | landed  |
-| 3.9  | An ally treated as a minion                                              | Fallen Warrior, Beguiled; 5 other packs                          | landed  |
-| 3.10 | Flipping a card into a separately emitted face of another type           | MC21 campaign                                                    | landed  |
-| 3.11 | Timing points when a deck runs out                                       | Soul World, Universal Church, Thanos                             | landed  |
-| 3.12 | Counting different aspects; Adam Warlock's copy limit                    | Adam Warlock                                                     | landed  |
-| 3.13 | Abilities active in hand; "cannot choose to discard this card"           | Pip the Troll, System Shock                                      | landed  |
-| 3.14 | Player events shuffled into the encounter deck (Cosmic Entities)         | Adam Warlock precon                                              | landed  |
-| 3.15 | "After the last X counter is removed from here"                          | Ebony Maw; `aos`, `phoenix`                                      | landed  |
-| 3.16 | Encounter cards in a player's play area                                  | Ebony Maw's Spells                                               | landed  |
-| 3.17 | Alliance: paying a card's costs as a group                               | `warm`, `valk`, `vision`; 9 later cards                          | landed  |
-| 3.18 | Set-aside modular sets; mode-only faces; Standard II                     | The Hood; Wheel of Genres (`mojo`)                               | landed  |
-| 3.19 | Readying as a costed act; "cannot be readied by player card effects"     | Mister Fear; Undermine Support (`aos`)                           | landed  |
-| 3.20 | A trigger on damage a card prevented                                     | Abjuration                                                       | landed  |
-| 3.21 | An enemy attack against a chosen character                               | Speed Demon, Crossfire                                           | landed  |
-| 3.22 | Valkyrie's kit                                                           | `valk`                                                           | landed  |
-| 3.23 | Reusable as is                                                           | —                                                                | checked |
-| 3.24 | A character that ignores guard, patrol and the crisis icon               | Evasive Maneuvering; Wasp, Shadowcat, Psionic Training           | landed  |
-| 3.25 | Discarding cards you control as a cost                                   | Lethal Weapon; Noble Sacrifice, Repurpose, Delusion of Collusion | landed  |
-| 3.26 | A friendly character attacks its own player                              | Old Rivals                                                       | landed  |
-| 3.27 | A cancel with nothing it can cancel is not offered                       | §4 Q16 (user decision)                                           | landed  |
-| 3.28 | A blank text box except for keywords                                     | Corrupted Programming (§3.1's open item)                         | landed  |
-| 3.29 | A minion treated as an ally (the mirror of §3.9)                         | Mind Control, Redemption, Karma                                  | landed  |
-| 3.30 | A resource ability's own effects                                         | Gauntlet Gun; War Cry family, Psi-Knife, Cybernetic Arm          | landed  |
-| 3.31 | A character that cannot defend                                           | Intangible; Grant Ward, Tracking Display                         | landed  |
-| 3.32 | One thwart that ignores patrol                                           | Just Passing Through; Natural Flight, Grapnel Launcher           | landed  |
-| 3.33 | A card with a given timing word in its text                              | Phase Disruption; Phase Strike, Sunfire, Target Lock, Warpath    | landed  |
-| 3.34 | The attacking enemy from any trigger                                     | Flow Like Water; Riposte, Spider-UK, Daredevil                   | landed  |
-| 3.35 | Discard a boost card instead of applying it                              | Defiance                                                         | landed  |
-| 3.36 | An event pattern that accepts several values                             | Machine Man; Absorbing Man (tt)                                  | landed  |
-| 3.37 | Interrupts to a side scheme's defeat                                     | Chance Encounter; Followed, Ambush, Twisted Reality              | landed  |
+| §    | Primitive                                                                | Needed by                                                                    | Status  |
+| ---- | ------------------------------------------------------------------------ | ---------------------------------------------------------------------------- | ------- |
+| 3.1  | Additional forms (the form keyword)                                      | Spectrum, Vision; Shadowcat, Nick Fury                                       | landed  |
+| 3.2  | Two main schemes in play, each paired with a villain; Focused Defense    | Tower Defense                                                                | landed  |
+| 3.3  | Villains protected by each other's hit points: one defeat sweep          | Tower Defense; Four Horsemen (`aoa`)                                         | landed  |
+| 3.4  | A main scheme stage's completion is replaceable                          | Tower Defense; Upgrading Adaptoids (`aos`)                                   | landed  |
+| 3.5  | Damage on a card that is not a character (Avengers Tower)                | Tower Defense                                                                | landed  |
+| 3.6  | A modular set's own deck (the Infinity Stone deck)                       | Thanos, Loki, any scenario                                                   | landed  |
+| 3.7  | Loki: random start, swap, a villain stage's Victory X, the victory count | Loki; God of Lies (`tt`)                                                     | landed  |
+| 3.8  | An encounter ally attached to the main scheme (Odin)                     | Hela                                                                         | landed  |
+| 3.9  | An ally treated as a minion                                              | Fallen Warrior, Beguiled; 5 other packs                                      | landed  |
+| 3.10 | Flipping a card into a separately emitted face of another type           | MC21 campaign                                                                | landed  |
+| 3.11 | Timing points when a deck runs out                                       | Soul World, Universal Church, Thanos                                         | landed  |
+| 3.12 | Counting different aspects; Adam Warlock's copy limit                    | Adam Warlock                                                                 | landed  |
+| 3.13 | Abilities active in hand; "cannot choose to discard this card"           | Pip the Troll, System Shock                                                  | landed  |
+| 3.14 | Player events shuffled into the encounter deck (Cosmic Entities)         | Adam Warlock precon                                                          | landed  |
+| 3.15 | "After the last X counter is removed from here"                          | Ebony Maw; `aos`, `phoenix`                                                  | landed  |
+| 3.16 | Encounter cards in a player's play area                                  | Ebony Maw's Spells                                                           | landed  |
+| 3.17 | Alliance: paying a card's costs as a group                               | `warm`, `valk`, `vision`; 9 later cards                                      | landed  |
+| 3.18 | Set-aside modular sets; mode-only faces; Standard II                     | The Hood; Wheel of Genres (`mojo`)                                           | landed  |
+| 3.19 | Readying as a costed act; "cannot be readied by player card effects"     | Mister Fear; Undermine Support (`aos`)                                       | landed  |
+| 3.20 | A trigger on damage a card prevented                                     | Abjuration                                                                   | landed  |
+| 3.21 | An enemy attack against a chosen character                               | Speed Demon, Crossfire                                                       | landed  |
+| 3.22 | Valkyrie's kit                                                           | `valk`                                                                       | landed  |
+| 3.23 | Reusable as is                                                           | —                                                                            | checked |
+| 3.24 | A character that ignores guard, patrol and the crisis icon               | Evasive Maneuvering; Wasp, Shadowcat, Psionic Training                       | landed  |
+| 3.25 | Discarding cards you control as a cost                                   | Lethal Weapon; Noble Sacrifice, Repurpose, Delusion of Collusion             | landed  |
+| 3.26 | A friendly character attacks its own player                              | Old Rivals                                                                   | landed  |
+| 3.27 | A cancel with nothing it can cancel is not offered                       | §4 Q16 (user decision)                                                       | landed  |
+| 3.28 | A blank text box except for keywords                                     | Corrupted Programming (§3.1's open item)                                     | landed  |
+| 3.29 | A minion treated as an ally (the mirror of §3.9)                         | Mind Control, Redemption, Karma                                              | landed  |
+| 3.30 | A resource ability's own effects                                         | Gauntlet Gun; War Cry family, Psi-Knife, Cybernetic Arm                      | landed  |
+| 3.31 | A character that cannot defend                                           | Intangible; Grant Ward, Tracking Display                                     | landed  |
+| 3.32 | One thwart that ignores patrol                                           | Just Passing Through; Natural Flight, Grapnel Launcher                       | landed  |
+| 3.33 | A card with a given timing word in its text                              | Phase Disruption; Phase Strike, Sunfire, Target Lock, Warpath                | landed  |
+| 3.34 | The attacking enemy from any trigger                                     | Flow Like Water; Riposte, Spider-UK, Daredevil                               | landed  |
+| 3.35 | Discard a boost card instead of applying it                              | Defiance                                                                     | landed  |
+| 3.36 | An event pattern that accepts several values                             | Machine Man; Absorbing Man (tt)                                              | landed  |
+| 3.37 | Interrupts to a side scheme's defeat                                     | Chance Encounter; Followed, Ambush, Twisted Reality                          | landed  |
+| 3.38 | Resources generated by reading the table                                 | Energy Duplication, Band Together; Storm's Crown, Cat's Head Amulet, Olympus | landed  |
 
 ### 3.1 Additional forms: the form keyword
 
@@ -1427,6 +1428,28 @@ scheme, and everything attached to it, is in play while "when … is defeated" i
 > (Vision now has none). **Fixed on the way:** Twisted Reality (`trors` 04135) was scripted as a forced _response_
 > and never fired; it is now the forced interrupt it prints. Followed (`cap` 03032) was already an interrupt and now
 > actually fires. Ambush (`deadpool`) and the `fne` Chance Encounter are not scripted yet.
+
+### 3.38 Resources generated by reading the table
+
+Energy Duplication (`mts` 21006): "Hero Resource: Exhaust Energy Duplication → generate the printed resource on your
+faceup energy form upgrade." Band Together (`mts` 21018, a resource card): "This card generates [wild] for each ally you
+control (to a maximum of 3)." Survey (every raw pack, "generate … resource … on / for each"): Storm's Crown (`storm`
+36006, "the printed resource on your [Weather] support"); Cat's Head Amulet (`cw` 56004, "[physical] for each minion
+engaged with you, to a maximum of 3"); Olympus (`hercules` 59012, "[wild] for each [Gift] card you control"); Titanium
+Muscles (`mut_gen` 32005, "for each tough status card on Colossus", a status count, not a card count: not covered);
+Montage (`deadpool` 44007, "1 additional [wild] for each acceleration token", additive: not covered).
+
+> **Status: landed (2026-09-24),** tested in `packages/engine/src/resource-generation-read.test.ts` (2 tests: "[wild]
+> for each ally you control, to a maximum of 3" at 0, 2 and 5 allies; "the printed resource on" a named card, none
+> without it) and in real games in `packages/cards/src/wave4/mts/spectrum-kit.test.ts` (Energy Duplication generates
+> Gamma's [physical], nothing with every form facedown) and `spectrum-pack-cards.test.ts` (Band Together is worth one
+> [wild] per ally Spectrum controls). **What landed:** two `ResourceGeneration` variants read when the resource is
+> generated: **`printedResourcesOf {cards}`** and **`perCard {resource, per, max?}`**; `generatedResources` now takes
+> the generating card and its user (every caller passes them). **`ConstantTrigger.handGenerates`**: what a card
+> generates when spent from hand instead of its printed resources (read by `handCardResources`). `generatedResources`
+> and `handCardResources` are exported. **DSL:** `printedResourcesOf(query)`, `generatesPerCard(resource, query, max?)`,
+> `constant({ handGenerates })`. **Scripted:** `21006.energy-duplication-resource`, `21018.band-together-constant`,
+> off `KNOWN_SKIPPED`.
 
 ## 4. Open questions (for the user or FFG)
 

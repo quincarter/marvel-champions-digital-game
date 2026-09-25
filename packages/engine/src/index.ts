@@ -360,3 +360,4 @@ export {
   zoneContents,
 } from "./query.js";
 export { legalDefenders } from "./resolve/enemy-activation.js";
+export { generatedResources, handCardResources } from "./actions.js";

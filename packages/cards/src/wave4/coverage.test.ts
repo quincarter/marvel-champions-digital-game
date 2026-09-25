@@ -57,10 +57,8 @@ const KNOWN_SKIPPED: Readonly<Record<string, readonly string[]>> = {
   // for the same ref with `mergeRegistries`'s "defined twice" guard). Not this pack's own scripting work; removed
   // here because leaving them would silently pin a wrong (unresolved) expectation now that they resolve.
   mts: [
-    "21006.energy-duplication-resource",
     "21009.pulsar-shield-interrupt",
     "21016.mass-attack-action",
-    "21018.band-together-constant",
     "21061.shield-spell-interrupt",
     "21071.ebony-maw-forced-interrupt",
     "21072.ebony-maw-forced-interrupt",

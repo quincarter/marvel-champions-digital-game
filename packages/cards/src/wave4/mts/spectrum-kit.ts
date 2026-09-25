@@ -28,6 +28,9 @@ import {
   YOUR_IDENTITY,
   yourIdentity,
   zone,
+  heroResource,
+  printedResourcesOf,
+  exhaustThis,
 } from "../../dsl/index.js";
 
 const FACEDOWN_ENERGY_FORM = query("upgrade", { ...printedForm("energy"), facedown: true, controller: "you" });
@@ -39,10 +42,7 @@ const YOUR_ENERGY_FORMS = query("upgrade", { ...printedForm("energy"), controlle
  * forms — landed 2026-09-24). Most of the kit is the exact composition `dsl/wave4-primitives.test.ts` §3.1 already
  * gives for these cards.
  *
- * **Energy Duplication (21006) is a primitive gap, not scripted** — see `KNOWN_SKIPPED["mts"]` in
- * `../coverage.test.ts`: `ResourceGeneration` (`packages/engine/src/abilities.ts`) is a fixed number, a fixed
- * `ResourcePool`, or the one special case `topCardOfDiscard`; nothing reads a *chosen* card's printed resource type
- * at generation time, which "generate the printed resource on your faceup energy form upgrade" needs.
+ * **Energy Duplication (21006)** generates `printedResourcesOf` the faceup energy form (docs/phase7-wave4.md §3.38).
  *
  * **Pulsar Shield's (21009) retaliate grant is a primitive gap.** The change-to-Pulsar-and-ready half is scriptable,
  * but "she gains retaliate 1 until the end of the phase" is a one-shot lasting *keyword* grant from a triggered
@@ -97,7 +97,13 @@ export const SPECTRUM_KIT = defineAbilities({
     changeAdditionalForm("energy", { to: chosen("form") }),
   ),
 
-  // Energy Duplication (21006): see module docblock — KNOWN_SKIPPED.
+  // Energy Duplication (21006) — Hero Resource: Exhaust Energy Duplication → generate the printed resource on your
+  // faceup energy form upgrade (read when generated, `printedResourcesOf`, docs/phase7-wave4.md §3.38; none faceup:
+  // nothing).
+  "21006.energy-duplication-resource": heroResource(
+    printedResourcesOf(query("upgrade", { ...printedForm("energy"), facedown: false, controller: "you" })),
+    { cost: exhaustThis },
+  ),
 
   // Gamma Blast (21007) — Hero Action (attack): Change to Gamma energy form and deal 7 damage to an enemy. If you
   // were already in Gamma energy form, this attack gains overkill. Read "already in Gamma" *before* the change
