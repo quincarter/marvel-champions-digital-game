@@ -26,6 +26,7 @@ import { WAVE3_ABILITIES } from "../wave3/index.js";
 import type { AbilityReference, AnyCard } from "@mc/content";
 import type { AbilityDefinition, AbilityRegistry } from "@mc/engine";
 import { WAVE4_CARDS } from "./cards.js";
+import { MTS_ABILITIES } from "./mts/index.js";
 import { NEBU_ABILITIES } from "./nebu/index.js";
 import { VISION_ABILITIES } from "./vision/index.js";
 import { WARM_ABILITIES } from "./warm/index.js";
@@ -34,7 +35,12 @@ import { WARM_ABILITIES } from "./warm/index.js";
  * Every wave 4 pack's own hand-authored registry — checked before any auto-alias below is allowed to claim a ref.
  * Add this wave's next pack's `*_ABILITIES` here (one line); nothing else in this file needs to change.
  */
-const PACK_OWN_ABILITIES: AbilityRegistry = { ...NEBU_ABILITIES, ...WARM_ABILITIES, ...VISION_ABILITIES };
+const PACK_OWN_ABILITIES: AbilityRegistry = {
+  ...NEBU_ABILITIES,
+  ...WARM_ABILITIES,
+  ...VISION_ABILITIES,
+  ...MTS_ABILITIES,
+};
 
 /** Ability refs in print order: both identity faces (plus any extra hero forms), every villain stage, every main scheme side, or the flat list. */
 function abilityRefsOf(card: AnyCard): readonly AbilityReference[] {

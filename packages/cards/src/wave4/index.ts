@@ -7,19 +7,21 @@
 import type { AbilityRegistry, EngineDeps } from "@mc/engine";
 import { mergeRegistries } from "../dsl/index.js";
 import { WAVE3_ABILITIES } from "../wave3/index.js";
+import { MTS_ABILITIES } from "./mts/index.js";
 import { NEBU_ABILITIES } from "./nebu/index.js";
 import { VISION_ABILITIES } from "./vision/index.js";
 import { WARM_ABILITIES } from "./warm/index.js";
 import { WAVE4_REPRINT_ABILITIES } from "./reprints.js";
 
 /** Every scripted ability in the wave 4 pool: every earlier (Core/wave 1/cycle 1/cycle 2/cycle 3) script, wave 4's
- * own reprint aliases, then one entry per cycle 3 pack that has been started (`nebu`, `warm`, `vision`). */
+ * own reprint aliases, then one entry per cycle 3 pack that has been started (`nebu`, `warm`, `vision`, `mts`). */
 export const WAVE4_ABILITIES: AbilityRegistry = mergeRegistries(
   WAVE3_ABILITIES,
   WAVE4_REPRINT_ABILITIES,
   NEBU_ABILITIES,
   WARM_ABILITIES,
   VISION_ABILITIES,
+  MTS_ABILITIES,
 );
 
 /** Engine dependencies for games that use the wave 4 (cycle 4) pool. */

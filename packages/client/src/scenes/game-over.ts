@@ -47,6 +47,9 @@ const GROUND_DOTS = { spacing: 9, radius: 1, alpha: 0.22 } as const;
 /** How much of the ground colour sits over the wide layout's backdrop picture: enough that the result still reads as red or green and paper text holds its contrast. */
 const BACKDROP_WASH = 0.74;
 
+/** The side column's secondary/quiet buttons: the 11px row title reads too small on a desktop screen. */
+const sideButtonType = { ...typeRole.rowTitle, size: 16 };
+
 export class GameOverScene extends Phaser.Scene {
   #buttons: McButton[] = [];
   #busy = false;
@@ -588,7 +591,7 @@ export class GameOverScene extends Phaser.Scene {
       new McButton(this, {
         kind,
         label: text,
-        type: kind === "primary" ? typeRole.barTitle : typeRole.rowTitle,
+        type: kind === "primary" ? typeRole.barTitle : sideButtonType,
         rect,
         onClick,
         enabled: unavailable === undefined,
