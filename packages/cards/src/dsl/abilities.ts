@@ -154,6 +154,14 @@ export const firstPlayerAction = (...args: Args): AbilityDefinition => {
  * `forAnyPlayer`: "Piloting — Resource: Exhaust the Milano → generate a [wild] resource for any player" (the
  * Milano, docs/phase7-wave3.md §3.13) — any player paying a cost may use it, not only its controller.
  */
+/**
+ * "Resource:" — generates `generates`. Any `effects` resolve when the ability is used in a payment, with the payment:
+ * "… generate a [wild] resource for a War Machine event and place 1 ammo counter on War Machine" (Gauntlet Gun, `warm`
+ * 23005); "Generate [wild][wild] resources for an [Attack] or [Defense] event. Gain a tough status card. Remove this
+ * card from the game and the campaign pool." (War Cry, `mut_gen` 32180); "… You may flip this card." (Psi-Knife,
+ * `psylocke` 41002a). The card paid for is slot `paidFor` ("That event deals 1 additional damage", Cybernetic Arm).
+ * docs/phase7-wave4.md §3.30.
+ */
 export const resource = (
   generates: ResourceGeneration,
   options: AbilityOptions & {
@@ -161,12 +169,13 @@ export const resource = (
     readonly generatesFor?: TargetQuery;
     readonly forAnyPlayer?: boolean;
   } = {},
+  ...effects: readonly EffectArg[]
 ): AbilityDefinition => {
   const { form, generatesFor, forAnyPlayer, ...rest } = options;
   const definition = build(
     { kind: "resource", ...(form ? { form } : {}), ...(forAnyPlayer ? { forAnyPlayer: true } : {}) },
     rest,
-    [],
+    effects,
     generates,
   );
   return generatesFor ? { ...definition, generatesFor } : definition;
@@ -175,7 +184,8 @@ export const resource = (
 export const heroResource = (
   generates: ResourceGeneration,
   options: AbilityOptions & { readonly generatesFor?: TargetQuery } = {},
-): AbilityDefinition => resource(generates, { ...options, form: "hero" });
+  ...effects: readonly EffectArg[]
+): AbilityDefinition => resource(generates, { ...options, form: "hero" }, ...effects);
 
 const triggered =
   (kind: "interrupt" | "response", forced: boolean, form?: Form) =>

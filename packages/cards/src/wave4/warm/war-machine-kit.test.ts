@@ -167,6 +167,30 @@ describe("Gauntlet Gun (upgrade, 23005)", () => {
     );
     expect(playerOf(played, P1).hand).not.toContain(beam);
   });
+
+  it("23005.gauntlet-gun-resource: places 1 ammo counter on War Machine only when its resource is used to pay", () => {
+    const hero = changeForm(warMachineVsRhino(1));
+    const identity = identityOf(hero, P1);
+    const { state: withGun, id: gun } = playFromHand(hero, "23005", 2);
+    const readiedGun = patchInstance(withGun, gun, { exhausted: false });
+    const before = ammoOn(readiedGun, identity);
+    const { state: givenBeam, ids } = moveToHand(readiedGun, P1, "23008");
+    const [beam] = ids as [InstanceId];
+    const settled = (hand: readonly InstanceId[], extra: Parameters<typeof play>[3] = {}) =>
+      settle(runWith(WAVE4_DEPS, givenBeam, play(P1, beam, hand, extra)), firstLegal, undefined, WAVE4_DEPS);
+    // Repulsor Beam's own cost removes 1 ammo counter, so compare the two payments. Paid with a card from hand: the
+    // Gun is untouched and no counter lands (only the Beam's removal).
+    const spare = playerOf(givenBeam, P1).hand.find((id) => id !== beam)!;
+    const withHandPaid = settled([spare]);
+    expect(playerOf(withHandPaid, P1).hand).not.toContain(beam);
+    expect(inst(withHandPaid, gun).exhausted).toBe(false);
+    expect(ammoOn(withHandPaid, identity)).toBe(before - 1);
+    // Paid with the Gun's resource: the Gun exhausts and its counter lands, once.
+    const withGunPaid = settled([], { abilities: [resourceAbility(gun, "23005.gauntlet-gun-resource")] });
+    expect(inst(withGunPaid, gun).exhausted).toBe(true);
+    expect(ammoOn(withGunPaid, identity)).toBe(before);
+    expect(ammoOn(withGunPaid, identity)).toBe(ammoOn(withHandPaid, identity) + 1);
+  });
 });
 
 describe("Weapon upgrades (23006, 23007)", () => {

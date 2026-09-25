@@ -112,21 +112,12 @@ export const WAR_MACHINE_KIT = defineAbilities({
 
   // Gauntlet Gun (upgrade ×2, 23005) — Resource: Exhaust Gauntlet Gun → generate a [wild] resource for a War
   // Machine event and place 1 ammo counter on War Machine. `generatesFor` covers "for a War Machine event"
-  // (`identitySetOf`, FAQ p. 62, docs/phase7-wave4.md §3.23).
-  //
-  // **Known gap, registered anyway (not KNOWN_SKIPPED — see `../coverage.test.ts`'s own docblock: that list is for
-  // refs that resolve to nothing at all).** The engine never executes a resource ability's own `effects` array:
-  // `payPayment` (`packages/engine/src/actions.ts`) pays the ability's cost and emits `resourcesGenerated` (a
-  // log-only `GameEvent`, not a `TriggerEvent` anything can hear) but never pushes `definition.effects`, and
-  // `useAbility` refuses any ability whose `trigger.kind !== "action"` — so "and place 1 ammo counter on War
-  // Machine" cannot fire from this ref today, whether or not the generated resource is later spent (unlike "After
-  // you spend this card", which only fires once it's actually used as payment). Flagged for
-  // `game-rules-architect`: either a resource ability needs its own effects to run on activation, or a
-  // `TriggerEvent` for "this resource ability was used" needs to exist. The resource-generation half is real,
-  // testable behavior, so it's scripted rather than left as a silent no-op for the whole card.
+  // (`identitySetOf`, FAQ p. 62, docs/phase7-wave4.md §3.23); the ammo counter is the resource ability's own effect,
+  // resolved when the resource is used in a payment (docs/phase7-wave4.md §3.30).
   "23005.gauntlet-gun-resource": resource(
     { wild: 1 },
     { cost: exhaustThis, generatesFor: query("event", { identitySetOf: you }) },
+    addCounters("ammo", 1, yourIdentity),
   ),
 
   // Missile Launcher (upgrade, 23006) — Hero Action (attack): Exhaust Missile Launcher and remove 1 ammo counter
