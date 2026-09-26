@@ -1,0 +1,3 @@
+kind: Engine
+body: '"When X leaves play" interrupts resolve before the card moves, with it still in play with its attachments, counters and controller; responses see it gone, and a replacement can redirect the move (docs/phase7-wave5.md §4.1 Q17)'
+time: 2026-09-26T18:12:09.577131-04:00
