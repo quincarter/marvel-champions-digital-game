@@ -150,6 +150,9 @@ export const SPDR_CURATION: PackCuration = {
           "Permanent. This card's printed text box cannot be treated as if it were blank.\n" +
           "Suit Up! — Forced Interrupt: When you flip to this side, flip SP//dr Suit to its ACTIVE side. Attach this card to SP//dr Suit, moving all counters on this card or cards attached to this card to SP//dr Suit.",
         image: "https://hallofheroeslcg.com/wp-content/uploads/2022/09/s2.jpg",
+        // The scan's bottom-left resource box: one wild icon (re-read from s2.jpg 2026-09-26). Sync Ratio's "generate
+        // that upgrade's resources" reads it (docs/phase7-wave5.md §3.24).
+        resourceIcons: { wild: 1 },
       },
       evidence:
         "Hall of Heroes SP//dr release-page gallery, https://hallofheroeslcg.com/peni-parker-sp-dr/ — " +

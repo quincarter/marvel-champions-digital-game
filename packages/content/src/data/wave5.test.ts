@@ -65,6 +65,20 @@ describe("wave 5 (cycle 4) data — integrity", () => {
   });
 });
 
+describe("SP//dr — separated identity sides", () => {
+  // Hall of Heroes scan s2.jpg ("SP//DR (2/17)", 2B): one wild resource icon, which Sync Ratio reads.
+  it("the SP//dr upgrade side prints one wild resource icon", () => {
+    const identity = SPDR_CARDS.find((c) => c.id === "31001a");
+    expect(identity?.type).toBe("hero_identity");
+    if (identity?.type !== "hero_identity") return;
+    expect(identity.separatedIdentity?.alterEgoCardOtherSide).toMatchObject({
+      cardType: "upgrade",
+      name: "SP//dr",
+      resourceIcons: { wild: 1 },
+    });
+  });
+});
+
 describe("Sinister Motives — five scenarios", () => {
   it("five scenarios: Sandman, Venom, Mysterio, The Sinister Six, Venom Goblin", () => {
     expect(SM_SCENARIOS.map((s) => s.id).sort()).toEqual(

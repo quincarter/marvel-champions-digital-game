@@ -6,6 +6,7 @@
 import type {
   CoreAspect,
   IdentityDeckbuilding,
+  ResourceIconCounts,
   SeparateGameAreas,
   SpecialCost,
   Trait,
@@ -302,6 +303,8 @@ export interface SeparatedIdentitySourceFace {
   readonly flavor?: string;
   /** Absolute URL to the second-source scan (see `PackCuration.imageOverrides`'s evidence bar). */
   readonly image?: string;
+  /** Printed resource icons, read from the scan (absent: none). Only a non-identity side carries them. */
+  readonly resourceIcons?: ResourceIconCounts;
 }
 
 /**

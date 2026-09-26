@@ -166,6 +166,7 @@ function buildSeparatedIdentity(
     ...(source.alterEgoOtherSide.flavor ? { flavor: source.alterEgoOtherSide.flavor } : {}),
     abilities: alterEgoOther.abilities,
     ...(alterEgoOtherImage ? { image: alterEgoOtherImage } : {}),
+    ...(source.alterEgoOtherSide.resourceIcons ? { resourceIcons: source.alterEgoOtherSide.resourceIcons } : {}),
   };
 
   const syntheticAlterEgo = syntheticPrepared(

@@ -80,6 +80,7 @@ export const SPDR_CARDS: readonly AnyCard[] = [
         },
         abilities: [{ id: abilityId("31002b.sp-dr-constant") }, { id: abilityId("31002b.suit-up"), label: "Suit Up!" }],
         image: imageRef("https://hallofheroeslcg.com/wp-content/uploads/2022/09/s2.jpg"),
+        resourceIcons: { wild: 1 },
       },
     },
   },
