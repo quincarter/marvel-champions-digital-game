@@ -2033,7 +2033,20 @@ draft.ts`'s `SetupDraft.towerDefenseSetupDamage` carries the choice through `toS
     playing the card, naming every card spent, as it already does for the Milano's "for any player" resource. Implemented
     as: the engine accepts it; asking the other seats before the command is sent is a client/netcode step, not an
     engine rule. The order the per-spender `resourcesSpent` events resolve in (the paying player's first, then seat
-    order) is our default; no ruling covers it.
+    order) is our default; no ruling covers it. **USER DECISION 2026-09-25:** each contributing player approves
+    their own contribution before the command is sent. **Built (game-client-engineer, 2026-09-25) as a hot-seat
+    prompt**, not a netcode request: this build has no multiplayer-netcode layer yet (`engine/host.ts`'s own doc
+    comment — a `WorkerEngineHost` off the main thread, not a network host), every seat plays on the one local
+    session, and the board's perspective already follows whoever must act (`engine/acting-player.ts`). `view/
+payment-model.ts`'s `allianceHelpersOf` reads, from a `PaymentState`'s current picks, every other seat whose
+    hand card or resource ability would be spent (grouped by owner via `controllerOf`, seat order, never the
+    payer). `scenes/board/controller.ts`'s `commitPayment` checks this before dispatching: if it's non-empty, a
+    new `Selection` (`confirmingAllianceHelp`) walks the helpers one at a time — a same-device, pass-the-
+    controller red bar (`scenes/board/controller-bar.ts`'s `drawAllianceHelpBar`, styled like the free-play
+    confirm bar) naming the helper and the cards of theirs at stake, "Approve" advancing to the next helper (or
+    dispatching once every helper has said yes) and "Decline" returning to `paying` with the same payment so the
+    payer can choose different cards instead. Tests: `view/payment-model.test.ts`'s `allianceHelpersOf` describe
+    block.
 11. **Thor's "(in the order of your choice)"** (§3.22). `resolveAttackAgainst` resolves the extra targets in the order
     the ref lists them (play-area order), before the original target, which is one legal order; the player is not
     asked. The only thing the order can change is which overkill spill or defeat happens first. Proposed: keep it

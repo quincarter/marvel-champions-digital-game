@@ -21,6 +21,7 @@ import type { PaymentView } from "../../view/payment-model.js";
 import type { BoardDrawContext } from "./context.js";
 import {
   SOURCE_BAR_NOTE,
+  drawAllianceHelpBar,
   drawControllerBar,
   drawFormBar,
   drawPlayConfirmBar,
@@ -64,6 +65,7 @@ export function drawHand(ctx: BoardDrawContext, rect: Rect, model: BoardModel): 
   const discard = ctx.controller.discardChoiceView();
   const controllerChoice = ctx.controller.controllerChoice();
   const playConfirmation = ctx.controller.playConfirmation();
+  const allianceHelp = ctx.controller.allianceHelpView();
   const costChoice = ctx.controller.costChoiceView();
   const sourceChoice = ctx.controller.sourceChoice();
   const formChoice = ctx.controller.formChoice();
@@ -77,6 +79,9 @@ export function drawHand(ctx: BoardDrawContext, rect: Rect, model: BoardModel): 
     top = rect.y + hit.target + 4;
   } else if (playConfirmation) {
     drawPlayConfirmBar(ctx, { x: rect.x, y: rect.y, width: rect.width, height: hit.target }, playConfirmation);
+    top = rect.y + hit.target + 4;
+  } else if (allianceHelp) {
+    drawAllianceHelpBar(ctx, { x: rect.x, y: rect.y, width: rect.width, height: hit.target }, allianceHelp);
     top = rect.y + hit.target + 4;
   } else if (controllerChoice) {
     drawControllerBar(ctx, { x: rect.x, y: rect.y, width: rect.width, height: hit.target }, controllerChoice);

@@ -34,6 +34,7 @@ import {
 } from "../../view/highlights.js";
 import { cardName, seatIdentityName } from "../../view/names.js";
 import {
+  allianceHelpersOf,
   beginPayment,
   paymentView,
   toggleCostReduction,
@@ -73,6 +74,18 @@ export interface FormChoiceView {
 /** What the "Play it / Decline" bar shows: the free card waiting on a yes. */
 export interface PlayConfirmationView {
   readonly subject: string;
+}
+
+/**
+ * What the alliance-help bar shows (docs/phase7-wave4.md §4 Q10): one helper, asked in turn, to approve the
+ * cards of theirs the current payment would spend. `remaining`/`total` are the bar's own "1 of 2" counter.
+ */
+export interface AllianceHelpView {
+  readonly playerId: PlayerId;
+  readonly heroName: string;
+  readonly cardNames: readonly string[];
+  readonly remaining: number;
+  readonly total: number;
 }
 
 /**
@@ -774,10 +787,83 @@ export class BoardController {
 
   async commitPayment(): Promise<void> {
     if (this.#readOnly) return;
+    if (this.#selection.kind !== "paying") return;
     const payment = this.paymentView();
     if (!payment?.command) return;
+    // An alliance payment that spends another seat's card (RRG 1.8 "Alliance", p. 6): each of those players
+    // approves their own contribution before the command goes anywhere (docs/phase7-wave4.md §4 Q10). Hot-seat —
+    // `allianceHelpersOf`'s own doc comment on why this is a same-device prompt, not a network request.
+    const { store } = appSession();
+    const { game, perspectiveId } = store.state;
+    if (game && perspectiveId !== null) {
+      const helpers = allianceHelpersOf(game, perspectiveId, this.#selection.payment);
+      if (helpers.length > 0) {
+        this.#selection = {
+          kind: "confirmingAllianceHelp",
+          payment: this.#selection.payment,
+          helpers: helpers.map((helper) => helper.playerId),
+          approved: [],
+        };
+        this.#host.redraw();
+        return;
+      }
+    }
     this.#selection = { kind: "idle" };
     await this.#dispatch(payment.command);
+  }
+
+  /** The helper currently being asked, or null outside that mode — `#drawAllianceHelpBar`'s own input. */
+  allianceHelpView(): AllianceHelpView | null {
+    if (this.#selection.kind !== "confirmingAllianceHelp") return null;
+    const { game, perspectiveId } = appSession().store.state;
+    if (!game || perspectiveId === null) return null;
+    const { payment, helpers, approved } = this.#selection;
+    const playerId = helpers[approved.length];
+    if (playerId === undefined) return null;
+    const contributions = allianceHelpersOf(game, perspectiveId, payment).find((h) => h.playerId === playerId);
+    return {
+      playerId,
+      heroName: seatIdentityName(game, playerId),
+      cardNames: (contributions?.instanceIds ?? []).map((id) => cardName(game, id)),
+      remaining: helpers.length - approved.length,
+      total: helpers.length,
+    };
+  }
+
+  /** The current helper hands the controller back: their contribution is approved. Sends the command once every helper has approved. */
+  async approveAllianceHelp(): Promise<void> {
+    if (this.#readOnly || this.#selection.kind !== "confirmingAllianceHelp") return;
+    const { payment, helpers, approved } = this.#selection;
+    const playerId = helpers[approved.length];
+    if (playerId === undefined) return;
+    const nextApproved = [...approved, playerId];
+    if (nextApproved.length < helpers.length) {
+      this.#selection = { kind: "confirmingAllianceHelp", payment, helpers, approved: nextApproved };
+      this.#host.redraw();
+      return;
+    }
+    const { store } = appSession();
+    const { game, perspectiveId } = store.state;
+    if (!game || perspectiveId === null) {
+      this.#selection = { kind: "idle" };
+      this.#host.redraw();
+      return;
+    }
+    const view = paymentView(game, perspectiveId, payment, "", POOL_DEPS);
+    this.#selection = { kind: "idle" };
+    if (view.command) await this.#dispatch(view.command);
+    else this.#host.redraw();
+  }
+
+  /**
+   * The current helper says no. RRG 1.8 "Alliance" (p. 6) makes each contribution that player's own choice, so
+   * declining doesn't end the play — it returns the payer to payment selection with the same picks, so they can
+   * choose different cards to spend instead (docs/phase7-wave4.md §4 Q10).
+   */
+  declineAllianceHelp(): void {
+    if (this.#readOnly || this.#selection.kind !== "confirmingAllianceHelp") return;
+    this.#selection = { kind: "paying", payment: this.#selection.payment };
+    this.#host.redraw();
   }
 
   async dispatchExample(kind: BasicAction): Promise<void> {

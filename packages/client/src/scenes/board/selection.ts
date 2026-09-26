@@ -69,6 +69,20 @@ export type Selection =
       readonly target: InstanceId | null;
       readonly controllerId: PlayerId | null;
       readonly prompt: CostChoicePrompt;
+    }
+  /**
+   * An alliance card's payment (RRG 1.8 "Alliance", p. 6) spends at least one other seat's card; before the
+   * command goes to the engine, each contributing player approves their own contribution, one at a time, in seat
+   * order (docs/phase7-wave4.md §4 Q10, "USER DECISION 2026-09-25"). Hot-seat: this is a same-device,
+   * pass-the-controller prompt, not a network request (`view/payment-model.ts`'s `allianceHelpersOf` own doc
+   * comment). `approved` grows by one seat per approval; declining drops the whole flow and returns to `paying`
+   * with the same `payment`, so the payer can change what they picked rather than starting the play over.
+   */
+  | {
+      readonly kind: "confirmingAllianceHelp";
+      readonly payment: PaymentState;
+      readonly helpers: readonly PlayerId[];
+      readonly approved: readonly PlayerId[];
     };
 
 export type TargetState = "rest" | "selected" | "unavailable";

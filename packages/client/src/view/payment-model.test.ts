@@ -8,11 +8,12 @@
 
 import { beforeEach, describe, expect, test } from "vitest";
 import { CORE_DEPS } from "@mc/cards";
-import { applyCommand, type GameState, type LegalAction, type PlayerId } from "@mc/engine";
+import { applyCommand, type GameState, type InstanceId, type LegalAction, type PlayerId } from "@mc/engine";
 import { LocalEngineHost } from "../engine/local-host.js";
 import { SessionStore } from "../store/session-store.js";
 import type { SessionConfig } from "../engine/host.js";
-import { beginPayment, clearPayment, paymentView, togglePayment } from "./payment-model.js";
+import { allianceHelpersOf, beginPayment, clearPayment, paymentView, togglePayment } from "./payment-model.js";
+import type { PaymentState } from "./payment-model.js";
 
 const SPIDER_MAN_SOLO: SessionConfig = {
   scenarioId: "rhino",
@@ -181,5 +182,75 @@ describe("resources on the table", () => {
     expect(settled.command).not.toBeNull();
     expect(settled.tableSources.find((source) => source.optionId === scientist!.optionId)?.spent).toBe(true);
     expect(applyCommand(state, settled.command!, CORE_DEPS).ok).toBe(true);
+  });
+});
+
+/**
+ * docs/phase7-wave4.md §4 Q10 (USER DECISION 2026-09-25): each contributing player approves their own contribution
+ * before the command is sent. `allianceHelpersOf` is the pure read this build's approval flow gates on — it
+ * doesn't need a real alliance card in play (the engine already offers another seat's hand cards as payment
+ * sources whenever `paidAsGroup` says so; that logic is `@mc/engine`'s, exercised in `packages/engine/src/
+ * alliance.test.ts`), only a `PaymentState` whose picks include another seat's real card instance.
+ */
+describe("allianceHelpersOf", () => {
+  const TWO_PLAYERS: SessionConfig = {
+    scenarioId: "rhino",
+    difficulty: "standard",
+    players: [{ starterDeckId: "core-spider-man-justice" }, { starterDeckId: "core-captain-marvel-leadership" }],
+    seed: 4,
+  };
+
+  /** A `PaymentState` naming `pickedInstanceIds` as picked sources, whoever owns them — real `controllerOf` reads, no fabricated card data. */
+  function paymentNaming(subject: InstanceId, pickedInstanceIds: readonly InstanceId[]): PaymentState {
+    const sources = pickedInstanceIds.map((instanceId) => ({
+      optionId: `hand:${instanceId}`,
+      kind: "handCard" as const,
+      instanceId,
+      label: instanceId,
+      pool: { physical: 0, mental: 0, energy: 0, wild: 0 },
+    }));
+    return {
+      action: { kind: "playCard", instanceId: subject },
+      target: null,
+      query: { requirement: { physical: 0, mental: 0, energy: 0, wild: 0, generic: 0 }, sources, suggested: [] },
+      picked: sources.map((s) => s.optionId),
+      reductions: [],
+    };
+  }
+
+  test("empty for a payment that spends only the payer's own cards", async () => {
+    let localStore = new SessionStore(new LocalEngineHost());
+    await localStore.start(TWO_PLAYERS);
+    for (let step = 0; step < 12 && localStore.state.legal?.actions.kind === "choice"; step++) {
+      const { choice } = localStore.state.legal.actions as {
+        choice: { options: readonly { optionId: string }[]; minSelections: number };
+      };
+      await localStore.resolveChoice(choice.options.slice(0, choice.minSelections).map((option) => option.optionId));
+    }
+    const localState = localStore.state.game!;
+    const me2 = localStore.state.perspectiveId!;
+    const myHand = localState.players.find((p) => p.playerId === me2)!.hand;
+    expect(myHand.length).toBeGreaterThan(0);
+    const payment = paymentNaming(myHand[0]!, [myHand[0]!]);
+    expect(allianceHelpersOf(localState, me2, payment)).toEqual([]);
+  });
+
+  test("names each other seat whose card the picks spend, in seat order, never the payer", async () => {
+    let localStore = new SessionStore(new LocalEngineHost());
+    await localStore.start(TWO_PLAYERS);
+    for (let step = 0; step < 12 && localStore.state.legal?.actions.kind === "choice"; step++) {
+      const { choice } = localStore.state.legal.actions as {
+        choice: { options: readonly { optionId: string }[]; minSelections: number };
+      };
+      await localStore.resolveChoice(choice.options.slice(0, choice.minSelections).map((option) => option.optionId));
+    }
+    const localState = localStore.state.game!;
+    const me2 = localStore.state.perspectiveId!;
+    const other = localState.players.find((p) => p.playerId !== me2)!;
+    expect(other.hand.length).toBeGreaterThan(0);
+    const myHand = localState.players.find((p) => p.playerId === me2)!.hand;
+    const payment = paymentNaming(myHand[0] ?? other.hand[0]!, [other.hand[0]!]);
+    const helpers = allianceHelpersOf(localState, me2, payment);
+    expect(helpers).toEqual([{ playerId: other.playerId, instanceIds: [other.hand[0]] }]);
   });
 });
