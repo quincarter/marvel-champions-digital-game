@@ -165,6 +165,25 @@ export interface HeroIdentityCard extends BaseCard {
    * Data only: the engine does not model two identity cards yet and refuses such an identity at setup.
    */
   readonly separatedIdentity?: SeparatedIdentity;
+  /**
+   * One version of an identity printed on several identity cards that replace each other during the game. The Ironheart
+   * insert, "New Rules: Progressing Identity Cards": "Ironheart / Riri Williams has three identity cards in total …
+   * During game setup, the weakest of the cards is put into play under the player's control, with the other two cards
+   * set aside (determined by a 'begin the game' ability on the alter-ego side of that identity card). … All versions of
+   * the Ironheart / Riri Williams identity share a single hit point dial, with damage persisting from one version to
+   * the next. Additionally, when one identity is swapped for another, move all game elements … on or attached to the
+   * original identity to the subsequent identity. If any one version of the identity card is defeated, all versions
+   * are considered to be defeated simultaneously".
+   *
+   * Set on every version, naming all of them weakest first (Ironheart: 29001a, 29002a, 29003a). A deck names the
+   * first; the others are set aside at setup. docs/phase7-wave5.md §1.4. Data only until §3.23: the engine refuses it.
+   */
+  readonly progressingIdentity?: ProgressingIdentity;
+}
+
+/** Every version of a progressing identity, weakest first (see `HeroIdentityCard.progressingIdentity`). */
+export interface ProgressingIdentity {
+  readonly versions: readonly [CardId, CardId, ...CardId[]];
 }
 
 /** The two card-type faces of a separated identity's physical cards (see `HeroIdentityCard.separatedIdentity`). */

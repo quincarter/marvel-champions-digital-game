@@ -3,6 +3,7 @@ import type { KeywordInstance } from "../keywords.js";
 import type { AbilityReference } from "../abilities.js";
 import type { EncounterSetId, ImageRef } from "../ids.js";
 import type { BaseCard } from "./base.js";
+import type { SchemeIcon } from "./schemes.js";
 import type { AttachmentHost, PrintedStatModifiers } from "./attachment-host.js";
 
 /**
@@ -35,6 +36,8 @@ export interface CardFlipSide {
    * 16182b). docs/phase7-wave3.md §1.2.
    */
   readonly amplifyIcons?: number;
+  /** This face's own printed scheme icons (`BaseCard.schemeIcons` is the front's). docs/phase7-wave5.md §1.3. */
+  readonly schemeIcons?: readonly SchemeIcon[];
   /** This face's "Standard Mode Only." / "Expert Mode Only." (see `ModeOnly`). */
   readonly modeOnly?: ModeOnly;
 }

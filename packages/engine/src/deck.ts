@@ -515,6 +515,18 @@ export function validateDeck(deck: DeckContents, pool: CardPool, context?: DeckC
         [identityCard.id],
       );
     }
+    // docs/phase7-wave5.md §1.4: a progressing identity (Ironheart) is chosen by its first version; the others are set
+    // aside at setup. Until the swap is built (§3.23) no version can be seated.
+    const progressing = identityCard.progressingIdentity;
+    if (progressing !== undefined) {
+      add(
+        "unsupported_identity",
+        progressing.versions[0] !== identityCard.id
+          ? `${uniqueLabel(identityCard)} is a later version of a progressing identity: a deck names its first version, and the others are set aside at setup.`
+          : `${uniqueLabel(identityCard)} is a progressing identity (several identity cards swapped during the game), which this build cannot play yet.`,
+        [identityCard.id],
+      );
+    }
     const unbuilt = unbuildableSeparateDeck(identityCard);
     if (unbuilt) {
       add(

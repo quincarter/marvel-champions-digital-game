@@ -79,7 +79,15 @@ authority; every card of all five packs (raw JSON and emitted data) was read for
 
 ## 1. Schema decisions (owner: `game-rules-architect`)
 
-> Status: see each subsection. Landed items are fixtured in `packages/content/src/schema/wave5.test.ts`.
+> Status: **landed (2026-09-26)** in `packages/content/src/schema/**`, with fixtures in
+> `packages/content/src/schema/wave5.test.ts` (10 tests) and `packages/engine/src/progressing-identity-gate.test.ts`
+> (2 tests). New: `MainSchemeStage.otherFaceId` / `onCompletion` (§1.1), negative `victory` values (§1.2),
+> `BaseCard.schemeIcons` / `CardFlipSide.schemeIcons` (§1.3), `HeroIdentityCard.progressingIdentity` (§1.4),
+> `MultipleVillains.winCondition: "cardAbility"` and `atSetup: "setAside"` (§1.5). No emitted card changed; every pack
+> still validates. **Data only until §3:** `otherFaceId`/`onCompletion` on a stage (§3.3), `schemeIcons` (§3.10),
+> `atSetup` and `winCondition: "cardAbility"` (§3.1), so no scenario using them may be marked playable before its §3
+> section lands. `progressingIdentity` is refused by `createGame` and reported `unsupported_identity` by `validateDeck`
+> (a later version is told a deck names the first) until §3.23.
 
 **The survey** (`survey.ts --pack sm --pack nova --pack ironheart --pack spiderham --pack spdr`, 2026-09-26): the four
 hero packs normalize cleanly; `sm` has 31 lines — Venom Goblin's lettered main schemes 16 (§1.1), campaign upgrades

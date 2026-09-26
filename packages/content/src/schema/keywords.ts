@@ -135,6 +135,7 @@ export type KeywordInstance =
    * Campaign Challenge side schemes, 16178b–16182b) → `{ value: 4 }`. docs/phase7-wave3.md §1.3.
    */
   | (KeywordBase<"hinder"> & { readonly value: number; readonly perPlayer?: number })
+  /** RRG 1.8 "Victory X" (p. 46). A whole number; negative on Snitches Get Stitches ("Victory -1.", `sm` 27181). */
   | (KeywordBase<"victory"> & { readonly value: number })
   /**
    * RRG 1.8 "Requirement (Resources)" (p. 37): "A card with the requirement keyword cannot be played unless each

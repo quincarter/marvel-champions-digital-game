@@ -487,6 +487,13 @@ export function createGame(requested: GameSetupConfig, deps: EngineDeps = DEFAUL
         `${identityLabel(identityCard)} is a separated identity (two identity cards), which this engine cannot seat yet`,
       );
     }
+    // The Ironheart insert's "Progressing Identity Cards" (several identity cards swapped during the game) is not modeled
+    // yet (docs/phase7-wave5.md §1.4, §3.23); seating one version as a plain identity would play a different game.
+    if (identityCard.progressingIdentity !== undefined) {
+      return invalid(
+        `${identityLabel(identityCard)} is a progressing identity (several identity cards), which this engine cannot seat yet`,
+      );
+    }
     // Only Doctor Strange's kind of separate deck is built (a player-card deck with its own discard pile). Hercules's
     // Labor deck (encounter cards) and Gift deck (no discard pile) are data only (docs/phase7-wave2.md §15); building
     // either as if it were the Invocation deck would silently play a different game.
