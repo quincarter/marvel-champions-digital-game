@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="design_doc_mode" content="canvas">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="">
+<link href="https://fonts.googleapis.com/css2?family=Bangers&amp;family=Public+Sans:ital,wght@0,400;0,600;0,700;0,800;1,400;1,800&amp;display=swap" rel="stylesheet">
+<style>
+html,body{margin:0;padding:0;background:#0E0C0A;}
+a{color:#C8102E;text-decoration:none;}
+a:hover{color:#8E0B20;}
+@keyframes gpulse{0%,100%{box-shadow:0 0 0 3px #F2B01E}50%{box-shadow:0 0 0 3px #F2B01E,0 0 0 10px rgba(242,176,30,.35)}}
+</style>
+</helmet>
+
+<div style="background:#0E0C0A;font-family:'Public Sans',system-ui,sans-serif;padding:40px;display:flex;flex-direction:column;gap:36px;width:max-content">
+
+  <div style="display:flex;align-items:flex-end;gap:18px;color:#F4EFE3;max-width:1400px">
+    <div style="font-family:Bangers,cursive;font-size:46px;letter-spacing:1.5px;line-height:.9">GUIDED MODE — TABLET</div>
+    <div style="font-size:12px;font-weight:700;line-height:1.5;opacity:.6;padding-bottom:4px">1024 × 768 landscape. Same lessons as <a href="./Guided - Phone.dc.html">Phone</a>; the guide docks to a right rail so it never covers the board, and keeps the lesson checklist in view. Desktop: <a href="./Guided - Desktop.dc.html">Guided - Desktop</a>.</div>
+  </div>
+
+  <div style="display:flex;flex-wrap:wrap;gap:36px;max-width:2200px;align-items:flex-start">
+
+    <!-- T01 -->
+    <div id="t01" style="display:flex;flex-direction:column;gap:9px">
+      <div style="display:flex;align-items:baseline;gap:9px;color:#F4EFE3"><span style="font-family:Bangers,cursive;font-size:22px;color:#C8102E">G01</span><span style="font-family:Bangers,cursive;font-size:20px;letter-spacing:.8px">HOW DO YOU WANT TO LEARN?</span><span style="font-size:10px;font-weight:800;letter-spacing:1.2px;text-transform:uppercase;opacity:.45">First launch</span></div>
+      <div data-screen-label="G-T01 Choose guidance" style="width:1024px;height:768px;box-sizing:border-box;overflow:hidden;background:#F4EFE3;color:#14110E;display:flex">
+        <div style="width:440px;flex:none;position:relative;border-right:3px solid #14110E;background:#14110E">
+          <img src="./art/title-portrait.jpg" alt="" style="width:100%;height:100%;object-fit:cover;object-position:center 20%;display:block">
+          <div style="position:absolute;left:22px;bottom:28px;right:22px;background:#F2B01E;border:3px solid #14110E;box-shadow:6px 6px 0 #14110E;padding:10px 14px;transform:rotate(-2deg)">
+            <div style="font-family:Bangers,cursive;font-size:44px;letter-spacing:1px;line-height:.92">NEW TO THE FIGHT?</div>
+          </div>
+        </div>
+        <div style="flex:1;display:flex;flex-direction:column;gap:14px;padding:36px 34px 30px">
+          <div style="font-size:15px;font-weight:600;line-height:1.5;opacity:.75;max-width:440px;text-wrap:pretty">Pick how much help you want. You can change this any time from the menu.</div>
+          <div style="border:3px solid #14110E;box-shadow:0 0 0 3px #C8102E;padding:16px;display:flex;gap:14px;align-items:flex-start;position:relative">
+            <span style="position:absolute;top:-12px;right:14px;font-family:Bangers,cursive;font-size:14px;letter-spacing:.6px;background:#C8102E;color:#F4EFE3;border:2px solid #14110E;padding:0 7px">RECOMMENDED</span>
+            <span style="flex:none;width:24px;height:24px;border-radius:50%;border:3px solid #14110E;background:#C8102E;box-shadow:inset 0 0 0 4px #F4EFE3;margin-top:2px"></span>
+            <div style="display:flex;flex-direction:column;gap:4px"><div style="font-family:Bangers,cursive;font-size:26px;letter-spacing:.5px;line-height:1">LEARN AS YOU PLAY</div><div style="font-size:14px;font-weight:600;line-height:1.45">A real first game against Crossbones. The guide explains each step as it happens. About 25 minutes.</div>
+              <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:6px">
+                <span style="font-size:10px;font-weight:800;letter-spacing:.7px;text-transform:uppercase;border:2px solid #14110E;padding:3px 7px">1 · How to win</span>
+                <span style="font-size:10px;font-weight:800;letter-spacing:.7px;text-transform:uppercase;border:2px solid #14110E;padding:3px 7px">2 · Threat</span>
+                <span style="font-size:10px;font-weight:800;letter-spacing:.7px;text-transform:uppercase;border:2px solid #14110E;padding:3px 7px">3 · Paying</span>
+                <span style="font-size:10px;font-weight:800;letter-spacing:.7px;text-transform:uppercase;border:2px solid #14110E;padding:3px 7px">4 · Villain phase</span>
+                <span style="font-size:10px;font-weight:800;letter-spacing:.7px;text-transform:uppercase;border:2px solid #14110E;padding:3px 7px">5 · Alter-ego</span>
+              </div>
+            </div>
+          </div>
+          <div style="border:3px solid #14110E;padding:16px;display:flex;gap:14px;align-items:flex-start">
+            <span style="flex:none;width:24px;height:24px;border-radius:50%;border:3px solid #14110E;margin-top:2px"></span>
+            <div style="display:flex;flex-direction:column;gap:4px"><div style="font-family:Bangers,cursive;font-size:26px;letter-spacing:.5px;line-height:1">HINTS ONLY</div><div style="font-size:14px;font-weight:600;line-height:1.45">Play any scenario. The guide stays quiet unless you're about to make a costly mistake.</div></div>
+          </div>
+          <div style="border:3px solid #14110E;padding:16px;display:flex;gap:14px;align-items:flex-start">
+            <span style="flex:none;width:24px;height:24px;border-radius:50%;border:3px solid #14110E;margin-top:2px"></span>
+            <div style="display:flex;flex-direction:column;gap:4px"><div style="font-family:Bangers,cursive;font-size:26px;letter-spacing:.5px;line-height:1">NO GUIDE</div><div style="font-size:14px;font-weight:600;line-height:1.45">I know the rules.</div></div>
+          </div>
+          <div style="flex:1"></div>
+          <div style="display:flex;gap:10px">
+            <div style="flex:1;height:54px;border:3px solid #14110E;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;letter-spacing:.8px;text-transform:uppercase">Back</div>
+            <div style="flex:2.4;height:54px;background:#C8102E;border:3px solid #14110E;color:#F4EFE3;display:flex;align-items:center;justify-content:center;font-family:Bangers,cursive;font-size:24px;letter-spacing:1px">SUIT UP ▸</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- T02 -->
+    <div id="t02" style="display:flex;flex-direction:column;gap:9px">
+      <div style="display:flex;align-items:baseline;gap:9px;color:#F4EFE3"><span style="font-family:Bangers,cursive;font-size:22px;color:#C8102E">G04</span><span style="font-family:Bangers,cursive;font-size:20px;letter-spacing:.8px">LESSON 3 · PAYING FOR CARDS</span><span style="font-size:10px;font-weight:800;letter-spacing:1.2px;text-transform:uppercase;opacity:.45">Docked guide rail</span></div>
+      <div data-screen-label="G-T02 Paying for cards" style="width:1024px;height:768px;box-sizing:border-box;overflow:hidden;background:#F4EFE3;color:#14110E;display:flex;flex-direction:column">
+        <div style="flex:none;height:46px;display:flex;align-items:stretch;background:#14110E;color:#F4EFE3">
+          <div style="display:flex;align-items:center;padding:0 14px;background:#C8102E;font-family:Bangers,cursive;font-size:20px;letter-spacing:.8px">RD 1</div>
+          <div style="display:flex;align-items:center;gap:5px;padding:0 14px"><span style="font-family:Bangers,cursive;font-size:15px;padding:3px 9px;background:#F4EFE3;color:#14110E">PLAYER</span><span style="font-family:Bangers,cursive;font-size:15px;opacity:.45">VILLAIN</span></div>
+          <div style="flex:1"></div>
+          <div style="display:flex;align-items:center;gap:10px;padding:0 14px"><span style="font-size:10px;font-weight:800;letter-spacing:.8px;text-transform:uppercase;padding:4px 8px;border:1.5px dashed rgba(244,239,227,.4);opacity:.5">Log · lesson 5</span><span style="font-size:11px;font-weight:800;padding:4px 8px;border:2px solid #F4EFE3">≡</span></div>
+        </div>
+        <div style="flex:1;min-height:0;display:flex">
+          <div style="flex:1;min-width:0;display:flex;flex-direction:column">
+            <div style="flex:1;min-height:0;padding:14px;display:flex;flex-direction:column;gap:12px;background:#F4EFE3;background-image:radial-gradient(rgba(20,17,14,.1) 1px,transparent 1.1px);background-size:6px 6px">
+              <div style="display:flex;gap:12px">
+                <div style="width:150px;flex:none;border:3px solid #14110E;background:#F4EFE3;box-shadow:0 0 0 3px #C8102E">
+                  <div style="height:120px;border-bottom:2.5px solid #14110E;background:#14110E"><img src="./art/crossbones.webp" alt="" style="width:100%;height:100%;object-fit:cover;display:block"></div>
+                  <div style="padding:5px 7px"><div style="font-family:Bangers,cursive;font-size:18px;line-height:1">CROSSBONES</div><div style="display:flex;align-items:center;gap:5px;margin-top:4px"><div style="flex:1;height:10px;border:2px solid #14110E;background:#fff;display:flex"><div style="width:100%;background:#C8102E"></div></div><span style="font-size:9px;font-weight:800">14/14</span></div></div>
+                </div>
+                <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:8px">
+                  <div style="border:3px solid #14110E;background:#F4EFE3;padding:9px 11px"><div style="font-family:Bangers,cursive;font-size:19px;line-height:1">CROSSBONES' ASSAULT</div><div style="font-size:8px;font-weight:800;letter-spacing:1px;text-transform:uppercase;opacity:.6;margin-top:2px">Main scheme · +2 each round</div><div style="display:flex;align-items:center;gap:8px;margin-top:8px"><div style="flex:1;height:14px;border:2.5px solid #14110E;background:#fff;display:flex"><div style="width:33%;background:#C8102E"></div></div><span style="font-family:Bangers,cursive;font-size:18px">4/12</span></div></div>
+                  <div style="display:flex;align-items:center;gap:8px"><span style="font-family:Bangers,cursive;font-size:14px;letter-spacing:.6px">ENGAGED</span><span style="flex:1;height:2.5px;background:#14110E"></span></div>
+                  <div style="border:2.5px dashed rgba(20,17,14,.35);padding:10px;font-size:11px;font-weight:700;opacity:.55;text-align:center">No minions yet</div>
+                </div>
+              </div>
+              <div style="display:flex;gap:12px">
+                <div style="width:150px;flex:none;border:3px solid #14110E;background:#F4EFE3">
+                  <div style="background:#8E5AA0;color:#F4EFE3;padding:4px 7px;border-bottom:2.5px solid #14110E"><div style="font-family:Bangers,cursive;font-size:17px;line-height:1">SPIDER-WOMAN</div><div style="font-size:7px;font-weight:800;letter-spacing:.9px;text-transform:uppercase">Hero form</div></div>
+                  <div style="height:92px;border-bottom:2.5px solid #14110E;background:#14110E"><img src="./art/spider-woman.webp" alt="" style="width:100%;height:100%;object-fit:cover;display:block"></div>
+                  <div style="padding:5px 7px;display:flex;align-items:center;gap:5px"><div style="flex:1;height:10px;border:2px solid #14110E;background:#fff;display:flex"><div style="width:100%;background:#1F7A4C"></div></div><span style="font-size:9px;font-weight:800">11/11</span></div>
+                </div>
+                <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:8px">
+                  <div style="display:flex;align-items:center;gap:8px"><span style="font-family:Bangers,cursive;font-size:14px;letter-spacing:.6px">IN PLAY</span><span style="flex:1;height:2.5px;background:#14110E"></span></div>
+                  <div style="display:flex;gap:8px">
+                    <div style="width:96px;border:2.5px solid #14110E;background:#F4EFE3"><div style="height:64px;border-bottom:2px solid #14110E"><img src="./art/hawkeye.jpg" alt="" style="width:100%;height:100%;object-fit:cover;display:block"></div><div style="padding:3px 6px"><div style="font-family:Bangers,cursive;font-size:13px;line-height:1">HAWKEYE</div><div style="font-size:7px;font-weight:800;opacity:.6">ALLY · 1/2/1</div></div></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div style="flex:none;background:#C8102E;color:#F4EFE3;padding:8px 14px;display:flex;align-items:center;gap:12px;border-top:3px solid #14110E">
+              <span style="font-family:Bangers,cursive;font-size:18px;letter-spacing:.6px">PAYING 0 / 2</span>
+              <span style="display:flex;gap:4px"><span style="width:14px;height:14px;border:2px solid #F4EFE3"></span><span style="width:14px;height:14px;border:2px solid #F4EFE3"></span></span>
+              <span style="flex:1;font-size:11px;font-weight:700">Venom Blast → Crossbones</span>
+              <span style="font-size:10px;font-weight:800;letter-spacing:.7px;text-transform:uppercase;padding:5px 9px;border:2px solid #F4EFE3">Cancel</span>
+            </div>
+            <div style="flex:none;height:212px;border-top:3px solid #14110E;background:#EAE3D3;display:flex;flex-direction:column">
+              <div style="flex:none;display:flex;align-items:center;gap:8px;padding:8px 14px 0"><span style="font-family:Bangers,cursive;font-size:16px;letter-spacing:.7px">HAND 5</span><span style="flex:1"></span><span style="font-size:9px;font-weight:800;letter-spacing:.9px;text-transform:uppercase;opacity:.6">Tap a card to spend it</span></div>
+              <div style="flex:1;display:flex;gap:10px;padding:16px 14px 0;align-items:flex-start">
+                <div style="flex:none;width:112px;height:160px;background:#F4EFE3;border:3px solid #14110E;box-shadow:0 0 0 3px #C8102E;transform:translateY(-6px);position:relative">
+                  <span style="position:absolute;top:-12px;left:6px;font-family:Bangers,cursive;font-size:11px;letter-spacing:.5px;background:#C8102E;color:#F4EFE3;border:2px solid #14110E;padding:0 4px">PLAYING</span>
+                  <div style="display:flex;border-bottom:2px solid #14110E"><div style="width:20px;background:#C8102E;color:#F4EFE3;font-family:Bangers,cursive;font-size:14px;display:flex;align-items:center;justify-content:center">2</div><div style="flex:1;padding:3px 5px"><div style="font-family:Bangers,cursive;font-size:12px;line-height:1">VENOM BLAST</div><div style="font-size:6px;font-weight:800;opacity:.6">EVENT · ATTACK</div></div></div>
+                  <div style="height:60px;border-bottom:2px solid #14110E;background:#EAE3D3;background-image:repeating-linear-gradient(45deg,rgba(20,17,14,.08) 0 5px,transparent 5px 10px)"></div>
+                  <div style="padding:5px;font-size:9px;line-height:1.3">Deal 3 damage to an enemy.</div>
+                </div>
+                <div style="flex:none;width:112px;height:160px;background:#F4EFE3;border:3px solid #14110E;animation:gpulse 1.6s ease-in-out infinite;position:relative">
+                  <span style="position:absolute;top:-12px;left:6px;font-family:Bangers,cursive;font-size:11px;letter-spacing:.5px;background:#F2B01E;border:2px solid #14110E;padding:0 4px">TRY THIS</span>
+                  <div style="display:flex;border-bottom:2px solid #14110E"><div style="width:20px;background:#1F5FA8;color:#F4EFE3;font-family:Bangers,cursive;font-size:14px;display:flex;align-items:center;justify-content:center">–</div><div style="flex:1;padding:3px 5px"><div style="font-family:Bangers,cursive;font-size:12px;line-height:1">ENERGY</div><div style="font-size:6px;font-weight:800;opacity:.6">RESOURCE</div></div></div>
+                  <div style="height:60px;border-bottom:2px solid #14110E;background:#EAE3D3;background-image:repeating-linear-gradient(45deg,rgba(20,17,14,.08) 0 5px,transparent 5px 10px)"></div>
+                  <div style="padding:5px;font-size:9px;line-height:1.3">Counts as 2 resources.</div>
+                  <div style="position:absolute;left:3px;right:3px;bottom:4px;display:flex;gap:3px;padding:3px;background:#F2B01E;border:2px solid #14110E"><span style="width:11px;height:11px;background:#1F5FA8"></span><span style="width:11px;height:11px;background:#1F5FA8"></span><span style="font-size:8px;font-weight:800;margin-left:auto">= 2</span></div>
+                </div>
+                <div style="flex:none;width:112px;height:160px;background:#F4EFE3;border:3px solid #14110E;opacity:.55;position:relative"><div style="display:flex;border-bottom:2px solid #14110E"><div style="width:20px;background:#1F7A4C;color:#F4EFE3;font-family:Bangers,cursive;font-size:14px;display:flex;align-items:center;justify-content:center">1</div><div style="flex:1;padding:3px 5px"><div style="font-family:Bangers,cursive;font-size:12px;line-height:1">BACKFLIP</div><div style="font-size:6px;font-weight:800;opacity:.6">EVENT · DEFENSE</div></div></div><div style="height:60px;border-bottom:2px solid #14110E;background:#EAE3D3"></div><div style="padding:5px;font-size:9px;line-height:1.3">Prevent all damage from an attack.</div><div style="position:absolute;left:4px;bottom:5px;display:flex;gap:3px"><span style="width:11px;height:11px;background:#C8102E"></span></div></div>
+                <div style="flex:none;width:112px;height:160px;background:#F4EFE3;border:3px solid #14110E;opacity:.55;position:relative"><div style="display:flex;border-bottom:2px solid #14110E"><div style="width:20px;background:#D9741F;color:#F4EFE3;font-family:Bangers,cursive;font-size:14px;display:flex;align-items:center;justify-content:center">3</div><div style="flex:1;padding:3px 5px"><div style="font-family:Bangers,cursive;font-size:12px;line-height:1">MOCKINGBIRD</div><div style="font-size:6px;font-weight:800;opacity:.6">ALLY</div></div></div><div style="height:60px;border-bottom:2px solid #14110E;background:#EAE3D3"></div><div style="position:absolute;left:4px;bottom:5px;display:flex;gap:3px"><span style="width:11px;height:11px;background:#1F7A4C"></span></div></div>
+              </div>
+            </div>
+          </div>
+          <div style="width:300px;flex:none;border-left:3px solid #14110E;background:#F2B01E;display:flex;flex-direction:column">
+            <div style="flex:none;padding:12px 14px 10px;border-bottom:3px solid #14110E;display:flex;align-items:center;gap:8px">
+              <span style="font-family:Bangers,cursive;font-size:16px;letter-spacing:.8px;background:#14110E;color:#F2B01E;padding:1px 8px">GUIDE</span>
+              <span style="font-size:10px;font-weight:800;letter-spacing:1px;text-transform:uppercase">Lesson 3 of 5</span>
+              <span style="flex:1"></span>
+              <span style="font-size:10px;font-weight:800;letter-spacing:.8px;text-transform:uppercase;padding:4px 7px;border:2px solid #14110E">Hide ▸</span>
+            </div>
+            <div style="flex:1;padding:16px 14px;display:flex;flex-direction:column;gap:10px">
+              <div style="font-size:10px;font-weight:800;letter-spacing:1px;text-transform:uppercase">Step 2 of 4</div>
+              <div style="font-family:Bangers,cursive;font-size:30px;letter-spacing:.5px;line-height:.95">PAY WITH OTHER CARDS</div>
+              <div style="font-size:14px;font-weight:600;line-height:1.5;text-wrap:pretty">Venom Blast costs 2. Discard cards from your hand to pay — each one gives the <b style="border-bottom:2px dotted #14110E">resources</b> printed at its bottom.</div>
+              <div style="font-size:14px;font-weight:700;line-height:1.5">Tap <b>Energy</b> — it's worth 2 by itself.</div>
+              <div style="border:2.5px solid #14110E;background:#F4EFE3;padding:9px 10px;display:flex;flex-direction:column;gap:6px">
+                <div style="font-size:9px;font-weight:800;letter-spacing:1px;text-transform:uppercase;opacity:.65">Resource icons</div>
+                <div style="display:flex;flex-direction:column;gap:5px;font-size:11px;font-weight:700">
+                  <div style="display:flex;align-items:center;gap:7px"><span style="width:12px;height:12px;background:#1F5FA8"></span>Energy</div>
+                  <div style="display:flex;align-items:center;gap:7px"><span style="width:12px;height:12px;background:#1F7A4C"></span>Mental</div>
+                  <div style="display:flex;align-items:center;gap:7px"><span style="width:12px;height:12px;background:#C8102E"></span>Physical</div>
+                  <div style="display:flex;align-items:center;gap:7px"><span style="width:12px;height:12px;background:#F4EFE3;border:2px solid #14110E;box-sizing:border-box"></span>Wild — counts as any</div>
+                </div>
+              </div>
+              <div style="flex:1"></div>
+              <div style="display:flex;gap:4px"><span style="flex:1;height:6px;background:#14110E"></span><span style="flex:1;height:6px;background:#14110E"></span><span style="flex:1;height:6px;border:2px solid #14110E;box-sizing:border-box"></span><span style="flex:1;height:6px;border:2px solid #14110E;box-sizing:border-box"></span></div>
+              <div style="display:flex;gap:8px">
+                <div style="flex:1;height:44px;border:2.5px solid #14110E;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;letter-spacing:.8px;text-transform:uppercase">◂ Back</div>
+                <div style="flex:1;height:44px;border:2.5px dashed rgba(20,17,14,.5);display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:800;letter-spacing:.6px;text-transform:uppercase;opacity:.6;text-align:center;line-height:1.2">Tap Energy<br>to continue</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- T03 -->
+    <div id="t03" style="display:flex;flex-direction:column;gap:9px">
+      <div style="display:flex;align-items:baseline;gap:9px;color:#F4EFE3"><span style="font-family:Bangers,cursive;font-size:22px;color:#C8102E">G06</span><span style="font-family:Bangers,cursive;font-size:20px;letter-spacing:.8px">SAFETY NET</span><span style="font-size:10px;font-weight:800;letter-spacing:1.2px;text-transform:uppercase;opacity:.45">Also shown in Hints only</span></div>
+      <div data-screen-label="G-T03 Safety net" style="width:1024px;height:768px;box-sizing:border-box;overflow:hidden;background:#F4EFE3;color:#14110E;display:flex;flex-direction:column;position:relative">
+        <div style="flex:none;height:46px;display:flex;align-items:stretch;background:#14110E;color:#F4EFE3">
+          <div style="display:flex;align-items:center;padding:0 14px;background:#C8102E;font-family:Bangers,cursive;font-size:20px;letter-spacing:.8px">RD 4</div>
+          <div style="display:flex;align-items:center;gap:5px;padding:0 14px"><span style="font-family:Bangers,cursive;font-size:15px;padding:3px 9px;background:#F4EFE3;color:#14110E">PLAYER</span><span style="font-family:Bangers,cursive;font-size:15px;opacity:.45">VILLAIN</span></div>
+        </div>
+        <div style="flex:1;min-height:0;display:flex">
+          <div style="flex:1;padding:14px;display:flex;flex-direction:column;gap:12px">
+            <div style="display:flex;gap:12px">
+              <div style="width:150px;height:170px;flex:none;border:3px solid #14110E;background:#14110E"><img src="./art/crossbones.webp" alt="" style="width:100%;height:100%;object-fit:cover;display:block"></div>
+              <div style="flex:1;display:flex;flex-direction:column;gap:8px">
+                <div style="position:relative;z-index:5;border:3px solid #14110E;background:#F4EFE3;padding:9px 11px;box-shadow:0 0 0 4px #F2B01E,0 0 0 3000px rgba(14,12,10,.74)"><div style="font-family:Bangers,cursive;font-size:19px;line-height:1">CROSSBONES' ASSAULT</div><div style="display:flex;align-items:center;gap:8px;margin-top:8px"><div style="flex:1;height:16px;border:2.5px solid #14110E;background:#fff;display:flex"><div style="width:83%;background:#C8102E"></div><div style="width:17%;background:repeating-linear-gradient(45deg,#C8102E 0 4px,#14110E 4px 8px)"></div></div><span style="font-family:Bangers,cursive;font-size:20px">10/12</span></div></div>
+                <div style="height:50px;border:2.5px solid #14110E"></div>
+              </div>
+            </div>
+            <div style="display:flex;gap:12px"><div style="width:150px;height:170px;flex:none;border:3px solid #14110E;background:#14110E"><img src="./art/spider-woman.webp" alt="" style="width:100%;height:100%;object-fit:cover;display:block"></div><div style="flex:1;display:flex;gap:8px"><div style="width:96px;height:100px;border:2.5px solid #14110E"></div></div></div>
+          </div>
+        </div>
+        <div style="flex:none;height:64px;background:#14110E;display:flex;gap:8px;padding:10px 14px;box-sizing:border-box">
+          <div style="flex:1;border:2.5px solid #F4EFE3;background:#F4EFE3"></div><div style="flex:1;border:2.5px solid #F4EFE3;background:#F4EFE3"></div><div style="flex:1;background:#C8102E"></div>
+        </div>
+        <div style="position:absolute;left:512px;top:236px;width:440px;z-index:6;background:#F4EFE3;border:3px solid #14110E;box-shadow:0 0 0 4px #F2B01E,8px 8px 0 4px #14110E;display:flex;flex-direction:column">
+          <span style="position:absolute;top:-4px;left:-34px;width:34px;height:4px;background:#F2B01E"></span>
+          <div style="background:#F2B01E;border-bottom:3px solid #14110E;padding:10px 14px;display:flex;align-items:center;gap:10px">
+            <span style="font-family:Bangers,cursive;font-size:15px;letter-spacing:.8px;background:#14110E;color:#F2B01E;padding:1px 7px">GUIDE</span>
+            <span style="font-family:Bangers,cursive;font-size:30px;letter-spacing:.8px;line-height:1">HOLD ON!</span>
+          </div>
+          <div style="padding:14px 14px 0;font-size:14px;font-weight:600;line-height:1.5;text-wrap:pretty">Threat is at <b>10 of 12</b>. When you end your turn, Crossbones adds 2 more — and his plan finishes. That's a loss.</div>
+          <div style="padding:10px 14px 0;font-size:13px;font-weight:700;line-height:1.45">You can still <b>thwart for 2</b> and stay safe.</div>
+          <div style="display:flex;gap:8px;padding:14px">
+            <div style="flex:1;height:44px;border:2.5px solid #14110E;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;letter-spacing:.8px;text-transform:uppercase">End turn anyway</div>
+            <div style="flex:1.3;height:44px;background:#14110E;color:#F4EFE3;display:flex;align-items:center;justify-content:center;gap:8px;font-family:Bangers,cursive;font-size:20px;letter-spacing:.8px">THWART FIRST <span style="background:#F4EFE3;color:#14110E;padding:0 6px;font-size:16px">−2</span></div>
+          </div>
+          <div style="border-top:2px solid rgba(20,17,14,.15);padding:10px 14px;display:flex;align-items:center;gap:8px;font-size:11px;font-weight:700;opacity:.7"><span style="width:15px;height:15px;border:2px solid #14110E;box-sizing:border-box"></span>Don't warn me about threat again</div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+</x-dc>
+</body>
+</html>
