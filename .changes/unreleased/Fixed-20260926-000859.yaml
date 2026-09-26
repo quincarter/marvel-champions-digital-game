@@ -1,3 +1,0 @@
-kind: Fixed
-body: Verify no MTS campaign scenario has a Collector-II-style setup damage-ordering bug, and pin why hpSet/healToFull must stay at the default window for Tower Defense
-time: 2026-09-26T00:08:59.0521-04:00
