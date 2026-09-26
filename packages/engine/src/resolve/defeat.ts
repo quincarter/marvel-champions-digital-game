@@ -1,7 +1,15 @@
 /** Defeat sweeps, player elimination, and villain/main scheme stage advancement. */
 
 import { type Ctx, emit, moveCard, pushFrames, updateInstance, updatePlayer } from "../ctx.js";
-import { discardAtOnce, endGame, giveStatus, leavePlay, setActiveVillain, updateMainSchemeState } from "../effects.js";
+import {
+  attachmentsWaitForHost,
+  discardAtOnce,
+  endGame,
+  giveStatus,
+  leavePlay,
+  setActiveVillain,
+  updateMainSchemeState,
+} from "../effects.js";
 import type { FrameId, InstanceId, PlayerId } from "../ids.js";
 import { hasKeyword, isPermanent } from "../keywords.js";
 import {
@@ -19,6 +27,7 @@ import {
   nextClockwisePlayer,
   playerOrder,
   undefeatedVillains,
+  villainOf,
   villainStageCount,
   villainStageOf,
 } from "../query.js";
@@ -164,6 +173,8 @@ export function completeMainScheme(ctx: Ctx, schemeId: InstanceId): void {
   // Venom Goblin's main schemes turn to their environment face instead (docs/phase7-wave5.md §3.3).
   if (mainSchemeStageOf(ctx.state, scheme).onCompletion === "flipToOtherFace") {
     const frames = flipMainSchemeStage(ctx, schemeId, true, ctx.state.firstPlayerId);
+    // Waiting for its attachments' "when this leaves play" interrupts; the flip, and its frames, come after (§4.1 Q32).
+    if (frames === "waiting") return;
     if (frames !== false) {
       pushFrames(ctx, frames);
       return;
@@ -354,7 +365,14 @@ export function checkDefeats(ctx: Ctx, hints?: DefeatHint | readonly DefeatHint[
         : {}),
       ...(together ? { protectionChecked: true as const } : {}),
     };
-    if (identityFalls || together || heard(ctx.state, ctx.deps, defeat)) {
+    // An interrupt hearing an attachment that this defeat removes with the villain joins the defeat's window (§4.1 Q32
+    // of docs/phase7-wave5.md, `leavingWithHostFrames`).
+    if (
+      identityFalls ||
+      together ||
+      heard(ctx.state, ctx.deps, defeat) ||
+      (villainDefeatRemoves(ctx.state, instanceId) && attachmentsWaitForHost(ctx, instanceId))
+    ) {
       villainDefeats.push(eventFrame(ctx, defeat));
       continue;
     }
@@ -444,6 +462,19 @@ const updateVillain = (ctx: Ctx, id: InstanceId, update: (villain: VillainState)
     villains: ctx.state.villains.map((villain) => (villain.instanceId === id ? update(villain) : villain)),
   };
 };
+
+/**
+ * Whether defeating `villainId`'s current stage removes it from play (`defeatVillainStage` → `removeDefeatedVillain`):
+ * its last stage, and not the defeat of the last villain standing that wins the game.
+ */
+export function villainDefeatRemoves(state: GameState, villainId: InstanceId): boolean {
+  const villain = villainOf(state, villainId);
+  if (!villain || villain.defeated) return false;
+  const nextIndex = villain.stageIndex + 1;
+  if (nextIndex <= villain.lastStageIndex && nextIndex < villainStageCount(state, villainId)) return false;
+  const others = state.villains.filter((v) => v.instanceId !== villainId);
+  return !(state.scenarioRules.victory === "finalVillainStage" && others.every((v) => v.defeated));
+}
 
 /**
  * RRG 1.8 "Villain Defeat" (p. 47), for one villain: the next stage is revealed, or after the last stage this

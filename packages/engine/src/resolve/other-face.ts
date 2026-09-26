@@ -16,7 +16,7 @@
 import type { AnyCard, CardId } from "@mc/content";
 import type { EngineDeps } from "../abilities.js";
 import { type Ctx, emit, moveCard, updateInstance } from "../ctx.js";
-import { leavePlay, leavePlayAtOnce } from "../effects.js";
+import { leavePlay, leavePlayAtOnce, waitsForHostStep } from "../effects.js";
 import type { InstanceId, PlayerId } from "../ids.js";
 import { keywordTotal } from "../keywords.js";
 import { cardOf, discardZoneFor, getInstance, locateCard, mustInstance, startingThreatOf } from "../query.js";
@@ -28,12 +28,20 @@ import { pushEvents } from "./frames.js";
 import { NO_STATUSES } from "../state.js";
 import { attachmentHostCandidates } from "./reveal.js";
 
-export function flipToOtherFace(ctx: Ctx, id: InstanceId, playerId: PlayerId, deps: EngineDeps = ctx.deps): boolean {
+export function flipToOtherFace(
+  ctx: Ctx,
+  id: InstanceId,
+  playerId: PlayerId,
+  deps: EngineDeps = ctx.deps,
+): boolean | "waiting" {
   const from = cardOf(ctx.state, id);
   const otherId: CardId | undefined = from?.otherFaceId;
   const to = otherId !== undefined ? ctx.state.cardPool[otherId] : undefined;
   if (!from || !to) return false;
   const typeChanged = from.type !== to.type;
+  // Its attachments are discarded: their "when this leaves play" interrupts first, with it unflipped (§4.1 Q32 of
+  // docs/phase7-wave5.md); the flip then runs from the stack (`runHostStep`).
+  if (typeChanged && waitsForHostStep(ctx, [id], { kind: "flipToOtherFace", id, playerId })) return "waiting";
   const before = mustInstance(ctx.state, id);
   if (typeChanged) {
     for (const attachment of before.attachments) {

@@ -1039,11 +1039,13 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
         } else if (mainSchemeStateOf(ctx.state, id)) {
           // A main scheme stage with its other face emitted as its own card (docs/phase7-wave5.md §3.3): "Flip this
           // card" turns it to that face without revealing it.
-          if (flipMainSchemeStage(ctx, id, false, ctx.state.firstPlayerId) === false) continue;
+          // "waiting": its attachments' leave interrupts first; the flip and its `cardFlipped` follow (wave 5 §4.1 Q32).
+          const flipped = flipMainSchemeStage(ctx, id, false, ctx.state.firstPlayerId);
+          if (flipped === false || flipped === "waiting") continue;
         } else if (card?.otherFaceId !== undefined) {
           // docs/phase7-wave4.md §3.10. Its new face goes to "you" (the first player, for a side scheme's When Defeated).
           const playerId = context.controllerId ?? ctx.state.firstPlayerId;
-          if (!flipToOtherFace(ctx, id, playerId)) continue;
+          if (flipToOtherFace(ctx, id, playerId) !== true) continue;
         } else if (card && "flipSide" in card && card.flipSide) {
           const flipped = !mustInstance(ctx.state, id).flipped;
           updateInstance(ctx, id, (i) => ({ ...i, flipped }));

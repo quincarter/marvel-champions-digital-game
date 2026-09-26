@@ -1,15 +1,26 @@
 /** Card selectors and bulk card moves used by effects. */
 
-import { type Ctx, emit, moveCard, syncSeparateDeckTop, updateFrame, updateInstance, updatePlayer } from "../ctx.js";
+import {
+  type Ctx,
+  emit,
+  findFrame,
+  moveCard,
+  syncSeparateDeckTop,
+  updateFrame,
+  updateInstance,
+  updatePlayer,
+} from "../ctx.js";
 import {
   defeatFromPlay,
   drawCards,
+  isWaitingLeave,
   leavePlay,
+  leavingWithHost,
   moveDestinationKind,
   shuffleZone,
   waitsForLeaveInterrupts,
 } from "../effects.js";
-import type { EncounterDeckId, InstanceId, PlayerId } from "../ids.js";
+import type { EncounterDeckId, FrameId, InstanceId, PlayerId } from "../ids.js";
 import {
   activeEncounterDeckId,
   cardOf,
@@ -36,8 +47,13 @@ import {
 } from "../select.js";
 import type { CardDestination, CardSelector, TargetQuery } from "../spec.js";
 import type { ZoneId } from "../state.js";
-import type { LeaveRequest, TriggerEvent } from "../trigger-events.js";
-import { announce, type Frame, pushEvent } from "./frames.js";
+import type { HostStep, LeaveRequest, TriggerEvent } from "../trigger-events.js";
+import { describeFrame } from "../stack.js";
+import { announce, eventFrame, type Frame, pushEvent } from "./frames.js";
+import { villainDefeatRemoves } from "./defeat.js";
+import { runHostStep } from "./host-step.js";
+import { hasCandidates } from "./triggers.js";
+import { pushWindow } from "./window.js";
 import { heard } from "./triggers.js";
 
 /** The cards a selector names right now (out of play included), in zone order. */
@@ -511,6 +527,7 @@ export function applyLeavingPlay(ctx: Ctx, frame: Frame<"event">): boolean {
   if (event.kind !== "cardLeavesPlay" || !event.leaving) return true;
   const id = event.instanceId;
   const request = event.leaving;
+  if (request.kind === "withHost") return applyLeavingWithHost(ctx, frame.frameId, request.step);
   const inPlay = cardsInPlay(ctx.state).includes(id);
   if (inPlay) {
     switch (request.kind) {
@@ -533,6 +550,112 @@ export function applyLeavingPlay(ctx: Ctx, frame: Frame<"event">): boolean {
     return { ...f, event: left && where ? { ...rest, to: where.kind } : rest };
   });
   return left;
+}
+
+/**
+ * The apply step of a `withHost` leaving (docs/phase7-wave5.md §4.1 Q32): the card's interrupts resolved in its host's
+ * window, and its host's move took it, recording where (`moved`, by `leaveNow`). A leaving that carries its host's
+ * change (`step`: a villain removed, a stage flipped) runs it first. Returns false, so no responses, when the card did not
+ * go with its host (the host stayed, or the card had already left on its own, announced then).
+ */
+function applyLeavingWithHost(ctx: Ctx, frameId: FrameId, step: HostStep | undefined): boolean {
+  if (step) runHostStep(ctx, step);
+  const now = findFrame(ctx.state, frameId);
+  const leaving = now?.kind === "event" && now.event.kind === "cardLeavesPlay" ? now.event.leaving : undefined;
+  const moved = leaving?.kind === "withHost" ? leaving.moved : undefined;
+  updateFrame(ctx, frameId, (f) => {
+    if (f.kind !== "event" || f.event.kind !== "cardLeavesPlay") return f;
+    const { leaving: _, ...rest } = f.event;
+    return { ...f, event: moved !== undefined ? { ...rest, to: moved } : rest };
+  });
+  return moved !== undefined;
+}
+
+/**
+ * A cancelled `withHost` leaving that carries its host's change (`step`, docs/phase7-wave5.md §4.1 Q32): the change is
+ * not what was cancelled, so it runs now. Returns whether it did (the frame is still on the stack, under whatever the
+ * change pushed).
+ */
+export function runCarriedHostStep(ctx: Ctx, frame: Frame<"event">): boolean {
+  const event = frame.event;
+  if (event.kind !== "cardLeavesPlay" || event.leaving?.kind !== "withHost" || !event.leaving.step) return false;
+  runHostStep(ctx, event.leaving.step);
+  return true;
+}
+
+/**
+ * The interrupts stage of the first of the `cardLeavesPlay` events waiting on top of the stack
+ * (`waitsForLeaveInterrupts`, `waitsForHostStep`): every card leaving from the same step — the cards themselves and the
+ * attachments leaving with them — shares one interrupt window, opened here over all their events, and one response
+ * window, opened by the last of them (`pushEventsSharingResponses`' `responsesWith`). RRG 1.8 "Triggering Condition"
+ * (p. 45): one occurrence's triggering conditions are "handled with a single interrupt window and a single response
+ * window", in which abilities referring to any of them "may be used in any order"; forced interrupts come first and the
+ * first player orders simultaneous ones ("Simultaneous Timing Priority", p. 5; "Simultaneous Resolution", p. 40; "First
+ * Player", p. 19) — docs/phase7-wave5.md §4.1 Q32–Q33. Each card then moves in its own apply step, in the order asked,
+ * with no window between them. Returns false for any other frame.
+ */
+export function openLeavingInterrupts(ctx: Ctx, frame: Frame<"event">): boolean {
+  if (!isWaitingLeave(frame)) return false;
+  const stack = ctx.state.stack;
+  const start = stack.findIndex((f) => f.frameId === frame.frameId);
+  let end = start + 1;
+  while (end < stack.length && isWaitingLeave(stack[end])) end++;
+  const batch = stack.slice(start, end).filter((f): f is Frame<"event"> => f.kind === "event");
+  const last = batch[batch.length - 1]?.frameId;
+  for (const member of batch) {
+    emit(ctx, { type: "triggerEvent", event: member.event, phase: "initiated" });
+    updateFrame(ctx, member.frameId, (f) =>
+      f.kind !== "event"
+        ? f
+        : { ...f, stage: "apply", ...(last !== undefined && f.frameId !== last ? { responsesWith: last } : {}) },
+    );
+  }
+  const [leader, ...others] = batch;
+  if (leader && batch.some((member) => hasCandidates(ctx.state, ctx.deps, member.event, "interrupt"))) {
+    pushWindow(
+      ctx,
+      leader.event,
+      "interrupt",
+      leader.frameId,
+      others.map((other) => other.event),
+      others.map((other) => other.frameId),
+    );
+  }
+  return true;
+}
+
+/**
+ * The `withHost` leavings of the attachments an event's apply step takes out of play with its card, for events whose
+ * card does not leave through `leavePlay`: a villain's last stage defeated while others remain, which removes it from
+ * the game (`removeDefeatedVillain`; docs/phase7-wave5.md §4.1 Q32). Put on the stack just under the event, their
+ * interrupts already in its window (so at their apply stage), sharing one response window among themselves; returned
+ * for the window. None for any other event, or with nothing listening.
+ */
+export function leavingWithHostFrames(ctx: Ctx, frame: Frame<"event">): readonly Frame<"event">[] {
+  const event = frame.event;
+  if (event.kind !== "characterDefeated" || !villainDefeatRemoves(ctx.state, event.instanceId)) return [];
+  const companions = leavingWithHost(ctx, event.instanceId, "atOnce");
+  if (companions.length === 0) return [];
+  const built = companions.map((companion) => eventFrame(ctx, companion));
+  const last = built[built.length - 1]?.frameId;
+  const frames = built.flatMap((f): Frame<"event">[] =>
+    f.kind === "event"
+      ? [{ ...f, stage: "apply", ...(last !== undefined && f.frameId !== last ? { responsesWith: last } : {}) }]
+      : [],
+  );
+  const stack = ctx.state.stack;
+  const at = stack.findIndex((f) => f.frameId === frame.frameId) + 1;
+  ctx.state = { ...ctx.state, stack: [...stack.slice(0, at), ...frames, ...stack.slice(at)] };
+  for (const companion of frames) {
+    emit(ctx, {
+      type: "framePushed",
+      frameId: companion.frameId,
+      frame: companion.kind,
+      description: describeFrame(companion),
+    });
+    emit(ctx, { type: "triggerEvent", event: companion.event, phase: "initiated" });
+  }
+  return frames;
 }
 
 /** Shuffles an encounter deck: "the encounter deck" is the active villain's. */

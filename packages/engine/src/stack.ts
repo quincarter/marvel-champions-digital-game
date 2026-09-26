@@ -124,6 +124,12 @@ export type StackFrame =
       /** Events handed over by frames whose `responsesWith` is this one; this frame's response window gathers them. */
       readonly joinedResponses?: readonly TriggerEvent[];
       /**
+       * Announcements of moves made during this event's own interrupt window, pushed once this frame finishes, after
+       * its "cancelled" line if it was cancelled (docs/phase7-wave5.md §4.1 Q34): a replacement ("tuck it here
+       * instead") moved the leaving card, and its `cardLeavesPlay` (responses only) follows the replaced one's end.
+       */
+      readonly announceAfter?: readonly TriggerEvent[];
+      /**
        * A member of a simultaneous `damageGroup`: this frame runs only the interrupt window, then hands its (possibly
        * prevented or cancelled) event back to the group at `index`, which applies it with the others.
        */
@@ -163,6 +169,12 @@ export type StackFrame =
        * event frames have finished, so an ability answering one of them has no `eventFrameId`.
        */
       readonly alsoEvents?: readonly TriggerEvent[];
+      /**
+       * The event frame of each of `alsoEvents`, by index, when it is still to apply: an interrupt window several
+       * events share (cards leaving play together, docs/phase7-wave5.md §4.1 Q32–Q33), where an interrupt answering
+       * one of them can cancel or replace that one. Absent (or null) for a condition whose frame has finished.
+       */
+      readonly alsoEventFrameIds?: readonly (FrameId | null)[];
       readonly timing: WindowTiming;
       readonly eventFrameId: FrameId | null;
       /** Index into the priority tier list for this timing (RRG "Simultaneous Timing Priority"). */

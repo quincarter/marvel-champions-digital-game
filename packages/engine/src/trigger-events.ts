@@ -405,11 +405,12 @@ export type TriggerEventBody =
    * - with `leaving`: pushed by `leavePlay` *before* the move, when some interrupt hears it. The card is still in play,
    *   with its attachments, counters and controller, while the interrupt window runs; the apply step performs the move
    *   `leaving` describes (`applyLeavingPlay`) and the responses see the card gone. A replacement ("… instead") cancels
-   *   the event and moves the card itself.
+   *   the event and moves the card itself; that move is announced after the "cancelled" line (§4.1 Q34). The
+   *   attachments leaving with it wait with it (`leaving: withHost`, §4.1 Q32), and every card leaving from one step
+   *   shares one interrupt window and one response window (§4.1 Q33).
    * - without it: recorded by `leavePlay` after the move (`pendingLeftPlay`) and announced between frames, when no
-   *   interrupt heard it before the move, or when the card left with its host (`leavePlayAtOnce`); its interrupt window,
-   *   if any, is late. `interruptsResolved` marks a card that left during its own leaving's interrupt window (a
-   *   replacement's move): only the responses open.
+   *   interrupt heard it before the move; its interrupt window, if any, is late. `interruptsResolved` marks a card that
+   *   left during its own leaving's interrupt window (a replacement's move): only the responses open.
    *
    * Either way the event carries what the card was while still in play — `cardId`, `controllerId` and `traits` (granted
    * ones included) — and a trigger's `targetIs` trait clauses read `traits`. `to` is where it went (with `leaving`: where
@@ -627,8 +628,8 @@ export type TriggerEventKind = TriggerEvent["kind"];
 /**
  * The move a `cardLeavesPlay` event with an interrupt window performs when it applies (docs/phase7-wave5.md §4.1 Q17),
  * as plain data so the stack stays serializable and replayable: the `leavePlay` call that waited (`zone`, with `patch`
- * for what its caller sets on the card afterwards), one card of a `moveCards` effect, or an ally's or minion's defeat
- * (`defeatFromPlay`: Victory X, "instead of discarding it").
+ * for what its caller sets on the card afterwards), one card of a `moveCards` effect, an ally's or minion's defeat
+ * (`defeatFromPlay`: Victory X, "instead of discarding it"), or an attachment leaving with its host (`withHost`).
  */
 export type LeaveRequest =
   | {
@@ -639,7 +640,38 @@ export type LeaveRequest =
       readonly patch?: LeavePatch;
     }
   | { readonly kind: "moveCards"; readonly destination: CardDestination; readonly into?: PlayerId }
-  | { readonly kind: "defeat"; readonly insteadTo?: CardDestination };
+  | { readonly kind: "defeat"; readonly insteadTo?: CardDestination }
+  /**
+   * An attachment (or Victory X upgrade) leaving play because its host `host` does (§4.1 Q32): its interrupts share
+   * the host's window, and its host's move takes it (`leaveNow` records where in `moved`). `step`: the host has no
+   * leaving of its own on the stack (a villain removed or set aside, a main scheme stage removed or flipped), so this
+   * frame's apply step performs the host's change, which takes the attachments with it.
+   */
+  | {
+      readonly kind: "withHost";
+      readonly host: InstanceId;
+      readonly step?: HostStep;
+      readonly moved?: ZoneId["kind"];
+    };
+
+/**
+ * A change to a card that is not itself leaving play but takes its attachments out of play, as plain data so that it
+ * can wait on the stack for the attachments' "when this leaves play" interrupts and then run (docs/phase7-wave5.md §4.1
+ * Q32; `waitsForHostStep`, `runHostStep`). Each names the engine function that makes the change.
+ */
+export type HostStep =
+  | { readonly kind: "removeVillains"; readonly ids: readonly InstanceId[] }
+  | { readonly kind: "setVillainsAside"; readonly ids: readonly InstanceId[] }
+  | { readonly kind: "removeMainSchemeStage"; readonly schemeId: InstanceId }
+  /** `flipMainSchemeStage`; `reveal`: on completion (its frames pushed), else a "flip this card" (`cardFlipped` after). */
+  | {
+      readonly kind: "flipMainSchemeStage";
+      readonly schemeId: InstanceId;
+      readonly reveal: boolean;
+      readonly playerId: PlayerId;
+    }
+  /** `flipToOtherFace` to a new card type, from a "flip this card" (`cardFlipped` after). */
+  | { readonly kind: "flipToOtherFace"; readonly id: InstanceId; readonly playerId: PlayerId };
 
 /**
  * What a caller of `leavePlay` sets on the card once it has left (`tuckCards`, `takeIntoHand`), with the move and after

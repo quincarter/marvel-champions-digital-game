@@ -35,7 +35,13 @@ import {
   iconsInPlay,
 } from "../rules.js";
 import { canAttack, cardsInPlay, characterIgnores, controllerOf, isProtectedMainScheme } from "../select.js";
-import { applyLeavingPlay, dealUnhandledEncounterCard } from "./cards.js";
+import {
+  applyLeavingPlay,
+  dealUnhandledEncounterCard,
+  leavingWithHostFrames,
+  openLeavingInterrupts,
+  runCarriedHostStep,
+} from "./cards.js";
 import { currentActivationFrameId, type StackFrame, type Vars } from "../stack.js";
 import type { GameState } from "../state.js";
 import type { TriggerEvent } from "../trigger-events.js";
@@ -80,16 +86,31 @@ export function executeEventFrame(ctx: Ctx, frame: Frame<"event">): void {
         setFrame(ctx, { ...frame, stage: "apply" });
         return;
       }
+      // Cards leaving play from one step share one interrupt window (docs/phase7-wave5.md §4.1 Q32–Q33).
+      if (openLeavingInterrupts(ctx, frame)) return;
       emit(ctx, { type: "triggerEvent", event: frame.event, phase: "initiated" });
       setFrame(ctx, { ...frame, stage: "apply" });
-      const interrupts = hasCandidates(ctx.state, ctx.deps, frame.event, "interrupt");
+      // Attachments this event's apply step takes out of play with its card get their "when this leaves play"
+      // interrupts in this window, still in play (§4.1 Q32 of wave 5; `leavingWithHostFrames`).
+      const companions = leavingWithHostFrames(ctx, frame);
+      const interrupts =
+        hasCandidates(ctx.state, ctx.deps, frame.event, "interrupt") ||
+        companions.some((companion) => hasCandidates(ctx.state, ctx.deps, companion.event, "interrupt"));
       // A tough status resolves first and prevents all the damage, so no "would take damage" interrupt gets a window
       // (docs/phase7-wave3.md §3.12).
       if (interrupts && frame.event.kind === "dealDamage" && toughResolvesFirst(ctx, frame.event)) {
         emit(ctx, { type: "interruptsPreempted", event: frame.event, reason: "tough" });
         return;
       }
-      if (interrupts) pushWindow(ctx, frame.event, "interrupt", frame.frameId);
+      if (interrupts)
+        pushWindow(
+          ctx,
+          frame.event,
+          "interrupt",
+          frame.frameId,
+          companions.map((companion) => companion.event),
+          companions.map((companion) => companion.frameId),
+        );
       return;
     }
     case "apply": {
@@ -123,7 +144,17 @@ export function executeEventFrame(ctx: Ctx, frame: Frame<"event">): void {
         emit(ctx, { type: "triggerEvent", event: frame.event, phase: "cancelled" });
         reportResults(ctx, frame, false);
         expireEventLastingEffects(ctx, frame.frameId);
-        popFrame(ctx);
+        // An attachment's leaving that carried its host's change: the change still happens (only this card's leaving
+        // was cancelled), run while this frame is still on the stack so it does not wait again (§4.1 Q32 of wave 5).
+        let finished = frame;
+        if (runCarriedHostStep(ctx, frame)) {
+          const now = findFrame(ctx.state, frame.frameId);
+          if (now?.kind === "event") finished = now;
+          ctx.state = { ...ctx.state, stack: ctx.state.stack.filter((f) => f.frameId !== frame.frameId) };
+          emit(ctx, { type: "framePopped", frameId: frame.frameId, frame: frame.kind });
+        } else popFrame(ctx);
+        // What replaced it is announced after its "cancelled" line (docs/phase7-wave5.md §4.1 Q34).
+        announceAfterward(ctx, finished);
         return;
       }
       setFrame(ctx, { ...frame, stage: "responses" });
@@ -199,9 +230,19 @@ export function executeEventFrame(ctx: Ctx, frame: Frame<"event">): void {
       reportResults(ctx, frame, true);
       expireEventLastingEffects(ctx, frame.frameId);
       popFrame(ctx);
+      announceAfterward(ctx, frame);
       return;
     }
   }
+}
+
+/**
+ * Pushes the announcements a finished event frame carries (`announceAfter`: moves made during its own interrupt window,
+ * docs/phase7-wave5.md §4.1 Q34), the ones something still listens for, oldest resolving first.
+ */
+function announceAfterward(ctx: Ctx, frame: Frame<"event">): void {
+  const events = (frame.announceAfter ?? []).filter((event) => heard(ctx.state, ctx.deps, event));
+  for (const event of [...events].reverse()) pushEvent(ctx, event);
 }
 
 /**

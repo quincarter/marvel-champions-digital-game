@@ -1,12 +1,13 @@
 import type { VillainSideLetter } from "@mc/content";
 import type { EngineDeps } from "./abilities.js";
-import type { EncounterDeckId, InstanceId, PlayerId } from "./ids.js";
+import type { EncounterDeckId, FrameId, InstanceId, PlayerId } from "./ids.js";
 import {
   emit,
   moveCard,
   relocateCard,
   setStep,
   settlePlayerDecks,
+  updateFrame,
   updateInstance,
   updatePlayer,
   type Ctx,
@@ -26,7 +27,7 @@ import {
   mustPlayer,
   mustVillain,
 } from "./query.js";
-import type { LeavePatch, LeaveRequest, TriggerEvent } from "./trigger-events.js";
+import type { HostStep, LeavePatch, LeaveRequest, TriggerEvent } from "./trigger-events.js";
 import { nextInt, shuffle } from "./rng.js";
 import {
   accelerationTokenRedirect,
@@ -769,8 +770,12 @@ function leavingFrameFor(state: GameState, id: InstanceId): EventFrame | undefin
  * afterwards is part of `request`. With nothing listening it returns false and costs one cached registry lookup, so an
  * ordinary game moves the card at once and logs exactly what it did before.
  *
- * Several cards waiting from one step resolve in the order they were asked (each goes under the ones already waiting).
- * A card already leaving (its window open, or its apply step moving it) does not wait again.
+ * The attachments its move takes out of play with it wait too, each as a `withHost` leaving right after it (§4.1 Q32,
+ * `leavingWithHost`), and an interrupt hearing only one of them is enough to make the card wait.
+ *
+ * Several cards waiting from one step go on the stack together, in the order they were asked, and share one interrupt
+ * window and one response window (§4.1 Q33; `openLeavingInterrupts`). A card already leaving (its window open, or its
+ * apply step moving it) does not wait again.
  */
 export function waitsForLeaveInterrupts(
   ctx: Ctx,
@@ -790,21 +795,112 @@ export function waitsForLeaveInterrupts(
     to: going,
     leaving: request,
   };
-  if (!hasCandidates(ctx.state, ctx.deps, event, "interrupt")) return false;
-  const frame = eventFrame(ctx, event);
-  const stack = ctx.state.stack;
-  let at = 0;
-  while (at < stack.length && isWaitingLeave(stack[at])) at++;
-  ctx.state = { ...ctx.state, stack: [...stack.slice(0, at), frame, ...stack.slice(at)] };
-  emit(ctx, { type: "framePushed", frameId: frame.frameId, frame: frame.kind, description: describeFrame(frame) });
+  const companions = leavingWithHost(ctx, id, request.kind === "defeat" ? "defeat" : "leaveNow");
+  const interrupted = (e: TriggerEvent) => hasCandidates(ctx.state, ctx.deps, e, "interrupt");
+  if (!interrupted(event) && !companions.some(interrupted)) return false;
+  insertWaitingLeaves(ctx, [event, ...companions]);
   return true;
 }
 
-const isWaitingLeave = (frame: StackFrame | undefined): boolean =>
+/**
+ * A change to cards that are not leaving play themselves but take their attachments out of play with them — a villain
+ * removed or set aside, a main scheme stage removed or flipped, a card flipped to another type — waits, as `step`, for
+ * those attachments' "when this leaves play" interrupts, which resolve while everything is still in play, in one shared
+ * window (docs/phase7-wave5.md §4.1 Q32–Q33). The first attachment's `withHost` leaving carries `step` and runs it when
+ * it applies (`runHostStep`), calling the same function again, which then goes ahead because the attachments' leavings
+ * are already on the stack. Returns true when the caller must stop. With no interrupt hearing any attachment it returns
+ * false (a listener for the responses still hears them after the move, `pendingLeftPlay`).
+ */
+export function waitsForHostStep(ctx: Ctx, hostIds: readonly InstanceId[], step: HostStep): boolean {
+  if (!listensForLeavingPlay(ctx.deps)) return false;
+  const attachments = hostIds.flatMap((host) => getInstance(ctx.state, host)?.attachments ?? []);
+  if (attachments.some((attachment) => leavingFrameFor(ctx.state, attachment) !== undefined)) return false;
+  const companions = hostIds.flatMap((host) => leavingWithHost(ctx, host, "atOnce"));
+  if (!companions.some((event) => hasCandidates(ctx.state, ctx.deps, event, "interrupt"))) return false;
+  const [first, ...rest] = companions;
+  if (first?.kind !== "cardLeavesPlay" || first.leaving?.kind !== "withHost") return false;
+  insertWaitingLeaves(ctx, [{ ...first, leaving: { ...first.leaving, step } }, ...rest]);
+  return true;
+}
+
+/**
+ * Whether an interrupt hears one of the attachments that leave play with `hostId` when a change takes them out without
+ * the host leaving through `leavePlay` (a villain's last stage defeated in a multi-villain game, §4.1 Q32): then the
+ * change goes through an event whose interrupt window they can join (`leavingWithHostFrames`).
+ */
+export function attachmentsWaitForHost(ctx: Ctx, hostId: InstanceId): boolean {
+  if (!listensForLeavingPlay(ctx.deps)) return false;
+  return leavingWithHost(ctx, hostId, "atOnce").some((event) => hasCandidates(ctx.state, ctx.deps, event, "interrupt"));
+}
+
+/**
+ * The `cardLeavesPlay` (with `leaving: withHost`) of each attachment on `hostId` that leaves play because the host
+ * does, and that something hears (docs/phase7-wave5.md §4.1 Q32). `how` mirrors the path that will move them:
+ * - `leaveNow`: the host leaves play (`leaveNow`'s attachment loop: a permanent or "cannot leave play" one stays, an
+ *   unowned permanent encounter one is discarded, §4.2 Q26);
+ * - `defeat`: the same, but a Victory X one goes to the victory display (`defeatFromPlay`);
+ * - `atOnce`: `discardAtOnce` (a villain removed, a stage flipped), which skips a permanent or "cannot leave play" one.
+ * An attachment already leaving on its own is not listed.
+ */
+export function leavingWithHost(
+  ctx: Ctx,
+  hostId: InstanceId,
+  how: "leaveNow" | "defeat" | "atOnce",
+): readonly TriggerEvent[] {
+  if (!listensForLeavingPlay(ctx.deps)) return [];
+  const events: TriggerEvent[] = [];
+  for (const attachment of getInstance(ctx.state, hostId)?.attachments ?? []) {
+    if (!ctx.state.instances[attachment] || leavingFrameFor(ctx.state, attachment)) continue;
+    const blocked = staysInPlayWithoutHost(ctx, attachment);
+    const discarded = () =>
+      leaveDestinationKind(ctx.state, ctx.deps, attachment, discardZoneFor(ctx.state, attachment).kind, true);
+    let to: ZoneId["kind"] | null;
+    if (how === "defeat" && hasKeyword(ctx.state, attachment, "victory", ctx.deps))
+      to = blocked ? null : "victoryDisplay";
+    else if (how === "atOnce") to = blocked ? null : discarded();
+    else to = !blocked || discardedWithoutHost(ctx, attachment) ? discarded() : null;
+    if (to === null) continue;
+    const event: TriggerEvent = {
+      kind: "cardLeavesPlay",
+      ...leavingSnapshot(ctx.state, ctx.deps, attachment),
+      to,
+      leaving: { kind: "withHost", host: hostId },
+    };
+    if (heard(ctx.state, ctx.deps, event)) events.push(event);
+  }
+  return events;
+}
+
+/**
+ * Puts waiting `cardLeavesPlay` events on the stack, in order, under any already waiting from the same step (the run of
+ * waiting leavings on top of the stack), where the first of them opens one interrupt window for all
+ * (`openLeavingInterrupts`, docs/phase7-wave5.md §4.1 Q33).
+ */
+function insertWaitingLeaves(ctx: Ctx, events: readonly TriggerEvent[]): void {
+  const frames = events.map((event) => eventFrame(ctx, event));
+  const stack = ctx.state.stack;
+  let at = 0;
+  while (at < stack.length && isWaitingLeave(stack[at])) at++;
+  ctx.state = { ...ctx.state, stack: [...stack.slice(0, at), ...frames, ...stack.slice(at)] };
+  for (const frame of frames)
+    emit(ctx, { type: "framePushed", frameId: frame.frameId, frame: frame.kind, description: describeFrame(frame) });
+}
+
+/** A `cardLeavesPlay` waiting for its interrupt window: on the stack, not yet started. */
+export const isWaitingLeave = (frame: StackFrame | undefined): boolean =>
   frame?.kind === "event" &&
   frame.stage === "interrupts" &&
   frame.event.kind === "cardLeavesPlay" &&
   frame.event.leaving !== undefined;
+
+/** A `withHost` leaving's card went `to` with its host (docs/phase7-wave5.md §4.1 Q32): its apply step reports it. */
+function recordMovedWithHost(ctx: Ctx, frameId: FrameId, to: ZoneId["kind"]): void {
+  updateFrame(ctx, frameId, (f) =>
+    f.kind === "event" && f.event.kind === "cardLeavesPlay" && f.event.leaving?.kind === "withHost"
+      ? { ...f, event: { ...f.event, leaving: { ...f.event.leaving, moved: to } } }
+      : f,
+  );
+}
 
 /** How `leavePlay` ended: the card moved, it waits for "when X leaves play" interrupts, or it stays in play. */
 export type LeaveOutcome = "left" | "waiting" | "stayed";
@@ -856,8 +952,9 @@ export function applyLeavePatch(ctx: Ctx, id: InstanceId, patch: LeavePatch): vo
  * `leavePlay` without a "when this leaves play" window before the move, for a card leaving with another card and
  * because of it: an attachment or Victory X upgrade as its host leaves, a villain's attachments as it is removed or
  * flipped. RRG 1.8 "Leaves Play" (p. 27) discards them simultaneously with the host (ruling Jan 17, 2026 (1) #2), so
- * they cannot wait for a window of their own while the host moves. A listener still hears them, after the move
- * (`pendingLeftPlay`); an interrupt of their own that needs them in play is open (docs/phase7-wave5.md §4.1 Q17).
+ * they do not wait for a window of their own while the host moves: when an interrupt hears them, their interrupts
+ * resolved in the host's window, still in play (docs/phase7-wave5.md §4.1 Q32; their `withHost` leavings record the
+ * move). Otherwise a listener hears them after the move (`pendingLeftPlay`).
  */
 export function leavePlayAtOnce(
   ctx: Ctx,
@@ -871,20 +968,38 @@ export function leavePlayAtOnce(
     emit(ctx, { type: "leavePlayBlocked", instanceId: id, reason: "cannotLeavePlay" });
     return;
   }
-  leaveNow(ctx, id, requested, position, discarded);
+  leaveNow(ctx, id, requested, position, discarded, true);
 }
 
-/** The move itself: the card leaves play now. */
-function leaveNow(ctx: Ctx, id: InstanceId, requested: ZoneId, position: "top" | "bottom", discarded: boolean): void {
+/**
+ * The move itself: the card leaves play now. `withHost`: it leaves because its host does (`leavePlayAtOnce`, the
+ * attachment loop below), so a `withHost` leaving of its own on the stack is where the move is recorded (§4.1 Q32).
+ */
+function leaveNow(
+  ctx: Ctx,
+  id: InstanceId,
+  requested: ZoneId,
+  position: "top" | "bottom",
+  discarded: boolean,
+  withHost = false,
+): void {
   // "If Odin leaves play, the players lose the game." (docs/phase7-wave4.md §3.8): read while it is still in play.
   const loses = leavingPlayLoses(ctx.state, ctx.deps, id);
   const instance = mustInstance(ctx.state, id);
   // "When/After X leaves play" (docs/phase7-wave5.md §3.13): what it was, read while it is still in play. Not recorded
-  // while its own waiting `cardLeavesPlay` applies (that event's responses follow); recorded for the responses only
-  // when it leaves during that event's interrupts, a replacement's "… instead" (§4.1 Q17).
+  // while its own waiting `cardLeavesPlay` applies (that event's responses follow), nor when it leaves with its host and
+  // has a `withHost` leaving whose interrupts resolved in the host's window (that event's responses follow, §4.1 Q32).
+  // Recorded for the responses only when it leaves during that event's interrupts, a replacement's "… instead" (§4.1
+  // Q17), and then announced once that event ends (§4.1 Q34).
   const leaving = leavingFrameFor(ctx.state, id);
+  // A cancelled one ("… instead" left it attached) has no responses of its own: recorded as below.
+  const movedWithHost =
+    withHost &&
+    leaving?.cancelled === false &&
+    leaving.event.kind === "cardLeavesPlay" &&
+    leaving.event.leaving?.kind === "withHost";
   const left =
-    listensForLeavingPlay(ctx.deps) && leaving?.stage !== "responses"
+    listensForLeavingPlay(ctx.deps) && leaving?.stage !== "responses" && !movedWithHost
       ? {
           ...leavingSnapshot(ctx.state, ctx.deps, id),
           ...(leaving?.stage === "apply" ? { interruptsResolved: true as const } : {}),
@@ -903,7 +1018,7 @@ function leaveNow(ctx: Ctx, id: InstanceId, requested: ZoneId, position: "top" |
     if (!staysInPlayWithoutHost(ctx, attachment)) discardAtOnce(ctx, attachment);
     // Past the permanent keyword on purpose (§4.2 Q26): `leaveNow` itself, not `leavePlayAtOnce`.
     else if (discardedWithoutHost(ctx, attachment))
-      leaveNow(ctx, attachment, discardZoneFor(ctx.state, attachment), "top", true);
+      leaveNow(ctx, attachment, discardZoneFor(ctx.state, attachment), "top", true, true);
     else unattachInPlay(ctx, attachment);
   }
   // RRG "Tuck": when a card leaves play, each card tucked under it is discarded.
@@ -932,7 +1047,14 @@ function leaveNow(ctx: Ctx, id: InstanceId, requested: ZoneId, position: "top" |
   }));
   // "While Karma is in play": a minion it took goes back when it leaves (docs/phase7-wave4.md §3.29).
   releaseTreatedBy(ctx, id);
-  if (left) {
+  if (movedWithHost && leaving) recordMovedWithHost(ctx, leaving.frameId, to.kind);
+  else if (left && leaving?.stage === "apply") {
+    // It left during its own leaving's interrupt window: announced after that event ends (§4.1 Q34).
+    const announced: TriggerEvent = { kind: "cardLeavesPlay", ...left, to: to.kind };
+    updateFrame(ctx, leaving.frameId, (f) =>
+      f.kind === "event" ? { ...f, announceAfter: [...(f.announceAfter ?? []), announced] } : f,
+    );
+  } else if (left) {
     ctx.state = {
       ...ctx.state,
       pendingLeftPlay: [...(ctx.state.pendingLeftPlay ?? []), { ...left, to: to.kind }],

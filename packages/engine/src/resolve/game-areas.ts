@@ -6,7 +6,7 @@
  */
 
 import { type Ctx, emit, moveCard, nextInstanceId, updateInstance } from "../ctx.js";
-import { discardAtOnce, giveStatus, setActiveVillain } from "../effects.js";
+import { discardAtOnce, giveStatus, setActiveVillain, waitsForHostStep } from "../effects.js";
 import { gameAreaId, type GameAreaId, type InstanceId, type PlayerId } from "../ids.js";
 import { hasKeyword } from "../keywords.js";
 import {
@@ -211,12 +211,17 @@ export function putMainSchemeStageIntoPlay(
 /**
  * "Remove the Chronopolis from the game": a separate game area's own stage leaves play, and it can never be revealed
  * again. The central stage is not removable this way (nothing prints that), so it is left alone.
+ *
+ * `mayWait`: the removal waits for its attachments' "when this leaves play" interrupts, if one hears them
+ * (`waitsForHostStep`, docs/phase7-wave5.md §4.1 Q32). `joinGameArea` removes a stage in the middle of moving players
+ * between areas, so it does not wait.
  */
-export function removeMainSchemeStage(ctx: Ctx, schemeId: InstanceId): void {
+export function removeMainSchemeStage(ctx: Ctx, schemeId: InstanceId, mayWait = true): void {
   const area = ctx.state.gameAreas.find((candidate) => candidate.mainScheme?.instanceId === schemeId);
   const pending = ctx.state.revealedMainSchemes.find((scheme) => scheme.instanceId === schemeId);
   const scheme = area?.mainScheme ?? pending;
   if (!scheme) return;
+  if (mayWait && waitsForHostStep(ctx, [schemeId], { kind: "removeMainSchemeStage", schemeId })) return;
   for (const attachment of [...mustInstance(ctx.state, schemeId).attachments]) discardAtOnce(ctx, attachment);
   if (area)
     updateArea(ctx, area.areaId, (a) => ({
@@ -277,7 +282,7 @@ export function createGameArea(ctx: Ctx, schemeId: InstanceId, playerId: PlayerI
 export function joinGameArea(ctx: Ctx, fromId: GameAreaId, intoId: GameAreaId | null): readonly StackFrame[] {
   const from = ctx.state.gameAreas.find((area) => area.areaId === fromId);
   if (!from || fromId === intoId) return [];
-  if (from.mainScheme) removeMainSchemeStage(ctx, from.mainScheme.instanceId);
+  if (from.mainScheme) removeMainSchemeStage(ctx, from.mainScheme.instanceId, false);
   const leaving = ctx.state.gameAreas.find((area) => area.areaId === fromId) ?? from;
   const movingVillains = leaving.villainIds.filter((id) => villainOf(ctx.state, id)?.defeated === false);
   if (intoId === null) {
@@ -441,6 +446,9 @@ export function addVillains(
  * held the active counter passes it on as a defeat would (`passActiveCounter`); one already defeated has done so.
  */
 export function setVillainsAside(ctx: Ctx, ids: readonly InstanceId[]): void {
+  // Their attachments' "when this leaves play" interrupts first, all in one window (§4.1 Q32–Q33 of wave 5).
+  const leaving = ids.filter((id) => villainOf(ctx.state, id) && !ctx.state.encounterSetAside.includes(id));
+  if (waitsForHostStep(ctx, leaving, { kind: "setVillainsAside", ids })) return;
   for (const id of ids) {
     const villain = villainOf(ctx.state, id);
     if (!villain || ctx.state.encounterSetAside.includes(id)) continue;
@@ -486,6 +494,9 @@ export function passActiveCounter(ctx: Ctx, fromId: InstanceId): boolean {
  * villain), and its area (or the game) passes the active counter on.
  */
 export function removeVillains(ctx: Ctx, ids: readonly InstanceId[]): void {
+  // Their attachments' "when this leaves play" interrupts first, all in one window (§4.1 Q32–Q33 of wave 5).
+  const leaving = ids.filter((id) => villainOf(ctx.state, id)?.defeated === false);
+  if (waitsForHostStep(ctx, leaving, { kind: "removeVillains", ids })) return;
   for (const id of ids) {
     const villain = villainOf(ctx.state, id);
     if (!villain || villain.defeated) continue;
@@ -546,13 +557,15 @@ export const controllerOfArea = (state: GameState, area: GameAreaState): PlayerI
  * and each acceleration token from here to the main scheme with the least threat"; card text beats the Flip rule, RRG
  * 1.8 "The Golden Rules", p. 4; §4 Q15). The card then sits in the villain's area as its new face; with `reveal` it
  * enters play and its When Revealed resolves (returned frames). Refused (false) for the only main scheme in play.
+ * `"waiting"`: an interrupt hears one of its attachments leaving play, and the flip waits for that window
+ * (`waitsForHostStep`, docs/phase7-wave5.md §4.1 Q32), then runs from the stack (`runHostStep`).
  */
 export function flipMainSchemeStage(
   ctx: Ctx,
   schemeId: InstanceId,
   reveal: boolean,
   playerId: PlayerId,
-): readonly StackFrame[] | false {
+): readonly StackFrame[] | false | "waiting" {
   const scheme = mainSchemeStates(ctx.state).find((s) => s.instanceId === schemeId);
   if (!scheme || ctx.state.gameAreas.some((a) => a.mainScheme?.instanceId === schemeId)) return false;
   const stage = mainSchemeStageOf(ctx.state, scheme);
@@ -563,6 +576,7 @@ export function flipMainSchemeStage(
   const central = schemeId === ctx.state.mainScheme.instanceId;
   const [promoted, ...rest] = extras;
   if (central && !promoted) return false;
+  if (waitsForHostStep(ctx, [schemeId], { kind: "flipMainSchemeStage", schemeId, reveal, playerId })) return "waiting";
   ctx.state = central
     ? { ...ctx.state, mainScheme: promoted!, extraMainSchemes: rest }
     : { ...ctx.state, extraMainSchemes: extras.filter((s) => s.instanceId !== schemeId) };
