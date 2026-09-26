@@ -630,6 +630,10 @@ export type TriggerEventKind = TriggerEvent["kind"];
  * as plain data so the stack stays serializable and replayable: the `leavePlay` call that waited (`zone`, with `patch`
  * for what its caller sets on the card afterwards), one card of a `moveCards` effect, an ally's or minion's defeat
  * (`defeatFromPlay`: Victory X, "instead of discarding it"), or an attachment leaving with its host (`withHost`).
+ *
+ * `sourceCardId`: the card whose ability makes the card leave, if any, for the Permanent keyword's same-set exception
+ * (RRG 1.8 "Permanent", p. 32; `effects.ts` `permanentStopsLeaving`, docs/phase7-wave5.md §4.1 Q46). Absent for a move
+ * the game's rules make.
  */
 export type LeaveRequest =
   | {
@@ -638,9 +642,15 @@ export type LeaveRequest =
       readonly position: "top" | "bottom";
       readonly discarded: boolean;
       readonly patch?: LeavePatch;
+      readonly sourceCardId?: CardId;
     }
-  | { readonly kind: "moveCards"; readonly destination: CardDestination; readonly into?: PlayerId }
-  | { readonly kind: "defeat"; readonly insteadTo?: CardDestination }
+  | {
+      readonly kind: "moveCards";
+      readonly destination: CardDestination;
+      readonly into?: PlayerId;
+      readonly sourceCardId?: CardId;
+    }
+  | { readonly kind: "defeat"; readonly insteadTo?: CardDestination; readonly sourceCardId?: CardId }
   /**
    * An attachment (or Victory X upgrade) leaving play because its host `host` does (§4.1 Q32): its interrupts share
    * the host's window, and its host's move takes it (`leaveNow` records where in `moved`). `step`: the host has no

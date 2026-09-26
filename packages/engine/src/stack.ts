@@ -1,4 +1,4 @@
-import type { AbilityId } from "@mc/content";
+import type { AbilityId, CardId } from "@mc/content";
 import type { AbilitySource } from "./abilities.js";
 import type { CostChoices } from "./commands.js";
 import type { FrameId, InstanceId, PlayerId } from "./ids.js";
@@ -246,6 +246,13 @@ export type StackFrame =
        * play at zero remaining hit points but already defeated, so the defeat sweep does not defeat it again.
        */
       readonly defeatedLeaving?: InstanceId;
+      /**
+       * With `defeatedLeaving`: the card whose ability defeated it ("defeat a minion", `EffectSpec defeat`), for the
+       * Permanent keyword's same-set exception (RRG 1.8 "Permanent", p. 32; docs/phase7-wave5.md §4.1 Q46). Absent for
+       * a defeat by the game's rules (zero hit points, zero threat). This frame's own `selfInstanceId` is the defeated
+       * card, and is never the source of its leaving.
+       */
+      readonly defeatedLeavingSource?: CardId;
     })
   /** RRG "Attack (Enemy Activation)" steps 1–5; step 6 is the event frame's response window. */
   | (FrameBase & {

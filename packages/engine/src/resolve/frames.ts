@@ -1,6 +1,6 @@
 /** Building stack frames and pushing events, effects and abilities onto the stack. */
 
-import type { AbilityId, AbilityReference } from "@mc/content";
+import type { AbilityId, AbilityReference, CardId } from "@mc/content";
 import { type Ctx, nextFrameId, pushFrames, updateFrame } from "../ctx.js";
 import type { FrameId, InstanceId, PlayerId } from "../ids.js";
 import { cardOf } from "../query.js";
@@ -148,6 +148,12 @@ export function pushEffects(
     readonly returnBindingsPrefix?: string;
     /** The effects of an ability a player uses (docs/phase7-wave4.md §3.44). */
     readonly byPlayer?: boolean;
+    /**
+     * A branch of a defeated card's leaving step (`resolve/event.ts` `leaveAfterWhenDefeated`), which carries it on, so
+     * its leave still reads the defeat's source rather than its own card (docs/phase7-wave5.md §4.1 Q46).
+     */
+    readonly defeatedLeaving?: InstanceId;
+    readonly defeatedLeavingSource?: CardId;
   },
 ): void {
   if (spec.effects.length === 0) return;
@@ -169,6 +175,8 @@ export function pushEffects(
         ? { returnBindingsPrefix: spec.returnBindingsPrefix }
         : {}),
       ...(spec.byPlayer ? { byPlayer: true as const } : {}),
+      ...(spec.defeatedLeaving !== undefined ? { defeatedLeaving: spec.defeatedLeaving } : {}),
+      ...(spec.defeatedLeavingSource !== undefined ? { defeatedLeavingSource: spec.defeatedLeavingSource } : {}),
     },
   ]);
 }

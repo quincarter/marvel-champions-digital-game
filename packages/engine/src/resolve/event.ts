@@ -3,9 +3,16 @@
 import type { CardId } from "@mc/content";
 import { type Ctx, emit, findFrame, popFrame, pushFrames, setFrame, updateFrame, updateInstance } from "../ctx.js";
 import { overkillRecipient } from "../defend-preview.js";
-import { expireEventLastingEffects, healDamage, pierceTough, readyCard, removeCounters } from "../effects.js";
+import {
+  expireEventLastingEffects,
+  healDamage,
+  permanentStopsLeaving,
+  pierceTough,
+  readyCard,
+  removeCounters,
+} from "../effects.js";
 import type { FrameId, InstanceId, PlayerId } from "../ids.js";
-import { attackKeywordsOf, hasKeyword, isPermanent, keywordTotal } from "../keywords.js";
+import { attackKeywordsOf, hasKeyword, keywordTotal } from "../keywords.js";
 import {
   cardOf,
   characterProfile,
@@ -250,7 +257,8 @@ function announceAfterward(ctx: Ctx, frame: Frame<"event">): void {
  * Abilities", p. 48: "A defeated card leaves play after its 'When Defeated' ability is resolved, if any"). Only if it is
  * still in play showing the face that was defeated: a When Defeated that moved it ("shuffle this card into the encounter
  * deck") or flipped it into its other face (Secure the Landing Pad → Cosmo; docs/phase7-wave4.md §3.10) has already
- * placed it. Shared by allies, minions and side schemes.
+ * placed it. Shared by allies, minions and side schemes. `sourceCardId`: the card whose ability defeated it, if any, for
+ * the Permanent keyword (`defeatedLeavingSource`, docs/phase7-wave5.md §4.1 Q46).
  */
 function leaveAfterWhenDefeated(
   ctx: Ctx,
@@ -258,6 +266,7 @@ function leaveAfterWhenDefeated(
   printedId: CardId,
   leave: EffectSpec,
   controllerId: PlayerId | null,
+  sourceCardId?: CardId,
 ): StackFrame {
   return {
     ...base(ctx),
@@ -278,6 +287,7 @@ function leaveAfterWhenDefeated(
     event: null,
     eventFrameId: null,
     defeatedLeaving: id,
+    ...(sourceCardId !== undefined ? { defeatedLeavingSource: sourceCardId } : {}),
   };
 }
 
@@ -519,7 +529,11 @@ function applyDefeat(ctx: Ctx, event: Extract<TriggerEvent, { kind: "characterDe
     eliminatePlayer(ctx, player.playerId);
     return true;
   }
-  if (isPermanent(ctx.state, id, ctx.deps)) return false;
+  // Permanent (docs/phase7-wave5.md §4.1 Q46): an effect that says "defeat" is its card's ability; reaching zero hit
+  // points is the game's rule, with no source card, whatever dealt the damage.
+  const sourceId = event.byEffect === true ? event.sourceInstanceId : undefined;
+  const sourceCardId = sourceId ? getInstance(ctx.state, sourceId)?.cardId : undefined;
+  if (permanentStopsLeaving(ctx.state, ctx.deps, id, sourceCardId)) return false;
   emit(ctx, { type: "characterDefeated", instanceId: id, cardId: instance.cardId });
   const whenDefeated = gameAbilityFrames(
     ctx,
@@ -545,7 +559,7 @@ function applyDefeat(ctx: Ctx, event: Extract<TriggerEvent, { kind: "characterDe
   }
   const frames: StackFrame[] = [
     ...whenDefeated,
-    leaveAfterWhenDefeated(ctx, id, instance.cardId, leave, controllerOf(ctx.state, id)),
+    leaveAfterWhenDefeated(ctx, id, instance.cardId, leave, controllerOf(ctx.state, id), sourceCardId),
   ];
   if (event.overkill && !ctx.state.outcome && getInstance(ctx.state, event.overkill.toInstanceId)) {
     emit(ctx, {

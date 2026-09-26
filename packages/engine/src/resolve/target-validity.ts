@@ -27,7 +27,8 @@
 import type { AbilityDefinition, EngineDeps } from "../abilities.js";
 import type { InstanceId, PlayerId } from "../ids.js";
 import { isPermanent, statusActive } from "../keywords.js";
-import { areaOfPlayer, getPlayer } from "../query.js";
+import { permanentStopsLeaving } from "../effects.js";
+import { areaOfPlayer, getInstance, getPlayer } from "../query.js";
 import { cannotLeavePlay, cannotTakeDamage, iconsInPlay, patrolledBy } from "../rules.js";
 import { activeRules, cardsInPlay, type EffectContext, resolveRef, selectTargets } from "../select.js";
 import type { EffectSpec, TargetRef } from "../spec.js";
@@ -75,9 +76,20 @@ const isJudged = (effect: EffectSpec): effect is JudgedEffect =>
   effect.kind === "dealDamage" ||
   effect.kind === "discardFromPlay";
 
-/** Whether this card can be discarded from play: not Permanent (RRG 1.8 "Permanent", p. 32) and no `cannotLeavePlay`. */
-export const canDiscardFromPlay = (state: GameState, deps: EngineDeps, id: InstanceId): boolean =>
-  !isPermanent(state, id, deps) && !cannotLeavePlay(state, deps, id);
+/**
+ * Whether this card can be discarded from play by an ability of `source`: no `cannotLeavePlay`, and not Permanent
+ * unless `source` is of its own set (RRG 1.8 "Permanent", p. 32: "not valid targets for card effects that would cause
+ * the permanent card to leave play", the constant ability limiting it to effects on cards not from this card's set;
+ * `permanentStopsLeaving`, docs/phase7-wave5.md §4.1 Q46).
+ */
+export const canDiscardFromPlay = (
+  state: GameState,
+  deps: EngineDeps,
+  id: InstanceId,
+  source: InstanceId | null = null,
+): boolean =>
+  !permanentStopsLeaving(state, deps, id, source === null ? undefined : getInstance(state, source)?.cardId) &&
+  !cannotLeavePlay(state, deps, id);
 
 /** Whether this judged effect can affect `id`, the same check its event makes as it applies. */
 function judgedCanAffect(
@@ -88,7 +100,7 @@ function judgedCanAffect(
   context: EffectContext,
 ): boolean {
   if (effect.kind === "dealDamage") return canDealDamageTo(state, deps, id, context.selfInstanceId);
-  if (effect.kind === "discardFromPlay") return canDiscardFromPlay(state, deps, id);
+  if (effect.kind === "discardFromPlay") return canDiscardFromPlay(state, deps, id, context.selfInstanceId);
   if (effect.kind === "removeThreat") {
     return canRemoveThreatFrom(state, deps, id, context.selfInstanceId, effect.ignoreCrisis === true);
   }

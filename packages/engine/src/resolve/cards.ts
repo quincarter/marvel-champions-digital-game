@@ -1,5 +1,6 @@
 /** Card selectors and bulk card moves used by effects. */
 
+import type { CardId } from "@mc/content";
 import {
   type Ctx,
   emit,
@@ -17,6 +18,7 @@ import {
   leavePlay,
   leavingWithHost,
   moveDestinationKind,
+  permanentStopsLeaving,
   shuffleZone,
   waitsForLeaveInterrupts,
 } from "../effects.js";
@@ -212,9 +214,17 @@ export function selectCards(ctx: Ctx, selector: CardSelector, context: EffectCon
 
 /**
  * `moveCards`: out-of-play cards move directly; cards in play leave play (attachments discarded, state cleared). The
- * `separate…` destinations follow each card's `home` separate deck and skip any other card.
+ * `separate…` destinations follow each card's `home` separate deck and skip any other card. `sourceCardId`: the card
+ * whose ability moves them, if any; a permanent card in play that it cannot move stays as it is (`permanentStopsLeaving`,
+ * docs/phase7-wave5.md §4.1 Q46).
  */
-export function moveCardsTo(ctx: Ctx, ids: readonly InstanceId[], destination: CardDestination, into?: PlayerId): void {
+export function moveCardsTo(
+  ctx: Ctx,
+  ids: readonly InstanceId[],
+  destination: CardDestination,
+  into?: PlayerId,
+  sourceCardId?: CardId,
+): void {
   const inPlay = new Set(cardsInPlay(ctx.state));
   const shuffleOwners = new Set<PlayerId>();
   let shuffleEncounter = false;
@@ -223,17 +233,23 @@ export function moveCardsTo(ctx: Ctx, ids: readonly InstanceId[], destination: C
   for (const id of ids) {
     const instance = getInstance(ctx.state, id);
     if (!instance) continue;
+    if (inPlay.has(id) && permanentStopsLeaving(ctx.state, ctx.deps, id, sourceCardId)) continue;
     // "When X leaves play" interrupts resolve before it moves (docs/phase7-wave5.md §4.1 Q17): this card's move waits,
     // whole, for its `cardLeavesPlay` to apply (`applyLeavingPlay` runs it again for this one card).
     if (inPlay.has(id)) {
-      const request: LeaveRequest = { kind: "moveCards", destination, ...(into !== undefined ? { into } : {}) };
+      const request: LeaveRequest = {
+        kind: "moveCards",
+        destination,
+        ...(into !== undefined ? { into } : {}),
+        ...(sourceCardId !== undefined ? { sourceCardId } : {}),
+      };
       if (waitsForLeaveInterrupts(ctx, id, request, moveDestinationKind(ctx.state, ctx.deps, id, destination)))
         continue;
     }
     // "Put it faceup into The Collection" (docs/phase7-wave3.md §3.14): out of play, faceup, in the order they entered.
     if (typeof destination === "object") {
       const area: ZoneId = { kind: "scenarioArea", name: destination.scenarioArea };
-      if (inPlay.has(id)) leavePlay(ctx, id, area, "bottom");
+      if (inPlay.has(id)) leavePlay(ctx, id, area, "bottom", false, undefined, sourceCardId);
       else moveCard(ctx, id, area, "bottom");
       updateInstance(ctx, id, (i) => ({ ...i, faceup: true }));
       continue;
@@ -316,7 +332,7 @@ export function moveCardsTo(ctx: Ctx, ids: readonly InstanceId[], destination: C
     // An encounter card from the encounter deck into a player's discard pile is faceup there (MC27 p. 13; §3.5 of
     // docs/phase7-wave5.md).
     if (discarding) updateInstance(ctx, id, (i) => ({ ...i, faceup: true }));
-    if (inPlay.has(id)) leavePlay(ctx, id, to, position, discarding);
+    if (inPlay.has(id)) leavePlay(ctx, id, to, position, discarding, undefined, sourceCardId);
     else moveCard(ctx, id, to, position);
     const keepsFace = ["discard", "separateDiscard", "removedFromGame", "setAside"].includes(destination);
     if (!keepsFace) {
@@ -532,13 +548,13 @@ export function applyLeavingPlay(ctx: Ctx, frame: Frame<"event">): boolean {
   if (inPlay) {
     switch (request.kind) {
       case "zone":
-        leavePlay(ctx, id, request.zone, request.position, request.discarded, request.patch);
+        leavePlay(ctx, id, request.zone, request.position, request.discarded, request.patch, request.sourceCardId);
         break;
       case "moveCards":
-        moveCardsTo(ctx, [id], request.destination, request.into);
+        moveCardsTo(ctx, [id], request.destination, request.into, request.sourceCardId);
         break;
       case "defeat":
-        defeatFromPlay(ctx, id, request.insteadTo);
+        defeatFromPlay(ctx, id, request.insteadTo, request.sourceCardId);
         break;
     }
   }

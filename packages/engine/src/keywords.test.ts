@@ -286,39 +286,44 @@ test("a steady character holds two stun cards and is not stunned until the secon
 // Permanent
 // ---------------------------------------------------------------------------
 
-// RRG "Permanent": the card cannot leave play, so a discard effect does nothing.
+// RRG "Permanent": the card cannot leave play, so another card's discard effect does nothing. (Its own ability, of its
+// own set, can discard it: docs/phase7-wave5.md §4.1 Q46, `permanent-leave-protection.test.ts`.)
 test("a permanent card cannot be discarded from play", () => {
-  const ability = stubAbility("self-destruct", {
-    trigger: { kind: "action" },
-    effects: [{ kind: "discardFromPlay", target: { kind: "self" } }],
-  });
   const support = stubSupport({
     id: "permanent-support",
     cost: 0,
     resources: 1,
     keywords: [{ name: "permanent" }],
-    abilities: [ability.ref],
   });
+  const ability = stubAbility("discard-the-permanent", {
+    trigger: { kind: "action" },
+    effects: [{ kind: "discardFromPlay", target: { kind: "named", name: "permanent-support" } }],
+  });
+  const discarder = stubSupport({ id: "discarder", cost: 0, abilities: [ability.ref] });
   const deps = depsOf(ability);
   const start = newGame({
     villain: VILLAIN,
     mainScheme: SCHEME,
-    extraCards: [support],
-    deck: deckOf(support.id, 24),
+    extraCards: [support, discarder],
+    deck: [...deckOf(support.id, 12), ...deckOf(discarder.id, 12)],
     deps,
   });
-  const supportId = mustPlayer(start, p1).hand.find((id) => start.instances[id]?.cardId === support.id) as InstanceId;
-  const played = runWith(deps, start, {
-    type: "playCard",
-    playerId: p1,
-    cardInstanceId: supportId,
-    payment: [],
-    attachToInstanceId: null,
-  });
+  const inHand = (card: CardId) => {
+    const found = mustPlayer(start, p1).hand.find((id) => start.instances[id]?.cardId === card);
+    if (!found) throw new Error(`no ${card} in the opening hand`);
+    return found;
+  };
+  const supportId = inHand(support.id);
+  const discarderId = inHand(discarder.id);
+  const played = [supportId, discarderId].reduce(
+    (state, cardInstanceId) =>
+      runWith(deps, state, { type: "playCard", playerId: p1, cardInstanceId, payment: [], attachToInstanceId: null }),
+    start,
+  );
   const after = runWith(deps, played, {
     type: "useAbility",
     playerId: p1,
-    cardInstanceId: supportId,
+    cardInstanceId: discarderId,
     abilityId: ability.ref.id,
     payment: [],
   });

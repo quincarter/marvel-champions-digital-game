@@ -1663,15 +1663,17 @@ export function payCost(
       fromAttack: false,
     });
   }
-  if (cost.discardSelf && getInstance(ctx.state, sourceId)) discardFromPlay(ctx, sourceId);
+  // A cost is part of its card's ability, so the Permanent keyword's same-set exception reads that card (§4.1 Q46).
+  const source = getInstance(ctx.state, sourceId)?.cardId;
+  if (cost.discardSelf && getInstance(ctx.state, sourceId)) discardFromPlay(ctx, sourceId, source);
   for (const { mode, pick } of inPlayPicksOf(cost)) {
     const ids = plan.bindings[pick.slot] ?? [];
     if (mode === "exhaust") {
       for (const id of ids) exhaustCard(ctx, id);
     } else if (mode === "discard") {
-      for (const id of ids) if (getInstance(ctx.state, id)) discardFromPlay(ctx, id);
+      for (const id of ids) if (getInstance(ctx.state, id)) discardFromPlay(ctx, id, source);
     } else {
-      moveCardsTo(ctx, ids, "hand");
+      moveCardsTo(ctx, ids, "hand", undefined, source);
     }
   }
 }

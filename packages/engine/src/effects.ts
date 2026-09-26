@@ -1,4 +1,4 @@
-import type { VillainSideLetter } from "@mc/content";
+import type { CardId, VillainSideLetter } from "@mc/content";
 import type { EngineDeps } from "./abilities.js";
 import type { EncounterDeckId, FrameId, InstanceId, PlayerId } from "./ids.js";
 import {
@@ -48,6 +48,7 @@ import {
   gliderMainSchemeId,
   handCountTowardHandSize,
   matchesQuery,
+  ofPermanentCardsSet,
   traitsOf,
   type EffectContext,
 } from "./select.js";
@@ -577,9 +578,12 @@ export function discardRandomFromHand(
   return discarded;
 }
 
-/** Sends a card in play to the discard pile its `home` names (its owner's, or its encounter deck's). */
-export function discardFromPlay(ctx: Ctx, id: InstanceId): void {
-  leavePlay(ctx, id, discardZoneFor(ctx.state, id), "top", true);
+/**
+ * Sends a card in play to the discard pile its `home` names (its owner's, or its encounter deck's). `sourceCardId`: the
+ * card whose ability discards it, if any (`permanentStopsLeaving`).
+ */
+export function discardFromPlay(ctx: Ctx, id: InstanceId, sourceCardId?: CardId): void {
+  leavePlay(ctx, id, discardZoneFor(ctx.state, id), "top", true, undefined, sourceCardId);
 }
 
 /**
@@ -600,9 +604,10 @@ export function discardAtOnce(ctx: Ctx, id: InstanceId): void {
  * Only a defeat does this: a card discarded any other way ("discard this side scheme") goes to its discard pile.
  *
  * "When X leaves play" interrupts (§4.1 Q17 of docs/phase7-wave5.md) see the whole defeat before anything moves, Victory
- * X attachments included: the defeat waits as one `LeaveRequest defeat`.
+ * X attachments included: the defeat waits as one `LeaveRequest defeat`. `sourceCardId`: the card whose ability defeats
+ * it, if any (`permanentStopsLeaving`); a defeat by the game's rules has none.
  */
-export function defeatFromPlay(ctx: Ctx, id: InstanceId, insteadTo?: CardDestination): void {
+export function defeatFromPlay(ctx: Ctx, id: InstanceId, insteadTo?: CardDestination, sourceCardId?: CardId): void {
   const instance = getInstance(ctx.state, id);
   if (!instance) return;
   const victory = hasKeyword(ctx.state, id, "victory", ctx.deps);
@@ -611,16 +616,45 @@ export function defeatFromPlay(ctx: Ctx, id: InstanceId, insteadTo?: CardDestina
     : insteadTo !== undefined
       ? destinationZoneKind(insteadTo)
       : leaveDestinationKind(ctx.state, ctx.deps, id, discardZoneFor(ctx.state, id).kind, true);
-  const request: LeaveRequest = { kind: "defeat", ...(insteadTo !== undefined ? { insteadTo } : {}) };
+  const source = sourceCardId !== undefined ? { sourceCardId } : {};
+  const request: LeaveRequest = { kind: "defeat", ...(insteadTo !== undefined ? { insteadTo } : {}), ...source };
   if (waitsForLeaveInterrupts(ctx, id, request, going)) return;
+  // A permanent card this defeat cannot move keeps its Victory X attachments with it.
+  if (permanentStopsLeaving(ctx.state, ctx.deps, id, sourceCardId)) return;
   for (const attachment of [...instance.attachments]) {
     if (hasKeyword(ctx.state, attachment, "victory", ctx.deps))
       leavePlayAtOnce(ctx, attachment, { kind: "victoryDisplay" });
   }
-  if (victory) leavePlay(ctx, id, { kind: "victoryDisplay" });
+  if (victory) leavePlay(ctx, id, { kind: "victoryDisplay" }, "top", false, undefined, sourceCardId);
   // "… instead of discarding it" (a defeat destination, docs/phase7-wave3.md §3.45) replaces only the discard.
-  else if (insteadTo !== undefined) moveCardsTo(ctx, [id], insteadTo);
-  else discardFromPlay(ctx, id);
+  else if (insteadTo !== undefined) moveCardsTo(ctx, [id], insteadTo, undefined, sourceCardId);
+  else discardFromPlay(ctx, id, sourceCardId);
+}
+
+/**
+ * Whether the Permanent keyword stops this card from being defeated or leaving play by an effect of `sourceCardId`
+ * (RRG 1.8 "Permanent", p. 32: "Effects on cards not from this card's set cannot defeat this card, remove this card
+ * from play"; docs/phase7-wave5.md §4.1 Q46). An ability on a card of its own set (`ofPermanentCardsSet`: its hero set
+ * with the obligation and nemesis set, its scenario set, its modular set, or the card itself) gets through; any other
+ * card's does not.
+ *
+ * With no source card the move is the game's own rule, not a card ability, and the keyword stops it as before: a
+ * defeat for reaching zero hit points or zero threat, the Uses keyword's discard, the uniqueness, ally limit and
+ * Restricted discards, a villain's signature side scheme removed with its villain, a flipped attachment with no valid
+ * host. The rules that get past the keyword on purpose do not ask (an attachment whose host leaves, §3.30 and §4.2 Q26;
+ * player elimination, `eliminatePlayer`).
+ *
+ * `isPermanent` still decides whether the card is permanent at all, so a granted keyword (§4.1 Q45), a blanked text box
+ * and a facedown card read as before.
+ */
+export function permanentStopsLeaving(
+  state: GameState,
+  deps: EngineDeps,
+  id: InstanceId,
+  sourceCardId: CardId | undefined,
+): boolean {
+  if (!isPermanent(state, id, deps)) return false;
+  return sourceCardId === undefined || !ofPermanentCardsSet(state, id, sourceCardId);
 }
 
 const LISTENS_FOR_LEAVING_PLAY = new WeakMap<EngineDeps, boolean>();
@@ -786,7 +820,9 @@ export function waitsForLeaveInterrupts(
   if (!listensForLeavingPlay(ctx.deps)) return false;
   if (!cardsInPlay(ctx.state).includes(id)) return false;
   // Blocked leaves are refused (and logged) by the caller's own path.
-  if (isPermanent(ctx.state, id, ctx.deps) || cannotLeavePlay(ctx.state, ctx.deps, id)) return false;
+  const sourceCardId = request.kind === "withHost" ? undefined : request.sourceCardId;
+  if (permanentStopsLeaving(ctx.state, ctx.deps, id, sourceCardId) || cannotLeavePlay(ctx.state, ctx.deps, id))
+    return false;
   const already = leavingFrameFor(ctx.state, id);
   if (already) return already.stage === "interrupts";
   const event: TriggerEvent = {
@@ -908,7 +944,8 @@ export type LeaveOutcome = "left" | "waiting" | "stayed";
 /**
  * A card leaves play for `to` (discard, hand, deck, removed from game): its attachments are discarded (a permanent one
  * stays in play, `unattachInPlay`) and its in-play state (damage, threat, counters, statuses, exhaust, engagement) is
- * cleared. RRG "Permanent": a permanent card cannot leave play.
+ * cleared. RRG "Permanent": a permanent card cannot leave play, except by an ability of a card in its own set,
+ * `sourceCardId` (`permanentStopsLeaving`).
  *
  * When a "when X leaves play" interrupt hears it, the card waits in play for that window (`waitsForLeaveInterrupts`)
  * and this returns `"waiting"`; `patch` is what the caller sets on the card once it has left, applied then.
@@ -920,13 +957,21 @@ export function leavePlay(
   position: "top" | "bottom" = "top",
   discarded = false,
   patch?: LeavePatch,
+  sourceCardId?: CardId,
 ): LeaveOutcome {
-  if (isPermanent(ctx.state, id, ctx.deps)) return "stayed";
+  if (permanentStopsLeaving(ctx.state, ctx.deps, id, sourceCardId)) return "stayed";
   if (cannotLeavePlay(ctx.state, ctx.deps, id)) {
     emit(ctx, { type: "leavePlayBlocked", instanceId: id, reason: "cannotLeavePlay" });
     return "stayed";
   }
-  const request: LeaveRequest = { kind: "zone", zone: requested, position, discarded, ...(patch ? { patch } : {}) };
+  const request: LeaveRequest = {
+    kind: "zone",
+    zone: requested,
+    position,
+    discarded,
+    ...(patch ? { patch } : {}),
+    ...(sourceCardId !== undefined ? { sourceCardId } : {}),
+  };
   const going = leaveDestinationKind(ctx.state, ctx.deps, id, requested.kind, discarded);
   if (waitsForLeaveInterrupts(ctx, id, request, going)) return "waiting";
   leaveNow(ctx, id, requested, position, discarded);

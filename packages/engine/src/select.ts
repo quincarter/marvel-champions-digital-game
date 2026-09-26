@@ -1868,6 +1868,22 @@ function permanentSetKeys(state: GameState, card: AnyCard): readonly string[] {
 }
 
 /**
+ * Whether `sourceCardId` is of this card's own set for the Permanent keyword's exception (RRG 1.8 "Permanent", p. 32):
+ * the card itself, or a card sharing one of its sets (`permanentSetKeys`). The comparison `permanentProtectsFrom` makes,
+ * without its keyword check, for the defeat and leave-play protection (`effects.ts` `permanentStopsLeaving`,
+ * docs/phase7-wave5.md §4.1 Q46). A source missing from the card pool is of no set.
+ */
+export function ofPermanentCardsSet(state: GameState, id: InstanceId, sourceCardId: CardId): boolean {
+  const card = cardOf(state, id);
+  if (!card) return false;
+  if (card.id === sourceCardId) return true;
+  const source = state.cardPool[sourceCardId];
+  if (!source) return false;
+  const own = new Set(permanentSetKeys(state, card));
+  return permanentSetKeys(state, source).some((key) => own.has(key));
+}
+
+/**
  * Whether the Permanent keyword keeps a blank made by `sourceCardId` off this card (RRG 1.8 "Permanent", p. 32: "Effects
  * on cards not from this card's set cannot [...] blank any part of its text box"; docs/phase7-wave5.md §4.1 Q31). The
  * printed keyword is read from the card's showing face *before* any blank (`unblankedPrintedKeywordsOf`), since it

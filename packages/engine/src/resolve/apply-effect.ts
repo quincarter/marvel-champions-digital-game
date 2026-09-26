@@ -1,5 +1,6 @@
 /** Applying one non-interactive effect from an effects frame. */
 
+import type { CardId } from "@mc/content";
 import { nextInt } from "../rng.js";
 import {
   type Ctx,
@@ -212,6 +213,18 @@ function boundNamesOf(effects: readonly EffectSpec[]): readonly string[] {
   };
   visit(effects);
   return [...names];
+}
+
+/**
+ * The card whose ability makes a card leave play or be defeated from this frame, for the Permanent keyword's same-set
+ * exception (RRG 1.8 "Permanent", p. 32; `effects.ts` `permanentStopsLeaving`, docs/phase7-wave5.md §4.1 Q46): the
+ * frame's own card. A defeated card's leaving step is the game's rule, and carries the defeat's source instead (none
+ * for a defeat at zero hit points or zero threat), since its own card is the defeated one. Plain card data, so a replay
+ * reads the same.
+ */
+function leaveSourceOf(ctx: Ctx, frame: Frame<"effects">): CardId | undefined {
+  if (frame.defeatedLeaving !== undefined) return frame.defeatedLeavingSource;
+  return frame.selfInstanceId ? getInstance(ctx.state, frame.selfInstanceId)?.cardId : undefined;
 }
 
 export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext, frame: Frame<"effects">): void {
@@ -909,15 +922,17 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       if (!ctx.state.scenarioAreas?.[effect.name])
         ctx.state = { ...ctx.state, scenarioAreas: { ...ctx.state.scenarioAreas, [effect.name]: [] } };
       return;
-    case "discardFromPlay":
+    case "discardFromPlay": {
+      const source = leaveSourceOf(ctx, frame);
       for (const id of targets(effect.target)) {
-        if (effect.defeated === true) defeatFromPlay(ctx, id, effect.insteadTo);
+        if (effect.defeated === true) defeatFromPlay(ctx, id, effect.insteadTo, source);
         // "Players cannot discard attachments that are attached to friendly characters." (§3.44 of wave 4.)
         else if (frame.byPlayer && playersCannotDiscard(ctx.state, ctx.deps, id)) {
           emit(ctx, { type: "discardRefused", instanceId: id });
-        } else discardFromPlay(ctx, id);
+        } else discardFromPlay(ctx, id, source);
       }
       return;
+    }
     case "putIntoPlay": {
       const [controller] = resolvePlayers(ctx.state, effect.controller, context);
       if (!controller) return;
@@ -1354,6 +1369,9 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
         scopedPlayerId: frame.scopedPlayerId,
         returnBindingsTo: frame.frameId,
         byPlayer: frame.byPlayer === true,
+        // A defeated card's leaving step checks its face with an `if` (`leaveAfterWhenDefeated`; §4.1 Q46).
+        ...(frame.defeatedLeaving !== undefined ? { defeatedLeaving: frame.defeatedLeaving } : {}),
+        ...(frame.defeatedLeavingSource !== undefined ? { defeatedLeavingSource: frame.defeatedLeavingSource } : {}),
       });
       return;
     }
@@ -1698,7 +1716,7 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       }
       const [into] = effect.into ? resolvePlayers(ctx.state, effect.into, context) : [];
       if (effect.into && !into) return;
-      moveCardsTo(ctx, ids, effect.to, into);
+      moveCardsTo(ctx, ids, effect.to, into, leaveSourceOf(ctx, frame));
       return;
     }
     case "shuffleDeck":
@@ -1881,7 +1899,8 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
         // The new owner comes with the move, after any "when it leaves play" interrupt, which sees the card as it was;
         // `leavePlay` applies `patch` once the card has left, now or after its interrupts (wave 5 §4.1 Q17, Q35).
         if (cardsInPlay(ctx.state).includes(id)) {
-          if (leavePlay(ctx, id, { kind: "hand", playerId }, "top", false, patch) !== "stayed") continue;
+          const source = leaveSourceOf(ctx, frame);
+          if (leavePlay(ctx, id, { kind: "hand", playerId }, "top", false, patch, source) !== "stayed") continue;
         } else moveCard(ctx, id, { kind: "hand", playerId });
         applyLeavePatch(ctx, id, patch);
       }
@@ -2051,7 +2070,9 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
         };
         // A card waiting for "when it leaves play" interrupts gets `patch` once it has left (§4.1 Q17 of wave 5).
         if (inPlay.includes(id)) {
-          if (leavePlay(ctx, id, { kind: "tucked", hostInstanceId: host }, "top", false, patch) === "waiting") continue;
+          const source = leaveSourceOf(ctx, frame);
+          if (leavePlay(ctx, id, { kind: "tucked", hostInstanceId: host }, "top", false, patch, source) === "waiting")
+            continue;
         } else moveCard(ctx, id, { kind: "tucked", hostInstanceId: host });
         updateInstance(ctx, id, (i) => ({ ...i, ...patch }));
       }
