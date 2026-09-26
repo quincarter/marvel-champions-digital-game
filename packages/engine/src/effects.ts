@@ -613,10 +613,36 @@ function listensForLeavingPlay(deps: EngineDeps): boolean {
 }
 
 /**
- * A card leaves play for `to` (discard, hand, deck, removed from game): its
- * attachments are discarded and its in-play state (damage, threat, counters,
- * statuses, exhaust, engagement) is cleared. RRG "Permanent": a permanent card
- * cannot leave play.
+ * An attachment whose host is leaving play but that cannot leave play itself: permanent (RRG 1.8 "Permanent", p. 32:
+ * it cannot "leave play … except by card abilities in the same set", and the host leaving is a game rule, "Attach To",
+ * p. 8, not a card ability) or under a "cannot leave play" rule. docs/phase7-wave5.md §3.30.
+ */
+function staysInPlayWithoutHost(ctx: Ctx, id: InstanceId): boolean {
+  return isPermanent(ctx.state, id, ctx.deps) || cannotLeavePlay(ctx.state, ctx.deps, id);
+}
+
+/**
+ * "(Return this card to your play area.)" when its host leaves play (Wrist Navigator, `sm` 27189a; docs/phase7-wave5.md
+ * §3.30). The card does not leave play: it keeps its state (counters, exhaustion) and its controller, and moves
+ * unattached to its controller's play area (its owner's if it has no controller). An encounter card with no player to
+ * go to stays in the villain's play area (wave 5 §4; no printed card reaches it, and player elimination re-resolves
+ * "attach to" instead, `eliminatePlayer`).
+ */
+function unattachInPlay(ctx: Ctx, id: InstanceId): void {
+  const instance = mustInstance(ctx.state, id);
+  const playerId = instance.controllerId ?? instance.ownerId;
+  const player = playerId === null ? undefined : ctx.state.players.find((p) => p.playerId === playerId);
+  const to: ZoneId =
+    player !== undefined && !player.eliminated
+      ? { kind: "playArea", playerId: player.playerId }
+      : { kind: "villainArea" };
+  moveCard(ctx, id, to);
+}
+
+/**
+ * A card leaves play for `to` (discard, hand, deck, removed from game): its attachments are discarded (a permanent one
+ * stays in play, `unattachInPlay`) and its in-play state (damage, threat, counters, statuses, exhaust, engagement) is
+ * cleared. RRG "Permanent": a permanent card cannot leave play.
  */
 export function leavePlay(
   ctx: Ctx,
@@ -658,7 +684,10 @@ export function leavePlay(
   if (discarded && to === requested)
     emit(ctx, { type: "cardDiscardedFromPlay", instanceId: id, cardId: instance.cardId });
   if (redirect !== null) to = { kind: "scenarioArea", name: redirect.area };
-  for (const attachment of [...instance.attachments]) discardFromPlay(ctx, attachment);
+  for (const attachment of [...instance.attachments]) {
+    if (staysInPlayWithoutHost(ctx, attachment)) unattachInPlay(ctx, attachment);
+    else discardFromPlay(ctx, attachment);
+  }
   // RRG "Tuck": when a card leaves play, each card tucked under it is discarded.
   for (const tuckedId of [...instance.tucked]) {
     // Faceup first: a discard into an emptied deck's discard pile can reset that deck at once (`settlePlayerDecks`).

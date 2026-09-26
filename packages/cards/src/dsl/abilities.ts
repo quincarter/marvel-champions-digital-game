@@ -1278,6 +1278,12 @@ export const on = {
    */
   leavesPlay: (who: Who): EventPattern => pattern("cardLeavesPlay", asTarget(who)),
   /**
+   * "When the attached card is defeated" on a card that attaches to a minion or a side scheme (Wrist Navigator, `sm`
+   * 27189a; docs/phase7-wave5.md §3.30): a character's defeat or a scheme's, the host still attached as it opens. A
+   * permanent attachment then stays in play, unattached, in its controller's play area.
+   */
+  attachedCardDefeated: (): EventPattern => pattern(["characterDefeated", "schemeDefeated"], asTarget("host")),
+  /**
    * "When you would draw or discard an encounter card from your deck" (Maze of Mirrors / Edge of Reality 1B/2B, `sm`
    * 27087b/27088b; docs/phase7-wave5.md §3.5): any player's, named with `eventPlayer`; "it" is `eventTarget`. Heard
    * after the whole draw (MC27 p. 21 FAQ). `how` narrows it to a draw or a discard.
