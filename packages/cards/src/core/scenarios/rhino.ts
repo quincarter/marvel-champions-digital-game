@@ -1,4 +1,5 @@
 import {
+  andThen,
   chosen,
   damagedAtLeast,
   dealDamage,
@@ -52,7 +53,9 @@ export const RHINO = defineAbilities({
   // Then, if there is at least 5 damage here, discard Armored Rhino Suit.
   "01098.armored-rhino-suit-forced-interrupt": forcedInterrupt(
     when.damage(query("villain")),
-    instead(placeDamage(eventAmount, self), ifThen(damagedAtLeast(self, 5), discard(self))),
+    // The pre-"then" text is the placement, which always resolves; the threshold "if" is post-"then" text and gates
+    // itself (RRG 1.8 "'Then'", p. 44).
+    instead(placeDamage(eventAmount, self), andThen(ifThen(damagedAtLeast(self, 5), discard(self)))),
   ),
   // Charge — (+3 ATK printed as a stat modifier) [star] Forced Interrupt: When Rhino attacks, the attack gains overkill.
   // At the end of this attack, discard Charge.

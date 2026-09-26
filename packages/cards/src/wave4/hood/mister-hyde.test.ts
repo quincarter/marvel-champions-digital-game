@@ -118,6 +118,21 @@ describe("Mister Hyde (24033-24036)", () => {
     );
   });
 
+  // RRG 1.8 "'Then'" (p. 44): if Calvin Zabo's scheme activation doesn't happen (a stunned status removed instead
+  // of scheming), the printed "then he takes 4 damage" doesn't attempt to resolve either (`activationDidNotHappen`,
+  // docs/then-sweep.md).
+  it("24036.when-revealed: a confused Calvin Zabo has his status removed instead of scheming, and takes no damage", () => {
+    const base = heroified(onStage(withSet(), 0), P1);
+    const zabo = minionEngagedWith(base, "24034", P1);
+    // Confused (not stunned) cancels a scheme activation (RRG 1.8 "Confuse"): stunned only cancels attacks.
+    const confused = patchInstance(zabo.state, zabo.id, { statuses: { stunned: 0, confused: 1, tough: 0 } });
+    const staged = stackTop(confused, "01186", "24036");
+    const { state: activated, events } = driveEvents(WAVE4_DEPS, staged, { type: "endTurn", playerId: P1 });
+    expect(fired(events, "24036.when-revealed")).toBe(true);
+    expect(events.some((e) => e.type === "damageDealt" && e.targetInstanceId === zabo.id)).toBe(false);
+    expect(activated.instances[zabo.id]!.statuses.confused).toBe(0);
+  });
+
   it("24036.when-revealed: neither Calvin Zabo nor Mister Hyde in play -> this card gains surge (discards itself, an extra card is revealed)", () => {
     const base = onStage(withSet(), 0);
     const staged = stackTop(base, "01186", "24036");

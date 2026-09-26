@@ -1,5 +1,6 @@
 import { trait } from "@mc/content";
 import {
+  andThen,
   addCounters,
   aScheme,
   cards,
@@ -90,10 +91,11 @@ export const ANT_PACK_CARDS = defineAbilities({
   "12014.stinger-constant": constant(excludedFromAllyLimit(query("ally", { self: true }))),
 
   // Call for Aid (12015) — Hero Action: discard cards from the top of your deck until you discard an Avenger
-  // ally, then add that ally to your hand.
+  // ally, then add that ally to your hand. No Avenger ally found leaves the pre-"then" text unresolved
+  // (`discardUntilFoundNothing`, RRG 1.8 "'Then'", p. 44), so the "add" is skipped.
   "12015.call-for-aid-action": heroAction(
     discardDeckUntil(query("ally", { trait: AVENGER }), "found"),
-    moveCards(cards(chosen("found")), "hand"),
+    andThen(moveCards(cards(chosen("found")), "hand")),
   ),
 
   // Moxie (12016) — Hero Response: after you change form, your hero gets +1 THW, +1 ATK, +1 DEF until the end of

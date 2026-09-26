@@ -219,3 +219,62 @@ describe("Ms. Marvel pack cards", () => {
     expect(inst(state, identityOf(state)).damage).toBe(2);
   });
 });
+
+// RRG 1.8 "'Then'" (p. 44) and FAQ "Attacrobatics (#6)" (RRG 1.8 p. 59), docs/then-sweep.md: "cancel all boost icons on
+// that card. Then deal 1 damage … for each boost icon cancelled this way". A boost card with no icons is no target for
+// the cancel, so Preemptive Strike isn't offered for it at all; with icons, the cancel resolves and its "then" deals the
+// damage.
+describe("Preemptive Strike (05014): the cancel needs icons to cancel", () => {
+  /** Plays to the end of the villain's attack with Preemptive Strike in hand, using it whenever it is offered. */
+  function villainAttacksWith(boostCard: string) {
+    const start = msmVsRhino();
+    const given = moveToHand(start, P1, "05014", "05005");
+    const [strike, payment] = given.ids as [never, never];
+    const hero = runMsm(given.state, toHero());
+    const villain = activeVillain(hero).instanceId;
+    const primed = stackEncounterDeck(hero, boostCard);
+    const option = `${strike}:05014.preemptive-strike-interrupt`;
+    let offered = false;
+    const pick = (s: GameState): readonly string[] => {
+      const prompt = s.pendingChoice?.prompt;
+      if (s.pendingChoice?.options.some((o) => o.optionId === option)) {
+        offered = true;
+        return [option];
+      }
+      if (prompt?.kind === "payForCard" && prompt.instanceId === strike) return [`hand:${payment}`];
+      if (prompt?.kind === "discardDownToHandSize") {
+        const keep: readonly string[] = [strike, payment];
+        const spare = s.pendingChoice!.options.filter((o) => !keep.includes(o.optionId));
+        return spare.slice(0, s.pendingChoice!.minSelections).map((o) => o.optionId);
+      }
+      return firstLegal(s);
+    };
+    const events: GameEvent[] = [];
+    let state = applyOk(primed, endTurn(), MSM_DEPS).state;
+    const attackDone = () => events.some((e) => e.type === "attackResolved" && e.enemyInstanceId === villain);
+    for (let guard = 0; state.pendingChoice && !attackDone(); guard++) {
+      if (guard > 200) throw new Error(`stuck on ${state.pendingChoice.prompt.kind}`);
+      const choice = state.pendingChoice;
+      const step = applyOk(
+        state,
+        { type: "resolveChoice", playerId: choice.playerId, choiceId: choice.choiceId, selectedOptionIds: pick(state) },
+        MSM_DEPS,
+      );
+      events.push(...step.events);
+      state = step.state;
+    }
+    return { offered, events, villain, before: remainingHitPoints(hero, villain)!, state };
+  }
+
+  it("a 0-icon boost card (Advance) is no target: Preemptive Strike is not offered", () => {
+    const { offered } = villainAttacksWith("01186");
+    expect(offered).toBe(false);
+  });
+
+  it("a 1-icon boost card (Stampede): its icon is cancelled, then 1 damage is dealt to the villain", () => {
+    const { offered, events, villain, before, state } = villainAttacksWith("01106");
+    expect(offered).toBe(true);
+    expect(events.some((e) => e.type === "thenSkipped")).toBe(false);
+    expect(remainingHitPoints(state, villain)).toBe(before - 1);
+  });
+});

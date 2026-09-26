@@ -13,7 +13,7 @@
 Card art upgrader: replaces scans in assets/card-art/bundles/cards/ with better
 copies from Hall of Heroes (hallofheroeslcg.com).
 
-Three commands:
+Four commands:
 
   audit   Score every local scan for the Fantasy Flight Games diamond watermark
           (the "FF stamp" on the preview images some sets were first scanned
@@ -29,15 +29,51 @@ Three commands:
           larger or replacing a stamped scan. Packs with stamped scans go first.
           Hall of Heroes pads its card images with a white border; every
           download is trimmed the same way as `trim` before it is saved.
+          `--fill-missing` also adds art for any card the scraped pack has no
+          local scan for at all (not just replacements).
 
-A replacement keeps the local file's name and format, since card records point
-at that exact path (`/bundles/cards/<code>.png` or `.jpg`). Each replacement is
-recorded in assets/card-art/hall-of-heroes-manifest.tsv.
+          Matching is by filename-as-code or by name (`match_code`) first.
+          Some pack pages (Mad Titan's Shadow's box and encounters pages) give
+          neither: every image is named by its own per-encounter-set sequence
+          (`e1.jpg`, `t7b.jpg`...) with empty alt text, not by card code or
+          name. Whatever `match_code` can't place falls back to `match_by_art`:
+          a perceptual hash (`phash`) of each remaining candidate against every
+          remaining local scan in the pack, resolved by Hungarian assignment
+          and only kept where the match is both close and unambiguous. This
+          only works for a *replacement* (it needs the existing local scan as
+          the reference to match against) — `--fill-missing` still needs a
+          name/filename hit for a card with no local scan at all.
+
+  missing Fetches exactly the scans `pnpm --filter @mc/client build` reports as
+          referenced by the card pool but absent from the folder — asking the
+          build for that list (`vite-card-art.ts`'s own warning) rather than
+          restating it here, so the two can't drift. Hall of Heroes is the
+          source: it doesn't carry the FFG diamond watermark, and a pack page
+          often names a stage/side's B-face separately from MarvelCDB's own
+          `imagesrc` (e.g. `kang-7b-kangs-arrival.png`), which `fetch` and the
+          generic pack scrape below can miss. A code Hall of Heroes genuinely
+          doesn't carry falls back to MarvelCDB's own `imagesrc`/`backimagesrc`
+          — audited for the watermark and trimmed the same way, but that is
+          necessary, not sufficient: MarvelCDB has served the *wrong face* at
+          the *right filename* before (two records can share a filename stem —
+          see `_marvelcdb_url_for`), so every MarvelCDB fallback needs a human
+          look at the saved file, not just a clean `audit` score, before it's
+          trusted. A card only available stamped is left missing (the client's
+          generated frame is the correct fallback) rather than saved anyway.
+          An external URL in the list (a bad card record, not a missing scan)
+          is reported and left alone — that is a `packages/content` data bug,
+          not something this script can fetch its way out of.
+
+A replacement or an addition keeps the exact local path a card record names
+(`/bundles/cards/<code>.png` or `.jpg`), since that is what `imageRef()` points
+at. Each one is recorded in assets/card-art/hall-of-heroes-manifest.tsv.
 
   uv run scripts/fetch_card_art.py audit
   uv run scripts/fetch_card_art.py trim --dry-run
   uv run scripts/fetch_card_art.py fetch --stamped-only
   uv run scripts/fetch_card_art.py fetch --packs mts sm --dry-run
+  uv run scripts/fetch_card_art.py missing
+  uv run scripts/fetch_card_art.py missing --dry-run -v
 """
 
 from __future__ import annotations
@@ -46,6 +82,7 @@ import argparse
 import io
 import json
 import re
+import subprocess
 import sys
 import time
 from dataclasses import dataclass
@@ -57,6 +94,8 @@ import numpy as np
 from bs4 import BeautifulSoup
 from PIL import Image, ImageFilter
 from scipy import ndimage
+from scipy.fft import dctn
+from scipy.optimize import linear_sum_assignment
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 CARDS_DIR = REPO_ROOT / "assets" / "card-art" / "bundles" / "cards"
@@ -65,6 +104,7 @@ RAW_DIR = REPO_ROOT / "packages" / "content" / "raw" / "marvelcdb"
 TEMPLATE_DIR = Path(__file__).resolve().parent / "card-art"
 
 HOH = "https://hallofheroeslcg.com"
+MARVELCDB_BASE = "https://marvelcdb.com"
 
 # Each pack's Hall of Heroes page (the ones packages/content/src/data/*/packs.ts and the manifest already cite). A box
 # page links its encounter-card page ("<slug>-encounters-and-mods"), which is followed automatically. Packs missing
@@ -148,6 +188,13 @@ PAD_WHITE = 225
 # A trimmed card's long/short edge ratio must land here (a printed card is 88x63mm, 1.40; local scans run 1.39-1.45).
 CARD_ASPECT = (1.34, 1.50)
 
+# Art-hash matching (see `phash`/`match_by_art`): a Hungarian assignment is only trusted when the winning pair's
+# Hamming distance is small in absolute terms (distinct card art differs by 20+ of the 64 bits; the same art with a
+# stamp or a different crop differs by well under this) and clearly better than that code's next-best remote
+# candidate, so a code with no real match on the page isn't forced onto whatever remote image is merely "closest".
+HASH_MAX_DISTANCE = 10
+HASH_MARGIN = 6
+
 
 # --------------------------------------------------------------------------- local card data
 
@@ -187,8 +234,15 @@ def local_scans() -> dict[str, Path]:
     return {p.stem: p for p in sorted(CARDS_DIR.iterdir()) if p.suffix in (".png", ".jpg", ".jpeg", ".webp")}
 
 
+def card_for(code: str, cards: dict[str, Card]) -> Card | None:
+    """The card record a filename stem belongs to. Most codes are literal, but MarvelCDB's own image filenames
+    are sometimes lettered beyond the card's real code (`26002a.jpg`/`26002b.png` for plain code `26002`,
+    `07001b.png` for plain code `07001`) — stripping a trailing a/b falls back to the base code in that case."""
+    return cards.get(code) or cards.get(code.rstrip("ab"))
+
+
 def pack_of(code: str, cards: dict[str, Card]) -> str:
-    card = cards.get(code) or cards.get(code.rstrip("ab"))
+    card = card_for(code, cards)
     return card.pack if card else "?"
 
 
@@ -216,6 +270,61 @@ class StampDetector:
 
     def stamped(self, img: Image.Image) -> bool:
         return self.score(img) > STAMP_THRESHOLD
+
+
+# --------------------------------------------------------------------------- art matching
+
+
+def phash(img: Image.Image) -> int:
+    """
+    A 64-bit perceptual hash of a (trimmed) card image: the sign of its low-frequency DCT coefficients, which is
+    unaffected by JPEG noise, a small watermark, or being cropped slightly differently, but differs sharply between
+    two different pieces of card art. Used to match a Hall of Heroes image to a local card code on pages that give
+    the matcher nothing else to go on (no code-shaped filename, no alt text) — see `match_by_art`.
+    """
+    small = img.convert("L").resize((32, 32), Image.Resampling.LANCZOS)
+    coeffs = dctn(np.asarray(small, dtype=np.float64), norm="ortho")[:8, :8]
+    bits = coeffs > np.median(coeffs)
+    h = 0
+    for b in bits.flat:
+        h = (h << 1) | int(b)
+    return h
+
+
+def hamming(a: int, b: int) -> int:
+    return int(bin(a ^ b).count("1"))
+
+
+def match_by_art(
+    local_hashes: dict[str, int], remote: list[tuple[str, str, int]]
+) -> dict[str, tuple[str, str]]:
+    """
+    Assigns Hall of Heroes images to local card codes within one pack by art content alone, for pages whose filenames
+    and alt text carry no usable card identity (Mad Titan's Shadow numbers every image `e1.jpg`, `t7b.jpg`, etc. by
+    its own per-encounter-set sequence, not by card code or name). `remote` is `(url, alt, phash)` triples already
+    downloaded, trimmed, and confirmed unstamped by the caller.
+
+    A Hungarian assignment (`scipy.optimize.linear_sum_assignment`) over the full local-code x remote-image distance
+    matrix finds the globally cheapest one-to-one pairing, rather than greedily matching each code to whatever is
+    nearest first (which can steal an image that was a better match for a different code). Only pairs clearing both
+    `HASH_MAX_DISTANCE` and `HASH_MARGIN` are returned — a code genuinely absent from the page (not every card gets
+    photographed on every pack page) should come back unmatched, not paired with the least-bad leftover image.
+    """
+    codes = list(local_hashes)
+    if not codes or not remote:
+        return {}
+    cost = np.array([[hamming(local_hashes[c], h) for _, _, h in remote] for c in codes], dtype=np.float64)
+    rows, cols = linear_sum_assignment(cost)
+    out: dict[str, tuple[str, str]] = {}
+    for r, c in zip(rows, cols):
+        dist = cost[r, c]
+        if dist > HASH_MAX_DISTANCE:
+            continue
+        rest = np.delete(cost[r], c)
+        if rest.size and rest.min() - dist < HASH_MARGIN:
+            continue
+        out[codes[r]] = remote[c][:2]
+    return out
 
 
 # --------------------------------------------------------------------------- image handling
@@ -350,9 +459,145 @@ def original_url(img_tag, page_url: str) -> str | None:
     return url[: len(url) - len(path)] + path[: len(path) - len(stem) - 1 - len(ext)] + base + dot + ext
 
 
+# Explicit filename -> code overrides for pages where neither the filename-as-code rule nor alt/name matching can
+# work at all: Mad Titan's Shadow numbers every image by its own per-encounter-set sequence (`e1.jpg`, `t7a.jpg`...)
+# with empty alt text, and `match_by_art` (the generic content-hash fallback) can't tell apart a villain's identical
+# artwork printed at 3 difficulty stages, or one main scheme's two faces, from each other. Each entry here was
+# confirmed by reading the MarvelCDB collector number Hall of Heroes' own scan prints in the card's bottom corner
+# (e.g. `e1.jpg` -> "EBONY MAW (1/22) ... 71"), not guessed from position — Hall of Heroes' gallery order does not
+# reliably follow card-code order (`the-mad-titans-shadow-encounters-and-mods`'s "Tower Defense" section runs
+# 21092-21099 before looping back for card 21100 onward). Covers every Mad Titan's Shadow villain stage and main
+# scheme face; see the `card-data-pipeline` handoff notes for the 2026-09-26 audit this closed out.
+PACK_FILENAME_CODES: dict[str, dict[str, str]] = {
+    "mts": {
+        "e1": "21071",  # Ebony Maw, stage 1
+        "e2": "21072",  # Ebony Maw, stage 2
+        "e3": "21073",  # Ebony Maw, stage 3
+        "e4a": "21074",  # Attack on Knowhere (main scheme 1)
+        "e5a": "21075",  # The Power Stone (main scheme 2)
+        "t1": "21092",  # Proxima Midnight, stage 1
+        "t2": "21093",  # Proxima Midnight, stage 2
+        "t3": "21094",  # Proxima Midnight, stage 3
+        "t4": "21095",  # Corvus Glaive, stage 1
+        "t5": "21096",  # Corvus Glaive, stage 2
+        "t6": "21097",  # Corvus Glaive, stage 3
+        "t7a": "21098",  # Under Siege (main scheme 1)
+        "t8a": "21099",  # The Armies of Thanos (main scheme 2)
+        "t1-1": "21111",  # Thanos, stage 1 - distinct upload from Tower Defense's "t1"
+        "t2-1": "21112",  # Thanos, stage 2 - distinct upload from Tower Defense's "t2"
+        "t3-1": "21113",  # Thanos, stage 3 - distinct upload from Tower Defense's "t3"
+        "t4a": "21114",  # The Infinity Stones (Thanos main scheme 1) - distinct upload from Tower Defense's "t4"
+        "t5a": "21115",  # Balance the Scales (Thanos main scheme 2) - distinct upload from Tower Defense's "t5"
+        "h1a": "21136a",  # Hela, stage 1
+        "h2a": "21137a",  # Hela, stage 2
+        "h3a": "21138",  # Odin's Torment (Hela main scheme)
+        "l1": "21160",  # Loki, stage 1
+        "l2": "21161",  # Loki, stage 2
+        "l3": "21162",  # Loki, stage 3
+        "l4": "21163",  # Loki, stage 4
+        "l5": "21164",  # Loki, stage 5
+        "l6a": "21165",  # All Hail King Loki (main scheme)
+        "c1a": "21180a",  # Secure the Landing Pad (campaign side scheme)
+        "c13a": "21186a",  # Find the Norn Stones (campaign side scheme)
+        "c17a": "21187a",  # Norn Stone (campaign upgrade)
+        "c19a": "21189a",  # Open the Dungeons (campaign side scheme)
+        # The rest of the 2026-09-26 audit's 177 stamped scans: same page, same "no filename/alt to go on" problem,
+        # but not villain stages or main-scheme faces, so `match_by_art` resolved most of the pack on its own. These
+        # 81 are what was left stamped after that pass - generic aspect/basic cards and modular-set filler whose
+        # near-identical card frames made `match_by_art` correctly decline rather than guess. Confirmed the same way:
+        # the collector number Hall of Heroes' own scan prints in the corner (e.g. `de.jpg` -> "SPECTRUM (4/18) ...
+        # 5" -> code 21005), one at a time, since neither position nor content hash was reliable here either.
+        "de": "21005",  # Blue Marvel (Spectrum ally)
+        "m5": "21006",  # Energy Duplication
+        "m7": "21007",  # Gamma Blast
+        "m10": "21008",  # Photon Speed
+        "m13": "21009",  # Pulsar Shield
+        "m16": "21010",  # Speed of Light
+        "a5": "21015",  # Mighty Avengers
+        "a6": "21016",  # Mass Attack
+        "a8": "21018",  # Band Together
+        "a9": "21019",  # Blade
+        "a12": "21022",  # Ready to Rumble
+        "n4": "21029",  # Sap Power
+        "n6": "21030",  # Radioactive Blast
+        "a1-1": "21032",  # Pip the Troll
+        "a3-1": "21034",  # Karmic Staff
+        "a5-1": "21036",  # Cosmic Ward
+        "a7-1": "21037",  # Mystic Senses
+        "a10-1": "21038",  # Karmic Blast
+        "a12-1": "21039",  # Cosmic Awareness
+        "a14-1": "21040",  # Quantum Magic
+        "b3": "21043",  # Magic Attack
+        "b6": "21046",  # Audacity
+        "b12": "21052",  # Determination
+        "b13": "21053",  # Major Victory
+        "n3-1": "21069",  # Zealot of Truth
+        "e6": "21076",  # Fireball
+        "e8": "21077",  # Manipulation
+        "e10": "21078",  # Pacification
+        "e12": "21079",  # Rubblestorm
+        "e14": "21080",  # Agent of Thanos
+        "e16": "21081",  # Channeling Trance
+        "e19": "21082",  # Abjuration
+        "e20": "21083",  # Restrained
+        "e21": "21084",  # Reactor Overload
+        "b4-1": "21088",  # Blood to Spare
+        "a1-2": "21089",  # Black Order Infantry
+        "a3-2": "21090",  # Outrider
+        "a5-2": "21091",  # Landing Craft
+        "t11": "21102",  # Black Order Besieger
+        "t15": "21103",  # Proxima's Spear
+        "t16": "21104",  # Corvus's Glaive
+        "t17": "21105",  # Direct Assault
+        "t19": "21106",  # Proxima's Power
+        "t21": "21107",  # Corvus's Cunning
+        "t23": "21108",  # Bound by Blood
+        "t24": "21109",  # Rain Fire
+        "t26": "21110",  # City Under Attack
+        "t10-1": "21119",  # Master of the Stones - Thanos section's own numbering, distinct from Tower Defense's "t10"
+        "t11-1": "21120",  # Avatar of Death - distinct from Tower Defense's "t11"
+        "t13-1": "21121",  # Deviant Syndrome - distinct from Tower Defense's "t13"
+        "t15-1": "21122",  # "I Am Inevitable" - distinct from Tower Defense's "t15"
+        "t17-1": "21123",  # The Mad Titan - distinct from Tower Defense's "t17"
+        "c4-1": "21128",  # Tribute
+        "i4": "21132",  # Reality Stone
+        "i7": "21135",  # Time Stone
+        "h7": "21141",  # Hall of Nastrond
+        "h6": "21142",  # Gjallerbru
+        "h8": "21143",  # Garm
+        "h13": "21148",  # Hela's Crown
+        "h14": "21149",  # Hela's Domain
+        "h16": "21150",  # The Queen of Hel
+        "h18": "21151",  # The Wastes of Niffleheim
+        "l1-1": "21152",  # Draugr
+        "l3-1": "21153",  # Fallen Warrior
+        "l6": "21155",  # Legions of Hel
+        "f2": "21157",  # Frost Giant
+        "f4": "21158",  # Frozen
+        "l8": "21167",  # War in Asgard
+        "l9": "21168",  # Madness on Midgard
+        "l10": "21169",  # Open the Bifrost
+        "l14": "21173",  # Master of Illusions
+        "l15": "21174",  # Devious Sorcery
+        "l17": "21175",  # Infinite Mischief
+        "l19": "21176",  # The Trickster
+        "e2-1": "21178",  # Beguiled
+        "e4": "21179",  # Seduced
+        "c2": "21181",  # Security Breach - not "c1b" (that filename is Cosmo/180B despite also printing "181" in its corner: two logical cards can apparently share a physical print-sheet number, so a corner read alone wasn't enough here - confirmed by viewing the full card)
+        "c4": "21183",  # Shawarma
+        "c10": "21185",  # System Shock
+        "c21": "21191",  # Fandral
+        "c23": "21193",  # Volstagg
+    },
+}
+
+
 def match_code(url: str, alt: str, pack: str, by_name: dict[str, list[Card]]) -> str | None:
-    """Card code for an image: its file name when that is a code (Hall of Heroes' usual naming), else a unique name."""
+    """Card code for an image: its file name when that is a code (Hall of Heroes' usual naming), else a unique name,
+    else a `PACK_FILENAME_CODES` override for a page too cryptic for either."""
     stem = urlparse(url).path.rpartition("/")[2].rpartition(".")[0].lower()
+    if override := PACK_FILENAME_CODES.get(pack, {}).get(stem):
+        return override
     for _ in range(3):
         if m := CODE_RE.match(stem):
             return m.group(1)
@@ -482,6 +727,49 @@ def fetch(args: argparse.Namespace) -> None:
     stats = {"replaced": 0, "added": 0, "kept": 0, "stamped": 0, "untrimmed": 0, "unmatched": 0}
     today = date.today().isoformat()
 
+    def prepare(url: str, code: str) -> tuple[Image.Image, tuple[int, int, int, int]] | None:
+        """Downloads and trims one candidate, or None (and a printed reason + stats bump) if it can't be used."""
+        data = http.get(url)
+        if not data:
+            return None
+        try:
+            trimmed = trim(Image.open(io.BytesIO(data)))
+        except Exception as e:
+            print(f"    ! {code}: unreadable image ({e})")
+            return None
+        if trimmed is None:
+            stats["untrimmed"] += 1
+            print(f"    - {code}: not card-shaped once the padding is trimmed; skipped ({url})")
+            return None
+        new, padding = trimmed
+        if detector.stamped(new):
+            stats["stamped"] += 1
+            print(f"    - {code}: Hall of Heroes copy is stamped too")
+            return None
+        return new, padding
+
+    def consider(code: str, url: str, new: Image.Image, padding: tuple[int, int, int, int], pack: str) -> bool:
+        """Saves `new` over `code`'s local scan (or adds it) if it clears the size/shape bar. Returns whether it did."""
+        local = scans.get(code)
+        if local is not None:
+            with Image.open(local) as old:
+                old_size, old_aspect, old_landscape = old.size, aspect(old), old.width > old.height
+            if (new.width > new.height) != old_landscape or abs(aspect(new) - old_aspect) > 0.06:
+                print(f"    - {code}: shape {new.size} doesn't match local {old_size}; skipped")
+                return False
+            bigger = max(new.size) >= max(old_size) * UPGRADE_FACTOR
+            if not (bigger or code in stamped_codes):
+                stats["kept"] += 1
+                return False
+        dest = local or CARDS_DIR / f"{code}.png"
+        verb = "replace" if local else "add"
+        print(f"    + {code}: {verb} {dest.name} {'' if local is None else old_size} -> {new.size}, trimmed {padding}")
+        stats["replaced" if local else "added"] += 1
+        if not args.dry_run:
+            save_like(new, dest)
+            manifest[code] = [code, pack, cards[code].name, pages[0], url, today]
+        return True
+
     for pack in packs:
         pages = pack_pages(http, pack, names)
         if not pages:
@@ -489,54 +777,52 @@ def fetch(args: argparse.Namespace) -> None:
             continue
         print(f"\n[+] {pack}: {pages[0]}")
         done: set[str] = set()
+        leftover: list[tuple[str, str]] = []
         for url, alt in page_images(http, pages[0]):
             code = match_code(url, alt, pack, by_name)
             if not code or pack_of(code, cards) != pack:
-                if code is None and re.search(r"\.(jpe?g|png|webp)$", url, re.I):
-                    stats["unmatched"] += 1
-                    if args.verbose:
-                        print(f"    ? unmatched {url} ({alt!r})")
+                if re.search(r"\.(jpe?g|png|webp)$", url, re.I):
+                    leftover.append((url, alt))
+                    if code is None:
+                        stats["unmatched"] += 1
+                        if args.verbose:
+                            print(f"    ? unmatched {url} ({alt!r})")
                 continue
             if code in done or (args.stamped_only and code not in stamped_codes):
                 continue
             local = scans.get(code)
             if local is None and not args.fill_missing:
                 continue
-            data = http.get(url)
-            if not data:
-                continue
-            try:
-                trimmed = trim(Image.open(io.BytesIO(data)))
-            except Exception as e:
-                print(f"    ! {code}: unreadable image ({e})")
-                continue
-            if trimmed is None:
-                stats["untrimmed"] += 1
-                print(f"    - {code}: not card-shaped once the padding is trimmed; skipped ({url})")
-                continue
-            new, padding = trimmed
-            if detector.stamped(new):
-                stats["stamped"] += 1
-                print(f"    - {code}: Hall of Heroes copy is stamped too")
-                continue
-            if local is not None:
-                with Image.open(local) as old:
-                    old_size, old_aspect, old_landscape = old.size, aspect(old), old.width > old.height
-                if (new.width > new.height) != old_landscape or abs(aspect(new) - old_aspect) > 0.06:
-                    print(f"    - {code}: shape {new.size} doesn't match local {old_size}; skipped")
+            prepared = prepare(url, code)
+            if prepared and consider(code, url, *prepared, pack):
+                done.add(code)
+
+        # Art-hash fallback (see `match_by_art`): pages like Mad Titan's Shadow's number every image by its own
+        # per-encounter-set sequence (`e1.jpg`, `t7b.jpg`...), not by card code or name, so `match_code` above leaves
+        # almost everything unmatched. Whatever it *did* leave over (`leftover`) still might be the very art a
+        # not-yet-`done` code needs; match by content instead of name for those only.
+        wanted = (stamped_codes if args.stamped_only else set(scans)) & {c for c in cards if pack_of(c, cards) == pack}
+        wanted -= done
+        if leftover and wanted:
+            local_hashes: dict[str, int] = {}
+            for code in wanted:
+                if code not in scans:
                     continue
-                bigger = max(new.size) >= max(old_size) * UPGRADE_FACTOR
-                if not (bigger or code in stamped_codes):
-                    stats["kept"] += 1
-                    continue
-            dest = local or CARDS_DIR / f"{code}.png"
-            verb = "replace" if local else "add"
-            print(f"    + {code}: {verb} {dest.name} {'' if local is None else old_size} -> {new.size}, trimmed {padding}")
-            done.add(code)
-            stats["replaced" if local else "added"] += 1
-            if not args.dry_run:
-                save_like(new, dest)
-                manifest[code] = [code, pack, cards[code].name, pages[0], url, today]
+                with Image.open(scans[code]) as img:
+                    local_hashes[code] = phash(img)
+            remote: list[tuple[str, str, int]] = []
+            prepared_by_url: dict[str, tuple[Image.Image, tuple[int, int, int, int]]] = {}
+            for url, alt in leftover:
+                prepared = prepare(url, f"(art-match candidate) {url}")
+                if prepared:
+                    prepared_by_url[url] = prepared
+                    remote.append((url, alt, phash(prepared[0])))
+            matches = match_by_art(local_hashes, remote)
+            if matches:
+                print(f"    [art-match] {len(matches)} candidate(s) matched by content, no usable filename/alt text")
+            for code, (url, _alt) in matches.items():
+                if consider(code, url, *prepared_by_url[url], pack):
+                    done.add(code)
 
     if not args.dry_run:
         write_manifest(manifest)
@@ -546,6 +832,184 @@ def fetch(args: argparse.Namespace) -> None:
         f"{stats['unmatched']} images not matched to a card"
         + (" (dry run: nothing written)" if args.dry_run else "")
     )
+
+
+MISSING_HEADER = re.compile(r"pool references are not in assets/card-art/[^\n]*:\n((?:  .*\n?)+)")
+
+
+def pool_missing_paths() -> list[str]:
+    """
+    Exactly what `pnpm --filter @mc/client build` warns is missing (`vite-card-art.ts`'s own message): a relative
+    path under `assets/card-art/` for a normal gap, or a full URL when the gap is actually a bad card record (an
+    `imageRef`/`ArtRef` that never should have pointed off-origin in the first place — see the module docstring).
+    Asking the build instead of restating its logic here means the two cannot drift.
+    """
+    # `vite build` directly, not `pnpm --filter @mc/client build` (which runs `tsc --noEmit` first): the card-art
+    # summary comes from the Vite plugin alone, and a typecheck failure elsewhere in the monorepo (mid-edit in
+    # another package) would otherwise take this down with it for a reason that has nothing to do with art.
+    result = subprocess.run(
+        ["npx", "vite", "build"],
+        cwd=REPO_ROOT / "packages" / "client",
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    output = result.stdout + result.stderr
+    m = MISSING_HEADER.search(output)
+    if not m:
+        if "card art:" not in output:
+            print(output[-4000:], file=sys.stderr)
+            raise RuntimeError("client build did not report a card-art summary at all; see output above")
+        return []
+    return [line.strip() for line in m.group(1).splitlines() if line.strip()]
+
+
+def missing(args: argparse.Namespace) -> None:
+    cards, names, detector = load_cards(), pack_names(), StampDetector()
+
+    print("[+] Asking the client build which scans the pool needs...")
+    paths = pool_missing_paths()
+    bad_records = [p for p in paths if p.startswith("http")]
+    for p in bad_records:
+        print(f"    ! {p}: a card record points off-origin instead of naming a missing local scan; fix that")
+        print("      record in packages/content (ingest/curation), not here — this script only fills real gaps.")
+    wanted = [p for p in paths if not p.startswith("http")]
+    if not wanted:
+        print("\n[=] nothing to fetch" + (f" ({len(bad_records)} bad record(s) reported above)" if bad_records else ""))
+        return
+
+    by_pack: dict[str, list[tuple[str, str]]] = {}  # pack -> [(stem, filename)]
+    unresolved: list[str] = []
+    for relpath in wanted:
+        filename = relpath.rsplit("/", 1)[-1]
+        stem = filename.rsplit(".", 1)[0]
+        pack = pack_of(stem, cards)
+        if pack == "?":
+            unresolved.append(relpath)
+            continue
+        by_pack.setdefault(pack, []).append((stem, filename))
+    for relpath in unresolved:
+        print(f"    ? {relpath}: no card record matches this code; skipped")
+
+    by_name: dict[str, list[Card]] = {}
+    for c in cards.values():
+        by_name.setdefault(slug(c.name), []).append(c)
+
+    http = Http(args.delay)
+    header, manifest = read_manifest()
+    today = date.today().isoformat()
+    found: list[str] = []
+    still_missing: list[str] = list(unresolved)
+
+    for pack, wants in sorted(by_pack.items()):
+        want_by_stem = dict(wants)
+        remaining = set(want_by_stem)
+        pages = pack_pages(http, pack, names)
+        print(f"\n[+] {pack}: need {', '.join(want_by_stem[s] for s in sorted(remaining))}")
+        if pages:
+            print(f"    Hall of Heroes: {pages[0]}")
+            for url, alt in page_images(http, pages[0]):
+                if not remaining:
+                    break
+                candidate = match_code(url, alt, pack, by_name)
+                if candidate not in remaining:
+                    continue
+                filename = want_by_stem[candidate]
+                if _fetch_one(http, detector, url, CARDS_DIR / filename, args, candidate, "Hall of Heroes"):
+                    remaining.discard(candidate)
+                    found.append(filename)
+                    if not args.dry_run:
+                        card = card_for(candidate, cards)
+                        manifest[candidate] = [candidate, pack, card.name if card else candidate, pages[0], url, today]
+        else:
+            print(f"    - {pack}: no Hall of Heroes page known")
+
+        # MarvelCDB fallback for whatever Hall of Heroes didn't have (or didn't have unstamped).
+        for stem in sorted(remaining):
+            card = card_for(stem, cards)
+            url = _marvelcdb_url_for(want_by_stem[stem])
+            if not url:
+                print(f"    ? {stem}: not found on MarvelCDB either ({want_by_stem[stem]})")
+                still_missing.append(want_by_stem[stem])
+                continue
+            filename = want_by_stem[stem]
+            if _fetch_one(http, detector, url, CARDS_DIR / filename, args, stem, "MarvelCDB"):
+                remaining.discard(stem)
+                found.append(filename)
+                # The watermark score is not the only thing that can be wrong with a MarvelCDB fallback: two
+                # records can share a filename stem (see `_marvelcdb_url_for`), and this project's own history
+                # includes a run that matched the *right* stem but the *wrong* face byte-for-byte. Unstamped is
+                # necessary, not sufficient — look at the saved file before trusting it.
+                print(f"      MarvelCDB fallback, not Hall of Heroes: look at {filename} yourself before committing it")
+                if not args.dry_run:
+                    manifest[stem] = [stem, pack, card.name if card else stem, "https://marvelcdb.com", url, today]
+            else:
+                still_missing.append(filename)
+
+    if not args.dry_run:
+        write_manifest(manifest)
+    print(
+        f"\n[=] {len(found)} fetched, {len(still_missing)} still missing"
+        + (f": {', '.join(sorted(still_missing))}" if still_missing else "")
+        + (" (dry run: nothing written)" if args.dry_run else "")
+    )
+
+
+def _marvelcdb_url_for(filename: str) -> str | None:
+    """
+    MarvelCDB's own `imagesrc`/`backimagesrc` for a full filename (stem *and* extension), absolute. Only a
+    fallback: Hall of Heroes is tried first, since MarvelCDB's own scans are the ones `fetch` exists to replace
+    (stamped previews).
+
+    Matched on the whole filename, not just the stem: MarvelCDB's own filenames aren't always the card's code
+    (`26002a.jpg`/`26002b.png` for plain code `26002`), and worse, two *different* records can share a filename
+    stem but not its extension — `07001`'s front is `07001b.png` and `07001b`'s own front is also under `07001b`,
+    but as `.jpg`. Matching on the stem alone would silently hand back whichever of the two `json.load` happens to
+    visit first, which is exactly how the first version of this fetched `11007a.jpg` as a byte-identical copy of
+    the unrelated `11007a.png` it was standing in next to.
+    """
+    for path in sorted(RAW_DIR.glob("*.json")):
+        raw = json.loads(path.read_text())
+        stack = list(raw["cards"])
+        while stack:
+            c = stack.pop()
+            for src in (c.get("imagesrc"), c.get("backimagesrc")):
+                if src and src.rsplit("/", 1)[-1] == filename:
+                    return MARVELCDB_BASE + src
+            if c.get("linked_card"):
+                stack.append(c["linked_card"])
+    return None
+
+
+def _fetch_one(
+    http: Http,
+    detector: StampDetector,
+    url: str,
+    dest: Path,
+    args: argparse.Namespace,
+    code: str,
+    source_name: str,
+) -> bool:
+    """Downloads, trims and (unless `--dry-run`) saves one missing scan. Returns whether it worked."""
+    data = http.get(url)
+    if not data:
+        return False
+    try:
+        trimmed = trim(Image.open(io.BytesIO(data)))
+    except Exception as e:
+        print(f"    ! {code}: unreadable image from {source_name} ({e})")
+        return False
+    if trimmed is None:
+        print(f"    - {code}: {source_name} copy isn't card-shaped once trimmed; skipped ({url})")
+        return False
+    new, padding = trimmed
+    if detector.stamped(new):
+        print(f"    - {code}: {source_name} copy is stamped; skipped ({url})")
+        return False
+    print(f"    + {code}: {dest.name} <- {source_name} {new.size}, trimmed {padding}")
+    if not args.dry_run:
+        save_like(new, dest)
+    return True
 
 
 def trim_local(args: argparse.Namespace) -> None:
@@ -581,8 +1045,12 @@ def main() -> None:
     f.add_argument("--dry-run", action="store_true", help="report what would change without writing")
     f.add_argument("--delay", type=float, default=0.5, help="seconds between requests (default 0.5)")
     f.add_argument("-v", "--verbose", action="store_true")
+    m = sub.add_parser("missing", help="fetch exactly the scans the client build reports as missing")
+    m.add_argument("--dry-run", action="store_true", help="report what would be fetched without writing")
+    m.add_argument("--delay", type=float, default=0.5, help="seconds between requests (default 0.5)")
+    m.add_argument("-v", "--verbose", action="store_true")
     args = parser.parse_args()
-    {"audit": audit, "trim": trim_local, "fetch": fetch}[args.command](args)
+    {"audit": audit, "trim": trim_local, "fetch": fetch, "missing": missing}[args.command](args)
 
 
 if __name__ == "__main__":

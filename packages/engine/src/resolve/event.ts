@@ -62,6 +62,7 @@ import { finishTurn, pushPhaseEndDelayed } from "../flow.js";
 import { resolveSurge } from "./reveal.js";
 import { candidatesFor, eachTimeEffectsFor, hasCandidates, heard } from "./triggers.js";
 import { pushWindow } from "./window.js";
+import { markPreThenUnresolved } from "./then.js";
 
 export function executeEventFrame(ctx: Ctx, frame: Frame<"event">): void {
   switch (frame.stage) {
@@ -274,7 +275,12 @@ function stepDeferredResponses(ctx: Ctx, frame: Frame<"event">): boolean {
 /** An event frame is finishing: hand its results (and whether it happened) to whoever asked for them. */
 function reportResults(ctx: Ctx, frame: Frame<"event">, happened: boolean): void {
   if (!frame.reportTo) return;
-  const { frameId, prefix } = frame.reportTo;
+  const { frameId, prefix, gatesThen } = frame.reportTo;
+  if (!happened && gatesThen) {
+    const about = "enemyInstanceId" in frame.event ? frame.event.enemyInstanceId : undefined;
+    markPreThenUnresolved(ctx, frameId, "activationDidNotHappen", about);
+  }
+  if (prefix === null) return;
   const delta: Record<string, number> = { [`${prefix}.made`]: happened ? 1 : 0 };
   if (happened) for (const [key, amount] of Object.entries(frame.vars)) delta[`${prefix}.${key}`] = amount;
   addFrameVars(ctx, frameId, delta);

@@ -19,19 +19,13 @@ export const IRONHEART_PROVENANCE: readonly CardProvenance[] = [
     cardId: cardId("29002a"),
     cardSetCode: "ironheart",
     marvelcdbCodes: ["29002a", "29002b"],
-    corrections: [
-      "29002a: no artwork on MarvelCDB; art reference substituted from a curated second source [evidence: curation.imageOverrides]",
-      "29002b: no artwork on MarvelCDB; art reference substituted from a curated second source [evidence: curation.imageOverrides]",
-    ],
+    corrections: [],
   },
   {
     cardId: cardId("29003a"),
     cardSetCode: "ironheart",
     marvelcdbCodes: ["29003a", "29003b"],
-    corrections: [
-      "29003a: no artwork on MarvelCDB; art reference substituted from a curated second source [evidence: curation.imageOverrides]",
-      "29003b: no artwork on MarvelCDB; art reference substituted from a curated second source [evidence: curation.imageOverrides]",
-    ],
+    corrections: [],
   },
   { cardId: cardId("29004"), cardSetCode: "ironheart", marvelcdbCodes: ["29004"], corrections: [] },
   { cardId: cardId("29005"), cardSetCode: "ironheart", marvelcdbCodes: ["29005"], corrections: [] },

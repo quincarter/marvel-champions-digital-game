@@ -2,6 +2,7 @@ import { trait } from "@mc/content";
 import {
   after,
   alterEgoAction,
+  andThen,
   anEnemy,
   attackAnEnemy,
   attacksGainKeywords,
@@ -77,11 +78,14 @@ export const NEBULA_KIT = defineAbilities({
   // Nebula (hero, 22001a) — Combat Protocols, Forced Response: After your turn begins, resolve the "Special"
   // ability on each technique upgrade you control, then discard each technique upgrade resolved this way (module
   // docblock).
+  // `resolveSpecialsOf` on an empty set of technique upgrades is vacuously true (mirroring `16088.nebula-forced-
+  // interrupt`'s own reading), so it always fully resolves with the current engine; `andThen` is the faithful
+  // reading of the printed "then" (RRG 1.8 "'Then'", p. 44) without changing behavior today.
   "22001a.nebula-constant": forcedResponse(
     after.yourTurnBegins(),
     selectCards("techs", cards(each(YOUR_TECHNIQUE_UPGRADES))),
     resolveSpecialsOf(chosen("techs")),
-    discard(chosen("techs")),
+    andThen(discard(chosen("techs"))),
   ),
 
   // Nebula (alter-ego, 22001b) — Cybernetic Upgrades, Response: After you play a technique upgrade, draw 2 cards.
@@ -94,10 +98,12 @@ export const NEBULA_KIT = defineAbilities({
 
   // Gamora (ally, 22002) — Response: After you play Gamora, choose a technique upgrade you control, then resolve
   // its "Special" ability.
+  // The required `chooseTarget` finds nothing with no technique upgrade in play, so "then resolve its 'Special'
+  // ability" doesn't attempt to resolve either (RRG 1.8 "'Then'", p. 44).
   "22002.gamora-response": response(
     on.youPlayThis(),
     chooseTarget("tech", YOUR_TECHNIQUE_UPGRADES),
-    resolveSpecialsOf(chosen("tech")),
+    andThen(resolveSpecialsOf(chosen("tech"))),
   ),
 
   // Nebula's Ship (support, 22003) — Resource: Exhaust Nebula's Ship → generate a [wild] resource. Plain
@@ -169,9 +175,14 @@ export const NEBULA_KIT = defineAbilities({
       ),
       option(
         "Discard cards from the top of your deck until you discard a technique upgrade",
+        // "Discard … until … . Put that upgrade into play, then resolve its 'Special' ability." — the search
+        // itself failing (deck exhausted, no technique upgrade found) is `discardDeckUntil`'s own
+        // `discardUntilFoundNothing` (docs/then-sweep.md); `putIntoPlay` on an empty `chosen("found")` is then
+        // vacuous, so the printed "then" here — gating the resolve on the put-into-play — never fails on its own
+        // with the current engine. `andThen` is still the faithful reading (RRG 1.8 "'Then'", p. 44).
         discardDeckUntil(query("upgrade", { trait: TECHNIQUE }), "found"),
         putIntoPlay(chosen("found")),
-        resolveSpecialsOf(chosen("found")),
+        andThen(resolveSpecialsOf(chosen("found"))),
       ),
     ),
   ),

@@ -1,4 +1,5 @@
 import {
+  andThen,
   after,
   boost,
   chooseOne,
@@ -130,7 +131,12 @@ export const BULLDOZER_SET = defineAbilities({
   "07050.held-hostage-constant": constant(
     rule({ kind: "threatCannotBeRemoved", target: query("sideScheme", { hostOfSelf: true }), by: "thwart" }),
   ),
-  "07050.held-hostage-action": heroAction(enemyAttack(villainOfSideScheme(host), { against: you }), discard(self)),
+  // A stunned villain removes its stun instead of attacking, so the attack did not happen and "then discard this
+  // card" is skipped (`activationDidNotHappen`, RRG 1.8 "'Then'", p. 44; "Stun", p. 41).
+  "07050.held-hostage-action": heroAction(
+    enemyAttack(villainOfSideScheme(host), { against: you }),
+    andThen(discard(self)),
+  ),
 
   // Ramming Speed — Attach to Bulldozer. [star] Forced Interrupt: When Bulldozer attacks you, you must defend
   // against Bulldozer's attacks with an ally you control, if able. Printed as an interrupt, but the underlying

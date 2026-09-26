@@ -29,6 +29,7 @@ import {
   toHero,
   type Picker,
 } from "../../testing/harness.js";
+import { driveEvents } from "../../testing/staging.js";
 import { WAVE4_DEPS } from "../index.js";
 import { playFromHand, startWave4Game } from "../testing.js";
 import { nebulaScenario } from "./support.js";
@@ -123,6 +124,25 @@ describe("Gamora (ally, 22002)", () => {
     const staged = patchInstance(withTech, mainSchemeId(withTech), { threat: 5 });
     const { state } = playFromHand(staged, "22002", 3, accepting("22002.gamora-response"));
     expect(inst(state, mainSchemeId(state)).threat).toBe(2);
+  });
+
+  // RRG 1.8 "Choose (Game Element)" (p. 12): with no technique upgrade in play, this response's only pre-"then"
+  // content is a required choice with no target, so the response can't be initiated at all — it's never offered,
+  // and playing Gamora just resolves normally with nothing left to gate (RRG 1.8 "'Then'", p. 44).
+  it("with no technique upgrade in play, the response is never offered", () => {
+    const hero = runWith(WAVE4_DEPS, nebulaVsRhino(3), toHero());
+    const given = moveToHand(hero, P1, "22002");
+    const [gamora] = given.ids as [InstanceId];
+    const payment = payWith(given.state, P1, 3, [gamora]);
+    const { state, events } = driveEvents(WAVE4_DEPS, given.state, {
+      type: "playCard",
+      playerId: P1,
+      cardInstanceId: gamora,
+      payment: payment.map((id) => ({ fromHand: id })),
+      attachToInstanceId: null,
+    } as never);
+    expect(events.some((e) => e.type === "abilityResolved" && e.abilityId === "22002.gamora-response")).toBe(false);
+    expect(playerOf(state, P1).playArea).toContain(gamora);
   });
 });
 

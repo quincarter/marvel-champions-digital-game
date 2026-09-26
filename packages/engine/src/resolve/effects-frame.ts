@@ -65,6 +65,7 @@ import {
   canDealDamageTo,
   canRemoveThreatFrom,
   isRequiredChoice,
+  isRequiredSearch,
   slotTargetValid,
   UNRESOLVED_VAR,
 } from "./target-validity.js";
@@ -753,8 +754,8 @@ const cardOptions = (ctx: Ctx, ids: readonly InstanceId[]): readonly ChoiceOptio
   }));
 
 /**
- * A choice that chooses nothing binds its slot empty and moves on. A required one (`isRequiredChoice`) that found no
- * candidate leaves the text before a "then" not fully resolved (RRG 1.8 "'Then'", p. 44), so the frame is marked and a
+ * A choice that chooses nothing binds its slot empty and moves on. A required one (`isRequiredChoice`), or a search
+ * that must find a card (`isRequiredSearch`), that found no candidate leaves the text before a "then" not fully resolved (RRG 1.8 "'Then'", p. 44), so the frame is marked and a
  * later `then` in it is skipped. Every other effect still resolves as far as it can, which is how an encounter card or
  * a forced ability resolves, and how a player ability resolves if its target left play after it was initiated.
  */
@@ -764,8 +765,11 @@ function choseNothing(
   effect: Extract<EffectSpec, { kind: "chooseTarget" | "chooseCards" }>,
   noCandidates: boolean,
 ): void {
-  const unresolved = noCandidates && isRequiredChoice(effect);
-  if (unresolved) emit(ctx, { type: "choiceFoundNothing", slot: effect.slot });
+  const required = noCandidates && isRequiredChoice(effect);
+  const search = noCandidates && isRequiredSearch(effect);
+  const unresolved = required || search;
+  if (required) emit(ctx, { type: "choiceFoundNothing", slot: effect.slot });
+  if (search) emit(ctx, { type: "preThenUnresolved", cause: "searchFoundNothing" });
   setFrame(ctx, {
     ...frame,
     cursor: frame.cursor + 1,

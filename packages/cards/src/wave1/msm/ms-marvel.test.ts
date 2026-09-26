@@ -18,7 +18,7 @@ import {
   use,
   type Picker,
 } from "../../testing/harness.js";
-import { moveToDiscard } from "../../testing/staging.js";
+import { driveEvents, moveToDiscard } from "../../testing/staging.js";
 import { wave1Scenario } from "../setup.js";
 import { MSM_DEPS, runMsm, startMsmGame } from "./testing.js";
 
@@ -137,6 +137,24 @@ describe("Ms. Marvel kit", () => {
     expect(playerOf(after, P1).deck).toContain(redDagger);
     expect(playerOf(after, P1).discard).toEqual([]);
     expect(playerOf(after, P1).dealtEncounter).toHaveLength(dealtBefore + 1);
+  });
+
+  // RRG 1.8 "'Then'" (p. 44), docs/then-sweep.md: the same matchless deck leaves "then add that card to your hand"
+  // unresolved, and the log says why; with a match on top, the "then" runs (the first Teen Spirit test above).
+  it('"Teen Spirit": a discard that finds no Ms. Marvel card skips its "then"', () => {
+    const cleared = moveToHand(
+      msmVsRhino(),
+      P1,
+      ...["05002", "05003", "05003", "05003", "05004", "05004", "05004", "05005", "05005"],
+      ...["05006", "05007", "05008", "05009", "05010", "05011"],
+    ).state;
+    const { events } = driveEvents(MSM_DEPS, cleared, use(P1, identityOf(cleared), "05001b.teen-spirit"));
+    expect(events).toContainEqual({ type: "preThenUnresolved", cause: "discardUntilFoundNothing" });
+    expect(events).toContainEqual({ type: "thenSkipped" });
+    const stacked = putOnTopOfDeck(msmVsRhino(), P1, "05002");
+    const hit = driveEvents(MSM_DEPS, stacked.state, use(P1, identityOf(stacked.state), "05001b.teen-spirit"));
+    expect(hit.events.some((e) => e.type === "thenSkipped")).toBe(false);
+    expect(playerOf(hit.state, P1).hand).toContain(stacked.ids[0]);
   });
 
   // docs/phase7-wave3.md §4 Q18, decided by the user on 2026-09-23: "that card" names the specific card, so it is

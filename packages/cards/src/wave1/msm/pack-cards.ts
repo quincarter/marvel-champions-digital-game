@@ -1,5 +1,6 @@
 import type { EffectSpec, EventPattern } from "@mc/engine";
 import {
+  andThen,
   anAttackableEnemy,
   attack,
   chooseTarget,
@@ -48,6 +49,9 @@ const whileTheVillainAttacks: EventPattern = {
   sourceIs: { categories: ["villain"] },
   activation: "attack",
   playerIs: "controller",
+  // FAQ "Attacrobatics (#6)" (RRG 1.8 p. 59): a boost card with no icons is no target for cancelling them, so the
+  // ability can't be initiated (RRG 1.8 "Target", p. 42). Same guard as `bkw`'s `requireIcons`.
+  eventAtLeast: { boostIcons: 1 },
 };
 
 /**
@@ -75,7 +79,8 @@ export const MSM_PACK_CARDS = defineAbilities({
     whileTheVillainAttacks,
     { label: "defense" },
     cancelBoostIcons("cancelled"),
-    dealDamage(varOf("cancelled.amount"), theVillain),
+    // Nothing left to cancel by the time it resolves: `nothingToCancel` skips the "then" (RRG 1.8 "'Then'", p. 44).
+    andThen(dealDamage(varOf("cancelled.amount"), theVillain)),
   ),
 
   // Tackle — Hero Action (attack): Stun an enemy. If you paid for this card using a [physical] resource, deal 3

@@ -1,4 +1,5 @@
 import {
+  andThen,
   after,
   boost,
   chooseOne,
@@ -134,7 +135,12 @@ export const THUNDERBALL_SET = defineAbilities({
   "07021.held-hostage-constant": constant(
     rule({ kind: "threatCannotBeRemoved", target: query("sideScheme", { hostOfSelf: true }), by: "thwart" }),
   ),
-  "07021.held-hostage-action": heroAction(enemyAttack(villainOfSideScheme(host), { against: you }), discard(self)),
+  // A stunned villain removes its stun instead of attacking, so the attack did not happen and "then discard this
+  // card" is skipped (`activationDidNotHappen`, RRG 1.8 "'Then'", p. 44; "Stun", p. 41).
+  "07021.held-hostage-action": heroAction(
+    enemyAttack(villainOfSideScheme(host), { against: you }),
+    andThen(discard(self)),
+  ),
 
   // Radioactive Buildup — Attach to Thunderball. Excess damage dealt by Thunderball is placed as threat on his
   // corresponding side scheme. `RuleSpec.excessDamageAsThreat` (wave B primitives batch,

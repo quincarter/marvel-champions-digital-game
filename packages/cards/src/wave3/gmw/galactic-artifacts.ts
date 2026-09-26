@@ -1,5 +1,6 @@
 import {
   addCounters,
+  andThen,
   chooseOneBy,
   constant,
   countersOn,
@@ -74,10 +75,12 @@ export const GALACTIC_ARTIFACTS = defineAbilities({
 
   // The Poison (16125, errata RRG 1.8 p. 66) — Attach to your identity (data). Forced Interrupt: When your turn
   // begins, place 1 poison counter here, then take 1 damage for each poison counter here (module docblock).
+  // `addCounters` always fully resolves, so `andThen` around the "then take damage" is the faithful reading (RRG
+  // 1.8 "'Then'", p. 44) without changing behavior today.
   "16125.the-poison-forced-interrupt": forcedInterrupt(
     on.yourTurnBegins(),
     addCounters("poison", 1),
-    takeDamage(countersOn(self, "poison")),
+    andThen(takeDamage(countersOn(self, "poison"))),
   ),
   // Hero Action: Spend 3 resources of different types → discard. Any player can do this (see module docblock).
   // "3 resources of different types" is one of each typed resource — the same total as any other 3-resource cost,

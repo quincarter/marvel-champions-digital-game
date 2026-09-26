@@ -1,6 +1,7 @@
 import { trait } from "@mc/content";
 import {
   amount,
+  andThen,
   chooseOneBy,
   chooseTarget,
   chosen,
@@ -204,11 +205,13 @@ export const TASKMASTER_SET = defineAbilities({
   // (Reading: "prevent all damage that would be dealt" is the damage step — `when.damage`, interruptible — not the
   // attack's own initiation, which is announcement-only for the reason Mockingbird's interrupt is skipped in
   // `hawkeye-kit.ts`; here the printed text names the *damage* directly, so this card needs no such workaround.)
+  // `preventDamage`/`dealDamage` always fully resolve, so `andThen` around the "then discard" is the faithful
+  // reading (RRG 1.8 "'Then'", p. 44) without changing behavior today.
   "04104.photographic-reflexes-forced-interrupt": forcedInterrupt(
     when.damage("host", { fromAttack: true }),
     preventDamage(),
     dealDamage(eventAmount, identityOf(ownerOf(eventSource))),
-    discard(self),
+    andThen(discard(self)),
   ),
 
   // Mimicry — When Revealed (Alter-Ego): discard the top 5 cards of your deck; if a Thwart card was discarded,

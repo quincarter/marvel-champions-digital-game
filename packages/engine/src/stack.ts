@@ -43,7 +43,13 @@ export type Vars = Readonly<Record<string, number>>;
 /** Where an event frame reports its results when it finishes: `<prefix>.<key>` is added to that frame's vars. */
 export interface ReportTarget {
   readonly frameId: FrameId;
-  readonly prefix: string;
+  /** `null`: no results are written; the target only hears whether the event happened (`gatesThen`). */
+  readonly prefix: string | null;
+  /**
+   * The event is part of that effects frame's pre-"then" text: if it does not happen (cancelled, skipped), the frame is
+   * marked unresolved and a later `then` in it is skipped (RRG 1.8 "'Then'", p. 44; `resolve/then.ts`).
+   */
+  readonly gatesThen?: boolean;
 }
 
 /**
@@ -233,6 +239,11 @@ export type StackFrame =
        * (docs/phase7-wave4.md §3.45).
        */
       readonly revealedFrom?: ZoneId | null;
+      /**
+       * The effects frame whose pre-"then" text this reveal is ("Reveal that minion, then give it a tough status
+       * card"): if the card's effects are cancelled, that frame is marked unresolved (RRG 1.8 "'Then'", p. 44).
+       */
+      readonly preThenOf?: FrameId;
       readonly stage: "faceup" | "enterPlay" | "whenRevealed" | "finish" | "done";
     })
   /** RRG "Initiating Abilities" steps 6–7, after costs are paid. */
