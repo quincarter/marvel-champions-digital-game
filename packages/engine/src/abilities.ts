@@ -9,6 +9,7 @@ import type {
   Predicate,
   SchemeValueName,
   StatName,
+  TargetCategory,
   TargetQuery,
   TargetRef,
   ValueSpec,
@@ -605,6 +606,23 @@ export type RuleSpec =
       readonly target: TargetQuery;
       readonly amount: number;
       readonly fromAttack?: boolean;
+      readonly while?: Predicate;
+    }
+  /**
+   * "While there are no other [Symbiote] environments in play, this card is considered a [Symbiote] environment."
+   * (Festering Mass, `sm` 27124, a side scheme; docs/phase7-wave5.md §3.9). Each card in play matching `target` also
+   * counts as each of `categories` and has each of `traits` — for `TargetQuery` category and trait matching only (a
+   * "[symbiote] environment" query), never for where the card lives or how it behaves (it stays a side scheme).
+   *
+   * `while` is read with printed characteristics only (no constant grants, this rule included), so "no other
+   * [Symbiote] environments" never asks itself. RRG 1.8 has no rule for a modifier whose condition depends on its own
+   * result; this is the `traitsOf` / `blankTextBox` reading (docs/phase7-wave2.md §17.5).
+   */
+  | {
+      readonly kind: "countsAs";
+      readonly target: TargetQuery;
+      readonly categories: readonly TargetCategory[];
+      readonly traits?: readonly Trait[];
       readonly while?: Predicate;
     }
   /**

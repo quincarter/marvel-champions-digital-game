@@ -8,6 +8,7 @@ import { trait } from "@mc/content";
 import { describe, expect, it } from "vitest";
 import {
   constant,
+  countsAs,
   forcedInterrupt,
   forcedResponse,
   heroInterrupt,
@@ -215,6 +216,23 @@ describe("§3.8 increasing the damage a character takes (Bell Tower, Ringing)", 
     expect(ringing.trigger).toMatchObject({
       kind: "constant",
       rules: [{ kind: "increaseDamageTaken", target: { categories: ["villain"], name: "Venom" }, amount: 1 }],
+    });
+  });
+});
+
+describe("§3.9 a card that counts as another card type with a trait (Festering Mass)", () => {
+  it("'While there are no other [Symbiote] environments in play, this card is considered a [Symbiote] environment'", () => {
+    const SYMBIOTE = trait("SYMBIOTE");
+    const festering = constant(
+      countsAs({ self: true }, ["environment"], {
+        traits: [SYMBIOTE],
+        while: not(exists(query("environment", { trait: SYMBIOTE, self: false }))),
+      }),
+    );
+    valid(festering);
+    expect(festering.trigger).toMatchObject({
+      kind: "constant",
+      rules: [{ kind: "countsAs", target: { self: true }, categories: ["environment"], traits: [SYMBIOTE] }],
     });
   });
 });

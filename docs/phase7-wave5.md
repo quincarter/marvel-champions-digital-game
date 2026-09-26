@@ -340,7 +340,7 @@ against `pnpm dsl` (379 builders), the engine's `EffectSpec` / `RuleSpec` / `Tri
 | 3.6  | Boost cards held on a card that does not activate, then moved to an enemy                    | Venom ("Leave Us Alone!", Vengeance), MC27 scenario 2 expert                                   | landed  |
 | 3.7  | A resolved Special reports the cards it discarded                                            | Sandslide, Surging Sands                                                                       | landed  |
 | 3.8  | Increasing the damage a character takes                                                      | Bell Tower (Ringing)                                                                           | landed  |
-| 3.9  | A card that counts as another card type with a trait                                         | Festering Mass                                                                                 | open    |
+| 3.9  | A card that counts as another card type with a trait                                         | Festering Mass                                                                                 | landed  |
 | 3.10 | Scheme icons printed on any card                                                             | Team Leader, Public Outcry, Venom ally, Symbiote Suit; 30 records in other packs               | open    |
 | 3.11 | Text that depends on the mode of play                                                        | Frequent Flyers ×3, Surprise!, From Every Direction, Life-Size Decoy, Ambush!, Teamwork …      | open    |
 | 3.12 | "The first attack this turn"                                                                 | Venom III (Retribution)                                                                        | open    |
@@ -627,6 +627,17 @@ then decreases). Applies per damage event, as "reduce … from each attack" does
 
 ### 3.9 A card that counts as another card type with a trait
 
+> **Status: landed (2026-09-26),** tested in `packages/engine/src/counts-as.test.ts` (3 tests: alone, the side scheme
+> matches a "[Symbiote] environment" query, has the trait, and still matches "side scheme"; with a printed Symbiote
+> environment in play it does not count, so there is one Symbiote environment, not two; a query read with printed
+> characteristics only never sees it). DSL: `wave5-primitives.test.ts`. **What landed:** **`RuleSpec countsAs { target,
+categories, traits?, while? }`**, collected by `countsAsExtras` (cached per state, like the constant blanks) and read
+> by `explainQuery`'s category clause and `traitsOf`; nothing else (`categoriesOf` and where the card lives are
+> unchanged). The rule's `while` and `target` are read with printed characteristics only, so "no other [Symbiote]
+> environments" never asks itself. **DSL:** `countsAs(target, categories, { traits?, while? })`, a `constant` part.
+> **Known limit:** two copies of such a card would each count (each reads the other's printed type); Festering Mass is
+> one copy per set.
+
 Festering Mass: "While there are no other [Symbiote] environments in play, this card is considered a [Symbiote]
 environment." Read by "If a [symbiote] environment is in play" (Lower/Midtown/Upper Manhattan, Symbiotic Berserker,
 Monstrosity, Thrall) and "at least 2 [symbiote] environments" (the loss). **Plan:** `RuleSpec countsAs { target,
@@ -877,7 +888,8 @@ flagged; none is implemented yet.**
     land after each scenario's own campaign setup instructions (the foundation's existing rule).
 12. **The extra mulligan** (§3.26): a full second mulligan (discard any number, draw back up). **Default:** as stated.
 13. **Déjà Vu's "Shuffle Déjà Vu into any player's deck"**: chosen by the revealing player. **Default:** as stated.
-14. **Public Outcry's expert uses count** (§1.9): "3" or "3[per_hero]". Needs the card image (pipeline).
+14. **Public Outcry's expert uses count** (§1.9): "3" or "3[per_hero]". **Resolved 2026-09-26 from the card images:**
+    27174a prints 2[per_hero], 27174b prints 3[per_hero], matching MarvelCDB's raw text.
 15. **What a main scheme keeps when it flips to its environment** (§3.3). RRG 1.8 "Flip" (p. 20) discards tokens on a
     change of card type, but the Manhattan environments' own When Revealed moves "the glider counter and each
     acceleration token from here". **Default:** card text wins (RRG 1.8 "The Golden Rules", p. 4): threat and

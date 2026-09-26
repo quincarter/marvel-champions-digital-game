@@ -270,6 +270,8 @@ export function traitsOf(state: GameState, id: InstanceId, deps: EngineDeps = DE
   for (const effect of state.lastingEffects) {
     if (effect.kind === "traitGrant" && lastingReaches(state, effect, id, deps)) traits.push(effect.trait);
   }
+  // "Considered a [Symbiote] environment" (`countsAs`, docs/phase7-wave5.md §3.9).
+  traits.push(...(countsAsExtras(state, deps).get(id)?.traits ?? []));
   if (Object.keys(deps.abilities).length > 0) {
     for (const sourceId of cardsInPlay(state)) {
       for (const ref of activeAbilityRefs(state, sourceId, deps)) {
@@ -496,7 +498,11 @@ export function explainQuery(
     if (query.self !== isSelf) return "wrongSelf";
   }
   if (query.categories) {
-    const categories = categoriesOf(state, id);
+    // A card "considered" another type (`countsAs`, docs/phase7-wave5.md §3.9) matches it too.
+    const categories = [
+      ...categoriesOf(state, id),
+      ...(context.deps ? (countsAsExtras(state, context.deps).get(id)?.categories ?? []) : []),
+    ];
     if (!query.categories.some((category) => categories.includes(category))) return "wrongCategory";
   }
   if (query.controller) {
@@ -1653,6 +1659,67 @@ function blankedSets(state: GameState, deps: EngineDeps): BlankedSets {
   perDeps.set(deps, sets);
   BLANKED_BY_RULES.set(state, perDeps);
   return sets;
+}
+
+interface CountsAs {
+  readonly categories: readonly TargetCategory[];
+  readonly traits: readonly Trait[];
+}
+const NO_COUNTS_AS: ReadonlyMap<InstanceId, CountsAs> = new Map();
+const COUNTS_AS_RULE_IDS = new WeakMap<EngineDeps, ReadonlySet<string>>();
+const COUNTS_AS_BY_RULES = new WeakMap<GameState, WeakMap<EngineDeps, ReadonlyMap<InstanceId, CountsAs>>>();
+
+/**
+ * The extra categories and traits constant `countsAs` rules in play give each card ("this card is considered a
+ * [Symbiote] environment", Festering Mass; docs/phase7-wave5.md §3.9), for query matching only. Each rule's `while` and
+ * `target` are read with `DEFAULT_DEPS` (printed characteristics), so matching cannot re-enter this function; cached
+ * per state like `blankedSets`.
+ */
+export function countsAsExtras(state: GameState, deps: EngineDeps): ReadonlyMap<InstanceId, CountsAs> {
+  let ruleIds = COUNTS_AS_RULE_IDS.get(deps);
+  if (!ruleIds) {
+    const ids = new Set<string>();
+    for (const [id, definition] of Object.entries(deps.abilities)) {
+      if (definition.trigger.kind !== "constant") continue;
+      if ((definition.trigger.rules ?? []).some((rule) => rule.kind === "countsAs")) ids.add(id);
+    }
+    COUNTS_AS_RULE_IDS.set(deps, ids);
+    ruleIds = ids;
+  }
+  if (ruleIds.size === 0) return NO_COUNTS_AS;
+  const perDeps = COUNTS_AS_BY_RULES.get(state) ?? new WeakMap<EngineDeps, ReadonlyMap<InstanceId, CountsAs>>();
+  const cached = perDeps.get(deps);
+  if (cached) return cached;
+  const extras = new Map<InstanceId, { categories: TargetCategory[]; traits: Trait[] }>();
+  const inPlay = cardsInPlay(state);
+  for (const sourceId of inPlay) {
+    for (const ref of activeAbilityRefs(state, sourceId, deps)) {
+      if (!ruleIds.has(ref.id)) continue;
+      const trigger = deps.abilities[ref.id]?.trigger;
+      if (trigger?.kind !== "constant") continue;
+      for (const rule of trigger.rules ?? []) {
+        if (rule.kind !== "countsAs") continue;
+        const context: EffectContext = {
+          selfInstanceId: sourceId,
+          controllerId: controllerOf(state, sourceId),
+          event: null,
+          bindings: {},
+          deps: DEFAULT_DEPS,
+        };
+        if (rule.while && !evaluate(state, rule.while, context)) continue;
+        for (const id of inPlay) {
+          if (!matchesQuery(state, id, rule.target, context)) continue;
+          const entry = extras.get(id) ?? { categories: [], traits: [] };
+          entry.categories.push(...rule.categories);
+          entry.traits.push(...(rule.traits ?? []));
+          extras.set(id, entry);
+        }
+      }
+    }
+  }
+  perDeps.set(deps, extras);
+  COUNTS_AS_BY_RULES.set(state, perDeps);
+  return extras;
 }
 
 /** Whether this card's printed text box is blank right now, from a lasting effect or a constant rule in play. */

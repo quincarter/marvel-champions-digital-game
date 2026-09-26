@@ -17,6 +17,7 @@ import type {
   SchemeValueName,
   StatModifierSpec,
   StatName,
+  TargetCategory,
   TargetQuery,
   ValueSpec,
   InPlayCostPick,
@@ -451,6 +452,24 @@ export const additionalCostToReady = (
     target,
     resources,
     ...(opts.player ? { player: opts.player } : {}),
+    ...(opts.while ? { while: opts.while } : {}),
+  });
+/**
+ * "While there are no other [Symbiote] environments in play, this card is considered a [Symbiote] environment"
+ * (Festering Mass, `sm` 27124; docs/phase7-wave5.md §3.9): `constant(countsAs({ self: true }, ["environment"], {
+ * traits: [SYMBIOTE], while: not(exists(query("environment", { trait: SYMBIOTE, self: false }))) }))`. Read by query
+ * category and trait matching only; `while` sees printed characteristics only.
+ */
+export const countsAs = (
+  target: TargetQuery,
+  categories: readonly TargetCategory[],
+  opts: { readonly traits?: readonly Trait[]; readonly while?: Predicate } = {},
+): ConstantPart =>
+  rule({
+    kind: "countsAs",
+    target,
+    categories,
+    ...(opts.traits ? { traits: opts.traits } : {}),
     ...(opts.while ? { while: opts.while } : {}),
   });
 /**
