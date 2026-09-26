@@ -43,6 +43,7 @@ import {
   type PlayCost,
   type PlayerId,
   type PlayerState,
+  type ViewerContext,
 } from "@mc/engine";
 import { artFor, type ArtSource, type CardBack, type CardFace } from "../art/art-source.js";
 import { faceVisible } from "./visibility.js";
@@ -722,10 +723,10 @@ function backKindOf(state: GameState, instance: CardInstance | undefined): CardB
  * card is *treated as*, and drawing its front would leak what the players
  * aren't allowed to see.
  */
-export function faceOf(state: GameState, instanceId: InstanceId): CardFace {
+export function faceOf(state: GameState, instanceId: InstanceId, view?: ViewerContext): CardFace {
   const instance = getInstance(state, instanceId);
   const card = cardOf(state, instanceId);
-  if (!instance || !card || !faceVisible(state, instanceId)) {
+  if (!instance || !card || !faceVisible(state, instanceId, view)) {
     return { kind: "back", back: backKindOf(state, instance) };
   }
   switch (card.type) {

@@ -680,6 +680,15 @@ export const cannotReadyUntil = (
   player?: PlayerRef,
 ): EffectSpec => applyRuleUntil({ kind: "cannotReady", target }, until, player);
 /**
+ * "Until the end of the round, you may look at the top card of the encounter deck at any time." (Sector Scan;
+ * docs/phase7-wave5.md §3.28): `mayLookAtTopOfEncounterDeckUntil("endOfRound")`. A lasting rule frozen to the
+ * resolving player; no game state changes, and only that player's view (`faceVisible` with a viewer) shows the card.
+ */
+export const mayLookAtTopOfEncounterDeckUntil = (
+  until: "endOfPhase" | "endOfRound" | "endOfTurn" | "endOfNextTurn",
+  player: PlayerRef = you,
+): EffectSpec => applyRuleUntil({ kind: "mayLookAtTopOfEncounterDeck", player }, until);
+/**
  * "Reduce the cost of the next card that player plays this phase/round by N." `cardFilter` narrows which played
  * card consumes it — "the next Avenger ally played this phase" (Avengers Tower, `cap` pack): `{ trait: AVENGER,
  * categories: ["ally"] }`. Omit for the unfiltered "next card" (Helicarrier).

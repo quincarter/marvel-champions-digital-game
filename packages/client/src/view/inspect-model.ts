@@ -191,7 +191,10 @@ export function inspectModel(
   const payment = opts.payment ?? null;
   const instance = getInstance(state, instanceId);
   const card = cardOf(state, instanceId);
-  const hidden = !faceVisible(state, instanceId);
+  // Seen through this seat's eyes: a card only this player may look at (the encounter deck's top card under a "you may
+  // look at the top card of the encounter deck" rule, docs/phase7-wave5.md §3.28) shows its face here and nowhere else.
+  const view = { viewer: perspectiveId, deps };
+  const hidden = !faceVisible(state, instanceId, view);
 
   if (!instance || !card || hidden) {
     return {
@@ -241,11 +244,11 @@ export function inspectModel(
   // name "Scarlet Witch", hero stats of 0 and Chaos Control, a power she doesn't have in that form, while the
   // button below correctly offered Superpowered Siblings. Reported from play. The same default read a villain on
   // stage II as stage I.
-  const face = faceOf(state, instanceId);
+  const face = faceOf(state, instanceId, view);
 
   return {
     instanceId,
-    name: card.type === "hero_identity" ? faceNameOf(card, face) : cardName(state, instanceId),
+    name: card.type === "hero_identity" ? faceNameOf(card, face) : cardName(state, instanceId, view),
     typeLine: typeLineOf(card, face),
     cost: "cost" in card && typeof card.cost === "number" ? card.cost : null,
     priceNote: priceNoteFor(state, perspectiveId, instanceId, deps),

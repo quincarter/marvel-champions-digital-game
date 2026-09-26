@@ -934,7 +934,15 @@ export type RuleSpec =
    * "hand"`, it keeps the card itself out of every discard its owner chooses from hand (an effect's "discard N cards",
    * a cost, the end-of-phase discard, the mulligan). A random discard can still take it. docs/phase7-wave4.md §3.13.
    */
-  | { readonly kind: "cannotChooseToDiscard" };
+  | { readonly kind: "cannotChooseToDiscard" }
+  /**
+   * "Until the end of the round, you may look at the top card of the encounter deck at any time." (Sector Scan;
+   * docs/phase7-wave5.md §3.28): each player `player` names may read the face of the top card of the encounter deck
+   * (the active villain's, as every "the encounter deck" effect reads it). Changes no game state; read only by
+   * `faceVisible` for that player's own view, so it never shows the card to another player (RRG 1.8 "Look,
+   * Looked-At", p. 27). Carried by `applyRuleUntil`, which freezes `player` to the resolving player.
+   */
+  | { readonly kind: "mayLookAtTopOfEncounterDeck"; readonly player: PlayerRef; readonly while?: Predicate };
 
 /** Where a cost may pick a card from (outside play). */
 export interface CardZoneQuery {
