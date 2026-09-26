@@ -11,7 +11,7 @@ import {
   updatePlayer,
   type Ctx,
 } from "./ctx.js";
-import { hasKeyword, statusCapacity, usesKeyword } from "./keywords.js";
+import { hasKeyword, isPermanent, statusCapacity, usesKeyword } from "./keywords.js";
 import {
   activeEncounterDeckId,
   discardZoneFor,
@@ -517,7 +517,7 @@ export function leavePlay(
   position: "top" | "bottom" = "top",
   discarded = false,
 ): void {
-  if (hasKeyword(ctx.state, id, "permanent", ctx.deps)) return;
+  if (isPermanent(ctx.state, id, ctx.deps)) return;
   if (cannotLeavePlay(ctx.state, ctx.deps, id)) {
     emit(ctx, { type: "leavePlayBlocked", instanceId: id, reason: "cannotLeavePlay" });
     return;

@@ -143,7 +143,7 @@ export {
   schemeThreatDestination,
   threatCannotBeRemoved,
 } from "./rules.js";
-export { hasKeyword, keywordsOf, keywordTotal, printedKeywordsOf, statusActive } from "./keywords.js";
+export { hasKeyword, isPermanent, keywordsOf, keywordTotal, printedKeywordsOf, statusActive } from "./keywords.js";
 export { printedResources } from "./resources.js";
 export { characterTitledAs, identityCardTitledAs } from "./titles.js";
 export type { CostChoices, CostSelection } from "./commands.js";
@@ -367,5 +367,6 @@ export {
   zoneContents,
 } from "./query.js";
 export { legalDefenders } from "./resolve/enemy-activation.js";
+export { UNRESOLVED_VAR } from "./resolve/target-validity.js";
 export { mainSchemeCompletionLoses } from "./resolve/defeat.js";
 export { generatedResources, handCardResources } from "./actions.js";

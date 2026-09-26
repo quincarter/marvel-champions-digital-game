@@ -1,5 +1,6 @@
 import {
   inPlayPicksOf,
+  UNRESOLVED_VAR,
   type AbilityCost,
   type AbilityDefinition,
   type AbilityRegistry,
@@ -304,8 +305,12 @@ function checkRefs(value: unknown, scope: Scope, where: string, problems: string
 
 function bindsOf(effect: EffectSpec, scope: Scope): void {
   switch (effect.kind) {
+    // A required target choice that finds nothing sets `UNRESOLVED_VAR` (`choiceFoundNothing`, RRG 1.8 "Target").
     case "chooseTarget":
     case "chooseCards":
+      scope.slots.add(effect.slot);
+      scope.vars.add(UNRESOLVED_VAR);
+      return;
     case "choosePlayer":
     case "bindTargets":
       scope.slots.add(effect.slot);

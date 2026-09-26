@@ -10,7 +10,7 @@ import {
   updateMainSchemeState,
 } from "../effects.js";
 import type { FrameId, InstanceId, PlayerId } from "../ids.js";
-import { hasKeyword } from "../keywords.js";
+import { hasKeyword, isPermanent } from "../keywords.js";
 import {
   characterProfile,
   discardZoneFor,
@@ -169,7 +169,7 @@ export function completeMainScheme(ctx: Ctx, schemeId: InstanceId): void {
     ...(central ? {} : { schemeInstanceId: schemeId }),
   });
   const next = completionNextStage(ctx.state, scheme);
-  if (completionLoses(ctx.state, scheme, next)) {
+  if (next === null || completionLoses(ctx.state, scheme, next)) {
     updateMainSchemeState(ctx, schemeId, (s) => ({ ...s, completed: true }));
     endGame(ctx, { result: "loss", reason: "mainSchemeCompleted" });
     return;
@@ -372,7 +372,7 @@ export function checkDefeats(ctx: Ctx, hints?: DefeatHint | readonly DefeatHint[
       if (!profile || !instance) continue;
       if (profile.kind !== "ally" && profile.kind !== "minion") continue;
       if (instance.damage < profile.maxHp) continue;
-      if (hasKeyword(ctx.state, id, "permanent", ctx.deps)) continue;
+      if (isPermanent(ctx.state, id, ctx.deps)) continue;
       if (cannotBeDefeated(ctx.state, ctx.deps, id)) continue;
       if (defeatPending(ctx.state, id)) continue;
       const hint = hintFor(id);
@@ -599,7 +599,7 @@ export function eliminatePlayer(ctx: Ctx, playerId: PlayerId): void {
   const nextSeat = nextClockwisePlayer(ctx.state, playerId);
   // Step 3: a card in play there that the player does not own, and is permanent (the one case the keyword does not stop).
   const notOwnedPermanent = (id: InstanceId): boolean =>
-    getInstance(ctx.state, id)?.ownerId !== playerId && hasKeyword(ctx.state, id, "permanent", ctx.deps);
+    getInstance(ctx.state, id)?.ownerId !== playerId && isPermanent(ctx.state, id, ctx.deps);
   const reattachOrRemove = (id: InstanceId): void => {
     const card = ctx.state.cardPool[mustInstance(ctx.state, id).cardId];
     const attachesTo = card && "attachesTo" in card ? card.attachesTo : undefined;

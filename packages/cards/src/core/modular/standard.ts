@@ -1,5 +1,6 @@
 import {
   chooseTarget,
+  choiceFoundNothing,
   chosen,
   defineAbilities,
   discard,
@@ -40,12 +41,12 @@ export const STANDARD_SET = defineAbilities({
   "01187.when-revealed-hero": whenRevealedHero(enemyAttack(theVillain, { against: you })),
   // Caught Off Guard — When Revealed: Discard an upgrade or support you control. If no cards were discarded this way, this card gains surge.
   // No "choose": the card targets, so with several eligible cards the first player selects (RRG "First Player").
+  // Only a card that can be discarded is eligible (RRG 1.8 "Target", pp. 42–43): a Permanent upgrade (Spectrum's energy
+  // forms, faceup or facedown; Vision's mass forms) is not, so a player with only those takes the surge (§4 Q25).
   "01188.when-revealed": whenRevealed(
-    ifThen(
-      exists(YOUR_UPGRADES_AND_SUPPORTS),
-      [chooseTarget("card", YOUR_UPGRADES_AND_SUPPORTS, { chooser: firstPlayer }), discard(chosen("card"))],
-      surge(),
-    ),
+    chooseTarget("card", YOUR_UPGRADES_AND_SUPPORTS, { chooser: firstPlayer }),
+    discard(chosen("card")),
+    ifThen(choiceFoundNothing(), surge()),
   ),
   // Gang-Up — When Revealed (Alter-Ego): This card gains surge. / When Revealed (Hero): The villain and each minion engaged with you attacks you.
   "01189.when-revealed-alter-ego": whenRevealedAlterEgo(surge()),

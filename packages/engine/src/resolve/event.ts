@@ -5,7 +5,7 @@ import { type Ctx, emit, findFrame, popFrame, pushFrames, setFrame, updateFrame,
 import { overkillRecipient } from "../defend-preview.js";
 import { expireEventLastingEffects, healDamage, pierceTough, readyCard, removeCounters } from "../effects.js";
 import type { FrameId, InstanceId, PlayerId } from "../ids.js";
-import { attackKeywordsOf, hasKeyword, keywordTotal } from "../keywords.js";
+import { attackKeywordsOf, hasKeyword, isPermanent, keywordTotal } from "../keywords.js";
 import {
   cardOf,
   characterProfile,
@@ -409,7 +409,7 @@ function applyDefeat(ctx: Ctx, event: Extract<TriggerEvent, { kind: "characterDe
     eliminatePlayer(ctx, player.playerId);
     return true;
   }
-  if (hasKeyword(ctx.state, id, "permanent", ctx.deps)) return false;
+  if (isPermanent(ctx.state, id, ctx.deps)) return false;
   emit(ctx, { type: "characterDefeated", instanceId: id, cardId: instance.cardId });
   const whenDefeated = gameAbilityFrames(
     ctx,

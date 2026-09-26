@@ -26,10 +26,10 @@
 
 import type { AbilityDefinition, EngineDeps } from "../abilities.js";
 import type { InstanceId, PlayerId } from "../ids.js";
-import { statusActive } from "../keywords.js";
+import { isPermanent, statusActive } from "../keywords.js";
 import { areaOfPlayer, getPlayer } from "../query.js";
-import { cannotTakeDamage, iconsInPlay, patrolledBy } from "../rules.js";
-import { activeRules, type EffectContext, resolveRef, selectTargets } from "../select.js";
+import { cannotLeavePlay, cannotTakeDamage, iconsInPlay, patrolledBy } from "../rules.js";
+import { activeRules, cardsInPlay, type EffectContext, resolveRef, selectTargets } from "../select.js";
 import type { EffectSpec, TargetRef } from "../spec.js";
 import type { GameState } from "../state.js";
 import type { TriggerEvent } from "../trigger-events.js";
@@ -66,10 +66,17 @@ function refersToSlot(value: unknown, slot: string): boolean {
 
 const isSlotRef = (ref: TargetRef, slot: string): boolean => ref.kind === "slot" && ref.slot === slot;
 
-type JudgedEffect = Extract<EffectSpec, { kind: "thwart" | "removeThreat" | "dealDamage" }>;
+type JudgedEffect = Extract<EffectSpec, { kind: "thwart" | "removeThreat" | "dealDamage" | "discardFromPlay" }>;
 
 const isJudged = (effect: EffectSpec): effect is JudgedEffect =>
-  effect.kind === "thwart" || effect.kind === "removeThreat" || effect.kind === "dealDamage";
+  effect.kind === "thwart" ||
+  effect.kind === "removeThreat" ||
+  effect.kind === "dealDamage" ||
+  effect.kind === "discardFromPlay";
+
+/** Whether this card can be discarded from play: not Permanent (RRG 1.8 "Permanent", p. 32) and no `cannotLeavePlay`. */
+export const canDiscardFromPlay = (state: GameState, deps: EngineDeps, id: InstanceId): boolean =>
+  !isPermanent(state, id, deps) && !cannotLeavePlay(state, deps, id);
 
 /** Whether this judged effect can affect `id`, the same check its event makes as it applies. */
 function judgedCanAffect(
@@ -80,6 +87,7 @@ function judgedCanAffect(
   context: EffectContext,
 ): boolean {
   if (effect.kind === "dealDamage") return canDealDamageTo(state, deps, id, context.selfInstanceId);
+  if (effect.kind === "discardFromPlay") return canDiscardFromPlay(state, deps, id);
   if (effect.kind === "removeThreat") {
     return canRemoveThreatFrom(state, deps, id, context.selfInstanceId, effect.ignoreCrisis === true);
   }
@@ -143,7 +151,8 @@ export function slotTargetValid(
 
 /**
  * Whether anything in play could make a judged effect unable to affect its target right now: a patrol minion engaged
- * with `playerId`, a crisis icon in their game area, or a `threatCannotBeRemoved` or `cannotTakeDamage` rule. The
+ * with `playerId`, a crisis icon in their game area, a `threatCannotBeRemoved`, `cannotTakeDamage` or `cannotLeavePlay`
+ * rule, or a Permanent card in play. The
  * common case (none of them) skips judging each candidate, which the offer paths (`legalActions`, every trigger
  * window) ask about constantly.
  */
@@ -152,7 +161,9 @@ function targetsCanBeInvalid(state: GameState, deps: EngineDeps, playerId: Playe
   if (iconsInPlay(state, deps, "crisis", playerId === null ? null : areaOfPlayer(state, playerId)) > 0) return true;
   return (
     activeRules(state, deps, "threatCannotBeRemoved").length > 0 ||
-    activeRules(state, deps, "cannotTakeDamage").length > 0
+    activeRules(state, deps, "cannotTakeDamage").length > 0 ||
+    activeRules(state, deps, "cannotLeavePlay").length > 0 ||
+    cardsInPlay(state).some((id) => isPermanent(state, id, deps))
   );
 }
 
@@ -286,7 +297,8 @@ function fixedTargetsAllInvalid(
   if (effects.length === 0) return false;
   let named = false;
   for (const effect of effects) {
-    if (!isJudged(effect) || effect.target.kind === "slot") return false;
+    // A discard is judged only as a choice's target: a card's own "discard this card" is left to resolve as before.
+    if (!isJudged(effect) || effect.kind === "discardFromPlay" || effect.target.kind === "slot") return false;
     const targets = resolveRef(state, effect.target, context);
     if (targets.some((id) => judgedCanAffect(state, deps, effect, id, context))) return false;
     if (targets.length > 0) named = true;

@@ -2142,6 +2142,21 @@ payment-model.ts`'s `allianceHelpersOf` reads, from a `PaymentState`'s current p
     information its owner holds. Implemented as: the player whose hand it is picks among the tied cards (the same in
     solo). Proposed: keep; needs a ruling to change. **USER DECISION 2026-09-25:** keep. The hand's owner breaks the
     tie. No change.
+25. **Can an encounter effect that discards "an upgrade or support you control" choose one of Spectrum's facedown
+    energy forms?** (§3.1; found 2026-09-26 in a browser campaign game, Caught Off Guard revealed against Spectrum in
+    Ebony Maw.) Monica Rambeau's Setup puts Gamma, Photon and Pulsar "into play, facedown". A facedown form grants no
+    form and has no title, text or keywords (§3.1), but nothing in RRG 1.8 or the rulings says whether it keeps its card
+    type, so whether it is "an upgrade you control" is unanswered. Implemented as (unchanged): yes, the three facedown
+    forms are eligible, and the first player picks among them (RRG 1.8 "First Player", p. 19). Discarding one leaves
+    Spectrum with two energy forms for the rest of the game. Proposed alternative: facedown forms are not eligible, so
+    Caught Off Guard finds nothing and gains surge. Needs a ruling or a user decision. **USER DECISION 2026-09-26:**
+    change it. Spectrum's and Vision's form upgrades are Permanent (RRG 1.8 "Permanent", p. 32: effects on cards not
+    from this card's set cannot remove it from play), so they cannot leave play and are not affected, facedown or
+    faceup. **Implemented:** `isPermanent` (`keywords.ts`) reads Permanent off the printed card as well as its current
+    keywords, so neither facedown nor a blank removes it; every Permanent check uses it. Target validity
+    (`resolve/target-validity.ts`, RRG 1.8 "Target", pp. 42–43) judges `discardFromPlay`: a card that cannot leave play
+    is no valid target, so it is never offered. Caught Off Guard surges when its choice finds nothing
+    (`choiceFoundNothing`). Tested in `packages/cards/src/wave4/permanent-forms.test.ts`.
 
 ## 5. What this asks of the other agents
 

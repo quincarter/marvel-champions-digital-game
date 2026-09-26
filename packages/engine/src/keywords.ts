@@ -150,6 +150,18 @@ export const hasKeyword = (
   deps: EngineDeps = DEFAULT_DEPS,
 ): boolean => keywordsOf(state, id, deps).some((keyword) => keyword.name === name);
 
+/**
+ * Permanent (RRG 1.8 "Permanent", p. 32): "Effects on cards not from this card's set cannot defeat this card, remove
+ * this card from play, or blank any part of its text box." Read off the printed card as well as its keywords right
+ * now, so neither a blank nor turning the card facedown takes it away: Spectrum's facedown energy forms and Vision's
+ * mass forms stay in play (docs/phase7-wave4.md §4 Q25, user decision 2026-09-26).
+ */
+export function isPermanent(state: GameState, id: InstanceId, deps: EngineDeps = DEFAULT_DEPS): boolean {
+  if (hasKeyword(state, id, "permanent", deps)) return true;
+  const card = cardOf(state, id);
+  return !!card && "keywords" in card && card.keywords.some((keyword) => keyword.name === "permanent");
+}
+
 /** RRG "Keywords": repeated instances of a numbered keyword add their values together. */
 export function keywordTotal(
   state: GameState,

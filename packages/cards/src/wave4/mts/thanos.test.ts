@@ -353,7 +353,11 @@ describe("Avatar of Death (21120)", () => {
     // Captain America (21011, 4 hit points) at 3 damage: 1 remaining hit point, less than Thanos stage 1's own ATK
     // (2) — and toughened, so without piercing this attack would be fully prevented (tough discarded, no damage
     // dealt at all, RRG 1.8 "Tough", p. 46) instead of defeating her and spilling the remainder onto the hero.
-    const { state: withAlly, id: ally } = putAllyIntoPlay(hero, "21011", P1, 3);
+    // Avengers Mansion (21021) in play too: the Reality Stone this round's Infinity Gauntlet reveals discards an ally,
+    // upgrade or support Spectrum controls, and her Permanent energy forms are no longer eligible (§4 Q25), so this
+    // gives it something other than Captain America to take.
+    const { state: withMansion, id: mansion } = putAllyIntoPlay(hero, "21021", P1);
+    const { state: withAlly, id: ally } = putAllyIntoPlay(withMansion, "21011", P1, 3);
     const toughened = patchInstance(withAlly, ally, {
       exhausted: false,
       statuses: { ...inst(withAlly, ally).statuses, tough: 1 },
@@ -380,6 +384,8 @@ describe("Avatar of Death (21120)", () => {
         choice.options.some((o) => o.optionId === ally)
       )
         return [ally];
+      if (choice?.prompt.kind === "chooseTarget" && choice.options.some((o) => o.optionId === mansion))
+        return [mansion];
       return firstLegal(s);
     };
     const { events } = driveEventsWith(staged, pick, endTurn());

@@ -1,4 +1,5 @@
 import { trait, type Trait } from "@mc/content";
+import { UNRESOLVED_VAR } from "@mc/engine";
 import type {
   CharacterNames,
   Form,
@@ -451,6 +452,11 @@ export const paidWith = (resource: TypedResource): Predicate => ({ kind: "paidWi
  */
 export const paidWithOnly = (resource: TypedResource): Predicate => ({ kind: "paidWithOnly", resource });
 export const varAtLeast = (name: string, n = 1): Predicate => ({ kind: "varAtLeast", name, amount: n });
+/**
+ * The ability's last required choice found no valid target (RRG 1.8 "Target", pp. 42–43): "If no cards were discarded
+ * this way" after a choice that had nothing it could discard.
+ */
+export const choiceFoundNothing = (): Predicate => varAtLeast(UNRESOLVED_VAR, 1);
 /** An event-producing effect with `bind` happened ("if no attacks were made this way" = `not(made(b))`). */
 export const made = (bind: string): Predicate => varAtLeast(`${bind}.made`, 1);
 export const hasStatus = (of: TargetRef, status: StatusName): Predicate => ({ kind: "hasStatus", of, status });
