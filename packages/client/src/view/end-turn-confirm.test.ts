@@ -71,7 +71,7 @@ describe("endTurnConfirmOf", () => {
     expect(confirm!.items.some((item) => item === `Attack (${allyName})` || item === `Thwart (${allyName})`)).toBe(
       true,
     );
-    expect(confirm!.sentence).toBe(`End your turn? You can still: ${confirm!.items.join(", ")}.`);
+    expect(confirm!.sentence).toBe(`You can still: ${confirm!.items.join(", ")}.`);
   });
 
   test("is null once the identity and every ally are spent (nothing meaningful left)", async () => {

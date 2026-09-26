@@ -1,5 +1,5 @@
 /**
- * "End your turn? You can still: …" — the confirm the action bar and its keyboard/gamepad route show before
+ * "You can still: …" — the confirm the action bar and its keyboard/gamepad route show before
  * `endTurn` actually goes out, so a player doesn't hand the villain a free turn by fat-fingering it (Settings ▸
  * "Confirm before ending turn", `view/settings-rows.ts`).
  *
@@ -38,7 +38,7 @@ export function endTurnConfirmOf(state: GameState, legal: LegalActions, playerId
     .map((entry) => itemLabel(state, entry, identityId))
     .filter((label): label is string => label !== null);
   if (items.length === 0) return null;
-  return { items, sentence: `End your turn? You can still: ${items.join(", ")}.` };
+  return { items, sentence: `You can still: ${items.join(", ")}.` };
 }
 
 function itemLabel(state: GameState, entry: LegalAction, identityId: InstanceId | undefined): string | null {
