@@ -7,9 +7,11 @@
 import { trait } from "@mc/content";
 import { describe, expect, it } from "vitest";
 import {
+  constant,
   forcedInterrupt,
   forcedResponse,
   heroInterrupt,
+  increaseDamageTaken,
   mainSchemeMarkedBy,
   on,
   setup,
@@ -202,6 +204,17 @@ describe("§3.7 a resolved Special reports the cards it discarded (Sandslide)", 
       kind: "resolveSpecials",
       of: { kind: "named", name: "City Streets" },
       bind: "sands",
+    });
+  });
+});
+
+describe("§3.8 increasing the damage a character takes (Bell Tower, Ringing)", () => {
+  it("'Increase all damage Venom takes by 1'", () => {
+    const ringing = constant(increaseDamageTaken(query("villain", { name: "Venom" }), 1));
+    valid(ringing);
+    expect(ringing.trigger).toMatchObject({
+      kind: "constant",
+      rules: [{ kind: "increaseDamageTaken", target: { categories: ["villain"], name: "Venom" }, amount: 1 }],
     });
   });
 });

@@ -454,6 +454,23 @@ export const additionalCostToReady = (
     ...(opts.while ? { while: opts.while } : {}),
   });
 /**
+ * "Increase all damage Venom takes by 1" (Bell Tower's Ringing side, `sm` 27076b; docs/phase7-wave5.md §3.8):
+ * `constant(increaseDamageTaken(query("villain", { name: "Venom" }), 1))`. Once per damage event (§4 Q7), summed with
+ * any `reduceDamageTaken`; `fromAttack` narrows it to an attack's damage.
+ */
+export const increaseDamageTaken = (
+  target: TargetQuery,
+  amount: number,
+  opts: { readonly fromAttack?: boolean; readonly while?: Predicate } = {},
+): ConstantPart =>
+  rule({
+    kind: "increaseDamageTaken",
+    target,
+    amount,
+    ...(opts.fromAttack ? { fromAttack: true } : {}),
+    ...(opts.while ? { while: opts.while } : {}),
+  });
+/**
  * "Heroes and allies cannot be readied by player card effects" (Unnatural Storm, `mts` 21159;
  * docs/phase7-wave4.md §3.19): the end-of-phase ready and encounter card effects still ready them.
  */

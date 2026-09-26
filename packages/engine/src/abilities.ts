@@ -608,6 +608,19 @@ export type RuleSpec =
       readonly while?: Predicate;
     }
   /**
+   * "Increase all damage Venom takes by 1." (Bell Tower's Ringing side, `sm` 27076b; docs/phase7-wave5.md §3.8): the
+   * mirror of `reduceDamageTaken`, once per damage event (§4 Q7). Summed with the reductions before the result is
+   * floored at zero and before any cap (RRG 1.8 "Modifiers", p. 29: additive and subtractive modifiers are applied
+   * simultaneously, and a value below zero is treated as zero). A damage event of 0 is not increased: nothing is taken.
+   */
+  | {
+      readonly kind: "increaseDamageTaken";
+      readonly target: TargetQuery;
+      readonly amount: number;
+      readonly fromAttack?: boolean;
+      readonly while?: Predicate;
+    }
+  /**
    * "Nebula cannot take more than 5 damage from a single attack." (Cutthroat Ambition, `gmw` 16094). Applied after every
    * `reduceDamageTaken`, as the last bound on what one attack's damage event makes the character take; the lowest cap
    * wins. docs/phase7-wave3.md §3.15.

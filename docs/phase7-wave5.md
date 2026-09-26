@@ -339,7 +339,7 @@ against `pnpm dsl` (379 builders), the engine's `EffectSpec` / `RuleSpec` / `Tri
 | 3.5  | Encounter cards in a player's deck, hand and discard pile                                    | Mysterio (whole scenario), MC27 scenario 3 campaign                                            | landed  |
 | 3.6  | Boost cards held on a card that does not activate, then moved to an enemy                    | Venom ("Leave Us Alone!", Vengeance), MC27 scenario 2 expert                                   | landed  |
 | 3.7  | A resolved Special reports the cards it discarded                                            | Sandslide, Surging Sands                                                                       | landed  |
-| 3.8  | Increasing the damage a character takes                                                      | Bell Tower (Ringing)                                                                           | open    |
+| 3.8  | Increasing the damage a character takes                                                      | Bell Tower (Ringing)                                                                           | landed  |
 | 3.9  | A card that counts as another card type with a trait                                         | Festering Mass                                                                                 | open    |
 | 3.10 | Scheme icons printed on any card                                                             | Team Leader, Public Outcry, Venom ally, Symbiote Suit; 30 records in other packs               | open    |
 | 3.11 | Text that depends on the mode of play                                                        | Frequent Flyers ×3, Surprise!, From Every Direction, Life-Size Decoy, Ambush!, Teamwork …      | open    |
@@ -611,6 +611,15 @@ discarded from the encounter deck, readable by `countAmong`. Verify first whethe
 nested ability's bindings (wave 4 §3.43); if so this is a DSL helper only.
 
 ### 3.8 Increasing the damage a character takes
+
+> **Status: landed (2026-09-26),** tested in `packages/engine/src/increase-damage-taken.test.ts` (5 tests: an attack of 3
+> deals 4, replay deep-equal; two damage effects of 2 deal 6, once per event (§4 Q7); an effect of 0 stays 0; with
+> "reduce … from each attack by 1" an attack of 3 deals 3; a tough status prevents the whole increased damage). DSL:
+> `wave5-primitives.test.ts`. **What landed:** **`RuleSpec increaseDamageTaken { target, amount, fromAttack?, while? }`**
+> in `damageTakenAfterConstants`, summed with the reductions before the floor at zero and before any cap. The plan's
+> "increases, then decreases" is not what RRG 1.8 "Modifiers" (p. 29) says (additive and subtractive modifiers apply
+> together); with the floor applied last the two readings agree. A damage event of 0 is not increased (nothing is
+> taken). **DSL:** `increaseDamageTaken(target, amount, { fromAttack?, while? })`, a `constant` part.
 
 Bell Tower (Ringing): "Increase all damage Venom takes by 1." **Plan:** `RuleSpec increaseDamageTaken { target, amount,
 fromAttack? }`, the mirror of `reduceDamageTaken`, applied before reductions (RRG 1.8 "Modifiers" order: increases,

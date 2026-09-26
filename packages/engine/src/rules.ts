@@ -377,6 +377,14 @@ export function damageTakenAfterConstants(
   fromAttack: boolean,
 ): number {
   let taken = amount;
+  // "Increase all damage Venom takes by 1" (docs/phase7-wave5.md §3.8), summed with the reductions (RRG 1.8
+  // "Modifiers", p. 29); a damage event of nothing stays nothing.
+  if (amount > 0) {
+    for (const { rule, context } of activeRules(state, deps, "increaseDamageTaken")) {
+      if (rule.fromAttack === true && !fromAttack) continue;
+      if (matchesQuery(state, targetId, rule.target, context)) taken += rule.amount;
+    }
+  }
   for (const { rule, context } of activeRules(state, deps, "reduceDamageTaken")) {
     if (rule.fromAttack === true && !fromAttack) continue;
     if (matchesQuery(state, targetId, rule.target, context)) taken -= rule.amount;
