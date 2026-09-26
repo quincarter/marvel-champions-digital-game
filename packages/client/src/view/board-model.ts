@@ -31,7 +31,7 @@ import {
   playCostOf,
   playableOutsideHand,
   printedProfile,
-  printedResources,
+  handCardResources,
   remainingHitPoints,
   scale,
   schemesInPlay,
@@ -1094,7 +1094,9 @@ export function handCardView(state: GameState, id: InstanceId, playerId: PlayerI
     costSources: price ? costSourceNames(state, price) : [],
     // `current`, not `printed`: the errata'd wording is what the game plays by.
     rulesText: "text" in card ? card.text.current : "",
-    resourceIcons: resourceIconList(printedResources(card)),
+    // What it generates right now, not only printed icons: Band Together (`mts` 21018) prints none and generates a
+    // [wild] per ally you control (docs/phase7-wave4.md §3.38).
+    resourceIcons: resourceIconList(handCardResources(state, deps, id, playerId, null)),
     art: artFor(card, { kind: "front" }),
     from: null,
   };
