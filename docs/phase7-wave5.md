@@ -1085,7 +1085,7 @@ work** (status in the last column).
 | 23  | Default: a minion's overkill spill onto the villain is attack damage (Bell Tower (Quiet) may replace it).                                                                                       | built       |
 | 24  | **M.O.R.B.I.U.S. deals no damage while the engaged player is in alter-ego form** ("that player's hero").                                                                                        | scripter    |
 | 25  | **Within one payment, "after you spend" and "after … generates resources" share one timing window, forced responses first (RRG).**                                                              | open        |
-| 26  | _Not yet asked._ See §4.2 Q26.                                                                                                                                                                  | —           |
+| 26  | **An unowned permanent encounter attachment whose host leaves play is discarded to its encounter discard pile** (player cards keep §3.30's unattach).                                           | open        |
 
 ### 4.2 The questions as asked
 
