@@ -118,7 +118,8 @@ export const ANT_PACK_CARDS = defineAbilities({
 
   // Moment of Triumph (12030, Aggression) — Hero Response: after you attack and defeat an enemy, heal 1 damage
   // from your hero for each point of excess damage dealt to that enemy by that attack. `excessDealt` is the same
-  // var overkill's own spillover reads (`resolve/event.ts`), reported on the attack's own event results.
+  // value overkill spills (RRG 1.8 "Overkill", p. 31; `resolve/event.ts` `excessDamageOf`), reported on the attack's
+  // own event results.
   "12030.moment-of-triumph-response": heroResponse(
     on.attacks("self", { defeats: true }),
     heal(eventResult("excessDealt"), yourIdentity),

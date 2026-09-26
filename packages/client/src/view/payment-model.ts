@@ -18,6 +18,7 @@
 
 import type { AbilityId, ResourceIconType } from "@mc/content";
 import {
+  controllerOf,
   locateCard,
   paymentFor,
   playCostOf,
@@ -77,6 +78,12 @@ export interface PaymentState {
  */
 export interface PaymentSourceView extends PaymentSource {
   readonly spent: boolean;
+  /**
+   * Another player's hand card offered toward an alliance card (RRG 1.8 "Alliance", p. 6): the hero name of the
+   * hand it sits in, so the strip can say whose card it is. Null for the payer's own cards and for resource
+   * abilities.
+   */
+  readonly helperName: string | null;
 }
 
 export interface PaymentView {
@@ -125,11 +132,11 @@ export interface PaymentView {
    */
   readonly sources: readonly PaymentSourceView[];
   /**
-   * The sources that are not hand cards — a resource ability on a card in play
-   * (Peter Parker's Scientist, Pepper Potts) — one per option, since a card
-   * could offer two. The hand is the only zone visible on every layout, so the
-   * payment strip draws these beside it; otherwise, on a phone, the one
-   * resource that makes a card affordable can sit on a tab you aren't looking at.
+   * The sources that are not in the payer's hand — a resource ability on a card in play
+   * (Peter Parker's Scientist, Pepper Potts), one per option since a card could offer two, and another player's
+   * hand card offered toward an alliance card. The hand is the only zone visible on every layout, so the
+   * payment strip draws these beside it; otherwise, on a phone, the one resource that makes a card affordable
+   * can sit on a tab you aren't looking at, and a helper's hand is drawn nowhere at all.
    */
   readonly tableSources: readonly PaymentSourceView[];
   /**
@@ -269,7 +276,11 @@ export function paymentView(
     reductionAmount > 0
       ? { ...query.requirement, generic: Math.max(0, query.requirement.generic - reductionAmount) }
       : query.requirement;
-  const sources = query.sources.map((source) => ({ ...source, spent: picked.includes(source.optionId) }));
+  const sources = query.sources.map((source) => ({
+    ...source,
+    spent: picked.includes(source.optionId),
+    helperName: helperNameOf(state, playerId, source),
+  }));
   return {
     headline,
     subject,
@@ -280,13 +291,72 @@ export function paymentView(
     spendable,
     spent,
     sources,
-    tableSources: sources.filter((source) => source.kind === "resourceAbility"),
+    tableSources: sources.filter((source) => source.kind === "resourceAbility" || source.helperName !== null),
     subjectInHand: subject !== null && locateCard(state, subject)?.kind === "hand",
     command: attempt.ok ? attempt.command : null,
     blockedBy: attempt.ok ? null : attempt.message,
     costReductionOptions,
     reductions: payment.reductions,
   };
+}
+
+/**
+ * Alliance payment approval (RRG 1.8 "Alliance", p. 6; docs/phase7-wave4.md §4 Q10, "USER DECISION 2026-09-25":
+ * each contributing player approves their own contribution before the command is sent).
+ *
+ * The engine already accepts one command naming every spent card, from any player's hand (`paymentFor`'s own
+ * `sources` include another player's hand cards for an alliance card, `packages/engine/src/actions.ts`'s
+ * `paymentOptions`) — this module never changes that. What's missing on the client side is consent: a payer could
+ * otherwise spend a teammate's hand card with nothing more than a tap. This is the pure read of "whose cards, and
+ * which ones, does the current selection spend" that the approval flow (`scenes/board/controller.ts`'s
+ * `#selection.kind === "confirmingAllianceHelp"`) walks through one player at a time before dispatching.
+ *
+ * Hot-seat only (docs/phase7-wave4.md §4 Q10's own doc comment): this build has no multiplayer-netcode layer yet
+ * (`engine/host.ts`'s own doc comment — a `WorkerEngineHost` off the main thread, not a network host), every seat
+ * plays on the one local session, and the board's perspective already follows whoever must act
+ * (`engine/acting-player.ts`). So "asking the other seats" is a same-device, pass-the-controller prompt addressed
+ * to each helper in turn, not a request across a network boundary.
+ */
+export interface AllianceHelper {
+  readonly playerId: PlayerId;
+  /** The picked sources this player owns, in payment order. */
+  readonly instanceIds: readonly InstanceId[];
+}
+
+/**
+ * Every other player whose hand card or resource ability the current picks would spend, in seat order (never the
+ * payer themselves — they already agreed to their own play by opening it). Empty for an ordinary payment, which is
+ * every payment on a card without the alliance keyword, and for an alliance payment that only spends the payer's
+ * own cards.
+ */
+export function allianceHelpersOf(
+  state: GameState,
+  payerId: PlayerId,
+  payment: PaymentState,
+): readonly AllianceHelper[] {
+  const byOption = new Map(payment.query.sources.map((source) => [source.optionId, source] as const));
+  const byPlayer = new Map<PlayerId, InstanceId[]>();
+  for (const optionId of payment.picked) {
+    const source = byOption.get(optionId);
+    if (!source) continue;
+    const owner = controllerOf(state, source.instanceId);
+    if (!owner || owner === payerId) continue;
+    const list = byPlayer.get(owner) ?? [];
+    list.push(source.instanceId);
+    byPlayer.set(owner, list);
+  }
+  return state.players
+    .map((player) => player.playerId)
+    .filter((playerId) => byPlayer.has(playerId))
+    .map((playerId) => ({ playerId, instanceIds: byPlayer.get(playerId)! }));
+}
+
+/** Whose hand an alliance helper's card sits in, by hero name; null for anything the payer holds or in play. */
+function helperNameOf(state: GameState, payerId: PlayerId, source: PaymentSource): string | null {
+  if (source.kind !== "handCard") return null;
+  const owner = state.players.find((player) => player.hand.includes(source.instanceId));
+  if (!owner || owner.playerId === payerId) return null;
+  return faceUpName(state, owner.identity.instanceId) ?? "Helper";
 }
 
 /**

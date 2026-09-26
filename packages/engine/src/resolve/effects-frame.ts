@@ -16,7 +16,7 @@ import {
   priceOrNull,
 } from "../actions.js";
 import type { ChoiceOption, ChoicePrompt } from "../choices.js";
-import { type Ctx, emit, moveCard, popFrame, pushFrames, requestChoice, setFrame } from "../ctx.js";
+import { type Ctx, emit, moveCard, popFrame, pushFrames, requestChoice, setFrame, updateFrame } from "../ctx.js";
 import { dealEncounterCardTo, discardFromHand, setForm } from "../effects.js";
 import { cannotChangeForm } from "../rules.js";
 import type { GameState } from "../state.js";
@@ -29,10 +29,11 @@ import {
   getInstance,
   getPlayer,
   heroFacesOf,
+  locateCard,
   mustCardOf,
   playerOrder,
 } from "../query.js";
-import { cannotTakeDamage } from "../rules.js";
+import { cannotChooseToDiscard, cannotTakeDamage } from "../rules.js";
 import { combineRequirements, satisfies } from "../resources.js";
 import {
   activeAbilityRefs,
@@ -42,6 +43,8 @@ import {
   controllerOf,
   type EffectContext,
   evaluate,
+  isPlayerCard,
+  MAIN_SCHEME_CHOICE,
   matchesQuery,
   resolvePlayers,
   resolveRef,
@@ -55,9 +58,16 @@ import { applyEffect } from "./apply-effect.js";
 import { controllerOfArea, joinGameArea } from "./game-areas.js";
 import { damageGroupFrame } from "./damage-group.js";
 import { selectCards } from "./cards.js";
-import { abilityFrame, type Frame, pushEffects, pushEvents } from "./frames.js";
+import { abilityFrame, addFrameVars, type Frame, pushEffects, pushEvents } from "./frames.js";
+import { hasKeyword, keywordTotal } from "../keywords.js";
 import { candidateOption } from "./window.js";
-import { threatRemovalBlocked } from "./event.js";
+import {
+  canDealDamageTo,
+  canRemoveThreatFrom,
+  isRequiredChoice,
+  slotTargetValid,
+  UNRESOLVED_VAR,
+} from "./target-validity.js";
 
 /** The `EffectContext` an effects frame resolves in. Exported so `why-not.ts` can rebuild it exactly. */
 export const contextOf = (frame: Frame<"effects">, deps: EngineDeps): EffectContext => ({
@@ -74,10 +84,34 @@ export function executeEffectsFrame(ctx: Ctx, frame: Frame<"effects">): void {
   const effect = frame.effects[frame.cursor];
   if (!effect) {
     popFrame(ctx);
+    // A finished branch hands what it bound back to the frame that ran it (docs/phase7-wave4.md §3.43).
+    if (frame.returnBindingsTo) {
+      updateFrame(ctx, frame.returnBindingsTo, (parent) =>
+        parent.kind === "effects"
+          ? { ...parent, bindings: { ...parent.bindings, ...frame.bindings }, vars: { ...parent.vars, ...frame.vars } }
+          : parent,
+      );
+    }
     return;
   }
   const context = contextOf(frame, ctx.deps);
 
+  // Two main schemes (Tower Defense, docs/phase7-wave4.md §3.2): "When a someone plays a card that refers to 'the main
+  // scheme,' that card's controller must choose which of the two schemes it is referring to" (MC21 p. 10). Asked once
+  // per ability, just before the first effect that names it, and read by `resolveRef` from the binding.
+  if (needsMainSchemeChoice(ctx, frame, effect)) {
+    const choose: EffectSpec = {
+      kind: "chooseTarget",
+      slot: MAIN_SCHEME_CHOICE,
+      query: { categories: ["mainScheme"] },
+      chooser: { kind: "controller" },
+    };
+    setFrame(ctx, {
+      ...frame,
+      effects: [...frame.effects.slice(0, frame.cursor), choose, ...frame.effects.slice(frame.cursor)],
+    });
+    return;
+  }
   if (effect.kind === "chooseCards") return executeChooseCards(ctx, frame, effect, context);
   if (effect.kind === "chooseOne") return executeChooseOne(ctx, frame, effect, context);
   if (effect.kind === "choosePlayer") return executeChoosePlayer(ctx, frame, effect, context);
@@ -115,6 +149,17 @@ export function executeEffectsFrame(ctx: Ctx, frame: Frame<"effects">): void {
 }
 
 /**
+ * Whether a player card's effect about to resolve names "the main scheme" while two are in play in the shared area and
+ * the player has not yet chosen one for this ability (docs/phase7-wave4.md §3.2).
+ */
+function needsMainSchemeChoice(ctx: Ctx, frame: Frame<"effects">, effect: EffectSpec): boolean {
+  if ((ctx.state.extraMainSchemes ?? []).length === 0 || frame.bindings[MAIN_SCHEME_CHOICE]) return false;
+  if (frame.controllerId === null || !isPlayerCard(ctx.state, frame.selfInstanceId)) return false;
+  if (contextArea(ctx.state, contextOf(frame, ctx.deps))) return false;
+  return JSON.stringify(effect).includes('{"kind":"mainScheme"}');
+}
+
+/**
  * `EffectSpec playFromHand` (docs/phase7-wave2.md §3.8, §9): the player picks a card from their hand and plays it,
  * either ignoring its cost (Chaos Magic) or paying a reduced one (Team-Building Exercise).
  *
@@ -135,10 +180,11 @@ function executePlayFromHand(
       ? 0
       : Math.max(0, resolveValue(ctx.state, effect.costReduction, context, ctx.deps));
   const paying = effect.ignoreCost !== true;
+  const from = effect.from ?? "hand";
   const fault = (id: InstanceId, player: PlayerId): string | null =>
-    paying ? playWithPaymentFault(ctx, player, id, reduction) : playIgnoringCostFault(ctx, player, id);
+    paying ? playWithPaymentFault(ctx, player, id, reduction, from) : playIgnoringCostFault(ctx, player, id, from);
   const candidates = playerId
-    ? (getPlayer(ctx.state, playerId)?.hand ?? []).filter(
+    ? (getPlayer(ctx.state, playerId)?.[from] ?? []).filter(
         (id) => !fault(id, playerId) && (!effect.filter || matchesQuery(ctx.state, id, effect.filter, context)),
       )
     : [];
@@ -165,7 +211,7 @@ function executePlayFromHand(
     if (!playerId || !picked) return done();
     if (!paying) {
       done();
-      playIgnoringCost(ctx, playerId, picked);
+      playIgnoringCost(ctx, playerId, picked, from);
       return;
     }
     // A host is only a question when the upgrade names one and several are legal (RRG 1.8 "Attach To", p. 8).
@@ -238,12 +284,10 @@ function executePlayFromHand(
  * character that can take damage from this card.
  */
 function divisionCanAffect(ctx: Ctx, what: "damage" | "threat", id: InstanceId, frame: Frame<"effects">): boolean {
-  if (what === "damage") return !cannotTakeDamage(ctx.state, ctx.deps, id, [frame.selfInstanceId]);
+  if (what === "damage") return canDealDamageTo(ctx.state, ctx.deps, id, frame.selfInstanceId);
   const scheme = getInstance(ctx.state, id);
   return (
-    scheme !== undefined &&
-    scheme.threat > 0 &&
-    threatRemovalBlocked(ctx.state, ctx.deps, id, frame.selfInstanceId) === null
+    scheme !== undefined && scheme.threat > 0 && canRemoveThreatFrom(ctx.state, ctx.deps, id, frame.selfInstanceId)
   );
 }
 
@@ -478,7 +522,10 @@ function executeDiscardFromHand(
     const playerId = players[index];
     const player = playerId ? getPlayer(ctx.state, playerId) : undefined;
     if (!playerId || !player) continue;
-    const candidates = filter ? player.hand.filter((id) => matchesQuery(ctx.state, id, filter, context)) : player.hand;
+    // "You cannot choose to discard this card from your hand" (docs/phase7-wave4.md §3.13).
+    const candidates = (
+      filter ? player.hand.filter((id) => matchesQuery(ctx.state, id, filter, context)) : player.hand
+    ).filter((id) => !cannotChooseToDiscard(ctx.state, ctx.deps, id));
     const amount = Math.min(resolveValue(ctx.state, effect.amount, context, ctx.deps), candidates.length);
     if (amount <= 0) continue;
     setFrame(ctx, { ...frame, answer: null, vars: { ...vars, [`${DISCARD_HAND}index`]: index } });
@@ -705,6 +752,28 @@ const cardOptions = (ctx: Ctx, ids: readonly InstanceId[]): readonly ChoiceOptio
     ref: { kind: "card", instanceId: id } as const,
   }));
 
+/**
+ * A choice that chooses nothing binds its slot empty and moves on. A required one (`isRequiredChoice`) that found no
+ * candidate leaves the text before a "then" not fully resolved (RRG 1.8 "'Then'", p. 44), so the frame is marked and a
+ * later `then` in it is skipped. Every other effect still resolves as far as it can, which is how an encounter card or
+ * a forced ability resolves, and how a player ability resolves if its target left play after it was initiated.
+ */
+function choseNothing(
+  ctx: Ctx,
+  frame: Frame<"effects">,
+  effect: Extract<EffectSpec, { kind: "chooseTarget" | "chooseCards" }>,
+  noCandidates: boolean,
+): void {
+  const unresolved = noCandidates && isRequiredChoice(effect);
+  if (unresolved) emit(ctx, { type: "choiceFoundNothing", slot: effect.slot });
+  setFrame(ctx, {
+    ...frame,
+    cursor: frame.cursor + 1,
+    bindings: { ...frame.bindings, [effect.slot]: [] },
+    ...(unresolved ? { vars: { ...frame.vars, [UNRESOLVED_VAR]: 1 } } : {}),
+  });
+}
+
 function executeChooseCards(
   ctx: Ctx,
   frame: Frame<"effects">,
@@ -735,7 +804,7 @@ function executeChooseCards(
   }
   const max = Math.min(effect.max, candidates.length);
   if (!chooser || max === 0) {
-    setFrame(ctx, { ...frame, cursor: frame.cursor + 1, bindings: { ...frame.bindings, [effect.slot]: [] } });
+    choseNothing(ctx, frame, effect, candidates.length === 0);
     return;
   }
   requestChoice(ctx, {
@@ -796,6 +865,8 @@ function executeChooseOne(
     bindings: frame.bindings,
     vars: frame.vars,
     scopedPlayerId: frame.scopedPlayerId,
+    returnBindingsTo: frame.frameId,
+    byPlayer: frame.byPlayer === true,
   });
 }
 
@@ -858,6 +929,8 @@ function executeChooseSeveral(
       bindings: frame.bindings,
       vars: frame.vars,
       scopedPlayerId: frame.scopedPlayerId,
+      returnBindingsTo: frame.frameId,
+      byPlayer: frame.byPlayer === true,
     });
   }
 }
@@ -1125,9 +1198,12 @@ function executeResolveSpecials(
     : effect.cards
       ? selectTargets(ctx.state, effect.cards, context)
       : [];
+  const resolvingPlayer = effect.player ? (resolvePlayers(ctx.state, effect.player, context)[0] ?? null) : null;
+  // "Resolve this card's 'When Revealed' ability" / "each 'When Revealed' ability on each side scheme" (§3.56).
+  const trigger = effect.trigger ?? "special";
   for (const id of sources) {
     for (const ref of activeAbilityRefs(ctx.state, id, ctx.deps)) {
-      if (ctx.deps.abilities[ref.id]?.trigger.kind !== "special") continue;
+      if (ctx.deps.abilities[ref.id]?.trigger.kind !== trigger) continue;
       steps.push({
         instanceId: id,
         abilityId: ref.id,
@@ -1137,7 +1213,8 @@ function executeResolveSpecials(
         // p. 49) — the player the villain's activation concerns, already resolved onto `context.controllerId` by
         // the calling `forcedInterrupt`/Boost frame. docs/phase7-wave3.md §3's "Special" pattern; found scripting
         // `gmw/nebula.ts`.
-        controllerId: controllerOf(ctx.state, id) ?? context.controllerId,
+        // `player` names the resolving player outright ("each player must resolve …", docs/phase7-wave4.md §3.46).
+        controllerId: controllerOf(ctx.state, id) ?? resolvingPlayer ?? context.controllerId,
         forced: true,
         fromHand: false,
       });
@@ -1161,6 +1238,39 @@ function executeResolveSpecials(
     return;
   }
   setFrame(ctx, { ...frame, answer: null, cursor: frame.cursor + 1 });
+  // A card whose Special resolves from an identity's separate deck (an Invocation card) leaves the deck as it starts
+  // resolving, like a played event (RRG 1.8 "Event", p. 19), and is out of play in its owner's `resolving` area until its
+  // own text moves it on. If it was the last card, the deck resets now, without it (`settlePlayerDecks`): ruling, Apr 30,
+  // 2026 (3) answer 7, "The deck is reshuffled **before** the currently resolving card enters the discard pile"
+  // (docs/phase7-wave1.md §4 Q9, resolved 2026-09-25).
+  for (const id of new Set(ordered.map((step) => step.instanceId))) {
+    const zone = locateCard(ctx.state, id);
+    if (zone?.kind === "separateDeck") moveCard(ctx, id, { kind: "resolving", playerId: zone.playerId });
+  }
+  // Only on request (`includeKeywords`): incite X and surge are each "equivalent to" a When Revealed ability (RRG 1.8
+  // "Incite X", p. 24; "Surge", p. 42), resolved in the order a reveal resolves them: incite first, the printed
+  // abilities, surge last. Off by default: the user decided Citywide Crisis re-resolves printed abilities only, since
+  // a card already in play is not being revealed (§3.56, §4 Q23, 2026-09-25).
+  const incites: { readonly id: InstanceId; readonly amount: number }[] = [];
+  const surges: InstanceId[] = [];
+  if (trigger === "whenRevealed" && effect.includeKeywords === true) {
+    for (const id of sources) {
+      const amount = keywordTotal(ctx.state, id, "incite", ctx.deps);
+      if (amount > 0) incites.push({ id, amount });
+      if (hasKeyword(ctx.state, id, "surge", ctx.deps)) surges.push(id);
+    }
+  }
+  if (effect.bind) {
+    addFrameVars(ctx, frame.frameId, { [`${effect.bind}.count`]: ordered.length + incites.length + surges.length });
+  }
+  const whoFor = (id: InstanceId) => controllerOf(ctx.state, id) ?? resolvingPlayer ?? context.controllerId;
+  for (const id of [...surges].reverse()) {
+    pushEffects(ctx, {
+      effects: [{ kind: "revealEncounterCard", player: { kind: "controller" } }],
+      selfInstanceId: id,
+      controllerId: whoFor(id),
+    });
+  }
   pushFrames(
     ctx,
     ordered.map((step, index) =>
@@ -1174,6 +1284,13 @@ function executeResolveSpecials(
       ),
     ),
   );
+  for (const { id, amount } of [...incites].reverse()) {
+    pushEffects(ctx, {
+      effects: [{ kind: "placeThreat", target: { kind: "mainScheme" }, amount: { kind: "const", value: amount } }],
+      selfInstanceId: id,
+      controllerId: whoFor(id),
+    });
+  }
 }
 
 function requestTargetChoice(
@@ -1183,7 +1300,12 @@ function requestTargetChoice(
   context: EffectContext,
 ): void {
   const [chooser] = resolvePlayers(ctx.state, effect.chooser, context);
-  const legal = selectTargets(ctx.state, effect.query, context);
+  // Only valid targets are offered (RRG 1.8 "Target", pp. 42–43): those some effect in the rest of this program can
+  // affect. The main scheme is no target for a "(thwart)" while its player is patrolled (docs/phase7-wave3.md §3.5).
+  const rest = frame.effects.slice(frame.cursor + 1);
+  const legal = selectTargets(ctx.state, effect.query, context).filter((id) =>
+    slotTargetValid(ctx.state, ctx.deps, rest, effect.slot, id, context),
+  );
   // "X enemies": the count can be a value bound earlier in the ability (Shield Toss).
   const wanted =
     effect.count === undefined
@@ -1193,7 +1315,7 @@ function requestTargetChoice(
         : Math.max(0, resolveValue(ctx.state, effect.count, context, ctx.deps));
   if (!chooser || legal.length === 0 || wanted <= 0) {
     // RRG "Choose (Game Element)": with no legal target there is nothing to choose.
-    setFrame(ctx, { ...frame, cursor: frame.cursor + 1, bindings: { ...frame.bindings, [effect.slot]: [] } });
+    choseNothing(ctx, frame, effect, legal.length === 0);
     return;
   }
   const count = Math.min(wanted, legal.length);

@@ -1,5 +1,6 @@
 /** Applying one non-interactive effect from an effects frame. */
 
+import { nextInt } from "../rng.js";
 import {
   type Ctx,
   emit,
@@ -37,12 +38,14 @@ import {
 } from "../effects.js";
 import { EngineInvariantError } from "../errors.js";
 import type { InstanceId, PlayerId } from "../ids.js";
-import { statusActive } from "../keywords.js";
+import { printedFormTypes, statusActive } from "../keywords.js";
 import { boostIconsFor, cardEffectBonus } from "../modifiers.js";
 import type { LastingDuration, LastingScope } from "../lasting.js";
 import {
   activeEncounterDeckId,
   cardOf,
+  characterProfile,
+  currentName,
   discardZoneFor,
   encounterDeckOf,
   getInstance,
@@ -50,6 +53,7 @@ import {
   hasStarIcon,
   inAnyEncounterDiscard,
   isMinion,
+  locateCard,
   maxHitPoints,
   mustInstance,
   mustPlayer,
@@ -63,6 +67,7 @@ import {
   categoriesOf,
   contextArea,
   controllerOf,
+  DEFENDER_SLOT,
   type EffectContext,
   evaluate,
   matchesQuery,
@@ -77,21 +82,42 @@ import { matchingCardInPlay } from "../unique.js";
 import { campaignSeatNumber } from "../campaign-state.js";
 import { campaignLogValueOf, recordCampaignRemoval, recordCampaignWrite } from "./campaign.js";
 import { damageGroupFrame } from "./damage-group.js";
+import { advanceToSetAsideVillain, swapVillain } from "./villain-swap.js";
+import { flipToOtherFace } from "./other-face.js";
 import { buildScenarioDeck, moveCardsTo, selectCards, shuffleEncounterDeck } from "./cards.js";
-import { cannotBeUnattached, cannotThwart } from "../rules.js";
+import {
+  canHaveAttached,
+  cannotBeUnattached,
+  cannotChangeForm,
+  cannotThwart,
+  playersCannotDiscard,
+  revealCannotBeCanceled,
+} from "../rules.js";
 import { advanceMainSchemeStage, checkDefeats, completeMainScheme } from "./defeat.js";
 import {
   addVillains,
   createGameArea,
+  putMainSchemeStageIntoPlay,
   removeMainSchemeStage,
   removeVillains,
   revealMainSchemeStages,
 } from "./game-areas.js";
-import { readyOrAnnounce, threatRemovalBlocked } from "./event.js";
+import { announceDamagePrevented, readyOrAnnounce, threatRemovalBlocked } from "./event.js";
+import { UNRESOLVED_VAR } from "./target-validity.js";
 import { heard } from "./triggers.js";
-import { dealBoostCard, giveBoostCard } from "./enemy-activation.js";
+import { dealBoostCard, declareDefenderByEffect, giveBoostCard } from "./enemy-activation.js";
 import { quickstrikeAttack } from "./enter-play.js";
-import { addFrameVars, eventFrame, type Frame, gameAbilityFrames, pushEffects, pushEvents } from "./frames.js";
+import {
+  addFrameVars,
+  eventFrame,
+  type Frame,
+  gameAbilityFrames,
+  pushEffects,
+  pushEvent,
+  pushEvents,
+} from "./frames.js";
+import { pushConsequentialDamage } from "../actions.js";
+import { treatAsAlly } from "../treat-as.js";
 import { enterPlayOnReveal, revealFrame } from "./reveal.js";
 
 /**
@@ -127,7 +153,7 @@ function admitUniqueEntry(
       continue;
     }
     // `ignore` keeps a card already in play from matching itself.
-    const match = matchingCardInPlay(ctx.state, card, new Set([id]), forPlayer);
+    const match = matchingCardInPlay(ctx.state, card, new Set([id]), forPlayer, ctx.deps);
     if (!match) {
       admitted.push(id);
       continue;
@@ -164,6 +190,31 @@ const DEALABLE_TYPES: ReadonlySet<string> = new Set([
   "side_scheme",
   "treachery",
 ]);
+
+/** A var on an effects frame counting `repeatWhile` repetitions (docs/phase7-wave4.md §3.54). */
+const REPEAT_DEPTH_VAR = "repeatWhile.depth";
+/** Repetitions `repeatWhile` allows before it stops: far past any printed "repeat this effect" (one per character). */
+export const REPEAT_LIMIT = 50;
+
+/** Every slot and bind name the effects (nested lists included) bind: what a repetition must start without. */
+function boundNamesOf(effects: readonly EffectSpec[]): readonly string[] {
+  const names = new Set<string>();
+  const visit = (value: unknown): void => {
+    if (Array.isArray(value)) {
+      for (const item of value) visit(item);
+      return;
+    }
+    if (typeof value !== "object" || value === null) return;
+    const record = value as Record<string, unknown>;
+    if (typeof record.bind === "string") names.add(record.bind);
+    if (typeof record.slot === "string" && record.kind !== "slot" && record.kind !== "superlative")
+      names.add(record.slot);
+    if (typeof record.name === "string" && record.kind === "setVar") names.add(record.name);
+    for (const item of Object.values(record)) visit(item);
+  };
+  visit(effects);
+  return [...names];
+}
 
 export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext, frame: Frame<"effects">): void {
   const targets = (ref: Parameters<typeof resolveRef>[1]): readonly InstanceId[] =>
@@ -282,6 +333,58 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       );
       return;
     }
+    case "treatAsAlly": {
+      // Karma (docs/phase7-wave4.md §3.29): the effect's controller takes each target minion, as an ally, for as long as
+      // this card is in play (`releaseTreatedBy` when it leaves).
+      const controller = frame.controllerId;
+      const source = frame.selfInstanceId;
+      if (!controller || !source || !cardsInPlay(ctx.state).includes(source)) return;
+      for (const id of targets(effect.target)) {
+        treatAsAlly(ctx, id, {
+          traits: effect.traits,
+          thwFromSch: effect.thwFromSch === true,
+          consequential: effect.consequential,
+          source,
+          controller,
+        });
+      }
+      return;
+    }
+    case "friendlyCharacterAttacks": {
+      // docs/phase7-wave4.md §3.26 (Old Rivals). A friendly character: a hero-form identity or an ally a player controls.
+      const inPlay = cardsInPlay(ctx.state);
+      const [attacker] = targets(effect.attacker).filter((id) => {
+        if (!inPlay.includes(id) || controllerOf(ctx.state, id) === null) return false;
+        const categories = categoriesOf(ctx.state, id);
+        return categories.includes("hero") || categories.includes("ally");
+      });
+      const [playerId] = resolvePlayers(ctx.state, effect.player, context);
+      const player = playerId ? getPlayer(ctx.state, playerId) : undefined;
+      const noAttack = () => {
+        if (effect.bind) addFrameVars(ctx, frame.frameId, { [`${effect.bind}.made`]: 0 });
+      };
+      if (!attacker || !player || player.eliminated) return noAttack();
+      if (characterProfile(ctx.state, attacker, ctx.deps)?.missing.includes("atk")) return noAttack();
+      if (statusActive(ctx.state, attacker, "stunned", ctx.deps)) {
+        updateInstance(ctx, attacker, (i) => ({ ...i, statuses: { ...i.statuses, stunned: 0 } }));
+        emit(ctx, { type: "statusRemoved", instanceId: attacker, status: "stunned", reason: "cancelledAttack" });
+        return noAttack();
+      }
+      const consequential = pushConsequentialDamage(ctx, attacker, "attack");
+      pushEvent(
+        ctx,
+        {
+          kind: "attack",
+          attackerInstanceId: attacker,
+          targetInstanceId: player.identity.instanceId,
+          playerId: controllerOf(ctx.state, attacker)!,
+          basic: false,
+          sourceInstanceId: frame.selfInstanceId,
+        },
+        reportTo(effect.bind) ?? consequential,
+      );
+      return;
+    }
     case "enemyAttacksEnemy": {
       // docs/phase7-wave3.md §3.23 / §4 Q12: an attack, not an activation. The checks that decide whether the attack
       // happens at all are here, the damage itself in the event's apply step (`resolve/event.ts`).
@@ -328,6 +431,7 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
           amount,
           basic: false,
           ...(effect.ignoreCrisis ? { ignoreCrisis: true } : {}),
+          ...(effect.ignorePatrol ? { ignorePatrol: true } : {}),
           sourceInstanceId: frame.selfInstanceId,
         })),
         reportTo(effect.bind),
@@ -345,6 +449,7 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       if (effect.preventAllDamage) delta.preventAllDamage = 1;
       if (effect.atkBonus) delta.atkBonus = value(effect.atkBonus);
       if (effect.threatBonus) delta.threatBonus = value(effect.threatBonus);
+      if (effect.defenseUsesAtk) delta.defenseUsesAtk = 1;
       const extra =
         effect.extraBoostCards === undefined
           ? 0
@@ -362,6 +467,80 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
         delta.extraBoost = extra;
       }
       addFrameVars(ctx, activation, delta);
+      return;
+    }
+    case "shuffleInSetAsideModularSet": {
+      const sets = ctx.state.setAsideModularSets ?? [];
+      if (sets.length === 0) {
+        if (effect.bind) addFrameVars(ctx, frame.frameId, { [`${effect.bind}.made`]: 0 });
+        return;
+      }
+      const [pick, rng] = nextInt(ctx.state.rng, sets.length);
+      const chosen = sets[pick]!;
+      ctx.state = { ...ctx.state, rng, setAsideModularSets: sets.filter((_, index) => index !== pick) };
+      // Only the cards still set aside: one an ability already took out ("search … the set-aside area") stays where it is.
+      const still = chosen.instanceIds.filter((id) => ctx.state.encounterSetAside.includes(id));
+      moveCardsTo(ctx, still, "encounterDeckShuffle");
+      emit(ctx, { type: "setAsideModularSetShuffledIn", encounterSetId: chosen.encounterSetId, instanceIds: still });
+      if (effect.bind) addFrameVars(ctx, frame.frameId, { [`${effect.bind}.made`]: 1 });
+      return;
+    }
+    case "retargetAttack": {
+      const inPlay = cardsInPlay(ctx.state);
+      const [character] = targets(effect.character).filter(
+        (id) => inPlay.includes(id) && categoriesOf(ctx.state, id).includes("character"),
+      );
+      const playerId = character ? controllerOf(ctx.state, character) : null;
+      if (!character || !playerId) return;
+      const attack = ctx.state.stack.find(
+        (f): f is Frame<"event"> => f.kind === "event" && f.event.kind === "enemyAttack" && !f.cancelled,
+      );
+      if (!attack || attack.event.kind !== "enemyAttack") return;
+      const procedure = ctx.state.stack.find(
+        (f): f is Frame<"enemyAttack"> => f.kind === "enemyAttack" && f.eventFrameId === attack.frameId,
+      );
+      // Once a defender is declared the attack has its target; "he attacks X" happens as the attack is initiated.
+      if ((attack.slots[DEFENDER_SLOT] ?? []).length > 0 || (procedure && procedure.defenderInstanceId !== null))
+        return;
+      const retargeted = { targetInstanceId: character, targetPlayerId: playerId, attackedPlayerId: playerId };
+      setFrame(ctx, { ...attack, event: { ...attack.event, ...retargeted } });
+      if (procedure) setFrame(ctx, { ...procedure, ...retargeted });
+      emit(ctx, {
+        type: "attackRetargeted",
+        enemyInstanceId: attack.event.enemyInstanceId,
+        targetInstanceId: character,
+        playerId,
+      });
+      return;
+    }
+    case "resolveAttackAgainst": {
+      const attack = ctx.state.stack.find(
+        (f): f is Frame<"event"> => f.kind === "event" && f.event.kind === "attack" && !f.cancelled,
+      );
+      if (!attack || attack.event.kind !== "attack") return;
+      const original = attack.event;
+      const inPlay = cardsInPlay(ctx.state);
+      if (!inPlay.includes(original.attackerInstanceId)) return;
+      const { results: _results, ...body } = original;
+      pushEvents(
+        ctx,
+        targets(effect.targets)
+          .filter(
+            (id) =>
+              id !== original.targetInstanceId &&
+              inPlay.includes(id) &&
+              canAttack(ctx.state, original.attackerInstanceId, id, ctx.deps),
+          )
+          .map((id) => ({ ...body, targetInstanceId: id, additionalResolution: true as const })),
+      );
+      return;
+    }
+    case "declareDefender": {
+      const inPlay = cardsInPlay(ctx.state);
+      const [defender] = targets(effect.character).filter(
+        (id) => inPlay.includes(id) && categoriesOf(ctx.state, id).includes("character"),
+      );
+      if (defender) declareDefenderByEffect(ctx, defender, effect.exhaust === true);
       return;
     }
     case "modifyBasicPower": {
@@ -462,6 +641,37 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       emit(ctx, { type: "boostCancelled", instanceId: boost.instanceId, scope: "icons" });
       return report(1, icons);
     }
+    case "discardBoostCard": {
+      // docs/phase7-wave4.md §3.35 (Defiance): "discard it instead" of turning it faceup and applying it.
+      const procedure = ctx.state.stack.find(
+        (f): f is Frame<"enemyAttack"> | Frame<"enemyScheme"> =>
+          (f.kind === "enemyAttack" || f.kind === "enemyScheme") && Boolean(f.boost),
+      );
+      const boost = procedure?.boost;
+      const made = (n: number): void => {
+        if (effect.bind) addFrameVars(ctx, frame.frameId, { [`${effect.bind}.made`]: n });
+      };
+      if (
+        !procedure ||
+        !boost ||
+        boost.step !== "window" ||
+        locateCard(ctx.state, boost.instanceId)?.kind !== "boost"
+      ) {
+        return made(0);
+      }
+      setFrame(ctx, { ...procedure, boost: { ...boost, iconsCancelled: true, abilityCancelled: true } });
+      const turned = ctx.state.stack.find(
+        (f) =>
+          f.kind === "event" &&
+          f.event.kind === "boostCardTurnedFaceup" &&
+          f.event.boostInstanceId === boost.instanceId,
+      );
+      if (turned?.kind === "event" && turned.event.kind === "boostCardTurnedFaceup")
+        setFrame(ctx, { ...turned, event: { ...turned.event, boostIcons: 0 } });
+      moveCard(ctx, boost.instanceId, discardZoneFor(ctx.state, boost.instanceId), "top");
+      emit(ctx, { type: "boostCancelled", instanceId: boost.instanceId, scope: "discarded" });
+      return made(1);
+    }
     case "adjustBoostCount":
     case "replaceBoostCount": {
       // The boost card the current activation is counting (docs/phase7-wave2.md §3.6), or still resolving its own
@@ -536,11 +746,21 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       for (const id of targets(effect.target)) exhaustCard(ctx, id);
       return;
     case "ready":
-      for (const id of targets(effect.target)) readyOrAnnounce(ctx, id);
+      for (const id of targets(effect.target)) {
+        readyOrAnnounce(ctx, id, {
+          readierId: frame.controllerId,
+          sourceInstanceId: frame.selfInstanceId,
+          costPaid: effect.readyCostPaid === true,
+        });
+      }
       return;
-    case "giveStatus":
-      for (const id of targets(effect.target)) giveStatus(ctx, id, effect.status);
+    case "giveStatus": {
+      let given = 0;
+      for (const id of targets(effect.target)) if (giveStatus(ctx, id, effect.status)) given += 1;
+      // docs/phase7-wave4.md §3.60: "If no tough status card was given this way" reads `<bind>.amount`.
+      if (effect.bind) addFrameVars(ctx, frame.frameId, { [`${effect.bind}.amount`]: given });
       return;
+    }
     case "removeStatus":
       for (const id of targets(effect.target)) removeStatus(ctx, id, effect.status);
       return;
@@ -579,7 +799,24 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
     }
     case "removeCounters": {
       const amount = value(effect.amount);
-      for (const id of targets(effect.target)) removeCounters(ctx, id, effect.counterType, amount);
+      // With an ability listening ("When/After the last invocation counter is removed", docs/phase7-wave4.md §3.15), each
+      // removal is an event whose apply step removes them; otherwise they go at once, as before.
+      const events: TriggerEvent[] = [];
+      for (const id of targets(effect.target)) {
+        const held = getInstance(ctx.state, id)?.counters[effect.counterType] ?? 0;
+        const removing = Math.min(amount, held);
+        if (removing <= 0) continue;
+        const event: TriggerEvent = {
+          kind: "countersRemoved",
+          instanceId: id,
+          counterType: effect.counterType,
+          amount: removing,
+          remaining: held - removing,
+        };
+        if (heard(ctx.state, ctx.deps, event)) events.push(event);
+        else removeCounters(ctx, id, effect.counterType, amount);
+      }
+      if (events.length > 0) pushEvents(ctx, events);
       return;
     }
     case "attach": {
@@ -589,6 +826,8 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
         // "The Power Stone cannot be unattached from Ronan the Accuser" (docs/phase7-wave3.md §3.19).
         const current = getInstance(ctx.state, id)?.attachedTo ?? null;
         if (current !== null && current !== host && cannotBeUnattached(ctx.state, ctx.deps, id)) continue;
+        // "Odin cannot have cards attached" (docs/phase7-wave4.md §3.8): the card stays where it was.
+        if (!canHaveAttached(ctx.state, ctx.deps, host, id)) continue;
         moveCard(ctx, id, { kind: "attachment", hostInstanceId: host });
         // "Attach 1 card from your hand facedown here" (Bruno Carrelli): no title, traits, keywords or abilities
         // while it is facedown; it is itself again when it leaves play (`leavePlay`).
@@ -651,8 +890,14 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       return;
     case "discardFromPlay":
       for (const id of targets(effect.target)) {
-        if (effect.defeated === true) defeatFromPlay(ctx, id);
-        else discardFromPlay(ctx, id);
+        if (effect.defeated === true) {
+          const to = effect.insteadTo;
+          defeatFromPlay(ctx, id, to === undefined ? undefined : () => moveCardsTo(ctx, [id], to));
+        }
+        // "Players cannot discard attachments that are attached to friendly characters." (§3.44 of wave 4.)
+        else if (frame.byPlayer && playersCannotDiscard(ctx.state, ctx.deps, id)) {
+          emit(ctx, { type: "discardRefused", instanceId: id });
+        } else discardFromPlay(ctx, id);
       }
       return;
     case "putIntoPlay": {
@@ -697,6 +942,21 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       }
       // After the keywords: "After you engage a minion" (ruling, Jan 17, 2026 (3) answer 2).
       for (const id of entering) entered.push(...engagedEvent(ctx, id));
+      // "If no minion was put into play this way" (docs/phase7-wave4.md §3.59): only what is in play now entered.
+      if (effect.bind) {
+        const inPlay = cardsInPlay(ctx.state);
+        const entered_ = admitted.filter((id) => inPlay.includes(id));
+        const slot = effect.bind;
+        updateFrame(ctx, frame.frameId, (f) =>
+          f.kind === "effects"
+            ? {
+                ...f,
+                bindings: { ...f.bindings, [slot]: entered_ },
+                vars: { ...f.vars, [`${slot}.count`]: entered_.length },
+              }
+            : f,
+        );
+      }
       pushEvents(ctx, entered);
       return;
     }
@@ -720,7 +980,12 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       const frames: StackFrame[] = [];
       for (const playerId of resolvePlayers(ctx.state, effect.player, context)) {
         const id = drawEncounterCard(ctx);
-        if (id) frames.push(revealFrame(ctx, playerId, id));
+        if (!id) continue;
+        // Out of the deck while it resolves, like `revealCard` below, so a When Revealed that shuffles it back into
+        // the encounter deck is a move the reveal's finish can see (docs/phase7-wave4.md §3.45).
+        updateInstance(ctx, id, (i) => ({ ...i, faceup: false }));
+        moveCard(ctx, id, { kind: "dealtEncounter", playerId }, "top");
+        frames.push(revealFrame(ctx, playerId, id));
       }
       pushFrames(ctx, frames);
       return;
@@ -762,6 +1027,10 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
           if (!other?.stages[villain.stageIndex]) continue;
           flipVillain(ctx, id, other.side);
           frames.push(...gameAbilityFrames(ctx, id, ["whenRevealed"], null, undefined, ctx.state.firstPlayerId));
+        } else if (card?.otherFaceId !== undefined) {
+          // docs/phase7-wave4.md §3.10. Its new face goes to "you" (the first player, for a side scheme's When Defeated).
+          const playerId = context.controllerId ?? ctx.state.firstPlayerId;
+          if (!flipToOtherFace(ctx, id, playerId)) continue;
         } else if (card && "flipSide" in card && card.flipSide) {
           const flipped = !mustInstance(ctx.state, id).flipped;
           updateInstance(ctx, id, (i) => ({ ...i, flipped }));
@@ -772,6 +1041,71 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
         frames.push(eventFrame(ctx, { kind: "cardFlipped", instanceId: id }));
       }
       pushFrames(ctx, frames);
+      return;
+    }
+    case "changeAdditionalForm": {
+      // docs/phase7-wave4.md §3.1; RRG 1.8 "Form, Change Form" (p. 21).
+      const events: TriggerEvent[] = [];
+      for (const playerId of resolvePlayers(ctx.state, effect.player, context)) {
+        const player = getPlayer(ctx.state, playerId);
+        if (!player || player.eliminated || cannotChangeForm(ctx.state, ctx.deps, playerId, effect.formType)) continue;
+        const owned = cardsInPlay(ctx.state).filter(
+          (id) => controllerOf(ctx.state, id) === playerId && printedFormTypes(ctx.state, id).includes(effect.formType),
+        );
+        const printedNames = (id: InstanceId): readonly string[] => {
+          const card = cardOf(ctx.state, id);
+          if (!card) return [];
+          return "flipSide" in card && card.flipSide ? [card.name, card.flipSide.name] : [card.name];
+        };
+        const named = effect.to ? targets(effect.to).filter((id) => owned.includes(id)) : [];
+        const target =
+          named[0] ??
+          (effect.toName !== undefined
+            ? owned.find((id) => printedNames(id).includes(effect.toName as string))
+            : owned.length === 1 && printedNames(owned[0] as InstanceId).length === 2
+              ? owned[0]
+              : undefined);
+        if (target === undefined) continue;
+        const card = cardOf(ctx.state, target);
+        const instance = mustInstance(ctx.state, target);
+        if (card && "flipSide" in card && card.flipSide && !instance.facedownAs) {
+          // A double-sided form card (a mass form upgrade): the change is a flip, unless the named face already shows.
+          if (effect.toName !== undefined && currentName(ctx.state, target) === effect.toName) continue;
+          updateInstance(ctx, target, (i) => ({ ...i, flipped: !i.flipped }));
+          emit(ctx, { type: "cardFlipped", instanceId: target, flipped: !instance.flipped });
+          events.push({ kind: "cardFlipped", instanceId: target });
+        } else {
+          if (!instance.facedownAs) continue; // Already in that form: nothing changes and nothing triggers.
+          // One form of a type at a time (§4 Q1): the one showing turns facedown as this one turns faceup.
+          for (const other of owned) {
+            if (other === target || mustInstance(ctx.state, other).facedownAs) continue;
+            const otherCard = cardOf(ctx.state, other);
+            if (otherCard && "flipSide" in otherCard && otherCard.flipSide) continue;
+            turnFacedown(ctx, other);
+          }
+          updateInstance(ctx, target, (i) => ({ ...i, faceup: true, facedownAs: null }));
+          emit(ctx, { type: "cardTurnedFaceup", instanceId: target });
+        }
+        const formName = currentName(ctx.state, target) ?? "";
+        emit(ctx, { type: "additionalFormChanged", playerId, formType: effect.formType, formName, instanceId: target });
+        events.push({
+          kind: "formChanged",
+          playerId,
+          to: player.identity.form,
+          change: "additional",
+          formType: effect.formType,
+          formName,
+          formCardInstanceId: target,
+        });
+      }
+      pushEvents(ctx, events);
+      return;
+    }
+    case "turnFacedown": {
+      const inPlay = cardsInPlay(ctx.state);
+      for (const id of targets(effect.target)) {
+        if (inPlay.includes(id) && !mustInstance(ctx.state, id).facedownAs) turnFacedown(ctx, id);
+      }
       return;
     }
     case "changeVillainForm": {
@@ -844,6 +1178,38 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       pushFrames(ctx, revealMainSchemeStages(ctx, players, effect.stageNumber, effect.removeUnused ?? false));
       return;
     }
+    case "detach": {
+      // "The first player detaches Odin from the main scheme and takes control of him" (Hall of Nastrond, `mts` 21141;
+      // Find the Senator, `mut_gen` 32065a; docs/phase7-wave4.md §3.8). The card stays in play: it moves from its host to
+      // its new controller's play area, which is not leaving or entering play.
+      const [playerId] = resolvePlayers(ctx.state, effect.controller, context);
+      if (!playerId) return;
+      for (const id of targets(effect.card)) {
+        const instance = getInstance(ctx.state, id);
+        if (!instance || instance.attachedTo === null) continue;
+        const from = instance.controllerId;
+        moveCard(ctx, id, { kind: "playArea", playerId });
+        updateInstance(ctx, id, (i) => ({ ...i, controllerId: playerId }));
+        emit(ctx, { type: "cardDetached", instanceId: id, from: instance.attachedTo });
+        if (from !== playerId)
+          emit(ctx, { type: "controllerChanged", instanceId: id, from, to: playerId, reason: "effect" });
+      }
+      return;
+    }
+    case "swapVillain":
+      for (const id of targets(effect.villain)) if (villainOf(ctx.state, id)) swapVillain(ctx, id);
+      return;
+    case "advanceToSetAsideVillain": {
+      for (const id of targets(effect.villain)) {
+        if (!villainOf(ctx.state, id)) continue;
+        const frames = advanceToSetAsideVillain(ctx, id, frame.event);
+        if (frames) pushFrames(ctx, frames);
+      }
+      return;
+    }
+    case "putMainSchemeStageIntoPlay":
+      pushFrames(ctx, putMainSchemeStageIntoPlay(ctx, effect.stageNumber, effect.name, ctx.state.firstPlayerId));
+      return;
     case "createGameArea": {
       const player = context.scopedPlayerId ?? context.controllerId;
       if (!player) return;
@@ -906,6 +1272,28 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
         bindings: frame.bindings,
         vars: frame.vars,
         scopedPlayerId: frame.scopedPlayerId,
+        returnBindingsTo: frame.frameId,
+        byPlayer: frame.byPlayer === true,
+      });
+      return;
+    }
+    case "then": {
+      // RRG 1.8 "'Then'" (p. 44): the post-"then" text resolves only if the text before it fully resolved.
+      if ((frame.vars[UNRESOLVED_VAR] ?? 0) > 0) {
+        emit(ctx, { type: "thenSkipped" });
+        return;
+      }
+      pushEffects(ctx, {
+        effects: effect.effects,
+        selfInstanceId: frame.selfInstanceId,
+        controllerId: frame.controllerId,
+        event: frame.event,
+        eventFrameId: frame.eventFrameId,
+        bindings: frame.bindings,
+        vars: frame.vars,
+        scopedPlayerId: frame.scopedPlayerId,
+        returnBindingsTo: frame.frameId,
+        byPlayer: frame.byPlayer === true,
       });
       return;
     }
@@ -941,9 +1329,52 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
           amount: prevented,
           reason: "effect",
         });
+        if (effect.kind === "preventDamage" && effect.bind)
+          addFrameVars(ctx, frame.frameId, { [`${effect.bind}.amount`]: prevented });
+        announceDamagePrevented(ctx, {
+          kind: "damagePrevented",
+          targetInstanceId: target.event.targetInstanceId,
+          amount: prevented,
+          preventerInstanceId: frame.selfInstanceId,
+          fromAttack: target.event.fromAttack,
+          sourceInstanceId: target.event.sourceInstanceId,
+        });
       } else if (target.event.kind === "placeThreat") {
         emit(ctx, { type: "threatPrevented", schemeInstanceId: target.event.schemeInstanceId, amount: prevented });
       }
+      return;
+    }
+    case "increaseDamage": {
+      // The mirror of `preventDamage` (docs/phase7-wave4.md §3.52): the interrupted damage event's own amount grows.
+      const target = frame.eventFrameId ? findFrame(ctx.state, frame.eventFrameId) : undefined;
+      if (target?.kind !== "event" || target.event.kind !== "dealDamage" || target.cancelled) return;
+      const added = value(effect.amount);
+      if (added <= 0) return;
+      setFrame(ctx, { ...target, event: { ...target.event, amount: target.event.amount + added } });
+      emit(ctx, { type: "damageIncreased", targetInstanceId: target.event.targetInstanceId, amount: added });
+      return;
+    }
+    case "repeatWhile": {
+      // "Repeat this effect" (docs/phase7-wave4.md §3.54): the effects, then `while` read in the same frame (it sees
+      // what they bound); a repetition starts with those bindings cleared, so "that character" is always its own.
+      const depth = frame.vars[REPEAT_DEPTH_VAR] ?? 0;
+      if (depth >= REPEAT_LIMIT) return;
+      const own = boundNamesOf(effect.effects);
+      const isOwn = (key: string) => own.some((name) => key === name || key.startsWith(`${name}.`));
+      pushEffects(ctx, {
+        effects: [...effect.effects, { kind: "if", condition: effect.while, then: [effect] }],
+        selfInstanceId: frame.selfInstanceId,
+        controllerId: frame.controllerId,
+        event: frame.event,
+        eventFrameId: frame.eventFrameId,
+        bindings: Object.fromEntries(Object.entries(frame.bindings).filter(([key]) => !isOwn(key))),
+        vars: {
+          ...Object.fromEntries(Object.entries(frame.vars).filter(([key]) => !isOwn(key))),
+          [REPEAT_DEPTH_VAR]: depth + 1,
+        },
+        scopedPlayerId: frame.scopedPlayerId,
+        byPlayer: frame.byPlayer === true,
+      });
       return;
     }
     case "replaceTriggeringEvent": {
@@ -969,6 +1400,8 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
         (f): f is Frame<"reveal"> => f.kind === "reveal" && f.instanceId === revealing,
       );
       if (!reveal) return;
+      // "This effect cannot be canceled." (RRG 1.8 "'Cannot'", p. 11: "cannot" is absolute.) The cancel's costs stay paid.
+      if (revealCannotBeCanceled(ctx.state, ctx.deps, reveal.instanceId)) return;
       const all = effect.kind === "cancelRevealedCard";
       setFrame(ctx, all ? { ...reveal, effectsCancelled: true } : { ...reveal, whenRevealedCancelled: true });
       emit(ctx, { type: "revealCancelled", instanceId: reveal.instanceId, scope: all ? "allEffects" : "whenRevealed" });
@@ -992,7 +1425,8 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       return;
     }
     case "modifyStatUntil":
-    case "grantTraitUntil": {
+    case "grantTraitUntil":
+    case "grantKeywordUntil": {
       let duration: LastingDuration;
       if (effect.until === "endOfAttack") {
         const activation = currentActivationFrameId(ctx.state.stack);
@@ -1017,7 +1451,9 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
         ctx,
         effect.kind === "modifyStatUntil"
           ? { kind: "statModifier", stat: effect.stat, amount: effect.amount, scope, ...reach }
-          : { kind: "traitGrant", trait: effect.trait, scope, ...reach },
+          : effect.kind === "grantKeywordUntil"
+            ? { kind: "keywordGrant", keyword: effect.keyword, scope, ...reach }
+            : { kind: "traitGrant", trait: effect.trait, scope, ...reach },
         duration,
       );
       return;
@@ -1111,7 +1547,17 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       );
       return;
     case "moveCards": {
-      const ids = selectCards(ctx, effect.cards, context);
+      const inPlayNow = cardsInPlay(ctx.state);
+      // "Players cannot discard attachments that are attached to friendly characters." (§3.44 of wave 4.)
+      const ids = selectCards(ctx, effect.cards, context).filter((id) => {
+        const refused =
+          effect.to === "discard" &&
+          frame.byPlayer === true &&
+          inPlayNow.includes(id) &&
+          playersCannotDiscard(ctx.state, ctx.deps, id);
+        if (refused) emit(ctx, { type: "discardRefused", instanceId: id });
+        return !refused;
+      });
       if (effect.bind) {
         // Record what moved (and its printed resources / boost icons) before it moves.
         const pool = ids.reduce((sum, id) => {
@@ -1143,6 +1589,16 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
               }
             : f,
         );
+      }
+      if (effect.assignOwnerTo) {
+        const [owner] = resolvePlayers(ctx.state, effect.assignOwnerTo, context);
+        if (owner) {
+          for (const id of ids) {
+            if (getInstance(ctx.state, id)?.ownerId === null) {
+              updateInstance(ctx, id, (i) => ({ ...i, ownerId: owner, controllerId: owner }));
+            }
+          }
+        }
       }
       moveCardsTo(ctx, ids, effect.to);
       return;
@@ -1259,11 +1715,13 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       }
       // "Green Goblin attacks with +X ATK" / "schemes with +X SCH": evaluated once, now, and carried by each
       // activation this effect initiates, so it applies to exactly those and never leaks into a later one.
+      // "That attack gains overkill" (§3.51): each keyword is the same activation var `modifyAttack` sets.
       const bonus =
         effect.kind === "enemyAttack"
-          ? effect.atkBonus
-            ? { atkBonus: value(effect.atkBonus) }
-            : {}
+          ? {
+              ...(effect.atkBonus ? { atkBonus: value(effect.atkBonus) } : {}),
+              ...Object.fromEntries((effect.keywords ?? []).map((keyword) => [keyword, 1])),
+            }
           : effect.schBonus
             ? { schBonus: value(effect.schBonus) }
             : {};
@@ -1497,6 +1955,10 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       if (reveal) setFrame(ctx, { ...reveal, surgeGained: true });
       return;
     }
+    case "setVar":
+      // docs/phase7-wave4.md §3.46: a snapshot for a later comparison in the same ability.
+      addFrameVars(ctx, frame.frameId, { [effect.name]: value(effect.value) });
+      return;
     case "chooseCards":
     case "chooseOne":
     case "choosePlayer":
@@ -1572,4 +2034,13 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       return;
     }
   }
+}
+
+/**
+ * A card in play turns facedown as nothing in particular (`FacedownRole` `blank`), keeping its controller: no title,
+ * text, keywords or abilities until it turns faceup or leaves play (docs/phase7-wave4.md §3.1).
+ */
+function turnFacedown(ctx: Ctx, id: InstanceId): void {
+  updateInstance(ctx, id, (i) => ({ ...i, faceup: false, facedownAs: { kind: "blank", traits: [] } }));
+  emit(ctx, { type: "cardTurnedFacedown", instanceId: id });
 }

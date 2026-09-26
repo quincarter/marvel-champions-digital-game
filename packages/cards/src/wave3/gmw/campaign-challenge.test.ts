@@ -30,14 +30,15 @@ import { wave3Scenario } from "../setup.js";
 /**
  * The Campaign Challenge side schemes (16178a/b–16182a/b, `gmw/campaign-challenge.ts`).
  *
- * The `*-constant` refs carry no behavior of their own (module docblock) — each face's Hinder/Victory keyword
- * values are asserted straight from `GMW_CARDS` below, one `it` per ref so every registered id is still named in a
- * test. The `When Defeated:` refs are exercised with a real card instance, put into play by adding both faces of
- * the relevant pair to a plain (non-campaign) `wave3Scenario` config's own `setAside` — `GameSetupConfig.setAside`
- * (`packages/engine/src/setup.ts`) creates real `encounterSetAside` instances for any listed `CardId` with no
- * campaign wiring required (`setup.ts` has no campaign-only gate on it), which is enough to reveal and defeat one
- * face directly without walking the whole campaign for every scenario. A single "real campaign game" test at the
- * bottom of this file separately proves `campaigns/gmw.ts`'s own reveal instructions pick the right face by mode.
+ * Each card's "Standard/Expert Mode Only." sentence is `SideSchemeCard.modeOnly` data, not an ability ref
+ * (docs/phase7-wave4.md §1.8 back-fill) — its Hinder/Victory keyword values and `modeOnly` are asserted straight
+ * from `GMW_CARDS` below, one `it` per card. The `When Defeated:` refs are exercised with a real card instance, put
+ * into play by adding both faces of the relevant pair to a plain (non-campaign) `wave3Scenario` config's own
+ * `setAside` — `GameSetupConfig.setAside` (`packages/engine/src/setup.ts`) creates real `encounterSetAside`
+ * instances for any listed `CardId` with no campaign wiring required (`setup.ts` has no campaign-only gate on it),
+ * which is enough to reveal and defeat one face directly without walking the whole campaign for every scenario. A
+ * single "real campaign game" test at the bottom of this file separately proves `campaigns/gmw.ts`'s own reveal
+ * instructions pick the right face by mode.
  */
 
 const cardById = new Map(GMW_CARDS.map((c) => [c.id as string, c]));
@@ -49,23 +50,24 @@ const sideScheme = (code: string): SideSchemeCard => {
 
 // --- data: Hinder/Victory are keyword-driven, no behavior in the `-constant` refs ------------------------------
 
-describe("Campaign Challenge side schemes: printed Hinder/Victory (data, no behavior)", () => {
-  const cases: readonly [ref: string, code: string, hinderPerPlayer: number][] = [
-    ["16178a.badoon-blitz-constant", "16178a", 3],
-    ["16178b.badoon-blitz-constant", "16178b", 4],
-    ["16179a.gallery-of-splendor-constant", "16179a", 3],
-    ["16179b.gallery-of-splendor-constant", "16179b", 4],
-    ["16180a.there-is-no-escape-constant", "16180a", 3],
-    ["16180b.there-is-no-escape-constant", "16180b", 4],
-    ["16181a.guerrilla-tactics-constant", "16181a", 3],
-    ["16181b.guerrilla-tactics-constant", "16181b", 4],
-    ["16182a.kree-supremacy-constant", "16182a", 3],
-    ["16182b.kree-supremacy-constant", "16182b", 4],
+describe("Campaign Challenge side schemes: printed Hinder/Victory/modeOnly (data, no behavior)", () => {
+  const cases: readonly [code: string, hinderPerPlayer: number, mode: "standard" | "expert"][] = [
+    ["16178a", 3, "standard"],
+    ["16178b", 4, "expert"],
+    ["16179a", 3, "standard"],
+    ["16179b", 4, "expert"],
+    ["16180a", 3, "standard"],
+    ["16180b", 4, "expert"],
+    ["16181a", 3, "standard"],
+    ["16181b", 4, "expert"],
+    ["16182a", 3, "standard"],
+    ["16182b", 4, "expert"],
   ];
-  it.each(cases)("%s: %s prints Hinder %d[per_hero] and Victory 1", (_ref, code, hinderPerPlayer) => {
+  it.each(cases)("%s prints Hinder %d[per_hero], Victory 1, modeOnly %s", (code, hinderPerPlayer, mode) => {
     const card = sideScheme(code);
     expect(card.keywords).toContainEqual({ name: "hinder", value: 0, perPlayer: hinderPerPlayer });
     expect(card.keywords).toContainEqual({ name: "victory", value: 1 });
+    expect(card.modeOnly).toBe(mode);
   });
 });
 
@@ -242,9 +244,9 @@ describe("Guerrilla Tactics (16181a/16181b)", () => {
 });
 
 describe("Kree Supremacy (16182a/16182b)", () => {
-  it("standard and expert print no When Defeated: (16182a.kree-supremacy-constant, 16182b.kree-supremacy-constant)", () => {
-    expect(sideScheme("16182a").abilities.map((a) => a.id as string)).toEqual(["16182a.kree-supremacy-constant"]);
-    expect(sideScheme("16182b").abilities.map((a) => a.id as string)).toEqual(["16182b.kree-supremacy-constant"]);
+  it("standard and expert print no When Defeated: and register no ability ref", () => {
+    expect(sideScheme("16182a").abilities).toEqual([]);
+    expect(sideScheme("16182b").abilities).toEqual([]);
   });
 });
 

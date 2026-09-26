@@ -25,6 +25,10 @@ export interface Prepared {
    * when a curated `Correction.specialCost` confirms it from the card image (see that field's doc comment).
    */
   readonly specialCost?: SpecialCost;
+  /** MarvelCDB's `quantity`, or a curated `Correction.quantityInSet` override (see that field's doc comment). */
+  readonly quantityInSet: number;
+  /** A curated `Correction.impliedAttachHost` (see that field's doc comment) — absent for every ordinary card. */
+  readonly impliedAttachHost?: "mainScheme" | "ally";
 }
 
 /** Prepares a record once per run (cached by code), marking which corrections and errata matched. */
@@ -40,11 +44,14 @@ export function prepare(ctx: NormalizeContext, r: RawCard): Prepared {
   // MarvelCDB's own `cost: -1` is an unambiguous encoding of a printed "X" cost (docs/phase7-wave2.md §1.3) —
   // read automatically, before any correction is consulted.
   let specialCost: SpecialCost | undefined = r.cost === -1 ? "X" : undefined;
+  let quantityInSet = r.quantity;
+  let impliedAttachHost: "mainScheme" | "ally" | undefined;
   const notes: string[] = [];
   const ignored = new Set<string>();
   curation.corrections.forEach((c, i) => {
     if (c.code !== r.code) return;
     ctx.usedCorrections.add(i);
+    if (c.impliedAttachHost !== undefined) impliedAttachHost = c.impliedAttachHost;
     if (c.textReplace) {
       const count = text.split(c.textReplace.find).length - 1;
       if (count !== 1)
@@ -56,6 +63,7 @@ export function prepare(ctx: NormalizeContext, r: RawCard): Prepared {
     if (c.boost !== undefined) boost = c.boost;
     if (c.attack !== undefined) attack = c.attack;
     if (c.specialCost !== undefined) specialCost = c.specialCost;
+    if (c.quantityInSet !== undefined) quantityInSet = c.quantityInSet;
     for (const f of c.ignoreFields ?? []) ignored.add(f);
     notes.push(`${r.code}: ${c.reason} [evidence: ${c.evidence}]`);
   });
@@ -92,7 +100,9 @@ export function prepare(ctx: NormalizeContext, r: RawCard): Prepared {
     ...(errata ? { errata } : {}),
     notes,
     ignored,
+    quantityInSet,
     ...(specialCost ? { specialCost } : {}),
+    ...(impliedAttachHost ? { impliedAttachHost } : {}),
   };
   ctx.prepared.set(r.code, p);
   return p;

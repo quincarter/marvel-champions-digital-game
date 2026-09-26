@@ -1,4 +1,4 @@
-import type { AbilityId } from "@mc/content";
+import type { AbilityId, CardId } from "@mc/content";
 import type { FrameId, InstanceId, PlayerId } from "./ids.js";
 import type { CardDestination } from "./spec.js";
 import type { Vars } from "./stack.js";
@@ -64,6 +64,12 @@ export type TriggerEventBody =
       readonly keywords?: readonly ("piercing" | "ranged" | "overkill")[];
       /** The card whose ability made this attack (the event card for "Hero Action (attack)"). */
       readonly sourceInstanceId?: InstanceId | null;
+      /**
+       * The same attack resolved against another target ("resolve this attack against each minion engaged with that
+       * player", Thor 25013; `EffectSpec resolveAttackAgainst`, docs/phase7-wave4.md §3.22): the attacker's own "when
+       * it attacks" abilities don't re-trigger, as with an enemy attack's `additionalResolution`.
+       */
+      readonly additionalResolution?: true;
     }
   | {
       readonly kind: "thwart";
@@ -77,6 +83,8 @@ export type TriggerEventBody =
       readonly useAtk?: boolean;
       /** "…, ignoring any crisis icons in play": passed to the threat removal this thwart makes. */
       readonly ignoreCrisis?: boolean;
+      /** "…, ignoring the patrol keyword": this thwart is not stopped by patrol (docs/phase7-wave4.md §3.32). */
+      readonly ignorePatrol?: boolean;
       readonly sourceInstanceId?: InstanceId | null;
     }
   /** A defender was declared (basic defense) or a "(defense)" ability made the identity the defender. */
@@ -183,9 +191,9 @@ export type TriggerEventBody =
    * - `cardInstanceIds`: the cards discarded from hand, in payment order. A "Resource:" ability of a card in play is not
    *   a card being spent, so it is not listed.
    * - `playerId`: whose hand they came from ("you"). `forPlayerId`: the player whose cost they paid — "After you spend
-   *   this card **for a player**, heal 1 damage from that player's identity" (Everyday Hero 28019). The same player
-   *   today, since no payment yet spans players (Alliance, RRG 1.8 p. 6, is not built); kept apart so that card is
-   *   right the day it is.
+   *   this card **for a player**, heal 1 damage from that player's identity" (Everyday Hero 28019). They differ when
+   *   another player helps pay for an alliance card (RRG 1.8 "Alliance", p. 6; docs/phase7-wave4.md §3.17): one event
+   *   per spender, each naming the paying player as `forPlayerId`.
    * - `payingForInstanceId` / `purpose`: what the payment was for — the card being played (`playCard`), the card whose
    *   ability's cost it paid (`ability`), or neither (`effect`: "spend X resources" inside an effect). The played card
    *   is the event's *target*, so "When you spend this card to play a THWART event" is a `targetIs` query; an
@@ -214,6 +222,12 @@ export type TriggerEventBody =
        */
       readonly byEffect?: true;
       /**
+       * Set by the defeat sweep on villains that reached zero together: whether each could be defeated ("cannot be
+       * defeated while X has any hit points remaining") was read once for all of them, before any applied, so applying
+       * one does not re-read it after another has already advanced to a fresh stage (docs/phase7-wave4.md §3.3).
+       */
+      readonly protectionChecked?: true;
+      /**
        * The defeating damage was attack damage (`dealDamage.fromAttack`: an attack's damage, or its overkill spill), so
        * "When an ally is defeated by an enemy attack" (Regroup, `drax` 19032) is `fromAttack: true` with `sourceIs` an
        * enemy (docs/phase7-wave3.md §3.45). Absent for any other defeat.
@@ -226,6 +240,12 @@ export type TriggerEventBody =
        */
       readonly destination?: CardDestination;
       readonly parentFrameId?: FrameId | null;
+      /**
+       * The damage event that dealt the defeating damage, told "defeated" as well as its parent: "If that character is
+       * defeated this way" after a card's own `dealDamage` (Out for Blood; docs/phase7-wave4.md §3.54), which has no
+       * attack to be the parent.
+       */
+      readonly reportFrameId?: FrameId | null;
       readonly overkill?: {
         readonly amount: number;
         readonly toInstanceId: InstanceId;
@@ -245,6 +265,14 @@ export type TriggerEventBody =
        * defeating *card*. Null when nothing player- or card-driven defeated it.
        */
       readonly sourceInstanceId?: InstanceId | null;
+      /**
+       * The cards attached to the character when its defeat was initiated ("is defeated", before any interrupt), set as
+       * the event goes on the stack (`eventFrame`). By its response window the character has left play and a card
+       * like Death-Glow has set itself aside, so "After the enemy with Death-Glow is defeated" (Flight of the
+       * Valkyrior, 25008) reads this, through `EventPattern.targetHadAttachment` (docs/phase7-wave4.md §3.22).
+       * Absent when nothing was attached.
+       */
+      readonly attachedInstanceIds?: readonly InstanceId[];
     }
   /** An encounter card has been flipped faceup and is about to resolve (RRG "Reveal"): the point to cancel it. */
   | { readonly kind: "encounterCardRevealing"; readonly instanceId: InstanceId; readonly playerId: PlayerId }
@@ -272,6 +300,50 @@ export type TriggerEventBody =
    * alternatives that card text must choose among (docs/phase7-wave2.md §3.1, §3.4).
    */
   | { readonly kind: "mainSchemeCompleted"; readonly schemeInstanceId: InstanceId; readonly stageIndex: number }
+  /**
+   * A deck ran out of cards (docs/phase7-wave4.md §3.11): "After your deck runs out of cards" (Soul World, `mts` 21033) and
+   * "After a player resets their deck" (Universal Church of Truth, 21068) are a player's deck, which resets the moment it
+   * empties (RRG 1.8 "Player Deck", p. 33); "After the infinity stone deck runs out" (Thanos I–III, 21111–21113) is a
+   * scenario deck. Announced between frames, and only when an ability listens.
+   */
+  | {
+      readonly kind: "deckRanOut";
+      readonly deck: "player" | "scenario";
+      readonly playerId?: PlayerId;
+      readonly name?: string;
+    }
+  /**
+   * Counters are removed from a card by an effect (docs/phase7-wave4.md §3.15): "When the last lock counter is removed from
+   * here" (Holding Cell, `aos` 50105a, an interrupt), "After the last invocation counter is removed from Fireball"
+   * (`mts` 21076–21079), "After the last power counter is removed from here" (Phoenix Force, `phoenix` 34002a).
+   * `remaining` is what the card will hold after the removal (`eventAtMost: { remaining: 0 }` is "the last"). Pushed
+   * only when an ability listens; its apply step removes them (so the uses keyword's discard follows).
+   */
+  | {
+      readonly kind: "countersRemoved";
+      readonly instanceId: InstanceId;
+      readonly counterType: string;
+      readonly amount: number;
+      readonly remaining: number;
+    }
+  /**
+   * "After Loki is swapped with a set-aside Loki villain" (Loki's Cape, `mts` 21172): `EffectSpec swapVillain` exchanged
+   * the villain's card (docs/phase7-wave4.md §3.7). Response window only; pushed only when an ability listens.
+   */
+  | {
+      readonly kind: "villainSwapped";
+      readonly villainInstanceId: InstanceId;
+      readonly fromCardId: CardId;
+      readonly toCardId: CardId;
+    }
+  /**
+   * A main scheme stage **would be** completed by reaching its target threat (docs/phase7-wave4.md §3.4): "Forced
+   * Interrupt: When this stage would be completed, remove all the threat from this stage instead." (Under Siege and The
+   * Armies of Thanos, `mts` 21098b/21099b; Upgrading Adaptoids 1B, `aos` 50104b). Pushed only when an ability listens;
+   * its apply step completes the stage (a loss on the final stage, else When Completed and the advance) unless an
+   * interrupt cancelled it or the threat has fallen below the target.
+   */
+  | { readonly kind: "mainSchemeCompleting"; readonly schemeInstanceId: InstanceId; readonly stageIndex: number }
   /**
    * A boost card's icons are about to be counted for an activation (docs/phase7-wave2.md §3.6): "When boost icons on an
    * encounter card would be counted" (Chaos Control) and "increase or decrease the number of boost icons on that card by
@@ -325,7 +397,15 @@ export type TriggerEventBody =
    * A card is about to ready (docs/phase7-wave2.md §3.11): "When attached character would ready, discard this card
    * instead" (Frozen in Time) replaces it. Pushed only when an ability could react; otherwise the card readies at once.
    */
-  | { readonly kind: "cardReadying"; readonly instanceId: InstanceId }
+  | {
+      readonly kind: "cardReadying";
+      readonly instanceId: InstanceId;
+      /**
+       * The card whose ability readies it, for "cannot be readied by player card effects" (Unnatural Storm;
+       * docs/phase7-wave4.md §3.19). Absent for the end-of-phase ready.
+       */
+      readonly sourceInstanceId?: InstanceId;
+    }
   /**
    * A card **has** readied (docs/phase7-wave2.md §21): "Hero Response: After you ready Quicksilver, ready this card."
    * (Friction Resistance, `qsv` 14009.) The "-ed" twin of `cardReadying`, in the same idiom as
@@ -371,9 +451,19 @@ export type TriggerEventBody =
   | {
       readonly kind: "formChanged";
       readonly playerId: PlayerId;
+      /** The identity's form after the change (unchanged by an additional form change). */
       readonly to: "hero" | "alterEgo";
       readonly fromHeroForm?: number | null;
       readonly toHeroForm?: number | null;
+      /**
+       * `identity`: the hero/alter-ego flip. `additional`: an additional form ("[type] form" keyword; RRG 1.8 "Form,
+       * Change Form", p. 21, "it does count as changing form for the purpose of triggering card effects"), with its type,
+       * the name now showing and the form card as the event's target. docs/phase7-wave4.md §3.1.
+       */
+      readonly change: "identity" | "additional";
+      readonly formType?: string;
+      readonly formName?: string;
+      readonly formCardInstanceId?: InstanceId;
     }
   | { readonly kind: "playerPhaseEnded" }
   | { readonly kind: "villainPhaseEnded" }
@@ -406,7 +496,23 @@ export type TriggerEventBody =
    * A card discarded from play went to a scenario area instead (`RuleSpec discardFromPlayDestination`; The Collection,
    * docs/phase7-wave3.md §3.14): "…, then place 1 threat on the main scheme" (Collector III) responds to it. Response only.
    */
-  | { readonly kind: "discardRedirected"; readonly instanceId: InstanceId; readonly area: string };
+  | { readonly kind: "discardRedirected"; readonly instanceId: InstanceId; readonly area: string }
+  /**
+   * Damage was prevented, by the card `preventerInstanceId` (docs/phase7-wave4.md §3.20): "After Abjuration prevents 2
+   * or more damage from a single attack, discard it" (Abjuration, `mts` 21082) is a forced response with `selfIs:
+   * "source"`, `fromAttack: true` and `eventAtLeast: { amount: 2 }`. Announced (response only) when an ability listens,
+   * for a `preventAllDamage` constant and for a `preventDamage` effect (whose card is the preventer). A tough status
+   * card, a reduction and "cannot take damage" are not a card preventing damage and announce nothing.
+   */
+  | {
+      readonly kind: "damagePrevented";
+      readonly targetInstanceId: InstanceId;
+      readonly amount: number;
+      readonly preventerInstanceId: InstanceId | null;
+      readonly fromAttack: boolean;
+      /** The card dealing the damage. */
+      readonly sourceInstanceId: InstanceId | null;
+    };
 
 /**
  * `results` is attached when the event's response window opens: what the event
@@ -476,6 +582,15 @@ export function isAnnouncement(event: TriggerEvent): boolean {
      * "Ally Limit" (p. 7) asks for: the check "occurs before abilities that resolve upon entering play".
      */
     case "cardEntersPlay":
+    // "When this stage would be completed" (docs/phase7-wave4.md §3.4): the completion is still to come.
+    case "mainSchemeCompleting":
+    // "When the last lock counter is removed from here" (docs/phase7-wave4.md §3.15): the removal is still to come.
+    case "countersRemoved":
+    // "Interrupt: When attached side scheme is defeated" (Chance Encounter, Followed, Ambush, Twisted Reality;
+    // docs/phase7-wave4.md §3.37): the scheme and its attachments are still in play; its When Defeated and its leaving
+    // play are this event's apply step (RRG 1.8 "When Defeated Abilities", p. 48: a forced interrupt; the card "leaves
+    // play after its 'When Defeated' ability is resolved").
+    case "schemeDefeated":
       return false;
     default:
       return true;
@@ -503,6 +618,8 @@ export function eventSubjects(event: TriggerEvent): EventSubjects {
   switch (event.kind) {
     case "dealDamage":
       return of([event.sourceInstanceId], [event.targetInstanceId], []);
+    case "damagePrevented":
+      return of([event.preventerInstanceId], [event.targetInstanceId], []);
     case "healDamage":
       return of([], [event.targetInstanceId], []);
     case "placeThreat":
@@ -539,6 +656,7 @@ export function eventSubjects(event: TriggerEvent): EventSubjects {
     case "discardRedirected":
       return of([], [event.instanceId], []);
     case "mainSchemeCompleted":
+    case "mainSchemeCompleting":
       return of([], [event.schemeInstanceId], []);
     case "boostIconsCounting":
       return of([event.enemyInstanceId], [event.cardInstanceId], [event.playerId]);
@@ -553,8 +671,15 @@ export function eventSubjects(event: TriggerEvent): EventSubjects {
       return of([], [event.instanceId], []);
     case "boostCardTurnedFaceup":
       return of([event.enemyInstanceId], [event.boostInstanceId], [event.playerId]);
-    case "turnStarted":
+    case "countersRemoved":
+      return of([], [event.instanceId], []);
+    case "villainSwapped":
+      return of([], [event.villainInstanceId], []);
+    case "deckRanOut":
+      return of([], [], [event.playerId ?? null]);
     case "formChanged":
+      return of([], event.formCardInstanceId ? [event.formCardInstanceId] : [], [event.playerId]);
+    case "turnStarted":
     case "turnEnding":
       return of([], [], [event.playerId]);
     case "minionEngaged":

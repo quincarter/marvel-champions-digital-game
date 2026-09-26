@@ -8,7 +8,16 @@
 import type { CardId } from "@mc/content";
 import type { CampaignAttempt, CampaignDefinition, CampaignStepTrace, LogValue } from "@mc/engine";
 import type { CampaignRecord } from "../engine/campaign-storage.js";
+import {
+  campaignBriefingPool,
+  isPoolDestinationText,
+  poolFieldsOf,
+  type BriefingPoolView,
+  type CardMetaOf,
+  type PoolCopy,
+} from "./campaign-pool-model.js";
 import { campaignStepRows, type CampaignStepRow } from "./campaign-step-model.js";
+import { hiddenEvidenceEnvelope, type HiddenEvidenceEnvelope } from "./campaign-hidden-evidence-model.js";
 
 export type CardNameOf = (id: CardId) => string;
 
@@ -18,6 +27,17 @@ export interface HandledRow {
   readonly status: "done" | "later";
   readonly title: string;
   readonly detail: string;
+  /** The printed page this row's own fact comes from, shown at the row's right edge. Omitted for a row with none
+   * (a generic step/field row already names its citation in `detail`, the way the printed instruction text does). */
+  readonly citation?: string;
+}
+
+/** A box's own authored "Handled for you" row (`stories/mts.ts`'s own doc comment on `IssueStory.briefingNotes`). */
+export interface BriefingNoteCopy {
+  readonly status: "done" | "later";
+  readonly title: string;
+  readonly detail: string;
+  readonly citation?: string;
 }
 
 export interface DeckRow {
@@ -35,6 +55,10 @@ export interface BriefingView {
   readonly issueNumber: number;
   readonly handled: readonly HandledRow[];
   readonly decks: readonly DeckRow[];
+  /** Null for a box with no campaign pool, or an issue whose own setup reads none of it back (issue #1). */
+  readonly pool: BriefingPoolView | null;
+  /** The hidden-evidence envelope (docs/campaign-mode-design.md §Q4; MC50 p. 5). Null for a box with no hidden field. */
+  readonly hiddenEvidence: HiddenEvidenceEnvelope | null;
 }
 
 const ASPECT_ABBREVIATION: Readonly<Record<string, string>> = {
@@ -149,12 +173,17 @@ function fieldLogRowsOf(
   nodeIds: readonly string[],
 ): readonly HandledRow[] {
   const fieldLabel = (id: string): string => definition.logFields.find((field) => field.id === id)?.label ?? id;
+  // A campaign-pool field (`campaign-pool-model.ts`'s own detection) is never shown here: its own field label is
+  // the *add-to-pool* sentence ("Cosmo added to campaign pool"), which reads as if this row were adding the card
+  // when the instruction it's citing is actually the pool's *read-back* ("If Cosmo is in the campaign pool, put
+  // him into play…") — "From the pool" already shows that, in its own, correct words.
+  const poolFieldIds = new Set(poolFieldsOf(definition).map((field) => field.fieldId));
 
   const readThisIssue = new Set<string>();
   const nowRows: HandledRow[] = [];
   for (const instruction of attempt.input.instructions) {
-    const fields = fieldsReadBy(instruction.effects);
-    if (fields.size === 0) continue;
+    const fields = [...fieldsReadBy(instruction.effects)].filter((fieldId) => !poolFieldIds.has(fieldId));
+    if (fields.length === 0) continue;
     const parts: string[] = [];
     for (const fieldId of fields) {
       readThisIssue.add(fieldId);
@@ -174,7 +203,7 @@ function fieldLogRowsOf(
   const laterRows: HandledRow[] = [];
   if (currentIndex >= 0) {
     for (const [fieldId, value] of Object.entries(record.shared)) {
-      if (readThisIssue.has(fieldId) || !isMeaningfulValue(value)) continue;
+      if (readThisIssue.has(fieldId) || !isMeaningfulValue(value) || poolFieldIds.has(fieldId)) continue;
       for (let index = currentIndex + 1; index < nodeIds.length; index++) {
         const node = definition.graph.nodes.find((candidate) => candidate.id === nodeIds[index]);
         if (!node) continue;
@@ -197,15 +226,21 @@ function fieldLogRowsOf(
 }
 
 /** One row for the seats' current campaign grants — MC10 p. 3's "start in play" TECH/Basic Condition upgrades. */
-function grantsRowOf(record: CampaignRecord, cardName: CardNameOf): HandledRow | null {
-  const withGrants = record.seats.filter((seat) => seat.grants.length > 0);
-  if (withGrants.length === 0) return null;
-  const detail = withGrants
-    .map(
-      (seat) => `${cardName(seat.identityCardId)}: ${seat.grants.map((grant) => cardName(grant.cardId)).join(", ")}.`,
-    )
-    .join(" ");
-  return { key: "grants", status: "done", title: "Setup cards start in play", detail };
+/**
+ * A pooled card's own grant (Shawarma's `poolDeckGrant`, MC21 p. 17/21/25) is never named here: "From the pool"
+ * already shows it, correctly, as "shuffled into their deck" rather than the MC10-only "start in play" wording this
+ * row prints — listing it here too would say the same card lands in two different places.
+ */
+function grantsRowOf(record: CampaignRecord, cardName: CardNameOf, definition?: CampaignDefinition): HandledRow | null {
+  const poolNames = definition ? new Set(poolFieldsOf(definition).map((field) => field.name)) : new Set<string>();
+  const lines = record.seats
+    .map((seat) => {
+      const names = seat.grants.map((grant) => cardName(grant.cardId)).filter((name) => !poolNames.has(name));
+      return names.length > 0 ? `${cardName(seat.identityCardId)}: ${names.join(", ")}.` : null;
+    })
+    .filter((line): line is string => line !== null);
+  if (lines.length === 0) return null;
+  return { key: "grants", status: "done", title: "Setup cards start in play", detail: lines.join(" ") };
 }
 
 function stepRowOf(row: CampaignStepRow, statusById: ReadonlyMap<string, "done" | "later">): HandledRow | null {
@@ -227,27 +262,57 @@ function stepRowOf(row: CampaignStepRow, statusById: ReadonlyMap<string, "done" 
  * `definition` and `nodeIds` (the graph's node ids, 1-based issue order) are only needed for the "held for issue
  * #N" rows — a caller that doesn't have them handy can omit `nodeIds` and simply won't get those rows.
  */
-export function handledRowsOf(
+/**
+ * `handledRowsOf`'s own generic assembly, always available as the fallback a box with no `briefingNotes` gets.
+ * Split out so `handledRowsOf` can choose it over a box's authored notes without duplicating the wiring.
+ */
+function genericHandledRowsOf(
   attempt: CampaignAttempt,
   record: CampaignRecord,
   cardName: CardNameOf,
   definition?: CampaignDefinition,
   nodeIds: readonly string[] = [],
 ): readonly HandledRow[] {
-  const grants = grantsRowOf(record, cardName);
+  const grants = grantsRowOf(record, cardName, definition);
   const statusById = new Map(attempt.steps.map((step) => [step.instructionId, statusOf(step)] as const));
   const rows = campaignStepRows(attempt.steps, cardName);
   const stepRows = rows
     // The grants row above already covers every `grantCard`-only step; one that only granted would otherwise
-    // repeat the same cards a second time.
+    // repeat the same cards a second time. A pool-reading step ("If Cosmo is in the campaign pool, …") is already
+    // shown, in better words, under "From the pool" — `isPoolDestinationText` is the same detection that section
+    // uses, so a box with no pool at all never has a row match it.
     .filter((row) => {
       const step = attempt.steps.find((candidate) => candidate.instructionId === row.instructionId);
-      return !(step && step.grants.length > 0 && step.writes.length === 0 && step.choices.length === 0);
+      if (step && step.grants.length > 0 && step.writes.length === 0 && step.choices.length === 0) return false;
+      return !isPoolDestinationText(row.text);
     })
     .map((row) => stepRowOf(row, statusById))
     .filter((row): row is HandledRow => row !== null);
   const fieldRows = definition ? fieldLogRowsOf(attempt, record, definition, nodeIds) : [];
   return [...(grants ? [grants] : []), ...stepRows, ...fieldRows];
+}
+
+/**
+ * `briefingNotes`: a box's own authored replacement for this issue's whole "Handled for you" list (design tiles
+ * 24/26's "Pool resolved in printed order" / "Infinity Gauntlet attached to Thanos" / "Pool keeps growing") — a
+ * pool box's own automated setup is specific enough (which environments, which order) that the generic per-step/
+ * per-field rows above read as a spreadsheet instead of a briefing. Present and non-empty, it *replaces* the
+ * generic assembly rather than appending to it, so the box's author owns the whole list once they write it rather
+ * than fighting duplicate rows the generic assembly still produces. Absent (every non-pool box, and a pool box
+ * before its story is written), the generic assembly is exactly what rendered before this option existed.
+ */
+export function handledRowsOf(
+  attempt: CampaignAttempt,
+  record: CampaignRecord,
+  cardName: CardNameOf,
+  definition?: CampaignDefinition,
+  nodeIds: readonly string[] = [],
+  briefingNotes?: readonly BriefingNoteCopy[],
+): readonly HandledRow[] {
+  if (briefingNotes && briefingNotes.length > 0) {
+    return briefingNotes.map((note, index) => ({ key: `note:${index}`, ...note }));
+  }
+  return genericHandledRowsOf(attempt, record, cardName, definition, nodeIds);
 }
 
 export function deckRowsOf(record: CampaignRecord, cardName: CardNameOf): readonly DeckRow[] {
@@ -269,18 +334,33 @@ export function deckRowsOf(record: CampaignRecord, cardName: CardNameOf): readon
   });
 }
 
-/** Both halves of the Briefing's real data, from a record whose issue is already composed (`record.attempt` set). */
+/**
+ * Both halves of the Briefing's real data, from a record whose issue is already composed (`record.attempt` set).
+ * `cardTypeOf` feeds the pool panel's helps/hurts classification (`campaign-pool-model.ts`); omit it on a box with
+ * no pool, or where a card lookup isn't handy yet — a pool card just reads "helps" by default (its own doc comment).
+ */
 export function briefingViewOf(
   record: CampaignRecord,
   cardName: CardNameOf,
   issueNumber: number,
   definition?: CampaignDefinition,
   nodeIds: readonly string[] = [],
+  cardTypeOf?: CardMetaOf,
+  poolCopy?: PoolCopy,
+  firstPlayerName?: string,
+  briefingNotes?: readonly BriefingNoteCopy[],
 ): BriefingView | null {
   if (!record.attempt) return null;
+  const node = definition?.graph.nodes.find((candidate) => candidate.id === record.attempt!.nodeId);
+  const isFinale = definition ? nodeIds[nodeIds.length - 1] === record.attempt.nodeId : false;
   return {
     issueNumber,
-    handled: handledRowsOf(record.attempt, record, cardName, definition, nodeIds),
+    handled: handledRowsOf(record.attempt, record, cardName, definition, nodeIds, briefingNotes),
+    pool:
+      definition && node
+        ? campaignBriefingPool(record, definition, node, cardTypeOf, isFinale, poolCopy, firstPlayerName)
+        : null,
     decks: deckRowsOf(record, cardName),
+    hiddenEvidence: definition ? hiddenEvidenceEnvelope(record, definition, cardName) : null,
   };
 }

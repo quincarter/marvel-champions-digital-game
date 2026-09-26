@@ -9,6 +9,7 @@ import type {
   TargetRef,
 } from "@mc/engine";
 import {
+  andThen,
   action,
   alterEgoAction,
   amount,
@@ -175,7 +176,7 @@ export const MSM_KIT = defineAbilities({
     { cost: exhaustThis },
     chooseCards("toBottom", zone("discard", you), { min: 1, max: 1 }),
     moveCards(cards(chosen("toBottom")), "deckBottom"),
-    draw(1),
+    andThen(draw(1)),
   ),
 
   // Bruno Carrelli — Alter-Ego Action: Exhaust Bruno Carrelli → attach 1 card from your hand facedown here.

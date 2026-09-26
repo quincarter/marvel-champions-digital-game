@@ -12,6 +12,9 @@
  */
 import { TRORS_STORY } from "./stories/trors.js";
 import { GMW_STORY } from "./stories/gmw.js";
+import { MTS_STORY } from "./stories/mts.js";
+import type { PoolCopy } from "../view/campaign-pool-model.js";
+import type { BriefingNoteCopy } from "../view/campaign-briefing-model.js";
 
 export type StorySpeaker =
   | { readonly kind: "narrator" }
@@ -96,6 +99,23 @@ export interface ComicBeat {
   readonly caption?: string;
   readonly lines: readonly StoryLine[];
   readonly sfx?: string;
+  /**
+   * Which end of the overflowing axis a spotlight (unlettered) reader's within-beat pan starts at, when this
+   * panel doesn't fit the page's own cover-fit crop (`view/comic-pan.ts`; `ui/comic-reader.ts`'s `drawSpotlightPan`
+   * — a dense MTS spread whose panel is proportioned nothing like the reading area). Omit to default to the panel's
+   * own top/left; ignored entirely once the panel fits (the ordinary case) or on a lettered page (which pans
+   * panel-to-panel over the player's own advance instead).
+   */
+  readonly pan?: "down" | "up" | "left" | "right";
+  /**
+   * True for a beat that only reads on a wide-enough reading area (`ui/campaign-chrome.ts`'s own `isPhoneWidth` —
+   * desktop and tablet, not a true phone) — a closing "pull the camera back to the whole page" beat, say, whose
+   * point is to finally show a wide spread in full, which would just draw as a barely-legible thumbnail on a
+   * phone's own narrow reading area. `view/comic-reader-model.ts`'s `visibleComicBeats` drops it there instead,
+   * ending the issue on whichever beat was last before it. Omit for a beat that reads fine everywhere (the
+   * ordinary case).
+   */
+  readonly wideOnly?: boolean;
 }
 
 /**
@@ -119,6 +139,17 @@ export interface ComicPage {
    * GMW behavior: the reader's own captions/bubbles over a cover-fit, recentered page.
    */
   readonly lettered?: boolean;
+  /**
+   * True for a dense, unlettered spread with no clean gutters between its panels (MTS's `art/campaigns/mts/pages/`)
+   * whose reader is a continuous "cinematic" camera instead of GMW's own dimmed-page-with-a-lit-box spotlight: the
+   * current panel always fills the whole reading area (cover-fit, no dimming, no border — the box the spotlight
+   * draws never shows), and the camera *tweens* from one panel's own framing to the next's, including across a page
+   * turn (a short crossfade rather than a cut), plus a slow continuous pan within a beat whose panel overflows the
+   * frame after fitting (`view/comic-pan.ts`'s `planPan`). Reduced motion drops every tween — an instant cut to
+   * each panel's own whole-panel contain-fit — rather than a fast version of the same animation. Mutually
+   * exclusive with `lettered` (a page is either the box's own printed lettering, GMW's dimmed spotlight, or this).
+   */
+  readonly cinematic?: boolean;
 }
 
 /** Points an issue at one beat of one page, in the order the issue's guided read shows them. */
@@ -163,6 +194,14 @@ export interface IssueStory {
   readonly stagePanels?: Readonly<Record<number, ComicBeatRef>>;
   /** The Briefing's opening line, spoken by a roster hero where possible. */
   readonly briefing: StoryLine;
+  /**
+   * A pool box's own authored replacement for this issue's whole "Handled for you" list
+   * (`view/campaign-briefing-model.ts`'s own `BriefingNoteCopy`/`handledRowsOf` doc comments) — a short summary of
+   * the automated setup this issue's own composition/setup instructions run, plus a forward-looking note about the
+   * pool. Unset (every non-pool issue, and a pool issue before its own three lines are written) falls back to the
+   * generic per-step/per-field assembly every box has always had.
+   */
+  readonly briefingNotes?: readonly BriefingNoteCopy[];
   /** Who hands out this issue's rewards on a win (C05/C06). */
   readonly aftermath?: StoryLine;
   /** The aftermath art note while there is no panel art. */
@@ -202,6 +241,13 @@ export interface CampaignStory {
   readonly issues: readonly IssueStory[];
   /** Set only for a box told as comic pages (`art/README.md`); its issues' `comicBeats` index into this. */
   readonly pages?: readonly ComicPage[];
+  /**
+   * A campaign-pool box's own short voice for each pool field (`view/campaign-pool-model.ts`'s `PoolCopy`), keyed
+   * by the box's own `CampaignDefinition` log field id ("cosmoInPool"). Unset for a box with no pool at all; a pool
+   * field with no entry here still renders, from the real printed instruction text (`PoolFieldCopy`'s own doc
+   * comment) — this is flavor on top of real data, never a second source of truth for it.
+   */
+  readonly poolCopy?: PoolCopy;
   /**
    * Rewind's (C09) campaign-lost variant: shown only when a scenario's defeat instructions end the whole campaign
    * outright (MC10's Expert-only Red Skull loss, MC16's Expert Campaign Only Ronan loss) — there is no "REWIND ▸"
@@ -285,6 +331,7 @@ export const SAGA_NOTE =
 const STORIES: Readonly<Record<string, CampaignStory>> = {
   [TRORS_STORY.campaignId]: TRORS_STORY,
   [GMW_STORY.campaignId]: GMW_STORY,
+  [MTS_STORY.campaignId]: MTS_STORY,
 };
 
 export const storyFor = (campaignId: string): CampaignStory | undefined => STORIES[campaignId];

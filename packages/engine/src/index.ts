@@ -20,6 +20,7 @@ export type {
   IdentityState,
   MainSchemeState,
   PlayerState,
+  ScenarioSetupInstruction,
   SeparateDeckState,
   StatusCounts,
   VillainState,
@@ -83,7 +84,9 @@ export type {
 export {
   abilityRefsOf,
   CAMPAIGN_GRANTS_COUNT_TOWARD_COPY_LIMIT,
+  cardLegalForIdentity,
   CHOOSABLE_ASPECTS,
+  copiesUpToLimit,
   DECK_COPY_LIMIT,
   DECK_MAX_CARDS,
   DECK_MIN_CARDS,
@@ -140,13 +143,13 @@ export {
   schemeThreatDestination,
   threatCannotBeRemoved,
 } from "./rules.js";
-export { hasKeyword, keywordsOf, printedKeywordsOf, statusActive } from "./keywords.js";
+export { hasKeyword, isPermanent, keywordsOf, keywordTotal, printedKeywordsOf, statusActive } from "./keywords.js";
 export { printedResources } from "./resources.js";
 export { characterTitledAs, identityCardTitledAs } from "./titles.js";
 export type { CostChoices, CostSelection } from "./commands.js";
 export type { DeferredEffects, ReportTarget, Vars } from "./stack.js";
 export { currentActivationFrameId } from "./stack.js";
-export { abilityUseKey, DEFAULT_DEPS, NO_ABILITIES } from "./abilities.js";
+export { abilityUseKey, DEFAULT_DEPS, inPlayPicksOf, NO_ABILITIES } from "./abilities.js";
 
 export type {
   CardDestination,
@@ -317,7 +320,7 @@ export { createGame } from "./setup.js";
 export type { CommandResult, GameLog, GameSession, ReplayResult, SessionResult } from "./engine.js";
 export { appendCommand, applyCommand, applyCommands, createLog, replay, sessionApply, startSession } from "./engine.js";
 
-export type { CharacterKind, CharacterProfile } from "./query.js";
+export type { CharacterKind, CharacterProfile, HeroFaceWithTraits } from "./query.js";
 export {
   activeEncounterDeck,
   activeEncounterDeckId,
@@ -329,6 +332,8 @@ export {
   separateDeckOf,
   discardZoneFor,
   encounterDeckOf,
+  heroFacesOf,
+  identityFace,
   isVillain,
   undefeatedVillains,
   villainOf,
@@ -347,6 +352,8 @@ export {
   printedHandSize,
   locateCard,
   mainSchemeStage,
+  mainSchemeStageOf,
+  mainSchemeStateOf,
   mainSchemeValue,
   startingThreatOf,
   minionsEngagedWith,
@@ -359,3 +366,7 @@ export {
   villainStage,
   zoneContents,
 } from "./query.js";
+export { legalDefenders } from "./resolve/enemy-activation.js";
+export { UNRESOLVED_VAR } from "./resolve/target-validity.js";
+export { mainSchemeCompletionLoses } from "./resolve/defeat.js";
+export { generatedResources, handCardResources } from "./actions.js";

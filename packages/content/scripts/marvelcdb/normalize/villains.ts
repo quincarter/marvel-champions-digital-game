@@ -155,6 +155,9 @@ export function normalizeVillains(ctx: NormalizeContext): Map<string, string> {
               ? { activationOrder: front.activationOrder ?? back.activationOrder }
               : {}),
           };
+          // `printedFaces` enumerates a villain as `sides.flatMap(side => side.stages)` — side A (front) then side
+          // B (back), matching this card's own `sides` array above.
+          ctx.faceCodesByCardId.set(card.id, [r.code, linked.code]);
           record(ctx, card, set, [front.prepared, back.prepared]);
         }
       }
@@ -196,6 +199,12 @@ export function normalizeVillains(ctx: NormalizeContext): Map<string, string> {
             sides: [{ side: "A", name: first.prepared.name, stages: [first.stage, second.stage] }],
             ...(printedType ? { printedType } : {}),
           };
+          // `printedFaces` enumerates a single-side villain's stages in order — `built`/`pair` are already sorted
+          // that way above.
+          ctx.faceCodesByCardId.set(
+            card.id,
+            pair.map((face) => face.code),
+          );
           record(
             ctx,
             card,
@@ -209,32 +218,77 @@ export function normalizeVillains(ctx: NormalizeContext): Map<string, string> {
     }
     const doubleSided = !versionPairs && stageRecords.some((r) => r.linked_card?.type_code === "villain");
 
-    // Several distinct, single-stage villains sharing one card_set_code (wave 2, docs/phase7-wave2.md §1.8): The
-    // Once and Future Kang's "kang"/"exp_kang" sets each hold six such records — Kang (I), four differently-named
+    // Several distinct villains sharing one card_set_code (wave 2, docs/phase7-wave2.md §1.8; wave 4 §1.6): The
+    // Once and Future Kang's "kang"/"exp_kang" sets each hold six records — Kang (I), four differently-named
     // Kang (II) variants, and Kang (III) (which shares a title with Kang (I) but is not the next stage after it).
     // The Sinister Six's "sinister_six" set is the same shape: six single-stage villains, each "Activation Order
-    // N" instead of a roman-numeral sequence (§6.7). None of these forms one villain's incrementing stage
-    // sequence. Recognized structurally, without naming a card: more than one record claims the same stage
-    // number, which a genuine single villain's stages never do. Each becomes its own one-stage `VillainCard`
-    // instead of being merged into one (and erroring "stage names differ" the way the single-sequence branch
-    // below would). `villainIdBySet` is left unset for this set: there is no single "the villain" of it for a
-    // scenario to reference by set code, only Scenario.setAsideVillainCardIds pointing at each record's own card
-    // id directly.
+    // N" instead of a roman-numeral sequence (§6.7). Tower Defense's "tower_defense" set is a third variant: two
+    // villains (Proxima Midnight, Corvus Glaive) that each genuinely do advance stage-to-stage (MC21 p. 10), so
+    // they must land as two *multi-stage* `VillainCard`s, not six one-stage ones. Recognized structurally, without
+    // naming a card: more than one record claims the same stage number, which a genuine single villain's stages
+    // never do. Grouping by title (the roman numeral stripped) tells the shapes apart — Kang's "Kang (The
+    // Conqueror)" group ({I, III}, skipping the branching II) and Sinister Six's six singleton groups ({I} each)
+    // both have a gap or trivially satisfy no ordering claim beyond their own single stage, while Tower Defense's
+    // two groups ({I, II, III} each) are complete, gapless stage-1-first runs — only that last shape is combined
+    // into one card per group. `villainIdBySet` is left unset for this set either way: there is no single "the
+    // villain" of it for a scenario to reference by set code, only `Scenario.setAsideVillainCardIds` /
+    // `MultipleVillainsCuration.villainCardCodes` pointing at each group's own card id directly.
     if (!doubleSided) {
       const stageNumbers = stageRecords.map(stageOrder);
       const hasCollidingStageNumbers = new Set(stageNumbers).size !== stageNumbers.length;
       if (hasCollidingStageNumbers) {
+        const baseTitleOf = (r: RawCard): string => {
+          const m = /^(.*) (I{1,3}|IV|V)$/.exec(r.name ?? "");
+          return m && ROMAN[m[2] as string] !== undefined ? (m[1] as string) : (r.name ?? "");
+        };
+        const groups = new Map<string, RawCard[]>();
         for (const r of stageRecords) {
-          const { stage, prepared, activationOrder } = buildVillainStage(ctx, r);
+          const title = baseTitleOf(r);
+          const group = groups.get(title) ?? [];
+          group.push(r);
+          groups.set(title, group);
+        }
+        const groupList = [...groups.values()];
+        const isGaplessRun = (recs: readonly RawCard[]): boolean => {
+          const nums = recs.map(stageOrder).sort((x, y) => x - y);
+          return nums.every((n, i) => n === i + 1);
+        };
+        const parallelVillains = groupList.length > 1 && groupList.every(isGaplessRun);
+        for (const group of parallelVillains ? groupList : stageRecords.map((r) => [r])) {
+          const sorted = [...group].sort((x, y) => stageOrder(x) - stageOrder(y));
+          const stages: VillainStage[] = [];
+          const parts: Prepared[] = [];
+          let activationOrder: number | undefined;
+          for (const r of sorted) {
+            const { stage, prepared, activationOrder: ao } = buildVillainStage(ctx, r);
+            stages.push(stage);
+            parts.push(prepared);
+            activationOrder ??= ao;
+          }
+          const first = parts[0];
+          const firstStage = stages[0];
+          if (!first || !firstStage) continue;
+          if (new Set(parts.map((p) => p.name)).size !== 1) errors.push(`villain set ${set}: stage names differ`);
           const card: VillainCard = {
-            ...baseFields(ctx, prepared, r.code, [r.code], null),
+            ...baseFields(
+              ctx,
+              first,
+              first.raw.code,
+              parts.map((p) => p.raw.code),
+              null,
+            ),
             type: "villain",
             encounterSetIds: [brand("encounterSet", set)],
-            sides: [{ side: "A", name: prepared.name, stages: [stage] }],
+            sides: [{ side: "A", name: first.name, stages: [firstStage, ...stages.slice(1)] }],
             ...(printedType ? { printedType } : {}),
             ...(activationOrder !== undefined ? { activationOrder } : {}),
           };
-          record(ctx, card, set, [prepared]);
+          // `printedFaces` enumerates a single-side villain's stages in `stages`' own order (matches `sorted`).
+          ctx.faceCodesByCardId.set(
+            card.id,
+            parts.map((p) => p.raw.code),
+          );
+          record(ctx, card, set, parts);
         }
         continue;
       }
@@ -322,6 +376,13 @@ export function normalizeVillains(ctx: NormalizeContext): Map<string, string> {
         ...(activationOrder !== undefined ? { activationOrder } : {}),
       };
       villainIdBySet.set(set, card.id);
+      // `printedFaces` enumerates `sides.flatMap(side => side.stages)` — side A's stages, then side B's, then
+      // (if three-sided) side C's, each already in stage order.
+      ctx.faceCodesByCardId.set(card.id, [
+        ...partsA.map((p) => p.raw.code),
+        ...partsB.map((p) => p.raw.code),
+        ...(threeSided ? partsC.map((p) => p.raw.code) : []),
+      ]);
       record(ctx, card, set, [...partsA, ...partsB, ...partsC]);
       continue;
     }
@@ -359,6 +420,11 @@ export function normalizeVillains(ctx: NormalizeContext): Map<string, string> {
       ...(activationOrder !== undefined ? { activationOrder } : {}),
     };
     villainIdBySet.set(set, card.id);
+    // `printedFaces` enumerates a single-side villain's stages in `stages`' own order.
+    ctx.faceCodesByCardId.set(
+      card.id,
+      parts.map((p) => p.raw.code),
+    );
     record(ctx, card, set, parts);
   }
   return villainIdBySet;

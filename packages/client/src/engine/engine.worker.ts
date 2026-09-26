@@ -48,6 +48,10 @@ async function handle(request: HostRequest): Promise<void> {
         reply({ kind: "dispatched", id: request.id, result: core.dispatch(request.command) });
         return;
       }
+      case "rewindTo": {
+        reply({ kind: "rewound", id: request.id, snapshot: await core.rewindTo(request.commandCount) });
+        return;
+      }
       case "legalActions": {
         reply({ kind: "legalActions", id: request.id, actions: core.legalActions(request.playerId) });
         return;

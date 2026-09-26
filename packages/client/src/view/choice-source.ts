@@ -126,6 +126,20 @@ export function choiceSourceOf(state: GameState, choice: PendingChoice): ChoiceS
 }
 
 /**
+ * The overlay title for a `chooseCostCards` prompt (docs/phase7-wave4.md §3.17: Stand Together's "exhaust an
+ * [Avenger] character and a [Guardian] character" cost, `InPlayCostMode`), one verb per mode. Falls back to a
+ * generic phrase for a mode this module doesn't recognize rather than the sheet's own bare "Choose".
+ */
+export function costCardsPromptTitleOf(mode: string | undefined): string {
+  const verbs: Record<string, string> = {
+    exhaust: "Choose a card to exhaust",
+    return: "Choose a card to return to hand",
+    discard: "Choose a card to discard",
+  };
+  return (mode && verbs[mode]) ?? "Choose a card for this cost";
+}
+
+/**
  * The choice sheet's header line: "Crimson Bands of Cyttorak — Special:
  * choose a target", "Doctor Strange: choose a target", or `genericTitle`
  * unchanged when nothing can be traced back to a card at all — the sheet's

@@ -16,6 +16,7 @@ export type HostRequest =
   | { readonly kind: "start"; readonly id: number; readonly config: SessionConfig }
   | { readonly kind: "resume"; readonly id: number; readonly gameId: string }
   | { readonly kind: "dispatch"; readonly id: number; readonly command: Command }
+  | { readonly kind: "rewindTo"; readonly id: number; readonly commandCount: number }
   | { readonly kind: "legalActions"; readonly id: number; readonly playerId: PlayerId }
   | { readonly kind: "save"; readonly id: number }
   | { readonly kind: "latestSave"; readonly id: number }
@@ -36,6 +37,7 @@ export type HostResponse =
         | { readonly ok: true; readonly snapshot: Snapshot }
         | { readonly ok: false; readonly error: EngineError };
     }
+  | { readonly kind: "rewound"; readonly id: number; readonly snapshot: Snapshot }
   | { readonly kind: "legalActions"; readonly id: number; readonly actions: LegalActions }
   | { readonly kind: "save"; readonly id: number; readonly save: SerializedSave }
   | { readonly kind: "latestSave"; readonly id: number; readonly meta: SaveMeta | null }

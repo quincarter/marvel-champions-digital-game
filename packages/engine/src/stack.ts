@@ -1,8 +1,10 @@
 import type { AbilityId } from "@mc/content";
 import type { AbilitySource } from "./abilities.js";
+import type { CostChoices } from "./commands.js";
 import type { FrameId, InstanceId, PlayerId } from "./ids.js";
 import type { EffectSpec } from "./spec.js";
 import type { TriggerEvent } from "./trigger-events.js";
+import type { ZoneId } from "./state.js";
 
 /**
  * The resolution stack. `state.stack[0]` is what is resolving right now;
@@ -130,9 +132,15 @@ export type StackFrame =
       /** Optional tiers ask each controller in player order; this is who is left to ask. */
       readonly askingPlayerIds: readonly PlayerId[];
       readonly pending: readonly TriggerCandidate[];
-      readonly awaiting: "order" | "select" | "pay" | null;
+      readonly awaiting: "order" | "select" | "pay" | "costPick" | null;
       /** The in-hand event whose cost the window is currently collecting. */
       readonly paying: TriggerCandidate | null;
+      /**
+       * The cards in play the player picked so far for the queued candidate's cost ("exhaust an [Avenger] character
+       * and a [Guardian] character", docs/phase7-wave4.md §3.17), keyed by `<instanceId>:<abilityId>` so picks never
+       * outlive their candidate. Absent until a window asks for one.
+       */
+      readonly costPicks?: { readonly key: string; readonly choices: CostChoices; readonly asking?: string };
     })
   /** Resolves one ability: checks its limit, records the use, runs its effects. */
   | (FrameBase & {
@@ -159,6 +167,24 @@ export type StackFrame =
       readonly controllerId: PlayerId | null;
       readonly event: TriggerEvent | null;
       readonly eventFrameId: FrameId | null;
+      /**
+       * A branch (`chooseOne`'s chosen option, `if`'s taken branch): when it finishes, its bindings and vars are
+       * written back to this frame, so an effect after the `chooseOne`/`if` reads "the card discarded this way"
+       * whichever branch bound it (docs/phase7-wave4.md §3.43).
+       */
+      readonly returnBindingsTo?: FrameId;
+      /**
+       * The effects of an ability a player uses: an ability on a player card, an action, or an optional interrupt or
+       * response (not a forced ability, When Revealed, boost or setup on an encounter card). "Players cannot discard
+       * attachments …" (Powerful Enchantments, `valk` 25030) reads it. docs/phase7-wave4.md §3.44.
+       */
+      readonly byPlayer?: true;
+      /**
+       * This frame is the step where a defeated card leaves play, after its When Defeated abilities (RRG 1.8 "When
+       * Defeated Abilities", p. 48; `resolve/event.ts` `leaveAfterWhenDefeated`). While it waits, the card is still in
+       * play at zero remaining hit points but already defeated, so the defeat sweep does not defeat it again.
+       */
+      readonly defeatedLeaving?: InstanceId;
     })
   /** RRG "Attack (Enemy Activation)" steps 1–5; step 6 is the event frame's response window. */
   | (FrameBase & {
@@ -200,6 +226,13 @@ export type StackFrame =
       readonly effectsCancelled: boolean;
       /** "This card gains surge" resolved while it was being revealed. */
       readonly surgeGained: boolean;
+      /**
+       * Where the card was when its reveal began (the player's dealt encounter cards, or wherever `revealCard` found
+       * it). A treachery or revealed event still there when the reveal finishes is discarded; one an effect already
+       * moved ("Remove this card from the game", "shuffle it into the encounter deck") stays where it went
+       * (docs/phase7-wave4.md §3.45).
+       */
+      readonly revealedFrom?: ZoneId | null;
       readonly stage: "faceup" | "enterPlay" | "whenRevealed" | "finish" | "done";
     })
   /** RRG "Initiating Abilities" steps 6–7, after costs are paid. */

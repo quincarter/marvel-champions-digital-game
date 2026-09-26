@@ -48,6 +48,13 @@ export interface RawCard {
   readonly traits?: string | null;
   readonly real_traits?: string | null;
   readonly errata?: string | null;
+  /**
+   * A double-sided *player* card's back face, sent inline on the front record itself (no `linked_card`) — Vision's
+   * Intangible/Dense (`vision` 26002, docs/phase7-wave4.md §1.2). Distinct from the `linked_card`-nested back face
+   * an encounter card or the Hydra Campaign upgrades use (`readFlipSide` in `normalize/single-cards.ts`).
+   */
+  readonly back_name?: string | null;
+  readonly back_text?: string | null;
 
   readonly cost?: number | null;
   readonly cost_per_hero?: boolean;

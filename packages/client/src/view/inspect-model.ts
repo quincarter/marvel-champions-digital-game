@@ -18,6 +18,7 @@ import {
   cardOf,
   characterProfile,
   getInstance,
+  handCardResources,
   keywordsOf,
   maxHitPoints,
   playCostOf,
@@ -30,6 +31,8 @@ import {
   type InstanceId,
   type LegalActions,
   type PlayerId,
+  type ResourceGeneration,
+  type TargetQuery,
 } from "@mc/engine";
 import { artFor, type ArtSource, type CardFace } from "../art/art-source.js";
 import { abilityActionsFor } from "./highlights.js";
@@ -118,6 +121,12 @@ export interface InspectModel {
    * screen's pickers), where there is no table to price against.
    */
   readonly priceNote: string | null;
+  /**
+   * For a card whose resources depend on the table (Band Together, `mts` 21018: "generates [wild] for each ally you
+   * control (to a maximum of 3)"): what it is worth right now and why, since it prints no fixed resource icon. Null
+   * for every card whose resources are simply printed.
+   */
+  readonly resourceNote: string | null;
   readonly rulesText: string;
   /**
    * The original wording, only when errata changed it. The content package
@@ -191,6 +200,7 @@ export function inspectModel(
       typeLine: "Facedown",
       cost: null,
       priceNote: null,
+      resourceNote: null,
       // A hidden card is exactly as informative as the table makes it.
       rulesText: "This card is facedown. Nothing about its face is known to you.",
       printedText: null,
@@ -239,6 +249,7 @@ export function inspectModel(
     typeLine: typeLineOf(card, face),
     cost: "cost" in card && typeof card.cost === "number" ? card.cost : null,
     priceNote: priceNoteFor(state, perspectiveId, instanceId, deps),
+    resourceNote: liveResourceNote(state, instanceId, card, deps),
     rulesText: textOf(card, face).current,
     printedText: errataDiff(card, face),
     flavor: flavorOf(card, face),
@@ -309,6 +320,40 @@ function priceNoteFor(
   return `${names.length > 0 ? `${names.join(", ")}: ` : ""}${price.printed} → ${price.current}`;
 }
 
+/** The hand-resource rule a card's own constant ability sets (`handGenerates`, docs/phase7-wave4.md §3.38), if any. */
+function handGenerationOf(card: AnyCard, deps: EngineDeps): ResourceGeneration | undefined {
+  const refs = "abilities" in card ? (card.abilities as readonly { readonly id: AbilityId }[]) : [];
+  for (const ref of refs) {
+    const trigger = deps.abilities[ref.id]?.trigger;
+    if (trigger?.kind === "constant" && trigger.handGenerates !== undefined) return trigger.handGenerates;
+  }
+  return undefined;
+}
+
+/** "ally you control", from the query a per-card generation counts. */
+function describeCounted(query: TargetQuery): string {
+  const kinds = (query.categories ?? []).map((category) => category.replace(/_/g, " ")).join(" or ") || "card";
+  return query.controller === "you" ? `${kinds} you control` : kinds;
+}
+
+/** "1 wild per ally you control, up to 3": a per-card generation in words, or null for any other kind. */
+function perCardClause(generation: ResourceGeneration | undefined): string | null {
+  if (typeof generation !== "object" || !("kind" in generation) || generation.kind !== "perCard") return null;
+  const cap = generation.max !== undefined ? `, up to ${generation.max}` : "";
+  return `1 ${generation.resource} per ${describeCounted(generation.per)}${cap}`;
+}
+
+/** What the card is worth if its owner spends it now, and the rule behind the number. */
+function liveResourceNote(state: GameState, instanceId: InstanceId, card: AnyCard, deps: EngineDeps): string | null {
+  const generation = handGenerationOf(card, deps);
+  const clause = perCardClause(generation);
+  const owner = getInstance(state, instanceId)?.ownerId;
+  if (!clause || !owner || typeof generation !== "object" || !("kind" in generation) || generation.kind !== "perCard")
+    return null;
+  const now = handCardResources(state, deps, instanceId, owner, null)[generation.resource];
+  return `Worth ${now} ${generation.resource} right now: ${clause}. It can pay any cost.`;
+}
+
 /** Every action ability `legalActions` currently lists for this card, named and priced. */
 function usableAbilitiesOf(
   state: GameState,
@@ -324,13 +369,24 @@ function usableAbilitiesOf(
   }));
 }
 
+/**
+ * The hero face a `CardFace` names: `card.hero` for `{ kind: "hero" }` or anything else, or `additionalHeroForms[i
+ * - 1]` for `{ kind: "heroForm", index: i }` — Spectrum's energy/density/mass forms and Ant-Man/Wasp's Giant form
+ * (docs/phase7-wave2.md §3.2, docs/phase7-wave4.md §5). Falls back to `card.hero` for an out-of-range index rather
+ * than throwing, the same defensive default `art-source.ts`'s own `localRefFor`/`imageRefFor` use.
+ */
+function heroFaceOf(card: Extract<AnyCard, { readonly type: "hero_identity" }>, face: CardFace) {
+  if (face.kind === "heroForm") return card.additionalHeroForms?.[face.index - 1] ?? card.hero;
+  return card.hero;
+}
+
 /** Every card kind's text, since the schema keeps it in a different place per kind. */
 function textOf(
   card: AnyCard,
   face: CardFace = { kind: "front" },
 ): { readonly printed: string; readonly current: string } {
   if ("text" in card) return card.text;
-  if (card.type === "hero_identity") return face.kind === "alterEgo" ? card.alterEgo.text : card.hero.text;
+  if (card.type === "hero_identity") return face.kind === "alterEgo" ? card.alterEgo.text : heroFaceOf(card, face).text;
   if (card.type === "villain") {
     const side = face.kind === "villainStage" ? (card.sides[face.sideIndex] ?? card.sides[0]) : card.sides[0];
     const stage = face.kind === "villainStage" ? (side.stages[face.stageIndex] ?? side.stages[0]) : side.stages[0];
@@ -345,7 +401,8 @@ function textOf(
 
 /** The keywords printed on one face, without a game to ask about granted ones. */
 function printedKeywordsOf(card: AnyCard, face: CardFace): readonly KeywordInstance[] {
-  if (card.type === "hero_identity") return face.kind === "alterEgo" ? card.alterEgo.keywords : card.hero.keywords;
+  if (card.type === "hero_identity")
+    return face.kind === "alterEgo" ? card.alterEgo.keywords : heroFaceOf(card, face).keywords;
   if (card.type === "villain") {
     const side = face.kind === "villainStage" ? (card.sides[face.sideIndex] ?? card.sides[0]) : card.sides[0];
     return (face.kind === "villainStage" ? (side.stages[face.stageIndex] ?? side.stages[0]) : side.stages[0]).keywords;
@@ -360,7 +417,7 @@ function printedKeywordsOf(card: AnyCard, face: CardFace): readonly KeywordInsta
 /** The traits printed on one face. A hero's two sides do not share them. */
 function printedTraitsOf(card: AnyCard, face: CardFace): readonly string[] {
   if (card.type === "hero_identity") {
-    return (face.kind === "alterEgo" ? card.alterEgo.traits : card.hero.traits) as readonly string[];
+    return (face.kind === "alterEgo" ? card.alterEgo.traits : heroFaceOf(card, face).traits) as readonly string[];
   }
   if (card.type === "villain") {
     const side = face.kind === "villainStage" ? (card.sides[face.sideIndex] ?? card.sides[0]) : card.sides[0];
@@ -387,6 +444,7 @@ export function cardInspectModel(card: AnyCard | undefined, face: CardFace): Ins
       typeLine: "",
       cost: null,
       priceNote: null,
+      resourceNote: null,
       rulesText: "",
       printedText: null,
       flavor: null,
@@ -418,6 +476,7 @@ export function cardInspectModel(card: AnyCard | undefined, face: CardFace): Ins
     typeLine: typeLineOf(card, face),
     cost: "cost" in card && typeof card.cost === "number" ? card.cost : null,
     priceNote: null,
+    resourceNote: null,
     rulesText: text.current,
     printedText: text.printed && text.printed !== text.current ? text.printed : null,
     flavor: flavorOf(card, face),
@@ -463,12 +522,12 @@ function printedKeywordDefinitions(card: AnyCard, face: CardFace): readonly Keyw
 /** A hero identity names its two sides differently; everything else has one name. */
 function faceNameOf(card: AnyCard, face: CardFace): string {
   if (card.type !== "hero_identity") return card.name;
-  return face.kind === "alterEgo" ? card.alterEgo.faceName : card.hero.faceName;
+  return face.kind === "alterEgo" ? card.alterEgo.faceName : heroFaceOf(card, face).faceName;
 }
 
 function flavorOf(card: AnyCard, face: CardFace): string | null {
   if (card.type === "hero_identity") {
-    return (face.kind === "alterEgo" ? card.alterEgo.flavor : card.hero.flavor) ?? null;
+    return (face.kind === "alterEgo" ? card.alterEgo.flavor : heroFaceOf(card, face).flavor) ?? null;
   }
   return "flavor" in card && card.flavor ? card.flavor : null;
 }

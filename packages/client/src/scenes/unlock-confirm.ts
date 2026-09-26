@@ -20,6 +20,9 @@ import { FocusRoute } from "./focus-route.js";
 import { SCENES } from "./keys.js";
 import { destroyChildren } from "../ui/destroy-children.js";
 
+/** The popup's button labels, a size up from the 9px `label` role so they read at desk distance. */
+const buttonType = { ...typeRole.label, size: 13 };
+
 export interface UnlockConfirmData {
   readonly target: UnlockTarget;
   /** The scene that asked: its pointer input is off while this is up. */
@@ -71,18 +74,18 @@ export class UnlockConfirmOverlay extends Phaser.Scene {
     this.add.zone(0, 0, width, height).setOrigin(0, 0).setInteractive();
     this.add.graphics().fillStyle(surface.void.hex, 0.7).fillRect(0, 0, width, height);
 
-    const boxWidth = Math.min(440, width - 32);
+    const boxWidth = Math.min(560, width - 32);
     const textWidth = boxWidth - 40;
     const ground = this.add.graphics();
     const title = this.add
-      .text(0, 0, confirm.title, textStyle(typeRole.sectionHeader, surface.ink.hex))
+      .text(0, 0, confirm.title, textStyle(typeRole.barTitle, surface.ink.hex))
       .setWordWrapWidth(textWidth);
     const body = this.add
       .text(0, 0, confirm.body, textStyle(typeRole.body, surface.ink.hex, 0.9))
-      .setFontSize(13)
+      .setFontSize(16)
       .setWordWrapWidth(textWidth)
-      .setLineSpacing(3);
-    const buttonHeight = hit.target;
+      .setLineSpacing(4);
+    const buttonHeight = hit.primary;
     const boxHeight = 20 + title.height + 12 + body.height + 20 + buttonHeight + 20;
     const box: Rect = {
       x: (width - boxWidth) / 2,
@@ -104,7 +107,7 @@ export class UnlockConfirmOverlay extends Phaser.Scene {
       new McButton(this, {
         kind: confirm.affordable ? "secondary" : "primary",
         label: "Keep playing",
-        type: typeRole.label,
+        type: buttonType,
         rect: cancelRect,
         onClick: () => this.#answer(false),
       }),
@@ -115,7 +118,7 @@ export class UnlockConfirmOverlay extends Phaser.Scene {
         new McButton(this, {
           kind: "primary",
           label: confirm.confirmLabel,
-          type: typeRole.label,
+          type: buttonType,
           rect: okRect,
           onClick: () => this.#answer(true),
         }),

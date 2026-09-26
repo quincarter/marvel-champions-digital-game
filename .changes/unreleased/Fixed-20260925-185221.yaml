@@ -1,0 +1,3 @@
+kind: Fixed
+body: Table setup's Standard II/Expert II toggle fills the difficulty row's own spare third slot instead of a whole extra row, so The Hood's own modular-set section doesn't starve the encounter-deck preview on a standard 900px-tall desktop
+time: 2026-09-25T18:52:21.102358-04:00

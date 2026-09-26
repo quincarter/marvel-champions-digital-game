@@ -2,10 +2,11 @@
 
 import type { AbilityId } from "@mc/content";
 import { type AbilityDefinition, abilityUseKey } from "../abilities.js";
+import { cannotDefend } from "../rules.js";
 import { type Ctx, emit, popFrame, setFrame, updateInstance } from "../ctx.js";
 import type { InstanceId, PlayerId } from "../ids.js";
 import { statusActive } from "../keywords.js";
-import { cardOf, mustPlayer } from "../query.js";
+import { cardOf, getInstance, mustPlayer } from "../query.js";
 import { DEFENDER_SLOT } from "../select.js";
 import { currentActivationFrameId } from "../stack.js";
 import type { GameState } from "../state.js";
@@ -73,6 +74,13 @@ export function executeAbilityFrame(ctx: Ctx, frame: Frame<"ability">): void {
     controllerId: frame.controllerId,
   };
   if (definition.effects.length > 0 && heard(ctx.state, ctx.deps, resolved)) announce(ctx, resolved);
+  // A player's own ability, or one a player chose to use (docs/phase7-wave4.md §3.44).
+  const trigger = definition.trigger;
+  const byPlayer =
+    (getInstance(ctx.state, frame.instanceId)?.ownerId ?? null) !== null ||
+    trigger.kind === "action" ||
+    trigger.kind === "resource" ||
+    ((trigger.kind === "interrupt" || trigger.kind === "response") && !trigger.forced);
   pushEffects(ctx, {
     effects: definition.effects,
     selfInstanceId: frame.instanceId,
@@ -81,6 +89,7 @@ export function executeAbilityFrame(ctx: Ctx, frame: Frame<"ability">): void {
     eventFrameId: frame.eventFrameId,
     bindings: frame.bindings,
     vars: frame.vars,
+    byPlayer,
   });
 }
 
@@ -110,6 +119,9 @@ function labelCancels(ctx: Ctx, playerId: PlayerId, labels: readonly string[]): 
 function declareLabeledDefense(ctx: Ctx, playerId: PlayerId): void {
   const identity = mustPlayer(ctx.state, playerId).identity.instanceId;
   const attack = ctx.state.stack.find((f): f is Frame<"enemyAttack"> => f.kind === "enemyAttack");
+  // A character that cannot defend is not made the defender by a "(defense)" ability either (§3.31 of wave 4).
+  const attackerOf = attack?.enemyInstanceId ?? null;
+  if (cannotDefend(ctx.state, ctx.deps, identity, attackerOf)) return;
   if (attack) {
     if (attack.defenderInstanceId === null) setDefender(ctx, attack, identity, playerId, false);
     return;

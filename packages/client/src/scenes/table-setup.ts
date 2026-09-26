@@ -20,7 +20,7 @@
  * border** on an otherwise-white card, never a red or ink fill.
  */
 import Phaser from "phaser";
-import type { Deck, Scenario } from "@mc/content";
+import type { DifficultySetChoice, Deck, Scenario } from "@mc/content";
 import {
   buildScenario,
   CARDS_BY_ID,
@@ -63,13 +63,24 @@ import {
   type TableSetupPreview,
 } from "../view/table-setup-preview.js";
 import {
+  alternateDifficultySetsFor,
+  hasTowerDefenseSetupDamageOption,
   setDifficulty,
   setFirstPlayerIndex,
   setSeed,
   rerollSeed,
+  toggleDifficultySets,
+  toggleTowerDefenseSetupDamage,
+  towerDefenseSetupDamagePerHero,
   toSessionConfig,
   type SetupDraft,
 } from "../view/setup-draft.js";
+import {
+  hasSetAsideModularChoice,
+  hoodModularSetOptionsFor,
+  toggleHoodIncludedSet,
+  type HoodModularSetOption,
+} from "../view/hood-modular-sets.js";
 import { tableSetupFocusOrder } from "../view/screen-focus.js";
 import {
   COMPACT_DIFFICULTY_ROW_HEIGHT,
@@ -125,6 +136,10 @@ interface CompactRowData {
   readonly compositionRows: readonly CompositionRow[];
   readonly whatsInThereRows: readonly CompositionRow[];
   readonly nemesisStandby: NemesisStandby | null;
+  /** Standard II/Expert II (docs/phase7-wave4.md §4 Q5): null when the scenario's own pack has no alternate. */
+  readonly alternateDifficultySets: DifficultySetChoice | null;
+  /** The Hood's own nine modular set candidates, by id — empty for every other scenario. */
+  readonly hoodOptionById: ReadonlyMap<string, HoodModularSetOption>;
 }
 
 export class TableSetupScene extends Phaser.Scene {
@@ -226,6 +241,15 @@ export class TableSetupScene extends Phaser.Scene {
     const modularCardCount = requiredSets.length + modularOptions.length;
     const modularCap = scenario.modularSetCount ?? 1;
 
+    // Standard II/Expert II (docs/phase7-wave4.md §4 Q5): offered only when the scenario's own pack has one.
+    const alternateDifficultySets = alternateDifficultySetsFor(scenario, POOL_ENCOUNTER_SETS);
+    // Tower Defense's own setup-damage toggle (docs/phase7-wave4.md §4 Q4): offered only for Tower Defense itself.
+    const towerDefenseSetupDamageOffered = hasTowerDefenseSetupDamageOption(scenario);
+    // The Hood's own "choose 7 modular encounter sets and set them aside" (§2.3, §3.18): empty for every other scenario.
+    const hoodOptions = hasSetAsideModularChoice(scenario)
+      ? hoodModularSetOptionsFor(this.#draft, scenario, CARDS_BY_ID)
+      : [];
+
     let compositionRows: readonly CompositionRow[] = [];
     let whatsInThereRows: readonly CompositionRow[] = [];
     let nemesisStandby: NemesisStandby | null = null;
@@ -261,6 +285,8 @@ export class TableSetupScene extends Phaser.Scene {
         nemesisStandby,
         encounterDeckSize,
         preview,
+        alternateDifficultySets,
+        hoodOptions,
       );
       return;
     }
@@ -285,6 +311,9 @@ export class TableSetupScene extends Phaser.Scene {
       compositionRows: compositionRows.length,
       whatsInThereRows: whatsInThereRows.length,
       nemesisLines,
+      hasAlternateDifficultySets: alternateDifficultySets !== null,
+      hasTowerDefenseSetupDamage: towerDefenseSetupDamageOffered,
+      hoodSetCount: hoodOptions.length,
     });
 
     // Ground: paper body (dot grid) under the ink header on wide, where the body is a real paper page beside the
@@ -359,7 +388,26 @@ export class TableSetupScene extends Phaser.Scene {
       "Difficulty",
       bodyColor,
     );
-    this.#drawDifficultyRow(layout.difficultyRow, difficultyCards, layout.wide);
+    // Standard II/Expert II (docs/phase7-wave4.md §4 Q5), wide layout: fills the difficulty row's own reserved
+    // third slot when there's room for it (`tableSetupLayout`'s own `altFitsInDifficultyRow` — every scenario that
+    // offers this today, since none has three difficulty cards) rather than spending a whole extra row on it;
+    // falls back to `layout.difficultyAltRow`'s own full-width row only when that slot doesn't exist.
+    const canInlineAlt = layout.wide && alternateDifficultySets !== null && difficultyCards.length < 3;
+    this.#drawDifficultyRow(
+      layout.difficultyRow,
+      difficultyCards,
+      layout.wide,
+      canInlineAlt ? alternateDifficultySets : null,
+    );
+    if (layout.wide && !canInlineAlt && layout.difficultyAltRow.height > 0) {
+      this.#drawAlternateDifficultySetsRow(layout.difficultyAltRow, alternateDifficultySets);
+    }
+
+    // Tower Defense's own setup-damage toggle (docs/phase7-wave4.md §4 Q4): a full-width toggle right under
+    // Difficulty (and Standard II/Expert II, when both are offered) — zero-area on every other scenario's layout.
+    if (layout.wide && layout.towerDefenseDamageRow.height > 0) {
+      this.#drawTowerDefenseDamageRow(layout.towerDefenseDamageRow);
+    }
 
     const modularRight = `${requiredSets.length} required · ${modularCap} chosen`.toUpperCase();
     sectionHeader(
@@ -372,6 +420,22 @@ export class TableSetupScene extends Phaser.Scene {
       modularRight,
     );
     this.#drawModularGrid(layout, requiredSets, modularOptions, scenario);
+
+    // The Hood's own "choose which modular sets are in" (docs/phase7-wave4.md §2.3, §3.18): its own section right
+    // under Modular sets, only for a scenario with the choice at all (`hoodOptions` empty otherwise).
+    if (layout.wide && layout.hoodHeader.height > 0 && hoodOptions.length > 0) {
+      const includedCount = hoodOptions.filter((o) => o.included).length;
+      sectionHeader(
+        this,
+        layout.hoodHeader.x,
+        layout.hoodHeader.y,
+        layout.hoodHeader.width,
+        "The Hood's own modular sets",
+        bodyColor,
+        `${includedCount} of ${hoodOptions.length} in the game`.toUpperCase(),
+      );
+      this.#drawHoodModularGrid(layout, hoodOptions);
+    }
 
     sectionHeader(
       this,
@@ -497,7 +561,10 @@ export class TableSetupScene extends Phaser.Scene {
     this.#route?.set(
       tableSetupFocusOrder({
         difficulties: difficultyCards.map((c) => c.id),
+        hasStandardII: alternateDifficultySets !== null,
+        hasTowerDefenseSetupDamage: towerDefenseSetupDamageOffered,
         modularSetIds: modularOptions.map((o) => o.id),
+        hoodSetIds: hoodOptions.map((o) => o.id),
         firstPlayerOptionIds: [...seatCells.map((c) => c.id), "random"],
       }),
       this.#stops,
@@ -526,13 +593,17 @@ export class TableSetupScene extends Phaser.Scene {
     nemesisStandby: NemesisStandby | null,
     encounterDeckSize: number,
     preview: TableSetupPreview | null,
+    alternateDifficultySets: DifficultySetChoice | null,
+    hoodOptions: readonly HoodModularSetOption[],
   ): void {
     this.#compactRegion?.destroy();
     this.#compactRegion = null;
     this.#compactSeedBoxRect = null;
 
-    const villainName = scenarioDetailOf(scenario, CARDS_BY_ID, POOL_ENCOUNTER_SETS).villainName;
+    const villainName = scenarioDetailOf(scenario, CARDS_BY_ID, POOL_ENCOUNTER_SETS).displayName;
     const modularRightLabel = `${requiredSets.length} required · ${modularCap} chosen`.toUpperCase();
+    // Tower Defense's own setup-damage toggle (docs/phase7-wave4.md §4 Q4): offered only for Tower Defense itself.
+    const towerDefenseSetupDamageOffered = hasTowerDefenseSetupDamageOption(scenario);
 
     const layout = tableSetupCompactLayout({
       width,
@@ -541,6 +612,9 @@ export class TableSetupScene extends Phaser.Scene {
       requiredModularIds: requiredSets.map((r) => r.id as string),
       candidateModularIds: modularOptions.map((o) => o.id),
       modularHeaderRightLabel: modularRightLabel,
+      hasStandardII: alternateDifficultySets !== null,
+      hasTowerDefenseSetupDamage: towerDefenseSetupDamageOffered,
+      hoodSetIds: hoodOptions.map((o) => o.id),
       seatCount: this.#draft.seats.length,
       compositionRows: compositionRows.length,
       whatsInThereRows: whatsInThereRows.length,
@@ -566,6 +640,7 @@ export class TableSetupScene extends Phaser.Scene {
     const seatCells = this.#seatCells(deckOptions);
     const requiredById = new Map(requiredSets.map((r) => [r.id as string, r]));
     const candidateById = new Map(modularOptions.map((o) => [o.id, o]));
+    const hoodOptionById = new Map(hoodOptions.map((o) => [o.id, o]));
     const rowData: CompactRowData = {
       difficultyCards,
       villainName,
@@ -576,6 +651,8 @@ export class TableSetupScene extends Phaser.Scene {
       compositionRows,
       whatsInThereRows,
       nemesisStandby,
+      alternateDifficultySets,
+      hoodOptionById,
     };
 
     const rects = compactRowRects(layout);
@@ -620,7 +697,10 @@ export class TableSetupScene extends Phaser.Scene {
     this.#route?.set(
       tableSetupFocusOrder({
         difficulties: difficultyCards.map((c) => c.id),
+        hasStandardII: alternateDifficultySets !== null,
+        hasTowerDefenseSetupDamage: towerDefenseSetupDamageOffered,
         modularSetIds: modularOptions.map((o) => o.id),
+        hoodSetIds: hoodOptions.map((o) => o.id),
         firstPlayerOptionIds: [...seatCells.map((c) => c.id), "random"],
       }),
       this.#stops,
@@ -711,6 +791,67 @@ export class TableSetupScene extends Phaser.Scene {
       }
       const option = data.candidateById.get(setId);
       if (option) this.#drawCompactModularRow(rect, option);
+      return;
+    }
+    if (id === "standardII") {
+      this.#drawCompactToggleRow(rect, {
+        selected: this.#draft.difficultySets !== null,
+        name: "Standard II / Expert II",
+        meta: this.#draft.difficultySets !== null ? "Chosen · replaces the printed set" : "Off · uses the printed set",
+        onClick: () => {
+          this.#draft = toggleDifficultySets(this.#draft, data.alternateDifficultySets);
+          this.#rebuild();
+        },
+        stopId: "standardII",
+      });
+      return;
+    }
+    if (id === "towerDefenseSetupDamage") {
+      const perHero = towerDefenseSetupDamagePerHero(this.#draft.difficulty);
+      this.#drawCompactToggleRow(rect, {
+        selected: this.#draft.towerDefenseSetupDamage,
+        name: "Black Order's initial attack",
+        meta: this.#draft.towerDefenseSetupDamage
+          ? `Chosen · place ${perHero} damage per hero on Avengers Tower`
+          : `Off · Avengers Tower starts undamaged (${perHero} per hero suggested)`,
+        onClick: () => {
+          this.#draft = toggleTowerDefenseSetupDamage(this.#draft);
+          this.#rebuild();
+        },
+        stopId: "towerDefenseSetupDamage",
+      });
+      return;
+    }
+    if (id.startsWith("hoodSet:")) {
+      const setId = id.slice("hoodSet:".length);
+      const option = data.hoodOptionById.get(setId);
+      if (option) {
+        this.#drawCompactToggleRow(rect, {
+          selected: option.included,
+          name: option.name,
+          meta: option.included
+            ? `In the game · ${modularCardLabel({ selected: true, cardCount: option.cardCount, descriptor: option.descriptor })}`
+            : `Set aside · ${option.cardCount} card${option.cardCount === 1 ? "" : "s"}`,
+          onClick: () => {
+            const scenario = POOL_SCENARIOS.find((s) => (s.id as string) === this.#draft.scenarioId)!;
+            this.#draft = toggleHoodIncludedSet(this.#draft, scenario, option.id);
+            this.#rebuild();
+          },
+          stopId: `hoodSet:${option.id}`,
+        });
+      }
+      return;
+    }
+    if (id === "header:hoodSets") {
+      sectionHeader(
+        this,
+        rect.x,
+        rect.y + 2,
+        rect.width,
+        "The Hood's own modular sets",
+        surface.ink.hex,
+        "CHOOSE 2 TO INCLUDE",
+      );
       return;
     }
     if (id === "header:firstPlayer") {
@@ -858,6 +999,53 @@ export class TableSetupScene extends Phaser.Scene {
       surface.ink.hex,
       ink.label,
     );
+    fitText(meta, textWidth, typeRole.label.size);
+  }
+
+  /**
+   * A generic checkbox row: Standard II/Expert II's single toggle, and each of The Hood's own nine modular set
+   * candidates — the same paper-card/checkbox/name/meta shape `#drawCompactModularRow` draws for the ordinary
+   * modular picker, but with a caller-supplied click rather than `toggleModularSet` (neither of these two toggles
+   * shares that function's own draft-field/cap shape).
+   */
+  #drawCompactToggleRow(
+    rect: Rect,
+    row: {
+      readonly selected: boolean;
+      readonly name: string;
+      readonly meta: string;
+      readonly onClick: () => void;
+      readonly stopId: string;
+    },
+  ): void {
+    const h = COMPACT_MODULAR_ROW_HEIGHT;
+    const cellRect: Rect = { ...rect, height: h };
+    this.#buttons.push(
+      new McButton(this, {
+        kind: "quiet",
+        label: "",
+        type: typeRole.label,
+        rect: cellRect,
+        onClick: row.onClick,
+        clip: this.#compactClip,
+        suppressClick: this.#compactSuppressClick,
+      }),
+    );
+    this.#stops.set(row.stopId, this.#compactStop(cellRect, row.onClick, row.stopId));
+    const g = this.add.graphics();
+    g.fillStyle(surface.card.hex, 1).fillRect(rect.x, rect.y, rect.width, h);
+    g.lineStyle(2.5, surface.ink.hex, 1).strokeRect(rect.x + 1.25, rect.y + 1.25, rect.width - 2.5, h - 2.5);
+    const boxRect = this.#drawCompactCheckbox(rect, h, row.selected, surface.ink.hex);
+    const textX = boxRect.x + boxRect.width + 11;
+    const textWidth = rect.x + rect.width - textX - 10;
+    const name = this.add.text(
+      textX,
+      rect.y + 11,
+      row.name,
+      textStyle({ ...typeRole.rowTitle, size: 13 }, surface.ink.hex),
+    );
+    fitText(name, textWidth, 13);
+    const meta = label(this, textX, rect.y + 11 + 18, row.meta, typeRole.label, surface.ink.hex, ink.label);
     fitText(meta, textWidth, typeRole.label.size);
   }
 
@@ -1131,8 +1319,17 @@ export class TableSetupScene extends Phaser.Scene {
    * shape); narrow sizes cards to exactly `cards.length` instead — reserving a third of the row for nothing
    * would leave a real description ("Standard encounter set only. Starts at stage I.") only ~110px to wrap into,
    * clipping mid-sentence on a phone (`docs/design-renders` fidelity pass, 2026-09-18).
+   *
+   * `inlineAlt` (docs/phase7-wave4.md §4 Q5): when given, fills that reserved third slot with the Standard
+   * II/Expert II toggle instead of leaving it blank — the caller only ever passes it when the slot is actually
+   * spare (`tableSetupLayout`'s own `altFitsInDifficultyRow`), so this never has to make room for a fourth card.
    */
-  #drawDifficultyRow(rect: Rect, cards: readonly DifficultyCard[], wide: boolean): void {
+  #drawDifficultyRow(
+    rect: Rect,
+    cards: readonly DifficultyCard[],
+    wide: boolean,
+    inlineAlt: DifficultySetChoice | null = null,
+  ): void {
     const slots = wide ? Math.max(3, cards.length) : cards.length;
     const gap = 12;
     const slotWidth = (rect.width - gap * (slots - 1)) / slots;
@@ -1170,6 +1367,132 @@ export class TableSetupScene extends Phaser.Scene {
         .setWordWrapWidth(cardRect.width - 20)
         .setMaxLines(Math.max(1, Math.floor((cardRect.height - 34) / 14)));
     });
+    if (inlineAlt !== undefined && inlineAlt !== null) {
+      const altRect: Rect = {
+        x: rect.x + cards.length * (slotWidth + gap),
+        y: rect.y,
+        width: slotWidth,
+        height: rect.height,
+      };
+      this.#drawAlternateDifficultySetsRow(altRect, inlineAlt);
+    }
+  }
+
+  /**
+   * Standard II/Expert II (docs/phase7-wave4.md §4 Q5), wide layout: a single full-width toggle card right under
+   * Difficulty — same white-ground/red-border shape `#cardFrame` gives every difficulty card, but one row rather
+   * than a segmented choice, since it's a plain on/off (`toggleDifficultySets`), not a pick among several.
+   */
+  #drawAlternateDifficultySetsRow(rect: Rect, alternate: DifficultySetChoice | null): void {
+    const selected = this.#draft.difficultySets !== null;
+    const onClick = (): void => {
+      this.#draft = toggleDifficultySets(this.#draft, alternate);
+      this.#rebuild();
+    };
+    this.#buttons.push(new McButton(this, { kind: "quiet", label: "", type: typeRole.label, rect, onClick }));
+    this.#stops.set("standardII", { rect, activate: onClick });
+    this.#cardFrame(rect, selected);
+    const name = this.add.text(
+      rect.x + 10,
+      rect.y + 8,
+      "Standard II / Expert II",
+      textStyle({ ...typeRole.sectionHeader, size: 18 }, surface.ink.hex, selected ? 1 : ink.disabled),
+    );
+    fitText(name, rect.width - 20, 18);
+    this.add.text(
+      rect.x + 10,
+      rect.y + 8 + 22,
+      selected ? "Chosen · replaces the printed set" : "Off · uses the printed set",
+      textStyle(typeRole.body, surface.ink.hex, selected ? ink.secondary : ink.disabled),
+    );
+  }
+
+  /**
+   * Tower Defense's own "Modular Difficulty" (MC21 p. 11, docs/phase7-wave4.md §4 Q4), wide layout: the same
+   * plain on/off card `#drawAlternateDifficultySetsRow` draws — a single full-width toggle, off by default,
+   * labeled with the rulebook's own framing rather than a bare flag name.
+   */
+  #drawTowerDefenseDamageRow(rect: Rect): void {
+    const selected = this.#draft.towerDefenseSetupDamage;
+    const perHero = towerDefenseSetupDamagePerHero(this.#draft.difficulty);
+    const onClick = (): void => {
+      this.#draft = toggleTowerDefenseSetupDamage(this.#draft);
+      this.#rebuild();
+    };
+    this.#buttons.push(new McButton(this, { kind: "quiet", label: "", type: typeRole.label, rect, onClick }));
+    this.#stops.set("towerDefenseSetupDamage", { rect, activate: onClick });
+    this.#cardFrame(rect, selected);
+    const name = this.add.text(
+      rect.x + 10,
+      rect.y + 8,
+      "Black Order's initial attack",
+      textStyle({ ...typeRole.sectionHeader, size: 18 }, surface.ink.hex, selected ? 1 : ink.disabled),
+    );
+    fitText(name, rect.width - 20, 18);
+    this.add.text(
+      rect.x + 10,
+      rect.y + 8 + 22,
+      selected
+        ? `Chosen · place ${perHero} damage per hero on Avengers Tower`
+        : `Off · Avengers Tower starts undamaged (${perHero} per hero suggested)`,
+      textStyle(typeRole.body, surface.ink.hex, selected ? ink.secondary : ink.disabled),
+    );
+  }
+
+  /**
+   * The Hood's own "choose which modular sets are in" (docs/phase7-wave4.md §2.3, §3.18), wide layout: the same
+   * card grid `#drawModularGrid` draws for the ordinary modular picker, one card per candidate — `option.included`
+   * stands in for `ModularSetOption.selected`, and toggling calls `toggleHoodIncludedSet` instead of
+   * `toggleModularSet` (neither shares the ordinary picker's draft-field/cap shape).
+   */
+  #drawHoodModularGrid(layout: TableSetupLayout, options: readonly HoodModularSetOption[]): void {
+    const rect = layout.hoodGrid;
+    const columns = layout.hoodColumns;
+    const gap = ROW_GAP;
+    const cellHeight =
+      layout.hoodRows > 0 ? (rect.height - (layout.hoodRows - 1) * gap) / layout.hoodRows : rect.height;
+    const cellWidth = (rect.width - (columns - 1) * gap) / columns;
+    options.forEach((option, index) => {
+      const row = Math.floor(index / columns);
+      const col = index % columns;
+      const cellRect: Rect = {
+        x: rect.x + col * (cellWidth + gap),
+        y: rect.y + row * (cellHeight + gap),
+        width: cellWidth,
+        height: cellHeight,
+      };
+      this.#drawHoodModularCard(cellRect, option);
+    });
+  }
+
+  /** One of The Hood's own candidates: white, included = 4px red border, set aside = dim border + dim text — the same shape `#drawModularCard` uses for the ordinary picker. */
+  #drawHoodModularCard(rect: Rect, option: HoodModularSetOption): void {
+    const onClick = (): void => {
+      const scenario = POOL_SCENARIOS.find((s) => (s.id as string) === this.#draft.scenarioId)!;
+      this.#draft = toggleHoodIncludedSet(this.#draft, scenario, option.id);
+      this.#rebuild();
+    };
+    this.#buttons.push(new McButton(this, { kind: "quiet", label: "", type: typeRole.label, rect, onClick }));
+    this.#stops.set(`hoodSet:${option.id}`, { rect, activate: onClick });
+    this.#cardFrame(rect, option.included);
+    const dim = option.included ? 1 : ink.disabled;
+    const name = this.add.text(
+      rect.x + 10,
+      rect.y + 8,
+      option.name,
+      textStyle({ ...typeRole.sectionHeader, size: 15 }, surface.ink.hex, dim),
+    );
+    fitText(name, rect.width - 20, 15);
+    const metaText = option.included
+      ? modularCardLabel({ selected: true, cardCount: option.cardCount, descriptor: option.descriptor })
+      : `Set aside · ${option.cardCount} card${option.cardCount === 1 ? "" : "s"}`;
+    this.#drawModularCardLabel(
+      rect,
+      rect.y + 8 + name.height + 4,
+      metaText.toUpperCase(),
+      surface.ink.hex,
+      option.included ? ink.label : ink.disabled,
+    );
   }
 
   /** A card's white ground and border — 4px Hero Red when selected, a thin dim ink outline otherwise. Never a fill besides "Deal it out". */
@@ -1200,7 +1523,7 @@ export class TableSetupScene extends Phaser.Scene {
     const cellHeight =
       layout.modularRows > 0 ? (rect.height - (layout.modularRows - 1) * gap) / layout.modularRows : rect.height;
     const cellWidth = (rect.width - (columns - 1) * gap) / columns;
-    const villainName = scenarioDetailOf(scenario, CARDS_BY_ID, POOL_ENCOUNTER_SETS).villainName;
+    const villainName = scenarioDetailOf(scenario, CARDS_BY_ID, POOL_ENCOUNTER_SETS).displayName;
 
     const cellAt = (index: number): Rect => {
       const row = Math.floor(index / columns);

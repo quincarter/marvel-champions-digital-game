@@ -1,0 +1,170 @@
+import { trait } from "@mc/content";
+import {
+  action,
+  alterEgoAction,
+  attachCard,
+  cards,
+  chooseCards,
+  chooseTarget,
+  chosen,
+  constant,
+  coveredByEngineRule,
+  defineAbilities,
+  eachPlayer,
+  exhaustThis,
+  exhaustYourHero,
+  heal,
+  heroAction,
+  heroResponse,
+  interrupt,
+  moveCards,
+  on,
+  ownerOf,
+  playFromHandReducingCost,
+  playableAttachments,
+  preventDamage,
+  putIntoPlay,
+  query,
+  ready,
+  removeCounter,
+  response,
+  rule,
+  self,
+  spend,
+  you,
+  zone,
+  attackingEnemy,
+  dealDamage,
+  discardBoostCard,
+  heroInterrupt,
+  modifyBasicPower,
+  spendUpTo,
+  varOf,
+  shuffleDeck,
+} from "../../dsl/index.js";
+
+const ANDROID = trait("ANDROID");
+const DEFENSE = trait("DEFENSE");
+const AVENGER = trait("AVENGER");
+const GUARDIAN = trait("GUARDIAN");
+
+/**
+ * Vision (`vision`) protection/basic/aggression/justice/leadership filler (26013–26024, 26033–26036, printed as a
+ * generic aspect rather than `hero:26001a`). Reprints — Indomitable (26017), Side Step (26019), Get Behind Me!
+ * (26020), Avengers Mansion (26023) — are exact Core/`qsv` cards, aliased automatically by `../reprints.ts`, not
+ * scripted here.
+ *
+ * **Flow Like Water's "deal 1 damage to the attacking enemy" (26016.flow-like-water-response)** is `attackingEnemy`
+ * (docs/phase7-wave4.md §3.34). **Defiance's "discard [a boost card] instead [of turning it faceup]"
+ * (26018.defiance-interrupt)** is `discardBoostCard` (§3.35). **Machine Man's "attacks or thwarts"
+ * (26022.machine-man-interrupt)** is an `eventIs` list (§3.36).
+ */
+export const VISION_PACK_CARDS = defineAbilities({
+  // Jocasta (ally, 26013) — You may play the event attached to Jocasta as if it were in your hand. Response: After
+  // Jocasta enters play, choose a Defense event in your discard pile and attach it to her facedown.
+  "26013.jocasta-constant": constant(playableAttachments(query("event", { host: self }))),
+  "26013.jocasta-response": response(
+    on.entersPlay("self"),
+    chooseCards("found", zone("discard", you, { filter: query("event", { trait: DEFENSE }) }), { min: 0, max: 1 }),
+    attachCard(chosen("found"), self, { facedown: true }),
+  ),
+
+  // Protector (ally, 26014) — Interrupt: When Protector would take any amount of damage, spend a [mental] resource
+  // → reduce that amount by 1. (Limit once per round.)
+  "26014.protector-interrupt": interrupt(
+    on.damage("self"),
+    { cost: spend({ mental: 1 }), limit: { count: 1, period: "round" } },
+    preventDamage(1),
+  ),
+
+  // Victor Mancha (ally, 26015) — Reduce the amount of damage Victor Mancha takes from each attack by 1.
+  "26015.victor-mancha-constant": constant(
+    rule({ kind: "reduceDamageTaken", target: query("ally", { self: true }), amount: 1, fromAttack: true }),
+  ),
+
+  // Flow Like Water (upgrade, 26016) — Response: After you play a Defense card, deal 1 damage to the attacking enemy
+  // (the attack in progress, `attackingEnemy`, docs/phase7-wave4.md §3.34; none outside an attack).
+  "26016.flow-like-water-response": response(on.youPlayedCard({ trait: DEFENSE }), dealDamage(1, attackingEnemy)),
+
+  // Defiance (event, 26018) — Hero Interrupt (defense): When a boost card on an enemy attacking you would be turned
+  // faceup, discard it instead (`discardBoostCard`, docs/phase7-wave4.md §3.35).
+  "26018.defiance-interrupt": heroInterrupt(
+    { on: "boostCardTurnedFaceup", playerIs: "controller", activation: "attack" },
+    { label: "defense" },
+    discardBoostCard(),
+  ),
+
+  // Preservation (resource, 26021) — Max 1 per deck (data). Hero Response: After you spend this card, heal 1
+  // damage from your hero.
+  "26021.preservation-response": heroResponse(on.youSpendThis(), heal(1, self)),
+
+  // Machine Man (ally, 26022) — Interrupt: When Machine Man attacks or thwarts, spend up to 3 resources of any type →
+  // Machine Man gets +1 THW and +1 ATK for this use for each resource spent this way. "Attacks or thwarts" is his
+  // basic attack or thwart, not his defense (`eventIs` list, docs/phase7-wave4.md §3.36); "+1 THW and +1 ATK for this
+  // use" raises whichever power is being used.
+  "26022.machine-man-interrupt": interrupt(
+    on.basicPowerUsing("self", { power: ["attack", "thwart"] }),
+    { cost: spendUpTo(3) },
+    modifyBasicPower(varOf("x")),
+  ),
+
+  // Avengers Mansion is a reprint (26023, module docblock).
+
+  // Reboot (event, 26024) — Action: Ready a friendly Android character and heal 1 damage from it.
+  "26024.reboot-action": action(
+    chooseTarget("android", query(["identity", "ally"], { trait: ANDROID })),
+    ready(chosen("android")),
+    heal(1, chosen("android")),
+  ),
+
+  // Assault Training (support, 26033) — Max 2 per deck. Uses (2 training counters) (data). Alter-Ego Action:
+  // Exhaust this card and remove 1 training counter from it → choose an Aggression (red) event in your discard
+  // pile and shuffle it into your deck.
+  "26033.assault-training-action": alterEgoAction(
+    { cost: [exhaustThis, removeCounter("training", 1)] },
+    chooseCards("found", zone("discard", you, { filter: query("event", { aspect: "aggression" }) }), {
+      min: 0,
+      max: 1,
+    }),
+    moveCards(cards(chosen("found")), "deckShuffle"),
+  ),
+
+  // Chance Encounter (upgrade, 26034) — Attach to a side scheme. Max 1 per scheme (data). Interrupt: When attached
+  // side scheme is defeated, search your deck and discard pile for an ally and add it to your hand. Shuffle your
+  // deck.
+  "26034.chance-encounter-constant": coveredByEngineRule(),
+  // `schemeDefeated` has an interrupt window while the scheme and this attachment are still in play (docs/phase7-wave4.md
+  // §3.37).
+  "26034.chance-encounter-interrupt": interrupt(
+    on.schemeDefeated("host"),
+    chooseCards("ally", zone(["deck", "discard"], you, { filter: query("ally") }), { min: 1, max: 1 }),
+    moveCards(cards(chosen("ally")), "hand"),
+    shuffleDeck(),
+  ),
+
+  // Joining Forces (event, 26035) — Alliance (data). Hero Action: As a group, the players put a total of 1 Avenger
+  // ally and 1 Guardian ally into play from their hand(s). `zone("hand", eachPlayer, …)` pools every player's hand
+  // into one search (`packages/engine/src/resolve/cards.ts`'s own `case "zone"` loops `resolvePlayers` over the
+  // selector's player, which `eachPlayer` — `PlayerRef { kind: "each" }` — resolves to every seat); `excluding:
+  // chosen("avenger")` on the second pick keeps one card from paying both roles, the same "no card pays two slots"
+  // reading `exhaustEachCost` already established for Alliance costs (docs/phase7-wave4.md §3.17) — here for an
+  // effect rather than a cost, per that section's own "to be confirmed [in scripting]" note. Each ally enters play
+  // under whichever player's hand it came from (`ownerOf`), not necessarily the card's own player.
+  "26035.joining-forces-action": heroAction(
+    chooseCards("avenger", zone("hand", eachPlayer, { filter: query("ally", { trait: AVENGER }) }), {
+      min: 1,
+      max: 1,
+    }),
+    putIntoPlay(chosen("avenger"), ownerOf(chosen("avenger"))),
+    chooseCards(
+      "guardian",
+      zone("hand", eachPlayer, { filter: query("ally", { trait: GUARDIAN, excluding: chosen("avenger") }) }),
+      { min: 1, max: 1 },
+    ),
+    putIntoPlay(chosen("guardian"), ownerOf(chosen("guardian"))),
+  ),
+
+  // Meditation (event, 26036) — Alter-Ego Action: Exhaust your alter-ego → play a card from your hand, reducing its
+  // resource cost by 3.
+  "26036.meditation-action": alterEgoAction({ cost: exhaustYourHero }, playFromHandReducingCost(3)),
+});

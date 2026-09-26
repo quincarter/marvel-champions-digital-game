@@ -6,6 +6,8 @@
 import Phaser from "phaser";
 import type { AnyCard } from "@mc/content";
 import { CARDS_BY_ID } from "../../content/pool.js";
+import { artFor } from "../../art/art-source.js";
+import { cardArt, drawArt } from "../../art/card-art.js";
 import { storyFor } from "../../campaign/story.js";
 import { campaignService } from "../../session.js";
 import { accent, signal, surface, typeRole } from "../../tokens.js";
@@ -22,7 +24,7 @@ import {
   speechBubble,
   villainPicture,
 } from "../../ui/campaign-chrome.js";
-import { McButton, McTabs } from "../../ui/widgets.js";
+import { dashedRect, McButton, McTabs } from "../../ui/widgets.js";
 import { McScrollRegion } from "../../ui/scroll-region.js";
 import { destroyChildren } from "../../ui/destroy-children.js";
 import { fadeScreenIn, goToScreen } from "../../ui/transitions.js";
@@ -37,6 +39,8 @@ import {
   type DossierWalletSeat,
 } from "../../view/campaign-dossier-model.js";
 import { campaignRunModel, type RunIssueRow } from "../../view/campaign-run-model.js";
+import type { CampaignPoolOverview, PoolStillInPlayRow } from "../../view/campaign-pool-model.js";
+import type { HiddenEvidenceEnvelope } from "../../view/campaign-hidden-evidence-model.js";
 import type { Rect } from "../../view/layout.js";
 import { VariableListScroll } from "../../view/variable-list-scroll.js";
 import { FocusRoute, type FocusStop } from "../focus-route.js";
@@ -45,6 +49,19 @@ import type { CampaignDossierData, DossierTab } from "./routes.js";
 
 const cardName = (id: string): string => CARDS_BY_ID.get(id)?.name ?? id;
 const cardOf = (id: string): AnyCard | undefined => CARDS_BY_ID.get(id);
+/**
+ * A pool card's own type/art, resolved by name (`campaign-pool-model.ts`'s own doc comment: a pool field names a
+ * card, never an id, since a carried-forward card has no id of its own until it's composed into a game), against
+ * this build's own playable pool (`content/pool.ts`) — the same pool every other lookup in this file already reads.
+ * A card found in neither simply isn't classified: `helpsOf`'s own documented default ("helps") applies, and the
+ * pool row's own art thumbnail falls back to its "no scan" label like any other card art slot in this build.
+ */
+const CARD_BY_NAME = new Map<string, AnyCard>([...CARDS_BY_ID.values()].map((card) => [card.name, card] as const));
+const cardOfName = (name: string): AnyCard | undefined => CARD_BY_NAME.get(name);
+const cardTypeOf = (name: string): { readonly type: string } | undefined => {
+  const card = CARD_BY_NAME.get(name);
+  return card ? { type: card.type } : undefined;
+};
 const heroNameOf = (identityCardId: string): string => {
   const card = cardOf(identityCardId);
   return card && card.type === "hero_identity" ? card.hero.faceName : identityCardId;
@@ -98,8 +115,10 @@ export class CampaignDossierScene extends Phaser.Scene {
     this.#route = new FocusRoute(this, { onCancel: () => this.#back() });
     const onResize = (): void => this.#draw();
     this.scale.on("resize", onResize, this);
+    const artOff = cardArt(this).onArrived(() => this.#draw());
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.scale.off("resize", onResize, this);
+      artOff();
       for (const button of this.#buttons) button.destroy();
       this.#buttons = [];
       this.#tabs?.destroy();
@@ -124,7 +143,18 @@ export class CampaignDossierScene extends Phaser.Scene {
     this.#record = record;
     this.#definition = definition;
     const withMeta = { ...record, name: record.name, box: record.box };
-    const overview = campaignDossierOverview(withMeta, definition, heroNameOf, cardName);
+    const story = storyFor(record.campaignId as string);
+    const firstPlayerSeat = record.seats.find((seat) => seat.seatNumber === 1) ?? record.seats[0];
+    const firstPlayerName = firstPlayerSeat ? heroNameOf(firstPlayerSeat.identityCardId as string) : undefined;
+    const overview = campaignDossierOverview(
+      withMeta,
+      definition,
+      heroNameOf,
+      cardName,
+      cardTypeOf,
+      story?.poolCopy,
+      firstPlayerName,
+    );
     const log = campaignDossierLog(record, definition, cardName, heroNameOf);
     const run = campaignRunModel(withMeta, definition, storyFor(record.campaignId as string), cardName);
     // "After issue #N" names the *last finished* issue, not the current/next one `run.issueNumber` tracks — the
@@ -288,11 +318,21 @@ export class CampaignDossierScene extends Phaser.Scene {
     const leftX = pad;
     let leftY = body.y + pad;
 
-    // A box with a Wallets-shaped currency field (MC16) shows the wallet panel where MC10 shows seat art cards —
-    // there is no room, and no printed-sheet column, for both. A box with neither (nothing detected) falls back
-    // to the seat art cards MC10 has always shown, unchanged.
+    // The hidden-evidence envelope (docs/campaign-mode-design.md §Q4; MC50 p. 5), when the box declares one:
+    // always at the very top of the left column, above whichever of Wallets/Pool/seat cards follows.
+    if (loaded.overview.hiddenEvidence) {
+      leftY =
+        this.#hiddenEvidencePanel(loaded.overview.hiddenEvidence, { x: leftX, y: leftY, width: leftWidth, height: 0 }) +
+        24;
+    }
+
+    // A box with a Wallets-shaped currency field (MC16) or a campaign pool (MC21) shows that panel where MC10 shows
+    // seat art cards — there is no room, and no printed-sheet column, for both. A box with none of these detected
+    // falls back to the seat art cards MC10 has always shown, unchanged.
     if (loaded.overview.wallets) {
       leftY = this.#walletsPanel(loaded.overview.wallets, { x: leftX, y: leftY, width: leftWidth, height: 0 }) + 24;
+    } else if (loaded.overview.pool) {
+      leftY = this.#poolPanel(loaded.overview.pool, { x: leftX, y: leftY, width: leftWidth, height: 0 }) + 24;
     } else {
       const cardWidth = frame.phone ? leftWidth : Math.min(456, leftWidth);
       const gap = 24;
@@ -326,7 +366,22 @@ export class CampaignDossierScene extends Phaser.Scene {
     }
 
     const worldX = frame.phone ? pad : frame.width - pad - worldWidth;
-    const worldY = frame.phone ? leftY + 16 : body.y + pad;
+    let worldY = frame.phone ? leftY + 16 : body.y + pad;
+    // Not shown on the empty-pool state (design tile 25): the dashed slot list already names every card that can
+    // still fill the pool, so a second "still in play for" list beside it would only repeat the same rows.
+    if (
+      loaded.overview.pool &&
+      loaded.overview.pool.filledSlots > 0 &&
+      loaded.overview.pool.stillInPlayFor.length > 0
+    ) {
+      worldY = this.#stillInPlayForPanel(loaded.overview.pool.stillInPlayFor, {
+        x: worldX,
+        y: worldY,
+        width: worldWidth,
+        height: 0,
+      });
+      worldY += 16;
+    }
     if (loaded.overview.world.length > 0) {
       let wy = ruleHeading(this, worldX, worldY, worldWidth, "The world");
       const box = this.add.graphics();
@@ -452,6 +507,246 @@ export class CampaignDossierScene extends Phaser.Scene {
     const height = y - rect.y + inset;
     this.add.graphics().lineStyle(2, surface.ink.hex, 1).strokeRect(rect.x, rect.y, rect.width, height);
     return height;
+  }
+
+  /**
+   * The Campaign Pool (design tiles 23/25): a header card with the ON YOUR SIDE / AGAINST YOU counts, then one row
+   * per resolved card with its own colored stripe and badge — or, before anything has been won, the dashed empty
+   * state listing every slot the pool can ever hold (`23-…-dossier-pool.png` / `25-…-dossier-empty-pool.png`).
+   */
+  /** A pool row's own small card-art thumbnail (design tiles 23/24/26), by the card's name (`cardOfName`) — the
+   * same `cardArt`/`artFor`/`drawArt` pipeline every other card art slot in this build uses. A card with no scan
+   * yet, or one this build's pool doesn't carry at all, shows the same "no scan" label `decks.ts`'s own pool grid
+   * shows rather than a blank box. */
+  #poolCardThumb(name: string, rect: Rect): void {
+    const fill = this.add.graphics();
+    fill.fillStyle(0xe4dcc6, 1).fillRect(rect.x, rect.y, rect.width, rect.height);
+    const card = cardOfName(name);
+    const key = card ? cardArt(this).request(this, artFor(card, { kind: "front" })) : null;
+    const art = drawArt(this, key, rect);
+    if (!art) {
+      this.add
+        .text(rect.x + rect.width / 2, rect.y + rect.height / 2, "no\nscan", {
+          ...textStyle(typeRole.label, surface.ink.hex, 0.4),
+          fontSize: "8px",
+          align: "center",
+        })
+        .setOrigin(0.5);
+    }
+    this.add.graphics().lineStyle(1, surface.ink.hex, 0.6).strokeRect(rect.x, rect.y, rect.width, rect.height);
+  }
+
+  /**
+   * The hidden-evidence envelope (docs/campaign-mode-design.md §Q4; MC50 p. 5's A.I.M. envelope): a small dark
+   * "stamp" with the field's own label, a state pill ("SEALED · N CARDS" or "REVEALED"), and the field's own
+   * citation as a one-line caption — matching the dossier's own "A.I.M. / SEALED · 3 CARDS" tile
+   * (`artifacts/design-screenshots/individual/campaign-desktop.dc/48-d-50-c09-dossier-deduction.png`). Once
+   * revealed, the card names replace the caption; the count and label stay the same either way.
+   */
+  #hiddenEvidencePanel(envelope: HiddenEvidenceEnvelope, rect: Rect): number {
+    const stampSize = 64;
+    const stamp = this.add.graphics();
+    stamp.fillStyle(surface.ink.hex, 1).fillRect(rect.x, rect.y, stampSize, stampSize);
+    this.add
+      .text(rect.x + stampSize / 2, rect.y + stampSize / 2, envelope.label.toUpperCase(), {
+        ...textStyle(bangers(13), surface.paper.hex, 1),
+        align: "center",
+      })
+      .setWordWrapWidth(stampSize - 8)
+      .setOrigin(0.5);
+
+    const textX = rect.x + stampSize + 16;
+    const textWidth = rect.width - stampSize - 16;
+    const stateLine = envelope.revealedCards
+      ? "REVEALED"
+      : `SEALED · ${envelope.cardCount} CARD${envelope.cardCount === 1 ? "" : "S"}`;
+    this.add.text(textX, rect.y, stateLine, textStyle(bangers(18), surface.ink.hex));
+    const captionText = envelope.revealedCards
+      ? envelope.revealedCards.join(", ")
+      : "Not stored anywhere you can open.";
+    const caption = this.add
+      .text(textX, rect.y + 24, captionText, { ...textStyle(typeRole.body, surface.ink.hex, 0.7), fontSize: "11px" })
+      .setWordWrapWidth(textWidth);
+    const citation = this.add
+      .text(textX, caption.y + caption.height + 4, envelope.citation, {
+        ...textStyle(typeRole.body, surface.ink.hex, 0.45),
+        fontSize: "10px",
+      })
+      .setWordWrapWidth(textWidth);
+    return Math.max(rect.y + stampSize, citation.y + citation.height);
+  }
+
+  #poolPanel(pool: CampaignPoolOverview, rect: Rect): number {
+    let y = rect.y;
+    const captionLine =
+      pool.filledSlots === 0
+        ? "Empty. Cards you win or let slip land here and come back at setup."
+        : "Everything you carried out of an issue, good or bad. It all comes back at setup.";
+    // Measured invisibly first (a wrapped caption can run to two lines on a narrow phone column), so the header's
+    // own fill/border is drawn before any text lands on top of it — `campaign-chrome.ts`'s own "graphics is a
+    // z-order slot" rule, the same trap `#heroSidePanel`'s stat box avoids above.
+    const measured = this.add
+      .text(0, 0, captionLine, { ...textStyle(typeRole.body, surface.ink.hex, 0.7), fontSize: "11px" })
+      .setWordWrapWidth(rect.width - 24)
+      .setVisible(false);
+    const headerHeight = Math.max(74, 32 + measured.height + 28);
+    measured.destroy();
+    const header = this.add.graphics();
+    header.fillStyle(0xe4dcc6, 1).fillRect(rect.x, y, rect.width, headerHeight);
+    header.lineStyle(2, surface.ink.hex, 1).strokeRect(rect.x, y, rect.width, headerHeight);
+    this.add.text(rect.x + 12, y + 8, "THE CAMPAIGN POOL", textStyle(bangers(20), surface.ink.hex));
+    this.add
+      .text(rect.x + 12, y + 32, captionLine, { ...textStyle(typeRole.body, surface.ink.hex, 0.7), fontSize: "11px" })
+      .setWordWrapWidth(rect.width - 24);
+    const badgeY = y + headerHeight - 24;
+    if (pool.filledSlots === 0) {
+      const badgeRect: Rect = { x: rect.x + 12, y: badgeY, width: 130, height: 20 };
+      const badge = this.add.graphics();
+      badge.fillStyle(surface.ink.hex, 1).fillRect(badgeRect.x, badgeRect.y, badgeRect.width, badgeRect.height);
+      this.add
+        .text(badgeRect.x + badgeRect.width / 2, badgeRect.y + badgeRect.height / 2, `0 OF ${pool.totalSlots} CARDS`, {
+          ...textStyle(typeRole.label, surface.paper.hex, 1),
+          fontSize: "10px",
+          fontStyle: "700",
+        })
+        .setOrigin(0.5);
+    } else {
+      let bx = rect.x + 12;
+      const badges: readonly [string, number][] = [
+        [`${pool.helpsCount} ON YOUR SIDE`, signal.heal.hex],
+        [`${pool.hurtsCount} AGAINST YOU`, accent.heroRed.hex],
+      ];
+      for (const [text, color] of badges) {
+        const badgeWidth = 20 + text.length * 7;
+        const badge = this.add.graphics();
+        badge.fillStyle(color, 1).fillRect(bx, badgeY, badgeWidth, 20);
+        this.add
+          .text(bx + badgeWidth / 2, badgeY + 10, text, {
+            ...textStyle(typeRole.label, surface.paper.hex, 1),
+            fontSize: "10px",
+            fontStyle: "700",
+          })
+          .setOrigin(0.5);
+        bx += badgeWidth + 8;
+      }
+    }
+    y += headerHeight + 16;
+
+    if (pool.filledSlots === 0) {
+      for (const slot of pool.emptySlots) {
+        const rowHeight = 58;
+        dashedRect(this.add.graphics(), { x: rect.x, y, width: rect.width, height: rowHeight }, 2);
+        this.add.text(rect.x + 12, y + 10, slot.name.toUpperCase(), textStyle(bangers(14), surface.ink.hex, 0.6));
+        this.add
+          .text(rect.x + 12, y + 30, slot.note ?? "", {
+            ...textStyle(typeRole.body, surface.ink.hex, 0.45),
+            fontSize: "10px",
+          })
+          .setWordWrapWidth(rect.width - 24);
+        y += rowHeight + 10;
+      }
+      return y - 10;
+    }
+
+    const badgeWidth = 110;
+    const thumbSize = 56;
+    const thumbGap = 12;
+    const textX = 6 + thumbGap + thumbSize + 10;
+    const textWidth = rect.width - textX - badgeWidth - 10;
+    for (const card of pool.cards) {
+      const stripeColor = card.helps ? signal.heal.hex : accent.heroRed.hex;
+      // Measured invisibly first — a narrow (phone-width) column wraps `destination` to more than one line, so the
+      // row's own height (and the source line under it) must follow the destination's real, wrapped height rather
+      // than a flat guess (the same "measure before drawing the fill" rule `#poolPanel`'s header above follows).
+      const destinationMeasure = this.add
+        .text(0, 0, card.destination, textStyle(typeRole.body, surface.ink.hex, 0.75))
+        .setFontSize(11)
+        .setWordWrapWidth(textWidth)
+        .setVisible(false);
+      const destinationHeight = destinationMeasure.height;
+      destinationMeasure.destroy();
+      const sourceTop = 28 + destinationHeight + 4;
+      const sourceMeasure = this.add
+        .text(0, 0, card.source, { ...textStyle(typeRole.body, surface.ink.hex, 0.5), fontSize: "9px" })
+        .setWordWrapWidth(textWidth)
+        .setVisible(false);
+      const rowHeight = Math.max(thumbSize + 12, sourceTop + sourceMeasure.height + 10);
+      sourceMeasure.destroy();
+
+      const box = this.add.graphics();
+      box.fillStyle(surface.card.hex, 1).fillRect(rect.x, y, rect.width, rowHeight);
+      box.lineStyle(2, surface.ink.hex, 1).strokeRect(rect.x, y, rect.width, rowHeight);
+      box.fillStyle(stripeColor, 1).fillRect(rect.x, y, 6, rowHeight);
+      this.#poolCardThumb(card.name, {
+        x: rect.x + 6 + thumbGap,
+        y: y + (rowHeight - thumbSize) / 2,
+        width: thumbSize,
+        height: thumbSize,
+      });
+      this.add.text(rect.x + textX, y + 8, card.name.toUpperCase(), textStyle(bangers(15), surface.ink.hex));
+      this.add
+        .text(rect.x + textX, y + 28, card.destination, textStyle(typeRole.body, surface.ink.hex, 0.75))
+        .setFontSize(11)
+        .setWordWrapWidth(textWidth);
+      this.add
+        .text(rect.x + textX, y + sourceTop, card.source, {
+          ...textStyle(typeRole.body, surface.ink.hex, 0.5),
+          fontSize: "9px",
+        })
+        .setWordWrapWidth(textWidth);
+      const badgeText = card.helps ? "ON YOUR SIDE" : "AGAINST YOU";
+      const badgeRect: Rect = { x: rect.x + rect.width - badgeWidth - 10, y: y + 8, width: badgeWidth, height: 18 };
+      const badge = this.add.graphics();
+      badge.fillStyle(stripeColor, 1).fillRect(badgeRect.x, badgeRect.y, badgeRect.width, badgeRect.height);
+      this.add
+        .text(badgeRect.x + badgeWidth / 2, badgeRect.y + badgeRect.height / 2, badgeText, {
+          ...textStyle(typeRole.label, surface.paper.hex, 1),
+          fontSize: "9px",
+          fontStyle: "700",
+        })
+        .setOrigin(0.5);
+      y += rowHeight + 10;
+    }
+    return y - 10;
+  }
+
+  /** "Still in play for" (design tile 23): every not-yet-resolved pool slot, with the citation of the printed bullet that can still fill it. */
+  #stillInPlayForPanel(rows: readonly PoolStillInPlayRow[], rect: Rect): number {
+    let y = ruleHeading(this, rect.x, rect.y, rect.width, "Still in play for");
+    const box = this.add.graphics();
+    const boxTop = y;
+    for (const row of rows) {
+      this.add.text(rect.x + 10, y + 8, "?", { ...textStyle(bangers(16), surface.ink.hex, 0.45) });
+      this.add
+        .text(rect.x + 28, y + 6, row.name, textStyle(typeRole.emphasis, surface.ink.hex))
+        .setFontSize(12)
+        .setWordWrapWidth(rect.width - 110);
+      this.add
+        .text(rect.x + rect.width - 8, y + 6, row.citation, {
+          ...textStyle(typeRole.label, surface.ink.hex, 0.4),
+          fontSize: "9px",
+        })
+        .setOrigin(1, 0);
+      const note = this.add
+        .text(rect.x + 28, y + 22, row.note, { ...textStyle(typeRole.body, surface.ink.hex, 0.55), fontSize: "10px" })
+        .setWordWrapWidth(rect.width - 40);
+      const rowHeight = Math.max(48, note.y + note.height - y + 10);
+      y += rowHeight;
+      this.add.rectangle(rect.x, y, rect.width, 1, surface.ink.hex, 0.15).setOrigin(0, 0.5);
+    }
+    box.lineStyle(2, surface.ink.hex, 1).strokeRect(rect.x, boxTop, rect.width, y - boxTop);
+    const caption = this.add
+      .text(
+        rect.x,
+        y + 8,
+        "Green stripe helps you, red stripe hurts you. Each card says where it lands, so the briefing never has to explain it again.",
+        {
+          ...textStyle(typeRole.body, surface.ink.hex, 0.55),
+          fontSize: "11px",
+        },
+      )
+      .setWordWrapWidth(rect.width);
+    return caption.y + caption.height;
   }
 
   /** The Bounty Ladder (design tile 19): a dark header bar, then one row per rung with an ACTIVE/NOT YET badge. */

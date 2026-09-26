@@ -112,6 +112,13 @@ export interface ParsedText {
   /** "<Villain>'s Side Scheme." (The Wrecking Crew's signature side schemes, docs/phase7-wave1.md §1.1). */
   readonly signatureOf?: string;
   /**
+   * "<Villain>'s Scheme." on a main scheme B side (Tower Defense, docs/phase7-wave4.md §1.5) — the main-scheme
+   * sibling of `signatureOf`, naming which villain the stage belongs to when several villains share a scenario.
+   */
+  readonly villainOf?: string;
+  /** "Standard Mode Only." / "Expert Mode Only." (docs/phase7-wave4.md §1.8, `EncounterCardCommon.modeOnly`). */
+  readonly modeOnly?: "standard" | "expert";
+  /**
    * "If this stage/scheme is completed, the players lose the game." was printed somewhere in this main scheme
    * stage's B-side text (docs/phase7-wave3.md §3.37, `MainSchemeStage.completionLoses`) — plain or the two-clause
    * compound ("...or there are no Rescued Captive allies in play..."). The caller sets `completionLoses` on
@@ -144,6 +151,19 @@ const HEADER_RE = new RegExp(
   String.raw`(?:^|(?<=[.)!]\s+)|(?<=\s{2,}))(?:\[star\]\s*)?(${TRIGGER})(?: \((attack|thwart|defense)\))?:`,
   "g",
 );
+/**
+ * Same boundary as `HEADER_RE`, plus a header immediately inside an opening quote mark with no following space —
+ * `it gains: "Alter-Ego Action: ..."` (System Shock, `mts` 21185): the ability the card *gains* is printed as a
+ * quoted clause rather than a bare sentence, so the ordinary `.`/`)`/`!` + space or line-start boundary never
+ * matches. Kept as a separate regex (not folded into `HEADER_RE`) so only call sites that opt in — currently just
+ * the obligation preamble/merge detection below — ever see quoted headers this way; a support/ally that
+ * conditionally grants a quoted ability (Flight Squadron `falcon` 53020 and siblings) is intentionally left as one
+ * unclassified constant clause for `ability-scripting-engineer`, not split by trigger.
+ */
+const QUOTED_HEADER_RE = new RegExp(
+  String.raw`(?:^|(?<=[.)!]\s+)|(?<=\s{2,})|(?<=["'“‘]))(?:\[star\]\s*)?(${TRIGGER})(?: \((attack|thwart|defense)\))?:`,
+  "g",
+);
 /** Named ability at the start of a line: `Spider-Sense — Interrupt:` / `"I Object!" — Interrupt:`. */
 const NAMED_RE = new RegExp(String.raw`^(.+?) — (${TRIGGER})(?: \((attack|thwart|defense)\))?:`);
 
@@ -155,7 +175,8 @@ interface Header {
   readonly name?: string;
 }
 
-function findHeaders(line: string): Header[] {
+/** `allowQuoted` opts into `QUOTED_HEADER_RE`'s extra quote-mark boundary — obligation parsing only, see there. */
+function findHeaders(line: string, opts?: { readonly allowQuoted?: boolean }): Header[] {
   const headers: Header[] = [];
   const named = NAMED_RE.exec(line);
   if (named) {
@@ -167,8 +188,9 @@ function findHeaders(line: string): Header[] {
       name: (named[1] as string).trim(),
     });
   }
-  HEADER_RE.lastIndex = 0;
-  for (let m = HEADER_RE.exec(line); m !== null; m = HEADER_RE.exec(line)) {
+  const headerRe = opts?.allowQuoted ? QUOTED_HEADER_RE : HEADER_RE;
+  headerRe.lastIndex = 0;
+  for (let m = headerRe.exec(line); m !== null; m = headerRe.exec(line)) {
     if (named && m.index < named[0].length) continue;
     headers.push({ index: m.index, length: m[0].length, trigger: m[1] as string, ...(m[2] ? { label: m[2] } : {}) });
   }
@@ -294,6 +316,12 @@ const RESOURCE_ICON_RE = /\[(energy|mental|physical|wild)\]/g;
  * (docs/phase7-wave2.md §6.2).
  */
 function parseKeyword(sentence: string): KeywordInstance | undefined {
+  // docs/phase7-wave4.md §1.1: "Energy form." / "Mass form." / "Suit form." — RRG 1.8 "Form, Change Form" (p. 21)
+  // names these an identity's "additional forms", a keyword with a parameter, not an ability. `formType` is the
+  // printed word, lower-cased ("Energy form." → "energy"). Matched narrowly (a single leading word) so it never
+  // collides with "Hero form only."/"Play only if you are in <X> hero form." (handled by `parseRestriction`).
+  const form = /^([A-Za-z]+) form\.?$/.exec(sentence);
+  if (form) return { name: "form", formType: (form[1] as string).toLowerCase() };
   // `Uses (N type counters)` carries its parameter in parentheses, so match it
   // before reminder text is stripped.
   // Per player forms (docs/phase7-wave3.md §1.3): `Uses (N[per_hero] type counters).` (Crossbones' Machine Gun,
@@ -792,11 +820,15 @@ export function parseCardText(text: string, options: ParseOptions): ParsedText {
   let maxPerDeckText: number | undefined;
   let nemesisMinion: boolean | undefined;
   let signatureOf: string | undefined;
+  let villainOf: string | undefined;
+  let modeOnly: "standard" | "expert" | undefined;
   let completionLoses: boolean | undefined;
 
   if (options.obligation) {
     const lines = text.split("\n");
-    const allHeaders = lines.flatMap((oline) => findHeaders(oline).map((h) => ({ ...h, oline })));
+    const allHeaders = lines.flatMap((oline) =>
+      findHeaders(oline, { allowQuoted: true }).map((h) => ({ ...h, oline })),
+    );
 
     // A persistent constant clause (no formal trigger header at all) printed alongside exactly one triggered
     // clause under a single obligation (Martial Law `trors` 04165 "Your hand size is reduced by 1.\nAlter-Ego
@@ -810,7 +842,7 @@ export function parseCardText(text: string, options: ParseOptions): ParsedText {
     // gets the same split for free.
     const preambleLines: string[] = [];
     for (const oline of lines) {
-      if (findHeaders(oline).length > 0) break;
+      if (findHeaders(oline, { allowQuoted: true }).length > 0) break;
       if (oline.trim()) preambleLines.push(oline.trim());
     }
     const [h] = allHeaders;
@@ -839,7 +871,7 @@ export function parseCardText(text: string, options: ParseOptions): ParsedText {
     // genuinely-merged-triggers shape, not every obligation, so it doesn't multiply refs pack-wide for no reason.
     if (allHeaders.length >= 2) {
       for (const oline of lines) {
-        const oheaders = findHeaders(oline);
+        const oheaders = findHeaders(oline, { allowQuoted: true });
         oheaders.forEach((h, i) => {
           const oend = oheaders[i + 1]?.index ?? oline.length;
           const obody = oline.slice(h.index, oend).trim();
@@ -910,6 +942,14 @@ export function parseCardText(text: string, options: ParseOptions): ParsedText {
         keywords.push(keyword);
         continue;
       }
+      // docs/phase7-wave4.md §1.8: "Standard Mode Only." / "Expert Mode Only." (Formidable Foe, `hood` 24049a/b) —
+      // which face a double-sided card is put into play with (RRG 1.8 "Double-Sided Card", p. 17). The sentence
+      // needs no ability ref, the same as `nemesisMinion` below.
+      const modeOnlyMatch = /^(Standard|Expert) Mode Only\.?$/.exec(sentence);
+      if (modeOnlyMatch) {
+        modeOnly = (modeOnlyMatch[1] as string).toLowerCase() as "standard" | "expert";
+        continue;
+      }
       if (/^\(.+ nemesis minion\.\)$/i.test(sentence)) {
         nemesisMinion = true;
         continue;
@@ -938,6 +978,32 @@ export function parseCardText(text: string, options: ParseOptions): ParsedText {
         if (attach.villainName) attachesToVillainNamed = attach.villainName;
         continue;
       }
+      // A host description with a trailing behavioral clause on the same sentence ("Attach to a friendly
+      // character with the highest ATK and exhaust it.", Restrained `mts` 21083, docs/phase7-wave4.md §1.13):
+      // unlike the general case the file header describes (where the clause is left in place so no printed text
+      // is dropped), this one is resolved by splitting the clause into its own ordinary sentence — "Exhaust it."
+      // — which flows into the constant buffer below like any other printed sentence, so
+      // `ability-scripting-engineer` still sees it verbatim; only the host itself is pulled out of the sentence.
+      if (sentence.startsWith("Attach to ")) {
+        const clauseSplit = /^(Attach to .+?) and (exhaust it)\.?$/i.exec(sentence);
+        if (clauseSplit) {
+          const hostOnly = parseAttach(
+            `${clauseSplit[1] as string}.`,
+            options.villainNames,
+            options.multipleVillains ?? false,
+          );
+          if (hostOnly) {
+            flushConstant();
+            if (attachesTo) unclassified.push(`second attach rule: ${sentence}`);
+            attachesTo = hostOnly.host;
+            if (hostOnly.villainName) attachesToVillainNamed = hostOnly.villainName;
+            constantBuffer.push(
+              `${(clauseSplit[2] as string)[0]?.toUpperCase()}${(clauseSplit[2] as string).slice(1)}.`,
+            );
+            continue;
+          }
+        }
+      }
       if (sentence.startsWith("Attach to ")) {
         unclassified.push(`unrecognized attach rule: ${sentence}`);
         continue;
@@ -947,6 +1013,12 @@ export function parseCardText(text: string, options: ParseOptions): ParsedText {
       // name is captured separately.
       const signature = /^(.+)'s Side Scheme\.$/.exec(sentence);
       if (signature) signatureOf = signature[1] as string;
+      // "Proxima Midnight's Scheme." / "Corvus Glaive's Scheme." (Tower Defense, docs/phase7-wave4.md §1.5) — the
+      // main-scheme-stage sibling of the "'s Side Scheme." signature above. Checked after it so a real "'s Side
+      // Scheme." sentence isn't also read as a (wrong) "'s Scheme." match — the two regexes are mutually exclusive
+      // anyway ("Side Scheme" vs "Scheme" require different trailing text), but this keeps the intent explicit.
+      const villainScheme = /^(.+)'s Scheme\.$/.exec(sentence);
+      if (villainScheme) villainOf = villainScheme[1] as string;
       constantBuffer.push(sentence);
     }
     flushConstant();
@@ -1035,6 +1107,8 @@ export function parseCardText(text: string, options: ParseOptions): ParsedText {
     ...(attachesToVillainNamed ? { attachesToVillainNamed } : {}),
     ...(nemesisMinion ? { nemesisMinion } : {}),
     ...(signatureOf ? { signatureOf } : {}),
+    ...(villainOf ? { villainOf } : {}),
+    ...(modeOnly ? { modeOnly } : {}),
     ...(completionLoses ? { completionLoses } : {}),
     unclassified,
   };

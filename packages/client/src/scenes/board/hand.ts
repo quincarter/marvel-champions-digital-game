@@ -19,7 +19,14 @@ import { handRow, type HandRowLayout } from "../../view/hand-row.js";
 import type { Rect } from "../../view/layout.js";
 import type { PaymentView } from "../../view/payment-model.js";
 import type { BoardDrawContext } from "./context.js";
-import { SOURCE_BAR_NOTE, drawControllerBar, drawPlayConfirmBar, drawSourceBar } from "./controller-bar.js";
+import {
+  SOURCE_BAR_NOTE,
+  drawAllianceHelpBar,
+  drawControllerBar,
+  drawFormBar,
+  drawPlayConfirmBar,
+  drawSourceBar,
+} from "./controller-bar.js";
 import { drawCostChoiceBar } from "./cost-choice-bar.js";
 import { drawDiscardBar } from "./discard-bar.js";
 import { drawPaymentBar } from "./payment-bar.js";
@@ -58,15 +65,23 @@ export function drawHand(ctx: BoardDrawContext, rect: Rect, model: BoardModel): 
   const discard = ctx.controller.discardChoiceView();
   const controllerChoice = ctx.controller.controllerChoice();
   const playConfirmation = ctx.controller.playConfirmation();
+  const allianceHelp = ctx.controller.allianceHelpView();
   const costChoice = ctx.controller.costChoiceView();
   const sourceChoice = ctx.controller.sourceChoice();
+  const formChoice = ctx.controller.formChoice();
   let top = rect.y + HAND_CAPTION_HEIGHT;
   if (sourceChoice) {
     const height = hit.target + SOURCE_BAR_NOTE;
     drawSourceBar(ctx, { x: rect.x, y: rect.y, width: rect.width, height }, sourceChoice);
     top = rect.y + height + 4;
+  } else if (formChoice) {
+    drawFormBar(ctx, { x: rect.x, y: rect.y, width: rect.width, height: hit.target }, formChoice);
+    top = rect.y + hit.target + 4;
   } else if (playConfirmation) {
     drawPlayConfirmBar(ctx, { x: rect.x, y: rect.y, width: rect.width, height: hit.target }, playConfirmation);
+    top = rect.y + hit.target + 4;
+  } else if (allianceHelp) {
+    drawAllianceHelpBar(ctx, { x: rect.x, y: rect.y, width: rect.width, height: hit.target }, allianceHelp);
     top = rect.y + hit.target + 4;
   } else if (controllerChoice) {
     drawControllerBar(ctx, { x: rect.x, y: rect.y, width: rect.width, height: hit.target }, controllerChoice);
@@ -148,7 +163,8 @@ export function drawHand(ctx: BoardDrawContext, rect: Rect, model: BoardModel): 
 /**
  * The half of a payment that isn't in the hand, drawn at the head of the hand
  * row: a card in play whose ability is being paid for, then every resource
- * ability on the table (Peter Parker's Scientist, Pepper Potts).
+ * ability on the table (Peter Parker's Scientist, Pepper Potts), then, for an
+ * alliance card, every other player's hand card that can help pay.
  *
  * Tapping the card in its own zone already spends it, but the hand is the only
  * zone every layout shows — on a phone the one resource that makes a card
@@ -184,7 +200,8 @@ function drawPaymentTable(ctx: BoardDrawContext, row: HandRowLayout, payment: Pa
       const wash = scene.add.graphics();
       wash.fillStyle(surface.ink.hex, 0.3).fillRect(tile.x + 3, tile.y + 3, tile.width - 6, tile.height - 6);
     }
-    tableTag(scene, tile, source.spent ? "spent" : "in play", surface.ink.hex, "top");
+    const where = source.helperName !== null ? source.helperName : "in play";
+    tableTag(scene, tile, source.spent ? "spent" : where, surface.ink.hex, "top");
     tableTag(scene, tile, poolText(source.pool), signal.cost.hex, "bottom");
     ctx.frame.focusRects.set(focusKey({ kind: "card", instanceId: source.instanceId }), tile);
     // By option, not by card: a card offering two resource abilities is two tiles.

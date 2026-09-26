@@ -24,6 +24,12 @@ export interface Settings {
    * Background music and audio across menus and games.
    */
   readonly sound: boolean;
+  /**
+   * Ask before an End turn that would still leave a basic attack, thwart or recover open
+   * (`view/end-turn-confirm.ts`). Defaults on: ending a turn with something meaningful left is
+   * usually a misclick, not a choice. Off restores the old immediate-end behaviour.
+   */
+  readonly confirmBeforeEndTurn: boolean;
 }
 
 export function defaultSettings(): Settings {
@@ -35,5 +41,6 @@ export function defaultSettings(): Settings {
     textResolution: Math.min(SHARP_TEXT_RESOLUTION_CEILING, Math.max(1, globalThis.devicePixelRatio || 1)),
     largeCardText: false,
     sound: true,
+    confirmBeforeEndTurn: true,
   };
 }

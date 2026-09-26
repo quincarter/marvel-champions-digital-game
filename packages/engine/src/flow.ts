@@ -7,12 +7,15 @@ import {
   stepAfterCampaignWindow,
   stepAfterMulligans,
   STEP_AFTER_SCENARIO_SETUP,
+  resolveScenarioSetupInstructions,
+  stepAfterScenarioSetupAbilities,
+  stepAfterScenarioSetupInstructions,
 } from "./setup-steps.js";
 import { drawCards, drawUpTo, endLastingEffect, expireLastingEffects, expirePlayerTurnEffects } from "./effects.js";
 import { readyOrAnnounce } from "./resolve/event.js";
 import type { LastingEffect } from "./lasting.js";
 import { EngineInvariantError } from "./errors.js";
-import type { PlayerId } from "./ids.js";
+import type { InstanceId, PlayerId } from "./ids.js";
 import { getPlayer, handSize, mustCardOf, mustPlayer, playerOrder, undefeatedVillains } from "./query.js";
 import {
   announce,
@@ -24,8 +27,9 @@ import {
   pushEvent,
 } from "./resolve/index.js";
 import { resetEmptySeparateDecks } from "./resolve/separate-decks.js";
-import { resetEmptyScenarioDecks } from "./resolve/cards.js";
+import { announceDeckRunOuts, resetEmptyScenarioDecks } from "./resolve/cards.js";
 import { checkStateTriggers } from "./resolve/state-checks.js";
+import { cannotChooseToDiscard } from "./rules.js";
 import { cardsInPlay, controllerOf } from "./select.js";
 import { describeFrame } from "./stack.js";
 import type { GameState, GameStep } from "./state.js";
@@ -48,10 +52,13 @@ const MAX_STEPS_PER_COMMAND = 5000;
 export function runFlow(ctx: Ctx): void {
   for (let i = 0; i < MAX_STEPS_PER_COMMAND; i++) {
     if (ctx.state.outcome || ctx.state.pendingChoice) return;
-    // An emptied separate deck (the Invocation deck) takes its discard pile back at once, with no penalty.
+    // An emptied separate deck (the Invocation deck) takes its discard pile back, with no penalty. The move that empties
+    // one already resets it (`settlePlayerDecks`); this only catches a state built another way (an older save).
     resetEmptySeparateDecks(ctx);
     // …and so does a scenario deck whose rules say so (the side-scheme deck; docs/phase7-wave2.md §3.3).
     resetEmptyScenarioDecks(ctx);
+    // "After your deck runs out of cards" / "After the infinity stone deck runs out" (docs/phase7-wave4.md §3.11).
+    if (announceDeckRunOuts(ctx)) continue;
     // Condition-triggered forced abilities go on the stack the moment their condition becomes true, ahead of whatever
     // was about to resolve next (docs/phase7-wave1.md §3.4; FAQ "Green Goblin (#1B)", p. 59).
     if (checkStateTriggers(ctx)) continue;
@@ -78,6 +85,9 @@ function executeStep(ctx: Ctx): void {
       return executeCampaignWindow(ctx, step.window);
     case "scenarioSetup":
       return executeScenarioSetupStep(ctx);
+    case "scenarioSetupInstructions":
+      resolveScenarioSetupInstructions(ctx);
+      return setStep(ctx, stepAfterScenarioSetupInstructions(ctx.state));
     case "drawStartingHands":
       return executeDrawStartingHands(ctx);
     case "mulligan":
@@ -91,7 +101,7 @@ function executeStep(ctx: Ctx): void {
     case "endPhaseDraw":
       return executeEndPhaseDraw(ctx);
     case "endPhaseReady":
-      return executeEndPhaseReady(ctx);
+      return executeEndPhaseReady(ctx, step.readied === true);
     // Villain phase steps one to five live in villain/phase.ts.
     case "placeThreat":
       return executePlaceThreat(ctx);
@@ -113,12 +123,15 @@ function executeStep(ctx: Ctx): void {
 const livePlayers = (state: GameState, ids: readonly PlayerId[]): readonly PlayerId[] =>
   ids.filter((id) => getPlayer(state, id)?.eliminated === false);
 
+/** The hand cards a player may choose to discard ("You cannot choose to discard this card", docs/phase7-wave4.md §3.13). */
 const handOptions = (ctx: Ctx, playerId: PlayerId): readonly ChoiceOption[] =>
-  mustPlayer(ctx.state, playerId).hand.map((id) => ({
-    optionId: id,
-    label: mustCardOf(ctx.state, id).name,
-    ref: { kind: "card", instanceId: id },
-  }));
+  mustPlayer(ctx.state, playerId)
+    .hand.filter((id) => !cannotChooseToDiscard(ctx.state, ctx.deps, id))
+    .map((id) => ({
+      optionId: id,
+      label: mustCardOf(ctx.state, id).name,
+      ref: { kind: "card", instanceId: id },
+    }));
 
 /**
  * A campaign's setup instructions for one window (campaign games only; design §6.1).
@@ -134,7 +147,7 @@ function executeCampaignWindow(ctx: Ctx, window: CampaignWindow): void {
 /** RRG 1.8 Appendix II steps 6-12 as a step, so a campaign can resolve instructions on either side of it. */
 function executeScenarioSetupStep(ctx: Ctx): void {
   resolveScenarioSetup(ctx);
-  setStep(ctx, STEP_AFTER_SCENARIO_SETUP);
+  setStep(ctx, stepAfterScenarioSetupAbilities(ctx.state, STEP_AFTER_SCENARIO_SETUP));
 }
 
 // RRG Appendix II step 14, after setup cards and setup abilities have resolved. A counted draw of hand-size cards, not
@@ -303,8 +316,8 @@ function executeEndPhaseDiscard(ctx: Ctx, remainingPlayerIds: readonly PlayerId[
     playerId: current,
     prompt: { kind: "discardDownToHandSize", handSize: limit },
     options: handOptions(ctx, current),
-    minSelections: Math.max(0, player.hand.length - limit),
-    maxSelections: player.hand.length,
+    minSelections: Math.min(Math.max(0, player.hand.length - limit), handOptions(ctx, current).length),
+    maxSelections: handOptions(ctx, current).length,
   });
 }
 
@@ -322,18 +335,51 @@ function executeEndPhaseDraw(ctx: Ctx): void {
   setStep(ctx, { phase: "player", kind: "endPhaseReady" });
 }
 
-function executeEndPhaseReady(ctx: Ctx): void {
+function executeEndPhaseReady(ctx: Ctx, readied: boolean): void {
+  if (!readied && readyEveryCard(ctx)) return;
+  finishPlayerPhase(ctx);
+}
+
+/**
+ * RRG 1.8 "End of Player Phase" (p. 18) step 4: every card readies. Returns true when that put something on the stack
+ * (an additional cost to ready, `RuleSpec readyCost`; a "would ready" interrupt), after marking the step `readied`, so
+ * step 5 runs only once it has resolved (docs/phase7-wave4.md §3.19). With nothing pushed, step 5 follows at once, as
+ * it always has.
+ */
+function readyEveryCard(ctx: Ctx): boolean {
+  const depth = ctx.state.stack.length;
+  // Each card once: a ready that waits on a cost is still exhausted when a later list names the same card again.
+  const readied = new Set<InstanceId>();
+  const ready = (id: InstanceId): void => {
+    if (readied.has(id)) return;
+    readied.add(id);
+    readyOrAnnounce(ctx, id);
+  };
   for (const player of playerOrder(ctx.state)) {
-    readyOrAnnounce(ctx, player.identity.instanceId);
-    for (const id of mustPlayer(ctx.state, player.playerId).playArea) readyOrAnnounce(ctx, id);
+    ready(player.identity.instanceId);
+    for (const id of mustPlayer(ctx.state, player.playerId).playArea) ready(id);
     // Every card the player controls readies, not just the play-area list: an upgrade attached to an identity
     // (Focused Rage, Web-Shooter) or to another card lives in its host's `attachments` instead.
     for (const id of cardsInPlay(ctx.state)) {
-      if (controllerOf(ctx.state, id) === player.playerId) readyOrAnnounce(ctx, id);
+      if (controllerOf(ctx.state, id) === player.playerId) ready(id);
     }
   }
-  for (const id of ctx.state.villainArea) readyOrAnnounce(ctx, id);
-  for (const villain of undefeatedVillains(ctx.state)) readyOrAnnounce(ctx, villain.instanceId);
+  for (const id of ctx.state.villainArea) ready(id);
+  for (const villain of undefeatedVillains(ctx.state)) ready(villain.instanceId);
+  const pushed = ctx.state.stack.length - depth;
+  if (pushed === 0) return false;
+  // Each push went on top of the last, so the last card readied would be asked first; put them back in ready order
+  // (player order, identity first), which is the order the table readies in.
+  ctx.state = {
+    ...ctx.state,
+    stack: [...ctx.state.stack.slice(0, pushed).reverse(), ...ctx.state.stack.slice(pushed)],
+  };
+  setStep(ctx, { phase: "player", kind: "endPhaseReady", readied: true });
+  return true;
+}
+
+/** RRG 1.8 "End of Player Phase" (p. 18) step 5 and the move to the villain phase. */
+function finishPlayerPhase(ctx: Ctx): void {
   setStep(ctx, { phase: "villain", kind: "placeThreat" });
   clearAbilityUses(ctx, "phase");
   ctx.state = { ...ctx.state, playedThisPhase: {} };

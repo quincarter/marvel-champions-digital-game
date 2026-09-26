@@ -181,6 +181,7 @@ const EXCLUSION_WORDING: Record<ExclusionCode, string> = {
   wrongSelf: "wrong card for this effect",
   wrongCategory: "not the right kind of card",
   wrongController: "controlled by the wrong player",
+  notIdentityExtension: "not that hero or one of their events, resources or upgrades",
   notEngagedWithYou: "not engaged with you",
   notEngaged: "not engaged with anyone",
   missingTrait: "missing the required trait",
@@ -188,6 +189,8 @@ const EXCLUSION_WORDING: Record<ExclusionCode, string> = {
   wrongName: "not the named card",
   wrongPrintedId: "not the exact printed card",
   wrongFacedown: "wrong face up or down",
+  wrongForm: "not that kind of form card",
+  noSuchAbility: "has no such ability",
   wrongStarIcon: "wrong star icon in the boost area",
   wrongUnique: "wrong unique icon",
   notHostOfSelf: "isn't hosting this card",
@@ -212,6 +215,7 @@ const EXCLUSION_WORDING: Record<ExclusionCode, string> = {
   notInSlot: "not one of the cards already picked",
   wrongSignatureSideScheme: "not this villain's signature side scheme",
   notEngagedWithPlayer: "not engaged with the right player",
+  notInPlayArea: "not in that player's play area",
   wrongIdentitySet: "not from this identity's set",
   notNemesisMinion: "not this player's nemesis minion",
   noSharedTrait: "shares no trait with that card",
@@ -222,6 +226,7 @@ const EXCLUSION_WORDING: Record<ExclusionCode, string> = {
   alterEgoForm: "in alter-ego form",
   notHeroOrAlly: "not a hero or ally",
   defenderAlreadyDeclared: "someone else already declared as defender",
+  cannotDefend: "cannot defend",
   mustDefendWithAlly: "a ready ally must defend instead",
 };
 

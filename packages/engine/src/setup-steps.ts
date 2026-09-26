@@ -25,6 +25,7 @@ import {
   gameAbilityFrames,
   shuffleSeparateDeck,
 } from "./resolve/index.js";
+import { buildScenarioDeck } from "./resolve/cards.js";
 import { base } from "./resolve/frames.js";
 import type { StackFrame } from "./stack.js";
 import type { GameState, GameStep } from "./state.js";
@@ -61,6 +62,11 @@ export function resolveScenarioSetup(ctx: Ctx): void {
       encounterDecks: { ...ctx.state.encounterDecks, [deckId]: { deck: shuffled, discard: [] } },
     };
   }
+
+  // An encounter set's own deck (the Infinity Stone deck) is made from its cards in the encounter deck (MC21 p. 16:
+  // "shuffle the six Infinity Stone environment cards together and set them aside, facedown"; docs/phase7-wave4.md §3.6).
+  for (const [name, piles] of Object.entries(ctx.state.scenarioDecks))
+    if (piles.buildAtSetup) buildScenarioDeck(ctx, name);
 
   const startingThreat = mainSchemeValue(ctx.state, "startingThreat", ctx.deps);
   if (startingThreat > 0) {
@@ -99,6 +105,53 @@ export function resolveScenarioSetup(ctx: Ctx): void {
       ...gameAbilityFrames(ctx, villain.instanceId, ["whenRevealed"], null, undefined, firstPlayerId),
     ]),
   ]);
+}
+
+/**
+ * The step after Appendix II step 12 when the scenario has rulebook-printed setup instructions
+ * (`ScenarioRules.setupInstructions`), else `after`. A game without any keeps exactly the step sequence it had.
+ */
+export const stepAfterScenarioSetupAbilities = (state: GameState, after: GameStep): GameStep =>
+  (state.scenarioRules.setupInstructions?.length ?? 0) > 0
+    ? { phase: "setup", kind: "scenarioSetupInstructions" }
+    : after;
+
+/** Where the flow goes once the scenario's setup instructions are on the stack. */
+export const stepAfterScenarioSetupInstructions = (state: GameState): GameStep =>
+  state.campaign ? STEP_AFTER_SCENARIO_SETUP : FIRST_STANDALONE_STEP;
+
+/**
+ * `ScenarioRules.setupInstructions`, resolved as their own flow step so they run only after every Setup and When
+ * Revealed ability of Appendix II step 12 has fully resolved (MC21 p. 11 places damage on Avengers Tower, which The
+ * Armies of Thanos 2A's When Revealed — reached through Under Siege 1A's Setup — is what puts into play). One effects
+ * frame per instruction so the trace shows each resolving on its own, resolved by the first player as scenario text
+ * (no "self"), exactly as `resolveCampaignWindow` resolves a campaign instruction.
+ */
+export function resolveScenarioSetupInstructions(ctx: Ctx): void {
+  const frames: StackFrame[] = [];
+  for (const instruction of ctx.state.scenarioRules.setupInstructions ?? []) {
+    emit(ctx, {
+      type: "scenarioSetupInstructionResolved",
+      instructionId: instruction.id,
+      text: instruction.text,
+      citation: instruction.citation,
+    });
+    if (instruction.effects.length === 0) continue;
+    frames.push({
+      ...base(ctx),
+      kind: "effects",
+      effects: instruction.effects,
+      cursor: 0,
+      bindings: {},
+      vars: {},
+      scopedPlayerId: null,
+      selfInstanceId: null,
+      controllerId: ctx.state.firstPlayerId,
+      event: null,
+      eventFrameId: null,
+    });
+  }
+  pushFrames(ctx, frames);
 }
 
 /** RRG Appendix II step 11: every card with the setup keyword begins the game in play. */

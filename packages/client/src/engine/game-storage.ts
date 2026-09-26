@@ -102,6 +102,12 @@ export interface GameStorage {
    * reordered write can never produce a log that replays differently.
    */
   append(gameId: string, seq: number, command: Command, progress: SaveProgress): Promise<void>;
+  /**
+   * Drops every command from `commandCount` on, and updates the summary row — the write side of "Back out"
+   * (`engine/session-core.ts`'s `rewindTo`). The baseline is untouched: a rewind only ever removes commands, never
+   * changes what a game started as.
+   */
+  truncate(gameId: string, commandCount: number, progress: SaveProgress): Promise<void>;
   load(gameId: string): Promise<StoredGame | null>;
   /** The most recently played game still in progress — the one to offer as "Continue". */
   latestActive(): Promise<SaveMeta | null>;
@@ -140,6 +146,14 @@ export class MemoryGameStorage implements GameStorage {
     if (!meta || !commands) throw new Error(`no saved game ${gameId}`);
     if (seq !== commands.length) throw new Error(`save out of order: expected command ${commands.length}, got ${seq}`);
     commands.push(structuredClone(command));
+    this.#games.set(gameId, { ...meta, ...structuredClone(progress) });
+  }
+
+  async truncate(gameId: string, commandCount: number, progress: SaveProgress): Promise<void> {
+    const meta = this.#games.get(gameId);
+    const commands = this.#commands.get(gameId);
+    if (!meta || !commands) throw new Error(`no saved game ${gameId}`);
+    commands.length = commandCount;
     this.#games.set(gameId, { ...meta, ...structuredClone(progress) });
   }
 

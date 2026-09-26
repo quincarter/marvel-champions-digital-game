@@ -1,0 +1,263 @@
+/**
+ * docs/phase7-wave4.md §3: the DSL builders for cycle 3's engine primitives. Each composition below is the one the spec
+ * gives the scripter for a printed card; this file proves each validates and emits exactly the plain data the
+ * per-primitive engine test drives.
+ */
+
+import { trait } from "@mc/content";
+import { describe, expect, it } from "vitest";
+import {
+  action,
+  alterEgoAction,
+  cannotBeCanceled,
+  treatAttachedAllyAsMinion,
+  treatAttachedMinionAsAlly,
+  uncancellable,
+  cannotChooseToDiscard,
+  inHand,
+  interrupt,
+  spend,
+  constant,
+  focusedMainScheme,
+  forcedInterrupt,
+  forcedResponse,
+  heroAction,
+  heroResponse,
+  on,
+  playOnlyIf,
+  rule,
+  setup,
+  stateCheck,
+  whenDefeated,
+  whenRevealed,
+} from "./abilities.js";
+import {
+  advanceToSetAsideVillain,
+  attack,
+  cards,
+  chooseOne,
+  moveCards,
+  option,
+  selectCards,
+  topOfDeck,
+  attachCard,
+  attackAnEnemy,
+  changeAdditionalForm,
+  damageAnEnemy,
+  dealDamage,
+  detach,
+  discard,
+  chooseTarget,
+  draw,
+  endGame,
+  enemyScheme,
+  ifThen,
+  putIntoPlay,
+  putMainSchemeStageIntoPlay,
+  removeCountersFrom,
+  swapVillain,
+  treatAsAlly,
+  turnFacedown,
+} from "./effects.js";
+import { validateDefinition } from "./validate.js";
+import {
+  chosen,
+  distinctAspectsOf,
+  each,
+  eventPlayer,
+  eventTarget,
+  host,
+  inAdditionalForm,
+  inPlayAreaOf,
+  named,
+  not,
+  printedForm,
+  query,
+  self,
+  sum,
+  theVillain,
+  valueAtLeast,
+  victoryCondition,
+  victoryDisplayCount,
+  you,
+  yourIdentity,
+} from "./values.js";
+
+const valid = (definition: Parameters<typeof validateDefinition>[0]) =>
+  expect(validateDefinition(definition)).toEqual([]);
+
+const FACEDOWN_ENERGY_FORM = query("upgrade", { ...printedForm("energy"), facedown: true, controller: "you" });
+
+describe("§3.1 additional forms", () => {
+  it("Spectrum's Energy Transformation (21001a): choose a facedown energy form upgrade → flip it faceup to change to it", () => {
+    expect(FACEDOWN_ENERGY_FORM).toEqual({
+      categories: ["upgrade"],
+      printedForm: "energy",
+      facedown: true,
+      controller: "you",
+    });
+    const definition = forcedResponse(
+      on.youChangeIdentityForm(),
+      chooseTarget("form", FACEDOWN_ENERGY_FORM),
+      changeAdditionalForm("energy", { to: chosen("form") }),
+    );
+    expect(definition.trigger).toMatchObject({
+      kind: "response",
+      forced: true,
+      on: { on: "formChanged", playerIs: "controller", eventIs: { change: "identity" } },
+    });
+    valid(definition);
+  });
+
+  it("Monica Rambeau (21001b): Setup puts the forms into play facedown; Power Down turns them facedown", () => {
+    valid(setup(turnFacedown(each(query("upgrade", { ...printedForm("energy"), controller: "you" })))));
+    valid(forcedResponse(on.youChangeIdentityForm(), turnFacedown(each(query("upgrade", printedForm("energy"))))));
+  });
+
+  it("Gamma (21002) and Gamma Blast (21007): 'After you change to this energy form'; 'if you were already in Gamma energy form'", () => {
+    const heard = heroResponse(on.youChangeToThisForm(), damageAnEnemy(1));
+    expect(heard.trigger).toMatchObject({ on: { selfIs: "target", eventIs: { change: "additional" } } });
+    valid(heard);
+    valid(
+      heroAction(
+        { label: "attack" },
+        ifThen(not(inAdditionalForm("energy", "Gamma")), changeAdditionalForm("energy", { toName: "Gamma" })),
+        attackAnEnemy(7),
+      ),
+    );
+  });
+
+  it("Loss of Control (21026): 'You cannot change energy forms'", () => {
+    const definition = constant(rule({ kind: "cannotChangeForm", player: you, formType: "energy" }));
+    valid(definition);
+  });
+
+  it("Vision (26001a/b, 26002, 26007, 26009): flip the mass form upgrade; play only in Dense; after you change mass form", () => {
+    valid(action({ limit: { count: 1, period: "round" } }, changeAdditionalForm("mass")));
+    valid(constant(playOnlyIf(inAdditionalForm("mass", "Dense"))));
+    const density = heroResponse(on.youChangeAdditionalForm("mass"), draw(1));
+    expect(density.trigger).toMatchObject({ on: { eventIs: { change: "additional", formType: "mass" } } });
+    valid(density);
+  });
+});
+
+describe("§3.2 two main schemes", () => {
+  it("Under Siege 1A and Focused Defense (21098a, 21101)", () => {
+    valid(setup(putMainSchemeStageIntoPlay(2)));
+    const focused = constant(focusedMainScheme());
+    expect(focused.trigger).toMatchObject({ rules: [{ kind: "focusedMainScheme", scheme: { kind: "host" } }] });
+    valid(focused);
+    valid(forcedResponse(on.phaseEnding("player"), attachCard(self, each(query("mainScheme", { excluding: host })))));
+  });
+});
+
+describe("§3.7 Loki", () => {
+  it("All Hail King Loki 1B, The Trickster (21165b, 21176)", () => {
+    valid(forcedInterrupt(on.defeated(query("villain", { name: "Loki" })), advanceToSetAsideVillain(eventTarget)));
+    valid(
+      stateCheck(
+        valueAtLeast(victoryDisplayCount(query("villain", { name: "Loki" })), victoryCondition),
+        endGame("win"),
+      ),
+    );
+    valid(whenRevealed(swapVillain(), enemyScheme(theVillain)));
+  });
+});
+
+describe("§3.8 an encounter ally attached to the main scheme", () => {
+  it("Hall of Nastrond and Odin (21141, 21139a)", () => {
+    valid(whenDefeated(detach(named("Odin"))));
+    valid(
+      constant(
+        rule({ kind: "cannotHaveAttachments", target: { self: true } }),
+        rule({ kind: "leavingPlayLoses", target: { self: true } }),
+      ),
+    );
+  });
+});
+
+describe("§3.15 / §3.16 Ebony Maw's Spells", () => {
+  it("Fireball and Ebony Maw (21076, 21071)", () => {
+    valid(forcedResponse(on.lastCounterRemoved("invocation"), discard(self), dealDamage(4, yourIdentity)));
+    valid(constant(rule({ kind: "entersRevealersPlayArea", cards: { trait: trait("SPELL") } })));
+    valid(
+      forcedInterrupt(
+        on.villainAttacks({ againstYou: true }),
+        removeCountersFrom(each(query([], { trait: trait("SPELL"), ...inPlayAreaOf() })), "invocation", 1),
+      ),
+    );
+  });
+});
+
+describe("§3.12 different aspects", () => {
+  it("Karmic Blast (21038): discard up to 4 from the top of your deck, +1 damage per different aspect", () => {
+    const discardTop = (n: number) =>
+      option(`Discard ${n}`, selectCards("discarded", topOfDeck(n)), moveCards(cards(chosen("discarded")), "discard"));
+    valid(
+      heroAction(
+        { label: "attack" },
+        chooseTarget("enemy", query("enemy")),
+        chooseOne(discardTop(1), discardTop(2), discardTop(3), discardTop(4)),
+        attack(sum(4, distinctAspectsOf(chosen("discarded"))), chosen("enemy")),
+      ),
+    );
+  });
+});
+
+describe("§3.13 abilities active in hand", () => {
+  it("Pip the Troll and System Shock (21032, 21185)", () => {
+    const pip = inHand(
+      interrupt(on.villainAttacks(), { cost: spend({ energy: 1, mental: 1 }) }, putIntoPlay(self, eventPlayer)),
+    );
+    expect(pip.activeIn).toBe("hand");
+    valid(pip);
+    valid(inHand(constant(cannotChooseToDiscard)));
+    valid(inHand(alterEgoAction({ cost: spend({ mental: 1 }) }, moveCards(cards(self), "removedFromGame"))));
+  });
+});
+
+describe("§3.14 player events shuffled into the encounter deck", () => {
+  it("In-Betweener (21042): shuffle into the encounter deck; an uncancellable When Revealed that removes itself", () => {
+    const shuffle = action(moveCards(cards(self), "encounterDeckShuffle"));
+    const revealed = uncancellable(whenRevealed(dealDamage(2, theVillain), moveCards(cards(self), "removedFromGame")));
+    expect(revealed.uncancellable).toBe(true);
+    valid(shuffle);
+    valid(revealed);
+    // Dark Scepter (`tt` 55036): "Treacheries cannot be canceled."
+    const scepter = constant(cannotBeCanceled(query("treachery")));
+    expect(scepter.trigger).toEqual({
+      kind: "constant",
+      rules: [{ kind: "cannotBeCanceled", cards: { categories: ["treachery"] } }],
+    });
+    valid(scepter);
+  });
+});
+
+describe("§3.9 an ally treated as a minion", () => {
+  it("Beguiled (21178): treat attached ally as an Enthralled minion; When Revealed, attached ally engages its controller", () => {
+    const ENTHRALLED = trait("ENTHRALLED");
+    const treat = constant(treatAttachedAllyAsMinion([ENTHRALLED]));
+    expect(treat.trigger).toEqual({
+      kind: "constant",
+      rules: [{ kind: "treatHostAsMinion", traits: [ENTHRALLED], schFromThw: true }],
+    });
+    valid(treat);
+    valid(constant(treatAttachedAllyAsMinion([], { keepPrintedTraits: true })));
+  });
+});
+
+describe("§3.29 a minion treated as an ally", () => {
+  it("Mind Control (34009) and Karma (38011)", () => {
+    const CONTROLLED = trait("CONTROLLED");
+    valid(constant(treatAttachedMinionAsAlly([CONTROLLED], 1)));
+    const karma = heroAction(chooseTarget("minion", query("minion")), treatAsAlly(chosen("minion"), [CONTROLLED], 2));
+    valid(karma);
+    expect(karma.effects.at(-1)).toEqual({
+      kind: "treatAsAlly",
+      target: { kind: "slot", slot: "minion" },
+      traits: [CONTROLLED],
+      thwFromSch: true,
+      consequential: 2,
+    });
+  });
+});

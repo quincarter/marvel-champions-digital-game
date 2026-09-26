@@ -23,6 +23,7 @@ export type {
   CardFlipSide,
   EncounterCard,
   EncounterCardFlipSide,
+  ModeOnly,
   MinionCard,
   AttachmentCard,
   TreacheryCard,

@@ -20,11 +20,14 @@
  * didn't accidentally widen that net to catch ordinary Core saves too.
  */
 import { describe, expect, test } from "vitest";
-import { CORE_STARTER_DECKS, campaignId } from "@mc/content";
+import { CORE_STARTER_DECKS, cardId, campaignId } from "@mc/content";
 import type { Command, LegalActions, PlayerId } from "@mc/engine";
 import { MemoryGameStorage, type SaveMeta } from "./game-storage.js";
 import { EngineSessionCore } from "./session-core.js";
 import type { SessionConfig } from "./host.js";
+
+/** The Avengers Tower environment's own card id (MC21 21100a), as `docs/phase7-wave4.md` §4 Q4's own tests use. */
+const AVENGERS_TOWER_ENVIRONMENT = cardId("21100a");
 
 /** Any one legal command for whoever must act right now — a pending choice's first option, or ending the turn. */
 function anyLegalCommand(legal: LegalActions, playerId: PlayerId): Command {
@@ -92,6 +95,56 @@ describe("EngineSessionCore save compatibility", () => {
     const resumed = await second.resume((saveMeta as SaveMeta).id);
 
     expect(resumed.snapshot.state).toEqual(beforeReload);
+  });
+});
+
+describe("SessionConfig.setupOptions (docs/phase7-wave4.md §4 Q4)", () => {
+  const TOWER_DEFENSE_CONFIG: SessionConfig = {
+    scenarioId: "tower-defense",
+    difficulty: "standard",
+    players: [{ starterDeckId: "spectrum-leadership" }, { starterDeckId: "adam-warlock-all-aspects" }],
+    seed: 11,
+  };
+
+  test("threads through to the scenario builder: setup places damage on Avengers Tower when chosen", async () => {
+    const withDamage = new EngineSessionCore();
+    const started = await withDamage.start({
+      ...TOWER_DEFENSE_CONFIG,
+      setupOptions: { towerDefenseSetupDamage: true },
+    });
+    // Setup stops for the Black Order Besieger searches before the setup-damage instruction runs (`@mc/cards`'
+    // own `tower-defense-setup-damage.test.ts`); settle every pending setup choice first.
+    let snapshot = started.snapshot;
+    for (let guard = 0; snapshot.legal?.actions.kind === "choice" && guard < 200; guard++) {
+      const choice = snapshot.legal.actions.choice;
+      const option = choice.options[0];
+      if (!option) break;
+      const dispatched = withDamage.dispatch({
+        type: "resolveChoice",
+        playerId: choice.playerId,
+        choiceId: choice.choiceId,
+        selectedOptionIds: [option.optionId],
+      });
+      if (!dispatched.ok) throw new Error(dispatched.error.message);
+      snapshot = dispatched.snapshot;
+    }
+    const state = snapshot.state;
+    const towerId = Object.keys(state.instances).find(
+      (id) => state.instances[id]!.cardId === AVENGERS_TOWER_ENVIRONMENT,
+    );
+    expect(towerId).toBeDefined();
+    expect(state.instances[towerId!]!.damage).toBeGreaterThan(0);
+  });
+
+  test("absent by default: no setup damage on Avengers Tower", async () => {
+    const withoutDamage = new EngineSessionCore();
+    const started = await withoutDamage.start(TOWER_DEFENSE_CONFIG);
+    const state = started.snapshot.state;
+    const towerId = Object.keys(state.instances).find(
+      (id) => state.instances[id]!.cardId === AVENGERS_TOWER_ENVIRONMENT,
+    );
+    expect(towerId).toBeDefined();
+    expect(state.instances[towerId!]!.damage).toBe(0);
   });
 });
 

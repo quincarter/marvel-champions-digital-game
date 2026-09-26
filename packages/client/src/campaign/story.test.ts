@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { GMW_CAMPAIGN_DEFINITION, TRORS_CAMPAIGN_DEFINITION } from "@mc/cards";
+import { GMW_CAMPAIGN_DEFINITION, MTS_CAMPAIGN_DEFINITION, TRORS_CAMPAIGN_DEFINITION } from "@mc/cards";
 import { SAGA_VOLUMES, issueStoryFor, lineForRoster, storyFor } from "./story.js";
 
 describe("campaign story", () => {
@@ -15,6 +15,44 @@ describe("campaign story", () => {
     expect(story?.issues.map((issue) => issue.nodeId)).toEqual(
       GMW_CAMPAIGN_DEFINITION.graph.nodes.map((node) => node.id),
     );
+  });
+
+  test("MC21's story has exactly one issue per campaign node, in node order", () => {
+    const story = storyFor("mts");
+    expect(story?.issues.map((issue) => issue.nodeId)).toEqual(
+      MTS_CAMPAIGN_DEFINITION.graph.nodes.map((node) => node.id),
+    );
+  });
+
+  test("every mts comicBeats ref points at a page and beat that exist, and every page file is used by some issue or the finale", () => {
+    const story = storyFor("mts")!;
+    const pages = story.pages!;
+    const usedFiles = new Set<string>();
+    for (const issue of story.issues) {
+      for (const ref of issue.comicBeats ?? []) {
+        const page = pages.find((p) => p.file === ref.page);
+        expect(page, `mts comicBeats: unknown page "${ref.page}"`).toBeDefined();
+        expect(page!.beats[ref.beatIndex], `mts comicBeats: ${ref.page}#${ref.beatIndex}`).toBeDefined();
+        usedFiles.add(ref.page);
+      }
+    }
+    if (story.finale.page) usedFiles.add(story.finale.page);
+    for (const page of pages) {
+      expect(usedFiles.has(page.file), `mts page never used: ${page.file}`).toBe(true);
+    }
+  });
+
+  test("every mts issue with an Aftermath shows a real comic panel there, not a placeholder note", () => {
+    const story = storyFor("mts")!;
+    const pages = story.pages!;
+    for (const issue of story.issues.filter((i) => i.aftermath)) {
+      const refs = issue.aftermathBeats ?? [];
+      expect(refs.length, `mts ${issue.nodeId}: no aftermathBeats`).toBeGreaterThan(0);
+      for (const ref of refs) {
+        const page = pages.find((p) => p.file === ref.page);
+        expect(page?.beats[ref.beatIndex], `mts aftermathBeats: ${ref.page}#${ref.beatIndex}`).toBeDefined();
+      }
+    }
   });
 
   test("every comicBeats ref points at a page and beat that exist, and every page file is used by some issue or is the box's known unwired aftermath/finale page", () => {
@@ -109,8 +147,21 @@ describe("campaign story", () => {
     }
   });
 
-  test("every gmw and trors panel rect sits inside its page's own bounds", () => {
-    for (const campaignId of ["gmw", "trors"]) {
+  test("every mts page file on disk exists in art/campaigns/mts/pages, matching the story's own page list", async () => {
+    const { readdirSync } = await import("node:fs");
+    const { dirname, join } = await import("node:path");
+    const { fileURLToPath } = await import("node:url");
+    const dir = join(dirname(fileURLToPath(import.meta.url)), "../../../../art/campaigns/mts/pages");
+    const onDisk = readdirSync(dir)
+      .filter((file) => !file.startsWith(".") && file !== "CREDITS.md")
+      .map((file) => file.slice(0, file.lastIndexOf(".")))
+      .sort();
+    const named = (storyFor("mts")!.pages ?? []).map((page) => page.file).sort();
+    expect(onDisk).toEqual(named);
+  });
+
+  test("every gmw, trors and mts panel rect sits inside its page's own bounds", () => {
+    for (const campaignId of ["gmw", "trors", "mts"]) {
       const story = storyFor(campaignId)!;
       for (const page of story.pages ?? []) {
         for (const beat of page.beats) {

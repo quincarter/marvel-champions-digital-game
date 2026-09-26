@@ -77,7 +77,8 @@ export type KeywordName =
   | "discount"
   | "linked"
   | "prerequisite"
-  | "starting";
+  | "starting"
+  | "form";
 
 interface KeywordBase<N extends KeywordName> {
   readonly name: N;
@@ -185,7 +186,15 @@ export type KeywordInstance =
    * docs/phase7-wave2.md §4.13. The closest existing shapes are `PlayRestrictions.form` and
    * `PlayRestrictions.requiresIdentityTrait`, which is what it most likely compiles to.
    */
-  | (KeywordBase<"prerequisite"> & { readonly traits?: readonly Trait[]; readonly form?: "hero" | "alterEgo" });
+  | (KeywordBase<"prerequisite"> & { readonly traits?: readonly Trait[]; readonly form?: "hero" | "alterEgo" })
+  /**
+   * "Energy form." (Gamma, Photon, Pulsar, `mts` 21002–21004), "Mass form." (Intangible/Dense, `vision` 26002;
+   * Solid/Phased, `mut_gen` 32031a/b), "Suit form." (Assault/Stealth, `aos` 50035a/b). RRG 1.8 "Form, Change Form"
+   * (p. 21): "Cards with the '[type] form' keyword grant an identity unique forms. These forms are in addition to the
+   * identity's alter-ego and hero forms". `formType` is the printed type in lower case (`"energy"`, `"mass"`,
+   * `"suit"`). docs/phase7-wave4.md §1.1.
+   */
+  | (KeywordBase<"form"> & { readonly formType: string });
 
 export const KNOWN_KEYWORD_NAMES: readonly KeywordName[] = [
   "guard",
@@ -221,6 +230,7 @@ export const KNOWN_KEYWORD_NAMES: readonly KeywordName[] = [
   "linked",
   "prerequisite",
   "starting",
+  "form",
 ];
 
 /**

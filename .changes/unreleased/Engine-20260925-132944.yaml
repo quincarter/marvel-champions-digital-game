@@ -1,0 +1,3 @@
+kind: Engine
+body: resolveSpecials can resolve a card's When Revealed abilities (incite and surge included) and report how many
+time: 2026-09-25T13:29:44.144838-04:00

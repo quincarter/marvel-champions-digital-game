@@ -25,7 +25,8 @@
  * loses nothing `LocalEngineHost` (same thread, no serialization) keeps for free.
  */
 
-import { POOL_DEPS, buildScenario } from "../content/pool.js";
+import { cardsOfComposedSets } from "@mc/cards";
+import { POOL_CARDS, POOL_DEPS, buildScenario } from "../content/pool.js";
 import {
   applyCommand,
   createGame,
@@ -116,6 +117,12 @@ const stripPool = (state: GameState): StateWithoutPool => {
  * never threaded through its options: it becomes `GameSetupConfig.campaign` verbatim, exactly as
  * `createGame({ ...config, campaign: start.input }, deps)` does in the campaign runner's own tests
  * (`@mc/cards`'s `trors.test.ts`). Absent for every standalone game, so its setup is unchanged.
+ *
+ * `campaignEncounterSets` (`CampaignGameStart.encounterSets`) is folded in the same way, after `buildScenario`:
+ * its ids are turned into actual cards (`@mc/cards`'s `cardsOfComposedSets`, against this app's own `POOL_CARDS`,
+ * the same pool every scenario is built against) and appended to `encounterDeck`/`setAside`, mirroring exactly
+ * what `mts.qa.test.ts`'s `realGame` and `gmw.qa.test.ts`'s own equivalent do for a "real game" test. Absent for
+ * every standalone game and for a campaign save written before this field existed, so neither's setup changes.
  */
 const scenarioFor = (config: SessionConfig) => {
   const setup = buildScenario(config.scenarioId, {
@@ -126,8 +133,21 @@ const scenarioFor = (config: SessionConfig) => {
     ...(config.modularSetIds ? { modularSetIds: config.modularSetIds } : {}),
     ...(config.firstPlayerIndex !== undefined ? { firstPlayerIndex: config.firstPlayerIndex } : {}),
     ...(config.villainVersions ? { villainVersions: config.villainVersions } : {}),
+    ...(config.difficultySets ? { difficultySets: config.difficultySets } : {}),
+    ...(config.setAsideModularSetIds ? { setAsideModularSetIds: config.setAsideModularSetIds } : {}),
+    ...(config.setupOptions ? { setupOptions: config.setupOptions } : {}),
   });
-  return config.campaign ? { ...setup, campaign: config.campaign } : setup;
+  const withEncounterSets = config.campaignEncounterSets
+    ? {
+        ...setup,
+        encounterDeck: [...setup.encounterDeck, ...cardsOfComposedSets(POOL_CARDS, config.campaignEncounterSets.deck)],
+        setAside: [
+          ...(setup.setAside ?? []),
+          ...cardsOfComposedSets(POOL_CARDS, config.campaignEncounterSets.setAside),
+        ],
+      }
+    : setup;
+  return config.campaign ? { ...withEncounterSets, campaign: config.campaign } : withEncounterSets;
 };
 
 const statusOf = (state: GameState): SaveStatus =>
@@ -296,6 +316,63 @@ export class EngineSessionCore {
     this.#saveError = null;
     // No events: a resumed game arrives at its position; it doesn't re-animate getting there.
     return { cardPool: initialState.cardPool, snapshot: this.#snapshot([]) };
+  }
+
+  /**
+   * "Back out" (docs/wave4/back-out.md's own doc comment on the client side, `view/back-out.ts`): truncates the
+   * command log to its first `commandCount` commands and replays from the stored baseline, as if every command
+   * after that had never been dispatched. `commandCount` is a count the *caller* must have picked only from a
+   * legality check the client already ran (`view/back-out.ts`'s "no hidden information came to light" rule) —
+   * this itself does no such check; it is a pure, unconditional rewind of the log.
+   *
+   * Rebuilds the baseline the same way `resume` does (a fresh `createGame`, its card pool re-attached to the
+   * *stored* initial state) rather than reusing the live session's own pool, so a rewind produces byte-for-byte
+   * the same state a save-then-resume at that command count would. Persists the truncated log immediately (when
+   * this session has storage), so a reload after backing out does not resurrect the undone commands.
+   */
+  async rewindTo(commandCount: number): Promise<Snapshot> {
+    const session = this.#require();
+    const config = this.#config;
+    if (!config) throw new Error("no setup config to rewind against");
+    if (commandCount < 0 || commandCount > session.log.commands.length) {
+      throw new Error(`can't rewind to command ${commandCount} of ${session.log.commands.length}`);
+    }
+    const truncated = session.log.commands.slice(0, commandCount);
+    const baseline = rebuildBaseline(config, stripPool(session.log.initialState));
+    let record = recordEvents(emptyRecord(), baseline.setupEvents, baseline.initialState);
+    let state = baseline.initialState;
+    for (const command of truncated) {
+      const result = applyCommand(state, command, POOL_DEPS);
+      if (!result.ok) throw new Error(`rewind failed to replay: ${result.error.message}`);
+      state = result.state;
+      record = recordEvents(record, result.events, state);
+    }
+    this.#session = { state, log: { initialState: baseline.initialState, commands: truncated } };
+    this.#version = truncated.length;
+    this.#record = record;
+
+    const storage = this.#storage;
+    const gameId = this.#gameId;
+    if (storage && gameId) {
+      const progress = {
+        round: state.round,
+        commandCount: truncated.length,
+        updatedAt: this.#now(),
+        status: statusOf(state),
+        outcome: state.outcome,
+      };
+      // Chained onto `#writes`, the same queue `#persist` appends onto — a command dispatched just before this
+      // rewind may still have an `append` in flight, and truncating ahead of it would let that append land
+      // *after* the truncate and silently resurrect the very command this is undoing.
+      this.#writes = this.#writes
+        .then(() => storage.truncate(gameId, truncated.length, progress))
+        .catch((cause: unknown) => {
+          this.#saveError ??= describeCause(cause);
+        });
+      await this.#writes;
+    }
+
+    return this.#snapshot([]);
   }
 
   dispatch(command: Command): CoreDispatch {

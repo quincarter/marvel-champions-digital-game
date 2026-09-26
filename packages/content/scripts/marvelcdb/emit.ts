@@ -54,6 +54,8 @@ const KEY_BRANDS: Readonly<Record<string, BrandFn>> = {
   signatureSideSchemeCardId: "cardId",
   cardId: "cardId",
   duplicateOfCardId: "cardId",
+  // `BaseCard.otherFaceId` (a card whose faces are two separately emitted cards, docs/phase7-wave4.md §1.7).
+  otherFaceId: "cardId",
   scenarioIds: "scenarioId",
   image: "imageRef",
 };

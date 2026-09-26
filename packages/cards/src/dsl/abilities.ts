@@ -1,4 +1,4 @@
-import type { KeywordInstance, Trait } from "@mc/content";
+import type { KeywordInstance, SchemeIcon, Trait } from "@mc/content";
 import type {
   AbilityCost,
   AbilityDefinition,
@@ -18,6 +18,7 @@ import type {
   StatModifierSpec,
   StatName,
   TargetQuery,
+  ValueSpec,
   InPlayCostPick,
   PlayerRef,
   TraitGrantSpec,
@@ -25,7 +26,7 @@ import type {
   TypedResource,
 } from "@mc/engine";
 import { flatten, ifThen, type EffectArg } from "./effects.js";
-import { isAlterEgo, isHero, type Amount, type AttackKeyword } from "./values.js";
+import { amount, isAlterEgo, isHero, type Amount, type AttackKeyword } from "./values.js";
 
 /**
  * Abilities — the sentence structure of the DSL. `heroInterrupt(when.x, …)`
@@ -154,6 +155,14 @@ export const firstPlayerAction = (...args: Args): AbilityDefinition => {
  * `forAnyPlayer`: "Piloting — Resource: Exhaust the Milano → generate a [wild] resource for any player" (the
  * Milano, docs/phase7-wave3.md §3.13) — any player paying a cost may use it, not only its controller.
  */
+/**
+ * "Resource:" — generates `generates`. Any `effects` resolve when the ability is used in a payment, with the payment:
+ * "… generate a [wild] resource for a War Machine event and place 1 ammo counter on War Machine" (Gauntlet Gun, `warm`
+ * 23005); "Generate [wild][wild] resources for an [Attack] or [Defense] event. Gain a tough status card. Remove this
+ * card from the game and the campaign pool." (War Cry, `mut_gen` 32180); "… You may flip this card." (Psi-Knife,
+ * `psylocke` 41002a). The card paid for is slot `paidFor` ("That event deals 1 additional damage", Cybernetic Arm).
+ * docs/phase7-wave4.md §3.30.
+ */
 export const resource = (
   generates: ResourceGeneration,
   options: AbilityOptions & {
@@ -161,12 +170,13 @@ export const resource = (
     readonly generatesFor?: TargetQuery;
     readonly forAnyPlayer?: boolean;
   } = {},
+  ...effects: readonly EffectArg[]
 ): AbilityDefinition => {
   const { form, generatesFor, forAnyPlayer, ...rest } = options;
   const definition = build(
     { kind: "resource", ...(form ? { form } : {}), ...(forAnyPlayer ? { forAnyPlayer: true } : {}) },
     rest,
-    [],
+    effects,
     generates,
   );
   return generatesFor ? { ...definition, generatesFor } : definition;
@@ -175,7 +185,8 @@ export const resource = (
 export const heroResource = (
   generates: ResourceGeneration,
   options: AbilityOptions & { readonly generatesFor?: TargetQuery } = {},
-): AbilityDefinition => resource(generates, { ...options, form: "hero" });
+  ...effects: readonly EffectArg[]
+): AbilityDefinition => resource(generates, { ...options, form: "hero" }, ...effects);
 
 const triggered =
   (kind: "interrupt" | "response", forced: boolean, form?: Form) =>
@@ -272,7 +283,21 @@ export interface ConstantPart {
    * restriction read from the card itself while it is being played. Several are ANDed.
    */
   readonly playOnlyIf?: Predicate;
+  /**
+   * "This card generates [wild] for each ally you control (to a maximum of 3)" (Band Together, `mts` 21018): what the
+   * card generates when spent from hand. docs/phase7-wave4.md §3.38.
+   */
+  readonly handGenerates?: ResourceGeneration;
 }
+
+/** `handGenerates` "[resource] for each [card] … (to a maximum of N)" (Band Together). */
+export const generatesPerCard = (
+  resource: "energy" | "mental" | "physical" | "wild",
+  per: TargetQuery,
+  max?: number,
+): ResourceGeneration => ({ kind: "perCard", resource, per, ...(max !== undefined ? { max } : {}) });
+/** "Generate the printed resource on [a card in play]" (Energy Duplication, `mts` 21006). */
+export const printedResourcesOf = (cards: TargetQuery): ResourceGeneration => ({ kind: "printedResourcesOf", cards });
 
 export function constant(...parts: readonly ConstantPart[]): AbilityDefinition {
   const all = <
@@ -292,6 +317,8 @@ export function constant(...parts: readonly ConstantPart[]): AbilityDefinition {
   if (multipliers.length > 1) throw new Error("a constant ability has at most one resource multiplier");
   const spendableInList = parts.flatMap((p) => (p.spendableIn ? [p.spendableIn] : []));
   if (spendableInList.length > 1) throw new Error("a constant ability has at most one spendableIn form");
+  const handGeneratesList = parts.flatMap((p) => (p.handGenerates !== undefined ? [p.handGenerates] : []));
+  if (handGeneratesList.length > 1) throw new Error("a constant ability has at most one handGenerates");
   const playableAttachmentsList = parts.flatMap((p) => (p.playableAttachments ? [p.playableAttachments] : []));
   if (playableAttachmentsList.length > 1)
     throw new Error("a constant ability has at most one playableAttachments query");
@@ -314,6 +341,7 @@ export function constant(...parts: readonly ConstantPart[]): AbilityDefinition {
       ...(traitGrants.length ? { traitGrants } : {}),
       ...(rules.length ? { rules } : {}),
       ...(multipliers[0] ? { resourceMultiplier: multipliers[0] } : {}),
+      ...(handGeneratesList[0] !== undefined ? { handGenerates: handGeneratesList[0] } : {}),
       ...(costModifiers.length ? { costModifiers } : {}),
       ...(paymentOnly.length ? { paymentOnly } : {}),
       ...(spendableInList[0] ? { spendableIn: spendableInList[0] } : {}),
@@ -365,6 +393,31 @@ export const gainsKeyword = (
 ): ConstantPart => ({
   keywordGrants: [{ keyword, target, ...(opts.while ? { while: opts.while } : {}) }],
 });
+/**
+ * "Mandrill gains retaliate X, where X is equal to the number of confused characters in play" (`hood` 24016): a numbered
+ * keyword whose number is `value`, read live (docs/phase7-wave4.md §3.53). 0 or less grants nothing.
+ */
+export const gainsKeywordX = (
+  name: "retaliate" | "incite" | "hinder" | "victory",
+  value: Amount,
+  target: TargetQuery,
+  opts: { readonly while?: Predicate } = {},
+): ConstantPart => ({
+  keywordGrants: [
+    {
+      keyword: { name, value: 0 } as KeywordInstance,
+      target,
+      value: amount(value),
+      ...(opts.while ? { while: opts.while } : {}),
+    },
+  ],
+});
+/**
+ * "Each enemy in play gains 1 acceleration icon" (Secret Lair, `hood` 24061): each card in play `target` matches counts
+ * as `count` more `icon`s (docs/phase7-wave4.md §3.57).
+ */
+export const gainsIcon = (icon: SchemeIcon, target: TargetQuery, count = 1): ConstantPart =>
+  rule({ kind: "gainsIcon", icon, target, ...(count !== 1 ? { count } : {}) });
 /** "X gains the [trait] trait". */
 export const gainsTrait = (t: Trait, target: TargetQuery, opts: { readonly while?: Predicate } = {}): ConstantPart => ({
   traitGrants: [{ trait: t, target, ...(opts.while ? { while: opts.while } : {}) }],
@@ -381,6 +434,112 @@ export const gainsTraitsOf = (
   traitGrants: [{ traitsOf, target, ...(opts.while ? { while: opts.while } : {}) }],
 });
 export const rule = (r: RuleSpec): ConstantPart => ({ rules: [r] });
+/**
+ * "As an additional cost for the engaged player to ready a hero or ally they control, the player must spend a [mental]
+ * resource" (Mister Fear, `hood` 24027) → `constant(additionalCostToReady(query(["hero", "ally"], { controlledBy:
+ * engagedPlayerOf(self) }), { mental: 1 }, { player: engagedPlayerOf(self) }))`; "… for a player to ready a support, that
+ * player must spend 1 resource of any type" (Undermine Support, `aos` 50174) → `additionalCostToReady(query("support"),
+ * 1)`. The readier may decline, and then the card does not ready (RRG 1.8 "Ready", p. 36). docs/phase7-wave4.md §3.19.
+ */
+export const additionalCostToReady = (
+  target: TargetQuery,
+  resources: number | ResourceRequirement,
+  opts: { readonly player?: PlayerRef; readonly while?: Predicate } = {},
+): ConstantPart =>
+  rule({
+    kind: "readyCost",
+    target,
+    resources,
+    ...(opts.player ? { player: opts.player } : {}),
+    ...(opts.while ? { while: opts.while } : {}),
+  });
+/**
+ * "Heroes and allies cannot be readied by player card effects" (Unnatural Storm, `mts` 21159;
+ * docs/phase7-wave4.md §3.19): the end-of-phase ready and encounter card effects still ready them.
+ */
+export const cannotBeReadiedByPlayerCards = (target: TargetQuery): ConstantPart =>
+  rule({ kind: "cannotReady", target, bySource: "playerCard" });
+/**
+ * "Prevent all damage to Ebony Maw" (Abjuration, `mts` 21082; docs/phase7-wave4.md §3.20): the damage is dealt and this
+ * card prevents it, so `on.thisPreventsDamage` hears it. `constant(preventAllDamageTo(query("villain", { name: "Ebony
+ * Maw" })))`, or `{ hostOfSelf: true }` for "attached villain".
+ */
+export const preventAllDamageTo = (target: TargetQuery, opts: { readonly while?: Predicate } = {}): ConstantPart =>
+  rule({ kind: "preventAllDamage", target, ...(opts.while ? { while: opts.while } : {}) });
+/**
+ * Focused Defense (Tower Defense, `mts` 21101): "The villain who matches the attached scheme is the active villain." Its
+ * host is also the scheme minions scheme onto and player constants mean by "the main scheme" (MC21 p. 10; errata RRG 1.8
+ * p. 67). `constant(focusedMainScheme())`. docs/phase7-wave4.md §3.2.
+ */
+/**
+ * "While Pip the Troll is in your hand, he gains '…'" / "While this card is in your hand, it gains: '…'" (Pip the Troll,
+ * System Shock, `mts` 21032, 21185): the ability works only while its card is in its owner's hand
+ * (`AbilityDefinition.activeIn`, docs/phase7-wave4.md §3.13). `inHand(interrupt(…))`.
+ */
+export const inHand = (definition: AbilityDefinition): AbilityDefinition => ({ ...definition, activeIn: "hand" });
+/**
+ * "… This effect cannot be canceled." (the Cosmic Entities, `mts` 21042/21048/21054/21060; Longshot, `mojo` 39071):
+ * `uncancellable(whenRevealed(…))`. "This card cannot be canceled" read from the card itself or from play is the
+ * constant `cannotBeCanceled(query)`. docs/phase7-wave4.md §3.14.
+ */
+export const uncancellable = (definition: AbilityDefinition): AbilityDefinition => ({
+  ...definition,
+  uncancellable: true,
+});
+/** "Treacheries cannot be canceled." (Dark Scepter, `tt` 55036); "this card … cannot be canceled" (`sm` 27108). */
+export const cannotBeCanceled = (cards: TargetQuery, when?: Predicate): ConstantPart => ({
+  rules: [{ kind: "cannotBeCanceled", cards, ...(when ? { while: when } : {}) }],
+});
+/**
+ * "Treat attached ally as an [Undead] minion with a blank text box. Attached minion's SCH is equal to its printed THW
+ * and it does not take consequential damage." (Fallen Warrior, Beguiled, `mts` 21153, 21178; the same family in
+ * `deadpool`, `jubilee`, `storm`): `constant(treatAttachedAllyAsMinion([UNDEAD]))`. "(except for traits)" (Manipulated
+ * Mind, `sm` 27171; Malice, `next_evol` 40199): `{ keepPrintedTraits: true }`. docs/phase7-wave4.md §3.9.
+ */
+export const treatAttachedAllyAsMinion = (
+  traits: readonly Trait[],
+  opts: { readonly keepPrintedTraits?: boolean } = {},
+): ConstantPart => ({
+  rules: [
+    {
+      kind: "treatHostAsMinion",
+      traits,
+      schFromThw: true,
+      ...(opts.keepPrintedTraits ? { keepPrintedTraits: true } : {}),
+    },
+  ],
+});
+/**
+ * "Nebula ignores the guard keyword, the patrol keyword, and the crisis icon" (Evasive Maneuvering, `nebu` 22005; Wasp,
+ * `ironheart` 29034; Shadowcat, `mut_gen` 32002/32030a; Psionic Training, `psylocke` 41010, guard and patrol only):
+ * `constant(ignores(YOUR_IDENTITY, ["guard", "patrol", "crisis"], isHero()))`. docs/phase7-wave4.md §3.24.
+ */
+export const ignores = (
+  target: TargetQuery,
+  what: readonly ("guard" | "patrol" | "crisis")[],
+  when?: Predicate,
+): ConstantPart => ({
+  rules: [{ kind: "characterIgnores", target, ignores: what, ...(when ? { while: when } : {}) }],
+});
+/**
+ * "Take control of attached minion and treat it as a [Controlled] ally with a blank text box. Its THW is equal to its
+ * printed SCH and it takes 1 consequential damage after it thwarts or attacks." (Mind Control, `phoenix` 34009;
+ * Redemption, `bp` 51036): `constant(treatAttachedMinionAsAlly([CONTROLLED], 1))`. docs/phase7-wave4.md §3.29.
+ */
+export const treatAttachedMinionAsAlly = (traits: readonly Trait[], consequential: number): ConstantPart => ({
+  rules: [{ kind: "treatHostAsAlly", traits, thwFromSch: true, consequential }],
+});
+/**
+ * "Players cannot discard attachments that are attached to friendly characters." (Powerful Enchantments, `valk`
+ * 25030): `constant(playersCannotDiscard(query))`. A player's ability does not discard a matching card; its host's
+ * defeat and encounter effects still do. docs/phase7-wave4.md §3.44.
+ */
+export const playersCannotDiscard = (target: TargetQuery): ConstantPart => ({
+  rules: [{ kind: "playersCannotDiscard", target }],
+});
+/** "You cannot choose to discard this card from your hand." (System Shock): `inHand(constant(cannotChooseToDiscard))`. */
+export const cannotChooseToDiscard: ConstantPart = { rules: [{ kind: "cannotChooseToDiscard" }] };
+export const focusedMainScheme = (): ConstantPart => rule({ kind: "focusedMainScheme", scheme: { kind: "host" } });
 /**
  * "The first [X] the engaged player reveals each villain phase gains surge." (Mister Knife, `stld` 17026); "The
  * first [Technique] attachment revealed each round gains surge." (Nebula I–III, `gmw`; docs/phase7-wave3.md §3.8).
@@ -436,8 +595,19 @@ export const restrictedLimit = (
  * play. `target` is a category list, not `controller: "you"` — the rule sits on an encounter card, which has no
  * controller for "you" to resolve to, and the printed text says "each", not "your".
  */
-export const blanksTextBox = (target: TargetQuery, opts: { readonly while?: Predicate } = {}): ConstantPart => ({
-  rules: [{ kind: "blankTextBox", target, ...(opts.while ? { while: opts.while } : {}) }],
+export const blanksTextBox = (
+  target: TargetQuery,
+  opts: { readonly while?: Predicate; readonly exceptKeywords?: boolean } = {},
+): ConstantPart => ({
+  rules: [
+    {
+      kind: "blankTextBox",
+      target,
+      ...(opts.while ? { while: opts.while } : {}),
+      // "…, except for keywords" (Corrupted Programming, `vision` 26028; docs/phase7-wave4.md §3.28).
+      ...(opts.exceptKeywords ? { exceptKeywords: true as const } : {}),
+    },
+  ],
 });
 /**
  * "Each of your [trait] attacks gain [keyword]" (Hawkeye's Bow, `trors`): an `AttackKeyword` granted to attacks
@@ -562,7 +732,8 @@ export const removeUpToCounters = (
  * deck can supply every card; an empty deck with a discard pile is reset first, and a deck the cost empties is reset
  * at once (RRG 1.8 "Player Deck", p. 33; ruling, Apr 30, 2026 (3) answer 7).
  */
-export const discardTopOfDeckCost = (n = 1): AbilityCost => ({ discardFromDeck: n });
+/** "Discard the top N cards of your deck →"; a value for "discard that many cards" (Shield Spell, §3.42 of wave 4). */
+export const discardTopOfDeckCost = (n: number | ValueSpec = 1): AbilityCost => ({ discardFromDeck: n });
 /**
  * "Choose to either exhaust your hero or spend 2 resources of any type →" (The Grand Collection 1B, `gmw` 16073b;
  * docs/phase7-wave3.md §3.36): exactly one branch is paid, the player's choice (`costSelection.branch`, the branch's
@@ -653,9 +824,29 @@ const inPlayPick = (q: TargetQuery, opts: InPlayCostOptions, defaultSlot: string
 export const exhaustCardsCost = (q: TargetQuery, opts: InPlayCostOptions = {}): AbilityCost => ({
   exhaustCards: inPlayPick(q, opts, "exhausted"),
 });
+/**
+ * "Exhaust an [Avenger] character and a [Guardian] character →" (As One!, Stand Together, Problem Solvers; Combine
+ * Forces' X-Force and X-Men; docs/phase7-wave4.md §3.17): one card per slot, each slot its own query, and one card
+ * cannot pay two slots. `exhaustEachCost({ avenger: query(["identity", "ally"], { trait: AVENGER }), guardian: … })` binds each card to its slot, so "the combined ATK of those characters" is `sum(statOf(chosen("avenger"),
+ * "atk"), statOf(chosen("guardian"), "atk"))`. On an alliance card the picks may be any player's characters; otherwise
+ * the payer's own, as for `exhaustCardsCost`.
+ */
+export const exhaustEachCost = (picks: Readonly<Record<string, TargetQuery>>): AbilityCost => {
+  const entries = Object.entries(picks);
+  if (entries.length < 2) throw new Error("exhaustEachCost: name at least two slots (one pick is exhaustCardsCost)");
+  return { exhaustCards: entries.map(([slot, q]) => inPlayPick(q, { slot }, slot)) };
+};
 /** "… return [cards you control] from play to your hand →" (Shield Toss). Same picking rules as `exhaustCardsCost`. */
 export const returnToHandCost = (q: TargetQuery, opts: InPlayCostOptions = {}): AbilityCost => ({
   returnToHand: inPlayPick(q, opts, "returned"),
+});
+/**
+ * "Discard an upgrade you control →" (Lethal Weapon, `nebu` 22030); "Discard an ally you control →" (Noble Sacrifice);
+ * "Discard a [Tech] upgrade you control →" (Repurpose): cards in play discarded to pay. Same picking rules as
+ * `exhaustCardsCost`; the cards are bound to `"discarded"` ("that ally's printed hit points"). docs/phase7-wave4.md §3.25.
+ */
+export const discardCardsCost = (q: TargetQuery, opts: InPlayCostOptions = {}): AbilityCost => ({
+  discardCards: inPlayPick(q, opts, "discarded"),
 });
 /** "Pay the printed cost of [a card] →" */
 /**
@@ -711,6 +902,9 @@ const enemyAttacks = (
     opts.damages ? { requireResults: { damage: 1 } } : {},
   );
 
+/** A basic power, as `basicPowerUsing`/`basicPowerUsed` name it. */
+type BasicPowerName = "attack" | "thwart" | "defense" | "recover";
+
 export const on = {
   /** "When/After [enemy] attacks (you)" — `by: "self"` for the card's own attacks, `"host"` for the attached enemy. */
   enemyAttacks,
@@ -731,8 +925,9 @@ export const on = {
       readonly damages?: boolean;
       /**
        * "After you deal excess damage to an enemy" ("Murdered You!", Rocket Raccoon's hero identity, `gmw`
-       * 16029a): the attack's own `excessDealt` result (RRG 1.8 "Excess Damage", p. 19), set whenever an attack
-       * deals more damage than its target's remaining hit points (`resolve/event.ts`).
+       * 16029a): the attack's own `excessDealt` result, set whenever an attack's target takes more damage than its
+       * remaining hit points: the value overkill would spill (RRG 1.8 "Overkill", p. 31, superseding ruling
+       * Jan 26, 2026 (3); `resolve/event.ts` `excessDamageOf`).
        */
       readonly excessDamage?: boolean;
     } = {},
@@ -854,6 +1049,18 @@ export const on = {
   encounterCardRevealed: (what?: TargetQuery): EventPattern =>
     pattern("encounterCardRevealing", what ? { targetIs: what } : {}),
   /** "When/After X is defeated"; `byYou`: "after *you* defeat a minion". */
+  /**
+   * "After Abjuration prevents 2 or more damage from a single attack" (docs/phase7-wave4.md §3.20): this card prevented
+   * damage — by its `preventAllDamageTo` constant or a `preventDamage` effect of its own. `fromAttack`: the damage was an
+   * attack's; `atLeast`: at least that much was prevented at once.
+   */
+  thisPreventsDamage: (opts: { readonly fromAttack?: boolean; readonly atLeast?: number } = {}): EventPattern =>
+    pattern(
+      "damagePrevented",
+      { selfIs: "source" },
+      opts.fromAttack !== undefined ? { fromAttack: opts.fromAttack } : {},
+      opts.atLeast !== undefined ? { eventAtLeast: { amount: opts.atLeast } } : {},
+    ),
   defeated: (
     what: Who,
     opts: {
@@ -863,6 +1070,11 @@ export const on = {
        * defeating damage was attack damage from a card matching this query — `{ categories: ["enemy"] }`.
        */
       readonly byAttackFrom?: TargetQuery;
+      /**
+       * "After the enemy **with Death-Glow** is defeated" (Flight of the Valkyrior, Valhalla; docs/phase7-wave4.md
+       * §3.22): a card matching this was attached when the defeat was initiated, read after the character left play.
+       */
+      readonly withAttachment?: TargetQuery;
     } = {},
   ): EventPattern =>
     pattern(
@@ -870,6 +1082,7 @@ export const on = {
       asTarget(what),
       opts.byYou ? { playerIs: "controller" } : {},
       opts.byAttackFrom ? { fromAttack: true, sourceIs: opts.byAttackFrom } : {},
+      opts.withAttachment ? { targetHadAttachment: opts.withAttachment } : {},
     ),
   /**
    * "After [X] (or an event you play) defeats a minion or side scheme" (Small but Mighty, 13001a; docs/phase7-
@@ -892,13 +1105,56 @@ export const on = {
    * stage itself).
    */
   mainSchemeCompleted: (what: Who): EventPattern => pattern("mainSchemeCompleted", asTarget(what)),
+  /**
+   * "When this stage would be completed, remove all the threat from this stage instead" (Under Siege / The Armies of
+   * Thanos, `mts` 21098b/21099b; Upgrading Adaptoids 1B, `aos` 50104b; docs/phase7-wave4.md §3.4): pair with `instead`
+   * on a forced interrupt, `forcedInterrupt(on.mainSchemeCompleting("self"), instead(…))`.
+   */
+  mainSchemeCompleting: (what: Who): EventPattern => pattern("mainSchemeCompleting", asTarget(what)),
+  /**
+   * "After the last invocation counter is removed from Fireball" (`mts` 21076–21079) / "When the last lock counter is
+   * removed from here" (Holding Cell, `aos` 50105a) / "After the last power counter is removed from here" (Phoenix Force):
+   * counters of `counterType` removed from this card by an effect, leaving none (docs/phase7-wave4.md §3.15).
+   */
+  lastCounterRemoved: (counterType: string): EventPattern =>
+    pattern("countersRemoved", { selfIs: "target", eventIs: { counterType }, eventAtMost: { remaining: 0 } }),
+  /** "After your deck runs out of cards" (Soul World, `mts` 21033; docs/phase7-wave4.md §3.11): your deck reset. */
+  yourDeckRunsOut: (): EventPattern => pattern("deckRanOut", { playerIs: "controller", eventIs: { deck: "player" } }),
+  /** "After a player resets their deck" (Universal Church of Truth, 21068): any player's; name them with `eventPlayer`. */
+  aPlayerResetsTheirDeck: (): EventPattern => pattern("deckRanOut", { eventIs: { deck: "player" } }),
+  /** "After the infinity stone deck runs out" (Thanos I–III, 21111–21113): a scenario deck by name. */
+  scenarioDeckRunsOut: (name: string): EventPattern => pattern("deckRanOut", { eventIs: { deck: "scenario", name } }),
+  /**
+   * "After Loki is swapped with a set-aside Loki villain" (Loki's Cape, `mts` 21172): the `villainSwapped` event
+   * `EffectSpec swapVillain` announces (docs/phase7-wave4.md §3.7; `packages/engine/src/villain-swap.test.ts`'s own
+   * `villainSwapped` trigger). There is only ever one villain in play whenever this fires, so no `Who` scope is
+   * needed to say which one — the same reading `on.mainSchemeCompleted` gives a scenario with one main scheme.
+   */
+  villainSwapped: (): EventPattern => pattern("villainSwapped"),
   /** "After you change to this form". */
   youChangeForm: (): EventPattern => pattern("formChanged", { playerIs: "controller" }),
   /**
    * "After **a player** changes to [hero/alter-ego] form" (Taskmaster I–III, 04093–04095) — no `playerIs` scope, so
    * this is "a player", not "you" (`on.youChangeForm`'s own hardcoded scope). Name them with `eventPlayer`.
    */
-  playerChangesForm: (to: "hero" | "alterEgo"): EventPattern => pattern("formChanged", { eventIs: { to } }),
+  playerChangesForm: (to: "hero" | "alterEgo"): EventPattern =>
+    pattern("formChanged", { eventIs: { to, change: "identity" } }),
+  /**
+   * "After you change to this form" printed on an **identity face** whose player also has additional forms (Spectrum,
+   * Vision): the hero/alter-ego change only, never an energy or mass form change (docs/phase7-wave4.md §3.1). Plain
+   * `youChangeForm` hears both, which is what "After you change form" (Moxie) means (RRG 1.8 "Form, Change Form", p. 21).
+   */
+  youChangeIdentityForm: (): EventPattern =>
+    pattern("formChanged", { playerIs: "controller", eventIs: { change: "identity" } }),
+  /**
+   * "After you change to this energy form" / "After you change to this mass form" printed on the form card itself (Gamma,
+   * Dense): an additional form change that turned this card's face up (docs/phase7-wave4.md §3.1).
+   */
+  youChangeToThisForm: (): EventPattern =>
+    pattern("formChanged", { playerIs: "controller", selfIs: "target", eventIs: { change: "additional" } }),
+  /** "After you change energy forms" / "After you change mass form" (Density Control, `vision` 26007): any change of that type. */
+  youChangeAdditionalForm: (formType: string): EventPattern =>
+    pattern("formChanged", { playerIs: "controller", eventIs: { change: "additional", formType } }),
   /** "After your turn begins" (Quinjet, `cap` pack). */
   yourTurnBegins: (): EventPattern => pattern("turnStarted", { playerIs: "controller" }),
   /**
@@ -918,7 +1174,10 @@ export const on = {
    */
   basicPowerUsing: (
     who: Who,
-    opts: { readonly power?: "attack" | "thwart" | "defense" | "recover" } = {},
+    opts: {
+      /** One power, or several: `["attack", "thwart"]` is "When X attacks or thwarts" (Machine Man, §3.36 of wave 4). */
+      readonly power?: BasicPowerName | readonly BasicPowerName[];
+    } = {},
   ): EventPattern => pattern("basicPowerUsing", asTarget(who), opts.power ? { eventIs: { power: opts.power } } : {}),
   /** "When attached character would ready" (Frozen in Time; docs/phase7-wave2.md §3.11). */
   cardReadying: (what: Who): EventPattern => pattern("cardReadying", asTarget(what)),

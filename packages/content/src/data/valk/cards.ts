@@ -668,7 +668,10 @@ export const VALK_CARDS: readonly AnyCard[] = [
       printed: "Give to the Brunnhilde player.\nValkyrie cannot attack the enemy with Death-Glow attached.\nAlter-Ego Action: Spend [energy][mental] resources → remove Trouble in Otherworld from the game.",
       current: "Give to the Brunnhilde player.\nValkyrie cannot attack the enemy with Death-Glow attached.\nAlter-Ego Action: Spend [energy][mental] resources → remove Trouble in Otherworld from the game.",
     },
-    abilities: [{ id: abilityId("25028.obligation") }],
+    abilities: [
+      { id: abilityId("25028.trouble-in-otherworld-constant") },
+      { id: abilityId("25028.trouble-in-otherworld-action") },
+    ],
   },
   {
     id: cardId("25029"),
@@ -709,16 +712,13 @@ export const VALK_CARDS: readonly AnyCard[] = [
     icons: ["acceleration"],
     boostIcons: 2,
     traits: [],
-    keywords: [],
+    keywords: [{ name: "hinder", value: 0, perPlayer: 1 }],
     text: {
       printed: "Hinder 1[per_hero].\nPlayers cannot discard attachments that are attached to friendly characters.",
       current: "Hinder 1[per_hero].\nPlayers cannot discard attachments that are attached to friendly characters.",
     },
     flavor: "Behind Amora's charm lies a cruel ambition and the power to subdue those in her way.",
-    abilities: [
-      { id: abilityId("25030.powerful-enchantments-constant") },
-      { id: abilityId("25030.powerful-enchantments-constant-2") },
-    ],
+    abilities: [{ id: abilityId("25030.powerful-enchantments-constant") }],
   },
   {
     id: cardId("25031"),

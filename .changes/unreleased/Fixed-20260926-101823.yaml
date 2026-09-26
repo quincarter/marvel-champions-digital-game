@@ -1,0 +1,3 @@
+kind: Fixed
+body: Backing out of a card's action also takes its line off the game log; the end-turn confirm no longer repeats its question
+time: 2026-09-26T10:18:23.953859-04:00

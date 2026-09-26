@@ -21,12 +21,28 @@
  *
  * A pack agent should never define an ability id for a card that reprints an earlier one: this module already
  * supplies it, and `mergeRegistries` throws "defined twice" if a pack module also defines it.
+ *
+ * **The "later" side is `@mc/content`'s own fixed `WAVE3_CARDS` (imported here as `CONTENT_WAVE3_CARDS`), not
+ * `./cards.js`'s re-export of `PLAYABLE_CARDS`.** `./cards.ts`'s own `WAVE3_CARDS` is deliberately an alias to
+ * `PLAYABLE_CARDS` (its own docblock), which keeps growing as later waves land (wave 4 widened it to cycle 3,
+ * docs/phase7-wave4.md) — iterating that here would scan wave 4's own cards for a (name, type) match against
+ * `WAVE1_CARDS`/`WAVE2_CARDS` too, occasionally finding one (e.g. a generic aspect-signature card reprinted again
+ * in cycle 3) and aliasing a *wave 4* ability id into `WAVE3_ABILITIES`, which then collides with that pack's own
+ * hand-authored definition the moment wave 4 registers it (`mergeRegistries` "defined twice" — this broke exactly
+ * that way when wave 4 was wired into `PLAYABLE_CARDS`). `@mc/content`'s `WAVE3_CARDS` is the fixed Core+cycle-2
+ * sibling pool (`data/index.ts`'s own docblock) that never grows, so this module only ever sees cycle 2's own cards
+ * on the "later" side, exactly as originally intended.
  */
-import { WAVE1_CARDS, WAVE2_CARDS, type AbilityReference, type AnyCard } from "@mc/content";
+import {
+  WAVE1_CARDS,
+  WAVE2_CARDS,
+  WAVE3_CARDS as CONTENT_WAVE3_CARDS,
+  type AbilityReference,
+  type AnyCard,
+} from "@mc/content";
 import type { AbilityDefinition, AbilityRegistry } from "@mc/engine";
 import { WAVE1_ABILITIES } from "../wave1/index.js";
 import { WAVE2_ABILITIES } from "../wave2/index.js";
-import { WAVE3_CARDS } from "./cards.js";
 
 /**
  * Every earlier ability definition, by id: Core + wave 1 + cycle 1. `WAVE1_ABILITIES` and `WAVE2_ABILITIES` both
@@ -70,7 +86,7 @@ const earlierByReprintKey = new Map<string, AnyCard>(EARLIER_CARDS.map((c) => [r
 /** Every (wave 3 card, matched earlier card) pair by (name, type), whether or not it ends up aliased. */
 export function wave3ReprintPairs(): ReadonlyArray<{ readonly wave3: AnyCard; readonly wave2: AnyCard }> {
   const pairs: { wave3: AnyCard; wave2: AnyCard }[] = [];
-  for (const card of WAVE3_CARDS) {
+  for (const card of CONTENT_WAVE3_CARDS) {
     if (earlierCardIds.has(card.id as string)) continue; // Core/wave 1/cycle 1 itself (WAVE3_CARDS includes them)
     const match = earlierByReprintKey.get(reprintKey(card));
     if (match) pairs.push({ wave3: card, wave2: match });

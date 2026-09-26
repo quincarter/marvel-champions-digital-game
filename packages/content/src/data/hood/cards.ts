@@ -141,6 +141,7 @@ export const HOOD_CARDS: readonly AnyCard[] = [
         traits: [],
         keywords: [],
         abilities: [{ id: abilityId("24006b.crime-state-forced-response") }],
+        completionLoses: true,
         image: imageRef("/bundles/cards/24006a.jpg"),
         aSide: {
           text: {
@@ -264,13 +265,12 @@ export const HOOD_CARDS: readonly AnyCard[] = [
     icons: [],
     boostIcons: 2,
     traits: [],
-    keywords: [],
+    keywords: [{ name: "hinder", value: 0, perPlayer: 2 }],
     text: {
       printed: "Hinder 2[per_hero]. (When revealed, place 2[per_hero] threat here.)\nForced Interrupt: When the villain phase begins, each player must resolve The Hood's \"Foul Play\" ability in player order.",
       current: "Hinder 2[per_hero]. (When revealed, place 2[per_hero] threat here.)\nForced Interrupt: When the villain phase begins, each player must resolve The Hood's \"Foul Play\" ability in player order.",
     },
     abilities: [
-      { id: abilityId("24011.unbridled-ambition-constant") },
       {
         id: abilityId("24011.unbridled-ambition-forced-interrupt"),
       },
@@ -1144,10 +1144,7 @@ export const HOOD_CARDS: readonly AnyCard[] = [
       printed: "Standard Mode Only.\nPermanent. Setup.\nThe villain gains steady. (Steady characters require 2 status cards of the same type to be stunned or confused.)",
       current: "Standard Mode Only.\nPermanent. Setup.\nThe villain gains steady. (Steady characters require 2 status cards of the same type to be stunned or confused.)",
     },
-    abilities: [
-      { id: abilityId("24049a.formidable-foe-constant") },
-      { id: abilityId("24049a.formidable-foe-constant-2") },
-    ],
+    abilities: [{ id: abilityId("24049a.formidable-foe-constant") }],
     flipSide: {
       name: "Formidable Foe",
       traits: [],
@@ -1156,12 +1153,10 @@ export const HOOD_CARDS: readonly AnyCard[] = [
         printed: "Expert Mode Only.\nPermanent. Setup.\nEach enemy gains steady. (Steady characters require 2 status cards of the same type to be stunned or confused.)",
         current: "Expert Mode Only.\nPermanent. Setup.\nEach enemy gains steady. (Steady characters require 2 status cards of the same type to be stunned or confused.)",
       },
-      abilities: [
-        { id: abilityId("24049b.formidable-foe-constant") },
-        { id: abilityId("24049b.formidable-foe-constant-2") },
-      ],
+      abilities: [{ id: abilityId("24049b.formidable-foe-constant") }],
       image: imageRef("/bundles/cards/24049b.png"),
     },
+    modeOnly: "standard",
   },
   {
     id: cardId("24050"),
@@ -1477,13 +1472,13 @@ export const HOOD_CARDS: readonly AnyCard[] = [
     icons: [],
     boostIcons: 2,
     traits: [],
-    keywords: [],
+    keywords: [{ name: "hinder", value: 0, perPlayer: 2 }],
     text: {
       printed: "Hinder 2[per_hero]. (When revealed, place 2[per_hero] threat here.)\nThe villain and each Elite minion gain retaliate 1.",
       current: "Hinder 2[per_hero]. (When revealed, place 2[per_hero] threat here.)\nThe villain and each Elite minion gain retaliate 1.",
     },
     flavor: "The Wrecking Crew is on a rampage, using their magically-powered muscles to cause chaos and destruction.",
-    abilities: [{ id: abilityId("24064.top-talent-constant") }, { id: abilityId("24064.top-talent-constant-2") }],
+    abilities: [{ id: abilityId("24064.top-talent-constant") }],
   },
   {
     id: cardId("24065"),

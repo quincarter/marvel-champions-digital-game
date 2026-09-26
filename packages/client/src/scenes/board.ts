@@ -45,6 +45,7 @@ import { boardLayout, type BoardLayout, type PhoneTab, type Rect } from "../view
 import type { SessionState } from "../store/session-store.js";
 import { SCENES } from "./keys.js";
 import { fadeScreenIn, goToScreen } from "../ui/transitions.js";
+import { askToEndTurn } from "./end-turn-confirm.js";
 import { drawActionBar } from "./board/action-bar.js";
 import { drawCharacter } from "./board/character-panel.js";
 import { drawChrome, drawPhoneTabs } from "./board/chrome.js";
@@ -81,6 +82,11 @@ export class BoardScene extends Phaser.Scene {
   /** What the last draw left behind: hit rects, focus rects, and the widgets to destroy before the next one. */
   #frame: BoardFrame = emptyFrame();
   #version = -1;
+  /**
+   * The table log and card history as they stood at each command version, so a Back out (`SessionStore.rewindTo`)
+   * restores them exactly instead of keeping lines for the play it undid.
+   */
+  #logAt = new Map<number, { readonly log: LogState; readonly cardHistory: CardHistoryLog }>();
   #choiceOpen = false;
   #saveFailureAnnounced = false;
   /** Which zone the phone board is showing. Ignored on wider layouts. */
@@ -110,6 +116,7 @@ export class BoardScene extends Phaser.Scene {
     tabbed: () => this.#layout?.tabbed ?? false,
     redraw: () => this.#draw(),
     inspect: (id) => this.#inspect(id),
+    confirmEndTurn: (sentence, onConfirm) => askToEndTurn(this, sentence, onConfirm),
   });
   readonly #hand = new HandScroll(() => this.#draw());
   readonly #logPanel = new LogPanel(() => this.#draw());
@@ -155,6 +162,7 @@ export class BoardScene extends Phaser.Scene {
     appSession().gameLog = this.#log;
     this.#logPanel.reset();
     this.#version = -1;
+    this.#logAt.clear();
     this.#tabBadges.clear();
     this.#focus = null;
     this.#saveFailureAnnounced = false;
@@ -252,7 +260,16 @@ export class BoardScene extends Phaser.Scene {
 
     // Fold this command's events onto the log before the state replaces it.
     const fresh = state.version !== this.#version;
-    if (fresh) {
+    // Back out rewound the game: put the log back as it was at that version, and skip this update's replay events.
+    const rewound = fresh && state.version < this.#version ? this.#logAt.get(state.version) : undefined;
+    if (rewound) {
+      this.#log = rewound.log;
+      this.#cardHistory = rewound.cardHistory;
+      appSession().gameLog = this.#log;
+      for (const version of [...this.#logAt.keys()]) if (version > state.version) this.#logAt.delete(version);
+      this.#version = state.version;
+      this.#controller.reset();
+    } else if (fresh) {
       // A resumed game arrives mid-round with no events saying which round, so
       // an empty log starts counting from the state's round rather than "R0".
       if (this.#log.round === 0) this.#log = { ...this.#log, round: state.game.round };
@@ -280,6 +297,7 @@ export class BoardScene extends Phaser.Scene {
         this.#motion.announce("Game not saving", "It may not survive a refresh");
       }
       this.#version = state.version;
+      this.#logAt.set(state.version, { log: this.#log, cardHistory: this.#cardHistory });
       // A new state invalidates any half-made selection: the engine may have
       // changed what is legal, and a stale target would just be rejected.
       this.#controller.reset();

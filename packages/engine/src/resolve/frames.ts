@@ -27,7 +27,7 @@ export const eventFrame = (
 ): StackFrame => ({
   ...base(ctx),
   kind: "event",
-  event,
+  event: withDefeatSnapshot(ctx, event),
   stage: isAnnouncement(event) ? "responses" : "interrupts",
   cancelled: false,
   vars,
@@ -35,6 +35,17 @@ export const eventFrame = (
   reportTo,
   endEffects: [],
 });
+
+/**
+ * A defeat carries what was attached to the character when it was initiated (`characterDefeated.attachedInstanceIds`,
+ * docs/phase7-wave4.md §3.22), so a response after the character has left play can still ask "the enemy with Death-Glow
+ * attached". Taken once, when the event goes on the stack; an event that already has one keeps it.
+ */
+function withDefeatSnapshot(ctx: Ctx, event: TriggerEvent): TriggerEvent {
+  if (event.kind !== "characterDefeated" || event.attachedInstanceIds) return event;
+  const attached = ctx.state.instances[event.instanceId]?.attachments ?? [];
+  return attached.length === 0 ? event : { ...event, attachedInstanceIds: [...attached] };
+}
 
 /** Puts an event on the stack: interrupt window, the change itself, response window. */
 export function pushEvent(ctx: Ctx, event: TriggerEvent, reportTo: ReportTarget | null = null): FrameId {
@@ -111,6 +122,10 @@ export function pushEffects(
     readonly bindings?: Bindings;
     readonly vars?: Vars;
     readonly scopedPlayerId?: PlayerId | null;
+    /** A branch whose bindings go back to this frame when it finishes (docs/phase7-wave4.md §3.43). */
+    readonly returnBindingsTo?: FrameId;
+    /** The effects of an ability a player uses (docs/phase7-wave4.md §3.44). */
+    readonly byPlayer?: boolean;
   },
 ): void {
   if (spec.effects.length === 0) return;
@@ -127,6 +142,8 @@ export function pushEffects(
       controllerId: spec.controllerId,
       event: spec.event ?? null,
       eventFrameId: spec.eventFrameId ?? null,
+      ...(spec.returnBindingsTo ? { returnBindingsTo: spec.returnBindingsTo } : {}),
+      ...(spec.byPlayer ? { byPlayer: true as const } : {}),
     },
   ]);
 }

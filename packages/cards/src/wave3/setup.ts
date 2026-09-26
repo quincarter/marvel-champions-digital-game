@@ -1,5 +1,6 @@
 import {
   CORE_STARTER_DECKS,
+  difficultyEncounterSetIds,
   difficultyOf,
   GMW_SCENARIOS,
   GMW_STARTER_DECKS,
@@ -112,8 +113,7 @@ function buildSingleVillain(scenario: (typeof GMW_SCENARIOS)[number], options: W
   const sets = [
     ...scenario.encounterSetIds,
     ...(options.modularSetIds ?? scenario.recommendedModularSetIds),
-    ...scenario.standardEncounterSetIds,
-    ...(difficulty === "expert" ? scenario.expertEncounterSetIds : []),
+    ...difficultyEncounterSetIds(scenario, difficulty, options.difficultySets),
   ];
   if (options.players.length < 1 || options.players.length > 4) throw new Error("a game has 1-4 players");
   return {

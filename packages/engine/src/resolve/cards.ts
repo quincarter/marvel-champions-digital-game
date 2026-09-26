@@ -28,6 +28,9 @@ import {
 } from "../select.js";
 import type { CardDestination, CardSelector, TargetQuery } from "../spec.js";
 import type { ZoneId } from "../state.js";
+import type { TriggerEvent } from "../trigger-events.js";
+import { announce } from "./frames.js";
+import { heard } from "./triggers.js";
 
 /** The cards a selector names right now (out of play included), in zone order. */
 export function selectCards(ctx: Ctx, selector: CardSelector, context: EffectContext): readonly InstanceId[] {
@@ -191,6 +194,7 @@ export function moveCardsTo(ctx: Ctx, ids: readonly InstanceId[], destination: C
   const inPlay = new Set(cardsInPlay(ctx.state));
   const shuffleOwners = new Set<PlayerId>();
   let shuffleEncounter = false;
+  const scenarioDecksToShuffle = new Set<string>();
   const separateDecks = new Map<string, { readonly playerId: PlayerId; readonly name: string }>();
   for (const id of ids) {
     const instance = getInstance(ctx.state, id);
@@ -229,11 +233,32 @@ export function moveCardsTo(ctx: Ctx, ids: readonly InstanceId[], destination: C
       case "encounterSetAside":
         to = { kind: "encounterSetAside" };
         break;
-      case "encounterDeckShuffle":
-        if (owner) continue;
-        to = { kind: "encounterDeck", deckId: activeEncounterDeckId(ctx.state) };
-        shuffleEncounter = true;
+      case "setAside":
+        // "Set this card aside, out of play" on a player card (Death-Glow, docs/phase7-wave4.md §3.22): its owner's
+        // set-aside area, where "the set-aside Death-Glow" is found again (`CardSelector setAside`).
+        if (!owner) continue;
+        to = { kind: "setAside", playerId: owner };
+        position = "bottom";
         break;
+      case "scenarioDeckShuffle": {
+        // docs/phase7-wave4.md §3.49: back into the shared scenario deck it belongs to.
+        if (instance.home.kind !== "scenarioDeck" || !ctx.state.scenarioDecks[instance.home.name]) continue;
+        to = { kind: "scenarioDeck", name: instance.home.name };
+        scenarioDecksToShuffle.add(instance.home.name);
+        break;
+      }
+      case "encounterDeckShuffle": {
+        const deckId = activeEncounterDeckId(ctx.state);
+        to = { kind: "encounterDeck", deckId };
+        shuffleEncounter = true;
+        // "Shuffle this card into the encounter deck" on a player card (the Cosmic Entities, docs/phase7-wave4.md
+        // §3.14): it keeps its owner but joins the active villain's encounter deck (ruling, Jan 17, 2026 (5)), so it
+        // discards to that encounter discard pile (FAQ, RRG 1.8 p. 62: a Cosmic Entity resolved as a boost card "is
+        // placed in the encounter deck discard pile") and, controlled by nobody, its "you" is the revealing player.
+        if (owner)
+          updateInstance(ctx, id, (i) => ({ ...i, controllerId: null, home: { kind: "encounterDeck", deckId } }));
+        break;
+      }
       case "separateDiscard":
       case "separateDeckTop":
       case "separateDeckShuffle": {
@@ -253,11 +278,14 @@ export function moveCardsTo(ctx: Ctx, ids: readonly InstanceId[], destination: C
       }
     }
     const discarding = destination === "discard" || destination === "separateDiscard";
+    // Discard piles are faceup; a separate deck's faces are set below (`syncSeparateDeckTop`). Turned faceup before the
+    // move, because a move that empties the deck resets it at once (`settlePlayerDecks`), and this card may be in the
+    // new deck by the time the move returns.
+    if (destination === "separateDiscard") updateInstance(ctx, id, (i) => ({ ...i, faceup: true }));
     if (inPlay.has(id)) leavePlay(ctx, id, to, position, discarding);
     else moveCard(ctx, id, to, position);
-    // Discard piles are faceup; a separate deck's faces are set below (`syncSeparateDeckTop`).
-    if (destination === "separateDiscard") updateInstance(ctx, id, (i) => ({ ...i, faceup: true }));
-    else if (destination !== "discard" && destination !== "removedFromGame") {
+    const keepsFace = ["discard", "separateDiscard", "removedFromGame", "setAside"].includes(destination);
+    if (!keepsFace) {
       updateInstance(ctx, id, (i) => ({ ...i, faceup: destination === "hand" ? i.faceup : false }));
     }
   }
@@ -266,6 +294,12 @@ export function moveCardsTo(ctx: Ctx, ids: readonly InstanceId[], destination: C
     updatePlayer(ctx, owner, (p) => ({ ...p, deck: order }));
   }
   if (shuffleEncounter) shuffleEncounterDeck(ctx);
+  for (const name of scenarioDecksToShuffle) {
+    const piles = ctx.state.scenarioDecks[name];
+    if (!piles) continue;
+    const order = shuffleZone(ctx, { kind: "scenarioDeck", name }, piles.deck);
+    ctx.state = { ...ctx.state, scenarioDecks: { ...ctx.state.scenarioDecks, [name]: { ...piles, deck: order } } };
+  }
   for (const { playerId, name } of separateDecks.values()) {
     if (destination === "separateDeckShuffle") shuffleSeparateDeck(ctx, playerId, name);
     else syncSeparateDeckTop(ctx, playerId, name);
@@ -295,12 +329,13 @@ export function shuffleScenarioDeck(ctx: Ctx, name: string): void {
 export function buildScenarioDeck(ctx: Ctx, name: string): void {
   const piles = ctx.state.scenarioDecks[name];
   if (!piles) return;
-  const { encounterSetIds, cardType } = piles.contents;
+  const { encounterSetIds, cardType, trait } = piles.contents;
   for (const deckId of ctx.state.encounterDeckOrder) {
     for (const id of [...encounterDeckOf(ctx.state, deckId).deck]) {
       const card = cardOf(ctx.state, id);
       if (!card) continue;
       if (cardType !== undefined && card.type !== cardType) continue;
+      if (trait !== undefined && !("traits" in card && (card.traits as readonly string[]).includes(trait))) continue;
       if (
         encounterSetIds !== undefined &&
         !("encounterSetIds" in card && card.encounterSetIds.some((set: string) => encounterSetIds.includes(set)))
@@ -329,6 +364,28 @@ export function resetEmptyScenarioDecks(ctx: Ctx): void {
     shuffleScenarioDeck(ctx, name);
     emit(ctx, { type: "scenarioDeckReset", name });
   }
+}
+
+/**
+ * Announces each deck that ran out since the last look (`TriggerEvent deckRanOut`, docs/phase7-wave4.md §3.11), oldest
+ * first, when an ability listens, and empties the list. Returns true when it pushed a frame.
+ */
+export function announceDeckRunOuts(ctx: Ctx): boolean {
+  const pending = ctx.state.pendingDeckRunOuts;
+  if (!pending || pending.length === 0) return false;
+  const { pendingDeckRunOuts: _, ...rest } = ctx.state;
+  ctx.state = rest;
+  const events: TriggerEvent[] = pending
+    .map((run): TriggerEvent =>
+      run.deck === "player"
+        ? { kind: "deckRanOut", deck: "player", playerId: run.playerId }
+        : { kind: "deckRanOut", deck: "scenario", name: run.name },
+    )
+    .filter((event) => heard(ctx.state, ctx.deps, event));
+  if (events.length === 0) return false;
+  // Pushed last-first so the oldest resolves first.
+  for (const event of [...events].reverse()) announce(ctx, event);
+  return true;
 }
 
 /** Shuffles an encounter deck: "the encounter deck" is the active villain's. */

@@ -152,6 +152,9 @@ describe("Kang scenario", () => {
     // Defeat that area's Kang (II): its own "When Defeated" removes the stage and (at the end of the phase) joins
     // another game area — the only one left is the central stage, so this dissolves the split entirely.
     state = defeatWithAttack(state, areaKang);
+    // Full health first: Kang's Wrath 4B brings Hawkeye's nemesis minion in (below), and Crossfire's quickstrike plus
+    // Kang (III)'s attack would otherwise end the game before the assertions.
+    state = patchInstance(state, identityOf(state), { damage: 0 });
     state = settle(runWave2(state, endTurn()), firstLegal, undefined, WAVE2_DEPS);
     expect(state.gameAreas).toHaveLength(0);
 
@@ -163,14 +166,16 @@ describe("Kang scenario", () => {
     expect(state.mainScheme.stageIndex).toBe(6);
     expect(state.villains.some((v) => v.cardId === "11006")).toBe(true);
     expect(cardsInPlay(state).some((id) => state.instances[id]?.cardId === "11023")).toBe(true);
+    // Kang's Wrath 4B's When Revealed (11013b): Hawkeye's nemesis minion, Crossfire (04027), the only minion of his
+    // nemesis set and so printing no parenthetical, is found and put into play (docs/phase7-wave4.md §3.50).
+    expect(instancesOf(state, "04027").some((id) => playerOf(state, P1).playArea.includes(id))).toBe(true);
   });
 
   it("Kang's Wrath 4B: each player searches the encounter deck, discard pile, and set-aside area for their nemesis minion and puts it into play engaged with them (docs/phase7-wave2.md §17.1)", () => {
-    // Ant-Man, not Hawkeye: Ant-Man's nemesis minion (Yellowjacket, 12027) carries the `nemesisMinion` parenthetical
-    // flag `TargetQuery.nemesisMinionOf` reads; Hawkeye's own single-minion nemesis set (Crossfire, 04027) does not
-    // print one (real card behavior — a single-minion set needs no disambiguating parenthetical, RRG 1.8 "Nemesis
-    // Encounter Set" p. 30), so `nemesisMinionOf` correctly finds nothing for a Hawkeye player — a data-completeness
-    // gap flagged in docs/phase7-wave2-scripting.md, not a scripting bug in this ability.
+    // Ant-Man: his nemesis set has several minions, so his nemesis minion is the one printing the parenthetical
+    // (Yellowjacket, 12027, `nemesisMinion: true`). The single-minion case (Hawkeye's Crossfire, 04027, no
+    // parenthetical; RRG 1.8 "Nemesis Encounter Set", p. 30) is asserted by the split-and-rejoin test above
+    // (docs/phase7-wave4.md §3.50).
     // A three-sided identity's `changeForm` needs an explicit hero form (`toHero()` alone is ambiguous, Tiny or
     // Giant); which one is irrelevant here, since the test only cares about Yellowjacket's own defeat/engage state.
     // `settle`: Ant-Man's own kit responds to "after you change to hero form" (Puny Pest/Giant Nuisance) with an

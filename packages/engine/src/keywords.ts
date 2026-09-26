@@ -17,7 +17,9 @@ import {
   controllerOf,
   evaluate,
   matchesQuery,
-  textBoxBlankFor,
+  keywordsBlankFor,
+  lastingReaches,
+  resolveValue,
   type EffectContext,
 } from "./select.js";
 import type { AttackKeyword, StatusName } from "./spec.js";
@@ -42,7 +44,7 @@ export function printedKeywordsOf(
   if (!card) return [];
   // RRG 1.8 "Blank" (p. 10): no printed text in the text box, keywords included. `deps` makes a *constant*
   // class-wide blank visible (Tech Theft); the lasting kind needs no registry.
-  if (state.instances[id]?.facedownAs || textBoxBlankFor(state, id, deps)) return [];
+  if (state.instances[id]?.facedownAs || state.instances[id]?.treatedAs || keywordsBlankFor(state, id, deps)) return [];
   const face = encounterFace(state, id);
   if (face) return face.keywords;
   if (card.type === "villain") {
@@ -61,10 +63,41 @@ export function printedKeywordsOf(
   return "keywords" in card ? card.keywords : [];
 }
 
+/**
+ * The form types a card prints, on either face ("Energy form.", "Mass form."; docs/phase7-wave4.md §3.1), read from the
+ * card data even while it is facedown or blanked: the owner knows their own facedown card (`TargetQuery.printedForm`).
+ */
+export function printedFormTypes(state: GameState, id: InstanceId): readonly string[] {
+  const card = cardOf(state, id);
+  if (!card) return [];
+  const faces: readonly (readonly KeywordInstance[])[] = [
+    "keywords" in card ? card.keywords : [],
+    "flipSide" in card && card.flipSide ? card.flipSide.keywords : [],
+  ];
+  const types = faces.flatMap((keywords) => keywords.flatMap((k) => (k.name === "form" ? [k.formType] : [])));
+  return [...new Set(types)];
+}
+
+/**
+ * The additional form a card in play grants right now: its showing face's form keyword. A facedown card shows none (RRG
+ * 1.8 "Facedown"), and neither does a blanked text box (RRG 1.8 "Blank", p. 10).
+ */
+export function activeFormType(state: GameState, id: InstanceId, deps: EngineDeps = DEFAULT_DEPS): string | undefined {
+  const form = printedKeywordsOf(state, id, deps).find((k) => k.name === "form");
+  return form?.name === "form" ? form.formType : undefined;
+}
+
+/** Set while a live keyword value (`KeywordGrantSpec.value`) is being read: a re-entrancy guard, not game state. */
+let readingGrantValue = false;
+
 /** Keywords granted by constant abilities in play ("X gains retaliate 1"); RRG "Gains": not printed. */
 function grantedKeywords(state: GameState, deps: EngineDeps, id: InstanceId): readonly KeywordInstance[] {
-  if (Object.keys(deps.abilities).length === 0) return [];
   const granted: KeywordInstance[] = [];
+  // "She gains retaliate 1 until the end of the phase" (`grantKeywordUntil`, docs/phase7-wave4.md §3.39).
+  for (const effect of state.lastingEffects) {
+    if (effect.kind === "keywordGrant" && lastingReaches(state, effect, id, deps)) granted.push(effect.keyword);
+  }
+  if (Object.keys(deps.abilities).length === 0) return granted;
   for (const sourceId of cardsInPlay(state)) {
     for (const ref of activeAbilityRefs(state, sourceId, deps)) {
       const definition = deps.abilities[ref.id];
@@ -78,7 +111,22 @@ function grantedKeywords(state: GameState, deps: EngineDeps, id: InstanceId): re
       };
       for (const grant of definition.trigger.keywordGrants) {
         if (grant.while && !evaluate(state, grant.while, context)) continue;
-        if (matchesQuery(state, id, grant.target, context)) granted.push(grant.keyword);
+        if (!matchesQuery(state, id, grant.target, context)) continue;
+        if (!grant.value) {
+          granted.push(grant.keyword);
+          continue;
+        }
+        // "Retaliate X, where X is …" (docs/phase7-wave4.md §3.53): read live. While one such X is being read, other
+        // live-valued grants are skipped, so an X that asks about keywords cannot re-enter this scan.
+        if (readingGrantValue) continue;
+        readingGrantValue = true;
+        let value: number;
+        try {
+          value = resolveValue(state, grant.value, context, deps);
+        } finally {
+          readingGrantValue = false;
+        }
+        if (value > 0 && "value" in grant.keyword) granted.push({ ...grant.keyword, value });
       }
     }
   }
@@ -101,6 +149,18 @@ export const hasKeyword = (
   name: KeywordName,
   deps: EngineDeps = DEFAULT_DEPS,
 ): boolean => keywordsOf(state, id, deps).some((keyword) => keyword.name === name);
+
+/**
+ * Permanent (RRG 1.8 "Permanent", p. 32): "Effects on cards not from this card's set cannot defeat this card, remove
+ * this card from play, or blank any part of its text box." Read off the printed card as well as its keywords right
+ * now, so neither a blank nor turning the card facedown takes it away: Spectrum's facedown energy forms and Vision's
+ * mass forms stay in play (docs/phase7-wave4.md §4 Q25, user decision 2026-09-26).
+ */
+export function isPermanent(state: GameState, id: InstanceId, deps: EngineDeps = DEFAULT_DEPS): boolean {
+  if (hasKeyword(state, id, "permanent", deps)) return true;
+  const card = cardOf(state, id);
+  return !!card && "keywords" in card && card.keywords.some((keyword) => keyword.name === "permanent");
+}
 
 /** RRG "Keywords": repeated instances of a numbered keyword add their values together. */
 export function keywordTotal(

@@ -460,19 +460,22 @@ describe("§3.13 `thwart.ignoreCrisis`: 'ignoring any crisis icons in play'", ()
   const plainAbility = arrow("plain-thwart", false);
   const PLAIN_THWART = stubEvent({ id: "plain-thwart", cost: 0, abilities: [plainAbility.ref] });
 
-  const threatRemoved = (card: typeof CABLE, ability: StubAbility) => {
+  const played = (card: typeof CABLE, ability: StubAbility) => {
     const { deps, state } = setup({ cards: [card, CRISIS], abilities: [ability], encounter: copies(CRISIS.id, 20) });
     // Round 2 so the crisis side scheme is in play from the villain phase's encounter card.
     const round2 = settle(runWith(deps, state, toHero, endTurn), undefined, deps);
-    const before = mustInstance(round2, round2.mainScheme.instanceId).threat;
     const given = giveCards(round2, p1, card.id);
-    const after = settle(runWith(deps, given.state, play(given.ids[0] as InstanceId)), undefined, deps);
-    return before - mustInstance(after, after.mainScheme.instanceId).threat;
+    return { deps, round2, result: applyCommand(given.state, play(given.ids[0] as InstanceId), deps) };
   };
 
   it("steps over the crisis check for that one removal only (RRG 1.8 'Crisis Icon', p. 14)", () => {
-    expect(threatRemoved(CABLE, cableAbility)).toBe(3);
-    expect(threatRemoved(PLAIN_THWART, plainAbility)).toBe(0);
+    const cable = played(CABLE, cableAbility);
+    const after = settle(expectOk(cable.result), undefined, cable.deps);
+    const before = mustInstance(cable.round2, cable.round2.mainScheme.instanceId).threat;
+    expect(before - mustInstance(after, after.mainScheme.instanceId).threat).toBe(3);
+    // Without it the main scheme is no valid target, so a thwart whose only target it is cannot be played (RRG 1.8
+    // "Target", pp. 42–43; docs/phase7-wave3.md §4 Q5).
+    expect(played(PLAIN_THWART, plainAbility).result).toMatchObject({ ok: false, error: { code: "no_valid_target" } });
   });
 });
 

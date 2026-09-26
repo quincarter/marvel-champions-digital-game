@@ -126,10 +126,10 @@ describe("taps", () => {
 
 describe("summaries", () => {
   it("leads with champion points", () => {
-    expect(unlocksSummaryOf(make())).toBe("0 champion points · 1 of 4 waves open. Next: Beat Rhino to unlock Wave 1.");
+    expect(unlocksSummaryOf(make())).toBe("0 champion points · 1 of 5 waves open. Next: Beat Rhino to unlock Wave 1.");
     const byHand = unlockByHand(rich(), { kind: "hero", identityCardId: thor });
     expect(unlocksSummaryOf(rich(byHand))).toBe(
-      "600 champion points · 1 of 4 waves open · 1 unlocked by hand. Next: Beat Rhino to unlock Wave 1.",
+      "600 champion points · 2 of 5 waves open · 1 unlocked by hand. Next: Beat Rhino to unlock Wave 1.",
     );
     expect(unlocksSummaryOf(make({ ...DEFAULT_UNLOCK_PREFS, unlockAll: true }))).toBe(
       "Unlock everything is on: everything is open, and champion points are off.",

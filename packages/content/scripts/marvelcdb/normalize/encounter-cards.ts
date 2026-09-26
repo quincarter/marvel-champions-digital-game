@@ -61,6 +61,7 @@ export function normalizeEncounterCard(
     ...(p.flavor ? { flavor: p.flavor } : {}),
     abilities,
     ...(flipSide ? { flipSide } : {}),
+    ...(parsed.modeOnly ? { modeOnly: parsed.modeOnly } : {}),
   };
   switch (r.type_code) {
     case "minion": {
@@ -96,17 +97,33 @@ export function normalizeEncounterCard(
       return;
     }
     case "attachment": {
-      if (!parsed.attachesTo) {
+      // docs/phase7-wave4.md §1.13: a card with no printed "Attach to X." sentence at all, whose host is
+      // established by another card's own effect (`Correction.impliedAttachHost` — Focused Defense, Fallen
+      // Warrior). Never inferred automatically; only a cited curation entry supplies it.
+      const attachesTo = parsed.attachesTo ?? (p.impliedAttachHost ? { kind: p.impliedAttachHost } : undefined);
+      if (!attachesTo) {
         errors.push(`${r.code}: attachment without an attach rule`);
         return;
       }
       if (parsed.attachesToVillainNamed) {
         // Leader records normalize the same way villains do (docs/phase7-wave2.md §6.3), so a card that attaches
         // to a leader by name ("Attach to Iron Man.") is checked against the pack's leader set the same way.
-        const villain = ctx.topLevel.find(
+        // A shared-deck scenario (Tower Defense, docs/phase7-wave4.md §1.6) files more than one villain's stages
+        // under the same `card_set_code` — "Attach to Corvus Glaive." (21104) must match against every one of
+        // them, not just whichever comes first, so this checks membership rather than taking a single `.find()`.
+        const sameSetVillains = ctx.topLevel.filter(
           (x) => (x.type_code === "villain" || x.type_code === "leader") && x.card_set_code === r.card_set_code,
         );
-        if (villain?.name !== parsed.attachesToVillainNamed) {
+        // A campaign-specific attachment naming a villain from a different scenario in the same pack (Jormungand,
+        // `mts` 21189b, "Attach to Loki." — the campaign set has no villain of its own; the villain lives in the
+        // `loki` scenario's set, docs/phase7-wave4.md §1.13): falls back to every villain in the pack.
+        const matches =
+          sameSetVillains.length > 0
+            ? sameSetVillains
+            : isCampaignCard
+              ? ctx.topLevel.filter((x) => x.type_code === "villain" || x.type_code === "leader")
+              : [];
+        if (!matches.some((v) => v.name === parsed.attachesToVillainNamed)) {
           errors.push(`${r.code}: "Attach to ${parsed.attachesToVillainNamed}." is not this set's villain`);
         }
       }
@@ -116,7 +133,7 @@ export function normalizeEncounterCard(
       const attachment: AttachmentCard = {
         ...common,
         type: "attachment",
-        attachesTo: parsed.attachesTo,
+        attachesTo,
         ...(Object.keys(mods).length > 0 ? { statModifiers: mods } : {}),
         ...encounterCommon,
       };
@@ -153,6 +170,7 @@ export function normalizeEncounterCard(
         ...(p.flavor ? { flavor: p.flavor } : {}),
         abilities: abs,
         ...(parsed.signatureOf ? { signatureOf: parsed.signatureOf } : {}),
+        ...(parsed.modeOnly ? { modeOnly: parsed.modeOnly } : {}),
       };
       record(ctx, scheme, set, [p, ...flipParts]);
       return;

@@ -10,7 +10,12 @@ export const HOOD_ENCOUNTER_SETS: readonly EncounterSet[] = [
   { id: encounterSetId("beasty_boys"), name: "Beasty Boys", packCodes: [setCode("hood")] },
   { id: encounterSetId("brothers_grimm"), name: "Brothers Grimm", packCodes: [setCode("hood")] },
   { id: encounterSetId("crossfire_crew"), name: "Crossfire's Crew", packCodes: [setCode("hood")] },
-  { id: encounterSetId("expert_ii"), name: "Expert II", packCodes: [setCode("hood")] },
+  {
+    id: encounterSetId("expert_ii"),
+    name: "Expert II",
+    packCodes: [setCode("hood")],
+    classification: "expert",
+  },
   { id: encounterSetId("mister_hyde"), name: "Mister Hyde", packCodes: [setCode("hood")] },
   { id: encounterSetId("ransacked_armory"), name: "Ransacked Armory", packCodes: [setCode("hood")] },
   {
@@ -18,7 +23,12 @@ export const HOOD_ENCOUNTER_SETS: readonly EncounterSet[] = [
     name: "Sinister Syndicate",
     packCodes: [setCode("hood")],
   },
-  { id: encounterSetId("standard_ii"), name: "Standard II", packCodes: [setCode("hood")] },
+  {
+    id: encounterSetId("standard_ii"),
+    name: "Standard II",
+    packCodes: [setCode("hood")],
+    classification: "standard",
+  },
   {
     id: encounterSetId("state_of_emergency"),
     name: "State of Emergency",

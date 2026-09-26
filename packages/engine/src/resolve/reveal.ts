@@ -14,6 +14,7 @@ import {
   discardZoneFor,
   getInstance,
   getPlayer,
+  locateCard,
   mustCardOf,
   mustInstance,
   printedProfile,
@@ -27,9 +28,9 @@ import { cardsInPlay, contextArea, controllerOf, type EffectContext, selectTarge
 import { DEFAULT_DEPS, type EngineDeps } from "../abilities.js";
 import type { TargetQuery } from "../spec.js";
 import type { StackFrame } from "../stack.js";
-import type { GameState } from "../state.js";
+import type { GameState, ZoneId } from "../state.js";
 import type { TriggerEvent } from "../trigger-events.js";
-import { firstRevealGainsSurge, whenRevealedRepeats } from "../rules.js";
+import { canHaveAttached, entersRevealersPlayArea, firstRevealGainsSurge, whenRevealedRepeats } from "../rules.js";
 import { encounterTargetSelector } from "../villain/authority.js";
 import { engagedEvent } from "./apply-effect.js";
 import { enterPlay, quickstrikeAttack } from "./enter-play.js";
@@ -44,8 +45,12 @@ export const revealFrame = (ctx: Ctx, playerId: PlayerId, id: InstanceId): Stack
   whenRevealedCancelled: false,
   effectsCancelled: false,
   surgeGained: false,
+  revealedFrom: locateCard(ctx.state, id) ?? null,
   stage: "faceup",
 });
+
+const sameZone = (a: ZoneId | null | undefined, b: ZoneId | null | undefined): boolean =>
+  a !== undefined && a !== null && b !== undefined && b !== null && JSON.stringify(a) === JSON.stringify(b);
 
 export function pushRevealFrame(ctx: Ctx, playerId: PlayerId, id: InstanceId): void {
   pushFrames(ctx, [revealFrame(ctx, playerId, id)]);
@@ -175,6 +180,14 @@ export function attachmentHostCandidates(
   host: AttachmentHost,
   context: EffectContext,
 ): readonly InstanceId[] {
+  // "Odin cannot have cards attached" (`cannotHaveAttachments`, docs/phase7-wave4.md §3.8): never a legal host.
+  const deps = context.deps ?? DEFAULT_DEPS;
+  return rawHostCandidates(state, host, context).filter((id) =>
+    canHaveAttached(state, deps, id, context.selfInstanceId),
+  );
+}
+
+function rawHostCandidates(state: GameState, host: AttachmentHost, context: EffectContext): readonly InstanceId[] {
   const deps = context.deps ?? DEFAULT_DEPS;
   switch (host.kind) {
     case "villain":
@@ -382,7 +395,14 @@ export function executeRevealFrame(ctx: Ctx, frame: Frame<"reveal">): void {
     }
     case "finish": {
       setFrame(ctx, { ...frame, stage: "done" });
-      if (card.type === "treachery" && getInstance(ctx.state, frame.instanceId)) {
+      // A revealed player event (a Cosmic Entity whose effects left it where it was) is discarded like a treachery,
+      // to its encounter discard pile (docs/phase7-wave4.md §3.14).
+      // Only a card still where its reveal found it (docs/phase7-wave4.md §3.45): a treachery whose When Revealed
+      // removed it from the game or shuffled it back into the encounter deck stays where it went.
+      const here = locateCard(ctx.state, frame.instanceId);
+      const unmoved =
+        frame.revealedFrom === undefined ? here?.kind === "dealtEncounter" : sameZone(here, frame.revealedFrom);
+      if ((card.type === "treachery" || card.type === "event") && unmoved && getInstance(ctx.state, frame.instanceId)) {
         // Its home deck's discard (docs/phase7-wave1.md §4.3, proposed; see `discardZoneFor`).
         moveCard(ctx, frame.instanceId, discardZoneFor(ctx.state, frame.instanceId), "top");
       }
@@ -452,7 +472,11 @@ export function enterPlayOnReveal(ctx: Ctx, id: InstanceId, playerId: PlayerId):
       });
       break;
     case "environment":
-      moveCard(ctx, id, { kind: "villainArea" });
+      // "They place that card in front of them in their play area" (Spell environments; docs/phase7-wave4.md §3.16).
+      if (entersRevealersPlayArea(ctx.state, ctx.deps, id)) {
+        moveCard(ctx, id, { kind: "playArea", playerId });
+        updateInstance(ctx, id, (i) => ({ ...i, controllerId: null }));
+      } else moveCard(ctx, id, { kind: "villainArea" });
       entered = true;
       break;
     case "attachment": {
@@ -484,8 +508,12 @@ export function enterPlayOnReveal(ctx: Ctx, id: InstanceId, playerId: PlayerId):
      * `specificTo: { kind: "scenario" }` support nobody's deck ever holds). It needs a play area to sit in like any
      * other card; `playerId` is only its initial home; `RuleSpec controlledByFirstPlayer` (already declared by its
      * own constant ability) reassigns control on the very next state-trigger sweep if that isn't the first player.
+     * An ownerless ally or upgrade is the same case: MC21's campaign puts Cosmo (21180b) and Odin (21139a) "into play
+     * under the first player's control" (MC21 p. 17, p. 25) from the set-aside cards, where nobody owns them.
      */
     case "support":
+    case "ally":
+    case "upgrade":
       moveCard(ctx, id, { kind: "playArea", playerId });
       updateInstance(ctx, id, (i) => ({ ...i, controllerId: playerId }));
       entered = true;

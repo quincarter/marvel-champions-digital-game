@@ -1,7 +1,7 @@
 /**
  * The one pool module every scene/screen/engine session reads
  * (PLAN.md Phase 7 client wiring). This is a thin re-export layer, so
- * the test is mostly "does it actually aggregate Core, wave 1, cycle 1 and cycle 2" rather
+ * the test is mostly "does it actually aggregate Core, wave 1, cycle 1, cycle 2 and cycle 3" rather
  * than exercising rules — the rules themselves are `@mc/engine`'s and
  * `@mc/cards`' own, tested there.
  */
@@ -15,6 +15,8 @@ import {
   WAVE2_STARTER_DECKS,
   WAVE3_SCENARIOS,
   WAVE3_STARTER_DECKS,
+  WAVE4_SCENARIOS,
+  WAVE4_STARTER_DECKS,
   poolVersionOf,
 } from "@mc/content";
 import { createGame } from "@mc/engine";
@@ -40,20 +42,28 @@ describe("POOL_CARDS", () => {
 });
 
 describe("POOL_SCENARIOS", () => {
-  test("is Core's three scenarios, wave 1's three, cycle 1's six, then cycle 2's five, in that order", () => {
+  test("is Core's three scenarios, wave 1's three, cycle 1's six, cycle 2's five, then cycle 3's six, in that order", () => {
     expect(POOL_SCENARIOS.map((s) => s.id)).toEqual(
-      [...CORE_SCENARIOS, ...WAVE1_SCENARIOS, ...WAVE2_SCENARIOS, ...WAVE3_SCENARIOS].map((s) => s.id),
+      [...CORE_SCENARIOS, ...WAVE1_SCENARIOS, ...WAVE2_SCENARIOS, ...WAVE3_SCENARIOS, ...WAVE4_SCENARIOS].map(
+        (s) => s.id,
+      ),
     );
-    expect(POOL_SCENARIOS.length).toBe(17);
+    expect(POOL_SCENARIOS.length).toBe(23);
   });
 });
 
 describe("POOL_STARTER_DECKS", () => {
-  test("is Core's six precons, wave 1's six, cycle 1's six, then cycle 2's six", () => {
+  test("is Core's six precons, wave 1's six, cycle 1's six, cycle 2's six, then cycle 3's six", () => {
     expect(POOL_STARTER_DECKS.map((d) => d.id)).toEqual(
-      [...CORE_STARTER_DECKS, ...WAVE1_STARTER_DECKS, ...WAVE2_STARTER_DECKS, ...WAVE3_STARTER_DECKS].map((d) => d.id),
+      [
+        ...CORE_STARTER_DECKS,
+        ...WAVE1_STARTER_DECKS,
+        ...WAVE2_STARTER_DECKS,
+        ...WAVE3_STARTER_DECKS,
+        ...WAVE4_STARTER_DECKS,
+      ].map((d) => d.id),
     );
-    expect(POOL_STARTER_DECKS.length).toBe(24);
+    expect(POOL_STARTER_DECKS.length).toBe(30);
   });
 });
 
@@ -78,9 +88,9 @@ describe("packNameOf", () => {
     expect(packNameOf("nope")).toBe("nope");
   });
 
-  test("POOL_PACKS covers Core and every wave 1, cycle 1 and cycle 2 pack, with no duplicate codes", () => {
-    expect(POOL_PACKS.length).toBe(21);
-    expect(new Set(POOL_PACKS.map((p) => p.code as string)).size).toBe(21);
+  test("POOL_PACKS covers Core and every wave 1, cycle 1, cycle 2 and cycle 3 pack, with no duplicate codes", () => {
+    expect(POOL_PACKS.length).toBe(27);
+    expect(new Set(POOL_PACKS.map((p) => p.code as string)).size).toBe(27);
   });
 });
 
@@ -140,6 +150,25 @@ describe("buildScenario", () => {
     const atGmw = buildScenario("nebula", { players: [{ starterDeckId: "core-spider-man-justice" }], seed: 1 });
     expect(createGame(atGmw, POOL_DEPS).ok).toBe(true);
     const atCore = buildScenario("rhino", { players: [{ starterDeckId: "groot-protection" }], seed: 1 });
+    expect(createGame(atCore, POOL_DEPS).ok).toBe(true);
+  });
+
+  test("builds every cycle 3 scenario (The Mad Titan's Shadow's five, and The Hood)", () => {
+    for (const scenario of WAVE4_SCENARIOS) {
+      const config = buildScenario(scenario.id as string, {
+        difficulty: "standard",
+        players: [{ starterDeckId: "spectrum-leadership" }],
+        seed: 1,
+      });
+      const setup = createGame(config, POOL_DEPS);
+      expect(setup.ok, `${scenario.id as string}: ${setup.ok ? "" : setup.error.message}`).toBe(true);
+    }
+  });
+
+  test("seats a Core precon at a cycle 3 scenario, and a cycle 3 precon at a Core scenario", () => {
+    const atMts = buildScenario("ebony-maw", { players: [{ starterDeckId: "core-iron-man-aggression" }], seed: 1 });
+    expect(createGame(atMts, POOL_DEPS).ok).toBe(true);
+    const atCore = buildScenario("rhino", { players: [{ starterDeckId: "spectrum-leadership" }], seed: 1 });
     expect(createGame(atCore, POOL_DEPS).ok).toBe(true);
   });
 });

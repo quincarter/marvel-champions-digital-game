@@ -63,7 +63,8 @@ export type GameEvent =
       readonly instanceId: InstanceId;
       readonly from: PlayerId | null;
       readonly to: PlayerId;
-      readonly reason: "firstPlayer";
+      /** `effect`: a card took control of it ("detaches Odin … and takes control of him", docs/phase7-wave4.md §3.8). */
+      readonly reason: "firstPlayer" | "effect";
     }
   /** A player became a card's owner by taking it (RRG 1.8 "Ownership and Control", p. 31; docs/phase7-wave2.md §3.10). */
   | { readonly type: "ownershipChanged"; readonly instanceId: InstanceId; readonly playerId: PlayerId }
@@ -103,6 +104,45 @@ export type GameEvent =
       readonly schemeInstanceId: InstanceId | null;
       readonly stageIndex: number;
     }
+  /** docs/phase7-wave4.md §3.1: an additional form changed; `instanceId` is the form card now showing it. */
+  | {
+      readonly type: "additionalFormChanged";
+      readonly playerId: PlayerId;
+      readonly formType: string;
+      readonly formName: string;
+      readonly instanceId: InstanceId;
+    }
+  /**
+   * The villain instance took another card of its title (docs/phase7-wave4.md §3.7): `swap` (RRG 1.8 "'Swap'", p. 42;
+   * dial kept) or `advance` (the defeated card went to the victory display or out of the game; dial reset).
+   */
+  | {
+      readonly type: "villainReplaced";
+      readonly instanceId: InstanceId;
+      readonly fromCardId: CardId;
+      readonly toCardId: CardId;
+      readonly reason: "swap" | "advance";
+    }
+  /** An attached card was detached into a play area (`EffectSpec detach`, docs/phase7-wave4.md §3.8). */
+  | { readonly type: "cardDetached"; readonly instanceId: InstanceId; readonly from: InstanceId }
+  /** A card in play turned facedown (`turnFacedown`) or faceup (`changeAdditionalForm`), docs/phase7-wave4.md §3.1. */
+  | { readonly type: "cardTurnedFacedown"; readonly instanceId: InstanceId }
+  /** An enemy attack in progress now targets another character (`EffectSpec retargetAttack`; §3.21). */
+  | {
+      readonly type: "attackRetargeted";
+      readonly enemyInstanceId: InstanceId;
+      readonly targetInstanceId: InstanceId;
+      readonly playerId: PlayerId;
+    }
+  /** A card would ready and a rule asks its readier for an additional cost first (`RuleSpec readyCost`; §3.19). */
+  | { readonly type: "readyCostAsked"; readonly instanceId: InstanceId; readonly playerId: PlayerId }
+  /** A set-aside modular set was chosen at random and shuffled into the encounter deck (docs/phase7-wave4.md §3.18). */
+  | {
+      readonly type: "setAsideModularSetShuffledIn";
+      readonly encounterSetId: string;
+      readonly instanceIds: readonly InstanceId[];
+    }
+  | { readonly type: "cardTurnedFaceup"; readonly instanceId: InstanceId }
   | {
       readonly type: "formChanged";
       readonly playerId: PlayerId;
@@ -124,6 +164,8 @@ export type GameEvent =
       /** `reduced`: constant reductions and caps brought it to 0 (docs/phase7-wave3.md §3.15). */
       readonly reason: "tough" | "cancelled" | "effect" | "cannotTakeDamage" | "reduced";
     }
+  /** An interrupt increased a pending damage event by `amount` (`increaseDamage`, docs/phase7-wave4.md §3.52). */
+  | { readonly type: "damageIncreased"; readonly targetInstanceId: InstanceId; readonly amount: number }
   | { readonly type: "threatPrevented"; readonly schemeInstanceId: InstanceId; readonly amount: number }
   | {
       readonly type: "damagePlaced";
@@ -179,6 +221,17 @@ export type GameEvent =
       readonly reason: "dashedStat" | "leftPlay";
     }
   /**
+   * A player's attack ended before dealing damage because its attacker left play first (docs/phase7-wave4.md §4 Q20,
+   * user decision 2026-09-25: Speed Demon's "(Resolve Speed Demon's attack first.)" defeating the attacking ally). No
+   * damage is dealt and nothing hangs off it (no `characterAttacked`, so no retaliate).
+   */
+  | {
+      readonly type: "playerAttackEnded";
+      readonly attackerInstanceId: InstanceId;
+      readonly targetInstanceId: InstanceId;
+      readonly reason: "attackerLeftPlay";
+    }
+  /**
    * `outsideActivation`: a card ability dealt this one, not the activation procedure ("give the villain 1 facedown
    * boost card"). RRG 1.8 "Boost, Boost Icon" (p. 11): it "remains facedown on that enemy until that enemy
    * activates", so it is expected *not* to be turned faceup in the villain phase it was dealt in.
@@ -190,7 +243,11 @@ export type GameEvent =
       readonly outsideActivation?: true;
     }
   /** A boost card's icons, or its "Boost" ability, were cancelled (Attacrobatics, Target Acquired). */
-  | { readonly type: "boostCancelled"; readonly instanceId: InstanceId; readonly scope: "icons" | "ability" }
+  | {
+      readonly type: "boostCancelled";
+      readonly instanceId: InstanceId;
+      readonly scope: "icons" | "ability" | "discarded";
+    }
   | {
       readonly type: "boostCardFlipped";
       readonly enemyInstanceId: InstanceId;
@@ -264,6 +321,28 @@ export type GameEvent =
        */
       readonly hitPointsReset?: true;
     }
+  /**
+   * A card whose other face is a card of its own turned over (`otherFaceId`, docs/phase7-wave4.md §3.10). `typeChanged`:
+   * the new face is another card type, so its attachments, tucked cards, status cards and tokens were discarded.
+   */
+  | {
+      readonly type: "cardFlippedToOtherFace";
+      readonly instanceId: InstanceId;
+      readonly from: CardId;
+      readonly to: CardId;
+      readonly typeChanged: boolean;
+    }
+  /** A player's ability tried to discard a card a `playersCannotDiscard` rule protects (docs/phase7-wave4.md §3.44). */
+  | { readonly type: "discardRefused"; readonly instanceId: InstanceId }
+  /** An ally started (`as: "minion"`) or stopped (`as: null`) being treated as a minion (docs/phase7-wave4.md §3.9). */
+  /** A resource ability used in a payment put its own effects on the stack (docs/phase7-wave4.md §3.30). */
+  | {
+      readonly type: "resourceAbilityEffects";
+      readonly instanceId: InstanceId;
+      readonly abilityId: AbilityId;
+      readonly playerId: PlayerId;
+    }
+  | { readonly type: "treatedAsChanged"; readonly instanceId: InstanceId; readonly as: "minion" | "ally" | null }
   /** A double-sided encounter card turned over; `flipped` is true when its other face is now up. */
   | { readonly type: "cardFlipped"; readonly instanceId: InstanceId; readonly flipped: boolean }
   /** The active counter moved (The Wrecking Crew insert, "The Active Villain"). */
@@ -271,7 +350,8 @@ export type GameEvent =
       readonly type: "activeVillainChanged";
       readonly from: InstanceId;
       readonly to: InstanceId;
-      readonly reason: "effect" | "activeVillainDefeated";
+      /** `focusedScheme`: the villain of the main scheme Focused Defense is attached to (docs/phase7-wave4.md §3.2). */
+      readonly reason: "effect" | "activeVillainDefeated" | "focusedScheme";
     }
   /** `schemeInstanceId` only for a separate game area's own stage (docs/phase7-wave2.md §3.1); absent is the central one. */
   | { readonly type: "mainSchemeCompleted"; readonly stageIndex: number; readonly schemeInstanceId?: InstanceId }
@@ -282,7 +362,7 @@ export type GameEvent =
       readonly cardId: CardId;
       readonly playerId: PlayerId;
     }
-  /** An empty separate deck took its discard pile back and was shuffled, with no penalty (`resetEmptySeparateDecks`). */
+  /** An empty separate deck took its discard pile back and was shuffled, with no penalty (`resetSeparateDeckIfEmpty`). */
   | { readonly type: "separateDeckReset"; readonly playerId: PlayerId; readonly name: string }
   /** `schemeInstanceId` is present only when the token went somewhere other than the central main scheme (§10.3). */
   | { readonly type: "accelerationTokenAdded"; readonly total: number; readonly schemeInstanceId?: InstanceId }
@@ -337,6 +417,13 @@ export type GameEvent =
       readonly uses: number;
     }
   | { readonly type: "targetChosen"; readonly slot: string; readonly instanceIds: readonly InstanceId[] }
+  /**
+   * A required choice found nothing to choose (RRG 1.8 "Choose (Game Element)", p. 12), so the text before a "then"
+   * did not fully resolve: `thenSkipped` follows for each "then" it gates.
+   */
+  | { readonly type: "choiceFoundNothing"; readonly slot: string }
+  /** RRG 1.8 "'Then'" (p. 44): the pre-"then" text did not fully resolve, so the post-"then" text was skipped. */
+  | { readonly type: "thenSkipped" }
   | {
       readonly type: "resourcesGenerated";
       readonly playerId: PlayerId;
@@ -417,6 +504,17 @@ export type GameEvent =
     }
   /** A card that "cannot leave play" stayed where it was (RRG 1.8 "'Cannot'", p. 11). */
   | { readonly type: "leavePlayBlocked"; readonly instanceId: InstanceId; readonly reason: "cannotLeavePlay" }
+  /**
+   * One of the scenario's rulebook-printed setup instructions resolved (`GameSetupConfig.scenarioSetupInstructions`;
+   * MC21 p. 11's optional Tower Defense setup damage). `text` and `citation` are copied from the instruction so the
+   * trace says why the state changed without the setup config to hand.
+   */
+  | {
+      readonly type: "scenarioSetupInstructionResolved";
+      readonly instructionId: string;
+      readonly text: string;
+      readonly citation: string;
+    }
   /**
    * Campaign mode's four trace events (design §6.1). They exist for `rules-qa-engineer`'s replay: with them, the
    * campaign half of a game reads off the event stream the way the rules half already does, and the runner's

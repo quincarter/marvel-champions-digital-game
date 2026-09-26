@@ -41,6 +41,8 @@ export type { PlayableScenarioOptions } from "./playable/index.js";
 export {
   CAMPAIGNS,
   campaignDefinitionOf,
+  cardsOfComposedSets,
   GMW_CAMPAIGN_DEFINITION,
+  MTS_CAMPAIGN_DEFINITION,
   TRORS_CAMPAIGN_DEFINITION,
 } from "./campaigns/index.js";

@@ -1,5 +1,6 @@
 import { trait } from "@mc/content";
 import {
+  andThen,
   action,
   addCounters,
   anAttackableEnemy,
@@ -85,9 +86,11 @@ export const ROCKET_KIT = defineAbilities({
   // Tinkering — Action: Choose and discard a tech upgrade you control → draw 2 cards. (Limit once per round.)
   "16029b.tinkering": action(
     { limit: { count: 1, period: "round" } },
+    // The cost is modeled as the text before a "then": with no Tech upgrade to discard, nothing is drawn, and the
+    // action cannot be used (RRG 1.8 "Choose (Game Element)", p. 12; "'Then'", p. 44).
     chooseTarget("discard", query("upgrade", { controller: "you", trait: TECH })),
     discard(chosen("discard")),
-    draw(2),
+    andThen(draw(2)),
   ),
 
   // I've Got a Plan — Hero Response: After you make a basic thwart (using your THW), ready Rocket Raccoon. Rocket
@@ -173,7 +176,8 @@ export const ROCKET_KIT = defineAbilities({
 
   // Into the Fray (16042) reprints an earlier "Deal 6 damage to a minion. For each point of excess damage dealt
   // by this attack, remove 1 threat from the main scheme" card verbatim — aliased by `../reprints.ts`, not
-  // scripted here (the wording docs/phase7-wave3.md §0's Jan 26, 2026 (3) ruling names is the earlier printing).
+  // scripted here (the wording docs/phase7-wave3.md §0's Jan 26, 2026 (3) ruling names is the earlier printing). That
+  // ruling's "excess dealt" count is superseded by RRG 1.8 "Overkill" (p. 31): it counts what overkill would spill.
 
   // Looking for Trouble — Hero Action (thwart): Discard cards from the top of the encounter deck until you
   // discard a minion. Put that minion into play engaged with you → remove 3 threat from the main scheme.

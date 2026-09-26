@@ -43,6 +43,21 @@ export interface NormalizeContext extends Flattened {
   readonly usedNotes: Set<string>;
   readonly usedAbilityIds: Set<string>;
   readonly usedImageOverrides: Set<string>;
+  /** `PackCuration.encounterSets` keys matched (docs/phase7-wave4.md §1.10) — a stale entry is caught the same way. */
+  readonly usedEncounterSetOverrides: Set<string>;
+  /** `PackCuration.artUnavailable` keys matched — a stale entry is caught the same way. */
+  readonly usedArtUnavailable: Set<string>;
+  /**
+   * Which MarvelCDB code each of a card's printed faces came from, in the exact order `printedFaces` (`art.ts`)
+   * enumerates them — the only way `checkCoverage` can resolve `PackCuration.artUnavailable`'s per-face codes back
+   * to a specific missing face, since the finished `AnyCard` carries no MarvelCDB provenance itself (the schema is
+   * pure game data). Populated explicitly by whichever card-type module needs exemption support for a
+   * many-code card (`normalize/villains.ts`); a single-record card (`record()`'s own `parts.length === 1` case)
+   * is filled in automatically, since its one code is always the card's own id. A card absent from this map, or
+   * whose code list doesn't match `printedFaces`' length, can never be exempted — `checkCoverage` falls back to
+   * its unconditional check, which is always safe (it just can't offer an exemption, not a wrong one).
+   */
+  readonly faceCodesByCardId: Map<string, readonly string[]>;
 }
 
 export function createContext(raw: readonly RawCard[], curation: PackCuration): NormalizeContext {
@@ -102,6 +117,9 @@ export function createContext(raw: readonly RawCard[], curation: PackCuration): 
     usedNotes: new Set(),
     usedAbilityIds: new Set(),
     usedImageOverrides: new Set(),
+    usedEncounterSetOverrides: new Set(),
+    usedArtUnavailable: new Set(),
+    faceCodesByCardId: new Map(),
   };
 }
 
@@ -131,7 +149,11 @@ export function parse(ctx: NormalizeContext, p: Prepared): ParsedText {
   });
   for (const u of parsed.unclassified) ctx.errors.push(`${p.raw.code}: ${u}`);
   const hasBoostAbility = parsed.abilities.some((a) => a.kind === "boost");
-  if (Boolean(p.raw.boost_star) !== hasBoostAbility) {
+  // docs/phase7-wave4.md §1.13: Rain Fire (`mts` 21109) sends `boost_star: false` despite printing a Boost
+  // ability — confirmed from the card image as MarvelCDB's own flag being wrong, not the text. A curated
+  // `ignoreFields: ["boost_star"]` correction silences this cross-check for that one record; the emitted
+  // `starIcon` always follows the text (`hasBoostAbility`), never the raw flag, so this only affects validation.
+  if (Boolean(p.raw.boost_star) !== hasBoostAbility && !p.ignored.has("boost_star")) {
     ctx.errors.push(
       `${p.raw.code}: boost_star=${String(p.raw.boost_star)} but text ${hasBoostAbility ? "has" : "has no"} a Boost ability`,
     );
@@ -160,6 +182,12 @@ export function abilityRefs(
 /** Emits a card with its provenance: the raw records it came from and every correction applied to them. */
 export function record(ctx: NormalizeContext, card: AnyCard, cardSetCode: string, parts: readonly Prepared[]): void {
   ctx.cards.push(card);
+  // A single-record card's one printed face is always its own MarvelCDB code — the trivial, always-correct case
+  // of `faceCodesByCardId` (a many-code card, e.g. a villain, sets its own richer mapping explicitly instead;
+  // this never overwrites one already set).
+  if (parts.length === 1 && !ctx.faceCodesByCardId.has(card.id)) {
+    ctx.faceCodesByCardId.set(card.id, [(parts[0] as Prepared).raw.code]);
+  }
   const note = ctx.curation.cardNotes[card.id];
   // MarvelCDB's `duplicate_of_code` on a verbatim reprint (see `RawCard`'s doc comment) — recorded, not resolved
   // against the reprint's pack, since that pack isn't loaded here; a consumer treats it as a hint.
@@ -195,7 +223,7 @@ export function baseFields(
     setCode: ctx.setCode,
     cycleId: ctx.cycleId,
     collectorNumber: collector(codes),
-    quantityInSet: p.raw.quantity,
+    quantityInSet: p.quantityInSet,
     unique: Boolean(p.raw.is_unique),
     ...(images ? { images } : {}),
     ...(p.errata ? { errata: errataStatus(p.errata) } : {}),

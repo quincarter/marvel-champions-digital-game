@@ -34,7 +34,11 @@ export function normalizeStarterDecks(ctx: NormalizeContext): StarterDeck[] {
         card.aspect === "basic";
       if (!ok) errors.push(`deck ${d.id}: ${code} has aspect ${card.aspect}`);
     }
-    if (total !== 40) errors.push(`deck ${d.id}: ${total} cards, expected 40`);
+    // RRG 1.8 Appendix I, p. 50: "a minimum of 40 cards and a maximum of 50 cards" (identity/permanent cards
+    // excluded — no wave 4 precon carries either). Most precons are printed at exactly 40, but not all are (the
+    // Vision Hero Pack's own reference card prints a 41-card deck, cross-checked wave 4 against MarvelCDB's
+    // community "Vision - Precon" decklist) — so this only enforces the legal range, not a fixed count.
+    if (total < 40 || total > 50) errors.push(`deck ${d.id}: ${total} cards, expected 40-50`);
     // Deckbuilding rule (L2P p.22): every hero-kit card, at its exact kit quantity. Separate-deck cards (docs/
     // phase7-wave1.md §1.9 — Doctor Strange's Invocation deck) are exempt: they carry the identity's `hero:<id>`
     // aspect too, but `StarterDeck.cards` never lists them — the identity's own `separateDecks` defines them, and

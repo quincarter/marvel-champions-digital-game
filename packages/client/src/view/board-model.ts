@@ -16,9 +16,12 @@ import {
   currentName,
   getInstance,
   getPlayer,
+  identityFace,
   isMinion,
+  traitsOf,
   keywordsOf,
-  mainSchemeStage,
+  mainSchemeStageOf,
+  mainSchemeStateOf,
   maxHitPoints,
   activeEncounterDeck,
   activeVillain,
@@ -28,7 +31,7 @@ import {
   playCostOf,
   playableOutsideHand,
   printedProfile,
-  printedResources,
+  handCardResources,
   remainingHitPoints,
   scale,
   schemesInPlay,
@@ -165,6 +168,12 @@ export interface AttachmentChip {
   readonly exhausted: boolean;
   /** Counters left on it ("web" ×2), so a Uses card shows how many uses remain. */
   readonly counters: readonly { readonly name: string; readonly count: number }[];
+  /**
+   * Attached facedown — Spectrum's own two inactive "energy form" upgrades (`mts` 21001b's Setup: "Put all 3
+   * energy form upgrades into play, facedown," docs/phase7-wave4.md §5): the chip must not name a facedown card
+   * any more than the table's own picture of it does (`faceOf`'s own `back` branch).
+   */
+  readonly faceup: boolean;
 }
 
 /** "Web-Shooter · 2 web · exhausted" — everything a chip has room to say. */
@@ -212,6 +221,12 @@ export interface SchemePanel {
    */
   readonly tuckedCount: number;
   readonly art: ArtSource | null;
+  /**
+   * Cards attached to this scheme — Odin attached to the main scheme, captive side faceup (Hela, `mts` 21139a,
+   * docs/phase7-wave4.md §3.8), and Focused Defense attached to whichever main scheme is currently active (Tower
+   * Defense, §3.2). Empty for every scheme nothing is attached to, which is every scheme before wave 4.
+   */
+  readonly attachments: readonly AttachmentChip[];
 }
 
 /**
@@ -258,6 +273,13 @@ export interface EnvironmentPanel {
   /** Every counter kind on the card, with its count: `[{ name: "infamy", count: 4 }]`. */
   readonly counters: readonly { readonly name: string; readonly count: number }[];
   readonly art: ArtSource | null;
+  /**
+   * Damage placed on this environment (Avengers Tower, Tower Defense's own "Forced Response: After damage is
+   * placed here...", `mts` 21100a, docs/phase7-wave4.md §5) — 0 for every environment nothing damages, which is
+   * every environment before wave 4. An environment prints no HP of its own (unlike a character), so this is a
+   * running count, not a fraction of a max.
+   */
+  readonly damage: number;
 }
 
 /**
@@ -357,12 +379,22 @@ export interface BoardModel {
    */
   readonly villains: readonly VillainPanel[];
   readonly mainScheme: SchemePanel;
+  /**
+   * Other main schemes active at the same time as `mainScheme` — Tower Defense's own two (`mts` 21098a, MC21 p. 10:
+   * "Both main schemes are active each round"), empty for every other scenario (`GameState.extraMainSchemes`,
+   * docs/phase7-wave4.md §3.2). Each is a full main scheme: it gains threat, feels acceleration/crisis icons, and
+   * can be completed, the same as `mainScheme` — the board must show both, or a second main scheme accelerating
+   * unseen would look like nothing happened.
+   */
+  readonly extraMainSchemes: readonly SchemePanel[];
   readonly sideSchemes: readonly SchemePanel[];
   readonly minions: readonly CharacterPanel[];
   /** Environment cards in the villain area, in play order. Empty for every scenario that uses none. */
   readonly environments: readonly EnvironmentPanel[];
   /** The scenario's own out-of-play areas (The Collection, docs/phase7-wave3.md §3.14). Empty for every scenario that has none. */
   readonly scenarioAreas: readonly ScenarioAreaPanel[];
+  /** Every named scenario deck in play — the Infinity Stone deck (`GameState.scenarioDecks`). Empty for every scenario that has none. */
+  readonly scenarioDecks: readonly ScenarioDeckPanel[];
   readonly me: CharacterPanel;
   readonly myForm: Form;
   readonly myPlayArea: readonly CharacterPanel[];
@@ -391,6 +423,13 @@ export interface BoardModel {
   readonly separateDecks: readonly SeparateDeckPile[];
   readonly team: readonly SeatRow[];
   readonly outcome: GameState["outcome"];
+  /**
+   * Loki's own victory count (`ScenarioRules.victoryCondition`, docs/phase7-wave4.md §3.7): "If the number of Lokis
+   * in the victory display is equal to the victory condition, the players win the game" (21165b). Null for every
+   * other scenario — the board had no reader for either field at all before this wave, so a Loki win in progress
+   * showed nothing counting toward it.
+   */
+  readonly victoryCondition: { readonly count: number; readonly target: number } | null;
 }
 
 export interface SeparateDeckPile {
@@ -482,9 +521,12 @@ export function boardModel(state: GameState, perspectiveId: PlayerId, deps: Engi
   if (!me) throw new Error(`no seat ${perspectiveId}`);
 
   const schemes = schemesInPlay(state);
-  const sideSchemes = schemes
-    .filter((id) => id !== state.mainScheme.instanceId)
-    .map((id) => schemePanel(state, id, deps, false));
+  // Every main scheme in play (Tower Defense has two, §3.2) is drawn as a main scheme, never again as a side scheme.
+  const mainSchemeIds = new Set([
+    state.mainScheme.instanceId,
+    ...(state.extraMainSchemes ?? []).map((scheme) => scheme.instanceId),
+  ]);
+  const sideSchemes = schemes.filter((id) => !mainSchemeIds.has(id)).map((id) => schemePanel(state, id, deps, false));
 
   return {
     round: state.round,
@@ -495,12 +537,14 @@ export function boardModel(state: GameState, perspectiveId: PlayerId, deps: Engi
     villain: characterPanel(state, activeVillain(state).instanceId, deps),
     villains: villainPanels(state, deps),
     mainScheme: schemePanel(state, state.mainScheme.instanceId, deps, true),
+    extraMainSchemes: (state.extraMainSchemes ?? []).map((scheme) => schemePanel(state, scheme.instanceId, deps, true)),
     sideSchemes,
     minions: minionsOf(state).map((id) => characterPanel(state, id, deps)),
     environments: state.villainArea
       .filter((id) => cardOf(state, id)?.type === "environment")
       .map((id) => environmentPanel(state, id)),
     scenarioAreas: scenarioAreaPanels(state),
+    scenarioDecks: scenarioDeckPanels(state),
     me: characterPanel(state, me.identity.instanceId, deps),
     myForm: me.identity.form,
     // An attachment is drawn on its host — except an upgrade on your own
@@ -541,6 +585,10 @@ export function boardModel(state: GameState, perspectiveId: PlayerId, deps: Engi
       .filter((player) => player.playerId !== perspectiveId)
       .map((player) => seatRow(state, player.playerId, deps)),
     outcome: state.outcome,
+    victoryCondition:
+      state.scenarioRules.victoryCondition !== undefined
+        ? { count: state.victoryDisplay.length, target: state.scenarioRules.victoryCondition }
+        : null,
   };
 }
 
@@ -611,7 +659,10 @@ export function characterPanel(state: GameState, id: InstanceId, deps: EngineDep
     instanceId: id,
     name: displayName(state, instance, card),
     subtitle: subtitleOf(state, instance, card),
-    traits: card && "traits" in card ? (card.traits as readonly string[]) : [],
+    // `traitsOf` (not the printed `card.traits`): a card "treated as" another kind shows its new traits — Fallen
+    // Warrior's ally treated as an [Undead] minion, and the mirror, a minion treated as an ally (docs/phase7-
+    // wave4.md §3.9, §3.29) — and any trait a lasting effect has granted, which the printed field never carried.
+    traits: card ? traitsOf(state, id, deps) : [],
     keywords: keywordsOf(state, id, deps).map((keyword) => keyword.name),
     statuses,
     stats: statTiles(state, id, profile, identityForm(state, instance), current, max),
@@ -623,12 +674,7 @@ export function characterPanel(state: GameState, id: InstanceId, deps: EngineDep
     disabledActions: statuses
       .map(({ status }) => STATUS_DISABLES[status])
       .filter((action): action is "attack" | "thwart" => action !== null),
-    attachments: instance.attachments.map((attachmentId) => ({
-      instanceId: attachmentId,
-      name: cardOf(state, attachmentId)?.name ?? "Attachment",
-      exhausted: getInstance(state, attachmentId)?.exhausted ?? false,
-      counters: countersOf(state, attachmentId),
-    })),
+    attachments: attachmentChipsOf(state, instance),
     counters: countersOf(state, id),
     ownerName:
       instance.ownerId !== null && instance.controllerId !== null && instance.ownerId !== instance.controllerId
@@ -683,8 +729,15 @@ export function faceOf(state: GameState, instanceId: InstanceId): CardFace {
     return { kind: "back", back: backKindOf(state, instance) };
   }
   switch (card.type) {
-    case "hero_identity":
-      return (identityForm(state, instance) ?? "hero") === "hero" ? { kind: "hero" } : { kind: "alterEgo" };
+    case "hero_identity": {
+      const player = state.players.find((seat) => seat.identity.instanceId === instance.instanceId);
+      if (!player) return { kind: "hero" };
+      if (player.identity.form === "alterEgo") return { kind: "alterEgo" };
+      // Spectrum's energy/density/mass forms and Ant-Man/Wasp's Giant form (docs/phase7-wave2.md §3.2, docs/
+      // phase7-wave4.md §5): `heroFormIndex` 0 is the printed `hero` face itself, n > 0 is `additionalHeroForms[n - 1]`.
+      const formIndex = player.identity.heroFormIndex ?? 0;
+      return formIndex > 0 ? { kind: "heroForm", index: formIndex } : { kind: "hero" };
+    }
     case "villain": {
       const villain = villainOf(state, instanceId) ?? activeVillain(state);
       return {
@@ -715,11 +768,23 @@ function identityForm(state: GameState, instance: CardInstance): Form | null {
 }
 
 function displayName(state: GameState, instance: CardInstance, card: AnyCard | undefined): string {
-  if (!instance.faceup) return instance.facedownAs ? instance.facedownAs.traits.join(" ") : "Facedown card";
+  if (!instance.faceup) {
+    // `facedownAs.kind === "blank"` (Bruno Carrelli's own "attach 1 card from your hand facedown here" — RRG says
+    // it "has no title" while facedown, `state.ts`'s own docblock) can print no traits at all: Spectrum's own three
+    // energy form upgrades sit facedown, untitled, unattached (`mts` 21001b's Setup, docs/phase7-wave4.md §5).
+    // "No title" is correct for the rules (nothing reads it), but an empty label reads as a bug on the table, so
+    // this still shows something legible rather than blank text.
+    const traits = instance.facedownAs?.traits.join(" ");
+    return traits ? traits : "Facedown card";
+  }
   if (!card) return "Unknown card";
-  // A hero identity card carries both faces; the panel names the one in play.
+  // A hero identity card carries both faces (and, for Spectrum/Ant-Man/Wasp, more than one hero face); the panel
+  // names the one in play, straight off the engine's own `identityFace` so a client-side "hero or alter-ego" guess
+  // can't disagree with `heroFormIndex`.
   if (card.type === "hero_identity") {
-    return (identityForm(state, instance) ?? "hero") === "hero" ? card.hero.faceName : card.alterEgo.faceName;
+    const player = state.players.find((seat) => seat.identity.instanceId === instance.instanceId);
+    if (!player) return card.hero.faceName;
+    return identityFace(state, player).face.faceName;
   }
   // Every other double-sided card is named for the face in play too, and only the engine knows which that is: a
   // villain's active side (Risky Business's card is titled "Norman Osborn", but once he flips the table is facing
@@ -733,22 +798,41 @@ function subtitleOf(state: GameState, instance: CardInstance, card: AnyCard | un
   switch (card.type) {
     case "villain": {
       const villain = villainOf(state, instance.instanceId) ?? activeVillain(state);
-      return `Villain · Stage ${ROMAN[villain.stageIndex] ?? String(villain.stageIndex + 1)}`;
+      // Loki's own victory count (docs/phase7-wave4.md §3.7): defeating one stage only ever advances to another
+      // random set-aside Loki, never wins by itself, so the running count toward ScenarioRules.victoryCondition is
+      // the only sign of progress the villain panel can give.
+      const victory =
+        state.scenarioRules.victoryCondition !== undefined
+          ? ` · Victory ${state.victoryDisplay.length}/${state.scenarioRules.victoryCondition}`
+          : "";
+      return `Villain · Stage ${ROMAN[villain.stageIndex] ?? String(villain.stageIndex + 1)}${victory}`;
     }
     case "hero_identity": {
       const player = state.players.find((seat) => seat.identity.instanceId === instance.instanceId);
       const form = player?.identity.form ?? "hero";
-      const aspect = player ? deckAspect(state, player.playerId) : null;
-      return `${form === "hero" ? "Hero" : "Alter-ego"}${aspect ? ` · ${aspectLabel(aspect)}` : ""}`;
+      const aspects = player ? deckAspects(state, player.playerId) : [];
+      const label = aspects.map(aspectLabel).join(" + ");
+      return `${form === "hero" ? "Hero" : "Alter-ego"}${label ? ` · ${label}` : ""}`;
     }
     case "minion":
-      return "Minion";
+      // Mind Control, Redemption, Karma (docs/phase7-wave4.md §3.29): a minion "treated as an ally" for its
+      // controller stays the same printed card — the badge is the only sign anything changed.
+      return instance.treatedAs?.kind === "ally" ? "Ally (treated as)" : "Minion";
     case "ally":
-      return "Ally";
+      // Fallen Warrior, Beguiled (docs/phase7-wave4.md §3.9): the attached ally "is essentially a status change"
+      // (Dec 17, 2025 ruling (1) #3) — it never leaves play, so the subtitle is the only visible sign it is now a
+      // minion engaged with its controller rather than an ordinary ally.
+      return instance.treatedAs?.kind === "minion" ? "Minion (treated as)" : "Ally";
     case "upgrade":
       return "Upgrade";
     case "support":
       return "Support";
+    case "environment":
+      // A Spell card put into a player's own play area (Ebony Maw's own "puts that card into play in their play
+      // area", `mts` 21076-21078, docs/phase7-wave4.md §3.17/§5) is drawn through here — the ordinary
+      // `characterPanel` play-area path, not the villain-area-only `environmentPanel` — so it needs its own title
+      // case rather than falling through to the generic snake_case default below.
+      return "Environment";
     default:
       return card.type.replace(/_/g, " ");
   }
@@ -760,8 +844,16 @@ function subtitleOf(state: GameState, instance: CardInstance, card: AnyCard | un
  * engine has no use for it — only the panel subtitle does.
  */
 export function deckAspect(state: GameState, playerId: PlayerId): Aspect | null {
+  return deckAspects(state, playerId)[0] ?? null;
+}
+
+/**
+ * Every aspect tied for the most cards in a player's cards, in first-seen order: one for an ordinary deck, all four for
+ * Adam Warlock, whose deckbuilding needs an equal number from each ("Avatar of Life", `mts` 21031a).
+ */
+export function deckAspects(state: GameState, playerId: PlayerId): readonly Aspect[] {
   const player = getPlayer(state, playerId);
-  if (!player) return null;
+  if (!player) return [];
   const counts = new Map<Aspect, number>();
   for (const id of [...player.deck, ...player.hand, ...player.discard, ...player.playArea]) {
     const card = cardOf(state, id);
@@ -770,15 +862,8 @@ export function deckAspect(state: GameState, playerId: PlayerId): Aspect | null 
     if (aspect === "basic" || aspect.startsWith("hero:")) continue;
     counts.set(aspect, (counts.get(aspect) ?? 0) + 1);
   }
-  let best: Aspect | null = null;
-  let bestCount = 0;
-  for (const [aspect, count] of counts) {
-    if (count > bestCount) {
-      best = aspect;
-      bestCount = count;
-    }
-  }
-  return best;
+  const most = Math.max(0, ...counts.values());
+  return [...counts].filter(([, count]) => count === most && count > 0).map(([aspect]) => aspect);
 }
 
 const aspectLabel = (aspect: Aspect): string => aspect.charAt(0).toUpperCase() + aspect.slice(1);
@@ -824,29 +909,41 @@ export function schemePanel(state: GameState, id: InstanceId, _deps: EngineDeps,
   const instance = getInstance(state, id);
   if (!instance) throw new Error(`no card instance ${id}`);
   const card = cardOf(state, id);
-  // Crisis is a printed icon in the threat box (RRG "Crisis Icon"), not a keyword.
-  const crisis =
-    card?.type === "side_scheme" ? card.icons.includes("crisis") : mainSchemeStage(state).icons.includes("crisis");
 
   if (isMain) {
-    const stage = mainSchemeStage(state);
-    const accel = state.mainScheme.accelerationTokens;
+    // `mainSchemeStateOf` (not `state.mainScheme` unconditionally): Tower Defense's own second main scheme
+    // (`GameState.extraMainSchemes`, docs/phase7-wave4.md §3.2) has its own stage index and acceleration tokens,
+    // not the central scheme's — reading `state.mainScheme` here regardless of `id` would draw both main scheme
+    // panels identically, borrowing the central one's numbers for the other.
+    const scheme = mainSchemeStateOf(state, id) ?? state.mainScheme;
+    const stage = mainSchemeStageOf(state, scheme);
+    const accel = scheme.accelerationTokens;
+    const attachments = attachmentChipsOf(state, instance);
+    // Odin (Hela, docs/phase7-wave4.md §3.8) and Focused Defense (Tower Defense, §3.2) are printed abilities that
+    // attach to a main scheme rather than a character — the subtitle line is the only room a scheme panel has for
+    // this, the same "· X tucked" pattern already appends here.
+    const attachedNote = attachments.length > 0 ? ` · ${attachments.map((a) => a.name).join(", ")}` : "";
     return {
       instanceId: id,
       name: stage.name ?? card?.name ?? "Main scheme",
-      subtitle: `Main scheme ${state.mainScheme.stageIndex + 1}${accel > 0 ? ` · Accel ×${accel}` : ""}${instance.tucked.length > 0 ? ` · ${instance.tucked.length} tucked` : ""}`,
+      subtitle: `Main scheme ${scheme.stageIndex + 1}${accel > 0 ? ` · Accel ×${accel}` : ""}${instance.tucked.length > 0 ? ` · ${instance.tucked.length} tucked` : ""}${attachedNote}`,
       threat: instance.threat,
       // The stage's target threat, scaled the way the engine scales it: the
       // player count is fixed at setup, so eliminations don't change it.
       target: scale(stage.targetThreat, state.startingPlayerCount),
       meterMax: scale(stage.targetThreat, state.startingPlayerCount),
       isMain: true,
-      crisis,
+      // Crisis is a printed icon in the threat box (RRG "Crisis Icon"), not a keyword.
+      crisis: stage.icons.includes("crisis"),
       accelerationTokens: accel,
       tuckedCount: instance.tucked.length,
       art: artFor(card, faceOf(state, id)),
+      attachments,
     };
   }
+
+  // Crisis is a printed icon in the threat box (RRG "Crisis Icon"), not a keyword.
+  const crisis = card?.type === "side_scheme" ? card.icons.includes("crisis") : false;
 
   // A signature side scheme (The Wrecking Crew's Thunderstruck, Pile It On!, …) is tied to one villain (`VillainState.
   // signatureSideSchemeId`), and the table has to say whose: with four in play at once under one "side schemes"
@@ -872,7 +969,30 @@ export function schemePanel(state: GameState, id: InstanceId, _deps: EngineDeps,
     accelerationTokens: 0,
     tuckedCount: instance.tucked.length,
     art: artFor(card, { kind: "front" }),
+    attachments: attachmentChipsOf(state, instance),
   };
+}
+
+/**
+ * `CardInstance.attachments`, as chips — shared by `characterPanel` and `schemePanel`: Odin attached to the main
+ * scheme captive-side faceup (Hela, `mts` 21139a, docs/phase7-wave4.md §3.8) and Focused Defense attached to
+ * whichever main scheme is active (Tower Defense, `mts` 21101, §3.2) are both scheme attachments, not character
+ * ones, and used to be invisible for it — `SchemePanel` had no `attachments` field at all.
+ */
+function attachmentChipsOf(state: GameState, instance: CardInstance): readonly AttachmentChip[] {
+  return instance.attachments.map((attachmentId): AttachmentChip => {
+    const attachmentInstance = getInstance(state, attachmentId);
+    const faceup = attachmentInstance?.faceup ?? true;
+    return {
+      instanceId: attachmentId,
+      name: faceup
+        ? (currentName(state, attachmentId) ?? cardOf(state, attachmentId)?.name ?? "Attachment")
+        : "Facedown card",
+      exhausted: attachmentInstance?.exhausted ?? false,
+      counters: countersOf(state, attachmentId),
+      faceup,
+    };
+  });
 }
 
 /**
@@ -882,6 +1002,37 @@ export function schemePanel(state: GameState, id: InstanceId, _deps: EngineDeps,
  * is absent until a scenario's own Setup creates one, so this reads as `[]` rather than needing a special case at
  * every call site.
  */
+/**
+ * A named scenario deck (`GameState.scenarioDecks`, docs/phase7-wave2.md §3.3) — the Infinity Stone deck (`mts`
+ * MC21 p. 16: every card printing the Infinity Stone trait, built from the encounter deck at setup with no card
+ * text asking, docs/phase7-wave4.md §3.6). The board had no zone for one at all before this wave: the deck itself
+ * is facedown like any encounter deck, and its own discard pile is separate from the encounter discard (a stone
+ * that resolves its own Special boost text is placed "in the infinity stone deck discard pile" by name, not the
+ * ordinary one).
+ */
+export interface ScenarioDeckPanel {
+  readonly name: string;
+  readonly deckCount: number;
+  readonly discardCount: number;
+  /** Faceup, like every discard pile (`view/visibility.ts`). Null with an empty pile. */
+  readonly discardTopInstanceId: InstanceId | null;
+  readonly discardTopArt: ArtSource | null;
+}
+
+/** Every scenario deck in play, by name, in `GameState.scenarioDecks`' own (insertion) order. */
+export function scenarioDeckPanels(state: GameState): readonly ScenarioDeckPanel[] {
+  return Object.entries(state.scenarioDecks ?? {}).map(([name, deck]) => {
+    const topId = deck.discard[0] ?? null;
+    return {
+      name,
+      deckCount: deck.deck.length,
+      discardCount: deck.discard.length,
+      discardTopInstanceId: topId,
+      discardTopArt: topId ? artFor(cardOf(state, topId), faceOf(state, topId)) : null,
+    };
+  });
+}
+
 export function scenarioAreaPanels(state: GameState): readonly ScenarioAreaPanel[] {
   return Object.entries(state.scenarioAreas ?? {}).map(([name, instanceIds]) => ({
     name,
@@ -893,13 +1044,15 @@ export function scenarioAreaPanels(state: GameState): readonly ScenarioAreaPanel
 
 export function environmentPanel(state: GameState, id: InstanceId): EnvironmentPanel {
   const card = cardOf(state, id);
+  const damage = getInstance(state, id)?.damage ?? 0;
   return {
     instanceId: id,
     // `currentName`, not `card.name`: a flipped card is a different card as far as the table is concerned.
     name: currentName(state, id) ?? card?.name ?? "Environment",
-    subtitle: "Environment",
+    subtitle: damage > 0 ? `Environment · ${damage} damage` : "Environment",
     counters: countersOf(state, id),
     art: artFor(card, faceOf(state, id)),
+    damage,
   };
 }
 
@@ -941,7 +1094,9 @@ export function handCardView(state: GameState, id: InstanceId, playerId: PlayerI
     costSources: price ? costSourceNames(state, price) : [],
     // `current`, not `printed`: the errata'd wording is what the game plays by.
     rulesText: "text" in card ? card.text.current : "",
-    resourceIcons: resourceIconList(printedResources(card)),
+    // What it generates right now, not only printed icons: Band Together (`mts` 21018) prints none and generates a
+    // [wild] per ally you control (docs/phase7-wave4.md §3.38).
+    resourceIcons: resourceIconList(handCardResources(state, deps, id, playerId, null)),
     art: artFor(card, { kind: "front" }),
     from: null,
   };

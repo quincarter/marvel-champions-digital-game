@@ -14,9 +14,20 @@
  *   `scenarioArea`, over the same `GameState.scenarioAreas`.
  */
 import { describe, expect, it } from "vitest";
-import { campaignId, cardId, encounterSetId, flat, scenarioId, type PlayModes } from "@mc/content";
+import {
+  CORE_CARDS,
+  campaignId,
+  cardId,
+  encounterSetId,
+  flat,
+  scenarioId,
+  type AnyCard,
+  type PlayModes,
+  type PlayerCard,
+} from "@mc/content";
 import { DEFAULT_DEPS } from "../abilities.js";
 import type { CampaignDefinition, CampaignGameResult, LogWrite } from "../campaign.js";
+import type { GameEvent } from "../events.js";
 import type { InstanceId } from "../ids.js";
 import { stubEvent, stubMainScheme, stubSideScheme } from "../testing/fixtures.js";
 import { DEFAULT_CARDS, HERO, MAIN_SCHEME, VILLAIN, seatIdentities } from "../testing/scenario.js";
@@ -559,5 +570,157 @@ describe("CampaignDefinition.elimination (design §4.6b; MC16 p. 5 'Elimination 
       expect(field(2, "units")).toEqual({ kind: "number", value: 2 });
       expect(field(2, "hp")).toEqual({ kind: "number", value: 0 });
     }
+  });
+});
+
+describe("CampaignGameQuery.cardsDefeated", () => {
+  // MC21 p. 7/13/21: "If Secure the Landing Pad was defeated, add Cosmo to the campaign pool." Read off the defeat
+  // events, by the name the card had when it was defeated: a card never in play was not defeated, and a side scheme
+  // that flipped on defeat (Find the Norn Stones → Retrieve Odin's Armor) was, though no card of that name remains.
+  const definition = definitionWith(
+    [],
+    [
+      {
+        id: "only.victory.defeated",
+        text: "test",
+        citation: "test",
+        step: {
+          kind: "record",
+          writes: [
+            {
+              field: "flag",
+              mode: "set",
+              value: { kind: "atLeast", of: { kind: "cardsDefeated", name: "Front Scheme" }, amount: 1 },
+            },
+          ],
+        },
+      },
+    ],
+  );
+  const front = { ...stubSideScheme({ id: "front-scheme", startingThreat: 1 }), name: "Front Scheme" };
+  const back = { ...stubSideScheme({ id: "back-scheme", startingThreat: 1 }), name: "Back Scheme" };
+
+  function recordedWith(events: readonly GameEvent[]): LogWrite | undefined {
+    const identities = seatIdentities(HERO, 1);
+    const created = createGame(
+      {
+        seed: 1,
+        cards: [...DEFAULT_CARDS, ...identities, front, back],
+        villainCardId: VILLAIN.id,
+        mainSchemeCardId: MAIN_SCHEME.id,
+        encounterDeck: [],
+        setAside: [front.id],
+        players: identities.map((identity) => ({ identityCardId: identity.id, deck: [] })),
+      },
+      DEFAULT_DEPS,
+    );
+    if (!created.ok) throw new Error(`setup failed: ${created.error.message}`);
+    const finished = { ...created.state, outcome: { result: "win" as const, reason: "villainDefeated" as const } };
+    const composed = resolveBetweenGames(definition, newLog(definition), { pool: [] }, MODES);
+    if (composed.kind !== "done") throw new Error("unexpected pending choice");
+    const result = campaignResultOf(definition, composed.value, finished, events, DEFAULT_DEPS);
+    return result.records.find((record) => record.instructionId === "only.victory.defeated")?.write;
+  }
+
+  it("a card that never entered play was not defeated", () => {
+    expect(recordedWith([])?.value).toEqual({ kind: "flag", value: false });
+  });
+
+  it("a defeat reads by the face defeated, whatever face the instance ends on", () => {
+    const defeat: GameEvent = { type: "schemeDefeated", instanceId: "i-front" as InstanceId, cardId: front.id };
+    expect(recordedWith([defeat])?.value).toEqual({ kind: "flag", value: true });
+    const otherDefeat: GameEvent = { type: "schemeDefeated", instanceId: "i-back" as InstanceId, cardId: back.id };
+    expect(recordedWith([otherDefeat])?.value).toEqual({ kind: "flag", value: false });
+  });
+});
+
+describe("grantCard copies: 'maximum' and the collection choice (MC27 p. 22's Aspect Advantage; Q8)", () => {
+  // Q8, decided 2026-09-25 (community-sourced reading): granted copies count toward the copy limit, so the grant
+  // tops the title up to its limit rather than adding three on top of what the deck holds, and the chosen card must
+  // be legal for the hero.
+  const SPIDER_MAN = cardId("01001a");
+  const isPlayer = (card: AnyCard): card is PlayerCard => "deckLimit" in card;
+  const offAspect = CORE_CARDS.find(
+    (card): card is PlayerCard =>
+      isPlayer(card) && card.aspect === "aggression" && !card.unique && card.deckLimit === 3,
+  );
+  const otherSignature = CORE_CARDS.find(
+    (card): card is PlayerCard =>
+      isPlayer(card) && (card.aspect as string).startsWith("hero:") && card.aspect !== `hero:${SPIDER_MAN}`,
+  );
+  if (!offAspect || !otherSignature) throw new Error("Core lacks the cards this test needs");
+
+  const advantage = (): CampaignDefinition =>
+    definitionWith([
+      {
+        id: "only.setup.advantage",
+        text: "Each player chooses an aspect card in their collection from any aspect and adds the maximum number of copies of that card, by title, to their deck for the rest of the campaign.",
+        citation: "MC27 p. 22",
+        step: {
+          kind: "betweenGames",
+          ops: [
+            {
+              kind: "forEachSeat",
+              ops: [
+                { kind: "choose", slot: "advantage", chooser: "eachSeat", from: { kind: "collection", filter: {} } },
+                {
+                  kind: "grantCard",
+                  seat: "self",
+                  card: { kind: "choice", slot: "advantage" },
+                  permanence: "campaign",
+                  copies: "maximum",
+                },
+              ],
+            },
+          ],
+        },
+      },
+    ]);
+  const logWith = (definition: CampaignDefinition, held: number) =>
+    createCampaignLog(definition, {
+      id: "run",
+      seats: [
+        {
+          seatNumber: 1,
+          identityCardId: SPIDER_MAN,
+          deck: {
+            identityCardId: SPIDER_MAN,
+            aspects: ["justice"],
+            cards: held === 0 ? [] : [{ cardId: offAspect.id, quantity: held }],
+          },
+        },
+      ],
+      modes: MODES,
+      poolVersion: "test",
+      seed: 1,
+    });
+  const answer = { instructionId: "only.setup.advantage", slot: "advantage", seatNumber: 1 };
+
+  it("offers only cards legal for the hero: never another hero's signature cards", () => {
+    const definition = advantage();
+    const pending = resolveBetweenGames(definition, logWith(definition, 0), { pool: CORE_CARDS }, MODES);
+    if (pending.kind !== "pending") throw new Error("expected the Aspect Advantage choice");
+    expect(pending.choice.options).toContain(offAspect.id);
+    expect(pending.choice.options).not.toContain(otherSignature.id);
+    // No identity-set card at all, the hero's own included: the identity set fixes their quantities.
+    const identitySet = new Set(
+      CORE_CARDS.filter((card) => isPlayer(card) && (card.aspect as string).startsWith("hero:")).map((c) => c.id),
+    );
+    expect(pending.choice.options.filter((id) => identitySet.has(cardId(id)))).toEqual([]);
+  });
+
+  it.each([
+    [0, 3],
+    [1, 2],
+    [3, 0],
+  ])("a deck already holding %i copies is granted %i, reaching the limit and never passing it", (held, added) => {
+    const definition = advantage();
+    const settled = resolveBetweenGames(definition, logWith(definition, held), { pool: CORE_CARDS }, MODES, [
+      { ...answer, picked: [offAspect.id] },
+    ]);
+    if (settled.kind !== "done") throw new Error("unexpected pending choice");
+    const seat = settled.value.seats[0];
+    expect(seat?.grants.filter((grant) => grant.cardId === offAspect.id)).toHaveLength(added);
+    expect(seat?.deck.cards.find((line) => line.cardId === offAspect.id)?.quantity ?? 0).toBe(held + added);
   });
 });

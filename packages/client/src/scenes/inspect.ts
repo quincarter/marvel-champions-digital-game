@@ -739,7 +739,8 @@ export class InspectOverlay extends Phaser.Scene {
   /** "Right now" / "Timing" / "Keywords on this card" / "Traits", whichever apply, in D08's own order. */
   #rulesSectionHeights(inner: number, model: InspectModel): number[] {
     const heights: number[] = [];
-    if ((model.status.message || model.priceNote) && !this.#choice) heights.push(this.#rightNowHeight(inner, model));
+    if ((model.status.message || model.priceNote || model.resourceNote) && !this.#choice)
+      heights.push(this.#rightNowHeight(inner, model));
     if (model.timing.length > 0) heights.push(this.#timingHeight(inner, model));
     if (model.keywordChips.length > 0)
       heights.push(
@@ -759,9 +760,12 @@ export class InspectOverlay extends Phaser.Scene {
     const sentence = [
       model.status.message,
       model.priceNote,
+      model.resourceNote,
       model.status.targets.length > 0 ? `Legal targets: ${model.status.targets.join(", ")}.` : null,
     ]
       .filter((part): part is string => Boolean(part))
+      // Each part ends its own sentence: the engine's reasons are clauses with no full stop of their own.
+      .map((part) => (/[.!?]$/.test(part) ? part : `${part}.`))
       .join(" ");
     // The engine's reasons are written as clauses ("this event can only…"); on the sheet they stand as a sentence.
     return sentence.charAt(0).toUpperCase() + sentence.slice(1);
@@ -875,7 +879,7 @@ export class InspectOverlay extends Phaser.Scene {
 
     // "Right now" — skipped while this card *is* the answer to an open decision: "a decision is open, answer it
     // first" is unhelpful when answering it is exactly what the button below does.
-    if ((model.status.message || model.priceNote) && !this.#choice) {
+    if ((model.status.message || model.priceNote || model.resourceNote) && !this.#choice) {
       this.#drawRightNow(rect.x + pad, y, inner, model);
       y += this.#rightNowHeight(inner, model) + RULES_SECTION_GAP;
     }
@@ -1256,8 +1260,9 @@ export class InspectOverlay extends Phaser.Scene {
     // "Right now" — only for a card the player cannot play right now, with the engine's own sentence
     // (`#rightNowSentence`, shared verbatim with panels mode) as the reason. A playable card's footer already says
     // so (an enabled PLAY button); a redundant "Playable." callout on every ordinary card would bury the one case
-    // this box exists for.
-    if (model.status.playable === false && this.#rightNowSentence(model)) {
+    // this box exists for. A card whose resources depend on the table (Band Together) shows it too, for what it's
+    // worth right now.
+    if ((model.status.playable === false || model.resourceNote) && this.#rightNowSentence(model)) {
       y = this.#drawSheetRightNow(rect.x + pad, y, rect.width - pad * 2, model) + SHEET_ROW_GAP;
     }
 

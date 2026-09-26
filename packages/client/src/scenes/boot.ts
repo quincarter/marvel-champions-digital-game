@@ -15,8 +15,9 @@ import { deckOptionsOf, preconDecks } from "../view/deck-list-model.js";
 import { corePlayerForSeat } from "../view/deck-seat.js";
 import { initialSetupDraft, toSessionConfig } from "../view/setup-draft.js";
 import { rollSeed } from "../view/seed.js";
-import { appSession } from "../session.js";
+import { appSession, campaignService, registerDevCampaignDefinition } from "../session.js";
 import type { SessionStore } from "../store/session-store.js";
+import { startAllianceDevGame } from "../store/dev-alliance-game.js";
 import { SCENES } from "./keys.js";
 import { boardModel } from "../view/board-model.js";
 import type { DeckBuilderSceneData } from "./deck-builder.js";
@@ -47,7 +48,8 @@ import type { ExtrasTab } from "../progression/extras.js";
  * `pause` / `rules` / `settings` need one, since D13/P16/L07's status line and
  * glossary/card-list content only mean anything against a real table — those
  * four start a real one-seat Rhino/Spider-Man game through the same
- * `store.start`/`toSessionConfig` path Table setup uses, then jump: `board`
+ * `store.start`/`toSessionConfig` path Table setup uses (`board` alone also takes `&scenario=`/`&deck=`/`&seed=`
+ * to pick which one, `startDevGame`'s own doc comment), then jump: `board`
  * alone, `pause` launches the Pause overlay over it, `rules`/`settings` skip
  * straight past Pause to the overlay itself (`initialTab`/`initialQuery` via
  * `?tab=`/`?q=`, mirroring `RulesSceneData`). `setup-deal` (W3,
@@ -62,9 +64,17 @@ async function devScreenJump(): Promise<{ readonly key: string; readonly data?: 
   if (!screen) return null;
 
   if (screen === "scenario-select" || screen === "seats" || screen === "table-setup") {
+    // `&scenario=<id>&deck=<precon deck id>`: which scenario/precon this dev jump seats, for screenshotting a
+    // specific setup screen (Standard II/Expert II, The Hood's own modular choice) without clicking through
+    // Scenario select/Seats by hand. Falls back to the original fixed Rhino/first-precon draft when either param
+    // is absent or names something the pool doesn't have.
+    const params = new URLSearchParams(location.search);
+    const scenario = POOL_SCENARIOS.find((s) => s.id === params.get("scenario")) ?? POOL_SCENARIOS[0]!;
+    const decks = preconDecks(POOL_VERSION);
+    const deck = decks.find((d) => (d.id as string) === params.get("deck")) ?? decks[0]!;
     const draft = initialSetupDraft({
-      scenarioId: POOL_SCENARIOS[0]!.id as string,
-      seatDeckId: preconDecks(POOL_VERSION)[0]!.id as string,
+      scenarioId: scenario.id as string,
+      seatDeckId: deck.id as string,
       seed: rollSeed(),
     });
     if (screen === "scenario-select")
@@ -156,6 +166,25 @@ async function devScreenJump(): Promise<{ readonly key: string; readonly data?: 
     return { key: SCENES.board, data: {} };
   }
 
+  // `?screen=alliance`: a real two-seat hot-seat game on War Machine's own turn with Cosmic Alliance (an alliance
+  // card) in hand and Star-Lord's hand free to help pay — the per-helper approval bar (wave 4 Q10,
+  // `scenes/board/controller.ts`'s `confirmingAllianceHelp`) is one play and one pick of a Star-Lord card away.
+  if (screen === "alliance") {
+    await startDevAllianceGame();
+    return { key: SCENES.board, data: {} };
+  }
+
+  // `?screen=hidden-evidence[&revealed=1][&view=briefing]`: the hidden-evidence envelope (campaign design Q4) on a
+  // dev-only synthetic box, sealed or revealed, on the Dossier (default) or the Briefing. Dev builds only: the
+  // fixture's definition is never registered in production (`session.ts`'s `registerDevCampaignDefinition`).
+  if (screen === "hidden-evidence" && import.meta.env.DEV) {
+    const fixtures = await import("../campaign/dev-fixtures.js");
+    registerDevCampaignDefinition(fixtures.HIDDEN_EVIDENCE_DEFINITION);
+    const record = await fixtures.seedHiddenEvidenceFixture(campaignService(), params.get("revealed") === "1");
+    if (params.get("view") === "briefing") return { key: SCENES.campaignBriefing, data: { runId: record.id } };
+    return { key: SCENES.campaignDossier, data: { runId: record.id } };
+  }
+
   return null;
 }
 
@@ -172,15 +201,27 @@ function gameRunning(store: SessionStore): boolean {
   return store.state.game !== null;
 }
 
+/**
+ * `?screen=board&scenario=<id>&deck=<starterDeckId>[&seed=<n>]`: any pool scenario against any pool precon, for
+ * screenshotting a specific mechanic (Tower Defense's two schemes, Spectrum's energy forms, …) without clicking
+ * through Title/Seats/Table setup by hand. Falls back to the original fixed Rhino/first-precon game when either
+ * param is absent or names something the pool doesn't have, so every existing `?screen=board` caller is unchanged.
+ */
 async function startDevGame(): Promise<void> {
   const { store } = appSession();
   if (store.state.game) return;
-  const scenario = POOL_SCENARIOS[0]!;
-  const seat = deckOptionsOf([], POOL_CARDS, POOL_VERSION, POOL_DEPS)[0]!;
+  const params = new URLSearchParams(location.search);
+  const scenario = POOL_SCENARIOS.find((s) => s.id === params.get("scenario")) ?? POOL_SCENARIOS[0]!;
+  const options = deckOptionsOf([], POOL_CARDS, POOL_VERSION, POOL_DEPS);
+  const wantedDeck = params.get("deck");
+  const seat =
+    options.find((o) => o.deck.source.kind === "precon" && (o.deck.source.starterDeckId as string) === wantedDeck) ??
+    options[0]!;
+  const seed = Number(params.get("seed"));
   const draft = initialSetupDraft({
     scenarioId: scenario.id as string,
     seatDeckId: seat.deck.id as string,
-    seed: rollSeed(),
+    seed: Number.isFinite(seed) && params.get("seed") ? seed : rollSeed(),
   });
   await store.start(toSessionConfig(draft, [corePlayerForSeat(seat)]));
 }
@@ -271,6 +312,12 @@ async function startDevVillainInterruptGame(): Promise<void> {
     if (!end) break;
     await store.dispatch(end.example);
   }
+}
+
+async function startDevAllianceGame(): Promise<void> {
+  const { store } = appSession();
+  if (gameRunning(store)) return;
+  await startAllianceDevGame(store);
 }
 
 /**

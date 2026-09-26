@@ -30,11 +30,36 @@ export function checkCoverage(ctx: NormalizeContext): void {
   const covered = new Set(ctx.provenance.flatMap((p) => p.marvelcdbCodes));
   for (const c of allCodes) if (!covered.has(c)) errors.push(`MarvelCDB record ${c} was not turned into any card`);
 
-  // A hard error rather than a warning: a silently art-less card would only show up as a
-  // blank frame in the client, long after ingestion.
+  // `PackCuration.encounterSets` matched something (docs/phase7-wave4.md §1.10) — checked here rather than in
+  // `checkStaleCuration` (step 7) because encounter sets don't exist until `normalizeEncounterSets` (steps 8-10),
+  // which runs after it.
+  for (const id of Object.keys(ctx.curation.encounterSets ?? {})) {
+    if (!ctx.usedEncounterSetOverrides.has(id)) errors.push(`curation encounterSets entry for ${id} matched no set`);
+  }
+
+  // A hard error rather than a warning: a silently art-less card would only show up as a blank frame in the
+  // client, long after ingestion — unless `PackCuration.artUnavailable` names the exact MarvelCDB code that face
+  // came from, confirming there really is nothing to reference (a genuine MarvelCDB data gap, not a normalizer
+  // bug). Resolved via `faceCodesByCardId`, in `printedFaces`' own per-face order; a card whose code list is
+  // missing or a different length than its face list can never be exempted, so this never widens the check by
+  // guessing.
   for (const card of ctx.cards) {
-    for (const face of printedFaces(card)) {
-      if (!face.image) errors.push(`${card.id}: no artwork reference for ${face.what}`);
-    }
+    const faces = printedFaces(card);
+    const codes = ctx.faceCodesByCardId.get(card.id as string);
+    const codesLineUp = codes !== undefined && codes.length === faces.length;
+    faces.forEach((face, i) => {
+      if (face.image) return;
+      const code = codesLineUp ? (codes as readonly string[])[i] : undefined;
+      const reason = code !== undefined ? ctx.curation.artUnavailable?.[code] : undefined;
+      if (reason !== undefined) {
+        ctx.usedArtUnavailable.add(code as string);
+        return;
+      }
+      errors.push(`${card.id}: no artwork reference for ${face.what}`);
+    });
+  }
+
+  for (const code of Object.keys(ctx.curation.artUnavailable ?? {})) {
+    if (!ctx.usedArtUnavailable.has(code)) errors.push(`curation artUnavailable entry for ${code} matched no face`);
   }
 }

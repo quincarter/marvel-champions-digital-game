@@ -1,4 +1,11 @@
-import type { AbilityCost, AbilityDefinition, AbilityRegistry, EffectSpec } from "@mc/engine";
+import {
+  inPlayPicksOf,
+  UNRESOLVED_VAR,
+  type AbilityCost,
+  type AbilityDefinition,
+  type AbilityRegistry,
+  type EffectSpec,
+} from "@mc/engine";
 
 /**
  * A private marker for `allowUnlabeledAttack`'s opt-out (below). A symbol key never appears in `Object.entries`/
@@ -100,11 +107,8 @@ function costVariants(cost: AbilityCost): readonly AbilityCost[] {
 }
 
 function checkCostShape(cost: AbilityCost, problems: string[]): void {
-  for (const [name, pick] of [
-    ["exhaustCards", cost.exhaustCards],
-    ["returnToHand", cost.returnToHand],
-  ] as const) {
-    if (!pick) continue;
+  for (const { mode, pick } of inPlayPicksOf(cost)) {
+    const name = mode === "exhaust" ? "exhaustCards" : mode === "discard" ? "discardCards" : "returnToHand";
     // RRG 1.8 "Cost" (p. 14): "A cost requiring 'any number' or 'up to' some number of game elements requires a minimum of one".
     if (!Number.isInteger(pick.min) || pick.min < 1)
       problems.push(`cost ${name}: min must be a whole number of at least 1 (RRG 1.8 "Cost", p. 14)`);
@@ -129,7 +133,7 @@ function checkCostShape(cost: AbilityCost, problems: string[]): void {
   // docs/phase7-wave3.md §3.43: "N resources of the same type" is a generic count.
   if (cost.sameResourceType && (typeof cost.resources !== "number" || cost.resources < 1))
     problems.push("cost sameResourceType: needs `resources` as a whole number of at least 1");
-  if (cost.discardFromDeck !== undefined && (!Number.isInteger(cost.discardFromDeck) || cost.discardFromDeck < 1))
+  if (typeof cost.discardFromDeck === "number" && (!Number.isInteger(cost.discardFromDeck) || cost.discardFromDeck < 1))
     problems.push("cost discardFromDeck: must be a whole number of at least 1");
   if (cost.either) {
     if (cost.either.length < 2) problems.push("cost either: needs at least two branches");
@@ -142,8 +146,7 @@ function checkCostShape(cost: AbilityCost, problems: string[]): void {
   const slots = [
     ...(cost.discardFromHand ? ["discard"] : []),
     ...(cost.payPrintedCostOf ? [cost.payPrintedCostOf.slot] : []),
-    ...(cost.exhaustCards ? [cost.exhaustCards.slot] : []),
-    ...(cost.returnToHand ? [cost.returnToHand.slot] : []),
+    ...inPlayPicksOf(cost).map(({ pick }) => pick.slot),
   ];
   if (new Set(slots).size !== slots.length)
     problems.push(`cost components pick into the same slot (${slots.join(", ")}); give each its own slot`);
@@ -225,6 +228,8 @@ function nestedLists(effect: EffectSpec): (readonly EffectSpec[])[] {
       return [effect.effects];
     case "replaceTriggeringEvent":
       return [effect.with];
+    case "repeatWhile":
+      return [effect.effects];
     default:
       return [];
   }
@@ -300,8 +305,12 @@ function checkRefs(value: unknown, scope: Scope, where: string, problems: string
 
 function bindsOf(effect: EffectSpec, scope: Scope): void {
   switch (effect.kind) {
+    // A required target choice that finds nothing sets `UNRESOLVED_VAR` (`choiceFoundNothing`, RRG 1.8 "Target").
     case "chooseTarget":
     case "chooseCards":
+      scope.slots.add(effect.slot);
+      scope.vars.add(UNRESOLVED_VAR);
+      return;
     case "choosePlayer":
     case "bindTargets":
       scope.slots.add(effect.slot);
@@ -309,6 +318,17 @@ function bindsOf(effect: EffectSpec, scope: Scope): void {
     case "selectCards":
       scope.slots.add(effect.slot);
       scope.vars.add(`${effect.slot}.count`);
+      return;
+    // The cards that entered play and `<bind>.count` (docs/phase7-wave4.md §3.59).
+    case "putIntoPlay":
+      if (effect.bind) {
+        scope.slots.add(effect.bind);
+        scope.vars.add(`${effect.bind}.count`);
+      }
+      return;
+    // `<bind>.count`: how many abilities were resolved (docs/phase7-wave4.md §3.56).
+    case "resolveSpecials":
+      if (effect.bind) scope.vars.add(`${effect.bind}.count`);
       return;
     case "discardEncounterUntil":
     case "discardDeckUntil":
@@ -335,21 +355,32 @@ function bindsOf(effect: EffectSpec, scope: Scope): void {
     case "spendResources":
       scope.prefixes.add(`${effect.bind}.`);
       return;
+    // A snapshot var (docs/phase7-wave4.md §3.46).
+    case "setVar":
+      scope.vars.add(effect.name);
+      return;
     // Vars only (`<bind>.made`, `.amount`, `.forcedResponses`, ...): no cards are bound to the slot itself.
     // docs/phase7-wave1.md §3.6 (cancelBoostIcons/cancelBoostAbility), §3.7 (dealIndirectDamage) and §3.8 (moveThreat)
     // each flagged this as a gap for `ability-scripting-engineer` before their cards could be scripted.
     case "cancelBoostIcons":
+    case "discardBoostCard":
     case "cancelBoostAbility":
     case "enemyAttacksEnemy":
+    case "friendlyCharacterAttacks":
     case "dealIndirectDamage":
     case "moveThreat":
     case "divide":
+    // `<bind>.amount` prevented, `<bind>.made` set shuffled in (docs/phase7-wave4.md §3.20, §3.18).
+    case "preventDamage":
+    case "shuffleInSetAsideModularSet":
       if (effect.bind) scope.prefixes.add(`${effect.bind}.`);
       return;
     // `<bind>.amount`: how many counters were actually placed (docs/phase7-wave3.md §3.10) — "If you cannot, draw
     // 1 card." (Drax, `wave3/drax/drax-kit.ts` 19001a) needed this case; it was documented on `EffectSpec
     // addCounters` itself but never wired into the validator's own bind tracking.
     case "addCounters":
+    // `<bind>.amount`: how many status cards were actually given (docs/phase7-wave4.md §3.60).
+    case "giveStatus":
       if (effect.bind) scope.prefixes.add(`${effect.bind}.`);
       return;
     default:
@@ -365,6 +396,13 @@ function walk(effects: readonly EffectSpec[], scope: Scope, path: string, proble
         if (option.condition) checkRefs(option.condition, scope, `${where} option ${i}`, problems);
         walk(option.effects, scope, `${where}.options[${i}]`, problems);
       });
+      return;
+    }
+    // "Repeat this effect" (docs/phase7-wave4.md §3.54): the condition is read after the repeated effects, so it may
+    // read what they bind.
+    if (effect.kind === "repeatWhile") {
+      walk(effect.effects, scope, `${where}/0`, problems);
+      checkRefs(effect.while, scope, `${where} while`, problems);
       return;
     }
     checkRefs(effect, scope, where, problems);
@@ -402,8 +440,7 @@ function checkBindings(definition: AbilityDefinition, problems: string[]): void 
       if (component.spendCounters?.bind) scope.vars.add(component.spendCounters.bind);
     }
     if (cost.either) scope.vars.add("cost.branch");
-    for (const pick of [cost.exhaustCards, cost.returnToHand]) {
-      if (!pick) continue;
+    for (const { pick } of inPlayPicksOf(cost)) {
       scope.slots.add(pick.slot);
       if (pick.bind) scope.vars.add(pick.bind);
     }

@@ -40,6 +40,7 @@ import { RulesOverlay } from "./scenes/rules.js";
 import { SettingsOverlay } from "./scenes/settings.js";
 import { UnlocksOverlay } from "./scenes/unlocks.js";
 import { UnlockConfirmOverlay } from "./scenes/unlock-confirm.js";
+import { EndTurnConfirmOverlay } from "./scenes/end-turn-confirm.js";
 import { CampaignSagaScene } from "./scenes/campaign/saga.js";
 import { CampaignCoverScene } from "./scenes/campaign/cover.js";
 import { CampaignRosterScene } from "./scenes/campaign/roster.js";
@@ -63,6 +64,7 @@ import { installDebugDump } from "./ui/debug-dump.js";
 import { installFrameGuard } from "./ui/frame-guard.js";
 import { installDesktopType, setDesktopType } from "./ui/desktop-type.js";
 import { formFactorFor } from "./view/layout.js";
+import { applyViewportFit } from "./platform/platform.js";
 
 // The one `Settings` instance for the whole app (`appSession().settings`), not a
 // second copy: `scenes/settings.ts` mutates that same object, and every text
@@ -73,6 +75,8 @@ const settings = appSession().settings;
 // text stays sharp. Phaser 4 has no game-level equivalent.
 setTextResolution(settings.textResolution);
 
+// Before the canvas first takes its parent's size, which depends on whether #game is inset by the safe area.
+applyViewportFit();
 installLazyText();
 installDesktopType();
 setDesktopType(formFactorFor(window.innerWidth, window.innerHeight) === "desktop");
@@ -133,6 +137,7 @@ const game = new Phaser.Game({
     SettingsOverlay,
     UnlocksOverlay,
     UnlockConfirmOverlay,
+    EndTurnConfirmOverlay,
     CampaignBeatOverlay,
     ExtrasViewerScene,
     MusicScene,
@@ -229,6 +234,12 @@ if (import.meta.env.DEV) {
         stop?: Parameters<typeof fixtures.seedDesignWonGame>[1],
         options?: { expertCampaign?: boolean },
       ) => seedWon(() => fixtures.seedDesignWonGame(session.campaignService(), stop, options)),
+      seedMts: (stop?: Parameters<typeof fixtures.seedMtsRun>[1]) =>
+        fixtures.seedMtsRun(session.campaignService(), stop),
+      seedMtsComposed: (stop?: Parameters<typeof fixtures.seedMtsComposed>[1]) =>
+        fixtures.seedMtsComposed(session.campaignService(), stop),
+      seedMtsWon: (stop?: Parameters<typeof fixtures.seedMtsWonGame>[1]) =>
+        seedWon(() => fixtures.seedMtsWonGame(session.campaignService(), stop)),
     };
   });
 }

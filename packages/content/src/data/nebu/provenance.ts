@@ -22,7 +22,14 @@ export const NEBU_PROVENANCE: readonly CardProvenance[] = [
   { cardId: cardId("22008"), cardSetCode: "nebu", marvelcdbCodes: ["22008"], corrections: [] },
   { cardId: cardId("22009"), cardSetCode: "nebu", marvelcdbCodes: ["22009"], corrections: [] },
   { cardId: cardId("22010"), cardSetCode: "nebu", marvelcdbCodes: ["22010"], corrections: [] },
-  { cardId: cardId("22011"), cardSetCode: "justice", marvelcdbCodes: ["22011"], corrections: [] },
+  {
+    cardId: cardId("22011"),
+    cardSetCode: "justice",
+    marvelcdbCodes: ["22011"],
+    corrections: [
+      "22011: errata RRG 1.8 p. 67 — Eros' Response \"confuse a minion for each [mental] resource you used to pay for him\" reads \"for each [mental] resource you used to pay for him, choose a minion and confuse it\" — the updated \"for each\" rules wording (letting each resource confuse a separately-chosen minion). MarvelCDB's cached text is still the pre-errata wording. [evidence: raw (22011, no `errata` field set); RRG 1.8 p. 67 Appendix V \"NEBULA HERO PACK\" / \"EROS (#11)\"]",
+    ],
+  },
   { cardId: cardId("22012"), cardSetCode: "justice", marvelcdbCodes: ["22012"], corrections: [] },
   { cardId: cardId("22013"), cardSetCode: "justice", marvelcdbCodes: ["22013"], corrections: [] },
   { cardId: cardId("22014"), cardSetCode: "justice", marvelcdbCodes: ["22014"], corrections: [] },
@@ -38,7 +45,9 @@ export const NEBU_PROVENANCE: readonly CardProvenance[] = [
     cardId: cardId("22017"),
     cardSetCode: "justice",
     marvelcdbCodes: ["22017"],
-    corrections: [],
+    corrections: [
+      "22017: MarvelCDB sends quantity: 1 for \"The Power of Justice\", but the pack's own printed starter-deck reference card lists two copies (\"17 The Power of Justice x2\") and the card text itself reads \"Max 2 per deck\" — matching every other pack's analogous resource card (2 physical copies), not a genuine one-copy print. [evidence: Hall of Heroes Nebula release page (https://hallofheroeslcg.com/nebula/), \"Starter Deck\" link: https://hallofheroeslcg.com/wp-content/uploads/2021/09/nebula-starter-deck.jpg — image transcribed directly (card-data-pipeline, wave 4). Cross-checked against Star-Lord's 17018 (same role, quantity: 2).]",
+    ],
     duplicateOfCardId: cardId("01062"),
   },
   { cardId: cardId("22018"), cardSetCode: "justice", marvelcdbCodes: ["22018"], corrections: [] },

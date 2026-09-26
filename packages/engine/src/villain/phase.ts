@@ -10,14 +10,15 @@ import { emit, requestChoice, setStep, updateInstance, type Ctx } from "../ctx.j
 import { dealEncounterCardTo } from "../effects.js";
 import type { InstanceId, PlayerId } from "../ids.js";
 import { statusActive } from "../keywords.js";
+import { iconsInPlay } from "../rules.js";
 import {
   activeVillainIdFor,
   areaOfPlayer,
   villainOf,
-  countSchemeIcons,
   getPlayer,
   isMinion,
   mainSchemeValue,
+  sharedMainSchemes,
   mustCardOf,
   mustPlayer,
   nextClockwisePlayer,
@@ -38,16 +39,20 @@ export function executePlaceThreat(ctx: Ctx): void {
   if (step.kind === "placeThreat" && !step.placed) {
     setStep(ctx, { phase: "villain", kind: "placeThreat", placed: true });
     if (ctx.state.gameAreas.length === 0) {
-      const amount =
-        mainSchemeValue(ctx.state, "acceleration", ctx.deps) +
-        ctx.state.mainScheme.accelerationTokens +
-        countSchemeIcons(ctx.state, "acceleration");
-      pushEvent(ctx, {
-        kind: "placeThreat",
-        schemeInstanceId: ctx.state.mainScheme.instanceId,
-        amount,
+      // Every main scheme in play gains threat, each from its own acceleration and tokens plus the icons in play: MC21
+      // p. 10, "Each main scheme gains threat during step 1 of the villain phase, and they are each affected by any
+      // acceleration and crisis icons in play" (docs/phase7-wave4.md §3.2). One main scheme is every other game.
+      const events = sharedMainSchemes(ctx.state).map((scheme) => ({
+        kind: "placeThreat" as const,
+        schemeInstanceId: scheme.instanceId,
+        amount:
+          mainSchemeValue(ctx.state, "acceleration", ctx.deps, scheme) +
+          scheme.accelerationTokens +
+          iconsInPlay(ctx.state, ctx.deps, "acceleration"),
         sourceInstanceId: null,
-      });
+      }));
+      if (events.length === 1) pushEvent(ctx, events[0]!);
+      else pushEvents(ctx, events);
       return;
     }
     // Separate game areas (docs/phase7-wave2.md §3.1): each area places threat on its own stage, from its own
@@ -62,7 +67,7 @@ export function executePlaceThreat(ctx: Ctx): void {
           mainSchemeValue(ctx.state, "acceleration", ctx.deps, area.mainScheme) +
           area.mainScheme.accelerationTokens +
           ctx.state.mainScheme.accelerationTokens +
-          countSchemeIcons(ctx.state, "acceleration", area);
+          iconsInPlay(ctx.state, ctx.deps, "acceleration", area);
         return [
           {
             kind: "placeThreat" as const,
@@ -132,8 +137,9 @@ export function executeEnemyActivations(ctx: Ctx, step: Extract<GameStep, { kind
     return;
   }
   if (minions.length > 1) {
-    // The RRG says each engaged minion activates but not in what order; the
-    // engaged player picks (the table convention; see docs/phase3-encounter-ai.md).
+    // The engaged player chooses the order: RRG 1.8 "Villain Phase" (p. 47) step 2b, "Each minion engaged with the
+    // player activates against them, in the order of that player's choice"; "Activation" (p. 6), "followed by minion
+    // activations in the order of your choice".
     requestChoice(ctx, {
       playerId: current.playerId,
       prompt: { kind: "chooseMinionToActivate" },
@@ -199,7 +205,7 @@ export function activateEnemy(ctx: Ctx, enemyId: InstanceId, playerId: PlayerId)
 export function executeDealEncounterCards(ctx: Ctx): void {
   const order = playerOrder(ctx.state);
   for (const player of order) dealEncounterCardTo(ctx, player.playerId);
-  const hazards = countSchemeIcons(ctx.state, "hazard");
+  const hazards = iconsInPlay(ctx.state, ctx.deps, "hazard");
   for (let i = 0; i < hazards; i++) {
     const player = order[i % order.length];
     if (player) dealEncounterCardTo(ctx, player.playerId);

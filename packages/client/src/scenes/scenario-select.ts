@@ -534,7 +534,7 @@ export class ScenarioSelectScene extends Phaser.Scene {
     return renderShelfCard(this, rect, {
       artKey,
       titleRole: typeRole.villainTitle,
-      title: cardDetail.villainName,
+      title: cardDetail.displayName,
       subtitle,
       blockedBy: lock,
       warning: lock ? `${lock} · or ${unlockCostOf({ kind: "scenario", scenarioId: s.id as string })} pts` : null,
@@ -569,7 +569,7 @@ export class ScenarioSelectScene extends Phaser.Scene {
       },
       {
         label: "Encounter sets",
-        value: `${detail.villainName.toUpperCase()} · ${(detail.recommendedModularSetNames[0] ?? "").toUpperCase()}`,
+        value: `${detail.displayName.toUpperCase()} · ${(detail.recommendedModularSetNames[0] ?? "").toUpperCase()}`,
       },
     ];
     const perRow = Math.ceil(cells.length / rows);
@@ -626,7 +626,7 @@ export class ScenarioSelectScene extends Phaser.Scene {
         rule.lineStyle(1, surface.paper.hex, ink.disabled).lineBetween(bar.x, bar.y, bar.x + bar.width, bar.y);
       }
       const [from, to] = this.#currentStageRange(detail);
-      const summary = `${detail.villainName.toUpperCase()} · STAGE ${roman(from)}${to > from ? `–${roman(to)}` : ""}`;
+      const summary = `${detail.displayName.toUpperCase()} · STAGE ${roman(from)}${to > from ? `–${roman(to)}` : ""}`;
       this.add
         .text(
           bar.x + 16,

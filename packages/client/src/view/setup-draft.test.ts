@@ -1,19 +1,21 @@
 import { describe, expect, test } from "vitest";
-import { CORE_SCENARIOS, WAVE1_SCENARIOS, deckId, type Deck } from "@mc/content";
+import { CORE_SCENARIOS, WAVE1_SCENARIOS, WAVE4_SCENARIOS, deckId, encounterSetId, type Deck } from "@mc/content";
 import { MemoryGameStorage } from "../engine/game-storage.js";
 import { EngineSessionCore } from "../engine/session-core.js";
-import { POOL_CARDS, POOL_DEPS, POOL_VERSION } from "../content/pool.js";
+import { POOL_CARDS, POOL_DEPS, POOL_ENCOUNTER_SETS, POOL_VERSION } from "../content/pool.js";
 import { corePlayerForSeat, corePlayerFromDeck } from "./deck-seat.js";
 import { deckOptionOf, deckOptionsOf, preconDecks } from "./deck-list-model.js";
 import { rollFirstPlayerIndex } from "./seed.js";
 import {
   addSeat,
+  alternateDifficultySetsFor,
   assignToActiveSeat,
   clearHeroFilter,
   clearScenarioFilter,
   clearSeat,
   deckCheckDeckId,
   difficultyOptionsFor,
+  hasTowerDefenseSetupDamageOption,
   initialSetupDraft,
   nextEmptySeat,
   pruneSeats,
@@ -21,12 +23,17 @@ import {
   seatIsSelectable,
   setActiveSeat,
   setDifficulty,
+  setDifficultySets,
   setFirstPlayerIndex,
   setHeroFilter,
   setModularSetIds,
   setScenario,
   setScenarioFilter,
   setSeed,
+  setSetAsideModularSetIds,
+  toggleDifficultySets,
+  toggleTowerDefenseSetupDamage,
+  towerDefenseSetupDamagePerHero,
   toSessionConfig,
   withSeatOne,
   usePreconstructedForAllSeats,
@@ -35,6 +42,8 @@ import {
 
 const RHINO = CORE_SCENARIOS.find((s) => (s.id as string) === "rhino")!;
 const BREAKOUT = WAVE1_SCENARIOS.find((s) => s.multipleVillains)!;
+const THE_HOOD = WAVE4_SCENARIOS.find((s) => (s.id as string) === "the-hood")!;
+const TOWER_DEFENSE = WAVE4_SCENARIOS.find((s) => (s.id as string) === "tower-defense")!;
 const DEFAULT_DECK_ID = preconDecks(POOL_VERSION)[0]!.id as string;
 
 describe("initialSetupDraft", () => {
@@ -78,6 +87,102 @@ describe("setScenario", () => {
     };
     const next = setScenario(draft, BREAKOUT, BREAKOUT.id as string);
     expect(next.difficulty).toBe("expert");
+  });
+
+  test("leaving The Hood resets a chosen Standard II/Expert II and modular set choice — both are scenario-specific", () => {
+    const draft = {
+      ...initialSetupDraft({ scenarioId: THE_HOOD.id as string, seatDeckId: DEFAULT_DECK_ID, seed: 1 }),
+      difficultySets: { standard: encounterSetId("standard_ii") },
+      setAsideModularSetIds: ["beasty_boys"],
+    };
+    const next = setScenario(draft, RHINO, RHINO.id as string);
+    expect(next.difficultySets).toBeNull();
+    expect(next.setAsideModularSetIds).toBeNull();
+  });
+});
+
+describe("alternateDifficultySetsFor", () => {
+  test("The Hood offers Standard II and Expert II — the only pack with either", () => {
+    expect(alternateDifficultySetsFor(THE_HOOD, POOL_ENCOUNTER_SETS)).toEqual({
+      standard: "standard_ii",
+      expert: "expert_ii",
+    });
+  });
+
+  test("every other scenario offers none", () => {
+    expect(alternateDifficultySetsFor(RHINO, POOL_ENCOUNTER_SETS)).toBeNull();
+    expect(alternateDifficultySetsFor(BREAKOUT, POOL_ENCOUNTER_SETS)).toBeNull();
+  });
+
+  test("an undefined scenario (nothing chosen yet) offers none", () => {
+    expect(alternateDifficultySetsFor(undefined, POOL_ENCOUNTER_SETS)).toBeNull();
+  });
+});
+
+describe("setDifficultySets / setSetAsideModularSetIds", () => {
+  test("null goes back to the printed default / the scenario builder's own default", () => {
+    let draft = initialSetupDraft({ scenarioId: THE_HOOD.id as string, seatDeckId: DEFAULT_DECK_ID, seed: 1 });
+    draft = setDifficultySets(draft, { standard: encounterSetId("standard_ii"), expert: encounterSetId("expert_ii") });
+    draft = setSetAsideModularSetIds(draft, ["beasty_boys"]);
+    expect(draft.difficultySets).toEqual({ standard: "standard_ii", expert: "expert_ii" });
+    expect(draft.setAsideModularSetIds).toEqual(["beasty_boys"]);
+
+    draft = setDifficultySets(draft, null);
+    draft = setSetAsideModularSetIds(draft, null);
+    expect(draft.difficultySets).toBeNull();
+    expect(draft.setAsideModularSetIds).toBeNull();
+  });
+});
+
+describe("toggleDifficultySets", () => {
+  test("on with the given alternate, off back to the printed default — a single switch", () => {
+    const alternate = { standard: encounterSetId("standard_ii"), expert: encounterSetId("expert_ii") };
+    let draft = initialSetupDraft({ scenarioId: THE_HOOD.id as string, seatDeckId: DEFAULT_DECK_ID, seed: 1 });
+    draft = toggleDifficultySets(draft, alternate);
+    expect(draft.difficultySets).toEqual(alternate);
+    draft = toggleDifficultySets(draft, alternate);
+    expect(draft.difficultySets).toBeNull();
+  });
+});
+
+describe("hasTowerDefenseSetupDamageOption", () => {
+  test("only Tower Defense offers it", () => {
+    expect(hasTowerDefenseSetupDamageOption(TOWER_DEFENSE)).toBe(true);
+    expect(hasTowerDefenseSetupDamageOption(RHINO)).toBe(false);
+    expect(hasTowerDefenseSetupDamageOption(THE_HOOD)).toBe(false);
+    expect(hasTowerDefenseSetupDamageOption(undefined)).toBe(false);
+  });
+
+  test("skirmish mode has no printed recommendation (MC21 p. 11)", () => {
+    expect(hasTowerDefenseSetupDamageOption(TOWER_DEFENSE, true)).toBe(false);
+  });
+});
+
+describe("toggleTowerDefenseSetupDamage", () => {
+  test("off by default, on with a plain toggle", () => {
+    let draft = initialSetupDraft({ scenarioId: TOWER_DEFENSE.id as string, seatDeckId: DEFAULT_DECK_ID, seed: 1 });
+    expect(draft.towerDefenseSetupDamage).toBe(false);
+    draft = toggleTowerDefenseSetupDamage(draft);
+    expect(draft.towerDefenseSetupDamage).toBe(true);
+    draft = toggleTowerDefenseSetupDamage(draft);
+    expect(draft.towerDefenseSetupDamage).toBe(false);
+  });
+});
+
+describe("towerDefenseSetupDamagePerHero", () => {
+  test("MC21 p. 11's printed recommendation: 1 standard, 2 expert", () => {
+    expect(towerDefenseSetupDamagePerHero("standard")).toBe(1);
+    expect(towerDefenseSetupDamagePerHero("expert")).toBe(2);
+  });
+});
+
+describe("setScenario resets towerDefenseSetupDamage", () => {
+  test("leaving Tower Defense clears a chosen toggle", () => {
+    let draft = initialSetupDraft({ scenarioId: TOWER_DEFENSE.id as string, seatDeckId: DEFAULT_DECK_ID, seed: 1 });
+    draft = toggleTowerDefenseSetupDamage(draft);
+    expect(draft.towerDefenseSetupDamage).toBe(true);
+    draft = setScenario(draft, RHINO, RHINO.id as string);
+    expect(draft.towerDefenseSetupDamage).toBe(false);
   });
 });
 
@@ -374,6 +479,29 @@ describe("toSessionConfig", () => {
     expect(config.modularSetIds).toEqual(["masters_of_evil"]);
     expect(config.firstPlayerIndex).toBe(1);
   });
+
+  test("difficultySets and setAsideModularSetIds are only sent when set", () => {
+    let draft = initialSetupDraft({ scenarioId: THE_HOOD.id as string, seatDeckId: DEFAULT_DECK_ID, seed: 1 });
+    let config = toSessionConfig(draft, [{ starterDeckId: "core-spider-man-justice" }]);
+    expect(config.difficultySets).toBeUndefined();
+    expect(config.setAsideModularSetIds).toBeUndefined();
+
+    draft = setDifficultySets(draft, { standard: encounterSetId("standard_ii"), expert: encounterSetId("expert_ii") });
+    draft = setSetAsideModularSetIds(draft, ["beasty_boys"]);
+    config = toSessionConfig(draft, [{ starterDeckId: "core-spider-man-justice" }]);
+    expect(config.difficultySets).toEqual({ standard: "standard_ii", expert: "expert_ii" });
+    expect(config.setAsideModularSetIds).toEqual(["beasty_boys"]);
+  });
+
+  test("setupOptions.towerDefenseSetupDamage is only sent when chosen (docs/phase7-wave4.md §4 Q4)", () => {
+    let draft = initialSetupDraft({ scenarioId: TOWER_DEFENSE.id as string, seatDeckId: DEFAULT_DECK_ID, seed: 1 });
+    let config = toSessionConfig(draft, [{ starterDeckId: "core-spider-man-justice" }]);
+    expect(config.setupOptions).toBeUndefined();
+
+    draft = toggleTowerDefenseSetupDamage(draft);
+    config = toSessionConfig(draft, [{ starterDeckId: "core-spider-man-justice" }]);
+    expect(config.setupOptions).toEqual({ towerDefenseSetupDamage: true });
+  });
 });
 
 describe("usePreconstructedForAllSeats", () => {
@@ -447,5 +575,39 @@ describe("the full W2 setup flow (view-model level: scenes aren't unit-tested in
     const second = new EngineSessionCore({ storage });
     const resumed = await second.resume(saveMeta!.id);
     expect(resumed.snapshot.state).toEqual(started.snapshot.state);
+  });
+
+  test("The Hood: Standard II/Expert II and a chosen set-aside actually change the deck the engine builds", async () => {
+    const seatDeckId = "core-spider-man-justice";
+    const seed = 55;
+
+    let printed = initialSetupDraft({ scenarioId: THE_HOOD.id as string, seatDeckId, seed });
+    let toggled = setDifficultySets(printed, { standard: encounterSetId("standard_ii") });
+    toggled = setSetAsideModularSetIds(toggled, [
+      "beasty_boys",
+      "brothers_grimm",
+      "crossfire_crew",
+      "mister_hyde",
+      "ransacked_armory",
+      "sinister_syndicate",
+      "state_of_emergency",
+    ]);
+
+    const printedConfig = toSessionConfig(printed, [{ starterDeckId: seatDeckId }]);
+    const toggledConfig = toSessionConfig(toggled, [{ starterDeckId: seatDeckId }]);
+    expect(printedConfig.difficultySets).toBeUndefined();
+    expect(toggledConfig.difficultySets).toEqual({ standard: "standard_ii" });
+
+    const printedGame = new EngineSessionCore();
+    const printedStart = await printedGame.start(printedConfig);
+    const toggledGame = new EngineSessionCore();
+    const toggledStart = await toggledGame.start(toggledConfig);
+    expect(printedStart.snapshot.legal).not.toBeNull();
+    expect(toggledStart.snapshot.legal).not.toBeNull();
+
+    // Two different encounter decks: the printed Standard set's cards are not the same pool as Standard II's.
+    const deckOf = (state: NonNullable<typeof printedStart.snapshot.state>) =>
+      [...state.encounterDecks[state.encounterDeckOrder[0]!]!.deck].sort();
+    expect(deckOf(printedStart.snapshot.state!)).not.toEqual(deckOf(toggledStart.snapshot.state!));
   });
 });

@@ -8,7 +8,13 @@ import { textStyle } from "../../ui/theme.js";
 import { McButton, fitText } from "../../ui/widgets.js";
 import type { Rect } from "../../view/layout.js";
 import type { BoardDrawContext } from "./context.js";
-import type { ControllerChoiceView, PlayConfirmationView, SourceChoiceView } from "./controller.js";
+import type {
+  AllianceHelpView,
+  ControllerChoiceView,
+  FormChoiceView,
+  PlayConfirmationView,
+  SourceChoiceView,
+} from "./controller.js";
 
 /** The source bar is a button row plus one line of consequence under each button. */
 export const SOURCE_BAR_NOTE = 18;
@@ -113,6 +119,63 @@ export function drawPlayConfirmBar(ctx: BoardDrawContext, rect: Rect, confirmati
 }
 
 /**
+ * "[Hero] — approve spending [cards]? — Approve / Decline", over the hand, once per helping seat, in a hot-seat
+ * pass-the-controller moment (docs/phase7-wave4.md §4 Q10; RRG 1.8 "Alliance", p. 6). Framed exactly like the free-
+ * play confirm bar for the same reason: a play is half-made and waiting on one more yes, from someone other than
+ * the payer this time — "1 OF 2" on the right names how many helpers are still owed an answer.
+ */
+export function drawAllianceHelpBar(ctx: BoardDrawContext, rect: Rect, help: AllianceHelpView): void {
+  const { scene, controller } = ctx;
+  const g = scene.add.graphics();
+  g.fillStyle(accent.heroRed.hex, 1).fillRect(rect.x, rect.y, rect.width, rect.height);
+  g.fillStyle(surface.ink.hex, 1).fillRect(rect.x, rect.y, rect.width, 3);
+
+  const gap = 6;
+  const buttonWidth = Math.max(72, Math.min(130, rect.width * 0.24));
+  const declineX = rect.x + rect.width - buttonWidth - 10;
+  const approveX = declineX - gap - buttonWidth;
+  const countWidth = 44;
+  const countX = approveX - gap - countWidth;
+
+  const spent = help.cardNames.length > 0 ? help.cardNames.join(", ") : "their cards";
+  const title = scene.add
+    .text(
+      rect.x + 12,
+      rect.y + rect.height / 2,
+      `${help.heroName} — approve spending ${spent}?`,
+      textStyle(typeRole.barTitle, surface.paper.hex),
+    )
+    .setOrigin(0, 0.5)
+    .setLetterSpacing(1);
+  fitText(title, countX - gap - (rect.x + 12), typeRole.barTitle.size);
+
+  scene.add
+    .text(countX, rect.y + rect.height / 2, `${help.total - help.remaining + 1} OF ${help.total}`, {
+      ...textStyle(typeRole.label, surface.paper.hex, 0.85),
+      fontSize: "11px",
+    })
+    .setOrigin(0, 0.5)
+    .setWordWrapWidth(countWidth);
+
+  ctx.frame.buttons.push(
+    new McButton(scene, {
+      kind: "secondary",
+      label: "Approve",
+      type: typeRole.label,
+      rect: { x: approveX, y: rect.y + 4, width: buttonWidth, height: rect.height - 8 },
+      onClick: () => void controller.approveAllianceHelp(),
+    }),
+    new McButton(scene, {
+      kind: "quiet",
+      label: "Decline",
+      type: typeRole.label,
+      rect: { x: declineX, y: rect.y + 4, width: buttonWidth, height: rect.height - 8 },
+      onClick: () => controller.declineAllianceHelp(),
+    }),
+  );
+}
+
+/**
  * "Attack with — Spider-Man · Black Cat — Cancel", over the hand, when more than one character could make the
  * basic attack (or thwart) the player just pressed.
  *
@@ -183,6 +246,58 @@ export function drawSourceBar(ctx: BoardDrawContext, rect: Rect, choice: SourceC
       label: "Cancel",
       type: typeRole.label,
       rect: { x: rect.x + rect.width - cancelWidth - 10, y: rect.y + 4, width: cancelWidth, height: buttonHeight },
+      onClick: () => controller.cancel(),
+    }),
+  );
+}
+
+/**
+ * "Which form? — Density Form · Mass Form · Alter-ego — Cancel", over the hand, when Change Form is pressed and
+ * more than one destination is legal: Spectrum's energy/density/mass forms, Ant-Man/Wasp's Giant form
+ * (`view/change-form-choice.ts`). Framed exactly like the controller/source bars for the same reason — a decision
+ * is open and the hand is the instrument of it, not a dialog. Each form dispatches straight away: unlike an
+ * attack/thwart source, a form change needs no target to aim afterward.
+ */
+export function drawFormBar(ctx: BoardDrawContext, rect: Rect, choice: FormChoiceView): void {
+  const { scene, controller } = ctx;
+  const g = scene.add.graphics();
+  g.fillStyle(accent.heroRed.hex, 1).fillRect(rect.x, rect.y, rect.width, rect.height);
+  g.fillStyle(surface.ink.hex, 1).fillRect(rect.x, rect.y, rect.width, 3);
+
+  const narrow = rect.width < 640;
+  const titleWidth = narrow ? 10 : Math.min(160, rect.width * 0.2);
+  if (!narrow) {
+    const title = scene.add
+      .text(rect.x + 12, rect.y + rect.height / 2, "Which form?", textStyle(typeRole.barTitle, surface.paper.hex))
+      .setOrigin(0, 0.5)
+      .setLetterSpacing(1);
+    fitText(title, titleWidth - 16, typeRole.barTitle.size);
+  }
+
+  const cancelWidth = Math.max(64, Math.min(110, rect.width * 0.12));
+  const gap = 6;
+  const left = rect.x + titleWidth;
+  const right = rect.x + rect.width - cancelWidth - 10 - gap;
+  const count = Math.max(1, choice.sources.length);
+  const width = Math.max(48, (right - left - gap * (count - 1)) / count);
+
+  choice.sources.forEach((source, index) => {
+    ctx.frame.buttons.push(
+      new McButton(scene, {
+        kind: "secondary",
+        label: source.label,
+        type: typeRole.label,
+        rect: { x: left + index * (width + gap), y: rect.y + 4, width, height: rect.height - 8 },
+        onClick: () => controller.chooseForm(source),
+      }),
+    );
+  });
+  ctx.frame.buttons.push(
+    new McButton(scene, {
+      kind: "quiet",
+      label: "Cancel",
+      type: typeRole.label,
+      rect: { x: rect.x + rect.width - cancelWidth - 10, y: rect.y + 4, width: cancelWidth, height: rect.height - 8 },
       onClick: () => controller.cancel(),
     }),
   );

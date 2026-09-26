@@ -96,4 +96,21 @@ describe("artFor", () => {
     expect(artFor(rest as AnyCard, { kind: "front" })).toBeNull();
     expect(artFor(undefined, { kind: "front" })).toBeNull();
   });
+
+  it("returns null for a villain stage with no image, instead of falling back to another stage's", () => {
+    // The shape `PackCuration.artUnavailable` exempts (docs/phase7-wave4.md §1): a face genuinely has no
+    // MarvelCDB reference, so the emitted card carries no `image` for it at all. `card.images` is always absent
+    // on a villain (every stage is its own printed card, `normalize/villains.ts`'s own "No card-level images"
+    // comment), so `imageRefFor`'s `?? card.images?.front` fallback has nothing to fall back to either — this is
+    // the same "no reference at all" case the front-face test above covers, exercised for `villainStage` since
+    // that's the face kind the six art-less mts faces actually use. The client draws its generated-frame fallback
+    // for a `null` `ArtSource` (`card-art.ts`'s `request`), not a crash or another card's art.
+    const villain = CORE_CARDS.find((card): card is VillainCard => card.type === "villain")!;
+    const { image: _image, ...stageWithoutArt } = villain.sides[0]!.stages[0]!;
+    const artless: VillainCard = {
+      ...villain,
+      sides: [{ ...villain.sides[0]!, stages: [stageWithoutArt, ...villain.sides[0]!.stages.slice(1)] }],
+    };
+    expect(artFor(artless, { kind: "villainStage", sideIndex: 0, stageIndex: 0 })).toBeNull();
+  });
 });

@@ -1,6 +1,12 @@
 import { describe, expect, test } from "vitest";
 import { storyFor } from "../campaign/story.js";
-import { comicReaderViewOf, nextComicBeat, prevComicBeat, resolveComicBeats } from "./comic-reader-model.js";
+import {
+  comicReaderViewOf,
+  nextComicBeat,
+  prevComicBeat,
+  resolveComicBeats,
+  visibleComicBeats,
+} from "./comic-reader-model.js";
 
 describe("comic reader model", () => {
   const story = storyFor("gmw")!;
@@ -93,5 +99,37 @@ describe("a lettered box's own pages (MC10's guided view)", () => {
     const view = comicReaderViewOf(trorsSteps, trorsSteps.length - 1, []);
     expect(view.isLast).toBe(true);
     expect(view.ctaLabel).toBe("SUIT UP ▸");
+  });
+});
+
+describe("visibleComicBeats", () => {
+  const mtsStory = storyFor("mts")!;
+  const towerDefense = mtsStory.issues.find((issue) => issue.nodeId === "tower-defense")!;
+  const steps = resolveComicBeats(mtsStory.pages!, towerDefense.comicBeats!);
+
+  // Issue #2's own closing beat (`stories/mts.ts`'s "the whole spread, pulled all the way back"): the whole
+  // 1920×960 page, `wideOnly` — a phone's own narrow reading area would show it as a thumbnail, not a widening
+  // pull-back, so the issue ends one beat earlier there instead.
+  test("a wideOnly beat stays in on desktop/tablet", () => {
+    const wide = visibleComicBeats(steps, true);
+    expect(wide).toHaveLength(steps.length);
+    expect(wide.at(-1)!.beat.wideOnly).toBe(true);
+  });
+
+  test("a wideOnly beat drops on a true phone, ending the issue one beat earlier", () => {
+    const narrow = visibleComicBeats(steps, false);
+    expect(narrow).toHaveLength(steps.length - 1);
+    expect(narrow.at(-1)!.beat.wideOnly).toBeUndefined();
+    // The same beat order otherwise — only the trailing wideOnly beat is missing, nothing reordered or dropped
+    // from the middle.
+    expect(narrow.map((step) => step.beatIndexInPage)).toEqual(steps.slice(0, -1).map((step) => step.beatIndexInPage));
+  });
+
+  test("the view built from the narrowed list ends on SUIT UP at the right beat, not a stale total", () => {
+    const narrow = visibleComicBeats(steps, false);
+    const view = comicReaderViewOf(narrow, narrow.length - 1, mtsStory.castIdentityIds);
+    expect(view.isLast).toBe(true);
+    expect(view.ctaLabel).toBe("SUIT UP ▸");
+    expect(view.step.beatLabel).toBe(`BEAT ${narrow.length} OF ${narrow.length}`);
   });
 });

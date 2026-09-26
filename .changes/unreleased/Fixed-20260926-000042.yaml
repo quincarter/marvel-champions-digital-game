@@ -1,0 +1,3 @@
+kind: Fixed
+body: 'GMW''s expert-campaign HP restore (hp-set, the optional heal) now runs before Collector II''s own When Revealed damage, per ruling June 2, 2026 (3) #2, instead of after where it silently erased that damage'
+time: 2026-09-26T00:00:42.099999-04:00

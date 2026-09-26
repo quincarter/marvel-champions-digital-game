@@ -10,7 +10,7 @@ import {
   updateMainSchemeState,
 } from "../effects.js";
 import type { FrameId, InstanceId, PlayerId } from "../ids.js";
-import { hasKeyword } from "../keywords.js";
+import { hasKeyword, isPermanent } from "../keywords.js";
 import {
   characterProfile,
   discardZoneFor,
@@ -50,6 +50,15 @@ const advancePending = (state: GameState, schemeId: InstanceId): boolean =>
       frame.effects[0]?.kind === "advanceMainScheme",
   );
 
+/** A "would be completed" event for this scheme is already on the stack (docs/phase7-wave4.md §3.4). */
+const completingPending = (state: GameState, schemeId: InstanceId): boolean =>
+  state.stack.some(
+    (frame) =>
+      frame.kind === "event" &&
+      frame.event.kind === "mainSchemeCompleting" &&
+      frame.event.schemeInstanceId === schemeId,
+  );
+
 /**
  * The stage a main scheme advances to by default: the next stage, when exactly one stage carries the next stage number.
  * `null` when there is none (the final stage) and `"alternatives"` when several do (The Once and Future Kang's four
@@ -69,6 +78,27 @@ export function nextMainSchemeStage(state: GameState, scheme: MainSchemeState): 
   return group.length > 1 ? "alternatives" : first.index;
 }
 
+// A stage in play beside the central one (Tower Defense, docs/phase7-wave4.md §3.2) completes like the central one:
+// its final stage loses, any other advances. Only a separate game area's own stage is left to its card text.
+function completionNextStage(state: GameState, scheme: MainSchemeState): number | "alternatives" | null {
+  const shared =
+    scheme.instanceId === state.mainScheme.instanceId ||
+    (state.extraMainSchemes ?? []).some((extra) => extra.instanceId === scheme.instanceId);
+  return shared ? nextMainSchemeStage(state, scheme) : "alternatives";
+}
+
+// "If this stage is completed, the players lose the game." on a stage that is not the last (docs/phase7-wave3.md
+// §3.37): its completion loses exactly as the final stage's does (RRG 1.8 "Main Scheme", p. 27), not advance.
+function completionLoses(state: GameState, scheme: MainSchemeState, next: number | "alternatives" | null): boolean {
+  return next === null || mainSchemeStageOf(state, scheme).completionLoses === true;
+}
+
+/** Whether completing this main scheme stage now would lose the game, rather than advance it or leave it to card text. */
+export function mainSchemeCompletionLoses(state: GameState, schemeId: InstanceId): boolean {
+  const scheme = mainSchemeStateOf(state, schemeId);
+  return !!scheme && completionLoses(state, scheme, completionNextStage(state, scheme));
+}
+
 /** Checks every main scheme in play (central, then each area's) for completion. */
 export function checkMainSchemeCompletion(ctx: Ctx): void {
   for (const scheme of mainSchemeStates(ctx.state)) {
@@ -79,14 +109,44 @@ export function checkMainSchemeCompletion(ctx: Ctx): void {
 
 function checkOneMainScheme(ctx: Ctx, schemeId: InstanceId): void {
   const scheme = mainSchemeStateOf(ctx.state, schemeId);
-  if (!scheme || scheme.completed || advancePending(ctx.state, schemeId)) return;
+  if (!scheme || scheme.completed || advancePending(ctx.state, schemeId) || completingPending(ctx.state, schemeId))
+    return;
   const stage = mainSchemeStageOf(ctx.state, scheme);
   // RRG 1.8 "Dash (Value)" (p. 15): a dashed target threat "cannot be used", so the stage never completes by threat (The
   // Master of Time 2B; docs/phase7-wave2.md §3.4).
   if (stage.dashedValues?.includes("targetThreat")) return;
   const target = mainSchemeValue(ctx.state, "targetThreat", ctx.deps, scheme);
   if (mustInstance(ctx.state, schemeId).threat < target) return;
+  // "When this stage would be completed, … instead" (docs/phase7-wave4.md §3.4): with an ability listening, the
+  // completion is an event with an interrupt window, applied by `applyMainSchemeCompleting`. With none it happens here,
+  // exactly as before.
+  const completing: TriggerEvent = {
+    kind: "mainSchemeCompleting",
+    schemeInstanceId: schemeId,
+    stageIndex: scheme.stageIndex,
+  };
+  if (heard(ctx.state, ctx.deps, completing)) {
+    pushFrames(ctx, [eventFrame(ctx, completing)]);
+    return;
+  }
   completeMainScheme(ctx, schemeId);
+}
+
+/**
+ * The apply step of `mainSchemeCompleting`: the stage is completed if it still would be — the same stage, not yet
+ * completed, and still at or above its target threat (an interrupt that removed the threat "instead" has also cancelled
+ * the event, and either way nothing completes). Returns whether it happened.
+ */
+export function applyMainSchemeCompleting(
+  ctx: Ctx,
+  event: Extract<TriggerEvent, { kind: "mainSchemeCompleting" }>,
+): boolean {
+  const scheme = mainSchemeStateOf(ctx.state, event.schemeInstanceId);
+  if (!scheme || scheme.completed || scheme.stageIndex !== event.stageIndex || ctx.state.outcome) return false;
+  const target = mainSchemeValue(ctx.state, "targetThreat", ctx.deps, scheme);
+  if (mustInstance(ctx.state, event.schemeInstanceId).threat < target) return false;
+  completeMainScheme(ctx, event.schemeInstanceId);
+  return true;
 }
 
 /**
@@ -108,10 +168,8 @@ export function completeMainScheme(ctx: Ctx, schemeId: InstanceId): void {
     stageIndex: scheme.stageIndex,
     ...(central ? {} : { schemeInstanceId: schemeId }),
   });
-  const next = central ? nextMainSchemeStage(ctx.state, scheme) : "alternatives";
-  // "If this stage is completed, the players lose the game." on a stage that is not the last (docs/phase7-wave3.md
-  // §3.37): its completion loses exactly as the final stage's does (RRG 1.8 "Main Scheme", p. 27), not advance.
-  if (next === null || mainSchemeStageOf(ctx.state, scheme).completionLoses === true) {
+  const next = completionNextStage(ctx.state, scheme);
+  if (next === null || completionLoses(ctx.state, scheme, next)) {
     updateMainSchemeState(ctx, schemeId, (s) => ({ ...s, completed: true }));
     endGame(ctx, { result: "loss", reason: "mainSchemeCompleted" });
     return;
@@ -225,15 +283,24 @@ interface DefeatHint {
   readonly sourceInstanceId?: InstanceId | null;
   /** The damage was attack damage: "defeated by an enemy attack" (Regroup; docs/phase7-wave3.md §3.45). */
   readonly fromAttack?: boolean;
+  /** The damage event's own frame: its `defeated` result, so `dealDamage`'s `<bind>.defeated` reads it (§3.54). */
+  readonly reportFrameId?: FrameId | null;
 }
 
+/**
+ * A defeat of this card is already under way: its event is on the stack, or it has been defeated and is waiting to leave
+ * play after its When Defeated abilities (RRG 1.8 p. 48). A When Defeated that deals damage ("When Defeated: deal 1
+ * damage to the engaged player's identity") sweeps again while the defeated card is still in play at zero remaining hit
+ * points, and it must not be defeated a second time.
+ */
 const defeatPending = (state: GameState, id: InstanceId): boolean =>
   state.stack.some(
     (f) =>
-      f.kind === "event" &&
-      f.event.kind === "characterDefeated" &&
-      f.event.instanceId === id &&
-      (f.stage === "interrupts" || f.stage === "apply"),
+      (f.kind === "event" &&
+        f.event.kind === "characterDefeated" &&
+        f.event.instanceId === id &&
+        (f.stage === "interrupts" || f.stage === "apply")) ||
+      (f.kind === "effects" && f.defeatedLeaving === id),
   );
 
 /**
@@ -258,11 +325,19 @@ export function checkDefeats(ctx: Ctx, hints?: DefeatHint | readonly DefeatHint[
   // docs/phase7-wave3.md §4 Q1). So while an identity falls in this sweep, the villain's defeat waits on the stack
   // until the eliminations below have applied: the last one ends the game as a loss, and otherwise the villain falls.
   const identityFalls = playerOrder(ctx.state).some((player) => identityAtZero(ctx, player.identity.instanceId));
-  for (const { instanceId } of undefeatedVillains(ctx.state)) {
+  // Every villain's defeat is decided before any applies (docs/phase7-wave4.md §3.3). "Proxima Midnight cannot be
+  // defeated while Corvus Glaive has any hit points remaining" and its mirror (Tower Defense, `mts` 21092–21097; the
+  // Four Horsemen, `aoa` 45081–45084): with both at zero, both fall, because damage is dealt simultaneously (ruling, Jun
+  // 2, 2026 (2) answer 1, on RRG 1.8 "Damage", p. 14). Applying one first would advance it to a fresh stage whose hit
+  // points then protect the other.
+  const falling = undefeatedVillains(ctx.state).filter(({ instanceId }) => {
     const villainProfile = characterProfile(ctx.state, instanceId, ctx.deps);
     const villain = getInstance(ctx.state, instanceId);
-    if (!villainProfile || !villain || villain.damage < villainProfile.maxHp) continue;
-    if (cannotBeDefeated(ctx.state, ctx.deps, instanceId) || defeatPending(ctx.state, instanceId)) continue;
+    if (!villainProfile || !villain || villain.damage < villainProfile.maxHp) return false;
+    return !cannotBeDefeated(ctx.state, ctx.deps, instanceId) && !defeatPending(ctx.state, instanceId);
+  });
+  const together = falling.length > 1;
+  for (const { instanceId } of falling) {
     const hint = hintFor(instanceId);
     const defeat: TriggerEvent = {
       kind: "characterDefeated",
@@ -273,10 +348,12 @@ export function checkDefeats(ctx: Ctx, hints?: DefeatHint | readonly DefeatHint[
             ...(hint.defeatedByPlayerId ? { defeatedByPlayerId: hint.defeatedByPlayerId } : {}),
             ...(hint.sourceInstanceId ? { sourceInstanceId: hint.sourceInstanceId } : {}),
             ...(hint.fromAttack ? { fromAttack: true as const } : {}),
+            ...(hint.reportFrameId ? { reportFrameId: hint.reportFrameId } : {}),
           }
         : {}),
+      ...(together ? { protectionChecked: true as const } : {}),
     };
-    if (identityFalls || heard(ctx.state, ctx.deps, defeat)) {
+    if (identityFalls || together || heard(ctx.state, ctx.deps, defeat)) {
       villainDefeats.push(eventFrame(ctx, defeat));
       continue;
     }
@@ -295,7 +372,7 @@ export function checkDefeats(ctx: Ctx, hints?: DefeatHint | readonly DefeatHint[
       if (!profile || !instance) continue;
       if (profile.kind !== "ally" && profile.kind !== "minion") continue;
       if (instance.damage < profile.maxHp) continue;
-      if (hasKeyword(ctx.state, id, "permanent", ctx.deps)) continue;
+      if (isPermanent(ctx.state, id, ctx.deps)) continue;
       if (cannotBeDefeated(ctx.state, ctx.deps, id)) continue;
       if (defeatPending(ctx.state, id)) continue;
       const hint = hintFor(id);
@@ -306,6 +383,7 @@ export function checkDefeats(ctx: Ctx, hints?: DefeatHint | readonly DefeatHint[
             ...(hint.defeatedByPlayerId ? { defeatedByPlayerId: hint.defeatedByPlayerId } : {}),
             ...(hint.sourceInstanceId ? { sourceInstanceId: hint.sourceInstanceId } : {}),
             ...(hint.fromAttack ? { fromAttack: true as const } : {}),
+            ...(hint.reportFrameId ? { reportFrameId: hint.reportFrameId } : {}),
           }
         : {};
       defeatFrames.push(eventFrame(ctx, { kind: "characterDefeated", instanceId: id, ...context }));
@@ -338,6 +416,7 @@ export function checkDefeats(ctx: Ctx, hints?: DefeatHint | readonly DefeatHint[
             ...(hint.defeatedByPlayerId ? { defeatedByPlayerId: hint.defeatedByPlayerId } : {}),
             ...(hint.sourceInstanceId ? { sourceInstanceId: hint.sourceInstanceId } : {}),
             ...(hint.fromAttack ? { fromAttack: true as const } : {}),
+            ...(hint.reportFrameId ? { reportFrameId: hint.reportFrameId } : {}),
           }
         : {}),
     };
@@ -384,7 +463,12 @@ export function defeatVillainStage(ctx: Ctx, villainId: InstanceId): StackFrame 
     ctx.state.firstPlayerId,
   );
   if (nextIndex > villain.lastStageIndex || nextIndex >= villainStageCount(ctx.state, villainId)) {
+    // RRG 1.8 "Victory X" (p. 46): a defeated character with the keyword is placed in the victory display — here the
+    // villain's last stage card (Loki I, `mts` 21160–21164; the Brotherhood of Mutants, `mut_gen` 32121–32124;
+    // docs/phase7-wave4.md §3.7). A defeated villain is out of play either way.
+    const toVictoryDisplay = hasKeyword(ctx.state, villainId, "victory", ctx.deps);
     updateVillain(ctx, villainId, (v) => ({ ...v, defeated: true }));
+    if (toVictoryDisplay) ctx.state = { ...ctx.state, victoryDisplay: [...ctx.state.victoryDisplay, villainId] };
     emit(ctx, { type: "characterDefeated", instanceId: villainId, cardId: villain.cardId });
     pushFrames(ctx, whenDefeated);
     // `victory: "cardAbility"` (The Once and Future Kang): only a card ability wins (docs/phase7-wave2.md §3.4).
@@ -435,8 +519,9 @@ function removeDefeatedVillain(ctx: Ctx, villainId: InstanceId): StackFrame | nu
   for (const attachment of [...instance.attachments]) discardFromPlay(ctx, attachment);
   for (const boost of [...instance.boostCards]) moveCard(ctx, boost, discardZoneFor(ctx.state, boost), "top");
   for (const tucked of [...instance.tucked]) {
-    moveCard(ctx, tucked, discardZoneFor(ctx.state, tucked), "top");
+    // Faceup first: a discard into an emptied deck's discard pile can reset that deck at once (`settlePlayerDecks`).
     updateInstance(ctx, tucked, (i) => ({ ...i, faceup: true }));
+    moveCard(ctx, tucked, discardZoneFor(ctx.state, tucked), "top");
   }
 
   const scheme = villain.signatureSideSchemeId;
@@ -514,7 +599,7 @@ export function eliminatePlayer(ctx: Ctx, playerId: PlayerId): void {
   const nextSeat = nextClockwisePlayer(ctx.state, playerId);
   // Step 3: a card in play there that the player does not own, and is permanent (the one case the keyword does not stop).
   const notOwnedPermanent = (id: InstanceId): boolean =>
-    getInstance(ctx.state, id)?.ownerId !== playerId && hasKeyword(ctx.state, id, "permanent", ctx.deps);
+    getInstance(ctx.state, id)?.ownerId !== playerId && isPermanent(ctx.state, id, ctx.deps);
   const reattachOrRemove = (id: InstanceId): void => {
     const card = ctx.state.cardPool[mustInstance(ctx.state, id).cardId];
     const attachesTo = card && "attachesTo" in card ? card.attachesTo : undefined;
@@ -556,8 +641,9 @@ export function eliminatePlayer(ctx: Ctx, playerId: PlayerId): void {
   for (const id of [...mustPlayer(ctx.state, playerId).dealtEncounter]) {
     moveCard(ctx, id, discardZoneFor(ctx.state, id), "top");
   }
+  // An event, or an Invocation card mid-Special (`executeResolveSpecials`), which goes to its own deck's discard pile.
   for (const id of [...mustPlayer(ctx.state, playerId).resolving]) {
-    moveCard(ctx, id, { kind: "discard", playerId }, "top");
+    moveCard(ctx, id, discardZoneFor(ctx.state, id), "top");
   }
 
   emit(ctx, { type: "playerEliminated", playerId });

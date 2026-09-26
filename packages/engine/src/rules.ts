@@ -1,19 +1,61 @@
 import type { EngineDeps } from "./abilities.js";
 import type { InstanceId, PlayerId } from "./ids.js";
 import { hasKeyword } from "./keywords.js";
-import { mainSchemeFor, minionsEngagedWith, villainOf } from "./query.js";
+import type { SchemeIcon } from "@mc/content";
 import {
+  areaOfCard,
+  cardOf,
+  countSchemeIcons,
+  currentName,
+  getInstance,
+  mainSchemeFor,
+  mainSchemeStageOf,
+  minionsEngagedWith,
+  sameGameArea,
+  sharedMainSchemes,
+  villainOf,
+} from "./query.js";
+import {
+  activeAbilityRefs,
   activeRules,
   cardsInPlay,
   categoriesOf,
+  focusedMainSchemeId,
   contextArea,
+  evaluate,
+  isPlayerCard,
   matchesQuery,
   resolveRef,
   rulePlayers,
   type EffectContext,
 } from "./select.js";
+import { combineRequirements, type ResolvedRequirement } from "./resources.js";
 import type { AttackKeyword, CardDestination } from "./spec.js";
-import type { Form, GameState } from "./state.js";
+import type { Form, GameAreaState, GameState } from "./state.js";
+
+/**
+ * Whether a revealed encounter card's effects are beyond canceling: an "uncancellable" ability of its own ("This effect
+ * cannot be canceled.", a player card revealed from the encounter deck), a `cannotBeCanceled` rule on the card itself
+ * (read wherever the card is, since a revealed treachery is not in play), or one in play that matches it ("Treacheries
+ * cannot be canceled."). docs/phase7-wave4.md §3.14.
+ */
+export function revealCannotBeCanceled(state: GameState, deps: EngineDeps, id: InstanceId): boolean {
+  const own: EffectContext = { selfInstanceId: id, controllerId: null, event: null, bindings: {}, deps };
+  for (const ref of activeAbilityRefs(state, id, deps)) {
+    const definition = deps.abilities[ref.id];
+    if (!definition) continue;
+    if (definition.uncancellable && definition.trigger.kind === "whenRevealed") return true;
+    if (definition.trigger.kind !== "constant") continue;
+    for (const rule of definition.trigger.rules ?? []) {
+      if (rule.kind !== "cannotBeCanceled") continue;
+      if (rule.while && !evaluate(state, rule.while, own)) continue;
+      if (matchesQuery(state, id, rule.cards, own)) return true;
+    }
+  }
+  return activeRules(state, deps, "cannotBeCanceled").some(({ rule, context }) =>
+    matchesQuery(state, id, rule.cards, context),
+  );
+}
 
 /** "X cannot take damage [while …] [from …]". `sources` are the damage's source and the card it came through. */
 export function cannotTakeDamage(
@@ -28,6 +70,17 @@ export function cannotTakeDamage(
     const query = rule.fromSource;
     return sources.some((id) => id !== null && id !== undefined && matchesQuery(state, id, query, context));
   });
+}
+
+/**
+ * The card whose "Prevent all damage to X" constant (`RuleSpec preventAllDamage`, docs/phase7-wave4.md §3.20) covers
+ * this target, or null: the first such rule in the order constants are read.
+ */
+export function damagePreventerOf(state: GameState, deps: EngineDeps, targetId: InstanceId): InstanceId | null {
+  const found = activeRules(state, deps, "preventAllDamage").find(({ rule, context }) =>
+    matchesQuery(state, targetId, rule.target, context),
+  );
+  return found ? found.context.selfInstanceId : null;
 }
 
 /**
@@ -57,15 +110,117 @@ export const threatCannotBeRemoved = (
 export const cannotThwart = (state: GameState, deps: EngineDeps, playerId: PlayerId): boolean =>
   activeRules(state, deps, "cannotThwart").some((active) => rulePlayers(state, active.rule, active).includes(playerId));
 
-/** "You cannot change form." */
-export const cannotChangeForm = (state: GameState, deps: EngineDeps, playerId: PlayerId): boolean =>
-  activeRules(state, deps, "cannotChangeForm").some((active) =>
-    rulePlayers(state, active.rule, active).includes(playerId),
+/**
+ * The card's own "You cannot choose to discard this card from your hand" (`cannotChooseToDiscard` on a constant that works
+ * in hand, docs/phase7-wave4.md §3.13).
+ */
+export function cannotChooseToDiscard(state: GameState, deps: EngineDeps, id: InstanceId): boolean {
+  const card = cardOf(state, id);
+  if (!card || !("abilities" in card)) return false;
+  return card.abilities.some((ref) => {
+    const definition = deps.abilities[ref.id];
+    return (
+      definition?.trigger.kind === "constant" &&
+      definition.activeIn === "hand" &&
+      (definition.trigger.rules ?? []).some((rule) => rule.kind === "cannotChooseToDiscard")
+    );
+  });
+}
+
+/** A revealed environment goes to the revealer's play area (`entersRevealersPlayArea`, docs/phase7-wave4.md §3.16). */
+export const entersRevealersPlayArea = (state: GameState, deps: EngineDeps, id: InstanceId): boolean =>
+  activeRules(state, deps, "entersRevealersPlayArea").some(({ rule, context }) =>
+    matchesQuery(state, id, rule.cards, context),
+  );
+
+/** "If Odin leaves play, the players lose the game." (`leavingPlayLoses`, docs/phase7-wave4.md §3.8), read before it goes. */
+export const leavingPlayLoses = (state: GameState, deps: EngineDeps, id: InstanceId): boolean =>
+  activeRules(state, deps, "leavingPlayLoses").some(({ rule, context }) =>
+    matchesQuery(state, id, rule.target, context),
+  );
+
+/**
+ * Whether `hostId` may take `attachmentId` as an attachment (`cannotHaveAttachments`, docs/phase7-wave4.md §3.8). An
+ * attachment is an encounter card when no player owns it, an upgrade when it is a player's upgrade.
+ */
+export function canHaveAttached(
+  state: GameState,
+  deps: EngineDeps,
+  hostId: InstanceId,
+  attachmentId: InstanceId | null,
+): boolean {
+  const attaching = attachmentId !== null ? getInstance(state, attachmentId) : undefined;
+  const card = attachmentId !== null ? cardOf(state, attachmentId) : undefined;
+  const encounter = attaching !== undefined && attaching.ownerId === null;
+  const upgrade = card?.type === "upgrade";
+  return !activeRules(state, deps, "cannotHaveAttachments").some(
+    ({ rule, context }) =>
+      (rule.from === undefined || (rule.from === "encounter" ? encounter : upgrade)) &&
+      matchesQuery(state, hostId, rule.target, context),
+  );
+}
+
+/**
+ * The main scheme a villain's scheme activation places its threat on when a main scheme in play belongs to it
+ * (`MainSchemeStage.villainOf`, "Proxima Midnight's Scheme."; MC21 p. 10: "When either of the two villains schemes, place
+ * the threat on their matching main scheme card only"), and a minion's when a `focusedMainScheme` names one (errata, RRG
+ * 1.8 p. 67). Null when neither applies: the enemy's ordinary main scheme. docs/phase7-wave4.md §3.2.
+ */
+export function pairedMainSchemeId(state: GameState, deps: EngineDeps, enemyId: InstanceId): InstanceId | null {
+  if ((state.extraMainSchemes ?? []).length === 0) return null;
+  if (villainOf(state, enemyId)) {
+    const name = currentName(state, enemyId);
+    const own = sharedMainSchemes(state).find((scheme) => mainSchemeStageOf(state, scheme).villainOf === name);
+    return own?.instanceId ?? null;
+  }
+  return focusedMainSchemeId(state, deps);
+}
+
+/**
+ * "You cannot change form." (no `formType`: the hero/alter-ego change) / "You cannot change energy forms." (`formType`
+ * given: that additional form; docs/phase7-wave4.md §3.1). Each rule blocks only the kind of change it names.
+ */
+export const cannotChangeForm = (state: GameState, deps: EngineDeps, playerId: PlayerId, formType?: string): boolean =>
+  activeRules(state, deps, "cannotChangeForm").some(
+    (active) => active.rule.formType === formType && rulePlayers(state, active.rule, active).includes(playerId),
   );
 
 /** "… cannot ready." */
-export const cannotReady = (state: GameState, deps: EngineDeps, id: InstanceId): boolean =>
-  activeRules(state, deps, "cannotReady").some(({ rule, context }) => matchesQuery(state, id, rule.target, context));
+/**
+ * "… cannot ready" rules that stop this ready. `sourceInstanceId` is the card whose ability readies it (null for the
+ * end-of-phase ready or when unknown): a `bySource: "playerCard"` rule stops only a ready a player card caused.
+ */
+export const cannotReady = (
+  state: GameState,
+  deps: EngineDeps,
+  id: InstanceId,
+  sourceInstanceId: InstanceId | null = null,
+): boolean =>
+  activeRules(state, deps, "cannotReady").some(
+    ({ rule, context }) =>
+      (rule.bySource !== "playerCard" || isPlayerCard(state, sourceInstanceId)) &&
+      matchesQuery(state, id, rule.target, context),
+  );
+
+/**
+ * The resources `readierId` must spend to ready this card (`RuleSpec readyCost`, docs/phase7-wave4.md §3.19), every
+ * applicable rule added together, or null when none applies.
+ */
+export function readyCostFor(
+  state: GameState,
+  deps: EngineDeps,
+  id: InstanceId,
+  readierId: PlayerId,
+): ResolvedRequirement | null {
+  let total: ResolvedRequirement | null = null;
+  for (const active of activeRules(state, deps, "readyCost")) {
+    const { rule, context } = active;
+    if (!matchesQuery(state, id, rule.target, context)) continue;
+    if (rule.player && !rulePlayers(state, { player: rule.player }, active).includes(readierId)) continue;
+    total = combineRequirements(total ?? 0, rule.resources);
+  }
+  return total;
+}
 
 /** How many additional times this player resolves each When Revealed ability they reveal (Media Coverage). */
 export const whenRevealedRepeats = (state: GameState, deps: EngineDeps, playerId: PlayerId): number =>
@@ -393,8 +548,57 @@ export function accelerationTokenRedirect(state: GameState, deps: EngineDeps, sc
   return null;
 }
 
+/** "Players cannot discard [these cards]" (`RuleSpec playersCannotDiscard`, docs/phase7-wave4.md §3.44). */
+export const playersCannotDiscard = (state: GameState, deps: EngineDeps, id: InstanceId): boolean =>
+  activeRules(state, deps, "playersCannotDiscard").some(({ rule, context }) =>
+    matchesQuery(state, id, rule.target, context),
+  );
+
+/** "X cannot defend [against Y's attacks]" (`RuleSpec cannotDefend`, docs/phase7-wave4.md §3.31). */
+export const cannotDefend = (
+  state: GameState,
+  deps: EngineDeps,
+  characterId: InstanceId,
+  attackerId: InstanceId | null,
+): boolean =>
+  activeRules(state, deps, "cannotDefend").some(
+    ({ rule, context }) =>
+      matchesQuery(state, characterId, rule.target, context) &&
+      (rule.attacker === undefined || (attackerId !== null && matchesQuery(state, attackerId, rule.attacker, context))),
+  );
+
 /** "The engaged player must defend against [this enemy]'s attacks with an ally they control, if able" (Melter). */
 export const mustDefendWithAlly = (state: GameState, deps: EngineDeps, attackerId: InstanceId): boolean =>
   activeRules(state, deps, "mustDefendWithAlly").some(({ rule, context }) =>
     matchesQuery(state, attackerId, rule.attacker, context),
   );
+
+/**
+ * Icons cards in play gain from constant abilities ("Each enemy in play gains 1 acceleration icon", `RuleSpec gainsIcon`,
+ * docs/phase7-wave4.md §3.57): for each rule, `count` per matching card in play, in `area` when the players are split.
+ */
+export function grantedIcons(
+  state: GameState,
+  deps: EngineDeps,
+  icon: SchemeIcon,
+  area: GameAreaState | null = null,
+): number {
+  let total = 0;
+  const inPlay = cardsInPlay(state);
+  for (const { rule, context } of activeRules(state, deps, "gainsIcon")) {
+    if (rule.icon !== icon) continue;
+    for (const id of inPlay) {
+      if (area && !sameGameArea(area, areaOfCard(state, id))) continue;
+      if (matchesQuery(state, id, rule.target, context)) total += rule.count ?? 1;
+    }
+  }
+  return total;
+}
+
+/** Every `icon` in play, printed (`countSchemeIcons`) and gained (`grantedIcons`): RRG 1.8 "Acceleration Icon" (p. 5). */
+export const iconsInPlay = (
+  state: GameState,
+  deps: EngineDeps,
+  icon: SchemeIcon,
+  area: GameAreaState | null = null,
+): number => countSchemeIcons(state, icon, area) + grantedIcons(state, deps, icon, area);

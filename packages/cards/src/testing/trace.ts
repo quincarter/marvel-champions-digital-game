@@ -13,8 +13,11 @@
  *
  * - **considered** — the engine looked the ability up at all. Legality enumeration reads `.trigger` on every
  *   ability of every card in play (`actions.ts`), so this fires for abilities that were merely *offered*.
- * - **resolved** — the engine read `.effects`, which `resolve/ability.ts:65-67` does at exactly one place:
- *   when the ability's effects are handed to the effect runner. This is the real "it fired" signal.
+ * - **resolved** — the engine read `.effects` to run them: `resolve/ability.ts` `executeAbilityFrame` hands them to
+ *   the effect runner (and a resource ability's effects run with its payment). This is the real "it fired" signal.
+ *   The one other reader is the engine's offer-time check of whether an ability has a valid target
+ *   (`resolve/target-validity.ts` `abilityLacksValidTarget`, RRG 1.8 "Target", p. 42), which runs for abilities
+ *   that are merely offered; a read from inside it is not counted (`readForOffer`).
  *
  * An ability whose card never reached play, or was never revealed, shows up in neither.
  */
@@ -35,6 +38,12 @@ export interface TracedDeps {
 }
 
 /**
+ * Whether the current `.effects` read comes from the engine's offer-time target check rather than from resolving the
+ * ability. That check is `abilityLacksValidTarget`'s direct read, so it is within the default stack trace depth.
+ */
+const readForOffer = (): boolean => new Error().stack?.includes("abilityLacksValidTarget") === true;
+
+/**
  * Wraps `deps` so every ability lookup is recorded. Pass the returned `deps` wherever the test would have
  * passed the real one; the definitions behave identically.
  */
@@ -50,7 +59,7 @@ export function traceAbilities(base: EngineDeps): TracedDeps {
     if (cached) return cached;
     const proxy = new Proxy(definition, {
       get(target, prop, receiver) {
-        if (prop === "effects") resolved.add(id);
+        if (prop === "effects" && !readForOffer()) resolved.add(id);
         return Reflect.get(target, prop, receiver);
       },
     });

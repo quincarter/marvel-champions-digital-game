@@ -41,9 +41,10 @@
  */
 
 import type { AnyCard } from "@mc/content";
+import { DEFAULT_DEPS, type EngineDeps } from "./abilities.js";
 import type { InstanceId, PlayerId } from "./ids.js";
 import { areaOfCard, areaOfPlayer, cardOf, getInstance } from "./query.js";
-import { cardsInPlay } from "./select.js";
+import { activeRules, cardsInPlay } from "./select.js";
 import type { GameState } from "./state.js";
 
 /** The three names RRG 1.8 compares. `null` means the card does not have that name. */
@@ -102,8 +103,11 @@ export function matchingCardInPlay(
   card: AnyCard,
   ignore: ReadonlySet<InstanceId> = new Set(),
   forPlayer: PlayerId | null = null,
+  deps: EngineDeps = DEFAULT_DEPS,
 ): InstanceId | null {
   if (!isUnique(card)) return null;
+  // "The unique rule does not apply to Avengers Tower." (`RuleSpec uniqueRuleExempt`, docs/phase7-wave4.md §3.5).
+  if (activeRules(state, deps, "uniqueRuleExempt").some(({ rule }) => rule.title === card.name)) return null;
   // The Once and Future Kang insert, "Rules Clarifications": "a unique card in one game area places no limitations on
   // the others" (docs/phase7-wave2.md §3.1). `forPlayer` is whose area the card would enter.
   const area = forPlayer ? areaOfPlayer(state, forPlayer) : null;

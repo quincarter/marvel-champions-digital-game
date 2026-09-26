@@ -61,6 +61,8 @@ export const SCENES = {
   unlocks: "UnlocksOverlay",
   /** "Unlock this by hand?" (`scenes/unlock-confirm.ts`), over whichever screen is spending champion points. */
   unlockConfirm: "UnlockConfirmOverlay",
+  /** "End your turn? You can still: …" (`scenes/end-turn-confirm.ts`), over the Board. */
+  endTurnConfirm: "EndTurnConfirmOverlay",
   /** One Extras file or picture (`scenes/extras-viewer.ts`), launched over Extras. */
   extrasViewer: "ExtrasViewerOverlay",
   /** C04: a villain's stage flip told as a comic splash, launched over the Board in a campaign game. */

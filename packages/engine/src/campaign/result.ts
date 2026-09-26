@@ -81,6 +81,14 @@ const removedFromGame = (events: readonly GameEvent[]): readonly InstanceId[] =>
     event.type === "cardMoved" && event.to.kind === "removedFromGame" ? [event.instanceId] : [],
   );
 
+/** Every scheme and character defeated, with the card it was at the moment of defeat (`cardsDefeated`). */
+const defeated = (events: readonly GameEvent[]): readonly { instanceId: InstanceId; cardId: CardId }[] =>
+  events.flatMap((event) =>
+    event.type === "schemeDefeated" || event.type === "characterDefeated"
+      ? [{ instanceId: event.instanceId, cardId: event.cardId }]
+      : [],
+  );
+
 const countOf = (value: QueryValue): number => {
   switch (value.kind) {
     case "cards":
@@ -108,6 +116,13 @@ function evaluateQuery(
       return { kind: "cards", instanceIds: matching(state, enteredPlay(events), query.query, context) };
     case "cardsRemovedFromGame":
       return { kind: "cards", instanceIds: matching(state, removedFromGame(events), query.query, context) };
+    case "cardsDefeated":
+      return {
+        kind: "cards",
+        instanceIds: defeated(events)
+          .filter((entry) => getCard(state, entry.cardId)?.name === query.name)
+          .map((entry) => entry.instanceId),
+      };
     case "cardsInPlay":
       return { kind: "cards", instanceIds: matching(state, cardsInPlay(state), query.query, context) };
     case "cardsTuckedUnder": {

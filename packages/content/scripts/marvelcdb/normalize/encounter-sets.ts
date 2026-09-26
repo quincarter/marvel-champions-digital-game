@@ -37,6 +37,23 @@ export function normalizeEncounterSets(ctx: NormalizeContext): {
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([id, name]) => {
       const hero = id.endsWith("_nemesis") ? ctx.heroBySet.get(id.slice(0, -"_nemesis".length)) : undefined;
+      // docs/phase7-wave4.md §1.10: `PackCuration.encounterSets` — the Infinity Gauntlet set's own separate deck
+      // (the six Infinity Stones) and its single-villain restriction. Marked used so a stale entry is caught the
+      // same way a stale correction/errata is (`checkStaleCuration`).
+      const override = ctx.curation.encounterSets?.[id];
+      if (override) ctx.usedEncounterSetOverrides.add(id);
+      const separateDecks = override?.separateDecks?.map((d) => ({
+        name: d.name,
+        contents: {
+          ...(d.contents.encounterSetCodes
+            ? { encounterSetIds: d.contents.encounterSetCodes.map((c) => brand("encounterSet", c)) }
+            : {}),
+          ...(d.contents.cardType ? { cardType: d.contents.cardType } : {}),
+          ...(d.contents.trait ? { trait: d.contents.trait } : {}),
+        },
+        discardPile: d.discardPile,
+        whenEmpty: d.whenEmpty,
+      }));
       return {
         id: brand("encounterSet", id),
         name,
@@ -47,6 +64,13 @@ export function normalizeEncounterSets(ctx: NormalizeContext): {
         // PvP "replaces the standard encounter set when playing in competitive mode". Competitive mode is not
         // built; `validateScenarioEncounterSets` refuses a standalone scenario that names this set.
         ...(id === "standard_pvp" ? { competitiveOnly: true } : {}),
+        // docs/phase7-wave4.md §1.9: RRG 1.8 "Standard Set" (p. 40) / "Expert Set" (p. 19) — a set in this
+        // classification is never a modular choice. Standard II / Expert II (`hood`) print "Standard II" /
+        // "Expert II" at the bottom of the card, so they're the same classification as Core's own Standard/Expert.
+        ...(id === "standard" || id === "standard_ii" ? { classification: "standard" as const } : {}),
+        ...(id === "expert" || id === "expert_ii" ? { classification: "expert" as const } : {}),
+        ...(separateDecks ? { separateDecks } : {}),
+        ...(override?.singleVillainOnly ? { singleVillainOnly: true as const } : {}),
       };
     });
   return { encounterSets, setNames };

@@ -194,6 +194,7 @@ import { GMW_ENCOUNTER_SETS } from "./gmw/encounterSets.js";
 import { GMW_SCENARIOS } from "./gmw/scenarios.js";
 import { GMW_STARTER_DECKS } from "./gmw/starterDecks.js";
 import { GMW_CAMPAIGN } from "./gmw/campaign.js";
+import { MTS_CAMPAIGN } from "./mts/campaign.js";
 import { STLD_CARDS } from "./stld/cards.js";
 import { STLD_ENCOUNTER_SETS } from "./stld/encounterSets.js";
 import { STLD_STARTER_DECKS } from "./stld/starterDecks.js";
@@ -254,29 +255,118 @@ export const WAVE3_STARTER_DECKS: readonly StarterDeck[] = [
   ...VNM_STARTER_DECKS,
 ];
 
+// ---------------------------------------------------------------------------------------------------------------
+// Wave 4 (PLAN.md Phase 7, docs/phase7-wave4.md): cycle 3, The Mad Titan's Shadow. In release order: `mts`
+// (Spectrum, Adam Warlock, and five scenarios — Ebony Maw, Tower Defense, Thanos, Hela, Loki), then the Nebula,
+// War Machine and Vision hero packs, then `hood` (The Hood, a sixth scenario, no new hero), then the Valkyrie
+// hero pack. All six packs are fully scripted (`@mc/cards`'s `wave4` module). As with earlier waves, these
+// `WAVE4_*` exports are `@mc/content`-only aggregates, wired into the client's playable pool as a separate step.
+// Declared here (before `PLAYABLE_CARDS`, which reads `WAVE4_CARDS`) rather than in the data-only pool below,
+// since this module's top-level `const`s execute in source order.
+// ---------------------------------------------------------------------------------------------------------------
+export * from "./mts/index.js";
+export * from "./nebu/index.js";
+export * from "./warm/index.js";
+export * from "./vision/index.js";
+export * from "./hood/index.js";
+export * from "./valk/index.js";
+
+import { MTS_CARDS } from "./mts/cards.js";
+import { MTS_ENCOUNTER_SETS } from "./mts/encounterSets.js";
+import { MTS_SCENARIOS } from "./mts/scenarios.js";
+import { MTS_STARTER_DECKS } from "./mts/starterDecks.js";
+import { NEBU_CARDS } from "./nebu/cards.js";
+import { NEBU_ENCOUNTER_SETS } from "./nebu/encounterSets.js";
+import { NEBU_STARTER_DECKS } from "./nebu/starterDecks.js";
+import { WARM_CARDS } from "./warm/cards.js";
+import { WARM_ENCOUNTER_SETS } from "./warm/encounterSets.js";
+import { WARM_STARTER_DECKS } from "./warm/starterDecks.js";
+import { VISION_CARDS } from "./vision/cards.js";
+import { VISION_ENCOUNTER_SETS } from "./vision/encounterSets.js";
+import { VISION_STARTER_DECKS } from "./vision/starterDecks.js";
+import { HOOD_CARDS } from "./hood/cards.js";
+import { HOOD_ENCOUNTER_SETS } from "./hood/encounterSets.js";
+import { HOOD_SCENARIOS } from "./hood/scenarios.js";
+import { VALK_CARDS } from "./valk/cards.js";
+import { VALK_ENCOUNTER_SETS } from "./valk/encounterSets.js";
+import { VALK_STARTER_DECKS } from "./valk/starterDecks.js";
+
 /**
- * Every playable card: Core, the eight wave 1 packs, the six cycle 1 packs, then the six cycle 2 packs, each
- * exactly once. `WAVE1_CARDS`, `WAVE2_CARDS` and `WAVE3_CARDS` are sibling pools that each start from Core
- * independently, so concatenating them would list Core (and, for wave 3, its own `CORE_CARDS.length` prefix)
- * more than once; this is the one pool a client that runs every scripted wave at once sends to the engine.
+ * Every card in the wave 4 (cycle 3) pool: Core plus the six cycle 3 packs, in release order. Like `WAVE1_CARDS`/
+ * `WAVE2_CARDS`/`WAVE3_CARDS`, this is a sibling pool that starts from Core independently — see `PLAYABLE_CARDS`'s
+ * own comment.
+ */
+export const WAVE4_CARDS: readonly AnyCard[] = [
+  ...CORE_CARDS,
+  ...MTS_CARDS,
+  ...NEBU_CARDS,
+  ...WARM_CARDS,
+  ...VISION_CARDS,
+  ...HOOD_CARDS,
+  ...VALK_CARDS,
+];
+
+/** Every cycle 3 encounter set (Core's own villain sets are not included, matching `WAVE1_ENCOUNTER_SETS`/`WAVE2_ENCOUNTER_SETS`/`WAVE3_ENCOUNTER_SETS`). */
+export const WAVE4_ENCOUNTER_SETS: readonly EncounterSet[] = [
+  ...MTS_ENCOUNTER_SETS,
+  ...NEBU_ENCOUNTER_SETS,
+  ...WARM_ENCOUNTER_SETS,
+  ...VISION_ENCOUNTER_SETS,
+  ...HOOD_ENCOUNTER_SETS,
+  ...VALK_ENCOUNTER_SETS,
+];
+
+/**
+ * Every cycle 3 scenario: The Mad Titan's Shadow's five (Ebony Maw, Tower Defense, Thanos, Hela, Loki) plus The
+ * Hood. The Nebula, War Machine, Vision and Valkyrie hero packs define no scenario of their own — matching
+ * `WAVE1_SCENARIOS`'/`WAVE2_SCENARIOS`'/`WAVE3_SCENARIOS`' own pattern (only the scenario-carrying packs
+ * contribute).
+ */
+export const WAVE4_SCENARIOS: readonly Scenario[] = [...MTS_SCENARIOS, ...HOOD_SCENARIOS];
+
+/**
+ * Every cycle 3 starter deck: Spectrum and Adam Warlock (`mts`), plus one each for Nebula, War Machine, Vision
+ * and Valkyrie. The Hood defines no new hero, so no starter deck.
+ */
+export const WAVE4_STARTER_DECKS: readonly StarterDeck[] = [
+  ...MTS_STARTER_DECKS,
+  ...NEBU_STARTER_DECKS,
+  ...WARM_STARTER_DECKS,
+  ...VISION_STARTER_DECKS,
+  ...VALK_STARTER_DECKS,
+];
+
+/**
+ * Every playable card: Core, the eight wave 1 packs, the six cycle 1 packs, the six cycle 2 packs, then the six
+ * cycle 3 packs, each exactly once. `WAVE1_CARDS`, `WAVE2_CARDS`, `WAVE3_CARDS` and `WAVE4_CARDS` are sibling
+ * pools that each start from Core independently, so concatenating them would list Core (and each wave's own
+ * `CORE_CARDS.length` prefix) more than once; this is the one pool a client that runs every scripted wave at
+ * once sends to the engine.
  */
 export const PLAYABLE_CARDS: readonly AnyCard[] = [
   ...WAVE1_CARDS,
   ...WAVE2_CARDS.slice(CORE_CARDS.length),
   ...WAVE3_CARDS.slice(CORE_CARDS.length),
+  ...WAVE4_CARDS.slice(CORE_CARDS.length),
 ];
 
 /**
  * Every campaign box whose scenarios and encounter sets are ingested into `@mc/content` (PLAN.md §C3;
- * docs/campaign-mode-design.md §11 step 6). `trors` (The Rise of Red Skull, MC10) and `gmw` (The Galaxy's Most
- * Wanted, MC16) qualify today — the other seven campaign boxes with a campaign mode (MC21, MC27, MC32, MC40, MC45,
- * MC50, MC60) have only raw MarvelCDB JSON cached (`packages/content/raw/marvelcdb/`), not a normalized
- * `Pack`/`Scenario`/`EncounterSet` in this package yet (see docs/phase7-wave2-data.md's per-pack survey), so a
- * `Campaign` record naming their scenarios/sets would reference data that does not exist. Each is added here once
- * its own box is ingested and scripted, per PLAN.md §C2's gate ("That box's own heroes, villains and scenarios
- * scripted ... This gates the rest."). Civil War (MC56) has no campaign mode at all (MC56 p. 3) and is never added.
+ * docs/campaign-mode-design.md §11 step 6). `trors` (The Rise of Red Skull, MC10), `gmw` (The Galaxy's Most Wanted,
+ * MC16) and `mts` (The Mad Titan's Shadow, MC21) qualify today — the other campaign boxes with a campaign mode
+ * (MC27, MC32, MC40, MC45, MC50, MC60) have only raw MarvelCDB JSON cached (`packages/content/raw/marvelcdb/`),
+ * not a normalized `Pack`/`Scenario`/`EncounterSet` in this package yet (see docs/phase7-wave2-data.md's per-pack
+ * survey), so a `Campaign` record naming their scenarios/sets would reference data that does not exist. Each is
+ * added here once its own box is ingested and scripted, per PLAN.md §C2's gate ("That box's own heroes, villains
+ * and scenarios scripted ... This gates the rest."). Civil War (MC56) has no campaign mode at all (MC56 p. 3) and
+ * is never added.
+ *
+ * **MC21's own `CampaignDefinition`** — the setup/victory instructions, the campaign pool, System Shock's hand
+ * ability, and the a/b flip pairs (Secure the Landing Pad → Cosmo, and so on) — is `@mc/cards`'
+ * `packages/cards/src/campaigns/mts.ts` (`ability-scripting-engineer`'s work, docs/campaign-mode-design.md §3),
+ * not this record, which is only the plain-data box/scenario/set membership half.
  */
-export const CAMPAIGNS: readonly Campaign[] = [TRORS_CAMPAIGN, GMW_CAMPAIGN];
+export const CAMPAIGNS: readonly Campaign[] = [TRORS_CAMPAIGN, GMW_CAMPAIGN, MTS_CAMPAIGN];
 
 // ---------------------------------------------------------------------------------------------------------------
 // Data-only pool (PLAN.md Phase 7, "All 62 non-Core packs become card data; only wave 1 is scripted"/"Wave 2
@@ -292,9 +382,6 @@ export const CAMPAIGNS: readonly Campaign[] = [TRORS_CAMPAIGN, GMW_CAMPAIGN];
 export * from "./bp/index.js";
 export * from "./cyclops/index.js";
 export * from "./gambit/index.js";
-export * from "./nebu/index.js";
-export * from "./warm/index.js";
-export * from "./vision/index.js";
 export * from "./ncrawler/index.js";
 export * from "./magneto/index.js";
 export * from "./winter/index.js";
@@ -304,12 +391,10 @@ export * from "./silk/index.js";
 export * from "./spdr/index.js";
 export * from "./rogue/index.js";
 export * from "./wolv/index.js";
-export * from "./hood/index.js";
 export * from "./ironheart/index.js";
 export * from "./iceman/index.js";
 export * from "./wonder_man/index.js";
 export * from "./x23/index.js";
-export * from "./valk/index.js";
 export * from "./deadpool/index.js";
 export * from "./spiderham/index.js";
 export * from "./mojo/index.js";
@@ -324,12 +409,6 @@ import { CYCLOPS_CARDS } from "./cyclops/cards.js";
 import { CYCLOPS_ENCOUNTER_SETS } from "./cyclops/encounterSets.js";
 import { GAMBIT_CARDS } from "./gambit/cards.js";
 import { GAMBIT_ENCOUNTER_SETS } from "./gambit/encounterSets.js";
-import { NEBU_CARDS } from "./nebu/cards.js";
-import { NEBU_ENCOUNTER_SETS } from "./nebu/encounterSets.js";
-import { WARM_CARDS } from "./warm/cards.js";
-import { WARM_ENCOUNTER_SETS } from "./warm/encounterSets.js";
-import { VISION_CARDS } from "./vision/cards.js";
-import { VISION_ENCOUNTER_SETS } from "./vision/encounterSets.js";
 import { NCRAWLER_CARDS } from "./ncrawler/cards.js";
 import { NCRAWLER_ENCOUNTER_SETS } from "./ncrawler/encounterSets.js";
 import { MAGNETO_CARDS } from "./magneto/cards.js";
@@ -348,8 +427,6 @@ import { ROGUE_CARDS } from "./rogue/cards.js";
 import { ROGUE_ENCOUNTER_SETS } from "./rogue/encounterSets.js";
 import { WOLV_CARDS } from "./wolv/cards.js";
 import { WOLV_ENCOUNTER_SETS } from "./wolv/encounterSets.js";
-import { HOOD_CARDS } from "./hood/cards.js";
-import { HOOD_ENCOUNTER_SETS } from "./hood/encounterSets.js";
 import { IRONHEART_CARDS } from "./ironheart/cards.js";
 import { IRONHEART_ENCOUNTER_SETS } from "./ironheart/encounterSets.js";
 import { ICEMAN_CARDS } from "./iceman/cards.js";
@@ -358,8 +435,6 @@ import { WONDER_MAN_CARDS } from "./wonder_man/cards.js";
 import { WONDER_MAN_ENCOUNTER_SETS } from "./wonder_man/encounterSets.js";
 import { X23_CARDS } from "./x23/cards.js";
 import { X23_ENCOUNTER_SETS } from "./x23/encounterSets.js";
-import { VALK_CARDS } from "./valk/cards.js";
-import { VALK_ENCOUNTER_SETS } from "./valk/encounterSets.js";
 import { DEADPOOL_CARDS } from "./deadpool/cards.js";
 import { DEADPOOL_ENCOUNTER_SETS } from "./deadpool/encounterSets.js";
 import { SPIDERHAM_CARDS } from "./spiderham/cards.js";
@@ -376,11 +451,13 @@ import { JUBILEE_CARDS } from "./jubilee/cards.js";
 import { JUBILEE_ENCOUNTER_SETS } from "./jubilee/encounterSets.js";
 
 /**
- * Every card in the data-only pool: 27 packs across cycles 4, 5, 6, 7, 8, 9 and 10, in pack-code alphabetical
+ * Every card in the data-only pool: 21 packs across cycles 5, 6, 7, 8, 9 and 10, in pack-code alphabetical
  * order (no release-order relationship spans this many cycles at once, unlike `WAVE1_CARDS`/`WAVE2_CARDS`/
- * `WAVE3_CARDS`). Not included in `WAVE1_CARDS`/`WAVE2_CARDS`/`WAVE3_CARDS`/`CORE_CARDS` — a client that wants
- * "every known card, playable or not" concatenates this with those. `gmw`, `stld`, `gam`, `drax`, `vnm` and `ron`
- * (cycle 2) moved out of this pool into `WAVE3_*` below once wave 3 scripted them (docs/phase7-wave3.md).
+ * `WAVE3_CARDS`/`WAVE4_CARDS`). Not included in `WAVE1_CARDS`/`WAVE2_CARDS`/`WAVE3_CARDS`/`WAVE4_CARDS`/
+ * `CORE_CARDS` — a client that wants "every known card, playable or not" concatenates this with those. `gmw`,
+ * `stld`, `gam`, `drax`, `vnm` and `ron` (cycle 2) moved out of this pool into `WAVE3_*` once wave 3 scripted
+ * them (docs/phase7-wave3.md); `mts`, `nebu`, `warm`, `vision`, `hood` and `valk` (cycle 3) moved into `WAVE4_*`
+ * once wave 4 scripted them (docs/phase7-wave4.md).
  */
 export const DATA_ONLY_CARDS: readonly AnyCard[] = [
   ...BP_CARDS,
@@ -390,9 +467,6 @@ export const DATA_ONLY_CARDS: readonly AnyCard[] = [
   ...JUBILEE_CARDS,
   ...CYCLOPS_CARDS,
   ...GAMBIT_CARDS,
-  ...NEBU_CARDS,
-  ...WARM_CARDS,
-  ...VISION_CARDS,
   ...NCRAWLER_CARDS,
   ...MAGNETO_CARDS,
   ...WINTER_CARDS,
@@ -402,12 +476,10 @@ export const DATA_ONLY_CARDS: readonly AnyCard[] = [
   ...SPDR_CARDS,
   ...ROGUE_CARDS,
   ...WOLV_CARDS,
-  ...HOOD_CARDS,
   ...IRONHEART_CARDS,
   ...ICEMAN_CARDS,
   ...WONDER_MAN_CARDS,
   ...X23_CARDS,
-  ...VALK_CARDS,
   ...DEADPOOL_CARDS,
   ...SPIDERHAM_CARDS,
   ...MOJO_CARDS,
@@ -422,9 +494,6 @@ export const DATA_ONLY_ENCOUNTER_SETS: readonly EncounterSet[] = [
   ...JUBILEE_ENCOUNTER_SETS,
   ...CYCLOPS_ENCOUNTER_SETS,
   ...GAMBIT_ENCOUNTER_SETS,
-  ...NEBU_ENCOUNTER_SETS,
-  ...WARM_ENCOUNTER_SETS,
-  ...VISION_ENCOUNTER_SETS,
   ...NCRAWLER_ENCOUNTER_SETS,
   ...MAGNETO_ENCOUNTER_SETS,
   ...WINTER_ENCOUNTER_SETS,
@@ -434,12 +503,10 @@ export const DATA_ONLY_ENCOUNTER_SETS: readonly EncounterSet[] = [
   ...SPDR_ENCOUNTER_SETS,
   ...ROGUE_ENCOUNTER_SETS,
   ...WOLV_ENCOUNTER_SETS,
-  ...HOOD_ENCOUNTER_SETS,
   ...IRONHEART_ENCOUNTER_SETS,
   ...ICEMAN_ENCOUNTER_SETS,
   ...WONDER_MAN_ENCOUNTER_SETS,
   ...X23_ENCOUNTER_SETS,
-  ...VALK_ENCOUNTER_SETS,
   ...DEADPOOL_ENCOUNTER_SETS,
   ...SPIDERHAM_ENCOUNTER_SETS,
   ...MOJO_ENCOUNTER_SETS,

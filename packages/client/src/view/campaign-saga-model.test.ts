@@ -130,8 +130,9 @@ describe("campaignSagaRows with progression", () => {
     });
     expect(rows[0]).toMatchObject({ status: "fresh", unlocked: true });
     expect(rows[1]).toMatchObject({ status: "fresh", unlocked: true });
+    expect(rows[2]).toMatchObject({ status: "fresh", unlocked: true });
     // A box with no definition in this build is still honest about it.
-    expect(rows[2]).toMatchObject({ status: "sealed", hasDefinition: false, lockReason: "Not in this build yet" });
+    expect(rows[3]).toMatchObject({ status: "sealed", hasDefinition: false, lockReason: "Not in this build yet" });
   });
 });
 

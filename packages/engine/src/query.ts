@@ -274,8 +274,17 @@ export function encounterFace(state: GameState, id: InstanceId): EncounterCardFl
 }
 
 /**
- * The title showing right now: a villain's current face ("Norman Osborn" / "Green Goblin"), a flipped card's other
- * face, or the printed name. A facedown card has none. `named` targets and `name` queries read this.
+ * The title showing right now: a villain's current face ("Norman Osborn" / "Green Goblin"), a hero identity's
+ * current form ("Spider-Woman" / "Jessica Drew"), a flipped card's other face, or the printed name. A facedown
+ * card has none. `named` targets, `TargetQuery.name`, the `name`/`faceNamed` predicates and `titleContains` all
+ * read this.
+ *
+ * RRG 1.8 "Identity" (p. 23): "If a card refers to a hero or alter-ego by title, it refers only to the identity
+ * with that title, and not to the other side of the card." Before this read the identity's printed card title in
+ * both forms — so an alter-ego matched its hero's name — flagged as a known gap in docs/phase7-wave2.md §14.3 and
+ * closed there (Resolved 2026-09-25). A caller that means "this identity card regardless of which side is up"
+ * (an identity's whole set of titles, for deckbuilding or an identity-specific card) has its own primitive —
+ * `identityCardTitledAs` (`titles.ts`) — rather than going through this single name string.
  */
 export function currentName(state: GameState, id: InstanceId): string | undefined {
   const instance = getInstance(state, id);
@@ -284,6 +293,10 @@ export function currentName(state: GameState, id: InstanceId): string | undefine
   const villain = villainOf(state, id);
   if (villain && card.type === "villain")
     return card.sides.find((side) => side.side === villain.side)?.name ?? card.name;
+  if (card.type === "hero_identity") {
+    const player = state.players.find((p) => p.identity.instanceId === id);
+    if (player) return identityFace(state, player).face.faceName;
+  }
   // A main scheme stage with its own title ("Remove the Chronopolis from the game"; `MainSchemeStage.name`).
   const scheme = card.type === "main_scheme" ? mainSchemeStateOf(state, id) : undefined;
   if (scheme) return mainSchemeStageOf(state, scheme).name ?? card.name;
@@ -351,8 +364,21 @@ export function areaOfCard(state: GameState, id: InstanceId): GameAreaState | nu
 
 /** Every main scheme instance in play: the central (or only) one, then each area's own, in area order. */
 export function mainSchemeStates(state: GameState): readonly MainSchemeState[] {
-  return [state.mainScheme, ...state.gameAreas.flatMap((area) => (area.mainScheme ? [area.mainScheme] : []))];
+  return [
+    state.mainScheme,
+    ...(state.extraMainSchemes ?? []),
+    ...state.gameAreas.flatMap((area) => (area.mainScheme ? [area.mainScheme] : [])),
+  ];
 }
+
+/**
+ * The main schemes in the shared game area: the central one and any stage put into play beside it (Tower Defense's
+ * two main schemes, docs/phase7-wave4.md §3.2). A separate game area's own stage is not one of them.
+ */
+export const sharedMainSchemes = (state: GameState): readonly MainSchemeState[] => [
+  state.mainScheme,
+  ...(state.extraMainSchemes ?? []),
+];
 
 /** The main scheme state of a main scheme instance, central or an area's. */
 export const mainSchemeStateOf = (state: GameState, id: InstanceId): MainSchemeState | undefined =>
@@ -424,7 +450,8 @@ export function mainSchemeStageCount(state: GameState, scheme: MainSchemeState =
 export function isMinion(state: GameState, id: InstanceId): boolean {
   const instance = state.instances[id];
   if (!instance) return false;
-  if (instance.facedownAs?.kind === "minion") return true;
+  if (instance.facedownAs?.kind === "minion" || instance.treatedAs?.kind === "minion") return true;
+  if (instance.treatedAs?.kind === "ally") return false;
   return state.cardPool[instance.cardId]?.type === "minion";
 }
 
@@ -487,6 +514,34 @@ export function printedProfile(state: GameState, id: InstanceId): CharacterProfi
   // A facedown minion has no printed stats of its own (card abilities set its base values).
   if (instance.facedownAs?.kind === "minion") {
     return { kind: "minion", missing: [], atk: 0, thw: 0, def: 0, rec: 0, sch: 0, maxHp: 0 };
+  }
+  // An ally treated as a minion: its printed ATK and hit points; "SCH is equal to its printed THW" (§3.9 of wave 4).
+  if (instance.treatedAs?.kind === "minion" && card.type === "ally") {
+    const sch = instance.treatedAs.schFromThw ? card.thw : 0;
+    return {
+      kind: "minion",
+      missing: dashes({ atk: card.atk, thw: 0, sch }),
+      atk: statValue(card.atk),
+      thw: 0,
+      def: 0,
+      rec: 0,
+      sch: statValue(sch),
+      maxHp: card.hp,
+    };
+  }
+  // A minion treated as an ally: its printed ATK and hit points; "Its THW is equal to its printed SCH" (§3.29).
+  if (instance.treatedAs?.kind === "ally" && card.type === "minion") {
+    const thw = instance.treatedAs.thwFromSch ? card.sch : 0;
+    return {
+      kind: "ally",
+      missing: dashes({ atk: card.atk === "X" ? 0 : card.atk, thw: thw === "X" ? 0 : thw, sch: 0 }),
+      atk: statValue(card.atk === "X" ? 0 : card.atk),
+      thw: statValue(thw === "X" ? 0 : thw),
+      def: 0,
+      rec: 0,
+      sch: 0,
+      maxHp: card.hp,
+    };
   }
 
   if (card.type === "hero_identity") {
@@ -707,20 +762,13 @@ export function locateCard(state: GameState, id: InstanceId): ZoneId | null {
 export const isTerminal = (state: GameState): boolean => state.outcome !== null;
 
 /**
- * The title a card is showing right now, with an identity read from its **faceup side**: RRG 1.8 "Identity" (p. 23),
- * "If a card refers to a hero or alter-ego by title, it refers only to the identity with that title, and not to the
- * other side of the card." Everything else is `currentName`.
- *
- * Used where a title is captured for later (`attackedThisTurn`, docs/phase7-wave2.md §14). `currentName` itself still
- * answers an identity's card title whatever its form; that is a known discrepancy with p. 23, recorded in §14.3 rather
- * than changed here, because every name-matching reader (`namedCard`, target-query `name`, the name predicate) goes
- * through it.
+ * The title a card is showing right now (RRG 1.8 "Identity", p. 23). Kept as its own name for callers that capture
+ * a title for later (`attackedThisTurn`) or compare it against Team-Up's names (`titles.ts`), even though it is now
+ * exactly `currentName` — the two were split by a gap that closed docs/phase7-wave2.md §14.3 (Resolved 2026-09-25):
+ * `currentName` used to answer an identity's printed card title in every form, and this function was the one place
+ * that read the identity's faceup side correctly. `currentName` folded that branch in, so this is an alias.
  */
-export function titleShowing(state: GameState, id: InstanceId): string | undefined {
-  const player = state.players.find((p) => p.identity.instanceId === id);
-  if (player && cardOf(state, id)?.type === "hero_identity") return identityFace(state, player).face.faceName;
-  return currentName(state, id);
-}
+export const titleShowing = currentName;
 
 /**
  * Whether a player's turn is in progress (RRG 1.8 "Player Turn", p. 34) — the only time "until the end of this turn"
@@ -729,3 +777,19 @@ export function titleShowing(state: GameState, id: InstanceId): string | undefin
  */
 export const turnInProgress = (state: GameState): boolean =>
   state.step.phase === "player" && state.step.kind === "turn";
+
+/**
+ * Whether a "Standard Mode Only" / "Expert Mode Only" card shows its back face in this mode (RRG 1.8 "Double-Sided
+ * Card", p. 17: "If a double-sided card has 'Standard Mode Only' and 'Expert Mode Only' sides, it is put into play with
+ * the 'Expert Mode Only' side faceup if the players are playing expert mode"; Formidable Foe, `hood` 24049a/b;
+ * docs/phase7-wave4.md §3.18). True when the front names the other mode and the card has a back that does not name the
+ * same one: a back with no `modeOnly` of its own is read as the other mode's, since the rule is about a card with one
+ * side of each (the emitted Formidable Foe carries `modeOnly` on its front only). Every other card shows its front.
+ */
+export function modeOnlyFlipped(card: AnyCard, difficulty: "standard" | "expert"): boolean {
+  const front = "modeOnly" in card ? card.modeOnly : undefined;
+  if (front === undefined || front === difficulty) return false;
+  if (!("flipSide" in card) || !card.flipSide) return false;
+  const back = "modeOnly" in card.flipSide ? card.flipSide.modeOnly : undefined;
+  return back === undefined || back === difficulty;
+}

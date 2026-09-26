@@ -2,15 +2,28 @@ import { describe, expect, test } from "vitest";
 import { nextSettingsAfterToggle, settingsRowInfoOf, sharperTextTargetResolution } from "./settings-rows.js";
 import type { Settings } from "../settings.js";
 
-const BASE: Settings = { reducedMotion: false, textResolution: 1, largeCardText: false, sound: true };
+const BASE: Settings = {
+  reducedMotion: false,
+  textResolution: 1,
+  largeCardText: false,
+  sound: true,
+  confirmBeforeEndTurn: true,
+};
 
 describe("settingsRowInfoOf", () => {
   test("reflects each setting's on/off state", () => {
-    const rows = settingsRowInfoOf({ reducedMotion: true, textResolution: 2, largeCardText: true, sound: false });
+    const rows = settingsRowInfoOf({
+      reducedMotion: true,
+      textResolution: 2,
+      largeCardText: true,
+      sound: false,
+      confirmBeforeEndTurn: false,
+    });
     expect(rows.find((r) => r.id === "reduced-motion")?.on).toBe(true);
     expect(rows.find((r) => r.id === "sharper-text")?.on).toBe(true);
     expect(rows.find((r) => r.id === "large-card-text")?.on).toBe(true);
     expect(rows.find((r) => r.id === "sound")?.on).toBe(false);
+    expect(rows.find((r) => r.id === "confirm-end-turn")?.on).toBe(false);
   });
 
   test("reflects base settings state", () => {
@@ -19,6 +32,7 @@ describe("settingsRowInfoOf", () => {
     expect(rows.find((r) => r.id === "sharper-text")?.on).toBe(false);
     expect(rows.find((r) => r.id === "large-card-text")?.on).toBe(false);
     expect(rows.find((r) => r.id === "sound")?.on).toBe(true);
+    expect(rows.find((r) => r.id === "confirm-end-turn")?.on).toBe(true);
   });
 
   test("sound is available with no unavailable reason", () => {
@@ -61,6 +75,13 @@ describe("nextSettingsAfterToggle", () => {
   test("sound toggles between on and off", () => {
     expect(nextSettingsAfterToggle(BASE, "sound", 1).sound).toBe(false);
     expect(nextSettingsAfterToggle({ ...BASE, sound: false }, "sound", 1).sound).toBe(true);
+  });
+
+  test("confirm-end-turn toggles between on and off", () => {
+    expect(nextSettingsAfterToggle(BASE, "confirm-end-turn", 1).confirmBeforeEndTurn).toBe(false);
+    expect(
+      nextSettingsAfterToggle({ ...BASE, confirmBeforeEndTurn: false }, "confirm-end-turn", 1).confirmBeforeEndTurn,
+    ).toBe(true);
   });
 
   test("leaves every other field untouched", () => {
