@@ -2508,6 +2508,7 @@ export const SM_CARDS: readonly AnyCard[] = [
     collectorNumber: "102A",
     quantityInSet: 1,
     unique: false,
+    images: { front: imageRef("/bundles/cards/27102a.png") },
     otherFaceId: cardId("27102b"),
     encounterSetIds: [encounterSetId("sinister_six")],
     startingThreat: { base: 10, perPlayer: 0 },

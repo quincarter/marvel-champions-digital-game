@@ -330,10 +330,7 @@ export const SM_CURATION: PackCuration = {
   // (checked on the live API, not merely the cached raw file, 2026-09-26), and no independently-viewable second
   // source could be located either. `PackCuration.artUnavailable` (that field's own doc comment) tells
   // `checkCoverage` to treat these two as a confirmed gap instead of a hard error — the same already-handled shape
-  // wave 4's six art-less MTS faces used. The Chase! face (27102b) is now a local scan supplied by the maintainer
-  // (2026-09-26), trimmed by `scripts/fetch_card_art.py`'s own `trim` into `bundles/cards/27102b.png`, which
-  // `withLocalArt` picks up; the Trap! face stays a gap until its scan arrives.
-  artUnavailable: {
-    "27102a": "No imagesrc on MarvelCDB's own record, and no viewable second-source scan found for the Trap! face.",
-  },
+  // wave 4's six art-less MTS faces used. Both faces are now local scans supplied by the maintainer (2026-09-26),
+  // trimmed by `scripts/fetch_card_art.py`'s own `trim` into `bundles/cards/27102a.png` / `27102b.png`, which
+  // `withLocalArt` picks up, so no `artUnavailable` entry remains.
 };
