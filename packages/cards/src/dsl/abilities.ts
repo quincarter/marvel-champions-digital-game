@@ -743,6 +743,12 @@ export const blanksTextBox = (
   ],
 });
 /**
+ * "This card's printed text box cannot be treated as if it were blank." (SP//dr Suit 1B and SP//dr, `spdr` 31001b /
+ * 31002b; docs/phase7-wave5.md §3.31): `constant(textBoxCannotBeBlanked())`. Its own card only, unconditional; neither
+ * a lasting blank (Panic in the Streets, Vivian) nor a constant `blanksTextBox` rule reaches the face that prints it.
+ */
+export const textBoxCannotBeBlanked = (): ConstantPart => rule({ kind: "textBoxCannotBeBlanked" });
+/**
  * "Each of your [trait] attacks gain [keyword]" (Hawkeye's Bow, `trors`): an `AttackKeyword` granted to attacks
  * matching `attacker` and/or `via`, not to a character (RRG 1.8 "Piercing"/"Ranged"/"Overkill"; `RuleSpec
  * attackKeywords`, docs/phase7-wave2.md §3). `via` matches the card whose ability makes the attack (the event for a

@@ -1700,7 +1700,10 @@ function blankedSets(state: GameState, deps: EngineDeps): BlankedSets {
   const keywordsBlanked = new Set<InstanceId>();
   const inPlay = cardsInPlay(state);
   for (const sourceId of inPlay) {
-    for (const ref of activeAbilityRefs(state, sourceId)) {
+    // A source's refs under the *lasting* blank only, as protected by its own `textBoxCannotBeBlanked` (§3.31 of wave
+    // 5), which reads the registry but never a constant blank, so this cannot re-enter.
+    const sourceBlank = textBoxBlank(state, sourceId) && !textBoxCannotBeBlanked(state, sourceId, deps);
+    for (const ref of sourceBlank ? [] : unblankedAbilityRefs(state, sourceId)) {
       if (!ruleIds.has(ref.id)) continue;
       const trigger = deps.abilities[ref.id]?.trigger;
       if (trigger?.kind !== "constant") continue;
@@ -1717,6 +1720,7 @@ function blankedSets(state: GameState, deps: EngineDeps): BlankedSets {
         if (rule.while && !evaluate(state, rule.while, context)) continue;
         for (const id of inPlay) {
           if (id === sourceId || !matchesQuery(state, id, rule.target, context)) continue;
+          if (textBoxCannotBeBlanked(state, id, deps)) continue;
           blanked.add(id);
           if (!rule.exceptKeywords) keywordsBlanked.add(id);
         }
@@ -1790,13 +1794,42 @@ export function countsAsExtras(state: GameState, deps: EngineDeps): ReadonlyMap<
   return extras;
 }
 
-/** Whether this card's printed text box is blank right now, from a lasting effect or a constant rule in play. */
+/** Ability ids in this registry that carry a constant `textBoxCannotBeBlanked` rule. Memoized per registry object. */
+const UNBLANKABLE_RULE_IDS = new WeakMap<EngineDeps, ReadonlySet<string>>();
+
+/**
+ * "This card's printed text box cannot be treated as if it were blank." (SP//dr Suit 1B, SP//dr; docs/phase7-wave5.md
+ * §3.31): whether the card's current face prints a constant `textBoxCannotBeBlanked` rule. Read from the face's refs
+ * *before* any blank (`unblankedAbilityRefs`), because the rule protects the text box it is printed in; it never
+ * consults a blank, so every blank check below can ask it without recursion. Needs the registry: under `DEFAULT_DEPS`
+ * (no abilities) nothing is protected, which only a caller with no registry, and so no abilities to run, ever sees.
+ */
+export function textBoxCannotBeBlanked(state: GameState, id: InstanceId, deps: EngineDeps): boolean {
+  let ruleIds = UNBLANKABLE_RULE_IDS.get(deps);
+  if (!ruleIds) {
+    const ids = new Set<string>();
+    for (const [abilityId, definition] of Object.entries(deps.abilities)) {
+      if (definition.trigger.kind !== "constant") continue;
+      if ((definition.trigger.rules ?? []).some((rule) => rule.kind === "textBoxCannotBeBlanked")) ids.add(abilityId);
+    }
+    UNBLANKABLE_RULE_IDS.set(deps, ids);
+    ruleIds = ids;
+  }
+  if (ruleIds.size === 0) return false;
+  const protectedBy = ruleIds;
+  return unblankedAbilityRefs(state, id).some((ref) => protectedBy.has(ref.id));
+}
+
+/**
+ * Whether this card's printed text box is blank right now, from a lasting effect or a constant rule in play, unless it
+ * cannot be blanked (§3.31 of wave 5; the constant kind already leaves such a card out of `blankedSets`).
+ */
 export const textBoxBlankFor = (state: GameState, id: InstanceId, deps: EngineDeps = DEFAULT_DEPS): boolean =>
-  textBoxBlank(state, id) || blankedByConstantRules(state, deps).has(id);
+  (textBoxBlank(state, id) && !textBoxCannotBeBlanked(state, id, deps)) || blankedByConstantRules(state, deps).has(id);
 
 /** Whether this card's printed keywords are blank: as `textBoxBlankFor`, less a rule "except for keywords" (§3.28). */
 export const keywordsBlankFor = (state: GameState, id: InstanceId, deps: EngineDeps = DEFAULT_DEPS): boolean =>
-  textBoxBlank(state, id) || blankedSets(state, deps).keywords.has(id);
+  (textBoxBlank(state, id) && !textBoxCannotBeBlanked(state, id, deps)) || blankedSets(state, deps).keywords.has(id);
 
 /**
  * The ability slots that are live on a card right now (active identity face, current stage).
@@ -1810,12 +1843,22 @@ export function activeAbilityRefs(
   id: InstanceId,
   deps: EngineDeps = DEFAULT_DEPS,
 ): readonly AbilityReference[] {
+  const refs = unblankedAbilityRefs(state, id);
+  return refs.length > 0 && textBoxBlankFor(state, id, deps) ? [] : refs;
+}
+
+/**
+ * The ability slots of a card's live face with no text-box blank applied (`activeAbilityRefs` less the blank check).
+ * A facedown card and a card treated as another type still have none: neither is a text box "treated as if it were
+ * blank", so a `textBoxCannotBeBlanked` rule (§3.31 of wave 5) does not bring them back.
+ */
+function unblankedAbilityRefs(state: GameState, id: InstanceId): readonly AbilityReference[] {
   const card = cardOf(state, id);
   if (!card) return [];
   // A facedown card's own text is blank while it is facedown, and so is a card whose text box is treated as blank
   // (an ally treated as a minion "with a blank text box", docs/phase7-wave4.md §3.9).
   const instance = getInstance(state, id);
-  if (instance?.facedownAs || instance?.treatedAs || textBoxBlankFor(state, id, deps)) return [];
+  if (instance?.facedownAs || instance?.treatedAs) return [];
   const face = encounterFace(state, id);
   if (face) return face.abilities;
   if (card.type === "hero_identity") {

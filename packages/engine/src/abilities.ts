@@ -583,6 +583,18 @@ export type RuleSpec =
       readonly exceptKeywords?: true;
     }
   /**
+   * "This card's printed text box cannot be treated as if it were blank." (SP//dr Suit 1B and SP//dr, `spdr` 31001b /
+   * 31002b; docs/phase7-wave5.md §3.31.) Neither a lasting `blankTextBox` effect (Panic in the Streets, Vivian) nor a
+   * constant `blankTextBox` rule (Tech Theft) blanks the card, so its abilities and printed keywords stay live. Always
+   * its own card, and unconditional as printed: no `target`, no `while`.
+   *
+   * Read from the card's current face *before* any blank is applied (`select.ts` `textBoxCannotBeBlanked`), since the
+   * rule sits in the very text box it protects. Only the face that prints it is protected: a card flipped to a face
+   * without the line can be blanked by an effect that is still lasting. Not the permanent keyword's own blank
+   * protection (RRG 1.8 "Permanent", p. 32), which exempts effects from the card's own set and is not modelled yet.
+   */
+  | { readonly kind: "textBoxCannotBeBlanked" }
+  /**
    * "Forced Interrupt: When an acceleration token would be placed on another scheme, place it here instead." (The
    * Master of Time 2B, 11008b; docs/phase7-wave2.md §10.3.) A constant redirect read at the moment the token is
    * placed, the same shape `schemeThreatDestination` uses for a scheme activation's threat — not an interruptible
