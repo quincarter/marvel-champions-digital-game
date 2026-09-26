@@ -344,6 +344,7 @@ export const TRACK_TITLES: Readonly<Record<string, string>> = {
   "scenarios/ebony-maw/battle.mp3": "Mortis Kreal",
   "scenarios/ebony-maw/villain-loses.mp3": "After the Final Stand",
   "scenarios/ebony-maw/villain-wins.mp3": "Throne of Cold Iron",
+  "scenarios/tower-defense/battle.mp3": "Zero Margin Hunt",
   "campaigns/trors/finale.mp3": "Anthem of the Returning Sun",
   "campaigns/gmw/finale.mp3": "The Longest Watch Ends",
   "packs/gmw/villain-loses.mp3": "The Longest Watch Ends",
