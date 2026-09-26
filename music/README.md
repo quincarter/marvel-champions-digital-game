@@ -40,7 +40,9 @@ scenario needs only a new folder here.
 **`scenarios/_pending/<scenarioId>/`** holds tracks for a scenario that isn't in the playable pool yet (the
 scenario-id and `TRACK_TITLES` checks only accept pool scenarios). Nothing reads it; the wave that makes the
 scenario playable moves the folder up to `scenarios/<scenarioId>/` and adds the `TRACK_TITLES` entry, using the
-title its `soundtrack/` copy already carries. Same rule as `art/scenarios/_pending/`.
+title its `soundtrack/` copy already carries. Same rule as `art/scenarios/_pending/`. **`campaigns/_pending/<campaignId>/`**
+works the same way for a campaign not yet on the Saga shelf (its jukebox entry would otherwise read "Complete
+<campaignId>" with no way to unlock it).
 
 **`soundtrack/`** holds the same songs under their titles (`Nothing_Stops_the_Rhino.mp3` is
 `scenarios/rhino/battle.mp3`). The client never loads it; the titles live in `TRACK_TITLES`
