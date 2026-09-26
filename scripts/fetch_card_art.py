@@ -30,14 +30,23 @@ Three commands:
           Hall of Heroes pads its card images with a white border; every
           download is trimmed the same way as `trim` before it is saved.
 
-A replacement keeps the local file's name and format, since card records point
-at that exact path (`/bundles/cards/<code>.png` or `.jpg`). Each replacement is
-recorded in assets/card-art/hall-of-heroes-manifest.tsv.
+  grab    One-off scratch download: fetch every image on a Hall of Heroes page
+          (optionally filtered by a substring of its alt text or URL), or a
+          list of direct image URLs, into an arbitrary destination directory.
+          Does not touch assets/card-art/ or its manifest, does not trim or
+          score anything, and refuses a destination inside assets/card-art —
+          this is for a one-off look (a precon decklist image, a single card
+          scan) that should never become part of the versioned art bundle.
+          Images are unaltered downloads, saved under the source file name;
+          delete them once you're done reading them (CLAUDE.md "Content & IP
+          boundaries": no art bytes belong in the repo).
 
   uv run scripts/fetch_card_art.py audit
   uv run scripts/fetch_card_art.py trim --dry-run
   uv run scripts/fetch_card_art.py fetch --stamped-only
   uv run scripts/fetch_card_art.py fetch --packs mts sm --dry-run
+  uv run scripts/fetch_card_art.py grab --page https://hallofheroeslcg.com/sam-alexander-nova/ --match deck1 --out /tmp/scratch
+  uv run scripts/fetch_card_art.py grab --image https://marvelcdb.com/bundles/cards/28022.png --out /tmp/scratch
 """
 
 from __future__ import annotations
@@ -548,6 +557,45 @@ def fetch(args: argparse.Namespace) -> None:
     )
 
 
+def grab(args: argparse.Namespace) -> None:
+    """One-off scratch download of a page's images or direct image URLs; never writes into assets/card-art/."""
+    out = Path(args.out).resolve()
+    try:
+        out.relative_to((REPO_ROOT / "assets" / "card-art").resolve())
+        raise SystemExit("grab: --out must not be inside assets/card-art/ (that bundle is fetch's, not grab's)")
+    except ValueError:
+        pass
+    out.mkdir(parents=True, exist_ok=True)
+
+    http = Http(args.delay)
+    targets: list[tuple[str, str]] = []
+    if args.page:
+        found = page_images(http, args.page)
+        if args.match:
+            needle = args.match.lower()
+            found = [(u, a) for u, a in found if needle in a.lower() or needle in u.lower()]
+        targets.extend(found)
+    for url in args.image or []:
+        targets.append((url, ""))
+
+    if not targets:
+        print("[-] nothing matched")
+        return
+
+    saved = 0
+    for url, alt in targets:
+        data = http.get(url)
+        if not data:
+            print(f"    ! failed {url}")
+            continue
+        name = urlparse(url).path.rpartition("/")[2] or f"image-{saved}.jpg"
+        dest = out / name
+        dest.write_bytes(data)
+        print(f"    + {dest} ({alt!r}) <- {url}")
+        saved += 1
+    print(f"\n[=] {saved}/{len(targets)} images saved to {out}")
+
+
 def trim_local(args: argparse.Namespace) -> None:
     """Crops white padding off the local scans in place (the photographed ones carry it)."""
     changed = 0
@@ -581,8 +629,14 @@ def main() -> None:
     f.add_argument("--dry-run", action="store_true", help="report what would change without writing")
     f.add_argument("--delay", type=float, default=0.5, help="seconds between requests (default 0.5)")
     f.add_argument("-v", "--verbose", action="store_true")
+    g = sub.add_parser("grab", help="scratch-download a page's images or direct URLs (never assets/card-art/)")
+    g.add_argument("--page", help="a Hall of Heroes page URL to scrape for images")
+    g.add_argument("--match", help="only images whose alt text or URL contains this substring (case-insensitive)")
+    g.add_argument("--image", nargs="+", help="direct image URL(s) to download as-is, in addition to --page")
+    g.add_argument("--out", required=True, help="destination directory (must not be inside assets/card-art/)")
+    g.add_argument("--delay", type=float, default=0.5, help="seconds between requests (default 0.5)")
     args = parser.parse_args()
-    {"audit": audit, "trim": trim_local, "fetch": fetch}[args.command](args)
+    {"audit": audit, "trim": trim_local, "fetch": fetch, "grab": grab}[args.command](args)
 
 
 if __name__ == "__main__":
