@@ -1,0 +1,3 @@
+kind: Engine
+body: Campaign queries for MC27's reputation conditions and Waking Nightmare (accelerationTokensInPlay, defeatedIdentities, cardsInPlayerDecks, playersInScenario) and a grantAdditionalMulligans effect for reputation node 5 (docs/phase7-wave5.md §3.27)
+time: 2026-09-26T17:42:22.381655-04:00
