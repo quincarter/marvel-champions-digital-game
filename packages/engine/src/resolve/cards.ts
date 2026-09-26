@@ -1,7 +1,14 @@
 /** Card selectors and bulk card moves used by effects. */
 
 import { type Ctx, emit, moveCard, syncSeparateDeckTop, updateFrame, updateInstance, updatePlayer } from "../ctx.js";
-import { defeatFromPlay, leavePlay, moveDestinationKind, shuffleZone, waitsForLeaveInterrupts } from "../effects.js";
+import {
+  defeatFromPlay,
+  drawCards,
+  leavePlay,
+  moveDestinationKind,
+  shuffleZone,
+  waitsForLeaveInterrupts,
+} from "../effects.js";
 import type { EncounterDeckId, InstanceId, PlayerId } from "../ids.js";
 import {
   activeEncounterDeckId,
@@ -399,23 +406,78 @@ export function announceDeckRunOuts(ctx: Ctx): boolean {
   return true;
 }
 
+type EncounterCardFromPlayerDeck = Extract<TriggerEvent, { kind: "encounterCardFromPlayerDeck" }>;
+
 /**
  * Announces each encounter card that left a player's deck since the last look (`TriggerEvent
- * encounterCardFromPlayerDeck`, docs/phase7-wave5.md §3.5), when an ability listens, and empties the list. Every card
- * of one draw is announced after the draw (MC27 p. 21 FAQ); pushed last-first so the oldest resolves first. A card no
- * longer where it went is skipped. Returns true when it pushed a frame.
+ * encounterCardFromPlayerDeck`, docs/phase7-wave5.md §3.5), and empties the list. Every card of one draw is announced
+ * after the draw (MC27 p. 21 FAQ); pushed last-first so the oldest resolves first. Each is announced whether or not an
+ * ability listens, because its apply step is the engine's fallback when nothing replaced it
+ * (`dealUnhandledEncounterCard`, §4.1 Q4). A card no longer where it went is skipped. Returns true when it pushed a
+ * frame.
  */
 export function announceEncounterCardsFromDecks(ctx: Ctx): boolean {
   const pending = ctx.state.pendingEncounterFromDeck;
   if (!pending || pending.length === 0) return false;
   const { pendingEncounterFromDeck: _, ...rest } = ctx.state;
   ctx.state = rest;
-  const events: TriggerEvent[] = pending
-    .map((left): TriggerEvent => ({ kind: "encounterCardFromPlayerDeck", ...left }))
-    .filter((event) => heard(ctx.state, ctx.deps, event));
+  const events = pending
+    .map((left): EncounterCardFromPlayerDeck => ({ kind: "encounterCardFromPlayerDeck", ...left }))
+    .filter((event) => stillWhereItWent(ctx, event));
   if (events.length === 0) return false;
   for (const event of [...events].reverse()) pushEvent(ctx, event);
   return true;
+}
+
+/** An encounter card drawn is still in that player's hand; one discarded, still in a discard pile. */
+function stillWhereItWent(ctx: Ctx, event: EncounterCardFromPlayerDeck): boolean {
+  const zone = locateCard(ctx.state, event.instanceId);
+  if (!zone) return false;
+  if (event.how === "draw") return zone.kind === "hand" && zone.playerId === event.playerId;
+  return (zone.kind === "discard" && zone.playerId === event.playerId) || zone.kind === "encounterDiscard";
+}
+
+/** The encounter card types a player can be dealt (not a villain or main scheme, which are never in the deck). */
+const DEALABLE_TYPES: ReadonlySet<string> = new Set([
+  "attachment",
+  "environment",
+  "minion",
+  "obligation",
+  "side_scheme",
+  "treachery",
+]);
+
+/**
+ * `dealAsEncounterCard`: each card out of play and of a dealable type goes facedown in front of `playerId`, to be
+ * revealed with that player's dealt encounter cards. Returns the cards dealt.
+ */
+export function dealAsEncounterCards(ctx: Ctx, ids: readonly InstanceId[], playerId: PlayerId): readonly InstanceId[] {
+  const inPlay = new Set(cardsInPlay(ctx.state));
+  const dealt: InstanceId[] = [];
+  for (const id of ids) {
+    if (inPlay.has(id)) continue;
+    const type = cardOf(ctx.state, id)?.type;
+    if (!type || !DEALABLE_TYPES.has(type)) continue;
+    updateInstance(ctx, id, (i) => ({ ...i, faceup: false }));
+    moveCard(ctx, id, { kind: "dealtEncounter", playerId });
+    dealt.push(id);
+  }
+  return dealt;
+}
+
+/**
+ * The apply step of `encounterCardFromPlayerDeck`: the engine's fallback for an encounter card drawn or discarded from a
+ * player's deck that nothing replaced (maintainer ruling, docs/phase7-wave5.md §4.1 Q4), the handling Mysterio's main
+ * scheme prints (`sm` 27087b/27088b: "deal it to yourself as a facedown encounter card → draw 1 card"). An interrupt
+ * that dealt or moved the card leaves it no longer where the draw or discard put it, so this does nothing and nothing
+ * happens twice. The replacement draw can find another encounter card, which is recorded and announced in turn. Setup
+ * draws (the opening hand, the mulligan) are alike: RRG 1.8 "Ability" (pp. 4-5) bars only player card abilities during
+ * setup, so an encounter card's forced interrupt such as Mysterio's resolves there too.
+ */
+export function dealUnhandledEncounterCard(ctx: Ctx, event: EncounterCardFromPlayerDeck): void {
+  if (!stillWhereItWent(ctx, event)) return;
+  if (dealAsEncounterCards(ctx, [event.instanceId], event.playerId).length === 0) return;
+  drawCards(ctx, event.playerId, 1);
 }
 
 /**

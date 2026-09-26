@@ -385,8 +385,9 @@ export type TriggerEventBody =
    * An encounter card left a player's deck: drawn into the hand, or discarded (docs/phase7-wave5.md §3.5). Maze of
    * Mirrors / Edge of Reality (`sm` 27087, 27088): "Forced Interrupt: When you would draw or discard an encounter card
    * from your deck, deal it to yourself as a facedown encounter card → draw 1 card." Announced between frames after the
-   * draw or discard is done (MC27 p. 21 FAQ), with an interrupt window whose replacement is `dealAsEncounterCard`; with
-   * nothing listening the card simply stays where it went (§4 Q4). An obligation drawn goes to the play area as before.
+   * draw or discard is done (MC27 p. 21 FAQ), with an interrupt window whose replacement is `dealAsEncounterCard`. Always
+   * pushed: its apply step deals a card nothing replaced facedown to that player, who draws 1 card, the printed handling
+   * as the engine's fallback (`dealUnhandledEncounterCard`, §4.1 Q4). An obligation drawn goes to the play area as before.
    */
   | {
       readonly kind: "encounterCardFromPlayerDeck";
@@ -718,8 +719,8 @@ export function isAnnouncement(event: TriggerEvent): boolean {
     // play after its 'When Defeated' ability is resolved").
     case "schemeDefeated":
     // "When you would draw or discard an encounter card from your deck" (docs/phase7-wave5.md §3.5): an interrupt. The
-    // card is already where the draw or discard put it when this is pushed (after the whole draw, MC27 p. 21 FAQ), so
-    // its apply step changes nothing; the interrupt's own effect moves it on.
+    // card is already where the draw or discard put it when this is pushed (after the whole draw, MC27 p. 21 FAQ); the
+    // interrupt's own effect moves it on, and the apply step deals it only if nothing did (§4.1 Q4).
     case "encounterCardFromPlayerDeck":
       return false;
     // "When X leaves play" (docs/phase7-wave5.md §3.13, §4.1 Q17): an interrupt window before the move (`leaving`), or a

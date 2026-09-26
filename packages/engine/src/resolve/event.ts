@@ -35,7 +35,7 @@ import {
   iconsInPlay,
 } from "../rules.js";
 import { canAttack, cardsInPlay, characterIgnores, controllerOf, isProtectedMainScheme } from "../select.js";
-import { applyLeavingPlay } from "./cards.js";
+import { applyLeavingPlay, dealUnhandledEncounterCard } from "./cards.js";
 import { currentActivationFrameId, type StackFrame, type Vars } from "../stack.js";
 import type { GameState } from "../state.js";
 import type { TriggerEvent } from "../trigger-events.js";
@@ -427,6 +427,10 @@ function applyEvent(ctx: Ctx, frame: Frame<"event">): boolean | void {
     case "cardLeavesPlay":
       // "When X leaves play" resolved with the card still in play; it moves now (docs/phase7-wave5.md §4.1 Q17).
       return applyLeavingPlay(ctx, frame);
+    case "encounterCardFromPlayerDeck":
+      // Nothing replaced it in the interrupt window: the engine's fallback (docs/phase7-wave5.md §4.1 Q4).
+      dealUnhandledEncounterCard(ctx, event);
+      return;
     default:
       return;
   }

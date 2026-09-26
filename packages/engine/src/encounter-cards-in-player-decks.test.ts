@@ -115,10 +115,12 @@ describe("§3.5 an encounter card moved into a player's zones", () => {
     expect(mustInstance(state, id!)).toMatchObject({ ownerId: null, faceup: true });
   });
 
-  it("drawn with nothing listening, it goes to the hand (§4 Q4)", () => {
+  it("drawn with nothing listening, it is dealt facedown and replaced by a draw (§4.1 Q4)", () => {
+    // Before §4.1 Q4 it stayed in the hand; the fallback is covered in encounter-card-drawn-fallback.test.ts.
     const onTop = playFree(start(QUIET_SCHEME, deps), deps, ON_TOP.card.id).state;
     const drawn = playFree(onTop, deps, DRAW_TWO.card.id).state;
-    expect(phantomsIn(drawn, mustPlayer(drawn, P1).hand)).toHaveLength(2);
+    expect(phantomsIn(drawn, mustPlayer(drawn, P1).hand)).toHaveLength(0);
+    expect(phantomsIn(drawn, mustPlayer(drawn, P1).dealtEncounter)).toHaveLength(2);
     expect(drawn.pendingEncounterFromDeck).toBeUndefined();
   });
 });
