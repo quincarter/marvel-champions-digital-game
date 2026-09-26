@@ -205,6 +205,16 @@ describe("Nebula II (16089) — resolves Special on each, then chooses and disca
     const stillAttached = [a, b].filter((id) => inst(after, id).attachedTo !== null);
     expect(stillAttached.length).toBe(1);
   });
+
+  // `resolveSpecials` on an empty `TECHNIQUE_IN_PLAY` is vacuously true, so it can't leave the "then" itself
+  // pre-then-unresolved with the current engine; this only exercises the required `chooseTarget` finding nothing
+  // inside the "then" (RRG 1.8 "Choose (Game Element)", p. 12) — no attachment to discard, no crash.
+  it("with no Technique attachment in play, the required choose-and-discard finds nothing and discards nothing", () => {
+    const state = atNebulaStage(nebula(), 1);
+    const { events } = driveEvents(WAVE3_DEPS, state, endTurn());
+    expect(events).toContainEqual({ type: "choiceFoundNothing", slot: "technique" });
+    expect(events.some((e) => e.type === "cardDiscardedFromPlay")).toBe(false);
+  });
 });
 
 describe("Nebula III (16090) — you may remove the top card of your deck to choose-and-discard 1", () => {

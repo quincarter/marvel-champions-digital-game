@@ -2,6 +2,7 @@ import {
   after,
   allOf,
   alterEgoAction,
+  andThen,
   atEndOfAttack,
   attackAnEnemy,
   bindTargets,
@@ -94,12 +95,14 @@ export const SPIDER_MAN_KIT = defineAbilities({
   // The counter is part of the cost; the Uses keyword discards it when the last counter is removed.
   "01008.web-shooter-resource": heroResource({ wild: 1 }, { cost: [exhaustThis, removeCounter("web")] }),
   // Webbed Up — Forced Interrupt: When attached enemy would attack, discard Webbed Up instead. Then, stun that enemy.
+  // `discard(self)` always fully resolves, so `andThen` is the faithful reading (RRG 1.8 "'Then'", p. 44) without
+  // changing observable behavior today.
   "01009.webbed-up-forced-interrupt": forcedInterrupt(
     when.enemyAttacks("host"),
     bindTargets("enemy", host),
     cancelIt(),
     discard(self),
-    stun(chosen("enemy")),
+    andThen(stun(chosen("enemy"))),
   ),
 });
 

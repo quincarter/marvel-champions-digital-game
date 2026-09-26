@@ -17,7 +17,7 @@ export const QSV_CARDS: readonly AnyCard[] = [
     collectorNumber: "1A/1B",
     quantityInSet: 1,
     unique: true,
-    images: { front: imageRef("/bundles/cards/14001a.png") },
+    images: { front: imageRef("/bundles/cards/14001a.png"), back: imageRef("/bundles/cards/14001b.png") },
     hp: 9,
     hero: {
       faceName: "Quicksilver",
@@ -46,7 +46,7 @@ export const QSV_CARDS: readonly AnyCard[] = [
         current: "Superpowered Siblings — Action: Discard 2 cards from your hand → draw 2 cards (draw 3 cards instead if Wanda Maximoff is in play). (Limit once per round.)",
       },
       abilities: [{ id: abilityId("14001b.superpowered-siblings"), label: "Superpowered Siblings" }],
-      image: imageRef("https://hallofheroeslcg.com/wp-content/uploads/2020/12/0b.jpg"),
+      image: imageRef("/bundles/cards/14001b.png"),
     },
     obligationCardId: cardId("14024"),
     nemesisEncounterSetId: encounterSetId("qsv_nemesis"),

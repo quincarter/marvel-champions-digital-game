@@ -168,12 +168,12 @@ function targetsCanBeInvalid(state: GameState, deps: EngineDeps, playerId: Playe
 }
 
 /** The frame var a required choice that found nothing sets, read by `then` (RRG 1.8 "'Then'", p. 44). */
-export const UNRESOLVED_VAR = "_then.unresolved";
+export { UNRESOLVED_VAR } from "./then.js";
 
 type Choice = Extract<EffectSpec, { kind: "chooseTarget" | "chooseCards" }>;
 
 /** Whether a card selector reads a deck: a search or a look at the top of a deck (RRG 1.8 "Target", p. 43). */
-function readsDeck(value: unknown): boolean {
+export function readsDeck(value: unknown): boolean {
   if (Array.isArray(value)) return value.some(readsDeck);
   if (value === null || typeof value !== "object") return false;
   const record = value as Readonly<Record<string, unknown>>;
@@ -196,6 +196,16 @@ export function isRequiredChoice(effect: EffectSpec): effect is Choice {
     return effect.count === undefined || (typeof effect.count === "number" && effect.count >= 1);
   }
   return effect.kind === "chooseCards" && effect.min >= 1 && !readsDeck(effect.from);
+}
+
+/**
+ * A search that must find a card for its text to fully resolve (RRG 1.8 "'Then'", p. 44): a `chooseCards` with a
+ * minimum of at least 1 among a deck's cards. It never blocks initiation ("An ability with a search effect requires
+ * only a searchable game area in order to initiate", RRG 1.8 "Target", p. 43), but finding nothing leaves the text
+ * before a "then" not fully resolved.
+ */
+export function isRequiredSearch(effect: EffectSpec): boolean {
+  return effect.kind === "chooseCards" && effect.min >= 1 && readsDeck(effect.from);
 }
 
 /** Whether a choice reads a value or a card the ability's cost binds (`var`, `slot`, `inSlot`, `excludeSlots`). */

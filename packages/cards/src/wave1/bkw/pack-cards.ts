@@ -1,4 +1,5 @@
 import {
+  andThen,
   after,
   anAttackableEnemy,
   attack,
@@ -92,7 +93,8 @@ export const BKW_PACK_CARDS = defineAbilities({
     youReveal(),
     { cost: discardThis },
     cancelRevealedCard(),
-    revealEncounterCard(you),
+    // Nothing left to cancel: `nothingToCancel` skips the reveal (RRG 1.8 "'Then'", p. 44).
+    andThen(revealEncounterCard(you)),
   ),
 
   // Quincarrier — Resource: Exhaust Quincarrier → generate a [wild] resource. ("Play only if your identity has the

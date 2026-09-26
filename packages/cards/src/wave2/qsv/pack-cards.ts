@@ -1,5 +1,6 @@
 import { trait } from "@mc/content";
 import {
+  andThen,
   action,
   atEndOfAttack,
   attacksGainKeywords,
@@ -121,7 +122,9 @@ export const QSV_PACK_CARDS = defineAbilities({
   "14018.order-and-chaos-interrupt": heroInterrupt(
     on.encounterCardRevealed(query("treachery")),
     cancelWhenRevealed(),
-    dealDamage(2, theVillain),
+    // Its "When Revealed" already cancelled (Cosmic Ward got there first): `nothingToCancel` skips the damage (RRG 1.8
+    // "'Then'", p. 44).
+    andThen(dealDamage(2, theVillain)),
   ),
 
   // Adrenaline Rush (14022, Basic upgrade) — Hero Action: Discard Adrenaline Rush → your hero gets +1 ATK until

@@ -69,6 +69,7 @@ export const IRONHEART_CARDS: readonly AnyCard[] = [
     collectorNumber: "2A/2B",
     quantityInSet: 1,
     unique: true,
+    images: { front: imageRef("/bundles/cards/29002a.png"), back: imageRef("/bundles/cards/29002b.png") },
     hp: 10,
     hero: {
       faceName: "Ironheart",
@@ -90,7 +91,7 @@ export const IRONHEART_CARDS: readonly AnyCard[] = [
           notesForScripting: "Level Up! Action: remove 6 progress counters -> ready her, give her a tough status card, and swap her with Version 3 Ironheart (29003a).",
         },
       ],
-      image: imageRef("https://hallofheroeslcg.com/wp-content/uploads/2022/05/i0e.jpg"),
+      image: imageRef("/bundles/cards/29002a.png"),
     },
     alterEgo: {
       faceName: "Riri Williams",
@@ -104,7 +105,7 @@ export const IRONHEART_CARDS: readonly AnyCard[] = [
       },
       flavor: "\"Just let me finish this up, then I'll eat and frolic and do whatever.\"",
       abilities: [{ id: abilityId("29002b.child-prodigy"), label: "Child Prodigy" }],
-      image: imageRef("https://hallofheroeslcg.com/wp-content/uploads/2022/05/i0b.jpg"),
+      image: imageRef("/bundles/cards/29002b.png"),
     },
     obligationCardId: cardId("29028"),
     nemesisEncounterSetId: encounterSetId("ironheart_nemesis"),
@@ -118,6 +119,7 @@ export const IRONHEART_CARDS: readonly AnyCard[] = [
     collectorNumber: "3A/3B",
     quantityInSet: 1,
     unique: true,
+    images: { front: imageRef("/bundles/cards/29003a.png"), back: imageRef("/bundles/cards/29003b.png") },
     hp: 10,
     hero: {
       faceName: "Ironheart",
@@ -133,7 +135,7 @@ export const IRONHEART_CARDS: readonly AnyCard[] = [
       },
       flavor: "\"Oh, you wanna play, villain person? Let's play.\"",
       abilities: [{ id: abilityId("29003a.maximum-efficiency"), label: "Maximum Efficiency" }],
-      image: imageRef("https://hallofheroeslcg.com/wp-content/uploads/2022/05/i0f.jpg"),
+      image: imageRef("/bundles/cards/29003a.png"),
     },
     alterEgo: {
       faceName: "Riri Williams",
@@ -147,7 +149,7 @@ export const IRONHEART_CARDS: readonly AnyCard[] = [
       },
       flavor: "\"I can build something lighter, faster, stronger.\"",
       abilities: [{ id: abilityId("29003b.child-prodigy"), label: "Child Prodigy" }],
-      image: imageRef("https://hallofheroeslcg.com/wp-content/uploads/2022/05/i0c.jpg"),
+      image: imageRef("/bundles/cards/29003b.png"),
     },
     obligationCardId: cardId("29028"),
     nemesisEncounterSetId: encounterSetId("ironheart_nemesis"),

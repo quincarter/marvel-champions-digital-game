@@ -1,5 +1,6 @@
 import {
   alterEgoAction,
+  andThen,
   attackAnEnemy,
   boost,
   cards,
@@ -127,11 +128,16 @@ export const BLACK_PANTHER_NEMESIS = defineAbilities({
   "01158.boost": boost(giveTough(theVillain)),
   // Ritual Combat — When Revealed: Discard the top card of the encounter deck. Then, choose to either deal X damage to your
   // hero or place X threat on the main scheme. X is 1 more than the number of boost icons on the discarded encounter card.
+  // `moveCards` reads a fixed count from the encounter deck, not a required choice the engine can mark unresolved
+  // (`docs/then-sweep.md`'s "required choice" definition excludes deck reads), so `andThen` doesn't change
+  // observable behavior today; it's still the faithful reading (RRG 1.8 "'Then'", p. 44).
   "01159.when-revealed": whenRevealed(
     moveCards(encounterCards(["deck"], undefined, 1), "discard", "ritual"),
-    chooseOne(
-      option("Deal X damage to your hero", takeDamage(RITUAL_X)),
-      option("Place X threat on the main scheme", placeThreat(RITUAL_X, theMainScheme)),
+    andThen(
+      chooseOne(
+        option("Deal X damage to your hero", takeDamage(RITUAL_X)),
+        option("Place X threat on the main scheme", placeThreat(RITUAL_X, theMainScheme)),
+      ),
     ),
   ),
 });

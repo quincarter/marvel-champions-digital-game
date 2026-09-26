@@ -160,6 +160,8 @@ export const MASTERS_OF_EVIL_SET = defineAbilities({
   // Masters of Mayhem — When Revealed: Each Masters of Evil minion attacks the hero it is engaged with. If no attacks were made
   // this way, search the encounter deck and discard pile for a Masters of Evil minion and put it into play engaged with you,
   // then shuffle the encounter deck. The first player orders the attacks and picks among eligible minions (RRG "First Player").
+  // The shuffle is not `andThen`: a searched deck is shuffled on completion whether or not the search found a minion
+  // (RRG 1.8 "Search", p. 39), so the printed "then shuffle" happens either way (`core/modular/hydra-and-doomsday.ts`).
   "01133.when-revealed": whenRevealed(
     enemyAttack(each(MASTERS_OF_EVIL_MINION), { bind: "mayhem" }),
     ifThen(not(made("mayhem")), [

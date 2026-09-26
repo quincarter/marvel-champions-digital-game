@@ -1,5 +1,6 @@
 import {
   addCounters,
+  andThen,
   bindTargets,
   boost,
   chooseOne,
@@ -133,11 +134,15 @@ export const RISKY_BUSINESS = defineAbilities({
   ),
   // Hostile Takeover 1B — When Completed: Place 1[per_hero] infamy counters on Criminal Enterprise. Then discard 1
   // card from each player's deck for each infamy counter on Criminal Enterprise (read after the placement above).
+  // `addCounters` always fully resolves, so `andThen` around the "then discard" is the faithful reading (RRG 1.8
+  // "'Then'", p. 44) without changing behavior today.
   "02004b.when-completed": whenCompleted(
     addCounters("infamy", perHero(1), named(CRIMINAL_ENTERPRISE)),
-    forEachPlayer(
-      eachPlayer,
-      moveCards(topOfDeck(countersOn(named(CRIMINAL_ENTERPRISE), "infamy"), thatPlayer), "discard"),
+    andThen(
+      forEachPlayer(
+        eachPlayer,
+        moveCards(topOfDeck(countersOn(named(CRIMINAL_ENTERPRISE), "infamy"), thatPlayer), "discard"),
+      ),
     ),
   ),
   // Corporate Acquisition 2A — When Revealed: Advance to stage 2B (implicit).

@@ -1,4 +1,5 @@
 import {
+  andThen,
   after,
   boost,
   bindTargets,
@@ -119,7 +120,12 @@ export const WRECKER_SET = defineAbilities({
     rule({ kind: "threatCannotBeRemoved", target: query("sideScheme", { hostOfSelf: true }), by: "thwart" }),
   ),
   // Hero Action: The villain corresponding to the attached side scheme attacks you. Then discard this card.
-  "07005.held-hostage-action": heroAction(enemyAttack(villainOfSideScheme(host), { against: you }), discard(self)),
+  // A stunned villain removes its stun instead of attacking, so the attack did not happen and "then discard this
+  // card" is skipped (`activationDidNotHappen`, RRG 1.8 "'Then'", p. 44; "Stun", p. 41).
+  "07005.held-hostage-action": heroAction(
+    enemyAttack(villainOfSideScheme(host), { against: you }),
+    andThen(discard(self)),
+  ),
 
   // Magic Crowbar — Attach to Wrecker. [star] Forced Response: After Wrecker attacks, place 1 threat on the side
   // scheme with the least threat.
@@ -203,15 +209,17 @@ export const WRECKER_SET = defineAbilities({
 
   // Crowbar Toss — When Revealed (Alter-Ego): Wrecker schemes. Then, move the active villain counter to the villain
   // whose side scheme has the least threat.
+  // A confused Wrecker (or one not in play) does not scheme, so the counter does not move (`activationDidNotHappen`,
+  // RRG 1.8 "'Then'", p. 44). Same for the hero side's attack and a stunned Wrecker.
   "07012.when-revealed-alter-ego": whenRevealedAlterEgo(
     enemyScheme(named("Wrecker")),
-    setActiveVillain(leastThreatVillain),
+    andThen(setActiveVillain(leastThreatVillain)),
   ),
   // When Revealed (Hero): Wrecker attacks you. Then, move the active villain counter to the villain whose side
   // scheme has the least threat.
   "07012.when-revealed-hero": whenRevealedHero(
     enemyAttack(named("Wrecker"), { against: you }),
-    setActiveVillain(leastThreatVillain),
+    andThen(setActiveVillain(leastThreatVillain)),
   ),
 
   // Get Wrecked! — When Revealed (Alter-Ego): The villain whose side scheme has the most threat schemes.

@@ -1,5 +1,6 @@
 import {
   after,
+  andThen,
   chosen,
   constant,
   countOf,
@@ -37,7 +38,13 @@ const LEGIONS_OF_HYDRA = cardName("01180");
 const MADAME_HYDRA = cardName("01181");
 const MODOK = cardName("01184"); // current title "M.O.D.O.K." (RRG 1.5 errata)
 
-/** "If X is not in play, search the encounter deck and discard pile for X and put it into play engaged with you, then shuffle the encounter deck." */
+/**
+ * "If X is not in play, search the encounter deck and discard pile for X and put it into play engaged with you, then
+ * shuffle the encounter deck." A search that finds no X leaves the pre-"then" text unresolved (`searchFoundNothing`,
+ * RRG 1.8 "'Then'", p. 44), but the shuffle is not `andThen`: it is also the Search rule's own shuffle (RRG 1.8
+ * "Search", p. 39: "If any portion of a deck is searched, upon completion of that … card ability, shuffle that entire
+ * deck"), which happens whether or not the search found anything.
+ */
 const fetchIntoPlay = (name: string, slot: string) =>
   ifThen(not(inPlay(name)), [
     selectCards(slot, encounterCards(["deck", "discard"], { name })),
@@ -72,8 +79,10 @@ export const DOOMSDAY_CHAIR_SET = defineAbilities({
   // into play engaged with you, then shuffle the encounter deck.
   "01183.when-revealed": whenRevealed(fetchIntoPlay(MODOK, "modok")),
   // Biomechanical Upgrades — Forced Interrupt: When attached minion would be defeated, heal all damage from it instead, then discard this card.
+  // `heal` always fully resolves, so `andThen` is the faithful reading (RRG 1.8 "'Then'", p. 44) without changing
+  // observable behavior today.
   "01185.biomechanical-upgrades-forced-interrupt": forcedInterrupt(
     when.defeated("host"),
-    instead(heal(damageOn(host), host), discard(self)),
+    instead(heal(damageOn(host), host), andThen(discard(self))),
   ),
 });

@@ -3,6 +3,7 @@ import {
   action,
   after,
   alterEgoAction,
+  andThen,
   anEnemy,
   anyOf,
   aScheme,
@@ -151,10 +152,12 @@ export const DRS_KIT = defineAbilities({
 
   // Master of the Mystic Arts — Hero Action: Pay the printed cost of the top card of the Invocation deck → resolve
   // its "Special" ability. Then, place it back on top of the Invocation deck faceup.
+  // `resolveSpecialsOf` always attempts to fully resolve once the cost is paid, so `andThen` is the faithful
+  // reading (RRG 1.8 "'Then'", p. 44) without changing observable behavior today.
   "09005.master-of-the-mystic-arts-action": heroAction(
     { cost: payPrintedCostOf("invocation", invocationTopCost()) },
     resolveSpecialsOf(chosen("invocation")),
-    moveCards(cards(chosen("invocation")), "separateDeckTop"),
+    andThen(moveCards(cards(chosen("invocation")), "separateDeckTop")),
   ),
 
   // Mystical Studies — Alter-Ego Action: Search your deck and discard pile for a Doctor Strange card and add it to

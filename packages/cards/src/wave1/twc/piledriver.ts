@@ -1,4 +1,5 @@
 import {
+  andThen,
   after,
   allOf,
   bindTargets,
@@ -135,7 +136,12 @@ export const PILEDRIVER_SET = defineAbilities({
   "07036.held-hostage-constant": constant(
     rule({ kind: "threatCannotBeRemoved", target: query("sideScheme", { hostOfSelf: true }), by: "thwart" }),
   ),
-  "07036.held-hostage-action": heroAction(enemyAttack(villainOfSideScheme(host), { against: you }), discard(self)),
+  // A stunned villain removes its stun instead of attacking, so the attack did not happen and "then discard this
+  // card" is skipped (`activationDidNotHappen`, RRG 1.8 "'Then'", p. 44; "Stun", p. 41).
+  "07036.held-hostage-action": heroAction(
+    enemyAttack(villainOfSideScheme(host), { against: you }),
+    andThen(discard(self)),
+  ),
 
   // Escaped Convict — same text as Wrecker's copy (07009).
   "07038.boost": boost(

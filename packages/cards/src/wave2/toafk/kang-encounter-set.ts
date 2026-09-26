@@ -3,6 +3,7 @@ import {
   adjustBoostCount,
   allOf,
   alterEgoAction,
+  andThen,
   attachCard,
   bindTargets,
   boost,
@@ -188,6 +189,8 @@ export const KANG_ENCOUNTER_SET = defineAbilities({
   // this card. Alter-Ego Action: discard an [energy] resource from your hand → discard this obligation (and the
   // tucked card with it, same "Tuck" rule as Stolen Memories above).
   "11021.obligation": coveredByEngineRule(),
+  // With no ally/upgrade/support in play, the required `chooseTarget` finds nothing, so "then place it facedown
+  // under this card" doesn't attempt to resolve either (RRG 1.8 "'Then'", p. 44).
   "11021.when-revealed": whenRevealed(
     bindTargets(
       "highestCost",
@@ -199,7 +202,7 @@ export const KANG_ENCOUNTER_SET = defineAbilities({
     ),
     chooseTarget("pick", { inSlot: "highestCost" }),
     discard(chosen("pick")),
-    tuckCards(cards(chosen("pick")), self, true),
+    andThen(tuckCards(cards(chosen("pick")), self, true)),
   ),
   "11021.time-travel-hijinks-action": alterEgoAction(
     { cost: discardFromHandCost(1, 1, undefined, { printedResource: "energy" }) },

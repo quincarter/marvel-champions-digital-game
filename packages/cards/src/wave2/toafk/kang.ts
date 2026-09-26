@@ -1,6 +1,7 @@
 import { trait } from "@mc/content";
 import {
   addVillain,
+  andThen,
   atEndOfPhase,
   cards,
   centralMainScheme,
@@ -231,6 +232,8 @@ export const KANG_SET = defineAbilities({
   // The Master of Time 2A — When Revealed: place 1 acceleration token here for each side scheme in play, then
   // discard each side scheme. Each player reveals a random stage 3A in turn order. Remove any unused stage 3
   // schemes from the game.
+  // `addCounters` always fully resolves (vacuously with zero side schemes in play), so `andThen` around the "then
+  // discard" is the faithful reading (RRG 1.8 "'Then'", p. 44) without changing behavior today.
   "11008a.when-revealed": whenRevealed(
     {
       kind: "addCounters",
@@ -238,7 +241,7 @@ export const KANG_SET = defineAbilities({
       amount: { kind: "count", query: query("sideScheme") },
       target: theMainScheme,
     },
-    { kind: "discardFromPlay", target: { kind: "each", query: query("sideScheme") } },
+    andThen({ kind: "discardFromPlay", target: { kind: "each", query: query("sideScheme") } }),
     { kind: "revealMainSchemeStage", player: eachPlayer, stageNumber: 3, removeUnused: true },
   ),
 
