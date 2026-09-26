@@ -334,7 +334,7 @@ against `pnpm dsl` (379 builders), the engine's `EffectSpec` / `RuleSpec` / `Tri
 | ---- | -------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- | ------- |
 | 3.1  | Villains that enter and leave play: set-aside villains, activation order, no villain in play | The Sinister Six; Frequent Flyers, High Fashion, Robotic Enhancements, Surprise!               | landed  |
 | 3.2  | An enemy activation that can be interrupted and canceled                                     | Sinister Synchronization / Beatdown ("Ambush!"), Web Binding                                   | landed  |
-| 3.3  | Several main schemes, one marked by a counter; a completed stage flips to an environment     | Venom Goblin (glider counter)                                                                  | open    |
+| 3.3  | Several main schemes, one marked by a counter; a completed stage flips to an environment     | Venom Goblin (glider counter)                                                                  | landed  |
 | 3.4  | Acceleration tokens on any card, moved between cards, and announced                          | Hapless Pedestrians, Tracking Prey, Lower/Midtown/Upper Manhattan                              | open    |
 | 3.5  | Encounter cards in a player's deck, hand and discard pile                                    | Mysterio (whole scenario), MC27 scenario 3 campaign                                            | open    |
 | 3.6  | Boost cards held on a card that does not activate, then moved to an enemy                    | Venom ("Leave Us Alone!", Vengeance), MC27 scenario 2 expert                                   | open    |
@@ -453,6 +453,26 @@ continues against the active villain if one now exists. **DSL:** `on.enemyActiva
 **Composes with:** Hawkeye-style "when an enemy would activate" cards in later packs (grep "would activate").
 
 ### 3.3 Several main schemes, one marked by a counter; a completed stage flips to an environment
+
+> **Status: landed (2026-09-26),** tested in `packages/engine/src/glider-main-schemes.test.ts` (6 tests: the setup puts
+> stages B–D into play, the glider on Midtown, and stage A set aside as its environment face; an encounter card's "the
+> main scheme" is the glider's, and crisis/patrol protect only it; a player's acceleration token goes on the glider
+> scheme; in the villain phase each main scheme gains its own acceleration and the villain schemes on the glider's;
+> moving the counter moves "the main scheme"; a completed stage flips to its environment, revealed, no loss, replay
+> deep-equal). DSL: `wave5-primitives.test.ts`. **What landed:** **`RuleSpec focusedMainScheme.encounterCards:
+"focused"`** (`gliderMainSchemeId`): encounter cards' "the main scheme", a villain's scheme threat when it has no main
+> scheme of its own, every acceleration token placed "on the main scheme" (`addAccelerationToken` with no target,
+> including the empty-deck reset) and the crisis/patrol checks (`isProtectedMainScheme`, in `threatRemovalBlocked` and
+> the basic thwart) name the focused scheme alone. A player card's "the main scheme" is unchanged (the wave 4 choice).
+> **`TargetQuery.hasCounter`** (exclusion `missingCounter`). **`EffectSpec moveCounters { from, to, counterType? }`**
+> (log `countersMoved`). **Stage flips:** `flipCard` on a main scheme whose stage has `otherFaceId`, and completion of a
+> stage with `onCompletion: "flipToOtherFace"`, turn it into that face in the villain's area (`flipMainSchemeStage`,
+> log `mainSchemeFlippedToOtherFace`); completion also reveals it (When Revealed, "enters play"). A central scheme
+> passes the central slot to the next. Threat and attachments go; counters and acceleration tokens stay on the card
+> (§4 Q15). **DSL:** `mainSchemeMarkedBy(counterType)` (a scenario rule spec), `moveCounters`,
+> `query(…, { hasCounter })`. **Known limits:** the only main scheme in play never flips (refused); acceleration tokens
+> kept on a flipped card count toward step one only from §3.4. **Client:** three main schemes with the glider marker;
+> log lines for `countersMoved` and `mainSchemeFlippedToOtherFace`.
 
 **Rules.** MC27 p. 17 "The Glider Counter" (quoted in `docs/campaign-modes/markdown/mc27_sinister_motives.md`) and the
 p. 67 erratum; FAQ p. 62 and MC27 p. 21 (a player card's "the main scheme" may be any main scheme; a player effect's
@@ -795,6 +815,10 @@ flagged; none is implemented yet.**
 12. **The extra mulligan** (§3.26): a full second mulligan (discard any number, draw back up). **Default:** as stated.
 13. **Déjà Vu's "Shuffle Déjà Vu into any player's deck"**: chosen by the revealing player. **Default:** as stated.
 14. **Public Outcry's expert uses count** (§1.9): "3" or "3[per_hero]". Needs the card image (pipeline).
+15. **What a main scheme keeps when it flips to its environment** (§3.3). RRG 1.8 "Flip" (p. 20) discards tokens on a
+    change of card type, but the Manhattan environments' own When Revealed moves "the glider counter and each
+    acceleration token from here". **Default:** card text wins (RRG 1.8 "The Golden Rules", p. 4): threat and
+    attachments go, counters and acceleration tokens stay on the card for the When Revealed to move.
 
 ---
 

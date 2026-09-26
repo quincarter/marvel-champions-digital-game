@@ -338,6 +338,31 @@ export function focusedMainSchemeId(state: GameState, deps: EngineDeps): Instanc
   return null;
 }
 
+/**
+ * The one main scheme encounter cards, enemy threat, acceleration tokens, crisis and patrol mean when a
+ * `focusedMainScheme` rule says `encounterCards: "focused"` (Venom Goblin's glider counter, docs/phase7-wave5.md §3.3);
+ * else null.
+ */
+export function gliderMainSchemeId(state: GameState, deps: EngineDeps): InstanceId | null {
+  for (const { rule, context } of activeRules(state, deps, "focusedMainScheme")) {
+    if (rule.encounterCards !== "focused") continue;
+    const scheme = resolveRef(state, rule.scheme, context).find((id) => mainSchemeStateOf(state, id) !== undefined);
+    if (scheme !== undefined) return scheme;
+  }
+  return null;
+}
+
+/**
+ * Whether the crisis icon and patrol protect this card as "the main scheme": any main scheme, or with a glider-style
+ * focus (§3.3; MC21 p. 21 FAQ, "encounter effects that refer to 'the main scheme' only refer to the scheme with the
+ * glider counter") only the focused one.
+ */
+export function isProtectedMainScheme(state: GameState, deps: EngineDeps, id: InstanceId): boolean {
+  if (mainSchemeStateOf(state, id) === undefined) return false;
+  const glider = gliderMainSchemeId(state, deps);
+  return glider === null || glider === id;
+}
+
 /** "(Aggression, Justice, Leadership and Protection)": the aspects `ValueSpec distinctAspects` counts (§3.12 of wave 4). */
 const FOUR_ASPECTS: readonly string[] = ["aggression", "justice", "leadership", "protection"];
 
@@ -411,6 +436,8 @@ export type QueryExclusion =
   | "ready"
   | "noThreat"
   | "hasThreat"
+  /** No counter of the query's `hasCounter` type on it (docs/phase7-wave5.md §3.3). */
+  | "missingCounter"
   | "notDamaged"
   | "damaged"
   | "missingStatus"
@@ -549,6 +576,7 @@ export function explainQuery(
     return query.exhausted ? "ready" : "exhausted";
   if (query.hasThreat !== undefined && instance.threat > 0 !== query.hasThreat)
     return query.hasThreat ? "noThreat" : "hasThreat";
+  if (query.hasCounter !== undefined && (instance.counters[query.hasCounter] ?? 0) <= 0) return "missingCounter";
   if (query.damaged !== undefined && instance.damage > 0 !== query.damaged)
     return query.damaged ? "notDamaged" : "damaged";
   if (query.hasStatus && instance.statuses[query.hasStatus] <= 0) return "missingStatus";
@@ -1107,8 +1135,12 @@ export function resolveRef(state: GameState, ref: TargetRef, context: EffectCont
       if (!area && (state.extraMainSchemes ?? []).length > 0) {
         const chosen = context.bindings[MAIN_SCHEME_CHOICE];
         if (chosen) return chosen;
+        const deps = context.deps ?? DEFAULT_DEPS;
         if (isPlayerCard(state, context.selfInstanceId))
-          return [focusedMainSchemeId(state, context.deps ?? DEFAULT_DEPS) ?? state.mainScheme.instanceId];
+          return [focusedMainSchemeId(state, deps) ?? state.mainScheme.instanceId];
+        // Venom Goblin: an encounter card's "the main scheme" is the one with the glider counter (§3.3).
+        const glider = gliderMainSchemeId(state, deps);
+        if (glider) return [glider];
         return sharedMainSchemes(state).map((scheme) => scheme.instanceId);
       }
       const scheme = mainSchemeFor(state, area);

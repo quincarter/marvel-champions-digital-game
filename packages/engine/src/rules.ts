@@ -21,6 +21,7 @@ import {
   cardsInPlay,
   categoriesOf,
   focusedMainSchemeId,
+  gliderMainSchemeId,
   contextArea,
   evaluate,
   isPlayerCard,
@@ -171,7 +172,8 @@ export function pairedMainSchemeId(state: GameState, deps: EngineDeps, enemyId: 
   if (villainOf(state, enemyId)) {
     const name = currentName(state, enemyId);
     const own = sharedMainSchemes(state).find((scheme) => mainSchemeStageOf(state, scheme).villainOf === name);
-    return own?.instanceId ?? null;
+    // With no scheme of its own, the glider's (Venom Goblin, docs/phase7-wave5.md §3.3).
+    return own?.instanceId ?? gliderMainSchemeId(state, deps);
   }
   return focusedMainSchemeId(state, deps);
 }

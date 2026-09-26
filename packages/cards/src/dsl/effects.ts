@@ -1279,6 +1279,16 @@ export const addVillain = (
 export const setVillainAside = (villain: TargetRef): EffectSpec => ({ kind: "setVillainAside", villain });
 /** "Move the active counter to the next villain in the activation order." (MC27 p. 15; docs/phase7-wave5.md §3.1) */
 export const moveActiveCounterToNextVillain: EffectSpec = { kind: "moveActiveCounter", to: "nextInActivationOrder" };
+/**
+ * "Move the glider counter to the main scheme with the least threat" (MC27 p. 17): every counter of `counterType`
+ * (absent: every type) on the cards `from` names goes to the first card `to` names. docs/phase7-wave5.md §3.3.
+ */
+export const moveCounters = (from: TargetRef, to: TargetRef, counterType?: string): EffectSpec => ({
+  kind: "moveCounters",
+  from,
+  to,
+  ...(counterType !== undefined ? { counterType } : {}),
+});
 /** "Remove [villain] and this stage from the game." */
 export const removeVillain = (villain: TargetRef): EffectSpec => ({ kind: "removeVillain", villain });
 /** "Remove [stage] from the game." (a separate game area's own main scheme stage). */

@@ -5,7 +5,15 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { forcedInterrupt, heroInterrupt, on, setup, whenDefeated } from "./abilities.js";
+import {
+  forcedInterrupt,
+  heroInterrupt,
+  mainSchemeMarkedBy,
+  on,
+  setup,
+  whenDefeated,
+  whenRevealed,
+} from "./abilities.js";
 import {
   addVillain,
   cancelIt,
@@ -13,6 +21,8 @@ import {
   encounterSetAside,
   ifThen,
   moveActiveCounterToNextVillain,
+  moveCounters,
+  resolveSpecialsOf,
   selectCards,
   setActiveVillain,
   setVillainAside,
@@ -29,6 +39,7 @@ import {
   refMatches,
   self,
   superlative,
+  threatOn,
 } from "./values.js";
 import { validateDefinition } from "./validate.js";
 
@@ -82,5 +93,24 @@ describe("§3.2 an enemy activation that can be interrupted and canceled", () =>
       on: "enemyActivating",
       targetIs: { categories: ["minion"] },
     });
+  });
+});
+
+describe("§3.3 several main schemes, one marked by the glider counter", () => {
+  it("the glider rule names the main scheme with the counter; Joy Ride moves it to the most threat", () => {
+    expect(mainSchemeMarkedBy("glider")).toEqual({
+      kind: "focusedMainScheme",
+      scheme: { kind: "each", query: { categories: ["mainScheme"], hasCounter: "glider" } },
+      encounterCards: "focused",
+    });
+    const joyRide = whenRevealed(
+      moveCounters(
+        each(query("mainScheme", { hasCounter: "glider" })),
+        superlative("highest", each(query("mainScheme")), threatOn(chosen("candidate"))),
+        "glider",
+      ),
+      resolveSpecialsOf(each(query("mainScheme", { hasCounter: "glider" }))),
+    );
+    valid(joyRide);
   });
 });

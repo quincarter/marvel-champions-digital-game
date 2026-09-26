@@ -33,7 +33,7 @@ import {
   threatCannotBeRemoved,
   iconsInPlay,
 } from "../rules.js";
-import { canAttack, cardsInPlay, characterIgnores, controllerOf } from "../select.js";
+import { canAttack, cardsInPlay, characterIgnores, controllerOf, isProtectedMainScheme } from "../select.js";
 import { currentActivationFrameId, type StackFrame, type Vars } from "../stack.js";
 import type { GameState } from "../state.js";
 import type { TriggerEvent } from "../trigger-events.js";
@@ -793,7 +793,7 @@ export function threatRemovalBlocked(
   // With separate game areas, only the icons in the scheme's own area count (docs/phase7-wave2.md §3.1).
   if (
     !ignoreCrisis &&
-    mainSchemeStateOf(state, schemeId) &&
+    isProtectedMainScheme(state, deps, schemeId) &&
     byPlayer &&
     iconsInPlay(state, deps, "crisis", areaOfCard(state, schemeId)) > 0 &&
     !characterIgnores(state, deps, acting, "crisis")
@@ -806,7 +806,7 @@ export function threatRemovalBlocked(
     byThwart &&
     !ignorePatrol &&
     thwartingPlayerId &&
-    mainSchemeStateOf(state, schemeId) &&
+    isProtectedMainScheme(state, deps, schemeId) &&
     patrolledBy(state, deps, thwartingPlayerId) &&
     !characterIgnores(state, deps, thwarterInstanceId, "patrol")
   )

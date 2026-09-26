@@ -541,6 +541,16 @@ export const playersCannotDiscard = (target: TargetQuery): ConstantPart => ({
 export const cannotChooseToDiscard: ConstantPart = { rules: [{ kind: "cannotChooseToDiscard" }] };
 export const focusedMainScheme = (): ConstantPart => rule({ kind: "focusedMainScheme", scheme: { kind: "host" } });
 /**
+ * Venom Goblin's glider counter as a scenario rule (MC27 p. 17; docs/phase7-wave5.md §3.3): the main scheme with the
+ * counter is the one encounter cards, enemy threat, acceleration tokens, patrol and crisis mean. Put it in the
+ * scenario's rule specs (`GameSetupConfig.scenarioRuleSpecs`, wave 4 §3.40), not on a card.
+ */
+export const mainSchemeMarkedBy = (counterType: string): RuleSpec => ({
+  kind: "focusedMainScheme",
+  scheme: { kind: "each", query: { categories: ["mainScheme"], hasCounter: counterType } },
+  encounterCards: "focused",
+});
+/**
  * "The first [X] the engaged player reveals each villain phase gains surge." (Mister Knife, `stld` 17026); "The
  * first [Technique] attachment revealed each round gains surge." (Nebula I–III, `gmw`; docs/phase7-wave3.md §3.8).
  * `revealer` narrows *who* has to reveal it ("the engaged player" is `engagedPlayerOf(self)`); absent matches

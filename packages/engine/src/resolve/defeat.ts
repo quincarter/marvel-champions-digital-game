@@ -36,7 +36,7 @@ import type { GameState, MainSchemeState, VillainState } from "../state.js";
 import type { TriggerEvent } from "../trigger-events.js";
 import { engagedEvent } from "./apply-effect.js";
 import { announce, base, eventFrame, gameAbilityFrames } from "./frames.js";
-import { leaveAreaOnDefeat, passActiveCounter } from "./game-areas.js";
+import { flipMainSchemeStage, leaveAreaOnDefeat, passActiveCounter } from "./game-areas.js";
 import { attachmentHostCandidates } from "./reveal.js";
 import { heard } from "./triggers.js";
 
@@ -168,6 +168,14 @@ export function completeMainScheme(ctx: Ctx, schemeId: InstanceId): void {
     stageIndex: scheme.stageIndex,
     ...(central ? {} : { schemeInstanceId: schemeId }),
   });
+  // Venom Goblin's main schemes turn to their environment face instead (docs/phase7-wave5.md §3.3).
+  if (mainSchemeStageOf(ctx.state, scheme).onCompletion === "flipToOtherFace") {
+    const frames = flipMainSchemeStage(ctx, schemeId, true, ctx.state.firstPlayerId);
+    if (frames !== false) {
+      pushFrames(ctx, frames);
+      return;
+    }
+  }
   const next = completionNextStage(ctx.state, scheme);
   if (next === null || completionLoses(ctx.state, scheme, next)) {
     updateMainSchemeState(ctx, schemeId, (s) => ({ ...s, completed: true }));

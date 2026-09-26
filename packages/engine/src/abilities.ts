@@ -735,7 +735,23 @@ export type RuleSpec =
    * scheme (`host`, on the attachment). Applied between frames: the villain whose title the scheme's `villainOf` names is
    * made active (`activeVillainChanged { reason: "focusedScheme" }`). docs/phase7-wave4.md §3.2.
    */
-  | { readonly kind: "focusedMainScheme"; readonly scheme: TargetRef; readonly while?: Predicate }
+  | {
+      readonly kind: "focusedMainScheme";
+      readonly scheme: TargetRef;
+      readonly while?: Predicate;
+      /**
+       * `focused`: encounter cards' "the main scheme" is the focused scheme alone, and so are the acceleration tokens
+       * placed "on the main scheme" (by any card, and by the empty encounter deck), the villain's scheme threat, and the
+       * main scheme the crisis icon and patrol protect. Venom Goblin's glider counter, MC27 p. 17: "When threat would be
+       * placed on 'the main scheme' by an enemy activation, card ability, or acceleration icon, place it on the scheme
+       * with the glider counter. Additionally, when an acceleration token would be placed on 'the main scheme,' place it
+       * on the scheme with the glider counter. Any encounter card that refers to 'the main scheme' without a qualifier
+       * refers to the main scheme with the glider counter."; FAQ (RRG 1.8 p. 62; MC27 p. 21) on player acceleration
+       * tokens, patrol and crisis. Absent: Tower Defense's reading (an encounter card's "the main scheme" is every one).
+       * docs/phase7-wave5.md §3.3.
+       */
+      readonly encounterCards?: "focused";
+    }
   /**
    * "Odin cannot have cards attached" / "Odin cannot have encounter cards attached" (Odin, `mts` 21139a/b; with Odin
    * attached to the main scheme, ruling Aug 3, 2026 (4) #1: "Odin cannot have attachments while attached to the main

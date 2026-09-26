@@ -79,6 +79,22 @@ export type GameEvent =
     }
   /** A villain was removed from the game without being defeated (`removeVillain`). */
   | { readonly type: "villainRemoved"; readonly instanceId: InstanceId }
+  /** Counters moved from one card to another (`EffectSpec moveCounters`, docs/phase7-wave5.md §3.3). */
+  | {
+      readonly type: "countersMoved";
+      readonly from: InstanceId;
+      readonly to: InstanceId;
+      readonly counterType: string;
+      readonly amount: number;
+    }
+  /** A main scheme stage turned to its other face (Venom Goblin's environments; docs/phase7-wave5.md §3.3). */
+  | {
+      readonly type: "mainSchemeFlippedToOtherFace";
+      readonly instanceId: InstanceId;
+      readonly from: CardId;
+      readonly to: CardId;
+      readonly stageIndex: number;
+    }
   /** "Set this villain aside" (docs/phase7-wave5.md §3.1): out of play, cleared, in the set-aside area. */
   | { readonly type: "villainSetAside"; readonly instanceId: InstanceId }
   /** A separate game area was created, or players joined another area (null: the central area; the game is no longer split). */

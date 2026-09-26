@@ -153,6 +153,11 @@ export interface TargetQuery {
   readonly anyAspect?: readonly string[];
   readonly exhausted?: boolean;
   readonly hasThreat?: boolean;
+  /**
+   * At least one counter of this type is on the card: "the main scheme with the glider counter" (Venom Goblin, MC27
+   * p. 17; docs/phase7-wave5.md §3.3). Exclusion `missingCounter`.
+   */
+  readonly hasCounter?: string;
   readonly damaged?: boolean;
   readonly hasStatus?: "stunned" | "confused" | "tough";
   /**
@@ -1862,6 +1867,13 @@ export type EffectSpec =
    * value." Only villains in play count; with none other in play it stays (MC27 p. 21 FAQ). docs/phase7-wave5.md §3.1.
    */
   | { readonly kind: "moveActiveCounter"; readonly to: "nextInActivationOrder" }
+  /**
+   * "Move the glider counter to the main scheme with the least threat" (Venom Goblin, MC27 p. 17); "moving all counters
+   * on this card … to her" (SP//dr Suit 1B, `spdr` 31001b). Every counter of `counterType` (absent: of every type) on
+   * each card `from` names goes to the first card `to` names; with no `to`, nothing moves. A move is not a removal, so
+   * it announces no `countersRemoved` and never empties a uses card. Log `countersMoved`. docs/phase7-wave5.md §3.3.
+   */
+  | { readonly kind: "moveCounters"; readonly from: TargetRef; readonly to: TargetRef; readonly counterType?: string }
   /**
    * "Remove Kang (Immortus) and this stage from the game": a villain leaves play, removed from the game rather than
    * defeated (no When Defeated, no win). Its attachments and boost cards are discarded as it leaves.

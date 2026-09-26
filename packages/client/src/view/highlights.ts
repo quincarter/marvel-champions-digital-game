@@ -203,6 +203,7 @@ const EXCLUSION_WORDING: Record<ExclusionCode, string> = {
   ready: "not exhausted",
   noThreat: "has no threat on it",
   hasThreat: "already has threat on it",
+  missingCounter: "has no counter of that kind on it",
   notDamaged: "undamaged",
   damaged: "already damaged",
   missingStatus: "doesn't have the needed status",

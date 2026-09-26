@@ -113,6 +113,7 @@ import {
   restrictedCardsOf,
   traitsOf,
   type EffectContext,
+  isProtectedMainScheme,
 } from "./select.js";
 import type { Bindings, ReportTarget, Vars } from "./stack.js";
 import type { GameState } from "./state.js";
@@ -2543,8 +2544,10 @@ function basicThwartPaying(
     // RRG "Crisis Icon": while any crisis icon is in play, player cards cannot remove threat from the main scheme. For a
     // divided thwart this holds "even if the card [...] is removed from play during her basic thwart's resolution" (FAQ
     // "Wasp (#1C)"), which checking every share now gives.
+    // With a glider-style focus only that main scheme is protected (docs/phase7-wave5.md §3.3).
+    const protectedScheme = isProtectedMainScheme(ctx.state, ctx.deps, schemeId);
     if (
-      isMainScheme &&
+      protectedScheme &&
       !confused &&
       iconsInPlay(ctx.state, ctx.deps, "crisis", thwarterArea) > 0 &&
       !characterIgnores(ctx.state, ctx.deps, command.thwarterInstanceId, "crisis")
@@ -2554,7 +2557,7 @@ function basicThwartPaying(
     // RRG 1.8 "Patrol" (p. 32): the engaged player "cannot use cards they control to thwart the main scheme" — checked
     // per share, as the crisis icon is (FAQ "Wasp (#1C)", p. 61, names both). docs/phase7-wave3.md §3.5.
     if (
-      isMainScheme &&
+      protectedScheme &&
       !confused &&
       patrolledBy(ctx.state, ctx.deps, command.playerId) &&
       !characterIgnores(ctx.state, ctx.deps, command.thwarterInstanceId, "patrol")

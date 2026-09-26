@@ -37,7 +37,7 @@ import {
 } from "./rules.js";
 import { pushEvent } from "./resolve/frames.js";
 import { releaseTreatedBy } from "./treat-as.js";
-import { matchesQuery, type EffectContext } from "./select.js";
+import { gliderMainSchemeId, matchesQuery, type EffectContext } from "./select.js";
 import type { StatusName } from "./spec.js";
 import type { GameOutcome, GameState, MainSchemeState, ZoneId } from "./state.js";
 import type { LastingDuration, LastingEffect, LastingEffectBody } from "./lasting.js";
@@ -161,6 +161,21 @@ export function addCounters(ctx: Ctx, id: InstanceId, counterType: string, amoun
     counters: { ...i.counters, [counterType]: (i.counters[counterType] ?? 0) + amount },
   }));
   emit(ctx, { type: "counterAdded", instanceId: id, counterType, amount });
+}
+
+/** `EffectSpec moveCounters` for one card (docs/phase7-wave5.md §3.3): every counter of the type(s) goes to `to`. */
+export function moveCounters(ctx: Ctx, from: InstanceId, to: InstanceId, counterType?: string): void {
+  if (from === to) return;
+  const held = mustInstance(ctx.state, from).counters;
+  for (const [type, amount] of Object.entries(held)) {
+    if ((counterType !== undefined && type !== counterType) || amount <= 0) continue;
+    updateInstance(ctx, from, (i) => {
+      const { [type]: _moved, ...rest } = i.counters;
+      return { ...i, counters: rest };
+    });
+    updateInstance(ctx, to, (i) => ({ ...i, counters: { ...i.counters, [type]: (i.counters[type] ?? 0) + amount } }));
+    emit(ctx, { type: "countersMoved", from, to, counterType: type, amount });
+  }
 }
 
 export function removeCounters(ctx: Ctx, id: InstanceId, counterType: string, amount: number): number {
@@ -298,7 +313,10 @@ export function updateMainSchemeState(
  * `schemeInstanceId` is logged only when the token did not go to the central stage, so every existing log line is
  * byte-identical.
  */
-export function addAccelerationToken(ctx: Ctx, target: InstanceId = ctx.state.mainScheme.instanceId): void {
+export function addAccelerationToken(ctx: Ctx, requested?: InstanceId): void {
+  // "When an acceleration token would be placed on 'the main scheme,' place it on the scheme with the glider counter"
+  // (MC27 p. 17; FAQ, RRG 1.8 p. 62, for a player card's too; docs/phase7-wave5.md §3.3).
+  const target = requested ?? gliderMainSchemeId(ctx.state, ctx.deps) ?? ctx.state.mainScheme.instanceId;
   const redirected = accelerationTokenRedirect(ctx.state, ctx.deps, target);
   const to = redirected ?? target;
   if (redirected !== null) emit(ctx, { type: "accelerationTokenRedirected", from: target, to });

@@ -530,3 +530,65 @@ export function leaveAreaOnDefeat(ctx: Ctx, villainId: InstanceId): boolean {
 
 export const controllerOfArea = (state: GameState, area: GameAreaState): PlayerId | null =>
   playerOrder(state).find((player) => area.playerIds.includes(player.playerId))?.playerId ?? null;
+
+// ---- A main scheme stage turned to its other face (docs/phase7-wave5.md §3.3) --------------------------------------
+
+/**
+ * A main scheme stage whose card's other face is emitted as its own card (`MainSchemeStage.otherFaceId`, §1.1) turns to
+ * that face: Venom Goblin's Skies Over New York A ("Flip this card and set it aside"), and Lower / Midtown / Upper
+ * Manhattan on completion (the p. 67 erratum to MC27 p. 17, "When a main scheme is completed, flip it to its environment
+ * side"; FAQ, RRG 1.8 p. 62: "flip that main scheme to its environment side and reveal that environment").
+ *
+ * The stage stops being a main scheme; if it was the central one, the first main scheme beside it takes the central
+ * slot (an engine representation only: no rule reads "central" in a scenario with several). Its threat is discarded and
+ * its attachments too (RRG 1.8 "Flip", p. 20, a different card type). Its counters and acceleration tokens stay on the
+ * card, the tokens as `acceleration` counters, because the environment's own text moves them ("Move the glider counter
+ * and each acceleration token from here to the main scheme with the least threat"; card text beats the Flip rule, RRG
+ * 1.8 "The Golden Rules", p. 4; §4 Q15). The card then sits in the villain's area as its new face; with `reveal` it
+ * enters play and its When Revealed resolves (returned frames). Refused (false) for the only main scheme in play.
+ */
+export function flipMainSchemeStage(
+  ctx: Ctx,
+  schemeId: InstanceId,
+  reveal: boolean,
+  playerId: PlayerId,
+): readonly StackFrame[] | false {
+  const scheme = mainSchemeStates(ctx.state).find((s) => s.instanceId === schemeId);
+  if (!scheme || ctx.state.gameAreas.some((a) => a.mainScheme?.instanceId === schemeId)) return false;
+  const stage = mainSchemeStageOf(ctx.state, scheme);
+  const otherId = stage.otherFaceId;
+  const other = otherId !== undefined ? ctx.state.cardPool[otherId] : undefined;
+  if (!other) return false;
+  const extras = ctx.state.extraMainSchemes ?? [];
+  const central = schemeId === ctx.state.mainScheme.instanceId;
+  const [promoted, ...rest] = extras;
+  if (central && !promoted) return false;
+  ctx.state = central
+    ? { ...ctx.state, mainScheme: promoted!, extraMainSchemes: rest }
+    : { ...ctx.state, extraMainSchemes: extras.filter((s) => s.instanceId !== schemeId) };
+  for (const attachment of [...mustInstance(ctx.state, schemeId).attachments]) discardFromPlay(ctx, attachment);
+  const tokens = scheme.accelerationTokens;
+  const from = mustInstance(ctx.state, schemeId).cardId;
+  updateInstance(ctx, schemeId, (i) => ({
+    ...i,
+    cardId: other.id,
+    threat: 0,
+    attachments: [],
+    faceup: true,
+    flipped: false,
+    counters: tokens > 0 ? { ...i.counters, acceleration: (i.counters["acceleration"] ?? 0) + tokens } : i.counters,
+  }));
+  moveCard(ctx, schemeId, { kind: "villainArea" });
+  emit(ctx, {
+    type: "mainSchemeFlippedToOtherFace",
+    instanceId: schemeId,
+    from,
+    to: other.id,
+    stageIndex: scheme.stageIndex,
+  });
+  if (!reveal) return [];
+  return [
+    ...gameAbilityFrames(ctx, schemeId, ["whenRevealed"], null, undefined, playerId),
+    eventFrame(ctx, { kind: "cardEntersPlay", instanceId: schemeId, playerId }),
+  ];
+}
