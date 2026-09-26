@@ -834,8 +834,22 @@ export function leavePlay(
   const going = leaveDestinationKind(ctx.state, ctx.deps, id, requested.kind, discarded);
   if (waitsForLeaveInterrupts(ctx, id, request, going)) return "waiting";
   leaveNow(ctx, id, requested, position, discarded);
-  if (patch) updateInstance(ctx, id, (i) => ({ ...i, ...patch }));
+  if (patch) applyLeavePatch(ctx, id, patch);
   return "left";
+}
+
+/**
+ * What a `leavePlay` caller sets on the card once it has left (`LeavePatch`), applied with the move: after any "when it
+ * leaves play" interrupt, which saw the card as it was. A new owner ("take it into your hand") also points its `home`
+ * at the players' side and is logged (docs/phase7-wave5.md §4.1 Q35).
+ */
+export function applyLeavePatch(ctx: Ctx, id: InstanceId, patch: LeavePatch): void {
+  const { ownerId, ...rest } = patch;
+  if (ownerId !== undefined && mustInstance(ctx.state, id).ownerId !== ownerId) {
+    updateInstance(ctx, id, (i) => ({ ...i, ownerId, home: { kind: "player" } }));
+    emit(ctx, { type: "ownershipChanged", instanceId: id, playerId: ownerId });
+  }
+  updateInstance(ctx, id, (i) => ({ ...i, ...rest }));
 }
 
 /**

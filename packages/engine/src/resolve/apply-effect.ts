@@ -16,6 +16,7 @@ import {
   addAccelerationToken,
   addCounters,
   addLastingEffect,
+  applyLeavePatch,
   defeatFromPlay,
   discardFromPlay,
   endGame,
@@ -81,7 +82,7 @@ import {
 } from "../select.js";
 import type { EffectSpec, StatName } from "../spec.js";
 import { currentActivationFrameId, type DeferredEffects, type ReportTarget, type StackFrame } from "../stack.js";
-import type { TriggerEvent } from "../trigger-events.js";
+import type { LeavePatch, TriggerEvent } from "../trigger-events.js";
 import { matchingCardInPlay } from "../unique.js";
 import { campaignSeatNumber } from "../campaign-state.js";
 import { campaignLogValueOf, recordCampaignRemoval, recordCampaignWrite } from "./campaign.js";
@@ -1600,7 +1601,10 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       const duration: LastingDuration = activation
         ? { kind: "endOfEvent", frameId: activation }
         : { kind: effect.until === "endOfRound" || effect.until === "endOfTurn" ? effect.until : "endOfPhase" };
-      addLastingEffect(ctx, { kind: "blankTextBox", targets: ids }, duration);
+      // Which card made the blank, for the Permanent keyword's same-set exception (docs/phase7-wave5.md §4.1 Q31).
+      const sourceCardId = frame.selfInstanceId ? getInstance(ctx.state, frame.selfInstanceId)?.cardId : undefined;
+      const source = sourceCardId ? { sourceCardId } : {};
+      addLastingEffect(ctx, { kind: "blankTextBox", targets: ids, ...source }, duration);
       return;
     }
     case "atEndOfRound":
@@ -1850,16 +1854,17 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
         const instance = getInstance(ctx.state, id);
         const card = cardOf(ctx.state, id);
         if (!instance || !card || !("deckLimit" in card)) continue;
-        if (instance.ownerId !== playerId) {
-          updateInstance(ctx, id, (i) => ({ ...i, ownerId: playerId, home: { kind: "player" } }));
-          emit(ctx, { type: "ownershipChanged", instanceId: id, playerId });
-        }
-        const patch = { faceup: true, controllerId: playerId };
-        // A card waiting for "when it leaves play" interrupts gets `patch` once it has left (§4.1 Q17 of wave 5).
+        const patch: LeavePatch = {
+          faceup: true,
+          controllerId: playerId,
+          ...(instance.ownerId !== playerId ? { ownerId: playerId } : {}),
+        };
+        // The new owner comes with the move, after any "when it leaves play" interrupt, which sees the card as it was;
+        // `leavePlay` applies `patch` once the card has left, now or after its interrupts (wave 5 §4.1 Q17, Q35).
         if (cardsInPlay(ctx.state).includes(id)) {
-          if (leavePlay(ctx, id, { kind: "hand", playerId }, "top", false, patch) === "waiting") continue;
+          if (leavePlay(ctx, id, { kind: "hand", playerId }, "top", false, patch) !== "stayed") continue;
         } else moveCard(ctx, id, { kind: "hand", playerId });
-        updateInstance(ctx, id, (i) => ({ ...i, ...patch }));
+        applyLeavePatch(ctx, id, patch);
       }
       return;
     }

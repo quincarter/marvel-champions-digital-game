@@ -641,11 +641,16 @@ export type LeaveRequest =
   | { readonly kind: "moveCards"; readonly destination: CardDestination; readonly into?: PlayerId }
   | { readonly kind: "defeat"; readonly insteadTo?: CardDestination };
 
-/** What a caller of `leavePlay` sets on the card once it has left (`tuckCards`, `takeIntoHand`). */
+/**
+ * What a caller of `leavePlay` sets on the card once it has left (`tuckCards`, `takeIntoHand`), with the move and after
+ * any "when it leaves play" interrupt (`applyLeavePatch`). `ownerId`: "take it into your hand" of another player's card
+ * changes its owner then, not before the card waits (docs/phase7-wave5.md §4.1 Q35).
+ */
 export interface LeavePatch {
   readonly faceup?: boolean;
   readonly controllerId?: PlayerId | null;
   readonly attachedTo?: null;
+  readonly ownerId?: PlayerId;
 }
 
 /**

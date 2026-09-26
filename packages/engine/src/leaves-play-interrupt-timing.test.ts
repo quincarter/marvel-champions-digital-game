@@ -20,7 +20,7 @@ import type { EffectSpec, TargetRef, ValueSpec } from "./spec.js";
 import type { GameState } from "./state.js";
 import { depsOf, stubAbility, type StubAbility } from "./testing/abilities.js";
 import { stubAlly, stubEvent, stubSupport, stubUpgrade } from "./testing/fixtures.js";
-import { gameAtFirstTurn, P1, playerCardIntoPlay, playFree } from "./testing/wave3.js";
+import { gameAtFirstTurn, P1, P2, playerCardIntoPlay, playFree } from "./testing/wave3.js";
 
 const tracker: TargetRef = { kind: "each", query: { categories: ["support"], name: "tracker" } };
 const hobieRef: TargetRef = { kind: "each", query: { name: "hobie" } };
@@ -36,6 +36,8 @@ const hobieInPlay: ValueSpec = { kind: "count", query: { categories: ["ally"], n
 const gadgetOnHobie: ValueSpec = { kind: "count", query: { name: "hobie", hasAttachment: { name: "gadget" } } };
 // 1 while Hobie is in play under P1's control.
 const hobieYours: ValueSpec = { kind: "count", query: { categories: ["ally"], name: "hobie", controller: "you" } };
+// 1 while Hobie is in play and owned by the interrupt's controller (P1).
+const hobieOwned: ValueSpec = { kind: "count", query: { categories: ["ally"], name: "hobie", owner: "you" } };
 
 /** "Interrupt: When [this ally] leaves play, …": records what it sees of itself. Forced, so no picker is needed. */
 const HOBIE_INTERRUPT = stubAbility("hobie.interrupt", {
@@ -46,6 +48,7 @@ const HOBIE_INTERRUPT = stubAbility("hobie.interrupt", {
     mark("attached", gadgetOnHobie),
     mark("web", { kind: "counters", of: { kind: "self" }, counterType: "web" }),
     mark("yours", hobieYours),
+    mark("owned", hobieOwned),
   ],
 });
 const HOBIE = stubAlly({ id: "hobie", cost: 0, atk: 1, thw: 1, hp: 3, abilities: [HOBIE_INTERRUPT.ref] });
@@ -83,6 +86,12 @@ const MOVE_TO_DISCARD = event("move-to-discard", [
 const DISCARD_EFFECT = event("discard-effect", [{ kind: "discardFromPlay", target: hobieRef }]);
 const SMASH = event("smash", [{ kind: "dealDamage", target: hobieRef, amount: { kind: "const", value: 5 } }]);
 const EVENTS = [MOVE_TO_DISCARD, DISCARD_EFFECT, SMASH];
+const TAKE = event("take", [
+  { kind: "takeIntoHand", cards: { kind: "ref", ref: hobieRef }, player: { kind: "controller" } },
+]);
+/** Played events that do not send Hobie to the discard pile. */
+const OTHER_EVENTS = [TAKE];
+const ALL_EVENTS = [...EVENTS, ...OTHER_EVENTS];
 
 function trackerWith(...abilities: readonly StubAbility[]) {
   return stubSupport({ id: "tracker", cost: 0, abilities: abilities.map((a) => a.ref) });
@@ -99,11 +108,11 @@ interface Table {
 /** Hobie in play with 2 web counters and the gadget attached, and the tracker support. */
 function table(ally: typeof HOBIE, trackerAbilities: readonly StubAbility[], abilities: readonly StubAbility[]): Table {
   const TRACKER = trackerWith(...trackerAbilities);
-  const deps = depsOf(...abilities, ...trackerAbilities, ...EVENTS.map((e) => e.ability));
+  const deps = depsOf(...abilities, ...trackerAbilities, ...ALL_EVENTS.map((e) => e.ability));
   const start = gameAtFirstTurn({
-    cards: [ally, GADGET, TRACKER, ...EVENTS.map((e) => e.card)],
+    cards: [ally, GADGET, TRACKER, ...ALL_EVENTS.map((e) => e.card)],
     deps,
-    deck: [ally.id, GADGET.id, TRACKER.id, ...EVENTS.map((e) => e.card.id)],
+    deck: [ally.id, GADGET.id, TRACKER.id, ...ALL_EVENTS.map((e) => e.card.id)],
   });
   const tracker = playerCardIntoPlay(start, TRACKER.id);
   const hobie = playerCardIntoPlay(tracker.state, ally.id);
@@ -232,6 +241,27 @@ describe("§4.1 Q17 'When X leaves play' resolves before the card moves", () => 
     const discardedAt = index(events, (e) => e.type === "cardDiscardedFromPlay" && e.instanceId === t.hobie);
     const firstLeaving = index(events, (e) => e.type === "triggerEvent" && e.event.kind === "cardLeavesPlay");
     expect(discardedAt).toBeLessThan(firstLeaving);
+    expectReplays(session, t.deps);
+  });
+});
+
+describe("§4.1 Q35 'take it into your hand' changes its owner with the move", () => {
+  it("the interrupt sees the card with its old owner; the new owner comes after, with the move", () => {
+    const t = table(HOBIE, [], [HOBIE_INTERRUPT]);
+    // Surgery: Hobie is P2's card under P1's control.
+    const owned: GameState = {
+      ...t.state,
+      instances: { ...t.state.instances, [t.hobie]: { ...mustInstance(t.state, t.hobie), ownerId: P2 } },
+    };
+    const { state, events, session } = playFree(owned, t.deps, TAKE.card.id);
+    expect(marks(state, t)).toMatchObject({ interrupt: 1, inPlay: 1, yours: 1 });
+    expect(marks(state, t)["owned"] ?? 0).toBe(0);
+    expect(mustPlayer(state, P1).hand).toContain(t.hobie);
+    expect(mustInstance(state, t.hobie)).toMatchObject({ ownerId: P1, controllerId: P1, faceup: true });
+    const resolvedAt = index(events, (e) => e.type === "abilityResolved" && e.abilityId === HOBIE_INTERRUPT.ref.id);
+    const ownedAt = index(events, (e) => e.type === "ownershipChanged" && e.instanceId === t.hobie);
+    expect(resolvedAt).toBeGreaterThanOrEqual(0);
+    expect(ownedAt).toBeGreaterThan(resolvedAt);
     expectReplays(session, t.deps);
   });
 });
