@@ -13,7 +13,7 @@
  */
 
 import type { AbilityId, ResourceIconType } from "@mc/content";
-import { DEFAULT_DEPS, type AbilityCost, type EngineDeps } from "./abilities.js";
+import { DEFAULT_DEPS, type AbilityCost, type AbilityDefinition, type EngineDeps } from "./abilities.js";
 import {
   basicPowerCost,
   costAsDetermined,
@@ -50,6 +50,7 @@ import { attachmentHostCandidates } from "./resolve/index.js";
 import { printedResources, requirementTotal, type ResolvedRequirement } from "./resources.js";
 import { activeAbilityRefs, cardsInPlay, controllerOf, isAlly, matchesQuery, type EffectContext } from "./select.js";
 import type { GameState } from "./state.js";
+import { anyThwartCost } from "./thwart-cost.js";
 
 /** One thing a player could do on their turn, independent of target and payment. */
 export type ActionRef =
@@ -216,6 +217,32 @@ function spendOrder(
 function wallets(spend: readonly Payment[]): readonly (readonly Payment[])[] {
   const handOnly = spend.filter((p) => "fromHand" in p);
   return handOnly.length === spend.length ? [spend] : [spend, handOnly];
+}
+
+/**
+ * docs/phase7-wave5.md §4.1 Q28: with an additional thwart cost in play, a "(thwart)" play or ability is judged after
+ * it is paid for, so paying with the whole wallet (overpaying is legal) can spend what the scheme's cost needed. Its
+ * first wallet's shorter prefixes (from paying nothing up) and each single source in it are tried as well, after the
+ * usual wallets.
+ */
+function withThwartCostWallets(
+  state: GameState,
+  deps: EngineDeps,
+  definition: AbilityDefinition | undefined,
+  tryWallets: readonly (readonly Payment[])[],
+): readonly (readonly Payment[])[] {
+  const [first] = tryWallets;
+  if (!first || !definition || !anyThwartCost(state, deps)) return tryWallets;
+  if (!JSON.stringify(definition.effects).includes('"kind":"thwart"')) return tryWallets;
+  const seen = new Set(tryWallets.map((wallet) => JSON.stringify(wallet)));
+  const extra: (readonly Payment[])[] = [];
+  for (const wallet of [...first.map((_, i) => first.slice(0, i)), ...first.map((payment) => [payment])]) {
+    const key = JSON.stringify(wallet);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    extra.push(wallet);
+  }
+  return [...tryWallets, ...extra];
 }
 
 /**
@@ -413,7 +440,12 @@ function evaluatePlay(state: GameState, deps: EngineDeps, playerId: PlayerId, id
     deps,
     { kind: "playCard", instanceId: id },
     variants,
-    leavingCardsToDiscard(wallets(spend), cost),
+    withThwartCostWallets(
+      state,
+      deps,
+      card.type === "event" ? eventActionAbility(createCtx(state, deps), card) : undefined,
+      leavingCardsToDiscard(wallets(spend), cost),
+    ),
   );
   return withCounterRange(evaluated, counterRange(state, playerId, id, cost));
 }
@@ -474,7 +506,7 @@ function evaluateAbility(
     deps,
     { kind: "useAbility", instanceId, abilityId },
     variants,
-    leavingCardsToDiscard(wallets(spend), cost),
+    withThwartCostWallets(state, deps, deps.abilities[abilityId], leavingCardsToDiscard(wallets(spend), cost)),
   );
   return withCounterRange(evaluated, counterRange(state, playerId, instanceId, cost));
 }

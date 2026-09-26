@@ -71,8 +71,10 @@ export function executeEventFrame(ctx: Ctx, frame: Frame<"event">): void {
   switch (frame.stage) {
     case "interrupts": {
       // "As an additional cost to thwart this scheme, …" (docs/phase7-wave5.md §3.21): paid before the thwart is
-      // initiated (RRG 1.8 "Cost", p. 13). A declined resource payment cancels the thwart.
-      if (frame.event.kind === "thwart" && !frame.thwartCostAsked && askThwartCost(ctx, frame)) return;
+      // initiated (RRG 1.8 "Cost", p. 13). A declined resource payment cancels the thwart. A basic thwart paid it with
+      // its own costs, before it was initiated (§4.1 Q27, `thwart-cost.ts`), and is not asked again.
+      if (frame.event.kind === "thwart" && !frame.thwartCostAsked && !frame.thwartCostPaid && askThwartCost(ctx, frame))
+        return;
       if (frame.thwartCostAsked && frame.cancelled) {
         // Its additional cost was declined: never initiated, so no interrupt window.
         setFrame(ctx, { ...frame, stage: "apply" });
@@ -1196,6 +1198,9 @@ function applyPlayerThwart(ctx: Ctx, event: Extract<TriggerEvent, { kind: "thwar
   if (amount === undefined) return;
   pushEvent(ctx, {
     kind: "removeThreat",
+  // docs/phase7-wave5.md §4.1 Q30 (RRG 1.8 "Cost", p. 13: a "take damage" cost "is not considered paid unless all of
+  // that damage was taken"): damage prevented or left unassigned cancels the thwart. This resolution-time question is
+  // the fallback for a thwart effect, whose own cost was paid at play (`thwart-cost.ts`).
     schemeInstanceId: event.schemeInstanceId,
     amount,
     sourceInstanceId: event.thwarterInstanceId,
@@ -1203,3 +1208,12 @@ function applyPlayerThwart(ctx: Ctx, event: Extract<TriggerEvent, { kind: "thwar
     ...(event.ignoreCrisis ? { ignoreCrisis: true } : {}),
   });
 }
+            bind: "thwartCostDamage",
+          },
+          {
+            kind: "if",
+            condition: {
+              kind: "not",
+              of: { kind: "varAtLeast", name: "thwartCostDamage.amount", amount: cost.indirectDamage },
+            },
+            then: [{ kind: "cancelTriggeringEvent" }],

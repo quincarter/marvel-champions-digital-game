@@ -8,8 +8,9 @@
 
 import { describe, expect, it } from "vitest";
 import type { AbilityDefinition, EngineDeps } from "./abilities.js";
-import type { Command } from "./commands.js";
-import { applyCommand, replay, startSession } from "./engine.js";
+import type { Command, Payment } from "./commands.js";
+import { applyCommand, replay, startSession, type GameSession } from "./engine.js";
+import type { GameEvent } from "./events.js";
 import type { InstanceId } from "./ids.js";
 import { legalActions } from "./legal.js";
 import { mustInstance, mustPlayer } from "./query.js";
@@ -52,7 +53,84 @@ const PROBE_ACTION = stubAbility("probe.action", {
 });
 const PROBE = stubEvent({ id: "probe", cost: 0, abilities: [PROBE_ACTION.ref] });
 
-const deps: EngineDeps = depsOf(MONSTER_COST, GENERATOR_RESOURCE, PROBE_ACTION);
+/** Cat in a Tree's shape (`spiderham`): "As an additional cost to thwart this scheme, take 2 indirect damage." */
+const CAT_COST = stubAbility("cat.constant", {
+  trigger: { kind: "constant", rules: [{ kind: "additionalThwartCost", scheme: { self: true }, indirectDamage: 2 }] },
+  effects: [],
+});
+const CAT = stubSideScheme({ id: "cat", startingThreat: 6, abilities: [CAT_COST.ref] });
+
+/** "Forced Interrupt: when your hero would take damage, prevent 1 of that damage." */
+const WARDEN_INTERRUPT = stubAbility("warden.interrupt", {
+  trigger: { kind: "interrupt", forced: true, on: { on: "dealDamage", targetIs: { categories: ["identity"] } } },
+  effects: [{ kind: "preventDamage", amount: { kind: "const", value: 1 } }],
+});
+const WARDEN = stubSupport({ id: "warden", cost: 0, abilities: [WARDEN_INTERRUPT.ref] });
+
+/** Wasp's shape for thwarts: "your hero may divide their basic thwart among any number of schemes". */
+const SPLITTER_RULE = stubAbility("splitter.constant", {
+  trigger: {
+    kind: "constant",
+    rules: [{ kind: "divideBasicPower", power: "thwart", target: { categories: ["identity"], controller: "you" } }],
+  },
+  effects: [],
+});
+const SPLITTER = stubSupport({ id: "splitter", cost: 0, abilities: [SPLITTER_RULE.ref] });
+
+/** Cost 1. "(thwart): Remove 1 threat from a side scheme." */
+const PRICEY_ACTION = stubAbility("pricey.action", {
+  trigger: { kind: "action" },
+  label: ["thwart"],
+  effects: [
+    { kind: "chooseTarget", slot: "scheme", query: { categories: ["sideScheme"] }, chooser: { kind: "controller" } },
+    { kind: "thwart", target: { kind: "slot", slot: "scheme" }, amount: { kind: "const", value: 1 } },
+  ] as EffectSpec[],
+});
+const PRICEY = stubEvent({ id: "pricey", cost: 1, abilities: [PRICEY_ACTION.ref] });
+
+const deps: EngineDeps = depsOf(
+  MONSTER_COST,
+  GENERATOR_RESOURCE,
+  PROBE_ACTION,
+  CAT_COST,
+  WARDEN_INTERRUPT,
+  SPLITTER_RULE,
+  PRICEY_ACTION,
+);
+
+/**
+ * P1 in hero form with an empty hand and 5 threat on the main scheme; each of `schemes` in the villain area with 6
+ * threat.
+ */
+function startWith(...schemes: readonly (typeof MONSTER)[]): {
+  readonly state: GameState;
+  readonly schemes: readonly InstanceId[];
+} {
+  const state = gameAtFirstTurn({
+    cards: [MONSTER, CAT, SPARK, DUD, GENERATOR, PROBE, WARDEN, SPLITTER, PRICEY],
+    deps,
+    encounter: [MONSTER.id, MONSTER.id, CAT.id],
+    deck: [...copiesOf(SPARK.id, 2), DUD.id, GENERATOR.id, PROBE.id, WARDEN.id, SPLITTER.id, PRICEY.id],
+  });
+  const main = state.mainScheme.instanceId;
+  let placed: GameState = {
+    ...state,
+    instances: { ...state.instances, [main]: { ...mustInstance(state, main), threat: 5 } },
+    players: state.players.map((p) => ({
+      ...p,
+      identity: { ...p.identity, form: "hero" as const },
+      hand: [],
+      deck: [...p.hand, ...p.deck],
+    })),
+  };
+  const ids: InstanceId[] = [];
+  for (const scheme of schemes) {
+    const next = encounterCardInVillainArea(placed, scheme.id, 6);
+    placed = next.state;
+    ids.push(next.id);
+  }
+  return { state: placed, schemes: ids };
+}
 
 /** P1 in hero form with an empty hand, 5 threat on the main scheme, the monster in the villain area with 6 threat. */
 function start(): { readonly state: GameState; readonly scheme: InstanceId } {
@@ -174,5 +252,232 @@ describe("§4.1 Q18 an unpayable additional thwart cost makes the scheme an ille
     const choice = played.state.pendingChoice;
     expect(choice?.prompt.kind).toBe("chooseTarget");
     expect(choice?.options.some((o) => o.ref.kind === "card" && o.ref.instanceId === scheme)).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------------------------------------------------
+// docs/phase7-wave5.md §4.1 Q27–Q30: follow-ups to Q18 (RRG 1.8 "Cost", p. 13; "Initiating Abilities", p. 24).
+// ---------------------------------------------------------------------------------------------------------------------
+
+const at = (ids: readonly InstanceId[], index: number): InstanceId => {
+  const id = ids[index];
+  if (!id) throw new Error(`no scheme ${index}`);
+  return id;
+};
+
+const heroOf = (state: GameState): InstanceId => mustPlayer(state, P1).identity.instanceId;
+
+function expectReplay(session: GameSession): void {
+  const replayed = replay(session.log, deps);
+  if (!replayed.ok) throw new Error(replayed.error.message);
+  expect(replayed.state).toEqual(session.state);
+}
+
+const settled = (events: readonly GameEvent[]): readonly string[] =>
+  events.flatMap((e) => (e.type === "thwartCostSettled" ? [e.outcome] : []));
+
+const thwartInitiated = (events: readonly GameEvent[]): boolean =>
+  events.some((e) => e.type === "triggerEvent" && e.event.kind === "thwart" && e.phase === "initiated");
+
+/** Answers a target choice with `target`, a `spendResources` prompt with everything (`pay`) or nothing. */
+const aimAt =
+  (target: InstanceId, pay: boolean) =>
+  (s: GameState): readonly string[] => {
+    const choice = s.pendingChoice;
+    if (choice?.prompt.kind === "chooseTarget") {
+      const option = choice.options.find((o) => o.ref.kind === "card" && o.ref.instanceId === target);
+      if (option) return [option.optionId];
+    }
+    if (choice?.prompt.kind === "spendResources") return pay ? choice.options.map((o) => o.optionId) : [];
+    return defaultPick(s);
+  };
+
+const play = (card: InstanceId, payment: readonly Payment[]): Command => ({
+  type: "playCard",
+  playerId: P1,
+  cardInstanceId: card,
+  payment,
+  attachToInstanceId: null,
+});
+
+/** The `playCard` entry for `card` in `legalActions`: legal (with its example command) or not. */
+function playEntry(state: GameState, card: InstanceId) {
+  const actions = legalActions(state, P1, deps);
+  if (actions.kind !== "turn") throw new Error(`not P1's turn: ${actions.kind}`);
+  const legal = actions.legal.find((a) => a.action.kind === "playCard" && a.action.instanceId === card);
+  return { legal: legal !== undefined, example: legal?.example };
+}
+
+describe("§4.1 Q27 an additional thwart cost is paid together with the thwart's own cost", () => {
+  it("a basic thwart asks for it before exhausting; declining leaves the hero ready and nothing thwarted", () => {
+    const { state: bare, schemes } = startWith(MONSTER);
+    const monster = at(schemes, 0);
+    const { state, id: spark } = giveCard(bare, P1, SPARK.id);
+    const asked = applyCommand(state, basicThwart(state, monster), deps);
+    if (!asked.ok) throw new Error(asked.error.message);
+    expect(asked.state.pendingChoice?.prompt.kind).toBe("spendResources");
+    expect(mustInstance(asked.state, heroOf(state)).exhausted).toBe(false);
+
+    const { session, events } = driveSession(startSession(state), deps, [basicThwart(state, monster)]);
+    expect(mustInstance(session.state, heroOf(state)).exhausted).toBe(false);
+    expect(mustInstance(session.state, monster).threat).toBe(6);
+    expect(mustPlayer(session.state, P1).hand).toContain(spark);
+    expect(settled(events)).toEqual(["declined"]);
+    expect(thwartInitiated(events)).toBe(false);
+    expectReplay(session);
+    // Nothing was spent on it: the hero may still thwart.
+    const again = applyCommand(session.state, basicThwart(session.state, session.state.mainScheme.instanceId), deps);
+    expect(again.ok).toBe(true);
+  });
+
+  it("paid, the hero exhausts and the thwart resolves without being asked again; replay deep-equal", () => {
+    const { state: bare, schemes } = startWith(MONSTER);
+    const monster = at(schemes, 0);
+    const state = giveCard(bare, P1, SPARK.id).state;
+    const { session, events } = driveSession(startSession(state), deps, [basicThwart(state, monster)], payAll);
+    expect(mustInstance(session.state, heroOf(state)).exhausted).toBe(true);
+    expect(mustInstance(session.state, monster).threat).toBe(4);
+    expect(settled(events)).toEqual(["paid"]);
+    expect(events.filter((e) => e.type === "thwartCostAsked")).toHaveLength(1);
+    expectReplay(session);
+  });
+
+  it("a thwart effect is still asked as it resolves, and declining there cancels it (the fallback)", () => {
+    const { state: bare, schemes } = startWith(MONSTER);
+    const monster = at(schemes, 0);
+    const withSpark = giveCard(bare, P1, SPARK.id).state;
+    const { state, id: probe } = giveCard(withSpark, P1, PROBE.id);
+    const { session } = driveSession(startSession(state), deps, [play(probe, [])], aimAt(monster, false));
+    expect(mustInstance(session.state, monster).threat).toBe(6);
+    expect(mustInstance(session.state, session.state.mainScheme.instanceId).threat).toBe(5);
+    expect(mustPlayer(session.state, P1).discard).toContain(probe);
+    expectReplay(session);
+  });
+});
+
+describe("§4.1 Q28 a thwart event's payability is judged after its own cost is paid", () => {
+  it("paid with the only [energy] card, it has no target left: refused at play, and legalActions agrees", () => {
+    const { state: bare } = startWith(MONSTER);
+    const { state: withSpark, id: spark } = giveCard(bare, P1, SPARK.id);
+    const { state, id: pricey } = giveCard(withSpark, P1, PRICEY.id);
+    const result = applyCommand(state, play(pricey, [{ fromHand: spark }]), deps);
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error.code).toBe("no_valid_target");
+    expect(playEntry(state, pricey).legal).toBe(false);
+  });
+
+  it("with a second [energy] card it is legal, pays with one and may choose the scheme; replay deep-equal", () => {
+    const { state: bare, schemes } = startWith(MONSTER);
+    const monster = at(schemes, 0);
+    const first = giveCard(bare, P1, SPARK.id);
+    const second = giveCard(first.state, P1, SPARK.id, [first.id]);
+    const { state, id: pricey } = giveCard(second.state, P1, PRICEY.id);
+    const entry = playEntry(state, pricey);
+    expect(entry.legal).toBe(true);
+    expect(entry.example?.type === "playCard" ? entry.example.payment : []).toHaveLength(1);
+    const { session } = driveSession(
+      startSession(state),
+      deps,
+      [play(pricey, [{ fromHand: first.id }])],
+      aimAt(monster, true),
+    );
+    expect(mustInstance(session.state, monster).threat).toBe(5);
+    expect(mustPlayer(session.state, P1).hand).not.toContain(second.id);
+    expectReplay(session);
+  });
+});
+
+describe("§4.1 Q29 a divided basic thwart must afford the total of its schemes' additional costs", () => {
+  const divided = (state: GameState, a: InstanceId, b: InstanceId): Command => ({
+    type: "basicThwart",
+    playerId: P1,
+    thwarterInstanceId: heroOf(state),
+    schemeInstanceId: a,
+    divide: [
+      { targetInstanceId: a, amount: 1 },
+      { targetInstanceId: b, amount: 1 },
+    ],
+  });
+
+  it("one [energy] card pays for either scheme alone, not for both", () => {
+    const { state: bare, schemes } = startWith(MONSTER, MONSTER);
+    const withSplitter = playerCardIntoPlay(bare, SPLITTER.id).state;
+    const state = giveCard(withSplitter, P1, SPARK.id).state;
+    const result = applyCommand(state, divided(state, at(schemes, 0), at(schemes, 1)), deps);
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error.code).toBe("no_valid_target");
+    expect(applyCommand(state, basicThwart(state, at(schemes, 0)), deps).ok).toBe(true);
+  });
+
+  it("with two, the total is asked for once and both schemes are thwarted; replay deep-equal", () => {
+    const { state: bare, schemes } = startWith(MONSTER, MONSTER);
+    const withSplitter = playerCardIntoPlay(bare, SPLITTER.id).state;
+    const first = giveCard(withSplitter, P1, SPARK.id);
+    const state = giveCard(first.state, P1, SPARK.id, [first.id]).state;
+    let prompts = 0;
+    const pick = (s: GameState): readonly string[] => {
+      if (s.pendingChoice?.prompt.kind === "spendResources") prompts += 1;
+      return payAll(s);
+    };
+    const { session, events } = driveSession(
+      startSession(state),
+      deps,
+      [divided(state, at(schemes, 0), at(schemes, 1))],
+      pick,
+    );
+    expect(prompts).toBe(1);
+    expect(mustInstance(session.state, at(schemes, 0)).threat).toBe(5);
+    expect(mustInstance(session.state, at(schemes, 1)).threat).toBe(5);
+    expect(mustPlayer(session.state, P1).hand).toHaveLength(0);
+    expect(settled(events)).toEqual(["paid"]);
+    expectReplay(session);
+  });
+});
+
+describe("§4.1 Q30 a 'take damage' thwart cost that is partly prevented was not paid", () => {
+  it("a basic thwart: the hero takes 1 of 2, and neither exhausts nor thwarts; replay deep-equal", () => {
+    const { state: bare, schemes } = startWith(CAT);
+    const cat = at(schemes, 0);
+    const state = playerCardIntoPlay(bare, WARDEN.id).state;
+    const { session, events } = driveSession(startSession(state), deps, [basicThwart(state, cat)]);
+    expect(mustInstance(session.state, heroOf(state)).damage).toBe(1);
+    expect(mustInstance(session.state, heroOf(state)).exhausted).toBe(false);
+    expect(mustInstance(session.state, cat).threat).toBe(6);
+    expect(settled(events)).toEqual(["damageNotTaken"]);
+    expect(thwartInitiated(events)).toBe(false);
+    expectReplay(session);
+  });
+
+  it("a thwart effect: the thwart is cancelled (the fallback); replay deep-equal", () => {
+    const { state: bare, schemes } = startWith(CAT);
+    const cat = at(schemes, 0);
+    const withWarden = playerCardIntoPlay(bare, WARDEN.id).state;
+    const { state, id: probe } = giveCard(withWarden, P1, PROBE.id);
+    const { session } = driveSession(startSession(state), deps, [play(probe, [])], aimAt(cat, true));
+    expect(mustInstance(session.state, heroOf(state)).damage).toBe(1);
+    expect(mustInstance(session.state, cat).threat).toBe(6);
+    expect(mustInstance(session.state, session.state.mainScheme.instanceId).threat).toBe(5);
+    expectReplay(session);
+  });
+
+  it("unprevented, all 2 are taken and the thwart goes ahead", () => {
+    const { state, schemes } = startWith(CAT);
+    const cat = at(schemes, 0);
+    const { session, events } = driveSession(startSession(state), deps, [basicThwart(state, cat)]);
+    expect(mustInstance(session.state, heroOf(state)).damage).toBe(2);
+    expect(mustInstance(session.state, heroOf(state)).exhausted).toBe(true);
+    expect(mustInstance(session.state, cat).threat).toBe(4);
+    expect(settled(events)).toEqual(["paid"]);
+  });
+
+  it("a hero with 1 hit point left cannot take all 2, so the scheme is not a legal target", () => {
+    const { state: bare, schemes } = startWith(CAT);
+    const cat = at(schemes, 0);
+    const hero = heroOf(bare);
+    const state = { ...bare, instances: { ...bare.instances, [hero]: { ...mustInstance(bare, hero), damage: 9 } } };
+    const result = applyCommand(state, basicThwart(state, cat), deps);
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error.code).toBe("no_valid_target");
+    expect(heroThwart(state).targets).not.toContain(cat);
   });
 });

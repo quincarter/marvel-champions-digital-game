@@ -53,6 +53,7 @@ import {
 } from "../select.js";
 import type { EffectSpec } from "../spec.js";
 import type { StackFrame, TriggerCandidate } from "../stack.js";
+import { executeSettleBasicThwartCost } from "../thwart-cost.js";
 import { effectChoiceAuthority, simultaneousOrderer } from "../villain/authority.js";
 import { applyEffect } from "./apply-effect.js";
 import { controllerOfArea, joinGameArea } from "./game-areas.js";
@@ -140,6 +141,8 @@ export function executeEffectsFrame(ctx: Ctx, frame: Frame<"effects">): void {
   if (effect.kind === "joinGameArea") return executeJoinGameArea(ctx, frame, context);
   if (effect.kind === "divide") return executeDivide(ctx, frame, effect, context);
   if (effect.kind === "playFromHand") return executePlayFromHand(ctx, frame, effect, context);
+  // docs/phase7-wave5.md §4.1 Q27: a basic thwart's additional cost is settled, and the thwart carried out or not.
+  if (effect.kind === "settleBasicThwartCost") return executeSettleBasicThwartCost(ctx, frame, effect);
 
   if (effect.kind === "chooseTarget") {
     if (frame.answer === null) return requestTargetChoice(ctx, frame, effect, context);

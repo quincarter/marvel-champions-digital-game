@@ -198,6 +198,19 @@ export type GameEvent =
     }
   /** A thwart's additional cost is asked of the thwarting player (`RuleSpec additionalThwartCost`; wave 5 §3.21). */
   | { readonly type: "thwartCostAsked"; readonly schemeInstanceId: InstanceId; readonly playerId: PlayerId }
+  /**
+   * How a basic thwart's additional-cost question ended (docs/phase7-wave5.md §4.1 Q27, Q30): `paid` (the thwart goes
+   * ahead), `declined` (the resources were not spent), `damageNotTaken` (some of a "take damage" cost was prevented or
+   * could not be assigned, RRG 1.8 "Cost", p. 13), or `abandoned` (paid, but the thwart was no longer legal; `reason`).
+   * Anything but `paid` means no thwart and none of the thwarter's own costs paid.
+   */
+  | {
+      readonly type: "thwartCostSettled";
+      readonly playerId: PlayerId;
+      readonly schemeInstanceIds: readonly InstanceId[];
+      readonly outcome: "paid" | "declined" | "damageNotTaken" | "abandoned";
+      readonly reason?: string;
+    }
   /** A card would ready and a rule asks its readier for an additional cost first (`RuleSpec readyCost`; §3.19). */
   | { readonly type: "readyCostAsked"; readonly instanceId: InstanceId; readonly playerId: PlayerId }
   /** A set-aside modular set was chosen at random and shuffled into the encounter deck (docs/phase7-wave4.md §3.18). */

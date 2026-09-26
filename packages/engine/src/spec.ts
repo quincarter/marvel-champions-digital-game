@@ -16,7 +16,8 @@ import type { EventPattern, RuleSpec } from "./abilities.js";
 // Type-only, and erased at compile time, so the cycle with `campaign.ts` (which names `EffectSpec` and friends) is
 // only in the type graph: the campaign *vocabulary* is data, and the campaign *primitives* are effects.
 import type { CampaignLogValueSpec, LogWriteMode } from "./campaign.js";
-import type { PlayerId } from "./ids.js";
+import type { Command } from "./commands.js";
+import type { InstanceId, PlayerId } from "./ids.js";
 import type { ResourceRequirement, TypedResource } from "./resources.js";
 import type { FacedownRole, Form, GameStep } from "./state.js";
 
@@ -2134,6 +2135,20 @@ export type EffectSpec =
   | { readonly kind: "then"; readonly effects: readonly EffectSpec[] }
   /** RRG "Cancel": stops the interrupted event from resolving (its responses do not fire). */
   | { readonly kind: "cancelTriggeringEvent" }
+  /**
+   * **Engine-internal; no DSL builder.** The last step of a basic thwart's additional-cost question
+   * (docs/phase7-wave5.md §4.1 Q27, `thwart-cost.ts`): the basic thwart command asks for the additional cost to thwart
+   * its schemes before paying any of its own costs, and this step reads what the question bound (`thwartCost.made`
+   * when `resources` were asked, `thwartCostDamage.amount` against `indirectDamage`). Paid, it carries out `command`
+   * with the additional cost marked paid; declined or not fully taken, nothing of the thwart happens, which is logged.
+   */
+  | {
+      readonly kind: "settleBasicThwartCost";
+      readonly command: Extract<Command, { type: "basicThwart" }>;
+      readonly schemeInstanceIds: readonly InstanceId[];
+      readonly resources: boolean;
+      readonly indirectDamage: number;
+    }
   /**
    * "Reduce the resource cost of the next card that player plays this phase by 1" (lasting, consumed on use).
    * `cardFilter` narrows which played card consumes it: "the next Avenger ally played this phase" (Avengers Tower,
