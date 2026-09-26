@@ -6,7 +6,14 @@
  */
 
 import { type Ctx, emit, moveCard, nextInstanceId, updateInstance } from "../ctx.js";
-import { discardAtOnce, giveStatus, setActiveVillain, waitsForHostStep } from "../effects.js";
+import {
+  discardAtOnce,
+  discardWithLeavingHost,
+  giveStatus,
+  leavingCancelled,
+  setActiveVillain,
+  waitsForHostStep,
+} from "../effects.js";
 import { gameAreaId, type GameAreaId, type InstanceId, type PlayerId } from "../ids.js";
 import { hasKeyword } from "../keywords.js";
 import {
@@ -222,7 +229,7 @@ export function removeMainSchemeStage(ctx: Ctx, schemeId: InstanceId, mayWait = 
   const scheme = area?.mainScheme ?? pending;
   if (!scheme) return;
   if (mayWait && waitsForHostStep(ctx, [schemeId], { kind: "removeMainSchemeStage", schemeId })) return;
-  for (const attachment of [...mustInstance(ctx.state, schemeId).attachments]) discardAtOnce(ctx, attachment);
+  for (const attachment of [...mustInstance(ctx.state, schemeId).attachments]) discardWithLeavingHost(ctx, attachment);
   if (area)
     updateArea(ctx, area.areaId, (a) => ({
       ...a,
@@ -453,7 +460,7 @@ export function setVillainsAside(ctx: Ctx, ids: readonly InstanceId[]): void {
     const villain = villainOf(ctx.state, id);
     if (!villain || ctx.state.encounterSetAside.includes(id)) continue;
     const instance = mustInstance(ctx.state, id);
-    for (const attachment of [...instance.attachments]) discardAtOnce(ctx, attachment);
+    for (const attachment of [...instance.attachments]) discardWithLeavingHost(ctx, attachment);
     for (const boost of [...instance.boostCards]) moveCard(ctx, boost, discardZoneFor(ctx.state, boost), "top");
     const wasInPlay = !villain.defeated;
     ctx.state = {
@@ -501,7 +508,7 @@ export function removeVillains(ctx: Ctx, ids: readonly InstanceId[]): void {
     const villain = villainOf(ctx.state, id);
     if (!villain || villain.defeated) continue;
     const instance = mustInstance(ctx.state, id);
-    for (const attachment of [...instance.attachments]) discardAtOnce(ctx, attachment);
+    for (const attachment of [...instance.attachments]) discardWithLeavingHost(ctx, attachment);
     for (const boost of [...instance.boostCards]) moveCard(ctx, boost, discardZoneFor(ctx.state, boost), "top");
     ctx.state = {
       ...ctx.state,
@@ -581,13 +588,16 @@ export function flipMainSchemeStage(
     ? { ...ctx.state, mainScheme: promoted!, extraMainSchemes: rest }
     : { ...ctx.state, extraMainSchemes: extras.filter((s) => s.instanceId !== schemeId) };
   for (const attachment of [...mustInstance(ctx.state, schemeId).attachments]) discardAtOnce(ctx, attachment);
+  // An attachment whose own leaving was cancelled stays attached: the stage flips but stays in play, and only its
+  // discard was cancelled (RRG 1.8 "Cancel", p. 11; "Attach To", p. 8; docs/phase7-wave5.md §4.1 Q53).
+  const kept = mustInstance(ctx.state, schemeId).attachments.filter((a) => leavingCancelled(ctx.state, a));
   const tokens = scheme.accelerationTokens;
   const from = mustInstance(ctx.state, schemeId).cardId;
   updateInstance(ctx, schemeId, (i) => ({
     ...i,
     cardId: other.id,
     threat: 0,
-    attachments: [],
+    attachments: kept,
     faceup: true,
     flipped: false,
     counters: tokens > 0 ? { ...i.counters, acceleration: (i.counters["acceleration"] ?? 0) + tokens } : i.counters,

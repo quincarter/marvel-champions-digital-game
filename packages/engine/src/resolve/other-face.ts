@@ -16,7 +16,7 @@
 import type { AnyCard, CardId } from "@mc/content";
 import type { EngineDeps } from "../abilities.js";
 import { type Ctx, emit, moveCard, updateInstance } from "../ctx.js";
-import { leavePlay, leavePlayAtOnce, waitsForHostStep } from "../effects.js";
+import { leavePlay, leavePlayAtOnce, leavingCancelled, waitsForHostStep } from "../effects.js";
 import type { InstanceId, PlayerId } from "../ids.js";
 import { keywordTotal } from "../keywords.js";
 import { cardOf, discardZoneFor, getInstance, locateCard, mustInstance, startingThreatOf } from "../query.js";
@@ -43,6 +43,9 @@ export function flipToOtherFace(
   // docs/phase7-wave5.md); the flip then runs from the stack (`runHostStep`).
   if (typeChanged && waitsForHostStep(ctx, [id], { kind: "flipToOtherFace", id, playerId })) return "waiting";
   const before = mustInstance(ctx.state, id);
+  // An attachment whose own leaving was cancelled stays attached: the card flips but stays in play, and only its discard
+  // was cancelled (RRG 1.8 "Cancel", p. 11; "Attach To", p. 8; docs/phase7-wave5.md §4.1 Q53).
+  const kept = before.attachments.filter((a) => leavingCancelled(ctx.state, a));
   if (typeChanged) {
     for (const attachment of before.attachments) {
       if (ctx.state.instances[attachment])
@@ -58,7 +61,7 @@ export function flipToOtherFace(
     flipped: false,
     faceup: true,
     ...(typeChanged
-      ? { damage: 0, threat: 0, statuses: NO_STATUSES, counters: {}, tucked: [], attachments: [], exhausted: false }
+      ? { damage: 0, threat: 0, statuses: NO_STATUSES, counters: {}, tucked: [], attachments: kept, exhausted: false }
       : {}),
   }));
   emit(ctx, { type: "cardFlippedToOtherFace", instanceId: id, from: from.id, to: to.id, typeChanged });

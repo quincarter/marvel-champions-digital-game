@@ -105,7 +105,10 @@ const FLIP_STAGE = event("flip-stage", [
 
 /** A game with the central main scheme as usual, plus `STAGE_CARD` in play beside it (`extraMainSchemes`), its
  * `gadget` attached. */
-function stageTable(gadgetCard: typeof STAGE_GADGET | typeof PLAIN_STAGE_GADGET, abilities: readonly StubAbility[]) {
+function stageTable(
+  gadgetCard: typeof STAGE_GADGET | typeof PLAIN_STAGE_GADGET | typeof KEEPING_STAGE_GADGET,
+  abilities: readonly StubAbility[],
+) {
   const TRACKER = trackerWith();
   const deps = depsOf(...abilities, FLIP_STAGE.ability);
   const start = gameAtFirstTurn({
@@ -429,7 +432,7 @@ describe("§4.1 Q50 removeVillain waits for its attachment's leave interrupt", (
     expect(mustInstance(state, t.tracker).counters).toMatchObject({ kept: 1 });
     // The change the host step carries (the villain's removal) still happens: only the attachment's own leaving,
     // which the interrupt cancelled, should not (`runCarriedHostStep`'s own doc comment: "only this card's leaving
-    // was cancelled" — implying the card does not leave; RRG 1.8 "Cancel", p. 13: "the canceled effect is not
+    // was cancelled" — implying the card does not leave; RRG 1.8 "Cancel", p. 11: "the canceled effect is not
     // considered to have occurred").
     expect(state.villains.find((v) => v.instanceId === t.villainId)?.defeated).toBe(true);
     expect(events.some((e) => e.type === "villainRemoved")).toBe(true);
@@ -437,20 +440,42 @@ describe("§4.1 Q50 removeVillain waits for its attachment's leave interrupt", (
     expectReplays(session, t.deps);
   });
 
-  // BUG (docs/phase7-wave5.md §4.1 Q32, §4.1 Q50; RRG 1.8 "Cancel", p. 13, "Leaves Play", p. 27): cancelling the
-  // *carrier* attachment's own "when this leaves play" interrupt does not keep it in play. `removeVillains` (and
-  // `flipMainSchemeStage`/`flipToOtherFace`/`removeMainSchemeStage`) re-run their whole body from `runCarriedHostStep`
-  // once the carrier's leaving is cancelled, and that body's `for (const attachment of instance.attachments)
-  // discardAtOnce(ctx, attachment)` loop still finds the (still-attached) gadget and discards it unconditionally,
-  // through `leavePlayAtOnce`, which never checks whether that instance already has a cancelled leaving on the stack.
-  // Expected (per "Cancel"): the gadget's own leaving was cancelled, so it should stay attached to the villain's
-  // instance and out of the discard pile, exactly as "the host's leaving cancelled first" keeps an ally's attachment
-  // in `leaves-play-interrupt-timing.test.ts`. Actual: it is discarded anyway (`attachedTo` becomes `null`, and it
-  // ends up in the discard pile) — the cancellation is silently overridden by the host step's second pass.
-  it.fails("BUG: the cancelled attachment's own leaving should keep it attached and out of the discard pile", () => {
+  // docs/phase7-wave5.md §4.1 Q53 (RRG 1.8 "Cancel", p. 11: "the canceled effect is not considered to have occurred"):
+  // cancelling the carrier attachment's own leaving keeps it in play when its host step then runs. The villain still
+  // leaves play, and RRG 1.8 "Attach To" (p. 8) keeps an attached card only while its host is in play, so the gadget
+  // is unattached in play, as `leaveNow` does for an attachment that stays (`unattachInPlay`, §3.30): its
+  // controller's play area.
+  it("the cancelled attachment stays in play, unattached into its controller's play area as its host leaves", () => {
     const t = villainTable(KEEPING_VILLAIN_GADGET, [KEEP_VILLAIN_GADGET]);
-    const { state } = playFree(t.state, t.deps, REMOVE_VILLAIN.card.id);
-    expect(mustInstance(state, t.gadget).attachedTo).toBe(t.villainId);
+    const { state, session } = playFree(t.state, t.deps, REMOVE_VILLAIN.card.id);
+    expect(mustInstance(state, t.gadget).attachedTo).toBeNull();
+    expect(mustInstance(state, t.villainId).attachments).not.toContain(t.gadget);
+    expect(mustPlayer(state, P1).playArea).toContain(t.gadget);
     expect(mustPlayer(state, P1).discard).not.toContain(t.gadget);
+    expectReplays(session, t.deps);
+  });
+});
+
+/** "Forced Interrupt: When [this upgrade] would leave play, cancel that." on the stage's gadget. */
+const KEEP_STAGE_GADGET = stubAbility("stage-gadget.keep", {
+  trigger: { kind: "interrupt", forced: true, on: { on: "cardLeavesPlay", selfIs: "target" } },
+  effects: [mark("kept", one), { kind: "cancelTriggeringEvent" }],
+});
+const KEEPING_STAGE_GADGET = stubUpgrade({ id: "stage-gadget", cost: 0, abilities: [KEEP_STAGE_GADGET.ref] });
+
+describe("§4.1 Q53 a cancelled attachment on a host that flips but stays in play", () => {
+  // RRG 1.8 "Flip" (p. 20) discards the attachments of a card turned to another type; that discard was cancelled for
+  // the gadget, and its host is still in play, so it stays attached ("Attach To", p. 8).
+  it("the stage flips to its environment face and the gadget stays attached to it", () => {
+    const t = stageTable(KEEPING_STAGE_GADGET, [KEEP_STAGE_GADGET]);
+    const { state, events, session } = playFree(t.state, t.deps, FLIP_STAGE.card.id);
+    expect(mustInstance(state, t.tracker).counters).toMatchObject({ kept: 1 });
+    expect(mustInstance(state, t.schemeId).cardId).toBe(FLIP_ENV.id);
+    expect(mustInstance(state, t.schemeId).attachments).toEqual([t.gadget]);
+    expect(mustInstance(state, t.gadget).attachedTo).toBe(t.schemeId);
+    expect(mustPlayer(state, P1).discard).not.toContain(t.gadget);
+    expect(events.some((e) => e.type === "mainSchemeFlippedToOtherFace")).toBe(true);
+    expect(state.stack).toEqual([]);
+    expectReplays(session, t.deps);
   });
 });

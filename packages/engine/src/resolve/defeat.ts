@@ -3,7 +3,7 @@
 import { type Ctx, emit, moveCard, pushFrames, updateInstance, updatePlayer } from "../ctx.js";
 import {
   attachmentsWaitForHost,
-  discardAtOnce,
+  discardWithLeavingHost,
   endGame,
   giveStatus,
   leavePlay,
@@ -548,7 +548,7 @@ const NEXT_ACTIVE_SLOT = "_nextActiveVillain";
 function removeDefeatedVillain(ctx: Ctx, villainId: InstanceId): StackFrame | null {
   const villain = mustVillain(ctx.state, villainId);
   const instance = mustInstance(ctx.state, villainId);
-  for (const attachment of [...instance.attachments]) discardAtOnce(ctx, attachment);
+  for (const attachment of [...instance.attachments]) discardWithLeavingHost(ctx, attachment);
   for (const boost of [...instance.boostCards]) moveCard(ctx, boost, discardZoneFor(ctx.state, boost), "top");
   for (const tucked of [...instance.tucked]) {
     // Faceup first: a discard into an emptied deck's discard pile can reset that deck at once (`settlePlayerDecks`).

@@ -589,8 +589,9 @@ function applyLeavingWithHost(ctx: Ctx, frameId: FrameId, step: HostStep | undef
 
 /**
  * A cancelled `withHost` leaving that carries its host's change (`step`, docs/phase7-wave5.md §4.1 Q32): the change is
- * not what was cancelled, so it runs now. Returns whether it did (the frame is still on the stack, under whatever the
- * change pushed).
+ * not what was cancelled, so it runs now, while the cancelled frame is still on the stack so that the change leaves this
+ * card in play (`leavingCancelled`, §4.1 Q53). Returns whether it did (the frame is still on the stack, under whatever
+ * the change pushed).
  */
 export function runCarriedHostStep(ctx: Ctx, frame: Frame<"event">): boolean {
   const event = frame.event;

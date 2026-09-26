@@ -595,6 +595,28 @@ export function discardAtOnce(ctx: Ctx, id: InstanceId): void {
 }
 
 /**
+ * An attachment discarded because its host leaves play without going through `leavePlay` (a villain removed, set aside
+ * or defeated while others remain, a main scheme stage removed). One whose own leaving an interrupt cancelled
+ * (`leavingCancelled`) does not leave play, and since its host does, it is unattached in play as `leaveNow` does for an
+ * attachment that stays (`unattachInPlay`; docs/phase7-wave5.md §4.1 Q53). Anything else is `discardAtOnce`.
+ */
+export function discardWithLeavingHost(ctx: Ctx, id: InstanceId): void {
+  if (leavingCancelled(ctx.state, id)) unattachInPlay(ctx, id);
+  else discardAtOnce(ctx, id);
+}
+
+/**
+ * Whether this card's own leaving of play, still on the stack, was cancelled by an interrupt: RRG 1.8 "Cancel" (p. 11)
+ * — "the canceled effect is not considered to have occurred" — so a host's move or change that would take it along
+ * (`leavePlayAtOnce`, `leaveNow`'s attachment loop) leaves it in play (docs/phase7-wave5.md §4.1 Q53). A cancelled
+ * leaving stays on the stack until its frame finishes, which is where a leaving that carries its host's change runs it
+ * (`runCarriedHostStep`) and where a host leaving in the same step moves.
+ */
+export function leavingCancelled(state: GameState, id: InstanceId): boolean {
+  return leavingFrameFor(state, id)?.cancelled === true;
+}
+
+/**
  * A **defeated** ally, minion, side scheme or player side scheme leaves play (RRG 1.8 "Defeat", p. 15: "If an ally,
  * minion, or side scheme is defeated, it is discarded"). RRG 1.8 "Victory X" (p. 46; docs/phase7-wave3.md §3.4):
  * - "A character or side scheme with the victory X keyword is placed in the victory display when it is defeated";
@@ -1009,6 +1031,8 @@ export function leavePlayAtOnce(
   discarded = false,
 ): void {
   if (isPermanent(ctx.state, id, ctx.deps)) return;
+  // Its own leaving was cancelled (§4.1 Q53): it stays where it is, and a caller whose host leaves play unattaches it.
+  if (leavingCancelled(ctx.state, id)) return;
   if (cannotLeavePlay(ctx.state, ctx.deps, id)) {
     emit(ctx, { type: "leavePlayBlocked", instanceId: id, reason: "cannotLeavePlay" });
     return;
@@ -1060,7 +1084,10 @@ function leaveNow(
     emit(ctx, { type: "cardDiscardedFromPlay", instanceId: id, cardId: instance.cardId });
   if (redirect !== null) to = { kind: "scenarioArea", name: redirect.area };
   for (const attachment of [...instance.attachments]) {
-    if (!staysInPlayWithoutHost(ctx, attachment)) discardAtOnce(ctx, attachment);
+    // Its own leaving was cancelled, so it does not leave with its host (RRG 1.8 "Cancel", p. 11; §4.1 Q53); its host
+    // does, so it is unattached in play (RRG 1.8 "Attach To", p. 8, cannot keep it on a card out of play).
+    if (leavingCancelled(ctx.state, attachment)) unattachInPlay(ctx, attachment);
+    else if (!staysInPlayWithoutHost(ctx, attachment)) discardAtOnce(ctx, attachment);
     // Past the permanent keyword on purpose (§4.2 Q26): `leaveNow` itself, not `leavePlayAtOnce`.
     else if (discardedWithoutHost(ctx, attachment))
       leaveNow(ctx, attachment, discardZoneFor(ctx.state, attachment), "top", true, true);
