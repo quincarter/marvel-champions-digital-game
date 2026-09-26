@@ -351,6 +351,7 @@ export const TRACK_TITLES: Readonly<Record<string, string>> = {
   "scenarios/thanos/villain-loses.mp3": "A Realm Restored",
   "scenarios/thanos/villain-wins.mp3": "After the Last Empire",
   "scenarios/hela/battle.mp3": "Queen of Ashes",
+  "scenarios/hela/villain-loses.mp3": "Post Tenebras Lux",
   "scenarios/hela/villain-wins.mp3": "Crowns Upon the Ice",
   "campaigns/trors/finale.mp3": "Anthem of the Returning Sun",
   "campaigns/gmw/finale.mp3": "The Longest Watch Ends",
