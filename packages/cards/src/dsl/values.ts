@@ -543,6 +543,19 @@ export const gameAreasSplit: Predicate = { kind: "gameAreasSplit" };
  */
 export const inMode = (mode: "standard" | "expert"): Predicate => ({ kind: "inMode", mode });
 /**
+ * "If this is the first attack this turn" (Venom III, `sm` 27075; docs/phase7-wave5.md §3.12), read in the response
+ * to that attack: true when it is the only attack this turn matching `against` (its target) and `by` (its attacker).
+ * With neither, every attack of the turn counts (§4 Q16's default); `{ against: { self: true } }` counts only attacks
+ * on this card.
+ */
+export const firstAttackThisTurn = (
+  opts: { readonly against?: TargetQuery; readonly by?: TargetQuery } = {},
+): Predicate => ({
+  kind: "firstAttackThisTurn",
+  ...(opts.against ? { against: opts.against } : {}),
+  ...(opts.by ? { by: opts.by } : {}),
+});
+/**
  * "If all the players at this stage are defeated" (Kang's stage 3 cards, docs/phase7-wave2.md §3.1): every player
  * in this effect's own game area is defeated (eliminated). False outside a separate game area.
  */

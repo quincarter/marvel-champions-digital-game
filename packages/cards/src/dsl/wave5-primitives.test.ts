@@ -61,6 +61,7 @@ import {
   eventSource,
   eventTarget,
   exists,
+  firstAttackThisTurn,
   firstPlayer,
   identityOf,
   inMode,
@@ -260,6 +261,20 @@ describe("§3.11 text that depends on the mode of play", () => {
 
   it("Coordinated Effort's boost: '(In expert mode, place 1 additional threat on the main scheme)'", () => {
     valid(boost(ifThen(inMode("expert"), placeThreat(1, theMainScheme))));
+  });
+});
+
+describe("§3.12 'the first attack this turn' (Venom III)", () => {
+  it("1 facedown boost card, 2 instead if this is the first attack this turn", () => {
+    const retribution = forcedResponse(
+      on.attacks({ categories: ["hero", "ally"] }, { target: { self: true }, damages: true }),
+      ifThen(firstAttackThisTurn(), giveBoostCard(yourIdentity, 2), giveBoostCard(yourIdentity)),
+    );
+    valid(retribution);
+    expect(firstAttackThisTurn({ against: { self: true } })).toEqual({
+      kind: "firstAttackThisTurn",
+      against: { self: true },
+    });
   });
 });
 

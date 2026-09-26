@@ -497,6 +497,12 @@ export interface AttackRecord {
   readonly attackerTitle: string;
 }
 
+/** One attack in `GameState.attacksThisTurn` (docs/phase7-wave5.md §3.12). */
+export interface AttackThisTurn {
+  readonly attackerInstanceId: InstanceId;
+  readonly targetInstanceId: InstanceId;
+}
+
 export interface GameState {
   readonly round: number;
   readonly step: GameStep;
@@ -607,6 +613,13 @@ export interface GameState {
    *   to Laura Kinney still attacked as X-23, and nothing an alter-ego does is recorded under the hero's title.
    */
   readonly attackedThisTurn: Readonly<Record<string, readonly AttackRecord[]>>;
+  /**
+   * Every attack made **this turn**, in order, repeats included (`attackedThisTurn` keeps each attacker/target pair
+   * once): "2 facedown boost cards instead if this is the first attack this turn" (Venom III, `sm` 27075; `Predicate
+   * firstAttackThisTurn`, docs/phase7-wave5.md §3.12). Written and emptied exactly where `attackedThisTurn` is. Absent
+   * until a game's first attack in a turn, so an older save reads as before.
+   */
+  readonly attacksThisTurn?: readonly AttackThisTurn[];
   /**
    * Every card revealed this round, in order, with who revealed it and in which phase (RRG 1.8 "Reveal", p. 37): "The
    * first [Technique] attachment revealed each round gains surge" (Nebula I–III, `gmw`), "The first treachery the engaged

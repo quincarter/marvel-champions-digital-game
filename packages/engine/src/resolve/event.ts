@@ -771,6 +771,14 @@ function applyRetaliate(ctx: Ctx, event: Extract<TriggerEvent, { kind: "characte
  */
 function recordAttackThisTurn(ctx: Ctx, attackerId: InstanceId, targetId: InstanceId): void {
   if (!turnInProgress(ctx.state)) return;
+  // Every attack, repeats included ("the first attack this turn", docs/phase7-wave5.md §3.12).
+  ctx.state = {
+    ...ctx.state,
+    attacksThisTurn: [
+      ...(ctx.state.attacksThisTurn ?? []),
+      { attackerInstanceId: attackerId, targetInstanceId: targetId },
+    ],
+  };
   const attackerTitle = titleShowing(ctx.state, attackerId) ?? "";
   const already = ctx.state.attackedThisTurn[targetId] ?? [];
   if (already.some((r) => r.attackerInstanceId === attackerId && r.attackerTitle === attackerTitle)) return;

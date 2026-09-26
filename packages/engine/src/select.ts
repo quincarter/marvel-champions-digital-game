@@ -1547,6 +1547,15 @@ export function evaluate(state: GameState, predicate: Predicate, context: Effect
       return state.gameAreas.length > 0;
     case "inMode":
       return (state.scenarioRules.difficulty ?? "standard") === predicate.mode;
+    case "firstAttackThisTurn": {
+      const { against, by } = predicate;
+      const matching = (state.attacksThisTurn ?? []).filter(
+        (attack) =>
+          (!against || matchesQuery(state, attack.targetInstanceId, against, context)) &&
+          (!by || matchesQuery(state, attack.attackerInstanceId, by, context)),
+      );
+      return matching.length === 1;
+    }
     case "areaPlayersDefeated": {
       const area = contextArea(state, context);
       return area !== null && area.playerIds.every((id) => getPlayer(state, id)?.eliminated !== false);

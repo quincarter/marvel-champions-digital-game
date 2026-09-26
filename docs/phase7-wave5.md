@@ -343,7 +343,7 @@ against `pnpm dsl` (379 builders), the engine's `EffectSpec` / `RuleSpec` / `Tri
 | 3.9  | A card that counts as another card type with a trait                                         | Festering Mass                                                                                 | landed  |
 | 3.10 | Scheme icons printed on any card                                                             | Team Leader, Public Outcry, Venom ally, Symbiote Suit; 30 records in other packs               | landed  |
 | 3.11 | Text that depends on the mode of play                                                        | Frequent Flyers ×3, Surprise!, From Every Direction, Life-Size Decoy, Ambush!, Teamwork …      | landed  |
-| 3.12 | "The first attack this turn"                                                                 | Venom III (Retribution)                                                                        | open    |
+| 3.12 | "The first attack this turn"                                                                 | Venom III (Retribution)                                                                        | landed  |
 | 3.13 | "When/After X leaves play"                                                                   | Spider-Man (Hobie Brown), Ghost-Spider ally, Web of Life and Destiny, Warrior of the Great Web | open    |
 | 3.14 | "(Max 1 per [instance])"                                                                     | Ghost Kick, Phantom Flip, Web-Bracelet, Fluid Motion; Temporal Shield, Psylocke 41xxx          | open    |
 | 3.15 | Facedown attached cards: playable events, a count, a maximum                                 | George Stacy, Parental Guidance, Worried Father, Spider-Man Noir                               | open    |
@@ -681,6 +681,15 @@ usable in `while` of keyword grants and `cannotBeCanceled`, and in `ifThen`. The
 
 ### 3.12 "The first attack this turn"
 
+> **Status: landed (2026-09-26),** tested in `packages/engine/src/first-attack-this-turn.test.ts` (3 tests: the first
+> attack on the villain reads true and the second false, replay deep-equal; a new turn starts the count again; after an
+> attack on a minion the villain attack is not the first attack, but is the first against the villain). DSL:
+> `wave5-primitives.test.ts`. **What landed:** the existing `attackedThisTurn` keeps each attacker/target pair once,
+> so it cannot count. New **`GameState.attacksThisTurn`** (every attack in a player's turn, in order, written and emptied
+> with `attackedThisTurn`) and **`Predicate firstAttackThisTurn { against?, by? }`**: exactly one matching attack this
+> turn, read in the response to it. Which attacks Venom III counts is new §4 Q16 (default: all of them). **DSL:**
+> `firstAttackThisTurn({ against?, by? })`.
+
 Venom III: "place 1 facedown boost card on your identity (2 facedown boost cards instead if this is the first attack
 this turn)". **Plan:** a per-turn count of attacks made against the villain, or `attackedThisTurn` if it already
 records it (wave 2 §11.3); `Predicate firstAttackThisTurn { target }`. Verify the existing field's meaning first.
@@ -913,6 +922,11 @@ flagged; none is implemented yet.**
     change of card type, but the Manhattan environments' own When Revealed moves "the glider counter and each
     acceleration token from here". **Default:** card text wins (RRG 1.8 "The Golden Rules", p. 4): threat and
     attachments go, counters and acceleration tokens stay on the card for the When Revealed to move.
+16. **Venom III's "if this is the first attack this turn"** (§3.12; added 2026-09-26 by `game-rules-architect`). No
+    ruling says which attacks count: every attack this turn (a player's attack on a minion first makes the Venom attack
+    not the first), or only attacks on Venom. **Default:** the literal reading, every attack made during this player's
+    turn, player-made or enemy-made (`firstAttackThisTurn()`); the other reading is `firstAttackThisTurn({ against:
+{ self: true } })` if FFG or the user says so.
 
 ---
 

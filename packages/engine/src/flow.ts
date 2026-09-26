@@ -232,6 +232,7 @@ export function beginTurn(ctx: Ctx, activePlayerId: PlayerId, remainingPlayerIds
     attackedThisTurn: {},
     // "…played … this turn" (docs/phase7-wave3.md §3.24), emptied with the turn's other records.
     ...(ctx.state.playedThisTurn ? { playedThisTurn: {} } : {}),
+    ...(ctx.state.attacksThisTurn ? { attacksThisTurn: [] } : {}),
   };
   setStep(ctx, { phase: "player", kind: "turn", activePlayerId, remainingPlayerIds });
   emit(ctx, { type: "turnStarted", playerId: activePlayerId });
@@ -281,7 +282,12 @@ export function finishTurn(ctx: Ctx, playerId: PlayerId): void {
   expirePlayerTurnEffects(ctx, playerId);
   // …and "attacked this turn" is empty until the next turn begins, so the end-of-phase steps and the villain phase
   // never read the last player's attacks as their own (§14).
-  ctx.state = { ...ctx.state, attackedThisTurn: {}, ...(ctx.state.playedThisTurn ? { playedThisTurn: {} } : {}) };
+  ctx.state = {
+    ...ctx.state,
+    attackedThisTurn: {},
+    ...(ctx.state.playedThisTurn ? { playedThisTurn: {} } : {}),
+    ...(ctx.state.attacksThisTurn ? { attacksThisTurn: [] } : {}),
+  };
   advanceAfterTurn(ctx, step.remainingPlayerIds);
 }
 

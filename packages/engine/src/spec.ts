@@ -794,6 +794,14 @@ export type Predicate =
    */
   | { readonly kind: "inMode"; readonly mode: "standard" | "expert" }
   /**
+   * "(2 facedown boost cards instead if this is the first attack this turn)" (Venom III, `sm` 27075;
+   * docs/phase7-wave5.md §3.12): read in the response to an attack, true when exactly one attack this turn
+   * (`GameState.attacksThisTurn`, the triggering one) matches `against` (its target) and `by` (its attacker), each
+   * absent matching any. Outside a player's turn no attack is recorded, so it reads false. Which attacks the printed
+   * sentence counts is §4 Q16.
+   */
+  | { readonly kind: "firstAttackThisTurn"; readonly against?: TargetQuery; readonly by?: TargetQuery }
+  /**
    * Every player in this effect's game area is defeated (eliminated): "If all the players at this stage are defeated,
    * this stage is complete." (Kang's stage 3 cards). False outside a separate game area.
    */
