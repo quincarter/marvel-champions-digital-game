@@ -61,6 +61,10 @@ export function faceVisible(state: GameState, id: InstanceId): boolean {
     case "separateDeck":
       // A separate deck's top card can be faceup by its own rules (the Invocation deck), which `faceup` already says.
       return instance.faceup || offeredByOpenChoice(state, id);
+    case "attachment":
+      // A player's own card attached facedown (George Stacy's events, docs/phase7-wave5.md §3.15) is one its owner may
+      // look at and play; table-wide today, as every hand is (see "Whose eyes" above).
+      return instance.faceup || (instance.facedownAs !== null && instance.ownerId !== null);
     default:
       return instance.faceup;
   }

@@ -346,7 +346,7 @@ against `pnpm dsl` (379 builders), the engine's `EffectSpec` / `RuleSpec` / `Tri
 | 3.12 | "The first attack this turn"                                                                 | Venom III (Retribution)                                                                        | landed  |
 | 3.13 | "When/After X leaves play"                                                                   | Spider-Man (Hobie Brown), Ghost-Spider ally, Web of Life and Destiny, Warrior of the Great Web | landed  |
 | 3.14 | "(Max 1 per [instance])"                                                                     | Ghost Kick, Phantom Flip, Web-Bracelet, Fluid Motion; Temporal Shield, Psylocke 41xxx          | landed  |
-| 3.15 | Facedown attached cards: playable events, a count, a maximum                                 | George Stacy, Parental Guidance, Worried Father, Spider-Man Noir                               | open    |
+| 3.15 | Facedown attached cards: playable events, a count, a maximum                                 | George Stacy, Parental Guidance, Worried Father, Spider-Man Noir                               | landed  |
 | 3.16 | How a card was paid for: resources by type and by source                                     | Moon Girl, VEN#m, Rapid Deployment, Web-Trap; Sync Ratio                                       | open    |
 | 3.17 | A resource card spent for another player                                                     | Everyday Hero                                                                                  | open    |
 | 3.18 | A card that does not count toward hand size                                                  | Connection to the Worldmind                                                                    | open    |
@@ -736,6 +736,18 @@ Psylocke card ("per attack"), which wave 2 left unmodeled. **Plan:** `AbilityLim
 limit is kept per triggering event instance and shared by every copy of the card's title.
 
 ### 3.15 Facedown attached cards: playable events, a count, a maximum
+
+> **Status: landed (2026-09-26),** tested in `packages/engine/src/facedown-attached-events.test.ts` (2 tests: an event
+> attached facedown is counted by `count { host: self, facedown: true }`, visible to its owner, then played from there
+> as if from hand, resolves and lands faceup in the discard pile, replay deep-equal; "to a maximum of 3" as an `if` on
+> that count stops a fourth attach). DSL: `wave5-primitives.test.ts`. **Verified:** `playableAttachments` already
+> offers a facedown attached event (a blank facedown card keeps its card type) and the play resolves its printed
+> ability. **Fixed:** the played card kept `facedownAs` in the discard pile; a card played from facedown is now turned
+> faceup and is itself again as it is played (`actions.ts`). **Visibility:** a player's own card attached facedown is
+> face-visible (table-wide, as hands are; `visibility.ts`). **DSL:** nothing new — `playableAttachments`,
+> `attachCard(…, { facedown: true })`, `countOf({ host: self, facedown: true })`, `ifThen(valueAtMost(…))`. **Not
+> here:** RRG 1.8 "In Play and Out of Play" (p. 23) says "Facedown cards attached to in-play cards are out of play";
+> the engine still lists them among cards in play (no wave 5 card reads the difference).
 
 George Stacy: "Events attached to George Stacy may be played as if they were in your hand. Action: Exhaust George
 Stacy → attach 1 event from your hand facedown here (to a maximum of 3)"; Parental Guidance attaches one from hand or

@@ -1697,6 +1697,10 @@ export function commitPlay(
         }
       : {}),
   };
+  // A card played from where it lay facedown (an event attached facedown to George Stacy, docs/phase7-wave5.md §3.15)
+  // is played faceup and is itself again: its owner may look at it, and a played card is revealed as it is played.
+  if (mustInstance(ctx.state, cardInstanceId).facedownAs !== null)
+    updateInstance(ctx, cardInstanceId, (i) => ({ ...i, facedownAs: null, faceup: true }));
   emit(ctx, {
     type: "cardPlayed",
     playerId,

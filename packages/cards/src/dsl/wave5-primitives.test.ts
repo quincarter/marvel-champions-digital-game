@@ -7,6 +7,7 @@
 import { trait } from "@mc/content";
 import { describe, expect, it } from "vitest";
 import {
+  action,
   boost,
   cannotBeCanceled,
   constant,
@@ -20,6 +21,7 @@ import {
   mainSchemeMarkedBy,
   maxOnePerTriggeringInstance,
   on,
+  playableAttachments,
   response,
   setup,
   special,
@@ -30,8 +32,10 @@ import {
   addAccelerationToken,
   addCounters,
   addVillain,
+  attachCard,
   cancelIt,
   cards,
+  chooseCards,
   dealAsEncounterCard,
   dealDamage,
   dealIndirectDamage,
@@ -52,11 +56,13 @@ import {
   setActiveVillain,
   setVillainAside,
   stun,
+  zone,
 } from "./effects.js";
 import {
   activationOrderOf,
   chosen,
   countAmong,
+  countOf,
   countersOn,
   each,
   eachPlayer,
@@ -79,6 +85,8 @@ import {
   theMainScheme,
   threatOn,
   valueAtLeast,
+  valueAtMost,
+  you,
   yourIdentity,
 } from "./values.js";
 import { validateDefinition } from "./validate.js";
@@ -301,6 +309,22 @@ describe("§3.14 '(Max 1 per [instance])'", () => {
     const bracelet = response(on.leavesPlay("self"), { limit: maxOnePerTriggeringInstance }, draw(1));
     valid(bracelet);
     expect(bracelet.limit).toEqual({ count: 1, period: "phase", per: "triggeringEvent" });
+  });
+});
+
+describe("§3.15 facedown attached cards: playable events, a count, a maximum (George Stacy)", () => {
+  it("composes from playableAttachments, attachCard facedown, and a count of facedown attachments", () => {
+    const attachedFacedown = countOf({ host: self, facedown: true });
+    valid(constant(playableAttachments(query("event"))));
+    valid(
+      action(
+        { cost: { exhaustSelf: true } },
+        ifThen(valueAtMost(attachedFacedown, 2), [
+          chooseCards("event", zone("hand", you, { filter: query("event") }), { min: 1, max: 1 }),
+          attachCard(chosen("event"), self, { facedown: true }),
+        ]),
+      ),
+    );
   });
 });
 
