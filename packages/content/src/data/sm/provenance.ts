@@ -597,7 +597,7 @@ export const SM_PROVENANCE: readonly CardProvenance[] = [
     cardSetCode: "bad_publicity",
     marvelcdbCodes: ["27174a", "27174b"],
     corrections: [
-      "data decision: Uses count confirmation pending a card-image cross-check, both faces (docs/phase7-wave5.md §4 Q14).",
+      "data decision: Uses counts confirmed from the card images of both faces: 2[per_hero] standard, 3[per_hero] expert (docs/phase7-wave5.md §4 Q14).",
     ],
   },
   {

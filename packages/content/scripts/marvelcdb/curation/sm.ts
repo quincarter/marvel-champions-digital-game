@@ -125,12 +125,11 @@ export const SM_CURATION: PackCuration = {
     // docs/phase7-wave5.md §1.9: Sand Clone prints "X is equal to the number of sand counters on City Streets."
     // (MarvelCDB sends `attack: -1`, its printed-X encoding).
     "27067": "ATK X: X is equal to the number of sand counters on City Streets (own printed ability text).",
-    // TODO(docs/phase7-wave5.md §4 Q14): raw text already reads "Uses (2[per_hero] notoriety counters)" (27174a,
-    // standard) / "Uses (3[per_hero] notoriety counters)" (27174b, expert) and parses cleanly with no correction
-    // needed — but a second, independent source (a card-image pass, owned separately per the box's image-
-    // collection work) should confirm the "[per_hero]" reading before this is marked playable. Do not remove this
-    // note until that confirmation lands.
-    "27174a": "Uses count confirmation pending a card-image cross-check, both faces (docs/phase7-wave5.md §4 Q14).",
+    // docs/phase7-wave5.md §4 Q14: raw text "Uses (2[per_hero] notoriety counters)" (27174a, standard) /
+    // "Uses (3[per_hero] notoriety counters)" (27174b, expert) confirmed against the Hall of Heroes card images of
+    // both faces, 2026-09-26. No correction needed.
+    "27174a":
+      "Uses counts confirmed from the card images of both faces: 2[per_hero] standard, 3[per_hero] expert (docs/phase7-wave5.md §4 Q14).",
   },
 
   scenarios: [
