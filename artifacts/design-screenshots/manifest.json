@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-25T17:57:52.919Z",
+  "generatedAt": "2026-09-26T23:33:37.605Z",
   "viewport": {
     "width": 1600,
     "height": 1200
@@ -813,6 +813,76 @@
         {
           "label": "D-16·F Finale spread",
           "screenshot": "artifacts/design-screenshots/individual/gmw-comic-reader.dc/21-d-16-f-finale-spread.png"
+        }
+      ]
+    },
+    {
+      "source": "Guided - Desktop.dc.html",
+      "screenshot": "artifacts/design-screenshots/guided-desktop.dc.png",
+      "screens": [
+        {
+          "label": "G-D01 Threat lesson",
+          "screenshot": "artifacts/design-screenshots/individual/guided-desktop.dc/01-g-d01-threat-lesson.png"
+        },
+        {
+          "label": "G-D02 Villain phase",
+          "screenshot": "artifacts/design-screenshots/individual/guided-desktop.dc/02-g-d02-villain-phase.png"
+        },
+        {
+          "label": "G-D03 Debrief",
+          "screenshot": "artifacts/design-screenshots/individual/guided-desktop.dc/03-g-d03-debrief.png"
+        }
+      ]
+    },
+    {
+      "source": "Guided - Phone.dc.html",
+      "screenshot": "artifacts/design-screenshots/guided-phone.dc.png",
+      "screens": [
+        {
+          "label": "G-P01 Choose guidance",
+          "screenshot": "artifacts/design-screenshots/individual/guided-phone.dc/01-g-p01-choose-guidance.png"
+        },
+        {
+          "label": "G-P02 How to win",
+          "screenshot": "artifacts/design-screenshots/individual/guided-phone.dc/02-g-p02-how-to-win.png"
+        },
+        {
+          "label": "G-P03 Spotlight threat",
+          "screenshot": "artifacts/design-screenshots/individual/guided-phone.dc/03-g-p03-spotlight-threat.png"
+        },
+        {
+          "label": "G-P04 Paying for cards",
+          "screenshot": "artifacts/design-screenshots/individual/guided-phone.dc/04-g-p04-paying-for-cards.png"
+        },
+        {
+          "label": "G-P05 Villain phase",
+          "screenshot": "artifacts/design-screenshots/individual/guided-phone.dc/05-g-p05-villain-phase.png"
+        },
+        {
+          "label": "G-P06 Safety net",
+          "screenshot": "artifacts/design-screenshots/individual/guided-phone.dc/06-g-p06-safety-net.png"
+        },
+        {
+          "label": "G-P07 Debrief",
+          "screenshot": "artifacts/design-screenshots/individual/guided-phone.dc/07-g-p07-debrief.png"
+        }
+      ]
+    },
+    {
+      "source": "Guided - Tablet.dc.html",
+      "screenshot": "artifacts/design-screenshots/guided-tablet.dc.png",
+      "screens": [
+        {
+          "label": "G-T01 Choose guidance",
+          "screenshot": "artifacts/design-screenshots/individual/guided-tablet.dc/01-g-t01-choose-guidance.png"
+        },
+        {
+          "label": "G-T02 Paying for cards",
+          "screenshot": "artifacts/design-screenshots/individual/guided-tablet.dc/02-g-t02-paying-for-cards.png"
+        },
+        {
+          "label": "G-T03 Safety net",
+          "screenshot": "artifacts/design-screenshots/individual/guided-tablet.dc/03-g-t03-safety-net.png"
         }
       ]
     },
