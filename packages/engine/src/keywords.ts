@@ -20,6 +20,7 @@ import {
   matchesQuery,
   keywordsBlankFor,
   lastingReaches,
+  refsLiveUnderLastingBlank,
   resolveValue,
   type EffectContext,
 } from "./select.js";
@@ -148,6 +149,63 @@ function grantedKeywords(state: GameState, deps: EngineDeps, id: InstanceId): re
     }
   }
   return granted;
+}
+
+/** Set while `hasGrantedPermanent` is scanning: a re-entrancy guard, not game state. */
+let readingGrantedPermanent = false;
+
+/**
+ * Whether another card's effect or rule grants this card the Permanent keyword right now, for its blank protection (RRG
+ * 1.8 "Permanent", p. 32; docs/phase7-wave5.md §4.1 Q45: a granted keyword protects as a printed one does). Loop-free
+ * by construction, as `grantedKeywords` is not (it reads each source's text box through every blank, and a blank check
+ * asks this):
+ *
+ * - This card's own text box is never read: a constant rule on this card granting itself Permanent is skipped, so the
+ *   answer cannot depend on whether that very text box is blank. A lasting grant is state, not text, and counts
+ *   whoever made it.
+ * - A granting card's rules are read under the *lasting* blank only (`refsLiveUnderLastingBlank`), as `blankedSets`
+ *   reads a blank rule's source, and each grant's `target`/`while` and each lasting grant's `affects` match with
+ *   `DEFAULT_DEPS` (printed characteristics), so nothing here fills a per-state cache with a guarded answer.
+ * - While the scan runs, a nested ask (whether the *granting* card is itself protected from a lasting blank) returns
+ *   false, so a nested card counts only a printed Permanent. A card that is permanent only through a grant does not in
+ *   turn pass its own grant on through a blank that reaches it.
+ *
+ * So a grant from a card blanked by a constant rule (Tech Theft) still counts here, and two cards granting each other
+ * Permanent both fall to a blank that reaches them both; no card grants Permanent that way today.
+ */
+export function hasGrantedPermanent(state: GameState, id: InstanceId, deps: EngineDeps = DEFAULT_DEPS): boolean {
+  if (readingGrantedPermanent) return false;
+  readingGrantedPermanent = true;
+  try {
+    for (const effect of state.lastingEffects) {
+      // A lasting grant outlives the ability that made it, so one this card's own ability made counts too.
+      if (effect.kind !== "keywordGrant" || effect.keyword.name !== "permanent") continue;
+      if (lastingReaches(state, effect, id, DEFAULT_DEPS)) return true;
+    }
+    if (Object.keys(deps.abilities).length === 0) return false;
+    for (const sourceId of cardsInPlay(state)) {
+      if (sourceId === id) continue;
+      for (const ref of refsLiveUnderLastingBlank(state, sourceId, deps)) {
+        const definition = deps.abilities[ref.id];
+        if (definition?.trigger.kind !== "constant" || !definition.trigger.keywordGrants) continue;
+        const context: EffectContext = {
+          selfInstanceId: sourceId,
+          controllerId: controllerOf(state, sourceId),
+          event: null,
+          bindings: {},
+          deps: DEFAULT_DEPS,
+        };
+        for (const grant of definition.trigger.keywordGrants) {
+          if (grant.keyword.name !== "permanent") continue;
+          if (grant.while && !evaluate(state, grant.while, context)) continue;
+          if (matchesQuery(state, id, grant.target, context)) return true;
+        }
+      }
+    }
+    return false;
+  } finally {
+    readingGrantedPermanent = false;
+  }
 }
 
 export function keywordsOf(

@@ -27,7 +27,14 @@ import {
 import type { EffectSpec } from "./spec.js";
 import type { GameState } from "./state.js";
 import { depsOf, stubAbility } from "./testing/abilities.js";
-import { stubEvent, stubObligation, stubSideScheme, stubSupport, stubTreachery } from "./testing/fixtures.js";
+import {
+  stubEvent,
+  stubObligation,
+  stubSideScheme,
+  stubSupport,
+  stubTreachery,
+  stubUpgrade,
+} from "./testing/fixtures.js";
 import { HERO } from "./testing/scenario.js";
 import {
   copiesOf,
@@ -170,6 +177,33 @@ const RIVAL_SUIT = {
   aspect: heroAspect(RIVAL_ID),
 };
 
+// §4.1 Q45: Permanent granted from elsewhere. A basic upgrade (so "each support" blanks miss it) whose constant rule
+// gives each support permanent; a support that gives each support, itself included, permanent; and an event that gives
+// each support permanent until the end of the round.
+const GRANT_EACH_SUPPORT = {
+  trigger: {
+    kind: "constant",
+    keywordGrants: [{ keyword: { name: "permanent" }, target: { categories: ["support"] } }],
+  },
+  effects: [],
+} satisfies AbilityDefinition;
+const GRANTER_RULE = stubAbility("granter.constant", GRANT_EACH_SUPPORT);
+const GRANTER = stubUpgrade({ id: "granter", cost: 0, abilities: [GRANTER_RULE.ref] });
+const SELF_GRANTER_RULE = stubAbility("self-granter.constant", GRANT_EACH_SUPPORT);
+const SELF_GRANTER = stubSupport({ id: "self-granter", cost: 0, abilities: [SELF_GRANTER_RULE.ref] });
+const GRANT_UNTIL_ABILITY = stubAbility("grant-until.action", {
+  trigger: { kind: "action" },
+  effects: [
+    {
+      kind: "grantKeywordUntil",
+      keyword: { name: "permanent" },
+      affects: { categories: ["support"] },
+      until: "endOfRound",
+    },
+  ],
+});
+const GRANT_UNTIL = stubEvent({ id: "grant-until", cost: 0, abilities: [GRANT_UNTIL_ABILITY.ref] });
+
 const OBLIGATION = stubObligation({ id: `${HERO.id}-obligation` });
 const FILLER = stubTreachery({ id: "filler", boostIcons: 0 });
 
@@ -187,6 +221,9 @@ const deps: EngineDeps = depsOf(
   NEMESIS_THEFT_RULE,
   RIVAL_THEFT_RULE,
   RIVAL_SUIT_ACTION,
+  GRANTER_RULE,
+  SELF_GRANTER_RULE,
+  GRANT_UNTIL_ABILITY,
 );
 const CARDS: readonly AnyCard[] = [
   SUIT,
@@ -202,6 +239,9 @@ const CARDS: readonly AnyCard[] = [
   NEMESIS_THEFT,
   RIVAL_THEFT,
   RIVAL_SUIT,
+  GRANTER,
+  SELF_GRANTER,
+  GRANT_UNTIL,
   OBLIGATION,
   FILLER,
 ];
@@ -211,7 +251,18 @@ function start(players: 1 | 2 = 1): GameState {
     cards: CARDS,
     deps,
     players,
-    deck: [SUIT.id, SHIP.id, PLAIN.id, SPDR.id, RIVAL_SUIT.id, HERO_BLANK.id, BASIC_BLANK.id],
+    deck: [
+      SUIT.id,
+      SHIP.id,
+      PLAIN.id,
+      SPDR.id,
+      RIVAL_SUIT.id,
+      GRANTER.id,
+      SELF_GRANTER.id,
+      GRANT_UNTIL.id,
+      HERO_BLANK.id,
+      BASIC_BLANK.id,
+    ],
     encounter: [
       THEFT.id,
       SCHEME_BLANK.id,
@@ -407,6 +458,82 @@ describe("§4.1 Q43 a hero's nemesis set is of that hero's set (FFG ruling June 
     expect(textBoxBlankFor(after, suit, deps)).toBe(true);
     // P1's hero set is not P2's.
     expect(textBoxBlankFor(after, rivalSuit, deps)).toBe(false);
+    expectReplays(session);
+  });
+});
+
+describe("§4.1 Q45 a granted Permanent keyword protects as a printed one does", () => {
+  /** PLAIN (not printed permanent) in play, and GRANTER, giving each support permanent. */
+  function grantedInPlay() {
+    const plain = playerCardIntoPlay(start(), PLAIN.id);
+    const granter = playerCardIntoPlay(plain.state, GRANTER.id);
+    return { state: granter.state, plain: plain.id, granter: granter.id };
+  }
+
+  it("a constant grant from another card keeps another set's lasting blank off, and the grant's removal lets it in", () => {
+    const { state, plain, granter } = grantedInPlay();
+    expect(hasKeyword(state, plain, "permanent", deps)).toBe(true);
+    const { session, state: after } = playFree(state, deps, BASIC_BLANK.id);
+
+    expect(textBoxBlankFor(after, plain, deps)).toBe(false);
+    expect(refIds(after, plain)).toEqual([PLAIN_ACTION.ref.id]);
+    expect(hasKeyword(after, plain, "permanent", deps)).toBe(true);
+    expectReplays(session);
+
+    // The granter leaves play (surgery): the blank, still lasting, now reaches PLAIN.
+    const seat = after.players[0]!;
+    const gone: GameState = {
+      ...after,
+      players: [{ ...seat, playArea: seat.playArea.filter((id) => id !== granter) }, ...after.players.slice(1)],
+    };
+    expect(textBoxBlankFor(gone, plain, deps)).toBe(true);
+    expect(refIds(gone, plain)).toEqual([]);
+    expect(hasKeyword(gone, plain, "permanent", deps)).toBe(false);
+  });
+
+  it("a granted Permanent still lets its own set's blank through", () => {
+    const { state, plain } = grantedInPlay();
+    const { session, state: after } = playFree(state, deps, HERO_BLANK.id);
+    expect(textBoxBlankFor(after, plain, deps)).toBe(true);
+    expectReplays(session);
+  });
+
+  it("a constant grant protects from a constant blank rule of another set", () => {
+    const { state: base, plain } = grantedInPlay();
+    const { state } = encounterCardInVillainArea(base, THEFT.id, 5);
+    expect(blankedByConstantRules(state, deps).has(plain)).toBe(false);
+    expect(refIds(state, plain)).toEqual([PLAIN_ACTION.ref.id]);
+  });
+
+  it("a lasting grant protects until it is gone", () => {
+    const plain = playerCardIntoPlay(start(), PLAIN.id);
+    const granted = playFree(plain.state, deps, GRANT_UNTIL.id).state;
+    const { session, state: after } = playFree(granted, deps, BASIC_BLANK.id);
+
+    expect(textBoxBlankFor(after, plain.id, deps)).toBe(false);
+    expect(refIds(after, plain.id)).toEqual([PLAIN_ACTION.ref.id]);
+    expectReplays(session);
+
+    const expired: GameState = {
+      ...after,
+      lastingEffects: after.lastingEffects.filter((effect) => effect.kind !== "keywordGrant"),
+    };
+    expect(textBoxBlankFor(expired, plain.id, deps)).toBe(true);
+    expect(refIds(expired, plain.id)).toEqual([]);
+  });
+
+  it("a card's own grant never protects itself, and a blanked granter grants nothing (no loop)", () => {
+    const plain = playerCardIntoPlay(start(), PLAIN.id);
+    const self = playerCardIntoPlay(plain.state, SELF_GRANTER.id);
+    expect(hasKeyword(self.state, self.id, "permanent", deps)).toBe(true);
+    expect(hasKeyword(self.state, plain.id, "permanent", deps)).toBe(true);
+    const { session, state: after } = playFree(self.state, deps, BASIC_BLANK.id);
+
+    // SELF_GRANTER is not protected by its own text, so the blank reaches it, and its grant to PLAIN goes with it.
+    expect(textBoxBlankFor(after, self.id, deps)).toBe(true);
+    expect(hasKeyword(after, self.id, "permanent", deps)).toBe(false);
+    expect(textBoxBlankFor(after, plain.id, deps)).toBe(true);
+    expect(hasKeyword(after, plain.id, "permanent", deps)).toBe(false);
     expectReplays(session);
   });
 });

@@ -1,7 +1,14 @@
 import type { AbilityReference, AnyCard, CardId, Trait } from "@mc/content";
 import { type AbilityTriggerSpec, DEFAULT_DEPS, type EngineDeps, type RuleSpec } from "./abilities.js";
 import type { InstanceId, PlayerId } from "./ids.js";
-import { activeFormType, hasKeyword, printedFormTypes, statusActive, unblankedPrintedKeywordsOf } from "./keywords.js";
+import {
+  activeFormType,
+  hasGrantedPermanent,
+  hasKeyword,
+  printedFormTypes,
+  statusActive,
+  unblankedPrintedKeywordsOf,
+} from "./keywords.js";
 import {
   activeVillain,
   cardOf,
@@ -1721,7 +1728,7 @@ function blankedSets(state: GameState, deps: EngineDeps): BlankedSets {
         if (rule.while && !evaluate(state, rule.while, context)) continue;
         for (const id of inPlay) {
           if (id === sourceId || !matchesQuery(state, id, rule.target, context)) continue;
-          if (textBoxCannotBeBlanked(state, id, deps) || permanentProtectsFrom(state, id, sourceCardId)) continue;
+          if (textBoxCannotBeBlanked(state, id, deps) || permanentProtectsFrom(state, id, sourceCardId, deps)) continue;
           blanked.add(id);
           if (!rule.exceptKeywords) keywordsBlanked.add(id);
         }
@@ -1863,22 +1870,47 @@ function permanentSetKeys(state: GameState, card: AnyCard): readonly string[] {
 /**
  * Whether the Permanent keyword keeps a blank made by `sourceCardId` off this card (RRG 1.8 "Permanent", p. 32: "Effects
  * on cards not from this card's set cannot [...] blank any part of its text box"; docs/phase7-wave5.md §4.1 Q31). The
- * keyword is read from the card's showing face *before* any blank (`unblankedPrintedKeywordsOf`), since it protects
- * the text box it is printed in, and it never consults a blank, so every blank check can ask it without recursion. A
- * facedown card or one treated as another type shows no keyword and has no text to protect.
+ * printed keyword is read from the card's showing face *before* any blank (`unblankedPrintedKeywordsOf`), since it
+ * protects the text box it is printed in. A keyword granted by another card's effect or rule protects too (§4.1 Q45,
+ * `keywords.ts` `hasGrantedPermanent`), read without this card's own text box and under a re-entrancy guard, so every
+ * blank check can ask this without recursion. A facedown card or one treated as another type shows no printed keyword
+ * and has no text to protect.
  *
  * A blank with no recorded source (made before sources were recorded) is not stopped, as before. A card is always of
  * its own set, so a permanent card's own ability may blank it.
  */
-export function permanentProtectsFrom(state: GameState, id: InstanceId, sourceCardId: CardId | undefined): boolean {
+export function permanentProtectsFrom(
+  state: GameState,
+  id: InstanceId,
+  sourceCardId: CardId | undefined,
+  deps: EngineDeps = DEFAULT_DEPS,
+): boolean {
   if (sourceCardId === undefined) return false;
-  if (!unblankedPrintedKeywordsOf(state, id).some((keyword) => keyword.name === "permanent")) return false;
   const card = cardOf(state, id);
   if (!card || card.id === sourceCardId) return false;
   const source = state.cardPool[sourceCardId];
-  if (!source) return true;
-  const own = new Set(permanentSetKeys(state, card));
-  return !permanentSetKeys(state, source).some((key) => own.has(key));
+  if (source) {
+    const own = new Set(permanentSetKeys(state, card));
+    if (permanentSetKeys(state, source).some((key) => own.has(key))) return false;
+  }
+  return (
+    unblankedPrintedKeywordsOf(state, id).some((keyword) => keyword.name === "permanent") ||
+    hasGrantedPermanent(state, id, deps)
+  );
+}
+
+/**
+ * A card's ability refs as live under the *lasting* blank only (`lastingBlankReaches`), not a constant blank rule: what
+ * a card's constant rules are read from while the constant blank rules are themselves being worked out (`blankedSets`)
+ * and while a granted Permanent keyword is being looked for (`keywords.ts` `hasGrantedPermanent`, §4.1 Q45). Fills no
+ * per-state cache.
+ */
+export function refsLiveUnderLastingBlank(
+  state: GameState,
+  id: InstanceId,
+  deps: EngineDeps,
+): readonly AbilityReference[] {
+  return lastingBlankReaches(state, id, deps) ? [] : unblankedAbilityRefs(state, id);
 }
 
 /**
@@ -1891,7 +1923,7 @@ function lastingBlankReaches(state: GameState, id: InstanceId, deps: EngineDeps)
     (effect) =>
       effect.kind === "blankTextBox" &&
       effect.targets.includes(id) &&
-      !permanentProtectsFrom(state, id, effect.sourceCardId),
+      !permanentProtectsFrom(state, id, effect.sourceCardId, deps),
   );
 }
 
