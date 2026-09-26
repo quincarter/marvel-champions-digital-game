@@ -130,6 +130,11 @@ export type StackFrame =
       readonly group?: { readonly frameId: FrameId; readonly index: number };
       /** A thwart whose additional cost (`RuleSpec additionalThwartCost`) has been asked for (docs/phase7-wave5.md §3.21). */
       readonly thwartCostAsked?: true;
+      /**
+       * A basic thwart whose additional cost was paid with its own costs, before it was initiated (docs/phase7-wave5.md
+       * §4.1 Q27, `thwart-cost.ts`): not asked again as it resolves.
+       */
+      readonly thwartCostPaid?: true;
     })
   /**
    * Damage events resolved simultaneously (RRG 1.8 "Indirect Damage", p. 24: "All indirect damage from a single source
@@ -145,11 +150,6 @@ export type StackFrame =
         readonly vars: Vars;
       }[];
       readonly stage: "interrupts" | "apply" | "responses" | "done";
-      /**
-       * A basic thwart whose additional cost was paid with its own costs, before it was initiated (docs/phase7-wave5.md
-       * §4.1 Q27, `thwart-cost.ts`): not asked again as it resolves.
-       */
-      readonly thwartCostPaid?: true;
       readonly cursor: number;
       readonly reportTo: ReportTarget | null;
     })
