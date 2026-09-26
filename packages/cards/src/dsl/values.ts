@@ -536,6 +536,13 @@ export const finalStep: Predicate = varAtLeast("sequence.final", 1);
  */
 export const gameAreasSplit: Predicate = { kind: "gameAreasSplit" };
 /**
+ * The mode of play (docs/phase7-wave5.md §3.11). "In expert mode, this card gains surge and cannot be canceled"
+ * (Surprise!, `sm` 27112) is `constant(gainsKeyword({ name: "surge" }, { self: true }, { while: inMode("expert") }),
+ * cannotBeCanceled({ self: true }, inMode("expert")))` — an encounter card's own grants apply while it is revealed;
+ * "(In expert mode, place 2 threat …)" is `ifThen(inMode("expert"), …)`.
+ */
+export const inMode = (mode: "standard" | "expert"): Predicate => ({ kind: "inMode", mode });
+/**
  * "If all the players at this stage are defeated" (Kang's stage 3 cards, docs/phase7-wave2.md §3.1): every player
  * in this effect's own game area is defeated (eliminated). False outside a separate game area.
  */

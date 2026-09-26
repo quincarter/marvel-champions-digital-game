@@ -7,10 +7,13 @@
 import { trait } from "@mc/content";
 import { describe, expect, it } from "vitest";
 import {
+  boost,
+  cannotBeCanceled,
   constant,
   countsAs,
   forcedInterrupt,
   forcedResponse,
+  gainsKeyword,
   heroInterrupt,
   increaseDamageTaken,
   mainSchemeMarkedBy,
@@ -40,6 +43,7 @@ import {
   moveBoostCards,
   moveCardsInto,
   moveCounters,
+  placeThreat,
   resolveSpecialsOf,
   selectCards,
   setActiveVillain,
@@ -59,6 +63,7 @@ import {
   exists,
   firstPlayer,
   identityOf,
+  inMode,
   named,
   not,
   perHero,
@@ -67,6 +72,7 @@ import {
   self,
   superlative,
   thatPlayer,
+  theMainScheme,
   threatOn,
   valueAtLeast,
   yourIdentity,
@@ -234,6 +240,26 @@ describe("§3.9 a card that counts as another card type with a trait (Festering 
       kind: "constant",
       rules: [{ kind: "countsAs", target: { self: true }, categories: ["environment"], traits: [SYMBIOTE] }],
     });
+  });
+});
+
+describe("§3.11 text that depends on the mode of play", () => {
+  it("Surprise!: 'In expert mode, this card gains surge and cannot be canceled'", () => {
+    const surprise = constant(
+      gainsKeyword({ name: "surge" }, { self: true }, { while: inMode("expert") }),
+      cannotBeCanceled({ self: true }, inMode("expert")),
+    );
+    valid(surprise);
+    expect(surprise.trigger).toMatchObject({
+      keywordGrants: [
+        { keyword: { name: "surge" }, target: { self: true }, while: { kind: "inMode", mode: "expert" } },
+      ],
+      rules: [{ kind: "cannotBeCanceled", cards: { self: true }, while: { kind: "inMode", mode: "expert" } }],
+    });
+  });
+
+  it("Coordinated Effort's boost: '(In expert mode, place 1 additional threat on the main scheme)'", () => {
+    valid(boost(ifThen(inMode("expert"), placeThreat(1, theMainScheme))));
   });
 });
 

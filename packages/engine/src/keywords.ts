@@ -4,6 +4,7 @@ import type { InstanceId } from "./ids.js";
 import {
   cardOf,
   encounterFace,
+  getInstance,
   identityFace,
   isVillain,
   mainSchemeStageOf,
@@ -98,7 +99,12 @@ function grantedKeywords(state: GameState, deps: EngineDeps, id: InstanceId): re
     if (effect.kind === "keywordGrant" && lastingReaches(state, effect, id, deps)) granted.push(effect.keyword);
   }
   if (Object.keys(deps.abilities).length === 0) return granted;
-  for (const sourceId of cardsInPlay(state)) {
+  const inPlay = cardsInPlay(state);
+  // "In expert mode, this card gains surge" on a treachery (Surprise!, `sm` 27112; docs/phase7-wave5.md §3.11): an
+  // encounter card's grants to itself are read wherever it is, since a revealed treachery is never in play — the
+  // `revealCannotBeCanceled` reading of the card's own text (docs/phase7-wave4.md §3.14).
+  const ownText = !inPlay.includes(id) && getInstance(state, id)?.ownerId === null ? [id] : [];
+  for (const sourceId of [...inPlay, ...ownText]) {
     for (const ref of activeAbilityRefs(state, sourceId, deps)) {
       const definition = deps.abilities[ref.id];
       if (definition?.trigger.kind !== "constant" || !definition.trigger.keywordGrants) continue;

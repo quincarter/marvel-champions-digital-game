@@ -342,7 +342,7 @@ against `pnpm dsl` (379 builders), the engine's `EffectSpec` / `RuleSpec` / `Tri
 | 3.8  | Increasing the damage a character takes                                                      | Bell Tower (Ringing)                                                                           | landed  |
 | 3.9  | A card that counts as another card type with a trait                                         | Festering Mass                                                                                 | landed  |
 | 3.10 | Scheme icons printed on any card                                                             | Team Leader, Public Outcry, Venom ally, Symbiote Suit; 30 records in other packs               | landed  |
-| 3.11 | Text that depends on the mode of play                                                        | Frequent Flyers ×3, Surprise!, From Every Direction, Life-Size Decoy, Ambush!, Teamwork …      | open    |
+| 3.11 | Text that depends on the mode of play                                                        | Frequent Flyers ×3, Surprise!, From Every Direction, Life-Size Decoy, Ambush!, Teamwork …      | landed  |
 | 3.12 | "The first attack this turn"                                                                 | Venom III (Retribution)                                                                        | open    |
 | 3.13 | "When/After X leaves play"                                                                   | Spider-Man (Hobie Brown), Ghost-Spider ally, Web of Life and Destiny, Warrior of the Great Web | open    |
 | 3.14 | "(Max 1 per [instance])"                                                                     | Ghost Kick, Phantom Flip, Web-Bracelet, Fluid Motion; Temporal Shield, Psylocke 41xxx          | open    |
@@ -661,6 +661,16 @@ add `schemeIcons` of every card in play to what they count today (scheme icons a
 its showing face's icons.
 
 ### 3.11 Text that depends on the mode of play
+
+> **Status: landed (2026-09-26),** tested in `packages/engine/src/mode-of-play.test.ts` (3 tests: in standard a
+> treachery with "In expert mode, this card gains surge [and incite 1] and cannot be canceled" reveals alone, places no
+> incite threat and can be canceled; in expert it surges, places 1 incite threat and cannot be canceled, replay
+> deep-equal; an `ifThen` on the mode places 2 threat in expert only). DSL: `wave5-primitives.test.ts`. **What
+> landed:** **`Predicate inMode { mode: "standard" | "expert" }`**, read from `ScenarioRules.difficulty`. And, found
+> while testing: keyword grants were read only from cards in play, so a revealed treachery's "this card gains surge"
+> did nothing. An encounter card's own `keywordGrants` are now read wherever it is (as its own `cannotBeCanceled`
+> already was, wave 4 §3.14). **DSL:** `inMode(mode)`, with `gainsKeyword(…, { while })`, `cannotBeCanceled(…, when)`
+> and `ifThen`. **Not here:** a heroic mode: the engine has no heroic setting to read, and no wave 5 card names one.
 
 "In expert mode, this card gains incite 1 and cannot be canceled" (Frequent Flyers, High Fashion, Robotic
 Enhancements), "gains surge" (Surprise!, From Every Direction), "gains toughness" (Life-Size Decoy), "(In expert mode,

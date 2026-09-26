@@ -1545,6 +1545,8 @@ export function evaluate(state: GameState, predicate: Predicate, context: Effect
     }
     case "gameAreasSplit":
       return state.gameAreas.length > 0;
+    case "inMode":
+      return (state.scenarioRules.difficulty ?? "standard") === predicate.mode;
     case "areaPlayersDefeated": {
       const area = contextArea(state, context);
       return area !== null && area.playerIds.every((id) => getPlayer(state, id)?.eliminated !== false);

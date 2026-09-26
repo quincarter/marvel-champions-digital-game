@@ -788,6 +788,12 @@ export type Predicate =
    */
   | { readonly kind: "gameAreasSplit" }
   /**
+   * The mode of play (RRG 1.8 "Modes of Play", p. 29; `GameSetupConfig.difficulty`): "In expert mode, this card gains
+   * incite 1 and cannot be canceled" (Frequent Flyers, `sm` 27108), "(In expert mode, place 2 threat on Light at the
+   * End)" (Ambush!, 27100), "If … or this is expert mode" (Sinister Beatdown 27101a). docs/phase7-wave5.md §3.11.
+   */
+  | { readonly kind: "inMode"; readonly mode: "standard" | "expert" }
+  /**
    * Every player in this effect's game area is defeated (eliminated): "If all the players at this stage are defeated,
    * this stage is complete." (Kang's stage 3 cards). False outside a separate game area.
    */
