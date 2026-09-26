@@ -17,6 +17,7 @@ import {
   type PoolCopy,
 } from "./campaign-pool-model.js";
 import { campaignStepRows, type CampaignStepRow } from "./campaign-step-model.js";
+import { hiddenEvidenceEnvelope, type HiddenEvidenceEnvelope } from "./campaign-hidden-evidence-model.js";
 
 export type CardNameOf = (id: CardId) => string;
 
@@ -56,6 +57,8 @@ export interface BriefingView {
   readonly decks: readonly DeckRow[];
   /** Null for a box with no campaign pool, or an issue whose own setup reads none of it back (issue #1). */
   readonly pool: BriefingPoolView | null;
+  /** The hidden-evidence envelope (docs/campaign-mode-design.md §Q4; MC50 p. 5). Null for a box with no hidden field. */
+  readonly hiddenEvidence: HiddenEvidenceEnvelope | null;
 }
 
 const ASPECT_ABBREVIATION: Readonly<Record<string, string>> = {
@@ -358,5 +361,6 @@ export function briefingViewOf(
         ? campaignBriefingPool(record, definition, node, cardTypeOf, isFinale, poolCopy, firstPlayerName)
         : null,
     decks: deckRowsOf(record, cardName),
+    hiddenEvidence: definition ? hiddenEvidenceEnvelope(record, definition, cardName) : null,
   };
 }

@@ -1547,6 +1547,18 @@ can read them — as they can peek in the paper envelope. **Recommendation:** st
 exclude it from every view model, and accept the same honour system the paper game uses. The alternative (derive it
 from a hash of the campaign seed, storing nothing) breaks when the card pool changes under the campaign and would
 silently change the mole. Confirm which.
+**Decision (the user, 2026-09-25):** the recommendation, plus a client-visible counter. Storage was already built
+as recommended (`CampaignLog.hidden` / `LogFieldDef.hidden`, `packages/engine/src/campaign.ts` — no engine change
+needed for this decision). Client built (game-client-engineer, 2026-09-25): the Dossier overview and the Briefing
+screen both show an envelope — the field's own label, "SEALED · N CARDS", never the identities — reading only the
+_count_ off `CampaignLog.hidden` (`packages/client/src/view/campaign-hidden-evidence-model.ts`'s own doc comment on
+why that one read is sanctioned). Once revealed it shows the actual cards instead. Generic, not MC50-specific
+(MC50 isn't scripted yet — `@mc/cards`'s `campaigns/` only has `gmw`, `mts`, `trors`): any campaign whose
+`CampaignDefinition.logFields` declares a `hidden` field gets the envelope; "revealed" is this build's own
+convention (documented in that module) of a paired, non-hidden `<id>Revealed` flag field, since a field declared
+`hidden` can never un-hide itself at runtime (`packages/engine/src/campaign/log.ts`). Exercised by a synthetic
+fixture, `campaign-hidden-evidence-model.test.ts`, the same way `campaign.test.ts`'s own synthetic campaign
+exercises shapes the first box doesn't use.
 
 **Q5. Where does a campaign seat's deck live?**
 If a seat points at a `DeckId` in `mc-decks`, editing that deck outside the campaign silently changes the campaign's
