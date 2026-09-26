@@ -326,9 +326,13 @@ function bindsOf(effect: EffectSpec, scope: Scope): void {
         scope.vars.add(`${effect.bind}.count`);
       }
       return;
-    // `<bind>.count`: how many abilities were resolved (docs/phase7-wave4.md §3.56).
+    // `<bind>.count`: how many abilities were resolved (docs/phase7-wave4.md §3.56); `<bind>.<slot>` / `<bind>.<var>`:
+    // what the resolved abilities' own effects bound (docs/phase7-wave5.md §3.7).
     case "resolveSpecials":
-      if (effect.bind) scope.vars.add(`${effect.bind}.count`);
+      if (effect.bind) {
+        scope.vars.add(`${effect.bind}.count`);
+        scope.prefixes.add(`${effect.bind}.`);
+      }
       return;
     case "discardEncounterUntil":
     case "discardDeckUntil":

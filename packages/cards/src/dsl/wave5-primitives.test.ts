@@ -4,6 +4,7 @@
  * per-primitive engine test drives.
  */
 
+import { trait } from "@mc/content";
 import { describe, expect, it } from "vitest";
 import {
   forcedInterrupt,
@@ -12,17 +13,20 @@ import {
   mainSchemeMarkedBy,
   on,
   setup,
+  special,
   whenDefeated,
   whenRevealed,
 } from "./abilities.js";
 import {
   addAccelerationToken,
+  addCounters,
   addVillain,
   cancelIt,
   cards,
   dealAsEncounterCard,
   dealDamage,
   dealIndirectDamage,
+  discardEncounterCards,
   draw,
   encounterCards,
   encounterSetAside,
@@ -37,10 +41,13 @@ import {
   selectCards,
   setActiveVillain,
   setVillainAside,
+  stun,
 } from "./effects.js";
 import {
   activationOrderOf,
   chosen,
+  countAmong,
+  countersOn,
   each,
   eachPlayer,
   eventPlayer,
@@ -49,6 +56,7 @@ import {
   exists,
   firstPlayer,
   identityOf,
+  named,
   not,
   perHero,
   query,
@@ -57,6 +65,7 @@ import {
   superlative,
   thatPlayer,
   threatOn,
+  valueAtLeast,
   yourIdentity,
 } from "./values.js";
 import { validateDefinition } from "./validate.js";
@@ -176,6 +185,24 @@ describe("§3.5 encounter cards in a player's deck, hand and discard pile (Myste
     );
     valid(definition);
     expect(definition.trigger).toMatchObject({ on: { on: "boostCardResolved", selfIs: "source" } });
+  });
+});
+
+describe("§3.7 a resolved Special reports the cards it discarded (Sandslide)", () => {
+  it("City Streets binds its discard; Sandslide reads it through resolveSpecialsOf's bind", () => {
+    const streets = named("City Streets");
+    valid(special(addCounters("sand", 1), discardEncounterCards(countersOn(self, "sand"), { bind: "discarded" })));
+    const sandslide = whenRevealed(
+      addCounters("sand", 2, streets),
+      resolveSpecialsOf(streets, undefined, { bind: "sands" }),
+      ifThen(valueAtLeast(countAmong(chosen("sands.discarded"), { trait: trait("SANDMAN") }), 1), stun(yourIdentity)),
+    );
+    valid(sandslide);
+    expect(resolveSpecialsOf(streets, undefined, { bind: "sands" })).toEqual({
+      kind: "resolveSpecials",
+      of: { kind: "named", name: "City Streets" },
+      bind: "sands",
+    });
   });
 });
 

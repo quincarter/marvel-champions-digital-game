@@ -124,6 +124,8 @@ export function pushEffects(
     readonly scopedPlayerId?: PlayerId | null;
     /** A branch whose bindings go back to this frame when it finishes (docs/phase7-wave4.md §3.43). */
     readonly returnBindingsTo?: FrameId;
+    /** With `returnBindingsTo`: returned under `<prefix>.`, merged (docs/phase7-wave5.md §3.7). */
+    readonly returnBindingsPrefix?: string;
     /** The effects of an ability a player uses (docs/phase7-wave4.md §3.44). */
     readonly byPlayer?: boolean;
   },
@@ -143,6 +145,9 @@ export function pushEffects(
       event: spec.event ?? null,
       eventFrameId: spec.eventFrameId ?? null,
       ...(spec.returnBindingsTo ? { returnBindingsTo: spec.returnBindingsTo } : {}),
+      ...(spec.returnBindingsTo && spec.returnBindingsPrefix
+        ? { returnBindingsPrefix: spec.returnBindingsPrefix }
+        : {}),
       ...(spec.byPlayer ? { byPlayer: true as const } : {}),
     },
   ]);

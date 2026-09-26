@@ -158,6 +158,11 @@ export type StackFrame =
       /** What paying the ability's cost bound (chosen cards, X, paid resources). */
       readonly bindings: Bindings;
       readonly vars: Vars;
+      /**
+       * A Special resolved by a `resolveSpecials` with `bind` (docs/phase7-wave5.md §3.7): when its effects finish, what
+       * they bound goes back to that frame under `<prefix>.` ("If at least 1 Sandman card was discarded this way").
+       */
+      readonly returnBindingsTo?: { readonly frameId: FrameId; readonly prefix: string };
     })
   /** Runs an `EffectSpec` program with a cursor and slot bindings. */
   | (FrameBase & {
@@ -178,6 +183,11 @@ export type StackFrame =
        * whichever branch bound it (docs/phase7-wave4.md §3.43).
        */
       readonly returnBindingsTo?: FrameId;
+      /**
+       * With `returnBindingsTo`: the bindings go back under `<prefix>.`, each slot added to what is already there and
+       * each var summed, so several Specials of one `resolveSpecials` report together (docs/phase7-wave5.md §3.7).
+       */
+      readonly returnBindingsPrefix?: string;
       /**
        * The effects of an ability a player uses: an ability on a player card, an action, or an optional interrupt or
        * response (not a forced ability, When Revealed, boost or setup on an encounter card). "Players cannot discard

@@ -1375,7 +1375,13 @@ export type EffectSpec =
        * incite and surge fire only when a card is revealed, and a card already in play is not being revealed.
        */
       readonly includeKeywords?: boolean;
-      /** `<bind>.count`: how many abilities were resolved ("If no 'When Revealed' ability was resolved this way"). */
+      /**
+       * `<bind>.count`: how many abilities were resolved ("If no 'When Revealed' ability was resolved this way"). Also,
+       * once each resolved ability's effects finish, what they bound comes back to this frame as `<bind>.<slot>` and
+       * `<bind>.<var>` (slots joined and vars summed across the sequence): "resolve its 'Surging Sands' ability. If at
+       * least 1 Sandman card was discarded this way" (Sandslide, `sm` 27070) reads `<bind>.discarded` when Surging
+       * Sands binds its discard as `discarded`. docs/phase7-wave5.md §3.7.
+       */
       readonly bind?: string;
     }
   /**

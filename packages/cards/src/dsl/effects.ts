@@ -915,11 +915,22 @@ export const resolveSpecials = (cardsQuery: TargetQuery): EffectSpec => ({
  * same non-unique card). The engine's `EffectSpec resolveSpecials` already carries an `of` field for this
  * (`separate-deck.test.ts`'s own Invocation-deck usage); this is its first DSL exposure.
  */
-/** "Resolve the 'Special' ability of [ref]"; `player`: "[that player] must resolve …" (docs/phase7-wave4.md §3.46). */
-export const resolveSpecialsOf = (ref: TargetRef, player?: PlayerRef): EffectSpec => ({
+/**
+ * "Resolve the 'Special' ability of [ref]"; `player`: "[that player] must resolve …" (docs/phase7-wave4.md §3.46).
+ * `opts.bind`: what the Specials' own effects bind comes back as `<bind>.<slot>` / `<bind>.<var>`, and `<bind>.count` is
+ * how many resolved: Sandslide's "If at least 1 Sandman card was discarded this way" reads
+ * `countAmong(chosen("<bind>.discarded"), …)` when Surging Sands binds its discard as `"discarded"`
+ * (docs/phase7-wave5.md §3.7).
+ */
+export const resolveSpecialsOf = (
+  ref: TargetRef,
+  player?: PlayerRef,
+  opts: { readonly bind?: string } = {},
+): EffectSpec => ({
   kind: "resolveSpecials",
   of: ref,
   ...(player ? { player } : {}),
+  ...(opts.bind ? { bind: opts.bind } : {}),
 });
 /**
  * "Resolve this card's 'When Revealed' ability" (`of: self`; the boost of Out for Blood, Double Trouble, Sandslide),

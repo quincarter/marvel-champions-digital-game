@@ -52,7 +52,7 @@ import {
   selectTargets,
 } from "../select.js";
 import type { EffectSpec } from "../spec.js";
-import type { TriggerCandidate } from "../stack.js";
+import type { StackFrame, TriggerCandidate } from "../stack.js";
 import { effectChoiceAuthority, simultaneousOrderer } from "../villain/authority.js";
 import { applyEffect } from "./apply-effect.js";
 import { controllerOfArea, joinGameArea } from "./game-areas.js";
@@ -85,7 +85,21 @@ export function executeEffectsFrame(ctx: Ctx, frame: Frame<"effects">): void {
   if (!effect) {
     popFrame(ctx);
     // A finished branch hands what it bound back to the frame that ran it (docs/phase7-wave4.md §3.43).
-    if (frame.returnBindingsTo) {
+    if (frame.returnBindingsTo && frame.returnBindingsPrefix) {
+      // A Special's own bindings, reported to the `resolveSpecials` that resolved it (docs/phase7-wave5.md §3.7): under
+      // the prefix, added to what the sequence's earlier Specials reported.
+      const prefix = frame.returnBindingsPrefix;
+      updateFrame(ctx, frame.returnBindingsTo, (parent) => {
+        if (parent.kind !== "effects") return parent;
+        const bindings: Record<string, readonly InstanceId[]> = { ...parent.bindings };
+        for (const [key, ids] of Object.entries(frame.bindings))
+          bindings[`${prefix}.${key}`] = [...new Set([...(bindings[`${prefix}.${key}`] ?? []), ...ids])];
+        const vars: Record<string, number> = { ...parent.vars };
+        for (const [key, amount] of Object.entries(frame.vars))
+          vars[`${prefix}.${key}`] = (vars[`${prefix}.${key}`] ?? 0) + amount;
+        return { ...parent, bindings, vars };
+      });
+    } else if (frame.returnBindingsTo) {
       updateFrame(ctx, frame.returnBindingsTo, (parent) =>
         parent.kind === "effects"
           ? { ...parent, bindings: { ...parent.bindings, ...frame.bindings }, vars: { ...parent.vars, ...frame.vars } }
@@ -1271,17 +1285,23 @@ function executeResolveSpecials(
       controllerId: whoFor(id),
     });
   }
+  // With `bind`, what each Special's effects bind comes back as `<bind>.<slot>` (docs/phase7-wave5.md §3.7).
+  const returnTo = effect.bind ? { returnBindingsTo: { frameId: frame.frameId, prefix: effect.bind } } : {};
   pushFrames(
     ctx,
-    ordered.map((step, index) =>
-      abilityFrame(
-        ctx,
-        step,
-        frame.event,
-        null,
-        {},
-        { "sequence.step": index + 1, "sequence.final": index === ordered.length - 1 ? 1 : 0 },
-      ),
+    ordered.map(
+      (step, index): StackFrame =>
+        ({
+          ...abilityFrame(
+            ctx,
+            step,
+            frame.event,
+            null,
+            {},
+            { "sequence.step": index + 1, "sequence.final": index === ordered.length - 1 ? 1 : 0 },
+          ),
+          ...returnTo,
+        }) as StackFrame,
     ),
   );
   for (const { id, amount } of [...incites].reverse()) {

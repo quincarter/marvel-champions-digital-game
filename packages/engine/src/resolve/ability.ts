@@ -90,6 +90,9 @@ export function executeAbilityFrame(ctx: Ctx, frame: Frame<"ability">): void {
     bindings: frame.bindings,
     vars: frame.vars,
     byPlayer,
+    ...(frame.returnBindingsTo
+      ? { returnBindingsTo: frame.returnBindingsTo.frameId, returnBindingsPrefix: frame.returnBindingsTo.prefix }
+      : {}),
   });
 }
 

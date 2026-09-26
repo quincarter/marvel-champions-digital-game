@@ -338,7 +338,7 @@ against `pnpm dsl` (379 builders), the engine's `EffectSpec` / `RuleSpec` / `Tri
 | 3.4  | Acceleration tokens on any card, moved between cards, and announced                          | Hapless Pedestrians, Tracking Prey, Lower/Midtown/Upper Manhattan                              | landed  |
 | 3.5  | Encounter cards in a player's deck, hand and discard pile                                    | Mysterio (whole scenario), MC27 scenario 3 campaign                                            | landed  |
 | 3.6  | Boost cards held on a card that does not activate, then moved to an enemy                    | Venom ("Leave Us Alone!", Vengeance), MC27 scenario 2 expert                                   | landed  |
-| 3.7  | A resolved Special reports the cards it discarded                                            | Sandslide, Surging Sands                                                                       | open    |
+| 3.7  | A resolved Special reports the cards it discarded                                            | Sandslide, Surging Sands                                                                       | landed  |
 | 3.8  | Increasing the damage a character takes                                                      | Bell Tower (Ringing)                                                                           | open    |
 | 3.9  | A card that counts as another card type with a trait                                         | Festering Mass                                                                                 | open    |
 | 3.10 | Scheme icons printed on any card                                                             | Team Leader, Public Outcry, Venom ally, Symbiote Suit; 30 records in other packs               | open    |
@@ -594,6 +594,16 @@ card (an identity holds them, never resolves them; RRG "Leaves Play" discards th
 `eachTimeUntil` on `boostIconsCounting` (verify when scripting).
 
 ### 3.7 A resolved Special reports the cards it discarded
+
+> **Status: landed (2026-09-26),** tested in `packages/engine/src/special-reports-discards.test.ts` (2 tests: a Special
+> that discards one card with no Sandman card leaves the caller unstunned; one that discards two, the second a Sandman
+> card, stuns, replay deep-equal). DSL: `wave5-primitives.test.ts`. **What landed:** the nested ability's bindings were
+> not exposed (wave 4 §3.43 covers branches only). Now **`resolveSpecials.bind`** also collects, when each resolved
+> ability's effects finish, what they bound, as `<bind>.<slot>` and `<bind>.<var>` (slots joined and vars summed over
+> the sequence): an ability frame carries `returnBindingsTo { frameId, prefix }` into its effects frame
+> (`returnBindingsPrefix`). The convention for scripters: the Special binds its discard (Surging Sands:
+> `discardEncounterCards(…, { bind: "discarded" })`) and the caller reads `countAmong(chosen("<bind>.discarded"), …)`.
+> **DSL:** `resolveSpecialsOf(ref, player?, { bind })`; the validator knows `<bind>.` after a `resolveSpecials`.
 
 Sandslide: "Place 2 sand counters on City Streets, then resolve its 'Surging Sands' ability. If at least 1 Sandman card
 was discarded this way, you are stunned." **Plan:** `resolveSpecials` binds (`bind`) the cards its resolved abilities
