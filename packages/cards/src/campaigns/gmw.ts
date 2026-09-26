@@ -276,7 +276,15 @@ function hpSetSetup(prefix: string, citation: string): CampaignInstruction {
     whenModes: { expertCampaign: true },
     step: {
       kind: "inGame",
-      window: DEFAULT_CAMPAIGN_WINDOW,
+      // Ruling June 2, 2026 (3) #2: "Campaign setup finishes before resolving Collector II's When Revealed damage"
+      // (Infiltrate the Museum, `wave3/gmw/museum.ts`'s `16071.when-revealed`). `resolveScenarioSetup` (the villain
+      // reveal and its When Revealed abilities) runs at the `afterScenarioSetup` window's own position in
+      // `CAMPAIGN_WINDOW_ORDER` — the *default* window, this instruction's previous value — which is too late:
+      // `setRemainingHitPoints` is a hard set (`resolve/apply-effect.ts`'s `setRemainingHitPoints` case), so if it
+      // ran after Collector II's damage it would silently erase that damage instead of stacking on top of it. Every
+      // player identity already exists in `GameState.instances` by `beforeScenarioSetup` (`setup.ts`'s `instances`
+      // map is built before either window runs), so restoring HP there is safe and matches the ruling's ordering.
+      window: "beforeScenarioSetup",
       effects: [
         forEachPlayer(
           eachPlayer,
@@ -341,7 +349,9 @@ function healSetup(prefix: string, citation: string): readonly CampaignInstructi
       whenModes: { expertCampaign: true },
       step: {
         kind: "inGame",
-        window: DEFAULT_CAMPAIGN_WINDOW,
+        // Same ordering fix as `hpSetSetup` above, and for the same reason (ruling June 2, 2026 (3) #2): this heal
+        // must also finish before Collector II's own When Revealed damage, not after.
+        window: "beforeScenarioSetup",
         effects: [
           forEachPlayer(
             eachPlayer,

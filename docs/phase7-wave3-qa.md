@@ -470,3 +470,95 @@ ones) rather than a new file.
 - Every other value the Collection-choice discrepancy (Finding 2) might also be corrupting (e.g., whether the
   quadrupled Collection area then breaks scenario 3's own `mc16.s3.setup.collection-remove` "search deck/discard/hand
   for each card recorded" instruction) — out of scope once the discrepancy itself couldn't be diagnosed confidently.
+
+## Full QA pass (2026-09-25)
+
+Scope: PR #45 (`feature/wave-4`), the full `gmw` box (heroes, obligations/nemeses, all five scenarios and their
+modulars, and the `GMW_CAMPAIGN_DEFINITION` campaign, expert campaign rules, campaign log and carried state) — the
+task brief's own scope for this pass. Started from `docs/phase7-wave3.md`/`docs/phase7-wave4.md`'s already-answered
+questions and PR #61 (`origin/claude/outstanding-questions`, unmerged) fix list, neither of which is re-litigated
+here. Per-checkpoint findings above already cover a full line-by-line card audit, sixteen-plus smoke games, and four
+checkpoints of campaign-mode QA (Priority 1/2 items, a full standard+expert node-by-node walk, Market/loss/retry,
+expert mechanics, and log-fed setups); this pass's own job was to find what those checkpoints explicitly flagged as
+**not** checked and either close it or file it.
+
+### Verified, not re-litigated
+
+- **`start.encounterSets` (composed campaign sets) reaching a client-launched campaign game** — the task brief's own
+  callout. The bug (`campaignLaunchConfig` dropping `CampaignGameStart.encounterSets`) and its fix are already
+  merged into `feature/wave-4` as commit `50dd9bd0`, with its own regression tests in
+  `packages/client/src/campaign/dev-fixtures.test.ts` (`"a client-launched campaign game actually contains its
+composed encounter-set cards"`, `"...replays the same composed encounter-set cards"`) covering both MTS and a
+  GMW case (Brotherhood of Badoon's Badoon Blitz Campaign Challenge side scheme). Confirmed still green
+  (`pnpm --filter @mc/client test` — 186 files, 2175 tests, all pass) and confirmed the fix is generic (client-side
+  `SessionConfig.campaignEncounterSets` plumbing, not scenario-specific), so it covers `gmw`'s other four scenarios
+  too even though only one is asserted by name. Not independently re-proven per-scenario at the client layer — that
+  would be `game-client-engineer`'s regression suite to extend, not a rules-QA gap (the engine-level composition
+  itself, for every scenario including the ones the client test doesn't name, is already proven in
+  `packages/cards/src/campaigns/gmw.qa.test.ts`'s Priority 1 describe, which builds real `GameState`s directly and
+  is unaffected by the client bug).
+- **The five other `completionLoses: true` stages** flagged as not individually driven (checkpoint 4's "what could
+  not be checked"). Re-checked directly against `packages/content/src/data/gmw/cards.ts`: of the seven
+  `completionLoses: true` occurrences, only two (Escape the Museum's 1B `16082b`/2B `16083b`, both already proven
+  live by `escape-the-museum.test.ts`) are on a _non-final_ stage where the field actually changes behavior
+  (`resolve/defeat.ts`'s `completeMainScheme`: a final stage already loses via `next === null` regardless of the
+  field). The other five (`16062b` Protect the Planet, `16073b` The Grand Collection, `16084b` The Great Escape,
+  `16092b` Warp Drive Initiated, `16107b` "Take What Is Mine") are each their own main scheme's _final_ stage, so
+  the flag is a harmless duplicate of the engine's own default final-stage-loses rule (RRG 1.8 "Main Scheme" p. 27),
+  not a distinct code path needing its own test. No bug, no new test needed — the checkpoint's caution here was
+  warranted to raise but the underlying risk doesn't exist.
+
+### Finding: campaign HP restore ran after Collector II's damage, silently erasing it
+
+**`gmw` expert campaign, `mc16.s2.setup.hp-set`/`mc16.s2.setup.heal-effect` (and the same-shaped instructions at s3/
+s4/s5) — fixed.**
+
+- **Printed text:** MC16 p. 10/p. 12/p. 14/p. 18, "Expert Campaign Only: Set each player's hit points to their
+  remaining hit point value recorded in the campaign log for the previous scenario," and the paired heal
+  ("...heal their identity to its printed hit point value"). Infiltrate the Museum's own Collector (II) (expert
+  mode face, `16071`): "When Revealed: In player order, each player must choose to either put the top card of their
+  deck faceup into The Collection or take 3 damage."
+- **Authority:** ruling June 2, 2026 (3) #2 (`marvel-champions-rulings-post-rrg-1-7.md`): "Campaign setup finishes
+  **before** resolving Collector II's When Revealed damage." `packages/engine/src/campaign.ts`'s own `CampaignWindow`
+  docblock had already flagged this exact ruling as an open design question ("a box may override the affected
+  instructions to `beforeScenarioSetup`") — the override was never made.
+- **What the code did:** `hpSetSetup`/the heal-effect instruction both used `DEFAULT_CAMPAIGN_WINDOW`
+  (`"afterScenarioSetup"`), which per `CAMPAIGN_WINDOW_ORDER` runs _after_ `resolveScenarioSetup` (the villain reveal
+  and its When Revealed abilities, RRG 1.8 Appendix II step 12). Since `setRemainingHitPoints` is a hard, absolute
+  set of the identity's damage (`resolve/apply-effect.ts`), running it after Collector II's own damage silently
+  overwrote — erased — whatever damage Collector II had just dealt, rather than the ruling's intended order (restore
+  HP, _then_ Collector II's damage lands on top of the correct total).
+- **Test:** `packages/cards/src/campaigns/gmw.qa.test.ts`, describe `"ruling June 2, 2026 (3) #2 — campaign setup
+(HP restore) finishes before Collector II's own When Revealed damage"` — a real 1-seat expert-campaign game (both
+  `expertCampaign: true` and game-mode `expert: true`, since Collector II is the _game-mode_ expert face) that wins
+  Brotherhood of Badoon with a recorded low `remainingHp`, enters Infiltrate the Museum, and drives Collector II's
+  own When Revealed choice to "Take 3 damage" with a custom `Picker`. Confirmed failing before the fix (received
+  `max - recordedHp`, i.e. Collector's 3 damage vanished) and passing after (received `max - recordedHp + 3`).
+- **Fix:** `packages/cards/src/campaigns/gmw.ts` — both instructions now use `window: "beforeScenarioSetup"` instead
+  of the default, with a comment citing the ruling and confirming (per `setup.ts`) that every player identity
+  already exists in `GameState.instances` by that window, so restoring HP there is safe.
+- **Severity:** real (a rational expert-campaign player choosing "take 3 damage" from Collector II, believing it
+  costs them HP, got it for free — the choice was a no-op against the eventual recorded value) but narrow (only
+  Infiltrate the Museum's Collector II reads the timing at all; every other scenario's own setup has no in-setup
+  damage source for this ordering to matter to).
+- **Commit:** (this pass's commit, see `git log` on `feature/wave-4` for the SHA — `packages/cards/src/campaigns/
+gmw.ts` + `packages/cards/src/campaigns/gmw.qa.test.ts`); changie fragment `Fixed-20260926-000042.yaml`.
+- **Not fixed, flagged instead:** `packages/cards/src/campaigns/trors.ts` and `packages/cards/src/campaigns/mts.ts`
+  use the identical `setRemainingHitPoints(campaignLogValue("remainingHp", ...), ...)` shape at
+  `DEFAULT_CAMPAIGN_WINDOW` too (`trors.ts:240`/`:754`, `mts.ts:145`). Neither box's own rulebook is confirmed to
+  print a same-shaped "damage dealt during setup" card the way MC16's Collector II does, so this pass did not treat
+  either as a proven bug — but the same window default is present, and whichever agent next touches those files
+  should check for a setup-phase damage source before assuming the default window is safe there too. `trors` is wave
+  2 (out of this pass's scope) and `mts` is another QA agent's wave 4 pass (explicitly out of bounds per this task's
+  brief); flagged here rather than touched.
+
+### What this pass did not get to
+
+- A live-driven repro of the `trors` step-one retrigger bug (Finding 1, still open from checkpoint 1) — unchanged,
+  still not attempted; out of this pass's `gmw`-only scope in any case (the bug lives in `wave2/trors`).
+- Independent verification that `trors.ts`/`mts.ts` have the same Collector-II-shaped bug (see above) — flagged, not
+  investigated further (out of scope: `trors` is wave 2, `mts` is the parallel wave 4 QA agent's box).
+- A per-scenario (not just Brotherhood of Badoon) client-layer regression test for `start.encounterSets` on
+  Infiltrate the Museum/Escape the Museum/Nebula/Ronan the Accuser — the underlying fix is generic and already
+  covered at the engine layer for every scenario, so this is a nice-to-have for `game-client-engineer`'s own suite,
+  not a rules gap.
