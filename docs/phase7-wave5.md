@@ -359,9 +359,9 @@ against `pnpm dsl` (379 builders), the engine's `EffectSpec` / `RuleSpec` / `Tri
 | 3.25 | Resources generated: an event, and counters spent as resources                               | M.O.R.B.I.U.S.; Spider-Ham's toon counters                                                     | landed  |
 | 3.26 | An additional mulligan                                                                       | MC27 reputation node 5                                                                         | landed  |
 | 3.27 | Campaign queries for the reputation conditions and Waking Nightmare                          | MC27 pp. 13, 22                                                                                | landed  |
-| 3.28 | Looking at the top card of the encounter deck at any time                                    | Sector Scan                                                                                    | open    |
+| 3.28 | Looking at the top card of the encounter deck at any time                                    | Sector Scan                                                                                    | landed  |
 | 3.29 | Replacing damage with counters on another card, with no excess damage                        | Bell Tower (Quiet); MC27 p. 21 FAQ                                                             | landed  |
-| 3.30 | A player card attached to an encounter card and returned when its host leaves                | Wrist Navigator                                                                                | open    |
+| 3.30 | A player card attached to an encounter card and returned when its host leaves                | Wrist Navigator                                                                                | landed  |
 | 3.31 | A printed text box that cannot be blanked                                                    | SP//dr Suit, SP//dr                                                                            | open    |
 | 3.32 | Reusable as is                                                                               | —                                                                                              | checked |
 
@@ -968,6 +968,15 @@ missing op goes here.
 
 ### 3.28 Looking at the top card of the encounter deck at any time
 
+> **Status: landed (2026-09-26, c04bc25a),** tested in `packages/engine/src/look-at-encounter-top.test.ts` (2 tests:
+> only P1 sees the top card in a 2-player game, the second card stays hidden, replay deep-equal; it lasts through P2's
+> turn and ends with the round), `packages/cards/src/dsl/wave5-3-28.test.ts` and
+> `packages/client/src/view/inspect-encounter-top.test.ts` (2). **What landed:** `RuleSpec mayLookAtTopOfEncounterDeck
+{ player, while? }`; `faceVisible` takes an optional `ViewerContext { viewer, deps }` (exported), and the active
+> encounter deck's top card is face-visible only to a viewer the rule covers (RRG 1.8 "Look", p. 27). Callers with no
+> viewer (log names, `preview()`) keep it hidden. **DSL:** `mayLookAtTopOfEncounterDeckUntil(until, player = you)`.
+> **Client:** Inspect passes the seat's viewer; the board's pile image still shows the back.
+
 Sector Scan: "Until the end of the round, you may look at the top card of the encounter deck at any time." **Plan:** a
 lasting `RuleSpec mayLookAtTopOfEncounterDeck { player }` read by `visibility.ts` for that player's view; no game state
 changes, logged as a lasting effect.
@@ -990,6 +999,16 @@ many chime counters here instead." MC27 p. 21: "no damage is actually dealt … 
 damage dealt and no excess (overkill, "defeated with excess damage").
 
 ### 3.30 A player card attached to an encounter card and returned when its host leaves
+
+> **Status: landed (2026-09-26, 292e1072),** tested in `packages/engine/src/attached-player-card-returns.test.ts` (4
+> tests: attached to a minion, P1 keeps control; the minion's defeat draws 1 while the card is still attached, then it
+> returns to P1's play area with its counters and exhaustion, replay deep-equal; a defeated side scheme draws, a
+> discarded one doesn't; a non-permanent upgrade is still discarded; Q26's fallback) and
+> `packages/cards/src/dsl/wave5-3-30.test.ts`. **What landed:** before, a permanent attachment stayed stuck on a host
+> already in the discard pile. Now an attachment that cannot leave play (permanent, RRG 1.8 p. 32, or `cannotLeavePlay`)
+> is unattached into its controller's play area (owner's if none), keeping counters, exhaustion and controller; the
+> host leaving is a game rule ("Attach To", p. 8), not an ability. **DSL:** `on.attachedCardDefeated()`. The
+> "same set" permanent exception is still not checked (unchanged).
 
 Wrist Navigator (campaign): "Forced Response: After a minion or side scheme enters play, attach Wrist Navigator to it.
 Interrupt: When the attached card is defeated, draw 1 card. (Return this card to your play area.)" Permanent.
@@ -1066,6 +1085,7 @@ work** (status in the last column).
 | 23  | Default: a minion's overkill spill onto the villain is attack damage (Bell Tower (Quiet) may replace it).                                                                                       | built       |
 | 24  | **M.O.R.B.I.U.S. deals no damage while the engaged player is in alter-ego form** ("that player's hero").                                                                                        | scripter    |
 | 25  | **Within one payment, "after you spend" and "after … generates resources" share one timing window, forced responses first (RRG).**                                                              | open        |
+| 26  | _Not yet asked._ See §4.2 Q26.                                                                                                                                                                  | —           |
 
 ### 4.2 The questions as asked
 
@@ -1149,6 +1169,10 @@ flagged; none is implemented yet.**
 25. **Order of the responses within one payment** (§3.25): "after you spend this card" and "after … generates
     resources" come from the same payment but are separate events, the generated one last, so forced responses do not
     resolve first across both. **Default:** as built until a card combines them.
+26. **A permanent encounter attachment with no player owner or controller, when its host leaves** (§3.30; outside
+    player elimination, where ruling Mar 19, 2026 (3) has the card resolve its "attach to" text again). No printed card
+    does this today. **Default:** as built, it stays in play unattached in the villain's play area (as does a player
+    card whose controller was eliminated). Alternative: resolve its "attach to" again, as elimination does.
 
 ---
 
