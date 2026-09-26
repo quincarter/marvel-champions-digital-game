@@ -1,5 +1,6 @@
 import type { TargetQuery } from "@mc/engine";
 import {
+  andThen,
   bindTargets,
   boost,
   cards,
@@ -184,11 +185,13 @@ export const MUSEUM = defineAbilities({
   // Biogram Image — Attach to Collector (data). Forced Interrupt: When Collector would take any amount of damage,
   // put this card faceup into The Collection → prevent all of that damage, then place threat on the main scheme
   // equal to the amount prevented this way. (Module docblock: cost-as-effect reading.)
+  // `preventDamage` always fully resolves once triggered (there's always damage to prevent), so `andThen` around
+  // the "then place threat" is the faithful reading (RRG 1.8 "'Then'", p. 44) without changing behavior today.
   "16074.biogram-image-forced-interrupt": forcedInterrupt(
     when.damage("host"),
     moveCards(cards(self), { scenarioArea: COLLECTION }),
     preventDamage(),
-    placeThreat(eventAmount, theMainScheme),
+    andThen(placeThreat(eventAmount, theMainScheme)),
   ),
   // Biogram Image — [star] Boost: After this activation ends, reveal this card.
   "16074.boost": boost(revealCard(self, firstPlayer)),
@@ -230,9 +233,12 @@ export const MUSEUM = defineAbilities({
       ),
       option(
         "Discard the highest cost card from your hand, then place threat on the main scheme equal to its printed cost",
+        // RRG 1.8 "Choose (Option)" (p. 12) already excludes this option when the hand is empty, so the required
+        // `chooseCards` can't leave the frame pre-then-unresolved today; `andThen` is still the faithful reading
+        // of the printed "then" (RRG 1.8 "'Then'", p. 44).
         chooseCards("discarded", cards(chosen("costly")), { min: 1, max: 1, chooser: you }),
         moveCards(cards(chosen("discarded")), "discard"),
-        placeThreat(printedCostOf(chosen("discarded")), theMainScheme),
+        andThen(placeThreat(printedCostOf(chosen("discarded")), theMainScheme)),
       ),
     ),
   ),

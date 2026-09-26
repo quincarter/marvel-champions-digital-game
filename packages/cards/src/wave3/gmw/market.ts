@@ -1,5 +1,6 @@
 import type { EffectSpec, Predicate, TargetQuery, TargetRef } from "@mc/engine";
 import {
+  andThen,
   attack,
   cancelRevealedCard,
   cards,
@@ -98,6 +99,12 @@ export const MARKET = defineAbilities({
   // card is of the named type, remove 3 threat from the main scheme. Place that card on the top or bottom of your
   // deck, then draw 1 card. `selectCards` binds the top card without moving it ("look at"), so "place … on the
   // top" is simply leaving it — `moveCards(…, "deckTop")` is written anyway for symmetry with the "bottom" branch.
+  // Two printed "then"s: "Name a card type, then look at …" and "Place that card …, then draw 1 card." Naming a
+  // type is "Choose (Option)" (RRG 1.8 p. 12) among 5 fixed options and always resolves, and looking at/placing the
+  // top card reads the deck rather than a required target choice, so neither pre-then part can fail with the
+  // current engine; the naming and match-check stay merged into one `chooseOne` (each option only checks its own
+  // type) rather than split into two choices for a "then" that can't yet be unresolved. `andThen` around the final
+  // draw is the faithful reading of the second "then" (RRG 1.8 "'Then'", p. 44) without changing behavior today.
   "16150.brainstorm-action": heroAction(
     { label: "thwart" },
     selectCards("looked", topOfDeck(1)),
@@ -110,7 +117,7 @@ export const MARKET = defineAbilities({
       option("Top of your deck", moveCards(cards(chosen("looked")), "deckTop")),
       option("Bottom of your deck", moveCards(cards(chosen("looked")), "deckBottom")),
     ),
-    draw(1),
+    andThen(draw(1)),
   ),
   "16150.brainstorm-constant": partOf("16150.brainstorm-action"),
 
@@ -146,6 +153,8 @@ export const MARKET = defineAbilities({
 
   // Calculate the Odds (16154) — Hero Action: Draw 1 card and choose a player. That player may draw 1 card, then
   // choose and discard 1 card from their hand.
+  // `draw` reads from a deck rather than a required target choice, so it can't fail with the current engine; `andThen`
+  // is the faithful reading of the printed "then" (RRG 1.8 "'Then'", p. 44) without changing behavior today.
   "16154.calculate-the-odds-action": heroAction(
     draw(1),
     choosePlayer("target"),
@@ -154,7 +163,7 @@ export const MARKET = defineAbilities({
       option(
         "Draw 1 card, then discard 1 card from your hand",
         draw(1, chosenPlayer("target")),
-        discardFromHand(1, chosenPlayer("target")),
+        andThen(discardFromHand(1, chosenPlayer("target"))),
       ),
       option("Do not"),
     ),
@@ -223,6 +232,10 @@ export const MARKET = defineAbilities({
 
   // Close Call (16158) — Hero Interrupt: When a boost card is turned faceup, cancel that card's "Boost" ability
   // and all of its boost icons ([boost]), then discard it. Draw 1 card.
+  // The "then discard it" needs no `andThen`: per the doc comment above `cancelBoostAbility`/`cancelBoostIcons`,
+  // RRG 1.8 "Boost" (p. 11)/`enemy-activation.ts`'s `stepBoostCard` always discards a boost card once it finishes
+  // applying, cancelled or not — the discard isn't a separate step of this card's own effect text to gate. "Draw 1
+  // card" is a new sentence, not part of the "then" either (RRG 1.8 "'Then'", p. 44).
   "16158.close-call-interrupt": heroInterrupt(
     { on: "boostCardTurnedFaceup" },
     cancelBoostAbility(),
@@ -252,11 +265,15 @@ export const MARKET = defineAbilities({
   // part of the deck). "Any number" includes none, so `min: 0`; `max` is the most 2[per_hero] can ever be (4
   // players), and the engine caps it at the cards actually looked at. `placeOnTopOrBottom` is docs/phase7-wave3.md
   // §3.48: each kept card goes on the top or the bottom, then each pile is ordered.
+  // `chooseCards`'s `min: 0` ("any number", which includes none, RRG 1.8 "Choose (Game Element)", p. 12) is never a
+  // required choice, so it can't leave the frame pre-then-unresolved; `andThen` around the placement is the
+  // faithful reading of the printed "then" (RRG 1.8 "'Then'", p. 44) without changing behavior today. "Draw 1 card"
+  // is a new sentence, not part of the "then".
   "16161.take-the-fight-to-them-action": heroAction(
     selectCards("looked", encounterCards(["deck"], undefined, perHero(2))),
     chooseCards("discarded", cards(chosen("looked")), { min: 0, max: 8 }),
     moveCards(cards(chosen("discarded")), "discard"),
-    placeOnTopOrBottom(cards(chosen("looked"), { excludeSlots: ["discarded"] })),
+    andThen(placeOnTopOrBottom(cards(chosen("looked"), { excludeSlots: ["discarded"] }))),
     draw(1),
   ),
   "16161.take-the-fight-to-them-constant": partOf("16161.take-the-fight-to-them-action"),

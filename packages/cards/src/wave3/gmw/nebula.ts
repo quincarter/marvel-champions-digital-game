@@ -1,6 +1,7 @@
 import { trait } from "@mc/content";
 import {
   addCounters,
+  andThen,
   atEndOfActivation,
   attachCard,
   boost,
@@ -131,10 +132,13 @@ export const NEBULA = defineAbilities({
   "16088.nebula-constant": firstTechniqueGainsSurge(),
   // Nebula I — Forced Interrupt: resolve the "Special" ability on each Technique attachment in play, then discard
   // each of those attachments.
+  // `resolveSpecials` on an empty `TECHNIQUE_IN_PLAY` is vacuously true (no Technique attachments to fail on,
+  // mirroring `03024.avengers-tower-constant`'s "each of your X" reading), so it always fully resolves with the
+  // current engine; `andThen` is the faithful reading of the printed "then" (RRG 1.8 "'Then'", p. 44).
   "16088.nebula-forced-interrupt": forcedInterrupt(
     on.enemySchemesOrAttacks("self"),
     resolveSpecials(TECHNIQUE_IN_PLAY),
-    moveCards(cards(each(TECHNIQUE_IN_PLAY)), "discard"),
+    andThen(moveCards(cards(each(TECHNIQUE_IN_PLAY)), "discard")),
   ),
 
   "16089.nebula-constant": firstTechniqueGainsSurge(),
@@ -143,13 +147,15 @@ export const NEBULA = defineAbilities({
   "16089.nebula-forced-interrupt": forcedInterrupt(
     on.enemySchemesOrAttacks("self"),
     resolveSpecials(TECHNIQUE_IN_PLAY),
-    chooseTarget("technique", TECHNIQUE_IN_PLAY),
-    moveCards(cards(chosen("technique")), "discard"),
+    andThen(chooseTarget("technique", TECHNIQUE_IN_PLAY), moveCards(cards(chosen("technique")), "discard")),
   ),
 
   "16090.nebula-constant": firstTechniqueGainsSurge(),
   // Nebula III — same Forced Interrupt as I/II, but the choose-and-discard step is gated behind "you may remove
-  // the top card of your deck from the game" (a cost-shaped either/or, the module docblock's `chooseOne`).
+  // the top card of your deck from the game" (a cost-shaped either/or, the module docblock's `chooseOne`). The
+  // "resolve … in play. You may then remove …" is a new sentence, not a "then" (RRG 1.8 "'Then'", p. 44), but the
+  // in-branch "remove the top card …, then choose and discard" is: `moveCards` reads the deck rather than a
+  // required choice, so it can't fail with the current engine, and `andThen` is the faithful reading anyway.
   "16090.nebula-forced-interrupt": forcedInterrupt(
     on.enemySchemesOrAttacks("self"),
     resolveSpecials(TECHNIQUE_IN_PLAY),
@@ -157,8 +163,7 @@ export const NEBULA = defineAbilities({
       option(
         "Remove the top card of your deck from the game, then choose and discard 1 of those attachments",
         moveCards(topOfDeck(1, you), "removedFromGame"),
-        chooseTarget("technique", TECHNIQUE_IN_PLAY),
-        moveCards(cards(chosen("technique")), "discard"),
+        andThen(chooseTarget("technique", TECHNIQUE_IN_PLAY), moveCards(cards(chosen("technique")), "discard")),
       ),
       option("Do not"),
     ),
