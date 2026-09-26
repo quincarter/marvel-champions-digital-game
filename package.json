@@ -24,6 +24,7 @@
     "capture:screens": "node scripts/capture-design-screenshots.mjs",
     "screenshots": "node scripts/shoot-screens.mjs",
     "campaign:scrape": "uv run scripts/scrape_campaign_markdown.py",
+    "card-art": "uv run scripts/fetch_card_art.py",
     "ingest": "pnpm --filter @mc/content ingest --",
     "clean": "node scripts/clean.mjs",
     "refs": "pnpm --filter @mc/cards exec vitest run --config vitest.tools.config.ts --reporter=verbose --silent=false refs-report",
