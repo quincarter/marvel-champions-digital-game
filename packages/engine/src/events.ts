@@ -596,8 +596,16 @@ export type GameEvent =
       readonly schemeInstanceId: InstanceId;
       readonly reason: "crisis" | "patrol" | "rule";
     }
-  /** A card that "cannot leave play" stayed where it was (RRG 1.8 "'Cannot'", p. 11). */
-  | { readonly type: "leavePlayBlocked"; readonly instanceId: InstanceId; readonly reason: "cannotLeavePlay" }
+  /**
+   * A card stayed in play when something tried to move or defeat it: it "cannot leave play" (RRG 1.8 "'Cannot'",
+   * p. 11), or its Permanent keyword stopped an effect from outside its set or a game rule (`permanent`; RRG 1.8
+   * "Permanent", p. 32; `effects.ts` `permanentStopsLeaving`, docs/phase7-wave5.md §4.1 Q46).
+   */
+  | {
+      readonly type: "leavePlayBlocked";
+      readonly instanceId: InstanceId;
+      readonly reason: "cannotLeavePlay" | "permanent";
+    }
   /**
    * One of the scenario's rulebook-printed setup instructions resolved (`GameSetupConfig.scenarioSetupInstructions`;
    * MC21 p. 11's optional Tower Defense setup damage). `text` and `citation` are copied from the instruction so the

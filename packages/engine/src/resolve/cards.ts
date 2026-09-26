@@ -233,7 +233,10 @@ export function moveCardsTo(
   for (const id of ids) {
     const instance = getInstance(ctx.state, id);
     if (!instance) continue;
-    if (inPlay.has(id) && permanentStopsLeaving(ctx.state, ctx.deps, id, sourceCardId)) continue;
+    if (inPlay.has(id) && permanentStopsLeaving(ctx.state, ctx.deps, id, sourceCardId)) {
+      emit(ctx, { type: "leavePlayBlocked", instanceId: id, reason: "permanent" });
+      continue;
+    }
     // "When X leaves play" interrupts resolve before it moves (docs/phase7-wave5.md §4.1 Q17): this card's move waits,
     // whole, for its `cardLeavesPlay` to apply (`applyLeavingPlay` runs it again for this one card).
     if (inPlay.has(id)) {

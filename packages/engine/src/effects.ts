@@ -642,7 +642,10 @@ export function defeatFromPlay(ctx: Ctx, id: InstanceId, insteadTo?: CardDestina
   const request: LeaveRequest = { kind: "defeat", ...(insteadTo !== undefined ? { insteadTo } : {}), ...source };
   if (waitsForLeaveInterrupts(ctx, id, request, going)) return;
   // A permanent card this defeat cannot move keeps its Victory X attachments with it.
-  if (permanentStopsLeaving(ctx.state, ctx.deps, id, sourceCardId)) return;
+  if (permanentStopsLeaving(ctx.state, ctx.deps, id, sourceCardId)) {
+    emit(ctx, { type: "leavePlayBlocked", instanceId: id, reason: "permanent" });
+    return;
+  }
   for (const attachment of [...instance.attachments]) {
     if (hasKeyword(ctx.state, attachment, "victory", ctx.deps))
       leavePlayAtOnce(ctx, attachment, { kind: "victoryDisplay" });
@@ -981,7 +984,10 @@ export function leavePlay(
   patch?: LeavePatch,
   sourceCardId?: CardId,
 ): LeaveOutcome {
-  if (permanentStopsLeaving(ctx.state, ctx.deps, id, sourceCardId)) return "stayed";
+  if (permanentStopsLeaving(ctx.state, ctx.deps, id, sourceCardId)) {
+    emit(ctx, { type: "leavePlayBlocked", instanceId: id, reason: "permanent" });
+    return "stayed";
+  }
   if (cannotLeavePlay(ctx.state, ctx.deps, id)) {
     emit(ctx, { type: "leavePlayBlocked", instanceId: id, reason: "cannotLeavePlay" });
     return "stayed";
@@ -1030,7 +1036,11 @@ export function leavePlayAtOnce(
   position: "top" | "bottom" = "top",
   discarded = false,
 ): void {
-  if (isPermanent(ctx.state, id, ctx.deps)) return;
+  // Leaving with its host is the game's rule, with no source card.
+  if (permanentStopsLeaving(ctx.state, ctx.deps, id, undefined)) {
+    emit(ctx, { type: "leavePlayBlocked", instanceId: id, reason: "permanent" });
+    return;
+  }
   // Its own leaving was cancelled (§4.1 Q53): it stays where it is, and a caller whose host leaves play unattaches it.
   if (leavingCancelled(ctx.state, id)) return;
   if (cannotLeavePlay(ctx.state, ctx.deps, id)) {

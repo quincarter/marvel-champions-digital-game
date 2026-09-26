@@ -18,6 +18,7 @@ import { encounterSetId, heroAspect, type AnyCard } from "@mc/content";
 import { describe, expect, it } from "vitest";
 import type { EngineDeps } from "./abilities.js";
 import { replay, startSession, type GameSession } from "./engine.js";
+import type { GameEvent } from "./events.js";
 import type { InstanceId } from "./ids.js";
 import { mustInstance, mustPlayer } from "./query.js";
 import type { EffectSpec, TargetRef } from "./spec.js";
@@ -263,6 +264,23 @@ describe("§4.1 Q46 the Permanent keyword's defeat and leave-play protection (RR
     expect(mustInstance(after, suit.id)).toMatchObject({ ownerId: P2, controllerId: P1 });
     expect(events.some((e) => e.type === "ownershipChanged")).toBe(false);
     expectReplays(session);
+  });
+
+  it("a leave or defeat that Permanent stops is logged as blocked, with the 'permanent' reason; replay deep-equal", () => {
+    const { state, suit, plain } = supportsInPlay();
+    const discard = playFree(state, deps, DISCARD.basic.id);
+    const blocked = (events: readonly GameEvent[]) => events.filter((e) => e.type === "leavePlayBlocked");
+    expect(blocked(discard.events)).toEqual([{ type: "leavePlayBlocked", instanceId: suit, reason: "permanent" }]);
+    expect(blocked(discard.events).some((e) => e.instanceId === plain)).toBe(false);
+    expectReplays(discard.session);
+
+    const partner = playerCardIntoPlay(start(), PARTNER.id);
+    const defeat = playFree(partner.state, deps, DEFEAT_ALLY.basic.id);
+    expect(blocked(defeat.events)).toEqual([{ type: "leavePlayBlocked", instanceId: partner.id, reason: "permanent" }]);
+    expectReplays(defeat.session);
+
+    // Its own set's effect gets through: nothing blocked.
+    expect(blocked(playFree(state, deps, DISCARD.hero.id).events)).toEqual([]);
   });
 
   it("a permanent card is a valid target for a chosen discard only from its own set (RRG p. 32 target bullet)", () => {

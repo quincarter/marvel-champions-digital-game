@@ -533,7 +533,10 @@ function applyDefeat(ctx: Ctx, event: Extract<TriggerEvent, { kind: "characterDe
   // points is the game's rule, with no source card, whatever dealt the damage.
   const sourceId = event.byEffect === true ? event.sourceInstanceId : undefined;
   const sourceCardId = sourceId ? getInstance(ctx.state, sourceId)?.cardId : undefined;
-  if (permanentStopsLeaving(ctx.state, ctx.deps, id, sourceCardId)) return false;
+  if (permanentStopsLeaving(ctx.state, ctx.deps, id, sourceCardId)) {
+    emit(ctx, { type: "leavePlayBlocked", instanceId: id, reason: "permanent" });
+    return false;
+  }
   emit(ctx, { type: "characterDefeated", instanceId: id, cardId: instance.cardId });
   const whenDefeated = gameAbilityFrames(
     ctx,
