@@ -44,6 +44,12 @@ export interface PlayerSetup {
   readonly deck: readonly CardId[];
   /** The deck's chosen aspect(s). Only read when `GameSetupConfig.requireLegalDecks` is set, where an absent choice is an illegal deck. */
   readonly aspects?: readonly CoreAspect[];
+  /**
+   * Mulligans this seat may take after its first one, in RRG 1.8 Appendix II step 15 (docs/phase7-wave5.md §3.26): each
+   * is another full mulligan (discard any number, draw back up). Absent or 0: the one mulligan every player has. Set by
+   * a campaign's setup (MC27 p. 22 reputation node 5, with the RRG 1.8 p. 67 erratum).
+   */
+  readonly extraMulligans?: number;
 }
 
 /** A seat's expanded deck list collapsed into decklist lines, in first-appearance order. */
@@ -527,6 +533,10 @@ export function createGame(requested: GameSetupConfig, deps: EngineDeps = DEFAUL
         ),
       };
     }
+    const extraMulligans = setup.extraMulligans ?? 0;
+    if (!Number.isInteger(extraMulligans) || extraMulligans < 0) {
+      return invalid(`${id}'s extraMulligans must be a whole number of 0 or more, not ${extraMulligans}`);
+    }
     seatedIdentities.push({ playerId: id, card: identityCard });
     const identityInstanceId = nextId();
     instances[identityInstanceId] = {
@@ -619,6 +629,7 @@ export function createGame(requested: GameSetupConfig, deps: EngineDeps = DEFAUL
       setAside,
       separateDecks,
       eliminated: false,
+      ...(extraMulligans > 0 ? { extraMulligans } : {}),
     });
   }
 

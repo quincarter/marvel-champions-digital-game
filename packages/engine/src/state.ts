@@ -219,6 +219,11 @@ export interface PlayerState {
    */
   readonly separateDecks: Readonly<Record<string, SeparateDeckState>>;
   readonly eliminated: boolean;
+  /**
+   * Mulligans this player may take after the first at setup (`PlayerSetup.extraMulligans`; docs/phase7-wave5.md
+   * §3.26). A setup input that never changes; absent when 0. The count taken so far lives on the mulligan step.
+   */
+  readonly extraMulligans?: number;
 }
 
 /**
@@ -432,7 +437,16 @@ export type GameStep =
    */
   | { readonly phase: "setup"; readonly kind: "scenarioSetupInstructions" }
   | { readonly phase: "setup"; readonly kind: "drawStartingHands" }
-  | { readonly phase: "setup"; readonly kind: "mulligan"; readonly remainingPlayerIds: readonly PlayerId[] }
+  | {
+      readonly phase: "setup";
+      readonly kind: "mulligan";
+      readonly remainingPlayerIds: readonly PlayerId[];
+      /**
+       * Mulligans the first of `remainingPlayerIds` has already taken, when that player has an additional mulligan
+       * still to decide (docs/phase7-wave5.md §3.26). Absent while that player is on their first.
+       */
+      readonly mulligansTaken?: number;
+    }
   /**
    * RRG 1.8 Appendix II step 16 (p. 51), "Resolve Player Setup Abilities": after the draw (step 14) and the mulligan
    * (step 15). `resolved`: the abilities have been put on the stack and the first round begins once they finish.

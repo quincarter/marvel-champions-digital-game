@@ -134,7 +134,7 @@ function resolveChoice(ctx: Ctx, command: Command & { type: "resolveChoice" }): 
     }
     case "mulligan": {
       for (const optionId of selected) discardFromHand(ctx, choice.playerId, instanceId(optionId));
-      afterMulliganChoice(ctx, choice.playerId);
+      afterMulliganChoice(ctx, choice.playerId, selected.length);
       return null;
     }
     // RRG "Restricted" / "Ally Limit": the controller discards from play down to the limit.

@@ -100,7 +100,7 @@ function executeStep(ctx: Ctx): void {
     case "drawStartingHands":
       return executeDrawStartingHands(ctx);
     case "mulligan":
-      return executeMulligan(ctx, step.remainingPlayerIds);
+      return executeMulligan(ctx, step.remainingPlayerIds, step.mulligansTaken ?? 0);
     case "playerSetupAbilities":
       return executePlayerSetupAbilities(ctx, step);
     case "turn":
@@ -173,30 +173,39 @@ function executeDrawStartingHands(ctx: Ctx): void {
   });
 }
 
-// RRG Appendix II step 15: each player may discard any number, then draw back up to hand size.
-function executeMulligan(ctx: Ctx, remainingPlayerIds: readonly PlayerId[]): void {
+// RRG Appendix II step 15: each player may discard any number, then draw back up to hand size. A player with
+// additional mulligans (`PlayerState.extraMulligans`, docs/phase7-wave5.md §3.26) decides each one right after the one
+// before, before the next player's first; `mulligansTaken` counts the current player's.
+function executeMulligan(ctx: Ctx, remainingPlayerIds: readonly PlayerId[], mulligansTaken: number): void {
   const [current] = livePlayers(ctx.state, remainingPlayerIds);
   if (!current) {
     // MC50 p. 11's "After resolving mulligans" window goes here, between steps 15 and 16, in a campaign game.
     setStep(ctx, stepAfterMulligans(ctx.state));
     return;
   }
+  // `livePlayers` skips an eliminated head, whose count is not the new head's.
+  const taken = current === remainingPlayerIds[0] ? mulligansTaken : 0;
   const player = mustPlayer(ctx.state, current);
   if (player.hand.length === 0) {
     // Nothing to discard, but the draw up to hand size still happens (every opening card may have been an obligation).
-    afterMulliganChoice(ctx, current);
+    afterMulliganChoice(ctx, current, 0);
     return;
   }
   requestChoice(ctx, {
     playerId: current,
-    prompt: { kind: "mulligan", handSize: handSize(ctx.state, current, ctx.deps) },
+    prompt: {
+      kind: "mulligan",
+      handSize: handSize(ctx.state, current, ctx.deps),
+      ...(taken > 0 ? { additional: taken } : {}),
+    },
     options: handOptions(ctx, current),
     minSelections: 0,
     maxSelections: player.hand.length,
   });
 }
 
-export function afterMulliganChoice(ctx: Ctx, playerId: PlayerId): void {
+/** `discarded`: how many cards this mulligan discarded (a mulligan that changed nothing ends the player's mulligans). */
+export function afterMulliganChoice(ctx: Ctx, playerId: PlayerId, discarded: number): void {
   const step = ctx.state.step;
   if (step.kind !== "mulligan") return;
   // "Draw up to their starting hand size" as a counted draw of (hand size - hand) cards, hand size read now (so an
@@ -204,11 +213,18 @@ export function afterMulliganChoice(ctx: Ctx, playerId: PlayerId): void {
   // player ends a card short (maintainer decision 2026-09-23, docs/campaign-mode-design.md Q20).
   const missing = handSize(ctx.state, playerId, ctx.deps) - handCountTowardHandSize(ctx.state, playerId, ctx.deps);
   if (missing > 0) drawCards(ctx, playerId, missing);
-  setStep(ctx, {
-    phase: "setup",
-    kind: "mulligan",
-    remainingPlayerIds: step.remainingPlayerIds.filter((id) => id !== playerId),
-  });
+  const taken = (step.remainingPlayerIds[0] === playerId ? (step.mulligansTaken ?? 0) : 0) + 1;
+  const player = mustPlayer(ctx.state, playerId);
+  // Another mulligan is offered only if this one changed the hand: offering the same hand again asks for a decision
+  // the player has just made.
+  const again = !player.eliminated && taken <= (player.extraMulligans ?? 0) && (discarded > 0 || missing > 0);
+  const others = step.remainingPlayerIds.filter((id) => id !== playerId);
+  setStep(
+    ctx,
+    again
+      ? { phase: "setup", kind: "mulligan", remainingPlayerIds: [playerId, ...others], mulligansTaken: taken }
+      : { phase: "setup", kind: "mulligan", remainingPlayerIds: others },
+  );
 }
 
 /**

@@ -19,7 +19,11 @@ export type ChoicePrompt =
   | { readonly kind: "declareDefender"; readonly attack: AttackInProgress }
   | { readonly kind: "discardDownToHandSize"; readonly handSize: number }
   /** RRG Appendix II step 15. */
-  | { readonly kind: "mulligan"; readonly handSize: number }
+  /**
+   * `additional`: the number of this mulligan past the first (1 for the first additional mulligan; docs/phase7-wave5.md
+   * §3.26). Absent on a player's first mulligan.
+   */
+  | { readonly kind: "mulligan"; readonly handSize: number; readonly additional?: number }
   /** RRG "Activation": the engaged player chooses which of their minions activates next. */
   | { readonly kind: "chooseMinionToActivate" }
   /**
