@@ -107,6 +107,15 @@ export interface ComicBeat {
    * panel-to-panel over the player's own advance instead).
    */
   readonly pan?: "down" | "up" | "left" | "right";
+  /**
+   * True for a beat that only reads on a wide-enough reading area (`ui/campaign-chrome.ts`'s own `isPhoneWidth` —
+   * desktop and tablet, not a true phone) — a closing "pull the camera back to the whole page" beat, say, whose
+   * point is to finally show a wide spread in full, which would just draw as a barely-legible thumbnail on a
+   * phone's own narrow reading area. `view/comic-reader-model.ts`'s `visibleComicBeats` drops it there instead,
+   * ending the issue on whichever beat was last before it. Omit for a beat that reads fine everywhere (the
+   * ordinary case).
+   */
+  readonly wideOnly?: boolean;
 }
 
 /**

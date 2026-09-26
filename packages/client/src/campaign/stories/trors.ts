@@ -72,10 +72,12 @@ const PAGES: readonly ComicPage[] = [
       { panel: { x: 45, y: 45, w: 1285, h: 960 }, lines: [] },
       { panel: { x: 1345, y: 45, w: 375, h: 855 }, lines: [] },
       { panel: { x: 45, y: 1025, w: 1185, h: 280 }, lines: [] },
-      // Hulk's reaction bleeds with no border of its own, starting flush against the red-flash panel's own
-      // bottom border rather than the little of his hair that pokes above it (the panels above are complete
-      // without it, and this keeps every beat's rect inside its own space).
-      { panel: { x: 1230, y: 900, w: 500, h: 420 }, lines: [] },
+      // Hulk's reaction bleeds with no border of its own, its own head cresting well above the red-flash panel's
+      // own bottom border — measured to the art, his hair starts at about y=755, not the y=900 this rect used to
+      // start at (which cropped his own head entirely). Overlapping the panel above's own rect is fine (see this
+      // file's own convention: a beat's rect is a crop around its own figure, not an exclusive partition of the
+      // page), and reads better than a beat whose own reaction shot is missing its head.
+      { panel: { x: 1230, y: 750, w: 510, h: 570 }, lines: [] },
       { panel: { x: 45, y: 1320, w: 1690, h: 435 }, lines: [] },
     ],
   },

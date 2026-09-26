@@ -135,6 +135,16 @@ const PAGES: readonly ComicPage[] = [
         lines: [],
         sfx: "KRAKK.",
       },
+      {
+        // The whole spread, pulled all the way back: Gamora's escape, Loki's corridor and Thanos's fist all at
+        // once. Desktop/tablet only (`wideOnly`) — cover-fit to a phone's own narrow reading area, this tall
+        // three-panel page reads as a thumbnail, not a widening view, so a phone's own issue ends on the tight
+        // panel above instead.
+        panel: { x: 0, y: 0, w: 1920, h: 960 },
+        caption: "Every stone he takes is a city that falls.",
+        lines: [],
+        wideOnly: true,
+      },
     ],
   },
   {
@@ -180,8 +190,10 @@ const PAGES: readonly ComicPage[] = [
         lines: [],
       },
       {
-        // Bottom left: a quiet aftermath — Captain America and Thor, then the crew filing past.
-        panel: { x: 0, y: 590, w: 790, h: 370 },
+        // Bottom left: a quiet aftermath — Captain America and Thor, the crew filing past, then Loki alone with
+        // the Infinity Gauntlet still raised. Widened from the original 790px-wide crop, which cut across his own
+        // raised fist — measured to the art, his gauntlet reaches to about x=870.
+        panel: { x: 0, y: 585, w: 880, h: 375 },
         lines: [{ speaker: NARRATOR, text: "One night off. The universe can wait that long." }],
       },
       {
@@ -346,6 +358,7 @@ export const MTS_STORY: CampaignStory = {
         { page: "02-p2-order", beatIndex: 0 },
         { page: "02-p2-order", beatIndex: 1 },
         { page: "02-p2-order", beatIndex: 2 },
+        { page: "02-p2-order", beatIndex: 3 },
       ],
       stageLines: { 2: "Proxima Midnight's spear finds every gap in a defense." },
       briefing: {

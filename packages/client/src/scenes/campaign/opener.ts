@@ -51,6 +51,7 @@ import {
   nextComicBeat,
   prevComicBeat,
   resolveComicBeats,
+  visibleComicBeats,
   type ResolvedComicBeat,
 } from "../../view/comic-reader-model.js";
 import { appSession, campaignService } from "../../session.js";
@@ -239,13 +240,14 @@ export class CampaignOpenerScene extends Phaser.Scene {
       this.#draw();
       return;
     }
-    const total = this.#comicSteps.length;
+    const steps = this.#visibleSteps();
+    const total = steps.length;
     if (this.#comicCurrent >= total - 1) {
       this.#leave();
       return;
     }
-    const fromPanel = this.#comicSteps[this.#comicCurrent]?.beat.panel ?? null;
-    const fromPage = this.#comicSteps[this.#comicCurrent]?.page.file ?? null;
+    const fromPanel = steps[this.#comicCurrent]?.beat.panel ?? null;
+    const fromPage = steps[this.#comicCurrent]?.page.file ?? null;
     this.#comicCurrent = nextComicBeat(this.#comicCurrent, total);
     this.#startPanTween(fromPanel, fromPage);
   }
@@ -258,10 +260,23 @@ export class CampaignOpenerScene extends Phaser.Scene {
       this.#draw();
       return;
     }
-    const fromPanel = this.#comicSteps[this.#comicCurrent]?.beat.panel ?? null;
-    const fromPage = this.#comicSteps[this.#comicCurrent]?.page.file ?? null;
+    const steps = this.#visibleSteps();
+    const fromPanel = steps[this.#comicCurrent]?.beat.panel ?? null;
+    const fromPage = steps[this.#comicCurrent]?.page.file ?? null;
     this.#comicCurrent = prevComicBeat(this.#comicCurrent);
     this.#startPanTween(fromPanel, fromPage);
+  }
+
+  /**
+   * The steps this run's own reading area can actually show right now (`view/comic-reader-model.ts`'s
+   * `visibleComicBeats` — drops a `wideOnly` beat, a closing "pull back to the whole page" beat say, on a true
+   * phone's own narrow reading area). Recomputed from `#comicSteps`' full list against the *current*
+   * `isPhoneWidth` every time it's asked for, rather than cached alongside it, so resizing across the phone
+   * breakpoint mid-read (or a reread on a different device) always reflects the reading area actually on screen.
+   */
+  #visibleSteps(): readonly ResolvedComicBeat[] {
+    const { phone } = campaignFrame(this);
+    return visibleComicBeats(this.#comicSteps, !phone);
   }
 
   /**
@@ -273,7 +288,7 @@ export class CampaignOpenerScene extends Phaser.Scene {
   #startPanTween(fromPanel: ComicBeat["panel"] | null, fromPage: string | null): void {
     this.#panTween?.stop();
     this.#panTween = null;
-    const step = this.#comicSteps[this.#comicCurrent];
+    const step = this.#visibleSteps()[this.#comicCurrent];
     const lettered = step?.page.lettered === true;
     const samePage = fromPage !== null && fromPage === step?.page.file;
     if (!lettered || !samePage || !fromPanel || appSession().settings.reducedMotion) {
@@ -433,7 +448,8 @@ export class CampaignOpenerScene extends Phaser.Scene {
     rosterIds: readonly string[],
   ): void {
     const story = this.#story!;
-    const view = comicReaderViewOf(this.#comicSteps, this.#comicCurrent, rosterIds);
+    const steps = visibleComicBeats(this.#comicSteps, !phone);
+    const view = comicReaderViewOf(steps, this.#comicCurrent, rosterIds);
     const stops = new Map<string, FocusStop>();
 
     this.add.rectangle(0, 0, width, height, surface.ink.hex).setOrigin(0, 0);
@@ -496,7 +512,7 @@ export class CampaignOpenerScene extends Phaser.Scene {
     const cinematic: CinematicOptions = { driver: this.#cinematic, reducedMotion };
     drawComicReaderStep(this, readingRect, campaignId, view.step, () => this.#draw(), tween, spotPan, cinematic);
 
-    this.#drawBeatDots(width, height - actionBarHeight - dotsHeight / 2);
+    this.#drawBeatDots(width, height - actionBarHeight - dotsHeight / 2, steps.length);
 
     // Bottom ink action bar: "◂ BACK" once past the first beat, the reader's own CTA otherwise filling the width.
     this.add.rectangle(0, height - actionBarHeight, width, actionBarHeight, surface.ink.hex).setOrigin(0, 0);
@@ -552,9 +568,9 @@ export class CampaignOpenerScene extends Phaser.Scene {
     this.#route.set(hasBack ? ["back", "next", "skip"] : ["next", "skip"], stops);
   }
 
-  /** The beat-progress dot row between the page and the action bar — current beat lit, the rest dim. */
-  #drawBeatDots(width: number, y: number): void {
-    const total = this.#comicSteps.length;
+  /** The beat-progress dot row between the page and the action bar — current beat lit, the rest dim. `total` is
+   * the current reading area's own visible step count (`visibleComicBeats`), not the story's full list. */
+  #drawBeatDots(width: number, y: number, total: number): void {
     if (total <= 1) return;
     const dotSize = 8;
     const gap = 10;

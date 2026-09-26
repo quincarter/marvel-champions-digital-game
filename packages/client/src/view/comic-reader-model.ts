@@ -67,6 +67,16 @@ export function resolveComicBeats(
   });
 }
 
+/**
+ * Drops a `wideOnly` beat (`ComicBeat.wideOnly`) when `wide` is false — a phone's own narrow reading area. The
+ * caller (`opener.ts`) recomputes this from `resolveComicBeats`'s own full list every draw against the current
+ * `isPhoneWidth`, so resizing across the phone breakpoint mid-read picks the right list up on the next redraw
+ * rather than needing the whole issue re-resolved.
+ */
+export function visibleComicBeats(steps: readonly ResolvedComicBeat[], wide: boolean): readonly ResolvedComicBeat[] {
+  return wide ? steps : steps.filter((step) => !step.beat.wideOnly);
+}
+
 /** `current` is clamped into range — a caller can pass an out-of-range index (e.g. after a page resize) safely. */
 export function comicReaderViewOf(
   steps: readonly ResolvedComicBeat[],

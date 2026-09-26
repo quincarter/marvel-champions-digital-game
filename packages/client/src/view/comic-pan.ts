@@ -177,9 +177,89 @@ export function cropForFrame(
   target: PanDim,
   source: PanDim,
 ): { readonly cropX: number; readonly cropY: number; readonly cropWidth: number; readonly cropHeight: number } {
-  const cropWidth = Math.min(source.width, target.width / frame.scale);
-  const cropHeight = Math.min(source.height, target.height / frame.scale);
+  // Phaser's own `Image.setCrop` reads the *display* height/width off the frame's own full size once a crop
+  // dimension reaches it exactly (verified against Phaser 4.2.1 — a crop as wide as the source frame renders at
+  // the frame's own *height* too, ignoring a shorter `cropHeight`, a real bug this hit once the page-cover-scale
+  // floor below made a wide panel's own crop exactly as wide as the page). A hair under the source's own edge
+  // side-steps it without a visible difference — `crop{Width,Height}` are always at least 1px inside their axis.
+  const cropWidth = Math.min(source.width - 0.5, target.width / frame.scale);
+  const cropHeight = Math.min(source.height - 0.5, target.height / frame.scale);
   const cropX = Math.max(0, Math.min(source.width - cropWidth, frame.cx - cropWidth / 2));
   const cropY = Math.max(0, Math.min(source.height - cropHeight, frame.cy - cropHeight / 2));
   return { cropX, cropY, cropWidth, cropHeight };
+}
+
+/**
+ * How far past a panel's own "contain" scale (`containFit` — the zoom that fits the whole panel with no crop on
+ * either axis) the cinematic camera (`ui/comic-reader.ts`'s `CinematicDriver`) is ever allowed to zoom in. A panel
+ * whose own aspect ratio already reads close to the reading area's (MTS p1's throne-room beat, cover scale barely
+ * past contain) is untouched by this — it only bites once cover-fitting a panel proportioned nothing like the
+ * frame (a narrow party-photo inset on a wide desktop reading area) would zoom in far enough to read as a crop
+ * rather than a close-up. Tuned so p1's own beat 0 (cover/contain ratio ~1.10) stays exactly as it already reads,
+ * while p4's party-photo and Hela-throne insets (cover/contain ratio ~1.6) pull back to show real margin around
+ * the figures instead. A capped beat still pans (`axis` below) if some overflow remains after the pull-back —
+ * just a shorter, gentler one than an uncapped cover-fit would have needed.
+ */
+export const CINEMATIC_MAX_ZOOM_RATIO = 1.15;
+
+export interface CinematicCameraPlan {
+  readonly start: CameraFrame;
+  readonly end: CameraFrame;
+  readonly axis: "x" | "y" | "none";
+}
+
+/**
+ * The cinematic reader's own camera plan for `panel` on `page` into `target`: cover-fits the panel same as
+ * `planPan`, but caps the zoom at `CINEMATIC_MAX_ZOOM_RATIO` times the panel's own contain scale first. Uncapped,
+ * an axis that already matched the panel's own bounds exactly (`planPan`'s "no slack" axis) stays pinned to the
+ * panel's own edges the same way; capped, that axis gains real margin instead — centered on the panel, clamped so
+ * the crop window never opens past the *page's* own edges (not just the panel's) since the camera may now show
+ * more page than the panel alone. `dir` overrides which end of the (still-)overflowing axis, if any, the beat
+ * starts at, the same convention as `planPan`.
+ */
+export function cinematicCameraPlan(
+  panel: ComicPanelRect,
+  page: PanDim,
+  target: PanDim,
+  dir?: PanDirection,
+): CinematicCameraPlan {
+  const coverScale = coverFitDims({ width: panel.w, height: panel.h }, target).scale;
+  const containScale = Math.min(target.width / Math.max(1, panel.w), target.height / Math.max(1, panel.h));
+  // Never zoom out further than the *page's* own cover-fit scale — the least zoom that can still fill `target`
+  // from this page's own pixels at all. A narrow panel's contain scale can fall below that (a tall sliver panel on
+  // a squarer page), and pulling back past it would ask for a crop wider/taller than the page itself has, which
+  // `cropForFrame`'s own page-edge clamp then answers by simply not filling the frame — a blank margin down one
+  // side, the very "box" this reader exists to never show.
+  const pageCoverScale = coverFitDims(page, target).scale;
+  const scale = Math.max(pageCoverScale, Math.min(coverScale, containScale * CINEMATIC_MAX_ZOOM_RATIO));
+  const cropWidth = target.width / scale;
+  const cropHeight = target.height / scale;
+
+  const axisRange = (
+    panelStart: number,
+    panelSize: number,
+    cropSize: number,
+    pageSize: number,
+    reversed: boolean,
+  ): { readonly lo: number; readonly hi: number; readonly overflow: boolean } => {
+    const overflow = panelSize - cropSize > 0.5;
+    if (overflow) {
+      const lo = panelStart + cropSize / 2;
+      const hi = panelStart + panelSize - cropSize / 2;
+      return reversed ? { lo: hi, hi: lo, overflow } : { lo, hi, overflow };
+    }
+    // No overflow: center the crop on the panel, clamped to the *page's* own bounds — the camera may now show
+    // more of the page than just the panel, so it must stay inside the page, not the (smaller) panel.
+    const center = Math.max(cropSize / 2, Math.min(pageSize - cropSize / 2, panelStart + panelSize / 2));
+    return { lo: center, hi: center, overflow };
+  };
+
+  const x = axisRange(panel.x, panel.w, cropWidth, page.width, dir === "left");
+  const y = axisRange(panel.y, panel.h, cropHeight, page.height, dir === "up");
+  const axis = x.overflow ? "x" : y.overflow ? "y" : "none";
+  return {
+    start: { cx: x.lo, cy: y.lo, scale },
+    end: { cx: x.hi, cy: y.hi, scale },
+    axis,
+  };
 }

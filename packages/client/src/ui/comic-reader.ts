@@ -10,13 +10,13 @@ import Phaser from "phaser";
 import { coverFit, ensurePictureLoaded, type Picture } from "../art/pictures.js";
 import { accent, border, surface, typeRole } from "../tokens.js";
 import type { Rect } from "../view/layout.js";
-import type { BubblePlacement, ComicBeat, ComicPanelRect, PagePoint } from "../campaign/story.js";
+import type { BubblePlacement, ComicBeat, PagePoint } from "../campaign/story.js";
 import type { ComicReaderStepView } from "../view/comic-reader-model.js";
 import {
   type CameraFrame,
+  cinematicCameraPlan,
   containFit,
   cropForFrame,
-  frameAt,
   lerpFrame,
   needsSpotlightPan,
   panCropAt,
@@ -94,7 +94,12 @@ export function drawComicReaderStep(
   spotPan?: SpotlightPan,
   cinematic?: CinematicOptions,
 ): ComicReaderDrawResult {
-  if (step.page.cinematic && cinematic) {
+  // Every box's own reader (GMW, TRORS, MTS) draws through the cinematic camera now — full-bleed, no dimmed page,
+  // no letterboxed strip at rest, whatever `ComicPage.lettered`/`cinematic` say (a lettered page still skips the
+  // reader's own caption/lines/SFX inside `drawCinematicReaderStep`, since the art already carries them). `tween`/
+  // `spotPan` are unused once `cinematic` is supplied; kept as parameters only for `drawComicReaderPicture`'s own
+  // raw-`Picture` callers (a one-off scenario intro artboard, `campaign/scenario-intros.ts`), which never pass one.
+  if (cinematic) {
     return drawCinematicReaderStep(scene, rect, campaignId, step, onReady, cinematic);
   }
   return drawComicReaderPicture(
@@ -319,7 +324,9 @@ function drawCinematicReaderStep(
   }
 
   const lit: Rect = { x: rect.x, y: rect.y, width: rect.width, height: rect.height };
-  if (state.showContent) drawStepContent(scene, rect, lit, step);
+  // A lettered page's own printed balloons/captions are the whole of what a beat shows — the reader draws none of
+  // its own over it (`drawGuidedStep`'s same rule, before this replaced it as the universal reader draw).
+  if (state.showContent && !step.page.lettered) drawStepContent(scene, rect, lit, step);
   return { lit };
 }
 
@@ -670,8 +677,9 @@ export class CinematicDriver {
   #settleTween: Phaser.Tweens.Tween | null = null;
   #crossfadeTween: Phaser.Tweens.Tween | null = null;
   #revealTween: Phaser.Tweens.Tween | null = null;
-  /** The reveal this beat starts once its own settle/crossfade finishes — null for a beat with no overflow. */
-  #pendingReveal: { readonly panel: ComicPanelRect; readonly plan: ReturnType<typeof planPan> } | null = null;
+  /** The reveal this beat starts once its own settle/crossfade finishes — null for a beat with no overflow left
+   * once the zoom cap (`cinematicCameraPlan`'s own `CINEMATIC_MAX_ZOOM_RATIO`) is applied. */
+  #pendingReveal: { readonly endFrame: CameraFrame } | null = null;
 
   constructor(onTick: () => void) {
     this.#onTick = onTick;
@@ -704,8 +712,13 @@ export class CinematicDriver {
     if (key === this.#key && this.#pageFile === step.page.file && this.#frame) {
       return this.#snapshot();
     }
-    const plan = planPan(step.panel, target, step.pan ?? undefined);
-    const startFrame = frameAt(step.panel, plan, 0);
+    const plan = cinematicCameraPlan(
+      step.panel,
+      { width: step.page.width, height: step.page.height },
+      target,
+      step.pan ?? undefined,
+    );
+    const startFrame = plan.start;
     const pageChanged = this.#pageFile !== null && this.#pageFile !== step.page.file;
     this.#key = key;
     this.#settleTween?.stop();
@@ -714,7 +727,7 @@ export class CinematicDriver {
     this.#crossfadeTween = null;
     this.#revealTween?.stop();
     this.#revealTween = null;
-    this.#pendingReveal = plan.axis === "none" ? null : { panel: step.panel, plan };
+    this.#pendingReveal = plan.axis === "none" ? null : { endFrame: plan.end };
 
     if (this.#pageFile === null) {
       // The very first beat this driver has ever drawn: nothing to move *from*, so it settles at rest immediately —
@@ -798,7 +811,7 @@ export class CinematicDriver {
   #startReveal(): void {
     const pending = this.#pendingReveal;
     if (!pending || !this.#scene) return;
-    const endFrame = frameAt(pending.panel, pending.plan, 1);
+    const endFrame = pending.endFrame;
     const startFrame = this.#frame ?? endFrame;
     const state = { t: 0 };
     this.#revealTween = this.#scene.tweens.add({
