@@ -562,3 +562,160 @@ gmw.ts` + `packages/cards/src/campaigns/gmw.qa.test.ts`); changie fragment `Fixe
   Infiltrate the Museum/Escape the Museum/Nebula/Ronan the Accuser — the underlying fix is generic and already
   covered at the engine layer for every scenario, so this is a nice-to-have for `game-client-engineer`'s own suite,
   not a rules gap.
+
+## Coordinator follow-up (2026-09-26): six independent items, not trusting checkpoints 1-4 wholesale
+
+The coordinator read the Collector II finding above, agreed it was real, but pushed back on treating checkpoints
+1-4's "all clean" line-by-line audits as settled — asked for six specific, independently-driven items. Each is its
+own subsection below with what was checked, what was found, and what was fixed.
+
+### 1. Per-scenario client launch: `start.encounterSets` for all five scenarios
+
+Extended `packages/client/src/campaign/dev-fixtures.test.ts`'s own `"a client-launched campaign game actually
+contains its composed encounter-set cards"` describe (previously only Brotherhood of Badoon) with one test per
+remaining scenario, each composing the real next node and launching it through a real `EngineSessionCore`:
+
+- Infiltrate the Museum: "Gallery of Splendor" (its own Campaign Challenge side scheme) in play.
+- Escape the Museum: `"There is No Escape"` in play.
+- Nebula: "Guerrilla Tactics" in play.
+- Ronan the Accuser: the Badoon Headhunter minion (16183) present — Ronan prints no Campaign Challenge side scheme
+  of its own, so this exercises the same `start.encounterSets` plumbing via a different card instead.
+
+Needed a small `dev-fixtures.ts` addition: `GmwRunStop` gained `"afterIssue4"` (won Nebula, ready to compose Ronan
+— the type only went as far as `"afterIssue3"`), and a new exported `seedGmwComposed` helper that composes a
+record's next node for real (via the same `gmwAutoAnswer` policy `seedGmwRun` itself uses) without fabricating a
+win, since the existing `seedGmwWonGame` always plays the composed game to a substituted win rather than returning
+the composed record alone. All four new tests passed on the first real run — no bug found here; the client fix
+(`50dd9bd0`, already on `feature/wave-4` before this pass started) is generic and reaches every scenario, not just
+the one the original regression test happened to name. Test: `packages/client/src/campaign/dev-fixtures.test.ts`.
+Commit: `fab2c201`.
+
+### 2. Scenario setups vs. printed text, at 1 and 3 players
+
+New file `packages/cards/src/wave3/gmw/setup-scaling.test.ts`: every scenario's own printed `Setup:` sentence
+(cross-checked against `docs/cards/by_pack/gmw.md`'s own transcription, not just the script), driven for real via
+`createGame` + `settle`, at both 1 and 3 players (no earlier checkpoint ever seated 3):
+
+- Brotherhood of Badoon: Badoon Ship + Milano in play, starting threat = 2×players.
+- Infiltrate the Museum: The Collection has exactly one card per player, starting threat = 4×players.
+- Escape the Museum: Library Labyrinth in play; Milano correctly still set-aside, not put into play until stage
+  2A's own When Revealed (16083a) — proves the setup sentence's own scope is exactly what it prints, not "every
+  card this scenario will eventually use." Starting threat = 7×players.
+- Nebula: Nebula's Ship + Milano in play, Power Stone attached to Nebula, starting threat = 2×players, and "discard
+  the top 2[per_hero] cards, attach each Technique discarded this way" verified by summing the encounter discard
+  pile (starts empty on a fresh game — no earlier setup step touches it) and Technique attachments on Nebula to
+  exactly 2×players, since which specific cards a seed discards is random.
+- Ronan the Accuser: Kree Command Ship + Milano in play, Universal Weapon attached to Ronan, Power Stone attached
+  to the first player's identity, starting threat = 2×players.
+- One test per scenario confirming expert mode starts on a genuinely different villain stage/card than standard
+  (comparing real `GameState`s directly, not re-deriving the expected stage/card from the same content data being
+  tested), rather than assuming the existing outcome-only expert smoke games already proved the setup step itself.
+
+All 15 tests passed after two staging fixes found while writing them (not rules bugs, test-construction traps):
+`createGame` runs a standalone game's own scenario setup inline, so a "before" snapshot has to come from
+`config.encounterDeck`, not `created.state`; and Nebula's Technique/discard split needed proving via a sum
+invariant (discard pile + Technique attachments = 2×players) rather than a raw deck-length diff, since the deck
+also contains cards the _fixed_ pre-setup baseline can't cleanly isolate. No printed-text-vs-script mismatch found.
+Commit: `16e4bf8c`.
+
+### 3. Encounter boost abilities and villain keywords, exercised not structural
+
+**Boost abilities:** grepped every `.boost` ability id in `packages/content/src/data/gmw/cards.ts` (29 total, every
+Technique/minion/treachery/side-scheme boost in the box) against every `wave3/gmw/*.test.ts` file. All 29 have at
+least one test reference; spot-checked 13 of them directly (Techniques 16094-16098, Badoon Headhunter's ladder
+16183-16185, Universal Weapon 16109, Cut the Power 16111, "You Stand Accused!" 16116, Collector's own boost 16086,
+Biogram Image 16074, Inconspicuous Box 16076, Starshark 16137, Nebula's own boost-reveal 16140) — every one drives
+a real `driveEvents`/`endTurn` and asserts a real state change (damage taken, threat placed, boost card count,
+attachment made), not a structural "does the ability id exist" check. No gap found; not exhaustively re-verified
+for the remaining 16 (time budget), but the sampling method (every case checked was genuinely driven) gives no
+reason to expect the rest are different.
+
+**Villain keywords:** read every villain stage's `keywords` array directly from `cards.ts` (not the printed-text
+transcription, since keyword grants are data, not text). Drang, both Collector cards (Infiltrate the Museum's and
+Escape the Museum's separate 16070/16080a/16081a), and Nebula print **no** villain keywords at all. Ronan prints
+Toughness (stages I/II, already exercised by every test in `ronan.test.ts` via its own `clearTough` staging) and,
+**only at stage III**, Retaliate 1 — which had never actually been driven: reached by existing tests, but never
+attacked again afterward to see the reflected damage. Fixed: a new test drives a real (clearly non-defeating)
+attack against Ronan III and confirms the attacker takes exactly 1 damage back (RRG 1.8 "Retaliate", p. 41). Test:
+`packages/cards/src/wave3/gmw/ronan.test.ts`. Commit: `d6581f02`.
+
+### 4. Smoke games at 3 and 4 players
+
+New file `packages/cards/src/wave3/gmw/three-four-player-e2e.test.ts` (mirrors `wave4/hood` and `wave4/mts`'s own
+`three-four-player-e2e.test.ts` shape from the same coordinator ask): one 3p-standard and one 4p-expert game per
+scenario (10 games), plus one extra 4p-standard Nebula game folding in Venom's kit so all six wave 3 hero packs
+(Groot, Rocket Raccoon, Star-Lord, Gamora, Drax, Venom) are exercised against a `gmw` villain at higher player
+counts, not just the two precons `gmw` ships with. All 11 games reach a real `GameOutcome`, no stuck
+`PendingChoice`, deep-equal replay. Commit: `64464738`.
+
+### 5. Spot re-audit: 10 cards each from Groot, Rocket, Star-Lord, Gamora, Drax, Venom, and the gmw box
+
+**Method note, itself a finding:** the first coverage pass used `grep '"$id\.'` (a literal quote immediately before
+the printed id) to find test references, which produces false negatives against the pack's own citation style
+(ability ids are usually cited parenthetically at the end of a test name, `it("... (16031.reload-action)", ...)`,
+with no leading quote) — an early scan of Rocket's kit wrongly flagged four cards as untested that were, on a
+corrected re-check (`id + "."` anywhere in the file), thoroughly covered. Re-ran the scan for `stld`/`gam`/`drax`/
+`vnm` kit cards and gmw's own encounter-side cards (treachery/side-scheme/minion/environment/attachment, 84 cards)
+with the corrected pattern.
+
+- **Groot (10 read by hand against `docs/cards/by_pack/gmw.md`):** Root Stomp, Entangling Vines, Lashing Vines,
+  Vine Shield, Vine Spikes, Starhawk, Desperate Defense, Dauntless, Hard to Ignore, Rocket Raccoon (ally). Nine
+  clean and genuinely driven. **Desperate Defense (16013) was not** — a verbatim reprint of Core/wave 1's own
+  09015, aliased programmatically by `../reprints.ts` rather than hand-scripted, and the only place it appeared in
+  any gmw test (`ronan.test.ts`) used it purely incidentally, as an [energy]-cost filler card for an unrelated
+  payment test, never exercising its own printed effect ("+2 DEF... if you take no damage, ready your hero").
+  **Fixed**: a real defend sequence (Groot vs. Rhino, Crowd Control staged so the bonus genuinely changes the
+  outcome) proving both halves. Test: `packages/cards/src/wave3/gmw/groot-kit.test.ts`. Commit: `5d197e64`.
+- **Rocket, Star-Lord, Gamora, Drax, Venom (corrected-pattern scan across every kit card, not a hand-read 10 each
+  — see method note):** every non-reprint, hand-scripted card has at least one real test reference. The only
+  "missing" hits after correction are verbatim reprints (Chase Them Down 16041, Get Ready 17016, The Power of
+  Leadership 17018, Uppercut 18014, Combat Training 18017, Counter-Punch 19014, Resourceful 20020, and every
+  generic Energy/Genius/Strength resource card) — the same shape as Groot's own Desperate Defense, all aliased by
+  `../reprints.ts`, all with the underlying ability logic already proven by an earlier wave's own test. **Not
+  independently re-driven one-by-one in their new packs** (time budget, and diminishing marginal value: each would
+  prove the same shared `../reprints.ts` aliasing mechanism the Desperate Defense fix above already proved works
+  for wave 3 in general, not a card-specific risk) — flagged rather than assumed identical; a future pass should
+  spot-check at least one more per pack if reprint-aliasing regresses again.
+- **gmw's own encounter-side cards (84 scanned):** the scan's own "missing" list was entirely false negatives —
+  Vendetta (16054), Blackjack O'Hare (16055), Monarch Starstalker (16075) and Servant Bot (16136) print no
+  card-specific ability text at all (pure keyword-only cards: Quickstrike/Villainous/Guard+Patrol, all generic,
+  data-driven engine mechanics with no card-specific script to test); Library Labyrinth (16085) and the Campaign
+  Challenge/Headhunter-ladder side schemes (16178-16182, 16186-16187) are genuinely tested, just under a suffixed
+  id (`16085a`) or in a sibling test file the scan's glob missed (`campaign-challenge.test.ts`,
+  `campaigns/gmw.qa.test.ts`). No new finding here beyond confirming the scan's own false positives.
+
+### 6. Campaign log fields: written and read, including a 2-player elimination
+
+Every `CampaignLog` field `gmw.ts` writes (`collection`, `collectionCount`, `evasionCounters`, `galacticArtifacts`,
+`headhunterDefeated`, `healedFull`, `kreeSupremacyRevealed`, `marketCards`, `powerStoneControl`, `remainingHp`,
+`units` — 11 total) already has at least one real assertion in `packages/cards/src/campaigns/gmw.qa.test.ts`
+(checkpoints 3-4) that it's written when it should be and read by a later setup instruction; re-confirmed by
+grepping the test file for each field name (a couple needed a broader grep than the exact field string, since some
+tests assert the field's own _downstream effect_ — e.g. `kreeSupremacyRevealed` is proven by whether the right side
+scheme is actually in play, not by asserting the log value directly — rather than the literal name). The specific
+new ask — a 2-player run with one player eliminated — is already covered: checkpoint 4's `'MC16 p. 5 "Elimination
+and Victory"'` describe stages a real, settled 2-seat Brotherhood of Badoon game with seat 2 marked `eliminated:
+true` on a won `GameState`, then proves (a) the eliminated seat gets no Victory-step writes at all
+(`campaignResultOf`'s own `sittingOut` field), and (b) the eliminated seat's `remainingHp` is instead recorded as
+its own printed HP (the free rejoin, ruling June 2, 2026 (3) #1) when folded into the log, ready for Infiltrate the
+Museum's own `hpSetSetup` to read at that scenario's setup. No new test needed; no gap found.
+
+### Files touched, coordinator follow-up
+
+- `packages/client/src/campaign/dev-fixtures.ts` / `dev-fixtures.test.ts` — item 1.
+- `packages/cards/src/wave3/gmw/setup-scaling.test.ts` (new) — item 2.
+- `packages/cards/src/wave3/gmw/ronan.test.ts` — item 3.
+- `packages/cards/src/wave3/gmw/three-four-player-e2e.test.ts` (new) — item 4.
+- `packages/cards/src/wave3/gmw/groot-kit.test.ts` — item 5.
+- `docs/phase7-wave3-qa.md` — this section.
+
+### What this follow-up did not get to
+
+- Items 3 and 5's own "not exhaustively re-verified" carve-outs above (16 more boost abilities spot-checked by
+  sampling method only; reprinted cards in Rocket/Star-Lord/Gamora/Drax/Venom not individually re-driven in their
+  new packs).
+- A genuine engine-driven (not staged) 2-player elimination for item 6 — the existing test stages `eliminated: true`
+  directly on a real settled `GameState` rather than driving an actual lethal villain-phase attack that eliminates
+  the player through normal engine rules; this proves the campaign-log read/write side but not the elimination
+  trigger itself (which is generic engine behavior, not gmw-specific, and was treated as out of scope for this
+  campaign-log-focused item).

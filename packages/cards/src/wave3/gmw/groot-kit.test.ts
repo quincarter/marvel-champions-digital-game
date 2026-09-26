@@ -1,4 +1,11 @@
-import { cardsInPlay, hasKeyword, maxHitPoints, type GameState, type InstanceId } from "@mc/engine";
+import {
+  activeEncounterDeck,
+  cardsInPlay,
+  hasKeyword,
+  maxHitPoints,
+  type GameState,
+  type InstanceId,
+} from "@mc/engine";
 import {
   answer,
   endTurn,
@@ -14,12 +21,17 @@ import {
   play,
   playerOf,
   settle,
+  stackEncounterDeck,
   toHero,
   use,
   type Picker,
 } from "../../testing/harness.js";
 import { wave3Scenario } from "../setup.js";
 import { playFromHand, runWave3, startWave3Game, WAVE3_DEPS } from "../testing.js";
+
+// Core's Crowd Control (2 boost icons) — the same fixed-ATK-boost staging `wave1/drs/pack-cards.test.ts` uses for
+// this identical reprinted card, so Rhino's own boost draw is deterministic instead of whatever the seed shuffles up.
+const CROWD_CONTROL = "01108";
 
 // Real wave 3 content: the Groot (Protection) precon against Rhino (a Core scenario, seated with wave 3 content —
 // `wave3Scenario`'s fallback), standard, solo. Groot starts in alter-ego.
@@ -225,6 +237,45 @@ describe("Groot kit", () => {
     expect(inst(after, identity).damage).toBe(damageBefore); // fully prevented either way; counters/exhaust prove it fired
     expect(inst(after, identity).counters.growth).toBe(2);
     expect(inst(after, vineShield).exhausted).toBe(true);
+  });
+
+  // rules-qa-engineer, full QA pass follow-up (item 5, spot re-audit): Desperate Defense (16013) is a verbatim
+  // reprint of Core/wave 1's own 09015 (`groot-kit.ts`'s own docblock: "aliased by `../reprints.ts`, not scripted
+  // here"), whose logic is already proven by `wave1/drs/pack-cards.test.ts`. Nothing in the gmw pack itself ever
+  // played it, though — every other reference to `16013` in this pack's tests (`ronan.test.ts`) only uses it
+  // incidentally, as an [energy]-cost filler card for an unrelated payment test, never for its own printed effect.
+  // This closes that gap: proof the alias actually wires `16013.desperate-defense-interrupt` up for real inside a
+  // real gmw game, not just that `../reprints.ts`'s matching algorithm believes the shapes match.
+  it("Desperate Defense: +2 DEF reduces that attack's damage to 0, and readies the hero since it took none (16013.desperate-defense-interrupt, a reprint of drs 09015)", () => {
+    // Played from hand as the interrupt fires (RRG 1.8 "Interrupt", p. 25), not pre-played like Vine Shield's own
+    // upgrade — `wave1/drs/pack-cards.test.ts`'s own `moveToHand`/option-string/staged-boost pattern for the same
+    // reprinted card: Groot's printed DEF (3) against Rhino (ATK 2) plus Crowd Control (2 boost icons) staged deals
+    // 2 + 2 - 3 = 1 damage on a basic defense alone; Desperate Defense's own +2 DEF makes it 2 + 2 - 5 = 0, so the
+    // "no damage" condition is genuinely conditional on the card, not already true without it.
+    const start = grootVsRhino();
+    const given = moveToHand(start, P1, "16013");
+    const [desperate] = given.ids as [InstanceId];
+    const hero = runWave3(given.state, toHero());
+    const identity = identityOf(hero);
+    const staged = stackEncounterDeck(hero, CROWD_CONTROL);
+    const reached = toDeclareDefender(staged);
+    expect(reached.pendingChoice?.prompt.kind).toBe("declareDefender");
+    const declared = answer(reached, [identity], WAVE3_DEPS); // basic defense: exhausts Groot
+    expect(inst(declared, identity).exhausted).toBe(true);
+    const option = `${desperate}:16013.desperate-defense-interrupt`;
+    expect(declared.pendingChoice?.options.map((o) => o.optionId)).toContain(option);
+    const played = answer(declared, [option], WAVE3_DEPS);
+    const after = settle(
+      played,
+      (s) => (s.pendingChoice?.prompt.kind === "payForCard" ? [s.pendingChoice!.options[0]!.optionId] : firstLegal(s)),
+      (s) => activeEncounterDeck(s).discard.some((id) => inst(s, id).cardId === CROWD_CONTROL),
+      WAVE3_DEPS,
+    );
+    expect(inst(after, identity).damage).toBe(0);
+    expect(playerOf(after, P1).discard).toContain(desperate);
+    // "If you take no damage from that attack, ready your hero" — the deferred `atEndOfAttack` effect fires once
+    // the attack (and its deferred `defended` response window, RRG 1.8 p. 16) is fully done.
+    expect(inst(after, identity).exhausted).toBe(false);
   });
 
   it("Hard to Ignore: Hero Response, after your hero defends and takes no damage, exhaust it → remove 1 threat from the main scheme", () => {
