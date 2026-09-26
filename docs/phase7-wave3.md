@@ -1389,6 +1389,7 @@ Each is implemented the way stated, or not at all, and named here rather than de
       - Quinjet (03019): "Then, discard Quinjet" is now `andThen(discard(self))`.
       - Aamir Khan (05006): "then draw 1 card" is now `andThen(draw(1))`.
       - Tinkering (16029b): "Choose and discard a tech upgrade you control → draw 2 cards" had its draw run with nothing discarded; the cost is modeled as pre-"then" text with `andThen(draw(2))`.
+      - The rest of the cards that print "then" (63 scripted cards, player and encounter) are listed in `docs/then-sweep.md`, the follow-up checklist.
       - Plain "and" and new sentences stay as listed effects.
     - **Trace helper.** `@mc/cards` `testing/trace.ts` counted any read of an ability's `effects` as "it resolved". The offer-time check now reads them for merely-offered abilities, so a read from inside `abilityLacksValidTarget` is not counted.
     - **Tests.**
