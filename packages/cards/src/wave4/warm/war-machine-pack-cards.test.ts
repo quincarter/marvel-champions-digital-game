@@ -1,7 +1,16 @@
 import { cardId } from "@mc/content";
-import { activeVillain, characterProfile, type CardInstance, type GameState, type InstanceId } from "@mc/engine";
+import {
+  activeVillain,
+  characterProfile,
+  type CardInstance,
+  type Command,
+  type GameEvent,
+  type GameState,
+  type InstanceId,
+} from "@mc/engine";
 import { describe, expect, it } from "vitest";
 import {
+  applyOk,
   endTurn,
   firstLegal,
   identityOf,
@@ -63,6 +72,84 @@ function injectIntoHand(
       players: state.players.map((p) => (p.playerId === player ? { ...p, hand: [...p.hand, id] } : p)),
     },
   };
+}
+
+/** `injectIntoHand`, but placed directly in `player`'s play area as a ready ally — for a Guardian ally (Gamora,
+ * `nebu` 22002) War Machine's own leadership precon has no legal way to hold, needed only to give the Alliance cost
+ * (`avengerAndGuardian`) a real second slot to exhaust. */
+function injectIntoPlay(
+  state: GameState,
+  player: typeof P1,
+  code: string,
+): { readonly state: GameState; readonly id: InstanceId } {
+  const id = `synthetic-${code}` as InstanceId;
+  const instance: CardInstance = {
+    instanceId: id,
+    cardId: cardId(code),
+    ownerId: player,
+    controllerId: player,
+    home: { kind: "player" },
+    faceup: true,
+    exhausted: false,
+    damage: 0,
+    threat: 0,
+    statuses: { stunned: 0, confused: 0, tough: 0 },
+    counters: {},
+    attachedTo: null,
+    attachments: [],
+    boostCards: [],
+    tucked: [],
+    facedownAs: null,
+    engagedWith: null,
+    flipped: false,
+  };
+  return {
+    id,
+    state: {
+      ...state,
+      instances: { ...state.instances, [id]: instance },
+      players: state.players.map((p) => (p.playerId === player ? { ...p, playArea: [...p.playArea, id] } : p)),
+    },
+  };
+}
+
+/** `../../testing/staging.js`'s own `driveEvents`, but with a caller-supplied `Picker` instead of a hardcoded
+ * `firstLegal` — needed to steer Stand Together's own `chooseTriggers`/`payForCard` prompts while still collecting
+ * every event, since a full villain phase can compound more than one activation's worth of damage into the same
+ * round (the `mts/thanos.test.ts` precedent for this exact shape) and asserting on final aggregate state can't tell
+ * "this specific attack was intercepted" apart from "a later, unrelated attack also happened". */
+function driveEventsWith(
+  state: GameState,
+  pick: Picker,
+  ...commands: readonly Command[]
+): { readonly state: GameState; readonly events: readonly GameEvent[] } {
+  let current = state;
+  const events: GameEvent[] = [];
+  const settleOne = () => {
+    while (current.pendingChoice && !current.outcome) {
+      const choice = current.pendingChoice;
+      const result = applyOk(
+        current,
+        {
+          type: "resolveChoice",
+          playerId: choice.playerId,
+          choiceId: choice.choiceId,
+          selectedOptionIds: pick(current),
+        },
+        WAVE4_DEPS,
+      );
+      current = result.state;
+      events.push(...result.events);
+    }
+  };
+  settleOne();
+  for (const command of commands) {
+    const result = applyOk(current, command, WAVE4_DEPS);
+    current = result.state;
+    events.push(...result.events);
+    settleOne();
+  }
+  return { state: current, events };
 }
 
 /** Picks the offered option whose id names one of `wanted`; anything else falls back to `firstLegal` (the
@@ -304,32 +391,68 @@ describe("Two Against the World (event, 23024)", () => {
 });
 
 describe("As One! / Stand Together (Alliance events, 23032/23034)", () => {
-  it("23032.as-one-action: an Alliance hero action (attack), costed by exhausting an avenger and a guardian character, dealing their combined ATK with overkill", () => {
-    expect(WAVE4_DEPS.abilities["23032.as-one-action"]).toMatchObject({
-      trigger: { kind: "action", form: "hero" },
-      label: ["attack"],
-      cost: {
-        exhaustCards: [
-          { slot: "avenger", query: { trait: "AVENGER" } },
-          { slot: "guardian", query: { trait: "GUARDIAN" } },
-        ],
-      },
-    });
-    const attack = WAVE4_DEPS.abilities["23032.as-one-action"]!.effects.find((e) => e.kind === "attack");
-    expect(attack).toMatchObject({ kind: "attack", overkill: true });
+  // The structural `toMatchObject` shape below is what `dsl/wave4-hero-primitives.test.ts` §3.17 already covers
+  // generically (`valid(heroAction({ ..., cost: avengerAndGuardian }, damageAnEnemy(combined("atk"))))`) — a DSL
+  // shape check, not a driven game. Neither ever exercised the actual math ("X is the combined ATK of those
+  // characters") against real card stats. Spot-audit finding (coordinator, 2026-09-26 "full rules QA" item 5):
+  // replaced with a real game below, driving War Machine (an Avenger identity, ATK 2 unmodified) and an injected
+  // Guardian ally (Gamora, `nebu` 22002, ATK 2 — a real card, not a synthetic stat) through the actual attack.
+  it("23032.as-one-action: deals damage equal to the exhausted avenger's + guardian's combined ATK, with overkill", () => {
+    const hero = changeForm(warMachineVsRhino(2));
+    const identity = identityOf(hero, P1);
+    const warMachineAtk = characterProfile(hero, identity, WAVE4_DEPS)!.atk;
+    const { state: withGamora, id: gamora } = injectIntoPlay(hero, P1, "22002");
+    const gamoraAtk = characterProfile(withGamora, gamora, WAVE4_DEPS)!.atk;
+    const villain = activeVillain(withGamora).instanceId;
+    // As One! is Aggression, off war-machine-leadership's own aspect — the same "inject, don't deal from a deck
+    // that legally can't hold it" shape this file's own `injectIntoHand` already uses for Vigilante
+    // Training/Sidearm. `playFromHand`'s own `moveToHand` finds it already in hand and reuses it.
+    const { state: withCard } = injectIntoHand(withGamora, P1, "23032");
+    const { state: after } = playFromHand(withCard, "23032", 2);
+    expect(inst(after, identity).exhausted).toBe(true);
+    expect(inst(after, gamora).exhausted).toBe(true);
+    expect(inst(after, villain).damage).toBe(warMachineAtk + gamoraAtk);
   });
 
-  it("23034.stand-together-interrupt: an Alliance hero interrupt preventing all damage and dealing that much to the attacking enemy", () => {
-    expect(WAVE4_DEPS.abilities["23034.stand-together-interrupt"]).toMatchObject({
-      trigger: { kind: "interrupt", form: "hero" },
-      cost: {
-        exhaustCards: [
-          { slot: "avenger", query: { trait: "AVENGER" } },
-          { slot: "guardian", query: { trait: "GUARDIAN" } },
-        ],
-      },
-      effects: [{ kind: "preventDamage" }, { kind: "dealDamage" }],
-    });
+  it("23034.stand-together-interrupt: prevents all of the intercepted attack's damage and deals that exact amount back to the attacking enemy", () => {
+    const hero = changeForm(warMachineVsRhino(3));
+    const identity = identityOf(hero, P1);
+    const { state: withGamora, id: gamora } = injectIntoPlay(hero, P1, "22002");
+    const { state: given } = injectIntoHand(withGamora, P1, "23034");
+    const villain = activeVillain(given).instanceId;
+    // A real villain phase can compound more than one activation's worth of damage into the same round (the
+    // `mts/thanos.test.ts` precedent), so this reads the specific typed events Stand Together's own script emits
+    // (`damagePrevented` reason "effect" against the identity, `damageDealt` against the attacker) rather than the
+    // aggregate end-of-round damage, which cannot tell "this attack was intercepted" apart from "a later, unrelated
+    // attack also landed."
+    // `firstLegal`'s own default for a `payForCard` prompt is "pay nothing" (a legal, if insufficient, combination
+    // when the choice allows it) — found live while writing this test: it silently left the interrupt unpaid, so it
+    // never actually triggered, despite `chooseTriggers` having selected it a step earlier. Overpaying with every
+    // offered hand card is always legal (MC has no "exact change" rule), so this picker does that specifically for
+    // `payForCard`, and falls back to `accepting` for everything else.
+    const pick: Picker = (state) => {
+      const choice = state.pendingChoice;
+      if (choice?.prompt.kind === "payForCard") {
+        return choice.options.map((o) => o.optionId).slice(0, choice.maxSelections);
+      }
+      return accepting("23034.stand-together-interrupt")(state);
+    };
+    const { state: settled, events } = driveEventsWith(given, pick, endTurn());
+    const prevented = events.find(
+      (e) => e.type === "damagePrevented" && e.targetInstanceId === identity && e.reason === "effect",
+    );
+    expect(
+      prevented,
+      `expected a damagePrevented(effect) event against the identity; got ${JSON.stringify(events.map((e) => e.type))}`,
+    ).toBeDefined();
+    if (prevented?.type !== "damagePrevented") throw new Error("unreachable");
+    const reflected = events.find((e) => e.type === "damageDealt" && e.targetInstanceId === villain);
+    expect(reflected).toBeDefined();
+    if (reflected?.type !== "damageDealt") throw new Error("unreachable");
+    // "Deal that much damage": the reflected amount equals exactly what was prevented, not a fixed/independent value.
+    expect(reflected.amount).toBe(prevented.amount);
+    expect(inst(settled, identity).exhausted).toBe(true);
+    expect(inst(settled, gamora).exhausted).toBe(true);
   });
 });
 
