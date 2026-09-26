@@ -1077,7 +1077,7 @@ work** (status in the last column).
 | 15  | Default: card text wins; counters and acceleration tokens stay for the When Revealed.                                                                                                           | built §3.3     |
 | 16  | Default: any attack during this player's turn counts.                                                                                                                                           | built §3.12    |
 | 17  | **"When X leaves play" interrupts resolve before the card moves, with the card still in play (RRG p. 25; ruling Jan 17, 2026 (1) #2).** Rework `leavePlay`.                                     | open           |
-| 18  | **A player who cannot pay a scheme's additional thwart cost cannot choose it as the thwart's target** (a payability check over hand cards and resource abilities, as `legal.ts` does for play). | open           |
+| 18  | **A player who cannot pay a scheme's additional thwart cost cannot choose it as the thwart's target** (a payability check over hand cards and resource abilities, as `legal.ts` does for play). | built b4c8b1fd |
 | 19  | **The extra mulligan is a second pass in player order after every player's normal mulligan: p1, p2, then p1, p2.**                                                                              | built a55532d9 |
 | 20  | Default: keeping the hand ends that player's mulligans.                                                                                                                                         | built §3.26    |
 | 21  | Default: "all player decks" is each deck zone only; an eliminated player's deck counts nothing.                                                                                                 | built §3.27    |
@@ -1173,6 +1173,17 @@ flagged; none is implemented yet.**
     player elimination, where ruling Mar 19, 2026 (3) has the card resolve its "attach to" text again). No printed card
     does this today. **Default:** as built, it stays in play unattached in the villain's play area (as does a player
     card whose controller was eliminated). Alternative: resolve its "attach to" again, as elimination does.
+27. **An additional thwart cost is paid with the thwart's own cost** (Q18 follow-up; RRG 1.8 p. 13 "paid simultaneously",
+    p. 24 step 5 "without paying any costs"). Strictly, choosing the target commits the player to pay, and a decline
+    should not leave the hero exhausted. **As built (b4c8b1fd):** the target is only offered when payable; declining at
+    resolution still cancels the thwart after the exhaust (a fallback so the engine can't stall). Folding the extra cost
+    into the thwarter's cost payment is a larger change, not made.
+28. **When a thwart event's payability is judged** (Q18 follow-up). At play, the check sees the hand before the event's
+    own cost is paid; at the target choice, after. A scheme can pass the first and fail the second. **As built.**
+29. **A divided basic thwart across several costly schemes** (Q18 follow-up) checks each scheme's cost separately, not
+    their total. **As built.**
+30. **A "take damage" cost that is partly prevented** (Q18 follow-up; RRG 1.8 p. 13: not paid if any is prevented). The
+    §3.21 indirect-damage cost does not check prevention. **As built.**
 
 ---
 
