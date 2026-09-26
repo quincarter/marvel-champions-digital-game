@@ -987,7 +987,11 @@ const GIVER = stubTreachery({ id: "giver", boostIcons: 0, abilities: [GIVE_VILLA
 /** The waiting card and the activation's own card, told apart by their icons. */
 const WAITER = stubTreachery({ id: "waiter", boostIcons: 2 });
 const NORMAL = stubTreachery({ id: "normal", boostIcons: 1 });
-/** "Give each minion and each identity a facedown boost card": only the minion is an enemy that can hold one. */
+/**
+ * "Give each minion and each identity a facedown boost card": both hold one, but only the minion ever activates. Before
+ * docs/phase7-wave5.md §3.6 a non-enemy was never given one; Venom's "place 1 facedown boost card on your identity"
+ * (`sm` 27073) made the card text the authority there too.
+ */
 const GIVE_AROUND_ACTION = stubAbility("give-around.action", {
   trigger: { kind: "action" },
   effects: [{ kind: "giveBoostCard", enemy: { kind: "each", query: { categories: ["minion", "identity"] } } }],
@@ -1055,7 +1059,7 @@ describe("`giveBoostCard`: a boost card dealt outside an activation waits facedo
     expect(auditVillainPhases(whole.session.log, giveDeps).violations).toEqual([]);
   });
 
-  it("any enemy can hold one, a non-villainous minion flips only that card, and a non-enemy is never given one", () => {
+  it("any card named can hold one, a non-villainous minion flips only that card, and an identity never flips its", () => {
     // Round 1: NO_ICONS is the villain's boost card, LACKEY is dealt, revealed and engaged.
     const roundOne = runCommands(giveGame([NO_ICONS.id, LACKEY.id, WAITER.id, NORMAL.id]), giveDeps, endTurn).state;
     const lackey = mustPlayer(roundOne, p1).playArea.find(
@@ -1072,19 +1076,21 @@ describe("`giveBoostCard`: a boost card dealt outside an activation waits facedo
       payment: [],
       attachToInstanceId: null,
     });
-    // WAITER went to the minion; the identity named by the same ref got nothing, and no second card was drawn for it.
-    expect(mustInstance(played.state, lackey).boostCards.map((id) => played.state.instances[id]?.cardId)).toEqual([
-      WAITER.id,
-    ]);
-    expect(mustInstance(played.state, identity).boostCards).toEqual([]);
-    expect(played.events.filter((e) => e.type === "boostCardDealt")).toHaveLength(1);
+    // The identity (first in play order) got WAITER and the minion NORMAL, each from the encounter deck.
+    const cardsOn = (id: InstanceId) =>
+      mustInstance(played.state, id).boostCards.map((boost) => played.state.instances[boost]?.cardId);
+    expect(cardsOn(identity)).toEqual([WAITER.id]);
+    expect(cardsOn(lackey)).toEqual([NORMAL.id]);
+    expect(played.events.filter((e) => e.type === "boostCardDealt")).toHaveLength(2);
 
     const roundTwo = runCommands(played.state, giveDeps, endTurn);
     const villain = activeVillain(roundTwo.state).instanceId;
-    // The villain gets its automatic card (NORMAL); the minion is not villainous, so it flips only the waiting card.
-    expect(flippedCards(roundTwo.state, roundTwo.events, villain)).toEqual([NORMAL.id]);
-    expect(flippedCards(roundTwo.state, roundTwo.events, lackey)).toEqual([WAITER.id]);
-    expect(threatFrom(roundTwo.events, lackey)).toEqual([3]); // SCH 1 + 2
+    // The villain gets its automatic card (filler); the minion is not villainous, so it flips only the waiting card.
+    expect(flippedCards(roundTwo.state, roundTwo.events, villain)).toEqual([NO_ICONS.id]);
+    expect(flippedCards(roundTwo.state, roundTwo.events, lackey)).toEqual([NORMAL.id]);
+    expect(threatFrom(roundTwo.events, lackey)).toEqual([2]); // SCH 1 + 1
+    // The identity never activates, so its card stays facedown on it.
+    expect(mustInstance(roundTwo.state, identity).boostCards).toHaveLength(1);
     const whole = runCommands(played.state, giveDeps, endTurn);
     expect(auditVillainPhases(whole.session.log, giveDeps).violations).toEqual([]);
   });

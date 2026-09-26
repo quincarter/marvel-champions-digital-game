@@ -1806,8 +1806,19 @@ export type EffectSpec =
    * boost card at the start of its activation as normal" — so the waiting card is resolved *in addition to* the
    * automatic one, in the order dealt. Distinct from `modifyAttack.extraBoostCards`, which is "1 additional boost
    * card **for this activation**" and only applies to the activation already in progress.
+   *
+   * `enemy` may name any card in play, not only an enemy: "place 1 facedown boost card on your identity" (Venom, `sm`
+   * 27073–27075; docs/phase7-wave5.md §3.6). A card that never activates only holds them; they are discarded with it
+   * if it leaves play (RRG 1.8 "Leaves Play", p. 27), or moved on by `moveBoostCards`.
    */
   | { readonly kind: "giveBoostCard"; readonly enemy: TargetRef; readonly count?: ValueSpec }
+  /**
+   * "Move each facedown boost card from your identity to Venom" ("Leave Us Alone!" 1B, `sm` 27071b;
+   * docs/phase7-wave5.md §3.6): every facedown boost card on each card `from` names, in the order dealt, onto the first
+   * card in play `to` names, where they wait as boost cards dealt outside that enemy's activation (RRG 1.8 "Boost, Boost
+   * Icon", p. 11). Moved during an activation before its flip step, they resolve in it. Log `boostCardMoved`.
+   */
+  | { readonly kind: "moveBoostCards"; readonly from: TargetRef; readonly to: TargetRef }
   /**
    * "Place 1 acceleration token here" (The Master of Time 2B). `target` names the main scheme stage it goes on;
    * absent is the central one, which is where the encounter-deck reset puts it (RRG 1.8 "Acceleration Token", p. 5).

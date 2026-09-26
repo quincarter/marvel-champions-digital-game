@@ -260,6 +260,13 @@ export type GameEvent =
       readonly instanceId: InstanceId;
       readonly outsideActivation?: true;
     }
+  /** A facedown boost card moved from one card to another (`moveBoostCards`, docs/phase7-wave5.md §3.6). */
+  | {
+      readonly type: "boostCardMoved";
+      readonly instanceId: InstanceId;
+      readonly fromInstanceId: InstanceId;
+      readonly toInstanceId: InstanceId;
+    }
   /** A boost card's icons, or its "Boost" ability, were cancelled (Attacrobatics, Target Acquired). */
   | {
       readonly type: "boostCancelled";

@@ -1060,9 +1060,18 @@ export const revealEncounterCard = (player: PlayerRef = you): EffectSpec => ({ k
  * stays facedown on that enemy and is flipped at its next activation, before and in addition to the automatic one
  * (RRG 1.8 "Boost, Boost Icon", p. 11). Not "1 additional boost card **for this activation**" — that is
  * `modifyAttack({ extraBoostCards })`, and the validator rejects this builder inside a Boost ability.
+ *
+ * Any card in play can hold one: "place 1 facedown boost card on your identity" is `giveBoostCard(yourIdentity)`
+ * (Venom, `sm` 27073; docs/phase7-wave5.md §3.6), held until `moveBoostCards` moves it on.
  */
 export const giveBoostCard = (enemy: TargetRef = theVillain, count: Amount = 1): EffectSpec =>
   count === 1 ? { kind: "giveBoostCard", enemy } : { kind: "giveBoostCard", enemy, count: amount(count) };
+/**
+ * "Move each facedown boost card from your identity to Venom" ("Leave Us Alone!" 1B, `sm` 27071b;
+ * docs/phase7-wave5.md §3.6): onto the first card `to` names, in the order dealt; moved before an activation's flip
+ * step, they resolve in it.
+ */
+export const moveBoostCards = (from: TargetRef, to: TargetRef): EffectSpec => ({ kind: "moveBoostCards", from, to });
 /**
  * "Place 1 acceleration token here" (The Master of Time 2B) / "place one acceleration token on one of the main
  * schemes" (MC21 p. 13's campaign instructions, a multi-main-scheme scenario). `target` absent is the central main

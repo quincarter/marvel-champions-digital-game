@@ -997,15 +997,30 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
     }
     case "giveBoostCard": {
       const count = effect.count ? Math.max(0, value(effect.count)) : 1;
-      // Only an enemy in play can hold a boost card (RRG 1.8 "Boost, Boost Icon", p. 11: "dealt a boost card … remains
+      // Any card in play the text names holds it (RRG 1.8 "Boost, Boost Icon", p. 11: "dealt a boost card … remains
       // facedown on that enemy until that enemy activates"). Any enemy qualifies, villainous or not: the card text names
-      // the recipient, and the villainous gate is only about the activation's automatic card (`giveBoostCard`).
+      // the recipient, and the villainous gate is only about the activation's automatic card (`giveBoostCard`). A card
+      // that never activates ("place 1 facedown boost card on your identity", Venom, docs/phase7-wave5.md §3.6) holds
+      // it until `moveBoostCards` moves it or the card leaves play.
       const inPlay = cardsInPlay(ctx.state);
-      const enemies = targets(effect.enemy).filter(
-        (id) => inPlay.includes(id) && categoriesOf(ctx.state, id).includes("enemy"),
-      );
-      for (const enemyId of enemies) {
-        for (let i = 0; i < count; i++) dealBoostCard(ctx, enemyId, true);
+      for (const holderId of targets(effect.enemy).filter((id) => inPlay.includes(id))) {
+        for (let i = 0; i < count; i++) dealBoostCard(ctx, holderId, true);
+      }
+      return;
+    }
+    case "moveBoostCards": {
+      // "Move each facedown boost card from your identity to Venom" (docs/phase7-wave5.md §3.6): in the order they were
+      // dealt, onto the first card `to` names in play. There they wait like a boost card dealt outside the enemy's own
+      // activation (RRG 1.8 "Boost, Boost Icon", p. 11), so an activation not yet at its flip step resolves them.
+      const inPlay = cardsInPlay(ctx.state);
+      const [to] = targets(effect.to).filter((id) => inPlay.includes(id));
+      if (!to) return;
+      for (const from of targets(effect.from).filter((id) => inPlay.includes(id) && id !== to)) {
+        const facedown = mustInstance(ctx.state, from).boostCards.filter((id) => !mustInstance(ctx.state, id).faceup);
+        for (const id of facedown) {
+          moveCard(ctx, id, { kind: "boost", hostInstanceId: to });
+          emit(ctx, { type: "boostCardMoved", instanceId: id, fromInstanceId: from, toInstanceId: to });
+        }
       }
       return;
     }

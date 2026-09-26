@@ -319,6 +319,12 @@ class PhaseTracker {
         }
         return;
       }
+      case "boostCardMoved": {
+        // Moved by card text from a card that holds it to an enemy (docs/phase7-wave5.md §3.6): it now waits there.
+        const record = this.boostCards.find((b) => b.instanceId === event.instanceId && b.boostIcons === null);
+        if (record) record.enemyInstanceId = event.toInstanceId;
+        return;
+      }
       case "boostCardFlipped": {
         this.unflippedBoosts.delete(event.instanceId);
         const record = this.boostCards.find((b) => b.instanceId === event.instanceId && b.boostIcons === null);

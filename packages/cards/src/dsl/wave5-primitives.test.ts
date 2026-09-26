@@ -27,8 +27,10 @@ import {
   encounterCards,
   encounterSetAside,
   forEachPlayer,
+  giveBoostCard,
   ifThen,
   moveActiveCounterToNextVillain,
+  moveBoostCards,
   moveCardsInto,
   moveCounters,
   resolveSpecialsOf,
@@ -42,9 +44,11 @@ import {
   each,
   eachPlayer,
   eventPlayer,
+  eventSource,
   eventTarget,
   exists,
   firstPlayer,
+  identityOf,
   not,
   perHero,
   query,
@@ -53,6 +57,7 @@ import {
   superlative,
   thatPlayer,
   threatOn,
+  yourIdentity,
 } from "./values.js";
 import { validateDefinition } from "./validate.js";
 
@@ -171,5 +176,23 @@ describe("§3.5 encounter cards in a player's deck, hand and discard pile (Myste
     );
     valid(definition);
     expect(definition.trigger).toMatchObject({ on: { on: "boostCardResolved", selfIs: "source" } });
+  });
+});
+
+describe("§3.6 boost cards held on an identity, then moved to an enemy (Venom)", () => {
+  it("Venom I places one on your identity; 'Leave Us Alone!' 1B moves them to Venom as he activates against you", () => {
+    valid(forcedResponse(on.enemyAttacks("self", { damages: true }), giveBoostCard(yourIdentity)));
+    const leave = forcedInterrupt(
+      on.enemyActivating(query("villain")),
+      moveBoostCards(identityOf(eventPlayer), eventSource),
+    );
+    valid(leave);
+    expect(leave.effects).toEqual([
+      {
+        kind: "moveBoostCards",
+        from: { kind: "identityOf", player: { kind: "eventPlayer" } },
+        to: { kind: "eventSource" },
+      },
+    ]);
   });
 });

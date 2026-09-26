@@ -337,7 +337,7 @@ against `pnpm dsl` (379 builders), the engine's `EffectSpec` / `RuleSpec` / `Tri
 | 3.3  | Several main schemes, one marked by a counter; a completed stage flips to an environment     | Venom Goblin (glider counter)                                                                  | landed  |
 | 3.4  | Acceleration tokens on any card, moved between cards, and announced                          | Hapless Pedestrians, Tracking Prey, Lower/Midtown/Upper Manhattan                              | landed  |
 | 3.5  | Encounter cards in a player's deck, hand and discard pile                                    | Mysterio (whole scenario), MC27 scenario 3 campaign                                            | landed  |
-| 3.6  | Boost cards held on a card that does not activate, then moved to an enemy                    | Venom ("Leave Us Alone!", Vengeance), MC27 scenario 2 expert                                   | open    |
+| 3.6  | Boost cards held on a card that does not activate, then moved to an enemy                    | Venom ("Leave Us Alone!", Vengeance), MC27 scenario 2 expert                                   | landed  |
 | 3.7  | A resolved Special reports the cards it discarded                                            | Sandslide, Surging Sands                                                                       | open    |
 | 3.8  | Increasing the damage a character takes                                                      | Bell Tower (Ringing)                                                                           | open    |
 | 3.9  | A card that counts as another card type with a trait                                         | Festering Mass                                                                                 | open    |
@@ -571,6 +571,19 @@ the encounter deck into their deck" and Waking Nightmare.
 - **At game end** the log records the count first (§3.27), then nothing is needed: each game builds decks afresh.
 
 ### 3.6 Boost cards held on a card that does not activate, then moved to an enemy
+
+> **Status: landed (2026-09-26),** tested in `packages/engine/src/boost-cards-on-identity.test.ts` (2 tests: two boost
+> cards on the identity stay facedown through a villain phase whose scheme resolves only the villain's own; moved to the
+> villain by a forced interrupt on its activation, they resolve in it, are discarded to the encounter discard pile, and
+> the identity holds none, replay deep-equal). DSL: `wave5-primitives.test.ts`. **What landed:** `giveBoostCard.enemy`
+> may name any card in play (the field keeps its name); a card that never activates only holds them, and `leavePlay`
+> already discards them with it. Wave 1's rule that a non-enemy is never given one is gone (its test in
+> `primitives-wave1c.test.ts` now expects the identity to hold one; no script relied on it: every existing
+> `giveBoostCard` names the villain). **`EffectSpec moveBoostCards { from, to }`**: each facedown boost card on the `from`
+> cards, in the order dealt, onto the first `to` card in play; log **`boostCardMoved`** (the villain-phase audit follows
+> the card to its new holder). **DSL:** `moveBoostCards(from, to)`; `giveBoostCard(yourIdentity)` as is. **Not here:**
+> Biting Retort's "+1 boost icon" for each card of that activation (scripting: `eachTimeUntil` on `boostIconsCounting`,
+> unverified). **Client:** facedown boost cards on an identity; a `boostCardMoved` log line.
 
 "place 1 facedown boost card on your identity"; "Leave Us Alone!" 1B: "Forced Interrupt: When Venom activates against
 you, move each facedown boost card from your identity to Venom." `CardInstance.boostCards` is already a per-instance
