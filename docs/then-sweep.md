@@ -134,6 +134,16 @@ Measured per step against this branch's HEAD in a clean copy (the other agent's 
   - `mts` Thanos standard 4-player: the Space Stone (21134) in round 1. Same loss in round 5, 194 → 156 commands.
   - Also stopped, with no summary change: the Space Stone in `mts` Thanos expert 4-player and Loki expert 4-player (round 4).
 
+### Open questions from groups (a)–(d) (game-rules-architect, 2026-09-26)
+
+Each is implemented as the reading closest to the RRG; none is settled by a ruling in `marvel-champions-rulings-post-rrg-1-7.md` (checked for "then", Held Hostage, Crowbar Toss, the cancel cards and Honor Among Thieves).
+
+1. **A status-cancelled activation is not "fully resolved".** Held Hostage against a stunned villain removes the stun instead of attacking (RRG 1.8 "Stun", p. 41), and the engine then keeps Held Hostage attached; Crowbar Toss against a confused/stunned or defeated Wrecker leaves the active villain counter where it is. Reading: RRG 1.8 "Resolve" (p. 37), an ability all of whose effects are cancelled is not considered to have resolved. The other reading (the attack was "attempted", so discard Held Hostage anyway) would need only `enemyAttack` to stop marking `activationDidNotHappen` for a status.
+2. **"Each X attacks" with no X is vacuously resolved** (engine reading). A named enemy with no activation marks the frame; an `each` over nothing does not. No printed card in the pool yet has "Each … attacks. Then, …", so nothing depends on it today.
+3. **Honor Among Thieves (16141) with no Criminal minion found.** RRG 1.8 "Encounter Deck" (p. 17) says a discard that empties the encounter deck leaves the ability "fulfilled"; the engine reads that as the discard sentence only, and "Reveal that minion" with no minion as the pre-"then" text failing, so the villain's facedown boost card (post-"then") is not given. The alternative reading gives the boost card anyway.
+4. **The Search rule's shuffle is not gated.** "Search … and put it into play …, then shuffle" (Legions of Hydra, The Doomsday Chair, Masters of Mayhem) shuffles even when the search finds nothing, because RRG 1.8 "Search" (p. 39) shuffles a searched deck on completion regardless. Settled by the RRG; listed so nobody "fixes" it into `andThen`.
+5. **Not modeled: cancelling the "When Revealed" effects of a card that has none.** `cancelWhenRevealed` only fails for no reveal, a card that cannot be cancelled, or one already cancelled. A treachery with no When Revealed ability (and no surge/incite) would let Order and Chaos deal its damage; no such treachery is in the pool yet.
+
 ## Background: the shape survey from #61
 
 The agent that built `andThen` also ran a code-shape survey: player abilities that open with a required choice followed by effects that don't read the chosen slot. It found 46, plus 30 where the choice comes later. It only checked code structure, so most of those have no printed "then". Of the 46, only Crisis Interdiction (01012), Quinjet and Aamir Khan print one, and all three are in the checklist above. The rest (Photonic Blast, Melee, Save the Day, Cosmic Alliance, …) are governed by the "any part of the ability" rule (RRG p. 12), which #61 already implements, so they don't need `andThen`. The survey is not the to-do list; the checklist is.
