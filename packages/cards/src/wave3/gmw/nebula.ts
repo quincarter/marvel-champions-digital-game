@@ -286,8 +286,10 @@ export const NEBULA = defineAbilities({
   // Reveal that card, then resolve its "Special" ability.
   "16101.when-revealed": whenRevealed(
     discardEncounterUntil(query("attachment", { trait: TECHNIQUE }), "found"),
+    // No Technique found, or its reveal cancelled: the "then" is skipped (`revealFoundNothing`/`revealCancelled`,
+    // RRG 1.8 "'Then'", p. 44; same shape as Planetary Invasion, `rocket-obligation-nemesis.ts`).
     revealCard(chosen("found"), you),
-    resolveSpecialsOf(chosen("found")),
+    andThen(resolveSpecialsOf(chosen("found"))),
   ),
 
   // Space Pirates (modular: 16138–16141) ---------------------------------------------------------------------
@@ -321,9 +323,11 @@ export const NEBULA = defineAbilities({
   // card.
   "16141.when-revealed": whenRevealed(
     discardEncounterUntil(query("minion", { trait: CRIMINAL }), "found"),
+    // No Criminal minion found, or its reveal cancelled: the whole post-"then" text is skipped, the villain's facedown
+    // boost card included (`revealFoundNothing`/`revealCancelled`, RRG 1.8 "'Then'", p. 44). docs/then-sweep.md
+    // records this reading as an open question: RRG 1.8 "Encounter Deck" (p. 17) calls the emptied discard "fulfilled".
     revealCard(chosen("found"), you),
-    giveTough(chosen("found")),
-    giveBoostCard(theVillain),
+    andThen(giveTough(chosen("found")), giveBoostCard(theVillain)),
   ),
 
   // Power Stone (16149, modular; shared with Ronan the Accuser) ------------------------------------------------
