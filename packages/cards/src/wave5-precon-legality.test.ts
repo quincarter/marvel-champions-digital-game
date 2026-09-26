@@ -7,13 +7,8 @@
  * (docs/phase7-wave5.md §1.9, §5) transcribed from each pack's own printed decklist card. There is no `sm` precon
  * here for the hero packs; `sm`'s two box precons (MC27 p. 20) have their own `describe` at the bottom.
  *
- * **SP//dr is gated, not broken.** `validateDeck` refuses `spdr-protection`'s identity (31001a's
- * `separatedIdentity`, §1.6) with `unsupported_identity`, by design, until §3.24 lands (Ironheart's
- * `progressingIdentity` gate, docs/phase7-wave5.md §1.4, lifted with §3.23, so its precon is checked in full) — a real "cannot
- * seat this identity yet" gate, not a data mistake. Their `it`s below assert that specific, documented refusal
- * (rather than skipping legality checking outright) and then check everything `validateDeck` would otherwise have
- * checked (box quantity/deck limit, legal size, `requiredIdentitySet`) by hand, so a future accidental corruption
- * of either precon still fails a test today.
+ * Every precon is checked in full by `validateDeck`. Ironheart's `progressingIdentity` (docs/phase7-wave5.md §1.4) was
+ * gated until §3.23 and SP//dr's `separatedIdentity` (§1.6) until §3.24; both gates are lifted.
  */
 import {
   NOVA_CARDS,
@@ -37,13 +32,11 @@ const packs: readonly {
   readonly label: string;
   readonly cards: readonly AnyCard[];
   readonly decks: readonly StarterDeck[];
-  /** Identity kind `validateDeck` refuses today (docs/phase7-wave5.md §1.4 / §1.6), if any. */
-  readonly gatedIdentity?: "progressingIdentity" | "separatedIdentity";
 }[] = [
   { label: "Nova", cards: NOVA_CARDS, decks: NOVA_STARTER_DECKS },
   { label: "Ironheart", cards: IRONHEART_CARDS, decks: IRONHEART_STARTER_DECKS },
   { label: "Spider-Ham", cards: SPIDERHAM_CARDS, decks: SPIDERHAM_STARTER_DECKS },
-  { label: "SP//dr", cards: SPDR_CARDS, decks: SPDR_STARTER_DECKS, gatedIdentity: "separatedIdentity" },
+  { label: "SP//dr", cards: SPDR_CARDS, decks: SPDR_STARTER_DECKS },
 ];
 
 const contentsOf = (deck: StarterDeck): DeckContents => ({
@@ -111,42 +104,21 @@ describe("wave 5 precons — four hero packs (Nova, Ironheart, Spider-Ham, SP//d
       (_id, deck) => checkBoxQuantityAndSize(deck, byId),
     );
 
-    if (pack.gatedIdentity === undefined) {
-      it.each(pack.decks.map((d) => [d.id, d] as const))(
-        `${pack.label} %s: validateDeck reports no problems`,
-        (_id, deck) => {
-          const result = validateDeck(contentsOf(deck), pack.cards);
-          expect(
-            result.ok,
-            result.ok ? undefined : JSON.stringify((result as { problems: unknown }).problems, null, 2),
-          ).toBe(true);
-        },
-      );
+    it.each(pack.decks.map((d) => [d.id, d] as const))(
+      `${pack.label} %s: validateDeck reports no problems`,
+      (_id, deck) => {
+        const result = validateDeck(contentsOf(deck), pack.cards);
+        expect(
+          result.ok,
+          result.ok ? undefined : JSON.stringify((result as { problems: unknown }).problems, null, 2),
+        ).toBe(true);
+      },
+    );
 
-      it.each(pack.decks.map((d) => [d.id, d] as const))(
-        `${pack.label} %s: requiredIdentitySet matches the deck's signature cards exactly`,
-        (_id, deck) => checkRequiredIdentitySet(deck, pack.cards, byId),
-      );
-    } else {
-      const kind = pack.gatedIdentity;
-      it.each(pack.decks.map((d) => [d.id, d] as const))(
-        `${pack.label} %s: validateDeck refuses only the gated identity (${kind}, docs/phase7-wave5.md §1.4/§1.6) — everything else about the deck is legal`,
-        (_id, deck) => {
-          const result = validateDeck(contentsOf(deck), pack.cards);
-          expect(result.ok, `${deck.id} should be refused for ${kind}, not accepted outright`).toBe(false);
-          if (result.ok) return;
-          const problems = (result as { problems: readonly { code: string; cardIds: readonly string[] }[] }).problems;
-          expect(problems.length, JSON.stringify(problems, null, 2)).toBe(1);
-          expect(problems[0]?.code).toBe("unsupported_identity");
-          expect(problems[0]?.cardIds).toContain(deck.identityCardId);
-        },
-      );
-
-      it.each(pack.decks.map((d) => [d.id, d] as const))(
-        `${pack.label} %s: requiredIdentitySet matches the deck's signature cards exactly (checked directly — the identity gate doesn't touch this)`,
-        (_id, deck) => checkRequiredIdentitySet(deck, pack.cards, byId),
-      );
-    }
+    it.each(pack.decks.map((d) => [d.id, d] as const))(
+      `${pack.label} %s: requiredIdentitySet matches the deck's signature cards exactly`,
+      (_id, deck) => checkRequiredIdentitySet(deck, pack.cards, byId),
+    );
   }
 });
 

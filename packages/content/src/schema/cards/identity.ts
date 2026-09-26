@@ -1,4 +1,4 @@
-import type { CardText, Trait } from "../common.js";
+import type { CardText, ResourceIconCounts, Trait } from "../common.js";
 import type { KeywordInstance } from "../keywords.js";
 import type { AbilityReference } from "../abilities.js";
 import type { ArtRef, CardId, EncounterSetId, ImageRef } from "../ids.js";
@@ -162,7 +162,8 @@ export interface HeroIdentityCard extends BaseCard {
    * Parker's card (no 31002 in `spdr.json`; 31001a links to the support side 31001b instead of to an alter-ego), so
    * curation needs a second source for her faces.
    *
-   * Data only: the engine does not model two identity cards yet and refuses such an identity at setup.
+   * The engine seats it as two instances (docs/phase7-wave5.md §3.24): the identity instance (these `hero`/`alterEgo`
+   * forms and the one hit point dial) and the other physical card, in play as a card of each side's own type.
    */
   readonly separatedIdentity?: SeparatedIdentity;
   /**
@@ -189,9 +190,19 @@ export interface ProgressingIdentity {
 /** The two card-type faces of a separated identity's physical cards (see `HeroIdentityCard.separatedIdentity`). */
 export interface SeparatedIdentity {
   readonly alterEgoCardNumber: string;
-  readonly heroCardOtherSide: CardFlipSide & { readonly cardType: "support" };
-  readonly alterEgoCardOtherSide: CardFlipSide & { readonly cardType: "upgrade" };
+  readonly heroCardOtherSide: SeparatedIdentitySide<"support">;
+  readonly alterEgoCardOtherSide: SeparatedIdentitySide<"upgrade">;
 }
+
+/**
+ * One separated-identity card's non-identity side. `resourceIcons` are that side's printed resource icons (absent:
+ * none). The SP//dr upgrade side prints one wild icon, which Sync Ratio's "generate that upgrade's resources" reads
+ * (docs/phase7-wave5.md §3.24).
+ */
+export type SeparatedIdentitySide<T extends "support" | "upgrade"> = CardFlipSide & {
+  readonly cardType: T;
+  readonly resourceIcons?: ResourceIconCounts;
+};
 
 /**
  * A deck an identity brings to the game in addition to its player deck. RRG 1.8 "Deck" (p. 15): "Certain

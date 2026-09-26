@@ -107,9 +107,9 @@ export type DeckProblemCode =
    */
   | "competitive_card"
   /**
-   * The identity uses a rule this build does not model, so it cannot be seated: a separated identity split across two
-   * cards (SP//dr; `HeroIdentityCard.separatedIdentity`, docs/phase7-wave2.md §6.10), or a separate deck of a kind
-   * the engine cannot build (Hercules's Labor and Gift decks; `unbuildableSeparateDeck`, §15).
+   * The identity cannot be seated as chosen: a separate deck of a kind the engine cannot build (Hercules's Labor and
+   * Gift decks; `unbuildableSeparateDeck`, docs/phase7-wave2.md §15), or a later version of a progressing identity
+   * (docs/phase7-wave5.md §3.23).
    */
   | "unsupported_identity"
   /** The card data lacks a field legality needs, so the rule cannot be checked. Never guessed. */
@@ -508,13 +508,6 @@ export function validateDeck(deck: DeckContents, pool: CardPool, context?: DeckC
     );
   } else {
     identity = identityCard;
-    if (identityCard.separatedIdentity !== undefined) {
-      add(
-        "unsupported_identity",
-        `${uniqueLabel(identityCard)} is split across two identity cards (a separated identity), which this build cannot play yet.`,
-        [identityCard.id],
-      );
-    }
     // docs/phase7-wave5.md §1.4, §3.23: a progressing identity (Ironheart) is chosen by its first version; the others are
     // set aside at setup and swapped in during the game.
     const progressing = identityCard.progressingIdentity;

@@ -24,6 +24,7 @@ import {
   stepAfterScenarioSetupAbilities,
 } from "./setup-steps.js";
 import { cardsMatch } from "./unique.js";
+import { separatedSideCards } from "./separated-identity.js";
 import {
   NO_STATUSES,
   type CardHome,
@@ -495,13 +496,10 @@ export function createGame(requested: GameSetupConfig, deps: EngineDeps = DEFAUL
     if (!identityCard || identityCard.type !== "hero_identity") {
       return invalid(`${setup.identityCardId} is not an identity card`);
     }
-    // The SP//dr insert's "Separated Identity Card" (two identity cards sharing one dial) is not modeled; seating it as an
-    // ordinary identity would silently play a different game (docs/phase7-wave2.md §6.10).
-    if (identityCard.separatedIdentity !== undefined) {
-      return invalid(
-        `${identityLabel(identityCard)} is a separated identity (two identity cards), which this engine cannot seat yet`,
-      );
-    }
+    // The SP//dr insert's "Separated Identity Card" (docs/phase7-wave5.md §3.24): the other physical card's two
+    // non-identity sides join the game's card pool as cards of their own type (`separatedSideCard`).
+    const separatedSides = separatedSideCards(identityCard);
+    for (const side of separatedSides) pool[side.id] = side;
     // The Ironheart insert's "Progressing Identity Cards" (docs/phase7-wave5.md §1.4, §3.23): "the weakest of the cards
     // is put into play under the player's control, with the other two cards set aside". A seat names the first version.
     const progressing = identityCard.progressingIdentity;
@@ -579,6 +577,17 @@ export function createGame(requested: GameSetupConfig, deps: EngineDeps = DEFAUL
       instances[versionInstanceId] = { ...blankInstance(versionInstanceId, version, id, PLAYER_HOME), faceup: true };
       setAside.push(versionInstanceId);
     }
+    // A separated identity's other card waits set aside, support side up, for setup step 16 (§3.24).
+    let separatedCardInstanceId: InstanceId | undefined;
+    const [separatedSupportSide] = separatedSides;
+    if (separatedSupportSide) {
+      separatedCardInstanceId = nextId();
+      instances[separatedCardInstanceId] = {
+        ...blankInstance(separatedCardInstanceId, separatedSupportSide.id, id, PLAYER_HOME),
+        faceup: true,
+      };
+      setAside.push(separatedCardInstanceId);
+    }
     if (config.includeIdentitySets !== false) {
       // Obligations and nemesis cards have no encounter deck of their own: a discard sends them to the active
       // villain's (ruling, Jan 17, 2026 (5)).
@@ -619,6 +628,7 @@ export function createGame(requested: GameSetupConfig, deps: EngineDeps = DEFAUL
         form: "alterEgo",
         heroFormIndex: null,
         changedFormThisRound: false,
+        ...(separatedCardInstanceId ? { separatedCardInstanceId } : {}),
       },
       hand: [],
       deck,

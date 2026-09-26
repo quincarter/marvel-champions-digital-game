@@ -37,6 +37,7 @@ import { checkStateTriggers } from "./resolve/state-checks.js";
 import { cannotChooseToDiscard } from "./rules.js";
 import { cardsInPlay, controllerOf, handCountTowardHandSize } from "./select.js";
 import { describeFrame } from "./stack.js";
+import { putSeparatedCardIntoPlay } from "./separated-identity.js";
 import type { GameState, GameStep } from "./state.js";
 import type { TriggerEvent } from "./trigger-events.js";
 import {
@@ -241,6 +242,8 @@ export function afterMulliganChoice(ctx: Ctx, playerId: PlayerId, discarded: num
  */
 function executePlayerSetupAbilities(ctx: Ctx, step: Extract<GameStep, { kind: "playerSetupAbilities" }>): void {
   if (!step.resolved) {
+    // A separated identity's alter-ego Setup puts the other card into play (docs/phase7-wave5.md §3.24).
+    for (const player of playerOrder(ctx.state)) putSeparatedCardIntoPlay(ctx, player.playerId);
     const frames = playerOrder(ctx.state).flatMap((player) =>
       gameAbilityFrames(ctx, player.identity.instanceId, ["setup"], null),
     );

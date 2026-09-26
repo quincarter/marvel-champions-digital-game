@@ -38,6 +38,7 @@ import {
 } from "./rules.js";
 import { eventFrame, pushEvent } from "./resolve/frames.js";
 import { moveCardsTo } from "./resolve/cards.js";
+import { flipSeparatedCard } from "./separated-identity.js";
 import { describeFrame, type StackFrame } from "./stack.js";
 import { releaseTreatedBy } from "./treat-as.js";
 import {
@@ -63,7 +64,8 @@ import type { LastingDuration, LastingEffect, LastingEffectBody } from "./lastin
 /**
  * Flips a player's identity. `voluntary` is the once-per-round player action;
  * a card effect doesn't use it up (RRG "Form, Change Form"). Damage, statuses,
- * attachments and ready state all stay.
+ * attachments and ready state all stay (a separated identity's ready state
+ * follows its physical card: `flipSeparatedCard`, docs/phase7-wave5.md §3.24).
  */
 export function setForm(
   ctx: Ctx,
@@ -85,6 +87,8 @@ export function setForm(
       changedFormThisRound: p.identity.changedFormThisRound || voluntary,
     },
   }));
+  // A separated identity flips its other card too (docs/phase7-wave5.md §3.24).
+  if (player.identity.form !== to) flipSeparatedCard(ctx, playerId, to);
   // A three-sided identity (docs/phase7-wave2.md §3.2) logs which hero face; every other identity logs as before.
   const card = mustCard(ctx.state, player.identity.cardId);
   const faces = card.type === "hero_identity" ? heroFacesOf(card).length : 1;

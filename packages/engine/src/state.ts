@@ -196,6 +196,13 @@ export interface IdentityState {
   readonly heroFormIndex: number | null;
   /** RRG "Form, Change Form": once each round, during that player's own turn. */
   readonly changedFormThisRound: boolean;
+  /**
+   * A separated identity's other physical card (`HeroIdentityCard.separatedIdentity`; docs/phase7-wave5.md §3.24): the
+   * hero card's support side in the play area in alter-ego form, the alter-ego card's upgrade side attached to the
+   * identity in hero form, set aside until setup step 16 puts it into play (`separated-identity.ts`). Absent for every
+   * other identity, so their serialized state is unchanged.
+   */
+  readonly separatedCardInstanceId?: InstanceId;
 }
 
 export interface PlayerState {
