@@ -82,6 +82,13 @@ export interface SetupDraft {
    * itself, so the same draft always seats the same game.
    */
   readonly setAsideModularSetIds: readonly string[] | null;
+  /**
+   * Tower Defense's own "Modular Difficulty" (MC21 p. 11, docs/phase7-wave4.md §4 Q4): place the printed
+   * recommendation (1/2/3 damage per hero for standard/expert/heroic) on Avengers Tower during setup. Off by
+   * default. Meaningless — and never sent (`toSessionConfig`) — for any scenario but Tower Defense, the same way
+   * `difficultySets` is scenario-specific; `setScenario` resets it for the same reason.
+   */
+  readonly towerDefenseSetupDamage: boolean;
 }
 
 /** RRG: 1–4 players. */
@@ -108,6 +115,7 @@ export function initialSetupDraft(options: InitialSetupDraftOptions): SetupDraft
     activeSeatIndex: 0,
     difficultySets: null,
     setAsideModularSetIds: null,
+    towerDefenseSetupDamage: false,
   };
 }
 
@@ -144,7 +152,14 @@ export function alternateDifficultySetsFor(
  */
 export function setScenario(draft: SetupDraft, scenario: Scenario | undefined, scenarioId: string): SetupDraft {
   const difficulty = difficultyOptionsFor(scenario).includes(draft.difficulty) ? draft.difficulty : "standard";
-  return { ...draft, scenarioId, difficulty, difficultySets: null, setAsideModularSetIds: null };
+  return {
+    ...draft,
+    scenarioId,
+    difficulty,
+    difficultySets: null,
+    setAsideModularSetIds: null,
+    towerDefenseSetupDamage: false,
+  };
 }
 
 /** Picking a difficulty for the current scenario. */
@@ -170,6 +185,37 @@ export function setDifficultySets(draft: SetupDraft, difficultySets: DifficultyS
  */
 export function toggleDifficultySets(draft: SetupDraft, alternate: DifficultySetChoice | null): SetupDraft {
   return setDifficultySets(draft, draft.difficultySets ? null : alternate);
+}
+
+/** Tower Defense's own setup-damage toggle (docs/phase7-wave4.md §4 Q4): a plain on/off, off by default. */
+export function toggleTowerDefenseSetupDamage(draft: SetupDraft): SetupDraft {
+  return { ...draft, towerDefenseSetupDamage: !draft.towerDefenseSetupDamage };
+}
+
+/**
+ * Whether the setup screen should offer Tower Defense's own damage toggle at all (docs/phase7-wave4.md §4 Q4):
+ * only Tower Defense itself prints the recommendation (`checkScenarioSetupOptions`, `@mc/cards`), and only outside
+ * skirmish mode (`towerDefenseSetupDamage` in `@mc/cards`' `mts/tower-defense.ts` refuses `modes.skirmish`). The
+ * client has no skirmish-mode picker yet, so the mode half of this check is always true today; it's written out
+ * so a future skirmish toggle only needs to pass its own state in, not change this function's shape.
+ */
+export function hasTowerDefenseSetupDamageOption(scenario: Scenario | undefined, skirmish = false): boolean {
+  return (scenario?.id as string | undefined) === "tower-defense" && !skirmish;
+}
+
+/**
+ * MC21 p. 11's printed recommendation for the mode being played — 1/2/3 damage per hero for standard/expert/
+ * heroic. The client has no heroic-mode picker yet (`SetupDifficulty`), so `difficulty === "expert"` is the only
+ * way to reach the 2-per-hero row today; kept as a switch (rather than a two-value lookup) so a future heroic
+ * toggle only needs a new case here, not a new function.
+ */
+export function towerDefenseSetupDamagePerHero(difficulty: SetupDifficulty): number {
+  switch (difficulty) {
+    case "expert":
+      return 2;
+    default:
+      return 1;
+  }
 }
 
 /** `null` to go back to the scenario builder's own default (The Hood's own first seven, docs/phase7-wave4.md §2.3). */
@@ -397,5 +443,6 @@ export function toSessionConfig(draft: SetupDraft, players: readonly CorePlayer[
     ...(draft.firstPlayerIndex !== null ? { firstPlayerIndex: draft.firstPlayerIndex } : {}),
     ...(draft.difficultySets ? { difficultySets: draft.difficultySets } : {}),
     ...(draft.setAsideModularSetIds ? { setAsideModularSetIds: draft.setAsideModularSetIds } : {}),
+    ...(draft.towerDefenseSetupDamage ? { setupOptions: { towerDefenseSetupDamage: true } } : {}),
   };
 }

@@ -14,7 +14,7 @@
  */
 
 import type { CorePlayer } from "@mc/cards";
-import type { AnyCard, DifficultySetChoice, PlayModes } from "@mc/content";
+import type { AnyCard, DifficultySetChoice, PlayModes, ScenarioSetupOptions } from "@mc/content";
 import type { CampaignGameInput, Command, EngineError, GameEvent, GameState, LegalActions, PlayerId } from "@mc/engine";
 import type { GameRecord } from "./game-record.js";
 import type { SaveMeta } from "./game-storage.js";
@@ -67,6 +67,13 @@ export interface SessionConfig {
    * builder's own default (the pack's first seven in declaration order) applies.
    */
   readonly setAsideModularSetIds?: readonly string[];
+  /**
+   * Optional setup rules the scenario's own rulebook offers, chosen at setup (Tower Defense's setup damage, MC21
+   * p. 11, docs/phase7-wave4.md §4 Q4). Absent is none — the same `ScenarioSetupOptions` shape
+   * `CoreScenarioOptions.setupOptions` (`@mc/cards`) takes, so this is sent straight through to `scenarioFor`
+   * (`session-core.ts`). Additive, like `modes`: absent on every save written before this field existed.
+   */
+  readonly setupOptions?: ScenarioSetupOptions;
   /**
    * This game is one scenario of a campaign, as `startGameFromLog` composed it (docs/campaign-mode-design.md §7.1,
    * §10.1). Goes straight into `GameSetupConfig.campaign` (`session-core.ts`'s `scenarioFor`) and therefore into

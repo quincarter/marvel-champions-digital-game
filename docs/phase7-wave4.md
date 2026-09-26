@@ -1979,9 +1979,13 @@ Each is implemented the way stated, or not at all, and named here rather than de
    traced by a `scenarioSetupInstructionResolved` event. A game without instructions has no new field, step or event.
    Placed damage does not raise the damage-taken event the Stronghold side's forced response is scripted on; that is
    outcome-neutral here (at most 3[per_hero] against its 9[per_hero]). Tests: `engine/src/scenario-setup-
-instructions.test.ts`, `cards/src/wave4/mts/tower-defense-setup-damage.test.ts`. **Client follow-up
-   (game-client-engineer, queued by the user):** the setup screen needs a toggle for Tower Defense ("Place suggested
-   setup damage on Avengers Tower"), off by default, that passes `setupOptions: { towerDefenseSetupDamage: true }`.
+instructions.test.ts`, `cards/src/wave4/mts/tower-defense-setup-damage.test.ts`. **Client follow-up built (game-
+   client-engineer, 2026-09-25):** Table setup (`scenes/table-setup.ts`) shows a toggle, "Black Order's initial
+   attack", only for Tower Defense (and only outside skirmish mode, which the client has no picker for yet), off by
+   default, labeled with the mode-specific amount ("place N damage per hero on Avengers Tower"). `view/setup-
+draft.ts`'s `SetupDraft.towerDefenseSetupDamage` carries the choice through `toSessionConfig` to
+   `SessionConfig.setupOptions`, threaded to the scenario builder by `engine/session-core.ts`'s `scenarioFor`.
+   Tests: `view/setup-draft.test.ts`, `engine/session-core.test.ts`.
 5. **Standard II / Expert II** replace or join Standard / Expert? **Settled (2026-09-25) from The Hood insert, p. 2,
    "Alternative Sets"** (the insert Hall of Heroes' The Hood page links, `the-hood-pdf.pdf`, read page by page): "In The
    Hood Scenario Pack, there are two alternative encounter sets, Standard II and Expert II. Each encounter set is more
