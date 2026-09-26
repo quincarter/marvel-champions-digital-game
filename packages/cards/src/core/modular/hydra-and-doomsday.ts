@@ -1,5 +1,6 @@
 import {
   after,
+  andThen,
   chosen,
   constant,
   countOf,
@@ -72,8 +73,10 @@ export const DOOMSDAY_CHAIR_SET = defineAbilities({
   // into play engaged with you, then shuffle the encounter deck.
   "01183.when-revealed": whenRevealed(fetchIntoPlay(MODOK, "modok")),
   // Biomechanical Upgrades — Forced Interrupt: When attached minion would be defeated, heal all damage from it instead, then discard this card.
+  // `heal` always fully resolves, so `andThen` is the faithful reading (RRG 1.8 "'Then'", p. 44) without changing
+  // observable behavior today.
   "01185.biomechanical-upgrades-forced-interrupt": forcedInterrupt(
     when.defeated("host"),
-    instead(heal(damageOn(host), host), discard(self)),
+    instead(heal(damageOn(host), host), andThen(discard(self))),
   ),
 });

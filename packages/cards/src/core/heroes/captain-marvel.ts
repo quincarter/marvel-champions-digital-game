@@ -3,6 +3,7 @@ import {
   addCounters,
   after,
   allOf,
+  andThen,
   aScheme,
   attackAnEnemy,
   chosen,
@@ -83,10 +84,15 @@ export const CAPTAIN_MARVEL_KIT = defineAbilities({
   // Spider-Woman — Response: After Spider-Woman enters play, confuse the villain.
   "01011.spider-woman-response": response(after.entersPlay("self"), confuse(theVillain)),
   // Crisis Interdiction — Hero Action (thwart): Remove 2 threat from a scheme. Then, if you have the Aerial trait, remove 2 threat from a different scheme.
+  // The "Then, if..." is RRG 1.8 "'Then'" (p. 44) gating on the first thwart fully resolving; `aScheme("first")`
+  // always finds at least the main scheme, so this never changes observable behavior today, but `andThen` is the
+  // faithful reading.
   "01012.crisis-interdiction-action": heroAction(
     { label: "thwart" },
     thwartAScheme(2, "first"),
-    ifThen(youHaveTrait(TRAIT.AERIAL), [aScheme("second", { excludeSlots: ["first"] }), thwart(2, chosen("second"))]),
+    andThen(
+      ifThen(youHaveTrait(TRAIT.AERIAL), [aScheme("second", { excludeSlots: ["first"] }), thwart(2, chosen("second"))]),
+    ),
   ),
   // Photonic Blast — Hero Action (attack): Deal 5 damage to an enemy. If you paid for this card using a [energy] resource, draw 1 card.
   "01013.photonic-blast-action": heroAction({ label: "attack" }, attackAnEnemy(5), ifThen(paidWith("energy"), draw(1))),
