@@ -226,6 +226,41 @@ describe("Ronan III (16105) — reached by actually defeating Ronan II in expert
   });
 
   // 16105.ronan-the-accuser-forced-interrupt is the identical shared text covered above for Ronan I.
+
+  // rules-qa-engineer, full QA pass follow-up: Ronan III's own printed "Retaliate 1" (16105, docs/cards/by_pack/
+  // gmw.md "Stats: ... Retaliate 1. Toughness.") is the only villain keyword in the whole `gmw` box besides
+  // Toughness (already exercised above and in every other Ronan test's own `clearTough` staging) — grepping every
+  // gmw villain's `keywords` array in `packages/content/src/data/gmw/cards.ts` finds no other villain stage with a
+  // non-empty keyword list. It had never been driven: reached, but never attacked again to see the reflected damage.
+  it('Retaliate 1: an attack against him deals 1 damage back to the attacker (RRG 1.8 "Retaliate", p. 41)', () => {
+    const state = ronanTheAccuser({ difficulty: "expert" });
+    const hero = runWave3(state, toHero());
+    const villain = hero.villains[0]!.instanceId;
+    const primed = clearTough(patchInstance(hero, villain, { damage: 16 }), villain); // 18 solo hit points
+    const reachedIII = runWave3(primed, {
+      type: "basicAttack",
+      playerId: P1,
+      attackerInstanceId: identityOf(primed),
+      targetInstanceId: villain,
+    });
+    expect(activeVillain(reachedIII).stageIndex).toBe(2); // Ronan III is now active
+
+    const identity = identityOf(reachedIII);
+    // Readied first — the attack that just defeated Ronan II exhausted the identity, and this test needs a second,
+    // separate attack.
+    const readied = patchInstance(reachedIII, identity, { exhausted: false });
+    const damageBefore = inst(readied, identity).damage;
+    // Ronan III's own 25-solo-HP dial: a small, clearly-non-defeating attack, so any damage the attacker takes back
+    // is unambiguously Retaliate's own effect, not incidental to a defeat this attack didn't cause.
+    const attacked = runWave3(readied, {
+      type: "basicAttack",
+      playerId: P1,
+      attackerInstanceId: identity,
+      targetInstanceId: villain,
+    });
+    expect(activeVillain(attacked).stageIndex).toBe(2); // still Ronan III — this attack did not defeat him
+    expect(inst(attacked, identity).damage).toBe(damageBefore + 1);
+  });
 });
 
 describe('"Take What Is Mine" 2A — When Revealed, reached by a real main scheme advance (16107a.when-revealed)', () => {
