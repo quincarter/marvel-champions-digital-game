@@ -1085,7 +1085,7 @@ work** (status in the last column).
 | 13  | Default: the revealing player picks the deck.                                                                                                                                                   | —              |
 | 15  | Default: card text wins; counters and acceleration tokens stay for the When Revealed.                                                                                                           | built §3.3     |
 | 16  | Default: any attack during this player's turn counts.                                                                                                                                           | built §3.12    |
-| 17  | **"When X leaves play" interrupts resolve before the card moves, with the card still in play (RRG p. 25; ruling Jan 17, 2026 (1) #2).** Rework `leavePlay`.                                     | open           |
+| 17  | **"When X leaves play" interrupts resolve before the card moves, with the card still in play (RRG p. 25; ruling Jan 17, 2026 (1) #2).** Rework `leavePlay`.                                     | built ae82c42f |
 | 18  | **A player who cannot pay a scheme's additional thwart cost cannot choose it as the thwart's target** (a payability check over hand cards and resource abilities, as `legal.ts` does for play). | built b4c8b1fd |
 | 19  | **The extra mulligan is a second pass in player order after every player's normal mulligan: p1, p2, then p1, p2.**                                                                              | built a55532d9 |
 | 20  | Default: keeping the hand ends that player's mulligans.                                                                                                                                         | built §3.26    |
@@ -1094,7 +1094,7 @@ work** (status in the last column).
 | 23  | Default: a minion's overkill spill onto the villain is attack damage (Bell Tower (Quiet) may replace it).                                                                                       | built          |
 | 24  | **M.O.R.B.I.U.S. deals no damage while the engaged player is in alter-ego form** ("that player's hero").                                                                                        | scripter       |
 | 25  | **Within one payment, "after you spend" and "after … generates resources" share one timing window, forced responses first (RRG).**                                                              | open           |
-| 26  | **An unowned permanent encounter attachment whose host leaves play is discarded to its encounter discard pile** (player cards keep §3.30's unattach).                                           | open           |
+| 26  | **An unowned permanent encounter attachment whose host leaves play is discarded to its encounter discard pile** (player cards keep §3.30's unattach).                                           | built e7e6bd9e |
 | 27  | **An additional thwart cost is paid together with the thwart's own cost; declining it undoes both (no exhausted hero, no thwart).**                                                             | open           |
 | 28  | **A thwart event's payability for a costly scheme is judged after the event's own cost, at play and at target choice alike.**                                                                   | open           |
 | 29  | **A divided basic thwart must afford the total of every chosen scheme's additional cost.**                                                                                                      | open           |
@@ -1202,6 +1202,17 @@ flagged; none is implemented yet.**
     outside the permanent card's own set cannot blank any part of its text box. `isPermanent` covers defeat and leaving
     play, but no blank check reads it. Building it needs a blank to record which card caused it, to compare sets. Both
     SP//dr faces are Permanent (and carry their own §3.31 line). **Default:** a separate primitive later.
+32. **Cards leaving with their host** (Q17 follow-up, ae82c42f): attachments and Victory X upgrades that leave because
+    their host does (and attachments discarded when a villain or main scheme stage is removed or flipped) get their own
+    "when this leaves play" interrupt after the move, not in the host's window. No wave 5 card needs it. **As built.**
+33. **Several cards leaving from one effect** (Q17 follow-up): each gets its own interrupt window, in the order asked,
+    not one shared window where the active player orders them. **As built.**
+34. **Log order in a replacement** (Q17 follow-up): the replacement move's response announcement is logged before the
+    replaced event's "cancelled" line. Cosmetic. **As built.**
+35. **`takeIntoHand` ownership during the interrupt** (Q17 follow-up): the ownership change is applied before the card
+    waits, so the interrupt sees the card in play with its new owner. **As built.**
+36. **A villain's signature side scheme removed on defeat** (Q17 follow-up, `defeat.ts`) still goes through the waiting
+    `leavePlay`, so it can open a window if an interrupt listens for it. **As built.**
 
 ---
 
