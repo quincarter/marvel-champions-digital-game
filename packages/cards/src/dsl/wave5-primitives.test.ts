@@ -9,6 +9,7 @@ import type { Predicate } from "@mc/engine";
 import { describe, expect, it } from "vitest";
 import {
   action,
+  additionalThwartCost,
   anyNumberOfToughStatusCards,
   boost,
   cannotBeCanceled,
@@ -379,6 +380,17 @@ describe("§3.20 treating printed resources as another type (Haywire)", () => {
     expect(haywire.trigger).toMatchObject({
       rules: [{ kind: "printedResourceAs", player: { kind: "controller" }, as: "energy" }],
     });
+  });
+});
+
+describe("§3.21 an additional cost to thwart a scheme (Giant Monster Attack, Cat in a Tree)", () => {
+  it("resources or indirect damage", () => {
+    const monster = constant(additionalThwartCost({ self: true }, { resources: { energy: 1 } }));
+    valid(monster);
+    expect(monster.trigger).toMatchObject({
+      rules: [{ kind: "additionalThwartCost", scheme: { self: true }, resources: { energy: 1 } }],
+    });
+    valid(constant(additionalThwartCost({ self: true }, { indirectDamage: 2 })));
   });
 });
 

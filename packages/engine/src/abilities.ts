@@ -640,6 +640,20 @@ export type RuleSpec =
       readonly while?: Predicate;
     }
   /**
+   * "As an additional cost to thwart this scheme, take 2 indirect damage" (Cat in a Tree, `spiderham`); "… you must spend
+   * a [energy] resource" (Giant Monster Attack, `spdr`; docs/phase7-wave5.md §3.21). Every thwart of a scheme `scheme`
+   * matches asks the thwarting player, before it resolves, to spend `resources` (which they may decline; the thwart is
+   * then cancelled) and then to take `indirectDamage`. Several rules add up. §4 Q18: the scheme stays a legal target
+   * for a player who cannot pay.
+   */
+  | {
+      readonly kind: "additionalThwartCost";
+      readonly scheme: TargetQuery;
+      readonly resources?: ResourceRequirement;
+      readonly indirectDamage?: number;
+      readonly while?: Predicate;
+    }
+  /**
    * "Treat the printed resource of each card in your hand as if it were [energy]." (Haywire, `ironheart` 29038;
    * docs/phase7-wave5.md §3.20): every printed resource icon of each card in the hand of each player `player` names
    * (read from the rule's speaker, the identity it is attached to) counts as one `as` resource, wild included — for

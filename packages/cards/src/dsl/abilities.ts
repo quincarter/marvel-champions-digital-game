@@ -496,6 +496,22 @@ export const countsAs = (
     ...(opts.while ? { while: opts.while } : {}),
   });
 /**
+ * "As an additional cost to thwart this scheme, you must spend a [energy] resource" (Giant Monster Attack) is
+ * `constant(additionalThwartCost({ self: true }, { resources: { energy: 1 } }))`; "…, take 2 indirect damage" (Cat in a
+ * Tree) is `{ indirectDamage: 2 }` (docs/phase7-wave5.md §3.21). Asked of the thwarting player before each thwart of
+ * the scheme; a declined payment cancels the thwart.
+ */
+export const additionalThwartCost = (
+  scheme: TargetQuery,
+  cost: { readonly resources?: ResourceRequirement; readonly indirectDamage?: number },
+): ConstantPart =>
+  rule({
+    kind: "additionalThwartCost",
+    scheme,
+    ...(cost.resources ? { resources: cost.resources } : {}),
+    ...(cost.indirectDamage ? { indirectDamage: cost.indirectDamage } : {}),
+  });
+/**
  * "Treat the printed resource of each card in your hand as if it were [energy]." (Haywire, `ironheart` 29038;
  * docs/phase7-wave5.md §3.20): `constant(printedResourcesInHandAs(you, "energy"))` on the attachment ("you" is the
  * identity it is attached to). Read by payment and by every printed-resource query and count.

@@ -225,6 +225,27 @@ export function readyCostFor(
   return total;
 }
 
+/**
+ * The additional cost to thwart this scheme (`RuleSpec additionalThwartCost`, docs/phase7-wave5.md §3.21), every
+ * applicable rule added together, or null when none applies.
+ */
+export function thwartCostFor(
+  state: GameState,
+  deps: EngineDeps,
+  schemeId: InstanceId,
+): { readonly resources: ResolvedRequirement | null; readonly indirectDamage: number } | null {
+  let resources: ResolvedRequirement | null = null;
+  let indirectDamage = 0;
+  let any = false;
+  for (const { rule, context } of activeRules(state, deps, "additionalThwartCost")) {
+    if (!matchesQuery(state, schemeId, rule.scheme, context)) continue;
+    any = true;
+    if (rule.resources) resources = combineRequirements(resources ?? 0, rule.resources);
+    indirectDamage += rule.indirectDamage ?? 0;
+  }
+  return any ? { resources, indirectDamage } : null;
+}
+
 /** How many additional times this player resolves each When Revealed ability they reveal (Media Coverage). */
 export const whenRevealedRepeats = (state: GameState, deps: EngineDeps, playerId: PlayerId): number =>
   activeRules(state, deps, "repeatWhenRevealed")

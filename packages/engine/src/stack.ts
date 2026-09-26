@@ -113,6 +113,8 @@ export type StackFrame =
        * prevented or cancelled) event back to the group at `index`, which applies it with the others.
        */
       readonly group?: { readonly frameId: FrameId; readonly index: number };
+      /** A thwart whose additional cost (`RuleSpec additionalThwartCost`) has been asked for (docs/phase7-wave5.md §3.21). */
+      readonly thwartCostAsked?: true;
     })
   /**
    * Damage events resolved simultaneously (RRG 1.8 "Indirect Damage", p. 24: "All indirect damage from a single source

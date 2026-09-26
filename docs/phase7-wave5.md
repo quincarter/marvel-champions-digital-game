@@ -352,7 +352,7 @@ against `pnpm dsl` (379 builders), the engine's `EffectSpec` / `RuleSpec` / `Tri
 | 3.18 | A card that does not count toward hand size                                                  | Connection to the Worldmind                                                                    | landed  |
 | 3.19 | Any number of tough status cards                                                             | Armadillo                                                                                      | landed  |
 | 3.20 | Treating printed resources as another type                                                   | Haywire                                                                                        | landed  |
-| 3.21 | An additional cost to thwart a scheme                                                        | Cat in a Tree, Giant Monster Attack                                                            | open    |
+| 3.21 | An additional cost to thwart a scheme                                                        | Cat in a Tree, Giant Monster Attack                                                            | landed  |
 | 3.22 | A basic thwart that may remove threat only from one scheme                                   | Retinal Display                                                                                | open    |
 | 3.23 | Progressing identities: swapping one identity card for the next                              | Ironheart                                                                                      | open    |
 | 3.24 | A separated identity (two cards, one dial)                                                   | SP//dr                                                                                         | open    |
@@ -839,6 +839,16 @@ generation (one icon of the given type per printed icon).
 
 ### 3.21 An additional cost to thwart a scheme
 
+> **Status: landed (2026-09-26),** tested in `packages/engine/src/additional-thwart-cost.test.ts` (3 tests: an [energy]
+> cost paid, the basic thwart removes threat, replay deep-equal; declined, the thwart is cancelled and removes nothing;
+> a 2 indirect damage cost is taken by the thwarting player before the threat comes off). DSL:
+> `wave5-primitives.test.ts`. **What landed:** **`RuleSpec additionalThwartCost { scheme, resources?, indirectDamage? }`**
+> (the plan's general `AbilityCost` narrowed to the two printed shapes). Every `thwart` event against a matching scheme
+> — basic, ability or event — first asks the thwarting player (`askThwartCost` in the event's interrupt stage, log
+> `thwartCostAsked`): spend the resources (a declined payment cancels the thwart, which is then never initiated), then
+> take the indirect damage. **DSL:** `additionalThwartCost(scheme, { resources?, indirectDamage? })`, a `constant`
+> part. **Not here:** removing such a scheme from the legal targets of a player who cannot pay (§4 Q18).
+
 Cat in a Tree: "As an additional cost to thwart this scheme, take 2 indirect damage"; Giant Monster Attack: "As an
 additional cost to thwart this scheme, you must spend a [energy] resource." **Plan:** `RuleSpec additionalThwartCost {
 scheme, cost: AbilityCost }`; a thwart that cannot pay it cannot target the scheme (legal targets exclude it).
@@ -1015,6 +1025,13 @@ flagged; none is implemented yet.**
     nothing the move changes; a replacement ("tuck it under here instead", Abduct Superhumans, `aos` 50081) would move
     the card from where it went, which ends the same unless the card went to the hand. Revisit if a card needs the
     card in play.
+18. **A thwart whose additional cost cannot be paid** (§3.21; added 2026-09-26 by `game-rules-architect`). RRG 1.8
+    "Cost" (p. 13) does not let an ability be initiated without paying its costs, so a player who cannot spend the
+    [energy] resource should not be able to choose Giant Monster Attack as the target of a thwart at all. The engine
+    asks for the cost as the thwart is about to resolve: a player who cannot or will not pay sees the thwart cancelled
+    after the thwarter's own costs (the exhaust of a basic thwart, an event's resources) are paid. **Default:** as
+    built; the target-legality pre-check (a payability test over hand cards and resource abilities, as `legal.ts`
+    does for play costs) is left for when a card makes it matter.
 
 ---
 

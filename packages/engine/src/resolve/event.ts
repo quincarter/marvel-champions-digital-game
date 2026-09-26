@@ -30,6 +30,7 @@ import {
   cannotReady,
   damagePreventerOf,
   readyCostFor,
+  thwartCostFor,
   threatCannotBeRemoved,
   iconsInPlay,
 } from "../rules.js";
@@ -68,6 +69,14 @@ import { markPreThenUnresolved } from "./then.js";
 export function executeEventFrame(ctx: Ctx, frame: Frame<"event">): void {
   switch (frame.stage) {
     case "interrupts": {
+      // "As an additional cost to thwart this scheme, …" (docs/phase7-wave5.md §3.21): paid before the thwart is
+      // initiated (RRG 1.8 "Cost", p. 13). A declined resource payment cancels the thwart.
+      if (frame.event.kind === "thwart" && !frame.thwartCostAsked && askThwartCost(ctx, frame)) return;
+      if (frame.thwartCostAsked && frame.cancelled) {
+        // Its additional cost was declined: never initiated, so no interrupt window.
+        setFrame(ctx, { ...frame, stage: "apply" });
+        return;
+      }
       emit(ctx, { type: "triggerEvent", event: frame.event, phase: "initiated" });
       setFrame(ctx, { ...frame, stage: "apply" });
       const interrupts = hasCandidates(ctx.state, ctx.deps, frame.event, "interrupt");
@@ -1125,6 +1134,51 @@ function readyAndAnnounce(ctx: Ctx, id: InstanceId, sourceInstanceId: InstanceId
   if (getInstance(ctx.state, id)?.exhausted !== false) return;
   const readied: TriggerEvent = { kind: "cardReadied", instanceId: id };
   if (heard(ctx.state, ctx.deps, readied)) pushEvent(ctx, readied);
+}
+
+/**
+ * Asks the thwarting player for the scheme's additional thwart cost, if it has one (`RuleSpec additionalThwartCost`,
+ * docs/phase7-wave5.md §3.21): an effects frame above the thwart that spends the resources — declining cancels the
+ * thwart, so its indirect damage is not taken either — and then deals the indirect damage to that player. The thwart
+ * frame waits in its interrupt stage, marked as asked, and carries on when the cost frame is done. Returns true when
+ * it pushed the cost frame.
+ */
+function askThwartCost(ctx: Ctx, frame: Frame<"event">): boolean {
+  const event = frame.event;
+  if (event.kind !== "thwart") return false;
+  const cost = thwartCostFor(ctx.state, ctx.deps, event.schemeInstanceId);
+  if (!cost) return false;
+  setFrame(ctx, { ...frame, thwartCostAsked: true });
+  const damage: EffectSpec[] =
+    cost.indirectDamage > 0
+      ? [
+          {
+            kind: "dealIndirectDamage",
+            to: { kind: "controller" },
+            amount: { kind: "const", value: cost.indirectDamage },
+          },
+        ]
+      : [];
+  const effects: EffectSpec[] = cost.resources
+    ? [
+        { kind: "spendResources", player: { kind: "controller" }, resources: cost.resources, bind: "thwartCost" },
+        {
+          kind: "if",
+          condition: { kind: "varAtLeast", name: "thwartCost.made", amount: 1 },
+          then: damage,
+          otherwise: [{ kind: "cancelTriggeringEvent" }],
+        },
+      ]
+    : damage;
+  emit(ctx, { type: "thwartCostAsked", schemeInstanceId: event.schemeInstanceId, playerId: event.playerId });
+  pushEffects(ctx, {
+    effects,
+    selfInstanceId: event.schemeInstanceId,
+    controllerId: event.playerId,
+    event,
+    eventFrameId: frame.frameId,
+  });
+  return true;
 }
 
 function applyPlayerThwart(ctx: Ctx, event: Extract<TriggerEvent, { kind: "thwart" }>, frameId: FrameId): void {
