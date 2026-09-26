@@ -129,3 +129,57 @@ export function panCropAt(
     cropHeight: plan.cropHeight,
   };
 }
+
+/**
+ * Whether `SpotlightAutoPan` (`ui/comic-reader.ts`) actually has anything to animate for `panel` at `target`: it
+ * never does when the page-context draw is used (`panelFitsInPageCrop` true — the panel's crop never reads `t`) or
+ * when the panel-fill cover-fit has no overflow on either axis (`planPan`'s `axis: "none"` — every frame of the
+ * "pan" would be identical). Gates the tween itself so a beat that never actually moves doesn't still run one: a
+ * running tween redraws the whole scene every frame for its own full duration, and a scene that rebuilds its own
+ * buttons every frame (`opener.ts`'s `#draw`) can drop a tap that lands between two of those frames — a beat with
+ * nothing to animate must never cost a player a working "NEXT ▸".
+ */
+export function needsSpotlightPan(panel: ComicPanelRect, page: PanDim, target: PanDim, dir?: PanDirection): boolean {
+  if (panelFitsInPageCrop(panel, page, target)) return false;
+  return planPan(panel, target, dir).axis !== "none";
+}
+
+/** A camera's own framing over a page: `cx`/`cy` the page-pixel point centered in the viewport, `scale` the
+ * page-to-screen zoom. Lerping this directly (rather than a crop rect) always keeps the viewport's own aspect
+ * ratio exact at every intermediate frame — the standard "Ken Burns" camera parameterization. */
+export interface CameraFrame {
+  readonly cx: number;
+  readonly cy: number;
+  readonly scale: number;
+}
+
+/** The camera frame for `panel`'s own pan `plan` at progress `t` (0 at `from`, 1 at `to`) — `frameAt(..., 0)` is
+ * where a beat's camera starts, `frameAt(..., 1)` where its own slow reveal (`axis !== "none"`) ends. */
+export function frameAt(panel: ComicPanelRect, plan: PanPlan, t: number): CameraFrame {
+  const crop = panCropAt(panel, plan, t);
+  return { cx: crop.cropX + crop.cropWidth / 2, cy: crop.cropY + crop.cropHeight / 2, scale: plan.scale };
+}
+
+/** Linear interpolation between two camera frames — the cinematic reader's own beat-to-beat camera move. */
+export function lerpFrame(from: CameraFrame, to: CameraFrame, t: number): CameraFrame {
+  const clamped = Math.max(0, Math.min(1, t));
+  return {
+    cx: from.cx + (to.cx - from.cx) * clamped,
+    cy: from.cy + (to.cy - from.cy) * clamped,
+    scale: from.scale + (to.scale - from.scale) * clamped,
+  };
+}
+
+/** The page-pixel crop rect `frame` sees through a `target`-sized viewport into a `source`-sized page, clamped so
+ * the crop window never runs past the page's own edges. */
+export function cropForFrame(
+  frame: CameraFrame,
+  target: PanDim,
+  source: PanDim,
+): { readonly cropX: number; readonly cropY: number; readonly cropWidth: number; readonly cropHeight: number } {
+  const cropWidth = Math.min(source.width, target.width / frame.scale);
+  const cropHeight = Math.min(source.height, target.height / frame.scale);
+  const cropX = Math.max(0, Math.min(source.width - cropWidth, frame.cx - cropWidth / 2));
+  const cropY = Math.max(0, Math.min(source.height - cropHeight, frame.cy - cropHeight / 2));
+  return { cropX, cropY, cropWidth, cropHeight };
+}

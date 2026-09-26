@@ -130,6 +130,17 @@ export interface ComicPage {
    * GMW behavior: the reader's own captions/bubbles over a cover-fit, recentered page.
    */
   readonly lettered?: boolean;
+  /**
+   * True for a dense, unlettered spread with no clean gutters between its panels (MTS's `art/campaigns/mts/pages/`)
+   * whose reader is a continuous "cinematic" camera instead of GMW's own dimmed-page-with-a-lit-box spotlight: the
+   * current panel always fills the whole reading area (cover-fit, no dimming, no border — the box the spotlight
+   * draws never shows), and the camera *tweens* from one panel's own framing to the next's, including across a page
+   * turn (a short crossfade rather than a cut), plus a slow continuous pan within a beat whose panel overflows the
+   * frame after fitting (`view/comic-pan.ts`'s `planPan`). Reduced motion drops every tween — an instant cut to
+   * each panel's own whole-panel contain-fit — rather than a fast version of the same animation. Mutually
+   * exclusive with `lettered` (a page is either the box's own printed lettering, GMW's dimmed spotlight, or this).
+   */
+  readonly cinematic?: boolean;
 }
 
 /** Points an issue at one beat of one page, in the order the issue's guided read shows them. */

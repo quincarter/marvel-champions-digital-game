@@ -1,6 +1,15 @@
 import { describe, expect, it } from "vitest";
 import { storyFor } from "../campaign/story.js";
-import { containFit, panCropAt, panelFitsInPageCrop, planPan } from "./comic-pan.js";
+import {
+  containFit,
+  cropForFrame,
+  frameAt,
+  lerpFrame,
+  needsSpotlightPan,
+  panCropAt,
+  panelFitsInPageCrop,
+  planPan,
+} from "./comic-pan.js";
 
 describe("panelFitsInPageCrop", () => {
   it("is true for a panel narrower/shorter than the page's own cover-fit crop window", () => {
@@ -164,4 +173,64 @@ describe("every gmw/mts panel, panned (or reduced-motion contained), shows its o
       }
     }
   }
+});
+
+describe("needsSpotlightPan", () => {
+  // The actual "NEXT ▸ stays disabled" bug: `SpotlightAutoPan` (`ui/comic-reader.ts`) used to start a 3.2s tween
+  // for *every* beat change regardless of whether the beat had anything to animate, and a tween that redraws the
+  // whole scene (including rebuilding the CTA button) every frame for its own full duration could drop a tap that
+  // landed between two of those frames. `needsSpotlightPan` is the gate that stops the tween from starting at all
+  // once there's nothing for it to do.
+  const desktop = { width: 1440, height: 718 };
+
+  it("is false once the page-context draw handles the beat (GMW's own ordinary panel)", () => {
+    // 01-badoon beat 2 (`stories/gmw.ts`): fits the page's own crop, so `drawSpotlightPageContext` never reads a
+    // pan progress at all.
+    expect(needsSpotlightPan({ x: 73, y: 1088, w: 1351, h: 336 }, { width: 1500, height: 1500 }, desktop)).toBe(false);
+  });
+
+  it("is false for a full-bleed panel that fills the reading area exactly (no overflow on either axis)", () => {
+    const panel = { x: 0, y: 0, w: 1440, h: 718 };
+    expect(needsSpotlightPan(panel, { width: panel.w, height: panel.h }, desktop)).toBe(false);
+  });
+
+  it("is true for the actual MTS bug shape — a full-width panel taller than the page's own crop window", () => {
+    expect(needsSpotlightPan({ x: 0, y: 0, w: 1500, h: 820 }, { width: 1500, height: 1500 }, desktop)).toBe(true);
+  });
+});
+
+describe("frameAt / lerpFrame / cropForFrame — the cinematic reader's own camera math", () => {
+  const target = { width: 1440, height: 718 };
+  const source = { width: 1500, height: 1500 };
+
+  it("frameAt(..., 0) and frameAt(..., 1) bracket a panel's own overflow the same way panCropAt's start/end do", () => {
+    const panel = { x: 0, y: 0, w: 1500, h: 820 };
+    const plan = planPan(panel, target);
+    const start = frameAt(panel, plan, 0);
+    const end = frameAt(panel, plan, 1);
+    const startCrop = cropForFrame(start, target, source);
+    const endCrop = cropForFrame(end, target, source);
+    expect(startCrop.cropY).toBeCloseTo(panel.y, 1);
+    expect(endCrop.cropY + endCrop.cropHeight).toBeCloseTo(panel.y + panel.h, 1);
+  });
+
+  it("cropForFrame never opens past the source page's own edges", () => {
+    const frame = { cx: -500, cy: -500, scale: 2 };
+    const crop = cropForFrame(frame, target, source);
+    expect(crop.cropX).toBeGreaterThanOrEqual(0);
+    expect(crop.cropY).toBeGreaterThanOrEqual(0);
+    expect(crop.cropX + crop.cropWidth).toBeLessThanOrEqual(source.width + 0.01);
+    expect(crop.cropY + crop.cropHeight).toBeLessThanOrEqual(source.height + 0.01);
+  });
+
+  it("lerpFrame(a, b, 0) is a, lerpFrame(a, b, 1) is b, and it's linear in between", () => {
+    const a = { cx: 100, cy: 200, scale: 0.5 };
+    const b = { cx: 300, cy: 100, scale: 1.5 };
+    expect(lerpFrame(a, b, 0)).toEqual(a);
+    expect(lerpFrame(a, b, 1)).toEqual(b);
+    const mid = lerpFrame(a, b, 0.5);
+    expect(mid.cx).toBeCloseTo(200, 5);
+    expect(mid.cy).toBeCloseTo(150, 5);
+    expect(mid.scale).toBeCloseTo(1, 5);
+  });
 });

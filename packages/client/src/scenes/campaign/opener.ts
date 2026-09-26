@@ -31,7 +31,13 @@ import {
   speechBubble,
   villainPicture,
 } from "../../ui/campaign-chrome.js";
-import { drawComicReaderStep, SpotlightAutoPan, type ComicReaderTween } from "../../ui/comic-reader.js";
+import {
+  CinematicDriver,
+  drawComicReaderStep,
+  SpotlightAutoPan,
+  type CinematicOptions,
+  type ComicReaderTween,
+} from "../../ui/comic-reader.js";
 import type { ComicBeat } from "../../campaign/story.js";
 import { accent, dotGrid, ink, surface, typeRole } from "../../tokens.js";
 import { cssOf, textStyle } from "../../ui/theme.js";
@@ -84,6 +90,10 @@ export class CampaignOpenerScene extends Phaser.Scene {
   #panTween: Phaser.Tweens.Tween | null = null;
   /** The spotlight (unlettered) reader's own within-beat pan — see `ui/comic-reader.ts`'s `SpotlightAutoPan`. */
   #spotPan: SpotlightAutoPan | null = null;
+  /** A cinematic page's own continuous camera (`ComicPage.cinematic`, MTS) — see `ui/comic-reader.ts`'s
+   * `CinematicDriver`. Always constructed (cheap, idle) so `#advanceComic`/`#backComic` can check
+   * `isSettling()` regardless of whether the current page is cinematic. */
+  #cinematic = new CinematicDriver(() => this.#draw());
   #buttons: McButton[] = [];
   #route: FocusRoute | null = null;
 
@@ -126,6 +136,7 @@ export class CampaignOpenerScene extends Phaser.Scene {
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.#panTween?.stop());
     this.#spotPan = new SpotlightAutoPan(this, () => this.#draw());
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.#spotPan?.destroy());
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.#cinematic.destroy());
     void this.#load();
     fadeScreenIn(this);
   }
@@ -187,6 +198,7 @@ export class CampaignOpenerScene extends Phaser.Scene {
     this.#panTween = null;
     this.#panTweenFrom = null;
     this.#panTweenProgress = 1;
+    this.#cinematic.reset();
     this.#draw();
   }
 
@@ -213,8 +225,20 @@ export class CampaignOpenerScene extends Phaser.Scene {
     this.#draw();
   }
 
-  /** The comic reader's own "NEXT ▸" / tap-anywhere / "→" action: advance a beat, or leave on the last one. */
+  /**
+   * The comic reader's own "NEXT ▸" / tap-anywhere / "→" action: advance a beat, or leave on the last one. A
+   * cinematic page's own settle/crossfade (`ui/comic-reader.ts`'s `CinematicDriver`) never blocks this — a tap that
+   * lands while the camera is still moving between two panels (or two pages) jumps that move straight to its own
+   * end instead of queuing a beat change on top of it; the beat itself only advances on the *next* tap, once the
+   * camera has somewhere to actually settle. The within-beat reveal pan (`isSettling()` doesn't count it) never
+   * blocks either way — advancing mid-reveal just starts the next beat's own settle from wherever it had gotten to.
+   */
   #advanceComic(): void {
+    if (this.#cinematic.isSettling()) {
+      this.#cinematic.skipAhead();
+      this.#draw();
+      return;
+    }
     const total = this.#comicSteps.length;
     if (this.#comicCurrent >= total - 1) {
       this.#leave();
@@ -226,8 +250,14 @@ export class CampaignOpenerScene extends Phaser.Scene {
     this.#startPanTween(fromPanel, fromPage);
   }
 
-  /** "◂ BACK" / "←": one beat back, clamped at the first — never leaves the screen. */
+  /** "◂ BACK" / "←": one beat back, clamped at the first — never leaves the screen. Same "skip the move, don't
+   * queue one on top of it" door as `#advanceComic`. */
   #backComic(): void {
+    if (this.#cinematic.isSettling()) {
+      this.#cinematic.skipAhead();
+      this.#draw();
+      return;
+    }
     const fromPanel = this.#comicSteps[this.#comicCurrent]?.beat.panel ?? null;
     const fromPage = this.#comicSteps[this.#comicCurrent]?.page.file ?? null;
     this.#comicCurrent = prevComicBeat(this.#comicCurrent);
@@ -457,8 +487,14 @@ export class CampaignOpenerScene extends Phaser.Scene {
     const tween: ComicReaderTween | undefined = this.#panTweenFrom
       ? { fromPanel: this.#panTweenFrom, progress: this.#panTweenProgress }
       : undefined;
-    const spotPan = this.#spotPan?.progressFor(view.step, appSession().settings.reducedMotion);
-    drawComicReaderStep(this, readingRect, campaignId, view.step, () => this.#draw(), tween, spotPan);
+    const reducedMotion = appSession().settings.reducedMotion;
+    const spotPan = this.#spotPan?.progressFor(
+      view.step,
+      { width: readingRect.width, height: readingRect.height },
+      reducedMotion,
+    );
+    const cinematic: CinematicOptions = { driver: this.#cinematic, reducedMotion };
+    drawComicReaderStep(this, readingRect, campaignId, view.step, () => this.#draw(), tween, spotPan, cinematic);
 
     this.#drawBeatDots(width, height - actionBarHeight - dotsHeight / 2);
 

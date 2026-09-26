@@ -353,7 +353,11 @@ export class CampaignAftermathScene extends Phaser.Scene {
     const dotsHeight = 22;
     const readingBottom = height - actionBarHeight - dotsHeight;
     const readingRect: Rect = { x: 0, y: headerBottom, width, height: Math.max(0, readingBottom - headerBottom) };
-    const spotPan = this.#spotPan?.progressFor(view.step, appSession().settings.reducedMotion);
+    const spotPan = this.#spotPan?.progressFor(
+      view.step,
+      { width: readingRect.width, height: readingRect.height },
+      appSession().settings.reducedMotion,
+    );
     drawComicReaderStep(
       this,
       readingRect,
