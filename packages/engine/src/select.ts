@@ -16,6 +16,7 @@ import {
   identityFace,
   isMinion,
   isVillain,
+  locateCard,
   mainSchemeStage,
   mainSchemeStageOf,
   mainSchemeStateOf,
@@ -43,7 +44,7 @@ import {
   campaignSeatNumber,
 } from "./campaign-state.js";
 import { boostIconsFor } from "./modifiers.js";
-import { printedResources, RESOURCE_TYPES } from "./resources.js";
+import { printedResources, RESOURCE_TYPES, type ResourcePool } from "./resources.js";
 import { currentActivationFrameId, type Bindings, type Vars } from "./stack.js";
 import type { LastingReach, LastingScope } from "./lasting.js";
 import type {
@@ -567,13 +568,11 @@ export function explainQuery(
   }
   if (query.owner === "you" && instance.ownerId !== context.controllerId) return "wrongOwner";
   if (query.printedResource !== undefined) {
-    const card = cardOf(state, id);
-    if (!card || printedResources(card)[query.printedResource] <= 0) return "missingPrintedResource";
+    if (printedResourcesOf(state, id, context.deps)[query.printedResource] <= 0) return "missingPrintedResource";
   }
   if (query.anyPrintedResource !== undefined) {
-    const card = cardOf(state, id);
-    const pool = card ? printedResources(card) : null;
-    if (!pool || !query.anyPrintedResource.some((type) => pool[type] > 0)) return "missingPrintedResource";
+    const pool = printedResourcesOf(state, id, context.deps);
+    if (!query.anyPrintedResource.some((type) => pool[type] > 0)) return "missingPrintedResource";
   }
   if (query.aspect !== undefined) {
     const card = cardOf(state, id);
@@ -916,6 +915,26 @@ export function uncontrolledYouOf(state: GameState, id: InstanceId): PlayerId | 
 }
 
 /** The players a rule's `player` ref binds, with "you" read as the rule's speaker rather than the card's controller. */
+/**
+ * A card's printed resources as they count now: its printed icons, unless a `printedResourceAs` rule turns every icon
+ * of a card in a named player's hand into one resource of a type ("Treat the printed resource of each card in your hand
+ * as if it were [energy]", Haywire; docs/phase7-wave5.md §3.20).
+ */
+export function printedResourcesOf(state: GameState, id: InstanceId, deps: EngineDeps | undefined): ResourcePool {
+  const card = cardOf(state, id);
+  if (!card) return { physical: 0, mental: 0, energy: 0, wild: 0 };
+  const printed = printedResources(card);
+  if (!deps) return printed;
+  const zone = locateCard(state, id);
+  if (zone?.kind !== "hand") return printed;
+  for (const active of activeRules(state, deps, "printedResourceAs")) {
+    if (!rulePlayers(state, active.rule, active).includes(zone.playerId)) continue;
+    const total = printed.physical + printed.mental + printed.energy + printed.wild;
+    return { physical: 0, mental: 0, energy: 0, wild: 0, [active.rule.as]: total };
+  }
+  return printed;
+}
+
 export const rulePlayers = (
   state: GameState,
   rule: { readonly player: PlayerRef },
@@ -1312,9 +1331,7 @@ export function resolveValue(
     case "resourceTypes": {
       const seen = new Set<string>();
       for (const id of resolveRef(state, value.cards, context)) {
-        const card = cardOf(state, id);
-        if (!card) continue;
-        const pool = printedResources(card);
+        const pool = printedResourcesOf(state, id, deps);
         for (const type of ["physical", "mental", "energy", "wild"] as const) if (pool[type] > 0) seen.add(type);
       }
       return seen.size;
@@ -1385,9 +1402,7 @@ export function resolveValue(
       // is already in the discard pile by the time the ability's effects resolve.
       const types = value.types ?? RESOURCE_TYPES;
       return resolveRef(state, value.cards, context).reduce((sum, id) => {
-        const card = cardOf(state, id);
-        if (!card) return sum;
-        const pool = printedResources(card);
+        const pool = printedResourcesOf(state, id, deps);
         return sum + types.reduce((total, type) => total + pool[type], 0);
       }, 0);
     }

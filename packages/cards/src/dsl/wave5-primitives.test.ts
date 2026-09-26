@@ -25,6 +25,7 @@ import {
   notCountedTowardHandSize,
   on,
   playableAttachments,
+  printedResourcesInHandAs,
   response,
   setup,
   special,
@@ -367,6 +368,16 @@ describe("§3.19 any number of tough status cards (Armadillo)", () => {
     valid(armadillo);
     expect(armadillo.trigger).toMatchObject({
       rules: [{ kind: "statusLimit", target: { self: true }, status: "tough", max: "unlimited" }],
+    });
+  });
+});
+
+describe("§3.20 treating printed resources as another type (Haywire)", () => {
+  it("is a constant rule naming whose hand", () => {
+    const haywire = constant(printedResourcesInHandAs(you, "energy"));
+    valid(haywire);
+    expect(haywire.trigger).toMatchObject({
+      rules: [{ kind: "printedResourceAs", player: { kind: "controller" }, as: "energy" }],
     });
   });
 });

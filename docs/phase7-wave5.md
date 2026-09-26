@@ -351,7 +351,7 @@ against `pnpm dsl` (379 builders), the engine's `EffectSpec` / `RuleSpec` / `Tri
 | 3.17 | A resource card spent for another player                                                     | Everyday Hero                                                                                  | landed  |
 | 3.18 | A card that does not count toward hand size                                                  | Connection to the Worldmind                                                                    | landed  |
 | 3.19 | Any number of tough status cards                                                             | Armadillo                                                                                      | landed  |
-| 3.20 | Treating printed resources as another type                                                   | Haywire                                                                                        | open    |
+| 3.20 | Treating printed resources as another type                                                   | Haywire                                                                                        | landed  |
 | 3.21 | An additional cost to thwart a scheme                                                        | Cat in a Tree, Giant Monster Attack                                                            | open    |
 | 3.22 | A basic thwart that may remove threat only from one scheme                                   | Retinal Display                                                                                | open    |
 | 3.23 | Progressing identities: swapping one identity card for the next                              | Ironheart                                                                                      | open    |
@@ -823,6 +823,15 @@ Armadillo: "Armadillo can have any number of tough status cards." RRG 1.8 "Statu
 a tough status card then prevents one damage event and is discarded one at a time; piercing discards them all.
 
 ### 3.20 Treating printed resources as another type
+
+> **Status: landed (2026-09-26),** tested in `packages/engine/src/printed-resource-as.test.ts` (2 tests: a [physical]
+> card in hand counts as one [energy] for "the total number of [energy] resources in your hand", replay deep-equal, and
+> not without the rule; it pays for a card payable only with [energy], refused without the rule). DSL:
+> `wave5-primitives.test.ts`. **What landed:** **`RuleSpec printedResourceAs { player, as }`**: each printed icon of a
+> card in a named player's hand counts as one `as` resource, wild included (the plan's `cards` query became `player`:
+> the card is in a hand, where rules and queries do not otherwise reach). Read through **`printedResourcesOf`** by the
+> hand payment, the `printedResource` / `anyPrintedResource` query clauses, and the `resourceTypes` and
+> `totalPrintedResources` counts. **DSL:** `printedResourcesInHandAs(player, as)`, a `constant` part.
 
 Haywire: "Treat the printed resource of each card in your hand as if it were [energy]." Read by Zzzax, Feedback Loop,
 Zzzap! and by payment. **Plan:** `RuleSpec printedResourceAs { cards, as }`, read by the printed-resource readers and

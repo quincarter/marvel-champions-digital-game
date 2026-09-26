@@ -109,6 +109,7 @@ import {
   isAlly,
   matchesQuery,
   printedAbilityRefs,
+  printedResourcesOf,
   resolveValue,
   restrictedCardsOf,
   traitsOf,
@@ -490,7 +491,7 @@ export function handCardResources(
   const pool =
     instead?.kind === "constant" && instead.handGenerates !== undefined
       ? generatedResources(state, instead.handGenerates, null, { deps, sourceId: cardInstanceId, playerId })
-      : printedResources(card);
+      : printedResourcesOf(state, cardInstanceId, deps);
   if (!payingFor) return pool;
   const context: EffectContext = {
     selfInstanceId: cardInstanceId,

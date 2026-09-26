@@ -496,6 +496,13 @@ export const countsAs = (
     ...(opts.while ? { while: opts.while } : {}),
   });
 /**
+ * "Treat the printed resource of each card in your hand as if it were [energy]." (Haywire, `ironheart` 29038;
+ * docs/phase7-wave5.md §3.20): `constant(printedResourcesInHandAs(you, "energy"))` on the attachment ("you" is the
+ * identity it is attached to). Read by payment and by every printed-resource query and count.
+ */
+export const printedResourcesInHandAs = (player: PlayerRef, as: TypedResource): ConstantPart =>
+  rule({ kind: "printedResourceAs", player, as });
+/**
  * "Armadillo can have any number of tough status cards." (`nova` 28029; docs/phase7-wave5.md §3.19):
  * `constant(anyNumberOfToughStatusCards({ self: true }))`. Each still prevents one damage event; piercing discards all.
  */

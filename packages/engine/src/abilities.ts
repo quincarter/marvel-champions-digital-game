@@ -640,6 +640,13 @@ export type RuleSpec =
       readonly while?: Predicate;
     }
   /**
+   * "Treat the printed resource of each card in your hand as if it were [energy]." (Haywire, `ironheart` 29038;
+   * docs/phase7-wave5.md §3.20): every printed resource icon of each card in the hand of each player `player` names
+   * (read from the rule's speaker, the identity it is attached to) counts as one `as` resource, wild included — for
+   * paying and for every printed-resource reader (`printedResourcesOf`). A card outside that hand is unchanged.
+   */
+  | { readonly kind: "printedResourceAs"; readonly player: PlayerRef; readonly as: TypedResource }
+  /**
    * "Armadillo can have any number of tough status cards." (`nova` 28029; docs/phase7-wave5.md §3.19): RRG 1.8 "Status
    * Cards" (p. 41) allows one of each; a matching character may hold any number of `status`. Each tough card still
    * prevents one damage event and is discarded alone (RRG 1.8 "Tough"); piercing discards them all.
