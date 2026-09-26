@@ -92,6 +92,51 @@ describe.each<[string, () => GameStorage]>([
     expect((await storage.load("g1"))!.commands).toEqual([]);
   });
 
+  test("truncate drops commands from the given count on, and updates the summary row", async () => {
+    const storage = make();
+    await storage.create(meta("g1", 1), BASELINE);
+    await storage.append("g1", 0, command(0), {
+      round: 1,
+      commandCount: 1,
+      updatedAt: 2,
+      status: "active",
+      outcome: null,
+    });
+    await storage.append("g1", 1, command(1), {
+      round: 2,
+      commandCount: 2,
+      updatedAt: 3,
+      status: "active",
+      outcome: null,
+    });
+    await storage.append("g1", 2, command(2), {
+      round: 2,
+      commandCount: 3,
+      updatedAt: 4,
+      status: "active",
+      outcome: null,
+    });
+
+    await storage.truncate("g1", 1, { round: 1, commandCount: 1, updatedAt: 5, status: "active", outcome: null });
+
+    const loaded = await storage.load("g1");
+    expect(loaded!.commands).toEqual([command(0)]);
+    expect(loaded!.meta.commandCount).toBe(1);
+    expect(loaded!.meta.round).toBe(1);
+    expect(loaded!.meta.updatedAt).toBe(5);
+
+    // A later append after a truncate lands at the truncated length, not the original one — the same "seq must be
+    // the next command" check `append` already enforces, now against the shorter log.
+    await storage.append("g1", 1, command(9), {
+      round: 1,
+      commandCount: 2,
+      updatedAt: 6,
+      status: "active",
+      outcome: null,
+    });
+    expect((await storage.load("g1"))!.commands).toEqual([command(0), command(9)]);
+  });
+
   test("starting a new game retires the one in progress, and Continue offers the new one", async () => {
     const storage = make();
     await storage.create(meta("old", 1), BASELINE);

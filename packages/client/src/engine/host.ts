@@ -158,6 +158,13 @@ export interface EngineHost {
   resume(gameId: string): Promise<EngineUpdate>;
   /** Applies a command. A rejected command leaves the game untouched. */
   dispatch(command: Command): Promise<DispatchResult>;
+  /**
+   * "Back out" (`view/back-out.ts`): truncates the command log to its first `commandCount` commands and republishes
+   * the state that leaves the game in, as if every later command had never been dispatched. The caller is the one
+   * that must have already checked this is safe to offer (`view/back-out.ts`'s own rule); this performs the rewind
+   * unconditionally.
+   */
+  rewindTo(commandCount: number): Promise<EngineUpdate>;
   /** An on-demand query, for a seat that isn't the one the host prefetched. */
   legalActions(playerId: PlayerId): Promise<LegalActions>;
   /** Every update, including the one `start` returns. Returns an unsubscribe. */

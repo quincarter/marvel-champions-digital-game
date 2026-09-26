@@ -17,6 +17,7 @@ import { actingPlayer } from "../engine/acting-player.js";
 import { emptyRecord, type GameRecord } from "../engine/game-record.js";
 import type { SaveMeta } from "../engine/game-storage.js";
 import type { EngineHost, EngineUpdate, LegalActionsFor, SavedGame, SessionConfig } from "../engine/host.js";
+import type { BackOutTrailEntry } from "../view/back-out.js";
 
 export type SessionStatus = "idle" | "starting" | "playing" | "failed";
 
@@ -59,6 +60,15 @@ export interface SessionState {
   readonly saveError: string | null;
   /** The setup the current game came from, whether it was started or resumed. What a rematch reuses. */
   readonly config: SessionConfig | null;
+  /**
+   * Every command this store has dispatched since the game started or was resumed, one entry per command, in
+   * order — what `view/back-out.ts`'s `backOutTargetOf` reads to decide whether "Back out" applies to the choice
+   * on screen right now. Reset to empty on `start`/`resume` (a resumed game's earlier commands are gone from
+   * memory, so nothing from before a resume is ever offered a back-out — the safe default when this store can't
+   * see what those commands revealed). Truncated, not reset, by `rewindTo` itself, to the same length as the
+   * rewound command count, so a second back-out right after the first still has an accurate trail.
+   */
+  readonly commandTrail: readonly BackOutTrailEntry[];
 }
 
 const INITIAL: SessionState = {
@@ -74,6 +84,7 @@ const INITIAL: SessionState = {
   record: emptyRecord(),
   saveError: null,
   config: null,
+  commandTrail: [],
 };
 
 export type SessionListener = (state: SessionState) => void;
@@ -144,7 +155,15 @@ export class SessionStore {
         this.#set({ ...this.#state, inFlight: false, error: result.error.message });
         return false;
       }
-      // The host's update already landed through #absorb, which cleared inFlight.
+      // The host's update already landed through #absorb, which cleared inFlight; append this command to the
+      // trail after, so it lines up with `commandTrail.length === version` the same way `#absorb` already holds.
+      this.#set({
+        ...this.#state,
+        commandTrail: [
+          ...this.#state.commandTrail,
+          { playerId: command.playerId, command, events: result.update.events },
+        ],
+      });
       return true;
     } catch (cause) {
       this.#set({ ...this.#state, inFlight: false, status: "failed", error: message(cause) });
@@ -172,6 +191,28 @@ export class SessionStore {
     return this.#host.save();
   }
 
+  /**
+   * "Back out" (`view/back-out.ts`): truncates the command log to its first `commandCount` commands and adopts the
+   * state that leaves the game in. Forces the update through even though its `version` is *lower* than the one
+   * already showing — `#absorb`'s own out-of-order guard exists for a stale worker reply racing a newer command,
+   * which is never what this is: the caller (the choice scene's Back out button) has already checked this rewind
+   * is legal (`view/back-out.ts`'s own rule) before ever calling this.
+   */
+  async rewindTo(commandCount: number): Promise<boolean> {
+    if (this.#state.inFlight) return false;
+    this.#set({ ...this.#state, inFlight: true });
+    try {
+      const update = await this.#host.rewindTo(commandCount);
+      // The trail has one entry per command dispatched so far, in the same order `commandTrail.length ===
+      // version` already holds elsewhere in this class — truncating it to the rewound version keeps that true.
+      this.#absorb(update, { force: true, commandTrail: this.#state.commandTrail.slice(0, update.version) });
+      return true;
+    } catch (cause) {
+      this.#set({ ...this.#state, inFlight: false, error: message(cause) });
+      return false;
+    }
+  }
+
   dispose(): void {
     this.#unsubscribeHost();
     this.#listeners.clear();
@@ -188,9 +229,13 @@ export class SessionStore {
     }
   }
 
-  #absorb(update: EngineUpdate): void {
-    // An out-of-order reply for an older command must never overwrite newer state.
-    if (update.version < this.#state.version) return;
+  #absorb(
+    update: EngineUpdate,
+    options: { readonly force?: boolean; readonly commandTrail?: readonly BackOutTrailEntry[] } = {},
+  ): void {
+    // An out-of-order reply for an older command must never overwrite newer state — except a forced absorb
+    // (`rewindTo`'s own doc comment), whose entire point is going backwards.
+    if (!options.force && update.version < this.#state.version) return;
     const toAct = actingPlayer(update.state);
     this.#set({
       status: "playing",
@@ -205,6 +250,7 @@ export class SessionStore {
       record: update.record,
       saveError: update.saveError,
       config: update.config,
+      commandTrail: options.commandTrail ?? this.#state.commandTrail,
     });
   }
 

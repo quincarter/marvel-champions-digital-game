@@ -64,6 +64,18 @@ export class WorkerEngineHost implements EngineHost {
     return { ok: true, update };
   }
 
+  async rewindTo(commandCount: number): Promise<EngineUpdate> {
+    const response = await this.#request({ kind: "rewindTo", id: this.#id(), commandCount });
+    if (response.kind !== "rewound") throw new Error(`unexpected reply ${response.kind}`);
+    const update = this.#hydrate(response.snapshot);
+    // A rewind's whole point is a *lower* version than what's published, which `#publish`'s "drop an
+    // out-of-order reply" guard would otherwise treat as stale and swallow — reset the high-water mark first,
+    // the same way `#begin` does for a fresh start/resume.
+    this.#version = update.version - 1;
+    this.#publish(update);
+    return update;
+  }
+
   async legalActions(playerId: PlayerId): Promise<LegalActions> {
     const response = await this.#request({ kind: "legalActions", id: this.#id(), playerId });
     if (response.kind !== "legalActions") throw new Error(`unexpected reply ${response.kind}`);

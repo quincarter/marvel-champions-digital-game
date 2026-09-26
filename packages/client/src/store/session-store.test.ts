@@ -316,4 +316,41 @@ describe("SessionStore", () => {
     expect(store.state.setupError?.illegalDecks).toHaveLength(1);
     expect(store.state.setupError?.illegalDecks[0]?.seatIndex).toBe(0);
   });
+
+  test("commandTrail records one entry per dispatched command, resets on a fresh start, and rewindTo truncates it", async () => {
+    await store.start(RHINO_SOLO);
+    expect(store.state.commandTrail).toEqual([]);
+
+    const dispatchOne = async (): Promise<void> => {
+      const legal = store.state.legal!.actions;
+      const command =
+        legal.kind === "choice"
+          ? {
+              type: "resolveChoice" as const,
+              playerId: legal.choice.playerId,
+              choiceId: legal.choice.choiceId,
+              selectedOptionIds: legal.choice.options.slice(0, legal.choice.minSelections).map((o) => o.optionId),
+            }
+          : legal.kind === "turn"
+            ? (legal.legal.find((a) => a.action.kind === "endTurn") ?? legal.legal[0])!.example
+            : (() => {
+                throw new Error(`unexpected legal kind ${legal.kind}`);
+              })();
+      const ok = await store.dispatch(command);
+      expect(ok).toBe(true);
+    };
+
+    await dispatchOne();
+    await dispatchOne();
+    await dispatchOne();
+    expect(store.state.commandTrail).toHaveLength(3);
+    expect(store.state.commandTrail.length).toBe(store.state.version);
+    const afterOne = store.state.commandTrail[0]!;
+
+    const ok = await store.rewindTo(1);
+    expect(ok).toBe(true);
+    expect(store.state.version).toBe(1);
+    expect(store.state.commandTrail).toHaveLength(1);
+    expect(store.state.commandTrail[0]).toEqual(afterOne);
+  });
 });

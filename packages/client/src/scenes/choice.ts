@@ -57,6 +57,7 @@ import {
 import { stepFocus } from "../view/focus.js";
 import type { GamepadIntent } from "../view/gamepad.js";
 import { appSession } from "../session.js";
+import { backOutTargetOf } from "../view/back-out.js";
 import { bindGamepad, bindKeyboard } from "./board/input.js";
 import { SCENES } from "./keys.js";
 import { bindHoldTarget } from "../ui/hold-target.js";
@@ -275,14 +276,29 @@ export class ChoiceOverlay extends Phaser.Scene {
     const barG = this.add.graphics();
     barG.fillStyle(surface.ink.hex, 1).fillRect(bar.x, bar.y, bar.width, bar.height);
 
-    let titleRight = bar.x + bar.width - 10;
+    // "Back out" (`view/back-out.ts`'s own doc comment): rewinds the game to the state just before this player's
+    // own `playCard`/`useAbility` opened this very choice — offered only when that command's own resolution hasn't
+    // yet taught anyone anything new. Placed in the title bar rather than beside Confirm/Decline: it belongs with
+    // "how did I get here", not with the answer to the question the choice is actually asking.
+    const backOutTarget = state.perspectiveId ? backOutTargetOf(state.commandTrail, choice, state.perspectiveId) : null;
+    let backOutRect: Rect | null = null;
+    // Everything else in the bar (the seat thumbnail, the title) stays clear of this reserved strip on its right,
+    // whether or not a seat is also shown — the same way the seat's own thumbnail already carves out its own space.
+    let barRight = bar.x + bar.width - 10;
+    if (backOutTarget !== null) {
+      const w = 96;
+      const h = Math.min(28, bar.height - 10);
+      backOutRect = { x: bar.x + bar.width - w - 10, y: bar.y + (bar.height - h) / 2, width: w, height: h };
+      barRight = backOutRect.x - 8;
+    }
+    let titleRight = barRight;
     if (seat) {
       // The identity card itself, so the seat is recognisable at a glance
       // rather than only readable.
-      const thumb: Rect = { x: bar.x + bar.width - 46, y: bar.y + 5, width: 32, height: bar.height - 10 };
+      const thumb: Rect = { x: barRight - 32, y: bar.y + 5, width: 32, height: bar.height - 10 };
       const key = cardArt(this).request(this, seat.art);
       if (drawArt(this, key, thumb, { fit: "cover" })) titleRight = thumb.x - 8;
-      else titleRight = bar.x + bar.width - 10;
+      else titleRight = barRight;
 
       const nameRight = titleRight;
       this.add.text(nameRight, bar.y + 13, seat.name, textStyle(typeRole.rowTitle, surface.paper.hex)).setOrigin(1, 0);
@@ -305,6 +321,18 @@ export class ChoiceOverlay extends Phaser.Scene {
       .setOrigin(0, 0.5)
       .setLetterSpacing(2);
     fitText(title, Math.max(60, titleRight - titleLeft), typeRole.barTitle.size);
+
+    if (backOutRect) {
+      this.#buttons.push(
+        new McButton(this, {
+          kind: "secondary",
+          label: "Back out",
+          type: typeRole.label,
+          rect: backOutRect,
+          onClick: () => void this.#backOut(backOutTarget!),
+        }),
+      );
+    }
 
     // The compact strip (phone, phone landscape, tablet portrait): there's no width to spare beside the sheet at
     // these sizes, so the source card sits inside it instead, just under the title bar and above everything else.
@@ -1074,6 +1102,21 @@ export class ChoiceOverlay extends Phaser.Scene {
       // it comes back rather than sitting faded on a decision nobody can
       // reach — a fresh `OverlayMotion` plays the entrance again instead of
       // trying to run `exit` backwards.
+      this.#motion = new OverlayMotion();
+      this.#rebuild();
+    }
+  }
+
+  /**
+   * "Back out" (`view/back-out.ts`): rewinds past the player's own `playCard`/`useAbility` that opened this choice,
+   * as if it had never been dispatched. Answers the same way `#confirm` does — fade immediately, let the Board's
+   * own sync stop this scene once the state moves on, come back if the rewind was refused.
+   */
+  async #backOut(target: number): Promise<void> {
+    if (this.#motion.leaving) return;
+    this.#motion.exit(this, () => {});
+    const accepted = await appSession().store.rewindTo(target);
+    if (!accepted) {
       this.#motion = new OverlayMotion();
       this.#rebuild();
     }

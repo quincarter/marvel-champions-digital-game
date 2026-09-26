@@ -104,6 +104,36 @@ export class IdbGameStorage implements GameStorage {
     await done;
   }
 
+  async truncate(gameId: string, commandCount: number, progress: SaveProgress): Promise<void> {
+    const db = await this.#open();
+    const transaction = db.transaction(["games", "commands"], "readwrite");
+    const done = committed(transaction);
+    const games = transaction.objectStore("games");
+    const meta = await settle(games.get(gameId) as IDBRequest<SaveMeta | undefined>);
+    if (!meta) {
+      transaction.abort();
+      await done.catch(() => undefined);
+      throw new Error(`no saved game ${gameId}`);
+    }
+    const commands = transaction.objectStore("commands");
+    // Every row whose seq is at or past the new length: `[gameId, commandCount]` up to `[gameId, Infinity]`.
+    const cursorRequest = commands.openCursor(IDBKeyRange.bound([gameId, commandCount], [gameId, Infinity]));
+    await new Promise<void>((resolve, reject) => {
+      cursorRequest.onsuccess = () => {
+        const cursor = cursorRequest.result;
+        if (cursor) {
+          cursor.delete();
+          cursor.continue();
+        } else {
+          resolve();
+        }
+      };
+      cursorRequest.onerror = () => reject(cursorRequest.error ?? new Error("IndexedDB cursor failed"));
+    });
+    games.put({ ...meta, ...progress });
+    await done;
+  }
+
   async load(gameId: string): Promise<StoredGame | null> {
     const db = await this.#open();
     const transaction = db.transaction(["games", "baselines", "commands"], "readonly");

@@ -318,6 +318,63 @@ export class EngineSessionCore {
     return { cardPool: initialState.cardPool, snapshot: this.#snapshot([]) };
   }
 
+  /**
+   * "Back out" (docs/wave4/back-out.md's own doc comment on the client side, `view/back-out.ts`): truncates the
+   * command log to its first `commandCount` commands and replays from the stored baseline, as if every command
+   * after that had never been dispatched. `commandCount` is a count the *caller* must have picked only from a
+   * legality check the client already ran (`view/back-out.ts`'s "no hidden information came to light" rule) —
+   * this itself does no such check; it is a pure, unconditional rewind of the log.
+   *
+   * Rebuilds the baseline the same way `resume` does (a fresh `createGame`, its card pool re-attached to the
+   * *stored* initial state) rather than reusing the live session's own pool, so a rewind produces byte-for-byte
+   * the same state a save-then-resume at that command count would. Persists the truncated log immediately (when
+   * this session has storage), so a reload after backing out does not resurrect the undone commands.
+   */
+  async rewindTo(commandCount: number): Promise<Snapshot> {
+    const session = this.#require();
+    const config = this.#config;
+    if (!config) throw new Error("no setup config to rewind against");
+    if (commandCount < 0 || commandCount > session.log.commands.length) {
+      throw new Error(`can't rewind to command ${commandCount} of ${session.log.commands.length}`);
+    }
+    const truncated = session.log.commands.slice(0, commandCount);
+    const baseline = rebuildBaseline(config, stripPool(session.log.initialState));
+    let record = recordEvents(emptyRecord(), baseline.setupEvents, baseline.initialState);
+    let state = baseline.initialState;
+    for (const command of truncated) {
+      const result = applyCommand(state, command, POOL_DEPS);
+      if (!result.ok) throw new Error(`rewind failed to replay: ${result.error.message}`);
+      state = result.state;
+      record = recordEvents(record, result.events, state);
+    }
+    this.#session = { state, log: { initialState: baseline.initialState, commands: truncated } };
+    this.#version = truncated.length;
+    this.#record = record;
+
+    const storage = this.#storage;
+    const gameId = this.#gameId;
+    if (storage && gameId) {
+      const progress = {
+        round: state.round,
+        commandCount: truncated.length,
+        updatedAt: this.#now(),
+        status: statusOf(state),
+        outcome: state.outcome,
+      };
+      // Chained onto `#writes`, the same queue `#persist` appends onto — a command dispatched just before this
+      // rewind may still have an `append` in flight, and truncating ahead of it would let that append land
+      // *after* the truncate and silently resurrect the very command this is undoing.
+      this.#writes = this.#writes
+        .then(() => storage.truncate(gameId, truncated.length, progress))
+        .catch((cause: unknown) => {
+          this.#saveError ??= describeCause(cause);
+        });
+      await this.#writes;
+    }
+
+    return this.#snapshot([]);
+  }
+
   dispatch(command: Command): CoreDispatch {
     const session = this.#require();
     const result = sessionApply(session, command, POOL_DEPS);

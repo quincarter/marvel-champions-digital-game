@@ -48,6 +48,13 @@ export class LocalEngineHost implements EngineHost {
     return { ok: true, update };
   }
 
+  async rewindTo(commandCount: number): Promise<EngineUpdate> {
+    const snapshot = await this.#core.rewindTo(commandCount);
+    const update = this.#hydrate(snapshot);
+    this.#publish(update);
+    return update;
+  }
+
   async legalActions(playerId: PlayerId): Promise<LegalActions> {
     return this.#core.legalActions(playerId);
   }
