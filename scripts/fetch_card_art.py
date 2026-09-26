@@ -32,6 +32,18 @@ Four commands:
           `--fill-missing` also adds art for any card the scraped pack has no
           local scan for at all (not just replacements).
 
+          Matching is by filename-as-code or by name (`match_code`) first.
+          Some pack pages (Mad Titan's Shadow's box and encounters pages) give
+          neither: every image is named by its own per-encounter-set sequence
+          (`e1.jpg`, `t7b.jpg`...) with empty alt text, not by card code or
+          name. Whatever `match_code` can't place falls back to `match_by_art`:
+          a perceptual hash (`phash`) of each remaining candidate against every
+          remaining local scan in the pack, resolved by Hungarian assignment
+          and only kept where the match is both close and unambiguous. This
+          only works for a *replacement* (it needs the existing local scan as
+          the reference to match against) — `--fill-missing` still needs a
+          name/filename hit for a card with no local scan at all.
+
   missing Fetches exactly the scans `pnpm --filter @mc/client build` reports as
           referenced by the card pool but absent from the folder — asking the
           build for that list (`vite-card-art.ts`'s own warning) rather than
@@ -82,6 +94,8 @@ import numpy as np
 from bs4 import BeautifulSoup
 from PIL import Image, ImageFilter
 from scipy import ndimage
+from scipy.fft import dctn
+from scipy.optimize import linear_sum_assignment
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 CARDS_DIR = REPO_ROOT / "assets" / "card-art" / "bundles" / "cards"
@@ -174,6 +188,13 @@ PAD_WHITE = 225
 # A trimmed card's long/short edge ratio must land here (a printed card is 88x63mm, 1.40; local scans run 1.39-1.45).
 CARD_ASPECT = (1.34, 1.50)
 
+# Art-hash matching (see `phash`/`match_by_art`): a Hungarian assignment is only trusted when the winning pair's
+# Hamming distance is small in absolute terms (distinct card art differs by 20+ of the 64 bits; the same art with a
+# stamp or a different crop differs by well under this) and clearly better than that code's next-best remote
+# candidate, so a code with no real match on the page isn't forced onto whatever remote image is merely "closest".
+HASH_MAX_DISTANCE = 10
+HASH_MARGIN = 6
+
 
 # --------------------------------------------------------------------------- local card data
 
@@ -249,6 +270,61 @@ class StampDetector:
 
     def stamped(self, img: Image.Image) -> bool:
         return self.score(img) > STAMP_THRESHOLD
+
+
+# --------------------------------------------------------------------------- art matching
+
+
+def phash(img: Image.Image) -> int:
+    """
+    A 64-bit perceptual hash of a (trimmed) card image: the sign of its low-frequency DCT coefficients, which is
+    unaffected by JPEG noise, a small watermark, or being cropped slightly differently, but differs sharply between
+    two different pieces of card art. Used to match a Hall of Heroes image to a local card code on pages that give
+    the matcher nothing else to go on (no code-shaped filename, no alt text) — see `match_by_art`.
+    """
+    small = img.convert("L").resize((32, 32), Image.Resampling.LANCZOS)
+    coeffs = dctn(np.asarray(small, dtype=np.float64), norm="ortho")[:8, :8]
+    bits = coeffs > np.median(coeffs)
+    h = 0
+    for b in bits.flat:
+        h = (h << 1) | int(b)
+    return h
+
+
+def hamming(a: int, b: int) -> int:
+    return int(bin(a ^ b).count("1"))
+
+
+def match_by_art(
+    local_hashes: dict[str, int], remote: list[tuple[str, str, int]]
+) -> dict[str, tuple[str, str]]:
+    """
+    Assigns Hall of Heroes images to local card codes within one pack by art content alone, for pages whose filenames
+    and alt text carry no usable card identity (Mad Titan's Shadow numbers every image `e1.jpg`, `t7b.jpg`, etc. by
+    its own per-encounter-set sequence, not by card code or name). `remote` is `(url, alt, phash)` triples already
+    downloaded, trimmed, and confirmed unstamped by the caller.
+
+    A Hungarian assignment (`scipy.optimize.linear_sum_assignment`) over the full local-code x remote-image distance
+    matrix finds the globally cheapest one-to-one pairing, rather than greedily matching each code to whatever is
+    nearest first (which can steal an image that was a better match for a different code). Only pairs clearing both
+    `HASH_MAX_DISTANCE` and `HASH_MARGIN` are returned — a code genuinely absent from the page (not every card gets
+    photographed on every pack page) should come back unmatched, not paired with the least-bad leftover image.
+    """
+    codes = list(local_hashes)
+    if not codes or not remote:
+        return {}
+    cost = np.array([[hamming(local_hashes[c], h) for _, _, h in remote] for c in codes], dtype=np.float64)
+    rows, cols = linear_sum_assignment(cost)
+    out: dict[str, tuple[str, str]] = {}
+    for r, c in zip(rows, cols):
+        dist = cost[r, c]
+        if dist > HASH_MAX_DISTANCE:
+            continue
+        rest = np.delete(cost[r], c)
+        if rest.size and rest.min() - dist < HASH_MARGIN:
+            continue
+        out[codes[r]] = remote[c][:2]
+    return out
 
 
 # --------------------------------------------------------------------------- image handling
@@ -383,9 +459,58 @@ def original_url(img_tag, page_url: str) -> str | None:
     return url[: len(url) - len(path)] + path[: len(path) - len(stem) - 1 - len(ext)] + base + dot + ext
 
 
+# Explicit filename -> code overrides for pages where neither the filename-as-code rule nor alt/name matching can
+# work at all: Mad Titan's Shadow numbers every image by its own per-encounter-set sequence (`e1.jpg`, `t7a.jpg`...)
+# with empty alt text, and `match_by_art` (the generic content-hash fallback) can't tell apart a villain's identical
+# artwork printed at 3 difficulty stages, or one main scheme's two faces, from each other. Each entry here was
+# confirmed by reading the MarvelCDB collector number Hall of Heroes' own scan prints in the card's bottom corner
+# (e.g. `e1.jpg` -> "EBONY MAW (1/22) ... 71"), not guessed from position — Hall of Heroes' gallery order does not
+# reliably follow card-code order (`the-mad-titans-shadow-encounters-and-mods`'s "Tower Defense" section runs
+# 21092-21099 before looping back for card 21100 onward). Covers every Mad Titan's Shadow villain stage and main
+# scheme face; see the `card-data-pipeline` handoff notes for the 2026-09-26 audit this closed out.
+PACK_FILENAME_CODES: dict[str, dict[str, str]] = {
+    "mts": {
+        "e1": "21071",  # Ebony Maw, stage 1
+        "e2": "21072",  # Ebony Maw, stage 2
+        "e3": "21073",  # Ebony Maw, stage 3
+        "e4a": "21074",  # Attack on Knowhere (main scheme 1)
+        "e5a": "21075",  # The Power Stone (main scheme 2)
+        "t1": "21092",  # Proxima Midnight, stage 1
+        "t2": "21093",  # Proxima Midnight, stage 2
+        "t3": "21094",  # Proxima Midnight, stage 3
+        "t4": "21095",  # Corvus Glaive, stage 1
+        "t5": "21096",  # Corvus Glaive, stage 2
+        "t6": "21097",  # Corvus Glaive, stage 3
+        "t7a": "21098",  # Under Siege (main scheme 1)
+        "t8a": "21099",  # The Armies of Thanos (main scheme 2)
+        "t1-1": "21111",  # Thanos, stage 1 - distinct upload from Tower Defense's "t1"
+        "t2-1": "21112",  # Thanos, stage 2 - distinct upload from Tower Defense's "t2"
+        "t3-1": "21113",  # Thanos, stage 3 - distinct upload from Tower Defense's "t3"
+        "t4a": "21114",  # The Infinity Stones (Thanos main scheme 1) - distinct upload from Tower Defense's "t4"
+        "t5a": "21115",  # Balance the Scales (Thanos main scheme 2) - distinct upload from Tower Defense's "t5"
+        "h1a": "21136a",  # Hela, stage 1
+        "h2a": "21137a",  # Hela, stage 2
+        "h3a": "21138",  # Odin's Torment (Hela main scheme)
+        "l1": "21160",  # Loki, stage 1
+        "l2": "21161",  # Loki, stage 2
+        "l3": "21162",  # Loki, stage 3
+        "l4": "21163",  # Loki, stage 4
+        "l5": "21164",  # Loki, stage 5
+        "l6a": "21165",  # All Hail King Loki (main scheme)
+        "c1a": "21180a",  # Secure the Landing Pad (campaign side scheme)
+        "c13a": "21186a",  # Find the Norn Stones (campaign side scheme)
+        "c17a": "21187a",  # Norn Stone (campaign upgrade)
+        "c19a": "21189a",  # Open the Dungeons (campaign side scheme)
+    },
+}
+
+
 def match_code(url: str, alt: str, pack: str, by_name: dict[str, list[Card]]) -> str | None:
-    """Card code for an image: its file name when that is a code (Hall of Heroes' usual naming), else a unique name."""
+    """Card code for an image: its file name when that is a code (Hall of Heroes' usual naming), else a unique name,
+    else a `PACK_FILENAME_CODES` override for a page too cryptic for either."""
     stem = urlparse(url).path.rpartition("/")[2].rpartition(".")[0].lower()
+    if override := PACK_FILENAME_CODES.get(pack, {}).get(stem):
+        return override
     for _ in range(3):
         if m := CODE_RE.match(stem):
             return m.group(1)
@@ -515,6 +640,49 @@ def fetch(args: argparse.Namespace) -> None:
     stats = {"replaced": 0, "added": 0, "kept": 0, "stamped": 0, "untrimmed": 0, "unmatched": 0}
     today = date.today().isoformat()
 
+    def prepare(url: str, code: str) -> tuple[Image.Image, tuple[int, int, int, int]] | None:
+        """Downloads and trims one candidate, or None (and a printed reason + stats bump) if it can't be used."""
+        data = http.get(url)
+        if not data:
+            return None
+        try:
+            trimmed = trim(Image.open(io.BytesIO(data)))
+        except Exception as e:
+            print(f"    ! {code}: unreadable image ({e})")
+            return None
+        if trimmed is None:
+            stats["untrimmed"] += 1
+            print(f"    - {code}: not card-shaped once the padding is trimmed; skipped ({url})")
+            return None
+        new, padding = trimmed
+        if detector.stamped(new):
+            stats["stamped"] += 1
+            print(f"    - {code}: Hall of Heroes copy is stamped too")
+            return None
+        return new, padding
+
+    def consider(code: str, url: str, new: Image.Image, padding: tuple[int, int, int, int], pack: str) -> bool:
+        """Saves `new` over `code`'s local scan (or adds it) if it clears the size/shape bar. Returns whether it did."""
+        local = scans.get(code)
+        if local is not None:
+            with Image.open(local) as old:
+                old_size, old_aspect, old_landscape = old.size, aspect(old), old.width > old.height
+            if (new.width > new.height) != old_landscape or abs(aspect(new) - old_aspect) > 0.06:
+                print(f"    - {code}: shape {new.size} doesn't match local {old_size}; skipped")
+                return False
+            bigger = max(new.size) >= max(old_size) * UPGRADE_FACTOR
+            if not (bigger or code in stamped_codes):
+                stats["kept"] += 1
+                return False
+        dest = local or CARDS_DIR / f"{code}.png"
+        verb = "replace" if local else "add"
+        print(f"    + {code}: {verb} {dest.name} {'' if local is None else old_size} -> {new.size}, trimmed {padding}")
+        stats["replaced" if local else "added"] += 1
+        if not args.dry_run:
+            save_like(new, dest)
+            manifest[code] = [code, pack, cards[code].name, pages[0], url, today]
+        return True
+
     for pack in packs:
         pages = pack_pages(http, pack, names)
         if not pages:
@@ -522,54 +690,52 @@ def fetch(args: argparse.Namespace) -> None:
             continue
         print(f"\n[+] {pack}: {pages[0]}")
         done: set[str] = set()
+        leftover: list[tuple[str, str]] = []
         for url, alt in page_images(http, pages[0]):
             code = match_code(url, alt, pack, by_name)
             if not code or pack_of(code, cards) != pack:
-                if code is None and re.search(r"\.(jpe?g|png|webp)$", url, re.I):
-                    stats["unmatched"] += 1
-                    if args.verbose:
-                        print(f"    ? unmatched {url} ({alt!r})")
+                if re.search(r"\.(jpe?g|png|webp)$", url, re.I):
+                    leftover.append((url, alt))
+                    if code is None:
+                        stats["unmatched"] += 1
+                        if args.verbose:
+                            print(f"    ? unmatched {url} ({alt!r})")
                 continue
             if code in done or (args.stamped_only and code not in stamped_codes):
                 continue
             local = scans.get(code)
             if local is None and not args.fill_missing:
                 continue
-            data = http.get(url)
-            if not data:
-                continue
-            try:
-                trimmed = trim(Image.open(io.BytesIO(data)))
-            except Exception as e:
-                print(f"    ! {code}: unreadable image ({e})")
-                continue
-            if trimmed is None:
-                stats["untrimmed"] += 1
-                print(f"    - {code}: not card-shaped once the padding is trimmed; skipped ({url})")
-                continue
-            new, padding = trimmed
-            if detector.stamped(new):
-                stats["stamped"] += 1
-                print(f"    - {code}: Hall of Heroes copy is stamped too")
-                continue
-            if local is not None:
-                with Image.open(local) as old:
-                    old_size, old_aspect, old_landscape = old.size, aspect(old), old.width > old.height
-                if (new.width > new.height) != old_landscape or abs(aspect(new) - old_aspect) > 0.06:
-                    print(f"    - {code}: shape {new.size} doesn't match local {old_size}; skipped")
+            prepared = prepare(url, code)
+            if prepared and consider(code, url, *prepared, pack):
+                done.add(code)
+
+        # Art-hash fallback (see `match_by_art`): pages like Mad Titan's Shadow's number every image by its own
+        # per-encounter-set sequence (`e1.jpg`, `t7b.jpg`...), not by card code or name, so `match_code` above leaves
+        # almost everything unmatched. Whatever it *did* leave over (`leftover`) still might be the very art a
+        # not-yet-`done` code needs; match by content instead of name for those only.
+        wanted = (stamped_codes if args.stamped_only else set(scans)) & {c for c in cards if pack_of(c, cards) == pack}
+        wanted -= done
+        if leftover and wanted:
+            local_hashes: dict[str, int] = {}
+            for code in wanted:
+                if code not in scans:
                     continue
-                bigger = max(new.size) >= max(old_size) * UPGRADE_FACTOR
-                if not (bigger or code in stamped_codes):
-                    stats["kept"] += 1
-                    continue
-            dest = local or CARDS_DIR / f"{code}.png"
-            verb = "replace" if local else "add"
-            print(f"    + {code}: {verb} {dest.name} {'' if local is None else old_size} -> {new.size}, trimmed {padding}")
-            done.add(code)
-            stats["replaced" if local else "added"] += 1
-            if not args.dry_run:
-                save_like(new, dest)
-                manifest[code] = [code, pack, cards[code].name, pages[0], url, today]
+                with Image.open(scans[code]) as img:
+                    local_hashes[code] = phash(img)
+            remote: list[tuple[str, str, int]] = []
+            prepared_by_url: dict[str, tuple[Image.Image, tuple[int, int, int, int]]] = {}
+            for url, alt in leftover:
+                prepared = prepare(url, f"(art-match candidate) {url}")
+                if prepared:
+                    prepared_by_url[url] = prepared
+                    remote.append((url, alt, phash(prepared[0])))
+            matches = match_by_art(local_hashes, remote)
+            if matches:
+                print(f"    [art-match] {len(matches)} candidate(s) matched by content, no usable filename/alt text")
+            for code, (url, _alt) in matches.items():
+                if consider(code, url, *prepared_by_url[url], pack):
+                    done.add(code)
 
     if not args.dry_run:
         write_manifest(manifest)
