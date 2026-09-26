@@ -38,7 +38,7 @@ import {
 } from "./rules.js";
 import { pushEvent } from "./resolve/frames.js";
 import { releaseTreatedBy } from "./treat-as.js";
-import { cardsInPlay, gliderMainSchemeId, matchesQuery, type EffectContext } from "./select.js";
+import { cardsInPlay, controllerOf, gliderMainSchemeId, matchesQuery, traitsOf, type EffectContext } from "./select.js";
 import { heard } from "./resolve/triggers.js";
 import type { StatusName } from "./spec.js";
 import type { GameOutcome, GameState, MainSchemeState, ZoneId } from "./state.js";
@@ -563,6 +563,22 @@ export function defeatFromPlay(ctx: Ctx, id: InstanceId, insteadOfDiscard?: () =
   else discardFromPlay(ctx, id);
 }
 
+const LISTENS_FOR_LEAVING_PLAY = new WeakMap<EngineDeps, boolean>();
+
+/** Whether any ability in the registry triggers on `cardLeavesPlay` (docs/phase7-wave5.md §3.13); cached per registry. */
+function listensForLeavingPlay(deps: EngineDeps): boolean {
+  const cached = LISTENS_FOR_LEAVING_PLAY.get(deps);
+  if (cached !== undefined) return cached;
+  const listens = Object.values(deps.abilities).some((definition) => {
+    const trigger = definition.trigger;
+    if (!("on" in trigger) || !trigger.on) return false;
+    const kinds = typeof trigger.on.on === "string" ? [trigger.on.on] : trigger.on.on;
+    return kinds.includes("cardLeavesPlay");
+  });
+  LISTENS_FOR_LEAVING_PLAY.set(deps, listens);
+  return listens;
+}
+
 /**
  * A card leaves play for `to` (discard, hand, deck, removed from game): its
  * attachments are discarded and its in-play state (damage, threat, counters,
@@ -584,6 +600,15 @@ export function leavePlay(
   // "If Odin leaves play, the players lose the game." (docs/phase7-wave4.md §3.8): read while it is still in play.
   const loses = leavingPlayLoses(ctx.state, ctx.deps, id);
   const instance = mustInstance(ctx.state, id);
+  // "When/After X leaves play" (docs/phase7-wave5.md §3.13): what it was, read while it is still in play.
+  const left = listensForLeavingPlay(ctx.deps)
+    ? {
+        instanceId: id,
+        cardId: instance.cardId,
+        controllerId: controllerOf(ctx.state, id),
+        traits: traitsOf(ctx.state, id, ctx.deps),
+      }
+    : null;
   // RRG 1.8 "Double-Sided Card" (p. 17): "When a double-sided card would enter an out-of-play area other than the
   // victory display or set-aside area, it is removed from the game."
   const card = ctx.state.cardPool[instance.cardId];
@@ -627,6 +652,12 @@ export function leavePlay(
   }));
   // "While Karma is in play": a minion it took goes back when it leaves (docs/phase7-wave4.md §3.29).
   releaseTreatedBy(ctx, id);
+  if (left) {
+    ctx.state = {
+      ...ctx.state,
+      pendingLeftPlay: [...(ctx.state.pendingLeftPlay ?? []), { ...left, to: to.kind }],
+    };
+  }
   if (loses) endGame(ctx, { result: "loss", reason: "cardAbility" });
   if (redirect !== null) {
     pushEvent(ctx, { kind: "discardRedirected", instanceId: id, area: redirect.area });

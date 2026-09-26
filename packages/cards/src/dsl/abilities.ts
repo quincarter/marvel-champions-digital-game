@@ -1178,6 +1178,13 @@ export const on = {
   lastCounterRemoved: (counterType: string): EventPattern =>
     pattern("countersRemoved", { selfIs: "target", eventIs: { counterType }, eventAtMost: { remaining: 0 } }),
   /**
+   * "When [this ally] leaves play" (Spider-Man (Hobie Brown), Ghost-Spider, `sm` 27017, 27048) with `"self"`, or "After
+   * a [Web-Warrior] ally leaves play" (Web of Life and Destiny 27023) with a query; the ability's trigger kind picks
+   * the window (docs/phase7-wave5.md §3.13). Leaving is any departure (defeat, discard, hand, deck, victory display,
+   * removal). The card has already moved when either window opens (§4 Q17); a query's traits are the card's as it left.
+   */
+  leavesPlay: (who: Who): EventPattern => pattern("cardLeavesPlay", asTarget(who)),
+  /**
    * "When you would draw or discard an encounter card from your deck" (Maze of Mirrors / Edge of Reality 1B/2B, `sm`
    * 27087b/27088b; docs/phase7-wave5.md §3.5): any player's, named with `eventPlayer`; "it" is `eventTarget`. Heard
    * after the whole draw (MC27 p. 21 FAQ). `how` narrows it to a draw or a discard.

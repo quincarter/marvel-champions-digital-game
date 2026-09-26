@@ -16,8 +16,10 @@ import {
   gainsKeyword,
   heroInterrupt,
   increaseDamageTaken,
+  interrupt,
   mainSchemeMarkedBy,
   on,
+  response,
   setup,
   special,
   whenDefeated,
@@ -274,6 +276,21 @@ describe("§3.12 'the first attack this turn' (Venom III)", () => {
     expect(firstAttackThisTurn({ against: { self: true } })).toEqual({
       kind: "firstAttackThisTurn",
       against: { self: true },
+    });
+  });
+});
+
+describe("§3.13 'When/After X leaves play'", () => {
+  it("Spider-Man (Hobie Brown)'s interrupt and Web of Life and Destiny's response", () => {
+    const WEB_WARRIOR = trait("WEB-WARRIOR");
+    const hobie = interrupt(on.leavesPlay("self"), discardEncounterCards(3, { bind: "discarded" }));
+    valid(hobie);
+    expect(hobie.trigger).toMatchObject({ kind: "interrupt", on: { on: "cardLeavesPlay", selfIs: "target" } });
+    const webOfLife = response(on.leavesPlay(query("ally", { trait: WEB_WARRIOR })), draw(1));
+    valid(webOfLife);
+    expect(webOfLife.trigger).toMatchObject({
+      kind: "response",
+      on: { on: "cardLeavesPlay", targetIs: { categories: ["ally"], trait: WEB_WARRIOR } },
     });
   });
 });

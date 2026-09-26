@@ -1,7 +1,8 @@
-import type { AbilityId, CardId } from "@mc/content";
+import type { AbilityId, CardId, Trait } from "@mc/content";
 import type { FrameId, InstanceId, PlayerId } from "./ids.js";
 import type { CardDestination } from "./spec.js";
 import type { Vars } from "./stack.js";
+import type { ZoneId } from "./state.js";
 
 /**
  * Something that happens in the game and that abilities can hook. Every one of
@@ -372,6 +373,26 @@ export type TriggerEventBody =
       readonly how: "draw" | "discard";
     }
   /**
+   * A card left play (docs/phase7-wave5.md §3.13): "Interrupt: When Spider-Man leaves play, …" (`sm` 27017, Ghost-Spider
+   * 27048) and "Response: After a [Web-Warrior] ally leaves play, …" (Web of Life and Destiny 27023, Warrior of the
+   * Great Web 30029). RRG 1.8 "Leaves Play" (p. 27) covers defeat, discard, the victory display, returning to hand or
+   * deck and removal from the game. Recorded by `leavePlay` and announced between frames, only when an ability listens,
+   * with an interrupt window (its apply step changes nothing) and a response window.
+   *
+   * The interrupt resolves after the card has moved, not before (§4 Q17): `leavePlay` is synchronous for its many
+   * callers. So the event carries what the card was as it left — `cardId`, `controllerId` and `traits` (granted ones
+   * included, read while it was still in play) — and a trigger's `targetIs` trait clauses read `traits`. The leaving
+   * card's own abilities answer it from wherever it went (`leftCardCandidates`).
+   */
+  | {
+      readonly kind: "cardLeavesPlay";
+      readonly instanceId: InstanceId;
+      readonly cardId: CardId;
+      readonly controllerId: PlayerId | null;
+      readonly to: ZoneId["kind"];
+      readonly traits: readonly Trait[];
+    }
+  /**
    * A boost card has been resolved for an activation — its Boost ability done and its icons counted — and is about to be
    * discarded (docs/phase7-wave5.md §3.5). Mysterio I–III (`sm` 27084–27086): "Forced Response: After you resolve a boost
    * card during Mysterio's activation, place that card in your discard pile / on the bottom of your deck / on the top of
@@ -643,6 +664,9 @@ export function isAnnouncement(event: TriggerEvent): boolean {
     // card is already where the draw or discard put it when this is pushed (after the whole draw, MC27 p. 21 FAQ), so
     // its apply step changes nothing; the interrupt's own effect moves it on.
     case "encounterCardFromPlayerDeck":
+    // "When X leaves play" (docs/phase7-wave5.md §3.13): an interrupt window, then the responses; the card has already
+    // moved (§4 Q17), so the apply step changes nothing.
+    case "cardLeavesPlay":
       return false;
     default:
       return true;
@@ -716,6 +740,8 @@ export function eventSubjects(event: TriggerEvent): EventSubjects {
       return of([], [event.instanceId], []);
     case "encounterCardFromPlayerDeck":
       return of([], [event.instanceId], [event.playerId]);
+    case "cardLeavesPlay":
+      return of([], [event.instanceId], [event.controllerId]);
     case "boostCardResolved":
       return of([event.enemyInstanceId], [event.boostInstanceId], [event.playerId]);
     case "boostIconsCounting":

@@ -288,6 +288,18 @@ export interface EncounterFromDeck {
   readonly how: "draw" | "discard";
 }
 
+/**
+ * A card that left play, as it was while still in play, waiting to be announced (`TriggerEvent cardLeavesPlay`,
+ * docs/phase7-wave5.md §3.13).
+ */
+export interface LeftPlay {
+  readonly instanceId: InstanceId;
+  readonly cardId: CardId;
+  readonly controllerId: PlayerId | null;
+  readonly to: ZoneId["kind"];
+  readonly traits: readonly Trait[];
+}
+
 /** A deck that ran out, waiting to be announced between frames (`TriggerEvent deckRanOut`, docs/phase7-wave4.md §3.11). */
 export type DeckRunOut =
   | { readonly deck: "player"; readonly playerId: PlayerId }
@@ -570,6 +582,12 @@ export interface GameState {
    * and empties the list. Absent until one first leaves a deck. docs/phase7-wave5.md §3.5.
    */
   readonly pendingEncounterFromDeck?: readonly EncounterFromDeck[];
+  /**
+   * Cards that left play since the flow last looked, oldest first, recorded by `leavePlay` only when some ability in the
+   * registry triggers on it: the flow announces each as `cardLeavesPlay` between frames and empties the list. Absent
+   * until one first leaves. docs/phase7-wave5.md §3.13.
+   */
+  readonly pendingLeftPlay?: readonly LeftPlay[];
   readonly villainArea: readonly InstanceId[];
   readonly victoryDisplay: readonly InstanceId[];
   readonly removedFromGame: readonly InstanceId[];

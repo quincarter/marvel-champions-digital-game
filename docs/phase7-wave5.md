@@ -344,7 +344,7 @@ against `pnpm dsl` (379 builders), the engine's `EffectSpec` / `RuleSpec` / `Tri
 | 3.10 | Scheme icons printed on any card                                                             | Team Leader, Public Outcry, Venom ally, Symbiote Suit; 30 records in other packs               | landed  |
 | 3.11 | Text that depends on the mode of play                                                        | Frequent Flyers ×3, Surprise!, From Every Direction, Life-Size Decoy, Ambush!, Teamwork …      | landed  |
 | 3.12 | "The first attack this turn"                                                                 | Venom III (Retribution)                                                                        | landed  |
-| 3.13 | "When/After X leaves play"                                                                   | Spider-Man (Hobie Brown), Ghost-Spider ally, Web of Life and Destiny, Warrior of the Great Web | open    |
+| 3.13 | "When/After X leaves play"                                                                   | Spider-Man (Hobie Brown), Ghost-Spider ally, Web of Life and Destiny, Warrior of the Great Web | landed  |
 | 3.14 | "(Max 1 per [instance])"                                                                     | Ghost Kick, Phantom Flip, Web-Bracelet, Fluid Motion; Temporal Shield, Psylocke 41xxx          | open    |
 | 3.15 | Facedown attached cards: playable events, a count, a maximum                                 | George Stacy, Parental Guidance, Worried Father, Spider-Man Noir                               | open    |
 | 3.16 | How a card was paid for: resources by type and by source                                     | Moon Girl, VEN#m, Rapid Deployment, Web-Trap; Sync Ratio                                       | open    |
@@ -696,6 +696,17 @@ records it (wave 2 §11.3); `Predicate firstAttackThisTurn { target }`. Verify t
 
 ### 3.13 "When/After X leaves play"
 
+> **Status: landed (2026-09-26),** tested in `packages/engine/src/leaves-play.test.ts` (3 tests: a discarded ally's own
+> interrupt resolves, then a response to "a [Web-Warrior] ally" reads the trait a support granted it, replay
+> deep-equal; returning to hand counts; an ally without the trait triggers neither). DSL: `wave5-primitives.test.ts`.
+> **What landed:** one **`TriggerEvent cardLeavesPlay { instanceId, cardId, controllerId, to, traits }`** with both
+> windows (the ability's own trigger kind picks one) instead of the plan's two events. `leavePlay` records what the
+> card was while still in play (`GameState.pendingLeftPlay`), only when some ability in the registry triggers on it, and
+> the flow announces it between frames when one listens. The card that left answers its own event from wherever it went
+> (`leftCardCandidates`, the spent-card precedent; an ability with a cost is not offered), and a `targetIs` trait clause
+> reads the event's `traits`. The interrupt opens after the move: new §4 Q17. **DSL:** `on.leavesPlay(who)` for both
+> "When" (`interrupt`) and "After" (`response`).
+
 Spider-Man (Hobie Brown) and Ghost-Spider ally: "Interrupt: When [this ally] leaves play, …"; Web of Life and
 Destiny, Warrior of the Great Web: "Response: After a [Web-Warrior] ally leaves play". Wave 4 §3.8 listed this as not
 built. RRG 1.8 "Leaves Play" (p. 27) covers defeat, discard, victory display and removal from the game; ruling Jan 17,
@@ -925,8 +936,17 @@ flagged; none is implemented yet.**
 16. **Venom III's "if this is the first attack this turn"** (§3.12; added 2026-09-26 by `game-rules-architect`). No
     ruling says which attacks count: every attack this turn (a player's attack on a minion first makes the Venom attack
     not the first), or only attacks on Venom. **Default:** the literal reading, every attack made during this player's
-    turn, player-made or enemy-made (`firstAttackThisTurn()`); the other reading is `firstAttackThisTurn({ against:
-{ self: true } })` if FFG or the user says so.
+    turn, player-made or enemy-made (`firstAttackThisTurn()`). The other reading, if FFG or the user says so, is
+    `firstAttackThisTurn` with `against` set to the card itself.
+17. **"When X leaves play" resolves after the card has moved** (§3.13; added 2026-09-26 by `game-rules-architect`).
+    RRG 1.8 "Interrupt" (p. 25) resolves an interrupt before its triggering condition, and ruling Jan 17, 2026 (1) #2
+    has the "Leaves Play" bullets happen as the card leaves, so the card should still be in play with its attachments
+    when the interrupt resolves. The engine's `leavePlay` is synchronous for dozens of callers, so the interrupt window
+    opens after the move, with what the card was (title, controller, traits including granted ones) carried on the
+    event. **Default:** as built. Every wave 5 interrupt (Spider-Man (Hobie Brown), Ghost-Spider) and response reads
+    nothing the move changes; a replacement ("tuck it under here instead", Abduct Superhumans, `aos` 50081) would move
+    the card from where it went, which ends the same unless the card went to the hand. Revisit if a card needs the
+    card in play.
 
 ---
 

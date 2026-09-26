@@ -101,7 +101,15 @@ function matchesRest(
   const context: EffectContext = { selfInstanceId: selfId, controllerId: controller, event, bindings: {}, deps };
   if (pattern.targetIs) {
     const query: TargetQuery = pattern.targetIs;
-    if (!subjects.targets.some((target) => matchesQuery(state, target, query, context))) return false;
+    if (event.kind === "cardLeavesPlay") {
+      // "After a [Web-Warrior] ally leaves play": its traits as it left, granted ones included (§3.13 of wave 5).
+      const { trait, withoutTrait, anyTrait, ...rest } = query;
+      const traits = event.traits;
+      if (trait && !traits.includes(trait)) return false;
+      if (withoutTrait && traits.includes(withoutTrait)) return false;
+      if (anyTrait && !anyTrait.some((wanted) => traits.includes(wanted))) return false;
+      if (!matchesQuery(state, event.instanceId, rest, context)) return false;
+    } else if (!subjects.targets.some((target) => matchesQuery(state, target, query, context))) return false;
   }
   if (pattern.sourceIs) {
     const query: TargetQuery = pattern.sourceIs;
@@ -227,7 +235,41 @@ export function candidatesFor(
     }
   }
   found.push(...spentCardCandidates(state, deps, event, timing, forced));
+  found.push(...leftCardCandidates(state, deps, event, timing, forced));
   if (!forced) found.push(...inHandCandidates(state, deps, event, timing));
+  return found;
+}
+
+/**
+ * "Interrupt: When Spider-Man leaves play, …" (`sm` 27017; docs/phase7-wave5.md §3.13): the card that left answers its
+ * own `cardLeavesPlay` from wherever it went, controlled by whoever controlled it as it left. Only its abilities on that
+ * event with itself as the target (`selfIs: "target"`) come alive, as `spentCardCandidates` does for a spent card.
+ */
+function leftCardCandidates(
+  state: GameState,
+  deps: EngineDeps,
+  event: TriggerEvent,
+  timing: WindowTiming,
+  forced: boolean,
+): readonly TriggerCandidate[] {
+  if (event.kind !== "cardLeavesPlay") return [];
+  const id = event.instanceId;
+  if (cardsInPlay(state).includes(id)) return [];
+  const controllerId = event.controllerId;
+  const found: TriggerCandidate[] = [];
+  for (const ref of activeAbilityRefs(state, id, deps)) {
+    const definition = deps.abilities[ref.id];
+    if (!definition) continue;
+    const trigger = definition.trigger;
+    if (trigger.kind !== timing || trigger.forced !== forced) continue;
+    if (trigger.on.selfIs !== "target") continue;
+    if (!formSatisfied(state, controllerId, trigger.form)) continue;
+    if (limitReached(state, id, ref.id, definition, event, controllerId)) continue;
+    if (!matchesPattern(state, trigger.on, event, id, deps, controllerId ?? undefined)) continue;
+    // A cost is paid from play; a card that has left has nothing to pay it with.
+    if (definition.cost) continue;
+    found.push(candidateOf({ instanceId: id, abilityId: ref.id, controllerId, definition }, forced));
+  }
   return found;
 }
 

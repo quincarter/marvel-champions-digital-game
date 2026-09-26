@@ -410,6 +410,24 @@ export function announceEncounterCardsFromDecks(ctx: Ctx): boolean {
   return true;
 }
 
+/**
+ * Announces each card that left play since the last look (`TriggerEvent cardLeavesPlay`, docs/phase7-wave5.md §3.13),
+ * when an ability listens, and empties the list; pushed last-first so the oldest resolves first. Returns true when it
+ * pushed a frame.
+ */
+export function announceCardsLeftPlay(ctx: Ctx): boolean {
+  const pending = ctx.state.pendingLeftPlay;
+  if (!pending || pending.length === 0) return false;
+  const { pendingLeftPlay: _, ...rest } = ctx.state;
+  ctx.state = rest;
+  const events: TriggerEvent[] = pending
+    .map((left): TriggerEvent => ({ kind: "cardLeavesPlay", ...left }))
+    .filter((event) => heard(ctx.state, ctx.deps, event));
+  if (events.length === 0) return false;
+  for (const event of [...events].reverse()) pushEvent(ctx, event);
+  return true;
+}
+
 /** Shuffles an encounter deck: "the encounter deck" is the active villain's. */
 export function shuffleEncounterDeck(ctx: Ctx, deckId: EncounterDeckId = activeEncounterDeckId(ctx.state)): void {
   const order = shuffleZone(ctx, { kind: "encounterDeck", deckId }, encounterDeckOf(ctx.state, deckId).deck);
