@@ -1,7 +1,7 @@
-import type { AbilityReference, AnyCard, Trait } from "@mc/content";
+import type { AbilityReference, AnyCard, CardId, Trait } from "@mc/content";
 import { type AbilityTriggerSpec, DEFAULT_DEPS, type EngineDeps, type RuleSpec } from "./abilities.js";
 import type { InstanceId, PlayerId } from "./ids.js";
-import { activeFormType, hasKeyword, printedFormTypes, statusActive } from "./keywords.js";
+import { activeFormType, hasKeyword, printedFormTypes, statusActive, unblankedPrintedKeywordsOf } from "./keywords.js";
 import {
   activeVillain,
   cardOf,
@@ -1701,8 +1701,9 @@ function blankedSets(state: GameState, deps: EngineDeps): BlankedSets {
   const inPlay = cardsInPlay(state);
   for (const sourceId of inPlay) {
     // A source's refs under the *lasting* blank only, as protected by its own `textBoxCannotBeBlanked` (§3.31 of wave
-    // 5), which reads the registry but never a constant blank, so this cannot re-enter.
-    const sourceBlank = textBoxBlank(state, sourceId) && !textBoxCannotBeBlanked(state, sourceId, deps);
+    // 5) and its Permanent keyword (§4.1 Q31), neither of which reads a constant blank, so this cannot re-enter.
+    const sourceBlank = lastingBlankReaches(state, sourceId, deps);
+    const sourceCardId = getInstance(state, sourceId)?.cardId;
     for (const ref of sourceBlank ? [] : unblankedAbilityRefs(state, sourceId)) {
       if (!ruleIds.has(ref.id)) continue;
       const trigger = deps.abilities[ref.id]?.trigger;
@@ -1720,7 +1721,7 @@ function blankedSets(state: GameState, deps: EngineDeps): BlankedSets {
         if (rule.while && !evaluate(state, rule.while, context)) continue;
         for (const id of inPlay) {
           if (id === sourceId || !matchesQuery(state, id, rule.target, context)) continue;
-          if (textBoxCannotBeBlanked(state, id, deps)) continue;
+          if (textBoxCannotBeBlanked(state, id, deps) || permanentProtectsFrom(state, id, sourceCardId)) continue;
           blanked.add(id);
           if (!rule.exceptKeywords) keywordsBlanked.add(id);
         }
@@ -1821,15 +1822,85 @@ export function textBoxCannotBeBlanked(state: GameState, id: InstanceId, deps: E
 }
 
 /**
+ * The sets a card belongs to for the Permanent keyword's exception, RRG 1.8 "Permanent" (p. 32): "except by card
+ * abilities in the same set (hero set, scenario set, or modular set)". Read off card data, so the card can be anywhere:
+ *
+ * - **Hero set** (`hero:<identity card id>`): the identity card itself, every card whose set icon names it (`aspect:
+ *   "hero:<id>"`, RRG 1.8 "Identity-Specific Card", p. 23), and its obligation (RRG 1.8 "Obligation", p. 30:
+ *   "Identity-specific obligation cards are part of their associated identity's identity-specific set"; the data has
+ *   `encounterSetIds: []` on an obligation and links it from the identity's `obligationCardId`, looked up among the
+ *   identities in this game).
+ * - **Scenario and modular sets** (`set:<encounter set id>`): an encounter card's `encounterSetIds`, and a player card's
+ *   `specificTo` scenario/campaign set (Taskmaster's Captive allies, the Hydra Campaign upgrades). A nemesis set is its
+ *   own encounter set, not part of the hero set (RRG 1.8 "Identity-Specific Card" lists identity-specific cards
+ *   "along with obligation cards and nemesis encounter set cards" as distinct).
+ *
+ * Not the product (`setCode`): the RRG names the three sets, and the set icon is only the product of origin (RRG 1.8
+ * "Set Icon", p. 39). A basic or aspect card, and a player card in no scenario set (Milano, `gmw` 16142), is in none of
+ * the three, so only its own card counts as its set (`permanentProtectsFrom`).
+ */
+function permanentSetKeys(state: GameState, card: AnyCard): readonly string[] {
+  const keys: string[] = [];
+  if (card.type === "hero_identity") keys.push(`hero:${card.id}`);
+  const aspect = "aspect" in card ? String(card.aspect) : "";
+  if (aspect.startsWith("hero:")) keys.push(aspect);
+  if (card.type === "obligation") {
+    for (const player of state.players) {
+      const identity = state.cardPool[player.identity.cardId];
+      if (identity?.type === "hero_identity" && identity.obligationCardId === card.id) keys.push(`hero:${identity.id}`);
+    }
+  }
+  if ("encounterSetIds" in card) for (const setId of card.encounterSetIds) keys.push(`set:${setId}`);
+  if ("specificTo" in card && card.specificTo) keys.push(`set:${card.specificTo.encounterSetId}`);
+  return keys;
+}
+
+/**
+ * Whether the Permanent keyword keeps a blank made by `sourceCardId` off this card (RRG 1.8 "Permanent", p. 32: "Effects
+ * on cards not from this card's set cannot [...] blank any part of its text box"; docs/phase7-wave5.md §4.1 Q31). The
+ * keyword is read from the card's showing face *before* any blank (`unblankedPrintedKeywordsOf`), since it protects
+ * the text box it is printed in, and it never consults a blank, so every blank check can ask it without recursion. A
+ * facedown card or one treated as another type shows no keyword and has no text to protect.
+ *
+ * A blank with no recorded source (made before sources were recorded) is not stopped, as before. A card is always of
+ * its own set, so a permanent card's own ability may blank it.
+ */
+export function permanentProtectsFrom(state: GameState, id: InstanceId, sourceCardId: CardId | undefined): boolean {
+  if (sourceCardId === undefined) return false;
+  if (!unblankedPrintedKeywordsOf(state, id).some((keyword) => keyword.name === "permanent")) return false;
+  const card = cardOf(state, id);
+  if (!card || card.id === sourceCardId) return false;
+  const source = state.cardPool[sourceCardId];
+  if (!source) return true;
+  const own = new Set(permanentSetKeys(state, card));
+  return !permanentSetKeys(state, source).some((key) => own.has(key));
+}
+
+/**
+ * Whether a lasting blank reaches this card right now: one targets it, the card does not print "cannot be treated as if
+ * it were blank" (§3.31 of wave 5), and at least one such blank is from a card its Permanent keyword lets through.
+ */
+function lastingBlankReaches(state: GameState, id: InstanceId, deps: EngineDeps): boolean {
+  if (!textBoxBlank(state, id) || textBoxCannotBeBlanked(state, id, deps)) return false;
+  return state.lastingEffects.some(
+    (effect) =>
+      effect.kind === "blankTextBox" &&
+      effect.targets.includes(id) &&
+      !permanentProtectsFrom(state, id, effect.sourceCardId),
+  );
+}
+
+/**
  * Whether this card's printed text box is blank right now, from a lasting effect or a constant rule in play, unless it
- * cannot be blanked (§3.31 of wave 5; the constant kind already leaves such a card out of `blankedSets`).
+ * cannot be blanked (§3.31 of wave 5) or its Permanent keyword stops that blank (§4.1 Q31); the constant kind already
+ * leaves such a card out of `blankedSets`.
  */
 export const textBoxBlankFor = (state: GameState, id: InstanceId, deps: EngineDeps = DEFAULT_DEPS): boolean =>
-  (textBoxBlank(state, id) && !textBoxCannotBeBlanked(state, id, deps)) || blankedByConstantRules(state, deps).has(id);
+  lastingBlankReaches(state, id, deps) || blankedByConstantRules(state, deps).has(id);
 
 /** Whether this card's printed keywords are blank: as `textBoxBlankFor`, less a rule "except for keywords" (§3.28). */
 export const keywordsBlankFor = (state: GameState, id: InstanceId, deps: EngineDeps = DEFAULT_DEPS): boolean =>
-  (textBoxBlank(state, id) && !textBoxCannotBeBlanked(state, id, deps)) || blankedSets(state, deps).keywords.has(id);
+  lastingBlankReaches(state, id, deps) || blankedSets(state, deps).keywords.has(id);
 
 /**
  * The ability slots that are live on a card right now (active identity face, current stage).

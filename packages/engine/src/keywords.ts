@@ -41,11 +41,22 @@ export function printedKeywordsOf(
   id: InstanceId,
   deps: EngineDeps = DEFAULT_DEPS,
 ): readonly KeywordInstance[] {
-  const card = cardOf(state, id);
-  if (!card) return [];
   // RRG 1.8 "Blank" (p. 10): no printed text in the text box, keywords included. `deps` makes a *constant*
   // class-wide blank visible (Tech Theft); the lasting kind needs no registry.
-  if (state.instances[id]?.facedownAs || state.instances[id]?.treatedAs || keywordsBlankFor(state, id, deps)) return [];
+  const printed = unblankedPrintedKeywordsOf(state, id);
+  return printed.length === 0 || keywordsBlankFor(state, id, deps) ? [] : printed;
+}
+
+/**
+ * The keywords printed on a card's showing face with no text-box blank applied (`printedKeywordsOf` less the blank
+ * check). A facedown card and a card treated as another type still have none. The Permanent keyword's blank
+ * protection reads this (RRG 1.8 "Permanent", p. 32; docs/phase7-wave5.md §4.1 Q31), since the keyword protects the
+ * very text box it is printed in, and so it can be asked from inside every blank check without recursion.
+ */
+export function unblankedPrintedKeywordsOf(state: GameState, id: InstanceId): readonly KeywordInstance[] {
+  const card = cardOf(state, id);
+  if (!card) return [];
+  if (state.instances[id]?.facedownAs || state.instances[id]?.treatedAs) return [];
   const face = encounterFace(state, id);
   if (face) return face.keywords;
   if (card.type === "villain") {

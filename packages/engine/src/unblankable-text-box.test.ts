@@ -22,15 +22,17 @@ const constantRules = (rules: NonNullable<Extract<AbilityDefinition["trigger"], 
 
 const UNBLANKABLE = stubAbility("suit.constant", constantRules([{ kind: "textBoxCannotBeBlanked" }]));
 const SUIT_ACTION = stubAbility("suit.action", { trigger: { kind: "action" }, effects: [] });
+// Not permanent, unlike the SP//dr faces: the Permanent keyword's own protection (§4.1 Q31) would keep another set's
+// blank off both these cards and hide what this line does (`permanent-blank-protection.test.ts` covers that).
 const SUIT = stubSupport({
   id: "suit",
   cost: 0,
   traits: [TECH],
-  keywords: [{ name: "permanent" }],
+  keywords: [{ name: "restricted" }],
   abilities: [UNBLANKABLE.ref, SUIT_ACTION.ref],
 });
 // The same card without the line: the control.
-const PLAIN = stubSupport({ id: "plain", cost: 0, traits: [TECH], keywords: [{ name: "permanent" }] });
+const PLAIN = stubSupport({ id: "plain", cost: 0, traits: [TECH], keywords: [{ name: "restricted" }] });
 
 // Tech Theft's constant, on a side scheme.
 const THEFT_RULE = stubAbility(
@@ -79,10 +81,10 @@ describe("§3.31 'This card's printed text box cannot be treated as if it were b
       UNBLANKABLE.ref.id,
       SUIT_ACTION.ref.id,
     ]);
-    expect(hasKeyword(state, suit.id, "permanent", deps)).toBe(true);
+    expect(hasKeyword(state, suit.id, "restricted", deps)).toBe(true);
 
     expect(textBoxBlankFor(state, plain.id, deps)).toBe(true);
-    expect(hasKeyword(state, plain.id, "permanent", deps)).toBe(false);
+    expect(hasKeyword(state, plain.id, "restricted", deps)).toBe(false);
   });
 
   it("a constant blank rule (Tech Theft) passes over it and still blanks the card without the line", () => {
@@ -92,7 +94,7 @@ describe("§3.31 'This card's printed text box cannot be treated as if it were b
 
     expect([...blankedByConstantRules(state, deps)]).toEqual([plain.id]);
     expect(activeAbilityRefs(state, suit.id, deps)).toHaveLength(2);
-    expect(hasKeyword(state, suit.id, "permanent", deps)).toBe(true);
+    expect(hasKeyword(state, suit.id, "restricted", deps)).toBe(true);
     expect(activeAbilityRefs(state, plain.id, deps)).toEqual([]);
   });
 
