@@ -78,6 +78,12 @@ export interface PaymentState {
  */
 export interface PaymentSourceView extends PaymentSource {
   readonly spent: boolean;
+  /**
+   * Another player's hand card offered toward an alliance card (RRG 1.8 "Alliance", p. 6): the hero name of the
+   * hand it sits in, so the strip can say whose card it is. Null for the payer's own cards and for resource
+   * abilities.
+   */
+  readonly helperName: string | null;
 }
 
 export interface PaymentView {
@@ -126,11 +132,11 @@ export interface PaymentView {
    */
   readonly sources: readonly PaymentSourceView[];
   /**
-   * The sources that are not hand cards — a resource ability on a card in play
-   * (Peter Parker's Scientist, Pepper Potts) — one per option, since a card
-   * could offer two. The hand is the only zone visible on every layout, so the
-   * payment strip draws these beside it; otherwise, on a phone, the one
-   * resource that makes a card affordable can sit on a tab you aren't looking at.
+   * The sources that are not in the payer's hand — a resource ability on a card in play
+   * (Peter Parker's Scientist, Pepper Potts), one per option since a card could offer two, and another player's
+   * hand card offered toward an alliance card. The hand is the only zone visible on every layout, so the
+   * payment strip draws these beside it; otherwise, on a phone, the one resource that makes a card affordable
+   * can sit on a tab you aren't looking at, and a helper's hand is drawn nowhere at all.
    */
   readonly tableSources: readonly PaymentSourceView[];
   /**
@@ -270,7 +276,11 @@ export function paymentView(
     reductionAmount > 0
       ? { ...query.requirement, generic: Math.max(0, query.requirement.generic - reductionAmount) }
       : query.requirement;
-  const sources = query.sources.map((source) => ({ ...source, spent: picked.includes(source.optionId) }));
+  const sources = query.sources.map((source) => ({
+    ...source,
+    spent: picked.includes(source.optionId),
+    helperName: helperNameOf(state, playerId, source),
+  }));
   return {
     headline,
     subject,
@@ -281,7 +291,7 @@ export function paymentView(
     spendable,
     spent,
     sources,
-    tableSources: sources.filter((source) => source.kind === "resourceAbility"),
+    tableSources: sources.filter((source) => source.kind === "resourceAbility" || source.helperName !== null),
     subjectInHand: subject !== null && locateCard(state, subject)?.kind === "hand",
     command: attempt.ok ? attempt.command : null,
     blockedBy: attempt.ok ? null : attempt.message,
@@ -339,6 +349,14 @@ export function allianceHelpersOf(
     .map((player) => player.playerId)
     .filter((playerId) => byPlayer.has(playerId))
     .map((playerId) => ({ playerId, instanceIds: byPlayer.get(playerId)! }));
+}
+
+/** Whose hand an alliance helper's card sits in, by hero name; null for anything the payer holds or in play. */
+function helperNameOf(state: GameState, payerId: PlayerId, source: PaymentSource): string | null {
+  if (source.kind !== "handCard") return null;
+  const owner = state.players.find((player) => player.hand.includes(source.instanceId));
+  if (!owner || owner.playerId === payerId) return null;
+  return faceUpName(state, owner.identity.instanceId) ?? "Helper";
 }
 
 /**

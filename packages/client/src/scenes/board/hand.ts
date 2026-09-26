@@ -163,7 +163,8 @@ export function drawHand(ctx: BoardDrawContext, rect: Rect, model: BoardModel): 
 /**
  * The half of a payment that isn't in the hand, drawn at the head of the hand
  * row: a card in play whose ability is being paid for, then every resource
- * ability on the table (Peter Parker's Scientist, Pepper Potts).
+ * ability on the table (Peter Parker's Scientist, Pepper Potts), then, for an
+ * alliance card, every other player's hand card that can help pay.
  *
  * Tapping the card in its own zone already spends it, but the hand is the only
  * zone every layout shows — on a phone the one resource that makes a card
@@ -199,7 +200,8 @@ function drawPaymentTable(ctx: BoardDrawContext, row: HandRowLayout, payment: Pa
       const wash = scene.add.graphics();
       wash.fillStyle(surface.ink.hex, 0.3).fillRect(tile.x + 3, tile.y + 3, tile.width - 6, tile.height - 6);
     }
-    tableTag(scene, tile, source.spent ? "spent" : "in play", surface.ink.hex, "top");
+    const where = source.helperName !== null ? source.helperName : "in play";
+    tableTag(scene, tile, source.spent ? "spent" : where, surface.ink.hex, "top");
     tableTag(scene, tile, poolText(source.pool), signal.cost.hex, "bottom");
     ctx.frame.focusRects.set(focusKey({ kind: "card", instanceId: source.instanceId }), tile);
     // By option, not by card: a card offering two resource abilities is two tiles.
