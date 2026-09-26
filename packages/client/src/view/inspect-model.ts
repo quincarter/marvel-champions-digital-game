@@ -18,6 +18,7 @@ import {
   cardOf,
   characterProfile,
   getInstance,
+  handCardResources,
   keywordsOf,
   maxHitPoints,
   playCostOf,
@@ -30,6 +31,8 @@ import {
   type InstanceId,
   type LegalActions,
   type PlayerId,
+  type ResourceGeneration,
+  type TargetQuery,
 } from "@mc/engine";
 import { artFor, type ArtSource, type CardFace } from "../art/art-source.js";
 import { abilityActionsFor } from "./highlights.js";
@@ -118,6 +121,12 @@ export interface InspectModel {
    * screen's pickers), where there is no table to price against.
    */
   readonly priceNote: string | null;
+  /**
+   * For a card whose resources depend on the table (Band Together, `mts` 21018: "generates [wild] for each ally you
+   * control (to a maximum of 3)"): what it is worth right now and why, since it prints no fixed resource icon. Null
+   * for every card whose resources are simply printed.
+   */
+  readonly resourceNote: string | null;
   readonly rulesText: string;
   /**
    * The original wording, only when errata changed it. The content package
@@ -191,6 +200,7 @@ export function inspectModel(
       typeLine: "Facedown",
       cost: null,
       priceNote: null,
+      resourceNote: null,
       // A hidden card is exactly as informative as the table makes it.
       rulesText: "This card is facedown. Nothing about its face is known to you.",
       printedText: null,
@@ -239,6 +249,7 @@ export function inspectModel(
     typeLine: typeLineOf(card, face),
     cost: "cost" in card && typeof card.cost === "number" ? card.cost : null,
     priceNote: priceNoteFor(state, perspectiveId, instanceId, deps),
+    resourceNote: liveResourceNote(state, instanceId, card, deps),
     rulesText: textOf(card, face).current,
     printedText: errataDiff(card, face),
     flavor: flavorOf(card, face),
@@ -307,6 +318,40 @@ function priceNoteFor(
     if (name && !names.includes(name)) names.push(name);
   }
   return `${names.length > 0 ? `${names.join(", ")}: ` : ""}${price.printed} → ${price.current}`;
+}
+
+/** The hand-resource rule a card's own constant ability sets (`handGenerates`, docs/phase7-wave4.md §3.38), if any. */
+function handGenerationOf(card: AnyCard, deps: EngineDeps): ResourceGeneration | undefined {
+  const refs = "abilities" in card ? (card.abilities as readonly { readonly id: AbilityId }[]) : [];
+  for (const ref of refs) {
+    const trigger = deps.abilities[ref.id]?.trigger;
+    if (trigger?.kind === "constant" && trigger.handGenerates !== undefined) return trigger.handGenerates;
+  }
+  return undefined;
+}
+
+/** "ally you control", from the query a per-card generation counts. */
+function describeCounted(query: TargetQuery): string {
+  const kinds = (query.categories ?? []).map((category) => category.replace(/_/g, " ")).join(" or ") || "card";
+  return query.controller === "you" ? `${kinds} you control` : kinds;
+}
+
+/** "1 wild per ally you control, up to 3": a per-card generation in words, or null for any other kind. */
+function perCardClause(generation: ResourceGeneration | undefined): string | null {
+  if (typeof generation !== "object" || !("kind" in generation) || generation.kind !== "perCard") return null;
+  const cap = generation.max !== undefined ? `, up to ${generation.max}` : "";
+  return `1 ${generation.resource} per ${describeCounted(generation.per)}${cap}`;
+}
+
+/** What the card is worth if its owner spends it now, and the rule behind the number. */
+function liveResourceNote(state: GameState, instanceId: InstanceId, card: AnyCard, deps: EngineDeps): string | null {
+  const generation = handGenerationOf(card, deps);
+  const clause = perCardClause(generation);
+  const owner = getInstance(state, instanceId)?.ownerId;
+  if (!clause || !owner || typeof generation !== "object" || !("kind" in generation) || generation.kind !== "perCard")
+    return null;
+  const now = handCardResources(state, deps, instanceId, owner, null)[generation.resource];
+  return `Worth ${now} ${generation.resource} right now: ${clause}. It can pay any cost.`;
 }
 
 /** Every action ability `legalActions` currently lists for this card, named and priced. */
@@ -399,6 +444,7 @@ export function cardInspectModel(card: AnyCard | undefined, face: CardFace): Ins
       typeLine: "",
       cost: null,
       priceNote: null,
+      resourceNote: null,
       rulesText: "",
       printedText: null,
       flavor: null,
@@ -430,6 +476,7 @@ export function cardInspectModel(card: AnyCard | undefined, face: CardFace): Ins
     typeLine: typeLineOf(card, face),
     cost: "cost" in card && typeof card.cost === "number" ? card.cost : null,
     priceNote: null,
+    resourceNote: null,
     rulesText: text.current,
     printedText: text.printed && text.printed !== text.current ? text.printed : null,
     flavor: flavorOf(card, face),

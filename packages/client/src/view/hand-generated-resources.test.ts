@@ -10,6 +10,7 @@ import { POOL_DEPS } from "../content/pool.js";
 import { LocalEngineHost } from "../engine/local-host.js";
 import { SessionStore } from "../store/session-store.js";
 import { handCardView } from "./board-model.js";
+import { inspectModel } from "./inspect-model.js";
 
 async function spectrumGame(): Promise<GameState> {
   const store = new SessionStore(new LocalEngineHost());
@@ -71,5 +72,25 @@ describe("hand card resource icons", () => {
       "wild",
       "wild",
     ]);
+  });
+
+  test("Inspect says what Band Together is worth right now and that it counts the allies you control", async () => {
+    const game = await spectrumGame();
+    const two = stage(game, ["21018"], ["21019", "21013"]);
+    const model = inspectModel(two.state, two.hand[0]!, null, "p1" as never, POOL_DEPS);
+    expect(model.resourceNote).toBe(
+      "Worth 2 wild right now: 1 wild per ally you control, up to 3. It can pay any cost.",
+    );
+
+    const none = stage(game, ["21018"], []);
+    expect(inspectModel(none.state, none.hand[0]!, null, "p1" as never, POOL_DEPS).resourceNote).toMatch(
+      /^Worth 0 wild/,
+    );
+  });
+
+  test("a card with printed resources gets no note", async () => {
+    const game = await spectrumGame();
+    const energy = stage(game, ["21023"], []);
+    expect(inspectModel(energy.state, energy.hand[0]!, null, "p1" as never, POOL_DEPS).resourceNote).toBeNull();
   });
 });
