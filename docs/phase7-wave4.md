@@ -391,9 +391,8 @@ and found it fits. Checked against the real cards:
 - **Expert campaign** (MC21 p. 25): record remaining hit points capped at base; heal to full by an acceleration token;
   "If a player is defeated during a scenario that their teammates go on to win, the defeated player does not
   participate in any of the victory steps for that scenario. However, they can rejoin their teammates for the next
-  scenario by placing an acceleration token on the main scheme." The gate records a defeated player's hit points as 0
-  and lets every player decline the heal, so a defeated player who declines would start with 0 hit points and be
-  defeated at once. §4 Q6.
+  scenario by placing an acceleration token on the main scheme." A defeated player's hit points are recorded as 0, and
+  since 2026-09-25 (§4 Q6) an identity recorded at 0 must take the heal: only a player above 0 may decline it.
 - **Beyond the frozen foundation**, the campaign needs only card-level primitives: §3.10 (faces of different types),
   §3.13 (hand abilities, "cannot choose to discard") and Security Breach's "places a random card from their hand
   facedown here … Return each facedown card here to its owner's hand", which `tuckCards` may cover (to verify with the
@@ -1981,7 +1980,11 @@ Each is implemented the way stated, or not at all, and named here rather than de
    cards are in the playable pool (§5). Scripted: `hood/standard-expert-ii.ts` (§3.50, §3.51 were found on the way).
 6. **An eliminated player in the expert campaign** (§2.2): MC21 p. 25 lets them rejoin "by placing an acceleration token";
    the gate lets them decline the heal and start at 0 hit points. Proposed: an identity whose recorded hit points are 0
-   must take the heal.
+   must take the heal. **USER DECISION 2026-09-25:** the heal is mandatory for them. **Implemented** in `mts.ts`'s
+   `healToFull` (all four setup heals, MC21 p. 13/17/21/25): `ifThen(campaignLogAtLeast("remainingHp", 1))` offers
+   "Heal to full" / "Decline" as before, and otherwise places the acceleration token and heals with no choice. A field
+   never written reads 0, which `hpSet` also turns into a 0 dial, so it is forced the same way. Tests:
+   `campaigns/mts.qa.test.ts`, "the expert campaign's heal is mandatory …".
 7. **Hela's "When Hela is defeated, if Odin is not attached to the main scheme, you win the game"** vs. MC21 p. 20's "If
    the players control the Odin ally when Hela is defeated". Equivalent in every reachable state (Odin is attached or
    controlled by the first player until he leaves play, which loses). Implemented from the card.

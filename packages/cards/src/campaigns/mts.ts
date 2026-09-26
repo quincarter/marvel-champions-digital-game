@@ -62,6 +62,7 @@ import {
 } from "@mc/engine";
 import {
   addAccelerationToken,
+  campaignLogAtLeast,
   campaignLogIsSet,
   campaignLogValue,
   chooseOneBy,
@@ -169,6 +170,12 @@ function hpRecord(id: string, citation: string): CampaignInstruction {
  * MC21 p. 13's "one of the main schemes" (Tower Defense has two) vs. p. 17/21/25's "the main scheme" (every other
  * scenario has one): the printed sentence is otherwise identical, so `chooseScheme` is the only branch. "Decline"
  * is the second `option`, matching the ability DSL's own `chooseOne`/"you may" idiom.
+ *
+ * **An eliminated player must take it** (docs/phase7-wave4.md §4 Q6, decided by the user 2026-09-25). MC21 p. 25:
+ * a defeated player "can rejoin their teammates for the next scenario by placing an acceleration token on the main
+ * scheme to restore their identity to full hit points" — the token is the price of rejoining, not an option. So an
+ * identity whose recorded hit points are 0 (`hpSet` has just set its dial to 0) is never offered "Decline": it places
+ * the token and heals. A field never written reads 0 and sets the dial to 0 the same way, so it is treated the same.
  */
 function healToFull(id: string, citation: string, chooseScheme: boolean): CampaignInstruction {
   const place = chooseScheme
@@ -177,6 +184,7 @@ function healToFull(id: string, citation: string, chooseScheme: boolean): Campai
         addAccelerationToken(chosen("scheme")),
       ]
     : [addAccelerationToken()];
+  const healFull = heal(damageOn(identityOf(thatPlayer)), identityOf(thatPlayer));
   return {
     id,
     text: chooseScheme
@@ -190,10 +198,10 @@ function healToFull(id: string, citation: string, chooseScheme: boolean): Campai
       effects: [
         forEachPlayer(
           eachPlayer,
-          chooseOneBy(
-            thatPlayer,
-            option("Heal to full", ...place, heal(damageOn(identityOf(thatPlayer)), identityOf(thatPlayer))),
-            option("Decline", []),
+          ifThen(
+            campaignLogAtLeast("remainingHp", 1, { seat: thatPlayer }),
+            chooseOneBy(thatPlayer, option("Heal to full", ...place, healFull), option("Decline", [])),
+            [...place, healFull],
           ),
         ),
       ],

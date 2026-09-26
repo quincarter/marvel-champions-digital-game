@@ -41,7 +41,7 @@ import {
   type InstanceId,
   type PlayerId,
 } from "@mc/engine";
-import { firstLegal, identityOf, P1, settle as settleGame, toHero } from "../testing/harness.js";
+import { firstLegal, identityOf, P1, settle as settleGame, toHero, type Picker } from "../testing/harness.js";
 import { driveEvents } from "../testing/staging.js";
 import { WAVE4_CARDS, WAVE4_DEPS } from "../wave4/index.js";
 import { wave4Scenario } from "../wave4/setup.js";
@@ -311,7 +311,11 @@ function realGameAt(log: CampaignLog, targetNode: string): GameState {
 }
 
 /** `realGameAt`, also handing back the composed log the game was built from (what the fold reads). */
-function realGame(log: CampaignLog, targetNode: string): { readonly composed: CampaignLog; readonly state: GameState } {
+function realGame(
+  log: CampaignLog,
+  targetNode: string,
+  pick: Picker = firstLegal,
+): { readonly composed: CampaignLog; readonly state: GameState } {
   const composed = settle((answers) =>
     resolveBetweenGames(MTS_CAMPAIGN_DEFINITION, log, DEPS, log.modes, answers),
   ).value;
@@ -334,7 +338,7 @@ function realGame(log: CampaignLog, targetNode: string): { readonly composed: Ca
   };
   const created = createGame({ ...withSetAside, campaign: start.input }, WAVE4_DEPS);
   if (!created.ok) throw new Error(`${targetNode}: setup failed: ${created.error.message}`);
-  return { composed, state: settleGame(created.state, firstLegal, (s) => s.step.phase === "player", WAVE4_DEPS) };
+  return { composed, state: settleGame(created.state, pick, (s) => s.step.phase === "player", WAVE4_DEPS) };
 }
 
 describe("a real game, set up from the composed log, for each of the five scenarios", () => {
@@ -419,11 +423,11 @@ const instanceOf = (state: GameState, code: string): InstanceId | undefined =>
   (Object.keys(state.instances) as InstanceId[]).find((id) => state.instances[id]?.cardId === cardId(code));
 
 /** A log that has won every node before `targetNode`, with hand-authored results (the between-games walk above). */
-function logBefore(targetNode: string, seed = 4242): CampaignLog {
+function logBefore(targetNode: string, seed = 4242, modes: PlayModes = STANDARD): CampaignLog {
   let log = createCampaignLog(MTS_CAMPAIGN_DEFINITION, {
     id: `mts-qa-${targetNode}`,
     seats: SEATS,
-    modes: STANDARD,
+    modes,
     poolVersion: "qa-test",
     seed,
   });
@@ -550,5 +554,58 @@ describe("MC21's campaign side schemes in a real game, set up from the composed 
     expect(loki.instances[odin!]?.controllerId).toBe(loki.firstPlayerId);
     // And Open the Dungeons, the campaign's own Loki side scheme, is in play.
     expect(cardsInPlay(loki)).toContain(instanceOf(loki, "21189a"));
+  });
+});
+
+// ---------------------------------------------------------------------------------------------------------------
+// The expert campaign's rejoin heal (MC21 p. 25; docs/phase7-wave4.md §4 Q6, decided 2026-09-25)
+// ---------------------------------------------------------------------------------------------------------------
+
+describe("the expert campaign's heal is mandatory for an identity recorded at 0 hit points (MC21 p. 25)", () => {
+  // "If a player is defeated during a scenario that their teammates go on to win, … they can rejoin their teammates
+  // for the next scenario by placing an acceleration token on the main scheme to restore their identity to full hit
+  // points." The token is the price of rejoining, so a seat recorded at 0 is never offered "Decline".
+  /** Declines every optional thing, and picks "Decline" whenever it is offered. */
+  const declineEverything: Picker = (state) => {
+    const decline = state.pendingChoice?.options.find((option) => option.label === "Decline");
+    return decline ? [decline.optionId] : firstLegal(state);
+  };
+  const withRecordedHp = (hp: Readonly<Record<number, number>>): CampaignLog => {
+    const log = logBefore("thanos", 4242, EXPERT);
+    return {
+      ...log,
+      seats: log.seats.map((seat) => ({
+        ...seat,
+        fields: { ...seat.fields, remainingHp: { kind: "number" as const, value: hp[seat.seatNumber] ?? 0 } },
+      })),
+    };
+  };
+  const identityDamage = (state: GameState, seat: number): number => {
+    const id = state.players[seat - 1]?.identity.instanceId;
+    return id === undefined ? -1 : (state.instances[id]?.damage ?? -1);
+  };
+  const tokens = (state: GameState): number => state.mainScheme?.accelerationTokens ?? 0;
+
+  it("a seat at 0 places the token and heals to full even when it would decline; a seat above 0 may still decline", () => {
+    const bothAlive = realGame(withRecordedHp({ 1: 7, 2: 7 }), "thanos", declineEverything).state;
+    const oneDown = realGame(withRecordedHp({ 1: 0, 2: 7 }), "thanos", declineEverything).state;
+
+    // Both declined: each identity is still down its persistent damage, and no token was placed for the heal.
+    expect(identityDamage(bothAlive, 1)).toBeGreaterThan(0);
+    expect(identityDamage(bothAlive, 2)).toBeGreaterThan(0);
+
+    // Seat 1 was recorded at 0: it rejoins at full hit points, paying exactly one more acceleration token.
+    expect(identityDamage(oneDown, 1)).toBe(0);
+    expect(tokens(oneDown)).toBe(tokens(bothAlive) + 1);
+    // Seat 2 was not: its "Decline" still stands.
+    expect(identityDamage(oneDown, 2)).toBe(identityDamage(bothAlive, 2));
+  });
+
+  it("a seat above 0 that accepts heals and pays the token, as before", () => {
+    const accepted = realGame(withRecordedHp({ 1: 7, 2: 7 }), "thanos", firstLegal).state;
+    const declined = realGame(withRecordedHp({ 1: 7, 2: 7 }), "thanos", declineEverything).state;
+    expect(identityDamage(accepted, 1)).toBe(0);
+    expect(identityDamage(accepted, 2)).toBe(0);
+    expect(tokens(accepted)).toBe(tokens(declined) + 2);
   });
 });
