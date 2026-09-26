@@ -333,7 +333,7 @@ against `pnpm dsl` (379 builders), the engine's `EffectSpec` / `RuleSpec` / `Tri
 | §    | Primitive                                                                                    | Needed by                                                                                      | Status  |
 | ---- | -------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- | ------- |
 | 3.1  | Villains that enter and leave play: set-aside villains, activation order, no villain in play | The Sinister Six; Frequent Flyers, High Fashion, Robotic Enhancements, Surprise!               | landed  |
-| 3.2  | An enemy activation that can be interrupted and canceled                                     | Sinister Synchronization / Beatdown ("Ambush!"), Web Binding                                   | open    |
+| 3.2  | An enemy activation that can be interrupted and canceled                                     | Sinister Synchronization / Beatdown ("Ambush!"), Web Binding                                   | landed  |
 | 3.3  | Several main schemes, one marked by a counter; a completed stage flips to an environment     | Venom Goblin (glider counter)                                                                  | open    |
 | 3.4  | Acceleration tokens on any card, moved between cards, and announced                          | Hapless Pedestrians, Tracking Prey, Lower/Midtown/Upper Manhattan                              | open    |
 | 3.5  | Encounter cards in a player's deck, hand and discard pile                                    | Mysterio (whole scenario), MC27 scenario 3 campaign                                            | open    |
@@ -430,6 +430,17 @@ lone villain keeps it.
 (Mojo's Wheel of Genres villain faces, `mojo`).
 
 ### 3.2 An enemy activation that can be interrupted and canceled
+
+> **Status: landed (2026-09-26),** tested in `packages/engine/src/enemy-activating.test.ts` (4 tests: nothing listening,
+> the villain schemes as before; cancelled, it does not, replay deep-equal; a cancelled minion activation and 4 damage
+> to "that minion"; a status card replaces the activation first, so the interrupt never sees it; with no villain in
+> play the activation is announced with no enemy, the interrupt puts one in and its activation continues, replay
+> deep-equal). DSL: `wave5-primitives.test.ts`. **What landed:** **`TriggerEvent enemyActivating { enemyInstanceId |
+null, activation, playerId }`**, interrupt window, pushed by `activateEnemy` after the status check and only when an
+> ability listens; its apply step (`continueActivation`) initiates the attack or scheme, and a `cancelTriggeringEvent`
+> means it never happens (§4 Q3: "after it activates" does not follow). At step 2 with no villain in play the villain's
+> activation is announced with `enemyInstanceId: null` and, after the interrupt, activates whoever is "the villain" now.
+> The `enemyActivated` log line is unchanged. **DSL:** `on.enemyActivating(who?)`, with `cancelIt()`.
 
 "Forced Interrupt: When a villain would activate, if no villain is in play, resolve this card's 'Ambush!' ability.
 Continue that activation." (27100b, 27101b); Web Binding: "Hero Interrupt: When an enemy would activate, cancel that

@@ -59,6 +59,7 @@ import {
   pushEvents,
 } from "./frames.js";
 import { finishTurn, pushPhaseEndDelayed } from "../flow.js";
+import { continueActivation } from "../villain/phase.js";
 import { resolveSurge } from "./reveal.js";
 import { candidatesFor, eachTimeEffectsFor, hasCandidates, heard } from "./triggers.js";
 import { pushWindow } from "./window.js";
@@ -349,6 +350,9 @@ function applyEvent(ctx: Ctx, frame: Frame<"event">): boolean | void {
       return applySchemeDefeated(ctx, event);
     case "mainSchemeCompleting":
       return applyMainSchemeCompleting(ctx, event);
+    case "enemyActivating":
+      continueActivation(ctx, event);
+      return;
     case "countersRemoved": {
       const removed = removeCounters(ctx, event.instanceId, event.counterType, event.amount);
       addFrameVars(ctx, frame.frameId, { amount: removed });

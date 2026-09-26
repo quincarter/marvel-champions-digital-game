@@ -5,16 +5,31 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { setup, whenDefeated } from "./abilities.js";
+import { forcedInterrupt, heroInterrupt, on, setup, whenDefeated } from "./abilities.js";
 import {
   addVillain,
+  cancelIt,
+  dealDamage,
   encounterSetAside,
+  ifThen,
   moveActiveCounterToNextVillain,
   selectCards,
   setActiveVillain,
   setVillainAside,
 } from "./effects.js";
-import { activationOrderOf, chosen, each, perHero, query, self, superlative } from "./values.js";
+import {
+  activationOrderOf,
+  chosen,
+  each,
+  eventTarget,
+  exists,
+  not,
+  perHero,
+  query,
+  refMatches,
+  self,
+  superlative,
+} from "./values.js";
 import { validateDefinition } from "./validate.js";
 
 const valid = (definition: Parameters<typeof validateDefinition>[0]) =>
@@ -47,5 +62,25 @@ describe("§3.1 villains that enter and leave play (The Sinister Six)", () => {
       bind: "ambush",
     });
     expect(moveActiveCounterToNextVillain).toEqual({ kind: "moveActiveCounter", to: "nextInActivationOrder" });
+  });
+});
+
+describe("§3.2 an enemy activation that can be interrupted and canceled", () => {
+  it("Web Binding: cancel that activation; 4 damage to a minion whose activation was cancelled", () => {
+    const definition = heroInterrupt(
+      on.enemyActivating(),
+      cancelIt(),
+      ifThen(refMatches(eventTarget, query("minion")), dealDamage(4, eventTarget)),
+    );
+    valid(definition);
+    expect(definition.trigger).toMatchObject({ kind: "interrupt", on: { on: "enemyActivating" } });
+  });
+
+  it("Sinister Synchronization 1B: if no villain is in play, resolve Ambush! and continue", () => {
+    valid(forcedInterrupt(on.enemyActivating(), ifThen(not(exists(query("villain"))), setActiveVillain(self))));
+    expect(on.enemyActivating(query("minion"))).toEqual({
+      on: "enemyActivating",
+      targetIs: { categories: ["minion"] },
+    });
   });
 });

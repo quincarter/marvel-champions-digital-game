@@ -1112,6 +1112,14 @@ export const on = {
    */
   mainSchemeCompleting: (what: Who): EventPattern => pattern("mainSchemeCompleting", asTarget(what)),
   /**
+   * "When an enemy would activate" (Web Binding, `sm` 27006) / "When a villain would activate" (Sinister
+   * Synchronization 1B, 27100b), before the activation's attack or scheme (docs/phase7-wave5.md §3.2). `who` narrows the
+   * enemy; with no villain in play the villain's step-2 activation names none, so "if no villain is in play" is
+   * `on.enemyActivating()` with that condition. Cancel it with `cancelIt()`; "that minion" is `eventTarget`.
+   */
+  enemyActivating: (who?: Who): EventPattern =>
+    pattern("enemyActivating", ...(who === undefined ? [] : [asTarget(who)])),
+  /**
    * "After the last invocation counter is removed from Fireball" (`mts` 21076–21079) / "When the last lock counter is
    * removed from here" (Holding Cell, `aos` 50105a) / "After the last power counter is removed from here" (Phoenix Force):
    * counters of `counterType` removed from this card by an effect, leaving none (docs/phase7-wave4.md §3.15).
