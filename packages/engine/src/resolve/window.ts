@@ -32,12 +32,20 @@ import { abilityFrame, base, type Frame } from "./frames.js";
 import { pushPlayCardFrame } from "./play-card.js";
 import { candidatesFor } from "./triggers.js";
 
-export function pushWindow(ctx: Ctx, event: TriggerEvent, timing: WindowTiming, eventFrameId: FrameId | null): void {
+export function pushWindow(
+  ctx: Ctx,
+  event: TriggerEvent,
+  timing: WindowTiming,
+  eventFrameId: FrameId | null,
+  /** Other triggering conditions of the same occurrence sharing this window (RRG 1.8 p. 45; `Frame<"window">`). */
+  alsoEvents: readonly TriggerEvent[] = [],
+): void {
   pushFrames(ctx, [
     {
       ...base(ctx),
       kind: "window",
       event,
+      ...(alsoEvents.length > 0 ? { alsoEvents } : {}),
       timing,
       eventFrameId,
       tierIndex: 0,
@@ -52,6 +60,34 @@ export function pushWindow(ctx: Ctx, event: TriggerEvent, timing: WindowTiming, 
 
 /** RRG "Ability — Simultaneous Timing Priority": forced abilities before non-forced. */
 const TIERS: readonly boolean[] = [true, false];
+
+/**
+ * One tier's candidates: those of every condition sharing the window (`alsoEvents`, in the order they resolved), then
+ * the window's own event's. RRG 1.8 "Triggering Condition" (p. 45): abilities that refer to any of the conditions one
+ * occurrence created "may be used in any order" in its single window, so each tier spans all of them (p. 5).
+ */
+function windowCandidates(ctx: Ctx, frame: Frame<"window">, forced: boolean): readonly TriggerCandidate[] {
+  const shared = (frame.alsoEvents ?? []).flatMap((event, index) =>
+    candidatesFor(ctx.state, ctx.deps, event, frame.timing, forced).map((candidate): TriggerCandidate => ({
+      ...candidate,
+      sharedEvent: { index, event },
+    })),
+  );
+  return [...shared, ...candidatesFor(ctx.state, ctx.deps, frame.event, frame.timing, forced)];
+}
+
+/** The condition a candidate answers, and its event frame (none for a shared condition, whose frame has finished). */
+const answered = (frame: Frame<"window">, candidate: TriggerCandidate) =>
+  candidate.sharedEvent
+    ? { event: candidate.sharedEvent.event, eventFrameId: null }
+    : { event: frame.event, eventFrameId: frame.eventFrameId };
+
+/**
+ * A candidate's option id: `<instanceId>:<abilityId>`, with `@<n>` for the n-th shared condition, so one ability
+ * answering two conditions of the same occurrence is two options.
+ */
+const optionIdOf = (candidate: TriggerCandidate): string =>
+  `${candidate.instanceId}:${candidate.abilityId}${candidate.sharedEvent ? `@${candidate.sharedEvent.index}` : ""}`;
 
 export function executeWindowFrame(ctx: Ctx, frame: Frame<"window">): void {
   if (frame.answer) return absorbWindowAnswer(ctx, frame, frame.answer);
@@ -75,7 +111,7 @@ export function executeWindowFrame(ctx: Ctx, frame: Frame<"window">): void {
     popFrame(ctx);
     return;
   }
-  const candidates = candidatesFor(ctx.state, ctx.deps, frame.event, frame.timing, forced);
+  const candidates = windowCandidates(ctx, frame, forced);
   const advanced = { ...frame, tierIndex: frame.tierIndex + 1, pending: candidates };
   if (candidates.length === 0) {
     setFrame(ctx, advanced);
@@ -113,7 +149,7 @@ export function executeWindowFrame(ctx: Ctx, frame: Frame<"window">): void {
 export const candidateOption =
   (state: GameState) =>
   (candidate: TriggerCandidate): ChoiceOption => ({
-    optionId: `${candidate.instanceId}:${candidate.abilityId}`,
+    optionId: optionIdOf(candidate),
     label: cardOf(state, candidate.instanceId)?.name ?? candidate.instanceId,
     ref: { kind: "ability", instanceId: candidate.instanceId, abilityId: candidate.abilityId },
   });
@@ -259,10 +295,11 @@ function absorbCostPick(ctx: Ctx, frame: Frame<"window">, answer: readonly strin
  */
 function triggerCandidate(ctx: Ctx, frame: Frame<"window">, candidate: TriggerCandidate): void {
   setFrame(ctx, frame);
+  const on = answered(frame, candidate);
   const definition = ctx.deps.abilities[candidate.abilityId];
   const controller = candidate.controllerId;
   if (!definition?.cost || !controller) {
-    pushFrames(ctx, [abilityFrame(ctx, candidate, frame.event, frame.eventFrameId)]);
+    pushFrames(ctx, [abilityFrame(ctx, candidate, on.event, on.eventFrameId)]);
     return;
   }
   const plan = planCost(
@@ -291,7 +328,7 @@ function triggerCandidate(ctx: Ctx, frame: Frame<"window">, candidate: TriggerCa
     });
     return;
   }
-  pushFrames(ctx, [abilityFrame(ctx, candidate, frame.event, frame.eventFrameId, plan.bindings, plan.vars)]);
+  pushFrames(ctx, [abilityFrame(ctx, candidate, on.event, on.eventFrameId, plan.bindings, plan.vars)]);
   payCost(ctx, candidate.instanceId, controller, definition.cost, plan);
 }
 
@@ -302,6 +339,7 @@ function payWindowAbility(ctx: Ctx, frame: Frame<"window">, answer: readonly str
   const controller = candidate?.controllerId;
   const definition = candidate ? ctx.deps.abilities[candidate.abilityId] : undefined;
   if (!candidate || !controller || !definition) return;
+  const on = answered(frame, candidate);
   const payment = paymentsFromOptionIds(answer);
   const plan = planCost(
     ctx.state,
@@ -321,7 +359,7 @@ function payWindowAbility(ctx: Ctx, frame: Frame<"window">, answer: readonly str
   if (isPriceFault(paidVars)) return;
   const spent = payPayment(ctx, controller, payment, plan.payingFor);
   pushFrames(ctx, [
-    abilityFrame(ctx, candidate, frame.event, frame.eventFrameId, plan.bindings, { ...plan.vars, ...paidVars }),
+    abilityFrame(ctx, candidate, on.event, on.eventFrameId, plan.bindings, { ...plan.vars, ...paidVars }),
   ]);
   payCost(ctx, candidate.instanceId, controller, definition.cost, plan);
   announceResourcesSpent(ctx, controller, spent, candidate.instanceId, "ability");
@@ -408,7 +446,7 @@ function playWindowEvent(ctx: Ctx, frame: Frame<"window">, answer: readonly stri
     candidate.instanceId,
     controller,
     null,
-    { triggeredAbilityId: candidate.abilityId, event: frame.event, eventFrameId: frame.eventFrameId },
+    { triggeredAbilityId: candidate.abilityId, ...answered(frame, candidate) },
     { bindings: priced.plan.bindings, vars: priced.vars },
   );
   payCost(ctx, candidate.instanceId, controller, abilityCost, priced.plan);
@@ -422,7 +460,7 @@ function absorbWindowAnswer(ctx: Ctx, frame: Frame<"window">, answer: readonly s
       ? payWindowAbility(ctx, frame, answer)
       : playWindowEvent(ctx, frame, answer);
   }
-  const byOption = new Map(frame.pending.map((c) => [`${c.instanceId}:${c.abilityId}`, c]));
+  const byOption = new Map(frame.pending.map((c) => [optionIdOf(c), c]));
   const picked = answer.map((optionId) => byOption.get(optionId)).filter((c): c is TriggerCandidate => c !== undefined);
   if (frame.awaiting === "order") {
     setFrame(ctx, { ...frame, answer: null, awaiting: null, queue: picked, pending: [] });

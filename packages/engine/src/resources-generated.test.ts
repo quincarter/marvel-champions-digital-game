@@ -6,6 +6,7 @@
  * stub hero stays the default one.
  */
 
+import type { CardId } from "@mc/content";
 import { describe, expect, it } from "vitest";
 import type { EngineDeps } from "./abilities.js";
 import { replay, startSession } from "./engine.js";
@@ -16,8 +17,8 @@ import { mustInstance, mustPlayer } from "./query.js";
 import type { GameState } from "./state.js";
 import { depsOf, stubAbility } from "./testing/abilities.js";
 import { driveSession } from "./testing/drive.js";
-import { stubEvent, stubMinion, stubSupport } from "./testing/fixtures.js";
-import { giveCard, RESOURCE } from "./testing/scenario.js";
+import { stubEvent, stubMinion, stubResource, stubSupport } from "./testing/fixtures.js";
+import { defaultPick, giveCard, RESOURCE } from "./testing/scenario.js";
 import { copiesOf, gameAtFirstTurn, minionEngagedWith, P1, P2, playerCardIntoPlay } from "./testing/wave3.js";
 
 const TOON = stubAbility("toons.toon-resource", {
@@ -263,5 +264,131 @@ describe("§3.25 resources generated, an event (M.O.R.B.I.U.S.)", () => {
     const damageTo = (id: InstanceId) => events.findIndex((e) => e.type === "damageDealt" && e.targetInstanceId === id);
     expect(damageTo(hero)).toBeGreaterThanOrEqual(0);
     expect(damageTo(villain)).toBeGreaterThan(damageTo(hero));
+  });
+});
+
+// docs/phase7-wave5.md §4.1 Q25: "after you spend this card" and "after … generates resources" share one timing window.
+const villainHit = (amount: number) => [
+  {
+    kind: "dealDamage" as const,
+    target: { kind: "villain" as const },
+    amount: { kind: "const" as const, value: amount },
+  },
+];
+const SPENT_FORCED = stubAbility("spent-forced.response", {
+  trigger: { kind: "response", forced: true, on: { on: "resourcesSpent", selfIs: "source", playerIs: "controller" } },
+  effects: villainHit(2),
+});
+const SPENT_OPTIONAL = stubAbility("spent-optional.response", {
+  trigger: { kind: "response", forced: false, on: { on: "resourcesSpent", selfIs: "source", playerIs: "controller" } },
+  effects: villainHit(4),
+});
+const GENERATED_FORCED = stubAbility("generated-forced.response", {
+  trigger: { kind: "response", forced: true, on: { on: "resourcesGenerated", playerIs: "controller" } },
+  effects: villainHit(3),
+});
+const GENERATED_OPTIONAL = stubAbility("generated-optional.response", {
+  trigger: { kind: "response", forced: false, on: { on: "resourcesGenerated", playerIs: "controller" } },
+  effects: villainHit(4),
+});
+const SPENT_FORCED_CARD = stubResource({ id: "spent-forced", icons: 1, abilities: [SPENT_FORCED.ref] });
+const SPENT_OPTIONAL_CARD = stubResource({ id: "spent-optional", icons: 1, abilities: [SPENT_OPTIONAL.ref] });
+const GENERATED_FORCED_CARD = stubSupport({ id: "generated-forced", cost: 0, abilities: [GENERATED_FORCED.ref] });
+const GENERATED_OPTIONAL_CARD = stubSupport({ id: "generated-optional", cost: 0, abilities: [GENERATED_OPTIONAL.ref] });
+const windowDeps: EngineDeps = depsOf(ONCE, BLAST, SPENT_FORCED, SPENT_OPTIONAL, GENERATED_FORCED, GENERATED_OPTIONAL);
+
+function startWindow(inPlay: readonly CardId[], inHand: readonly CardId[]) {
+  const cards = [
+    GADGET,
+    BIG_EVENT,
+    SPENT_FORCED_CARD,
+    SPENT_OPTIONAL_CARD,
+    GENERATED_FORCED_CARD,
+    GENERATED_OPTIONAL_CARD,
+  ];
+  let state = gameAtFirstTurn({
+    cards,
+    deps: windowDeps,
+    deck: [...cards.map((card) => card.id), ...copiesOf(RESOURCE.id, 3)],
+  });
+  const gadget = playerCardIntoPlay(state, GADGET.id);
+  state = withCounters(gadget.state, gadget.id, "charge", 1);
+  for (const id of inPlay) state = playerCardIntoPlay(state, id).state;
+  const event = giveCard(state, P1, BIG_EVENT.id);
+  state = event.state;
+  const hand: InstanceId[] = [];
+  for (const id of inHand) {
+    const given = giveCard(state, P1, id, hand);
+    state = given.state;
+    hand.push(given.id);
+  }
+  return { state, event: event.id, hand, gadget: gadget.id };
+}
+
+/** Takes every optional trigger offered; anything else as `defaultPick` (forced ones in the order listed). */
+const takeEveryTrigger = (state: GameState): readonly string[] => {
+  const choice = state.pendingChoice;
+  if (choice?.prompt.kind === "chooseTriggers") return choice.options.map((option) => option.optionId);
+  return defaultPick(state);
+};
+
+/** The damage the villain took, in order: 2 forced spent, 3 forced generated, 4 an optional one, 1 the event itself. */
+const villainDamage = (state: GameState, events: readonly GameEvent[]) =>
+  events.flatMap((e) =>
+    e.type === "damageDealt" && e.targetInstanceId === state.villains[0]!.instanceId ? [e.amount] : [],
+  );
+
+describe("§4.1 Q25: 'after you spend' and 'after … generates' share one response window", () => {
+  it("a forced 'after you spend' and a forced 'after generates' resolve before an optional 'after you spend'; replay deep-equal", () => {
+    const { state, event, hand } = startWindow(
+      [GENERATED_FORCED_CARD.id],
+      [SPENT_FORCED_CARD.id, SPENT_OPTIONAL_CARD.id, RESOURCE.id],
+    );
+    const { session, events } = driveSession(
+      startSession(state),
+      windowDeps,
+      [
+        {
+          type: "playCard",
+          playerId: P1,
+          cardInstanceId: event,
+          payment: hand.map((id) => ({ fromHand: id })),
+          attachToInstanceId: null,
+        },
+      ],
+      takeEveryTrigger,
+    );
+    // Before Q25 the spend window ran whole (2, then the optional 4) before the generated one (3).
+    expect(villainDamage(state, events)).toEqual([2, 3, 4, 1]);
+    // One window: its forced tier, then its optional tier.
+    expect(events.filter((e) => e.type === "windowOpened" && e.timing === "response")).toHaveLength(2);
+    const replayed = replay(session.log, windowDeps);
+    if (!replayed.ok) throw new Error(replayed.error.message);
+    expect(replayed.state).toEqual(session.state);
+  });
+
+  it("…and before an optional 'after generates'", () => {
+    const { state, event, hand, gadget } = startWindow(
+      [GENERATED_FORCED_CARD.id, GENERATED_OPTIONAL_CARD.id],
+      [SPENT_FORCED_CARD.id, RESOURCE.id],
+    );
+    const { events } = driveSession(
+      startSession(state),
+      windowDeps,
+      [
+        {
+          type: "playCard",
+          playerId: P1,
+          cardInstanceId: event,
+          payment: [
+            ...hand.map((id) => ({ fromHand: id })),
+            { ability: { instanceId: gadget, abilityId: ONCE.ref.id } },
+          ],
+          attachToInstanceId: null,
+        },
+      ],
+      takeEveryTrigger,
+    );
+    expect(villainDamage(state, events)).toEqual([2, 3, 4, 1]);
   });
 });

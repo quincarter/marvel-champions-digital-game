@@ -24,6 +24,12 @@ export interface TriggerCandidate {
   readonly forced: boolean;
   /** An event card played from hand inside this window; it still has to be paid for. */
   readonly fromHand: boolean;
+  /**
+   * The triggering condition this candidate answers when it is not the window's own event: one of the window's
+   * `alsoEvents` (`index` into that list), a condition the same occurrence created (RRG 1.8 "Triggering Condition",
+   * p. 45). Absent for the window's own event.
+   */
+  readonly sharedEvent?: { readonly index: number; readonly event: TriggerEvent };
 }
 
 export const candidateOf = (source: AbilitySource, forced: boolean): TriggerCandidate => ({
@@ -109,6 +115,15 @@ export type StackFrame =
        */
       readonly deferredResponses?: readonly TriggerEvent[];
       /**
+       * One occurrence, several triggering conditions, one response window (RRG 1.8 "Triggering Condition", p. 45;
+       * `pushEventsSharingResponses`): this event's responses join the window of the event frame `responsesWith`, which
+       * resolves after it. Resolving this frame hands its resolved event to that frame's `joinedResponses` instead of
+       * opening its own window. Its interrupt window, apply step and "each time" effects are its own.
+       */
+      readonly responsesWith?: FrameId;
+      /** Events handed over by frames whose `responsesWith` is this one; this frame's response window gathers them. */
+      readonly joinedResponses?: readonly TriggerEvent[];
+      /**
        * A member of a simultaneous `damageGroup`: this frame runs only the interrupt window, then hands its (possibly
        * prevented or cancelled) event back to the group at `index`, which applies it with the others.
        */
@@ -142,6 +157,12 @@ export type StackFrame =
   | (FrameBase & {
       readonly kind: "window";
       readonly event: TriggerEvent;
+      /**
+       * Other triggering conditions of the same occurrence, sharing this window (RRG 1.8 "Triggering Condition", p. 45):
+       * their candidates are gathered with `event`'s and tiered with them, forced before optional (p. 5). Their own
+       * event frames have finished, so an ability answering one of them has no `eventFrameId`.
+       */
+      readonly alsoEvents?: readonly TriggerEvent[];
       readonly timing: WindowTiming;
       readonly eventFrameId: FrameId | null;
       /** Index into the priority tier list for this timing (RRG "Simultaneous Timing Priority"). */

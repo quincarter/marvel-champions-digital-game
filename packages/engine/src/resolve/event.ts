@@ -117,6 +117,8 @@ export function executeEventFrame(ctx: Ctx, frame: Frame<"event">): void {
         // enemy attack ends before damage is dealt, abilities that trigger after an attack or after a character
         // defends an attack resolve as normal"). So these run even on the cancel path.
         if (stepDeferredResponses(ctx, frame)) return;
+        // Earlier conditions of the same occurrence did happen: their shared window still opens (RRG 1.8 p. 45).
+        if (openJoinedResponses(ctx, frame)) return;
         // RRG "Cancel": the canceled effect is not considered to have occurred, so no responses.
         emit(ctx, { type: "triggerEvent", event: frame.event, phase: "cancelled" });
         reportResults(ctx, frame, false);
@@ -150,14 +152,21 @@ export function executeEventFrame(ctx: Ctx, frame: Frame<"event">): void {
       // How many forced responses this event triggers, reported to a `bind` ("If that scheme's 'Forced Response'
       // ability is not triggered this way"). Only recorded when there are some, so other results are unchanged.
       const forcedResponses = candidatesFor(ctx.state, ctx.deps, event, "response", true).length;
+      // The conditions earlier frames of the same occurrence handed over share this window (RRG 1.8 p. 45).
+      const { joinedResponses: joined = [], ...unjoined } = frame;
       setFrame(ctx, {
-        ...frame,
+        ...unjoined,
         event,
         stage: "done",
         ...(forcedResponses > 0 ? { vars: { ...frame.vars, forcedResponses } } : {}),
       });
-      if (hasCandidates(ctx.state, ctx.deps, event, "response")) {
-        pushWindow(ctx, event, "response", frame.frameId);
+      if (joinLaterResponses(ctx, frame, event)) {
+        // Its responses wait for the later frame's window (`pushEventsSharingResponses`).
+      } else if (
+        hasCandidates(ctx.state, ctx.deps, event, "response") ||
+        joined.some((other) => hasCandidates(ctx.state, ctx.deps, other, "response"))
+      ) {
+        pushWindow(ctx, event, "response", frame.frameId, joined);
       }
       // Lasting "each time …" effects resolve before the responses, so they are pushed on top (§3.17).
       for (const effect of [...eachTimeEffectsFor(ctx.state, ctx.deps, event)].reverse()) {
@@ -176,6 +185,8 @@ export function executeEventFrame(ctx: Ctx, frame: Frame<"event">): void {
       // separate windows per event, so a forced defend-response resolves after an optional "after [enemy] attacks you"
       // response. It only shows up when one attack triggers both, with opposite forcedness.
       if (stepDeferredResponses(ctx, frame)) return;
+      // Handed-over conditions this frame's own response window never gathered (it found nothing to do, or deferred).
+      if (openJoinedResponses(ctx, frame)) return;
       if (frame.endEffects.length > 0) {
         // "At the end of this attack": run after the response window, before the event is gone.
         setFrame(ctx, { ...frame, endEffects: [] });
@@ -282,6 +293,35 @@ function stepDeferredResponses(ctx: Ctx, frame: Frame<"event">): boolean {
   if (!deferred) return false;
   setFrame(ctx, { ...frame, deferredResponses: rest });
   openDeferredResponse(ctx, frame, deferred);
+  return true;
+}
+
+/**
+ * A frame pushed by `pushEventsSharingResponses` hands its resolved event to the later frame whose response window it
+ * shares (RRG 1.8 "Triggering Condition", p. 45). False when it shares none, or that frame is no longer on the stack
+ * (then it opens its own window, as any event does).
+ */
+function joinLaterResponses(ctx: Ctx, frame: Frame<"event">, event: TriggerEvent): boolean {
+  const leader = frame.responsesWith;
+  if (leader === undefined || findFrame(ctx.state, leader)?.kind !== "event") return false;
+  updateFrame(ctx, leader, (f) =>
+    f.kind === "event" ? { ...f, joinedResponses: [...(f.joinedResponses ?? []), event] } : f,
+  );
+  return true;
+}
+
+/**
+ * Opens the shared response window of the conditions handed to `frame` when its own window did not gather them (it was
+ * cancelled, found nothing to do, or deferred its responses). False when none is left.
+ */
+function openJoinedResponses(ctx: Ctx, frame: Frame<"event">): boolean {
+  const [first, ...rest] = frame.joinedResponses ?? [];
+  if (!first) return false;
+  const { joinedResponses: _opened, ...unjoined } = frame;
+  setFrame(ctx, unjoined);
+  if ([first, ...rest].some((event) => hasCandidates(ctx.state, ctx.deps, event, "response"))) {
+    pushWindow(ctx, first, "response", null, rest);
+  }
   return true;
 }
 

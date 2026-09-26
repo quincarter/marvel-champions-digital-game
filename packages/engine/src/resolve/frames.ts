@@ -108,6 +108,26 @@ export function pushEvents(
   );
 }
 
+/**
+ * Several triggering conditions one occurrence created, resolved in the order listed (`events[0]` first, as
+ * `pushEvents`), sharing a single response window (RRG 1.8 "Triggering Condition", p. 45: "those triggering conditions
+ * are handled with … a single response window"). The last event's frame opens that window once every earlier one has
+ * handed over its resolved event (`responsesWith` / `joinedResponses`), so forced responses to any of them resolve
+ * before optional ones to any (RRG 1.8 "Simultaneous Timing Priority", p. 5). Each event keeps its own interrupt window
+ * and apply step.
+ */
+export function pushEventsSharingResponses(ctx: Ctx, events: readonly TriggerEvent[]): void {
+  if (events.length <= 1) return pushEvents(ctx, events);
+  const frames = events.map((event) => eventFrame(ctx, event));
+  const leader = frames[frames.length - 1]!.frameId;
+  pushFrames(
+    ctx,
+    frames.map((frame) =>
+      frame.kind === "event" && frame.frameId !== leader ? { ...frame, responsesWith: leader } : frame,
+    ),
+  );
+}
+
 /** An event whose state change has already happened; only responses can fire. */
 export const announce = (ctx: Ctx, event: TriggerEvent): FrameId => pushEvent(ctx, event);
 

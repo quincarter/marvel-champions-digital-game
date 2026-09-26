@@ -73,6 +73,7 @@ import {
   pushEffects,
   pushEvent,
   pushEvents,
+  pushEventsSharingResponses,
   pushPlayCardFrame,
   recordAbilityUse,
 } from "./resolve/index.js";
@@ -993,6 +994,11 @@ export function payPayment(
  * it on the stack and its windows resolve first — between paying the costs and the card commencing being played (RRG
  * 1.8 "Initiating Abilities", p. 24, steps 5–6; "Cost Arrow Icon", p. 14; ruling, Feb 28, 2026 (1)).
  *
+ * The payment is one occurrence: its `resourcesSpent` events (the paying player's first) and its `resourcesGenerated`
+ * events (docs/phase7-wave5.md §3.25) share one response window (§4.1 Q25; RRG 1.8 "Triggering Condition", p. 45), so
+ * forced responses to any of them resolve before optional ones to any (RRG 1.8 "Simultaneous Timing Priority", p. 5).
+ * Each `resourcesSpent` keeps its own interrupt window.
+ *
  * Pushed only when an ability could react, so a payment nothing cares about leaves the stack and the log as they were.
  */
 export function announceResourcesSpent(
@@ -1002,8 +1008,11 @@ export function announceResourcesSpent(
   payingForInstanceId: InstanceId | null,
   purpose: "playCard" | "ability" | "effect",
 ): void {
-  announceResourcesGenerated(ctx, playerId, paid.generated, payingForInstanceId, purpose);
-  announceCardsSpent(ctx, playerId, paid.cards, payingForInstanceId, purpose);
+  const events = [
+    ...cardsSpentEvents(ctx, playerId, paid.cards, payingForInstanceId, purpose),
+    ...resourcesGeneratedEvents(playerId, paid.generated, payingForInstanceId, purpose),
+  ].filter((event) => heard(ctx.state, ctx.deps, event));
+  pushEventsSharingResponses(ctx, events);
   // "Resource: Exhaust Gauntlet Gun → generate a [wild] resource for a War Machine event **and place 1 ammo counter on
   // War Machine**" (docs/phase7-wave4.md §3.30): a resource ability's own effects are part of using it, so they resolve
   // with the payment — pushed last, they resolve before the "after you spend" windows and before the card or ability
@@ -1024,57 +1033,59 @@ export function announceResourcesSpent(
 
 /**
  * "After the engaged player generates any number of resources" (M.O.R.B.I.U.S.; docs/phase7-wave5.md §3.25): one
- * `resourcesGenerated` per player who generated at least 1 resource in the payment, when an ability listens. Pushed
- * before the "after you spend this card" events and the resource abilities' own effects, so it resolves after them and
- * before the card or ability paid for; in reverse, so the paying player's own event resolves first.
+ * `resourcesGenerated` per player who generated at least 1 resource in the payment, the paying player's first. They
+ * resolve after the payment's `resourcesSpent` events, in the same response window (§4.1 Q25).
  */
-function announceResourcesGenerated(
-  ctx: Ctx,
+function resourcesGeneratedEvents(
   playerId: PlayerId,
   generated: readonly GeneratedByPlayer[],
   payingForInstanceId: InstanceId | null,
   purpose: "playCard" | "ability" | "effect",
-): void {
-  for (const { playerId: generator, amount } of [...generated].reverse()) {
-    if (amount <= 0) continue;
-    const event: TriggerEvent = {
-      kind: "resourcesGenerated",
-      playerId: generator,
-      amount,
-      forPlayerId: playerId,
-      payingForInstanceId,
-      purpose,
-    };
-    if (heard(ctx.state, ctx.deps, event)) pushEvent(ctx, event);
-  }
+): readonly TriggerEvent[] {
+  return generated.flatMap(({ playerId: generator, amount }): TriggerEvent[] =>
+    amount > 0
+      ? [
+          {
+            kind: "resourcesGenerated",
+            playerId: generator,
+            amount,
+            forPlayerId: playerId,
+            payingForInstanceId,
+            purpose,
+          },
+        ]
+      : [],
+  );
 }
 
-function announceCardsSpent(
+/**
+ * One `resourcesSpent` per player who spent cards, the paying player's first: an alliance payment (§3.17) spans
+ * players, and "After you spend this card for a player" (Everyday Hero) names both the spender and the player paid for.
+ * Spenders are the cards' owners (a hand card is in its owner's hand).
+ */
+function cardsSpentEvents(
   ctx: Ctx,
   playerId: PlayerId,
   spent: readonly InstanceId[],
   payingForInstanceId: InstanceId | null,
   purpose: "playCard" | "ability" | "effect",
-): void {
-  if (spent.length === 0) return;
-  // One event per player who spent cards: an alliance payment (§3.17) spans players, and "After you spend this card
-  // for a player" (Everyday Hero) names both the spender and the player paid for. Pushed in reverse player order from
-  // the paying player, so the paying player's own event resolves first. Spenders are the cards' owners (a hand card
-  // is in its owner's hand).
+): readonly TriggerEvent[] {
+  if (spent.length === 0) return [];
   const spenders = [playerId, ...ctx.state.players.flatMap((p) => (p.playerId === playerId ? [] : [p.playerId]))];
-  for (const spender of [...spenders].reverse()) {
+  return spenders.flatMap((spender): TriggerEvent[] => {
     const theirs = spent.filter((id) => (getInstance(ctx.state, id)?.ownerId ?? playerId) === spender);
-    if (theirs.length === 0) continue;
-    const event: TriggerEvent = {
-      kind: "resourcesSpent",
-      cardInstanceIds: theirs,
-      playerId: spender,
-      forPlayerId: playerId,
-      payingForInstanceId,
-      purpose,
-    };
-    if (heard(ctx.state, ctx.deps, event)) pushEvent(ctx, event);
-  }
+    if (theirs.length === 0) return [];
+    return [
+      {
+        kind: "resourcesSpent",
+        cardInstanceIds: theirs,
+        playerId: spender,
+        forPlayerId: playerId,
+        payingForInstanceId,
+        purpose,
+      },
+    ];
+  });
 }
 
 /**
