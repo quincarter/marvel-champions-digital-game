@@ -1,5 +1,6 @@
 import type { EventPattern } from "@mc/engine";
 import {
+  andThen,
   anyOf,
   bindTargets,
   cancelIt,
@@ -113,8 +114,9 @@ export const DRS_NEMESIS = defineAbilities({
 
   // Counterspell — Attach to your hero (data). Forced Interrupt: When you play an event, cancel its effects and
   // discard it (the discard is the standard "cancel" rule, not a separate effect here — see the module doc comment
-  // above). Then, discard this card.
-  "09030.counterspell-forced-interrupt": forcedInterrupt(whenYouPlayAnEvent, cancelIt(), discard(self)),
+  // above). Then, discard this card: skipped when the event was already cancelled (`nothingToCancel`, RRG 1.8 "'Then'",
+  // p. 44).
+  "09030.counterspell-forced-interrupt": forcedInterrupt(whenYouPlayAnEvent, cancelIt(), andThen(discard(self))),
 
   // Thoughtcasting — When Revealed (Alter-Ego): Discard a card from your hand with the highest cost. Place threat
   // on the main scheme equal to the printed cost of that card. When Revealed (Hero): Discard a card from your hand

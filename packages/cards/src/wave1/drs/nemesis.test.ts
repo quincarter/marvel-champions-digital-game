@@ -1,5 +1,12 @@
 import { cardId } from "@mc/content";
-import { activeEncounterDeck, activeVillain, remainingHitPoints, type InstanceId } from "@mc/engine";
+import {
+  activeEncounterDeck,
+  activeVillain,
+  instanceId,
+  remainingHitPoints,
+  type GameState,
+  type InstanceId,
+} from "@mc/engine";
 import {
   endTurn,
   firstLegal,
@@ -19,6 +26,7 @@ import {
   toHero,
   type Picker,
 } from "../../testing/harness.js";
+import { driveEvents } from "../../testing/staging.js";
 import { wave1Scenario } from "../setup.js";
 import { DRS_DEPS, forceMinionIntoPlay, runDrs, stackFromSetAside, startDrsGame } from "./testing.js";
 
@@ -173,5 +181,44 @@ describe("Doctor Strange's nemesis set", () => {
     // "Then, discard this card": Counterspell itself.
     expect(activeEncounterDeck(after).discard).toContain(counterspell);
     expect(inst(after, counterspell).attachedTo).toBeNull();
+  });
+});
+
+// RRG 1.8 "'Then'" (p. 44), docs/then-sweep.md: "cancel its effects and discard it. Then, discard this card." Its
+// cancel could only fail if the event were already cancelled, and RRG 1.8 "Interrupt" (p. 25) says that once an
+// interrupt cancels a triggering condition, no further interrupts to it can be triggered. With two Counterspells
+// attached (test surgery: a copy of the one instance), the first cancels the play and discards itself, and the
+// second never triggers, so it stays attached.
+describe("Counterspell (09030): 'Then, discard this card' waits on the cancel", () => {
+  it("of two Counterspells, the first cancels the event and is discarded; the second never triggers", () => {
+    const hero = runDrs(drsVsRhino(), toHero());
+    const staged = stackEncounterDeck(stackFromSetAside(hero, P1, "09030"), ADVANCE);
+    const identity = identityOf(staged);
+    const afterReveal = settle(runDrs(staged, endTurn()), firstLegal, (s) => s.step.kind === "turn", DRS_DEPS);
+    const first = instancesOf(afterReveal, "09030")[0]!;
+    const second = instanceId(`${first}-copy`);
+    const twice: GameState = {
+      ...afterReveal,
+      instances: {
+        ...afterReveal.instances,
+        [second]: { ...inst(afterReveal, first), instanceId: second },
+        [identity]: {
+          ...inst(afterReveal, identity),
+          attachments: [...inst(afterReveal, identity).attachments, second],
+        },
+      },
+    };
+    const given = moveToHand(twice, P1, "09016");
+    const [momentumShift] = given.ids as [InstanceId];
+    const damaged = patchInstance(given.state, identity, { damage: 2 });
+    const { state: after, events } = driveEvents(
+      DRS_DEPS,
+      damaged,
+      play(P1, momentumShift, payWith(damaged, P1, 2, [momentumShift])),
+    );
+    expect(events.some((e) => e.type === "thenSkipped")).toBe(false);
+    const attached = [first, second].filter((id) => inst(after, id).attachedTo === identity);
+    expect(attached).toHaveLength(1);
+    expect(playerOf(after, P1).discard).toContain(momentumShift);
   });
 });
