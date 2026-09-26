@@ -1,5 +1,6 @@
 import type { EventPattern, TargetQuery } from "@mc/engine";
 import {
+  andThen,
   addCounters,
   alterEgoAction,
   cancelRevealedCard,
@@ -147,7 +148,9 @@ export const ADAM_WARLOCK_KIT = defineAbilities({
   "21036.cosmic-ward-forced-interrupt": forcedInterrupt(
     on.encounterCardRevealed(query("treachery")),
     cancelRevealedCard(),
-    moveCards(cards(self), "discard"),
+    // Nothing left to cancel (another cancel got there first): `nothingToCancel`, so Cosmic Ward stays (RRG 1.8
+    // "'Then'", p. 44).
+    andThen(moveCards(cards(self), "discard")),
   ),
 
   // Mystic Senses (upgrade, 21037) — Hero Response: After you resolve Adam Warlock's "Battle Mage" ability, draw 1
