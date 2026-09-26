@@ -20,6 +20,7 @@ import {
   use,
   type Picker,
 } from "../../testing/harness.js";
+import { driveStepwise } from "../../testing/staging.js";
 import { wave1Scenario } from "../setup.js";
 import { BKW_DEPS, runBkw, startBkwGame } from "./testing.js";
 
@@ -367,6 +368,40 @@ describe("Black Widow pack cards", () => {
     // +1 from The Break-In's acceleration (step 1), +1 from Rhino's SCH when the second reveal's "the villain
     // schemes" resolves: proof the chain (cancel → reveal another) actually ran.
     expect(mainThreat(after)).toBe(before + 2);
+  });
+
+  // RRG 1.8 "'Then'" (p. 44), docs/then-sweep.md: with the revealed card already cancelled by the time Spycraft
+  // resolves (surgery standing in for another cancel that got there first), its cancel has nothing to cancel, so
+  // "Then, reveal another card" is skipped. Its cost (discarding Spycraft) stays paid.
+  it("Spycraft: with nothing left to cancel, the 'then' reveal is skipped", () => {
+    const start = bkwVsRhino();
+    const given = moveToHand(start, P1, "08018");
+    const [spycraft] = given.ids as [never];
+    const hero = runBkw(given.state, toHero());
+    const withSpycraft = settle(
+      runBkw(hero, play(P1, spycraft, payWith(hero, P1, 1, [spycraft]))),
+      firstLegal,
+      undefined,
+      BKW_DEPS,
+    );
+    const before = mainThreat(withSpycraft);
+    const stacked = stackEncounterDeck(withSpycraft, ADVANCE, "01188", "01186", "01104");
+    const offered = (s: GameState) =>
+      s.pendingChoice?.options.some((o) => o.optionId.includes("spycraft-interrupt")) === true;
+    const { state: after, events } = driveStepwise(
+      BKW_DEPS,
+      runBkw(stacked, endTurn()),
+      preferring("spycraft-interrupt"),
+      (s) =>
+        offered(s)
+          ? { ...s, stack: s.stack.map((f) => (f.kind === "reveal" ? { ...f, effectsCancelled: true } : f)) }
+          : s,
+    );
+    expect(events).toContainEqual(expect.objectContaining({ type: "preThenUnresolved", cause: "nothingToCancel" }));
+    expect(events).toContainEqual({ type: "thenSkipped" });
+    expect(playerOf(after, P1).discard).toContain(spycraft);
+    // Only The Break-In's acceleration: the second Advance ("the villain schemes") was never revealed.
+    expect(mainThreat(after)).toBe(before + 1);
   });
 
   it("Quincarrier: a [wild] Resource ability, playable only with an Avenger identity", () => {
