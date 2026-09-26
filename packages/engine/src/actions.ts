@@ -100,6 +100,7 @@ import {
 } from "./resources.js";
 import {
   activeAbilityRefs,
+  basicThwartTargetAllowed,
   canAttack,
   cardsInPlay,
   categoriesOf,
@@ -2591,6 +2592,11 @@ function basicThwartPaying(
     if (!isMainScheme && !isSideScheme) {
       return engineError("no_valid_target", "target is not a scheme in play", command);
     }
+    // "Your hero's basic thwart power (THW) can only remove threat from the scheme with the most threat."
+    // (`RuleSpec basicThwartTargets`, docs/phase7-wave5.md §3.22.)
+    if (!basicThwartTargetAllowed(ctx.state, ctx.deps, command.thwarterInstanceId, schemeId)) {
+      return engineError("no_valid_target", "this character's basic thwart cannot target that scheme", command);
+    }
     // "they cannot target any game elements in the other game areas" (The Once and Future Kang insert; §3.1).
     const thwarterArea = areaOfPlayer(ctx.state, command.playerId);
     if (!sameGameArea(thwarterArea, areaOfCard(ctx.state, schemeId))) {
@@ -2605,7 +2611,7 @@ function basicThwartPaying(
       protectedScheme &&
       !confused &&
       iconsInPlay(ctx.state, ctx.deps, "crisis", thwarterArea) > 0 &&
-      !characterIgnores(ctx.state, ctx.deps, command.thwarterInstanceId, "crisis")
+      !characterIgnores(ctx.state, ctx.deps, command.thwarterInstanceId, "crisis", true)
     ) {
       return engineError("no_valid_target", "a crisis icon blocks thwarting the main scheme", command);
     }
@@ -2615,7 +2621,7 @@ function basicThwartPaying(
       protectedScheme &&
       !confused &&
       patrolledBy(ctx.state, ctx.deps, command.playerId) &&
-      !characterIgnores(ctx.state, ctx.deps, command.thwarterInstanceId, "patrol")
+      !characterIgnores(ctx.state, ctx.deps, command.thwarterInstanceId, "patrol", true)
     ) {
       return engineError(
         "no_valid_target",

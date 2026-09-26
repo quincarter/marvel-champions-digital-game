@@ -860,6 +860,23 @@ export type RuleSpec =
       readonly target: TargetQuery;
       readonly ignores: readonly ("guard" | "patrol" | "crisis")[];
       readonly while?: Predicate;
+      /**
+       * Only for the character's basic thwarts: "your hero's basic thwarts ignore the crisis icon" (Retinal Display,
+       * `sm` 27186a/b; docs/phase7-wave5.md §3.22). An ability's thwart or attack is not exempted.
+       */
+      readonly basicOnly?: true;
+    }
+  /**
+   * "Your hero's basic thwart power (THW) can only remove threat from the scheme with the most threat." (Retinal
+   * Display, `sm` 27186a/b; docs/phase7-wave5.md §3.22): a basic thwart by a character `character` matches may target
+   * only a scheme `among` names now (read from the rule's card, so "the scheme with the most threat" is a
+   * `superlative` ref; ties leave every tied scheme). Several rules all apply.
+   */
+  | {
+      readonly kind: "basicThwartTargets";
+      readonly character: TargetQuery;
+      readonly among: TargetRef;
+      readonly while?: Predicate;
     }
   /**
    * On an upgrade attached to a minion: "Take control of attached minion and treat it as a [Controlled] ally with a

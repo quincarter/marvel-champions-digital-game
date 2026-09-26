@@ -353,7 +353,7 @@ against `pnpm dsl` (379 builders), the engine's `EffectSpec` / `RuleSpec` / `Tri
 | 3.19 | Any number of tough status cards                                                             | Armadillo                                                                                      | landed  |
 | 3.20 | Treating printed resources as another type                                                   | Haywire                                                                                        | landed  |
 | 3.21 | An additional cost to thwart a scheme                                                        | Cat in a Tree, Giant Monster Attack                                                            | landed  |
-| 3.22 | A basic thwart that may remove threat only from one scheme                                   | Retinal Display                                                                                | open    |
+| 3.22 | A basic thwart that may remove threat only from one scheme                                   | Retinal Display                                                                                | landed  |
 | 3.23 | Progressing identities: swapping one identity card for the next                              | Ironheart                                                                                      | open    |
 | 3.24 | A separated identity (two cards, one dial)                                                   | SP//dr                                                                                         | open    |
 | 3.25 | Resources generated: an event, and counters spent as resources                               | M.O.R.B.I.U.S.; Spider-Ham's toon counters                                                     | open    |
@@ -854,6 +854,14 @@ additional cost to thwart this scheme, you must spend a [energy] resource." **Pl
 scheme, cost: AbilityCost }`; a thwart that cannot pay it cannot target the scheme (legal targets exclude it).
 
 ### 3.22 A basic thwart that may remove threat only from one scheme
+
+> **Status: landed (2026-09-26),** tested in `packages/engine/src/basic-thwart-targets.test.ts` (2 tests: a basic thwart
+> at a scheme without the most threat is refused and one at the scheme with the most goes through, replay deep-equal;
+> a basic thwart of the main scheme ignores a crisis icon while a thwart event still has no valid target). DSL:
+> `wave5-primitives.test.ts`. **What landed:** **`RuleSpec basicThwartTargets { character, among: TargetRef }`**, checked
+> by the basic thwart command for each share (ties leave every tied scheme), and **`characterIgnores.basicOnly`**:
+> `characterIgnores` and `threatRemovalBlocked` now know whether the thwart is basic (a removal reads its parent thwart
+> event). **DSL:** `basicThwartOnlyAgainst(character, among)`, `basicThwartsIgnore(character, ["crisis", "patrol"])`.
 
 Retinal Display: "Your hero's basic thwart power (THW) can only remove threat from the scheme with the most threat."
 **Plan:** `RuleSpec basicThwartTargets { character, among: query }` restricting legal thwart targets; the Enhanced side's

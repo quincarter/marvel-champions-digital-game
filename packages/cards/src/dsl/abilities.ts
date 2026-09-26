@@ -19,6 +19,7 @@ import type {
   StatName,
   TargetCategory,
   TargetQuery,
+  TargetRef,
   ValueSpec,
   InPlayCostPick,
   PlayerRef,
@@ -608,6 +609,25 @@ export const ignores = (
   when?: Predicate,
 ): ConstantPart => ({
   rules: [{ kind: "characterIgnores", target, ignores: what, ...(when ? { while: when } : {}) }],
+});
+/**
+ * "Your hero's basic thwarts ignore the crisis icon (and the patrol keyword)" (Retinal Display, `sm` 27186a/b;
+ * docs/phase7-wave5.md §3.22): `ignores` for basic thwarts only.
+ */
+export const basicThwartsIgnore = (
+  target: TargetQuery,
+  what: readonly ("patrol" | "crisis")[],
+  when?: Predicate,
+): ConstantPart => ({
+  rules: [{ kind: "characterIgnores", target, ignores: what, basicOnly: true, ...(when ? { while: when } : {}) }],
+});
+/**
+ * "Your hero's basic thwart power (THW) can only remove threat from the scheme with the most threat." (Retinal
+ * Display; docs/phase7-wave5.md §3.22): `constant(basicThwartOnlyAgainst(query("hero", { controller: "you" }),
+ * superlative("highest", each(query("scheme")), threatOn(chosen("candidate")))))`.
+ */
+export const basicThwartOnlyAgainst = (character: TargetQuery, among: TargetRef): ConstantPart => ({
+  rules: [{ kind: "basicThwartTargets", character, among }],
 });
 /**
  * "Take control of attached minion and treat it as a [Controlled] ally with a blank text box. Its THW is equal to its

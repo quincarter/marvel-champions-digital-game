@@ -11,6 +11,8 @@ import {
   action,
   additionalThwartCost,
   anyNumberOfToughStatusCards,
+  basicThwartOnlyAgainst,
+  basicThwartsIgnore,
   boost,
   cannotBeCanceled,
   constant,
@@ -391,6 +393,23 @@ describe("§3.21 an additional cost to thwart a scheme (Giant Monster Attack, Ca
       rules: [{ kind: "additionalThwartCost", scheme: { self: true }, resources: { energy: 1 } }],
     });
     valid(constant(additionalThwartCost({ self: true }, { indirectDamage: 2 })));
+  });
+});
+
+describe("§3.22 a basic thwart limited to one scheme (Retinal Display)", () => {
+  it("composes the target restriction and the basic-only crisis exemption", () => {
+    const yourHero = query("hero", { controller: "you" });
+    const retinal = constant(
+      basicThwartOnlyAgainst(yourHero, superlative("highest", each(query("scheme")), threatOn(chosen("candidate")))),
+      basicThwartsIgnore(yourHero, ["crisis"]),
+    );
+    valid(retinal);
+    expect(retinal.trigger).toMatchObject({
+      rules: [
+        { kind: "basicThwartTargets", character: { categories: ["hero"], controller: "you" } },
+        { kind: "characterIgnores", ignores: ["crisis"], basicOnly: true },
+      ],
+    });
   });
 });
 

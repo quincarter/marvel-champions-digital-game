@@ -953,10 +953,32 @@ export function characterIgnores(
   deps: EngineDeps,
   id: InstanceId | null | undefined,
   what: "guard" | "patrol" | "crisis",
+  /** A basic thwart (`characterIgnores.basicOnly`, docs/phase7-wave5.md §3.22). */
+  basic = false,
 ): boolean {
   if (!id) return false;
   return activeRules(state, deps, "characterIgnores").some(
-    ({ rule, context }) => rule.ignores.includes(what) && matchesQuery(state, id, rule.target, context),
+    ({ rule, context }) =>
+      rule.ignores.includes(what) &&
+      (rule.basicOnly !== true || basic) &&
+      matchesQuery(state, id, rule.target, context),
+  );
+}
+
+/**
+ * Whether a basic thwart by this character may target this scheme (`RuleSpec basicThwartTargets`, docs/phase7-wave5.md
+ * §3.22): every rule naming the character must list the scheme.
+ */
+export function basicThwartTargetAllowed(
+  state: GameState,
+  deps: EngineDeps,
+  thwarterId: InstanceId,
+  schemeId: InstanceId,
+): boolean {
+  return activeRules(state, deps, "basicThwartTargets").every(
+    ({ rule, context }) =>
+      !matchesQuery(state, thwarterId, rule.character, context) ||
+      resolveRef(state, rule.among, context).includes(schemeId),
   );
 }
 
