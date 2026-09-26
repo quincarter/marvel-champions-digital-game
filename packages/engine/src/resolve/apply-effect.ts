@@ -417,6 +417,23 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       const controller = frame.controllerId;
       const [thwarter] = targets(effect.thwarter ?? { kind: "identityOf", player: { kind: "controller" } });
       if (!controller || !thwarter || cannotThwart(ctx.state, ctx.deps, controller)) return;
+      // RRG 1.8 "Confuse, Confused" (p. 13): "If a confused identity or ally attempts to thwart or use a thwart ability,
+      // discard the confused card instead", and "that character is not considered to have thwarted" — so no threat is
+      // removed, no "after … thwarts" window opens, and an ally takes no consequential damage (RRG 1.8 "Ally", p. 7).
+      // The confused character is the one named as thwarting (`thwarter`, else the controller's identity), like the
+      // stunned attacker above; one thwart effect is one attempt, whatever its number of schemes. Costs were paid when
+      // the ability was used. An "(thwart)"-labeled ability by a confused identity never reaches here: its label
+      // cancels the whole ability first (`labelCancels`, RRG 1.8 "Labeled Ability", p. 26), removing the card once.
+      if (statusActive(ctx.state, thwarter, "confused", ctx.deps)) {
+        updateInstance(ctx, thwarter, (i) => ({ ...i, statuses: { ...i.statuses, confused: 0 } }));
+        emit(ctx, {
+          type: "statusRemoved",
+          instanceId: thwarter,
+          status: "confused",
+          reason: "cancelledSchemeOrThwart",
+        });
+        return;
+      }
       // A "(thwart)" event's threat removal is an instance too (RRG 1.8 "Thwart", p. 44).
       const amount = value(effect.amount) + cardEffectBonus(ctx.state, frame.selfInstanceId, "threatRemoved");
       pushEvents(

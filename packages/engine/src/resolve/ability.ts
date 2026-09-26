@@ -122,7 +122,11 @@ export function executeAbilityFrame(ctx: Ctx, frame: Frame<"ability">): void {
 /**
  * RRG "Labeled Ability": a stunned identity using an (attack) ability, or a
  * confused one using a (thwart) ability, cancels the whole ability except its
- * costs, and every status that cancelled it is removed.
+ * costs, and every status that cancelled it is removed. Only the identity is
+ * checked: a labeled ability is that identity's thwart (RRG 1.8 p. 26). A
+ * confused *thwarter* named by a thwart effect (an ally's own ability, an
+ * unlabeled "your identity thwarts") is caught as that effect applies
+ * (`thwart` in `apply-effect.ts`); a cancelled ability never gets that far.
  */
 function labelCancels(ctx: Ctx, playerId: PlayerId, labels: readonly string[]): boolean {
   const identity = mustPlayer(ctx.state, playerId).identity.instanceId;
