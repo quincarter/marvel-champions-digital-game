@@ -207,6 +207,13 @@ function checkTrigger(definition: AbilityDefinition, problems: string[]): void {
     problems.push("only resource abilities generate resources");
   if (trigger.kind === "constant" && (definition.cost || definition.limit || definition.label))
     problems.push("a constant ability has no cost, limit or label");
+  // docs/phase7-wave5.md §3.25: a use per counter, so the cost is one fixed counter cost and nothing else.
+  if (trigger.kind === "resource" && trigger.repeatable) {
+    const cost = definition.cost ?? {};
+    const others = Object.keys(cost).filter((key) => key !== "spendCounters");
+    if (!cost.spendCounters || cost.spendCounters.upTo || others.length > 0 || definition.limit)
+      problems.push("a repeatable resource ability needs a fixed spendCounters cost only, and no limit");
+  }
 }
 
 /** Every effect in the tree, including nested branches and deferred effects. */

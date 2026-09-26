@@ -10,6 +10,7 @@ import {
   controllerOf,
   type EffectContext,
   matchesQuery,
+  resolvePlayers,
   uncontrolledYouOf,
 } from "../select.js";
 import type { TargetQuery } from "../spec.js";
@@ -159,6 +160,11 @@ function matchesRest(
   if (pattern.attackKind) {
     if (event.kind !== "attack" && event.kind !== "thwart") return false;
     if ((pattern.attackKind === "basic") !== (event.basic === true)) return false;
+  }
+  // "After the engaged player …" (docs/phase7-wave5.md §3.25): the event's player is one the ref names.
+  if (pattern.playerIn) {
+    const player = subjects.players[0];
+    if (player === undefined || !resolvePlayers(state, pattern.playerIn, context).includes(player)) return false;
   }
   return true;
 }

@@ -720,11 +720,17 @@ const mergeChoices = (auto: CostChoices | undefined, given: CostChoices | undefi
   return Object.keys(merged).length > 0 ? merged : undefined;
 };
 
-/** The inverse of `paymentsFromOptionIds`. */
-const optionIdsOf = (payment: readonly Payment[]): readonly string[] =>
-  payment.map((entry) =>
-    "fromHand" in entry ? `hand:${entry.fromHand}` : `ability:${entry.ability.instanceId}:${entry.ability.abilityId}`,
-  );
+/** The inverse of `paymentsFromOptionIds`: a repeated resource ability's n-th use is "…:<n>" (§3.25 of wave 5). */
+const optionIdsOf = (payment: readonly Payment[]): readonly string[] => {
+  const uses = new Map<string, number>();
+  return payment.map((entry) => {
+    if ("fromHand" in entry) return `hand:${entry.fromHand}`;
+    const id = `ability:${entry.ability.instanceId}:${entry.ability.abilityId}`;
+    const n = (uses.get(id) ?? 0) + 1;
+    uses.set(id, n);
+    return n === 1 ? id : `${id}:${n}`;
+  });
+};
 
 /** True when the player may still choose to spend even though the fixed cost is 0 ("Spend X resources…"). */
 const isSpendable = (requirement: ResolvedRequirement | null, cost: AbilityCost | undefined): boolean =>

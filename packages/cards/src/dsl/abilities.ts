@@ -171,18 +171,33 @@ export const resource = (
     readonly form?: Form;
     readonly generatesFor?: TargetQuery;
     readonly forAnyPlayer?: boolean;
+    /** Usable more than once in one payment, each use paying its fixed counter cost (docs/phase7-wave5.md §3.25). */
+    readonly repeatable?: boolean;
   } = {},
   ...effects: readonly EffectArg[]
 ): AbilityDefinition => {
-  const { form, generatesFor, forAnyPlayer, ...rest } = options;
+  const { form, generatesFor, forAnyPlayer, repeatable, ...rest } = options;
   const definition = build(
-    { kind: "resource", ...(form ? { form } : {}), ...(forAnyPlayer ? { forAnyPlayer: true } : {}) },
+    {
+      kind: "resource",
+      ...(form ? { form } : {}),
+      ...(forAnyPlayer ? { forAnyPlayer: true } : {}),
+      ...(repeatable ? { repeatable: true } : {}),
+    },
     rest,
     effects,
     generates,
   );
   return generatesFor ? { ...definition, generatesFor } : definition;
 };
+/**
+ * "Each toon counter on Spider-Ham can be spent as if it were a [wild] resource." (`spiderham` 30001a;
+ * docs/phase7-wave5.md §3.25): a `repeatable` resource ability whose cost removes one counter from this card, used
+ * once per counter spent, as many times in one payment as there are counters. `generates` defaults to 1 wild. Spending
+ * one counts as generating a resource (§4 Q5 default), so "after the engaged player generates" (M.O.R.B.I.U.S.) sees it.
+ */
+export const countersAsResource = (counterType: string, generates: ResourceGeneration = 1): AbilityDefinition =>
+  resource(generates, { cost: removeCounter(counterType, 1), repeatable: true });
 /** "Hero Resource:" */
 export const heroResource = (
   generates: ResourceGeneration,
@@ -1359,6 +1374,18 @@ export const on = {
       "resourcesSpent",
       { selfIs: "source", playerIs: "controller" },
       opts.toPlay ? { targetIs: opts.toPlay, eventIs: { purpose: "playCard" } } : {},
+    ),
+  /**
+   * "After [a player] generates any number of resources" (docs/phase7-wave5.md §3.25), once per payment per player who
+   * generated at least 1; the number generated is `eventAmount`, the player `eventPlayer`. `by: "engaged"`: "the
+   * engaged player" (M.O.R.B.I.U.S., `spdr` 31027 errata, RRG 1.8 p. 68), the player this card is engaged with;
+   * `by: "you"`: this card's controller (or, on an encounter card, its "you"); absent: any player.
+   */
+  resourcesGenerated: (opts: { readonly by?: "you" | "engaged" } = {}): EventPattern =>
+    pattern(
+      "resourcesGenerated",
+      opts.by === "you" ? { playerIs: "controller" } : {},
+      opts.by === "engaged" ? { playerIn: { kind: "engagedWith", of: { kind: "self" } } } : {},
     ),
 } as const;
 

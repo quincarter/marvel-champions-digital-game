@@ -680,6 +680,38 @@ function paymentSourceVars(ctx: Ctx, playerId: PlayerId, payment: readonly Payme
   return vars;
 }
 
+/**
+ * Whether a `repeatable` resource ability (docs/phase7-wave5.md §3.25) can be used `uses` times in one payment: each
+ * use pays its own cost, so the cost `uses` times over must be payable now. Only a fixed `spendCounters` cost repeats
+ * (a card exhausts once); any other cost, or a non-repeatable ability, allows one use.
+ */
+function repeatUsesFault(
+  state: GameState,
+  deps: EngineDeps,
+  instanceId: InstanceId,
+  abilityId: string,
+  spender: PlayerId,
+  uses: number,
+): PriceFault | null {
+  if (uses <= 1) return null;
+  const definition = deps.abilities[abilityId];
+  const cost = definition?.cost;
+  const counters = cost?.spendCounters;
+  if (definition?.trigger.kind !== "resource" || !definition.trigger.repeatable) {
+    return { code: "insufficient_resources", message: "duplicate resource ability" };
+  }
+  const onlyCounters = cost !== undefined && Object.entries(cost).every(([key, v]) => key === "spendCounters" || !v);
+  if (!counters || counters.upTo || !onlyCounters) {
+    return { code: "insufficient_resources", message: `${abilityId} can only be used once per payment` };
+  }
+  const repeated: AbilityCost = { spendCounters: { ...counters, amount: counters.amount * uses } };
+  const plan = planCost(state, deps, instanceId, spender, repeated, {}, new Set());
+  return isFault(plan) ? { code: plan.code, message: `${abilityId} cannot be used ${uses} times` } : null;
+}
+
+/** Most uses the payment options offer for one `repeatable` resource ability (a safety cap, not a rule). */
+const MAX_REPEAT_OPTIONS = 20;
+
 function priceOf(
   ctx: Ctx,
   playerId: PlayerId,
@@ -691,6 +723,7 @@ function priceOf(
   // abilities may pay. Each card is read from its own player's point of view (their form, their discard pile).
   const group = paidAsGroup(ctx.state, ctx.deps, excludeInstanceId, payingFor);
   const seen = new Set<string>();
+  const abilityUses = new Map<string, number>();
   // Each player's pile as it stood before the payment (FAQ "Pepper Potts (#33)", RRG 1.8 p. 58): never a card this
   // same payment is spending. Pricing changes no state, so the live pile is that snapshot.
   const topOf = (id: PlayerId): InstanceId | null => mustPlayer(ctx.state, id).discard[0] ?? null;
@@ -729,11 +762,14 @@ function priceOf(
     }
     const { instanceId, abilityId } = entry.ability;
     const key = `ability:${instanceId}:${abilityId}`;
-    if (seen.has(key)) return { code: "insufficient_resources", message: "duplicate resource ability" };
-    seen.add(key);
+    const spender = resourceSpender(ctx.state, ctx.deps, instanceId, abilityId, playerId);
+    // The same ability again: only a `repeatable` one, its cost paid once per use (docs/phase7-wave5.md §3.25).
+    const uses = (abilityUses.get(key) ?? 0) + 1;
+    abilityUses.set(key, uses);
+    const repeatFault = repeatUsesFault(ctx.state, ctx.deps, instanceId, abilityId, spender, uses);
+    if (repeatFault) return repeatFault;
     const fault = resourceAbilityFault(ctx.state, ctx.deps, instanceId, abilityId, playerId, payingFor, group);
     if (fault) return fault;
-    const spender = resourceSpender(ctx.state, ctx.deps, instanceId, abilityId, playerId);
     pool = addPools(
       pool,
       generatedResources(ctx.state, ctx.deps.abilities[abilityId]?.generates, topOf(spender), {
@@ -810,11 +846,26 @@ export function paymentOptions(
         label: mustCardOf(ctx.state, id).name,
         ref: { kind: "ability", instanceId: id, abilityId: ref.id },
       });
+      // A `repeatable` ability (docs/phase7-wave5.md §3.25): one more option per further use its cost can pay for.
+      if (!trigger.repeatable) continue;
+      const spender = resourceSpender(ctx.state, ctx.deps, id, ref.id, playerId);
+      for (let n = 2; n <= MAX_REPEAT_OPTIONS; n++) {
+        if (repeatUsesFault(ctx.state, ctx.deps, id, ref.id, spender, n)) break;
+        options.push({
+          optionId: `ability:${id}:${ref.id}:${n}`,
+          label: mustCardOf(ctx.state, id).name,
+          ref: { kind: "ability", instanceId: id, abilityId: ref.id },
+        });
+      }
     }
   }
   return options;
 }
 
+/**
+ * Option ids name payment entries: "hand:<id>", "ability:<id>:<abilityId>", and "ability:<id>:<abilityId>:<n>" for the
+ * n-th use of a `repeatable` resource ability (docs/phase7-wave5.md §3.25), which is the same entry again.
+ */
 export function paymentsFromOptionIds(optionIds: readonly string[]): readonly Payment[] {
   const payments: Payment[] = [];
   for (const optionId of optionIds) {
@@ -834,18 +885,39 @@ export interface UsedResourceAbility {
   readonly spender: PlayerId;
 }
 
-/** What a payment spent: hand cards discarded (in payment order) and resource abilities used. */
+/** Resources one player generated in a payment (docs/phase7-wave5.md §3.25). */
+export interface GeneratedByPlayer {
+  readonly playerId: PlayerId;
+  readonly amount: number;
+}
+
+/**
+ * What a payment spent: hand cards discarded (in payment order) and resource abilities used, and how many resources
+ * each player generated doing it (in the order the players first appear in the payment).
+ */
 export interface SpentPayment {
   readonly cards: readonly InstanceId[];
   readonly resourceAbilities: readonly UsedResourceAbility[];
+  readonly generated: readonly GeneratedByPlayer[];
 }
 
-export const NOTHING_SPENT: SpentPayment = { cards: [], resourceAbilities: [] };
+export const NOTHING_SPENT: SpentPayment = { cards: [], resourceAbilities: [], generated: [] };
+
+/** A player's amount added to a per-player list, keeping first-appearance order. */
+function addGenerated(
+  into: readonly GeneratedByPlayer[],
+  playerId: PlayerId,
+  amount: number,
+): readonly GeneratedByPlayer[] {
+  if (!into.some((entry) => entry.playerId === playerId)) return [...into, { playerId, amount }];
+  return into.map((entry) => (entry.playerId === playerId ? { playerId, amount: entry.amount + amount } : entry));
+}
 
 /** Two payments' spending together (a basic power's extra cost). */
 export const joinSpent = (a: SpentPayment, b: SpentPayment): SpentPayment => ({
   cards: [...a.cards, ...b.cards],
   resourceAbilities: [...a.resourceAbilities, ...b.resourceAbilities],
+  generated: b.generated.reduce((all, entry) => addGenerated(all, entry.playerId, entry.amount), a.generated),
 });
 
 /**
@@ -853,18 +925,36 @@ export const joinSpent = (a: SpentPayment, b: SpentPayment): SpentPayment => ({
  * and the resource abilities it used, which the caller announces with `announceResourcesSpent` once the thing being
  * paid for is on the stack.
  */
-export function payPayment(ctx: Ctx, playerId: PlayerId, payment: readonly Payment[]): SpentPayment {
+export function payPayment(
+  ctx: Ctx,
+  playerId: PlayerId,
+  payment: readonly Payment[],
+  /** The card being paid for, so a hand card counts as `priceOf` counted it ("double … while paying for X"). */
+  payingFor: InstanceId | null = null,
+): SpentPayment {
   const spent: InstanceId[] = [];
   const used: UsedResourceAbility[] = [];
+  let generatedBy: readonly GeneratedByPlayer[] = [];
   // Read before anything is discarded: the payment's resources are generated simultaneously (see `priceOf`).
   // Each player's pile top before any card of this payment is discarded (FAQ "Pepper Potts (#33)", RRG 1.8 p. 58).
   const discardTopBefore = new Map(ctx.state.players.map((p) => [p.playerId, p.discard[0] ?? null] as const));
+  // What each hand card generates, read before any is discarded (docs/phase7-wave5.md §3.25).
+  const handGenerated = new Map<InstanceId, GeneratedByPlayer>();
+  for (const entry of payment) {
+    if (!("fromHand" in entry)) continue;
+    const zone = locateCard(ctx.state, entry.fromHand);
+    const ownerId = zone?.kind === "hand" ? zone.playerId : playerId;
+    const pool = handCardResources(ctx.state, ctx.deps, entry.fromHand, ownerId, payingFor);
+    handGenerated.set(entry.fromHand, { playerId: ownerId, amount: poolTotal(pool) });
+  }
   for (const entry of payment) {
     if ("fromHand" in entry) {
       // From the hand it is in: another player's, when they help pay for an alliance card (§3.17).
       const zone = locateCard(ctx.state, entry.fromHand);
       discardFromHand(ctx, zone?.kind === "hand" ? zone.playerId : playerId, entry.fromHand);
       spent.push(entry.fromHand);
+      const counted = handGenerated.get(entry.fromHand);
+      if (counted) generatedBy = addGenerated(generatedBy, counted.playerId, counted.amount);
       continue;
     }
     const { instanceId, abilityId } = entry.ability;
@@ -887,9 +977,10 @@ export function payPayment(ctx: Ctx, playerId: PlayerId, payment: readonly Payme
       amount: poolTotal(generated),
       pool: generated,
     });
+    generatedBy = addGenerated(generatedBy, spender, poolTotal(generated));
     if (definition.effects.length > 0) used.push({ instanceId, abilityId, spender });
   }
-  return { cards: spent, resourceAbilities: used };
+  return { cards: spent, resourceAbilities: used, generated: generatedBy };
 }
 
 /**
@@ -907,6 +998,7 @@ export function announceResourcesSpent(
   payingForInstanceId: InstanceId | null,
   purpose: "playCard" | "ability" | "effect",
 ): void {
+  announceResourcesGenerated(ctx, playerId, paid.generated, payingForInstanceId, purpose);
   announceCardsSpent(ctx, playerId, paid.cards, payingForInstanceId, purpose);
   // "Resource: Exhaust Gauntlet Gun → generate a [wild] resource for a War Machine event **and place 1 ammo counter on
   // War Machine**" (docs/phase7-wave4.md §3.30): a resource ability's own effects are part of using it, so they resolve
@@ -923,6 +1015,33 @@ export function announceResourcesSpent(
       controllerId: spender,
       bindings: payingForInstanceId ? { paidFor: [payingForInstanceId] } : {},
     });
+  }
+}
+
+/**
+ * "After the engaged player generates any number of resources" (M.O.R.B.I.U.S.; docs/phase7-wave5.md §3.25): one
+ * `resourcesGenerated` per player who generated at least 1 resource in the payment, when an ability listens. Pushed
+ * before the "after you spend this card" events and the resource abilities' own effects, so it resolves after them and
+ * before the card or ability paid for; in reverse, so the paying player's own event resolves first.
+ */
+function announceResourcesGenerated(
+  ctx: Ctx,
+  playerId: PlayerId,
+  generated: readonly GeneratedByPlayer[],
+  payingForInstanceId: InstanceId | null,
+  purpose: "playCard" | "ability" | "effect",
+): void {
+  for (const { playerId: generator, amount } of [...generated].reverse()) {
+    if (amount <= 0) continue;
+    const event: TriggerEvent = {
+      kind: "resourcesGenerated",
+      playerId: generator,
+      amount,
+      forPlayerId: playerId,
+      payingForInstanceId,
+      purpose,
+    };
+    if (heard(ctx.state, ctx.deps, event)) pushEvent(ctx, event);
   }
 }
 
@@ -1724,7 +1843,7 @@ export function commitPlay(
   priced: PricedPlay,
 ): SpentPayment {
   consumeCostReductions(ctx, ctx.deps, playerId, cardInstanceId);
-  const spent = payPayment(ctx, playerId, payment);
+  const spent = payPayment(ctx, playerId, payment, cardInstanceId);
   // Counted as played now, so a card cancelled later still counts toward "Max N per round" (RRG 1.8 "Max, Maximum").
   const played = mustCardOf(ctx.state, cardInstanceId);
   const byPlayer = `${playerId}:${played.type}`;
@@ -2326,7 +2445,7 @@ export function useAbility(ctx: Ctx, command: Command & { type: "useAbility" }):
 
   // Read before paying: paying may exhaust or discard the source.
   const sources = paymentSourceVars(ctx, command.playerId, command.payment);
-  const spent = payPayment(ctx, command.playerId, command.payment);
+  const spent = payPayment(ctx, command.playerId, command.payment, plan.payingFor);
   pushActionAbility(ctx, command.cardInstanceId, command.abilityId, command.playerId, plan.bindings, {
     ...plan.vars,
     ...vars,

@@ -86,6 +86,13 @@ export interface EventPattern {
    * docs/phase7-wave4.md §3.22.
    */
   readonly targetHadAttachment?: TargetQuery;
+  /**
+   * The event's player (its first player subject, `eventPlayer`) must be one of these, resolved with this card as
+   * `self`: "After **the engaged player** generates any number of resources" (M.O.R.B.I.U.S., `spdr` 31027 errata, RRG
+   * 1.8 p. 68) is `{ kind: "engagedWith", of: { kind: "self" } }`. An encounter card's `playerIs: "controller"` matches
+   * any player, so this is how an enemy names one. docs/phase7-wave5.md §3.25.
+   */
+  readonly playerIn?: PlayerRef;
 }
 
 /**
@@ -113,7 +120,13 @@ export type AbilityTriggerSpec =
    * Milano → generate a [wild] resource for any player." Any player paying a cost may use it, not only its controller
    * (docs/phase7-wave3.md §3.13).
    */
-  | { readonly kind: "resource"; readonly form?: Form; readonly forAnyPlayer?: boolean }
+  /**
+   * `repeatable`: "Each toon counter on Spider-Ham can be spent as if it were a [wild] resource" (`spiderham` 30001a;
+   * docs/phase7-wave5.md §3.25). An ability with no limit may be used more than once in a single payment, each use
+   * paying its own cost and generating its own resources. Only a fixed `spendCounters` cost can be paid repeatedly (a
+   * card exhausts once); the payment options offer one use per payable repeat (`ability:<id>:<abilityId>:<n>`).
+   */
+  | { readonly kind: "resource"; readonly form?: Form; readonly forAnyPlayer?: boolean; readonly repeatable?: boolean }
   /**
    * `form` is the "Hero Interrupt" / "Alter-Ego Response" gate on the controller. `firstPlayerOnly`: "First Player
    * Interrupt" (Kree Command Ship, `gmw` 16108) — only the first player is offered it, and they are the one who resolves

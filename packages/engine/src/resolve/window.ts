@@ -319,7 +319,7 @@ function payWindowAbility(ctx: Ctx, frame: Frame<"window">, answer: readonly str
   // (docs/phase7-wave3.md §3.43). A payment that fails one is a decline, as an under-payment is.
   const paidVars = resourceVars(pool, plan.cost ?? definition.cost, plan.requirement);
   if (isPriceFault(paidVars)) return;
-  const spent = payPayment(ctx, controller, payment);
+  const spent = payPayment(ctx, controller, payment, plan.payingFor);
   pushFrames(ctx, [
     abilityFrame(ctx, candidate, frame.event, frame.eventFrameId, plan.bindings, { ...plan.vars, ...paidVars }),
   ]);
