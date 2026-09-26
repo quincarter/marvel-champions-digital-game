@@ -357,7 +357,7 @@ against `pnpm dsl` (379 builders), the engine's `EffectSpec` / `RuleSpec` / `Tri
 | 3.23 | Progressing identities: swapping one identity card for the next                              | Ironheart                                                                                      | landed  |
 | 3.24 | A separated identity (two cards, one dial)                                                   | SP//dr                                                                                         | open    |
 | 3.25 | Resources generated: an event, and counters spent as resources                               | M.O.R.B.I.U.S.; Spider-Ham's toon counters                                                     | open    |
-| 3.26 | An additional mulligan                                                                       | MC27 reputation node 5                                                                         | open    |
+| 3.26 | An additional mulligan                                                                       | MC27 reputation node 5                                                                         | landed  |
 | 3.27 | Campaign queries for the reputation conditions and Waking Nightmare                          | MC27 pp. 13, 22                                                                                | open    |
 | 3.28 | Looking at the top card of the encounter deck at any time                                    | Sector Scan                                                                                    | open    |
 | 3.29 | Replacing damage with counters on another card, with no excess damage                        | Bell Tower (Quiet); MC27 p. 21 FAQ                                                             | open    |
@@ -920,6 +920,17 @@ as "generating".
 
 ### 3.26 An additional mulligan
 
+> **Status: landed (2026-09-26, 4a896b66),** tested in `packages/engine/src/additional-mulligan.test.ts` (5 tests: a
+> second full mulligan with both discards kept in the discard pile; keeping the hand ends that player's mulligans; two
+> players decide p1, p1, p2; `extraMulligans: 0` changes nothing; bad input refused). No DSL builder (setup data, not a
+> card ability). **What landed:** `PlayerSetup.extraMulligans?: number` (`createGame` refuses anything but a whole
+> number ≥ 0), copied to `PlayerState.extraMulligans?` when positive; the mulligan step counts `mulligansTaken?` for
+> the player at the front; the prompt is `{ kind: "mulligan", handSize, additional?: number }`. After drawing back up,
+> a player with an extra mulligan left is offered it at once, before the next player (§4 Q19); a mulligan that discarded
+> nothing ends that player's mulligans (§4 Q20). §3.27 sets the field from the reputation track. **Client:**
+> `setup-deal.ts`'s mulligan note still says "One mulligan per player … shuffle the discards in" (both wrong now: RRG
+> Appendix II step 15 does not shuffle them in) and doesn't label `additional` yet.
+
 MC27 p. 22 node 5 with the p. 67 erratum: "During the Resolve Mulligans step of game setup, each player may take 1
 additional mulligan." **Plan:** `GameSetupConfig.players[].extraMulligans?: number`, a second mulligan choice after the
 first draw-up (Appendix II step 15 repeated), set by the campaign's setup.
@@ -1054,6 +1065,13 @@ flagged; none is implemented yet.**
     after the thwarter's own costs (the exhaust of a basic thwart, an event's resources) are paid. **Default:** as
     built; the target-legality pre-check (a payability test over hand cards and resource abilities, as `legal.ts`
     does for play costs) is left for when a card makes it matter.
+19. **When the additional mulligan comes** (§3.26; added 2026-09-26 by `game-rules-architect`). MC27 p. 22 node 5
+    (p. 67 erratum): "each player may take 1 additional mulligan." It can mean the same player goes again at once (p1,
+    p1, p2) or a second full round (p1, p2, p1, p2). No ruling; only multiplayer shows the difference. **Default:** as
+    built, p1, p1, p2.
+20. **No extra mulligan after keeping the hand** (§3.26; added 2026-09-26 by `game-rules-architect`). A mulligan that
+    discards nothing ends that player's mulligans, since the extra one would offer the identical hand. If an obligation
+    left the hand short and the draw-up filled it, the extra mulligan is still offered. **Default:** as built.
 
 ---
 
