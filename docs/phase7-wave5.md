@@ -932,11 +932,11 @@ as "generating".
 
 > **Status: landed (2026-09-26, 4a896b66),** tested in `packages/engine/src/additional-mulligan.test.ts` (5 tests: a
 > second full mulligan with both discards kept in the discard pile; keeping the hand ends that player's mulligans; two
-> players decide p1, p1, p2; `extraMulligans: 0` changes nothing; bad input refused). No DSL builder (setup data, not a
+> players decide p1, p1, p2 (superseded by Q19, a55532d9: passes p1, p2, then p1, p2); `extraMulligans: 0` changes nothing; bad input refused). No DSL builder (setup data, not a
 > card ability). **What landed:** `PlayerSetup.extraMulligans?: number` (`createGame` refuses anything but a whole
 > number ≥ 0), copied to `PlayerState.extraMulligans?` when positive; the mulligan step counts `mulligansTaken?` for
 > the player at the front; the prompt is `{ kind: "mulligan", handSize, additional?: number }`. After drawing back up,
-> a player with an extra mulligan left is offered it at once, before the next player (§4 Q19); a mulligan that discarded
+> extra mulligans come as later passes in player order (§4.1 Q19, a55532d9; the step carries `pass` and `nextPassPlayerIds`); a mulligan that discarded
 > nothing ends that player's mulligans (§4 Q20). §3.27 sets the field from the reputation track. **Client:**
 > `setup-deal.ts`'s mulligan note still says "One mulligan per player … shuffle the discards in" (both wrong now: RRG
 > Appendix II step 15 does not shuffle them in) and doesn't label `additional` yet.
@@ -1059,33 +1059,33 @@ and Vivian blank text boxes. **Plan:** `RuleSpec textBoxCannotBeBlanked` read by
 Every question below was put to the user on 2026-09-26. **Bold = differs from the proposed default and needs engine
 work** (status in the last column).
 
-| Q   | Decision                                                                                                                                                                                        | Work        |
-| --- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------- |
-| 1   | Default: all six set aside; setup brings in players + 1 at random (seeded).                                                                                                                     | —           |
-| 2   | Default: skip the activation, log it.                                                                                                                                                           | —           |
-| 3   | Default: a canceled activation did not happen; no "after it activates".                                                                                                                         | —           |
-| 4   | **An encounter card drawn from a player deck with nothing listening is dealt to that player facedown, and they draw 1 card** (the Mysterio main scheme's own handling, as the fallback).        | open        |
-| 5   | **Spending a toon counter as a resource is not "generating" a resource; M.O.R.B.I.U.S. does not trigger on it.**                                                                                | open        |
-| 6   | Default, per ruling Aug 3, 2026 (4) #2: victory points contribute `max(0, sum)`; negative VP mark nothing.                                                                                      | built §3.27 |
-| 7   | Default: +1 per damage event (an attack for 6 becomes 7).                                                                                                                                       | —           |
-| 8   | Default: the controller of the attacking character; the first player if none.                                                                                                                   | built §3.29 |
-| 9   | Default: Ironheart's swap keeps her form and is not a form change.                                                                                                                              | built §3.23 |
-| 10  | Default: Everyday Hero may join any player's payment.                                                                                                                                           | —           |
-| 11  | Default: nodes resolve in node order; pink boxes from the next scenario.                                                                                                                        | —           |
-| 12  | Default: a full second mulligan.                                                                                                                                                                | built §3.26 |
-| 13  | Default: the revealing player picks the deck.                                                                                                                                                   | —           |
-| 15  | Default: card text wins; counters and acceleration tokens stay for the When Revealed.                                                                                                           | built §3.3  |
-| 16  | Default: any attack during this player's turn counts.                                                                                                                                           | built §3.12 |
-| 17  | **"When X leaves play" interrupts resolve before the card moves, with the card still in play (RRG p. 25; ruling Jan 17, 2026 (1) #2).** Rework `leavePlay`.                                     | open        |
-| 18  | **A player who cannot pay a scheme's additional thwart cost cannot choose it as the thwart's target** (a payability check over hand cards and resource abilities, as `legal.ts` does for play). | open        |
-| 19  | **The extra mulligan is a second pass in player order after every player's normal mulligan: p1, p2, then p1, p2.**                                                                              | open        |
-| 20  | Default: keeping the hand ends that player's mulligans.                                                                                                                                         | built §3.26 |
-| 21  | Default: "all player decks" is each deck zone only; an eliminated player's deck counts nothing.                                                                                                 | built §3.27 |
-| 22  | Default: node 5's extra mulligan applies at every remaining scenario's setup.                                                                                                                   | built §3.27 |
-| 23  | Default: a minion's overkill spill onto the villain is attack damage (Bell Tower (Quiet) may replace it).                                                                                       | built       |
-| 24  | **M.O.R.B.I.U.S. deals no damage while the engaged player is in alter-ego form** ("that player's hero").                                                                                        | scripter    |
-| 25  | **Within one payment, "after you spend" and "after … generates resources" share one timing window, forced responses first (RRG).**                                                              | open        |
-| 26  | **An unowned permanent encounter attachment whose host leaves play is discarded to its encounter discard pile** (player cards keep §3.30's unattach).                                           | open        |
+| Q   | Decision                                                                                                                                                                                        | Work           |
+| --- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------- |
+| 1   | Default: all six set aside; setup brings in players + 1 at random (seeded).                                                                                                                     | —              |
+| 2   | Default: skip the activation, log it.                                                                                                                                                           | —              |
+| 3   | Default: a canceled activation did not happen; no "after it activates".                                                                                                                         | —              |
+| 4   | **An encounter card drawn from a player deck with nothing listening is dealt to that player facedown, and they draw 1 card** (the Mysterio main scheme's own handling, as the fallback).        | open           |
+| 5   | **Spending a toon counter as a resource is not "generating" a resource; M.O.R.B.I.U.S. does not trigger on it.**                                                                                | open           |
+| 6   | Default, per ruling Aug 3, 2026 (4) #2: victory points contribute `max(0, sum)`; negative VP mark nothing.                                                                                      | built §3.27    |
+| 7   | Default: +1 per damage event (an attack for 6 becomes 7).                                                                                                                                       | —              |
+| 8   | Default: the controller of the attacking character; the first player if none.                                                                                                                   | built §3.29    |
+| 9   | Default: Ironheart's swap keeps her form and is not a form change.                                                                                                                              | built §3.23    |
+| 10  | Default: Everyday Hero may join any player's payment.                                                                                                                                           | —              |
+| 11  | Default: nodes resolve in node order; pink boxes from the next scenario.                                                                                                                        | —              |
+| 12  | Default: a full second mulligan.                                                                                                                                                                | built §3.26    |
+| 13  | Default: the revealing player picks the deck.                                                                                                                                                   | —              |
+| 15  | Default: card text wins; counters and acceleration tokens stay for the When Revealed.                                                                                                           | built §3.3     |
+| 16  | Default: any attack during this player's turn counts.                                                                                                                                           | built §3.12    |
+| 17  | **"When X leaves play" interrupts resolve before the card moves, with the card still in play (RRG p. 25; ruling Jan 17, 2026 (1) #2).** Rework `leavePlay`.                                     | open           |
+| 18  | **A player who cannot pay a scheme's additional thwart cost cannot choose it as the thwart's target** (a payability check over hand cards and resource abilities, as `legal.ts` does for play). | open           |
+| 19  | **The extra mulligan is a second pass in player order after every player's normal mulligan: p1, p2, then p1, p2.**                                                                              | built a55532d9 |
+| 20  | Default: keeping the hand ends that player's mulligans.                                                                                                                                         | built §3.26    |
+| 21  | Default: "all player decks" is each deck zone only; an eliminated player's deck counts nothing.                                                                                                 | built §3.27    |
+| 22  | Default: node 5's extra mulligan applies at every remaining scenario's setup.                                                                                                                   | built §3.27    |
+| 23  | Default: a minion's overkill spill onto the villain is attack damage (Bell Tower (Quiet) may replace it).                                                                                       | built          |
+| 24  | **M.O.R.B.I.U.S. deals no damage while the engaged player is in alter-ego form** ("that player's hero").                                                                                        | scripter       |
+| 25  | **Within one payment, "after you spend" and "after … generates resources" share one timing window, forced responses first (RRG).**                                                              | open           |
+| 26  | **An unowned permanent encounter attachment whose host leaves play is discarded to its encounter discard pile** (player cards keep §3.30's unattach).                                           | open           |
 
 ### 4.2 The questions as asked
 
