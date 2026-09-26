@@ -25,6 +25,13 @@
  * pixels favour, so a slightly diagonal swipe scrolls one axis, not both.
  * Momentum coasts along whichever axis was locked.
  *
+ * **Scrolling moves, it doesn't rebuild.** Every shelf and card is drawn once, in unscrolled *content* coordinates,
+ * into a container: one `#content` container carries the vertical offset, and each live shelf's own card container
+ * carries that shelf's horizontal offset. A scroll step only moves those containers, builds the cards and shelves
+ * that just came into view and destroys the ones that just left. It used to destroy and redraw every visible card
+ * on every wheel tick, drag move and momentum frame, re-rasterising a dozen `Text` labels (each with its own
+ * `fitText` search) a frame — the Seats screen's scroll lag once enough heroes were on it.
+ *
  * **Chevrons** are ordinary `McButton`s at each end of a shelf's card row,
  * drawn only when that shelf's content overflows its own width — a mouse
  * user has no drag affordance to discover otherwise. They share this
@@ -79,22 +86,35 @@ export interface ShelfRosterOptions<T> {
 interface LiveShelf {
   readonly index: number;
   readonly shelf: Shelf<unknown>;
-  readonly headerRow: VirtualListRow;
+  /** Everything this shelf drew, in content coordinates; destroyed as one when the shelf leaves the window. */
+  readonly container: Phaser.GameObjects.Container;
+  /** The card rows, moved by the shelf's own horizontal offset. */
+  readonly cards: Phaser.GameObjects.Container;
   readonly cardRows: Map<number, VirtualListRow>;
-  readonly chevronLeft: McButton | null;
-  readonly chevronRight: McButton | null;
+  chevronLeft: McButton | null;
+  chevronRight: McButton | null;
 }
 
 /** The horizontal space reserved at each end of a shelf for its chevron — reserved unconditionally (even on a shelf whose scroll is at an end and draws no chevron there) so cards never shift position as a shelf's scroll offset changes which direction can still scroll. */
 const CHEVRON_WIDTH = 36;
 /** A chevron's own height — a compact ink square vertically centred on the card row, not a full-height column (second-pass fidelity pass, item 4). */
 const CHEVRON_HEIGHT = 56;
+const CHEVRON_TYPE = {
+  family: "Public Sans",
+  size: 16,
+  weight: 800,
+  lineHeight: 1,
+  letterSpacing: 0,
+  uppercase: false,
+} as const;
 
 export class McShelfRoster<T> {
   readonly #scene: Phaser.Scene;
   readonly #root: Phaser.GameObjects.Container;
   readonly #background: Phaser.GameObjects.Graphics;
   readonly #layer: Phaser.GameObjects.Container;
+  /** Inside `#layer`; its `y` is minus the vertical scroll offset. */
+  readonly #content: Phaser.GameObjects.Container;
   readonly #maskShape: Phaser.GameObjects.Graphics;
   readonly #drag = new AxisDragGesture();
   readonly #momentum = new Momentum();
@@ -110,6 +130,7 @@ export class McShelfRoster<T> {
   readonly #horizontalScrollFor: (shelfId: string) => ListScroll;
   readonly #paintBackground: boolean;
   readonly #live = new Map<number, LiveShelf>();
+  readonly #onDestroy: (() => void)[] = [];
 
   constructor(scene: Phaser.Scene, options: ShelfRosterOptions<T>) {
     this.#scene = scene;
@@ -125,7 +146,8 @@ export class McShelfRoster<T> {
     this.#paintBackground = options.background ?? true;
 
     this.#background = scene.add.graphics();
-    this.#layer = scene.add.container(0, 0);
+    this.#content = scene.add.container(0, 0);
+    this.#layer = scene.add.container(0, 0, [this.#content]);
     this.#maskShape = scene.make.graphics({}, false);
     setMask(this.#layer, this.#maskShape, "world");
     this.#root = scene.add.container(0, 0, [this.#background, this.#layer]);
@@ -178,6 +200,15 @@ export class McShelfRoster<T> {
     this.#redraw();
   }
 
+  /** Like `refreshVisible`, but redraws only the cards, keeping every shelf header (and its text) as it is — for a card face that just arrived. */
+  refreshCards(): void {
+    for (const live of this.#live.values()) {
+      for (const row of live.cardRows.values()) for (const o of row.objects) o.destroy();
+      live.cardRows.clear();
+    }
+    this.#sync();
+  }
+
   /** Where shelf `shelfIndex`, card `itemIndex` sits right now — used for focus rings and `ensureVisible`. */
   rectFor(shelfIndex: number, itemIndex: number): Rect {
     const m = this.#metrics;
@@ -192,31 +223,37 @@ export class McShelfRoster<T> {
   /** Page Up/Down over the shelves themselves (a "page" is a shelf, matching `moveShelfFocus`'s own `pageUp`/`pageDown` — one shelf is already this widget's uniform scroll unit). Parity with `McVirtualList.scrollByPage`, for `FocusRoute.onPage`. */
   scrollByPage(direction: 1 | -1): void {
     if (this.#verticalScroll.scrollByPage(direction, this.#shelves.length, this.#shelfStep(), this.#rect.height))
-      this.#redraw();
+      this.#sync();
   }
 
   /** Parity with `McVirtualList.scrollToStart`, for `FocusRoute.onHomeEnd`. */
   scrollToStart(): void {
-    if (this.#verticalScroll.scrollToStart(this.#shelves.length, this.#shelfStep(), this.#rect.height)) this.#redraw();
+    if (this.#verticalScroll.scrollToStart(this.#shelves.length, this.#shelfStep(), this.#rect.height)) this.#sync();
   }
 
   /** Parity with `McVirtualList.scrollToEnd`, for `FocusRoute.onHomeEnd`. */
   scrollToEnd(): void {
-    if (this.#verticalScroll.scrollToEnd(this.#shelves.length, this.#shelfStep(), this.#rect.height)) this.#redraw();
+    if (this.#verticalScroll.scrollToEnd(this.#shelves.length, this.#shelfStep(), this.#rect.height)) this.#sync();
   }
 
   /** Scrolls both axes the minimum distance so the given card is fully on screen. */
   scrollIntoView(shelfIndex: number, itemIndex: number): void {
     const step = this.#shelfStep();
-    if (this.#verticalScroll.scrollIntoView(shelfIndex, this.#shelves.length, step, this.#rect.height)) this.#redraw();
+    if (this.#verticalScroll.scrollIntoView(shelfIndex, this.#shelves.length, step, this.#rect.height)) this.#sync();
     const shelf = this.#shelves[shelfIndex];
     if (!shelf) return;
     const hs = this.#horizontalScrollFor(shelf.id);
     const cardStep = this.#metrics.cardWidth + this.#metrics.cardGap;
-    if (hs.scrollIntoView(itemIndex, shelf.items.length, cardStep, this.#innerWidth())) this.#redraw();
+    if (hs.scrollIntoView(itemIndex, shelf.items.length, cardStep, this.#innerWidth())) this.#sync();
+  }
+
+  /** Runs `fn` once, when this roster is destroyed — for a subscription whose life is the roster's. */
+  onDestroy(fn: () => void): void {
+    this.#onDestroy.push(fn);
   }
 
   destroy(): void {
+    for (const fn of this.#onDestroy.splice(0)) fn();
     this.#scene.input.off(Phaser.Input.Events.POINTER_WHEEL, this.#onWheel, this);
     this.#scene.input.off(Phaser.Input.Events.POINTER_DOWN, this.#onPointerDown, this);
     this.#scene.input.off(Phaser.Input.Events.POINTER_MOVE, this.#onPointerMove, this);
@@ -243,103 +280,133 @@ export class McShelfRoster<T> {
   }
 
   #destroyLive(): void {
-    for (const live of this.#live.values()) {
-      for (const o of live.headerRow.objects) o.destroy();
-      for (const row of live.cardRows.values()) for (const o of row.objects) o.destroy();
-      live.chevronLeft?.destroy();
-      live.chevronRight?.destroy();
-    }
+    for (const live of this.#live.values()) this.#destroyShelf(live);
     this.#live.clear();
   }
 
+  #destroyShelf(live: LiveShelf): void {
+    live.chevronLeft?.destroy();
+    live.chevronRight?.destroy();
+    // Rows' objects are destroyed one by one rather than left to `container.destroy(true)`: a row may hand back an
+    // object that something else also parents, and its own `destroy` is what releases anything it holds.
+    for (const row of live.cardRows.values()) for (const o of row.objects) o.destroy();
+    live.container.destroy(true);
+  }
+
+  /** Throws away everything live and draws the window again — for a new rect, new shelves, or new content. */
   #redraw(): void {
     this.#destroyLive();
-    if (this.#shelves.length === 0) return;
+    this.#sync();
+  }
+
+  /**
+   * Brings the live shelves and cards in line with the current scroll offsets: moves the containers, destroys what
+   * left the window, builds what entered it. Everything still in view is left untouched.
+   */
+  #sync(): void {
+    if (this.#shelves.length === 0) {
+      this.#destroyLive();
+      return;
+    }
     const step = this.#shelfStep();
     const window = this.#verticalScroll.windowFor(this.#shelves.length, step, this.#rect.height);
+    this.#content.y = -this.#verticalScroll.offsetPx;
+    for (const [index, live] of this.#live) {
+      if (index >= window.start && index < window.end && this.#shelves[index] === live.shelf) continue;
+      this.#destroyShelf(live);
+      this.#live.delete(index);
+    }
+    for (let shelfIndex = window.start; shelfIndex < window.end; shelfIndex++) {
+      const live = this.#live.get(shelfIndex) ?? this.#buildShelf(shelfIndex);
+      this.#syncCards(live);
+    }
+  }
+
+  #buildShelf(shelfIndex: number): LiveShelf {
+    const shelf = this.#shelves[shelfIndex]!;
+    const m = this.#metrics;
+    const shelfTop = this.#rect.y + shelfIndex * this.#shelfStep();
+    const headerRect: Rect = { x: this.#rect.x, y: shelfTop, width: this.#rect.width, height: m.headerHeight };
+    const headerRow = this.#renderHeader(shelf, headerRect);
+    const cards = this.#scene.add.container(0, 0);
+    const container = this.#scene.add.container(0, 0, [
+      ...(headerRow.objects as Phaser.GameObjects.GameObject[]),
+      cards,
+    ]);
+    this.#content.add(container);
+    const live: LiveShelf = {
+      index: shelfIndex,
+      shelf: shelf as Shelf<unknown>,
+      container,
+      cards,
+      cardRows: new Map(),
+      chevronLeft: null,
+      chevronRight: null,
+    };
+    this.#live.set(shelfIndex, live);
+    return live;
+  }
+
+  #syncCards(live: LiveShelf): void {
+    const shelf = live.shelf as Shelf<T>;
+    const shelfIndex = live.index;
     const m = this.#metrics;
     const innerWidth = this.#innerWidth();
+    const cardStep = m.cardWidth + m.cardGap;
+    const hs = this.#horizontalScrollFor(shelf.id);
+    hs.clamp(shelf.items.length, cardStep, innerWidth);
+    const hWindow = hs.windowFor(shelf.items.length, cardStep, innerWidth);
+    const rowY = this.#rect.y + shelfIndex * this.#shelfStep() + m.headerHeight + m.headerToCardsGap;
+    live.cards.x = -hs.offsetPx;
 
-    for (let shelfIndex = window.start; shelfIndex < window.end; shelfIndex++) {
-      const shelf = this.#shelves[shelfIndex]!;
-      const shelfTop = this.#rect.y + shelfIndex * step - this.#verticalScroll.offsetPx;
-      const headerRect: Rect = { x: this.#rect.x, y: shelfTop, width: this.#rect.width, height: m.headerHeight };
-      const headerRow = this.#renderHeader(shelf, headerRect);
-      this.#layer.add(headerRow.objects as Phaser.GameObjects.GameObject[]);
-
-      const hs = this.#horizontalScrollFor(shelf.id);
-      hs.clamp(shelf.items.length, m.cardWidth + m.cardGap, innerWidth);
-      const hWindow = hs.windowFor(shelf.items.length, m.cardWidth + m.cardGap, innerWidth);
-      const rowY = shelfTop + m.headerHeight + m.headerToCardsGap;
-      const cardRows = new Map<number, VirtualListRow>();
-      for (let itemIndex = hWindow.start; itemIndex < hWindow.end; itemIndex++) {
-        const x = this.#rect.x + CHEVRON_WIDTH + itemIndex * (m.cardWidth + m.cardGap) - hs.offsetPx;
-        const cardRect: Rect = { x, y: rowY, width: m.cardWidth, height: m.cardHeight };
-        const row = this.#renderCard(shelf.items[itemIndex]!, shelfIndex, itemIndex, cardRect);
-        this.#layer.add(row.objects as Phaser.GameObjects.GameObject[]);
-        cardRows.set(itemIndex, row);
-      }
-
-      const contentWidth = shelf.items.length * (m.cardWidth + m.cardGap) - m.cardGap;
-      const canScrollLeft = hs.offsetPx > 0;
-      const canScrollRight = hs.offsetPx < contentWidth - innerWidth - 0.5;
-      const clip = (): Rect => this.#rect;
-      const suppressClick = (): boolean => this.isDragSuppressingClick;
-      const chevronY = rowY + (m.cardHeight - CHEVRON_HEIGHT) / 2;
-      const chevronType = {
-        family: "Public Sans",
-        size: 16,
-        weight: 800,
-        lineHeight: 1,
-        letterSpacing: 0,
-        uppercase: false,
-      } as const;
-      // A chevron that cannot scroll in its own direction is not drawn at all (second-pass fidelity pass, item 4)
-      // — not drawn-but-disabled, which for a while left a visible dashed "unavailable" box at the shelf edge even
-      // when there was nothing to scroll to that way. Reparented into `#layer` (the masked container every
-      // card/header row already lives in), not left on the scene root the way a bare
-      // `new McButton(this.#scene, ...)` defaults to — a shelf only partly inside the vertical scroll window still
-      // built a chevron at its own true, un-clipped position otherwise, drawing straight through whatever sits
-      // below the roster's own rect.
-      const chevronLeft = canScrollLeft
-        ? new McButton(this.#scene, {
-            kind: "onInk",
-            label: "‹",
-            type: chevronType,
-            rect: { x: this.#rect.x, y: chevronY, width: CHEVRON_WIDTH, height: CHEVRON_HEIGHT },
-            onClick: () => this.#scrollShelfBy(shelf.id, -1),
-            clip,
-            suppressClick,
-          })
-        : null;
-      if (chevronLeft) this.#layer.add(chevronLeft.container);
-      const chevronRight = canScrollRight
-        ? new McButton(this.#scene, {
-            kind: "onInk",
-            label: "›",
-            type: chevronType,
-            rect: {
-              x: this.#rect.x + this.#rect.width - CHEVRON_WIDTH,
-              y: chevronY,
-              width: CHEVRON_WIDTH,
-              height: CHEVRON_HEIGHT,
-            },
-            onClick: () => this.#scrollShelfBy(shelf.id, 1),
-            clip,
-            suppressClick,
-          })
-        : null;
-      if (chevronRight) this.#layer.add(chevronRight.container);
-
-      this.#live.set(shelfIndex, {
-        index: shelfIndex,
-        shelf: shelf as Shelf<unknown>,
-        headerRow,
-        cardRows,
-        chevronLeft,
-        chevronRight,
-      });
+    for (const [itemIndex, row] of live.cardRows) {
+      if (itemIndex >= hWindow.start && itemIndex < hWindow.end) continue;
+      for (const o of row.objects) o.destroy();
+      live.cardRows.delete(itemIndex);
     }
+    for (let itemIndex = hWindow.start; itemIndex < hWindow.end; itemIndex++) {
+      if (live.cardRows.has(itemIndex)) continue;
+      const x = this.#rect.x + CHEVRON_WIDTH + itemIndex * cardStep;
+      const cardRect: Rect = { x, y: rowY, width: m.cardWidth, height: m.cardHeight };
+      const row = this.#renderCard(shelf.items[itemIndex]!, shelfIndex, itemIndex, cardRect);
+      live.cards.add(row.objects as Phaser.GameObjects.GameObject[]);
+      live.cardRows.set(itemIndex, row);
+    }
+
+    const contentWidth = shelf.items.length * cardStep - m.cardGap;
+    const canScrollLeft = hs.offsetPx > 0;
+    const canScrollRight = hs.offsetPx < contentWidth - innerWidth - 0.5;
+    const chevronY = rowY + (m.cardHeight - CHEVRON_HEIGHT) / 2;
+    // A chevron that cannot scroll in its own direction is not drawn at all (second-pass fidelity pass, item 4)
+    // — not drawn-but-disabled, which for a while left a visible dashed "unavailable" box at the shelf edge even
+    // when there was nothing to scroll to that way. Parented into the shelf's own container (inside the masked
+    // `#layer`), not left on the scene root the way a bare `new McButton(this.#scene, ...)` defaults to — a shelf
+    // only partly inside the vertical scroll window still built a chevron at its own true, un-clipped position
+    // otherwise, drawing straight through whatever sits below the roster's own rect.
+    if (canScrollLeft !== (live.chevronLeft !== null)) {
+      live.chevronLeft?.destroy();
+      live.chevronLeft = canScrollLeft ? this.#chevron(live, "‹", this.#rect.x, chevronY, -1) : null;
+    }
+    if (canScrollRight !== (live.chevronRight !== null)) {
+      live.chevronRight?.destroy();
+      live.chevronRight = canScrollRight
+        ? this.#chevron(live, "›", this.#rect.x + this.#rect.width - CHEVRON_WIDTH, chevronY, 1)
+        : null;
+    }
+  }
+
+  #chevron(live: LiveShelf, label: string, x: number, y: number, direction: 1 | -1): McButton {
+    const button = new McButton(this.#scene, {
+      kind: "onInk",
+      label,
+      type: CHEVRON_TYPE,
+      rect: { x, y, width: CHEVRON_WIDTH, height: CHEVRON_HEIGHT },
+      onClick: () => this.#scrollShelfBy(live.shelf.id, direction),
+      clip: () => this.#rect,
+      suppressClick: () => this.isDragSuppressingClick,
+    });
+    live.container.add(button.container);
+    return button;
   }
 
   #scrollShelfBy(shelfId: string, direction: 1 | -1): void {
@@ -349,7 +416,7 @@ export class McShelfRoster<T> {
     const step = this.#metrics.cardWidth + this.#metrics.cardGap;
     const cardsPerPage = Math.max(1, Math.floor(this.#innerWidth() / step));
     hs.scrollByRows(direction * cardsPerPage, shelf.items.length, step, this.#innerWidth());
-    this.#redraw();
+    this.#sync();
   }
 
   #shelfIndexAtY(y: number): number | null {
@@ -377,10 +444,10 @@ export class McShelfRoster<T> {
       if (
         hs.scrollByPx(amount, shelf.items.length, this.#metrics.cardWidth + this.#metrics.cardGap, this.#innerWidth())
       )
-        this.#redraw();
+        this.#sync();
       return;
     }
-    if (this.#verticalScroll.scrollByPx(dy, this.#shelves.length, this.#shelfStep(), this.#rect.height)) this.#redraw();
+    if (this.#verticalScroll.scrollByPx(dy, this.#shelves.length, this.#shelfStep(), this.#rect.height)) this.#sync();
   }
 
   #onPointerDown(pointer: Phaser.Input.Pointer): void {
@@ -398,7 +465,7 @@ export class McShelfRoster<T> {
     if (!move) return;
     if (move.axis === "vertical") {
       if (this.#verticalScroll.scrollByPx(move.delta, this.#shelves.length, this.#shelfStep(), this.#rect.height))
-        this.#redraw();
+        this.#sync();
     } else if (this.#dragShelfId) {
       const shelf = this.#shelves.find((s) => s.id === this.#dragShelfId);
       if (shelf) {
@@ -411,7 +478,7 @@ export class McShelfRoster<T> {
             this.#innerWidth(),
           )
         )
-          this.#redraw();
+          this.#sync();
       }
     }
   }
@@ -461,6 +528,6 @@ export class McShelfRoster<T> {
       this.#momentum.stop();
       return;
     }
-    this.#redraw();
+    this.#sync();
   }
 }

@@ -20,7 +20,7 @@
  */
 import { aspectStampOf, aspectStampsOf, titleWithoutAspects } from "../view/aspect-stamp.js";
 import { HERO_ART, heroArtFor } from "../art/hero-art.js";
-import { ensurePictureLoaded, type Picture } from "../art/pictures.js";
+import type { Picture } from "../art/pictures.js";
 import Phaser from "phaser";
 import type { CardId, Deck } from "@mc/content";
 import {
@@ -243,9 +243,22 @@ export class SeatsScene extends Phaser.Scene {
     this.#rebuild();
   }
 
+  /**
+   * Every deck's status, validated against the pool once per saved-deck list rather than once per redraw: it was a
+   * third of the time a tap on a hero took, re-running `validateDeck` for every precon and saved deck on each
+   * rebuild although neither the decks nor the pool had changed. `#savedDecks` is only ever replaced, never edited.
+   */
   #deckOptions(): readonly DeckOption[] {
-    return deckOptionsOf(this.#savedDecks, POOL_CARDS, POOL_VERSION, POOL_DEPS);
+    if (this.#deckOptionsFor?.saved !== this.#savedDecks) {
+      this.#deckOptionsFor = {
+        saved: this.#savedDecks,
+        options: deckOptionsOf(this.#savedDecks, POOL_CARDS, POOL_VERSION, POOL_DEPS),
+      };
+    }
+    return this.#deckOptionsFor.options;
   }
+
+  #deckOptionsFor: { readonly saved: readonly Deck[]; readonly options: readonly DeckOption[] } | null = null;
 
   /**
    * Legality *as if the active seat were empty* — the fix for "once four seats are filled, no other hero can ever
@@ -960,13 +973,9 @@ export class SeatsScene extends Phaser.Scene {
   ): ReturnType<typeof renderShelfCard> {
     const identity = CARDS_BY_ID.get(option.deck.identityCardId as string);
     // The hero's artwork where there is some, the way Scenario select shows a villain's; otherwise the identity
-    // card's own scan, as before.
+    // card's own scan, as before. Only the URL: the card-face worker fetches and decodes it, downscaled to the card.
     const picture = this.#heroPictureFor(option.deck.identityCardId as string);
-    let artKey = picture ? ensurePictureLoaded(this, picture, () => this.#rebuild()) : null;
-    if (!artKey) {
-      const source = identity ? artFor(identity, { kind: "hero" }) : null;
-      artKey = cardArt(this).request(this, source);
-    }
+    const artUrl = picture?.url ?? (identity ? artFor(identity, { kind: "hero" }) : null)?.url ?? null;
     const entry = active.get(option.deck.id as string);
     const sourceText =
       option.deck.source.kind === "precon" ? "Precon" : option.deck.source.kind === "imported" ? "Imported" : "Built";
@@ -987,7 +996,7 @@ export class SeatsScene extends Phaser.Scene {
             ? "AT THE TABLE"
             : null;
     return renderShelfCard(this, rect, {
-      artKey,
+      artUrl,
       titleRole: typeRole.barTitle,
       title: titleWithoutAspects(option.deck.name.split(" — ")[0]!, option.deck.aspects),
       subtitle: `${sourceText} · ${option.identityName ?? "unknown identity"}`,
