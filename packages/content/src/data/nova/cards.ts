@@ -526,7 +526,10 @@ export const NOVA_CARDS: readonly AnyCard[] = [
       printed: "Give to the Sam Alexander player.\nWhile this card is in play, Supernova Helmet cannot ready.\nAlter-Ego Action: Exhaust Sam Alexander → remove this obligation from the game.",
       current: "Give to the Sam Alexander player.\nWhile this card is in play, Supernova Helmet cannot ready.\nAlter-Ego Action: Exhaust Sam Alexander → remove this obligation from the game.",
     },
-    abilities: [{ id: abilityId("28021.obligation") }],
+    abilities: [
+      { id: abilityId("28021.weight-of-the-world-constant") },
+      { id: abilityId("28021.weight-of-the-world-action") },
+    ],
   },
   {
     id: cardId("28022"),
@@ -544,8 +547,11 @@ export const NOVA_CARDS: readonly AnyCard[] = [
     boostIcons: 2,
     traits: [],
     keywords: [],
-    text: { printed: "", current: "" },
-    abilities: [],
+    text: {
+      printed: "When Revealed: Each player discards 1 card they control with a printed [wild] resource. For each card discarded this way, place 1 threat here.",
+      current: "When Revealed: Each player discards 1 card they control with a printed [wild] resource. For each card discarded this way, place 1 threat here.",
+    },
+    abilities: [{ id: abilityId("28022.when-revealed") }],
   },
   {
     id: cardId("28023"),
