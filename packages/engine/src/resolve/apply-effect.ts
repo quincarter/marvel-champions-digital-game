@@ -1750,10 +1750,11 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
             ? { schBonus: value(effect.schBonus) }
             : {};
       // RRG 1.8 "'Then'" (p. 44): "X attacks you. Then, …" waits on the attack. One that a status cancelled, or that
-      // could not be initiated at all, did not resolve; one initiated here reports back whether it happened.
+      // could not be initiated at all, did not resolve; one initiated here reports back whether it happened. "Each X
+      // attacks" with no X is vacuously resolved (engine reading), so only a named enemy with no activation marks it.
       const initiated = events.length;
-      const attempted = initiated + cancelledByStatus;
-      if (initiated < attempted || initiated === 0)
+      const vacuous = cancelledByStatus === 0 && initiated === 0 && effect.enemies.kind === "each";
+      if (!vacuous && (cancelledByStatus > 0 || initiated === 0))
         markPreThenUnresolved(ctx, frame.frameId, "activationDidNotHappen", firstCancelled ?? undefined);
       pushEvents(ctx, events, { frameId: frame.frameId, prefix: effect.bind ?? null, gatesThen: true }, bonus);
       return;

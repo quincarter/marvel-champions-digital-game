@@ -83,6 +83,11 @@ const ATTACK = actionEvent("then-attack", [
   { kind: "enemyAttack", enemies: { kind: "villain" }, against: you },
   THEN_THREAT,
 ]);
+/** "Each minion attacks you. Then, …" with no minion in play: vacuously resolved. */
+const EACH_ATTACK = actionEvent("then-each-attack", [
+  { kind: "enemyAttack", enemies: { kind: "each", query: { categories: ["minion"] } }, against: you },
+  THEN_THREAT,
+]);
 /** "The villain schemes. Then, …" (Crowbar Toss). */
 const SCHEME = actionEvent("then-scheme", [{ kind: "enemyScheme", enemies: { kind: "villain" } }, THEN_THREAT]);
 /** "Reveal the top card of the encounter deck." */
@@ -107,7 +112,7 @@ const TWICE_INTERRUPT = stubAbility("twice.forced-interrupt", {
 });
 const TWICE = stubSupport({ id: "twice", cost: 0, abilities: [TWICE_INTERRUPT.ref] });
 
-const EVENTS = [SEARCH, SELECT, DISCARD_UNTIL, REVEAL_UNTIL, ATTACK, SCHEME, REVEAL];
+const EVENTS = [SEARCH, SELECT, DISCARD_UNTIL, REVEAL_UNTIL, ATTACK, EACH_ATTACK, SCHEME, REVEAL];
 const deps: EngineDeps = depsOf(
   LOCKED_REVEALED,
   WARD_INTERRUPT,
@@ -264,6 +269,13 @@ describe("'X attacks you' / 'X schemes' that does not happen", () => {
     expect(events.some((e) => e.type === "triggerEvent" && e.event.kind === "enemyAttack")).toBe(true);
     expect(threat(after)).toBe(threat(state) + 7);
     expect(skipped(events)).toBe(false);
+  });
+
+  it("'each minion attacks' with no minion in play is vacuously resolved, so the 'Then' runs", () => {
+    const state = start();
+    const { state: after, events } = playFree(state, deps, EACH_ATTACK.card.id);
+    expect(threat(after)).toBe(threat(state) + 7);
+    expect(causes(events)).toEqual([]);
   });
 
   it("a confused villain's scheme is cancelled and the 'Then' is skipped; an unconfused one runs it", () => {
