@@ -356,11 +356,11 @@ against `pnpm dsl` (379 builders), the engine's `EffectSpec` / `RuleSpec` / `Tri
 | 3.22 | A basic thwart that may remove threat only from one scheme                                   | Retinal Display                                                                                | landed  |
 | 3.23 | Progressing identities: swapping one identity card for the next                              | Ironheart                                                                                      | landed  |
 | 3.24 | A separated identity (two cards, one dial)                                                   | SP//dr                                                                                         | open    |
-| 3.25 | Resources generated: an event, and counters spent as resources                               | M.O.R.B.I.U.S.; Spider-Ham's toon counters                                                     | open    |
+| 3.25 | Resources generated: an event, and counters spent as resources                               | M.O.R.B.I.U.S.; Spider-Ham's toon counters                                                     | landed  |
 | 3.26 | An additional mulligan                                                                       | MC27 reputation node 5                                                                         | landed  |
-| 3.27 | Campaign queries for the reputation conditions and Waking Nightmare                          | MC27 pp. 13, 22                                                                                | open    |
+| 3.27 | Campaign queries for the reputation conditions and Waking Nightmare                          | MC27 pp. 13, 22                                                                                | landed  |
 | 3.28 | Looking at the top card of the encounter deck at any time                                    | Sector Scan                                                                                    | open    |
-| 3.29 | Replacing damage with counters on another card, with no excess damage                        | Bell Tower (Quiet); MC27 p. 21 FAQ                                                             | open    |
+| 3.29 | Replacing damage with counters on another card, with no excess damage                        | Bell Tower (Quiet); MC27 p. 21 FAQ                                                             | landed  |
 | 3.30 | A player card attached to an encounter card and returned when its host leaves                | Wrist Navigator                                                                                | open    |
 | 3.31 | A printed text box that cannot be blanked                                                    | SP//dr Suit, SP//dr                                                                            | open    |
 | 3.32 | Reusable as is                                                                               | —                                                                                              | checked |
@@ -912,6 +912,16 @@ player's, not the card's. Remove the `createGame` refusal and `validateDeck`'s `
 
 ### 3.25 Resources generated: an event, and counters spent as resources
 
+> **Status: landed (2026-09-26, 040cad4d),** tested in `packages/engine/src/resources-generated.test.ts` (7 tests) and
+> `packages/cards/src/dsl/wave5-3-25.test.ts` (4). **What landed:** `TriggerEvent resourcesGenerated` (response-only,
+> one per payment per player who generated ≥ 1, only when something listens; the amount counts hand cards as they
+> counted for the paid-for card, resource-ability uses, and overpayment, RRG p. 13); `payPayment` takes an optional
+> `payingFor`; `EventPattern.playerIn` ("the engaged player"); `repeatable` resource abilities (a fixed counter cost
+> only; one payment option per use, `ability:<id>:<abilityId>:<n>`, capped at 20). **DSL:**
+> `on.resourcesGenerated({ by?: "you" | "engaged" })`, `countersAsResource(counterType, generates = 1)`, `resource(...,
+{ repeatable })`. **User decisions that change it (§4.1):** Q5 (toon counters are not "generated") and Q25 (one
+> timing window with the spend responses) are not built yet.
+
 M.O.R.B.I.U.S. (errata): "After the engaged player generates any number of resources, deal an equal amount of damage
 to that player's hero." `resourcesGenerated` is logged, not announced. **Plan:** `TriggerEvent resourcesGenerated {
 playerId, amount }` (response). Spider-Ham: "Each toon counter on Spider-Ham can be spent as if it were a [wild]
@@ -937,6 +947,17 @@ first draw-up (Appendix II step 15 repeated), set by the campaign's setup.
 
 ### 3.27 Campaign queries for the reputation conditions and Waking Nightmare
 
+> **Status: landed (2026-09-26, 3be41be1),** tested in `packages/engine/src/campaign/sm-queries.test.ts` (8 tests: each
+> query; a win meeting every condition with −2 victory points marks 5 nodes, node 1's white box resolves and both setup
+> ids are appended; the next scenario runs them and grants the extra mulligan; no condition marks nothing) and
+> `packages/cards/src/dsl/wave5-3-27.test.ts`. **What landed:** `CampaignGameQuery` members `accelerationTokensInPlay`,
+> `defeatedIdentities`, `cardsInPlayerDecks { query }` (deck zone only, Q21) and `playersInScenario` (players who
+> started the scenario, for "fewer than 1[per_hero]"; RRG p. 32); `EffectSpec grantAdditionalMulligans { amount }`
+> (log `additionalMulligansGranted`), the path from reputation node 5 to §3.26's field. Marking composes from existing
+> ops: record the conditions, then `betweenGames` adds `clampAtZero(victory points)` + conditions (Q6) and resolves
+> each newly crossed node's white box, appending its pink box (and node 5, Q22) as a conditional instruction. **DSL:**
+> `grantAdditionalMulligans(amount = 1)`. The sm `CampaignDefinition` itself is step 6.
+
 **New `CampaignGameQuery` members:** `accelerationTokensInPlay` (every token, main schemes and other cards),
 `defeatedIdentities` (count), `cardsInPlayerDecks { query }` ("the total number of Illusion cards in all player
 decks", read before the game's encounter cards are gone). "No threat on the main scheme" is `threatOn` of every main
@@ -952,6 +973,16 @@ lasting `RuleSpec mayLookAtTopOfEncounterDeck { player }` read by `visibility.ts
 changes, logged as a lasting effect.
 
 ### 3.29 Replacing damage with counters on another card, with no excess damage
+
+> **Status: landed (2026-09-26, 6326ac93),** tested in `packages/engine/src/damage-to-counters.test.ts` (5 tests: an
+> accepted overkill attack of 5 on a 3-HP Venom places 5 chime counters, deals no damage, reports no excess, replay
+> deep-equal; declined, the stage is defeated with 2 excess; non-attack damage not offered; tough resolves first; P2's
+> attack asks P2) and `packages/cards/src/dsl/wave5-3-29.test.ts`. **What landed:** it composed already —
+> `interrupt(when.damage(…, { fromAttack: true }), instead(addCounters("chime", eventAmount)))`; `instead` cancels the
+> damage event, so nothing is recorded or spills (MC27 p. 21 FAQ). The one engine change: `offeredPlayerOf`
+> (`resolve/triggers.ts`) offers an encounter card's optional ability to the controller of the damage source, else the
+> first player (Q8; RRG p. 4 "Ability"). A minion's overkill spill onto the villain counts as attack damage (Q23).
+> Bell Tower's constant and Ringing side are the pack scripter's.
 
 Bell Tower (Quiet): "Interrupt: When any amount of damage would be dealt to Venom by an attack, (you may) place that
 many chime counters here instead." MC27 p. 21: "no damage is actually dealt … excess damage effects do not apply."
@@ -1003,6 +1034,40 @@ and Vivian blank text boxes. **Plan:** `RuleSpec textBoxCannotBeBlanked` read by
 ---
 
 ## 4. Open questions (for the user or FFG)
+
+### 4.1 Decided by the user (2026-09-26)
+
+Every question below was put to the user on 2026-09-26. **Bold = differs from the proposed default and needs engine
+work** (status in the last column).
+
+| Q   | Decision                                                                                                                                                                                        | Work        |
+| --- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------- |
+| 1   | Default: all six set aside; setup brings in players + 1 at random (seeded).                                                                                                                     | —           |
+| 2   | Default: skip the activation, log it.                                                                                                                                                           | —           |
+| 3   | Default: a canceled activation did not happen; no "after it activates".                                                                                                                         | —           |
+| 4   | **An encounter card drawn from a player deck with nothing listening is dealt to that player facedown, and they draw 1 card** (the Mysterio main scheme's own handling, as the fallback).        | open        |
+| 5   | **Spending a toon counter as a resource is not "generating" a resource; M.O.R.B.I.U.S. does not trigger on it.**                                                                                | open        |
+| 6   | Default, per ruling Aug 3, 2026 (4) #2: victory points contribute `max(0, sum)`; negative VP mark nothing.                                                                                      | built §3.27 |
+| 7   | Default: +1 per damage event (an attack for 6 becomes 7).                                                                                                                                       | —           |
+| 8   | Default: the controller of the attacking character; the first player if none.                                                                                                                   | built §3.29 |
+| 9   | Default: Ironheart's swap keeps her form and is not a form change.                                                                                                                              | built §3.23 |
+| 10  | Default: Everyday Hero may join any player's payment.                                                                                                                                           | —           |
+| 11  | Default: nodes resolve in node order; pink boxes from the next scenario.                                                                                                                        | —           |
+| 12  | Default: a full second mulligan.                                                                                                                                                                | built §3.26 |
+| 13  | Default: the revealing player picks the deck.                                                                                                                                                   | —           |
+| 15  | Default: card text wins; counters and acceleration tokens stay for the When Revealed.                                                                                                           | built §3.3  |
+| 16  | Default: any attack during this player's turn counts.                                                                                                                                           | built §3.12 |
+| 17  | **"When X leaves play" interrupts resolve before the card moves, with the card still in play (RRG p. 25; ruling Jan 17, 2026 (1) #2).** Rework `leavePlay`.                                     | open        |
+| 18  | **A player who cannot pay a scheme's additional thwart cost cannot choose it as the thwart's target** (a payability check over hand cards and resource abilities, as `legal.ts` does for play). | open        |
+| 19  | **The extra mulligan is a second pass in player order after every player's normal mulligan: p1, p2, then p1, p2.**                                                                              | open        |
+| 20  | Default: keeping the hand ends that player's mulligans.                                                                                                                                         | built §3.26 |
+| 21  | Default: "all player decks" is each deck zone only; an eliminated player's deck counts nothing.                                                                                                 | built §3.27 |
+| 22  | Default: node 5's extra mulligan applies at every remaining scenario's setup.                                                                                                                   | built §3.27 |
+| 23  | Default: a minion's overkill spill onto the villain is attack damage (Bell Tower (Quiet) may replace it).                                                                                       | built       |
+| 24  | **M.O.R.B.I.U.S. deals no damage while the engaged player is in alter-ego form** ("that player's hero").                                                                                        | scripter    |
+| 25  | **Within one payment, "after you spend" and "after … generates resources" share one timing window, forced responses first (RRG).**                                                              | open        |
+
+### 4.2 The questions as asked
 
 Each is implemented the way stated, or not at all, and named here rather than decided silently. **Proposed defaults are
 flagged; none is implemented yet.**
@@ -1072,6 +1137,18 @@ flagged; none is implemented yet.**
 20. **No extra mulligan after keeping the hand** (§3.26; added 2026-09-26 by `game-rules-architect`). A mulligan that
     discards nothing ends that player's mulligans, since the extra one would offer the identical hand. If an obligation
     left the hand short and the draw-up filled it, the extra mulligan is still offered. **Default:** as built.
+21. **What "all player decks" covers for Waking Nightmare** (§3.27; MC27 p. 13). **Default:** each player's deck zone
+    only, not hand or discard; an eliminated player's deck counts nothing (RRG p. 34).
+22. **Node 5's reward is a lasting rule** (§3.27). Its box is white ("resolve immediately") but it applies "during the
+    Resolve Mulligans step" of each later game. **Default:** marking node 5 appends a conditional instruction applied at
+    every remaining scenario's setup, like a pink box.
+23. **A minion's overkill spill onto the villain** (§3.29; RRG "Overkill" p. 31). The engine counts the spill as attack
+    damage, so Bell Tower (Quiet) is offered for it. **Default:** yes, it is damage dealt by an attack.
+24. **M.O.R.B.I.U.S. against an alter-ego** (§3.25): resources can be generated in alter-ego form; does "that player's
+    hero" take the damage? **Default:** the identity takes it whatever its form.
+25. **Order of the responses within one payment** (§3.25): "after you spend this card" and "after … generates
+    resources" come from the same payment but are separate events, the generated one last, so forced responses do not
+    resolve first across both. **Default:** as built until a card combines them.
 
 ---
 
