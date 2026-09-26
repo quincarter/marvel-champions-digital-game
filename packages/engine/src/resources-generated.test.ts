@@ -9,6 +9,7 @@
 import { describe, expect, it } from "vitest";
 import type { EngineDeps } from "./abilities.js";
 import { replay, startSession } from "./engine.js";
+import type { GameEvent } from "./events.js";
 import type { InstanceId, PlayerId } from "./ids.js";
 import { paymentFor, tryPayment } from "./legal.js";
 import { mustInstance, mustPlayer } from "./query.js";
@@ -20,7 +21,8 @@ import { giveCard, RESOURCE } from "./testing/scenario.js";
 import { copiesOf, gameAtFirstTurn, minionEngagedWith, P1, P2, playerCardIntoPlay } from "./testing/wave3.js";
 
 const TOON = stubAbility("toons.toon-resource", {
-  trigger: { kind: "resource", repeatable: true },
+  // Spent, not generated (docs/phase7-wave5.md §4.1 Q5).
+  trigger: { kind: "resource", repeatable: true, spentAsIfResource: true },
   cost: { spendCounters: { counterType: "toon", amount: 1 } },
   generates: 1,
   effects: [],
@@ -67,7 +69,7 @@ function withCounters(state: GameState, id: InstanceId, counterType: string, n: 
   };
 }
 
-function start(opts: { readonly engagedWith?: PlayerId; readonly players?: 1 | 2 } = {}) {
+function start(opts: { readonly engagedWith?: PlayerId; readonly players?: 1 | 2; readonly toons?: number } = {}) {
   const base = gameAtFirstTurn({
     cards: [TOONS, GADGET, SIPHON_MINION, BIG_EVENT],
     deps,
@@ -77,7 +79,7 @@ function start(opts: { readonly engagedWith?: PlayerId; readonly players?: 1 | 2
   });
   const toons = playerCardIntoPlay(base, TOONS.id);
   const gadget = playerCardIntoPlay(toons.state, GADGET.id);
-  let state = withCounters(gadget.state, toons.id, "toon", 2);
+  let state = withCounters(gadget.state, toons.id, "toon", opts.toons ?? 2);
   state = withCounters(state, gadget.id, "charge", 2);
   if (opts.engagedWith) state = minionEngagedWith(state, SIPHON_MINION.id, opts.engagedWith).state;
   const event = giveCard(state, P1, BIG_EVENT.id);
@@ -88,6 +90,11 @@ function start(opts: { readonly engagedWith?: PlayerId; readonly players?: 1 | 2
 const heroDamage = (state: GameState, player: PlayerId = P1) =>
   mustInstance(state, mustPlayer(state, player).identity.instanceId).damage;
 const toonUse = (toons: InstanceId) => ({ ability: { instanceId: toons, abilityId: TOON.ref.id } });
+/** The `resourcesGenerated` trigger events that resolved, in order. */
+const generatedEvents = (events: readonly GameEvent[]) =>
+  events.flatMap((e) =>
+    e.type === "triggerEvent" && e.phase === "resolved" && e.event.kind === "resourcesGenerated" ? [e.event] : [],
+  );
 
 describe("§3.25 counters spent as resources (a repeatable resource ability)", () => {
   it("spends one counter per use, several uses in one payment; replay deep-equal", () => {
@@ -157,7 +164,7 @@ describe("§3.25 counters spent as resources (a repeatable resource ability)", (
 });
 
 describe("§3.25 resources generated, an event (M.O.R.B.I.U.S.)", () => {
-  it("the engaged player's hero takes damage equal to every resource generated, counters and hand cards alike", () => {
+  it("counters spent as resources are not generated: a mixed payment's amount leaves them out (§4.1 Q5)", () => {
     const { state, toons, event, res } = start({ engagedWith: P1 });
     const { session } = driveSession(startSession(state), deps, [
       {
@@ -168,7 +175,8 @@ describe("§3.25 resources generated, an event (M.O.R.B.I.U.S.)", () => {
         attachToInstanceId: null,
       },
     ]);
-    expect(heroDamage(session.state)).toBe(heroDamage(state) + 3);
+    // Two toon counters and a one-resource hand card: only the hand card was generated (RRG 1.8 "Cost", p. 13).
+    expect(heroDamage(session.state)).toBe(heroDamage(state) + 1);
     const replayed = replay(session.log, deps);
     if (!replayed.ok) throw new Error(replayed.error.message);
     expect(replayed.state).toEqual(session.state);
@@ -186,7 +194,42 @@ describe("§3.25 resources generated, an event (M.O.R.B.I.U.S.)", () => {
         attachToInstanceId: null,
       },
     ]);
-    expect(heroDamage(session.state)).toBe(heroDamage(state) + 4);
+    expect(heroDamage(session.state)).toBe(heroDamage(state) + 2);
+  });
+
+  it("a payment made only with counters raises no resourcesGenerated event (§4.1 Q5); replay deep-equal", () => {
+    const { state, toons, event } = start({ engagedWith: P1, toons: 3 });
+    const { session, events } = driveSession(startSession(state), deps, [
+      {
+        type: "playCard",
+        playerId: P1,
+        cardInstanceId: event,
+        payment: [toonUse(toons), toonUse(toons), toonUse(toons)],
+        attachToInstanceId: null,
+      },
+    ]);
+    expect(mustPlayer(session.state, P1).discard).toContain(event);
+    expect(mustInstance(session.state, toons).counters.toon ?? 0).toBe(0);
+    expect(generatedEvents(events)).toEqual([]);
+    expect(heroDamage(session.state)).toBe(heroDamage(state));
+    const replayed = replay(session.log, deps);
+    if (!replayed.ok) throw new Error(replayed.error.message);
+    expect(replayed.state).toEqual(session.state);
+  });
+
+  it("another resource ability still generates: its uses count, the counters' do not (§4.1 Q5)", () => {
+    const { state, toons, gadget, event } = start({ engagedWith: P1 });
+    const { session, events } = driveSession(startSession(state), deps, [
+      {
+        type: "playCard",
+        playerId: P1,
+        cardInstanceId: event,
+        payment: [toonUse(toons), toonUse(toons), { ability: { instanceId: gadget, abilityId: ONCE.ref.id } }],
+        attachToInstanceId: null,
+      },
+    ]);
+    expect(generatedEvents(events).map((e) => e.amount)).toEqual([1]);
+    expect(heroDamage(session.state)).toBe(heroDamage(state) + 1);
   });
 
   it("does not trigger for a player the minion is not engaged with", () => {

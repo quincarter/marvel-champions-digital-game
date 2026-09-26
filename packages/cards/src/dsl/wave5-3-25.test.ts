@@ -38,11 +38,16 @@ describe("§3.25 counters spent as resources (Spider-Ham)", () => {
     const definition = countersAsResource("toon");
     valid(definition);
     expect(definition).toEqual({
-      trigger: { kind: "resource", repeatable: true },
+      trigger: { kind: "resource", repeatable: true, spentAsIfResource: true },
       cost: { spendCounters: { counterType: "toon", amount: 1 } },
       effects: [],
       generates: 1,
     });
+  });
+
+  it("spending a counter is not generating a resource (§4.1 Q5): only countersAsResource is marked", () => {
+    expect(resource(1).trigger).toEqual({ kind: "resource" });
+    expect(resource(1, { spentAsIfResource: true }).trigger).toEqual({ kind: "resource", spentAsIfResource: true });
   });
 
   it("a repeatable resource ability with any cost but one fixed counter cost does not validate", () => {

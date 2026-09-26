@@ -125,8 +125,20 @@ export type AbilityTriggerSpec =
    * docs/phase7-wave5.md §3.25). An ability with no limit may be used more than once in a single payment, each use
    * paying its own cost and generating its own resources. Only a fixed `spendCounters` cost can be paid repeatedly (a
    * card exhausts once); the payment options offer one use per payable repeat (`ability:<id>:<abilityId>:<n>`).
+   *
+   * `spentAsIfResource`: the resources are spent, not generated (docs/phase7-wave5.md §4.1 Q5). RRG 1.8 "Cost" (p. 13)
+   * and "Resource" (p. 37) name the two ways a player generates resources: discarding cards from hand and using
+   * "Resource" abilities. A counter "spent as if it were a [wild] resource" is neither; the engine carries it as a
+   * resource ability only so it can join a payment. It still pays (and counts toward `paid.*`), but adds nothing to
+   * the payment's `resourcesGenerated` event, so "after … generates resources" (M.O.R.B.I.U.S.) does not see it.
    */
-  | { readonly kind: "resource"; readonly form?: Form; readonly forAnyPlayer?: boolean; readonly repeatable?: boolean }
+  | {
+      readonly kind: "resource";
+      readonly form?: Form;
+      readonly forAnyPlayer?: boolean;
+      readonly repeatable?: boolean;
+      readonly spentAsIfResource?: boolean;
+    }
   /**
    * `form` is the "Hero Interrupt" / "Alter-Ego Response" gate on the controller. `firstPlayerOnly`: "First Player
    * Interrupt" (Kree Command Ship, `gmw` 16108) — only the first player is offered it, and they are the one who resolves

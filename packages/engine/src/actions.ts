@@ -894,7 +894,8 @@ export interface GeneratedByPlayer {
 
 /**
  * What a payment spent: hand cards discarded (in payment order) and resource abilities used, and how many resources
- * each player generated doing it (in the order the players first appear in the payment).
+ * each player generated doing it (in the order the players first appear in the payment). A `spentAsIfResource` use
+ * generates nothing (docs/phase7-wave5.md §4.1 Q5): a payment of only those has no `generated` entry.
  */
 export interface SpentPayment {
   readonly cards: readonly InstanceId[];
@@ -978,7 +979,9 @@ export function payPayment(
       amount: poolTotal(generated),
       pool: generated,
     });
-    generatedBy = addGenerated(generatedBy, spender, poolTotal(generated));
+    // A counter spent as if it were a resource pays but generates nothing (docs/phase7-wave5.md §4.1 Q5; RRG 1.8 p. 13).
+    const spentAsIf = definition.trigger.kind === "resource" && definition.trigger.spentAsIfResource === true;
+    if (!spentAsIf) generatedBy = addGenerated(generatedBy, spender, poolTotal(generated));
     if (definition.effects.length > 0) used.push({ instanceId, abilityId, spender });
   }
   return { cards: spent, resourceAbilities: used, generated: generatedBy };

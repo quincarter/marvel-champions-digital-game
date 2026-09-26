@@ -173,16 +173,19 @@ export const resource = (
     readonly forAnyPlayer?: boolean;
     /** Usable more than once in one payment, each use paying its fixed counter cost (docs/phase7-wave5.md §3.25). */
     readonly repeatable?: boolean;
+    /** Spent, not generated: "after … generates resources" does not see it (docs/phase7-wave5.md §4.1 Q5). */
+    readonly spentAsIfResource?: boolean;
   } = {},
   ...effects: readonly EffectArg[]
 ): AbilityDefinition => {
-  const { form, generatesFor, forAnyPlayer, repeatable, ...rest } = options;
+  const { form, generatesFor, forAnyPlayer, repeatable, spentAsIfResource, ...rest } = options;
   const definition = build(
     {
       kind: "resource",
       ...(form ? { form } : {}),
       ...(forAnyPlayer ? { forAnyPlayer: true } : {}),
       ...(repeatable ? { repeatable: true } : {}),
+      ...(spentAsIfResource ? { spentAsIfResource: true } : {}),
     },
     rest,
     effects,
@@ -194,10 +197,11 @@ export const resource = (
  * "Each toon counter on Spider-Ham can be spent as if it were a [wild] resource." (`spiderham` 30001a;
  * docs/phase7-wave5.md §3.25): a `repeatable` resource ability whose cost removes one counter from this card, used
  * once per counter spent, as many times in one payment as there are counters. `generates` defaults to 1 wild. Spending
- * one counts as generating a resource (§4 Q5 default), so "after the engaged player generates" (M.O.R.B.I.U.S.) sees it.
+ * one is not generating a resource (§4.1 Q5, `spentAsIfResource`; RRG 1.8 p. 13 names only hand cards and "Resource"
+ * abilities), so "after the engaged player generates" (M.O.R.B.I.U.S.) does not see it.
  */
 export const countersAsResource = (counterType: string, generates: ResourceGeneration = 1): AbilityDefinition =>
-  resource(generates, { cost: removeCounter(counterType, 1), repeatable: true });
+  resource(generates, { cost: removeCounter(counterType, 1), repeatable: true, spentAsIfResource: true });
 /** "Hero Resource:" */
 export const heroResource = (
   generates: ResourceGeneration,
