@@ -349,7 +349,7 @@ against `pnpm dsl` (379 builders), the engine's `EffectSpec` / `RuleSpec` / `Tri
 | 3.15 | Facedown attached cards: playable events, a count, a maximum                                 | George Stacy, Parental Guidance, Worried Father, Spider-Man Noir                               | landed  |
 | 3.16 | How a card was paid for: resources by type and by source                                     | Moon Girl, VEN#m, Rapid Deployment, Web-Trap; Sync Ratio                                       | landed  |
 | 3.17 | A resource card spent for another player                                                     | Everyday Hero                                                                                  | landed  |
-| 3.18 | A card that does not count toward hand size                                                  | Connection to the Worldmind                                                                    | open    |
+| 3.18 | A card that does not count toward hand size                                                  | Connection to the Worldmind                                                                    | landed  |
 | 3.19 | Any number of tough status cards                                                             | Armadillo                                                                                      | open    |
 | 3.20 | Treating printed resources as another type                                                   | Haywire                                                                                        | open    |
 | 3.21 | An additional cost to thwart a scheme                                                        | Cat in a Tree, Giant Monster Attack                                                            | open    |
@@ -794,6 +794,15 @@ spendableForAnyPlayer { while }` on the card, read by the payment's hand-card co
 path, wave 4 §3.17), and `youSpendThis` reporting the paying player.
 
 ### 3.18 A card that does not count toward hand size
+
+> **Status: landed (2026-09-26),** tested in `packages/engine/src/not-counted-toward-hand-size.test.ts` (2 tests: the
+> end-of-phase draw fills the hand size beside it, replay deep-equal; a full hand plus it has no mandatory discard, and
+> one over must discard a counted card — discarding it alone is refused). DSL: `wave5-primitives.test.ts`. **What
+> landed:** a constant field **`notCountedTowardHandSize`** read from the card in hand (the plan's `RuleSpec` would not be
+> read from a hand) through `handCountTowardHandSize`, used by the end-of-phase discard's minimum and its check, the
+> end-of-phase and "draw up to" draws (`drawUpTo`), and the mulligan's draw back up. `handCountOf` still counts it. The
+> discard check's invariant error became an `invalid_choice`, since the choice may include it. **DSL:**
+> `notCountedTowardHandSize`, a `constant` part.
 
 Connection to the Worldmind. RRG 1.8 "Hand Size" (p. 21). **Plan:** `RuleSpec notCountedTowardHandSize` on the card,
 read by the end-of-phase discard/draw and every "cards in hand compared to hand size" reader; `handCountOf` keeps

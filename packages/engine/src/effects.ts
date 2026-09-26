@@ -38,7 +38,15 @@ import {
 } from "./rules.js";
 import { pushEvent } from "./resolve/frames.js";
 import { releaseTreatedBy } from "./treat-as.js";
-import { cardsInPlay, controllerOf, gliderMainSchemeId, matchesQuery, traitsOf, type EffectContext } from "./select.js";
+import {
+  cardsInPlay,
+  controllerOf,
+  gliderMainSchemeId,
+  handCountTowardHandSize,
+  matchesQuery,
+  traitsOf,
+  type EffectContext,
+} from "./select.js";
 import { heard } from "./resolve/triggers.js";
 import type { StatusName } from "./spec.js";
 import type { GameOutcome, GameState, MainSchemeState, ZoneId } from "./state.js";
@@ -477,7 +485,8 @@ export function drawCards(ctx: Ctx, playerId: PlayerId, count: number): void {
  * reshuffles only the discard pile), so this stops at the latest when both are empty.
  */
 export function drawUpTo(ctx: Ctx, playerId: PlayerId, target: () => number): void {
-  while (mustPlayer(ctx.state, playerId).hand.length < target()) {
+  // Cards that do not count toward hand size do not fill it (docs/phase7-wave5.md §3.18).
+  while (handCountTowardHandSize(ctx.state, playerId, ctx.deps) < target()) {
     if (!drawOne(ctx, playerId)) return;
   }
 }

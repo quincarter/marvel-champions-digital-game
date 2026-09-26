@@ -271,6 +271,8 @@ export interface ConstantPart {
   readonly spendableIn?: Form;
   /** "This card can be spent for any player" (Everyday Hero, `nova` 28019; docs/phase7-wave5.md §3.17). */
   readonly spendableForAnyPlayer?: { readonly while?: Predicate };
+  /** "[This card] does not count toward your hand size." (Connection to the Worldmind; docs/phase7-wave5.md §3.18). */
+  readonly notCountedTowardHandSize?: true;
   /** "You may play Lockjaw from your discard pile during your turn." */
   readonly playableFrom?: readonly "discard"[];
   /** "As an additional cost for Wonder Man to attack, you must discard 1 card from your hand." (Wonder Man, `cap` pack). */
@@ -351,6 +353,7 @@ export function constant(...parts: readonly ConstantPart[]): AbilityDefinition {
       ...(paymentOnly.length ? { paymentOnly } : {}),
       ...(spendableInList[0] ? { spendableIn: spendableInList[0] } : {}),
       ...(anyPlayerList[0] ? { spendableForAnyPlayer: anyPlayerList[0] } : {}),
+      ...(parts.some((p) => p.notCountedTowardHandSize) ? { notCountedTowardHandSize: true as const } : {}),
       ...(playableFrom.length ? { playableFrom } : {}),
       ...(basicPowerCosts.length ? { basicPowerCosts } : {}),
       ...(playableAttachmentsList[0] ? { playableAttachments: playableAttachmentsList[0] } : {}),
@@ -374,6 +377,12 @@ export const playOnlyIf = (condition: Predicate): ConstantPart => ({ playOnlyIf:
 export const spendableForAnyPlayer = (when?: Predicate): ConstantPart => ({
   spendableForAnyPlayer: when ? { while: when } : {},
 });
+/**
+ * "Connection to the Worldmind does not count toward your hand size." (`nova` 28007; docs/phase7-wave5.md §3.18):
+ * `constant(notCountedTowardHandSize)`. Read from the card in hand by the end-of-phase discard and draw, the mulligan's
+ * draw back up, and "draw up to your hand size"; every other hand count still counts it.
+ */
+export const notCountedTowardHandSize: ConstantPart = { notCountedTowardHandSize: true };
 /** "You may play [X] events attached to this card as if they were in your hand." (Hawkeye's Quiver, `trors` pack). */
 export const playableAttachments = (query: TargetQuery): ConstantPart => ({ playableAttachments: query });
 /** "Reduce the cost to play X by N [while …]" / "… costs N additional resources" (a signed `delta`). */

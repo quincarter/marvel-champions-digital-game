@@ -35,7 +35,7 @@ import {
 } from "./resolve/cards.js";
 import { checkStateTriggers } from "./resolve/state-checks.js";
 import { cannotChooseToDiscard } from "./rules.js";
-import { cardsInPlay, controllerOf } from "./select.js";
+import { cardsInPlay, controllerOf, handCountTowardHandSize } from "./select.js";
 import { describeFrame } from "./stack.js";
 import type { GameState, GameStep } from "./state.js";
 import type { TriggerEvent } from "./trigger-events.js";
@@ -202,7 +202,7 @@ export function afterMulliganChoice(ctx: Ctx, playerId: PlayerId): void {
   // "Draw up to their starting hand size" as a counted draw of (hand size - hand) cards, hand size read now (so an
   // opening-hand Martial Law already lowers it). An obligation drawn here goes into play and is not replaced: the
   // player ends a card short (maintainer decision 2026-09-23, docs/campaign-mode-design.md Q20).
-  const missing = handSize(ctx.state, playerId, ctx.deps) - mustPlayer(ctx.state, playerId).hand.length;
+  const missing = handSize(ctx.state, playerId, ctx.deps) - handCountTowardHandSize(ctx.state, playerId, ctx.deps);
   if (missing > 0) drawCards(ctx, playerId, missing);
   setStep(ctx, {
     phase: "setup",
@@ -331,7 +331,11 @@ function executeEndPhaseDiscard(ctx: Ctx, remainingPlayerIds: readonly PlayerId[
     playerId: current,
     prompt: { kind: "discardDownToHandSize", handSize: limit },
     options: handOptions(ctx, current),
-    minSelections: Math.min(Math.max(0, player.hand.length - limit), handOptions(ctx, current).length),
+    // Only cards that count toward hand size must go (docs/phase7-wave5.md §3.18).
+    minSelections: Math.min(
+      Math.max(0, handCountTowardHandSize(ctx.state, current, ctx.deps) - limit),
+      handOptions(ctx, current).length,
+    ),
     maxSelections: handOptions(ctx, current).length,
   });
 }

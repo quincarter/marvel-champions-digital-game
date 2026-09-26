@@ -8,7 +8,8 @@ import type { GameEvent } from "./events.js";
 import { afterDiscardChoice, afterMulliganChoice, runFlow } from "./flow.js";
 import { activateChosenMinion } from "./villain/phase.js";
 import { instanceId } from "./ids.js";
-import { getPlayer, handSize, mustPlayer } from "./query.js";
+import { getPlayer, handSize } from "./query.js";
+import { handCountTowardHandSize } from "./select.js";
 import type { GameState } from "./state.js";
 
 export type CommandResult =
@@ -121,9 +122,12 @@ function resolveChoice(ctx: Ctx, command: Command & { type: "resolveChoice" }): 
   switch (choice.prompt.kind) {
     case "discardDownToHandSize": {
       for (const optionId of selected) discardFromHand(ctx, choice.playerId, instanceId(optionId));
-      const player = mustPlayer(ctx.state, choice.playerId);
-      if (player.hand.length > handSize(ctx.state, choice.playerId, ctx.deps)) {
-        throw new EngineInvariantError("hand still exceeds hand size after discard choice");
+      // A card that does not count toward hand size (docs/phase7-wave5.md §3.18) may be discarded too, but does not
+      // bring the hand down: the choice's minimum counts every card, so this can still be short.
+      if (
+        handCountTowardHandSize(ctx.state, choice.playerId, ctx.deps) > handSize(ctx.state, choice.playerId, ctx.deps)
+      ) {
+        return engineError("invalid_choice", "the hand still exceeds hand size after this discard", command);
       }
       afterDiscardChoice(ctx, choice.playerId);
       return null;

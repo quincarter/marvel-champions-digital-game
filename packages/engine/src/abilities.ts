@@ -193,6 +193,12 @@ export type AbilityTriggerSpec =
        */
       readonly spendableForAnyPlayer?: { readonly while?: Predicate };
       /**
+       * "Connection to the Worldmind does not count toward your hand size." (`nova` 28007; docs/phase7-wave5.md §3.18):
+       * read from the card in hand by every "cards in hand against hand size" reader (`handCountTowardHandSize`). It is
+       * still a card in hand for everything else. The plan's `RuleSpec` would not be read from a hand.
+       */
+      readonly notCountedTowardHandSize?: true;
+      /**
        * "You may play Lockjaw from your discard pile during your turn." A permission read from the card itself (RRG 1.8
        * "Play Restrictions and Permissions", p. 33: "a permission might allow an ally card to be played from a player's
        * discard pile").

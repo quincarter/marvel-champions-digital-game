@@ -21,6 +21,7 @@ import {
   interrupt,
   mainSchemeMarkedBy,
   maxOnePerTriggeringInstance,
+  notCountedTowardHandSize,
   on,
   playableAttachments,
   response,
@@ -348,6 +349,14 @@ describe("§3.17 a resource card spent for another player (Everyday Hero)", () =
     valid(everyday);
     expect(everyday.trigger).toMatchObject({ kind: "constant", spendableForAnyPlayer: { while: whileAlterEgo } });
     expect(constant(spendableForAnyPlayer()).trigger).toMatchObject({ spendableForAnyPlayer: {} });
+  });
+});
+
+describe("§3.18 a card that does not count toward hand size (Connection to the Worldmind)", () => {
+  it("is a constant part", () => {
+    const worldmind = constant(notCountedTowardHandSize);
+    valid(worldmind);
+    expect(worldmind.trigger).toEqual({ kind: "constant", notCountedTowardHandSize: true });
   });
 });
 

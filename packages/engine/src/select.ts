@@ -1776,6 +1776,27 @@ export function activeAbilityRefs(
   return "abilities" in card ? card.abilities : [];
 }
 
+/**
+ * "Connection to the Worldmind does not count toward your hand size." (`nova` 28007; docs/phase7-wave5.md §3.18): a
+ * printed constant read from the card in hand (`notCountedTowardHandSize`).
+ */
+export function countsTowardHandSize(state: GameState, id: InstanceId, deps: EngineDeps): boolean {
+  const card = cardOf(state, id);
+  if (!card) return true;
+  return !printedAbilityRefs(card).some((ref) => {
+    const trigger = deps.abilities[ref.id]?.trigger;
+    return trigger?.kind === "constant" && trigger.notCountedTowardHandSize === true;
+  });
+}
+
+/**
+ * The cards in a player's hand that count toward their hand size (RRG 1.8 "Hand Size", p. 21): the end-of-phase discard
+ * and draw, the mulligan's draw back up, and "draw up to your hand size". Every other hand count (`handCountOf`) still
+ * counts every card in hand. docs/phase7-wave5.md §3.18.
+ */
+export const handCountTowardHandSize = (state: GameState, playerId: PlayerId, deps: EngineDeps): number =>
+  (getPlayer(state, playerId)?.hand ?? []).filter((id) => countsTowardHandSize(state, id, deps)).length;
+
 /** Ability slots printed on a card regardless of where the card is (for reveal/boost). */
 export function printedAbilityRefs(card: AnyCard): readonly AbilityReference[] {
   if (card.type === "hero_identity")
