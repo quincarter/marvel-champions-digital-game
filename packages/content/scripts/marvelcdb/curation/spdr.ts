@@ -51,12 +51,37 @@ export const SPDR_CURATION: PackCuration = {
   exportPrefix: "SPDR",
 
   corrections: [],
-  errata: [],
+  errata: [
+    // docs/phase7-wave5.md §1.9, RRG 1.8 p. 68: MarvelCDB's own `errata` field is unset for this record, and its
+    // text still reads the pre-errata "engaged hero"/"that hero" — the printed wording is reconstructed by
+    // reversing the errata (`printedReplace`), the ordinary direction every other `Errata` entry in this pipeline
+    // uses.
+    {
+      code: "31027",
+      version: "RRG 1.8",
+      changedFields: ["text"],
+      note: 'Changed "engaged hero" to "engaged player" and "that hero" to "that player\'s hero".',
+      evidence:
+        'RRG 1.8 p. 68, "M.O.R.B.I.U.S. (#27)": "Should read: \'Forced Response: After the engaged player ' +
+        "generates any number of resources, deal an equal amount of damage to that player's hero.'\" MarvelCDB's " +
+        "own `real_text` still has the pre-errata wording, with no `errata` field set.",
+      // MarvelCDB's own text lags the errata (still the printed wording) rather than leading it, the same shape
+      // wave 1's Black Widow 08001a/Synth-Suit 08009 used (`Errata`'s own doc comment) — `currentReplace` derives
+      // the up-to-date wording forward from the (already-printed) source text.
+      currentReplace: {
+        find: "After the engaged hero generates any number of resources, deal an equal amount of damage to that hero.",
+        replace:
+          "After the engaged player generates any number of resources, deal an equal amount of damage to that player's hero.",
+      },
+    },
+  ],
 
   scriptingNotes: {},
   cardNotes: {},
 
   scenarios: [],
+  // Precon (starter deck) transcription for this pack is owned by a separate image-collection pass
+  // (docs/phase7-wave5-sources.md §5, §7.1) — left empty here.
   starterDecks: [],
 
   separatedIdentities: {
