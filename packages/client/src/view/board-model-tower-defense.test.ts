@@ -118,3 +118,13 @@ function cardNameOf(state: GameState, id: InstanceId): string | undefined {
   const instance = getInstance(state, id);
   return instance ? state.cardPool[instance.cardId]?.name : undefined;
 }
+
+describe("identity subtitle aspects", () => {
+  test("Adam Warlock's all-aspect deck names all four aspects, not whichever was counted first", async () => {
+    const store = await afterSetup({ ...TOWER_DEFENSE, players: [{ starterDeckId: "adam-warlock-all-aspects" }] });
+    const model = boardModel(store.state.game!, store.state.perspectiveId!, POOL_DEPS);
+    expect(model.me.subtitle).toMatch(/^(Hero|Alter-ego) · /);
+    for (const aspect of ["Aggression", "Justice", "Leadership", "Protection"])
+      expect(model.me.subtitle).toContain(aspect);
+  });
+});

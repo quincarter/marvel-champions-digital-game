@@ -810,8 +810,9 @@ function subtitleOf(state: GameState, instance: CardInstance, card: AnyCard | un
     case "hero_identity": {
       const player = state.players.find((seat) => seat.identity.instanceId === instance.instanceId);
       const form = player?.identity.form ?? "hero";
-      const aspect = player ? deckAspect(state, player.playerId) : null;
-      return `${form === "hero" ? "Hero" : "Alter-ego"}${aspect ? ` · ${aspectLabel(aspect)}` : ""}`;
+      const aspects = player ? deckAspects(state, player.playerId) : [];
+      const label = aspects.map(aspectLabel).join(" + ");
+      return `${form === "hero" ? "Hero" : "Alter-ego"}${label ? ` · ${label}` : ""}`;
     }
     case "minion":
       // Mind Control, Redemption, Karma (docs/phase7-wave4.md §3.29): a minion "treated as an ally" for its
@@ -843,8 +844,16 @@ function subtitleOf(state: GameState, instance: CardInstance, card: AnyCard | un
  * engine has no use for it — only the panel subtitle does.
  */
 export function deckAspect(state: GameState, playerId: PlayerId): Aspect | null {
+  return deckAspects(state, playerId)[0] ?? null;
+}
+
+/**
+ * Every aspect tied for the most cards in a player's cards, in first-seen order: one for an ordinary deck, all four for
+ * Adam Warlock, whose deckbuilding needs an equal number from each ("Avatar of Life", `mts` 21031a).
+ */
+export function deckAspects(state: GameState, playerId: PlayerId): readonly Aspect[] {
   const player = getPlayer(state, playerId);
-  if (!player) return null;
+  if (!player) return [];
   const counts = new Map<Aspect, number>();
   for (const id of [...player.deck, ...player.hand, ...player.discard, ...player.playArea]) {
     const card = cardOf(state, id);
@@ -853,15 +862,8 @@ export function deckAspect(state: GameState, playerId: PlayerId): Aspect | null 
     if (aspect === "basic" || aspect.startsWith("hero:")) continue;
     counts.set(aspect, (counts.get(aspect) ?? 0) + 1);
   }
-  let best: Aspect | null = null;
-  let bestCount = 0;
-  for (const [aspect, count] of counts) {
-    if (count > bestCount) {
-      best = aspect;
-      bestCount = count;
-    }
-  }
-  return best;
+  const most = Math.max(0, ...counts.values());
+  return [...counts].filter(([, count]) => count === most && count > 0).map(([aspect]) => aspect);
 }
 
 const aspectLabel = (aspect: Aspect): string => aspect.charAt(0).toUpperCase() + aspect.slice(1);
