@@ -104,6 +104,7 @@ export type GmwRunStop =
   | "afterIssue2"
   | "afterIssue2HeadhuntersDown"
   | "afterIssue3"
+  | "afterIssue4"
   | "expertAfterIssue1"
   | "lostIssue3"
   | "finished";
@@ -227,6 +228,8 @@ export async function seedGmwRun(
   if (stop === "lostIssue3") return playIssueWith(service, record, "loss", gmwAutoAnswer);
   record = await playIssueWith(service, record, "win", gmwAutoAnswer);
   if (stop === "afterIssue3") return record;
+  record = await playIssueWith(service, record, "win", gmwAutoAnswer);
+  if (stop === "afterIssue4") return record;
   while (record.status === "active") record = await playIssueWith(service, record, "win", gmwAutoAnswer);
   return record;
 }
@@ -293,6 +296,17 @@ async function composeAndFabricateWin(
     outcome: { result: "win", reason: "villainDefeated" },
   };
   return { record: composed, won };
+}
+
+/**
+ * `record`'s own next issue, composed for real (Market/heal offers declined-or-cheapest via `gmwAutoAnswer`, the
+ * same policy `seedGmwRun`'s own issue-to-issue transitions use) but neither started nor won — the composed record
+ * alone, for a caller that wants to run `service.launchConfig(composed)` through a real `EngineSessionCore` itself
+ * (the client-layer `start.encounterSets` regression coverage below needs the actual launched `GameState`, not a
+ * substituted win).
+ */
+export async function seedGmwComposed(service: CampaignService, record: CampaignRecord): Promise<CampaignRecord> {
+  return settleWith((answers) => service.compose(record, answers), gmwAutoAnswer);
 }
 
 /**

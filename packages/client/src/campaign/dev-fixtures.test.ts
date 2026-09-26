@@ -7,6 +7,7 @@ import { CampaignService } from "./campaign-service.js";
 import {
   seedDesignRun,
   seedDesignWonGame,
+  seedGmwComposed,
   seedGmwRun,
   seedGmwWonGame,
   seedMtsComposed,
@@ -203,6 +204,57 @@ describe("a client-launched campaign game actually contains its composed encount
     const core = new EngineSessionCore({ storage: new MemoryGameStorage() });
     const started = await core.start(svc.launchConfig(composed.record));
     expect(namesInPlay(started.snapshot.state)).toContain("Badoon Blitz");
+  }, 30_000);
+
+  // The four tests below extend the Brotherhood of Badoon coverage above to GMW's other four scenarios (the task
+  // brief's own follow-up: "verify campaign games actually include their campaign-composed sets" for every
+  // scenario, not only the first one a Priority-1 pass happened to name). `seedGmwComposed` reuses `seedGmwRun`'s
+  // own win-and-advance path, then composes the next node for real (Market/heal offers answered by `gmwAutoAnswer`,
+  // the same policy issue-to-issue transitions already use) without fabricating a win, so `svc.launchConfig` sees a
+  // real composed record exactly as the client would build one.
+
+  test('GMW at Infiltrate the Museum: its Campaign Challenge side scheme ("Gallery of Splendor") is in play (MC16 p. 10)', async () => {
+    const svc = service();
+    const grown = await seedGmwRun(svc, "afterIssue1");
+    const composed = await seedGmwComposed(svc, grown);
+    expect(composed.attempt?.nodeId).toBe("infiltrate-the-museum");
+    const core = new EngineSessionCore({ storage: new MemoryGameStorage() });
+    const started = await core.start(svc.launchConfig(composed));
+    expect(namesInPlay(started.snapshot.state)).toContain("Gallery of Splendor");
+  }, 30_000);
+
+  test('GMW at Escape the Museum: its Campaign Challenge side scheme ("There is No Escape") is in play (MC16 p. 12)', async () => {
+    const svc = service();
+    const grown = await seedGmwRun(svc, "afterIssue2");
+    const composed = await seedGmwComposed(svc, grown);
+    expect(composed.attempt?.nodeId).toBe("escape-the-museum");
+    const core = new EngineSessionCore({ storage: new MemoryGameStorage() });
+    const started = await core.start(svc.launchConfig(composed));
+    expect(namesInPlay(started.snapshot.state)).toContain('"There is No Escape"');
+  }, 30_000);
+
+  test('GMW at Nebula: its Campaign Challenge side scheme ("Guerrilla Tactics") and Galactic Artifacts are composed (MC16 p. 14)', async () => {
+    const svc = service();
+    const grown = await seedGmwRun(svc, "afterIssue3");
+    const composed = await seedGmwComposed(svc, grown);
+    expect(composed.attempt?.nodeId).toBe("nebula");
+    const core = new EngineSessionCore({ storage: new MemoryGameStorage() });
+    const started = await core.start(svc.launchConfig(composed));
+    expect(namesInPlay(started.snapshot.state)).toContain("Guerrilla Tactics");
+  }, 30_000);
+
+  test("GMW at Ronan the Accuser: the Badoon Headhunter minion (MC16 p. 18's own headhunterLadder setup) is composed into the game", async () => {
+    const svc = service();
+    const grown = await seedGmwRun(svc, "afterIssue4");
+    const composed = await seedGmwComposed(svc, grown);
+    expect(composed.attempt?.nodeId).toBe("ronan-the-accuser");
+    const core = new EngineSessionCore({ storage: new MemoryGameStorage() });
+    const started = await core.start(svc.launchConfig(composed));
+    // Ronan's own scenario prints no Campaign Challenge side scheme (only s1-s4 do, per `gmw.ts`'s own
+    // `revealChallengeSideScheme` call sites), but it still composes the Badoon Headhunter set for its own
+    // `headhunterLadder` setup instruction to shuffle into the encounter deck — the same `start.encounterSets`
+    // plumbing, exercised by a different card.
+    expect(namesInPlay(started.snapshot.state)).toContain("Badoon Headhunter");
   }, 30_000);
 });
 
