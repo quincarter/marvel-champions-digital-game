@@ -34,6 +34,7 @@ import {
   playerCardIntoPlay,
   playFree,
   P1,
+  P2,
 } from "./testing/wave3.js";
 
 const HERO_SET = heroAspect(HERO.id);
@@ -110,8 +111,13 @@ const CLEAR_SCHEME = events("clear-scheme", [
 // "Defeat the partner."
 const DEFEAT_ALLY = events("defeat-ally", [{ kind: "defeat", target: named("partner") }]);
 
+// "Take the suit into your hand."
+const TAKE = events("take", [
+  { kind: "takeIntoHand", cards: { kind: "ref", ref: named("suit") }, player: { kind: "controller" } },
+]);
+
 const FILLER = stubTreachery({ id: "filler", boostIcons: 0 });
-const EVENT_SETS = [DISCARD, DEFEAT_SCHEME, CLEAR_SCHEME, DEFEAT_ALLY];
+const EVENT_SETS = [DISCARD, DEFEAT_SCHEME, CLEAR_SCHEME, DEFEAT_ALLY, TAKE];
 
 const deps: EngineDeps = depsOf(SUIT_LEAVES, BATTERY_ACTION, ...EVENT_SETS.flatMap((set) => set.abilities));
 const CARDS: readonly AnyCard[] = [
@@ -125,8 +131,9 @@ const CARDS: readonly AnyCard[] = [
   ...EVENT_SETS.flatMap((set) => [set.hero, set.thieves, set.basic]),
 ];
 
-function start(): GameState {
+function start(players: 1 | 2 = 1): GameState {
   return gameAtFirstTurn({
+    players,
     cards: CARDS,
     deps,
     deck: [
@@ -241,6 +248,21 @@ describe("§4.1 Q46 the Permanent keyword's defeat and leave-play protection (RR
     expect(inPlay(own.state, partner.id)).toBe(false);
     expect(mustPlayer(own.state, P1).discard).toContain(partner.id);
     expectReplays(own.session);
+  });
+
+  it("a take-into-hand that Permanent stops changes neither the card's owner nor its controller; replay deep-equal", () => {
+    const suit = playerCardIntoPlay(start(2), SUIT.id);
+    // Test surgery: the suit is P2's card, under P1's control in P1's play area.
+    const borrowed: GameState = {
+      ...suit.state,
+      instances: { ...suit.state.instances, [suit.id]: { ...mustInstance(suit.state, suit.id), ownerId: P2 } },
+    };
+    const { session, state: after, events } = playFree(borrowed, deps, TAKE.basic.id);
+
+    expect(inPlay(after, suit.id)).toBe(true);
+    expect(mustInstance(after, suit.id)).toMatchObject({ ownerId: P2, controllerId: P1 });
+    expect(events.some((e) => e.type === "ownershipChanged")).toBe(false);
+    expectReplays(session);
   });
 
   it("a permanent card is a valid target for a chosen discard only from its own set (RRG p. 32 target bullet)", () => {

@@ -1897,11 +1897,14 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
           ...(instance.ownerId !== playerId ? { ownerId: playerId } : {}),
         };
         // The new owner comes with the move, after any "when it leaves play" interrupt, which sees the card as it was;
-        // `leavePlay` applies `patch` once the card has left, now or after its interrupts (wave 5 §4.1 Q17, Q35).
+        // `leavePlay` applies `patch` once the card has left, now or after its interrupts (wave 5 §4.1 Q17, Q35), and
+        // not at all when the card stays in play (Permanent or "cannot leave play"): a card that did not move keeps its
+        // owner and controller.
         if (cardsInPlay(ctx.state).includes(id)) {
-          const source = leaveSourceOf(ctx, frame);
-          if (leavePlay(ctx, id, { kind: "hand", playerId }, "top", false, patch, source) !== "stayed") continue;
-        } else moveCard(ctx, id, { kind: "hand", playerId });
+          leavePlay(ctx, id, { kind: "hand", playerId }, "top", false, patch, leaveSourceOf(ctx, frame));
+          continue;
+        }
+        moveCard(ctx, id, { kind: "hand", playerId });
         applyLeavePatch(ctx, id, patch);
       }
       return;
