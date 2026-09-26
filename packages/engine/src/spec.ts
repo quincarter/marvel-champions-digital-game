@@ -1854,6 +1854,14 @@ export type EffectSpec =
   | { readonly kind: "addAccelerationToken"; readonly target?: TargetRef; readonly count?: ValueSpec }
   | { readonly kind: "removeAccelerationToken" }
   /**
+   * "During the Resolve Mulligans step of game setup, each player may take 1 additional mulligan" (MC27 p. 22
+   * reputation node 5, as errata'd by RRG 1.8 p. 67; docs/phase7-wave5.md §3.27): adds `amount` to every player's
+   * `PlayerState.extraMulligans`, the field `PlayerSetup.extraMulligans` seeds (§3.26). A campaign resolves it at a
+   * window before the mulligan (`beforeStartingHands`); resolved later it only records the number, which nothing reads
+   * after setup. Log `additionalMulligansGranted`.
+   */
+  | { readonly kind: "grantAdditionalMulligans"; readonly amount: number }
+  /**
    * Advance the main scheme to its next stage (new stage's A-side When Revealed, then its starting threat). Also how the
    * engine finishes a completion after its When Completed abilities. An advance by card text is not a completion. On
    * the final stage it does nothing.

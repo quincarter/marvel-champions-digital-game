@@ -1173,6 +1173,18 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
     case "removeAccelerationToken":
       removeAccelerationToken(ctx);
       return;
+    case "grantAdditionalMulligans": {
+      // MC27 p. 22 node 5 (docs/phase7-wave5.md §3.27): read by the mulligan step (§3.26) when it reaches the player.
+      const amount = Math.max(0, Math.trunc(effect.amount));
+      if (amount === 0) return;
+      for (const player of ctx.state.players) {
+        if (player.eliminated) continue;
+        const extraMulligans = (player.extraMulligans ?? 0) + amount;
+        updatePlayer(ctx, player.playerId, (p) => ({ ...p, extraMulligans }));
+        emit(ctx, { type: "additionalMulligansGranted", playerId: player.playerId, extraMulligans });
+      }
+      return;
+    }
     case "advanceMainScheme": {
       // "The main scheme" of this effect's area unless named; `to` names the stage (docs/phase7-wave2.md §3.4).
       const [scheme] = effect.scheme ? targets(effect.scheme) : resolveRef(ctx.state, { kind: "mainScheme" }, context);

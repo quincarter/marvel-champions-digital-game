@@ -1097,6 +1097,11 @@ export const addAccelerationToken = (target?: TargetRef): EffectSpec => ({
   kind: "addAccelerationToken",
   ...(target ? { target } : {}),
 });
+/**
+ * "During the Resolve Mulligans step of game setup, each player may take 1 additional mulligan" (MC27 p. 22 reputation
+ * node 5, RRG 1.8 p. 67 erratum; docs/phase7-wave5.md §3.27): a campaign instruction resolved at `beforeStartingHands`.
+ */
+export const grantAdditionalMulligans = (amount = 1): EffectSpec => ({ kind: "grantAdditionalMulligans", amount });
 /** "Either spend … resources or …": follow with `ifThen(not(made(bind)), …)`. */
 export const spendResources = (resources: ResourceRequirement, bind: string, player: PlayerRef = you): EffectSpec => ({
   kind: "spendResources",

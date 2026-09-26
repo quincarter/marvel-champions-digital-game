@@ -424,6 +424,8 @@ export type GameEvent =
   | { readonly type: "accelerationTokenAdded"; readonly total: number; readonly schemeInstanceId?: InstanceId }
   /** "Place it here instead" (`accelerationTokenDestination`; The Master of Time 2B). */
   | { readonly type: "accelerationTokenRedirected"; readonly from: InstanceId; readonly to: InstanceId }
+  /** `grantAdditionalMulligans` (docs/phase7-wave5.md §3.27): the player's extra mulligans now total `extraMulligans`. */
+  | { readonly type: "additionalMulligansGranted"; readonly playerId: PlayerId; readonly extraMulligans: number }
   | { readonly type: "playerEliminated"; readonly playerId: PlayerId }
   | { readonly type: "firstPlayerChanged"; readonly playerId: PlayerId }
   | { readonly type: "choiceRequested"; readonly choice: PendingChoice }

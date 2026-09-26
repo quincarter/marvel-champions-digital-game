@@ -374,6 +374,35 @@ export type CampaignGameQuery =
   /** MC60 p. 13: "If Disturbed Psyche is in play and has at least 2 threat on it…" */
   | { readonly kind: "threatOn"; readonly query: TargetQuery }
   /**
+   * MC27 p. 22's reputation condition "(+1) Fewer than 1[per_hero] acceleration tokens in play": every acceleration
+   * token on a card in play — each main scheme's own (`MainSchemeState.accelerationTokens`, several with Venom
+   * Goblin's) and those on any other card (the `acceleration` counter, docs/phase7-wave5.md §3.4). The "[per_hero]"
+   * threshold is `playersInScenario`, compared between games (`CampaignPredicate` `valueAtLeast`).
+   */
+  | { readonly kind: "accelerationTokensInPlay" }
+  /**
+   * MC27 p. 22's "(+1) No defeated identities": the number of players eliminated this game. RRG 1.8 "Player
+   * Elimination" (p. 34): "A player is eliminated from the game if their identity is defeated", so the two are one
+   * count. Every player, whatever an `EliminationPolicy` does with the seat afterwards.
+   */
+  | { readonly kind: "defeatedIdentities" }
+  /**
+   * MC27 p. 13: "Count the total number of Illusion cards in all player decks. Record that number in the 'Waking
+   * Nightmare' section." The cards in each player's **deck** (not hand or discard pile) that match `query`, including
+   * encounter cards shuffled in (docs/phase7-wave5.md §3.5). Read off the final state, which still holds them: the
+   * same page's "After the scenario ends, remove all encounter cards from your deck …" is not something the engine
+   * does to a finished game. An eliminated player's deck is out of the game (RRG 1.8 "Player Elimination" step 5) and
+   * counts nothing.
+   */
+  | { readonly kind: "cardsInPlayerDecks"; readonly query: TargetQuery }
+  /**
+   * The number the per player icon multiplies by: "the number of players who **started** the scenario" (RRG 1.8 "Per
+   * Player Icon", p. 32: "If a player is eliminated, this value does not change"). MC27 p. 22's "Fewer than
+   * 1[per_hero] acceleration tokens" is `accelerationTokensInPlay` < this. `CampaignValue` `seatCount` is not the
+   * same number: it counts the campaign's seats, not the players seated in this game.
+   */
+  | { readonly kind: "playersInScenario" }
+  /**
    * MC16 p. 8: "Record a number of units … equal to the victory values on encounter cards in the victory display"
    * — the printed `Victory X` keyword's own value (RRG 1.8's Victory X, docs/phase7-wave3.md §3.4), summed across
    * every matching card, not the card *count* `victoryDisplayCount`/`cardsInVictoryDisplay` would give (two
