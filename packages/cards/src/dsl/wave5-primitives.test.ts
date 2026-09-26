@@ -9,6 +9,7 @@ import type { Predicate } from "@mc/engine";
 import { describe, expect, it } from "vitest";
 import {
   action,
+  anyNumberOfToughStatusCards,
   boost,
   cannotBeCanceled,
   constant,
@@ -357,6 +358,16 @@ describe("§3.18 a card that does not count toward hand size (Connection to the 
     const worldmind = constant(notCountedTowardHandSize);
     valid(worldmind);
     expect(worldmind.trigger).toEqual({ kind: "constant", notCountedTowardHandSize: true });
+  });
+});
+
+describe("§3.19 any number of tough status cards (Armadillo)", () => {
+  it("is a constant rule on the character", () => {
+    const armadillo = constant(anyNumberOfToughStatusCards({ self: true }));
+    valid(armadillo);
+    expect(armadillo.trigger).toMatchObject({
+      rules: [{ kind: "statusLimit", target: { self: true }, status: "tough", max: "unlimited" }],
+    });
   });
 });
 

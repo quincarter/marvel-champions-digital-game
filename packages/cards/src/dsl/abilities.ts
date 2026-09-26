@@ -496,6 +496,12 @@ export const countsAs = (
     ...(opts.while ? { while: opts.while } : {}),
   });
 /**
+ * "Armadillo can have any number of tough status cards." (`nova` 28029; docs/phase7-wave5.md §3.19):
+ * `constant(anyNumberOfToughStatusCards({ self: true }))`. Each still prevents one damage event; piercing discards all.
+ */
+export const anyNumberOfToughStatusCards = (target: TargetQuery): ConstantPart =>
+  rule({ kind: "statusLimit", target, status: "tough", max: "unlimited" });
+/**
  * "Increase all damage Venom takes by 1" (Bell Tower's Ringing side, `sm` 27076b; docs/phase7-wave5.md §3.8):
  * `constant(increaseDamageTaken(query("villain", { name: "Venom" }), 1))`. Once per damage event (§4 Q7), summed with
  * any `reduceDamageTaken`; `fromAttack` narrows it to an attack's damage.

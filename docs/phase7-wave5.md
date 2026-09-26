@@ -350,7 +350,7 @@ against `pnpm dsl` (379 builders), the engine's `EffectSpec` / `RuleSpec` / `Tri
 | 3.16 | How a card was paid for: resources by type and by source                                     | Moon Girl, VEN#m, Rapid Deployment, Web-Trap; Sync Ratio                                       | landed  |
 | 3.17 | A resource card spent for another player                                                     | Everyday Hero                                                                                  | landed  |
 | 3.18 | A card that does not count toward hand size                                                  | Connection to the Worldmind                                                                    | landed  |
-| 3.19 | Any number of tough status cards                                                             | Armadillo                                                                                      | open    |
+| 3.19 | Any number of tough status cards                                                             | Armadillo                                                                                      | landed  |
 | 3.20 | Treating printed resources as another type                                                   | Haywire                                                                                        | open    |
 | 3.21 | An additional cost to thwart a scheme                                                        | Cat in a Tree, Giant Monster Attack                                                            | open    |
 | 3.22 | A basic thwart that may remove threat only from one scheme                                   | Retinal Display                                                                                | open    |
@@ -809,6 +809,14 @@ read by the end-of-phase discard/draw and every "cards in hand compared to hand 
 counting it (it is in hand).
 
 ### 3.19 Any number of tough status cards
+
+> **Status: landed (2026-09-26),** tested in `packages/engine/src/unlimited-tough.test.ts` (3 tests: the villain holds
+> three tough cards, and three damage events each spend one, replay deep-equal; piercing discards all three; a villain
+> without the rule holds one). DSL: `wave5-primitives.test.ts`. **What landed:** **`RuleSpec statusLimit { target,
+status: "tough", max: "unlimited" }`**, read by `statusCapacity` (so `giveStatus` and the status clean-up allow any
+> number). The damage path already spent one tough card per event and piercing already cleared them all. **DSL:**
+> `anyNumberOfToughStatusCards(target)`, a `constant` part. **Not changed:** `removeStatus` ("remove a tough status
+> card") still removes every card of that status, as it did for a steady character's two.
 
 Armadillo: "Armadillo can have any number of tough status cards." RRG 1.8 "Status Cards" (p. 41) limits one of each
 (steady adds one of stunned/confused). **Plan:** `RuleSpec statusLimit { target, status: "tough", max: "unlimited" }`;
