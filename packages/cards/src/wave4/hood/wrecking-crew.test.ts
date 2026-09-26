@@ -1,6 +1,6 @@
-import { characterProfile, hasKeyword } from "@mc/engine";
+import { characterProfile, hasKeyword, type Command, type GameEvent, type GameState } from "@mc/engine";
 import { describe, expect, it } from "vitest";
-import { P1, firstLegal, patchInstance, settle } from "../../testing/harness.js";
+import { P1, applyOk, firstLegal, patchInstance, settle, type Picker } from "../../testing/harness.js";
 import { driveEvents } from "../../testing/staging.js";
 import { runWave4, WAVE4_DEPS } from "../testing.js";
 import {
@@ -43,6 +43,42 @@ const withSet = (seed = 1) => foldModularSetIntoDeck(game(seed, [], SETS_WITH_WR
 const fired = (events: readonly { readonly type: string }[], abilityId: string): boolean =>
   events.some((e) => (e as { abilityId?: string }).abilityId === abilityId);
 
+/** `driveEvents`, but with a caller-supplied `Picker` instead of a hardcoded `firstLegal` — needed to steer
+ * `declareDefender` while still collecting every event (`mts/thanos.test.ts`'s own `driveEventsWith` precedent). */
+function driveEventsWith(
+  state: GameState,
+  pick: Picker,
+  ...commands: readonly Command[]
+): { readonly state: GameState; readonly events: readonly GameEvent[] } {
+  let current = state;
+  const events: GameEvent[] = [];
+  const settleOne = () => {
+    while (current.pendingChoice && !current.outcome) {
+      const choice = current.pendingChoice;
+      const result = applyOk(
+        current,
+        {
+          type: "resolveChoice",
+          playerId: choice.playerId,
+          choiceId: choice.choiceId,
+          selectedOptionIds: pick(current),
+        },
+        WAVE4_DEPS,
+      );
+      current = result.state;
+      events.push(...result.events);
+    }
+  };
+  settleOne();
+  for (const command of commands) {
+    const result = applyOk(current, command, WAVE4_DEPS);
+    current = result.state;
+    events.push(...result.events);
+    settleOne();
+  }
+  return { state: current, events };
+}
+
 describe("Wrecking Crew (24064-24070)", () => {
   it("24064.top-talent-constant: the villain and each Elite minion gain retaliate 1", () => {
     const base = onStage(withSet(), 0);
@@ -58,6 +94,55 @@ describe("Wrecking Crew (24064-24070)", () => {
     const printedAtk = characterProfile(staged.state, staged.id, WAVE4_DEPS)!.atk;
     // Not currently attacking: no bonus.
     expect(characterProfile(staged.state, staged.id, WAVE4_DEPS)!.atk).toBe(printedAtk);
+  });
+
+  it("24065.wrecker-constant: an undefended attack deals his +2 ATK bonus; a defended one does not", () => {
+    // Finding (spot-audit, coordinator's "full rules QA" item 5, 2026-09-26): the test above (and its wave-1
+    // ancestor, `wave1/twc/wrecker.test.ts`, whose own title names the identical gap) only ever checked the
+    // *baseline* ATK outside of combat — neither ever drove a real attack to confirm the bonus actually turns on.
+    // Read via the attack's own `damageDealt` event (not `characterProfile` read after a single `resolveChoice`
+    // step, which found live not to reflect the bonus yet at that exact point — the "undefended" var is set later
+    // in the attack's own resolution, not the instant `declareDefender` itself resolves) so this is exact regardless
+    // of exactly when the engine flips the flag.
+    const heroified1 = heroified(onStage(withSet(), 0), P1);
+    const staged = minionEngagedWith(heroified1, "24065", P1);
+    const printedAtk = characterProfile(staged.state, staged.id, WAVE4_DEPS)!.atk;
+    const identity = staged.state.players[0]!.identity.instanceId;
+
+    const declineDefense: Picker = (state) =>
+      state.pendingChoice?.prompt.kind === "declareDefender" ? ["decline"] : firstLegal(state);
+    const undefended = driveEventsWith(staged.state, declineDefense, { type: "endTurn", playerId: P1 });
+    const undefendedHit = undefended.events.find(
+      (e) => e.type === "damageDealt" && e.sourceInstanceId === staged.id && e.targetInstanceId === identity,
+    );
+    expect(
+      undefendedHit,
+      `expected a damageDealt event from Wrecker; got ${JSON.stringify(undefended.events.map((e) => e.type))}`,
+    ).toBeDefined();
+    if (undefendedHit?.type !== "damageDealt") throw new Error("unreachable");
+    // Wrecker is Villainous (data: "when this minion activates, give it a boost card"), so the boost card's own
+    // pips also contribute — read live rather than assumed (`boostCardFlipped`, scoped to Wrecker's own
+    // `enemyInstanceId`, since the villain's own separate activation the same round deals and flips its own boost
+    // too), since only the *relationship* to the +2 is this ability's own text.
+    const boost = undefended.events.find((e) => e.type === "boostCardFlipped" && e.enemyInstanceId === staged.id);
+    const boostIcons = boost?.type === "boostCardFlipped" ? boost.boostIcons : 0;
+    expect(undefendedHit.amount).toBe(printedAtk + 2 + boostIcons);
+
+    const declareIdentityDefender: Picker = (state) => {
+      const prompt = state.pendingChoice?.prompt;
+      if (prompt?.kind !== "declareDefender") return firstLegal(state);
+      // Only defend Wrecker's own attack: defending the villain's separate activation the same round with the
+      // identity would exhaust it, leaving nothing to defend Wrecker's own attack with by the time it happens.
+      return prompt.attack.enemyInstanceId === staged.id ? [identity] : ["decline"];
+    };
+    const defended = driveEventsWith(staged.state, declareIdentityDefender, { type: "endTurn", playerId: P1 });
+    const defendedHit = defended.events.find(
+      (e) => e.type === "damageDealt" && e.sourceInstanceId === staged.id && e.targetInstanceId === identity,
+    );
+    // A defended attack's damage (if any gets through DEF) must not include the +2: strictly less than the
+    // undefended attack's own total (the boost draw is the same deterministic RNG draw either way, before either
+    // branch's own `declareDefender` choice, so `boostIcons` is shared between both runs).
+    if (defendedHit?.type === "damageDealt") expect(defendedHit.amount).toBeLessThan(printedAtk + 2 + boostIcons);
   });
 
   it("24066.bulldozer-constant: Bulldozer's own attacks gain overkill", () => {
