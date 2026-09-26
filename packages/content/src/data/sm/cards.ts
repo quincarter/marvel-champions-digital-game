@@ -2533,6 +2533,7 @@ export const SM_CARDS: readonly AnyCard[] = [
     collectorNumber: "102B",
     quantityInSet: 1,
     unique: false,
+    images: { front: imageRef("/bundles/cards/27102b.png") },
     amplifyIcons: 1,
     otherFaceId: cardId("27102a"),
     encounterSetIds: [encounterSetId("sinister_six")],
