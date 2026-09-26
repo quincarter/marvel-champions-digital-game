@@ -1,5 +1,6 @@
 import { trait } from "@mc/content";
 import {
+  andThen,
   addCounters,
   attachCard,
   boost,
@@ -114,7 +115,7 @@ export const ZOLA_SET = defineAbilities({
   "04112b.the-island-of-dr-zola-forced-response": forcedResponse(
     on.villainStepResolved(),
     addCounters(TEST, 1, theMainScheme),
-    ifThenHighTest("spawned"),
+    andThen(ifThenHighTest("spawned")),
   ),
 
   // The Mad Doctor 2A — When Revealed: each player searches the encounter deck and discard pile for a minion and
@@ -135,7 +136,7 @@ export const ZOLA_SET = defineAbilities({
   "04113b.the-mad-doctor-forced-response": forcedResponse(
     on.villainStepResolved(),
     addCounters(TEST, 1, theMainScheme),
-    ifThenHighTest("spawned2"),
+    andThen(ifThenHighTest("spawned2")),
   ),
   // The data carries a second ("-constant") ability ref alongside the response with no separate printed text of
   // its own — an empty constant, the same parser-artifact shape as this pack's other duplicated refs.
@@ -230,6 +231,11 @@ export const ZOLA_SET = defineAbilities({
  * "Then, if there are 3 or more test counters here, discard cards from the top of the encounter deck until a
  * minion is discarded. Put that minion into play engaged with the first player and remove 3 test counters from
  * this scheme." — shared by stages 1B and 2B, each with its own bind slot name.
+ */
+/**
+ * "Then, if there are 3 or more test counters here, …" (The Island of Dr. Zola 1B, The Mad Doctor 2B): post-"then" text
+ * behind `andThen`. The pre-"then" text is placing the test counter, which always resolves, and this threshold "if"
+ * gates itself (RRG 1.8 "'Then'", p. 44).
  */
 function ifThenHighTest(slot: string) {
   return {
