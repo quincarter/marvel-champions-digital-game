@@ -442,10 +442,15 @@ export type GameStep =
       readonly kind: "mulligan";
       readonly remainingPlayerIds: readonly PlayerId[];
       /**
-       * Mulligans the first of `remainingPlayerIds` has already taken, when that player has an additional mulligan
-       * still to decide (docs/phase7-wave5.md §3.26). Absent while that player is on their first.
+       * Which pass of mulligans this is: 1 for the pass of first additional mulligans, and so on (docs/phase7-wave5.md
+       * §3.26; passes go in player order, §4.1 Q19). Absent on the normal mulligan.
        */
-      readonly mulligansTaken?: number;
+      readonly pass?: number;
+      /**
+       * Players, in player order, who have decided this pass and will be offered a mulligan in the next one (an
+       * additional mulligan left, and this one changed their hand; §4.1 Q20). Absent when none.
+       */
+      readonly nextPassPlayerIds?: readonly PlayerId[];
     }
   /**
    * RRG 1.8 Appendix II step 16 (p. 51), "Resolve Player Setup Abilities": after the draw (step 14) and the mulligan

@@ -6,10 +6,12 @@
 
 import { describe, expect, it } from "vitest";
 import { DEFAULT_DEPS } from "./abilities.js";
+import { replay, startSession } from "./engine.js";
 import { playerId } from "./ids.js";
 import { mustPlayer } from "./query.js";
 import { createGame, type GameSetupConfig } from "./setup.js";
 import type { GameState } from "./state.js";
+import { driveSession } from "./testing/drive.js";
 import {
   DEFAULT_CARDS,
   DEFAULT_DECK,
@@ -17,6 +19,8 @@ import {
   MAIN_SCHEME,
   TREACHERY,
   VILLAIN,
+  defaultPick,
+  handOf,
   resolvePending,
   seatIdentities,
   settle,
@@ -24,6 +28,21 @@ import {
 
 const p1 = playerId("p1");
 const p2 = playerId("p2");
+const p3 = playerId("p3");
+
+/** Settles setup, discarding one card at each mulligan `discards` approves (keeping the hand otherwise). */
+function mulliganOrder(start: GameState, discards: (state: GameState) => boolean) {
+  const deciders: string[] = [];
+  const additional: (number | undefined)[] = [];
+  const done = settle(start, (state) => {
+    const choice = state.pendingChoice;
+    if (choice?.prompt.kind !== "mulligan") return defaultPick(state);
+    deciders.push(choice.playerId);
+    additional.push(choice.prompt.additional);
+    return discards(state) ? handOf(state, choice.playerId).slice(0, 1) : [];
+  });
+  return { deciders, additional, done };
+}
 
 function configWith(extraMulligans: readonly (number | undefined)[]): GameSetupConfig {
   const identities = seatIdentities(HERO, extraMulligans.length);
@@ -54,7 +73,7 @@ describe("an additional mulligan (§3.26)", () => {
     const firstHand = mustPlayer(start, p1).hand;
 
     const second = resolvePending(start, firstHand.slice(0, 2));
-    expect(second.step).toEqual({ phase: "setup", kind: "mulligan", remainingPlayerIds: [p1], mulligansTaken: 1 });
+    expect(second.step).toEqual({ phase: "setup", kind: "mulligan", remainingPlayerIds: [p1], pass: 1 });
     expect(second.pendingChoice?.playerId).toBe(p1);
     expect(second.pendingChoice?.prompt).toEqual({ kind: "mulligan", handSize: 6, additional: 1 });
     const secondHand = mustPlayer(second, p1).hand;
@@ -77,22 +96,55 @@ describe("an additional mulligan (§3.26)", () => {
     expect(mustPlayer(kept, p1).discard).toHaveLength(0);
   });
 
-  it("each player decides their own additional mulligan before the next player's first", () => {
-    const start = atMulligan([1, undefined]);
-    const deciders: string[] = [];
-    const additional: (number | undefined)[] = [];
-    const done = settle(start, (state) => {
-      const choice = state.pendingChoice;
-      if (choice?.prompt.kind !== "mulligan") return [];
-      deciders.push(choice.playerId);
-      additional.push(choice.prompt.additional);
-      return mustPlayer(state, choice.playerId).hand.slice(0, 1);
-    });
-    expect(deciders).toEqual([p1, p1, p2]);
-    expect(additional).toEqual([undefined, 1, undefined]);
+  it("two players: the additional mulligans are a second pass in player order, p1, p2, then p1, p2 (§4.1 Q19)", () => {
+    const { deciders, additional, done } = mulliganOrder(atMulligan([1, 1]), () => true);
+    expect(deciders).toEqual([p1, p2, p1, p2]);
+    expect(additional).toEqual([undefined, undefined, 1, 1]);
     expect(mustPlayer(done, p1).discard).toHaveLength(2);
-    expect(mustPlayer(done, p2).discard).toHaveLength(1);
+    expect(mustPlayer(done, p2).discard).toHaveLength(2);
     expect(done.round).toBe(1);
+  });
+
+  it("three players: the second pass holds only those with an extra mulligan, still in player order", () => {
+    const { deciders, additional } = mulliganOrder(atMulligan([1, undefined, 1]), () => true);
+    expect(deciders).toEqual([p1, p2, p3, p1, p3]);
+    expect(additional).toEqual([undefined, undefined, undefined, 1, 1]);
+  });
+
+  it("three players with two extra mulligans each decide three passes in player order", () => {
+    const { deciders, additional } = mulliganOrder(atMulligan([2, 2, 2]), () => true);
+    expect(deciders).toEqual([p1, p2, p3, p1, p2, p3, p1, p2, p3]);
+    expect(additional).toEqual([undefined, undefined, undefined, 1, 1, 1, 2, 2, 2]);
+  });
+
+  it("p1 keeps their hand and is not offered the extra mulligan; p2 mulliganed and is (§4.1 Q20)", () => {
+    const start = atMulligan([1, 1]);
+    const p1Kept = resolvePending(start, []);
+    expect(p1Kept.step).toEqual({ phase: "setup", kind: "mulligan", remainingPlayerIds: [p2] });
+    const afterFirstPass = resolvePending(p1Kept, handOf(p1Kept, p2).slice(0, 1));
+    expect(afterFirstPass.step).toEqual({
+      phase: "setup",
+      kind: "mulligan",
+      remainingPlayerIds: [p2],
+      pass: 1,
+    });
+    const { deciders, additional, done } = mulliganOrder(start, (state) => state.pendingChoice?.playerId !== p1);
+    expect(deciders).toEqual([p1, p2, p2]);
+    expect(additional).toEqual([undefined, undefined, 1]);
+    expect(mustPlayer(done, p1).discard).toHaveLength(0);
+    expect(mustPlayer(done, p2).discard).toHaveLength(2);
+  });
+
+  it("replays deep-equal through both passes", () => {
+    const { session } = driveSession(startSession(atMulligan([1, 1])), DEFAULT_DEPS, [], (state) =>
+      state.pendingChoice?.prompt.kind === "mulligan"
+        ? handOf(state, state.pendingChoice.playerId).slice(0, 1)
+        : defaultPick(state),
+    );
+    expect(session.state.step.kind).toBe("turn");
+    const replayed = replay(session.log, DEFAULT_DEPS);
+    if (!replayed.ok) throw new Error(replayed.error.message);
+    expect(replayed.state).toEqual(session.state);
   });
 
   it("no extra mulligans leaves the one mulligan and the player state as they were", () => {

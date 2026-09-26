@@ -100,7 +100,7 @@ function executeStep(ctx: Ctx): void {
     case "drawStartingHands":
       return executeDrawStartingHands(ctx);
     case "mulligan":
-      return executeMulligan(ctx, step.remainingPlayerIds, step.mulligansTaken ?? 0);
+      return executeMulligan(ctx, step);
     case "playerSetupAbilities":
       return executePlayerSetupAbilities(ctx, step);
     case "turn":
@@ -173,18 +173,23 @@ function executeDrawStartingHands(ctx: Ctx): void {
   });
 }
 
-// RRG Appendix II step 15: each player may discard any number, then draw back up to hand size. A player with
-// additional mulligans (`PlayerState.extraMulligans`, docs/phase7-wave5.md §3.26) decides each one right after the one
-// before, before the next player's first; `mulligansTaken` counts the current player's.
-function executeMulligan(ctx: Ctx, remainingPlayerIds: readonly PlayerId[], mulligansTaken: number): void {
-  const [current] = livePlayers(ctx.state, remainingPlayerIds);
+// RRG Appendix II step 15: each player may discard any number, then draw back up to hand size. Additional mulligans
+// (`PlayerState.extraMulligans`, docs/phase7-wave5.md §3.26) come as further passes in player order once every player
+// has decided the pass before (p1, p2, then p1, p2; maintainer ruling, docs/phase7-wave5.md §4.1 Q19). A pass holds
+// only the players who still have an additional mulligan and whose previous mulligan changed their hand (§4.1 Q20).
+function executeMulligan(ctx: Ctx, step: Extract<GameStep, { kind: "mulligan" }>): void {
+  const pass = step.pass ?? 0;
+  const [current] = livePlayers(ctx.state, step.remainingPlayerIds);
   if (!current) {
+    const next = livePlayers(ctx.state, step.nextPassPlayerIds ?? []);
+    if (next.length > 0) {
+      setStep(ctx, { phase: "setup", kind: "mulligan", remainingPlayerIds: next, pass: pass + 1 });
+      return;
+    }
     // MC50 p. 11's "After resolving mulligans" window goes here, between steps 15 and 16, in a campaign game.
     setStep(ctx, stepAfterMulligans(ctx.state));
     return;
   }
-  // `livePlayers` skips an eliminated head, whose count is not the new head's.
-  const taken = current === remainingPlayerIds[0] ? mulligansTaken : 0;
   const player = mustPlayer(ctx.state, current);
   if (player.hand.length === 0) {
     // Nothing to discard, but the draw up to hand size still happens (every opening card may have been an obligation).
@@ -196,7 +201,7 @@ function executeMulligan(ctx: Ctx, remainingPlayerIds: readonly PlayerId[], mull
     prompt: {
       kind: "mulligan",
       handSize: handSize(ctx.state, current, ctx.deps),
-      ...(taken > 0 ? { additional: taken } : {}),
+      ...(pass > 0 ? { additional: pass } : {}),
     },
     options: handOptions(ctx, current),
     minSelections: 0,
@@ -213,18 +218,19 @@ export function afterMulliganChoice(ctx: Ctx, playerId: PlayerId, discarded: num
   // player ends a card short (maintainer decision 2026-09-23, docs/campaign-mode-design.md Q20).
   const missing = handSize(ctx.state, playerId, ctx.deps) - handCountTowardHandSize(ctx.state, playerId, ctx.deps);
   if (missing > 0) drawCards(ctx, playerId, missing);
-  const taken = (step.remainingPlayerIds[0] === playerId ? (step.mulligansTaken ?? 0) : 0) + 1;
+  const pass = step.pass ?? 0;
   const player = mustPlayer(ctx.state, playerId);
-  // Another mulligan is offered only if this one changed the hand: offering the same hand again asks for a decision
-  // the player has just made.
-  const again = !player.eliminated && taken <= (player.extraMulligans ?? 0) && (discarded > 0 || missing > 0);
-  const others = step.remainingPlayerIds.filter((id) => id !== playerId);
-  setStep(
-    ctx,
-    again
-      ? { phase: "setup", kind: "mulligan", remainingPlayerIds: [playerId, ...others], mulligansTaken: taken }
-      : { phase: "setup", kind: "mulligan", remainingPlayerIds: others },
-  );
+  // The next pass offers this player another mulligan only if this one changed the hand: offering the same hand again
+  // asks for a decision the player has just made (docs/phase7-wave5.md §4.1 Q20).
+  const again = !player.eliminated && pass + 1 <= (player.extraMulligans ?? 0) && (discarded > 0 || missing > 0);
+  const nextPassPlayerIds = again ? [...(step.nextPassPlayerIds ?? []), playerId] : (step.nextPassPlayerIds ?? []);
+  setStep(ctx, {
+    phase: "setup",
+    kind: "mulligan",
+    remainingPlayerIds: step.remainingPlayerIds.filter((id) => id !== playerId),
+    ...(pass > 0 ? { pass } : {}),
+    ...(nextPassPlayerIds.length > 0 ? { nextPassPlayerIds } : {}),
+  });
 }
 
 /**
