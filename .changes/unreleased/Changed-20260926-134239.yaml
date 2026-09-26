@@ -1,0 +1,3 @@
+kind: Changed
+body: 'Seats and Scenario select scroll smoothly: roster card faces are painted in a web worker (art fetched, decoded and downscaled off the main thread), and scrolling moves the shelves instead of redrawing them'
+time: 2026-09-26T13:42:39.449681-04:00

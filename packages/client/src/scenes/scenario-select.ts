@@ -11,7 +11,7 @@ import Phaser from "phaser";
 import type { CardId, Scenario } from "@mc/content";
 import { CARDS_BY_ID, POOL_ENCOUNTER_SETS, POOL_PACKS, POOL_SCENARIOS, packNameOf } from "../content/pool.js";
 import { ART_CATALOG, packCoverFor, villainArtFor } from "../art/scenario-art.js";
-import { ensurePictureLoaded, type Picture } from "../art/pictures.js";
+import type { Picture } from "../art/pictures.js";
 import { artFor } from "../art/art-source.js";
 import { cardArt } from "../art/card-art.js";
 import { dotGrid, ink, surface, typeRole } from "../tokens.js";
@@ -510,17 +510,15 @@ export class ScenarioSelectScene extends Phaser.Scene {
   }
 
   #renderScenarioCard(s: Scenario, rect: Rect): ReturnType<typeof renderShelfCard> {
+    // The villain's scene art, or — with none yet (Klaw, Risky Business, Mutagen Formula today) — its own stage-I
+    // card scan, cover-cropped, rather than an empty parchment box (second-pass item 7). Only the URL: the card-face
+    // worker fetches and decodes it, downscaled to the card, and the roster redraws when the face arrives.
     const picture = this.#villainArtFor(s);
-    let artKey = picture ? ensurePictureLoaded(this, picture, () => this.#refreshArt()) : null;
-    if (!artKey) {
-      // No custom scene art for this scenario yet (Klaw, Risky Business, Mutagen Formula today) — the villain's
-      // own stage-I card scan, cover-cropped, rather than an empty parchment box (second-pass item 7). Redrawing
-      // once this scan actually arrives is `#cardArtArrived`'s job (subscribed once in `create()`), not this
-      // function's own — `cardArt(this).request` only *asks*, it never itself triggers a later redraw.
-      const villainCard = CARDS_BY_ID.get(s.villainCardId as string);
-      const source = villainCard ? artFor(villainCard, { kind: "villainStage", sideIndex: 0, stageIndex: 0 }) : null;
-      artKey = cardArt(this).request(this, source);
-    }
+    const villainCard = picture ? undefined : CARDS_BY_ID.get(s.villainCardId as string);
+    const artUrl =
+      picture?.url ??
+      (villainCard ? artFor(villainCard, { kind: "villainStage", sideIndex: 0, stageIndex: 0 }) : null)?.url ??
+      null;
     const cardDetail = scenarioDetailOf(s, CARDS_BY_ID, POOL_ENCOUNTER_SETS);
     const sharesVillainName = POOL_SCENARIOS.some(
       (other) =>
@@ -532,7 +530,7 @@ export class ScenarioSelectScene extends Phaser.Scene {
     // A locked scenario stays selectable, so its stages can be read ahead of time; only "Choose heroes" refuses it.
     const lock = unlocks().scenarioLock(s);
     return renderShelfCard(this, rect, {
-      artKey,
+      artUrl,
       titleRole: typeRole.villainTitle,
       title: cardDetail.displayName,
       subtitle,

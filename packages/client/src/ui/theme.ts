@@ -11,6 +11,7 @@
 
 import type Phaser from "phaser";
 import { accent, border, font, ink, surface, type TypeSpec } from "../tokens.js";
+import type { FaceFont } from "../art/card-face.js";
 
 /**
  * Bangers is a hand-lettered, slanted face — its rightmost glyphs (the tail of a
@@ -169,6 +170,9 @@ export function setTextResolution(value: number): void {
   textResolution = value;
 }
 
+/** The resolution every text object is created at right now — for anything that rasterises text itself (`art/card-face.ts`). */
+export const currentTextResolution = (): number => textResolution;
+
 /**
  * A `TypeSpec`'s font stack as a CSS `font-family` value, shared by every
  * text object Phaser draws and by the one DOM element in the app
@@ -190,6 +194,21 @@ export function textStyle(spec: TypeSpec, color: number, alpha = 1): Phaser.Type
     // In the style rather than a `setLetterSpacing` after: every setter on a `Text` re-rasterises its canvas.
     ...(spec.letterSpacing ? { letterSpacing: spec.letterSpacing } : {}),
     ...(spec.family === font.display ? { padding: { right: BANGERS_RIGHT_PADDING } } : {}),
+  };
+}
+
+/**
+ * A `TypeSpec` as `art/card-face.ts` paints it: the same family, weight, letter spacing and Bangers padding
+ * `textStyle` would give a Phaser `Text`, as plain data a worker can take.
+ */
+export function faceFontOf(spec: TypeSpec): FaceFont {
+  return {
+    family: fontFamilyOf(spec),
+    size: spec.size,
+    weight: spec.weight,
+    letterSpacing: spec.letterSpacing,
+    padRight: spec.family === font.display ? BANGERS_RIGHT_PADDING : 0,
+    uppercase: spec.uppercase,
   };
 }
 
