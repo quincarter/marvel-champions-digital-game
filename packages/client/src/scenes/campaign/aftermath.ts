@@ -37,7 +37,12 @@ import {
   stamp,
   villainPicture,
 } from "../../ui/campaign-chrome.js";
-import { drawComicReaderStep, SpotlightAutoPan } from "../../ui/comic-reader.js";
+import {
+  CinematicDriver,
+  drawComicReaderStep,
+  SpotlightAutoPan,
+  type CinematicOptions,
+} from "../../ui/comic-reader.js";
 import { destroyChildren } from "../../ui/destroy-children.js";
 import { cssOf, textStyle } from "../../ui/theme.js";
 import { fadeScreenIn, goToScreen } from "../../ui/transitions.js";
@@ -100,6 +105,8 @@ export class CampaignAftermathScene extends Phaser.Scene {
   #comicCurrent = 0;
   /** The spotlight (unlettered) reader's own within-beat pan — see `ui/comic-reader.ts`'s `SpotlightAutoPan`. */
   #spotPan: SpotlightAutoPan | null = null;
+  /** The cinematic camera every box's own reader now draws through — see `ui/comic-reader.ts`'s `CinematicDriver`. */
+  #cinematic = new CinematicDriver(() => this.#draw());
 
   constructor() {
     super(SCENES.campaignAftermath);
@@ -124,6 +131,7 @@ export class CampaignAftermathScene extends Phaser.Scene {
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.scale.off("resize", this.#draw, this));
     this.#spotPan = new SpotlightAutoPan(this, () => this.#draw());
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.#spotPan?.destroy());
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.#cinematic.destroy());
     void this.#load();
     fadeScreenIn(this);
   }
@@ -217,6 +225,7 @@ export class CampaignAftermathScene extends Phaser.Scene {
     const story = nodeId ? issueStoryFor(record.campaignId as string, nodeId) : null;
     this.#comicSteps = story?.aftermathBeats && pages ? resolveComicBeats(pages, story.aftermathBeats) : [];
     this.#comicCurrent = 0;
+    this.#cinematic.reset();
     this.#phase = "summary";
     this.#draw();
   }
@@ -353,7 +362,13 @@ export class CampaignAftermathScene extends Phaser.Scene {
     const dotsHeight = 22;
     const readingBottom = height - actionBarHeight - dotsHeight;
     const readingRect: Rect = { x: 0, y: headerBottom, width, height: Math.max(0, readingBottom - headerBottom) };
-    const spotPan = this.#spotPan?.progressFor(view.step, appSession().settings.reducedMotion);
+    const reducedMotion = appSession().settings.reducedMotion;
+    const spotPan = this.#spotPan?.progressFor(
+      view.step,
+      { width: readingRect.width, height: readingRect.height },
+      reducedMotion,
+    );
+    const cinematic: CinematicOptions = { driver: this.#cinematic, reducedMotion };
     drawComicReaderStep(
       this,
       readingRect,
@@ -362,6 +377,7 @@ export class CampaignAftermathScene extends Phaser.Scene {
       () => this.#draw(),
       undefined,
       spotPan,
+      cinematic,
     );
 
     // The fold's real log writes, stacked top-left over the art — never the tile's own hardcoded words. Nudged
@@ -408,6 +424,11 @@ export class CampaignAftermathScene extends Phaser.Scene {
           height: ctaHeight,
         };
     const onCta = (): void => {
+      if (this.#cinematic.isSettling()) {
+        this.#cinematic.skipAhead();
+        this.#draw();
+        return;
+      }
       if (isLastBeat) this.#leaveToNext();
       else {
         this.#comicCurrent = nextComicBeat(this.#comicCurrent, this.#comicSteps.length);
@@ -423,6 +444,11 @@ export class CampaignAftermathScene extends Phaser.Scene {
     if (hasBack) {
       const backRect: Rect = { x: ctaPad, y: ctaY, width: backWidth, height: ctaHeight };
       const onBack = (): void => {
+        if (this.#cinematic.isSettling()) {
+          this.#cinematic.skipAhead();
+          this.#draw();
+          return;
+        }
         this.#comicCurrent = prevComicBeat(this.#comicCurrent);
         this.#draw();
       };

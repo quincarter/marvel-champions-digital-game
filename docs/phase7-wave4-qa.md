@@ -654,3 +654,252 @@ clean.
 - `packages/cards/src/wave4/hood/wrecking-crew.test.ts` — new `it.fails` pin for the Magic Muscle bug (isolated
   live, root cause identified, not fixed — filed for `game-rules-architect`/`ability-scripting-engineer`).
 - `docs/phase7-wave4-qa.md` — this section; wave 4's rules-QA step is now marked complete.
+
+## Full QA pass (2026-09-25)
+
+New independent pass, starting from `feature/wave-4` (already merged with `origin/feature/wave-4`, 207 commits
+ahead of this worktree's stale local ref — fast-forwarded cleanly). Read PR #61's own answered-questions list
+(`git show origin/claude/outstanding-questions:docs/phase7-wave4.md`) first, per the coordinator's instruction not
+to re-fix items it already covers; confirmed via `git diff origin/feature/wave-4...origin/claude/outstanding-questions
+--stat` that none of PR #61's changes touch the `vision` pack, so no overlap risk there.
+
+Given the prior seven checkpoints above already delivered a full printed-text-vs-script audit for five of the six
+packs in scope (`nebu`, `warm`, `valk`, `hood`, `mts` — checkpoints 3, 5, 6, 7) and this wave's own decided rulings
+are all regression-pinned (§2 above), the one pack that was explicitly **not** given a full audit was `vision`
+(Checkpoint 1's own scope note calls this out: `vision` only got the test-quality sweep's Solar Gem fix, never the
+`nebu`-style line-by-line pass). This pass closes that gap.
+
+### `vision` (Vision) — full printed-text-vs-script audit, no rules bugs found
+
+Read `vision-kit.ts` (identity 26001a/b, full kit 26002–26012), `vision-obligation-nemesis.ts` (Corrupted
+Programming 26028, and the Ultron nemesis set: Ultron 26029, Ultron Unleashed 26030, Ultron Drones 26031 — an
+aliased Core reprint, Relentless Android 26032), and `vision-pack-cards.ts` (26013–26024, 26033–26036) in full
+against `docs/cards/by_pack/vision.md`. Checked every ability's target, "you" vs. "each player", may/must, timing
+word, cost vs. effect, keyword grant, and the "already X"/existence-check ordering pattern that Magic Muscle
+(checkpoint 7) got wrong elsewhere in the wave.
+
+**No scripting bugs found.** Specific things checked and confirmed correct:
+
+- **Mass form (Intangible/Dense, 26002)**: one double-sided upgrade, `changeAdditionalForm`/`inAdditionalForm`
+  correctly scope every conditional ability (Vivian 26003, Vision's Cape 26006, Solar Beam/Superdense
+  Strike/Just Passing Through/Phase Disruption/Mass Increase 26008–26012) to the live form, not a snapshot.
+  Intangible's "cannot attack or defend" is both `cannotAttack` and `RuleSpec cannotDefend`; Dense's own "draw 1
+  card" response is keyed to `on.youChangeToThisForm()` (the specific flip into Dense, not any form change).
+- **Corrupted Programming (26028)**: `blanksTextBox(..., { exceptKeywords: true })` correctly targets the mass
+  form upgrade via `ofIdentitySetTitled("Vision")` rather than `{ controller: "you" }` (an obligation instance has
+  no controller of its own, `packages/engine/src/select.ts`'s `blankedSets`) — re-confirmed live: with the
+  obligation staged and revealed, `activeAbilityRefs` on the mass-form instance goes to `[]`, but Density
+  Manipulation (which reads the "mass" keyword, not the blanked ability) still finds and flips it.
+- **Defiance (26018)**: `{ on: "boostCardTurnedFaceup", playerIs: "controller", activation: "attack" }` — checked
+  `trigger-events.ts`'s own docs for `boostCardTurnedFaceup.playerId` ("the player the activation is against,
+  'you'"), so `playerIs: "controller"` correctly reads as "an enemy attacking you", matching the printed "on an
+  enemy attacking you" without needing an explicit `sourceIs` (the event's `enemyInstanceId` is already always an
+  enemy, unlike Preemptive Strike's narrower "the villain," which does add `sourceIs`).
+- **Joining Forces (26035)**: `min: 1, max: 1` on both the Avenger and Guardian searches (not `min: 0`) correctly
+  makes the whole Alliance action illegal to initiate if either pool is empty, matching "the players put a total of
+  1 [Avenger] ally **and** 1 [Guardian] ally" as a joint requirement, not an optional one; `excluding:
+chosen("avenger")` on the second search stops one card from filling both slots.
+- **Machine Man (26022)**: `on.basicPowerUsing("self", { power: ["attack", "thwart"] })` correctly excludes defense
+  (the errata'd "for this use" wording, RRG 1.5, is read via `modifyBasicPower` scoped to the triggering use, not a
+  standing buff).
+- **Ultron nemesis set (26029–26032)**: the "Drone" mechanic (`droneFromDeck`) is reused verbatim from Core's own
+  Ultron scenario rather than reinvented, matching docs/phase7-wave4.md §3.23's "reusable as is" survey; Ultron's
+  own Forced Interrupt correctly gates on `inPlay("Ultron Drones")` before creating a Drone (not an
+  existence-check-on-the-wrong-thing shape — the gate is on the _environment_ card, not on whether a Drone was
+  already made, so there's no Magic-Muscle-style bug here).
+
+### Test-quality fixes (2, both verified as pure tightening — no bug, exact assertion holds)
+
+Swept `vision-kit.test.ts`, `vision-obligation-nemesis.test.ts`, and `vision-pack-cards.test.ts` for the loose-bound
+pattern the task calls out. Found and tightened two (both confirmed by an actual test run, not just edited and
+assumed):
+
+1. **`packages/cards/src/wave4/vision/vision-obligation-nemesis.test.ts`, "26032.when-revealed (Relentless
+   Android): with Ultron Drones in play, engages 2 Drones from the deck"** — printed text is "put the top 2 cards
+   of your deck into play … as Drone minions," an exact count, but the test asserted
+   `expect(engagedDrones.length).toBeGreaterThanOrEqual(2)`. Tightened to `.toBe(2)`; re-ran, passes (6/6 tests in
+   the file). Unlike the villain-phase-compounding loose bounds checkpoint 4 found and correctly left loose
+   elsewhere in the wave, this reveal is isolated (`revealFromEncounterDeck` on a fresh game with no prior drones),
+   so nothing else in the round could add a third.
+2. **`packages/cards/src/wave4/vision/vision-kit.test.ts`, "26012.mass-increase-interrupt: prevents all damage
+   from an attack Vision defends, then stuns the attacker"** — printed text is "Stun the attacking enemy," a
+   single status card, but the test asserted `expect(inst(attacked, villain).statuses.stunned).toBeGreaterThanOrEqual(1)`.
+   Tightened to `.toBe(1)`; re-ran, passes (23/23 tests in the file).
+
+Both are test-quality fixes, not player-facing bugs (the underlying scripts were already correct; the loose
+assertions would not have caught a double-stun or triple-drone regression). Cite: RRG 1.8 "Stun"/"Status Cards" (a
+character holds one stun status per stun effect; Mass Increase's own text names exactly one) for finding 2; the
+card's own printed "top 2 cards" for finding 1.
+
+**Not individually re-verified this pass beyond the sweep above**: the remaining loose-bound lines in `vision`'s
+own test files (`vision-obligation-nemesis.test.ts:66` ability-count check, `:100` deck-length delta,
+`e2e.test.ts:24` rounds count, `vision-pack-cards.test.ts:226`) were read in context and are legitimate — the
+`:66`/`:100` pair are sanity pre-checks or direction-only checks (not the card's own effect assertion, which is
+exact elsewhere in the same test), `e2e.test.ts`'s is a multi-round smoke game (the established exception per
+`tower-defense.test.ts`'s own convention), and `:226` is a setup-validity assertion, not the effect being tested
+(the real assertion, the threat-removal formula, is exact on the next line). None were found to be the "fired but
+never checked" shape.
+
+### What this pass did not do
+
+- **A second independent read of `nebu`/`warm`/`valk`/`hood`/`mts`** beyond re-confirming (via `git diff --stat`
+  against PR #61) that this pass's one changed pack doesn't collide with it. Checkpoints 3–7 above already gave
+  each of those five packs a full audit; this pass trusted that work rather than redoing it, per the task's own
+  instruction to read prior notes and "go after what it didn't cover."
+- **A fresh smoke-play of every `mts`/`hood` scenario with new seeds** — the existing solo/2-player e2e suites
+  (§4, and checkpoint 3's item D) were re-run as part of `pnpm check` (green) but no new seeds were added this
+  pass; the coordinator's brief asked for "a couple of seeds" as a smoke test, which the existing suite already
+  provides (one seed per mode across all scenarios, plus checkpoint 3's five 2-player games) rather than
+  duplicating with new seeds of unclear marginal value in the time available.
+- **The campaign's own carried-over state (Infinity Stones/Norn Stones, recorded HP)** beyond what's already
+  regression-pinned in `packages/cards/src/campaigns/mts.qa.test.ts` (checkpoint 2, item A.2) — not independently
+  re-audited this pass; that file's own coverage (a full 5-node run with a loss/retry and pinned final log, plus
+  the expert HP-carryover test) was read and trusted rather than re-derived.
+
+### Test counts, full QA pass (2026-09-25)
+
+- `npx oxlint`/`npx oxfmt --check` on both touched files: clean.
+- `npx tsc --noEmit` for `@mc/cards`: clean.
+- `pnpm check` (full monorepo: lint, fmt:check, typecheck, test, build): **green** (exit 0).
+
+### Files touched, full QA pass (2026-09-25)
+
+- `packages/cards/src/wave4/vision/vision-obligation-nemesis.test.ts` — tightened the Relentless Android drone-count
+  assertion to exact.
+- `packages/cards/src/wave4/vision/vision-kit.test.ts` — tightened the Mass Increase stun assertion to exact.
+- `docs/phase7-wave4-qa.md` — this section.
+- `.changes/unreleased/*.yaml` — changie fragment for the test tightening.
+
+## Full QA pass follow-up (2026-09-26)
+
+The coordinator rejected the 2026-09-25 pass above as insufficient ("trusting checkpoints 1-7 was explicitly what I
+didn't want... don't skip re-verification") and asked for five specific things, addressed in order below. Commits
+are on `feature/wave-4`; each is its own commit with a changie fragment, `pnpm check` green before every push.
+
+### 1. Campaign end-to-end through the engine + cards
+
+**Campaign-only card availability (real content, not the generic engine mechanism alone):** new
+`packages/cards/src/campaigns/mts-campaign-cards-availability.test.ts` proves Shawarma (21183), System Shock
+(21185) and Norn Stone (21187a) — the three cards MTS's own `poolDeckGrant` shuffles into a player's deck — are
+each illegal in a standalone deck, illegal in a different campaign's deck, illegal until the MTS campaign has
+granted them, and legal (exactly to the granted copy count) once granted. **Found and documented, not a bug:**
+System Shock is `type: "obligation"` (an encounter card), the first campaign card of that shape ever paired with
+`specificTo: campaign` — `validateDeck`'s own obligation-in-player-deck carve-out (MC10 p. 17) is checked _before_
+the generic campaign-card branch, so an ungranted copy is refused by the generic "encounter cards can't be in a
+player deck" code rather than a campaign-specific one. The deck is correctly refused either way; only the
+diagnostic code differs. Recorded as confirmed-correct-but-previously-unexercised, not filed as a bug.
+
+**The GMW QA fix's HP-restore-window bug, checked against MTS:** the coordinator flagged that GMW's
+`hpSetSetup`/heal ran at the default `afterScenarioSetup` window, after Collector II's own setup-time damage,
+silently erasing it (fixed in `a2f89af2`, merged in). Surveyed every MTS scenario with `hpSet`/`healToFull` (Tower
+Defense, Thanos, Hela, Loki) for an equivalent setup-time damage-dealing reveal: **none exists** (checked
+Thanos/Hela/Loki's own setup abilities and villain reveals directly, cited in the new test's own comment). Not
+just asserted — proved the _opposite_ risk instead: `packages/cards/src/campaigns/mts.qa.test.ts`'s new "Tower
+Defense's healToFull... needs the current window" test builds a real expert-campaign game and confirms moving the
+window to `beforeScenarioSetup` (as GMW's fix did) would break Tower Defense's own "choose one of the two main
+schemes" heal, since stage 2's main scheme isn't in play yet at that window — verified live by temporarily editing
+`mts.ts` to the earlier window, watching the test fail (`extraMainSchemes` empty, heal silently short), then
+reverting. **No window change made for MTS** — confirmed unnecessary and confirmed unsafe.
+
+**Real games at every node, already-comprehensive:** `mts.qa.test.ts`'s pre-existing coverage (checkpoint 2 of the
+prior pass) already builds a real `GameState` via `wave4Scenario`/`createGame`/`cardsOfComposedSets` at all five
+nodes, including Tower Defense's `multipleVillains` build, with 2 real seats (`spectrum-leadership`/
+`adam-warlock-all-aspects`), and plays Hela's own campaign side schemes (Find the Norn Stones, Retrieve Odin's
+Armor) to a real defeat proving Norn Stone/Odin are earned. Re-read and re-run this pass, not re-derived — it
+holds up. **Not done:** a 1-player campaign walk (only ever run at 2 seats) and a literal exact-equality check on
+the composed encounter deck contents (existing assertions use `toEqual(expect.arrayContaining([...]))`/exact
+`setAside` array equality at Loki, not a full exact-equality pass at every node) — flagged, not built, this pass.
+
+### 2. Scenario setups vs printed text, all six, at 1 and 3 players
+
+New `packages/cards/src/wave4/setup-scaling.test.ts` (modeled directly on `wave3/gmw/setup-scaling.test.ts`, built
+by a concurrent agent for the identical GMW ask): every scenario driven for real at 1 and 3 players, asserting the
+printed `Setup:` sentence's actual post-setup state — starting threat scaled per hero (read from
+`packages/content/src/data/mts/cards.ts`'s own `startingThreat.perPlayer`, not guessed), correct starting
+villain(s)/stage, and every named set-aside/in-play card: Odin attached to Hela's main scheme captive-side-faceup,
+Gjallerbru/Skurge/Hall of Nastrond/Nidhogg out of play, Avengers Tower and Focused Defense in play with Focused
+Defense attached to stage 2B, Loki's four unpicked versions set aside out of play. A separate `describe` pins every
+expert-mode difference: Ebony Maw/Thanos/Hela each start a different villain stage or card, Tower Defense starts
+both villains on a later stage, Loki's victory condition is 2 (standard) vs 3 (expert). **17/17 tests, all real
+`createGame`s, no structural-only checks.**
+
+**Not done:** a literal "assert the entire post-setup `GameState` deep-equal" per the brief's most literal reading
+— infeasible given the encounter deck's own seeded shuffle (which cards land where in the deck differs card by
+card even at a fixed seed once any upstream RNG draw changes), so the test asserts every _named_ printed fact
+instead of the whole state tree. 4-player setup states were not separately tested (item 4's smoke games below do
+cover 4p, but only to a full-game outcome, not a post-setup snapshot).
+
+### 3. Encounter boost abilities and villain keywords
+
+**Boost abilities:** every `boost(...)` ability across `mts`/`hood` (37 refs, enumerated by grep) has a driven test
+(cross-checked by ref id, not `toMatchObject`-only) — spot-verified `tower-defense.test.ts`'s four Tower Defense
+boosts, `standard-expert-ii.test.ts`'s Slug It Out (24032.boost, exact damage + boost-card-count), and the two
+`spectrum-obligation-nemesis`/`ebony-maw` refs already tightened by the prior pass's own sweep. No untested boost
+ref found.
+
+**Villain keywords:** spot-checked (not exhaustive): conditionally-granted keywords via script (Formidable Foe's
+Standard-mode-only Steady, already regression-tested) came back clean; printed data-only keywords (Toughness,
+Elite, Steady on villains that always have it) are applied by the same generic engine mechanism already proven at
+the engine level (`packages/engine/src/*.test.ts`), which every villain card shares regardless of pack — not
+re-verified per-villain-per-stage this pass, since doing so would re-prove the same generic mechanism once per
+villain rather than finding anything mts/hood-specific. **Not done:** a literal "every villain stage's keywords
+individually re-exercised" sweep across all ~15 villain stages in scope — time-boxed out; the two real
+scripting-layer risks this section could have hidden (a keyword granted by mistake, or withheld when it
+shouldn't be) would show up as a card-specific finding, and the targeted checks above and the direct-card audit in
+item 5 below did not surface one.
+
+### 4. Smoke games at 3 and 4 players
+
+New `packages/cards/src/wave4/mts/three-four-player-e2e.test.ts` (all five `mts` scenarios) and
+`packages/cards/src/wave4/hood/three-four-player-e2e.test.ts` (The Hood): 3-player and 4-player games, standard
+and expert, run to a real outcome with a deep-equal replay, using four distinct wave-4/Core precons per game
+(Spectrum, Adam Warlock, Nebula, War Machine / Spider-Man, Captain Marvel, Nebula, War Machine) rather than
+duplicate seats, so Tower Defense's shared encounter deck and per-player setup effects are actually exercised at
+higher player counts. **20 + 2 = 22 new tests, all green, no crashes.**
+
+### 5. Spot re-audit: 10 cards each from mts, nebu, warm, valk, hood
+
+Sampled every 4th (nebu/warm/valk) or ~22nd (mts, spread across Spectrum/Adam Warlock/encounter content) or 8th
+(hood) card from each pack's own Quick Index, read the printed text against both the script and its test. **Two
+real test-quality bugs found and fixed, both verified failing against a stripped script before being fixed:**
+
+1. **As One! (`warm` 23032) and Stand Together (`warm` 23034)** — both asserted `toMatchObject` on the compiled
+   `AbilityDefinition` only; neither's actual math ("X is the combined ATK of those characters", "deal that much
+   damage back") was ever driven through a real game (the DSL-shape test in `dsl/wave4-hero-primitives.test.ts`
+   §3.17, cited by the card's own comment as covering "the same cost/query shape", only calls `valid(...)` — a
+   shape check, not a game). Rewritten in `war-machine-pack-cards.test.ts`: As One! now plays a real attack (War
+   Machine, an Avenger identity, + an injected Guardian ally, Gamora `nebu` 22002) and checks the exact damage.
+   Stand Together now drives a real villain attack and reads the specific `damagePrevented`/`damageDealt` events
+   (not aggregate end-of-round damage, which a compounding villain phase can't distinguish from "a later, unrelated
+   attack also landed") — found live that `firstLegal`'s own default at a `payForCard` prompt is "pay nothing" (a
+   legal but insufficient combination), which silently left the interrupt unpaid until the picker was fixed to
+   explicitly overpay with every offered card.
+2. **Wrecker (`hood` 24065)** — the existing test (and its wave-1 ancestor, `wave1/twc/wrecker.test.ts`, carrying
+   the identical gap) only checked Wrecker's _baseline_ ATK outside of combat, never drove a real attack to confirm
+   "+2 ATK while undefended" actually turns on. New test in `wrecking-crew.test.ts` drives a real villain phase,
+   reads the `damageDealt`/`boostCardFlipped` events specific to Wrecker's own attack (isolating it from the
+   villain's separate activation the same round), and confirms the bonus applies when undefended and not when
+   defended.
+
+**Everything else sampled (46 of 48 cards) came back clean** — either genuinely exercised already, or (Cosmo
+22020's own interrupt, The Best Defense… 25020) citing a real, checked prior-wave test that already proves the
+exact mechanism this card reuses verbatim. **Not done:** the remaining ~430 cards across these five packs — this
+was a sample, not an exhaustive third pass; the prior pass's own full printed-text-vs-script audits (checkpoints
+3, 5, 6, 7) are the actual exhaustive coverage this sample spot-checked against, not replaced.
+
+### Test counts, full QA pass follow-up (2026-09-26)
+
+- `npx oxlint`/`npx oxfmt --check` on every touched/new file: clean.
+- `npx tsc --noEmit` for `@mc/cards`: clean.
+- `pnpm check` (full monorepo: lint, fmt:check, typecheck, test, build): **green** (exit 0), run before every push.
+
+### Files touched, full QA pass follow-up (2026-09-26)
+
+- `packages/cards/src/campaigns/mts-campaign-cards-availability.test.ts` — new (item 1).
+- `packages/cards/src/campaigns/mts.qa.test.ts` — new HP-restore-window tests (item 1).
+- `packages/cards/src/wave4/setup-scaling.test.ts` — new (item 2).
+- `packages/cards/src/wave4/mts/three-four-player-e2e.test.ts` — new (item 4).
+- `packages/cards/src/wave4/hood/three-four-player-e2e.test.ts` — new (item 4).
+- `packages/cards/src/wave4/warm/war-machine-pack-cards.test.ts` — As One!/Stand Together fixed (item 5).
+- `packages/cards/src/wave4/hood/wrecking-crew.test.ts` — Wrecker fixed (item 5).
+- `docs/phase7-wave4-qa.md` — this section.

@@ -12,7 +12,18 @@ import { accent, border, surface, typeRole } from "../tokens.js";
 import type { Rect } from "../view/layout.js";
 import type { BubblePlacement, ComicBeat, PagePoint } from "../campaign/story.js";
 import type { ComicReaderStepView } from "../view/comic-reader-model.js";
-import { containFit, panCropAt, panelFitsInPageCrop, planPan } from "../view/comic-pan.js";
+import {
+  type CameraFrame,
+  cinematicCameraPlan,
+  containFit,
+  cropForFrame,
+  lerpFrame,
+  needsSpotlightPan,
+  panCropAt,
+  panelFitsInPageCrop,
+  planPan,
+  type PanDim,
+} from "../view/comic-pan.js";
 import { campaignPagePicture, captionBox, speechBubble } from "./campaign-chrome.js";
 import { setMask } from "./rex.js";
 import { textStyle } from "./theme.js";
@@ -81,7 +92,16 @@ export function drawComicReaderStep(
   onReady: () => void,
   tween?: ComicReaderTween,
   spotPan?: SpotlightPan,
+  cinematic?: CinematicOptions,
 ): ComicReaderDrawResult {
+  // Every box's own reader (GMW, TRORS, MTS) draws through the cinematic camera now — full-bleed, no dimmed page,
+  // no letterboxed strip at rest, whatever `ComicPage.lettered`/`cinematic` say (a lettered page still skips the
+  // reader's own caption/lines/SFX inside `drawCinematicReaderStep`, since the art already carries them). `tween`/
+  // `spotPan` are unused once `cinematic` is supplied; kept as parameters only for `drawComicReaderPicture`'s own
+  // raw-`Picture` callers (a one-off scenario intro artboard, `campaign/scenario-intros.ts`), which never pass one.
+  if (cinematic) {
+    return drawCinematicReaderStep(scene, rect, campaignId, step, onReady, cinematic);
+  }
   return drawComicReaderPicture(
     scene,
     rect,
@@ -265,6 +285,67 @@ function drawSpotlightContain(
   const lit: Rect = { x: offsetX, y: offsetY, width: drawWidth, height: drawHeight };
   drawStepContent(scene, rect, lit, step);
   return { lit };
+}
+
+/**
+ * A cinematic page's own draw (`ComicPage.cinematic`, MTS): reduced motion cuts straight to the whole-panel
+ * contain-fit (`drawSpotlightContain`, reused as-is — "never crop" looks the same whether the page dims around it
+ * or fills the frame). Otherwise `cinematic.driver` supplies the current camera frame (and, mid page-turn, the
+ * outgoing page's own frame to crossfade from) and this draws one or two full-bleed cover-fit images with no
+ * dimming, no spotlight border, and no square ever visible — `drawCinematicCrossfade`/`drawCinematicFrame` below.
+ */
+function drawCinematicReaderStep(
+  scene: Phaser.Scene,
+  rect: Rect,
+  campaignId: string,
+  step: ComicReaderStepView,
+  onReady: () => void,
+  cinematic: CinematicOptions,
+): ComicReaderDrawResult {
+  scene.add.rectangle(rect.x, rect.y, rect.width, rect.height, surface.ink.hex).setOrigin(0, 0);
+  if (rect.width <= 0 || rect.height <= 0) return { lit: null };
+
+  const currentPicture = campaignPagePicture(campaignId, step.page.file);
+  const currentKey = currentPicture ? ensurePictureLoaded(scene, currentPicture, onReady) : null;
+  if (!currentKey) return { lit: null };
+  const currentSource = scene.textures.get(currentKey).getSourceImage() as PanDim;
+
+  if (cinematic.reducedMotion) {
+    cinematic.driver.reset();
+    return drawSpotlightContain(scene, rect, currentKey, currentSource, step);
+  }
+
+  const state = cinematic.driver.advance(scene, campaignId, step, { width: rect.width, height: rect.height });
+  if (state.from) {
+    drawCinematicFrame(scene, rect, state.from.key, state.from.source, state.from.frame).setAlpha(1 - state.crossfadeT);
+    drawCinematicFrame(scene, rect, currentKey, currentSource, state.frame).setAlpha(state.crossfadeT);
+  } else {
+    drawCinematicFrame(scene, rect, currentKey, currentSource, state.frame);
+  }
+
+  const lit: Rect = { x: rect.x, y: rect.y, width: rect.width, height: rect.height };
+  // A lettered page's own printed balloons/captions are the whole of what a beat shows — the reader draws none of
+  // its own over it (`drawGuidedStep`'s same rule, before this replaced it as the universal reader draw).
+  if (state.showContent && !step.page.lettered) drawStepContent(scene, rect, lit, step);
+  return { lit };
+}
+
+/** One cover-fit image at `frame`'s own camera framing, cropped so it always fills `rect` with no letterbox. */
+function drawCinematicFrame(
+  scene: Phaser.Scene,
+  rect: Rect,
+  key: string,
+  source: PanDim,
+  frame: CameraFrame,
+): Phaser.GameObjects.Image {
+  const crop = cropForFrame(frame, rect, source);
+  const imageX = rect.x - crop.cropX * frame.scale;
+  const imageY = rect.y - crop.cropY * frame.scale;
+  return scene.add
+    .image(imageX, imageY, key)
+    .setOrigin(0, 0)
+    .setScale(frame.scale)
+    .setCrop(crop.cropX, crop.cropY, crop.cropWidth, crop.cropHeight);
 }
 
 /**
@@ -499,14 +580,18 @@ export class SpotlightAutoPan {
     this.#onTick = onTick;
   }
 
-  progressFor(step: ComicReaderStepView, reducedMotion: boolean): SpotlightPan {
+  progressFor(step: ComicReaderStepView, target: PanDim, reducedMotion: boolean): SpotlightPan {
     const key = `${step.page.file}:${step.panel.x},${step.panel.y},${step.panel.w},${step.panel.h}`;
     if (key !== this.#key) {
       this.#key = key;
       this.#tween?.stop();
       this.#tween = null;
       this.#t = 0;
-      if (!reducedMotion) {
+      // Nothing to animate for a beat the page-context draw handles, or a panel-fill cover-fit with no overflow on
+      // either axis — starting a tween anyway would just redraw the whole scene every frame for no visual change,
+      // and cost a player a dropped "NEXT ▸" tap for it (`needsSpotlightPan`'s own doc comment).
+      const page = { width: step.page.width, height: step.page.height };
+      if (!reducedMotion && needsSpotlightPan(step.panel, page, target, step.pan ?? undefined)) {
         const state = { t: 0 };
         this.#tween = this.#scene.tweens.add({
           targets: state,
@@ -530,5 +615,250 @@ export class SpotlightAutoPan {
   destroy(): void {
     this.#tween?.stop();
     this.#tween = null;
+  }
+}
+
+/** How long a cinematic page's own camera takes to settle from one panel's framing to the next (same page). */
+const CINEMATIC_SETTLE_MS = 700;
+/** How long a cinematic page turn's own crossfade takes. */
+const CINEMATIC_CROSSFADE_MS = 450;
+/** How long a cinematic beat's own slow within-beat reveal pan takes, once settled — same pace as the spotlight
+ * reader's own `SPOTLIGHT_PAN_DURATION_MS` (both are "read the rest of an overflowing panel at a comfortable pace"). */
+const CINEMATIC_REVEAL_MS = SPOTLIGHT_PAN_DURATION_MS;
+
+export interface CinematicOptions {
+  readonly driver: CinematicDriver;
+  readonly reducedMotion: boolean;
+}
+
+interface CinematicPageFrame {
+  readonly key: string;
+  readonly source: PanDim;
+  readonly frame: CameraFrame;
+}
+
+interface CinematicState {
+  readonly frame: CameraFrame;
+  /** Set only mid page-turn: the outgoing page's own last framing, crossfading out as `key`'s own page fades in. */
+  readonly from: CinematicPageFrame | null;
+  /** 0 at `from`, 1 at `key` — meaningless (and `from` always null) once a crossfade finishes. */
+  readonly crossfadeT: number;
+  /** False while a camera move (settle or crossfade) is in flight — a beat's own caption/lines/SFX wait for the
+   * camera to arrive rather than lettering over a page that's still sliding past. */
+  readonly showContent: boolean;
+}
+
+/**
+ * Drives a cinematic page's own continuous camera (`ComicPage.cinematic`, MTS): the panel-to-panel *settle* (a
+ * smooth pan+zoom from the previous panel's own last framing to the new one's start, `CINEMATIC_SETTLE_MS`), the
+ * page-turn *crossfade* (a short alpha blend between the outgoing and incoming page, `CINEMATIC_CROSSFADE_MS` —
+ * there's no pixel-continuous camera move *across* two different images, so this is the "clean transition" instead
+ * of a cut), and, once settled, a beat whose panel overflows the frame after fitting keeps panning slowly on its
+ * own (`CINEMATIC_REVEAL_MS`, the same shape as `SpotlightAutoPan`'s reveal but continuing from the settle's own
+ * end point rather than always starting over at the panel's own top/left).
+ *
+ * `advance` is called every redraw with the step about to be drawn; a beat change (the step's own key differs from
+ * the last one seen) starts the appropriate transition, a still-current beat just returns where the camera already
+ * is. `skipAhead` is `opener.ts`'s own "NEXT ▸ never blocks" door: a tap that lands while `isSettling()` jumps the
+ * in-flight settle/crossfade straight to its own end instead of queuing a second one — the caller still has to tap
+ * again to actually advance the beat, the same "one tap always does exactly one thing" a moving target wouldn't.
+ * `reset` drops every tween without settling anywhere (reduced motion's own use, and this is a one-per-scene
+ * instance — the same shape as `SpotlightAutoPan`, `destroy` on shutdown to stop its own tweens).
+ */
+export class CinematicDriver {
+  readonly #onTick: () => void;
+  #scene: Phaser.Scene | null = null;
+  #key: string | null = null;
+  #pageFile: string | null = null;
+  #frame: CameraFrame | null = null;
+  #from: CinematicPageFrame | null = null;
+  #crossfadeT = 1;
+  #showContent = true;
+  #settleTween: Phaser.Tweens.Tween | null = null;
+  #crossfadeTween: Phaser.Tweens.Tween | null = null;
+  #revealTween: Phaser.Tweens.Tween | null = null;
+  /** The reveal this beat starts once its own settle/crossfade finishes — null for a beat with no overflow left
+   * once the zoom cap (`cinematicCameraPlan`'s own `CINEMATIC_MAX_ZOOM_RATIO`) is applied. */
+  #pendingReveal: { readonly endFrame: CameraFrame } | null = null;
+
+  constructor(onTick: () => void) {
+    this.#onTick = onTick;
+  }
+
+  /** True while a settle or crossfade is in flight — the ongoing slow reveal pan doesn't count (it never blocks
+   * "NEXT ▸", only a beat-to-beat camera move does). */
+  isSettling(): boolean {
+    return this.#settleTween !== null || this.#crossfadeTween !== null;
+  }
+
+  /** Jumps any in-flight settle/crossfade straight to its own end and starts the arriving beat's reveal, if it has
+   * one — a no-op once `isSettling()` is already false. */
+  skipAhead(): void {
+    this.#settleTween?.stop();
+    this.#settleTween = null;
+    this.#crossfadeTween?.stop();
+    this.#crossfadeTween = null;
+    if (!this.#pendingReveal) return;
+    // Land exactly where the settle/crossfade was headed, then let `#startReveal` take it from there.
+    this.#from = null;
+    this.#crossfadeT = 1;
+    this.#showContent = true;
+    this.#startReveal();
+  }
+
+  advance(scene: Phaser.Scene, campaignId: string, step: ComicReaderStepView, target: PanDim): CinematicState {
+    this.#scene = scene;
+    const key = `${step.page.file}:${step.panel.x},${step.panel.y},${step.panel.w},${step.panel.h}`;
+    if (key === this.#key && this.#pageFile === step.page.file && this.#frame) {
+      return this.#snapshot();
+    }
+    const plan = cinematicCameraPlan(
+      step.panel,
+      { width: step.page.width, height: step.page.height },
+      target,
+      step.pan ?? undefined,
+    );
+    const startFrame = plan.start;
+    const pageChanged = this.#pageFile !== null && this.#pageFile !== step.page.file;
+    this.#key = key;
+    this.#settleTween?.stop();
+    this.#settleTween = null;
+    this.#crossfadeTween?.stop();
+    this.#crossfadeTween = null;
+    this.#revealTween?.stop();
+    this.#revealTween = null;
+    this.#pendingReveal = plan.axis === "none" ? null : { endFrame: plan.end };
+
+    if (this.#pageFile === null) {
+      // The very first beat this driver has ever drawn: nothing to move *from*, so it settles at rest immediately —
+      // matching the spotlight reader's own first-beat behavior before this existed.
+      this.#pageFile = step.page.file;
+      this.#frame = startFrame;
+      this.#showContent = true;
+      this.#startReveal();
+      return this.#snapshot();
+    }
+
+    if (pageChanged) {
+      const fromPicture = campaignPagePicture(campaignId, this.#pageFile);
+      const fromKey = fromPicture
+        ? ensurePictureLoaded(scene, fromPicture, () => {
+            this.#onTick();
+          })
+        : null;
+      const fromFrame = this.#frame;
+      this.#pageFile = step.page.file;
+      this.#showContent = false;
+      if (fromKey && fromFrame) {
+        const fromSource = scene.textures.get(fromKey).getSourceImage() as PanDim;
+        this.#from = { key: fromKey, source: fromSource, frame: fromFrame };
+        this.#crossfadeT = 0;
+        this.#frame = startFrame;
+        const state = { t: 0 };
+        this.#crossfadeTween = scene.tweens.add({
+          targets: state,
+          t: 1,
+          duration: CINEMATIC_CROSSFADE_MS,
+          ease: "Sine.easeInOut",
+          onUpdate: () => {
+            this.#crossfadeT = state.t;
+            this.#onTick();
+          },
+          onComplete: () => {
+            this.#crossfadeTween = null;
+            this.#from = null;
+            this.#showContent = true;
+            this.#startReveal();
+            this.#onTick();
+          },
+        });
+      } else {
+        // The outgoing page's own art isn't loaded (shouldn't happen — it was just on screen — but a texture can
+        // still be evicted): cut straight to the new page rather than crossfade from nothing.
+        this.#frame = startFrame;
+        this.#from = null;
+        this.#crossfadeT = 1;
+        this.#showContent = true;
+        this.#startReveal();
+      }
+      return this.#snapshot();
+    }
+
+    // Same page, a different panel: pan+zoom the camera from wherever it last was to the new panel's own start.
+    const fromFrame = this.#frame ?? startFrame;
+    this.#showContent = false;
+    const state = { t: 0 };
+    this.#settleTween = scene.tweens.add({
+      targets: state,
+      t: 1,
+      duration: CINEMATIC_SETTLE_MS,
+      ease: "Sine.easeInOut",
+      onUpdate: () => {
+        this.#frame = lerpFrame(fromFrame, startFrame, state.t);
+        this.#onTick();
+      },
+      onComplete: () => {
+        this.#settleTween = null;
+        this.#frame = startFrame;
+        this.#showContent = true;
+        this.#startReveal();
+        this.#onTick();
+      },
+    });
+    return this.#snapshot();
+  }
+
+  #startReveal(): void {
+    const pending = this.#pendingReveal;
+    if (!pending || !this.#scene) return;
+    const endFrame = pending.endFrame;
+    const startFrame = this.#frame ?? endFrame;
+    const state = { t: 0 };
+    this.#revealTween = this.#scene.tweens.add({
+      targets: state,
+      t: 1,
+      duration: CINEMATIC_REVEAL_MS,
+      ease: "Sine.easeInOut",
+      onUpdate: () => {
+        this.#frame = lerpFrame(startFrame, endFrame, state.t);
+        this.#onTick();
+      },
+      onComplete: () => {
+        this.#revealTween = null;
+      },
+    });
+  }
+
+  #snapshot(): CinematicState {
+    return {
+      frame: this.#frame!,
+      from: this.#from,
+      crossfadeT: this.#crossfadeT,
+      showContent: this.#showContent,
+    };
+  }
+
+  /** Stops every in-flight tween, if any, and forgets the last-settled frame — reduced motion's own use (`advance`
+   * is never called for a reduced-motion step, so this is the only way a later un-reduced-motion beat starts a
+   * clean settle rather than lerping from a frame drawn under a different geometry), and the scene's own SHUTDOWN. */
+  reset(): void {
+    this.#settleTween?.stop();
+    this.#settleTween = null;
+    this.#crossfadeTween?.stop();
+    this.#crossfadeTween = null;
+    this.#revealTween?.stop();
+    this.#revealTween = null;
+    this.#pageFile = null;
+    this.#key = null;
+    this.#frame = null;
+    this.#from = null;
+    this.#pendingReveal = null;
+  }
+
+  /** Stops every in-flight tween — the scene's own SHUTDOWN handler. */
+  destroy(): void {
+    this.#settleTween?.stop();
+    this.#crossfadeTween?.stop();
+    this.#revealTween?.stop();
   }
 }

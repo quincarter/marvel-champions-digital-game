@@ -401,7 +401,7 @@ describe("Mass Increase (event, 26012)", () => {
     };
     const attacked = settle(reached, paySpecifically, undefined, WAVE4_DEPS);
     expect(inst(attacked, identity).damage).toBe(beforeDamage);
-    expect(inst(attacked, villain).statuses.stunned).toBeGreaterThanOrEqual(1);
+    expect(inst(attacked, villain).statuses.stunned).toBe(1);
     expect(playerOf(attacked, P1).discard).toContain(massIncrease);
   });
 });

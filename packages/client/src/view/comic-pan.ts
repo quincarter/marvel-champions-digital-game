@@ -129,3 +129,184 @@ export function panCropAt(
     cropHeight: plan.cropHeight,
   };
 }
+
+/**
+ * Whether `SpotlightAutoPan` (`ui/comic-reader.ts`) actually has anything to animate for `panel` at `target`: it
+ * never does when the page-context draw is used (`panelFitsInPageCrop` true — the panel's crop never reads `t`) or
+ * when the panel-fill cover-fit has no overflow on either axis (`planPan`'s `axis: "none"` — every frame of the
+ * "pan" would be identical). Gates the tween itself so a beat that never actually moves doesn't still run one: a
+ * running tween redraws the whole scene every frame for its own full duration, and a scene that rebuilds its own
+ * buttons every frame (`opener.ts`'s `#draw`) can drop a tap that lands between two of those frames — a beat with
+ * nothing to animate must never cost a player a working "NEXT ▸".
+ */
+export function needsSpotlightPan(panel: ComicPanelRect, page: PanDim, target: PanDim, dir?: PanDirection): boolean {
+  if (panelFitsInPageCrop(panel, page, target)) return false;
+  return planPan(panel, target, dir).axis !== "none";
+}
+
+/** A camera's own framing over a page: `cx`/`cy` the page-pixel point centered in the viewport, `scale` the
+ * page-to-screen zoom. Lerping this directly (rather than a crop rect) always keeps the viewport's own aspect
+ * ratio exact at every intermediate frame — the standard "Ken Burns" camera parameterization. */
+export interface CameraFrame {
+  readonly cx: number;
+  readonly cy: number;
+  readonly scale: number;
+}
+
+/** The camera frame for `panel`'s own pan `plan` at progress `t` (0 at `from`, 1 at `to`) — `frameAt(..., 0)` is
+ * where a beat's camera starts, `frameAt(..., 1)` where its own slow reveal (`axis !== "none"`) ends. */
+export function frameAt(panel: ComicPanelRect, plan: PanPlan, t: number): CameraFrame {
+  const crop = panCropAt(panel, plan, t);
+  return { cx: crop.cropX + crop.cropWidth / 2, cy: crop.cropY + crop.cropHeight / 2, scale: plan.scale };
+}
+
+/** Linear interpolation between two camera frames — the cinematic reader's own beat-to-beat camera move. */
+export function lerpFrame(from: CameraFrame, to: CameraFrame, t: number): CameraFrame {
+  const clamped = Math.max(0, Math.min(1, t));
+  return {
+    cx: from.cx + (to.cx - from.cx) * clamped,
+    cy: from.cy + (to.cy - from.cy) * clamped,
+    scale: from.scale + (to.scale - from.scale) * clamped,
+  };
+}
+
+/** The page-pixel crop rect `frame` sees through a `target`-sized viewport into a `source`-sized page, clamped so
+ * the crop window never runs past the page's own edges. */
+export function cropForFrame(
+  frame: CameraFrame,
+  target: PanDim,
+  source: PanDim,
+): { readonly cropX: number; readonly cropY: number; readonly cropWidth: number; readonly cropHeight: number } {
+  // Phaser's own `Image.setCrop` reads the *display* height/width off the frame's own full size once a crop
+  // dimension reaches it exactly (verified against Phaser 4.2.1 — a crop as wide as the source frame renders at
+  // the frame's own *height* too, ignoring a shorter `cropHeight`, a real bug this hit once the page-cover-scale
+  // floor below made a wide panel's own crop exactly as wide as the page). A hair under the source's own edge
+  // side-steps it without a visible difference — `crop{Width,Height}` are always at least 1px inside their axis.
+  const cropWidth = Math.min(source.width - 0.5, target.width / frame.scale);
+  const cropHeight = Math.min(source.height - 0.5, target.height / frame.scale);
+  const cropX = Math.max(0, Math.min(source.width - cropWidth, frame.cx - cropWidth / 2));
+  const cropY = Math.max(0, Math.min(source.height - cropHeight, frame.cy - cropHeight / 2));
+  return { cropX, cropY, cropWidth, cropHeight };
+}
+
+/**
+ * How far past a panel's own "contain" scale (`containFit` — the zoom that fits the whole panel with no crop on
+ * either axis) the cinematic camera (`ui/comic-reader.ts`'s `CinematicDriver`) is ever allowed to zoom in. A panel
+ * whose own aspect ratio already reads close to the reading area's (MTS p1's throne-room beat, cover scale barely
+ * past contain) is untouched by this — it only bites once cover-fitting a panel proportioned nothing like the
+ * frame (a narrow party-photo inset on a wide desktop reading area) would zoom in far enough to read as a crop
+ * rather than a close-up. Tuned so p1's own beat 0 (cover/contain ratio ~1.10) stays exactly as it already reads,
+ * while p4's party-photo and Hela-throne insets (cover/contain ratio ~1.6) pull back to show real margin around
+ * the figures instead. A capped beat still pans (`axis` below) if some overflow remains after the pull-back —
+ * just a shorter, gentler one than an uncapped cover-fit would have needed.
+ */
+export const CINEMATIC_MAX_ZOOM_RATIO = 1.15;
+
+export interface CinematicCameraPlan {
+  readonly start: CameraFrame;
+  readonly end: CameraFrame;
+  readonly axis: "x" | "y" | "none";
+}
+
+/**
+ * The cinematic reader's own camera plan for `panel` on `page` into `target`: cover-fits the panel same as
+ * `planPan`, but caps the zoom at `CINEMATIC_MAX_ZOOM_RATIO` times the panel's own contain scale first. Uncapped,
+ * an axis that already matched the panel's own bounds exactly (`planPan`'s "no slack" axis) stays pinned to the
+ * panel's own edges the same way; capped, that axis gains real margin instead — centered on the panel, clamped so
+ * the crop window never opens past the *page's* own edges (not just the panel's) since the camera may now show
+ * more page than the panel alone. `dir` overrides which end of the (still-)overflowing axis, if any, the beat
+ * starts at, the same convention as `planPan`.
+ */
+/**
+ * How much of a slack axis's own crop a neighbor is ever allowed to fill, relative to the target panel's own size
+ * on that axis — 0.5 means a neighbor may take up at most a third of the frame (the panel occupies at least
+ * two-thirds). A panel whose own aspect is nothing like the page's (a portrait sliver near a page edge —
+ * `03-absorbing-man`'s own red-flash panel) can otherwise pull the frame so far toward a page edge, chasing a huge
+ * contain-derived margin, that the *neighbor* panel ends up filling most of the frame and the target panel reads
+ * as an afterthought off to one side, even though it's technically still "in frame." A panel close to a page edge
+ * on the side its own slack has to go (`05-taskmaster`'s own left column, 75px from the page's left edge) still
+ * has to push most of that slack into the neighbor on its *other* side — this can't fully undo that, only bound
+ * how much of it there is; kept tight enough that a lettered neighbor's own printed caption rarely fits whole in
+ * the leftover strip.
+ */
+const CINEMATIC_MAX_NEIGHBOR_RATIO = 0.5;
+
+export function cinematicCameraPlan(
+  panel: ComicPanelRect,
+  page: PanDim,
+  target: PanDim,
+  dir?: PanDirection,
+): CinematicCameraPlan {
+  const coverScale = coverFitDims({ width: panel.w, height: panel.h }, target).scale;
+  const containScale = Math.min(target.width / Math.max(1, panel.w), target.height / Math.max(1, panel.h));
+  // Never zoom out further than the *page's* own cover-fit scale — the least zoom that can still fill `target`
+  // from this page's own pixels at all. A narrow panel's contain scale can fall below that (a tall sliver panel on
+  // a squarer page), and pulling back past it would ask for a crop wider/taller than the page itself has, which
+  // `cropForFrame`'s own page-edge clamp then answers by simply not filling the frame — a blank margin down one
+  // side, the very "box" this reader exists to never show.
+  const pageCoverScale = coverFitDims(page, target).scale;
+  // A panel that already spans the *whole page* on an axis (a full-width strip, `05-taskmaster` beat 0 — not
+  // merely the axis `containScale` happens to be bound by) has nothing left to gain from `CINEMATIC_MAX_ZOOM_RATIO`
+  // on that axis: `containScale` being bound there means it's already the exact scale that fits it with zero
+  // overflow, and multiplying by the ratio only overshoots into cropping the page's own edge on that axis — the
+  // panel spanning the whole width *is* the context, there's no page beyond it to reveal by zooming in further.
+  const exactFitCap = Math.min(
+    panel.w >= page.width - 0.5 ? target.width / panel.w : Infinity,
+    panel.h >= page.height - 0.5 ? target.height / panel.h : Infinity,
+  );
+  const capScale = Math.min(coverScale, containScale * CINEMATIC_MAX_ZOOM_RATIO, exactFitCap);
+  let scale = Math.max(pageCoverScale, capScale);
+
+  // The cap above can still leave an axis with far more slack than `CINEMATIC_MAX_NEIGHBOR_RATIO` allows — the
+  // whole point of the contain-derived cap is to *not* zoom in as tight as `coverScale` would, but for a panel
+  // whose own aspect is extremely mismatched from the target's, that same cap can ask for a crop several times the
+  // panel's own size on the axis contain didn't bind. Zoom in past the cap (never past `coverScale`, which by
+  // definition has zero slack on at least one axis) just enough to bring each axis's own slack back under the
+  // limit — but only when the *cap* is what picked `scale`. A panel the page-cover floor governs instead (a tall
+  // panel spanning nearly the page's own full height, `01-siege` beat 0) is already at the least zoom that avoids
+  // a blank margin; zooming in past that to satisfy a "neighbor ratio" would just crop needlessly into a panel
+  // that was never competing with a neighbor for attention in the first place — it *is* most of the page.
+  if (capScale > pageCoverScale + 1e-9) {
+    for (const [panelSize, targetSize] of [
+      [panel.w, target.width],
+      [panel.h, target.height],
+    ] as const) {
+      const cropSize = targetSize / scale;
+      if (cropSize - panelSize > panelSize * CINEMATIC_MAX_NEIGHBOR_RATIO) {
+        const required = targetSize / (panelSize * (1 + CINEMATIC_MAX_NEIGHBOR_RATIO));
+        scale = Math.min(coverScale, exactFitCap, Math.max(scale, required));
+      }
+    }
+  }
+
+  const cropWidth = target.width / scale;
+  const cropHeight = target.height / scale;
+
+  const axisRange = (
+    panelStart: number,
+    panelSize: number,
+    cropSize: number,
+    pageSize: number,
+    reversed: boolean,
+  ): { readonly lo: number; readonly hi: number; readonly overflow: boolean } => {
+    const overflow = panelSize - cropSize > 0.5;
+    if (overflow) {
+      const lo = panelStart + cropSize / 2;
+      const hi = panelStart + panelSize - cropSize / 2;
+      return reversed ? { lo: hi, hi: lo, overflow } : { lo, hi, overflow };
+    }
+    // No overflow: center the crop on the panel, clamped to the *page's* own bounds — the camera may now show
+    // more of the page than just the panel, so it must stay inside the page, not the (smaller) panel.
+    const center = Math.max(cropSize / 2, Math.min(pageSize - cropSize / 2, panelStart + panelSize / 2));
+    return { lo: center, hi: center, overflow };
+  };
+
+  const x = axisRange(panel.x, panel.w, cropWidth, page.width, dir === "left");
+  const y = axisRange(panel.y, panel.h, cropHeight, page.height, dir === "up");
+  const axis = x.overflow ? "x" : y.overflow ? "y" : "none";
+  return {
+    start: { cx: x.lo, cy: y.lo, scale },
+    end: { cx: x.hi, cy: y.hi, scale },
+    axis,
+  };
+}

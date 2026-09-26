@@ -37,7 +37,7 @@ folder is all it should take**. Formats: `mp3`, `ogg`, `m4a`.
 ids `art/` uses, so a scenario's art and music folders share a name. A new
 scenario needs only a new folder here.
 
-**`soundtrack/`** holds the same songs under their titles (`Battle_with_a_Rhino.mp3` is
+**`soundtrack/`** holds the same songs under their titles (`Nothing_Stops_the_Rhino.mp3` is
 `scenarios/rhino/battle.mp3`). The client never loads it; the titles live in `TRACK_TITLES`
 (`packages/client/src/progression/extras.ts`), which names every slotted track for the Extras jukebox.
 `extras.test.ts` fails if a slotted track has no title or a title names no track, so a new track needs its

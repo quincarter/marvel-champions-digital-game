@@ -72,10 +72,12 @@ const PAGES: readonly ComicPage[] = [
       { panel: { x: 45, y: 45, w: 1285, h: 960 }, lines: [] },
       { panel: { x: 1345, y: 45, w: 375, h: 855 }, lines: [] },
       { panel: { x: 45, y: 1025, w: 1185, h: 280 }, lines: [] },
-      // Hulk's reaction bleeds with no border of its own, starting flush against the red-flash panel's own
-      // bottom border rather than the little of his hair that pokes above it (the panels above are complete
-      // without it, and this keeps every beat's rect inside its own space).
-      { panel: { x: 1230, y: 900, w: 500, h: 420 }, lines: [] },
+      // Hulk's reaction bleeds with no border of its own, its own head cresting well above the red-flash panel's
+      // own bottom border — measured to the art, his hair starts at about y=755, not the y=900 this rect used to
+      // start at (which cropped his own head entirely). Overlapping the panel above's own rect is fine (see this
+      // file's own convention: a beat's rect is a crop around its own figure, not an exclusive partition of the
+      // page), and reads better than a beat whose own reaction shot is missing its head.
+      { panel: { x: 1230, y: 750, w: 510, h: 570 }, lines: [] },
       { panel: { x: 45, y: 1320, w: 1690, h: 435 }, lines: [] },
     ],
   },
@@ -125,8 +127,18 @@ const PAGES: readonly ComicPage[] = [
     beats: [
       // The full-bleed battle spread; Hawkeye breaks its own frame in the foreground with no printed border.
       { panel: { x: 0, y: 0, w: 1800, h: 1800 }, lines: [] },
-      // The Red Skull inset, bottom right.
-      { panel: { x: 570, y: 1195, w: 1160, h: 515 }, lines: [] },
+      // The Red Skull inset, bottom right. Widened up from the panel's own printed border (top ~y=1200) to y=1140
+      // so his "KEEP WORKING! I WILL DEAL WITH THE AVENGERS!" balloon (breaking out above the border, its own top
+      // curve at about y=1138) is included, and widened right to the page's own edge (x=570..1800, the printed
+      // border alone runs only to about x=1724) rather than just the printed border: on a narrow phone reading
+      // area this panel's own extreme width (a ~2:1 landscape panel on a ~1:1.75 portrait screen) forces the
+      // cinematic camera's neighbor-ratio cap to zoom in far enough that the crop is too narrow to ever reach the
+      // balloon during the default left-to-right pan. Widening the rect past `CINEMATIC_MAX_NEIGHBOR_RATIO`'s own
+      // trigger point (`comic-pan.ts`'s `exactFitCap`/floor logic) instead pins the camera to the *page's* own
+      // cover-fit floor, which is wide enough to show the whole page height at once (so the balloon's position is
+      // never in question vertically) and only pans a short, calm sweep horizontally that starts already showing
+      // the balloon whole.
+      { panel: { x: 570, y: 1140, w: 1230, h: 570 }, lines: [] },
     ],
   },
   {

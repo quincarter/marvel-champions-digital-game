@@ -175,7 +175,7 @@ describe("the catalog", () => {
   it("lists one song once, even when it plays in two slots", () => {
     const titles = EXTRAS_ENTRIES.music.map((e) => e.title);
     expect(new Set(titles).size).toBe(titles.length);
-    const watch = EXTRAS_ENTRIES.music.find((e) => e.title === "The Longest Watch Ends")!;
+    const watch = EXTRAS_ENTRIES.music.find((e) => e.title === "Saviors of the Galaxy")!;
     expect(watch.unlock.kind).toBe("any");
     expect(open({ wonCampaignIds: ["gmw"] }).isOpen(watch.unlock)).toBe(true);
   });

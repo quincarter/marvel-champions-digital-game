@@ -1,0 +1,3 @@
+kind: Fixed
+body: MTS comic reader always shows a full-bleed cinematic camera (no dimmed spotlight box) that smoothly pans between panels, and Next never blocks on a moving camera
+time: 2026-09-25T20:54:48.901761-04:00

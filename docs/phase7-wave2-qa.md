@@ -115,3 +115,22 @@ Searched `marvel-champions-rulings-post-rrg-1-7.md` for entries naming or clearl
 - `packages/cards/src/wave2/{qsv,scw,toafk,wsp}/e2e.test.ts` — reviewed as-is from the prior pass (unchanged); `ant`
   already had one.
 - `docs/phase7-wave2-qa.md` — this report (new).
+
+## Expert campaign HP-restore order (2026-09-26)
+
+The GMW QA pass (`docs/phase7-wave3-qa.md`, commit `a2f89af2`) found that an expert campaign's hard hit-point set ran
+after scenario setup's When Revealed damage and erased it (ruling June 2, 2026 (3) #2). `campaigns/trors.ts` uses the
+same shape (`setRemainingHitPoints` and the obligation heal at `DEFAULT_CAMPAIGN_WINDOW`), so every Rise of Red Skull
+scenario's setup was traced for a source of identity damage before that window:
+
+| Scenario      | Setup (MC10 main scheme 1B)                                                                                                               | Damage at setup?                                                                                              |
+| ------------- | ----------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| Crossbones    | Experimental Weapons deck set beside the main scheme                                                                                      | No                                                                                                            |
+| Absorbing Man | Discard to an environment, put it into play (put into play, not revealed; the four environments deal damage only on an undefended attack) | No                                                                                                            |
+| Taskmaster    | Captive allies aside; Hydra Patrol put into play                                                                                          | No. Taskmaster (II)/(III) When Revealed only _deals_ encounter cards, which are revealed in the villain phase |
+| Zola          | Hydra Prison revealed (allies beneath it, threat); Ultimate Bio-Servant into play                                                         | No                                                                                                            |
+| Red Skull     | The Red House put into play; side-scheme deck built                                                                                       | No                                                                                                            |
+
+No villain stage or main scheme in the box deals damage on reveal. The order is moot today, so `trors.ts` is unchanged;
+if a later card adds setup damage to one of these scenarios, move the two instructions to `beforeScenarioSetup` as
+`gmw.ts` does.

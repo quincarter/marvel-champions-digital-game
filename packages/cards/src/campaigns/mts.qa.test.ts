@@ -416,6 +416,78 @@ describe("a real game, set up from the composed log, for each of the five scenar
 });
 
 // ---------------------------------------------------------------------------------------------------------------
+// The GMW QA fix (a2f89af2, "expert-campaign HP restore now runs before Collector II's damage", ruling June 2,
+// 2026 (3) #2) checked against MC21: does any MTS scenario deal damage (or otherwise change identity HP) during
+// its own scenario setup / setup "When Revealed", the way GMW's Collector II does, such that `hpSet`/`healToFull`
+// running at the default `afterScenarioSetup` window would silently erase it?
+// ---------------------------------------------------------------------------------------------------------------
+
+describe("hpSet/healToFull's campaign window (ruling June 2, 2026 (3) #2, checked against MC21)", () => {
+  // Survey (not a single behavior to exercise, since no bug exists to reproduce — recorded as a comment, not a
+  // dummy-assertion test, per the standing rule that a test should exercise something real): every scenario with
+  // `hpSet`/`healToFull` (Tower Defense, Thanos, Hela, Loki — Ebony Maw is first, no carried HP yet) was read for a
+  // setup-time (villain reveal, main-scheme reveal, or a set-aside card entering play at setup) ability that deals
+  // damage or otherwise changes an identity's hit points — the one shape that would reproduce GMW's bug, where a
+  // hard `setRemainingHitPoints` running after such an effect silently erases it. None exists:
+  //  - Tower Defense: 21098a.setup (reveal stage 2A) and 21099a.when-revealed (Avengers Tower/Focused
+  //    Defense/Black Order Besieger into play) deal no damage to identities. The optional "Modular Difficulty"
+  //    setup damage (MC21 p. 11) targets Avengers Tower, not identity hit points, and defaults to none (§4 Q4).
+  //  - Thanos: 21114a (The Infinity Stones' own first stage) has no scripted setup/when-revealed ability at all
+  //    (`grep` of `mts/thanos.ts` for `"21114a."` — none); Thanos I's villain reveal has no when-revealed either.
+  //  - Hela: `ODINS_TORMENT_SETUP` (21138a.setup) attaches Odin and reveals Gnipahellir/Garm as minions with no
+  //    when-revealed damage of their own (Garm 21143 is a plain constant; Gnipahellir 21140 only has a
+  //    When *Defeated*, not When Revealed); Hela's own villain reveal has no when-revealed.
+  //  - Loki: 21165a.setup reveals "War in Asgard" and the top Infinity Stone card; every Infinity Stone
+  //    (21130-21135, `infinity-gauntlet.ts`) only deals damage through its own "Special" ability, a keyword a
+  //    player later chooses to invoke on their turn — not a When Revealed that fires automatically at setup.
+  // Conclusion: no reordering fix is needed for correctness. The test below instead proves the current window is
+  // *required* (moving it would be its own, different bug) for the one MTS scenario where a naive "move it for
+  // consistency" would break something real.
+  it("Tower Defense's healToFull (chooseScheme: true) needs the *current* window, not beforeScenarioSetup: both main schemes must already exist for '(choose one of the two main schemes)' to have two real options", () => {
+    // Unlike GMW, moving MTS's hpSet/healToFull to `beforeScenarioSetup` (before RRG 1.8 Appendix II step 12,
+    // "Resolve Scenario Setup and When Revealed Abilities" — `packages/engine/src/campaign.ts`'s own
+    // `CAMPAIGN_WINDOW_ORDER`) would be unsafe for Tower Defense specifically: stage 2's main scheme ("The Armies
+    // of Thanos", 21099a) is put into play by the scenario's *own* scripted setup ability (`21098a.setup` →
+    // `putMainSchemeStageIntoPlay(2)`), which itself runs at step 12 — after `beforeScenarioSetup`. Moving the
+    // campaign's heal there would leave only one main scheme in play for "may place one acceleration token on one
+    // of the main schemes" (MC21 p. 13) to choose between, silently changing "choose either" into "there is only
+    // one," which nothing prints. Proven live: at the *current* window, `state.extraMainSchemes` already holds the
+    // second main scheme by the time the game reaches the player phase (which it cannot unless the campaign's own
+    // setup effects — including this heal — already resolved without erroring against a real `chooseTarget` over
+    // both schemes).
+    let log: CampaignLog = createCampaignLog(MTS_CAMPAIGN_DEFINITION, {
+      id: "mts-qa-tower-defense-hp-window",
+      seats: SEATS,
+      modes: EXPERT,
+      poolVersion: "qa-test",
+      seed: 9001,
+    });
+    log = settle((answers) =>
+      applyCampaignResult(
+        MTS_CAMPAIGN_DEFINITION,
+        settle((a) => resolveBetweenGames(MTS_CAMPAIGN_DEFINITION, log, DEPS, log.modes, a)).value,
+        outcome("ebony-maw", true, [{ instructionId: "mc21.s1.victory.hp", write: numberWrite("remainingHp", 1, 3) }]),
+        { at: 1 },
+        DEPS,
+        answers,
+      ),
+    ).value;
+    expect(log.seats[0]?.fields.remainingHp).toEqual({ kind: "number", value: 3 });
+
+    const state = realGameAt(log, "tower-defense");
+    // Both main schemes exist (the "choose one of two" target pool healToFull's chooseTarget actually had), and
+    // hit points were correctly restored/healed (per the player's choice, auto-picked "Heal to full" by
+    // `firstLegal` since it is the first option) rather than silently corrupted by a mis-timed hard set.
+    expect(state.extraMainSchemes?.length).toBe(1);
+    const identity = identityOf(state, P1);
+    // "Heal to full" restores to the base value (`heal(damageOn(identityOf(thatPlayer)), ...)`, undamaged): the
+    // low recorded value of 3 is what `hpSet` set first, then `healToFull` topped up to full — proving both ran,
+    // in the printed order, without error, against a real two-main-scheme game.
+    expect(state.instances[identity]?.damage).toBe(0);
+  });
+});
+
+// ---------------------------------------------------------------------------------------------------------------
 // The campaign's own side schemes, played for real (MC21 p. 7/21/25)
 // ---------------------------------------------------------------------------------------------------------------
 

@@ -21,6 +21,15 @@
  * printed panel borders or gutters to threshold against) — each rectangle is a generous crop around one clearly
  * readable group of figures, checked by eye against the source page. A page's own background (the throne room
  * behind Ebony Maw, the snowfield behind Asgard) is left as the seam between beats rather than boxed on its own.
+ * Every page's own beats are listed in reading order regardless of whether an issue's `comicBeats` visits all of
+ * them — `p2-order`, `p3-battle`, `p4-hel` and `p5-asgard` are each one dense collage covering several distinct
+ * figure groups, so an issue's own `comicBeats` is free to (and mostly does) visit every beat a page defines.
+ *
+ * **Every page is `cinematic: true`**: the reader's own continuous camera (`ui/comic-reader.ts`'s
+ * `CinematicDriver`) always fills the reading area with the current panel (never a dimmed page behind a lit box)
+ * and smoothly pans/zooms from one panel's own framing to the next, including across a page turn — GMW's own
+ * dimmed-spotlight reader is a different, older look these five collage pages never used well (see this file's own
+ * git history for why the spotlight box kept showing on beats that already fit the frame).
  */
 import type { CampaignStory, ComicPage, StorySpeaker } from "../story.js";
 import type { PoolCopy } from "../../view/campaign-pool-model.js";
@@ -80,6 +89,7 @@ const PAGES: readonly ComicPage[] = [
     file: "01-p1-titan",
     width: 1500,
     height: 1500,
+    cinematic: true,
     beats: [
       {
         // Top: Ebony Maw kneeling at the foot of Thanos's throne.
@@ -105,6 +115,7 @@ const PAGES: readonly ComicPage[] = [
     file: "02-p2-order",
     width: 1920,
     height: 960,
+    cinematic: true,
     beats: [
       {
         // Left third: Gamora's escape, Star-Lord and Nebula close behind.
@@ -124,12 +135,23 @@ const PAGES: readonly ComicPage[] = [
         lines: [],
         sfx: "KRAKK.",
       },
+      {
+        // The whole spread, pulled all the way back: Gamora's escape, Loki's corridor and Thanos's fist all at
+        // once. Desktop/tablet only (`wideOnly`) — cover-fit to a phone's own narrow reading area, this tall
+        // three-panel page reads as a thumbnail, not a widening view, so a phone's own issue ends on the tight
+        // panel above instead.
+        panel: { x: 0, y: 0, w: 1920, h: 960 },
+        caption: "Every stone he takes is a city that falls.",
+        lines: [],
+        wideOnly: true,
+      },
     ],
   },
   {
     file: "03-p3-battle",
     width: 1920,
     height: 960,
+    cinematic: true,
     beats: [
       {
         // Left: the street-level fight — Photon's own energy blast lights the block.
@@ -159,6 +181,7 @@ const PAGES: readonly ComicPage[] = [
     file: "04-p4-hel",
     width: 1920,
     height: 960,
+    cinematic: true,
     beats: [
       {
         // Top left: the team gathers, the Infinity Gauntlet held up between them.
@@ -167,8 +190,10 @@ const PAGES: readonly ComicPage[] = [
         lines: [],
       },
       {
-        // Bottom left: a quiet aftermath — Captain America and Thor, then the crew filing past.
-        panel: { x: 0, y: 590, w: 790, h: 370 },
+        // Bottom left: a quiet aftermath — Captain America and Thor, the crew filing past, then Loki alone with
+        // the Infinity Gauntlet still raised. Widened from the original 790px-wide crop, which cut across his own
+        // raised fist — measured to the art, his gauntlet reaches to about x=870.
+        panel: { x: 0, y: 585, w: 880, h: 375 },
         lines: [{ speaker: NARRATOR, text: "One night off. The universe can wait that long." }],
       },
       {
@@ -194,6 +219,7 @@ const PAGES: readonly ComicPage[] = [
     file: "05-p5-asgard",
     width: 1920,
     height: 960,
+    cinematic: true,
     beats: [
       {
         // Top left: Odin kneeling in the ice, Thor at his side, a sword driven into the frost.
@@ -224,6 +250,7 @@ const PAGES: readonly ComicPage[] = [
     file: "06-p6-feast",
     width: 1500,
     height: 1500,
+    cinematic: true,
     beats: [
       {
         // Top: Odin, restored to his throne, waves the honor guard aside.
@@ -328,8 +355,10 @@ export const MTS_STORY: CampaignStory = {
         },
       ],
       comicBeats: [
+        { page: "02-p2-order", beatIndex: 0 },
         { page: "02-p2-order", beatIndex: 1 },
         { page: "02-p2-order", beatIndex: 2 },
+        { page: "02-p2-order", beatIndex: 3 },
       ],
       stageLines: { 2: "Proxima Midnight's spear finds every gap in a defense." },
       briefing: {
@@ -364,6 +393,7 @@ export const MTS_STORY: CampaignStory = {
       ],
       comicBeats: [
         { page: "03-p3-battle", beatIndex: 0 },
+        { page: "03-p3-battle", beatIndex: 1 },
         { page: "03-p3-battle", beatIndex: 2 },
         { page: "03-p3-battle", beatIndex: 3 },
       ],
@@ -423,7 +453,10 @@ export const MTS_STORY: CampaignStory = {
         },
       ],
       comicBeats: [
+        { page: "04-p4-hel", beatIndex: 0 },
+        { page: "04-p4-hel", beatIndex: 1 },
         { page: "04-p4-hel", beatIndex: 2 },
+        { page: "04-p4-hel", beatIndex: 3 },
         { page: "04-p4-hel", beatIndex: 4 },
       ],
       stageLines: { 2: "Hela does not bargain. She collects." },
@@ -463,6 +496,7 @@ export const MTS_STORY: CampaignStory = {
         },
       ],
       comicBeats: [
+        { page: "05-p5-asgard", beatIndex: 0 },
         { page: "05-p5-asgard", beatIndex: 1 },
         { page: "05-p5-asgard", beatIndex: 3 },
         { page: "05-p5-asgard", beatIndex: 2 },

@@ -123,7 +123,7 @@ describe("Vision's nemesis set (Ultron, Ultron Unleashed, Relentless Android)", 
     const engagedDrones = playerOf(revealed, P1).playArea.filter(
       (id) => revealed.instances[id]?.facedownAs && revealed.instances[id]?.engagedWith === P1,
     );
-    expect(engagedDrones.length).toBeGreaterThanOrEqual(2);
+    expect(engagedDrones.length).toBe(2);
   });
 
   it("26032.when-revealed (Relentless Android): without Ultron Drones in play, discards 2 random cards from hand", () => {

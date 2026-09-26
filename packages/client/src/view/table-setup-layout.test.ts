@@ -194,6 +194,10 @@ describe("tableSetupLayout: composition", () => {
     expect(plain.hoodHeader.height).toBe(0);
     expect(plain.hoodGrid.height).toBe(0);
 
+    // REALISTIC's own two difficulty cards leave the difficulty row's own third slot spare, so Standard
+    // II/Expert II fits inline there (`altFitsInDifficultyRow`) rather than spending a whole extra row — the
+    // scene draws it inside `difficultyRow` itself, so `difficultyAltRow` stays zero-area even though the toggle
+    // is offered (see the dedicated fallback test below for the one case that *does* need the extra row).
     const withBoth = tableSetupLayout({
       ...REALISTIC,
       width: 1440,
@@ -201,8 +205,7 @@ describe("tableSetupLayout: composition", () => {
       hasAlternateDifficultySets: true,
       hoodSetCount: 9,
     });
-    expect(withBoth.difficultyAltRow.height).toBeGreaterThan(0);
-    expect(withBoth.difficultyAltRow.y).toBeGreaterThan(withBoth.difficultyRow.y);
+    expect(withBoth.difficultyAltRow.height).toBe(0);
     expect(withBoth.hoodHeader.height).toBeGreaterThan(0);
     expect(withBoth.hoodGrid.height).toBeGreaterThan(0);
     expect(withBoth.hoodHeader.y).toBeGreaterThan(withBoth.modularGrid.y);
@@ -218,6 +221,19 @@ describe("tableSetupLayout: composition", () => {
     });
     expect(narrowWithBoth.difficultyAltRow.height).toBe(0);
     expect(narrowWithBoth.hoodHeader.height).toBe(0);
+  });
+
+  test("wide: a scenario with all three difficulty cards and an alternate (none exists yet) falls back to its own full-width row, since there's no spare slot to fill inline", () => {
+    const layout = tableSetupLayout({
+      ...REALISTIC,
+      width: 1440,
+      height: 900,
+      difficultyCount: 3,
+      hasAlternateDifficultySets: true,
+    });
+    expect(layout.difficultyAltRow.height).toBeGreaterThan(0);
+    expect(layout.difficultyAltRow.y).toBeGreaterThan(layout.difficultyRow.y);
+    expect(layout.difficultyAltRow.width).toBe(layout.difficultyRow.width);
   });
 
   test("panel row budgets never exceed what was asked for, and are never negative", () => {

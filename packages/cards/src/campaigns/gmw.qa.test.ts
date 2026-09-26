@@ -38,6 +38,7 @@ import {
   createCampaignLog,
   createGame,
   getInstance,
+  maxHitPoints,
   resolveBetweenGames,
   startGameFromLog,
   validateDeck,
@@ -54,7 +55,7 @@ import {
   type GameState,
   type InstanceId,
 } from "@mc/engine";
-import { firstLegal, settle } from "../testing/harness.js";
+import { firstLegal, settle, type Picker } from "../testing/harness.js";
 import { WAVE3_DEPS, wave3Scenario } from "../wave3/index.js";
 import { GMW_CAMPAIGN_DEFINITION } from "./gmw.js";
 
@@ -251,6 +252,7 @@ function realGameAt(
   targetNode: NodeId,
   seats: readonly CampaignSeatSetup[],
   script: readonly CampaignChoiceAnswer[] = [],
+  pick: Picker = firstLegal,
 ): GameState {
   const seatNumbers = seats.map((seat) => seat.seatNumber);
   const composed = settleCampaign(
@@ -275,7 +277,7 @@ function realGameAt(
   };
   const created = createGame({ ...withSetAside, campaign: start.input }, WAVE3_DEPS);
   if (!created.ok) throw new Error(`setup failed: ${created.error.message}`);
-  return settle(created.state, firstLegal, (s) => s.step.phase === "player", WAVE3_DEPS);
+  return settle(created.state, pick, (s) => s.step.phase === "player", WAVE3_DEPS);
 }
 
 /** The revealed face is in the villain area, faceup (`wave3/gmw/campaign-challenge.test.ts`'s own `inPlay`): the
@@ -1376,6 +1378,57 @@ describe("MC16 p. 5/p. 10 — Expert campaign: remaining HP is recorded, then re
     expect(identityInstance?.damage).toBeGreaterThanOrEqual(0);
     expect((identityInstance?.damage ?? 0) + recordedHp).toBeGreaterThan(recordedHp); // base HP is a real positive number
   });
+});
+
+describe("ruling June 2, 2026 (3) #2 — campaign setup (HP restore) finishes before Collector II's own When Revealed damage", () => {
+  // `Picker` that answers Collector II's "put top of deck into The Collection or take 3 damage" (16071.when-revealed,
+  // `wave3/gmw/museum.ts`) with "Take 3 damage" whenever it is offered, and otherwise behaves like `firstLegal` — the
+  // damage-taken choice is what distinguishes the two orderings below; the default `firstLegal` always takes the
+  // first (non-damage) option and would never exercise the bug.
+  const takeCollectorDamage: Picker = (state) => {
+    const choice = state.pendingChoice;
+    if (!choice) return [];
+    const damageOption = choice.options.find((o) => o.label === "Take 3 damage");
+    if (damageOption) return [damageOption.optionId];
+    return firstLegal(state);
+  };
+
+  it(
+    'Collector II\'s 3 damage is added on top of the restored HP, not erased by a later hard "set" ' +
+      "(mc16.s2.setup.hp-set must run at window beforeScenarioSetup, not the default afterScenarioSetup)",
+    () => {
+      const seats = seatsOf(ONE_SEAT);
+      const recordedHp = 6;
+      // Collector (II)'s own damage-or-discard When Revealed only exists on the *game mode* expert face
+      // ("Collector (II) instead for expert mode" — MC16 p. 10 contents line); `EXPERT_MODE_TOO` sets both that
+      // and the *campaign* expert flag `hpSetSetup`/the heal are gated on (`whenModes: { expertCampaign: true }`).
+      const log = winNodeUnits(
+        freshLog("qa-collector-ii-hp-order", EXPERT_MODE_TOO, seats, 4242),
+        EXPERT_MODE_TOO,
+        "brotherhood-of-badoon",
+        { 1: 1 },
+        1,
+        [1],
+      );
+      const withHp: CampaignLog = {
+        ...log,
+        seats: log.seats.map((seat) => ({
+          ...seat,
+          fields: { ...seat.fields, remainingHp: { kind: "number", value: recordedHp } },
+        })),
+      };
+      const state = realGameAt(withHp, EXPERT_MODE_TOO, "infiltrate-the-museum", seats, [], takeCollectorDamage);
+      const seat1Identity = state.players[0]?.identity.instanceId;
+      if (!seat1Identity) throw new Error("no seat 1 identity");
+      const identityInstance = getInstance(state, seat1Identity);
+      const max = maxHitPoints(state, seat1Identity, WAVE3_DEPS);
+      if (max === undefined) throw new Error("identity has no hit point dial");
+      // Correct order (RRG 1.8 Appendix II + the ruling): restore to recordedHp first, *then* Collector II's own
+      // When Revealed deals 3 more. Buggy order: Collector's 3 damage lands against a freshly-created (full HP)
+      // identity, and is then silently wiped out by `setRemainingHitPoints`'s hard set back to `max - recordedHp`.
+      expect(identityInstance?.damage).toBe(max - recordedHp + 3);
+    },
+  );
 });
 
 describe("MC16 p. 10 — the optional 1-unit heal: declined, accepted, and unaffordable (never even offered)", () => {

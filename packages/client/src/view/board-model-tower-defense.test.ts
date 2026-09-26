@@ -57,6 +57,15 @@ describe("Tower Defense: two main schemes, one attached", () => {
     expect(model.mainScheme.name).not.toBe(extra!.name);
   });
 
+  test("the second main scheme is not drawn again as a side scheme", async () => {
+    const store = await afterSetup(TOWER_DEFENSE);
+    const state = store.state.game!;
+    const model = boardModel(state, store.state.perspectiveId!, POOL_DEPS);
+
+    const mainIds = [model.mainScheme.instanceId, ...model.extraMainSchemes.map((scheme) => scheme.instanceId)];
+    for (const side of model.sideSchemes) expect(mainIds).not.toContain(side.instanceId);
+  });
+
   test("Focused Defense is attached to the second main scheme and shows on its panel", async () => {
     const store = await afterSetup(TOWER_DEFENSE);
     const state = store.state.game!;

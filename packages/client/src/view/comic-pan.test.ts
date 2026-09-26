@@ -1,6 +1,16 @@
 import { describe, expect, it } from "vitest";
 import { storyFor } from "../campaign/story.js";
-import { containFit, panCropAt, panelFitsInPageCrop, planPan } from "./comic-pan.js";
+import {
+  cinematicCameraPlan,
+  containFit,
+  cropForFrame,
+  frameAt,
+  lerpFrame,
+  needsSpotlightPan,
+  panCropAt,
+  panelFitsInPageCrop,
+  planPan,
+} from "./comic-pan.js";
 
 describe("panelFitsInPageCrop", () => {
   it("is true for a panel narrower/shorter than the page's own cover-fit crop window", () => {
@@ -164,4 +174,185 @@ describe("every gmw/mts panel, panned (or reduced-motion contained), shows its o
       }
     }
   }
+});
+
+describe("needsSpotlightPan", () => {
+  // The actual "NEXT ▸ stays disabled" bug: `SpotlightAutoPan` (`ui/comic-reader.ts`) used to start a 3.2s tween
+  // for *every* beat change regardless of whether the beat had anything to animate, and a tween that redraws the
+  // whole scene (including rebuilding the CTA button) every frame for its own full duration could drop a tap that
+  // landed between two of those frames. `needsSpotlightPan` is the gate that stops the tween from starting at all
+  // once there's nothing for it to do.
+  const desktop = { width: 1440, height: 718 };
+
+  it("is false once the page-context draw handles the beat (GMW's own ordinary panel)", () => {
+    // 01-badoon beat 2 (`stories/gmw.ts`): fits the page's own crop, so `drawSpotlightPageContext` never reads a
+    // pan progress at all.
+    expect(needsSpotlightPan({ x: 73, y: 1088, w: 1351, h: 336 }, { width: 1500, height: 1500 }, desktop)).toBe(false);
+  });
+
+  it("is false for a full-bleed panel that fills the reading area exactly (no overflow on either axis)", () => {
+    const panel = { x: 0, y: 0, w: 1440, h: 718 };
+    expect(needsSpotlightPan(panel, { width: panel.w, height: panel.h }, desktop)).toBe(false);
+  });
+
+  it("is true for the actual MTS bug shape — a full-width panel taller than the page's own crop window", () => {
+    expect(needsSpotlightPan({ x: 0, y: 0, w: 1500, h: 820 }, { width: 1500, height: 1500 }, desktop)).toBe(true);
+  });
+});
+
+describe("frameAt / lerpFrame / cropForFrame — the cinematic reader's own camera math", () => {
+  const target = { width: 1440, height: 718 };
+  const source = { width: 1500, height: 1500 };
+
+  it("frameAt(..., 0) and frameAt(..., 1) bracket a panel's own overflow the same way panCropAt's start/end do", () => {
+    const panel = { x: 0, y: 0, w: 1500, h: 820 };
+    const plan = planPan(panel, target);
+    const start = frameAt(panel, plan, 0);
+    const end = frameAt(panel, plan, 1);
+    const startCrop = cropForFrame(start, target, source);
+    const endCrop = cropForFrame(end, target, source);
+    expect(startCrop.cropY).toBeCloseTo(panel.y, 1);
+    expect(endCrop.cropY + endCrop.cropHeight).toBeCloseTo(panel.y + panel.h, 1);
+  });
+
+  it("cropForFrame never opens past the source page's own edges", () => {
+    const frame = { cx: -500, cy: -500, scale: 2 };
+    const crop = cropForFrame(frame, target, source);
+    expect(crop.cropX).toBeGreaterThanOrEqual(0);
+    expect(crop.cropY).toBeGreaterThanOrEqual(0);
+    expect(crop.cropX + crop.cropWidth).toBeLessThanOrEqual(source.width + 0.01);
+    expect(crop.cropY + crop.cropHeight).toBeLessThanOrEqual(source.height + 0.01);
+  });
+
+  it("lerpFrame(a, b, 0) is a, lerpFrame(a, b, 1) is b, and it's linear in between", () => {
+    const a = { cx: 100, cy: 200, scale: 0.5 };
+    const b = { cx: 300, cy: 100, scale: 1.5 };
+    expect(lerpFrame(a, b, 0)).toEqual(a);
+    expect(lerpFrame(a, b, 1)).toEqual(b);
+    const mid = lerpFrame(a, b, 0.5);
+    expect(mid.cx).toBeCloseTo(200, 5);
+    expect(mid.cy).toBeCloseTo(150, 5);
+    expect(mid.scale).toBeCloseTo(1, 5);
+  });
+});
+
+describe("cinematicCameraPlan", () => {
+  const desktop = { width: 1440, height: 718 };
+
+  it("leaves an already-close-to-frame-aspect panel uncapped — MTS p1 beat 0's own 'perfect' pan is unchanged", () => {
+    const panel = { x: 0, y: 0, w: 1500, h: 820 };
+    const page = { width: 1500, height: 1500 };
+    const uncapped = planPan(panel, desktop);
+    const plan = cinematicCameraPlan(panel, page, desktop);
+    expect(plan.start.scale).toBeCloseTo(uncapped.scale, 5);
+    expect(plan.axis).toBe("y");
+    // Same start/end y as the uncapped plan: panel top, then panel bottom.
+    expect(plan.start.cy).toBeCloseTo(panel.y + uncapped.cropHeight / 2, 1);
+    expect(plan.end.cy).toBeCloseTo(panel.y + panel.h - uncapped.cropHeight / 2, 1);
+  });
+
+  it("caps a severely mismatched panel's zoom and shows real margin instead of a tight crop", () => {
+    // MTS p4-hel's party-photo inset: a near-square panel on a wide desktop reading area covers at 2.4x, over
+    // 1.6x its own contain scale — this must pull back rather than zoom in that far.
+    const panel = { x: 1320, y: 0, w: 600, h: 480 };
+    const page = { width: 1920, height: 960 };
+    const uncapped = planPan(panel, desktop);
+    const plan = cinematicCameraPlan(panel, page, desktop);
+    expect(plan.start.scale).toBeLessThan(uncapped.scale);
+    // The capped crop is wider than the panel on the axis that used to match it exactly (no more tight crop there).
+    const cappedCropWidth = desktop.width / plan.start.scale;
+    expect(cappedCropWidth).toBeGreaterThan(panel.w);
+  });
+
+  it("never opens the crop past the page's own edges even when centering a capped, margin-gaining axis", () => {
+    // A panel hard against the page's own left edge: centering it with a wide margin must clamp inward, not
+    // request page-pixel x < 0.
+    const panel = { x: 0, y: 0, w: 300, h: 900 };
+    const page = { width: 1920, height: 960 };
+    const plan = cinematicCameraPlan(panel, page, { width: 1440, height: 900 });
+    const cropWidth = 1440 / plan.start.scale;
+    expect(plan.start.cx - cropWidth / 2).toBeGreaterThanOrEqual(-0.01);
+  });
+
+  it("honors an explicit reverse direction on whichever axis still overflows after capping", () => {
+    const panel = { x: 0, y: 0, w: 1500, h: 820 };
+    const page = { width: 1500, height: 1500 };
+    const plan = cinematicCameraPlan(panel, page, desktop, "up");
+    expect(plan.start.cy).toBeGreaterThan(plan.end.cy);
+  });
+
+  it("never pulls back past the page's own cover-fit scale — the actual TRORS bug (a narrow tall panel's own contain scale asked for a crop wider than the page itself, leaving a blank margin)", () => {
+    // 01-siege beat 0 (`stories/trors.ts`): a 470×1195 sliver on an 1800×1800 page. Its own contain scale (~0.6)
+    // sits below the page's own cover-fit scale (0.8 at this desktop size) — capping to the panel's own contain
+    // scale would leave the frame narrower than `target.width`, a visible gap down one side.
+    const panel = { x: 0, y: 0, w: 470, h: 1195 };
+    const page = { width: 1800, height: 1800 };
+    const plan = cinematicCameraPlan(panel, page, desktop);
+    const pageCoverScale = Math.max(desktop.width / page.width, desktop.height / page.height);
+    expect(plan.start.scale).toBeGreaterThanOrEqual(pageCoverScale - 1e-9);
+    // The crop this scale implies never exceeds the page's own width — cropForFrame would otherwise have to
+    // clamp it down and leave a gap.
+    const cropWidth = desktop.width / plan.start.scale;
+    expect(cropWidth).toBeLessThanOrEqual(page.width + 0.01);
+  });
+
+  it("never lets a neighbor panel dominate the frame — the actual TRORS bug (03-absorbing-man's own red-flash panel, near the page's right edge, was framed almost entirely on the panel to its own left)", () => {
+    // A 375×855 sliver near the page's own right edge: the contain-derived cap alone asks for a crop over 1500px
+    // wide (the panel is barely a quarter of it), and clamping that to the page's own bounds pins nearly all of it
+    // to the *left* of the panel — reading as centered on the wrong panel even though the target technically stays
+    // inside the frame.
+    const panel = { x: 1345, y: 45, w: 375, h: 855 };
+    const page = { width: 1800, height: 1800 };
+    const plan = cinematicCameraPlan(panel, page, desktop);
+    const cropWidth = desktop.width / plan.start.scale;
+    // The panel itself must occupy at least half the frame's own width — a neighbor may still show as context on
+    // the near side, but it can no longer dominate the shot.
+    expect(cropWidth).toBeLessThanOrEqual(panel.w * 2 + 0.5);
+    // And the panel must still be fully inside the crop, on both axes, at both ends of whatever pan the other
+    // axis needs.
+    for (const frame of [plan.start, plan.end]) {
+      const cw = desktop.width / frame.scale;
+      expect(frame.cx - cw / 2).toBeLessThanOrEqual(panel.x + 0.5);
+      expect(frame.cx + cw / 2).toBeGreaterThanOrEqual(panel.x + panel.w - 0.5);
+    }
+  });
+
+  it("leaves a panel whose slack is already reasonable untouched — MTS p4-hel's own party-photo inset stays at its previously-verified framing", () => {
+    const panel = { x: 1320, y: 0, w: 600, h: 480 };
+    const page = { width: 1920, height: 960 };
+    const plan = cinematicCameraPlan(panel, page, desktop);
+    const cropWidth = desktop.width / plan.start.scale;
+    // Slack here (~237px) is well under the panel's own width (600px) — the neighbor-ratio cap must not engage.
+    expect(cropWidth - panel.w).toBeLessThan(panel.w);
+  });
+
+  it("never zooms a full-page-width strip past its own exact fit — the actual TRORS bug (05-taskmaster beat 0 cropped its own left-edge captions)", () => {
+    // A 1800×460 strip spanning the whole 1800-wide page: containScale is bound by width (0.8 at this desktop
+    // size) and already fits it with zero overflow — `CINEMATIC_MAX_ZOOM_RATIO` alone would still ask for 15% more
+    // zoom than that, overflowing the one axis that was never supposed to crop at all (there's no more page beyond
+    // a panel that already spans its own full width).
+    const panel = { x: 0, y: 0, w: 1800, h: 460 };
+    const page = { width: 1800, height: 1800 };
+    const plan = cinematicCameraPlan(panel, page, desktop);
+    expect(plan.axis).not.toBe("x");
+    const cropWidth = desktop.width / plan.start.scale;
+    expect(cropWidth).toBeGreaterThanOrEqual(panel.w - 0.5);
+  });
+
+  it("a panel wide enough to fall to the page's own cover-fit floor starts already showing content near its own edge — the actual TRORS bug (07-red-skull's balloon, on a phone-sized reading area, never entered the frame during a too-narrow panel's default left-to-right pan)", () => {
+    // The real panel border only runs to about x=1724, but on a narrow phone target the panel's own extreme aspect
+    // (~2:1 landscape on a ~1:1.75 portrait target) forces the neighbor-ratio cap to zoom in far enough that the
+    // resulting crop is too narrow to ever reach a balloon sitting away from the panel's own left edge. Widening the
+    // panel to the page's own right edge instead drops the camera to the page's own cover-fit floor — wide enough on
+    // this axis that the pan's own *start* (not just some later point mid-reveal) already contains the balloon.
+    const panel = { x: 570, y: 1140, w: 1230, h: 570 };
+    const page = { width: 1800, height: 1800 };
+    const phoneTarget = { width: 390, height: 679 };
+    const plan = cinematicCameraPlan(panel, page, phoneTarget);
+    const balloon = { x: 1145, y: 1138, w: 205, h: 80 };
+    const cropWidth = phoneTarget.width / plan.start.scale;
+    const cropX = plan.start.cx - cropWidth / 2;
+    expect(cropX).toBeLessThanOrEqual(balloon.x + 0.5);
+    expect(cropX + cropWidth).toBeGreaterThanOrEqual(balloon.x + balloon.w - 0.5);
+  });
 });
