@@ -21,8 +21,9 @@ import {
   type Picker,
 } from "../../testing/harness.js";
 import { traceAbilities } from "../../testing/trace.js";
+import { wave3Scenario } from "../setup.js";
 import { runWave3, startWave3Game, WAVE3_DEPS } from "../testing.js";
-import { venomScenario } from "./support.js";
+import { VENOM_SEAT, venomScenario } from "./support.js";
 
 /** Real wave 3 content: Venom (a hand-built stand-in deck, `support.ts`) against Rhino (a Core scenario, seated
  * with wave 3 content — `wave3Scenario`'s fallback), standard, solo. Venom starts in alter-ego. */
@@ -141,6 +142,23 @@ describe("Venom's identity (20001a/b)", () => {
       return cardId !== undefined && ["20008", "20010", "20015", "20021", "20022"].includes(cardId);
     });
     expect(weaponInHand).toBe(true);
+  });
+
+  // RRG 1.8 "'Then'" (p. 44): a deck with no weapon upgrade at all is `discardUntilFoundNothing` (docs/then-
+  // sweep.md), so "then add that card to your hand" doesn't attempt to resolve either — there's no card to add.
+  it("with no weapon upgrade anywhere in the deck, nothing is added to hand", () => {
+    const weaponCardIds = new Set(["20008", "20010", "20015", "20021", "20022"]);
+    const deckWithNoWeapons = VENOM_SEAT.deck.filter((id) => !weaponCardIds.has(id as unknown as string));
+    const start = startWave3Game({
+      ...wave3Scenario("rhino", { players: [{ ...VENOM_SEAT, deck: deckWithNoWeapons }], seed: 3 }),
+      requireLegalDecks: false,
+    });
+    const hand = playerOf(start, P1).hand;
+    const weaponInHand = hand.some((id) => {
+      const cardId = start.instances[id]?.cardId as string | undefined;
+      return cardId !== undefined && weaponCardIds.has(cardId);
+    });
+    expect(weaponInHand).toBe(false);
   });
 });
 
