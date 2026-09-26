@@ -12,17 +12,19 @@
  */
 import type {
   CampaignChoiceAnswer,
+  CampaignDefinition,
   CampaignPendingChoice,
   CardInstance,
   GameEvent,
   GameState,
   InstanceId,
+  LogFieldDef,
 } from "@mc/engine";
-import { NO_STATUSES } from "@mc/engine";
-import { cardId, type AnyCard, type CardId, type Deck } from "@mc/content";
+import { createCampaignLog, NO_STATUSES } from "@mc/engine";
+import { campaignId, cardId, scenarioId, type AnyCard, type CardId, type Deck } from "@mc/content";
 import { CARDS_BY_ID, POOL_VERSION } from "../content/pool.js";
 import { MemoryGameStorage } from "../engine/game-storage.js";
-import type { CampaignRecord } from "../engine/campaign-storage.js";
+import { CAMPAIGN_STORAGE_SCHEMA, type CampaignRecord } from "../engine/campaign-storage.js";
 import { EngineSessionCore } from "../engine/session-core.js";
 import { preconDecks } from "../view/deck-list-model.js";
 import type { CampaignService, CampaignStepResult } from "./campaign-service.js";
@@ -517,4 +519,97 @@ export async function seedMtsComposed(
 ): Promise<CampaignRecord> {
   const record = await seedMtsRun(service, stop);
   return settle((answers) => service.compose(record, answers));
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// Hidden-evidence envelope (campaign design Q4) — a synthetic box, not a real one
+// ---------------------------------------------------------------------------------------------------------------
+
+/**
+ * A one-node, no-content synthetic box: MC50 (the first real hidden-log box) isn't scripted yet
+ * (`view/campaign-hidden-evidence-model.ts`'s own doc comment). Exercises the generic contract — a `hidden`
+ * `cardList` field plus this build's own `<id>Revealed` reveal convention — against a real `CampaignRecord`, the
+ * way `view/campaign-hidden-evidence-model.test.ts` exercises it against a bare `CampaignLog` slice. Never in
+ * `@mc/content`'s `CAMPAIGN_RECORDS` or `@mc/cards`' shipped `campaignDefinitionOf`: `session.ts`'s
+ * `registerDevCampaignDefinition` is the only way `campaignService()` ever learns this id, and that registration is
+ * itself a no-op outside `import.meta.env.DEV`.
+ */
+export const HIDDEN_EVIDENCE_FIXTURE_CAMPAIGN_ID = campaignId("dev-hidden-evidence");
+
+const HIDDEN_EVIDENCE_FIELD: LogFieldDef = {
+  id: "sealedEvidence",
+  label: "A.I.M.",
+  scope: "shared",
+  type: { kind: "cardList" },
+  hidden: true,
+  citation: "dev fixture, not a printed box",
+};
+
+const HIDDEN_EVIDENCE_REVEALED_FIELD: LogFieldDef = {
+  id: "sealedEvidenceRevealed",
+  label: "A.I.M. unmasked",
+  scope: "shared",
+  type: { kind: "flag" },
+  citation: "dev fixture, not a printed box",
+};
+
+/** Three real Core cards standing in for MC50's own "secret" cards — the point is the envelope, not their text. */
+const HIDDEN_EVIDENCE_CARD_IDS: readonly CardId[] = [cardId("01003"), cardId("01004"), cardId("01005")];
+
+export const HIDDEN_EVIDENCE_DEFINITION: CampaignDefinition = {
+  campaignId: HIDDEN_EVIDENCE_FIXTURE_CAMPAIGN_ID,
+  version: "dev-1",
+  logFields: [HIDDEN_EVIDENCE_FIELD, HIDDEN_EVIDENCE_REVEALED_FIELD],
+  graph: {
+    kind: "linear",
+    nodes: [
+      {
+        id: "dev-issue",
+        label: "Dev Fixture Issue",
+        scenario: { kind: "fixed", scenarioId: scenarioId("rhino") },
+        setup: [],
+        victory: [],
+      },
+    ],
+  },
+  loss: { retry: "free", retryBaseline: "nodeStart" },
+};
+
+/**
+ * A run of the synthetic box above, sealed or revealed (`view/campaign-hidden-evidence-model.ts`'s `<id>Revealed`
+ * convention) — Dossier's overview and Briefing's top bar both read it straight off `CampaignLog.hidden`/`shared`,
+ * so a single stored record demos both screens. `service` must already resolve
+ * `HIDDEN_EVIDENCE_FIXTURE_CAMPAIGN_ID` (`session.ts`'s `registerDevCampaignDefinition`, called once by whichever
+ * dev entry point seeds this); this function only builds and stores the record, the same `service.storage.create`
+ * every other seat write in this file already uses.
+ */
+export async function seedHiddenEvidenceFixture(service: CampaignService, revealed: boolean): Promise<CampaignRecord> {
+  const decks = preconDecks(POOL_VERSION);
+  const seat = decks.find((deck) => (deck.id as string).includes("spider-man")) ?? decks[0]!;
+  const log = createCampaignLog(HIDDEN_EVIDENCE_DEFINITION, {
+    id: `dev-hidden-evidence-${revealed ? "revealed" : "sealed"}`,
+    seats: [
+      {
+        seatNumber: 1,
+        identityCardId: seat.identityCardId,
+        deck: { identityCardId: seat.identityCardId, aspects: seat.aspects, cards: seat.cards },
+      },
+    ],
+    modes: {},
+    poolVersion: POOL_VERSION,
+    seed: 1,
+  });
+  const at = Date.now();
+  const record: CampaignRecord = {
+    ...log,
+    hidden: { sealedEvidence: { kind: "cardList", cardIds: HIDDEN_EVIDENCE_CARD_IDS } },
+    ...(revealed ? { shared: { sealedEvidenceRevealed: { kind: "flag", value: true as const } } } : {}),
+    recordSchema: CAMPAIGN_STORAGE_SCHEMA,
+    name: "Dev Fixture: Hidden Evidence",
+    box: "DEV",
+    createdAt: at,
+    updatedAt: at,
+  };
+  await service.storage.create(record);
+  return record;
 }

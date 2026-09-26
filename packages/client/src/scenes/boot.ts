@@ -15,8 +15,9 @@ import { deckOptionsOf, preconDecks } from "../view/deck-list-model.js";
 import { corePlayerForSeat } from "../view/deck-seat.js";
 import { initialSetupDraft, toSessionConfig } from "../view/setup-draft.js";
 import { rollSeed } from "../view/seed.js";
-import { appSession } from "../session.js";
+import { appSession, campaignService, registerDevCampaignDefinition } from "../session.js";
 import type { SessionStore } from "../store/session-store.js";
+import { startAllianceDevGame } from "../store/dev-alliance-game.js";
 import { SCENES } from "./keys.js";
 import { boardModel } from "../view/board-model.js";
 import type { DeckBuilderSceneData } from "./deck-builder.js";
@@ -165,6 +166,25 @@ async function devScreenJump(): Promise<{ readonly key: string; readonly data?: 
     return { key: SCENES.board, data: {} };
   }
 
+  // `?screen=alliance`: a real two-seat hot-seat game on War Machine's own turn with Cosmic Alliance (an alliance
+  // card) in hand and Star-Lord's hand free to help pay — the per-helper approval bar (wave 4 Q10,
+  // `scenes/board/controller.ts`'s `confirmingAllianceHelp`) is one play and one pick of a Star-Lord card away.
+  if (screen === "alliance") {
+    await startDevAllianceGame();
+    return { key: SCENES.board, data: {} };
+  }
+
+  // `?screen=hidden-evidence[&revealed=1][&view=briefing]`: the hidden-evidence envelope (campaign design Q4) on a
+  // dev-only synthetic box, sealed or revealed, on the Dossier (default) or the Briefing. Dev builds only: the
+  // fixture's definition is never registered in production (`session.ts`'s `registerDevCampaignDefinition`).
+  if (screen === "hidden-evidence" && import.meta.env.DEV) {
+    const fixtures = await import("../campaign/dev-fixtures.js");
+    registerDevCampaignDefinition(fixtures.HIDDEN_EVIDENCE_DEFINITION);
+    const record = await fixtures.seedHiddenEvidenceFixture(campaignService(), params.get("revealed") === "1");
+    if (params.get("view") === "briefing") return { key: SCENES.campaignBriefing, data: { runId: record.id } };
+    return { key: SCENES.campaignDossier, data: { runId: record.id } };
+  }
+
   return null;
 }
 
@@ -292,6 +312,12 @@ async function startDevVillainInterruptGame(): Promise<void> {
     if (!end) break;
     await store.dispatch(end.example);
   }
+}
+
+async function startDevAllianceGame(): Promise<void> {
+  const { store } = appSession();
+  if (gameRunning(store)) return;
+  await startAllianceDevGame(store);
 }
 
 /**
