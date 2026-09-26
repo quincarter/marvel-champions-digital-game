@@ -122,7 +122,8 @@ export const MSM_KIT = defineAbilities({
   "05001b.teen-spirit": alterEgoAction(
     { limit: oncePerRound },
     discardDeckUntil({ identitySetOf: you }, "found"),
-    moveCards(cards(chosen("found")), "hand"),
+    // No Ms. Marvel card found: `discardUntilFoundNothing` skips the "then" (RRG 1.8 "'Then'", p. 44).
+    andThen(moveCards(cards(chosen("found")), "hand")),
   ),
 
   // Morphogenetics — Response: After you play an Attack, Thwart, or Defense event, exhaust Ms. Marvel → return
