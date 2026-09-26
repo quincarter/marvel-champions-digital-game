@@ -1,4 +1,4 @@
-import { activeEncounterDeck, cardsInPlay, characterProfile, type InstanceId } from "@mc/engine";
+import { activeEncounterDeck, cardsInPlay, characterProfile, type GameState, type InstanceId } from "@mc/engine";
 import {
   answer,
   endTurn,
@@ -15,7 +15,7 @@ import {
   use,
   type Picker,
 } from "../../testing/harness.js";
-import { withDamage } from "../../testing/staging.js";
+import { driveStepwise, withDamage } from "../../testing/staging.js";
 import { wave2Scenario } from "../setup.js";
 import { playFromHand, runWave2, startWave2Game, WAVE2_DEPS } from "../testing.js";
 import { QSV_PACK_CARDS } from "./pack-cards.js";
@@ -227,5 +227,33 @@ describe("Quicksilver pack cards", () => {
     expect(QSV_PACK_CARDS["14030.sense-of-justice-resource"]).toBeDefined();
     expect(QSV_PACK_CARDS["14031.united-we-stand-action"]).toBeDefined();
     expect(QSV_PACK_CARDS["14032.beat-em-up-action"]).toBeDefined();
+  });
+});
+
+// RRG 1.8 "'Then'" (p. 44), docs/then-sweep.md: "cancel its 'When Revealed' effects, then deal 2 damage to the
+// villain". If they are already cancelled when Order and Chaos resolves (surgery at the moment it is offered, standing
+// in for Cosmic Ward or Enhanced Spider-Sense resolving first; a cancelled "When Revealed" does not cancel the reveal,
+// so Order and Chaos can still be triggered), its cancel has nothing to cancel and the damage is skipped.
+describe("Order and Chaos (14018): the damage waits on the cancel", () => {
+  it("with the treachery's 'When Revealed' already cancelled, no damage is dealt", () => {
+    const withPartner = playFromHand(runWave2(qsvVsRhino(), toHero()), "14002", 3);
+    const given = moveToHand(withPartner.state, P1, "14018");
+    const villain = given.state.villains[0]!.instanceId;
+    const stacked = withDamage(stackEncounterDeck(given.state, "01186", "01104"), villain, 0);
+    const acceptAndPay: Picker = (state) => {
+      const choice = state.pendingChoice;
+      if (choice?.prompt.kind === "payForCard") return [choice.options[0]!.optionId];
+      return accepting("14018.order-and-chaos-interrupt")(state);
+    };
+    const offered = (s: GameState) =>
+      s.pendingChoice?.options.some((o) => o.optionId.endsWith(":14018.order-and-chaos-interrupt")) === true;
+    const { state: after, events } = driveStepwise(WAVE2_DEPS, runWave2(stacked, endTurn()), acceptAndPay, (s) =>
+      offered(s)
+        ? { ...s, stack: s.stack.map((f) => (f.kind === "reveal" ? { ...f, whenRevealedCancelled: true } : f)) }
+        : s,
+    );
+    expect(events).toContainEqual(expect.objectContaining({ type: "preThenUnresolved", cause: "nothingToCancel" }));
+    expect(events).toContainEqual({ type: "thenSkipped" });
+    expect(inst(after, villain).damage).toBe(0);
   });
 });
