@@ -1829,11 +1829,15 @@ export function textBoxCannotBeBlanked(state: GameState, id: InstanceId, deps: E
  *   "hero:<id>"`, RRG 1.8 "Identity-Specific Card", p. 23), and its obligation (RRG 1.8 "Obligation", p. 30:
  *   "Identity-specific obligation cards are part of their associated identity's identity-specific set"; the data has
  *   `encounterSetIds: []` on an obligation and links it from the identity's `obligationCardId`, looked up among the
- *   identities in this game).
- * - **Scenario and modular sets** (`set:<encounter set id>`): an encounter card's `encounterSetIds`, and a player card's
- *   `specificTo` scenario/campaign set (Taskmaster's Captive allies, the Hydra Campaign upgrades). A nemesis set is its
- *   own encounter set, not part of the hero set (RRG 1.8 "Identity-Specific Card" lists identity-specific cards
- *   "along with obligation cards and nemesis encounter set cards" as distinct).
+ *   identities in this game), and its nemesis set: FFG ruling June 25, 2026 (4) #1
+ *   (marvel-champions-rulings-post-rrg-1-7.md): "Nemesis sets belong to that identity" (docs/phase7-wave5.md §4.1
+ *   Q43). RRG 1.8 "Identity-Specific Card" (p. 23) lists identity-specific cards "along with obligation cards and
+ *   nemesis encounter set cards" as if distinct; the ruling is the later clarification. A card is linked through the
+ *   identity's `nemesisEncounterSetId`, the field setup sets the nemesis set aside by (`setup.ts`), looked up among
+ *   the identities in this game like the obligation, so another identity's nemesis set is not this hero's set.
+ * - **Scenario and modular sets** (`set:<encounter set id>`): an encounter card's `encounterSetIds` (a nemesis card
+ *   keeps its own encounter set too), and a player card's `specificTo` scenario/campaign set (Taskmaster's Captive
+ *   allies, the Hydra Campaign upgrades).
  *
  * Not the product (`setCode`): the RRG names the three sets, and the set icon is only the product of origin (RRG 1.8
  * "Set Icon", p. 39). A basic or aspect card, and a player card in no scenario set (Milano, `gmw` 16142), is in none of
@@ -1844,11 +1848,12 @@ function permanentSetKeys(state: GameState, card: AnyCard): readonly string[] {
   if (card.type === "hero_identity") keys.push(`hero:${card.id}`);
   const aspect = "aspect" in card ? String(card.aspect) : "";
   if (aspect.startsWith("hero:")) keys.push(aspect);
-  if (card.type === "obligation") {
-    for (const player of state.players) {
-      const identity = state.cardPool[player.identity.cardId];
-      if (identity?.type === "hero_identity" && identity.obligationCardId === card.id) keys.push(`hero:${identity.id}`);
-    }
+  for (const player of state.players) {
+    const identity = state.cardPool[player.identity.cardId];
+    if (identity?.type !== "hero_identity") continue;
+    if (card.type === "obligation" && identity.obligationCardId === card.id) keys.push(`hero:${identity.id}`);
+    if ("encounterSetIds" in card && card.encounterSetIds.includes(identity.nemesisEncounterSetId))
+      keys.push(`hero:${identity.id}`);
   }
   if ("encounterSetIds" in card) for (const setId of card.encounterSetIds) keys.push(`set:${setId}`);
   if ("specificTo" in card && card.specificTo) keys.push(`set:${card.specificTo.encounterSetId}`);
