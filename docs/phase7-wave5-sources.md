@@ -36,7 +36,7 @@ Cycle 4 is one campaign box and four hero packs (no scenario pack). Per **RRG 1.
 
 - Page 2: Components and villain card overview (Sandman, Venom, Mysterio, Sinister Six, Venom Goblin)
 - Page 3: Featured Keywords (Hinder X, Team-Up, Incite X, Patrol, Permanent, Piercing, Requirement (Resources), Setup, Stalwart, Villainous, Victory X, Steady; Victory Display; Amplify icon)
-- Pages 4–8: Campaign mode rules (prohibited cards: Venom Eddie Brock #190, Symbiote Suit #191; campaign-specific player cards 182–189; the "Campaign - Community Service" modular)
+- Pages 4–8: Campaign mode rules (prohibited cards: Venom Eddie Brock #190, Symbiote Suit #191; campaign-specific player cards 182–189; campaign encounter cards 176–180, the "Campaign - Community Service" modular)
 - Pages 9–19: Five scenarios (Sandman, Venom, Mysterio, Sinister Six, Venom Goblin) with setup, villain rules, and modular sets
 - Page 20: Starter deck listings for Ghost-Spider and Spider-Man (Miles)
 - Page 21: Frequently Asked Questions
