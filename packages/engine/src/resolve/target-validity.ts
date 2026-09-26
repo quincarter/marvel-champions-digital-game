@@ -36,6 +36,7 @@ import type { TriggerEvent } from "../trigger-events.js";
 import { createCtx } from "../ctx.js";
 import { selectCards } from "./cards.js";
 import { threatRemovalBlocked } from "./event.js";
+import { thwartCostPayable } from "../thwart-cost.js";
 
 /** Whether this card can take damage from `source` (a `cannotTakeDamage` rule aside). */
 export const canDealDamageTo = (
@@ -105,7 +106,9 @@ function judgedCanAffect(
       context.controllerId,
       thwarter,
       effect.ignorePatrol === true,
-    ) === null
+    ) === null &&
+    // docs/phase7-wave5.md §4.1 Q18: not a target if its additional thwart cost cannot be paid (RRG 1.8 "Cost", p. 13).
+    (context.controllerId === null || thwartCostPayable(state, deps, context.controllerId, id, context.selfInstanceId))
   );
 }
 
@@ -161,6 +164,7 @@ function targetsCanBeInvalid(state: GameState, deps: EngineDeps, playerId: Playe
   if (iconsInPlay(state, deps, "crisis", playerId === null ? null : areaOfPlayer(state, playerId)) > 0) return true;
   return (
     activeRules(state, deps, "threatCannotBeRemoved").length > 0 ||
+    activeRules(state, deps, "additionalThwartCost").length > 0 ||
     activeRules(state, deps, "cannotTakeDamage").length > 0 ||
     activeRules(state, deps, "cannotLeavePlay").length > 0 ||
     cardsInPlay(state).some((id) => isPermanent(state, id, deps))

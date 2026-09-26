@@ -119,6 +119,7 @@ import {
 } from "./select.js";
 import type { Bindings, ReportTarget, Vars } from "./stack.js";
 import type { GameState } from "./state.js";
+import { thwartCostPayable } from "./thwart-cost.js";
 import { characterTitledAs } from "./titles.js";
 import { entersPlayWhenPlayed, matchingCardInPlay, uniqueBlockedMessage } from "./unique.js";
 
@@ -2790,6 +2791,13 @@ function basicThwartPaying(
       reason: "cancelledSchemeOrThwart",
     });
     return null;
+  }
+  // docs/phase7-wave5.md §4.1 Q18: a scheme whose additional thwart cost this player cannot pay is not a legal target
+  // (RRG 1.8 "Cost", p. 13). Checked once the thwart's own costs are paid, against what is then left to spend.
+  for (const { targetInstanceId: schemeId } of shares) {
+    if (!thwartCostPayable(ctx.state, ctx.deps, command.playerId, schemeId)) {
+      return engineError("no_valid_target", "you cannot pay the additional cost to thwart that scheme", command);
+    }
   }
   const thwarterProfile = characterProfile(ctx.state, command.thwarterInstanceId, ctx.deps);
   if (!thwarterProfile) return engineError("unknown_instance", "thwarter has no stats", command);

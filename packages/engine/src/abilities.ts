@@ -656,8 +656,9 @@ export type RuleSpec =
    * "As an additional cost to thwart this scheme, take 2 indirect damage" (Cat in a Tree, `spiderham`); "… you must spend
    * a [energy] resource" (Giant Monster Attack, `spdr`; docs/phase7-wave5.md §3.21). Every thwart of a scheme `scheme`
    * matches asks the thwarting player, before it resolves, to spend `resources` (which they may decline; the thwart is
-   * then cancelled) and then to take `indirectDamage`. Several rules add up. §4 Q18: the scheme stays a legal target
-   * for a player who cannot pay.
+   * then cancelled) and then to take `indirectDamage`. Several rules add up. §4.1 Q18: a player who cannot pay it
+   * cannot choose the scheme as a thwart's target (`thwartCostPayable`, `thwart-cost.ts`); declining at resolution
+   * still cancels the thwart, the fallback when what they could pay with is gone by then.
    */
   | {
       readonly kind: "additionalThwartCost";
