@@ -181,11 +181,13 @@ function keywordListErrors(keywords: unknown, label: string): string[] {
     if (k?.name === "hinder" && k.perPlayer !== undefined && !isPositiveInteger(k.perPlayer)) {
       errors.push(`${label} hinder keyword perPlayer must be a positive whole number when present`);
     }
-    if (
-      (k?.name === "retaliate" || k?.name === "incite" || k?.name === "hinder" || k?.name === "victory") &&
-      !isNonNegativeNumber(k.value)
-    ) {
+    if ((k?.name === "retaliate" || k?.name === "incite" || k?.name === "hinder") && !isNonNegativeNumber(k.value)) {
       errors.push(`${label} keyword ${String(k.name)} needs a numeric value`);
+    }
+    // docs/phase7-wave5.md §1.2: "Victory -1." (Snitches Get Stitches, `sm` 27181). A whole number, negative allowed;
+    // ruling Aug 3, 2026 (4) #2 settles what a negative total does on the reputation track.
+    if (k?.name === "victory" && !Number.isInteger(k.value)) {
+      errors.push(`${label} keyword victory needs a whole-number value (negative allowed)`);
     }
     if (k?.name === "requirement") errors.push(...requirementErrors(k, label));
     if (k?.name === "discount") errors.push(...discountErrors(k, label));
@@ -341,6 +343,12 @@ function baseErrors(card: AnyCard): string[] {
   if (card.amplifyIcons !== undefined && !isPositiveInteger(card.amplifyIcons)) {
     errors.push("amplifyIcons must be a positive whole number when present");
   }
+  // docs/phase7-wave5.md §1.3: scheme icons on a card that is not a scheme; a scheme's own are `icons`.
+  if (card.schemeIcons !== undefined) {
+    errors.push(...schemeIconListErrors(card.schemeIcons, "schemeIcons"));
+    if (card.type === "main_scheme" || card.type === "side_scheme")
+      errors.push("a scheme's printed icons are its icons, not schemeIcons");
+  }
   // docs/phase7-wave4.md §1.7: the other face, emitted as its own card.
   if (card.otherFaceId !== undefined) {
     if (!isNonEmptyString(card.otherFaceId)) errors.push("otherFaceId must be a card id when present");
@@ -352,6 +360,17 @@ function baseErrors(card: AnyCard): string[] {
 }
 
 const MODE_ONLY: readonly string[] = ["standard", "expert"];
+
+const SCHEME_ICONS: readonly string[] = ["crisis", "hazard", "acceleration"];
+
+/** A list of printed scheme icons: each crisis, hazard or acceleration, and at least one when the list is present. */
+function schemeIconListErrors(icons: unknown, label: string): string[] {
+  if (!Array.isArray(icons)) return [`${label} must be an array when present`];
+  if (icons.length === 0) return [`${label} is omitted rather than empty`];
+  return icons.some((icon) => !SCHEME_ICONS.includes(icon as string))
+    ? [`${label} may only hold crisis, hazard or acceleration`]
+    : [];
+}
 
 /**
  * Printed boost icons: a whole number of at least 0. There is no upper bound: Joystick (51039), Fixer (53038) and
@@ -634,6 +653,22 @@ export function validateHeroIdentityCard(card: HeroIdentityCard): ValidationResu
       }
     }
   }
+  // docs/phase7-wave5.md §1.4: every version, weakest first, the card itself among them, no repeats.
+  const progressing = card.progressingIdentity;
+  if (progressing !== undefined) {
+    const versions: unknown =
+      typeof progressing === "object" && progressing !== null ? progressing.versions : undefined;
+    if (!Array.isArray(versions) || versions.length < 2 || !versions.every(isNonEmptyString))
+      errors.push("identity progressingIdentity.versions must list at least two card ids");
+    else {
+      if (!versions.includes(card.id))
+        errors.push("identity progressingIdentity.versions must include the card itself");
+      if (new Set(versions).size !== versions.length)
+        errors.push("identity progressingIdentity.versions repeats a card");
+    }
+    if (card.separatedIdentity !== undefined)
+      errors.push("identity cannot be both a progressing and a separated identity");
+  }
   const separated = card.separatedIdentity;
   if (separated !== undefined) {
     if (typeof separated !== "object" || separated === null)
@@ -775,6 +810,7 @@ function flipSideErrors(
   // docs/phase7-wave3.md §1.2: this face's own amplify icons, a positive whole number when present.
   if (back.amplifyIcons !== undefined && !isPositiveInteger(back.amplifyIcons))
     errors.push(`${side} amplifyIcons must be a positive whole number when present`);
+  if (back.schemeIcons !== undefined) errors.push(...schemeIconListErrors(back.schemeIcons, `${side} schemeIcons`));
   // docs/phase7-wave4.md §1.8.
   if (back.modeOnly !== undefined && !MODE_ONLY.includes(back.modeOnly))
     errors.push(`${side} modeOnly must be 'standard' or 'expert'`);
@@ -908,6 +944,15 @@ export function validateMainSchemeCard(card: MainSchemeCard): ValidationResult {
       // docs/phase7-wave3.md §3.37: present only as `true`.
       if (stage.completionLoses !== undefined && stage.completionLoses !== true)
         errors.push(`${label} completionLoses must be true when present`);
+      // docs/phase7-wave5.md §1.1: the stage's other face, emitted as its own card, and completion flipping to it.
+      if (stage.otherFaceId !== undefined && !isNonEmptyString(stage.otherFaceId))
+        errors.push(`${label} otherFaceId must be a card id when present`);
+      if (stage.onCompletion !== undefined) {
+        if (stage.onCompletion !== "flipToOtherFace")
+          errors.push(`${label} onCompletion must be 'flipToOtherFace' when present`);
+        else if (stage.otherFaceId === undefined) errors.push(`${label} onCompletion flips to an otherFaceId it lacks`);
+        if (stage.completionLoses === true) errors.push(`${label} cannot both flip and lose on completion`);
+      }
       // docs/phase7-wave4.md §1.5: "Proxima Midnight's Scheme."
       if (stage.villainOf !== undefined && !isNonEmptyString(stage.villainOf))
         errors.push(`${label} villainOf must name a villain when present`);
@@ -1072,8 +1117,11 @@ export function validateScenario(scenario: Scenario): ValidationResult {
       errors.push("scenario multipleVillains.encounterDecks must be 'perVillain' or 'shared'");
     if (multi.activation !== "activeVillainOnly")
       errors.push("scenario multipleVillains.activation must be 'activeVillainOnly'");
-    if (multi.winCondition !== "allVillainsDefeated")
-      errors.push("scenario multipleVillains.winCondition must be 'allVillainsDefeated'");
+    if (multi.winCondition !== "allVillainsDefeated" && multi.winCondition !== "cardAbility")
+      errors.push("scenario multipleVillains.winCondition must be 'allVillainsDefeated' or 'cardAbility'");
+    // docs/phase7-wave5.md §1.5.
+    if (multi.atSetup !== undefined && multi.atSetup !== "setAside")
+      errors.push("scenario multipleVillains.atSetup must be 'setAside' when present");
   }
   if (scenario.usesIdentityEncounterSets !== undefined && typeof scenario.usesIdentityEncounterSets !== "boolean") {
     errors.push("scenario usesIdentityEncounterSets must be a boolean");

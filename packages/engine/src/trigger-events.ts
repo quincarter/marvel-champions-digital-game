@@ -345,6 +345,26 @@ export type TriggerEventBody =
    */
   | { readonly kind: "mainSchemeCompleting"; readonly schemeInstanceId: InstanceId; readonly stageIndex: number }
   /**
+   * An enemy **would** activate (docs/phase7-wave5.md §3.2): "Hero Interrupt: When an enemy would activate, cancel that
+   * activation" (Web Binding, `sm` 27006); "Forced Interrupt: When a villain would activate, if no villain is in play,
+   * resolve this card's 'Ambush!' ability. Continue that activation." (Sinister Synchronization 1B / Sinister Beatdown
+   * 2B, 27100b/27101b). Pushed after the status check (a stun or confuse replaces the activation first, FAQ "Norman
+   * Osborn (#1A)", RRG 1.8 p. 58) and only when an ability listens. `enemyInstanceId` is null for the villain's step-2
+   * activation with no villain in play. Its apply step initiates the attack or scheme; a cancelled one never happens.
+   */
+  /**
+   * An acceleration token was placed on this card (docs/phase7-wave5.md §3.4): "Forced Response: After an acceleration
+   * token is placed on this scheme, deal 3 indirect damage to the first player." (Hapless Pedestrians 1B, `sm` 27064b).
+   * Response only; pushed by `addAccelerationToken` only when an ability listens.
+   */
+  | { readonly kind: "accelerationTokenPlaced"; readonly instanceId: InstanceId }
+  | {
+      readonly kind: "enemyActivating";
+      readonly enemyInstanceId: InstanceId | null;
+      readonly activation: "attack" | "scheme";
+      readonly playerId: PlayerId;
+    }
+  /**
    * A boost card's icons are about to be counted for an activation (docs/phase7-wave2.md §3.6): "When boost icons on an
    * encounter card would be counted" (Chaos Control) and "increase or decrease the number of boost icons on that card by
    * 1 for this count" (Scarlet Witch's Crest) interrupt it with `replaceBoostCount` / `adjustBoostCount`. Announced only
@@ -530,6 +550,7 @@ export type TriggerEventKind = TriggerEvent["kind"];
  */
 export function isAnnouncement(event: TriggerEvent): boolean {
   switch (event.kind) {
+    case "accelerationTokenPlaced":
     case "dealDamage":
     case "healDamage":
     case "placeThreat":
@@ -584,6 +605,8 @@ export function isAnnouncement(event: TriggerEvent): boolean {
     case "cardEntersPlay":
     // "When this stage would be completed" (docs/phase7-wave4.md §3.4): the completion is still to come.
     case "mainSchemeCompleting":
+    // "When an enemy would activate" (docs/phase7-wave5.md §3.2): the activation is still to come.
+    case "enemyActivating":
     // "When the last lock counter is removed from here" (docs/phase7-wave4.md §3.15): the removal is still to come.
     case "countersRemoved":
     // "Interrupt: When attached side scheme is defeated" (Chance Encounter, Followed, Ambush, Twisted Reality;
@@ -658,6 +681,10 @@ export function eventSubjects(event: TriggerEvent): EventSubjects {
     case "mainSchemeCompleted":
     case "mainSchemeCompleting":
       return of([], [event.schemeInstanceId], []);
+    case "enemyActivating":
+      return of([event.enemyInstanceId], [event.enemyInstanceId], [event.playerId]);
+    case "accelerationTokenPlaced":
+      return of([], [event.instanceId], []);
     case "boostIconsCounting":
       return of([event.enemyInstanceId], [event.cardInstanceId], [event.playerId]);
     case "basicPowerUsed":

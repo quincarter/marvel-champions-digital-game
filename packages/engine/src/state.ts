@@ -336,6 +336,15 @@ export interface GameAreaState {
 export interface ScenarioRules {
   readonly victory: "finalVillainStage" | "cardAbility";
   readonly separateGameAreas: boolean;
+  /**
+   * Where the active counter goes when the villain holding it is defeated. Absent: The Wrecking Crew insert's rule (the
+   * villain whose side scheme has the most threat). `nextInActivationOrder`: The Sinister Six, MC27 p. 15, "After the
+   * villain with the active counter is defeated, move the active counter to the next villain in the activation order.
+   * If no other villains are in play, set the active counter aside." It also turns on the FAQ (RRG 1.8 p. 62): a
+   * villain activating while none in play has the counter gives it to the lowest activation order value.
+   * docs/phase7-wave5.md §3.1.
+   */
+  readonly activeCounter?: "nextInActivationOrder";
   /** `GameSetupConfig.victoryCondition` (Loki's count; docs/phase7-wave4.md §3.7). Absent in every other game. */
   readonly victoryCondition?: number;
   /**

@@ -153,6 +153,11 @@ export interface TargetQuery {
   readonly anyAspect?: readonly string[];
   readonly exhausted?: boolean;
   readonly hasThreat?: boolean;
+  /**
+   * At least one counter of this type is on the card: "the main scheme with the glider counter" (Venom Goblin, MC27
+   * p. 17; docs/phase7-wave5.md §3.3). Exclusion `missingCounter`.
+   */
+  readonly hasCounter?: string;
   readonly damaged?: boolean;
   readonly hasStatus?: "stunned" | "confused" | "tough";
   /**
@@ -638,6 +643,12 @@ export type ValueSpec =
    * `of` absent is the active villain ("the villain").
    */
   | { readonly kind: "villainStageNumber"; readonly of?: TargetRef }
+  /**
+   * A villain's printed "Activation Order X" (`VillainCard.activationOrder`; The Sinister Six, MC27 p. 15), 0 for a villain
+   * without one or a card that is not a villain. The measure of "the villain with the lowest activation order value"
+   * (`superlative`). docs/phase7-wave5.md §3.1.
+   */
+  | { readonly kind: "activationOrder"; readonly of: TargetRef }
   /**
    * "The victory condition" (All Hail King Loki 1B, `mts` 21165b): the number the scenario sets for the modes being played
    * (`Scenario.victoryCondition`, rookie 1 / standard 2 / expert 3 / heroic 4). 0 in a game that sets none.
@@ -1829,7 +1840,40 @@ export type EffectSpec =
    * and becomes its active villain; otherwise it takes the active counter if the active villain is defeated. Its
    * toughness applies (RRG 1.8 "Toughness"); `reveal` also resolves its When Revealed ("Reveal Kang (III)").
    */
-  | { readonly kind: "addVillain"; readonly villain: TargetRef; readonly reveal?: boolean }
+  | {
+      readonly kind: "addVillain";
+      readonly villain: TargetRef;
+      readonly reveal?: boolean;
+      /**
+       * The villains now in play to slot `bind`, their number to `<bind>.count`: "If no villain was put into play this
+       * way" (Sinister Beatdown 2A, Surprise!; `sm` 27101a, 27112). A villain already in play does not enter again.
+       * docs/phase7-wave5.md §3.1, the `putIntoPlay.bind` shape (docs/phase7-wave4.md §3.59).
+       */
+      readonly bind?: string;
+    }
+  /**
+   * "Set this villain aside." (the Sinister Six villains' When Defeated, `sm` 27094–27099; MC27 p. 15): the villain leaves
+   * play (or, already defeated, stays out of it) and returns to the set-aside area, where `addVillain` can bring it back.
+   * RRG 1.8 "Leaves Play" (p. 27): it comes back a new copy, so its damage, status cards, counters and exhausted state
+   * are cleared as it is set aside; its attachments and boost cards are discarded. A set-aside villain stays listed in
+   * `GameState.villains` as `defeated` (out of play), so an active counter left on it means "the villain" is nobody.
+   * docs/phase7-wave5.md §3.1.
+   */
+  | { readonly kind: "setVillainAside"; readonly villain: TargetRef }
+  /**
+   * "Move the active counter to the next villain in the activation order." MC27 p. 15: "move the active counter from the
+   * villain who has it to the villain with the next ascending value in the order. If there is no activation order value
+   * greater than the current villain's value, move the active counter to the villain with the lowest activation order
+   * value." Only villains in play count; with none other in play it stays (MC27 p. 21 FAQ). docs/phase7-wave5.md §3.1.
+   */
+  | { readonly kind: "moveActiveCounter"; readonly to: "nextInActivationOrder" }
+  /**
+   * "Move the glider counter to the main scheme with the least threat" (Venom Goblin, MC27 p. 17); "moving all counters
+   * on this card … to her" (SP//dr Suit 1B, `spdr` 31001b). Every counter of `counterType` (absent: of every type) on
+   * each card `from` names goes to the first card `to` names; with no `to`, nothing moves. A move is not a removal, so
+   * it announces no `countersRemoved` and never empties a uses card. Log `countersMoved`. docs/phase7-wave5.md §3.3.
+   */
+  | { readonly kind: "moveCounters"; readonly from: TargetRef; readonly to: TargetRef; readonly counterType?: string }
   /**
    * "Remove Kang (Immortus) and this stage from the game": a villain leaves play, removed from the game rather than
    * defeated (no When Defeated, no win). Its attachments and boost cards are discarded as it leaves.

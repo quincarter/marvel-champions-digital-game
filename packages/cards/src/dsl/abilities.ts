@@ -541,6 +541,16 @@ export const playersCannotDiscard = (target: TargetQuery): ConstantPart => ({
 export const cannotChooseToDiscard: ConstantPart = { rules: [{ kind: "cannotChooseToDiscard" }] };
 export const focusedMainScheme = (): ConstantPart => rule({ kind: "focusedMainScheme", scheme: { kind: "host" } });
 /**
+ * Venom Goblin's glider counter as a scenario rule (MC27 p. 17; docs/phase7-wave5.md §3.3): the main scheme with the
+ * counter is the one encounter cards, enemy threat, acceleration tokens, patrol and crisis mean. Put it in the
+ * scenario's rule specs (`GameSetupConfig.scenarioRuleSpecs`, wave 4 §3.40), not on a card.
+ */
+export const mainSchemeMarkedBy = (counterType: string): RuleSpec => ({
+  kind: "focusedMainScheme",
+  scheme: { kind: "each", query: { categories: ["mainScheme"], hasCounter: counterType } },
+  encounterCards: "focused",
+});
+/**
  * "The first [X] the engaged player reveals each villain phase gains surge." (Mister Knife, `stld` 17026); "The
  * first [Technique] attachment revealed each round gains surge." (Nebula I–III, `gmw`; docs/phase7-wave3.md §3.8).
  * `revealer` narrows *who* has to reveal it ("the engaged player" is `engagedPlayerOf(self)`); absent matches
@@ -1111,6 +1121,19 @@ export const on = {
    * on a forced interrupt, `forcedInterrupt(on.mainSchemeCompleting("self"), instead(…))`.
    */
   mainSchemeCompleting: (what: Who): EventPattern => pattern("mainSchemeCompleting", asTarget(what)),
+  /**
+   * "When an enemy would activate" (Web Binding, `sm` 27006) / "When a villain would activate" (Sinister
+   * Synchronization 1B, 27100b), before the activation's attack or scheme (docs/phase7-wave5.md §3.2). `who` narrows the
+   * enemy; with no villain in play the villain's step-2 activation names none, so "if no villain is in play" is
+   * `on.enemyActivating()` with that condition. Cancel it with `cancelIt()`; "that minion" is `eventTarget`.
+   */
+  /**
+   * "After an acceleration token is placed on this scheme" (Hapless Pedestrians 1B, `sm` 27064b): `"self"` on the scheme
+   * (docs/phase7-wave5.md §3.4).
+   */
+  accelerationTokenPlaced: (on_: Who): EventPattern => pattern("accelerationTokenPlaced", asTarget(on_)),
+  enemyActivating: (who?: Who): EventPattern =>
+    pattern("enemyActivating", ...(who === undefined ? [] : [asTarget(who)])),
   /**
    * "After the last invocation counter is removed from Fireball" (`mts` 21076–21079) / "When the last lock counter is
    * removed from here" (Holding Cell, `aos` 50105a) / "After the last power counter is removed from here" (Phoenix Force):

@@ -293,6 +293,8 @@ export const countAmong = (cardsRef: TargetRef, q: TargetQuery): ValueSpec => ({
  * packs (`wave1/gob/local.ts` first) carried an identical per-pack copy of this builder predating its
  * centralization here, the same situation `superlative`/`printedCostOf` were in.
  */
+/** A villain's "Activation Order X" (The Sinister Six; docs/phase7-wave5.md §3.1): the `superlative` measure. */
+export const activationOrderOf = (of: TargetRef): ValueSpec => ({ kind: "activationOrder", of });
 export const villainStageNumberOf = (of?: TargetRef): ValueSpec => ({
   kind: "villainStageNumber",
   ...(of ? { of } : {}),

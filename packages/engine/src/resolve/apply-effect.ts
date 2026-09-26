@@ -29,6 +29,7 @@ import {
   healDamage,
   removeAccelerationToken,
   removeCounters,
+  moveCounters,
   flipVillain,
   removeStatus,
   setActiveVillain,
@@ -54,9 +55,11 @@ import {
   inAnyEncounterDiscard,
   isMinion,
   locateCard,
+  mainSchemeStateOf,
   maxHitPoints,
   mustInstance,
   mustPlayer,
+  nextVillainInActivationOrder,
   turnInProgress,
   villainOf,
 } from "../query.js";
@@ -97,9 +100,11 @@ import { advanceMainSchemeStage, checkDefeats, completeMainScheme } from "./defe
 import {
   addVillains,
   createGameArea,
+  flipMainSchemeStage,
   putMainSchemeStageIntoPlay,
   removeMainSchemeStage,
   removeVillains,
+  setVillainsAside,
   revealMainSchemeStages,
 } from "./game-areas.js";
 import { announceDamagePrevented, readyOrAnnounce, threatRemovalBlocked } from "./event.js";
@@ -1007,7 +1012,7 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
     case "addAccelerationToken": {
       const count = effect.count ? Math.max(0, value(effect.count)) : 1;
       // "Place 1 acceleration token here for each side scheme in play": `target` absent is the central main scheme.
-      const schemes = effect.target ? targets(effect.target) : [ctx.state.mainScheme.instanceId];
+      const schemes: readonly (InstanceId | undefined)[] = effect.target ? targets(effect.target) : [undefined];
       for (const scheme of schemes) for (let i = 0; i < count; i++) addAccelerationToken(ctx, scheme);
       return;
     }
@@ -1027,6 +1032,10 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
           if (!other?.stages[villain.stageIndex]) continue;
           flipVillain(ctx, id, other.side);
           frames.push(...gameAbilityFrames(ctx, id, ["whenRevealed"], null, undefined, ctx.state.firstPlayerId));
+        } else if (mainSchemeStateOf(ctx.state, id)) {
+          // A main scheme stage with its other face emitted as its own card (docs/phase7-wave5.md §3.3): "Flip this
+          // card" turns it to that face without revealing it.
+          if (flipMainSchemeStage(ctx, id, false, ctx.state.firstPlayerId) === false) continue;
         } else if (card?.otherFaceId !== undefined) {
           // docs/phase7-wave4.md §3.10. Its new face goes to "you" (the first player, for a side scheme's When Defeated).
           const playerId = context.controllerId ?? ctx.state.firstPlayerId;
@@ -1160,10 +1169,42 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       return;
     case "addVillain": {
       const actor = context.scopedPlayerId ?? context.controllerId ?? ctx.state.firstPlayerId;
-      pushFrames(
+      const added = addVillains(
         ctx,
-        addVillains(ctx, targets(effect.villain), contextArea(ctx.state, context), effect.reveal ?? false, actor),
+        targets(effect.villain),
+        contextArea(ctx.state, context),
+        effect.reveal ?? false,
+        actor,
       );
+      // "If no villain was put into play this way" (docs/phase7-wave5.md §3.1).
+      if (effect.bind) {
+        const slot = effect.bind;
+        updateFrame(ctx, frame.frameId, (f) =>
+          f.kind === "effects"
+            ? {
+                ...f,
+                bindings: { ...f.bindings, [slot]: added.entered },
+                vars: { ...f.vars, [`${slot}.count`]: added.entered.length },
+              }
+            : f,
+        );
+      }
+      pushFrames(ctx, added.frames);
+      return;
+    }
+    case "moveCounters": {
+      const [to] = targets(effect.to);
+      if (!to) return;
+      for (const from of targets(effect.from)) moveCounters(ctx, from, to, effect.counterType);
+      return;
+    }
+    case "setVillainAside":
+      setVillainsAside(ctx, targets(effect.villain));
+      return;
+    case "moveActiveCounter": {
+      // MC27 p. 15 and its p. 21 FAQ: a lone villain keeps the counter.
+      const next = nextVillainInActivationOrder(ctx.state, ctx.state.activeVillainId);
+      if (next) setActiveVillain(ctx, next, "activationOrder");
       return;
     }
     case "removeVillain":

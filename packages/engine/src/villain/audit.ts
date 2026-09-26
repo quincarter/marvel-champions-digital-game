@@ -19,6 +19,7 @@ import type { GameEvent } from "../events.js";
 import type { ChoiceId, InstanceId, PlayerId } from "../ids.js";
 import { isMinion, mainSchemeValue } from "../query.js";
 import { grantedIcons } from "../rules.js";
+import { gliderMainSchemeId, offSchemeAccelerationTokens } from "../select.js";
 import type { Form, GameState, GameStep } from "../state.js";
 
 export interface VillainActivationRecord {
@@ -114,7 +115,8 @@ function observeShadow(shadow: Shadow, state: GameState, event: GameEvent): void
       shadow.eliminated.add(event.playerId);
       return;
     case "accelerationTokenAdded":
-      shadow.tokens = event.total;
+      // Only the central stage's count (another stage's carries `schemeInstanceId`).
+      if (event.schemeInstanceId === undefined) shadow.tokens = event.total;
       return;
     case "mainSchemeAdvanced":
       shadow.mainStage = event.stageIndex;
@@ -276,6 +278,11 @@ class PhaseTracker {
           const expected =
             mainSchemeValue(atStage, "acceleration", this.deps) +
             shadow.tokens +
+            // Tokens on other cards (docs/phase7-wave5.md §3.4), when the central stage is "the main scheme".
+            ((gliderMainSchemeId(this.state, this.deps) ?? this.state.mainScheme.instanceId) ===
+            this.state.mainScheme.instanceId
+              ? offSchemeAccelerationTokens(this.state)
+              : 0) +
             schemeIcons(this.state, shadow, "acceleration") +
             grantedIcons(this.state, this.deps, "acceleration");
           this.accelerationThreat = { placed: trigger.amount, expected };

@@ -56,10 +56,16 @@ export interface Correction {
    * Fallen Warrior (`mts` 21153) puts the ally it discards for into play "with Fallen Warrior attached to it" by
    * its own When Revealed. Unlike every other `Correction` field, this is never applied to text — the printed card
    * really has no attach sentence, and the pipeline must not fabricate one just to satisfy the schema's mandatory
-   * `attachesTo` field. Limited to the two structural kinds these cards need; widen only with a cited card that
-   * needs a different one.
+   * `attachesTo` field. Widened (wave 5, docs/phase7-wave5.md §1.9) for two more cards whose "Attach to"/"Attach
+   * X to" clause sits inside a `When Revealed:` ability body rather than as its own preamble sentence, so the
+   * parser's `sentence.startsWith("Attach to ")` preamble scan never sees it: Manipulated Mind (`sm` 27171,
+   * "When Revealed: Attach to the ally you control with the lowest cost...") is `"ally"` (the specific "lowest
+   * cost" narrowing is the When Revealed ability's own job, the same way Focused Defense's host is just
+   * `"mainScheme"` rather than "the stage this ability names"); Old Grudge (`sm` 27172, "When Revealed: Search
+   * ... for your nemesis minion ... Attach Old Grudge to it.") is `"minion"` (the specific minion is the search's
+   * own result). Widen further only with another cited card that needs a different structural kind.
    */
-  readonly impliedAttachHost?: "mainScheme" | "ally";
+  readonly impliedAttachHost?: "mainScheme" | "ally" | "minion";
 }
 
 /**
@@ -142,6 +148,20 @@ export interface MultipleVillainsCuration {
    * scenario's own sets, instead of The Wrecking Crew's one deck per villain. Absent = `"perVillain"`.
    */
   readonly encounterDecks?: "perVillain" | "shared";
+  /**
+   * `MultipleVillains.winCondition` (wave 5, docs/phase7-wave5.md §1.5 — The Sinister Six): defeating every
+   * villain in play does not win by itself; the scenario wins by its own main scheme's card ability (Light at
+   * the End's "the players escape and win the game"). Absent = `"allVillainsDefeated"` (The Wrecking Crew,
+   * Tower Defense).
+   */
+  readonly winCondition?: "cardAbility";
+  /**
+   * `MultipleVillains.atSetup` (wave 5, docs/phase7-wave5.md §1.5): every listed villain starts set aside
+   * (`encounterSetAside`) instead of in play; the main scheme's own Setup puts them into play. Absent = every
+   * villain starts in play (The Wrecking Crew, Tower Defense, Loki's own set-aside villains are a different,
+   * `Scenario.setAsideVillainCardCodes`, shape).
+   */
+  readonly atSetup?: "setAside";
 }
 
 /**

@@ -33,7 +33,7 @@ import {
   threatCannotBeRemoved,
   iconsInPlay,
 } from "../rules.js";
-import { canAttack, cardsInPlay, characterIgnores, controllerOf } from "../select.js";
+import { canAttack, cardsInPlay, characterIgnores, controllerOf, isProtectedMainScheme } from "../select.js";
 import { currentActivationFrameId, type StackFrame, type Vars } from "../stack.js";
 import type { GameState } from "../state.js";
 import type { TriggerEvent } from "../trigger-events.js";
@@ -59,6 +59,7 @@ import {
   pushEvents,
 } from "./frames.js";
 import { finishTurn, pushPhaseEndDelayed } from "../flow.js";
+import { continueActivation } from "../villain/phase.js";
 import { resolveSurge } from "./reveal.js";
 import { candidatesFor, eachTimeEffectsFor, hasCandidates, heard } from "./triggers.js";
 import { pushWindow } from "./window.js";
@@ -349,6 +350,9 @@ function applyEvent(ctx: Ctx, frame: Frame<"event">): boolean | void {
       return applySchemeDefeated(ctx, event);
     case "mainSchemeCompleting":
       return applyMainSchemeCompleting(ctx, event);
+    case "enemyActivating":
+      continueActivation(ctx, event);
+      return;
     case "countersRemoved": {
       const removed = removeCounters(ctx, event.instanceId, event.counterType, event.amount);
       addFrameVars(ctx, frame.frameId, { amount: removed });
@@ -789,7 +793,7 @@ export function threatRemovalBlocked(
   // With separate game areas, only the icons in the scheme's own area count (docs/phase7-wave2.md §3.1).
   if (
     !ignoreCrisis &&
-    mainSchemeStateOf(state, schemeId) &&
+    isProtectedMainScheme(state, deps, schemeId) &&
     byPlayer &&
     iconsInPlay(state, deps, "crisis", areaOfCard(state, schemeId)) > 0 &&
     !characterIgnores(state, deps, acting, "crisis")
@@ -802,7 +806,7 @@ export function threatRemovalBlocked(
     byThwart &&
     !ignorePatrol &&
     thwartingPlayerId &&
-    mainSchemeStateOf(state, schemeId) &&
+    isProtectedMainScheme(state, deps, schemeId) &&
     patrolledBy(state, deps, thwartingPlayerId) &&
     !characterIgnores(state, deps, thwarterInstanceId, "patrol")
   )

@@ -1,10 +1,16 @@
 /** Step 5: main schemes — one card per scenario set, one stage per A/B record pair. */
 import type {
+  CardText,
   MainSchemeCard,
   MainSchemeStage,
   MainSchemeThreatField,
   ScalingValue,
 } from "../../../src/schema/index.ts";
+
+/** `unerrataedText("")` inlined — importing the schema's runtime helper here trips a `.js`-extension resolution
+ * issue under `--experimental-strip-types` for this file's dependency graph; the literal is equivalent. */
+const emptyText: CardText = { printed: "", current: "" };
+import type { RawCard } from "../raw-types.ts";
 import { imageOf } from "./art.ts";
 import { brand } from "./brand.ts";
 import {
@@ -16,8 +22,133 @@ import {
   record,
   type NormalizeContext,
 } from "./context.ts";
+import { normalizeEncounterCard } from "./encounter-cards.ts";
 import { prepare, type Prepared } from "./prepare.ts";
 import { scalingOf, schemeIcons } from "./values.ts";
+
+/**
+ * Venom Goblin's lettered main scheme chain (docs/phase7-wave5.md §1.1): every stage's linked record is an
+ * `environment`, not the ordinary main-scheme B side. Skies Over New York (A) prints only a `Setup:` A side and its
+ * "linked" record is its own environment restating the scenario rules; Lower/Midtown/Upper Manhattan (B–D) print
+ * their scheme text and threat values directly on the "a" record (MarvelCDB has no real B side for them at all —
+ * their "b" is the environment they flip to), with `stage` a bare letter ("A"–"D") rather than the ordinary "1A"
+ * form. One `MainSchemeCard` is still emitted (id = the first, "A", record's own code), each stage carrying
+ * `otherFaceId` to its own emitted `EnvironmentCard`, and stages B–D carrying `onCompletion: "flipToOtherFace"`
+ * (the p. 67 erratum). Stage A never holds threat (its `aSide` is the Setup, top-level fields all `dashedValues`).
+ */
+function normalizeLetteredSchemeChain(
+  ctx: NormalizeContext,
+  aSides: readonly RawCard[],
+  set: string,
+  mainSchemeIdBySet: Map<string, string>,
+): void {
+  const { errors } = ctx;
+  const ordered = [...aSides].sort((x, y) => (x.stage ?? "").localeCompare(y.stage ?? ""));
+  const first = ordered[0];
+  if (!first) return;
+  const firstPrepared = prepare(ctx, first);
+  const mainSchemeId = brand("card", first.code);
+  const stages: MainSchemeStage[] = [];
+  const parts: Prepared[] = [firstPrepared];
+  for (const [i, ra] of ordered.entries()) {
+    const rb = ra.linked_card;
+    if (!rb || rb.type_code !== "environment") {
+      errors.push(`${ra.code}: lettered main scheme stage has no linked environment`);
+      continue;
+    }
+    const isFirst = i === 0;
+    const a = isFirst ? firstPrepared : prepare(ctx, ra);
+    const pa = parse(ctx, a);
+    expectNoPlayerData(ctx, a, pa);
+    expectNoAttach(ctx, a, pa);
+    if (!isFirst) parts.push(a);
+
+    // The environment this stage flips to, emitted through the ordinary encounter-card path with `otherFaceId`
+    // cross-referencing this main scheme card (`BaseCard.otherFaceId`, the two-separately-emitted-cards shape).
+    const envP = prepare(ctx, rb);
+    const envParsed = parse(ctx, envP);
+    const envCommon = { ...baseFields(ctx, envP, rb.code, [rb.code]), otherFaceId: mainSchemeId };
+    normalizeEncounterCard(
+      ctx,
+      {
+        r: rb,
+        p: envP,
+        parsed: envParsed,
+        set,
+        common: envCommon,
+        abilities: abilityRefs(ctx, rb.code, envP.name, envParsed.abilities),
+      },
+      undefined,
+      [],
+    );
+    const envId = brand("card", rb.code);
+
+    const dashed: MainSchemeThreatField[] = [];
+    const field = (
+      value: number | null | undefined,
+      fixed: boolean | undefined,
+      key: MainSchemeThreatField,
+    ): ScalingValue => {
+      if (isFirst) {
+        dashed.push(key);
+        return { base: 0, perPlayer: 0 };
+      }
+      if (value === null || value === undefined) {
+        if (fixed) dashed.push(key);
+        else errors.push(`${ra.code}: missing ${key}`);
+        return { base: 0, perPlayer: 0 };
+      }
+      return scalingOf(value, !fixed);
+    };
+    const startingThreat = field(ra.base_threat, ra.base_threat_fixed, "startingThreat");
+    const targetThreat = field(ra.threat, ra.threat_fixed, "targetThreat");
+    const acceleration = field(ra.escalation_threat, ra.escalation_threat_fixed, "acceleration");
+    const stageImage = imageOf(ra.imagesrc);
+
+    stages.push({
+      stageNumber: i + 1,
+      ...(ra.stage ? { stageLetter: ra.stage } : {}),
+      ...(a.name !== firstPrepared.name ? { name: a.name } : {}),
+      startingThreat,
+      targetThreat,
+      acceleration,
+      ...(dashed.length > 0 ? { dashedValues: dashed } : {}),
+      otherFaceId: envId,
+      ...(isFirst ? {} : { onCompletion: "flipToOtherFace" as const }),
+      icons: isFirst ? [] : schemeIcons(ra),
+      text: isFirst ? emptyText : a.text,
+      traits: isFirst ? [] : a.traits,
+      keywords: isFirst ? [] : pa.keywords,
+      abilities: isFirst ? [] : abilityRefs(ctx, ra.code, a.name, pa.abilities),
+      // Each stage prints only one physical face (`ra`) — there is no separate A-side scan for stages B–D, and no
+      // separate B-side scan for stage A. `checkCoverage` still requires an artwork reference for both halves of
+      // every stage, so the one printed image is offered for both.
+      ...(stageImage ? { image: stageImage } : {}),
+      aSide: {
+        text: isFirst ? a.text : emptyText,
+        abilities: isFirst ? abilityRefs(ctx, ra.code, a.name, pa.abilities) : [],
+        ...(stageImage ? { image: stageImage } : {}),
+      },
+    });
+    ctx.handled.add(ra.code);
+  }
+  const firstStage = stages[0];
+  if (!firstStage) return;
+  const card: MainSchemeCard = {
+    ...baseFields(
+      ctx,
+      firstPrepared,
+      first.code,
+      ordered.map((r) => r.code),
+      null,
+    ),
+    type: "main_scheme",
+    encounterSetIds: [brand("encounterSet", set)],
+    stages: [firstStage, ...stages.slice(1)],
+  };
+  mainSchemeIdBySet.set(set, card.id);
+  record(ctx, card, set, parts);
+}
 
 /** Returns each scheme set's emitted main scheme card id. */
 export function normalizeMainSchemes(ctx: NormalizeContext): Map<string, string> {
@@ -30,6 +161,11 @@ export function normalizeMainSchemes(ctx: NormalizeContext): Map<string, string>
     const aSides = topLevel
       .filter((r) => r.type_code === "main_scheme" && r.card_set_code === set)
       .sort((x, y) => x.code.localeCompare(y.code));
+    // docs/phase7-wave5.md §1.1: every stage's linked record is an environment, not an ordinary main-scheme B side.
+    if (aSides.length > 0 && aSides.every((r) => r.linked_card?.type_code === "environment")) {
+      normalizeLetteredSchemeChain(ctx, aSides, set, mainSchemeIdBySet);
+      continue;
+    }
     const stages: MainSchemeStage[] = [];
     const parts: Prepared[] = [];
     for (const ra of aSides) {

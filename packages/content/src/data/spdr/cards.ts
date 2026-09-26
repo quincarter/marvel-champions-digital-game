@@ -675,6 +675,16 @@ export const SPDR_CARDS: readonly AnyCard[] = [
     quantityInSet: 1,
     unique: false,
     images: { front: imageRef("/bundles/cards/31027.png") },
+    errata: {
+      currentVersion: "RRG 1.8",
+      history: [
+        {
+          version: "RRG 1.8",
+          changedFields: ["text"],
+          note: "Changed \"engaged hero\" to \"engaged player\" and \"that hero\" to \"that player's hero\".",
+        },
+      ],
+    },
     atk: 2,
     sch: 2,
     hp: 6,
@@ -684,7 +694,7 @@ export const SPDR_CARDS: readonly AnyCard[] = [
     keywords: [],
     text: {
       printed: "Forced Response: After the engaged hero generates any number of resources, deal an equal amount of damage to that hero.\n(SP//dr's nemesis minion.)",
-      current: "Forced Response: After the engaged hero generates any number of resources, deal an equal amount of damage to that hero.\n(SP//dr's nemesis minion.)",
+      current: "Forced Response: After the engaged player generates any number of resources, deal an equal amount of damage to that player's hero.\n(SP//dr's nemesis minion.)",
     },
     flavor: "\"This is a threat unlike any you've faced before!\" —Uncle Ben",
     abilities: [{ id: abilityId("31027.morbius-forced-response") }],

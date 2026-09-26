@@ -134,11 +134,23 @@ export interface MultipleVillains {
    */
   readonly activation: "activeVillainOnly";
   /**
+   * `cardAbility` (The Sinister Six; Light at the End 27102a, "The players cannot win unless they escape."): defeating
+   * every villain in play does not win; a card ability does (27102b, "the players escape and win the game"). The
+   * multiple-villain sibling of `Scenario.victory: "cardAbility"`. docs/phase7-wave5.md §1.5.
+   *
    * `allVillainsDefeated`: "When a villain is defeated, their side scheme is also removed from the game. Any
    * encounter cards from that villain's deck that are in play remain in play. If the players defeat all 4 villains,
    * they win the game!"
    */
-  readonly winCondition: "allVillainsDefeated";
+  readonly winCondition: "allVillainsDefeated" | "cardAbility";
+  /**
+   * `setAside`: every villain starts set aside, and the main scheme's `Setup:` puts the first ones into play. The
+   * Sinister Six, Sinister Synchronization 1A (`sm` 27100a): "Choose X villains at random, where X is 1 more than the
+   * number of players. Put those villains into play, place the active counter on the villain with the lowest
+   * activation order value, and set the other villains aside." Absent: every villain is put into play at setup.
+   * docs/phase7-wave5.md §1.5. Data only until §3.1.
+   */
+  readonly atSetup?: "setAside";
 }
 
 /**

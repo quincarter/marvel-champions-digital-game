@@ -17,7 +17,7 @@ import { emit, moveCard, pushFrames, updateInstance, type Ctx } from "./ctx.js";
 import { giveStatus, shuffleZone } from "./effects.js";
 import type { PlayerId } from "./ids.js";
 import { hasKeyword } from "./keywords.js";
-import { encounterDeckOf, mainSchemeStage, mainSchemeValue, mustCardOf } from "./query.js";
+import { encounterDeckOf, mainSchemeStage, mainSchemeValue, mustCardOf, undefeatedVillains } from "./query.js";
 import {
   announce,
   applyEnterPlayKeywords,
@@ -79,8 +79,9 @@ export function resolveScenarioSetup(ctx: Ctx): void {
     });
   }
 
-  // RRG "Toughness": each villain's starting stage enters play with its tough status.
-  for (const villain of ctx.state.villains) {
+  // RRG "Toughness": each villain's starting stage enters play with its tough status. A villain that starts set aside
+  // (docs/phase7-wave5.md §3.1) is not in play, so neither this nor its Setup / When Revealed below applies to it.
+  for (const villain of undefeatedVillains(ctx.state)) {
     if (hasKeyword(ctx.state, villain.instanceId, "toughness", ctx.deps)) giveStatus(ctx, villain.instanceId, "tough");
   }
   putSetupCardsIntoPlay(ctx, firstPlayerId);
@@ -98,7 +99,7 @@ export function resolveScenarioSetup(ctx: Ctx): void {
     ),
     ...gameAbilityFrames(ctx, mainSchemeInstanceId, ["setup"], null, undefined, firstPlayerId),
     ...gameAbilityFrames(ctx, mainSchemeInstanceId, ["whenRevealed"], null, undefined, firstPlayerId),
-    ...ctx.state.villains.flatMap((villain) => [
+    ...undefeatedVillains(ctx.state).flatMap((villain) => [
       ...gameAbilityFrames(ctx, villain.instanceId, ["setup"], null, undefined, firstPlayerId),
       // RRG Appendix II "Resolve Scenario Setup and When Revealed Abilities": the starting villain
       // stage is revealed too (expert Rhino II reveals Breakin' & Takin' during setup).

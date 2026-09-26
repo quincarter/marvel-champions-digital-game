@@ -1,7 +1,7 @@
 import type { CardText, ScalingValue, Trait } from "../common.js";
 import type { KeywordInstance } from "../keywords.js";
 import type { AbilityReference } from "../abilities.js";
-import type { EncounterSetId, ImageRef } from "../ids.js";
+import type { CardId, EncounterSetId, ImageRef } from "../ids.js";
 import type { BaseCard } from "./base.js";
 import type { ModeOnly } from "./encounter-cards.js";
 
@@ -86,6 +86,22 @@ export interface MainSchemeStage {
    * `SideSchemeCard.signatureOf`; the sentence needs no ability ref. docs/phase7-wave4.md §1.5.
    */
   readonly villainOf?: string;
+  /**
+   * The stage card's other printed face when it is emitted as a card of its own, the stage-level sibling of
+   * `BaseCard.otherFaceId`. Venom Goblin (MC27 p. 17, "Main Scheme Deck: Skies Over New York (A), Lower Manhattan (B),
+   * Midtown Manhattan (C), Upper Manhattan (D)"): each of the four cards' other face is an environment (27116b–27119b),
+   * whose own `otherFaceId` names this main scheme card. Such a stage prints no A side beyond what its card prints:
+   * stages B–D have an empty `aSide`; stage A's `aSide` is the Setup and its threat values are all dashed.
+   * docs/phase7-wave5.md §1.1.
+   */
+  readonly otherFaceId?: CardId;
+  /**
+   * `flipToOtherFace`: completing this stage flips it to `otherFaceId` (that face enters play and is revealed) instead
+   * of advancing or losing. RRG 1.8 p. 67 erratum to MC27 p. 17: "When a main scheme is completed, flip it to its
+   * environment side"; FAQ p. 62: "flip that main scheme to its environment side and reveal that environment."
+   * docs/phase7-wave5.md §1.1. Data only until §3.3.
+   */
+  readonly onCompletion?: "flipToOtherFace";
   readonly icons: readonly SchemeIcon[];
   readonly text: CardText;
   readonly traits: readonly Trait[];

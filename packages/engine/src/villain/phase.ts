@@ -7,7 +7,7 @@
  */
 
 import { emit, requestChoice, setStep, updateInstance, type Ctx } from "../ctx.js";
-import { dealEncounterCardTo } from "../effects.js";
+import { dealEncounterCardTo, setActiveVillain } from "../effects.js";
 import type { InstanceId, PlayerId } from "../ids.js";
 import { statusActive } from "../keywords.js";
 import { iconsInPlay } from "../rules.js";
@@ -22,9 +22,11 @@ import {
   mustCardOf,
   mustPlayer,
   nextClockwisePlayer,
+  nextVillainInActivationOrder,
   playerOrder,
 } from "../query.js";
 import { heard, pushEvent, pushEvents, pushRevealFrame } from "../resolve/index.js";
+import { cardsInPlay, gliderMainSchemeId, offSchemeAccelerationTokens } from "../select.js";
 import type { TriggerEvent } from "../trigger-events.js";
 import type { GameState, GameStep } from "../state.js";
 
@@ -42,12 +44,16 @@ export function executePlaceThreat(ctx: Ctx): void {
       // Every main scheme in play gains threat, each from its own acceleration and tokens plus the icons in play: MC21
       // p. 10, "Each main scheme gains threat during step 1 of the villain phase, and they are each affected by any
       // acceleration and crisis icons in play" (docs/phase7-wave4.md §3.2). One main scheme is every other game.
+      // Tokens on other cards add to "the main scheme" (docs/phase7-wave5.md §3.4).
+      const offScheme = offSchemeAccelerationTokens(ctx.state);
+      const tokensGoTo = gliderMainSchemeId(ctx.state, ctx.deps) ?? ctx.state.mainScheme.instanceId;
       const events = sharedMainSchemes(ctx.state).map((scheme) => ({
         kind: "placeThreat" as const,
         schemeInstanceId: scheme.instanceId,
         amount:
           mainSchemeValue(ctx.state, "acceleration", ctx.deps, scheme) +
           scheme.accelerationTokens +
+          (scheme.instanceId === tokensGoTo ? offScheme : 0) +
           iconsInPlay(ctx.state, ctx.deps, "acceleration"),
         sourceInstanceId: null,
       }));
@@ -124,9 +130,31 @@ export function executeEnemyActivations(ctx: Ctx, step: Extract<GameStep, { kind
     // only "the active villain will activate".
     // With separate game areas the villain is the one in that player's area (docs/phase7-wave2.md §3.1). A defeated
     // villain with no successor (Kang (I) under `victory: "cardAbility"`) does not activate.
+    // FAQ The Sinister Six (RRG 1.8 p. 62): "What happens if a villain needs to activate and there are one or more
+    // villains in play but none of them have the active counter? A: Place the active counter on the villain with the
+    // lowest activation order value and continue that activation." (docs/phase7-wave5.md §3.1)
+    if (
+      ctx.state.scenarioRules.activeCounter === "nextInActivationOrder" &&
+      villainOf(ctx.state, ctx.state.activeVillainId)?.defeated !== false
+    ) {
+      const lowest = nextVillainInActivationOrder(ctx.state, null);
+      if (lowest) setActiveVillain(ctx, lowest, "noActiveVillain");
+    }
     const villainId = activeVillainIdFor(ctx.state, areaOfPlayer(ctx.state, current.playerId));
-    if (villainId && villainOf(ctx.state, villainId)?.defeated === false)
+    if (villainId && villainOf(ctx.state, villainId)?.defeated === false) {
       activateEnemy(ctx, villainId, current.playerId);
+      return;
+    }
+    // No villain in play (docs/phase7-wave5.md §3.2): the villain's activation is still announced, with no enemy, so
+    // "When a villain would activate, if no villain is in play, …" can put one in; with nothing listening it is skipped.
+    const activation = current.identity.form === "hero" ? "attack" : "scheme";
+    const announced: TriggerEvent = {
+      kind: "enemyActivating",
+      enemyInstanceId: null,
+      activation,
+      playerId: current.playerId,
+    };
+    if (heard(ctx.state, ctx.deps, announced)) pushEvent(ctx, announced);
     return;
   }
   const minions = current.playArea.filter((id) => isMinion(ctx.state, id) && !activatedMinionIds.includes(id));
@@ -171,34 +199,64 @@ export function activateChosenMinion(ctx: Ctx, minionId: InstanceId): void {
  * other abilities, a stun status card will prevent Norman Osborn's activation." Only then is the activation
  * initiated, even for a printed "—" ATK or SCH, so a "When [enemy] would attack … instead" replacement has an event
  * to replace. An activation nothing replaces is skipped when it applies (`dashedStatSkipsActivation`).
+ *
+ * "When an enemy would activate" (docs/phase7-wave5.md §3.2; Web Binding, `sm` 27006): an activation a status card
+ * does not replace is announced as `enemyActivating` when an ability listens, and continues from its apply step
+ * (`continueActivation`) unless an interrupt cancelled it.
  */
 export function activateEnemy(ctx: Ctx, enemyId: InstanceId, playerId: PlayerId): void {
   const player = mustPlayer(ctx.state, playerId);
-  if (player.identity.form === "hero") {
-    emit(ctx, { type: "enemyActivated", enemyInstanceId: enemyId, activation: "attack", playerId });
-    if (statusActive(ctx.state, enemyId, "stunned", ctx.deps)) {
-      // RRG "Stun": a stunned enemy discards the status instead of attacking.
-      updateInstance(ctx, enemyId, (i) => ({ ...i, statuses: { ...i.statuses, stunned: 0 } }));
-      emit(ctx, { type: "statusRemoved", instanceId: enemyId, status: "stunned", reason: "cancelledAttack" });
-      return;
-    }
-    pushEvent(ctx, {
-      kind: "enemyAttack",
-      enemyInstanceId: enemyId,
-      attackedPlayerId: playerId,
-      targetPlayerId: playerId,
-      targetInstanceId: player.identity.instanceId,
-    });
+  const activation = player.identity.form === "hero" ? "attack" : "scheme";
+  emit(ctx, { type: "enemyActivated", enemyInstanceId: enemyId, activation, playerId });
+  if (activation === "attack" && statusActive(ctx.state, enemyId, "stunned", ctx.deps)) {
+    // RRG "Stun": a stunned enemy discards the status instead of attacking.
+    updateInstance(ctx, enemyId, (i) => ({ ...i, statuses: { ...i.statuses, stunned: 0 } }));
+    emit(ctx, { type: "statusRemoved", instanceId: enemyId, status: "stunned", reason: "cancelledAttack" });
     return;
   }
-  emit(ctx, { type: "enemyActivated", enemyInstanceId: enemyId, activation: "scheme", playerId });
-  if (statusActive(ctx.state, enemyId, "confused", ctx.deps)) {
+  if (activation === "scheme" && statusActive(ctx.state, enemyId, "confused", ctx.deps)) {
     // RRG "Confuse": a confused enemy discards the status instead of scheming.
     updateInstance(ctx, enemyId, (i) => ({ ...i, statuses: { ...i.statuses, confused: 0 } }));
     emit(ctx, { type: "statusRemoved", instanceId: enemyId, status: "confused", reason: "cancelledSchemeOrThwart" });
     return;
   }
+  const announced: TriggerEvent = { kind: "enemyActivating", enemyInstanceId: enemyId, activation, playerId };
+  if (heard(ctx.state, ctx.deps, announced)) {
+    pushEvent(ctx, announced);
+    return;
+  }
+  initiateActivation(ctx, enemyId, playerId, activation);
+}
+
+function initiateActivation(ctx: Ctx, enemyId: InstanceId, playerId: PlayerId, activation: "attack" | "scheme"): void {
+  if (activation === "attack") {
+    pushEvent(ctx, {
+      kind: "enemyAttack",
+      enemyInstanceId: enemyId,
+      attackedPlayerId: playerId,
+      targetPlayerId: playerId,
+      targetInstanceId: mustPlayer(ctx.state, playerId).identity.instanceId,
+    });
+    return;
+  }
   pushEvent(ctx, { kind: "enemyScheme", enemyInstanceId: enemyId, playerId });
+}
+
+/**
+ * The apply step of `enemyActivating` (docs/phase7-wave5.md §3.2), reached only when no interrupt cancelled it: the
+ * activation continues. With no enemy named (the villain's activation with no villain in play), it is "the villain"
+ * now — Sinister Synchronization 1B: "When a villain would activate, if no villain is in play, resolve this card's
+ * 'Ambush!' ability. Continue that activation." A villain the interrupt put into play enters with no status card, so
+ * the activation is initiated at once; with still no villain in play nothing activates.
+ */
+export function continueActivation(ctx: Ctx, event: Extract<TriggerEvent, { kind: "enemyActivating" }>): void {
+  if (event.enemyInstanceId) {
+    if (cardsInPlay(ctx.state).includes(event.enemyInstanceId))
+      initiateActivation(ctx, event.enemyInstanceId, event.playerId, event.activation);
+    return;
+  }
+  const villainId = activeVillainIdFor(ctx.state, areaOfPlayer(ctx.state, event.playerId));
+  if (villainId && villainOf(ctx.state, villainId)?.defeated === false) activateEnemy(ctx, villainId, event.playerId);
 }
 
 // RRG "Villain Phase" step 3 + "Hazard Icon": one card each, then one per hazard icon in player order.
