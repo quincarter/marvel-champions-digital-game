@@ -102,8 +102,9 @@ verified and is **dropped**. Nothing from the taboo list is implemented.
 
 ### 4.2 Errata (RRG 1.8 and MC27 FAQ)
 
-No cycle 4 card text errata was found in this pass. The architect's card survey should check RRG 1.8's errata pages
-(cycle 4 FAQ/errata entries) and the MC27 FAQ (MC27 p. 21) directly, and record anything found in the spec's §0.
+**Corrected after review:** RRG 1.8 does carry cycle 4 errata, on pp. 67–68 (checked with `pypdf`: the Sinister Motives
+section and Worried Father on p. 67, M.O.R.B.I.U.S. on p. 68). The full list, and which raw records are already
+current, is in `docs/phase7-wave5.md` §0 and §1.9. The MC27 FAQ is MC27 p. 21, and cycle 4's RRG FAQ is p. 62.
 
 ---
 
@@ -145,7 +146,7 @@ this pass did not read the hero cards.
 
 1. **Precons:** confirm `starterDecks.ts` for `nova`, `ironheart`, `spiderham`, `spdr` against their decklists, and
    Ghost-Spider/Miles Morales against MC27 p. 20 (step 2, `card-data-pipeline`).
-2. **Errata:** check RRG 1.8's errata pages for cycle 4 entries (§4.2).
+2. **Errata:** listed in the spec (§4.2 above).
 3. **Hero kits** (Ghost-Spider, Miles Morales, Nova, Ironheart, Spider-Ham, SP//dr): not surveyed here; the spec's §2–§3
    covers them from the card text.
 
