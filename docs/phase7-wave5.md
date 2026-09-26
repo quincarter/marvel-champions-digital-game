@@ -1099,6 +1099,7 @@ work** (status in the last column).
 | 28  | **A thwart event's payability for a costly scheme is judged after the event's own cost, at play and at target choice alike.**                                                                   | open           |
 | 29  | **A divided basic thwart must afford the total of every chosen scheme's additional cost.**                                                                                                      | open           |
 | 30  | **A "take damage" thwart cost that is partly prevented was not paid; the thwart is cancelled (RRG 1.8 p. 13).**                                                                                 | open           |
+| 31  | **Build the Permanent keyword's blank protection in wave 5** (RRG 1.8 p. 32: cards from outside its own set cannot blank a permanent card's text box; blanks record their source).              | open           |
 
 ### 4.2 The questions as asked
 
