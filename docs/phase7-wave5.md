@@ -1086,6 +1086,10 @@ work** (status in the last column).
 | 24  | **M.O.R.B.I.U.S. deals no damage while the engaged player is in alter-ego form** ("that player's hero").                                                                                        | scripter       |
 | 25  | **Within one payment, "after you spend" and "after … generates resources" share one timing window, forced responses first (RRG).**                                                              | open           |
 | 26  | **An unowned permanent encounter attachment whose host leaves play is discarded to its encounter discard pile** (player cards keep §3.30's unattach).                                           | open           |
+| 27  | **An additional thwart cost is paid together with the thwart's own cost; declining it undoes both (no exhausted hero, no thwart).**                                                             | open           |
+| 28  | **A thwart event's payability for a costly scheme is judged after the event's own cost, at play and at target choice alike.**                                                                   | open           |
+| 29  | **A divided basic thwart must afford the total of every chosen scheme's additional cost.**                                                                                                      | open           |
+| 30  | **A "take damage" thwart cost that is partly prevented was not paid; the thwart is cancelled (RRG 1.8 p. 13).**                                                                                 | open           |
 
 ### 4.2 The questions as asked
 
