@@ -16,6 +16,24 @@ import { announce, type Frame, pushEffects } from "./frames.js";
 import { heard } from "./triggers.js";
 
 /**
+ * Which instance of a triggering effect `event` is: the event frame on the stack carrying it (its results aside), else
+ * the event itself written out. A window and the abilities it starts hold the event, not its frame id, so the frame is
+ * found by content (docs/phase7-wave5.md §3.14).
+ */
+function triggeringEventKey(state: GameState, event: TriggerEvent | null): string {
+  if (!event) return "none";
+  const { results: _, ...body } = event;
+  const wanted = JSON.stringify(body);
+  for (let i = state.stack.length - 1; i >= 0; i--) {
+    const frame = state.stack[i];
+    if (frame?.kind !== "event") continue;
+    const { results: __, ...candidate } = frame.event;
+    if (JSON.stringify(candidate) === wanted) return frame.frameId;
+  }
+  return wanted;
+}
+
+/**
  * The `abilityUses` key a limit counts against. An unqualified limit uses `<instance>:<ability>`, exactly as before;
  * `limit.per` appends `#<value>` so the same ability keeps one count per value ("limit once per round for each
  * aspect", Superhuman Agility; "once per round per player", The Grand Collection — `#player:<id>`, the player using
@@ -29,6 +47,11 @@ export function limitKeyOf(
   event: TriggerEvent | null,
   playerId: PlayerId | null = null,
 ): string {
+  // "Max 1 per [instance]" (docs/phase7-wave5.md §3.14): every copy of the title shares one count per triggering event.
+  // The key's head is not an ability id, so `clearAbilityUses` drops it at every boundary.
+  if (definition.limit?.per === "triggeringEvent") {
+    return `max:${cardOf(state, id)?.name ?? abilityId}#event:${triggeringEventKey(state, event)}`;
+  }
   const base = abilityUseKey(id, abilityId);
   if (definition.limit?.per === "player") return `${base}#player:${playerId ?? "none"}`;
   if (definition.limit?.per !== "aspectOfEventCard") return base;

@@ -1136,7 +1136,14 @@ export interface AbilityLimit {
    *   docs/phase7-wave3.md §3.36): a shared card's ability keeps one count for each player who uses it, keyed by the
    *   ability's controller — for an encounter card's action, the player who triggers it.
    */
-  readonly per?: "aspectOfEventCard" | "player";
+  /**
+   * - `"triggeringEvent"`: "(Max 1 per event.)" / "(Max 1 per attack.)" / "(Max 1 per basic power use.)" (Web-Bracelet,
+   *   Ghost Kick, Phantom Flip, `sm`; docs/phase7-wave5.md §3.14). RRG 1.8 "Max 1 per [instance]" (p. 28): "restricts
+   *   the number of times an ability can be triggered by a single instance of a triggering effect across all copies of
+   *   the card with the maximum". One count per triggering event instance (its event frame), shared by every card with
+   *   the same title; `period` is not read, and the counts are dropped at every turn, phase and round boundary.
+   */
+  readonly per?: "aspectOfEventCard" | "player" | "triggeringEvent";
 }
 
 /**

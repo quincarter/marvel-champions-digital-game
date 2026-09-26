@@ -345,7 +345,7 @@ against `pnpm dsl` (379 builders), the engine's `EffectSpec` / `RuleSpec` / `Tri
 | 3.11 | Text that depends on the mode of play                                                        | Frequent Flyers ×3, Surprise!, From Every Direction, Life-Size Decoy, Ambush!, Teamwork …      | landed  |
 | 3.12 | "The first attack this turn"                                                                 | Venom III (Retribution)                                                                        | landed  |
 | 3.13 | "When/After X leaves play"                                                                   | Spider-Man (Hobie Brown), Ghost-Spider ally, Web of Life and Destiny, Warrior of the Great Web | landed  |
-| 3.14 | "(Max 1 per [instance])"                                                                     | Ghost Kick, Phantom Flip, Web-Bracelet, Fluid Motion; Temporal Shield, Psylocke 41xxx          | open    |
+| 3.14 | "(Max 1 per [instance])"                                                                     | Ghost Kick, Phantom Flip, Web-Bracelet, Fluid Motion; Temporal Shield, Psylocke 41xxx          | landed  |
 | 3.15 | Facedown attached cards: playable events, a count, a maximum                                 | George Stacy, Parental Guidance, Worried Father, Spider-Man Noir                               | open    |
 | 3.16 | How a card was paid for: resources by type and by source                                     | Moon Girl, VEN#m, Rapid Deployment, Web-Trap; Sync Ratio                                       | open    |
 | 3.17 | A resource card spent for another player                                                     | Everyday Hero                                                                                  | open    |
@@ -717,6 +717,16 @@ card so a response can read what left. **DSL:** `on.leavesPlay(who)`, `on.leftPl
 Superhumans (`aos` 50081), Bishop's and later "leaves play" cards.
 
 ### 3.14 "(Max 1 per [instance])"
+
+> **Status: landed (2026-09-26),** tested in `packages/engine/src/max-per-instance.test.ts` (2 tests: two forced copies
+> of a "(Max 1 per event.)" response resolve once per event played and again for the next event, replay deep-equal; two
+> optional copies chosen together in one window resolve once). DSL: `wave5-primitives.test.ts`. **What landed:**
+> **`AbilityLimit.per: "triggeringEvent"`** (the plan's `perTriggeringInstance`, as a `per` value): the use key is the
+> card's title plus the triggering event instance, found as the event frame on the stack carrying that event
+> (`triggeringEventKey`), so every copy shares one count per event; `period` is not read, and the counts go at every
+> turn, phase and round boundary. **DSL:** `maxOnePerTriggeringInstance`, used as `{ limit: … }`. **Known limit:** the
+> instance is the event the ability triggers on; a "(Max 1 per attack.)" on a damage trigger (Temporal Shield) counts
+> per damage event, which is the same while an attack deals one damage event to that character.
 
 RRG 1.8 "Max 1 per [instance]" (p. 28): "restricts the number of times an ability can be triggered by a single instance
 of a triggering effect across all copies of the card with the maximum. (For example, if an ability has the text '(Max 1

@@ -18,6 +18,7 @@ import {
   increaseDamageTaken,
   interrupt,
   mainSchemeMarkedBy,
+  maxOnePerTriggeringInstance,
   on,
   response,
   setup,
@@ -292,6 +293,14 @@ describe("§3.13 'When/After X leaves play'", () => {
       kind: "response",
       on: { on: "cardLeavesPlay", targetIs: { categories: ["ally"], trait: WEB_WARRIOR } },
     });
+  });
+});
+
+describe("§3.14 '(Max 1 per [instance])'", () => {
+  it("Web-Bracelet's '(Max 1 per event.)'", () => {
+    const bracelet = response(on.leavesPlay("self"), { limit: maxOnePerTriggeringInstance }, draw(1));
+    valid(bracelet);
+    expect(bracelet.limit).toEqual({ count: 1, period: "phase", per: "triggeringEvent" });
   });
 });
 

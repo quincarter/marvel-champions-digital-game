@@ -919,6 +919,12 @@ export const oncePerRound: AbilityLimit = { count: 1, period: "round" };
 export const oncePerRoundPerPlayer: AbilityLimit = { count: 1, period: "round", per: "player" };
 /** "(Limit once per phase.)" (Super Speed, Quicksilver 14001a). */
 export const oncePerPhase: AbilityLimit = { count: 1, period: "phase" };
+/**
+ * "(Max 1 per event.)", "(Max 1 per attack.)", "(Max 1 per basic power use.)" (Web-Bracelet, Ghost Kick, Phantom Flip,
+ * `sm`; docs/phase7-wave5.md §3.14): one use per triggering event instance, shared by every copy of the card's title
+ * (RRG 1.8 "Max 1 per [instance]", p. 28). The instance is whatever event the ability triggers on.
+ */
+export const maxOnePerTriggeringInstance: AbilityLimit = { count: 1, period: "phase", per: "triggeringEvent" };
 
 // ---------------------------------------------------------------------------
 // Event patterns: `when.*` for interrupts, `after.*` for responses
