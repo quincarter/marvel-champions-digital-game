@@ -84,6 +84,7 @@ import { SPIDERHAM_CURATION } from "./marvelcdb/curation/spiderham.ts";
 import { MOJO_CURATION } from "./marvelcdb/curation/mojo.ts";
 import { ANGEL_CURATION } from "./marvelcdb/curation/angel.ts";
 import { STORM_CURATION } from "./marvelcdb/curation/storm.ts";
+import { SM_CURATION } from "./marvelcdb/curation/sm.ts";
 import { GMW_CURATION } from "./marvelcdb/curation/gmw.ts";
 import { MTS_CURATION } from "./marvelcdb/curation/mts.ts";
 import { bareCuration } from "./marvelcdb/curation/empty.ts";
@@ -125,6 +126,7 @@ const REGISTERED_CURATIONS: Readonly<Record<string, PackCuration>> = {
   falcon: FALCON_CURATION,
   ron: RON_CURATION,
   spdr: SPDR_CURATION,
+  sm: SM_CURATION,
   nova: NOVA_CURATION,
   silk: SILK_CURATION,
   // phoenix: intentionally NOT registered here — 34028 (Burning Hunger, the obligation) has no text at all on
