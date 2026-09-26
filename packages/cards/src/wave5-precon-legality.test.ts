@@ -5,7 +5,7 @@
  * legality means calling `@mc/engine`'s `validateDeck`/`requiredIdentitySet`, and `@mc/content` must never import
  * `@mc/engine` (`client → cards → engine → content`, CLAUDE.md). Covers the four wave 5 hero packs' precons
  * (docs/phase7-wave5.md §1.9, §5) transcribed from each pack's own printed decklist card. There is no `sm` precon
- * here: `sm`'s two precons (MC27 p. 20) are `sm`'s own scope, not this pass's.
+ * here for the hero packs; `sm`'s two box precons (MC27 p. 20) have their own `describe` at the bottom.
  *
  * **Ironheart and SP//dr are gated, not broken.** `validateDeck` refuses `ironheart-leadership`'s identity
  * (29001a's `progressingIdentity`, docs/phase7-wave5.md §1.4) and `spdr-protection`'s identity (31001a's
@@ -24,6 +24,8 @@ import {
   SPIDERHAM_STARTER_DECKS,
   SPDR_CARDS,
   SPDR_STARTER_DECKS,
+  SM_CARDS,
+  SM_STARTER_DECKS,
   type AnyCard,
   type DeckContents,
   type HeroIdentityCard,
@@ -146,4 +148,24 @@ describe("wave 5 precons — four hero packs (Nova, Ironheart, Spider-Ham, SP//d
       );
     }
   }
+});
+
+describe("wave 5 precons — Sinister Motives box (Ghost-Spider, Spider-Man (Miles Morales), MC27 p. 20)", () => {
+  const byId = new Map(SM_CARDS.map((c) => [c.id as string, c]));
+
+  it("ids: ghost-spider, spider-man-morales", () => {
+    expect(SM_STARTER_DECKS.map((d) => d.id).sort()).toEqual(["ghost-spider", "spider-man-morales"]);
+  });
+
+  it.each(SM_STARTER_DECKS.map((d) => [d.id, d] as const))("%s: validateDeck reports no problems", (_id, deck) => {
+    const result = validateDeck(contentsOf(deck), SM_CARDS);
+    expect(result.ok, result.ok ? undefined : JSON.stringify((result as { problems: unknown }).problems, null, 2)).toBe(
+      true,
+    );
+  });
+
+  it.each(SM_STARTER_DECKS.map((d) => [d.id, d] as const))(
+    "%s: requiredIdentitySet matches the deck's signature cards exactly",
+    (_id, deck) => checkRequiredIdentitySet(deck, SM_CARDS, byId),
+  );
 });
