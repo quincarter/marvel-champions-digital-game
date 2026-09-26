@@ -97,6 +97,30 @@ export function setForm(
   };
 }
 
+/**
+ * Swaps a progressing identity for its next version (`EffectSpec swapIdentity`, docs/phase7-wave5.md §3.23): the
+ * identity instance and the set-aside instance of the next version trade card ids, so the identity keeps its damage,
+ * counters, statuses, attachments, exhaustion and form (RRG 1.8 "Swap", p. 42: the dial "remains at the same value")
+ * and the old version sits set aside in the new one's place. Returns false when there is no next version set aside.
+ */
+export function swapIdentity(ctx: Ctx, playerId: PlayerId): boolean {
+  const player = mustPlayer(ctx.state, playerId);
+  const fromCardId = player.identity.cardId;
+  const card = mustCard(ctx.state, fromCardId);
+  if (card.type !== "hero_identity" || !card.progressingIdentity) return false;
+  const versions = card.progressingIdentity.versions;
+  const toCardId = versions[versions.indexOf(fromCardId) + 1];
+  if (!toCardId) return false;
+  const setAsideId = player.setAside.find((id) => mustInstance(ctx.state, id).cardId === toCardId);
+  if (!setAsideId) return false;
+  const identityId = player.identity.instanceId;
+  updateInstance(ctx, identityId, (i) => ({ ...i, cardId: toCardId }));
+  updateInstance(ctx, setAsideId, (i) => ({ ...i, cardId: fromCardId }));
+  updatePlayer(ctx, playerId, (p) => ({ ...p, identity: { ...p.identity, cardId: toCardId } }));
+  emit(ctx, { type: "identitySwapped", playerId, instanceId: identityId, fromCardId, toCardId });
+  return true;
+}
+
 export function endGame(ctx: Ctx, outcome: GameOutcome): void {
   if (ctx.state.outcome) return;
   ctx.state = { ...ctx.state, outcome, pendingChoice: null, stack: [] };

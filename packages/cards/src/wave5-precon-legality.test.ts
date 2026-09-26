@@ -7,9 +7,9 @@
  * (docs/phase7-wave5.md §1.9, §5) transcribed from each pack's own printed decklist card. There is no `sm` precon
  * here for the hero packs; `sm`'s two box precons (MC27 p. 20) have their own `describe` at the bottom.
  *
- * **Ironheart and SP//dr are gated, not broken.** `validateDeck` refuses `ironheart-leadership`'s identity
- * (29001a's `progressingIdentity`, docs/phase7-wave5.md §1.4) and `spdr-protection`'s identity (31001a's
- * `separatedIdentity`, §1.6) with `unsupported_identity`, by design, until §3.23 and §3.24 land — a real "cannot
+ * **SP//dr is gated, not broken.** `validateDeck` refuses `spdr-protection`'s identity (31001a's
+ * `separatedIdentity`, §1.6) with `unsupported_identity`, by design, until §3.24 lands (Ironheart's
+ * `progressingIdentity` gate, docs/phase7-wave5.md §1.4, lifted with §3.23, so its precon is checked in full) — a real "cannot
  * seat this identity yet" gate, not a data mistake. Their `it`s below assert that specific, documented refusal
  * (rather than skipping legality checking outright) and then check everything `validateDeck` would otherwise have
  * checked (box quantity/deck limit, legal size, `requiredIdentitySet`) by hand, so a future accidental corruption
@@ -41,7 +41,7 @@ const packs: readonly {
   readonly gatedIdentity?: "progressingIdentity" | "separatedIdentity";
 }[] = [
   { label: "Nova", cards: NOVA_CARDS, decks: NOVA_STARTER_DECKS },
-  { label: "Ironheart", cards: IRONHEART_CARDS, decks: IRONHEART_STARTER_DECKS, gatedIdentity: "progressingIdentity" },
+  { label: "Ironheart", cards: IRONHEART_CARDS, decks: IRONHEART_STARTER_DECKS },
   { label: "Spider-Ham", cards: SPIDERHAM_CARDS, decks: SPIDERHAM_STARTER_DECKS },
   { label: "SP//dr", cards: SPDR_CARDS, decks: SPDR_STARTER_DECKS, gatedIdentity: "separatedIdentity" },
 ];

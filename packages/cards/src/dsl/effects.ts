@@ -1078,6 +1078,11 @@ export const revealEncounterCard = (player: PlayerRef = you): EffectSpec => ({ k
 export const giveBoostCard = (enemy: TargetRef = theVillain, count: Amount = 1): EffectSpec =>
   count === 1 ? { kind: "giveBoostCard", enemy } : { kind: "giveBoostCard", enemy, count: amount(count) };
 /**
+ * "Swap her with [Version 2] Ironheart" (Level Up!, `ironheart` 29001a/29002a; docs/phase7-wave5.md §3.23): the
+ * player's progressing identity becomes its next version; dial, counters, statuses, attachments and form stay.
+ */
+export const swapIdentity = (player: PlayerRef = you): EffectSpec => ({ kind: "swapIdentity", player });
+/**
  * "Move each facedown boost card from your identity to Venom" ("Leave Us Alone!" 1B, `sm` 27071b;
  * docs/phase7-wave5.md §3.6): onto the first card `to` names, in the order dealt; moved before an activation's flip
  * step, they resolve in it.

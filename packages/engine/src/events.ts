@@ -173,6 +173,14 @@ export type GameEvent =
       readonly targetInstanceId: InstanceId;
       readonly playerId: PlayerId;
     }
+  /** A progressing identity swapped to its next version (`EffectSpec swapIdentity`, docs/phase7-wave5.md §3.23). */
+  | {
+      readonly type: "identitySwapped";
+      readonly playerId: PlayerId;
+      readonly instanceId: InstanceId;
+      readonly fromCardId: CardId;
+      readonly toCardId: CardId;
+    }
   /** A thwart's additional cost is asked of the thwarting player (`RuleSpec additionalThwartCost`; wave 5 §3.21). */
   | { readonly type: "thwartCostAsked"; readonly schemeInstanceId: InstanceId; readonly playerId: PlayerId }
   /** A card would ready and a rule asks its readier for an additional cost first (`RuleSpec readyCost`; §3.19). */

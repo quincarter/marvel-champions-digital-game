@@ -354,7 +354,7 @@ against `pnpm dsl` (379 builders), the engine's `EffectSpec` / `RuleSpec` / `Tri
 | 3.20 | Treating printed resources as another type                                                   | Haywire                                                                                        | landed  |
 | 3.21 | An additional cost to thwart a scheme                                                        | Cat in a Tree, Giant Monster Attack                                                            | landed  |
 | 3.22 | A basic thwart that may remove threat only from one scheme                                   | Retinal Display                                                                                | landed  |
-| 3.23 | Progressing identities: swapping one identity card for the next                              | Ironheart                                                                                      | open    |
+| 3.23 | Progressing identities: swapping one identity card for the next                              | Ironheart                                                                                      | landed  |
 | 3.24 | A separated identity (two cards, one dial)                                                   | SP//dr                                                                                         | open    |
 | 3.25 | Resources generated: an event, and counters spent as resources                               | M.O.R.B.I.U.S.; Spider-Ham's toon counters                                                     | open    |
 | 3.26 | An additional mulligan                                                                       | MC27 reputation node 5                                                                         | open    |
@@ -868,6 +868,20 @@ Retinal Display: "Your hero's basic thwart power (THW) can only remove threat fr
 "ignore the crisis icon and the patrol keyword" for basic thwarts is `characterIgnores` with a `basicOnly` flag (verify).
 
 ### 3.23 Progressing identities: swapping one identity card for the next
+
+> **Status: landed (2026-09-26),** tested in `packages/engine/src/progressing-identity.test.ts` (5 tests, replacing the
+> §1.4 gate test: setup seats the first version with the others set aside and refuses a later version; `validateDeck`
+> accepts the first and names it for a later one; the swap keeps the instance, damage, counters, statuses and form and
+> takes the new card's hit points and hand size, the old version set aside in its place, replay deep-equal; the last
+> version has nothing to swap to; the [Version] number read from the alter-ego's printed hero face). DSL:
+> `wave5-primitives.test.ts`. **What landed:** `createGame` seats `progressingIdentity.versions[0]` and puts the later
+> versions in the player's set-aside area; the `createGame` and `validateDeck` refusals now cover only a later version.
+> **`EffectSpec swapIdentity { player }`**: the identity instance and the next version's set-aside instance trade card
+> ids (and `PlayerState.identity.cardId` follows), so nothing enters or leaves play; log **`identitySwapped`**.
+> **`ValueSpec traitNumber { of, prefix }`**. §4 Q9's default holds (the form is kept; not a form change). **DSL:**
+> `swapIdentity(player?)`, `traitNumber(of, prefix)`. The Ironheart precon is now checked in full by
+> `packages/cards/src/wave5-precon-legality.test.ts` (its gate flag removed). **Client:** the identity's version; a
+> `identitySwapped` log line.
 
 Ironheart insert (§1.4 quote). Level Up!: "Remove 6 progress counters from Ironheart → ready her and swap her with
 [Version 2] Ironheart." RRG 1.8 "Swap" (p. 42): neither card enters or leaves play; tokens, attachments and status

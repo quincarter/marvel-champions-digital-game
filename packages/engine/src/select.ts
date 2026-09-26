@@ -1438,6 +1438,26 @@ export function resolveValue(
         : [activeVillainIdFor(state, contextArea(state, context)) ?? activeVillain(state).instanceId];
       return id && isVillain(state, id) ? villainStageOf(state, id).stageNumber : 0;
     }
+    case "traitNumber": {
+      // "Ironheart's [Version] number" (docs/phase7-wave5.md §3.23).
+      const [id] = resolveRef(state, value.of, context);
+      if (!id) return 0;
+      const prefix = `${value.prefix.toUpperCase()} `;
+      const numberIn = (traits: readonly string[]): number | null => {
+        const found = traits.find((t) => t.toUpperCase().startsWith(prefix));
+        const n = found ? Number.parseInt(found.slice(prefix.length), 10) : Number.NaN;
+        return Number.isFinite(n) ? n : null;
+      };
+      const showing = numberIn(traitsOf(state, id, deps));
+      if (showing !== null) return showing;
+      const card = cardOf(state, id);
+      if (card?.type !== "hero_identity") return 0;
+      for (const face of heroFacesOf(card)) {
+        const printed = numberIn(face.traits);
+        if (printed !== null) return printed;
+      }
+      return 0;
+    }
     // A number the campaign recorded, read out of the frozen `GameState.campaign.log` (design §7.1). Not traced:
     // see `campaignLogRead` in `events.ts` for why a pure, re-entrant read must not emit.
     case "campaignLog":

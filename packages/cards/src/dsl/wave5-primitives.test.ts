@@ -64,6 +64,7 @@ import {
   setActiveVillain,
   setVillainAside,
   stun,
+  swapIdentity,
   zone,
 } from "./effects.js";
 import {
@@ -93,6 +94,7 @@ import {
   superlative,
   thatPlayer,
   theVillain,
+  traitNumber,
   theMainScheme,
   threatOn,
   valueAtLeast,
@@ -409,6 +411,20 @@ describe("§3.22 a basic thwart limited to one scheme (Retinal Display)", () => 
         { kind: "basicThwartTargets", character: { categories: ["hero"], controller: "you" } },
         { kind: "characterIgnores", ignores: ["crisis"], basicOnly: true },
       ],
+    });
+  });
+});
+
+describe("§3.23 progressing identities (Ironheart)", () => {
+  it("Level Up! swaps to the next version; the [Version] number is a value", () => {
+    const levelUp = action(swapIdentity());
+    valid(levelUp);
+    expect(levelUp.effects).toEqual([{ kind: "swapIdentity", player: { kind: "controller" } }]);
+    valid(action(dealDamage(traitNumber(yourIdentity, "Version"), theVillain)));
+    expect(traitNumber(yourIdentity, "Version")).toEqual({
+      kind: "traitNumber",
+      of: { kind: "identityOf", player: { kind: "controller" } },
+      prefix: "Version",
     });
   });
 });

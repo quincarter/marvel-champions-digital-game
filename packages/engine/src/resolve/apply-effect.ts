@@ -34,6 +34,7 @@ import {
   removeStatus,
   setActiveVillain,
   shuffleZone,
+  swapIdentity,
   playerDeckResets,
   takeTopOfDeck,
 } from "../effects.js";
@@ -1261,6 +1262,10 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
     }
     case "swapVillain":
       for (const id of targets(effect.villain)) if (villainOf(ctx.state, id)) swapVillain(ctx, id);
+      return;
+    case "swapIdentity":
+      // docs/phase7-wave5.md §3.23: a progressing identity's next version.
+      for (const playerId of resolvePlayers(ctx.state, effect.player, context)) swapIdentity(ctx, playerId);
       return;
     case "advanceToSetAsideVillain": {
       for (const id of targets(effect.villain)) {

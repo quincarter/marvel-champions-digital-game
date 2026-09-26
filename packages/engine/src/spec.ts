@@ -644,6 +644,13 @@ export type ValueSpec =
    */
   | { readonly kind: "villainStageNumber"; readonly of?: TargetRef }
   /**
+   * "X is equal to Ironheart's [Version] number" (New and Improved, Sector Scan, Photon Blasters, Propulsion Jets,
+   * `ironheart`; docs/phase7-wave5.md §3.23): the number after `prefix` in the first matching trait of the card `of`
+   * names ("VERSION 2" → 2), read from its traits now and, for an identity whose showing face has none (the alter-ego),
+   * from its printed hero faces. 0 without one.
+   */
+  | { readonly kind: "traitNumber"; readonly of: TargetRef; readonly prefix: string }
+  /**
    * A villain's printed "Activation Order X" (`VillainCard.activationOrder`; The Sinister Six, MC27 p. 15), 0 for a villain
    * without one or a card that is not a villain. The measure of "the villain with the lowest activation order value"
    * (`superlative`). docs/phase7-wave5.md §3.1.
@@ -2038,6 +2045,15 @@ export type EffectSpec =
    * if there is not a component in both locations"). docs/phase7-wave4.md §3.7.
    */
   | { readonly kind: "swapVillain"; readonly villain: TargetRef }
+  /**
+   * "Swap her with [Version 2] Ironheart" (Level Up!, `ironheart` 29001a/29002a; docs/phase7-wave5.md §3.23): the
+   * player's identity becomes the next version of its `progressingIdentity`, set aside at setup. RRG 1.8 "Swap"
+   * (p. 42): neither card enters or leaves play, so the identity keeps its instance — damage (the shared dial), counters,
+   * statuses, attachments, exhaustion and form — and takes the new card's hit points, hand size, traits and abilities;
+   * the old version goes to the set-aside area in the new one's place. Not a form change (§4 Q9). Log `identitySwapped`.
+   * Nothing happens without a next version set aside.
+   */
+  | { readonly kind: "swapIdentity"; readonly player: PlayerRef }
   /**
    * "The first player detaches Odin from the main scheme and takes control of him" (Hall of Nastrond, `mts` 21141); "The
    * first player detaches Robert Kelly from this scheme and takes control of him" (Find the Senator, `mut_gen` 32065a).
