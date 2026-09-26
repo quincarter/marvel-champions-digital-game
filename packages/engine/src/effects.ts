@@ -18,6 +18,7 @@ import {
   encounterDeckOf,
   getInstance,
   heroFacesOf,
+  mainSchemeStates,
   mustCard,
   mustCardOf,
   mustInstance,
@@ -37,7 +38,8 @@ import {
 } from "./rules.js";
 import { pushEvent } from "./resolve/frames.js";
 import { releaseTreatedBy } from "./treat-as.js";
-import { gliderMainSchemeId, matchesQuery, type EffectContext } from "./select.js";
+import { cardsInPlay, gliderMainSchemeId, matchesQuery, type EffectContext } from "./select.js";
+import { heard } from "./resolve/triggers.js";
 import type { StatusName } from "./spec.js";
 import type { GameOutcome, GameState, MainSchemeState, ZoneId } from "./state.js";
 import type { LastingDuration, LastingEffect, LastingEffectBody } from "./lasting.js";
@@ -166,6 +168,31 @@ export function addCounters(ctx: Ctx, id: InstanceId, counterType: string, amoun
 /** `EffectSpec moveCounters` for one card (docs/phase7-wave5.md §3.3): every counter of the type(s) goes to `to`. */
 export function moveCounters(ctx: Ctx, from: InstanceId, to: InstanceId, counterType?: string): void {
   if (from === to) return;
+  // Acceleration tokens (docs/phase7-wave5.md §3.4): a main scheme's are its `accelerationTokens`, any other card's its
+  // `acceleration` counter; "Move … each acceleration token from here to the main scheme" moves them either way.
+  if (counterType === undefined || counterType === ACCELERATION_COUNTER) {
+    const fromScheme = mainSchemeStates(ctx.state).find((s) => s.instanceId === from);
+    const toScheme = mainSchemeStates(ctx.state).find((s) => s.instanceId === to);
+    const tokens = fromScheme
+      ? fromScheme.accelerationTokens
+      : (mustInstance(ctx.state, from).counters[ACCELERATION_COUNTER] ?? 0);
+    if (tokens > 0 && (fromScheme || toScheme)) {
+      if (fromScheme) updateMainSchemeState(ctx, from, (s) => ({ ...s, accelerationTokens: 0 }));
+      else
+        updateInstance(ctx, from, (i) => {
+          const { [ACCELERATION_COUNTER]: _moved, ...rest } = i.counters;
+          return { ...i, counters: rest };
+        });
+      if (toScheme)
+        updateMainSchemeState(ctx, to, (s) => ({ ...s, accelerationTokens: s.accelerationTokens + tokens }));
+      else
+        updateInstance(ctx, to, (i) => ({
+          ...i,
+          counters: { ...i.counters, [ACCELERATION_COUNTER]: (i.counters[ACCELERATION_COUNTER] ?? 0) + tokens },
+        }));
+      emit(ctx, { type: "countersMoved", from, to, counterType: ACCELERATION_COUNTER, amount: tokens });
+    }
+  }
   const held = mustInstance(ctx.state, from).counters;
   for (const [type, amount] of Object.entries(held)) {
     if ((counterType !== undefined && type !== counterType) || amount <= 0) continue;
@@ -309,9 +336,13 @@ export function updateMainSchemeState(
  * it lands ("place it here instead", The Master of Time 2B; docs/phase7-wave2.md §10.3) — read here so the
  * placement stays synchronous and the encounter-deck reset keeps its current ordering.
  *
- * Only a main scheme stage holds acceleration tokens in this model; a target that is not one is left alone.
- * `schemeInstanceId` is logged only when the token did not go to the central stage, so every existing log line is
- * byte-identical.
+ * A main scheme stage keeps its tokens in `MainSchemeState.accelerationTokens`; any other card in play holds them as its
+ * `acceleration` counter (Tracking Prey, "place 1 acceleration token here"; RRG 1.8 "Acceleration Token", p. 5:
+ * "Acceleration tokens placed on cards other than the main scheme still add threat to the main scheme during step one"
+ * and "are removed from play when the card they are placed on leaves play"; docs/phase7-wave5.md §3.4). A target out of
+ * play is left alone. `schemeInstanceId` is logged only when the token did not go to the central stage, so every
+ * existing log line is byte-identical. "After an acceleration token is placed on this scheme" (Hapless Pedestrians 1B)
+ * hears `accelerationTokenPlaced`, pushed only when an ability listens.
  */
 export function addAccelerationToken(ctx: Ctx, requested?: InstanceId): void {
   // "When an acceleration token would be placed on 'the main scheme,' place it on the scheme with the glider counter"
@@ -325,10 +356,19 @@ export function addAccelerationToken(ctx: Ctx, requested?: InstanceId): void {
     total = scheme.accelerationTokens + 1;
     return { ...scheme, accelerationTokens: total };
   });
-  if (total === null) return;
-  const central = to === ctx.state.mainScheme.instanceId;
-  emit(ctx, { type: "accelerationTokenAdded", total, ...(central ? {} : { schemeInstanceId: to }) });
+  if (total === null) {
+    if (!cardsInPlay(ctx.state).includes(to)) return;
+    addCounters(ctx, to, ACCELERATION_COUNTER, 1);
+  } else {
+    const central = to === ctx.state.mainScheme.instanceId;
+    emit(ctx, { type: "accelerationTokenAdded", total, ...(central ? {} : { schemeInstanceId: to }) });
+  }
+  const placed: TriggerEvent = { kind: "accelerationTokenPlaced", instanceId: to };
+  if (heard(ctx.state, ctx.deps, placed)) pushEvent(ctx, placed);
 }
+
+/** The counter an acceleration token is on a card that is not a main scheme (docs/phase7-wave5.md §3.4). */
+export const ACCELERATION_COUNTER = "acceleration";
 
 export function removeAccelerationToken(ctx: Ctx): void {
   // RRG "Acceleration Token": tokens on the main scheme cannot be removed from play.

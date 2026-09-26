@@ -352,6 +352,12 @@ export type TriggerEventBody =
    * Osborn (#1A)", RRG 1.8 p. 58) and only when an ability listens. `enemyInstanceId` is null for the villain's step-2
    * activation with no villain in play. Its apply step initiates the attack or scheme; a cancelled one never happens.
    */
+  /**
+   * An acceleration token was placed on this card (docs/phase7-wave5.md §3.4): "Forced Response: After an acceleration
+   * token is placed on this scheme, deal 3 indirect damage to the first player." (Hapless Pedestrians 1B, `sm` 27064b).
+   * Response only; pushed by `addAccelerationToken` only when an ability listens.
+   */
+  | { readonly kind: "accelerationTokenPlaced"; readonly instanceId: InstanceId }
   | {
       readonly kind: "enemyActivating";
       readonly enemyInstanceId: InstanceId | null;
@@ -544,6 +550,7 @@ export type TriggerEventKind = TriggerEvent["kind"];
  */
 export function isAnnouncement(event: TriggerEvent): boolean {
   switch (event.kind) {
+    case "accelerationTokenPlaced":
     case "dealDamage":
     case "healDamage":
     case "placeThreat":
@@ -676,6 +683,8 @@ export function eventSubjects(event: TriggerEvent): EventSubjects {
       return of([], [event.schemeInstanceId], []);
     case "enemyActivating":
       return of([event.enemyInstanceId], [event.enemyInstanceId], [event.playerId]);
+    case "accelerationTokenPlaced":
+      return of([], [event.instanceId], []);
     case "boostIconsCounting":
       return of([event.enemyInstanceId], [event.cardInstanceId], [event.playerId]);
     case "basicPowerUsed":

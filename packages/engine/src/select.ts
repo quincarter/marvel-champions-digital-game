@@ -19,6 +19,7 @@ import {
   mainSchemeStage,
   mainSchemeStageOf,
   mainSchemeStateOf,
+  mainSchemeStates,
   mainSchemeFor,
   sharedMainSchemes,
   activationOrderOf,
@@ -350,6 +351,18 @@ export function gliderMainSchemeId(state: GameState, deps: EngineDeps): Instance
     if (scheme !== undefined) return scheme;
   }
   return null;
+}
+
+/**
+ * Acceleration tokens on cards in play that are not main schemes (their `acceleration` counter, docs/phase7-wave5.md
+ * §3.4). RRG 1.8 "Acceleration Token" (p. 5): they "still add threat to the main scheme during step one" — to "the main
+ * scheme", so to the glider's when there is one (MC27 p. 17), else the central one.
+ */
+export function offSchemeAccelerationTokens(state: GameState): number {
+  const schemes = new Set(mainSchemeStates(state).map((s) => s.instanceId));
+  return cardsInPlay(state)
+    .filter((id) => !schemes.has(id))
+    .reduce((sum, id) => sum + (getInstance(state, id)?.counters["acceleration"] ?? 0), 0);
 }
 
 /**

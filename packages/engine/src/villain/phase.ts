@@ -26,7 +26,7 @@ import {
   playerOrder,
 } from "../query.js";
 import { heard, pushEvent, pushEvents, pushRevealFrame } from "../resolve/index.js";
-import { cardsInPlay } from "../select.js";
+import { cardsInPlay, gliderMainSchemeId, offSchemeAccelerationTokens } from "../select.js";
 import type { TriggerEvent } from "../trigger-events.js";
 import type { GameState, GameStep } from "../state.js";
 
@@ -44,12 +44,16 @@ export function executePlaceThreat(ctx: Ctx): void {
       // Every main scheme in play gains threat, each from its own acceleration and tokens plus the icons in play: MC21
       // p. 10, "Each main scheme gains threat during step 1 of the villain phase, and they are each affected by any
       // acceleration and crisis icons in play" (docs/phase7-wave4.md §3.2). One main scheme is every other game.
+      // Tokens on other cards add to "the main scheme" (docs/phase7-wave5.md §3.4).
+      const offScheme = offSchemeAccelerationTokens(ctx.state);
+      const tokensGoTo = gliderMainSchemeId(ctx.state, ctx.deps) ?? ctx.state.mainScheme.instanceId;
       const events = sharedMainSchemes(ctx.state).map((scheme) => ({
         kind: "placeThreat" as const,
         schemeInstanceId: scheme.instanceId,
         amount:
           mainSchemeValue(ctx.state, "acceleration", ctx.deps, scheme) +
           scheme.accelerationTokens +
+          (scheme.instanceId === tokensGoTo ? offScheme : 0) +
           iconsInPlay(ctx.state, ctx.deps, "acceleration"),
         sourceInstanceId: null,
       }));

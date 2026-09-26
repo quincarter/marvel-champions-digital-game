@@ -335,7 +335,7 @@ against `pnpm dsl` (379 builders), the engine's `EffectSpec` / `RuleSpec` / `Tri
 | 3.1  | Villains that enter and leave play: set-aside villains, activation order, no villain in play | The Sinister Six; Frequent Flyers, High Fashion, Robotic Enhancements, Surprise!               | landed  |
 | 3.2  | An enemy activation that can be interrupted and canceled                                     | Sinister Synchronization / Beatdown ("Ambush!"), Web Binding                                   | landed  |
 | 3.3  | Several main schemes, one marked by a counter; a completed stage flips to an environment     | Venom Goblin (glider counter)                                                                  | landed  |
-| 3.4  | Acceleration tokens on any card, moved between cards, and announced                          | Hapless Pedestrians, Tracking Prey, Lower/Midtown/Upper Manhattan                              | open    |
+| 3.4  | Acceleration tokens on any card, moved between cards, and announced                          | Hapless Pedestrians, Tracking Prey, Lower/Midtown/Upper Manhattan                              | landed  |
 | 3.5  | Encounter cards in a player's deck, hand and discard pile                                    | Mysterio (whole scenario), MC27 scenario 3 campaign                                            | open    |
 | 3.6  | Boost cards held on a card that does not activate, then moved to an enemy                    | Venom ("Leave Us Alone!", Vengeance), MC27 scenario 2 expert                                   | open    |
 | 3.7  | A resolved Special reports the cards it discarded                                            | Sandslide, Surging Sands                                                                       | open    |
@@ -498,6 +498,18 @@ choice of main scheme). What is new:
   in the pool; add it if not).
 
 ### 3.4 Acceleration tokens on any card, moved between cards, and announced
+
+> **Status: landed (2026-09-26),** tested in `packages/engine/src/acceleration-tokens-anywhere.test.ts` (3 tests: a token
+> placed on a side scheme sits there as its `acceleration` counter and adds to the main scheme's step one, and is gone
+> with the scheme, replay deep-equal; `moveCounters` moves it onto the main scheme's tokens; "After an acceleration token
+> is placed on this scheme" hears a token on the main scheme and not one elsewhere). DSL: `wave5-primitives.test.ts`.
+> **What landed:** `addAccelerationToken` on a card that is not a main scheme gives it an `acceleration` counter
+> (`ACCELERATION_COUNTER`); step one adds every such token in play to "the main scheme" (the glider's, else the central
+> one; `offSchemeAccelerationTokens`), and the villain-phase audit expects it. **`TriggerEvent accelerationTokenPlaced {
+instanceId }`** (response only, pushed only when an ability listens). `moveCounters` with `counterType` absent or
+> `"acceleration"` moves tokens between a main scheme's `accelerationTokens` and any card's counter. The audit's token
+> shadow now ignores tokens added to a non-central stage (it read them as the central count). **DSL:**
+> `on.accelerationTokenPlaced(who)`; `addAccelerationToken(target)` unchanged.
 
 RRG 1.8 "Acceleration Token" (p. 5): "Acceleration tokens placed on cards other than the main scheme still add threat
 to the main scheme during step one", and "are removed from play when the card they are placed on leaves play".

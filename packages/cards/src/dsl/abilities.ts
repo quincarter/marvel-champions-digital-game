@@ -1127,6 +1127,11 @@ export const on = {
    * enemy; with no villain in play the villain's step-2 activation names none, so "if no villain is in play" is
    * `on.enemyActivating()` with that condition. Cancel it with `cancelIt()`; "that minion" is `eventTarget`.
    */
+  /**
+   * "After an acceleration token is placed on this scheme" (Hapless Pedestrians 1B, `sm` 27064b): `"self"` on the scheme
+   * (docs/phase7-wave5.md §3.4).
+   */
+  accelerationTokenPlaced: (on_: Who): EventPattern => pattern("accelerationTokenPlaced", asTarget(on_)),
   enemyActivating: (who?: Who): EventPattern =>
     pattern("enemyActivating", ...(who === undefined ? [] : [asTarget(who)])),
   /**

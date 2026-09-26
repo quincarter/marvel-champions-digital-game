@@ -7,6 +7,7 @@
 import { describe, expect, it } from "vitest";
 import {
   forcedInterrupt,
+  forcedResponse,
   heroInterrupt,
   mainSchemeMarkedBy,
   on,
@@ -15,9 +16,11 @@ import {
   whenRevealed,
 } from "./abilities.js";
 import {
+  addAccelerationToken,
   addVillain,
   cancelIt,
   dealDamage,
+  dealIndirectDamage,
   encounterSetAside,
   ifThen,
   moveActiveCounterToNextVillain,
@@ -33,6 +36,7 @@ import {
   each,
   eventTarget,
   exists,
+  firstPlayer,
   not,
   perHero,
   query,
@@ -112,5 +116,14 @@ describe("§3.3 several main schemes, one marked by the glider counter", () => {
       resolveSpecialsOf(each(query("mainScheme", { hasCounter: "glider" }))),
     );
     valid(joyRide);
+  });
+});
+
+describe("§3.4 acceleration tokens on any card", () => {
+  it("Hapless Pedestrians 1B hears a token placed on itself; Tracking Prey places one on itself", () => {
+    const pedestrians = forcedResponse(on.accelerationTokenPlaced("self"), dealIndirectDamage(firstPlayer, 3));
+    valid(pedestrians);
+    expect(pedestrians.trigger).toMatchObject({ on: { on: "accelerationTokenPlaced", selfIs: "target" } });
+    valid(whenRevealed(addAccelerationToken(self)));
   });
 });
