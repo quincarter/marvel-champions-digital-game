@@ -18,7 +18,7 @@ import { applyCommand, type GameLog } from "../engine.js";
 import type { GameEvent } from "../events.js";
 import type { ChoiceId, InstanceId, PlayerId } from "../ids.js";
 import { isMinion, mainSchemeValue } from "../query.js";
-import { grantedIcons } from "../rules.js";
+import { grantedIcons, nonSchemeIcons } from "../rules.js";
 import { gliderMainSchemeId, offSchemeAccelerationTokens } from "../select.js";
 import type { Form, GameState, GameStep } from "../state.js";
 
@@ -241,7 +241,10 @@ class PhaseTracker {
         if (event.to.kind === "dealEncounterCards") {
           this.dealAtStep = {
             players: this.order.filter((p) => !shadow.eliminated.has(p)),
-            hazards: schemeIcons(this.state, shadow, "hazard") + grantedIcons(this.state, this.deps, "hazard"),
+            hazards:
+              schemeIcons(this.state, shadow, "hazard") +
+              nonSchemeIcons(this.state, "hazard") +
+              grantedIcons(this.state, this.deps, "hazard"),
           };
         }
         if (finished && event.from.kind === "dealEncounterCards" && event.to.kind !== "dealEncounterCards")
@@ -284,6 +287,7 @@ class PhaseTracker {
               ? offSchemeAccelerationTokens(this.state)
               : 0) +
             schemeIcons(this.state, shadow, "acceleration") +
+            nonSchemeIcons(this.state, "acceleration") +
             grantedIcons(this.state, this.deps, "acceleration");
           this.accelerationThreat = { placed: trigger.amount, expected };
           if (trigger.amount !== expected) {

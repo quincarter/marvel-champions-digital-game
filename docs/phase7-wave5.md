@@ -341,7 +341,7 @@ against `pnpm dsl` (379 builders), the engine's `EffectSpec` / `RuleSpec` / `Tri
 | 3.7  | A resolved Special reports the cards it discarded                                            | Sandslide, Surging Sands                                                                       | landed  |
 | 3.8  | Increasing the damage a character takes                                                      | Bell Tower (Ringing)                                                                           | landed  |
 | 3.9  | A card that counts as another card type with a trait                                         | Festering Mass                                                                                 | landed  |
-| 3.10 | Scheme icons printed on any card                                                             | Team Leader, Public Outcry, Venom ally, Symbiote Suit; 30 records in other packs               | open    |
+| 3.10 | Scheme icons printed on any card                                                             | Team Leader, Public Outcry, Venom ally, Symbiote Suit; 30 records in other packs               | landed  |
 | 3.11 | Text that depends on the mode of play                                                        | Frequent Flyers ×3, Surprise!, From Every Direction, Life-Size Decoy, Ambush!, Teamwork …      | open    |
 | 3.12 | "The first attack this turn"                                                                 | Venom III (Retribution)                                                                        | open    |
 | 3.13 | "When/After X leaves play"                                                                   | Spider-Man (Hobie Brown), Ghost-Spider ally, Web of Life and Destiny, Warrior of the Great Web | open    |
@@ -646,6 +646,15 @@ cardType, traits, while? }` read by `TargetQuery` category and trait matching on
 itself (no recursion).
 
 ### 3.10 Scheme icons printed on any card
+
+> **Status: landed (2026-09-26),** tested in `packages/engine/src/scheme-icons-anywhere.test.ts` (3 tests: a player
+> support with a hazard icon deals one more encounter card, replay deep-equal; an environment's acceleration icon adds 1
+> threat at step one; a flipped card shows its other face's icons and a facedown card none). **What landed:**
+> `nonSchemeIcons` (`rules.ts`) counts `schemeIcons` on every card in play that is not a scheme, in the card's game area
+> when the players are split, and `iconsInPlay` (hazard at the deal step, crisis for threat removal and the basic
+> thwart, acceleration at step one) adds it; the villain-phase audit expects it. A card that swaps to a separate face
+> record (`otherFaceId`) reads that record's `schemeIcons`. **DSL:** none; the icons are card data (§1.3). The 30
+> back-fill records in §5 count as soon as the pipeline emits them.
 
 Schema §1.3. **Plan:** the icon counters (hazard at the deal step, crisis for threat removal, acceleration at step one)
 add `schemeIcons` of every card in play to what they count today (scheme icons and `gainsIcon`). A flipped card uses

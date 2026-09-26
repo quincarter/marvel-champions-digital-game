@@ -7,6 +7,7 @@ import {
   cardOf,
   countSchemeIcons,
   currentName,
+  encounterFace,
   getInstance,
   mainSchemeFor,
   mainSchemeStageOf,
@@ -605,10 +606,35 @@ export function grantedIcons(
   return total;
 }
 
-/** Every `icon` in play, printed (`countSchemeIcons`) and gained (`grantedIcons`): RRG 1.8 "Acceleration Icon" (p. 5). */
+/**
+ * Scheme icons printed on cards in play that are not schemes (`BaseCard.schemeIcons` / `CardFlipSide.schemeIcons`,
+ * docs/phase7-wave5.md §1.3, §3.10): Team Leader's crisis icon, Public Outcry's, the Venom ally's hazard icon. RRG 1.8
+ * "Hazard Icon" (p. 21) counts "each hazard icon on cards in play", and the crisis and acceleration entries likewise. A
+ * flipped card shows its other face's icons; a facedown card shows none.
+ */
+export function nonSchemeIcons(state: GameState, icon: SchemeIcon, area: GameAreaState | null = null): number {
+  let total = 0;
+  for (const id of cardsInPlay(state)) {
+    const instance = getInstance(state, id);
+    const card = cardOf(state, id);
+    if (!instance || !card || instance.facedownAs) continue;
+    if (card.type === "main_scheme" || card.type === "side_scheme" || card.type === "player_side_scheme") continue;
+    if (area && !sameGameArea(area, areaOfCard(state, id))) continue;
+    const face = encounterFace(state, id);
+    const icons = face ? face.schemeIcons : card.schemeIcons;
+    total += (icons ?? []).filter((i) => i === icon).length;
+  }
+  return total;
+}
+
+/**
+ * Every `icon` in play: printed on schemes (`countSchemeIcons`) and on other cards (`nonSchemeIcons`), and gained
+ * (`grantedIcons`): RRG 1.8 "Acceleration Icon" (p. 5).
+ */
 export const iconsInPlay = (
   state: GameState,
   deps: EngineDeps,
   icon: SchemeIcon,
   area: GameAreaState | null = null,
-): number => countSchemeIcons(state, icon, area) + grantedIcons(state, deps, icon, area);
+): number =>
+  countSchemeIcons(state, icon, area) + nonSchemeIcons(state, icon, area) + grantedIcons(state, deps, icon, area);
