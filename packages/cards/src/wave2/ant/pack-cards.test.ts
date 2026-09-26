@@ -1,4 +1,4 @@
-import type { InstanceId } from "@mc/engine";
+import type { GameState, InstanceId } from "@mc/engine";
 import { cardsInPlay } from "@mc/engine";
 import {
   firstLegal,
@@ -6,13 +6,14 @@ import {
   moveToHand,
   P1,
   payWith,
+  putOnTopOfDeck,
   play,
   playerOf,
   settle,
   use,
   type Picker,
 } from "../../testing/harness.js";
-import { withForm } from "../../testing/staging.js";
+import { driveEvents, withForm } from "../../testing/staging.js";
 import { wave2Scenario } from "../setup.js";
 import { runWave2, startWave2Game, WAVE2_DEPS } from "../testing.js";
 import { ANT_PACK_CARDS } from "./pack-cards.js";
@@ -100,5 +101,41 @@ describe("Ant-Man pack cards", () => {
   // `scw`'s own `pack-cards.test.ts` files record for their own off-aspect cards.
   it("Muster Courage: scripted", () => {
     expect(ANT_PACK_CARDS["12032.muster-courage-action"]).toBeDefined();
+  });
+});
+
+// RRG 1.8 "'Then'" (p. 44), docs/then-sweep.md: "discard … until you discard an Avenger ally, then add that ally to
+// your hand". With no Avenger ally anywhere in the deck the discard finds nothing, so the "add" never resolves.
+describe("Call for Aid (12015): 'then add that ally' waits on the discard finding one", () => {
+  const isAvengerAlly = (state: GameState, id: InstanceId) =>
+    ["12002", "12011", "12012", "12013", "12014"].includes(String(state.instances[id]?.cardId));
+  const withoutAvengerAllies = (state: GameState): GameState => ({
+    ...state,
+    players: state.players.map((p) => ({
+      ...p,
+      deck: p.deck.filter((id) => !isAvengerAlly(state, id)),
+      hand: p.hand.filter((id) => !isAvengerAlly(state, id)),
+      discard: p.discard.filter((id) => !isAvengerAlly(state, id)),
+    })),
+  });
+  const cast = (state: GameState) => {
+    const given = moveToHand(withForm(state, { heroForm: 0 }), P1, "12015");
+    const [callForAid] = given.ids as [InstanceId];
+    return driveEvents(WAVE2_DEPS, given.state, play(P1, callForAid, []));
+  };
+
+  it("with no Avenger ally in the deck, the discard finds nothing and the 'then' is skipped", () => {
+    const { state, events } = cast(withoutAvengerAllies(antManVsRhino()));
+    expect(events).toContainEqual({ type: "preThenUnresolved", cause: "discardUntilFoundNothing" });
+    expect(events).toContainEqual({ type: "thenSkipped" });
+    expect(playerOf(state, P1).hand.some((id) => isAvengerAlly(state, id))).toBe(false);
+  });
+
+  it("with Wasp on top of the deck, she is discarded and then added to your hand", () => {
+    const top = putOnTopOfDeck(antManVsRhino(), P1, "12002");
+    const [wasp] = top.ids as [InstanceId];
+    const { state, events } = cast(top.state);
+    expect(events.some((e) => e.type === "thenSkipped")).toBe(false);
+    expect(playerOf(state, P1).hand).toContain(wasp);
   });
 });
