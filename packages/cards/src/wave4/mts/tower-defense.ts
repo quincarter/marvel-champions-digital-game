@@ -13,6 +13,7 @@
  */
 import {
   allOf,
+  andThen,
   atEndOfActivation,
   atEndOfAttack,
   attachCard,
@@ -192,10 +193,12 @@ export const TOWER_DEFENSE = defineAbilities({
   "21098b.under-siege-constant": coveredByEngineRule(),
   // Under Siege 1B — Forced Interrupt: when this stage would be completed, remove all its threat instead, then
   // deal 6[per_hero] damage to Avengers Tower (docs/phase7-wave4.md §3.4).
+  // `removeThreat` always fully resolves, so `andThen` around the "then deal damage" is the faithful reading (RRG
+  // 1.8 "'Then'", p. 44) without changing behavior today.
   "21098b.under-siege-forced-interrupt": forcedInterrupt(
     on.mainSchemeCompleting("self"),
     instead(removeThreat(threatOn(self), self)),
-    dealDamage(perHero(6), AVENGERS_TOWER),
+    andThen(dealDamage(perHero(6), AVENGERS_TOWER)),
   ),
 
   // The Armies of Thanos 2A — When Revealed: put Avengers Tower into play (stronghold side, its default face), put
@@ -220,10 +223,12 @@ export const TOWER_DEFENSE = defineAbilities({
   "21099b.the-armies-of-thanos-constant": coveredByEngineRule(),
   // The Armies of Thanos 2B — Forced Interrupt: when this stage would be completed, remove all its threat
   // instead, then deal each player 1 facedown encounter card.
+  // `removeThreat` always fully resolves, so `andThen` around the "then deal each player" is the faithful reading
+  // (RRG 1.8 "'Then'", p. 44) without changing behavior today.
   "21099b.the-armies-of-thanos-forced-interrupt": forcedInterrupt(
     on.mainSchemeCompleting("self"),
     instead(removeThreat(threatOn(self), self)),
-    forEachPlayer(eachPlayer, dealEncounterCard(thatPlayer)),
+    andThen(forEachPlayer(eachPlayer, dealEncounterCard(thatPlayer))),
   ),
 
   // Avengers Tower, Stronghold side — "The unique rule does not apply to Avengers Tower." (§3.5).
@@ -233,12 +238,14 @@ export const TOWER_DEFENSE = defineAbilities({
   // unique rule this way, per the user's 2026-09-24 decision that a flip does not resolve "When Revealed" — RRG 1.8
   // "Environments flip, they are not revealed", rulings Jun 25, 2026 (4) #3 and Jan 26, 2026 (4) #2 — so the discard
   // is scripted here, on the flipping side, rather than on 21100b.when-revealed), then flip.
+  // "…remove all of it. Then flip Avengers Tower over." `heal` always fully resolves once the threshold is met, so
+  // `andThen` is the faithful reading (RRG 1.8 "'Then'", p. 44) without changing behavior today. The discard (moved
+  // here from 21100b's own "When Revealed" per the module docblock above) travels with the flip inside the `andThen`.
   "21100a.avengers-tower-forced-response": forcedResponse(
     when.damage("self", { taken: true }),
     ifThen(towerAtLeast9, [
       heal(damageOn(self), self),
-      discard(each(query([], { name: "Avengers Tower", excluding: self }))),
-      flipCard(self),
+      andThen(discard(each(query([], { name: "Avengers Tower", excluding: self }))), flipCard(self)),
     ]),
   ),
   // Avengers Tower, Damaged side — When Revealed: discard each other Avengers Tower from play (any card sharing the
