@@ -169,6 +169,19 @@ function actingPlayerOf(event: TriggerEvent, pattern: EventPattern): PlayerId | 
   return eventSubjects(event).players[0] ?? null;
 }
 
+/**
+ * Who is offered an optional ability on an encounter card, and resolves it as "you". RRG 1.8 "Ability" (p. 4): "Any
+ * player can use such an ability on an encounter card". A damage event names no player, so the offer goes to the
+ * controller of the card dealing the damage, the player whose attack it is (docs/phase7-wave5.md §4 Q8, Bell Tower's
+ * "(you may) place that many chime counters here instead"); with no controlling player, `controllersToAsk` falls back
+ * to the first player. Forced abilities keep `actingPlayerOf`: nobody chooses whether to resolve them.
+ */
+function offeredPlayerOf(state: GameState, event: TriggerEvent, pattern: EventPattern): PlayerId | null {
+  const acting = actingPlayerOf(event, pattern);
+  if (acting !== null || event.kind !== "dealDamage" || event.sourceInstanceId === null) return acting;
+  return controllerOf(state, event.sourceInstanceId);
+}
+
 /** RRG "Hero Interrupt"/"Alter-Ego Response": the gate is on the controller's current form. */
 const formSatisfied = (state: GameState, controllerId: PlayerId | null, form: Form | undefined): boolean => {
   if (!form) return true;
@@ -230,7 +243,8 @@ export function candidatesFor(
         controllerId ??
         (trigger.firstPlayerOnly === true
           ? state.firstPlayerId
-          : (uncontrolledYouOf(state, id) ?? actingPlayerOf(event, trigger.on)));
+          : (uncontrolledYouOf(state, id) ??
+            (forced ? actingPlayerOf(event, trigger.on) : offeredPlayerOf(state, event, trigger.on))));
       found.push(candidateOf({ instanceId: id, abilityId: ref.id, controllerId: acting, definition }, forced));
     }
   }
