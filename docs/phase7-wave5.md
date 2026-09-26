@@ -362,7 +362,7 @@ against `pnpm dsl` (379 builders), the engine's `EffectSpec` / `RuleSpec` / `Tri
 | 3.28 | Looking at the top card of the encounter deck at any time                                    | Sector Scan                                                                                    | landed  |
 | 3.29 | Replacing damage with counters on another card, with no excess damage                        | Bell Tower (Quiet); MC27 p. 21 FAQ                                                             | landed  |
 | 3.30 | A player card attached to an encounter card and returned when its host leaves                | Wrist Navigator                                                                                | landed  |
-| 3.31 | A printed text box that cannot be blanked                                                    | SP//dr Suit, SP//dr                                                                            | open    |
+| 3.31 | A printed text box that cannot be blanked                                                    | SP//dr Suit, SP//dr                                                                            | landed  |
 | 3.32 | Reusable as is                                                                               | —                                                                                              | checked |
 
 ### 3.1 Villains that enter and leave play: set-aside villains, activation order, no villain in play
@@ -1018,6 +1018,15 @@ cannot leave play). Verify what `leavePlay` does today with a permanent attachme
 
 ### 3.31 A printed text box that cannot be blanked
 
+> **Status: landed (2026-09-26, 1d84412c),** tested in `packages/engine/src/unblankable-text-box.test.ts` (4 tests) and
+> `packages/cards/src/dsl/wave5-3-31.test.ts`. **What landed:** an ability, not data (the ingested text already gives
+> both faces a slot: `31001b.sp-dr-suit-constant`, `31002b.sp-dr-constant`): `RuleSpec { kind: "textBoxCannotBeBlanked"
+}`, read from the current face before any blank applies, protecting only that face against lasting (Panic in the
+> Streets, Vivian) and constant (Tech Theft) blanks. Facedown cards and cards treated as another type still have no
+> abilities (not "treated as blank"). `activeAbilityRefs` now layers the blank check over a private
+> `unblankedAbilityRefs(state, id)`; §3.24's face logic goes there. **DSL:** `constant(textBoxCannotBeBlanked())`. The
+> Permanent keyword's own blank protection (RRG 1.8 p. 32) is not built: §4.2 Q31.
+
 SP//dr Suit 1B and SP//dr: "This card's printed text box cannot be treated as if it were blank." Panic in the Streets
 and Vivian blank text boxes. **Plan:** `RuleSpec textBoxCannotBeBlanked` read by `blankTextBox`.
 
@@ -1188,6 +1197,10 @@ flagged; none is implemented yet.**
     their total. **As built.**
 30. **A "take damage" cost that is partly prevented** (Q18 follow-up; RRG 1.8 p. 13: not paid if any is prevented). The
     §3.21 indirect-damage cost does not check prevention. **As built.**
+31. **The Permanent keyword's blank protection** (§3.31 follow-up; RRG 1.8 "Permanent", p. 32): effects from cards
+    outside the permanent card's own set cannot blank any part of its text box. `isPermanent` covers defeat and leaving
+    play, but no blank check reads it. Building it needs a blank to record which card caused it, to compare sets. Both
+    SP//dr faces are Permanent (and carry their own §3.31 line). **Default:** a separate primitive later.
 
 ---
 
