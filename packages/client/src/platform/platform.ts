@@ -35,6 +35,26 @@ export function isNativeShell(platform: Platform = detectPlatform()): boolean {
 }
 
 /**
+ * Whether the page should draw under the notch and gesture bar (`viewport-fit=cover`) and inset itself by the safe
+ * area. Only when nothing else keeps the page clear of them: a native shell, or an app installed to the home screen.
+ * In a browser tab the browser's own toolbars already do, and Android 15+ Chrome-based browsers still report the
+ * gesture bar as `safe-area-inset-bottom` under a bottom address bar, which left a VOID strip above that bar.
+ */
+export function drawsEdgeToEdge(platform: Platform, installed: boolean): boolean {
+  return isNativeShell(platform) || installed;
+}
+
+/** Opts the page into `viewport-fit=cover` when `drawsEdgeToEdge` says so; index.html ships without it. */
+export function applyViewportFit(doc: Document = document): void {
+  const installed =
+    globalThis.matchMedia?.("(display-mode: standalone)").matches === true ||
+    (globalThis.navigator as { standalone?: boolean } | undefined)?.standalone === true;
+  if (!drawsEdgeToEdge(detectPlatform(), installed)) return;
+  const meta = doc.querySelector<HTMLMetaElement>('meta[name="viewport"]');
+  if (meta !== null && !meta.content.includes("viewport-fit")) meta.content += ", viewport-fit=cover";
+}
+
+/**
  * Opens `url` outside the game: a new browser tab on the web. Capacitor hands a navigation away from the app's own
  * origin to the system browser. Tauri has no opener plugin wired yet (a Phase 8 packaging item), so there this is
  * the webview's own `window.open`, which a desktop build may ignore.

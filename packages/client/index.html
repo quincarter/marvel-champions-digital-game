@@ -2,7 +2,7 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Marvel Champions</title>
     <!--
       The only DOM in the app. Phaser draws every screen (PLAN.md Phase 4), so
@@ -22,7 +22,9 @@
       }
       /*
         The game sits inside the safe area, so a notch, a Dynamic Island or the
-        home indicator never covers a control; VOID fills the insets. With
+        home indicator never covers a control; VOID fills the insets. The insets
+        are only non-zero with viewport-fit=cover, which main.ts adds in a
+        native shell or an installed app (platform.ts#applyViewportFit). With
         Phaser's RESIZE scale mode the canvas takes this box's size, so scenes
         lay out against the safe rect with no inset logic of their own. Every
         inset is 0 on desktop, so this is the whole-window box there.
