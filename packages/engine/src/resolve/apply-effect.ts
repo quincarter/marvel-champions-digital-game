@@ -1821,6 +1821,10 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       const limit = piles.deck.length + piles.discard.length;
       let found: InstanceId | null = null;
       for (let i = 0; i < limit && found === null; i++) {
+        // RRG 1.8 "Encounter Deck" (p. 17): "discard cards from the encounter deck until the discard condition is met
+        // or the encounter deck is empty. … Do not continue the discard effect with the newly shuffled encounter deck."
+        // The same stop `discardEncounterCards` makes; a deck already empty when the effect began is reset first.
+        if (i > 0 && encounterDeckOf(ctx.state, deckId).deck.length === 0) break;
         const id = drawEncounterCard(ctx, deckId);
         if (!id) break;
         updateInstance(ctx, id, (inst) => ({ ...inst, faceup: true }));

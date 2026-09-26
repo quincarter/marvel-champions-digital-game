@@ -210,6 +210,25 @@ describe("a search or 'discard until' that finds nothing", () => {
     expect(skipped(events)).toBe(true);
   });
 
+  it("the discard stops when the encounter deck empties: a minion already in the discard pile is not reached", () => {
+    // RRG 1.8 "Encounter Deck" (p. 17): "Do not continue the discard effect with the newly shuffled encounter deck."
+    const base = start({ encounter: [MINION.id, ...copiesOf(BLANK.id, 6)] });
+    const deckId = Object.keys(base.encounterDecks)[0]!;
+    const piles = base.encounterDecks[deckId as keyof typeof base.encounterDecks]!;
+    const minion = piles.deck.find((id) => base.instances[id]?.cardId === MINION.id)!;
+    const state: GameState = {
+      ...base,
+      encounterDecks: {
+        ...base.encounterDecks,
+        [deckId]: { deck: piles.deck.filter((id) => id !== minion), discard: [minion, ...piles.discard] },
+      },
+    };
+    const { state: after, events } = playFree(state, deps, REVEAL_UNTIL.card.id);
+    expect(after.players[0]!.playArea).not.toContain(minion);
+    expect(causes(events)).toEqual(["revealFoundNothing"]);
+    expect(events.some((e) => e.type === "accelerationTokenAdded")).toBe(false);
+  });
+
   it("…and with a minion found, it is revealed and the 'Then' runs", () => {
     const state = start({ encounter: [...copiesOf(BLANK.id, 3), MINION.id, ...copiesOf(BLANK.id, 8)] });
     const { state: after, events } = playFree(state, deps, REVEAL_UNTIL.card.id);

@@ -122,6 +122,18 @@ The villain entries (Collector, Nebula, The Hood, Venom), and main schemes with 
 - **The Island of Dr. Zola (04112, stage 1B), and The Mad Doctor 2B (04113b):** both print the same "place 1 test counter here. Then, if there are 3 or more …"; the shared helper is now behind `andThen`, so 04113b is converted too though it is not on the checklist.
 - **Planetary Invasion (16057), Combat Ready (16101), Honor Among Thieves (16141):** the encounter-deck discard that finds nothing is "fulfilled" (RRG 1.8 "Encounter Deck", p. 17) and does not mark anything; "Reveal that minion/card" then has nothing to reveal (`revealFoundNothing`), and a reveal whose effects are cancelled is `revealCancelled`. Either skips the post-"then" text. For Planetary Invasion and Combat Ready that changes nothing observable (the "then" names the missing card). For Honor Among Thieves it does: the villain no longer gets its facedown boost card when no Criminal minion is found. See the open questions.
 
+### E2e seeds that play differently (game-rules-architect, 2026-09-26)
+
+Measured per step against this branch's HEAD in a clean copy (the other agent's uncommitted work left out), with the `[e2e]` summary lines of every `packages/cards` e2e test. The engine primitive and every card conversion above changed no seed. One engine fix found along the way did:
+
+- **`discardEncounterUntil` now stops when the encounter deck empties** (RRG 1.8 "Encounter Deck", p. 17: "Do not continue the discard effect with the newly shuffled encounter deck"; `discardEncounterCards` already stopped). Before, it drew on into the reshuffled deck, adding an acceleration token and sometimes finding its card among what had been in the discard pile. Every game still ends and still replays deep-equal.
+  - Core Klaw 2-player, She-Hulk + Black Panther: The Masters of Evil (01128) in round 3 runs the deck out before a Masters of Evil minion; the old discard found one in the old discard pile. Loss by main scheme moves from round 6 to round 8, 120 → 150 commands.
+  - `hood` The Hood 2-player, Spider-Man + Captain Marvel: Hot Pursuit (24058) in round 5, the same way with a minion. The loss changes from all players defeated in round 6 to main scheme completed in round 10, 105 → 165 commands, and Brothers Grimm is now shuffled in during play too.
+  - `mts` Ebony Maw standard 4-player: Attack on Knowhere (21074a) in round 3 and Channeling Trance (21081) in round 4 stop at the empty deck. Loss by main scheme moves from round 6 to round 5, 231 → 186 commands.
+  - `mts` Ebony Maw expert 4-player: the same two cards (rounds 3 and 4). Same loss in round 5, 180 → 182 commands.
+  - `mts` Thanos standard 4-player: the Space Stone (21134) in round 1. Same loss in round 5, 194 → 156 commands.
+  - Also stopped, with no summary change: the Space Stone in `mts` Thanos expert 4-player and Loki expert 4-player (round 4).
+
 ## Background: the shape survey from #61
 
 The agent that built `andThen` also ran a code-shape survey: player abilities that open with a required choice followed by effects that don't read the chosen slot. It found 46, plus 30 where the choice comes later. It only checked code structure, so most of those have no printed "then". Of the 46, only Crisis Interdiction (01012), Quinjet and Aamir Khan print one, and all three are in the checklist above. The rest (Photonic Blast, Melee, Save the Day, Cosmic Alliance, …) are governed by the "any part of the ability" rule (RRG p. 12), which #61 already implements, so they don't need `andThen`. The survey is not the to-do list; the checklist is.
