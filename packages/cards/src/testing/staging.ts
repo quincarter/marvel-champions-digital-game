@@ -248,6 +248,16 @@ export function driveEvents(
   state: GameState,
   ...commands: readonly Command[]
 ): { readonly state: GameState; readonly events: readonly GameEvent[] } {
+  return driveEventsPicking(deps, state, firstLegal, ...commands);
+}
+
+/** `driveEvents` answering every choice with `pick` instead of `firstLegal` (an optional response to accept, a card to choose). */
+export function driveEventsPicking(
+  deps: EngineDeps,
+  state: GameState,
+  pick: Picker,
+  ...commands: readonly Command[]
+): { readonly state: GameState; readonly events: readonly GameEvent[] } {
   let current = state;
   const events: GameEvent[] = [];
   const settleOne = () => {
@@ -259,7 +269,7 @@ export function driveEvents(
           type: "resolveChoice",
           playerId: choice.playerId,
           choiceId: choice.choiceId,
-          selectedOptionIds: firstLegal(current),
+          selectedOptionIds: pick(current),
         },
         deps,
       );

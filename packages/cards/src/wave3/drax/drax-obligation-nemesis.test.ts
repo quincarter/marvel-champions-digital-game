@@ -1,6 +1,7 @@
 import {
   activeEncounterDeck,
   activeVillain,
+  cardOf,
   characterProfile as characterProfileOf,
   type GameState,
   type InstanceId,
@@ -25,6 +26,7 @@ import {
   type Picker,
 } from "../../testing/harness.js";
 import { WAVE3_DEPS } from "../index.js";
+import { driveEventsPicking } from "../../testing/staging.js";
 import { playFromHand, revealFromEncounterDeck, startWave3Game } from "../testing.js";
 import { draxScenario } from "./support.js";
 
@@ -85,6 +87,34 @@ describe("Gamora (ally, 19020)", () => {
     // non-event discarded along the way) and the hand grew by exactly the one card found.
     expect(playerOf(attacked, P1).deck.length).toBeLessThan(beforeDeck);
     expect(playerOf(attacked, P1).hand.length).toBe(beforeHand + 1);
+  });
+});
+
+// RRG 1.8 "'Then'" (p. 44), docs/then-sweep.md: with no event in the deck the discard finds nothing, so "then add that
+// card to your hand" never resolves.
+describe("Gamora (ally, 19020): 'then add that card' waits on the discard finding an event", () => {
+  const isEvent = (state: GameState, id: InstanceId) => cardOf(state, id)?.type === "event";
+  it("with no event in the deck, the whole deck is discarded, nothing is added and the 'then' is skipped", () => {
+    const hero = runWith(WAVE3_DEPS, draxVsRhino(1), toHero());
+    const given = moveToHand(hero, P1, "19020");
+    const [gamoraCard] = given.ids as [InstanceId];
+    const played = runWith(WAVE3_DEPS, given.state, play(P1, gamoraCard, payWith(given.state, P1, 3, [gamoraCard])));
+    const gamoraId = instancesOf(played, "19020")[0] as InstanceId;
+    const noEvents: GameState = {
+      ...played,
+      players: played.players.map((p) => ({ ...p, deck: p.deck.filter((id) => !isEvent(played, id)) })),
+    };
+    const readied = patchInstance(noEvents, gamoraId, { exhausted: false });
+    const handBefore = playerOf(readied, P1).hand.length;
+    const { state, events } = driveEventsPicking(WAVE3_DEPS, readied, accepting("19020.gamora-response"), {
+      type: "basicAttack",
+      playerId: P1,
+      attackerInstanceId: gamoraId,
+      targetInstanceId: activeVillain(readied).instanceId,
+    });
+    expect(events).toContainEqual({ type: "preThenUnresolved", cause: "discardUntilFoundNothing" });
+    expect(events).toContainEqual({ type: "thenSkipped" });
+    expect(playerOf(state, P1).hand.length).toBe(handBefore);
   });
 });
 
