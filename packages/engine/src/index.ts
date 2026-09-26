@@ -367,4 +367,5 @@ export {
   zoneContents,
 } from "./query.js";
 export { legalDefenders } from "./resolve/enemy-activation.js";
+export { mainSchemeCompletionLoses } from "./resolve/defeat.js";
 export { generatedResources, handCardResources } from "./actions.js";
