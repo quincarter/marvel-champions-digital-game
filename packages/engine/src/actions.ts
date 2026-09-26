@@ -2150,23 +2150,12 @@ export function playCard(ctx: Ctx, command: Command & { type: "playCard" }): Eng
     controllerId,
   );
   payCost(ctx, command.cardInstanceId, command.playerId, ability?.cost, priced.plan);
+  const unpayable = thwartCostUnpayableAfterPaying(ctx, card.type === "event" ? ability : undefined, command);
+  if (unpayable) return unpayable;
   announceResourcesSpent(ctx, command.playerId, spent, command.cardInstanceId, "playCard");
   return null;
 }
 
-/** Where an effect plays a card from "as if it were in your hand" (`EffectSpec playFromHand.from`). */
-export type PlayFromZone = "hand" | "setAside";
-
-/**
- * The play restrictions every "play a card from your hand" effect checks, whatever it does about the cost. RRG 1.8
- * "Play, Put Into Play" (p. 32) and "Play Restrictions and Permissions" (p. 33): playing a card through an effect is
- * still *playing* it, so form, "max per", Restricted, the unique rule and `cannotPlay` all apply.
-  const unpayable = thwartCostUnpayableAfterPaying(ctx, card.type === "event" ? ability : undefined, command);
-  if (unpayable) return unpayable;
- */
-function playFromEffectRestrictionFault(
-  ctx: Ctx,
-  playerId: PlayerId,
 /**
  * docs/phase7-wave5.md §4.1 Q28: whether a scheme's additional thwart cost is payable is judged after the ability's
  * own cost is paid, at play time as at the target choice, so a "(thwart)" event or ability whose every target is a
@@ -2187,6 +2176,17 @@ function thwartCostUnpayableAfterPaying(
   );
 }
 
+/** Where an effect plays a card from "as if it were in your hand" (`EffectSpec playFromHand.from`). */
+export type PlayFromZone = "hand" | "setAside";
+
+/**
+ * The play restrictions every "play a card from your hand" effect checks, whatever it does about the cost. RRG 1.8
+ * "Play, Put Into Play" (p. 32) and "Play Restrictions and Permissions" (p. 33): playing a card through an effect is
+ * still *playing* it, so form, "max per", Restricted, the unique rule and `cannotPlay` all apply.
+ */
+function playFromEffectRestrictionFault(
+  ctx: Ctx,
+  playerId: PlayerId,
   id: InstanceId,
   from: PlayFromZone = "hand",
 ): string | null {
@@ -2489,6 +2489,8 @@ export function useAbility(ctx: Ctx, command: Command & { type: "useAbility" }):
     ...sources,
   });
   payCost(ctx, command.cardInstanceId, command.playerId, definition.cost, plan);
+  const unpayable = thwartCostUnpayableAfterPaying(ctx, definition, command);
+  if (unpayable) return unpayable;
   announceResourcesSpent(ctx, command.playerId, spent, command.cardInstanceId, "ability");
   return null;
 }
@@ -2500,8 +2502,6 @@ function usableCharacter(ctx: Ctx, playerId: PlayerId, characterId: InstanceId, 
   const isIdentity = player.identity.instanceId === characterId;
   const isOwnAlly = player.playArea.includes(characterId) && isAlly(ctx.state, characterId);
   if (!isIdentity && !isOwnAlly) {
-  const unpayable = thwartCostUnpayableAfterPaying(ctx, definition, command);
-  if (unpayable) return unpayable;
     return engineError("no_valid_target", "character is not a hero or ally you control", command);
   }
   if (isIdentity && player.identity.form !== "hero") {
@@ -2620,6 +2620,16 @@ function withSpentAnnounced<C extends Command & { type: "basicAttack" | "basicTh
 
 export const basicAttack = withSpentAnnounced(basicAttackPaying, (command) => command.attackerInstanceId);
 export const basicThwart = withSpentAnnounced(basicThwartPaying, (command) => command.thwarterInstanceId);
+/**
+ * A basic thwart whose additional thwart cost was just paid (docs/phase7-wave5.md §4.1 Q27, `thwart-cost.ts`
+ * `executeSettleBasicThwartCost`): checked again against the game as it now is, then its own costs are paid and it is
+ * initiated as usual, its thwart events marked as paid for.
+ */
+export const commitPrepaidBasicThwart = withSpentAnnounced(
+  (ctx: Ctx, command: Command & { type: "basicThwart" }, spent: SpentPayment[]) =>
+    basicThwartWith(ctx, command, spent, true),
+  (command) => command.thwarterInstanceId,
+);
 
 function basicAttackPaying(
   ctx: Ctx,
@@ -2631,16 +2641,6 @@ function basicAttackPaying(
   const unusable = usableCharacter(ctx, command.playerId, command.attackerInstanceId, command);
   if (unusable) return unusable;
 
-/**
- * A basic thwart whose additional thwart cost was just paid (docs/phase7-wave5.md §4.1 Q27, `thwart-cost.ts`
- * `executeSettleBasicThwartCost`): checked again against the game as it now is, then its own costs are paid and it is
- * initiated as usual, its thwart events marked as paid for.
- */
-export const commitPrepaidBasicThwart = withSpentAnnounced(
-  (ctx: Ctx, command: Command & { type: "basicThwart" }, spent: SpentPayment[]) =>
-    basicThwartWith(ctx, command, spent, true),
-  (command) => command.thwarterInstanceId,
-);
   const shares = dividedShares(
     ctx,
     command,
@@ -2730,6 +2730,16 @@ function basicThwartPaying(
   command: Command & { type: "basicThwart" },
   spent: SpentPayment[],
 ): EngineError | null {
+  return basicThwartWith(ctx, command, spent, false);
+}
+
+/** `thwartCostPaid`: the schemes' additional thwart cost was already paid (`commitPrepaidBasicThwart`). */
+function basicThwartWith(
+  ctx: Ctx,
+  command: Command & { type: "basicThwart" },
+  spent: SpentPayment[],
+  thwartCostPaid: boolean,
+): EngineError | null {
   const invalid = requireActivePlayer(ctx.state, command.playerId, command);
   if (invalid) return invalid;
   const unusable = usableCharacter(ctx, command.playerId, command.thwarterInstanceId, command);
@@ -2740,16 +2750,6 @@ function basicThwartPaying(
 
   const shares = dividedShares(
     ctx,
-): EngineError | null {
-  return basicThwartWith(ctx, command, spent, false);
-}
-
-/** `thwartCostPaid`: the schemes' additional thwart cost was already paid (`commitPrepaidBasicThwart`). */
-function basicThwartWith(
-  ctx: Ctx,
-  command: Command & { type: "basicThwart" },
-  spent: SpentPayment[],
-  thwartCostPaid: boolean,
     command,
     command.thwarterInstanceId,
     command.schemeInstanceId,
@@ -2832,17 +2832,6 @@ function basicThwartWith(
   if (scheme.threat < 1 && !confused) {
     return engineError("no_valid_target", "scheme has no threat to remove", command);
   }
-  const unpaid = payBasicPowerCost(ctx, command, command.thwarterInstanceId, "thwart", spent);
-  if (unpaid) return unpaid;
-
-  exhaustCard(ctx, command.thwarterInstanceId);
-  if (confused) {
-    // RRG "Confuse": the thwart is cancelled but its costs are still paid.
-    updateInstance(ctx, command.thwarterInstanceId, (i) => ({
-      ...i,
-      statuses: { ...i.statuses, confused: 0 },
-    }));
-    emit(ctx, {
   // docs/phase7-wave5.md §4.1 Q18, Q27, Q29 (RRG 1.8 "Cost", p. 13; "Initiating Abilities", p. 24, steps 3 and 5):
   // an additional cost to thwart these schemes is paid together with this thwart's own costs. It must be affordable,
   // in total across a divided thwart's schemes, from what paying the own costs would leave (else the schemes are not
@@ -2864,6 +2853,17 @@ function basicThwartWith(
       return null;
     }
   }
+  const unpaid = payBasicPowerCost(ctx, command, command.thwarterInstanceId, "thwart", spent);
+  if (unpaid) return unpaid;
+
+  exhaustCard(ctx, command.thwarterInstanceId);
+  if (confused) {
+    // RRG "Confuse": the thwart is cancelled but its costs are still paid.
+    updateInstance(ctx, command.thwarterInstanceId, (i) => ({
+      ...i,
+      statuses: { ...i.statuses, confused: 0 },
+    }));
+    emit(ctx, {
       type: "statusRemoved",
       instanceId: command.thwarterInstanceId,
       status: "confused",
@@ -2882,6 +2882,7 @@ function basicThwartWith(
   }
   announceBasicPower(ctx, command.thwarterInstanceId, "thwart", command.playerId);
   const consequential = pushConsequentialDamage(ctx, command.thwarterInstanceId, "thwart");
+  const framesBefore = new Set(ctx.state.stack.map((frame) => frame.frameId));
   if (!command.divide) {
     pushEvent(
       ctx,
@@ -2893,7 +2894,6 @@ function basicThwartWith(
         basic: true,
         ...(useAtk ? { useAtk: true } : {}),
       },
-  const framesBefore = new Set(ctx.state.stack.map((frame) => frame.frameId));
       consequential,
     );
   } else {
@@ -2911,6 +2911,13 @@ function basicThwartWith(
       consequential,
     );
   }
+  // docs/phase7-wave5.md §4.1 Q27: its additional cost is paid already; the thwart does not ask for it again.
+  if (thwartCostPaid) {
+    for (const frame of ctx.state.stack) {
+      if (framesBefore.has(frame.frameId) || frame.kind !== "event" || frame.event.kind !== "thwart") continue;
+      updateFrame(ctx, frame.frameId, (f) => (f.kind === "event" ? { ...f, thwartCostPaid: true } : f));
+    }
+  }
   announceBasicPowerUsing(ctx, command.thwarterInstanceId, "thwart", command.playerId);
   return null;
 }
@@ -2922,13 +2929,6 @@ function basicThwartWith(
  */
 function dividedShares(
   ctx: Ctx,
-  // docs/phase7-wave5.md §4.1 Q27: its additional cost is paid already; the thwart does not ask for it again.
-  if (thwartCostPaid) {
-    for (const frame of ctx.state.stack) {
-      if (framesBefore.has(frame.frameId) || frame.kind !== "event" || frame.event.kind !== "thwart") continue;
-      updateFrame(ctx, frame.frameId, (f) => (f.kind === "event" ? { ...f, thwartCostPaid: true } : f));
-    }
-  }
   command: Command,
   characterId: InstanceId,
   firstTarget: InstanceId,

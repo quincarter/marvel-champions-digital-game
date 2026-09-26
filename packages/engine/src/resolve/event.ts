@@ -1198,6 +1198,9 @@ function askThwartCost(ctx: Ctx, frame: Frame<"event">): boolean {
   const cost = thwartCostFor(ctx.state, ctx.deps, event.schemeInstanceId);
   if (!cost) return false;
   setFrame(ctx, { ...frame, thwartCostAsked: true });
+  // docs/phase7-wave5.md §4.1 Q30 (RRG 1.8 "Cost", p. 13: a "take damage" cost "is not considered paid unless all of
+  // that damage was taken"): damage prevented or left unassigned cancels the thwart. This resolution-time question is
+  // the fallback for a thwart effect, whose own cost was paid at play (`thwart-cost.ts`).
   const damage: EffectSpec[] =
     cost.indirectDamage > 0
       ? [
@@ -1205,6 +1208,15 @@ function askThwartCost(ctx: Ctx, frame: Frame<"event">): boolean {
             kind: "dealIndirectDamage",
             to: { kind: "controller" },
             amount: { kind: "const", value: cost.indirectDamage },
+            bind: "thwartCostDamage",
+          },
+          {
+            kind: "if",
+            condition: {
+              kind: "not",
+              of: { kind: "varAtLeast", name: "thwartCostDamage.amount", amount: cost.indirectDamage },
+            },
+            then: [{ kind: "cancelTriggeringEvent" }],
           },
         ]
       : [];
@@ -1238,9 +1250,6 @@ function applyPlayerThwart(ctx: Ctx, event: Extract<TriggerEvent, { kind: "thwar
   if (amount === undefined) return;
   pushEvent(ctx, {
     kind: "removeThreat",
-  // docs/phase7-wave5.md §4.1 Q30 (RRG 1.8 "Cost", p. 13: a "take damage" cost "is not considered paid unless all of
-  // that damage was taken"): damage prevented or left unassigned cancels the thwart. This resolution-time question is
-  // the fallback for a thwart effect, whose own cost was paid at play (`thwart-cost.ts`).
     schemeInstanceId: event.schemeInstanceId,
     amount,
     sourceInstanceId: event.thwarterInstanceId,
@@ -1248,12 +1257,3 @@ function applyPlayerThwart(ctx: Ctx, event: Extract<TriggerEvent, { kind: "thwar
     ...(event.ignoreCrisis ? { ignoreCrisis: true } : {}),
   });
 }
-            bind: "thwartCostDamage",
-          },
-          {
-            kind: "if",
-            condition: {
-              kind: "not",
-              of: { kind: "varAtLeast", name: "thwartCostDamage.amount", amount: cost.indirectDamage },
-            },
-            then: [{ kind: "cancelTriggeringEvent" }],
