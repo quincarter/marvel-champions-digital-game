@@ -16,8 +16,9 @@
 
 import { encounterSetId, heroAspect, type AnyCard } from "@mc/content";
 import { describe, expect, it } from "vitest";
-import type { EngineDeps } from "./abilities.js";
-import { replay, startSession, type GameSession } from "./engine.js";
+import type { AbilityCost, EngineDeps } from "./abilities.js";
+import { inPlayCostCandidates } from "./actions.js";
+import { applyCommand, replay, startSession, type GameSession } from "./engine.js";
 import type { GameEvent } from "./events.js";
 import type { InstanceId } from "./ids.js";
 import { mustInstance, mustPlayer } from "./query.js";
@@ -85,11 +86,12 @@ const PARTNER = {
 const LIGHT = stubSideScheme({ id: "light", encounterSetIds: ["thieves"], startingThreat: 3, keywords: PERMANENT });
 const THIEVES = { kind: "scenario", encounterSetId: encounterSetId("thieves") } as const;
 
-/** An event that resolves `effects`, of the hero's set, of the "thieves" set, or basic (in no set). */
-function events(id: string, effects: readonly EffectSpec[]) {
-  const heroAbility = stubAbility(`hero-${id}.action`, { trigger: { kind: "action" }, effects });
-  const thievesAbility = stubAbility(`thieves-${id}.action`, { trigger: { kind: "action" }, effects });
-  const basicAbility = stubAbility(`basic-${id}.action`, { trigger: { kind: "action" }, effects });
+/** An event that resolves `effects` (after `cost`), of the hero's set, of the "thieves" set, or basic (in no set). */
+function events(id: string, effects: readonly EffectSpec[], cost?: AbilityCost) {
+  const spec = { trigger: { kind: "action" } as const, effects, ...(cost ? { cost } : {}) };
+  const heroAbility = stubAbility(`hero-${id}.action`, spec);
+  const thievesAbility = stubAbility(`thieves-${id}.action`, spec);
+  const basicAbility = stubAbility(`basic-${id}.action`, spec);
   return {
     abilities: [heroAbility, thievesAbility, basicAbility],
     hero: stubEvent({ id: `hero-${id}`, cost: 0, aspect: HERO_SET, abilities: [heroAbility.ref] }),
@@ -117,8 +119,18 @@ const TAKE = events("take", [
   { kind: "takeIntoHand", cards: { kind: "ref", ref: named("suit") }, player: { kind: "controller" } },
 ]);
 
+// "As an additional cost, discard a support you control. Draw 1 card." / "… discard the suit. …"
+const draw: readonly EffectSpec[] = [
+  { kind: "draw", player: { kind: "controller" }, amount: { kind: "const", value: 1 } },
+];
+const SACRIFICE_SUPPORT_PICK = { slot: "discarded", query: { categories: ["support"] }, min: 1, max: 1 } as const;
+const SACRIFICE_SUPPORT = events("sacrifice-support", draw, { discardCards: SACRIFICE_SUPPORT_PICK });
+const SACRIFICE_SUIT = events("sacrifice-suit", draw, {
+  discardCards: { slot: "discarded", query: { categories: ["support"], name: "suit" }, min: 1, max: 1 },
+});
+
 const FILLER = stubTreachery({ id: "filler", boostIcons: 0 });
-const EVENT_SETS = [DISCARD, DEFEAT_SCHEME, CLEAR_SCHEME, DEFEAT_ALLY, TAKE];
+const EVENT_SETS = [DISCARD, DEFEAT_SCHEME, CLEAR_SCHEME, DEFEAT_ALLY, TAKE, SACRIFICE_SUPPORT, SACRIFICE_SUIT];
 
 const deps: EngineDeps = depsOf(SUIT_LEAVES, BATTERY_ACTION, ...EVENT_SETS.flatMap((set) => set.abilities));
 const CARDS: readonly AnyCard[] = [
@@ -281,6 +293,39 @@ describe("§4.1 Q46 the Permanent keyword's defeat and leave-play protection (RR
 
     // Its own set's effect gets through: nothing blocked.
     expect(blocked(playFree(state, deps, DISCARD.hero.id).events)).toEqual([]);
+  });
+
+  it("a cost that discards a card in play cannot pick a permanent card its discard would be stopped for (RRG 1.8 'Cost', p. 13)", () => {
+    const { state, suit, plain } = supportsInPlay();
+    const options = (event: AnyCard) => {
+      const source = giveCard(state, P1, event.id);
+      return inPlayCostCandidates(source.state, deps, source.id, P1, "discard", SACRIFICE_SUPPORT_PICK);
+    };
+    // Any support: another set's cost leaves the suit out of the options; its own set's may take it.
+    expect(options(SACRIFICE_SUPPORT.basic)).toContain(plain);
+    expect(options(SACRIFICE_SUPPORT.basic)).not.toContain(suit);
+    expect(options(SACRIFICE_SUPPORT.hero)).toContain(suit);
+
+    // Only the suit will do: another set's cost cannot be paid, so its card cannot be played.
+    const basic = giveCard(state, P1, SACRIFICE_SUIT.basic.id);
+    const play = (cardInstanceId: InstanceId, discarded?: readonly InstanceId[]) => ({
+      type: "playCard" as const,
+      playerId: P1,
+      cardInstanceId,
+      payment: [],
+      attachToInstanceId: null,
+      ...(discarded ? { costChoices: { discarded } } : {}),
+    });
+    expect(applyCommand(basic.state, play(basic.id), deps).ok).toBe(false);
+    expect(applyCommand(basic.state, play(basic.id, [suit]), deps).ok).toBe(false);
+
+    // Its own set's cost pays with it, through its leave interrupt.
+    const hero = giveCard(state, P1, SACRIFICE_SUIT.hero.id);
+    const { session } = driveSession(startSession(hero.state), deps, [play(hero.id)]);
+    expect(inPlay(session.state, suit)).toBe(false);
+    expect(mustPlayer(session.state, P1).discard).toContain(suit);
+    expect(seen(session.state)).toBe(1);
+    expectReplays(session);
   });
 
   it("a permanent card is a valid target for a chosen discard only from its own set (RRG p. 32 target bullet)", () => {

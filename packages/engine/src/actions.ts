@@ -21,6 +21,7 @@ import {
   discardRandomFromHand,
   exhaustCard,
   healDamage,
+  permanentStopsLeaving,
   removeCounters,
   setForm,
 } from "./effects.js";
@@ -1453,7 +1454,7 @@ export function inPlayCostCandidates(
   pick: InPlayCostPick,
 ): readonly InstanceId[] {
   return eligibleForInPlayPick(state, deps, sourceId, playerId, pick).filter((id) =>
-    canPayInPlayPick(state, deps, id, mode),
+    canPayInPlayPick(state, deps, sourceId, id, mode),
   );
 }
 
@@ -1500,12 +1501,26 @@ function eligibleForInPlayPick(
   );
 }
 
-function canPayInPlayPick(state: GameState, deps: EngineDeps, id: InstanceId, mode: InPlayCostMode): boolean {
+/**
+ * Whether a card in play can pay an `InPlayCostPick` of this ability (`sourceId`): ready, to exhaust it; able to leave
+ * play, to discard or return it. A cost is paid in full or not at all (RRG 1.8 "Cost", p. 13; "Initiating Abilities",
+ * p. 24), so a card the payment could not move is no option: one that "cannot leave play", or a permanent card that the
+ * source card's ability is not of its set (`permanentStopsLeaving`, RRG 1.8 "Permanent", p. 32; `payCost` pays with the
+ * same source card; docs/phase7-wave5.md §4.1 Q46).
+ */
+function canPayInPlayPick(
+  state: GameState,
+  deps: EngineDeps,
+  sourceId: InstanceId,
+  id: InstanceId,
+  mode: InPlayCostMode,
+): boolean {
   const instance = mustInstance(state, id);
-  // Returning goes to the owner's hand (RRG 1.8 "Ownership and Control", p. 30); a card with no owning player can't go there.
   if (mode === "exhaust") return !instance.exhausted;
-  if (mode === "discard") return !cannotLeavePlay(state, deps, id);
-  return instance.ownerId !== null && !cannotLeavePlay(state, deps, id);
+  if (cannotLeavePlay(state, deps, id)) return false;
+  if (permanentStopsLeaving(state, deps, id, getInstance(state, sourceId)?.cardId)) return false;
+  // Returning goes to the owner's hand (RRG 1.8 "Ownership and Control", p. 30); a card with no owning player can't go there.
+  return mode === "discard" || instance.ownerId !== null;
 }
 
 /** Checks an `InPlayCostPick` against the command's picks (or the forced pick) without paying anything. */
@@ -1520,7 +1535,7 @@ function planInPlayPick(
 ): readonly InstanceId[] | PriceFault {
   const verb = mode === "exhaust" ? "exhaust" : mode === "discard" ? "discard" : "return to hand";
   const eligible = eligibleForInPlayPick(state, deps, sourceId, playerId, pick);
-  const candidates = eligible.filter((id) => canPayInPlayPick(state, deps, id, mode));
+  const candidates = eligible.filter((id) => canPayInPlayPick(state, deps, sourceId, id, mode));
   const whyNot = (id: InstanceId): PriceFault =>
     !eligible.includes(id)
       ? { code: "no_valid_target", message: `${id} is not a card in play you control that can pay ${pick.slot}` }
