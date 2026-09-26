@@ -398,6 +398,8 @@ export interface TableSetupFocusInput {
   readonly difficulties: readonly string[];
   /** Standard II/Expert II's own toggle stop (docs/phase7-wave4.md §4 Q5) — true only for a scenario whose pack has an alternate (The Hood today). */
   readonly hasStandardII?: boolean;
+  /** Tower Defense's own setup-damage toggle stop (docs/phase7-wave4.md §4 Q4) — true only for Tower Defense itself. */
+  readonly hasTowerDefenseSetupDamage?: boolean;
   /** Every modular set candidate's own id (`view/modular-sets.ts`'s `modularSetCandidateIdsFor`) — empty for a scenario that uses none (Breakout). */
   readonly modularSetIds: readonly string[];
   /** The Hood's own nine modular set candidate ids (`view/hood-modular-sets.ts`) — empty for every other scenario. */
@@ -412,6 +414,7 @@ export function tableSetupFocusOrder(input: TableSetupFocusInput): readonly stri
     "back",
     ...input.difficulties.map((id) => `difficulty:${id}`),
     ...(input.hasStandardII ? ["standardII"] : []),
+    ...(input.hasTowerDefenseSetupDamage ? ["towerDefenseSetupDamage"] : []),
     ...input.modularSetIds.map((id) => `modular:${id}`),
     ...(input.hoodSetIds ?? []).map((id) => `hoodSet:${id}`),
     ...input.firstPlayerOptionIds.map((id) => `first-player:${id}`),

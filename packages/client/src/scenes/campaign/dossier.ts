@@ -40,6 +40,7 @@ import {
 } from "../../view/campaign-dossier-model.js";
 import { campaignRunModel, type RunIssueRow } from "../../view/campaign-run-model.js";
 import type { CampaignPoolOverview, PoolStillInPlayRow } from "../../view/campaign-pool-model.js";
+import type { HiddenEvidenceEnvelope } from "../../view/campaign-hidden-evidence-model.js";
 import type { Rect } from "../../view/layout.js";
 import { VariableListScroll } from "../../view/variable-list-scroll.js";
 import { FocusRoute, type FocusStop } from "../focus-route.js";
@@ -317,6 +318,14 @@ export class CampaignDossierScene extends Phaser.Scene {
     const leftX = pad;
     let leftY = body.y + pad;
 
+    // The hidden-evidence envelope (docs/campaign-mode-design.md §Q4; MC50 p. 5), when the box declares one:
+    // always at the very top of the left column, above whichever of Wallets/Pool/seat cards follows.
+    if (loaded.overview.hiddenEvidence) {
+      leftY =
+        this.#hiddenEvidencePanel(loaded.overview.hiddenEvidence, { x: leftX, y: leftY, width: leftWidth, height: 0 }) +
+        24;
+    }
+
     // A box with a Wallets-shaped currency field (MC16) or a campaign pool (MC21) shows that panel where MC10 shows
     // seat art cards — there is no room, and no printed-sheet column, for both. A box with none of these detected
     // falls back to the seat art cards MC10 has always shown, unchanged.
@@ -525,6 +534,46 @@ export class CampaignDossierScene extends Phaser.Scene {
         .setOrigin(0.5);
     }
     this.add.graphics().lineStyle(1, surface.ink.hex, 0.6).strokeRect(rect.x, rect.y, rect.width, rect.height);
+  }
+
+  /**
+   * The hidden-evidence envelope (docs/campaign-mode-design.md §Q4; MC50 p. 5's A.I.M. envelope): a small dark
+   * "stamp" with the field's own label, a state pill ("SEALED · N CARDS" or "REVEALED"), and the field's own
+   * citation as a one-line caption — matching the dossier's own "A.I.M. / SEALED · 3 CARDS" tile
+   * (`artifacts/design-screenshots/individual/campaign-desktop.dc/48-d-50-c09-dossier-deduction.png`). Once
+   * revealed, the card names replace the caption; the count and label stay the same either way.
+   */
+  #hiddenEvidencePanel(envelope: HiddenEvidenceEnvelope, rect: Rect): number {
+    const stampSize = 64;
+    const stamp = this.add.graphics();
+    stamp.fillStyle(surface.ink.hex, 1).fillRect(rect.x, rect.y, stampSize, stampSize);
+    this.add
+      .text(rect.x + stampSize / 2, rect.y + stampSize / 2, envelope.label.toUpperCase(), {
+        ...textStyle(bangers(13), surface.paper.hex, 1),
+        align: "center",
+      })
+      .setWordWrapWidth(stampSize - 8)
+      .setOrigin(0.5);
+
+    const textX = rect.x + stampSize + 16;
+    const textWidth = rect.width - stampSize - 16;
+    const stateLine = envelope.revealedCards
+      ? "REVEALED"
+      : `SEALED · ${envelope.cardCount} CARD${envelope.cardCount === 1 ? "" : "S"}`;
+    this.add.text(textX, rect.y, stateLine, textStyle(bangers(18), surface.ink.hex));
+    const captionText = envelope.revealedCards
+      ? envelope.revealedCards.join(", ")
+      : "Not stored anywhere you can open.";
+    const caption = this.add
+      .text(textX, rect.y + 24, captionText, { ...textStyle(typeRole.body, surface.ink.hex, 0.7), fontSize: "11px" })
+      .setWordWrapWidth(textWidth);
+    const citation = this.add
+      .text(textX, caption.y + caption.height + 4, envelope.citation, {
+        ...textStyle(typeRole.body, surface.ink.hex, 0.45),
+        fontSize: "10px",
+      })
+      .setWordWrapWidth(textWidth);
+    return Math.max(rect.y + stampSize, citation.y + citation.height);
   }
 
   #poolPanel(pool: CampaignPoolOverview, rect: Rect): number {

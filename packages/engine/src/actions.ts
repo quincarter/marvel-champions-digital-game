@@ -77,6 +77,7 @@ import {
   recordAbilityUse,
 } from "./resolve/index.js";
 import { limitReached } from "./resolve/ability.js";
+import { abilityLacksValidTarget } from "./resolve/target-validity.js";
 import { moveCardsTo } from "./resolve/cards.js";
 import {
   addPools,
@@ -1808,6 +1809,13 @@ export function playCard(ctx: Ctx, command: Command & { type: "playCard" }): Eng
   ) {
     return engineError("no_valid_target", "this event's condition is not met", command);
   }
+  // RRG 1.8 "Target" (pp. 42–43): no valid target, no play (the main scheme, for a "(thwart)" while patrolled; §3.5).
+  if (
+    card.type === "event" &&
+    abilityLacksValidTarget(ctx.state, ctx.deps, ability, command.cardInstanceId, command.playerId)
+  ) {
+    return engineError("no_valid_target", "this event has no valid target", command);
+  }
 
   // RRG "Restricted": a player cannot control more than two at a time, so playing
   // a third is not a legal action in the first place.
@@ -2020,6 +2028,7 @@ export function playIgnoringCostFault(
     if (ability.trigger.kind === "action" && ability.trigger.form && player.identity.form !== ability.trigger.form)
       return "wrong form";
     if (actionConditionUnmet(ctx.state, ctx.deps, ability, id, playerId)) return "its condition is not met";
+    if (abilityLacksValidTarget(ctx.state, ctx.deps, ability, id, playerId)) return "it has no valid target";
   }
   return null;
 }
@@ -2053,6 +2062,7 @@ export function playWithPaymentFault(
     if (ability.trigger.kind === "action" && ability.trigger.form && player.identity.form !== ability.trigger.form)
       return "wrong form";
     if (actionConditionUnmet(ctx.state, ctx.deps, ability, id, playerId)) return "its condition is not met";
+    if (abilityLacksValidTarget(ctx.state, ctx.deps, ability, id, playerId)) return "it has no valid target";
   }
   // The ability's own cost has to be settleable without asking: `planCost` fills in a pick with exactly one legal
   // candidate, and anything more ambiguous has nowhere to prompt from inside this effect (§9's capability note).
@@ -2204,6 +2214,9 @@ export function useAbility(ctx: Ctx, command: Command & { type: "useAbility" }):
   }
   if (actionConditionUnmet(ctx.state, ctx.deps, definition, command.cardInstanceId, command.playerId)) {
     return engineError("no_valid_target", "that ability cannot be triggered: its condition is not met", command);
+  }
+  if (abilityLacksValidTarget(ctx.state, ctx.deps, definition, command.cardInstanceId, command.playerId)) {
+    return engineError("no_valid_target", "that ability has no valid target", command);
   }
   const controller = controllerOf(ctx.state, command.cardInstanceId);
   if (controller !== null && controller !== command.playerId) {
@@ -2509,6 +2522,10 @@ function basicThwartPaying(
     command.divide,
   );
   if ("code" in shares) return shares;
+  // RRG 1.8 "Confuse, Confused" (p. 13): "A confused character can attempt to thwart or use a thwart ability even if it
+  // has no valid target for a thwart." So crisis and patrol do not refuse a confused character's basic thwart against
+  // the main scheme: the attempt removes the confused status card and no threat (below).
+  const confused = statusActive(ctx.state, command.thwarterInstanceId, "confused", ctx.deps);
   for (const { targetInstanceId: schemeId } of shares) {
     const schemeCard = cardOf(ctx.state, schemeId);
     const isMainScheme = mainSchemeStateOf(ctx.state, schemeId) !== undefined;
@@ -2528,6 +2545,7 @@ function basicThwartPaying(
     // "Wasp (#1C)"), which checking every share now gives.
     if (
       isMainScheme &&
+      !confused &&
       iconsInPlay(ctx.state, ctx.deps, "crisis", thwarterArea) > 0 &&
       !characterIgnores(ctx.state, ctx.deps, command.thwarterInstanceId, "crisis")
     ) {
@@ -2537,6 +2555,7 @@ function basicThwartPaying(
     // per share, as the crisis icon is (FAQ "Wasp (#1C)", p. 61, names both). docs/phase7-wave3.md §3.5.
     if (
       isMainScheme &&
+      !confused &&
       patrolledBy(ctx.state, ctx.deps, command.playerId) &&
       !characterIgnores(ctx.state, ctx.deps, command.thwarterInstanceId, "patrol")
     ) {
@@ -2567,7 +2586,6 @@ function basicThwartPaying(
       command,
     );
   }
-  const confused = statusActive(ctx.state, command.thwarterInstanceId, "confused", ctx.deps);
   const scheme = mustInstance(ctx.state, command.schemeInstanceId);
   if (scheme.threat < 1 && !confused) {
     return engineError("no_valid_target", "scheme has no threat to remove", command);

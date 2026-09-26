@@ -2,8 +2,9 @@
  * docs/phase7-wave3.md §3.18: `RuleSpec excessDamageBonus`. Synthetic cards shaped like Follow Through (Aggression,
  * `gmw` 16045): "Hero Interrupt: When your hero's attack deals any amount of excess damage, increase that amount by 1."
  *
- * Sources: RRG 1.8 "Excess Damage" (p. 19), "Overkill" (p. 31); ruling Jan 26, 2026 (3) (excess is measured as dealt:
- * "Rocket deals 6 damage to Nimrod (4 HP), so excess damage dealt is 2").
+ * Sources: RRG 1.8 "Excess Damage" (p. 19), "Overkill" (p. 31: excess damage dealt is the value overkill would spill,
+ * which supersedes ruling Jan 26, 2026 (3); `excess-equals-overkill.test.ts`). Here nothing reduces the damage, so both
+ * readings give 6 − 4 = 2.
  */
 
 import { describe, expect, it } from "vitest";

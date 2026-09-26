@@ -64,11 +64,14 @@ import {
 } from "../view/table-setup-preview.js";
 import {
   alternateDifficultySetsFor,
+  hasTowerDefenseSetupDamageOption,
   setDifficulty,
   setFirstPlayerIndex,
   setSeed,
   rerollSeed,
   toggleDifficultySets,
+  toggleTowerDefenseSetupDamage,
+  towerDefenseSetupDamagePerHero,
   toSessionConfig,
   type SetupDraft,
 } from "../view/setup-draft.js";
@@ -240,6 +243,8 @@ export class TableSetupScene extends Phaser.Scene {
 
     // Standard II/Expert II (docs/phase7-wave4.md §4 Q5): offered only when the scenario's own pack has one.
     const alternateDifficultySets = alternateDifficultySetsFor(scenario, POOL_ENCOUNTER_SETS);
+    // Tower Defense's own setup-damage toggle (docs/phase7-wave4.md §4 Q4): offered only for Tower Defense itself.
+    const towerDefenseSetupDamageOffered = hasTowerDefenseSetupDamageOption(scenario);
     // The Hood's own "choose 7 modular encounter sets and set them aside" (§2.3, §3.18): empty for every other scenario.
     const hoodOptions = hasSetAsideModularChoice(scenario)
       ? hoodModularSetOptionsFor(this.#draft, scenario, CARDS_BY_ID)
@@ -307,6 +312,7 @@ export class TableSetupScene extends Phaser.Scene {
       whatsInThereRows: whatsInThereRows.length,
       nemesisLines,
       hasAlternateDifficultySets: alternateDifficultySets !== null,
+      hasTowerDefenseSetupDamage: towerDefenseSetupDamageOffered,
       hoodSetCount: hoodOptions.length,
     });
 
@@ -395,6 +401,12 @@ export class TableSetupScene extends Phaser.Scene {
     );
     if (layout.wide && !canInlineAlt && layout.difficultyAltRow.height > 0) {
       this.#drawAlternateDifficultySetsRow(layout.difficultyAltRow, alternateDifficultySets);
+    }
+
+    // Tower Defense's own setup-damage toggle (docs/phase7-wave4.md §4 Q4): a full-width toggle right under
+    // Difficulty (and Standard II/Expert II, when both are offered) — zero-area on every other scenario's layout.
+    if (layout.wide && layout.towerDefenseDamageRow.height > 0) {
+      this.#drawTowerDefenseDamageRow(layout.towerDefenseDamageRow);
     }
 
     const modularRight = `${requiredSets.length} required · ${modularCap} chosen`.toUpperCase();
@@ -550,6 +562,7 @@ export class TableSetupScene extends Phaser.Scene {
       tableSetupFocusOrder({
         difficulties: difficultyCards.map((c) => c.id),
         hasStandardII: alternateDifficultySets !== null,
+        hasTowerDefenseSetupDamage: towerDefenseSetupDamageOffered,
         modularSetIds: modularOptions.map((o) => o.id),
         hoodSetIds: hoodOptions.map((o) => o.id),
         firstPlayerOptionIds: [...seatCells.map((c) => c.id), "random"],
@@ -589,6 +602,8 @@ export class TableSetupScene extends Phaser.Scene {
 
     const villainName = scenarioDetailOf(scenario, CARDS_BY_ID, POOL_ENCOUNTER_SETS).displayName;
     const modularRightLabel = `${requiredSets.length} required · ${modularCap} chosen`.toUpperCase();
+    // Tower Defense's own setup-damage toggle (docs/phase7-wave4.md §4 Q4): offered only for Tower Defense itself.
+    const towerDefenseSetupDamageOffered = hasTowerDefenseSetupDamageOption(scenario);
 
     const layout = tableSetupCompactLayout({
       width,
@@ -598,6 +613,7 @@ export class TableSetupScene extends Phaser.Scene {
       candidateModularIds: modularOptions.map((o) => o.id),
       modularHeaderRightLabel: modularRightLabel,
       hasStandardII: alternateDifficultySets !== null,
+      hasTowerDefenseSetupDamage: towerDefenseSetupDamageOffered,
       hoodSetIds: hoodOptions.map((o) => o.id),
       seatCount: this.#draft.seats.length,
       compositionRows: compositionRows.length,
@@ -682,6 +698,7 @@ export class TableSetupScene extends Phaser.Scene {
       tableSetupFocusOrder({
         difficulties: difficultyCards.map((c) => c.id),
         hasStandardII: alternateDifficultySets !== null,
+        hasTowerDefenseSetupDamage: towerDefenseSetupDamageOffered,
         modularSetIds: modularOptions.map((o) => o.id),
         hoodSetIds: hoodOptions.map((o) => o.id),
         firstPlayerOptionIds: [...seatCells.map((c) => c.id), "random"],
@@ -786,6 +803,22 @@ export class TableSetupScene extends Phaser.Scene {
           this.#rebuild();
         },
         stopId: "standardII",
+      });
+      return;
+    }
+    if (id === "towerDefenseSetupDamage") {
+      const perHero = towerDefenseSetupDamagePerHero(this.#draft.difficulty);
+      this.#drawCompactToggleRow(rect, {
+        selected: this.#draft.towerDefenseSetupDamage,
+        name: "Black Order's initial attack",
+        meta: this.#draft.towerDefenseSetupDamage
+          ? `Chosen · place ${perHero} damage per hero on Avengers Tower`
+          : `Off · Avengers Tower starts undamaged (${perHero} per hero suggested)`,
+        onClick: () => {
+          this.#draft = toggleTowerDefenseSetupDamage(this.#draft);
+          this.#rebuild();
+        },
+        stopId: "towerDefenseSetupDamage",
       });
       return;
     }
@@ -1370,6 +1403,38 @@ export class TableSetupScene extends Phaser.Scene {
       rect.x + 10,
       rect.y + 8 + 22,
       selected ? "Chosen · replaces the printed set" : "Off · uses the printed set",
+      textStyle(typeRole.body, surface.ink.hex, selected ? ink.secondary : ink.disabled),
+    );
+  }
+
+  /**
+   * Tower Defense's own "Modular Difficulty" (MC21 p. 11, docs/phase7-wave4.md §4 Q4), wide layout: the same
+   * plain on/off card `#drawAlternateDifficultySetsRow` draws — a single full-width toggle, off by default,
+   * labeled with the rulebook's own framing rather than a bare flag name.
+   */
+  #drawTowerDefenseDamageRow(rect: Rect): void {
+    const selected = this.#draft.towerDefenseSetupDamage;
+    const perHero = towerDefenseSetupDamagePerHero(this.#draft.difficulty);
+    const onClick = (): void => {
+      this.#draft = toggleTowerDefenseSetupDamage(this.#draft);
+      this.#rebuild();
+    };
+    this.#buttons.push(new McButton(this, { kind: "quiet", label: "", type: typeRole.label, rect, onClick }));
+    this.#stops.set("towerDefenseSetupDamage", { rect, activate: onClick });
+    this.#cardFrame(rect, selected);
+    const name = this.add.text(
+      rect.x + 10,
+      rect.y + 8,
+      "Black Order's initial attack",
+      textStyle({ ...typeRole.sectionHeader, size: 18 }, surface.ink.hex, selected ? 1 : ink.disabled),
+    );
+    fitText(name, rect.width - 20, 18);
+    this.add.text(
+      rect.x + 10,
+      rect.y + 8 + 22,
+      selected
+        ? `Chosen · place ${perHero} damage per hero on Avengers Tower`
+        : `Off · Avengers Tower starts undamaged (${perHero} per hero suggested)`,
       textStyle(typeRole.body, surface.ink.hex, selected ? ink.secondary : ink.disabled),
     );
   }

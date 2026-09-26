@@ -74,7 +74,8 @@ export const WSP_PACK_CARDS = defineAbilities({
   ),
 
   // Into the Fray — Hero Action (attack): Deal 6 damage to a minion. For each point of excess damage dealt by this
-  // attack, remove 1 threat from the main scheme.
+  // attack, remove 1 threat from the main scheme. Without overkill, "excess damage dealt" is still what overkill would
+  // spill: damage taken beyond remaining hit points (RRG 1.8 "Overkill", p. 31; `resolve/event.ts` `excessDamageOf`).
   "13013.into-the-fray-action": heroAction(
     { label: "attack" },
     chooseTarget("minion", query("minion")),

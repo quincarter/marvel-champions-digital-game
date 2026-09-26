@@ -21,6 +21,8 @@ import { DEFAULT_DEPS } from "./abilities.js";
 import {
   abilityRefsOf,
   CAMPAIGN_GRANTS_COUNT_TOWARD_COPY_LIMIT,
+  cardLegalForIdentity,
+  copiesUpToLimit,
   DECK_MAX_CARDS,
   requiredIdentitySet,
   unscriptedCards,
@@ -691,12 +693,72 @@ describe("validateDeck in a campaign context", () => {
       expect(codesIn(withCard(filled, obligationId, 1), inCampaign({ grantedCardIds: [obligationId] }))).toEqual([]);
     });
 
-    it("leaves granted copies out of the by-title copy count (the Q8 decision point)", () => {
-      // `CAMPAIGN_GRANTS_COUNT_TOWARD_COPY_LIMIT` is `false`: flipping it makes this deck illegal instead.
-      expect(CAMPAIGN_GRANTS_COUNT_TOWARD_COPY_LIMIT).toBe(false);
+    it("counts granted copies toward the by-title copy limit (Q8, decided 2026-09-25)", () => {
+      // Community-sourced reading of MC27 p. 22's Aspect Advantage: every deckbuilding restriction still applies,
+      // so granted plus own copies of a title never exceed its limit. Grants stay exempt from deck size.
+      expect(CAMPAIGN_GRANTS_COUNT_TOWARD_COPY_LIMIT).toBe(true);
       const five = withCard(starter(), basicEvent.id, 5);
       expect(codesIn(five)).toEqual(["copy_limit"]);
-      expect(codesIn(five, inCampaign({ grantedCardIds: [basicEvent.id, basicEvent.id] }))).toEqual([]);
+      expect(codesIn(five, inCampaign({ grantedCardIds: [basicEvent.id, basicEvent.id] }))).toEqual(["copy_limit"]);
+      const three = withCard(starter(), basicEvent.id, 3);
+      expect(codesIn(three, inCampaign({ grantedCardIds: [basicEvent.id, basicEvent.id] }))).toEqual([]);
+    });
+  });
+
+  describe("MC27 p. 22's Aspect Advantage: an aspect card from any aspect, granted at its maximum copies", () => {
+    const offAspect = coreWhere((c) => c.aspect === "aggression" && !c.unique && c.deckLimit === 3);
+    const uniqueOffAspect = coreWhere((c) => c.aspect === "aggression" && c.unique === true);
+    const otherSignature = coreWhere(
+      (c) => (c.aspect as string).startsWith("hero:") && c.aspect !== `hero:${SPIDER_MAN}`,
+    );
+    const ownSignature = coreWhere((c) => c.aspect === `hero:${SPIDER_MAN}`);
+    const limited = synthetic(offAspect, { id: cardId("x-max-two"), name: "Max Two Per Deck", deckLimit: 2 });
+    const pool: readonly AnyCard[] = [...POOL, limited];
+
+    it("exempts the granted copies from the deck's aspect choice, and no others", () => {
+      const deck = withCard(starter(), offAspect.id, 3);
+      expect(codesIn(deck)).toEqual(["aspect_restriction"]);
+      const granted = [offAspect.id, offAspect.id, offAspect.id] as string[];
+      expect(codesIn(deck, inCampaign({ grantedCardIds: granted }))).toEqual([]);
+      expect(codesIn(deck, inCampaign({ grantedCardIds: granted.slice(0, 2) }))).toEqual(["aspect_restriction"]);
+    });
+
+    it("tops a title up to its limit, counting the copies already in the deck", () => {
+      const deck = starter();
+      expect(copiesUpToLimit(deck.cards, offAspect.id, spiderMan(), pool)).toBe(3);
+      expect(copiesUpToLimit(withCard(deck, offAspect.id, 1).cards, offAspect.id, spiderMan(), pool)).toBe(2);
+      expect(copiesUpToLimit(withCard(deck, offAspect.id, 3).cards, offAspect.id, spiderMan(), pool)).toBe(0);
+      // A printed "Max 2 per deck", and a unique card (RRG 1.8 "Unique Icon", pp. 45–46).
+      expect(copiesUpToLimit(deck.cards, limited.id, spiderMan(), pool)).toBe(2);
+      expect(copiesUpToLimit(deck.cards, uniqueOffAspect.id, spiderMan(), pool)).toBe(1);
+      expect(copiesUpToLimit(withCard(deck, uniqueOffAspect.id, 1).cards, uniqueOffAspect.id, spiderMan(), pool)).toBe(
+        0,
+      );
+      // Adam Warlock's per-title cap lowers it the way `validateDeck` does.
+      const capped = { ...spiderMan(), deckbuilding: { maxCopiesPerTitle: 1 } };
+      expect(copiesUpToLimit(deck.cards, offAspect.id, capped, pool)).toBe(1);
+    });
+
+    it("so the deck it produces is legal, whatever the deck already held", () => {
+      for (const held of [0, 1, 2, 3]) {
+        const before = held === 0 ? starter() : withCard(starter(), offAspect.id, held);
+        const add = copiesUpToLimit(before.cards, offAspect.id, spiderMan(), pool);
+        expect(held + add).toBe(3);
+        const after = withCard(starter(), offAspect.id, held + add);
+        // The player's own off-aspect copies are illegal on their own; only the granted ones are exempt.
+        const expected = held === 0 ? [] : ["aspect_restriction"];
+        const granted = Array.from({ length: add }, () => offAspect.id as string);
+        expect(codesIn(after, inCampaign({ grantedCardIds: granted }), pool)).toEqual(expected);
+      }
+    });
+
+    it("offers only cards legal for the hero: never another hero's or its own identity-set cards", () => {
+      expect(cardLegalForIdentity(offAspect, spiderMan())).toBe(true);
+      expect(cardLegalForIdentity(otherSignature, spiderMan())).toBe(false);
+      expect(cardLegalForIdentity(ownSignature, spiderMan())).toBe(false);
+      expect(cardLegalForIdentity(reward, spiderMan())).toBe(false);
+      expect(cardLegalForIdentity(captive, spiderMan())).toBe(false);
+      expect(copiesUpToLimit(starter().cards, otherSignature.id, spiderMan(), pool)).toBe(0);
     });
   });
 

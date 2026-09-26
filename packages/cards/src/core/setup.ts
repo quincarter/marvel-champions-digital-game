@@ -9,6 +9,7 @@ import {
   type CoreAspect,
   type DifficultySetChoice,
   type PlayModes,
+  type ScenarioSetupOptions,
 } from "@mc/content";
 import type { GameSetupConfig, PlayerSetup } from "@mc/engine";
 
@@ -89,6 +90,12 @@ export interface CoreScenarioOptions {
    * than silently building the printed set.
    */
   readonly difficultySets?: DifficultySetChoice;
+  /**
+   * Optional setup rules the scenario's rulebook offers (`ScenarioSetupOptions`; Tower Defense's setup damage, MC21
+   * p. 11, docs/phase7-wave4.md §4 Q4). Absent is none. Read by the builder of the scenario that prints the option;
+   * a builder for another scenario refuses one it does not offer rather than ignoring it.
+   */
+  readonly setupOptions?: ScenarioSetupOptions;
 }
 
 const cardsById = new Map<string, AnyCard>(CORE_CARDS.map((card) => [card.id, card]));
@@ -128,9 +135,27 @@ export function encounterCardsOf(setIds: readonly string[], pool: readonly AnyCa
  * obligation and nemesis set, which the engine shuffles in / sets aside from
  * the card pool. The whole Core card pool is passed so saves replay standalone.
  */
+/** The scenario that prints each `ScenarioSetupOptions` flag; every other scenario refuses it. */
+const SETUP_OPTION_SCENARIO: Readonly<Record<keyof ScenarioSetupOptions, string>> = {
+  towerDefenseSetupDamage: "tower-defense", // MC21 p. 11
+};
+
+/**
+ * Refuses an optional setup rule the scenario does not print, rather than building the game without it: a player who
+ * asked for Tower Defense's setup damage (MC21 p. 11) at another scenario gets an error, not a silently easier game.
+ */
+export function checkScenarioSetupOptions(scenarioId: string, options: ScenarioSetupOptions | undefined): void {
+  for (const [flag, owner] of Object.entries(SETUP_OPTION_SCENARIO)) {
+    if (options?.[flag as keyof ScenarioSetupOptions] && owner !== scenarioId) {
+      throw new Error(`setup option "${flag}" belongs to ${owner}, not ${scenarioId}`);
+    }
+  }
+}
+
 export function coreScenario(scenarioId: string, options: CoreScenarioOptions): GameSetupConfig {
   const scenario = CORE_SCENARIOS.find((s) => s.id === scenarioId);
   if (!scenario) throw new Error(`no Core scenario ${scenarioId}`);
+  checkScenarioSetupOptions(scenarioId, options.setupOptions);
   const difficulty = difficultyOf(resolveModes(options.difficulty, options.modes));
   const villain = cardsById.get(scenario.villainCardId);
   if (!villain || villain.type !== "villain") throw new Error(`${scenario.villainCardId} is not a villain`);

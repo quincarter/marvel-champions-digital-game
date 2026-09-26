@@ -66,7 +66,8 @@ export const DRAX_OBLIGATION_NEMESIS = defineAbilities({
   // as a raw `EventPattern` (`on.damage` has no `eventAtLeast`/named-source hook of its own): "Drax" is named
   // explicitly (`query("identity", { name: "Drax" })`) rather than "you"/`controller`, since this attachment has
   // no controller of its own (it lives on the enemy, RRG 1.8 "Ownership and Control", p. 31) and the printed text
-  // names the hero, not "the player".
+  // names the hero, not "the player". Both of Drax's faces are titled "Drax" (docs/phase7-wave2.md §14.3), so this
+  // still matches him in alter-ego form, the way `currentName` reads any identity's current face.
   "19028.challenge-accepted-forced-response": forcedResponse(
     {
       on: "dealDamage",

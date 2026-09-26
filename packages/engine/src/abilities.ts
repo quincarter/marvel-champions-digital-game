@@ -521,9 +521,10 @@ export type RuleSpec =
    * `signatureSideSchemeOf { villain: host }`).
    *
    * Any damage the source deals, not just its attacks: the card says "excess damage dealt by", not "by his attacks".
-   * Excess damage is measured as RRG 1.8 "Excess Damage" (p. 19) defines it, damage *dealt* beyond remaining hit
-   * points, so it is placed even when a tough status card or "cannot take damage" stops the target taking it (ruling,
-   * Jan 26, 2026 (3)). See `resolve/event.ts` `applyDamage` for the ordering and the open overkill question.
+   * Excess damage is the value overkill would spill (RRG 1.8 "Overkill", p. 31, superseding ruling Jan 26, 2026 (3);
+   * `resolve/event.ts` `excessDamageOf`): damage *taken* beyond remaining hit points, so a tough status card, a
+   * prevention or "cannot take damage" leaves none to place (user decision 2026-09-25). See `resolve/event.ts`
+   * `applyDamage` for the ordering and the open overkill question.
    */
   | {
       readonly kind: "excessDamageAsThreat";
@@ -594,8 +595,9 @@ export type RuleSpec =
   /**
    * "Reduce the amount of damage Nebula takes from each attack by 1." (Wide Stance, `gmw` 16098); "Reduce the amount of
    * damage attached character takes from each attack by 1." (Kree Combat Armor, 16131). A constant on the damage a
-   * matching character **takes** (`fromAttack`: only an attack's): the damage dealt, and so excess damage, is unchanged
-   * (ruling, Jan 26, 2026 (3)). Constants resolve before a tough status (RRG 1.8 FAQ p. 58: "A hero can keep their tough
+   * matching character **takes** (`fromAttack`: only an attack's). Excess damage and overkill are measured on the
+   * reduced amount (RRG 1.8 "Overkill", p. 31, superseding ruling Jan 26, 2026 (3); `resolve/event.ts`
+   * `excessDamageOf`). Constants resolve before a tough status (RRG 1.8 FAQ p. 58: "A hero can keep their tough
    * status card if … A constant effect reduces the damage the hero takes to zero"). docs/phase7-wave3.md §3.15.
    */
   | {

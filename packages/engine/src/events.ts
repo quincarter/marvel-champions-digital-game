@@ -362,7 +362,7 @@ export type GameEvent =
       readonly cardId: CardId;
       readonly playerId: PlayerId;
     }
-  /** An empty separate deck took its discard pile back and was shuffled, with no penalty (`resetEmptySeparateDecks`). */
+  /** An empty separate deck took its discard pile back and was shuffled, with no penalty (`resetSeparateDeckIfEmpty`). */
   | { readonly type: "separateDeckReset"; readonly playerId: PlayerId; readonly name: string }
   /** `schemeInstanceId` is present only when the token went somewhere other than the central main scheme (§10.3). */
   | { readonly type: "accelerationTokenAdded"; readonly total: number; readonly schemeInstanceId?: InstanceId }
@@ -417,6 +417,13 @@ export type GameEvent =
       readonly uses: number;
     }
   | { readonly type: "targetChosen"; readonly slot: string; readonly instanceIds: readonly InstanceId[] }
+  /**
+   * A required choice found nothing to choose (RRG 1.8 "Choose (Game Element)", p. 12), so the text before a "then"
+   * did not fully resolve: `thenSkipped` follows for each "then" it gates.
+   */
+  | { readonly type: "choiceFoundNothing"; readonly slot: string }
+  /** RRG 1.8 "'Then'" (p. 44): the pre-"then" text did not fully resolve, so the post-"then" text was skipped. */
+  | { readonly type: "thenSkipped" }
   | {
       readonly type: "resourcesGenerated";
       readonly playerId: PlayerId;
@@ -497,6 +504,17 @@ export type GameEvent =
     }
   /** A card that "cannot leave play" stayed where it was (RRG 1.8 "'Cannot'", p. 11). */
   | { readonly type: "leavePlayBlocked"; readonly instanceId: InstanceId; readonly reason: "cannotLeavePlay" }
+  /**
+   * One of the scenario's rulebook-printed setup instructions resolved (`GameSetupConfig.scenarioSetupInstructions`;
+   * MC21 p. 11's optional Tower Defense setup damage). `text` and `citation` are copied from the instruction so the
+   * trace says why the state changed without the setup config to hand.
+   */
+  | {
+      readonly type: "scenarioSetupInstructionResolved";
+      readonly instructionId: string;
+      readonly text: string;
+      readonly citation: string;
+    }
   /**
    * Campaign mode's four trace events (design §6.1). They exist for `rules-qa-engineer`'s replay: with them, the
    * campaign half of a game reads off the event stream the way the rules half already does, and the runner's

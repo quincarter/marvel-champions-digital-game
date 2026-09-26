@@ -33,7 +33,8 @@ const ATTACK = trait("ATTACK");
 /**
  * Gamora's identity, whoever controls it. An identity query, not `named("Gamora")`: `named` returns the first card
  * in play with that title, which can be Drax's Gamora ally (19020) at another seat. Both of Gamora's faces are titled
- * "Gamora", so this matches her in either form.
+ * "Gamora" (docs/phase7-wave2.md §14.3), so this matches her in either form — `currentName` reads whichever face
+ * is up, and both faces happen to print the same title here.
  */
 const GAMORA = each(query("identity", { name: "Gamora" }));
 /** Gamora's own player, however this ability's card came to be in play (an obligation, a side scheme, a nemesis

@@ -6,6 +6,7 @@ import type { RngState } from "./rng.js";
 import type { StackFrame } from "./stack.js";
 import type { LastingEffect } from "./lasting.js";
 import type { RuleSpec } from "./abilities.js";
+import type { EffectSpec } from "./spec.js";
 
 export type Form = "hero" | "alterEgo";
 
@@ -222,8 +223,8 @@ export interface PlayerState {
 
 /**
  * One separate deck and its own discard pile (docs/phase7-wave1.md §3.5). The top card's `faceup` follows the
- * identity's `topCardFaceup` after every change (`syncSeparateDeckTop`); an empty deck with cards in its discard is
- * reshuffled at once, with no penalty (`resetEmptySeparateDecks`).
+ * identity's `topCardFaceup` after every change (`syncSeparateDeckTop`); a deck that empties with cards in its discard is
+ * reshuffled at once, by the move that emptied it, with no penalty (`resetSeparateDeckIfEmpty`).
  */
 export interface SeparateDeckState {
   readonly deck: readonly InstanceId[];
@@ -344,6 +345,25 @@ export interface ScenarioRules {
   readonly difficulty?: "expert";
   /** `GameSetupConfig.scenarioRuleSpecs`: rules the scenario imposes without a card (docs/phase7-wave4.md §3.40). */
   readonly rules?: readonly RuleSpec[];
+  /**
+   * `GameSetupConfig.scenarioSetupInstructions`: setup text a rulebook prints rather than a card (Tower Defense's
+   * optional setup damage, MC21 p. 11; docs/phase7-wave4.md §4 Q4). Absent in every game that has none, so an older
+   * save reads unchanged.
+   */
+  readonly setupInstructions?: readonly ScenarioSetupInstruction[];
+}
+
+/**
+ * One setup instruction a scenario's rulebook prints rather than a card: resolved once, after RRG 1.8 Appendix II
+ * step 12's card abilities (the main scheme's and villains' Setup and When Revealed, including everything they put
+ * into play) and before step 14's draw. Plain data, like a campaign instruction, so it is part of the replay baseline.
+ * `text` and `citation` are copied into the `scenarioSetupInstructionResolved` event so the log reads on its own.
+ */
+export interface ScenarioSetupInstruction {
+  readonly id: string;
+  readonly text: string;
+  readonly citation: string;
+  readonly effects: readonly EffectSpec[];
 }
 
 /**
@@ -375,6 +395,11 @@ export type GameStep =
    */
   | { readonly phase: "setup"; readonly kind: "scenarioSetup" }
   /** RRG Appendix II step 14, after setup cards and setup abilities have resolved. */
+  /**
+   * The scenario's rulebook-printed setup instructions (`ScenarioRules.setupInstructions`; MC21 p. 11), after Appendix
+   * II step 12's abilities have fully resolved and before step 14's draw. Reached only by a game that has some.
+   */
+  | { readonly phase: "setup"; readonly kind: "scenarioSetupInstructions" }
   | { readonly phase: "setup"; readonly kind: "drawStartingHands" }
   | { readonly phase: "setup"; readonly kind: "mulligan"; readonly remainingPlayerIds: readonly PlayerId[] }
   /**

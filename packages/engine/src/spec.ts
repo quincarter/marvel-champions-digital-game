@@ -842,7 +842,7 @@ export type StatusName = "stunned" | "confused" | "tough";
  * vars when it finishes: `<bind>.amount` (damage taken / damage healed / threat
  * placed or removed), `<bind>.made` (1 if it happened), and for attacks
  * `<bind>.damage`, `<bind>.defeated`, `<bind>.undefended`, `<bind>.excessDealt`
- * (damage dealt beyond remaining hit points; RRG 1.8 "Excess Damage", p. 19).
+ * (the excess overkill would spill: damage taken beyond remaining hit points; RRG 1.8 "Overkill", p. 31).
  */
 export type EffectSpec =
   /**
@@ -988,9 +988,9 @@ export type EffectSpec =
        * and is read when that attack finally deals its damage, so it survives `declareDefender` and the defense
        * arithmetic, and it expires with the attack.
        *
-       * RRG 1.8 "Prevent" (p. 34): the damage is still *dealt* (excess damage is measured, and "the attacking
-       * character is considered to have dealt damage"), but the target takes none, so no tough status card is used,
-       * "attacked and damaged" is false, and the attack's `damage`/`damaged` results stay 0.
+       * RRG 1.8 "Prevent" (p. 34): the damage is still *dealt* ("the attacking character is considered to have dealt
+       * damage"), but the target takes none, so no tough status card is used, "attacked and damaged" is false, the
+       * attack's `damage`/`damaged` results stay 0, and there is no excess damage (RRG 1.8 "Overkill", p. 31).
        */
       readonly preventAllDamage?: boolean;
       /** A number, or a value: "give him an additional boost card for each side scheme in play" (Master Strategist; §3.11). */
@@ -1673,8 +1673,18 @@ export type EffectSpec =
    * `defeated`: the card leaves play because it was defeated, so Victory X sends it (and any Victory X attachment on it)
    * to the victory display instead (`defeatFromPlay`; RRG 1.8 "Victory X", p. 46). Set by the engine's side-scheme
    * defeat; a card that says "discard" never sets it. docs/phase7-wave3.md §3.4.
+   *
+   * `insteadTo` (only with `defeated`): where the defeated card goes instead of its discard pile ("return it to its
+   * owner's hand instead of discarding it", Regroup; a constant `defeatDestination`). Victory X still wins, since the
+   * victory display replaces the defeat's placement, not a discard (docs/phase7-wave3.md §3.45). Set by the engine's
+   * ally and minion defeat, which leaves play only after its When Defeated abilities (RRG 1.8 p. 48).
    */
-  | { readonly kind: "discardFromPlay"; readonly target: TargetRef; readonly defeated?: boolean }
+  | {
+      readonly kind: "discardFromPlay";
+      readonly target: TargetRef;
+      readonly defeated?: boolean;
+      readonly insteadTo?: CardDestination;
+    }
   /**
    * "Create 'The Collection' game area" (The Grand Collection 1A, `gmw` 16073a): an empty scenario out-of-play area named
    * `name` (`GameState.scenarioAreas`, docs/phase7-wave3.md §3.14). Nothing happens if it exists.
@@ -1997,6 +2007,19 @@ export type EffectSpec =
       readonly then: readonly EffectSpec[];
       readonly otherwise?: readonly EffectSpec[];
     }
+  /**
+   * The printed "Then": RRG 1.8 "'Then'" (p. 44): "If the pre-'then' text of an effect does not fully resolve, the
+   * post-'then' text does not attempt to resolve." `effects` is the post-"then" text. The pre-"then" text is every
+   * effect before this one in the same program. The engine judges it not fully resolved when a required choice in it
+   * (`chooseTarget` without `upTo`/`optional`, or `chooseCards` with `min` ≥ 1 outside a deck) found nothing to
+   * choose (the frame var `_then.unresolved`); `effects` are then skipped and `thenSkipped` is logged.
+   *
+   * A post-"then" effect is also not an independent part of the ability when judging whether it can be initiated
+   * (RRG 1.8 "Choose (Game Element)", p. 12; `abilityLacksValidTarget`). Quinjet (`cap` 03019): "Put an Avenger ally
+   * from your hand into play … Then, discard Quinjet." is `[chooseCards, putIntoPlay, then([discard self])]`, and with
+   * no such ally in hand it cannot be used.
+   */
+  | { readonly kind: "then"; readonly effects: readonly EffectSpec[] }
   /** RRG "Cancel": stops the interrupted event from resolving (its responses do not fire). */
   | { readonly kind: "cancelTriggeringEvent" }
   /**

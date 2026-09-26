@@ -19,6 +19,7 @@ import {
   toHero,
   use,
 } from "../../testing/harness.js";
+import { playFromHand } from "../../testing/staging.js";
 import { wave1Scenario } from "../setup.js";
 import { runWave1, startWave1Game, WAVE1_DEPS } from "../testing.js";
 
@@ -210,6 +211,35 @@ describe("Captain America kit", () => {
     expect(inst(after, falcon).exhausted).toBe(true);
     // Strength in Numbers itself leaves the hand (-1), then 2 cards are drawn for the 2 allies exhausted (+2).
     expect(playerOf(after, P1).hand.length).toBe(handBefore - 1 + 2);
+  });
+});
+
+describe("Quinjet (03019): no ally to put into play, no action (RRG 1.8 'Choose (Game Element)', p. 12; 'Then', p. 44)", () => {
+  const withQuinjet = (timeCounters: number) => {
+    const { state, id } = playFromHand(WAVE1_DEPS, capVsRhino(), "03019", 1);
+    return { state: patchInstance(state, id, { counters: { time: timeCounters } }), quinjet: id };
+  };
+
+  it("with no Avenger ally in hand it can print a cost for, the action is refused and Quinjet stays", () => {
+    const { state, quinjet } = withQuinjet(0);
+    const result = applyCommand(state, use(P1, quinjet, "03019.quinjet-action"), WAVE1_DEPS);
+    expect(result).toMatchObject({ ok: false, error: { code: "no_valid_target" } });
+    expect(playerOf(state, P1).playArea).toContain(quinjet);
+  });
+
+  it("with one, the ally enters play and then Quinjet is discarded", () => {
+    const { state, quinjet } = withQuinjet(3);
+    // Squirrel Girl (03013): an Avenger ally, printed cost 2.
+    const given = moveToHand(state, P1, "03013");
+    const [squirrelGirl] = given.ids as [never];
+    const after = settle(
+      runWave1(given.state, use(P1, quinjet, "03019.quinjet-action")),
+      picking(squirrelGirl),
+      undefined,
+      WAVE1_DEPS,
+    );
+    expect(playerOf(after, P1).playArea).toContain(squirrelGirl);
+    expect(playerOf(after, P1).discard).toContain(quinjet);
   });
 });
 

@@ -179,6 +179,12 @@ export type StackFrame =
        * attachments …" (Powerful Enchantments, `valk` 25030) reads it. docs/phase7-wave4.md §3.44.
        */
       readonly byPlayer?: true;
+      /**
+       * This frame is the step where a defeated card leaves play, after its When Defeated abilities (RRG 1.8 "When
+       * Defeated Abilities", p. 48; `resolve/event.ts` `leaveAfterWhenDefeated`). While it waits, the card is still in
+       * play at zero remaining hit points but already defeated, so the defeat sweep does not defeat it again.
+       */
+      readonly defeatedLeaving?: InstanceId;
     })
   /** RRG "Attack (Enemy Activation)" steps 1–5; step 6 is the event frame's response window. */
   | (FrameBase & {

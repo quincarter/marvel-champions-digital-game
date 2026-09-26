@@ -83,6 +83,8 @@ const MODULAR_CARD_MIN_WIDTH = 170;
 export const SEAT_CARD_HEIGHT = 60;
 /** The Standard II/Expert II toggle row (wide, docs/phase7-wave4.md §4 Q5): a single full-width card, name plus a one-line state description — right under the Difficulty row, only for a scenario whose pack has an alternate. */
 export const ALT_DIFFICULTY_ROW_HEIGHT = 56;
+/** Tower Defense's own setup-damage toggle row (wide, docs/phase7-wave4.md §4 Q4): same shape as `ALT_DIFFICULTY_ROW_HEIGHT`, stacked under it — a single full-width card, only for Tower Defense itself. */
+export const TOWER_DEFENSE_DAMAGE_ROW_HEIGHT = 56;
 /** One row inside a description-only panel (Composition / What's in there / Nemesis / the sidebar's own summary rows). */
 export const PANEL_ROW_HEIGHT = 18;
 export const PANEL_HEADER_HEIGHT = 22;
@@ -114,6 +116,8 @@ export interface TableSetupLayoutInput {
   readonly nemesisLines: number;
   /** Standard II/Expert II (docs/phase7-wave4.md §4 Q5): true only for a scenario whose pack has an alternate. Wide only — defaults to `false`. */
   readonly hasAlternateDifficultySets?: boolean;
+  /** Tower Defense's own setup-damage toggle (docs/phase7-wave4.md §4 Q4): true only for Tower Defense. Wide only — defaults to `false`. */
+  readonly hasTowerDefenseSetupDamage?: boolean;
   /** The Hood's own "choose which modular sets are in" candidate count (`view/hood-modular-sets.ts`) — 0 for every other scenario. Wide only — defaults to `0`. */
   readonly hoodSetCount?: number;
 }
@@ -138,6 +142,8 @@ export interface TableSetupLayout {
   readonly difficultyRow: Rect;
   /** Standard II/Expert II (docs/phase7-wave4.md §4 Q5): a full-width toggle row right under `difficultyRow`, wide only — zero-area unless `TableSetupLayoutInput.hasAlternateDifficultySets`. */
   readonly difficultyAltRow: Rect;
+  /** Tower Defense's own setup-damage toggle (docs/phase7-wave4.md §4 Q4): a full-width toggle row right under `difficultyAltRow`, wide only — zero-area unless `TableSetupLayoutInput.hasTowerDefenseSetupDamage`. */
+  readonly towerDefenseDamageRow: Rect;
   readonly modularHeader: Rect;
   /** The Hood's own "choose which modular sets are in" section header (`view/hood-modular-sets.ts`), wide only — zero-area unless `TableSetupLayoutInput.hoodSetCount` is above 0. */
   readonly hoodHeader: Rect;
@@ -189,6 +195,7 @@ export function tableSetupLayoutRects(layout: TableSetupLayout): readonly Rect[]
     // register as "overlapping" a sibling whose y/x-range it sits strictly inside (`rectsOverlap`'s own strict
     // inequalities), so these are only added to the overlap check when they're real, drawn rects.
     ...(layout.difficultyAltRow.height > 0 ? [layout.difficultyAltRow] : []),
+    ...(layout.towerDefenseDamageRow.height > 0 ? [layout.towerDefenseDamageRow] : []),
     ...(layout.hoodHeader.height > 0 ? [layout.hoodHeader, layout.hoodGrid] : []),
     layout.randomControl,
     layout.seatingRow,
@@ -255,6 +262,7 @@ function wideLayout(input: TableSetupLayoutInput, formFactor: FormFactor): Table
   const bodyWidth = sidebar.x - GUTTER - bodyLeft;
 
   const hasAlternateDifficultySets = input.hasAlternateDifficultySets ?? false;
+  const hasTowerDefenseSetupDamage = input.hasTowerDefenseSetupDamage ?? false;
   const hoodSetCount = input.hoodSetCount ?? 0;
 
   let y = bodyTop;
@@ -275,6 +283,14 @@ function wideLayout(input: TableSetupLayoutInput, formFactor: FormFactor): Table
     ? { x: bodyLeft, y: y + ROW_GAP, width: bodyWidth, height: ALT_DIFFICULTY_ROW_HEIGHT }
     : { x: bodyLeft, y, width: 0, height: 0 };
   if (needsDifficultyAltRow) y += ROW_GAP + ALT_DIFFICULTY_ROW_HEIGHT;
+
+  // Tower Defense's own setup-damage toggle (docs/phase7-wave4.md §4 Q4): a full-width toggle row right under the
+  // Standard II/Expert II row when both are offered (never happens today — The Hood and Tower Defense are
+  // different scenarios — but stacked correctly either way), or right under the difficulty cards otherwise.
+  const towerDefenseDamageRow: Rect = hasTowerDefenseSetupDamage
+    ? { x: bodyLeft, y: y + ROW_GAP, width: bodyWidth, height: TOWER_DEFENSE_DAMAGE_ROW_HEIGHT }
+    : { x: bodyLeft, y, width: 0, height: 0 };
+  if (hasTowerDefenseSetupDamage) y += ROW_GAP + TOWER_DEFENSE_DAMAGE_ROW_HEIGHT;
   y += SECTION_GAP;
 
   const modularHeader: Rect = { x: bodyLeft, y, width: bodyWidth, height: SECTION_HEADER_HEIGHT };
@@ -376,6 +392,7 @@ function wideLayout(input: TableSetupLayoutInput, formFactor: FormFactor): Table
     difficultyHeader,
     difficultyRow,
     difficultyAltRow,
+    towerDefenseDamageRow,
     modularHeader,
     hoodHeader,
     hoodGrid,
@@ -559,6 +576,7 @@ function narrowLayout(input: TableSetupLayoutInput, formFactor: FormFactor): Tab
     // doc comment) — narrow (tablet portrait) keeps its existing composition unchanged, so these are always
     // zero-area here regardless of `hasAlternateDifficultySets`/`hoodSetCount`.
     difficultyAltRow: { x: left, y: difficultyRow.y, width: 0, height: 0 },
+    towerDefenseDamageRow: { x: left, y: difficultyRow.y, width: 0, height: 0 },
     modularHeader,
     hoodHeader: { x: left, y: modularHeader.y, width: 0, height: 0 },
     hoodGrid: { x: left, y: modularHeader.y, width: 0, height: 0 },
@@ -677,6 +695,8 @@ export interface TableSetupCompactLayoutInput {
   readonly modularHeaderRightLabel: string;
   /** Standard II/Expert II (docs/phase7-wave4.md §4 Q5): true only for a scenario whose pack has an alternate. */
   readonly hasStandardII: boolean;
+  /** Tower Defense's own setup-damage toggle (docs/phase7-wave4.md §4 Q4): true only for Tower Defense. */
+  readonly hasTowerDefenseSetupDamage: boolean;
   /** The Hood's own nine modular set candidates (`view/hood-modular-sets.ts`), empty for every other scenario. */
   readonly hoodSetIds: readonly string[];
   readonly seatCount: number;
@@ -759,6 +779,10 @@ export function tableSetupCompactLayout(input: TableSetupCompactLayoutInput): Ta
   // Standard II/Expert II (docs/phase7-wave4.md §4 Q5): a single toggle row, only for a scenario whose pack has
   // an alternate (The Hood today) — every other scenario's layout is unchanged.
   if (input.hasStandardII) rows.push({ id: "standardII", height: COMPACT_DIFFICULTY_ROW_HEIGHT + COMPACT_ROW_GAP });
+  // Tower Defense's own setup-damage toggle (docs/phase7-wave4.md §4 Q4): a single toggle row, only for Tower
+  // Defense itself — every other scenario's layout is unchanged.
+  if (input.hasTowerDefenseSetupDamage)
+    rows.push({ id: "towerDefenseSetupDamage", height: COMPACT_DIFFICULTY_ROW_HEIGHT + COMPACT_ROW_GAP });
   rows.push({
     id: "header:modular",
     height: modularHeaderStacked ? COMPACT_HEADER_ROW_HEIGHT_STACKED : COMPACT_HEADER_ROW_HEIGHT,

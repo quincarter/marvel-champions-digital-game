@@ -57,6 +57,7 @@ import {
   on,
   option,
   perHero,
+  placeDamage,
   putIntoPlay,
   putMainSchemeStageIntoPlay,
   query,
@@ -82,12 +83,51 @@ import {
   whenRevealed,
   you,
 } from "../../dsl/index.js";
+import type { PlayModes } from "@mc/content";
+import type { ScenarioSetupInstruction } from "@mc/engine";
 
 // ---------------------------------------------------------------------------
 // Ability scripts
 // ---------------------------------------------------------------------------
 
 const AVENGERS_TOWER = named("Avengers Tower");
+
+/**
+ * MC21 p. 11, "Modular Difficulty" (docs/phase7-wave4.md §4 Q4, decided 2026-09-25: an option, off by default):
+ *
+ *   "If players wish to increase the difficulty of the Tower Defense scenario, they may place damage on Avengers
+ *    Tower during setup. This extra damage represents the effectiveness of the Black Order's initial attack on the
+ *    tower. The amount of damage placed is up to the players as a group, but listed below are some recommendations
+ *    for each difficulty mode:
+ *    » Standard Mode: Place 1[per_hero] damage.
+ *    » Expert Mode: Place 2[per_hero] damage.
+ *    » Heroic Mode: Place 3[per_hero] damage."
+ *
+ * The recommendation for the mode being played, placed on the Avengers Tower environment (`placeDamage`: tokens
+ * placed, not an attack or a "deal"), which The Armies of Thanos 2A's When Revealed has put into play by then. The
+ * Stronghold side's "After damage is placed here, if there is at least 9[per_hero] damage here" is scripted on
+ * damage taken, which `placeDamage` does not raise, so it is not asked; it could not do anything here, because the
+ * most this places is 3[per_hero]. Heroic mode is any heroic level; skirmish mode has no printed recommendation, so it
+ * is refused rather than guessed.
+ */
+export const TOWER_DEFENSE_SETUP_DAMAGE_CITATION = "MC21 p. 11";
+const TOWER_DEFENSE_SETUP_DAMAGE: Readonly<Record<"standard" | "expert" | "heroic", number>> = {
+  standard: 1,
+  expert: 2,
+  heroic: 3,
+};
+export function towerDefenseSetupDamage(modes: PlayModes): ScenarioSetupInstruction {
+  if (modes.skirmish) throw new Error("MC21 p. 11 prints no Tower Defense setup damage for skirmish mode");
+  const mode = modes.heroic ? "heroic" : modes.expert ? "expert" : "standard";
+  const perPlayer = TOWER_DEFENSE_SETUP_DAMAGE[mode];
+  const label = `${mode[0]!.toUpperCase()}${mode.slice(1)} Mode`;
+  return {
+    id: "mc21.tower-defense.setup-damage",
+    text: `Modular Difficulty — ${label}: Place ${perPlayer}[per_hero] damage on Avengers Tower.`,
+    citation: TOWER_DEFENSE_SETUP_DAMAGE_CITATION,
+    effects: [placeDamage(perHero(perPlayer), each(query("environment", { name: "Avengers Tower" })))],
+  };
+}
 /** "the other villain": whichever villain is not the one currently activating (wave2 §6.8's non-active-villain
  * reading, expressed as a query rather than an `AttachmentHost`, for Proxima's Power/Corvus's Cunning's boost). */
 const otherVillain = each(query("villain", { excluding: theVillain }));

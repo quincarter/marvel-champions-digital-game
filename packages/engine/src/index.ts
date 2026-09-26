@@ -20,6 +20,7 @@ export type {
   IdentityState,
   MainSchemeState,
   PlayerState,
+  ScenarioSetupInstruction,
   SeparateDeckState,
   StatusCounts,
   VillainState,
@@ -83,7 +84,9 @@ export type {
 export {
   abilityRefsOf,
   CAMPAIGN_GRANTS_COUNT_TOWARD_COPY_LIMIT,
+  cardLegalForIdentity,
   CHOOSABLE_ASPECTS,
+  copiesUpToLimit,
   DECK_COPY_LIMIT,
   DECK_MAX_CARDS,
   DECK_MIN_CARDS,

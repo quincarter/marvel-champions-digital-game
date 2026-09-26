@@ -6,6 +6,8 @@
  * dispatch" rule from PLAN.md Phase 4.
  */
 
+import { campaignDefinitionOf } from "@mc/cards";
+import type { CampaignDefinition } from "@mc/engine";
 import { CampaignService } from "./campaign/campaign-service.js";
 import { POOL_CARDS, POOL_DEPS } from "./content/pool.js";
 import { MemoryCampaignStorage } from "./engine/campaign-storage.js";
@@ -80,11 +82,33 @@ export function deckStorage(): DeckStorage {
  */
 let campaigns: CampaignService | null = null;
 
+/**
+ * Definitions the shipped registry (`@mc/cards`' `campaignDefinitionOf`) doesn't know — a dev/test fixture's own
+ * synthetic box (`campaign/dev-fixtures.ts`'s `HIDDEN_EVIDENCE_DEFINITION`), never a real one. Empty in a normal
+ * session: nothing calls `registerDevCampaignDefinition` outside a dev jump or a test, and this map itself carries
+ * no box data of its own — the fixture's `CampaignDefinition` lives in `campaign/dev-fixtures.ts`, dev/test code
+ * only. `campaignService()`'s own `definitionOf` checks the real registry first, so a real box can never be
+ * shadowed by a same-named dev entry.
+ */
+const devDefinitions = new Map<string, CampaignDefinition>();
+
+/**
+ * Registers a synthetic `CampaignDefinition` the shipped `@mc/cards` registry doesn't carry, so `campaignService()`
+ * can load a dev/test fixture's own run through the same `definitionFor`/`compose` path a real box uses. Gated on
+ * `import.meta.env.DEV` (a no-op call in a production build, same guard `main.ts`'s `__mcCampaign` console helper
+ * already uses) rather than trusting a caller to only ever reach this from dev code.
+ */
+export function registerDevCampaignDefinition(definition: CampaignDefinition): void {
+  if (!import.meta.env.DEV) return;
+  devDefinitions.set(definition.campaignId as string, definition);
+}
+
 export function campaignService(): CampaignService {
   campaigns ??= new CampaignService({
     storage: typeof indexedDB !== "undefined" ? new IdbCampaignStorage() : new MemoryCampaignStorage(),
     campaignDeps: { pool: Object.fromEntries(POOL_CARDS.map((card) => [card.id as string, card])) },
     engineDeps: POOL_DEPS,
+    definitionOf: (campaignId) => campaignDefinitionOf(campaignId) ?? devDefinitions.get(campaignId as string),
   });
   return campaigns;
 }

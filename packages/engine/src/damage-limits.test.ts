@@ -5,7 +5,8 @@
  * reduction to 0 keeps the tough card.
  *
  * Sources: RRG 1.8 General FAQ (p. 58: "A hero can keep their tough status card if: 1. A constant effect reduces the damage
- * the hero takes to zero"); ruling Jan 26, 2026 (3) (excess damage is measured as dealt, not taken).
+ * the hero takes to zero"). Excess damage is measured on the reduced amount (RRG 1.8 "Overkill", p. 31, superseding
+ * ruling Jan 26, 2026 (3); `excess-equals-overkill.test.ts`).
  */
 
 import { flat } from "@mc/content";

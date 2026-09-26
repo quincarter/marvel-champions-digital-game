@@ -11,12 +11,11 @@
 
 import { type Ctx, popFrame, pushFrames, setFrame } from "../ctx.js";
 import { characterProfile, getInstance } from "../query.js";
-import { excessDamageBonus } from "../rules.js";
 import { controllerOf } from "../select.js";
 import type { ReportTarget, StackFrame, Vars } from "../stack.js";
 import type { TriggerEvent } from "../trigger-events.js";
 import { checkDefeats } from "./defeat.js";
-import { applyDamage } from "./event.js";
+import { applyDamage, excessDamageOf } from "./event.js";
 import { base, type Frame } from "./frames.js";
 
 type DamageEvent = Extract<TriggerEvent, { kind: "dealDamage" }>;
@@ -73,14 +72,9 @@ export function executeDamageGroupFrame(ctx: Ctx, frame: Frame<"damageGroup">): 
         const vars: Record<string, number> = {};
         const taken = (getInstance(ctx.state, target)?.damage ?? before) - before;
         if (taken > 0) vars.amount = taken;
-        const measured = maxHp === undefined ? 0 : member.event.amount - Math.max(0, maxHp - before);
-        // The same excess bonus `applyDamage` adds (Follow Through; docs/phase7-wave3.md §3.18).
-        const source = member.event.sourceInstanceId;
-        const bonus =
-          measured > 0 && member.event.fromAttack && source !== null
-            ? excessDamageBonus(ctx.state, ctx.deps, source)
-            : 0;
-        const excessDealt = measured + bonus;
+        // The same excess `applyDamage` measures: taken beyond remaining hit points, plus Follow Through's bonus
+        // (RRG 1.8 "Overkill", p. 31).
+        const excessDealt = excessDamageOf(ctx, member.event, before, taken, maxHp);
         if (excessDealt > 0) vars.excessDealt = excessDealt;
         members.push({ ...member, vars: vars as Vars });
       }

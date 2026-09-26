@@ -167,7 +167,8 @@ target)`; the engine's `EffectSpec addCounters` already carried `upTo`/`bind` (�
   ("Murdered You!", Rocket Raccoon's own hero identity, `gmw` 16029a). Reads the attack event's own `excessDealt`
   result (`resolve/event.ts`), the same field the `attack` _effect_'s own `bind` already exposed for a
   card-initiated attack (docs/phase7-wave3.md §0's Jan 26, 2026 (3) ruling) — this is the trigger-side sibling for
-  a _basic_ attack, which has no effect-level bind to read.
+  a _basic_ attack, which has no effect-level bind to read. Since 2026-09-25 that result is the value overkill would
+  spill (RRG 1.8 "Overkill", p. 31, superseding the Jan 26 ruling; docs/phase7-wave3.md §3.18).
 
 **Engine changes this pass (minimal, generic, card-name-free, own tests):**
 

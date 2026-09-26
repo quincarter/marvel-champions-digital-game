@@ -522,8 +522,8 @@ Quantities are MarvelCDB `quantity`.
 - `CardSelector separateDeck { player, name, zones?, top?, filter? }`; destinations `separateDiscard`, `separateDeckTop`, `separateDeckShuffle` follow each card's `home`. `discardZoneFor` routes a separate-deck card to that deck's discard, which covers tucked cards.
 - `CardZoneQuery` gains `zone: "separateDeck"`, `separateDeck` and `top`, so `payPrintedCostOf` can name "the top card of the Invocation deck"; `legalActions` offers only that card.
 - `EffectSpec resolveSpecials` gains `of: TargetRef` (a card wherever it is); `cards` became optional. No `cardPlayed` is emitted.
-- **Reshuffle** is `resolve/separate-decks.ts` `resetEmptySeparateDecks`, called by `runFlow` before every frame: no encounter card, no acceleration token, logged as `separateDeckReset`.
-- **§4.9 reading:** the resolving card is in the deck until its own last sentence moves it to the discard pile, so a card that empties the deck is shuffled back in. This conflicts with the analogy to ruling Apr 30, 2026 (3) answer 7 ("reshuffled **before** the currently resolving card enters the discard pile", said of a player deck); flagged.
+- **Reshuffle** is `resolve/separate-decks.ts` `resetSeparateDeckIfEmpty`, run by `settlePlayerDecks` (`ctx.ts`) after every `moveCard` out of a separate deck or into its discard pile, so the deck resets the moment it empties: no encounter card, no acceleration token, logged as `separateDeckReset`. `runFlow`'s `resetEmptySeparateDecks` before every frame is kept only for a state built another way (an older save, a test's surgery).
+- **§4 Q9 (resolved 2026-09-25):** a card whose Special resolves from the deck leaves it as it starts resolving (`executeResolveSpecials` moves it to its owner's `resolving` area, where a played event waits). If it was the last card, the deck resets then, without it, and the card reaches the discard pile afterwards. Ruling, Apr 30, 2026 (3) answer 7: "The deck is reshuffled **before** the currently resolving card enters the discard pile", applied to the Invocation deck as docs/phase7-wave3.md §4 Q15 applies it to a player deck. Until 2026-09-25 the card counted as in the deck until its own last sentence moved it, so a card that emptied the deck was shuffled back in.
 - Player elimination leaves the separate deck where it is; nothing reads it afterwards.
 
 **Rules:**
@@ -545,11 +545,11 @@ Quantities are MarvelCDB `quantity`.
 
 - **`CardSelector { kind: "separateDeck", player, name, top? }`**, with destinations `separateDiscard`, `separateDeckTop` and `separateDeckShuffle`.
 - **Discard routing.** "Discard" of a card whose `home` is a separate deck goes to that deck's discard (§3.2's `home`). This includes RRG 1.8 "Tuck" (p. 45) discards when a host leaves play.
-- **Reshuffle when empty.** Whenever the deck is empty and its discard is not, the discard is immediately shuffled in, with no encounter card and no acceleration token.
+- **Reshuffle when empty.** Whenever the deck is empty and its discard is not, the discard is immediately shuffled in, with no encounter card and no acceleration token. "Immediately" is the move that emptied it: Natural Talent or Wong discarding the last card, Open the Dark Dimension tucking it, or a Special starting to resolve from it. A discarded last card is in the discard pile first, so it is shuffled back in; a resolving one is not (§4 Q9).
 - **Spell Mastery and Master of the Mystic Arts** use existing `payPrintedCostOf` over the new selector, then `resolveSpecials`.
   - Resolving a Special is not playing a card: no `cardPlayed` event, so Counterspell, Morphogenetics, Physical Toll and "Max" limits do not see it.
-  - The card stays on top of the deck until its own last sentence moves it.
-  - Master of the Mystic Arts' "Then, place it back on top of the Invocation deck faceup" moves it from the Invocation discard back to the top.
+  - The card leaves the deck as its Special starts resolving and waits in its owner's `resolving` area until its own last sentence moves it to the Invocation discard pile. If it was the last card, the deck resets without it (§4 Q9).
+  - Master of the Mystic Arts' "Then, place it back on top of the Invocation deck faceup" moves it from wherever it is (the Invocation discard pile, after its own last sentence) to the top. On the last card, the reset deck has four cards and this puts the fifth back on top.
 - **Open the Dark Dimension:**
   - When Revealed: `tuckCards { facedown: true }` from the top of the Invocation deck.
   - When Defeated: `moveCards { to: separateDeckShuffle }`.
@@ -566,8 +566,9 @@ Quantities are MarvelCDB `quantity`.
 
 - setup builds and shuffles the 5-card deck with the top card faceup;
 - Spell Mastery pays the printed cost, resolves the Special, and the card lands in the Invocation discard, not the player discard;
-- emptying the deck reshuffles with no encounter card dealt;
-- Master of the Mystic Arts returns the card to the top faceup;
+- emptying the deck reshuffles with no encounter card dealt, and a last card resolving its Special is not part of the new deck (§4 Q9);
+- a discard that empties the deck resets it within the same resolution;
+- Master of the Mystic Arts returns the card to the top faceup, the last card included;
 - a Special is not "played": Counterspell does not trigger;
 - Open the Dark Dimension tucks the top card facedown, and its When Defeated shuffles it back;
 - the scheme leaving play otherwise sends the tucked card to the Invocation discard;
@@ -582,7 +583,7 @@ Quantities are MarvelCDB `quantity`.
 - `RuleSpec schemeThreatDestination { enemy, scheme: "ownSignatureSideScheme", while? }` (`rules.ts`), read by the scheme procedure's step 3. It falls back to the main scheme when the signature side scheme is not in play.
 - `EffectSpec enemyAttack` gains `boost: false`, `targetCharacter` and `after: "currentActivation"`; `enemyScheme` gains `boost` and `after`. `boost: false` sets `noBoost` on the trigger event and procedure frame. It deals no boost card at all, additional ones included, and the audit's `boost.villain` count skips it.
 - `after: "currentActivation"` appends to the activation event's `endEffects`, which run after its response window. Several queued activations resolve in the order they were queued; the first player is **not** asked to order them (RRG 1.8 "Activation", p. 6) — not needed in wave 1.
-- `excessDealt` is reported by every `dealDamage` event and added to its parent attack's results, measured before tough / "cannot take damage" (ruling, Jan 26, 2026 (3)). It uses the amount after interrupts, so a prevention interrupt lowers it; ruling Mar 6, 2026 (1) says prevention reduces damage _taken_. Flagged; no wave 1 card combines the two.
+- `excessDealt` is reported by every `dealDamage` event and added to its parent attack's results. **Since 2026-09-25 (user decision) it is the value overkill would spill:** damage _taken_ beyond remaining hit points, after constant reductions, so a tough status, a prevention or "cannot take damage" leaves none (RRG 1.8 "Overkill", p. 31, which supersedes ruling Jan 26, 2026 (3); `resolve/event.ts` `excessDamageOf`). Before, it was measured before tough / "cannot take damage", and the flagged prevention-interrupt question (ruling Mar 6, 2026 (1)) no longer arises: prevented damage is not taken, so it is not excess.
 - `TargetRef villainOfSideScheme { scheme }` and `signatureSideSchemeOf { villain }`.
 
 **Rules and cards:**
@@ -605,6 +606,7 @@ Quantities are MarvelCDB `quantity`.
 - **Excess damage placed as threat.**
   - "Excess damage dealt by Thunderball is placed as threat on his corresponding side scheme." (Radioactive Buildup)
   - Ruling, Jan 26, 2026 (ruling 3): "Excess Damage is damage dealt beyond remaining hit points."
+  - **Superseded (2026-09-25, user decision):** RRG 1.8 "Overkill" (p. 31): an ability that "counts excess damage dealt" counts "the same value of excess damage that is calculated when resolving the overkill keyword". See PLAN.md's Overkill note.
 - **An attack against a chosen character.**
   - "The enemy with the highest ATK attacks the hero or ally with the highest ATK" (Clash of the Titans).
   - RRG 1.8 "Attacks Against Allies" (p. 10).
@@ -1114,5 +1116,9 @@ was already proven and was checked rather than rebuilt.
 9. **The Invocation deck mid-resolution.** Is the top card still "in the deck" while its Special resolves?
    - Ruling Apr 30, 2026 (ruling 3, answer 7) reshuffles a player deck "before the currently resolving card enters the discard pile" for an event.
    - Proposed: the card is in the deck until its last sentence moves it, then the reshuffle happens.
+   - **Resolved (2026-09-25), by the user's decision to follow ruling, Apr 30, 2026 (3) answer 7 ("The deck is reshuffled **before** the currently resolving card enters the discard pile") for the Invocation deck as for a player deck (docs/phase7-wave3.md §4 Q15).** The proposal above is withdrawn. When Spell Mastery or Master of the Mystic Arts resolves the top card's Special (`resolveSpecials`), the card leaves the deck for its owner's `resolving` area. If the deck is now empty and its discard pile is not, it resets at once, without that card, which reaches the discard pile when its own text moves it there. Master of the Mystic Arts then moves it from the discard pile to the top of the new deck. Any other move that empties the deck (Natural Talent, Wong, Open the Dark Dimension's tuck) also resets it at once rather than before the next frame: `settlePlayerDecks` (`ctx.ts`) calls `resetSeparateDeckIfEmpty` after a move out of a separate deck or into its discard pile. A card turned faceup as it is discarded is now turned faceup before the move, since the reset may already have shuffled it into the new deck. An Invocation card still resolving when its player is eliminated goes to the Invocation discard pile. Engine tests: `packages/engine/src/separate-deck.test.ts` (the last card's Special leaves a 4-card deck and itself in the discard pile; Master of the Mystic Arts on the last card; two discards in one resolution, the second from the reset deck; replay deep-equal). The old test "the deck that empties takes its discard pile back at once" expected a 5-card deck and became the first of these. No `drs` card test and no e2e seed plays differently: every `packages/cards` game prints the same outcome, round and command count as before.
 10. **The active villain in step 2.** Read at each player's activation (proposed), or fixed at the start of step 2?
 11. **Saved games.** The `villains` list and `encounterDecks` change `GameState`'s shape. Should old local saves migrate, or be discarded? This is a product call, and replay logs are affected the same way.
+    - **Answered (2026-09-13, user decision):** retired, not migrated. A save from before the multi-villain state
+      change is marked `incompatible` and no longer offered as Continue (PLAN.md, "Decided by the user (2026-09-13):
+      games saved before the multi-villain state change are retired, not migrated").

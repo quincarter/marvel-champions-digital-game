@@ -1179,12 +1179,14 @@ Changes to the existing checks in `packages/engine/src/deck.ts`:
 | identity choice                                                                 | new `campaign_identity_locked` when `deck.identityCardId !== context.identityCardId`                                                                                                                                                                                                                                                      |
 | —                                                                               | new `campaign_removed_card` (RRG p. 29) and `campaign_prohibited_card` (MC27 p. 4 / MC40 p. 6)                                                                                                                                                                                                                                            |
 | —                                                                               | new `campaign_deck_frozen` when a non-granted line differs from `frozenNonCampaignCards`                                                                                                                                                                                                                                                  |
-| copy limit                                                                      | granted cards are excluded from the by-title copy count, consistent with the deck-size exemption. **Flagged** — see Open question Q8.                                                                                                                                                                                                     |
+| copy limit                                                                      | **Decided 2026-09-25 (Q8):** granted copies count toward the by-title copy limit, so granted plus own copies never exceed the title's limit. Grants stay exempt from deck size and from the aspect restriction.                                                                                                                           |
 
 **The Q8 decision point** is the exported constant `CAMPAIGN_GRANTS_COUNT_TOWARD_COPY_LIMIT` in
-`packages/engine/src/deck.ts`, set to `false` (the recommendation above), with the open question in its doc comment.
-Flipping that one constant is the whole change. MC10 never reaches it: its grants are campaign-specific cards, which
-never get as far as the copy-limit check.
+`packages/engine/src/deck.ts`, now `true` (decided 2026-09-25; see Q8). MC10 never reaches it: its grants are
+campaign-specific cards, which never get as far as the copy-limit check. Alongside it, `validateDeck` exempts granted
+copies of an aspect card from the deck's aspect restriction ("from any aspect"), `grantCard`'s `copies: "maximum"`
+tops a title up to its limit (`copiesUpToLimit`), and a `collection` choice offers only cards legal for the seat's
+identity (`cardLegalForIdentity`).
 
 Two further notes from building it. A **legal** campaign-specific card short-circuits the rest of the line checks
 exactly as the refused one always did, so it is not counted toward deck size and the copy limit does not reach it —
@@ -1527,12 +1529,17 @@ MC56 p. 3: "_the Civil War expansion does not include five interconnected scenar
 custom-scenario + competitive expansion, and its "2 scenarios" are four preconstructed scenarios plus a builder.
 **Recommendation:** remove MC56 from the campaign table; its competitive mode is a separate capability with its own
 `competitiveOnly` refusal already in the code. Needs sign-off because it edits the roadmap.
+**Resolved (2026-09-25):** done. PLAN.md §C3 no longer lists MC56 and explains why ("Civil War (MC56) is not in this
+table", citing MC56 p. 3).
 
 **Q3. Do we build MC60's `kind: "choice"` graph and the `beforeScenarioSetup` / `beforePlayerSetup` windows now?**
 MC10 uses neither. Retrofitting them later means changing `CampaignGraph` (a type every box's definition is written
 against) and `GameStep` (which `flow.ts` switches on) — precisely the engine change the requirement forbids.
 **Recommendation: yes, build both in steps 2–3.** The cost is two union members and two step kinds; the cost of not
 doing it is a foundation rewrite when MC60 lands.
+**Resolved (2026-09-25):** built. `CampaignGraph` has the `kind: "choice"` member and `CampaignWindow` has
+`beforeScenarioSetup` and `beforePlayerSetup` (`packages/engine/src/campaign.ts`), exercised by the synthetic fixture in
+`packages/engine/src/campaign.test.ts` ("the synthetic fixture exercises the shapes the first box does not").
 
 **Q4. MC50's hidden evidence in local storage.**
 Three cards are drawn at random and never revealed (MC50 p. 5). Single-player local IndexedDB means a determined player
@@ -1540,12 +1547,26 @@ can read them — as they can peek in the paper envelope. **Recommendation:** st
 exclude it from every view model, and accept the same honour system the paper game uses. The alternative (derive it
 from a hash of the campaign seed, storing nothing) breaks when the card pool changes under the campaign and would
 silently change the mole. Confirm which.
+**Decision (the user, 2026-09-25):** the recommendation, plus a client-visible counter. Storage was already built
+as recommended (`CampaignLog.hidden` / `LogFieldDef.hidden`, `packages/engine/src/campaign.ts` — no engine change
+needed for this decision). Client built (game-client-engineer, 2026-09-25): the Dossier overview and the Briefing
+screen both show an envelope — the field's own label, "SEALED · N CARDS", never the identities — reading only the
+_count_ off `CampaignLog.hidden` (`packages/client/src/view/campaign-hidden-evidence-model.ts`'s own doc comment on
+why that one read is sanctioned). Once revealed it shows the actual cards instead. Generic, not MC50-specific
+(MC50 isn't scripted yet — `@mc/cards`'s `campaigns/` only has `gmw`, `mts`, `trors`): any campaign whose
+`CampaignDefinition.logFields` declares a `hidden` field gets the envelope; "revealed" is this build's own
+convention (documented in that module) of a paired, non-hidden `<id>Revealed` flag field, since a field declared
+`hidden` can never un-hide itself at runtime (`packages/engine/src/campaign/log.ts`). Exercised by a synthetic
+fixture, `campaign-hidden-evidence-model.test.ts`, the same way `campaign.test.ts`'s own synthetic campaign
+exercises shapes the first box doesn't use.
 
 **Q5. Where does a campaign seat's deck live?**
 If a seat points at a `DeckId` in `mc-decks`, editing that deck outside the campaign silently changes the campaign's
 next scenario. **Recommendation:** the campaign owns a _copy_ (`CampaignSeat.deck: DeckContents`), and the between-
 scenario deck-edit step edits the campaign's copy; `history[n].logBefore` keeps the copy as it stood, so a retry
 replays the deck the lost game used. The standalone deck in `mc-decks` is the _starting point_ only.
+**Resolved (2026-09-25):** built as recommended. `CampaignSeat.deck` is the campaign's own `DeckContents` copy
+(`packages/engine/src/campaign.ts`), and grants are written into it (`packages/engine/src/campaign/runner.test.ts`).
 
 **Q6. Retry baseline.**
 MC40 p. 7 is the sharpest case: on a retry "_they must choose the same player side scheme … and defeat it in order to
@@ -1572,11 +1593,25 @@ it — but neither `CampaignGameQuery` (the `record` half) nor `CampaignValue` (
 **Recommendation:** add one `CampaignGameQuery` member, `{ kind: "cardStateOf"; cards: readonly CardId[] }`, reading
 each named card's counters and current face out of the finished game, when MC50 is scheduled. Not needed for MC10.
 
-**Q8. Do campaign grants count toward the three-copy limit?**
+**Q8. Do campaign grants count toward the three-copy limit?** **Resolved 2026-09-25: yes.**
 MC27 p. 22's Aspect Advantage adds "_the maximum number of copies of that card, by title_" and says they do not count
 toward deck size — but says nothing about the copy limit if the deck already holds copies. RRG Appendix I is silent.
-**Recommendation:** exclude grants from the by-title copy count, consistent with the deck-size exemption, and flag to
-FFG. Not needed for MC10; needed before MC27.
+The original recommendation was to exclude grants from the by-title copy count.
+**Decision (the user, 2026-09-25):** all deckbuilding restrictions still apply. The copies of a title in the deck,
+granted plus the player's own, never exceed the card's own deck limit: 3, 1 if unique, or its printed per-deck limit
+(and an identity's `maxCopiesPerTitle`). The chosen card must also be legal for that hero, so never another hero's
+signature or hero-specific cards. **Sourcing: community.** The reading comes from a BoardGameGeek thread
+("Aspect Advantage campaign bonus /Sinister Motives spoilers/", boardgamegeek.com/thread/2853322) that reports it as
+FAQ-backed. No such FAQ entry is in RRG 1.8's FAQ section (the Sinister Motives entries cover only The Sinister Six's
+overkill and active-counter questions), and none is among the rulings transcribed in
+`marvel-champions-rulings-post-rrg-1-7.md` (checked 2026-09-25). Cite the primary ruling in place of the thread if it
+turns up.
+**As built:** `CAMPAIGN_GRANTS_COUNT_TOWARD_COPY_LIMIT = true`; `grantCard` gained an optional `copies: "maximum"`
+that grants `copiesUpToLimit` copies, the title's limit minus the copies the deck already holds (possibly none), so
+the grant can never produce an illegal deck; a `collection` choice offers only `cardLegalForIdentity` cards (no
+identity-set card, no Team-Up card for other characters, no linked, separate-deck or scenario/campaign/competitive
+card, no unique card matching the identity); and `validateDeck` exempts granted copies from the aspect restriction,
+because the card comes "from any aspect". Not yet exercised by a box: MC27's definition uses these when it is built.
 
 **Q9. Skirmish mode and `VillainStageRange`.**
 RRG p. 29's skirmish mode picks "_any one version of the villain_" and removes the rest. `Scenario.villainStages`

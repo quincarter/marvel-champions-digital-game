@@ -143,7 +143,7 @@ describe("Radioactive Buildup (07022)", () => {
     const atDeclare = settleUntil(runTwc(state, endTurn()), "declareDefender", firstLegal, TWC_DEPS);
     const declared = answer(atDeclare, [blackCat], TWC_DEPS);
     const after = settle(declared, firstLegal, (s) => s.step.phase === "player" && s.step.kind === "turn", TWC_DEPS);
-    // Excess damage counts even though Toughness/Tough isn't in play here (RRG 1.8 p. 19); the redirect is a
+    // Excess damage is what overkill would spill (RRG 1.8 p. 31); no tough card is in play here. The redirect is a
     // constant, not a race with the card's own "discard after Thunderball attacks" Forced Response above. Without
     // it, this scheme would sit at 9 (8 + step one's own +1) — the redirected excess (1) is exactly what pushes it
     // to 10, crossing Thunderstruck's own Gamma Blast threshold and capping it to 3, proof the excess really was

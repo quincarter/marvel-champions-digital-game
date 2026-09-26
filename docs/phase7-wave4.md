@@ -356,7 +356,8 @@ stage-I cards, §1.11).
 - **Modular sets** (MC21 pp. 6, 10, 16, 20, 24): Black Order, Armies of Titan, Children of Thanos, Infinity Gauntlet
   (single-villain scenarios only), Legions of Hel, Frost Giants, Enchantress.
 - **Tower Defense's optional setup damage** on Avengers Tower (1/2/3 per player by difficulty, MC21 p. 11) is a
-  suggested difficulty option, not a rule; standalone play uses 0 unless a setup option is added (§4 Q4).
+  suggested difficulty option, not a rule. Built 2026-09-25 as `ScenarioSetupOptions.towerDefenseSetupDamage`, off by
+  default (§4 Q4).
 
 **Status (card-data-pipeline, 2026-09-24):** all five emitted as `Scenario` records (`curation/mts.ts`'s own
 `evidence` field cites the exact printed sentence per scenario) and importable (`MTS_SCENARIOS`), data-only per
@@ -391,9 +392,8 @@ and found it fits. Checked against the real cards:
 - **Expert campaign** (MC21 p. 25): record remaining hit points capped at base; heal to full by an acceleration token;
   "If a player is defeated during a scenario that their teammates go on to win, the defeated player does not
   participate in any of the victory steps for that scenario. However, they can rejoin their teammates for the next
-  scenario by placing an acceleration token on the main scheme." The gate records a defeated player's hit points as 0
-  and lets every player decline the heal, so a defeated player who declines would start with 0 hit points and be
-  defeated at once. §4 Q6.
+  scenario by placing an acceleration token on the main scheme." A defeated player's hit points are recorded as 0, and
+  since 2026-09-25 (§4 Q6) an identity recorded at 0 must take the heal: only a player above 0 may decline it.
 - **Beyond the frozen foundation**, the campaign needs only card-level primitives: §3.10 (faces of different types),
   §3.13 (hand abilities, "cannot choose to discard") and Security Breach's "places a random card from their hand
   facedown here … Return each facedown card here to its owner's hand", which `tuckCards` may cover (to verify with the
@@ -1960,6 +1960,32 @@ Each is implemented the way stated, or not at all, and named here rather than de
    RRG 1.8 "Villain Defeat" (p. 47) carries "non-damage tokens" to a same-title stage and "Excess damage … does not carry
    over". Implemented as: damage does not carry on defeat; on a swap the dial stays (RRG "'Swap'").
 4. **Tower Defense's suggested setup damage** (MC21 p. 11) is a difficulty option. Standalone default: none.
+   **USER DECISION 2026-09-25:** an option, off by default, that places the printed recommendation. MC21 p. 11,
+   "Modular Difficulty" (read from `docs/campaign-modes/mc21_the_mad_titans_shadow_rulebook-compressed.pdf`, page 11;
+   the per-hero glyph U+F524 is `[per_hero]`): "If players wish to increase the difficulty of the Tower Defense
+   scenario, they may place damage on Avengers Tower during setup. This extra damage represents the effectiveness of
+   the Black Order's initial attack on the tower. The amount of damage placed is up to the players as a group, but
+   listed below are some recommendations for each difficulty mode: » Standard Mode: Place 1[per_hero] damage.
+   » Expert Mode: Place 2[per_hero] damage. » Heroic Mode: Place 3[per_hero] damage." **Implemented as:**
+   `@mc/content` `ScenarioSetupOptions { towerDefenseSetupDamage?: true }` (`schema/modes.ts`, a `true`-only flag like
+   `PlayModes`), carried by `CoreScenarioOptions.setupOptions` through `playableScenario`/`wave4Scenario`/
+   `towerDefenseScenario`. When set, `buildMtsMultipleVillains` adds `towerDefenseSetupDamage(modes)`
+   (`mts/tower-defense.ts`): `placeDamage(perHero(n))` on the Avengers Tower environment, n = 3 at any heroic level,
+   else 2 in expert, else 1; skirmish is refused (no printed recommendation). Only the printed recommendation is
+   offered, not a free amount. Every other scenario refuses the flag (`checkScenarioSetupOptions`). The engine carries
+   it as a general primitive, `GameSetupConfig.scenarioSetupInstructions` (plain `EffectSpec` data frozen into
+   `ScenarioRules.setupInstructions`, so it replays), resolved in a new setup step `scenarioSetupInstructions` after
+   Appendix II step 12's Setup/When Revealed abilities (which put the tower into play) and before step 14's draw,
+   traced by a `scenarioSetupInstructionResolved` event. A game without instructions has no new field, step or event.
+   Placed damage does not raise the damage-taken event the Stronghold side's forced response is scripted on; that is
+   outcome-neutral here (at most 3[per_hero] against its 9[per_hero]). Tests: `engine/src/scenario-setup-
+instructions.test.ts`, `cards/src/wave4/mts/tower-defense-setup-damage.test.ts`. **Client follow-up built (game-
+   client-engineer, 2026-09-25):** Table setup (`scenes/table-setup.ts`) shows a toggle, "Black Order's initial
+   attack", only for Tower Defense (and only outside skirmish mode, which the client has no picker for yet), off by
+   default, labeled with the mode-specific amount ("place N damage per hero on Avengers Tower"). `view/setup-
+draft.ts`'s `SetupDraft.towerDefenseSetupDamage` carries the choice through `toSessionConfig` to
+   `SessionConfig.setupOptions`, threaded to the scenario builder by `engine/session-core.ts`'s `scenarioFor`.
+   Tests: `view/setup-draft.test.ts`, `engine/session-core.test.ts`.
 5. **Standard II / Expert II** replace or join Standard / Expert? **Settled (2026-09-25) from The Hood insert, p. 2,
    "Alternative Sets"** (the insert Hall of Heroes' The Hood page links, `the-hood-pdf.pdf`, read page by page): "In The
    Hood Scenario Pack, there are two alternative encounter sets, Standard II and Expert II. Each encounter set is more
@@ -1981,7 +2007,11 @@ Each is implemented the way stated, or not at all, and named here rather than de
    cards are in the playable pool (§5). Scripted: `hood/standard-expert-ii.ts` (§3.50, §3.51 were found on the way).
 6. **An eliminated player in the expert campaign** (§2.2): MC21 p. 25 lets them rejoin "by placing an acceleration token";
    the gate lets them decline the heal and start at 0 hit points. Proposed: an identity whose recorded hit points are 0
-   must take the heal.
+   must take the heal. **USER DECISION 2026-09-25:** the heal is mandatory for them. **Implemented** in `mts.ts`'s
+   `healToFull` (all four setup heals, MC21 p. 13/17/21/25): `ifThen(campaignLogAtLeast("remainingHp", 1))` offers
+   "Heal to full" / "Decline" as before, and otherwise places the acceleration token and heals with no choice. A field
+   never written reads 0, which `hpSet` also turns into a 0 dial, so it is forced the same way. Tests:
+   `campaigns/mts.qa.test.ts`, "the expert campaign's heal is mandatory …".
 7. **Hela's "When Hela is defeated, if Odin is not attached to the main scheme, you win the game"** vs. MC21 p. 20's "If
    the players control the Odin ally when Hela is defeated". Equivalent in every reachable state (Odin is attached or
    controlled by the first player until he leaves play, which loses). Implemented from the card.
@@ -2003,7 +2033,20 @@ Each is implemented the way stated, or not at all, and named here rather than de
     playing the card, naming every card spent, as it already does for the Milano's "for any player" resource. Implemented
     as: the engine accepts it; asking the other seats before the command is sent is a client/netcode step, not an
     engine rule. The order the per-spender `resourcesSpent` events resolve in (the paying player's first, then seat
-    order) is our default; no ruling covers it.
+    order) is our default; no ruling covers it. **USER DECISION 2026-09-25:** each contributing player approves
+    their own contribution before the command is sent. **Built (game-client-engineer, 2026-09-25) as a hot-seat
+    prompt**, not a netcode request: this build has no multiplayer-netcode layer yet (`engine/host.ts`'s own doc
+    comment — a `WorkerEngineHost` off the main thread, not a network host), every seat plays on the one local
+    session, and the board's perspective already follows whoever must act (`engine/acting-player.ts`). `view/
+payment-model.ts`'s `allianceHelpersOf` reads, from a `PaymentState`'s current picks, every other seat whose
+    hand card or resource ability would be spent (grouped by owner via `controllerOf`, seat order, never the
+    payer). `scenes/board/controller.ts`'s `commitPayment` checks this before dispatching: if it's non-empty, a
+    new `Selection` (`confirmingAllianceHelp`) walks the helpers one at a time — a same-device, pass-the-
+    controller red bar (`scenes/board/controller-bar.ts`'s `drawAllianceHelpBar`, styled like the free-play
+    confirm bar) naming the helper and the cards of theirs at stake, "Approve" advancing to the next helper (or
+    dispatching once every helper has said yes) and "Decline" returning to `paying` with the same payment so the
+    payer can choose different cards instead. Tests: `view/payment-model.test.ts`'s `allianceHelpersOf` describe
+    block.
 11. **Thor's "(in the order of your choice)"** (§3.22). `resolveAttackAgainst` resolves the extra targets in the order
     the ref lists them (play-area order), before the original target, which is one legal order; the player is not
     asked. The only thing the order can change is which overkill spill or defeat happens first. Proposed: keep it

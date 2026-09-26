@@ -271,13 +271,20 @@ interface DefeatHint {
   readonly reportFrameId?: FrameId | null;
 }
 
+/**
+ * A defeat of this card is already under way: its event is on the stack, or it has been defeated and is waiting to leave
+ * play after its When Defeated abilities (RRG 1.8 p. 48). A When Defeated that deals damage ("When Defeated: deal 1
+ * damage to the engaged player's identity") sweeps again while the defeated card is still in play at zero remaining hit
+ * points, and it must not be defeated a second time.
+ */
 const defeatPending = (state: GameState, id: InstanceId): boolean =>
   state.stack.some(
     (f) =>
-      f.kind === "event" &&
-      f.event.kind === "characterDefeated" &&
-      f.event.instanceId === id &&
-      (f.stage === "interrupts" || f.stage === "apply"),
+      (f.kind === "event" &&
+        f.event.kind === "characterDefeated" &&
+        f.event.instanceId === id &&
+        (f.stage === "interrupts" || f.stage === "apply")) ||
+      (f.kind === "effects" && f.defeatedLeaving === id),
   );
 
 /**
@@ -496,8 +503,9 @@ function removeDefeatedVillain(ctx: Ctx, villainId: InstanceId): StackFrame | nu
   for (const attachment of [...instance.attachments]) discardFromPlay(ctx, attachment);
   for (const boost of [...instance.boostCards]) moveCard(ctx, boost, discardZoneFor(ctx.state, boost), "top");
   for (const tucked of [...instance.tucked]) {
-    moveCard(ctx, tucked, discardZoneFor(ctx.state, tucked), "top");
+    // Faceup first: a discard into an emptied deck's discard pile can reset that deck at once (`settlePlayerDecks`).
     updateInstance(ctx, tucked, (i) => ({ ...i, faceup: true }));
+    moveCard(ctx, tucked, discardZoneFor(ctx.state, tucked), "top");
   }
 
   const scheme = villain.signatureSideSchemeId;
@@ -617,8 +625,9 @@ export function eliminatePlayer(ctx: Ctx, playerId: PlayerId): void {
   for (const id of [...mustPlayer(ctx.state, playerId).dealtEncounter]) {
     moveCard(ctx, id, discardZoneFor(ctx.state, id), "top");
   }
+  // An event, or an Invocation card mid-Special (`executeResolveSpecials`), which goes to its own deck's discard pile.
   for (const id of [...mustPlayer(ctx.state, playerId).resolving]) {
-    moveCard(ctx, id, { kind: "discard", playerId }, "top");
+    moveCard(ctx, id, discardZoneFor(ctx.state, id), "top");
   }
 
   emit(ctx, { type: "playerEliminated", playerId });

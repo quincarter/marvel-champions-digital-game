@@ -8,7 +8,7 @@
  * record generically, `buildMtsMultipleVillains`) rather than a separate builder: this used to duplicate
  * `wave4Scenario`'s starter-deck/stage-index/encounter-set plumbing before that generic support existed.
  */
-import type { DifficultySetChoice } from "@mc/content";
+import type { DifficultySetChoice, PlayModes, ScenarioSetupOptions } from "@mc/content";
 import type { GameSetupConfig } from "@mc/engine";
 import type { CoreDifficulty, CorePlayer } from "../../core/setup.js";
 import { wave4Scenario } from "../setup.js";
@@ -23,6 +23,10 @@ export interface TowerDefenseOptions {
   readonly firstPlayerIndex?: number;
   /** Standard II / Expert II instead of the printed sets (docs/phase7-wave4.md §4 Q5); absent is the printed sets. */
   readonly difficultySets?: DifficultySetChoice;
+  /** The full mode set (heroic included), as `CoreScenarioOptions.modes`; must agree with `difficulty` about expert. */
+  readonly modes?: PlayModes;
+  /** MC21 p. 11's optional setup damage on Avengers Tower (docs/phase7-wave4.md §4 Q4); absent is none. */
+  readonly setupOptions?: ScenarioSetupOptions;
 }
 
 /** Tower Defense: two villains sharing one encounter deck, two main schemes, Focused Defense (§3.2-§3.5). */

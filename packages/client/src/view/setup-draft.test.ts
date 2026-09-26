@@ -15,6 +15,7 @@ import {
   clearSeat,
   deckCheckDeckId,
   difficultyOptionsFor,
+  hasTowerDefenseSetupDamageOption,
   initialSetupDraft,
   nextEmptySeat,
   pruneSeats,
@@ -31,6 +32,8 @@ import {
   setSeed,
   setSetAsideModularSetIds,
   toggleDifficultySets,
+  toggleTowerDefenseSetupDamage,
+  towerDefenseSetupDamagePerHero,
   toSessionConfig,
   withSeatOne,
   usePreconstructedForAllSeats,
@@ -40,6 +43,7 @@ import {
 const RHINO = CORE_SCENARIOS.find((s) => (s.id as string) === "rhino")!;
 const BREAKOUT = WAVE1_SCENARIOS.find((s) => s.multipleVillains)!;
 const THE_HOOD = WAVE4_SCENARIOS.find((s) => (s.id as string) === "the-hood")!;
+const TOWER_DEFENSE = WAVE4_SCENARIOS.find((s) => (s.id as string) === "tower-defense")!;
 const DEFAULT_DECK_ID = preconDecks(POOL_VERSION)[0]!.id as string;
 
 describe("initialSetupDraft", () => {
@@ -138,6 +142,47 @@ describe("toggleDifficultySets", () => {
     expect(draft.difficultySets).toEqual(alternate);
     draft = toggleDifficultySets(draft, alternate);
     expect(draft.difficultySets).toBeNull();
+  });
+});
+
+describe("hasTowerDefenseSetupDamageOption", () => {
+  test("only Tower Defense offers it", () => {
+    expect(hasTowerDefenseSetupDamageOption(TOWER_DEFENSE)).toBe(true);
+    expect(hasTowerDefenseSetupDamageOption(RHINO)).toBe(false);
+    expect(hasTowerDefenseSetupDamageOption(THE_HOOD)).toBe(false);
+    expect(hasTowerDefenseSetupDamageOption(undefined)).toBe(false);
+  });
+
+  test("skirmish mode has no printed recommendation (MC21 p. 11)", () => {
+    expect(hasTowerDefenseSetupDamageOption(TOWER_DEFENSE, true)).toBe(false);
+  });
+});
+
+describe("toggleTowerDefenseSetupDamage", () => {
+  test("off by default, on with a plain toggle", () => {
+    let draft = initialSetupDraft({ scenarioId: TOWER_DEFENSE.id as string, seatDeckId: DEFAULT_DECK_ID, seed: 1 });
+    expect(draft.towerDefenseSetupDamage).toBe(false);
+    draft = toggleTowerDefenseSetupDamage(draft);
+    expect(draft.towerDefenseSetupDamage).toBe(true);
+    draft = toggleTowerDefenseSetupDamage(draft);
+    expect(draft.towerDefenseSetupDamage).toBe(false);
+  });
+});
+
+describe("towerDefenseSetupDamagePerHero", () => {
+  test("MC21 p. 11's printed recommendation: 1 standard, 2 expert", () => {
+    expect(towerDefenseSetupDamagePerHero("standard")).toBe(1);
+    expect(towerDefenseSetupDamagePerHero("expert")).toBe(2);
+  });
+});
+
+describe("setScenario resets towerDefenseSetupDamage", () => {
+  test("leaving Tower Defense clears a chosen toggle", () => {
+    let draft = initialSetupDraft({ scenarioId: TOWER_DEFENSE.id as string, seatDeckId: DEFAULT_DECK_ID, seed: 1 });
+    draft = toggleTowerDefenseSetupDamage(draft);
+    expect(draft.towerDefenseSetupDamage).toBe(true);
+    draft = setScenario(draft, RHINO, RHINO.id as string);
+    expect(draft.towerDefenseSetupDamage).toBe(false);
   });
 });
 
@@ -446,6 +491,16 @@ describe("toSessionConfig", () => {
     config = toSessionConfig(draft, [{ starterDeckId: "core-spider-man-justice" }]);
     expect(config.difficultySets).toEqual({ standard: "standard_ii", expert: "expert_ii" });
     expect(config.setAsideModularSetIds).toEqual(["beasty_boys"]);
+  });
+
+  test("setupOptions.towerDefenseSetupDamage is only sent when chosen (docs/phase7-wave4.md §4 Q4)", () => {
+    let draft = initialSetupDraft({ scenarioId: TOWER_DEFENSE.id as string, seatDeckId: DEFAULT_DECK_ID, seed: 1 });
+    let config = toSessionConfig(draft, [{ starterDeckId: "core-spider-man-justice" }]);
+    expect(config.setupOptions).toBeUndefined();
+
+    draft = toggleTowerDefenseSetupDamage(draft);
+    config = toSessionConfig(draft, [{ starterDeckId: "core-spider-man-justice" }]);
+    expect(config.setupOptions).toEqual({ towerDefenseSetupDamage: true });
   });
 });
 

@@ -91,11 +91,13 @@ describe("threatCannotBeRemoved's player field (docs/phase7-wave3.md §3.26)", (
     const afterP1 = ok(givenP1.state, play(p1, givenP1.ids[0] as InstanceId));
     expect(mustInstance(afterP1, schemeId).threat).toBe(7);
 
-    // p2 is named by the rule: their thwart is blocked entirely, on their own turn next.
+    // p2 is named by the rule: the main scheme is no valid target for their thwart, which cannot be played at all
+    // (RRG 1.8 "Target", pp. 42–43; docs/phase7-wave3.md §4 Q5), on their own turn next.
     const p2Turn = ok(ok(afterP1, { type: "endTurn", playerId: p1 }), toHero(p2));
     const givenP2 = giveCards(p2Turn, p2, "thwart");
-    const afterP2 = ok(givenP2.state, play(p2, givenP2.ids[0] as InstanceId));
-    expect(mustInstance(afterP2, schemeId).threat).toBe(7);
+    const refused = applyCommand(givenP2.state, play(p2, givenP2.ids[0] as InstanceId), deps);
+    expect(refused).toMatchObject({ ok: false, error: { code: "no_valid_target" } });
+    expect(mustInstance(p2Turn, schemeId).threat).toBe(7);
   });
 
   it("an unscoped rule (no `player`) still blocks every player, as before this field existed", () => {
@@ -138,7 +140,8 @@ describe("threatCannotBeRemoved's player field (docs/phase7-wave3.md §3.26)", (
       },
       unscopedDeps,
     );
-    if (!played.ok) throw new Error(played.error.message);
-    expect(mustInstance(played.state, schemeId).threat).toBe(10);
+    // No valid target, so the thwart cannot be played (docs/phase7-wave3.md §4 Q5); the threat stays at 10.
+    expect(played).toMatchObject({ ok: false, error: { code: "no_valid_target" } });
+    expect(mustInstance(given.state, schemeId).threat).toBe(10);
   });
 });

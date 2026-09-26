@@ -31,6 +31,7 @@ import { formFactorFor } from "../../view/layout.js";
 import { briefingViewOf, type BriefingView, type HandledRow } from "../../view/campaign-briefing-model.js";
 import type { BriefingPoolGroup, BriefingPoolRow, BriefingPoolView } from "../../view/campaign-pool-model.js";
 import { isMarketPendingChoice } from "../../view/campaign-market-model.js";
+import { hiddenEvidenceEnvelope } from "../../view/campaign-hidden-evidence-model.js";
 import { CARDS_BY_ID } from "../../content/pool.js";
 import { artFor } from "../../art/art-source.js";
 import { cardArt, drawArt } from "../../art/card-art.js";
@@ -221,10 +222,22 @@ export class CampaignBriefingScene extends Phaser.Scene {
       this.scale.off("resize", this.#draw, this);
       goToScreen(this, SCENES.campaignRun, { runId: this.#data.runId });
     };
+    // The hidden-evidence envelope (docs/campaign-mode-design.md §Q4; MC50 p. 5), when the box declares one: the
+    // top bar's own right-aligned classification marker, matching the dossier's tab bar convention. Computed
+    // straight off `record`/`this.#definition` — independent of `briefingViewOf` (which needs a composed attempt
+    // that may not exist yet) — so the counter is visible before an issue is even composed.
+    const hiddenEvidence = this.#definition ? hiddenEvidenceEnvelope(record, this.#definition, cardName) : null;
     const top = drawTopBar(this, {
       backLabel: "◂ ISSUES",
       onBack: back,
       title: `Briefing · Issue #${this.#issueNumber}`,
+      ...(hiddenEvidence
+        ? {
+            right: hiddenEvidence.revealedCards
+              ? `${hiddenEvidence.label} · ${hiddenEvidence.revealedCards.join(", ")}`
+              : `${hiddenEvidence.label} · sealed · ${hiddenEvidence.cardCount} card${hiddenEvidence.cardCount === 1 ? "" : "s"}`,
+          }
+        : {}),
     });
     const stops = new Map<string, FocusStop>();
     if (top.back && top.backRect) stops.set("back", { rect: top.backRect, activate: back });

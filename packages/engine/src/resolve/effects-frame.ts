@@ -29,6 +29,7 @@ import {
   getInstance,
   getPlayer,
   heroFacesOf,
+  locateCard,
   mustCardOf,
   playerOrder,
 } from "../query.js";
@@ -60,7 +61,13 @@ import { selectCards } from "./cards.js";
 import { abilityFrame, addFrameVars, type Frame, pushEffects, pushEvents } from "./frames.js";
 import { hasKeyword, keywordTotal } from "../keywords.js";
 import { candidateOption } from "./window.js";
-import { threatRemovalBlocked } from "./event.js";
+import {
+  canDealDamageTo,
+  canRemoveThreatFrom,
+  isRequiredChoice,
+  slotTargetValid,
+  UNRESOLVED_VAR,
+} from "./target-validity.js";
 
 /** The `EffectContext` an effects frame resolves in. Exported so `why-not.ts` can rebuild it exactly. */
 export const contextOf = (frame: Frame<"effects">, deps: EngineDeps): EffectContext => ({
@@ -277,12 +284,10 @@ function executePlayFromHand(
  * character that can take damage from this card.
  */
 function divisionCanAffect(ctx: Ctx, what: "damage" | "threat", id: InstanceId, frame: Frame<"effects">): boolean {
-  if (what === "damage") return !cannotTakeDamage(ctx.state, ctx.deps, id, [frame.selfInstanceId]);
+  if (what === "damage") return canDealDamageTo(ctx.state, ctx.deps, id, frame.selfInstanceId);
   const scheme = getInstance(ctx.state, id);
   return (
-    scheme !== undefined &&
-    scheme.threat > 0 &&
-    threatRemovalBlocked(ctx.state, ctx.deps, id, frame.selfInstanceId) === null
+    scheme !== undefined && scheme.threat > 0 && canRemoveThreatFrom(ctx.state, ctx.deps, id, frame.selfInstanceId)
   );
 }
 
@@ -747,6 +752,28 @@ const cardOptions = (ctx: Ctx, ids: readonly InstanceId[]): readonly ChoiceOptio
     ref: { kind: "card", instanceId: id } as const,
   }));
 
+/**
+ * A choice that chooses nothing binds its slot empty and moves on. A required one (`isRequiredChoice`) that found no
+ * candidate leaves the text before a "then" not fully resolved (RRG 1.8 "'Then'", p. 44), so the frame is marked and a
+ * later `then` in it is skipped. Every other effect still resolves as far as it can, which is how an encounter card or
+ * a forced ability resolves, and how a player ability resolves if its target left play after it was initiated.
+ */
+function choseNothing(
+  ctx: Ctx,
+  frame: Frame<"effects">,
+  effect: Extract<EffectSpec, { kind: "chooseTarget" | "chooseCards" }>,
+  noCandidates: boolean,
+): void {
+  const unresolved = noCandidates && isRequiredChoice(effect);
+  if (unresolved) emit(ctx, { type: "choiceFoundNothing", slot: effect.slot });
+  setFrame(ctx, {
+    ...frame,
+    cursor: frame.cursor + 1,
+    bindings: { ...frame.bindings, [effect.slot]: [] },
+    ...(unresolved ? { vars: { ...frame.vars, [UNRESOLVED_VAR]: 1 } } : {}),
+  });
+}
+
 function executeChooseCards(
   ctx: Ctx,
   frame: Frame<"effects">,
@@ -777,7 +804,7 @@ function executeChooseCards(
   }
   const max = Math.min(effect.max, candidates.length);
   if (!chooser || max === 0) {
-    setFrame(ctx, { ...frame, cursor: frame.cursor + 1, bindings: { ...frame.bindings, [effect.slot]: [] } });
+    choseNothing(ctx, frame, effect, candidates.length === 0);
     return;
   }
   requestChoice(ctx, {
@@ -1211,6 +1238,15 @@ function executeResolveSpecials(
     return;
   }
   setFrame(ctx, { ...frame, answer: null, cursor: frame.cursor + 1 });
+  // A card whose Special resolves from an identity's separate deck (an Invocation card) leaves the deck as it starts
+  // resolving, like a played event (RRG 1.8 "Event", p. 19), and is out of play in its owner's `resolving` area until its
+  // own text moves it on. If it was the last card, the deck resets now, without it (`settlePlayerDecks`): ruling, Apr 30,
+  // 2026 (3) answer 7, "The deck is reshuffled **before** the currently resolving card enters the discard pile"
+  // (docs/phase7-wave1.md §4 Q9, resolved 2026-09-25).
+  for (const id of new Set(ordered.map((step) => step.instanceId))) {
+    const zone = locateCard(ctx.state, id);
+    if (zone?.kind === "separateDeck") moveCard(ctx, id, { kind: "resolving", playerId: zone.playerId });
+  }
   // Only on request (`includeKeywords`): incite X and surge are each "equivalent to" a When Revealed ability (RRG 1.8
   // "Incite X", p. 24; "Surge", p. 42), resolved in the order a reveal resolves them: incite first, the printed
   // abilities, surge last. Off by default: the user decided Citywide Crisis re-resolves printed abilities only, since
@@ -1264,7 +1300,12 @@ function requestTargetChoice(
   context: EffectContext,
 ): void {
   const [chooser] = resolvePlayers(ctx.state, effect.chooser, context);
-  const legal = selectTargets(ctx.state, effect.query, context);
+  // Only valid targets are offered (RRG 1.8 "Target", pp. 42–43): those some effect in the rest of this program can
+  // affect. The main scheme is no target for a "(thwart)" while its player is patrolled (docs/phase7-wave3.md §3.5).
+  const rest = frame.effects.slice(frame.cursor + 1);
+  const legal = selectTargets(ctx.state, effect.query, context).filter((id) =>
+    slotTargetValid(ctx.state, ctx.deps, rest, effect.slot, id, context),
+  );
   // "X enemies": the count can be a value bound earlier in the ability (Shield Toss).
   const wanted =
     effect.count === undefined
@@ -1274,7 +1315,7 @@ function requestTargetChoice(
         : Math.max(0, resolveValue(ctx.state, effect.count, context, ctx.deps));
   if (!chooser || legal.length === 0 || wanted <= 0) {
     // RRG "Choose (Game Element)": with no legal target there is nothing to choose.
-    setFrame(ctx, { ...frame, cursor: frame.cursor + 1, bindings: { ...frame.bindings, [effect.slot]: [] } });
+    choseNothing(ctx, frame, effect, legal.length === 0);
     return;
   }
   const count = Math.min(wanted, legal.length);

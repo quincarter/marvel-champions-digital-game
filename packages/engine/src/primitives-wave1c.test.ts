@@ -1189,7 +1189,7 @@ describe("`TargetQuery.anyPrintedResource`: a card printing any of several resou
     expect(mustPlayer(after, p1).hand).toContain(mental);
   });
 
-  it("'if able': with neither type in hand nothing is asked and nothing is discarded", () => {
+  it("with neither type in hand, a player's event whose only part is that choice cannot be played", () => {
     const given = giveCards(tossGame(), p1, ENERGY.id, WILD.id);
     const noEither = {
       ...given.state,
@@ -1201,11 +1201,9 @@ describe("`TargetQuery.anyPrintedResource`: a card printing any of several resou
         }),
       })),
     };
-    const handBefore = mustPlayer(noEither, p1).hand;
-    const after = playToss(noEither);
-    expect(after.pendingChoice).toBeNull();
-    expect(mustPlayer(after, p1).hand).toEqual(handBefore); // the event itself was given, then played
-    expect(mustPlayer(after, p1).discard.map((id) => after.instances[id]?.cardId)).toEqual([TOSS.id]);
+    // RRG 1.8 "Choose (Game Element)" (p. 12): no valid target for any part of a player card ability, so it cannot
+    // be initiated. (Power Drain's "if able" is an encounter card, which resolves as far as it can.)
+    expect(() => playToss(noEither)).toThrow(/no_valid_target/);
   });
 });
 
@@ -1220,8 +1218,8 @@ describe("`TargetQuery.anyPrintedResource`: a card printing any of several resou
  * The first sentence is a constant, not a Forced Response. Scripting it as a response on the attack (the §3.6 test
  * shape) would share a response window with the card's own "after Thunderball attacks, discard this card", and the
  * discard could win the race. As a constant, the threat is placed while the damage is dealt, before any "after the
- * attack" window opens. Excess damage is damage dealt beyond remaining hit points (RRG 1.8 "Excess Damage", p. 19),
- * counted even when it isn't taken (ruling, Jan 26, 2026 (3)).
+ * attack" window opens. Excess damage is the value overkill would spill (RRG 1.8 "Overkill", p. 31, which supersedes
+ * ruling Jan 26, 2026 (3)'s "dealt, even when not taken"; user decision 2026-09-25), so a tough target yields none.
  */
 const BUILDUP_RULE = stubAbility("buildup.constant", {
   trigger: {
@@ -1346,13 +1344,16 @@ describe("`excessDamageAsThreat`: excess damage dealt is placed as threat on a s
     expect(buildupOn(state)).toBeUndefined();
   });
 
-  it("counts excess damage dealt, not taken: a tough ally takes nothing and the excess still becomes threat", () => {
+  // Before 2026-09-25 this pinned +2 (excess measured as dealt, ruling Jan 26, 2026 (3)). RRG 1.8 p. 31 counts the
+  // excess overkill would spill, and a tough ally takes nothing, so there is none.
+  it("counts the excess overkill would spill: a tough ally takes nothing, so no excess becomes threat", () => {
     const start = excessGame({ attached: true });
     const scheme = signatureId(start);
     const before = mustInstance(start, scheme).threat;
-    const { state, ally } = defendWithAlly(start, true);
+    const { state, ally, events } = defendWithAlly(start, true);
     expect(mustInstance(state, ally).damage).toBe(0);
-    expect(mustInstance(state, scheme).threat).toBe(before + 2);
+    expect(events.some((e) => e.type === "excessDamageAsThreat")).toBe(false);
+    expect(mustInstance(state, scheme).threat).toBe(before);
   });
 
   it("no excess, no threat: an undefended attack a 10-HP hero survives", () => {

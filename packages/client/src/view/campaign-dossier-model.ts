@@ -29,6 +29,7 @@ import {
   type PoolCopy,
 } from "./campaign-pool-model.js";
 import { campaignLogSheet, renderLogValue, type CardNameOf } from "./campaign-log-model.js";
+import { hiddenEvidenceEnvelope, type HiddenEvidenceEnvelope } from "./campaign-hidden-evidence-model.js";
 import type { RunIssueRow } from "./campaign-run-model.js";
 import {
   campaignRunModel,
@@ -174,6 +175,8 @@ export interface DossierOverview {
   readonly bountyLadder: DossierBountyLadder | null;
   /** Null for a campaign with no pool-shaped log fields at all (`campaign-pool-model.ts`'s `poolFieldsOf`). */
   readonly pool: CampaignPoolOverview | null;
+  /** The hidden-evidence envelope (docs/campaign-mode-design.md §Q4; MC50 p. 5). Null for a box with no hidden field. */
+  readonly hiddenEvidence: HiddenEvidenceEnvelope | null;
 }
 
 /** The printed sheet's own per-seat columns this screen surfaces, matching MC10 p. 20's log sheet layout. */
@@ -326,6 +329,7 @@ export function campaignDossierOverview(
     wallets: dossierWallets(record, definition, heroNameOf, cardName),
     bountyLadder: campaignDossierBountyLadder(record, definition, cardName),
     pool: campaignDossierPool(record, definition, cardTypeOf, poolCopy, firstPlayerName),
+    hiddenEvidence: hiddenEvidenceEnvelope(record, definition, cardName),
   };
 }
 

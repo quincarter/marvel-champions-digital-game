@@ -7,6 +7,9 @@ import {
   stepAfterCampaignWindow,
   stepAfterMulligans,
   STEP_AFTER_SCENARIO_SETUP,
+  resolveScenarioSetupInstructions,
+  stepAfterScenarioSetupAbilities,
+  stepAfterScenarioSetupInstructions,
 } from "./setup-steps.js";
 import { drawCards, drawUpTo, endLastingEffect, expireLastingEffects, expirePlayerTurnEffects } from "./effects.js";
 import { readyOrAnnounce } from "./resolve/event.js";
@@ -49,7 +52,8 @@ const MAX_STEPS_PER_COMMAND = 5000;
 export function runFlow(ctx: Ctx): void {
   for (let i = 0; i < MAX_STEPS_PER_COMMAND; i++) {
     if (ctx.state.outcome || ctx.state.pendingChoice) return;
-    // An emptied separate deck (the Invocation deck) takes its discard pile back at once, with no penalty.
+    // An emptied separate deck (the Invocation deck) takes its discard pile back, with no penalty. The move that empties
+    // one already resets it (`settlePlayerDecks`); this only catches a state built another way (an older save).
     resetEmptySeparateDecks(ctx);
     // …and so does a scenario deck whose rules say so (the side-scheme deck; docs/phase7-wave2.md §3.3).
     resetEmptyScenarioDecks(ctx);
@@ -81,6 +85,9 @@ function executeStep(ctx: Ctx): void {
       return executeCampaignWindow(ctx, step.window);
     case "scenarioSetup":
       return executeScenarioSetupStep(ctx);
+    case "scenarioSetupInstructions":
+      resolveScenarioSetupInstructions(ctx);
+      return setStep(ctx, stepAfterScenarioSetupInstructions(ctx.state));
     case "drawStartingHands":
       return executeDrawStartingHands(ctx);
     case "mulligan":
@@ -140,7 +147,7 @@ function executeCampaignWindow(ctx: Ctx, window: CampaignWindow): void {
 /** RRG 1.8 Appendix II steps 6-12 as a step, so a campaign can resolve instructions on either side of it. */
 function executeScenarioSetupStep(ctx: Ctx): void {
   resolveScenarioSetup(ctx);
-  setStep(ctx, STEP_AFTER_SCENARIO_SETUP);
+  setStep(ctx, stepAfterScenarioSetupAbilities(ctx.state, STEP_AFTER_SCENARIO_SETUP));
 }
 
 // RRG Appendix II step 14, after setup cards and setup abilities have resolved. A counted draw of hand-size cards, not
