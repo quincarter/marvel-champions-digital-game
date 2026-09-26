@@ -2836,9 +2836,11 @@ function basicThwartWith(
   // an additional cost to thwart these schemes is paid together with this thwart's own costs. It must be affordable,
   // in total across a divided thwart's schemes, from what paying the own costs would leave (else the schemes are not
   // legal targets); then it is asked for *first*, and the own costs are paid only once it has been
-  // (`commitPrepaidBasicThwart`), so declining it leaves the thwarter unexhausted and nothing thwarted. A confused
-  // thwarter's attempt is cancelled with its own costs paid, as before, without asking.
-  if (!thwartCostPaid && !confused) {
+  // (`commitPrepaidBasicThwart`), so declining it leaves the thwarter unexhausted and nothing thwarted.
+  // §4.1 Q40 (RRG 1.8 "Confuse, Confused", p. 13: "Costs associated with the thwart attempt, including exhausting the
+  // character, must still be paid"): a confused thwarter is asked for it too, and must be able to pay it (Q18); once it
+  // is paid, the confused status card replaces the thwart below.
+  if (!thwartCostPaid) {
     const schemeIds = shares.map((share) => share.targetInstanceId);
     const cost = thwartCostTotal(ctx.state, ctx.deps, schemeIds);
     if (cost) {
@@ -2858,7 +2860,8 @@ function basicThwartWith(
 
   exhaustCard(ctx, command.thwarterInstanceId);
   if (confused) {
-    // RRG "Confuse": the thwart is cancelled but its costs are still paid.
+    // RRG "Confuse": the thwart is cancelled but its costs are still paid (with any additional cost, §4.1 Q40). It is
+    // not considered to have thwarted, so an ally takes no consequential damage (RRG 1.8 "Ally", p. 7).
     updateInstance(ctx, command.thwarterInstanceId, (i) => ({
       ...i,
       statuses: { ...i.statuses, confused: 0 },

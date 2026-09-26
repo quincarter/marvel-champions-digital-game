@@ -18,7 +18,7 @@ import type { EffectSpec } from "./spec.js";
 import type { GameState } from "./state.js";
 import { depsOf, stubAbility } from "./testing/abilities.js";
 import { driveSession } from "./testing/drive.js";
-import { stubEvent, stubResource, stubSideScheme, stubSupport } from "./testing/fixtures.js";
+import { stubAlly, stubEvent, stubResource, stubSideScheme, stubSupport } from "./testing/fixtures.js";
 import { defaultPick, giveCard } from "./testing/scenario.js";
 import { copiesOf, encounterCardInVillainArea, gameAtFirstTurn, P1, playerCardIntoPlay } from "./testing/wave3.js";
 
@@ -88,6 +88,9 @@ const PRICEY_ACTION = stubAbility("pricey.action", {
 });
 const PRICEY = stubEvent({ id: "pricey", cost: 1, abilities: [PRICEY_ACTION.ref] });
 
+/** An ally with THW 2 and 1 consequential damage under it. */
+const SIDEKICK = stubAlly({ id: "sidekick", cost: 0, atk: 1, thw: 2, hp: 3, consequentialThwart: 1 });
+
 const deps: EngineDeps = depsOf(
   MONSTER_COST,
   GENERATOR_RESOURCE,
@@ -107,10 +110,10 @@ function startWith(...schemes: readonly (typeof MONSTER)[]): {
   readonly schemes: readonly InstanceId[];
 } {
   const state = gameAtFirstTurn({
-    cards: [MONSTER, CAT, SPARK, DUD, GENERATOR, PROBE, WARDEN, SPLITTER, PRICEY],
+    cards: [MONSTER, CAT, SPARK, DUD, GENERATOR, PROBE, WARDEN, SPLITTER, PRICEY, SIDEKICK],
     deps,
     encounter: [MONSTER.id, MONSTER.id, CAT.id],
-    deck: [...copiesOf(SPARK.id, 2), DUD.id, GENERATOR.id, PROBE.id, WARDEN.id, SPLITTER.id, PRICEY.id],
+    deck: [...copiesOf(SPARK.id, 2), DUD.id, GENERATOR.id, PROBE.id, WARDEN.id, SPLITTER.id, PRICEY.id, SIDEKICK.id],
   });
   const main = state.mainScheme.instanceId;
   let placed: GameState = {
@@ -479,5 +482,119 @@ describe("§4.1 Q30 a 'take damage' thwart cost that is partly prevented was not
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.error.code).toBe("no_valid_target");
     expect(heroThwart(state).targets).not.toContain(cat);
+  });
+});
+
+// ---------------------------------------------------------------------------------------------------------------------
+// docs/phase7-wave5.md §4.1 Q40: a confused thwarter still pays the scheme's additional thwart cost. RRG 1.8 "Confuse,
+// Confused" (p. 13): "Costs associated with the thwart attempt, including exhausting the character, must still be paid."
+// ---------------------------------------------------------------------------------------------------------------------
+
+describe("§4.1 Q40 a confused thwarter still pays the scheme's additional thwart cost", () => {
+  const confuse = (state: GameState, id: InstanceId): GameState => {
+    const instance = mustInstance(state, id);
+    return {
+      ...state,
+      instances: { ...state.instances, [id]: { ...instance, statuses: { ...instance.statuses, confused: 1 } } },
+    };
+  };
+  const confusedRemoved = (events: readonly GameEvent[], id: InstanceId): boolean =>
+    events.some((e) => e.type === "statusRemoved" && e.instanceId === id && e.status === "confused");
+
+  it("a confused hero is asked before exhausting, pays, exhausts, and the confused card replaces the thwart; replay deep-equal", () => {
+    const { state: bare, schemes } = startWith(MONSTER);
+    const monster = at(schemes, 0);
+    const given = giveCard(bare, P1, SPARK.id);
+    const state = confuse(given.state, heroOf(bare));
+    const asked = applyCommand(state, basicThwart(state, monster), deps);
+    if (!asked.ok) throw new Error(asked.error.message);
+    expect(asked.state.pendingChoice?.prompt.kind).toBe("spendResources");
+    expect(mustInstance(asked.state, heroOf(state)).exhausted).toBe(false);
+    expect(mustInstance(asked.state, heroOf(state)).statuses.confused).toBe(1);
+
+    const { session, events } = driveSession(startSession(state), deps, [basicThwart(state, monster)], payAll);
+    expect(mustPlayer(session.state, P1).hand).not.toContain(given.id);
+    expect(mustInstance(session.state, heroOf(state)).exhausted).toBe(true);
+    expect(mustInstance(session.state, heroOf(state)).statuses.confused).toBe(0);
+    expect(confusedRemoved(events, heroOf(state))).toBe(true);
+    expect(mustInstance(session.state, monster).threat).toBe(6);
+    expect(settled(events)).toEqual(["paid"]);
+    expect(thwartInitiated(events)).toBe(false);
+    expectReplay(session);
+  });
+
+  it("declined (Q27), nothing happens: the hero stays ready and confused, the card stays in hand; replay deep-equal", () => {
+    const { state: bare, schemes } = startWith(MONSTER);
+    const monster = at(schemes, 0);
+    const given = giveCard(bare, P1, SPARK.id);
+    const state = confuse(given.state, heroOf(bare));
+    const { session, events } = driveSession(startSession(state), deps, [basicThwart(state, monster)]);
+    expect(mustPlayer(session.state, P1).hand).toContain(given.id);
+    expect(mustInstance(session.state, heroOf(state)).exhausted).toBe(false);
+    expect(mustInstance(session.state, heroOf(state)).statuses.confused).toBe(1);
+    expect(confusedRemoved(events, heroOf(state))).toBe(false);
+    expect(settled(events)).toEqual(["declined"]);
+    expectReplay(session);
+  });
+
+  it("a confused hero who cannot pay cannot target the scheme (Q18), and legalActions agrees; the main scheme still can", () => {
+    const { state: bare, schemes } = startWith(MONSTER);
+    const monster = at(schemes, 0);
+    const state = confuse(giveCard(bare, P1, DUD.id).state, heroOf(bare));
+    const result = applyCommand(state, basicThwart(state, monster), deps);
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error.code).toBe("no_valid_target");
+    const { targets } = heroThwart(state);
+    expect(targets).not.toContain(monster);
+    expect(targets).toContain(state.mainScheme.instanceId);
+  });
+
+  it("a confused hero pays a take-damage cost too before the confused card replaces the thwart", () => {
+    const { state: bare, schemes } = startWith(CAT);
+    const cat = at(schemes, 0);
+    const state = confuse(bare, heroOf(bare));
+    const { session, events } = driveSession(startSession(state), deps, [basicThwart(state, cat)]);
+    expect(mustInstance(session.state, heroOf(state)).damage).toBe(2);
+    expect(mustInstance(session.state, heroOf(state)).exhausted).toBe(true);
+    expect(mustInstance(session.state, heroOf(state)).statuses.confused).toBe(0);
+    expect(mustInstance(session.state, cat).threat).toBe(6);
+    expect(settled(events)).toEqual(["paid"]);
+    expectReplay(session);
+  });
+
+  it("a confused ally pays, exhausts and loses its confused card, and takes no consequential damage; replay deep-equal", () => {
+    const { state: bare, schemes } = startWith(MONSTER);
+    const monster = at(schemes, 0);
+    const withAlly = playerCardIntoPlay(bare, SIDEKICK.id);
+    const given = giveCard(withAlly.state, P1, SPARK.id);
+    const ally = withAlly.id;
+    const state = confuse(given.state, ally);
+    const command: Command = { type: "basicThwart", playerId: P1, thwarterInstanceId: ally, schemeInstanceId: monster };
+    const { session, events } = driveSession(startSession(state), deps, [command], payAll);
+    expect(mustPlayer(session.state, P1).hand).not.toContain(given.id);
+    expect(mustInstance(session.state, ally).exhausted).toBe(true);
+    expect(mustInstance(session.state, ally).statuses.confused).toBe(0);
+    expect(mustInstance(session.state, ally).damage).toBe(0);
+    expect(mustInstance(session.state, monster).threat).toBe(6);
+    expect(settled(events)).toEqual(["paid"]);
+    expectReplay(session);
+  });
+
+  // Open (reported, not decided here): RRG 1.8 "Labeled Ability" (p. 26) cancels a confused identity's "(thwart)"
+  // ability entirely as it is triggered, before it chooses a scheme, so there is no scheme whose additional cost the
+  // resolution-time fallback could ask for. As built, only the event's own cost is paid (Q41) and nothing is asked.
+  it("as built: a confused identity's (thwart) event is cancelled before choosing a target, so nothing is asked", () => {
+    const { state: bare, schemes } = startWith(MONSTER);
+    const monster = at(schemes, 0);
+    const withSpark = giveCard(bare, P1, SPARK.id);
+    const { state: withProbe, id: probe } = giveCard(withSpark.state, P1, PROBE.id);
+    const state = confuse(withProbe, heroOf(bare));
+    const { session, events } = driveSession(startSession(state), deps, [play(probe, [])], aimAt(monster, true));
+    expect(events.some((e) => e.type === "thwartCostAsked")).toBe(false);
+    expect(mustPlayer(session.state, P1).hand).toContain(withSpark.id);
+    expect(mustPlayer(session.state, P1).discard).toContain(probe);
+    expect(mustInstance(session.state, heroOf(state)).statuses.confused).toBe(0);
+    expect(mustInstance(session.state, monster).threat).toBe(6);
+    expectReplay(session);
   });
 });

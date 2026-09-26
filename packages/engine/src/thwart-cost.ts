@@ -20,6 +20,11 @@
  *   asked and paid once.
  * - **Q30:** a "take damage" cost that is partly prevented, or that could not all be assigned, was not paid: the
  *   thwart does not happen (for a basic thwart, with Q27's undo).
+ * - **Q40:** a confused hero's or ally's basic thwart is asked for (and must be able to pay, Q18) the additional cost
+ *   like any other, since "Costs associated with the thwart attempt [...] must still be paid" (RRG 1.8 "Confuse,
+ *   Confused", p. 13); once paid, its own costs are paid and the confused card replaces the thwart. A confused
+ *   identity's "(thwart)" ability is cancelled as it is triggered (RRG 1.8 "Labeled Ability", p. 26), before it
+ *   chooses a scheme, so it never reaches the fallback below and is asked nothing.
  *
  * **The fallback** is the §3.21 question as the thwart resolves (`askThwartCost`, `resolve/event.ts`), which a thwart
  * *effect* still uses: an event or ability chooses its target while it resolves, after its own cost was paid at play,
