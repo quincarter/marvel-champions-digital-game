@@ -501,6 +501,93 @@ PACK_FILENAME_CODES: dict[str, dict[str, str]] = {
         "c13a": "21186a",  # Find the Norn Stones (campaign side scheme)
         "c17a": "21187a",  # Norn Stone (campaign upgrade)
         "c19a": "21189a",  # Open the Dungeons (campaign side scheme)
+        # The rest of the 2026-09-26 audit's 177 stamped scans: same page, same "no filename/alt to go on" problem,
+        # but not villain stages or main-scheme faces, so `match_by_art` resolved most of the pack on its own. These
+        # 81 are what was left stamped after that pass - generic aspect/basic cards and modular-set filler whose
+        # near-identical card frames made `match_by_art` correctly decline rather than guess. Confirmed the same way:
+        # the collector number Hall of Heroes' own scan prints in the corner (e.g. `de.jpg` -> "SPECTRUM (4/18) ...
+        # 5" -> code 21005), one at a time, since neither position nor content hash was reliable here either.
+        "de": "21005",  # Blue Marvel (Spectrum ally)
+        "m5": "21006",  # Energy Duplication
+        "m7": "21007",  # Gamma Blast
+        "m10": "21008",  # Photon Speed
+        "m13": "21009",  # Pulsar Shield
+        "m16": "21010",  # Speed of Light
+        "a5": "21015",  # Mighty Avengers
+        "a6": "21016",  # Mass Attack
+        "a8": "21018",  # Band Together
+        "a9": "21019",  # Blade
+        "a12": "21022",  # Ready to Rumble
+        "n4": "21029",  # Sap Power
+        "n6": "21030",  # Radioactive Blast
+        "a1-1": "21032",  # Pip the Troll
+        "a3-1": "21034",  # Karmic Staff
+        "a5-1": "21036",  # Cosmic Ward
+        "a7-1": "21037",  # Mystic Senses
+        "a10-1": "21038",  # Karmic Blast
+        "a12-1": "21039",  # Cosmic Awareness
+        "a14-1": "21040",  # Quantum Magic
+        "b3": "21043",  # Magic Attack
+        "b6": "21046",  # Audacity
+        "b12": "21052",  # Determination
+        "b13": "21053",  # Major Victory
+        "n3-1": "21069",  # Zealot of Truth
+        "e6": "21076",  # Fireball
+        "e8": "21077",  # Manipulation
+        "e10": "21078",  # Pacification
+        "e12": "21079",  # Rubblestorm
+        "e14": "21080",  # Agent of Thanos
+        "e16": "21081",  # Channeling Trance
+        "e19": "21082",  # Abjuration
+        "e20": "21083",  # Restrained
+        "e21": "21084",  # Reactor Overload
+        "b4-1": "21088",  # Blood to Spare
+        "a1-2": "21089",  # Black Order Infantry
+        "a3-2": "21090",  # Outrider
+        "a5-2": "21091",  # Landing Craft
+        "t11": "21102",  # Black Order Besieger
+        "t15": "21103",  # Proxima's Spear
+        "t16": "21104",  # Corvus's Glaive
+        "t17": "21105",  # Direct Assault
+        "t19": "21106",  # Proxima's Power
+        "t21": "21107",  # Corvus's Cunning
+        "t23": "21108",  # Bound by Blood
+        "t24": "21109",  # Rain Fire
+        "t26": "21110",  # City Under Attack
+        "t10-1": "21119",  # Master of the Stones - Thanos section's own numbering, distinct from Tower Defense's "t10"
+        "t11-1": "21120",  # Avatar of Death - distinct from Tower Defense's "t11"
+        "t13-1": "21121",  # Deviant Syndrome - distinct from Tower Defense's "t13"
+        "t15-1": "21122",  # "I Am Inevitable" - distinct from Tower Defense's "t15"
+        "t17-1": "21123",  # The Mad Titan - distinct from Tower Defense's "t17"
+        "c4-1": "21128",  # Tribute
+        "i4": "21132",  # Reality Stone
+        "i7": "21135",  # Time Stone
+        "h7": "21141",  # Hall of Nastrond
+        "h6": "21142",  # Gjallerbru
+        "h8": "21143",  # Garm
+        "h13": "21148",  # Hela's Crown
+        "h14": "21149",  # Hela's Domain
+        "h16": "21150",  # The Queen of Hel
+        "h18": "21151",  # The Wastes of Niffleheim
+        "l1-1": "21152",  # Draugr
+        "l3-1": "21153",  # Fallen Warrior
+        "l6": "21155",  # Legions of Hel
+        "f2": "21157",  # Frost Giant
+        "f4": "21158",  # Frozen
+        "l8": "21167",  # War in Asgard
+        "l9": "21168",  # Madness on Midgard
+        "l10": "21169",  # Open the Bifrost
+        "l14": "21173",  # Master of Illusions
+        "l15": "21174",  # Devious Sorcery
+        "l17": "21175",  # Infinite Mischief
+        "l19": "21176",  # The Trickster
+        "e2-1": "21178",  # Beguiled
+        "e4": "21179",  # Seduced
+        "c2": "21181",  # Security Breach - not "c1b" (that filename is Cosmo/180B despite also printing "181" in its corner: two logical cards can apparently share a physical print-sheet number, so a corner read alone wasn't enough here - confirmed by viewing the full card)
+        "c4": "21183",  # Shawarma
+        "c10": "21185",  # System Shock
+        "c21": "21191",  # Fandral
+        "c23": "21193",  # Volstagg
     },
 }
 
