@@ -501,7 +501,8 @@ function drawOne(ctx: Ctx, playerId: PlayerId): boolean {
     updateInstance(ctx, top, (i) => ({ ...i, faceup: true, controllerId: null }));
     emit(ctx, { type: "drawnObligationPlaced", playerId, instanceId: top });
   }
-  settlePlayerDecks(ctx, from, to);
+  // An encounter card drawn into the hand (Mysterio, docs/phase7-wave5.md §3.5) is recorded for the flow to announce.
+  settlePlayerDecks(ctx, from, to, top);
   if (obligation) pushEvent(ctx, { kind: "cardEntersPlay", instanceId: top, playerId });
   return true;
 }

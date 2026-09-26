@@ -1243,6 +1243,15 @@ export type EffectSpec =
        * a card that already has an owner is unaffected, so no existing script's behavior changes.
        */
       readonly assignOwnerTo?: PlayerRef;
+      /**
+       * Whose hand, deck or discard pile `"hand"` / `"deckTop"` / `"deckBottom"` / `"deckShuffle"` / `"discard"` mean,
+       * instead of each card's own owner: an encounter card going into a player's zones stays unowned (Mysterio, MC27
+       * p. 13: "Throughout this scenario, cards from the encounter deck may be added to your player deck, hand, or
+       * discard pile … encounter cards added to your deck are added facedown … and encounter cards added to your
+       * discard pile are added faceup"; "shuffle the top card of the encounter deck into each player's deck", "place
+       * that card in your discard pile"). docs/phase7-wave5.md §3.5.
+       */
+      readonly into?: PlayerRef;
     }
   /** Choose cards outside play ("look at the top 3 … add 1", "search your deck for an upgrade", "choose up to 3 different cards in your discard"). */
   | {

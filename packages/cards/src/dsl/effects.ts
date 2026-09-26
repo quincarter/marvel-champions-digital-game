@@ -850,6 +850,24 @@ export const grantOwnedCards = (from: CardSelector, to: CardDestination, player:
   to,
   assignOwnerTo: player,
 });
+/**
+ * "Shuffle the top card of the encounter deck into each player's deck" (Mysterio II, `sm` 27085), "place that card in
+ * your discard pile" (Mysterio I): `to` means `player`'s hand, deck or discard pile, whoever owns the cards. An
+ * encounter card stays unowned there, facedown in a deck and faceup in a discard pile (MC27 p. 13; docs/phase7-wave5.md
+ * §3.5).
+ */
+export const moveCardsInto = (
+  from: CardSelector,
+  to: CardDestination,
+  player: PlayerRef,
+  bind?: string,
+): EffectSpec => ({
+  kind: "moveCards",
+  cards: from,
+  to,
+  into: player,
+  ...withBind(bind),
+});
 export const chooseCards = (
   slot: string,
   from: CardSelector,

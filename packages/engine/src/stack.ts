@@ -52,8 +52,13 @@ export interface ReportTarget {
  */
 export interface BoostInProgress {
   readonly instanceId: InstanceId;
-  /** `count`: its icons are about to be counted (`boostIconsCounting`; docs/phase7-wave2.md §3.6). */
-  readonly step: "window" | "ability" | "count";
+  /**
+   * `count`: its icons are about to be counted (`boostIconsCounting`; docs/phase7-wave2.md §3.6). `resolved`: counted
+   * (`icons`), its `boostCardResolved` response window open before the discard (docs/phase7-wave5.md §3.5).
+   */
+  readonly step: "window" | "ability" | "count" | "resolved";
+  /** With `step: "resolved"`: the icons it adds. */
+  readonly icons?: number;
   readonly iconsCancelled: boolean;
   readonly abilityCancelled: boolean;
   /** "Increase or decrease the number of boost icons on that card by 1 for this count" (`adjustBoostCount`). */

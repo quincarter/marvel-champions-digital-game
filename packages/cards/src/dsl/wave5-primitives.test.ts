@@ -19,11 +19,17 @@ import {
   addAccelerationToken,
   addVillain,
   cancelIt,
+  cards,
+  dealAsEncounterCard,
   dealDamage,
   dealIndirectDamage,
+  draw,
+  encounterCards,
   encounterSetAside,
+  forEachPlayer,
   ifThen,
   moveActiveCounterToNextVillain,
+  moveCardsInto,
   moveCounters,
   resolveSpecialsOf,
   selectCards,
@@ -34,6 +40,8 @@ import {
   activationOrderOf,
   chosen,
   each,
+  eachPlayer,
+  eventPlayer,
   eventTarget,
   exists,
   firstPlayer,
@@ -43,6 +51,7 @@ import {
   refMatches,
   self,
   superlative,
+  thatPlayer,
   threatOn,
 } from "./values.js";
 import { validateDefinition } from "./validate.js";
@@ -125,5 +134,42 @@ describe("§3.4 acceleration tokens on any card", () => {
     valid(pedestrians);
     expect(pedestrians.trigger).toMatchObject({ on: { on: "accelerationTokenPlaced", selfIs: "target" } });
     valid(whenRevealed(addAccelerationToken(self)));
+  });
+});
+
+describe("§3.5 encounter cards in a player's deck, hand and discard pile (Mysterio)", () => {
+  it("Mysterio II shuffles the encounter deck's top card into each player's deck", () => {
+    const definition = whenRevealed(
+      forEachPlayer(eachPlayer, moveCardsInto(encounterCards(["deck"], undefined, 1), "deckShuffle", thatPlayer)),
+    );
+    valid(definition);
+    expect(moveCardsInto(encounterCards(["deck"], undefined, 1), "deckShuffle", thatPlayer)).toMatchObject({
+      kind: "moveCards",
+      to: "deckShuffle",
+      into: { kind: "scoped" },
+    });
+  });
+
+  it("Maze of Mirrors deals a drawn or discarded encounter card, then draws one", () => {
+    const definition = forcedInterrupt(
+      on.encounterCardFromPlayerDeck(),
+      dealAsEncounterCard(eventTarget, eventPlayer),
+      draw(1, eventPlayer),
+    );
+    valid(definition);
+    expect(definition.trigger).toMatchObject({ on: { on: "encounterCardFromPlayerDeck" } });
+    expect(on.encounterCardFromPlayerDeck("draw")).toEqual({
+      on: "encounterCardFromPlayerDeck",
+      eventIs: { how: "draw" },
+    });
+  });
+
+  it("Mysterio I places the resolved boost card in your discard pile", () => {
+    const definition = forcedResponse(
+      on.boostCardResolved("self"),
+      moveCardsInto(cards(eventTarget), "discard", eventPlayer),
+    );
+    valid(definition);
+    expect(definition.trigger).toMatchObject({ on: { on: "boostCardResolved", selfIs: "source" } });
   });
 });

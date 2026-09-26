@@ -29,7 +29,7 @@ import {
 import type { CardDestination, CardSelector, TargetQuery } from "../spec.js";
 import type { ZoneId } from "../state.js";
 import type { TriggerEvent } from "../trigger-events.js";
-import { announce } from "./frames.js";
+import { announce, pushEvent } from "./frames.js";
 import { heard } from "./triggers.js";
 
 /** The cards a selector names right now (out of play included), in zone order. */
@@ -190,7 +190,7 @@ export function selectCards(ctx: Ctx, selector: CardSelector, context: EffectCon
  * `moveCards`: out-of-play cards move directly; cards in play leave play (attachments discarded, state cleared). The
  * `separate…` destinations follow each card's `home` separate deck and skip any other card.
  */
-export function moveCardsTo(ctx: Ctx, ids: readonly InstanceId[], destination: CardDestination): void {
+export function moveCardsTo(ctx: Ctx, ids: readonly InstanceId[], destination: CardDestination, into?: PlayerId): void {
   const inPlay = new Set(cardsInPlay(ctx.state));
   const shuffleOwners = new Set<PlayerId>();
   let shuffleEncounter = false;
@@ -207,7 +207,8 @@ export function moveCardsTo(ctx: Ctx, ids: readonly InstanceId[], destination: C
       updateInstance(ctx, id, (i) => ({ ...i, faceup: true }));
       continue;
     }
-    const owner = instance.ownerId;
+    // `into` (docs/phase7-wave5.md §3.5): that player's zones, whoever owns the card.
+    const owner = into ?? instance.ownerId;
     let to: ZoneId;
     let position: "top" | "bottom" = "top";
     switch (destination) {
@@ -217,7 +218,7 @@ export function moveCardsTo(ctx: Ctx, ids: readonly InstanceId[], destination: C
         position = "bottom";
         break;
       case "discard":
-        to = discardZoneFor(ctx.state, id);
+        to = into ? { kind: "discard", playerId: into } : discardZoneFor(ctx.state, id);
         break;
       case "deckTop":
       case "deckBottom":
@@ -281,7 +282,9 @@ export function moveCardsTo(ctx: Ctx, ids: readonly InstanceId[], destination: C
     // Discard piles are faceup; a separate deck's faces are set below (`syncSeparateDeckTop`). Turned faceup before the
     // move, because a move that empties the deck resets it at once (`settlePlayerDecks`), and this card may be in the
     // new deck by the time the move returns.
-    if (destination === "separateDiscard") updateInstance(ctx, id, (i) => ({ ...i, faceup: true }));
+    // An encounter card from the encounter deck into a player's discard pile is faceup there (MC27 p. 13; §3.5 of
+    // docs/phase7-wave5.md).
+    if (discarding) updateInstance(ctx, id, (i) => ({ ...i, faceup: true }));
     if (inPlay.has(id)) leavePlay(ctx, id, to, position, discarding);
     else moveCard(ctx, id, to, position);
     const keepsFace = ["discard", "separateDiscard", "removedFromGame", "setAside"].includes(destination);
@@ -385,6 +388,25 @@ export function announceDeckRunOuts(ctx: Ctx): boolean {
   if (events.length === 0) return false;
   // Pushed last-first so the oldest resolves first.
   for (const event of [...events].reverse()) announce(ctx, event);
+  return true;
+}
+
+/**
+ * Announces each encounter card that left a player's deck since the last look (`TriggerEvent
+ * encounterCardFromPlayerDeck`, docs/phase7-wave5.md §3.5), when an ability listens, and empties the list. Every card
+ * of one draw is announced after the draw (MC27 p. 21 FAQ); pushed last-first so the oldest resolves first. A card no
+ * longer where it went is skipped. Returns true when it pushed a frame.
+ */
+export function announceEncounterCardsFromDecks(ctx: Ctx): boolean {
+  const pending = ctx.state.pendingEncounterFromDeck;
+  if (!pending || pending.length === 0) return false;
+  const { pendingEncounterFromDeck: _, ...rest } = ctx.state;
+  ctx.state = rest;
+  const events: TriggerEvent[] = pending
+    .map((left): TriggerEvent => ({ kind: "encounterCardFromPlayerDeck", ...left }))
+    .filter((event) => heard(ctx.state, ctx.deps, event));
+  if (events.length === 0) return false;
+  for (const event of [...events].reverse()) pushEvent(ctx, event);
   return true;
 }
 

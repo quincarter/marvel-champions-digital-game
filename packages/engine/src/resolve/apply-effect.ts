@@ -1641,7 +1641,9 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
           }
         }
       }
-      moveCardsTo(ctx, ids, effect.to);
+      const [into] = effect.into ? resolvePlayers(ctx.state, effect.into, context) : [];
+      if (effect.into && !into) return;
+      moveCardsTo(ctx, ids, effect.to, into);
       return;
     }
     case "shuffleDeck":

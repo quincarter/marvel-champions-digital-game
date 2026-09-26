@@ -336,7 +336,7 @@ against `pnpm dsl` (379 builders), the engine's `EffectSpec` / `RuleSpec` / `Tri
 | 3.2  | An enemy activation that can be interrupted and canceled                                     | Sinister Synchronization / Beatdown ("Ambush!"), Web Binding                                   | landed  |
 | 3.3  | Several main schemes, one marked by a counter; a completed stage flips to an environment     | Venom Goblin (glider counter)                                                                  | landed  |
 | 3.4  | Acceleration tokens on any card, moved between cards, and announced                          | Hapless Pedestrians, Tracking Prey, Lower/Midtown/Upper Manhattan                              | landed  |
-| 3.5  | Encounter cards in a player's deck, hand and discard pile                                    | Mysterio (whole scenario), MC27 scenario 3 campaign                                            | open    |
+| 3.5  | Encounter cards in a player's deck, hand and discard pile                                    | Mysterio (whole scenario), MC27 scenario 3 campaign                                            | landed  |
 | 3.6  | Boost cards held on a card that does not activate, then moved to an enemy                    | Venom ("Leave Us Alone!", Vengeance), MC27 scenario 2 expert                                   | open    |
 | 3.7  | A resolved Special reports the cards it discarded                                            | Sandslide, Surging Sands                                                                       | open    |
 | 3.8  | Increasing the damage a character takes                                                      | Bell Tower (Ringing)                                                                           | open    |
@@ -524,6 +524,25 @@ schemeInstanceId }` (response window, only with a listener); `moveCounters` (§3
 included.
 
 ### 3.5 Encounter cards in a player's deck, hand and discard pile
+
+> **Status: landed (2026-09-26),** tested in `packages/engine/src/encounter-cards-in-player-decks.test.ts` (6 tests: an
+> encounter card shuffled into a deck is unowned and facedown, one put in a discard pile is unowned and faceup; drawn
+> with nothing listening it stays in the hand (§4 Q4); with the interrupt, both cards of a two-card draw are drawn
+> before either is dealt, and each "draw 1 card" replacement is drawn, replay deep-equal; a card milled from the deck is
+> heard too, and so is the one its replacement draw finds; a response moves a resolved boost card onto the player's deck
+> before the activation discards it, replay deep-equal). DSL: `wave5-primitives.test.ts`. **What landed:**
+> **`EffectSpec moveCards.into: PlayerRef`**: `hand` / `deck…` / `discard` mean that player's zones whoever owns the
+> card; an encounter card stays unowned there, and any card moved to a discard pile by `moveCards` is now turned faceup.
+> **`TriggerEvent encounterCardFromPlayerDeck { playerId, instanceId, how: "draw" | "discard" }`**, an interrupt window
+> with an empty apply step: `settlePlayerDecks` records every unowned card leaving a player's deck for a hand or a
+> discard pile (`GameState.pendingEncounterFromDeck`), and the flow announces them between frames, after the whole draw,
+> oldest first, only when an ability listens. The interrupt sees the card already in the hand or discard pile, and its
+> own `dealAsEncounterCard` moves it on. **`TriggerEvent boostCardResolved { enemyInstanceId, boostInstanceId,
+playerId }`** (response only): after a boost card's ability and icon count and before the discard, only when an
+> ability listens; a card a response moved is not discarded. **DSL:** `moveCardsInto(from, to, player)`,
+> `on.encounterCardFromPlayerDeck(how?)`, `on.boostCardResolved(during)`. Also fixed: §3.4's
+> `accelerationTokenPlaced` had been classed as an interrupt event; it is response only. **Not here:** the game-end
+> count of Illusion cards (§3.27). **Client:** unowned cards in a player's deck, hand and discard pile (visible backs).
 
 **Cards.** Mysterio II ("shuffle the top card of the encounter deck into each player's deck"), Edge of Reality 2A,
 Maze of Mirrors / Edge of Reality 1B/2B ("Forced Interrupt: When you would draw or discard an encounter card from your

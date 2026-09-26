@@ -164,6 +164,13 @@ function stepBoostCard(
     });
     return "busy";
   }
+  if (boost.step === "resolved") {
+    // After the `boostCardResolved` responses (docs/phase7-wave5.md §3.5): discarded unless one moved it.
+    if (locateCard(ctx.state, boost.instanceId)?.kind === "boost")
+      moveCard(ctx, boost.instanceId, discardZoneFor(ctx.state, boost.instanceId), "top");
+    setFrame(ctx, { ...frame, boost: null });
+    return boost.icons ?? 0;
+  }
   if (boost.step === "window") {
     setFrame(ctx, { ...frame, boost: { ...boost, step: "ability" } });
     if (boost.abilityCancelled) emit(ctx, { type: "boostCancelled", instanceId: boost.instanceId, scope: "ability" });
@@ -192,6 +199,19 @@ function stepBoostCard(
     amplifyIconsInPlay(ctx.state) +
     (boost.countAdjust ?? 0);
   const icons = boost.iconsCancelled ? 0 : Math.max(0, counted);
+  // "After you resolve a boost card during Mysterio's activation, place that card in your discard pile" (§3.5 of wave
+  // 5): a response window between the count and the discard, only when an ability listens.
+  const resolved: TriggerEvent = {
+    kind: "boostCardResolved",
+    enemyInstanceId: frame.enemyInstanceId,
+    boostInstanceId: boost.instanceId,
+    playerId,
+  };
+  if (locateCard(ctx.state, boost.instanceId)?.kind === "boost" && heard(ctx.state, ctx.deps, resolved)) {
+    setFrame(ctx, { ...frame, boost: { ...boost, step: "resolved", icons } });
+    pushEvent(ctx, resolved);
+    return "busy";
+  }
   // Discarded to its home deck's discard (docs/phase7-wave1.md §4.3, proposed), unless its own Boost ability already
   // moved it ("Put Goblin Thrall into play engaged with you").
   if (locateCard(ctx.state, boost.instanceId)?.kind === "boost")

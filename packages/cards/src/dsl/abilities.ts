@@ -1141,6 +1141,19 @@ export const on = {
    */
   lastCounterRemoved: (counterType: string): EventPattern =>
     pattern("countersRemoved", { selfIs: "target", eventIs: { counterType }, eventAtMost: { remaining: 0 } }),
+  /**
+   * "When you would draw or discard an encounter card from your deck" (Maze of Mirrors / Edge of Reality 1B/2B, `sm`
+   * 27087b/27088b; docs/phase7-wave5.md §3.5): any player's, named with `eventPlayer`; "it" is `eventTarget`. Heard
+   * after the whole draw (MC27 p. 21 FAQ). `how` narrows it to a draw or a discard.
+   */
+  encounterCardFromPlayerDeck: (how?: "draw" | "discard"): EventPattern =>
+    pattern("encounterCardFromPlayerDeck", ...(how ? [{ eventIs: { how } }] : [])),
+  /**
+   * "After you resolve a boost card during [enemy]'s activation" (Mysterio I–III, `sm` 27084–27086; docs/phase7-wave5.md
+   * §3.5): after its Boost ability and its icon count, before it is discarded. "That card" is `eventTarget`, "you"
+   * `eventPlayer`.
+   */
+  boostCardResolved: (during: Who): EventPattern => pattern("boostCardResolved", asSource(during)),
   /** "After your deck runs out of cards" (Soul World, `mts` 21033; docs/phase7-wave4.md §3.11): your deck reset. */
   yourDeckRunsOut: (): EventPattern => pattern("deckRanOut", { playerIs: "controller", eventIs: { deck: "player" } }),
   /** "After a player resets their deck" (Universal Church of Truth, 21068): any player's; name them with `eventPlayer`. */

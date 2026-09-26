@@ -358,6 +358,32 @@ export type TriggerEventBody =
    * Response only; pushed by `addAccelerationToken` only when an ability listens.
    */
   | { readonly kind: "accelerationTokenPlaced"; readonly instanceId: InstanceId }
+  /**
+   * An encounter card left a player's deck: drawn into the hand, or discarded (docs/phase7-wave5.md §3.5). Maze of
+   * Mirrors / Edge of Reality (`sm` 27087, 27088): "Forced Interrupt: When you would draw or discard an encounter card
+   * from your deck, deal it to yourself as a facedown encounter card → draw 1 card." Announced between frames after the
+   * draw or discard is done (MC27 p. 21 FAQ), with an interrupt window whose replacement is `dealAsEncounterCard`; with
+   * nothing listening the card simply stays where it went (§4 Q4). An obligation drawn goes to the play area as before.
+   */
+  | {
+      readonly kind: "encounterCardFromPlayerDeck";
+      readonly playerId: PlayerId;
+      readonly instanceId: InstanceId;
+      readonly how: "draw" | "discard";
+    }
+  /**
+   * A boost card has been resolved for an activation — its Boost ability done and its icons counted — and is about to be
+   * discarded (docs/phase7-wave5.md §3.5). Mysterio I–III (`sm` 27084–27086): "Forced Response: After you resolve a boost
+   * card during Mysterio's activation, place that card in your discard pile / on the bottom of your deck / on the top of
+   * your deck if it has the [Illusion] trait." Response only, pushed only when an ability listens; a card a response
+   * moved is not then discarded.
+   */
+  | {
+      readonly kind: "boostCardResolved";
+      readonly enemyInstanceId: InstanceId;
+      readonly boostInstanceId: InstanceId;
+      readonly playerId: PlayerId;
+    }
   | {
       readonly kind: "enemyActivating";
       readonly enemyInstanceId: InstanceId | null;
@@ -550,7 +576,6 @@ export type TriggerEventKind = TriggerEvent["kind"];
  */
 export function isAnnouncement(event: TriggerEvent): boolean {
   switch (event.kind) {
-    case "accelerationTokenPlaced":
     case "dealDamage":
     case "healDamage":
     case "placeThreat":
@@ -614,6 +639,10 @@ export function isAnnouncement(event: TriggerEvent): boolean {
     // play are this event's apply step (RRG 1.8 "When Defeated Abilities", p. 48: a forced interrupt; the card "leaves
     // play after its 'When Defeated' ability is resolved").
     case "schemeDefeated":
+    // "When you would draw or discard an encounter card from your deck" (docs/phase7-wave5.md §3.5): an interrupt. The
+    // card is already where the draw or discard put it when this is pushed (after the whole draw, MC27 p. 21 FAQ), so
+    // its apply step changes nothing; the interrupt's own effect moves it on.
+    case "encounterCardFromPlayerDeck":
       return false;
     default:
       return true;
@@ -685,6 +714,10 @@ export function eventSubjects(event: TriggerEvent): EventSubjects {
       return of([event.enemyInstanceId], [event.enemyInstanceId], [event.playerId]);
     case "accelerationTokenPlaced":
       return of([], [event.instanceId], []);
+    case "encounterCardFromPlayerDeck":
+      return of([], [event.instanceId], [event.playerId]);
+    case "boostCardResolved":
+      return of([event.enemyInstanceId], [event.boostInstanceId], [event.playerId]);
     case "boostIconsCounting":
       return of([event.enemyInstanceId], [event.cardInstanceId], [event.playerId]);
     case "basicPowerUsed":

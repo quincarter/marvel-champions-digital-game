@@ -278,6 +278,16 @@ export interface ScenarioDeckState {
   readonly buildAtSetup?: true;
 }
 
+/**
+ * An encounter card that left a player's deck, drawn or discarded, waiting to be announced between frames (`TriggerEvent
+ * encounterCardFromPlayerDeck`, docs/phase7-wave5.md §3.5).
+ */
+export interface EncounterFromDeck {
+  readonly playerId: PlayerId;
+  readonly instanceId: InstanceId;
+  readonly how: "draw" | "discard";
+}
+
 /** A deck that ran out, waiting to be announced between frames (`TriggerEvent deckRanOut`, docs/phase7-wave4.md §3.11). */
 export type DeckRunOut =
   | { readonly deck: "player"; readonly playerId: PlayerId }
@@ -547,6 +557,13 @@ export interface GameState {
    * Absent until a deck first runs out, so a fresh game serializes as before. docs/phase7-wave4.md §3.11.
    */
   readonly pendingDeckRunOuts?: readonly DeckRunOut[];
+  /**
+   * Encounter cards that left a player's deck since the flow last looked (drawn, or discarded from it), oldest first. The
+   * flow announces each as `encounterCardFromPlayerDeck` between frames — after the whole draw, as Mysterio's FAQ (MC27
+   * p. 21) asks: "those cards are drawn simultaneously. Afterward, deal each encounter card drawn during that process" —
+   * and empties the list. Absent until one first leaves a deck. docs/phase7-wave5.md §3.5.
+   */
+  readonly pendingEncounterFromDeck?: readonly EncounterFromDeck[];
   readonly villainArea: readonly InstanceId[];
   readonly victoryDisplay: readonly InstanceId[];
   readonly removedFromGame: readonly InstanceId[];
