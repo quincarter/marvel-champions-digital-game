@@ -397,6 +397,9 @@ export * from "./wonder_man/index.js";
 export * from "./x23/index.js";
 export * from "./deadpool/index.js";
 export * from "./spiderham/index.js";
+// Sinister Motives (MC27, cycle 4's campaign box, docs/phase7-wave5.md). Data only, like the four hero packs
+// above it, until the wave 5 wiring step adds WAVE5_* aggregates, PLAYABLE_CARDS and CAMPAIGNS registration.
+export * from "./sm/index.js";
 export * from "./mojo/index.js";
 export * from "./angel/index.js";
 export * from "./storm/index.js";
