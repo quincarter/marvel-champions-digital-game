@@ -18,8 +18,11 @@ import type { CardId } from "@mc/content";
 import { drawArt } from "../art/card-art.js";
 import { ensurePictureLoaded, type Picture } from "../art/pictures.js";
 import { accent, hit, ink, signal, surface, typeRole, type TypeSpec } from "../tokens.js";
-import { textStyle } from "../ui/theme.js";
-import { McButton, McTextInput, STAMP_CHIP_TYPE, fitText, label, paintPanel } from "../ui/widgets.js";
+import { cardFaces } from "../art/card-face-baker.js";
+import type { CardFaceSpec } from "../art/card-face.js";
+import { isDesktopType } from "../ui/desktop-type.js";
+import { cssOf, currentTextResolution, faceFontOf, textStyle } from "../ui/theme.js";
+import { CAPTION_FLOOR, McButton, McTextInput, STAMP_CHIP_TYPE, fitText, label, paintPanel } from "../ui/widgets.js";
 import { McVirtualList, type VirtualListRow } from "../ui/virtual-list.js";
 import { McShelfRoster, type ShelfRosterMetrics } from "../ui/shelf-roster.js";
 import type { ListScroll } from "../view/list-scroll.js";
@@ -273,12 +276,16 @@ export function drawRosterList(
 // scrollable roster idea, but grouped into one horizontally-scrolling shelf per pack (`ui/shelf-roster.ts`'s
 // `McShelfRoster` over `view/roster-shelves.ts`'s `shelvesOf`), with a tall art card per item rather than a
 // compact list row. Scenario select and Take your seats both draw this; only what art each item shows differs,
-// so that stays a caller-supplied `artKey`/`artFit` rather than a second copy of the card chrome.
+// so that stays a caller-supplied `artUrl`/`artFit` rather than a second copy of the card chrome.
 // ---------------------------------------------------------------------------------------------------------------
 
 export interface ShelfCardOptions {
-  /** A texture key already resolved by the caller (`art/card-art.ts`'s `drawArt`, or a `Picture`'s own key once `ensurePictureLoaded` says it's ready) — null draws the plain parchment placeholder every card falls back to while its art is missing or still loading. */
-  readonly artKey: string | null;
+  /**
+   * Where the art is — a `Picture`'s or an `ArtSource`'s own URL. The card-face worker fetches and decodes it itself
+   * (`art/card-face-baker.ts`), downscaled to the card, so the caller never loads it into Phaser. Null, or a URL that
+   * fails, paints the plain parchment window.
+   */
+  readonly artUrl: string | null;
   /** Defaults to `"cover"` — D02/D03's own cards fill their whole art window and crop, never letterbox a narrower or wider scan (second-pass item 7). `"contain"` is for the rare caller that truly wants the whole image visible. */
   readonly artFit?: "contain" | "cover";
   /** The Bangers size the card's own name/title draws at — `typeRole.villainTitle` (32px) for a scenario card, `typeRole.barTitle` (22px) for a hero card. Determines the footer band's own height, so every card in one roster should pass the same role. */
@@ -302,89 +309,74 @@ export interface ShelfCardOptions {
  * uppercase label line; a selected card gets a 4px red border and a top-right "SELECTED"/tag, an unselected one a
  * thin, dim ink border (not the shared `card` skin's full-opacity one — a roster of a dozen unselected cards read
  * as a dozen equally-loud boxes otherwise), and a blocked one dims its whole face.
+ *
+ * The face is painted off the main thread (`art/card-face.ts`, baked by `art/card-face-baker.ts`) and drawn as one
+ * image. Until it arrives — a few frames, the first time a card is seen in a given state — the card is a plain
+ * face-and-border placeholder; the roster widgets redraw their cards when faces arrive (`drawShelfRosterPanel`,
+ * `drawPackGrid`).
  */
 export function renderShelfCard(scene: Phaser.Scene, rect: Rect, options: ShelfCardOptions): VirtualListRow {
-  const objects: Phaser.GameObjects.GameObject[] = [];
+  const faces = cardFaces(scene);
+  const key = faces.request(shelfCardSpec(rect, options));
+  if (key) {
+    const image = scene.add.image(rect.x, rect.y, key).setOrigin(0, 0).setDisplaySize(rect.width, rect.height);
+    faces.hold(key, image);
+    return { objects: [image] };
+  }
   const dim = options.blockedBy ? ink.illegal : 1;
   const footerHeight = options.titleRole.size + 8 + 16 + 8;
-
-  const face = scene.add.graphics();
-  face.fillStyle(surface.card.hex, dim);
-  face.fillRect(rect.x, rect.y, rect.width, rect.height);
-  objects.push(face);
-
-  const artRect: Rect = { x: rect.x, y: rect.y, width: rect.width, height: rect.height - footerHeight };
-  const art = options.artKey
-    ? drawArt(scene, options.artKey, artRect, { fit: options.artFit ?? "cover", alpha: dim })
-    : null;
-  if (art) objects.push(art);
-  else {
-    const placeholder = scene.add.graphics();
-    placeholder.fillStyle(surface.parchment.hex, dim).fillRect(artRect.x, artRect.y, artRect.width, artRect.height);
-    objects.push(placeholder);
-  }
-
-  const textX = rect.x + 8;
-  const textWidth = rect.width - 16;
-  const textY = artRect.y + artRect.height + 8;
-  const title = scene.add.text(textX, textY, options.title, textStyle(options.titleRole, surface.ink.hex, dim));
-  fitText(title, textWidth, options.titleRole.size);
-  objects.push(title);
-  const subtitleText = options.warning ?? options.subtitle;
-  const subtitleColor = options.warning ? signal.caution.hex : surface.ink.hex;
-  const subtitle = label(
-    scene,
-    textX,
-    textY + title.height + 3,
-    subtitleText,
-    typeRole.label,
-    subtitleColor,
-    options.warning ? 1 : ink.label * dim,
-  );
-  fitText(subtitle, textWidth);
-  objects.push(subtitle);
-
-  // Stamps sit on the art, bottom-left, above the footer: the one place a tag (top-right) and the title never are.
-  let stampX = rect.x + 8;
-  for (const stamp of options.stamps ?? []) {
-    // Bangers, like every other title on the card — and the same face as the aspect filter chips above the roster.
-    const text = label(scene, 0, 0, stamp.label, typeRole.stamp, stamp.ink, dim);
-    const width = Math.ceil(text.width) + 16;
-    const height = 24;
-    if (stampX + width > rect.x + rect.width - 8) {
-      text.destroy();
-      break;
-    }
-    const y = artRect.y + artRect.height - height - 8;
-    const plate = scene.add.graphics();
-    plate.fillStyle(stamp.fill, dim).fillRect(stampX, y, width, height);
-    plate.lineStyle(1.5, surface.ink.hex, dim).strokeRect(stampX + 0.75, y + 0.75, width - 1.5, height - 1.5);
-    text.setPosition(stampX + 8, y + height / 2).setOrigin(0, 0.5);
-    scene.children.bringToTop(text);
-    objects.push(plate, text);
-    stampX += width + 4;
-  }
-
-  const border = scene.add.graphics();
+  const placeholder = scene.add.graphics();
+  placeholder.fillStyle(surface.card.hex, dim).fillRect(rect.x, rect.y, rect.width, rect.height);
+  placeholder.fillStyle(surface.parchment.hex, dim).fillRect(rect.x, rect.y, rect.width, rect.height - footerHeight);
   if (options.selected) {
-    border.lineStyle(4, accent.heroRed.hex, 1).strokeRect(rect.x + 2, rect.y + 2, rect.width - 4, rect.height - 4);
+    placeholder.lineStyle(4, accent.heroRed.hex, 1).strokeRect(rect.x + 2, rect.y + 2, rect.width - 4, rect.height - 4);
   } else {
-    border
+    placeholder
       .lineStyle(1.5, surface.ink.hex, options.blockedBy ? ink.illegal : ink.label)
       .strokeRect(rect.x + 0.75, rect.y + 0.75, rect.width - 1.5, rect.height - 1.5);
   }
-  objects.push(border);
+  return { objects: [placeholder] };
+}
 
-  if (options.tag) {
-    const tagWidth = Math.min(rect.width - 8, options.tag.length * 6 + 16);
-    const tag = scene.add.graphics();
-    tag.fillStyle(accent.heroRed.hex, 1).fillRect(rect.x + rect.width - tagWidth, rect.y, tagWidth, 16);
-    objects.push(tag);
-    objects.push(
-      label(scene, rect.x + rect.width - tagWidth + 4, rect.y + 2, options.tag, typeRole.label, surface.paper.hex, 1),
-    );
-  }
-  return { objects };
+/** `renderShelfCard`'s options as the plain-data face spec the baker paints. */
+function shelfCardSpec(rect: Rect, options: ShelfCardOptions): CardFaceSpec {
+  const dim = options.blockedBy ? ink.illegal : 1;
+  return {
+    width: rect.width,
+    height: rect.height,
+    resolution: currentTextResolution(),
+    desktop: isDesktopType(),
+    artUrl: options.artUrl === null ? null : new URL(options.artUrl, document.baseURI).href,
+    artFit: options.artFit ?? "cover",
+    artFocusY: 0.34,
+    dim,
+    title: options.title,
+    titleFont: faceFontOf(options.titleRole),
+    subtitle: options.warning ?? options.subtitle,
+    subtitleFont: faceFontOf(typeRole.label),
+    subtitleFitStart: typeRole.rowTitle.size,
+    subtitleColor: cssOf(options.warning ? signal.caution.hex : surface.ink.hex),
+    subtitleAlpha: options.warning ? 1 : ink.label * dim,
+    stamps: (options.stamps ?? []).map((stamp) => ({
+      label: stamp.label,
+      fill: cssOf(stamp.fill),
+      ink: cssOf(stamp.ink),
+    })),
+    stampFont: faceFontOf(typeRole.stamp),
+    tag: options.tag,
+    tagFont: faceFontOf(typeRole.label),
+    selected: options.selected,
+    blocked: options.blockedBy !== null,
+    captionFloor: CAPTION_FLOOR,
+    colors: {
+      card: cssOf(surface.card.hex),
+      parchment: cssOf(surface.parchment.hex),
+      ink: cssOf(surface.ink.hex),
+      heroRed: cssOf(accent.heroRed.hex),
+      paper: cssOf(surface.paper.hex),
+    },
+    inkLabel: ink.label,
+  };
 }
 
 /**
@@ -500,6 +492,8 @@ export function drawShelfRosterPanel<T>(options: ShelfRosterPanelOptions<T>): Mc
     horizontalScrollFor: (shelfId) => cache.horizontalFor(shelfId),
     background: false,
   });
+  // A card face arriving from the baker redraws the cards (only — the headers keep their text).
+  roster.onDestroy(cardFaces(scene).onBaked(() => roster.refreshCards()));
   shelves.forEach((shelf, shelfIndex) => {
     shelf.items.forEach((item, itemIndex) => {
       const id = idOf(item);
@@ -601,6 +595,7 @@ export function drawPackGrid<T>(options: PackGridOptions<T>): McVirtualList | nu
     onRowActivate,
     background: false,
   });
+  list.onDestroy(cardFaces(scene).onBaked(() => list.layout(list.rect)));
   items.forEach((item, index) => {
     const rowIndex = Math.floor(index / columns);
     const col = index % columns;

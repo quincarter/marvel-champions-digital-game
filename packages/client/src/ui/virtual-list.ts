@@ -114,6 +114,7 @@ export class McVirtualList {
   readonly #track: Phaser.GameObjects.Rectangle;
   readonly #thumb: Phaser.GameObjects.Rectangle;
   readonly #rows = new Map<number, VirtualListRow>();
+  readonly #onDestroy: (() => void)[] = [];
   readonly #drag = new DragGesture();
   readonly #momentum = new Momentum();
   #rect: Rect;
@@ -234,8 +235,14 @@ export class McVirtualList {
     if (this.#scroll.scrollToEnd(this.#count, this.#rowHeight, this.#rect.height)) this.#redrawWindow(false);
   }
 
+  /** Runs `fn` once, when this list is destroyed — for a subscription whose life is the list's. */
+  onDestroy(fn: () => void): void {
+    this.#onDestroy.push(fn);
+  }
+
   /** Torn down at the start of every scene rebuild (not just on shutdown), so its listeners never double up across the fresh instance the scene creates next. */
   destroy(): void {
+    for (const fn of this.#onDestroy.splice(0)) fn();
     this.#scene.input.off(Phaser.Input.Events.POINTER_WHEEL, this.#onWheel, this);
     this.#scene.input.off(Phaser.Input.Events.POINTER_DOWN, this.#onPointerDown, this);
     this.#scene.input.off(Phaser.Input.Events.POINTER_MOVE, this.#onPointerMove, this);
