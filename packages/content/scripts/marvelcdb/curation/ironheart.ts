@@ -25,10 +25,20 @@
  * Otherwise normalizes cleanly — the schema-neutral parser fixes (docs/phase7-wave2-data.md) already cover every
  * other shape this pack uses.
  *
- * **Starter deck and scenario data not curated this pass** — this pass emits the pack's cards only (data-only
- * pool, PLAN.md Phase 7 "All other packs become card data"); precon curation is a follow-up. A precon for
- * Ironheart will need to say which of the three Version identities it uses (almost certainly Version 1, the
- * "Begin the game with this card" one).
+ * **`progressingIdentity` (docs/phase7-wave5.md §1.4).** The Ironheart insert, "New Rules: Progressing Identity
+ * Cards" (read as an image 2026-09-26, not stored): all three versions share one hit point dial, and 29001a
+ * (Version 1) is the one whose alter-ego (29001b) prints "Begin the game with this card." Set on all three hero
+ * records, weakest first, so `HeroIdentityCard.progressingIdentity.versions` is `["29001a", "29002a", "29003a"]`
+ * on every one of them (schema requires the card list itself, not just the first version's).
+ *
+ * **Precon (docs/phase7-wave5.md §1.9, §5; docs/phase7-wave5-sources.md §5):** transcribed 2026-09-26 from the
+ * pack's own printed decklist card, "Ironheart Deck", https://hallofheroeslcg.com/wp-content/uploads/2022/04/card.jpg
+ * (fetched via `scripts/fetch_card_art.py grab`, viewed directly, not stored — CLAUDE.md "Content & IP
+ * boundaries"). Uses Version 1 (`29001a`, the "Begin the game with this card" identity, §1.4) as `identityCode` —
+ * the only version whose alter-ego prints "Begin the game with this card. Set your other identities aside.".
+ * Every card code and quantity cross-checked against `raw/marvelcdb/ironheart.json`'s own `quantity`/`deck_limit`
+ * fields (all 10 hero-kit cards at full printed quantity); no second source found for this pack's precon as of
+ * this pass.
  */
 import type { PackCuration } from "./types.ts";
 
@@ -58,8 +68,54 @@ export const IRONHEART_CURATION: PackCuration = {
       "Ironheart is three separate two-sided identity cards (Version 1/2/3, not a three-sided foldable card) — see this file's header comment.",
   },
 
+  progressingIdentity: {
+    "29001a": ["29001a", "29002a", "29003a"],
+    "29002a": ["29001a", "29002a", "29003a"],
+    "29003a": ["29001a", "29002a", "29003a"],
+  },
+
   scenarios: [],
-  starterDecks: [],
+  starterDecks: [
+    {
+      id: "ironheart-leadership",
+      name: "Ironheart (Leadership) — Ironheart Hero Pack starter deck",
+      identityCode: "29001a",
+      aspect: "leadership",
+      cards: {
+        "29004": 1, // Brawn
+        "29005": 2, // Fly Over
+        "29006": 3, // Photon Beam
+        "29007": 2, // New and Improved
+        "29008": 1, // Sector Scan
+        "29009": 2, // Stroke of Genius
+        "29010": 1, // Ronnie Williams
+        "29011": 1, // Tony Stark A.I.
+        "29012": 1, // Photon Blasters
+        "29013": 1, // Propulsion Jets
+        "29014": 1, // Cloud 9
+        "29015": 1, // Falcon
+        "29016": 1, // Patriot
+        "29017": 3, // Go All Out
+        "29018": 3, // Push Ahead
+        "29019": 3, // Morale Boost
+        "29020": 3, // R&D Facility
+        "29021": 2, // The Power of Leadership
+        "29022": 1, // Agent 13
+        "29023": 1, // Snowguard
+        "29024": 1, // Vivian
+        "29025": 1, // "Go for Champions!"
+        "29026": 1, // Helicarrier
+        "29027": 3, // Ingenuity
+      },
+      obligationCode: "29028",
+      nemesisCodes: ["29029", "29030", "29031", "29032"],
+      verified: true,
+      sources: [
+        'Ironheart Hero Pack printed decklist card, "Ironheart Deck" (https://hallofheroeslcg.com/wp-content/uploads/2022/04/card.jpg, linked from the Hall of Heroes Ironheart page, https://hallofheroeslcg.com/ironheart-riri-williams/), transcribed 2026-09-26',
+      ],
+      note: "No second (MarvelCDB community decklist or rulebook) source found for this pack's precon as of this pass — single-sourced from the pack's own printed decklist card. Uses Version 1 Ironheart (29001a); the engine refuses progressingIdentity until §3.23 (docs/phase7-wave5.md §1.4).",
+    },
+  ],
 
   imageOverrides: {
     "29002b": "https://hallofheroeslcg.com/wp-content/uploads/2022/05/i0b.jpg",

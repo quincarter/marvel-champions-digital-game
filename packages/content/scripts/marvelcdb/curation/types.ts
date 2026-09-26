@@ -361,6 +361,15 @@ export interface PackCuration {
    */
   readonly identityDeckbuilding?: Readonly<Record<string, IdentityDeckbuilding>>;
   /**
+   * `HeroIdentityCard.progressingIdentity.versions`, keyed by every version's own MarvelCDB hero code (wave 5,
+   * docs/phase7-wave5.md §1.4 — Ironheart). The Ironheart insert, "New Rules: Progressing Identity Cards": three
+   * complete identity cards share one hit point dial; the weakest is put into play at setup, and only its
+   * alter-ego prints "Begin the game with this card." Every version lists the same array, weakest first
+   * (`["29001a", "29002a", "29003a"]`); MarvelCDB has no field for this (three unlinked hero/alter-ego pairs), so
+   * it is always hand-curated.
+   */
+  readonly progressingIdentity?: Readonly<Record<string, readonly string[]>>;
+  /**
    * A separated identity's missing alter-ego card, keyed by the hero record's MarvelCDB code (wave 2 schema pass,
    * docs/phase7-wave2.md §6.10 — SP//dr). Only a hero record whose `linked_card` exists but is not type
    * `alter_ego` (the structural signature of a separated identity) ever consults this map.

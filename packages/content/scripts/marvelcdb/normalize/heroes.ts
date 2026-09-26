@@ -1,5 +1,6 @@
 /** Step 3: hero identities — one card per hero record, assembled with its linked alter-ego record. */
 import type {
+  CardId,
   HeroFace,
   HeroIdentityCard,
   IdentitySeparateDeck,
@@ -289,6 +290,7 @@ export function normalizeHeroes(
     const separateDecks = separateDecksByIdentity.get(r.code);
     const extraFaceRecords = extraFacesBySet.get(set) ?? [];
     const extraFaces = extraFaceRecords.map((ef) => buildExtraFace(ctx, ef));
+    const progressingVersions = ctx.curation.progressingIdentity?.[r.code];
     const card: HeroIdentityCard = {
       // MarvelCDB publishes the alter-ego as a linked card rather than a back
       // image, so the pair is assembled here: front is the hero face, back the
@@ -327,6 +329,17 @@ export function normalizeHeroes(
       ...(extraFaces.length > 0 ? { additionalHeroForms: extraFaces.map((f) => f.face) } : {}),
       ...(ctx.curation.identityDeckbuilding?.[r.code]
         ? { deckbuilding: ctx.curation.identityDeckbuilding[r.code] }
+        : {}),
+      ...(progressingVersions !== undefined && progressingVersions.length >= 2
+        ? {
+            progressingIdentity: {
+              versions: progressingVersions.map((v) => brand("card", v)) as unknown as readonly [
+                CardId,
+                CardId,
+                ...CardId[],
+              ],
+            },
+          }
         : {}),
     };
     ctx.handled.add(r.code).add(ae.code);

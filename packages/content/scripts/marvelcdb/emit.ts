@@ -56,6 +56,8 @@ const KEY_BRANDS: Readonly<Record<string, BrandFn>> = {
   duplicateOfCardId: "cardId",
   // `BaseCard.otherFaceId` (a card whose faces are two separately emitted cards, docs/phase7-wave4.md §1.7).
   otherFaceId: "cardId",
+  // `HeroIdentityCard.progressingIdentity.versions` (wave 5, docs/phase7-wave5.md §1.4 — Ironheart).
+  versions: "cardId",
   scenarioIds: "scenarioId",
   image: "imageRef",
 };
