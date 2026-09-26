@@ -5,6 +5,7 @@
  */
 
 import { trait } from "@mc/content";
+import type { Predicate } from "@mc/engine";
 import { describe, expect, it } from "vitest";
 import {
   action,
@@ -25,6 +26,7 @@ import {
   response,
   setup,
   special,
+  spendableForAnyPlayer,
   whenDefeated,
   whenRevealed,
 } from "./abilities.js";
@@ -336,6 +338,16 @@ describe("§3.16 how a card was paid for, by source (VEN#m, Rapid Deployment)", 
     valid(whenRevealed(dealDamage(resourcesPaidBy("31001b.sync-ratio"), theVillain)));
     expect(resourcesPaidBy("31001b.sync-ratio")).toEqual({ kind: "var", name: "paid.ability.31001b.sync-ratio" });
     valid(whenRevealed(ifThen(paidUsingResourceFrom("31001b.sync-ratio"), draw(1))));
+  });
+});
+
+describe("§3.17 a resource card spent for another player (Everyday Hero)", () => {
+  it("spendable for any player while a condition holds, and its response names that player", () => {
+    const whileAlterEgo: Predicate = { kind: "form", player: you, form: "alterEgo" };
+    const everyday = constant(spendableForAnyPlayer(whileAlterEgo));
+    valid(everyday);
+    expect(everyday.trigger).toMatchObject({ kind: "constant", spendableForAnyPlayer: { while: whileAlterEgo } });
+    expect(constant(spendableForAnyPlayer()).trigger).toMatchObject({ spendableForAnyPlayer: {} });
   });
 });
 

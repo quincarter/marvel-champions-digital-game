@@ -269,6 +269,8 @@ export interface ConstantPart {
   readonly paymentOnly?: readonly TypedResource[];
   /** "Spend this card only in hero form." (Limitless Strength). */
   readonly spendableIn?: Form;
+  /** "This card can be spent for any player" (Everyday Hero, `nova` 28019; docs/phase7-wave5.md §3.17). */
+  readonly spendableForAnyPlayer?: { readonly while?: Predicate };
   /** "You may play Lockjaw from your discard pile during your turn." */
   readonly playableFrom?: readonly "discard"[];
   /** "As an additional cost for Wonder Man to attack, you must discard 1 card from your hand." (Wonder Man, `cap` pack). */
@@ -318,6 +320,8 @@ export function constant(...parts: readonly ConstantPart[]): AbilityDefinition {
   if (multipliers.length > 1) throw new Error("a constant ability has at most one resource multiplier");
   const spendableInList = parts.flatMap((p) => (p.spendableIn ? [p.spendableIn] : []));
   if (spendableInList.length > 1) throw new Error("a constant ability has at most one spendableIn form");
+  const anyPlayerList = parts.flatMap((p) => (p.spendableForAnyPlayer ? [p.spendableForAnyPlayer] : []));
+  if (anyPlayerList.length > 1) throw new Error("a constant ability has at most one spendableForAnyPlayer");
   const handGeneratesList = parts.flatMap((p) => (p.handGenerates !== undefined ? [p.handGenerates] : []));
   if (handGeneratesList.length > 1) throw new Error("a constant ability has at most one handGenerates");
   const playableAttachmentsList = parts.flatMap((p) => (p.playableAttachments ? [p.playableAttachments] : []));
@@ -346,6 +350,7 @@ export function constant(...parts: readonly ConstantPart[]): AbilityDefinition {
       ...(costModifiers.length ? { costModifiers } : {}),
       ...(paymentOnly.length ? { paymentOnly } : {}),
       ...(spendableInList[0] ? { spendableIn: spendableInList[0] } : {}),
+      ...(anyPlayerList[0] ? { spendableForAnyPlayer: anyPlayerList[0] } : {}),
       ...(playableFrom.length ? { playableFrom } : {}),
       ...(basicPowerCosts.length ? { basicPowerCosts } : {}),
       ...(playableAttachmentsList[0] ? { playableAttachments: playableAttachmentsList[0] } : {}),
@@ -360,6 +365,15 @@ export function constant(...parts: readonly ConstantPart[]): AbilityDefinition {
  * `you` the player playing it. `constant(playOnlyIf(exists(query("upgrade", { name: "Element Gun", controller: "you" }))))`.
  */
 export const playOnlyIf = (condition: Predicate): ConstantPart => ({ playOnlyIf: condition });
+/**
+ * "While your identity has the [Civilian] trait, this card can be spent for any player" (Everyday Hero, `nova` 28019;
+ * docs/phase7-wave5.md §3.17): `constant(spendableForAnyPlayer(identityHasTrait(CIVILIAN)))`, "you" its owner. The
+ * gained "After you spend this card for a player" is a response on `resourcesSpent` with `selfIs: "source"`; "that
+ * player" is `eventPlayer`.
+ */
+export const spendableForAnyPlayer = (when?: Predicate): ConstantPart => ({
+  spendableForAnyPlayer: when ? { while: when } : {},
+});
 /** "You may play [X] events attached to this card as if they were in your hand." (Hawkeye's Quiver, `trors` pack). */
 export const playableAttachments = (query: TargetQuery): ConstantPart => ({ playableAttachments: query });
 /** "Reduce the cost to play X by N [while …]" / "… costs N additional resources" (a signed `delta`). */

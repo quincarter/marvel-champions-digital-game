@@ -185,6 +185,14 @@ export type AbilityTriggerSpec =
       /** "Spend this card only in hero form." (Limitless Strength). Read from a hand card when it is spent. */
       readonly spendableIn?: Form;
       /**
+       * "While your identity has the [Civilian] trait, this card can be spent for any player" (Everyday Hero, `nova`
+       * 28019; docs/phase7-wave5.md §3.17): its owner may spend it from their hand toward another player's payment,
+       * as for an alliance card (RRG 1.8 "Alliance", p. 6). Read from the hand card, `while` with "you" its owner. The
+       * spend is announced as the owner's `resourcesSpent` with `forPlayerId` the paying player ("After you spend this
+       * card for a player").
+       */
+      readonly spendableForAnyPlayer?: { readonly while?: Predicate };
+      /**
        * "You may play Lockjaw from your discard pile during your turn." A permission read from the card itself (RRG 1.8
        * "Play Restrictions and Permissions", p. 33: "a permission might allow an ally card to be played from a player's
        * discard pile").
