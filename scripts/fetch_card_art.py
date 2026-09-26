@@ -6,28 +6,36 @@
 #     "curl-cffi",
 #     "numpy",
 #     "pillow",
+#     "scipy",
 # ]
 # ///
 """
 Card art upgrader: replaces scans in assets/card-art/bundles/cards/ with better
 copies from Hall of Heroes (hallofheroeslcg.com).
 
-Two commands:
+Three commands:
 
   audit   Score every local scan for the Fantasy Flight Games diamond watermark
           (the "FF stamp" on the preview images some sets were first scanned
           from) and list the stamped ones. Offline.
 
+  trim    Crop white padding off local scans in place, making the corners
+          outside the card's rounded edge transparent (PNG) or frame-coloured
+          (JPEG). Offline.
+
   fetch   Scrape the Hall of Heroes page of each pack, match every card image on
           it to a card code, and replace the local scan when the download is an
           improvement: unstamped, the same orientation and shape, and either
           larger or replacing a stamped scan. Packs with stamped scans go first.
+          Hall of Heroes pads its card images with a white border; every
+          download is trimmed the same way as `trim` before it is saved.
 
 A replacement keeps the local file's name and format, since card records point
 at that exact path (`/bundles/cards/<code>.png` or `.jpg`). Each replacement is
 recorded in assets/card-art/hall-of-heroes-manifest.tsv.
 
   uv run scripts/fetch_card_art.py audit
+  uv run scripts/fetch_card_art.py trim --dry-run
   uv run scripts/fetch_card_art.py fetch --stamped-only
   uv run scripts/fetch_card_art.py fetch --packs mts sm --dry-run
 """
@@ -48,6 +56,7 @@ from urllib.parse import urljoin, urlparse
 import numpy as np
 from bs4 import BeautifulSoup
 from PIL import Image, ImageFilter
+from scipy import ndimage
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 CARDS_DIR = REPO_ROOT / "assets" / "card-art" / "bundles" / "cards"
@@ -134,6 +143,10 @@ STAMP_THRESHOLD = 0.22
 UPGRADE_FACTOR = 1.05
 # Replacements are scaled down to this long edge; the best local scans are ~1045px.
 MAX_EDGE = 1100
+# Padding is any pixel at least this light on every channel (and near-grey) that connects to the image's edge.
+PAD_WHITE = 225
+# A trimmed card's long/short edge ratio must land here (a printed card is 88x63mm, 1.40; local scans run 1.39-1.45).
+CARD_ASPECT = (1.34, 1.50)
 
 
 # --------------------------------------------------------------------------- local card data
@@ -208,37 +221,78 @@ class StampDetector:
 # --------------------------------------------------------------------------- image handling
 
 
-def autocrop(img: Image.Image, threshold: int = 240, min_fraction: float = 0.02) -> Image.Image:
+def background_mask(img: Image.Image) -> np.ndarray:
     """
-    Trims white or transparent margins. A row or column is margin while fewer than `min_fraction` of its pixels are
-    ink, so a few stray JPEG-noise pixels on the edge don't defeat the crop the way a single `any()` would.
+    The padding around a card: near-white or transparent pixels connected to the image's edge. Flood-filling from the
+    edge, instead of treating every light pixel as padding, keeps white areas inside the card (text boxes, a white
+    costume) from being eaten, and it also covers the corners outside the card's rounded edge.
     """
-    rgba = np.asarray(img.convert("RGBA"))
-    ink = np.any(rgba[..., :3] < threshold, axis=2) & (rgba[..., 3] > 16)
-    rows = np.flatnonzero(ink.mean(axis=1) >= min_fraction)
-    cols = np.flatnonzero(ink.mean(axis=0) >= min_fraction)
+    rgba = np.asarray(img.convert("RGBA")).astype(np.int16)
+    rgb = rgba[..., :3]
+    light = (rgb.min(axis=2) >= PAD_WHITE) & (np.ptp(rgb, axis=2) <= 24)
+    candidate = light | (rgba[..., 3] < 16)
+    labels, _ = ndimage.label(candidate)
+    edge = np.unique(np.concatenate([labels[0], labels[-1], labels[:, 0], labels[:, -1]]))
+    return np.isin(labels, edge[edge > 0])
+
+
+def trim(img: Image.Image) -> tuple[Image.Image, tuple[int, int, int, int]] | None:
+    """
+    Crops the padding off a card image and makes the corners outside its rounded edge transparent. Returns the card
+    and the (top, right, bottom, left) padding removed, or None when what's left isn't card-shaped (a crop that went
+    wrong), so the caller can skip the image rather than save a mangled card.
+
+    The crop box is where the card covers at least a fifth of a row or column, so a JPEG speck in the padding, or the
+    narrow first rows of a rounded corner, don't hold it open.
+    """
+    bg = background_mask(img)
+    card = ~bg
+    rows = np.flatnonzero(card.mean(axis=1) >= 0.2)
+    cols = np.flatnonzero(card.mean(axis=0) >= 0.2)
     if rows.size == 0 or cols.size == 0:
-        return img
-    return img.crop((int(cols[0]), int(rows[0]), int(cols[-1]) + 1, int(rows[-1]) + 1))
+        return None
+    top, bottom, left, right = int(rows[0]), int(rows[-1]) + 1, int(cols[0]), int(cols[-1]) + 1
+    if not CARD_ASPECT[0] <= max(right - left, bottom - top) / min(right - left, bottom - top) <= CARD_ASPECT[1]:
+        return None
+    rgba = np.array(img.convert("RGBA"))
+    # One pixel wider than the padding itself, to drop the light JPEG fringe along the rounded corners.
+    rgba[..., 3] = np.where(ndimage.binary_dilation(bg), 0, rgba[..., 3])
+    cropped = Image.fromarray(rgba[top:bottom, left:right], "RGBA")
+    return cropped, (top, img.width - right, img.height - bottom, left)
 
 
 def aspect(img: Image.Image) -> float:
     return max(img.size) / min(img.size)
 
 
-def save_like(img: Image.Image, dest: Path) -> None:
-    """Writes `img` in the format `dest`'s extension names, scaled down to MAX_EDGE."""
-    if max(img.size) > MAX_EDGE:
+def flatten(img: Image.Image) -> Image.Image:
+    """
+    An RGBA card on an opaque background, for formats without transparency. The background is the median colour of
+    the card's own outer edge, so the corners outside its rounded edge blend into its frame instead of showing white.
+    """
+    rgba = np.asarray(img)
+    ring = np.concatenate([rgba[4], rgba[-5], rgba[:, 4], rgba[:, -5]])
+    ring = ring[ring[:, 3] > 200][:, :3]
+    fill = tuple(int(c) for c in np.median(ring, axis=0)) if ring.size else (0, 0, 0)
+    base = Image.new("RGB", img.size, fill)
+    base.paste(img, mask=img.getchannel("A"))
+    return base
+
+
+def save_like(img: Image.Image, dest: Path, max_edge: int | None = MAX_EDGE) -> None:
+    """
+    Writes a trimmed RGBA card in the format `dest`'s extension names, scaled down to `max_edge`. PNG and WebP keep the
+    transparent corners; JPEG gets them filled by `flatten`.
+    """
+    if max_edge and max(img.size) > max_edge:
         img = img.copy()
-        img.thumbnail((MAX_EDGE, MAX_EDGE), Image.Resampling.LANCZOS)
+        img.thumbnail((max_edge, max_edge), Image.Resampling.LANCZOS)
     suffix = dest.suffix.lower()
     if suffix in (".jpg", ".jpeg"):
-        img.convert("RGB").save(dest, format="JPEG", quality=92, optimize=True)
+        flatten(img).save(dest, format="JPEG", quality=92, optimize=True)
     elif suffix == ".webp":
         img.save(dest, format="WEBP", quality=92)
     else:
-        if img.mode not in ("RGB", "RGBA"):
-            img = img.convert("RGBA" if "transparency" in img.info or img.mode in ("LA", "PA") else "RGB")
         img.save(dest, format="PNG", optimize=True)
 
 
@@ -425,7 +479,7 @@ def fetch(args: argparse.Namespace) -> None:
 
     http = Http(args.delay)
     header, manifest = read_manifest()
-    stats = {"replaced": 0, "added": 0, "kept": 0, "stamped": 0, "unmatched": 0}
+    stats = {"replaced": 0, "added": 0, "kept": 0, "stamped": 0, "untrimmed": 0, "unmatched": 0}
     today = date.today().isoformat()
 
     for pack in packs:
@@ -452,11 +506,15 @@ def fetch(args: argparse.Namespace) -> None:
             if not data:
                 continue
             try:
-                new = autocrop(Image.open(io.BytesIO(data)))
-                new.load()
+                trimmed = trim(Image.open(io.BytesIO(data)))
             except Exception as e:
                 print(f"    ! {code}: unreadable image ({e})")
                 continue
+            if trimmed is None:
+                stats["untrimmed"] += 1
+                print(f"    - {code}: not card-shaped once the padding is trimmed; skipped ({url})")
+                continue
+            new, padding = trimmed
             if detector.stamped(new):
                 stats["stamped"] += 1
                 print(f"    - {code}: Hall of Heroes copy is stamped too")
@@ -473,7 +531,7 @@ def fetch(args: argparse.Namespace) -> None:
                     continue
             dest = local or CARDS_DIR / f"{code}.png"
             verb = "replace" if local else "add"
-            print(f"    + {code}: {verb} {dest.name} {'' if local is None else old_size} -> {new.size}")
+            print(f"    + {code}: {verb} {dest.name} {'' if local is None else old_size} -> {new.size}, trimmed {padding}")
             done.add(code)
             stats["replaced" if local else "added"] += 1
             if not args.dry_run:
@@ -484,9 +542,29 @@ def fetch(args: argparse.Namespace) -> None:
         write_manifest(manifest)
     print(
         f"\n[=] {stats['replaced']} replaced, {stats['added']} added, {stats['kept']} kept (no better copy), "
-        f"{stats['stamped']} stamped downloads rejected, {stats['unmatched']} images not matched to a card"
+        f"{stats['stamped']} stamped downloads rejected, {stats['untrimmed']} not card-shaped after trimming, "
+        f"{stats['unmatched']} images not matched to a card"
         + (" (dry run: nothing written)" if args.dry_run else "")
     )
+
+
+def trim_local(args: argparse.Namespace) -> None:
+    """Crops white padding off the local scans in place (the photographed ones carry it)."""
+    changed = 0
+    for code, path in local_scans().items():
+        with Image.open(path) as img:
+            img.load()
+        trimmed = trim(img)
+        if trimmed is None:
+            continue
+        card, padding = trimmed
+        if max(padding) < max(3, 0.01 * max(img.size)):
+            continue
+        changed += 1
+        print(f"    {path.name}: {img.size} -> {card.size}, trimmed {padding}")
+        if not args.dry_run:
+            save_like(card, path, max_edge=None)
+    print(f"\n[=] {changed} scans {'would be ' if args.dry_run else ''}trimmed")
 
 
 def main() -> None:
@@ -494,6 +572,8 @@ def main() -> None:
     sub = parser.add_subparsers(dest="command", required=True)
     a = sub.add_parser("audit", help="list local scans carrying the FFG watermark")
     a.add_argument("-v", "--verbose", action="store_true", help="also show the highest-scoring clean scans")
+    t = sub.add_parser("trim", help="crop white padding off local scans in place")
+    t.add_argument("--dry-run", action="store_true", help="report what would change without writing")
     f = sub.add_parser("fetch", help="replace local scans with better Hall of Heroes copies")
     f.add_argument("--packs", nargs="+", help="MarvelCDB pack codes to fetch (default: stamped packs first, then all)")
     f.add_argument("--stamped-only", action="store_true", help="only replace scans carrying the FFG watermark")
@@ -502,7 +582,7 @@ def main() -> None:
     f.add_argument("--delay", type=float, default=0.5, help="seconds between requests (default 0.5)")
     f.add_argument("-v", "--verbose", action="store_true")
     args = parser.parse_args()
-    audit(args) if args.command == "audit" else fetch(args)
+    {"audit": audit, "trim": trim_local, "fetch": fetch}[args.command](args)
 
 
 if __name__ == "__main__":
