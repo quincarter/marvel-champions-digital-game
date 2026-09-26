@@ -1,14 +1,7 @@
 /** Defeat sweeps, player elimination, and villain/main scheme stage advancement. */
 
 import { type Ctx, emit, moveCard, pushFrames, updateInstance, updatePlayer } from "../ctx.js";
-import {
-  discardFromPlay,
-  endGame,
-  giveStatus,
-  leavePlay,
-  setActiveVillain,
-  updateMainSchemeState,
-} from "../effects.js";
+import { discardAtOnce, endGame, giveStatus, leavePlay, setActiveVillain, updateMainSchemeState } from "../effects.js";
 import type { FrameId, InstanceId, PlayerId } from "../ids.js";
 import { hasKeyword, isPermanent } from "../keywords.js";
 import {
@@ -524,7 +517,7 @@ const NEXT_ACTIVE_SLOT = "_nextActiveVillain";
 function removeDefeatedVillain(ctx: Ctx, villainId: InstanceId): StackFrame | null {
   const villain = mustVillain(ctx.state, villainId);
   const instance = mustInstance(ctx.state, villainId);
-  for (const attachment of [...instance.attachments]) discardFromPlay(ctx, attachment);
+  for (const attachment of [...instance.attachments]) discardAtOnce(ctx, attachment);
   for (const boost of [...instance.boostCards]) moveCard(ctx, boost, discardZoneFor(ctx.state, boost), "top");
   for (const tucked of [...instance.tucked]) {
     // Faceup first: a discard into an emptied deck's discard pile can reset that deck at once (`settlePlayerDecks`).

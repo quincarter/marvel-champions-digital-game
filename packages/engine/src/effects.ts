@@ -26,7 +26,7 @@ import {
   mustPlayer,
   mustVillain,
 } from "./query.js";
-import type { TriggerEvent } from "./trigger-events.js";
+import type { LeavePatch, LeaveRequest, TriggerEvent } from "./trigger-events.js";
 import { nextInt, shuffle } from "./rng.js";
 import {
   accelerationTokenRedirect,
@@ -36,7 +36,9 @@ import {
   discardRedirectArea,
   mainSchemeForRedirect,
 } from "./rules.js";
-import { pushEvent } from "./resolve/frames.js";
+import { eventFrame, pushEvent } from "./resolve/frames.js";
+import { moveCardsTo } from "./resolve/cards.js";
+import { describeFrame, type StackFrame } from "./stack.js";
 import { releaseTreatedBy } from "./treat-as.js";
 import {
   cardsInPlay,
@@ -47,8 +49,8 @@ import {
   traitsOf,
   type EffectContext,
 } from "./select.js";
-import { heard } from "./resolve/triggers.js";
-import type { StatusName } from "./spec.js";
+import { hasCandidates, heard } from "./resolve/triggers.js";
+import type { CardDestination, StatusName } from "./spec.js";
 import type { GameOutcome, GameState, MainSchemeState, ZoneId } from "./state.js";
 import type { LastingDuration, LastingEffect, LastingEffectBody } from "./lasting.js";
 
@@ -576,6 +578,14 @@ export function discardFromPlay(ctx: Ctx, id: InstanceId): void {
 }
 
 /**
+ * `discardFromPlay` for a card leaving play *with* another card and because of it (an attachment as its host leaves, a
+ * villain removed or flipped): no "when this leaves play" window of its own before it moves (`leavePlayAtOnce`).
+ */
+export function discardAtOnce(ctx: Ctx, id: InstanceId): void {
+  leavePlayAtOnce(ctx, id, discardZoneFor(ctx.state, id), "top", true);
+}
+
+/**
  * A **defeated** ally, minion, side scheme or player side scheme leaves play (RRG 1.8 "Defeat", p. 15: "If an ally,
  * minion, or side scheme is defeated, it is discarded"). RRG 1.8 "Victory X" (p. 46; docs/phase7-wave3.md §3.4):
  * - "A character or side scheme with the victory X keyword is placed in the victory display when it is defeated";
@@ -583,16 +593,28 @@ export function discardFromPlay(ctx: Ctx, id: InstanceId): void {
  *   attached is defeated. (The card the attachment or upgrade was attached to is discarded as normal.)" — so those go
  *   first, before the host's own attachments are discarded with it.
  * Only a defeat does this: a card discarded any other way ("discard this side scheme") goes to its discard pile.
+ *
+ * "When X leaves play" interrupts (§4.1 Q17 of docs/phase7-wave5.md) see the whole defeat before anything moves, Victory
+ * X attachments included: the defeat waits as one `LeaveRequest defeat`.
  */
-export function defeatFromPlay(ctx: Ctx, id: InstanceId, insteadOfDiscard?: () => void): void {
+export function defeatFromPlay(ctx: Ctx, id: InstanceId, insteadTo?: CardDestination): void {
   const instance = getInstance(ctx.state, id);
   if (!instance) return;
+  const victory = hasKeyword(ctx.state, id, "victory", ctx.deps);
+  const going: ZoneId["kind"] = victory
+    ? "victoryDisplay"
+    : insteadTo !== undefined
+      ? destinationZoneKind(insteadTo)
+      : leaveDestinationKind(ctx.state, ctx.deps, id, discardZoneFor(ctx.state, id).kind, true);
+  const request: LeaveRequest = { kind: "defeat", ...(insteadTo !== undefined ? { insteadTo } : {}) };
+  if (waitsForLeaveInterrupts(ctx, id, request, going)) return;
   for (const attachment of [...instance.attachments]) {
-    if (hasKeyword(ctx.state, attachment, "victory", ctx.deps)) leavePlay(ctx, attachment, { kind: "victoryDisplay" });
+    if (hasKeyword(ctx.state, attachment, "victory", ctx.deps))
+      leavePlayAtOnce(ctx, attachment, { kind: "victoryDisplay" });
   }
-  if (hasKeyword(ctx.state, id, "victory", ctx.deps)) leavePlay(ctx, id, { kind: "victoryDisplay" });
+  if (victory) leavePlay(ctx, id, { kind: "victoryDisplay" });
   // "… instead of discarding it" (a defeat destination, docs/phase7-wave3.md §3.45) replaces only the discard.
-  else if (insteadOfDiscard) insteadOfDiscard();
+  else if (insteadTo !== undefined) moveCardsTo(ctx, [id], insteadTo);
   else discardFromPlay(ctx, id);
 }
 
@@ -639,12 +661,175 @@ function unattachInPlay(ctx: Ctx, id: InstanceId): void {
   moveCard(ctx, id, to);
 }
 
+/** What a leaving card is, read while it is still in play (`TriggerEvent cardLeavesPlay`, docs/phase7-wave5.md §3.13). */
+function leavingSnapshot(state: GameState, deps: EngineDeps, id: InstanceId) {
+  return {
+    instanceId: id,
+    cardId: mustInstance(state, id).cardId,
+    controllerId: controllerOf(state, id),
+    traits: traitsOf(state, id, deps),
+  };
+}
+
+/**
+ * RRG 1.8 "Double-Sided Card" (p. 17): "When a double-sided card would enter an out-of-play area other than the victory
+ * display or set-aside area, it is removed from the game."
+ */
+function removedAsDoubleSided(state: GameState, id: InstanceId, requested: ZoneId["kind"]): boolean {
+  const card = state.cardPool[mustInstance(state, id).cardId];
+  // A card whose other face is emitted as its own card (`otherFaceId`, docs/phase7-wave4.md §1.7) is double-sided too.
+  const doubleSided =
+    card !== undefined && (("flipSide" in card && card.flipSide !== undefined) || card.otherFaceId !== undefined);
+  const keepsCard = requested === "victoryDisplay" || requested === "setAside" || requested === "encounterSetAside";
+  return doubleSided && !keepsCard;
+}
+
+/** Where a card leaving play for `requested` is going (double-sided removal, a discard redirect), read before it moves. */
+function leaveDestinationKind(
+  state: GameState,
+  deps: EngineDeps,
+  id: InstanceId,
+  requested: ZoneId["kind"],
+  discarded: boolean,
+): ZoneId["kind"] {
+  if (removedAsDoubleSided(state, id, requested)) return "removedFromGame";
+  if (discarded && discardRedirectArea(state, deps, id) !== null) return "scenarioArea";
+  return requested;
+}
+
+/** The zone kind a `moveCards` destination names (for a waiting `cardLeavesPlay`'s `to`, before the move). */
+export function destinationZoneKind(destination: CardDestination): ZoneId["kind"] {
+  if (typeof destination === "object") return "scenarioArea";
+  switch (destination) {
+    case "deckTop":
+    case "deckBottom":
+    case "deckShuffle":
+      return "deck";
+    case "separateDeckTop":
+    case "separateDeckShuffle":
+      return "separateDeck";
+    case "scenarioDeckShuffle":
+      return "scenarioDeck";
+    case "encounterDeckShuffle":
+      return "encounterDeck";
+    default:
+      return destination;
+  }
+}
+
+/** Where a card in play that a `moveCards` effect moves to `destination` is going, read before it moves. */
+export function moveDestinationKind(
+  state: GameState,
+  deps: EngineDeps,
+  id: InstanceId,
+  destination: CardDestination,
+): ZoneId["kind"] {
+  const discarded = destination === "discard" || destination === "separateDiscard";
+  return leaveDestinationKind(state, deps, id, destinationZoneKind(destination), discarded);
+}
+
+type EventFrame = Extract<StackFrame, { kind: "event" }>;
+
+/**
+ * The `cardLeavesPlay` event with an interrupt window for `id` on the stack (§4.1 Q17 of docs/phase7-wave5.md), if any:
+ * stage `interrupts` before it starts, `apply` while its interrupts resolve, `responses` while its apply step moves the
+ * card (the apply step drops `leaving` once done, so a later leaving of the same card is a new one).
+ */
+function leavingFrameFor(state: GameState, id: InstanceId): EventFrame | undefined {
+  return state.stack.find(
+    (frame): frame is EventFrame =>
+      frame.kind === "event" &&
+      frame.event.kind === "cardLeavesPlay" &&
+      frame.event.leaving !== undefined &&
+      frame.event.instanceId === id,
+  );
+}
+
+/**
+ * "Interrupt: When X leaves play" resolves before the card moves, with it still in play (RRG 1.8 "Interrupt", p. 25;
+ * ruling Jan 17, 2026 (1) #2: the "Leaves Play" bullets happen *as* it leaves; docs/phase7-wave5.md §4.1 Q17). When
+ * an interrupt hears this card leaving, its `cardLeavesPlay` goes on the stack carrying `request`, the move waits for
+ * its apply step (`applyLeavingPlay`), and this returns true: the caller stops, and anything it would do to the card
+ * afterwards is part of `request`. With nothing listening it returns false and costs one cached registry lookup, so an
+ * ordinary game moves the card at once and logs exactly what it did before.
+ *
+ * Several cards waiting from one step resolve in the order they were asked (each goes under the ones already waiting).
+ * A card already leaving (its window open, or its apply step moving it) does not wait again.
+ */
+export function waitsForLeaveInterrupts(
+  ctx: Ctx,
+  id: InstanceId,
+  request: LeaveRequest,
+  going: ZoneId["kind"],
+): boolean {
+  if (!listensForLeavingPlay(ctx.deps)) return false;
+  if (!cardsInPlay(ctx.state).includes(id)) return false;
+  // Blocked leaves are refused (and logged) by the caller's own path.
+  if (isPermanent(ctx.state, id, ctx.deps) || cannotLeavePlay(ctx.state, ctx.deps, id)) return false;
+  const already = leavingFrameFor(ctx.state, id);
+  if (already) return already.stage === "interrupts";
+  const event: TriggerEvent = {
+    kind: "cardLeavesPlay",
+    ...leavingSnapshot(ctx.state, ctx.deps, id),
+    to: going,
+    leaving: request,
+  };
+  if (!hasCandidates(ctx.state, ctx.deps, event, "interrupt")) return false;
+  const frame = eventFrame(ctx, event);
+  const stack = ctx.state.stack;
+  let at = 0;
+  while (at < stack.length && isWaitingLeave(stack[at])) at++;
+  ctx.state = { ...ctx.state, stack: [...stack.slice(0, at), frame, ...stack.slice(at)] };
+  emit(ctx, { type: "framePushed", frameId: frame.frameId, frame: frame.kind, description: describeFrame(frame) });
+  return true;
+}
+
+const isWaitingLeave = (frame: StackFrame | undefined): boolean =>
+  frame?.kind === "event" &&
+  frame.stage === "interrupts" &&
+  frame.event.kind === "cardLeavesPlay" &&
+  frame.event.leaving !== undefined;
+
+/** How `leavePlay` ended: the card moved, it waits for "when X leaves play" interrupts, or it stays in play. */
+export type LeaveOutcome = "left" | "waiting" | "stayed";
+
 /**
  * A card leaves play for `to` (discard, hand, deck, removed from game): its attachments are discarded (a permanent one
  * stays in play, `unattachInPlay`) and its in-play state (damage, threat, counters, statuses, exhaust, engagement) is
  * cleared. RRG "Permanent": a permanent card cannot leave play.
+ *
+ * When a "when X leaves play" interrupt hears it, the card waits in play for that window (`waitsForLeaveInterrupts`)
+ * and this returns `"waiting"`; `patch` is what the caller sets on the card once it has left, applied then.
  */
 export function leavePlay(
+  ctx: Ctx,
+  id: InstanceId,
+  requested: ZoneId,
+  position: "top" | "bottom" = "top",
+  discarded = false,
+  patch?: LeavePatch,
+): LeaveOutcome {
+  if (isPermanent(ctx.state, id, ctx.deps)) return "stayed";
+  if (cannotLeavePlay(ctx.state, ctx.deps, id)) {
+    emit(ctx, { type: "leavePlayBlocked", instanceId: id, reason: "cannotLeavePlay" });
+    return "stayed";
+  }
+  const request: LeaveRequest = { kind: "zone", zone: requested, position, discarded, ...(patch ? { patch } : {}) };
+  const going = leaveDestinationKind(ctx.state, ctx.deps, id, requested.kind, discarded);
+  if (waitsForLeaveInterrupts(ctx, id, request, going)) return "waiting";
+  leaveNow(ctx, id, requested, position, discarded);
+  if (patch) updateInstance(ctx, id, (i) => ({ ...i, ...patch }));
+  return "left";
+}
+
+/**
+ * `leavePlay` without a "when this leaves play" window before the move, for a card leaving with another card and
+ * because of it: an attachment or Victory X upgrade as its host leaves, a villain's attachments as it is removed or
+ * flipped. RRG 1.8 "Leaves Play" (p. 27) discards them simultaneously with the host (ruling Jan 17, 2026 (1) #2), so
+ * they cannot wait for a window of their own while the host moves. A listener still hears them, after the move
+ * (`pendingLeftPlay`); an interrupt of their own that needs them in play is open (docs/phase7-wave5.md §4.1 Q17).
+ */
+export function leavePlayAtOnce(
   ctx: Ctx,
   id: InstanceId,
   requested: ZoneId,
@@ -656,27 +841,27 @@ export function leavePlay(
     emit(ctx, { type: "leavePlayBlocked", instanceId: id, reason: "cannotLeavePlay" });
     return;
   }
+  leaveNow(ctx, id, requested, position, discarded);
+}
+
+/** The move itself: the card leaves play now. */
+function leaveNow(ctx: Ctx, id: InstanceId, requested: ZoneId, position: "top" | "bottom", discarded: boolean): void {
   // "If Odin leaves play, the players lose the game." (docs/phase7-wave4.md §3.8): read while it is still in play.
   const loses = leavingPlayLoses(ctx.state, ctx.deps, id);
   const instance = mustInstance(ctx.state, id);
-  // "When/After X leaves play" (docs/phase7-wave5.md §3.13): what it was, read while it is still in play.
-  const left = listensForLeavingPlay(ctx.deps)
-    ? {
-        instanceId: id,
-        cardId: instance.cardId,
-        controllerId: controllerOf(ctx.state, id),
-        traits: traitsOf(ctx.state, id, ctx.deps),
-      }
-    : null;
-  // RRG 1.8 "Double-Sided Card" (p. 17): "When a double-sided card would enter an out-of-play area other than the
-  // victory display or set-aside area, it is removed from the game."
+  // "When/After X leaves play" (docs/phase7-wave5.md §3.13): what it was, read while it is still in play. Not recorded
+  // while its own waiting `cardLeavesPlay` applies (that event's responses follow); recorded for the responses only
+  // when it leaves during that event's interrupts, a replacement's "… instead" (§4.1 Q17).
+  const leaving = leavingFrameFor(ctx.state, id);
+  const left =
+    listensForLeavingPlay(ctx.deps) && leaving?.stage !== "responses"
+      ? {
+          ...leavingSnapshot(ctx.state, ctx.deps, id),
+          ...(leaving?.stage === "apply" ? { interruptsResolved: true as const } : {}),
+        }
+      : null;
   const card = ctx.state.cardPool[instance.cardId];
-  // A card whose other face is emitted as its own card (`otherFaceId`, docs/phase7-wave4.md §1.7) is double-sided too.
-  const doubleSided =
-    card !== undefined && (("flipSide" in card && card.flipSide !== undefined) || card.otherFaceId !== undefined);
-  const keepsCard =
-    requested.kind === "victoryDisplay" || requested.kind === "setAside" || requested.kind === "encounterSetAside";
-  let to: ZoneId = doubleSided && !keepsCard ? { kind: "removedFromGame" } : requested;
+  let to: ZoneId = removedAsDoubleSided(ctx.state, id, requested.kind) ? { kind: "removedFromGame" } : requested;
   // "When a card would be placed into a discard pile from play, put it faceup into The Collection instead"
   // (`discardFromPlayDestination`, docs/phase7-wave3.md §3.14). The discard is still attempted (RRG 1.8 FAQ "Rocket
   // Raccoon (#29A)", p. 61), so it is logged as one.
@@ -686,7 +871,7 @@ export function leavePlay(
   if (redirect !== null) to = { kind: "scenarioArea", name: redirect.area };
   for (const attachment of [...instance.attachments]) {
     if (staysInPlayWithoutHost(ctx, attachment)) unattachInPlay(ctx, attachment);
-    else discardFromPlay(ctx, attachment);
+    else discardAtOnce(ctx, attachment);
   }
   // RRG "Tuck": when a card leaves play, each card tucked under it is discarded.
   for (const tuckedId of [...instance.tucked]) {

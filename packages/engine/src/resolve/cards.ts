@@ -1,7 +1,7 @@
 /** Card selectors and bulk card moves used by effects. */
 
-import { type Ctx, emit, moveCard, syncSeparateDeckTop, updateInstance, updatePlayer } from "../ctx.js";
-import { leavePlay, shuffleZone } from "../effects.js";
+import { type Ctx, emit, moveCard, syncSeparateDeckTop, updateFrame, updateInstance, updatePlayer } from "../ctx.js";
+import { defeatFromPlay, leavePlay, moveDestinationKind, shuffleZone, waitsForLeaveInterrupts } from "../effects.js";
 import type { EncounterDeckId, InstanceId, PlayerId } from "../ids.js";
 import {
   activeEncounterDeckId,
@@ -10,6 +10,7 @@ import {
   encounterDeckOf,
   getInstance,
   getPlayer,
+  locateCard,
   mustPlayer,
   separateDeckOf,
   villainOf,
@@ -28,8 +29,8 @@ import {
 } from "../select.js";
 import type { CardDestination, CardSelector, TargetQuery } from "../spec.js";
 import type { ZoneId } from "../state.js";
-import type { TriggerEvent } from "../trigger-events.js";
-import { announce, pushEvent } from "./frames.js";
+import type { LeaveRequest, TriggerEvent } from "../trigger-events.js";
+import { announce, type Frame, pushEvent } from "./frames.js";
 import { heard } from "./triggers.js";
 
 /** The cards a selector names right now (out of play included), in zone order. */
@@ -199,6 +200,13 @@ export function moveCardsTo(ctx: Ctx, ids: readonly InstanceId[], destination: C
   for (const id of ids) {
     const instance = getInstance(ctx.state, id);
     if (!instance) continue;
+    // "When X leaves play" interrupts resolve before it moves (docs/phase7-wave5.md §4.1 Q17): this card's move waits,
+    // whole, for its `cardLeavesPlay` to apply (`applyLeavingPlay` runs it again for this one card).
+    if (inPlay.has(id)) {
+      const request: LeaveRequest = { kind: "moveCards", destination, ...(into !== undefined ? { into } : {}) };
+      if (waitsForLeaveInterrupts(ctx, id, request, moveDestinationKind(ctx.state, ctx.deps, id, destination)))
+        continue;
+    }
     // "Put it faceup into The Collection" (docs/phase7-wave3.md §3.14): out of play, faceup, in the order they entered.
     if (typeof destination === "object") {
       const area: ZoneId = { kind: "scenarioArea", name: destination.scenarioArea };
@@ -426,6 +434,43 @@ export function announceCardsLeftPlay(ctx: Ctx): boolean {
   if (events.length === 0) return false;
   for (const event of [...events].reverse()) pushEvent(ctx, event);
   return true;
+}
+
+/**
+ * The apply step of a `cardLeavesPlay` that waited for its interrupts (docs/phase7-wave5.md §4.1 Q17): the move its
+ * `leaving` describes happens now, after the interrupts and before the responses, through the same entry point that
+ * waited (`leavePlay`, `moveCardsTo`, `defeatFromPlay`), which sees this frame applying and moves the card at once.
+ * The event's `to` becomes where the card went, and `leaving` is dropped. Returns false, so no responses, when the card
+ * did not leave here: an interrupt already moved it (a replacement, whose move was announced as its own leaving), or it
+ * can no longer leave (permanent, "cannot leave play").
+ */
+export function applyLeavingPlay(ctx: Ctx, frame: Frame<"event">): boolean {
+  const event = frame.event;
+  if (event.kind !== "cardLeavesPlay" || !event.leaving) return true;
+  const id = event.instanceId;
+  const request = event.leaving;
+  const inPlay = cardsInPlay(ctx.state).includes(id);
+  if (inPlay) {
+    switch (request.kind) {
+      case "zone":
+        leavePlay(ctx, id, request.zone, request.position, request.discarded, request.patch);
+        break;
+      case "moveCards":
+        moveCardsTo(ctx, [id], request.destination, request.into);
+        break;
+      case "defeat":
+        defeatFromPlay(ctx, id, request.insteadTo);
+        break;
+    }
+  }
+  const left = inPlay && !cardsInPlay(ctx.state).includes(id);
+  const where = locateCard(ctx.state, id);
+  updateFrame(ctx, frame.frameId, (f) => {
+    if (f.kind !== "event" || f.event.kind !== "cardLeavesPlay") return f;
+    const { leaving: _, ...rest } = f.event;
+    return { ...f, event: left && where ? { ...rest, to: where.kind } : rest };
+  });
+  return left;
 }
 
 /** Shuffles an encounter deck: "the encounter deck" is the active villain's. */

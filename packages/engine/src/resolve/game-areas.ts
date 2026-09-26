@@ -6,7 +6,7 @@
  */
 
 import { type Ctx, emit, moveCard, nextInstanceId, updateInstance } from "../ctx.js";
-import { discardFromPlay, giveStatus, setActiveVillain } from "../effects.js";
+import { discardAtOnce, giveStatus, setActiveVillain } from "../effects.js";
 import { gameAreaId, type GameAreaId, type InstanceId, type PlayerId } from "../ids.js";
 import { hasKeyword } from "../keywords.js";
 import {
@@ -217,7 +217,7 @@ export function removeMainSchemeStage(ctx: Ctx, schemeId: InstanceId): void {
   const pending = ctx.state.revealedMainSchemes.find((scheme) => scheme.instanceId === schemeId);
   const scheme = area?.mainScheme ?? pending;
   if (!scheme) return;
-  for (const attachment of [...mustInstance(ctx.state, schemeId).attachments]) discardFromPlay(ctx, attachment);
+  for (const attachment of [...mustInstance(ctx.state, schemeId).attachments]) discardAtOnce(ctx, attachment);
   if (area)
     updateArea(ctx, area.areaId, (a) => ({
       ...a,
@@ -445,7 +445,7 @@ export function setVillainsAside(ctx: Ctx, ids: readonly InstanceId[]): void {
     const villain = villainOf(ctx.state, id);
     if (!villain || ctx.state.encounterSetAside.includes(id)) continue;
     const instance = mustInstance(ctx.state, id);
-    for (const attachment of [...instance.attachments]) discardFromPlay(ctx, attachment);
+    for (const attachment of [...instance.attachments]) discardAtOnce(ctx, attachment);
     for (const boost of [...instance.boostCards]) moveCard(ctx, boost, discardZoneFor(ctx.state, boost), "top");
     const wasInPlay = !villain.defeated;
     ctx.state = {
@@ -490,7 +490,7 @@ export function removeVillains(ctx: Ctx, ids: readonly InstanceId[]): void {
     const villain = villainOf(ctx.state, id);
     if (!villain || villain.defeated) continue;
     const instance = mustInstance(ctx.state, id);
-    for (const attachment of [...instance.attachments]) discardFromPlay(ctx, attachment);
+    for (const attachment of [...instance.attachments]) discardAtOnce(ctx, attachment);
     for (const boost of [...instance.boostCards]) moveCard(ctx, boost, discardZoneFor(ctx.state, boost), "top");
     ctx.state = {
       ...ctx.state,
@@ -566,7 +566,7 @@ export function flipMainSchemeStage(
   ctx.state = central
     ? { ...ctx.state, mainScheme: promoted!, extraMainSchemes: rest }
     : { ...ctx.state, extraMainSchemes: extras.filter((s) => s.instanceId !== schemeId) };
-  for (const attachment of [...mustInstance(ctx.state, schemeId).attachments]) discardFromPlay(ctx, attachment);
+  for (const attachment of [...mustInstance(ctx.state, schemeId).attachments]) discardAtOnce(ctx, attachment);
   const tokens = scheme.accelerationTokens;
   const from = mustInstance(ctx.state, schemeId).cardId;
   updateInstance(ctx, schemeId, (i) => ({

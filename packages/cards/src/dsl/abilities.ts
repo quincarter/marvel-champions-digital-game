@@ -1280,7 +1280,8 @@ export const on = {
    * "When [this ally] leaves play" (Spider-Man (Hobie Brown), Ghost-Spider, `sm` 27017, 27048) with `"self"`, or "After
    * a [Web-Warrior] ally leaves play" (Web of Life and Destiny 27023) with a query; the ability's trigger kind picks
    * the window (docs/phase7-wave5.md §3.13). Leaving is any departure (defeat, discard, hand, deck, victory display,
-   * removal). The card has already moved when either window opens (§4 Q17); a query's traits are the card's as it left.
+   * removal). An interrupt sees the card still in play, with its attachments and counters, and a response sees it gone
+   * (§4.1 Q17); a query's traits are the card's as it left.
    */
   leavesPlay: (who: Who): EventPattern => pattern("cardLeavesPlay", asTarget(who)),
   /**

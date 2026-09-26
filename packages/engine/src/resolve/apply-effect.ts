@@ -903,10 +903,7 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       return;
     case "discardFromPlay":
       for (const id of targets(effect.target)) {
-        if (effect.defeated === true) {
-          const to = effect.insteadTo;
-          defeatFromPlay(ctx, id, to === undefined ? undefined : () => moveCardsTo(ctx, [id], to));
-        }
+        if (effect.defeated === true) defeatFromPlay(ctx, id, effect.insteadTo);
         // "Players cannot discard attachments that are attached to friendly characters." (§3.44 of wave 4.)
         else if (frame.byPlayer && playersCannotDiscard(ctx.state, ctx.deps, id)) {
           emit(ctx, { type: "discardRefused", instanceId: id });
@@ -1874,9 +1871,12 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
           updateInstance(ctx, id, (i) => ({ ...i, ownerId: playerId, home: { kind: "player" } }));
           emit(ctx, { type: "ownershipChanged", instanceId: id, playerId });
         }
-        if (cardsInPlay(ctx.state).includes(id)) leavePlay(ctx, id, { kind: "hand", playerId });
-        else moveCard(ctx, id, { kind: "hand", playerId });
-        updateInstance(ctx, id, (i) => ({ ...i, faceup: true, controllerId: playerId }));
+        const patch = { faceup: true, controllerId: playerId };
+        // A card waiting for "when it leaves play" interrupts gets `patch` once it has left (§4.1 Q17 of wave 5).
+        if (cardsInPlay(ctx.state).includes(id)) {
+          if (leavePlay(ctx, id, { kind: "hand", playerId }, "top", false, patch) === "waiting") continue;
+        } else moveCard(ctx, id, { kind: "hand", playerId });
+        updateInstance(ctx, id, (i) => ({ ...i, ...patch }));
       }
       return;
     }
@@ -2037,14 +2037,16 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       for (const id of selectCards(ctx, effect.cards, context)) {
         // A card tucked out of play leaves play properly: its attachments are discarded and it is a new copy (RRG 1.8
         // "Leaves Play", p. 27): Marked for Death "tucks her faceup beneath this card" (docs/phase7-wave2.md §3.10).
-        if (inPlay.includes(id)) leavePlay(ctx, id, { kind: "tucked", hostInstanceId: host });
-        else moveCard(ctx, id, { kind: "tucked", hostInstanceId: host });
-        updateInstance(ctx, id, (i) => ({
-          ...i,
+        const patch = {
           faceup: effect.facedown !== true,
-          controllerId: i.ownerId,
+          controllerId: getInstance(ctx.state, id)?.ownerId ?? null,
           attachedTo: null,
-        }));
+        };
+        // A card waiting for "when it leaves play" interrupts gets `patch` once it has left (§4.1 Q17 of wave 5).
+        if (inPlay.includes(id)) {
+          if (leavePlay(ctx, id, { kind: "tucked", hostInstanceId: host }, "top", false, patch) === "waiting") continue;
+        } else moveCard(ctx, id, { kind: "tucked", hostInstanceId: host });
+        updateInstance(ctx, id, (i) => ({ ...i, ...patch }));
       }
       return;
     }

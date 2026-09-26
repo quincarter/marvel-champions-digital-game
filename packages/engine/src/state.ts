@@ -303,6 +303,8 @@ export interface LeftPlay {
   readonly controllerId: PlayerId | null;
   readonly to: ZoneId["kind"];
   readonly traits: readonly Trait[];
+  /** It left during its own leaving's interrupt window (a replacement's move): only responses (§4.1 Q17). */
+  readonly interruptsResolved?: true;
 }
 
 /** A deck that ran out, waiting to be announced between frames (`TriggerEvent deckRanOut`, docs/phase7-wave4.md §3.11). */
@@ -604,7 +606,8 @@ export interface GameState {
   /**
    * Cards that left play since the flow last looked, oldest first, recorded by `leavePlay` only when some ability in the
    * registry triggers on it: the flow announces each as `cardLeavesPlay` between frames and empties the list. Absent
-   * until one first leaves. docs/phase7-wave5.md §3.13.
+   * until one first leaves. docs/phase7-wave5.md §3.13. A card whose leaving an interrupt heard is not listed: its
+   * `cardLeavesPlay` went on the stack before it moved (§4.1 Q17).
    */
   readonly pendingLeftPlay?: readonly LeftPlay[];
   readonly villainArea: readonly InstanceId[];

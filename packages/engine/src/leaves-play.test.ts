@@ -5,7 +5,7 @@
  * character gains the [Web-Warrior] trait").
  *
  * Sources: RRG 1.8 "Leaves Play" (p. 27); ruling Jan 17, 2026 (1) #2 (the "Leaves Play" bullets happen as the card
- * leaves). The interrupt resolving after the move is §4 Q17.
+ * leaves). Since §4.1 Q17 the interrupt resolves before the move (`leaves-play-interrupt-timing.test.ts`).
  */
 
 import { trait } from "@mc/content";

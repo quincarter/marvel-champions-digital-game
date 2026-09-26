@@ -393,16 +393,25 @@ export type TriggerEventBody =
       readonly how: "draw" | "discard";
     }
   /**
-   * A card left play (docs/phase7-wave5.md §3.13): "Interrupt: When Spider-Man leaves play, …" (`sm` 27017, Ghost-Spider
-   * 27048) and "Response: After a [Web-Warrior] ally leaves play, …" (Web of Life and Destiny 27023, Warrior of the
-   * Great Web 30029). RRG 1.8 "Leaves Play" (p. 27) covers defeat, discard, the victory display, returning to hand or
-   * deck and removal from the game. Recorded by `leavePlay` and announced between frames, only when an ability listens,
-   * with an interrupt window (its apply step changes nothing) and a response window.
+   * A card leaves play (docs/phase7-wave5.md §3.13): "Interrupt: When Spider-Man leaves play, …" (`sm` 27017,
+   * Ghost-Spider 27048) and "Response: After a [Web-Warrior] ally leaves play, …" (Web of Life and Destiny 27023, Warrior
+   * of the Great Web 30029). RRG 1.8 "Leaves Play" (p. 27) covers defeat, discard, the victory display, returning to hand
+   * or deck and removal from the game. Only pushed when an ability listens.
    *
-   * The interrupt resolves after the card has moved, not before (§4 Q17): `leavePlay` is synchronous for its many
-   * callers. So the event carries what the card was as it left — `cardId`, `controllerId` and `traits` (granted ones
-   * included, read while it was still in play) — and a trigger's `targetIs` trait clauses read `traits`. The leaving
-   * card's own abilities answer it from wherever it went (`leftCardCandidates`).
+   * Two shapes (wave 5 §4.1 Q17: RRG 1.8 "Interrupt", p. 25; ruling Jan 17, 2026 (1) #2):
+   * - with `leaving`: pushed by `leavePlay` *before* the move, when some interrupt hears it. The card is still in play,
+   *   with its attachments, counters and controller, while the interrupt window runs; the apply step performs the move
+   *   `leaving` describes (`applyLeavingPlay`) and the responses see the card gone. A replacement ("… instead") cancels
+   *   the event and moves the card itself.
+   * - without it: recorded by `leavePlay` after the move (`pendingLeftPlay`) and announced between frames, when no
+   *   interrupt heard it before the move, or when the card left with its host (`leavePlayAtOnce`); its interrupt window,
+   *   if any, is late. `interruptsResolved` marks a card that left during its own leaving's interrupt window (a
+   *   replacement's move): only the responses open.
+   *
+   * Either way the event carries what the card was while still in play — `cardId`, `controllerId` and `traits` (granted
+   * ones included) — and a trigger's `targetIs` trait clauses read `traits`. `to` is where it went (with `leaving`: where
+   * it is going, until the apply step sets where it went). The card's own abilities answer the responses from wherever
+   * it went (`leftCardCandidates`).
    */
   | {
       readonly kind: "cardLeavesPlay";
@@ -411,6 +420,8 @@ export type TriggerEventBody =
       readonly controllerId: PlayerId | null;
       readonly to: ZoneId["kind"];
       readonly traits: readonly Trait[];
+      readonly leaving?: LeaveRequest;
+      readonly interruptsResolved?: true;
     }
   /**
    * A boost card has been resolved for an activation — its Boost ability done and its icons counted — and is about to be
@@ -611,6 +622,30 @@ export type TriggerEvent = TriggerEventBody & { readonly results?: Vars };
 export type TriggerEventKind = TriggerEvent["kind"];
 
 /**
+ * The move a `cardLeavesPlay` event with an interrupt window performs when it applies (docs/phase7-wave5.md §4.1 Q17),
+ * as plain data so the stack stays serializable and replayable: the `leavePlay` call that waited (`zone`, with `patch`
+ * for what its caller sets on the card afterwards), one card of a `moveCards` effect, or an ally's or minion's defeat
+ * (`defeatFromPlay`: Victory X, "instead of discarding it").
+ */
+export type LeaveRequest =
+  | {
+      readonly kind: "zone";
+      readonly zone: ZoneId;
+      readonly position: "top" | "bottom";
+      readonly discarded: boolean;
+      readonly patch?: LeavePatch;
+    }
+  | { readonly kind: "moveCards"; readonly destination: CardDestination; readonly into?: PlayerId }
+  | { readonly kind: "defeat"; readonly insteadTo?: CardDestination };
+
+/** What a caller of `leavePlay` sets on the card once it has left (`tuckCards`, `takeIntoHand`). */
+export interface LeavePatch {
+  readonly faceup?: boolean;
+  readonly controllerId?: PlayerId | null;
+  readonly attachedTo?: null;
+}
+
+/**
  * Announcement events describe a state change that the engine has already made
  * (a card moved, a stage advanced). They only open a response window — there is
  * nothing left to interrupt.
@@ -684,10 +719,11 @@ export function isAnnouncement(event: TriggerEvent): boolean {
     // card is already where the draw or discard put it when this is pushed (after the whole draw, MC27 p. 21 FAQ), so
     // its apply step changes nothing; the interrupt's own effect moves it on.
     case "encounterCardFromPlayerDeck":
-    // "When X leaves play" (docs/phase7-wave5.md §3.13): an interrupt window, then the responses; the card has already
-    // moved (§4 Q17), so the apply step changes nothing.
-    case "cardLeavesPlay":
       return false;
+    // "When X leaves play" (docs/phase7-wave5.md §3.13, §4.1 Q17): an interrupt window before the move (`leaving`), or a
+    // late one after it; only the responses when its interrupts already resolved (the card left during them).
+    case "cardLeavesPlay":
+      return event.interruptsResolved === true;
     default:
       return true;
   }

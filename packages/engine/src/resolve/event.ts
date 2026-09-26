@@ -35,6 +35,7 @@ import {
   iconsInPlay,
 } from "../rules.js";
 import { canAttack, cardsInPlay, characterIgnores, controllerOf, isProtectedMainScheme } from "../select.js";
+import { applyLeavingPlay } from "./cards.js";
 import { currentActivationFrameId, type StackFrame, type Vars } from "../stack.js";
 import type { GameState } from "../state.js";
 import type { TriggerEvent } from "../trigger-events.js";
@@ -381,6 +382,9 @@ function applyEvent(ctx: Ctx, frame: Frame<"event">): boolean | void {
       // play" ability runs before them and a Response after (docs/phase7-wave2.md §3.13.10).
       applyEnterPlayKeywords(ctx, event.instanceId);
       return;
+    case "cardLeavesPlay":
+      // "When X leaves play" resolved with the card still in play; it moves now (docs/phase7-wave5.md §4.1 Q17).
+      return applyLeavingPlay(ctx, frame);
     default:
       return;
   }

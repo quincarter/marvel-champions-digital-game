@@ -16,7 +16,7 @@
 import type { AnyCard, CardId } from "@mc/content";
 import type { EngineDeps } from "../abilities.js";
 import { type Ctx, emit, moveCard, updateInstance } from "../ctx.js";
-import { leavePlay } from "../effects.js";
+import { leavePlay, leavePlayAtOnce } from "../effects.js";
 import type { InstanceId, PlayerId } from "../ids.js";
 import { keywordTotal } from "../keywords.js";
 import { cardOf, discardZoneFor, getInstance, locateCard, mustInstance, startingThreatOf } from "../query.js";
@@ -38,7 +38,7 @@ export function flipToOtherFace(ctx: Ctx, id: InstanceId, playerId: PlayerId, de
   if (typeChanged) {
     for (const attachment of before.attachments) {
       if (ctx.state.instances[attachment])
-        leavePlay(ctx, attachment, discardZoneFor(ctx.state, attachment), "top", true);
+        leavePlayAtOnce(ctx, attachment, discardZoneFor(ctx.state, attachment), "top", true);
     }
     for (const card of before.tucked) {
       if (ctx.state.instances[card]) moveCard(ctx, card, discardZoneFor(ctx.state, card), "top");
