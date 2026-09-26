@@ -355,7 +355,7 @@ against `pnpm dsl` (379 builders), the engine's `EffectSpec` / `RuleSpec` / `Tri
 | 3.21 | An additional cost to thwart a scheme                                                        | Cat in a Tree, Giant Monster Attack                                                            | landed  |
 | 3.22 | A basic thwart that may remove threat only from one scheme                                   | Retinal Display                                                                                | landed  |
 | 3.23 | Progressing identities: swapping one identity card for the next                              | Ironheart                                                                                      | landed  |
-| 3.24 | A separated identity (two cards, one dial)                                                   | SP//dr                                                                                         | open    |
+| 3.24 | A separated identity (two cards, one dial)                                                   | SP//dr                                                                                         | landed  |
 | 3.25 | Resources generated: an event, and counters spent as resources                               | M.O.R.B.I.U.S.; Spider-Ham's toon counters                                                     | landed  |
 | 3.26 | An additional mulligan                                                                       | MC27 reputation node 5                                                                         | landed  |
 | 3.27 | Campaign queries for the reputation conditions and Waking Nightmare                          | MC27 pp. 13, 22                                                                                | landed  |
@@ -893,6 +893,22 @@ the identity eliminates the player as always (the set-aside versions need nothin
 
 ### 3.24 A separated identity (two cards, one dial)
 
+> **Status: landed (2026-09-26, 928c7eb8),** tested in `packages/engine/src/separated-identity.test.ts` (9 tests: set
+> aside at creation, then Peni + the INACTIVE support in play; `validateDeck` accepts it; to hero keeps dial, counters,
+> statuses and attachments, attaches the upgrade, swaps ready states, replay deep-equal; the once-per-round change
+> still refuses a second; back to alter-ego; defeat in each form eliminates the player and discards the other card;
+> both sides unblankable in both forms). **What landed:** the identity instance (the dial) keeps 31001a's own faces
+> (hero = SP//dr Suit, alter-ego = Peni); the other physical card is a second instance whose INACTIVE support and SP//dr
+> upgrade sides are added to `GameState.cardPool` by `createGame` (`31001a:heroCardOtherSide`,
+> `31001a:alterEgoCardOtherSide`, `separatedSideCard`), so type, name, traits, keywords, abilities and §3.31's
+> protection read them like any card. Set aside at creation, put into play at setup step 16; `setForm` calls
+> `flipSeparatedCard` (log `separatedCardFlipped`). The `createGame` and `validateDeck` refusals are gone;
+> `wave5-precon-legality.test.ts` checks SP//dr in full. Schema: optional `SeparatedIdentitySide.resourceIcons`.
+> Decisions: ready state follows the physical card (Q37), statuses stay on the identity (Q39); counters/attachments on
+> the other card move to the identity (Q38, not built yet). **Data:** `curation/spdr.ts` needs `resourceIcons: { wild: 1
+}` on `alterEgoCardOtherSide` (read from Hall of Heroes `s2.jpg`). **Scripting:** `31002.psychogenetic-compatibility`,
+> `31001b.return-to-base`, `31002b.suit-up` are `coveredByEngineRule()`.
+
 SP//dr insert, "New Rule: Separated Identity Card": "One card represents the human pilot, Peni Parker, while the other
 represents the robotic SP//dr Suit. Start the game with the Peni Parker alter-ego in play and, following her 'Setup'
 instructions, put the INACTIVE support side of the SP//dr Suit card into play. While in alter-ego form, to change to
@@ -1068,43 +1084,49 @@ and Vivian blank text boxes. **Plan:** `RuleSpec textBoxCannotBeBlanked` read by
 Every question below was put to the user on 2026-09-26. **Bold = differs from the proposed default and needs engine
 work** (status in the last column).
 
-| Q   | Decision                                                                                                                                                                                        | Work           |
-| --- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------- |
-| 1   | Default: all six set aside; setup brings in players + 1 at random (seeded).                                                                                                                     | —              |
-| 2   | Default: skip the activation, log it.                                                                                                                                                           | —              |
-| 3   | Default: a canceled activation did not happen; no "after it activates".                                                                                                                         | —              |
-| 4   | **An encounter card drawn from a player deck with nothing listening is dealt to that player facedown, and they draw 1 card** (the Mysterio main scheme's own handling, as the fallback).        | open           |
-| 5   | **Spending a toon counter as a resource is not "generating" a resource; M.O.R.B.I.U.S. does not trigger on it.**                                                                                | open           |
-| 6   | Default, per ruling Aug 3, 2026 (4) #2: victory points contribute `max(0, sum)`; negative VP mark nothing.                                                                                      | built §3.27    |
-| 7   | Default: +1 per damage event (an attack for 6 becomes 7).                                                                                                                                       | —              |
-| 8   | Default: the controller of the attacking character; the first player if none.                                                                                                                   | built §3.29    |
-| 9   | Default: Ironheart's swap keeps her form and is not a form change.                                                                                                                              | built §3.23    |
-| 10  | Default: Everyday Hero may join any player's payment.                                                                                                                                           | —              |
-| 11  | Default: nodes resolve in node order; pink boxes from the next scenario.                                                                                                                        | —              |
-| 12  | Default: a full second mulligan.                                                                                                                                                                | built §3.26    |
-| 13  | Default: the revealing player picks the deck.                                                                                                                                                   | —              |
-| 15  | Default: card text wins; counters and acceleration tokens stay for the When Revealed.                                                                                                           | built §3.3     |
-| 16  | Default: any attack during this player's turn counts.                                                                                                                                           | built §3.12    |
-| 17  | **"When X leaves play" interrupts resolve before the card moves, with the card still in play (RRG p. 25; ruling Jan 17, 2026 (1) #2).** Rework `leavePlay`.                                     | built ae82c42f |
-| 18  | **A player who cannot pay a scheme's additional thwart cost cannot choose it as the thwart's target** (a payability check over hand cards and resource abilities, as `legal.ts` does for play). | built b4c8b1fd |
-| 19  | **The extra mulligan is a second pass in player order after every player's normal mulligan: p1, p2, then p1, p2.**                                                                              | built a55532d9 |
-| 20  | Default: keeping the hand ends that player's mulligans.                                                                                                                                         | built §3.26    |
-| 21  | Default: "all player decks" is each deck zone only; an eliminated player's deck counts nothing.                                                                                                 | built §3.27    |
-| 22  | Default: node 5's extra mulligan applies at every remaining scenario's setup.                                                                                                                   | built §3.27    |
-| 23  | Default: a minion's overkill spill onto the villain is attack damage (Bell Tower (Quiet) may replace it).                                                                                       | built          |
-| 24  | **M.O.R.B.I.U.S. deals no damage while the engaged player is in alter-ego form** ("that player's hero").                                                                                        | scripter       |
-| 25  | **Within one payment, "after you spend" and "after … generates resources" share one timing window, forced responses first (RRG).**                                                              | open           |
-| 26  | **An unowned permanent encounter attachment whose host leaves play is discarded to its encounter discard pile** (player cards keep §3.30's unattach).                                           | built e7e6bd9e |
-| 27  | **An additional thwart cost is paid together with the thwart's own cost; declining it undoes both (no exhausted hero, no thwart).**                                                             | open           |
-| 28  | **A thwart event's payability for a costly scheme is judged after the event's own cost, at play and at target choice alike.**                                                                   | open           |
-| 29  | **A divided basic thwart must afford the total of every chosen scheme's additional cost.**                                                                                                      | open           |
-| 30  | **A "take damage" thwart cost that is partly prevented was not paid; the thwart is cancelled (RRG 1.8 p. 13).**                                                                                 | open           |
-| 31  | **Build the Permanent keyword's blank protection in wave 5** (RRG 1.8 p. 32: cards from outside its own set cannot blank a permanent card's text box; blanks record their source).              | open           |
-| 32  | **Attachments leaving with their host get their leave interrupts in the host's window, still in play.**                                                                                         | open           |
-| 33  | **Several cards leaving from one effect share one interrupt window; the active player orders the interrupts.**                                                                                  | open           |
-| 34  | **In a replacement, log the replaced event's "cancelled" line before the replacement move's announcement.**                                                                                     | open           |
-| 35  | **`takeIntoHand` applies its ownership change with the move, after the leave interrupt.**                                                                                                       | open           |
-| 36  | As built: a villain's signature side scheme removed on defeat can open a leave window when something listens.                                                                                   | built ae82c42f |
+| Q   | Decision                                                                                                                                                                                        | Work                                                       |
+| --- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------- |
+| 1   | Default: all six set aside; setup brings in players + 1 at random (seeded).                                                                                                                     | —                                                          |
+| 2   | Default: skip the activation, log it.                                                                                                                                                           | —                                                          |
+| 3   | Default: a canceled activation did not happen; no "after it activates".                                                                                                                         | —                                                          |
+| 4   | **An encounter card drawn from a player deck with nothing listening is dealt to that player facedown, and they draw 1 card** (the Mysterio main scheme's own handling, as the fallback).        | built 97ae93d3                                             |
+| 5   | **Spending a toon counter as a resource is not "generating" a resource; M.O.R.B.I.U.S. does not trigger on it.**                                                                                | built f959030c                                             |
+| 6   | Default, per ruling Aug 3, 2026 (4) #2: victory points contribute `max(0, sum)`; negative VP mark nothing.                                                                                      | built §3.27                                                |
+| 7   | Default: +1 per damage event (an attack for 6 becomes 7).                                                                                                                                       | —                                                          |
+| 8   | Default: the controller of the attacking character; the first player if none.                                                                                                                   | built §3.29                                                |
+| 9   | Default: Ironheart's swap keeps her form and is not a form change.                                                                                                                              | built §3.23                                                |
+| 10  | Default: Everyday Hero may join any player's payment.                                                                                                                                           | —                                                          |
+| 11  | Default: nodes resolve in node order; pink boxes from the next scenario.                                                                                                                        | —                                                          |
+| 12  | Default: a full second mulligan.                                                                                                                                                                | built §3.26                                                |
+| 13  | Default: the revealing player picks the deck.                                                                                                                                                   | —                                                          |
+| 15  | Default: card text wins; counters and acceleration tokens stay for the When Revealed.                                                                                                           | built §3.3                                                 |
+| 16  | Default: any attack during this player's turn counts.                                                                                                                                           | built §3.12                                                |
+| 17  | **"When X leaves play" interrupts resolve before the card moves, with the card still in play (RRG p. 25; ruling Jan 17, 2026 (1) #2).** Rework `leavePlay`.                                     | built ae82c42f                                             |
+| 18  | **A player who cannot pay a scheme's additional thwart cost cannot choose it as the thwart's target** (a payability check over hand cards and resource abilities, as `legal.ts` does for play). | built b4c8b1fd                                             |
+| 19  | **The extra mulligan is a second pass in player order after every player's normal mulligan: p1, p2, then p1, p2.**                                                                              | built a55532d9                                             |
+| 20  | Default: keeping the hand ends that player's mulligans.                                                                                                                                         | built §3.26                                                |
+| 21  | Default: "all player decks" is each deck zone only; an eliminated player's deck counts nothing.                                                                                                 | built §3.27                                                |
+| 22  | Default: node 5's extra mulligan applies at every remaining scenario's setup.                                                                                                                   | built §3.27                                                |
+| 23  | Default: a minion's overkill spill onto the villain is attack damage (Bell Tower (Quiet) may replace it).                                                                                       | built                                                      |
+| 24  | **M.O.R.B.I.U.S. deals no damage while the engaged player is in alter-ego form** ("that player's hero").                                                                                        | scripter                                                   |
+| 25  | **Within one payment, "after you spend" and "after … generates resources" share one timing window, forced responses first (RRG).**                                                              | built caa7396f                                             |
+| 26  | **An unowned permanent encounter attachment whose host leaves play is discarded to its encounter discard pile** (player cards keep §3.30's unattach).                                           | built e7e6bd9e                                             |
+| 27  | **An additional thwart cost is paid together with the thwart's own cost; declining it undoes both (no exhausted hero, no thwart).**                                                             | built 8d8f114e (basic thwart; events keep their cost, Q41) |
+| 28  | **A thwart event's payability for a costly scheme is judged after the event's own cost, at play and at target choice alike.**                                                                   | built 8d8f114e                                             |
+| 29  | **A divided basic thwart must afford the total of every chosen scheme's additional cost.**                                                                                                      | built 8d8f114e                                             |
+| 30  | **A "take damage" thwart cost that is partly prevented was not paid; the thwart is cancelled (RRG 1.8 p. 13).**                                                                                 | built 8d8f114e                                             |
+| 31  | **Build the Permanent keyword's blank protection in wave 5** (RRG 1.8 p. 32: cards from outside its own set cannot blank a permanent card's text box; blanks record their source).              | open                                                       |
+| 32  | **Attachments leaving with their host get their leave interrupts in the host's window, still in play.**                                                                                         | open                                                       |
+| 33  | **Several cards leaving from one effect share one interrupt window; the active player orders the interrupts.**                                                                                  | open                                                       |
+| 34  | **In a replacement, log the replaced event's "cancelled" line before the replacement move's announcement.**                                                                                     | open                                                       |
+| 35  | **`takeIntoHand` applies its ownership change with the move, after the leave interrupt.**                                                                                                       | open                                                       |
+| 36  | As built: a villain's signature side scheme removed on defeat can open a leave window when something listens.                                                                                   | built ae82c42f                                             |
+| 37  | Ready/exhausted follows the physical card on SP//dr's form change (community play; no FFG ruling).                                                                                              | built 928c7eb8                                             |
+| 38  | **Counters and attachments on SP//dr's other card move to the identity when she changes form** (the printed Suit Up! / Return to Base).                                                         | open                                                       |
+| 39  | Status cards stay on the identity through SP//dr's form change (RRG "Change Form").                                                                                                             | built 928c7eb8                                             |
+| 40  | **A confused hero's thwart still pays the scheme's additional thwart cost** (costs of the attempt are paid; the status replaces the thwart).                                                    | open                                                       |
+| 41  | A thwart event whose scheme's extra cost is declined keeps its own cost paid (the event was played).                                                                                            | built 8d8f114e                                             |
+| 42  | Q18 stands; its reason is RRG 1.8 p. 13 (an ability can't be initiated unless its costs can be paid), not target validity (p. 42 ignores costs).                                                | —                                                          |
 
 ### 4.2 The questions as asked
 
@@ -1218,6 +1240,16 @@ flagged; none is implemented yet.**
     waits, so the interrupt sees the card in play with its new owner. **As built.**
 36. **A villain's signature side scheme removed on defeat** (Q17 follow-up, `defeat.ts`) still goes through the waiting
     `leavePlay`, so it can open a window if an interrupt listens for it. **As built.**
+37. **SP//dr's ready state on a form change** (§3.24): follows the physical card (built) or the character (RRG "Change
+    Form", p. 21)?
+38. **Counters and attachments on SP//dr's other card at a flip** (§3.24): discarded (RRG "Flip", p. 20; built) or moved
+    to the identity?
+39. **Status cards through SP//dr's form change** (§3.24): stay on the identity (built) or discarded?
+40. **A confused thwarter and an additional thwart cost** (Q27 follow-up): charged, or not asked (built)?
+41. **A thwart event whose scheme's extra cost is declined** (Q27 follow-up): refund by choosing targets before paying,
+    or keep the event's cost paid (built)?
+42. **Q18 against RRG 1.8 p. 42** ("The cost of an ability or game function is not considered when determining if that
+    ability or game function can affect a target"): keep Q18 on p. 13's grounds?
 
 ---
 
