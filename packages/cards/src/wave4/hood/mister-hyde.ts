@@ -1,6 +1,7 @@
 import { trait } from "@mc/content";
 import type { PlayerRef } from "@mc/engine";
 import {
+  andThen,
   chosen,
   dealDamage,
   defineAbilities,
@@ -90,10 +91,13 @@ export const MISTER_HYDE_SET = defineAbilities({
   // 4 damage. If Mister Hyde is in play, give him a tough status card and he attacks you (even in alter-ego form —
   // `enemyAttack` is a scripted effect, not gated on the player's own form). If neither is in play, this card
   // gains surge.
+  // "He schemes with +3 SCH, then he takes 4 damage": if the activation itself doesn't happen (a stunned/confused
+  // status removed instead, say), the damage doesn't attempt either (`activationDidNotHappen`,
+  // docs/then-sweep.md; RRG 1.8 "'Then'", p. 44).
   "24036.when-revealed": whenRevealed(
     ifThen(
       exists(query("minion", CALVIN_ZABO)),
-      [enemyScheme(named("Calvin Zabo"), { schBonus: 3 }), dealDamage(4, named("Calvin Zabo"))],
+      [enemyScheme(named("Calvin Zabo"), { schBonus: 3 }), andThen(dealDamage(4, named("Calvin Zabo")))],
       ifThen(
         exists(query("minion", MISTER_HYDE)),
         [giveTough(named("Mister Hyde")), enemyAttack(named("Mister Hyde"))],

@@ -1,5 +1,6 @@
 import { trait } from "@mc/content";
 import {
+  andThen,
   attachCard,
   boost,
   chooseCards,
@@ -173,10 +174,12 @@ export const RED_SKULL_SET = defineAbilities({
 
   // Master Strategist — Attach to Red Skull. Forced Interrupt: when Red Skull activates, give him an additional
   // boost card for each side scheme in play, then discard this card.
+  // `modifyAttack` always fully resolves, so `andThen` around the "then discard" is the faithful reading (RRG 1.8
+  // "'Then'", p. 44) without changing behavior today.
   "04134.master-strategist-forced-interrupt": forcedInterrupt(
     { on: ["enemyAttack", "enemyScheme"], sourceIs: { hostOfSelf: true } },
     modifyAttack({ extraBoostCards: countOf(query("sideScheme")) }),
-    discard(self),
+    andThen(discard(self)),
   ),
 
   // Twisted Reality — Incite 1 (data). Attach to a side scheme (data). Forced Interrupt: when attached side scheme is

@@ -1,4 +1,5 @@
 import {
+  andThen,
   action,
   alterEgoAction,
   atEndOfAttack,
@@ -125,7 +126,9 @@ export const SCW_PACK_CARDS = defineAbilities({
   "15018.order-and-chaos-interrupt": heroInterrupt(
     on.encounterCardRevealed(query("treachery")),
     cancelWhenRevealed(),
-    dealDamage(2, theVillain),
+    // Its "When Revealed" already cancelled (Cosmic Ward got there first): `nothingToCancel` skips the damage (RRG 1.8
+    // "'Then'", p. 44).
+    andThen(dealDamage(2, theVillain)),
   ),
 
   // Spiritual Meditation (15019, Basic event) — Play only if your identity has the Mystic trait (data). Action:

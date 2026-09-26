@@ -134,9 +134,11 @@ export const CAP_KIT = defineAbilities({
 
   // Captain America's Helmet — Interrupt: When Captain America would be defeated, set his hit point dial to 1
   // instead. Then, discard this card. Not a heal (the card doesn't say "heal"; docs/phase7-wave1.md §3.13).
+  // `setRemainingHitPoints` always fully resolves (RRG 1.8 "'Then'", p. 44), so `andThen` here is the faithful
+  // reading without changing observable behavior today.
   "03008.captain-americas-helmet-interrupt": interrupt(
     when.defeated("host"),
-    instead(setRemainingHitPoints(1, host), discard(self)),
+    instead(setRemainingHitPoints(1, host), andThen(discard(self))),
   ),
 
   // Captain America's Shield — Restricted (data). Captain America gets +1 DEF and gains retaliate 1.

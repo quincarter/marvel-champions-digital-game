@@ -1,4 +1,5 @@
 import {
+  andThen,
   activationIs,
   addCounters,
   adjustBoostCount,
@@ -144,12 +145,16 @@ export const BADOON = defineAbilities({
 
   // Badoon Ship — Charge Up — Special: Place 1 barrage counter here. Then, if there are 4 or more barrage counters
   // here, deal 2 indirect damage to each player and remove all barrage counters from here.
+  // The pre-"then" text is the placement, which always resolves; the threshold "if" is post-"then" text and gates
+  // itself (RRG 1.8 "'Then'", p. 44).
   "16063.charge-up": special(
     addCounters("barrage", 1, self),
-    ifThen(valueAtLeast(countersOn(self, "barrage"), 4), [
-      forEachPlayer(eachPlayer, dealIndirectDamage(thatPlayer, 2)),
-      removeCountersFrom(self, "barrage", countersOn(self, "barrage")),
-    ]),
+    andThen(
+      ifThen(valueAtLeast(countersOn(self, "barrage"), 4), [
+        forEachPlayer(eachPlayer, dealIndirectDamage(thatPlayer, 2)),
+        removeCountersFrom(self, "barrage", countersOn(self, "barrage")),
+      ]),
+    ),
   ),
 
   // Drang's Spear — Attach to Drang (data-driven). Drang gains stalwart.

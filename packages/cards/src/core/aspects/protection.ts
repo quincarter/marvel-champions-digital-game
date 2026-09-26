@@ -1,4 +1,5 @@
 import {
+  andThen,
   action,
   after,
   attack,
@@ -40,7 +41,9 @@ export const PROTECTION = defineAbilities({
     when.encounterCardRevealed(),
     { cost: [exhaustThis, spend({ mental: 1 })] },
     cancelRevealedCard(),
-    revealEncounterCard(you),
+    // Nothing left to cancel (another cancel got there first): `nothingToCancel` skips the reveal (RRG 1.8 "'Then'",
+    // p. 44). A card that cannot be cancelled never offers her at all (docs/phase7-wave4.md §3.27).
+    andThen(revealEncounterCard(you)),
   ),
   // Counter-Punch — Response (attack): After your hero defends against an enemy attack, deal damage to that enemy equal to your hero's ATK.
   "01077.counter-punch-response": response(

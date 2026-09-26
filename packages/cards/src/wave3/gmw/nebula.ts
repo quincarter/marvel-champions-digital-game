@@ -1,6 +1,7 @@
 import { trait } from "@mc/content";
 import {
   addCounters,
+  andThen,
   atEndOfActivation,
   attachCard,
   boost,
@@ -131,10 +132,13 @@ export const NEBULA = defineAbilities({
   "16088.nebula-constant": firstTechniqueGainsSurge(),
   // Nebula I — Forced Interrupt: resolve the "Special" ability on each Technique attachment in play, then discard
   // each of those attachments.
+  // `resolveSpecials` on an empty `TECHNIQUE_IN_PLAY` is vacuously true (no Technique attachments to fail on,
+  // mirroring `03024.avengers-tower-constant`'s "each of your X" reading), so it always fully resolves with the
+  // current engine; `andThen` is the faithful reading of the printed "then" (RRG 1.8 "'Then'", p. 44).
   "16088.nebula-forced-interrupt": forcedInterrupt(
     on.enemySchemesOrAttacks("self"),
     resolveSpecials(TECHNIQUE_IN_PLAY),
-    moveCards(cards(each(TECHNIQUE_IN_PLAY)), "discard"),
+    andThen(moveCards(cards(each(TECHNIQUE_IN_PLAY)), "discard")),
   ),
 
   "16089.nebula-constant": firstTechniqueGainsSurge(),
@@ -143,13 +147,15 @@ export const NEBULA = defineAbilities({
   "16089.nebula-forced-interrupt": forcedInterrupt(
     on.enemySchemesOrAttacks("self"),
     resolveSpecials(TECHNIQUE_IN_PLAY),
-    chooseTarget("technique", TECHNIQUE_IN_PLAY),
-    moveCards(cards(chosen("technique")), "discard"),
+    andThen(chooseTarget("technique", TECHNIQUE_IN_PLAY), moveCards(cards(chosen("technique")), "discard")),
   ),
 
   "16090.nebula-constant": firstTechniqueGainsSurge(),
   // Nebula III — same Forced Interrupt as I/II, but the choose-and-discard step is gated behind "you may remove
-  // the top card of your deck from the game" (a cost-shaped either/or, the module docblock's `chooseOne`).
+  // the top card of your deck from the game" (a cost-shaped either/or, the module docblock's `chooseOne`). The
+  // "resolve … in play. You may then remove …" is a new sentence, not a "then" (RRG 1.8 "'Then'", p. 44), but the
+  // in-branch "remove the top card …, then choose and discard" is: `moveCards` reads the deck rather than a
+  // required choice, so it can't fail with the current engine, and `andThen` is the faithful reading anyway.
   "16090.nebula-forced-interrupt": forcedInterrupt(
     on.enemySchemesOrAttacks("self"),
     resolveSpecials(TECHNIQUE_IN_PLAY),
@@ -157,8 +163,7 @@ export const NEBULA = defineAbilities({
       option(
         "Remove the top card of your deck from the game, then choose and discard 1 of those attachments",
         moveCards(topOfDeck(1, you), "removedFromGame"),
-        chooseTarget("technique", TECHNIQUE_IN_PLAY),
-        moveCards(cards(chosen("technique")), "discard"),
+        andThen(chooseTarget("technique", TECHNIQUE_IN_PLAY), moveCards(cards(chosen("technique")), "discard")),
       ),
       option("Do not"),
     ),
@@ -281,8 +286,10 @@ export const NEBULA = defineAbilities({
   // Reveal that card, then resolve its "Special" ability.
   "16101.when-revealed": whenRevealed(
     discardEncounterUntil(query("attachment", { trait: TECHNIQUE }), "found"),
+    // No Technique found, or its reveal cancelled: the "then" is skipped (`revealFoundNothing`/`revealCancelled`,
+    // RRG 1.8 "'Then'", p. 44; same shape as Planetary Invasion, `rocket-obligation-nemesis.ts`).
     revealCard(chosen("found"), you),
-    resolveSpecialsOf(chosen("found")),
+    andThen(resolveSpecialsOf(chosen("found"))),
   ),
 
   // Space Pirates (modular: 16138–16141) ---------------------------------------------------------------------
@@ -316,9 +323,11 @@ export const NEBULA = defineAbilities({
   // card.
   "16141.when-revealed": whenRevealed(
     discardEncounterUntil(query("minion", { trait: CRIMINAL }), "found"),
+    // No Criminal minion found, or its reveal cancelled: the whole post-"then" text is skipped, the villain's facedown
+    // boost card included (`revealFoundNothing`/`revealCancelled`, RRG 1.8 "'Then'", p. 44). docs/then-sweep.md
+    // records this reading as an open question: RRG 1.8 "Encounter Deck" (p. 17) calls the emptied discard "fulfilled".
     revealCard(chosen("found"), you),
-    giveTough(chosen("found")),
-    giveBoostCard(theVillain),
+    andThen(giveTough(chosen("found")), giveBoostCard(theVillain)),
   ),
 
   // Power Stone (16149, modular; shared with Ronan the Accuser) ------------------------------------------------

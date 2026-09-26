@@ -1,3 +1,4 @@
+import type { GameState, InstanceId } from "@mc/engine";
 import { describe, expect, it } from "vitest";
 import { validateDefinition } from "../../dsl/validate.js";
 import {
@@ -12,10 +13,12 @@ import {
   resourceAbility,
   runWith,
   settle,
+  stackEncounterDeck,
   toHero,
   use,
   type Picker,
 } from "../../testing/harness.js";
+import { driveEvents } from "../../testing/staging.js";
 import { WAVE4_DEPS } from "../index.js";
 import { playFromHand, startWave4Game } from "../testing.js";
 import { ADAM_WARLOCK_KIT } from "./adam-warlock-kit.js";
@@ -182,5 +185,35 @@ describe("Cosmic Ward (21036)", () => {
   it("21036.cosmic-ward-forced-interrupt: cancels a revealed treachery and discards itself", () => {
     valid("21036.cosmic-ward-forced-interrupt");
     expect(ADAM_WARLOCK_KIT["21036.cosmic-ward-forced-interrupt"]!.trigger).toMatchObject({ forced: true });
+  });
+
+  // RRG 1.8 "'Then'" (p. 44), docs/then-sweep.md: "cancel its 'When Revealed' effects and discard it. Then, discard
+  // Cosmic Ward." Adam Warlock's precon runs two copies; with both in play (test surgery), both Forced Interrupts
+  // trigger on one treachery. Cancelling a card's effects does not cancel its reveal (RRG 1.8 "Cancel", p. 11: the
+  // card "is still regarded as revealed"), so the second still triggers, finds nothing left to cancel, and stays.
+  it("with two in play, the first cancels the treachery and is discarded; the second has nothing to cancel and stays", () => {
+    const hero = settle(runWith(WAVE4_DEPS, adamVsRhino(1), toHero()), firstLegal, undefined, WAVE4_DEPS);
+    const given = moveToHand(hero, P1, "21036", "21036");
+    const wards = given.ids as readonly InstanceId[];
+    const placed: GameState = {
+      ...given.state,
+      players: given.state.players.map((p) =>
+        p.playerId === P1
+          ? { ...p, hand: p.hand.filter((id) => !wards.includes(id)), playArea: [...p.playArea, ...wards] }
+          : p,
+      ),
+      instances: {
+        ...given.state.instances,
+        ...Object.fromEntries(wards.map((id) => [id, { ...inst(given.state, id), controllerId: P1, faceup: true }])),
+      },
+    };
+    // Advance soaks up Rhino's boost draw; Hard to Keep Down (01104) is the treachery P1 reveals.
+    const stacked = stackEncounterDeck(placed, "01186", "01104");
+    const { state: after, events } = driveEvents(WAVE4_DEPS, stacked, { type: "endTurn", playerId: P1 });
+    expect(events).toContainEqual(expect.objectContaining({ type: "preThenUnresolved", cause: "nothingToCancel" }));
+    expect(events).toContainEqual({ type: "thenSkipped" });
+    const discarded = wards.filter((id) => playerOf(after, P1).discard.includes(id));
+    expect(discarded).toHaveLength(1);
+    expect(playerOf(after, P1).playArea.filter((id) => wards.includes(id))).toHaveLength(1);
   });
 });

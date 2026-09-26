@@ -9,18 +9,23 @@
  * other identities aside." This already normalizes correctly as three separate `HeroIdentityCard`s with no
  * normalizer change needed — `normalizeHeroes` doesn't require a set to contain exactly one identity pair.
  *
- * **One hand entry: `imageOverrides` for 29002a/29002b/29003a/29003b.** MarvelCDB has no `imagesrc` at all for
- * any of the four (`imagesrc: null` on all four raw records — Version 1's pair, 29001a/29001b, does have art).
- * Hall of Heroes' own Ironheart release-page gallery (https://hallofheroeslcg.com/ironheart-riri-williams/) hosts
- * a second, independent scan for all six identity faces (`i0a.jpg`–`i0f.jpg`); each was fetched and viewed
- * directly (no bytes stored — CLAUDE.md "Content & IP boundaries") and matched to its card by title, printed
- * text, hand size/hit points and the collector mark in the corner:
+ * **No `imageOverrides` entry needed for 29002a/29002b/29003a/29003b**, though MarvelCDB has no `imagesrc` at
+ * all for any of the four (`imagesrc: null` on all four raw records — Version 1's pair, 29001a/29001b, does have
+ * art). Hall of Heroes' own Ironheart release-page gallery (https://hallofheroeslcg.com/ironheart-riri-williams/)
+ * hosts a second, independent scan for all six identity faces (`i0a.jpg`–`i0f.jpg`); each was fetched and viewed
+ * directly and matched to its card by title, printed text, hand size/hit points and the collector mark in the
+ * corner:
  * - `i0a.jpg` = "1B" (Riri Williams, Version 1) — already covered by MarvelCDB's own 29001b art; not used.
  * - `i0b.jpg` = "2B" (Riri Williams, Version 2) → 29002b.
  * - `i0c.jpg` = "3B" (Riri Williams, Version 3) → 29003b.
  * - `i0d.jpg` = "1A" (Ironheart, Version 1) — already covered by MarvelCDB's own 29001a art; not used.
  * - `i0e.jpg` = "2A" (Ironheart, Version 2) → 29002a.
  * - `i0f.jpg` = "3A" (Ironheart, Version 3) → 29003a.
+ * `scripts/fetch_card_art.py` fetched and trimmed each to `assets/card-art/bundles/cards/<code>.png`, and
+ * `withLocalArt` (`scripts/marvelcdb/normalize/art.ts`) picks up any `<code>.png` under that folder for a record
+ * with no `imagesrc` of its own — the same fallback `jubilee.ts`/`psylocke.ts` describe — so no curation entry
+ * is needed once the scan exists locally (an `imageOverrides` entry for a code `withLocalArt` already covers
+ * fails `checkCoverage`'s "matched no face that needed it" check).
  *
  * Otherwise normalizes cleanly — the schema-neutral parser fixes (docs/phase7-wave2-data.md) already cover every
  * other shape this pack uses.
@@ -116,11 +121,4 @@ export const IRONHEART_CURATION: PackCuration = {
       note: "No second (MarvelCDB community decklist or rulebook) source found for this pack's precon as of this pass — single-sourced from the pack's own printed decklist card. Uses Version 1 Ironheart (29001a); the engine refuses progressingIdentity until §3.23 (docs/phase7-wave5.md §1.4).",
     },
   ],
-
-  imageOverrides: {
-    "29002b": "https://hallofheroeslcg.com/wp-content/uploads/2022/05/i0b.jpg",
-    "29003b": "https://hallofheroeslcg.com/wp-content/uploads/2022/05/i0c.jpg",
-    "29002a": "https://hallofheroeslcg.com/wp-content/uploads/2022/05/i0e.jpg",
-    "29003a": "https://hallofheroeslcg.com/wp-content/uploads/2022/05/i0f.jpg",
-  },
 };

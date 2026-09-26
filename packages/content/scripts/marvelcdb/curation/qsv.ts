@@ -5,15 +5,18 @@
  *   hosts its own scan gallery separate from MarvelCDB's.
  * - "phase7 wave2 §N": docs/phase7-wave2.md section N.
  *
- * Normalizes cleanly with one hand entry: Pietro Maximoff's alter-ego face (14001b) has no `imagesrc` at all on
- * MarvelCDB (confirmed by a direct 404 on MarvelCDB's own `/bundles/cards/14001b.png` and `.jpg` — not merely
- * absent from the cached pack response), which would otherwise make the pack fail `checkCoverage`'s "no artwork
- * reference" hard error (docs/phase7-wave2-data.md's earlier finding for this pack). Hall of Heroes' own release
- * page hosts a second, independent scan gallery for this product; its `0b.jpg` is Pietro Maximoff's alter-ego
- * face (viewed directly — title "Pietro Maximoff", "ALTER-EGO" banner, "HAND SIZE 6 / HIT POINTS 9" matching the
- * raw record, collector mark "1B"). Recorded as an `imageOverrides` entry rather than left as a hard failure or
- * guessed at (CLAUDE.md "Content & IP boundaries": stored as a reference URL, exactly the way a MarvelCDB path
- * is, not as downloaded bytes).
+ * Normalizes cleanly, no `imageOverrides` entry needed: Pietro Maximoff's alter-ego face (14001b) has no
+ * `imagesrc` at all on MarvelCDB (confirmed by a direct 404 on MarvelCDB's own `/bundles/cards/14001b.png` and
+ * `.jpg` — not merely absent from the cached pack response), which would otherwise make the pack fail
+ * `checkCoverage`'s "no artwork reference" hard error (docs/phase7-wave2-data.md's earlier finding for this
+ * pack). Hall of Heroes' own release page hosts a second, independent scan gallery for this product; its
+ * `0a.jpg` is Pietro Maximoff's alter-ego face (viewed directly — title "Pietro Maximoff", "ALTER-EGO" banner,
+ * "HAND SIZE 6 / HIT POINTS 9" matching the raw record, collector mark "1B"; `0b.jpg` next to it is the
+ * Quicksilver hero face, "HAND SIZE 5 / HIT POINTS 9", "1A" — an earlier pass here had the two swapped and
+ * recorded it as an `imageOverrides` URL). `scripts/fetch_card_art.py` fetched and trimmed it to
+ * `assets/card-art/bundles/cards/14001b.png`, and `withLocalArt` (`scripts/marvelcdb/normalize/art.ts`) picks up
+ * any `<code>.png` under that folder for a record with no `imagesrc` on its own — the same fallback
+ * `jubilee.ts`/`psylocke.ts` describe — so no curation entry is needed once the scan exists locally.
  *
  * **Starter deck not yet fully curated as data,** but its list is transcribed here from a real photo (see
  * `starterDecks` below) rather than left empty — matching wave 1's provenance discipline once the photo could
@@ -83,8 +86,4 @@ export const QSV_CURATION: PackCuration = {
       note: 'Cross-checked item-by-item against raw (qsv.json) by name, code and quantity: item 2 "Scarlet Witch" is 14002 (qty 1, the Team-Up ally printed in this hero kit, faction_code "hero"), and every Basic/Protection/nemesis item matches its listed code and quantity exactly (e.g. "28 Earthquake x2" = 14028, quantity 2 in raw).',
     },
   ],
-
-  imageOverrides: {
-    "14001b": "https://hallofheroeslcg.com/wp-content/uploads/2020/12/0b.jpg",
-  },
 };

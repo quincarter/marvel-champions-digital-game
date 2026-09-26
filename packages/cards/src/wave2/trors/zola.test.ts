@@ -1,6 +1,16 @@
 import { cardsInPlay, characterProfile, createGame, type GameState } from "@mc/engine";
 import { cardId } from "@mc/content";
-import { endTurn, firstLegal, identityOf, inst, settle, stackEncounterDeck, toHero } from "../../testing/harness.js";
+import {
+  endTurn,
+  firstLegal,
+  identityOf,
+  inst,
+  patchInstance,
+  settle,
+  stackEncounterDeck,
+  toHero,
+} from "../../testing/harness.js";
+import { driveEvents } from "../../testing/staging.js";
 import { wave2Scenario } from "../setup.js";
 import { runWave2, startWave2Game, WAVE2_DEPS } from "../testing.js";
 
@@ -61,6 +71,29 @@ describe("Zola scenario", () => {
     // places 1 *test* counter — a retrigger would add a second test counter from the same phase.
     const settled = settle(runWave2(stacked, toHero(), endTurn()), firstLegal, undefined, WAVE2_DEPS);
     expect(inst(settled, scheme).counters.test ?? 0).toBe(2);
+  });
+
+  // RRG 1.8 "'Then'" (p. 44), docs/then-sweep.md: "place 1 test counter here. Then, if there are 3 or more test
+  // counters here, discard … until a minion is discarded. Put that minion into play engaged with the first player and
+  // remove 3 test counters." The placement always resolves, so the "then" always runs; its "if" gates the rest.
+  it("The Island of Dr. Zola: the third test counter puts a minion into play and removes 3 counters; fewer do nothing", () => {
+    const start = zolaVsHeroes();
+    const scheme = start.mainScheme.instanceId;
+    const primed = patchInstance(start, scheme, { counters: { ...inst(start, scheme).counters, test: 2 } });
+    const { state: third, events } = driveEvents(WAVE2_DEPS, runWave2(primed, toHero()), endTurn());
+    expect(events.some((e) => e.type === "thenSkipped")).toBe(false);
+    expect(inst(third, scheme).counters.test ?? 0).toBe(0);
+    // The discarded minion enters play engaged with the first player (it may then be what defeats the hero).
+    const spawned = events.filter(
+      (e) =>
+        e.type === "cardMoved" &&
+        e.from.kind === "encounterDiscard" &&
+        e.to.kind === "playArea" &&
+        third.cardPool[e.cardId]?.type === "minion",
+    );
+    expect(spawned).toHaveLength(1);
+    const { state: first } = driveEvents(WAVE2_DEPS, runWave2(start, toHero()), endTurn());
+    expect(inst(first, scheme).counters.test ?? 0).toBe(1);
   });
 
   it("Ultimate Bio-Servant: gets +1 ATK for each attachment on it", () => {

@@ -1,255 +1,467 @@
-# Card images MarvelCDB does not publish, fetched from Hall of Heroes (hallofheroeslcg.com) on 2026-09-19.
-# Saved as bundles/cards/<code>.png, scaled to a 419px long edge to match the MarvelCDB scans.
-code	pack	name	source_page	image_url
-40070a	next_evol	Arclight	https://hallofheroeslcg.com/next-evolution/	https://hallofheroeslcg.com/wp-content/uploads/2023/08/40070a.jpg
-40070b	next_evol	Arclight	https://hallofheroeslcg.com/next-evolution/	https://hallofheroeslcg.com/wp-content/uploads/2023/08/40070b.jpg
-40071a	next_evol	Blockbuster	https://hallofheroeslcg.com/next-evolution/	https://hallofheroeslcg.com/wp-content/uploads/2023/08/40071a.jpg
-40071b	next_evol	Blockbuster	https://hallofheroeslcg.com/next-evolution/	https://hallofheroeslcg.com/wp-content/uploads/2023/08/40071b.jpg
-40072a	next_evol	Chimera	https://hallofheroeslcg.com/next-evolution/	https://hallofheroeslcg.com/wp-content/uploads/2023/08/40072a.jpg
-40072b	next_evol	Chimera	https://hallofheroeslcg.com/next-evolution/	https://hallofheroeslcg.com/wp-content/uploads/2023/08/40072b.jpg
-40073a	next_evol	Greycrow	https://hallofheroeslcg.com/next-evolution/	https://hallofheroeslcg.com/wp-content/uploads/2023/08/40073a.jpg
-40073b	next_evol	Greycrow	https://hallofheroeslcg.com/next-evolution/	https://hallofheroeslcg.com/wp-content/uploads/2023/08/40073b.jpg
-40074a	next_evol	Harpoon	https://hallofheroeslcg.com/next-evolution/	https://hallofheroeslcg.com/wp-content/uploads/2023/08/40074a.jpg
-40074b	next_evol	Harpoon	https://hallofheroeslcg.com/next-evolution/	https://hallofheroeslcg.com/wp-content/uploads/2023/08/40074b.jpg
-40075a	next_evol	Riptide	https://hallofheroeslcg.com/next-evolution/	https://hallofheroeslcg.com/wp-content/uploads/2023/08/40075a.jpg
-40075b	next_evol	Riptide	https://hallofheroeslcg.com/next-evolution/	https://hallofheroeslcg.com/wp-content/uploads/2023/08/40075b.jpg
-40076a	next_evol	Vertigo	https://hallofheroeslcg.com/next-evolution/	https://hallofheroeslcg.com/wp-content/uploads/2023/08/40076a.jpg
-40076b	next_evol	Vertigo	https://hallofheroeslcg.com/next-evolution/	https://hallofheroeslcg.com/wp-content/uploads/2023/08/40076b.jpg
-40081a	next_evol	Routed	https://hallofheroeslcg.com/next-evolution/	https://hallofheroeslcg.com/wp-content/uploads/2023/08/40081a.jpg
-40081b	next_evol	Routed	https://hallofheroeslcg.com/next-evolution/	https://hallofheroeslcg.com/wp-content/uploads/2023/08/40081b.jpg
-40105a	next_evol	Hope's Captor	https://hallofheroeslcg.com/next-evolution/	https://hallofheroeslcg.com/wp-content/uploads/2023/08/40105a.jpg
-40105b	next_evol	Hope's Captor	https://hallofheroeslcg.com/next-evolution/	https://hallofheroeslcg.com/wp-content/uploads/2023/08/40105b.jpg
-40122a	next_evol	Juggernaut's Helmet	https://hallofheroeslcg.com/next-evolution/	https://hallofheroeslcg.com/wp-content/uploads/2023/08/40122a.jpg
-40122b	next_evol	Juggernaut Exposed	https://hallofheroeslcg.com/next-evolution/	https://hallofheroeslcg.com/wp-content/uploads/2023/08/40122b.jpg
-40139a	next_evol	Sinister Intent	https://hallofheroeslcg.com/next-evolution/	https://hallofheroeslcg.com/wp-content/uploads/2023/08/40139a.jpg
-40139b	next_evol	Sinister Intent	https://hallofheroeslcg.com/next-evolution/	https://hallofheroeslcg.com/wp-content/uploads/2023/08/40139b.jpg
-40140a	next_evol	Taking Off	https://hallofheroeslcg.com/next-evolution/	https://hallofheroeslcg.com/wp-content/uploads/2023/08/40140a.jpg
-40140b	next_evol	Taking Off	https://hallofheroeslcg.com/next-evolution/	https://hallofheroeslcg.com/wp-content/uploads/2023/08/40140b.jpg
-40141a	next_evol	Bulking Up	https://hallofheroeslcg.com/next-evolution/	https://hallofheroeslcg.com/wp-content/uploads/2023/08/40141a.jpg
-40141b	next_evol	Bulking Up	https://hallofheroeslcg.com/next-evolution/	https://hallofheroeslcg.com/wp-content/uploads/2023/08/40141b.jpg
-40142a	next_evol	Focusing In	https://hallofheroeslcg.com/next-evolution/	https://hallofheroeslcg.com/wp-content/uploads/2023/08/40142a.jpg
-40142b	next_evol	Focusing In	https://hallofheroeslcg.com/next-evolution/	https://hallofheroeslcg.com/wp-content/uploads/2023/08/40142b.jpg
-40143a	next_evol	Sinister Ends	https://hallofheroeslcg.com/next-evolution/	https://hallofheroeslcg.com/wp-content/uploads/2023/08/40143a.jpg
-40143b	next_evol	Sinister Ends	https://hallofheroeslcg.com/next-evolution/	https://hallofheroeslcg.com/wp-content/uploads/2023/08/40143b.jpg
-40168a	next_evol	Stryfe's Grasp	https://hallofheroeslcg.com/next-evolution/	https://hallofheroeslcg.com/wp-content/uploads/2023/08/40168a.jpg
-40168b	next_evol	Living Bomb	https://hallofheroeslcg.com/next-evolution/	https://hallofheroeslcg.com/wp-content/uploads/2023/08/40168b.jpg
-40190a	next_evol	Assemble the Team	https://hallofheroeslcg.com/next-evolution/	https://hallofheroeslcg.com/wp-content/uploads/2023/08/40190a.jpg
-40190b	next_evol	Team Assembled	https://hallofheroeslcg.com/next-evolution/	https://hallofheroeslcg.com/wp-content/uploads/2023/08/40190b.jpg
-40191a	next_evol	Establish Safehouse	https://hallofheroeslcg.com/next-evolution/	https://hallofheroeslcg.com/wp-content/uploads/2023/08/40191a.jpg
-40191b	next_evol	Safehouse Established	https://hallofheroeslcg.com/next-evolution/	https://hallofheroeslcg.com/wp-content/uploads/2023/08/40191b.jpg
-40192a	next_evol	Gear Up	https://hallofheroeslcg.com/next-evolution/	https://hallofheroeslcg.com/wp-content/uploads/2023/08/40192a.jpg
-40192b	next_evol	Geared Up	https://hallofheroeslcg.com/next-evolution/	https://hallofheroeslcg.com/wp-content/uploads/2023/08/40192b.jpg
-40193a	next_evol	Mission Prep	https://hallofheroeslcg.com/next-evolution/	https://hallofheroeslcg.com/wp-content/uploads/2023/08/40193a.jpg
-40193b	next_evol	Mission Prepped	https://hallofheroeslcg.com/next-evolution/	https://hallofheroeslcg.com/wp-content/uploads/2023/08/40193b.jpg
-40194a	next_evol	Practice Maneuvers	https://hallofheroeslcg.com/next-evolution/	https://hallofheroeslcg.com/wp-content/uploads/2023/08/40194a.jpg
-40194b	next_evol	Practiced Maneuvers	https://hallofheroeslcg.com/next-evolution/	https://hallofheroeslcg.com/wp-content/uploads/2023/08/40194b.jpg
-40195a	next_evol	Prepare Defenses	https://hallofheroeslcg.com/next-evolution/	https://hallofheroeslcg.com/wp-content/uploads/2023/08/40195a.jpg
-40195b	next_evol	Prepared Defenses	https://hallofheroeslcg.com/next-evolution/	https://hallofheroeslcg.com/wp-content/uploads/2023/08/40195b.jpg
-41002a	psylocke	Psi-Knife	https://hallofheroeslcg.com/psylocke-betsy-braddock/	https://hallofheroeslcg.com/wp-content/uploads/2023/10/41002a.jpg
-41002b	psylocke	Psi-Katana	https://hallofheroeslcg.com/psylocke-betsy-braddock/	https://hallofheroeslcg.com/wp-content/uploads/2023/10/41002b.jpg
-45075a	aoa	Pursued by the Past	https://hallofheroeslcg.com/the-age-of-apocalypse/	https://hallofheroeslcg.com/wp-content/uploads/2024/04/45075a.jpg
-45075b	aoa	Pursued by the Past	https://hallofheroeslcg.com/the-age-of-apocalypse/	https://hallofheroeslcg.com/wp-content/uploads/2024/04/45075b.jpg
-45081a	aoa	War	https://hallofheroeslcg.com/the-age-of-apocalypse/	https://hallofheroeslcg.com/wp-content/uploads/2024/04/45081a.jpg
-45081b	aoa	War	https://hallofheroeslcg.com/the-age-of-apocalypse/	https://hallofheroeslcg.com/wp-content/uploads/2024/04/45081b.jpg
-45082a	aoa	Famine	https://hallofheroeslcg.com/the-age-of-apocalypse/	https://hallofheroeslcg.com/wp-content/uploads/2024/04/45082a.jpg
-45082b	aoa	Famine	https://hallofheroeslcg.com/the-age-of-apocalypse/	https://hallofheroeslcg.com/wp-content/uploads/2024/04/45082b.jpg
-45083a	aoa	Pestilence	https://hallofheroeslcg.com/the-age-of-apocalypse/	https://hallofheroeslcg.com/wp-content/uploads/2024/04/45083a.jpg
-45083b	aoa	Pestilence	https://hallofheroeslcg.com/the-age-of-apocalypse/	https://hallofheroeslcg.com/wp-content/uploads/2024/04/45083b.jpg
-45084a	aoa	Death	https://hallofheroeslcg.com/the-age-of-apocalypse/	https://hallofheroeslcg.com/wp-content/uploads/2024/04/45084a.jpg
-45084b	aoa	Death	https://hallofheroeslcg.com/the-age-of-apocalypse/	https://hallofheroeslcg.com/wp-content/uploads/2024/04/45084b.jpg
-45101a	aoa	Apocalypse	https://hallofheroeslcg.com/the-age-of-apocalypse/	https://hallofheroeslcg.com/wp-content/uploads/2024/04/45101a.jpg
-45101b	aoa	Apocalypse	https://hallofheroeslcg.com/the-age-of-apocalypse/	https://hallofheroeslcg.com/wp-content/uploads/2024/04/45101b.jpg
-45102a	aoa	Apocalypse	https://hallofheroeslcg.com/the-age-of-apocalypse/	https://hallofheroeslcg.com/wp-content/uploads/2024/04/45102a.jpg
-45102b	aoa	Apocalypse	https://hallofheroeslcg.com/the-age-of-apocalypse/	https://hallofheroeslcg.com/wp-content/uploads/2024/04/45102b.jpg
-45104a	aoa	Heart of the Empire	https://hallofheroeslcg.com/the-age-of-apocalypse/	https://hallofheroeslcg.com/wp-content/uploads/2024/04/45104a.jpg
-45105a	aoa	The Tyrant's Throne	https://hallofheroeslcg.com/the-age-of-apocalypse/	https://hallofheroeslcg.com/wp-content/uploads/2024/04/45105a.jpg
-45105b	aoa	No Longer Worthy	https://hallofheroeslcg.com/the-age-of-apocalypse/	https://hallofheroeslcg.com/wp-content/uploads/2024/04/45105b.jpg
-45166a	aoa	Liberate the Seattle Core	https://hallofheroeslcg.com/the-age-of-apocalypse/	https://hallofheroeslcg.com/wp-content/uploads/2024/04/45166a.jpg
-45166b	aoa	Liberate the Seattle Core	https://hallofheroeslcg.com/the-age-of-apocalypse/	https://hallofheroeslcg.com/wp-content/uploads/2024/04/45166b.jpg
-45167a	aoa	Evacuate Survivors	https://hallofheroeslcg.com/the-age-of-apocalypse/	https://hallofheroeslcg.com/wp-content/uploads/2024/04/45167a.jpg
-45167b	aoa	Evacuate Survivors	https://hallofheroeslcg.com/the-age-of-apocalypse/	https://hallofheroeslcg.com/wp-content/uploads/2024/04/45167b.jpg
-45168a	aoa	Sabotage the Sea Wall	https://hallofheroeslcg.com/the-age-of-apocalypse/	https://hallofheroeslcg.com/wp-content/uploads/2024/04/45168a.jpg
-45168b	aoa	Sabotage the Sea Wall	https://hallofheroeslcg.com/the-age-of-apocalypse/	https://hallofheroeslcg.com/wp-content/uploads/2024/04/45168b.jpg
-45169a	aoa	Find Lost Mutants	https://hallofheroeslcg.com/the-age-of-apocalypse/	https://hallofheroeslcg.com/wp-content/uploads/2024/04/45169a.jpg
-45169b	aoa	Find Lost Mutants	https://hallofheroeslcg.com/the-age-of-apocalypse/	https://hallofheroeslcg.com/wp-content/uploads/2024/04/45169b.jpg
-45170a	aoa	Protect the Professor	https://hallofheroeslcg.com/the-age-of-apocalypse/	https://hallofheroeslcg.com/wp-content/uploads/2024/04/45170a.jpg
-45170b	aoa	Protect the Professor	https://hallofheroeslcg.com/the-age-of-apocalypse/	https://hallofheroeslcg.com/wp-content/uploads/2024/04/45170b.jpg
-45171a	aoa	Mission Team	https://hallofheroeslcg.com/the-age-of-apocalypse/	https://hallofheroeslcg.com/wp-content/uploads/2024/04/45171a.jpg
-45171b	aoa	Mission Team	https://hallofheroeslcg.com/the-age-of-apocalypse/	https://hallofheroeslcg.com/wp-content/uploads/2024/04/45171b.jpg
-45179a	aoa	Mister Sinister	https://hallofheroeslcg.com/the-age-of-apocalypse/	https://hallofheroeslcg.com/wp-content/uploads/2024/04/45179a.jpg
-45179b	aoa	Mister Sinister	https://hallofheroeslcg.com/the-age-of-apocalypse/	https://hallofheroeslcg.com/wp-content/uploads/2024/04/45179b.jpg
-45180a	aoa	The Shadow King	https://hallofheroeslcg.com/the-age-of-apocalypse/	https://hallofheroeslcg.com/wp-content/uploads/2024/04/45180a.jpg
-45180b	aoa	The Shadow King	https://hallofheroeslcg.com/the-age-of-apocalypse/	https://hallofheroeslcg.com/wp-content/uploads/2024/04/45180b.jpg
-45181a	aoa	Abyss	https://hallofheroeslcg.com/the-age-of-apocalypse/	https://hallofheroeslcg.com/wp-content/uploads/2024/04/45181a.jpg
-45181b	aoa	Abyss	https://hallofheroeslcg.com/the-age-of-apocalypse/	https://hallofheroeslcg.com/wp-content/uploads/2024/04/45181b.jpg
-45182a	aoa	Sugar Man	https://hallofheroeslcg.com/the-age-of-apocalypse/	https://hallofheroeslcg.com/wp-content/uploads/2024/04/45182a.jpg
-45182b	aoa	Sugar Man	https://hallofheroeslcg.com/the-age-of-apocalypse/	https://hallofheroeslcg.com/wp-content/uploads/2024/04/45182b.jpg
-45183a	aoa	Mikhail Rasputin	https://hallofheroeslcg.com/the-age-of-apocalypse/	https://hallofheroeslcg.com/wp-content/uploads/2024/04/45183a.jpg
-45183b	aoa	Mikhail Rasputin	https://hallofheroeslcg.com/the-age-of-apocalypse/	https://hallofheroeslcg.com/wp-content/uploads/2024/04/45183b.jpg
-45184a	aoa	Apocalypse	https://hallofheroeslcg.com/the-age-of-apocalypse/	https://hallofheroeslcg.com/wp-content/uploads/2024/04/45184a.jpg
-45184b	aoa	Apocalypse	https://hallofheroeslcg.com/the-age-of-apocalypse/	https://hallofheroeslcg.com/wp-content/uploads/2024/04/45184b.jpg
-45184c	aoa	Apocalypse	https://hallofheroeslcg.com/the-age-of-apocalypse/	https://hallofheroeslcg.com/wp-content/uploads/2024/04/45184c.jpg
-45185a	aoa	Apocalypse	https://hallofheroeslcg.com/the-age-of-apocalypse/	https://hallofheroeslcg.com/wp-content/uploads/2024/04/45185a.jpg
-45185b	aoa	Apocalypse	https://hallofheroeslcg.com/the-age-of-apocalypse/	https://hallofheroeslcg.com/wp-content/uploads/2024/04/45185b.jpg
-45185c	aoa	Apocalypse	https://hallofheroeslcg.com/the-age-of-apocalypse/	https://hallofheroeslcg.com/wp-content/uploads/2024/04/45185c.jpg
-45186a	aoa	Apocalypse	https://hallofheroeslcg.com/the-age-of-apocalypse/	https://hallofheroeslcg.com/wp-content/uploads/2024/04/45186a.jpg
-45186b	aoa	Apocalypse	https://hallofheroeslcg.com/the-age-of-apocalypse/	https://hallofheroeslcg.com/wp-content/uploads/2024/04/45186b.jpg
-45186c	aoa	Apocalypse	https://hallofheroeslcg.com/the-age-of-apocalypse/	https://hallofheroeslcg.com/wp-content/uploads/2024/04/45186c.jpg
-47007a	jubilee	Firecracker	https://hallofheroeslcg.com/jubilee-jubilation-lee/	https://hallofheroeslcg.com/wp-content/uploads/2024/07/47007a.jpg
-47007b	jubilee	Firecracker	https://hallofheroeslcg.com/jubilee-jubilation-lee/	https://hallofheroeslcg.com/wp-content/uploads/2024/07/47007b.jpg
-47007c	jubilee	Firecracker	https://hallofheroeslcg.com/jubilee-jubilation-lee/	https://hallofheroeslcg.com/wp-content/uploads/2024/07/47007c.jpg
-47008a	jubilee	Flash of Light	https://hallofheroeslcg.com/jubilee-jubilation-lee/	https://hallofheroeslcg.com/wp-content/uploads/2024/07/47008a.jpg
-47008b	jubilee	Flash of Light	https://hallofheroeslcg.com/jubilee-jubilation-lee/	https://hallofheroeslcg.com/wp-content/uploads/2024/07/47008b.jpg
-47008c	jubilee	Flash of Light	https://hallofheroeslcg.com/jubilee-jubilation-lee/	https://hallofheroeslcg.com/wp-content/uploads/2024/07/47008c.jpg
-47010a	jubilee	Plasmoid Energy	https://hallofheroeslcg.com/jubilee-jubilation-lee/	https://hallofheroeslcg.com/wp-content/uploads/2024/07/47010a.jpg
-47010b	jubilee	Plasmoid Energy	https://hallofheroeslcg.com/jubilee-jubilation-lee/	https://hallofheroeslcg.com/wp-content/uploads/2024/07/47010b.jpg
-47010c	jubilee	Plasmoid Energy	https://hallofheroeslcg.com/jubilee-jubilation-lee/	https://hallofheroeslcg.com/wp-content/uploads/2024/07/47010c.jpg
-50035a	aos	Assault	https://hallofheroeslcg.com/agents-of-shield/	https://hallofheroeslcg.com/wp-content/uploads/2025/03/50035a.jpg
-50035b	aos	Stealth	https://hallofheroeslcg.com/agents-of-shield/	https://hallofheroeslcg.com/wp-content/uploads/2025/03/50035b.jpg
-50067a	aos	The Widow's Web	https://hallofheroeslcg.com/agents-of-shield/	https://hallofheroeslcg.com/wp-content/uploads/2025/03/50067a.jpg
-50067b	aos	The Widow's Web	https://hallofheroeslcg.com/agents-of-shield/	https://hallofheroeslcg.com/wp-content/uploads/2025/03/50067b.jpg
-50086a	aos	Batroc	https://hallofheroeslcg.com/agents-of-shield/	https://hallofheroeslcg.com/wp-content/uploads/2025/03/50086a.jpg
-50086b	aos	Batroc	https://hallofheroeslcg.com/agents-of-shield/	https://hallofheroeslcg.com/wp-content/uploads/2025/03/50086b.jpg
-50087a	aos	Infiltrate A.I.M. Island Embassy	https://hallofheroeslcg.com/agents-of-shield/	https://hallofheroeslcg.com/wp-content/uploads/2025/03/50087a.jpg
-50087b	aos	Infiltrate A.I.M. Island Embassy	https://hallofheroeslcg.com/agents-of-shield/	https://hallofheroeslcg.com/wp-content/uploads/2025/03/50087b.jpg
-50088a	aos	Locate Missing Person	https://hallofheroeslcg.com/agents-of-shield/	https://hallofheroeslcg.com/wp-content/uploads/2025/03/50088a.jpg
-50088b	aos	Locate Missing Person	https://hallofheroeslcg.com/agents-of-shield/	https://hallofheroeslcg.com/wp-content/uploads/2025/03/50088b.jpg
-50089a	aos	Extract Captives	https://hallofheroeslcg.com/agents-of-shield/	https://hallofheroeslcg.com/wp-content/uploads/2025/03/50089a.jpg
-50089b	aos	Extract Captives	https://hallofheroeslcg.com/agents-of-shield/	https://hallofheroeslcg.com/wp-content/uploads/2025/03/50089b.jpg
-50090a	aos	Alert Level	https://hallofheroeslcg.com/agents-of-shield/	https://hallofheroeslcg.com/wp-content/uploads/2025/03/50090a.jpg
-50090b	aos	Alert Level	https://hallofheroeslcg.com/agents-of-shield/	https://hallofheroeslcg.com/wp-content/uploads/2025/03/50090b.jpg
-50103a	aos	M.O.D.O.K.	https://hallofheroeslcg.com/agents-of-shield/	https://hallofheroeslcg.com/wp-content/uploads/2025/03/50103a.jpg
-50103b	aos	M.O.D.O.K.	https://hallofheroeslcg.com/agents-of-shield/	https://hallofheroeslcg.com/wp-content/uploads/2025/03/50103b.jpg
-50104a	aos	Upgrading Adaptoids	https://hallofheroeslcg.com/agents-of-shield/	https://hallofheroeslcg.com/wp-content/uploads/2025/03/50104a.jpg
-50104b	aos	Upgrading Adaptoids	https://hallofheroeslcg.com/agents-of-shield/	https://hallofheroeslcg.com/wp-content/uploads/2025/03/50104b.jpg
-50105a	aos	Holding Cell	https://hallofheroeslcg.com/agents-of-shield/	https://hallofheroeslcg.com/wp-content/uploads/2025/03/50105a.jpg
-50105b	aos	Flying Inhuman	https://hallofheroeslcg.com/agents-of-shield/	https://hallofheroeslcg.com/wp-content/uploads/2025/03/50105b.jpg
-50106a	aos	Holding Cell	https://hallofheroeslcg.com/agents-of-shield/	https://hallofheroeslcg.com/wp-content/uploads/2025/03/50106a.jpg
-50106b	aos	Psionic Inhuman	https://hallofheroeslcg.com/agents-of-shield/	https://hallofheroeslcg.com/wp-content/uploads/2025/03/50106b.jpg
-50107a	aos	Holding Cell	https://hallofheroeslcg.com/agents-of-shield/	https://hallofheroeslcg.com/wp-content/uploads/2025/03/50107a.jpg
-50107b	aos	Sarah Garza	https://hallofheroeslcg.com/agents-of-shield/	https://hallofheroeslcg.com/wp-content/uploads/2025/03/50107b.jpg
-50108a	aos	Holding Cell	https://hallofheroeslcg.com/agents-of-shield/	https://hallofheroeslcg.com/wp-content/uploads/2025/03/50108a.jpg
-50108b	aos	Strong Inhuman	https://hallofheroeslcg.com/agents-of-shield/	https://hallofheroeslcg.com/wp-content/uploads/2025/03/50108b.jpg
-50129a	aos	Citizen V	https://hallofheroeslcg.com/agents-of-shield/	https://hallofheroeslcg.com/wp-content/uploads/2025/03/50129a.jpg
-50129b	aos	Citizen V	https://hallofheroeslcg.com/agents-of-shield/	https://hallofheroeslcg.com/wp-content/uploads/2025/03/50129b.jpg
-50130a	aos	Apprehending Rogue Agents	https://hallofheroeslcg.com/agents-of-shield/	https://hallofheroeslcg.com/wp-content/uploads/2025/03/50130a.jpg
-50130b	aos	Apprehending Rogue Agents	https://hallofheroeslcg.com/agents-of-shield/	https://hallofheroeslcg.com/wp-content/uploads/2025/03/50130b.jpg
-50131a	aos	Justice, Like Lightning	https://hallofheroeslcg.com/agents-of-shield/	https://hallofheroeslcg.com/wp-content/uploads/2025/03/50131a.jpg
-50131b	aos	Thunderbolt Backup	https://hallofheroeslcg.com/agents-of-shield/	https://hallofheroeslcg.com/wp-content/uploads/2025/03/50131b.jpg
-50165a	aos	Baron Zemo	https://hallofheroeslcg.com/agents-of-shield/	https://hallofheroeslcg.com/wp-content/uploads/2025/03/50165a.jpg
-50165b	aos	Baron Zemo	https://hallofheroeslcg.com/agents-of-shield/	https://hallofheroeslcg.com/wp-content/uploads/2025/03/50165b.jpg
-50166a	aos	Baron Zemo	https://hallofheroeslcg.com/agents-of-shield/	https://hallofheroeslcg.com/wp-content/uploads/2025/03/50166a.jpg
-50166b	aos	Baron Zemo	https://hallofheroeslcg.com/agents-of-shield/	https://hallofheroeslcg.com/wp-content/uploads/2025/03/50166b.jpg
-50167a	aos	Zemo's Manipulations	https://hallofheroeslcg.com/agents-of-shield/	https://hallofheroeslcg.com/wp-content/uploads/2025/03/50167a.jpg
-50167b	aos	Zemo's Manipulations	https://hallofheroeslcg.com/agents-of-shield/	https://hallofheroeslcg.com/wp-content/uploads/2025/03/50167b.jpg
-50168a	aos	The Accusation	https://hallofheroeslcg.com/agents-of-shield/	https://hallofheroeslcg.com/wp-content/uploads/2025/03/50168a.jpg
-50168b	aos	The Accusation	https://hallofheroeslcg.com/agents-of-shield/	https://hallofheroeslcg.com/wp-content/uploads/2025/03/50168b.jpg
-50169a	aos	Fighting Zemo	https://hallofheroeslcg.com/agents-of-shield/	https://hallofheroeslcg.com/wp-content/uploads/2025/03/50169a.jpg
-50169b	aos	Fighting Zemo	https://hallofheroeslcg.com/agents-of-shield/	https://hallofheroeslcg.com/wp-content/uploads/2025/03/50169b.jpg
-50181a	aos	Chief Medical Officer	https://hallofheroeslcg.com/agents-of-shield/	https://hallofheroeslcg.com/wp-content/uploads/2025/03/50181a.jpg
-50181b	aos	Medical Officer's Aid	https://hallofheroeslcg.com/agents-of-shield/	https://hallofheroeslcg.com/wp-content/uploads/2025/03/50181b.jpg
-50182a	aos	Chief Surveillance Officer	https://hallofheroeslcg.com/agents-of-shield/	https://hallofheroeslcg.com/wp-content/uploads/2025/03/50182a.jpg
-50182b	aos	Surveillance Officer's Aid	https://hallofheroeslcg.com/agents-of-shield/	https://hallofheroeslcg.com/wp-content/uploads/2025/03/50182b.jpg
-50183a	aos	Chief Tactical Officer	https://hallofheroeslcg.com/agents-of-shield/	https://hallofheroeslcg.com/wp-content/uploads/2025/03/50183a.jpg
-50183b	aos	Tactical Officer's Aid	https://hallofheroeslcg.com/agents-of-shield/	https://hallofheroeslcg.com/wp-content/uploads/2025/03/50183b.jpg
-50184a	aos	A.I.M. Interference ([energy])	https://hallofheroeslcg.com/agents-of-shield/	https://hallofheroeslcg.com/wp-content/uploads/2025/03/50184a.jpg
-50184b	aos	A.I.M. Interference ([mental])	https://hallofheroeslcg.com/agents-of-shield/	https://hallofheroeslcg.com/wp-content/uploads/2025/03/50184b.jpg
-50184c	aos	A.I.M. Interference ([physical])	https://hallofheroeslcg.com/agents-of-shield/	https://hallofheroeslcg.com/wp-content/uploads/2025/03/50184c.jpg
-55004a	tt	Prime Real Estate	https://hallofheroeslcg.com/trickster-takeover/	https://hallofheroeslcg.com/wp-content/uploads/2025/08/55004a.jpg
-55004b	tt	Prime Real Estate	https://hallofheroeslcg.com/trickster-takeover/	https://hallofheroeslcg.com/wp-content/uploads/2025/08/55004b.jpg
-55005a	tt	Sovereign Sorceress	https://hallofheroeslcg.com/trickster-takeover/	https://hallofheroeslcg.com/wp-content/uploads/2025/08/55005a.jpg
-55005b	tt	Sovereign Sorceress	https://hallofheroeslcg.com/trickster-takeover/	https://hallofheroeslcg.com/wp-content/uploads/2025/08/55005b.jpg
-55007a	tt	Hypnotic Gaze	https://hallofheroeslcg.com/trickster-takeover/	https://hallofheroeslcg.com/wp-content/uploads/2025/08/55007a.jpg
-55007b	tt	Trance of Envy	https://hallofheroeslcg.com/trickster-takeover/	https://hallofheroeslcg.com/wp-content/uploads/2025/08/55007b.jpg
-55008a	tt	Hypnotic Gaze	https://hallofheroeslcg.com/trickster-takeover/	https://hallofheroeslcg.com/wp-content/uploads/2025/08/55008a.jpg
-55008b	tt	Trance of Greed	https://hallofheroeslcg.com/trickster-takeover/	https://hallofheroeslcg.com/wp-content/uploads/2025/08/55008b.jpg
-55009a	tt	Hypnotic Gaze	https://hallofheroeslcg.com/trickster-takeover/	https://hallofheroeslcg.com/wp-content/uploads/2025/08/55009a.jpg
-55009b	tt	Trance of Pride	https://hallofheroeslcg.com/trickster-takeover/	https://hallofheroeslcg.com/wp-content/uploads/2025/08/55009b.jpg
-55010a	tt	Hypnotic Gaze	https://hallofheroeslcg.com/trickster-takeover/	https://hallofheroeslcg.com/wp-content/uploads/2025/08/55010a.jpg
-55010b	tt	Trance of Sloth	https://hallofheroeslcg.com/trickster-takeover/	https://hallofheroeslcg.com/wp-content/uploads/2025/08/55010b.jpg
-55011a	tt	Hypnotic Gaze	https://hallofheroeslcg.com/trickster-takeover/	https://hallofheroeslcg.com/wp-content/uploads/2025/08/55011a.jpg
-55011b	tt	Trance of Wrath	https://hallofheroeslcg.com/trickster-takeover/	https://hallofheroeslcg.com/wp-content/uploads/2025/08/55011b.jpg
-55027a	tt	Loki, God of Lies	https://hallofheroeslcg.com/trickster-takeover/	https://hallofheroeslcg.com/wp-content/uploads/2025/08/55027a.jpg
-55027b	tt	Loki, God of Lies	https://hallofheroeslcg.com/trickster-takeover/	https://hallofheroeslcg.com/wp-content/uploads/2025/08/55027b.jpg
-55028a	tt	Worlds Collide	https://hallofheroeslcg.com/trickster-takeover/	https://hallofheroeslcg.com/wp-content/uploads/2025/08/55028a.jpg
-55028b	tt	Worlds Collide	https://hallofheroeslcg.com/trickster-takeover/	https://hallofheroeslcg.com/wp-content/uploads/2025/08/55028b.jpg
-55029a	tt	Loki the Rascal	https://hallofheroeslcg.com/trickster-takeover/	https://hallofheroeslcg.com/wp-content/uploads/2025/08/55029a.jpg
-55029b	tt	Fading Figment	https://hallofheroeslcg.com/trickster-takeover/	https://hallofheroeslcg.com/wp-content/uploads/2025/08/55029b.jpg
-55030a	tt	Loki the Miscreant	https://hallofheroeslcg.com/trickster-takeover/	https://hallofheroeslcg.com/wp-content/uploads/2025/08/55030a.jpg
-55030b	tt	Fading Figment	https://hallofheroeslcg.com/trickster-takeover/	https://hallofheroeslcg.com/wp-content/uploads/2025/08/55030b.jpg
-55031a	tt	Loki the Knave	https://hallofheroeslcg.com/trickster-takeover/	https://hallofheroeslcg.com/wp-content/uploads/2025/08/55031a.jpg
-55031b	tt	Fading Figment	https://hallofheroeslcg.com/trickster-takeover/	https://hallofheroeslcg.com/wp-content/uploads/2025/08/55031b.jpg
-55032a	tt	Loki the Wretch	https://hallofheroeslcg.com/trickster-takeover/	https://hallofheroeslcg.com/wp-content/uploads/2025/08/55032a.jpg
-55032b	tt	Fading Figment	https://hallofheroeslcg.com/trickster-takeover/	https://hallofheroeslcg.com/wp-content/uploads/2025/08/55032b.jpg
-55033a	tt	Mischief and Mayhem	https://hallofheroeslcg.com/trickster-takeover/	https://hallofheroeslcg.com/wp-content/uploads/2025/08/55033a.jpg
-55033b	tt	Mischief and Mayhem	https://hallofheroeslcg.com/trickster-takeover/	https://hallofheroeslcg.com/wp-content/uploads/2025/08/55033b.jpg
-55034a	tt	Intense Focus	https://hallofheroeslcg.com/trickster-takeover/	https://hallofheroeslcg.com/wp-content/uploads/2025/08/55034a.jpg
-55034b	tt	Total Focus	https://hallofheroeslcg.com/trickster-takeover/	https://hallofheroeslcg.com/wp-content/uploads/2025/08/55034b.jpg
-56063a	cw	Superhero Registration Act	https://hallofheroeslcg.com/civil-war/	https://hallofheroeslcg.com/wp-content/uploads/2025/11/56063a.jpg
-56063b	cw	Cut Off Support	https://hallofheroeslcg.com/civil-war/	https://hallofheroeslcg.com/wp-content/uploads/2025/11/56063b.jpg
-56064a	cw	Pro-Registration Tactics	https://hallofheroeslcg.com/civil-war/	https://hallofheroeslcg.com/wp-content/uploads/2025/11/56064a.jpg
-56064b	cw	Negative Zone Prison	https://hallofheroeslcg.com/civil-war/	https://hallofheroeslcg.com/wp-content/uploads/2025/11/56064b.jpg
-56096a	cw	Superhero Registration Act	https://hallofheroeslcg.com/civil-war/	https://hallofheroeslcg.com/wp-content/uploads/2025/11/56096a.jpg
-56096b	cw	S.H.I.E.L.D. Recruits	https://hallofheroeslcg.com/civil-war/	https://hallofheroeslcg.com/wp-content/uploads/2025/11/56096b.jpg
-56097a	cw	Pro-Registration Tactics	https://hallofheroeslcg.com/civil-war/	https://hallofheroeslcg.com/wp-content/uploads/2025/11/56097a.jpg
-56097b	cw	Hunting Rebel Heroes	https://hallofheroeslcg.com/civil-war/	https://hallofheroeslcg.com/wp-content/uploads/2025/11/56097b.jpg
-56121a	cw	Superhero Registration Act	https://hallofheroeslcg.com/civil-war/	https://hallofheroeslcg.com/wp-content/uploads/2025/11/56121a.jpg
-56121b	cw	Homeland Security	https://hallofheroeslcg.com/civil-war/	https://hallofheroeslcg.com/wp-content/uploads/2025/11/56121b.jpg
-56122a	cw	Superhero Registration Act	https://hallofheroeslcg.com/civil-war/	https://hallofheroeslcg.com/wp-content/uploads/2025/11/56122a.jpg
-56122b	cw	Public Outrage	https://hallofheroeslcg.com/civil-war/	https://hallofheroeslcg.com/wp-content/uploads/2025/11/56122b.jpg
-56123a	cw	Pro-Registration Tactics	https://hallofheroeslcg.com/civil-war/	https://hallofheroeslcg.com/wp-content/uploads/2025/11/56123a.jpg
-56123b	cw	The Initiative	https://hallofheroeslcg.com/civil-war/	https://hallofheroeslcg.com/wp-content/uploads/2025/11/56123b.jpg
-56124a	cw	Pro-Registration Tactics	https://hallofheroeslcg.com/civil-war/	https://hallofheroeslcg.com/wp-content/uploads/2025/11/56124a.jpg
-56124b	cw	No Going Back	https://hallofheroeslcg.com/civil-war/	https://hallofheroeslcg.com/wp-content/uploads/2025/11/56124b.jpg
-56128a	cw	Choosing Sides	https://hallofheroeslcg.com/civil-war/	https://hallofheroeslcg.com/wp-content/uploads/2025/11/56128a.jpg
-56141a	cw	Superhero Resistance	https://hallofheroeslcg.com/civil-war/	https://hallofheroeslcg.com/wp-content/uploads/2025/11/56141a.jpg
-56141b	cw	Gathering Support	https://hallofheroeslcg.com/civil-war/	https://hallofheroeslcg.com/wp-content/uploads/2025/11/56141b.jpg
-56142a	cw	Resistance Tactics	https://hallofheroeslcg.com/civil-war/	https://hallofheroeslcg.com/wp-content/uploads/2025/11/56142a.jpg
-56142b	cw	Secret Avengers	https://hallofheroeslcg.com/civil-war/	https://hallofheroeslcg.com/wp-content/uploads/2025/11/56142b.jpg
-56172a	cw	Superhero Resistance	https://hallofheroeslcg.com/civil-war/	https://hallofheroeslcg.com/wp-content/uploads/2025/11/56172a.jpg
-56172b	cw	Open Rebellion	https://hallofheroeslcg.com/civil-war/	https://hallofheroeslcg.com/wp-content/uploads/2025/11/56172b.jpg
-56173a	cw	Resistance Tactics	https://hallofheroeslcg.com/civil-war/	https://hallofheroeslcg.com/wp-content/uploads/2025/11/56173a.jpg
-56173b	cw	Neighborhood Protectors	https://hallofheroeslcg.com/civil-war/	https://hallofheroeslcg.com/wp-content/uploads/2025/11/56173b.jpg
-56199a	cw	Superhero Resistance	https://hallofheroeslcg.com/civil-war/	https://hallofheroeslcg.com/wp-content/uploads/2025/11/56199a.jpg
-56199b	cw	Rallying Call	https://hallofheroeslcg.com/civil-war/	https://hallofheroeslcg.com/wp-content/uploads/2025/11/56199b.jpg
-56200a	cw	Superhero Resistance	https://hallofheroeslcg.com/civil-war/	https://hallofheroeslcg.com/wp-content/uploads/2025/11/56200a.jpg
-56200b	cw	Going Underground	https://hallofheroeslcg.com/civil-war/	https://hallofheroeslcg.com/wp-content/uploads/2025/11/56200b.jpg
-56201a	cw	Resistance Tactics	https://hallofheroeslcg.com/civil-war/	https://hallofheroeslcg.com/wp-content/uploads/2025/11/56201a.jpg
-56201b	cw	Guerilla Warfare	https://hallofheroeslcg.com/civil-war/	https://hallofheroeslcg.com/wp-content/uploads/2025/11/56201b.jpg
-56202a	cw	Resistance Tactics	https://hallofheroeslcg.com/civil-war/	https://hallofheroeslcg.com/wp-content/uploads/2025/11/56202a.jpg
-56202b	cw	Superhero Jailbreak	https://hallofheroeslcg.com/civil-war/	https://hallofheroeslcg.com/wp-content/uploads/2025/11/56202b.jpg
-56206b	cw	Now It's Personal	https://hallofheroeslcg.com/civil-war/	https://hallofheroeslcg.com/wp-content/uploads/2025/11/56206b.jpg
-57046a	synthezoid	Dense	https://hallofheroeslcg.com/synthezoid-smackdown/	https://hallofheroeslcg.com/wp-content/uploads/2026/03/57046a.jpg
-57046b	synthezoid	Intangible	https://hallofheroeslcg.com/synthezoid-smackdown/	https://hallofheroeslcg.com/wp-content/uploads/2026/03/57046b.jpg
-60040a	fne	Photographic Reflexes	https://hallofheroeslcg.com/fear-no-evil/	https://hallofheroeslcg.com/wp-content/uploads/2026/08/60040a.jpg
-60040b	fne	Photographic Reflexes	https://hallofheroeslcg.com/fear-no-evil/	https://hallofheroeslcg.com/wp-content/uploads/2026/08/60040b.jpg
-60040c	fne	Photographic Reflexes	https://hallofheroeslcg.com/fear-no-evil/	https://hallofheroeslcg.com/wp-content/uploads/2026/08/60040c.jpg
-61002	jj	Alias Investigations	https://hallofheroeslcg.com/jessica-jones/	https://hallofheroeslcg.com/wp-content/uploads/2026/05/mc61_cards_alias-investigations.png
-61003	jj	Luke Cage	https://hallofheroeslcg.com/jessica-jones/	https://hallofheroeslcg.com/wp-content/uploads/2026/05/mc61_cards_luke-cage.png
-61004	jj	"Big Mistake"	https://hallofheroeslcg.com/jessica-jones/	https://hallofheroeslcg.com/wp-content/uploads/2026/05/mc61_cards_big-mistake.png
-61005	jj	Breakthrough	https://hallofheroeslcg.com/jessica-jones/	https://hallofheroeslcg.com/wp-content/uploads/2026/05/mc61_cards_breakthrough.png
-61006	jj	Snooping Around	https://hallofheroeslcg.com/jessica-jones/	https://hallofheroeslcg.com/wp-content/uploads/2026/05/mc61_cards_snooping-around.png
-61008	jj	Calling in Favors	https://hallofheroeslcg.com/jessica-jones/	https://hallofheroeslcg.com/wp-content/uploads/2026/05/mc61_cards_calling-in-favors.png
-61009	jj	4K Digital Camcorder	https://hallofheroeslcg.com/jessica-jones/	https://hallofheroeslcg.com/wp-content/uploads/2026/05/mc61_cards_4k-digital-camcorder.png
-61010	jj	Circumstantial Evidence	https://hallofheroeslcg.com/jessica-jones/	https://hallofheroeslcg.com/wp-content/uploads/2026/05/mc61_cards_circumstantial-evidence.png
-61011	jj	Leather Jacket	https://hallofheroeslcg.com/jessica-jones/	https://hallofheroeslcg.com/wp-content/uploads/2026/05/mc61_cards_leather-jacket.png
-61014	jj	Stakeout	https://hallofheroeslcg.com/jessica-jones/	https://hallofheroeslcg.com/wp-content/uploads/2026/05/mc61_cards_stakeout.png
-61015	jj	Captain Marvel	https://hallofheroeslcg.com/jessica-jones/	https://hallofheroeslcg.com/wp-content/uploads/2026/05/mc61_cards_captain-marvel.png
-61017	jj	Squirrel Girl	https://hallofheroeslcg.com/jessica-jones/	https://hallofheroeslcg.com/wp-content/uploads/2026/05/mc61_cards_squirrel-girl.png
-61019	jj	Strategy Session	https://hallofheroeslcg.com/jessica-jones/	https://hallofheroeslcg.com/wp-content/uploads/2026/05/mc61_cards_strategy-session.png
-61020	jj	Run Them to Ground	https://hallofheroeslcg.com/jessica-jones/	https://hallofheroeslcg.com/wp-content/uploads/2026/05/mc61_cards_run-them-to-ground.png
-61023	jj	Grapnel Launcher	https://hallofheroeslcg.com/jessica-jones/	https://hallofheroeslcg.com/wp-content/uploads/2026/05/mc61_cards_grapnel-launcher.png
-61024	jj	Entrapment	https://hallofheroeslcg.com/jessica-jones/	https://hallofheroeslcg.com/wp-content/uploads/2026/05/mc61_cards_entrapment.png
-61026	jj	Joys of Life	https://hallofheroeslcg.com/jessica-jones/	https://hallofheroeslcg.com/wp-content/uploads/2026/05/mc61_cards_joys-of-life.png
-61027	jj	Unbreakable Bond	https://hallofheroeslcg.com/jessica-jones/	https://hallofheroeslcg.com/wp-content/uploads/2026/05/mc61_cards_unbreakable-bond.png
-61029	jj	Defend Our City	https://hallofheroeslcg.com/jessica-jones/	https://hallofheroeslcg.com/wp-content/uploads/2026/05/mc61_cards_defend-our-city.png
-62002	luke_cage	Jessica Jones	https://hallofheroeslcg.com/luke-cage/	https://hallofheroeslcg.com/wp-content/uploads/2026/06/mc62_luke-cage_jessica-jones.png
-62004	luke_cage	Knuckle Sandwich	https://hallofheroeslcg.com/luke-cage/	https://hallofheroeslcg.com/wp-content/uploads/2026/06/mc62_luke-cage_knuckle-sandwich.png
-62005	luke_cage	"Stand with Me!"	https://hallofheroeslcg.com/luke-cage/	https://hallofheroeslcg.com/wp-content/uploads/2026/06/mc62_luke-cage_stand-with-me.png
-62006	luke_cage	"Sweet Christmas!"	https://hallofheroeslcg.com/luke-cage/	https://hallofheroeslcg.com/wp-content/uploads/2026/06/mc62_luke-cage_sweet-christmas.png
-62011	luke_cage	Power Man	https://hallofheroeslcg.com/luke-cage/	https://hallofheroeslcg.com/wp-content/uploads/2026/06/mc62_luke-cage_power-man.png
-62013	luke_cage	Misty Knight	https://hallofheroeslcg.com/luke-cage/	https://hallofheroeslcg.com/wp-content/uploads/2026/06/mc62_luke-cage_misty-knight.png
-62015	luke_cage	Take a Stand	https://hallofheroeslcg.com/luke-cage/	https://hallofheroeslcg.com/wp-content/uploads/2026/06/mc62_luke-cage_take-a-stand.png
-62018	luke_cage	Defensive Formation	https://hallofheroeslcg.com/luke-cage/	https://hallofheroeslcg.com/wp-content/uploads/2026/06/mc62_luke-cage_defensive-formation.png
-62019	luke_cage	Righteous Purpose	https://hallofheroeslcg.com/luke-cage/	https://hallofheroeslcg.com/wp-content/uploads/2026/06/mc62_luke-cage_righteous-purpose.png
-62022	luke_cage	Dynamic Duo	https://hallofheroeslcg.com/luke-cage/	https://hallofheroeslcg.com/wp-content/uploads/2026/06/mc62_luke-cage_dynamic-duo.png
+# Card images fetched from Hall of Heroes (hallofheroeslcg.com) by scripts/fetch_card_art.py: scans MarvelCDB
+# does not publish, and better copies of ones it does (larger, or free of the FFG preview watermark).
+# Saved over bundles/cards/<code>.<ext> in the local file's format, scaled to at most a 1100px long edge.
+# Rows fetched on 2026-09-19 or earlier were scaled to a 419px long edge.
+code	pack	name	source_page	image_url	fetched
+01117b	core	Secret Rendezvous	https://hallofheroeslcg.com/core-set-2/	https://hallofheroeslcg.com/wp-content/uploads/2019/12/klaw5b.jpg	2026-09-26
+01138b	core	Assault on NORAD	https://hallofheroeslcg.com/core-set-2/	https://hallofheroeslcg.com/wp-content/uploads/2019/12/ultron5b.jpg	2026-09-26
+01139b	core	Countdown to Oblivion	https://hallofheroeslcg.com/core-set-2/	https://hallofheroeslcg.com/wp-content/uploads/2019/12/ultron6b.jpg	2026-09-26
+02002a	gob	Norman Osborn	https://hallofheroeslcg.com/green-goblin/	https://hallofheroeslcg.com/wp-content/uploads/2019/12/risky2a.jpg	2026-09-26
+02003a	gob	Norman Osborn	https://hallofheroeslcg.com/green-goblin/	https://hallofheroeslcg.com/wp-content/uploads/2019/12/risky3a.jpg	2026-09-26
+02018a	gob	Mutagen Cloud	https://hallofheroeslcg.com/green-goblin/	https://hallofheroeslcg.com/wp-content/uploads/2019/12/mutagen5b.jpg	2026-09-26
+04061b	trors	Attack on Mount Athena	https://hallofheroeslcg.com/the-rise-of-red-skull/	https://hallofheroeslcg.com/wp-content/uploads/2020/09/c4b.jpg	2026-09-26
+04062b	trors	The Infinity Stone	https://hallofheroeslcg.com/the-rise-of-red-skull/	https://hallofheroeslcg.com/wp-content/uploads/2020/09/c5b.jpg	2026-09-26
+04063b	trors	The Getaway	https://hallofheroeslcg.com/the-rise-of-red-skull/	https://hallofheroeslcg.com/wp-content/uploads/2020/09/c6b.jpg	2026-09-26
+04079b	trors	None Shall Pass	https://hallofheroeslcg.com/the-rise-of-red-skull/	https://hallofheroeslcg.com/wp-content/uploads/2020/09/a4b.jpg	2026-09-26
+04096b	trors	Hunting Down Heroes	https://hallofheroeslcg.com/the-rise-of-red-skull/	https://hallofheroeslcg.com/wp-content/uploads/2020/09/t4b.jpg	2026-09-26
+04112b	trors	The Island of Dr. Zola	https://hallofheroeslcg.com/the-rise-of-red-skull/	https://hallofheroeslcg.com/wp-content/uploads/2020/09/z4b.jpg	2026-09-26
+04113b	trors	The Mad Doctor	https://hallofheroeslcg.com/the-rise-of-red-skull/	https://hallofheroeslcg.com/wp-content/uploads/2020/09/z5b.jpg	2026-09-26
+04128b	trors	The Rise of the Red Skull	https://hallofheroeslcg.com/the-rise-of-red-skull/	https://hallofheroeslcg.com/wp-content/uploads/2020/09/r4b.jpg	2026-09-26
+04129b	trors	New World Hydra	https://hallofheroeslcg.com/the-rise-of-red-skull/	https://hallofheroeslcg.com/wp-content/uploads/2020/09/r5b.jpg	2026-09-26
+07001b	twc	Breakout	https://hallofheroeslcg.com/wrecking-crew/	https://hallofheroeslcg.com/wp-content/uploads/2020/02/wreckingcrew1b-1.jpg	2026-09-26
+11007a	toafk	Kang's Arrival	https://hallofheroeslcg.com/the-once-and-future-kang/	https://hallofheroeslcg.com/wp-content/uploads/2020/09/kang-7b-kangs-arrival.png	2026-09-26
+11008a	toafk	The Master of Time	https://hallofheroeslcg.com/the-once-and-future-kang/	https://hallofheroeslcg.com/wp-content/uploads/2020/09/kang-8b-the-master-of-time.png	2026-09-26
+11009a	toafk	The Chronopolis	https://hallofheroeslcg.com/the-once-and-future-kang/	https://hallofheroeslcg.com/wp-content/uploads/2020/09/kang-9b-the-chronopolis.png	2026-09-26
+11010a	toafk	Inexorable Fate	https://hallofheroeslcg.com/the-once-and-future-kang/	https://hallofheroeslcg.com/wp-content/uploads/2020/09/kang-10b-inexorable-fate.png	2026-09-26
+11011a	toafk	The Realm of Rama-Tut	https://hallofheroeslcg.com/the-once-and-future-kang/	https://hallofheroeslcg.com/wp-content/uploads/2020/09/kang-11b-the-realm-of-rama-tut.png	2026-09-26
+11012a	toafk	The Present Future War	https://hallofheroeslcg.com/the-once-and-future-kang/	https://hallofheroeslcg.com/wp-content/uploads/2020/09/kang-12b-the-present-future-war.png	2026-09-26
+11013a	toafk	Kang's Wrath	https://hallofheroeslcg.com/the-once-and-future-kang/	https://hallofheroeslcg.com/wp-content/uploads/2020/09/kang-13b-kangs-wrath.png	2026-09-26
+14001b	qsv	Quicksilver	https://hallofheroeslcg.com/quicksilver/	https://hallofheroeslcg.com/wp-content/uploads/2020/12/0a.jpg	2026-09-26
+21002	mts	Gamma	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/m1.jpg	2026-09-26
+21003	mts	Photon	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/m2.jpg	2026-09-26
+21004	mts	Pulsar	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/m3.jpg	2026-09-26
+21005	mts	Blue Marvel	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/de.png	2026-09-26
+21006	mts	Energy Duplication	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/m5.jpg	2026-09-26
+21007	mts	Gamma Blast	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/m7.jpg	2026-09-26
+21008	mts	Photon Speed	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/m10.jpg	2026-09-26
+21009	mts	Pulsar Shield	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/m13.jpg	2026-09-26
+21010	mts	Speed of Light	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/m16.jpg	2026-09-26
+21011	mts	Captain America	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/a1.jpg	2026-09-26
+21012	mts	Power Man	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/a2.jpg	2026-09-26
+21013	mts	White Tiger	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/a3.jpg	2026-09-26
+21014	mts	Kaluu	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/a4.jpg	2026-09-26
+21015	mts	Mighty Avengers	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/a5.jpg	2026-09-26
+21016	mts	Mass Attack	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/a6.jpg	2026-09-26
+21018	mts	Band Together	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/a8.jpg	2026-09-26
+21019	mts	Blade	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/a9.jpg	2026-09-26
+21022	mts	Ready to Rumble	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/a12.jpg	2026-09-26
+21026	mts	Loss of Control	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/n00.jpg	2026-09-26
+21027	mts	Radioactive Man	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/n2.jpg	2026-09-26
+21028	mts	Reactor Meltdown	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/n3.jpg	2026-09-26
+21029	mts	Sap Power	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/n4.jpg	2026-09-26
+21030	mts	Radioactive Blast	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/n6.jpg	2026-09-26
+21032	mts	Pip the Troll	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/a1-1.jpg	2026-09-26
+21033	mts	Soul World	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/a2-1.jpg	2026-09-26
+21034	mts	Karmic Staff	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/a3-1.jpg	2026-09-26
+21035	mts	Warlock's Cape	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/a4-1.jpg	2026-09-26
+21036	mts	Cosmic Ward	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/a5-1.jpg	2026-09-26
+21037	mts	Mystic Senses	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/a7-1.jpg	2026-09-26
+21038	mts	Karmic Blast	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/a10-1.jpg	2026-09-26
+21039	mts	Cosmic Awareness	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/a12-1.jpg	2026-09-26
+21040	mts	Quantum Magic	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/a14-1.jpg	2026-09-26
+21041	mts	Marvel Boy	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/b1.jpg	2026-09-26
+21042	mts	In-Betweener	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/b2.jpg	2026-09-26
+21043	mts	Magic Attack	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/b3.jpg	2026-09-26
+21046	mts	Audacity	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/b6.jpg	2026-09-26
+21047	mts	Quasar	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/b7.jpg	2026-09-26
+21048	mts	Living Tribunal	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/b8.jpg	2026-09-26
+21050	mts	Zone of Silence	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/b10.jpg	2026-09-26
+21052	mts	Determination	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/b12.jpg	2026-09-26
+21053	mts	Major Victory	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/b13.jpg	2026-09-26
+21054	mts	Eternity	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/b14.jpg	2026-09-26
+21055	mts	Summoning Spell	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/b15.jpg	2026-09-26
+21058	mts	Innovation	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/b18.jpg	2026-09-26
+21059	mts	Charlie-27	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/b19.jpg	2026-09-26
+21060	mts	The Gardener	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/b20.jpg	2026-09-26
+21061	mts	Shield Spell	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/b21.jpg	2026-09-26
+21064	mts	Preservation	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/b24.jpg	2026-09-26
+21065	mts	Martinex	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/b25.jpg	2026-09-26
+21066	mts	Regeneration Cycle	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/n0.jpg	2026-09-26
+21067	mts	The Magus	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/n1-1.jpg	2026-09-26
+21068	mts	Universal Church of Truth	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/n2-1.jpg	2026-09-26
+21069	mts	Zealot of Truth	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/n3-1.jpg	2026-09-26
+21070	mts	Cosmic Inquisition	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/n5-1.jpg	2026-09-26
+21071	mts	Ebony Maw	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/e1.jpg	2026-09-26
+21072	mts	Ebony Maw	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/e2.jpg	2026-09-26
+21073	mts	Ebony Maw	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/e3.jpg	2026-09-26
+21074	mts	Attack on Knowhere	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/e4a.jpg	2026-09-26
+21075	mts	The Power Stone	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/e5a.jpg	2026-09-26
+21076	mts	Fireball	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/e6.jpg	2026-09-26
+21077	mts	Manipulation	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/e8.jpg	2026-09-26
+21078	mts	Pacification	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/e10.jpg	2026-09-26
+21079	mts	Rubblestorm	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/e12.jpg	2026-09-26
+21080	mts	Agent of Thanos	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/e14.jpg	2026-09-26
+21081	mts	Channeling Trance	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/e16.jpg	2026-09-26
+21082	mts	Abjuration	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/e19.jpg	2026-09-26
+21083	mts	Restrained	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/e20.jpg	2026-09-26
+21084	mts	Reactor Overload	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/e21.jpg	2026-09-26
+21085	mts	Black Dwarf	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/b1-1.jpg	2026-09-26
+21086	mts	Supergiant	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/b2-1.jpg	2026-09-26
+21087	mts	The Black Order	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/b3-1.jpg	2026-09-26
+21088	mts	Blood to Spare	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/b4-1.jpg	2026-09-26
+21089	mts	Black Order Infantry	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/a1-2.jpg	2026-09-26
+21090	mts	Outrider	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/a3-2.jpg	2026-09-26
+21091	mts	Landing Craft	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/a5-2.jpg	2026-09-26
+21092	mts	Proxima Midnight	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/t1.jpg	2026-09-26
+21093	mts	Proxima Midnight	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/t2.jpg	2026-09-26
+21094	mts	Proxima Midnight	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/t3.jpg	2026-09-26
+21095	mts	Corvus Glaive	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/t4.jpg	2026-09-26
+21096	mts	Corvus Glaive	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/t5.jpg	2026-09-26
+21097	mts	Corvus Glaive	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/t6.jpg	2026-09-26
+21098	mts	Under Siege	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/t7a.jpg	2026-09-26
+21099	mts	The Armies of Thanos	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/t8a.jpg	2026-09-26
+21100	mts	Avengers Tower	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/t9a.jpg	2026-09-26
+21101	mts	Focused Defense	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/t10.jpg	2026-09-26
+21102	mts	Black Order Besieger	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/t11.jpg	2026-09-26
+21103	mts	Proxima's Spear	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/t15.jpg	2026-09-26
+21104	mts	Corvus's Glaive	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/t16.jpg	2026-09-26
+21105	mts	Direct Assault	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/t17.jpg	2026-09-26
+21106	mts	Proxima's Power	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/t19.jpg	2026-09-26
+21107	mts	Corvus's Cunning	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/t21.jpg	2026-09-26
+21108	mts	Bound by Blood	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/t23.jpg	2026-09-26
+21109	mts	Rain Fire	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/t24.jpg	2026-09-26
+21110	mts	City Under Attack	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/t26.jpg	2026-09-26
+21111	mts	Thanos	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/t1-1.jpg	2026-09-26
+21112	mts	Thanos	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/t2-1.jpg	2026-09-26
+21113	mts	Thanos	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/t3-1.jpg	2026-09-26
+21114	mts	The Infinity Stones	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/t4a.jpg	2026-09-26
+21115	mts	Balance the Scales	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/t5a.jpg	2026-09-26
+21116	mts	Sanctuary	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/t6-1.jpg	2026-09-26
+21117	mts	Thanos's Armor	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/t7.jpg	2026-09-26
+21118	mts	Thanos's Helmet	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/t8.jpg	2026-09-26
+21119	mts	Master of the Stones	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/t10-1.jpg	2026-09-26
+21120	mts	Avatar of Death	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/t11-1.jpg	2026-09-26
+21121	mts	Deviant Syndrome	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/t13-1.jpg	2026-09-26
+21122	mts	"I Am Inevitable"	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/t15-1.jpg	2026-09-26
+21123	mts	The Mad Titan	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/t17-1.jpg	2026-09-26
+21124	mts	The Titan's Throne	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/t19-1.jpg	2026-09-26
+21125	mts	Corvus Glaive	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/c1.jpg	2026-09-26
+21126	mts	Proxima Midnight	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/c2-1.jpg	2026-09-26
+21127	mts	Ebony Maw	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/c3.jpg	2026-09-26
+21128	mts	Tribute	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/c4-1.jpg	2026-09-26
+21129	mts	Infinity Gauntlet	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/i1.jpg	2026-09-26
+21130	mts	Mind Stone	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/i2.jpg	2026-09-26
+21131	mts	Power Stone	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/i3.jpg	2026-09-26
+21132	mts	Reality Stone	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/i4.jpg	2026-09-26
+21133	mts	Soul Stone	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/i5.jpg	2026-09-26
+21134	mts	Space Stone	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/i6.jpg	2026-09-26
+21135	mts	Time Stone	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/i7.jpg	2026-09-26
+21136a	mts	Hela	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/h1a.jpg	2026-09-26
+21137a	mts	Hela	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/h2a.jpg	2026-09-26
+21138	mts	Odin's Torment	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/h3a.jpg	2026-09-26
+21139a	mts	Odin	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/h4a.jpg	2026-09-26
+21140	mts	Gnipahellir	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/h5.jpg	2026-09-26
+21141	mts	Hall of Nastrond	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/h7.jpg	2026-09-26
+21142	mts	Gjallerbru	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/h6.jpg	2026-09-26
+21143	mts	Garm	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/h8.jpg	2026-09-26
+21144	mts	Skurge	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/h9.jpg	2026-09-26
+21145	mts	Nidhogg	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/h10.jpg	2026-09-26
+21146	mts	Nightsword	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/h11.jpg	2026-09-26
+21147	mts	Hela's Crown	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/h12.jpg	2026-09-26
+21148	mts	Hela's Cloak	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/h13.jpg	2026-09-26
+21149	mts	Hela's Domain	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/h14.jpg	2026-09-26
+21150	mts	The Queen of Hel	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/h16.jpg	2026-09-26
+21151	mts	The Wastes of Niffleheim	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/h18.jpg	2026-09-26
+21152	mts	Draugr	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/l1-1.jpg	2026-09-26
+21153	mts	Fallen Warrior	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/l3-1.jpg	2026-09-26
+21154	mts	No Place for the Living	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/l5-1.jpg	2026-09-26
+21155	mts	Legions of Hel	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/l6.jpg	2026-09-26
+21156	mts	Laufey	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/f1.jpg	2026-09-26
+21157	mts	Frost Giant	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/f2.jpg	2026-09-26
+21158	mts	Frozen	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/f4.jpg	2026-09-26
+21159	mts	Unnatural Storm	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/f6.jpg	2026-09-26
+21160	mts	Loki	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/l1.jpg	2026-09-26
+21161	mts	Loki	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/l2.jpg	2026-09-26
+21162	mts	Loki	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/l3.jpg	2026-09-26
+21163	mts	Loki	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/l4.jpg	2026-09-26
+21164	mts	Loki	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/l5.jpg	2026-09-26
+21165	mts	All Hail King Loki	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/l6a.jpg	2026-09-26
+21166	mts	Casket of Ancient Winters	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/l7.jpg	2026-09-26
+21167	mts	War in Asgard	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/l8.jpg	2026-09-26
+21168	mts	Madness on Midgard	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/l9.jpg	2026-09-26
+21169	mts	Open the Bifrost	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/l10.jpg	2026-09-26
+21170	mts	Loki's Staff	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/l11.jpg	2026-09-26
+21171	mts	Loki's Crown	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/l12.jpg	2026-09-26
+21172	mts	Loki's Cape	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/l13.jpg	2026-09-26
+21173	mts	Master of Illusions	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/l14.jpg	2026-09-26
+21174	mts	Devious Sorcery	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/l15.jpg	2026-09-26
+21175	mts	Infinite Mischief	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/l17.jpg	2026-09-26
+21176	mts	The Trickster	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/l19.jpg	2026-09-26
+21177	mts	Enchantress	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/e1-1.jpg	2026-09-26
+21178	mts	Beguiled	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/e2-1.jpg	2026-09-26
+21179	mts	Seduced	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/e4.jpg	2026-09-26
+21180a	mts	Secure the Landing Pad	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/c1a.jpg	2026-09-26
+21181	mts	Security Breach	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/c2.jpg	2026-09-26
+21182a	mts	Save the Shawarma Place	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/c3a.jpg	2026-09-26
+21183	mts	Shawarma	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/c4.jpg	2026-09-26
+21184a	mts	Hack Sanctuary's Computer	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/c8a.jpg	2026-09-26
+21185	mts	System Shock	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/c10.jpg	2026-09-26
+21186a	mts	Find the Norn Stones	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/c13a.jpg	2026-09-26
+21187a	mts	Norn Stone	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/c17a.jpg	2026-09-26
+21188	mts	Summoned Back	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/c18.jpg	2026-09-26
+21189a	mts	Open the Dungeons	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/c19a.jpg	2026-09-26
+21190	mts	Lady Sif	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/c20.jpg	2026-09-26
+21191	mts	Fandral	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/c21.jpg	2026-09-26
+21192	mts	Hogun	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/c22.jpg	2026-09-26
+21193	mts	Volstagg	https://hallofheroeslcg.com/the-mad-titans-shadow/	https://hallofheroeslcg.com/wp-content/uploads/2021/08/c23.jpg	2026-09-26
+24004a	hood	Making Connections	https://hallofheroeslcg.com/the-hood/	https://hallofheroeslcg.com/wp-content/uploads/2022/02/24004a.jpg	2026-09-26
+24005a	hood	Promised Prosperity	https://hallofheroeslcg.com/the-hood/	https://hallofheroeslcg.com/wp-content/uploads/2022/02/24005a.jpg	2026-09-26
+24006a	hood	Crime State	https://hallofheroeslcg.com/the-hood/	https://hallofheroeslcg.com/wp-content/uploads/2022/02/24006a.jpg	2026-09-26
+26002a	vision	Intangible	https://hallofheroeslcg.com/vision/	https://hallofheroeslcg.com/wp-content/uploads/2022/01/2.jpg	2026-09-26
+26002b	vision	Dense	https://hallofheroeslcg.com/vision/	https://hallofheroeslcg.com/wp-content/uploads/2022/01/2b.jpg	2026-09-26
+29002a	ironheart	Ironheart	https://hallofheroeslcg.com/ironheart-riri-williams/	https://hallofheroeslcg.com/wp-content/uploads/2022/05/i0e.jpg	2026-09-26
+29002b	ironheart	Ironheart	https://hallofheroeslcg.com/ironheart-riri-williams/	https://hallofheroeslcg.com/wp-content/uploads/2022/05/i0b.jpg	2026-09-26
+29003a	ironheart	Ironheart	https://hallofheroeslcg.com/ironheart-riri-williams/	https://hallofheroeslcg.com/wp-content/uploads/2022/05/i0f.jpg	2026-09-26
+29003b	ironheart	Ironheart	https://hallofheroeslcg.com/ironheart-riri-williams/	https://hallofheroeslcg.com/wp-content/uploads/2022/05/i0c.jpg	2026-09-26
+40070a	next_evol	Arclight	https://hallofheroeslcg.com/next-evolution/	https://hallofheroeslcg.com/wp-content/uploads/2023/08/40070a.jpg	
+40070b	next_evol	Arclight	https://hallofheroeslcg.com/next-evolution/	https://hallofheroeslcg.com/wp-content/uploads/2023/08/40070b.jpg	
+40071a	next_evol	Blockbuster	https://hallofheroeslcg.com/next-evolution/	https://hallofheroeslcg.com/wp-content/uploads/2023/08/40071a.jpg	
+40071b	next_evol	Blockbuster	https://hallofheroeslcg.com/next-evolution/	https://hallofheroeslcg.com/wp-content/uploads/2023/08/40071b.jpg	
+40072a	next_evol	Chimera	https://hallofheroeslcg.com/next-evolution/	https://hallofheroeslcg.com/wp-content/uploads/2023/08/40072a.jpg	
+40072b	next_evol	Chimera	https://hallofheroeslcg.com/next-evolution/	https://hallofheroeslcg.com/wp-content/uploads/2023/08/40072b.jpg	
+40073a	next_evol	Greycrow	https://hallofheroeslcg.com/next-evolution/	https://hallofheroeslcg.com/wp-content/uploads/2023/08/40073a.jpg	
+40073b	next_evol	Greycrow	https://hallofheroeslcg.com/next-evolution/	https://hallofheroeslcg.com/wp-content/uploads/2023/08/40073b.jpg	
+40074a	next_evol	Harpoon	https://hallofheroeslcg.com/next-evolution/	https://hallofheroeslcg.com/wp-content/uploads/2023/08/40074a.jpg	
+40074b	next_evol	Harpoon	https://hallofheroeslcg.com/next-evolution/	https://hallofheroeslcg.com/wp-content/uploads/2023/08/40074b.jpg	
+40075a	next_evol	Riptide	https://hallofheroeslcg.com/next-evolution/	https://hallofheroeslcg.com/wp-content/uploads/2023/08/40075a.jpg	
+40075b	next_evol	Riptide	https://hallofheroeslcg.com/next-evolution/	https://hallofheroeslcg.com/wp-content/uploads/2023/08/40075b.jpg	
+40076a	next_evol	Vertigo	https://hallofheroeslcg.com/next-evolution/	https://hallofheroeslcg.com/wp-content/uploads/2023/08/40076a.jpg	
+40076b	next_evol	Vertigo	https://hallofheroeslcg.com/next-evolution/	https://hallofheroeslcg.com/wp-content/uploads/2023/08/40076b.jpg	
+40081a	next_evol	Routed	https://hallofheroeslcg.com/next-evolution/	https://hallofheroeslcg.com/wp-content/uploads/2023/08/40081a.jpg	
+40081b	next_evol	Routed	https://hallofheroeslcg.com/next-evolution/	https://hallofheroeslcg.com/wp-content/uploads/2023/08/40081b.jpg	
+40105a	next_evol	Hope's Captor	https://hallofheroeslcg.com/next-evolution/	https://hallofheroeslcg.com/wp-content/uploads/2023/08/40105a.jpg	
+40105b	next_evol	Hope's Captor	https://hallofheroeslcg.com/next-evolution/	https://hallofheroeslcg.com/wp-content/uploads/2023/08/40105b.jpg	
+40122a	next_evol	Juggernaut's Helmet	https://hallofheroeslcg.com/next-evolution/	https://hallofheroeslcg.com/wp-content/uploads/2023/08/40122a.jpg	
+40122b	next_evol	Juggernaut Exposed	https://hallofheroeslcg.com/next-evolution/	https://hallofheroeslcg.com/wp-content/uploads/2023/08/40122b.jpg	
+40139a	next_evol	Sinister Intent	https://hallofheroeslcg.com/next-evolution/	https://hallofheroeslcg.com/wp-content/uploads/2023/08/40139a.jpg	
+40139b	next_evol	Sinister Intent	https://hallofheroeslcg.com/next-evolution/	https://hallofheroeslcg.com/wp-content/uploads/2023/08/40139b.jpg	
+40140a	next_evol	Taking Off	https://hallofheroeslcg.com/next-evolution/	https://hallofheroeslcg.com/wp-content/uploads/2023/08/40140a.jpg	
+40140b	next_evol	Taking Off	https://hallofheroeslcg.com/next-evolution/	https://hallofheroeslcg.com/wp-content/uploads/2023/08/40140b.jpg	
+40141a	next_evol	Bulking Up	https://hallofheroeslcg.com/next-evolution/	https://hallofheroeslcg.com/wp-content/uploads/2023/08/40141a.jpg	
+40141b	next_evol	Bulking Up	https://hallofheroeslcg.com/next-evolution/	https://hallofheroeslcg.com/wp-content/uploads/2023/08/40141b.jpg	
+40142a	next_evol	Focusing In	https://hallofheroeslcg.com/next-evolution/	https://hallofheroeslcg.com/wp-content/uploads/2023/08/40142a.jpg	
+40142b	next_evol	Focusing In	https://hallofheroeslcg.com/next-evolution/	https://hallofheroeslcg.com/wp-content/uploads/2023/08/40142b.jpg	
+40143a	next_evol	Sinister Ends	https://hallofheroeslcg.com/next-evolution/	https://hallofheroeslcg.com/wp-content/uploads/2023/08/40143a.jpg	
+40143b	next_evol	Sinister Ends	https://hallofheroeslcg.com/next-evolution/	https://hallofheroeslcg.com/wp-content/uploads/2023/08/40143b.jpg	
+40168a	next_evol	Stryfe's Grasp	https://hallofheroeslcg.com/next-evolution/	https://hallofheroeslcg.com/wp-content/uploads/2023/08/40168a.jpg	
+40168b	next_evol	Living Bomb	https://hallofheroeslcg.com/next-evolution/	https://hallofheroeslcg.com/wp-content/uploads/2023/08/40168b.jpg	
+40190a	next_evol	Assemble the Team	https://hallofheroeslcg.com/next-evolution/	https://hallofheroeslcg.com/wp-content/uploads/2023/08/40190a.jpg	
+40190b	next_evol	Team Assembled	https://hallofheroeslcg.com/next-evolution/	https://hallofheroeslcg.com/wp-content/uploads/2023/08/40190b.jpg	
+40191a	next_evol	Establish Safehouse	https://hallofheroeslcg.com/next-evolution/	https://hallofheroeslcg.com/wp-content/uploads/2023/08/40191a.jpg	
+40191b	next_evol	Safehouse Established	https://hallofheroeslcg.com/next-evolution/	https://hallofheroeslcg.com/wp-content/uploads/2023/08/40191b.jpg	
+40192a	next_evol	Gear Up	https://hallofheroeslcg.com/next-evolution/	https://hallofheroeslcg.com/wp-content/uploads/2023/08/40192a.jpg	
+40192b	next_evol	Geared Up	https://hallofheroeslcg.com/next-evolution/	https://hallofheroeslcg.com/wp-content/uploads/2023/08/40192b.jpg	
+40193a	next_evol	Mission Prep	https://hallofheroeslcg.com/next-evolution/	https://hallofheroeslcg.com/wp-content/uploads/2023/08/40193a.jpg	
+40193b	next_evol	Mission Prepped	https://hallofheroeslcg.com/next-evolution/	https://hallofheroeslcg.com/wp-content/uploads/2023/08/40193b.jpg	
+40194a	next_evol	Practice Maneuvers	https://hallofheroeslcg.com/next-evolution/	https://hallofheroeslcg.com/wp-content/uploads/2023/08/40194a.jpg	
+40194b	next_evol	Practiced Maneuvers	https://hallofheroeslcg.com/next-evolution/	https://hallofheroeslcg.com/wp-content/uploads/2023/08/40194b.jpg	
+40195a	next_evol	Prepare Defenses	https://hallofheroeslcg.com/next-evolution/	https://hallofheroeslcg.com/wp-content/uploads/2023/08/40195a.jpg	
+40195b	next_evol	Prepared Defenses	https://hallofheroeslcg.com/next-evolution/	https://hallofheroeslcg.com/wp-content/uploads/2023/08/40195b.jpg	
+41002a	psylocke	Psi-Knife	https://hallofheroeslcg.com/psylocke-betsy-braddock/	https://hallofheroeslcg.com/wp-content/uploads/2023/10/41002a.jpg	
+41002b	psylocke	Psi-Katana	https://hallofheroeslcg.com/psylocke-betsy-braddock/	https://hallofheroeslcg.com/wp-content/uploads/2023/10/41002b.jpg	
+45075a	aoa	Pursued by the Past	https://hallofheroeslcg.com/the-age-of-apocalypse/	https://hallofheroeslcg.com/wp-content/uploads/2024/04/45075a.jpg	
+45075b	aoa	Pursued by the Past	https://hallofheroeslcg.com/the-age-of-apocalypse/	https://hallofheroeslcg.com/wp-content/uploads/2024/04/45075b.jpg	
+45081a	aoa	War	https://hallofheroeslcg.com/the-age-of-apocalypse/	https://hallofheroeslcg.com/wp-content/uploads/2024/04/45081a.jpg	
+45081b	aoa	War	https://hallofheroeslcg.com/the-age-of-apocalypse/	https://hallofheroeslcg.com/wp-content/uploads/2024/04/45081b.jpg	
+45082a	aoa	Famine	https://hallofheroeslcg.com/the-age-of-apocalypse/	https://hallofheroeslcg.com/wp-content/uploads/2024/04/45082a.jpg	
+45082b	aoa	Famine	https://hallofheroeslcg.com/the-age-of-apocalypse/	https://hallofheroeslcg.com/wp-content/uploads/2024/04/45082b.jpg	
+45083a	aoa	Pestilence	https://hallofheroeslcg.com/the-age-of-apocalypse/	https://hallofheroeslcg.com/wp-content/uploads/2024/04/45083a.jpg	
+45083b	aoa	Pestilence	https://hallofheroeslcg.com/the-age-of-apocalypse/	https://hallofheroeslcg.com/wp-content/uploads/2024/04/45083b.jpg	
+45084a	aoa	Death	https://hallofheroeslcg.com/the-age-of-apocalypse/	https://hallofheroeslcg.com/wp-content/uploads/2024/04/45084a.jpg	
+45084b	aoa	Death	https://hallofheroeslcg.com/the-age-of-apocalypse/	https://hallofheroeslcg.com/wp-content/uploads/2024/04/45084b.jpg	
+45101a	aoa	Apocalypse	https://hallofheroeslcg.com/the-age-of-apocalypse/	https://hallofheroeslcg.com/wp-content/uploads/2024/04/45101a.jpg	
+45101b	aoa	Apocalypse	https://hallofheroeslcg.com/the-age-of-apocalypse/	https://hallofheroeslcg.com/wp-content/uploads/2024/04/45101b.jpg	
+45102a	aoa	Apocalypse	https://hallofheroeslcg.com/the-age-of-apocalypse/	https://hallofheroeslcg.com/wp-content/uploads/2024/04/45102a.jpg	
+45102b	aoa	Apocalypse	https://hallofheroeslcg.com/the-age-of-apocalypse/	https://hallofheroeslcg.com/wp-content/uploads/2024/04/45102b.jpg	
+45104a	aoa	Heart of the Empire	https://hallofheroeslcg.com/the-age-of-apocalypse/	https://hallofheroeslcg.com/wp-content/uploads/2024/04/45104a.jpg	
+45105a	aoa	The Tyrant's Throne	https://hallofheroeslcg.com/the-age-of-apocalypse/	https://hallofheroeslcg.com/wp-content/uploads/2024/04/45105a.jpg	
+45105b	aoa	No Longer Worthy	https://hallofheroeslcg.com/the-age-of-apocalypse/	https://hallofheroeslcg.com/wp-content/uploads/2024/04/45105b.jpg	
+45166a	aoa	Liberate the Seattle Core	https://hallofheroeslcg.com/the-age-of-apocalypse/	https://hallofheroeslcg.com/wp-content/uploads/2024/04/45166a.jpg	
+45166b	aoa	Liberate the Seattle Core	https://hallofheroeslcg.com/the-age-of-apocalypse/	https://hallofheroeslcg.com/wp-content/uploads/2024/04/45166b.jpg	
+45167a	aoa	Evacuate Survivors	https://hallofheroeslcg.com/the-age-of-apocalypse/	https://hallofheroeslcg.com/wp-content/uploads/2024/04/45167a.jpg	
+45167b	aoa	Evacuate Survivors	https://hallofheroeslcg.com/the-age-of-apocalypse/	https://hallofheroeslcg.com/wp-content/uploads/2024/04/45167b.jpg	
+45168a	aoa	Sabotage the Sea Wall	https://hallofheroeslcg.com/the-age-of-apocalypse/	https://hallofheroeslcg.com/wp-content/uploads/2024/04/45168a.jpg	
+45168b	aoa	Sabotage the Sea Wall	https://hallofheroeslcg.com/the-age-of-apocalypse/	https://hallofheroeslcg.com/wp-content/uploads/2024/04/45168b.jpg	
+45169a	aoa	Find Lost Mutants	https://hallofheroeslcg.com/the-age-of-apocalypse/	https://hallofheroeslcg.com/wp-content/uploads/2024/04/45169a.jpg	
+45169b	aoa	Find Lost Mutants	https://hallofheroeslcg.com/the-age-of-apocalypse/	https://hallofheroeslcg.com/wp-content/uploads/2024/04/45169b.jpg	
+45170a	aoa	Protect the Professor	https://hallofheroeslcg.com/the-age-of-apocalypse/	https://hallofheroeslcg.com/wp-content/uploads/2024/04/45170a.jpg	
+45170b	aoa	Protect the Professor	https://hallofheroeslcg.com/the-age-of-apocalypse/	https://hallofheroeslcg.com/wp-content/uploads/2024/04/45170b.jpg	
+45171a	aoa	Mission Team	https://hallofheroeslcg.com/the-age-of-apocalypse/	https://hallofheroeslcg.com/wp-content/uploads/2024/04/45171a.jpg	
+45171b	aoa	Mission Team	https://hallofheroeslcg.com/the-age-of-apocalypse/	https://hallofheroeslcg.com/wp-content/uploads/2024/04/45171b.jpg	
+45179a	aoa	Mister Sinister	https://hallofheroeslcg.com/the-age-of-apocalypse/	https://hallofheroeslcg.com/wp-content/uploads/2024/04/45179a.jpg	
+45179b	aoa	Mister Sinister	https://hallofheroeslcg.com/the-age-of-apocalypse/	https://hallofheroeslcg.com/wp-content/uploads/2024/04/45179b.jpg	
+45180a	aoa	The Shadow King	https://hallofheroeslcg.com/the-age-of-apocalypse/	https://hallofheroeslcg.com/wp-content/uploads/2024/04/45180a.jpg	
+45180b	aoa	The Shadow King	https://hallofheroeslcg.com/the-age-of-apocalypse/	https://hallofheroeslcg.com/wp-content/uploads/2024/04/45180b.jpg	
+45181a	aoa	Abyss	https://hallofheroeslcg.com/the-age-of-apocalypse/	https://hallofheroeslcg.com/wp-content/uploads/2024/04/45181a.jpg	
+45181b	aoa	Abyss	https://hallofheroeslcg.com/the-age-of-apocalypse/	https://hallofheroeslcg.com/wp-content/uploads/2024/04/45181b.jpg	
+45182a	aoa	Sugar Man	https://hallofheroeslcg.com/the-age-of-apocalypse/	https://hallofheroeslcg.com/wp-content/uploads/2024/04/45182a.jpg	
+45182b	aoa	Sugar Man	https://hallofheroeslcg.com/the-age-of-apocalypse/	https://hallofheroeslcg.com/wp-content/uploads/2024/04/45182b.jpg	
+45183a	aoa	Mikhail Rasputin	https://hallofheroeslcg.com/the-age-of-apocalypse/	https://hallofheroeslcg.com/wp-content/uploads/2024/04/45183a.jpg	
+45183b	aoa	Mikhail Rasputin	https://hallofheroeslcg.com/the-age-of-apocalypse/	https://hallofheroeslcg.com/wp-content/uploads/2024/04/45183b.jpg	
+45184a	aoa	Apocalypse	https://hallofheroeslcg.com/the-age-of-apocalypse/	https://hallofheroeslcg.com/wp-content/uploads/2024/04/45184a.jpg	
+45184b	aoa	Apocalypse	https://hallofheroeslcg.com/the-age-of-apocalypse/	https://hallofheroeslcg.com/wp-content/uploads/2024/04/45184b.jpg	
+45184c	aoa	Apocalypse	https://hallofheroeslcg.com/the-age-of-apocalypse/	https://hallofheroeslcg.com/wp-content/uploads/2024/04/45184c.jpg	
+45185a	aoa	Apocalypse	https://hallofheroeslcg.com/the-age-of-apocalypse/	https://hallofheroeslcg.com/wp-content/uploads/2024/04/45185a.jpg	
+45185b	aoa	Apocalypse	https://hallofheroeslcg.com/the-age-of-apocalypse/	https://hallofheroeslcg.com/wp-content/uploads/2024/04/45185b.jpg	
+45185c	aoa	Apocalypse	https://hallofheroeslcg.com/the-age-of-apocalypse/	https://hallofheroeslcg.com/wp-content/uploads/2024/04/45185c.jpg	
+45186a	aoa	Apocalypse	https://hallofheroeslcg.com/the-age-of-apocalypse/	https://hallofheroeslcg.com/wp-content/uploads/2024/04/45186a.jpg	
+45186b	aoa	Apocalypse	https://hallofheroeslcg.com/the-age-of-apocalypse/	https://hallofheroeslcg.com/wp-content/uploads/2024/04/45186b.jpg	
+45186c	aoa	Apocalypse	https://hallofheroeslcg.com/the-age-of-apocalypse/	https://hallofheroeslcg.com/wp-content/uploads/2024/04/45186c.jpg	
+47007a	jubilee	Firecracker	https://hallofheroeslcg.com/jubilee-jubilation-lee/	https://hallofheroeslcg.com/wp-content/uploads/2024/07/47007a.jpg	
+47007b	jubilee	Firecracker	https://hallofheroeslcg.com/jubilee-jubilation-lee/	https://hallofheroeslcg.com/wp-content/uploads/2024/07/47007b.jpg	
+47007c	jubilee	Firecracker	https://hallofheroeslcg.com/jubilee-jubilation-lee/	https://hallofheroeslcg.com/wp-content/uploads/2024/07/47007c.jpg	
+47008a	jubilee	Flash of Light	https://hallofheroeslcg.com/jubilee-jubilation-lee/	https://hallofheroeslcg.com/wp-content/uploads/2024/07/47008a.jpg	
+47008b	jubilee	Flash of Light	https://hallofheroeslcg.com/jubilee-jubilation-lee/	https://hallofheroeslcg.com/wp-content/uploads/2024/07/47008b.jpg	
+47008c	jubilee	Flash of Light	https://hallofheroeslcg.com/jubilee-jubilation-lee/	https://hallofheroeslcg.com/wp-content/uploads/2024/07/47008c.jpg	
+47010a	jubilee	Plasmoid Energy	https://hallofheroeslcg.com/jubilee-jubilation-lee/	https://hallofheroeslcg.com/wp-content/uploads/2024/07/47010a.jpg	
+47010b	jubilee	Plasmoid Energy	https://hallofheroeslcg.com/jubilee-jubilation-lee/	https://hallofheroeslcg.com/wp-content/uploads/2024/07/47010b.jpg	
+47010c	jubilee	Plasmoid Energy	https://hallofheroeslcg.com/jubilee-jubilation-lee/	https://hallofheroeslcg.com/wp-content/uploads/2024/07/47010c.jpg	
+50035a	aos	Assault	https://hallofheroeslcg.com/agents-of-shield/	https://hallofheroeslcg.com/wp-content/uploads/2025/03/50035a.jpg	
+50035b	aos	Stealth	https://hallofheroeslcg.com/agents-of-shield/	https://hallofheroeslcg.com/wp-content/uploads/2025/03/50035b.jpg	
+50067a	aos	The Widow's Web	https://hallofheroeslcg.com/agents-of-shield/	https://hallofheroeslcg.com/wp-content/uploads/2025/03/50067a.jpg	
+50067b	aos	The Widow's Web	https://hallofheroeslcg.com/agents-of-shield/	https://hallofheroeslcg.com/wp-content/uploads/2025/03/50067b.jpg	
+50086a	aos	Batroc	https://hallofheroeslcg.com/agents-of-shield/	https://hallofheroeslcg.com/wp-content/uploads/2025/03/50086a.jpg	
+50086b	aos	Batroc	https://hallofheroeslcg.com/agents-of-shield/	https://hallofheroeslcg.com/wp-content/uploads/2025/03/50086b.jpg	
+50087a	aos	Infiltrate A.I.M. Island Embassy	https://hallofheroeslcg.com/agents-of-shield/	https://hallofheroeslcg.com/wp-content/uploads/2025/03/50087a.jpg	
+50087b	aos	Infiltrate A.I.M. Island Embassy	https://hallofheroeslcg.com/agents-of-shield/	https://hallofheroeslcg.com/wp-content/uploads/2025/03/50087b.jpg	
+50088a	aos	Locate Missing Person	https://hallofheroeslcg.com/agents-of-shield/	https://hallofheroeslcg.com/wp-content/uploads/2025/03/50088a.jpg	
+50088b	aos	Locate Missing Person	https://hallofheroeslcg.com/agents-of-shield/	https://hallofheroeslcg.com/wp-content/uploads/2025/03/50088b.jpg	
+50089a	aos	Extract Captives	https://hallofheroeslcg.com/agents-of-shield/	https://hallofheroeslcg.com/wp-content/uploads/2025/03/50089a.jpg	
+50089b	aos	Extract Captives	https://hallofheroeslcg.com/agents-of-shield/	https://hallofheroeslcg.com/wp-content/uploads/2025/03/50089b.jpg	
+50090a	aos	Alert Level	https://hallofheroeslcg.com/agents-of-shield/	https://hallofheroeslcg.com/wp-content/uploads/2025/03/50090a.jpg	
+50090b	aos	Alert Level	https://hallofheroeslcg.com/agents-of-shield/	https://hallofheroeslcg.com/wp-content/uploads/2025/03/50090b.jpg	
+50103a	aos	M.O.D.O.K.	https://hallofheroeslcg.com/agents-of-shield/	https://hallofheroeslcg.com/wp-content/uploads/2025/03/50103a.jpg	
+50103b	aos	M.O.D.O.K.	https://hallofheroeslcg.com/agents-of-shield/	https://hallofheroeslcg.com/wp-content/uploads/2025/03/50103b.jpg	
+50104a	aos	Upgrading Adaptoids	https://hallofheroeslcg.com/agents-of-shield/	https://hallofheroeslcg.com/wp-content/uploads/2025/03/50104a.jpg	
+50104b	aos	Upgrading Adaptoids	https://hallofheroeslcg.com/agents-of-shield/	https://hallofheroeslcg.com/wp-content/uploads/2025/03/50104b.jpg	
+50105a	aos	Holding Cell	https://hallofheroeslcg.com/agents-of-shield/	https://hallofheroeslcg.com/wp-content/uploads/2025/03/50105a.jpg	
+50105b	aos	Flying Inhuman	https://hallofheroeslcg.com/agents-of-shield/	https://hallofheroeslcg.com/wp-content/uploads/2025/03/50105b.jpg	
+50106a	aos	Holding Cell	https://hallofheroeslcg.com/agents-of-shield/	https://hallofheroeslcg.com/wp-content/uploads/2025/03/50106a.jpg	
+50106b	aos	Psionic Inhuman	https://hallofheroeslcg.com/agents-of-shield/	https://hallofheroeslcg.com/wp-content/uploads/2025/03/50106b.jpg	
+50107a	aos	Holding Cell	https://hallofheroeslcg.com/agents-of-shield/	https://hallofheroeslcg.com/wp-content/uploads/2025/03/50107a.jpg	
+50107b	aos	Sarah Garza	https://hallofheroeslcg.com/agents-of-shield/	https://hallofheroeslcg.com/wp-content/uploads/2025/03/50107b.jpg	
+50108a	aos	Holding Cell	https://hallofheroeslcg.com/agents-of-shield/	https://hallofheroeslcg.com/wp-content/uploads/2025/03/50108a.jpg	
+50108b	aos	Strong Inhuman	https://hallofheroeslcg.com/agents-of-shield/	https://hallofheroeslcg.com/wp-content/uploads/2025/03/50108b.jpg	
+50129a	aos	Citizen V	https://hallofheroeslcg.com/agents-of-shield/	https://hallofheroeslcg.com/wp-content/uploads/2025/03/50129a.jpg	
+50129b	aos	Citizen V	https://hallofheroeslcg.com/agents-of-shield/	https://hallofheroeslcg.com/wp-content/uploads/2025/03/50129b.jpg	
+50130a	aos	Apprehending Rogue Agents	https://hallofheroeslcg.com/agents-of-shield/	https://hallofheroeslcg.com/wp-content/uploads/2025/03/50130a.jpg	
+50130b	aos	Apprehending Rogue Agents	https://hallofheroeslcg.com/agents-of-shield/	https://hallofheroeslcg.com/wp-content/uploads/2025/03/50130b.jpg	
+50131a	aos	Justice, Like Lightning	https://hallofheroeslcg.com/agents-of-shield/	https://hallofheroeslcg.com/wp-content/uploads/2025/03/50131a.jpg	
+50131b	aos	Thunderbolt Backup	https://hallofheroeslcg.com/agents-of-shield/	https://hallofheroeslcg.com/wp-content/uploads/2025/03/50131b.jpg	
+50165a	aos	Baron Zemo	https://hallofheroeslcg.com/agents-of-shield/	https://hallofheroeslcg.com/wp-content/uploads/2025/03/50165a.jpg	
+50165b	aos	Baron Zemo	https://hallofheroeslcg.com/agents-of-shield/	https://hallofheroeslcg.com/wp-content/uploads/2025/03/50165b.jpg	
+50166a	aos	Baron Zemo	https://hallofheroeslcg.com/agents-of-shield/	https://hallofheroeslcg.com/wp-content/uploads/2025/03/50166a.jpg	
+50166b	aos	Baron Zemo	https://hallofheroeslcg.com/agents-of-shield/	https://hallofheroeslcg.com/wp-content/uploads/2025/03/50166b.jpg	
+50167a	aos	Zemo's Manipulations	https://hallofheroeslcg.com/agents-of-shield/	https://hallofheroeslcg.com/wp-content/uploads/2025/03/50167a.jpg	
+50167b	aos	Zemo's Manipulations	https://hallofheroeslcg.com/agents-of-shield/	https://hallofheroeslcg.com/wp-content/uploads/2025/03/50167b.jpg	
+50168a	aos	The Accusation	https://hallofheroeslcg.com/agents-of-shield/	https://hallofheroeslcg.com/wp-content/uploads/2025/03/50168a.jpg	
+50168b	aos	The Accusation	https://hallofheroeslcg.com/agents-of-shield/	https://hallofheroeslcg.com/wp-content/uploads/2025/03/50168b.jpg	
+50169a	aos	Fighting Zemo	https://hallofheroeslcg.com/agents-of-shield/	https://hallofheroeslcg.com/wp-content/uploads/2025/03/50169a.jpg	
+50169b	aos	Fighting Zemo	https://hallofheroeslcg.com/agents-of-shield/	https://hallofheroeslcg.com/wp-content/uploads/2025/03/50169b.jpg	
+50181a	aos	Chief Medical Officer	https://hallofheroeslcg.com/agents-of-shield/	https://hallofheroeslcg.com/wp-content/uploads/2025/03/50181a.jpg	
+50181b	aos	Medical Officer's Aid	https://hallofheroeslcg.com/agents-of-shield/	https://hallofheroeslcg.com/wp-content/uploads/2025/03/50181b.jpg	
+50182a	aos	Chief Surveillance Officer	https://hallofheroeslcg.com/agents-of-shield/	https://hallofheroeslcg.com/wp-content/uploads/2025/03/50182a.jpg	
+50182b	aos	Surveillance Officer's Aid	https://hallofheroeslcg.com/agents-of-shield/	https://hallofheroeslcg.com/wp-content/uploads/2025/03/50182b.jpg	
+50183a	aos	Chief Tactical Officer	https://hallofheroeslcg.com/agents-of-shield/	https://hallofheroeslcg.com/wp-content/uploads/2025/03/50183a.jpg	
+50183b	aos	Tactical Officer's Aid	https://hallofheroeslcg.com/agents-of-shield/	https://hallofheroeslcg.com/wp-content/uploads/2025/03/50183b.jpg	
+50184a	aos	A.I.M. Interference ([energy])	https://hallofheroeslcg.com/agents-of-shield/	https://hallofheroeslcg.com/wp-content/uploads/2025/03/50184a.jpg	
+50184b	aos	A.I.M. Interference ([mental])	https://hallofheroeslcg.com/agents-of-shield/	https://hallofheroeslcg.com/wp-content/uploads/2025/03/50184b.jpg	
+50184c	aos	A.I.M. Interference ([physical])	https://hallofheroeslcg.com/agents-of-shield/	https://hallofheroeslcg.com/wp-content/uploads/2025/03/50184c.jpg	
+55004a	tt	Prime Real Estate	https://hallofheroeslcg.com/trickster-takeover/	https://hallofheroeslcg.com/wp-content/uploads/2025/08/55004a.jpg	
+55004b	tt	Prime Real Estate	https://hallofheroeslcg.com/trickster-takeover/	https://hallofheroeslcg.com/wp-content/uploads/2025/08/55004b.jpg	
+55005a	tt	Sovereign Sorceress	https://hallofheroeslcg.com/trickster-takeover/	https://hallofheroeslcg.com/wp-content/uploads/2025/08/55005a.jpg	
+55005b	tt	Sovereign Sorceress	https://hallofheroeslcg.com/trickster-takeover/	https://hallofheroeslcg.com/wp-content/uploads/2025/08/55005b.jpg	
+55007a	tt	Hypnotic Gaze	https://hallofheroeslcg.com/trickster-takeover/	https://hallofheroeslcg.com/wp-content/uploads/2025/08/55007a.jpg	
+55007b	tt	Trance of Envy	https://hallofheroeslcg.com/trickster-takeover/	https://hallofheroeslcg.com/wp-content/uploads/2025/08/55007b.jpg	
+55008a	tt	Hypnotic Gaze	https://hallofheroeslcg.com/trickster-takeover/	https://hallofheroeslcg.com/wp-content/uploads/2025/08/55008a.jpg	
+55008b	tt	Trance of Greed	https://hallofheroeslcg.com/trickster-takeover/	https://hallofheroeslcg.com/wp-content/uploads/2025/08/55008b.jpg	
+55009a	tt	Hypnotic Gaze	https://hallofheroeslcg.com/trickster-takeover/	https://hallofheroeslcg.com/wp-content/uploads/2025/08/55009a.jpg	
+55009b	tt	Trance of Pride	https://hallofheroeslcg.com/trickster-takeover/	https://hallofheroeslcg.com/wp-content/uploads/2025/08/55009b.jpg	
+55010a	tt	Hypnotic Gaze	https://hallofheroeslcg.com/trickster-takeover/	https://hallofheroeslcg.com/wp-content/uploads/2025/08/55010a.jpg	
+55010b	tt	Trance of Sloth	https://hallofheroeslcg.com/trickster-takeover/	https://hallofheroeslcg.com/wp-content/uploads/2025/08/55010b.jpg	
+55011a	tt	Hypnotic Gaze	https://hallofheroeslcg.com/trickster-takeover/	https://hallofheroeslcg.com/wp-content/uploads/2025/08/55011a.jpg	
+55011b	tt	Trance of Wrath	https://hallofheroeslcg.com/trickster-takeover/	https://hallofheroeslcg.com/wp-content/uploads/2025/08/55011b.jpg	
+55027a	tt	Loki, God of Lies	https://hallofheroeslcg.com/trickster-takeover/	https://hallofheroeslcg.com/wp-content/uploads/2025/08/55027a.jpg	
+55027b	tt	Loki, God of Lies	https://hallofheroeslcg.com/trickster-takeover/	https://hallofheroeslcg.com/wp-content/uploads/2025/08/55027b.jpg	
+55028a	tt	Worlds Collide	https://hallofheroeslcg.com/trickster-takeover/	https://hallofheroeslcg.com/wp-content/uploads/2025/08/55028a.jpg	
+55028b	tt	Worlds Collide	https://hallofheroeslcg.com/trickster-takeover/	https://hallofheroeslcg.com/wp-content/uploads/2025/08/55028b.jpg	
+55029a	tt	Loki the Rascal	https://hallofheroeslcg.com/trickster-takeover/	https://hallofheroeslcg.com/wp-content/uploads/2025/08/55029a.jpg	
+55029b	tt	Fading Figment	https://hallofheroeslcg.com/trickster-takeover/	https://hallofheroeslcg.com/wp-content/uploads/2025/08/55029b.jpg	
+55030a	tt	Loki the Miscreant	https://hallofheroeslcg.com/trickster-takeover/	https://hallofheroeslcg.com/wp-content/uploads/2025/08/55030a.jpg	
+55030b	tt	Fading Figment	https://hallofheroeslcg.com/trickster-takeover/	https://hallofheroeslcg.com/wp-content/uploads/2025/08/55030b.jpg	
+55031a	tt	Loki the Knave	https://hallofheroeslcg.com/trickster-takeover/	https://hallofheroeslcg.com/wp-content/uploads/2025/08/55031a.jpg	
+55031b	tt	Fading Figment	https://hallofheroeslcg.com/trickster-takeover/	https://hallofheroeslcg.com/wp-content/uploads/2025/08/55031b.jpg	
+55032a	tt	Loki the Wretch	https://hallofheroeslcg.com/trickster-takeover/	https://hallofheroeslcg.com/wp-content/uploads/2025/08/55032a.jpg	
+55032b	tt	Fading Figment	https://hallofheroeslcg.com/trickster-takeover/	https://hallofheroeslcg.com/wp-content/uploads/2025/08/55032b.jpg	
+55033a	tt	Mischief and Mayhem	https://hallofheroeslcg.com/trickster-takeover/	https://hallofheroeslcg.com/wp-content/uploads/2025/08/55033a.jpg	
+55033b	tt	Mischief and Mayhem	https://hallofheroeslcg.com/trickster-takeover/	https://hallofheroeslcg.com/wp-content/uploads/2025/08/55033b.jpg	
+55034a	tt	Intense Focus	https://hallofheroeslcg.com/trickster-takeover/	https://hallofheroeslcg.com/wp-content/uploads/2025/08/55034a.jpg	
+55034b	tt	Total Focus	https://hallofheroeslcg.com/trickster-takeover/	https://hallofheroeslcg.com/wp-content/uploads/2025/08/55034b.jpg	
+56063a	cw	Superhero Registration Act	https://hallofheroeslcg.com/civil-war/	https://hallofheroeslcg.com/wp-content/uploads/2025/11/56063a.jpg	
+56063b	cw	Cut Off Support	https://hallofheroeslcg.com/civil-war/	https://hallofheroeslcg.com/wp-content/uploads/2025/11/56063b.jpg	
+56064a	cw	Pro-Registration Tactics	https://hallofheroeslcg.com/civil-war/	https://hallofheroeslcg.com/wp-content/uploads/2025/11/56064a.jpg	
+56064b	cw	Negative Zone Prison	https://hallofheroeslcg.com/civil-war/	https://hallofheroeslcg.com/wp-content/uploads/2025/11/56064b.jpg	
+56096a	cw	Superhero Registration Act	https://hallofheroeslcg.com/civil-war/	https://hallofheroeslcg.com/wp-content/uploads/2025/11/56096a.jpg	
+56096b	cw	S.H.I.E.L.D. Recruits	https://hallofheroeslcg.com/civil-war/	https://hallofheroeslcg.com/wp-content/uploads/2025/11/56096b.jpg	
+56097a	cw	Pro-Registration Tactics	https://hallofheroeslcg.com/civil-war/	https://hallofheroeslcg.com/wp-content/uploads/2025/11/56097a.jpg	
+56097b	cw	Hunting Rebel Heroes	https://hallofheroeslcg.com/civil-war/	https://hallofheroeslcg.com/wp-content/uploads/2025/11/56097b.jpg	
+56121a	cw	Superhero Registration Act	https://hallofheroeslcg.com/civil-war/	https://hallofheroeslcg.com/wp-content/uploads/2025/11/56121a.jpg	
+56121b	cw	Homeland Security	https://hallofheroeslcg.com/civil-war/	https://hallofheroeslcg.com/wp-content/uploads/2025/11/56121b.jpg	
+56122a	cw	Superhero Registration Act	https://hallofheroeslcg.com/civil-war/	https://hallofheroeslcg.com/wp-content/uploads/2025/11/56122a.jpg	
+56122b	cw	Public Outrage	https://hallofheroeslcg.com/civil-war/	https://hallofheroeslcg.com/wp-content/uploads/2025/11/56122b.jpg	
+56123a	cw	Pro-Registration Tactics	https://hallofheroeslcg.com/civil-war/	https://hallofheroeslcg.com/wp-content/uploads/2025/11/56123a.jpg	
+56123b	cw	The Initiative	https://hallofheroeslcg.com/civil-war/	https://hallofheroeslcg.com/wp-content/uploads/2025/11/56123b.jpg	
+56124a	cw	Pro-Registration Tactics	https://hallofheroeslcg.com/civil-war/	https://hallofheroeslcg.com/wp-content/uploads/2025/11/56124a.jpg	
+56124b	cw	No Going Back	https://hallofheroeslcg.com/civil-war/	https://hallofheroeslcg.com/wp-content/uploads/2025/11/56124b.jpg	
+56128a	cw	Choosing Sides	https://hallofheroeslcg.com/civil-war/	https://hallofheroeslcg.com/wp-content/uploads/2025/11/56128a.jpg	
+56141a	cw	Superhero Resistance	https://hallofheroeslcg.com/civil-war/	https://hallofheroeslcg.com/wp-content/uploads/2025/11/56141a.jpg	
+56141b	cw	Gathering Support	https://hallofheroeslcg.com/civil-war/	https://hallofheroeslcg.com/wp-content/uploads/2025/11/56141b.jpg	
+56142a	cw	Resistance Tactics	https://hallofheroeslcg.com/civil-war/	https://hallofheroeslcg.com/wp-content/uploads/2025/11/56142a.jpg	
+56142b	cw	Secret Avengers	https://hallofheroeslcg.com/civil-war/	https://hallofheroeslcg.com/wp-content/uploads/2025/11/56142b.jpg	
+56172a	cw	Superhero Resistance	https://hallofheroeslcg.com/civil-war/	https://hallofheroeslcg.com/wp-content/uploads/2025/11/56172a.jpg	
+56172b	cw	Open Rebellion	https://hallofheroeslcg.com/civil-war/	https://hallofheroeslcg.com/wp-content/uploads/2025/11/56172b.jpg	
+56173a	cw	Resistance Tactics	https://hallofheroeslcg.com/civil-war/	https://hallofheroeslcg.com/wp-content/uploads/2025/11/56173a.jpg	
+56173b	cw	Neighborhood Protectors	https://hallofheroeslcg.com/civil-war/	https://hallofheroeslcg.com/wp-content/uploads/2025/11/56173b.jpg	
+56199a	cw	Superhero Resistance	https://hallofheroeslcg.com/civil-war/	https://hallofheroeslcg.com/wp-content/uploads/2025/11/56199a.jpg	
+56199b	cw	Rallying Call	https://hallofheroeslcg.com/civil-war/	https://hallofheroeslcg.com/wp-content/uploads/2025/11/56199b.jpg	
+56200a	cw	Superhero Resistance	https://hallofheroeslcg.com/civil-war/	https://hallofheroeslcg.com/wp-content/uploads/2025/11/56200a.jpg	
+56200b	cw	Going Underground	https://hallofheroeslcg.com/civil-war/	https://hallofheroeslcg.com/wp-content/uploads/2025/11/56200b.jpg	
+56201a	cw	Resistance Tactics	https://hallofheroeslcg.com/civil-war/	https://hallofheroeslcg.com/wp-content/uploads/2025/11/56201a.jpg	
+56201b	cw	Guerilla Warfare	https://hallofheroeslcg.com/civil-war/	https://hallofheroeslcg.com/wp-content/uploads/2025/11/56201b.jpg	
+56202a	cw	Resistance Tactics	https://hallofheroeslcg.com/civil-war/	https://hallofheroeslcg.com/wp-content/uploads/2025/11/56202a.jpg	
+56202b	cw	Superhero Jailbreak	https://hallofheroeslcg.com/civil-war/	https://hallofheroeslcg.com/wp-content/uploads/2025/11/56202b.jpg	
+56206b	cw	Now It's Personal	https://hallofheroeslcg.com/civil-war/	https://hallofheroeslcg.com/wp-content/uploads/2025/11/56206b.jpg	
+57046a	synthezoid	Dense	https://hallofheroeslcg.com/synthezoid-smackdown/	https://hallofheroeslcg.com/wp-content/uploads/2026/03/57046a.jpg	
+57046b	synthezoid	Intangible	https://hallofheroeslcg.com/synthezoid-smackdown/	https://hallofheroeslcg.com/wp-content/uploads/2026/03/57046b.jpg	
+60040a	fne	Photographic Reflexes	https://hallofheroeslcg.com/fear-no-evil/	https://hallofheroeslcg.com/wp-content/uploads/2026/08/60040a.jpg	
+60040b	fne	Photographic Reflexes	https://hallofheroeslcg.com/fear-no-evil/	https://hallofheroeslcg.com/wp-content/uploads/2026/08/60040b.jpg	
+60040c	fne	Photographic Reflexes	https://hallofheroeslcg.com/fear-no-evil/	https://hallofheroeslcg.com/wp-content/uploads/2026/08/60040c.jpg	
+61002	jj	Alias Investigations	https://hallofheroeslcg.com/jessica-jones/	https://hallofheroeslcg.com/wp-content/uploads/2026/05/mc61_cards_alias-investigations.png	
+61003	jj	Luke Cage	https://hallofheroeslcg.com/jessica-jones/	https://hallofheroeslcg.com/wp-content/uploads/2026/05/mc61_cards_luke-cage.png	
+61004	jj	"Big Mistake"	https://hallofheroeslcg.com/jessica-jones/	https://hallofheroeslcg.com/wp-content/uploads/2026/05/mc61_cards_big-mistake.png	
+61005	jj	Breakthrough	https://hallofheroeslcg.com/jessica-jones/	https://hallofheroeslcg.com/wp-content/uploads/2026/05/mc61_cards_breakthrough.png	
+61006	jj	Snooping Around	https://hallofheroeslcg.com/jessica-jones/	https://hallofheroeslcg.com/wp-content/uploads/2026/05/mc61_cards_snooping-around.png	
+61008	jj	Calling in Favors	https://hallofheroeslcg.com/jessica-jones/	https://hallofheroeslcg.com/wp-content/uploads/2026/05/mc61_cards_calling-in-favors.png	
+61009	jj	4K Digital Camcorder	https://hallofheroeslcg.com/jessica-jones/	https://hallofheroeslcg.com/wp-content/uploads/2026/05/mc61_cards_4k-digital-camcorder.png	
+61010	jj	Circumstantial Evidence	https://hallofheroeslcg.com/jessica-jones/	https://hallofheroeslcg.com/wp-content/uploads/2026/05/mc61_cards_circumstantial-evidence.png	
+61011	jj	Leather Jacket	https://hallofheroeslcg.com/jessica-jones/	https://hallofheroeslcg.com/wp-content/uploads/2026/05/mc61_cards_leather-jacket.png	
+61014	jj	Stakeout	https://hallofheroeslcg.com/jessica-jones/	https://hallofheroeslcg.com/wp-content/uploads/2026/05/mc61_cards_stakeout.png	
+61015	jj	Captain Marvel	https://hallofheroeslcg.com/jessica-jones/	https://hallofheroeslcg.com/wp-content/uploads/2026/05/mc61_cards_captain-marvel.png	
+61017	jj	Squirrel Girl	https://hallofheroeslcg.com/jessica-jones/	https://hallofheroeslcg.com/wp-content/uploads/2026/05/mc61_cards_squirrel-girl.png	
+61019	jj	Strategy Session	https://hallofheroeslcg.com/jessica-jones/	https://hallofheroeslcg.com/wp-content/uploads/2026/05/mc61_cards_strategy-session.png	
+61020	jj	Run Them to Ground	https://hallofheroeslcg.com/jessica-jones/	https://hallofheroeslcg.com/wp-content/uploads/2026/05/mc61_cards_run-them-to-ground.png	
+61023	jj	Grapnel Launcher	https://hallofheroeslcg.com/jessica-jones/	https://hallofheroeslcg.com/wp-content/uploads/2026/05/mc61_cards_grapnel-launcher.png	
+61024	jj	Entrapment	https://hallofheroeslcg.com/jessica-jones/	https://hallofheroeslcg.com/wp-content/uploads/2026/05/mc61_cards_entrapment.png	
+61026	jj	Joys of Life	https://hallofheroeslcg.com/jessica-jones/	https://hallofheroeslcg.com/wp-content/uploads/2026/05/mc61_cards_joys-of-life.png	
+61027	jj	Unbreakable Bond	https://hallofheroeslcg.com/jessica-jones/	https://hallofheroeslcg.com/wp-content/uploads/2026/05/mc61_cards_unbreakable-bond.png	
+61029	jj	Defend Our City	https://hallofheroeslcg.com/jessica-jones/	https://hallofheroeslcg.com/wp-content/uploads/2026/05/mc61_cards_defend-our-city.png	
+62002	luke_cage	Jessica Jones	https://hallofheroeslcg.com/luke-cage/	https://hallofheroeslcg.com/wp-content/uploads/2026/06/mc62_luke-cage_jessica-jones.png	
+62004	luke_cage	Knuckle Sandwich	https://hallofheroeslcg.com/luke-cage/	https://hallofheroeslcg.com/wp-content/uploads/2026/06/mc62_luke-cage_knuckle-sandwich.png	
+62005	luke_cage	"Stand with Me!"	https://hallofheroeslcg.com/luke-cage/	https://hallofheroeslcg.com/wp-content/uploads/2026/06/mc62_luke-cage_stand-with-me.png	
+62006	luke_cage	"Sweet Christmas!"	https://hallofheroeslcg.com/luke-cage/	https://hallofheroeslcg.com/wp-content/uploads/2026/06/mc62_luke-cage_sweet-christmas.png	
+62011	luke_cage	Power Man	https://hallofheroeslcg.com/luke-cage/	https://hallofheroeslcg.com/wp-content/uploads/2026/06/mc62_luke-cage_power-man.png	
+62013	luke_cage	Misty Knight	https://hallofheroeslcg.com/luke-cage/	https://hallofheroeslcg.com/wp-content/uploads/2026/06/mc62_luke-cage_misty-knight.png	
+62015	luke_cage	Take a Stand	https://hallofheroeslcg.com/luke-cage/	https://hallofheroeslcg.com/wp-content/uploads/2026/06/mc62_luke-cage_take-a-stand.png	
+62018	luke_cage	Defensive Formation	https://hallofheroeslcg.com/luke-cage/	https://hallofheroeslcg.com/wp-content/uploads/2026/06/mc62_luke-cage_defensive-formation.png	
+62019	luke_cage	Righteous Purpose	https://hallofheroeslcg.com/luke-cage/	https://hallofheroeslcg.com/wp-content/uploads/2026/06/mc62_luke-cage_righteous-purpose.png	
+62022	luke_cage	Dynamic Duo	https://hallofheroeslcg.com/luke-cage/	https://hallofheroeslcg.com/wp-content/uploads/2026/06/mc62_luke-cage_dynamic-duo.png	

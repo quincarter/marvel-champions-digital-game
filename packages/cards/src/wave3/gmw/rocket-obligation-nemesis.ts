@@ -1,4 +1,5 @@
 import {
+  andThen,
   chosen,
   defineAbilities,
   discard,
@@ -51,7 +52,10 @@ export const ROCKET_OBLIGATION_NEMESIS = defineAbilities({
   // minion. Reveal that minion, then give it a tough status card.
   "16057.when-revealed": whenRevealed(
     discardEncounterUntil(query("minion"), "found"),
+    // No minion found (the discard itself is "fulfilled", RRG 1.8 "Encounter Deck", p. 17) leaves "Reveal that minion"
+    // with nothing to reveal (`revealFoundNothing`), and a reveal whose effects are cancelled is not resolved
+    // (`revealCancelled`): either skips the "then" (RRG 1.8 "'Then'", p. 44).
     revealCard(chosen("found")),
-    giveTough(chosen("found")),
+    andThen(giveTough(chosen("found"))),
   ),
 });

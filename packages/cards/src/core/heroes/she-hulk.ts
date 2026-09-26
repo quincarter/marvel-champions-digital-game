@@ -3,6 +3,7 @@ import {
   addAccelerationToken,
   after,
   alterEgoAction,
+  andThen,
   attackAnEnemy,
   boost,
   cards,
@@ -84,7 +85,9 @@ export const SHE_HULK_KIT = defineAbilities({
   // One-Two Punch — Response: After you make a basic attack (using your ATK), ready She-Hulk.
   "01024.one-two-punch-response": response(after.attacks(YOUR_HERO, { basic: true }), ready(yourIdentity)),
   // Split Personality — Action: Change your form (flip your identity card). Then, draw up to your printed hand size.
-  "01025.split-personality-action": action(changeForm(you), drawUpTo(handSizeOf(you, true))),
+  // `changeForm` always fully resolves, so `andThen` is the faithful reading (RRG 1.8 "'Then'", p. 44) without
+  // changing observable behavior today.
+  "01025.split-personality-action": action(changeForm(you), andThen(drawUpTo(handSizeOf(you, true)))),
   // Superhuman Law Division — Alter-Ego Action: Exhaust SLD and spend a [mental] resource → remove 2 threat from a scheme.
   // Current text (RRG 1.5 errata): no longer labeled (thwart).
   "01026.superhuman-law-division-action": alterEgoAction(

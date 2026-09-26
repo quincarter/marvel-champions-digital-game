@@ -248,6 +248,16 @@ export function driveEvents(
   state: GameState,
   ...commands: readonly Command[]
 ): { readonly state: GameState; readonly events: readonly GameEvent[] } {
+  return driveEventsPicking(deps, state, firstLegal, ...commands);
+}
+
+/** `driveEvents` answering every choice with `pick` instead of `firstLegal` (an optional response to accept, a card to choose). */
+export function driveEventsPicking(
+  deps: EngineDeps,
+  state: GameState,
+  pick: Picker,
+  ...commands: readonly Command[]
+): { readonly state: GameState; readonly events: readonly GameEvent[] } {
   let current = state;
   const events: GameEvent[] = [];
   const settleOne = () => {
@@ -259,7 +269,7 @@ export function driveEvents(
           type: "resolveChoice",
           playerId: choice.playerId,
           choiceId: choice.choiceId,
-          selectedOptionIds: firstLegal(current),
+          selectedOptionIds: pick(current),
         },
         deps,
       );
@@ -297,4 +307,32 @@ export function defeatWithAttack(
     undefined,
     deps,
   );
+}
+
+/**
+ * Answers pending choices one at a time with `pick`, collecting every event, until none is left. `before` may change
+ * the state just before each answer (test surgery at the moment a choice is offered: "another cancel got there first").
+ */
+export function driveStepwise(
+  deps: EngineDeps,
+  state: GameState,
+  pick: Picker,
+  before: (state: GameState) => GameState = (s) => s,
+): { readonly state: GameState; readonly events: readonly GameEvent[] } {
+  let current = state;
+  const events: GameEvent[] = [];
+  for (let guard = 0; current.pendingChoice && !current.outcome; guard++) {
+    if (guard > 500) throw new Error(`choices did not settle (stuck on ${current.pendingChoice.prompt.kind})`);
+    current = before(current);
+    const choice = current.pendingChoice;
+    if (!choice) break;
+    const result = applyOk(
+      current,
+      { type: "resolveChoice", playerId: choice.playerId, choiceId: choice.choiceId, selectedOptionIds: pick(current) },
+      deps,
+    );
+    current = result.state;
+    events.push(...result.events);
+  }
+  return { state: current, events };
 }

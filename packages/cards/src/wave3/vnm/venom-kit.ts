@@ -3,6 +3,7 @@ import {
   after,
   alterEgoAction,
   anAttackableEnemy,
+  andThen,
   anEnemy,
   attack,
   attackAnEnemy,
@@ -118,9 +119,11 @@ export const VENOM_KIT = defineAbilities({
   // Ready - Setup: Discard cards from the top of your deck until you discard a weapon upgrade, then add that card
   // to your hand.
   "20001b.flash-thompson-constant": constant(restrictedLimit(1)),
+  // A deck with no weapon upgrade is `discardUntilFoundNothing` (docs/then-sweep.md), so "then add that card to
+  // your hand" doesn't attempt to resolve either (RRG 1.8 "'Then'", p. 44) — there's no card to add anyway.
   "20001b.flash-thompson-constant-2": setup(
     discardDeckUntil(query("upgrade", { trait: WEAPON }), "found"),
-    moveCards(cards(chosen("found")), "hand"),
+    andThen(moveCards(cards(chosen("found")), "hand")),
   ),
 
   // Behind Enemy Lines — Hero Action (thwart): Remove 3 threat from a scheme. If you paid for this card using

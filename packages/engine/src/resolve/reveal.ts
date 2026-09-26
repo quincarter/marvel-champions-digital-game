@@ -3,7 +3,7 @@
 import type { AttachmentHost } from "@mc/content";
 import { type Ctx, emit, moveCard, popFrame, pushFrames, requestChoice, setFrame, updateInstance } from "../ctx.js";
 import { dealEncounterCardTo } from "../effects.js";
-import { type InstanceId, instanceId as asInstanceId, type PlayerId } from "../ids.js";
+import { type FrameId, type InstanceId, instanceId as asInstanceId, type PlayerId } from "../ids.js";
 import { hasKeyword, keywordTotal } from "../keywords.js";
 import {
   activeVillainIdFor,
@@ -35,9 +35,11 @@ import { encounterTargetSelector } from "../villain/authority.js";
 import { engagedEvent } from "./apply-effect.js";
 import { enterPlay, quickstrikeAttack } from "./enter-play.js";
 import { heard } from "./triggers.js";
+import { markPreThenUnresolved } from "./then.js";
 import { base, eventFrame, type Frame, gameAbilityFrames, pushEvent } from "./frames.js";
 
-export const revealFrame = (ctx: Ctx, playerId: PlayerId, id: InstanceId): StackFrame => ({
+/** `preThenOf`: the effects frame whose pre-"then" text this reveal is (`revealCard`; RRG 1.8 "'Then'", p. 44). */
+export const revealFrame = (ctx: Ctx, playerId: PlayerId, id: InstanceId, preThenOf?: FrameId): StackFrame => ({
   ...base(ctx),
   kind: "reveal",
   instanceId: id,
@@ -46,6 +48,7 @@ export const revealFrame = (ctx: Ctx, playerId: PlayerId, id: InstanceId): Stack
   effectsCancelled: false,
   surgeGained: false,
   revealedFrom: locateCard(ctx.state, id) ?? null,
+  ...(preThenOf ? { preThenOf } : {}),
   stage: "faceup",
 });
 
@@ -346,6 +349,9 @@ export function executeRevealFrame(ctx: Ctx, frame: Frame<"reveal">): void {
         return;
       }
       if (frame.effectsCancelled) {
+        // "Reveal that minion, then …": a reveal whose effects were cancelled did not fully resolve (RRG 1.8 "'Then'",
+        // p. 44; "Resolve", p. 37: an ability all of whose effects are cancelled is not considered to have resolved).
+        markPreThenUnresolved(ctx, frame.preThenOf, "revealCancelled", frame.instanceId);
         // RRG "Cancel": a canceled card is still revealed; it is discarded and nothing else happens.
         if (getInstance(ctx.state, frame.instanceId))
           moveCard(ctx, frame.instanceId, discardZoneFor(ctx.state, frame.instanceId), "top");

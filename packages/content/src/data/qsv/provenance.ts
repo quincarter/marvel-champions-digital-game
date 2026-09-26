@@ -11,9 +11,7 @@ export const QSV_PROVENANCE: readonly CardProvenance[] = [
     cardId: cardId("14001a"),
     cardSetCode: "qsv",
     marvelcdbCodes: ["14001a", "14001b"],
-    corrections: [
-      "14001b: no artwork on MarvelCDB; art reference substituted from a curated second source [evidence: curation.imageOverrides]",
-    ],
+    corrections: [],
   },
   { cardId: cardId("14002"), cardSetCode: "qsv", marvelcdbCodes: ["14002"], corrections: [] },
   { cardId: cardId("14003"), cardSetCode: "qsv", marvelcdbCodes: ["14003"], corrections: [] },

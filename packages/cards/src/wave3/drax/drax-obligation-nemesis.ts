@@ -1,4 +1,5 @@
 import {
+  andThen,
   after,
   cards,
   chosen,
@@ -41,11 +42,12 @@ const YOTAT = named(cardName("19027"));
 export const DRAX_OBLIGATION_NEMESIS = defineAbilities({
   // Gamora (ally) — Play only if your identity has the guardian trait (data, `playRestrictions`). Hero Response:
   // After Gamora attacks or thwarts, discard cards from the top of your deck until you discard an event, then add
-  // that card to your hand.
+  // that card to your hand. No event found leaves the pre-"then" text unresolved (`discardUntilFoundNothing`, RRG 1.8
+  // "'Then'", p. 44), so the "add" is skipped.
   "19020.gamora-response": heroResponse(
     after.attacksOrThwarts("self"),
     discardDeckUntil(query("event"), "found"),
-    moveCards(cards(chosen("found")), "hand"),
+    andThen(moveCards(cards(chosen("found")), "hand")),
   ),
 
   // Memories of Another Life — Give to the Drax player. You may flip to alter-ego form. Choose:

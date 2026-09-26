@@ -1,0 +1,3 @@
+kind: Engine
+body: '"Discard cards from the encounter deck until …" now stops when the encounter deck empties instead of carrying on into the reshuffled deck (RRG Encounter Deck).'
+time: 2026-09-26T13:32:05.692173-04:00

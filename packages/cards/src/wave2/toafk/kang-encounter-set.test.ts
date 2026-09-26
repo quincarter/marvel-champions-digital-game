@@ -85,6 +85,15 @@ describe("Kang / Temporal encounter set (kang-encounter-set.ts)", () => {
     expect(obligation?.tucked).toContain(allyId);
   });
 
+  // RRG 1.8 "'Then'" (p. 44): with no ally/upgrade/support in play, the required `chooseTarget` finds nothing, so
+  // "then place it facedown under this card" doesn't attempt to resolve either.
+  it("Time-Travel Hijinks (11021): with nothing to discard, nothing is tucked", () => {
+    const revealed = revealAsObligation(kangVsHeroes(), "11021");
+    const obligation = Object.values(revealed.instances).find((i) => i.cardId === "11021");
+    expect(obligation).toBeDefined();
+    expect(obligation?.tucked ?? []).toHaveLength(0);
+  });
+
   // docs/phase7-wave2.md §19: `AbilityCost.discardFromHand` gained `filter`, so each of these three "Alter-Ego
   // Action: Discard a [type] resource from your hand → discard this obligation" refs can now be scripted and
   // exercised with a real command. The three basic resource cards (Hawkeye's own 04023/04024/04025) each carry
