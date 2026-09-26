@@ -37,6 +37,11 @@ folder is all it should take**. Formats: `mp3`, `ogg`, `m4a`.
 ids `art/` uses, so a scenario's art and music folders share a name. A new
 scenario needs only a new folder here.
 
+**`scenarios/_pending/<scenarioId>/`** holds tracks for a scenario that isn't in the playable pool yet (the
+scenario-id and `TRACK_TITLES` checks only accept pool scenarios). Nothing reads it; the wave that makes the
+scenario playable moves the folder up to `scenarios/<scenarioId>/` and adds the `TRACK_TITLES` entry, using the
+title its `soundtrack/` copy already carries. Same rule as `art/scenarios/_pending/`.
+
 **`soundtrack/`** holds the same songs under their titles (`Nothing_Stops_the_Rhino.mp3` is
 `scenarios/rhino/battle.mp3`). The client never loads it; the titles live in `TRACK_TITLES`
 (`packages/client/src/progression/extras.ts`), which names every slotted track for the Extras jukebox.
