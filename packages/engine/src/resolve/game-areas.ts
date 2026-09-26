@@ -18,6 +18,7 @@ import {
   mainSchemeStates,
   mustCard,
   mustInstance,
+  nextVillainInActivationOrder,
   playerOrder,
   villainOf,
 } from "../query.js";
@@ -369,7 +370,10 @@ function duplicateUniqueFrames(ctx: Ctx, areaId: GameAreaId | null): readonly St
  * "Add Kang (Immortus) to the game area" / "Reveal Kang (III) and add him to the game area": set-aside villains enter
  * play as additional villains (docs/phase7-wave2.md §3.4). In `area`, each joins it and takes its active counter if it
  * has none; outside any area, one takes the game's active counter when the active villain is defeated. Returns the When
- * Revealed frames when `reveal`.
+ * Revealed frames when `reveal`, and the villains that entered.
+ *
+ * A villain set aside after being in play (`setVillainAside`, The Sinister Six; docs/phase7-wave5.md §3.1) re-enters
+ * as a new copy: its entry in `GameState.villains` is replaced in place, so its printed order is kept.
  */
 export function addVillains(
   ctx: Ctx,
@@ -377,10 +381,12 @@ export function addVillains(
   area: GameAreaState | null,
   reveal: boolean,
   actingPlayerId: PlayerId,
-): readonly StackFrame[] {
+): { readonly frames: readonly StackFrame[]; readonly entered: readonly InstanceId[] } {
   const frames: StackFrame[] = [];
+  const entered: InstanceId[] = [];
   for (const id of ids) {
-    if (!ctx.state.encounterSetAside.includes(id) || villainOf(ctx.state, id)) continue;
+    const existing = villainOf(ctx.state, id);
+    if (!ctx.state.encounterSetAside.includes(id) || (existing && !existing.defeated)) continue;
     const card = mustCard(ctx.state, mustInstance(ctx.state, id).cardId);
     if (card.type !== "villain") continue;
     const side = card.startingSide ?? "A";
@@ -394,16 +400,20 @@ export function addVillains(
       lastStageIndex: stages.length - 1,
       defeated: false,
       encounterDeckId:
-        home.kind === "encounterDeck"
+        existing?.encounterDeckId ??
+        (home.kind === "encounterDeck"
           ? home.deckId
-          : (ctx.state.encounterDeckOrder[0] as VillainState["encounterDeckId"]),
-      signatureSideSchemeId: null,
+          : (ctx.state.encounterDeckOrder[0] as VillainState["encounterDeckId"])),
+      signatureSideSchemeId: existing?.signatureSideSchemeId ?? null,
     };
     ctx.state = {
       ...ctx.state,
-      villains: [...ctx.state.villains, villain],
+      villains: existing
+        ? ctx.state.villains.map((v) => (v.instanceId === id ? villain : v))
+        : [...ctx.state.villains, villain],
       encounterSetAside: ctx.state.encounterSetAside.filter((other) => other !== id),
     };
+    entered.push(id);
     updateInstance(ctx, id, (i) => ({ ...i, faceup: true }));
     const current = area ? ctx.state.gameAreas.find((a) => a.areaId === area.areaId) : undefined;
     if (current) {
@@ -421,7 +431,53 @@ export function addVillains(
     if (hasKeyword(ctx.state, id, "toughness", ctx.deps)) giveStatus(ctx, id, "tough");
     if (reveal) frames.push(...gameAbilityFrames(ctx, id, ["whenRevealed"], null, undefined, actingPlayerId));
   }
-  return frames;
+  return { frames, entered };
+}
+
+/**
+ * "Set this villain aside" (docs/phase7-wave5.md §3.1): the villain leaves play if it is in play (attachments and boost
+ * cards discarded, RRG 1.8 "Leaves Play", p. 27), returns to the set-aside area as a new copy (damage, status cards,
+ * counters and exhaustion cleared, facedown) and stays listed as `defeated`, i.e. out of play. A villain in play that
+ * held the active counter passes it on as a defeat would (`passActiveCounter`); one already defeated has done so.
+ */
+export function setVillainsAside(ctx: Ctx, ids: readonly InstanceId[]): void {
+  for (const id of ids) {
+    const villain = villainOf(ctx.state, id);
+    if (!villain || ctx.state.encounterSetAside.includes(id)) continue;
+    const instance = mustInstance(ctx.state, id);
+    for (const attachment of [...instance.attachments]) discardFromPlay(ctx, attachment);
+    for (const boost of [...instance.boostCards]) moveCard(ctx, boost, discardZoneFor(ctx.state, boost), "top");
+    const wasInPlay = !villain.defeated;
+    ctx.state = {
+      ...ctx.state,
+      villains: ctx.state.villains.map((v) => (v.instanceId === id ? { ...v, defeated: true } : v)),
+      victoryDisplay: ctx.state.victoryDisplay.filter((other) => other !== id),
+      encounterSetAside: [...ctx.state.encounterSetAside, id],
+    };
+    updateInstance(ctx, id, (i) => ({
+      ...i,
+      damage: 0,
+      statuses: NO_STATUSES,
+      counters: {},
+      exhausted: false,
+      faceup: false,
+      flipped: false,
+    }));
+    emit(ctx, { type: "villainSetAside", instanceId: id });
+    if (wasInPlay && ctx.state.activeVillainId === id) passActiveCounter(ctx, id);
+  }
+}
+
+/**
+ * The active counter leaves `fromId` (defeated or set aside) under `ScenarioRules.activeCounter`: the next villain in
+ * the activation order, or nobody (the counter "set aside", MC27 p. 15) when no other villain is in play. Returns false
+ * when the scenario uses another rule, so the caller applies its own.
+ */
+export function passActiveCounter(ctx: Ctx, fromId: InstanceId): boolean {
+  if (ctx.state.scenarioRules.activeCounter !== "nextInActivationOrder") return false;
+  const next = nextVillainInActivationOrder(ctx.state, fromId);
+  if (next) setActiveVillain(ctx, next, "activationOrder");
+  return true;
 }
 
 /**
@@ -448,7 +504,7 @@ export function removeVillains(ctx: Ctx, ids: readonly InstanceId[]): void {
       }));
     }
     emit(ctx, { type: "villainRemoved", instanceId: id });
-    if (ctx.state.activeVillainId === id) {
+    if (ctx.state.activeVillainId === id && !passActiveCounter(ctx, id)) {
       const next = ctx.state.villains.find(
         (v) => !v.defeated && !ctx.state.gameAreas.some((a) => a.villainIds.includes(v.instanceId)),
       );

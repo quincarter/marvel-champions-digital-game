@@ -21,6 +21,7 @@ import {
   mainSchemeStateOf,
   mainSchemeFor,
   sharedMainSchemes,
+  activationOrderOf,
   activeVillainIdFor,
   areaOfCard,
   areaOfPlayer,
@@ -1338,6 +1339,10 @@ export function resolveValue(
         const pool = printedResources(card);
         return sum + types.reduce((total, type) => total + pool[type], 0);
       }, 0);
+    }
+    case "activationOrder": {
+      const [id] = resolveRef(state, value.of, context);
+      return id ? activationOrderOf(state, id) : 0;
     }
     case "villainStageNumber": {
       const [id] = value.of

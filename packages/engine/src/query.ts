@@ -156,6 +156,28 @@ export const isVillain = (state: GameState, id: InstanceId): boolean => villainO
  */
 export const activeVillain = (state: GameState): VillainState => mustVillain(state, state.activeVillainId);
 
+/** A villain's printed "Activation Order X" (The Sinister Six, MC27 p. 15); 0 without one. docs/phase7-wave5.md §3.1. */
+export function activationOrderOf(state: GameState, id: InstanceId): number {
+  const card = getInstance(state, id) ? mustCard(state, mustInstance(state, id).cardId) : undefined;
+  return card?.type === "villain" ? (card.activationOrder ?? 0) : 0;
+}
+
+/**
+ * The villain in play after `fromId` in the activation order (MC27 p. 15): the next ascending value, wrapping to the
+ * lowest. `fromId` itself is skipped, and villains in a separate game area never hold the game's counter. Null when no
+ * other villain with an activation order is in play. With `fromId` null, the lowest (the RRG 1.8 p. 62 FAQ).
+ */
+export function nextVillainInActivationOrder(state: GameState, fromId: InstanceId | null): InstanceId | null {
+  const candidates = undefeatedVillains(state)
+    .filter((v) => v.instanceId !== fromId && !state.gameAreas.some((a) => a.villainIds.includes(v.instanceId)))
+    .map((v) => ({ id: v.instanceId, order: activationOrderOf(state, v.instanceId) }))
+    .filter((v) => v.order > 0)
+    .sort((a, b) => a.order - b.order);
+  if (candidates.length === 0) return null;
+  const current = fromId ? activationOrderOf(state, fromId) : 0;
+  return (candidates.find((c) => c.order > current) ?? candidates[0]!).id;
+}
+
 /** "A villain": every villain still in play, in printed order. */
 export const undefeatedVillains = (state: GameState): readonly VillainState[] =>
   state.villains.filter((villain) => !villain.defeated);

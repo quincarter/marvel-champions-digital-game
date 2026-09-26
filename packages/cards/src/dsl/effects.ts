@@ -1263,11 +1263,22 @@ export const endGame = (result: "win" | "loss", reason?: "mainSchemeCompleted" |
   ...(reason ? { reason } : {}),
 });
 /** "Add [villain] to the game area" (docs/phase7-wave2.md §3.4). */
-export const addVillain = (villain: TargetRef, opts: { readonly reveal?: boolean } = {}): EffectSpec => ({
+export const addVillain = (
+  villain: TargetRef,
+  opts: { readonly reveal?: boolean; readonly bind?: string } = {},
+): EffectSpec => ({
   kind: "addVillain",
   villain,
   ...(opts.reveal ? { reveal: true } : {}),
+  ...(opts.bind ? { bind: opts.bind } : {}),
 });
+/**
+ * "Set this villain aside." (the Sinister Six's When Defeated, MC27 p. 15): back to the set-aside area as a new copy,
+ * where `addVillain` can bring it back. docs/phase7-wave5.md §3.1.
+ */
+export const setVillainAside = (villain: TargetRef): EffectSpec => ({ kind: "setVillainAside", villain });
+/** "Move the active counter to the next villain in the activation order." (MC27 p. 15; docs/phase7-wave5.md §3.1) */
+export const moveActiveCounterToNextVillain: EffectSpec = { kind: "moveActiveCounter", to: "nextInActivationOrder" };
 /** "Remove [villain] and this stage from the game." */
 export const removeVillain = (villain: TargetRef): EffectSpec => ({ kind: "removeVillain", villain });
 /** "Remove [stage] from the game." (a separate game area's own main scheme stage). */

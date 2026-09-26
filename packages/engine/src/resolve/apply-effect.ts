@@ -57,6 +57,7 @@ import {
   maxHitPoints,
   mustInstance,
   mustPlayer,
+  nextVillainInActivationOrder,
   turnInProgress,
   villainOf,
 } from "../query.js";
@@ -100,6 +101,7 @@ import {
   putMainSchemeStageIntoPlay,
   removeMainSchemeStage,
   removeVillains,
+  setVillainsAside,
   revealMainSchemeStages,
 } from "./game-areas.js";
 import { announceDamagePrevented, readyOrAnnounce, threatRemovalBlocked } from "./event.js";
@@ -1160,10 +1162,36 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       return;
     case "addVillain": {
       const actor = context.scopedPlayerId ?? context.controllerId ?? ctx.state.firstPlayerId;
-      pushFrames(
+      const added = addVillains(
         ctx,
-        addVillains(ctx, targets(effect.villain), contextArea(ctx.state, context), effect.reveal ?? false, actor),
+        targets(effect.villain),
+        contextArea(ctx.state, context),
+        effect.reveal ?? false,
+        actor,
       );
+      // "If no villain was put into play this way" (docs/phase7-wave5.md §3.1).
+      if (effect.bind) {
+        const slot = effect.bind;
+        updateFrame(ctx, frame.frameId, (f) =>
+          f.kind === "effects"
+            ? {
+                ...f,
+                bindings: { ...f.bindings, [slot]: added.entered },
+                vars: { ...f.vars, [`${slot}.count`]: added.entered.length },
+              }
+            : f,
+        );
+      }
+      pushFrames(ctx, added.frames);
+      return;
+    }
+    case "setVillainAside":
+      setVillainsAside(ctx, targets(effect.villain));
+      return;
+    case "moveActiveCounter": {
+      // MC27 p. 15 and its p. 21 FAQ: a lone villain keeps the counter.
+      const next = nextVillainInActivationOrder(ctx.state, ctx.state.activeVillainId);
+      if (next) setActiveVillain(ctx, next, "activationOrder");
       return;
     }
     case "removeVillain":

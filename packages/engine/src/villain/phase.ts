@@ -7,7 +7,7 @@
  */
 
 import { emit, requestChoice, setStep, updateInstance, type Ctx } from "../ctx.js";
-import { dealEncounterCardTo } from "../effects.js";
+import { dealEncounterCardTo, setActiveVillain } from "../effects.js";
 import type { InstanceId, PlayerId } from "../ids.js";
 import { statusActive } from "../keywords.js";
 import { iconsInPlay } from "../rules.js";
@@ -22,6 +22,7 @@ import {
   mustCardOf,
   mustPlayer,
   nextClockwisePlayer,
+  nextVillainInActivationOrder,
   playerOrder,
 } from "../query.js";
 import { heard, pushEvent, pushEvents, pushRevealFrame } from "../resolve/index.js";
@@ -124,6 +125,16 @@ export function executeEnemyActivations(ctx: Ctx, step: Extract<GameStep, { kind
     // only "the active villain will activate".
     // With separate game areas the villain is the one in that player's area (docs/phase7-wave2.md §3.1). A defeated
     // villain with no successor (Kang (I) under `victory: "cardAbility"`) does not activate.
+    // FAQ The Sinister Six (RRG 1.8 p. 62): "What happens if a villain needs to activate and there are one or more
+    // villains in play but none of them have the active counter? A: Place the active counter on the villain with the
+    // lowest activation order value and continue that activation." (docs/phase7-wave5.md §3.1)
+    if (
+      ctx.state.scenarioRules.activeCounter === "nextInActivationOrder" &&
+      villainOf(ctx.state, ctx.state.activeVillainId)?.defeated !== false
+    ) {
+      const lowest = nextVillainInActivationOrder(ctx.state, null);
+      if (lowest) setActiveVillain(ctx, lowest, "noActiveVillain");
+    }
     const villainId = activeVillainIdFor(ctx.state, areaOfPlayer(ctx.state, current.playerId));
     if (villainId && villainOf(ctx.state, villainId)?.defeated === false)
       activateEnemy(ctx, villainId, current.playerId);

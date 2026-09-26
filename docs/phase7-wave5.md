@@ -58,15 +58,15 @@ Reference; FFG rulings clarify both):
    simultaneously with the card leaving play", not an interrupt (§3.13).
 3. **RRG 1.8 (Jul 2026)**, `mc_rulesreference_v18_compressed.pdf`, cited by printed page (PDF page index + 1). Cycle 4's
    FAQ is on p. 62 (The Sinister Six, Venom Goblin, Across the Spider-Verse, Go for Champions!, Warrior of the Great
-   Web, Spider-Man Noir) and its errata on p. 67 (MC27 p. 17 glider paragraph 4, MC27 p. 22 mulligan box, Worried
-   Father, Venom I–III, Manipulated Mind, Ms. Marvel, "Go for Champions!", SP//dr Suit 1B, M.O.R.B.I.U.S.). Entries
+   Web, Spider-Man Noir) and its errata on pp. 67–68 (p. 67: MC27 p. 17 glider paragraph 4, MC27 p. 22 mulligan box, Worried
+   Father, Venom I–III; p. 68: Manipulated Mind, Ms. Marvel, "Go for Champions!", SP//dr Suit 1B, M.O.R.B.I.U.S.). Entries
    this wave leans on: "Acceleration Token" (p. 5), "Boost, Boost Icon" (p. 11), "Hand Size" and "Hazard Icon"
    (p. 21), "Leaves Play" (p. 27), "Max 1 per [instance]" (p. 28), "Permanent" and "Patrol" (p. 32), "Set Aside"
    (p. 39), "Steady" and "Status Cards" (p. 41), "Swap" (p. 42), "Uses" and "Victory X" (p. 46), "Villain Defeat"
    (p. 47).
 4. **`docs/phase7-wave5-sources.md`**, the tracker's index, reconciled with this pass (2026-09-26). Where the two
    differ, this file is the architect's reading:
-   - Its §4.2 is superseded by RRG 1.8 p. 67, which does carry cycle 4 card errata (listed in item 3 and in §1.9).
+   - Its §4.2 is superseded by RRG 1.8 pp. 67–68, which does carry cycle 4 card errata (listed in item 3 and in §1.9).
    - "Setup" on the S.H.I.E.L.D. Tech upgrades, "Steady" on Venom Goblin and "Symbiote" are not new rules: Setup and
      Steady are RRG keywords the engine implements, and Symbiote is a trait only (no RRG entry).
    - Its hero-kit guesses (Ironheart "armor forms", SP//dr "dual identity like Ant-Man") are not used; §3.23 and
@@ -199,7 +199,7 @@ back (27182b–27189b; MC27 p. 22: "flip their 'Campaign - S.H.I.E.L.D. Tech' up
 - **"Bring the War!" (28022) has no text.** MarvelCDB's API returns `text: null` (checked 2026-09-26). Ruling Jan 11,
   2026 (3) confirms a When Revealed that discards cards with a printed [wild] resource. Transcribe it from the card
   image (curation correction with evidence). Its survey is "clean" only because an empty text box is valid.
-- **Errata to apply** (RRG 1.8 p. 67): Worried Father (27025; raw already current), Venom I–III (27073–27075; raw
+- **Errata to apply** (RRG 1.8 pp. 67–68): Worried Father (27025; raw already current), Venom I–III (27073–27075; raw
   already current), Manipulated Mind (27171; raw already current), Ms. Marvel (28002), "Go for Champions!" (29025),
   SP//dr Suit 1B (31001b; raw already current, see `curation/spdr.ts`), M.O.R.B.I.U.S. (31027, "engaged player" /
   "that player's hero": raw still has the old text).
@@ -332,7 +332,7 @@ against `pnpm dsl` (379 builders), the engine's `EffectSpec` / `RuleSpec` / `Tri
 
 | §    | Primitive                                                                                    | Needed by                                                                                      | Status  |
 | ---- | -------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- | ------- |
-| 3.1  | Villains that enter and leave play: set-aside villains, activation order, no villain in play | The Sinister Six; Frequent Flyers, High Fashion, Robotic Enhancements, Surprise!               | open    |
+| 3.1  | Villains that enter and leave play: set-aside villains, activation order, no villain in play | The Sinister Six; Frequent Flyers, High Fashion, Robotic Enhancements, Surprise!               | landed  |
 | 3.2  | An enemy activation that can be interrupted and canceled                                     | Sinister Synchronization / Beatdown ("Ambush!"), Web Binding                                   | open    |
 | 3.3  | Several main schemes, one marked by a counter; a completed stage flips to an environment     | Venom Goblin (glider counter)                                                                  | open    |
 | 3.4  | Acceleration tokens on any card, moved between cards, and announced                          | Hapless Pedestrians, Tracking Prey, Lower/Midtown/Upper Manhattan                              | open    |
@@ -366,6 +366,30 @@ against `pnpm dsl` (379 builders), the engine's `EffectSpec` / `RuleSpec` / `Tri
 | 3.32 | Reusable as is                                                                               | —                                                                                              | checked |
 
 ### 3.1 Villains that enter and leave play: set-aside villains, activation order, no villain in play
+
+> **Status: landed (2026-09-26),** tested in `packages/engine/src/set-aside-villains.test.ts` (6 tests: the Setup puts
+> players + 1 random villains into play and the lowest activation order takes the counter, seeded; a defeated villain
+> is set aside as a new copy and the counter moves to the next in order, the game not won, replay deep-equal; with none
+> left the counter is set aside and "the villain" is nobody; `moveActiveCounter` goes to the next ascending value, wraps
+> to the lowest, and a lone villain keeps it; Ambush! brings one back with full hit points and the counter; the p. 62 FAQ
+> at the villain's activation). DSL: `packages/cards/src/dsl/wave5-primitives.test.ts`.
+>
+> **What landed.** A set-aside villain is a `VillainState` marked `defeated` (out of play) whose instance is in
+> `encounterSetAside`, so an active counter left on it keeps `activeVillainId` valid and makes "the villain" nobody (the
+> Kang precedent). **`GameSetupConfig.villainsStartSetAside`** (with `villains`; the builder maps `MultipleVillains.atSetup:
+"setAside"`): every villain starts so, and setup skips their toughness, Setup and When Revealed.
+> **`GameSetupConfig.activeCounter: "nextInActivationOrder"`** → `ScenarioRules.activeCounter`: a defeated or set-aside
+> active villain passes the counter to the next in activation order, or to nobody (`passActiveCounter`, used by the
+> defeat, `removeVillain` and `setVillainAside` paths), and at step 2 a villain in play takes it by the p. 62 FAQ
+> (`activeVillainChanged { reason: "noActiveVillain" }`). **`addVillain`** now re-admits a set-aside villain as a new
+> copy (its `villains` entry replaced in place) and takes **`bind`** ("If no villain was put into play this way").
+> **`EffectSpec setVillainAside { villain }`** (log `villainSetAside`), **`EffectSpec moveActiveCounter { to:
+"nextInActivationOrder" }`** (reason `activationOrder`), **`ValueSpec activationOrder { of }`**. Win by card ability
+> is the existing `victory: "cardAbility"` (the builder maps `MultipleVillains.winCondition: "cardAbility"` to it). Step
+> 2 with no villain in play already skips the villain's activation (§4 Q2). **DSL:** `setVillainAside`,
+> `moveActiveCounterToNextVillain`, `activationOrderOf`, `addVillain(…, { bind })`. **Not here:** the "When a villain
+> would activate, if no villain is in play, resolve Ambush!" window (§3.2). **Client:** log lines for `villainSetAside`
+> and the new `activeVillainChanged` reasons; set-aside villains shown out of play.
 
 **Cards.** Sinister Synchronization 1A/1B, Sinister Beatdown 2A/2B, Doctor Octopus, Electro, Hobgoblin, Kraven the
 Hunter, Scorpion, Vulture (27094–27099), Frequent Flyers, High Fashion, Robotic Enhancements, Surprise!, Heightened
@@ -633,7 +657,7 @@ INACTIVE support side to its ACTIVE hero side. While in hero form, to change to 
 card from its ACTIVE hero side to its INACTIVE support side and flip the SP//dr upgrade side to its Peni Parker
 alter-ego side. Both identity cards share a single hit point dial, with damage persisting on the dial between forms.
 Additionally, if one form is defeated, both forms are considered to be defeated simultaneously and the player is
-eliminated from the game." The cards' own text (Suit Up!, Return to Base, errata p. 67) moves counters and attachments
+eliminated from the game." The cards' own text (Suit Up!, Return to Base, errata p. 68) moves counters and attachments
 toward the card that is the identity.
 
 **Plan:** two instances: the identity instance is Peni Parker in alter-ego form and the Suit in hero form; the other
@@ -768,7 +792,7 @@ flagged; none is implemented yet.**
 - **`card-data-pipeline`** (after §1 lands):
   - make `sm` survey clean and emit it, campaign cards included (§1.1, §1.2, §1.3, §1.5, §1.8, §1.9), with the two
     precons from MC27 p. 20 and `SM_CAMPAIGN` (`data/sm/campaign.ts`, the `mts` shape);
-  - "Bring the War!"'s text from the card image, the p. 67 errata still missing (Ms. Marvel, "Go for Champions!",
+  - "Bring the War!"'s text from the card image, the p. 68 errata still missing (Ms. Marvel, "Go for Champions!",
     M.O.R.B.I.U.S.), `progressingIdentity` on 29001a–29003a (§1.4), `schemeIcons` on the four wave 5 cards (§1.3);
   - the four hero-pack precons from their images;
   - later, the `schemeIcons` back-fill: `angel` 42001c, 42024; `aoa` 45072, 45178; `aos` 50083, 50115, 50179; `core`

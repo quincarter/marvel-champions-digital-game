@@ -143,6 +143,15 @@ export interface GameSetupConfig {
    */
   readonly sharedEncounterDeck?: boolean;
   /**
+   * With `villains`: every villain starts set aside (out of play, in `encounterSetAside`), and the main scheme's Setup
+   * brings the first ones in (`addVillain`). `MultipleVillains.atSetup: "setAside"`; The Sinister Six, Sinister
+   * Synchronization 1A (`sm` 27100a): "Choose X villains at random … Put those villains into play". Until then no
+   * villain is in play and "the villain" is nobody. docs/phase7-wave5.md §3.1.
+   */
+  readonly villainsStartSetAside?: true;
+  /** `ScenarioRules.activeCounter` (The Sinister Six's activation order; docs/phase7-wave5.md §3.1). */
+  readonly activeCounter?: "nextInActivationOrder";
+  /**
    * RRG Appendix II: each identity's obligation (`HeroIdentityCard.obligationCardId`) is shuffled into the
    * encounter deck and its nemesis set (`nemesisEncounterSetId`, `quantityInSet` copies of each card) is set
    * aside. Cards missing from `cards` are skipped unless `requireIdentitySets` is set. Default true.
@@ -700,7 +709,8 @@ export function createGame(requested: GameSetupConfig, deps: EngineDeps = DEFAUL
       side: planned.side,
       stageIndex: planned.startStageIndex,
       lastStageIndex: planned.lastStageIndex,
-      defeated: false,
+      // A villain that starts set aside is out of play until `addVillain` brings it in (docs/phase7-wave5.md §3.1).
+      defeated: config.villainsStartSetAside === true,
       encounterDeckId: deckOf(index),
       signatureSideSchemeId,
     };
@@ -713,6 +723,13 @@ export function createGame(requested: GameSetupConfig, deps: EngineDeps = DEFAUL
   }
   const [firstVillain] = villains;
   if (!firstVillain) return invalid("a game has at least one villain");
+  if (config.villainsStartSetAside) {
+    if (!config.villains) return invalid("villainsStartSetAside needs villains");
+    for (const villain of villains) {
+      instances[villain.instanceId] = { ...instances[villain.instanceId]!, faceup: false };
+      encounterSetAside.push(villain.instanceId);
+    }
+  }
 
   // Seat-by-seat alignment is what makes a per-seat campaign-log read addressable (`campaignSeatNumber`), so a
   // mismatch is refused here rather than read as "this player has no campaign column" at some later window.
@@ -752,6 +769,7 @@ export function createGame(requested: GameSetupConfig, deps: EngineDeps = DEFAUL
     revealedMainSchemes: [],
     scenarioRules: {
       victory: config.victory ?? "finalVillainStage",
+      ...(config.activeCounter ? { activeCounter: config.activeCounter } : {}),
       ...(config.victoryCondition !== undefined ? { victoryCondition: config.victoryCondition } : {}),
       ...(config.difficulty === "expert" ? { difficulty: "expert" as const } : {}),
       ...(config.scenarioRuleSpecs && config.scenarioRuleSpecs.length > 0 ? { rules: config.scenarioRuleSpecs } : {}),

@@ -253,7 +253,7 @@ export function flipVillain(ctx: Ctx, id: InstanceId, to: VillainSideLetter): vo
 export function setActiveVillain(
   ctx: Ctx,
   to: InstanceId,
-  reason: "effect" | "activeVillainDefeated" | "focusedScheme",
+  reason: "effect" | "activeVillainDefeated" | "focusedScheme" | "activationOrder" | "noActiveVillain",
 ): void {
   const from = ctx.state.activeVillainId;
   if (from === to || mustVillain(ctx.state, to).defeated) return;
