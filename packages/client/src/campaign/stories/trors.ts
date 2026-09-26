@@ -127,8 +127,18 @@ const PAGES: readonly ComicPage[] = [
     beats: [
       // The full-bleed battle spread; Hawkeye breaks its own frame in the foreground with no printed border.
       { panel: { x: 0, y: 0, w: 1800, h: 1800 }, lines: [] },
-      // The Red Skull inset, bottom right.
-      { panel: { x: 570, y: 1195, w: 1160, h: 515 }, lines: [] },
+      // The Red Skull inset, bottom right. Widened up from the panel's own printed border (top ~y=1200) to y=1140
+      // so his "KEEP WORKING! I WILL DEAL WITH THE AVENGERS!" balloon (breaking out above the border, its own top
+      // curve at about y=1138) is included, and widened right to the page's own edge (x=570..1800, the printed
+      // border alone runs only to about x=1724) rather than just the printed border: on a narrow phone reading
+      // area this panel's own extreme width (a ~2:1 landscape panel on a ~1:1.75 portrait screen) forces the
+      // cinematic camera's neighbor-ratio cap to zoom in far enough that the crop is too narrow to ever reach the
+      // balloon during the default left-to-right pan. Widening the rect past `CINEMATIC_MAX_NEIGHBOR_RATIO`'s own
+      // trigger point (`comic-pan.ts`'s `exactFitCap`/floor logic) instead pins the camera to the *page's* own
+      // cover-fit floor, which is wide enough to show the whole page height at once (so the balloon's position is
+      // never in question vertically) and only pans a short, calm sweep horizontally that starts already showing
+      // the balloon whole.
+      { panel: { x: 570, y: 1140, w: 1230, h: 570 }, lines: [] },
     ],
   },
   {

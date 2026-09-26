@@ -1,0 +1,3 @@
+kind: Fixed
+body: Fix the cinematic comic reader camera so a wide panel's own default pan reaches its balloon on narrow reading areas, closing the last TRORS red-skull crop bug
+time: 2026-09-25T23:52:17.144686-04:00
