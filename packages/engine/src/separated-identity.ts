@@ -27,8 +27,13 @@
  *   every counter on, and card attached to, the card that stops being the identity onto the card that becomes it. Those
  *   are already on the identity instance, so they stay; the interrupts are this transition, not abilities of their own
  *   (script them `coveredByEngineRule()`).
- * - Anything on the card that becomes the identity was on a support or upgrade that flips to another card type: RRG
- *   1.8 "Flip" (p. 20) discards its attached cards, tucked cards, status cards and tokens. No printed text moves them.
+ * - Counters on, and cards attached to, the other card (the support in alter-ego form, the upgrade in hero form) move to
+ *   the identity too, as the same printed interrupts word it ("moving all counters on this card and cards attached to
+ *   this card to her" / "… to SP//dr Suit"): user ruling, docs/phase7-wave5.md §4.1 Q38, over RRG 1.8 "Flip" (p. 20),
+ *   which would discard them from a card that flips to another card type. An attachment the identity cannot take
+ *   (`canHaveAttached`) is discarded as "Flip" would. "Counters" are all-purpose counters (RRG 1.8 "All-Purpose
+ *   Counter", p. 6); the other card's damage and threat tokens, tucked cards and status cards are none of those, so
+ *   "Flip" still discards them.
  * - Status cards on the identity stay with it: RRG 1.8 "Form, Change Form" (p. 21), "The character retains their
  *   sustained damage, status cards, …". Open as docs/phase7-wave5.md §3.24's status notes.
  * - Ready/exhausted follows the physical card, since the two cards "can be exhausted and ready independently": the
@@ -47,10 +52,11 @@ import {
   type UpgradeCard,
 } from "@mc/content";
 import { type Ctx, emit, moveCard, updateInstance } from "./ctx.js";
-import { leavePlayAtOnce } from "./effects.js";
-import type { PlayerId } from "./ids.js";
+import { leavePlayAtOnce, moveCounters } from "./effects.js";
+import type { InstanceId, PlayerId } from "./ids.js";
 import { discardZoneFor, getInstance, locateCard, mustInstance, mustPlayer } from "./query.js";
 import { enterPlay } from "./resolve/enter-play.js";
+import { canHaveAttached } from "./rules.js";
 import { NO_STATUSES, type Form } from "./state.js";
 
 /** Which physical card's non-identity side: the hero card's (a support) or the alter-ego card's (an upgrade). */
@@ -121,10 +127,11 @@ export function putSeparatedCardIntoPlay(ctx: Ctx, playerId: PlayerId): void {
 }
 
 /**
- * The other card's half of a form change (see the file comment): discard what the RRG "Flip" rule discards from it,
- * swap ready states with the identity, show the side for the new form, and attach it to the identity (hero form) or
- * return it to the play area (alter-ego form). Neither card enters or leaves play. A no-op for any other identity, and
- * before the setup step has put the other card into play.
+ * The other card's half of a form change (see the file comment): move its counters and attachments to the identity
+ * (Q38), discard the rest of what the RRG "Flip" rule discards from it, swap ready states with the identity, show the
+ * side for the new form, and attach it to the identity (hero form) or return it to the play area (alter-ego form).
+ * Neither card enters or leaves play. A no-op for any other identity, and before the setup step has put the other card
+ * into play.
  */
 export function flipSeparatedCard(ctx: Ctx, playerId: PlayerId, to: Form): void {
   const player = mustPlayer(ctx.state, playerId);
@@ -136,12 +143,18 @@ export function flipSeparatedCard(ctx: Ctx, playerId: PlayerId, to: Form): void 
   const before = mustInstance(ctx.state, id);
   const toCardId = separatedSideCardId(player.identity.cardId, separatedSideIn(to));
   if (before.cardId === toCardId) return;
-  // RRG 1.8 "Flip" (p. 20): a flip to another card type discards the card's attached cards, tucked cards, status cards
-  // and tokens. The support and the upgrade each become an identity face.
+  // docs/phase7-wave5.md §4.1 Q38: the printed interrupts move the other card's counters and attachments to the
+  // identity rather than RRG "Flip" discarding them. A move, not a removal (`moveCounters`).
+  moveCounters(ctx, id, identityId);
+  const movedAttachments: InstanceId[] = [];
   for (const attachment of before.attachments) {
-    if (ctx.state.instances[attachment])
-      leavePlayAtOnce(ctx, attachment, discardZoneFor(ctx.state, attachment), "top", true);
+    if (!ctx.state.instances[attachment]) continue;
+    if (canHaveAttached(ctx.state, ctx.deps, identityId, attachment)) {
+      moveCard(ctx, attachment, { kind: "attachment", hostInstanceId: identityId });
+      movedAttachments.push(attachment);
+    } else leavePlayAtOnce(ctx, attachment, discardZoneFor(ctx.state, attachment), "top", true);
   }
+  // RRG 1.8 "Flip" (p. 20): what no printed text moves (tucked cards, status cards, damage and threat) is discarded.
   for (const card of before.tucked) {
     if (ctx.state.instances[card]) moveCard(ctx, card, discardZoneFor(ctx.state, card), "top");
   }
@@ -168,6 +181,7 @@ export function flipSeparatedCard(ctx: Ctx, playerId: PlayerId, to: Form): void 
     toCardId,
     identityExhausted: before.exhausted,
     cardExhausted: identityExhausted,
-    ...(Object.keys(before.counters).length > 0 ? { discardedCounters: before.counters } : {}),
+    ...(Object.keys(before.counters).length > 0 ? { movedCounters: before.counters } : {}),
+    ...(movedAttachments.length > 0 ? { movedAttachments } : {}),
   });
 }

@@ -217,15 +217,77 @@ describe("§3.24 changing form flips both cards", () => {
     expect(mustInstance(after, id)).toMatchObject({ damage: 5, exhausted: false, attachments: [] });
   });
 
-  it("counters on the card that becomes the identity are discarded (RRG 1.8 'Flip', p. 20: another card type)", () => {
-    const base = start();
-    const other = otherCardId(base);
-    const { session, events } = run(patch(base, other, { counters: { sym: 2 } }), changeForm);
-    expect(mustInstance(session.state, other).counters).toEqual({});
-    expect(mustInstance(session.state, identityId(session.state)).counters).toEqual({});
-    expect(events).toContainEqual(
-      expect.objectContaining({ type: "separatedCardFlipped", discardedCounters: { sym: 2 } }),
+  // docs/phase7-wave5.md §4.1 Q38 (user ruling, over RRG 1.8 "Flip", p. 20): the printed Suit Up! / Return to Base
+  // "moving all counters on this card and cards attached to this card to her" / "… to SP//dr Suit".
+  /** Test surgery: the gear upgrade moves from the identity onto the other card, and the other card takes `counters`. */
+  const onOtherCard = (state: GameState, gear: InstanceId, counters: Record<string, number>): GameState => {
+    const id = identityId(state);
+    const other = otherCardId(state);
+    const moved = patch(state, id, { attachments: mustInstance(state, id).attachments.filter((a) => a !== gear) });
+    const hosted = patch(moved, gear, { attachedTo: other });
+    return patch(hosted, other, { counters, attachments: [...mustInstance(hosted, other).attachments, gear] });
+  };
+  const withGear = (state: GameState): { state: GameState; gear: InstanceId } => {
+    const played = playFree(state, deps, GEAR.id);
+    const gear = mustInstance(played.state, identityId(played.state)).attachments.find(
+      (a) => mustInstance(played.state, a).cardId === GEAR.id,
     );
+    if (!gear) throw new Error("gear not attached");
+    return { state: played.state, gear };
+  };
+
+  it("to hero: counters on and cards attached to the support side move to the identity; replay deep-equal", () => {
+    const { state, gear } = withGear(start());
+    const id = identityId(state);
+    const other = otherCardId(state);
+    const before = onOtherCard(patch(state, id, { counters: { sym: 1 } }), gear, { sym: 2, web: 1 });
+
+    const { session, events } = run(before, changeForm);
+    const after = session.state;
+    expect(seat(after).identity.form).toBe("hero");
+    expect(mustInstance(after, id).counters).toEqual({ sym: 3, web: 1 });
+    expect(mustInstance(after, id).attachments).toEqual([gear, other]);
+    expect(mustInstance(after, gear).attachedTo).toBe(id);
+    expect(mustInstance(after, other)).toMatchObject({ cardId: UPGRADE_SIDE, counters: {}, attachments: [] });
+    expect(locateCard(after, gear)?.kind).toBe("attachment");
+    expect(events).toContainEqual(
+      expect.objectContaining({
+        type: "separatedCardFlipped",
+        movedCounters: { sym: 2, web: 1 },
+        movedAttachments: [gear],
+      }),
+    );
+    expect(events).toContainEqual(expect.objectContaining({ type: "countersMoved", from: other, to: id }));
+
+    const replayed = replay(session.log, deps);
+    if (!replayed.ok) throw new Error(replayed.error.message);
+    expect(replayed.state).toEqual(session.state);
+  });
+
+  it("to alter-ego: counters on and cards attached to the upgrade side move to the identity; replay deep-equal", () => {
+    const { state: heroState, gear } = withGear(run(start(), changeForm).session.state);
+    const id = identityId(heroState);
+    const other = otherCardId(heroState);
+    const before = onOtherCard(newRound(heroState), gear, { sym: 2 });
+    expect(mustInstance(before, id).attachments).toEqual([other]);
+
+    const { session, events } = run(before, changeForm);
+    const after = session.state;
+    expect(seat(after).identity.form).toBe("alterEgo");
+    expect(mustInstance(after, id).counters).toEqual({ sym: 2 });
+    expect(mustInstance(after, id).attachments).toEqual([gear]);
+    expect(mustInstance(after, gear).attachedTo).toBe(id);
+    expect(mustInstance(after, other)).toMatchObject({ cardId: SUPPORT_SIDE, attachedTo: null, counters: {} });
+    expect(mustInstance(after, other).attachments).toEqual([]);
+    expect(seat(after).playArea).toContain(other);
+    expect(seat(after).discard).not.toContain(gear);
+    expect(events).toContainEqual(
+      expect.objectContaining({ type: "separatedCardFlipped", movedCounters: { sym: 2 }, movedAttachments: [gear] }),
+    );
+
+    const replayed = replay(session.log, deps);
+    if (!replayed.ok) throw new Error(replayed.error.message);
+    expect(replayed.state).toEqual(session.state);
   });
 });
 

@@ -184,7 +184,8 @@ export type GameEvent =
   /**
    * A separated identity's other card flipped with a form change (docs/phase7-wave5.md §3.24): `fromCardId` →
    * `toCardId` are its pool sides. `identityExhausted` / `cardExhausted` are the two instances' states afterwards (the
-   * ready state follows the physical card). `discardedCounters`, when present, were on it and discarded by RRG "Flip".
+   * ready state follows the physical card). `movedCounters` / `movedAttachments`, when present, were on it and moved to
+   * the identity (docs/phase7-wave5.md §4.1 Q38).
    */
   | {
       readonly type: "separatedCardFlipped";
@@ -194,7 +195,8 @@ export type GameEvent =
       readonly toCardId: CardId;
       readonly identityExhausted: boolean;
       readonly cardExhausted: boolean;
-      readonly discardedCounters?: Readonly<Record<string, number>>;
+      readonly movedCounters?: Readonly<Record<string, number>>;
+      readonly movedAttachments?: readonly InstanceId[];
     }
   /** A thwart's additional cost is asked of the thwarting player (`RuleSpec additionalThwartCost`; wave 5 §3.21). */
   | { readonly type: "thwartCostAsked"; readonly schemeInstanceId: InstanceId; readonly playerId: PlayerId }
