@@ -357,6 +357,7 @@ export const TRACK_TITLES: Readonly<Record<string, string>> = {
   "scenarios/loki/villain-loses.mp3": "The Trickster Unmasked",
   "scenarios/loki/villain-wins.mp3": "The Architect's Last Toll",
   "scenarios/the-hood/battle.mp3": "Beneath the Deep Hood",
+  "scenarios/the-hood/villain-wins.mp3": "A Cloak Over the City",
   "campaigns/trors/finale.mp3": "Anthem of the Returning Sun",
   "campaigns/gmw/finale.mp3": "The Longest Watch Ends",
   "packs/gmw/villain-loses.mp3": "The Longest Watch Ends",
