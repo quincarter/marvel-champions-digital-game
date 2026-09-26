@@ -654,3 +654,118 @@ clean.
 - `packages/cards/src/wave4/hood/wrecking-crew.test.ts` — new `it.fails` pin for the Magic Muscle bug (isolated
   live, root cause identified, not fixed — filed for `game-rules-architect`/`ability-scripting-engineer`).
 - `docs/phase7-wave4-qa.md` — this section; wave 4's rules-QA step is now marked complete.
+
+## Full QA pass (2026-09-25)
+
+New independent pass, starting from `feature/wave-4` (already merged with `origin/feature/wave-4`, 207 commits
+ahead of this worktree's stale local ref — fast-forwarded cleanly). Read PR #61's own answered-questions list
+(`git show origin/claude/outstanding-questions:docs/phase7-wave4.md`) first, per the coordinator's instruction not
+to re-fix items it already covers; confirmed via `git diff origin/feature/wave-4...origin/claude/outstanding-questions
+--stat` that none of PR #61's changes touch the `vision` pack, so no overlap risk there.
+
+Given the prior seven checkpoints above already delivered a full printed-text-vs-script audit for five of the six
+packs in scope (`nebu`, `warm`, `valk`, `hood`, `mts` — checkpoints 3, 5, 6, 7) and this wave's own decided rulings
+are all regression-pinned (§2 above), the one pack that was explicitly **not** given a full audit was `vision`
+(Checkpoint 1's own scope note calls this out: `vision` only got the test-quality sweep's Solar Gem fix, never the
+`nebu`-style line-by-line pass). This pass closes that gap.
+
+### `vision` (Vision) — full printed-text-vs-script audit, no rules bugs found
+
+Read `vision-kit.ts` (identity 26001a/b, full kit 26002–26012), `vision-obligation-nemesis.ts` (Corrupted
+Programming 26028, and the Ultron nemesis set: Ultron 26029, Ultron Unleashed 26030, Ultron Drones 26031 — an
+aliased Core reprint, Relentless Android 26032), and `vision-pack-cards.ts` (26013–26024, 26033–26036) in full
+against `docs/cards/by_pack/vision.md`. Checked every ability's target, "you" vs. "each player", may/must, timing
+word, cost vs. effect, keyword grant, and the "already X"/existence-check ordering pattern that Magic Muscle
+(checkpoint 7) got wrong elsewhere in the wave.
+
+**No scripting bugs found.** Specific things checked and confirmed correct:
+
+- **Mass form (Intangible/Dense, 26002)**: one double-sided upgrade, `changeAdditionalForm`/`inAdditionalForm`
+  correctly scope every conditional ability (Vivian 26003, Vision's Cape 26006, Solar Beam/Superdense
+  Strike/Just Passing Through/Phase Disruption/Mass Increase 26008–26012) to the live form, not a snapshot.
+  Intangible's "cannot attack or defend" is both `cannotAttack` and `RuleSpec cannotDefend`; Dense's own "draw 1
+  card" response is keyed to `on.youChangeToThisForm()` (the specific flip into Dense, not any form change).
+- **Corrupted Programming (26028)**: `blanksTextBox(..., { exceptKeywords: true })` correctly targets the mass
+  form upgrade via `ofIdentitySetTitled("Vision")` rather than `{ controller: "you" }` (an obligation instance has
+  no controller of its own, `packages/engine/src/select.ts`'s `blankedSets`) — re-confirmed live: with the
+  obligation staged and revealed, `activeAbilityRefs` on the mass-form instance goes to `[]`, but Density
+  Manipulation (which reads the "mass" keyword, not the blanked ability) still finds and flips it.
+- **Defiance (26018)**: `{ on: "boostCardTurnedFaceup", playerIs: "controller", activation: "attack" }` — checked
+  `trigger-events.ts`'s own docs for `boostCardTurnedFaceup.playerId` ("the player the activation is against,
+  'you'"), so `playerIs: "controller"` correctly reads as "an enemy attacking you", matching the printed "on an
+  enemy attacking you" without needing an explicit `sourceIs` (the event's `enemyInstanceId` is already always an
+  enemy, unlike Preemptive Strike's narrower "the villain," which does add `sourceIs`).
+- **Joining Forces (26035)**: `min: 1, max: 1` on both the Avenger and Guardian searches (not `min: 0`) correctly
+  makes the whole Alliance action illegal to initiate if either pool is empty, matching "the players put a total of
+  1 [Avenger] ally **and** 1 [Guardian] ally" as a joint requirement, not an optional one; `excluding:
+chosen("avenger")` on the second search stops one card from filling both slots.
+- **Machine Man (26022)**: `on.basicPowerUsing("self", { power: ["attack", "thwart"] })` correctly excludes defense
+  (the errata'd "for this use" wording, RRG 1.5, is read via `modifyBasicPower` scoped to the triggering use, not a
+  standing buff).
+- **Ultron nemesis set (26029–26032)**: the "Drone" mechanic (`droneFromDeck`) is reused verbatim from Core's own
+  Ultron scenario rather than reinvented, matching docs/phase7-wave4.md §3.23's "reusable as is" survey; Ultron's
+  own Forced Interrupt correctly gates on `inPlay("Ultron Drones")` before creating a Drone (not an
+  existence-check-on-the-wrong-thing shape — the gate is on the _environment_ card, not on whether a Drone was
+  already made, so there's no Magic-Muscle-style bug here).
+
+### Test-quality fixes (2, both verified as pure tightening — no bug, exact assertion holds)
+
+Swept `vision-kit.test.ts`, `vision-obligation-nemesis.test.ts`, and `vision-pack-cards.test.ts` for the loose-bound
+pattern the task calls out. Found and tightened two (both confirmed by an actual test run, not just edited and
+assumed):
+
+1. **`packages/cards/src/wave4/vision/vision-obligation-nemesis.test.ts`, "26032.when-revealed (Relentless
+   Android): with Ultron Drones in play, engages 2 Drones from the deck"** — printed text is "put the top 2 cards
+   of your deck into play … as Drone minions," an exact count, but the test asserted
+   `expect(engagedDrones.length).toBeGreaterThanOrEqual(2)`. Tightened to `.toBe(2)`; re-ran, passes (6/6 tests in
+   the file). Unlike the villain-phase-compounding loose bounds checkpoint 4 found and correctly left loose
+   elsewhere in the wave, this reveal is isolated (`revealFromEncounterDeck` on a fresh game with no prior drones),
+   so nothing else in the round could add a third.
+2. **`packages/cards/src/wave4/vision/vision-kit.test.ts`, "26012.mass-increase-interrupt: prevents all damage
+   from an attack Vision defends, then stuns the attacker"** — printed text is "Stun the attacking enemy," a
+   single status card, but the test asserted `expect(inst(attacked, villain).statuses.stunned).toBeGreaterThanOrEqual(1)`.
+   Tightened to `.toBe(1)`; re-ran, passes (23/23 tests in the file).
+
+Both are test-quality fixes, not player-facing bugs (the underlying scripts were already correct; the loose
+assertions would not have caught a double-stun or triple-drone regression). Cite: RRG 1.8 "Stun"/"Status Cards" (a
+character holds one stun status per stun effect; Mass Increase's own text names exactly one) for finding 2; the
+card's own printed "top 2 cards" for finding 1.
+
+**Not individually re-verified this pass beyond the sweep above**: the remaining loose-bound lines in `vision`'s
+own test files (`vision-obligation-nemesis.test.ts:66` ability-count check, `:100` deck-length delta,
+`e2e.test.ts:24` rounds count, `vision-pack-cards.test.ts:226`) were read in context and are legitimate — the
+`:66`/`:100` pair are sanity pre-checks or direction-only checks (not the card's own effect assertion, which is
+exact elsewhere in the same test), `e2e.test.ts`'s is a multi-round smoke game (the established exception per
+`tower-defense.test.ts`'s own convention), and `:226` is a setup-validity assertion, not the effect being tested
+(the real assertion, the threat-removal formula, is exact on the next line). None were found to be the "fired but
+never checked" shape.
+
+### What this pass did not do
+
+- **A second independent read of `nebu`/`warm`/`valk`/`hood`/`mts`** beyond re-confirming (via `git diff --stat`
+  against PR #61) that this pass's one changed pack doesn't collide with it. Checkpoints 3–7 above already gave
+  each of those five packs a full audit; this pass trusted that work rather than redoing it, per the task's own
+  instruction to read prior notes and "go after what it didn't cover."
+- **A fresh smoke-play of every `mts`/`hood` scenario with new seeds** — the existing solo/2-player e2e suites
+  (§4, and checkpoint 3's item D) were re-run as part of `pnpm check` (green) but no new seeds were added this
+  pass; the coordinator's brief asked for "a couple of seeds" as a smoke test, which the existing suite already
+  provides (one seed per mode across all scenarios, plus checkpoint 3's five 2-player games) rather than
+  duplicating with new seeds of unclear marginal value in the time available.
+- **The campaign's own carried-over state (Infinity Stones/Norn Stones, recorded HP)** beyond what's already
+  regression-pinned in `packages/cards/src/campaigns/mts.qa.test.ts` (checkpoint 2, item A.2) — not independently
+  re-audited this pass; that file's own coverage (a full 5-node run with a loss/retry and pinned final log, plus
+  the expert HP-carryover test) was read and trusted rather than re-derived.
+
+### Test counts, full QA pass (2026-09-25)
+
+- `npx oxlint`/`npx oxfmt --check` on both touched files: clean.
+- `npx tsc --noEmit` for `@mc/cards`: clean.
+- `pnpm check` (full monorepo: lint, fmt:check, typecheck, test, build): **green** (exit 0).
+
+### Files touched, full QA pass (2026-09-25)
+
+- `packages/cards/src/wave4/vision/vision-obligation-nemesis.test.ts` — tightened the Relentless Android drone-count
+  assertion to exact.
+- `packages/cards/src/wave4/vision/vision-kit.test.ts` — tightened the Mass Increase stun assertion to exact.
+- `docs/phase7-wave4-qa.md` — this section.
+- `.changes/unreleased/*.yaml` — changie fragment for the test tightening.
