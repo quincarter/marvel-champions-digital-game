@@ -359,10 +359,10 @@ export const TRACK_TITLES: Readonly<Record<string, string>> = {
   "scenarios/the-hood/battle.mp3": "The Syndicate Rises",
   "scenarios/the-hood/villain-loses.mp3": "The Syndicate Scatters",
   "scenarios/the-hood/villain-wins.mp3": "A Cloak Over the City",
-  "campaigns/trors/finale.mp3": "Anthem of the Returning Sun",
-  "campaigns/gmw/finale.mp3": "The Longest Watch Ends",
-  "campaigns/mts/finale.mp3": "The Sun Rises Over Home",
-  "packs/gmw/villain-loses.mp3": "The Longest Watch Ends",
+  "campaigns/trors/finale.mp3": "The Skull Shattered",
+  "campaigns/gmw/finale.mp3": "Saviors of the Galaxy",
+  "campaigns/mts/finale.mp3": "The Gauntlet Falls Silent",
+  "packs/gmw/villain-loses.mp3": "Saviors of the Galaxy",
   "packs/gmw/villain-wins.mp3": "The Unending Reign",
 };
 
