@@ -361,6 +361,7 @@ export const TRACK_TITLES: Readonly<Record<string, string>> = {
   "scenarios/the-hood/villain-wins.mp3": "A Cloak Over the City",
   "campaigns/trors/finale.mp3": "Anthem of the Returning Sun",
   "campaigns/gmw/finale.mp3": "The Longest Watch Ends",
+  "campaigns/mts/finale.mp3": "The Sun Rises Over Home",
   "packs/gmw/villain-loses.mp3": "The Longest Watch Ends",
   "packs/gmw/villain-wins.mp3": "The Unending Reign",
 };
