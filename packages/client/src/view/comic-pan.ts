@@ -217,6 +217,20 @@ export interface CinematicCameraPlan {
  * more page than the panel alone. `dir` overrides which end of the (still-)overflowing axis, if any, the beat
  * starts at, the same convention as `planPan`.
  */
+/**
+ * How much of a slack axis's own crop a neighbor is ever allowed to fill, relative to the target panel's own size
+ * on that axis — 0.5 means a neighbor may take up at most a third of the frame (the panel occupies at least
+ * two-thirds). A panel whose own aspect is nothing like the page's (a portrait sliver near a page edge —
+ * `03-absorbing-man`'s own red-flash panel) can otherwise pull the frame so far toward a page edge, chasing a huge
+ * contain-derived margin, that the *neighbor* panel ends up filling most of the frame and the target panel reads
+ * as an afterthought off to one side, even though it's technically still "in frame." A panel close to a page edge
+ * on the side its own slack has to go (`05-taskmaster`'s own left column, 75px from the page's left edge) still
+ * has to push most of that slack into the neighbor on its *other* side — this can't fully undo that, only bound
+ * how much of it there is; kept tight enough that a lettered neighbor's own printed caption rarely fits whole in
+ * the leftover strip.
+ */
+const CINEMATIC_MAX_NEIGHBOR_RATIO = 0.5;
+
 export function cinematicCameraPlan(
   panel: ComicPanelRect,
   page: PanDim,
@@ -231,7 +245,40 @@ export function cinematicCameraPlan(
   // `cropForFrame`'s own page-edge clamp then answers by simply not filling the frame — a blank margin down one
   // side, the very "box" this reader exists to never show.
   const pageCoverScale = coverFitDims(page, target).scale;
-  const scale = Math.max(pageCoverScale, Math.min(coverScale, containScale * CINEMATIC_MAX_ZOOM_RATIO));
+  // A panel that already spans the *whole page* on an axis (a full-width strip, `05-taskmaster` beat 0 — not
+  // merely the axis `containScale` happens to be bound by) has nothing left to gain from `CINEMATIC_MAX_ZOOM_RATIO`
+  // on that axis: `containScale` being bound there means it's already the exact scale that fits it with zero
+  // overflow, and multiplying by the ratio only overshoots into cropping the page's own edge on that axis — the
+  // panel spanning the whole width *is* the context, there's no page beyond it to reveal by zooming in further.
+  const exactFitCap = Math.min(
+    panel.w >= page.width - 0.5 ? target.width / panel.w : Infinity,
+    panel.h >= page.height - 0.5 ? target.height / panel.h : Infinity,
+  );
+  const capScale = Math.min(coverScale, containScale * CINEMATIC_MAX_ZOOM_RATIO, exactFitCap);
+  let scale = Math.max(pageCoverScale, capScale);
+
+  // The cap above can still leave an axis with far more slack than `CINEMATIC_MAX_NEIGHBOR_RATIO` allows — the
+  // whole point of the contain-derived cap is to *not* zoom in as tight as `coverScale` would, but for a panel
+  // whose own aspect is extremely mismatched from the target's, that same cap can ask for a crop several times the
+  // panel's own size on the axis contain didn't bind. Zoom in past the cap (never past `coverScale`, which by
+  // definition has zero slack on at least one axis) just enough to bring each axis's own slack back under the
+  // limit — but only when the *cap* is what picked `scale`. A panel the page-cover floor governs instead (a tall
+  // panel spanning nearly the page's own full height, `01-siege` beat 0) is already at the least zoom that avoids
+  // a blank margin; zooming in past that to satisfy a "neighbor ratio" would just crop needlessly into a panel
+  // that was never competing with a neighbor for attention in the first place — it *is* most of the page.
+  if (capScale > pageCoverScale + 1e-9) {
+    for (const [panelSize, targetSize] of [
+      [panel.w, target.width],
+      [panel.h, target.height],
+    ] as const) {
+      const cropSize = targetSize / scale;
+      if (cropSize - panelSize > panelSize * CINEMATIC_MAX_NEIGHBOR_RATIO) {
+        const required = targetSize / (panelSize * (1 + CINEMATIC_MAX_NEIGHBOR_RATIO));
+        scale = Math.min(coverScale, exactFitCap, Math.max(scale, required));
+      }
+    }
+  }
+
   const cropWidth = target.width / scale;
   const cropHeight = target.height / scale;
 

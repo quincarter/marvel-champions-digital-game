@@ -295,4 +295,64 @@ describe("cinematicCameraPlan", () => {
     const cropWidth = desktop.width / plan.start.scale;
     expect(cropWidth).toBeLessThanOrEqual(page.width + 0.01);
   });
+
+  it("never lets a neighbor panel dominate the frame — the actual TRORS bug (03-absorbing-man's own red-flash panel, near the page's right edge, was framed almost entirely on the panel to its own left)", () => {
+    // A 375×855 sliver near the page's own right edge: the contain-derived cap alone asks for a crop over 1500px
+    // wide (the panel is barely a quarter of it), and clamping that to the page's own bounds pins nearly all of it
+    // to the *left* of the panel — reading as centered on the wrong panel even though the target technically stays
+    // inside the frame.
+    const panel = { x: 1345, y: 45, w: 375, h: 855 };
+    const page = { width: 1800, height: 1800 };
+    const plan = cinematicCameraPlan(panel, page, desktop);
+    const cropWidth = desktop.width / plan.start.scale;
+    // The panel itself must occupy at least half the frame's own width — a neighbor may still show as context on
+    // the near side, but it can no longer dominate the shot.
+    expect(cropWidth).toBeLessThanOrEqual(panel.w * 2 + 0.5);
+    // And the panel must still be fully inside the crop, on both axes, at both ends of whatever pan the other
+    // axis needs.
+    for (const frame of [plan.start, plan.end]) {
+      const cw = desktop.width / frame.scale;
+      expect(frame.cx - cw / 2).toBeLessThanOrEqual(panel.x + 0.5);
+      expect(frame.cx + cw / 2).toBeGreaterThanOrEqual(panel.x + panel.w - 0.5);
+    }
+  });
+
+  it("leaves a panel whose slack is already reasonable untouched — MTS p4-hel's own party-photo inset stays at its previously-verified framing", () => {
+    const panel = { x: 1320, y: 0, w: 600, h: 480 };
+    const page = { width: 1920, height: 960 };
+    const plan = cinematicCameraPlan(panel, page, desktop);
+    const cropWidth = desktop.width / plan.start.scale;
+    // Slack here (~237px) is well under the panel's own width (600px) — the neighbor-ratio cap must not engage.
+    expect(cropWidth - panel.w).toBeLessThan(panel.w);
+  });
+
+  it("never zooms a full-page-width strip past its own exact fit — the actual TRORS bug (05-taskmaster beat 0 cropped its own left-edge captions)", () => {
+    // A 1800×460 strip spanning the whole 1800-wide page: containScale is bound by width (0.8 at this desktop
+    // size) and already fits it with zero overflow — `CINEMATIC_MAX_ZOOM_RATIO` alone would still ask for 15% more
+    // zoom than that, overflowing the one axis that was never supposed to crop at all (there's no more page beyond
+    // a panel that already spans its own full width).
+    const panel = { x: 0, y: 0, w: 1800, h: 460 };
+    const page = { width: 1800, height: 1800 };
+    const plan = cinematicCameraPlan(panel, page, desktop);
+    expect(plan.axis).not.toBe("x");
+    const cropWidth = desktop.width / plan.start.scale;
+    expect(cropWidth).toBeGreaterThanOrEqual(panel.w - 0.5);
+  });
+
+  it("a panel wide enough to fall to the page's own cover-fit floor starts already showing content near its own edge — the actual TRORS bug (07-red-skull's balloon, on a phone-sized reading area, never entered the frame during a too-narrow panel's default left-to-right pan)", () => {
+    // The real panel border only runs to about x=1724, but on a narrow phone target the panel's own extreme aspect
+    // (~2:1 landscape on a ~1:1.75 portrait target) forces the neighbor-ratio cap to zoom in far enough that the
+    // resulting crop is too narrow to ever reach a balloon sitting away from the panel's own left edge. Widening the
+    // panel to the page's own right edge instead drops the camera to the page's own cover-fit floor — wide enough on
+    // this axis that the pan's own *start* (not just some later point mid-reveal) already contains the balloon.
+    const panel = { x: 570, y: 1140, w: 1230, h: 570 };
+    const page = { width: 1800, height: 1800 };
+    const phoneTarget = { width: 390, height: 679 };
+    const plan = cinematicCameraPlan(panel, page, phoneTarget);
+    const balloon = { x: 1145, y: 1138, w: 205, h: 80 };
+    const cropWidth = phoneTarget.width / plan.start.scale;
+    const cropX = plan.start.cx - cropWidth / 2;
+    expect(cropX).toBeLessThanOrEqual(balloon.x + 0.5);
+    expect(cropX + cropWidth).toBeGreaterThanOrEqual(balloon.x + balloon.w - 0.5);
+  });
 });
