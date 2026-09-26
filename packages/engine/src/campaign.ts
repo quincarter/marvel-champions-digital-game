@@ -528,6 +528,13 @@ export type CampaignOp =
       readonly seat: "self" | "each";
       readonly card: CampaignValue;
       readonly permanence: GrantPermanence;
+      /**
+       * Absent: one copy per card named. `"maximum"`: MC27 p. 22's Aspect Advantage, "adds the maximum number of
+       * copies of that card, by title". Granted copies count toward the copy limit (docs/campaign-mode-design.md Q8,
+       * decided 2026-09-25), so this tops the title up to its limit counting the copies the deck already holds, and
+       * adds none when it is already there (`copiesUpToLimit`). It never produces an illegal deck.
+       */
+      readonly copies?: "maximum";
     }
   | { readonly kind: "revokeCard"; readonly seat: "self" | "each"; readonly card: CampaignValue }
   /**
@@ -655,7 +662,11 @@ export type CampaignChoiceSource =
    * `Campaign.perSeatSetIds`. `filter` narrows it exactly as it does a `campaignSet`.
    */
   | { readonly kind: "perSeatSet"; readonly excludeGranted?: true; readonly filter?: CollectionFilter }
-  /** MC27 p. 22 / MC32 p. 5 / MC45 p. 24: "an aspect card in their collection", filtered. */
+  /**
+   * MC27 p. 22 / MC32 p. 5 / MC45 p. 24: "an aspect card in their collection", filtered. A deckbuilding choice, so
+   * only cards legal for the choosing seat's identity are offered (`cardLegalForIdentity`; Q8, decided 2026-09-25):
+   * never another hero's signature or hero-specific cards.
+   */
   | { readonly kind: "collection"; readonly filter: CollectionFilter }
   /** Options of a `choice` or `strikeList` field (MC45 p. 5's available missions). */
   | { readonly kind: "fieldOptions"; readonly field: string; readonly unstruckOnly?: true }

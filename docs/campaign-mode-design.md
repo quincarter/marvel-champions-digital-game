@@ -1179,12 +1179,14 @@ Changes to the existing checks in `packages/engine/src/deck.ts`:
 | identity choice                                                                 | new `campaign_identity_locked` when `deck.identityCardId !== context.identityCardId`                                                                                                                                                                                                                                                      |
 | —                                                                               | new `campaign_removed_card` (RRG p. 29) and `campaign_prohibited_card` (MC27 p. 4 / MC40 p. 6)                                                                                                                                                                                                                                            |
 | —                                                                               | new `campaign_deck_frozen` when a non-granted line differs from `frozenNonCampaignCards`                                                                                                                                                                                                                                                  |
-| copy limit                                                                      | granted cards are excluded from the by-title copy count, consistent with the deck-size exemption. **Flagged** — see Open question Q8.                                                                                                                                                                                                     |
+| copy limit                                                                      | **Decided 2026-09-25 (Q8):** granted copies count toward the by-title copy limit, so granted plus own copies never exceed the title's limit. Grants stay exempt from deck size and from the aspect restriction.                                                                                                                           |
 
 **The Q8 decision point** is the exported constant `CAMPAIGN_GRANTS_COUNT_TOWARD_COPY_LIMIT` in
-`packages/engine/src/deck.ts`, set to `false` (the recommendation above), with the open question in its doc comment.
-Flipping that one constant is the whole change. MC10 never reaches it: its grants are campaign-specific cards, which
-never get as far as the copy-limit check.
+`packages/engine/src/deck.ts`, now `true` (decided 2026-09-25; see Q8). MC10 never reaches it: its grants are
+campaign-specific cards, which never get as far as the copy-limit check. Alongside it, `validateDeck` exempts granted
+copies of an aspect card from the deck's aspect restriction ("from any aspect"), `grantCard`'s `copies: "maximum"`
+tops a title up to its limit (`copiesUpToLimit`), and a `collection` choice offers only cards legal for the seat's
+identity (`cardLegalForIdentity`).
 
 Two further notes from building it. A **legal** campaign-specific card short-circuits the rest of the line checks
 exactly as the refused one always did, so it is not counted toward deck size and the copy limit does not reach it —
@@ -1579,11 +1581,25 @@ it — but neither `CampaignGameQuery` (the `record` half) nor `CampaignValue` (
 **Recommendation:** add one `CampaignGameQuery` member, `{ kind: "cardStateOf"; cards: readonly CardId[] }`, reading
 each named card's counters and current face out of the finished game, when MC50 is scheduled. Not needed for MC10.
 
-**Q8. Do campaign grants count toward the three-copy limit?**
+**Q8. Do campaign grants count toward the three-copy limit?** **Resolved 2026-09-25: yes.**
 MC27 p. 22's Aspect Advantage adds "_the maximum number of copies of that card, by title_" and says they do not count
 toward deck size — but says nothing about the copy limit if the deck already holds copies. RRG Appendix I is silent.
-**Recommendation:** exclude grants from the by-title copy count, consistent with the deck-size exemption, and flag to
-FFG. Not needed for MC10; needed before MC27.
+The original recommendation was to exclude grants from the by-title copy count.
+**Decision (the user, 2026-09-25):** all deckbuilding restrictions still apply. The copies of a title in the deck,
+granted plus the player's own, never exceed the card's own deck limit: 3, 1 if unique, or its printed per-deck limit
+(and an identity's `maxCopiesPerTitle`). The chosen card must also be legal for that hero, so never another hero's
+signature or hero-specific cards. **Sourcing: community.** The reading comes from a BoardGameGeek thread
+("Aspect Advantage campaign bonus /Sinister Motives spoilers/", boardgamegeek.com/thread/2853322) that reports it as
+FAQ-backed. No such FAQ entry is in RRG 1.8's FAQ section (the Sinister Motives entries cover only The Sinister Six's
+overkill and active-counter questions), and none is among the rulings transcribed in
+`marvel-champions-rulings-post-rrg-1-7.md` (checked 2026-09-25). Cite the primary ruling in place of the thread if it
+turns up.
+**As built:** `CAMPAIGN_GRANTS_COUNT_TOWARD_COPY_LIMIT = true`; `grantCard` gained an optional `copies: "maximum"`
+that grants `copiesUpToLimit` copies, the title's limit minus the copies the deck already holds (possibly none), so
+the grant can never produce an illegal deck; a `collection` choice offers only `cardLegalForIdentity` cards (no
+identity-set card, no Team-Up card for other characters, no linked, separate-deck or scenario/campaign/competitive
+card, no unique card matching the identity); and `validateDeck` exempts granted copies from the aspect restriction,
+because the card comes "from any aspect". Not yet exercised by a box: MC27's definition uses these when it is built.
 
 **Q9. Skirmish mode and `VillainStageRange`.**
 RRG p. 29's skirmish mode picks "_any one version of the villain_" and removes the rest. `Scenario.villainStages`

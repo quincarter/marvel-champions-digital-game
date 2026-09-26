@@ -195,18 +195,22 @@ export interface CampaignDeckContext {
 }
 
 /**
- * **Undecided rule — decision point (docs/campaign-mode-design.md Q8).**
+ * **Decided 2026-09-25 by the user (docs/campaign-mode-design.md Q8): granted copies count toward the copy limit.**
  *
  * MC27 p. 22's Aspect Advantage adds "the maximum number of copies of that card, by title" and says those copies do
- * not count toward deck size, but says nothing about the three-copy limit when the deck already holds copies of that
- * title. RRG 1.8 Appendix I (p. 50) is silent, and no ruling covers it.
+ * not count toward deck size, but says nothing about the copy limit when the deck already holds copies of that title.
+ * The reading adopted is **community-sourced** (a BoardGameGeek thread reporting it as FAQ-backed): every
+ * deckbuilding restriction still applies, so the copies of a title in the deck, granted plus the player's own, never
+ * exceed the card's own limit (3, 1 if unique, or its printed "Max X per deck"). No FAQ entry or ruling saying so
+ * was found in RRG 1.8's FAQ section or in the rulings transcribed since RRG 1.7 (checked 2026-09-25); replace this
+ * citation with the primary one if it turns up. The grant itself tops a title up to the limit rather than past it
+ * (`copiesUpToLimit`, and `grantCard`'s `copies: "maximum"`).
  *
- * `false` — the design's recommendation, implemented here — excludes granted copies from the by-title count, which
- * is the reading consistent with their deck-size exemption. Flip this one constant to `true` to make grants count.
- * **Not exercised by the first box** (The Rise of Red Skull grants only campaign-specific cards, which never reach
- * the copy-limit check at all); it must be decided before the box that has Aspect Advantage is built.
+ * Grants stay exempt from deck **size** (MC10 p. 3) and, because "from any aspect" says so, from the deck's aspect
+ * restriction. Campaign-specific cards never reach the copy-limit check at all, so The Rise of Red Skull's grants
+ * are unaffected.
  */
-export const CAMPAIGN_GRANTS_COUNT_TOWARD_COPY_LIMIT = false;
+export const CAMPAIGN_GRANTS_COUNT_TOWARD_COPY_LIMIT = true;
 
 /** Either the card list the engine is configured with or a card pool keyed by id (as in `GameState.cardPool`). */
 export type CardPool = readonly AnyCard[] | Readonly<Record<string, AnyCard>>;
@@ -350,6 +354,72 @@ function maxCopies(group: readonly Line[]): number | null {
     limit = Math.min(limit, card.deckLimit);
   }
   return limit;
+}
+
+/**
+ * Whether `card` may be put in a deck for `identity` at all: the per-card half of RRG 1.8 Appendix I, without the
+ * deck's aspect choice or its quantities.
+ *
+ * A deckbuilding choice a campaign offers is bound by it (docs/campaign-mode-design.md Q8, decided 2026-09-25):
+ * MC27 p. 22's Aspect Advantage choice of "an aspect card in their collection from any aspect" lifts the aspect
+ * restriction and nothing else. So a card of an identity set (another hero's signature or hero-specific cards, and
+ * this hero's own, whose quantity the identity set already fixes), a Team-Up card for other characters, a linked
+ * card, a separate-deck card and every scenario-, campaign- or competitive-specific card are never offered.
+ */
+export function cardLegalForIdentity(card: AnyCard, identity: HeroIdentityCard | undefined): boolean {
+  if (!isPlayerDeckCard(card) || isLinked(card) || card.separateDeck !== undefined) return false;
+  if (card.specificTo !== undefined) return false;
+  const classification = classify(card);
+  if (classification.kind === "identity" || classification.kind === "unrecognized") return false;
+  const teamUp = teamUpOf(card);
+  if (teamUp) {
+    // RRG 1.8 "Team-Up" (p. 43), as the Team-Up check in `validateDeck` reads it.
+    if (!teamUp.names || !identity) return false;
+    if (!teamUp.names.some((name) => identityCardTitledAs(identity, name))) return false;
+  }
+  if (identity && isUnique(card) && cardsMatch(identity, card)) return false;
+  return true;
+}
+
+/**
+ * How many more copies of `cardId`'s title a deck holding `cards` may take before reaching the title's limit — the
+ * number MC27 p. 22's "adds the maximum number of copies of that card, by title" adds, once granted copies count
+ * toward the limit (docs/campaign-mode-design.md Q8, decided 2026-09-25; `CAMPAIGN_GRANTS_COUNT_TOWARD_COPY_LIMIT`).
+ *
+ * The limit is the one `validateDeck` enforces: 1 for a unique card (and 0 if the deck or identity already holds a
+ * matching one, RRG 1.8 "Unique Icon", pp. 45–46), otherwise 3 lowered by the card's own deck limit and by the
+ * identity's `maxCopiesPerTitle`. Copies already listed, granted or chosen, are counted by title (RRG 1.8 "Copy",
+ * p. 13). 0 for a card that is not in the pool, is not legal for the identity, or whose data has no valid limit.
+ */
+export function copiesUpToLimit(
+  cards: readonly DeckCardEntry[],
+  cardId: string,
+  identity: HeroIdentityCard | undefined,
+  pool: CardPool,
+): number {
+  const index = indexPool(pool);
+  const card = index.get(cardId);
+  if (!card || !isPlayerDeckCard(card) || !cardLegalForIdentity(card, identity)) return 0;
+  const listed: Line[] = [];
+  for (const entry of cards) {
+    const other = index.get(entry.cardId);
+    if (!other || !isPlayerDeckCard(other)) continue;
+    const classification = classify(other);
+    // `validateDeck` counts copies outside the identity set only; mirror it.
+    if (classification.kind === "identity") continue;
+    listed.push({ card: other, quantity: entry.quantity, classification });
+  }
+  if (isUnique(card)) {
+    return listed.some((line) => isUnique(line.card) && cardsMatch(line.card, card)) ? 0 : 1;
+  }
+  const label = uniqueLabel(card);
+  const same = listed.filter((line) => uniqueLabel(line.card) === label);
+  const printed = maxCopies([...same, { card, quantity: 0, classification: classify(card) }]);
+  if (printed === null) return 0;
+  const cap = identity?.deckbuilding?.maxCopiesPerTitle;
+  const limit = cap === undefined ? printed : Math.min(printed, cap);
+  const held = same.reduce((n, line) => n + line.quantity, 0);
+  return Math.max(0, limit - held);
 }
 
 /**
@@ -778,8 +848,14 @@ export function validateDeck(deck: DeckContents, pool: CardPool, context?: DeckC
   if (aspectChoiceOk) {
     const packageLines: Line[][] = packages.map(() => []);
     const allowanceLines: Line[] = [];
-    for (const line of lines) {
-      if (line.classification.kind !== "aspect" || chosen.includes(line.classification.aspect)) continue;
+    for (const whole of lines) {
+      if (whole.classification.kind !== "aspect" || chosen.includes(whole.classification.aspect)) continue;
+      // Granted copies are exempt: MC27 p. 22's Aspect Advantage takes its card "from any aspect" (and MC32 p. 5's
+      // role-building from the role's aspects), so only the copies the player chose are judged against the deck's
+      // own aspect choice. They still count toward the copy limit below (Q8, `CAMPAIGN_GRANTS_COUNT_TOWARD_COPY_LIMIT`).
+      const own = whole.quantity - Math.min(whole.quantity, grantedCopies(whole.card.id));
+      if (own === 0) continue;
+      const line: Line = own === whole.quantity ? whole : { ...whole, quantity: own };
       const index = packages.findIndex((p) => line.card.type === p.cardType && line.card.traits.includes(p.trait));
       if (index >= 0) {
         packageLines[index]?.push(line);
@@ -797,7 +873,7 @@ export function validateDeck(deck: DeckContents, pool: CardPool, context?: DeckC
       }
       add(
         "aspect_restriction",
-        `${uniqueLabel(line.card)} is a ${aspectName(line.classification.aspect)} card, but this deck's aspect is ${chosen.map(aspectName).join(" and ")}; beyond its identity set a deck may only use its chosen aspect and basic cards.`,
+        `${uniqueLabel(line.card)} is a ${aspectName(whole.classification.aspect)} card, but this deck's aspect is ${chosen.map(aspectName).join(" and ")}; beyond its identity set a deck may only use its chosen aspect and basic cards.`,
         [line.card.id],
       );
     }

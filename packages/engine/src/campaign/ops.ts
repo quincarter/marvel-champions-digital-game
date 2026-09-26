@@ -12,7 +12,7 @@
  * which is what `resolveBetweenGames`'s pending-choice re-entry relies on (`runner.ts`).
  */
 
-import type { AnyCard, CardId, EncounterSetId, PlayModes, Trait } from "@mc/content";
+import type { AnyCard, CardId, EncounterSetId, HeroIdentityCard, PlayModes, Trait } from "@mc/content";
 import { matchesModes } from "@mc/content";
 import type {
   CampaignCardFace,
@@ -32,7 +32,7 @@ import type {
   LogWriteMode,
   ResolvedInstruction,
 } from "../campaign.js";
-import type { CardPool } from "../deck.js";
+import { cardLegalForIdentity, copiesUpToLimit, type CardPool } from "../deck.js";
 import { EngineInvariantError } from "../errors.js";
 import { nextInt } from "../rng.js";
 import type { TargetCategory } from "../spec.js";
@@ -402,6 +402,12 @@ const grantedTo = (seat: CampaignSeat | undefined): ReadonlySet<string> =>
 const anyGranted = (run: CampaignRun): ReadonlySet<string> =>
   new Set(run.working.seats.flatMap((seat) => seat.grants.map((grant) => grant.cardId as string)));
 
+/** The seat's identity card out of the pool, if the pool has it as a hero identity. */
+const identityOf = (run: CampaignRun, seat: CampaignSeat | undefined): HeroIdentityCard | undefined => {
+  const card = poolCards(run.deps.pool).find((candidate) => candidate.id === seat?.identityCardId);
+  return card?.type === "hero_identity" ? card : undefined;
+};
+
 const isRemoved = (run: CampaignRun, cardId: string): boolean =>
   run.working.removedFromCampaign.some((face) => face.cardId === cardId && face.face === undefined);
 
@@ -503,12 +509,19 @@ export function resolveChoiceSource(
       const granted = source.excludeGranted ? grantedTo(seat) : new Set<string>();
       return usable(cardsOfSet(run, setId, granted, source.filter, seat));
     }
-    case "collection":
+    case "collection": {
+      // A deckbuilding choice for this seat's hero: only cards legal for its identity (Q8, decided 2026-09-25).
+      const identity = identityOf(run, seat);
       return usable(
         poolCards(run.deps.pool)
-          .filter((card) => matchesDeckbuildingFilter(run, card, source.filter, seat))
+          .filter(
+            (card) =>
+              matchesDeckbuildingFilter(run, card, source.filter, seat) &&
+              (seat === undefined || cardLegalForIdentity(card, identity)),
+          )
           .map((card) => card.id),
       );
+    }
     case "fieldOptions": {
       const declared = fieldDefOf(run.definition, source.field);
       if (declared.type.kind !== "choice" && declared.type.kind !== "strikeList") {
@@ -626,6 +639,13 @@ function grantCard(
     };
   });
   run.grants.push(grant);
+}
+
+/** The copies `grantCard`'s `copies: "maximum"` adds to this seat's deck: `copiesUpToLimit` over its current list. */
+function maximumGrant(run: CampaignRun, seatNumber: number, cardId: string): number {
+  const seat = run.working.seats.find((candidate) => candidate.seatNumber === seatNumber);
+  if (!seat) return 0;
+  return copiesUpToLimit(seat.deck.cards, cardId, identityOf(run, seat), run.deps.pool);
 }
 
 function revokeCard(run: CampaignRun, seatNumber: number, cardId: CardId): void {
@@ -815,8 +835,12 @@ export function runCampaignOp(run: CampaignRun, op: CampaignOp, instruction: Cam
       for (const seatNumber of targetSeats(run, op.seat)) {
         if (seatNumber === null) continue;
         withSeat(run, seatNumber, () => {
-          for (const cardId of campaignStrings(run, op.card))
-            grantCard(run, seatNumber, cardId as CardId, op.permanence);
+          for (const cardId of campaignStrings(run, op.card)) {
+            // MC27 p. 22: "adds the maximum number of copies of that card, by title" — up to the title's limit,
+            // counting what the deck already holds (Q8, decided 2026-09-25).
+            const count = op.copies === "maximum" ? maximumGrant(run, seatNumber, cardId) : 1;
+            for (let copy = 0; copy < count; copy++) grantCard(run, seatNumber, cardId as CardId, op.permanence);
+          }
         });
       }
       return;

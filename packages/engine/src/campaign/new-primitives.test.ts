@@ -14,7 +14,17 @@
  *   `scenarioArea`, over the same `GameState.scenarioAreas`.
  */
 import { describe, expect, it } from "vitest";
-import { campaignId, cardId, encounterSetId, flat, scenarioId, type PlayModes } from "@mc/content";
+import {
+  CORE_CARDS,
+  campaignId,
+  cardId,
+  encounterSetId,
+  flat,
+  scenarioId,
+  type AnyCard,
+  type PlayModes,
+  type PlayerCard,
+} from "@mc/content";
 import { DEFAULT_DEPS } from "../abilities.js";
 import type { CampaignDefinition, CampaignGameResult, LogWrite } from "../campaign.js";
 import type { GameEvent } from "../events.js";
@@ -621,5 +631,96 @@ describe("CampaignGameQuery.cardsDefeated", () => {
     expect(recordedWith([defeat])?.value).toEqual({ kind: "flag", value: true });
     const otherDefeat: GameEvent = { type: "schemeDefeated", instanceId: "i-back" as InstanceId, cardId: back.id };
     expect(recordedWith([otherDefeat])?.value).toEqual({ kind: "flag", value: false });
+  });
+});
+
+describe("grantCard copies: 'maximum' and the collection choice (MC27 p. 22's Aspect Advantage; Q8)", () => {
+  // Q8, decided 2026-09-25 (community-sourced reading): granted copies count toward the copy limit, so the grant
+  // tops the title up to its limit rather than adding three on top of what the deck holds, and the chosen card must
+  // be legal for the hero.
+  const SPIDER_MAN = cardId("01001a");
+  const isPlayer = (card: AnyCard): card is PlayerCard => "deckLimit" in card;
+  const offAspect = CORE_CARDS.find(
+    (card): card is PlayerCard =>
+      isPlayer(card) && card.aspect === "aggression" && !card.unique && card.deckLimit === 3,
+  );
+  const otherSignature = CORE_CARDS.find(
+    (card): card is PlayerCard =>
+      isPlayer(card) && (card.aspect as string).startsWith("hero:") && card.aspect !== `hero:${SPIDER_MAN}`,
+  );
+  if (!offAspect || !otherSignature) throw new Error("Core lacks the cards this test needs");
+
+  const advantage = (): CampaignDefinition =>
+    definitionWith([
+      {
+        id: "only.setup.advantage",
+        text: "Each player chooses an aspect card in their collection from any aspect and adds the maximum number of copies of that card, by title, to their deck for the rest of the campaign.",
+        citation: "MC27 p. 22",
+        step: {
+          kind: "betweenGames",
+          ops: [
+            {
+              kind: "forEachSeat",
+              ops: [
+                { kind: "choose", slot: "advantage", chooser: "eachSeat", from: { kind: "collection", filter: {} } },
+                {
+                  kind: "grantCard",
+                  seat: "self",
+                  card: { kind: "choice", slot: "advantage" },
+                  permanence: "campaign",
+                  copies: "maximum",
+                },
+              ],
+            },
+          ],
+        },
+      },
+    ]);
+  const logWith = (definition: CampaignDefinition, held: number) =>
+    createCampaignLog(definition, {
+      id: "run",
+      seats: [
+        {
+          seatNumber: 1,
+          identityCardId: SPIDER_MAN,
+          deck: {
+            identityCardId: SPIDER_MAN,
+            aspects: ["justice"],
+            cards: held === 0 ? [] : [{ cardId: offAspect.id, quantity: held }],
+          },
+        },
+      ],
+      modes: MODES,
+      poolVersion: "test",
+      seed: 1,
+    });
+  const answer = { instructionId: "only.setup.advantage", slot: "advantage", seatNumber: 1 };
+
+  it("offers only cards legal for the hero: never another hero's signature cards", () => {
+    const definition = advantage();
+    const pending = resolveBetweenGames(definition, logWith(definition, 0), { pool: CORE_CARDS }, MODES);
+    if (pending.kind !== "pending") throw new Error("expected the Aspect Advantage choice");
+    expect(pending.choice.options).toContain(offAspect.id);
+    expect(pending.choice.options).not.toContain(otherSignature.id);
+    // No identity-set card at all, the hero's own included: the identity set fixes their quantities.
+    const identitySet = new Set(
+      CORE_CARDS.filter((card) => isPlayer(card) && (card.aspect as string).startsWith("hero:")).map((c) => c.id),
+    );
+    expect(pending.choice.options.filter((id) => identitySet.has(cardId(id)))).toEqual([]);
+  });
+
+  it.each([
+    [0, 3],
+    [1, 2],
+    [3, 0],
+  ])("a deck already holding %i copies is granted %i, reaching the limit and never passing it", (held, added) => {
+    const definition = advantage();
+    const settled = resolveBetweenGames(definition, logWith(definition, held), { pool: CORE_CARDS }, MODES, [
+      { ...answer, picked: [offAspect.id] },
+    ]);
+    if (settled.kind !== "done") throw new Error("unexpected pending choice");
+    const seat = settled.value.seats[0];
+    expect(seat?.grants.filter((grant) => grant.cardId === offAspect.id)).toHaveLength(added);
+    expect(seat?.deck.cards.find((line) => line.cardId === offAspect.id)?.quantity ?? 0).toBe(held + added);
   });
 });
