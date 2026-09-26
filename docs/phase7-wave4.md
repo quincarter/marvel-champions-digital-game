@@ -356,7 +356,8 @@ stage-I cards, §1.11).
 - **Modular sets** (MC21 pp. 6, 10, 16, 20, 24): Black Order, Armies of Titan, Children of Thanos, Infinity Gauntlet
   (single-villain scenarios only), Legions of Hel, Frost Giants, Enchantress.
 - **Tower Defense's optional setup damage** on Avengers Tower (1/2/3 per player by difficulty, MC21 p. 11) is a
-  suggested difficulty option, not a rule; standalone play uses 0 unless a setup option is added (§4 Q4).
+  suggested difficulty option, not a rule. Built 2026-09-25 as `ScenarioSetupOptions.towerDefenseSetupDamage`, off by
+  default (§4 Q4).
 
 **Status (card-data-pipeline, 2026-09-24):** all five emitted as `Scenario` records (`curation/mts.ts`'s own
 `evidence` field cites the exact printed sentence per scenario) and importable (`MTS_SCENARIOS`), data-only per
@@ -1959,6 +1960,28 @@ Each is implemented the way stated, or not at all, and named here rather than de
    RRG 1.8 "Villain Defeat" (p. 47) carries "non-damage tokens" to a same-title stage and "Excess damage … does not carry
    over". Implemented as: damage does not carry on defeat; on a swap the dial stays (RRG "'Swap'").
 4. **Tower Defense's suggested setup damage** (MC21 p. 11) is a difficulty option. Standalone default: none.
+   **USER DECISION 2026-09-25:** an option, off by default, that places the printed recommendation. MC21 p. 11,
+   "Modular Difficulty" (read from `docs/campaign-modes/mc21_the_mad_titans_shadow_rulebook-compressed.pdf`, page 11;
+   the per-hero glyph U+F524 is `[per_hero]`): "If players wish to increase the difficulty of the Tower Defense
+   scenario, they may place damage on Avengers Tower during setup. This extra damage represents the effectiveness of
+   the Black Order's initial attack on the tower. The amount of damage placed is up to the players as a group, but
+   listed below are some recommendations for each difficulty mode: » Standard Mode: Place 1[per_hero] damage.
+   » Expert Mode: Place 2[per_hero] damage. » Heroic Mode: Place 3[per_hero] damage." **Implemented as:**
+   `@mc/content` `ScenarioSetupOptions { towerDefenseSetupDamage?: true }` (`schema/modes.ts`, a `true`-only flag like
+   `PlayModes`), carried by `CoreScenarioOptions.setupOptions` through `playableScenario`/`wave4Scenario`/
+   `towerDefenseScenario`. When set, `buildMtsMultipleVillains` adds `towerDefenseSetupDamage(modes)`
+   (`mts/tower-defense.ts`): `placeDamage(perHero(n))` on the Avengers Tower environment, n = 3 at any heroic level,
+   else 2 in expert, else 1; skirmish is refused (no printed recommendation). Only the printed recommendation is
+   offered, not a free amount. Every other scenario refuses the flag (`checkScenarioSetupOptions`). The engine carries
+   it as a general primitive, `GameSetupConfig.scenarioSetupInstructions` (plain `EffectSpec` data frozen into
+   `ScenarioRules.setupInstructions`, so it replays), resolved in a new setup step `scenarioSetupInstructions` after
+   Appendix II step 12's Setup/When Revealed abilities (which put the tower into play) and before step 14's draw,
+   traced by a `scenarioSetupInstructionResolved` event. A game without instructions has no new field, step or event.
+   Placed damage does not raise the damage-taken event the Stronghold side's forced response is scripted on; that is
+   outcome-neutral here (at most 3[per_hero] against its 9[per_hero]). Tests: `engine/src/scenario-setup-
+instructions.test.ts`, `cards/src/wave4/mts/tower-defense-setup-damage.test.ts`. **Client follow-up
+   (game-client-engineer, queued by the user):** the setup screen needs a toggle for Tower Defense ("Place suggested
+   setup damage on Avengers Tower"), off by default, that passes `setupOptions: { towerDefenseSetupDamage: true }`.
 5. **Standard II / Expert II** replace or join Standard / Expert? **Settled (2026-09-25) from The Hood insert, p. 2,
    "Alternative Sets"** (the insert Hall of Heroes' The Hood page links, `the-hood-pdf.pdf`, read page by page): "In The
    Hood Scenario Pack, there are two alternative encounter sets, Standard II and Expert II. Each encounter set is more

@@ -20,6 +20,7 @@ export type {
   IdentityState,
   MainSchemeState,
   PlayerState,
+  ScenarioSetupInstruction,
   SeparateDeckState,
   StatusCounts,
   VillainState,

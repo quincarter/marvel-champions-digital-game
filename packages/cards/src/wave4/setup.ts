@@ -1,4 +1,5 @@
 import { EBONY_MAW_SCENARIO_RULES } from "./mts/ebony-maw.js";
+import { towerDefenseSetupDamage } from "./mts/tower-defense.js";
 import type { RuleSpec } from "@mc/engine";
 import {
   CORE_STARTER_DECKS,
@@ -20,6 +21,7 @@ import {
 } from "@mc/content";
 import type { GameSetupConfig, PlayerSetup, VillainSetup } from "@mc/engine";
 import {
+  checkScenarioSetupOptions,
   coreScenario,
   resolveModes,
   type CoreDifficulty,
@@ -240,6 +242,10 @@ function buildMtsMultipleVillains(
     // Expert mode reaches the engine for "Standard/Expert Mode Only" faces (Formidable Foe, Standard II; §3.18).
     ...(difficulty === "expert" ? { difficulty: "expert" as const } : {}),
     ...(options.firstPlayerIndex !== undefined ? { firstPlayerIndex: options.firstPlayerIndex } : {}),
+    // MC21 p. 11's optional setup damage on Avengers Tower, only when the players chose it (§4 Q4).
+    ...(options.setupOptions?.towerDefenseSetupDamage
+      ? { scenarioSetupInstructions: [towerDefenseSetupDamage(modes)] }
+      : {}),
   };
 }
 
@@ -344,6 +350,7 @@ const seatsOf = (players: readonly CorePlayer[]): PlayerSetup[] =>
   });
 
 export function wave4Scenario(scenarioId: string, options: Wave4ScenarioOptions) {
+  checkScenarioSetupOptions(scenarioId, options.setupOptions);
   const mts = MTS_SCENARIOS.find((s) => s.id === scenarioId);
   if (mts) return mts.multipleVillains ? buildMtsMultipleVillains(mts, options) : buildMtsSingleVillain(mts, options);
   const hood = HOOD_SCENARIOS.find((s) => s.id === scenarioId);

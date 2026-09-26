@@ -19,7 +19,7 @@ import {
   type StarterDeck,
 } from "@mc/content";
 import type { AbilityRegistry, EngineDeps, GameSetupConfig, PlayerSetup } from "@mc/engine";
-import type { CorePlayer } from "../core/setup.js";
+import { checkScenarioSetupOptions, type CorePlayer } from "../core/setup.js";
 import { WAVE1_ABILITIES } from "../wave1/index.js";
 import { wave1Scenario, type Wave1ScenarioOptions } from "../wave1/setup.js";
 import { WAVE2_ABILITIES } from "../wave2/index.js";
@@ -88,6 +88,7 @@ export function playableStarterDeckSetup(starterDeckId: string): PlayerSetup {
  * are resolved here first, because a wave's own builder only knows its own starter decks.
  */
 export function playableScenario(scenarioId: string, options: PlayableScenarioOptions): GameSetupConfig {
+  checkScenarioSetupOptions(scenarioId, options.setupOptions);
   const players: readonly CorePlayer[] = options.players.map((seat) => {
     if (!("starterDeckId" in seat)) return seat;
     const setup = playableStarterDeckSetup(seat.starterDeckId);

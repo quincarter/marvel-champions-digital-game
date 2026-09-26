@@ -7,6 +7,9 @@ import {
   stepAfterCampaignWindow,
   stepAfterMulligans,
   STEP_AFTER_SCENARIO_SETUP,
+  resolveScenarioSetupInstructions,
+  stepAfterScenarioSetupAbilities,
+  stepAfterScenarioSetupInstructions,
 } from "./setup-steps.js";
 import { drawCards, drawUpTo, endLastingEffect, expireLastingEffects, expirePlayerTurnEffects } from "./effects.js";
 import { readyOrAnnounce } from "./resolve/event.js";
@@ -82,6 +85,9 @@ function executeStep(ctx: Ctx): void {
       return executeCampaignWindow(ctx, step.window);
     case "scenarioSetup":
       return executeScenarioSetupStep(ctx);
+    case "scenarioSetupInstructions":
+      resolveScenarioSetupInstructions(ctx);
+      return setStep(ctx, stepAfterScenarioSetupInstructions(ctx.state));
     case "drawStartingHands":
       return executeDrawStartingHands(ctx);
     case "mulligan":
@@ -141,7 +147,7 @@ function executeCampaignWindow(ctx: Ctx, window: CampaignWindow): void {
 /** RRG 1.8 Appendix II steps 6-12 as a step, so a campaign can resolve instructions on either side of it. */
 function executeScenarioSetupStep(ctx: Ctx): void {
   resolveScenarioSetup(ctx);
-  setStep(ctx, STEP_AFTER_SCENARIO_SETUP);
+  setStep(ctx, stepAfterScenarioSetupAbilities(ctx.state, STEP_AFTER_SCENARIO_SETUP));
 }
 
 // RRG Appendix II step 14, after setup cards and setup abilities have resolved. A counted draw of hand-size cards, not

@@ -12,12 +12,17 @@ import type {
 import { DEFAULT_DEPS, type EngineDeps, type RuleSpec } from "./abilities.js";
 import { NO_CAMPAIGN_WRITES, type CampaignGameInput } from "./campaign.js";
 import { unbuildableSeparateDeck, validateDeck, type DeckContext } from "./deck.js";
-import { createCtx, emit, type Ctx } from "./ctx.js";
+import { createCtx, emit, setStep, type Ctx } from "./ctx.js";
 import { engineError, type EngineError } from "./errors.js";
 import { runFlow } from "./flow.js";
 import { encounterDeckId, instanceId, playerId, type EncounterDeckId, type InstanceId, type PlayerId } from "./ids.js";
 import { createRng, nextInt } from "./rng.js";
-import { FIRST_CAMPAIGN_STEP, FIRST_STANDALONE_STEP, resolveScenarioSetup } from "./setup-steps.js";
+import {
+  FIRST_CAMPAIGN_STEP,
+  FIRST_STANDALONE_STEP,
+  resolveScenarioSetup,
+  stepAfterScenarioSetupAbilities,
+} from "./setup-steps.js";
 import { cardsMatch } from "./unique.js";
 import {
   NO_STATUSES,
@@ -27,6 +32,7 @@ import {
   type GameState,
   type PlayerState,
   type ScenarioDeckState,
+  type ScenarioSetupInstruction,
   type SeparateDeckState,
   type VillainState,
   type SetAsideModularSet,
@@ -180,6 +186,14 @@ export interface GameSetupConfig {
    * like a constant on a card in play, with no card as "self" and nobody as "you". docs/phase7-wave4.md §3.40.
    */
   readonly scenarioRuleSpecs?: readonly RuleSpec[];
+  /**
+   * Setup instructions the scenario's rulebook prints rather than a card, which the scenario builder includes when
+   * the players chose them: MC21 p. 11's "Modular Difficulty" for Tower Defense ("they may place damage on Avengers
+   * Tower during setup"; docs/phase7-wave4.md §4 Q4). Each resolves once, in order, as scenario text resolved by the
+   * first player, after Appendix II step 12's Setup and When Revealed abilities and before step 14's draw. Absent or
+   * empty: the game is exactly the game it was before this field existed.
+   */
+  readonly scenarioSetupInstructions?: readonly ScenarioSetupInstruction[];
   /**
    * The mode being played, standard (default) or expert (RRG 1.8 "Modes of Play", p. 29). Villain stages and the
    * expert set are the scenario builder's; the engine reads this only for "Standard Mode Only" / "Expert Mode Only"
@@ -734,6 +748,9 @@ export function createGame(requested: GameSetupConfig, deps: EngineDeps = DEFAUL
       ...(config.victoryCondition !== undefined ? { victoryCondition: config.victoryCondition } : {}),
       ...(config.difficulty === "expert" ? { difficulty: "expert" as const } : {}),
       ...(config.scenarioRuleSpecs && config.scenarioRuleSpecs.length > 0 ? { rules: config.scenarioRuleSpecs } : {}),
+      ...(config.scenarioSetupInstructions && config.scenarioSetupInstructions.length > 0
+        ? { setupInstructions: config.scenarioSetupInstructions }
+        : {}),
       separateGameAreas: config.separateGameAreas ?? false,
     },
     encounterDecks,
@@ -776,7 +793,11 @@ export function createGame(requested: GameSetupConfig, deps: EngineDeps = DEFAUL
   // RRG 1.8 Appendix II steps 6-12 (p. 51). A campaign game runs this as a flow step instead (`setup-steps.ts`),
   // after MC60 p. 9's `beforeScenarioSetup` instructions have resolved; a standalone game runs it here, in the same
   // place and the same order it always has, so its state and its event stream are unchanged.
-  if (!config.campaign) resolveScenarioSetup(ctx);
+  if (!config.campaign) {
+    resolveScenarioSetup(ctx);
+    // A scenario's rulebook-printed setup instructions run as their own step, after step 12 has resolved.
+    setStep(ctx, stepAfterScenarioSetupAbilities(ctx.state, FIRST_STANDALONE_STEP));
+  }
   // Identity "Setup:" abilities are RRG 1.8 Appendix II step 16 (p. 51), after the draw and the mulligan: they run
   // from the `playerSetupAbilities` flow step (`flow.ts`), not here.
   // Steps 14 (draw) and 15 (mulligan) run as flow steps, so they happen after

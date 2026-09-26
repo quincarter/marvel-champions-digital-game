@@ -138,3 +138,23 @@ export function difficultySetChoiceErrors(choice: DifficultySetChoice, sets: rea
   }
   return errors;
 }
+
+/**
+ * Optional setup rules a scenario's rulebook offers the players, chosen at setup. Like `PlayModes`, every field is
+ * absent by default and a flag is `true`-only, so "off" has one representation and the choice is plain serializable
+ * data. The scenario builder resolves a chosen option into `GameSetupConfig.scenarioSetupInstructions`; nothing here
+ * reaches `GameState` directly.
+ */
+export interface ScenarioSetupOptions {
+  /**
+   * Tower Defense's "Modular Difficulty" (MC21 p. 11; docs/phase7-wave4.md §4 Q4): "If players wish to increase the
+   * difficulty of the Tower Defense scenario, they may place damage on Avengers Tower during setup. … listed below are
+   * some recommendations for each difficulty mode: Standard Mode: Place 1[per_hero] damage. Expert Mode: Place
+   * 2[per_hero] damage. Heroic Mode: Place 3[per_hero] damage." When set, the recommendation for the mode being played
+   * is placed. Absent (the default): no setup damage.
+   */
+  readonly towerDefenseSetupDamage?: true;
+}
+
+/** No optional setup rule chosen. */
+export const NO_SCENARIO_SETUP_OPTIONS: ScenarioSetupOptions = {};

@@ -505,6 +505,17 @@ export type GameEvent =
   /** A card that "cannot leave play" stayed where it was (RRG 1.8 "'Cannot'", p. 11). */
   | { readonly type: "leavePlayBlocked"; readonly instanceId: InstanceId; readonly reason: "cannotLeavePlay" }
   /**
+   * One of the scenario's rulebook-printed setup instructions resolved (`GameSetupConfig.scenarioSetupInstructions`;
+   * MC21 p. 11's optional Tower Defense setup damage). `text` and `citation` are copied from the instruction so the
+   * trace says why the state changed without the setup config to hand.
+   */
+  | {
+      readonly type: "scenarioSetupInstructionResolved";
+      readonly instructionId: string;
+      readonly text: string;
+      readonly citation: string;
+    }
+  /**
    * Campaign mode's four trace events (design §6.1). They exist for `rules-qa-engineer`'s replay: with them, the
    * campaign half of a game reads off the event stream the way the rules half already does, and the runner's
    * `campaignResultOf` can be checked against what actually happened rather than against what was asked for.
