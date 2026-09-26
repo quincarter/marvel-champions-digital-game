@@ -51,7 +51,7 @@ const NAVIGATOR = stubUpgrade({
 const GADGET = stubUpgrade({ id: "gadget", cost: 0 });
 const MINION = stubMinion({ id: "thug", atk: 1, sch: 1, hp: 3 });
 const SCHEME = stubSideScheme({ id: "plot", startingThreat: 2 });
-// A permanent encounter attachment, which no printed card is: the §4 fallback.
+// A permanent encounter attachment, which no printed card is: discarded with its host (§4.2 Q26).
 const CURSE = stubAttachment({ id: "curse", attachesTo: { kind: "villain" }, keywords: [{ name: "permanent" }] });
 
 const event = (id: string, effects: readonly EffectSpec[]) => {
@@ -169,7 +169,7 @@ describe("§3.30 a player card attached to an encounter card, returned when its 
     expect(mustPlayer(state, P1).playArea).not.toContain(table.gadget);
   });
 
-  it("a permanent encounter attachment with no player to go to stays in the villain's play area (§4 default)", () => {
+  it("a permanent encounter attachment with no player owner or controller is discarded with its host (§4.2 Q26)", () => {
     const table = start();
     const curse = encounterCardInVillainArea(table.state, CURSE.id);
     // Surgery: attached to the minion, controlled by the scenario.
@@ -183,7 +183,8 @@ describe("§3.30 a player card attached to an encounter card, returned when its 
       },
     };
     const after = playFree(state, deps, DEFEAT_THUG.card.id).state;
-    expect(after.villainArea).toContain(curse.id);
+    expect(after.villainArea).not.toContain(curse.id);
+    expect(after.encounterDecks[activeEncounterDeckId(after)]!.discard).toContain(curse.id);
     expect(mustInstance(after, curse.id).attachedTo).toBeNull();
   });
 });

@@ -644,11 +644,23 @@ function staysInPlayWithoutHost(ctx: Ctx, id: InstanceId): boolean {
 }
 
 /**
+ * A permanent encounter attachment with no player owner or controller, whose host leaves play: discarded to its
+ * encounter discard pile, permanent notwithstanding (user ruling, docs/phase7-wave5.md §4.2 Q26; no printed card does
+ * this yet). "Cannot leave play" stays absolute (RRG 1.8 "'Cannot'", p. 11). Player cards keep §3.30's unattach, and
+ * player elimination re-resolves "attach to" instead (`eliminatePlayer`, ruling Mar 19, 2026 (3)).
+ */
+function discardedWithoutHost(ctx: Ctx, id: InstanceId): boolean {
+  const instance = mustInstance(ctx.state, id);
+  return instance.ownerId === null && instance.controllerId === null && !cannotLeavePlay(ctx.state, ctx.deps, id);
+}
+
+/**
  * "(Return this card to your play area.)" when its host leaves play (Wrist Navigator, `sm` 27189a; docs/phase7-wave5.md
  * §3.30). The card does not leave play: it keeps its state (counters, exhaustion) and its controller, and moves
- * unattached to its controller's play area (its owner's if it has no controller). An encounter card with no player to
- * go to stays in the villain's play area (wave 5 §4; no printed card reaches it, and player elimination re-resolves
- * "attach to" instead, `eliminatePlayer`).
+ * unattached to its controller's play area (its owner's if it has no controller). A player card whose player was
+ * eliminated stays in the villain's play area (player elimination itself re-resolves "attach to", `eliminatePlayer`).
+ * A permanent encounter card with no player owner or controller does not come here: it is discarded
+ * (`discardedWithoutHost`).
  */
 function unattachInPlay(ctx: Ctx, id: InstanceId): void {
   const instance = mustInstance(ctx.state, id);
@@ -870,8 +882,11 @@ function leaveNow(ctx: Ctx, id: InstanceId, requested: ZoneId, position: "top" |
     emit(ctx, { type: "cardDiscardedFromPlay", instanceId: id, cardId: instance.cardId });
   if (redirect !== null) to = { kind: "scenarioArea", name: redirect.area };
   for (const attachment of [...instance.attachments]) {
-    if (staysInPlayWithoutHost(ctx, attachment)) unattachInPlay(ctx, attachment);
-    else discardAtOnce(ctx, attachment);
+    if (!staysInPlayWithoutHost(ctx, attachment)) discardAtOnce(ctx, attachment);
+    // Past the permanent keyword on purpose (§4.2 Q26): `leaveNow` itself, not `leavePlayAtOnce`.
+    else if (discardedWithoutHost(ctx, attachment))
+      leaveNow(ctx, attachment, discardZoneFor(ctx.state, attachment), "top", true);
+    else unattachInPlay(ctx, attachment);
   }
   // RRG "Tuck": when a card leaves play, each card tucked under it is discarded.
   for (const tuckedId of [...instance.tucked]) {
