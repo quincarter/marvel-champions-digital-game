@@ -7,6 +7,15 @@
 RRG 1.8 "'Then'" (p. 44): if the text before "then" does not fully resolve, the text after it does not attempt to resolve. `f83d3218` (#61) added the machinery:
 
 - **Engine:** `EffectSpec { kind: "then", effects }`. A required choice that finds nothing marks the frame (`_then.unresolved`) and logs `choiceFoundNothing`. A later `then` in the same program is skipped and logs `thenSkipped`. A required choice is a `chooseTarget` with a fixed count that isn't `upTo`/`optional`, or a `chooseCards` with `min` ≥ 1 that doesn't read a deck. See `packages/engine/src/resolve/target-validity.ts`, `packages/engine/src/resolve/effects-frame.ts` and `packages/engine/src/choose-no-target.test.ts`.
+- **Engine, the other ways pre-"then" text fails (2026-09-26):** `resolve/then.ts` `markPreThenUnresolved(ctx, frameId, cause)` marks the same `_then.unresolved` and logs `preThenUnresolved { cause, instanceId? }`. Causes (`PreThenFailure`, `events.ts`):
+  - `searchFoundNothing`: a `chooseCards` with `min` ≥ 1 over a deck, or a `selectCards` over a deck, found no card;
+  - `discardUntilFoundNothing`: a player-deck `discardDeckUntil` found no match (for "each player", any player who found none). The encounter-deck `discardEncounterUntil` never marks: RRG 1.8 "Encounter Deck" (p. 17) calls an ability that empties the deck this way "fulfilled";
+  - `revealFoundNothing` / `revealCancelled`: a `revealCard` with no card ("Reveal that minion" after a discard-until that found none), or one whose card's effects were then cancelled ("cancel the effects of that card and discard it"; the reveal frame's `preThenOf` reports back);
+  - `nothingToCancel`: `cancelRevealedCard`/`cancelWhenRevealed` with no reveal, a card that cannot be cancelled, or one already cancelled; `cancelTriggeringEvent` with its event gone or already cancelled; `cancelBoostIcons`/`cancelBoostAbility` with nothing to cancel (FAQ "Attacrobatics (#6)"); `cancelConsequentialDamage` with none waiting;
+  - `activationDidNotHappen`: `enemyAttack`/`enemyScheme` where a stunned/confused status was removed instead, the enemy was not in play, or the activation it pushed was skipped or cancelled (the event's `ReportTarget.gatesThen`). A deferred activation (`after: "currentActivation"`) is not gated.
+
+  A threshold "if" needs nothing new: in "Place 1 counter here. Then, if there are 4 or more …" the pre-"then" text is the placement, and the "if" is post-"then" text that gates itself (`andThen(ifThen(...))`). Tests: `packages/engine/src/then-failures.test.ts`.
+
 - **DSL:** `andThen(...effects)` in `packages/cards/src/dsl/effects.ts`.
 - **Initiation:** post-"then" text is not a separate part of the ability, so a player ability whose only real part is a failed choice can't be played (RRG 1.8 "Choose (Game Element)", p. 12). Plain "and", or a new sentence, is not a "then". Sanctum Sanctorum's "and draw 1 card" still draws with no Spell to choose.
 - **Done:** Quinjet (03019), Aamir Khan (05006), Tinkering (16029b). Design notes: `docs/phase7-wave3.md` §4 Q19 and PLAN.md.
@@ -15,13 +24,7 @@ RRG 1.8 "'Then'" (p. 44): if the text before "then" does not fully resolve, the 
 
 1. Read the printed text (current errata) and find the "then".
 2. Put the post-"then" effects in `andThen(...)`. That is always the faithful reading, even where it changes nothing today.
-3. Check what can make the pre-"then" text not fully resolve. The engine only marks it unresolved when a **required choice finds nothing**. Other ways it can fail aren't modeled yet:
-   - a search or "discard until" that finds nothing (Call for Aid, Masters of Mayhem, Planetary Invasion);
-   - a cancel with nothing to cancel;
-   - "the villain attacks you" when no attack happens (Held Hostage);
-   - a threshold "if" (Badoon Ship, Island of Dr. Zola).
-
-   If a card needs one of these, ask `game-rules-architect` for the primitive rather than working around it, and note it here.
+3. Check what can make the pre-"then" text not fully resolve. The engine marks it unresolved when a **required choice finds nothing**, and in the ways listed above under "the other ways pre-'then' text fails" (a search or player-deck "discard until" that finds nothing, a reveal with no card or a cancelled one, a cancel with nothing to cancel, an attack or scheme that does not happen). If a card can fail some other way, ask `game-rules-architect` for the primitive rather than working around it, and note it here.
 
 4. Write a test: the "then" part is skipped when the pre-"then" text fails, and runs when it succeeds.
 5. Run the e2e seeds before and after, and record any seed that plays differently (the §4 Q19 pattern).

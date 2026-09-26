@@ -8,6 +8,27 @@ import type { TriggerEvent } from "./trigger-events.js";
 import type { LastingEffect } from "./lasting.js";
 import type { ResourcePool } from "./resources.js";
 
+/**
+ * Ways the text before a "then" can fail to fully resolve (RRG 1.8 "'Then'", p. 44), besides a required choice finding
+ * nothing (`choiceFoundNothing`):
+ *
+ * - `searchFoundNothing`: a search (a `chooseCards` with `min` >= 1, or a `selectCards`, over a deck) found no card;
+ * - `discardUntilFoundNothing`: "discard cards from the top of your deck until you discard an X" found no X. Not the
+ *   encounter deck: RRG 1.8 "Encounter Deck" (p. 17) says that emptying it this way leaves the ability "fulfilled";
+ * - `revealFoundNothing` / `revealCancelled`: "Reveal that card" had no card, or the revealed card's effects were
+ *   cancelled ("cancel the effects of that card and discard it");
+ * - `nothingToCancel`: a cancel found nothing to cancel, or what it would cancel cannot be cancelled;
+ * - `activationDidNotHappen`: "X attacks you" / "X schemes" did not happen: a stunned/confused status cancelled it,
+ *   the enemy is not in play, or the activation was skipped or cancelled.
+ */
+export type PreThenFailure =
+  | "searchFoundNothing"
+  | "discardUntilFoundNothing"
+  | "revealFoundNothing"
+  | "revealCancelled"
+  | "nothingToCancel"
+  | "activationDidNotHappen";
+
 export type GameEvent =
   | {
       readonly type: "gameCreated";
@@ -422,6 +443,12 @@ export type GameEvent =
    * did not fully resolve: `thenSkipped` follows for each "then" it gates.
    */
   | { readonly type: "choiceFoundNothing"; readonly slot: string }
+  /**
+   * The text before a "then" did not fully resolve for a reason other than a required choice finding nothing
+   * (`PreThenFailure`; `resolve/then.ts`). `thenSkipped` follows for each "then" it gates. `instanceId`: the card the
+   * failed part was about, where there is one (the enemy that did not attack, the card whose reveal was cancelled).
+   */
+  | { readonly type: "preThenUnresolved"; readonly cause: PreThenFailure; readonly instanceId?: InstanceId }
   /** RRG 1.8 "'Then'" (p. 44): the pre-"then" text did not fully resolve, so the post-"then" text was skipped. */
   | { readonly type: "thenSkipped" }
   | {

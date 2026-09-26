@@ -2010,9 +2010,13 @@ export type EffectSpec =
   /**
    * The printed "Then": RRG 1.8 "'Then'" (p. 44): "If the pre-'then' text of an effect does not fully resolve, the
    * post-'then' text does not attempt to resolve." `effects` is the post-"then" text. The pre-"then" text is every
-   * effect before this one in the same program. The engine judges it not fully resolved when a required choice in it
-   * (`chooseTarget` without `upTo`/`optional`, or `chooseCards` with `min` ≥ 1 outside a deck) found nothing to
-   * choose (the frame var `_then.unresolved`); `effects` are then skipped and `thenSkipped` is logged.
+   * effect before this one in the same program. The engine judges it not fully resolved (the frame var
+   * `_then.unresolved`) when a required choice in it (`chooseTarget` without `upTo`/`optional`, or `chooseCards` with
+   * `min` ≥ 1 outside a deck) found nothing to choose (`choiceFoundNothing`), or when it failed another way
+   * (`preThenUnresolved { cause }`, `resolve/then.ts`): a search or player-deck "discard until" that found nothing, a
+   * `revealCard` with no card or whose card's effects were cancelled, a cancel with nothing it can cancel, or an
+   * `enemyAttack`/`enemyScheme` that did not happen (a stunned/confused status, the enemy not in play, the activation
+   * skipped or cancelled). `effects` are then skipped and `thenSkipped` is logged.
    *
    * A post-"then" effect is also not an independent part of the ability when judging whether it can be initiated
    * (RRG 1.8 "Choose (Game Element)", p. 12; `abilityLacksValidTarget`). Quinjet (`cap` 03019): "Put an Avenger ally

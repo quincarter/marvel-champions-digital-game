@@ -103,7 +103,8 @@ import {
   revealMainSchemeStages,
 } from "./game-areas.js";
 import { announceDamagePrevented, readyOrAnnounce, threatRemovalBlocked } from "./event.js";
-import { UNRESOLVED_VAR } from "./target-validity.js";
+import { readsDeck } from "./target-validity.js";
+import { markPreThenUnresolved, UNRESOLVED_VAR } from "./then.js";
 import { heard } from "./triggers.js";
 import { dealBoostCard, declareDefenderByEffect, giveBoostCard } from "./enemy-activation.js";
 import { quickstrikeAttack } from "./enter-play.js";
@@ -592,6 +593,7 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
     case "cancelConsequentialDamage": {
       // docs/phase7-wave3.md §3.21: the waiting consequential damage event of each character, cancelled before it applies.
       const characters = targets(effect.character);
+      let cancelled = 0;
       for (const pending of ctx.state.stack) {
         if (
           pending.kind === "event" &&
@@ -601,8 +603,10 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
           characters.includes(pending.event.targetInstanceId)
         ) {
           updateFrame(ctx, pending.frameId, (f) => (f.kind === "event" ? { ...f, cancelled: true } : f));
+          cancelled++;
         }
       }
+      if (cancelled === 0) markPreThenUnresolved(ctx, frame.frameId, "nothingToCancel");
       return;
     }
     case "cancelBoostIcons":
@@ -613,6 +617,9 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       );
       const boost = procedure?.boost;
       const report = (made: number, amount?: number): void => {
+        // RRG 1.8 "'Then'" (p. 44): a cancel with nothing to cancel did not resolve (FAQ "Attacrobatics (#6)", p. 59:
+        // a card with no boost icons is no target for cancelling them).
+        if (made === 0) markPreThenUnresolved(ctx, frame.frameId, "nothingToCancel");
         if (effect.bind)
           addFrameVars(ctx, frame.frameId, {
             [`${effect.bind}.made`]: made,
@@ -1298,7 +1305,12 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       return;
     }
     case "cancelTriggeringEvent": {
-      if (!frame.eventFrameId) return;
+      const triggering = frame.eventFrameId ? findFrame(ctx.state, frame.eventFrameId) : undefined;
+      // Nothing left to cancel: the event is gone or already cancelled (RRG 1.8 "'Then'", p. 44).
+      if (!frame.eventFrameId || triggering?.kind !== "event" || triggering.cancelled) {
+        markPreThenUnresolved(ctx, frame.frameId, "nothingToCancel");
+        return;
+      }
       updateFrame(ctx, frame.eventFrameId, (target) =>
         target.kind === "event" ? { ...target, cancelled: true } : target,
       );
@@ -1399,10 +1411,18 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       const reveal = ctx.state.stack.find(
         (f): f is Frame<"reveal"> => f.kind === "reveal" && f.instanceId === revealing,
       );
-      if (!reveal) return;
-      // "This effect cannot be canceled." (RRG 1.8 "'Cannot'", p. 11: "cannot" is absolute.) The cancel's costs stay paid.
-      if (revealCannotBeCanceled(ctx.state, ctx.deps, reveal.instanceId)) return;
       const all = effect.kind === "cancelRevealedCard";
+      // Nothing to cancel, or it cannot be cancelled: the text before a "then" did not resolve (RRG 1.8 "'Then'", p. 44).
+      // "This effect cannot be canceled." (RRG 1.8 "'Cannot'", p. 11: "cannot" is absolute.) The cancel's costs stay paid.
+      if (
+        !reveal ||
+        revealCannotBeCanceled(ctx.state, ctx.deps, reveal.instanceId) ||
+        reveal.effectsCancelled ||
+        (!all && reveal.whenRevealedCancelled)
+      ) {
+        markPreThenUnresolved(ctx, frame.frameId, "nothingToCancel", reveal?.instanceId);
+        return;
+      }
       setFrame(ctx, all ? { ...reveal, effectsCancelled: true } : { ...reveal, whenRevealedCancelled: true });
       emit(ctx, { type: "revealCancelled", instanceId: reveal.instanceId, scope: all ? "allEffects" : "whenRevealed" });
       return;
@@ -1669,6 +1689,8 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       const characterController = character ? controllerOf(ctx.state, character) : null;
       const noBoost = effect.boost === false ? { noBoost: true } : {};
       const events: TriggerEvent[] = [];
+      let cancelledByStatus = 0;
+      let firstCancelled: InstanceId | null = null;
       for (const enemy of targets(effect.enemies)) {
         const categories = categoriesOf(ctx.state, enemy);
         if (!categories.includes("enemy") || !cardsInPlay(ctx.state).includes(enemy)) continue;
@@ -1694,6 +1716,8 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
               status,
               reason: attacking ? "cancelledAttack" : "cancelledSchemeOrThwart",
             });
+            cancelledByStatus++;
+            firstCancelled ??= enemy;
             continue;
           }
           events.push(
@@ -1725,12 +1749,20 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
           : effect.schBonus
             ? { schBonus: value(effect.schBonus) }
             : {};
-      pushEvents(ctx, events, reportTo(effect.bind), bonus);
+      // RRG 1.8 "'Then'" (p. 44): "X attacks you. Then, …" waits on the attack. One that a status cancelled, or that
+      // could not be initiated at all, did not resolve; one initiated here reports back whether it happened.
+      const initiated = events.length;
+      const attempted = initiated + cancelledByStatus;
+      if (initiated < attempted || initiated === 0)
+        markPreThenUnresolved(ctx, frame.frameId, "activationDidNotHappen", firstCancelled ?? undefined);
+      pushEvents(ctx, events, { frameId: frame.frameId, prefix: effect.bind ?? null, gatesThen: true }, bonus);
       return;
     }
     case "selectCards": {
       const ids = selectCards(ctx, effect.cards, context);
       const slot = effect.slot;
+      // A search that found nothing (RRG 1.8 "'Then'", p. 44): "search … for X and put it into play …, then …".
+      if (ids.length === 0 && readsDeck(effect.cards)) markPreThenUnresolved(ctx, frame.frameId, "searchFoundNothing");
       updateFrame(ctx, frame.frameId, (f) =>
         f.kind === "effects"
           ? { ...f, bindings: { ...f.bindings, [slot]: ids }, vars: { ...f.vars, [`${slot}.count`]: ids.length } }
@@ -1740,13 +1772,17 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
     }
     case "revealCard": {
       const [playerId] = resolvePlayers(ctx.state, effect.player, context);
+      const revealing = playerId ? targets(effect.cards) : [];
+      // "Reveal that minion, then …" with no minion found (RRG 1.8 "'Then'", p. 44).
+      if (revealing.length === 0) markPreThenUnresolved(ctx, frame.frameId, "revealFoundNothing");
       if (!playerId) return;
       const frames: StackFrame[] = [];
-      for (const id of targets(effect.cards)) {
+      for (const id of revealing) {
         // Park it with the revealing player's dealt cards while it resolves (out of the deck/discard it came from).
         updateInstance(ctx, id, (i) => ({ ...i, faceup: false }));
         moveCard(ctx, id, { kind: "dealtEncounter", playerId }, "top");
-        frames.push(revealFrame(ctx, playerId, id));
+        // A reveal whose effects are cancelled reports back (`preThenOf`, `resolve/reveal.ts`).
+        frames.push(revealFrame(ctx, playerId, id, frame.frameId));
       }
       pushFrames(ctx, frames);
       return;
@@ -1775,6 +1811,9 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       shuffleEncounterDeck(ctx);
       return;
     case "discardEncounterUntil": {
+      // Finding nothing does not mark the text before a "then" unresolved: RRG 1.8 "Encounter Deck" (p. 17), "If the
+      // encounter deck is emptied this way, that card ability is considered to be fulfilled." A following "Reveal that
+      // minion" with no minion does (`revealCard`, `revealFoundNothing`).
       // Bounded by the number of encounter cards, so a deck with no match can't loop forever.
       const deckId = activeEncounterDeckId(ctx.state);
       const piles = encounterDeckOf(ctx.state, deckId);
@@ -1808,9 +1847,11 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       // One player per "your deck"; several ("each player") each search their own deck, in player order, and every
       // match lands in the one slot, so `<bind>.count` is how many were found.
       const found: InstanceId[] = [];
+      let searched = 0;
       for (const playerId of resolvePlayers(ctx.state, effect.player, context)) {
         const player = getPlayer(ctx.state, playerId);
         if (!player || player.eliminated) continue;
+        searched++;
         // Bounded by the cards that exist, so a deck with no match can't loop forever.
         const limit = player.deck.length + player.discard.length;
         for (let i = 0; i < limit; i++) {
@@ -1832,6 +1873,9 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
           ? { ...f, bindings: { ...f.bindings, [bind]: found }, vars: { ...f.vars, [`${bind}.count`]: found.length } }
           : f,
       );
+      // "Discard … until you discard an X, then add that card to your hand" with no X (RRG 1.8 "'Then'", p. 44): each
+      // player who searched must have found one.
+      if (found.length < searched) markPreThenUnresolved(ctx, frame.frameId, "discardUntilFoundNothing");
       return;
     }
     case "discardEncounterCards": {
