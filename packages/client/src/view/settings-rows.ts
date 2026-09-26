@@ -8,7 +8,7 @@
  */
 import { SHARP_TEXT_RESOLUTION_CEILING, type Settings } from "../settings.js";
 
-export type SettingsRowId = "reduced-motion" | "sharper-text" | "large-card-text" | "sound";
+export type SettingsRowId = "reduced-motion" | "sharper-text" | "large-card-text" | "sound" | "confirm-end-turn";
 
 export interface SettingsRowInfo {
   readonly id: SettingsRowId;
@@ -47,6 +47,13 @@ export function settingsRowInfoOf(settings: Settings): readonly SettingsRowInfo[
       detail: "Background music and audio across menus and games.",
       on: settings.sound,
     },
+    {
+      id: "confirm-end-turn",
+      title: "Confirm before ending turn",
+      detail:
+        "Ask before End turn whenever a basic attack, thwart or recover is still open, for you or an ally. Off ends the turn straight away.",
+      on: settings.confirmBeforeEndTurn,
+    },
   ];
 }
 
@@ -73,5 +80,7 @@ export function nextSettingsAfterToggle(settings: Settings, id: SettingsRowId, d
       return { ...settings, largeCardText: !settings.largeCardText };
     case "sound":
       return { ...settings, sound: !settings.sound };
+    case "confirm-end-turn":
+      return { ...settings, confirmBeforeEndTurn: !settings.confirmBeforeEndTurn };
   }
 }

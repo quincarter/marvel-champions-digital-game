@@ -25,6 +25,7 @@ import {
   toggleDiscardChoice,
   type DiscardChoiceView,
 } from "../../view/discard-choice-model.js";
+import { endTurnConfirmOf } from "../../view/end-turn-confirm.js";
 import { focusOrder, type FocusTarget } from "../../view/focus.js";
 import {
   abilityActionsFor,
@@ -52,6 +53,11 @@ export interface BoardControllerHost {
   tabbed(): boolean;
   redraw(): void;
   inspect(id: InstanceId): void;
+  /**
+   * Asks "End your turn? You can still: …" (Settings ▸ "Confirm before ending turn",
+   * `view/end-turn-confirm.ts`), and calls `onConfirm` only if the player says End turn.
+   */
+  confirmEndTurn(sentence: string, onConfirm: () => void): void;
 }
 
 /** What the controller picker bar shows: the card, and each seat it may be played under. */
@@ -869,7 +875,16 @@ export class BoardController {
   async dispatchExample(kind: BasicAction): Promise<void> {
     if (this.#readOnly) return;
     const entry = this.#legalFor(kind);
-    if (entry) await this.#dispatch(entry.example);
+    if (!entry) return;
+    if (kind === "endTurn" && appSession().settings.confirmBeforeEndTurn) {
+      const { game, legal } = appSession().store.state;
+      const confirm = game && legal ? endTurnConfirmOf(game, legal.actions, legal.playerId) : null;
+      if (confirm) {
+        this.#host.confirmEndTurn(confirm.sentence, () => void this.#dispatch(entry.example));
+        return;
+      }
+    }
+    await this.#dispatch(entry.example);
   }
 
   /**

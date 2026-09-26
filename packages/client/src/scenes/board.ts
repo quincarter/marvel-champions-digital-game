@@ -45,6 +45,7 @@ import { boardLayout, type BoardLayout, type PhoneTab, type Rect } from "../view
 import type { SessionState } from "../store/session-store.js";
 import { SCENES } from "./keys.js";
 import { fadeScreenIn, goToScreen } from "../ui/transitions.js";
+import { askToEndTurn } from "./end-turn-confirm.js";
 import { drawActionBar } from "./board/action-bar.js";
 import { drawCharacter } from "./board/character-panel.js";
 import { drawChrome, drawPhoneTabs } from "./board/chrome.js";
@@ -110,6 +111,7 @@ export class BoardScene extends Phaser.Scene {
     tabbed: () => this.#layout?.tabbed ?? false,
     redraw: () => this.#draw(),
     inspect: (id) => this.#inspect(id),
+    confirmEndTurn: (sentence, onConfirm) => askToEndTurn(this, sentence, onConfirm),
   });
   readonly #hand = new HandScroll(() => this.#draw());
   readonly #logPanel = new LogPanel(() => this.#draw());
