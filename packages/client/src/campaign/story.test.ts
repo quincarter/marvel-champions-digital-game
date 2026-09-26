@@ -42,6 +42,19 @@ describe("campaign story", () => {
     }
   });
 
+  test("every mts issue with an Aftermath shows a real comic panel there, not a placeholder note", () => {
+    const story = storyFor("mts")!;
+    const pages = story.pages!;
+    for (const issue of story.issues.filter((i) => i.aftermath)) {
+      const refs = issue.aftermathBeats ?? [];
+      expect(refs.length, `mts ${issue.nodeId}: no aftermathBeats`).toBeGreaterThan(0);
+      for (const ref of refs) {
+        const page = pages.find((p) => p.file === ref.page);
+        expect(page?.beats[ref.beatIndex], `mts aftermathBeats: ${ref.page}#${ref.beatIndex}`).toBeDefined();
+      }
+    }
+  });
+
   test("every comicBeats ref points at a page and beat that exist, and every page file is used by some issue or is the box's known unwired aftermath/finale page", () => {
     const story = storyFor("gmw")!;
     const pages = story.pages!;

@@ -329,6 +329,8 @@ export const MTS_STORY: CampaignStory = {
         text: "Whatever we carry out of here rides with us the rest of the way. Let's make it count.",
       },
       aftermathArt: { kind: "note", text: "Panel art: Knowhere's landing pad, held" },
+      // Knowhere itself, Cosmo still on his feet (page 1's bottom strip): the page has no quieter panel after the fight.
+      aftermathBeats: [{ page: "01-p1-titan", beatIndex: 2 }],
       rewindTaunt: "The Black Order does not retreat. It regroups.",
     },
     {
@@ -427,6 +429,8 @@ export const MTS_STORY: CampaignStory = {
         text: "He'll be back for the rest. Pool everything that's still standing — we'll need it.",
       },
       aftermathArt: { kind: "note", text: "Panel art: the tower, scarred but standing" },
+      // The Avengers in the air over the tower, still standing (page 3's bottom right).
+      aftermathBeats: [{ page: "03-p3-battle", beatIndex: 3 }],
       rewindTaunt: "The Mad Titan does not fear a rematch.",
     },
     {
@@ -470,6 +474,8 @@ export const MTS_STORY: CampaignStory = {
         text: "Whatever we're carrying to Asgard, it travels with us now. Loki's waiting.",
       },
       aftermathArt: { kind: "note", text: "Panel art: the Norn Stone, recovered" },
+      // Odin freed and kneeling in the ice with Thor at his side (page 5's top left), the moment after Hel.
+      aftermathBeats: [{ page: "05-p5-asgard", beatIndex: 0 }],
       rewindTaunt: "Hel keeps everything it takes. Nothing leaves twice.",
     },
     {

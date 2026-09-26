@@ -526,6 +526,16 @@ export async function seedMtsRun(service: CampaignService, stop: MtsRunStop = "a
   return record;
 }
 
+/**
+ * `stop`'s own next issue, composed and won but not folded — the MC21 counterpart of `seedGmwWonGame`, so the
+ * Aftermath runs a real `fold` against a live game. Defaults to `"fresh"`: the game this returns is issue #1
+ * ("ebony-maw"). A bare substituted win, so issue #1's own pool facts (Cosmo, Security Breach) stay unset.
+ */
+export async function seedMtsWonGame(service: CampaignService, stop: MtsRunStop = "fresh"): Promise<WonGame> {
+  const record = await seedMtsRun(service, stop);
+  return composeAndFabricateWin(service, record, autoAnswer);
+}
+
 /** `stop`'s own next issue, composed for real (`service.compose`). */
 export async function seedMtsComposed(
   service: CampaignService,

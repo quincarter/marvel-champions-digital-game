@@ -10,6 +10,7 @@ import {
   seedGmwComposed,
   seedGmwRun,
   seedGmwWonGame,
+  seedMtsWonGame,
   seedMtsComposed,
   seedMtsRun,
 } from "./dev-fixtures.js";
@@ -130,6 +131,15 @@ describe("seedGmwWonGame / seedDesignWonGame", () => {
   test("MC10's own equivalent composes issue #3 for real (afterIssue2's own next issue)", async () => {
     const { record, won } = await seedDesignWonGame(service());
     expect(record.attempt?.nodeId).toBe("taskmaster");
+    expect(won.outcome).toEqual({ result: "win", reason: "villainDefeated" });
+  });
+});
+
+describe("seedMtsWonGame", () => {
+  test("composes issue #1 (Ebony Maw) for real and fabricates its win, without folding it", async () => {
+    const { record, won } = await seedMtsWonGame(service());
+    expect(record.attempt?.nodeId).toBe("ebony-maw");
+    expect(record.status).toBe("active");
     expect(won.outcome).toEqual({ result: "win", reason: "villainDefeated" });
   });
 });
