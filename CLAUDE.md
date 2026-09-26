@@ -44,6 +44,29 @@ This repo defines specialized subagents under `.claude/agents/` that model the r
 
 See [PLAN.md](PLAN.md) for the build roadmap and current phase.
 
+### How to split work across agents (decided 2026-09-26)
+
+- **One small task per agent.** One engine primitive (one spec §3 section), one ruling, or one card group — never a
+  whole spec section list, hero or pack. An agent given everything reached ~680k tokens of context; one-section agents
+  finish in 50k–300k. Specialist agents have no Agent tool, so the **main session does the splitting**, briefs each
+  agent with only its own spec section, and asks for a short handoff note (files touched, groundwork laid).
+- **Card scripting per hero:** (1) registry scaffold + identity; then side by side (2) events, (3) supports / upgrades /
+  allies, (4) obligation + nemesis set, each in its own module
+  (`packages/cards/src/wave<N>/<pack>/<hero>/{identity,events,support-upgrades-allies,obligation-nemesis}.ts`) so
+  parallel agents never share a file; then (5) a precon e2e game. Encounter content: one agent per encounter set, or
+  per scenario's villain + main scheme.
+- **Parallel only when file sets don't overlap**, at most 3 agents at once. Agents edit the session's own worktree (a
+  hook blocks writes to sibling worktrees), so they share one working tree and one git index.
+- **Shared-index commit discipline** (a partial stage once broke HEAD): stage only your own hunks (`git apply --cached`
+  a patch when a file mixes agents), read `git diff --cached` right before committing, commit with an explicit
+  pathspec (`git commit -m … -- <paths>`), then check `git diff HEAD -- <your files>` shows nothing of yours left;
+  `--no-verify` only after running oxlint/oxfmt on your own files, since lint-staged stashes other agents' unstaged
+  work. Never `git stash`, `git add -A`, or repo-wide `pnpm fmt`.
+- **Agents don't edit the wave spec's status or open questions**; they report, and the main session verifies (runs
+  the tests, reads the diff) before flipping a status or ticking the PR. Rules questions go to the user as short
+  multiple-choice prompts with a recommended default; answers are recorded in the spec's §4.1 table and the PR.
+- The live state of a wave (agents, worktree, what's next) is kept in its PR description's handoff section.
+
 ## Working conventions
 
 - **Tech stack (decided in Phase 0):**
