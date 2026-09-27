@@ -21,9 +21,9 @@ import { ghostSpiderScenario } from "../ghost-spider/support.js";
  * `wave5Scenario("venom-goblin", …)` (`sm` 27113–27126, MC27 p. 17, docs/phase7-wave5.md §1.1/§2.2/§3.3/§3.4/§3.9).
  * `27116a.setup`'s own worked shape is `packages/engine/src/glider-main-schemes.test.ts`'s (landed); these tests
  * exercise the real, scripted scenario data on top of it, plus the completed-stage-flips-to-environment pipeline
- * `main-scheme.ts` scripts (27117b–27119b's own When Revealed/loss check). Only Goblin Gear is a recommended
- * modular; Bomb Scare (Core) stands in for it, the box's own `mysterio`/`sinister-six` precedent for an unscripted
- * modular.
+ * `main-scheme.ts` scripts (27117b–27119b's own When Revealed/loss check). Goblin Gear (`modulars/goblin-gear.ts`)
+ * is MC27's own recommended modular for this scenario (p. 20's scenario card) and is scripted, so it stands in
+ * here directly rather than Bomb Scare (Core).
  */
 function venomGoblin(
   players: Parameters<typeof ghostSpiderScenario>[1]["extraPlayers"] = [],
@@ -32,7 +32,7 @@ function venomGoblin(
   return startWave5Game(
     ghostSpiderScenario("venom-goblin", {
       seed: 7,
-      modularSetIds: [encounterSetId("bomb_scare")],
+      modularSetIds: [encounterSetId("goblin_gear")],
       extraPlayers: players,
       ...overrides,
     }),
@@ -57,7 +57,7 @@ const gliderOn = (state: GameState): string | undefined =>
 
 describe("wave5Scenario('venom-goblin'): 27116a.setup", () => {
   it("the four environment faces (27116b-27119b) aren't shuffled into the encounter deck; they enter play only by flipping", () => {
-    const config = ghostSpiderScenario("venom-goblin", { seed: 7, modularSetIds: [encounterSetId("bomb_scare")] });
+    const config = ghostSpiderScenario("venom-goblin", { seed: 7, modularSetIds: [encounterSetId("goblin_gear")] });
     for (const id of ["27116b", "27117b", "27118b", "27119b"]) expect(config.encounterDeck).not.toContain(cardId(id));
   });
 
@@ -205,14 +205,14 @@ function playAndReplay(config: GameSetupConfig) {
   return result;
 }
 
-const BOMB_SCARE = [encounterSetId("bomb_scare")];
+const GOBLIN_GEAR_SET = [encounterSetId("goblin_gear")];
 
 test("Venom Goblin, solo: Ghost-Spider", () => {
   playAndReplay(
     wave5Scenario("venom-goblin", {
       seed: 2029,
       players: [{ starterDeckId: "ghost-spider" }],
-      modularSetIds: BOMB_SCARE,
+      modularSetIds: GOBLIN_GEAR_SET,
     }),
   );
 }, 120_000);
@@ -222,7 +222,7 @@ test("Venom Goblin, solo: a Core precon (Captain Marvel / Leadership)", () => {
     wave5Scenario("venom-goblin", {
       seed: 2030,
       players: [{ starterDeckId: "core-captain-marvel-leadership" }],
-      modularSetIds: BOMB_SCARE,
+      modularSetIds: GOBLIN_GEAR_SET,
     }),
   );
 }, 120_000);
@@ -232,7 +232,7 @@ test("Venom Goblin, 2 players: Spider-Man (Miles Morales) and Ghost-Spider", () 
     wave5Scenario("venom-goblin", {
       seed: 2031,
       players: [{ starterDeckId: "spider-man-morales" }, { starterDeckId: "ghost-spider" }],
-      modularSetIds: BOMB_SCARE,
+      modularSetIds: GOBLIN_GEAR_SET,
     }),
   );
 }, 180_000);
