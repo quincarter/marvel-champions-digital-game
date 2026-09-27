@@ -1,0 +1,3 @@
+kind: Fixed
+body: 'Inspect: long "This card, this game" log lines wrap under a round-tag column instead of overlapping the next line'
+time: 2026-09-26T23:17:14.975743-04:00
