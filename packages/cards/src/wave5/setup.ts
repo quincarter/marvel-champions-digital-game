@@ -2,7 +2,7 @@ import {
   CORE_STARTER_DECKS,
   SM_SCENARIOS,
   SM_STARTER_DECKS,
-  encounterSetId,
+  difficultyEncounterSetIds,
   type AnyCard,
   type CardId,
 } from "@mc/content";
@@ -30,20 +30,6 @@ export interface Wave5ScenarioOptions extends Omit<CoreScenarioOptions, "cardPoo
 const cardsById = new Map<string, AnyCard>(WAVE5_CARDS.map((card) => [card.id, card]));
 
 /**
- * `sm`'s scenario records carry empty `standardEncounterSetIds`/`expertEncounterSetIds` (docs/phase7-wave5.md
- * `scenarios.ts` docblock: the box's raw MarvelCDB pack has no `standard`/`expert` `card_set_code` of its own — the
- * physical cards are Core's, reused across products the way "and Standard encounter sets" is printed in every box's
- * rulebook without the box carrying its own copies). So this scaffold adds Core's own `standard` set to every `sm`
- * scenario's deck, and Core's `expert` set in expert mode, rather than reading the (empty) scenario fields. The
- * box's 1A Setups print only "Standard", but expert mode adds the Expert encounter set to every scenario (RRG 1.8
- * "Modes of Play", Expert Mode: "add the Expert encounter set to encounter deck"). A data gap flagged for
- * `card-data-pipeline`, worked around here rather than left to silently under-build every `sm` scenario's encounter
- * deck. Revisit (and drop these constants) once `SM_SCENARIOS` carries the real set ids.
- */
-const SM_STANDARD_SET_IDS = [encounterSetId("standard")];
-const SM_EXPERT_SET_IDS = [encounterSetId("expert")];
-
-/**
  * A single-villain `SM_SCENARIOS` record (Sandman, Venom, Mysterio; not Venom Goblin's lettered main scheme or The
  * Sinister Six's `multipleVillains` shape — see the module docblock below), modeled directly on
  * `wave4/setup.ts`'s `buildMtsSingleVillain`.
@@ -68,8 +54,7 @@ function buildSmSingleVillain(scenario: (typeof SM_SCENARIOS)[number], options: 
   const sets = [
     ...scenario.encounterSetIds,
     ...(options.modularSetIds ?? scenario.recommendedModularSetIds),
-    ...SM_STANDARD_SET_IDS,
-    ...(difficulty === "expert" ? SM_EXPERT_SET_IDS : []),
+    ...difficultyEncounterSetIds(scenario, difficulty),
   ];
   if (options.players.length < 1 || options.players.length > 4) throw new Error("a game has 1-4 players");
   return {
@@ -140,8 +125,6 @@ const seatsOf = (players: readonly CorePlayer[]): PlayerSetup[] =>
  *   §1.1/§3.3) and the glider counter/focused main scheme mechanism (§3.4/§3.9) — `wave4/setup.ts`'s
  *   `buildHoodSingleVillain`'s `setAsideModularSets` shape is the closer model (a scenario-specific setup wrinkle
  *   layered on the single-villain base) than a wholesale rewrite.
- *
- * All five scenarios need `SM_STANDARD_SET_IDS`'s workaround above (or its eventual fix in `@mc/content`).
  */
 export function wave5Scenario(scenarioId: string, options: Wave5ScenarioOptions): GameSetupConfig {
   checkScenarioSetupOptions(scenarioId, options.setupOptions);

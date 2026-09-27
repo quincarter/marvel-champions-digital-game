@@ -145,6 +145,13 @@ describe("Sinister Motives — five scenarios", () => {
     }
   });
 
+  it('every scenario reuses Core\'s Standard and Expert encounter sets (MC27\'s own Setups print only "Standard"; RRG 1.8 "Expert Mode" adds the Expert set)', () => {
+    for (const s of SM_SCENARIOS) {
+      expect(s.standardEncounterSetIds, s.id as string).toEqual(["standard"]);
+      expect(s.expertEncounterSetIds, s.id as string).toEqual(["expert"]);
+    }
+  });
+
   it("nova, ironheart, spiderham and spdr (hero packs with no scenario of their own) are not among sm's scenarios", () => {
     for (const s of SM_SCENARIOS) expect(s.packCode as string).toBe("sm");
   });
