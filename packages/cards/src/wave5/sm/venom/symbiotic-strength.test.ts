@@ -1,5 +1,5 @@
 import { cardId, encounterSetId } from "@mc/content";
-import { activeEncounterDeckId, activeVillain, createGame, type GameState } from "@mc/engine";
+import { activeEncounterDeckId, activeVillain, createGame, type GameEvent, type GameState } from "@mc/engine";
 import { describe, expect, it } from "vitest";
 import {
   endTurn,
@@ -184,27 +184,41 @@ describe("Enraged Symbiote (27167)", () => {
   });
 });
 
+/** The villain's boost cards turned faceup in the attack Swinging Assault's reveal starts: its reveal to that attack's end. */
+const assaultFlips = (events: readonly GameEvent[], villain: string): number => {
+  const revealed = events.findIndex((e) => e.type === "encounterCardRevealed" && e.cardId === "27168");
+  const resolved = events.findIndex(
+    (e, i) => i > revealed && e.type === "attackResolved" && e.enemyInstanceId === villain,
+  );
+  expect(revealed).toBeGreaterThanOrEqual(0);
+  expect(resolved).toBeGreaterThan(revealed);
+  return events.slice(revealed, resolved).filter((e) => e.type === "boostCardFlipped" && e.enemyInstanceId === villain)
+    .length;
+};
+
 describe("Swinging Assault (27168)", () => {
-  it("27168.when-revealed-alter-ego: changes to hero form, then the villain attacks you", () => {
+  it("27168.when-revealed-alter-ego: changes to hero form, then the villain attacks you with its one boost card", () => {
     const state = venomGame();
     const identity = identityOf(state);
+    const villain = activeVillain(state).instanceId;
     const before = inst(state, identity).damage;
     const stacked = stackEncounterDeck(state, "01186", "27168");
-    const revealed = settle(runWave5(stacked, endTurn(P1)), firstLegal, undefined, WAVE5_DEPS);
+    const { state: revealed, events } = driveEvents(WAVE5_DEPS, stacked, endTurn(P1));
     expect(playerOf(revealed, P1).identity.form).toBe("hero");
     expect(inst(revealed, identity).damage).toBeGreaterThan(before);
+    expect(assaultFlips(events, villain)).toBe(1);
   });
 
   it("27168.when-revealed-hero: the villain attacks you, with 1 additional boost card for that activation", () => {
     const state = venomGame();
     const identity = identityOf(state);
+    const villain = activeVillain(state).instanceId;
     const before = inst(state, identity).damage;
     const stacked = stackEncounterDeck(asHero(state), "01186", "27168", "01186");
-    const revealed = settle(runWave5(stacked, endTurn(P1)), firstLegal, undefined, WAVE5_DEPS);
-    // Ghost-Spider's own ATK 2 (step 2's natural attack) + Venom's own ATK 2 (Swinging Assault's own attack, its
-    // own boost card irrelevant to ATK) landed twice — this only proves an attack happened each time; the extra
-    // boost card's own composition is unverified (`symbiotic-strength.ts`'s own doc comment).
+    const { state: revealed, events } = driveEvents(WAVE5_DEPS, stacked, endTurn(P1));
     expect(inst(revealed, identity).damage).toBeGreaterThan(before);
+    // The automatic boost card and the additional one, both turned faceup in Swinging Assault's attack.
+    expect(assaultFlips(events, villain)).toBe(2);
   });
 });
 

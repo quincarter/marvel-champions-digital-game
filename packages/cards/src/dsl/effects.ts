@@ -367,6 +367,17 @@ export const enemyAttack = (
      * runs once the attack has already resolved.
      */
     readonly keywords?: readonly AttackKeyword[];
+    /**
+     * "The villain attacks you. Give the villain 1 additional boost card for that activation" (Swinging Assault):
+     * extra boost cards dealt at the start of exactly the activations this call initiates; none if no activation
+     * happens (docs/phase7-wave5.md §4.1 Q66). Not `modifyAttack` after it, which runs once the attack has resolved.
+     */
+    readonly extraBoostCards?: Amount;
+    /**
+     * "Each boost card turned faceup during that activation gets +1 boost icon" (Biting Retort): added to every boost
+     * card the activations this call initiates turn faceup, and to no other (docs/phase7-wave5.md §4.1 Q66).
+     */
+    readonly boostIconsEach?: Amount;
   } = {},
 ): EffectSpec => ({
   kind: "enemyAttack",
@@ -379,17 +390,33 @@ export const enemyAttack = (
   ...(opts.additionalResolution ? { additionalResolution: true } : {}),
   ...(opts.atkBonus !== undefined ? { atkBonus: amount(opts.atkBonus) } : {}),
   ...(opts.keywords && opts.keywords.length > 0 ? { keywords: opts.keywords } : {}),
+  ...activationBoost(opts),
 });
-/** "The villain schemes" / "Green Goblin schemes with +X SCH" — `enemyAttack`'s `atkBonus`, for a scheme activation. */
+/** `enemyAttack`/`enemyScheme`'s activation-scoped boost changes (docs/phase7-wave5.md §4.1 Q66). */
+const activationBoost = (opts: { readonly extraBoostCards?: Amount; readonly boostIconsEach?: Amount }) => ({
+  ...(opts.extraBoostCards !== undefined ? { extraBoostCards: amount(opts.extraBoostCards) } : {}),
+  ...(opts.boostIconsEach !== undefined ? { boostIconsEach: amount(opts.boostIconsEach) } : {}),
+});
+/**
+ * "The villain schemes" / "Green Goblin schemes with +X SCH" — `enemyAttack`'s `atkBonus`, for a scheme activation;
+ * `extraBoostCards` / `boostIconsEach` as `enemyAttack`'s.
+ */
 export const enemyScheme = (
   enemies: TargetRef,
-  opts: { readonly against?: PlayerRef; readonly bind?: string; readonly schBonus?: Amount } = {},
+  opts: {
+    readonly against?: PlayerRef;
+    readonly bind?: string;
+    readonly schBonus?: Amount;
+    readonly extraBoostCards?: Amount;
+    readonly boostIconsEach?: Amount;
+  } = {},
 ): EffectSpec => ({
   kind: "enemyScheme",
   enemies,
   ...(opts.against ? { against: opts.against } : {}),
   ...withBind(opts.bind),
   ...(opts.schBonus !== undefined ? { schBonus: amount(opts.schBonus) } : {}),
+  ...activationBoost(opts),
 });
 /**
  * "That minion attacks another enemy" (Moondragon, `drax` 19013): `attacker` attacks `target`, an enemy attacking an
@@ -487,6 +514,11 @@ export const modifyAttack = (change: {
   readonly preventAllDamage?: boolean;
   /** "Use its ATK instead of its DEF for this attack" (The Best Defense…, 25020; docs/phase7-wave4.md §3.22). */
   readonly defenseUsesAtk?: boolean;
+  /**
+   * "Each boost card turned faceup during this activation gets +N boost icons", for the activation in progress (its
+   * next boost card on). From the effect that starts the activation, use `enemyAttack({ boostIconsEach })` (§4.1 Q66).
+   */
+  readonly boostIconsEach?: Amount;
 }): EffectSpec => ({
   kind: "modifyAttack",
   ...(change.overkill ? { overkill: true } : {}),
@@ -496,6 +528,7 @@ export const modifyAttack = (change: {
   ...(change.keywords && change.keywords.length > 0 ? { keywords: change.keywords } : {}),
   ...(change.preventAllDamage ? { preventAllDamage: true } : {}),
   ...(change.defenseUsesAtk ? { defenseUsesAtk: true } : {}),
+  ...(change.boostIconsEach !== undefined ? { boostIconsEach: amount(change.boostIconsEach) } : {}),
 });
 /**
  * "Declare Valkyrie the defender without exhausting her" (Shieldmaiden, 25011) / "declare him the defender without

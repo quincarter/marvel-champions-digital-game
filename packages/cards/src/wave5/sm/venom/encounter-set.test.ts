@@ -17,6 +17,7 @@ import {
   type Picker,
 } from "../../../testing/harness.js";
 import { startWave5Game, runWave5, WAVE5_DEPS } from "../../testing.js";
+import { driveEvents } from "../../../testing/staging.js";
 import { ghostSpiderScenario } from "../ghost-spider/support.js";
 
 const venomGame = (seed = 1) =>
@@ -205,8 +206,27 @@ describe("Biting Retort (27082)", () => {
     expect(playerOf(revealed, P1).discard.length + damageBefore).toBeGreaterThanOrEqual(damageBefore);
   });
 
-  it.fails("27082: each boost card turned faceup during that activation gets +1 boost icon (docs/phase7-wave5.md §3.6's own 'Not here' — no engine primitive scopes eachTimeUntil to a single activation)", () => {
-    throw new Error("not built: eachTimeUntil only scopes to endOfPhase/endOfRound/endOfTurn");
+  it("27082: each boost card turned faceup during that activation gets +1 boost icon (docs/phase7-wave5.md §4.1 Q66)", () => {
+    const state = asHero(venomGame());
+    const villain = activeVillain(state).instanceId;
+    // Advance (01186) has no boost icon: the villain phase's own attack flips one, Biting Retort's attack the other.
+    const stacked = stackEncounterDeck(state, "01186", "27082", "01186");
+    const { events } = driveEvents(WAVE5_DEPS, stacked, endTurn(P1));
+    const revealed = events.findIndex((e) => e.type === "encounterCardRevealed" && e.cardId === "27082");
+    expect(revealed).toBeGreaterThanOrEqual(0);
+    const flips = events.flatMap((e, i) =>
+      e.type === "boostCardFlipped" && e.enemyInstanceId === villain ? [{ i, icons: e.boostIcons }] : [],
+    );
+    const ended = events.findIndex(
+      (e, i) => i > revealed && e.type === "attackResolved" && e.enemyInstanceId === villain,
+    );
+    // Before the reveal: printed icons only. In that activation: +1 (its expiry is `activation-scoped-effects.test.ts`).
+    const before = flips.filter((f) => f.i < revealed);
+    const during = flips.filter((f) => f.i > revealed && f.i < ended);
+    expect(before.map((f) => f.icons)).toEqual([0]);
+    expect(during.map((f) => f.icons)).toEqual([1]);
+    const attack = events[ended];
+    expect(attack?.type === "attackResolved" ? attack.boostIcons : null).toBe(1);
   });
 
   it("27082.boost: removes 1 chime counter from the Bell Tower", () => {

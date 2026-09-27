@@ -68,21 +68,14 @@ export const SYMBIOTIC_STRENGTH = defineAbilities({
 
   // Swinging Assault (27168, treachery) — When Revealed (Alter-Ego): Change to hero form. The villain attacks you.
   // When Revealed (Hero): The villain attacks you. Give the villain 1 additional boost card for that activation.
-  // **Unverified composition:** `modifyAttack({ extraBoostCards })` reads "the current activation" (`resolve/
-  // apply-effect.ts`'s own `currentActivationFrameId`), which every other pack's use of it reaches from *inside* a
-  // Boost ability (already nested in the ongoing activation) or a response/interrupt to an *already-initiated*
-  // enemy attack — never from the same effect list as the `enemyAttack` that starts the activation in the first
-  // place. No wave 5 card needing exactly this composition was found scripted elsewhere; `encounter-set.test.ts`
-  // plays this card and asserts the villain's activation actually dealt 2 boost cards, so if the ordering below is
-  // wrong the test (not a silent miss) catches it.
+  // "That activation" is the one this effect starts: `enemyAttack({ extraBoostCards })` deals the extra card at its
+  // start, and none if no attack happens (a stun). A `modifyAttack` after the attack would run once it has resolved
+  // (RRG 1.8 "Activation", p. 6; docs/phase7-wave5.md §4.1 Q66).
   "27168.when-revealed-alter-ego": whenRevealedAlterEgo(
     changeForm(you, "hero"),
     enemyAttack(theVillain, { against: you }),
   ),
-  "27168.when-revealed-hero": whenRevealedHero(
-    enemyAttack(theVillain, { against: you }),
-    modifyAttack({ extraBoostCards: 1 }),
-  ),
+  "27168.when-revealed-hero": whenRevealedHero(enemyAttack(theVillain, { against: you, extraBoostCards: 1 })),
 
   // Unstable Sentience (27169, treachery; surge is data) — When Revealed: Give the villain 1 facedown boost card.
   // [star] Boost: If this activation is an attack, this card gets +2 boost icons for this attack and this attack
