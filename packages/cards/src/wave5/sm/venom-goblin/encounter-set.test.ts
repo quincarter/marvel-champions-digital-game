@@ -8,6 +8,7 @@ import {
   handSize,
   hasKeyword,
   maxHitPoints,
+  type GameEvent,
   type GameState,
   type InstanceId,
 } from "@mc/engine";
@@ -56,11 +57,24 @@ const schemeNamed = (state: GameState, name: string): InstanceId => {
     throw new Error(`no main scheme named ${name} among ${schemes(state).map((id) => currentName(state, id))}`);
   return found;
 };
-const threatOf = (state: GameState, name: string): number => getInstance(state, schemeNamed(state, name))!.threat;
 const gliderOn = (state: GameState): string | undefined =>
   schemes(state)
     .filter((id) => (getInstance(state, id)?.counters["glider"] ?? 0) > 0)
     .map((id) => currentName(state, id))[0];
+
+/** The events between `abilityId`'s own `abilityResolved` and the very next `abilityResolved` of any id — a boost
+ * ability's own leaf effects, and nothing an enemy's later Forced Response does in the same activation (Venom
+ * Goblin's own Infest the City/Claim the Throne/Reign of Terror, `wave5/sm/venom-goblin/villain.ts`, fires
+ * immediately after the natural activation completes, in the same `enemyActivations` step, so
+ * `villain.test.ts`'s own `eventsDuring` — which stops at the next `stepChanged` — would still include it here).
+ * Only safe for a boost ability with no nested ability resolution of its own (none of the boosts below call
+ * `resolveSpecialsOf`). */
+const eventsAfterAbility = (events: readonly GameEvent[], abilityId: string): readonly GameEvent[] => {
+  const start = events.findIndex((e) => e.type === "abilityResolved" && String(e.abilityId) === abilityId);
+  if (start < 0) return [];
+  const end = events.findIndex((e, i) => i > start && e.type === "abilityResolved");
+  return events.slice(start, end < 0 ? events.length : end);
+};
 
 /** Accepts the named optional interrupt/response (by ability id suffix); declines everything else —
  * `wave5/sm/venom/encounter-set.test.ts`'s own `accepting` precedent. */
@@ -194,11 +208,15 @@ describe("Symbiotic Berserker (27121)", () => {
     // Lower 1, Midtown 2 (glider), Upper 0 before step one (1-hero setup, `scenario.test.ts`); Upper patched above
     // both so it is the highest after step one's own +1 each.
     state = patchInstance(state, schemeNamed(state, "Upper Manhattan"), { threat: 5 });
+    const upper = schemeNamed(state, "Upper Manhattan");
     const stacked = stackEncounterDeck(state, "27121");
-    const upperBeforeBoost = threatOf(state, "Upper Manhattan") + 1; // step one's own acceleration
-    const after = settle(runWave5(stacked, toHero(P1), endTurn(P1)), accepting("27121.boost"), undefined, WAVE5_DEPS);
-    expect(gliderOn(after)).toBe("Upper Manhattan");
-    expect(threatOf(after, "Upper Manhattan")).toBe(upperBeforeBoost + 1);
+    const { events } = driveEventsPicking(WAVE5_DEPS, stacked, accepting("27121.boost"), toHero(P1), endTurn(P1));
+    // Isolated to the boost's own event window (`eventsAfterAbility`'s own doc comment): Venom Goblin's own Forced
+    // Response fires immediately afterward in the same activation and moves the glider again (to the *least*-threat
+    // scheme), which would otherwise undo this card's own "most threat" move before a final read could see it.
+    const during = eventsAfterAbility(events, "27121.boost");
+    expect(during.some((e) => e.type === "countersMoved" && e.counterType === "glider" && e.to === upper)).toBe(true);
+    expect(during.some((e) => e.type === "threatPlaced" && e.schemeInstanceId === upper && e.amount === 1)).toBe(true);
   });
 });
 
@@ -270,12 +288,21 @@ describe("Symbiotic Thrall (27123)", () => {
 
   it("27123.boost: places 1 threat on each main scheme without the glider counter", () => {
     const state = venomGoblin(); // glider on Midtown Manhattan
-    const before = { lower: threatOf(state, "Lower Manhattan") + 1, upper: threatOf(state, "Upper Manhattan") + 1 };
+    const lower = schemeNamed(state, "Lower Manhattan");
+    const upper = schemeNamed(state, "Upper Manhattan");
     const stacked = stackEncounterDeck(state, "27123");
-    const after = settle(runWave5(stacked, toHero(P1), endTurn(P1)), accepting("27123.boost"), undefined, WAVE5_DEPS);
-    expect(gliderOn(after)).toBe("Midtown Manhattan");
-    expect(threatOf(after, "Lower Manhattan")).toBe(before.lower + 1);
-    expect(threatOf(after, "Upper Manhattan")).toBe(before.upper + 1);
+    const { events } = driveEventsPicking(WAVE5_DEPS, stacked, accepting("27123.boost"), toHero(P1), endTurn(P1));
+    // Isolated to the boost's own event window (`eventsAfterAbility`'s own doc comment): Venom Goblin's own Forced
+    // Response fires immediately afterward in the same activation and can place its own threat on these same
+    // schemes too, which would otherwise be indistinguishable from this card's own contribution.
+    const during = eventsAfterAbility(events, "27123.boost");
+    const placedOn = (id: string): number =>
+      during
+        .filter((e): e is Extract<GameEvent, { type: "threatPlaced" }> => e.type === "threatPlaced")
+        .filter((e) => e.schemeInstanceId === id)
+        .reduce((sum, e) => sum + e.amount, 0);
+    expect(placedOn(lower)).toBe(1);
+    expect(placedOn(upper)).toBe(1);
   });
 });
 
@@ -331,19 +358,38 @@ describe("Joy Ride (27125)", () => {
   });
 });
 
+/** The three Manhattan stages' own printed Special ability ids (`main-scheme.ts`), keyed by their own ability id. */
+const MANHATTAN_SPECIAL_IDS = new Set([
+  "27117a.lower-manhattan-special",
+  "27118a.midtown-manhattan-special",
+  "27119a.upper-manhattan-special",
+]);
+
 describe("Spreading Panic (27126)", () => {
-  it('27126.when-revealed: resolves the "Special" ability of the scheme with the glider counter (Midtown Manhattan)', () => {
-    const state = venomGoblin(); // glider on Midtown Manhattan by setup
+  it('27126.when-revealed: resolves the "Special" ability of the scheme with the glider counter', () => {
+    const state = venomGoblin(); // glider on Midtown Manhattan at setup
     const stacked = stackEncounterDeck(state, "01186", "27126");
-    const midtown = schemeNamed(stacked, "Midtown Manhattan");
     const { events } = driveEvents(WAVE5_DEPS, stacked, toHero(P1), endTurn(P1));
-    // Midtown Manhattan's own Special (27118a): "Take 2 indirect damage" — dealt by the scheme itself, distinct
-    // from the villain's own natural activation.
-    const fromMidtown = events.reduce(
-      (sum, e) => (e.type === "damageDealt" && e.sourceInstanceId === midtown ? sum + e.amount : sum),
-      0,
-    );
-    expect(fromMidtown).toBeGreaterThanOrEqual(2);
+    const revealedIdx = events.findIndex((e) => e.type === "abilityResolved" && e.abilityId === "27126.when-revealed");
+    expect(revealedIdx).toBeGreaterThanOrEqual(0);
+    // The glider can already have moved by the time Spreading Panic itself reveals: Venom Goblin's own Forced
+    // Response (Infest the City et al., `wave5/sm/venom-goblin/villain.ts`) fires earlier in this same round, on
+    // his own natural activation. Read wherever it actually is at reveal time — the most recent `countersMoved`
+    // before this — rather than assuming the Midtown Manhattan it started on.
+    const priorMoves = events
+      .slice(0, revealedIdx)
+      .filter(
+        (e): e is Extract<GameEvent, { type: "countersMoved" }> =>
+          e.type === "countersMoved" && e.counterType === "glider",
+      );
+    const gliderSchemeId = priorMoves.length > 0 ? priorMoves.at(-1)!.to : schemeNamed(stacked, "Midtown Manhattan");
+    // The very next ability to resolve after Spreading Panic's own reveal is that scheme's own printed Special —
+    // proven by ability id and by instance (so it's specifically the glider's scheme, not merely *a* main scheme).
+    const nextAbility = events
+      .slice(revealedIdx + 1)
+      .find((e): e is Extract<GameEvent, { type: "abilityResolved" }> => e.type === "abilityResolved");
+    expect(nextAbility?.instanceId).toBe(gliderSchemeId);
+    expect(nextAbility && MANHATTAN_SPECIAL_IDS.has(String(nextAbility.abilityId))).toBe(true);
   });
 
   it('27126.boost: resolves the "Special" ability of the scheme with the glider counter', () => {

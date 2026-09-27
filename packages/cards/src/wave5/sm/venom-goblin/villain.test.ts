@@ -66,6 +66,16 @@ const damageFrom = (events: readonly GameEvent[], sourceInstanceId: InstanceId):
     .filter((e) => e.sourceInstanceId === sourceInstanceId)
     .reduce((sum, e) => sum + e.amount, 0);
 
+/** The total `threatPlaced` on `schemeInstanceId` sourced from `sourceInstanceId` — Lower Manhattan's own "1 threat
+ * on each scheme" (`main-scheme.ts` `placeThreat(1, each(query("scheme")))`) tags every placement it makes,
+ * including onto itself and other main/side schemes, with its own instance id as the source (`resolve/apply-effect.ts`
+ * `frame.selfInstanceId`) — the `damageFrom` idiom above, for threat instead of damage. */
+const threatFrom = (events: readonly GameEvent[], sourceInstanceId: InstanceId, schemeInstanceId: InstanceId): number =>
+  events
+    .filter((e): e is Extract<GameEvent, { type: "threatPlaced" }> => e.type === "threatPlaced")
+    .filter((e) => e.sourceInstanceId === sourceInstanceId && e.schemeInstanceId === schemeInstanceId)
+    .reduce((sum, e) => sum + e.amount, 0);
+
 /** The events between `abilityId`'s own `abilityResolved` and the next `stepChanged` (the "enemyActivations" step
  * ending) — everything that ability's own effects caused, before the round moves on to the standard encounter card
  * reveal step, which can also discard from hand/deck for reasons that have nothing to do with this ability. */
@@ -189,18 +199,30 @@ describe("Venom Goblin (II) (27114): When Revealed deals 2 facedown encounter ca
     state = withForm(state, { heroForm: 0 }, P1);
     state = gliderTo(state, "Midtown Manhattan");
     const midtown = schemeNamed(state, "Midtown Manhattan");
-    state = patchInstance(state, schemeNamed(state, "Lower Manhattan"), { threat: 9 });
+    // Kept well below every target (Lower 11, Midtown 12, Upper 10 for 1 hero) with a wide margin: the scripted
+    // encounter set can now also draw Joy Ride/Spreading Panic/a minion boost this same round (module docblock),
+    // any of which can add a few more threat before this ability's own window is over, and getting a main scheme
+    // to complete mid-test would cascade into an unrelated (and here unintended) [Symbiote]-environment game loss.
+    state = patchInstance(state, schemeNamed(state, "Lower Manhattan"), { threat: 2 });
     state = patchInstance(state, midtown, { threat: 0 }); // strictly least: 0+1=1
-    state = patchInstance(state, schemeNamed(state, "Upper Manhattan"), { threat: 3 }); // well below its target (10): stays a main scheme
-    const { state: after, events } = driveEventsPicking(WAVE5_DEPS, state, firstLegal, endTurn(P1));
+    state = patchInstance(state, schemeNamed(state, "Upper Manhattan"), { threat: 3 });
+    const { events } = driveEventsPicking(WAVE5_DEPS, state, firstLegal, endTurn(P1));
+    // Isolated to this ability's own event window (`eventsDuring`'s own doc comment): the round's own standard
+    // encounter card reveal can also resolve "the scheme with the glider counter"'s Special again later (Spreading
+    // Panic, `wave5/sm/venom-goblin/encounter-set.ts`), which would otherwise double-count here.
+    // Claim the Throne is a Forced Response firing *after* Venom Goblin's own activation completes (RRG 1.8
+    // "Activation", p. 6), so the attack itself is chronologically before this ability's own window — checked
+    // against the full event list, not `during`.
     expect(events.some((e) => e.type === "attackResolved")).toBe(true);
-    expect(events.some((e) => e.type === "optionChosen")).toBe(false); // (II) never offers "Choose to either"
+    const during = eventsDuring(events, "27114.venom-goblin-constant");
+    expect(during.some((e) => e.type === "optionChosen")).toBe(false); // (II) never offers "Choose to either"
     // The Special resolved on whichever scheme the glider landed on: Midtown Manhattan's own "take 2 indirect
-    // damage" (no [Symbiote] environment in play here, so no +1 bonus). Checked by `sourceInstanceId`, not a raw
-    // identity-damage delta: the villain's own attack (undefended) damages the identity too, and so can the round's
-    // own standard encounter card reveal.
-    expect(gliderOn(after)).toBe("Midtown Manhattan");
-    expect(damageFrom(events, midtown)).toBe(2);
+    // damage" (no [Symbiote] environment in play here, so no +1 bonus) — proven by the ability id itself resolving
+    // (so the glider was on Midtown when Claim the Throne ran), not a raw identity-damage delta.
+    expect(during.some((e) => e.type === "abilityResolved" && e.abilityId === "27118a.midtown-manhattan-special")).toBe(
+      true,
+    );
+    expect(damageFrom(during, midtown)).toBe(2);
   });
 });
 
@@ -253,15 +275,24 @@ describe("Each Manhattan Special resolved end to end through the villain, with t
     // Lower/Midtown/Upper so "each scheme" (main and side) is exercised exactly as printed.
     const env = withSymbioteEnvironment(state);
     state = env.state;
-    const { state: after } = driveEventsPicking(WAVE5_DEPS, state, firstLegal, endTurn(P1));
-    expect(gliderOn(after)).toBe("Lower Manhattan");
-    // Step one's own per-main-scheme threat is 2 here, not 1: Bomb Scare prints an acceleration icon, and "every
-    // main scheme gains threat…plus the icons in play" (MC21 p. 11) adds it once, everywhere, on top of each
-    // scheme's own printed acceleration.
-    expect(threatOf(after, "Lower Manhattan")).toBe(2 + 1 + 1); // step-one accel, "each scheme", +1 [Symbiote] bonus
-    expect(threatOf(after, "Midtown Manhattan")).toBe(5 + 1); // step-one accel, "each scheme" (no bonus: not glider's scheme)
-    expect(threatOf(after, "Upper Manhattan")).toBe(5 + 1);
-    expect(getInstance(after, sideScheme)!.threat).toBe(2 + 1); // side schemes are schemes too, but get no step-one accel
+    const lower = schemeNamed(state, "Lower Manhattan");
+    const midtown = schemeNamed(state, "Midtown Manhattan");
+    const upper = schemeNamed(state, "Upper Manhattan");
+    const { events } = driveEventsPicking(WAVE5_DEPS, state, firstLegal, endTurn(P1));
+    // Isolated to Claim the Throne's own event window (`eventsDuring`'s own doc comment): the round's own standard
+    // encounter card reveal can resolve "the scheme with the glider counter"'s Special a second time this same
+    // round (Spreading Panic, `wave5/sm/venom-goblin/encounter-set.ts`), which would otherwise double every one of
+    // these placements — proven present exactly once by the ability id itself, not a raw threat-total delta.
+    const during = eventsDuring(events, "27114.venom-goblin-constant");
+    const resolutions = during.filter(
+      (e) => e.type === "abilityResolved" && e.abilityId === "27117a.lower-manhattan-special",
+    );
+    expect(resolutions).toHaveLength(1);
+    // "1 threat on each scheme" (main and side), +1 more here from the [Symbiote] bonus.
+    expect(threatFrom(during, lower, lower)).toBe(1 + 1);
+    expect(threatFrom(during, lower, midtown)).toBe(1);
+    expect(threatFrom(during, lower, upper)).toBe(1);
+    expect(threatFrom(during, lower, sideScheme)).toBe(1);
   });
 
   it("Midtown Manhattan: 2 indirect damage to that player, +1 more with a [Symbiote] environment in play", () => {
@@ -285,16 +316,26 @@ describe("Each Manhattan Special resolved end to end through the villain, with t
     let state = venomGoblinGame({ villainStartStageIndex: 1, villainLastStageIndex: 1 }, 43);
     state = withForm(state, { heroForm: 0 }, P1);
     state = gliderTo(state, "Upper Manhattan");
-    state = patchInstance(state, schemeNamed(state, "Lower Manhattan"), { threat: 9 });
-    state = patchInstance(state, schemeNamed(state, "Midtown Manhattan"), { threat: 9 });
+    // Kept well below every target (Lower 11, Midtown 12 for 1 hero) with a wide margin, the "Claim the Throne"
+    // test's own reasoning above: at 9, Lower Manhattan genuinely completed mid-round here once the scripted
+    // encounter set could also draw Joy Ride (which moved the glider onto Lower and resolved its Special again),
+    // cascading into an unintended second [Symbiote] environment and a game loss before this test's own assertions
+    // ran (`gliderOn` came back `undefined`).
+    state = patchInstance(state, schemeNamed(state, "Lower Manhattan"), { threat: 2 });
+    state = patchInstance(state, schemeNamed(state, "Midtown Manhattan"), { threat: 2 });
     state = patchInstance(state, schemeNamed(state, "Upper Manhattan"), { threat: 0 });
     const env = withSymbioteEnvironment(state);
     state = env.state;
-    const { state: after, events } = driveEventsPicking(WAVE5_DEPS, state, firstLegal, endTurn(P1));
-    expect(gliderOn(after)).toBe("Upper Manhattan");
+    const { events } = driveEventsPicking(WAVE5_DEPS, state, firstLegal, endTurn(P1));
+    // Isolated to Claim the Throne's own event window (`eventsDuring`'s own doc comment) rather than a final
+    // `gliderOn` read: the round's own standard encounter card reveal can move the glider again and resolve a
+    // different scheme's Special later this same round.
+    const during = eventsDuring(events, "27114.venom-goblin-constant");
+    expect(during.some((e) => e.type === "abilityResolved" && e.abilityId === "27119a.upper-manhattan-special")).toBe(
+      true,
+    );
     // Both discards checked within this ability's own event window (module docblock on `eventsDuring`), not raw
     // hand/deck-size deltas.
-    const during = eventsDuring(events, "27119a.upper-manhattan-special");
     expect(during.filter((e) => e.type === "cardDiscardedFromHand" && e.playerId === P1)).toHaveLength(1);
     expect(
       during.filter(
