@@ -1766,7 +1766,8 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       return;
     }
     case "enemyAttack":
-    case "enemyScheme": {
+    case "enemyScheme":
+    case "enemyActivation": {
       if (effect.after === "currentActivation") {
         const activation = currentActivationFrameId(ctx.state.stack);
         if (activation) {
@@ -1787,7 +1788,10 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
           return;
         }
       }
-      const attacking = effect.kind === "enemyAttack";
+      // "X activates against you" (§4.1 Q67): attack or scheme by the player's form now, as the villain phase does
+      // (`activateEnemy`, RRG 1.8 "Activation", p. 6).
+      const attacksAgainst = (player: { readonly identity: { readonly form: string } }): boolean =>
+        effect.kind === "enemyActivation" ? player.identity.form === "hero" : effect.kind === "enemyAttack";
       const against = effect.against ? resolvePlayers(ctx.state, effect.against, context) : null;
       const inPlayNow = cardsInPlay(ctx.state);
       const [character] =
@@ -1815,6 +1819,7 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
         for (const playerId of players) {
           const player = getPlayer(ctx.state, playerId);
           if (!player || player.eliminated) continue;
+          const attacking = attacksAgainst(player);
           // Status first, then initiate even with a "—" stat (see `activateEnemy`, FAQ "Norman Osborn (#1A)", p. 58).
           const status = attacking ? "stunned" : "confused";
           if (statusActive(ctx.state, enemy, status, ctx.deps)) {
@@ -1863,14 +1868,16 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
         ...(extraBoost > 0 ? { extraBoost } : {}),
         ...(effect.boostIconsEach ? { boostIconsEach: value(effect.boostIconsEach) } : {}),
       };
-      const bonus =
-        effect.kind === "enemyAttack"
-          ? {
-              ...(effect.atkBonus ? { atkBonus: value(effect.atkBonus) } : {}),
-              ...Object.fromEntries((effect.keywords ?? []).map((keyword) => [keyword, 1])),
-              ...boostScoped,
-            }
-          : { ...(effect.schBonus ? { schBonus: value(effect.schBonus) } : {}), ...boostScoped };
+      // An attack reads only `atkBonus` and the keywords, a scheme only `schBonus`, so an `enemyActivation` seeds all
+      // three and each activation it starts reads its own.
+      const bonus = {
+        ...(effect.kind !== "enemyScheme" && effect.atkBonus ? { atkBonus: value(effect.atkBonus) } : {}),
+        ...(effect.kind !== "enemyScheme"
+          ? Object.fromEntries((effect.keywords ?? []).map((keyword) => [keyword, 1]))
+          : {}),
+        ...(effect.kind !== "enemyAttack" && effect.schBonus ? { schBonus: value(effect.schBonus) } : {}),
+        ...boostScoped,
+      };
       // RRG 1.8 "'Then'" (p. 44): "X attacks you. Then, …" waits on the attack. One that a status cancelled, or that
       // could not be initiated at all, did not resolve; one initiated here reports back whether it happened. "Each X
       // attacks" with no X is vacuously resolved (engine reading), so only a named enemy with no activation marks it.
@@ -1886,7 +1893,9 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       );
       // "The Lizard attacks you. You cannot play events until after that attack resolves." (`applyRuleUntil` with
       // `attack: "initiated"`): the rule waiting on this frame is now scoped to the attack, the last one if several.
-      if (attacking) settleAwaitingAttackEffects(ctx, frame.frameId, pushed[pushed.length - 1] ?? null);
+      const lastAttack = events.map((e) => e.kind).lastIndexOf("enemyAttack");
+      if (effect.kind === "enemyAttack" || lastAttack >= 0)
+        settleAwaitingAttackEffects(ctx, frame.frameId, pushed[lastAttack] ?? null);
       return;
     }
     case "selectCards": {

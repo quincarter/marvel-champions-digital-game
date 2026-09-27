@@ -1547,6 +1547,30 @@ export type EffectSpec =
       /** `enemyAttack.boostIconsEach`, for a scheme activation this effect initiates (§4.1 Q66). */
       readonly boostIconsEach?: ValueSpec;
     }
+  /**
+   * "Venom activates against you" (Biting Retort, `sm` 27082): each enemy in `enemies` activates against each player
+   * in `against` (absent = the player it is engaged with, else this ability's player) the way the villain phase
+   * activates it: an attack if that player's identity is in hero form, a scheme if it is in alter-ego form, read when
+   * this effect resolves (RRG 1.8 "Activation", p. 6: "Some card abilities can also cause enemies to attack or
+   * scheme. These are also considered activations"; docs/phase7-wave5.md §4.1 Q67). Each activation is then exactly
+   * `enemyAttack`'s or `enemyScheme`'s, so the stack, the log and a replay show which one it was: a stunned enemy
+   * discards its stun instead of the attack, a confused one its confusion instead of the scheme (RRG 1.8 "Stun",
+   * "Confused"). The attack-only options (`atkBonus`, `keywords`) apply only to an attack, `schBonus` only to a scheme;
+   * `extraBoostCards` / `boostIconsEach` (§4.1 Q66) to either. `bind` as `enemyAttack`/`enemyScheme`.
+   */
+  | {
+      readonly kind: "enemyActivation";
+      readonly enemies: TargetRef;
+      readonly against?: PlayerRef;
+      readonly bind?: string;
+      readonly boost?: false;
+      readonly after?: "currentActivation";
+      readonly atkBonus?: ValueSpec;
+      readonly keywords?: readonly AttackKeyword[];
+      readonly schBonus?: ValueSpec;
+      readonly extraBoostCards?: number | ValueSpec;
+      readonly boostIconsEach?: ValueSpec;
+    }
   /** "This card gains surge": the encounter card whose ability this is surges when its reveal finishes. */
   | { readonly kind: "gainSurge" }
   /**

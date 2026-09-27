@@ -164,7 +164,10 @@ export function executeEffectsFrame(ctx: Ctx, frame: Frame<"effects">): void {
   if (effect.kind === "discardFromHand" && effect.random !== true)
     return executeDiscardFromHand(ctx, frame, effect, context);
 
-  if ((effect.kind === "enemyAttack" || effect.kind === "enemyScheme") && orderEnemies(ctx, frame, effect, context))
+  if (
+    (effect.kind === "enemyAttack" || effect.kind === "enemyScheme" || effect.kind === "enemyActivation") &&
+    orderEnemies(ctx, frame, effect, context)
+  )
     return;
 
   setFrame(ctx, { ...frame, cursor: frame.cursor + 1 });
@@ -577,7 +580,7 @@ const ENEMY_ORDER_SLOT = "_enemyOrder";
 function orderEnemies(
   ctx: Ctx,
   frame: Frame<"effects">,
-  effect: Extract<EffectSpec, { kind: "enemyAttack" | "enemyScheme" }>,
+  effect: Extract<EffectSpec, { kind: "enemyAttack" | "enemyScheme" | "enemyActivation" }>,
   context: EffectContext,
 ): boolean {
   if (frame.answer !== null) {
@@ -595,7 +598,7 @@ function orderEnemies(
   requestChoice(ctx, {
     playerId: simultaneousOrderer(ctx.state),
     authority: "firstPlayerOrders",
-    prompt: { kind: "orderEnemies", activation: effect.kind === "enemyAttack" ? "attack" : "scheme" },
+    prompt: { kind: "orderEnemies", activation: orderedActivation(ctx, effect, context, enemies) },
     options: cardOptions(ctx, enemies),
     minSelections: enemies.length,
     maxSelections: enemies.length,
@@ -603,6 +606,24 @@ function orderEnemies(
     ordered: true,
   });
   return true;
+}
+
+/**
+ * What the enemies being ordered do, for the prompt: an `enemyActivation` (§4.1 Q67) attacks or schemes by the form of
+ * the first player it is against (the first enemy's engaged player when none is named), as `applyEffect` decides it.
+ */
+function orderedActivation(
+  ctx: Ctx,
+  effect: Extract<EffectSpec, { kind: "enemyAttack" | "enemyScheme" | "enemyActivation" }>,
+  context: EffectContext,
+  enemies: readonly InstanceId[],
+): "attack" | "scheme" {
+  if (effect.kind !== "enemyActivation") return effect.kind === "enemyAttack" ? "attack" : "scheme";
+  const [playerId] = effect.against
+    ? resolvePlayers(ctx.state, effect.against, context)
+    : [getInstance(ctx.state, enemies[0]!)?.engagedWith ?? context.controllerId];
+  const player = playerId ? getPlayer(ctx.state, playerId) : undefined;
+  return player && player.identity.form !== "hero" ? "scheme" : "attack";
 }
 
 /**
