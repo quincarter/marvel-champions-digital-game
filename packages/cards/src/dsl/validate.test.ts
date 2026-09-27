@@ -6,6 +6,8 @@ import {
   discardRandomFromHandCost,
   discardThis,
   exhaustCardsCost,
+  forcedInterrupt,
+  on,
   returnToHandCost,
   whenRevealed,
 } from "./abilities.js";
@@ -18,6 +20,7 @@ import {
   discardFromHand,
   draw,
   encounterCards,
+  enemyActivates,
   enemyAttack,
   enemyScheme,
   giveBoostCard,
@@ -265,5 +268,21 @@ describe("wave 1 closing batch: the three new builders", () => {
     expect(validateDefinition(whenRevealed(enemyAttack(theVillain, { against: you, atkBonus: stageNumber })))).toEqual(
       [],
     );
+  });
+
+  it("`enemyActivates` / `on.enemyActivates`: 'X activates against you' attacks or schemes by form (§4.1 Q67)", () => {
+    expect(enemyActivates(theVillain, { against: you, boostIconsEach: 1, bind: "act" })).toEqual({
+      kind: "enemyActivation",
+      enemies: theVillain,
+      against: you,
+      bind: "act",
+      boostIconsEach: { kind: "const", value: 1 },
+    });
+    expect(validateDefinition(whenRevealed(enemyActivates(theVillain, { against: you })))).toEqual([]);
+    const watch = forcedInterrupt(on.enemyActivates("self", { againstYou: true }), draw(1));
+    expect(watch.trigger).toMatchObject({
+      on: { on: ["enemyAttack", "enemyScheme"], selfIs: "source", playerIs: "controller", usesAttackedPlayer: true },
+    });
+    expect(validateDefinition(watch)).toEqual([]);
   });
 });

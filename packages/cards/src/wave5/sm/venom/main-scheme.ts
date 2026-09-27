@@ -29,9 +29,12 @@ export const LEAVE_US_ALONE = defineAbilities({
     putIntoPlay(chosen("tower"), firstPlayer),
   ),
   // 1B (27076b) — Forced Interrupt: When Venom activates against you, move each facedown boost card from your
-  // identity to Venom (docs/phase7-wave5.md §3.6's own worked example, `wave5-primitives.test.ts`).
+  // identity to Venom (docs/phase7-wave5.md §3.6's own worked example, `wave5-primitives.test.ts`). "Activates against
+  // you" is his attacks against you and his schemes against you, from the villain phase or a card (Biting Retort)
+  // alike (§4.1 Q67). The interrupt is to the activation's initiation, before its boost cards are dealt, so the moved
+  // cards resolve in it (§3.6).
   "27076b.leave-us-alone-forced-interrupt": forcedInterrupt(
-    on.enemyActivating(query("villain")),
+    on.enemyActivates(query("villain"), { againstYou: true }),
     moveBoostCards(identityOf(eventPlayer), eventSource),
   ),
 });

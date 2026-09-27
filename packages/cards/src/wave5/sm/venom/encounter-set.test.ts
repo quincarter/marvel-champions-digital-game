@@ -229,6 +229,38 @@ describe("Biting Retort (27082)", () => {
     expect(attack?.type === "attackResolved" ? attack.boostIcons : null).toBe(1);
   });
 
+  it("27082 in hero form: Venom attacks, not schemes (docs/phase7-wave5.md §4.1 Q67)", () => {
+    const state = asHero(venomGame());
+    const villain = activeVillain(state).instanceId;
+    const stacked = stackEncounterDeck(state, "01186", "27082", "01186");
+    const { events } = driveEvents(WAVE5_DEPS, stacked, endTurn(P1));
+    const revealed = events.findIndex((e) => e.type === "encounterCardRevealed" && e.cardId === "27082");
+    const after = events.slice(revealed);
+    expect(after.some((e) => e.type === "attackResolved" && e.enemyInstanceId === villain)).toBe(true);
+    expect(after.some((e) => e.type === "schemeResolved" && e.enemyInstanceId === villain)).toBe(false);
+  });
+
+  it("27082 in alter-ego form: Venom schemes, each boost card with +1 icon (docs/phase7-wave5.md §4.1 Q67)", () => {
+    const state = venomGame();
+    expect(playerOf(state, P1).identity.form).toBe("alterEgo");
+    const villain = activeVillain(state).instanceId;
+    // Advance (01186) has no boost icon: the villain phase's own scheme flips one, Biting Retort's scheme the other.
+    const stacked = stackEncounterDeck(state, "01186", "27082", "01186");
+    const { events } = driveEvents(WAVE5_DEPS, stacked, endTurn(P1));
+    const revealed = events.findIndex((e) => e.type === "encounterCardRevealed" && e.cardId === "27082");
+    expect(revealed).toBeGreaterThanOrEqual(0);
+    const after = events.slice(revealed);
+    expect(after.some((e) => e.type === "attackResolved" && e.enemyInstanceId === villain)).toBe(false);
+    const ended = after.findIndex((e) => e.type === "schemeResolved" && e.enemyInstanceId === villain);
+    expect(ended).toBeGreaterThanOrEqual(0);
+    const during = after
+      .slice(0, ended)
+      .flatMap((e) => (e.type === "boostCardFlipped" && e.enemyInstanceId === villain ? [e.boostIcons] : []));
+    expect(during).toEqual([1]);
+    const scheme = after[ended];
+    expect(scheme?.type === "schemeResolved" ? scheme.boostIcons : null).toBe(1);
+  });
+
   it("27082.boost: removes 1 chime counter from the Bell Tower", () => {
     const state = venomGame();
     const tower = towerOf(state);

@@ -10,7 +10,7 @@ import {
   dealIndirectDamage,
   defineAbilities,
   discard,
-  enemyAttack,
+  enemyActivates,
   eventAmount,
   exists,
   flipCard,
@@ -148,13 +148,10 @@ export const VENOM_ENCOUNTER_SET = defineAbilities({
   // [star] Boost: If this activation is an attack, it gains piercing.
   "27081.boost": boost(ifThen(activationIs("attack"), modifyAttack({ keywords: ["piercing"] }))),
 
-  // Biting Retort (27082, treachery) — When Revealed: Venom activates against you (read as an attack,
-  // `kang-encounter-set.ts`'s own "activates against you" precedent). Each boost card turned faceup during that
-  // activation gets +1 boost icon: `boostIconsEach`, scoped to the activation this effect starts and ending with it
-  // (docs/phase7-wave5.md §4.1 Q66).
-  "27082.when-revealed": whenRevealed(
-    enemyAttack(named("Venom"), { against: you, additionalResolution: true, boostIconsEach: 1 }),
-  ),
+  // Biting Retort (27082, treachery) — When Revealed: Venom activates against you: he attacks you in hero form and
+  // schemes in alter-ego form (docs/phase7-wave5.md §4.1 Q67). Each boost card turned faceup during that activation
+  // gets +1 boost icon: `boostIconsEach`, scoped to the activation this effect starts and ending with it (§4.1 Q66).
+  "27082.when-revealed": whenRevealed(enemyActivates(named("Venom"), { against: you, boostIconsEach: 1 })),
   // [star] Boost: Remove 1 chime counter from the Bell tower.
   "27082.boost": boost(removeCountersFrom(BELL_TOWER, "chime", 1), ...flipBellTowerIfThreshold()),
 

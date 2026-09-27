@@ -349,6 +349,7 @@ function bindsOf(effect: EffectSpec, scope: Scope): void {
     case "moveCards":
     case "enemyAttack":
     case "enemyScheme":
+    case "enemyActivation":
     case "attack":
     case "thwart":
     case "dealDamage":

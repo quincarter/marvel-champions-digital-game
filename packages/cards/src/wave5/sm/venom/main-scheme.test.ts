@@ -1,5 +1,5 @@
 import { encounterSetId } from "@mc/content";
-import { activeEncounterDeck, activeVillain } from "@mc/engine";
+import { activeEncounterDeck, activeEncounterDeckId, activeVillain, type GameState } from "@mc/engine";
 import { describe, expect, it } from "vitest";
 import {
   endTurn,
@@ -8,15 +8,39 @@ import {
   inst,
   instancesOf,
   patchInstance,
+  playerOf,
   settle,
+  stackEncounterDeck,
   toHero,
   P1,
 } from "../../../testing/harness.js";
+import { driveEvents } from "../../../testing/staging.js";
 import { startWave5Game, runWave5, WAVE5_DEPS } from "../../testing.js";
 import { ghostSpiderScenario } from "../ghost-spider/support.js";
 
 const venomGame = (seed = 1) =>
   startWave5Game(ghostSpiderScenario("venom", { seed, modularSetIds: [encounterSetId("bomb_scare")] }));
+
+/** Takes the bottom card of the encounter deck and puts it facedown on P1's identity as a boost card (what Vengeance
+ * does), so the test does not need an attack first. */
+function withBoostOnIdentity(state: GameState): { readonly state: GameState; readonly boostCard: string } {
+  const piles = activeEncounterDeck(state);
+  const boostCard = piles.deck[piles.deck.length - 1]!;
+  const identity = identityOf(state);
+  const moved: GameState = {
+    ...state,
+    encounterDecks: {
+      ...state.encounterDecks,
+      [activeEncounterDeckId(state)]: { ...piles, deck: piles.deck.slice(0, -1) },
+    },
+  };
+  return {
+    state: patchInstance(patchInstance(moved, boostCard, { faceup: false }), identity, {
+      boostCards: [...inst(moved, identity).boostCards, boostCard],
+    }),
+    boostCard,
+  };
+}
 
 describe('"Leave Us Alone!" (27076a/b)', () => {
   it("27076a.setup: Setup puts the Bell Tower environment into play, Quiet side faceup", () => {
@@ -57,4 +81,35 @@ describe('"Leave Us Alone!" (27076a/b)', () => {
     expect(inst(afterVillainPhase, villain).boostCards).not.toContain(boostCard);
     expect(activeEncounterDeck(afterVillainPhase).discard).toContain(boostCard);
   });
+
+  // "When Venom activates against you" is his attacks and his schemes, from a card as well as from the villain phase
+  // (docs/phase7-wave5.md §4.1 Q67). The villain phase's own activation is cancelled by a status card (stunned in hero
+  // form, confused in alter-ego form), which the interrupt never sees, so the one that fires is Biting Retort's.
+  for (const form of ["hero", "alterEgo"] as const) {
+    it(`27076b fires on Biting Retort's ${form === "hero" ? "attack" : "scheme"} (${form} form)`, () => {
+      let state = venomGame();
+      if (form === "hero") state = runWave5(state, toHero(P1));
+      expect(playerOf(state, P1).identity.form).toBe(form);
+      const villain = activeVillain(state).instanceId;
+      const status = form === "hero" ? "stunned" : "confused";
+      state = patchInstance(state, villain, { statuses: { ...inst(state, villain).statuses, [status]: 1 } });
+      // No boost card is dealt for the cancelled activation, so Biting Retort is the encounter card dealt.
+      const stacked = stackEncounterDeck(state, "27082", "01186");
+      const { state: primed, boostCard } = withBoostOnIdentity(stacked);
+      const { state: after, events } = driveEvents(WAVE5_DEPS, primed, endTurn(P1));
+      const revealed = events.findIndex((e) => e.type === "encounterCardRevealed" && e.cardId === "27082");
+      expect(revealed).toBeGreaterThanOrEqual(0);
+      const fired = events.findIndex(
+        (e) => e.type === "abilityResolved" && e.abilityId.endsWith("27076b.leave-us-alone-forced-interrupt"),
+      );
+      expect(fired).toBeGreaterThan(revealed);
+      // The moved card is flipped in Biting Retort's activation (its +1 included) and discarded with the dealt one.
+      const flipped = events
+        .slice(revealed)
+        .filter((e) => e.type === "boostCardFlipped" && e.enemyInstanceId === villain);
+      expect(flipped.map((e) => (e.type === "boostCardFlipped" ? e.instanceId : null))).toContain(boostCard);
+      expect(inst(after, identityOf(after)).boostCards).not.toContain(boostCard);
+      expect(activeEncounterDeck(after).discard).toContain(boostCard);
+    });
+  }
 });

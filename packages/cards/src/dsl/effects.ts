@@ -419,6 +419,40 @@ export const enemyScheme = (
   ...activationBoost(opts),
 });
 /**
+ * "Venom activates against you" (Biting Retort, `sm` 27082): the enemies activate against the player the way the
+ * villain phase activates them, attacking a player in hero form and scheming against one in alter-ego form, read when
+ * the effect resolves (RRG 1.8 "Activation", p. 6; docs/phase7-wave5.md §4.1 Q67). Not `enemyAttack`, which is only
+ * for "attacks you". The options are `enemyAttack`'s and `enemyScheme`'s: `atkBonus` / `keywords` apply if it is an
+ * attack, `schBonus` if it is a scheme, `extraBoostCards` / `boostIconsEach` (§4.1 Q66) to either.
+ */
+export const enemyActivates = (
+  enemies: TargetRef,
+  opts: {
+    readonly against?: PlayerRef;
+    readonly bind?: string;
+    /** "…activates against you after this activation": queued behind the activation now resolving. */
+    readonly afterCurrentActivation?: boolean;
+    /** "Do not deal any boost cards for that activation." */
+    readonly noBoost?: boolean;
+    readonly atkBonus?: Amount;
+    readonly keywords?: readonly AttackKeyword[];
+    readonly schBonus?: Amount;
+    readonly extraBoostCards?: Amount;
+    readonly boostIconsEach?: Amount;
+  } = {},
+): EffectSpec => ({
+  kind: "enemyActivation",
+  enemies,
+  ...(opts.against ? { against: opts.against } : {}),
+  ...withBind(opts.bind),
+  ...(opts.noBoost ? { boost: false } : {}),
+  ...(opts.afterCurrentActivation ? { after: "currentActivation" as const } : {}),
+  ...(opts.atkBonus !== undefined ? { atkBonus: amount(opts.atkBonus) } : {}),
+  ...(opts.keywords && opts.keywords.length > 0 ? { keywords: opts.keywords } : {}),
+  ...(opts.schBonus !== undefined ? { schBonus: amount(opts.schBonus) } : {}),
+  ...activationBoost(opts),
+});
+/**
  * "That minion attacks another enemy" (Moondragon, `drax` 19013): `attacker` attacks `target`, an enemy attacking an
  * enemy. An attack, not an activation (docs/phase7-wave3.md §3.23, §4 Q12): no boost card, no defense, and "when this
  * enemy attacks" abilities stay silent; the target's tough, retaliate and the attacker's overkill apply. Pair with

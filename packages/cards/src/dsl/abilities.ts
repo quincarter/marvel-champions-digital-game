@@ -1064,6 +1064,14 @@ export const on = {
   enemySchemes: (by: Who): EventPattern => pattern("enemyScheme", asSource(by)),
   /** "After [enemy] schemes or attacks". */
   enemySchemesOrAttacks: (by: Who): EventPattern => pattern(["enemyScheme", "enemyAttack"], asSource(by)),
+  /**
+   * "When/After [enemy] activates (against you)": its attacks and its schemes, from the villain phase or from a card
+   * (RRG 1.8 "Activation", p. 6: "Some card abilities can also cause enemies to attack or scheme. These are also
+   * considered activations"; docs/phase7-wave5.md §4.1 Q67). `againstYou`: an attack initiated against you (not the
+   * defender's player, as `enemyAttacks`) or a scheme against you. Not "when X would activate" (`enemyActivating`).
+   */
+  enemyActivates: (by: Who, opts: { readonly againstYou?: boolean } = {}): EventPattern =>
+    pattern(["enemyAttack", "enemyScheme"], asSource(by), opts.againstYou ? againstYou : {}),
   /** A player-side attack (basic or ability): "after X attacks", "after your hero attacks and defeats an enemy". */
   attacks: (
     by: Who,
