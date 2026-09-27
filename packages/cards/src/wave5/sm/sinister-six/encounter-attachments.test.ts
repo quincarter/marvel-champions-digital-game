@@ -9,6 +9,7 @@ import {
   type GameSetupConfig,
   type GameState,
   type InstanceId,
+  type GameEvent,
 } from "@mc/engine";
 import { describe, expect, it } from "vitest";
 import {
@@ -185,12 +186,16 @@ describe("Brute Force Barricade (27107, side scheme)", () => {
     // phase's step 2 attack (RRG 1.8 "Villain Phase", p. 47 — step 2 draws its boost card before step 3 deals any
     // other encounter card, so no filler is needed ahead of it).
     const stacked = stackEncounterDeck(state, "27107");
+    // Only the step 2 activation's flips: a card dealt in step 4 (e.g. Partnership of Pain) can start another
+    // activation with its own boost card.
+    const step2Flips = (events: readonly GameEvent[]) => {
+      const dealt = events.findIndex((e) => e.type === "encounterCardRevealed");
+      return (dealt < 0 ? events : events.slice(0, dealt)).filter((e) => e.type === "boostCardFlipped");
+    };
     const { events } = driveEvents(WAVE5_DEPS, stacked, endTurn(P1));
-    const flips = events.filter((e) => e.type === "boostCardFlipped");
-    expect(flips.length).toBe(2); // 27107 itself, plus the 1 additional card its own Boost: ability gives.
+    expect(step2Flips(events).length).toBe(2); // 27107 itself, plus the 1 additional card its own Boost: ability gives.
 
     const withoutScript = driveEvents(depsWithout("27107.boost"), stacked, endTurn(P1));
-    const flipsWithoutScript = withoutScript.events.filter((e) => e.type === "boostCardFlipped");
-    expect(flipsWithoutScript.length).toBe(1);
+    expect(step2Flips(withoutScript.events).length).toBe(1);
   });
 });
