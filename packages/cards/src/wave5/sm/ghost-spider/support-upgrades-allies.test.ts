@@ -286,17 +286,8 @@ describe("Spider-Man / Hobie Brown (ally, 27017)", () => {
     expect(newlyDiscarded).toHaveLength(3); // Spider-Man's own effect: "discard the top 3 cards".
   });
 
-  // **Blocked (engine gap, not a scripting gap):** `dsl/values.ts` `boostIconsOn` compiles to `ValueSpec { kind:
-  // "boostIcons" }`, whose `select.ts` reader does `const [counted] = resolveRef(state, value.of, context)` —
-  // only the *first* id of a multi-card ref, not a sum across all of them, unlike its sibling `starIcons` case
-  // right below it (`resolveRef(...).filter(...).length`, which does iterate the whole ref). `boostIconsOn(chosen(
-  // "discarded"))` is the correct, established composition for "For each boost icon discarded this way" (the
-  // `qsv/kit.ts` Scarlet Witch precedent, §3.32) but every existing use discards exactly one card at a time; wired
-  // here to a 3-card discard (Spider-Man's own printed "discard the top 3 cards … deal damage … equal to the
-  // number of boost icons discarded this way"), it reads only one of the three. Confirmed empirically: stacking
-  // 01100 (2 boost), 01101 (1), 01104 (0) — printed sum 3 — the villain took only 2 (Enhanced Ivory Horn's own 2,
-  // the first id bound). Reported to `game-rules-architect`/engine rather than reworked around locally; pinned
-  // with `it.fails` so the fix is visible.
+  // A 3-card discard summed across every card: 01100 (2 boost), 01101 (1), 01104 (0) deal 3. `boostIconsOn` once read
+  // only the first card of a multi-card ref (docs/phase7-wave5.md §4.1 Q56, fixed in 79634d1f).
   it("27017.spider-man-interrupt: deals damage to the villain equal to the number of boost icons discarded this way (engine fix: docs/phase7-wave5.md §4.1 Q56)", () => {
     const hero = run(ghostSpiderVsRhino(4), toHero(P1));
     const { state: withHobie, id: hobie } = playFromHandHelper(hero, "27017", 3);
