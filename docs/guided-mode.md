@@ -266,7 +266,7 @@ A fresh Claude session can pick this up from this file alone.
   pointer, and put a screenshot beside its tile.
 - **Commits:** as the repo's git user, with no Claude co-author trailer. Every change carries a changie fragment.
 
-**In flight:** G4a (`McGuideCallout`) and G5a (tutorial config), side by side, started 2026-09-26 late. If the session ended mid-run, check `git status` in the worktree for their uncommitted files (G4a: `ui/guide-callout.ts`, `view/guide-callout-model.ts`, a `?screen=guidecallout` demo; G5a: `guide/tutorial-config.ts` + test) and brief a fresh agent to review and finish them rather than starting over. G2b is verified and ticked; next after these two is G4b.
+**In flight:** G4a (`McGuideCallout`) and G5a (tutorial config), side by side, started 2026-09-26 late. If the session ended mid-run, check `git status` in the worktree for their uncommitted files (G4a: `ui/guide-callout.ts`, `view/guide-callout-model.ts`, a `?screen=guidecallout` demo; G5a: `guide/tutorial-config.ts` + test) and brief a fresh agent to review and finish them rather than starting over. A snapshot of that in-progress work is on `origin/wip/guided-mode-g4a-g5a` (`98b53dae`, unverified) in case the worktree is gone. G2b is verified and ticked; next after these two is G4b.
 
 ## 7. Prior art: the parked prototype
 
