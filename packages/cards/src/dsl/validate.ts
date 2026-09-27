@@ -319,6 +319,12 @@ function bindsOf(effect: EffectSpec, scope: Scope): void {
       scope.slots.add(effect.slot);
       scope.vars.add(`${effect.slot}.count`);
       return;
+    case "lookAt":
+      if (effect.bind) {
+        scope.slots.add(effect.bind);
+        scope.vars.add(`${effect.bind}.count`);
+      }
+      return;
     // The cards that entered play and `<bind>.count` (docs/phase7-wave4.md §3.59).
     case "putIntoPlay":
       if (effect.bind) {

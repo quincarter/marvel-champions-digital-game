@@ -13,6 +13,7 @@ import type { ResourcePool } from "./resources.js";
  * nothing (`choiceFoundNothing`):
  *
  * - `searchFoundNothing`: a search (a `chooseCards` with `min` >= 1, or a `selectCards`, over a deck) found no card;
+ * - `lookFoundNothing`: a `lookAt` over a deck had no card to look at (an empty deck);
  * - `discardUntilFoundNothing`: "discard cards from the top of your deck until you discard an X" found no X. Not the
  *   encounter deck: RRG 1.8 "Encounter Deck" (p. 17) says that emptying it this way leaves the ability "fulfilled";
  * - `revealFoundNothing` / `revealCancelled`: "Reveal that card" had no card, or the revealed card's effects were
@@ -23,6 +24,7 @@ import type { ResourcePool } from "./resources.js";
  */
 export type PreThenFailure =
   | "searchFoundNothing"
+  | "lookFoundNothing"
   | "discardUntilFoundNothing"
   | "revealFoundNothing"
   | "revealCancelled"
@@ -438,6 +440,8 @@ export type GameEvent =
       readonly uses: number;
     }
   | { readonly type: "targetChosen"; readonly slot: string; readonly instanceIds: readonly InstanceId[] }
+  /** `EffectSpec lookAt`: `playerId` looked at these cards (RRG 1.8 "Look, Looked-At", p. 27); nothing moved. */
+  | { readonly type: "cardsLookedAt"; readonly playerId: PlayerId; readonly instanceIds: readonly InstanceId[] }
   /**
    * A required choice found nothing to choose (RRG 1.8 "Choose (Game Element)", p. 12), so the text before a "then"
    * did not fully resolve: `thenSkipped` follows for each "then" it gates.

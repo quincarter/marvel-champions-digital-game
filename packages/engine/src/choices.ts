@@ -56,6 +56,12 @@ export type ChoicePrompt =
   | { readonly kind: "chooseAttachmentTarget"; readonly instanceId: InstanceId }
   /** Cards outside play (a look at the top of a deck, a search, a discard pile). */
   | { readonly kind: "chooseCards"; readonly slot: string }
+  /**
+   * `EffectSpec lookAt`: the options are cards the player is looking at (RRG 1.8 "Look, Looked-At", p. 27), offered
+   * only so they are face-visible to them. Nothing can be selected (`minSelections` = `maxSelections` = 0): the only
+   * answer is the empty one, an acknowledge.
+   */
+  | { readonly kind: "lookAt" }
   /** "Choose one" among labeled options; option ids are the option indexes. */
   | { readonly kind: "chooseOption" }
   | { readonly kind: "choosePlayer"; readonly slot: string }
