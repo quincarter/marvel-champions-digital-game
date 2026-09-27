@@ -615,6 +615,13 @@ Owner: `rules-qa-engineer`, in collaboration with `game-rules-architect`.
 - [ ] Build a scenario-test suite where each test encodes a specific FAQ ruling or RRG clarification (link the ruling in the test) and asserts the engine produces that exact outcome.
 - [ ] Replay-based regression testing using the Phase 1 game log format — capture real playtest sessions as fixtures.
 - [ ] A drift-detection process: when `content-release-tracker` reports a new errata/FAQ entry, a corresponding test should be added or an existing one flagged for review.
+- [ ] **Backfill: random-deck coverage games (added 2026-09-26).** A seeded generator builds random decks that are legal
+      under `validateDeck` from the playable pool (any identity, any aspect, the whole pool of scripted cards). It
+      plays each one with the greedy driver against a random scenario, solo and 2-player, and asserts that no prompt
+      gets stuck, no error is thrown, and the log replays deep-equal. A failing seed is printed so it can be pinned as
+      a regression test. This goes past the per-wave custom-deck checks (`docs/wave-definition-of-done.md` §4b) to
+      reach card interactions that no precon or hand-written test puts together. Run a fixed set of seeds in
+      `pnpm test` and a longer sweep on demand.
 - [ ] Exit criteria: CI (or local equivalent) runs the full rules-QA suite on every engine change.
 
 ## Phase 7 — Content expansion beyond Core Set
