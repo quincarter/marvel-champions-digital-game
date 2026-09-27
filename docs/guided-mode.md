@@ -137,9 +137,10 @@ The main session verifies UI boxes by clicking through them before ticking (§6)
 
 **Guide surfaces**
 
-- [ ] **G4a `McGuideCallout`.** The anchored yellow callout (phone, and tablet portrait). Parts: `GUIDE` stamp, step
+- [x] **G4a `McGuideCallout`.** The anchored yellow callout (phone, and tablet portrait). Parts: `GUIDE` stamp, step
       label, Bangers title, `McTermText` body, secondary + primary actions, Skip lesson, and the arrow toward its
       anchor.
+      Landed: `abad5ad1`. `ui/guide-callout.ts` (`update(content, anchorRect, viewport)`, `handleEscape`, `focusNext`, `activatePrimary`), layout in `view/guide-callout-model.ts`, demo `?screen=guidecallout`. Use `continueHint` for board-action steps. Mid-sentence terms need `[[threat|threat]]`, because a bare `[[threat]]` shows the capitalized display name.
 - [ ] **G4b `McGuidePanel`.** The collapsible yellow side rail (desktop, tablet landscape). Parts: lesson list, step
       body, tip box, progress ticks, Back, and the "do this to continue" slot. Board layout reserves the rail when it's
       open. Layout tests at 1440×900 and 1024×768.
@@ -266,7 +267,7 @@ A fresh Claude session can pick this up from this file alone.
   pointer, and put a screenshot beside its tile.
 - **Commits:** as the repo's git user, with no Claude co-author trailer. Every change carries a changie fragment.
 
-**In flight:** G4a (`McGuideCallout`). If the session ended mid-run, check `git status` for its uncommitted files (`ui/guide-callout.ts`, `view/guide-callout-model.ts`, `scenes/guide-callout-demo.ts`, plus edits to boot.ts, keys.ts and main.ts). A snapshot is on `origin/wip/guided-mode-g4a-g5a` (`98b53dae`, unverified). Brief a fresh agent to review and finish it. Next: G4b, then G4c and G5b.
+**In flight:** none. Next: G4b (`McGuidePanel`), then G4c and G5b (these can run side by side).
 
 ## 7. Prior art: the parked prototype
 
