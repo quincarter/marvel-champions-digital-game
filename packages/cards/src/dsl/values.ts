@@ -528,6 +528,14 @@ export const eventDamageTaken = (of: TargetRef, n = 1): Predicate => ({
   of,
   amount: n,
 });
+/**
+ * In a When Defeated / "after X is defeated" ability: the excess damage the defeat recorded, the damage past the
+ * character's remaining hit points from whatever damage defeated it (docs/phase7-wave5.md §4.1 Q68). 0 when exactly
+ * lethal or defeated by a non-damage effect.
+ */
+export const defeatExcessDamage: ValueSpec = { kind: "defeatExcessDamage" };
+/** "If this minion was defeated with excess damage" (Shifting Apparition, `sm` 27091). */
+export const defeatedWithExcessDamage: Predicate = valueAtLeast(defeatExcessDamage, 1);
 /** "If the villain is making an undefended attack". */
 export const undefendedAttack: Predicate = { kind: "currentAttack", key: "undefended", atLeast: 1 };
 /**

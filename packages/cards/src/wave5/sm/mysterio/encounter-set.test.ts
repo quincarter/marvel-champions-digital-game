@@ -1,5 +1,5 @@
 import { encounterSetId } from "@mc/content";
-import { activeEncounterDeck, activeVillain, type GameState } from "@mc/engine";
+import { activeEncounterDeck, activeVillain, type GameState, type InstanceId } from "@mc/engine";
 import { describe, expect, it } from "vitest";
 import {
   firstLegal,
@@ -14,10 +14,12 @@ import {
   toHero,
   endTurn,
   P1,
+  use,
+  type Picker,
 } from "../../../testing/harness.js";
-import { driveEvents, encounterCardInVillainArea } from "../../../testing/staging.js";
+import { driveEvents, encounterCardInVillainArea, playFromHand } from "../../../testing/staging.js";
 import { startWave5Game, runWave5, WAVE5_DEPS } from "../../testing.js";
-import { ghostSpiderScenario } from "../ghost-spider/support.js";
+import { ghostSpiderScenario, ghostSpiderScenarioWithExtras } from "../ghost-spider/support.js";
 
 const mysterioGame = () =>
   startWave5Game(ghostSpiderScenario("mysterio", { seed: 1, modularSetIds: [encounterSetId("bomb_scare")] }));
@@ -114,25 +116,75 @@ describe("Fearmonger (27093)", () => {
 
 describe("Shifting Apparition (27091): When Defeated, excess damage", () => {
   // Printed: "When Defeated: If this minion was defeated with excess damage, the defeating player shuffles the top
-  // card of the encounter deck into their deck." Not registered (`encounter-set.ts`'s own module docblock): no
-  // `characterDefeated`-side excess-damage read exists yet. Pinned so re-enabling it (once the primitive lands)
-  // turns this green.
-  it.fails("shuffles the top card of the encounter deck into the defeating player's deck when defeated with excess damage", () => {
+  // card of the encounter deck into their deck." Excess damage is the defeat's own record (docs/phase7-wave5.md §4.1
+  // Q68; RRG 1.8 "Excess Damage", p. 19): damage past its remaining hit points, from an attack or not.
+  const engagedApparition = (state: GameState) =>
+    instancesOf(state, "27091").find((id) => inst(state, id).engagedWith === P1)!;
+  const topEncounterCard = (state: GameState) => activeEncounterDeck(state).deck[0]!;
+  const withExtras = (code: string) =>
+    startWave5Game(
+      ghostSpiderScenarioWithExtras("mysterio", {
+        seed: 1,
+        modularSetIds: [encounterSetId("bomb_scare")],
+        extraCodes: [code],
+      }),
+    );
+  /** Picks the apparition wherever a choice offers it (an enemy to damage), otherwise the first legal option. */
+  const pickApparition =
+    (apparition: InstanceId): Picker =>
+    (state) =>
+      state.pendingChoice?.options.some((o) => o.optionId === apparition) ? [apparition] : firstLegal(state);
+
+  it("an attack with excess (ATK 2 into its 1 hit point): the top encounter card is shuffled into the defeating player's deck", () => {
     const state = mysterioGame();
-    const apparition = instancesOf(state, "27091").find((id) => inst(state, id).engagedWith === P1)!;
-    const deckBefore = playerOf(state, P1).deck.length;
-    const identity = identityOf(state);
+    const apparition = engagedApparition(state);
+    const hero = settle(runWave5(state, toHero(P1)), firstLegal, undefined, WAVE5_DEPS);
+    const deckBefore = playerOf(hero, P1).deck.length;
+    const top = topEncounterCard(hero);
     const after = settle(
-      runWave5(state, toHero(P1), {
+      runWave5(hero, {
         type: "basicAttack",
         playerId: P1,
-        attackerInstanceId: identity,
+        attackerInstanceId: identityOf(hero),
         targetInstanceId: apparition,
       }),
       firstLegal,
       undefined,
       WAVE5_DEPS,
     );
+    expect(activeEncounterDeck(after).discard).toContain(apparition);
     expect(playerOf(after, P1).deck.length).toBe(deckBefore + 1);
+    expect(playerOf(after, P1).deck).toContain(top);
+    expect(activeEncounterDeck(after).deck).not.toContain(top);
+  });
+
+  it("exactly lethal (Ground Stomp's 1 damage to each enemy): nothing is shuffled", () => {
+    const state = withExtras("01022");
+    const apparition = engagedApparition(state);
+    const hero = settle(runWave5(state, toHero(P1)), firstLegal, undefined, WAVE5_DEPS);
+    const top = topEncounterCard(hero);
+    const encounterBefore = activeEncounterDeck(hero).deck.length;
+    const { state: after } = playFromHand(WAVE5_DEPS, hero, "01022", 2);
+    expect(activeEncounterDeck(after).discard).toContain(apparition);
+    expect(activeEncounterDeck(after).deck.length).toBe(encounterBefore);
+    expect(topEncounterCard(after)).toBe(top);
+    expect(playerOf(after, P1).deck).not.toContain(top);
+  });
+
+  it("excess from damage that is not an attack (Tac Team's 2 damage) also counts", () => {
+    const state = withExtras("01056");
+    const apparition = engagedApparition(state);
+    const { state: withTeam, id: team } = playFromHand(WAVE5_DEPS, state, "01056", 3);
+    const deckBefore = playerOf(withTeam, P1).deck.length;
+    const top = topEncounterCard(withTeam);
+    const after = settle(
+      runWave5(withTeam, use(P1, team, "01056.tac-team-action")),
+      pickApparition(apparition),
+      undefined,
+      WAVE5_DEPS,
+    );
+    expect(activeEncounterDeck(after).discard).toContain(apparition);
+    expect(playerOf(after, P1).deck.length).toBe(deckBefore + 1);
+    expect(playerOf(after, P1).deck).toContain(top);
   });
 });

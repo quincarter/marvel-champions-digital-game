@@ -6,6 +6,8 @@ import {
   chosenPlayer,
   controllerOf,
   dealAsEncounterCard,
+  defeatedWithExcessDamage,
+  defeatingPlayer,
   defineAbilities,
   discard,
   discardFromHand,
@@ -16,6 +18,7 @@ import {
   handCountOf,
   handSizeOf,
   heroAction,
+  ifThen,
   instead,
   modifyAttack,
   moveCards,
@@ -29,6 +32,7 @@ import {
   takeDamage,
   theMainScheme,
   when,
+  whenDefeated,
   whenRevealed,
   you,
   zone,
@@ -68,19 +72,17 @@ export const MYSTERIO_ENCOUNTER_SET = defineAbilities({
   // ability" shape for "1 additional boost card for this activation" (`dsl/validate.ts`).
   "27090.boost": boost(modifyAttack({ extraBoostCards: 1 })),
 
-  // Shifting Apparition (27091, minion; Guard/HP/ATK/SCH/boostIcons are data) — "27091.when-defeated" is
-  // **intentionally not registered here.** Printed: "When Defeated: If this minion was defeated with excess
-  // damage, the defeating player shuffles the top card of the encounter deck into their deck." No
-  // `Predicate`/`ValueSpec` reads "was defeated with excess damage" from a `characterDefeated` trigger context:
-  // `on.attacks({ excessDamage: true })` reads an *attack's* own `excessDealt` result (docs/phase7-wave4.md's own
-  // primitive), but nothing carries that flag onto the resulting `characterDefeated` event — `TriggerEvent.
-  // characterDefeated.overkill` only exists when the defeating attack carried the Overkill keyword and actually
-  // spilled, not generically "took more damage than remaining hit points". Scripting it unconditionally would be
-  // wrong exactly when this 1 HP minion is defeated by exactly 1 damage (no excess); an unregistered ability id
-  // resolves to `undefined` everywhere it's read (`deps.abilities[ref.id]?.trigger`, `actions.ts`) rather than
-  // erroring, so the minion is otherwise fully playable with this one clause silently missing. **Report:** needs a
-  // `characterDefeated`-side excess-damage read (or the event to carry the `excessDealt` flag its parent damage
-  // frame already computes). Pinned as `it.fails` in `encounter-set.test.ts`.
+  // Shifting Apparition (27091, minion; Guard/HP/ATK/SCH/boostIcons are data) — When Defeated: If this minion was
+  // defeated with excess damage, the defeating player shuffles the top card of the encounter deck into their deck.
+  // "Excess damage" is the defeat's own record (docs/phase7-wave5.md §4.1 Q68): damage taken past its remaining hit
+  // points from any damage, not only an attack's (RRG 1.8 "Excess Damage", p. 19). "The defeating player" is the
+  // controller of the card that dealt it (`defeatingPlayer`); with none (an encounter card's damage) nothing moves.
+  "27091.when-defeated": whenDefeated(
+    ifThen(
+      defeatedWithExcessDamage,
+      moveCardsInto(encounterCards(["deck"], undefined, 1), "deckShuffle", defeatingPlayer),
+    ),
+  ),
 
   // Déjà Vu (27092, treachery; Peril/starIcon are data) — When Revealed: choose to either take 1 damage or place 1
   // threat on the main scheme. Shuffle Déjà Vu into any player's deck (facedown: MC27 p. 13, docs/phase7-wave5.md
