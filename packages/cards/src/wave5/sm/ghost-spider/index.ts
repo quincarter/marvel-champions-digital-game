@@ -1,7 +1,9 @@
 import type { AbilityRegistry } from "@mc/engine";
 import { mergeRegistries } from "../../../dsl/index.js";
 import { GHOST_SPIDER_EVENTS_A } from "./events-a.js";
+import { GHOST_SPIDER_EVENTS_B } from "./events-b.js";
 import { GHOST_SPIDER_IDENTITY } from "./identity.js";
+import { GHOST_SPIDER_OBLIGATION_NEMESIS } from "./obligation-nemesis.js";
 import { GHOST_SPIDER_SUPPORT_UPGRADES_ALLIES } from "./support-upgrades-allies.js";
 
 /**
@@ -25,5 +27,7 @@ import { GHOST_SPIDER_SUPPORT_UPGRADES_ALLIES } from "./support-upgrades-allies.
 export const GHOST_SPIDER_ABILITIES: AbilityRegistry = mergeRegistries(
   GHOST_SPIDER_IDENTITY,
   GHOST_SPIDER_EVENTS_A,
+  GHOST_SPIDER_EVENTS_B,
   GHOST_SPIDER_SUPPORT_UPGRADES_ALLIES,
+  GHOST_SPIDER_OBLIGATION_NEMESIS,
 );
