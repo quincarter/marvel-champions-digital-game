@@ -128,7 +128,16 @@ export function normalizeEncounterCard(
         }
       }
       const mods: { -readonly [K in keyof PrintedStatModifiers]: number } = {};
-      if (p.attack !== null && p.attack !== undefined) mods.atk = p.attack;
+      // MarvelCDB's -1 is its printed-X encoding (the same sentinel the minion branch above reads), but
+      // `PrintedStatModifiers.atk` is a fixed number with no "X" — a dynamic stat-box bonus is a scripted ability's
+      // job instead (`ability-scripting-engineer`), so it is omitted here rather than emitted as a literal -1.
+      // Requires a `cardNotes` entry the same way a minion's `-1` does (Heightened Morale, `sm` 27103,
+      // docs/phase7-wave5.md §1.9).
+      if (p.attack === -1 && !curation.cardNotes[r.code]) {
+        errors.push(`${r.code}: attachment ATK is X (MarvelCDB -1) — needs a cardNotes entry`);
+      } else if (p.attack !== null && p.attack !== undefined && p.attack !== -1) {
+        mods.atk = p.attack;
+      }
       if (r.scheme !== null && r.scheme !== undefined) mods.sch = r.scheme;
       const attachment: AttachmentCard = {
         ...common,

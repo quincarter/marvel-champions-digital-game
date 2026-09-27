@@ -315,8 +315,22 @@ export const SM_PROVENANCE: readonly CardProvenance[] = [
     marvelcdbCodes: ["27102b"],
     corrections: [],
   },
-  { cardId: cardId("27103"), cardSetCode: "sinister_six", marvelcdbCodes: ["27103"], corrections: [] },
-  { cardId: cardId("27104"), cardSetCode: "sinister_six", marvelcdbCodes: ["27104"], corrections: [] },
+  {
+    cardId: cardId("27103"),
+    cardSetCode: "sinister_six",
+    marvelcdbCodes: ["27103"],
+    corrections: [
+      "data decision: ATK X: X is equal to the number of villains in play (own printed ability text); no statModifiers.atk — scripted instead.",
+    ],
+  },
+  {
+    cardId: cardId("27104"),
+    cardSetCode: "sinister_six",
+    marvelcdbCodes: ["27104"],
+    corrections: [
+      "27104: Taunting Presence's raw text has only its \"Attach to...\" sentence; the card's own scan prints a second sentence entirely absent from the source. [evidence: card scan assets/card-art/bundles/cards/27104.png: \"...attach this card to the active villain.\\nThreat cannot be removed from Light at the End.\"]",
+    ],
+  },
   { cardId: cardId("27105"), cardSetCode: "sinister_six", marvelcdbCodes: ["27105"], corrections: [] },
   { cardId: cardId("27106"), cardSetCode: "sinister_six", marvelcdbCodes: ["27106"], corrections: [] },
   { cardId: cardId("27107"), cardSetCode: "sinister_six", marvelcdbCodes: ["27107"], corrections: [] },

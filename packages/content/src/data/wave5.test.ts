@@ -7,7 +7,7 @@ import {
   validateScenarioEncounterSets,
   validateStarterDeck,
 } from "../schema/index.js";
-import type { AnyCard, EncounterSet, EnvironmentCard, MainSchemeCard } from "../schema/index.js";
+import type { AnyCard, AttachmentCard, EncounterSet, EnvironmentCard, MainSchemeCard } from "../schema/index.js";
 import { CORE_ENCOUNTER_SETS } from "./core/encounterSets.js";
 import { IRONHEART_CARDS } from "./ironheart/cards.js";
 import { NOVA_CARDS } from "./nova/cards.js";
@@ -123,6 +123,23 @@ describe("Sinister Motives — scan-confirmed text corrections", () => {
   it("Tracking Display (27152) reads 'Surge.' with no stray space", () => {
     const card = findTexted("27152");
     expect(card.text.current.startsWith("Surge.\n")).toBe(true);
+  });
+
+  // assets/card-art/bundles/cards/27103.png: "+X ATK" in the stat box — MarvelCDB sends its printed-X sentinel
+  // (`attack: -1`), which `normalizeEncounterCard`'s attachment branch omits rather than emitting as a literal
+  // -1 (`PrintedStatModifiers.atk` has no "X"; the dynamic bonus is scripted instead, curation/sm.ts's own
+  // `27103` cardNotes entry).
+  it("Heightened Morale (27103) carries no fixed statModifiers.atk (the box prints X, not a number)", () => {
+    const card = findTexted("27103") as AttachmentCard;
+    expect(card.type).toBe("attachment");
+    expect(card.statModifiers?.atk).toBeUndefined();
+  });
+
+  // assets/card-art/bundles/cards/27104.png: a second printed sentence, "Threat cannot be removed from Light at
+  // the End.", entirely absent from MarvelCDB's raw text/real_text.
+  it("Taunting Presence (27104) restores 'Threat cannot be removed from Light at the End.'", () => {
+    const card = findTexted("27104");
+    expect(card.text.current).toContain("Threat cannot be removed from Light at the End.");
   });
 });
 

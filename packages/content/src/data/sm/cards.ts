@@ -2568,7 +2568,6 @@ export const SM_CARDS: readonly AnyCard[] = [
     unique: false,
     images: { front: imageRef("/bundles/cards/27103.png") },
     attachesTo: { kind: "superlative", among: "villain", order: "highest", measure: "activationOrder" },
-    statModifiers: { atk: -1 },
     encounterSetIds: [encounterSetId("sinister_six")],
     boostIcons: 0,
     traits: [trait("CONDITION")],
@@ -2598,10 +2597,13 @@ export const SM_CARDS: readonly AnyCard[] = [
     traits: [trait("CONDITION")],
     keywords: [],
     text: {
-      printed: "Attach to the villain with the most remaining hit points. If you cannot, resolve the Ambush! Ability on the main scheme, then attach this card to the active villain.",
-      current: "Attach to the villain with the most remaining hit points. If you cannot, resolve the Ambush! Ability on the main scheme, then attach this card to the active villain.",
+      printed: "Attach to the villain with the most remaining hit points. If you cannot, resolve the Ambush! Ability on the main scheme, then attach this card to the active villain.\nThreat cannot be removed from Light at the End.",
+      current: "Attach to the villain with the most remaining hit points. If you cannot, resolve the Ambush! Ability on the main scheme, then attach this card to the active villain.\nThreat cannot be removed from Light at the End.",
     },
-    abilities: [{ id: abilityId("27104.taunting-presence-constant") }],
+    abilities: [
+      { id: abilityId("27104.taunting-presence-constant") },
+      { id: abilityId("27104.taunting-presence-constant-2") },
+    ],
   },
   {
     id: cardId("27105"),

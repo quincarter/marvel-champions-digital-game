@@ -259,6 +259,24 @@ export const SM_CURATION: PackCuration = {
         replace: "Surge.\n",
       },
     },
+    // Found scripting the Sinister Six's own encounter attachments (`ability-scripting-engineer`). Taunting
+    // Presence's raw MarvelCDB `text`/`real_text` has only its "Attach to..." sentence, dropping the card's second
+    // printed sentence entirely. Confirmed against the card's own scan (`assets/card-art/bundles/cards/27104.png`):
+    // a second line, "Threat cannot be removed from Light at the End."
+    {
+      code: "27104",
+      reason:
+        "Taunting Presence's raw text has only its \"Attach to...\" sentence; the card's own scan prints a " +
+        "second sentence entirely absent from the source.",
+      evidence:
+        'card scan assets/card-art/bundles/cards/27104.png: "...attach this card to the active villain.\\n' +
+        'Threat cannot be removed from Light at the End."',
+      textReplace: {
+        find: "Attach to the villain with the most remaining hit points. If you cannot, resolve the Ambush! Ability on the main scheme, then attach this card to the active villain.",
+        replace:
+          "Attach to the villain with the most remaining hit points. If you cannot, resolve the Ambush! Ability on the main scheme, then attach this card to the active villain.\nThreat cannot be removed from Light at the End.",
+      },
+    },
   ],
 
   errata: [],
@@ -274,6 +292,14 @@ export const SM_CURATION: PackCuration = {
     // both faces, 2026-09-26. No correction needed.
     "27174a":
       "Uses counts confirmed from the card images of both faces: 2[per_hero] standard, 3[per_hero] expert (docs/phase7-wave5.md §4 Q14).",
+    // Found scripting the Sinister Six's own encounter attachments (`ability-scripting-engineer`). Heightened
+    // Morale prints "+X ATK" in its stat box (MarvelCDB sends `attack: -1`, its printed-X encoding) with "X is
+    // equal to the number of villains in play." in its own text — `AttachmentCard.statModifiers.atk` is a fixed
+    // number with no "X", so `normalizeEncounterCard`'s attachment branch omits it (own comment there) and the
+    // dynamic bonus is a scripted ability instead (`27103.heightened-morale-constant-2`,
+    // `wave5/sm/sinister-six/encounter-attachments.ts`).
+    "27103":
+      "ATK X: X is equal to the number of villains in play (own printed ability text); no statModifiers.atk — scripted instead.",
   },
 
   scenarios: [
