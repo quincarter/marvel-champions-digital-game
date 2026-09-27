@@ -44,6 +44,7 @@ import { sameTarget, stepFocus, type FocusTarget } from "../view/focus.js";
 import { boardLayout, type BoardLayout, type PhoneTab, type Rect } from "../view/layout.js";
 import type { SessionState } from "../store/session-store.js";
 import { SCENES } from "./keys.js";
+import { syncSceneClock } from "../ui/scene-clock.js";
 import { fadeScreenIn, goToScreen } from "../ui/transitions.js";
 import { askToEndTurn } from "./end-turn-confirm.js";
 import { drawActionBar } from "./board/action-bar.js";
@@ -158,6 +159,10 @@ export class BoardScene extends Phaser.Scene {
     // "Continue" start this same scene again — so everything about *a game*
     // starts over here. The log didn't, and a rematch was dealt under the
     // previous game's "The villain is defeated. You win."
+    // Before anything is timed: the store delivers the first state synchronously below, and the opening band is
+    // timed from it (`ui/scene-clock.ts`).
+    syncSceneClock(this);
+    this.#motion.reset();
     this.#log = emptyLog();
     appSession().gameLog = this.#log;
     this.#logPanel.reset();
