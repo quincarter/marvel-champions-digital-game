@@ -3,19 +3,26 @@ import {
   after,
   chooseTarget,
   chosen,
+  dealIndirectDamage,
   defineAbilities,
+  discard,
+  discardFromHand,
   each,
   exists,
   firstPlayer,
   forcedResponse,
   ifThen,
   moveActiveCounterToNextVillain,
+  moveCards,
   placeThreat,
   query,
   removeThreat,
   self,
   setVillainAside,
+  stun,
+  topOfDeck,
   whenDefeated,
+  you,
   type EffectArg,
 } from "../../../dsl/index.js";
 
@@ -69,6 +76,44 @@ const [doctorOctopusForcedResponse, doctorOctopusWhenDefeated] = sinisterSixVill
   placeThreat(1, each(query("scheme"))),
 );
 
+// Electro (27095, activation order 2) — "discard the top 7 cards of your deck": `you` is the attacked player, whose
+// own deck this discards from. Fewer than 7 cards left in the deck is not an error — `moveCards`/`topOfDeck` cap at
+// however many cards are actually there, discarding just those (the same reading `bulldozer.ts`'s own
+// `topOfDeck(eventResult("damage"), you)` and `market.ts`'s `topOfDeck(4)` use) and stopping there (RRG 1.8 "Player
+// Deck", p. 33: "if the player's deck empties while the player was discarding cards from their deck, no further
+// cards are discarded from the newly shuffled deck" — there is no "until" search here to keep going anyway). A deck
+// that empties this way resets — shuffling the discard pile into a new deck and dealing that player one facedown
+// encounter card — automatically, at the engine level, the instant it empties (`settlePlayerDecks`,
+// `packages/engine/src/ctx.ts`, exercised generically by `packages/engine/src/player-deck-reset.test.ts`), not
+// anything this ability needs to script itself.
+const [electroForcedResponse, electroWhenDefeated] = sinisterSixVillain(moveCards(topOfDeck(7, you), "discard"));
+
+// Hobgoblin (27096, activation order 3) — "take 2 indirect damage": the attacked player divides it among the
+// characters they control (RRG 1.8 "Indirect Damage", p. 27).
+const [hobgoblinForcedResponse, hobgoblinWhenDefeated] = sinisterSixVillain(dealIndirectDamage(you, 2));
+
+// Kraven the Hunter (27097, activation order 4) — "choose and discard 1 support or upgrade you control": with none in
+// play there is no legal target, so (as with When Defeated's own side-scheme choice above) the ability does nothing
+// beyond moving the counter (RRG 1.8 "Choose (Game Element)", p. 12).
+const [kravenTheHunterForcedResponse, kravenTheHunterWhenDefeated] = sinisterSixVillain([
+  chooseTarget("supportOrUpgrade", query(["support", "upgrade"], { controller: "you" })),
+  discard(chosen("supportOrUpgrade")),
+]);
+
+// Scorpion (27098, activation order 5) — "stun a character you control": a choice among the attacked player's own
+// characters (identity and allies), not necessarily the character Scorpion just attacked — unlike `gob` 02038's own
+// "stun that character" (`a-mess-of-things.ts`), which is `eventTarget`. No character in play (a downed identity is
+// still in play, so this is effectively unreachable) again leaves the ability with nothing to do.
+const [scorpionForcedResponse, scorpionWhenDefeated] = sinisterSixVillain([
+  chooseTarget("character", query(["identity", "ally"], { controller: "you" })),
+  stun(chosen("character")),
+]);
+
+// Vulture (27099, activation order 6) — "choose and discard 1 card from your hand": `discardFromHand(1, you)`'s
+// default (no `random`) is already the attacked player's own choice of which card. An empty hand again leaves
+// nothing to discard.
+const [vultureForcedResponse, vultureWhenDefeated] = sinisterSixVillain(discardFromHand(1, you));
+
 export const SINISTER_SIX_VILLAINS = defineAbilities({
   // Doctor Octopus (27094, activation order 1) — [star] Forced Response: after Doctor Octopus attacks and damages
   // you, place 1 threat on each scheme (main scheme and every side scheme in play). Move the active counter to the
@@ -76,4 +121,26 @@ export const SINISTER_SIX_VILLAINS = defineAbilities({
   "27094.doctor-octopus-forced-response": doctorOctopusForcedResponse,
   // Doctor Octopus — When Defeated: remove 4/7 threat from a side scheme, then set this villain aside.
   "27094.when-defeated": doctorOctopusWhenDefeated,
+  // Electro — [star] Forced Response: after Electro attacks and damages you, discard the top 7 cards of your deck.
+  "27095.electro-forced-response": electroForcedResponse,
+  // Electro — When Defeated: remove 4/7 threat from a side scheme, then set this villain aside.
+  "27095.when-defeated": electroWhenDefeated,
+  // Hobgoblin — [star] Forced Response: after Hobgoblin attacks and damages you, take 2 indirect damage.
+  "27096.hobgoblin-forced-response": hobgoblinForcedResponse,
+  // Hobgoblin — When Defeated: remove 4/7 threat from a side scheme, then set this villain aside.
+  "27096.when-defeated": hobgoblinWhenDefeated,
+  // Kraven the Hunter — [star] Forced Response: after Kraven the Hunter attacks and damages you, choose and discard
+  // 1 support or upgrade you control.
+  "27097.kraven-the-hunter-forced-response": kravenTheHunterForcedResponse,
+  // Kraven the Hunter — When Defeated: remove 4/7 threat from a side scheme, then set this villain aside.
+  "27097.when-defeated": kravenTheHunterWhenDefeated,
+  // Scorpion — [star] Forced Response: after Scorpion attacks and damages you, stun a character you control.
+  "27098.scorpion-forced-response": scorpionForcedResponse,
+  // Scorpion — When Defeated: remove 4/7 threat from a side scheme, then set this villain aside.
+  "27098.when-defeated": scorpionWhenDefeated,
+  // Vulture — [star] Forced Response: after Vulture attacks and damages you, choose and discard 1 card from your
+  // hand.
+  "27099.vulture-forced-response": vultureForcedResponse,
+  // Vulture — When Defeated: remove 4/7 threat from a side scheme, then set this villain aside.
+  "27099.when-defeated": vultureWhenDefeated,
 });

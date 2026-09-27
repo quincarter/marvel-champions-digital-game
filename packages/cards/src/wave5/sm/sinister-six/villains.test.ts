@@ -1,18 +1,20 @@
-import { createGame, undefeatedVillains, type GameSetupConfig, type GameState } from "@mc/engine";
+import { createGame, undefeatedVillains, type GameEvent, type GameSetupConfig, type GameState } from "@mc/engine";
 import { describe, expect, it } from "vitest";
 import {
+  applyOk,
   endTurn,
   firstLegal,
   identityOf,
   inst,
   instancesOf,
   patchInstance,
+  playerOf,
   settle,
   stackEncounterDeck,
   toHero,
   P1,
 } from "../../../testing/harness.js";
-import { defeatWithAttack, runWave5, WAVE5_DEPS } from "../../testing.js";
+import { defeatWithAttack, playFromHand, runWave5, WAVE5_DEPS } from "../../testing.js";
 import { wave5Scenario, type Wave5ScenarioOptions } from "../../setup.js";
 
 /**
@@ -47,6 +49,47 @@ const mainThreatOf = (state: GameState): number => inst(state, state.mainScheme.
 const lightThreatOf = (state: GameState): number => inst(state, instancesOf(state, "27102a")[0]!).threat;
 const doctorOckOf = (state: GameState) => instancesOf(state, "27094")[0]!;
 const electroOf = (state: GameState) => instancesOf(state, "27095")[0]!;
+const hobgoblinOf = (state: GameState) => instancesOf(state, "27096")[0]!;
+const kravenTheHunterOf = (state: GameState) => instancesOf(state, "27097")[0]!;
+const scorpionOf = (state: GameState) => instancesOf(state, "27098")[0]!;
+const vultureOf = (state: GameState) => instancesOf(state, "27099")[0]!;
+
+/**
+ * Resolves the villain phase `endTurn(P1)` opens up through both villains' own activations, attacks and Forced
+ * Responses — but stops the moment the villain phase reaches "deal each player 1 encounter card" / "reveal encounter
+ * cards", the same breakpoint `activateVillain` (above) settles to, so a random encounter card reveal never adds its
+ * own damage/discard/deck noise to what's being measured here — and returns every `GameEvent` raised along the way.
+ *
+ * The electro/hobgoblin/kraven/scorpion/vulture tests below read this event log rather than taking a plain before/
+ * after state diff because, with two of the six villains in play, *both* attack and trigger their own Forced
+ * Response this phase (empirically: activation order does not gate which villains activate, only which one holds the
+ * counter when its own "Move the active counter…" step runs) — so a plain damage/discard/deck total can double-count
+ * a sibling villain's own, unrelated Forced Response instead of isolating the one under test. Filtering the event log
+ * by the acting villain's own `instanceId` (`damageDealt.sourceInstanceId`, `cardDiscardedFromPlay.instanceId`,
+ * `statusGiven.instanceId`) sidesteps that.
+ */
+function resolveVillainPhase(state: GameState): { readonly state: GameState; readonly events: readonly GameEvent[] } {
+  let current = runWave5(state, endTurn(P1));
+  const events: GameEvent[] = [];
+  const atBreakpoint = (s: GameState) => s.step.phase === "villain" && s.step.kind === "dealEncounterCards";
+  for (let guard = 0; current.pendingChoice && !current.outcome && !atBreakpoint(current); guard++) {
+    if (guard > 500) throw new Error(`choices did not settle (stuck on ${current.pendingChoice.prompt.kind})`);
+    const choice = current.pendingChoice;
+    const result = applyOk(
+      current,
+      {
+        type: "resolveChoice",
+        playerId: choice.playerId,
+        choiceId: choice.choiceId,
+        selectedOptionIds: firstLegal(current),
+      },
+      WAVE5_DEPS,
+    );
+    current = result.state;
+    events.push(...result.events);
+  }
+  return { state: current, events };
+}
 
 /**
  * Ends P1's turn and settles through the villain phase's own enemy activations (Doctor Octopus attacks, since P1 is
@@ -154,12 +197,202 @@ describe("27094.when-defeated", () => {
     // (main-scheme.ts) draws a random set-aside villain from.
 
     // With no villain in play, ending the turn resolves "Ambush!" (main-scheme.ts's own Forced Interrupt) before
-    // continuing the villain's activation; seed 5's random draw happens to pick Doctor Octopus back out of the pool.
-    state = { ...state, rng: { value: 5, draws: 0 } };
+    // continuing the villain's activation; rng value 2's random draw happens to pick Doctor Octopus back out of the
+    // pool — which, now that Electro (27095) has its own registered When Defeated, also holds a fresh Electro copy
+    // (`setVillainAside`, RRG 1.8 "Leaves Play", p. 27), not just the four villains never touched this game.
+    state = { ...state, rng: { value: 2, draws: 0 } };
     state = stackEncounterDeck(state, "01186");
     const after = settle(runWave5(state, endTurn(P1)), firstLegal, undefined, WAVE5_DEPS);
     // Ambush! brings him back; a treachery dealt later in the same phase may add another villain, so check membership.
     expect(undefeatedVillains(after).map((v) => v.instanceId)).toContain(doctorOck);
     expect(after.activeVillainId).toBe(doctorOck); // "…and place the active counter on it."
+  });
+});
+
+describe("27095.electro-forced-response", () => {
+  it("discards exactly the top 7 cards of your deck and moves the active counter (seed 3: Electro + Vulture)", () => {
+    const state = toHeroApplied(sinisterSixGame([{ starterDeckId: "ghost-spider" }], { seed: 3 }));
+    const electro = electroOf(state);
+    const vulture = vultureOf(state);
+    expect(state.activeVillainId).toBe(electro);
+    const { state: after, events } = resolveVillainPhase(state);
+    const milled = events.filter(
+      (e) => e.type === "cardMoved" && e.from.kind === "deck" && e.to.kind === "discard" && e.from.playerId === P1,
+    );
+    expect(milled).toHaveLength(7);
+    // Vulture (order 6, the only other villain in play) is left holding the counter once both villains' own Forced
+    // Responses (each "moves the active counter to the next villain in the activation order") have resolved this
+    // villain phase — `moveActiveCounterToNextVillain`'s own engine behavior, not scripted here.
+    expect(after.activeVillainId).toBe(vulture);
+  });
+
+  it('discards however many cards remain when fewer than 7 are left, and lets the emptied deck reset itself (RRG 1.8 "Player Deck", p. 33 — `settlePlayerDecks`, `packages/engine/src/ctx.ts`, generically exercised by `packages/engine/src/player-deck-reset.test.ts`, not scripted by this ability)', () => {
+    // Seed 31 (not 3): Electro's partner here is Hobgoblin, whose own Forced Response deals indirect damage rather
+    // than touching hand/deck/discard, so it can't add an unrelated card to the discard pile this test is measuring.
+    let state = toHeroApplied(sinisterSixGame([{ starterDeckId: "ghost-spider" }], { seed: 31 }));
+    const p1 = P1;
+    // Shrink P1's deck to 3 cards, moving the rest into their own discard pile so no card vanishes and the discard
+    // pile is non-empty — RRG 1.8 p. 33: "the deck does not reset until there is at least one card in the player's
+    // discard pile", which this setup already satisfies.
+    state = {
+      ...state,
+      players: state.players.map((p) =>
+        p.playerId === p1 ? { ...p, deck: p.deck.slice(0, 3), discard: [...p.discard, ...p.deck.slice(3)] } : p,
+      ),
+    };
+    const { state: after, events } = resolveVillainPhase(state);
+    const milled = events.filter(
+      (e): e is GameEvent & { type: "cardMoved" } =>
+        e.type === "cardMoved" && e.from.kind === "deck" && e.to.kind === "discard" && e.from.playerId === p1,
+    );
+    expect(milled).toHaveLength(3); // only the 3 cards actually in the deck — no error, no "until" search to keep going.
+    expect(events.some((e) => e.type === "playerDeckReset" && e.playerId === p1)).toBe(true);
+    const p1After = after.players.find((p) => p.playerId === p1)!;
+    // The reset shuffled those same 3 cards straight back into a fresh deck (not lost, not left sitting in the
+    // discard pile) — this is the substantive claim; a plain deck-size check would also have to account for the
+    // hero's own turn ending over hand size, an unrelated `cardMoved` from hand to discard this same villain phase.
+    expect(p1After.deck).toEqual(expect.arrayContaining(milled.map((e) => e.instanceId)));
+  });
+});
+
+describe("27095.when-defeated", () => {
+  it("resolves (shares Doctor Octopus's own fully-covered When Defeated)", () => {
+    let state = toHeroApplied(sinisterSixGame([{ starterDeckId: "ghost-spider" }], { seed: 3 }));
+    const electro = electroOf(state);
+    const lightBefore = lightThreatOf(state);
+    state = patchInstance(state, identityOf(state, P1), { exhausted: false });
+    const after = defeatWithAttack(state, electro);
+    expect(lightThreatOf(after)).toBeLessThan(lightBefore); // 4 or 7 threat removed, per whether Vulture is still up.
+    expect(after.encounterSetAside).toContain(electro);
+  });
+});
+
+describe("27096.hobgoblin-forced-response", () => {
+  it("deals exactly 2 indirect damage to you (seed 1: Hobgoblin + Kraven the Hunter)", () => {
+    const state = toHeroApplied(sinisterSixGame([{ starterDeckId: "ghost-spider" }], { seed: 1 }));
+    const hobgoblin = hobgoblinOf(state);
+    expect(state.activeVillainId).toBe(hobgoblin);
+    const { state: after, events } = resolveVillainPhase(state);
+    const indirect = events.filter(
+      (e) => e.type === "damageDealt" && e.sourceInstanceId === hobgoblin && e.amount === 2,
+    );
+    expect(indirect).toHaveLength(1);
+    // With Kraven the Hunter (order 4) the only other villain in play, both villains' own Forced Responses move the
+    // active counter to "the next villain in the activation order" this phase, which — with only two villains —
+    // lands back on Hobgoblin (order 3); `moveActiveCounterToNextVillain`'s own behavior, not scripted here.
+    expect(after.activeVillainId).toBe(hobgoblin);
+  });
+});
+
+describe("27096.when-defeated", () => {
+  it("resolves (shares Doctor Octopus's own fully-covered When Defeated)", () => {
+    let state = toHeroApplied(sinisterSixGame([{ starterDeckId: "ghost-spider" }], { seed: 1 }));
+    const hobgoblin = hobgoblinOf(state);
+    const lightBefore = lightThreatOf(state);
+    state = patchInstance(state, identityOf(state, P1), { exhausted: false });
+    const after = defeatWithAttack(state, hobgoblin);
+    expect(lightThreatOf(after)).toBeLessThan(lightBefore);
+    expect(after.encounterSetAside).toContain(hobgoblin);
+  });
+});
+
+describe("27097.kraven-the-hunter-forced-response", () => {
+  it("discards exactly the 1 support/upgrade you control (seed 10: Kraven the Hunter + Vulture)", () => {
+    let state = toHeroApplied(sinisterSixGame([{ starterDeckId: "ghost-spider" }], { seed: 10 }));
+    const { state: withPlanB, id: planB } = playFromHand(state, "27024", 1); // Plan B, an upgrade in her own deck.
+    state = withPlanB;
+    const kraven = kravenTheHunterOf(state);
+    const vulture = vultureOf(state);
+    expect(state.activeVillainId).toBe(kraven);
+    const { state: after, events } = resolveVillainPhase(state);
+    const discarded = events.filter((e) => e.type === "cardDiscardedFromPlay" && e.instanceId === planB);
+    expect(discarded).toHaveLength(1);
+    expect(playerOf(after, P1).discard).toContain(planB); // discarded, not just left in play.
+    expect(playerOf(after, P1).hand).not.toContain(planB);
+    expect(after.activeVillainId).toBe(vulture); // the counter's final resting place once both villains' own Forced
+    // Responses have moved it this phase (`moveActiveCounterToNextVillain`'s own behavior, not scripted here).
+  });
+
+  it("does nothing beyond moving the counter when you control no support or upgrade", () => {
+    const state = toHeroApplied(sinisterSixGame([{ starterDeckId: "ghost-spider" }], { seed: 10 }));
+    const kraven = kravenTheHunterOf(state);
+    const { events } = resolveVillainPhase(state);
+    expect(events.some((e) => e.type === "cardDiscardedFromPlay")).toBe(false);
+    expect(events.some((e) => e.type === "damageDealt" && e.sourceInstanceId === kraven)).toBe(true); // still attacked.
+  });
+});
+
+describe("27097.when-defeated", () => {
+  it("resolves (shares Doctor Octopus's own fully-covered When Defeated)", () => {
+    let state = toHeroApplied(sinisterSixGame([{ starterDeckId: "ghost-spider" }], { seed: 10 }));
+    const kraven = kravenTheHunterOf(state);
+    const lightBefore = lightThreatOf(state);
+    state = patchInstance(state, identityOf(state, P1), { exhausted: false });
+    const after = defeatWithAttack(state, kraven);
+    expect(lightThreatOf(after)).toBeLessThan(lightBefore);
+    expect(after.encounterSetAside).toContain(kraven);
+  });
+});
+
+describe("27098.scorpion-forced-response", () => {
+  it("stuns exactly 1 character you control (seed 2: Scorpion + Vulture)", () => {
+    const state = toHeroApplied(sinisterSixGame([{ starterDeckId: "ghost-spider" }], { seed: 2 }));
+    const scorpion = scorpionOf(state);
+    const vulture = vultureOf(state);
+    const identity = identityOf(state, P1);
+    expect(state.activeVillainId).toBe(scorpion);
+    const { state: after, events } = resolveVillainPhase(state);
+    const stunned = events.filter(
+      (e) => e.type === "statusGiven" && e.status === "stunned" && e.instanceId === identity,
+    );
+    expect(stunned).toHaveLength(1);
+    expect(inst(after, identity).statuses.stunned).toBeGreaterThan(0);
+    expect(after.activeVillainId).toBe(vulture);
+  });
+});
+
+describe("27098.when-defeated", () => {
+  it("resolves (shares Doctor Octopus's own fully-covered When Defeated)", () => {
+    let state = toHeroApplied(sinisterSixGame([{ starterDeckId: "ghost-spider" }], { seed: 2 }));
+    const scorpion = scorpionOf(state);
+    const lightBefore = lightThreatOf(state);
+    state = patchInstance(state, identityOf(state, P1), { exhausted: false });
+    const after = defeatWithAttack(state, scorpion);
+    expect(lightThreatOf(after)).toBeLessThan(lightBefore);
+    expect(after.encounterSetAside).toContain(scorpion);
+  });
+});
+
+describe("27099.vulture-forced-response", () => {
+  it("discards exactly 1 card from your hand, chosen by you (seed 3: defeat Electro, leaving Vulture alone)", () => {
+    let state = toHeroApplied(sinisterSixGame([{ starterDeckId: "ghost-spider" }], { seed: 3 }));
+    const electro = electroOf(state);
+    const vulture = vultureOf(state);
+    state = patchInstance(state, identityOf(state, P1), { exhausted: false });
+    state = defeatWithAttack(state, electro); // unscripted removal, leaving Vulture alone (and active).
+    expect(undefeatedVillains(state).map((v) => v.instanceId)).toEqual([vulture]);
+    expect(state.activeVillainId).toBe(vulture);
+    state = patchInstance(state, identityOf(state, P1), { exhausted: false });
+    const { events } = resolveVillainPhase(state);
+    // The villain phase's own end-of-turn hand-size discard can also raise a `cardDiscardedFromHand` before the
+    // villain even activates; only the one *after* Vulture's own attack resolves is this Forced Response's.
+    const attackedAt = events.findIndex((e) => e.type === "attackResolved");
+    const forcedResponseDiscards = events.filter((e, i) => e.type === "cardDiscardedFromHand" && i > attackedAt);
+    expect(forcedResponseDiscards).toHaveLength(1);
+  });
+});
+
+describe("27099.when-defeated", () => {
+  it("resolves (shares Doctor Octopus's own fully-covered When Defeated)", () => {
+    let state = toHeroApplied(sinisterSixGame([{ starterDeckId: "ghost-spider" }], { seed: 3 }));
+    const electro = electroOf(state);
+    const vulture = vultureOf(state);
+    state = patchInstance(state, identityOf(state, P1), { exhausted: false });
+    state = defeatWithAttack(state, electro);
+    const lightBefore = lightThreatOf(state);
+    state = patchInstance(state, identityOf(state, P1), { exhausted: false });
+    const after = defeatWithAttack(state, vulture);
+    expect(lightThreatOf(after)).toBeLessThan(lightBefore);
+    expect(after.encounterSetAside).toContain(vulture);
   });
 });
