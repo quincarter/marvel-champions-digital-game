@@ -1,5 +1,15 @@
 import { describe, expect, test } from "vitest";
-import { nextSettingsAfterToggle, settingsRowInfoOf, sharperTextTargetResolution } from "./settings-rows.js";
+import {
+  guideRowInfoOf,
+  nextGuidePrefsAfterRow,
+  nextSettingsAfterToggle,
+  settingsRowInfoOf,
+  sharperTextTargetResolution,
+  type GuideActionRowInfo,
+  type GuideLevelRowInfo,
+  type GuideToggleRowInfo,
+} from "./settings-rows.js";
+import { defaultGuidePrefs, withLevel, type GuidePrefs } from "../guide/guide-prefs.js";
 import type { Settings } from "../settings.js";
 
 const BASE: Settings = {
@@ -47,6 +57,77 @@ describe("settingsRowInfoOf", () => {
       expect(row.title.length).toBeGreaterThan(0);
       expect(row.detail.length).toBeGreaterThan(0);
     }
+  });
+});
+
+describe("guideRowInfoOf", () => {
+  test("the guide-level row reflects the current level", () => {
+    const rows = guideRowInfoOf(defaultGuidePrefs);
+    const level = rows.find((r) => r.id === "guide-level") as GuideLevelRowInfo;
+    expect(level.kind).toBe("segmented");
+    expect(level.selected).toBe("full");
+    expect(level.options.map((o) => o.value)).toEqual(["full", "hints", "off"]);
+
+    const hintsPrefs = withLevel(defaultGuidePrefs, "hints");
+    const hintsLevel = guideRowInfoOf(hintsPrefs).find((r) => r.id === "guide-level") as GuideLevelRowInfo;
+    expect(hintsLevel.selected).toBe("hints");
+  });
+
+  test("both action rows are dashed unavailable (their target screens don't exist yet)", () => {
+    const rows = guideRowInfoOf(defaultGuidePrefs);
+    const tutorial = rows.find((r) => r.id === "play-tutorial") as GuideActionRowInfo;
+    const aspects = rows.find((r) => r.id === "aspect-lessons") as GuideActionRowInfo;
+    expect(tutorial.kind).toBe("action");
+    expect(tutorial.unavailable).toBe("Coming soon");
+    expect(aspects.unavailable).toBe("Coming soon");
+  });
+
+  test("play-tutorial reads 'Replay the tutorial' once the tutorial is finished", () => {
+    const rows = guideRowInfoOf(defaultGuidePrefs);
+    expect((rows.find((r) => r.id === "play-tutorial") as GuideActionRowInfo).title).toBe("Play the tutorial");
+
+    const finished: GuidePrefs = { ...defaultGuidePrefs, tutorial: { ...defaultGuidePrefs.tutorial, finished: true } };
+    const finishedRows = guideRowInfoOf(finished);
+    expect((finishedRows.find((r) => r.id === "play-tutorial") as GuideActionRowInfo).title).toBe(
+      "Replay the tutorial",
+    );
+  });
+
+  test("every warning toggle is on by default (nothing silenced)", () => {
+    const rows = guideRowInfoOf(defaultGuidePrefs);
+    const toggles = rows.filter((r) => r.kind === "toggle") as GuideToggleRowInfo[];
+    expect(toggles).toHaveLength(4);
+    for (const toggle of toggles) expect(toggle.on).toBe(true);
+  });
+
+  test("a silenced warning reads off", () => {
+    const prefs: GuidePrefs = { ...defaultGuidePrefs, silencedWarnings: ["lethal"] };
+    const rows = guideRowInfoOf(prefs);
+    const lethal = rows.find((r) => r.id === "lethal") as GuideToggleRowInfo;
+    expect(lethal.on).toBe(false);
+  });
+
+  test("every row has a non-empty title", () => {
+    for (const row of guideRowInfoOf(defaultGuidePrefs)) expect(row.title.length).toBeGreaterThan(0);
+  });
+});
+
+describe("nextGuidePrefsAfterRow", () => {
+  test("sets the guide level", () => {
+    expect(nextGuidePrefsAfterRow(defaultGuidePrefs, "guide-level", "hints").level).toBe("hints");
+    expect(nextGuidePrefsAfterRow(defaultGuidePrefs, "guide-level", "off").level).toBe("off");
+  });
+
+  test("the two action rows are a no-op (dashed unavailable today)", () => {
+    expect(nextGuidePrefsAfterRow(defaultGuidePrefs, "play-tutorial")).toBe(defaultGuidePrefs);
+    expect(nextGuidePrefsAfterRow(defaultGuidePrefs, "aspect-lessons")).toBe(defaultGuidePrefs);
+  });
+
+  test("toggles a warning silenced and back on", () => {
+    const silenced = nextGuidePrefsAfterRow(defaultGuidePrefs, "schemeFinish");
+    expect(silenced.silencedWarnings).toContain("schemeFinish");
+    const unsilenced = nextGuidePrefsAfterRow(silenced, "schemeFinish");
+    expect(unsilenced.silencedWarnings).not.toContain("schemeFinish");
   });
 });
 

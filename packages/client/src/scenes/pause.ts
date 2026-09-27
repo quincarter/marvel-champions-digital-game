@@ -41,12 +41,29 @@ import { POOL_DEPS, POOL_ENCOUNTER_SETS, POOL_SCENARIOS } from "../content/pool.
 import { accent, ink, status, surface, typeRole, type TypeSpec } from "../tokens.js";
 import { caseOf, setTextResolution, textStyle } from "../ui/theme.js";
 import { McButton, McTextInput, fitText, label, paintDotGrid, paintPanel } from "../ui/widgets.js";
-import { pauseLayout, type PausePhoneLayout, type PauseWideLayout } from "../view/pause-layout.js";
+import { McScrollRegion } from "../ui/scroll-region.js";
+import {
+  pauseLayout,
+  type PausePhoneLowerContent,
+  type PausePhoneLayout,
+  type PauseWideLayout,
+} from "../view/pause-layout.js";
 import { recentLogMoments } from "../view/pause-log-window.js";
 import { pauseStatusOf } from "../view/pause-model.js";
 import { rulesGlossaryOf, type RulesEntry } from "../view/rules-reference.js";
 import { scenarioCardListOf } from "../view/scenario-card-list.js";
-import { nextSettingsAfterToggle, settingsRowInfoOf, type SettingsRowInfo } from "../view/settings-rows.js";
+import {
+  guideRowDetailOf,
+  guideRowInfoOf,
+  nextGuidePrefsAfterRow,
+  nextSettingsAfterToggle,
+  settingsRowInfoOf,
+  type GuideRowInfo,
+  type SettingsRowInfo,
+} from "../view/settings-rows.js";
+import type { GuideLevel } from "../guide/guide-prefs.js";
+import { guidePrefs, onGuidePrefsChange, setGuidePrefs } from "../guide/guide-store.js";
+import { VariableListScroll } from "../view/variable-list-scroll.js";
 import { pauseFocusOrder } from "../view/screen-focus.js";
 import type { Rect } from "../view/layout.js";
 import { appSession } from "../session.js";
@@ -70,8 +87,15 @@ interface QuickReferenceRow {
 /** The wide menu's own Bangers size — smaller than a bar title, still the display face, matching D13's own read of "RESUME"/"SETTINGS" etc. */
 const MENU_BUTTON_TYPE: TypeSpec = { ...typeRole.barTitle, size: 18 };
 
+type GuideNonLevelRow = Extract<GuideRowInfo, { kind: "action" | "toggle" }>;
+
+function isGuideNonLevelRow(row: GuideRowInfo): row is GuideNonLevelRow {
+  return row.kind !== "segmented";
+}
+
 export class PauseOverlay extends Phaser.Scene {
   #unsubscribe: (() => void) | null = null;
+  #unsubscribeGuide: (() => void) | null = null;
   #buttons: McButton[] = [];
   #searchInput: McTextInput | null = null;
   #query = "";
@@ -80,6 +104,9 @@ export class PauseOverlay extends Phaser.Scene {
   /** Wide only: "Full game log" swaps the right panel's header/grid/jump-box group for the fuller retained log (`view/pause-layout.ts`'s own `rightContent`). */
   #logExpanded = false;
   #motion = new OverlayMotion();
+  /** Phone only — the Guide group's own scroll region (docs/guided-mode.md §4 G2b); `null` on a wide layout, which has no inline Guide group. */
+  #lowerRegion: McScrollRegion | null = null;
+  #lowerScroll = new VariableListScroll();
 
   constructor() {
     super(SCENES.pause);
@@ -92,6 +119,9 @@ export class PauseOverlay extends Phaser.Scene {
     this.#query = "";
     const { store } = appSession();
     this.#unsubscribe = store.subscribe(() => this.#draw());
+    // The standalone Settings overlay (or another Pause) can change the same live guide prefs while this one is
+    // open behind/beside it — redraw so it never shows a stale level/toggle.
+    this.#unsubscribeGuide = onGuidePrefsChange(() => this.#draw());
     const onResize = (): void => this.#draw();
     this.scale.on("resize", onResize, this);
     this.#route = new FocusRoute(this, {
@@ -106,10 +136,14 @@ export class PauseOverlay extends Phaser.Scene {
       this.scale.off("resize", onResize, this);
       this.#unsubscribe?.();
       this.#unsubscribe = null;
+      this.#unsubscribeGuide?.();
+      this.#unsubscribeGuide = null;
       this.#searchInput?.destroy();
       this.#searchInput = null;
       for (const button of this.#buttons) button.destroy();
       this.#buttons = [];
+      this.#lowerRegion?.destroy();
+      this.#lowerRegion = null;
     });
     this.#draw();
   }
@@ -211,6 +245,8 @@ export class PauseOverlay extends Phaser.Scene {
     if (this.#motion.leaving) return;
     for (const button of this.#buttons) button.destroy();
     this.#buttons = [];
+    this.#lowerRegion?.destroy();
+    this.#lowerRegion = null;
 
     const { store, settings } = appSession();
     const { game, perspectiveId, config } = store.state;
@@ -219,6 +255,8 @@ export class PauseOverlay extends Phaser.Scene {
     const quickReferenceRows = this.#quickReferenceRows(game);
     const tableRows = settingsRowInfoOf(settings);
     const keywordEntries = game ? rulesGlossaryOf(game, POOL_DEPS) : [];
+    const guideRows = guideRowInfoOf(guidePrefs());
+    const guideAfterLevel = guideRows.filter(isGuideNonLevelRow);
 
     const layout = pauseLayout(
       { x: 0, y: 0, width, height },
@@ -226,6 +264,7 @@ export class PauseOverlay extends Phaser.Scene {
         keywordCount: keywordEntries.length,
         quickReferenceDetails: quickReferenceRows.map((row) => row.unavailable ?? row.detail),
         tableDetails: tableRows.map((row) => row.unavailable ?? row.detail),
+        guideRowDetails: guideAfterLevel.map(guideRowDetailOf),
       },
     );
 
@@ -257,12 +296,22 @@ export class PauseOverlay extends Phaser.Scene {
         stops,
       );
     } else {
-      this.#drawPhone(layout, quickReferenceRows, tableRows, game, perspectiveId, config, stops);
+      const guideRowIds = this.#drawPhone(
+        layout,
+        quickReferenceRows,
+        tableRows,
+        guideRows,
+        game,
+        perspectiveId,
+        config,
+        stops,
+      );
       this.#route?.set(
         pauseFocusOrder({
           kind: "phone",
           quickReferenceIds: quickReferenceRows.map((row) => row.id),
           tableRowIds: tableRows.map((row) => row.id),
+          guideRowIds,
           confirmingConcede: this.#confirmingConcede,
         }),
         stops,
@@ -598,11 +647,12 @@ export class PauseOverlay extends Phaser.Scene {
     layout: PausePhoneLayout,
     quickReferenceRows: readonly QuickReferenceRow[],
     tableRows: readonly SettingsRowInfo[],
+    guideRows: readonly GuideRowInfo[],
     game: SessionState["game"],
     perspectiveId: SessionState["perspectiveId"],
     config: SessionState["config"],
     stops: Map<string, FocusStop>,
-  ): void {
+  ): readonly string[] {
     const panel = this.add.graphics();
     panel
       .fillStyle(surface.ink.hex, 1)
@@ -641,16 +691,7 @@ export class PauseOverlay extends Phaser.Scene {
       this.#drawQuickReferenceRow(layout.quickReferenceRows[index]!, row, stops),
     );
 
-    label(
-      this,
-      layout.tableHeading.x,
-      layout.tableHeading.y,
-      "Table",
-      typeRole.label,
-      surface.paper.hex,
-      ink.secondary,
-    );
-    tableRows.forEach((row, index) => this.#drawTableRow(layout.tableRows[index]!, row, stops));
+    const guideStopIds = this.#drawLowerGroup(layout.lowerViewport, layout.lowerContent, tableRows, guideRows, stops);
 
     if (this.#confirmingConcede) this.#drawPhoneConcedeConfirm(layout, stops);
     else {
@@ -658,6 +699,7 @@ export class PauseOverlay extends Phaser.Scene {
       this.#button(stops, "save-quit", "secondary", "Save & quit", layout.saveQuit, () => this.#saveAndQuit());
       this.#button(stops, "concede", "quiet", "Concede", layout.concede, () => this.#setConfirmingConcede(true));
     }
+    return guideStopIds;
   }
 
   #drawHeader(
@@ -760,7 +802,7 @@ export class PauseOverlay extends Phaser.Scene {
     }
   }
 
-  #drawTableRow(rect: Rect, row: SettingsRowInfo, stops: Map<string, FocusStop>): void {
+  #drawTableRow(rect: Rect, row: SettingsRowInfo, index: number, stops: Map<string, FocusStop>): void {
     label(this, rect.x, rect.y + 2, row.title, typeRole.label, surface.paper.hex, ink.secondary).setFontSize(12);
     this.add
       .text(
@@ -783,9 +825,11 @@ export class PauseOverlay extends Phaser.Scene {
         ...(row.unavailable ? { reason: row.unavailable } : {}),
         selected: row.on,
         onClick: activate,
+        clip: this.#lowerClip,
+        suppressClick: this.#lowerSuppressClick,
       }),
     );
-    stops.set(`table:${row.id}`, { rect, activate });
+    stops.set(`table:${row.id}`, this.#lowerStop(rect, index, activate));
   }
 
   #toggleTableRow(row: SettingsRowInfo): void {
@@ -794,6 +838,214 @@ export class PauseOverlay extends Phaser.Scene {
     if (row.id === "sharper-text") setTextResolution(next.textResolution);
     if (row.id === "sound") appSession().music?.syncSettings(next);
     appSession().settings = next;
+    this.#draw();
+  }
+
+  // ------------------------------------------------------------------------------------------------------------
+  // The "Table" + "Guide" groups (docs/guided-mode.md §4 G2b), phone only — Pause's wide layout has no inline
+  // Guide group, only the standalone Settings screen does. A real phone can't fit Quick reference, five Table
+  // rows *and* the Guide group's own level control plus six more rows unscrolled (browser verification,
+  // 2026-09-26: "Confirm before ending turn" already ran under Resume with no Guide group at all), so both
+  // groups share one bounded, scrollable `McScrollRegion` (`view/pause-layout.ts`'s own `lowerViewport`/
+  // `lowerContent`) — the same "eagerly draw, then reparent" trick `scenes/table-setup.ts`'s own compact layout
+  // uses for its own taller-than-the-screen content.
+  // ------------------------------------------------------------------------------------------------------------
+
+  /** Runs `draw`, then reparents everything it just added to the scene's top-level display list into `container`. */
+  #captureInto(container: Phaser.GameObjects.Container, draw: () => void): void {
+    const before = this.children.list.length;
+    draw();
+    const added = this.children.list.slice(before);
+    if (added.length > 0) container.add(added);
+  }
+
+  /** A stop inside the Table/Guide scroll region: its rect tracks the current scroll offset, and taking focus scrolls it into view. */
+  #lowerStop(rect: Rect, index: number, activate: () => void): FocusStop {
+    return {
+      rect: () => ({ ...rect, y: rect.y - this.#lowerScroll.offsetPx }),
+      activate,
+      ensureVisible: () => this.#lowerRegion?.scrollIntoView(index),
+    };
+  }
+
+  #lowerClip = (): Rect | null => this.#lowerRegion?.rect ?? null;
+  #lowerSuppressClick = (): boolean => this.#lowerRegion?.isDragSuppressingClick ?? false;
+
+  /**
+   * "Table" heading + its rows, then "Guide" heading, the "Guide level" segment and one row per non-segmented
+   * Guide entry — all inside one scroll region. Returns the Guide group's own stop ids (without the `guide:`
+   * prefix `pauseFocusOrder` applies), in focus order; the Table rows register themselves under their existing
+   * `table:${id}` keys directly, unchanged from before this group scrolled.
+   */
+  #drawLowerGroup(
+    viewport: Rect,
+    content: PausePhoneLowerContent,
+    tableRows: readonly SettingsRowInfo[],
+    guideRows: readonly GuideRowInfo[],
+    stops: Map<string, FocusStop>,
+  ): readonly string[] {
+    const levelRow = guideRows.find((row) => row.kind === "segmented");
+    const afterLevel = guideRows.filter(isGuideNonLevelRow);
+    const heights = [
+      content.tableHeading.height,
+      ...content.tableRows.map((r) => r.height),
+      content.guideHeading.height,
+      content.guideLevelRow.height,
+      ...content.guideRows.map((r) => r.height),
+    ];
+    this.#lowerRegion = new McScrollRegion(this, { rect: viewport, heights, scroll: this.#lowerScroll });
+    const container = this.#lowerRegion.content;
+    const toScreen = (contentRect: Rect): Rect => ({ ...contentRect, y: viewport.y + contentRect.y });
+
+    this.#captureInto(container, () =>
+      label(
+        this,
+        viewport.x,
+        viewport.y + content.tableHeading.y,
+        "Table",
+        typeRole.label,
+        surface.paper.hex,
+        ink.secondary,
+      ),
+    );
+    tableRows.forEach((row, index) => {
+      this.#captureInto(container, () =>
+        this.#drawTableRow(toScreen(content.tableRows[index]!), row, index + 1, stops),
+      );
+    });
+
+    this.#captureInto(container, () =>
+      label(
+        this,
+        viewport.x,
+        viewport.y + content.guideHeading.y,
+        "Guide",
+        typeRole.label,
+        surface.paper.hex,
+        ink.secondary,
+      ),
+    );
+    const stopIds: string[] = [];
+    const guideBaseIndex = 1 + tableRows.length + 1; // tableHeading + every table row + guideHeading
+    if (levelRow && levelRow.kind === "segmented") {
+      this.#captureInto(container, () =>
+        this.#drawGuideLevelRow(toScreen(content.guideLevelRow), levelRow, guideBaseIndex, stops),
+      );
+      stopIds.push(...levelRow.options.map((option) => `guide-level:${option.value}`));
+    }
+    afterLevel.forEach((row, index) => {
+      this.#captureInto(container, () =>
+        this.#drawGuideRow(toScreen(content.guideRows[index]!), row, guideBaseIndex + 1 + index, stops),
+      );
+      stopIds.push(row.id);
+    });
+    return stopIds;
+  }
+
+  #drawGuideLevelRow(
+    rect: Rect,
+    row: Extract<GuideRowInfo, { kind: "segmented" }>,
+    index: number,
+    stops: Map<string, FocusStop>,
+  ): void {
+    const gap = 4;
+    const cellWidth = (rect.width - gap * (row.options.length - 1)) / row.options.length;
+    row.options.forEach((option, i) => {
+      const cellRect: Rect = { x: rect.x + i * (cellWidth + gap), y: rect.y, width: cellWidth, height: rect.height };
+      const selected = row.selected === option.value;
+      const activate = (): void => this.#setGuideLevel(option.value);
+      // The button lands first (its own "quiet" skin paints an opaque paper fill), so the cell's own fill/stroke/
+      // text — added after — draw on top of it rather than being hidden under it (`McButton`'s own z-order).
+      this.#buttons.push(
+        new McButton(this, {
+          kind: "quiet",
+          label: "",
+          type: typeRole.label,
+          rect: cellRect,
+          onClick: activate,
+          clip: this.#lowerClip,
+          suppressClick: this.#lowerSuppressClick,
+        }),
+      );
+      const g = this.add.graphics();
+      g.fillStyle(selected ? surface.ink.hex : surface.card.hex, 1).fillRect(
+        cellRect.x,
+        cellRect.y,
+        cellRect.width,
+        cellRect.height,
+      );
+      g.lineStyle(2, surface.paper.hex, selected ? 1 : 0.6).strokeRect(
+        cellRect.x + 1,
+        cellRect.y + 1,
+        cellRect.width - 2,
+        cellRect.height - 2,
+      );
+      this.add
+        .text(
+          cellRect.x + 10,
+          cellRect.y + 8,
+          option.label,
+          textStyle(typeRole.rowTitle, selected ? surface.paper.hex : surface.ink.hex),
+        )
+        .setFontSize(12);
+      this.add
+        .text(
+          cellRect.x + 10,
+          cellRect.y + 26,
+          option.detail,
+          textStyle(typeRole.body, selected ? surface.paper.hex : surface.ink.hex, selected ? 0.85 : 0.7),
+        )
+        .setFontSize(9)
+        .setWordWrapWidth(cellWidth - 16);
+      stops.set(`guide:guide-level:${option.value}`, this.#lowerStop(cellRect, index, activate));
+    });
+  }
+
+  #drawGuideRow(rect: Rect, row: GuideNonLevelRow, index: number, stops: Map<string, FocusStop>): void {
+    label(this, rect.x, rect.y + 2, row.title, typeRole.label, surface.paper.hex, ink.secondary).setFontSize(12);
+    this.add
+      .text(
+        rect.x,
+        rect.y + 20,
+        guideRowDetailOf(row),
+        textStyle(typeRole.body, surface.paper.hex, row.kind === "action" && row.unavailable ? 0.55 : 0.8),
+      )
+      .setFontSize(10)
+      .setWordWrapWidth(rect.width - 100);
+
+    const controlRect: Rect = {
+      x: rect.x + rect.width - 84,
+      y: rect.y + (rect.height - 32) / 2,
+      width: 84,
+      height: 32,
+    };
+    const activate = (): void => this.#activateGuideRow(row);
+    const unavailable = row.kind === "action" ? row.unavailable : undefined;
+    this.#buttons.push(
+      new McButton(this, {
+        kind: row.kind === "toggle" && row.on ? "secondary" : "quiet",
+        label: unavailable ? "—" : row.kind === "toggle" ? (row.on ? "ON" : "OFF") : "Open ▸",
+        type: typeRole.label,
+        rect: controlRect,
+        enabled: unavailable === undefined,
+        ...(unavailable ? { reason: unavailable } : {}),
+        selected: row.kind === "toggle" && row.on,
+        onClick: activate,
+        clip: this.#lowerClip,
+        suppressClick: this.#lowerSuppressClick,
+      }),
+    );
+    stops.set(`guide:${row.id}`, this.#lowerStop(rect, index, activate));
+  }
+
+  #setGuideLevel(level: GuideLevel): void {
+    setGuidePrefs(nextGuidePrefsAfterRow(guidePrefs(), "guide-level", level));
+    this.#draw();
+  }
+
+  #activateGuideRow(row: GuideNonLevelRow): void {
+    if (row.kind === "action") return; // dashed unavailable today (G6a/G6b, G10c) — no target to open yet.
+    setGuidePrefs(nextGuidePrefsAfterRow(guidePrefs(), row.id));
     this.#draw();
   }
 

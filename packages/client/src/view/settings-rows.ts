@@ -6,6 +6,15 @@
  * still owns the actual toggle (it needs `appSession()`, which view modules never
  * import), keyed by `SettingsRowInfo.id`.
  */
+import {
+  SILENCED_WARNING_KEYS,
+  silenceWarning,
+  unsilenceWarning,
+  withLevel,
+  type GuideLevel,
+  type GuidePrefs,
+  type SilencedWarningKey,
+} from "../guide/guide-prefs.js";
 import { SHARP_TEXT_RESOLUTION_CEILING, type Settings } from "../settings.js";
 
 export type SettingsRowId = "reduced-motion" | "sharper-text" | "large-card-text" | "sound" | "confirm-end-turn";
@@ -83,4 +92,118 @@ export function nextSettingsAfterToggle(settings: Settings, id: SettingsRowId, d
     case "confirm-end-turn":
       return { ...settings, confirmBeforeEndTurn: !settings.confirmBeforeEndTurn };
   }
+}
+
+// ---------------------------------------------------------------------------
+// The Guide group (docs/guided-mode.md §4 G2b): a segmented "Guide level" row,
+// two dashed-unavailable action rows for the tutorial/aspect lessons (their
+// target screens don't exist yet — G6a/G6b, G10c), and one toggle per hint
+// warning. Drawn in the same two places as the rows above (`scenes/settings.ts`,
+// Pause's inline group), from `guideRowInfoOf`.
+// ---------------------------------------------------------------------------
+
+export interface GuideLevelOption {
+  readonly value: GuideLevel;
+  readonly label: string;
+  readonly detail: string;
+}
+
+/** "Full — Every step explained" / "Hints — Only before mistakes" / "Off — Glossary stays on" (docs/guided-mode.md §3.9, the debrief tile). */
+export const GUIDE_LEVEL_OPTIONS: readonly GuideLevelOption[] = [
+  { value: "full", label: "Full", detail: "Every step explained" },
+  { value: "hints", label: "Hints", detail: "Only before mistakes" },
+  { value: "off", label: "Off", detail: "Glossary stays on" },
+];
+
+export interface GuideLevelRowInfo {
+  readonly kind: "segmented";
+  readonly id: "guide-level";
+  readonly title: string;
+  readonly options: readonly GuideLevelOption[];
+  readonly selected: GuideLevel;
+}
+
+export interface GuideActionRowInfo {
+  readonly kind: "action";
+  readonly id: "play-tutorial" | "aspect-lessons";
+  readonly title: string;
+  readonly detail: string;
+  /** Always set today — neither target screen exists yet (G6a/G6b for the tutorial, G10c for aspect lessons). */
+  readonly unavailable?: string;
+}
+
+export interface GuideToggleRowInfo {
+  readonly kind: "toggle";
+  readonly id: SilencedWarningKey;
+  readonly title: string;
+  readonly detail: string;
+  /** On when this warning is *not* silenced — the default. */
+  readonly on: boolean;
+}
+
+export type GuideRowInfo = GuideLevelRowInfo | GuideActionRowInfo | GuideToggleRowInfo;
+
+export type GuideSettingsRowId = "guide-level" | "play-tutorial" | "aspect-lessons" | SilencedWarningKey;
+
+const WARNING_ROW_COPY: Record<SilencedWarningKey, { readonly title: string; readonly detail: string }> = {
+  schemeFinish: {
+    title: "Warn before the scheme completes",
+    detail: "Catches ending your turn when the main scheme would finish next villain phase.",
+  },
+  lethal: {
+    title: "Warn before a hit that could defeat you",
+    detail: "Catches ending your turn in hero form with no ready defender against a lethal-looking attack.",
+  },
+  flipDanger: {
+    title: "Warn before flipping into danger",
+    detail: "Catches flipping to (or staying in) alter-ego when the scheme would complete from it.",
+  },
+  wastedPay: {
+    title: "Warn before overpaying",
+    detail: "Catches a payment that spends more than a card costs, or skips a cheaper card that would cover it.",
+  },
+};
+
+/** The Guide group's own rows, in draw order, from the live `GuidePrefs`. */
+export function guideRowInfoOf(prefs: GuidePrefs): readonly GuideRowInfo[] {
+  return [
+    { kind: "segmented", id: "guide-level", title: "Guide level", options: GUIDE_LEVEL_OPTIONS, selected: prefs.level },
+    {
+      kind: "action",
+      id: "play-tutorial",
+      title: prefs.tutorial.finished ? "Replay the tutorial" : "Play the tutorial",
+      detail: "A short scripted first game against Rhino with Spider-Man — five lessons long.",
+      unavailable: "Coming soon",
+    },
+    {
+      kind: "action",
+      id: "aspect-lessons",
+      title: "Aspect lessons",
+      detail: "What each aspect is for, when to pick it, and a couple of signature cards.",
+      unavailable: "Coming soon",
+    },
+    ...SILENCED_WARNING_KEYS.map((key): GuideToggleRowInfo => ({
+      kind: "toggle",
+      id: key,
+      title: WARNING_ROW_COPY[key].title,
+      detail: WARNING_ROW_COPY[key].detail,
+      on: !prefs.silencedWarnings.includes(key),
+    })),
+  ];
+}
+
+/**
+ * `prefs` with one Guide row's control applied — the one place that logic lives, mirroring
+ * `nextSettingsAfterToggle` above. `level` is only read for `"guide-level"`; the two action rows are dashed and
+ * unavailable today, so activating them is a no-op rather than a dead click.
+ */
+export function nextGuidePrefsAfterRow(prefs: GuidePrefs, id: GuideSettingsRowId, level?: GuideLevel): GuidePrefs {
+  if (id === "guide-level") return withLevel(prefs, level ?? prefs.level);
+  if (id === "play-tutorial" || id === "aspect-lessons") return prefs;
+  return prefs.silencedWarnings.includes(id) ? unsilenceWarning(prefs, id) : silenceWarning(prefs, id);
+}
+
+/** The text an action or toggle row after "Guide level" actually renders — `row.unavailable ?? row.detail` for an action row (both scenes' own layout pass this to `settingsLayout`/`pauseLayout` to size the row), `row.detail` for a toggle. */
+export function guideRowDetailOf(row: GuideActionRowInfo | GuideToggleRowInfo): string {
+  return row.kind === "action" ? (row.unavailable ?? row.detail) : row.detail;
 }

@@ -18,7 +18,12 @@ export type GuideLevel = "full" | "hints" | "off";
 /** One silence toggle per hint heuristic (docs/guided-mode.md §5.2). */
 export type SilencedWarningKey = "schemeFinish" | "lethal" | "flipDanger" | "wastedPay";
 
-const SILENCED_WARNING_KEYS: readonly SilencedWarningKey[] = ["schemeFinish", "lethal", "flipDanger", "wastedPay"];
+export const SILENCED_WARNING_KEYS: readonly SilencedWarningKey[] = [
+  "schemeFinish",
+  "lethal",
+  "flipDanger",
+  "wastedPay",
+];
 
 export interface TutorialProgress {
   /** Ids of the scripted lessons completed this far (docs/guided-mode.md §5.1's five lessons). */

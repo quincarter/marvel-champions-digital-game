@@ -27,10 +27,21 @@ const TABLE_DETAILS = [
   "Sound isn't built yet (PLAN.md Phase 8).",
 ];
 
+/** `guideRowInfoOf`'s own rows after "Guide level" (docs/guided-mode.md §4 G2b) — the real detail strings. */
+const GUIDE_ROW_DETAILS = [
+  "A short scripted first game against Rhino with Spider-Man — five lessons long.",
+  "What each aspect is for, when to pick it, and a couple of signature cards.",
+  "Catches ending your turn when the main scheme would finish next villain phase.",
+  "Catches ending your turn in hero form with no ready defender against a lethal-looking attack.",
+  "Catches flipping to (or staying in) alter-ego when the scheme would complete from it.",
+  "Catches a payment that spends more than a card costs, or skips a cheaper card that would cover it.",
+];
+
 const input = (keywordCount: number): PauseLayoutInput => ({
   keywordCount,
   quickReferenceDetails: QUICK_REFERENCE_DETAILS,
   tableDetails: TABLE_DETAILS,
+  guideRowDetails: GUIDE_ROW_DETAILS,
 });
 
 describe("pauseLayout", () => {
@@ -122,7 +133,7 @@ describe("pauseLayout", () => {
     test("every row is at least as tall as its own wrapped detail text needs", () => {
       const layout = pauseLayout({ x: 0, y: 0, width: 390, height: 844 }, input(0));
       if (layout.kind !== "phone") throw new Error("expected phone");
-      for (const rows of [layout.quickReferenceRows, layout.tableRows]) {
+      for (const rows of [layout.quickReferenceRows, layout.lowerContent.tableRows, layout.lowerContent.guideRows]) {
         for (let i = 0; i + 1 < rows.length; i++) {
           expect(rows[i]!.y + rows[i]!.height).toBeLessThanOrEqual(rows[i + 1]!.y);
         }
@@ -151,6 +162,20 @@ describe("pauseLayout", () => {
       expect(layout.saveQuit.x + layout.saveQuit.width).toBeLessThanOrEqual(layout.concede.x + 0.001);
     });
 
+    test("the lower (Table+Guide) viewport sits below Quick reference, bounded above the footer", () => {
+      const layout = pauseLayout({ x: 0, y: 0, width: 390, height: 844 }, input(0));
+      if (layout.kind !== "phone") throw new Error("expected phone");
+      expect(layout.lowerContent.tableRows).toHaveLength(TABLE_DETAILS.length);
+      expect(layout.lowerContent.guideRows).toHaveLength(GUIDE_ROW_DETAILS.length);
+      const qrLast = layout.quickReferenceRows[layout.quickReferenceRows.length - 1]!;
+      expect(layout.lowerViewport.y).toBeGreaterThanOrEqual(qrLast.y + qrLast.height);
+      expect(layout.lowerViewport.y + layout.lowerViewport.height).toBeLessThanOrEqual(layout.footer.y + 0.001);
+      // At a real phone height, Quick reference alone already uses a fair share of the panel, so the Table rows
+      // and the Guide group's own six rows scroll rather than push the footer off screen (the problem this
+      // viewport exists for — found in browser verification, 2026-09-26).
+      expect(layout.lowerViewport.height).toBeLessThan(layout.lowerContent.totalHeight);
+    });
+
     test("grows to fit however many rows either list asks for", () => {
       const six = Array.from({ length: 6 }, (_unused, i) => `Row ${i}.`);
       const two = Array.from({ length: 2 }, (_unused, i) => `Row ${i}.`);
@@ -164,7 +189,7 @@ describe("pauseLayout", () => {
       if (emptyLayout.kind !== "phone" || sixTwoLayout.kind !== "phone") throw new Error("expected phone");
       expect(emptyLayout.quickReferenceRows).toHaveLength(0);
       expect(sixTwoLayout.quickReferenceRows).toHaveLength(6);
-      expect(sixTwoLayout.tableRows).toHaveLength(2);
+      expect(sixTwoLayout.lowerContent.tableRows).toHaveLength(2);
     });
   });
 });

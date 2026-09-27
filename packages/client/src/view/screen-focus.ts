@@ -255,6 +255,8 @@ export type PauseFocusInput =
       readonly kind: "phone";
       readonly quickReferenceIds: readonly string[];
       readonly tableRowIds: readonly string[];
+      /** The Guide group's own stop ids after "Table" (docs/guided-mode.md §4 G2b): `"guide-level:<value>"` for each segment, then each action/toggle row's own id, in draw order. */
+      readonly guideRowIds?: readonly string[];
       readonly confirmingConcede: boolean;
     };
 
@@ -275,6 +277,7 @@ export function pauseFocusOrder(input: PauseFocusInput): readonly string[] {
     "search",
     ...input.quickReferenceIds.map((id) => `quick:${id}`),
     ...input.tableRowIds.map((id) => `table:${id}`),
+    ...(input.guideRowIds ?? []).map((id) => `guide:${id}`),
     ...(input.confirmingConcede
       ? ["concede-confirm-yes", "concede-confirm-cancel"]
       : ["resume", "save-quit", "concede"]),
