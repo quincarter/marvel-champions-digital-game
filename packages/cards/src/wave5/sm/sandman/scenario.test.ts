@@ -1,0 +1,80 @@
+import { encounterSetId } from "@mc/content";
+import { activeEncounterDeck, activeVillain, createGame, replay } from "@mc/engine";
+import { describe, expect, it, test } from "vitest";
+import { inst, instancesOf, playerOf, P1 } from "../../../testing/harness.js";
+import { playToOutcome } from "../../../testing/driver.js";
+import { WAVE5_DEPS } from "../../index.js";
+import { wave5Scenario } from "../../setup.js";
+import { ghostSpiderScenario } from "../ghost-spider/support.js";
+
+/**
+ * The Sandman scenario's own setup and two full games (docs/phase7-wave5.md §2.2, wave 5 step 3): Ghost-Spider's
+ * own real precon (`ghost-spider`) and a Core precon (`core-captain-marvel-leadership`), each played headlessly by
+ * the card-name-agnostic greedy driver to a real outcome, then replayed to a deep-equal final state — the
+ * `wave4/mts/thanos-e2e.test.ts` shape.
+ */
+describe("wave5Scenario('sandman')", () => {
+  it("standard: Sandman (I)-(II); his own set + City in Chaos + Standard, one modular; City Streets in play with 4 sand counters", () => {
+    const config = ghostSpiderScenario("sandman", {
+      seed: 1,
+      modularSetIds: [encounterSetId("bomb_scare")],
+    });
+    const created = createGame(config, WAVE5_DEPS);
+    if (!created.ok) throw new Error(created.error.message);
+    const state = created.state;
+    expect([activeVillain(state).stageIndex, activeVillain(state).lastStageIndex]).toEqual([0, 1]);
+    const streets = instancesOf(state, "27065")[0];
+    expect(streets).toBeDefined();
+    expect(state.villainArea).toContain(streets);
+    expect(inst(state, streets!).counters["sand"]).toBe(4);
+    // The nemesis and obligation sets are set aside for Ghost-Spider.
+    expect(playerOf(state, P1).setAside.length).toBeGreaterThan(0);
+    // Sandman + City in Chaos + Standard + Bomb Scare.
+    expect(activeEncounterDeck(state).deck.length).toBeGreaterThan(0);
+  });
+
+  it("expert: Sandman starts at stage (II)-(III)", () => {
+    const config = ghostSpiderScenario("sandman", {
+      seed: 2,
+      difficulty: "expert",
+      modularSetIds: [encounterSetId("bomb_scare")],
+    });
+    const created = createGame(config, WAVE5_DEPS);
+    if (!created.ok) throw new Error(created.error.message);
+    expect([activeVillain(created.state).stageIndex, activeVillain(created.state).lastStageIndex]).toEqual([1, 2]);
+  });
+
+  it("refuses The Sinister Six (multipleVillains) — not built by this scaffold", () => {
+    expect(() => wave5Scenario("sinister-six", { seed: 1, players: [{ starterDeckId: "ghost-spider" }] })).toThrow(
+      /multipleVillains/,
+    );
+  });
+});
+
+test("Sandman, solo: Ghost-Spider", () => {
+  const config = ghostSpiderScenario("sandman", { seed: 2026, modularSetIds: [encounterSetId("bomb_scare")] });
+  const created = createGame(config, WAVE5_DEPS);
+  if (!created.ok) throw new Error(`setup failed: ${created.error.message}`);
+  const result = playToOutcome(created.state, WAVE5_DEPS);
+  expect(result.outcome).not.toBeNull();
+  expect(result.rounds).toBeGreaterThanOrEqual(1);
+  const replayed = replay(result.session.log, WAVE5_DEPS);
+  expect(replayed.ok).toBe(true);
+  if (replayed.ok) expect(replayed.state).toEqual(result.session.state);
+}, 120_000);
+
+test("Sandman, solo: a Core precon (Captain Marvel / Leadership)", () => {
+  const config = wave5Scenario("sandman", {
+    seed: 2027,
+    players: [{ starterDeckId: "core-captain-marvel-leadership" }],
+    modularSetIds: [encounterSetId("bomb_scare")],
+  });
+  const created = createGame(config, WAVE5_DEPS);
+  if (!created.ok) throw new Error(`setup failed: ${created.error.message}`);
+  const result = playToOutcome(created.state, WAVE5_DEPS);
+  expect(result.outcome).not.toBeNull();
+  expect(result.rounds).toBeGreaterThanOrEqual(1);
+  const replayed = replay(result.session.log, WAVE5_DEPS);
+  expect(replayed.ok).toBe(true);
+  if (replayed.ok) expect(replayed.state).toEqual(result.session.state);
+}, 120_000);
