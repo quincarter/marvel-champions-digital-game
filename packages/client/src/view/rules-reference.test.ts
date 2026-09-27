@@ -63,7 +63,7 @@ describe("rulesGlossaryOf", () => {
     expect(quickstrike?.conflict).toBeDefined();
   });
 
-  test("always includes the basic-concept entries (guided mode G3a), unfiltered by the table's cards", async () => {
+  test("leaves the basic-concept entries out of the default table scope (Pause's own cards/count)", async () => {
     const store = new SessionStore(new LocalEngineHost());
     await store.start({
       scenarioId: "rhino",
@@ -73,8 +73,25 @@ describe("rulesGlossaryOf", () => {
     });
     const ids = rulesGlossaryOf(store.state.game!, POOL_DEPS).map((entry) => entry.id);
     for (const id of ["threat", "mainScheme", "sideScheme", "thwart", "attack", "villainPhase", "ally", "aspect"]) {
+      expect(ids).not.toContain(id);
+    }
+  });
+
+  test("includes the basic-concept entries (guided mode G3a) when asked, after keywords/statuses in the sort", async () => {
+    const store = new SessionStore(new LocalEngineHost());
+    await store.start({
+      scenarioId: "rhino",
+      difficulty: "standard",
+      players: [{ starterDeckId: "core-spider-man-justice" }],
+      seed: 2026,
+    });
+    const entries = rulesGlossaryOf(store.state.game!, POOL_DEPS, "", { includeConcepts: true });
+    const ids = entries.map((entry) => entry.id);
+    for (const id of ["threat", "mainScheme", "sideScheme", "thwart", "attack", "villainPhase", "ally", "aspect"]) {
       expect(ids).toContain(id);
     }
+    const sorted = [...entries].sort((a, b) => a.displayName.localeCompare(b.displayName));
+    expect(entries).toEqual(sorted);
   });
 
   test("every entry's cardRefs, when non-empty, point at real cards in the table's own cardPool", async () => {

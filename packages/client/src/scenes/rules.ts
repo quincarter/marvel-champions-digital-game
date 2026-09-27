@@ -457,7 +457,7 @@ export class RulesOverlay extends Phaser.Scene {
   #drawGlossaryTab(rect: Rect, game: GameState | null, stops: Map<string, FocusStop>): readonly string[] {
     const entries =
       this.#scope === "table" && game
-        ? rulesGlossaryOf(game, POOL_DEPS, this.#query)
+        ? rulesGlossaryOf(game, POOL_DEPS, this.#query, { includeConcepts: true })
         : rulesGlossaryPoolOf(POOL_CARDS, this.#query);
     if (entries.length === 0) {
       this.add.text(

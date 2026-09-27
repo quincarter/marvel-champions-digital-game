@@ -31,8 +31,13 @@
  * **Basic concepts** (guided mode G3a) are `@mc/content`'s `kind: "concept"` glossary
  * entries — threat, main scheme, thwart, and the rest of a first-time player's starting
  * vocabulary. They're never printed on a card and never table/instance state, so unlike a
- * keyword or status they're shown unconditionally in both scopes (`CONCEPT_ENTRIES` below),
- * the same way the three table-state entries are.
+ * keyword or status they don't belong to "what's on your table right now" the way
+ * `tableAssociationsOf` means it — Pause's own "on the table" cards and count
+ * (`rulesGlossaryOf`'s default) leave them out. The Rules reference screen's own glossary
+ * *tab*, though, wants them alongside everything else a first-time player might search for
+ * regardless of scope — it opts in via `rulesGlossaryOf`'s `includeConcepts` option
+ * (`CONCEPT_ENTRIES` below) — and `rulesGlossaryPoolOf`'s "all rules" scope always includes
+ * them too, the same way the three table-state entries are always included there.
  */
 import type { AnyCard, KeywordInstance, KeywordName } from "@mc/content";
 import { GLOSSARY_ENTRIES, glossaryEntry, type GlossaryEntry, type GlossarySource } from "@mc/content";
@@ -269,8 +274,18 @@ export function cardKeywordNames(card: AnyCard): ReadonlySet<KeywordName> {
  * a thumbnail opens Inspect on the live card), filtered by `query` (case- and accent-insensitive
  * substring match over the term, its definition, or an associated card's name — empty matches
  * everything).
+ *
+ * By default this is Pause's own "on the table" scope, so a basic concept (never printed, never
+ * table state) is left out of both its cards and its count — pass `{ includeConcepts: true }`
+ * (the Rules reference screen's glossary tab does) to fold `CONCEPT_ENTRIES` in too, listed
+ * alongside everything else once the result is sorted below.
  */
-export function rulesGlossaryOf(state: GameState, deps: EngineDeps, query = ""): readonly RulesEntry[] {
+export function rulesGlossaryOf(
+  state: GameState,
+  deps: EngineDeps,
+  query = "",
+  options?: { readonly includeConcepts?: boolean },
+): readonly RulesEntry[] {
   const assoc = tableAssociationsOf(state, deps);
   const entries: RulesEntry[] = [];
   for (const [name, refs] of assoc.keywords) {
@@ -281,7 +296,8 @@ export function rulesGlossaryOf(state: GameState, deps: EngineDeps, query = ""):
     const entry = glossaryEntry(status);
     if (entry) entries.push(toRulesEntry(entry, refs));
   }
-  entries.push(...TABLE_STATE_ENTRIES, ...CONCEPT_ENTRIES);
+  entries.push(...TABLE_STATE_ENTRIES);
+  if (options?.includeConcepts) entries.push(...CONCEPT_ENTRIES);
   entries.sort((a, b) => a.displayName.localeCompare(b.displayName));
   return filterByQuery(entries, query);
 }
