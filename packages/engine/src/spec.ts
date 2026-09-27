@@ -605,8 +605,14 @@ export type ValueSpec =
   | { readonly kind: "starIcons"; readonly cards: TargetRef }
   /** A player's hand size; `printed` ignores modifiers ("draw up to your printed hand size"). */
   | { readonly kind: "handSize"; readonly player: PlayerRef; readonly printed?: boolean }
-  /** Cards in a player's hand. */
-  | { readonly kind: "handCount"; readonly player: PlayerRef }
+  /**
+   * Cards in a player's hand, optionally filtered: "where X is equal to the number of identity-specific cards in the
+   * engaged player's hand" (Evil Doppelgänger 27154) is `{ player: engagedWith(self), filter: { identitySetOf:
+   * each } }`. Read live from the hand every time the value is resolved, so a constant stat bonus
+   * tracks cards entering and leaving the hand (docs/phase7-wave5.md §4.1 Q69). The filter is matched against the
+   * hand cards the way `scenarioAreaCount`/`victoryDisplayCount` match their out-of-play piles.
+   */
+  | { readonly kind: "handCount"; readonly player: PlayerRef; readonly filter?: TargetQuery }
   /**
    * Cards in a player's deck — the player deck only, never a separate deck (`PlayerState.separateDecks`) or the
    * encounter deck. The sibling of `handCount`, and the measure "half of their deck" needs: pair it with `scaled`'s

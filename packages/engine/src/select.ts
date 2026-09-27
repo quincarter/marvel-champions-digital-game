@@ -1374,8 +1374,11 @@ export function resolveValue(
       return seen.size;
     }
     case "handCount": {
+      // docs/phase7-wave5.md §4.1 Q69: no player (an unengaged minion's "engaged player") counts 0.
       const [playerId] = resolvePlayers(state, value.player, context);
-      return playerId ? (getPlayer(state, playerId)?.hand.length ?? 0) : 0;
+      const hand = playerId ? (getPlayer(state, playerId)?.hand ?? []) : [];
+      const filter = value.filter;
+      return filter ? hand.filter((id) => matchesQuery(state, id, filter, { ...context, deps })).length : hand.length;
     }
     case "scenarioAreaCount": {
       const ids = state.scenarioAreas?.[value.name] ?? [];
