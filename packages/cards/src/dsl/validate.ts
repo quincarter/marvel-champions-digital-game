@@ -329,7 +329,11 @@ function bindsOf(effect: EffectSpec, scope: Scope): void {
       scope.vars.add(`${effect.slot}.count`);
       return;
     // The cards that entered play and `<bind>.count` (docs/phase7-wave4.md §3.59).
+    // `addVillain` binds the same shape (the villains now in play, and how many): "If no villain was put into play
+    // this way" (docs/phase7-wave5.md §3.1) — the Sinister Six's "Ambush!" reads its own bind right back with
+    // `setActiveVillain(chosen(bind))`, which needs the slot registered here.
     case "putIntoPlay":
+    case "addVillain":
       if (effect.bind) {
         scope.slots.add(effect.bind);
         scope.vars.add(`${effect.bind}.count`);

@@ -61,10 +61,10 @@ describe("wave5Scenario('sandman')", () => {
     expect(inDeck("expert").length).toBeGreaterThan(0);
   });
 
-  it("refuses The Sinister Six (multipleVillains) — not built by this scaffold", () => {
-    expect(() => wave5Scenario("sinister-six", { seed: 1, players: [{ starterDeckId: "ghost-spider" }] })).toThrow(
-      /multipleVillains/,
-    );
+  it("builds The Sinister Six (multipleVillains) too — its own scenario tests live in wave5/sm/sinister-six/", () => {
+    expect(() =>
+      wave5Scenario("sinister-six", { seed: 1, players: [{ starterDeckId: "ghost-spider" }] }),
+    ).not.toThrow();
   });
 });
 
