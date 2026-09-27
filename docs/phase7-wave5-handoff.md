@@ -22,10 +22,10 @@ from running several agents in one worktree. Updated 2026-09-27.
 - **Agent branches in flight (seventh session, 2026-09-27 ~20:20 UTC):** each agent pushes its own branch after
   every commit; the main session reviews, reruns the tests and cherry-picks onto `feature/wave-5`, then deletes the
   branch. If a session ends first, these hold the unmerged work (untested until reviewed):
-  - `wip/wave5-venom-goblin-integration`: the Venom Goblin encounter set 27120–27126 on top of the villain (already
-    on `feature/wave-5`, 740537e/54222d3), with 6 tests being fixed that only fail with both scripted.
+  - None right now. Next: the Q71 engine change (step one places threat on every main scheme before any completion
+    resolves; user chose "All first"), then the sm modular sets.
   - Already on `feature/wave-5`, safe to ignore or delete: `wip/wave5-cannot-thwart-side`,
-    `wip/wave5-venom-goblin-villain`, `wip/wave5-venom-goblin-encounter`, `wip/wave5-guerrilla-tactics`, `wip/wave5-venom-goblin-setup`, `wip/wave-5-ambush-fallback` (the sixth
+    `wip/wave5-venom-goblin-villain`, `wip/wave5-venom-goblin-encounter`, `wip/wave5-venom-goblin-integration`, `wip/wave5-guerrilla-tactics`, `wip/wave5-venom-goblin-setup`, `wip/wave-5-ambush-fallback` (the sixth
     session's Ambush! fallback, cherry-picked 683bb5c/d3ab39a), `wip/wave-5-five-villains` (superseded by 13f9b13).
     The cloud proxy refuses remote branch deletion, so they stay until someone deletes them on GitHub.
 - **Order of the rest:** the PR body's "Remaining plan".
