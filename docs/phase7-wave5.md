@@ -1151,6 +1151,79 @@ work** (status in the last column).
 | 64  | **Data drift (no ruling needed): regenerating `silk` offline changes Silk Sense Overload 52028's `abilities`** — the committed generated file and its curation disagree (predates wave 5). Regenerate and review the silk pack once, on its own.                                                                                                                                                                                                                                                                                                                                                                    | open                                                       |
 | 65  | **Primitive (no ruling needed): an attack records each character's damage taken** (`damageTaken.<instanceId>` results: indirect shares and overkill spill included; prevented, reduced-away or tough-absorbed damage not), read by `Predicate eventDamageTakenAtLeast` / DSL `eventDamageTaken`, for Sandman's Sand Blast / Sand Wave (27061–27063) "If your identity takes any amount of damage from that attack" (indirect damage put on an ally; overkill spilled onto the identity). The spill still stays out of the attack's `damage`/`damaged`/`defeated` totals.                                            | built d3ee180a, 4fa32823                                   |
 | 66  | **Primitive (no ruling needed): boost changes scoped to the activation an effect starts** — `enemyAttack`/`enemyScheme` gain `extraBoostCards` and `boostIconsEach` ("each boost card turned faceup during that activation gets +N"), seeded on the activation's event frame like `atkBonus`; `modifyAttack.boostIconsEach` is the in-progress form. For Swinging Assault (27168; its `modifyAttack` after the attack came once the attack had resolved, RRG 1.8 "Activation", p. 6) and Biting Retort (27082, pinned `it.fails`). No activation, nothing dealt or kept (RRG 1.8 "Boost, Boost Icon", p. 11).       | built 0ffe96f0, a931221d                                   |
+| 67  | **Ruling (user, 2026-09-27): "X activates against you / [a player]" resolves like a villain-phase activation:** X attacks that player in hero form, schemes against them in alter-ego form, read as it resolves (RRG 1.8 "Activation", p. 6: card-caused attacks and schemes "are also considered activations"); "when/after X activates against you" matches both. `EffectSpec enemyActivation` (DSL `enemyActivates`), `on.enemyActivates(by, { againstYou })`. Wave 5: Biting Retort 27082, 1B 27076b. Older scripts: "Q67 survey" below.                                                                        | built 80212f6c, addd0690; 11 older files open              |
+
+#### Q67 survey: older scripts to convert (not changed yet)
+
+Surveyed 2026-09-27 with `grep -i "activates against"` over `packages/cards/src` and `packages/content/src/data/*/cards.ts`.
+Convert in small batches, one file per commit, updating the tests that pin the old reading.
+
+**Changes behavior (11 files).** Effects that start an activation become `enemyActivates(enemy, { against, … })`:
+
+- `wave2/toafk/kang-encounter-set.ts`: Ancient Grudge 11051 is `enemyAttack(Kang (Master of Time), { additionalResolution })`,
+  which always attacks. In alter-ego form it should scheme. Test: `kang-encounter-set.test.ts`.
+- `wave2/trors/crossbones.ts`: Crossbones' Assault 04070 is an `enemyAttack` of the villain against
+  `defeatingPlayer` (with `additionalResolution`), which always attacks. It should scheme against a defeating player
+  in alter-ego form.
+- `wave2/scw/obligation-nemesis.ts`: Chaos Manipulation 15027 is `enemyAttack(chosen("luminous"))`, which always
+  attacks. Test: `scw/obligation-nemesis.test.ts`.
+- `wave4/mts/tower-defense.ts`: Proxima's Power 21106 and Corvus's Cunning 21107 are `enemyAttack(… { additionalResolution })`,
+  which always attack. Their boosts already set both `atkBonus` and `threatBonus`, so they work for either activation.
+  Test: `tower-defense.test.ts`.
+- `wave4/mts/loki.ts`: The Trickster 21176 is `enemyScheme(theVillain)`, which always schemes. It should attack in hero
+  form. `wave4-primitives.test.ts` "§3.7 Loki" pins the scheme.
+
+Triggers "when/after X activates against you" become `on.enemyActivates(by, { againstYou: true })`. Today they fire on
+attacks only, so they miss X's schemes against an alter-ego:
+
+- `wave2/trors/absorbing-man.ts`: Absorbing Man (III) 04078 forced response, `on.villainAttacks({ againstYou })`.
+- `wave2/scw/obligation-nemesis.ts`: Luminous 15025 forced response, `on.enemyAttacks("self", { againstYou })`.
+- `wave4/mts/spectrum-obligation-nemesis.ts`: Radioactive Man 21027 forced response, `on.enemyAttacks("self", { againstYou })`.
+- `wave4/mts/adam-warlock-obligation-nemesis.ts`: The Magus 21067 forced response, `on.enemyAttacks("self", { againstYou })`.
+  Test: `adam-warlock-obligation-nemesis.test.ts`.
+- `wave4/mts/ebony-maw.ts`: Ebony Maw 21071 (all stages) forced interrupt, `on.villainAttacks({ againstYou })`.
+- `wave4/hood/brothers-grimm.ts`: Brothers Grimm 24018 forced interrupt, `on.enemyAttacks("self", { againstYou })`, and
+  the attachments Blackbird Pellets, Corrosive Egg Bomb, Paralytic Stardust and Unbreakable Thread (24019–24022,
+  `afterAttachedActivates`), `on.enemyAttacks("host", { againstYou })`.
+- `wave4/hood/hood.ts`: Established Dominance 24007 forced response, `on.villainAttacks({ againstYou })`.
+
+**Already correct. Optional tidy-up only, no behavior change:**
+
+- These branch with `ifThen(isHero(player), enemyAttack, enemyScheme)`, which is what `enemyActivates` does:
+  `wave3/ron/kree-fanatic.ts` Bring the Hammer Down 90004, `wave4/mts/ebony-maw.ts` Blood to Spare 21088 and
+  `wave4/hood/wrecking-crew.ts` Combined Effort 24069 (test: `wrecking-crew.test.ts`).
+- These triggers already match both attacks and schemes: `wave3/gmw/ronan.ts` Ronan the Accuser 16103
+  (`on.enemySchemesOrAttacks("self")`), `wave3/gmw/nebula.ts` Nebula 16088–16090 ("initiates an activation against
+  you"), `wave3/gmw/badoon.ts` Badoon Engineer 16065 (a raw `["minionEngaged", "enemyAttack", "enemyScheme"]`
+  pattern) and `wave4/mts/infinity-gauntlet.ts` Infinity Gauntlet 21129 (`after.enemySchemesOrAttacks("host")` with
+  `usesAttackedPlayer`).
+- `dsl/wave5-primitives.test.ts` §3.6 still shows 1B on `on.enemyActivating` ("would activate", §3.2). It is a DSL
+  shape example, not the script.
+
+**Check while converting:** Ancient Grudge, Crossbones' Assault, Proxima's Power and Corvus's Cunning mark their
+activation `additionalResolution`, as Biting Retort did before addd0690. That flag is meant for one attack resolved
+against more players (Whirlwind). It silences the attacker's own "when this enemy attacks" abilities and the villain
+audit's boost-card count. Each of these cards starts a new activation, so the flag is probably wrong. Confirm per card.
+
+**Not scripted yet (use the primitive when their packs are scripted):** `bp` Joystick 51039, Extreme Risk 51042;
+`falcon` Techno 53042; `gambit` Acolyte Frenzy 37035; `iceman` Life Drain 46031; `magneto` Angry Acolyte 49032, Power
+and Decadence 49042; `mojo` Supporting Actor 39029, Cultist 39049, Magneto 2.6 39056; `ncrawler` 48038; `nova` Armadillo
+28029; `psylocke` Chimera 41026; `silk` Growing Strong 52037; `spdr` Electro 31032; `storm` Astral Attack 36039; `winter`
+High-Tech Armament 54030, Whiteout 54037; `wolv` Seeking Vengeance 35035; `wonder_man` Scythe Strike 58028, Death Cannot
+Die 58029. Wave 5 `sm`: Venom Goblin 27113, Advanced Glider 27136 ("it activates against you again"), Remote
+Navigation 27141, Doctor Octopus 27158, Electro 27159, Vulture 27163.
+
+**Worded "attacks you". These stay attacks (`enemyAttack` / `on.enemyAttacks`) and are not part of Q67:** `core` 01078
+01106 01122 01129 01130 01134 01145 01187 01189; `gob` 02021 02022 02031 02034 02038 02039 02042; `trors` 04064 04086
+04105 04120 04138 04146 04150; `msm` 05013; `twc` 07005 07009 07012 07013 07017 07021 07024 07028 07030 07036 07038
+07040 07044 07049 07050 07051 07053 07055 07057; `drs` 09028; `hlk` 10015 10016 10026; `toafk` 11001 11006 11026 11031
+11034 11039; `wsp` 13030; `scw` 15030; `gmw` 16078 16086 16102 16110 16116 16117 16134 16148; `drax` 19003 19007 19029;
+`mts` 21092 21120 21150; `nebu` 22031; `hood` 24013 24034 24036 24044 24047 24048 24051 24054 24068; `vision` 26020
+26029; `sm` 27013 27029 27061 27072 27137 27138 27139 27151 27160 27168; `nova` 28023 28031; `spiderham` 30006;
+`cyclops` 33031; `wolv` 35028; `storm` 36012; `gambit` 37011 37029; `mojo` 39010 39021 39057 39068; `angel` 42016 42027;
+`deadpool` 44047; `iceman` 46027 (and Life Drain 46031's "attacks you" half); `jubilee` 47024; `ncrawler` 48029;
+`magneto` 49028 49031; `bp` 51040; `silk` 52019. These come from a text match on "attacks you" and include "when X attacks
+you" triggers. Every one of them names an attack.
 
 ### 4.2 The questions as asked
 
