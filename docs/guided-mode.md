@@ -266,7 +266,7 @@ A fresh Claude session can pick this up from this file alone.
   pointer, and put a screenshot beside its tile.
 - **Commits:** as the repo's git user, with no Claude co-author trailer. Every change carries a changie fragment.
 
-**In flight:** G4a (`McGuideCallout`).
+**In flight:** G4a (`McGuideCallout`) and G5a (tutorial config), side by side.
 
 ## 7. Prior art: the parked prototype
 
