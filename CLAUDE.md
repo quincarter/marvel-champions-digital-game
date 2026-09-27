@@ -60,13 +60,15 @@ See [PLAN.md](PLAN.md) for the build roadmap and current phase.
 - **Shared-index commit discipline** (a partial stage once broke HEAD): stage only your own hunks (`git apply --cached`
   a patch when a file mixes agents), read `git diff --cached` right before committing, commit with an explicit
   pathspec (`git commit -m … -- <paths>`), then check `git diff HEAD -- <your files>` shows nothing of yours left.
-  **Whenever another agent has uncommitted edits in the worktree — and always when you staged a partial file — commit
-  with `--no-verify`** after running oxlint/oxfmt on your own files yourself: the pre-commit hook's lint-staged
-  re-stages files from the working tree, which sweeps other agents' lines into your commit (it once committed an
-  import of a file that didn't exist yet). Commit a new module in the same commit as the line that imports it. Check
-  `git branch --show-current` before committing (a detached HEAD once stranded commits). Never `git stash`, `git add
--A`, `git checkout <sha>` / `git switch --detach`, `git checkout -- <file>` on another agent's file, or repo-wide
-  `pnpm fmt`.
+  **While more than one agent works in a worktree, every commit uses `--no-verify`**, after running
+  `pnpm exec oxlint` / `pnpm exec oxfmt --check` on your own files yourself. The pre-commit hook's lint-staged hides
+  and restores unstaged changes and re-stages from the working tree: it has swept other agents' lines into a commit
+  (an import of a file that didn't exist yet) and, on 2026-09-26, reverted other agents' uncommitted edits and a new
+  file while it ran. Commit a new module in the same commit as the line that imports it. Check
+  `git branch --show-current` before committing (a detached HEAD once stranded commits). Never `git stash`,
+  `git add -A`, `git checkout <sha>` / `git switch --detach`, `git checkout -- <file>` on another agent's file,
+  `git reset`, `git clean`, or repo-wide `pnpm fmt`. **No debugging edits in shared files** (a `console.log` in an
+  engine file): debug in a scratch test file of your own and delete it before committing.
 - **Agents don't edit the wave spec's status or open questions**; they report, and the main session verifies (runs
   the tests, reads the diff) before flipping a status or ticking the PR. Rules questions go to the user as short
   multiple-choice prompts with a recommended default; answers are recorded in the spec's §4.1 table and the PR.
