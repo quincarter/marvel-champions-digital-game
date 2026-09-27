@@ -67,7 +67,7 @@ import type {
 import { characterTitledAs, identityCardTitledAs } from "./titles.js";
 import { STATUS_NAMES, type Form, type GameAreaState, type GameState } from "./state.js";
 import type { TriggerEvent } from "./trigger-events.js";
-import { eventSubjects } from "./trigger-events.js";
+import { damageTakenKey, eventSubjects } from "./trigger-events.js";
 
 /** Minion card ids per encounter set, per card pool (a pool never changes during a game, so this is read once). */
 const minionsBySetCache = new WeakMap<GameState["cardPool"], ReadonlyMap<string, readonly string[]>>();
@@ -1521,6 +1521,12 @@ export function evaluate(state: GameState, predicate: Predicate, context: Effect
       return predicate.of.some((p) => evaluate(state, p, context));
     case "eventResultAtLeast":
       return (context.event?.results?.[predicate.key] ?? 0) >= predicate.amount;
+    case "eventDamageTakenAtLeast": {
+      const results = context.event?.results;
+      if (!results) return false;
+      const ids = resolveRef(state, predicate.of, context);
+      return ids.reduce((sum, id) => sum + (results[damageTakenKey(id)] ?? 0), 0) >= predicate.amount;
+    }
     case "hasTrait": {
       const [id] = resolveRef(state, predicate.of, context);
       return id ? traitsOf(state, id, context.deps).includes(predicate.trait) : false;

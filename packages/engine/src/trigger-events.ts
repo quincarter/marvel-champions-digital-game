@@ -20,6 +20,12 @@ export type TriggerEventBody =
       readonly fromAttack: boolean;
       /** The attack/activation event frame this damage belongs to; damage/defeat results are reported there. */
       readonly parentFrameId?: FrameId | null;
+      /**
+       * Overkill spill (RRG 1.8 "Overkill", p. 31): the attack frame whose defeated target this excess spilled from. The
+       * spill reports only its per-character `damageTaken.<instanceId>` result there (docs/phase7-wave5.md §4.1 Q65),
+       * not the attack's `damage`/`damaged`/`defeated` totals, which count the attacked target's damage alone.
+       */
+      readonly spilledFromFrameId?: FrameId | null;
       /** This attack has overkill even if its source lacks the keyword (Relentless Assault, Charge). */
       readonly overkill?: boolean;
       /** "This damage ignores tough status cards" (Lightning Strike, errata RRG 1.8 p. 65): taken through a tough status card, which stays. */
@@ -619,9 +625,17 @@ export type TriggerEventBody =
 /**
  * `results` is attached when the event's response window opens: what the event
  * actually did (`amount`, and for attacks/activations `damage`, `damaged`,
- * `defeated`, `undefended`, `threatPlaced`, `threatRemoved`).
+ * `defeated`, `undefended`, `threatPlaced`, `threatRemoved`, and one
+ * `damageTaken.<instanceId>` per character that took damage, `damageTakenKey`).
  */
 export type TriggerEvent = TriggerEventBody & { readonly results?: Vars };
+
+/**
+ * The result key an attack/activation records one character's damage taken under (docs/phase7-wave5.md §4.1 Q65):
+ * every share of its damage the character actually took, an indirect attack's assignment and an overkill spill
+ * included, after prevention, reductions and tough. Summed if the character took damage from it more than once.
+ */
+export const damageTakenKey = (instanceId: InstanceId): string => `damageTaken.${instanceId}`;
 
 export type TriggerEventKind = TriggerEvent["kind"];
 

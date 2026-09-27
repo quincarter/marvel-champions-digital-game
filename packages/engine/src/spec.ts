@@ -722,6 +722,13 @@ export type Predicate =
   | { readonly kind: "or"; readonly of: readonly Predicate[] }
   /** A result of the triggering event is at least `amount` ("if this attack dealt damage"). */
   | { readonly kind: "eventResultAtLeast"; readonly key: string; readonly amount: number }
+  /**
+   * The triggering attack/activation's `results` record at least `amount` damage taken by the card(s) `of` names,
+   * summed (docs/phase7-wave5.md §4.1 Q65): "if your identity takes any amount of damage from that attack", when an
+   * indirect attack's damage may be divided among several characters and overkill may spill past the attacked one.
+   * Only damage taken counts: not prevented, not reduced away, not absorbed by a tough status card.
+   */
+  | { readonly kind: "eventDamageTakenAtLeast"; readonly of: TargetRef; readonly amount: number }
   /** A result of the attack/activation in progress ("if the villain is making an undefended attack" → `undefended`). */
   | { readonly kind: "currentAttack"; readonly key: string; readonly atLeast: number }
   /** "If you have the Aerial trait" — includes traits gained from abilities and lasting effects. */

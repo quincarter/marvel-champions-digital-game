@@ -52,6 +52,7 @@ import {
 import { currentActivationFrameId, type StackFrame, type Vars } from "../stack.js";
 import type { GameState } from "../state.js";
 import type { TriggerEvent } from "../trigger-events.js";
+import { damageTakenKey } from "../trigger-events.js";
 import type { DefeatFollowUp, EffectSpec } from "../spec.js";
 import {
   applyMainSchemeCompleting,
@@ -574,6 +575,7 @@ export function beginDefeat(
       amount: event.overkill.amount,
       sourceInstanceId: event.overkill.sourceInstanceId,
       fromAttack: true,
+      ...(event.parentFrameId ? { spilledFromFrameId: event.parentFrameId } : {}),
     };
   }
   return {
@@ -805,6 +807,12 @@ export function applyDamage(
   });
   addFrameVars(ctx, frameId, { amount: taken });
   addFrameVars(ctx, event.parentFrameId, { damage: taken, damaged: 1 });
+  // Per-character damage taken (docs/phase7-wave5.md §4.1 Q65): "if your identity takes any amount of damage from that
+  // attack" when an indirect attack's damage was divided among several characters, or overkill spilled onto the
+  // identity. Only damage actually taken lands here (prevented, reduced to 0 or absorbed by tough returned above).
+  addFrameVars(ctx, event.parentFrameId ?? event.spilledFromFrameId, {
+    [damageTakenKey(event.targetInstanceId)]: taken,
+  });
   addFrameSlots(ctx, event.parentFrameId, { damaged: [event.targetInstanceId] });
   if (excessDealt > 0) {
     addFrameVars(ctx, frameId, { excessDealt });
