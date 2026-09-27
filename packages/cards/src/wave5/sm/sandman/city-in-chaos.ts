@@ -1,20 +1,26 @@
 import { trait } from "@mc/content";
 import {
+  addAccelerationToken,
   attacksGainKeywords,
   blanksTextBox,
+  chooseOne,
+  chooseTarget,
   chosen,
   constant,
   defineAbilities,
   enemyScheme,
   encounterCards,
+  exhaust,
   ifThen,
   inPlay,
   named,
   not,
+  option,
   putIntoPlay,
   query,
   selectCards,
   shuffleEncounterDeck,
+  spendResources,
   whenRevealed,
   you,
 } from "../../../dsl/index.js";
@@ -24,16 +30,8 @@ const RHINO = named("Rhino");
 /**
  * City in Chaos (`sm` 27127–27130, docs/phase7-wave5.md §2.2): the Sandman scenario's other required encounter set
  * (not a recommended modular — the scenario cannot be built without it, so it is scripted here alongside Sandman's
- * own set rather than left for a later modular-set pass). Panic in the Streets, Rhino and Calling in Favors resolve.
- *
- * **Now or Never (27130) is not scripted.** Its raw MarvelCDB text is truncated (checked against
- * `packages/content/raw/marvelcdb/sm.json` and `docs/cards_reference.md`, both copies end mid-sentence): "When
- * Revealed: Choose: Place 1 acceleration token on the main scheme. Exhaust a character you control and spend 1
- * resource of any type" — the second option's effect (what exhausting the character and spending the resource
- * actually does) is missing from every source this repo has. This is a `card-data-pipeline` data gap, not an
- * engine gap: implementing only the first, well-formed option would silently drop the choice the card actually
- * offers (worse than leaving it unscripted), so `27130.when-revealed`, `27130.now-or-never-constant` and
- * `27130.now-or-never-constant-2` are left unresolved pending the real card text.
+ * own set rather than left for a later modular-set pass). Panic in the Streets, Rhino, Calling in Favors and Now or
+ * Never resolve.
  */
 export const CITY_IN_CHAOS = defineAbilities({
   // Panic in the Streets (27127) — Treat the printed text box of each location support and each persona support as
@@ -57,5 +55,29 @@ export const CITY_IN_CHAOS = defineAbilities({
       putIntoPlay(chosen("rhino"), you),
       shuffleEncounterDeck(),
     ]),
+  ),
+
+  // Now or Never (27130) — Peril (data). When Revealed: Choose: place 1 acceleration token on the main scheme, or
+  // exhaust a character you control and spend 1 resource of any type. Full text confirmed against the card's own
+  // scan (`assets/card-art/bundles/cards/27130.png`) — MarvelCDB's `text`/`real_text` drops the bullets and the
+  // second option's closing period (curation correction, `packages/content/scripts/marvelcdb/curation/sm.ts`
+  // 27130), but both options are exactly as printed, no third option or further clause. The second option's
+  // "exhaust a character you control" is the revealing player's own choice among their own characters (Bitter
+  // Rival, `trors` 04136's `chooseTarget`/`exhaust` shape); "spend 1 resource of any type" is `{ generic: 1 }`
+  // (Ghost-Spider's Brainstorm, `sm` 27015's own "3 resources of any type" idiom) — an unconditional part of the
+  // chosen option, not a branch on whether it was paid, so `spendResources` degrades to spending nothing if the
+  // player has nothing to pay with, the same as `chooseTarget` degrades to no character exhausted if none are in
+  // play (RRG 1.8 doesn't require a `Choose:` option's own sub-effects each find a legal target/payment to be
+  // chosen).
+  "27130.when-revealed": whenRevealed(
+    chooseOne(
+      option("Place 1 acceleration token on the main scheme", addAccelerationToken()),
+      option(
+        "Exhaust a character you control and spend 1 resource of any type",
+        chooseTarget("char", query("character", { controller: "you" })),
+        exhaust(chosen("char")),
+        spendResources({ generic: 1 }, "paid"),
+      ),
+    ),
   ),
 });

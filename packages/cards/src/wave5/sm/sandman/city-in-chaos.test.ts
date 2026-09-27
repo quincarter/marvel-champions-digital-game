@@ -3,13 +3,16 @@ import { describe, expect, it } from "vitest";
 import {
   endTurn,
   firstLegal,
+  identityOf,
   inst,
   instancesOf,
+  moveToHand,
   P1,
   playerOf,
   settle,
   stackEncounterDeck,
   toHero,
+  type Picker,
 } from "../../../testing/harness.js";
 import { encounterCardInVillainArea } from "../../../testing/staging.js";
 import { runWave5, WAVE5_DEPS } from "../../testing.js";
@@ -69,5 +72,65 @@ describe("Rhino (27128) and Calling in Favors (27129)", () => {
     expect(inst(revealed, rhino!).engagedWith).toBe(P1);
     // Rhino was not in play, so "Rhino schemes with +2 SCH" had no legal target and did nothing extra to threat.
     expect(mainThreatOf(revealed)).toBeGreaterThanOrEqual(beforeThreat);
+  });
+});
+
+describe("Now or Never (27130)", () => {
+  const EXHAUST_OPTION = "Exhaust a character you control and spend 1 resource of any type";
+
+  /** Picks the named `chooseOne` option by its label; every other prompt (the character to exhaust, whether to
+   * pay a resource) falls through to `firstLegal`. */
+  const pickOption =
+    (label: string): Picker =>
+    (s) => {
+      const choice = s.pendingChoice;
+      if (choice?.prompt.kind === "chooseOption") {
+        const match = choice.options.find((o) => o.label === label);
+        if (match) return [match.optionId];
+      }
+      return firstLegal(s);
+    };
+
+  it("27130.when-revealed: option 1 places 1 acceleration token on the main scheme", () => {
+    const state = sandmanGame();
+    const before = state.mainScheme.accelerationTokens;
+    const revealed = settle(
+      runWave5(dealPastNaturalAttack(state, "27130"), toHero(P1), endTurn(P1)),
+      pickOption("Place 1 acceleration token on the main scheme"),
+      undefined,
+      WAVE5_DEPS,
+    );
+    expect(revealed.mainScheme.accelerationTokens).toBe(before + 1);
+  });
+
+  it("27130.when-revealed: option 2 exhausts the revealer's own character and spends a resource they hold", () => {
+    // Ghost-Spider's own hero identity is the only character in play in a 1-player game; Energy (27020) is her deck's
+    // own generic-payable resource card, moved to hand so there is something to spend.
+    const given = moveToHand(sandmanGame(), P1, "27020");
+    const [energy] = given.ids;
+    const pick: Picker = (s) => {
+      const choice = s.pendingChoice;
+      if (choice?.prompt.kind === "spendResources") return [`hand:${energy}`];
+      return pickOption(EXHAUST_OPTION)(s);
+    };
+    const revealed = settle(
+      runWave5(dealPastNaturalAttack(given.state, "27130"), toHero(P1), endTurn(P1)),
+      pick,
+      undefined,
+      WAVE5_DEPS,
+    );
+    expect(inst(revealed, identityOf(revealed)).exhausted).toBe(true);
+    expect(playerOf(revealed, P1).discard).toContain(energy);
+  });
+
+  it("27130.when-revealed: option 2 still exhausts the character even with nothing to pay with", () => {
+    const state = sandmanGame();
+    const revealed = settle(
+      runWave5(dealPastNaturalAttack(state, "27130"), toHero(P1), endTurn(P1)),
+      pickOption(EXHAUST_OPTION),
+      undefined,
+      WAVE5_DEPS,
+    );
+    expect(inst(revealed, identityOf(revealed)).exhausted).toBe(true);
   });
 });

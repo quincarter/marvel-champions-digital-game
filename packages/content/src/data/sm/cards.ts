@@ -3268,8 +3268,8 @@ export const SM_CARDS: readonly AnyCard[] = [
     traits: [],
     keywords: [{ name: "peril" }],
     text: {
-      printed: "Peril. (While you are resolving this card, other players cannot help you.)\nWhen Revealed: Choose:\nPlace 1 acceleration token on the main scheme.\nExhaust a character you control and spend 1 resource of any type",
-      current: "Peril. (While you are resolving this card, other players cannot help you.)\nWhen Revealed: Choose:\nPlace 1 acceleration token on the main scheme.\nExhaust a character you control and spend 1 resource of any type",
+      printed: "Peril. (While you are resolving this card, other players cannot help you.)\nWhen Revealed: Choose:\n• Place 1 acceleration token on the main scheme.\n• Exhaust a character you control and spend 1 resource of any type.",
+      current: "Peril. (While you are resolving this card, other players cannot help you.)\nWhen Revealed: Choose:\n• Place 1 acceleration token on the main scheme.\n• Exhaust a character you control and spend 1 resource of any type.",
     },
     abilities: [
       { id: abilityId("27130.when-revealed") },

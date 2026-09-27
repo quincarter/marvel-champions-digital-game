@@ -388,7 +388,9 @@ export const SM_PROVENANCE: readonly CardProvenance[] = [
     cardId: cardId("27130"),
     cardSetCode: "city_in_chaos",
     marvelcdbCodes: ["27130"],
-    corrections: [],
+    corrections: [
+      "27130: Now or Never's raw text drops the \"•\" bullet markers between its two \"Choose:\" options and the closing period on the second (\"...resource of any type\" with no \".\"), unlike every other \"Choose:\" card in the corpus, whose raw text already carries its own bullets. [evidence: card scan assets/card-art/bundles/cards/27130.png: \"When Revealed: Choose: • Place 1 acceleration token on the main scheme. • Exhaust a character you control and spend 1 resource of any type.\" — no further options past the two shown.]",
+    ],
   },
   {
     cardId: cardId("27131"),

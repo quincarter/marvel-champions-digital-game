@@ -115,6 +115,30 @@ export const SM_CURATION: PackCuration = {
       evidence: 'MC27 p. 4 callout: "Campaign - S.H.I.E.L.D. Tech" upgrades are cost "—".',
       specialCost: "dash",
     },
+    // Now or Never's raw MarvelCDB `text`/`real_text` renders its two "Choose:" options as bare newline-separated
+    // sentences with no "•" bullet markers and no closing period on the second option — unlike every other
+    // "Choose:" card in the corpus (e.g. core's Affairs of State, `real_text`: "...Choose:\n• Exhaust T'Challa →
+    // ...\n• Choose and discard..."), whose raw text already carries the "•" itself (there is no bullet-inserting
+    // normalization step; `toPlainText` only joins lines with "\n"). Confirmed against the card's own scan
+    // (`assets/card-art/bundles/cards/27130.png`): "When Revealed: Choose: • Place 1 acceleration token on the
+    // main scheme. • Exhaust a character you control and spend 1 resource of any type." — exactly MarvelCDB's two
+    // sentences, just missing the bullets and the final period; no third option or further text on the card.
+    {
+      code: "27130",
+      reason:
+        'Now or Never\'s raw text drops the "•" bullet markers between its two "Choose:" options and the ' +
+        'closing period on the second ("...resource of any type" with no "."), unlike every other "Choose:" card ' +
+        "in the corpus, whose raw text already carries its own bullets.",
+      evidence:
+        'card scan assets/card-art/bundles/cards/27130.png: "When Revealed: Choose: • Place 1 acceleration ' +
+        'token on the main scheme. • Exhaust a character you control and spend 1 resource of any type." — no ' +
+        "further options past the two shown.",
+      textReplace: {
+        find: "Choose:\nPlace 1 acceleration token on the main scheme.\nExhaust a character you control and spend 1 resource of any type",
+        replace:
+          "Choose:\n• Place 1 acceleration token on the main scheme.\n• Exhaust a character you control and spend 1 resource of any type.",
+      },
+    },
   ],
 
   errata: [],
@@ -140,15 +164,17 @@ export const SM_CURATION: PackCuration = {
       villainSetCode: "sandman",
       additionalEncounterSetCodes: ["city_in_chaos"],
       recommendedModularSetCodes: ["down_to_earth"],
-      standardSetCodes: [],
-      expertSetCodes: [],
+      standardSetCodes: ["standard"],
+      expertSetCodes: ["expert"],
       villainStages: { standard: [1, 2], expert: [2, 3] },
       modularSetCount: 1,
       evidence:
         'MC27 p. 9: "Villain Deck: Sandman (I), Sandman (II)" ("Remove Sandman (I) and add Sandman (III) for ' +
         'expert mode."), "Main Scheme Deck: Hapless Pedestrians (1A/1B)", "Encounter Deck: Sandman, City in ' +
-        'Chaos, Down to Earth, and Standard encounter sets." — this box has no literal "standard"/"expert" ' +
-        "MarvelCDB set of its own (checked: no such `card_set_code` anywhere in the raw pack), so both stay empty.",
+        'Chaos, Down to Earth, and Standard encounter sets." — the box has no `card_set_code` of its own named ' +
+        '"standard"/"expert"; both reuse Core\'s own "standard"/"expert" encounter sets (core.ts\'s scenarios), ' +
+        'the Standard set per this Setup\'s own printed "Standard encounter sets", the Expert set per RRG 1.8 ' +
+        '"Expert Mode" (p. 28, "add the Expert encounter set to encounter deck").',
     },
     // Venom (MC27 p. 11).
     {
@@ -157,15 +183,16 @@ export const SM_CURATION: PackCuration = {
       villainSetCode: "venom",
       additionalEncounterSetCodes: ["symbiotic_strength"],
       recommendedModularSetCodes: ["down_to_earth"],
-      standardSetCodes: [],
-      expertSetCodes: [],
+      standardSetCodes: ["standard"],
+      expertSetCodes: ["expert"],
       villainStages: { standard: [1, 2], expert: [2, 3] },
       modularSetCount: 1,
       evidence:
         'MC27 p. 11: "Villain Deck: Venom (I), Venom (II)" ("Remove Venom (I) and add Venom (III) for expert ' +
         'mode."), "Main Scheme Deck: \\"Leave Us Alone!\\" (1A/1B)", "Encounter Deck: Venom, Down to Earth, ' +
         'Symbiotic Strength, and Standard encounter sets." Not yet fully playable standalone: the boost-cards-on-' +
-        "an-identity mechanic (docs/phase7-wave5.md §3.6 — open).",
+        "an-identity mechanic (docs/phase7-wave5.md §3.6 — open). Standard/Expert sets are Core's own (reused " +
+        "across the box, see Sandman's evidence above).",
     },
     // Mysterio (MC27 p. 13). Two-stage main scheme deck (Maze of Mirrors → Edge of Reality).
     {
@@ -174,8 +201,8 @@ export const SM_CURATION: PackCuration = {
       villainSetCode: "mysterio",
       additionalEncounterSetCodes: ["personal_nightmare"],
       recommendedModularSetCodes: ["whispers_of_paranoia"],
-      standardSetCodes: [],
-      expertSetCodes: [],
+      standardSetCodes: ["standard"],
+      expertSetCodes: ["expert"],
       villainStages: { standard: [1, 2], expert: [2, 3] },
       modularSetCount: 1,
       evidence:
@@ -183,7 +210,7 @@ export const SM_CURATION: PackCuration = {
         'for expert mode."), "Main Scheme Deck: Maze of Mirrors (1A/1B), Edge of Reality (2A/2B)", "Encounter ' +
         'Deck: Mysterio, Personal Nightmare, Whispers of Paranoia, and Standard encounter sets." Not yet fully ' +
         "playable standalone: encounter cards living in a player's deck/hand/discard pile (docs/phase7-wave5.md " +
-        "§3.5 — open).",
+        "§3.5 — open). Standard/Expert sets are Core's own (reused across the box, see Sandman's evidence above).",
     },
     // The Sinister Six (MC27 p. 15). Six single-stage villains sharing one card_set_code, told apart by direct
     // villainCardCodes (the Kang/Tower Defense shape, docs/phase7-wave5.md §1.5), started set aside.
@@ -194,8 +221,8 @@ export const SM_CURATION: PackCuration = {
       villainCardCode: "27094", // Doctor Octopus (I) — Scenario.villainCardId is "the first of the villains".
       additionalEncounterSetCodes: ["guerrilla_tactics"],
       recommendedModularSetCodes: [],
-      standardSetCodes: [],
-      expertSetCodes: [],
+      standardSetCodes: ["standard"],
+      expertSetCodes: ["expert"],
       villainStages: { standard: [1, 1], expert: [1, 1] },
       modularSetCount: 0,
       multipleVillains: {
@@ -220,7 +247,8 @@ export const SM_CURATION: PackCuration = {
         'Put those villains into play ... and set the other villains aside") is `atSetup: "setAside"`; the win is ' +
         "Light at the End's own card ability, not defeating every villain (docs/phase7-wave5.md §1.5). Not yet " +
         "playable: villains that enter/leave play and an interruptible enemy activation (docs/phase7-wave5.md " +
-        "§3.1, §3.2 — open).",
+        "§3.1, §3.2 — open). Standard/Expert sets are Core's own (reused across the box, see Sandman's evidence " +
+        "above).",
     },
     // Venom Goblin (MC27 p. 17). Four lettered main scheme stages (§1.1), one shared with the glider counter.
     {
@@ -229,8 +257,8 @@ export const SM_CURATION: PackCuration = {
       villainSetCode: "venom_goblin",
       additionalEncounterSetCodes: ["symbiotic_strength"],
       recommendedModularSetCodes: ["goblin_gear"],
-      standardSetCodes: [],
-      expertSetCodes: [],
+      standardSetCodes: ["standard"],
+      expertSetCodes: ["expert"],
       villainStages: { standard: [1, 2], expert: [2, 3] },
       modularSetCount: 1,
       evidence:
@@ -238,7 +266,8 @@ export const SM_CURATION: PackCuration = {
         'Goblin (III) for expert mode."), "Main Scheme Deck: Skies Over New York (A), Lower Manhattan (B), ' +
         'Midtown Manhattan (C), Upper Manhattan (D)", "Encounter Deck: Venom Goblin, Symbiotic Strength, Goblin ' +
         'Gear, and Standard encounter sets." Not yet playable: the focused/glider main scheme mechanism ' +
-        "(docs/phase7-wave5.md §3.3, §3.4, §3.9 — open).",
+        "(docs/phase7-wave5.md §3.3, §3.4, §3.9 — open). Standard/Expert sets are Core's own (reused across the " +
+        "box, see Sandman's evidence above).",
     },
   ],
 
