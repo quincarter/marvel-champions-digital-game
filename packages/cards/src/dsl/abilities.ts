@@ -4,6 +4,7 @@ import type {
   AbilityDefinition,
   AbilityLabel,
   AbilityLimit,
+  AbilityTimingWord,
   AbilityTriggerSpec,
   CardZoneQuery,
   CostModifierSpec,
@@ -562,6 +563,27 @@ export const increaseDamageTaken = (
     ...(opts.while ? { while: opts.while } : {}),
   });
 /**
+ * "You cannot resolve triggered abilities in your hero's printed text box." (Induced Panic, `sm` 27153;
+ * docs/phase7-wave5.md §4.1 Q70): `constant(cannotResolveTriggeredAbilities(query("identity", { hostOfSelf: true }),
+ * { identityFace: "hero" }))`. Every bold-timing ability on a matching card (actions and resources included) is neither
+ * offered nor resolved; `timings` narrows it to those timing words.
+ */
+export const cannotResolveTriggeredAbilities = (
+  on: TargetQuery,
+  opts: {
+    readonly identityFace?: Form;
+    readonly timings?: readonly AbilityTimingWord[];
+    readonly while?: Predicate;
+  } = {},
+): ConstantPart =>
+  rule({
+    kind: "cannotResolveTriggeredAbilities",
+    on,
+    ...(opts.identityFace ? { identityFace: opts.identityFace } : {}),
+    ...(opts.timings ? { timings: opts.timings } : {}),
+    ...(opts.while ? { while: opts.while } : {}),
+  });
+/**
  * "Heroes and allies cannot be readied by player card effects" (Unnatural Storm, `mts` 21159;
  * docs/phase7-wave4.md §3.19): the end-of-phase ready and encounter card effects still ready them.
  */
@@ -931,8 +953,13 @@ export const discardFromHandCost = (min: number, max?: number, bind?: string, fi
 /**
  * "Discard N card(s) at random from your hand →" (Magic Crowbar: `[exhaustYourHero, discardRandomFromHandCost(1)]`).
  * The engine picks with the game's seeded RNG when the cost is paid; nothing is chosen by the player or bound.
+ * `filter` narrows the pick to matching cards, read as the paying player: "Discard 1 identity-specific card at random
+ * from your hand →" (Induced Panic, `sm` 27153) is `discardRandomFromHandCost(1, { identitySetOf: you })`.
  */
-export const discardRandomFromHandCost = (n = 1): AbilityCost => ({ discardRandomFromHand: n });
+export const discardRandomFromHandCost = (n = 1, filter?: TargetQuery): AbilityCost => ({
+  discardRandomFromHand: n,
+  ...(filter ? { discardRandomFromHandFilter: filter } : {}),
+});
 /**
  * How many cards an in-play cost takes. `min` defaults to 1. `max` defaults to `min`, a fixed count ("exhaust
  * Captain America's Shield"). Pass `"any"` for no cap ("exhaust any number of allies"). "Any number" and "up to N"

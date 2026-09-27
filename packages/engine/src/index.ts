@@ -152,6 +152,7 @@ export { currentActivationFrameId } from "./stack.js";
 export { abilityUseKey, DEFAULT_DEPS, inPlayPicksOf, NO_ABILITIES } from "./abilities.js";
 
 export type {
+  AbilityTimingWord,
   CardDestination,
   CardSelector,
   CharacterNames,

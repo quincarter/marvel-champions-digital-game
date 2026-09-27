@@ -122,6 +122,8 @@ function checkCostShape(cost: AbilityCost, problems: string[]): void {
   const random = cost.discardRandomFromHand;
   if (random !== undefined && (!Number.isInteger(random) || random < 1))
     problems.push("cost discardRandomFromHand: must be a whole number of at least 1");
+  if (cost.discardRandomFromHandFilter !== undefined && random === undefined)
+    problems.push("cost discardRandomFromHandFilter: only narrows a discardRandomFromHand cost");
   // docs/phase7-wave3.md §3.32, §3.33, §3.36.
   const counters = [cost.spendCounters, ...(cost.either ?? []).map((branch) => branch.spendCounters)];
   for (const component of counters) {

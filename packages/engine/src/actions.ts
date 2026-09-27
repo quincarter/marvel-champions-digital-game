@@ -36,6 +36,7 @@ import {
   cannotPlayCard,
   cannotThwart,
   cannotTriggerAction,
+  triggeredAbilityForbidden,
   iconsInPlay,
   mayThwartWithAtk,
   patrolledBy,
@@ -610,6 +611,9 @@ function resourceAbilityFault(
   }
   if (!activeAbilityRefs(state, instanceId, deps).some((ref) => ref.id === abilityId)) {
     return { code: "no_valid_target", message: `${abilityId} is not active on ${instanceId}` };
+  }
+  if (triggeredAbilityForbidden(state, deps, instanceId, definition.trigger)) {
+    return { code: "no_valid_target", message: `${abilityId} cannot be resolved right now` };
   }
   // "…generate a [wild] resource for any player" (the Milano; docs/phase7-wave3.md §3.13); any player's, for an
   // alliance card (§3.17).
@@ -1368,7 +1372,22 @@ export function planCost(
   if (cost.discardRandomFromHand !== undefined) {
     // Picked when paid (`payCost`); here only whether enough cards are left once the payment and chosen discards are out.
     const chosen = new Set(bindings.discard ?? []);
-    const left = player.hand.filter((id) => id !== sourceId && !reserved.has(id) && !chosen.has(id)).length;
+    // "Discard 1 identity-specific card at random" (`discardRandomFromHandFilter`): only matching cards can pay it.
+    const randomFilter = cost.discardRandomFromHandFilter;
+    const randomContext: EffectContext = {
+      selfInstanceId: sourceId,
+      controllerId: playerId,
+      event: null,
+      bindings: {},
+      deps,
+    };
+    const left = player.hand.filter(
+      (id) =>
+        id !== sourceId &&
+        !reserved.has(id) &&
+        !chosen.has(id) &&
+        (!randomFilter || matchesQuery(state, id, randomFilter, randomContext)),
+    ).length;
     if (left < cost.discardRandomFromHand) {
       return {
         code: "card_not_in_zone",
@@ -1659,7 +1678,20 @@ export function payCost(
     if (count > 0) discardFromDeckAsCost(ctx, playerId, count);
   }
   // After the payment and the chosen discards have left the hand, so the random pick is among what remains.
-  if (cost.discardRandomFromHand) discardRandomFromHand(ctx, playerId, cost.discardRandomFromHand, [sourceId]);
+  if (cost.discardRandomFromHand) {
+    const filter = cost.discardRandomFromHandFilter;
+    const context: EffectContext = {
+      selfInstanceId: sourceId,
+      controllerId: playerId,
+      event: null,
+      bindings: {},
+      deps: ctx.deps,
+    };
+    const excluded = filter
+      ? mustPlayer(ctx.state, playerId).hand.filter((id) => !matchesQuery(ctx.state, id, filter, context))
+      : [];
+    discardRandomFromHand(ctx, playerId, cost.discardRandomFromHand, [sourceId, ...excluded]);
+  }
   if (cost.damageSelf) {
     pushEvent(ctx, {
       kind: "dealDamage",
@@ -2438,6 +2470,10 @@ export function useAbility(ctx: Ctx, command: Command & { type: "useAbility" }):
   // "Players cannot trigger 'Alter-Ego Action' abilities on obligations." (`cannotTriggerActions`, §3.11).
   if (cannotTriggerAction(ctx.state, ctx.deps, command.cardInstanceId, definition.trigger.form)) {
     return engineError("no_valid_target", "that ability cannot be triggered right now", command);
+  }
+  // "You cannot resolve triggered abilities in your hero's printed text box" (`cannotResolveTriggeredAbilities`).
+  if (triggeredAbilityForbidden(ctx.state, ctx.deps, command.cardInstanceId, definition.trigger)) {
+    return engineError("no_valid_target", "that ability cannot be resolved right now", command);
   }
   if (actionConditionUnmet(ctx.state, ctx.deps, definition, command.cardInstanceId, command.playerId)) {
     return engineError("no_valid_target", "that ability cannot be triggered: its condition is not met", command);

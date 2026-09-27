@@ -1,4 +1,4 @@
-import type { EngineDeps } from "./abilities.js";
+import type { AbilityTriggerSpec, EngineDeps } from "./abilities.js";
 import type { InstanceId, PlayerId } from "./ids.js";
 import { hasKeyword } from "./keywords.js";
 import type { SchemeIcon } from "@mc/content";
@@ -29,6 +29,8 @@ import {
   matchesQuery,
   resolveRef,
   rulePlayers,
+  timingWordOf,
+  type ActiveRule,
   type EffectContext,
 } from "./select.js";
 import { combineRequirements, type ResolvedRequirement } from "./resources.js";
@@ -326,6 +328,35 @@ export const cannotTriggerAction = (
   activeRules(state, deps, "cannotTriggerActions").some(
     ({ rule, context }) => (rule.form === undefined || rule.form === form) && matchesQuery(state, id, rule.on, context),
   );
+
+/**
+ * Whether a triggered ability with this trigger, on this card, cannot be resolved (`cannotResolveTriggeredAbilities`;
+ * Induced Panic). A trigger with no bold timing word (a constant, When Revealed, …) is never stopped. `rules` lets a
+ * caller that checks many abilities read the active rules once.
+ */
+export function triggeredAbilityForbidden(
+  state: GameState,
+  deps: EngineDeps,
+  id: InstanceId,
+  trigger: AbilityTriggerSpec,
+  rules: readonly ActiveRule<"cannotResolveTriggeredAbilities">[] = activeRules(
+    state,
+    deps,
+    "cannotResolveTriggeredAbilities",
+  ),
+): boolean {
+  if (rules.length === 0) return false;
+  const word = timingWordOf(trigger);
+  if (word === null) return false;
+  return rules.some(({ rule, context }) => {
+    if (rule.timings && !rule.timings.includes(word)) return false;
+    if (rule.identityFace !== undefined) {
+      const seat = state.players.find((p) => p.identity.instanceId === id);
+      if (seat?.identity.form !== rule.identityFace) return false;
+    }
+    return matchesQuery(state, id, rule.on, context);
+  });
+}
 
 /**
  * Where a defeated card goes instead of its discard pile, from a constant rule (docs/phase7-wave3.md §3.45): the first

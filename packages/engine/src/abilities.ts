@@ -2,6 +2,7 @@ import type { AbilityId, KeywordInstance, SchemeIcon, Trait } from "@mc/content"
 import type { InstanceId, PlayerId } from "./ids.js";
 import type { ResourcePool, ResourceRequirement, TypedResource } from "./resources.js";
 import type {
+  AbilityTimingWord,
   AttackKeyword,
   CardDestination,
   EffectSpec,
@@ -508,6 +509,27 @@ export type RuleSpec =
       readonly kind: "cannotTriggerActions";
       readonly on: TargetQuery;
       readonly form?: Form;
+      readonly while?: Predicate;
+    }
+  /**
+   * "You cannot resolve triggered abilities in your hero's printed text box. (Triggered abilities are ones with bold
+   * timing triggers.)" (Induced Panic, `sm` 27153; docs/phase7-wave5.md §4.1 Q70). A triggered ability printed on a
+   * card matching `on` is neither offered nor resolved: every ability with a bold timing trigger (RRG 1.8 "Ability",
+   * p. 4; "Action", p. 6: an action is one too), so actions, resources, interrupts and responses, forced or not
+   * (`select.ts timingWordOf`). Constants, keywords, When Revealed and the like have no timing word and are untouched.
+   * `timings` narrows it to those words.
+   *
+   * `identityFace`: only while a matching identity shows that face ("your hero's printed text box"). An identity's
+   * abilities are read from its live face (`select.ts unblankedAbilityRefs`), so the face is the text box they are
+   * printed in; an alter-ego's abilities stay usable. A forced ability it stops is not initiated: "cannot" is absolute
+   * (RRG 1.8 "'Cannot'", p. 11), and a forced ability that cannot resolve is skipped as one with no valid target is
+   * (RRG 1.8 "Forced", p. 20).
+   */
+  | {
+      readonly kind: "cannotResolveTriggeredAbilities";
+      readonly on: TargetQuery;
+      readonly identityFace?: Form;
+      readonly timings?: readonly AbilityTimingWord[];
       readonly while?: Predicate;
     }
   /**
@@ -1122,6 +1144,12 @@ export interface AbilityCost {
    * bound: they are only known once the cost is paid.
    */
   readonly discardRandomFromHand?: number;
+  /**
+   * "Discard 1 identity-specific card at random from your hand →" (Induced Panic, `sm` 27153): the random pick is
+   * among the hand cards matching this, read from the paying player's point of view (`identitySetOf: you`), and the
+   * cost is payable only with enough matching cards left. Only with `discardRandomFromHand`.
+   */
+  readonly discardRandomFromHandFilter?: TargetQuery;
   /** "Exhaust your hero →" / "Exhaust your identity →" (encounter-card Hero Actions). */
   readonly exhaustIdentity?: boolean;
   /**

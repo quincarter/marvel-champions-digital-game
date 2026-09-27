@@ -6,6 +6,8 @@ import type { InstanceId, PlayerId } from "../ids.js";
 import { cardOf, getPlayer, playerOrder } from "../query.js";
 import {
   activeAbilityRefs,
+  activeRules,
+  type ActiveRule,
   cardsInPlay,
   controllerOf,
   type EffectContext,
@@ -20,7 +22,7 @@ import type { Form, GameState } from "../state.js";
 import { eventSubjects, type TriggerEvent } from "../trigger-events.js";
 import { limitReached } from "./ability.js";
 import type { AbilityDefinition } from "../abilities.js";
-import { cannotPlayCard, revealCannotBeCanceled } from "../rules.js";
+import { cannotPlayCard, revealCannotBeCanceled, triggeredAbilityForbidden } from "../rules.js";
 import { abilityLacksValidTarget } from "./target-validity.js";
 
 /**
@@ -208,12 +210,18 @@ export function candidatesFor(
   forced: boolean,
 ): readonly TriggerCandidate[] {
   const found: TriggerCandidate[] = [];
+  // Read once per call, and only once some ability has the right timing.
+  let noTriggers: readonly ActiveRule<"cannotResolveTriggeredAbilities">[] | undefined;
   for (const id of cardsInPlay(state)) {
     for (const ref of activeAbilityRefs(state, id, deps)) {
       const definition = deps.abilities[ref.id];
       if (!definition) continue;
       const trigger = definition.trigger;
       if (trigger.kind !== timing || trigger.forced !== forced) continue;
+      // "You cannot resolve triggered abilities in your hero's printed text box" (Induced Panic): neither offered nor,
+      // when forced, initiated (`cannotResolveTriggeredAbilities`).
+      noTriggers ??= activeRules(state, deps, "cannotResolveTriggeredAbilities");
+      if (triggeredAbilityForbidden(state, deps, id, trigger, noTriggers)) continue;
       // A cost reduction is used while paying, not offered in the play's window (docs/phase7-wave3.md §3.20).
       if (definition.playCostReduction) continue;
       // An ability that works only in hand does nothing in play (docs/phase7-wave4.md §3.13).
