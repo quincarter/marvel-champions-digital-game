@@ -1,15 +1,19 @@
 import {
+  attachCard,
   boost,
+  cannotAttach,
   constant,
-  coveredByEngineRule,
   countOf,
   defineAbilities,
   each,
   gets,
   modifyAttack,
   query,
+  resolveSpecialsOf,
   rule,
   self,
+  theMainScheme,
+  theVillain,
 } from "../../../dsl/index.js";
 
 /**
@@ -20,38 +24,43 @@ import {
  * `activationOrder` doc cites Heightened Morale/Team Leader by name) plus the printed `statModifiers` box where the
  * bonus is a fixed number; none of that is scripted here.
  *
- * **Known gap, not built here:** the "If you cannot, resolve the 'Ambush!' ability … then attach to the active
- * villain" fallback is not modeled by any host kind or ability hook — `resolveAttachmentTarget`
- * (`packages/engine/src/resolve/reveal.ts`) discards an attachment outright when its `attachesTo` yields no
- * candidate (RRG 1.8 "Attach To", p. 8's default), with no trigger event an ability could interrupt. Reproducing
- * the printed fallback needs a new engine primitive (an attach-host kind that can run effects, or a "would be
- * discarded for lack of a host" event) — flagged for `game-rules-architect`, not hacked around here. The scenario's
- * own main-scheme Setup means these attachments are drawn from an already-populated encounter deck (§1.5), and
- * "no villain in play" is transient (only between a villain's defeat and the next villain activation, `main-
- * scheme.ts`'s own `AMBUSH_INTERRUPT`), so this gap is real but narrow.
+ * The "If you cannot, resolve the 'Ambush!' ability on the main scheme, then attach this card to the active villain."
+ * half is each card's first ability ref (`AMBUSH_FALLBACK`), a `cannotAttach` ability: the engine resolves it instead
+ * of RRG 1.8 "Attach To"'s (p. 8) discard when the `attachesTo` host finds no villain. The main scheme's own Setup
+ * puts villains into play before any of these is drawn (§1.5), so "no villain in play" is transient: only between a
+ * villain's defeat and the next villain activation (`main-scheme.ts`'s own `AMBUSH_INTERRUPT`).
  */
+const AMBUSH_FALLBACK = () =>
+  cannotAttach(
+    // Both main scheme B sides print the same Special; only the stage in play is live.
+    resolveSpecialsOf(theMainScheme, undefined, { abilities: ["27100b.ambush", "27101b.ambush"] }),
+    // "The active villain" is "the villain": whoever Ambush! just gave the counter. With none (no villain was set
+    // aside), the card stays unattached and the engine discards it.
+    attachCard(self, theVillain),
+  );
+
 export const SINISTER_SIX_ENCOUNTER_ATTACHMENTS = defineAbilities({
-  // Heightened Morale (27103) — attach clause is data (see module docblock).
-  "27103.heightened-morale-constant": coveredByEngineRule(),
+  // Heightened Morale (27103) — attach host is data; this is its "If you cannot" fallback (module docblock).
+  "27103.heightened-morale-constant": AMBUSH_FALLBACK(),
   // Heightened Morale (27103) — "+X ATK. X is equal to the number of villains in play." The stat box prints "X",
   // not a fixed number, so `AttachmentCard.statModifiers` (fixed numbers only) cannot carry it; this is the whole
   // bonus, read live off however many villains are in play right now.
   "27103.heightened-morale-constant-2": constant(gets("atk", countOf(query("villain")), { hostOfSelf: true })),
 
-  // Taunting Presence (27104) — attach clause is data (see module docblock).
-  "27104.taunting-presence-constant": coveredByEngineRule(),
+  // Taunting Presence (27104) — attach host is data; this is its "If you cannot" fallback.
+  "27104.taunting-presence-constant": AMBUSH_FALLBACK(),
   // Taunting Presence (27104) — "Threat cannot be removed from Light at the End." (curation/sm.ts's own
   // `27104` correction restores this sentence, missing from MarvelCDB's raw text but present on the card's scan).
   "27104.taunting-presence-constant-2": constant(
     rule({ kind: "threatCannotBeRemoved", target: query("sideScheme", { name: "Light at the End" }) }),
   ),
 
-  // Team Leader (27105) — attach clause is data. The printed crisis scheme icon (docs/phase7-wave5.md §1.3) is
-  // `BaseCard.schemeIcons`, data on the card itself, not an ability; no other text.
-  "27105.team-leader-constant": coveredByEngineRule(),
+  // Team Leader (27105) — attach host is data; this is its "If you cannot" fallback. The printed crisis scheme icon
+  // (docs/phase7-wave5.md §1.3) is `BaseCard.schemeIcons`, data on the card itself, not an ability; no other text.
+  "27105.team-leader-constant": AMBUSH_FALLBACK(),
 
-  // Take One for the Team (27106) — attach clause is data.
-  "27106.take-one-for-the-team-constant": coveredByEngineRule(),
+  // Take One for the Team (27106) — attach host is data; this is its "If you cannot" fallback.
+  "27106.take-one-for-the-team-constant": AMBUSH_FALLBACK(),
   // Take One for the Team (27106) — "You cannot attack villains who do not have an attached copy of Take One for
   // the Team.": every villain except those an attached copy of this card (matched by name, since another copy
   // could be attached to a different villain) makes legal.
