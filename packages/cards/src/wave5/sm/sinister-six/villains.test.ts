@@ -18,8 +18,7 @@ import { wave5Scenario, type Wave5ScenarioOptions } from "../../setup.js";
 /**
  * Real-game tests for `villains.ts`'s `sinisterSixVillain` helper, exercised through Doctor Octopus (27094; MC27
  * p. 15, docs/phase7-wave5.md §1.5/§3.1). Electro, Hobgoblin, Kraven the Hunter, Scorpion and Vulture reuse the same
- * helper (separate, later agents' work) and so are covered by these same assertions once they register their own
- * ability ids.
+ * helper; their own effects are tested in `villains-2.test.ts`.
  *
  * Seed 1 (`sinisterSixGame`'s default) puts exactly Doctor Octopus (27094, activation order 1, lowest — so he always
  * holds the active counter at setup) and Electro (27095, activation order 2) into play for a 1-player game.
@@ -85,8 +84,6 @@ describe("27094.doctor-octopus-forced-response", () => {
     let state = toHeroApplied(sinisterSixGame([{ starterDeckId: "ghost-spider" }]));
     const doctorOck = doctorOckOf(state);
     const electro = electroOf(state);
-    // Electro has no script yet (later agent's work), so this defeat is a plain, unscripted removal from play — it
-    // does not return him to `encounterSetAside`, only Doctor Octopus's own When Defeated does that (tested below).
     state = patchInstance(state, identityOf(state, P1), { exhausted: false });
     state = defeatWithAttack(state, electro);
     expect(undefeatedVillains(state).map((v) => v.instanceId)).toEqual([doctorOck]);
@@ -133,7 +130,7 @@ describe("27094.when-defeated", () => {
     const doctorOck = doctorOckOf(state);
     const electro = electroOf(state);
     state = patchInstance(state, identityOf(state, P1), { exhausted: false });
-    state = defeatWithAttack(state, electro); // unscripted removal, leaving Doctor Octopus alone.
+    state = defeatWithAttack(state, electro); // leaves Doctor Octopus alone.
     const lightBefore = lightThreatOf(state);
     state = patchInstance(state, identityOf(state, P1), { exhausted: false });
     const after = defeatWithAttack(state, doctorOck);
@@ -154,8 +151,9 @@ describe("27094.when-defeated", () => {
     // (main-scheme.ts) draws a random set-aside villain from.
 
     // With no villain in play, ending the turn resolves "Ambush!" (main-scheme.ts's own Forced Interrupt) before
-    // continuing the villain's activation; seed 5's random draw happens to pick Doctor Octopus back out of the pool.
-    state = { ...state, rng: { value: 5, draws: 0 } };
+    // continuing the villain's activation; seed 2's random draw happens to pick Doctor Octopus back out of the pool (Electro's own When Defeated set him aside
+    // too, so the pool holds both).
+    state = { ...state, rng: { value: 2, draws: 0 } };
     state = stackEncounterDeck(state, "01186");
     const after = settle(runWave5(state, endTurn(P1)), firstLegal, undefined, WAVE5_DEPS);
     // Ambush! brings him back; a treachery dealt later in the same phase may add another villain, so check membership.

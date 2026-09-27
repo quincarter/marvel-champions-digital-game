@@ -18,11 +18,9 @@ import { wave5Scenario, type Wave5ScenarioOptions } from "../../setup.js";
 /**
  * Sinister Synchronization / Sinister Beatdown's own "Ambush!" Special and Forced Interrupt (`sm` 27100a/27100b,
  * 27101a/27101b; MC27 p. 15, docs/phase7-wave5.md §1.5/§3.1/§3.2): "Forced Interrupt: When a villain would activate,
- * if no villain is in play, resolve this card's 'Ambush!' ability. Continue that activation." The six villains'
- * own scripts (their Forced Response / When Defeated abilities) are separate, later work, so these tests reach "no
- * villain in play" by defeating every villain currently in play with a plain basic attack rather than through the
- * villains' own (unscripted) "Set this villain aside" text — which also means a villain defeated this way does not
- * return to the set-aside pool, only the 4 villains the 1A Setup never chose in the first place can.
+ * if no villain is in play, resolve this card's 'Ambush!' ability. Continue that activation." These tests reach "no
+ * villain in play" by defeating every villain in play with a basic attack; each villain's own When Defeated
+ * (`villains.ts`) sets it aside, so it rejoins the pool "Ambush!" draws from.
  */
 
 function sinisterSixGame(

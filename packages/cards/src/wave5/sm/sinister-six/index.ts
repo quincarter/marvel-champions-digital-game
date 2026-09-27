@@ -9,8 +9,8 @@ import { SINISTER_SIX_VILLAINS } from "./villains.js";
 /**
  * The Sinister Six scenario's own scenario-wide abilities (docs/phase7-wave5.md §1.5/§3.1/§3.2): the main scheme's
  * two lettered stages, Light at the End, its encounter attachments and Brute Force Barricade (27103–27107), its
- * treacheries (27108–27112), and the six villains (`villains.ts`, `sinisterSixVillain`; Doctor Octopus so far,
- * `sm` 27095–27099 to follow). Guerrilla Tactics is a separate modular set.
+ * treacheries (27108–27112), and the six villains (`villains.ts`, `sinisterSixVillain`, `sm`
+ * 27094–27099). Guerrilla Tactics is a separate modular set.
  */
 export const SINISTER_SIX_ABILITIES: AbilityRegistry = mergeRegistries(
   SINISTER_SIX_MAIN_SCHEME,

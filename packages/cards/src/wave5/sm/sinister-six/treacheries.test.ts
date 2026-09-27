@@ -139,10 +139,12 @@ describe("Frequent Flyers (27108)", () => {
     state = toHeroApplied(state);
     const identity = identityOf(state, P1);
     const damageBefore = inst(state, identity).damage;
-    const realNoiseAtk = VILLAIN_STATS[activeVillainCardId(state)]!.atk;
+    expect(activeVillainCardId(state)).toBe(HOBGOBLIN);
+    const realNoiseAtk = VILLAIN_STATS[HOBGOBLIN]!.atk;
     const after = reveal(state, "27108");
-    // "Take 2 indirect damage" on top of the real per-phase attack.
-    expect(inst(after, identity).damage).toBe(damageBefore + 2 + realNoiseAtk);
+    // "Take 2 indirect damage" on top of the real per-phase attack, whose own damage also resolves Hobgoblin's
+    // Forced Response ("take 2 indirect damage", `villains.ts`).
+    expect(inst(after, identity).damage).toBe(damageBefore + realNoiseAtk + 2 + 2);
     const inPlay = villainCardIdsInPlay(after);
     expect(inPlay.filter((id) => id === HOBGOBLIN)).toHaveLength(1); // not put into play again
     expect(inPlay).toContain(VULTURE); // Vulture was not already in play, so he enters
