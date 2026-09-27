@@ -28,8 +28,7 @@ existing board, overlays, tokens and `Mc*` widgets. Don't restyle existing scree
 
 **The designs' game content is placeholder.** They show Crossbones, Spider-Woman, Hawkeye, Venom Blast and a 12-threat
 scheme. The tutorial is Core Set Rhino with Spider-Man (owner decision, §3). Every number on a guide surface comes
-from the engine or `@mc/content`, never from the tiles. The tiles' "Energy: counts as 2 resources" is also wrong in
-general. Energy gives 2 only when paying for an Energy card.
+from the engine or `@mc/content`, never from the tiles. (The tiles' "Energy counts as 2 resources" is correct: Core *Energy* prints two energy icons. The conditional double is *The Power of Justice*, only for Justice cards.)
 
 ## 2. Ground rules
 
@@ -149,8 +148,9 @@ The main session verifies UI boxes by clicking through them before ticking (§6)
 
 **Tutorial**
 
-- [ ] **G5a Tutorial config.** `guide/tutorial-config.ts`: seed + Spider-Man precon + stack (§5.1). A test plays the
+- [x] **G5a Tutorial config.** `guide/tutorial-config.ts`: seed + Spider-Man precon + stack (§5.1). A test plays the
       scripted commands and asserts each lesson's precondition state.
+      Landed: `d1b08352`. Seed 2024; hand Black Cat, Energy (pays her 2 alone), For Justice!, Aunt May, Spider-Tracer, Backflip; encounter Armored Rhino Suit (boost 0) then Advance. Black Cat blocks Rhino's 2 and is defeated; round 2 threat is 3 and Thwart is legal. `TUTORIAL_SCRIPT` (7 commands) is exported for G5b/G7 tests.
 - [ ] **G5b Lesson model.** `view/lesson-model.ts` is a pure state machine: lessons → steps, each step with an anchor,
       copy, and a completion predicate over store state/events. It's data-driven so the aspect lessons (G10) can reuse
       it. Tests drive it with recorded events.
@@ -266,7 +266,7 @@ A fresh Claude session can pick this up from this file alone.
   pointer, and put a screenshot beside its tile.
 - **Commits:** as the repo's git user, with no Claude co-author trailer. Every change carries a changie fragment.
 
-**In flight:** G4a (`McGuideCallout`) and G5a (tutorial config), side by side, started 2026-09-26 late. If the session ended mid-run, check `git status` in the worktree for their uncommitted files (G4a: `ui/guide-callout.ts`, `view/guide-callout-model.ts`, a `?screen=guidecallout` demo; G5a: `guide/tutorial-config.ts` + test) and brief a fresh agent to review and finish them rather than starting over. A snapshot of that in-progress work is on `origin/wip/guided-mode-g4a-g5a` (`98b53dae`, unverified) in case the worktree is gone. G2b is verified and ticked; next after these two is G4b.
+**In flight:** G4a (`McGuideCallout`). If the session ended mid-run, check `git status` for its uncommitted files (`ui/guide-callout.ts`, `view/guide-callout-model.ts`, `scenes/guide-callout-demo.ts`, plus edits to boot.ts, keys.ts and main.ts). A snapshot is on `origin/wip/guided-mode-g4a-g5a` (`98b53dae`, unverified). Brief a fresh agent to review and finish it. Next: G4b, then G4c and G5b.
 
 ## 7. Prior art: the parked prototype
 
