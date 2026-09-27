@@ -59,9 +59,11 @@ See [PLAN.md](PLAN.md) for the build roadmap and current phase.
   hook blocks writes to sibling worktrees), so they share one working tree and one git index.
 - **Shared-index commit discipline** (a partial stage once broke HEAD): stage only your own hunks (`git apply --cached`
   a patch when a file mixes agents), read `git diff --cached` right before committing, commit with an explicit
-  pathspec (`git commit -m … -- <paths>`), then check `git diff HEAD -- <your files>` shows nothing of yours left;
-  `--no-verify` only after running oxlint/oxfmt on your own files, since lint-staged stashes other agents' unstaged
-  work. Never `git stash`, `git add -A`, or repo-wide `pnpm fmt`.
+  pathspec (`git commit -m … -- <paths>`), then check `git diff HEAD -- <your files>` shows nothing of yours left.
+  **Whenever another agent has uncommitted edits in the worktree — and always when you staged a partial file — commit
+  with `--no-verify`** after running oxlint/oxfmt on your own files yourself: the pre-commit hook's lint-staged
+  re-stages files from the working tree, which sweeps other agents' lines into your commit (it once committed an
+  import of a file that didn't exist yet). Never `git stash`, `git add -A`, or repo-wide `pnpm fmt`.
 - **Agents don't edit the wave spec's status or open questions**; they report, and the main session verifies (runs
   the tests, reads the diff) before flipping a status or ticking the PR. Rules questions go to the user as short
   multiple-choice prompts with a recommended default; answers are recorded in the spec's §4.1 table and the PR.
