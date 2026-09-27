@@ -127,7 +127,7 @@ describe("Ebony Maw (21071–21073) — Forced Interrupt", () => {
 });
 
 describe("Fireball (21076)", () => {
-  it("21076.fireball-constant: enters play with 4 invocation counters", () => {
+  it("21076.fireball-constant: enters play with 4 invocation counters; a later scheme activation this round removes 1 (§4.1 Q67)", () => {
     const state = ebonyMawGame(4);
     const { state: revealed, id } = revealTopEncounterCard(state, "21076");
     // 3, not the printed 4: `ebonyMawGame` stays alter-ego by default, so its own routine per-round villain
@@ -140,7 +140,7 @@ describe("Fireball (21076)", () => {
 });
 
 describe("Manipulation (21077)", () => {
-  it("21077.manipulation-constant: enters play with 2 invocation counters", () => {
+  it("21077.manipulation-constant: enters play with 2 invocation counters; a later scheme activation this round removes 1 (§4.1 Q67)", () => {
     const state = ebonyMawGame(6);
     const { state: revealed, id } = revealTopEncounterCard(state, "21077");
     // 1, not the printed 2 (the `21076.fireball-constant` test's own module docblock comment): this seed's own
@@ -161,7 +161,7 @@ describe("Manipulation (21077)", () => {
 });
 
 describe("Pacification (21078)", () => {
-  it("21078.pacification-constant: enters play with 3 invocation counters", () => {
+  it("21078.pacification-constant: enters play with 3 invocation counters; a later scheme activation this round removes 1 (§4.1 Q67)", () => {
     const state = ebonyMawGame(7);
     const { state: revealed, id } = revealTopEncounterCard(state, "21078");
     // 2, not the printed 3 (the `21076.fireball-constant` test's own module docblock comment): this seed's own
@@ -180,7 +180,7 @@ describe("Pacification (21078)", () => {
 });
 
 describe("Rubblestorm (21079)", () => {
-  it("21079.rubblestorm-constant: enters play with 3 invocation counters", () => {
+  it("21079.rubblestorm-constant: enters play with 3 invocation counters; a later scheme activation this round removes 1 (§4.1 Q67)", () => {
     const state = ebonyMawGame(8);
     const { state: revealed, id } = revealTopEncounterCard(state, "21079");
     // 2, not the printed 3 (the `21076.fireball-constant` test's own module docblock comment): this seed's own
