@@ -73,14 +73,16 @@ export function buildCrossHeroDeck(cards: readonly AnyCard[], coreHeroId: string
     if ("name" in card && "name" in target && card.name === target.name) return false;
     return card.aspect.startsWith("hero:") || legalAspects.has(card.aspect);
   });
-  const quantity = Math.min(
+  // One copy of the card under test unless the deck needs more to reach 40. With several copies, a second one can
+  // land in the opening hand and a discard-down step can throw away the copy a test is tracking (the Jump Flip
+  // cross-hero test, 9069f9d1), so a test driving "the" copy by instance id would drive the wrong one.
+  const kept = keptEntries.flatMap((entry) => Array.from({ length: entry.quantity }, () => entry.cardId as CardId));
+  const maxCopies = Math.min(
     "deckLimit" in target ? target.deckLimit : 1,
     "quantityInSet" in target ? target.quantityInSet : 1,
   );
-  const deck: CardId[] = [
-    ...keptEntries.flatMap((entry) => Array.from({ length: entry.quantity }, () => entry.cardId as CardId)),
-    ...Array.from({ length: quantity }, () => cardCode as CardId),
-  ];
+  const quantity = kept.length + 1 >= 40 ? 1 : Math.min(maxCopies, 40 - kept.length);
+  const deck: CardId[] = [...kept, ...Array.from({ length: quantity }, () => cardCode as CardId)];
   if (deck.length < 40) {
     throw new Error(
       `${cardCode} in ${coreHeroId}'s deck (aspect override to ${targetAspect}) drops below the 40-card minimum — not supported by this helper`,

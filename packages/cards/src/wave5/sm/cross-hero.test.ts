@@ -188,7 +188,13 @@ describe("Ghost-Spider's aspect/basic cards, from a Core hero's own deck", () =>
     // Requirement ([physical]): needs an explicit icon-matched payment (`paymentWithIcons`), not the generic
     // `playFromAnotherHerosDeck` default (`playFromHand`'s own `payWith` doesn't check icon type).
     const { state: opened, id: whatDoesntKillMe } = openHandFor("27016", "core-black-panther-protection");
-    const hero = toHeroFirst(opened);
+    // A [physical] card from the deck into hand to meet the Requirement, rather than relying on the seed's draw.
+    const physical = opened.players[0]!.deck.map((id) => opened.instances[id]!.cardId as string).find((cardId) => {
+      const card = WAVE5_CARDS_BY_ID.get(cardId);
+      return card !== undefined && "resourceIcons" in card && (card.resourceIcons.physical ?? 0) > 0;
+    });
+    if (!physical) throw new Error("no [physical] card in Black Panther's deck");
+    const hero = toHeroFirst(moveToHand(opened, P1, physical).state);
     const identity = identityOf(hero);
     const staged = patchInstance(hero, identity, { damage: 2, exhausted: true });
     const hand = staged.players[0]!.hand.filter((id) => id !== whatDoesntKillMe);
