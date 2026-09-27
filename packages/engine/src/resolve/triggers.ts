@@ -99,6 +99,11 @@ function matchesRest(
           : undefined;
     if (fromAttack !== pattern.fromAttack) return false;
   }
+  // An ally's consequential damage (docs/phase7-wave5.md §4.1 Q62); only a `dealDamage` event carries the flag.
+  if (pattern.consequential !== undefined) {
+    if (event.kind !== "dealDamage") return false;
+    if ((event.consequential === true) !== pattern.consequential) return false;
+  }
   const context: EffectContext = { selfInstanceId: selfId, controllerId: controller, event, bindings: {}, deps };
   if (pattern.targetIs) {
     const query: TargetQuery = pattern.targetIs;

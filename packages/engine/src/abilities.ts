@@ -34,6 +34,13 @@ export interface EventPattern {
   readonly sourceIs?: TargetQuery;
   readonly fromAttack?: boolean;
   /**
+   * `true`: the damage must be an ally's consequential damage (RRG 1.8 "Consequential Damage", p. 13) — "When a
+   * S.H.I.E.L.D. ally would take any amount of consequential damage" (Field Agent, `sm` 27044), from an attack or a
+   * thwart alike. `false`: it must not be. Reads the `consequential` flag `pushConsequentialDamage` stamps on the
+   * `dealDamage` event, in both windows; any other event kind never matches (docs/phase7-wave5.md §4.1 Q62).
+   */
+  readonly consequential?: boolean;
+  /**
    * Results the event must have produced, read at response time: "after X
    * attacks and damages" → `{ damage: 1 }`, "…and defeats" → `{ defeated: 1 }`,
    * "…undefended" → `{ undefended: 1 }`. Keys are the event's `results`.

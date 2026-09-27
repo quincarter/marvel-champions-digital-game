@@ -1149,12 +1149,20 @@ export const on = {
    * scope, unlike `youPlayThis`'s hardcoded "you"; the player who played it is named with `eventPlayer`.
    */
   cardPlayed: (what: TargetQuery): EventPattern => pattern("cardPlayed", { targetIs: what }),
-  /** "When X would take damage" / "after X takes damage" (`taken`: some damage was actually dealt). */
-  damage: (to: Who, opts: { readonly fromAttack?: boolean; readonly taken?: boolean } = {}): EventPattern =>
+  /**
+   * "When X would take damage" / "after X takes damage" (`taken`: some damage was actually dealt). `consequential`:
+   * "When X would take any amount of consequential damage" (Field Agent, `sm` 27044) — an ally's consequential damage
+   * from an attack or a thwart alike (`EventPattern.consequential`, docs/phase7-wave5.md §4.1 Q62); `false` excludes it.
+   */
+  damage: (
+    to: Who,
+    opts: { readonly fromAttack?: boolean; readonly taken?: boolean; readonly consequential?: boolean } = {},
+  ): EventPattern =>
     pattern(
       "dealDamage",
       asTarget(to),
       opts.fromAttack !== undefined ? { fromAttack: opts.fromAttack } : {},
+      opts.consequential !== undefined ? { consequential: opts.consequential } : {},
       opts.taken ? { requireResults: { amount: 1 } } : {},
     ),
   /**
