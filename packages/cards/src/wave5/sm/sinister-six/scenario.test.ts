@@ -1,7 +1,15 @@
-import { cardId } from "@mc/content";
-import { activeVillain, createGame, undefeatedVillains, type GameSetupConfig, type GameState } from "@mc/engine";
-import { describe, expect, it } from "vitest";
+import { cardId, encounterSetId } from "@mc/content";
+import {
+  activeVillain,
+  createGame,
+  replay,
+  undefeatedVillains,
+  type GameSetupConfig,
+  type GameState,
+} from "@mc/engine";
+import { describe, expect, it, test } from "vitest";
 import { inst, instancesOf } from "../../../testing/harness.js";
+import { playToOutcome } from "../../../testing/driver.js";
 import { WAVE5_DEPS } from "../../index.js";
 import { wave5Scenario, type Wave5ScenarioOptions } from "../../setup.js";
 
@@ -9,9 +17,10 @@ import { wave5Scenario, type Wave5ScenarioOptions } from "../../setup.js";
  * The Sinister Six's own Setup (`sm` 27100a Sinister Synchronization 1A, MC27 p. 15, docs/phase7-wave5.md §1.5):
  * "Choose X villains at random, where X is 1 more than the number of players. Put those villains into play, place
  * the active counter on the villain with the lowest activation order value, and set the other villains aside. Put
- * the Light at the End side scheme into play, [Trap!] side faceup." Villain scripts for Doctor Octopus, Electro,
- * Hobgoblin, Kraven the Hunter, Scorpion and Vulture (`sm` 27094-27099) and Guerrilla Tactics are separate, later
- * agents' work; these tests exercise only the scenario builder, the main scheme and Light at the End.
+ * the Light at the End side scheme into play, [Trap!] side faceup." Then three full games played headlessly by the
+ * card-name-agnostic greedy driver to a real outcome and replayed to a deep-equal final state (the
+ * `mysterio/scenario.test.ts` shape). Guerrilla Tactics (the recommended modular) is not scripted yet; Bomb Scare
+ * (Core, already scripted) stands in for it.
  */
 const SIX_VILLAIN_IDS = [
   cardId("27094"), // Doctor Octopus, activation order 1
@@ -106,3 +115,48 @@ describe("wave5Scenario('sinister-six')", () => {
     expect(() => sinisterSixGame([])).toThrow(/1-4/);
   });
 });
+
+/** Plays `config` to an outcome with the greedy driver and checks the log replays to the same final state. */
+function playAndReplay(config: GameSetupConfig) {
+  const created = createGame(config, WAVE5_DEPS);
+  if (!created.ok) throw new Error(`setup failed: ${created.error.message}`);
+  const result = playToOutcome(created.state, WAVE5_DEPS);
+  expect(result.outcome).not.toBeNull();
+  expect(result.rounds).toBeGreaterThanOrEqual(1);
+  const replayed = replay(result.session.log, WAVE5_DEPS);
+  expect(replayed.ok).toBe(true);
+  if (replayed.ok) expect(replayed.state).toEqual(result.session.state);
+  return result;
+}
+
+const BOMB_SCARE = [encounterSetId("bomb_scare")];
+
+test("The Sinister Six, solo: Ghost-Spider", () => {
+  playAndReplay(
+    wave5Scenario("sinister-six", {
+      seed: 2026,
+      players: [{ starterDeckId: "ghost-spider" }],
+      modularSetIds: BOMB_SCARE,
+    }),
+  );
+}, 120_000);
+
+test("The Sinister Six, solo: a Core precon (Captain Marvel / Leadership)", () => {
+  playAndReplay(
+    wave5Scenario("sinister-six", {
+      seed: 2027,
+      players: [{ starterDeckId: "core-captain-marvel-leadership" }],
+      modularSetIds: BOMB_SCARE,
+    }),
+  );
+}, 120_000);
+
+test("The Sinister Six, 2 players: Spider-Man (Miles Morales) and Ghost-Spider, 3 villains in play", () => {
+  playAndReplay(
+    wave5Scenario("sinister-six", {
+      seed: 2028,
+      players: [{ starterDeckId: "spider-man-morales" }, { starterDeckId: "ghost-spider" }],
+      modularSetIds: BOMB_SCARE,
+    }),
+  );
+}, 180_000);
