@@ -60,17 +60,9 @@ const A_WEB_WARRIOR_CARD: TargetQuery = {
  * abilities (data only, out of this group). His events, obligation/nemesis set and identity are separate modules.
  *
  * **Field Agent (27044)** — "Hero Interrupt: When a S.H.I.E.L.D. ally would take any amount of consequential
- * damage, exhaust Field Agent and remove 1 backup counter from it → prevent 1 of that damage." "Consequential
- * damage" has no dedicated `EventPattern` field (the engine's `dealDamage` event carries a `consequential: true`
- * body flag, but `eventIs`/`eventAtLeast` only read string/number fields, and `requireResults`'s `attack.made` /
- * `thwart.made` prefixes are mutually exclusive, not an "either" `on.consequentialDamage` can express without a
- * mandatory `from: "attack" | "thwart"`) — a genuine DSL/engine gap shared by Cannonball's and Falcon's own "would
- * take any amount of consequential damage" reprints of this exact phrase (`angel`/`falcon`, not yet scripted).
- * Scripted instead from the one fact that already holds: `pushConsequentialDamage` (`packages/engine/src/
- * actions.ts`) is the *only* `dealDamage` push whose `sourceInstanceId` is the same instance as its own target, so
- * mirroring the target query onto `sourceIs` narrows to "a S.H.I.E.L.D. ally deals non-attack damage to itself" —
- * exactly consequential damage as currently modeled, nothing else. Flag for `game-rules-architect`: a real
- * `consequential` `EventPattern` boolean would replace this and unblock Cannonball/Falcon directly.
+ * damage, exhaust Field Agent and remove 1 backup counter from it → prevent 1 of that damage."
+ * `when.damage(A_SHIELD_ALLY, { consequential: true })`: an ally's consequential damage from an attack or a thwart
+ * alike, and no other damage (`EventPattern.consequential`, docs/phase7-wave5.md §4.1 Q62).
  *
  * **Agent 13 (27046)** — "[star] Response: After Agent 13 attacks or thwarts, choose a S.H.I.E.L.D. support →
  * ready that support." The printed "[star]" is the card's own unique-icon glyph reprinted before the ability line
@@ -93,14 +85,11 @@ const A_WEB_WARRIOR_CARD: TargetQuery = {
  * "Identity-specific event" is `query("event", { identitySetOf: you })` (RRG 1.8 "Identity-Specific Card", p. 23).
  *
  * **Spider-Man / Peter Parker (ally, 27049)** — printed "Requirement ([energy] [mental] [physical])", engine-
- * enforced purely from the card's own `keywords` array (`requiredResources`, `packages/engine/src/actions.ts`) —
- * every other Requirement card in this same file (27006, 27016) carries `{ name: "requirement", ... }` in
- * `keywords` and needs *no* separate ability ref for it, but 27049's (and its silk 52022 reprint's) `keywords` is
- * empty despite both listing a `27049.spider-man-constant`/`52022.spider-man-constant` ability id — a
- * `card-data-pipeline` data gap, not a scriptable behavior (no DSL/engine primitive re-implements a schema keyword
- * from inside an `AbilityDefinition`; granting "requirement" via `gainsKeyword` would not reach `requiredResources`,
- * which reads the printed card object directly). Registered as an inert `constant()` so the ref is not left
- * unregistered; flagged here and in this wave's report for `card-data-pipeline` to add the keyword instead. The
+ * enforced purely from the card's own `keywords` array (`requiredResources`, `packages/engine/src/actions.ts`),
+ * same as every other Requirement card in this file (27006, 27016): `keywords` carries `{ name: "requirement",
+ * ... }` and there is no separate ability ref for it. (Multi-icon Requirement with spaces between icons —
+ * `[energy] [mental] [physical]` — used to fail to parse into `keywords` at all, dropping the requirement
+ * entirely; fixed in `card-data-pipeline`'s ingest, packages/content/scripts/marvelcdb/parse-text.ts.) The
  * Response ("After Spider-Man attacks or thwarts, choose another Web-Warrior character → ready that character")
  * is scripted normally.
  *
@@ -113,7 +102,7 @@ const A_WEB_WARRIOR_CARD: TargetQuery = {
  */
 export const SPIDER_MAN_MORALES_PRECON_PLAYER_CARDS = defineAbilities({
   "27044.field-agent-interrupt": heroInterrupt(
-    { ...when.damage(A_SHIELD_ALLY, { fromAttack: false }), sourceIs: A_SHIELD_ALLY },
+    when.damage(A_SHIELD_ALLY, { consequential: true }),
     { cost: [exhaustThis, removeCounter("backup")] },
     preventDamage(1),
   ),
@@ -143,9 +132,8 @@ export const SPIDER_MAN_MORALES_PRECON_PLAYER_CARDS = defineAbilities({
     shuffleDeck(),
   ),
 
-  // Requirement ([energy] [mental] [physical]) — engine-enforced from `keywords`, missing on this card's own data
-  // (module docblock). Registered inert so the ref is not left unscripted; not a script bug to fix here.
-  "27049.spider-man-constant": constant(),
+  // Requirement ([energy] [mental] [physical]) — engine-enforced from `keywords` (module docblock); no ability
+  // ref for it, same as every other Requirement card in this file.
   "27049.spider-man-response": response(
     after.attacksOrThwarts("self"),
     chooseTarget("character", { categories: ["identity", "ally"], trait: WEB_WARRIOR, controller: "you", self: false }),

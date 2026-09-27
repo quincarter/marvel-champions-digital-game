@@ -351,7 +351,9 @@ function parseKeyword(sentence: string): KeywordInstance | undefined {
   const linked = /^Linked(?: \((.+)\))?\.?$/.exec(sentence);
   if (linked)
     return { name: "linked", ...(linked[1] !== undefined ? { cardTitle: (linked[1] as string).trim() } : {}) };
-  const requirement = /^Requirement \(((?:\[(?:energy|mental|physical|wild)\])+)\)\.?$/.exec(sentence);
+  // Icons print adjacent (`[mental][mental]`, R&D Facility 29020) or space-separated (`[energy] [mental]
+  // [physical]`, Spider-Man ally 27049/52022) — both are the same keyword, so the separator is optional.
+  const requirement = /^Requirement \(((?:\[(?:energy|mental|physical|wild)\]\s*)+)\)\.?$/.exec(sentence);
   if (requirement) {
     const icons = [...(requirement[1] as string).matchAll(RESOURCE_ICON_RE)].map((mm) => mm[1] as ResourceIconType);
     if (icons.length === 1) return { name: "requirement", icon: icons[0] as ResourceIconType };

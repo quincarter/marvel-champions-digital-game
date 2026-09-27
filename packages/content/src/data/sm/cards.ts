@@ -1198,14 +1198,19 @@ export const SM_CARDS: readonly AnyCard[] = [
     consequentialDamage: { attack: 1, thwart: 1 },
     aspect: "basic",
     traits: [trait("WEB-WARRIOR")],
-    keywords: [],
+    keywords: [
+      {
+        name: "requirement",
+        resources: { energy: 1, mental: 1, physical: 1 },
+      },
+    ],
     deckLimit: 1,
     text: {
       printed: "Requirement ([energy] [mental] [physical]). (While paying for this card, spend the listed resources.)\nResponse: After Spider-Man attacks or thwarts, choose another Web-Warrior character → ready that character.",
       current: "Requirement ([energy] [mental] [physical]). (While paying for this card, spend the listed resources.)\nResponse: After Spider-Man attacks or thwarts, choose another Web-Warrior character → ready that character.",
     },
     flavor: "\"See, Miles, that's how you do it.\"",
-    abilities: [{ id: abilityId("27049.spider-man-constant") }, { id: abilityId("27049.spider-man-response") }],
+    abilities: [{ id: abilityId("27049.spider-man-response") }],
   },
   {
     id: cardId("27050"),

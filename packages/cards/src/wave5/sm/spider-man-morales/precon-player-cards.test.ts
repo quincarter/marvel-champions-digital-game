@@ -117,6 +117,32 @@ describe("Field Agent (support, 27044)", () => {
     // Agent 13's own printed consequential attack damage is 1, taken in full: no prevention window ever opened.
     expect(inst(after, agent13).damage).toBe(1);
   });
+
+  it("27044.field-agent-interrupt: does not trigger on a S.H.I.E.L.D. ally's non-consequential damage (defending)", () => {
+    const hero = run(milesVsRhino(1), toHero(P1));
+    const { state: withDugan, id: dugan } = playFromHandHelper(hero, "27047", 5);
+    const { state: withFieldAgent, id: fieldAgent } = playFromHandHelper(withDugan, "27044", 1);
+    const defending = answer(
+      settle(
+        runWith(WAVE5_DEPS, withFieldAgent, endTurn(P1)),
+        firstLegal,
+        (s) => s.pendingChoice?.prompt.kind === "declareDefender",
+        WAVE5_DEPS,
+      ),
+      [dugan],
+      WAVE5_DEPS,
+    );
+    let offered = false;
+    const watching: Picker = (state) => {
+      if (state.pendingChoice?.options.some((o) => o.optionId.endsWith("27044.field-agent-interrupt"))) offered = true;
+      return accepting("27044.field-agent-interrupt", "backup")(state);
+    };
+    const after = settle(defending, watching, undefined, WAVE5_DEPS);
+    // Rhino's attack damaged Dugan, but that damage is not consequential: Field Agent was never offered.
+    expect(inst(after, dugan).damage).toBeGreaterThan(0);
+    expect(offered).toBe(false);
+    expect(inst(after, fieldAgent).counters.backup).toBe(3);
+  });
 });
 
 describe("Surveillance Team (support, 27045, Core reprint of 01064)", () => {
@@ -249,13 +275,6 @@ describe("Ghost-Spider (ally, 27048)", () => {
 });
 
 describe("Spider-Man / Peter Parker (ally, 27049)", () => {
-  it("27049.spider-man-constant: registered inert (Requirement is engine-enforced from `keywords`, which this card's own data is missing — module docblock)", () => {
-    const definition = SPIDER_MAN_MORALES_PRECON_PLAYER_CARDS["27049.spider-man-constant"]!;
-    expect(validateDefinition(definition)).toEqual([]);
-    expect(definition.trigger).toEqual({ kind: "constant" });
-    expect(definition.effects ?? []).toEqual([]);
-  });
-
   it("27049.spider-man-response: after he attacks or thwarts, readies a chosen Web-Warrior character (his own identity)", () => {
     const hero = run(milesVsRhino(1), toHero(P1));
     const { state: withPeter, id: peter } = playFromHandHelper(hero, "27049", 3);
@@ -324,7 +343,6 @@ describe("coverage", () => {
       "27047.dum-dum-dugan-interrupt",
       "27048.ghost-spider-constant",
       "27048.ghost-spider-interrupt",
-      "27049.spider-man-constant",
       "27049.spider-man-response",
       "27054.government-liaison-action",
       "27055.sky-destroyer-response",

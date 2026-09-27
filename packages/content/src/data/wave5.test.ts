@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  requirementResources,
   validateCampaign,
   validateCard,
   validateScenario,
@@ -10,6 +11,7 @@ import type { AnyCard, EncounterSet, EnvironmentCard, MainSchemeCard } from "../
 import { CORE_ENCOUNTER_SETS } from "./core/encounterSets.js";
 import { IRONHEART_CARDS } from "./ironheart/cards.js";
 import { NOVA_CARDS } from "./nova/cards.js";
+import { SILK_CARDS } from "./silk/cards.js";
 import { SM_CAMPAIGN } from "./sm/campaign.js";
 import { SM_CARDS } from "./sm/cards.js";
 import { SM_ENCOUNTER_SETS } from "./sm/encounterSets.js";
@@ -260,5 +262,42 @@ describe("Sinister Motives — campaign record", () => {
       const specificTo = (card as { specificTo: { encounterSetId: unknown } }).specificTo;
       expect(specificTo.encounterSetId as string, card.id as string).toBe("shield_tech");
     }
+  });
+});
+
+describe("Requirement keyword: several printed icons parse into `keywords` (RRG 1.8 'Requirement (Resources)', p. 37)", () => {
+  // 27049/52022 print "Requirement ([energy] [mental] [physical])" — icons separated by spaces, which the ingest
+  // parser's Requirement regex used to reject outright, dropping the keyword (`keywords: []`) and letting the card
+  // be paid for without spending the listed resources. Fixed in packages/content/scripts/marvelcdb/parse-text.ts.
+  const keywordsOf = (card: AnyCard | undefined) => {
+    if (!card || !("keywords" in card)) throw new Error(`no keywords on ${card?.id as string}`);
+    return card.keywords;
+  };
+
+  it("Spider-Man / Peter Parker (ally, sm 27049) carries all three space-separated icons", () => {
+    const keywords = keywordsOf(SM_CARDS.find((c) => c.id === "27049"));
+    expect(keywords).toContainEqual({ name: "requirement", resources: { energy: 1, mental: 1, physical: 1 } });
+    expect(requirementResources(keywords.find((k) => k.name === "requirement")!)).toEqual({
+      energy: 1,
+      mental: 1,
+      physical: 1,
+    });
+  });
+
+  it("its silk 52022 reprint carries the same three icons", () => {
+    const keywords = keywordsOf(SILK_CARDS.find((c) => c.id === "52022"));
+    expect(keywords).toContainEqual({ name: "requirement", resources: { energy: 1, mental: 1, physical: 1 } });
+  });
+
+  // Adjacent icons with no separator (`[mental][mental]`) already parsed correctly before this fix — unchanged.
+  it("R&D Facility (ironheart 29020) still carries its adjacent-icon Requirement", () => {
+    const keywords = keywordsOf(IRONHEART_CARDS.find((c) => c.id === "29020"));
+    expect(keywords).toContainEqual({ name: "requirement", resources: { mental: 2 } });
+  });
+
+  // Single-icon Requirement cards resolve to the wave 1 `icon` shape and are unaffected by the multi-icon fix.
+  it("Web Binding (sm 27006) still carries its single-icon Requirement", () => {
+    const keywords = keywordsOf(SM_CARDS.find((c) => c.id === "27006"));
+    expect(keywords).toContainEqual({ name: "requirement", icon: "mental" });
   });
 });
