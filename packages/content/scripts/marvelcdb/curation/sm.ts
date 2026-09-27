@@ -139,6 +139,126 @@ export const SM_CURATION: PackCuration = {
           "Choose:\n• Place 1 acceleration token on the main scheme.\n• Exhaust a character you control and spend 1 resource of any type.",
       },
     },
+    // Deepest Fears's raw MarvelCDB `text`/`real_text` says "If not identity-specific card was discarded this
+    // way, take 1 damage." — a "not"/"no" transposition (the first clause correctly reads "If at least 1
+    // identity-specific card was discarded this way, place 1 threat on the main scheme.", so this is the
+    // complementary "if none were" case). Confirmed against the card's own scan
+    // (`assets/card-art/bundles/cards/27157.png`): "...If no identity-specific card was discarded this way, take
+    // 1 damage."
+    {
+      code: "27157",
+      reason:
+        'Deepest Fears\' raw text reads "If not identity-specific card was discarded this way, take 1 damage." ' +
+        '— "not" for "no" — while the card\'s own scan prints "no".',
+      evidence:
+        'card scan assets/card-art/bundles/cards/27157.png: "...If no identity-specific card was discarded ' +
+        'this way, take 1 damage."',
+      textReplace: {
+        find: "If not identity-specific card was discarded this way, take 1 damage.",
+        replace: "If no identity-specific card was discarded this way, take 1 damage.",
+      },
+    },
+    // Slice and Dice's raw MarvelCDB `text`/`real_text` says "If that attack defeats a character or not attack
+    // was made this way, this card gains surge." — the same "not"/"no" transposition as Deepest Fears above.
+    // Confirmed against the card's own scan (`assets/card-art/bundles/cards/27060.png`): "...or no attack was
+    // made this way, this card gains surge."
+    {
+      code: "27060",
+      reason:
+        'Slice and Dice\'s raw text reads "...or not attack was made this way..." — "not" for "no" — while the ' +
+        'card\'s own scan prints "no".',
+      evidence:
+        'card scan assets/card-art/bundles/cards/27060.png: "If that attack defeats a character or no attack ' +
+        'was made this way, this card gains surge."',
+      textReplace: {
+        find: "If that attack defeats a character or not attack was made this way, this card gains surge.",
+        replace: "If that attack defeats a character or no attack was made this way, this card gains surge.",
+      },
+    },
+    // Induced Panic's raw MarvelCDB `text`/`real_text` splices its constant restriction and its separate
+    // Alter-Ego Action with a literal "/n" (a stray transcription artifact, not an actual newline) instead of a
+    // real line break, and drops the space around the Action's own "→" ("hand →discard this card."). Because
+    // `parse-text.ts`'s header scan runs per `text.split("\n")` line and requires a trigger to start a line (or
+    // follow ".)!" plus whitespace), the literal "/n" hides the "Alter-Ego Action:" header from the parser
+    // entirely — the raw text parses as a single constant ability, when the card prints two independent
+    // abilities (the constant restriction and the Alter-Ego Action). Confirmed against the card's own scan
+    // (`assets/card-art/bundles/cards/27153.png`): the Action is its own paragraph, with "→" spaced on both
+    // sides. Replacing the literal "/n" with a real newline lets the ordinary header-detection split this into
+    // its own `action`-kind ability (`27153.induced-panic-action`, `assignAbilityIds`'s ordinary
+    // `<slug>-<kind>` naming), alongside the existing `27153.induced-panic-constant`.
+    {
+      code: "27153",
+      reason:
+        'Induced Panic\'s raw text runs its constant restriction into its Alter-Ego Action with a literal "/n" ' +
+        'instead of a newline ("...timing triggers.) /n Alter-Ego Action: ...") and drops the space around ' +
+        '"→" ("hand →discard this card."), hiding the second ability from the header parser.',
+      evidence:
+        'card scan assets/card-art/bundles/cards/27153.png: the constant restriction and "Alter-Ego Action: ' +
+        'Discard 1 identity-specific card at random from your hand → discard this card." are printed as two ' +
+        'separate paragraphs, with "→" spaced on both sides.',
+      textReplace: {
+        find: "(Triggered abilities are ones with bold timing triggers.) /n Alter-Ego Action: Discard 1 identity-specific card at random from your hand →discard this card.",
+        replace:
+          "(Triggered abilities are ones with bold timing triggers.)\nAlter-Ego Action: Discard 1 identity-specific card at random from your hand → discard this card.",
+      },
+    },
+    // Found scanning the rest of sm for the same kinds of defects. Rhino's raw MarvelCDB `text`/`real_text` says
+    // "Rhino's attack gain overkill and piercing" — a subject/verb mismatch ("attack" for "attacks") with no
+    // closing period. Confirmed against the card's own scan (`assets/card-art/bundles/cards/27128.png`):
+    // "Rhino's attacks gain overkill and piercing."
+    {
+      code: "27128",
+      reason:
+        "Rhino's raw text reads \"Rhino's attack gain overkill and piercing\" with no closing period — a " +
+        'subject/verb mismatch ("attack" for "attacks") — while the card\'s own scan prints "attacks." and a ' +
+        "period.",
+      evidence: 'card scan assets/card-art/bundles/cards/27128.png: "Rhino\'s attacks gain overkill and piercing."',
+      textReplace: {
+        find: "Rhino's attack gain overkill and piercing",
+        replace: "Rhino's attacks gain overkill and piercing.",
+      },
+    },
+    // Found scanning the rest of sm for the same kinds of defects. Skies Over New York's (27116b) raw
+    // MarvelCDB `real_text` lowercases the second of its three bullet clauses ("encounter cards" mid-text,
+    // where every other clause on the card starts a capitalized sentence/bullet), drops the quotation marks
+    // around the quoted term "the main scheme" in the first two clauses, has no bullet markers at all (the same
+    // missing-"•" shape as Now or Never's own correction above), and drops the closing period on the third
+    // clause. Confirmed against the card's own scan (`assets/card-art/bundles/cards/27116b.png`): three
+    // "•"-bulleted sentences, "Encounter cards" capitalized, "the main scheme" quoted in the first two, and a
+    // closing period on the third.
+    {
+      code: "27116b",
+      reason:
+        'Skies Over New York\'s raw text lowercases "encounter cards" mid-card, drops the quotation marks around ' +
+        'the quoted term "the main scheme" (both occurrences), has no "•" bullet markers between its three ' +
+        "clauses, and drops the closing period on the third clause.",
+      evidence:
+        'card scan assets/card-art/bundles/cards/27116b.png: "• Player cards that affect \\"the main scheme\\" ' +
+        'can apply to any main scheme. • Encounter cards that affect \\"the main scheme\\" only apply to the ' +
+        "scheme with the glider counter (including the placing of acceleration tokens). • Each main scheme " +
+        "accumulates threat each round according to its acceleration value and any acceleration tokens on that " +
+        'scheme."',
+      textReplace: {
+        find: "Player cards that affect the main scheme can apply to any main scheme.\nencounter cards that affect the main scheme only apply to the scheme with the glider counter (including the placing of acceleration tokens).\nEach main scheme accumulates threat each round according to its acceleration value and any acceleration tokens on that scheme",
+        replace:
+          '• Player cards that affect "the main scheme" can apply to any main scheme.\n• Encounter cards that affect "the main scheme" only apply to the scheme with the glider counter (including the placing of acceleration tokens).\n• Each main scheme accumulates threat each round according to its acceleration value and any acceleration tokens on that scheme.',
+      },
+    },
+    // Found scanning the rest of sm for the same kinds of defects. Tracking Display's raw MarvelCDB
+    // `text`/`real_text` says "Surge .\n..." — a stray space before the period, unlike every other "Surge."
+    // card in the corpus (11 others in sm alone, none with the extra space). Confirmed against the card's own
+    // scan (`assets/card-art/bundles/cards/27152.png`): "Surge." with no space.
+    {
+      code: "27152",
+      reason:
+        'Tracking Display\'s raw text reads "Surge ." with a stray space before the period, unlike every other ' +
+        '"Surge." card in the corpus, while the card\'s own scan prints "Surge." with no space.',
+      evidence: 'card scan assets/card-art/bundles/cards/27152.png: "Surge." (no space before the period).',
+      textReplace: {
+        find: "Surge .\n",
+        replace: "Surge.\n",
+      },
+    },
   ],
 
   errata: [],

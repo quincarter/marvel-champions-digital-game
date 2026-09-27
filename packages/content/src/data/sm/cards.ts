@@ -1439,8 +1439,8 @@ export const SM_CARDS: readonly AnyCard[] = [
     traits: [],
     keywords: [],
     text: {
-      printed: "When Revealed: Prowler attacks the player with the fewest remaining hit points (even if that player is in alter-ego form). If that attack defeats a character or not attack was made this way, this card gains surge.",
-      current: "When Revealed: Prowler attacks the player with the fewest remaining hit points (even if that player is in alter-ego form). If that attack defeats a character or not attack was made this way, this card gains surge.",
+      printed: "When Revealed: Prowler attacks the player with the fewest remaining hit points (even if that player is in alter-ego form). If that attack defeats a character or no attack was made this way, this card gains surge.",
+      current: "When Revealed: Prowler attacks the player with the fewest remaining hit points (even if that player is in alter-ego form). If that attack defeats a character or no attack was made this way, this card gains surge.",
     },
     abilities: [{ id: abilityId("27060.when-revealed") }],
   },
@@ -2956,8 +2956,8 @@ export const SM_CARDS: readonly AnyCard[] = [
     traits: [],
     keywords: [],
     text: {
-      printed: "Player cards that affect the main scheme can apply to any main scheme.\nencounter cards that affect the main scheme only apply to the scheme with the glider counter (including the placing of acceleration tokens).\nEach main scheme accumulates threat each round according to its acceleration value and any acceleration tokens on that scheme",
-      current: "Player cards that affect the main scheme can apply to any main scheme.\nencounter cards that affect the main scheme only apply to the scheme with the glider counter (including the placing of acceleration tokens).\nEach main scheme accumulates threat each round according to its acceleration value and any acceleration tokens on that scheme",
+      printed: "• Player cards that affect \"the main scheme\" can apply to any main scheme.\n• Encounter cards that affect \"the main scheme\" only apply to the scheme with the glider counter (including the placing of acceleration tokens).\n• Each main scheme accumulates threat each round according to its acceleration value and any acceleration tokens on that scheme.",
+      current: "• Player cards that affect \"the main scheme\" can apply to any main scheme.\n• Encounter cards that affect \"the main scheme\" only apply to the scheme with the glider counter (including the placing of acceleration tokens).\n• Each main scheme accumulates threat each round according to its acceleration value and any acceleration tokens on that scheme.",
     },
     abilities: [
       { id: abilityId("27116b.skies-over-new-york-constant") },
@@ -3228,8 +3228,8 @@ export const SM_CARDS: readonly AnyCard[] = [
     traits: [trait("CRIMINAL"), trait("ELITE")],
     keywords: [{ name: "steady" }],
     text: {
-      printed: "Steady. (Steady characters require 2 status cards of the same type to be stunned or confused.)\n[star] Rhino's attack gain overkill and piercing",
-      current: "Steady. (Steady characters require 2 status cards of the same type to be stunned or confused.)\n[star] Rhino's attack gain overkill and piercing",
+      printed: "Steady. (Steady characters require 2 status cards of the same type to be stunned or confused.)\n[star] Rhino's attacks gain overkill and piercing.",
+      current: "Steady. (Steady characters require 2 status cards of the same type to be stunned or confused.)\n[star] Rhino's attacks gain overkill and piercing.",
     },
     abilities: [{ id: abilityId("27128.rhino-constant") }],
   },
@@ -3777,8 +3777,8 @@ export const SM_CARDS: readonly AnyCard[] = [
     traits: [trait("ITEM"), trait("TECH")],
     keywords: [{ name: "surge" }],
     text: {
-      printed: "Surge .\nAttach to the villain.\n[star] Each character cannot defend against attached villain's attacks.\nHero Action: Exhaust a character you control and discard 1 random card from your hand → discard this card.",
-      current: "Surge .\nAttach to the villain.\n[star] Each character cannot defend against attached villain's attacks.\nHero Action: Exhaust a character you control and discard 1 random card from your hand → discard this card.",
+      printed: "Surge.\nAttach to the villain.\n[star] Each character cannot defend against attached villain's attacks.\nHero Action: Exhaust a character you control and discard 1 random card from your hand → discard this card.",
+      current: "Surge.\nAttach to the villain.\n[star] Each character cannot defend against attached villain's attacks.\nHero Action: Exhaust a character you control and discard 1 random card from your hand → discard this card.",
     },
     abilities: [
       { id: abilityId("27152.tracking-display-constant") },
@@ -3801,10 +3801,10 @@ export const SM_CARDS: readonly AnyCard[] = [
     traits: [trait("ILLUSION")],
     keywords: [],
     text: {
-      printed: "Attach to your identity.\nYou cannot resolve triggered abilities in your hero's printed text box. (Triggered abilities are ones with bold timing triggers.) /n Alter-Ego Action: Discard 1 identity-specific card at random from your hand →discard this card.",
-      current: "Attach to your identity.\nYou cannot resolve triggered abilities in your hero's printed text box. (Triggered abilities are ones with bold timing triggers.) /n Alter-Ego Action: Discard 1 identity-specific card at random from your hand →discard this card.",
+      printed: "Attach to your identity.\nYou cannot resolve triggered abilities in your hero's printed text box. (Triggered abilities are ones with bold timing triggers.)\nAlter-Ego Action: Discard 1 identity-specific card at random from your hand → discard this card.",
+      current: "Attach to your identity.\nYou cannot resolve triggered abilities in your hero's printed text box. (Triggered abilities are ones with bold timing triggers.)\nAlter-Ego Action: Discard 1 identity-specific card at random from your hand → discard this card.",
     },
-    abilities: [{ id: abilityId("27153.induced-panic-constant") }],
+    abilities: [{ id: abilityId("27153.induced-panic-constant") }, { id: abilityId("27153.induced-panic-action") }],
   },
   {
     id: cardId("27154"),
@@ -3889,8 +3889,8 @@ export const SM_CARDS: readonly AnyCard[] = [
     traits: [],
     keywords: [{ name: "peril" }],
     text: {
-      printed: "Peril. (While you are resolving this card, other players cannot help you.)\nWhen Revealed: Discard cards from the top of your deck equal to the number of cards in your hand. If at least 1 identity-specific card was discarded this way, place 1 threat on the main scheme. If not identity-specific card was discarded this way, take 1 damage.",
-      current: "Peril. (While you are resolving this card, other players cannot help you.)\nWhen Revealed: Discard cards from the top of your deck equal to the number of cards in your hand. If at least 1 identity-specific card was discarded this way, place 1 threat on the main scheme. If not identity-specific card was discarded this way, take 1 damage.",
+      printed: "Peril. (While you are resolving this card, other players cannot help you.)\nWhen Revealed: Discard cards from the top of your deck equal to the number of cards in your hand. If at least 1 identity-specific card was discarded this way, place 1 threat on the main scheme. If no identity-specific card was discarded this way, take 1 damage.",
+      current: "Peril. (While you are resolving this card, other players cannot help you.)\nWhen Revealed: Discard cards from the top of your deck equal to the number of cards in your hand. If at least 1 identity-specific card was discarded this way, place 1 threat on the main scheme. If no identity-specific card was discarded this way, take 1 damage.",
     },
     abilities: [{ id: abilityId("27157.when-revealed") }],
   },

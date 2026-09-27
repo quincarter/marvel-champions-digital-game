@@ -219,7 +219,9 @@ export const SM_PROVENANCE: readonly CardProvenance[] = [
     cardId: cardId("27060"),
     cardSetCode: "spider_man_morales_nemesis",
     marvelcdbCodes: ["27060"],
-    corrections: [],
+    corrections: [
+      "27060: Slice and Dice's raw text reads \"...or not attack was made this way...\" — \"not\" for \"no\" — while the card's own scan prints \"no\". [evidence: card scan assets/card-art/bundles/cards/27060.png: \"If that attack defeats a character or no attack was made this way, this card gains surge.\"]",
+    ],
   },
   {
     cardId: cardId("27061"),
@@ -339,7 +341,9 @@ export const SM_PROVENANCE: readonly CardProvenance[] = [
     cardId: cardId("27116b"),
     cardSetCode: "venom_goblin",
     marvelcdbCodes: ["27116b"],
-    corrections: [],
+    corrections: [
+      "27116b: Skies Over New York's raw text lowercases \"encounter cards\" mid-card, drops the quotation marks around the quoted term \"the main scheme\" (both occurrences), has no \"•\" bullet markers between its three clauses, and drops the closing period on the third clause. [evidence: card scan assets/card-art/bundles/cards/27116b.png: \"• Player cards that affect \\\"the main scheme\\\" can apply to any main scheme. • Encounter cards that affect \\\"the main scheme\\\" only apply to the scheme with the glider counter (including the placing of acceleration tokens). • Each main scheme accumulates threat each round according to its acceleration value and any acceleration tokens on that scheme.\"]",
+    ],
   },
   {
     cardId: cardId("27117b"),
@@ -376,7 +380,9 @@ export const SM_PROVENANCE: readonly CardProvenance[] = [
     cardId: cardId("27128"),
     cardSetCode: "city_in_chaos",
     marvelcdbCodes: ["27128"],
-    corrections: [],
+    corrections: [
+      "27128: Rhino's raw text reads \"Rhino's attack gain overkill and piercing\" with no closing period — a subject/verb mismatch (\"attack\" for \"attacks\") — while the card's own scan prints \"attacks.\" and a period. [evidence: card scan assets/card-art/bundles/cards/27128.png: \"Rhino's attacks gain overkill and piercing.\"]",
+    ],
   },
   {
     cardId: cardId("27129"),
@@ -463,12 +469,21 @@ export const SM_PROVENANCE: readonly CardProvenance[] = [
   { cardId: cardId("27149"), cardSetCode: "osborn_tech", marvelcdbCodes: ["27149"], corrections: [] },
   { cardId: cardId("27150"), cardSetCode: "osborn_tech", marvelcdbCodes: ["27150"], corrections: [] },
   { cardId: cardId("27151"), cardSetCode: "osborn_tech", marvelcdbCodes: ["27151"], corrections: [] },
-  { cardId: cardId("27152"), cardSetCode: "osborn_tech", marvelcdbCodes: ["27152"], corrections: [] },
+  {
+    cardId: cardId("27152"),
+    cardSetCode: "osborn_tech",
+    marvelcdbCodes: ["27152"],
+    corrections: [
+      "27152: Tracking Display's raw text reads \"Surge .\" with a stray space before the period, unlike every other \"Surge.\" card in the corpus, while the card's own scan prints \"Surge.\" with no space. [evidence: card scan assets/card-art/bundles/cards/27152.png: \"Surge.\" (no space before the period).]",
+    ],
+  },
   {
     cardId: cardId("27153"),
     cardSetCode: "personal_nightmare",
     marvelcdbCodes: ["27153"],
-    corrections: [],
+    corrections: [
+      "27153: Induced Panic's raw text runs its constant restriction into its Alter-Ego Action with a literal \"/n\" instead of a newline (\"...timing triggers.) /n Alter-Ego Action: ...\") and drops the space around \"→\" (\"hand →discard this card.\"), hiding the second ability from the header parser. [evidence: card scan assets/card-art/bundles/cards/27153.png: the constant restriction and \"Alter-Ego Action: Discard 1 identity-specific card at random from your hand → discard this card.\" are printed as two separate paragraphs, with \"→\" spaced on both sides.]",
+    ],
   },
   {
     cardId: cardId("27154"),
@@ -492,7 +507,9 @@ export const SM_PROVENANCE: readonly CardProvenance[] = [
     cardId: cardId("27157"),
     cardSetCode: "personal_nightmare",
     marvelcdbCodes: ["27157"],
-    corrections: [],
+    corrections: [
+      "27157: Deepest Fears' raw text reads \"If not identity-specific card was discarded this way, take 1 damage.\" — \"not\" for \"no\" — while the card's own scan prints \"no\". [evidence: card scan assets/card-art/bundles/cards/27157.png: \"...If no identity-specific card was discarded this way, take 1 damage.\"]",
+    ],
   },
   {
     cardId: cardId("27158"),

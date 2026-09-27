@@ -67,6 +67,65 @@ describe("wave 5 (cycle 4) data — integrity", () => {
   });
 });
 
+describe("Sinister Motives — scan-confirmed text corrections", () => {
+  // None of these fixes touch a hero_identity card (the only `AnyCard` member without `text`/`abilities` at the
+  // top level) — narrows the union so the assertions below can read `.text.current`/`.abilities` directly.
+  function findTexted(id: string) {
+    const card = SM_CARDS.find((c) => c.id === id);
+    if (!card || !("text" in card) || !("abilities" in card)) throw new Error(`expected a texted card for ${id}`);
+    return card;
+  }
+
+  // assets/card-art/bundles/cards/27157.png: "...If no identity-specific card was discarded this way, take 1
+  // damage." — MarvelCDB's raw text reads "not" for "no".
+  it("Deepest Fears (27157) reads 'no identity-specific card', not 'not'", () => {
+    const card = findTexted("27157");
+    expect(card.text.current).toContain("If no identity-specific card was discarded this way, take 1 damage.");
+  });
+
+  // assets/card-art/bundles/cards/27060.png: "...or no attack was made this way, this card gains surge."
+  it("Slice and Dice (27060) reads 'or no attack was made', not 'or not attack was made'", () => {
+    const card = findTexted("27060");
+    expect(card.text.current).toContain(
+      "If that attack defeats a character or no attack was made this way, this card gains surge.",
+    );
+  });
+
+  // assets/card-art/bundles/cards/27153.png: the constant restriction and the Alter-Ego Action are printed as two
+  // separate paragraphs/abilities, unlike MarvelCDB's raw text (a literal "/n" instead of a newline hides the
+  // Action from the header parser, docs/phase7-wave5.md-style curation comment in curation/sm.ts).
+  it("Induced Panic (27153) scripts its constant restriction and its Alter-Ego Action as two abilities", () => {
+    const card = findTexted("27153");
+    expect(card.abilities.map((a) => a.id)).toEqual(["27153.induced-panic-constant", "27153.induced-panic-action"]);
+    expect(card.text.current).toContain(
+      "Alter-Ego Action: Discard 1 identity-specific card at random from your hand → discard this card.",
+    );
+  });
+
+  // assets/card-art/bundles/cards/27128.png: "Rhino's attacks gain overkill and piercing." — MarvelCDB's raw
+  // text has a subject/verb mismatch ("attack" for "attacks") and no closing period.
+  it("Rhino (27128) reads 'attacks gain', not 'attack gain', with a closing period", () => {
+    const card = findTexted("27128");
+    expect(card.text.current).toContain("Rhino's attacks gain overkill and piercing.");
+  });
+
+  // assets/card-art/bundles/cards/27116b.png: three "•"-bulleted sentences, "Encounter cards" capitalized, "the
+  // main scheme" quoted in the first two, and a closing period on the third.
+  it("Skies Over New York (27116b) capitalizes 'Encounter cards' and quotes 'the main scheme'", () => {
+    const card = findTexted("27116b");
+    expect(card.text.current).toContain('Encounter cards that affect "the main scheme"');
+    expect(card.text.current).toContain('Player cards that affect "the main scheme"');
+    expect(card.text.current.endsWith("on that scheme.")).toBe(true);
+  });
+
+  // assets/card-art/bundles/cards/27152.png: "Surge." with no space before the period, unlike every other
+  // "Surge." card in the corpus.
+  it("Tracking Display (27152) reads 'Surge.' with no stray space", () => {
+    const card = findTexted("27152");
+    expect(card.text.current.startsWith("Surge.\n")).toBe(true);
+  });
+});
+
 describe("SP//dr — separated identity sides", () => {
   // Hall of Heroes scan s2.jpg ("SP//DR (2/17)", 2B): one wild resource icon, which Sync Ratio reads.
   it("the SP//dr upgrade side prints one wild resource icon", () => {
