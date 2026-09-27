@@ -55,9 +55,11 @@ export const ADAM_WARLOCK_OBLIGATION_NEMESIS = defineAbilities({
   }),
 
   // The Magus (21067) — Elite, Mystic; Quickstrike, Toughness (data). [star] Forced Response: After The Magus
-  // activates against you, discard the top 5 cards of your deck.
+  // activates against you, discard the top 5 cards of your deck. "Activates against you" also fires on her scheme
+  // against an alter-ego player, not only her attack (docs/phase7-wave5.md §4.1 Q67; RRG 1.8 "Activation", p. 6) —
+  // this previously read it as always an attack.
   "21067.the-magus-forced-response": forcedResponse(
-    on.enemyAttacks("self", { againstYou: true }),
+    on.enemyActivates("self", { againstYou: true }),
     moveCards(topOfDeck(5), "discard"),
   ),
 

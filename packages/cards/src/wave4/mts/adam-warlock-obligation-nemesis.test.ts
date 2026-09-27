@@ -1,9 +1,44 @@
+import type { GameState, InstanceId } from "@mc/engine";
 import { describe, expect, it } from "vitest";
 import { validateDefinition } from "../../dsl/validate.js";
+import { endTurn, firstLegal, P1, playerOf, runWith, settle, toHero } from "../../testing/harness.js";
+import { driveEvents } from "../../testing/staging.js";
+import { expectResolved, traceAbilities } from "../../testing/trace.js";
 import { WAVE4_DEPS } from "../index.js";
+import { startWave4Game } from "../testing.js";
+import { adamWarlockScenario } from "./support.js";
 import { ADAM_WARLOCK_OBLIGATION_NEMESIS } from "./adam-warlock-obligation-nemesis.js";
 
 const valid = (id: string) => expect(validateDefinition(WAVE4_DEPS.abilities[id]!)).toEqual([]);
+const adamVsRhino = (seed = 1) => startWave4Game(adamWarlockScenario("rhino", { seed }));
+
+/** Moves a still-set-aside nemesis minion straight into `player`'s play area, engaged (test-only surgery — the
+ * `spectrum-obligation-nemesis.test.ts` `nemesisMinionEngaged` shape). Lets its own villain-phase activation run for
+ * real, in whatever form the player is currently in (docs/phase7-wave5.md §4.1 Q67). */
+function nemesisMinionEngaged(
+  state: GameState,
+  code: string,
+  player = P1,
+): { readonly state: GameState; readonly id: InstanceId } {
+  const owner = playerOf(state, player);
+  const id = owner.setAside.find((i) => state.instances[i]?.cardId === code);
+  if (!id) throw new Error(`no ${code} set aside for ${player}`);
+  return {
+    id,
+    state: {
+      ...state,
+      players: state.players.map((p) =>
+        p.playerId === player
+          ? { ...p, setAside: p.setAside.filter((i) => i !== id), playArea: [...p.playArea, id] }
+          : p,
+      ),
+      instances: {
+        ...state.instances,
+        [id]: { ...state.instances[id]!, faceup: true, controllerId: null, engagedWith: player },
+      },
+    },
+  };
+}
 
 describe("Regeneration Cycle (21066)", () => {
   it("21066.obligation: discards the top 5 cards of the deck, placing 1 threat per different aspect discarded", () => {
@@ -46,6 +81,27 @@ describe("The Magus (21067)", () => {
         to: "discard",
       },
     ]);
+  });
+
+  it("21067.the-magus-forced-response: fires when The Magus attacks you in hero form (docs/phase7-wave5.md §4.1 Q67)", () => {
+    const hero = settle(runWith(WAVE4_DEPS, adamVsRhino(), toHero()), firstLegal, undefined, WAVE4_DEPS);
+    const engaged = nemesisMinionEngaged(hero, "21067");
+    const { deps, trace } = traceAbilities(WAVE4_DEPS);
+    const { events } = driveEvents(deps, engaged.state, endTurn());
+    expectResolved(trace, "21067.the-magus-forced-response");
+    expect(events.some((e) => e.type === "attackResolved" && e.enemyInstanceId === engaged.id)).toBe(true);
+    expect(events.some((e) => e.type === "schemeResolved" && e.enemyInstanceId === engaged.id)).toBe(false);
+  });
+
+  it("21067.the-magus-forced-response: also fires when The Magus schemes against you in alter-ego form (docs/phase7-wave5.md §4.1 Q67)", () => {
+    const state = adamVsRhino();
+    expect(playerOf(state, P1).identity.form).toBe("alterEgo");
+    const engaged = nemesisMinionEngaged(state, "21067");
+    const { deps, trace } = traceAbilities(WAVE4_DEPS);
+    const { events } = driveEvents(deps, engaged.state, endTurn());
+    expectResolved(trace, "21067.the-magus-forced-response");
+    expect(events.some((e) => e.type === "schemeResolved" && e.enemyInstanceId === engaged.id)).toBe(true);
+    expect(events.some((e) => e.type === "attackResolved" && e.enemyInstanceId === engaged.id)).toBe(false);
   });
 });
 
