@@ -115,9 +115,10 @@ The main session verifies UI boxes by clicking through them before ticking (§6)
 
 **Prefs and settings**
 
-- [ ] **G2a Guide prefs model.** `guide/guide-prefs.ts`: level (`full`/`hints`/`off`), `chooserSeen`, tutorial
+- [x] **G2a Guide prefs model.** `guide/guide-prefs.ts`: level (`full`/`hints`/`off`), `chooserSeen`, tutorial
       progress, aspect lessons done, silenced warnings, seen tips. Persisted as `mc-guide` v1, using the
       `progression.ts` pattern. Tests only.
+      Landed: `48926aad`, `guide/guide-prefs.ts` (pure helpers, `withLevel` resets seen tips on off→full).
 - [ ] **G2b Settings rows.** A segmented row shape in `view/settings-rows.ts`. A Guide group with Guide level, "Play
       the tutorial", "Aspect lessons", and one toggle per warning, drawn in both the Settings overlay and Pause's
       inline group.
@@ -260,7 +261,7 @@ A fresh Claude session can pick this up from this file alone.
   pointer, and put a screenshot beside its tile.
 - **Commits:** as the repo's git user, with no Claude co-author trailer. Every change carries a changie fragment.
 
-**In flight:** G2a (guide prefs) and G3a (glossary basics), side by side.
+**In flight:** G3a (glossary basics) and G2b (settings rows), side by side.
 
 ## 7. Prior art: the parked prototype
 
