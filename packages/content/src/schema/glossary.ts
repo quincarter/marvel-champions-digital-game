@@ -528,7 +528,7 @@ const CONCEPT_GLOSSARY: Record<ConceptId, GlossaryEntry<ConceptId>> = {
     kind: "concept",
     displayName: "Side scheme",
     definition:
-      "A side scheme is an extra objective that shows up next to the main scheme with its own starting threat. It isn't required reading — but leaving it alone usually costs you.",
+      "A side scheme is an extra objective that shows up next to the main scheme with its own starting threat. You don't have to clear it, but leaving it alone usually costs you.",
     sources: [{ kind: "rrg", page: 40 }],
   },
   acceleration: {
@@ -632,7 +632,7 @@ const CONCEPT_GLOSSARY: Record<ConceptId, GlossaryEntry<ConceptId>> = {
     kind: "concept",
     displayName: "Boost",
     definition:
-      "A boost card is dealt facedown to an attacking or scheming enemy, then flipped face up during that activation to add its icons (and sometimes its own effect) to the total.",
+      "A boost card is dealt facedown to the villain when it attacks or schemes, then flipped face up during that activation to add its icons (and sometimes its own effect) to the total. Minions never get boost cards.",
     sources: [{ kind: "rrg", page: 11 }],
   },
   villainPhase: {
@@ -666,7 +666,7 @@ const CONCEPT_GLOSSARY: Record<ConceptId, GlossaryEntry<ConceptId>> = {
     kind: "concept",
     displayName: "Aspect",
     definition:
-      "An aspect (Aggression, Justice, Leadership, Protection, or Pool) is the deckbuilding lane you pick for a deck — it opens up that aspect's cards to fill out your hero's own.",
+      "An aspect (Aggression, Justice, Leadership, Protection, or 'Pool) is the deckbuilding lane you pick for a deck — it opens up that aspect's cards to fill out your hero's own.",
     sources: [{ kind: "rrg", page: 8 }],
   },
   handSize: {

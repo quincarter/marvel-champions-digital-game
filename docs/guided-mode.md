@@ -125,9 +125,10 @@ The main session verifies UI boxes by clicking through them before ticking (§6)
 
 **Glossary**
 
-- [ ] **G3a Glossary basics.** Basic-concept entries in `@mc/content`'s glossary (threat, main scheme, acceleration,
+- [x] **G3a Glossary basics.** Basic-concept entries in `@mc/content`'s glossary (threat, main scheme, acceleration,
       thwart, resource, cost, hero/alter-ego, flip, recover, exhaust, defend, consequential damage, encounter card,
       boost, villain phase, aspect), each a paraphrase with an RRG 1.8 cite. Surface them in `view/rules-reference.ts`.
+      Landed: `c9e72859`, 21 `kind: "concept"` entries in `CONCEPT_GLOSSARY` (glossary.ts), always shown in the Rules reference; look up with `glossaryEntry(id)`.
 - [ ] **G3b `McTermText` + `McTooltip`.** Body text with dotted terms. Hover on desktop, tap on touch. The tooltip shows
       the term, one line and "Rules glossary ▸", which deep-links to `SCENES.rules`.
 
@@ -261,7 +262,7 @@ A fresh Claude session can pick this up from this file alone.
   pointer, and put a screenshot beside its tile.
 - **Commits:** as the repo's git user, with no Claude co-author trailer. Every change carries a changie fragment.
 
-**In flight:** G3a (glossary basics) and G2b (settings rows), side by side.
+**In flight:** G2b (settings rows) and G3b (term text + tooltip), side by side.
 
 ## 7. Prior art: the parked prototype
 
