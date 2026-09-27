@@ -15,9 +15,9 @@ export const base = (ctx: Ctx) => ({ frameId: nextFrameId(ctx), answer: null }) 
 
 /**
  * `vars` seeds the frame's activation record. An enemy attack/scheme reads its modifications (`atkBonus`, `schBonus`,
- * `overkill`, `extraBoost`, `threatBonus`) off the event frame, and `modifyAttack` adds to them while the activation
- * is in progress; seeding them here is how an effect that *initiates* an activation scopes a bonus to exactly it
- * ("Green Goblin attacks with +X ATK").
+ * `overkill`, `extraBoost`, `boostIconsEach`, `threatBonus`) off the event frame, and `modifyAttack` adds to them
+ * while the activation is in progress; seeding them here is how an effect that *initiates* an activation scopes a bonus
+ * to exactly it ("Green Goblin attacks with +X ATK").
  */
 export const eventFrame = (
   ctx: Ctx,

@@ -143,7 +143,8 @@ function stepBoostCard(
     updateInstance(ctx, boostId, (i) => ({ ...i, faceup: true }));
     // "When a boost card is turned faceup during an enemy activation, add one additional boost icon to that card for
     // each amplify icon in play" (RRG 1.8 "Amplify Icon", p. 7; docs/phase7-wave3.md §3.6).
-    const icons = boostIconsFor(ctx.state, ctx.deps, boostId) + amplifyIconsInPlay(ctx.state);
+    const icons =
+      boostIconsFor(ctx.state, ctx.deps, boostId) + amplifyIconsInPlay(ctx.state) + boostIconsEachOf(ctx, frame);
     emit(ctx, {
       type: "boostCardFlipped",
       enemyInstanceId: frame.enemyInstanceId,
@@ -197,6 +198,7 @@ function stepBoostCard(
   const counted =
     boostIconsFor(ctx.state, ctx.deps, boost.countFrom ?? boost.instanceId) +
     amplifyIconsInPlay(ctx.state) +
+    boostIconsEachOf(ctx, frame) +
     (boost.countAdjust ?? 0);
   const icons = boost.iconsCancelled ? 0 : Math.max(0, counted);
   // "After you resolve a boost card during Mysterio's activation, place that card in your discard pile" (§3.5 of wave
@@ -219,6 +221,14 @@ function stepBoostCard(
   setFrame(ctx, { ...frame, boost: null });
   return icons;
 }
+
+/**
+ * "Each boost card turned faceup during that activation gets +N boost icons" (`enemyAttack`/`enemyScheme`/`modifyAttack`
+ * `boostIconsEach`, docs/phase7-wave5.md §4.1 Q66): read off this activation's own event frame, so it covers exactly
+ * the boost cards this activation turns faceup (RRG 1.8 "Boost, Boost Icon", p. 11) and ends with it.
+ */
+const boostIconsEachOf = (ctx: Ctx, frame: Frame<"enemyAttack"> | Frame<"enemyScheme">): number =>
+  activationVarsOf(ctx.state, frame.eventFrameId).boostIconsEach ?? 0;
 
 /** An activation's recorded modifications ("gains overkill", "+N ATK", extra boost cards). */
 const activationVars = (ctx: Ctx, eventFrameId: FrameId | null): Vars => activationVarsOf(ctx.state, eventFrameId);

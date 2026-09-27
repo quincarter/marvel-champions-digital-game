@@ -480,6 +480,8 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       if (effect.atkBonus) delta.atkBonus = value(effect.atkBonus);
       if (effect.threatBonus) delta.threatBonus = value(effect.threatBonus);
       if (effect.defenseUsesAtk) delta.defenseUsesAtk = 1;
+      // From the activation's next boost card on (`stepBoostCard`); one already counted keeps its count.
+      if (effect.boostIconsEach) delta.boostIconsEach = value(effect.boostIconsEach);
       const extra =
         effect.extraBoostCards === undefined
           ? 0
@@ -1848,15 +1850,27 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       // "Green Goblin attacks with +X ATK" / "schemes with +X SCH": evaluated once, now, and carried by each
       // activation this effect initiates, so it applies to exactly those and never leaks into a later one.
       // "That attack gains overkill" (§3.51): each keyword is the same activation var `modifyAttack` sets.
+      // "Give the villain 1 additional boost card for that activation" / "each boost card turned faceup during that
+      // activation gets +1 boost icon" (§4.1 Q66): the same seeding, so an activation that never happens deals and
+      // changes nothing, and none lingers for the next one.
+      const extraBoost =
+        effect.extraBoostCards === undefined
+          ? 0
+          : typeof effect.extraBoostCards === "number"
+            ? effect.extraBoostCards
+            : Math.max(0, value(effect.extraBoostCards));
+      const boostScoped = {
+        ...(extraBoost > 0 ? { extraBoost } : {}),
+        ...(effect.boostIconsEach ? { boostIconsEach: value(effect.boostIconsEach) } : {}),
+      };
       const bonus =
         effect.kind === "enemyAttack"
           ? {
               ...(effect.atkBonus ? { atkBonus: value(effect.atkBonus) } : {}),
               ...Object.fromEntries((effect.keywords ?? []).map((keyword) => [keyword, 1])),
+              ...boostScoped,
             }
-          : effect.schBonus
-            ? { schBonus: value(effect.schBonus) }
-            : {};
+          : { ...(effect.schBonus ? { schBonus: value(effect.schBonus) } : {}), ...boostScoped };
       // RRG 1.8 "'Then'" (p. 44): "X attacks you. Then, …" waits on the attack. One that a status cancelled, or that
       // could not be initiated at all, did not resolve; one initiated here reports back whether it happened. "Each X
       // attacks" with no X is vacuously resolved (engine reading), so only a named enemy with no activation marks it.

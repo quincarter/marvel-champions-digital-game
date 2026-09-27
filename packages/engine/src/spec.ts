@@ -1046,6 +1046,12 @@ export type EffectSpec =
        * 1.8 "Defend, Defense", p. 15), so with a "(defense)" defender alone it changes nothing.
        */
       readonly defenseUsesAtk?: boolean;
+      /**
+       * "Each boost card turned faceup during this activation gets +N boost icons": the activation in progress, from
+       * its next boost card on. The form for an effect that starts the activation is `enemyAttack.boostIconsEach`
+       * (docs/phase7-wave5.md §4.1 Q66).
+       */
+      readonly boostIconsEach?: ValueSpec;
     }
   /**
    * "Declare [character] the defender [without exhausting them]" (Shieldmaiden, Colossus, "I Can Do This All Day",
@@ -1499,6 +1505,26 @@ export type EffectSpec =
        * say it: the attack this effect pushes resolves completely before the next effect in the list runs.
        */
       readonly keywords?: readonly AttackKeyword[];
+      /**
+       * "The villain attacks you. Give the villain 1 additional boost card **for that activation**" (Swinging Assault,
+       * `sm` 27168): extra boost cards dealt at the start of exactly the activations this effect initiates, beside the
+       * automatic one (RRG 1.8 "Boost, Boost Icon", p. 11: "If additional boost cards are resolved for an activation,
+       * the boost icons are cumulative"). Carried on the activation's event frame like `atkBonus`, so if no activation
+       * happens (a stun cancels it, RRG 1.8 "Stun"; the enemy is not in play) no card is dealt and nothing waits for
+       * the next one. `modifyAttack.extraBoostCards` is the same change to the activation already in progress; a
+       * `modifyAttack` after this effect runs once the activation has fully resolved (RRG 1.8 "Activation", p. 6: "An
+       * effect that initiates an enemy activation is considered resolved after that activation has fully resolved").
+       * docs/phase7-wave5.md §4.1 Q66.
+       */
+      readonly extraBoostCards?: number | ValueSpec;
+      /**
+       * "Venom activates against you. Each boost card turned faceup **during that activation** gets +1 boost icon"
+       * (Biting Retort, `sm` 27082): added to every boost card the activation turns faceup (RRG 1.8 p. 11: each boost
+       * card is turned faceup one at a time during the activation, before damage), at the flip and at the count, like
+       * an amplify icon. Scoped to exactly the activations this effect initiates: it lives on their event frames and
+       * ends with them. `modifyAttack.boostIconsEach` is the "current activation" form. docs/phase7-wave5.md §4.1 Q66.
+       */
+      readonly boostIconsEach?: ValueSpec;
     }
   /** "The villain schemes" / "Ultron schemes": a scheme activation; a confused enemy discards its confusion instead. `bind`: `<bind>.made`, `<bind>.threatPlaced`. */
   | {
@@ -1516,6 +1542,10 @@ export type EffectSpec =
        * change to the threat placed would still apply.
        */
       readonly schBonus?: ValueSpec;
+      /** `enemyAttack.extraBoostCards`, for a scheme activation this effect initiates (§4.1 Q66). */
+      readonly extraBoostCards?: number | ValueSpec;
+      /** `enemyAttack.boostIconsEach`, for a scheme activation this effect initiates (§4.1 Q66). */
+      readonly boostIconsEach?: ValueSpec;
     }
   /** "This card gains surge": the encounter card whose ability this is surges when its reveal finishes. */
   | { readonly kind: "gainSurge" }
