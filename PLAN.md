@@ -622,6 +622,20 @@ Owner: `rules-qa-engineer`, in collaboration with `game-rules-architect`.
       a regression test. This goes past the per-wave custom-deck checks (`docs/wave-definition-of-done.md` §4b) to
       reach card interactions that no precon or hand-written test puts together. Run a fixed set of seeds in
       `pnpm test` and a longer sweep on demand. See [docs/custom-deck-testing.md](docs/custom-deck-testing.md).
+- [ ] **Backfill: every Core–wave 4 aspect and basic card played from another hero's deck (added 2026-09-27).** Each
+      card is only proven in the precon it ships in today. As of 2026-09-27 the playable pool has 511 such cards
+      (Aggression 79, Justice 64, Leadership 82, Protection 73, Basic 207, plus 6 campaign cards). Use the cross-hero
+      helper built for wave 5 (`packages/cards/src/testing/cross-hero.ts`) and split the cards into one agent task per
+      wave and aspect, about 8–10 tasks. Every card is played through the engine from a Core hero's deck (another
+      wave's hero for a card that needs a trait or identity it names) and does what its text says, or is refused
+      when its own text forbids it. Budget triage for scripts that quietly assume their precon hero. After wave 5
+      merges.
+- [ ] **Backfill: one real MarvelCDB decklist per hero (added 2026-09-27).** At least one public MarvelCDB decklist
+      for each of the 29 Core–wave 4 heroes (wave 5's six come with that wave, `docs/wave-definition-of-done.md`
+      §4b), saved as a test fixture (the MarvelCDB JSON). Each one imports with `from-marvelcdb-json` (reprint codes
+      resolved), is legal, and plays a seeded greedy game to an outcome that replays deep-equal. Pick decklists that
+      use only cards in the playable pool. The user approved fetching them from marvelcdb.com (2026-09-27). After
+      wave 5 merges.
 - [ ] Exit criteria: CI (or local equivalent) runs the full rules-QA suite on every engine change.
 
 ## Phase 7 — Content expansion beyond Core Set

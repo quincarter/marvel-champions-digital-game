@@ -20,12 +20,23 @@ runs. Decided 2026-09-26.
 
 Tracked in PR #64, step 4b.
 
-| Piece                                         | Status                                                                     |
-| --------------------------------------------- | -------------------------------------------------------------------------- |
-| Importer: reprint codes                       | Running (2026-09-26)                                                       |
-| Illegal-deck tests + deck builder start state | Running (2026-09-26), one test file for all six new identities             |
-| Cards in another hero's deck                  | With Miles Morales's precon e2e (builds the helper), then each hero pack's |
-| One real MarvelCDB decklist per new hero      | Step 4                                                                     |
-| Random-deck coverage                          | After wave 5 merges (PLAN.md Phase 6 backfill)                             |
+| Piece                                         | Status                                                                             |
+| --------------------------------------------- | ---------------------------------------------------------------------------------- |
+| Importer: reprint codes                       | Done (`2a85be15`)                                                                  |
+| Illegal-deck tests + deck builder start state | Done (`c767bfe9`), one test file for all six new identities                        |
+| Cards in another hero's deck                  | Running with Miles Morales's precon e2e (builds the helper), then each hero pack's |
+| One real MarvelCDB decklist per new hero      | Step 4                                                                             |
+| Random-deck coverage                          | After wave 5 merges (PLAN.md Phase 6 backfill)                                     |
 
-Earlier waves' heroes have no custom-deck tests yet; backfilling them isn't planned.
+## Earlier waves (Core–wave 4)
+
+Measured 2026-09-27: 29 heroes, 30 precons, 511 aspect and basic player cards, every one scripted.
+
+| Piece                                                           | State                                                                                                                                                                       |
+| --------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Importer: reprint codes                                         | Done for the whole pool (`2a85be15`)                                                                                                                                        |
+| Precon legality + deck builder start state                      | Every playable precon is checked against the whole pool in `packages/cards/src/playable-precon-legality.test.ts` (legal, `requiredIdentitySet` matches, nothing unscripted) |
+| Special deckbuilding rules (Spider-Woman, Gamora, Adam Warlock) | Covered by their own engine tests (`wave2.test.ts`, `off-aspect-allowance.test.ts`, `max-copies-per-title.test.ts`)                                                         |
+| Cards in another hero's deck                                    | Backfill task in PLAN.md Phase 6, after wave 5 merges, using the wave 5 helper                                                                                              |
+| One real MarvelCDB decklist per hero                            | Backfill task in PLAN.md Phase 6: at least one per hero, all 29, after wave 5 merges                                                                                        |
+| Random-deck coverage                                            | Backfill task in PLAN.md Phase 6                                                                                                                                            |
