@@ -46,14 +46,18 @@ import {
 } from "../view/defend-choice-layout.js";
 import {
   canConfirmChoice,
+  canDeclineChoice,
   cardChoiceDisplayOrder,
   choiceFocusKey,
   choiceFocusOrder,
+  commitLabelOf,
   confirmMinimum,
   initialChoiceSelection,
+  isAcknowledgeOnly,
   sameChoiceTarget,
   type ChoiceFocusTarget,
 } from "../view/choice-focus.js";
+import { LOOK_AT_ADVISORY, LOOK_AT_CAPTION, lookAtTitleOf } from "../view/look-at-choice.js";
 import { stepFocus } from "../view/focus.js";
 import type { GamepadIntent } from "../view/gamepad.js";
 import { appSession } from "../session.js";
@@ -313,9 +317,11 @@ export class ChoiceOverlay extends Phaser.Scene {
     // already shows it at readable size, in the rail or the strip below — drawing it a second time, smaller, next
     // to the text that already names it would read as two answers to the same question.
     const titleLeft = bar.x + 10;
-    const titleText = state.game
-      ? choiceHeaderText(state.game, choice, POOL_DEPS, promptTitle(choice.prompt))
-      : promptTitle(choice.prompt);
+    const genericTitle =
+      choice.prompt.kind === "lookAt"
+        ? lookAtTitleOf(state.game, choice, state.perspectiveId ?? choice.playerId)
+        : promptTitle(choice.prompt);
+    const titleText = choiceHeaderText(state.game, choice, POOL_DEPS, genericTitle);
     const title = this.add
       .text(titleLeft, bar.y + bar.height / 2, titleText, textStyle(typeRole.barTitle, surface.paper.hex))
       .setOrigin(0, 0.5)
@@ -360,7 +366,9 @@ export class ChoiceOverlay extends Phaser.Scene {
       this,
       sheet.x + 12,
       advisory.y + advisory.height + 6,
-      `select ${choice.minSelections === choice.maxSelections ? choice.minSelections : `${choice.minSelections}–${choice.maxSelections}`}${choice.ordered ? " · order matters" : ""}`,
+      isAcknowledgeOnly(choice)
+        ? LOOK_AT_ADVISORY
+        : `select ${choice.minSelections === choice.maxSelections ? choice.minSelections : `${choice.minSelections}–${choice.maxSelections}`}${choice.ordered ? " · order matters" : ""}`,
       typeRole.label,
       surface.ink.hex,
       ink.label,
@@ -375,10 +383,7 @@ export class ChoiceOverlay extends Phaser.Scene {
     const listHeight = commitTop - listTop - 8;
 
     if (asCards && listHeight >= 120) {
-      this.#route = choiceFocusOrder(
-        cardChoiceDisplayOrder(choice.options, this.#selected),
-        choice.minSelections === 0,
-      );
+      this.#route = choiceFocusOrder(cardChoiceDisplayOrder(choice.options, this.#selected), canDeclineChoice(choice));
       this.#drawCardChoice(
         {
           x: sheet.x + 12,
@@ -399,7 +404,7 @@ export class ChoiceOverlay extends Phaser.Scene {
     const shown = choice.options.slice(0, capacity);
     this.#route = choiceFocusOrder(
       shown.map((option) => option.optionId),
-      choice.minSelections === 0,
+      canDeclineChoice(choice),
     );
 
     shown.forEach((option, index) => {
@@ -803,9 +808,11 @@ export class ChoiceOverlay extends Phaser.Scene {
         this,
         area.x,
         top,
-        picked.length > 0
-          ? "tap to add · long press/right click to read it"
-          : "tap to select · long press/right click to read it",
+        isAcknowledgeOnly(choice)
+          ? LOOK_AT_CAPTION
+          : picked.length > 0
+            ? "tap to add · long press/right click to read it"
+            : "tap to select · long press/right click to read it",
         typeRole.label,
         surface.ink.hex,
         ink.label,
@@ -821,12 +828,13 @@ export class ChoiceOverlay extends Phaser.Scene {
   /** One red commit, plus a quiet alternative when declining is legal. */
   #drawCommit(sheet: Rect, commitTop: number, choice: PendingChoice): void {
     const canCommit = canConfirmChoice(choice, this.#selected.length);
-    const commitWidth = choice.minSelections === 0 ? (sheet.width - 32) / 2 : sheet.width - 24;
+    const canDecline = canDeclineChoice(choice);
+    const commitWidth = canDecline ? (sheet.width - 32) / 2 : sheet.width - 24;
 
     this.#buttons.push(
       new McButton(this, {
         kind: "primary",
-        label: "Confirm",
+        label: commitLabelOf(choice),
         type: typeRole.barTitle,
         rect: {
           x: sheet.x + 12,
@@ -839,7 +847,7 @@ export class ChoiceOverlay extends Phaser.Scene {
         onClick: () => void this.#confirm(),
       }),
     );
-    if (choice.minSelections === 0) {
+    if (canDecline) {
       this.#buttons.push(
         new McButton(this, {
           kind: "quiet",
@@ -980,17 +988,21 @@ export class ChoiceOverlay extends Phaser.Scene {
 
     bindHoldTarget(this, zone, {
       key: option.optionId as string,
-      onTap: () => this.#toggle(option.optionId, this.#maxSelections),
+      // A card that is only being looked at (`isAcknowledgeOnly`) can't be picked, so a tap reads it too, and the
+      // read is plain: Inspect gets no Select button.
+      onTap: () =>
+        this.#maxSelections === 0 && instanceId
+          ? this.scene.launch(SCENES.inspect, { instanceId })
+          : this.#toggle(option.optionId, this.#maxSelections),
       // An option that is not a card has nothing to read; its press is only a tap.
       onInspect: instanceId
         ? () =>
-            this.scene.launch(SCENES.inspect, {
-              instanceId,
-              choice: {
-                optionId: option.optionId,
-                label: picked ? "Deselect" : "Select",
-              },
-            })
+            this.scene.launch(
+              SCENES.inspect,
+              this.#maxSelections === 0
+                ? { instanceId }
+                : { instanceId, choice: { optionId: option.optionId, label: picked ? "Deselect" : "Select" } },
+            )
         : undefined,
     });
   }
@@ -1036,7 +1048,7 @@ export class ChoiceOverlay extends Phaser.Scene {
       return;
     }
     if (focus.kind === "decline") {
-      if (choice.minSelections === 0) {
+      if (canDeclineChoice(choice)) {
         this.#selected = [];
         void this.#confirm();
       }
@@ -1049,6 +1061,10 @@ export class ChoiceOverlay extends Phaser.Scene {
     const option = choice.options.find((candidate) => candidate.optionId === optionId);
     const instanceId = option ? refInstanceId(option.ref) : null;
     if (!instanceId) return;
+    if (isAcknowledgeOnly(choice)) {
+      this.scene.launch(SCENES.inspect, { instanceId });
+      return;
+    }
     this.scene.launch(SCENES.inspect, {
       instanceId,
       choice: { optionId, label: this.#selected.includes(optionId) ? "Deselect" : "Select" },
@@ -1177,6 +1193,7 @@ function promptTitle(prompt: { readonly kind: string; readonly to?: string; read
     chooseTarget: "Choose a target",
     chooseAttachmentTarget: "Choose a host",
     chooseCards: "Choose cards",
+    lookAt: "Look at these cards",
     chooseOption: "Choose one",
     choosePlayer: "Choose a player",
     orderSpecials: "Order the special abilities",

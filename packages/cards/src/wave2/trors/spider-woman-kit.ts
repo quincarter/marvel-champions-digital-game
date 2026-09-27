@@ -7,6 +7,7 @@ import {
   attack,
   cards,
   chooseCards,
+  chooseOne,
   chooseTarget,
   choosePlayer,
   chosen,
@@ -16,6 +17,8 @@ import {
   defineAbilities,
   divide,
   draw,
+  eachPlayer,
+  encounterCards,
   exhaustThis,
   gainTraitUntil,
   hasStatus,
@@ -25,15 +28,16 @@ import {
   ifThen,
   giveTough,
   interrupt,
+  lookAt,
   modifyStat,
   moveCards,
+  option,
   perHero,
   query,
   ready,
   removeThreat,
   resource,
   response,
-  selectCards,
   shuffleDeck,
   stun,
   thwart,
@@ -73,10 +77,20 @@ export const SPIDER_WOMAN_KIT = defineAbilities({
   // Double Agent — Choose two aspects instead of one during deck-building (data, `deckbuilding`).
   "04031b.jessica-drew-constant": coveredByEngineRule(),
   // Jessica Drew — Action: Look at the top card of any deck. (Limit once per round.)
+  // "Any deck" is read as the encounter deck (the active villain's) or any player's deck. RRG 1.8 "Deck" (p. 15) also
+  // names the villain and main scheme decks, and "certain identities or scenarios may add other decks"; those aren't
+  // offered (open question, flagged). A player's deck is picked with `choosePlayer { among: each }`, so solo binds
+  // your own deck without asking. An empty deck has nothing to look at, and `lookAt` then simply shows nothing.
   "04031b.jessica-drew-action": action(
     { limit: { count: 1, period: "round" } },
-    choosePlayer("player"),
-    selectCards("looked", zone("deck", chosenPlayer("player"), { top: 1 })),
+    chooseOne(
+      option("The encounter deck", lookAt(encounterCards(["deck"], undefined, 1))),
+      option(
+        "A player's deck",
+        choosePlayer("player", you, { among: eachPlayer }),
+        lookAt(zone("deck", chosenPlayer("player"), { top: 1 })),
+      ),
+    ),
   ),
 
   // Captain Marvel — Response: After Captain Marvel uses a basic power, draw 1 card.

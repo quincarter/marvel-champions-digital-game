@@ -991,6 +991,21 @@ export const selectCards = (slot: string, from: CardSelector): EffectSpec => ({
   slot,
   cards: from,
 });
+/**
+ * "Look at the top card of …" with no decision attached: `viewer` sees the cards (a `lookAt` prompt they acknowledge)
+ * and nothing moves (RRG 1.8 "Look, Looked-At", p. 27). `bind` also records them in that slot and `<bind>.count`, like
+ * `selectCards`, for text that goes on to act on what was seen. Not for a look that then chooses among the cards —
+ * that is a `chooseCards`, whose own prompt already shows them.
+ */
+export const lookAt = (
+  from: CardSelector,
+  opts: { readonly bind?: string; readonly viewer?: PlayerRef } = {},
+): EffectSpec => ({
+  kind: "lookAt",
+  cards: from,
+  viewer: opts.viewer ?? you,
+  ...(opts.bind !== undefined ? { bind: opts.bind } : {}),
+});
 export const revealCard = (target: TargetRef, player: PlayerRef = you): EffectSpec => ({
   kind: "revealCard",
   cards: target,

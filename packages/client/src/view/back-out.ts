@@ -34,6 +34,7 @@ const ALWAYS_REVEALING_EVENT_TYPES: ReadonlySet<GameEvent["type"]> = new Set([
   "encounterCardRevealed",
   "boostCardDealt",
   "boostCardFlipped",
+  "cardsLookedAt",
   "deckShuffled",
   "scenarioDeckReset",
   "separateDeckReset",
@@ -43,6 +44,7 @@ const ALWAYS_REVEALING_EVENT_TYPES: ReadonlySet<GameEvent["type"]> = new Set([
 /** `PendingChoice.prompt.kind`s that only ever exist to look at or search through a deck's hidden order. */
 const DECK_LOOKING_PROMPT_KINDS: ReadonlySet<PendingChoice["prompt"]["kind"]> = new Set([
   "chooseCards",
+  "lookAt",
   "chooseBottomCards",
   "orderCards",
 ]);
