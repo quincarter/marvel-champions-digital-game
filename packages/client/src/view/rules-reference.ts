@@ -27,6 +27,12 @@
  * which the dependency direction forbids. These three are always shown (they're
  * true of essentially every game state, not conditional on what's in play), and
  * search filters them exactly like every other entry.
+ *
+ * **Basic concepts** (guided mode G3a) are `@mc/content`'s `kind: "concept"` glossary
+ * entries — threat, main scheme, thwart, and the rest of a first-time player's starting
+ * vocabulary. They're never printed on a card and never table/instance state, so unlike a
+ * keyword or status they're shown unconditionally in both scopes (`CONCEPT_ENTRIES` below),
+ * the same way the three table-state entries are.
  */
 import type { AnyCard, KeywordInstance, KeywordName } from "@mc/content";
 import { GLOSSARY_ENTRIES, glossaryEntry, type GlossaryEntry, type GlossarySource } from "@mc/content";
@@ -80,6 +86,18 @@ export interface RulesEntry {
  * for the three; 47 is where "Villainous" is cited (a keyword that *uses* a facedown boost
  * card), not where "Boost, Boost Icon" itself is defined — corrected here to p. 11.
  */
+/**
+ * Basic-concept entries (guided mode G3a): `@mc/content`'s `GlossaryEntry`s with
+ * `kind: "concept"` (threat, main scheme, thwart, ...), converted once up front. Unlike a
+ * keyword or status, a concept isn't printed on any card and isn't runtime instance state
+ * either — it's always relevant to a first-time player regardless of what's on the table or
+ * in the pool, so both `rulesGlossaryOf` and `rulesGlossaryPoolOf` include every one of
+ * these unconditionally, the same way they always include `TABLE_STATE_ENTRIES`.
+ */
+const CONCEPT_ENTRIES: readonly RulesEntry[] = GLOSSARY_ENTRIES.filter((entry) => entry.kind === "concept").map(
+  (entry) => toRulesEntry(entry),
+);
+
 const TABLE_STATE_ENTRIES: readonly RulesEntry[] = [
   {
     id: "exhausted",
@@ -263,7 +281,7 @@ export function rulesGlossaryOf(state: GameState, deps: EngineDeps, query = ""):
     const entry = glossaryEntry(status);
     if (entry) entries.push(toRulesEntry(entry, refs));
   }
-  entries.push(...TABLE_STATE_ENTRIES);
+  entries.push(...TABLE_STATE_ENTRIES, ...CONCEPT_ENTRIES);
   entries.sort((a, b) => a.displayName.localeCompare(b.displayName));
   return filterByQuery(entries, query);
 }

@@ -38,6 +38,13 @@ import { KNOWN_KEYWORD_NAMES } from "./keywords.js";
  *   engine-facing status/state enums from, not in `@mc/content`.
  * - "villainStages"/card-type enums (Hero, Ally, Event, ...) are not "rules terms" a Pause
  *   screen glossary would list next to keywords/statuses; out of scope.
+ *
+ * Guided mode's G3a (`docs/guided-mode.md` §4 "Glossary") adds a third `kind`,
+ * `"concept"`: basic rules vocabulary (threat, main scheme, thwart, ...) a first-time
+ * player needs before "keyword" is even a meaningful word. Concepts follow the same
+ * sourcing/paraphrase rules as keywords/statuses above, but — unlike a keyword — a concept
+ * is never printed on a card and never gated on the current table/pool, so
+ * `view/rules-reference.ts` always surfaces every one of them regardless of scope.
  */
 
 /** Marks which real page of the RRG PDF, which dated ruling, or which un-owned product a definition was checked against. */
@@ -46,7 +53,7 @@ export type GlossarySource =
   | { readonly kind: "ruling"; readonly date: string }
   | { readonly kind: "insert-not-in-repo"; readonly product: string };
 
-export type GlossaryEntryKind = "keyword" | "status";
+export type GlossaryEntryKind = "keyword" | "status" | "concept";
 
 export interface GlossaryEntry<Id extends string = string> {
   readonly id: Id;
@@ -73,7 +80,62 @@ export interface GlossaryEntry<Id extends string = string> {
 export type StatusName = "confused" | "stunned" | "tough";
 export const STATUS_NAMES: readonly StatusName[] = ["confused", "stunned", "tough"];
 
-export type GlossaryId = KeywordName | StatusName;
+/**
+ * Basic-concept glossary ids (guided mode G3a, `docs/guided-mode.md` §4): first-game
+ * vocabulary a new player needs before keywords make sense at all — not a keyword or a
+ * status card, just an ordinary rules noun/verb the RRG defines on its own glossary page.
+ * Kept as a fixed, explicit list (rather than derived from any schema enum) since these
+ * concepts aren't backed by a `KeywordName`/`StatusName`-shaped union anywhere in the
+ * schema — there's nothing to enumerate them *from*.
+ */
+export type ConceptId =
+  | "threat"
+  | "mainScheme"
+  | "sideScheme"
+  | "acceleration"
+  | "thwart"
+  | "attack"
+  | "resource"
+  | "cost"
+  | "heroAlterEgoForm"
+  | "flip"
+  | "recover"
+  | "exhaustCost"
+  | "defend"
+  | "consequentialDamage"
+  | "encounterCard"
+  | "boost"
+  | "villainPhase"
+  | "heroPhase"
+  | "ally"
+  | "aspect"
+  | "handSize";
+
+export const CONCEPT_IDS: readonly ConceptId[] = [
+  "threat",
+  "mainScheme",
+  "sideScheme",
+  "acceleration",
+  "thwart",
+  "attack",
+  "resource",
+  "cost",
+  "heroAlterEgoForm",
+  "flip",
+  "recover",
+  "exhaustCost",
+  "defend",
+  "consequentialDamage",
+  "encounterCard",
+  "boost",
+  "villainPhase",
+  "heroPhase",
+  "ally",
+  "aspect",
+  "handSize",
+];
+
+export type GlossaryId = KeywordName | StatusName | ConceptId;
 
 const KEYWORD_GLOSSARY: Record<KeywordName, GlossaryEntry<KeywordName>> = {
   alliance: {
@@ -433,10 +495,195 @@ const STATUS_GLOSSARY: Record<StatusName, GlossaryEntry<StatusName>> = {
   },
 };
 
-/** Every keyword/status glossary entry, keyword ids first (in `keywords.ts`'s `KNOWN_KEYWORD_NAMES` order), then the three statuses. */
+/**
+ * Basic-concept entries for a first-time player (guided mode G3a): plain rules nouns/verbs
+ * a new player runs into before "keyword" is even a meaningful word — threat, the two
+ * scheme types, the basic powers, paying for cards, and the two phases of a round. Every
+ * definition is an original paraphrase, not FFG's own glossary wording, same convention as
+ * `KEYWORD_GLOSSARY`/`STATUS_GLOSSARY` above.
+ *
+ * Unlike keywords, concepts are never filtered by what's printed on the current card pool
+ * or table — every one of them is relevant in every game, so `view/rules-reference.ts`
+ * surfaces the full set unconditionally (see that module's own concept-entries constant).
+ */
+const CONCEPT_GLOSSARY: Record<ConceptId, GlossaryEntry<ConceptId>> = {
+  threat: {
+    id: "threat",
+    kind: "concept",
+    displayName: "Threat",
+    definition:
+      "Threat is what piles up on the main scheme and side schemes as the villain phase goes by. If the main scheme's threat reaches its target, the villain wins the game.",
+    sources: [{ kind: "rrg", page: 44 }],
+  },
+  mainScheme: {
+    id: "mainScheme",
+    kind: "concept",
+    displayName: "Main scheme",
+    definition:
+      "The main scheme is the villain's overall plan for the scenario. It automatically gains threat every villain phase, and heroes can thwart that threat away to buy time.",
+    sources: [{ kind: "rrg", page: 27 }],
+  },
+  sideScheme: {
+    id: "sideScheme",
+    kind: "concept",
+    displayName: "Side scheme",
+    definition:
+      "A side scheme is an extra objective that shows up next to the main scheme with its own starting threat. It isn't required reading — but leaving it alone usually costs you.",
+    sources: [{ kind: "rrg", page: 40 }],
+  },
+  acceleration: {
+    id: "acceleration",
+    kind: "concept",
+    displayName: "Acceleration",
+    definition:
+      "Acceleration is extra threat placed on the main scheme every villain phase, on top of its own printed rate, from acceleration icons and tokens in play.",
+    sources: [{ kind: "rrg", page: 5 }],
+  },
+  thwart: {
+    id: "thwart",
+    kind: "concept",
+    displayName: "Thwart",
+    definition:
+      "Thwarting is a hero or ally's basic power to remove threat from a scheme. It costs exhausting the character, and removes threat equal to its THW value.",
+    sources: [{ kind: "rrg", page: 44 }],
+  },
+  attack: {
+    id: "attack",
+    kind: "concept",
+    displayName: "Attack",
+    definition:
+      "Attacking is a hero or ally's basic power to deal damage to an enemy. It costs exhausting the character, and deals damage equal to its ATK value.",
+    sources: [{ kind: "rrg", page: 10 }],
+  },
+  resource: {
+    id: "resource",
+    kind: "concept",
+    displayName: "Resource",
+    definition:
+      "Resources pay for the cards you play. You make them by discarding a card from your hand for its printed resource icon(s), or with a card's own Resource ability.",
+    sources: [{ kind: "rrg", page: 37 }],
+  },
+  cost: {
+    id: "cost",
+    kind: "concept",
+    displayName: "Cost",
+    definition:
+      "A cost is whatever you have to pay before a card or ability's effect happens — usually resources to play a card, but sometimes something else, like exhausting a card.",
+    sources: [{ kind: "rrg", page: 13 }],
+  },
+  heroAlterEgoForm: {
+    id: "heroAlterEgoForm",
+    kind: "concept",
+    displayName: "Hero form / alter-ego form",
+    definition:
+      "Every identity is in one of two forms, shown by which side of the identity card is face up. Each form has its own cards and powers, and you can flip between them once per turn.",
+    sources: [{ kind: "rrg", page: 21 }],
+  },
+  flip: {
+    id: "flip",
+    kind: "concept",
+    displayName: "Flip",
+    definition:
+      "Flipping a card turns it over to show its other side — most often your identity card changing form, but any double-sided card works the same way.",
+    sources: [{ kind: "rrg", page: 20 }],
+  },
+  recover: {
+    id: "recover",
+    kind: "concept",
+    displayName: "Recover",
+    definition:
+      "Recovering is your alter-ego's basic power to heal damage. It costs exhausting your alter-ego, and heals hit points equal to your REC value.",
+    sources: [{ kind: "rrg", page: 36 }],
+  },
+  exhaustCost: {
+    id: "exhaustCost",
+    kind: "concept",
+    displayName: "Exhaust (as a cost)",
+    definition:
+      "Many basic powers and abilities are paid for by exhausting the card using them, rotating it 90 degrees. It can't do that again until something readies it.",
+    sources: [{ kind: "rrg", page: 19 }],
+  },
+  defend: {
+    id: "defend",
+    kind: "concept",
+    displayName: "Defend",
+    definition:
+      "Defending puts a hero or ally between an enemy's attack and its actual target, so the defender takes the damage instead (reduced by DEF, for a hero's basic defense).",
+    sources: [{ kind: "rrg", page: 15 }],
+  },
+  consequentialDamage: {
+    id: "consequentialDamage",
+    kind: "concept",
+    displayName: "Consequential damage",
+    definition:
+      "Consequential damage is damage an ally takes automatically right after it attacks or thwarts, shown as small icons under its printed ATK/THW value.",
+    sources: [{ kind: "rrg", page: 13 }],
+  },
+  encounterCard: {
+    id: "encounterCard",
+    kind: "concept",
+    displayName: "Encounter card",
+    definition:
+      "Encounter cards are the villain side's cards — minions, treacheries, side schemes and the rest — dealt and revealed from the encounter deck to make the heroes' turn harder.",
+    sources: [{ kind: "rrg", page: 17 }],
+  },
+  boost: {
+    id: "boost",
+    kind: "concept",
+    displayName: "Boost",
+    definition:
+      "A boost card is dealt facedown to an attacking or scheming enemy, then flipped face up during that activation to add its icons (and sometimes its own effect) to the total.",
+    sources: [{ kind: "rrg", page: 11 }],
+  },
+  villainPhase: {
+    id: "villainPhase",
+    kind: "concept",
+    displayName: "Villain phase",
+    definition:
+      "The villain phase is the part of the round where the main scheme gains threat, the villain and its minions activate, and everyone is dealt encounter cards to reveal.",
+    sources: [{ kind: "rrg", page: 47 }],
+  },
+  heroPhase: {
+    id: "heroPhase",
+    kind: "concept",
+    displayName: "Hero phase / player phase",
+    // The RRG's own glossary heading is "Player Phase" (p. 34); this repo's UI and players
+    // commonly call it the "hero phase" since it's when heroes act, so the entry covers both names.
+    definition:
+      "The player (hero) phase is the part of the round where each player, in turn order, plays cards and uses their identity's and allies' powers.",
+    sources: [{ kind: "rrg", page: 34 }],
+  },
+  ally: {
+    id: "ally",
+    kind: "concept",
+    displayName: "Ally",
+    definition:
+      "An ally is a friend or teammate you bring into play to fight alongside you. It attacks, thwarts, or defends by exhausting, the same way your own hero does.",
+    sources: [{ kind: "rrg", page: 7 }],
+  },
+  aspect: {
+    id: "aspect",
+    kind: "concept",
+    displayName: "Aspect",
+    definition:
+      "An aspect (Aggression, Justice, Leadership, Protection, or Pool) is the deckbuilding lane you pick for a deck — it opens up that aspect's cards to fill out your hero's own.",
+    sources: [{ kind: "rrg", page: 8 }],
+  },
+  handSize: {
+    id: "handSize",
+    kind: "concept",
+    displayName: "Hand size",
+    definition:
+      "Hand size is how many cards you're meant to be holding by the end of the player phase — draw up to it, or discard down to it, before the round moves on.",
+    sources: [{ kind: "rrg", page: 21 }],
+  },
+};
+
+/** Every keyword/status/concept glossary entry, keyword ids first (in `keywords.ts`'s `KNOWN_KEYWORD_NAMES` order), then the three statuses, then the basic concepts (in `CONCEPT_IDS` order). */
 export const GLOSSARY_ENTRIES: readonly GlossaryEntry[] = [
   ...KNOWN_KEYWORD_NAMES.map((name) => KEYWORD_GLOSSARY[name]),
   ...STATUS_NAMES.map((name) => STATUS_GLOSSARY[name]),
+  ...CONCEPT_IDS.map((id) => CONCEPT_GLOSSARY[id]),
 ];
 
 const GLOSSARY_BY_ID: ReadonlyMap<GlossaryId, GlossaryEntry> = new Map(
