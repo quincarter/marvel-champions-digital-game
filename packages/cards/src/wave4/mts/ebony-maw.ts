@@ -102,11 +102,12 @@ const eachPlayerSpell = (): EffectArg => forEachPlayer(eachPlayer, ...spellIntoP
 const shuffleDiscardIn = (): EffectArg => moveCards(encounterCards(["discard"]), "encounterDeckShuffle");
 
 /** "[star] Forced Interrupt: When Ebony Maw activates against you, remove an invocation counter from each Spell
- * card in your play area." — identical text on all three stages (docs/phase7-wave4.md §3.15/§3.16 worked example:
- * "activates against you" read as "attacks you", matching the wave 4 DSL primitives test for this exact card). */
+ * card in your play area." — identical text on all three stages. "Activates against you" also fires on his scheme
+ * against an alter-ego player, not only his attack (docs/phase7-wave5.md §4.1 Q67; RRG 1.8 "Activation", p. 6) — this
+ * previously read it as always an attack, the reading the wave 4 DSL primitives test for this exact card once pinned. */
 const ebonyMawForcedInterrupt = () =>
   forcedInterrupt(
-    on.villainAttacks({ againstYou: true }),
+    on.enemyActivates({ categories: ["villain"] }, { againstYou: true }),
     removeCountersFrom(each(SPELLS_IN_YOUR_PLAY_AREA), "invocation", 1),
   );
 

@@ -22,7 +22,7 @@ import {
   toHero,
   type Picker,
 } from "../../testing/harness.js";
-import { defeatWithAttack } from "../../testing/staging.js";
+import { defeatWithAttack, driveEvents } from "../../testing/staging.js";
 import { WAVE4_DEPS } from "../index.js";
 import { runWave4, startWave4Game } from "../testing.js";
 import { spectrumScenario } from "./support.js";
@@ -106,6 +106,19 @@ describe("Ebony Maw (21071–21073) — Forced Interrupt", () => {
     expect(inst(after, identityOf(after, P1)).damage).toBeGreaterThanOrEqual(before + 4);
   });
 
+  it("21071.ebony-maw-forced-interrupt: also fires when Ebony Maw schemes against you in alter-ego form (docs/phase7-wave5.md §4.1 Q67)", () => {
+    const state = ebonyMawGame(3); // `ebonyMawGame` stays alter-ego by default; no `toHero` here.
+    const { state: staged, id: fireball } = encounterCardInPlayerArea(state, "21076", P1, { invocation: 1 });
+    const before = inst(staged, identityOf(staged, P1)).damage;
+    const villain = staged.villains[0]!.instanceId;
+    const { state: after, events } = driveEvents(WAVE4_DEPS, staged, endTurn(P1));
+    expect(events.some((e) => e.type === "schemeResolved" && e.enemyInstanceId === villain)).toBe(true);
+    expect(events.some((e) => e.type === "attackResolved" && e.enemyInstanceId === villain)).toBe(false);
+    // Ebony Maw's forced interrupt still removed Fireball's last counter, discarding it and dealing 4 damage.
+    expect(playerOf(after, P1).playArea).not.toContain(fireball);
+    expect(inst(after, identityOf(after, P1)).damage).toBeGreaterThanOrEqual(before + 4);
+  });
+
   it("21072.ebony-maw-forced-interrupt, 21073.ebony-maw-forced-interrupt: stages II and III repeat 21071's identical script verbatim", () => {
     for (const id of ["21072.ebony-maw-forced-interrupt", "21073.ebony-maw-forced-interrupt"] as const) {
       expect(WAVE4_DEPS.abilities[id]).toEqual(WAVE4_DEPS.abilities["21071.ebony-maw-forced-interrupt"]);
@@ -117,7 +130,12 @@ describe("Fireball (21076)", () => {
   it("21076.fireball-constant: enters play with 4 invocation counters", () => {
     const state = ebonyMawGame(4);
     const { state: revealed, id } = revealTopEncounterCard(state, "21076");
-    expect(inst(revealed, id).counters.invocation).toBe(4);
+    // 3, not the printed 4: `ebonyMawGame` stays alter-ego by default, so its own routine per-round villain
+    // activation is a scheme. This seed's own villain phase also draws a second, card-caused "Ebony Maw activates
+    // against you" (a scheme too, RRG 1.8 "Activation", p. 6) after Fireball enters play — which Ebony Maw's own
+    // Forced Interrupt now correctly also fires on (docs/phase7-wave5.md §4.1 Q67), removing one of its counters
+    // before this read; it did not before, since the old script matched only attacks.
+    expect(inst(revealed, id).counters.invocation).toBe(3);
   });
 });
 
@@ -125,7 +143,10 @@ describe("Manipulation (21077)", () => {
   it("21077.manipulation-constant: enters play with 2 invocation counters", () => {
     const state = ebonyMawGame(6);
     const { state: revealed, id } = revealTopEncounterCard(state, "21077");
-    expect(inst(revealed, id).counters.invocation).toBe(2);
+    // 1, not the printed 2 (the `21076.fireball-constant` test's own module docblock comment): this seed's own
+    // villain phase includes another "Ebony Maw activates against you" that Ebony Maw's own Forced Interrupt now
+    // correctly also fires on (docs/phase7-wave5.md §4.1 Q67), removing one counter before this read.
+    expect(inst(revealed, id).counters.invocation).toBe(1);
   });
 
   it("21077.manipulation-forced-response: the last counter removed discards a random hand card and confuses your identity", () => {
@@ -143,7 +164,10 @@ describe("Pacification (21078)", () => {
   it("21078.pacification-constant: enters play with 3 invocation counters", () => {
     const state = ebonyMawGame(7);
     const { state: revealed, id } = revealTopEncounterCard(state, "21078");
-    expect(inst(revealed, id).counters.invocation).toBe(3);
+    // 2, not the printed 3 (the `21076.fireball-constant` test's own module docblock comment): this seed's own
+    // villain phase includes another "Ebony Maw activates against you" that Ebony Maw's own Forced Interrupt now
+    // correctly also fires on (docs/phase7-wave5.md §4.1 Q67), removing one counter before this read.
+    expect(inst(revealed, id).counters.invocation).toBe(2);
   });
 
   it("21078.pacification-forced-response: the last counter removed stuns your identity", () => {
@@ -159,7 +183,10 @@ describe("Rubblestorm (21079)", () => {
   it("21079.rubblestorm-constant: enters play with 3 invocation counters", () => {
     const state = ebonyMawGame(8);
     const { state: revealed, id } = revealTopEncounterCard(state, "21079");
-    expect(inst(revealed, id).counters.invocation).toBe(3);
+    // 2, not the printed 3 (the `21076.fireball-constant` test's own module docblock comment): this seed's own
+    // villain phase includes another "Ebony Maw activates against you" that Ebony Maw's own Forced Interrupt now
+    // correctly also fires on (docs/phase7-wave5.md §4.1 Q67), removing one counter before this read.
+    expect(inst(revealed, id).counters.invocation).toBe(2);
   });
 
   it("21079.rubblestorm-forced-response: the last counter removed deals 2 damage to each character you control", () => {
