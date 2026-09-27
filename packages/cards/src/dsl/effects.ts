@@ -17,7 +17,7 @@ import type {
   TargetQuery,
   TargetRef,
 } from "@mc/engine";
-import type { KeywordInstance, Trait } from "@mc/content";
+import { abilityId, type KeywordInstance, type Trait } from "@mc/content";
 import {
   amount,
   chosen,
@@ -936,16 +936,21 @@ export const resolveSpecials = (cardsQuery: TargetQuery): EffectSpec => ({
  * how many resolved: Sandslide's "If at least 1 Sandman card was discarded this way" reads
  * `countAmong(chosen("<bind>.discarded"), …)` when Surging Sands binds its discard as `"discarded"`
  * (docs/phase7-wave5.md §3.7).
+ * `opts.abilities`: only these abilities, by id, when the text names one of several Specials on the card: "resolve
+ * Spider-Man's 'Venom Blast' ability" (Web-Shot, `sm` 27034) is `{ abilities: ["27030a.spider-man-constant"] }`, and
+ * "Spider Camouflage" (the other Special on 27030a) doesn't resolve. Absent: every Special on the card
+ * (docs/phase7-wave5.md §4.1 Q63).
  */
 export const resolveSpecialsOf = (
   ref: TargetRef,
   player?: PlayerRef,
-  opts: { readonly bind?: string } = {},
+  opts: { readonly bind?: string; readonly abilities?: readonly string[] } = {},
 ): EffectSpec => ({
   kind: "resolveSpecials",
   of: ref,
   ...(player ? { player } : {}),
   ...(opts.bind ? { bind: opts.bind } : {}),
+  ...(opts.abilities ? { abilities: opts.abilities.map(abilityId) } : {}),
 });
 /**
  * "Resolve this card's 'When Revealed' ability" (`of: self`; the boost of Out for Blood, Double Trouble, Sandslide),

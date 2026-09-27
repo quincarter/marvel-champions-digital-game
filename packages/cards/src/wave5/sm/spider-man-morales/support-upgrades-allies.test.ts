@@ -84,7 +84,7 @@ describe("Jefferson Davis (support, 27036)", () => {
 });
 
 describe("Power Within (upgrade, 27037)", () => {
-  it("27037.power-within-response: discarded after a basic power use, resolves Venom Blast (2 damage + stun)", () => {
+  it("27037.power-within-response: discarded after a basic power use, resolves Venom Blast only (2 damage + stun)", () => {
     const hero = run(milesVsRhino(1), toHero(P1));
     const { state: withUpgrade, id: powerWithin } = playFromHand(hero, "27037", 1);
     const identity = identityOf(withUpgrade);
@@ -105,6 +105,9 @@ describe("Power Within (upgrade, 27037)", () => {
     // Venom Blast: "Deal 2 damage to an enemy. Stun that enemy." (on top of the basic attack's own damage).
     expect(inst(after, villain).damage).toBeGreaterThanOrEqual(before + 2);
     expect(inst(after, villain).statuses.stunned).toBeGreaterThan(0);
+    // Only the Special Power Within names (docs/phase7-wave5.md §4.1 Q63): no Spider Camouflage tough or confuse.
+    expect(inst(after, identity).statuses.tough).toBe(0);
+    expect(inst(after, villain).statuses.confused).toBe(0);
   });
 
   it("27037.power-within-response: declined after a basic power use — Power Within stays in play, no Venom Blast", () => {
@@ -129,7 +132,7 @@ describe("Power Within (upgrade, 27037)", () => {
 });
 
 describe("Defense Mechanism (upgrade, 27038)", () => {
-  it("27038.defense-mechanism-response: discarded after a basic power use, resolves Spider Camouflage (tough + confuse)", () => {
+  it("27038.defense-mechanism-response: discarded after a basic power use, resolves Spider Camouflage only (tough + confuse)", () => {
     const hero = run(milesVsRhino(1), toHero(P1));
     const { state: withUpgrade, id: defenseMechanism } = playFromHand(hero, "27038", 1);
     const identity = identityOf(withUpgrade);
@@ -148,6 +151,8 @@ describe("Defense Mechanism (upgrade, 27038)", () => {
     expect(after.players[0]!.discard).toContain(defenseMechanism); // "discard Defense Mechanism" cost.
     expect(inst(after, identity).statuses.tough).toBeGreaterThan(0); // "Give Spider-Man a tough status card."
     expect(inst(after, villain).statuses.confused).toBeGreaterThan(0); // "Confuse an enemy."
+    // Only the Special Defense Mechanism names (docs/phase7-wave5.md §4.1 Q63): no Venom Blast stun.
+    expect(inst(after, villain).statuses.stunned).toBe(0);
   });
 
   it("27038.defense-mechanism-response: declined — no tough status or confuse", () => {

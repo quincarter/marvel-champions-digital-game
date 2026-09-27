@@ -109,7 +109,7 @@ describe("Spider-Man / Miles Morales's own events (27031, 27032, 27033, 27034)",
     expect(inst(after, identity).exhausted).toBe(true);
   });
 
-  it("27033.swing-in-action: removes 4 threat and, paid with a [mental] resource, resolves Spider Camouflage", () => {
+  it("27033.swing-in-action: removes 4 threat and, paid with a [mental] resource, resolves Spider Camouflage only", () => {
     const state = milesVsRhino();
     const identity = identityOf(state);
     const villain = state.villains[0]!.instanceId;
@@ -127,6 +127,9 @@ describe("Spider-Man / Miles Morales's own events (27031, 27032, 27033, 27034)",
     expect(mainThreat(after)).toBe(6); // 10 - 4.
     expect(inst(after, identity).statuses.tough).toBe(1); // "Give Spider-Man a tough status card."
     expect(inst(after, villain).statuses.confused).toBe(1); // "Confuse an enemy."
+    // Only the Special Swing In names (docs/phase7-wave5.md §4.1 Q63): Venom Blast's 2 damage and stun don't happen.
+    expect(inst(after, villain).damage).toBe(0);
+    expect(inst(after, villain).statuses.stunned).toBe(0);
   });
 
   it("27033.swing-in-action: paid without a [mental] resource — removes threat, but Spider Camouflage never resolves", () => {
@@ -148,7 +151,7 @@ describe("Spider-Man / Miles Morales's own events (27031, 27032, 27033, 27034)",
     expect(inst(after, villain).statuses.confused).toBe(0);
   });
 
-  it("27034.web-shot-action: deals 4 damage and, paid with a [energy] resource, resolves Venom Blast", () => {
+  it("27034.web-shot-action: deals 4 damage and, paid with a [energy] resource, resolves Venom Blast only", () => {
     const state = milesVsRhino();
     const identity = identityOf(state);
     const villain = state.villains[0]!.instanceId;
@@ -165,6 +168,9 @@ describe("Spider-Man / Miles Morales's own events (27031, 27032, 27033, 27034)",
     // 4 (Web-Shot) + 2 (Venom Blast).
     expect(inst(after, villain).damage).toBe(6);
     expect(inst(after, villain).statuses.stunned).toBe(1);
+    // Only the Special Web-Shot names (docs/phase7-wave5.md §4.1 Q63): no Spider Camouflage tough or confuse.
+    expect(inst(after, identity).statuses.tough).toBe(0);
+    expect(inst(after, villain).statuses.confused).toBe(0);
     expect(inst(after, identity).exhausted).toBe(false); // sanity: playing an event never exhausts the identity.
   });
 

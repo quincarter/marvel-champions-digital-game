@@ -37,6 +37,10 @@ import {
   zone,
 } from "../../../dsl/index.js";
 
+/** Spider-Man's (27030a) two Specials, by ability id (`identity.ts`). */
+const VENOM_BLAST = "27030a.spider-man-constant";
+const SPIDER_CAMOUFLAGE = "27030a.spider-man-constant-2";
+
 /**
  * Spider-Man / Miles Morales (`sm` 27035–27041, MC27 p. 20, docs/phase7-wave5.md §3.32) — his own supports, upgrades
  * and allies other than events. His identity (27030a/b) is `identity.ts`, his signature events (27031–27034)
@@ -57,15 +61,9 @@ import {
  * **Power Within (upgrade, 27037)** and **Defense Mechanism (upgrade, 27038)**: "Hero Response: After your hero
  * uses a basic power, discard [this] → resolve Spider-Man's 'Venom Blast'/'Spider Camouflage' ability." —
  * `on.basicPowerUsed(YOUR_IDENTITY)` (docs/phase7-wave3.md's own "Lashing Vines" precedent, `dsl/wave3-primitives.
- * test.ts`), `discardThis` cost, then `resolveSpecialsOf(yourIdentity)` — the identical call Web-Shot/Swing In
- * already make (`events.ts`). **Known gap, not re-invented here**: `resolveSpecialsOf` (`packages/engine/src/
- * resolve/effects-frame.ts`'s `executeResolveSpecials`) resolves *every* `kind: "special"` ability on the named
- * card, with no way to name one of Spider-Man's two Specials — confirmed live (a scratch run of `27034.web-shot-
- * action` paid with `[energy]` also gives the identity a tough status and confuses the villain, which "resolve …
- * 'Venom Blast'" alone should not do). Both this module's two abilities inherit that same over-resolution; flagged
- * for `game-rules-architect` (a `name`/ability-ref filter on `resolveSpecials`) rather than hand-rolling a
- * special-case caller here, per this module's own brief. Tests below assert the *current* (over-resolving) engine
- * behavior and flag the discrepancy from print.
+ * test.ts`), `discardThis` cost, then `resolveSpecialsOf(yourIdentity, …)` naming only the Special printed on each
+ * card, by the identity's ability id (`abilities`, docs/phase7-wave5.md §4.1 Q63), the same call Web-Shot/Swing In
+ * make (`events.ts`): 27030a prints two Specials, and the other must not resolve.
  *
  * **Web-Shooter (upgrade, 27039)**: identical printed text to Core's own Web-Shooter (`01008`, `core/heroes/
  * spider-man.ts`) — `heroResource({ wild: 1 }, { cost: [exhaustThis, removeCounter("web")] })` verbatim, a second
@@ -100,13 +98,13 @@ export const SPIDER_MAN_MORALES_SUPPORT_UPGRADES_ALLIES = defineAbilities({
   "27037.power-within-response": heroResponse(
     on.basicPowerUsed(YOUR_IDENTITY),
     { cost: discardThis },
-    resolveSpecialsOf(yourIdentity),
+    resolveSpecialsOf(yourIdentity, undefined, { abilities: [VENOM_BLAST] }),
   ),
 
   "27038.defense-mechanism-response": heroResponse(
     on.basicPowerUsed(YOUR_IDENTITY),
     { cost: discardThis },
-    resolveSpecialsOf(yourIdentity),
+    resolveSpecialsOf(yourIdentity, undefined, { abilities: [SPIDER_CAMOUFLAGE] }),
   ),
 
   "27039.web-shooter-resource": heroResource({ wild: 1 }, { cost: [exhaustThis, removeCounter("web")] }),

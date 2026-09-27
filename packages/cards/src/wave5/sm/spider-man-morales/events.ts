@@ -47,6 +47,10 @@ import {
  * prints it on a support, `27036`/`27044`/`27045`, and an ally, `27040`/`27047`). */
 const SHIELD_CARD = query(["ally", "upgrade", "support"], { trait: trait("S.H.I.E.L.D.") });
 
+/** Spider-Man's (27030a) two Specials, by ability id (`identity.ts`). */
+const VENOM_BLAST = "27030a.spider-man-constant";
+const SPIDER_CAMOUFLAGE = "27030a.spider-man-constant-2";
+
 /**
  * Spider-Man / Miles Morales's own signature events (`sm` 27031–27034, MC27 p. 20, docs/phase7-wave5.md) and the
  * precon's basic/aspect events scripted alongside his kit for this pass: two S.H.I.E.L.D.-tactic `justice` events
@@ -68,9 +72,10 @@ const SHIELD_CARD = query(["ally", "upgrade", "support"], { trait: trait("S.H.I.
  * **Swing In**: "Remove 4 threat from a scheme. If you paid for this card using a [mental] resource, resolve
  * Spider-Man's 'Spider Camouflage' ability." — `thwartAScheme(4)` then `ifThen(paidWith("mental"), …)`.
  * **Web-Shot**: "Deal 4 damage to an enemy. If you paid for this card using a [energy] resource, resolve
- * Spider-Man's 'Venom Blast' ability." — `attack(4, chosen("enemy"))`, `ifThen(paidWith("energy"), …)`. Both
- * `resolveSpecialsOf(yourIdentity)` calls resolve the identity's own printed Special (`identity.ts`), whose own
- * `self` reads as the identity card itself regardless of the caller (`wave3/gmw/nebula.ts`'s Technique precedent).
+ * Spider-Man's 'Venom Blast' ability." — `attack(4, chosen("enemy"))`, `ifThen(paidWith("energy"), …)`. Each
+ * resolves only the Special its text names, by the identity's ability id (`resolveSpecialsOf`'s `abilities`,
+ * docs/phase7-wave5.md §4.1 Q63): 27030a prints two, and the other must not resolve. The Special's own `self`
+ * reads as the identity card itself regardless of the caller (`wave3/gmw/nebula.ts`'s Technique precedent).
  *
  * **Double Life (27032)**: "Action: Change your form. If you paid for this card using a [physical] resource, ready
  * your identity." A plain `action()` (not hero/alter-ego specific — either form may play it), the same
@@ -116,14 +121,14 @@ export const SPIDER_MAN_MORALES_EVENTS = defineAbilities({
   "27033.swing-in-action": heroAction(
     { label: "thwart" },
     ...thwartAScheme(4),
-    ifThen(paidWith("mental"), resolveSpecialsOf(yourIdentity)),
+    ifThen(paidWith("mental"), resolveSpecialsOf(yourIdentity, undefined, { abilities: [SPIDER_CAMOUFLAGE] })),
   ),
 
   "27034.web-shot-action": heroAction(
     { label: "attack" },
     anAttackableEnemy(),
     attack(4, chosen("enemy")),
-    ifThen(paidWith("energy"), resolveSpecialsOf(yourIdentity)),
+    ifThen(paidWith("energy"), resolveSpecialsOf(yourIdentity, undefined, { abilities: [VENOM_BLAST] })),
   ),
 
   "27042.homeland-intervention-action": action(
