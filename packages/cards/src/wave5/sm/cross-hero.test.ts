@@ -1,3 +1,4 @@
+import { cardId } from "@mc/content";
 import { applyCommand, cardsInPlay, characterProfile, createGame, legalActions, type GameState } from "@mc/engine";
 import { describe, expect, it } from "vitest";
 import {
@@ -239,15 +240,24 @@ describe("Ghost-Spider's aspect/basic cards, from a Core hero's own deck", () =>
 });
 
 describe("Ghost-Spider's Jump Flip (27014): a reactive Hero Interrupt event, not played via `playCard`", () => {
-  // Seated in Black Panther/Protection's own deck (Jump Flip's own aspect, Protection, has only one Core hero),
-  // the trigger is offered and the card resolves (it lands in the discard pile), but the resulting damage still
-  // reads as the villain's full, unprevented ATK — `preventDamage(2)` does not appear to reduce it here, the one
-  // place in this suite where a card played from another hero's deck did not do what its own text says. Pinned
-  // rather than debugged further (`ghost-spider/events-b.test.ts`'s own `27014.jump-flip-interrupt` test, run from
-  // Ghost-Spider's own precon with the identical trigger/pay shape, passes — the divergence is worth a follow-up,
-  // not something this file's own driving code should paper over).
-  it.fails("prevents 2 damage from the villain's own attack", () => {
-    const { state, id: jumpFlip } = openHandFor("27014", "core-black-panther-protection", 1);
+  // Not a scripting bug: `buildCrossHeroDeck` seats all 3 copies of Jump Flip (`deckLimit: 3`, RRG 1.8 Appendix I)
+  // in Black Panther's 40-card deck, and with this seed a *second* copy lands in the opening hand alongside the
+  // one `moveToHand` finds/tracks. `endTurn`'s own mandatory `discardDownToHandSize` (settled with `firstLegal`,
+  // which takes the prompt's own option order) discards exactly the tracked copy before the villain ever attacks,
+  // leaving the untracked sibling copy to be the one actually offered — and correctly resolved — as the Hero
+  // Interrupt. The original test still keyed its `option`/`payForCard` matching off the now-discarded instance id,
+  // so `pick` never recognized the real offer, fell through to `firstLegal`'s decline (`chooseTriggers` allows
+  // `minSelections: 0`), and the villain's attack landed unprevented — a false failure in the test's own
+  // instance-tracking, not in `ghost-spider/events-b.ts`'s `27014.jump-flip-interrupt` (`preventDamage(2)` +
+  // `ifThen(paidWith("energy"), removeThreat(2, theMainScheme))`, unchanged, and already proven correct from
+  // Ghost-Spider's own precon in `events-b.test.ts`).
+  //
+  // Fixed here by matching the trigger option (and the cost prompt) on the printed ability id / card id rather
+  // than a single instance id captured before the discard step, so whichever of the 3 copies actually survives to
+  // combat is the one this test drives — proof the ability itself reads `you` as the real controller (Black
+  // Panther), not "Ghost-Spider", RRG 1.8 "Identity-Specific Card" p. 23 / "Interrupt" p. 39.
+  it("prevents 2 damage from the villain's own attack", () => {
+    const { state } = openHandFor("27014", "core-black-panther-protection", 1);
     const preAttack = toHeroFirst(state);
     const identity = identityOf(preAttack);
     const villain = preAttack.villains[0]!.instanceId;
@@ -257,18 +267,24 @@ describe("Ghost-Spider's Jump Flip (27014): a reactive Hero Interrupt event, not
     const damageBefore = inst(stacked, identity).damage;
     const atDeclare = settleUntil(runWith(WAVE5_DEPS, stacked, endTurn(P1)), "declareDefender", firstLegal, WAVE5_DEPS);
     const declined = answer(atDeclare, ["decline"], WAVE5_DEPS);
-    const option = `${jumpFlip}:27014.jump-flip-interrupt`;
+    const abilitySuffix = ":27014.jump-flip-interrupt";
+    let triggered: string | undefined;
     const pick: Picker = (s) => {
       const choice = s.pendingChoice;
       if (!choice) return [];
-      if (choice.options.some((o) => o.optionId === option)) return [option];
-      if (choice.prompt.kind === "payForCard" && choice.prompt.instanceId === jumpFlip) {
+      const trigger = choice.options.find((o) => o.optionId.endsWith(abilitySuffix));
+      if (trigger) {
+        triggered = trigger.optionId.slice(0, -abilitySuffix.length);
+        return [trigger.optionId];
+      }
+      if (choice.prompt.kind === "payForCard" && s.instances[choice.prompt.instanceId]?.cardId === cardId("27014")) {
         return choice.options.slice(0, choice.prompt.cost).map((o) => o.optionId);
       }
       return firstLegal(s);
     };
     const after = settle(declined, pick, undefined, WAVE5_DEPS);
-    expect(after.players[0]!.discard).toContain(jumpFlip);
+    expect(triggered).toBeDefined(); // sanity: the interrupt really was offered and taken, not silently declined.
+    expect(after.players[0]!.discard).toContain(triggered);
     // Rhino's own printed ATK, undefended, minus Jump Flip's own 2 prevented.
     expect(inst(after, identity).damage).toBe(damageBefore + Math.max(0, rawAtk - 2));
   });
