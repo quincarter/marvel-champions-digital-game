@@ -1,8 +1,20 @@
 import { cardId, encounterSetId } from "@mc/content";
-import { currentName, getInstance, villainStage, type GameState, type InstanceId } from "@mc/engine";
-import { describe, expect, it } from "vitest";
+import {
+  createGame,
+  currentName,
+  getInstance,
+  replay,
+  villainStage,
+  type GameSetupConfig,
+  type GameState,
+  type InstanceId,
+} from "@mc/engine";
+import { describe, expect, it, test } from "vitest";
 import { P1, endTurn, firstLegal, patchInstance, picking, settle } from "../../../testing/harness.js";
+import { playToOutcome } from "../../../testing/driver.js";
+import { driveEventsPicking } from "../../../testing/staging.js";
 import { runWave5, startWave5Game, WAVE5_DEPS } from "../../testing.js";
+import { wave5Scenario } from "../../setup.js";
 import { ghostSpiderScenario } from "../ghost-spider/support.js";
 
 /**
@@ -132,9 +144,24 @@ describe("a completed stage (27117b/27118b/27119b) flips to its environment and 
     const lower = schemeNamed(base, "Lower Manhattan");
     const upper = schemeNamed(base, "Upper Manhattan");
     // Step one places each main scheme's threat in turn (Lower, Midtown, Upper), and Midtown's completion resolves
-    // before Upper gets its own: at the choice Lower has 0 + 1 and Upper still 1, a tie.
-    expect(gliderOn(completeMidtown(0, 1, picking(lower)))).toBe("Lower Manhattan");
-    expect(gliderOn(completeMidtown(0, 1, picking(upper)))).toBe("Upper Manhattan");
+    // before Upper gets its own: at the choice Lower has 0 + 1 and Upper still 1, a tie. Checked against the
+    // `targetChosen` event for 27118b's own "gliderTo" choice specifically, not the round's own final `gliderOn()`:
+    // with Venom Goblin (villain.ts) now scripted, the *same* round's own villain-phase step two also activates him
+    // against the player, dealing his own scheme threat to whichever scheme just got the glider (the scenario's own
+    // "the main scheme is the one with the glider counter" rule) and then firing his own Forced Response, which
+    // recomputes the least-threat scheme all over again and can move the glider a second time — a real, separate
+    // tie-break this test doesn't own (`villain.test.ts`'s own coverage).
+    let state = patchInstance(base, schemeNamed(base, "Midtown Manhattan"), { threat: 11 });
+    state = patchInstance(state, lower, { threat: 0 });
+    state = patchInstance(state, upper, { threat: 1 });
+    const gliderChoiceTarget = (pick: typeof firstLegal) => {
+      const { events } = driveEventsPicking(WAVE5_DEPS, state, pick, endTurn(P1));
+      const chosen = events.find((e) => e.type === "targetChosen" && e.slot === "gliderTo");
+      if (!chosen || chosen.type !== "targetChosen") throw new Error("no gliderTo choice was made");
+      return chosen.instanceIds[0];
+    };
+    expect(gliderChoiceTarget(picking(lower))).toBe(lower);
+    expect(gliderChoiceTarget(picking(upper))).toBe(upper);
   });
 
   it("with 2 [Symbiote] environments in play (2 completed stages), the players lose the game", () => {
@@ -150,3 +177,49 @@ describe("a completed stage (27117b/27118b/27119b) flips to its environment and 
     expect(afterUpper.outcome).toMatchObject({ result: "loss" });
   });
 });
+
+/** Plays `config` to an outcome with the greedy driver and checks the log replays to the same final state — the
+ * `sinister-six/scenario.test.ts` `playAndReplay` precedent. */
+function playAndReplay(config: GameSetupConfig) {
+  const created = createGame(config, WAVE5_DEPS);
+  if (!created.ok) throw new Error(`setup failed: ${created.error.message}`);
+  const result = playToOutcome(created.state, WAVE5_DEPS);
+  expect(result.outcome).not.toBeNull();
+  expect(result.rounds).toBeGreaterThanOrEqual(1);
+  const replayed = replay(result.session.log, WAVE5_DEPS);
+  expect(replayed.ok).toBe(true);
+  if (replayed.ok) expect(replayed.state).toEqual(result.session.state);
+  return result;
+}
+
+const BOMB_SCARE = [encounterSetId("bomb_scare")];
+
+test("Venom Goblin, solo: Ghost-Spider", () => {
+  playAndReplay(
+    wave5Scenario("venom-goblin", {
+      seed: 2029,
+      players: [{ starterDeckId: "ghost-spider" }],
+      modularSetIds: BOMB_SCARE,
+    }),
+  );
+}, 120_000);
+
+test("Venom Goblin, solo: a Core precon (Captain Marvel / Leadership)", () => {
+  playAndReplay(
+    wave5Scenario("venom-goblin", {
+      seed: 2030,
+      players: [{ starterDeckId: "core-captain-marvel-leadership" }],
+      modularSetIds: BOMB_SCARE,
+    }),
+  );
+}, 120_000);
+
+test("Venom Goblin, 2 players: Spider-Man (Miles Morales) and Ghost-Spider", () => {
+  playAndReplay(
+    wave5Scenario("venom-goblin", {
+      seed: 2031,
+      players: [{ starterDeckId: "spider-man-morales" }, { starterDeckId: "ghost-spider" }],
+      modularSetIds: BOMB_SCARE,
+    }),
+  );
+}, 180_000);
