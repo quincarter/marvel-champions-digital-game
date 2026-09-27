@@ -1272,9 +1272,12 @@ function executeResolveSpecials(
   const resolvingPlayer = effect.player ? (resolvePlayers(ctx.state, effect.player, context)[0] ?? null) : null;
   // "Resolve this card's 'When Revealed' ability" / "each 'When Revealed' ability on each side scheme" (§3.56).
   const trigger = effect.trigger ?? "special";
+  // "Resolve Spider-Man's 'Venom Blast' ability": only the named abilities, when the caller names any (§4.1 Q63).
+  const only = effect.abilities ? new Set<string>(effect.abilities) : null;
   for (const id of sources) {
     for (const ref of activeAbilityRefs(ctx.state, id, ctx.deps)) {
       if (ctx.deps.abilities[ref.id]?.trigger.kind !== trigger) continue;
+      if (only && !only.has(ref.id)) continue;
       steps.push({
         instanceId: id,
         abilityId: ref.id,
