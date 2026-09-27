@@ -248,7 +248,7 @@ export function pushActionAbility(
   ]);
 }
 
-type GameAbilityKind = "whenRevealed" | "whenDefeated" | "whenCompleted" | "boost" | "setup";
+type GameAbilityKind = "whenRevealed" | "whenDefeated" | "whenCompleted" | "boost" | "setup" | "cannotAttach";
 
 /**
  * Game-triggered ability frames (When Revealed, When Defeated, Boost, Setup) in

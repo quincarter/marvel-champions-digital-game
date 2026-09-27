@@ -256,6 +256,13 @@ export const whenDefeated = (...effects: readonly EffectArg[]): AbilityDefinitio
   build({ kind: "whenDefeated" }, {}, effects);
 /** "[star] Boost:" — "you" is the player the activation is against. */
 export const boost = (...effects: readonly EffectArg[]): AbilityDefinition => build({ kind: "boost" }, {}, effects);
+/**
+ * "Attach to [host]. If you cannot, [effects], then attach this card to [other host]." — the "If you cannot" half,
+ * resolved instead of the discard when a revealed attachment has no legal `attachesTo` host (the first half is data).
+ * The effects must attach the card themselves (`attachCard(self, …)`); a card they leave unattached is discarded.
+ */
+export const cannotAttach = (...effects: readonly EffectArg[]): AbilityDefinition =>
+  build({ kind: "cannotAttach" }, {}, effects);
 /** "Setup:" (main scheme 1A, identity). An empty setup is "Advance to stage 1B", which the engine always does. */
 export const setup = (...effects: readonly EffectArg[]): AbilityDefinition => build({ kind: "setup" }, {}, effects);
 /**
