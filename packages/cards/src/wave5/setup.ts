@@ -7,7 +7,8 @@ import {
   type AnyCard,
   type CardId,
 } from "@mc/content";
-import type { GameSetupConfig, PlayerSetup, VillainSetup } from "@mc/engine";
+import type { GameSetupConfig, PlayerSetup, RuleSpec, VillainSetup } from "@mc/engine";
+import { mainSchemeMarkedBy } from "../dsl/index.js";
 import {
   checkScenarioSetupOptions,
   coreScenario,
@@ -18,6 +19,16 @@ import {
   type CoreScenarioOptions,
 } from "../core/setup.js";
 import { WAVE5_CARDS } from "./cards.js";
+
+/**
+ * Scenario rules printed in the rulebook, not on a card (`GameSetupConfig.scenarioRuleSpecs`, `wave4/setup.ts`'s own
+ * `SCENARIO_RULE_SPECS` precedent): Venom Goblin's glider counter (MC27 p. 17 "The Glider Counter",
+ * docs/phase7-wave5.md §3.3) — Skies Over New York's own environment face (27116b) states the rule, but it is set
+ * aside once flipped (`main-scheme.ts`'s own `27116a.setup`), so the rule cannot live on that card's abilities.
+ */
+const SCENARIO_RULE_SPECS: Readonly<Record<string, readonly RuleSpec[]>> = {
+  "venom-goblin": [mainSchemeMarkedBy("glider")],
+};
 
 // (seatsOf below expands a `starterDeckId` seat to identityCardId/deck before calling `coreScenario`, which only
 // knows `CORE_STARTER_DECKS` by that name — `wave1/setup.ts`'s own `wave1Scenario` precedent.)
@@ -73,6 +84,8 @@ function buildSmSingleVillain(scenario: (typeof SM_SCENARIOS)[number], options: 
     requireLegalDecks: true,
     ...(difficulty === "expert" ? { difficulty: "expert" as const } : {}),
     ...(options.firstPlayerIndex !== undefined ? { firstPlayerIndex: options.firstPlayerIndex } : {}),
+    // Rules the scenario's rulebook imposes without a card (Venom Goblin's glider counter — module docblock above).
+    ...(SCENARIO_RULE_SPECS[scenario.id] ? { scenarioRuleSpecs: SCENARIO_RULE_SPECS[scenario.id] } : {}),
   };
 }
 
