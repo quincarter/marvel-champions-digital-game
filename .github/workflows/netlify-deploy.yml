@@ -62,7 +62,6 @@ jobs:
             message="PR #${{ github.event.pull_request.number }}@${COMMIT_REF:0:7}"
           fi
           # The CLI sees the pnpm workspace and needs the app named; --dir still resolves from the repo root.
-          fi
           npx --yes netlify-cli@27.10.0 deploy --no-build --filter @mc/client --dir packages/client/dist "${target[@]}" \
             --message "$message" --json > deploy.json
           url=$(jq -r 'if .url and (env.GITHUB_EVENT_NAME == "push") then .url else .deploy_url end' deploy.json)
