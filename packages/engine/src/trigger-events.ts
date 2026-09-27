@@ -48,6 +48,13 @@ export type TriggerEventBody =
       readonly amount: number;
       readonly sourceInstanceId: InstanceId | null;
       readonly parentFrameId?: FrameId | null;
+      /**
+       * Villain phase step one with several main schemes (docs/phase7-wave5.md §4.1 Q71): every scheme's threat lands
+       * before any completion is checked. `"deferred"`: this placement skips the completion check; `"closing"`: the
+       * last placement of the batch checks every main scheme, even if its own amount was prevented to 0 or it was
+       * cancelled. Absent everywhere else, where each placement checks as it lands.
+       */
+      readonly completionCheck?: "deferred" | "closing";
     }
   | {
       readonly kind: "removeThreat";

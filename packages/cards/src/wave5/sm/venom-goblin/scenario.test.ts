@@ -134,8 +134,8 @@ describe("a completed stage (27117b/27118b/27119b) flips to its environment and 
     expect(settled.outcome).toBeNull();
     // Midtown Manhattan is no longer among the main schemes...
     expect(schemes(settled).map((id) => currentName(settled, id))).toEqual(["Lower Manhattan", "Upper Manhattan"]);
-    // ...its environment face (27118b) entered the villain area and gave the glider to Upper (0 threat vs Lower's 6;
-    // Upper's own step-one threat comes after Midtown's completion, see the tie test below).
+    // ...its environment face (27118b) entered the villain area and gave the glider to Upper (0 + 1 threat vs Lower's
+    // 5 + 1: step one places every main scheme's threat before Midtown's completion resolves, §4.1 Q71).
     const midtownEnv = settled.villainArea.find((id) => getInstance(settled, id)?.cardId === cardId("27118b"));
     expect(midtownEnv).toBeDefined();
     expect(getInstance(settled, midtownEnv!)!.counters["glider"] ?? 0).toBe(0);
@@ -148,8 +148,8 @@ describe("a completed stage (27117b/27118b/27119b) flips to its environment and 
     const base = venomGoblin();
     const lower = schemeNamed(base, "Lower Manhattan");
     const upper = schemeNamed(base, "Upper Manhattan");
-    // Step one places each main scheme's threat in turn (Lower, Midtown, Upper), and Midtown's completion resolves
-    // before Upper gets its own: at the choice Lower has 0 + 1 and Upper still 1, a tie. Checked against the
+    // Step one places every main scheme's threat before any completion resolves (docs/phase7-wave5.md §4.1 Q71, "All
+    // first"), so at Midtown's completion Lower and Upper both have 0 + 1, a tie. Checked against the
     // `targetChosen` event for 27118b's own "gliderTo" choice specifically, not the round's own final `gliderOn()`:
     // with Venom Goblin (villain.ts) now scripted, the *same* round's own villain-phase step two also activates him
     // against the player, dealing his own scheme threat to whichever scheme just got the glider (the scenario's own
@@ -158,15 +158,23 @@ describe("a completed stage (27117b/27118b/27119b) flips to its environment and 
     // tie-break this test doesn't own (`villain.test.ts`'s own coverage).
     let state = patchInstance(base, schemeNamed(base, "Midtown Manhattan"), { threat: 11 });
     state = patchInstance(state, lower, { threat: 0 });
-    state = patchInstance(state, upper, { threat: 1 });
+    state = patchInstance(state, upper, { threat: 0 });
     const gliderChoiceTarget = (pick: typeof firstLegal) => {
-      const { events } = driveEventsPicking(WAVE5_DEPS, state, pick, endTurn(P1));
+      // The threat on Lower and Upper when the first player is asked where the glider goes.
+      let atChoice: readonly number[] | null = null;
+      const recording: typeof firstLegal = (current) => {
+        const prompt = current.pendingChoice?.prompt;
+        if (atChoice === null && prompt?.kind === "chooseTarget" && prompt.slot === "gliderTo")
+          atChoice = [getInstance(current, lower)!.threat, getInstance(current, upper)!.threat];
+        return pick(current);
+      };
+      const { events } = driveEventsPicking(WAVE5_DEPS, state, recording, endTurn(P1));
       const chosen = events.find((e) => e.type === "targetChosen" && e.slot === "gliderTo");
       if (!chosen || chosen.type !== "targetChosen") throw new Error("no gliderTo choice was made");
-      return chosen.instanceIds[0];
+      return { target: chosen.instanceIds[0], atChoice };
     };
-    expect(gliderChoiceTarget(picking(lower))).toBe(lower);
-    expect(gliderChoiceTarget(picking(upper))).toBe(upper);
+    expect(gliderChoiceTarget(picking(lower))).toEqual({ target: lower, atChoice: [1, 1] });
+    expect(gliderChoiceTarget(picking(upper))).toEqual({ target: upper, atChoice: [1, 1] });
   });
 
   it("with 2 [Symbiote] environments in play (2 completed stages), the players lose the game", () => {
