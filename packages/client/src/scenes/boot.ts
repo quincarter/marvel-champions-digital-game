@@ -90,6 +90,8 @@ async function devScreenJump(): Promise<{ readonly key: string; readonly data?: 
   }
 
   if (screen === "decks") return { key: SCENES.decks, data: {} satisfies DecksSceneData };
+  // `?screen=termtext`: the `McTermText`/`McTooltip` dev demo (guided mode G3b, `docs/guided-mode.md` §4).
+  if (screen === "termtext") return { key: SCENES.termTextDemo, data: {} };
   // `?screen=extras[&tab=music]`: the Extras shelf; pair with `&unlock=all` to see every tile open.
   if (screen === "extras") {
     const tab = params.get("tab");

@@ -262,7 +262,7 @@ A fresh Claude session can pick this up from this file alone.
   pointer, and put a screenshot beside its tile.
 - **Commits:** as the repo's git user, with no Claude co-author trailer. Every change carries a changie fragment.
 
-**In flight:** G2b (settings rows) and G3b (term text + tooltip), side by side.
+**In flight:** G3b (term text + tooltip) and a G2b follow-up fix (phone scroll regions, segmented control clipping/selected style, concepts crowding Pause's on-table keywords), side by side. G2b landed as `ac39611c` but stays unticked until the fix is verified.
 
 ## 7. Prior art: the parked prototype
 

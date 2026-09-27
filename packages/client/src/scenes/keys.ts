@@ -44,6 +44,8 @@ export const SCENES = {
   extras: "Extras",
   /** One rulebook as plain text (`scenes/extras-reader.ts`), reached from Extras' Rulebooks tab. */
   extrasReader: "ExtrasReader",
+  /** `McTermText`/`McTooltip` dev demo (guided mode G3b, `docs/guided-mode.md` §4): `?screen=termtext` only, never reached in-game. */
+  termTextDemo: "TermTextDemo",
   // Overlays.
   choice: "ChoiceOverlay",
   inspect: "InspectOverlay",
