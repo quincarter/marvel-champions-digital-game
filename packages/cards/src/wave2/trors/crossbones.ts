@@ -11,7 +11,7 @@ import {
   discardEncounterCards,
   discardFromHand,
   discardEncounterUntil,
-  enemyAttack,
+  enemyActivates,
   exists,
   firstPlayer,
   forcedInterrupt,
@@ -156,11 +156,12 @@ export const CROSSBONES_SET = defineAbilities({
     revealCard(chosen("found"), firstPlayer),
   ),
 
-  // Crossbones' Assault — When Defeated: Crossbones activates against the player who defeated this scheme. An
-  // additional, out-of-sequence activation (the same shape Klaw's own "attacks another player" effect uses).
-  "04070.when-defeated": whenDefeated(
-    enemyAttack(theVillain, { against: defeatingPlayer, additionalResolution: true }),
-  ),
+  // Crossbones' Assault — When Defeated: Crossbones activates against the player who defeated this scheme: he
+  // attacks that player in hero form, schemes against them in alter-ego form (docs/phase7-wave5.md §4.1 Q67). No
+  // `additionalResolution` — that flag is for one attack resolved against several players (Whirlwind); this
+  // activation targets only the defeating player, so Crossbones' own "when he attacks" abilities and the villain
+  // audit's boost-card count should see it like any other activation.
+  "04070.when-defeated": whenDefeated(enemyActivates(theVillain, { against: defeatingPlayer })),
 
   // Cornered Staff — When Revealed: Discard 1 [per_hero] cards from the top of the encounter deck. Place 1
   // additional threat here for each boost icon discarded this way.
