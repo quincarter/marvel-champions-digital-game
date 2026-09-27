@@ -3598,8 +3598,8 @@ export const SM_CARDS: readonly AnyCard[] = [
     traits: [],
     keywords: [],
     text: {
-      printed: "Each enemy gains 1 hazard icon ([hazard]).\n[star] Boost: Deal 1 indirect damage to each player. (In expert mode, deal 1 addition indirect damage to the first player.)",
-      current: "Each enemy gains 1 hazard icon ([hazard]).\n[star] Boost: Deal 1 indirect damage to each player. (In expert mode, deal 1 addition indirect damage to the first player.)",
+      printed: "Each enemy gains 1 hazard icon ([hazard]).\n[star] Boost: Deal 1 indirect damage to each player. (In expert mode, deal 1 additional indirect damage to the first player.)",
+      current: "Each enemy gains 1 hazard icon ([hazard]).\n[star] Boost: Deal 1 indirect damage to each player. (In expert mode, deal 1 additional indirect damage to the first player.)",
     },
     abilities: [{ id: abilityId("27144.hidden-in-shadow-constant") }, { id: abilityId("27144.boost") }],
   },

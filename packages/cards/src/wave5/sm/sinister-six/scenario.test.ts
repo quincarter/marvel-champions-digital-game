@@ -1,4 +1,4 @@
-import { cardId, encounterSetId } from "@mc/content";
+import { cardId } from "@mc/content";
 import {
   activeVillain,
   createGame,
@@ -19,8 +19,12 @@ import { wave5Scenario, type Wave5ScenarioOptions } from "../../setup.js";
  * the active counter on the villain with the lowest activation order value, and set the other villains aside. Put
  * the Light at the End side scheme into play, [Trap!] side faceup." Then three full games played headlessly by the
  * card-name-agnostic greedy driver to a real outcome and replayed to a deep-equal final state (the
- * `mysterio/scenario.test.ts` shape). Guerrilla Tactics (the recommended modular) is not scripted yet; Bomb Scare
- * (Core, already scripted) stands in for it.
+ * `mysterio/scenario.test.ts` shape). Guerrilla Tactics (`sm` 27142–27146, `guerrilla-tactics.ts`) is this
+ * scenario's own required set — `SM_SCENARIOS`'s `encounterSetIds` already names it alongside `sinister_six`, with
+ * `recommendedModularSetIds: []` (no separate modular), so these games need no `modularSetIds` override at all; the
+ * earlier `modularSetIds: [bomb_scare]` stand-in (added only because Guerrilla Tactics' own abilities weren't
+ * registered yet) is gone now that they are — adding `guerrilla_tactics` there too would have doubled its cards
+ * (`encounterCardsOf` pushes one copy of a set's cards per occurrence of that set id in its input list).
  */
 const SIX_VILLAIN_IDS = [
   cardId("27094"), // Doctor Octopus, activation order 1
@@ -129,14 +133,11 @@ function playAndReplay(config: GameSetupConfig) {
   return result;
 }
 
-const BOMB_SCARE = [encounterSetId("bomb_scare")];
-
 test("The Sinister Six, solo: Ghost-Spider", () => {
   playAndReplay(
     wave5Scenario("sinister-six", {
       seed: 2026,
       players: [{ starterDeckId: "ghost-spider" }],
-      modularSetIds: BOMB_SCARE,
     }),
   );
 }, 120_000);
@@ -146,7 +147,6 @@ test("The Sinister Six, solo: a Core precon (Captain Marvel / Leadership)", () =
     wave5Scenario("sinister-six", {
       seed: 2027,
       players: [{ starterDeckId: "core-captain-marvel-leadership" }],
-      modularSetIds: BOMB_SCARE,
     }),
   );
 }, 120_000);
@@ -156,7 +156,6 @@ test("The Sinister Six, 2 players: Spider-Man (Miles Morales) and Ghost-Spider, 
     wave5Scenario("sinister-six", {
       seed: 2028,
       players: [{ starterDeckId: "spider-man-morales" }, { starterDeckId: "ghost-spider" }],
-      modularSetIds: BOMB_SCARE,
     }),
   );
 }, 180_000);

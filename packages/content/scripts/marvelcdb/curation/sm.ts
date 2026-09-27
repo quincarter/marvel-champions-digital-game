@@ -277,6 +277,23 @@ export const SM_CURATION: PackCuration = {
           "Attach to the villain with the most remaining hit points. If you cannot, resolve the Ambush! Ability on the main scheme, then attach this card to the active villain.\nThreat cannot be removed from Light at the End.",
       },
     },
+    // Found scripting Guerrilla Tactics (`ability-scripting-engineer`). Hidden in Shadow's raw MarvelCDB
+    // `text`/`real_text` says "...deal 1 addition indirect damage to the first player." — "addition" for
+    // "additional". Confirmed against the card's own scan (`assets/card-art/bundles/cards/27144.png`): "...deal 1
+    // additional indirect damage to the first player."
+    {
+      code: "27144",
+      reason:
+        'Hidden in Shadow\'s raw text reads "...deal 1 addition indirect damage..." — "addition" for "additional" ' +
+        '— while the card\'s own scan prints "additional".',
+      evidence:
+        'card scan assets/card-art/bundles/cards/27144.png: "(In expert mode, deal 1 additional indirect damage ' +
+        'to the first player.)"',
+      textReplace: {
+        find: "deal 1 addition indirect damage to the first player",
+        replace: "deal 1 additional indirect damage to the first player",
+      },
+    },
   ],
 
   errata: [],
