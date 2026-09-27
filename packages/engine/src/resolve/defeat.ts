@@ -37,6 +37,7 @@ import type { StackFrame } from "../stack.js";
 import type { GameState, MainSchemeState, VillainState } from "../state.js";
 import type { TriggerEvent } from "../trigger-events.js";
 import { engagedEvent } from "./apply-effect.js";
+import { defeatedTogetherPending, defeatFrames } from "./defeated-together.js";
 import { announce, base, eventFrame, gameAbilityFrames } from "./frames.js";
 import { flipMainSchemeStage, leaveAreaOnDefeat, passActiveCounter } from "./game-areas.js";
 import { attachmentHostCandidates } from "./reveal.js";
@@ -312,7 +313,10 @@ const defeatPending = (state: GameState, id: InstanceId): boolean =>
         f.event.kind === "characterDefeated" &&
         f.event.instanceId === id &&
         (f.stage === "interrupts" || f.stage === "apply")) ||
-      (f.kind === "effects" && f.defeatedLeaving === id),
+      (f.kind === "effects" && f.defeatedLeaving === id) ||
+      // One of several defeated together, waiting for the others' interrupts, the When Defeated abilities or its leave
+      // window (docs/phase7-wave5.md §4.1 Q49).
+      defeatedTogetherPending(f, id),
   );
 
 /**
@@ -383,7 +387,7 @@ export function checkDefeats(ctx: Ctx, hints?: DefeatHint | readonly DefeatHint[
 
   // One batch for the whole sweep, in sweep order. Each defeat is an event with
   // an interrupt window; the card leaves play when it applies (see applyDefeat).
-  const defeatFrames: StackFrame[] = [];
+  const defeats: Extract<TriggerEvent, { kind: "characterDefeated" }>[] = [];
   for (const player of playerOrder(ctx.state)) {
     for (const id of [...player.playArea]) {
       const profile = characterProfile(ctx.state, id, ctx.deps);
@@ -405,10 +409,12 @@ export function checkDefeats(ctx: Ctx, hints?: DefeatHint | readonly DefeatHint[
             ...(hint.reportFrameId ? { reportFrameId: hint.reportFrameId } : {}),
           }
         : {};
-      defeatFrames.push(eventFrame(ctx, { kind: "characterDefeated", instanceId: id, ...context }));
+      defeats.push({ kind: "characterDefeated", instanceId: id, ...context });
     }
   }
-  pushFrames(ctx, defeatFrames);
+  // The allies and minions this sweep defeats are defeated together: one interrupt window, then every When Defeated,
+  // then one leave window, then one response window (docs/phase7-wave5.md §4.1 Q49, `defeatedTogether`).
+  pushFrames(ctx, defeatFrames(ctx, defeats));
   // Choosing who holds the active counter next resolves before anything else queued by this sweep, so no effect
   // can read "the villain" while the counter still sits on a defeated one.
   pushFrames(ctx, activeChoices);

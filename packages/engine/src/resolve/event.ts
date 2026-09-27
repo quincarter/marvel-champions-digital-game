@@ -52,7 +52,7 @@ import {
 import { currentActivationFrameId, type StackFrame, type Vars } from "../stack.js";
 import type { GameState } from "../state.js";
 import type { TriggerEvent } from "../trigger-events.js";
-import type { EffectSpec } from "../spec.js";
+import type { DefeatFollowUp, EffectSpec } from "../spec.js";
 import {
   applyMainSchemeCompleting,
   checkDefeats,
@@ -60,6 +60,7 @@ import {
   defeatVillainStage,
   eliminatePlayer,
 } from "./defeat.js";
+import { openDefeatedTogetherInterrupts, withDefeatedMember } from "./defeated-together.js";
 import { dashedStatSkipsActivation, pushEnemyAttackFrame, pushEnemySchemeFrame } from "./enemy-activation.js";
 import { applyEnterPlayKeywords } from "./enter-play.js";
 import {
@@ -93,8 +94,9 @@ export function executeEventFrame(ctx: Ctx, frame: Frame<"event">): void {
         setFrame(ctx, { ...frame, stage: "apply" });
         return;
       }
-      // Cards leaving play from one step share one interrupt window (docs/phase7-wave5.md §4.1 Q32–Q33).
-      if (openLeavingInterrupts(ctx, frame)) return;
+      // Cards leaving play from one step share one interrupt window (docs/phase7-wave5.md §4.1 Q32–Q33), and so do
+      // characters defeated by one effect (§4.1 Q49).
+      if (openLeavingInterrupts(ctx, frame) || openDefeatedTogetherInterrupts(ctx, frame)) return;
       emit(ctx, { type: "triggerEvent", event: frame.event, phase: "initiated" });
       setFrame(ctx, { ...frame, stage: "apply" });
       // Attachments this event's apply step takes out of play with its card get their "when this leaves play"
@@ -122,20 +124,23 @@ export function executeEventFrame(ctx: Ctx, frame: Frame<"event">): void {
     }
     case "apply": {
       if (frame.group) {
-        // A simultaneous damage group's member: its interrupts are done, and the group applies it with the others.
+        // A simultaneous damage group's member, or one of several characters defeated together (§4.1 Q49 of wave 5):
+        // its interrupts are done, and the group applies it with the others.
         const { frameId: groupId, index } = frame.group;
         const event = frame.event;
         if (frame.cancelled) emit(ctx, { type: "triggerEvent", event, phase: "cancelled" });
-        updateFrame(ctx, groupId, (group) =>
-          group.kind === "damageGroup" && event.kind === "dealDamage"
+        updateFrame(ctx, groupId, (group) => {
+          if (group.kind === "effects" && event.kind === "characterDefeated")
+            return withDefeatedMember(group, index, event, frame.cancelled);
+          return group.kind === "damageGroup" && event.kind === "dealDamage"
             ? {
                 ...group,
                 members: group.members.map((member, i) =>
                   i === index ? { ...member, event, cancelled: frame.cancelled } : member,
                 ),
               }
-            : group,
-        );
+            : group;
+        });
         popFrame(ctx);
         return;
       }
@@ -499,8 +504,15 @@ function applyEvent(ctx: Ctx, frame: Frame<"event">): boolean | void {
  * amount was fixed by the damage that caused the defeat (`applyDamage`), so it does not depend on where the card is.
  * A side scheme already worked this way (ruling, Jan 11, 2026 (1); `applySchemeDefeated`). Before 2026-09-25 an ally
  * or minion was discarded before its When Defeated resolved (docs/phase7-wave3.md §4 Q4).
+ *
+ * Returns false when the defeat does not happen, true when it did and nothing is left to do (a villain stage, an
+ * identity), and for an ally or minion what its When Defeated and leaving steps need, which the caller schedules
+ * (`applyDefeat` alone, `defeatedTogether` for several at once).
  */
-function applyDefeat(ctx: Ctx, event: Extract<TriggerEvent, { kind: "characterDefeated" }>): boolean {
+export function beginDefeat(
+  ctx: Ctx,
+  event: Extract<TriggerEvent, { kind: "characterDefeated" }>,
+): boolean | DefeatFollowUp {
   const id = event.instanceId;
   const instance = getInstance(ctx.state, id);
   if (!instance || !cardsInPlay(ctx.state).includes(id)) return false;
@@ -538,32 +550,16 @@ function applyDefeat(ctx: Ctx, event: Extract<TriggerEvent, { kind: "characterDe
     return false;
   }
   emit(ctx, { type: "characterDefeated", instanceId: id, cardId: instance.cardId });
-  const whenDefeated = gameAbilityFrames(
-    ctx,
-    id,
-    ["whenDefeated"],
-    event,
-    undefined,
-    instance.engagedWith ?? ctx.state.firstPlayerId,
-  );
+  const actingPlayerId = instance.engagedWith ?? ctx.state.firstPlayerId;
   // Victory X sends a defeated character to the victory display instead (docs/phase7-wave3.md §3.4). Otherwise an
   // interrupt's `setDefeatDestination` ("return it to its owner's hand instead of discarding it", Regroup), else a
   // constant `defeatDestination` rule, replaces the discard (docs/phase7-wave3.md §3.45). Read now, at the defeat.
   const destination = event.destination ?? defeatDestinationRule(ctx.state, ctx.deps, id);
-  const leave: EffectSpec = {
-    kind: "discardFromPlay",
-    target: { kind: "self" },
-    defeated: true,
-    ...(destination === null ? {} : { insteadTo: destination }),
-  };
   addFrameVars(ctx, event.parentFrameId, { defeated: 1 });
   if (event.reportFrameId && event.reportFrameId !== event.parentFrameId) {
     addFrameVars(ctx, event.reportFrameId, { defeated: 1 });
   }
-  const frames: StackFrame[] = [
-    ...whenDefeated,
-    leaveAfterWhenDefeated(ctx, id, instance.cardId, leave, controllerOf(ctx.state, id), sourceCardId),
-  ];
+  let spill: DefeatFollowUp["spill"];
   if (event.overkill && !ctx.state.outcome && getInstance(ctx.state, event.overkill.toInstanceId)) {
     emit(ctx, {
       type: "overkillSpilled",
@@ -572,16 +568,48 @@ function applyDefeat(ctx: Ctx, event: Extract<TriggerEvent, { kind: "characterDe
       amount: event.overkill.amount,
     });
     // RRG "Overkill": spilled damage is attack damage but not an attack against that character.
-    frames.push(
-      eventFrame(ctx, {
-        kind: "dealDamage",
-        targetInstanceId: event.overkill.toInstanceId,
-        amount: event.overkill.amount,
-        sourceInstanceId: event.overkill.sourceInstanceId,
-        fromAttack: true,
-      }),
-    );
+    spill = {
+      kind: "dealDamage",
+      targetInstanceId: event.overkill.toInstanceId,
+      amount: event.overkill.amount,
+      sourceInstanceId: event.overkill.sourceInstanceId,
+      fromAttack: true,
+    };
   }
+  return {
+    printedId: instance.cardId,
+    actingPlayerId,
+    controllerId: controllerOf(ctx.state, id),
+    ...(destination === null ? {} : { insteadTo: destination }),
+    ...(sourceCardId !== undefined ? { sourceCardId } : {}),
+    ...(spill ? { spill } : {}),
+  };
+}
+
+/** A defeated ally's or minion's leaving step (`leaveAfterWhenDefeated`), with the destination its defeat read. */
+function defeatLeaveSpec(followUp: DefeatFollowUp): EffectSpec {
+  return {
+    kind: "discardFromPlay",
+    target: { kind: "self" },
+    defeated: true,
+    ...(followUp.insteadTo === undefined ? {} : { insteadTo: followUp.insteadTo }),
+  };
+}
+
+/**
+ * The defeat of one character on its own: it happens (`beginDefeat`), then the card's When Defeated abilities, its
+ * leaving step and any overkill spill go on the stack in that order. Allies and minions defeated by one effect resolve
+ * together instead (`resolve/defeated-together.ts`, docs/phase7-wave5.md §4.1 Q49).
+ */
+function applyDefeat(ctx: Ctx, event: Extract<TriggerEvent, { kind: "characterDefeated" }>): boolean {
+  const begun = beginDefeat(ctx, event);
+  if (typeof begun === "boolean") return begun;
+  const id = event.instanceId;
+  const frames: StackFrame[] = [
+    ...gameAbilityFrames(ctx, id, ["whenDefeated"], event, undefined, begun.actingPlayerId),
+    leaveAfterWhenDefeated(ctx, id, begun.printedId, defeatLeaveSpec(begun), begun.controllerId, begun.sourceCardId),
+  ];
+  if (begun.spill) frames.push(eventFrame(ctx, begun.spill));
   pushFrames(ctx, frames);
   return true;
 }

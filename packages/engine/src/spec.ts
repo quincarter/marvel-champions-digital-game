@@ -20,6 +20,8 @@ import type { Command } from "./commands.js";
 import type { InstanceId, PlayerId } from "./ids.js";
 import type { ResourceRequirement, TypedResource } from "./resources.js";
 import type { FacedownRole, Form, GameStep } from "./state.js";
+// Type-only: `defeatedTogether` carries the defeats it resolves.
+import type { TriggerEvent } from "./trigger-events.js";
 
 /**
  * The executable effect vocabulary. The Phase 2 ability DSL compiles down to
@@ -2150,6 +2152,18 @@ export type EffectSpec =
       readonly indirectDamage: number;
     }
   /**
+   * **Engine-internal; no DSL builder.** Allies and minions defeated by one effect resolved together
+   * (docs/phase7-wave5.md §4.1 Q49, `resolve/defeated-together.ts`): after one shared interrupt window for their
+   * defeats, every defeat happens, their When Defeated abilities resolve (the first player orders them across cards),
+   * they leave play from one step (one leave window, `openLeavingInterrupts`), overkill spills, and their defeats share
+   * one response window. `stage` is the next of those steps.
+   */
+  | {
+      readonly kind: "defeatedTogether";
+      readonly stage: "apply" | "whenDefeated" | "leave" | "spill" | "responses";
+      readonly members: readonly DefeatedTogetherMember[];
+    }
+  /**
    * "Reduce the resource cost of the next card that player plays this phase by 1" (lasting, consumed on use).
    * `cardFilter` narrows which played card consumes it: "the next Avenger ally played this phase" (Avengers Tower,
    * `cap` pack). Absent = any card (Helicarrier).
@@ -2333,6 +2347,31 @@ export type CardSelector =
       /** N cards chosen at random from the (filtered) zone, per player ("1 card at random from your hand"). */
       readonly random?: ValueSpec;
     };
+
+/** One character of a `defeatedTogether` step. */
+export interface DefeatedTogetherMember {
+  /** Its defeat, as its interrupt window left it (a "… instead of discarding it" destination included). */
+  readonly event: Extract<TriggerEvent, { kind: "characterDefeated" }>;
+  /** An interrupt cancelled or replaced its defeat. */
+  readonly cancelled: boolean;
+  /** Set once its defeat has happened: what its When Defeated and leaving steps need (`DefeatFollowUp`). */
+  readonly defeated?: DefeatFollowUp;
+}
+
+/** What an ally's or minion's defeat leaves to do once it has happened (`beginDefeat`, `resolve/event.ts`). */
+export interface DefeatFollowUp {
+  /** It leaves only if it is still in play showing this card (a When Defeated may have moved or flipped it). */
+  readonly printedId: CardId;
+  /** "You" for its When Defeated abilities when nobody controls it: the engaged player, else the first player. */
+  readonly actingPlayerId: PlayerId | null;
+  readonly controllerId: PlayerId | null;
+  /** Where it goes instead of its discard pile (Regroup, a `defeatDestination` rule). */
+  readonly insteadTo?: CardDestination;
+  /** The card whose ability defeated it, for the Permanent keyword (docs/phase7-wave5.md §4.1 Q46). */
+  readonly sourceCardId?: CardId;
+  /** Overkill's excess, dealt after it leaves play. */
+  readonly spill?: Extract<TriggerEvent, { kind: "dealDamage" }>;
+}
 
 /**
  * Where `moveCards` puts cards. Player cards go to their owner's zones; `discard` follows each card's `home`.

@@ -88,6 +88,7 @@ import { matchingCardInPlay } from "../unique.js";
 import { campaignSeatNumber } from "../campaign-state.js";
 import { campaignLogValueOf, recordCampaignRemoval, recordCampaignWrite } from "./campaign.js";
 import { damageGroupFrame } from "./damage-group.js";
+import { pushDefeats } from "./defeated-together.js";
 import { advanceToSetAsideVillain, swapVillain } from "./villain-swap.js";
 import { flipToOtherFace } from "./other-face.js";
 import { buildScenarioDeck, dealAsEncounterCards, moveCardsTo, selectCards, shuffleEncounterDeck } from "./cards.js";
@@ -817,7 +818,8 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       // `byEffect`, and the rules that stop a defeat (cannotBeDefeated, permanent) still do.
       const inPlay = cardsInPlay(ctx.state);
       const defeatingPlayer = frame.controllerId;
-      pushEvents(
+      // Several allies and minions defeated by this one effect are defeated together (docs/phase7-wave5.md §4.1 Q49).
+      pushDefeats(
         ctx,
         targets(effect.target)
           .filter((id) => inPlay.includes(id) && categoriesOf(ctx.state, id).includes("character"))

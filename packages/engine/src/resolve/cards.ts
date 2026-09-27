@@ -51,7 +51,7 @@ import type { CardDestination, CardSelector, TargetQuery } from "../spec.js";
 import type { ZoneId } from "../state.js";
 import type { HostStep, LeaveRequest, TriggerEvent } from "../trigger-events.js";
 import { describeFrame } from "../stack.js";
-import { announce, eventFrame, type Frame, pushEvent } from "./frames.js";
+import { announce, eventFrame, type Frame, pushEvent, pushEventsSharingResponses } from "./frames.js";
 import { villainDefeatRemoves } from "./defeat.js";
 import { runHostStep } from "./host-step.js";
 import { hasCandidates } from "./triggers.js";
@@ -517,8 +517,9 @@ export function dealUnhandledEncounterCard(ctx: Ctx, event: EncounterCardFromPla
 
 /**
  * Announces each card that left play since the last look (`TriggerEvent cardLeavesPlay`, docs/phase7-wave5.md §3.13),
- * when an ability listens, and empties the list; pushed last-first so the oldest resolves first. Returns true when it
- * pushed a frame.
+ * when an ability listens, and empties the list; the oldest resolves first. Cards that left since the last look left
+ * from one step, so their leavings share one response window (docs/phase7-wave5.md §4.1 Q33, Q49; RRG 1.8 "Triggering
+ * Condition", p. 45), as they do when they waited for an interrupt window. Returns true when it pushed a frame.
  */
 export function announceCardsLeftPlay(ctx: Ctx): boolean {
   const pending = ctx.state.pendingLeftPlay;
@@ -529,7 +530,7 @@ export function announceCardsLeftPlay(ctx: Ctx): boolean {
     .map((left): TriggerEvent => ({ kind: "cardLeavesPlay", ...left }))
     .filter((event) => heard(ctx.state, ctx.deps, event));
   if (events.length === 0) return false;
-  for (const event of [...events].reverse()) pushEvent(ctx, event);
+  pushEventsSharingResponses(ctx, events);
   return true;
 }
 
