@@ -464,7 +464,9 @@ export const SM_PROVENANCE: readonly CardProvenance[] = [
     cardId: cardId("27144"),
     cardSetCode: "guerrilla_tactics",
     marvelcdbCodes: ["27144"],
-    corrections: [],
+    corrections: [
+      "27144: Hidden in Shadow's raw text reads \"...deal 1 addition indirect damage...\" — \"addition\" for \"additional\" — while the card's own scan prints \"additional\". [evidence: card scan assets/card-art/bundles/cards/27144.png: \"(In expert mode, deal 1 additional indirect damage to the first player.)\"]",
+    ],
   },
   {
     cardId: cardId("27145"),
