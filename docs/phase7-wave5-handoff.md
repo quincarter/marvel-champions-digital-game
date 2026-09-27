@@ -24,8 +24,10 @@ from running several agents in one worktree. Updated 2026-09-27.
   branch. If a session ends first, these hold the unmerged work (untested until reviewed):
   - `wip/wave5-venom-goblin-villain`: Venom Goblin (I)–(III) 27113–27115 + the scenario's e2e games.
   - `wip/wave5-venom-goblin-encounter`: the Venom Goblin encounter set 27120–27126.
-  - `wip/wave5-cannot-thwart-side`: engine `cannotThwart` scoped to schemes + Life-Size Decoy 27142's
-    `constant-2`.
+  - Already on `feature/wave-5`, safe to ignore or delete: `wip/wave5-cannot-thwart-side`,
+    `wip/wave5-guerrilla-tactics`, `wip/wave5-venom-goblin-setup`, `wip/wave-5-ambush-fallback` (the sixth
+    session's Ambush! fallback, cherry-picked 683bb5c/d3ab39a), `wip/wave-5-five-villains` (superseded by 13f9b13).
+    The cloud proxy refuses remote branch deletion, so they stay until someone deletes them on GitHub.
 - **Order of the rest:** the PR body's "Remaining plan".
 
 ## Rules for agents (also in CLAUDE.md)
