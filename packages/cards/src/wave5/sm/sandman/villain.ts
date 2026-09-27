@@ -1,18 +1,16 @@
 import {
-  allOf,
   applyRuleUntil,
   atEndOfAttack,
   defineAbilities,
-  eventDealt,
+  each,
+  eventDamageTaken,
   forcedInterrupt,
   ifThen,
   modifyAttack,
-  refMatches,
   resolveSpecialsOf,
   when,
   whenRevealed,
   YOUR_IDENTITY,
-  eventTarget,
   addCounters,
 } from "../../../dsl/index.js";
 import { CITY_STREETS } from "./encounter-set.js";
@@ -25,27 +23,19 @@ import { CITY_STREETS } from "./encounter-set.js";
  * attack gains overkill"), then "If your identity takes any amount of damage from that attack, resolve the
  * 'Surging Sands' ability on City Streets." Both clauses are one printed ability box, so they are one
  * `AbilityDefinition` (the card carries exactly one ref per stage): the first effect changes the attack in progress,
- * and `atEndOfAttack` defers the second to after the attack (and its damage) has actually resolved — the same shape
- * `core/scenarios/klaw.ts`'s 01123 Boost uses for "if this activation deals damage to you, exhaust your hero"
- * (`atEndOfAttack(ifThen(allOf(eventDealt("damage"), refMatches(eventTarget, YOUR_IDENTITY)), …))`): `eventTarget`
- * is the attack's own "attacked" character (the declared defender, or your identity if undefended — RRG 1.8
- * "Indirect Damage", p. 24), and `eventDealt("damage")` is whether the attack (as a whole) dealt any.
+ * and `atEndOfAttack` defers the second to after the attack (and its damage) has actually resolved.
  *
- * **Known imprecision on stages I/II only (indirect damage):** RRG 1.8 "Indirect Damage" (p. 24) lets the attacked
- * player divide indirect damage among every character they control, not only their identity — a controlled ally
- * could take all of it while identity takes none, in which case Surging Sands should not resolve. The engine
- * reports an attack's total damage and its "attacked" character (`eventTarget`/`eventDealt`) but not a
- * per-character breakdown of an indirect attack's shares, so this reading (any damage at all from an attack whose
- * "attacked" character is your identity) over-triggers Surging Sands in the rare case where the attacked player
- * controls another character and chooses to divert the damage there. No engine primitive exists for the precise
- * reading; flagged here rather than guessed at further (a per-target damage report off `attacksDealIndirectDamage`
- * is the missing primitive — `game-rules-architect`). Stage III's "gains overkill" has no such gap: a normal
- * (non-indirect) attack has exactly one attacked character, so the same pattern is exact there.
+ * "Your identity takes any amount of damage from that attack" is `eventDamageTaken(each(YOUR_IDENTITY))`, the attack's
+ * per-character damage-taken result (docs/phase7-wave5.md §4.1 Q65), not "the attack dealt damage and its attacked
+ * character is your identity": RRG 1.8 "Indirect Damage" (p. 24) lets the attacked player divide an indirect attack's
+ * damage among every character they control, so on stages I/II an ally can take all of it (no Surging Sands) or part
+ * of it (Surging Sands if the identity took any). On stage III an ally that defends and is defeated spills the
+ * overkill excess onto the identity (RRG 1.8 "Overkill", p. 31), which is damage the identity takes from that attack.
+ * Damage that is prevented, reduced to 0 or absorbed by a tough status card is not taken.
  *
- * `applyRuleUntil(rule, "endOfAttack")` (docs/phase7-wave5.md §4.1 Q59, built since the doc's "open" note — its own
- * worked example, `sm` 27029 In Cold Blood, is this same box) scopes the indirect-damage rule to the one attack the
- * interrupt is reacting to, `RuleSpec attacksDealIndirectDamage` (docs/phase7-wave3.md §3.16, the mirror of
- * Starshark's own permanent version of the same rule).
+ * `applyRuleUntil(rule, "endOfAttack")` (docs/phase7-wave5.md §4.1 Q59) scopes the indirect-damage rule to the one
+ * attack the interrupt is reacting to, `RuleSpec attacksDealIndirectDamage` (docs/phase7-wave3.md §3.16, the mirror
+ * of Starshark's own permanent version of the same rule).
  */
 const sandBlast = (attackKeyword: "indirect" | "overkill") =>
   forcedInterrupt(
@@ -53,9 +43,7 @@ const sandBlast = (attackKeyword: "indirect" | "overkill") =>
     attackKeyword === "indirect"
       ? applyRuleUntil({ kind: "attacksDealIndirectDamage", attacker: { self: true } }, "endOfAttack")
       : modifyAttack({ keywords: ["overkill"] }),
-    atEndOfAttack(
-      ifThen(allOf(eventDealt("damage"), refMatches(eventTarget, YOUR_IDENTITY)), resolveSpecialsOf(CITY_STREETS)),
-    ),
+    atEndOfAttack(ifThen(eventDamageTaken(each(YOUR_IDENTITY)), resolveSpecialsOf(CITY_STREETS))),
   );
 
 export const SANDMAN = defineAbilities({

@@ -518,6 +518,16 @@ export const valueEquals = (value: Amount, threshold: Amount): Predicate => ({
 export const threatAtLeast = (of: TargetRef, n: Amount): Predicate => valueAtLeast(threatOn(of), n);
 /** A result of the triggering event ("if this attack dealt damage" → `eventDealt("damage")`). */
 export const eventDealt = (key: string, n = 1): Predicate => ({ kind: "eventResultAtLeast", key, amount: n });
+/**
+ * "If your identity takes any amount of damage from that attack" → `eventDamageTaken(each(YOUR_IDENTITY))`: the triggering
+ * attack/activation's damage actually taken by `of` (indirect shares and overkill spill included, prevented damage
+ * not), read at its end (`atEndOfAttack`) or in its response window (docs/phase7-wave5.md §4.1 Q65).
+ */
+export const eventDamageTaken = (of: TargetRef, n = 1): Predicate => ({
+  kind: "eventDamageTakenAtLeast",
+  of,
+  amount: n,
+});
 /** "If the villain is making an undefended attack". */
 export const undefendedAttack: Predicate = { kind: "currentAttack", key: "undefended", atLeast: 1 };
 /**
