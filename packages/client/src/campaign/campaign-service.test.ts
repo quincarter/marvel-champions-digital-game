@@ -11,7 +11,7 @@ import { POOL_CARDS, POOL_DEPS, POOL_VERSION } from "../content/pool.js";
 import { MemoryCampaignStorage } from "../engine/campaign-storage.js";
 import { MemoryGameStorage } from "../engine/game-storage.js";
 import { EngineSessionCore } from "../engine/session-core.js";
-import { CampaignService } from "./campaign-service.js";
+import { CAMPAIGN_RECORDS, CampaignService } from "./campaign-service.js";
 
 const POOL = Object.fromEntries(POOL_CARDS.map((card) => [card.id as string, card]));
 
@@ -37,6 +37,12 @@ const ROSTER = [deckNamed("hawkeye"), deckNamed("spider-woman")].map((deck) => (
   identityCardId: deck.identityCardId,
   deck,
 }));
+
+const orderOf = (state: Pick<GameState, "players" | "encounterDecks">): string =>
+  JSON.stringify({
+    players: state.players.map((player) => [player.hand, player.deck]),
+    encounter: Object.values(state.encounterDecks).map((deck) => deck.deck),
+  });
 
 describe("CampaignService", () => {
   test("signing the roster stores a fresh log on issue #1 with each seat's own deck copy", async () => {
@@ -75,6 +81,51 @@ describe("CampaignService", () => {
     expect(folded.record.position.nextNodeId).toBe("crossbones");
     expect(folded.record.history.map((entry) => entry.outcome)).toEqual(["lost"]);
   });
+
+  test.each(Object.keys(CAMPAIGN_RECORDS))(
+    "%s: a rewound issue is dealt a fresh shuffle, not the lost attempt's decks again",
+    async (campaignId) => {
+      const campaigns = service();
+      let record = await campaigns.start({ campaignId, seats: ROSTER, poolVersion: POOL_VERSION, seed: 11 });
+      const deals: { seed: number; order: string }[] = [];
+      let nodeId: string | undefined;
+      for (let attempt = 0; attempt < 3; attempt++) {
+        const answers: CampaignChoiceAnswer[] = [];
+        let composed = await campaigns.compose(record, answers);
+        while (composed.kind === "pending") {
+          answers.push({ ...composed.choice, picked: composed.choice.options.slice(0, 1) });
+          composed = await campaigns.compose(record, answers);
+        }
+        nodeId ??= composed.record.attempt?.nodeId;
+        expect(composed.record.attempt?.nodeId).toBe(nodeId);
+        const config = campaigns.launchConfig(composed.record);
+        const core = new EngineSessionCore({ storage: new MemoryGameStorage() });
+        const { state } = (await core.start(config)).snapshot;
+        deals.push({ seed: config.seed, order: orderOf(state) });
+        core.dispatch({ type: "concede", playerId: state.firstPlayerId });
+        let folded = await campaigns.fold(composed.record, core.save());
+        const lossAnswers: CampaignChoiceAnswer[] = [];
+        while (folded.kind === "pending") {
+          lossAnswers.push({ ...folded.choice, picked: folded.choice.options.slice(0, 1) });
+          folded = await campaigns.fold(composed.record, core.save(), lossAnswers);
+        }
+        record = folded.record;
+      }
+      expect(new Set(deals.map((deal) => deal.seed)).size).toBe(3);
+      expect(new Set(deals.map((deal) => deal.order)).size).toBe(3);
+      // Each lost attempt keeps its own seed, which is what Rewind's "Same hands" replays.
+      expect(record.history.map((entry) => entry.seed)).toEqual(deals.map((deal) => deal.seed));
+      let replay = await campaigns.compose(record);
+      const answers: CampaignChoiceAnswer[] = [];
+      while (replay.kind === "pending") {
+        answers.push({ ...replay.choice, picked: replay.choice.options.slice(0, 1) });
+        replay = await campaigns.compose(record, answers);
+      }
+      const core = new EngineSessionCore({ storage: new MemoryGameStorage() });
+      const { state } = (await core.start({ ...campaigns.launchConfig(replay.record), seed: deals[0]!.seed })).snapshot;
+      expect(orderOf(state)).toBe(deals[0]!.order);
+    },
+  );
 
   test("a win asks each seat for a TECH upgrade before anything is stored, then advances to issue #2", async () => {
     const campaigns = service();

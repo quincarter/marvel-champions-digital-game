@@ -27,6 +27,7 @@ import {
   heroInterrupt,
   heroResponse,
   ifThen,
+  lookAt,
   moveCards,
   modifyStat,
   on,
@@ -42,7 +43,6 @@ import {
   removeThreatFromAScheme,
   resource,
   response,
-  selectCards,
   self,
   shuffleDeck,
   statOf,
@@ -113,7 +113,7 @@ export const WAR_MACHINE_PACK_CARDS = defineAbilities({
   // the top 3 cards of the encounter deck. For each treachery looked at this way, remove 1 threat from a scheme.
   "23014.falcon-response": response(
     after.entersPlay("self"),
-    selectCards("looked", encounterCards(["deck"], undefined, 3)),
+    lookAt(encounterCards(["deck"], undefined, 3), { bind: "looked" }),
     removeThreatFromAScheme(countAmong(chosen("looked"), query("treachery"))),
   ),
 

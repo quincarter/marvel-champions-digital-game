@@ -347,7 +347,8 @@ export class CampaignRewindScene extends Phaser.Scene {
     // A page-based box (`ctx.panel`) shows an extra REDO row under KEPT ("Page N's last panel replays…") — MC10's
     // plain KEPT/GONE box keeps its exact prior height.
     const box = 34 + (view.gone.length + (ctx.panel ? 1 : 0)) * 34 + 24;
-    return tag + 14 + headline + 12 + body + 16 + box + 20 + 56 + 10 + 48;
+    const sameHands = view.replaySeed === null ? 0 : 48 + 10;
+    return tag + 14 + headline + 12 + body + 16 + box + 20 + 56 + 10 + sameHands + 48;
   }
 
   #layoutRight(
@@ -456,7 +457,7 @@ export class CampaignRewindScene extends Phaser.Scene {
     this.#buttons.push(
       new McButton(this, {
         kind: "primary",
-        label: "Rewind ▸",
+        label: "Rewind, new shuffle ▸",
         type: typeRole.barTitle,
         rect: rewindRect,
         onClick: () => this.#rewind(),
@@ -465,6 +466,24 @@ export class CampaignRewindScene extends Phaser.Scene {
     order.push("rewind");
     stops.set("rewind", { rect: rewindRect, activate: () => this.#rewind() });
     y += 56 + 10;
+
+    // The one-shot Game over's "Same seed, same hands", for a campaign: replays the lost attempt's exact deal.
+    const replaySeed = view.replaySeed;
+    if (replaySeed !== null) {
+      const sameRect: Rect = { x: rect.x, y, width: rect.width, height: 48 };
+      this.#buttons.push(
+        new McButton(this, {
+          kind: "onInk",
+          label: "Rewind, same hands",
+          type: typeRole.barTitle,
+          rect: sameRect,
+          onClick: () => this.#rewind(replaySeed),
+        }),
+      );
+      order.push("same-hands");
+      stops.set("same-hands", { rect: sameRect, activate: () => this.#rewind(replaySeed) });
+      y += 48 + 10;
+    }
 
     // The tile's Edit decks / Shelve are ink-filled with a paper outline (`kind: "onInk"`), not the paper-filled
     // "secondary" skin — Shelve dimmer still, since it's the least-committed of the three ways forward.
@@ -513,10 +532,14 @@ export class CampaignRewindScene extends Phaser.Scene {
     return { objects: [g, t], rect };
   }
 
-  #rewind(): void {
+  /** A plain rewind deals a fresh shuffle; `replaySeed` replays the lost attempt's own deal instead. */
+  #rewind(replaySeed?: number): void {
     const record = this.#record;
     if (!record) return;
-    goToScreen(this, SCENES.campaignBriefing, { runId: record.id });
+    goToScreen(this, SCENES.campaignBriefing, {
+      runId: record.id,
+      ...(replaySeed === undefined ? {} : { replaySeed }),
+    });
   }
 
   #editDecks(): void {

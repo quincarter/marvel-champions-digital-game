@@ -58,6 +58,8 @@ export interface CampaignOpenerData {
 export interface CampaignBriefingData {
   readonly runId: string;
   readonly answers?: readonly CampaignChoiceAnswer[];
+  /** Rewind's "Same hands": open the issue on this seed instead of the composed attempt's fresh one. */
+  readonly replaySeed?: number;
 }
 
 /**
@@ -69,6 +71,8 @@ export interface CampaignBriefingData {
 export interface CampaignMarketData {
   readonly runId: string;
   readonly answers: readonly CampaignChoiceAnswer[];
+  /** Carried back to Briefing unchanged (`CampaignBriefingData.replaySeed`). */
+  readonly replaySeed?: number;
 }
 
 /**

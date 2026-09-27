@@ -2160,6 +2160,7 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       addFrameVars(ctx, frame.frameId, { [effect.name]: value(effect.value) });
       return;
     case "chooseCards":
+    case "lookAt":
     case "chooseOne":
     case "choosePlayer":
     case "resolveSpecials":

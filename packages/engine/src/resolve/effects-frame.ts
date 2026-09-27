@@ -68,9 +68,11 @@ import {
   canRemoveThreatFrom,
   isRequiredChoice,
   isRequiredSearch,
+  readsDeck,
   slotTargetValid,
   UNRESOLVED_VAR,
 } from "./target-validity.js";
+import { markPreThenUnresolved } from "./then.js";
 
 /** The `EffectContext` an effects frame resolves in. Exported so `why-not.ts` can rebuild it exactly. */
 export const contextOf = (frame: Frame<"effects">, deps: EngineDeps): EffectContext => ({
@@ -132,6 +134,7 @@ export function executeEffectsFrame(ctx: Ctx, frame: Frame<"effects">): void {
     return;
   }
   if (effect.kind === "chooseCards") return executeChooseCards(ctx, frame, effect, context);
+  if (effect.kind === "lookAt") return executeLookAt(ctx, frame, effect, context);
   if (effect.kind === "chooseOne") return executeChooseOne(ctx, frame, effect, context);
   if (effect.kind === "choosePlayer") return executeChoosePlayer(ctx, frame, effect, context);
   if (effect.kind === "resolveSpecials") return executeResolveSpecials(ctx, frame, effect, context);
@@ -907,6 +910,48 @@ function executeChooseCards(
     options: cardOptions(ctx, candidates),
     minSelections: Math.min(effect.min, max),
     maxSelections: max,
+    frameId: frame.frameId,
+  });
+}
+
+/**
+ * `EffectSpec lookAt` (RRG 1.8 "Look, Looked-At", p. 27): the viewer looks at the cards and nothing moves. The first
+ * pass binds and logs the look, then parks a `lookAt` choice offering the cards with zero selections, which is what
+ * makes a deck card face-visible (`visibility.ts` `offeredByOpenChoice`); the empty answer resumes past it. With
+ * nothing to look at, or nobody to look, there is no choice: the look simply finds nothing.
+ */
+function executeLookAt(
+  ctx: Ctx,
+  frame: Frame<"effects">,
+  effect: Extract<EffectSpec, { kind: "lookAt" }>,
+  context: EffectContext,
+): void {
+  if (frame.answer !== null) {
+    setFrame(ctx, { ...frame, answer: null, cursor: frame.cursor + 1 });
+    return;
+  }
+  const [viewer] = resolvePlayers(ctx.state, effect.viewer, context);
+  const ids = viewer ? selectCards(ctx, effect.cards, context) : [];
+  const bound = effect.bind
+    ? {
+        bindings: { ...frame.bindings, [effect.bind]: ids },
+        vars: { ...frame.vars, [`${effect.bind}.count`]: ids.length },
+      }
+    : {};
+  if (!viewer || ids.length === 0) {
+    setFrame(ctx, { ...frame, ...bound, cursor: frame.cursor + 1 });
+    // The same "then" gate as a `selectCards` over a deck that found nothing (RRG 1.8 "'Then'", p. 44).
+    if (readsDeck(effect.cards)) markPreThenUnresolved(ctx, frame.frameId, "lookFoundNothing");
+    return;
+  }
+  setFrame(ctx, { ...frame, ...bound });
+  emit(ctx, { type: "cardsLookedAt", playerId: viewer, instanceIds: ids });
+  requestChoice(ctx, {
+    playerId: viewer,
+    prompt: { kind: "lookAt" },
+    options: cardOptions(ctx, ids),
+    minSelections: 0,
+    maxSelections: 0,
     frameId: frame.frameId,
   });
 }

@@ -60,11 +60,28 @@ export function initialChoiceSelection(choice: Pick<PendingChoice, "options" | "
 }
 
 /**
+ * A choice whose only legal answer is the empty one: nothing can be picked, the options are there to be *seen*
+ * (`ChoicePrompt lookAt`, "look at the top card of any deck"). The sheet shows them and answers with a single
+ * "Done" — no Decline, since there is nothing to decline.
+ */
+export const isAcknowledgeOnly = (choice: Pick<PendingChoice, "maxSelections">): boolean => choice.maxSelections === 0;
+
+/** True when the sheet offers Decline: picking nothing is legal, and picking something is too. */
+export const canDeclineChoice = (choice: Pick<PendingChoice, "minSelections" | "maxSelections">): boolean =>
+  choice.minSelections === 0 && !isAcknowledgeOnly(choice);
+
+/** The commit button's label: "Done" for an acknowledge-only sheet, "Confirm" for a decision. */
+export const commitLabelOf = (choice: Pick<PendingChoice, "maxSelections">): string =>
+  isAcknowledgeOnly(choice) ? "Done" : "Confirm";
+
+/**
  * The fewest picks Confirm needs. When declining is legal the sheet already has
  * a Decline button for "none", so Confirm with nothing picked is the same answer
  * wearing the wrong label — and read in play as a Confirm that did nothing.
+ * An acknowledge-only sheet has no Decline, and its "Done" needs nothing picked.
  */
-export function confirmMinimum(choice: Pick<PendingChoice, "options" | "minSelections">): number {
+export function confirmMinimum(choice: Pick<PendingChoice, "options" | "minSelections" | "maxSelections">): number {
+  if (isAcknowledgeOnly(choice)) return 0;
   return choice.minSelections === 0 && choice.options.length > 0 ? 1 : choice.minSelections;
 }
 

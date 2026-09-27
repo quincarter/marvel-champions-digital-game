@@ -1614,6 +1614,17 @@ export type EffectSpec =
     }
   /** Binds the cards a selector names now into `slot` (and `<slot>.count`): "your set-aside nemesis minion", "the Breakin' & Takin' side scheme in the encounter deck or discard". */
   | { readonly kind: "selectCards"; readonly slot: string; readonly cards: CardSelector }
+  /**
+   * "Look at the top card of any deck" (Jessica Drew): an informational look with no decision attached. RRG 1.8 "Look,
+   * Looked-At" (p. 27): only `viewer` may see the cards, they stay in their deck and go back in the same order, so
+   * nothing moves. The engine shows them by opening a `ChoicePrompt lookAt` offering them with zero selections allowed
+   * (`visibility.ts` reveals a deck card only while an open choice offers it); the answer is a plain acknowledge.
+   *
+   * `bind` also records the cards in that slot and their count in `<bind>.count`, exactly as `selectCards` does, for
+   * text that goes on to act on what was seen ("look at the top card of your deck; if it is …"). A look that reads a
+   * deck and finds nothing (an empty deck) did not resolve, the same as `selectCards` (RRG 1.8 "'Then'", p. 44).
+   */
+  | { readonly kind: "lookAt"; readonly cards: CardSelector; readonly viewer: PlayerRef; readonly bind?: string }
   /** "Reveal it": each card goes through the full reveal procedure (RRG "Reveal") for `player`, from wherever it is. */
   | { readonly kind: "revealCard"; readonly cards: TargetRef; readonly player: PlayerRef }
   | { readonly kind: "shuffleEncounterDeck" }

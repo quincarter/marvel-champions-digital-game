@@ -36,6 +36,10 @@ describe("campaign-rewind-model", () => {
     // Nothing was removed from the campaign during the lost issue #3 attempt in this fixture (MC10's first three
     // issues never remove a card) — the "GONE" list is honestly empty rather than invented.
     expect(view.gone).toEqual([]);
+    // "Same hands" replays the lost issue #3 attempt's own deal.
+    const lostTaskmaster = record.history.filter((entry) => entry.nodeId === "taskmaster").at(-1);
+    expect(lostTaskmaster?.seed).toEqual(expect.any(Number));
+    expect(view.replaySeed).toBe(lostTaskmaster?.seed);
   });
 
   test("issue #1 has nothing to keep yet", () => {

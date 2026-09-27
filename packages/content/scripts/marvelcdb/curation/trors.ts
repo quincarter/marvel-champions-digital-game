@@ -43,6 +43,13 @@ export const TRORS_CURATION: PackCuration = {
 
   corrections: [
     {
+      code: "04031b",
+      reason:
+        'MarvelCDB\'s own transcription typo: Jessica Drew\'s ability header is "<b>Action:</b>:", which renders as "Action::" on the Inspect card text.',
+      evidence: "raw (04031b)",
+      textReplace: { find: "Action::", replace: "Action:" },
+    },
+    {
       code: "04059",
       reason:
         "MarvelCDB's own transcription typo: Crossbones' When Revealed searches for \"Crossbone's Machine Gun\", but the real card (04064) is titled \"Crossbones' Machine Gun\". Uncorrected, this is a named search that finds nothing.",

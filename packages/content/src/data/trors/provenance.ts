@@ -104,7 +104,9 @@ export const TRORS_PROVENANCE: readonly CardProvenance[] = [
     cardId: cardId("04031a"),
     cardSetCode: "spider_woman",
     marvelcdbCodes: ["04031a", "04031b"],
-    corrections: [],
+    corrections: [
+      "04031b: MarvelCDB's own transcription typo: Jessica Drew's ability header is \"<b>Action:</b>:\", which renders as \"Action::\" on the Inspect card text. [evidence: raw (04031b)]",
+    ],
   },
   { cardId: cardId("04032"), cardSetCode: "spider_woman", marvelcdbCodes: ["04032"], corrections: [] },
   { cardId: cardId("04033"), cardSetCode: "spider_woman", marvelcdbCodes: ["04033"], corrections: [] },

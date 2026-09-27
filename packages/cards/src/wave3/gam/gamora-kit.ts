@@ -29,6 +29,7 @@ import {
   ifElse,
   ifThen,
   isAlterEgo,
+  lookAt,
   modifyStat,
   moveCards,
   not,
@@ -45,7 +46,6 @@ import {
   response,
   rule,
   self,
-  selectCards,
   shuffleDeck,
   shuffleEncounterDeck,
   statOf,
@@ -100,11 +100,11 @@ export const GAMORA_KIT = defineAbilities({
   // Skilled Tactician — deckbuilding only (data, `IdentityDeckbuilding.offAspectAllowance`).
   "18001b.gamora-constant": coveredByEngineRule(),
   // Gamora — Action: Look at the top card of your deck. If that card is an attack or thwart event, draw it.
-  // (Limit once per round.) `selectCards` "looks" at the card without moving it; `refMatches`'s `anywhere` reads it
+  // (Limit once per round.) `lookAt` shows the card and binds it without moving it; `refMatches`'s `anywhere` reads it
   // back where it still is (the top of the deck, not in play).
   "18001b.gamora-action": action(
     { limit: oncePerRound },
-    selectCards("top", zone("deck", you, { top: 1 })),
+    lookAt(zone("deck", you, { top: 1 }), { bind: "top" }),
     ifThen(refMatches(chosen("top"), AN_ATTACK_OR_THWART_EVENT, { anywhere: true }), draw(1)),
   ),
 
