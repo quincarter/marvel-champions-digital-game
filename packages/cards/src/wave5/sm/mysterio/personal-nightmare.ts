@@ -6,6 +6,8 @@ import {
   defineAbilities,
   discardFromHand,
   draw,
+  eachPlayer,
+  engagedPlayerOf,
   gets,
   handCountOf,
   ifThen,
@@ -40,19 +42,22 @@ import {
  *   timing triggered abilities in a card's printed text box. Left unregistered rather than approximated; see
  *   `personal-nightmare.test.ts`.
  *
- * - **Evil Doppelgänger (27154)**'s own stat line ("+X SCH and +X ATK, where X is equal to the number of
- *   identity-specific cards in the engaged player's hand") is also not fully scripted. `ValueSpec countOf`
- *   (`values.ts`) only reads cards in play (`selectTargets`, `select.ts`: `cardsInPlay(state).filter(...)`), and
- *   `ValueSpec handCount` (`{ kind: "handCount"; player }`) has no `filter` the way `scenarioAreaCount`/
- *   `victoryDisplayCount` do — there is no live-hand-count-by-query value at all. `countAmong` reads a *bound*
- *   ref's cards by query, but a constant's target/value has no cost or effect step to bind one from (a constant is
- *   evaluated wherever its stat is read, not run as an effect list). **Report to `game-rules-architect`:** a
- *   `handCount`-shaped `ValueSpec` that takes an optional `filter`. Its `[star] Boost: Draw 3 cards. Discard 3
- *   random cards from your hand.` is scripted; the stat line is not.
+ * - **Evil Doppelgänger (27154)**'s stat line ("+X SCH and +X ATK, where X is equal to the number of
+ *   identity-specific cards in the engaged player's hand") reads `handCountOf` with a filter (docs/phase7-wave5.md
+ *   §4.1 Q69), live on every stat read. "Identity-specific" is the RRG 1.8 classification (p. 23), which names no
+ *   particular identity, so the filter is `identitySetOf: eachPlayer`; a player only ever holds their own identity's
+ *   set in practice. A minion engaged with no one has no engaged player, so X is 0.
  */
+const identitySpecificInEngagedHand = handCountOf(engagedPlayerOf(self), { identitySetOf: eachPlayer });
+
 export const PERSONAL_NIGHTMARE = defineAbilities({
-  // Evil Doppelgänger (27154, minion; ATK/SCH/HP/boostIcons/starIcon are data) — [star] Boost: Draw 3 cards.
-  // Discard 3 random cards from your hand. Its own stat line is not scripted; see the module docblock.
+  // Evil Doppelgänger (27154, minion; ATK/SCH/HP/boostIcons/starIcon are data) — Evil Doppelgänger gets +X SCH and
+  // +X ATK, where X is equal to the number of identity-specific cards in the engaged player's hand.
+  "27154.evil-doppelganger-constant": constant(
+    gets("sch", identitySpecificInEngagedHand, { self: true }),
+    gets("atk", identitySpecificInEngagedHand, { self: true }),
+  ),
+  // [star] Boost: Draw 3 cards. Discard 3 random cards from your hand.
   "27154.boost": boost(draw(3, you), discardFromHand(3, you, { random: true })),
 
   // Fool's Paradise (27155, side scheme; Victory 1/icons/boostIcons are data) — Each identity gets +2 hand size.

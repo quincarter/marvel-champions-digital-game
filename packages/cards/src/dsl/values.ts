@@ -323,8 +323,17 @@ export const eventAmount: ValueSpec = { kind: "eventAmount" };
 export const eventResult = (key: string): ValueSpec => ({ kind: "eventResult", key });
 export const handSizeOf = (player: PlayerRef = you, printed = false): ValueSpec =>
   printed ? { kind: "handSize", player, printed } : { kind: "handSize", player };
-/** "The cards in your hand" as a count (distinct from `handSizeOf`, the max-hand-size *stat*): "half of the cards in your hand, rounded down" (Man Out of Time). */
-export const handCountOf = (player: PlayerRef = you): ValueSpec => ({ kind: "handCount", player });
+/**
+ * "The cards in your hand" as a count (distinct from `handSizeOf`, the max-hand-size *stat*): "half of the cards in
+ * your hand, rounded down" (Man Out of Time). An optional `filter` counts only the hand cards matching it: "the
+ * number of identity-specific cards in the engaged player's hand" (Evil Doppelgänger) is
+ * `handCountOf(engagedPlayerOf(self), { identitySetOf: eachPlayer })` (docs/phase7-wave5.md §4.1 Q69).
+ */
+export const handCountOf = (player: PlayerRef = you, filter?: TargetQuery): ValueSpec => ({
+  kind: "handCount",
+  player,
+  ...(filter ? { filter } : {}),
+});
 /**
  * "The cards in a player's deck" as a count — the player deck only, never a separate deck. The sibling of
  * `handCountOf`, and what "the top half of their deck" is measured from: `zone("deck", p, { top: scaled(
