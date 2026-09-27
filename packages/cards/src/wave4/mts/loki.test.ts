@@ -17,7 +17,7 @@ import {
   toHero,
   type Picker,
 } from "../../testing/harness.js";
-import { defeatWithAttack, withForm } from "../../testing/staging.js";
+import { defeatWithAttack, driveEvents, withForm } from "../../testing/staging.js";
 import { expectResolved, traceAbilities } from "../../testing/trace.js";
 import { WAVE4_DEPS } from "../index.js";
 import { runWave4, startWave4Game } from "../testing.js";
@@ -554,14 +554,40 @@ describe("Infinite Mischief (21175)", () => {
 });
 
 describe("The Trickster (21176)", () => {
-  it("21176.when-revealed: swaps Loki with a random set-aside version, then he schemes against you", () => {
+  /** Reveals The Trickster for real in the villain phase and returns every event after its own reveal. */
+  const revealTrickster = (state: GameState) => {
+    const noStones = {
+      ...state,
+      villainArea: state.villainArea.filter((id) => !INFINITY_STONES.includes(state.instances[id]?.cardId as string)),
+    };
+    const { state: after, events } = driveEvents(
+      WAVE4_DEPS,
+      stackEncounterDeck(noStones, "21166", "21176"),
+      endTurn(P1),
+    );
+    const at = events.findIndex((e) => e.type === "encounterCardRevealed" && e.cardId === cardId("21176"));
+    expect(at).toBeGreaterThanOrEqual(0);
+    return { after, events: events.slice(at) };
+  };
+
+  it("21176.when-revealed in alter-ego form: swaps Loki with a random set-aside version, who schemes against you (§4.1 Q67)", () => {
     const state = lokiGame(2);
     const before = state.instances[state.activeVillainId]!.cardId;
-    const mainThreatBefore = mainThreat(state);
-    const { state: after } = revealTopEncounterCard(state, "21176");
+    const { after, events } = revealTrickster(state);
     expect(after.instances[after.activeVillainId]!.cardId).not.toBe(before);
     expect(LOKIS).toContain(after.instances[after.activeVillainId]!.cardId);
-    expect(mainThreat(after)).toBeGreaterThan(mainThreatBefore);
+    const schemes = events.filter((e) => e.type === "schemeResolved" && e.enemyInstanceId === after.activeVillainId);
+    expect(schemes).toHaveLength(1);
+    expect(events.some((e) => e.type === "attackResolved")).toBe(false);
+  });
+
+  it("21176.when-revealed in hero form: the swapped-in Loki attacks you instead (§4.1 Q67)", () => {
+    const state = lokiGame(2);
+    const hero = settle(runWave4(state, toHero(P1)), firstLegal, undefined, WAVE4_DEPS);
+    const { after, events } = revealTrickster(hero);
+    const attacks = events.filter((e) => e.type === "attackResolved" && e.enemyInstanceId === after.activeVillainId);
+    expect(attacks).toHaveLength(1);
+    expect(events.some((e) => e.type === "schemeResolved")).toBe(false);
   });
 
   it("21176.boost: drawn as the villain's own boost card, gives it an additional boost card and a tough status", () => {
