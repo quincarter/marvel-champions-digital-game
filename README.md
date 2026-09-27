@@ -1,5 +1,7 @@
 # Marvel Champions: Digital Edition
 
+[![Netlify Status](https://api.netlify.com/api/v1/badges/487c224e-254f-42a0-a2b3-a6192b9e70c8/deploy-status)](https://app.netlify.com/projects/marvel-champions-digital-game/deploys)
+
 A digital, rules-accurate implementation of **Marvel Champions: The Card Game** (Fantasy Flight Games / Marvel), built to be a genuinely playable video game driven by a robust, deterministic rules engine.
 
 > [!NOTE]
