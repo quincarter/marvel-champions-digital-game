@@ -430,7 +430,8 @@ export function stubSupport(spec: {
 
 export function stubAttachment(spec: {
   readonly id: string;
-  readonly attachesTo: AttachmentHost;
+  /** Omitted for a card with no "attach to" text, which attaches itself from its own When Revealed. */
+  readonly attachesTo?: AttachmentHost;
   readonly name?: string;
   readonly statModifiers?: PrintedStatModifiers;
   readonly boostIcons?: number;
@@ -446,7 +447,7 @@ export function stubAttachment(spec: {
     keywords: spec.keywords ?? [],
     text,
     abilities: spec.abilities ?? [],
-    attachesTo: spec.attachesTo,
+    ...(spec.attachesTo ? { attachesTo: spec.attachesTo } : {}),
     ...(spec.statModifiers ? { statModifiers: spec.statModifiers } : {}),
   };
 }

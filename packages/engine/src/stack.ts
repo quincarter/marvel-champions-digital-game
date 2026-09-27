@@ -309,8 +309,12 @@ export type StackFrame =
       /**
        * `cannotAttach`: an attachment with no legal host is resolving its own `cannotAttach` abilities instead of
        * being discarded; on return it enters play if they attached it, and is discarded otherwise.
+       *
+       * `settleAttach`: an attachment with no "attach to" text (`AttachmentCard.attachesTo` absent) has resolved its
+       * When Revealed, which attaches it (RRG 1.8 "Reveal", p. 38; ruling, Feb 20, 2026 (4)): attached, it enters play
+       * now; otherwise `finish` discards it like a treachery (RRG 1.8 "Attach To", p. 8).
        */
-      readonly stage: "faceup" | "enterPlay" | "cannotAttach" | "whenRevealed" | "finish" | "done";
+      readonly stage: "faceup" | "enterPlay" | "cannotAttach" | "whenRevealed" | "settleAttach" | "finish" | "done";
     })
   /** RRG "Initiating Abilities" steps 6–7, after costs are paid. */
   | (FrameBase & {

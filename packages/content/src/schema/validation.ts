@@ -871,7 +871,8 @@ export function validateMinionCard(card: MinionCard): ValidationResult {
 
 export function validateAttachmentCard(card: AttachmentCard): ValidationResult {
   const errors = [...baseErrors(card), ...encounterCommonErrors(card, "attachment")];
-  errors.push(...validateAttachmentHost(card.attachesTo, "attachment"));
+  // An attachment with no "attach to" text attaches itself from its own When Revealed (RRG 1.8 "Reveal", p. 38).
+  if (card.attachesTo !== undefined) errors.push(...validateAttachmentHost(card.attachesTo, "attachment"));
   const mods = card.statModifiers;
   if (mods !== undefined) {
     if (typeof mods !== "object" || mods === null) errors.push("attachment statModifiers must be an object");

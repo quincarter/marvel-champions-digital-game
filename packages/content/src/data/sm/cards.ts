@@ -4221,7 +4221,6 @@ export const SM_CARDS: readonly AnyCard[] = [
     quantityInSet: 1,
     unique: false,
     images: { front: imageRef("/bundles/cards/27172.png") },
-    attachesTo: { kind: "minion" },
     encounterSetIds: [encounterSetId("whispers_of_paranoia")],
     boostIcons: 2,
     starIcon: true,

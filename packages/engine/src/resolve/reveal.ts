@@ -358,8 +358,12 @@ export function executeRevealFrame(ctx: Ctx, frame: Frame<"reveal">): void {
         setFrame(ctx, { ...frame, stage: "finish" });
         return;
       }
-      if (card.type === "attachment" && card.attachesTo.kind !== "villain") {
-        const resolved = resolveAttachmentTarget(ctx, frame, card.attachesTo);
+      const attachesTo = card.type === "attachment" ? card.attachesTo : undefined;
+      if (card.type === "attachment" && attachesTo === undefined) {
+        // RRG 1.8 "Reveal" (p. 38) step 2: no "attach to" text, so it is placed in front of the revealing player (not
+        // in play); its own When Revealed attaches it (ruling, Feb 20, 2026 (4)), settled at `settleAttach`.
+      } else if (attachesTo && attachesTo.kind !== "villain") {
+        const resolved = resolveAttachmentTarget(ctx, frame, attachesTo);
         if (!resolved) return;
       } else {
         enterPlayOnReveal(ctx, frame.instanceId, frame.playerId);
@@ -377,7 +381,8 @@ export function executeRevealFrame(ctx: Ctx, frame: Frame<"reveal">): void {
       return;
     }
     case "whenRevealed": {
-      setFrame(ctx, { ...frame, stage: "finish" });
+      const selfAttaching = card.type === "attachment" && card.attachesTo === undefined;
+      setFrame(ctx, { ...frame, stage: selfAttaching ? "settleAttach" : "finish" });
       // Incite and surge are "When Revealed" effects too (RRG "Incite X", "Surge").
       if (frame.whenRevealedCancelled) return;
       const revealed: TriggerEvent = {
@@ -408,6 +413,12 @@ export function executeRevealFrame(ctx: Ctx, frame: Frame<"reveal">): void {
       pushFrames(ctx, frames);
       return;
     }
+    case "settleAttach": {
+      // Its When Revealed attached it: it enters play now. Otherwise `finish` discards it.
+      setFrame(ctx, { ...frame, stage: "finish" });
+      if (getInstance(ctx.state, frame.instanceId)?.attachedTo) enterPlay(ctx, frame.instanceId, frame.playerId);
+      return;
+    }
     case "finish": {
       setFrame(ctx, { ...frame, stage: "done" });
       // A revealed player event (a Cosmic Entity whose effects left it where it was) is discarded like a treachery,
@@ -417,7 +428,14 @@ export function executeRevealFrame(ctx: Ctx, frame: Frame<"reveal">): void {
       const here = locateCard(ctx.state, frame.instanceId);
       const unmoved =
         frame.revealedFrom === undefined ? here?.kind === "dealtEncounter" : sameZone(here, frame.revealedFrom);
-      if ((card.type === "treachery" || card.type === "event") && unmoved && getInstance(ctx.state, frame.instanceId)) {
+      // A self-attaching attachment (no "attach to" text) its When Revealed did not attach cannot stay in front of
+      // the player (RRG 1.8 "Attach To", p. 8: "If such a card cannot remain in its prior state or game area, discard
+      // it"); attached, it has moved, so it is never `unmoved`.
+      const discards =
+        card.type === "treachery" ||
+        card.type === "event" ||
+        (card.type === "attachment" && card.attachesTo === undefined);
+      if (discards && unmoved && getInstance(ctx.state, frame.instanceId)) {
         // Its home deck's discard (docs/phase7-wave1.md §4.3, proposed; see `discardZoneFor`).
         moveCard(ctx, frame.instanceId, discardZoneFor(ctx.state, frame.instanceId), "top");
       }
@@ -504,7 +522,9 @@ export function enterPlayOnReveal(ctx: Ctx, id: InstanceId, playerId: PlayerId):
         bindings: {},
         deps: ctx.deps,
       };
-      const [host] = attachmentHostCandidates(ctx.state, card.attachesTo, context);
+      // A card with no "attach to" text has no host here: only its own When Revealed attaches it (RRG 1.8 "Reveal",
+      // p. 38), so entering play any other way discards it (RRG 1.8 "Attach To", p. 8).
+      const [host] = card.attachesTo ? attachmentHostCandidates(ctx.state, card.attachesTo, context) : [];
       if (!host) {
         moveCard(ctx, id, discardZoneFor(ctx.state, id), "top");
         break;
