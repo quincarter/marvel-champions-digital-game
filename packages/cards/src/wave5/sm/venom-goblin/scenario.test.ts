@@ -56,6 +56,11 @@ const gliderOn = (state: GameState): string | undefined =>
     .map((id) => currentName(state, id))[0];
 
 describe("wave5Scenario('venom-goblin'): 27116a.setup", () => {
+  it("the four environment faces (27116b-27119b) aren't shuffled into the encounter deck; they enter play only by flipping", () => {
+    const config = ghostSpiderScenario("venom-goblin", { seed: 7, modularSetIds: [encounterSetId("bomb_scare")] });
+    for (const id of ["27116b", "27117b", "27118b", "27119b"]) expect(config.encounterDeck).not.toContain(cardId(id));
+  });
+
   it("1 player: Lower/Midtown/Upper Manhattan in play, the glider on Midtown, Skies Over New York set aside as its environment face", () => {
     const state = venomGoblin();
     expect(schemes(state).map((id) => currentName(state, id))).toEqual([

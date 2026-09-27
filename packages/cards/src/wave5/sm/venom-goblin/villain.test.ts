@@ -1,4 +1,4 @@
-import { encounterSetId } from "@mc/content";
+import { cardId, encounterSetId } from "@mc/content";
 import { currentName, getInstance, type GameEvent, type GameState, type InstanceId } from "@mc/engine";
 import { describe, expect, it } from "vitest";
 import { endTurn, firstLegal, inst, P1, patchInstance, picking, playerOf } from "../../../testing/harness.js";
@@ -75,6 +75,45 @@ const eventsDuring = (events: readonly GameEvent[], abilityId: string): readonly
   const end = events.findIndex((e, i) => i > start && e.type === "stepChanged");
   return events.slice(start, end < 0 ? events.length : end);
 };
+
+/**
+ * A [Symbiote] environment (Lower Manhattan's own environment face, 27117b) in the villain area. The environment
+ * faces are never in the encounter deck (they enter play only when a stage flips), so the test adds a fresh instance
+ * of it rather than staging one from the deck.
+ */
+function withSymbioteEnvironment(state: GameState): { readonly state: GameState; readonly id: InstanceId } {
+  const template = state.instances[state.mainScheme.instanceId]!;
+  const id = "test-symbiote-env" as InstanceId;
+  return {
+    id,
+    state: {
+      ...state,
+      instances: {
+        ...state.instances,
+        [id]: {
+          ...template,
+          instanceId: id,
+          cardId: cardId("27117b"),
+          ownerId: null,
+          controllerId: null,
+          damage: 0,
+          threat: 0,
+          statuses: { stunned: 0, confused: 0, tough: 0 },
+          counters: {},
+          attachedTo: null,
+          attachments: [],
+          boostCards: [],
+          tucked: [],
+          facedownAs: null,
+          engagedWith: null,
+          flipped: false,
+          faceup: true,
+        },
+      },
+      villainArea: [...state.villainArea, id],
+    },
+  };
+}
 
 describe("Venom Goblin (I) (27113): Infest the City — [star] Forced Response", () => {
   it("fires when Venom Goblin attacks a hero-form player, moving the glider to the least-threat main scheme", () => {
@@ -180,7 +219,14 @@ describe("Venom Goblin (III) (27115): When Revealed deals 3 facedown encounter c
     state = patchInstance(state, schemeNamed(state, "Upper Manhattan"), { threat: 0 }); // stays least: 0+1=1
     const { state: after, events } = driveEventsPicking(WAVE5_DEPS, state, firstLegal, endTurn(P1));
     expect(gliderOn(after)).toBe("Upper Manhattan");
-    expect(threatOf(after, "Upper Manhattan")).toBe(1 + 1); // Reign of Terror's own "place 1 threat on that scheme"
+    // Reign of Terror's own "place 1 threat on that scheme", within its own event window (the round's encounter
+    // card reveal can place threat on the glider scheme too).
+    const upper = schemeNamed(after, "Upper Manhattan");
+    const villainId = after.villains[0]!.instanceId;
+    const placed = eventsDuring(events, "27115.venom-goblin-constant").filter(
+      (e) => e.type === "threatPlaced" && e.schemeInstanceId === upper && e.sourceInstanceId === villainId,
+    );
+    expect(placed.map((e) => (e as Extract<GameEvent, { type: "threatPlaced" }>).amount)).toEqual([1]);
     // Then the Special: discard 1 card from your hand — checked within this ability's own event window, not a raw
     // hand-size delta: the round's own standard encounter card reveal can discard from hand too.
     const during = eventsDuring(events, "27119a.upper-manhattan-special");
@@ -205,7 +251,7 @@ describe("Each Manhattan Special resolved end to end through the villain, with t
     state = patchInstance(state, schemeNamed(state, "Upper Manhattan"), { threat: 3 });
     // Bring in a [Symbiote] environment directly (`27117b`'s own trait data), keeping all three main schemes as
     // Lower/Midtown/Upper so "each scheme" (main and side) is exercised exactly as printed.
-    const env = encounterCardInVillainArea(state, "27117b");
+    const env = withSymbioteEnvironment(state);
     state = env.state;
     const { state: after } = driveEventsPicking(WAVE5_DEPS, state, firstLegal, endTurn(P1));
     expect(gliderOn(after)).toBe("Lower Manhattan");
@@ -226,7 +272,7 @@ describe("Each Manhattan Special resolved end to end through the villain, with t
     state = patchInstance(state, schemeNamed(state, "Lower Manhattan"), { threat: 9 });
     state = patchInstance(state, midtown, { threat: 0 });
     state = patchInstance(state, schemeNamed(state, "Upper Manhattan"), { threat: 3 }); // well below its target (10): stays a main scheme
-    const env = encounterCardInVillainArea(state, "27117b");
+    const env = withSymbioteEnvironment(state);
     state = env.state;
     const { state: after, events } = driveEventsPicking(WAVE5_DEPS, state, firstLegal, endTurn(P1));
     expect(gliderOn(after)).toBe("Midtown Manhattan");
@@ -242,7 +288,7 @@ describe("Each Manhattan Special resolved end to end through the villain, with t
     state = patchInstance(state, schemeNamed(state, "Lower Manhattan"), { threat: 9 });
     state = patchInstance(state, schemeNamed(state, "Midtown Manhattan"), { threat: 9 });
     state = patchInstance(state, schemeNamed(state, "Upper Manhattan"), { threat: 0 });
-    const env = encounterCardInVillainArea(state, "27117b");
+    const env = withSymbioteEnvironment(state);
     state = env.state;
     const { state: after, events } = driveEventsPicking(WAVE5_DEPS, state, firstLegal, endTurn(P1));
     expect(gliderOn(after)).toBe("Upper Manhattan");
