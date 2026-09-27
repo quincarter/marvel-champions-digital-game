@@ -136,6 +136,7 @@ const scenarioFor = (config: SessionConfig) => {
     ...(config.difficultySets ? { difficultySets: config.difficultySets } : {}),
     ...(config.setAsideModularSetIds ? { setAsideModularSetIds: config.setAsideModularSetIds } : {}),
     ...(config.setupOptions ? { setupOptions: config.setupOptions } : {}),
+    ...(config.stack ? { stack: config.stack } : {}),
   });
   const withEncounterSets = config.campaignEncounterSets
     ? {

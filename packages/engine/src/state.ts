@@ -10,6 +10,15 @@ import type { EffectSpec } from "./spec.js";
 
 export type Form = "hero" | "alterEgo";
 
+/**
+ * Cards to put on top of a deck after setup's shuffle, top card first (`GameState.setupStack`). Each code takes one
+ * copy of that card, the topmost copy after the shuffle; `encounter` is the first encounter deck (`encounterDeckOrder[0]`).
+ */
+export interface StackedDecks {
+  readonly players?: Readonly<Record<string, readonly CardId[]>>;
+  readonly encounter?: readonly CardId[];
+}
+
 /** RRG "Status Cards": a character can hold at most one of each type (steady allows a second). */
 export interface StatusCounts {
   readonly stunned: number;
@@ -613,6 +622,14 @@ export interface GameState {
   readonly campaign?: CampaignGameInput;
   /** What this game has written back to the campaign so far (design §6.1). Present exactly when `campaign` is. */
   readonly campaignWrites?: CampaignInGameWrites;
+  /**
+   * `GameSetupConfig.stack`, keyed by player id rather than seat index: the cards setup moves to the top of each deck
+   * right after the Appendix II step 6 shuffle (`resolveScenarioSetup`). Kept in the baseline so a campaign game, whose
+   * shuffle runs as a later flow step, still has it, and so the log shows why those cards were on top. Not a rules
+   * feature: tutorials and scripted scenarios only. **Absent** unless the setup config stacked a card, so every other
+   * game serializes as before.
+   */
+  readonly setupStack?: StackedDecks;
   readonly pendingChoice: PendingChoice | null;
   readonly outcome: GameOutcome | null;
   readonly rng: RngState;

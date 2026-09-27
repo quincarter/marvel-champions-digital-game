@@ -23,7 +23,7 @@ import { describe, expect, test } from "vitest";
 import { CORE_STARTER_DECKS, cardId, campaignId } from "@mc/content";
 import type { Command, LegalActions, PlayerId } from "@mc/engine";
 import { MemoryGameStorage, type SaveMeta } from "./game-storage.js";
-import { EngineSessionCore } from "./session-core.js";
+import { EngineSessionCore, rebuildBaseline } from "./session-core.js";
 import type { SessionConfig } from "./host.js";
 
 /** The Avengers Tower environment's own card id (MC21 21100a), as `docs/phase7-wave4.md` §4 Q4's own tests use. */
@@ -261,5 +261,50 @@ describe("EngineSessionCore and SessionConfig.modes", () => {
     await expect(new EngineSessionCore().start({ ...EXPERT_OLD_SHAPE, modes: {} })).rejects.toThrow(
       /disagree about expert mode/,
     );
+  });
+});
+
+describe("SessionConfig.stack (docs/guided-mode.md G1)", () => {
+  const STACKED_CONFIG: SessionConfig = {
+    ...CORE_CONFIG,
+    // Black Cat and Web-Shooter open in Spider-Man's hand; Advance tops the encounter deck.
+    stack: { players: { 0: [cardId("01002"), cardId("01008")] }, encounter: [cardId("01186")] },
+  };
+  const codesOf = (
+    state: { readonly instances: Record<string, { readonly cardId: string }> },
+    ids: readonly string[],
+  ) => ids.map((id) => state.instances[id]?.cardId);
+
+  test("reaches setup: the stacked cards open in hand and on top of the encounter deck", async () => {
+    const started = await new EngineSessionCore().start(STACKED_CONFIG);
+    const state = started.snapshot.state;
+    expect(codesOf(state, state.players[0]!.hand).slice(0, 2)).toEqual(["01002", "01008"]);
+    expect(codesOf(state, state.encounterDecks[state.encounterDeckOrder[0]!]!.deck)[0]).toBe("01186");
+  });
+
+  test("survives save → resume, and a JSON round trip of the saved config rebuilds the same baseline", async () => {
+    const storage = new MemoryGameStorage();
+    const first = new EngineSessionCore({ storage });
+    const started = await first.start(STACKED_CONFIG);
+    const toAct = started.snapshot.legal!.playerId;
+    const dispatched = first.dispatch(anyLegalCommand(first.legalActions(toAct), toAct));
+    expect(dispatched.ok).toBe(true);
+    const beforeReload = dispatched.ok ? dispatched.snapshot.state : null;
+
+    const saveMeta = (await storage.latestActive()) as SaveMeta;
+    expect(saveMeta.config.stack).toEqual(STACKED_CONFIG.stack);
+    const second = new EngineSessionCore({ storage });
+    const resumed = await second.resume(saveMeta.id);
+    expect(resumed.snapshot.state).toEqual(beforeReload);
+
+    // Persisted as JSON, the seat key "0" still names seat 0: setup from the round-tripped config is the stored baseline.
+    const stored = await storage.load(saveMeta.id);
+    const roundTripped = JSON.parse(JSON.stringify(saveMeta.config)) as SessionConfig;
+    const rebuilt = rebuildBaseline(roundTripped, stored!.initialState);
+    const fresh = await new EngineSessionCore().start(roundTripped);
+    const { cardPool: _pool, ...freshState } = { ...fresh.snapshot.state, cardPool: null };
+    const { cardPool: _storedPool, ...storedState } = { ...stored!.initialState, cardPool: null };
+    expect(freshState).toEqual(storedState);
+    expect(rebuilt.setupEvents.some((event) => event.type === "deckStacked")).toBe(true);
   });
 });

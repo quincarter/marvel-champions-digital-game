@@ -16,6 +16,7 @@ export type {
   Form,
   GameOutcome,
   GameState,
+  StackedDecks,
   GameStep,
   IdentityState,
   MainSchemeState,
@@ -314,7 +315,7 @@ export { choiceExclusions } from "./why-not.js";
 export type { UniqueNames } from "./unique.js";
 export { cardsMatch, isUnique, matchingCardInPlay, uniqueLabel, uniqueNamesOf } from "./unique.js";
 
-export type { GameSetupConfig, PlayerSetup, SetupResult, VillainSetup } from "./setup.js";
+export type { GameSetupConfig, PlayerSetup, SetupResult, SetupStack, VillainSetup } from "./setup.js";
 export { createGame } from "./setup.js";
 
 export type { CommandResult, GameLog, GameSession, ReplayResult, SessionResult } from "./engine.js";

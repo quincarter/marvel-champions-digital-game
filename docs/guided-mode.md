@@ -107,10 +107,11 @@ The main session verifies UI boxes by clicking through them before ticking (§6)
 
 **Engine**
 
-- [ ] **G1 Stacked setup (`game-rules-architect`).** Add a replay-safe option to `GameSetupConfig`:
+- [x] **G1 Stacked setup (`game-rules-architect`).** Add a replay-safe option to `GameSetupConfig`:
       `stack?: { players?: …; encounter?: readonly CardId[] }`. After the seeded shuffle, it moves the named codes to
       the top of that deck, in order. Thread it through `coreScenario` and client `SessionConfig`, including save and
       resume. Tests: replay is identical, a missing code is an error, and `undefined` leaves the RNG untouched.
+      Landed: `GameSetupConfig.stack` (`SetupStack`, seat-indexed) via `coreScenario`/`playableScenario`/`SessionConfig`.
 
 **Prefs and settings**
 
@@ -259,7 +260,7 @@ A fresh Claude session can pick this up from this file alone.
   pointer, and put a screenshot beside its tile.
 - **Commits:** as the repo's git user, with no Claude co-author trailer. Every change carries a changie fragment.
 
-**In flight:** G1 (`game-rules-architect`). Partial uncommitted edits from an interrupted first run were handed to a second run to finish.
+**In flight:** none.
 
 ## 7. Prior art: the parked prototype
 

@@ -15,7 +15,16 @@
 
 import type { CorePlayer } from "@mc/cards";
 import type { AnyCard, DifficultySetChoice, PlayModes, ScenarioSetupOptions } from "@mc/content";
-import type { CampaignGameInput, Command, EngineError, GameEvent, GameState, LegalActions, PlayerId } from "@mc/engine";
+import type {
+  CampaignGameInput,
+  Command,
+  EngineError,
+  GameEvent,
+  GameState,
+  LegalActions,
+  PlayerId,
+  SetupStack,
+} from "@mc/engine";
 import type { GameRecord } from "./game-record.js";
 import type { SaveMeta } from "./game-storage.js";
 
@@ -95,6 +104,14 @@ export interface SessionConfig {
    * as incompatible.
    */
   readonly campaignEncounterSets?: { readonly deck: readonly string[]; readonly setAside: readonly string[] };
+  /**
+   * Cards on top of the decks after setup's seeded shuffle (`@mc/engine`'s `SetupStack`; docs/guided-mode.md G1):
+   * the tutorial's fixed opening hand and first encounter cards. Not a rules option. Seats are indexes into `players`.
+   * Sent straight through `scenarioFor` to `GameSetupConfig.stack`, so it is part of the save and the replay baseline.
+   * Plain data (a JSON round trip turns the seat keys into strings, which reads back the same). Additive, like
+   * `modes`: absent on every save written before it existed, and absent is an ordinary shuffled game.
+   */
+  readonly stack?: SetupStack;
 }
 
 /**

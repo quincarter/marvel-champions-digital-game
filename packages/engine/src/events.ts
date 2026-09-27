@@ -42,6 +42,16 @@ export type GameEvent =
   | { readonly type: "turnEnded"; readonly playerId: PlayerId }
   | { readonly type: "deckShuffled"; readonly zone: ZoneId; readonly order: readonly InstanceId[] }
   /**
+   * Setup put `stacked` on top of a deck just after shuffling it (`GameSetupConfig.stack`: a tutorial or scripted
+   * scenario, never a rules step); `order` is the deck afterward, top first.
+   */
+  | {
+      readonly type: "deckStacked";
+      readonly zone: ZoneId;
+      readonly stacked: readonly InstanceId[];
+      readonly order: readonly InstanceId[];
+    }
+  /**
    * A player's deck emptied and was reset (RRG 1.8 "Player Deck", p. 33): the `deckShuffled` just before this made their
    * discard pile the new deck, and the `cardMoved` just after deals them their facedown encounter card, if the encounter
    * deck had one.
