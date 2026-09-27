@@ -163,8 +163,13 @@ export const HOOD = defineAbilities({
 
   // Established Dominance (24007, attachment; "Attach to your identity" is data) — Forced Response: after The Hood
   // activates against you, resolve Foul Play. Alter-Ego Action: exhaust your identity (cost) — place 2 threat on
-  // the main scheme, discard this card (leading effects, not part of the cost shape).
-  "24007.established-dominance-forced-response": forcedResponse(on.villainAttacks({ againstYou: true }), foulPlay()),
+  // the main scheme, discard this card (leading effects, not part of the cost shape). "Activates against you" also
+  // fires on his scheme against an alter-ego player, not only his attack (docs/phase7-wave5.md §4.1 Q67; RRG 1.8
+  // "Activation", p. 6) — this previously read it as always an attack.
+  "24007.established-dominance-forced-response": forcedResponse(
+    on.enemyActivates({ categories: ["villain"] }, { againstYou: true }),
+    foulPlay(),
+  ),
   "24007.established-dominance-action": alterEgoAction(
     { cost: exhaustYourHero },
     placeThreat(2, theMainScheme),
