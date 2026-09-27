@@ -76,6 +76,10 @@ See [PLAN.md](PLAN.md) for the build roadmap and current phase.
 
 ## Working conventions
 
+- **Commit authorship (decided 2026-09-27):** every commit is authored and committed as the user, `Quin Carter
+<quin.carter@gmail.com>` (GitHub `quincarter`) — set `git config user.name` / `user.email` to that before the first
+  commit in a fresh clone or cloud session. No `Co-Authored-By: Claude …` trailer, no `Claude-Session:` line, no
+  "Generated with Claude Code" line or any other attribution to Claude in commit messages or PR descriptions.
 - **Tech stack (decided in Phase 0):**
   - **TypeScript everywhere**, strict mode (`tsconfig.base.json`). _Why:_ hundreds of card-defined effects need a type system that catches shape errors in ability definitions at compile time; one language across engine/content/client avoids serializing game state across a language boundary.
   - **pnpm workspaces monorepo** with four packages: `@mc/engine` (headless rules engine — no rendering, no I/O), `@mc/content` (card schema + structured card data, no art), `@mc/cards` (card ability scripts), `@mc/client` (the tabletop-style UI). _Why:_ the engine/client/content boundary is load-bearing — `game-rules-architect` and `game-client-engineer` should never need to touch each other's internals. Dependency direction is strictly `client → cards → engine → content`; the engine must never import from the cards or client packages.
