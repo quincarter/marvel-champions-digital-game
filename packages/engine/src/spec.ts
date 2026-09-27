@@ -1202,14 +1202,32 @@ export type EffectSpec =
    * `player` is whose turn `"endOfNextTurn"` waits for; absent, the ability's controller ("**your** next turn").
    * It is read for that duration only.
    *
-   * `"endOfAttack"` is deliberately absent: no card prints a restriction scoped to one attack, and an
-   * attack-scoped one would have to name the activation frame the way `modifyStatUntil` does.
+   * `"endOfAttack"` — "until after that attack resolves" (In Cold Blood, `sm` 27029: "The Lizard attacks you. You
+   * cannot play events until after that attack resolves."). `attack` says which attack:
+   * - `"current"` (the default): the attack or activation already resolving (`currentActivationFrameId`), the same
+   *   frame `modifyStatUntil`'s `"endOfAttack"` names. Not created outside one.
+   * - `"initiated"`: the attack the **next `enemyAttack` of this same effects frame** initiates. It is written
+   *   *before* that `enemyAttack`, so the rule is already active when the attack begins, its interrupt windows
+   *   included. The printed sentence comes after the attack, but it covers the attack's whole resolution. Until the
+   *   attack is initiated the rule waits on the frame (`LastingDuration awaitingAttack`); `enemyAttack` then retimes
+   *   it to the attack's event frame (`lastingEffectRetimed`). It expires when that frame finishes: after the
+   *   attack's response window and its end-of-attack effects, the point every "this attack" effect ends (RRG 1.8
+   *   "Lasting Effects", p. 26: it expires "as soon as the timing point specified by its duration is reached").
+   *   Several attacks from that one effect ("each X attacks you") scope it to the last of them, which resolves
+   *   last. If no attack is made (the enemy is not in play, or a stun cancels it), or the frame finishes without
+   *   reaching an `enemyAttack`, the rule ends then: it never outlives an attack that did not happen. An
+   *   `enemyAttack` deferred behind the current activation (`after: "currentActivation"`) runs in a later frame, so
+   *   it is not one this frame initiates.
+   *
+   * The attack's frame id comes from the state's frame sequence, so replay retimes it identically.
    */
   | {
       readonly kind: "applyRuleUntil";
       readonly rule: RuleSpec;
-      readonly until: "endOfPhase" | "endOfRound" | "endOfTurn" | "endOfNextTurn";
+      readonly until: "endOfPhase" | "endOfRound" | "endOfTurn" | "endOfNextTurn" | "endOfAttack";
       readonly player?: PlayerRef;
+      /** With `until: "endOfAttack"`: the attack in progress (default) or the one this frame's `enemyAttack` begins. */
+      readonly attack?: "current" | "initiated";
     }
   /**
    * "Until the end of the turn, heal 2 damage from Rocket Raccoon each time you deal any amount of damage to an enemy."

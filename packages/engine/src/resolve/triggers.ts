@@ -20,7 +20,7 @@ import type { Form, GameState } from "../state.js";
 import { eventSubjects, type TriggerEvent } from "../trigger-events.js";
 import { limitReached } from "./ability.js";
 import type { AbilityDefinition } from "../abilities.js";
-import { revealCannotBeCanceled } from "../rules.js";
+import { cannotPlayCard, revealCannotBeCanceled } from "../rules.js";
 import { abilityLacksValidTarget } from "./target-validity.js";
 
 /**
@@ -393,6 +393,9 @@ function inHandCandidates(
       }
       // "Max 1 per round", "Play only if …": a window never offers a card its restrictions forbid.
       if (playRestrictionFault(state, deps, player.playerId, card, id)) continue;
+      // Nor one a `cannotPlay` rule forbids ("You cannot play events until after that attack resolves", In Cold
+      // Blood): an event played in a timing window is still played (RRG 1.8 "Play, Put Into Play", p. 32).
+      if (cannotPlayCard(state, deps, player.playerId, id)) continue;
       for (const ref of card.abilities) {
         const definition = deps.abilities[ref.id];
         if (!definition) continue;

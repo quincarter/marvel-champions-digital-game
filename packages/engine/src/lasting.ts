@@ -21,6 +21,12 @@ export type LastingDuration =
   /** "Until the end of this attack/activation": ends when that event frame finishes. */
   | { readonly kind: "endOfEvent"; readonly frameId: FrameId }
   /**
+   * "Until after that attack resolves", before the attack exists (`applyRuleUntil` with `attack: "initiated"`,
+   * spec.ts): waits on the effects frame `frameId`. That frame's next `enemyAttack` retimes it to `endOfEvent` on the
+   * attack it initiates; if that initiates no attack, or the frame finishes first, it ends.
+   */
+  | { readonly kind: "awaitingAttack"; readonly frameId: FrameId }
+  /**
    * While one card resolves: "increase the amount of damage *that event* deals by 2" (Embiggen!) lasts exactly as
    * long as that event card's play, so a card returned to hand and replayed does not keep the bonus. Ends when that
    * card's `playCard` frame finishes.

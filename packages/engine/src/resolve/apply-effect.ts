@@ -39,6 +39,7 @@ import {
   swapIdentity,
   playerDeckResets,
   takeTopOfDeck,
+  settleAwaitingAttackEffects,
 } from "../effects.js";
 import { EngineInvariantError } from "../errors.js";
 import type { InstanceId, PlayerId } from "../ids.js";
@@ -1599,6 +1600,15 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
           const step = ctx.state.step;
           const ownTurnNow = step.phase === "player" && step.kind === "turn" && step.activePlayerId === playerId;
           duration = { kind: "endOfPlayerTurn", playerId, ...(ownTurnNow ? { skipRound: ctx.state.round } : {}) };
+        } else if (effect.until === "endOfAttack") {
+          // spec.ts `applyRuleUntil`: "that attack" is the one in progress, or the one this frame's next
+          // `enemyAttack` initiates (retimed there by `settleAwaitingAttackEffects`).
+          if (effect.attack === "initiated") duration = { kind: "awaitingAttack", frameId: frame.frameId };
+          else {
+            const activation = currentActivationFrameId(ctx.state.stack);
+            if (!activation) return;
+            duration = { kind: "endOfEvent", frameId: activation };
+          }
         } else {
           // "Until the end of this turn" outside a turn cannot be initiated (RRG 1.8 "Lasting Effects", p. 26; §13.3).
           if (effect.until === "endOfTurn" && !turnInProgress(ctx.state)) return;
@@ -1854,7 +1864,15 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       const vacuous = cancelledByStatus === 0 && initiated === 0 && effect.enemies.kind === "each";
       if (!vacuous && (cancelledByStatus > 0 || initiated === 0))
         markPreThenUnresolved(ctx, frame.frameId, "activationDidNotHappen", firstCancelled ?? undefined);
-      pushEvents(ctx, events, { frameId: frame.frameId, prefix: effect.bind ?? null, gatesThen: true }, bonus);
+      const pushed = pushEvents(
+        ctx,
+        events,
+        { frameId: frame.frameId, prefix: effect.bind ?? null, gatesThen: true },
+        bonus,
+      );
+      // "The Lizard attacks you. You cannot play events until after that attack resolves." (`applyRuleUntil` with
+      // `attack: "initiated"`): the rule waiting on this frame is now scoped to the attack, the last one if several.
+      if (attacking) settleAwaitingAttackEffects(ctx, frame.frameId, pushed[pushed.length - 1] ?? null);
       return;
     }
     case "selectCards": {

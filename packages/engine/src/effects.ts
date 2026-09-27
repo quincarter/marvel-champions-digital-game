@@ -1252,6 +1252,27 @@ export function expireCardResolutionEffects(ctx: Ctx, instanceId: InstanceId): v
   }
 }
 
+/**
+ * "Until after that attack resolves" (`LastingDuration awaitingAttack`, spec.ts `applyRuleUntil`): effects frame
+ * `frameId` has just resolved an `enemyAttack`. Every effect waiting on it is retimed to `attackFrameId`, the attack it
+ * initiated; with no attack (`null`), each ends — a rule scoped to an attack that did not happen does not linger.
+ */
+export function settleAwaitingAttackEffects(ctx: Ctx, frameId: FrameId, attackFrameId: FrameId | null): void {
+  for (const effect of [...ctx.state.lastingEffects]) {
+    if (effect.duration.kind !== "awaitingAttack" || effect.duration.frameId !== frameId) continue;
+    if (!attackFrameId) {
+      endLastingEffect(ctx, effect.id, "expired");
+      continue;
+    }
+    const duration: LastingDuration = { kind: "endOfEvent", frameId: attackFrameId };
+    ctx.state = {
+      ...ctx.state,
+      lastingEffects: ctx.state.lastingEffects.map((e) => (e.id === effect.id ? { ...e, duration } : e)),
+    };
+    emit(ctx, { type: "lastingEffectRetimed", id: effect.id, duration });
+  }
+}
+
 /** "Until the end of this attack": the attack's event frame is finishing. */
 export function expireEventLastingEffects(ctx: Ctx, frameId: string): void {
   for (const effect of [...ctx.state.lastingEffects]) {

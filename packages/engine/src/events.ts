@@ -5,7 +5,7 @@ import type { PendingChoice } from "./choices.js";
 import type { FacedownRole, Form, GameOutcome, GameStep, ZoneId } from "./state.js";
 import type { StackFrameKind, WindowTiming } from "./stack.js";
 import type { TriggerEvent } from "./trigger-events.js";
-import type { LastingEffect } from "./lasting.js";
+import type { LastingDuration, LastingEffect } from "./lasting.js";
 import type { ResourcePool } from "./resources.js";
 
 /**
@@ -585,6 +585,8 @@ export type GameEvent =
       readonly disposition: "noEffect" | "discarded";
     }
   | { readonly type: "lastingEffectAdded"; readonly effect: LastingEffect }
+  /** A lasting effect that was waiting on an attack is now scoped to it (`awaitingAttack` → `endOfEvent`). */
+  | { readonly type: "lastingEffectRetimed"; readonly id: string; readonly duration: LastingDuration }
   | {
       readonly type: "lastingEffectEnded";
       readonly id: string;

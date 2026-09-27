@@ -100,12 +100,12 @@ export function pushEvents(
   events: readonly TriggerEvent[],
   reportTo: ReportTarget | null = null,
   vars: Vars = {},
-): void {
-  pushFrames(
-    ctx,
-    // Each event gets its own copy of `vars`: "each enemy attacks with +X ATK" is +X per attack, never cumulative.
-    events.map((event) => eventFrame(ctx, event, reportTo, { ...vars })),
-  );
+): readonly FrameId[] {
+  // Each event gets its own copy of `vars`: "each enemy attacks with +X ATK" is +X per attack, never cumulative.
+  const frames = events.map((event) => eventFrame(ctx, event, reportTo, { ...vars }));
+  pushFrames(ctx, frames);
+  // In `events` order, so the last id is the event that resolves last.
+  return frames.map((frame) => frame.frameId);
 }
 
 /**
@@ -117,7 +117,10 @@ export function pushEvents(
  * and apply step.
  */
 export function pushEventsSharingResponses(ctx: Ctx, events: readonly TriggerEvent[]): void {
-  if (events.length <= 1) return pushEvents(ctx, events);
+  if (events.length <= 1) {
+    pushEvents(ctx, events);
+    return;
+  }
   const frames = events.map((event) => eventFrame(ctx, event));
   const leader = frames[frames.length - 1]!.frameId;
   pushFrames(
