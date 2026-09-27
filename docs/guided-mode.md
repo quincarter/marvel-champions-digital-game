@@ -260,7 +260,7 @@ A fresh Claude session can pick this up from this file alone.
   pointer, and put a screenshot beside its tile.
 - **Commits:** as the repo's git user, with no Claude co-author trailer. Every change carries a changie fragment.
 
-**In flight:** none.
+**In flight:** G2a (guide prefs) and G3a (glossary basics), side by side.
 
 ## 7. Prior art: the parked prototype
 
