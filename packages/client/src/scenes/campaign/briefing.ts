@@ -140,7 +140,11 @@ export class CampaignBriefingScene extends Phaser.Scene {
       // detected by shape (every option prices in the campaign's currency field), never by `campaignId`.
       if (isMarketPendingChoice(result.choice, (id) => CARDS_BY_ID.get(id))) {
         this.scale.off("resize", this.#draw, this);
-        goToScreen(this, SCENES.campaignMarket, { runId: record.id, answers: this.#answers });
+        goToScreen(this, SCENES.campaignMarket, {
+          runId: record.id,
+          answers: this.#answers,
+          ...(this.#data.replaySeed === undefined ? {} : { replaySeed: this.#data.replaySeed }),
+        });
         return;
       }
       this.#pending = result.choice;
@@ -191,7 +195,9 @@ export class CampaignBriefingScene extends Phaser.Scene {
     this.#starting = true;
     this.#startError = null;
     this.#draw();
-    const config = campaignService().launchConfig(record);
+    const composed = campaignService().launchConfig(record);
+    const replaySeed = this.#data.replaySeed;
+    const config = replaySeed === undefined ? composed : { ...composed, seed: replaySeed };
     const { store } = appSession();
     await store.start(config);
     if (!this.sys.isActive()) return;

@@ -139,7 +139,11 @@ export class CampaignMarketScene extends Phaser.Scene {
     const record = this.#record;
     if (!record) return;
     this.scale.off("resize", this.#draw, this);
-    goToScreen(this, SCENES.campaignBriefing, { runId: record.id, answers: this.#answers });
+    goToScreen(this, SCENES.campaignBriefing, {
+      runId: record.id,
+      answers: this.#answers,
+      ...(this.#data.replaySeed === undefined ? {} : { replaySeed: this.#data.replaySeed }),
+    });
   }
 
   /** Adds or removes `cardId` from the active seat's cart — never talks to the runner (see the file header). */
