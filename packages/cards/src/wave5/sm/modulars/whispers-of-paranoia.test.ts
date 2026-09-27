@@ -1,5 +1,5 @@
 import { encounterSetId } from "@mc/content";
-import { activeEncounterDeck, type GameState, type InstanceId, type PlayerId } from "@mc/engine";
+import { activeEncounterDeck, type GameState, type InstanceId, maxHitPoints, type PlayerId } from "@mc/engine";
 import { describe, expect, it } from "vitest";
 import {
   endTurn,
@@ -254,5 +254,159 @@ describe("Analysis Paralysis (27173)", () => {
   });
 });
 
-// Old Grudge (27172) and Manipulated Mind (27171) are not scripted — see the module docblock in
-// `whispers-of-paranoia.ts` for the exact engine/schema gap each is blocked on.
+describe("Old Grudge (27172)", () => {
+  // Ghost-Spider at Mysterio, alter-ego form: Mysterio schemes and takes one boost card (the Advance filler), then Old
+  // Grudge is P1's dealt encounter card. Her nemesis minion is The Lizard (27027, 5 hit points), set aside for her at
+  // setup. Mysterio's setup puts Shifting Apparition (27091) into play: a minion any generic "minion" host would have
+  // picked before Old Grudge's own search ran.
+  const OLD_GRUDGE = "27172";
+  const THE_LIZARD = "27027";
+  const SHIFTING_APPARITION = "27091";
+
+  const revealOldGrudge = (state: GameState) => {
+    const [grudge] = instancesOf(state, OLD_GRUDGE);
+    const { state: after, events } = driveEventsPicking(
+      WAVE5_DEPS,
+      stackEncounterDeck(state, "01186", OLD_GRUDGE),
+      firstLegal,
+      endTurn(P1),
+    );
+    const revealed = events.flatMap((e) => (e.type === "encounterCardRevealed" ? [e.instanceId] : []));
+    expect(revealed).toContain(grudge);
+    return { state: after, grudge: grudge!, revealed };
+  };
+
+  /** The Lizard taken out of P1's set-aside area and put in `to` by surgery. */
+  const moveLizard = (
+    state: GameState,
+    lizard: InstanceId,
+    to: "encounterDeck" | "encounterDiscard" | "encounterSetAside" | "victoryDisplay" | "inPlay",
+  ): GameState => {
+    const players = state.players.map((p) =>
+      p.playerId === P1
+        ? {
+            ...p,
+            setAside: p.setAside.filter((id) => id !== lizard),
+            playArea: to === "inPlay" ? [...p.playArea, lizard] : p.playArea,
+          }
+        : p,
+    );
+    const moved: GameState = { ...state, players };
+    if (to === "victoryDisplay") return { ...moved, victoryDisplay: [...state.victoryDisplay, lizard] };
+    if (to === "encounterSetAside") return { ...moved, encounterSetAside: [...state.encounterSetAside, lizard] };
+    if (to === "inPlay")
+      return {
+        ...moved,
+        instances: { ...state.instances, [lizard]: { ...state.instances[lizard]!, faceup: true, engagedWith: P1 } },
+      };
+    const deckId = state.encounterDeckOrder[0]!;
+    const piles = state.encounterDecks[deckId]!;
+    const pile = to === "encounterDeck" ? "deck" : "discard";
+    return {
+      ...moved,
+      encounterDecks: { ...state.encounterDecks, [deckId]: { ...piles, [pile]: [...piles[pile], lizard] } },
+    };
+  };
+
+  /** Old Grudge ended on The Lizard, in play in P1's area, with its +1 hit point: 5 + 1. */
+  const expectAttachedToLizard = (after: GameState, grudge: InstanceId, lizard: InstanceId) => {
+    const [apparition] = instancesOf(after, SHIFTING_APPARITION);
+    expect(after.pendingChoice).toBeNull();
+    expect(inst(after, grudge).attachedTo).toBe(lizard);
+    expect(inst(after, lizard).attachments).toEqual([grudge]);
+    expect(inst(after, apparition!).attachments).toEqual([]);
+    expect(playerOf(after, P1).playArea).toContain(lizard);
+    expect(inst(after, lizard).engagedWith).toBe(P1);
+    expect(maxHitPoints(after, lizard, WAVE5_DEPS)).toBe(6);
+    expect(activeEncounterDeck(after).discard).not.toContain(grudge);
+  };
+
+  it("27172.when-revealed: reveals your set-aside nemesis minion, then attaches Old Grudge to it (+1 hit point)", () => {
+    const state = mysterioGame();
+    const [lizard] = instancesOf(state, THE_LIZARD);
+    expect(playerOf(state, P1).setAside).toContain(lizard);
+    const { state: after, grudge, revealed } = revealOldGrudge(state);
+    expect(revealed.indexOf(lizard!)).toBeGreaterThan(revealed.indexOf(grudge));
+    expectAttachedToLizard(after, grudge, lizard!);
+  });
+
+  it("finds it in the encounter discard pile", () => {
+    const state = mysterioGame(2);
+    const [lizard] = instancesOf(state, THE_LIZARD);
+    const { state: after, grudge, revealed } = revealOldGrudge(moveLizard(state, lizard!, "encounterDiscard"));
+    expect(revealed).toContain(lizard);
+    expectAttachedToLizard(after, grudge, lizard!);
+  });
+
+  it("finds it in the encounter deck", () => {
+    const state = mysterioGame(3);
+    const [lizard] = instancesOf(state, THE_LIZARD);
+    const { state: after, grudge, revealed } = revealOldGrudge(moveLizard(state, lizard!, "encounterDeck"));
+    expect(revealed).toContain(lizard);
+    expect(activeEncounterDeck(after).deck).not.toContain(lizard);
+    expectAttachedToLizard(after, grudge, lizard!);
+  });
+
+  it("finds it in the scenario's set-aside area", () => {
+    const state = mysterioGame(4);
+    const [lizard] = instancesOf(state, THE_LIZARD);
+    const { state: after, grudge, revealed } = revealOldGrudge(moveLizard(state, lizard!, "encounterSetAside"));
+    expect(revealed).toContain(lizard);
+    expect(after.encounterSetAside).not.toContain(lizard);
+    expectAttachedToLizard(after, grudge, lizard!);
+  });
+
+  it("negative: a nemesis minion already in play is in no searched area: nothing is revealed and Old Grudge is discarded", () => {
+    const state = mysterioGame(5);
+    const [lizard] = instancesOf(state, THE_LIZARD);
+    const [apparition] = instancesOf(state, SHIFTING_APPARITION);
+    const { state: after, grudge, revealed } = revealOldGrudge(moveLizard(state, lizard!, "inPlay"));
+    expect(revealed).not.toContain(lizard);
+    expect(inst(after, grudge).attachedTo).toBeNull();
+    expect(inst(after, lizard!).attachments).toEqual([]);
+    expect(inst(after, apparition!).attachments).toEqual([]);
+    expect(maxHitPoints(after, lizard!, WAVE5_DEPS)).toBe(5);
+    expect(activeEncounterDeck(after).discard).toContain(grudge);
+  });
+
+  it("negative: with no nemesis minion anywhere searched (victory display), Old Grudge attaches to nothing and is discarded", () => {
+    const state = mysterioGame(6);
+    const [lizard] = instancesOf(state, THE_LIZARD);
+    const [apparition] = instancesOf(state, SHIFTING_APPARITION);
+    const { state: after, grudge, revealed } = revealOldGrudge(moveLizard(state, lizard!, "victoryDisplay"));
+    expect(revealed).not.toContain(lizard);
+    expect(after.victoryDisplay).toContain(lizard);
+    expect(inst(after, grudge).attachedTo).toBeNull();
+    expect(inst(after, apparition!).attachments).toEqual([]);
+    expect(activeEncounterDeck(after).discard).toContain(grudge);
+  });
+
+  it("27172.boost: deals 1 damage to the attacked player's identity and to each ally they control", () => {
+    const hero = settle(runWave5(mysterioGame(), toHero(P1)), firstLegal, undefined, WAVE5_DEPS);
+    const { state: withAlly, id: ally } = putCardIntoPlay(hero, "27011", P1); // Spider-Man (Miles Morales), 3 hp.
+    const identity = identityOf(withAlly, P1);
+    // Both runs: no defender declared (`firstLegal` declines), so every attack lands on the identity; the control run
+    // stacks the boost-ability-less Advance filler instead of Old Grudge, isolating Old Grudge's own boost.
+    const control = settle(
+      runWave5(stackEncounterDeck(withAlly, "01186"), endTurn(P1)),
+      firstLegal,
+      undefined,
+      WAVE5_DEPS,
+    );
+    const withGrudge = settle(
+      runWave5(stackEncounterDeck(withAlly, OLD_GRUDGE), endTurn(P1)),
+      firstLegal,
+      undefined,
+      WAVE5_DEPS,
+    );
+    // Control: Mysterio's ATK 1 plus Shifting Apparition's 1. With Old Grudge: its 2 boost icons (+2 ATK on
+    // Mysterio's attack, Advance has none) and its [star] Boost's 1 damage on top.
+    expect(inst(control, identity).damage).toBe(2);
+    expect(inst(withGrudge, identity).damage).toBe(2 + 2 + 1);
+    expect(inst(control, ally).damage).toBe(0);
+    expect(inst(withGrudge, ally).damage).toBe(1);
+  });
+});
+
+// Manipulated Mind (27171) is not scripted — see the module docblock in `whispers-of-paranoia.ts` for the exact
+// engine/schema gap it is blocked on.
