@@ -297,7 +297,7 @@ describe("Spider-Man / Hobie Brown (ally, 27017)", () => {
   // 01100 (2 boost), 01101 (1), 01104 (0) — printed sum 3 — the villain took only 2 (Enhanced Ivory Horn's own 2,
   // the first id bound). Reported to `game-rules-architect`/engine rather than reworked around locally; pinned
   // with `it.fails` so the fix is visible.
-  it.fails("27017.spider-man-interrupt: deals damage to the villain equal to the number of boost icons discarded this way (blocked: boostIconsOn sums only the first of several bound cards, engine bug)", () => {
+  it("27017.spider-man-interrupt: deals damage to the villain equal to the number of boost icons discarded this way (engine fix: docs/phase7-wave5.md §4.1 Q56)", () => {
     const hero = run(ghostSpiderVsRhino(4), toHero(P1));
     const { state: withHobie, id: hobie } = playFromHandHelper(hero, "27017", 3);
     const villain = withHobie.villains[0]!.instanceId;
