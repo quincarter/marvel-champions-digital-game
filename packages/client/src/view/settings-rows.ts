@@ -147,19 +147,19 @@ export type GuideSettingsRowId = "guide-level" | "play-tutorial" | "aspect-lesso
 
 const WARNING_ROW_COPY: Record<SilencedWarningKey, { readonly title: string; readonly detail: string }> = {
   schemeFinish: {
-    title: "Warn before the scheme completes",
+    title: "Scheme warning",
     detail: "Catches ending your turn when the main scheme would finish next villain phase.",
   },
   lethal: {
-    title: "Warn before a hit that could defeat you",
+    title: "Lethal hit warning",
     detail: "Catches ending your turn in hero form with no ready defender against a lethal-looking attack.",
   },
   flipDanger: {
-    title: "Warn before flipping into danger",
+    title: "Flip warning",
     detail: "Catches flipping to (or staying in) alter-ego when the scheme would complete from it.",
   },
   wastedPay: {
-    title: "Warn before overpaying",
+    title: "Overpay warning",
     detail: "Catches a payment that spends more than a card costs, or skips a cheaper card that would cover it.",
   },
 };

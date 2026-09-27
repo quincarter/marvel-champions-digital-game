@@ -119,9 +119,11 @@ The main session verifies UI boxes by clicking through them before ticking (§6)
       progress, aspect lessons done, silenced warnings, seen tips. Persisted as `mc-guide` v1, using the
       `progression.ts` pattern. Tests only.
       Landed: `48926aad`, `guide/guide-prefs.ts` (pure helpers, `withLevel` resets seen tips on off→full).
-- [ ] **G2b Settings rows.** A segmented row shape in `view/settings-rows.ts`. A Guide group with Guide level, "Play
+- [x] **G2b Settings rows.** A segmented row shape in `view/settings-rows.ts`. A Guide group with Guide level, "Play
       the tutorial", "Aspect lessons", and one toggle per warning, drawn in both the Settings overlay and Pause's
       inline group.
+
+      Landed: `ac39611c` + fixes `ce5eb7b5` (one scroll region, yellow selected segment) and `8278e62f` (concepts kept out of Pause's on-table cards). Live prefs holder: `guidePrefs()` / `setGuidePrefs()` / `onGuidePrefsChange()` in `guide/guide-store.ts`. Tutorial and Aspect lessons rows are dashed "Coming soon" until G6b / G10c flip `unavailable` in `guideRowInfoOf`. Verified by the main session at 390, 1024 and 1440.
 
 **Glossary**
 
@@ -264,7 +266,7 @@ A fresh Claude session can pick this up from this file alone.
   pointer, and put a screenshot beside its tile.
 - **Commits:** as the repo's git user, with no Claude co-author trailer. Every change carries a changie fragment.
 
-**In flight:** two G2b follow-up fixes, side by side: (a) Settings/Pause layout (phone scroll regions, segmented control clipping and selected style), (b) concept glossary entries kept out of Pause's on-table cards and count. G2b (`ac39611c`) stays unticked until both are verified. Next after that: G4a.
+**In flight:** G4a (`McGuideCallout`).
 
 ## 7. Prior art: the parked prototype
 
