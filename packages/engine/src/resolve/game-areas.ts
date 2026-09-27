@@ -213,8 +213,8 @@ export function putMainSchemeStageIntoPlay(
  * again. The central stage is not removable this way (nothing prints that), so it is left alone.
  *
  * `mayWait`: the removal waits for its attachments' "when this leaves play" interrupts, if one hears them
- * (`waitsForHostStep`, docs/phase7-wave5.md §4.1 Q32). `joinGameArea` removes a stage in the middle of moving players
- * between areas, so it does not wait.
+ * (`waitsForHostStep`, docs/phase7-wave5.md §4.1 Q32). `joinGameArea` waits for them itself, before any of its own
+ * changes (§4.1 Q50), so its removal does not wait again.
  */
 export function removeMainSchemeStage(ctx: Ctx, schemeId: InstanceId, mayWait = true): void {
   const area = ctx.state.gameAreas.find((candidate) => candidate.mainScheme?.instanceId === schemeId);
@@ -278,11 +278,21 @@ export function createGameArea(ctx: Ctx, schemeId: InstanceId, playerId: PlayerI
  * villains go with them; engaged minions follow their players by being in their play areas; the area's own stage, if a
  * card hasn't removed it yet, is removed from the game (it cannot be in two areas). Returns the frames that discard
  * duplicate unique cards in the area the players joined.
+ *
+ * The stage's removal takes its attachments out of play, so the whole join waits for their "when this leaves play"
+ * interrupts first, as the other host steps do (`waitsForHostStep`, docs/phase7-wave5.md §4.1 Q32, Q50), and then runs
+ * from the stack (`runHostStep`, which pushes the returned frames). Waiting before anything moves is sound: the removal
+ * is the join's first change, so the interrupts see both areas exactly as they were. The areas are read again when it
+ * runs; a join whose areas an interrupt dissolved in the meantime does nothing.
  */
 export function joinGameArea(ctx: Ctx, fromId: GameAreaId, intoId: GameAreaId | null): readonly StackFrame[] {
   const from = ctx.state.gameAreas.find((area) => area.areaId === fromId);
   if (!from || fromId === intoId) return [];
-  if (from.mainScheme) removeMainSchemeStage(ctx, from.mainScheme.instanceId, false);
+  if (intoId !== null && !ctx.state.gameAreas.some((area) => area.areaId === intoId)) return [];
+  const schemeId = from.mainScheme?.instanceId;
+  if (schemeId !== undefined && waitsForHostStep(ctx, [schemeId], { kind: "joinGameArea", fromId, intoId })) return [];
+  // It already waited, just above, so the removal itself does not wait again.
+  if (schemeId !== undefined) removeMainSchemeStage(ctx, schemeId, false);
   const leaving = ctx.state.gameAreas.find((area) => area.areaId === fromId) ?? from;
   const movingVillains = leaving.villainIds.filter((id) => villainOf(ctx.state, id)?.defeated === false);
   if (intoId === null) {

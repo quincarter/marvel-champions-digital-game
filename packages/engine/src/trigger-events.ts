@@ -1,5 +1,5 @@
 import type { AbilityId, CardId, Trait } from "@mc/content";
-import type { FrameId, InstanceId, PlayerId } from "./ids.js";
+import type { FrameId, GameAreaId, InstanceId, PlayerId } from "./ids.js";
 import type { CardDestination } from "./spec.js";
 import type { Vars } from "./stack.js";
 import type { ZoneId } from "./state.js";
@@ -673,6 +673,8 @@ export type HostStep =
   | { readonly kind: "removeVillains"; readonly ids: readonly InstanceId[] }
   | { readonly kind: "setVillainsAside"; readonly ids: readonly InstanceId[] }
   | { readonly kind: "removeMainSchemeStage"; readonly schemeId: InstanceId }
+  /** `joinGameArea`, whose first change removes the joining area's own stage (docs/phase7-wave5.md §4.1 Q50). */
+  | { readonly kind: "joinGameArea"; readonly fromId: GameAreaId; readonly intoId: GameAreaId | null }
   /** `flipMainSchemeStage`; `reveal`: on completion (its frames pushed), else a "flip this card" (`cardFlipped` after). */
   | {
       readonly kind: "flipMainSchemeStage";

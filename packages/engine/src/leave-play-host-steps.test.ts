@@ -20,7 +20,7 @@ import { describe, expect, it } from "vitest";
 import type { EngineDeps } from "./abilities.js";
 import { replay, type GameSession } from "./engine.js";
 import type { GameEvent } from "./events.js";
-import { gameAreaId, type InstanceId } from "./ids.js";
+import { gameAreaId, type InstanceId, type PlayerId } from "./ids.js";
 import { activeEncounterDeckId, mustInstance, mustPlayer } from "./query.js";
 import type { EffectSpec, TargetRef, ValueSpec } from "./spec.js";
 import { NO_STATUSES, type CardInstance, type GameAreaState, type GameState, type MainSchemeState } from "./state.js";
@@ -280,13 +280,17 @@ const REMOVE_STAGE = event("remove-stage", [
   { kind: "removeMainSchemeStage", scheme: { kind: "named", name: "area-scheme" } },
 ]);
 
-function areaTable(gadgetCard: UpgradeCard, abilities: readonly StubAbility[]) {
+/** "Join another game area" (docs/phase7-wave2.md §3.1): with no other area, the split ends. */
+const JOIN_AREA = event("join-area", [{ kind: "joinGameArea" }]);
+
+/** `playerIds`: the players in the stage's area (none by default). */
+function areaTable(gadgetCard: UpgradeCard, abilities: readonly StubAbility[], playerIds: readonly PlayerId[] = []) {
   const TRACKER = trackerWith();
-  const deps = depsOf(...abilities, REMOVE_STAGE.ability);
+  const deps = depsOf(...abilities, REMOVE_STAGE.ability, JOIN_AREA.ability);
   const start = gameAtFirstTurn({
-    cards: [AREA_STAGE_CARD, gadgetCard, TRACKER, REMOVE_STAGE.card],
+    cards: [AREA_STAGE_CARD, gadgetCard, TRACKER, REMOVE_STAGE.card, JOIN_AREA.card],
     deps,
-    deck: [gadgetCard.id, TRACKER.id, REMOVE_STAGE.card.id],
+    deck: [gadgetCard.id, TRACKER.id, REMOVE_STAGE.card.id, JOIN_AREA.card.id],
   });
   const schemeId: InstanceId = "area-scheme-1" as InstanceId;
   const schemeInstance: CardInstance = {
@@ -318,7 +322,7 @@ function areaTable(gadgetCard: UpgradeCard, abilities: readonly StubAbility[]) {
   };
   const area: GameAreaState = {
     areaId: gameAreaId("a1"),
-    playerIds: [],
+    playerIds,
     mainScheme: schemeState,
     villainIds: [],
     activeVillainId: null,
@@ -707,5 +711,42 @@ describe("§4.1 Q50 an attachment's attachment leaves in its host's window", () 
     expect(resolvedAt).toBeLessThan(hostMovedAt);
     expect(state.stack).toEqual([]);
     expectReplays(session, deps);
+  });
+});
+
+// ---- §4.1 Q50: joining another game area waits for its stage's attachments ------------------------------------------
+//
+// `joinGameArea` removes the joining area's own stage first, which takes its attachments out of play. The whole join
+// waits for their "when this leaves play" interrupts, which see both areas as they were, then runs from the stack.
+
+describe("§4.1 Q50 joinGameArea waits for its stage's attachment's leave interrupt", () => {
+  it("the interrupt resolves first, with the stage and P1 still in the area; the stage is then removed, the split ends and the attachment discards; replay deep-equal", () => {
+    const t = areaTable(AREA_GADGET, [AREA_GADGET_INTERRUPT], [P1]);
+    const { state, events, session } = playFree(t.state, t.deps, JOIN_AREA.card.id);
+    expect(mustInstance(state, t.tracker).counters).toMatchObject({ interrupt: 1, hostStillThere: 1 });
+    expect(state.gameAreas).toEqual([]);
+    expect(state.removedFromGame).toContain(t.schemeId);
+    expect(mustPlayer(state, P1).discard).toContain(t.gadget);
+    const resolvedAt = index(
+      events,
+      (e) => e.type === "abilityResolved" && e.abilityId === AREA_GADGET_INTERRUPT.ref.id,
+    );
+    const removedAt = index(events, (e) => e.type === "mainSchemeStageRemoved");
+    const joinedAt = index(events, (e) => e.type === "gameAreaJoined");
+    expect(resolvedAt).toBeGreaterThanOrEqual(0);
+    expect(resolvedAt).toBeLessThan(removedAt);
+    expect(removedAt).toBeLessThan(joinedAt);
+    expect(state.stack).toEqual([]);
+    expectReplays(session, t.deps);
+  });
+
+  it("with nothing listening, the join removes the stage at once and logs no cardLeavesPlay", () => {
+    const t = areaTable(PLAIN_AREA_GADGET, [], [P1]);
+    const { state, events } = playFree(t.state, t.deps, JOIN_AREA.card.id);
+    expect(state.gameAreas).toEqual([]);
+    expect(state.removedFromGame).toContain(t.schemeId);
+    expect(mustPlayer(state, P1).discard).toContain(t.gadget);
+    expect(JSON.stringify(events)).not.toContain("cardLeavesPlay");
+    expect(events.some((e) => e.type === "choiceRequested")).toBe(false);
   });
 });

@@ -9,7 +9,13 @@
 import { type Ctx, pushFrames } from "../ctx.js";
 import type { HostStep } from "../trigger-events.js";
 import { eventFrame } from "./frames.js";
-import { flipMainSchemeStage, removeMainSchemeStage, removeVillains, setVillainsAside } from "./game-areas.js";
+import {
+  flipMainSchemeStage,
+  joinGameArea,
+  removeMainSchemeStage,
+  removeVillains,
+  setVillainsAside,
+} from "./game-areas.js";
 import { flipToOtherFace } from "./other-face.js";
 
 export function runHostStep(ctx: Ctx, step: HostStep): void {
@@ -20,6 +26,10 @@ export function runHostStep(ctx: Ctx, step: HostStep): void {
       return setVillainsAside(ctx, step.ids);
     case "removeMainSchemeStage":
       return removeMainSchemeStage(ctx, step.schemeId);
+    case "joinGameArea":
+      // Its frames discard duplicate unique cards in the joined area (`executeJoinGameArea`).
+      pushFrames(ctx, joinGameArea(ctx, step.fromId, step.intoId));
+      return;
     case "flipMainSchemeStage": {
       const frames = flipMainSchemeStage(ctx, step.schemeId, step.reveal, step.playerId);
       if (frames === false || frames === "waiting") return;
