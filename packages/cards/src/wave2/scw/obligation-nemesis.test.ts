@@ -26,6 +26,7 @@ import {
   stackEncounterDeck,
   toHero,
 } from "../../testing/harness.js";
+import { driveEvents } from "../../testing/staging.js";
 import { wave2Scenario } from "../setup.js";
 import { runWave2, startWave2Game, WAVE2_DEPS } from "../testing.js";
 import { expectResolved, traceAbilities } from "../../testing/trace.js";
@@ -195,7 +196,7 @@ describe("Scarlet Witch's obligation and nemesis (Slipping Sanity, The Next Evol
     expect(activeEncounterDeck(after).discard.map((id) => after.instances[id]?.cardId)).toContain("01104");
   });
 
-  it("Chaos Manipulation: 2 or more boost icons discarded this way makes Luminous activate against the revealing player", () => {
+  it("Chaos Manipulation: 2 or more boost icons discarded this way makes Luminous attack the revealing player in hero form (docs/phase7-wave5.md §4.1 Q67)", () => {
     const hero = runWave2(scwVsRhino(), toHero());
     const identity = identityOf(hero);
     const damageBefore = inst(hero, identity).damage;
@@ -214,6 +215,27 @@ describe("Scarlet Witch's obligation and nemesis (Slipping Sanity, The Next Evol
     expect(inst(after, luminous).engagedWith).toBe(P1);
     // Rhino's own printed ATK 2 (undefended) plus Luminous's own printed ATK 2 (also undefended, boosted by 0).
     expect(inst(after, identity).damage).toBe(damageBefore + 4);
+  });
+
+  it("Chaos Manipulation: 2 or more boost icons discarded this way makes Luminous scheme against the revealing player in alter-ego form (docs/phase7-wave5.md §4.1 Q67)", () => {
+    const state = scwVsRhino();
+    expect(playerOf(state, P1).identity.form).toBe("alterEgo");
+    const identity = identityOf(state);
+    const damageBefore = inst(state, identity).damage;
+    const staged = stageChaosManipulation(state);
+    const stacked = stackEncounterDeck(staged, "01186", "15027", "01190", "01104", "01105");
+    const { state: after, events } = driveEvents(WAVE2_DEPS, stacked, endTurn());
+    const luminous = cardsInPlay(after).find((id) => after.instances[id]?.cardId === "15025")!;
+    expect(inst(after, luminous).engagedWith).toBe(P1);
+    // No damage at all: in alter-ego form, both Rhino's own villain-phase activation and Luminous's "activates
+    // against you" resolve as schemes, not attacks (docs/phase7-wave5.md §4.1 Q67; the villain's own activation
+    // reading the engaged player's form is existing engine behavior, not part of this ability).
+    expect(inst(after, identity).damage).toBe(damageBefore);
+    expect(events.some((e) => e.type === "attackResolved" && e.enemyInstanceId === luminous)).toBe(false);
+    const scheme = events.find((e) => e.type === "schemeResolved" && e.enemyInstanceId === luminous);
+    expect(scheme).toBeDefined();
+    expect(scheme?.type === "schemeResolved" ? scheme.schemeInstanceId : null).toBe(after.mainScheme.instanceId);
+    expect(scheme?.type === "schemeResolved" ? scheme.threatPlaced : -1).toBeGreaterThan(0);
   });
 
   it("Chaos Manipulation: fewer than 2 boost icons discarded this way leaves Luminous merely engaged, no attack", () => {
