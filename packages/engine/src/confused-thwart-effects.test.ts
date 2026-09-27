@@ -13,7 +13,7 @@
 import { describe, expect, it } from "vitest";
 import type { AbilityDefinition, EngineDeps } from "./abilities.js";
 import type { Command } from "./commands.js";
-import { replay, startSession, type GameSession } from "./engine.js";
+import { applyCommand, replay, startSession, type GameSession } from "./engine.js";
 import type { GameEvent } from "./events.js";
 import type { InstanceId } from "./ids.js";
 import { mustInstance, mustPlayer } from "./query.js";
@@ -21,9 +21,9 @@ import type { EffectSpec } from "./spec.js";
 import type { GameState } from "./state.js";
 import { depsOf, stubAbility } from "./testing/abilities.js";
 import { driveSession } from "./testing/drive.js";
-import { stubAlly, stubEvent, stubResource } from "./testing/fixtures.js";
-import { giveCard } from "./testing/scenario.js";
-import { copiesOf, gameAtFirstTurn, P1, playerCardIntoPlay } from "./testing/wave3.js";
+import { stubAlly, stubEvent, stubMinion, stubResource } from "./testing/fixtures.js";
+import { giveCard, TREACHERY } from "./testing/scenario.js";
+import { copiesOf, gameAtFirstTurn, minionEngagedWith, P1, playerCardIntoPlay } from "./testing/wave3.js";
 
 /** "Action: Exhaust this ally → it thwarts, removing 2 threat from the main scheme." (No label: an ally's own thwart.) */
 const LOOKOUT_ACTION = stubAbility("lookout.action", {
@@ -203,5 +203,60 @@ describe("a confused character's thwart through an ability or effect is replaced
     expect(confusedRemovals(events, heroOf(state))).toBe(1);
     expect(mainThreat(session.state)).toBe(4);
     expectReplay(session);
+  });
+});
+
+// RRG 1.8 "Confuse, Confused" (p. 13): "A confused character can attempt to thwart or use a thwart ability even if it has
+// no valid target for a thwart." A patrol minion engaged with P1 makes the main scheme, the only scheme, no target for
+// P1's thwarts (RRG 1.8 "Patrol", p. 32; "Target", p. 42), so an unconfused ally's own thwart ability cannot be used.
+describe("a confused character's unlabeled thwart ability can be used with no valid target (§4.1 Q50)", () => {
+  const PATROL = stubMinion({ id: "patroller", atk: 1, sch: 1, hp: 5, keywords: [{ name: "patrol" }] });
+  const patrolDeps: EngineDeps = depsOf(LOOKOUT_ACTION, LOOKOUT_RESPONSE, NUDGE_ACTION);
+
+  /** P1 in hero form, 5 threat on the main scheme, the lookout ally in play, and the patrol minion engaged with P1. */
+  function patrolled(): { readonly state: GameState; readonly ally: InstanceId } {
+    const base = gameAtFirstTurn({
+      cards: [LOOKOUT, NUDGE, FILLER, PATROL],
+      deps: patrolDeps,
+      deck: [LOOKOUT.id, NUDGE.id, ...copiesOf(FILLER.id, 5)],
+      encounter: [PATROL.id, ...copiesOf(TREACHERY.id, 20)],
+    });
+    const main = base.mainScheme.instanceId;
+    const hero: GameState = {
+      ...base,
+      instances: { ...base.instances, [main]: { ...mustInstance(base, main), threat: 5 } },
+      players: base.players.map((p) => ({ ...p, identity: { ...p.identity, form: "hero" as const } })),
+    };
+    const withAlly = playerCardIntoPlay(hero, LOOKOUT.id);
+    return { state: minionEngagedWith(withAlly.state, PATROL.id, P1).state, ally: withAlly.id };
+  }
+
+  it("unconfused, the ally's thwart ability is refused: it has no valid target", () => {
+    const { state, ally } = patrolled();
+    const result = applyCommand(state, useLookout(ally), patrolDeps);
+    expect(result).toMatchObject({ ok: false, error: { code: "no_valid_target" } });
+  });
+
+  it("confused, the ally uses it: the cost is paid and the confused card is discarded instead; replay deep-equal", () => {
+    const { state: bare, ally } = patrolled();
+    const state = confuse(bare, ally);
+    const { session, events } = driveSession(startSession(state), patrolDeps, [useLookout(ally)]);
+    expect(mustInstance(session.state, ally).exhausted).toBe(true);
+    expect(mustInstance(session.state, ally).statuses.confused).toBe(0);
+    expect(confusedRemovals(events, ally)).toBe(1);
+    expect(mainThreat(session.state)).toBe(5);
+    const replayed = replay(session.log, patrolDeps);
+    if (!replayed.ok) throw new Error(replayed.error.message);
+    expect(replayed.state).toEqual(session.state);
+  });
+
+  it("a confused identity plays an unlabeled 'your identity thwarts' event with no valid target, losing the card", () => {
+    const { state: bare } = patrolled();
+    const given = giveCard(bare, P1, NUDGE.id);
+    const state = confuse(given.state, heroOf(bare));
+    const { session, events } = driveSession(startSession(state), patrolDeps, [play(given.id)]);
+    expect(mustPlayer(session.state, P1).discard).toContain(given.id);
+    expect(confusedRemovals(events, heroOf(state))).toBe(1);
+    expect(mainThreat(session.state)).toBe(5);
   });
 });

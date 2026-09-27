@@ -293,6 +293,10 @@ export function abilityLacksValidTarget(
     if (identity && statusActive(state, identity, "confused", deps)) return false;
   }
   const context: EffectContext = { selfInstanceId: sourceId, controllerId: playerId, event, bindings: {}, deps };
+  // The same rule for an unlabeled ability whose thwart effect names a confused character as thwarting (an ally's own
+  // "it thwarts", "your identity thwarts"): the attempt discards the card instead (`thwart` in `apply-effect.ts`,
+  // docs/phase7-wave5.md §4.1 Q48, Q50).
+  if (playerId !== null && namesConfusedThwarter(state, deps, definition.effects, context)) return false;
   const judge = targetsCanBeInvalid(state, deps, playerId);
   const effects = definition.effects;
   for (let index = 0; index < effects.length; index++) {
@@ -305,6 +309,26 @@ export function abilityLacksValidTarget(
     if (!hasIndependentPart(rest, effect.slot)) return true;
   }
   return judge && fixedTargetsAllInvalid(state, deps, effects, context);
+}
+
+/**
+ * Whether one of the ability's own thwart effects names a confused character as the one thwarting (its `thwarter`,
+ * else the controller's identity, as the effect reads it). Only a thwarter known at initiation counts: one bound by a
+ * choice the ability has not made yet (a slot) is judged as that thwart resolves.
+ */
+function namesConfusedThwarter(
+  state: GameState,
+  deps: EngineDeps,
+  effects: readonly EffectSpec[],
+  context: EffectContext,
+): boolean {
+  return effects.some(
+    (effect) =>
+      effect.kind === "thwart" &&
+      resolveRef(state, effect.thwarter ?? { kind: "identityOf", player: { kind: "controller" } }, context).some((id) =>
+        statusActive(state, id, "confused", deps),
+      ),
+  );
 }
 
 /**
