@@ -506,6 +506,13 @@ export type ValueSpec =
   /** A result of the triggering event ("for each damage dealt by this attack" → `damage`). */
   | { readonly kind: "eventResult"; readonly key: string }
   /**
+   * The excess damage the triggering `characterDefeated` event recorded (docs/phase7-wave5.md §4.1 Q68): how far the
+   * defeating damage went past the character's remaining hit points (RRG 1.8 "Excess Damage", p. 19), measured as
+   * overkill measures it (RRG 1.8 "Overkill", p. 31). 0 for exactly lethal damage, a non-damage defeat, or any other
+   * event. "If this minion was defeated with excess damage" is this at least 1.
+   */
+  | { readonly kind: "defeatExcessDamage" }
+  /**
    * Arithmetic on another value: "2 damage for each counter (max 10)" → `{ value, times: 2, max: 10 }`; "X is 1 more
    * than" → `plus: 1`; "half of the cards in your hand, rounded down" (Man Out of Time, `cap` pack) → `{ value:
    * handCount(you), divide: { by: 2, round: "down" } }`. `divide` applies first, then `times`, `plus`, `max`.

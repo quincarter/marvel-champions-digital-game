@@ -835,6 +835,7 @@ export function applyDamage(
     defeatedByPlayerId: source !== null ? controllerOf(ctx.state, source) : null,
     sourceInstanceId: source,
     reportFrameId: frameId,
+    ...(excessDealt > 0 ? { excessDamage: excessDealt } : {}),
   });
 
   // Allies and minions report their defeat when the defeat event applies; a villain stage falls now.

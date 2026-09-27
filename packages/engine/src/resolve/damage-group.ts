@@ -81,12 +81,14 @@ export function executeDamageGroupFrame(ctx: Ctx, frame: Frame<"damageGroup">): 
       setFrame(ctx, { ...frame, members, stage: "responses" });
       // What dealt each member's damage, so a defeat knows its source and whether it was an attack's (an enemy attack
       // that deals indirect damage, docs/phase7-wave3.md §3.16 and §3.45).
+      // Each member's excess rides onto its defeat, for "if this minion was defeated with excess damage" (§4.1 Q68).
       checkDefeats(
         ctx,
-        frame.members
+        members
           .filter((member) => !member.cancelled)
           .map((member) => {
             const source = member.event.sourceInstanceId;
+            const excessDamage = member.vars?.excessDealt ?? 0;
             return {
               targetId: member.event.targetInstanceId,
               parentFrameId: member.event.parentFrameId ?? null,
@@ -94,6 +96,7 @@ export function executeDamageGroupFrame(ctx: Ctx, frame: Frame<"damageGroup">): 
               defeatedByPlayerId: source !== null ? controllerOf(ctx.state, source) : null,
               sourceInstanceId: source,
               fromAttack: member.event.fromAttack,
+              ...(excessDamage > 0 ? { excessDamage } : {}),
             };
           }),
       );

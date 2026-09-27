@@ -298,6 +298,8 @@ interface DefeatHint {
   readonly fromAttack?: boolean;
   /** The damage event's own frame: its `defeated` result, so `dealDamage`'s `<bind>.defeated` reads it (§3.54). */
   readonly reportFrameId?: FrameId | null;
+  /** The damage's excess over remaining hit points (`excessDamageOf`), carried onto the defeat (§4.1 Q68). */
+  readonly excessDamage?: number;
 }
 
 /**
@@ -365,6 +367,7 @@ export function checkDefeats(ctx: Ctx, hints?: DefeatHint | readonly DefeatHint[
             ...(hint.sourceInstanceId ? { sourceInstanceId: hint.sourceInstanceId } : {}),
             ...(hint.fromAttack ? { fromAttack: true as const } : {}),
             ...(hint.reportFrameId ? { reportFrameId: hint.reportFrameId } : {}),
+            ...(hint.excessDamage ? { excessDamage: hint.excessDamage } : {}),
           }
         : {}),
       ...(together ? { protectionChecked: true as const } : {}),
@@ -407,6 +410,7 @@ export function checkDefeats(ctx: Ctx, hints?: DefeatHint | readonly DefeatHint[
             ...(hint.sourceInstanceId ? { sourceInstanceId: hint.sourceInstanceId } : {}),
             ...(hint.fromAttack ? { fromAttack: true as const } : {}),
             ...(hint.reportFrameId ? { reportFrameId: hint.reportFrameId } : {}),
+            ...(hint.excessDamage ? { excessDamage: hint.excessDamage } : {}),
           }
         : {};
       defeats.push({ kind: "characterDefeated", instanceId: id, ...context });
@@ -442,6 +446,7 @@ export function checkDefeats(ctx: Ctx, hints?: DefeatHint | readonly DefeatHint[
             ...(hint.sourceInstanceId ? { sourceInstanceId: hint.sourceInstanceId } : {}),
             ...(hint.fromAttack ? { fromAttack: true as const } : {}),
             ...(hint.reportFrameId ? { reportFrameId: hint.reportFrameId } : {}),
+            ...(hint.excessDamage ? { excessDamage: hint.excessDamage } : {}),
           }
         : {}),
     };

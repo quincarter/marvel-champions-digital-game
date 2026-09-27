@@ -295,6 +295,16 @@ export type TriggerEventBody =
        */
       readonly sourceInstanceId?: InstanceId | null;
       /**
+       * Excess damage (RRG 1.8 "Excess Damage", p. 19): how far the damage that defeated this character went beyond its
+       * remaining hit points, the value overkill would spill ("If a card ability counts excess damage dealt, that ability
+       * counts the same value of excess damage that is calculated when resolving the overkill keyword", RRG 1.8
+       * "Overkill", p. 31; `excessDamageOf`). From any damage (an attack, an event or ability, an indirect share, an
+       * overkill spill). Absent (never 0) when there was none: exactly lethal damage, a defeat by an effect that is not
+       * damage ("defeat a minion"), a sweep with no damage behind it. Prevented, reduced-away and tough-absorbed damage
+       * is never taken and so never excess. Read by `ValueSpec defeatExcessDamage` (docs/phase7-wave5.md §4.1 Q68).
+       */
+      readonly excessDamage?: number;
+      /**
        * The cards attached to the character when its defeat was initiated ("is defeated", before any interrupt), set as
        * the event goes on the stack (`eventFrame`). By its response window the character has left play and a card
        * like Death-Glow has set itself aside, so "After the enemy with Death-Glow is defeated" (Flight of the
