@@ -6,6 +6,7 @@ import { SANDMAN_ABILITIES } from "./sandman/index.js";
 import { SINISTER_SIX_ABILITIES } from "./sinister-six/index.js";
 import { SPIDER_MAN_MORALES_ABILITIES } from "./spider-man-morales/index.js";
 import { VENOM_ABILITIES } from "./venom/index.js";
+import { VENOM_GOBLIN_ABILITIES } from "./venom-goblin/index.js";
 
 /**
  * Every Sinister Motives box (`sm`) ability scripted directly (docs/phase7-wave5.md). Ghost-Spider and Spider-Man
@@ -32,4 +33,5 @@ export const SM_ABILITIES: AbilityRegistry = mergeRegistries(
   VENOM_ABILITIES,
   MYSTERIO_ABILITIES,
   SINISTER_SIX_ABILITIES,
+  VENOM_GOBLIN_ABILITIES,
 );
