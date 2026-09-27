@@ -93,6 +93,34 @@ function stageChaosManipulation(hero: GameState): GameState {
   return stageFromSetAside(stageToDiscard(hero, "15025"), "15027");
 }
 
+/** Moves Luminous straight from `player`'s set-aside area into their own play area, engaged (test-only surgery, the
+ * `spectrum-obligation-nemesis.test.ts` `nemesisMinionEngaged` shape) — one round of her own natural villain-phase
+ * activation, instead of `revealNemesisSet`'s own two-round Shadow of the Past journey, which risks the scenario's
+ * main scheme completing (and the game ending) before her own Forced Response gets a chance to resolve. */
+function luminousEngagedDirectly(
+  state: GameState,
+  player = P1,
+): { readonly state: GameState; readonly id: InstanceId } {
+  const owner = playerOf(state, player);
+  const id = owner.setAside.find((i) => state.instances[i]?.cardId === cardId("15025"));
+  if (!id) throw new Error(`no Luminous set aside for ${player}`);
+  return {
+    id,
+    state: {
+      ...state,
+      players: state.players.map((p) =>
+        p.playerId === player
+          ? { ...p, setAside: p.setAside.filter((i) => i !== id), playArea: [...p.playArea, id] }
+          : p,
+      ),
+      instances: {
+        ...state.instances,
+        [id]: { ...state.instances[id]!, faceup: true, controllerId: null, engagedWith: player },
+      },
+    },
+  };
+}
+
 describe("Scarlet Witch's obligation and nemesis (Slipping Sanity, The Next Evolution, Luminous, Magical Suspension, Chaos Manipulation)", () => {
   /**
    * Stages Slipping Sanity as Wanda Maximoff's own linked obligation (`HeroIdentityCard.obligationCardId`, module
@@ -193,6 +221,24 @@ describe("Scarlet Witch's obligation and nemesis (Slipping Sanity, The Next Evol
     // extra encounter card this time.
     const stacked = stackEncounterDeck(revealed, "01186", "01186", "01104");
     const after = settle(runWave2(stacked, endTurn()), firstLegal, undefined, WAVE2_DEPS);
+    expect(activeEncounterDeck(after).discard.map((id) => after.instances[id]?.cardId)).toContain("01104");
+  });
+
+  it("Luminous: her own Forced Response also fires when she schemes against you in alter-ego form (docs/phase7-wave5.md §4.1 Q67)", () => {
+    // `luminousEngagedDirectly` (module docblock): one round of her own natural activation, not `revealNemesisSet`'s
+    // own two-round Shadow of the Past journey — that risked the main scheme completing before her own Forced
+    // Response got a chance to resolve, since the game stops driving triggers once its outcome is decided.
+    const state = scwVsRhino();
+    expect(playerOf(state, P1).identity.form).toBe("alterEgo"); // Wanda's own precon default.
+    const engaged = luminousEngagedDirectly(state);
+    // Rhino and Luminous each scheme this villain phase, each dealt their own boost card (docs/phase7-wave2-
+    // scripting.md §5). Advance (01186, 0 icons) x2 for the two activations, then Hard to Keep Down (01104, 0
+    // printed icons) is what Luminous's own Forced Response discards.
+    const stacked = stackEncounterDeck(engaged.state, "01186", "01186", "01104");
+    const { state: after, events } = driveEvents(WAVE2_DEPS, stacked, endTurn());
+    expect(events.some((e) => e.type === "attackResolved" && e.enemyInstanceId === engaged.id)).toBe(false);
+    expect(events.some((e) => e.type === "schemeResolved" && e.enemyInstanceId === engaged.id)).toBe(true);
+    // Her own Forced Response still fires on the scheme, discarding the top encounter card (Hard to Keep Down).
     expect(activeEncounterDeck(after).discard.map((id) => after.instances[id]?.cardId)).toContain("01104");
   });
 

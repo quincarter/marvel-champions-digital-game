@@ -50,9 +50,10 @@ import { cardName } from "../names.js";
  * read by `boostIconsFor` (`packages/engine/src/modifiers.ts`) wherever a card's icons are counted — an activation's
  * boost step or a card effect's own `<bind>.boostIcons` read alike, since both go through the same function.
  *
- * **Luminous (15025)** — "After Luminous activates against you" is `on.enemyAttacks("self", { againstYou: true })`,
- * the same "a minion/villain reacting to its own activation" reading `absorbing-man.ts`/`crossbones.ts` already
- * established for "activates against you" (docs/phase7-wave2-scripting.md §5's citation).
+ * **Luminous (15025)** — "After Luminous activates against you" is `on.enemyActivates("self", { againstYou: true })`
+ * (docs/phase7-wave5.md §4.1 Q67; RRG 1.8 "Activation", p. 6): it also fires when she schemes against you in
+ * alter-ego form, not only when she attacks — the module previously read "activates against" as always an attack,
+ * the `absorbing-man.ts`/`crossbones.ts` convention now superseded by Q67.
  *
  * **Magical Suspension (15026)** — "Each card you play costs 1 additional resource" is `costModifier({ delta: 1,
  * appliesTo: { controller: "you" } })`: `appliesTo` is checked against the *card being played*, with the ability's
@@ -92,7 +93,7 @@ export const SCW_OBLIGATION_NEMESIS = defineAbilities({
   // Luminous — Forced Response: After Luminous activates against you, discard the top card of the encounter deck.
   // If 2 or more boost icons were discarded this way, deal yourself 1 encounter card (module docblock).
   "15025.luminous-forced-response": forcedResponse(
-    on.enemyAttacks("self", { againstYou: true }),
+    on.enemyActivates("self", { againstYou: true }),
     discardEncounterCards(1, { bind: "d" }),
     ifThen(valueAtLeast(varOf("d.boostIcons"), 2), dealEncounterCard(you)),
   ),
