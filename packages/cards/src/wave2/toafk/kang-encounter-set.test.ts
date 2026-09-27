@@ -14,13 +14,20 @@ import {
   use,
   type Picker,
 } from "../../testing/harness.js";
+import { driveEvents } from "../../testing/staging.js";
 import { wave2Scenario } from "../setup.js";
 import { runWave2, startWave2Game, WAVE2_DEPS } from "../testing.js";
 import { expectResolved, traceAbilities } from "../../testing/trace.js";
 import { KANG_ENCOUNTER_SET } from "./kang-encounter-set.js";
 
-const kangVsHeroes = () =>
-  startWave2Game(wave2Scenario("kang", { players: [{ starterDeckId: "hawkeye-leadership" }], seed: 2026 }));
+const kangVsHeroes = (options: { readonly difficulty?: "standard" | "expert" } = {}) =>
+  startWave2Game(
+    wave2Scenario("kang", {
+      players: [{ starterDeckId: "hawkeye-leadership" }],
+      seed: 2026,
+      difficulty: options.difficulty,
+    }),
+  );
 
 /**
  * The Kang/Temporal set's own four obligations (11018-11021) carry no `encounterSetIds` (a data gap flagged for
@@ -220,8 +227,74 @@ describe("Kang / Temporal encounter set (kang-encounter-set.ts)", () => {
     expect(KANG_ENCOUNTER_SET["11045.when-defeated"]).toBeDefined();
   });
 
-  it("Ancient Grudge (11051): Kang (Master of Time) activates against you; if he isn't in play, searches and puts him into play engaged with you", () => {
-    expect(KANG_ENCOUNTER_SET["11051.when-revealed"]).toBeDefined();
+  describe("Ancient Grudge (11051): Kang (Master of Time) activates against you (docs/phase7-wave5.md §4.1 Q67)", () => {
+    /** Kang (Master of Time), 11047, straight into play engaged with `player`, so 11051's `named(...)` ref finds
+     * him already in play (the module docblock's "only the search half fires on the first reveal" branch is not
+     * this test's concern — it's about which form the activation takes once he's there). Relabels an already-in-
+     * the-deck filler card (this file's own `revealAsObligation` swap, at deck index 2 — index 0 is Kang (I)'s own
+     * boost card and index 1 is reserved for 11051 below, both dealt/revealed before this manual placement runs). */
+    function kangMasterEngaged(state: GameState, player = P1): { readonly state: GameState; readonly id: InstanceId } {
+      const deckId = Object.keys(state.encounterDecks)[0]!;
+      const pile = state.encounterDecks[deckId]!;
+      const id = pile.deck[2]!;
+      return {
+        id,
+        state: {
+          ...state,
+          encounterDecks: { ...state.encounterDecks, [deckId]: { ...pile, deck: pile.deck.filter((i) => i !== id) } },
+          villainArea: [...state.villainArea, id],
+          instances: {
+            ...state.instances,
+            [id]: { ...state.instances[id]!, cardId: "11047" as never, faceup: true, engagedWith: player },
+          },
+        },
+      };
+    }
+
+    /** Relabels an already-in-the-deck filler card as 11051 (the same `revealAsObligation` swap this file's own
+     * module docblock explains) and reveals it during the villain phase, returning the events the reveal fired. */
+    function revealAncientGrudge(state: GameState) {
+      const deckId = Object.keys(state.encounterDecks)[0]!;
+      const fillerId = state.encounterDecks[deckId]!.deck[1]!;
+      const relabeled = {
+        ...state,
+        instances: { ...state.instances, [fillerId]: { ...state.instances[fillerId]!, cardId: "11051" as never } },
+      };
+      return driveEvents(WAVE2_DEPS, relabeled, endTurn());
+    }
+
+    it("in hero form: Kang (Master of Time) attacks you, dealing damage", () => {
+      const heroState = runWave2(kangVsHeroes(), toHero());
+      const engaged = kangMasterEngaged(heroState, P1);
+      const identity = playerOf(engaged.state, P1).identity.instanceId;
+      const damageBefore = engaged.state.instances[identity]!.damage;
+      const { state: after, events } = revealAncientGrudge(engaged.state);
+      // Kang (Master of Time), engaged with P1, also activates on its own as a natural engaged minion during this
+      // same villain phase (always an attack, regardless of form) — a second activation against the same enemy
+      // instance, unrelated to Ancient Grudge's own. Only events after the 11051 reveal are Ancient Grudge's.
+      const revealed = events.findIndex((e) => e.type === "encounterCardRevealed" && e.cardId === "11051");
+      expect(revealed).toBeGreaterThanOrEqual(0);
+      const since = events.slice(revealed);
+      const attack = since.find((e) => e.type === "attackResolved" && e.enemyInstanceId === engaged.id);
+      expect(attack).toBeDefined();
+      expect(since.some((e) => e.type === "schemeResolved" && e.enemyInstanceId === engaged.id)).toBe(false);
+      expect(after.instances[identity]!.damage).toBeGreaterThan(damageBefore);
+    });
+
+    it("in alter-ego form: Kang (Master of Time) schemes against you, placing threat on the main scheme", () => {
+      const state = kangVsHeroes();
+      expect(playerOf(state, P1).identity.form).toBe("alterEgo");
+      const engaged = kangMasterEngaged(state, P1);
+      const { state: after, events } = revealAncientGrudge(engaged.state);
+      const revealed = events.findIndex((e) => e.type === "encounterCardRevealed" && e.cardId === "11051");
+      expect(revealed).toBeGreaterThanOrEqual(0);
+      const since = events.slice(revealed);
+      expect(since.some((e) => e.type === "attackResolved" && e.enemyInstanceId === engaged.id)).toBe(false);
+      const scheme = since.find((e) => e.type === "schemeResolved" && e.enemyInstanceId === engaged.id);
+      expect(scheme).toBeDefined();
+      expect(scheme?.type === "schemeResolved" ? scheme.schemeInstanceId : null).toBe(after.mainScheme.instanceId);
+      expect(scheme?.type === "schemeResolved" ? scheme.threatPlaced : -1).toBeGreaterThan(0);
+    });
   });
 
   describe("Depowered (11020)", () => {

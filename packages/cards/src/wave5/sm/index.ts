@@ -3,6 +3,7 @@ import { mergeRegistries } from "../../dsl/index.js";
 import { GHOST_SPIDER_ABILITIES } from "./ghost-spider/index.js";
 import { MYSTERIO_ABILITIES } from "./mysterio/index.js";
 import { SANDMAN_ABILITIES } from "./sandman/index.js";
+import { SINISTER_SIX_ABILITIES } from "./sinister-six/index.js";
 import { SPIDER_MAN_MORALES_ABILITIES } from "./spider-man-morales/index.js";
 import { VENOM_ABILITIES } from "./venom/index.js";
 
@@ -30,4 +31,5 @@ export const SM_ABILITIES: AbilityRegistry = mergeRegistries(
   SANDMAN_ABILITIES,
   VENOM_ABILITIES,
   MYSTERIO_ABILITIES,
+  SINISTER_SIX_ABILITIES,
 );

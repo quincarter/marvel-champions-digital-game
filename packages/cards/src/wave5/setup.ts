@@ -2,11 +2,12 @@ import {
   CORE_STARTER_DECKS,
   SM_SCENARIOS,
   SM_STARTER_DECKS,
+  cardId,
   difficultyEncounterSetIds,
   type AnyCard,
   type CardId,
 } from "@mc/content";
-import type { GameSetupConfig, PlayerSetup } from "@mc/engine";
+import type { GameSetupConfig, PlayerSetup, VillainSetup } from "@mc/engine";
 import {
   checkScenarioSetupOptions,
   coreScenario,
@@ -75,6 +76,97 @@ function buildSmSingleVillain(scenario: (typeof SM_SCENARIOS)[number], options: 
   };
 }
 
+/**
+ * Light at the End (`sm` 27102a Trap! / 27102b Chase!, docs/phase7-wave5.md §1.5/§1.7): a permanent side scheme both
+ * of whose emitted faces carry ordinary `sinister_six` `encounterSetIds` membership (the same shape as the campaign
+ * challenge side schemes' `modeOnly` pairs, `gmw` 16178a/b), but this one is never drawn from the shuffled deck —
+ * Sinister Synchronization 1A's own Setup ("Put the Light at the End side scheme into play, [Trap!] side faceup")
+ * puts it in directly, and RRG 1.8 "Permanent" (p. 32) is itself "Set this card aside during setup." Both ids are
+ * therefore excluded from the built encounter deck (`wave4/setup.ts`'s own `MULTI_VILLAIN_SET_ASIDE` precedent for a
+ * set member placed by name rather than shuffled in), and only the Trap! face (27102a) starts in `setAside` — its
+ * other face (27102b) is reached only by `flipCard`, never dealt or shuffled on its own.
+ */
+const SINISTER_SIX_SET_ASIDE: readonly CardId[] = [cardId("27102a"), cardId("27102b")];
+
+/**
+ * The Sinister Six's one-stage villains have a single stage (stageNumber 1) on side "A" — `stageIndex 0` for both
+ * `startStageIndex` and `lastStageIndex`, `wave4/setup.ts`'s own `villainStageIndexOf` re-pointed at `WAVE5_CARDS`.
+ */
+function sinisterSixStageIndex(villainCardId: CardId): number {
+  const villain = cardsById.get(villainCardId);
+  if (!villain || villain.type !== "villain") throw new Error(`${villainCardId} is not a villain`);
+  const side = villain.sides[0];
+  if (!side) throw new Error(`${villain.name} has no sides`);
+  const index = side.stages.findIndex((stage) => stage.stageNumber === 1);
+  if (index < 0) throw new Error(`${villain.name} has no stage 1`);
+  return index;
+}
+
+/**
+ * The Sinister Six (`sm` "sinister-six", MC27 p. 15, docs/phase7-wave5.md §1.5): all six villains start set aside
+ * (`villainsStartSetAside`), the main scheme's own Setup ability chooses players+1 of them at random and gives the
+ * lowest activation order the counter (`27100a.setup`, `sinister-six/main-scheme.ts`), the active counter passes by
+ * activation order on defeat (`activeCounter: "nextInActivationOrder"`), and the win is Light at the End's own card
+ * ability, not defeating every villain (`victory: "cardAbility"`, the `MultipleVillains.winCondition: "cardAbility"`
+ * sibling on `GameSetupConfig` — the existing single-villain `Scenario.victory` field, wave4 §1.11's own shape). One
+ * shared encounter deck (`sharedEncounterDeck`), each villain's own `encounterDeck` therefore empty, per
+ * `MultipleVillains.encounterDecks: "shared"` (the scenario data's own choice; Tower Defense's shape, wave4 §3.2)
+ * — Tower Defense's `sharedEncounterDeck` is the closest existing shape, but this scenario adds
+ * `villainsStartSetAside`/`activeCounter` on top of it, which Tower Defense does not use.
+ */
+function buildSmMultipleVillains(
+  scenario: (typeof SM_SCENARIOS)[number],
+  options: Wave5ScenarioOptions,
+): GameSetupConfig {
+  const multi = scenario.multipleVillains;
+  if (!multi) throw new Error(`${scenario.name}: buildSmMultipleVillains needs a multipleVillains scenario`);
+  if (multi.encounterDecks !== "shared") {
+    throw new Error(`${scenario.name}: only sharedEncounterDeck multipleVillains scenarios are built by wave5Scenario`);
+  }
+  if (multi.atSetup !== "setAside") {
+    throw new Error(`${scenario.name}: only atSetup: "setAside" multipleVillains scenarios are built here`);
+  }
+  const modes = resolveModes(options.difficulty, options.modes);
+  const difficulty = modes.expert ? "expert" : "standard";
+  const [firstStage, lastStage] = scenario.villainStages[difficulty];
+  if (firstStage !== 1 || lastStage !== 1) {
+    throw new Error(`${scenario.name}: The Sinister Six's villains are single-stage; got stages ${firstStage}-${lastStage}`);
+  }
+  const sets = [
+    ...scenario.encounterSetIds,
+    ...(options.modularSetIds ?? scenario.recommendedModularSetIds),
+    ...difficultyEncounterSetIds(scenario, difficulty),
+  ];
+  if (options.players.length < 1 || options.players.length > 4) throw new Error("a game has 1-4 players");
+  const setAsideSet = new Set<string>(SINISTER_SIX_SET_ASIDE);
+  const villains: readonly VillainSetup[] = multi.villains.map((entry) => ({
+    villainCardId: entry.villainCardId,
+    startStageIndex: sinisterSixStageIndex(entry.villainCardId),
+    lastStageIndex: sinisterSixStageIndex(entry.villainCardId),
+    encounterDeck: [],
+  }));
+  return {
+    seed: options.seed,
+    cards: WAVE5_CARDS,
+    villainCardId: scenario.villainCardId,
+    villains,
+    sharedEncounterDeck: true,
+    villainsStartSetAside: true,
+    activeCounter: "nextInActivationOrder",
+    victory: "cardAbility",
+    // Light at the End's Trap! face only (module docblock); its Chase! face is reached solely by `flipCard`.
+    encounterDeck: encounterCardsOf(sets, WAVE5_CARDS).filter((id) => !setAsideSet.has(id)),
+    setAside: [cardId("27102a")],
+    mainSchemeCardId: scenario.mainSchemeCardId,
+    players: seatsOf(options.players),
+    includeIdentitySets: true,
+    requireIdentitySets: true,
+    requireLegalDecks: true,
+    ...(difficulty === "expert" ? { difficulty: "expert" as const } : {}),
+    ...(options.firstPlayerIndex !== undefined ? { firstPlayerIndex: options.firstPlayerIndex } : {}),
+  };
+}
+
 /** A Sinister Motives or Core starter deck as a player seat (quantities expanded). */
 export function wave5StarterDeckSetup(starterDeckId: string): PlayerSetup {
   const starter =
@@ -129,14 +221,7 @@ const seatsOf = (players: readonly CorePlayer[]): PlayerSetup[] =>
 export function wave5Scenario(scenarioId: string, options: Wave5ScenarioOptions): GameSetupConfig {
   checkScenarioSetupOptions(scenarioId, options.setupOptions);
   const sm = SM_SCENARIOS.find((s) => s.id === scenarioId);
-  if (sm) {
-    if (sm.multipleVillains) {
-      throw new Error(
-        `${sm.name}: multipleVillains scenarios (The Sinister Six) are not built by wave5Scenario yet — see this file's own docblock`,
-      );
-    }
-    return buildSmSingleVillain(sm, options);
-  }
+  if (sm) return sm.multipleVillains ? buildSmMultipleVillains(sm, options) : buildSmSingleVillain(sm, options);
   const players: readonly CorePlayer[] = options.players.map((seat) => {
     if (!("starterDeckId" in seat)) return seat;
     const setup = wave5StarterDeckSetup(seat.starterDeckId);
