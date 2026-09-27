@@ -2,7 +2,10 @@ import { trait } from "@mc/content";
 import {
   allOf,
   alterEgoAction,
+  anyOfCards,
+  atMost,
   boost,
+  chosen,
   constant,
   controllerOf,
   dealIndirectDamage,
@@ -10,14 +13,23 @@ import {
   discard,
   discardCardsCost,
   eitherCost,
+  encounterCards,
+  encounterSetAside,
   eventTarget,
   host,
   ifThen,
+  placeThreat,
   printedCostOf,
   query,
   refMatches,
+  revealCard,
   rule,
+  selectCards,
   self,
+  setAside,
+  shuffleEncounterDeck,
+  threatOn,
+  whenRevealed,
   you,
 } from "../../../dsl/index.js";
 
@@ -27,8 +39,8 @@ const PERSONA = trait("PERSONA");
  * Whispers of Paranoia (`sm` 27170–27173, Mysterio's own recommended modular set, MC27 p. 20): Delusion of
  * Collusion, Manipulated Mind, Old Grudge, Analysis Paralysis.
  *
- * Only Delusion of Collusion (27170) is scripted here. The other three each need something that doesn't exist yet
- * one level below the ability DSL — reported rather than hacked around:
+ * Delusion of Collusion (27170) and Analysis Paralysis (27173) are scripted here. The other two each need something
+ * that doesn't exist yet one level below the ability DSL — reported rather than hacked around:
  *
  * - **Manipulated Mind (27171)**: "Treat attached ally as a minion with a blank text box (except for traits).
  *   Attached minion's SCH is equal to its printed THW and it does not take consequential damage. When Revealed:
@@ -61,12 +73,13 @@ const PERSONA = trait("PERSONA");
  *
  * - **Analysis Paralysis (27173)**: "When Revealed: Search the encounter deck, discard pile, and set-aside area
  *   for your nemesis side scheme, then reveal it. Place X additional threat here, where X is equal to the amount
- *   of threat on that side scheme." `TargetQuery` has `nemesisMinionOf` (identity-relative, minion-only) but no
- *   sibling for a side scheme — `select.ts`'s own `nemesisMinionOf` case reads `MinionCard.nemesisMinion`/`sole
- *   MinionOfSet`, neither of which exists for `SideSchemeCard`. A `nemesisSideSchemeOf` field (a nemesis set has at
- *   most one side scheme, so it needs no parenthetical-designation half of `nemesisMinionOf`'s own check) is the
- *   missing engine primitive — a `game-rules-architect` addition to `spec.ts`/`select.ts`, parallel to
- *   `nemesisMinionOf`.
+ *   of threat on that side scheme." Scripted with `TargetQuery.nemesisSideSchemeOf`, the side-scheme sibling of
+ *   `nemesisMinionOf` (RRG 1.8 "Nemesis Encounter Set", p. 30), over the same pool `toafk/kang.ts`'s 11013b searches
+ *   (encounter deck and discard pile, the player's own set-aside area) plus the scenario's set-aside area. "Here" is
+ *   Analysis Paralysis itself ("X **additional** threat", with "that side scheme" named separately; checked against
+ *   the scan, `27173.png`). X is read after the reveal has resolved, so it is the nemesis side scheme's starting
+ *   threat plus anything its own reveal added. With no nemesis side scheme found (already in play, or out of the
+ *   game), nothing is revealed and X is 0: "that side scheme" names nothing, and `threatOn` of an empty slot is 0.
  */
 export const WHISPERS_OF_PARANOIA = defineAbilities({
   // Delusion of Collusion (27170, attachment, `attachesTo: { kind: "yourIdentity" }` is data — no "When Revealed"
@@ -117,4 +130,25 @@ export const WHISPERS_OF_PARANOIA = defineAbilities({
       ),
     ],
   }),
+
+  // Analysis Paralysis (27173, side scheme; starting threat 1, amplify, 3 boost icons are data) — When Revealed:
+  // Search the encounter deck, discard pile, and set-aside area for your nemesis side scheme, then reveal it. Place X
+  // additional threat here, where X is equal to the amount of threat on that side scheme. The searched deck is
+  // shuffled before the reveal (RRG 1.8 "Search", p. 39).
+  "27173.when-revealed": whenRevealed(
+    selectCards(
+      "nemesisScheme",
+      atMost(
+        1,
+        anyOfCards(
+          encounterCards(["deck", "discard"], { nemesisSideSchemeOf: you }),
+          setAside(you, { nemesisSideSchemeOf: you }),
+          encounterSetAside({ nemesisSideSchemeOf: you }),
+        ),
+      ),
+    ),
+    shuffleEncounterDeck(),
+    revealCard(chosen("nemesisScheme")),
+    placeThreat(threatOn(chosen("nemesisScheme")), self),
+  ),
 });
