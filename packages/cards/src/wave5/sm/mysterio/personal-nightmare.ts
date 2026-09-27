@@ -1,10 +1,14 @@
 import {
+  alterEgoAction,
   boost,
+  cannotResolveTriggeredAbilities,
   chosen,
   constant,
   countAmong,
   defineAbilities,
+  discard,
   discardFromHand,
+  discardRandomFromHandCost,
   draw,
   eachPlayer,
   engagedPlayerOf,
@@ -28,19 +32,12 @@ import {
  * encounter set alongside Mysterio's own (`encounter-set.ts`): Induced Panic, Evil Doppelgänger, Fool's Paradise,
  * Weakness from Within and Deepest Fears.
  *
- * - **Induced Panic (27153)** is not scripted here. `@mc/content` assigns it exactly one ability id
- *   ("27153.induced-panic-constant") for a card whose printed text is two independent behaviors — a constant
- *   restriction ("You cannot resolve triggered abilities in your hero's printed text box") and a distinct
- *   Alter-Ego Action ("Discard 1 identity-specific card at random from your hand → discard this card"). One
- *   `AbilityDefinition` is one `trigger` (`AbilityDefinition.trigger`, `abilities.ts`), so a `constant` and an
- *   `alterEgoAction` cannot both live under this single id — the Alter-Ego Action sentence has no ability id of its
- *   own to attach to. **Report to `card-data-pipeline`:** a second ability id is needed for the Alter-Ego Action.
- *   The restriction itself is also an engine gap: it disables only a hero's *triggered* (bold-timing) abilities,
- *   not its whole text box, so `blankTextBox`/`blanksTextBox` (which blanks everything, keywords included) is not a
- *   faithful stand-in — some identities print a non-triggered line (a keyword grant, a constant) in the same box
- *   that Induced Panic must leave alone. **Report to `game-rules-architect`:** a rule that disables only bold-
- *   timing triggered abilities in a card's printed text box. Left unregistered rather than approximated; see
- *   `personal-nightmare.test.ts`.
+ * - **Induced Panic (27153)**'s restriction is `RuleSpec cannotResolveTriggeredAbilities` on its host identity's hero
+ *   face (docs/phase7-wave5.md §4.1 Q70). "Triggered abilities are ones with bold timing triggers", which RRG 1.8
+ *   "Ability" (p. 4) and "Action" (p. 6) make include Hero Actions and Hero Resources as well as interrupts and
+ *   responses; a forced one is skipped ("'Cannot'", p. 11). The alter-ego face's abilities, constants and keywords
+ *   stay live. Its Alter-Ego Action pays a random discard narrowed to identity-specific cards
+ *   (`discardRandomFromHandCost(1, filter)`), so it cannot be used with none in hand.
  *
  * - **Evil Doppelgänger (27154)**'s stat line ("+X SCH and +X ATK, where X is equal to the number of
  *   identity-specific cards in the engaged player's hand") reads `handCountOf` with a filter (docs/phase7-wave5.md
@@ -51,6 +48,17 @@ import {
 const identitySpecificInEngagedHand = handCountOf(engagedPlayerOf(self), { identitySetOf: eachPlayer });
 
 export const PERSONAL_NIGHTMARE = defineAbilities({
+  // Induced Panic (27153, attachment; attaches to your identity, data) — You cannot resolve triggered abilities in your
+  // hero's printed text box. (Triggered abilities are ones with bold timing triggers.)
+  "27153.induced-panic-constant": constant(
+    cannotResolveTriggeredAbilities(query("identity", { hostOfSelf: true }), { identityFace: "hero" }),
+  ),
+  // Alter-Ego Action: Discard 1 identity-specific card at random from your hand → discard this card.
+  "27153.induced-panic-action": alterEgoAction(
+    { cost: discardRandomFromHandCost(1, { identitySetOf: you }) },
+    discard(self),
+  ),
+
   // Evil Doppelgänger (27154, minion; ATK/SCH/HP/boostIcons/starIcon are data) — Evil Doppelgänger gets +X SCH and
   // +X ATK, where X is equal to the number of identity-specific cards in the engaged player's hand.
   "27154.evil-doppelganger-constant": constant(

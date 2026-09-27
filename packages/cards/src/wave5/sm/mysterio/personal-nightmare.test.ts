@@ -9,10 +9,29 @@ import {
   type PlayerId,
 } from "@mc/engine";
 import { describe, expect, it } from "vitest";
-import { inst, instancesOf, playerOf, stackEncounterDeck, toHero, endTurn, P1, P2 } from "../../../testing/harness.js";
-import { driveEvents, encounterCardInVillainArea } from "../../../testing/staging.js";
+import {
+  endTurn,
+  identityOf,
+  inst,
+  instancesOf,
+  moveToHand,
+  P1,
+  P2,
+  patchInstance,
+  payWith,
+  picking,
+  play,
+  playerOf,
+  run,
+  runWith,
+  settle,
+  stackEncounterDeck,
+  toHero,
+  use,
+} from "../../../testing/harness.js";
+import { driveEvents, driveEventsPicking, encounterCardInVillainArea } from "../../../testing/staging.js";
 import { startWave5Game, WAVE5_DEPS } from "../../testing.js";
-import { ghostSpiderScenario } from "../ghost-spider/support.js";
+import { ghostSpiderScenario, ghostSpiderScenarioWithExtras } from "../ghost-spider/support.js";
 
 const mysterioGame = () =>
   startWave5Game(ghostSpiderScenario("mysterio", { seed: 1, modularSetIds: [encounterSetId("bomb_scare")] }));
@@ -167,5 +186,111 @@ describe("Deepest Fears (27157)", () => {
     // discards (Ghost-Spider's own precon carries several, so this is not a coin flip in practice, but either
     // outcome is a legal reveal).
     expect(placedThreat).not.toBe(tookDamage);
+  });
+});
+
+/** Test surgery: Induced Panic out of the encounter deck, attached to `player`'s identity. */
+function inducedPanicAttached(state: GameState, player: PlayerId = P1): { state: GameState; id: InstanceId } {
+  const { state: staged, id } = encounterCardInVillainArea(state, "27153");
+  const identity = identityOf(staged, player);
+  return {
+    id,
+    state: {
+      ...staged,
+      villainArea: staged.villainArea.filter((i) => i !== id),
+      instances: {
+        ...staged.instances,
+        [id]: { ...staged.instances[id]!, attachedTo: identity },
+        [identity]: { ...staged.instances[identity]!, attachments: [...staged.instances[identity]!.attachments, id] },
+      },
+    },
+  };
+}
+
+describe("Induced Panic (27153)", () => {
+  /**
+   * Ghost-Spider's hero face prints "Response: After you resolve an 'Interrupt' or 'Response' ability on an event,
+   * ready Ghost-Spider." (27001a, Dizzying Reflexes). Backflip (01003, "Hero Interrupt: When you would take damage
+   * from an attack, prevent all of that damage") gives it an Interrupt on an event to hear when Mysterio attacks, the
+   * `ghost-spider/identity.test.ts` flow; read from the event log, since Mysterio's own encounter cards also
+   * damage and exhaust her.
+   */
+  function backflipThenReflexes(panic: boolean) {
+    const base = startWave5Game(
+      ghostSpiderScenarioWithExtras("mysterio", {
+        seed: 1,
+        extraCodes: ["01003"],
+        modularSetIds: [encounterSetId("bomb_scare")],
+      }),
+    );
+    const staged = panic ? inducedPanicAttached(base).state : base;
+    const given = moveToHand(staged, P1, "01003");
+    const [backflip] = given.ids as [never];
+    const { events } = driveEventsPicking(
+      WAVE5_DEPS,
+      run(given.state, toHero(P1)),
+      (s) => {
+        const prompt = s.pendingChoice?.prompt;
+        if (prompt?.kind === "payForCard" && prompt.instanceId === backflip) return [];
+        return picking(`${backflip}:01003.backflip-interrupt`, `${identityOf(s, P1)}:${REFLEXES}`)(s);
+      },
+      endTurn(P1),
+    );
+    const resolved = (ability: string) =>
+      events.some((e) => e.type === "abilityResolved" && String(e.abilityId) === ability);
+    const offered = events.some(
+      (e) => e.type === "windowOpened" && e.candidates.some((c) => String(c.abilityId) === REFLEXES),
+    );
+    return { backflipResolved: resolved("01003.backflip-interrupt"), reflexesResolved: resolved(REFLEXES), offered };
+  }
+  const REFLEXES = "27001a.ghost-spider-constant";
+
+  it("27153.induced-panic-constant: a Response in the hero's printed text box is not offered while attached", () => {
+    expect(backflipThenReflexes(false)).toEqual({ backflipResolved: true, reflexesResolved: true, offered: true });
+    // Backflip is an event from hand, not the hero's text box: it still resolves. Dizzying Reflexes is never offered.
+    expect(backflipThenReflexes(true)).toEqual({ backflipResolved: true, reflexesResolved: false, offered: false });
+  });
+
+  it("27153.induced-panic-constant: the alter-ego's own triggered abilities stay usable", () => {
+    const given = moveToHand(mysterioGame(), P1, "27007"); // George Stacy.
+    const [stacy] = given.ids as [never];
+    const withStacy = run(given.state, play(P1, stacy, payWith(given.state, P1, 1, given.ids)));
+    const { state } = inducedPanicAttached(patchInstance(withStacy, stacy, { exhausted: true }));
+    const identity = identityOf(state, P1);
+    expect(playerOf(state, P1).identity.form).toBe("alterEgo");
+    const after = settle(
+      runWith(WAVE5_DEPS, state, use(P1, identity, "27001b.gwen-stacy-action")),
+      picking("1"), // "Ready George Stacy".
+      undefined,
+      WAVE5_DEPS,
+    );
+    expect(inst(after, stacy).exhausted).toBe(false);
+  });
+
+  it("27153.induced-panic-action: discards exactly 1 identity-specific card at random from hand, then this card", () => {
+    // One identity-specific card among five: an unfiltered random pick would usually miss it.
+    const { state, id } = inducedPanicAttached(handOf(mysterioGame(), P1, 1, 4));
+    const identity = identityOf(state, P1);
+    const hand = playerOf(state, P1).hand;
+    const after = settle(
+      runWith(WAVE5_DEPS, state, use(P1, id, "27153.induced-panic-action")),
+      undefined,
+      undefined,
+      WAVE5_DEPS,
+    );
+    const left = hand.filter((c) => !playerOf(after, P1).hand.includes(c));
+    expect(left).toHaveLength(1);
+    expect(isIdentitySpecific(state, left[0]!)).toBe(true);
+    expect(playerOf(after, P1).discard).toContain(left[0]);
+    // Induced Panic left the identity for the encounter discard pile.
+    expect(inst(after, identity).attachments).not.toContain(id);
+    const discards = Object.values(after.encounterDecks).flatMap((pile) => pile.discard);
+    expect(discards).toContain(id);
+  });
+
+  it("27153.induced-panic-action: cannot be used with no identity-specific card in hand", () => {
+    const { state, id } = inducedPanicAttached(handOf(mysterioGame(), P1, 0, 5));
+    expect(() => runWith(WAVE5_DEPS, state, use(P1, id, "27153.induced-panic-action"))).toThrow();
+    expect(playerOf(state, P1).hand).toHaveLength(5);
   });
 });
