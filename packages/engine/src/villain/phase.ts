@@ -25,7 +25,7 @@ import {
   nextVillainInActivationOrder,
   playerOrder,
 } from "../query.js";
-import { heard, pushEvent, pushEvents, pushRevealFrame } from "../resolve/index.js";
+import { heard, pushEvent, pushEvents, pushEventsSharingResponses, pushRevealFrame } from "../resolve/index.js";
 import { cardsInPlay, gliderMainSchemeId, offSchemeAccelerationTokens } from "../select.js";
 import type { TriggerEvent } from "../trigger-events.js";
 import type { GameState, GameStep } from "../state.js";
@@ -47,8 +47,9 @@ export function executePlaceThreat(ctx: Ctx): void {
       // Tokens on other cards add to "the main scheme" (docs/phase7-wave5.md §3.4).
       const offScheme = offSchemeAccelerationTokens(ctx.state);
       const tokensGoTo = gliderMainSchemeId(ctx.state, ctx.deps) ?? ctx.state.mainScheme.instanceId;
-      const events = sharedMainSchemes(ctx.state).map((scheme) => ({
-        kind: "placeThreat" as const,
+      const schemes = sharedMainSchemes(ctx.state);
+      const events = schemes.map((scheme, index): TriggerEvent => ({
+        kind: "placeThreat",
         schemeInstanceId: scheme.instanceId,
         amount:
           mainSchemeValue(ctx.state, "acceleration", ctx.deps, scheme) +
@@ -56,9 +57,13 @@ export function executePlaceThreat(ctx: Ctx): void {
           (scheme.instanceId === tokensGoTo ? offScheme : 0) +
           iconsInPlay(ctx.state, ctx.deps, "acceleration"),
         sourceInstanceId: null,
+        // Several main schemes: all the threat lands first, then completions, then one shared response window
+        // (docs/phase7-wave5.md §4.1 Q71, user ruling "All first"): Venom Goblin's Midtown completion moves the
+        // glider to "the main scheme with the least threat", which must count every scheme's step-one threat.
+        ...(schemes.length > 1 ? { completionCheck: index === schemes.length - 1 ? "closing" : "deferred" } : {}),
       }));
       if (events.length === 1) pushEvent(ctx, events[0]!);
-      else pushEvents(ctx, events);
+      else pushEventsSharingResponses(ctx, events);
       return;
     }
     // Separate game areas (docs/phase7-wave2.md §3.1): each area places threat on its own stage, from its own

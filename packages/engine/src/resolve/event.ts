@@ -147,6 +147,14 @@ export function executeEventFrame(ctx: Ctx, frame: Frame<"event">): void {
         return;
       }
       if (frame.cancelled) {
+        // A cancelled last placement of step one still checks the main schemes the batch's earlier placements
+        // reached, once, before their shared responses (docs/phase7-wave5.md §4.1 Q71).
+        if (frame.event.kind === "placeThreat" && frame.event.completionCheck === "closing") {
+          const { completionCheck: _checked, ...event } = frame.event;
+          setFrame(ctx, { ...frame, event });
+          checkMainSchemeCompletion(ctx);
+          return;
+        }
         // An attack that ends before fully resolving was still defended, and the abilities that trigger after that
         // defense still resolve (RRG 1.8 "Defend, Defense", p. 16, and "Attack (Enemy Activation)", p. 9: "If an
         // enemy attack ends before damage is dealt, abilities that trigger after an attack or after a character
@@ -993,8 +1001,12 @@ export function threatRemovalBlocked(
 }
 
 function applyPlaceThreat(ctx: Ctx, event: Extract<TriggerEvent, { kind: "placeThreat" }>, frameId: FrameId): void {
-  if (event.amount <= 0) return;
-  if (!getInstance(ctx.state, event.schemeInstanceId)) return;
+  // The last of step one's placements checks every main scheme, whatever its own amount (docs/phase7-wave5.md §4.1 Q71).
+  const closing = event.completionCheck === "closing";
+  if (event.amount <= 0 || !getInstance(ctx.state, event.schemeInstanceId)) {
+    if (closing) checkMainSchemeCompletion(ctx);
+    return;
+  }
   updateInstance(ctx, event.schemeInstanceId, (i) => ({ ...i, threat: i.threat + event.amount }));
   emit(ctx, {
     type: "threatPlaced",
@@ -1004,7 +1016,8 @@ function applyPlaceThreat(ctx: Ctx, event: Extract<TriggerEvent, { kind: "placeT
   });
   addFrameVars(ctx, frameId, { amount: event.amount });
   addFrameVars(ctx, event.parentFrameId, { threatPlaced: event.amount });
-  if (mainSchemeStateOf(ctx.state, event.schemeInstanceId)) checkMainSchemeCompletion(ctx);
+  if (event.completionCheck === "deferred") return;
+  if (closing || mainSchemeStateOf(ctx.state, event.schemeInstanceId)) checkMainSchemeCompletion(ctx);
 }
 
 /**
