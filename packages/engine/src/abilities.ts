@@ -371,8 +371,20 @@ export type RuleSpec =
       readonly by?: "thwart";
       readonly player?: PlayerRef;
     }
-  /** "While Baron Zemo is engaged with you, you cannot thwart." `player` is resolved with "you" as the rule card's speaker (`speakerOf`). */
-  | { readonly kind: "cannotThwart"; readonly player: PlayerRef; readonly while?: Predicate }
+  /**
+   * "While Baron Zemo is engaged with you, you cannot thwart." `player` is resolved with "you" as the rule card's
+   * speaker (`speakerOf`). `schemes` scopes which schemes the player cannot thwart: "The engaged player cannot thwart
+   * side schemes" (Life-Size Decoy, `sm` 27142) is `{ schemes: query("sideScheme") }`. Absent, every scheme, as every
+   * rule before this field meant. A scoped-out scheme is not a legal target of the player's basic thwart (refused
+   * before any cost, as patrol is) nor of a "(thwart)" ability (RRG 1.8 "Target", pp. 42–43: "A target that cannot be
+   * thwarted is not a valid target for a thwart-labeled ability"); the player may still thwart every other scheme.
+   */
+  | {
+      readonly kind: "cannotThwart";
+      readonly player: PlayerRef;
+      readonly schemes?: TargetQuery;
+      readonly while?: Predicate;
+    }
   /** "… cannot ready" (All Tied Up). */
   /**
    * "Prevent all damage to Ebony Maw" (Abjuration, `mts` 21082; docs/phase7-wave4.md §3.20): damage dealt to a card

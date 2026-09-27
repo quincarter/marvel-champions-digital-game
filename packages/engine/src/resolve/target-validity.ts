@@ -166,8 +166,8 @@ export function slotTargetValid(
 
 /**
  * Whether anything in play could make a judged effect unable to affect its target right now: a patrol minion engaged
- * with `playerId`, a crisis icon in their game area, a `threatCannotBeRemoved`, `cannotTakeDamage` or `cannotLeavePlay`
- * rule, or a Permanent card in play. The
+ * with `playerId`, a crisis icon in their game area, a `threatCannotBeRemoved`, `cannotThwart`, `cannotTakeDamage` or
+ * `cannotLeavePlay` rule, or a Permanent card in play. The
  * common case (none of them) skips judging each candidate, which the offer paths (`legalActions`, every trigger
  * window) ask about constantly.
  */
@@ -176,6 +176,7 @@ function targetsCanBeInvalid(state: GameState, deps: EngineDeps, playerId: Playe
   if (iconsInPlay(state, deps, "crisis", playerId === null ? null : areaOfPlayer(state, playerId)) > 0) return true;
   return (
     activeRules(state, deps, "threatCannotBeRemoved").length > 0 ||
+    activeRules(state, deps, "cannotThwart").length > 0 ||
     activeRules(state, deps, "additionalThwartCost").length > 0 ||
     activeRules(state, deps, "cannotTakeDamage").length > 0 ||
     activeRules(state, deps, "cannotLeavePlay").length > 0 ||

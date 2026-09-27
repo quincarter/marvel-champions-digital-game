@@ -110,9 +110,17 @@ export const threatCannotBeRemoved = (
     return removerId !== null && rulePlayers(state, { player: rule.player }, active).includes(removerId);
   });
 
-/** "While Baron Zemo is engaged with you, you cannot thwart." */
-export const cannotThwart = (state: GameState, deps: EngineDeps, playerId: PlayerId): boolean =>
-  activeRules(state, deps, "cannotThwart").some((active) => rulePlayers(state, active.rule, active).includes(playerId));
+/**
+ * "While Baron Zemo is engaged with you, you cannot thwart." With `schemeId`, whether this player cannot thwart that
+ * scheme: an unscoped rule, or one whose `schemes` matches it ("The engaged player cannot thwart side schemes", Life-Size
+ * Decoy, `sm` 27142). Without it, whether they cannot thwart at all: only an unscoped rule says so.
+ */
+export const cannotThwart = (state: GameState, deps: EngineDeps, playerId: PlayerId, schemeId?: InstanceId): boolean =>
+  activeRules(state, deps, "cannotThwart").some((active) => {
+    const { rule, context } = active;
+    if (rule.schemes && (schemeId === undefined || !matchesQuery(state, schemeId, rule.schemes, context))) return false;
+    return rulePlayers(state, rule, active).includes(playerId);
+  });
 
 /**
  * The card's own "You cannot choose to discard this card from your hand" (`cannotChooseToDiscard` on a constant that works

@@ -2823,6 +2823,11 @@ function basicThwartWith(
     if (!isMainScheme && !isSideScheme) {
       return engineError("no_valid_target", "target is not a scheme in play", command);
     }
+    // A `cannotThwart` rule scoped to some schemes ("cannot thwart side schemes", Life-Size Decoy): refused before any
+    // cost, like the unscoped rule above, and for a confused thwarter too, as that rule is.
+    if (cannotThwart(ctx.state, ctx.deps, command.playerId, schemeId)) {
+      return engineError("no_valid_target", "you cannot thwart that scheme", command);
+    }
     // "Your hero's basic thwart power (THW) can only remove threat from the scheme with the most threat."
     // (`RuleSpec basicThwartTargets`, docs/phase7-wave5.md §3.22.)
     if (!basicThwartTargetAllowed(ctx.state, ctx.deps, command.thwarterInstanceId, schemeId)) {

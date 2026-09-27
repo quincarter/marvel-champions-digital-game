@@ -1,18 +1,32 @@
-import { activeVillain, hasKeyword, statBonus, undefeatedVillains, type GameEvent, type GameState } from "@mc/engine";
+import {
+  activeVillain,
+  applyCommand,
+  hasKeyword,
+  legalActions,
+  statBonus,
+  undefeatedVillains,
+  type Command,
+  type GameEvent,
+  type GameState,
+  type InstanceId,
+  type PlayerId,
+} from "@mc/engine";
 import { describe, expect, it } from "vitest";
 import {
   P1,
   P2,
   endTurn,
+  firstLegal,
   identityOf,
   inst,
   instancesOf,
   playerOf,
   settle,
   stackEncounterDeck,
+  threatOn,
 } from "../../../testing/harness.js";
-import { driveEvents, encounterCardInVillainArea } from "../../../testing/staging.js";
-import { runWave5, startWave5Game, WAVE5_DEPS } from "../../testing.js";
+import { driveEvents, encounterCardInVillainArea, withForm } from "../../../testing/staging.js";
+import { defeatWithAttack, playFromHand, runWave5, startWave5Game, WAVE5_DEPS } from "../../testing.js";
 import { wave5Scenario } from "../../setup.js";
 
 /**
@@ -61,6 +75,100 @@ describe("Life-Size Decoy (27142)", () => {
     const decoy = instancesOf(revealed, "27142").find((id) => inst(revealed, id).engagedWith === P1);
     expect(decoy).toBeDefined();
     expect(playerOf(revealed, P1).playArea).toContain(decoy);
+  });
+
+  describe("27142.life-size-decoy-constant-2: the engaged player cannot thwart side schemes", () => {
+    // Miles Morales (P1, whose precon has Swing In, "(thwart): Remove 4 threat from a scheme") with the Decoy engaged
+    // and Coordinated Effort (27143) in play at 4 threat; Ghost-Spider (P2) is not engaged with it. Both in hero form.
+    const staged = () => {
+      const base = startWave5Game(
+        wave5Scenario("sinister-six", {
+          seed: 1,
+          players: [{ starterDeckId: "spider-man-morales" }, { starterDeckId: "ghost-spider" }],
+        }),
+      );
+      const heroes = withForm(withForm(base, { heroForm: 0 }, P1), { heroForm: 0 }, P2);
+      const side = encounterCardInVillainArea(heroes, "27143", 4);
+      const pulled = encounterCardInVillainArea(side.state, "27142");
+      // Test surgery: the Decoy engaged with P1 (the boost path above puts it there in a real game).
+      const state: GameState = {
+        ...pulled.state,
+        villainArea: pulled.state.villainArea.filter((id) => id !== pulled.id),
+        players: pulled.state.players.map((p) =>
+          p.playerId === P1 ? { ...p, playArea: [...p.playArea, pulled.id] } : p,
+        ),
+        instances: { ...pulled.state.instances, [pulled.id]: { ...inst(pulled.state, pulled.id), engagedWith: P1 } },
+      };
+      return { state, side: side.id, decoy: pulled.id };
+    };
+    const basicThwart = (state: GameState, scheme: InstanceId, player: PlayerId = P1): Command => ({
+      type: "basicThwart",
+      playerId: player,
+      thwarterInstanceId: identityOf(state, player),
+      schemeInstanceId: scheme,
+    });
+    const thwartTargets = (state: GameState, player: PlayerId) => {
+      const actions = legalActions(state, player, WAVE5_DEPS);
+      if (actions.kind !== "turn") throw new Error(`not ${player}'s turn`);
+      const hero = identityOf(state, player);
+      const entry = actions.legal.find((a) => a.action.kind === "basicThwart" && a.action.instanceId === hero);
+      return entry?.targets ?? [];
+    };
+    /** Picks `target` in a scheme choice, recording what was offered; otherwise `firstLegal`. */
+    const choosing = (target: InstanceId, offered: InstanceId[]) => (s: GameState) => {
+      const choice = s.pendingChoice;
+      if (choice?.prompt.kind !== "chooseTarget") return firstLegal(s);
+      const cards = choice.options.flatMap((o) => (o.ref.kind === "card" ? [o] : []));
+      offered.push(...cards.map((o) => (o.ref.kind === "card" ? o.ref.instanceId : ("" as InstanceId))));
+      const hit = cards.find((o) => o.ref.kind === "card" && o.ref.instanceId === target);
+      return hit ? [hit.optionId] : firstLegal(s);
+    };
+
+    it("refuses the engaged player's basic thwart of a side scheme before any cost; the main scheme stays legal", () => {
+      const { state, side } = staged();
+      const main = state.mainScheme.instanceId;
+      const refused = applyCommand(state, basicThwart(state, side), WAVE5_DEPS);
+      expect(refused.ok).toBe(false);
+      if (!refused.ok) expect(refused.error.code).toBe("no_valid_target");
+      expect(thwartTargets(state, P1)).toContain(main);
+      expect(thwartTargets(state, P1)).not.toContain(side);
+
+      const before = threatOn(state, main);
+      const thwarted = settle(runWave5(state, basicThwart(state, main)), firstLegal, undefined, WAVE5_DEPS);
+      expect(threatOn(thwarted, main)).toBeLessThan(before);
+      expect(threatOn(thwarted, side)).toBe(4);
+    });
+
+    it("a thwart event (Swing In) is not offered the side scheme; it thwarts the main scheme", () => {
+      const { state, side } = staged();
+      const main = state.mainScheme.instanceId;
+      const before = threatOn(state, main);
+      const offered: InstanceId[] = [];
+      const played = playFromHand(state, "27033", 2, choosing(side, offered)).state;
+      expect(offered).toContain(main);
+      expect(offered).not.toContain(side);
+      expect(threatOn(played, side)).toBe(4);
+      expect(threatOn(played, main)).toBe(Math.max(0, before - 4));
+    });
+
+    it("binds only the engaged player: a player the Decoy is not engaged with may thwart the side scheme", () => {
+      const { state: p1Turn, side } = staged();
+      const p2Turn = settle(runWave5(p1Turn, endTurn(P1)), firstLegal, (s) => s.pendingChoice === null, WAVE5_DEPS);
+      expect(p2Turn.step).toMatchObject({ phase: "player", activePlayerId: P2 });
+      expect(thwartTargets(p2Turn, P2)).toContain(side);
+      const thwarted = settle(runWave5(p2Turn, basicThwart(p2Turn, side, P2)), firstLegal, undefined, WAVE5_DEPS);
+      expect(threatOn(thwarted, side)).toBeLessThan(4);
+    });
+
+    it("ends once the Decoy leaves play", () => {
+      const { state, side, decoy } = staged();
+      const defeated = defeatWithAttack(state, decoy);
+      expect(playerOf(defeated, P1).playArea).not.toContain(decoy);
+      const offered: InstanceId[] = [];
+      const played = playFromHand(defeated, "27033", 2, choosing(side, offered)).state;
+      expect(offered).toContain(side);
+      expect(threatOn(played, side)).toBe(0);
+    });
   });
 });
 
