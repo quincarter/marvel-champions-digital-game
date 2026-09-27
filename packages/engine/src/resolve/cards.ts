@@ -145,6 +145,8 @@ export function selectCards(ctx: Ctx, selector: CardSelector, context: EffectCon
       }
       return picked;
     }
+    case "removedFromGame":
+      return filtered(state.removedFromGame, selector.filter);
     case "scenarioArea":
       return filtered(state.scenarioAreas?.[selector.name] ?? [], selector.filter);
     case "scenarioDeck": {
