@@ -1,4 +1,4 @@
-import type { AbilityReference, AnyCard, CardId, Trait } from "@mc/content";
+import type { AbilityReference, AnyCard, CardId, HeroIdentityCard, Trait } from "@mc/content";
 import { type AbilityTriggerSpec, DEFAULT_DEPS, type EngineDeps, type RuleSpec } from "./abilities.js";
 import type { InstanceId, PlayerId } from "./ids.js";
 import {
@@ -68,6 +68,19 @@ import { characterTitledAs, identityCardTitledAs } from "./titles.js";
 import { STATUS_NAMES, type Form, type GameAreaState, type GameState } from "./state.js";
 import type { TriggerEvent } from "./trigger-events.js";
 import { damageTakenKey, eventSubjects } from "./trigger-events.js";
+
+/**
+ * The hero identity cards of the players a ref names, read live from each player's identity instance: the source of
+ * "your obligation" and "your nemesis set" (RRG 1.8 "Obligation" / "Nemesis Encounter Set", p. 30). A player whose
+ * identity is not a hero identity contributes nothing.
+ */
+function heroIdentitiesOf(state: GameState, players: PlayerRef, context: EffectContext): readonly HeroIdentityCard[] {
+  return resolvePlayers(state, players, context).flatMap((playerId) => {
+    const instanceId = getPlayer(state, playerId)?.identity.instanceId;
+    const identity = instanceId === undefined ? undefined : cardOf(state, instanceId);
+    return identity?.type === "hero_identity" ? [identity] : [];
+  });
+}
 
 /** Minion card ids per encounter set, per card pool (a pool never changes during a game, so this is read once). */
 const minionsBySetCache = new WeakMap<GameState["cardPool"], ReadonlyMap<string, readonly string[]>>();
@@ -481,6 +494,10 @@ export type QueryExclusion =
   | "notInPlayArea"
   | "wrongIdentitySet"
   | "notNemesisMinion"
+  /** Not a copy of the obligation of a player the query's `obligationOf` names. */
+  | "notObligation"
+  /** Not the side scheme of the nemesis set of a player the query's `nemesisSideSchemeOf` names. */
+  | "notNemesisSideScheme"
   | "noSharedTrait"
   | "wrongEncounterSet"
   /** The card's title is not recorded in the campaign-log field the query names (`inCampaignLogField`). */
@@ -686,13 +703,30 @@ export function explainQuery(
     const card = cardOf(state, id);
     if (!card || card.type !== "minion") return "notNemesisMinion";
     const sets = card.encounterSetIds;
-    const owned = resolvePlayers(state, query.nemesisMinionOf, context)
-      .map((playerId) => getPlayer(state, playerId)?.identity.instanceId)
-      .map((instanceId) => (instanceId === undefined ? undefined : cardOf(state, instanceId)))
-      .map((identity) => (identity?.type === "hero_identity" ? identity.nemesisEncounterSetId : undefined));
-    const nemesisSet = owned.find((setId) => setId !== undefined && sets.includes(setId));
+    const owned = heroIdentitiesOf(state, query.nemesisMinionOf, context).map(
+      (identity) => identity.nemesisEncounterSetId,
+    );
+    const nemesisSet = owned.find((setId) => sets.includes(setId));
     if (nemesisSet === undefined) return "notNemesisMinion";
     if (card.nemesisMinion !== true && !soleMinionOfSet(state, nemesisSet, card.id)) return "notNemesisMinion";
+  }
+  if (query.obligationOf) {
+    // RRG 1.8 "Obligation" (p. 30): the identity's own obligation card, every copy of it, wherever it is.
+    const cardId = getInstance(state, id)?.cardId;
+    const obligations = heroIdentitiesOf(state, query.obligationOf, context).map(
+      (identity) => identity.obligationCardId,
+    );
+    if (cardId === undefined || !obligations.includes(cardId)) return "notObligation";
+  }
+  if (query.nemesisSideSchemeOf) {
+    // RRG 1.8 "Nemesis Encounter Set" (p. 30): the side scheme belonging to the identity's nemesis set.
+    const card = cardOf(state, id);
+    if (!card || card.type !== "side_scheme") return "notNemesisSideScheme";
+    const sets = card.encounterSetIds;
+    const owned = heroIdentitiesOf(state, query.nemesisSideSchemeOf, context).map(
+      (identity) => identity.nemesisEncounterSetId,
+    );
+    if (!owned.some((setId) => sets.includes(setId))) return "notNemesisSideScheme";
   }
   if (query.sharesTraitWith) {
     // "A card that shares a trait with your hero" (docs/phase7-wave2.md §20.1): both sides read live, so a granted

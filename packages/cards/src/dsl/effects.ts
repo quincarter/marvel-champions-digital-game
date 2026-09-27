@@ -879,6 +879,11 @@ export const encounterSetAside = (filter?: TargetQuery, opts: { readonly random?
 });
 /** "Place the active counter on Wrecker" / "Move the active counter to …" (The Wrecking Crew insert). */
 export const setActiveVillain = (villain: TargetRef): EffectSpec => ({ kind: "setActiveVillain", villain });
+/** The removed-from-game area: "search … set-aside area, and removed-from-game area for …" (Loose Ends, 27135). */
+export const removedFromGameCards = (filter?: TargetQuery): CardSelector => ({
+  kind: "removedFromGame",
+  ...(filter ? { filter } : {}),
+});
 export const setAside = (player: PlayerRef = you, filter?: TargetQuery): CardSelector => ({
   kind: "setAside",
   player,

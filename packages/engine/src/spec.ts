@@ -244,6 +244,21 @@ export interface TargetQuery {
    */
   readonly nemesisMinionOf?: PlayerRef;
   /**
+   * A copy of this player's obligation: "search … for **a copy of your obligation**, then reveal it" (Loose Ends,
+   * `sm` 27135). RRG 1.8 "Obligation" (p. 30): each identity is associated with its obligation card, read live from
+   * the player's identity (`HeroIdentityCard.obligationCardId`). Matched by card id, so every printed copy counts
+   * (Slipping Sanity's two), wherever the card is — encounter deck, a discard pile, set aside, removed from the game,
+   * in play. An identity whose obligation has no instance in this game matches nothing.
+   */
+  readonly obligationOf?: PlayerRef;
+  /**
+   * The side scheme of this player's own nemesis set: "search … for **your nemesis side scheme**, then reveal it"
+   * (Analysis Paralysis, `sm` 27173). RRG 1.8 "Nemesis Encounter Set" (p. 30): the set is the identity's
+   * `nemesisEncounterSetId`, read live. Every released nemesis set prints exactly one side scheme, so unlike
+   * `nemesisMinionOf` there is no parenthetical designation to check. Matches wherever the card is.
+   */
+  readonly nemesisSideSchemeOf?: PlayerRef;
+  /**
    * The card has at least one trait in common with the cards this ref names: "play a card from your hand **that
    * shares a trait with your hero**" (Team-Building Exercise, `ant` 12024) is `{ sharesTraitWith: identityOf(you) }`.
    *
@@ -2377,6 +2392,13 @@ export type CardSelector =
    * this scheme", Captured by Hydra; docs/phase7-wave2.md §3.12).
    */
   | { readonly kind: "encounterSetAside"; readonly filter?: TargetQuery; readonly random?: ValueSpec }
+  /**
+   * The removed-from-game area (`GameState.removedFromGame`): "search the encounter deck, discard pile, set-aside area,
+   * **and removed-from-game area** for a copy of your obligation" (Loose Ends, `sm` 27135). Card text that names this
+   * area is what reaches it: ruling December 17, 2025 (4) (a removed card "cannot be returned to the game by any
+   * means") is about generic retrieval, which never uses this selector; a card that prints this area overrides it.
+   */
+  | { readonly kind: "removedFromGame"; readonly filter?: TargetQuery }
   /**
    * A scenario deck and/or its own discard pile (docs/phase7-wave2.md §3.3): "Reveal the top card of the Experimental
    * Weapons deck" → `{ name: "Experimental Weapons", top: 1 }`. `zones` defaults to the deck.
