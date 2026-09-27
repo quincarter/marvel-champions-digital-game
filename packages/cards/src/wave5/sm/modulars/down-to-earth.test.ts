@@ -1,5 +1,6 @@
 import { cardId, encounterSetId, trait } from "@mc/content";
 import {
+  activeEncounterDeck,
   applyCommand,
   createGame,
   NO_STATUSES,
@@ -31,6 +32,7 @@ import { driveEventsPicking, encounterCardInVillainArea } from "../../../testing
 import { playToOutcome } from "../../../testing/driver.js";
 import { runWave5, startWave5Game, WAVE5_DEPS } from "../../testing.js";
 import { ghostSpiderScenario } from "../ghost-spider/support.js";
+import { spiderManMoralesScenario } from "../spider-man-morales/support.js";
 import { wave5Scenario } from "../../setup.js";
 
 /**
@@ -66,8 +68,7 @@ function engagedMinion(
  * modular swapped in in place of the scenario's own recommended set, `sandman/scenario.test.ts`'s own
  * `modularSetIds: [encounterSetId("bomb_scare")]` stand-in precedent.
  *
- * **Loose Ends (27135) is not scripted here** — see this module's own docblock in `down-to-earth.ts` and the e2e
- * game below, which drops it from the built encounter deck for exactly that reason.
+ * Loose Ends (27135) is played with Spider-Man (Miles Morales) instead, whose obligation offers the alter-ego flip.
  */
 const game = (seed = 1) =>
   startWave5Game(ghostSpiderScenario("sandman", { seed, modularSetIds: [encounterSetId("down_to_earth")] }));
@@ -286,13 +287,125 @@ describe('"Threat or Menace?" (27134)', () => {
   });
 });
 
+describe("Loose Ends (27135)", () => {
+  // Spider-Man (Miles Morales) at Sandman: his obligation, Keeping Secrets (27056), is the shared "You may flip to
+  // alter-ego form. Choose: • Exhaust Miles Morales → remove it from the game • …" shape, so it exercises both the
+  // removed-from-game search and the "if you change to alter-ego form" clause. The fillers ahead of Loose Ends are
+  // what Sandman's own activation consumes before P1 is dealt an encounter card ("Threat or Menace?" tests above).
+  const KEEPING_SECRETS = "27056";
+  const ALTER_EGO_FILLERS = ["01186"];
+  const HERO_FORM_FILLERS = ["01186", "01186", "01187", "01188", "01189", "01190"];
+  const milesGame = (seed = 1) =>
+    startWave5Game(spiderManMoralesScenario("sandman", { seed, modularSetIds: [encounterSetId("down_to_earth")] }));
+
+  /** Flips when offered (or stays, with `flip: false`), then takes "Exhaust Miles Morales → remove …" when offered. */
+  const obligationPicker =
+    (flip: boolean): Picker =>
+    (s) => {
+      const choice = s.pendingChoice;
+      const wanted = flip ? "Flip to alter-ego form" : "Stay in hero form";
+      const hit =
+        choice?.options.find((o) => o.label === wanted) ??
+        choice?.options.find((o) => o.label.startsWith("Exhaust Miles Morales"));
+      return hit ? [hit.optionId] : firstLegal(s);
+    };
+
+  const revealLooseEnds = (state: GameState, pick: Picker) => {
+    const [looseEnds] = instancesOf(state, "27135");
+    const fillers = playerOf(state, P1).identity.form === "hero" ? HERO_FORM_FILLERS : ALTER_EGO_FILLERS;
+    const { state: after, events } = driveEventsPicking(
+      WAVE5_DEPS,
+      stackEncounterDeck(state, ...fillers, "27135"),
+      pick,
+      endTurn(P1),
+    );
+    const start = events.findIndex((e) => e.type === "encounterCardRevealed" && e.instanceId === looseEnds);
+    expect(start).toBeGreaterThanOrEqual(0);
+    const revealed = events.flatMap((e) => (e.type === "encounterCardRevealed" ? [e.instanceId] : []));
+    // Hand discards from Loose Ends on (Sandman's own attack, earlier in a hero-form villain phase, can discard too).
+    const handDiscards = events
+      .slice(start)
+      .filter(
+        (e) => e.type === "cardMoved" && e.from.kind === "hand" && e.from.playerId === P1 && e.to.kind === "discard",
+      ).length;
+    const surged = events.some((e) => e.type === "surgeTriggered" && e.instanceId === looseEnds);
+    return { state: after, events, looseEnds: looseEnds!, revealed, handDiscards, surged };
+  };
+
+  it("finds your obligation in the encounter deck and reveals it; in alter-ego form nothing is discarded, no surge", () => {
+    const state = milesGame();
+    const [obligation] = instancesOf(state, KEEPING_SECRETS);
+    expect(activeEncounterDeck(state).deck).toContain(obligation);
+    const { state: after, revealed, handDiscards, surged, looseEnds } = revealLooseEnds(state, obligationPicker(true));
+    // Loose Ends, then Keeping Secrets, in that order.
+    expect(revealed.indexOf(obligation!)).toBeGreaterThan(revealed.indexOf(looseEnds));
+    expect(after.removedFromGame).toContain(obligation); // "Exhaust Miles Morales → remove it from the game"
+    expect(handDiscards).toBe(0);
+    expect(surged).toBe(false);
+  });
+
+  it("finds it in the removed-from-game area", () => {
+    const state = milesGame(2);
+    const [obligation] = instancesOf(state, KEEPING_SECRETS);
+    const removed: GameState = {
+      ...state,
+      encounterDecks: Object.fromEntries(
+        Object.entries(state.encounterDecks).map(([id, piles]) => [
+          id,
+          { ...piles, deck: piles.deck.filter((i) => i !== obligation) },
+        ]),
+      ),
+      removedFromGame: [...state.removedFromGame, obligation!],
+    };
+    const { revealed, surged } = revealLooseEnds(removed, obligationPicker(true));
+    expect(revealed).toContain(obligation);
+    expect(surged).toBe(false);
+  });
+
+  it("in hero form, flipping to alter-ego during that reveal discards exactly 1 random card from your hand", () => {
+    const hero = settle(runWave5(milesGame(3), toHero(P1)), firstLegal, undefined, WAVE5_DEPS);
+    const [obligation] = instancesOf(hero, KEEPING_SECRETS);
+    const { state: after, revealed, handDiscards, surged } = revealLooseEnds(hero, obligationPicker(true));
+    expect(revealed).toContain(obligation);
+    expect(playerOf(after, P1).identity.form).toBe("alterEgo");
+    expect(handDiscards).toBe(1);
+    expect(surged).toBe(false);
+  });
+
+  it("negative: in hero form, staying in hero form during that reveal discards nothing", () => {
+    const hero = settle(runWave5(milesGame(3), toHero(P1)), firstLegal, undefined, WAVE5_DEPS);
+    const [obligation] = instancesOf(hero, KEEPING_SECRETS);
+    const { state: after, revealed, handDiscards } = revealLooseEnds(hero, obligationPicker(false));
+    expect(revealed).toContain(obligation);
+    expect(playerOf(after, P1).identity.form).toBe("hero");
+    expect(handDiscards).toBe(0);
+  });
+
+  it("negative: with your obligation in none of the four areas, nothing is revealed for it and Loose Ends surges", () => {
+    const state = milesGame(4);
+    const [obligation] = instancesOf(state, KEEPING_SECRETS);
+    // Out of every searched area: into the victory display, by surgery.
+    const elsewhere: GameState = {
+      ...state,
+      encounterDecks: Object.fromEntries(
+        Object.entries(state.encounterDecks).map(([id, piles]) => [
+          id,
+          { ...piles, deck: piles.deck.filter((i) => i !== obligation) },
+        ]),
+      ),
+      victoryDisplay: [...state.victoryDisplay, obligation!],
+    };
+    const { revealed, surged, handDiscards } = revealLooseEnds(elsewhere, obligationPicker(true));
+    expect(revealed).not.toContain(obligation);
+    expect(surged).toBe(true);
+    expect(handDiscards).toBe(0);
+  });
+});
+
 describe("wave5Scenario with Down to Earth swapped in", () => {
   it("Sandman, solo: Ghost-Spider, with Down to Earth in place of the scenario's own recommended modular", () => {
-    // Loose Ends (27135) is dropped from the built deck — it has no registered ability yet (this module's own
-    // docblock: `search … removed-from-game area … for a copy of your obligation` needs a `CardSelector` this
-    // repo's DSL/engine don't have yet), so a seed that happened to reveal it would otherwise crash the game.
-    const base = ghostSpiderScenario("sandman", { seed: 2026, modularSetIds: [encounterSetId("down_to_earth")] });
-    const config = { ...base, encounterDeck: base.encounterDeck.filter((id) => id !== cardId("27135")) };
+    const config = ghostSpiderScenario("sandman", { seed: 2026, modularSetIds: [encounterSetId("down_to_earth")] });
+    expect(config.encounterDeck).toContain(cardId("27135"));
     const created = createGame(config, WAVE5_DEPS);
     if (!created.ok) throw new Error(`setup failed: ${created.error.message}`);
     const result = playToOutcome(created.state, WAVE5_DEPS);

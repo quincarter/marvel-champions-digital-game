@@ -13,10 +13,12 @@ import {
   runWith,
   settle,
   stackEncounterDeck,
+  threatOn,
   toHero,
   use,
   type Picker,
 } from "../../../testing/harness.js";
+import { driveEventsPicking } from "../../../testing/staging.js";
 import { runWave5, startWave5Game, WAVE5_DEPS } from "../../testing.js";
 import { ghostSpiderScenario } from "../ghost-spider/support.js";
 
@@ -180,5 +182,77 @@ describe("Delusion of Collusion (27170)", () => {
   });
 });
 
-// Old Grudge (27172), Manipulated Mind (27171) and Analysis Paralysis (27173) are not scripted — see the module
-// docblock in `whispers-of-paranoia.ts` for the exact engine/schema gap each is blocked on.
+describe("Analysis Paralysis (27173)", () => {
+  // Ghost-Spider at Sandman, alter-ego form: Sandman schemes and takes one boost card (the Advance filler), then
+  // Analysis Paralysis is P1's dealt encounter card (`down-to-earth.test.ts`'s own "Threat or Menace?" staging). Her
+  // nemesis side scheme is Regenerative Research (27026, starting threat 5), set aside for her at setup.
+  const REGENERATIVE_RESEARCH = "27026";
+  const sandmanGame = (seed = 1) =>
+    startWave5Game(ghostSpiderScenario("sandman", { seed, modularSetIds: [encounterSetId("whispers_of_paranoia")] }));
+
+  const revealAnalysisParalysis = (state: GameState) => {
+    const [paralysis] = instancesOf(state, "27173");
+    const { state: after, events } = driveEventsPicking(
+      WAVE5_DEPS,
+      stackEncounterDeck(state, "01186", "27173"),
+      firstLegal,
+      endTurn(P1),
+    );
+    const revealed = events.flatMap((e) => (e.type === "encounterCardRevealed" ? [e.instanceId] : []));
+    expect(revealed).toContain(paralysis);
+    return { state: after, paralysis: paralysis!, revealed };
+  };
+
+  /** `research` taken out of P1's set-aside area and put at the end of `to` by surgery. */
+  const moveResearch = (state: GameState, research: InstanceId, to: "encounterDiscard" | "victoryDisplay") => {
+    const players = state.players.map((p) =>
+      p.playerId === P1 ? { ...p, setAside: p.setAside.filter((id) => id !== research) } : p,
+    );
+    if (to === "victoryDisplay") return { ...state, players, victoryDisplay: [...state.victoryDisplay, research] };
+    const deckId = state.encounterDeckOrder[0]!;
+    const piles = state.encounterDecks[deckId]!;
+    return {
+      ...state,
+      players,
+      encounterDecks: { ...state.encounterDecks, [deckId]: { ...piles, discard: [...piles.discard, research] } },
+    };
+  };
+
+  it("27173.when-revealed: reveals your set-aside nemesis side scheme, then places X = its threat (5) here: 1 + 5", () => {
+    const state = sandmanGame();
+    const [research] = instancesOf(state, REGENERATIVE_RESEARCH);
+    expect(playerOf(state, P1).setAside).toContain(research);
+    const { state: after, paralysis, revealed } = revealAnalysisParalysis(state);
+    expect(revealed.indexOf(research!)).toBeGreaterThan(revealed.indexOf(paralysis));
+    expect(threatOn(after, research!)).toBe(5);
+    expect(threatOn(after, paralysis)).toBe(6);
+  });
+
+  it("finds it in the encounter discard pile too", () => {
+    const state = sandmanGame(2);
+    const [research] = instancesOf(state, REGENERATIVE_RESEARCH);
+    const {
+      state: after,
+      paralysis,
+      revealed,
+    } = revealAnalysisParalysis(moveResearch(state, research!, "encounterDiscard"));
+    expect(revealed).toContain(research);
+    expect(threatOn(after, research!)).toBe(5);
+    expect(threatOn(after, paralysis)).toBe(6);
+  });
+
+  it("negative: with no nemesis side scheme in the searched areas, nothing is revealed for it and X is 0", () => {
+    const state = sandmanGame(3);
+    const [research] = instancesOf(state, REGENERATIVE_RESEARCH);
+    const {
+      state: after,
+      paralysis,
+      revealed,
+    } = revealAnalysisParalysis(moveResearch(state, research!, "victoryDisplay"));
+    expect(revealed).not.toContain(research);
+    expect(threatOn(after, paralysis)).toBe(1); // its own starting threat only
+  });
+});
+
+// Old Grudge (27172) and Manipulated Mind (27171) are not scripted — see the module docblock in
+// `whispers-of-paranoia.ts` for the exact engine/schema gap each is blocked on.
