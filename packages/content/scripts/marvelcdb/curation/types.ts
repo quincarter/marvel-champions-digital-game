@@ -65,8 +65,15 @@ export interface Correction {
    * `"mainScheme"` rather than "the stage this ability names"); Old Grudge (`sm` 27172, "When Revealed: Search
    * ... for your nemesis minion ... Attach Old Grudge to it.") is `"minion"` (the specific minion is the search's
    * own result). Widen further only with another cited card that needs a different structural kind.
+   *
+   * `"ownWhenRevealed"` (wave 5): the card has no "attach to" text and attaches itself from its own When Revealed, so
+   * the emitted card carries **no** `attachesTo` at all. RRG 1.8 "Reveal" (p. 38) step 2: an attachment without
+   * "attach to" text is placed in front of the revealing player, not in play; ruling, Feb 20, 2026 (4): "If an
+   * attachment lacks 'attach to' text, it attaches when its 'When Revealed' ability triggers". Old Grudge (`sm`
+   * 27172) moved to it from `"minion"`, which made the reveal attach it to an arbitrary minion in play before its
+   * own search ran.
    */
-  readonly impliedAttachHost?: "mainScheme" | "ally" | "minion";
+  readonly impliedAttachHost?: "mainScheme" | "ally" | "minion" | "ownWhenRevealed";
 }
 
 /**

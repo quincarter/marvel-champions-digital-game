@@ -105,7 +105,13 @@ export interface MinionCard extends EncounterCardCommon {
 
 export interface AttachmentCard extends EncounterCardCommon {
   readonly type: "attachment";
-  readonly attachesTo: AttachmentHost;
+  /**
+   * The card's "attach to" text. Absent when the card has none and attaches itself from its own When Revealed
+   * ("Attach Old Grudge to it", `sm` 27172): RRG 1.8 "Reveal" (p. 38) step 2 — "If it does not have 'attach to'
+   * text, place it on the table in front of the player revealing it. (It is not in play.)" — and ruling, Feb 20,
+   * 2026 (4): "If an attachment lacks 'attach to' text, it attaches when its 'When Revealed' ability triggers".
+   */
+  readonly attachesTo?: AttachmentHost;
   /** Printed stat-box modifiers applied to the host (Charge +3 ATK). */
   readonly statModifiers?: PrintedStatModifiers;
 }

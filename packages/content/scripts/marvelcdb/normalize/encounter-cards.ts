@@ -100,8 +100,14 @@ export function normalizeEncounterCard(
       // docs/phase7-wave4.md §1.13: a card with no printed "Attach to X." sentence at all, whose host is
       // established by another card's own effect (`Correction.impliedAttachHost` — Focused Defense, Fallen
       // Warrior). Never inferred automatically; only a cited curation entry supplies it.
-      const attachesTo = parsed.attachesTo ?? (p.impliedAttachHost ? { kind: p.impliedAttachHost } : undefined);
-      if (!attachesTo) {
+      // `"ownWhenRevealed"` (docs/phase7-wave5.md §1.9, Old Grudge): no "attach to" text at all — the card attaches
+      // itself from its own When Revealed (RRG 1.8 "Reveal", p. 38 step 2; ruling, Feb 20, 2026 (4)), so it carries no
+      // `attachesTo`.
+      const ownWhenRevealed = p.impliedAttachHost === "ownWhenRevealed";
+      const attachesTo =
+        parsed.attachesTo ??
+        (p.impliedAttachHost && p.impliedAttachHost !== "ownWhenRevealed" ? { kind: p.impliedAttachHost } : undefined);
+      if (!attachesTo && !ownWhenRevealed) {
         errors.push(`${r.code}: attachment without an attach rule`);
         return;
       }
@@ -142,7 +148,7 @@ export function normalizeEncounterCard(
       const attachment: AttachmentCard = {
         ...common,
         type: "attachment",
-        attachesTo,
+        ...(attachesTo ? { attachesTo } : {}),
         ...(Object.keys(mods).length > 0 ? { statModifiers: mods } : {}),
         ...encounterCommon,
       };

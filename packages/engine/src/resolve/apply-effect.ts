@@ -868,7 +868,9 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
     }
     case "attach": {
       const [host] = targets(effect.to);
-      if (!host) return;
+      // RRG 1.8 "Attach To" (p. 8): a card attaches to a game element in play. "Reveal that minion. Attach Old Grudge
+      // to it." with the minion's reveal cancelled (discarded) has nothing to attach to.
+      if (!host || !cardsInPlay(ctx.state).includes(host)) return;
       for (const id of targets(effect.card)) {
         // "The Power Stone cannot be unattached from Ronan the Accuser" (docs/phase7-wave3.md §3.19).
         const current = getInstance(ctx.state, id)?.attachedTo ?? null;

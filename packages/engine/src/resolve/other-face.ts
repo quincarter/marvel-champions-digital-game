@@ -107,7 +107,8 @@ function relocate(ctx: Ctx, id: InstanceId, to: AnyCard, playerId: PlayerId, dep
       break;
     case "attachment": {
       const context = { selfInstanceId: id, controllerId: playerId, event: null, bindings: {}, deps };
-      const [host] = attachmentHostCandidates(ctx.state, to.attachesTo, context);
+      // No "attach to" text (RRG 1.8 "Reveal", p. 38): no host, so it is discarded (RRG 1.8 "Attach To", p. 8).
+      const [host] = to.attachesTo ? attachmentHostCandidates(ctx.state, to.attachesTo, context) : [];
       if (host) {
         moveCard(ctx, id, { kind: "attachment", hostInstanceId: host });
         updateInstance(ctx, id, (i) => ({ ...i, controllerId: null, engagedWith: null }));

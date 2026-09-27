@@ -51,8 +51,10 @@ export const SM_CURATION: PackCuration = {
     },
     // docs/phase7-wave5.md §1.9: Old Grudge's own When Revealed reads "Search the encounter deck, discard pile,
     // and set-aside area for your nemesis minion, then reveal that minion. Attach Old Grudge to it. (Shuffle.)" —
-    // an "Attach <name> to <target>" clause, not "Attach to <target>."; the target is the search's own result
-    // (whichever minion turns out to be the nemesis), so the structural host is the generic "minion" category.
+    // an "Attach <name> to <target>" clause, not "Attach to <target>."; the target is the search's own result. It has
+    // no "attach to" text, so it carries no `attachesTo`: RRG 1.8 "Reveal" (p. 38) step 2 places it in front of the
+    // revealing player (not in play) and its When Revealed attaches it (ruling, Feb 20, 2026 (4)). A generic
+    // `"minion"` host made the reveal attach it to whichever minion was in play before the search ran.
     {
       code: "27172",
       reason:
@@ -60,7 +62,7 @@ export const SM_CURATION: PackCuration = {
         'minion" and then "Attach[es] Old Grudge to it" — an "Attach <name> to <target>" clause inside the ' +
         "ability body, naming no fixed host.",
       evidence: 'raw 27172 real_text: "When Revealed: Search ... for your nemesis minion ... Attach Old Grudge to it."',
-      impliedAttachHost: "minion",
+      impliedAttachHost: "ownWhenRevealed",
     },
     // docs/phase7-wave5.md §1.8: the eight S.H.I.E.L.D. Tech upgrades print "Setup. Permanent." with a cost of "—"
     // (MC27 p. 4 callout, "UPGRADE –"). MarvelCDB sends no `cost` field at all for each, which is otherwise
