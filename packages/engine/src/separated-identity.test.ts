@@ -345,3 +345,101 @@ describe("§3.24 with §3.31: the non-identity sides cannot be blanked", () => {
     expect(hasKeyword(heroState, other, "permanent", deps)).toBe(true);
   });
 });
+
+// docs/phase7-wave5.md §4.1 Q50: what the other card discards on a form change (an attachment the identity cannot take)
+// gets its "when this leaves play" interrupt before either card flips, still in play (RRG 1.8 "Interrupt", p. 25; §4.1
+// Q17, Q32); a permanent one the identity cannot take stays on the other card (RRG 1.8 "Permanent", p. 32; "Flip",
+// p. 20). The ones it can take still move to it (§4.1 Q38).
+describe("§4.1 Q50 the other card's discarded attachments wait for their leave interrupts", () => {
+  const identityRef = { kind: "identityOf", player: { kind: "controller" } } as const;
+  const suitStillASupport = { kind: "count", query: { categories: ["support"], name: "Suit" } } as const;
+  /** "Identities cannot have upgrades attached." plus "Forced Interrupt: When this leaves play, …" (a test stub). */
+  const TAG_RULE = stubAbility("tag.constant", {
+    trigger: {
+      kind: "constant",
+      rules: [{ kind: "cannotHaveAttachments", target: { categories: ["identity"] }, from: "upgrade" }],
+    },
+    effects: [],
+  });
+  const TAG_INTERRUPT = stubAbility("tag.interrupt", {
+    trigger: { kind: "interrupt", forced: true, on: { on: "cardLeavesPlay", selfIs: "target" } },
+    effects: [
+      { kind: "addCounters", target: identityRef, counterType: "interrupt", amount: { kind: "const", value: 1 } },
+      { kind: "addCounters", target: identityRef, counterType: "suitUnflipped", amount: suitStillASupport },
+    ],
+  });
+  const TAG = stubUpgrade({ id: "tag", cost: 0, abilities: [TAG_RULE.ref, TAG_INTERRUPT.ref] });
+  const PERMANENT_TAG = stubUpgrade({
+    id: "tag",
+    cost: 0,
+    keywords: [{ name: "permanent" }],
+    abilities: [TAG_RULE.ref, TAG_INTERRUPT.ref],
+  });
+  const tagDeps: EngineDeps = depsOf(SUIT_UNBLANKABLE, PILOT_UNBLANKABLE, SELF_DESTRUCT, TAG_RULE, TAG_INTERRUPT);
+
+  /** P1 (SP//dr, alter-ego form) with `tag` attached to the INACTIVE support side (test surgery). */
+  function tagged(tag: typeof TAG): { readonly state: GameState; readonly tag: InstanceId } {
+    const [first, second] = config.players;
+    const result = createGame(
+      {
+        ...config,
+        cards: [...config.cards, tag],
+        players: [{ ...first!, deck: [...first!.deck, tag.id] }, second!],
+      },
+      tagDeps,
+    );
+    if (!result.ok) throw new Error(result.error.message);
+    const state = driveSession(startSession(result.state), tagDeps).session.state;
+    const tagId = [...seat(state).hand, ...seat(state).deck].find((id) => mustInstance(state, id).cardId === tag.id);
+    if (!tagId) throw new Error("no tag in the hand or deck");
+    const other = otherCardId(state);
+    const without = (ids: readonly InstanceId[]) => ids.filter((id) => id !== tagId);
+    const placed: GameState = {
+      ...state,
+      players: state.players.map((p) =>
+        p.playerId === P1 ? { ...p, hand: without(p.hand), deck: without(p.deck) } : p,
+      ),
+    };
+    const attached = patch(patch(placed, tagId, { attachedTo: other, faceup: true, controllerId: P1 }), other, {
+      attachments: [tagId],
+    });
+    return { state: attached, tag: tagId };
+  }
+
+  it("to hero: the tag's interrupt resolves with the Suit still a support, then both cards flip and the tag is discarded; replay deep-equal", () => {
+    const { state, tag } = tagged(TAG);
+    const other = otherCardId(state);
+    const { session, events } = driveSession(startSession(state), tagDeps, [changeForm]);
+    const after = session.state;
+    expect(seat(after).identity).toMatchObject({ form: "hero", changedFormThisRound: true });
+    expect(mustInstance(after, identityId(after)).counters).toMatchObject({ interrupt: 1, suitUnflipped: 1 });
+    expect(seat(after).discard).toContain(tag);
+    expect(mustInstance(after, other)).toMatchObject({ cardId: UPGRADE_SIDE, attachments: [] });
+    const resolvedAt = events.findIndex((e) => e.type === "abilityResolved" && e.abilityId === TAG_INTERRUPT.ref.id);
+    const flippedAt = events.findIndex((e) => e.type === "separatedCardFlipped");
+    const formAt = events.findIndex((e) => e.type === "formChanged");
+    expect(resolvedAt).toBeGreaterThanOrEqual(0);
+    expect(resolvedAt).toBeLessThan(flippedAt);
+    expect(flippedAt).toBeLessThan(formAt);
+    expect(after.stack).toEqual([]);
+    const replayed = replay(session.log, tagDeps);
+    if (!replayed.ok) throw new Error(replayed.error.message);
+    expect(replayed.state).toEqual(session.state);
+  });
+
+  it("a permanent tag the identity cannot take stays attached to the other card as it flips; replay deep-equal", () => {
+    const { state, tag } = tagged(PERMANENT_TAG);
+    const other = otherCardId(state);
+    const { session } = driveSession(startSession(state), tagDeps, [changeForm]);
+    const after = session.state;
+    expect(seat(after).identity.form).toBe("hero");
+    expect(mustInstance(after, other)).toMatchObject({ cardId: UPGRADE_SIDE, attachedTo: identityId(after) });
+    expect(mustInstance(after, other).attachments).toEqual([tag]);
+    expect(mustInstance(after, tag).attachedTo).toBe(other);
+    expect(seat(after).discard).not.toContain(tag);
+    expect(mustInstance(after, identityId(after)).counters).not.toHaveProperty("interrupt");
+    const replayed = replay(session.log, tagDeps);
+    if (!replayed.ok) throw new Error(replayed.error.message);
+    expect(replayed.state).toEqual(session.state);
+  });
+});

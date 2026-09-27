@@ -31,7 +31,8 @@
  *   the identity too, as the same printed interrupts word it ("moving all counters on this card and cards attached to
  *   this card to her" / "… to SP//dr Suit"): user ruling, docs/phase7-wave5.md §4.1 Q38, over RRG 1.8 "Flip" (p. 20),
  *   which would discard them from a card that flips to another card type. An attachment the identity cannot take
- *   (`canHaveAttached`) is discarded as "Flip" would. "Counters" are all-purpose counters (RRG 1.8 "All-Purpose
+ *   (`canHaveAttached`) is discarded as "Flip" would, its "when this leaves play" interrupts first, with both cards
+ *   unflipped (`separatedFlipWaits`), and a permanent one stays on the other card. "Counters" are all-purpose counters (RRG 1.8 "All-Purpose
  *   Counter", p. 6); the other card's damage and threat tokens, tucked cards and status cards are none of those, so
  *   "Flip" still discards them.
  * - Status cards on the identity stay with it: RRG 1.8 "Form, Change Form" (p. 21), "The character retains their
@@ -52,12 +53,13 @@ import {
   type UpgradeCard,
 } from "@mc/content";
 import { type Ctx, emit, moveCard, updateInstance } from "./ctx.js";
-import { leavePlayAtOnce, moveCounters } from "./effects.js";
+import { leavePlayAtOnce, moveCounters, waitsForHostStep } from "./effects.js";
 import type { InstanceId, PlayerId } from "./ids.js";
 import { discardZoneFor, getInstance, locateCard, mustInstance, mustPlayer } from "./query.js";
 import { enterPlay } from "./resolve/enter-play.js";
 import { canHaveAttached } from "./rules.js";
-import { NO_STATUSES, type Form } from "./state.js";
+import { NO_STATUSES, type Form, type GameState } from "./state.js";
+import type { HostStep } from "./trigger-events.js";
 
 /** Which physical card's non-identity side: the hero card's (a support) or the alter-ego card's (an upgrade). */
 export type SeparatedSide = "heroCardOtherSide" | "alterEgoCardOtherSide";
@@ -127,6 +129,38 @@ export function putSeparatedCardIntoPlay(ctx: Ctx, playerId: PlayerId): void {
 }
 
 /**
+ * Whether a form change to `to` must wait, as `step`, for the "when this leaves play" interrupts of the cards attached
+ * to the other card that the identity cannot take (`canHaveAttached`) and `flipSeparatedCard` therefore discards: they
+ * resolve while everything is still in play, before either card flips (RRG 1.8 "Interrupt", p. 25; docs/phase7-wave5.md
+ * §4.1 Q17, Q32), and the change then runs from the stack (`runHostStep`). The ones the identity can take move to it
+ * (§4.1 Q38) and do not leave play. Whether the identity can take one is read as it will be once the form has changed,
+ * as `flipSeparatedCard` reads it. The other card stays in play, so this is a flip (`leavingWithHost`'s `flip`).
+ */
+export function separatedFlipWaits(
+  ctx: Ctx,
+  playerId: PlayerId,
+  to: Form,
+  heroFormIndex: number | null,
+  step: HostStep,
+): boolean {
+  const player = mustPlayer(ctx.state, playerId);
+  const id = player.identity.separatedCardInstanceId;
+  if (!id || !getInstance(ctx.state, id)) return false;
+  const where = locateCard(ctx.state, id);
+  if (where?.kind !== "playArea" && where?.kind !== "attachment") return false;
+  if (mustInstance(ctx.state, id).cardId === separatedSideCardId(player.identity.cardId, separatedSideIn(to)))
+    return false;
+  const identityId = player.identity.instanceId;
+  const changed: GameState = {
+    ...ctx.state,
+    players: ctx.state.players.map((p) =>
+      p.playerId === playerId ? { ...p, identity: { ...p.identity, form: to, heroFormIndex } } : p,
+    ),
+  };
+  return waitsForHostStep(ctx, [id], step, (attachment) => canHaveAttached(changed, ctx.deps, identityId, attachment));
+}
+
+/**
  * The other card's half of a form change (see the file comment): move its counters and attachments to the identity
  * (Q38), discard the rest of what the RRG "Flip" rule discards from it, swap ready states with the identity, show the
  * side for the new form, and attach it to the identity (hero form) or return it to the play area (alter-ego form).
@@ -154,6 +188,10 @@ export function flipSeparatedCard(ctx: Ctx, playerId: PlayerId, to: Form): void 
       movedAttachments.push(attachment);
     } else leavePlayAtOnce(ctx, attachment, discardZoneFor(ctx.state, attachment), "top", true);
   }
+  // What the discard left stays attached to the other card, which flips but stays in play: one whose own leaving an
+  // interrupt cancelled (RRG 1.8 "Cancel", p. 11; §4.1 Q53), and a permanent or "cannot leave play" one, which the Flip
+  // rule's discard cannot move (RRG 1.8 "Permanent", p. 32; docs/phase7-wave5.md §4.1 Q50).
+  const kept = mustInstance(ctx.state, id).attachments;
   // RRG 1.8 "Flip" (p. 20): what no printed text moves (tucked cards, status cards, damage and threat) is discarded.
   for (const card of before.tucked) {
     if (ctx.state.instances[card]) moveCard(ctx, card, discardZoneFor(ctx.state, card), "top");
@@ -169,7 +207,7 @@ export function flipSeparatedCard(ctx: Ctx, playerId: PlayerId, to: Form): void 
     statuses: NO_STATUSES,
     counters: {},
     tucked: [],
-    attachments: [],
+    attachments: kept,
   }));
   if (to === "hero") moveCard(ctx, id, { kind: "attachment", hostInstanceId: identityId });
   else moveCard(ctx, id, { kind: "playArea", playerId });

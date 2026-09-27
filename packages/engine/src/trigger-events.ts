@@ -682,6 +682,17 @@ export type HostStep =
       readonly reveal: boolean;
       readonly playerId: PlayerId;
     }
+  /**
+   * `setForm` for a separated identity whose other card flips with it and discards what the identity cannot take
+   * (`separatedFlipWaits`, docs/phase7-wave5.md §4.1 Q50); its `formChanged` announcement follows the change.
+   */
+  | {
+      readonly kind: "setForm";
+      readonly playerId: PlayerId;
+      readonly to: "hero" | "alterEgo";
+      readonly voluntary: boolean;
+      readonly heroFormIndex: number;
+    }
   /** `flipToOtherFace` to a new card type, from a "flip this card" (`cardFlipped` after). */
   | { readonly kind: "flipToOtherFace"; readonly id: InstanceId; readonly playerId: PlayerId };
 

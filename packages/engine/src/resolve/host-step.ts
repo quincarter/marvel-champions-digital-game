@@ -7,6 +7,7 @@
  */
 
 import { type Ctx, pushFrames } from "../ctx.js";
+import { setForm } from "../effects.js";
 import type { HostStep } from "../trigger-events.js";
 import { eventFrame } from "./frames.js";
 import {
@@ -26,6 +27,12 @@ export function runHostStep(ctx: Ctx, step: HostStep): void {
       return setVillainsAside(ctx, step.ids);
     case "removeMainSchemeStage":
       return removeMainSchemeStage(ctx, step.schemeId);
+    case "setForm": {
+      // The caller that waited would have pushed its announcement (`changeForm`, `executeChangeForm`).
+      const changed = setForm(ctx, step.playerId, step.to, step.voluntary, step.heroFormIndex);
+      if (changed) pushFrames(ctx, [eventFrame(ctx, changed)]);
+      return;
+    }
     case "joinGameArea":
       // Its frames discard duplicate unique cards in the joined area (`executeJoinGameArea`).
       pushFrames(ctx, joinGameArea(ctx, step.fromId, step.intoId));

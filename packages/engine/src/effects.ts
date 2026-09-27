@@ -39,7 +39,7 @@ import {
 } from "./rules.js";
 import { eventFrame, pushEvent } from "./resolve/frames.js";
 import { moveCardsTo } from "./resolve/cards.js";
-import { flipSeparatedCard } from "./separated-identity.js";
+import { flipSeparatedCard, separatedFlipWaits } from "./separated-identity.js";
 import { describeFrame, type StackFrame } from "./stack.js";
 import { releaseTreatedBy } from "./treat-as.js";
 import {
@@ -80,6 +80,11 @@ export function setForm(
   const nextIndex = to === "hero" ? heroFormIndex : null;
   const fromIndex = player.identity.heroFormIndex;
   if (player.identity.form === to && fromIndex === nextIndex) return null;
+  // A separated identity's other card discards what the identity cannot take: their "when this leaves play" interrupts
+  // resolve first, before either card flips, and the change then runs from the stack (`runHostStep`, which pushes this
+  // announcement), so a caller gets null now (docs/phase7-wave5.md §4.1 Q50).
+  const step = { kind: "setForm", playerId, to, voluntary, heroFormIndex } as const;
+  if (player.identity.form !== to && separatedFlipWaits(ctx, playerId, to, nextIndex, step)) return null;
   updatePlayer(ctx, playerId, (p) => ({
     ...p,
     identity: {
@@ -879,16 +884,22 @@ export function waitsForLeaveInterrupts(
  * window (docs/phase7-wave5.md §4.1 Q32–Q33). The first attachment's `withHost` leaving carries `step` and runs it when
  * it applies (`runHostStep`), calling the same function again, which then goes ahead because the attachments' leavings
  * are already on the stack. Returns true when the caller must stop. With no interrupt hearing any attachment it returns
- * false (a listener for the responses still hears them after the move, `pendingLeftPlay`).
+ * false (a listener for the responses still hears them after the move, `pendingLeftPlay`). `stays`: attachments the
+ * change moves elsewhere instead of discarding (`leavingWithHost`).
  */
-export function waitsForHostStep(ctx: Ctx, hostIds: readonly InstanceId[], step: HostStep): boolean {
+export function waitsForHostStep(
+  ctx: Ctx,
+  hostIds: readonly InstanceId[],
+  step: HostStep,
+  stays?: (attachment: InstanceId) => boolean,
+): boolean {
   if (!listensForLeavingPlay(ctx.deps)) return false;
   // Already waited: some attachment (or an attachment's attachment, §4.1 Q50) has its leaving on the stack.
   const attachments = hostIds.flatMap((host) => attachedTree(ctx.state, host));
   if (attachments.some((attachment) => leavingFrameFor(ctx.state, attachment) !== undefined)) return false;
   // A flipped host stays in play; every other step takes its host out of play (§4.1 Q50).
-  const how = step.kind === "flipMainSchemeStage" || step.kind === "flipToOtherFace" ? "flip" : "leaveNow";
-  const companions = hostIds.flatMap((host) => leavingWithHost(ctx, host, how));
+  const flips = step.kind === "flipMainSchemeStage" || step.kind === "flipToOtherFace" || step.kind === "setForm";
+  const companions = hostIds.flatMap((host) => leavingWithHost(ctx, host, flips ? "flip" : "leaveNow", stays));
   if (!companions.some((event) => hasCandidates(ctx.state, ctx.deps, event, "interrupt"))) return false;
   const [first, ...rest] = companions;
   if (first?.kind !== "cardLeavesPlay" || first.leaving?.kind !== "withHost") return false;
@@ -917,18 +928,21 @@ export function attachmentsWaitForHost(ctx: Ctx, hostId: InstanceId): boolean {
  * - `defeat`: the same, but a Victory X one goes to the victory display (`defeatFromPlay`);
  * - `flip`: the host flips to another card type and stays in play (RRG 1.8 "Flip", p. 20): its attachments are
  *   discarded (`discardAtOnce`), except a permanent or "cannot leave play" one, which stays attached.
- * An attachment already leaving on its own is not listed. The attachments of one that leaves follow it, depth first,
- * each naming its own host (§4.1 Q50).
+ * An attachment already leaving on its own is not listed, nor one `stays` names (moved elsewhere rather than discarded:
+ * a separated identity's other card handing its attachments to the identity, `separatedFlipWaits`). The attachments of
+ * one that leaves follow it, depth first, each naming its own host (§4.1 Q50).
  */
 export function leavingWithHost(
   ctx: Ctx,
   hostId: InstanceId,
   how: "leaveNow" | "defeat" | "flip",
+  stays?: (attachment: InstanceId) => boolean,
 ): readonly TriggerEvent[] {
   if (!listensForLeavingPlay(ctx.deps)) return [];
   const events: TriggerEvent[] = [];
   for (const attachment of getInstance(ctx.state, hostId)?.attachments ?? []) {
     if (!ctx.state.instances[attachment] || leavingFrameFor(ctx.state, attachment)) continue;
+    if (stays?.(attachment)) continue;
     const blocked = staysInPlayWithoutHost(ctx, attachment);
     const discarded = () =>
       leaveDestinationKind(ctx.state, ctx.deps, attachment, discardZoneFor(ctx.state, attachment).kind, true);
