@@ -1466,6 +1466,21 @@ export const placeOnTopOrBottom = (from: CardSelector, chooser: PlayerRef = you)
   to: "encounterDeckTopOrBottom",
 });
 /**
+ * "Look at the top 4 cards of a player deck … put the others on the top and/or bottom of that deck in any order"
+ * (Global Logistics, `sm` 27043; docs/phase7-wave5.md §4.1 Q60): `placeOnTopOrBottom` for `deckOwner`'s player deck.
+ */
+export const placeOnTopOrBottomOfPlayerDeck = (
+  from: CardSelector,
+  deckOwner: PlayerRef = you,
+  chooser: PlayerRef = you,
+): EffectSpec => ({
+  kind: "reorderCards",
+  cards: from,
+  chooser,
+  to: "playerDeckTopOrBottom",
+  deckOwner,
+});
+/**
  * "Deal N indirect damage to each player" / "…to you" (RRG 1.8 "Indirect Damage"): each player divides it among the
  * characters they control. `to: "group"` has the first player divide it among every friendly character.
  */

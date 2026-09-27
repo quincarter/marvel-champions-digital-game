@@ -48,12 +48,16 @@ export type ChoicePrompt =
    * for the bottom becomes the deck's bottom card.
    */
   | { readonly kind: "orderCards"; readonly to: "encounterDeckTop" | "encounterDeckBottom" }
+  /** The same two piles going back into `deckOwner`'s player deck (docs/phase7-wave5.md §4.1 Q60). */
+  | { readonly kind: "orderCards"; readonly to: "playerDeckTop" | "playerDeckBottom"; readonly deckOwner: PlayerId }
   /**
    * "Place the rest on the top and/or bottom of the encounter deck" (docs/phase7-wave3.md §3.48): select the cards that
    * go to the bottom; every card not selected goes on top. Any number may be selected, none included. Each pile of two
    * or more cards is then ordered (`orderCards`).
    */
   | { readonly kind: "chooseBottomCards"; readonly deck: "encounterDeck" }
+  /** The same split for cards going back into `deckOwner`'s player deck (docs/phase7-wave5.md §4.1 Q60). */
+  | { readonly kind: "chooseBottomCards"; readonly deck: "playerDeck"; readonly deckOwner: PlayerId }
   /** Optional interrupts/responses: a controller picks which of theirs to use, in order. */
   | { readonly kind: "chooseTriggers"; readonly event: TriggerEvent; readonly timing: WindowTiming }
   | { readonly kind: "chooseTarget"; readonly slot: string; readonly abilityId: AbilityId | null }

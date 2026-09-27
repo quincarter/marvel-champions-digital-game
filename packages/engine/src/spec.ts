@@ -1793,12 +1793,25 @@ export type EffectSpec =
    * cards go to the bottom (`ChoicePrompt chooseBottomCards`), then the order of the top pile, then the order of the
    * bottom pile (`orderCards`, `to: "encounterDeckTop"` / `"encounterDeckBottom"`). No card moves until every answer
    * is in.
+   *
+   * `to: "playerDeckTopOrBottom"`: the same three questions for cards looked at from a player's deck — "look at the
+   * top 4 cards of a player deck … put the others on the top and/or bottom of that deck in any order" (Global
+   * Logistics, `sm` 27043; docs/phase7-wave5.md §4.1 Q60). `deckOwner` names whose deck they go back into; the prompts
+   * are `chooseBottomCards` with `deck: "playerDeck"` and `orderCards` to `"playerDeckTop"` / `"playerDeckBottom"`,
+   * each naming that `deckOwner`.
    */
   | {
       readonly kind: "reorderCards";
       readonly cards: CardSelector;
       readonly chooser: PlayerRef;
       readonly to: "encounterDeckTop" | "encounterDeckTopOrBottom";
+    }
+  | {
+      readonly kind: "reorderCards";
+      readonly cards: CardSelector;
+      readonly chooser: PlayerRef;
+      readonly to: "playerDeckTopOrBottom";
+      readonly deckOwner: PlayerRef;
     }
   /**
    * "Set his hit point dial to 1 instead" (Captain America's Helmet), as a replacement for a defeat. RRG 1.8 "Hit

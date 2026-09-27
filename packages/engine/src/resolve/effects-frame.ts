@@ -19,7 +19,7 @@ import type { ChoiceOption, ChoicePrompt } from "../choices.js";
 import { type Ctx, emit, moveCard, popFrame, pushFrames, requestChoice, setFrame, updateFrame } from "../ctx.js";
 import { dealEncounterCardTo, discardFromHand, setForm, settleAwaitingAttackEffects } from "../effects.js";
 import { cannotChangeForm } from "../rules.js";
-import type { GameState } from "../state.js";
+import type { GameState, ZoneId } from "../state.js";
 import type { TriggerEvent } from "../trigger-events.js";
 import { type InstanceId, instanceId as asInstanceId, playerId as asPlayerId, type PlayerId } from "../ids.js";
 import {
@@ -654,7 +654,7 @@ function executeReorderCards(
   effect: Extract<EffectSpec, { kind: "reorderCards" }>,
   context: EffectContext,
 ): void {
-  if (effect.to === "encounterDeckTopOrBottom") return executePlaceTopOrBottom(ctx, frame, effect, context);
+  if (effect.to !== "encounterDeckTop") return executePlaceTopOrBottom(ctx, frame, effect, context);
   const ids = selectCards(ctx, effect.cards, context);
   const [chooser] = resolvePlayers(ctx.state, effect.chooser, context);
   if (frame.answer === null && ids.length > 1 && chooser) {
@@ -701,6 +701,10 @@ function orderedAnswer(answer: readonly string[] | null, pile: readonly Instance
  * Both orders read top-down, the way the deck will: the first card of the top pile becomes the deck's top card, the
  * last card of the bottom pile its bottom card. Nothing moves until the last answer, then every card moves at once
  * (one `cardMoved` each). A malformed answer keeps the cards in the order they were looked at, all on top for the split.
+ *
+ * `to: "playerDeckTopOrBottom"` (docs/phase7-wave5.md §4.1 Q60) asks the same three questions and puts the cards into
+ * `deckOwner`'s player deck instead. A `deckOwner` that names no player leaves the cards where they are. Cards moved
+ * within one player deck never empty it mid-move, so no reset (RRG 1.8 "Player Deck", p. 33) can fire from this.
  */
 function executePlaceTopOrBottom(
   ctx: Ctx,
@@ -708,6 +712,18 @@ function executePlaceTopOrBottom(
   effect: Extract<EffectSpec, { kind: "reorderCards" }>,
   context: EffectContext,
 ): void {
+  const target = placeTarget(ctx, effect, context);
+  const withoutPlace = (): Frame<"effects"> => ({
+    ...frame,
+    answer: null,
+    vars: Object.fromEntries(Object.entries(frame.vars).filter(([key]) => !key.startsWith("_place."))),
+    bindings: Object.fromEntries(Object.entries(frame.bindings).filter(([key]) => !key.startsWith("_place."))),
+    cursor: frame.cursor + 1,
+  });
+  if (!target) {
+    setFrame(ctx, withoutPlace());
+    return;
+  }
   const [chooser] = resolvePlayers(ctx.state, effect.chooser, context);
   const step = frame.vars["_place.step"] ?? 0;
   const advance = (next: number, top: readonly InstanceId[], bottom: readonly InstanceId[]): void =>
@@ -732,7 +748,7 @@ function executePlaceTopOrBottom(
   if (step === 0) {
     const ids = selectCards(ctx, effect.cards, context);
     if (frame.answer === null && ids.length > 0 && chooser) {
-      ask({ kind: "chooseBottomCards", deck: "encounterDeck" }, ids, 0, false);
+      ask(target.split, ids, 0, false);
       return;
     }
     const bottom = ids.filter((id) => (frame.answer ?? []).includes(id));
@@ -748,24 +764,53 @@ function executePlaceTopOrBottom(
   const bottom = frame.bindings["_place.bottom"] ?? [];
   if (step === 1) {
     if (frame.answer === null && top.length > 1 && chooser) {
-      ask({ kind: "orderCards", to: "encounterDeckTop" }, top, top.length, true);
+      ask(target.orderTop, top, top.length, true);
       return;
     }
     advance(2, orderedAnswer(frame.answer, top), bottom);
     return;
   }
   if (frame.answer === null && bottom.length > 1 && chooser) {
-    ask({ kind: "orderCards", to: "encounterDeckBottom" }, bottom, bottom.length, true);
+    ask(target.orderBottom, bottom, bottom.length, true);
     return;
   }
   const bottomOrder = orderedAnswer(frame.answer, bottom);
-  const vars = Object.fromEntries(Object.entries(frame.vars).filter(([key]) => !key.startsWith("_place.")));
-  const bindings = Object.fromEntries(Object.entries(frame.bindings).filter(([key]) => !key.startsWith("_place.")));
-  setFrame(ctx, { ...frame, answer: null, vars, bindings, cursor: frame.cursor + 1 });
-  const deck = { kind: "encounterDeck", deckId: activeEncounterDeckId(ctx.state) } as const;
+  setFrame(ctx, withoutPlace());
+  const deck = target.deck;
   // Each bottom card goes under the last, so the pile keeps its top-down order; the top pile is placed last card first.
   for (const id of bottomOrder) moveCard(ctx, id, deck, "bottom");
   for (const id of [...top].reverse()) moveCard(ctx, id, deck, "top");
+}
+
+/** Where a top-or-bottom `reorderCards` puts its cards, and the three prompts that ask how; `null` for no deck. */
+interface PlaceTarget {
+  readonly deck: ZoneId;
+  readonly split: ChoicePrompt;
+  readonly orderTop: ChoicePrompt;
+  readonly orderBottom: ChoicePrompt;
+}
+
+function placeTarget(
+  ctx: Ctx,
+  effect: Extract<EffectSpec, { kind: "reorderCards" }>,
+  context: EffectContext,
+): PlaceTarget | null {
+  if (effect.to !== "playerDeckTopOrBottom") {
+    return {
+      deck: { kind: "encounterDeck", deckId: activeEncounterDeckId(ctx.state) },
+      split: { kind: "chooseBottomCards", deck: "encounterDeck" },
+      orderTop: { kind: "orderCards", to: "encounterDeckTop" },
+      orderBottom: { kind: "orderCards", to: "encounterDeckBottom" },
+    };
+  }
+  const [deckOwner] = resolvePlayers(ctx.state, effect.deckOwner, context);
+  if (deckOwner === undefined) return null;
+  return {
+    deck: { kind: "deck", playerId: deckOwner },
+    split: { kind: "chooseBottomCards", deck: "playerDeck", deckOwner },
+    orderTop: { kind: "orderCards", to: "playerDeckTop", deckOwner },
+    orderBottom: { kind: "orderCards", to: "playerDeckBottom", deckOwner },
+  };
 }
 
 const cardOptions = (ctx: Ctx, ids: readonly InstanceId[]): readonly ChoiceOption[] =>
