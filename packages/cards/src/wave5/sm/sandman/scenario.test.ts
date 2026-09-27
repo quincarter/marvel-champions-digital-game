@@ -1,4 +1,4 @@
-import { encounterSetId } from "@mc/content";
+import { CORE_CARDS, encounterSetId } from "@mc/content";
 import { activeEncounterDeck, activeVillain, createGame, replay } from "@mc/engine";
 import { describe, expect, it, test } from "vitest";
 import { inst, instancesOf, playerOf, P1 } from "../../../testing/harness.js";
@@ -42,6 +42,23 @@ describe("wave5Scenario('sandman')", () => {
     const created = createGame(config, WAVE5_DEPS);
     if (!created.ok) throw new Error(created.error.message);
     expect([activeVillain(created.state).stageIndex, activeVillain(created.state).lastStageIndex]).toEqual([1, 2]);
+  });
+
+  it("expert adds Core's Expert encounter set; standard doesn't (RRG 1.8 \"Modes of Play\", Expert Mode)", () => {
+    const expertIds = new Set(
+      CORE_CARDS.filter(
+        (card) => "encounterSetIds" in card && card.encounterSetIds.includes(encounterSetId("expert")),
+      ).map((card) => card.id as string),
+    );
+    expect(expertIds.size).toBeGreaterThan(0);
+    const inDeck = (difficulty: "standard" | "expert") =>
+      ghostSpiderScenario("sandman", {
+        seed: 3,
+        difficulty,
+        modularSetIds: [encounterSetId("bomb_scare")],
+      }).encounterDeck.filter((id) => expertIds.has(id as string));
+    expect(inDeck("standard")).toEqual([]);
+    expect(inDeck("expert").length).toBeGreaterThan(0);
   });
 
   it("refuses The Sinister Six (multipleVillains) — not built by this scaffold", () => {

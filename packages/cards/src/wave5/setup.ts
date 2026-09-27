@@ -33,13 +33,15 @@ const cardsById = new Map<string, AnyCard>(WAVE5_CARDS.map((card) => [card.id, c
  * `sm`'s scenario records carry empty `standardEncounterSetIds`/`expertEncounterSetIds` (docs/phase7-wave5.md
  * `scenarios.ts` docblock: the box's raw MarvelCDB pack has no `standard`/`expert` `card_set_code` of its own — the
  * physical cards are Core's, reused across products the way "and Standard encounter sets" is printed in every box's
- * rulebook without the box carrying its own copies). None of the box's five 1A Setups print an Expert set at all
- * (docs/phase7-wave5.md §2.2's own table), only "Standard", so this scaffold adds Core's own `standard` set to
- * every `sm` scenario's deck unconditionally rather than reading the (empty) scenario fields — a data gap flagged
- * for `card-data-pipeline`, worked around here rather than left to silently under-build every `sm` scenario's
- * encounter deck. Revisit (and drop this constant) once `SM_SCENARIOS` carries the real set ids.
+ * rulebook without the box carrying its own copies). So this scaffold adds Core's own `standard` set to every `sm`
+ * scenario's deck, and Core's `expert` set in expert mode, rather than reading the (empty) scenario fields. The
+ * box's 1A Setups print only "Standard", but expert mode adds the Expert encounter set to every scenario (RRG 1.8
+ * "Modes of Play", Expert Mode: "add the Expert encounter set to encounter deck"). A data gap flagged for
+ * `card-data-pipeline`, worked around here rather than left to silently under-build every `sm` scenario's encounter
+ * deck. Revisit (and drop these constants) once `SM_SCENARIOS` carries the real set ids.
  */
 const SM_STANDARD_SET_IDS = [encounterSetId("standard")];
+const SM_EXPERT_SET_IDS = [encounterSetId("expert")];
 
 /**
  * A single-villain `SM_SCENARIOS` record (Sandman, Venom, Mysterio; not Venom Goblin's lettered main scheme or The
@@ -67,6 +69,7 @@ function buildSmSingleVillain(scenario: (typeof SM_SCENARIOS)[number], options: 
     ...scenario.encounterSetIds,
     ...(options.modularSetIds ?? scenario.recommendedModularSetIds),
     ...SM_STANDARD_SET_IDS,
+    ...(difficulty === "expert" ? SM_EXPERT_SET_IDS : []),
   ];
   if (options.players.length < 1 || options.players.length > 4) throw new Error("a game has 1-4 players");
   return {
