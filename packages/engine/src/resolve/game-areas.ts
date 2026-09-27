@@ -6,14 +6,7 @@
  */
 
 import { type Ctx, emit, moveCard, nextInstanceId, updateInstance } from "../ctx.js";
-import {
-  discardAtOnce,
-  discardWithLeavingHost,
-  giveStatus,
-  leavingCancelled,
-  setActiveVillain,
-  waitsForHostStep,
-} from "../effects.js";
+import { discardAtOnce, discardWithLeavingHost, giveStatus, setActiveVillain, waitsForHostStep } from "../effects.js";
 import { gameAreaId, type GameAreaId, type InstanceId, type PlayerId } from "../ids.js";
 import { hasKeyword } from "../keywords.js";
 import {
@@ -588,9 +581,10 @@ export function flipMainSchemeStage(
     ? { ...ctx.state, mainScheme: promoted!, extraMainSchemes: rest }
     : { ...ctx.state, extraMainSchemes: extras.filter((s) => s.instanceId !== schemeId) };
   for (const attachment of [...mustInstance(ctx.state, schemeId).attachments]) discardAtOnce(ctx, attachment);
-  // An attachment whose own leaving was cancelled stays attached: the stage flips but stays in play, and only its
-  // discard was cancelled (RRG 1.8 "Cancel", p. 11; "Attach To", p. 8; docs/phase7-wave5.md §4.1 Q53).
-  const kept = mustInstance(ctx.state, schemeId).attachments.filter((a) => leavingCancelled(ctx.state, a));
+  // What the discard left stays attached, since the stage flips but stays in play: an attachment whose own leaving was
+  // cancelled (RRG 1.8 "Cancel", p. 11; §4.1 Q53), and a permanent or "cannot leave play" one, which the Flip rule's
+  // discard cannot move (RRG 1.8 "Permanent", p. 32; "Attach To", p. 8; docs/phase7-wave5.md §4.1 Q50).
+  const kept = mustInstance(ctx.state, schemeId).attachments;
   const tokens = scheme.accelerationTokens;
   const from = mustInstance(ctx.state, schemeId).cardId;
   updateInstance(ctx, schemeId, (i) => ({

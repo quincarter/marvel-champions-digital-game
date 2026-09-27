@@ -16,7 +16,7 @@
 import type { AnyCard, CardId } from "@mc/content";
 import type { EngineDeps } from "../abilities.js";
 import { type Ctx, emit, moveCard, updateInstance } from "../ctx.js";
-import { leavePlay, leavePlayAtOnce, leavingCancelled, waitsForHostStep } from "../effects.js";
+import { leavePlay, leavePlayAtOnce, waitsForHostStep } from "../effects.js";
 import type { InstanceId, PlayerId } from "../ids.js";
 import { keywordTotal } from "../keywords.js";
 import { cardOf, discardZoneFor, getInstance, locateCard, mustInstance, startingThreatOf } from "../query.js";
@@ -43,9 +43,6 @@ export function flipToOtherFace(
   // docs/phase7-wave5.md); the flip then runs from the stack (`runHostStep`).
   if (typeChanged && waitsForHostStep(ctx, [id], { kind: "flipToOtherFace", id, playerId })) return "waiting";
   const before = mustInstance(ctx.state, id);
-  // An attachment whose own leaving was cancelled stays attached: the card flips but stays in play, and only its discard
-  // was cancelled (RRG 1.8 "Cancel", p. 11; "Attach To", p. 8; docs/phase7-wave5.md §4.1 Q53).
-  const kept = before.attachments.filter((a) => leavingCancelled(ctx.state, a));
   if (typeChanged) {
     for (const attachment of before.attachments) {
       if (ctx.state.instances[attachment])
@@ -55,6 +52,10 @@ export function flipToOtherFace(
       if (ctx.state.instances[card]) moveCard(ctx, card, discardZoneFor(ctx.state, card), "top");
     }
   }
+  // What the discard left stays attached, since the card flips but stays in play: an attachment whose own leaving was
+  // cancelled (RRG 1.8 "Cancel", p. 11; §4.1 Q53), and a permanent or "cannot leave play" one, which the Flip rule's
+  // discard cannot move (RRG 1.8 "Permanent", p. 32; "Attach To", p. 8; docs/phase7-wave5.md §4.1 Q50).
+  const kept = mustInstance(ctx.state, id).attachments;
   updateInstance(ctx, id, (i) => ({
     ...i,
     cardId: to.id,

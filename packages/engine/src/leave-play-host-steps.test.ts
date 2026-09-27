@@ -15,18 +15,19 @@
  * line) and §4.1 Q50 (this file).
  */
 
-import { flat, type CardId, type MainSchemeCard } from "@mc/content";
+import { flat, type CardId, type MainSchemeCard, type UpgradeCard } from "@mc/content";
 import { describe, expect, it } from "vitest";
 import type { EngineDeps } from "./abilities.js";
 import { replay, type GameSession } from "./engine.js";
 import type { GameEvent } from "./events.js";
 import { gameAreaId, type InstanceId } from "./ids.js";
-import { mustInstance, mustPlayer } from "./query.js";
+import { activeEncounterDeckId, mustInstance, mustPlayer } from "./query.js";
 import type { EffectSpec, TargetRef, ValueSpec } from "./spec.js";
 import { NO_STATUSES, type CardInstance, type GameAreaState, type GameState, type MainSchemeState } from "./state.js";
 import { depsOf, stubAbility, type StubAbility } from "./testing/abilities.js";
 import {
   stubAlly,
+  stubAttachment,
   stubEnvironment,
   stubEvent,
   stubMainScheme,
@@ -35,7 +36,15 @@ import {
   stubUpgrade,
   stubVillain,
 } from "./testing/fixtures.js";
-import { copiesOf, gameAtFirstTurn, onTopOfEncounterDeck, P1, playerCardIntoPlay, playFree } from "./testing/wave3.js";
+import {
+  copiesOf,
+  encounterCardInVillainArea,
+  gameAtFirstTurn,
+  onTopOfEncounterDeck,
+  P1,
+  playerCardIntoPlay,
+  playFree,
+} from "./testing/wave3.js";
 import { TREACHERY } from "./testing/scenario.js";
 
 // ---- Shared helpers, matching leaves-play-interrupt-timing.test.ts's idiom -----------------------------------------
@@ -105,10 +114,7 @@ const FLIP_STAGE = event("flip-stage", [
 
 /** A game with the central main scheme as usual, plus `STAGE_CARD` in play beside it (`extraMainSchemes`), its
  * `gadget` attached. */
-function stageTable(
-  gadgetCard: typeof STAGE_GADGET | typeof PLAIN_STAGE_GADGET | typeof KEEPING_STAGE_GADGET,
-  abilities: readonly StubAbility[],
-) {
+function stageTable(gadgetCard: UpgradeCard, abilities: readonly StubAbility[]) {
   const TRACKER = trackerWith();
   const deps = depsOf(...abilities, FLIP_STAGE.ability);
   const start = gameAtFirstTurn({
@@ -210,7 +216,7 @@ const eachSideScheme: TargetRef = { kind: "each", query: { categories: ["sideSch
 const REVEAL = event("reveal", [{ kind: "revealEncounterCard", player: { kind: "controller" } }]);
 const FLIP_FACE = event("flip-face", [{ kind: "flipCard", target: eachSideScheme }]);
 
-function faceTable(gadgetCard: typeof FACE_GADGET | typeof PLAIN_FACE_GADGET, abilities: readonly StubAbility[]) {
+function faceTable(gadgetCard: UpgradeCard, abilities: readonly StubAbility[]) {
   const TRACKER = trackerWith();
   const deps = depsOf(...abilities, REVEAL.ability, FLIP_FACE.ability);
   const base = gameAtFirstTurn({
@@ -274,7 +280,7 @@ const REMOVE_STAGE = event("remove-stage", [
   { kind: "removeMainSchemeStage", scheme: { kind: "named", name: "area-scheme" } },
 ]);
 
-function areaTable(gadgetCard: typeof AREA_GADGET | typeof PLAIN_AREA_GADGET, abilities: readonly StubAbility[]) {
+function areaTable(gadgetCard: UpgradeCard, abilities: readonly StubAbility[]) {
   const TRACKER = trackerWith();
   const deps = depsOf(...abilities, REMOVE_STAGE.ability);
   const start = gameAtFirstTurn({
@@ -379,10 +385,7 @@ const KEEP_VILLAIN_GADGET = stubAbility("villain-gadget.keep", {
 const KEEPING_VILLAIN_GADGET = stubUpgrade({ id: "villain-gadget", cost: 0, abilities: [KEEP_VILLAIN_GADGET.ref] });
 const REMOVE_VILLAIN = event("remove-villain", [{ kind: "removeVillain", villain: { kind: "villain" } }]);
 
-function villainTable(
-  gadgetCard: typeof VILLAIN_GADGET | typeof PLAIN_VILLAIN_GADGET | typeof KEEPING_VILLAIN_GADGET,
-  abilities: readonly StubAbility[],
-) {
+function villainTable(gadgetCard: UpgradeCard, abilities: readonly StubAbility[]) {
   const TRACKER = trackerWith();
   const deps = depsOf(...abilities, REMOVE_VILLAIN.ability);
   const start = gameAtFirstTurn({
@@ -476,6 +479,118 @@ describe("§4.1 Q53 a cancelled attachment on a host that flips but stays in pla
     expect(mustPlayer(state, P1).discard).not.toContain(t.gadget);
     expect(events.some((e) => e.type === "mainSchemeFlippedToOtherFace")).toBe(true);
     expect(state.stack).toEqual([]);
+    expectReplays(session, t.deps);
+  });
+});
+
+// ---- §4.1 Q50: permanent attachments on a host step's host ----------------------------------------------------------
+//
+// A host that leaves play through a host step treats a permanent attachment as `leaveNow` does
+// (`discardWithLeavingHost`): a player card is unattached into its controller's play area (§3.30; RRG 1.8 "Permanent",
+// p. 32, and "Attach To", p. 8), and an unowned permanent encounter attachment is discarded (§4.2 Q26). A host that
+// flips and stays in play keeps it attached: only the Flip rule's discard (RRG 1.8 "Flip", p. 20) is stopped.
+
+const PERMANENT_GADGET = stubUpgrade({ id: "villain-gadget", cost: 0, keywords: [{ name: "permanent" }] });
+const PERMANENT_STAGE_GADGET = stubUpgrade({ id: "stage-gadget", cost: 0, keywords: [{ name: "permanent" }] });
+const PERMANENT_FACE_GADGET = stubUpgrade({ id: "face-gadget", cost: 0, keywords: [{ name: "permanent" }] });
+const PERMANENT_AREA_GADGET = stubUpgrade({ id: "area-gadget", cost: 0, keywords: [{ name: "permanent" }] });
+/** A permanent encounter attachment, which no printed card is (§4.2 Q26's shape). */
+const CURSE = stubAttachment({ id: "curse", attachesTo: { kind: "villain" }, keywords: [{ name: "permanent" }] });
+/** "Forced Interrupt: When this leaves play, …" on the curse: its discard waits in the removal's window. */
+const CURSE_INTERRUPT = stubAbility("curse.interrupt", {
+  trigger: { kind: "interrupt", forced: true, on: { on: "cardLeavesPlay", selfIs: "target" } },
+  effects: [mark("interrupt", one), mark("hostStillThere", villainStillThere)],
+});
+const LISTENING_CURSE = { ...CURSE, abilities: [CURSE_INTERRUPT.ref] };
+
+/** The villain with the unowned permanent curse attached, and the tracker in P1's play area. */
+function curseTable(curse: typeof CURSE, abilities: readonly StubAbility[]) {
+  const TRACKER = trackerWith();
+  const deps = depsOf(...abilities, REMOVE_VILLAIN.ability);
+  const start = gameAtFirstTurn({
+    villain: REMOVABLE_VILLAIN,
+    cards: [curse, TRACKER, REMOVE_VILLAIN.card],
+    deps,
+    encounter: [curse.id, ...copiesOf(TREACHERY.id, 20)],
+    deck: [TRACKER.id, REMOVE_VILLAIN.card.id],
+  });
+  const villainId = start.activeVillainId!;
+  const tracker = playerCardIntoPlay(start, TRACKER.id);
+  const taken = encounterCardInVillainArea(tracker.state, curse.id);
+  const state: GameState = {
+    ...taken.state,
+    villainArea: taken.state.villainArea.filter((id) => id !== taken.id),
+    instances: {
+      ...taken.state.instances,
+      [taken.id]: { ...mustInstance(taken.state, taken.id), attachedTo: villainId, controllerId: null },
+      [villainId]: { ...mustInstance(taken.state, villainId), attachments: [taken.id] },
+    },
+  };
+  return { state, deps, villainId, curse: taken.id, tracker: tracker.id };
+}
+
+describe("§4.1 Q50 a permanent attachment on a host that leaves play through a host step", () => {
+  it("a villain removed from the game: a permanent player upgrade is unattached into its controller's play area, keeping its controller; replay deep-equal", () => {
+    const t = villainTable(PERMANENT_GADGET, []);
+    const { state, session } = playFree(t.state, t.deps, REMOVE_VILLAIN.card.id);
+    expect(state.villains.find((v) => v.instanceId === t.villainId)?.defeated).toBe(true);
+    expect(mustInstance(state, t.gadget)).toMatchObject({ attachedTo: null, controllerId: P1 });
+    expect(mustInstance(state, t.villainId).attachments).toEqual([]);
+    expect(mustPlayer(state, P1).playArea).toContain(t.gadget);
+    expect(mustPlayer(state, P1).discard).not.toContain(t.gadget);
+    expectReplays(session, t.deps);
+  });
+
+  it("a main scheme stage removed from the game: a permanent player upgrade is unattached into its controller's play area; replay deep-equal", () => {
+    const t = areaTable(PERMANENT_AREA_GADGET, []);
+    const { state, session } = playFree(t.state, t.deps, REMOVE_STAGE.card.id);
+    expect(state.removedFromGame).toContain(t.schemeId);
+    expect(mustInstance(state, t.gadget).attachedTo).toBeNull();
+    expect(mustInstance(state, t.schemeId).attachments).toEqual([]);
+    expect(mustPlayer(state, P1).playArea).toContain(t.gadget);
+    expectReplays(session, t.deps);
+  });
+
+  it("a villain removed from the game: an unowned permanent encounter attachment is discarded to its encounter discard pile (§4.2 Q26); replay deep-equal", () => {
+    const t = curseTable(CURSE, []);
+    const { state, session } = playFree(t.state, t.deps, REMOVE_VILLAIN.card.id);
+    expect(mustInstance(state, t.curse).attachedTo).toBeNull();
+    expect(mustInstance(state, t.villainId).attachments).toEqual([]);
+    expect(state.encounterDecks[activeEncounterDeckId(state)]!.discard).toContain(t.curse);
+    expectReplays(session, t.deps);
+  });
+
+  it("that discard waits for the curse's own leave interrupt, resolved in the removal's window with the villain still in play", () => {
+    const t = curseTable(LISTENING_CURSE, [CURSE_INTERRUPT]);
+    const { state, events, session } = playFree(t.state, t.deps, REMOVE_VILLAIN.card.id);
+    expect(mustInstance(state, t.tracker).counters).toMatchObject({ interrupt: 1, hostStillThere: 1 });
+    expect(state.encounterDecks[activeEncounterDeckId(state)]!.discard).toContain(t.curse);
+    const resolvedAt = index(events, (e) => e.type === "abilityResolved" && e.abilityId === CURSE_INTERRUPT.ref.id);
+    expect(resolvedAt).toBeGreaterThanOrEqual(0);
+    expect(resolvedAt).toBeLessThan(index(events, (e) => e.type === "villainRemoved"));
+    expect(state.stack).toEqual([]);
+    expectReplays(session, t.deps);
+  });
+});
+
+describe("§4.1 Q50 a permanent attachment on a host that flips to another card type and stays in play", () => {
+  it("a main scheme stage flipped to its environment face keeps the permanent upgrade attached; replay deep-equal", () => {
+    const t = stageTable(PERMANENT_STAGE_GADGET, []);
+    const { state, session } = playFree(t.state, t.deps, FLIP_STAGE.card.id);
+    expect(mustInstance(state, t.schemeId).cardId).toBe(FLIP_ENV.id);
+    expect(mustInstance(state, t.schemeId).attachments).toEqual([t.gadget]);
+    expect(mustInstance(state, t.gadget).attachedTo).toBe(t.schemeId);
+    expect(mustPlayer(state, P1).discard).not.toContain(t.gadget);
+    expectReplays(session, t.deps);
+  });
+
+  it("a side scheme flipped to an ally keeps the permanent upgrade attached; replay deep-equal", () => {
+    const t = faceTable(PERMANENT_FACE_GADGET, []);
+    const { state, session } = playFree(t.state, t.deps, FLIP_FACE.card.id);
+    expect(mustInstance(state, t.schemeId).cardId).toBe(FLIP_SCHEME_ALLY.id);
+    expect(mustInstance(state, t.schemeId).attachments).toEqual([t.gadget]);
+    expect(mustInstance(state, t.gadget).attachedTo).toBe(t.schemeId);
+    expect(mustPlayer(state, P1).discard).not.toContain(t.gadget);
     expectReplays(session, t.deps);
   });
 });

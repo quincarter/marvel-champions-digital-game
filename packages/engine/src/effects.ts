@@ -595,14 +595,23 @@ export function discardAtOnce(ctx: Ctx, id: InstanceId): void {
 }
 
 /**
- * An attachment discarded because its host leaves play without going through `leavePlay` (a villain removed, set aside
- * or defeated while others remain, a main scheme stage removed). One whose own leaving an interrupt cancelled
- * (`leavingCancelled`) does not leave play, and since its host does, it is unattached in play as `leaveNow` does for an
- * attachment that stays (`unattachInPlay`; docs/phase7-wave5.md §4.1 Q53). Anything else is `discardAtOnce`.
+ * An attachment whose host leaves play: `leaveNow`'s attachment loop, and the host steps whose host leaves play without
+ * going through `leavePlay` (a villain removed, set aside or defeated while others remain, a main scheme stage
+ * removed), so every way a host leaves treats its attachments alike (docs/phase7-wave5.md §4.1 Q50):
+ * - one whose own leaving an interrupt cancelled (`leavingCancelled`) does not leave play (RRG 1.8 "Cancel", p. 11;
+ *   §4.1 Q53), and since its host does, it is unattached in play (RRG 1.8 "Attach To", p. 8, cannot keep it on a card
+ *   out of play);
+ * - one that can leave play is discarded with its host (`discardAtOnce`);
+ * - a permanent or "cannot leave play" one stays in play (`staysInPlayWithoutHost`): a player card is unattached into
+ *   its controller's play area (§3.30), and an unowned permanent encounter one is discarded past the keyword (§4.2
+ *   Q26), through `leaveNow` itself rather than `leavePlayAtOnce`. The host leaving is a game rule with no source card,
+ *   so Permanent's own-set exception (§4.1 Q46) never applies here.
  */
 export function discardWithLeavingHost(ctx: Ctx, id: InstanceId): void {
   if (leavingCancelled(ctx.state, id)) unattachInPlay(ctx, id);
-  else discardAtOnce(ctx, id);
+  else if (!staysInPlayWithoutHost(ctx, id)) discardAtOnce(ctx, id);
+  else if (discardedWithoutHost(ctx, id)) leaveNow(ctx, id, discardZoneFor(ctx.state, id), "top", true, true);
+  else unattachInPlay(ctx, id);
 }
 
 /**
@@ -876,7 +885,9 @@ export function waitsForHostStep(ctx: Ctx, hostIds: readonly InstanceId[], step:
   if (!listensForLeavingPlay(ctx.deps)) return false;
   const attachments = hostIds.flatMap((host) => getInstance(ctx.state, host)?.attachments ?? []);
   if (attachments.some((attachment) => leavingFrameFor(ctx.state, attachment) !== undefined)) return false;
-  const companions = hostIds.flatMap((host) => leavingWithHost(ctx, host, "atOnce"));
+  // A flipped host stays in play; every other step takes its host out of play (§4.1 Q50).
+  const how = step.kind === "flipMainSchemeStage" || step.kind === "flipToOtherFace" ? "flip" : "leaveNow";
+  const companions = hostIds.flatMap((host) => leavingWithHost(ctx, host, how));
   if (!companions.some((event) => hasCandidates(ctx.state, ctx.deps, event, "interrupt"))) return false;
   const [first, ...rest] = companions;
   if (first?.kind !== "cardLeavesPlay" || first.leaving?.kind !== "withHost") return false;
@@ -891,22 +902,26 @@ export function waitsForHostStep(ctx: Ctx, hostIds: readonly InstanceId[], step:
  */
 export function attachmentsWaitForHost(ctx: Ctx, hostId: InstanceId): boolean {
   if (!listensForLeavingPlay(ctx.deps)) return false;
-  return leavingWithHost(ctx, hostId, "atOnce").some((event) => hasCandidates(ctx.state, ctx.deps, event, "interrupt"));
+  return leavingWithHost(ctx, hostId, "leaveNow").some((event) =>
+    hasCandidates(ctx.state, ctx.deps, event, "interrupt"),
+  );
 }
 
 /**
  * The `cardLeavesPlay` (with `leaving: withHost`) of each attachment on `hostId` that leaves play because the host
  * does, and that something hears (docs/phase7-wave5.md §4.1 Q32). `how` mirrors the path that will move them:
- * - `leaveNow`: the host leaves play (`leaveNow`'s attachment loop: a permanent or "cannot leave play" one stays, an
- *   unowned permanent encounter one is discarded, §4.2 Q26);
+ * - `leaveNow`: the host leaves play (`discardWithLeavingHost`: a permanent or "cannot leave play" one stays, an
+ *   unowned permanent encounter one is discarded, §4.2 Q26), through `leavePlay` or a host step (a villain removed,
+ *   set aside or defeated while others remain, a main scheme stage removed; §4.1 Q50);
  * - `defeat`: the same, but a Victory X one goes to the victory display (`defeatFromPlay`);
- * - `atOnce`: `discardAtOnce` (a villain removed, a stage flipped), which skips a permanent or "cannot leave play" one.
+ * - `flip`: the host flips to another card type and stays in play (RRG 1.8 "Flip", p. 20): its attachments are
+ *   discarded (`discardAtOnce`), except a permanent or "cannot leave play" one, which stays attached.
  * An attachment already leaving on its own is not listed.
  */
 export function leavingWithHost(
   ctx: Ctx,
   hostId: InstanceId,
-  how: "leaveNow" | "defeat" | "atOnce",
+  how: "leaveNow" | "defeat" | "flip",
 ): readonly TriggerEvent[] {
   if (!listensForLeavingPlay(ctx.deps)) return [];
   const events: TriggerEvent[] = [];
@@ -916,9 +931,9 @@ export function leavingWithHost(
     const discarded = () =>
       leaveDestinationKind(ctx.state, ctx.deps, attachment, discardZoneFor(ctx.state, attachment).kind, true);
     let to: ZoneId["kind"] | null;
-    if (how === "defeat" && hasKeyword(ctx.state, attachment, "victory", ctx.deps))
-      to = blocked ? null : "victoryDisplay";
-    else if (how === "atOnce") to = blocked ? null : discarded();
+    // A blocked Victory X one stays for the host's own move, which treats it as `leaveNow` does (`defeatFromPlay`).
+    if (how === "defeat" && !blocked && hasKeyword(ctx.state, attachment, "victory", ctx.deps)) to = "victoryDisplay";
+    else if (how === "flip") to = blocked ? null : discarded();
     else to = !blocked || discardedWithoutHost(ctx, attachment) ? discarded() : null;
     if (to === null) continue;
     const event: TriggerEvent = {
@@ -1093,16 +1108,7 @@ function leaveNow(
   if (discarded && to === requested)
     emit(ctx, { type: "cardDiscardedFromPlay", instanceId: id, cardId: instance.cardId });
   if (redirect !== null) to = { kind: "scenarioArea", name: redirect.area };
-  for (const attachment of [...instance.attachments]) {
-    // Its own leaving was cancelled, so it does not leave with its host (RRG 1.8 "Cancel", p. 11; §4.1 Q53); its host
-    // does, so it is unattached in play (RRG 1.8 "Attach To", p. 8, cannot keep it on a card out of play).
-    if (leavingCancelled(ctx.state, attachment)) unattachInPlay(ctx, attachment);
-    else if (!staysInPlayWithoutHost(ctx, attachment)) discardAtOnce(ctx, attachment);
-    // Past the permanent keyword on purpose (§4.2 Q26): `leaveNow` itself, not `leavePlayAtOnce`.
-    else if (discardedWithoutHost(ctx, attachment))
-      leaveNow(ctx, attachment, discardZoneFor(ctx.state, attachment), "top", true, true);
-    else unattachInPlay(ctx, attachment);
-  }
+  for (const attachment of [...instance.attachments]) discardWithLeavingHost(ctx, attachment);
   // RRG "Tuck": when a card leaves play, each card tucked under it is discarded.
   for (const tuckedId of [...instance.tucked]) {
     // Faceup first: a discard into an emptied deck's discard pile can reset that deck at once (`settlePlayerDecks`).

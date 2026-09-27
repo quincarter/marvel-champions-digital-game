@@ -654,7 +654,7 @@ export function openLeavingInterrupts(ctx: Ctx, frame: Frame<"event">): boolean 
 export function leavingWithHostFrames(ctx: Ctx, frame: Frame<"event">): readonly Frame<"event">[] {
   const event = frame.event;
   if (event.kind !== "characterDefeated" || !villainDefeatRemoves(ctx.state, event.instanceId)) return [];
-  const companions = leavingWithHost(ctx, event.instanceId, "atOnce");
+  const companions = leavingWithHost(ctx, event.instanceId, "leaveNow");
   if (companions.length === 0) return [];
   const built = companions.map((companion) => eventFrame(ctx, companion));
   const last = built[built.length - 1]?.frameId;
