@@ -5,11 +5,10 @@ import { VENOM_GOBLIN_VILLAIN } from "./villain.js";
 import { VENOM_GOBLIN_ENCOUNTER_SET } from "./encounter-set.js";
 
 /**
- * The Venom Goblin scenario (`sm`, docs/phase7-wave5.md §1.1/§2.2/§3.3/§3.4/§3.9, the box's fifth and last). The
- * main scheme "Skies Over New York" (27116a/b) → Lower/Midtown/Upper Manhattan (27117a/b–27119a/b, `main-scheme.ts`)
- * is scripted here, and Venom Goblin's own encounter set plus We Are One (27120–27126, `encounter-set.ts`) is now
- * scripted; the villain (27113–27115, `villain.ts`) is still another agent's work (a placeholder module, its own
- * docblock).
+ * The Venom Goblin scenario (`sm`, docs/phase7-wave5.md §1.1/§2.2/§3.3/§3.4/§3.9, the box's fifth and last), fully
+ * scripted: the main scheme "Skies Over New York" (27116a/b) → Lower/Midtown/Upper Manhattan (27117a/b–27119a/b,
+ * `main-scheme.ts`), the villain (27113–27115, `villain.ts`) and Venom Goblin's own encounter set plus We Are One
+ * (27120–27126, `encounter-set.ts`).
  */
 export const VENOM_GOBLIN_ABILITIES: AbilityRegistry = mergeRegistries(
   SKIES_OVER_NEW_YORK,
