@@ -26,7 +26,8 @@ import {
   toHero,
 } from "../../../testing/harness.js";
 import { driveEvents } from "../../../testing/staging.js";
-import { runWave5, WAVE5_DEPS } from "../../testing.js";
+import { expectNotResolved, expectResolved, traceAbilities } from "../../../testing/trace.js";
+import { defeatWithAttack, runWave5, WAVE5_DEPS } from "../../testing.js";
 import { wave5Scenario, type Wave5ScenarioOptions } from "../../setup.js";
 
 /**
@@ -197,5 +198,74 @@ describe("Brute Force Barricade (27107, side scheme)", () => {
 
     const withoutScript = driveEvents(depsWithout("27107.boost"), stacked, endTurn(P1));
     expect(step2Flips(withoutScript.events).length).toBe(1);
+  });
+});
+
+/**
+ * "Attach to the villain with the … If you cannot, resolve the 'Ambush!' ability on the main scheme, then attach
+ * this card to the active villain." (27103–27106's shared `cannotAttach` fallback). "No villain in play" only lasts
+ * until the next villain activation, whose own Forced Interrupt (`main-scheme.ts`'s `AMBUSH_INTERRUPT`) would bring
+ * a villain in before the villain phase reveals anything; these tests drop that interrupt so the reveal is the first
+ * thing to find no villain.
+ */
+describe("27103–27106: \"If you cannot, resolve 'Ambush!', then attach to the active villain\"", () => {
+  const NO_ACTIVATION_AMBUSH = [
+    "27100b.sinister-synchronization-forced-interrupt",
+    "27101b.sinister-beatdown-constant",
+  ];
+  const FALLBACKS = [
+    ["27103", "27103.heightened-morale-constant"],
+    ["27104", "27104.taunting-presence-constant"],
+    ["27105", "27105.team-leader-constant"],
+    ["27106", "27106.take-one-for-the-team-constant"],
+  ] as const;
+
+  function withoutVillains(): GameState {
+    let state = toHeroApplied(sinisterSixGame());
+    for (const villain of undefeatedVillains(state)) {
+      state = patchInstance(state, identityOf(state, P1), { exhausted: false });
+      state = defeatWithAttack(state, villain.instanceId);
+    }
+    expect(undefeatedVillains(state)).toHaveLength(0);
+    return state;
+  }
+
+  it.each(FALLBACKS)(
+    "%s with no villain in play: Ambush! puts a set-aside villain into play and it attaches there",
+    (code, fallback) => {
+      const state = withoutVillains();
+      const { deps, trace } = traceAbilities(depsWithout(...NO_ACTIVATION_AMBUSH));
+      const after = settle(runWith(deps, stackEncounterDeck(state, code), endTurn(P1)), firstLegal, undefined, deps);
+
+      expectResolved(trace, fallback);
+      expectResolved(trace, "27100b.ambush");
+      const villains = undefeatedVillains(after);
+      expect(villains).toHaveLength(1);
+      const ambushed = villains[0]!.instanceId;
+      expect(after.activeVillainId).toBe(ambushed);
+      const card = instancesOf(after, code).find((id) => cardsInPlay(after).includes(id));
+      expect(card, `${code} should be in play, not discarded`).toBeDefined();
+      expect(inst(after, card!).attachedTo).toBe(ambushed);
+    },
+  );
+
+  it('without the fallback script, the attachment is discarded and no villain enters (RRG 1.8 "Attach To")', () => {
+    const state = withoutVillains();
+    const deps = depsWithout(...NO_ACTIVATION_AMBUSH, "27103.heightened-morale-constant");
+    const after = settle(runWith(deps, stackEncounterDeck(state, "27103"), endTurn(P1)), firstLegal, undefined, deps);
+    expect(undefeatedVillains(after)).toHaveLength(0);
+    expect(instancesOf(after, "27103").some((id) => cardsInPlay(after).includes(id))).toBe(false);
+  });
+
+  it.each(FALLBACKS)("%s with a legal host: attaches to it and Ambush! does not resolve", (code, fallback) => {
+    const state = sinisterSixGame();
+    const before = new Set(undefeatedVillains(state).map((v) => v.instanceId));
+    const { deps, trace } = traceAbilities(WAVE5_DEPS);
+    const { state: after, id: card } = revealCard(deps, state, code);
+
+    expectNotResolved(trace, fallback);
+    expectNotResolved(trace, "27100b.ambush");
+    expect(undefeatedVillains(after).map((v) => v.instanceId)).toEqual([...before]);
+    expect(before.has(inst(after, card).attachedTo!)).toBe(true);
   });
 });
