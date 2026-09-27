@@ -306,7 +306,11 @@ export type StackFrame =
        * card"): if the card's effects are cancelled, that frame is marked unresolved (RRG 1.8 "'Then'", p. 44).
        */
       readonly preThenOf?: FrameId;
-      readonly stage: "faceup" | "enterPlay" | "whenRevealed" | "finish" | "done";
+      /**
+       * `cannotAttach`: an attachment with no legal host is resolving its own `cannotAttach` abilities instead of
+       * being discarded; on return it enters play if they attached it, and is discarded otherwise.
+       */
+      readonly stage: "faceup" | "enterPlay" | "cannotAttach" | "whenRevealed" | "finish" | "done";
     })
   /** RRG "Initiating Abilities" steps 6–7, after costs are paid. */
   | (FrameBase & {

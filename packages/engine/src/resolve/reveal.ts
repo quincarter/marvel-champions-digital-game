@@ -367,6 +367,15 @@ export function executeRevealFrame(ctx: Ctx, frame: Frame<"reveal">): void {
       setFrame(ctx, { ...frame, answer: null, stage: "whenRevealed" });
       return;
     }
+    case "cannotAttach": {
+      // The card's `cannotAttach` abilities have resolved: attached by them, it enters play now; otherwise RRG 1.8
+      // "Attach To" (p. 8)'s discard applies after all.
+      if (getInstance(ctx.state, frame.instanceId)?.attachedTo) enterPlay(ctx, frame.instanceId, frame.playerId);
+      else if (getInstance(ctx.state, frame.instanceId))
+        moveCard(ctx, frame.instanceId, discardZoneFor(ctx.state, frame.instanceId), "top");
+      setFrame(ctx, { ...frame, stage: "whenRevealed" });
+      return;
+    }
     case "whenRevealed": {
       setFrame(ctx, { ...frame, stage: "finish" });
       // Incite and surge are "When Revealed" effects too (RRG "Incite X", "Surge").
@@ -555,6 +564,14 @@ function resolveAttachmentTarget(ctx: Ctx, frame: Frame<"reveal">, attachesTo: A
   };
   const legal = attachmentHostCandidates(ctx.state, attachesTo, context);
   if (legal.length === 0) {
+    // "If you cannot, …": the card's own `cannotAttach` abilities replace the discard; the `cannotAttach` stage then
+    // settles where the card ended up.
+    const fallback = gameAbilityFrames(ctx, frame.instanceId, ["cannotAttach"], null, undefined, frame.playerId);
+    if (fallback.length > 0) {
+      setFrame(ctx, { ...frame, answer: null, stage: "cannotAttach" });
+      pushFrames(ctx, fallback);
+      return false;
+    }
     // RRG "Attach To": a card that cannot legally attach and cannot stay where it was is discarded.
     moveCard(ctx, frame.instanceId, discardZoneFor(ctx.state, frame.instanceId), "top");
     return true;

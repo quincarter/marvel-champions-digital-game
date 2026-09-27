@@ -176,6 +176,14 @@ export type AbilityTriggerSpec =
   | { readonly kind: "whenCompleted" }
   | { readonly kind: "boost" }
   | { readonly kind: "setup" }
+  /**
+   * "Attach to [host]. If you cannot, [effects], then attach this card to [other host]." (the Sinister Six's
+   * attachments, `sm` 27103-27106): resolves in place of RRG 1.8 "Attach To"'s (p. 8) discard when an encounter
+   * attachment being revealed has no legal `attachesTo` host. The card is not in play while it resolves; its own
+   * effects do the attaching (`attach` with `card: self`), after which the card enters play. If they leave it
+   * unattached, it is discarded as it would have been.
+   */
+  | { readonly kind: "cannotAttach" }
   /** RRG "Special": resolves only when another ability instructs it (`resolveSpecials`; Wakanda Forever!). */
   | { readonly kind: "special" }
   /**
