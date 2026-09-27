@@ -128,6 +128,29 @@ export class BoardMotion {
     this.#scene = scene;
   }
 
+  /**
+   * A new game on the same Board: Phaser reuses the scene instance, and with it this one, so the next game's first
+   * state is its opening band again (`#landed`), and nothing timed in the last game carries over into it.
+   */
+  reset(): void {
+    this.#beats = [];
+    this.#pendingMoves = [];
+    this.#travels = [];
+    this.#banners = [];
+    this.#bannerPoll?.remove();
+    this.#bannerPoll = null;
+    this.#phaseTransition = null;
+    this.#landed = false;
+    this.#wipeStart?.remove();
+    this.#wipeStart = null;
+    this.#statusStamps.clear();
+    this.#statusGhosts.clear();
+    this.#exhaustMotions.clear();
+    this.#hpTicks.clear();
+    this.#defeatFlashes.clear();
+    this.#threatTicks.clear();
+  }
+
   announce(title: string, detail: string): void {
     this.#banners.push({ title, detail, shownAt: null });
   }
