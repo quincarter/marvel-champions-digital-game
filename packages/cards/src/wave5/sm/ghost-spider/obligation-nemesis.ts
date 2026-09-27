@@ -2,6 +2,7 @@ import { trait } from "@mc/content";
 import {
   alterEgoAction,
   anyOfCards,
+  applyRuleUntil,
   attachCard,
   cards,
   chooseCards,
@@ -74,15 +75,11 @@ import {
  * scripted, matching the card data's own 2 ability refs (`-constant`/`-constant-2`, the Core "Genetically
  * Enhanced" 01163 precedent for both the naming and the split).
  *
- * **In Cold Blood**'s "You cannot play events until after that attack resolves" is a genuine DSL/engine gap, not
- * scripted here (reported, not guessed at): `EffectSpec applyRuleUntil` (the "cannot X" restriction primitive)
- * only supports `until: "endOfPhase" | "endOfRound" | "endOfTurn" | "endOfNextTurn"` — its own docblock
- * (`packages/engine/src/spec.ts`) says `"endOfAttack"` is "deliberately absent: no card prints a restriction
- * scoped to one attack, and an attack-scoped one would have to name the activation frame the way `modifyStatUntil`
- * does" (`modifyStatUntil` already accepts `LastingUntil`, which does include `"endOfAttack"` — so extending
- * `applyRuleUntil` to the same union, resolved against the same activation frame, looks like the natural fix).
- * This card is that card. The attack and the "if no attack was made this way, gains surge" half are scripted;
- * the restriction itself is pinned with `it.fails` in the test file and reported to `game-rules-architect`.
+ * **In Cold Blood**'s "You cannot play events until after that attack resolves" is `applyRuleUntil(cannotPlay
+ * events, "endOfAttack", …, { attack: "initiated" })`, written *before* the `enemyAttack`: "that attack" is the one
+ * this same ability initiates, so the rule is active from the attack's start (its interrupt windows included) and
+ * expires when the attack's event frame finishes. If The Lizard is not in play (or is stunned), no attack is made
+ * and the rule ends at once (engine `spec.ts` `applyRuleUntil` docblock).
  */
 export const GHOST_SPIDER_OBLIGATION_NEMESIS = defineAbilities({
   // Worried Father — Give to the Gwen Stacy player. Search your deck, hand, discard pile, and play area for
@@ -125,10 +122,13 @@ export const GHOST_SPIDER_OBLIGATION_NEMESIS = defineAbilities({
     gets("hp", 4, { hostOfSelf: true }),
   ),
 
-  // In Cold Blood — When Revealed: The Lizard attacks you. If no attack was made this way, this card gains surge.
-  // ("You cannot play events until after that attack resolves" is not scripted — module docblock's reported
-  // DSL/engine gap, `applyRuleUntil` has no `"endOfAttack"` case.)
+  // In Cold Blood — When Revealed: The Lizard attacks you. You cannot play events until after that attack resolves.
+  // If no attack was made this way, this card gains surge. (The restriction comes first so it covers the whole
+  // attack — module docblock.)
   "27029.when-revealed": whenRevealed(
+    applyRuleUntil({ kind: "cannotPlay", player: you, cards: query("event") }, "endOfAttack", undefined, {
+      attack: "initiated",
+    }),
     enemyAttack(named("The Lizard"), { against: you, bind: "attack" }),
     ifThen(not(made("attack")), surge()),
   ),

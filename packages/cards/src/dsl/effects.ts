@@ -657,16 +657,22 @@ export const gainTraitUntil = (t: Trait, target: TargetRef, until: LastingUntil)
  * absent, the rule's own player, then the ability's controller. `cannotChangeFormUntil`/`cannotReadyUntil` below
  * are the two named conveniences the pool's own cards need; reach for `applyRuleUntil` directly for any other
  * `RuleSpec`.
+ *
+ * `"endOfAttack"` is "until after that attack resolves": the attack in progress, or with `{ attack: "initiated" }`
+ * the one the next `enemyAttack` of the same ability initiates — put this effect **before** that `enemyAttack` (In
+ * Cold Blood, `sm` 27029; engine spec.ts `applyRuleUntil`).
  */
 export const applyRuleUntil = (
   rule: RuleSpec,
-  until: "endOfPhase" | "endOfRound" | "endOfTurn" | "endOfNextTurn",
+  until: "endOfPhase" | "endOfRound" | "endOfTurn" | "endOfNextTurn" | "endOfAttack",
   player?: PlayerRef,
+  options: { readonly attack?: "current" | "initiated" } = {},
 ): EffectSpec => ({
   kind: "applyRuleUntil",
   rule,
   until,
   ...(player ? { player } : {}),
+  ...(options.attack ? { attack: options.attack } : {}),
 });
 /** "You cannot change form until your next turn ends." */
 export const cannotChangeFormUntil = (

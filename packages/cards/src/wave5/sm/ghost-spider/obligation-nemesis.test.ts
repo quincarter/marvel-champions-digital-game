@@ -122,15 +122,14 @@ describe("Ghost-Spider's obligation and nemesis set (Worried Father, Regenerativ
       const { state: after } = revealFromEncounterDeck(state, "27029");
       const deckId = Object.keys(after.encounterDecks)[0]!;
       expect(after.encounterDecks[deckId]!.discard.length).toBeGreaterThan(discardBefore + 1);
+      // No attack was made, so the "cannot play events" restriction does not linger.
+      expect(after.lastingEffects.some((e) => e.kind === "ruleGrant" && e.rule.kind === "cannotPlay")).toBe(false);
     });
 
-    // Known gap (module docblock, obligation-nemesis.ts): "You cannot play events until after that attack resolves"
-    // has no engine primitive (`applyRuleUntil` has no `"endOfAttack"` case) and is not scripted. Pinned here: once
-    // `game-rules-architect` adds it and it is wired in, Backflip's own Hero Interrupt (Spider-Man's `01003`, "When
-    // you would take damage from an attack, prevent all of that damage") should no longer be usable against The
-    // Lizard's attack from this card, so the identity should still take the full 3 damage. Today the restriction is
-    // absent, so Backflip prevents it, and this assertion fails.
-    it.fails("27029.when-revealed: (engine gap) Backflip cannot prevent The Lizard's attack — events are unplayable until the attack resolves", () => {
+    // "You cannot play events until after that attack resolves": Backflip's Hero Interrupt (Spider-Man's `01003`,
+    // "When you would take damage from an attack, prevent all of that damage") is not usable against The Lizard's
+    // attack from this card, so the identity takes the full 3 damage, and the restriction is gone once it resolves.
+    it("27029.when-revealed: Backflip cannot prevent The Lizard's attack — events are unplayable until the attack resolves", () => {
       const base = startWave5Game(ghostSpiderScenarioWithExtras("rhino", { seed: 1, extraCodes: ["01003"] }));
       const { state: withLizard } = revealFromEncounterDeck(base, "27027");
       const given = moveToHand(withLizard, P1, "01003"); // Backflip.
@@ -143,7 +142,9 @@ describe("Ghost-Spider's obligation and nemesis set (Worried Father, Regenerativ
         picking(`${backflip}:01003.backflip-interrupt`),
         1, // Only the villain draws an automatic boost card (RRG 1.8 p. 11).
       );
-      expect(inst(after, identity).damage).toBe(before + 3); // Not prevented: Backflip should be unplayable here.
+      expect(inst(after, identity).damage).toBe(before + 3); // Not prevented: Backflip is unplayable here.
+      // "Until after that attack resolves": the restriction is gone with the attack.
+      expect(after.lastingEffects.some((e) => e.kind === "ruleGrant" && e.rule.kind === "cannotPlay")).toBe(false);
     });
   });
 });
