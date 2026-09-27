@@ -146,8 +146,11 @@ const RULES_TITLE_HEIGHT = 30;
 /** The card panel's own `padding:14px`/`gap:10px` text block (matches `view/inspect-layout.ts`'s own `TEXT_PAD`/`TEXT_GAP`, duplicated here since that file stays a pure-layout module with no text drawing of its own). */
 const CARD_TEXT_PAD = 14;
 const CARD_TEXT_GAP = 10;
-/** D08's own `line-height:1.6` at 12px for "This card, this game" — one row per history line, never wrapped. */
+/** D08's own `line-height:1.6` at 12px for "This card, this game" — the height of one unwrapped history row. */
 const HISTORY_LINE_HEIGHT = 12 * 1.6;
+/** "This card, this game": the round-tag column ("12.04") the wrapped text hangs beside, and the gap between rows. */
+const HISTORY_TAG_WIDTH = 42;
+const HISTORY_ROW_GAP = 4;
 
 /**
  * How many rows `count` chip-shaped labels wrap into at `width`, without a live Phaser text object to measure — the
@@ -731,7 +734,14 @@ export class InspectOverlay extends Phaser.Scene {
     // History assumes its full, untruncated height here (the natural/unclamped case); if the pair ends up clamped
     // smaller than that, `#drawHistory` truncates to whatever room is actually left at draw time instead of
     // reopening this circular "height depends on height" problem.
-    if (model.history.length > 0) blocks.push(16 + model.history.length * HISTORY_LINE_HEIGHT);
+    if (model.history.length > 0) {
+      const descWidth = Math.max(1, inner - HISTORY_TAG_WIDTH);
+      const rows = model.history.reduce(
+        (sum, line) => sum + estimateWrappedLines(line.text, descWidth, 12 * 0.5) * 15 + 2 + HISTORY_ROW_GAP,
+        0,
+      );
+      blocks.push(16 + rows);
+    }
     blocks.push(hit.primary);
     return RULES_PAD * 2 + blocks.reduce((sum, block) => sum + block, 0) + RULES_SECTION_GAP * (blocks.length - 1);
   }
@@ -828,21 +838,39 @@ export class InspectOverlay extends Phaser.Scene {
    * fits keeps its most recent lines and gets a leading "… N earlier" line instead.
    */
   #drawHistory(x: number, y: number, width: number, available: number, model: InspectModel): void {
-    const maxLines = Math.floor((available - 16) / HISTORY_LINE_HEIGHT);
-    if (maxLines <= 0) return;
+    if (available - 16 < HISTORY_LINE_HEIGHT) return;
     label(this, x, y, "this card, this game", typeRole.label, surface.paper.hex, ink.meta);
-    const lines = model.history.map((line) => `${line.roundTag}   ${line.text}`);
-    const shown =
-      lines.length <= maxLines
-        ? lines
-        : [`… ${lines.length - (maxLines - 1)} earlier`, ...lines.slice(lines.length - Math.max(0, maxLines - 1))];
+    // Round tag in its own column, text wrapped beside it (a hanging indent), and every row advanced by its real
+    // measured height: a combat line ("Crossbones hit Spider-Woman for 3 (ATK 1 + 2 boost - 0 defense) · …") wraps
+    // to two or three rows, and a fixed one-row advance drew the next line straight over its tail.
+    const descX = x + HISTORY_TAG_WIDTH;
+    const descWidth = Math.max(1, width - HISTORY_TAG_WIDTH);
+    const budget = available - 16;
+    const style = textStyle(typeRole.body, surface.paper.hex, 0.85);
+    const makeRow = (tag: string, text: string) => {
+      const tagText = this.add.text(x, 0, tag, style).setFontSize(12);
+      const desc = this.add.text(descX, 0, text, style).setFontSize(12).setLineSpacing(3).setWordWrapWidth(descWidth);
+      return { parts: [tagText, desc], height: Math.max(tagText.height, desc.height) + HISTORY_ROW_GAP };
+    };
+    // Newest first until the room runs out; whatever is left over collapses into one leading "… N earlier" row.
+    const rows: ReturnType<typeof makeRow>[] = [];
+    let used = 0;
+    for (let i = model.history.length - 1; i >= 0; i--) {
+      const line = model.history[i]!;
+      const row = makeRow(line.roundTag, line.text);
+      const reserve = i > 0 ? HISTORY_LINE_HEIGHT : 0;
+      if (used + row.height + reserve > budget) {
+        for (const part of row.parts) part.destroy();
+        rows.unshift(makeRow("", `… ${i + 1} earlier`));
+        break;
+      }
+      rows.unshift(row);
+      used += row.height;
+    }
     let ty = y + 16;
-    for (const line of shown.slice(0, maxLines)) {
-      this.add
-        .text(x, ty, line, textStyle(typeRole.body, surface.paper.hex, 0.85))
-        .setFontSize(12)
-        .setWordWrapWidth(width);
-      ty += HISTORY_LINE_HEIGHT;
+    for (const row of rows) {
+      for (const part of row.parts) part.setY(ty);
+      ty += row.height;
     }
   }
 
