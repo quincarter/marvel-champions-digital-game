@@ -22,13 +22,13 @@ from running several agents in one worktree. Updated 2026-09-27.
 - **Agent branches in flight (seventh session, 2026-09-27 ~22:00 UTC):** each agent pushes its own branch after
   every commit; the main session reviews, reruns the tests and cherry-picks onto `feature/wave-5`, then deletes the
   branch. If a session ends first, these hold the unmerged work (untested until reviewed):
-  - `wip/wave5-q71-step-one` (`game-rules-architect`): Q71, step one places threat on every main scheme before any
-    completion resolves (`engine/src/villain/phase.ts`), and `venom-goblin/scenario.test.ts`'s tie test.
+  - `wip/wave5-goblin-gear` (`ability-scripting-engineer`): Goblin Gear in `cards/src/wave5/sm/modulars/`, swapped in
+    for Bomb Scare in `venom-goblin/scenario.test.ts`. Q71 landed (6c82489).
   - `wip/wave5-down-to-earth` and `wip/wave5-whispers-of-paranoia` (`ability-scripting-engineer`): the two modulars in
     `cards/src/wave5/sm/modulars/`; both add a line to `sm/index.ts` and may both create `modulars/index.ts` (merge
     by hand). Whispers also swaps itself in for Bomb Scare in `mysterio/scenario.test.ts`.
   - Already on `feature/wave-5`, safe to ignore or delete: `wip/wave5-cannot-thwart-side`,
-    `wip/wave5-venom-goblin-villain`, `wip/wave5-venom-goblin-encounter`, `wip/wave5-venom-goblin-integration`, `wip/wave5-guerrilla-tactics`, `wip/wave5-venom-goblin-setup`, `wip/wave-5-ambush-fallback` (the sixth
+    `wip/wave5-venom-goblin-villain`, `wip/wave5-venom-goblin-encounter`, `wip/wave5-venom-goblin-integration`, `wip/wave5-q71-step-one`, `wip/wave5-guerrilla-tactics`, `wip/wave5-venom-goblin-setup`, `wip/wave-5-ambush-fallback` (the sixth
     session's Ambush! fallback, cherry-picked 683bb5c/d3ab39a), `wip/wave-5-five-villains` (superseded by 13f9b13).
     The cloud proxy refuses remote branch deletion, so they stay until someone deletes them on GitHub.
 - **Order of the rest:** the PR body's "Remaining plan".
