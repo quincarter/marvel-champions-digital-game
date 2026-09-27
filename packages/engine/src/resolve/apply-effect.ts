@@ -432,6 +432,14 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       const controller = frame.controllerId;
       const [thwarter] = targets(effect.thwarter ?? { kind: "identityOf", player: { kind: "controller" } });
       if (!controller || !thwarter || cannotThwart(ctx.state, ctx.deps, controller)) return;
+      // A scheme this player cannot thwart (`cannotThwart` with `schemes`, Life-Size Decoy) is not thwarted at all: no
+      // thwart event, so no "after … thwarts", for it. With none left, nothing is attempted, as under an unscoped rule.
+      const aimed = targets(effect.target);
+      const schemes = aimed.filter((id) => !cannotThwart(ctx.state, ctx.deps, controller, id));
+      for (const id of aimed.filter((id) => !schemes.includes(id))) {
+        emit(ctx, { type: "threatRemovalBlocked", schemeInstanceId: id, reason: "rule" });
+      }
+      if (aimed.length > 0 && schemes.length === 0) return;
       // RRG 1.8 "Confuse, Confused" (p. 13): "If a confused identity or ally attempts to thwart or use a thwart ability,
       // discard the confused card instead", and "that character is not considered to have thwarted" — so no threat is
       // removed, no "after … thwarts" window opens, and an ally takes no consequential damage (RRG 1.8 "Ally", p. 7).
@@ -453,7 +461,7 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       const amount = value(effect.amount) + cardEffectBonus(ctx.state, frame.selfInstanceId, "threatRemoved");
       pushEvents(
         ctx,
-        targets(effect.target).map((id) => ({
+        schemes.map((id) => ({
           kind: "thwart",
           thwarterInstanceId: thwarter,
           schemeInstanceId: id,

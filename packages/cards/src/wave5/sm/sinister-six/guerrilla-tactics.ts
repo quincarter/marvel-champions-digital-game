@@ -1,12 +1,14 @@
 import {
   adjustBoostCount,
   boost,
+  cannotThwart,
   constant,
   countOf,
   dealIndirectDamage,
   defineAbilities,
   each,
   eachPlayer,
+  engagedPlayerOf,
   firstPlayer,
   gainsIcon,
   gainsKeyword,
@@ -29,19 +31,6 @@ import {
  * category (`spec.ts`), so it scales correctly whether one villain or all six Sinister Six villains happen to be in
  * play, with no special-casing for the multiple-villains scenario (docs/phase7-wave5.md §3.1's own "the villain"
  * plumbing is a separate concern from these cards' plain "each enemy").
- *
- * **Not scripted here — a missing engine primitive, reported rather than worked around
- * (docs/phase7-wave5-handoff.md's own standing instruction):** Life-Size Decoy's second line, "The engaged player
- * cannot thwart side schemes." `RuleSpec cannotThwart` (`packages/engine/src/abilities.ts`) only takes a `player`
- * and a `while` predicate — no scheme-type scoping — so it cannot express "side schemes only" (main scheme thwarts
- * must stay legal). The other candidate, `RuleSpec threatCannotBeRemoved { target: query("sideScheme"), by:
- * "thwart", player: engagedPlayerOf(self) }`, has the right query/player shape but is only consulted at actual
- * threat-removal time (`resolve/event.ts`'s per-scheme check) — a basic thwart against a side scheme would still be
- * a legal command (pay the cost, exhaust the thwarter) that simply removes 0 threat, unlike Patrol's own "cannot
- * thwart the main scheme," which `actions.ts`'s `basicThwartWith` pre-validates and refuses as `no_valid_target`
- * before any cost is paid. Getting this ability's actual timing wrong (silently wasting the thwarter's action
- * instead of refusing the command) would be a subtly-wrong implementation, so it is left out of the registry
- * instead of guessed at; `27142.life-size-decoy-constant-2` is not a registered ability id.
  */
 export const GUERRILLA_TACTICS = defineAbilities({
   // Life-Size Decoy (27142, minion; ATK 0/SCH 0/HP 5/star icon are data) — In expert mode, Life-Size Decoy gains
@@ -49,6 +38,9 @@ export const GUERRILLA_TACTICS = defineAbilities({
   "27142.life-size-decoy-constant": constant(
     gainsKeyword({ name: "toughness" }, { self: true }, { while: inMode("expert") }),
   ),
+  // Life-Size Decoy — The engaged player cannot thwart side schemes. (A side scheme is not a legal target of their
+  // basic thwart or of a thwart effect they resolve; the main scheme still is. `RuleSpec cannotThwart`'s `schemes`.)
+  "27142.life-size-decoy-constant-2": constant(cannotThwart(engagedPlayerOf(self), { schemes: query("sideScheme") })),
   // Life-Size Decoy — [star] Boost: Put this minion into play engaged with you.
   "27142.boost": boost(putIntoPlay(self, you)),
 

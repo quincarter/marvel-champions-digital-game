@@ -480,6 +480,22 @@ export const gainsTraitsOf = (
 });
 export const rule = (r: RuleSpec): ConstantPart => ({ rules: [r] });
 /**
+ * "While Baron Zemo is engaged with you, you cannot thwart" → `constant(cannotThwart(you))`; "The engaged player cannot
+ * thwart side schemes" (Life-Size Decoy, `sm` 27142) → `constant(cannotThwart(engagedPlayerOf(self), { schemes:
+ * query("sideScheme") }))`. Without `schemes`, every scheme. A scheme the player cannot thwart is not a legal target of
+ * their basic thwart or of a thwart effect they resolve (`RuleSpec cannotThwart`).
+ */
+export const cannotThwart = (
+  player: PlayerRef,
+  opts: { readonly schemes?: TargetQuery; readonly while?: Predicate } = {},
+): ConstantPart =>
+  rule({
+    kind: "cannotThwart",
+    player,
+    ...(opts.schemes ? { schemes: opts.schemes } : {}),
+    ...(opts.while ? { while: opts.while } : {}),
+  });
+/**
  * "As an additional cost for the engaged player to ready a hero or ally they control, the player must spend a [mental]
  * resource" (Mister Fear, `hood` 24027) → `constant(additionalCostToReady(query(["hero", "ally"], { controlledBy:
  * engagedPlayerOf(self) }), { mental: 1 }, { player: engagedPlayerOf(self) }))`; "… for a player to ready a support, that
