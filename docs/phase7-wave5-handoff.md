@@ -22,18 +22,19 @@ from running several agents in one worktree. Updated 2026-09-27.
 - **Agent branches in flight (seventh session, 2026-09-27 ~22:00 UTC):** each agent pushes its own branch after
   every commit; the main session reviews, reruns the tests and cherry-picks onto `feature/wave-5`, then deletes the
   branch. If a session ends first, these hold the unmerged work (untested until reviewed):
-  - `wip/wave5-old-grudge` (`game-rules-architect`): an attachment host for "your nemesis minion" (reveal.ts attaches
-    before a card's own When Revealed today), then Old Grudge 27172 in `modulars/whispers-of-paranoia.ts`.
+  - `wip/wave5-manipulated-mind` (`game-rules-architect`): a `treatAsMinion` primitive (mirror of Karma's
+    `treatAsAlly`), 27171's lowest-cost-ally `attachesTo`, then Manipulated Mind in `modulars/whispers-of-paranoia.ts`.
+    Old Grudge landed (attachments without "attach to" text attach from their own When Revealed).
   - `wip/wave5-sinister-assault` (`ability-scripting-engineer`): Sinister Assault in `cards/src/wave5/sm/modulars/`.
-  - Still blocked (engine work, not started): Manipulated Mind 27171 needs a `treatAsMinion` (mirror of Karma's
-    `treatAsAlly`) and its data's `attachesTo` should be the lowest-cost ally superlative; Advanced Glider 27136's
+  - Still blocked (engine work, not started): Advanced Glider 27136's
     Hero Action needs a cost "discard hand cards with a combined resource cost of 3 or more" (`GOBLIN_GEAR_SKIPPED`).
     Osborn Tech scripts three Hero Action costs as effects (Arm Cannon, Kinetic Armor, Neocarbon Scales): no cost
     shape for a superlative discard, indirect damage or giving the villain cards.
-  - Open question to the user: Loose Ends searches the removed-from-game area although the Dec 17, 2025 (4) ruling
-    says removed cards can't return; scripted as "card text wins" pending the answer.
+  - Fallen Warrior (`mts` 21153) has Old Grudge's bug: its data's `impliedAttachHost: "ally"` attaches it at reveal
+    before its own When Revealed; switch it to `"ownWhenRevealed"` and regenerate `mts` (not started).
+  - Open question to the user: Old Grudge with the nemesis minion already in play is discarded (scripted default).
   - Already on `feature/wave-5`, safe to ignore or delete: `wip/wave5-cannot-thwart-side`,
-    `wip/wave5-venom-goblin-villain`, `wip/wave5-venom-goblin-encounter`, `wip/wave5-venom-goblin-integration`, `wip/wave5-q71-step-one`, `wip/wave5-down-to-earth`, `wip/wave5-whispers-of-paranoia`, `wip/wave5-goblin-gear`, `wip/wave5-osborn-tech`, `wip/wave5-search-primitives`, `wip/wave5-guerrilla-tactics`, `wip/wave5-venom-goblin-setup`, `wip/wave-5-ambush-fallback` (the sixth
+    `wip/wave5-venom-goblin-villain`, `wip/wave5-venom-goblin-encounter`, `wip/wave5-venom-goblin-integration`, `wip/wave5-q71-step-one`, `wip/wave5-down-to-earth`, `wip/wave5-whispers-of-paranoia`, `wip/wave5-goblin-gear`, `wip/wave5-osborn-tech`, `wip/wave5-search-primitives`, `wip/wave5-old-grudge`, `wip/wave5-guerrilla-tactics`, `wip/wave5-venom-goblin-setup`, `wip/wave-5-ambush-fallback` (the sixth
     session's Ambush! fallback, cherry-picked 683bb5c/d3ab39a), `wip/wave-5-five-villains` (superseded by 13f9b13).
     The cloud proxy refuses remote branch deletion, so they stay until someone deletes them on GitHub.
 - **Order of the rest:** the PR body's "Remaining plan".
