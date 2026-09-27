@@ -290,11 +290,8 @@ describe("The precon's own aspect/basic events (27042, 27043, 27050)", () => {
     for (const id of kept) expect(playerOf(after, P1).deck).toContain(id);
   });
 
-  // Pinned gap (module docblock): `reorderCards`'s `to` only ever sends cards to the encounter deck
-  // (`packages/engine/src/spec.ts`'s `kind: "reorderCards"`), so a kept card from a *player* deck always goes back
-  // on top — there is no way today to put one on the bottom instead, as the printed "top and/or bottom … in any
-  // order" promises. `it.fails` until a player-deck reorder destination lands.
-  it.fails("27043.global-logistics-action: a player deck — a kept card can be sent to the bottom instead of the top", () => {
+  // docs/phase7-wave5.md §4.1 Q60: `reorderCards` to `"playerDeckTopOrBottom"`.
+  it("27043.global-logistics-action: a player deck — a kept card can be sent to the bottom instead of the top", () => {
     const state = milesVsRhino();
     const withJefferson = playFromHand(state, "27036", 2);
     const given = moveToHand(withJefferson.state, P1, "27043");
@@ -305,6 +302,10 @@ describe("The precon's own aspect/basic events (27042, 27043, 27050)", () => {
       const choice = s.pendingChoice;
       if (choice?.prompt.kind === "choosePlayer") return [P1];
       if (choice?.prompt.kind === "chooseCards" && choice.prompt.slot === "discarded") return [];
+      if (choice?.prompt.kind === "chooseBottomCards") {
+        expect(choice.prompt).toEqual({ kind: "chooseBottomCards", deck: "playerDeck", deckOwner: P1 });
+        return [kept];
+      }
       return choosing("A player deck")(s);
     };
     const after = settle(
@@ -318,6 +319,8 @@ describe("The precon's own aspect/basic events (27042, 27043, 27050)", () => {
       WAVE5_DEPS,
     );
     expect(playerOf(after, P1).deck.at(-1)).toBe(kept);
+    // The other 3 stay on top, in whichever order was chosen.
+    expect([...playerOf(after, P1).deck.slice(0, 3)].sort()).toEqual([...before.slice(1, 4)].sort());
   });
 
   it("27050.young-love-action: heals 3 damage each from Gwen Stacy (an ally) and Miles Morales (the identity)", () => {

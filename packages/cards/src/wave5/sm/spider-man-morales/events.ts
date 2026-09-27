@@ -24,6 +24,7 @@ import {
   option,
   paidWith,
   placeOnTopOrBottom,
+  placeOnTopOrBottomOfPlayerDeck,
   query,
   ready,
   removeThreat,
@@ -91,16 +92,10 @@ const SHIELD_CARD = query(["ally", "upgrade", "support"], { trait: trait("S.H.I.
  *   order." — a `chooseOne` between the two decks (the same "which deck" decision docs/phase7-wave5.md §4.1 Q13
  *   answers for a *revealed* deck elsewhere; here it's the printed text's own explicit choice, made by the player
  *   resolving the event). The encounter-deck branch is `selectCards`/`chooseCards`/`placeOnTopOrBottom` verbatim
- *   from Take the Fight to Them (`wave3/gmw/market.ts`'s `16161.take-the-fight-to-them-action`). **The player-deck
- *   branch is an approximation, flagged below and pinned failing in `events.test.ts`:** `EffectSpec reorderCards`
- *   (`packages/engine/src/spec.ts`'s `kind: "reorderCards"`) only ever sends cards to `"encounterDeckTop"` /
- *   `"encounterDeckTopOrBottom"` — there is no engine primitive that reorders a *player's* deck with a top/bottom
- *   split chosen per card. Discarding the chosen cards is exact; the kept cards go back on top of that same
- *   player's deck in the order they were looked at (`moveCards(…, "deckTop")`, which does route to the right
- *   player's deck — `packages/engine/src/resolve/cards.ts`'s own `deckTop`/`deckBottom` case reads the mover's
- *   `ownerId`) rather than the player's own choice of top-or-bottom-and-order. Flagged for `game-rules-architect`:
- *   a generic reorder-to-player-deck-top-or-bottom primitive (`reorderCards`'s `to` widened past the encounter
- *   deck) would close this exactly.
+ *   from Take the Fight to Them (`wave3/gmw/market.ts`'s `16161.take-the-fight-to-them-action`). The player-deck
+ *   branch is the same shape over the chosen player's deck: `placeOnTopOrBottomOfPlayerDeck` (`reorderCards` to
+ *   `"playerDeckTopOrBottom"`, docs/phase7-wave5.md §4.1 Q60) puts each kept card back on the top or the bottom of
+ *   that player's deck, in the resolving player's chosen order.
  *
  * **Young Love (27050)**: identical printed text to Ghost-Spider's own `27019` (`ghost-spider/events-b.ts`'s own
  * docblock) — `alterEgoAction(heal(3, teamUpCharacters()))`, a separate ability id since it's a distinct card
@@ -157,9 +152,7 @@ export const SPIDER_MAN_MORALES_EVENTS = defineAbilities({
         selectCards("looked", topOfDeck(4, chosenPlayer("owner"))),
         chooseCards("discarded", cards(chosen("looked")), { min: 0, max: 4 }),
         moveCards(cards(chosen("discarded")), "discard"),
-        // Approximation (module docblock): the engine has no player-deck top/bottom `reorderCards` destination yet,
-        // so the kept cards go back on top in the order looked rather than the player's own top/bottom split.
-        moveCards(cards(chosen("looked"), { excludeSlots: ["discarded"] }), "deckTop"),
+        placeOnTopOrBottomOfPlayerDeck(cards(chosen("looked"), { excludeSlots: ["discarded"] }), chosenPlayer("owner")),
       ),
     ),
   ),
