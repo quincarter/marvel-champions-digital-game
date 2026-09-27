@@ -923,6 +923,11 @@ export interface CampaignHistoryEntry {
   readonly steps: readonly CampaignStepTrace[];
   /** Epoch milliseconds, supplied by the caller. Never read from a clock here, so the engine stays pure. */
   readonly at: number;
+  /**
+   * The in-game seed this attempt was dealt from (`CampaignGameInput.seed`), so a client can offer to replay a lost
+   * attempt's exact deal. Absent on entries written before it was recorded.
+   */
+  readonly seed?: number;
 }
 
 export type CampaignAttemptOutcome = "won" | "lost" | "abandoned";

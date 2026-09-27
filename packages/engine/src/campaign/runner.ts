@@ -692,6 +692,7 @@ export function applyCampaignResult(
     logBefore: attempt.logBefore,
     steps: [...attempt.steps, ...run.steps],
     at: meta.at,
+    seed: attempt.input.seed,
   };
   const { attempt: _finished, ...rest } = log;
   return {

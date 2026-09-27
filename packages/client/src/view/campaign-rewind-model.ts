@@ -53,6 +53,12 @@ export interface RewindView {
   readonly keptSummary: string;
   /** What this lost attempt struck from the campaign for good (RRG 1.8 p. 29) — empty when it struck nothing. */
   readonly gone: readonly RewindGoneLine[];
+  /**
+   * The lost attempt's own seed, for "Same hands" — the campaign counterpart of a one-shot's "Same seed, same
+   * hands". A plain rewind deals a fresh shuffle (`resolveBetweenGames`' per-attempt seed); null when the entry
+   * predates seeds being recorded, so the option is simply not offered.
+   */
+  readonly replaySeed: number | null;
 }
 
 const faceKey = (face: CampaignCardFace): string => `${face.cardId as string}\u0000${face.face ?? ""}`;
@@ -88,5 +94,5 @@ export function rewindViewOf(
       : names.length > 0
         ? `${names.join(", ")} from #1–${issueNumber - 1}.`
         : `Everything from issues #1–${issueNumber - 1}.`;
-  return { campaignLost: record.status === "lost", issueNumber, keptSummary, gone };
+  return { campaignLost: record.status === "lost", issueNumber, keptSummary, gone, replaySeed: entry?.seed ?? null };
 }
