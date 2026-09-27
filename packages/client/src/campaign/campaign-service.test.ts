@@ -76,6 +76,32 @@ describe("CampaignService", () => {
     expect(folded.record.history.map((entry) => entry.outcome)).toEqual(["lost"]);
   });
 
+  test("a rewound issue is dealt a fresh shuffle, not the lost attempt's decks again (MC10 p. 3)", async () => {
+    const campaigns = service();
+    let record = await campaigns.start({ campaignId: "trors", seats: ROSTER, poolVersion: POOL_VERSION, seed: 11 });
+    const deals: { seed: number; hand: readonly string[]; encounter: readonly string[] }[] = [];
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const composed = await campaigns.compose(record);
+      if (composed.kind !== "done") throw new Error("issue #1 asks nothing on standard");
+      const config = campaigns.launchConfig(composed.record);
+      const core = new EngineSessionCore({ storage: new MemoryGameStorage() });
+      const { state } = (await core.start(config)).snapshot;
+      deals.push({
+        seed: config.seed,
+        hand: state.players[0]!.hand.map((id) => id as string),
+        encounter: Object.values(state.encounterDecks)[0]!.deck.map((id) => id as string),
+      });
+      core.dispatch({ type: "concede", playerId: state.firstPlayerId });
+      const folded = await campaigns.fold(composed.record, core.save());
+      if (folded.kind !== "done") throw new Error("a loss asks nothing");
+      record = folded.record;
+    }
+    expect(record.position.nextNodeId).toBe("crossbones");
+    expect(new Set(deals.map((deal) => deal.seed)).size).toBe(3);
+    expect(new Set(deals.map((deal) => deal.hand.join())).size).toBe(3);
+    expect(new Set(deals.map((deal) => deal.encounter.join())).size).toBe(3);
+  });
+
   test("a win asks each seat for a TECH upgrade before anything is stored, then advances to issue #2", async () => {
     const campaigns = service();
     const signed = await campaigns.start({ campaignId: "trors", seats: ROSTER, poolVersion: POOL_VERSION, seed: 11 });
