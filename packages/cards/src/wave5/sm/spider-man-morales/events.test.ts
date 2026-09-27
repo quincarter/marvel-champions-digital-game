@@ -18,6 +18,7 @@ import {
   toHero,
   type Picker,
 } from "../../../testing/harness.js";
+import { withForm } from "../../../testing/staging.js";
 import { playFromHand, startWave5Game, WAVE5_DEPS } from "../../testing.js";
 import { spiderManMoralesScenario } from "./support.js";
 
@@ -324,10 +325,13 @@ describe("The precon's own aspect/basic events (27042, 27043, 27050)", () => {
   });
 
   it("27050.young-love-action: heals 3 damage each from Gwen Stacy (an ally) and Miles Morales (the identity)", () => {
-    const state = milesVsRhino();
-    // Ghost-Spider (27048, ally, subtitle "Gwen Stacy"): playable — Miles's own identity already controls the
-    // Web-Warrior trait its "Play only if" requires.
-    const { state: withGwen, id: gwen } = playFromHand(state, "27048", 3);
+    // Ghost-Spider (27048, ally, subtitle "Gwen Stacy"): "Play only if you control a Web-Warrior card" — Miles's hero
+    // side (Spider-Man) is the Web-Warrior; his alter-ego side is Civilian only, so flip to hero first.
+    const state = run(milesVsRhino(), toHero(P1));
+    const { state: withGwenAsHero, id: gwen } = playFromHand(state, "27048", 3);
+    // Young Love is an Alter-Ego Action: back to Miles Morales (test surgery; a second real change this round would
+    // hit the once-per-round limit).
+    const withGwen = withForm(withGwenAsHero, "alterEgo");
     const identity = identityOf(withGwen);
     const damaged = patchInstance(patchInstance(withGwen, identity, { damage: 5 }), gwen, { damage: 2 });
     const given = moveToHand(damaged, P1, "27050");
