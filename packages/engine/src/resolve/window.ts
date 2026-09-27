@@ -110,13 +110,19 @@ const stillImminent = (ctx: Ctx, frame: Frame<"window">, candidate: TriggerCandi
   const on = answered(frame, candidate);
   if (cancelledFrame(ctx, on.eventFrameId)) return false;
   // An attachment leaving with its host (§4.1 Q32): not if the host's own event here was cancelled and the host stays.
-  const leaving = on.event.kind === "cardLeavesPlay" ? on.event.leaving : undefined;
-  if (leaving?.kind !== "withHost") return true;
+  // An attachment's attachment asks the same of its host's host, and so on up (§4.1 Q50).
   const events = [frame.event, ...(frame.alsoEvents ?? [])];
   const frames = [frame.eventFrameId, ...(frame.alsoEventFrameIds ?? [])];
-  const hostAt = events.findIndex((event) => "instanceId" in event && event.instanceId === leaving.host);
-  if (hostAt < 0 || !cancelledFrame(ctx, frames[hostAt] ?? null)) return true;
-  return !cardsInPlay(ctx.state).includes(leaving.host);
+  let leaving = on.event.kind === "cardLeavesPlay" ? on.event.leaving : undefined;
+  while (leaving?.kind === "withHost") {
+    const host = leaving.host;
+    const hostAt = events.findIndex((event) => "instanceId" in event && event.instanceId === host);
+    if (hostAt < 0) return true;
+    if (cancelledFrame(ctx, frames[hostAt] ?? null)) return !cardsInPlay(ctx.state).includes(host);
+    const hostEvent = events[hostAt];
+    leaving = hostEvent?.kind === "cardLeavesPlay" ? hostEvent.leaving : undefined;
+  }
+  return true;
 };
 
 /**

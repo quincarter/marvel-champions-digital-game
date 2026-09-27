@@ -883,7 +883,8 @@ export function waitsForLeaveInterrupts(
  */
 export function waitsForHostStep(ctx: Ctx, hostIds: readonly InstanceId[], step: HostStep): boolean {
   if (!listensForLeavingPlay(ctx.deps)) return false;
-  const attachments = hostIds.flatMap((host) => getInstance(ctx.state, host)?.attachments ?? []);
+  // Already waited: some attachment (or an attachment's attachment, §4.1 Q50) has its leaving on the stack.
+  const attachments = hostIds.flatMap((host) => attachedTree(ctx.state, host));
   if (attachments.some((attachment) => leavingFrameFor(ctx.state, attachment) !== undefined)) return false;
   // A flipped host stays in play; every other step takes its host out of play (§4.1 Q50).
   const how = step.kind === "flipMainSchemeStage" || step.kind === "flipToOtherFace" ? "flip" : "leaveNow";
@@ -916,7 +917,8 @@ export function attachmentsWaitForHost(ctx: Ctx, hostId: InstanceId): boolean {
  * - `defeat`: the same, but a Victory X one goes to the victory display (`defeatFromPlay`);
  * - `flip`: the host flips to another card type and stays in play (RRG 1.8 "Flip", p. 20): its attachments are
  *   discarded (`discardAtOnce`), except a permanent or "cannot leave play" one, which stays attached.
- * An attachment already leaving on its own is not listed.
+ * An attachment already leaving on its own is not listed. The attachments of one that leaves follow it, depth first,
+ * each naming its own host (§4.1 Q50).
  */
 export function leavingWithHost(
   ctx: Ctx,
@@ -943,8 +945,16 @@ export function leavingWithHost(
       leaving: { kind: "withHost", host: hostId },
     };
     if (heard(ctx.state, ctx.deps, event)) events.push(event);
+    // Its own attachments leave with it, in the same window, right after it (§4.1 Q50): its move takes them as any
+    // host's does (`leaveNow`'s attachment loop, `discardWithLeavingHost`).
+    events.push(...leavingWithHost(ctx, attachment, "leaveNow"));
   }
   return events;
+}
+
+/** Every card attached to `hostId`, and to those, depth first (attachments on attachments, §4.1 Q50). */
+function attachedTree(state: GameState, hostId: InstanceId): readonly InstanceId[] {
+  return (getInstance(state, hostId)?.attachments ?? []).flatMap((id) => [id, ...attachedTree(state, id)]);
 }
 
 /**

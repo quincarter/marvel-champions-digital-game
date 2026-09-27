@@ -400,16 +400,19 @@ export function cardsInPlay(state: GameState): readonly InstanceId[] {
   // A defeated villain's last stage is removed from the game (RRG 1.8 "Villain Defeat", p. 47), so it is out of play.
   const villains = undefeatedVillains(state).map((villain) => villain.instanceId);
   const ids: InstanceId[] = [...villains, state.mainScheme.instanceId];
+  // A card attached to an attachment is in play too, however deep (docs/phase7-wave5.md §4.1 Q50).
+  const attachmentsOf = (id: InstanceId): void => {
+    for (const attachment of getInstance(state, id)?.attachments ?? []) {
+      ids.push(attachment);
+      attachmentsOf(attachment);
+    }
+  };
   const withAttachments = (id: InstanceId): void => {
     ids.push(id);
-    for (const attachment of getInstance(state, id)?.attachments ?? []) ids.push(attachment);
+    attachmentsOf(id);
   };
-  for (const villainId of villains) {
-    for (const attachment of getInstance(state, villainId)?.attachments ?? []) ids.push(attachment);
-  }
-  for (const attachment of getInstance(state, state.mainScheme.instanceId)?.attachments ?? []) {
-    ids.push(attachment);
-  }
+  for (const villainId of villains) attachmentsOf(villainId);
+  attachmentsOf(state.mainScheme.instanceId);
   // A main scheme stage in play beside the central one (Tower Defense; docs/phase7-wave4.md §3.2).
   for (const extra of state.extraMainSchemes ?? []) withAttachments(extra.instanceId);
   // Each separate game area's own main scheme stage (docs/phase7-wave2.md §3.1).

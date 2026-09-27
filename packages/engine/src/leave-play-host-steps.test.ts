@@ -385,14 +385,14 @@ const KEEP_VILLAIN_GADGET = stubAbility("villain-gadget.keep", {
 const KEEPING_VILLAIN_GADGET = stubUpgrade({ id: "villain-gadget", cost: 0, abilities: [KEEP_VILLAIN_GADGET.ref] });
 const REMOVE_VILLAIN = event("remove-villain", [{ kind: "removeVillain", villain: { kind: "villain" } }]);
 
-function villainTable(gadgetCard: UpgradeCard, abilities: readonly StubAbility[]) {
+function villainTable(gadgetCard: UpgradeCard, abilities: readonly StubAbility[], extra: readonly UpgradeCard[] = []) {
   const TRACKER = trackerWith();
   const deps = depsOf(...abilities, REMOVE_VILLAIN.ability);
   const start = gameAtFirstTurn({
     villain: REMOVABLE_VILLAIN,
-    cards: [gadgetCard, TRACKER, REMOVE_VILLAIN.card],
+    cards: [gadgetCard, TRACKER, REMOVE_VILLAIN.card, ...extra],
     deps,
-    deck: [gadgetCard.id, TRACKER.id, REMOVE_VILLAIN.card.id],
+    deck: [gadgetCard.id, TRACKER.id, REMOVE_VILLAIN.card.id, ...extra.map((card) => card.id)],
   });
   const villainId = start.activeVillainId!;
   const tracker = playerCardIntoPlay(start, TRACKER.id);
@@ -592,5 +592,120 @@ describe("§4.1 Q50 a permanent attachment on a host that flips to another card 
     expect(mustInstance(state, t.gadget).attachedTo).toBe(t.schemeId);
     expect(mustPlayer(state, P1).discard).not.toContain(t.gadget);
     expectReplays(session, t.deps);
+  });
+});
+
+// ---- §4.1 Q50: attachments on attachments leave in their host's window ----------------------------------------------
+//
+// A card attached to an attachment leaves play with it (RRG 1.8 "Attach To", p. 8; "Leaves Play", p. 27), so its "when
+// this leaves play" interrupt resolves in the same shared window as the host's, still in play (§4.1 Q32–Q33), listed
+// right after the attachment it is on.
+
+const tagStillAttached: ValueSpec = { kind: "count", query: { categories: ["upgrade"], name: "tag" } };
+/** "Forced Interrupt: When this leaves play, …" on the tag attached to the gadget. */
+const TAG_INTERRUPT = stubAbility("tag.interrupt", {
+  trigger: { kind: "interrupt", forced: true, on: { on: "cardLeavesPlay", selfIs: "target" } },
+  effects: [
+    mark("tagInterrupt", one),
+    mark("tagHostStillThere", villainStillThere),
+    mark("tagInPlay", tagStillAttached),
+  ],
+});
+const TAG = stubUpgrade({ id: "tag", cost: 0, abilities: [TAG_INTERRUPT.ref] });
+const HOST_SUPPORT = stubSupport({ id: "host-support", cost: 0 });
+const DISCARD_HOST_SUPPORT = event("discard-host-support", [
+  {
+    kind: "moveCards",
+    cards: { kind: "ref", ref: { kind: "each", query: { categories: ["support"], name: "host-support" } } },
+    to: "discard",
+  },
+]);
+
+/** Test surgery: `tag` reparented from P1's play area onto `host` (another attachment), beside what it already has. */
+function nestOn(state: GameState, tag: InstanceId, host: InstanceId): GameState {
+  const hostInstance = mustInstance(state, host);
+  return {
+    ...state,
+    players: state.players.map((p) =>
+      p.playerId === P1 ? { ...p, playArea: p.playArea.filter((id) => id !== tag) } : p,
+    ),
+    instances: {
+      ...state.instances,
+      [tag]: { ...mustInstance(state, tag), attachedTo: host },
+      [host]: { ...hostInstance, attachments: [...hostInstance.attachments, tag] },
+    },
+  };
+}
+
+/** `villainTable` with the tag attached to the gadget. */
+function nestedVillainTable(gadgetCard: UpgradeCard, abilities: readonly StubAbility[]) {
+  const t = villainTable(gadgetCard, [...abilities, TAG_INTERRUPT], [TAG]);
+  const tag = playerCardIntoPlay(t.state, TAG.id);
+  return { ...t, state: nestOn(tag.state, tag.id, t.gadget), tag: tag.id };
+}
+
+describe("§4.1 Q50 an attachment's attachment leaves in its host's window", () => {
+  it("a villain removed: the tag on the gadget gets its interrupt first, with the villain and the tag still in play; both then discard; replay deep-equal", () => {
+    const t = nestedVillainTable(PLAIN_VILLAIN_GADGET, []);
+    const { state, events, session } = playFree(t.state, t.deps, REMOVE_VILLAIN.card.id);
+    expect(mustInstance(state, t.tracker).counters).toMatchObject({
+      tagInterrupt: 1,
+      tagHostStillThere: 1,
+      tagInPlay: 1,
+    });
+    expect(mustPlayer(state, P1).discard).toEqual(expect.arrayContaining([t.gadget, t.tag]));
+    expect(mustInstance(state, t.tag).attachedTo).toBeNull();
+    const resolvedAt = index(events, (e) => e.type === "abilityResolved" && e.abilityId === TAG_INTERRUPT.ref.id);
+    expect(resolvedAt).toBeGreaterThanOrEqual(0);
+    expect(resolvedAt).toBeLessThan(index(events, (e) => e.type === "villainRemoved"));
+    expect(state.stack).toEqual([]);
+    expectReplays(session, t.deps);
+  });
+
+  it("with the gadget heard too, both interrupts share one window, the gadget's event first and the tag's after it", () => {
+    const t = nestedVillainTable(VILLAIN_GADGET, [VILLAIN_GADGET_INTERRUPT]);
+    const { state, events, session } = playFree(t.state, t.deps, REMOVE_VILLAIN.card.id);
+    expect(mustInstance(state, t.tracker).counters).toMatchObject({ interrupt: 1, tagInterrupt: 1 });
+    const windows = events.flatMap((e) =>
+      e.type === "windowOpened" && e.timing === "interrupt" && e.event.kind === "cardLeavesPlay" ? [e] : [],
+    );
+    expect(windows).toHaveLength(1);
+    expect(windows[0]?.event).toMatchObject({ instanceId: t.gadget });
+    expect(windows[0]?.candidates.map((c) => `${c.abilityId}`).sort()).toEqual(
+      [`${VILLAIN_GADGET_INTERRUPT.ref.id}`, `${TAG_INTERRUPT.ref.id}`].sort(),
+    );
+    const initiated = events.flatMap((e) =>
+      e.type === "triggerEvent" && e.phase === "initiated" && e.event.kind === "cardLeavesPlay"
+        ? [e.event.instanceId]
+        : [],
+    );
+    expect(initiated).toEqual([t.gadget, t.tag]);
+    expect(mustPlayer(state, P1).discard).toEqual(expect.arrayContaining([t.gadget, t.tag]));
+    expect(state.stack).toEqual([]);
+    expectReplays(session, t.deps);
+  });
+
+  it("a support leaving play: the tag on its upgrade gets its interrupt with the support still in play; replay deep-equal", () => {
+    const TRACKER = trackerWith();
+    const deps = depsOf(TAG_INTERRUPT, DISCARD_HOST_SUPPORT.ability);
+    const start = gameAtFirstTurn({
+      cards: [TRACKER, HOST_SUPPORT, PLAIN_VILLAIN_GADGET, TAG, DISCARD_HOST_SUPPORT.card],
+      deps,
+      deck: [TRACKER.id, HOST_SUPPORT.id, PLAIN_VILLAIN_GADGET.id, TAG.id, DISCARD_HOST_SUPPORT.card.id],
+    });
+    const tracker = playerCardIntoPlay(start, TRACKER.id);
+    const host = playerCardIntoPlay(tracker.state, HOST_SUPPORT.id);
+    const gadget = playerCardIntoPlay(host.state, PLAIN_VILLAIN_GADGET.id);
+    const tag = playerCardIntoPlay(gadget.state, TAG.id);
+    const nested = nestOn(nestOn(tag.state, gadget.id, host.id), tag.id, gadget.id);
+    const { state, events, session } = playFree(nested, deps, DISCARD_HOST_SUPPORT.card.id);
+    expect(mustInstance(state, tracker.id).counters).toMatchObject({ tagInterrupt: 1, tagInPlay: 1 });
+    expect(mustPlayer(state, P1).discard).toEqual(expect.arrayContaining([host.id, gadget.id, tag.id]));
+    const resolvedAt = index(events, (e) => e.type === "abilityResolved" && e.abilityId === TAG_INTERRUPT.ref.id);
+    const hostMovedAt = index(events, (e) => e.type === "cardMoved" && e.instanceId === host.id);
+    expect(resolvedAt).toBeGreaterThanOrEqual(0);
+    expect(resolvedAt).toBeLessThan(hostMovedAt);
+    expect(state.stack).toEqual([]);
+    expectReplays(session, deps);
   });
 });
