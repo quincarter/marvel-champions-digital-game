@@ -67,7 +67,7 @@ describe("27117a.lower-manhattan-special: place 1 threat on each scheme, +1 more
     expect(definition.effects).toEqual([
       {
         kind: "placeThreat",
-        target: { kind: "each", query: { categories: ["mainScheme"] } },
+        target: { kind: "each", query: { categories: ["scheme"] } },
         amount: { kind: "const", value: 1 },
       },
       {
@@ -144,7 +144,12 @@ describe.each([
       const definition = abilities[`${id}.when-revealed`]!;
       valid(definition);
       expect(definition.trigger).toEqual({ kind: "whenRevealed" });
-      expect(definition.effects).toEqual([{ kind: "moveCounters", from: { kind: "self" }, to: leastThreatScheme }]);
+      expect(definition.effects).toEqual([
+        { kind: "bindTargets", slot: "leastThreat", target: { ...leastThreatScheme, ties: "all" } },
+        expect.objectContaining({ kind: "chooseTarget", slot: "gliderTo", chooser: { kind: "firstPlayer" } }),
+        { kind: "moveCounters", from: { kind: "self" }, to: { kind: "slot", slot: "gliderTo" } },
+      ]);
+      // Which scheme the glider actually lands on, ties included, is played out in `scenario.test.ts`.
     });
 
     it(`${id}.${slug}-constant is a state check for 2+ [Symbiote] environments ending the game in a loss`, () => {

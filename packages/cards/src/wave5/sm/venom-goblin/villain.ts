@@ -5,9 +5,8 @@ import { defineAbilities } from "../../../dsl/index.js";
  * work — Infest the City / Claim the Throne / Reign of Terror (each stage's own `[star] Forced Response: After
  * Venom Goblin activates against you, move the glider counter to the main scheme with the least threat …`) and the
  * When Revealeds dealing facedown encounter cards. "Move the glider counter to the main scheme with the least
- * threat" is `moveCounters(each(query("mainScheme", { hasCounter: "glider" })), superlative("lowest",
- * each(query("mainScheme")), threatOn(chosen("candidate"))), "glider")` — the Joy Ride worked example,
- * `packages/cards/src/dsl/wave5-primitives.test.ts` §3.3 — and "resolve its 'Special' ability" is
+ * threat" is `main-scheme.ts`'s `moveToLeastThreatScheme(each(query("mainScheme", { hasCounter: "glider" })),
+ * "glider")` (the first player breaks a tie), and "resolve its 'Special' ability" is
  * `resolveSpecialsOf(each(query("mainScheme", { hasCounter: "glider" })))` (same file), reading the *new* location
  * of the glider counter after it moves. `main-scheme.ts` in this folder already scripts 27117a–27119a's own Special
  * abilities and 27117b–27119b's own When Revealed/loss check; this villain module only needs to call them.

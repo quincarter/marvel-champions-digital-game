@@ -1,7 +1,7 @@
 import { cardId, encounterSetId } from "@mc/content";
 import { currentName, getInstance, villainStage, type GameState, type InstanceId } from "@mc/engine";
 import { describe, expect, it } from "vitest";
-import { P1, endTurn, firstLegal, patchInstance, settle } from "../../../testing/harness.js";
+import { P1, endTurn, firstLegal, patchInstance, picking, settle } from "../../../testing/harness.js";
 import { runWave5, startWave5Game, WAVE5_DEPS } from "../../testing.js";
 import { ghostSpiderScenario } from "../ghost-spider/support.js";
 
@@ -100,31 +100,41 @@ describe("wave5Scenario('venom-goblin'): 27116a.setup", () => {
 });
 
 describe("a completed stage (27117b/27118b/27119b) flips to its environment and moves the glider counter", () => {
-  it("Midtown Manhattan (holding the glider) completes, flips to its environment face, and the glider moves to the least-threat scheme", () => {
-    const state = venomGoblin();
-    const midtown = schemeNamed(state, "Midtown Manhattan");
-    // targetThreat 12 (1 hero), acceleration 1/round; the villain's own step-one scheme also lands on the glider
-    // scheme (docs/phase7-wave5.md §3.3, `packages/engine/src/glider-main-schemes.test.ts`'s own "+2 from the
-    // villain's scheme" comment) — Venom Goblin (I)'s SCH is 2, so Midtown gains at least 1 (its own acceleration)
-    // this round; patched one below its own acceleration alone guarantees completion regardless of the villain's
-    // extra scheme amount (a direct patch to the target value itself would never fire the completion check — the
-    // `escape-the-museum-completion.test.ts` precedent).
-    const primed = patchInstance(state, midtown, { threat: 11 });
-    const settled = settle(runWave5(primed, endTurn(P1)), firstLegal, undefined, WAVE5_DEPS);
+  /**
+   * Midtown Manhattan (glider, target 12 for 1 hero, acceleration 1) primed to complete on step one of the villain
+   * phase, with Lower and Upper at the given threat before their own step-one acceleration (1 each).
+   */
+  const completeMidtown = (lower: number, upper: number, pick = firstLegal): GameState => {
+    let state = venomGoblin();
+    state = patchInstance(state, schemeNamed(state, "Midtown Manhattan"), { threat: 11 });
+    state = patchInstance(state, schemeNamed(state, "Lower Manhattan"), { threat: lower });
+    state = patchInstance(state, schemeNamed(state, "Upper Manhattan"), { threat: upper });
+    return settle(runWave5(state, endTurn(P1)), pick, undefined, WAVE5_DEPS);
+  };
+
+  it("Midtown Manhattan (holding the glider) completes, flips to its environment face, and the glider moves to the scheme with the least threat", () => {
+    const settled = completeMidtown(5, 0);
     expect(settled.outcome).toBeNull();
     // Midtown Manhattan is no longer among the main schemes...
     expect(schemes(settled).map((id) => currentName(settled, id))).toEqual(["Lower Manhattan", "Upper Manhattan"]);
-    // ...its environment face (27118b) entered the villain area, was revealed, and the glider counter (which it
-    // held) moved off it to one of the two remaining schemes — the exact tie-break ("the main scheme with the
-    // least threat", superlative "lowest") is asserted structurally on the ability's own plain-data effect in
-    // `main-scheme.test.ts` instead of recomputed here: by the time `endTurn` settles a full villain phase, a real
-    // encounter card may already have placed more threat on whichever scheme the glider landed on, so the two
-    // schemes' *final* threat no longer reflects what was compared at the moment of the move.
+    // ...its environment face (27118b) entered the villain area and gave the glider to Upper (0 threat vs Lower's 6;
+    // Upper's own step-one threat comes after Midtown's completion, see the tie test below).
     const midtownEnv = settled.villainArea.find((id) => getInstance(settled, id)?.cardId === cardId("27118b"));
     expect(midtownEnv).toBeDefined();
     expect(getInstance(settled, midtownEnv!)!.counters["glider"] ?? 0).toBe(0);
-    expect(gliderOn(settled)).toBeDefined();
-    expect(["Lower Manhattan", "Upper Manhattan"]).toContain(gliderOn(settled));
+    expect(gliderOn(settled)).toBe("Upper Manhattan");
+    expect(completeMidtown(0, 5).outcome).toBeNull();
+    expect(gliderOn(completeMidtown(0, 5))).toBe("Lower Manhattan");
+  });
+
+  it("a tie for the least threat is broken by the first player's choice (MC27 p. 21 FAQ)", () => {
+    const base = venomGoblin();
+    const lower = schemeNamed(base, "Lower Manhattan");
+    const upper = schemeNamed(base, "Upper Manhattan");
+    // Step one places each main scheme's threat in turn (Lower, Midtown, Upper), and Midtown's completion resolves
+    // before Upper gets its own: at the choice Lower has 0 + 1 and Upper still 1, a tie.
+    expect(gliderOn(completeMidtown(0, 1, picking(lower)))).toBe("Lower Manhattan");
+    expect(gliderOn(completeMidtown(0, 1, picking(upper)))).toBe("Upper Manhattan");
   });
 
   it("with 2 [Symbiote] environments in play (2 completed stages), the players lose the game", () => {

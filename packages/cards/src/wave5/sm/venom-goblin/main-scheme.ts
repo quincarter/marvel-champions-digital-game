@@ -1,7 +1,10 @@
 import { trait } from "@mc/content";
+import type { EffectSpec, TargetRef } from "@mc/engine";
 import {
   addCounters,
+  bindTargets,
   cards,
+  chooseTarget,
   chosen,
   constant,
   countOf,
@@ -10,6 +13,7 @@ import {
   each,
   endGame,
   exists,
+  firstPlayer,
   flipCard,
   ifThen,
   moveCards,
@@ -34,7 +38,9 @@ import {
 const SYMBIOTE = trait("SYMBIOTE");
 const SYMBIOTE_ENVIRONMENT = query("environment", { trait: SYMBIOTE });
 const symbioteEnvironmentInPlay = exists(SYMBIOTE_ENVIRONMENT);
-const toLeastThreatScheme = superlative("lowest", each(query("mainScheme")), threatOn(chosen("candidate")));
+const LEAST_THREAT_SCHEMES = superlative("lowest", each(query("mainScheme")), threatOn(chosen("candidate")), {
+  ties: "all",
+});
 
 /**
  * "When Revealed: Move the glider counter and each acceleration token from here to the main scheme with the least
@@ -46,7 +52,18 @@ const toLeastThreatScheme = superlative("lowest", each(query("mainScheme")), thr
  * at the moment this one is revealed (RRG 1.8 "Uses", p. 46's own edge-triggered state check, `dsl/abilities.ts`
  * `stateCheck`'s own doc comment).
  */
-const manhattanWhenRevealed = () => whenRevealed(moveCounters(self, toLeastThreatScheme));
+/**
+ * "Move the glider counter [and each acceleration token] from `from` to the main scheme with the least threat", a tie
+ * broken by the first player (MC27 p. 21 FAQ). With no `counterType`, `moveCounters` moves every counter `from`
+ * holds; the villain's Forced Responses pass `"glider"`.
+ */
+export const moveToLeastThreatScheme = (from: TargetRef, counterType?: string): readonly EffectSpec[] => [
+  bindTargets("leastThreat", LEAST_THREAT_SCHEMES),
+  chooseTarget("gliderTo", { inSlot: "leastThreat" }, { chooser: firstPlayer }),
+  moveCounters(from, chosen("gliderTo"), counterType),
+];
+
+const manhattanWhenRevealed = () => whenRevealed(...moveToLeastThreatScheme(self));
 const manhattanLossCheck = () => stateCheck(valueAtLeast(countOf(SYMBIOTE_ENVIRONMENT), 2), endGame("loss"));
 
 export const SKIES_OVER_NEW_YORK = defineAbilities({
@@ -84,7 +101,7 @@ export const SKIES_OVER_NEW_YORK = defineAbilities({
   // Lower Manhattan, A (27117a) — Special: Place 1 threat on each scheme. If a [Symbiote] environment is in play,
   // place 1 additional threat on this scheme.
   "27117a.lower-manhattan-special": special(
-    placeThreat(1, each(query("mainScheme"))),
+    placeThreat(1, each(query("scheme"))), // "each scheme": every main scheme and side scheme in play.
     ifThen(symbioteEnvironmentInPlay, placeThreat(1, self)),
   ),
   // Lower Manhattan, B (27117b) — When Revealed / loss condition (module docblock).
