@@ -8,7 +8,7 @@ from running several agents in one worktree. Updated 2026-09-27.
 ## Resuming
 
 - **Branch:** `feature/wave-5`. Everything finished and verified is on it.
-- **Work in progress:** `wip/wave-5-stopped-agents` is one commit on top of `feature/wave-5` 49b9535e holding the
+- **Old work in progress (consumed):** `wip/wave-5-stopped-agents` is one commit on top of `feature/wave-5` 49b9535e holding the
   uncommitted files of three agents stopped at the weekly usage limit on 2026-09-27 11:50. It is untested; never merge
   it as is. To continue a piece, check out its files from that branch into a `feature/wave-5` checkout, finish and test
   them, and commit them to `feature/wave-5`:
@@ -19,6 +19,13 @@ from running several agents in one worktree. Updated 2026-09-27.
   - **The Sinister Six part 1:** `buildSmMultipleVillains` in `wave5/setup.ts`, `wave5/sm/sinister-six/`, and its line
     in `wave5/sm/index.ts`. Tests not run.
   - **Q70** (Induced Panic) wrote nothing; start it over.
+- **Agent branches in flight (seventh session, 2026-09-27 ~20:20 UTC):** each agent pushes its own branch after
+  every commit; the main session reviews, reruns the tests and cherry-picks onto `feature/wave-5`, then deletes the
+  branch. If a session ends first, these hold the unmerged work (untested until reviewed):
+  - `wip/wave5-venom-goblin-villain`: Venom Goblin (I)–(III) 27113–27115 + the scenario's e2e games.
+  - `wip/wave5-venom-goblin-encounter`: the Venom Goblin encounter set 27120–27126.
+  - `wip/wave5-cannot-thwart-side`: engine `cannotThwart` scoped to schemes + Life-Size Decoy 27142's
+    `constant-2`.
 - **Order of the rest:** the PR body's "Remaining plan".
 
 ## Rules for agents (also in CLAUDE.md)
