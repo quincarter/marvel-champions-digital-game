@@ -10,8 +10,15 @@ import {
   toHero,
   P1,
 } from "../../testing/harness.js";
+import { driveEvents } from "../../testing/staging.js";
+import { expectResolved, traceAbilities } from "../../testing/trace.js";
 import { wave2Scenario } from "../setup.js";
 import { runWave2, startWave2Game, WAVE2_DEPS } from "../testing.js";
+
+/** Forces the villain onto Absorbing Man (III), 04078 (`badoon.test.ts`'s own `atVillainStage` shape). */
+function atStageIII(state: GameState): GameState {
+  return { ...state, villains: state.villains.map((v) => ({ ...v, stageIndex: 2 })) };
+}
 
 const absorbingManVsHeroes = () =>
   startWave2Game(wave2Scenario("absorbing-man", { players: [{ starterDeckId: "hawkeye-leadership" }], seed: 2026 }));
@@ -54,6 +61,29 @@ describe("Absorbing Man scenario", () => {
     expect(environmentCode).toBeDefined();
     const expectedTrait = ENVIRONMENT_TRAIT[environmentCode!]!;
     expect(traitsOf(start, villain, WAVE2_DEPS).map(String)).toContain(expectedTrait);
+  });
+
+  it("Absorbing Man (III): the Forced Response fires when he attacks you in hero form (docs/phase7-wave5.md §4.1 Q67)", () => {
+    const hero = runWave2(atStageIII(absorbingManVsHeroes()), toHero());
+    const villain = hero.villains[0]!.instanceId;
+    const { deps, trace } = traceAbilities(WAVE2_DEPS);
+    // Every environment's own trait is one of ICE/METAL/STONE/WOOD, so the ability's own `ifThen` branches always
+    // resolve some effect; `expectResolved` pins that the ability ran at all, not which branch.
+    const { events } = driveEvents(deps, hero, endTurn());
+    expectResolved(trace, "04078.absorbing-man-forced-response");
+    expect(events.some((e) => e.type === "attackResolved" && e.enemyInstanceId === villain)).toBe(true);
+    expect(events.some((e) => e.type === "schemeResolved" && e.enemyInstanceId === villain)).toBe(false);
+  });
+
+  it("Absorbing Man (III): the Forced Response also fires when he schemes against you in alter-ego form (docs/phase7-wave5.md §4.1 Q67)", () => {
+    const state = atStageIII(absorbingManVsHeroes()); // alter-ego by default; no `toHero` here.
+    expect(state.players[0]!.identity.form).toBe("alterEgo");
+    const villain = state.villains[0]!.instanceId;
+    const { deps, trace } = traceAbilities(WAVE2_DEPS);
+    const { events } = driveEvents(deps, state, endTurn());
+    expectResolved(trace, "04078.absorbing-man-forced-response");
+    expect(events.some((e) => e.type === "schemeResolved" && e.enemyInstanceId === villain)).toBe(true);
+    expect(events.some((e) => e.type === "attackResolved" && e.enemyInstanceId === villain)).toBe(false);
   });
 
   // None Shall Pass — Forced Interrupt: when an environment enters play, discard each other environment card in
