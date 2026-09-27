@@ -30,6 +30,22 @@ export function rectsOverlap(a: Rect, b: Rect): boolean {
 }
 
 /**
+ * `McScrollRegion`'s own `heights` array from a list of content-space rects already stacked top to bottom with
+ * their own inter-row gaps baked into `y` — each slot spans from its own row's top to the *next* row's top, so
+ * the gap after a row is folded into that row's own slot rather than dropped. A plain `rects.map(r => r.height)`
+ * undercounts the real stacked height by every gap between rows, and `VariableListScroll`'s own scroll math
+ * (`#maxOffset`, `topOf`) only ever sums this array — so a gapless `heights` array drifts further from each
+ * row's real screen position the more rows are scrolled past, and eventually can't scroll far enough to bring
+ * the last rows fully into view. Found in browser verification, 2026-09-26: Pause's merged Table/Guide region
+ * (docs/guided-mode.md §4 G2b) left an earlier row's own detail text still readable under the "Jump into the
+ * log" quick-reference card after scrolling well past it, because the region's own offset undershot where that
+ * row had actually been drawn.
+ */
+export function contentSlotHeights(rects: readonly Rect[]): number[] {
+  return rects.map((rect, i) => (i + 1 < rects.length ? rects[i + 1]!.y - rect.y : rect.height));
+}
+
+/**
  * How many lines a string wraps to at `widthPx`, without a live Phaser text
  * object to measure — the same "conservative width estimate, no canvas" call
  * `chip-layout.ts` makes for a chip label, generalized to a whole sentence: a

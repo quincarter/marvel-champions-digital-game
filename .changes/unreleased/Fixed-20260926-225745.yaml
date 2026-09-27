@@ -1,0 +1,3 @@
+kind: Fixed
+body: Fix guided-mode Settings/Pause scroll clipping, unify the Settings body into one scroll region, and fix the Guide-level segment's clipped border and low-contrast selection
+time: 2026-09-26T22:57:45.533825-04:00

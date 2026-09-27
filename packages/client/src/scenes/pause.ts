@@ -38,7 +38,7 @@
  */
 import Phaser from "phaser";
 import { POOL_DEPS, POOL_ENCOUNTER_SETS, POOL_SCENARIOS } from "../content/pool.js";
-import { accent, ink, status, surface, typeRole, type TypeSpec } from "../tokens.js";
+import { accent, ink, signal, status, surface, typeRole, type TypeSpec } from "../tokens.js";
 import { caseOf, setTextResolution, textStyle } from "../ui/theme.js";
 import { McButton, McTextInput, fitText, label, paintDotGrid, paintPanel } from "../ui/widgets.js";
 import { McScrollRegion } from "../ui/scroll-region.js";
@@ -65,7 +65,7 @@ import type { GuideLevel } from "../guide/guide-prefs.js";
 import { guidePrefs, onGuidePrefsChange, setGuidePrefs } from "../guide/guide-store.js";
 import { VariableListScroll } from "../view/variable-list-scroll.js";
 import { pauseFocusOrder } from "../view/screen-focus.js";
-import type { Rect } from "../view/layout.js";
+import { contentSlotHeights, type Rect } from "../view/layout.js";
 import { appSession } from "../session.js";
 import type { SessionState } from "../store/session-store.js";
 import { FocusRoute, type FocusStop } from "./focus-route.js";
@@ -886,13 +886,16 @@ export class PauseOverlay extends Phaser.Scene {
   ): readonly string[] {
     const levelRow = guideRows.find((row) => row.kind === "segmented");
     const afterLevel = guideRows.filter(isGuideNonLevelRow);
-    const heights = [
-      content.tableHeading.height,
-      ...content.tableRows.map((r) => r.height),
-      content.guideHeading.height,
-      content.guideLevelRow.height,
-      ...content.guideRows.map((r) => r.height),
-    ];
+    // `contentSlotHeights`, not a plain `.map(r => r.height)`: each row's own gap to the next has to count toward
+    // the scroll region's own total, or its offset math drifts away from where these rows are actually drawn the
+    // further down it scrolls (this file's own `view/layout.ts` doc comment).
+    const heights = contentSlotHeights([
+      content.tableHeading,
+      ...content.tableRows,
+      content.guideHeading,
+      content.guideLevelRow,
+      ...content.guideRows,
+    ]);
     this.#lowerRegion = new McScrollRegion(this, { rect: viewport, heights, scroll: this.#lowerScroll });
     const container = this.#lowerRegion.content;
     const toScreen = (contentRect: Rect): Rect => ({ ...contentRect, y: viewport.y + contentRect.y });
@@ -949,7 +952,12 @@ export class PauseOverlay extends Phaser.Scene {
     stops: Map<string, FocusStop>,
   ): void {
     const gap = 4;
-    const cellWidth = (rect.width - gap * (row.options.length - 1)) / row.options.length;
+    // `EDGE_INSET`: the rightmost cell's own border used to land exactly on this row's own right edge — which,
+    // once this group draws inside a masked scroll region, is also the mask's own right edge, so the border's
+    // last pixel or two got clipped away entirely (found in browser verification, 2026-09-26, at 390 and 1440
+    // widths). A couple of spare pixels keeps every cell's own border inside the content width the mask allows.
+    const EDGE_INSET = 2;
+    const cellWidth = (rect.width - EDGE_INSET - gap * (row.options.length - 1)) / row.options.length;
     row.options.forEach((option, i) => {
       const cellRect: Rect = { x: rect.x + i * (cellWidth + gap), y: rect.y, width: cellWidth, height: rect.height };
       const selected = row.selected === option.value;
@@ -967,14 +975,18 @@ export class PauseOverlay extends Phaser.Scene {
           suppressClick: this.#lowerSuppressClick,
         }),
       );
+      // Selected reads as guide yellow (`signal.caution`, ink text) rather than ink-on-ink, which — against this
+      // overlay's own dark ground — used to read as *less* "on" than the bright-paper unselected cells beside it
+      // (found in browser verification, 2026-09-26: the selected cell looked unselected at a glance). Unselected
+      // is ink fill with a paper border and paper text, the readable-on-dark pairing the rest of this sheet uses.
       const g = this.add.graphics();
-      g.fillStyle(selected ? surface.ink.hex : surface.card.hex, 1).fillRect(
+      g.fillStyle(selected ? signal.caution.hex : surface.ink.hex, 1).fillRect(
         cellRect.x,
         cellRect.y,
         cellRect.width,
         cellRect.height,
       );
-      g.lineStyle(2, surface.paper.hex, selected ? 1 : 0.6).strokeRect(
+      g.lineStyle(2, selected ? signal.caution.hex : surface.paper.hex, 1).strokeRect(
         cellRect.x + 1,
         cellRect.y + 1,
         cellRect.width - 2,
@@ -985,7 +997,7 @@ export class PauseOverlay extends Phaser.Scene {
           cellRect.x + 10,
           cellRect.y + 8,
           option.label,
-          textStyle(typeRole.rowTitle, selected ? surface.paper.hex : surface.ink.hex),
+          textStyle(typeRole.rowTitle, selected ? surface.ink.hex : surface.paper.hex),
         )
         .setFontSize(12);
       this.add
@@ -993,7 +1005,7 @@ export class PauseOverlay extends Phaser.Scene {
           cellRect.x + 10,
           cellRect.y + 26,
           option.detail,
-          textStyle(typeRole.body, selected ? surface.paper.hex : surface.ink.hex, selected ? 0.85 : 0.7),
+          textStyle(typeRole.body, selected ? surface.ink.hex : surface.paper.hex, selected ? 0.85 : 0.7),
         )
         .setFontSize(9)
         .setWordWrapWidth(cellWidth - 16);

@@ -176,6 +176,35 @@ describe("pauseLayout", () => {
       expect(layout.lowerViewport.height).toBeLessThan(layout.lowerContent.totalHeight);
     });
 
+    test("no content row ever draws outside the lower group's own [0, totalHeight] span", () => {
+      const layout = pauseLayout({ x: 0, y: 0, width: 390, height: 844 }, input(0));
+      if (layout.kind !== "phone") throw new Error("expected phone");
+      const { lowerContent } = layout;
+      const all = [
+        lowerContent.tableHeading,
+        ...lowerContent.tableRows,
+        lowerContent.guideHeading,
+        lowerContent.guideLevelRow,
+        ...lowerContent.guideRows,
+      ];
+      for (const rect of all) {
+        expect(rect.y).toBeGreaterThanOrEqual(0);
+        expect(rect.y + rect.height).toBeLessThanOrEqual(lowerContent.totalHeight + 0.001);
+      }
+    });
+
+    test("the segmented Guide-level row stays within the lower group's own content width", () => {
+      // Regression, 2026-09-26: the rightmost of the row's three cells used to draw its own border exactly on
+      // this row's own right edge, which — once the group draws inside a masked scroll region — is also the
+      // mask's own edge, clipping the border away. `scenes/pause.ts`'s own `#drawGuideLevelRow` needs this row to
+      // stay within the content width to have room for its own edge inset.
+      const layout = pauseLayout({ x: 0, y: 0, width: 390, height: 844 }, input(0));
+      if (layout.kind !== "phone") throw new Error("expected phone");
+      const { lowerContent } = layout;
+      expect(lowerContent.guideLevelRow.x).toBe(lowerContent.tableHeading.x);
+      expect(lowerContent.guideLevelRow.width).toBe(lowerContent.tableHeading.width);
+    });
+
     test("grows to fit however many rows either list asks for", () => {
       const six = Array.from({ length: 6 }, (_unused, i) => `Row ${i}.`);
       const two = Array.from({ length: 2 }, (_unused, i) => `Row ${i}.`);

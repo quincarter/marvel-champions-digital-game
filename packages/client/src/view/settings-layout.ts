@@ -8,17 +8,22 @@
  * large card text, sound-drawn-unavailable) — kept a parameter rather than a
  * hardcoded 4 so a later setting doesn't need this module touched to grow.
  *
- * **The Guide group (docs/guided-mode.md §4 G2b)** — "Guide level", "Play the
- * tutorial", "Aspect lessons" and the four warning toggles — is drawn under
- * everything above in its own bounded, scrollable viewport (`guideViewport`),
- * not stacked inline and left to run off the bottom of the panel the way a
- * sixth Table row would: on a phone the Table group and Unlocks row alone
- * already use most of the panel's height, so six more rows have to scroll
- * rather than push the panel past the screen. `guideContent`'s own rects are
- * in *content space* (`y` measured from the group's own top, `0`), the same
- * convention `ui/scroll-region.ts`'s own doc comment states — the scene draws
- * them into an `McScrollRegion` the way `scenes/table-setup.ts`'s compact
- * layout already does for its own taller-than-the-screen content.
+ * **The whole body is one scroll region (docs/guided-mode.md §4 G2b, fixed
+ * 2026-09-26).** Table, Unlocks and Guide used to be two pieces — the Table/
+ * Unlocks rows stacked directly into the panel, only the Guide group (below
+ * them) in its own bounded, scrollable viewport — so on a real phone height,
+ * where the Table group and Unlocks row alone already use most of the panel,
+ * the Guide group's own six rows either scrolled in a cramped little box of
+ * their own or (found in browser verification, 2026-09-26) ran straight off
+ * the bottom of the panel with nothing to scroll them into view. Every row
+ * below the fixed header — `tableHeading` through the last Guide row — is now
+ * one `content` block in content space (`y` measured from the content's own
+ * top, `0`), and `bodyViewport` is the one scrollable window onto it, the
+ * same convention `ui/scroll-region.ts`'s own doc comment states. The scene
+ * draws every row into one `McScrollRegion` at `bodyViewport`, the way
+ * `scenes/table-setup.ts`'s compact layout already does for its own
+ * taller-than-the-screen content — never a second, nested scroll box for the
+ * Guide group alone, at any width.
  */
 import { formFactorFor, toggleRowHeight, type Rect } from "./layout.js";
 import { overlayPanelLayout } from "./overlay-layout.js";
@@ -33,30 +38,32 @@ export const GUIDE_LEVEL_ROW_HEIGHT = 52;
 export interface SettingsLayout {
   readonly panel: Rect;
   readonly header: Rect;
-  readonly tableHeading: Rect;
-  readonly rows: readonly Rect[];
-  /** Where the Guide group's own scroll region sits — screen space, below the Table rows and the Unlocks row. */
-  readonly guideViewport: Rect;
-  readonly guideContent: GuideContentLayout;
+  /** The one scroll region under the fixed header — screen space; everything in `content` draws inside it. */
+  readonly bodyViewport: Rect;
+  readonly content: SettingsContentLayout;
 }
 
-/** The Guide group's own rows, in content space (`y` from the group's own top) — see this file's own doc comment. */
-export interface GuideContentLayout {
-  readonly heading: Rect;
-  readonly levelRow: Rect;
-  /** One rect per row after the level row: "Play the tutorial", "Aspect lessons", then one per warning toggle. */
+/** Every row this screen draws, in content space (`y` from the body's own top) — see this file's own doc comment. */
+export interface SettingsContentLayout {
+  readonly tableHeading: Rect;
+  /** One rect per Table toggle row, then one more for the Unlocks row at the end — `rowDetails`'s own order. */
   readonly rows: readonly Rect[];
-  /** The content's own total height, for `McScrollRegion`'s `heights` (one entry per row) and its clamp. */
+  readonly guideHeading: Rect;
+  readonly guideLevelRow: Rect;
+  /** One rect per Guide row after the level row: "Play the tutorial", "Aspect lessons", then one per warning toggle. */
+  readonly guideRows: readonly Rect[];
+  /** The content's own total height, for `McScrollRegion`'s `heights` (`view/layout.ts`'s `contentSlotHeights`) and its clamp. */
   readonly totalHeight: number;
 }
 
 /**
  * `rowDetails[i]` is that row's own rendered detail text (`row.unavailable ??
- * row.detail`) — each row is sized to fit it (`toggleRowHeight`, shared with
- * Pause's inline "Table" column, `view/pause-layout.ts`) rather than every
- * row sharing one fixed height that only the *shortest* description actually
- * fit. Fidelity pass, 2026-09-17: at phone width "Reduced motion"'s
- * three-line detail used to run into "Sharper text"'s own heading below it.
+ * row.detail`, plus the Unlocks row's own summary line at the end) — each row
+ * is sized to fit it (`toggleRowHeight`, shared with Pause's inline "Table"
+ * column, `view/pause-layout.ts`) rather than every row sharing one fixed
+ * height that only the *shortest* description actually fit. Fidelity pass,
+ * 2026-09-17: at phone width "Reduced motion"'s three-line detail used to run
+ * into "Sharper text"'s own heading below it.
  *
  * `guideRowDetails[i]` is the Guide group's own row-after-the-level-row detail text (`row.unavailable ??
  * row.detail`), in draw order: "Play the tutorial", "Aspect lessons", then one per warning toggle
@@ -68,48 +75,54 @@ export function settingsLayout(
   guideRowDetails: readonly string[] = [],
 ): SettingsLayout {
   const { panel, header, body } = overlayPanelLayout(bounds, HEADER_HEIGHT, 0);
-  const tableHeading: Rect = { x: body.x + 16, y: body.y + 8, width: body.width - 32, height: HEADING_HEIGHT };
-  const rowsTop = tableHeading.y + tableHeading.height + 6;
-  const rowWidth = body.width - 32;
-  const rows: Rect[] = [];
+  const contentX = body.x + 16;
+  const contentWidth = Math.max(0, body.width - 32);
   const onDesktop = formFactorFor(bounds.width, bounds.height) === "desktop";
-  let y = rowsTop;
-  for (const detail of rowDetails) {
-    const height = toggleRowHeight(detail, rowWidth, onDesktop);
-    rows.push({ x: body.x + 16, y, width: rowWidth, height });
-    y += height + ROW_GAP;
-  }
 
   // Content space: everything below starts at its own y=0, translated into the viewport by the scroll region.
-  const heading: Rect = { x: body.x + 16, y: 0, width: rowWidth, height: HEADING_HEIGHT };
-  const levelRow: Rect = { x: body.x + 16, y: heading.height + 6, width: rowWidth, height: GUIDE_LEVEL_ROW_HEIGHT };
-  const guideRows: Rect[] = [];
-  let contentY = levelRow.y + levelRow.height + ROW_GAP;
-  for (const detail of guideRowDetails) {
-    const height = toggleRowHeight(detail, rowWidth, onDesktop);
-    guideRows.push({ x: body.x + 16, y: contentY, width: rowWidth, height });
-    contentY += height + ROW_GAP;
+  const tableHeading: Rect = { x: contentX, y: 0, width: contentWidth, height: HEADING_HEIGHT };
+  const rowsTop = tableHeading.y + tableHeading.height + 6;
+  const rows: Rect[] = [];
+  let y = rowsTop;
+  for (const detail of rowDetails) {
+    const height = toggleRowHeight(detail, contentWidth, onDesktop);
+    rows.push({ x: contentX, y, width: contentWidth, height });
+    y += height + ROW_GAP;
   }
-  const totalHeight = Math.max(0, contentY - ROW_GAP);
+  const rowsBottom = rows.length > 0 ? rows[rows.length - 1]!.y + rows[rows.length - 1]!.height : rowsTop;
 
-  const viewportTop = y + GROUP_GAP - ROW_GAP;
+  const guideHeading: Rect = { x: contentX, y: rowsBottom + GROUP_GAP, width: contentWidth, height: HEADING_HEIGHT };
+  const guideLevelRow: Rect = {
+    x: contentX,
+    y: guideHeading.y + guideHeading.height + 6,
+    width: contentWidth,
+    height: GUIDE_LEVEL_ROW_HEIGHT,
+  };
+  const guideRows: Rect[] = [];
+  let gy = guideLevelRow.y + guideLevelRow.height + ROW_GAP;
+  for (const detail of guideRowDetails) {
+    const height = toggleRowHeight(detail, contentWidth, onDesktop);
+    guideRows.push({ x: contentX, y: gy, width: contentWidth, height });
+    gy += height + ROW_GAP;
+  }
+  const totalHeight = Math.max(0, gy - ROW_GAP);
+
+  const viewportTop = body.y;
   // Never taller than the content itself (no dead scroll space when it already fits, as on a roomy desktop), and
   // never taller than what's actually left in the panel (the phone case this group exists for).
   const available = Math.max(0, body.y + body.height - viewportTop);
   const viewportHeight = Math.min(totalHeight, available);
-  const guideViewport: Rect = { x: body.x + 16, y: viewportTop, width: rowWidth, height: viewportHeight };
+  const bodyViewport: Rect = { x: contentX, y: viewportTop, width: contentWidth, height: viewportHeight };
 
   return {
     panel,
     header,
-    tableHeading,
-    rows,
-    guideViewport,
-    guideContent: { heading, levelRow, rows: guideRows, totalHeight },
+    bodyViewport,
+    content: { tableHeading, rows, guideHeading, guideLevelRow, guideRows, totalHeight },
   };
 }
 
-/** Every rect this layout places, for a no-overlap test — the Guide group's own content rects are in a separate coordinate space (see `GuideContentLayout`), so only its viewport is checked here. */
+/** Every rect this layout places, for a no-overlap test — the content's own rects are in a separate coordinate space (see `SettingsContentLayout`), so only the one viewport onto them is checked here. */
 export function settingsLayoutRects(layout: SettingsLayout): readonly Rect[] {
-  return [layout.header, layout.tableHeading, ...layout.rows, layout.guideViewport];
+  return [layout.header, layout.bodyViewport];
 }
