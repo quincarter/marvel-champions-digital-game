@@ -65,5 +65,12 @@ The full table is spec §4.1. The ones settled in conversation rather than in a 
   Backfills in PLAN.md Phase 6: every Core–wave 4 aspect/basic card from another hero's deck, at least one real
   MarvelCDB decklist per hero (fetching from marvelcdb.com approved), random-deck coverage.
 - **Evil Doppelgänger (Q69):** counts any identity-specific card in the engaged player's hand (RRG 1.8 p. 23).
+- **Scenario intros from the rulebook art (2026-09-27):** a one-off (non-campaign) game's intro reuses the box's own
+  captured rulebook comic page (`art/campaigns/<box>/rulebook/page_NNN.jpg`, rendered by `extract-artboards`) instead
+  of new art, for every box, not only `sm`. For `sm` the page before each scenario's Setup page is its intro: Sandman
+  p. 8, Venom p. 10, Mysterio p. 12, The Sinister Six p. 14 (checked: the Six vs Miles and Ghost-Spider), Venom Goblin
+  p. 16 (the others inferred from MC27's Setup pages 9/11/13/15/17). Those pages are already lettered, so the intro
+  shows the page with panel beats but no bubbles of its own. Needs the client to load `rulebook/` for intros (today
+  `campaign-art.ts`'s glob skips it) and `scenario-intros.ts` to point at a box page; step 5 work.
 - Content drops (villain art, scenario and campaign music) are held in `_pending` folders until step 5/6; the PR's
   "Content to add" list says where each goes.
