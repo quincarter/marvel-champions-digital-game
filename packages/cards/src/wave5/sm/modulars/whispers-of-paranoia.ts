@@ -4,10 +4,12 @@ import {
   alterEgoAction,
   anyOfCards,
   atMost,
+  attachCard,
   boost,
   chosen,
   constant,
   controllerOf,
+  dealDamage,
   dealIndirectDamage,
   defineAbilities,
   discard,
@@ -15,7 +17,9 @@ import {
   eitherCost,
   encounterCards,
   encounterSetAside,
+  each,
   eventTarget,
+  gets,
   host,
   ifThen,
   placeThreat,
@@ -39,8 +43,8 @@ const PERSONA = trait("PERSONA");
  * Whispers of Paranoia (`sm` 27170–27173, Mysterio's own recommended modular set, MC27 p. 20): Delusion of
  * Collusion, Manipulated Mind, Old Grudge, Analysis Paralysis.
  *
- * Delusion of Collusion (27170) and Analysis Paralysis (27173) are scripted here. The other two each need something
- * that doesn't exist yet one level below the ability DSL — reported rather than hacked around:
+ * Delusion of Collusion (27170), Old Grudge (27172) and Analysis Paralysis (27173) are scripted here. Manipulated
+ * Mind needs something that doesn't exist yet one level below the ability DSL — reported rather than hacked around:
  *
  * - **Manipulated Mind (27171)**: "Treat attached ally as a minion with a blank text box (except for traits).
  *   Attached minion's SCH is equal to its printed THW and it does not take consequential damage. When Revealed:
@@ -59,17 +63,14 @@ const PERSONA = trait("PERSONA");
  *
  * - **Old Grudge (27172)**: "Attached minion gets +1 hit point. When Revealed: Search the encounter deck, discard
  *   pile, and set-aside area for your nemesis minion, then reveal that minion. Attach Old Grudge to it. (Shuffle.)
- *   [star] Boost: Deal 1 damage to each character you control." Unlike Manipulated Mind, there is no `AttachmentHost`
- *   kind this maps onto at all — "your nemesis minion" is an identity-relative search (`TargetQuery.nemesisMinionOf`,
- *   already landed and used by `toafk/kang.ts`'s own When Revealed effects), not a superlative or a plain category,
- *   and the schema has no such kind. Worse: `resolve/reveal.ts`'s `resolveAttachmentTarget` runs unconditionally for
- *   every `type: "attachment"` card *before* its own When Revealed ability gets to resolve (confirmed by test: with
- *   the current data's `attachesTo: { kind: "minion" }`, revealing Old Grudge with only Shifting Apparition in play
- *   auto-attaches it there regardless of what its own When Revealed script says, since `{ kind: "minion" }` matches
- *   the first minion in play unconditionally) — so even a new `nemesisMinion` `AttachmentHost` kind wouldn't be
- *   enough on its own; the reveal step also needs a way for a card's own ability to supply/override the generic
- *   host choice before `resolveAttachmentTarget` commits to one. Both a schema and an engine question, for
- *   `game-rules-architect` and `card-data-pipeline` together, not something an ability script can route around.
+ *   [star] Boost: Deal 1 damage to each character you control." Scripted. It prints no "attach to" text, so its data
+ *   carries no `attachesTo` (curation `impliedAttachHost: "ownWhenRevealed"`): RRG 1.8 "Reveal" (p. 38) step 2 places
+ *   it in front of the revealing player, not in play, and its own When Revealed attaches it (ruling, Feb 20, 2026
+ *   (4)); the engine's reveal frame then enters it into play, or discards it if it was never attached (RRG 1.8
+ *   "Attach To", p. 8). The search is Analysis Paralysis's own pool (below) with `nemesisMinionOf` (RRG 1.8 "Nemesis
+ *   Encounter Set", p. 30). A nemesis minion already in play is not in any searched area, so nothing is revealed,
+ *   "it" names nothing and Old Grudge is discarded; the same when the minion is out of the game or its reveal was
+ *   cancelled (the `attach` effect never attaches to a card out of play).
  *
  * - **Analysis Paralysis (27173)**: "When Revealed: Search the encounter deck, discard pile, and set-aside area
  *   for your nemesis side scheme, then reveal it. Place X additional threat here, where X is equal to the amount
@@ -130,6 +131,31 @@ export const WHISPERS_OF_PARANOIA = defineAbilities({
       ),
     ],
   }),
+
+  // Old Grudge (27172, attachment, no "attach to" text — module docblock). Attached minion gets +1 hit point.
+  "27172.old-grudge-constant": constant(gets("hp", 1, query("minion", { hostOfSelf: true }))),
+  // Old Grudge — When Revealed: Search the encounter deck, discard pile, and set-aside area for your nemesis minion,
+  // then reveal that minion. Attach Old Grudge to it. (Shuffle.) The deck is shuffled when the search completes,
+  // before the reveal (RRG 1.8 "Search", p. 39), as for Analysis Paralysis below.
+  "27172.when-revealed": whenRevealed(
+    selectCards(
+      "nemesisMinion",
+      atMost(
+        1,
+        anyOfCards(
+          encounterCards(["deck", "discard"], query("minion", { nemesisMinionOf: you })),
+          setAside(you, query("minion", { nemesisMinionOf: you })),
+          encounterSetAside(query("minion", { nemesisMinionOf: you })),
+        ),
+      ),
+    ),
+    shuffleEncounterDeck(),
+    revealCard(chosen("nemesisMinion")),
+    attachCard(self, chosen("nemesisMinion")),
+  ),
+  // Old Grudge — [star] Boost: Deal 1 damage to each character you control (Starshark's shape, `gmw/museum.ts`
+  // 16137): `you` in a Boost ability is the attacked player.
+  "27172.boost": boost(dealDamage(1, each(query("character", { controller: "you" })))),
 
   // Analysis Paralysis (27173, side scheme; starting threat 1, amplify, 3 boost icons are data) — When Revealed:
   // Search the encounter deck, discard pile, and set-aside area for your nemesis side scheme, then reveal it. Place X
