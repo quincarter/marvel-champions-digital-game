@@ -63,7 +63,10 @@ See [PLAN.md](PLAN.md) for the build roadmap and current phase.
   **Whenever another agent has uncommitted edits in the worktree — and always when you staged a partial file — commit
   with `--no-verify`** after running oxlint/oxfmt on your own files yourself: the pre-commit hook's lint-staged
   re-stages files from the working tree, which sweeps other agents' lines into your commit (it once committed an
-  import of a file that didn't exist yet). Never `git stash`, `git add -A`, or repo-wide `pnpm fmt`.
+  import of a file that didn't exist yet). Commit a new module in the same commit as the line that imports it. Check
+  `git branch --show-current` before committing (a detached HEAD once stranded commits). Never `git stash`, `git add
+-A`, `git checkout <sha>` / `git switch --detach`, `git checkout -- <file>` on another agent's file, or repo-wide
+  `pnpm fmt`.
 - **Agents don't edit the wave spec's status or open questions**; they report, and the main session verifies (runs
   the tests, reads the diff) before flipping a status or ticking the PR. Rules questions go to the user as short
   multiple-choice prompts with a recommended default; answers are recorded in the spec's §4.1 table and the PR.
