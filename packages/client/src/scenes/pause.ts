@@ -49,7 +49,7 @@ import { scenarioCardListOf } from "../view/scenario-card-list.js";
 import { nextSettingsAfterToggle, settingsRowInfoOf, type SettingsRowInfo } from "../view/settings-rows.js";
 import { pauseFocusOrder } from "../view/screen-focus.js";
 import type { Rect } from "../view/layout.js";
-import { appSession } from "../session.js";
+import { appSession, commitSettings } from "../session.js";
 import type { SessionState } from "../store/session-store.js";
 import { FocusRoute, type FocusStop } from "./focus-route.js";
 import type { RulesSceneData } from "./rules.js";
@@ -793,7 +793,7 @@ export class PauseOverlay extends Phaser.Scene {
     const next = nextSettingsAfterToggle(settings, row.id, globalThis.devicePixelRatio || 1);
     if (row.id === "sharper-text") setTextResolution(next.textResolution);
     if (row.id === "sound") appSession().music?.syncSettings(next);
-    appSession().settings = next;
+    commitSettings(next);
     this.#draw();
   }
 

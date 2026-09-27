@@ -33,7 +33,7 @@ import { McButton, label } from "../ui/widgets.js";
 import { settingsLayout } from "../view/settings-layout.js";
 import { settingsFocusOrder } from "../view/screen-focus.js";
 import type { Rect } from "../view/layout.js";
-import { appSession } from "../session.js";
+import { appSession, commitSettings } from "../session.js";
 import { FocusRoute, type FocusStop } from "./focus-route.js";
 import { SCENES } from "./keys.js";
 import { destroyChildren } from "../ui/destroy-children.js";
@@ -91,7 +91,7 @@ export class SettingsOverlay extends Phaser.Scene {
     const next = nextSettingsAfterToggle(settings, row.id, globalThis.devicePixelRatio || 1);
     if (row.id === "sharper-text") setTextResolution(next.textResolution);
     if (row.id === "sound") appSession().music?.syncSettings(next);
-    appSession().settings = next;
+    commitSettings(next);
     this.#draw();
   }
 

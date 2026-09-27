@@ -18,6 +18,8 @@ export interface ChromeOptions {
   readonly notSaving?: boolean;
   /** Opens the Pause overlay (docs/phase4-screen-gaps.md §3 "W4"). Every board layout gets this button. */
   readonly onMenu: () => void;
+  /** Opens "What's on the table" (`scenes/table-help.ts`): the ? button, just left of the menu button. */
+  readonly onHelp?: () => void;
   /** The menu button is a real `McButton` (it needs a click/hover/focus state), so it's handed back for the caller's own frame bookkeeping — same reason `drawActionBar` pushes onto `ctx.frame.buttons` instead of owning its own list. */
   readonly buttons: McButton[];
   /** Drives the round chip's pop and the phase toggle's fade-in when either just changed. */
@@ -67,6 +69,22 @@ export function drawChrome(scene: Phaser.Scene, rect: Rect, model: BoardModel, o
       onClick: options.onMenu,
     }),
   );
+
+  // "?" explains the table as it is right now. It sits beside the menu so it's in the same place on every layout.
+  const helpRect: Rect = { x: menuRect.x - 8 - 32, y: menuRect.y, width: 32, height: menuRect.height };
+  if (options.onHelp) {
+    options.buttons.push(
+      new McButton(scene, {
+        kind: "onInk",
+        label: "?",
+        type: MENU_ICON_TYPE,
+        rect: helpRect,
+        enabled: true,
+        onClick: options.onHelp,
+      }),
+    );
+  }
+  const barRight = options.onHelp ? helpRect.x : menuRect.x;
 
   // The live round chip is the one red besides the forward action.
   const chip: Rect = { x: rect.x + 8, y: rect.y + 5, width: 54, height: rect.height - 10 };
@@ -120,11 +138,11 @@ export function drawChrome(scene: Phaser.Scene, rect: Rect, model: BoardModel, o
 
   const notSaving = options.notSaving ?? false;
   const firstPlayer = !notSaving && model.firstPlayerId === model.perspectiveId && rect.width >= 520;
-  let rightEdge = menuRect.x - 10 - (firstPlayer ? 86 : 0);
+  let rightEdge = barRight - 10 - (firstPlayer ? 86 : 0);
   if (notSaving) {
     // A glyph as well as the hue, so the warning never rests on colour alone.
     const warning = scene.add
-      .text(menuRect.x - 8, rect.y + rect.height / 2, "⚠ NOT SAVING", textStyle(typeRole.label, surface.ink.hex))
+      .text(barRight - 8, rect.y + rect.height / 2, "⚠ NOT SAVING", textStyle(typeRole.label, surface.ink.hex))
       .setOrigin(1, 0.5)
       .setPadding(6, 3, 6, 3)
       .setBackgroundColor(cssOf(signal.caution.hex));
@@ -143,7 +161,7 @@ export function drawChrome(scene: Phaser.Scene, rect: Rect, model: BoardModel, o
 
   if (firstPlayer) {
     scene.add
-      .text(menuRect.x - 10, rect.y + rect.height / 2, "1ST PLAYER", textStyle(typeRole.label, signal.caution.hex))
+      .text(barRight - 10, rect.y + rect.height / 2, "1ST PLAYER", textStyle(typeRole.label, signal.caution.hex))
       .setOrigin(1, 0.5);
   }
 }

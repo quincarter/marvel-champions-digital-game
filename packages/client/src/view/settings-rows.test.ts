@@ -8,6 +8,8 @@ const BASE: Settings = {
   largeCardText: false,
   sound: true,
   confirmBeforeEndTurn: true,
+  guidedMode: false,
+  gameTips: true,
 };
 
 describe("settingsRowInfoOf", () => {
@@ -18,7 +20,11 @@ describe("settingsRowInfoOf", () => {
       largeCardText: true,
       sound: false,
       confirmBeforeEndTurn: false,
+      guidedMode: true,
+      gameTips: false,
     });
+    expect(rows.find((r) => r.id === "guided-mode")?.on).toBe(true);
+    expect(rows.find((r) => r.id === "game-tips")?.on).toBe(false);
     expect(rows.find((r) => r.id === "reduced-motion")?.on).toBe(true);
     expect(rows.find((r) => r.id === "sharper-text")?.on).toBe(true);
     expect(rows.find((r) => r.id === "large-card-text")?.on).toBe(true);

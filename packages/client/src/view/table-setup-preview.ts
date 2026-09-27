@@ -84,7 +84,8 @@ export function stageRangeFor(scenario: Scenario, difficulty: SetupDifficulty): 
   return [Math.min(standardLo, expertLo), Math.max(standardHi, expertHi)];
 }
 
-function villainTotalHp(
+/** Every villain stage's HP across this difficulty's stage range, scaled to `playerCount`. Also Guided mode's seat warning. */
+export function villainTotalHp(
   scenario: Scenario,
   difficulty: SetupDifficulty,
   cardsById: ReadonlyMap<string, AnyCard>,

@@ -18,6 +18,7 @@ import type { EngineHost } from "./engine/host.js";
 import { IdbDeckStorage } from "./engine/idb-deck-storage.js";
 import { SessionStore } from "./store/session-store.js";
 import { defaultSettings, type Settings } from "./settings.js";
+import { resetSeenTips, teachingPrefs, updateTeachingPrefs } from "./teaching/teaching-prefs.js";
 import { emptyLog, type LogState } from "./view/log-lines.js";
 import type { MusicController } from "./audio/music-controller.js";
 
@@ -50,9 +51,25 @@ let session: AppSession | null = null;
 export function appSession(): AppSession {
   if (!session) {
     const host = createEngineHost();
-    session = { host, store: new SessionStore(host), settings: defaultSettings(), gameLog: emptyLog() };
+    const { guidedMode, gameTips } = teachingPrefs();
+    const settings: Settings = { ...defaultSettings(), guidedMode, gameTips };
+    session = { host, store: new SessionStore(host), settings, gameLog: emptyLog() };
   }
   return session;
+}
+
+/**
+ * Replaces the app's settings, saving the ones that outlive a launch. Guided mode and game tips are the saved ones
+ * (`teaching/teaching-prefs.ts`): a player who switches tips off shouldn't have to do it again next time. Switching
+ * tips back on lets every tip show again, since that's why anyone would switch them back on.
+ */
+export function commitSettings(next: Settings): void {
+  const previous = appSession().settings;
+  appSession().settings = next;
+  if (previous.guidedMode !== next.guidedMode || previous.gameTips !== next.gameTips) {
+    updateTeachingPrefs({ guidedMode: next.guidedMode, gameTips: next.gameTips });
+  }
+  if (!previous.gameTips && next.gameTips) resetSeenTips();
 }
 
 /**

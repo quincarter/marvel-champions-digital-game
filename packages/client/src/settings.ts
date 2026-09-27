@@ -30,6 +30,13 @@ export interface Settings {
    * usually a misclick, not a choice. Off restores the old immediate-end behaviour.
    */
   readonly confirmBeforeEndTurn: boolean;
+  /**
+   * Guided mode (`view/guide/`): a coach card that walks a new player through setup and their first round. Off by
+   * default; the first New game asks once (`teaching/teaching-prefs.ts`'s `askedAboutGuide`). Saved on the device.
+   */
+  readonly guidedMode: boolean;
+  /** One-time contextual tips on the table (`view/guide/game-tips.ts`). On by default. Saved on the device. */
+  readonly gameTips: boolean;
 }
 
 export function defaultSettings(): Settings {
@@ -42,5 +49,7 @@ export function defaultSettings(): Settings {
     largeCardText: false,
     sound: true,
     confirmBeforeEndTurn: true,
+    guidedMode: false,
+    gameTips: true,
   };
 }

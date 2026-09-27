@@ -8,7 +8,14 @@
  */
 import { SHARP_TEXT_RESOLUTION_CEILING, type Settings } from "../settings.js";
 
-export type SettingsRowId = "reduced-motion" | "sharper-text" | "large-card-text" | "sound" | "confirm-end-turn";
+export type SettingsRowId =
+  | "reduced-motion"
+  | "sharper-text"
+  | "large-card-text"
+  | "sound"
+  | "confirm-end-turn"
+  | "guided-mode"
+  | "game-tips";
 
 export interface SettingsRowInfo {
   readonly id: SettingsRowId;
@@ -54,6 +61,20 @@ export function settingsRowInfoOf(settings: Settings): readonly SettingsRowInfo[
         "Ask before End turn whenever a basic attack, thwart or recover is still open, for you or an ally. Off ends the turn straight away.",
       on: settings.confirmBeforeEndTurn,
     },
+    {
+      id: "guided-mode",
+      title: "Guided mode",
+      detail:
+        "New to Marvel Champions? A coach walks you through choosing a scenario and heroes, then your first round. Esc skips a step.",
+      on: settings.guidedMode,
+    },
+    {
+      id: "game-tips",
+      title: "Game tips",
+      detail:
+        "A short tip the first time something new shows up on the table: a keyword, a status, a scheme about to finish. Switching this back on shows every tip again.",
+      on: settings.gameTips,
+    },
   ];
 }
 
@@ -82,5 +103,9 @@ export function nextSettingsAfterToggle(settings: Settings, id: SettingsRowId, d
       return { ...settings, sound: !settings.sound };
     case "confirm-end-turn":
       return { ...settings, confirmBeforeEndTurn: !settings.confirmBeforeEndTurn };
+    case "guided-mode":
+      return { ...settings, guidedMode: !settings.guidedMode };
+    case "game-tips":
+      return { ...settings, gameTips: !settings.gameTips };
   }
 }

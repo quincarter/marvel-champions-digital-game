@@ -60,6 +60,8 @@ import { MusicScene } from "./audio/music-controller.js";
 import { ExtrasScene } from "./scenes/extras.js";
 import { ExtrasViewerScene } from "./scenes/extras-viewer.js";
 import { ExtrasReaderScene } from "./scenes/extras-reader.js";
+import { TableHelpOverlay } from "./scenes/table-help.js";
+import { CoachOverlay } from "./scenes/coach.js";
 import { installDebugDump } from "./ui/debug-dump.js";
 import { installFrameGuard } from "./ui/frame-guard.js";
 import { installDesktopType, setDesktopType } from "./ui/desktop-type.js";
@@ -140,7 +142,10 @@ const game = new Phaser.Game({
     EndTurnConfirmOverlay,
     CampaignBeatOverlay,
     ExtrasViewerScene,
+    TableHelpOverlay,
     MusicScene,
+    // Last, so the coach card draws above every screen and overlay it doesn't hide behind (`scenes/coach.ts`).
+    CoachOverlay,
   ],
 });
 // Registered before any scene's own resize listener, so a screen redrawing on resize already draws at the new size.

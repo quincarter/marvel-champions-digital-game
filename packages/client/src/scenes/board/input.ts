@@ -7,6 +7,7 @@
  */
 
 import type Phaser from "phaser";
+import { coachKeyFor } from "../../ui/coach-state.js";
 import { gamepadIntentFor, type GamepadIntent } from "../../view/gamepad.js";
 
 export interface IntentBinding {
@@ -29,6 +30,8 @@ export function bindKeyboard(scene: Phaser.Scene, binding: IntentBinding): void 
   if (!keyboard) return;
   keyboard.on("keydown", (event: KeyboardEvent) => {
     if (binding.blocked()) return;
+    // A coach card this scene put up (`ui/coach-state.ts`) gets Escape and N before the screen does.
+    if (coachKeyFor(scene.sys.settings.key, event.key)) return;
     switch (event.key) {
       case "ArrowRight":
       case "ArrowDown":

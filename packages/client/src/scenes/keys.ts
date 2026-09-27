@@ -67,6 +67,13 @@ export const SCENES = {
   extrasViewer: "ExtrasViewerOverlay",
   /** C04: a villain's stage flip told as a comic splash, launched over the Board in a campaign game. */
   campaignBeat: "CampaignBeatOverlay",
+  /** "What's on the table": the Board's ? button (`scenes/table-help.ts`). */
+  tableHelp: "TableHelpOverlay",
+  /**
+   * Guided mode's steps and game tips (`scenes/coach.ts`), over whichever screen asked. Registered last in
+   * `main.ts` so it draws above everything it doesn't hide behind.
+   */
+  coach: "CoachOverlay",
   /** Background soundtrack controller running across screen transitions. */
   music: "MusicScene",
 } as const;
