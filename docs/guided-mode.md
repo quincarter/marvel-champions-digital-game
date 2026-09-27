@@ -264,7 +264,7 @@ A fresh Claude session can pick this up from this file alone.
   pointer, and put a screenshot beside its tile.
 - **Commits:** as the repo's git user, with no Claude co-author trailer. Every change carries a changie fragment.
 
-**In flight:** a G2b follow-up fix (phone scroll regions, segmented control clipping/selected style, concepts crowding Pause's on-table keywords). G2b landed as `ac39611c` but stays unticked until the fix is verified.
+**In flight:** two G2b follow-up fixes, side by side: (a) Settings/Pause layout (phone scroll regions, segmented control clipping and selected style), (b) concept glossary entries kept out of Pause's on-table cards and count. G2b (`ac39611c`) stays unticked until both are verified. Next after that: G4a.
 
 ## 7. Prior art: the parked prototype
 
