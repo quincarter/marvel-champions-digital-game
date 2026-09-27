@@ -40,3 +40,13 @@ Measured 2026-09-27: 29 heroes, 30 precons, 511 aspect and basic player cards, e
 | Cards in another hero's deck                                    | Backfill task in PLAN.md Phase 6, after wave 5 merges, using the wave 5 helper                                                                                              |
 | One real MarvelCDB decklist per hero                            | Backfill task in PLAN.md Phase 6: at least one per hero, all 29, after wave 5 merges                                                                                        |
 | Random-deck coverage                                            | Backfill task in PLAN.md Phase 6                                                                                                                                            |
+
+## Decklists to use
+
+Real MarvelCDB decklists the user picked for a hero's custom-deck work (the "one real MarvelCDB decklist per hero"
+fixture, cross-hero tests). Check the pool against the list again when you pick it up.
+
+| Hero           | Decklist                                                                                                                          | Pool coverage (2026-09-27, per the user)         |
+| -------------- | --------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------ |
+| Doctor Strange | [Tough Enough: Heroic Ally Swarm 1.0](https://marvelcdb.com/decklist/view/1771/doctor-strange-tough-enough-heroic-ally-swarm-1.0) | Every card is in the pool; use this one first    |
+| Doctor Strange | [Invoke the Fourth Wall: Break the Game 1.0](https://marvelcdb.com/decklist/view/34506/invoke-the-fourth-wall-break-the-game-1.0) | Some cards missing; usable once those packs land |
