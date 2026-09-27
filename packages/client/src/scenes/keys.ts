@@ -46,6 +46,8 @@ export const SCENES = {
   extrasReader: "ExtrasReader",
   /** `McTermText`/`McTooltip` dev demo (guided mode G3b, `docs/guided-mode.md` §4): `?screen=termtext` only, never reached in-game. */
   termTextDemo: "TermTextDemo",
+  /** `McGuideCallout` dev demo (guided mode G4a, `docs/guided-mode.md` §4): `?screen=guidecallout` only, never reached in-game. */
+  guideCalloutDemo: "GuideCalloutDemo",
   // Overlays.
   choice: "ChoiceOverlay",
   inspect: "InspectOverlay",

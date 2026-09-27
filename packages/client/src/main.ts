@@ -61,6 +61,7 @@ import { ExtrasScene } from "./scenes/extras.js";
 import { ExtrasViewerScene } from "./scenes/extras-viewer.js";
 import { ExtrasReaderScene } from "./scenes/extras-reader.js";
 import { TermTextDemoScene } from "./scenes/term-text-demo.js";
+import { GuideCalloutDemoScene } from "./scenes/guide-callout-demo.js";
 import { installDebugDump } from "./ui/debug-dump.js";
 import { installFrameGuard } from "./ui/frame-guard.js";
 import { installDesktopType, setDesktopType } from "./ui/desktop-type.js";
@@ -130,6 +131,7 @@ const game = new Phaser.Game({
     ExtrasScene,
     ExtrasReaderScene,
     TermTextDemoScene,
+    GuideCalloutDemoScene,
     ChoiceOverlay,
     InspectOverlay,
     VillainPhaseOverlay,
