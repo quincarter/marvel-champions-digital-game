@@ -621,7 +621,7 @@ Owner: `rules-qa-engineer`, in collaboration with `game-rules-architect`.
       gets stuck, no error is thrown, and the log replays deep-equal. A failing seed is printed so it can be pinned as
       a regression test. This goes past the per-wave custom-deck checks (`docs/wave-definition-of-done.md` §4b) to
       reach card interactions that no precon or hand-written test puts together. Run a fixed set of seeds in
-      `pnpm test` and a longer sweep on demand.
+      `pnpm test` and a longer sweep on demand. See [docs/custom-deck-testing.md](docs/custom-deck-testing.md).
 - [ ] Exit criteria: CI (or local equivalent) runs the full rules-QA suite on every engine change.
 
 ## Phase 7 — Content expansion beyond Core Set

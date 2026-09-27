@@ -37,7 +37,8 @@ Every box below is checked by the main session itself (tests read, board clicked
 ### 4b. Custom decks (added 2026-09-26)
 
 Precon e2e games only prove a card in the deck it ships in. Players build their own decks and import them from
-MarvelCDB, so each wave also proves its cards outside their precon.
+MarvelCDB, so each wave also proves its cards outside their precon. What each piece depends on, when it runs and
+what it costs: [custom-deck-testing.md](custom-deck-testing.md).
 
 - [ ] **Cards in another hero's deck.** Every new aspect and basic card is played through the engine from a Core
       hero's deck, so a script that quietly assumes its precon hero ("your hero" meaning that one identity) fails.
