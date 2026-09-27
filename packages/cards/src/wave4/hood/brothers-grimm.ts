@@ -29,12 +29,21 @@ import type { EffectArg } from "../../dsl/index.js";
  * sharing an identical shape: "Attach to a Mystic minion. If you cannot, attach to the villain" (data,
  * `attachesTo.ifAble`) and "[star] Forced Response: After attached enemy activates against you, discard this card
  * → <its own effect> and deal yourself 1 facedown encounter card."
+ *
+ * **"Activates against you"** is `on.enemyActivates(…, { againstYou: true })` (docs/phase7-wave5.md §4.1 Q67; RRG
+ * 1.8 "Activation", p. 6): it fires on the attached/host enemy's scheme against an alter-ego player too, not only
+ * its attack — this module previously read every one of these as always an attack.
  */
 
 /** "[star] Forced Response: After attached enemy activates against you, discard this card → <then> and deal
  * yourself 1 facedown encounter card." */
 const afterAttachedActivates = (...then: readonly EffectArg[]) =>
-  forcedResponse(on.enemyAttacks("host", { againstYou: true }), { cost: discardThis }, ...then, dealEncounterCard(you));
+  forcedResponse(
+    on.enemyActivates("host", { againstYou: true }),
+    { cost: discardThis },
+    ...then,
+    dealEncounterCard(you),
+  );
 
 export const BROTHERS_GRIMM = defineAbilities({
   // Brothers Grimm (24018, minion; MASTERS OF EVIL/MYSTIC, starIcon are data) — [star] Forced Interrupt: when
@@ -42,7 +51,7 @@ export const BROTHERS_GRIMM = defineAbilities({
   // discarded; reveal that card. [star] Boost: after this activation ends, put Brothers Grimm into play engaged
   // with the first player.
   "24018.brothers-grimm-forced-interrupt": forcedInterrupt(
-    on.enemyAttacks("self", { againstYou: true }),
+    on.enemyActivates("self", { againstYou: true }),
     discardEncounterUntil(query("attachment"), "found"),
     revealCard(chosen("found")),
   ),
@@ -60,7 +69,7 @@ export const BROTHERS_GRIMM = defineAbilities({
   // Unbreakable Thread (24022) — → choose and discard 1 ally, support, or upgrade you control, and deal yourself
   // 1 facedown encounter card.
   "24022.unbreakable-thread-forced-response": forcedResponse(
-    on.enemyAttacks("host", { againstYou: true }),
+    on.enemyActivates("host", { againstYou: true }),
     { cost: [discardThis, discardCardsCost(query(["ally", "support", "upgrade"], { controller: "you" }))] },
     dealEncounterCard(you),
   ),
