@@ -66,10 +66,16 @@ The phase 4 ground rules apply unchanged ([phase4-screen-gaps.md §0](phase4-scr
    and Settings lists the silenced ones so they can be turned back on.
 6. **Hint triggers** (owner): the scheme will complete, lethal damage incoming, a flip into danger, a wasted payment.
    §5.2 has each heuristic.
-7. **Aspect tips** (owner: "tips for every Aspect so someone will know the benefits of each one"). Each aspect gets a
-   short, original tip card with what it's good at, its play pattern and a signature example card from the Core Set.
-   Tips cover Aggression, Justice, Leadership and Protection, plus Basic, and Pool once it's in the playable pool. They
-   show in hero and deck selection, and at Full level the first time a card of that aspect is drawn.
+7. **Aspect lessons** (owner, 2026-09-26: "lessons for the other aspects. When to choose what Aspect and what they
+   are all used for"). There is an "Aspects" lesson track alongside the five core lessons, with one lesson per aspect
+   (§5.4). Each covers what the aspect is for, when to pick it, and two or three signature Core Set cards shown as real
+   scans, then ends with "Try it". That starts a short guided game vs Rhino with the Core precon of that aspect:
+   Justice is Spider-Man, Aggression is She-Hulk, Leadership is Captain Marvel, and Protection is Black Panther. During
+   that game, the aspect's own tips fire the first time its signature cards come up. The lessons are reachable from the
+   debrief, Settings → Guide, and an "Aspects ▸" link on every aspect chip in Seats / Deck check / Deck builder. The
+   shorter tip card version shows inline at those chips. Basic gets one tip card and no lesson. 'Pool is not in the
+   playable pool yet, so it gets no lesson. The lesson table is data-driven, so adding 'Pool later is just one entry
+   once the Deadpool pack is wired.
 8. **Guide prefs persist in `localStorage` (`mc-guide`, versioned)**, copying `progression.ts`'s read/write pattern
    (fall back to defaults when storage throws). Other settings stay in memory. Persisting all settings is out of scope
    here.
@@ -84,54 +90,102 @@ The phase 4 ground rules apply unchanged ([phase4-screen-gaps.md §0](phase4-scr
 
 ## 4. Workstreams
 
-Run one agent at a time in the session worktree. Each is one primitive or one screen. Ask every agent for handoff
-notes (files touched, what it left for the next one).
+**One agent per box, one at a time, in the session worktree** (owner: "Keep agents to small tasks to keep their
+contexts smaller"). Each box is one primitive, one widget, one screen or one lesson. Don't hand an agent more than
+one box. Every agent:
 
-- [ ] **G1 Engine: stacked setup (`game-rules-architect`).** Add a replay-safe option to `GameSetupConfig`:
-      `stack?: { players?: Record<number, readonly CardId[]>; encounter?: readonly CardId[] }`. After the seeded
-      shuffle, it moves those codes to the top of that deck, in order. Also thread it through `coreScenario`
-      options and client `SessionConfig`. Tests: replay from `{seed, stack, commands}` is identical, a missing code
-      is a setup error, and `undefined` changes nothing.
-- [ ] **G2 Guide prefs + Settings entry.** `guide/guide-prefs.ts` (level, `chooserSeen`, tutorial progress, silenced
-      warnings, seen tips) persisted as `mc-guide` v1. A segmented Settings row for Guide level (Full / Hints / Off),
-      "Play the tutorial", and one toggle per silenced warning ("Warn before the scheme completes", …). Shared
-      between the Settings overlay and Pause's inline group through `view/settings-rows.ts`.
-- [ ] **G3 Glossary basics + tooltip.** Add basic-concept entries (threat, main scheme, acceleration, thwart,
-      resource, cost, hero/alter-ego, flip, recover, exhaust, defend, consequential damage, encounter card, boost,
-      villain phase) with RRG 1.8 cites. Build `McTermText`, which is body text with dotted terms, and `McTooltip`,
-      a hover on desktop and a tap on touch that shows the term, a one-line rule and "Rules glossary ▸", deep-linking
-      to `SCENES.rules`. Terms stay live at every guide level. At Off, they're the only guide surface.
-- [ ] **G4 Guide surfaces.** `McGuideCallout` (the anchored yellow callout, phone), `McGuidePanel` (the collapsible
-      yellow side rail with the lesson list, step body, tip box, progress, Back and the "do this to continue" slot, for
-      desktop and tablet landscape), the spotlight ring, and the `TRY THIS` / `GUIDE PICK` tags. Board layout reserves
-      the rail when it's open. Layout tests for no overlap at 1440×900, 1024×768, 768×1024 and 390×844.
-- [ ] **G5 Tutorial game + lesson engine.** `guide/tutorial-config.ts` holds the fixed `SessionConfig` (seed, the
-      Spider-Man precon, and the stack from §5.1), with a test that plays the scripted commands and asserts each
-      lesson's precondition state (the `ALLIANCE_DEV_CONFIG` pattern). `view/lesson-model.ts` is a pure state
-      machine: lessons → steps, each step with an anchor, copy, and a completion predicate over store state/events.
-      Tests drive it with recorded events.
-- [ ] **G6 Chooser + How to win.** P01/T01 "New to the fight?" (three radio cards, Recommended stamp, lesson chips on
-      wide layouts, Suit up). Then P02 "One way to win, two ways to lose", built from Rhino/The Break-In!/Spider-Man
-      data, with Start the fight and Tell me more (opens the Rules reference). The chooser is wired into Boot → Title,
-      and "Learn as you play" routes straight to the tutorial game, past scenario and seat selection.
-- [ ] **G7 Lessons on the board.** Wire lessons 2–5 (§5.1) to G4's surfaces: the flip spotlight, the payment lesson
-      over the existing payment bar, the villain-phase lesson (the villain-phase overlay's step list plus the
-      `GUIDE PICK` on the defend choice sheet), and the thwart lesson with the threat ring.
-- [ ] **G8 Round debrief.** P07/D03 at end of round while lessons remain. It shows the lesson checklist, one "Worth
-      remembering" line from a tested heuristic over the round's events, "New on your board" unlocks, the guide-level
-      segmented control, Replay a lesson, and Round N ▸. Hero art on the wide layout.
-- [ ] **G9 Hint warnings (safety net).** `view/guide-hints.ts` has the four heuristics (§5.2). The "Hold on!" overlay
-      (P06/T03) intercepts the triggering command the way `end-turn-confirm` does. It offers the safe action first,
-      the "anyway" action second, and "Don't warn me about X again". Active at Full and Hints.
-- [ ] **G10 Opportunistic + aspect tips.** `view/guide-tips.ts` holds the trigger table (§5.3) and aspect tips (§3.7).
-      Each tip shows once (it's recorded in `mc-guide`) as a small callout at the Full level. Aspect tip cards go in
-      Seats / Deck check.
-- [ ] **G11 QA pass.** A headless click-through of the whole tutorial at 390×844, 1024×768 and 1440×900, with
-      reducedMotion both on and off, and screenshots beside the tiles. The main session verifies by clicking before
-      ticking anything (memory: verify UI by clicking).
+- reads this file,
+- does only its box,
+- runs typecheck, test and lint,
+- adds a changie fragment,
+- commits explicit paths as the repo's git user (no Co-Authored-By trailer),
+- fetches and merges `origin/claude/guided-mode-designs-491431`, then pushes (never force),
+- ticks its box here with a one-line `Landed:` note,
+- replies with handoff notes: files touched, and anything the next box needs.
 
-The order is G1 → G2 → G3 → G4 → G5 → G6 → G7 → G8 → G9 → G10 → G11. G2 and G3 touch different files and could run
-side by side. Everything else runs in sequence.
+The main session verifies UI boxes by clicking through them before ticking (§6).
+
+**Engine**
+
+- [ ] **G1 Stacked setup (`game-rules-architect`).** Add a replay-safe option to `GameSetupConfig`:
+      `stack?: { players?: …; encounter?: readonly CardId[] }`. After the seeded shuffle, it moves the named codes to
+      the top of that deck, in order. Thread it through `coreScenario` and client `SessionConfig`, including save and
+      resume. Tests: replay is identical, a missing code is an error, and `undefined` leaves the RNG untouched.
+
+**Prefs and settings**
+
+- [ ] **G2a Guide prefs model.** `guide/guide-prefs.ts`: level (`full`/`hints`/`off`), `chooserSeen`, tutorial
+      progress, aspect lessons done, silenced warnings, seen tips. Persisted as `mc-guide` v1, using the
+      `progression.ts` pattern. Tests only.
+- [ ] **G2b Settings rows.** A segmented row shape in `view/settings-rows.ts`. A Guide group with Guide level, "Play
+      the tutorial", "Aspect lessons", and one toggle per warning, drawn in both the Settings overlay and Pause's
+      inline group.
+
+**Glossary**
+
+- [ ] **G3a Glossary basics.** Basic-concept entries in `@mc/content`'s glossary (threat, main scheme, acceleration,
+      thwart, resource, cost, hero/alter-ego, flip, recover, exhaust, defend, consequential damage, encounter card,
+      boost, villain phase, aspect), each a paraphrase with an RRG 1.8 cite. Surface them in `view/rules-reference.ts`.
+- [ ] **G3b `McTermText` + `McTooltip`.** Body text with dotted terms. Hover on desktop, tap on touch. The tooltip shows
+      the term, one line and "Rules glossary ▸", which deep-links to `SCENES.rules`.
+
+**Guide surfaces**
+
+- [ ] **G4a `McGuideCallout`.** The anchored yellow callout (phone, and tablet portrait). Parts: `GUIDE` stamp, step
+      label, Bangers title, `McTermText` body, secondary + primary actions, Skip lesson, and the arrow toward its
+      anchor.
+- [ ] **G4b `McGuidePanel`.** The collapsible yellow side rail (desktop, tablet landscape). Parts: lesson list, step
+      body, tip box, progress ticks, Back, and the "do this to continue" slot. Board layout reserves the rail when it's
+      open. Layout tests at 1440×900 and 1024×768.
+- [ ] **G4c Spotlight + tags.** The spotlight ring on any board anchor (zone, card, button), dimming everything else
+      with input gated per §3.10, plus the `TRY THIS` and `GUIDE PICK` tags.
+
+**Tutorial**
+
+- [ ] **G5a Tutorial config.** `guide/tutorial-config.ts`: seed + Spider-Man precon + stack (§5.1). A test plays the
+      scripted commands and asserts each lesson's precondition state.
+- [ ] **G5b Lesson model.** `view/lesson-model.ts` is a pure state machine: lessons → steps, each step with an anchor,
+      copy, and a completion predicate over store state/events. It's data-driven so the aspect lessons (G10) can reuse
+      it. Tests drive it with recorded events.
+- [ ] **G5c Guide controller.** The board-side glue that feeds store events to the lesson model and shows
+      G4a/G4b/G4c for the current step. No lesson content yet, just one smoke step.
+- [ ] **G6a First-run chooser.** P01/T01 "New to the fight?". Wired Boot → chooser (first launch) → Title. "Learn as you
+      play" goes to G6b.
+- [ ] **G6b How to win.** P02 "One way to win, two ways to lose" from Rhino / The Break-In! / Spider-Man data. Start the
+      fight launches the tutorial game (past scenario and seat selection). Tell me more opens Rules reference.
+- [ ] **G7a Lesson 2: Hero & alter-ego.**
+- [ ] **G7b Lesson 3: Paying for cards** (over the existing payment bar).
+- [ ] **G7c Lesson 4: The villain phase** (villain-phase overlay steps + `GUIDE PICK` on the defend sheet).
+- [ ] **G7d Lesson 5: Threat & thwarting** (the threat ring on the scheme, then Thwart).
+- [ ] **G8 Round debrief.** P07/D03: lesson checklist, "Worth remembering" (tested heuristic), "New on your board",
+      guide-level control, Replay a lesson, Round N ▸, and "Next: Aspects ▸" after lesson 5.
+
+**Hints**
+
+- [ ] **G9a Hint heuristics.** `view/guide-hints.ts`: the four heuristics from §5.2, tests only.
+- [ ] **G9b "Hold on!" overlay.** P06/T03. It intercepts the triggering command like `end-turn-confirm`, offers the
+      safe action first, and has a "Don't warn me" checkbox. Active at Full and Hints.
+
+**Tips and aspects**
+
+- [ ] **G10a Aspect content.** `guide/aspects.ts`: the §5.4 table as data (lesson copy, when to pick, signature card
+      codes, precon id, the tip card line). Tests check that every code exists and every precon has that aspect.
+- [ ] **G10b Aspect tip chips.** "Aspects ▸" and the short tip card on aspect chips in Seats, Deck check and Deck
+      builder.
+- [ ] **G10c Aspect lessons screen.** An "Aspects" track: pick an aspect, then a lesson page with signature scans and
+      Try it. Reached from the debrief, Settings → Guide, and the chips.
+- [ ] **G10d Aspect try-it games.** A guided Rhino game with that aspect's Core precon. Its aspect tips fire when the
+      signature cards come up, on G5b's lesson model.
+- [ ] **G10e Opportunistic tips.** `view/guide-tips.ts` is the trigger table (§5.3). Once each, Full only, shown as a
+      small callout.
+
+**QA**
+
+- [ ] **G11 QA pass.** A headless click-through of the tutorial and one aspect lesson at 390×844, 1024×768 and
+      1440×900, with reducedMotion on and off, and screenshots beside the tiles.
+
+The order is G1 → G2a → G2b → G3a → G3b → G4a → G4b → G4c → G5a → G5b → G5c → G6a → G6b → G7a–d → G8 → G9a → G9b →
+G10a–e → G11. Boxes whose files don't overlap can run side by side (at most 3): G2a with G3a, and G9a with G10a.
 
 ## 5. Content
 
@@ -167,4 +221,42 @@ Each is a named heuristic in `view/guide-hints.ts` with its own silence key.
 The first time a minion engages, Guard, a side scheme comes out, acceleration, a boost card flips, Stunned or Confused,
 the villain changes stage, Retaliate, Toughness, an obligation, a nemesis set, Crisis, Patrol, Surge, Hinder, Quickstrike,
 the first mulligan, the first Recover, hand size in alter-ego vs hero form, and the first draw with Spider-Sense. Each
-is one line and a glossary link. G10 finalizes the list from what the engine emits.
+is one line and a glossary link. G10e finalizes the list from what the engine emits.
+
+### 5.4 Aspect lessons
+
+The copy is original. Don't transcribe FFG text. Signature cards are Core Set cards that are in the playable pool.
+G10a checks their codes.
+
+| Aspect     | What it's for                                                                     | Pick it when                                                                                                   | Signature Core cards                          | Try-it precon  |
+| ---------- | --------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- | --------------------------------------------- | -------------- |
+| Justice    | Thwarting. Keeps threat off schemes. The balanced, steady pick.                   | The villain schemes fast, or has side schemes that punish you. It's a good first aspect for learning the loop. | For Justice!, Great Responsibility, Daredevil | Spider-Man     |
+| Aggression | Attacking and brawling: burst damage, clearing minions, racing the villain.       | You want to end the game fast, or the scenario floods the board with minions.                                  | Relentless Assault, Tackle, Hulk              | She-Hulk       |
+| Leadership | Allies. It fields more of them and makes them hit harder and stay longer.         | Your hero likes a wide board. Allies soak attacks, thwart and chip damage every round.                         | Inspired, Lead from the Front, Maria Hill     | Captain Marvel |
+| Protection | Defending and healing: blocking attacks, preventing damage, staying alive.        | The villain hits hard, your hero has low HP or DEF, or you're the team's tank in multiplayer.                  | Counter-Punch, Armored Vest, Luke Cage        | Black Panther  |
+| Basic      | Neutral cards any deck can use (resources, staples).                              | Always available alongside your aspect. It gets a tip card only, no lesson.                                    | Energy/Genius/Strength, Avengers Mansion      | —              |
+| 'Pool      | Not in the playable pool yet. It gets no lesson until the Deadpool pack is wired. | —                                                                                                              | —                                             | —              |
+
+G10a confirms each signature card is Core, has that aspect, and is in that precon (or swaps it for one that is).
+
+## 6. Handoff: resuming this work
+
+A fresh Claude session can pick this up from this file alone.
+
+- **Branch:** `claude/guided-mode-designs-491431`, pushed to origin. The PR is linked in the PR description's
+  checklist, which mirrors §4.
+- **Worktree:** `/Users/quincarter/Documents/Dev/marvel-champions-game/.claude/worktrees/guided-mode-designs-491431`,
+  in the main clone at `/Users/quincarter/Documents/Dev/marvel-champions-game`. There's no second worktree and no
+  agent worktree. Every agent runs in this worktree, one at a time. A hook blocks subagent writes to sibling
+  worktrees.
+- **Agents:** none are left running between sessions. The in-flight box, if any, is listed under "In flight" below.
+  If it's unticked and has no `Landed:` note, re-run it. Check `git log` first for a partial commit.
+- **Resume:** `git fetch && git merge origin/claude/guided-mode-designs-491431`. Then take the first unticked box in
+  §4 and brief one agent with that box only (the matching specialist from CLAUDE.md, usually `game-client-engineer`),
+  pointing it at this file.
+- **Verify UI boxes** in a browser at 390×844, 1024×768 and 1440×900 before ticking. Run the worktree's own Vite on
+  port 5183 (`pnpm --filter @mc/client exec vite --port 5183 --strictPort`). Click every control with a real
+  pointer, and put a screenshot beside its tile.
+- **Commits:** as the repo's git user, with no Claude co-author trailer. Every change carries a changie fragment.
+
+**In flight:** none.
