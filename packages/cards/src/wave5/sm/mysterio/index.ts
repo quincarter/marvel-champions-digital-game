@@ -9,8 +9,9 @@ import { PERSONAL_NIGHTMARE } from "./personal-nightmare.js";
  * The Mysterio scenario (`sm`, docs/phase7-wave5.md §2.2, the box's third): the villain (27084–27086, `villain.ts`),
  * the main scheme "Maze of Mirrors" → "Edge of Reality" (27087a/b, 27088a/b, `main-scheme.ts`), Mysterio's own
  * encounter set (27089–27093, `encounter-set.ts`), and Personal Nightmare, the scenario's other required set
- * (27153–27157, `personal-nightmare.ts`). Whispers of Paranoia (the recommended modular) is a later agent's work
- * (docs/phase7-wave5.md §2.2), same as `venom/index.ts`'s own Bell Tower/Symbiotic Strength split.
+ * (27153–27157, `personal-nightmare.ts`). Whispers of Paranoia (the recommended modular, 27170–27173) is scripted
+ * separately, in `../modulars/whispers-of-paranoia.ts`, and merged into `SM_ABILITIES` at the box level
+ * (`wave5/sm/index.ts`) rather than here, same as `venom/index.ts`'s own Bell Tower/Symbiotic Strength split.
  */
 export const MYSTERIO_ABILITIES: AbilityRegistry = mergeRegistries(
   MYSTERIO,

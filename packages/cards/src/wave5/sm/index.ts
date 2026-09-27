@@ -2,6 +2,7 @@ import type { AbilityRegistry } from "@mc/engine";
 import { mergeRegistries } from "../../dsl/index.js";
 import { GHOST_SPIDER_ABILITIES } from "./ghost-spider/index.js";
 import { MYSTERIO_ABILITIES } from "./mysterio/index.js";
+import { SM_MODULARS_ABILITIES } from "./modulars/index.js";
 import { SANDMAN_ABILITIES } from "./sandman/index.js";
 import { SINISTER_SIX_ABILITIES } from "./sinister-six/index.js";
 import { SPIDER_MAN_MORALES_ABILITIES } from "./spider-man-morales/index.js";
@@ -34,4 +35,5 @@ export const SM_ABILITIES: AbilityRegistry = mergeRegistries(
   MYSTERIO_ABILITIES,
   SINISTER_SIX_ABILITIES,
   VENOM_GOBLIN_ABILITIES,
+  SM_MODULARS_ABILITIES,
 );

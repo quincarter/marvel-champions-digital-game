@@ -12,14 +12,14 @@ import { spiderManMoralesScenario } from "../spider-man-morales/support.js";
  * The Mysterio scenario's own setup and two full games (docs/phase7-wave5.md §2.2, wave 5 step 3): Spider-Man
  * (Miles Morales)'s own real precon and a Core precon (`core-captain-marvel-leadership`), each played headlessly by
  * the card-name-agnostic greedy driver to a real outcome, then replayed to a deep-equal final state — the
- * `sandman/scenario.test.ts`/`venom/scenario.test.ts` shape. Whispers of Paranoia (the recommended modular) is a
- * later agent's work; Bomb Scare (Core, already scripted) stands in for it here.
+ * `sandman/scenario.test.ts`/`venom/scenario.test.ts` shape. Whispers of Paranoia (`sm` 27170–27173, MC27 p. 20,
+ * `../modulars/whispers-of-paranoia.ts`) is Mysterio's own recommended modular set.
  */
 describe("wave5Scenario('mysterio')", () => {
   it("standard: Mysterio (I)-(II); his own set + Personal Nightmare + Standard, one modular; a Shifting Apparition minion engaged with each player", () => {
     const config = ghostSpiderScenario("mysterio", {
       seed: 1,
-      modularSetIds: [encounterSetId("bomb_scare")],
+      modularSetIds: [encounterSetId("whispers_of_paranoia")],
     });
     const created = createGame(config, WAVE5_DEPS);
     if (!created.ok) throw new Error(created.error.message);
@@ -30,7 +30,7 @@ describe("wave5Scenario('mysterio')", () => {
     expect(inst(state, engaged[0]!).engagedWith).toBe(P1);
     // The nemesis and obligation sets are set aside for Ghost-Spider.
     expect(playerOf(state, P1).setAside.length).toBeGreaterThan(0);
-    // Mysterio + Personal Nightmare + Standard + Bomb Scare.
+    // Mysterio + Personal Nightmare + Standard + Whispers of Paranoia.
     expect(activeEncounterDeck(state).deck.length).toBeGreaterThan(0);
   });
 
@@ -38,7 +38,7 @@ describe("wave5Scenario('mysterio')", () => {
     const config = ghostSpiderScenario("mysterio", {
       seed: 2,
       difficulty: "expert",
-      modularSetIds: [encounterSetId("bomb_scare")],
+      modularSetIds: [encounterSetId("whispers_of_paranoia")],
     });
     const created = createGame(config, WAVE5_DEPS);
     if (!created.ok) throw new Error(created.error.message);
@@ -56,7 +56,7 @@ describe("wave5Scenario('mysterio')", () => {
       ghostSpiderScenario("mysterio", {
         seed: 3,
         difficulty,
-        modularSetIds: [encounterSetId("bomb_scare")],
+        modularSetIds: [encounterSetId("whispers_of_paranoia")],
       }).encounterDeck.filter((id) => expertIds.has(id as string));
     expect(inDeck("standard")).toEqual([]);
     expect(inDeck("expert").length).toBeGreaterThan(0);
@@ -64,7 +64,10 @@ describe("wave5Scenario('mysterio')", () => {
 });
 
 test("Mysterio, solo: Spider-Man (Miles Morales)", () => {
-  const config = spiderManMoralesScenario("mysterio", { seed: 2026, modularSetIds: [encounterSetId("bomb_scare")] });
+  const config = spiderManMoralesScenario("mysterio", {
+    seed: 2026,
+    modularSetIds: [encounterSetId("whispers_of_paranoia")],
+  });
   const created = createGame(config, WAVE5_DEPS);
   if (!created.ok) throw new Error(`setup failed: ${created.error.message}`);
   const result = playToOutcome(created.state, WAVE5_DEPS);
@@ -79,7 +82,7 @@ test("Mysterio, solo: a Core precon (Captain Marvel / Leadership)", () => {
   const config = wave5Scenario("mysterio", {
     seed: 2027,
     players: [{ starterDeckId: "core-captain-marvel-leadership" }],
-    modularSetIds: [encounterSetId("bomb_scare")],
+    modularSetIds: [encounterSetId("whispers_of_paranoia")],
   });
   const created = createGame(config, WAVE5_DEPS);
   if (!created.ok) throw new Error(`setup failed: ${created.error.message}`);
