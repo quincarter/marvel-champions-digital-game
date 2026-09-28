@@ -6,8 +6,10 @@ import {
   firstLegal,
   identityOf,
   inst,
+  instancesOf,
   moveToHand,
   P1,
+  patchInstance,
   payWith,
   play,
   playerOf,
@@ -140,11 +142,74 @@ describe("Captain Americat (ally, 30002)", () => {
 });
 
 describe("Lady Spider (ally, 30012)", () => {
-  // KNOWN ENGINE GAP (allies.ts's own inline comment on `30012.lady-spider-response`): a *basic* thwart's own
-  // "thwart" `TriggerEvent` never carries its resolved removal amount, so `eventAmount` reads 0 for the only way
-  // this ally can currently thwart (she has no "(thwart)"-labeled ability of her own) — the "moves an equal amount
-  // to a different scheme" half can't be verified until that engine primitive lands.
-  it.skip("30012.lady-spider-response: after thwarting and removing threat, with another Web-Warrior card controlled, removes an equal amount from a different scheme — blocked on a basic thwart's TriggerEvent carrying its resolved amount", () => {});
+  const LADY_SPIDER_RESPONSE = "30012.lady-spider-response";
+  const ladyThwarts = (lady: InstanceId, scheme: InstanceId) =>
+    ({ type: "basicThwart", playerId: P1, thwarterInstanceId: lady, schemeInstanceId: scheme }) as never;
+  /** `accepting(...)`, counting how many times Lady Spider's Response is offered. */
+  const counting = (pick: Picker) => {
+    let offers = 0;
+    const picker: Picker = (state) => {
+      if (state.pendingChoice?.options.some((o) => o.optionId.endsWith(`:${LADY_SPIDER_RESPONSE}`))) offers++;
+      return pick(state);
+    };
+    return { picker, offers: () => offers };
+  };
+
+  it("30012.lady-spider-response: her basic thwart removes 2, and with another Web-Warrior card controlled (Spider-Ham) exactly 2 is removed from the chosen different scheme, once", () => {
+    const hero = runWave5(spiderHamVsRhino(2), toHero(P1)); // Spider-Ham (hero form) is the other Web-Warrior card.
+    const { state: withLady, id: lady } = playFromHand(hero, "30012", 4, accepting());
+    const { state: staged, id: scheme } = encounterCardInVillainArea(withLady, "01107", 5);
+    const { state: staged2, id: other } = encounterCardInVillainArea(staged, "01109", 4);
+    const main = staged2.mainScheme.instanceId;
+    const mainBefore = inst(staged2, main).threat;
+    const { picker, offers } = counting(accepting(LADY_SPIDER_RESPONSE, other));
+    const thwarted = settle(runWave5(staged2, ladyThwarts(lady, scheme)), picker, undefined, WAVE5_DEPS);
+    expect(inst(thwarted, scheme).threat).toBe(3); // her own THW 2.
+    expect(inst(thwarted, other).threat).toBe(2); // "an equal amount": exactly 2, from the different scheme.
+    expect(inst(thwarted, main).threat).toBe(mainBefore);
+    // Her own removal from the other scheme is not a thwart: she is not offered her Response a second time.
+    expect(offers()).toBe(1);
+  });
+
+  it("30012.lady-spider-response: the thwarted scheme is not offered as the different scheme", () => {
+    const hero = runWave5(spiderHamVsRhino(2), toHero(P1));
+    const { state: withLady, id: lady } = playFromHand(hero, "30012", 4, accepting());
+    const { state: staged, id: scheme } = encounterCardInVillainArea(withLady, "01107", 5);
+    const atTarget = settle(
+      runWave5(staged, ladyThwarts(lady, scheme)),
+      accepting(LADY_SPIDER_RESPONSE),
+      (s) => s.pendingChoice?.prompt.kind === "chooseTarget",
+      WAVE5_DEPS,
+    );
+    const offered = atTarget.pendingChoice?.options.map((o) => o.optionId) ?? [];
+    expect(offered).toContain(atTarget.mainScheme.instanceId);
+    expect(offered).not.toContain(scheme);
+  });
+
+  it("30012.lady-spider-response: a thwart that removes no threat (Brute Force Barricade blocks it) removes none from a different scheme", () => {
+    const hero = runWave5(startWave5Game(spiderHamScenario("sinister-six", { seed: 2 })), toHero(P1));
+    const { state: withLady, id: lady } = playFromHand(topUp(hero, 4), "30012", 4, accepting());
+    // Light at the End (`sm` 27102a), in play from setup; "Threat cannot be removed from other side schemes."
+    // (Brute Force Barricade, `sm` 27107.)
+    const light = instancesOf(withLady, "27102a")[0]!;
+    const { state: staged, id: barricade } = encounterCardInVillainArea(
+      patchInstance(withLady, light, { threat: 5 }),
+      "27107",
+      3,
+    );
+    const main = staged.mainScheme.instanceId;
+    const mainBefore = inst(staged, main).threat;
+    const thwarted = settle(
+      runWave5(staged, ladyThwarts(lady, light)),
+      accepting(LADY_SPIDER_RESPONSE, main, barricade),
+      undefined,
+      WAVE5_DEPS,
+    );
+    expect(inst(thwarted, lady).exhausted).toBe(true); // she did thwart,
+    expect(inst(thwarted, light).threat).toBe(5); // but removed no threat,
+    expect(inst(thwarted, main).threat).toBe(mainBefore); // so none is removed from a different scheme.
+    expect(inst(thwarted, barricade).threat).toBe(3);
+  });
 
   it("30012.lady-spider-response: without another Web-Warrior card controlled (alter-ego form: Peter Porker prints no Web-Warrior trait), thwarting removes no threat from a different scheme", () => {
     const hero = spiderHamVsRhino(2); // stays in alter-ego (Peter Porker): not a Web-Warrior card.

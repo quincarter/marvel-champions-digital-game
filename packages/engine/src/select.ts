@@ -1313,8 +1313,30 @@ export function resolveRef(state: GameState, ref: TargetRef, context: EffectCont
   }
 }
 
-function eventAmount(event: TriggerEvent | null): number {
+/**
+ * The threat a thwart removes (RRG 1.8 "Thwart", p. 44; "Basic Power", p. 10: a basic thwart "removes threat equal to
+ * the character's THW value"). A "(thwart)" ability's event carries its amount from the start; a basic thwart's
+ * carries none until it resolves, so before then (its interrupt window) this is the thwarter's current THW, or ATK
+ * for a thwart made with ATK — what `applyPlayerThwart` will remove. `undefined` (no removal) when the thwarter's
+ * stat is a printed '—'.
+ * Once the thwart has resolved its event's `amount` is the threat actually removed (the event frame's `responses`
+ * stage, `resolve/event.ts`).
+ */
+export function thwartAmount(
+  state: GameState,
+  deps: EngineDeps,
+  event: Extract<TriggerEvent, { kind: "thwart" }>,
+): number | undefined {
+  const stat = event.useAtk ? "atk" : "thw";
+  const thwarter = characterProfile(state, event.thwarterInstanceId, deps);
+  // A printed '—' THW removes no threat, even by a "(thwart)" ability (`dash-stats.test.ts`).
+  if (thwarter?.missing.includes(stat)) return undefined;
+  return event.amount ?? thwarter?.[stat];
+}
+
+function eventAmount(state: GameState, deps: EngineDeps, event: TriggerEvent | null): number {
   if (!event) return 0;
+  if (event.kind === "thwart") return thwartAmount(state, deps, event) ?? 0;
   return "amount" in event ? (event.amount ?? 0) : 0;
 }
 
@@ -1344,7 +1366,7 @@ export function resolveValue(
       return getInstance(state, id)?.counters[value.counterType] ?? 0;
     }
     case "eventAmount":
-      return eventAmount(context.event);
+      return eventAmount(state, deps, context.event);
     case "var":
       return context.vars?.[value.name] ?? 0;
     case "eventResult":

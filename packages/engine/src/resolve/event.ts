@@ -42,7 +42,14 @@ import {
   threatCannotBeRemoved,
   iconsInPlay,
 } from "../rules.js";
-import { canAttack, cardsInPlay, characterIgnores, controllerOf, isProtectedMainScheme } from "../select.js";
+import {
+  canAttack,
+  cardsInPlay,
+  characterIgnores,
+  controllerOf,
+  isProtectedMainScheme,
+  thwartAmount,
+} from "../select.js";
 import {
   applyLeavingPlay,
   dealUnhandledEncounterCard,
@@ -189,7 +196,7 @@ export function executeEventFrame(ctx: Ctx, frame: Frame<"event">): void {
     }
     case "responses": {
       // Results are final once everything the event pushed has resolved.
-      const event = withResults(frame.event, frame.vars);
+      const event = withResults(resolvedAmount(frame.event, frame.vars), frame.vars);
       emit(ctx, { type: "triggerEvent", event, phase: "resolved" });
       // "After a character defends" waits for the attack to end (RRG 1.8 p. 16): hand the response window to the
       // activation frame, which opens it in its own `done` stage. With no activation on the stack (a defense-labeled
@@ -317,6 +324,15 @@ function schemeDefeatDestination(state: GameState, deps: EngineDeps, schemeId: I
     ? { kind: "discardFromPlay", target: { kind: "self" }, defeated: true }
     : { kind: "moveCards", cards: { kind: "ref", ref: { kind: "self" } }, to };
 }
+
+/**
+ * A resolved thwart's `amount` is the threat it actually removed (its removal's `threatRemoved`, 0 if a crisis icon,
+ * Held Hostage or an empty scheme stopped it), so "after [character] thwarts and removes threat …, remove an equal
+ * amount" reads what happened, for a basic thwart as for a "(thwart)" ability (RRG 1.8 "Thwart", p. 44). Before it
+ * resolves, `thwartAmount` (`select.ts`) gives the amount it is about to remove.
+ */
+const resolvedAmount = (event: TriggerEvent, vars: Vars): TriggerEvent =>
+  event.kind === "thwart" ? { ...event, amount: vars.threatRemoved ?? 0 } : event;
 
 const withResults = (event: TriggerEvent, vars: Vars): TriggerEvent =>
   Object.keys(vars).length === 0 ? event : { ...event, results: vars };
@@ -1359,10 +1375,7 @@ function askThwartCost(ctx: Ctx, frame: Frame<"event">): boolean {
 }
 
 function applyPlayerThwart(ctx: Ctx, event: Extract<TriggerEvent, { kind: "thwart" }>, frameId: FrameId): void {
-  const thwarter = characterProfile(ctx.state, event.thwarterInstanceId, ctx.deps);
-  const stat = event.useAtk ? "atk" : "thw";
-  if (thwarter?.missing.includes(stat)) return;
-  const amount = event.amount ?? thwarter?.[stat];
+  const amount = thwartAmount(ctx.state, ctx.deps, event);
   if (amount === undefined) return;
   pushEvent(ctx, {
     kind: "removeThreat",

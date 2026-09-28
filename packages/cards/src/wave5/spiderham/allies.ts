@@ -73,17 +73,16 @@ const A_WEB_WARRIOR_CARD: TargetQuery = {
  * control another Web-Warrior card, remove an equal amount of threat from a different scheme." The printed
  * "[star]" is the card's own unique-icon glyph (Agent 13's own precedent, `wave5/ironheart/allies.ts` module
  * docblock), not a keyword — scripted as a plain `response`. `on.thwarts("self")` is the trigger; `eventAmount`
- * *should* read the thwart's own removal amount (RRG 1.8 "Thwart", p. 44), the same way Museum Ship's Interrupt
- * reads a damage event's amount (`wave3/gmw/museum.ts`) — gated `valueAtLeast(eventAmount, 1)` so a thwart that
- * removed no threat (0 THW, confused) never opens the "different scheme" choice, matching "thwarts **and removes
- * threat**". **In practice, for her own basic thwart, `eventAmount` currently always reads 0 — a known engine gap,
- * this ability's own inline comment below** (a basic thwart's `TriggerEvent` carries no resolved amount at all).
- * "If you control another Web-Warrior card" is `exists` on `A_WEB_WARRIOR_CARD` with `self: false` (Lady Spider
- * herself does not count as "another"; unaffected by the gap, since it never reaches the amount check at all when
- * false). "A different scheme" excludes the just-thwarted scheme via `TargetQuery.excluding: eventTarget`
- * (`packages/engine/src/spec.ts`'s own worked example is exactly this shape), not `excludeSlots` (that excludes a
- * *chosen slot* from earlier in the same ability, the wrong tool for excluding an externally-triggered event's own
- * target).
+ * reads the threat the thwart actually removed (RRG 1.8 "Thwart", p. 44): in a thwart's response window its event's
+ * `amount` is its resolved removal, for a basic thwart as for a "(thwart)" ability (`packages/engine/src/resolve/
+ * event.ts` `resolvedAmount`). Gated `valueAtLeast(eventAmount, 1)` so a thwart that removed no threat (blocked,
+ * as by Brute Force Barricade) never opens the "different scheme" choice, matching "thwarts **and removes
+ * threat**". Her own removal from the different scheme is a `removeThreat`, not a thwart, so it cannot retrigger
+ * her. "If you control another Web-Warrior card" is `exists` on `A_WEB_WARRIOR_CARD` with `self: false` (Lady
+ * Spider herself does not count as "another"). "A different scheme" excludes the just-thwarted scheme via
+ * `TargetQuery.excluding: eventTarget` (`packages/engine/src/spec.ts`'s own worked example is exactly this shape),
+ * not `excludeSlots` (that excludes a *chosen slot* from earlier in the same ability, the wrong tool for excluding an
+ * externally-triggered event's own target).
  *
  * **Spider-Man / Pavitr Prabhakar (ally, 30013)** — "Response: After Spider-Man enters play, remove 1 threat from
  * a scheme for each Web-Warrior card you control (including Spider-Man)." By the time this Response resolves he is
@@ -133,21 +132,6 @@ export const SPIDERHAM_ALLIES = defineAbilities({
     moveCards(cards(chosen("found")), "deckShuffle"),
   ),
 
-  // **Known engine gap** (module docblock): a *basic* thwart's own "thwart" `TriggerEvent` never carries the
-  // resolved amount removed (`packages/engine/src/actions.ts`'s basic-thwart command handler pushes `{ kind:
-  // "thwart", ... }` with no `amount` field at all — only its "divided"/multi-scheme branch, and a "(thwart)"-
-  // labeled ability's own `thwart` `EffectSpec` (`packages/engine/src/resolve/apply-effect.ts`'s `case "thwart"`),
-  // set one). `applyPlayerThwart` still resolves the *actual* removal correctly (`event.amount ?? thwarter.thw`),
-  // but that resolved number is never written back onto the event object a later response reads — so `eventAmount`
-  // here reads 0 for the overwhelmingly common case (her own basic thwart), even though the thwart itself worked.
-  // The nested `removeThreat` event `applyPlayerThwart` pushes *does* carry the real amount, but listening for it
-  // sourced by Lady Spider herself is unsafe: this same ability's own `removeThreat` effect on "a different scheme"
-  // is *also* a `removeThreat` event sourced by her, so that pattern re-triggers on its own effect (confirmed:
-  // draining both schemes to 0 through repeated self-triggering instead of moving threat once). Needs an engine
-  // primitive — either the basic-thwart event carrying its resolved amount, or an `EventPattern` way to require a
-  // `removeThreat`'s immediate parent frame be a `thwart` (excluding one raised by an ability's own effect) — not
-  // a per-card workaround. Implemented to the letter of the printed trigger below; `allies.test.ts` documents which
-  // half is currently unverifiable and why.
   "30012.lady-spider-response": response(
     on.thwarts("self"),
     ifThen(allOf(valueAtLeast(eventAmount, 1), exists({ ...A_WEB_WARRIOR_CARD, self: false })), [

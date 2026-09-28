@@ -90,7 +90,11 @@ export type TriggerEventBody =
       readonly thwarterInstanceId: InstanceId;
       readonly schemeInstanceId: InstanceId;
       readonly playerId: PlayerId;
-      /** Threat removed by a "(thwart)" ability; absent/null = the thwarter's THW (a basic thwart). */
+      /**
+       * Threat this thwart removes: a "(thwart)" ability's (or a divided basic thwart's share) from the start; absent
+       * or null on a basic thwart until it resolves (it removes the thwarter's THW, `select.ts` `thwartAmount`). Once
+       * resolved, the threat actually removed, which is what its response window sees.
+       */
       readonly amount?: number | null;
       readonly basic?: boolean;
       /** A basic thwart made with ATK instead of THW (the Assault keyword, or "may use their ATK"; §3.11). */
