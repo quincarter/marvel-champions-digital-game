@@ -255,6 +255,19 @@ const WORLD_FIELD_PRESENTATION: Readonly<Record<string, FieldPresentation | { re
   findNornStonesInPlay: { hidden: true },
   infinityStones1BCompleted: { hidden: true },
   avengersTowerDamaged: { hidden: true },
+  // MC27 p. 5/p. 22: the reputation track itself — every scenario's own victory bullet adds to it, and it drives a
+  // Setup instruction in every scenario after the one that crosses each node (`sm.ts`'s `REPUTATION_VICTORY`/
+  // `CONDITIONAL_INSTRUCTIONS`). This is the box's own headline mechanic, so it gets a real sentence rather than
+  // the generic fallback.
+  reputation: {
+    label: "Reputation",
+    when: "Rises after every scenario; each node it crosses adds a reward or a penalty to every scenario after.",
+    inForce: { label: "Reputation", note: "nodes crossed so far" },
+  },
+  // Not printed as its own log column: `sm.reputation.mark`'s own scratch pad, the ids of the conditional Setup
+  // instructions a crossed node has queued up (`sm.rep.node5.reward`, etc.). A player reads what those instructions
+  // do at the next scenario's own Briefing/Setup, never this raw id list.
+  reputationSetups: { hidden: true },
 };
 
 /**
