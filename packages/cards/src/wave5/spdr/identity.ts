@@ -1,3 +1,4 @@
+import { trait } from "@mc/content";
 import {
   alterEgoAction,
   constant,
@@ -5,7 +6,9 @@ import {
   defineAbilities,
   draw,
   exhaustCardsCost,
+  printedResourcesOf,
   query,
+  resource,
   textBoxCannotBeBlanked,
 } from "../../dsl/index.js";
 
@@ -50,28 +53,26 @@ import {
  * what the community reading §3.24 built expects.
  *
  * **31001a Sync Ratio — Resource** (hero): "Exhaust an Interface upgrade you control → generate that upgrade's
- * resources." **Not scripted — a genuine engine gap, not a DSL gap to shim around.** `ResourceGeneration`
- * already has the right shape for "that card's printed resources" (`printedResourcesOf`, `dsl/abilities.ts`), and
- * `AbilityCost.exhaustCards` already has the right shape for "choose and exhaust a card matching a query"
- * (`exhaustCardsCost`), but the two cannot be wired together today: every call site that evaluates a resource
- * ability's `generates` while it is used in a payment (`generatedResources`, called from `payPayment` and from
- * `paymentSourceVars`/`resourceAbilityFault` in `packages/engine/src/actions.ts`) builds its `EffectContext` with
- * `bindings: {}` literally, and evaluates `generates` *before* the ability's own `cost` is paid (`payCost` runs
- * only after `generatedResources` has already computed the pool). So a `printedResourcesOf(query(…, { inSlot:
- * "exhausted" }))` reading the card `exhaustCardsCost`'s own pick bound to slot `"exhausted"` can never see that
- * binding — `packages/engine/src/select.ts`'s `inSlot` check reads `context.bindings[slot]`, which is always empty
- * here. The primitive needed: thread the resource ability's own cost pick(s) into the context `generates` is
- * evaluated with (or evaluate the cost before pricing `generates`, the RRG 1.8 "Initiating Abilities" p. 24 order
- * anyway — pay costs, then resolve/measure effects). Flagged for `game-rules-architect`/whoever owns
- * `packages/engine/src/actions.ts`'s resource-payment path; no ability id is registered for `31001a.sync-ratio`
- * until it lands (so a deck naming it stays legible as "unscripted", not silently wrong).
+ * resources." `resource(printedResourcesOf(query("upgrade", { inSlot: "exhausted" })), { cost:
+ * exhaustCardsCost(query("upgrade", { trait: INTERFACE })) })`: the cost's pick is bound to slot `"exhausted"`, and
+ * the engine reads a resource ability's `generates` with its own cost's picks bound (`resourceAbilityGenerates`,
+ * `packages/engine/src/actions.ts`; RRG 1.8 "Initiating Abilities" p. 24, steps 3/5 before 6). With two ready
+ * Interface upgrades the payment offers one source per pick, each showing that upgrade's printed resources; with one
+ * the pick is forced; with none ready it isn't offered. In hero form SP//dr itself (the other card's upgrade side,
+ * INTERFACE, printed [wild]) is one of them. The engine counts the resources it generated as
+ * `resourcesPaidBy("31001a.sync-ratio")` for VEN#m, Rapid Deployment and Web-Trap (§3.16).
  */
 
 const SPDR_SUIT = query("support", { name: "SP//dr Suit", controller: "you" });
+const INTERFACE = trait("INTERFACE");
 
 export const SPDR_IDENTITY = defineAbilities({
   "31002.psychogenetic-compatibility": coveredByEngineRule(),
   "31002.maintenance": alterEgoAction({ cost: exhaustCardsCost(SPDR_SUIT) }, draw(2)),
+
+  "31001a.sync-ratio": resource(printedResourcesOf(query("upgrade", { inSlot: "exhausted" })), {
+    cost: exhaustCardsCost(query("upgrade", { trait: INTERFACE })),
+  }),
 
   "31001b.sp-dr-suit-constant": constant(textBoxCannotBeBlanked()),
   "31001b.return-to-base": coveredByEngineRule(),

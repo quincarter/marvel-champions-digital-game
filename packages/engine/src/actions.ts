@@ -10,7 +10,7 @@ import {
   type ResourceMultiplierSpec,
 } from "./abilities.js";
 import type { ChoiceOption } from "./choices.js";
-import type { BasicPowerShare, Command, CostChoices, CostSelection, Payment } from "./commands.js";
+import type { BasicPowerShare, Command, CostChoices, CostSelection, Payment, ResourceAbilityUse } from "./commands.js";
 import { createCtx, emit, moveCard, updateFrame, updateInstance, type Ctx } from "./ctx.js";
 import {
   consumeCostReductions,
@@ -562,8 +562,17 @@ export function generatedResources(
   state: GameState,
   generation: ResourceGeneration | undefined,
   discardTop: InstanceId | null,
-  /** The card generating and the player using it, for a generation that reads the table (§3.38 of wave 4). */
-  from?: { readonly deps: EngineDeps; readonly sourceId: InstanceId; readonly playerId: PlayerId },
+  /**
+   * The card generating and the player using it, for a generation that reads the table (§3.38 of wave 4), and the
+   * cards its own cost picked (`bindings`, by slot): "Exhaust an [Interface] upgrade you control → generate that
+   * upgrade's resources" reads the upgrade from the cost's slot (`resourceAbilityGenerates`).
+   */
+  from?: {
+    readonly deps: EngineDeps;
+    readonly sourceId: InstanceId;
+    readonly playerId: PlayerId;
+    readonly bindings?: Bindings;
+  },
 ): ResourcePool {
   if (generation === undefined) return poolOf({ wild: 1 });
   if (typeof generation === "number") return poolOf({ wild: generation });
@@ -578,7 +587,7 @@ export function generatedResources(
       selfInstanceId: from.sourceId,
       controllerId: from.playerId,
       event: null,
-      bindings: {},
+      bindings: from.bindings ?? {},
       deps: from.deps,
     };
     const matching = cardsInPlay(state).filter((id) =>
@@ -642,6 +651,8 @@ function resourceAbilityFault(
   playerId: PlayerId,
   payingFor: InstanceId | null,
   group = false,
+  /** The picks this use names for the ability's own cost (`ResourceAbilityUse.costChoices`). */
+  choices: CostChoices = {},
 ): PriceFault | null {
   const definition = deps.abilities[abilityId];
   if (!definition || definition.trigger.kind !== "resource") {
@@ -677,8 +688,120 @@ function resourceAbilityFault(
       return { code: "no_valid_target", message: `${abilityId} only generates resources for a certain kind of card` };
     }
   }
-  const plan = planCost(state, deps, instanceId, spender, definition.cost, {}, new Set());
+  const plan = planCost(state, deps, instanceId, spender, definition.cost, choices, new Set());
   return isFault(plan) ? plan : null;
+}
+
+/**
+ * A resource ability's own cost, planned with the picks this use names. RRG 1.8 "Initiating Abilities" (p. 24): the
+ * cost is determined (step 3) and paid (step 5) before the ability's effect, generating resources, happens (step 6),
+ * so what the ability generates may depend on what its cost picked ("Exhaust an [Interface] upgrade you control →
+ * generate that upgrade's resources", SP//dr Suit's Sync Ratio; RRG 1.8 "Resource Ability", p. 37).
+ */
+function resourceCostPlan(
+  state: GameState,
+  deps: EngineDeps,
+  use: ResourceAbilityUse,
+  spender: PlayerId,
+): CostPlan | PriceFault {
+  const cost = deps.abilities[use.abilityId]?.cost;
+  return planCost(state, deps, use.instanceId, spender, cost, use.costChoices ?? {}, new Set());
+}
+
+/**
+ * What one use of a resource ability generates, read with its own cost's picks bound by slot. The picks are read as
+ * the cost has them before it is paid, which is what paying leaves them as (an exhausted upgrade still prints the same
+ * resources), so pricing a payment and paying it agree.
+ */
+export function resourceAbilityGenerates(
+  state: GameState,
+  deps: EngineDeps,
+  use: ResourceAbilityUse,
+  spender: PlayerId,
+  discardTop: InstanceId | null,
+): ResourcePool {
+  const plan = resourceCostPlan(state, deps, use, spender);
+  return generatedResources(state, deps.abilities[use.abilityId]?.generates, discardTop, {
+    deps,
+    sourceId: use.instanceId,
+    playerId: spender,
+    bindings: isFault(plan) ? {} : plan.bindings,
+  });
+}
+
+/** The cards in play one use of a resource ability spends on its own cost: itself when it exhausts, and its picks. */
+function cardsSpentByResourceCost(deps: EngineDeps, use: ResourceAbilityUse, plan: CostPlan): readonly InstanceId[] {
+  const cost = plan.cost ?? deps.abilities[use.abilityId]?.cost;
+  return [
+    ...(cost?.exhaustSelf ? [use.instanceId] : []),
+    ...inPlayPicksOf(cost).flatMap(({ pick }) => plan.bindings[pick.slot] ?? []),
+  ];
+}
+
+/**
+ * Whether a resource ability whose cost is only cards picked in play may be used again in the same payment: RRG 1.8
+ * "Resource Ability" (p. 37) lets it trigger "anytime the player … is generating resources to pay a cost", so with no
+ * limit it may trigger once per set of cards that can pay its cost (Sync Ratio with two ready Interface upgrades). One
+ * card still pays one cost (`priceOf`'s check, RRG 1.8 "Cost", p. 13).
+ */
+function repeatsWithNewPicks(deps: EngineDeps, abilityId: string): boolean {
+  const definition = deps.abilities[abilityId];
+  const cost = definition?.cost;
+  if (definition?.trigger.kind !== "resource" || definition.limit || !cost) return false;
+  const pickKeys = new Set(["exhaustCards", "returnToHand", "discardCards"]);
+  return inPlayPicksOf(cost).length > 0 && Object.entries(cost).every(([key, v]) => pickKeys.has(key) || !v);
+}
+
+/** Most payment options one resource ability offers for the different cards its cost could pick (a cap, not a rule). */
+const MAX_PICK_OPTIONS = 20;
+
+/** Every way to choose `size` of `ids`, in order. */
+function combinations<T>(ids: readonly T[], size: number): readonly (readonly T[])[] {
+  if (size === 0) return [[]];
+  return ids.flatMap((id, i) => combinations(ids.slice(i + 1), size - 1).map((rest) => [id, ...rest]));
+}
+
+/**
+ * The picks a resource ability's cost could be paid with, one `CostChoices` per legal choice, when its cost leaves a
+ * choice of cards in play; `[undefined]` when it leaves none (no pick, or a forced one: `InPlayCostPick`). Each choice
+ * is its own payment option, so the payment view shows what that choice generates.
+ */
+function resourcePickChoices(
+  state: GameState,
+  deps: EngineDeps,
+  instanceId: InstanceId,
+  abilityId: string,
+  spender: PlayerId,
+): readonly (CostChoices | undefined)[] {
+  const picks = inPlayPicksOf(deps.abilities[abilityId]?.cost);
+  let sets: CostChoices[] = [{}];
+  let choosing = false;
+  for (const { mode, pick } of picks) {
+    const candidates = eligibleForInPlayPick(state, deps, instanceId, spender, pick).filter((id) =>
+      canPayInPlayPick(state, deps, instanceId, id, mode),
+    );
+    // A forced pick (exactly `min` candidates) pays itself; fewer can't pay, which the fault check reports.
+    if (candidates.length <= pick.min) continue;
+    choosing = true;
+    const most = Math.min(pick.max ?? candidates.length, candidates.length);
+    const options: (readonly InstanceId[])[] = [];
+    for (let size = pick.min; size <= most && options.length < MAX_PICK_OPTIONS; size++) {
+      options.push(...combinations(candidates, size));
+    }
+    sets = sets.flatMap((set) => options.map((ids) => ({ ...set, [pick.slot]: ids }))).slice(0, MAX_PICK_OPTIONS);
+  }
+  return choosing ? sets : [undefined];
+}
+
+/**
+ * The option id of one use of a resource ability: "ability:<id>:<abilityId>", then ":<n>" for the n-th use of a
+ * `repeatable` one (docs/phase7-wave5.md §3.25), then "@<slot>=<id>,<id>;…" for the cards its cost picks. Parsed back
+ * by `paymentsFromOptionIds`.
+ */
+export function resourceAbilityOptionId(use: ResourceAbilityUse, n = 1): string {
+  const base = `ability:${use.instanceId}:${use.abilityId}${n > 1 ? `:${n}` : ""}`;
+  const choices = Object.entries(use.costChoices ?? {});
+  return choices.length === 0 ? base : `${base}@${choices.map(([slot, ids]) => `${slot}=${ids.join(",")}`).join(";")}`;
 }
 
 /**
@@ -711,11 +834,12 @@ function paymentSourceVars(ctx: Ctx, playerId: PlayerId, payment: readonly Payme
     if (!("ability" in entry)) continue;
     const { instanceId, abilityId } = entry.ability;
     const spender = resourceSpender(ctx.state, ctx.deps, instanceId, abilityId, playerId);
-    const generated = generatedResources(
+    const generated = resourceAbilityGenerates(
       ctx.state,
-      ctx.deps.abilities[abilityId]?.generates,
+      ctx.deps,
+      entry.ability,
+      spender,
       mustPlayer(ctx.state, spender).discard[0] ?? null,
-      { deps: ctx.deps, sourceId: instanceId, playerId: spender },
     );
     const key = `paid.ability.${abilityId}`;
     vars[key] = (vars[key] ?? 0) + poolTotal(generated);
@@ -767,6 +891,8 @@ function priceOf(
   const group = paidAsGroup(ctx.state, ctx.deps, excludeInstanceId, payingFor);
   const seen = new Set<string>();
   const abilityUses = new Map<string, number>();
+  // Cards in play the payment's resource abilities spend on their own costs: one card pays one cost (RRG 1.8 "Cost").
+  const spentOnCosts = new Set<InstanceId>();
   // Each player's pile as it stood before the payment (FAQ "Pepper Potts (#33)", RRG 1.8 p. 58): never a card this
   // same payment is spending. Pricing changes no state, so the live pile is that snapshot.
   const topOf = (id: PlayerId): InstanceId | null => mustPlayer(ctx.state, id).discard[0] ?? null;
@@ -809,21 +935,26 @@ function priceOf(
     // The same ability again: only a `repeatable` one, its cost paid once per use (docs/phase7-wave5.md §3.25).
     const uses = (abilityUses.get(key) ?? 0) + 1;
     abilityUses.set(key, uses);
-    const repeatFault = repeatUsesFault(ctx.state, ctx.deps, instanceId, abilityId, spender, uses);
-    if (repeatFault) return repeatFault;
-    const fault = resourceAbilityFault(ctx.state, ctx.deps, instanceId, abilityId, playerId, payingFor, group);
+    if (!(uses > 1 && repeatsWithNewPicks(ctx.deps, abilityId))) {
+      const repeatFault = repeatUsesFault(ctx.state, ctx.deps, instanceId, abilityId, spender, uses);
+      if (repeatFault) return repeatFault;
+    }
+    const choices = entry.ability.costChoices ?? {};
+    const fault = resourceAbilityFault(ctx.state, ctx.deps, instanceId, abilityId, playerId, payingFor, group, choices);
     if (fault) return fault;
+    const plan = resourceCostPlan(ctx.state, ctx.deps, entry.ability, spender);
+    if (isFault(plan)) return plan;
+    for (const id of cardsSpentByResourceCost(ctx.deps, entry.ability, plan)) {
+      if (spentOnCosts.has(id)) return { code: "invalid_choice", message: "one card cannot pay two costs" };
+      spentOnCosts.add(id);
+    }
     pool = addPools(
       pool,
       paidForMultiplied(
         ctx.state,
         ctx.deps,
         payingFor,
-        generatedResources(ctx.state, ctx.deps.abilities[abilityId]?.generates, topOf(spender), {
-          deps: ctx.deps,
-          sourceId: instanceId,
-          playerId: spender,
-        }),
+        resourceAbilityGenerates(ctx.state, ctx.deps, entry.ability, spender, topOf(spender)),
       ),
     );
   }
@@ -888,6 +1019,22 @@ export function paymentOptions(
       const trigger = ctx.deps.abilities[ref.id]?.trigger;
       if (trigger?.kind !== "resource") continue;
       if (!controlled && trigger.forAnyPlayer !== true && !group) continue;
+      const spender = resourceSpender(ctx.state, ctx.deps, id, ref.id, playerId);
+      // A cost that picks cards in play: one option per legal pick, so each shows what it generates (Sync Ratio).
+      const pickChoices = resourcePickChoices(ctx.state, ctx.deps, id, ref.id, spender);
+      if (pickChoices.some((choices) => choices !== undefined)) {
+        for (const choices of pickChoices) {
+          if (!choices) continue;
+          if (resourceAbilityFault(ctx.state, ctx.deps, id, ref.id, playerId, payingFor, group, choices)) continue;
+          const picked = Object.values(choices).flatMap((ids) => ids.map((pick) => mustCardOf(ctx.state, pick).name));
+          options.push({
+            optionId: resourceAbilityOptionId({ instanceId: id, abilityId: ref.id, costChoices: choices }),
+            label: `${mustCardOf(ctx.state, id).name} (${picked.join(", ")})`,
+            ref: { kind: "ability", instanceId: id, abilityId: ref.id },
+          });
+        }
+        continue;
+      }
       if (resourceAbilityFault(ctx.state, ctx.deps, id, ref.id, playerId, payingFor, group)) continue;
       options.push({
         optionId: `ability:${id}:${ref.id}`,
@@ -896,7 +1043,6 @@ export function paymentOptions(
       });
       // A `repeatable` ability (docs/phase7-wave5.md §3.25): one more option per further use its cost can pay for.
       if (!trigger.repeatable) continue;
-      const spender = resourceSpender(ctx.state, ctx.deps, id, ref.id, playerId);
       for (let n = 2; n <= MAX_REPEAT_OPTIONS; n++) {
         if (repeatUsesFault(ctx.state, ctx.deps, id, ref.id, spender, n)) break;
         options.push({
@@ -911,19 +1057,44 @@ export function paymentOptions(
 }
 
 /**
- * Option ids name payment entries: "hand:<id>", "ability:<id>:<abilityId>", and "ability:<id>:<abilityId>:<n>" for the
- * n-th use of a `repeatable` resource ability (docs/phase7-wave5.md §3.25), which is the same entry again.
+ * Option ids name payment entries: "hand:<id>", "ability:<id>:<abilityId>", "ability:<id>:<abilityId>:<n>" for the
+ * n-th use of a `repeatable` resource ability (docs/phase7-wave5.md §3.25), which is the same entry again, and a
+ * "@<slot>=<id>,<id>;…" suffix for the cards a resource ability's own cost picks (`resourceAbilityOptionId`).
  */
 export function paymentsFromOptionIds(optionIds: readonly string[]): readonly Payment[] {
   const payments: Payment[] = [];
   for (const optionId of optionIds) {
-    const [kind, first, second] = optionId.split(":");
+    const at = optionId.indexOf("@");
+    const head = at < 0 ? optionId : optionId.slice(0, at);
+    const [kind, first, second] = head.split(":");
     if (kind === "hand" && first) payments.push({ fromHand: asInstanceId(first) });
     if (kind === "ability" && first && second) {
-      payments.push({ ability: { instanceId: asInstanceId(first), abilityId: asAbilityId(second) } });
+      const costChoices = at < 0 ? undefined : pickChoicesFromSuffix(optionId.slice(at + 1));
+      payments.push({
+        ability: {
+          instanceId: asInstanceId(first),
+          abilityId: asAbilityId(second),
+          ...(costChoices ? { costChoices } : {}),
+        },
+      });
     }
   }
   return payments;
+}
+
+/** "<slot>=<id>,<id>;<slot>=<id>" back into `CostChoices`. */
+function pickChoicesFromSuffix(suffix: string): CostChoices | undefined {
+  const choices: Record<string, readonly InstanceId[]> = {};
+  for (const part of suffix.split(";")) {
+    const eq = part.indexOf("=");
+    if (eq <= 0) continue;
+    choices[part.slice(0, eq)] = part
+      .slice(eq + 1)
+      .split(",")
+      .filter((id) => id.length > 0)
+      .map(asInstanceId);
+  }
+  return Object.keys(choices).length > 0 ? choices : undefined;
 }
 
 /** A resource ability a payment used, and who used it: its own effects resolve with the payment (§3.30 of wave 4). */
@@ -1010,17 +1181,15 @@ export function payPayment(
     const definition = ctx.deps.abilities[abilityId];
     if (!definition) continue;
     const spender = resourceSpender(ctx.state, ctx.deps, instanceId, abilityId, playerId);
+    // The cost with this use's own picks (Sync Ratio's Interface upgrade), measured before paying it moves anything,
+    // then paid: RRG 1.8 "Initiating Abilities" (p. 24), steps 3 and 5 before the resources are generated (step 6).
     const generated = paidForMultiplied(
       ctx.state,
       ctx.deps,
       payingFor,
-      generatedResources(ctx.state, definition.generates, discardTopBefore.get(spender) ?? null, {
-        deps: ctx.deps,
-        sourceId: instanceId,
-        playerId: spender,
-      }),
+      resourceAbilityGenerates(ctx.state, ctx.deps, entry.ability, spender, discardTopBefore.get(spender) ?? null),
     );
-    const plan = planCost(ctx.state, ctx.deps, instanceId, spender, definition.cost, {}, new Set());
+    const plan = resourceCostPlan(ctx.state, ctx.deps, entry.ability, spender);
     if (!isFault(plan)) payCost(ctx, instanceId, spender, definition.cost, plan);
     recordAbilityUse(ctx, instanceId, abilityId, definition, null, spender);
     emit(ctx, {
@@ -1140,11 +1309,18 @@ function cardsSpentEvents(
 }
 
 /**
- * Cards a payment already uses: hand cards it discards and cards whose resource ability it uses. A hand card can't also
- * be picked for a "discard N cards" cost, and an in-play card can't also pay an `InPlayCostPick` (RRG 1.8 "Cost", p. 13).
+ * Cards a payment already uses: hand cards it discards, cards whose resource ability it uses, and the cards those
+ * abilities' own costs name as picks. A hand card can't also be picked for a "discard N cards" cost, and an in-play card
+ * can't also pay an `InPlayCostPick` (RRG 1.8 "Cost", p. 13).
  */
 const handCardsIn = (payment: readonly Payment[]): ReadonlySet<InstanceId> =>
-  new Set(payment.map((entry) => ("fromHand" in entry ? entry.fromHand : entry.ability.instanceId)));
+  new Set(
+    payment.flatMap((entry) =>
+      "fromHand" in entry
+        ? [entry.fromHand]
+        : [entry.ability.instanceId, ...Object.values(entry.ability.costChoices ?? {}).flat()],
+    ),
+  );
 
 // ---------------------------------------------------------------------------
 // Non-resource costs

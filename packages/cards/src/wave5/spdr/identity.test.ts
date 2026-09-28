@@ -1,10 +1,24 @@
 import { describe, expect, it } from "vitest";
-import { activeAbilityRefs, applyCommand, currentName, locateCard } from "@mc/engine";
+import {
+  activeAbilityRefs,
+  applyCommand,
+  currentName,
+  locateCard,
+  paymentFor,
+  type EngineDeps,
+  type GameState,
+  type InstanceId,
+  type Payment,
+} from "@mc/engine";
+import { dealDamage, heroAction, resourcesPaidBy, theVillain } from "../../dsl/index.js";
 import {
   firstLegal,
   identityOf,
   inst,
+  moveToHand,
   patchInstance,
+  payWith,
+  play,
   playerOf,
   run,
   runWith,
@@ -131,8 +145,109 @@ describe("SP//dr Suit / Peni Parker (identity, 31001a/31001b/31002/31002b)", () 
     });
   });
 
-  // 31001a.sync-ratio ("Exhaust an Interface upgrade you control → generate that upgrade's resources") is not
-  // registered: a genuine engine gap in the resource-payment path, not a DSL gap — see `identity.ts`'s own
-  // docblock for the exact primitive missing (`generatedResources`'s `bindings: {}` never sees the ability's own
-  // `exhaustCardsCost` pick, and `generates` is priced before `cost` is paid).
+  describe("31001a.sync-ratio: Resource: Exhaust an Interface upgrade you control → generate that upgrade's resources", () => {
+    // A probe standing in for Rapid Deployment's own action (31005, not scripted yet): deals damage equal to
+    // `resourcesPaidBy("31001a.sync-ratio")`, so the test reads what Sync Ratio generated toward the card.
+    const PROBE_DEPS: EngineDeps = {
+      ...WAVE5_DEPS,
+      abilities: {
+        ...WAVE5_DEPS.abilities,
+        "31005.rapid-deployment-action": heroAction(dealDamage(resourcesPaidBy("31001a.sync-ratio"), theVillain)),
+      },
+    };
+    const SYNC = "31001a.sync-ratio";
+
+    /** Hero form, with these Interface upgrades moved into P1's play area (surgery, no costs). */
+    function heroWith(...codes: readonly string[]) {
+      const hero = run(spdrVsRhino(), toHero(P1));
+      const moved = moveToHand(hero, P1, ...codes, "31005");
+      const [rapid] = moved.ids.slice(-1);
+      const ifaces = moved.ids.slice(0, -1);
+      let state = moved.state;
+      state = {
+        ...state,
+        players: state.players.map((p) =>
+          p.playerId === P1
+            ? { ...p, hand: p.hand.filter((id) => !ifaces.includes(id)), playArea: [...p.playArea, ...ifaces] }
+            : p,
+        ),
+      };
+      for (const id of ifaces) state = patchInstance(state, id, { controllerId: P1, faceup: true });
+      return { state, ifaces, rapid: rapid!, spdr: playerOf(state, P1).identity.separatedCardInstanceId! };
+    }
+    const syncSources = (state: GameState, rapid: InstanceId) =>
+      (paymentFor(state, P1, { kind: "playCard", instanceId: rapid }, {}, PROBE_DEPS)?.sources ?? []).filter(
+        (source) => source.kind === "resourceAbility" && source.optionId.includes(SYNC),
+      );
+    const villainDamage = (state: GameState) => inst(state, state.villains[0]!.instanceId).damage;
+    const syncUse = (state: GameState, pick: InstanceId): Payment => ({
+      ability: { instanceId: identityOf(state, P1), abilityId: SYNC as never, costChoices: { exhausted: [pick] } },
+    });
+
+    it("is the printed resource ability: exhaust an Interface upgrade, generate its printed resources", () => {
+      expect(WAVE5_DEPS.abilities[SYNC]).toEqual({
+        trigger: { kind: "resource" },
+        cost: {
+          exhaustCards: { slot: "exhausted", query: { categories: ["upgrade"], trait: "INTERFACE" }, min: 1, max: 1 },
+        },
+        effects: [],
+        generates: { kind: "printedResourcesOf", cards: { categories: ["upgrade"], inSlot: "exhausted" } },
+      });
+    });
+
+    it("offers one source per ready Interface upgrade, each worth that upgrade's printed resources", () => {
+      // 31011 Psychic Link [mental], 31012 Speed-Metal Alloy [physical]; SP//dr itself is an INTERFACE upgrade ([wild]).
+      const { state, ifaces, rapid, spdr } = heroWith("31011", "31012");
+      const byPick = new Map(syncSources(state, rapid).map((s) => [s.costChoices?.exhausted?.[0], s.pool] as const));
+      expect(byPick.size).toBe(3);
+      expect(byPick.get(ifaces[0])).toEqual({ energy: 0, mental: 1, physical: 0, wild: 0 });
+      expect(byPick.get(ifaces[1])).toEqual({ energy: 0, mental: 0, physical: 1, wild: 0 });
+      expect(byPick.get(spdr)).toEqual({ energy: 0, mental: 0, physical: 0, wild: 1 });
+    });
+
+    it("exhausting the picked upgrade generates exactly its resources; resourcesPaidBy reads them", () => {
+      const { state, ifaces, rapid, spdr } = heroWith("31011", "31012");
+      const [link, alloy] = ifaces as [InstanceId, InstanceId];
+      const other = payWith(state, P1, 1, [rapid]);
+      const after = settle(
+        runWith(PROBE_DEPS, state, play(P1, rapid, other, { abilities: [syncUse(state, alloy)] })),
+        firstLegal,
+        undefined,
+        PROBE_DEPS,
+      );
+      expect(inst(after, alloy).exhausted).toBe(true);
+      expect(inst(after, link).exhausted).toBe(false);
+      expect(inst(after, spdr).exhausted).toBe(false);
+      expect(villainDamage(after)).toBe(villainDamage(state) + 1);
+    });
+
+    it("with two Interface upgrades used in one payment, each generates its own (2 resources from Sync Ratio)", () => {
+      const { state, ifaces, rapid } = heroWith("31011", "31012");
+      const [link, alloy] = ifaces as [InstanceId, InstanceId];
+      const after = settle(
+        runWith(PROBE_DEPS, state, play(P1, rapid, [], { abilities: [syncUse(state, link), syncUse(state, alloy)] })),
+        firstLegal,
+        undefined,
+        PROBE_DEPS,
+      );
+      expect(inst(after, link).exhausted).toBe(true);
+      expect(inst(after, alloy).exhausted).toBe(true);
+      expect(villainDamage(after)).toBe(villainDamage(state) + 2);
+    });
+
+    it("is not offered with every Interface upgrade exhausted, and can't exhaust a non-Interface card", () => {
+      const { state, ifaces, rapid, spdr } = heroWith("31011");
+      const tired = patchInstance(patchInstance(state, ifaces[0]!, { exhausted: true }), spdr, { exhausted: true });
+      expect(syncSources(tired, rapid)).toEqual([]);
+      const refused = applyCommand(
+        tired,
+        play(P1, rapid, payWith(tired, P1, 1, [rapid]), { abilities: [syncUse(tired, ifaces[0]!)] }),
+        PROBE_DEPS,
+      );
+      expect(refused.ok).toBe(false);
+      // The INACTIVE Suit's support is TECH, not INTERFACE; in alter-ego form Sync Ratio isn't there at all.
+      const alterEgo = spdrVsRhino();
+      expect(activeAbilityRefs(alterEgo, identityOf(alterEgo, P1), WAVE5_DEPS).map((r) => r.id)).not.toContain(SYNC);
+    });
+  });
 });

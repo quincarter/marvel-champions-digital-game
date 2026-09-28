@@ -18,11 +18,12 @@ import {
   basicPowerCost,
   costAsDetermined,
   eventActionAbility,
-  generatedResources,
   handCardResources,
   paidForMultiplied,
   paymentOptions,
   paymentsFromOptionIds,
+  resourceAbilityGenerates,
+  resourceAbilityOptionId,
   defaultInPlayPicks,
   discardCombinedValue,
   planCost,
@@ -704,7 +705,10 @@ export function legalActions(state: GameState, playerId: PlayerId, deps: EngineD
 
 /** One thing the player can spend toward a cost. */
 export interface PaymentSource {
-  /** The option-id shape `paymentOptions` produces: "hand:<id>" | "ability:<id>:<abilityId>". */
+  /**
+   * The option-id shape `paymentOptions` produces: "hand:<id>" | "ability:<id>:<abilityId>", with ":<n>" for a
+   * repeated use and "@<slot>=<id>,…" for the cards a resource ability's own cost picks (`resourceAbilityOptionId`).
+   */
   readonly optionId: string;
   readonly kind: "handCard" | "resourceAbility";
   readonly instanceId: InstanceId;
@@ -716,9 +720,12 @@ export interface PaymentSource {
    * on this card while paying for an [aspect] card". A resource ability's pool
    * is what its `generates` says; for "equal to the top card of your discard
    * pile" (Pepper Potts) that top card can change during a payment, so this is
-   * the pool as of the current discard pile, not a promise.
+   * the pool as of the current discard pile, not a promise. A resource ability whose cost picks a card is one source
+   * per legal pick, each with what that pick generates ("generate that upgrade's resources", Sync Ratio).
    */
   readonly pool: Readonly<Record<ResourceIconType, number>>;
+  /** The cards this source's own cost picks, by slot (a resource ability's `ResourceAbilityUse.costChoices`). */
+  readonly costChoices?: CostChoices;
 }
 
 export interface PaymentQuery {
@@ -776,10 +783,10 @@ const optionIdsOf = (payment: readonly Payment[]): readonly string[] => {
   const uses = new Map<string, number>();
   return payment.map((entry) => {
     if ("fromHand" in entry) return `hand:${entry.fromHand}`;
-    const id = `ability:${entry.ability.instanceId}:${entry.ability.abilityId}`;
+    const id = resourceAbilityOptionId(entry.ability);
     const n = (uses.get(id) ?? 0) + 1;
     uses.set(id, n);
-    return n === 1 ? id : `${id}:${n}`;
+    return n === 1 ? id : resourceAbilityOptionId(entry.ability, n);
   });
 };
 
@@ -915,6 +922,8 @@ export function paymentFor(
         ];
       }
       if (option.ref.kind !== "ability") return [];
+      const use = paymentsFromOptionIds([option.optionId]).find((entry) => "ability" in entry);
+      const costChoices = use && "ability" in use ? use.ability.costChoices : undefined;
       return [
         {
           optionId: option.optionId,
@@ -925,12 +934,19 @@ export function paymentFor(
             state,
             deps,
             payable.payingFor,
-            generatedResources(state, deps.abilities[option.ref.abilityId]?.generates, discardTop, {
+            resourceAbilityGenerates(
+              state,
               deps,
-              sourceId: option.ref.instanceId,
+              {
+                instanceId: option.ref.instanceId,
+                abilityId: option.ref.abilityId,
+                ...(costChoices ? { costChoices } : {}),
+              },
               playerId,
-            }),
+              discardTop,
+            ),
           ),
+          ...(costChoices ? { costChoices } : {}),
         },
       ];
     },
