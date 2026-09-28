@@ -4455,14 +4455,13 @@ export const SM_CARDS: readonly AnyCard[] = [
     encounterSetIds: [encounterSetId("snitches_get_stitches")],
     boostIcons: 3,
     traits: [],
-    keywords: [],
+    keywords: [{ name: "victory", value: -1 }],
     text: {
       printed: "Victory -1.\nAttach to Venom (Eddie Brock). If you cannot this card gains surge.\nForced Interrupt: When a villain attacks, it attacks Venom. If that attack defeats Venom, add Venom and this card to the victory display.\nAction: Exhaust Venom and spend 2 resources of the same type → discard this card.",
       current: "Victory -1.\nAttach to Venom (Eddie Brock). If you cannot this card gains surge.\nForced Interrupt: When a villain attacks, it attacks Venom. If that attack defeats Venom, add Venom and this card to the victory display.\nAction: Exhaust Venom and spend 2 resources of the same type → discard this card.",
     },
     abilities: [
       { id: abilityId("27181.snitches-get-stitches-constant") },
-      { id: abilityId("27181.snitches-get-stitches-constant-2") },
       {
         id: abilityId("27181.snitches-get-stitches-forced-interrupt"),
       },

@@ -395,10 +395,15 @@ function parseKeyword(sentence: string): KeywordInstance | undefined {
   // `{ value: 0, perPlayer: N }`; a bare `Hinder N.` (the expert Campaign Challenge faces) keeps `value`.
   const hinderPerHero = /^Hinder (\d+)\[per_hero\]$/.exec(s);
   if (hinderPerHero) return { name: "hinder", value: 0, perPlayer: Number(hinderPerHero[1]) };
-  const m = /^(Retaliate|Incite|Hinder|Victory) (\d+)$/.exec(s);
+  // Victory is the one of these that can print negative (docs/phase7-wave5.md §1.2: "Victory -1.", Snitches Get
+  // Stitches, `sm` 27181 — ruling Aug 3, 2026 (4) #2 settles what a negative total does on the reputation track).
+  // Retaliate/Incite/Hinder stay digit-only; the schema (`validation.ts`) still rejects a negative value that
+  // reaches it through some other route.
+  const m = /^(Retaliate|Incite|Hinder) (\d+)$|^(Victory) (-?\d+)$/.exec(s);
   if (m) {
-    const name = (m[1] as string).toLowerCase() as "retaliate" | "incite" | "hinder" | "victory";
-    return { name, value: Number(m[2]) };
+    const name = ((m[1] ?? m[3]) as string).toLowerCase() as "retaliate" | "incite" | "hinder" | "victory";
+    const value = Number(m[2] ?? m[4]);
+    return { name, value };
   }
   return undefined;
 }
