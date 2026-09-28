@@ -1,5 +1,6 @@
 import type { AbilityRegistry } from "@mc/engine";
 import { mergeRegistries } from "../../dsl/index.js";
+import { SHIELD_TECH_CAMPAIGN_CARDS } from "./campaign/shield-tech.js";
 import { GHOST_SPIDER_ABILITIES } from "./ghost-spider/index.js";
 import { SM_MODULAR_ABILITIES } from "./modulars/index.js";
 import { MYSTERIO_ABILITIES } from "./mysterio/index.js";
@@ -36,4 +37,5 @@ export const SM_ABILITIES: AbilityRegistry = mergeRegistries(
   SINISTER_SIX_ABILITIES,
   VENOM_GOBLIN_ABILITIES,
   SM_MODULAR_ABILITIES,
+  SHIELD_TECH_CAMPAIGN_CARDS,
 );
