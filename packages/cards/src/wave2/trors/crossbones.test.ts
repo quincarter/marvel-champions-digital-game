@@ -1,4 +1,4 @@
-import { cardsInPlay } from "@mc/engine";
+import { cardOf, cardsInPlay, selfDiscardDamageThreshold, type GameState, type InstanceId } from "@mc/engine";
 import {
   firstLegal,
   identityOf,
@@ -10,6 +10,7 @@ import {
   stackEncounterDeck,
   toHero,
 } from "../../testing/harness.js";
+import { driveEvents } from "../../testing/staging.js";
 import { wave2Scenario } from "../setup.js";
 import { runWave2, startWave2Game, WAVE2_DEPS } from "../testing.js";
 import { CROSSBONES_SET } from "./crossbones.js";
@@ -81,10 +82,6 @@ describe("Crossbones scenario cards", () => {
     }
   });
 
-  it("Crossbones' Armor: damage that would hit Crossbones is placed here instead", () => {
-    expect(CROSSBONES_SET["04065.crossbones-armor-forced-interrupt"]).toBeDefined();
-  });
-
   it("Hard as Nails / its Boost: gives the villain tough, or heals 3 if it already has tough", () => {
     expect(CROSSBONES_SET["04068.when-revealed"]).toBeDefined();
     expect(CROSSBONES_SET["04068.boost"]).toBeDefined();
@@ -102,5 +99,57 @@ describe("Crossbones scenario cards", () => {
     ] as const) {
       expect(CROSSBONES_SET[id], id).toBeDefined();
     }
+  });
+});
+
+describe("Crossbones' Armor (04065): Crossbones' damage is placed here, and 5 or more discards it", () => {
+  const withArmor = () => {
+    const start = stackEncounterDeck(crossbonesVsHawkeye(), "01186", "04065");
+    const state = settle(
+      runWave2(runWave2(start, toHero()), { type: "endTurn", playerId: P1 }),
+      firstLegal,
+      undefined,
+      WAVE2_DEPS,
+    );
+    const [armor] = instancesOf(state, "04065").filter((id) => cardsInPlay(state).includes(id)) as [InstanceId];
+    return { state, armor };
+  };
+  const hitCrossbones = (state: GameState) =>
+    driveEvents(WAVE2_DEPS, state, {
+      type: "basicAttack",
+      playerId: P1,
+      attackerInstanceId: identityOf(state),
+      targetInstanceId: state.activeVillainId,
+    });
+
+  it("is attached to Crossbones when revealed", () => {
+    const { state, armor } = withArmor();
+    expect(armor).toBeDefined();
+    expect(inst(state, armor).attachedTo).toBe(state.activeVillainId);
+  });
+
+  it("takes the damage instead of Crossbones and stays while it holds less than 5", () => {
+    const { state, armor } = withArmor();
+    const hit = hitCrossbones(state);
+    expect(inst(hit.state, hit.state.activeVillainId).damage).toBe(inst(state, state.activeVillainId).damage);
+    expect(inst(hit.state, armor).damage).toBe(2);
+    expect(cardsInPlay(hit.state)).toContain(armor);
+  });
+
+  it("is discarded once 5 or more damage is on it, and that hit still does not reach Crossbones", () => {
+    const { state, armor } = withArmor();
+    const hit = hitCrossbones(patchInstance(state, armor, { damage: 4 }));
+    expect(cardsInPlay(hit.state)).not.toContain(armor);
+    expect(inst(hit.state, hit.state.activeVillainId).damage).toBe(inst(state, state.activeVillainId).damage);
+    // With the armor gone, the next hit lands on Crossbones.
+    const next = hitCrossbones(patchInstance(hit.state, identityOf(hit.state), { exhausted: false }));
+    expect(inst(next.state, next.state.activeVillainId).damage).toBeGreaterThan(
+      inst(state, state.activeVillainId).damage,
+    );
+  });
+
+  it("reports its break point (5) for the board to show", () => {
+    const { state, armor } = withArmor();
+    expect(selfDiscardDamageThreshold(cardOf(state, armor)!, WAVE2_DEPS)).toBe(5);
   });
 });

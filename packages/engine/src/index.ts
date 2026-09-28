@@ -306,6 +306,8 @@ export {
   traitsOf,
 } from "./select.js";
 
+export { selfDiscardDamageThreshold } from "./damage-threshold.js";
+
 /** "Why not the others?" — the cards an open choice left out, each with the clause that excluded it. */
 export type { ChoiceExclusion, ExclusionCode } from "./why-not.js";
 export { choiceExclusions } from "./why-not.js";

@@ -15,7 +15,12 @@ import type { ArtSource } from "../../art/art-source.js";
 import { accent, ink, signal, status as statusTokens, surface, typeRole } from "../../tokens.js";
 import { textStyle } from "../../ui/theme.js";
 import { McHpPlate, McStatBadge, fitText, label, paintPanel, type StatKey } from "../../ui/widgets.js";
-import { attachmentChipLabel, type CharacterPanel, type StatTile } from "../../view/board-model.js";
+import {
+  attachmentChipDamage,
+  attachmentChipText,
+  type CharacterPanel,
+  type StatTile,
+} from "../../view/board-model.js";
 import { hpFromValue } from "../../view/hp-motion.js";
 import {
   CARD_ASPECT,
@@ -230,17 +235,27 @@ export function drawCharacter(
       usable ? signal.heal.hex : surface.ink.hex,
       dim * (attachment.exhausted ? ink.disabled : 1),
     ).strokeRect(chip.x, chip.y, chip.width, chip.height);
+    // Damage on the attachment (Crossbones' Armor's "2/5") sits at the chip's right edge, drawn first so the
+    // name gets whatever width is left: a long name is clipped, the count the table is watching never is.
+    const damage = attachmentChipDamage(attachment);
+    let damageWidth = 0;
+    if (damage) {
+      const tag = label(scene, 0, chip.y + 3, damage, typeRole.label, accent.heroRed.hex, ink.body * dim);
+      tag.setX(chip.x + chip.width - 3 - tag.width);
+      damageWidth = tag.width + 6;
+    }
+    const text = attachmentChipText(attachment);
     fitText(
       label(
         scene,
         chip.x + 3,
         chip.y + 3,
-        usable ? `▶ ${attachmentChipLabel(attachment)}` : attachmentChipLabel(attachment),
+        usable ? `▶ ${text}` : text,
         typeRole.label,
         usable ? signal.heal.hex : surface.ink.hex,
         (usable ? ink.body : ink.label) * dim,
       ),
-      chip.width - 6,
+      chip.width - 6 - damageWidth,
       typeRole.label.size,
     );
     chipTargets.push({ rect: chip, instanceId: attachment.instanceId });

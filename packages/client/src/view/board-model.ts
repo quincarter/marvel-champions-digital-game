@@ -35,6 +35,7 @@ import {
   remainingHitPoints,
   scale,
   schemesInPlay,
+  selfDiscardDamageThreshold,
   type CardInstance,
   type EngineDeps,
   type Form,
@@ -168,6 +169,14 @@ export interface AttachmentChip {
   readonly exhausted: boolean;
   /** Counters left on it ("web" ×2), so a Uses card shows how many uses remain. */
   readonly counters: readonly { readonly name: string; readonly count: number }[];
+  /** Damage placed on the attachment itself (Crossbones' Armor soaks Crossbones' damage, `trors` 04065). */
+  readonly damage: number;
+  /**
+   * The damage at which the attachment discards itself ("If there is 5 or more damage here, discard Crossbones'
+   * Armor"), or null when its text has no such clause. The chip reads "2/5 damage" so the table can see how close
+   * it is to breaking.
+   */
+  readonly discardAt: number | null;
   /**
    * Attached facedown — Spectrum's own two inactive "energy form" upgrades (`mts` 21001b's Setup: "Put all 3
    * energy form upgrades into play, facedown," docs/phase7-wave4.md §5): the chip must not name a facedown card
@@ -176,8 +185,14 @@ export interface AttachmentChip {
   readonly faceup: boolean;
 }
 
-/** "Web-Shooter · 2 web · exhausted" — everything a chip has room to say. */
+/** "Web-Shooter · 2 web · exhausted", "Crossbones' Armor · 2/5 damage" — everything a chip has room to say. */
 export function attachmentChipLabel(chip: AttachmentChip): string {
+  const damage = attachmentChipDamage(chip);
+  return [attachmentChipText(chip), damage ? `${damage} damage` : null].filter(Boolean).join(" · ");
+}
+
+/** The chip's label without its damage: the part that may be clipped when the chip is narrow. */
+export function attachmentChipText(chip: AttachmentChip): string {
   return [
     chip.name,
     ...chip.counters.map((counter) => `${counter.count} ${counter.name}`),
@@ -185,6 +200,15 @@ export function attachmentChipLabel(chip: AttachmentChip): string {
   ]
     .filter(Boolean)
     .join(" · ");
+}
+
+/**
+ * "2/5" against the point the attachment breaks at, "3" when it has none, or null with no damage and no break point.
+ * Drawn apart from the name so a narrow chip clips the name, never the number the table is watching.
+ */
+export function attachmentChipDamage(chip: AttachmentChip): string | null {
+  if (chip.discardAt !== null) return `${chip.damage}/${chip.discardAt}`;
+  return chip.damage > 0 ? `${chip.damage}` : null;
 }
 
 export interface SchemePanel {
@@ -674,7 +698,7 @@ export function characterPanel(state: GameState, id: InstanceId, deps: EngineDep
     disabledActions: statuses
       .map(({ status }) => STATUS_DISABLES[status])
       .filter((action): action is "attack" | "thwart" => action !== null),
-    attachments: attachmentChipsOf(state, instance),
+    attachments: attachmentChipsOf(state, instance, deps),
     counters: countersOf(state, id),
     ownerName:
       instance.ownerId !== null && instance.controllerId !== null && instance.ownerId !== instance.controllerId
@@ -905,7 +929,7 @@ function statTiles(
   return profileStatTiles(profile, printed, rows, current, max);
 }
 
-export function schemePanel(state: GameState, id: InstanceId, _deps: EngineDeps, isMain: boolean): SchemePanel {
+export function schemePanel(state: GameState, id: InstanceId, deps: EngineDeps, isMain: boolean): SchemePanel {
   const instance = getInstance(state, id);
   if (!instance) throw new Error(`no card instance ${id}`);
   const card = cardOf(state, id);
@@ -918,7 +942,7 @@ export function schemePanel(state: GameState, id: InstanceId, _deps: EngineDeps,
     const scheme = mainSchemeStateOf(state, id) ?? state.mainScheme;
     const stage = mainSchemeStageOf(state, scheme);
     const accel = scheme.accelerationTokens;
-    const attachments = attachmentChipsOf(state, instance);
+    const attachments = attachmentChipsOf(state, instance, deps);
     // Odin (Hela, docs/phase7-wave4.md §3.8) and Focused Defense (Tower Defense, §3.2) are printed abilities that
     // attach to a main scheme rather than a character — the subtitle line is the only room a scheme panel has for
     // this, the same "· X tucked" pattern already appends here.
@@ -969,7 +993,7 @@ export function schemePanel(state: GameState, id: InstanceId, _deps: EngineDeps,
     accelerationTokens: 0,
     tuckedCount: instance.tucked.length,
     art: artFor(card, { kind: "front" }),
-    attachments: attachmentChipsOf(state, instance),
+    attachments: attachmentChipsOf(state, instance, deps),
   };
 }
 
@@ -979,10 +1003,11 @@ export function schemePanel(state: GameState, id: InstanceId, _deps: EngineDeps,
  * whichever main scheme is active (Tower Defense, `mts` 21101, §3.2) are both scheme attachments, not character
  * ones, and used to be invisible for it — `SchemePanel` had no `attachments` field at all.
  */
-function attachmentChipsOf(state: GameState, instance: CardInstance): readonly AttachmentChip[] {
+function attachmentChipsOf(state: GameState, instance: CardInstance, deps: EngineDeps): readonly AttachmentChip[] {
   return instance.attachments.map((attachmentId): AttachmentChip => {
     const attachmentInstance = getInstance(state, attachmentId);
     const faceup = attachmentInstance?.faceup ?? true;
+    const card = cardOf(state, attachmentId);
     return {
       instanceId: attachmentId,
       name: faceup
@@ -990,6 +1015,9 @@ function attachmentChipsOf(state: GameState, instance: CardInstance): readonly A
         : "Facedown card",
       exhausted: attachmentInstance?.exhausted ?? false,
       counters: countersOf(state, attachmentId),
+      damage: attachmentInstance?.damage ?? 0,
+      // A facedown card's text is hidden, so its threshold is too.
+      discardAt: faceup && card ? selfDiscardDamageThreshold(card, deps) : null,
       faceup,
     };
   });

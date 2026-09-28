@@ -11,7 +11,15 @@ import type { GameState, InstanceId, PlayerId } from "@mc/engine";
 import { LocalEngineHost } from "../engine/local-host.js";
 import { SessionStore } from "../store/session-store.js";
 import type { SessionConfig } from "../engine/host.js";
-import { boardModel, characterPanel, deckAspect, faceOf, schemePanel } from "./board-model.js";
+import {
+  attachmentChipDamage,
+  attachmentChipLabel,
+  boardModel,
+  characterPanel,
+  deckAspect,
+  faceOf,
+  schemePanel,
+} from "./board-model.js";
 import { artFor, CARD_BACKS } from "../art/art-source.js";
 import { highlights } from "./highlights.js";
 
@@ -321,6 +329,41 @@ describe("an upgrade played onto your identity", () => {
 
     const model = boardModel(played, me, CORE_DEPS);
     expect(model.myPlayArea.map((panel) => panel.instanceId)).toContain(upgrade);
+  });
+});
+
+describe("damage on an attachment", () => {
+  test("an armor on the villain shows its damage against the point it breaks at", async () => {
+    const store = await intoPlay({
+      scenarioId: "rhino",
+      difficulty: "standard",
+      players: [{ starterDeckId: "core-she-hulk-aggression" }],
+      seed: 5,
+    });
+    const state = store.state.game!;
+    const villain = state.activeVillainId;
+    // Armored Rhino Suit (01098): "if there is at least 5 damage here, discard Armored Rhino Suit".
+    const suit = Object.values(state.instances).find((i) => i.cardId === "01098")!.instanceId;
+    const armored: GameState = {
+      ...state,
+      instances: {
+        ...state.instances,
+        [suit]: { ...state.instances[suit]!, attachedTo: villain, faceup: true, damage: 2 },
+        [villain]: { ...state.instances[villain]!, attachments: [suit] },
+      },
+    };
+
+    const [chip] = characterPanel(armored, villain, CORE_DEPS).attachments;
+    expect(chip).toMatchObject({ damage: 2, discardAt: 5 });
+    expect(attachmentChipLabel(chip!)).toBe("Armored Rhino Suit · 2/5 damage");
+    expect(attachmentChipDamage(chip!)).toBe("2/5");
+  });
+
+  test("an attachment with no break point shows bare damage, and nothing when it has none", () => {
+    const chip = { instanceId: "i1" as InstanceId, name: "Tarp", exhausted: false, counters: [], faceup: true };
+    expect(attachmentChipLabel({ ...chip, damage: 3, discardAt: null })).toBe("Tarp · 3 damage");
+    expect(attachmentChipLabel({ ...chip, damage: 0, discardAt: null })).toBe("Tarp");
+    expect(attachmentChipDamage({ ...chip, damage: 0, discardAt: null })).toBeNull();
   });
 });
 
