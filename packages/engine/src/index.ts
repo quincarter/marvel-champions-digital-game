@@ -139,6 +139,8 @@ export {
   cannotTakeDamage,
   damageTakenAfterConstants,
   excessDamageBonus,
+  grantedIcons,
+  iconsInPlay,
   mustDefendWithAlly,
   notDefeatedWithoutThreat,
   restrictedLimitFor,

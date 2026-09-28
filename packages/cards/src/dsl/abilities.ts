@@ -474,10 +474,24 @@ export const gainsKeywordX = (
 });
 /**
  * "Each enemy in play gains 1 acceleration icon" (Secret Lair, `hood` 24061): each card in play `target` matches counts
- * as `count` more `icon`s (docs/phase7-wave4.md §3.57).
+ * as `count` more `icon`s (docs/phase7-wave4.md §3.57). `while`: "While Lucia von Bardas is in play, this card gains a
+ * hazard icon. While Lucia von Bardas is not in play, this card gains an acceleration icon" (Rule by Force, `ironheart`
+ * 29029) needs two of these active on complementary conditions at once, the same `while` every other conditional
+ * constant part (`gainsKeyword`/`gainsTrait`) already exposes — `RuleSpec.gainsIcon`'s own `while` field
+ * (`packages/engine/src/abilities.ts`) predates this wrapper exposing it.
  */
-export const gainsIcon = (icon: SchemeIcon, target: TargetQuery, count = 1): ConstantPart =>
-  rule({ kind: "gainsIcon", icon, target, ...(count !== 1 ? { count } : {}) });
+export const gainsIcon = (
+  icon: SchemeIcon,
+  target: TargetQuery,
+  opts: { readonly count?: number; readonly while?: Predicate } = {},
+): ConstantPart =>
+  rule({
+    kind: "gainsIcon",
+    icon,
+    target,
+    ...(opts.count !== undefined && opts.count !== 1 ? { count: opts.count } : {}),
+    ...(opts.while ? { while: opts.while } : {}),
+  });
 /** "X gains the [trait] trait". */
 export const gainsTrait = (t: Trait, target: TargetQuery, opts: { readonly while?: Predicate } = {}): ConstantPart => ({
   traitGrants: [{ trait: t, target, ...(opts.while ? { while: opts.while } : {}) }],
