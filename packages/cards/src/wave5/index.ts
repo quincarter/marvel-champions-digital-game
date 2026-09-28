@@ -11,16 +11,18 @@ import { WAVE4_ABILITIES } from "../wave4/index.js";
 import { IRONHEART_ABILITIES } from "./ironheart/index.js";
 import { NOVA_ABILITIES } from "./nova/index.js";
 import { SM_ABILITIES } from "./sm/index.js";
+import { SPDR_ABILITIES } from "./spdr/index.js";
 import { SPIDERHAM_ABILITIES } from "./spiderham/index.js";
 
 /** Every scripted ability in the wave 5 pool: every earlier wave's own script, then one entry per cycle 4 pack
- * that has been started (`sm`, `nova`, `ironheart`, `spiderham`; `spdr` joins here once scripted). */
+ * that has been started (`sm`, `nova`, `ironheart`, `spiderham`, `spdr`). */
 export const WAVE5_ABILITIES: AbilityRegistry = mergeRegistries(
   WAVE4_ABILITIES,
   SM_ABILITIES,
   NOVA_ABILITIES,
   IRONHEART_ABILITIES,
   SPIDERHAM_ABILITIES,
+  SPDR_ABILITIES,
 );
 
 /** Engine dependencies for games that use the wave 5 (cycle 4) pool. */
