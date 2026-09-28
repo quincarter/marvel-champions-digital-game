@@ -24,7 +24,7 @@ import type { PackCuration } from "./types.ts";
 
 export const NOVA_CURATION: PackCuration = {
   packCode: "nova",
-  cycle: { id: "cycle5", name: "Cycle 5", order: 5 },
+  cycle: { id: "cycle5", name: "Sinister Motives", order: 5 },
   pack: {
     name: "Nova",
     releaseDate: "2022-05-20",

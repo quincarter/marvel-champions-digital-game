@@ -6,7 +6,7 @@
 import { cycleId, setCode } from "../../schema/index.js";
 import type { Cycle, Pack } from "../../schema/index.js";
 
-export const IRONHEART_CYCLE: Cycle = { id: cycleId("cycle5"), name: "Cycle 5", order: 5 };
+export const IRONHEART_CYCLE: Cycle = { id: cycleId("cycle5"), name: "Sinister Motives", order: 5 };
 
 /** Release date source: Hall of Heroes Ironheart/Riri Williams page (https://hallofheroeslcg.com/ironheart-riri-williams/): "Release date: May 20, 2022" */
 export const IRONHEART_PACK: Pack = {

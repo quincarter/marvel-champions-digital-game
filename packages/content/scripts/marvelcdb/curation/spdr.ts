@@ -50,7 +50,7 @@ import type { PackCuration } from "./types.ts";
 
 export const SPDR_CURATION: PackCuration = {
   packCode: "spdr",
-  cycle: { id: "cycle5", name: "Cycle 5", order: 5 },
+  cycle: { id: "cycle5", name: "Sinister Motives", order: 5 },
   pack: {
     name: "SP//dr",
     releaseDate: "2022-07-15",

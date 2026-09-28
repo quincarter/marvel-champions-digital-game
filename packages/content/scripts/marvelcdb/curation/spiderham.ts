@@ -17,7 +17,7 @@ import type { PackCuration } from "./types.ts";
 
 export const SPIDERHAM_CURATION: PackCuration = {
   packCode: "spiderham",
-  cycle: { id: "cycle5", name: "Cycle 5", order: 5 },
+  cycle: { id: "cycle5", name: "Sinister Motives", order: 5 },
   pack: {
     name: "Spider-Ham",
     releaseDate: "2022-07-15",

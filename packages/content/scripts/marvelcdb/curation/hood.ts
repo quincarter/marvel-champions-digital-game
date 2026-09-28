@@ -28,7 +28,7 @@ import type { PackCuration } from "./types.ts";
 
 export const HOOD_CURATION: PackCuration = {
   packCode: "hood",
-  cycle: { id: "cycle4", name: "Cycle 4", order: 4 },
+  cycle: { id: "cycle4", name: "The Mad Titan's Shadow", order: 4 },
   pack: {
     name: "The Hood",
     releaseDate: "2021-11-26",

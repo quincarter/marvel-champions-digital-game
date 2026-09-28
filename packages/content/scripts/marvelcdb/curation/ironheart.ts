@@ -49,7 +49,7 @@ import type { PackCuration } from "./types.ts";
 
 export const IRONHEART_CURATION: PackCuration = {
   packCode: "ironheart",
-  cycle: { id: "cycle5", name: "Cycle 5", order: 5 },
+  cycle: { id: "cycle5", name: "Sinister Motives", order: 5 },
   pack: {
     name: "Ironheart",
     releaseDate: "2022-05-20",

@@ -6,7 +6,7 @@
 import { cycleId, setCode } from "../../schema/index.js";
 import type { Cycle, Pack } from "../../schema/index.js";
 
-export const NEBU_CYCLE: Cycle = { id: cycleId("cycle4"), name: "Cycle 4", order: 4 };
+export const NEBU_CYCLE: Cycle = { id: cycleId("cycle4"), name: "The Mad Titan's Shadow", order: 4 };
 
 /** Release date source: Hall of Heroes Nebula page (https://hallofheroeslcg.com/nebula/): "Release date: September 17, 2021" */
 export const NEBU_PACK: Pack = { code: setCode("nebu"), name: "Nebula", cycleId: cycleId("cycle4"), releaseDate: "2021-09-17" };

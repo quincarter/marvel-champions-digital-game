@@ -21,7 +21,7 @@ export const SM_CURATION: PackCuration = {
   packCode: "sm",
   // docs/phase7-wave5.md's intro: the four hero packs already carry cycle 5 (MarvelCDB pack_wave: 5); sm joins them
   // with the same id rather than the box's own MC27 numbering, "not a disagreement with FFG's numbering."
-  cycle: { id: "cycle5", name: "Cycle 5", order: 5 },
+  cycle: { id: "cycle5", name: "Sinister Motives", order: 5 },
   pack: {
     name: "Sinister Motives",
     releaseDate: "2022-04-08",
