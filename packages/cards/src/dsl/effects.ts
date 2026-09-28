@@ -1594,6 +1594,15 @@ export const removeCountersFrom = (target: TargetRef, counterType: string, n: Am
   amount: amount(n),
 });
 /**
+ * "Discard all counters from X" (Green Gobbler, `spiderham` 30026: "discard all counters from each card you
+ * control") — every counter type X currently holds, each fully removed, not one named type by a fixed amount
+ * (`removeCountersFrom`'s own shape).
+ */
+export const removeAllCountersFrom = (target: TargetRef): EffectSpec => ({
+  kind: "removeCounters",
+  target,
+});
+/**
  * "Move all threat from the side scheme with the least threat to the side scheme with the most threat" / "move 1
  * threat from a scheme to here" (RRG 1.8 "Move"). `amount` absent moves all of it.
  */

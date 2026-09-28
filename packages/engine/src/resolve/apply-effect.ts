@@ -845,23 +845,30 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       return;
     }
     case "removeCounters": {
-      const amount = value(effect.amount);
       // With an ability listening ("When/After the last invocation counter is removed", docs/phase7-wave4.md §3.15), each
       // removal is an event whose apply step removes them; otherwise they go at once, as before.
+      // `counterType` omitted: "discard all counters from [target]" (Green Gobbler, `spiderham` 30026) — every
+      // counter type currently on that target is fully removed, not just one named type, so there is no single
+      // `amount` to read; each type present is its own removal (and its own possible listener/"Uses" discard).
       const events: TriggerEvent[] = [];
       for (const id of targets(effect.target)) {
-        const held = getInstance(ctx.state, id)?.counters[effect.counterType] ?? 0;
-        const removing = Math.min(amount, held);
-        if (removing <= 0) continue;
-        const event: TriggerEvent = {
-          kind: "countersRemoved",
-          instanceId: id,
-          counterType: effect.counterType,
-          amount: removing,
-          remaining: held - removing,
-        };
-        if (heard(ctx.state, ctx.deps, event)) events.push(event);
-        else removeCounters(ctx, id, effect.counterType, amount);
+        const instance = getInstance(ctx.state, id);
+        if (!instance) continue;
+        const counterTypes = effect.counterType ? [effect.counterType] : Object.keys(instance.counters);
+        for (const counterType of counterTypes) {
+          const held = instance.counters[counterType] ?? 0;
+          const removing = effect.amount !== undefined ? Math.min(value(effect.amount), held) : held;
+          if (removing <= 0) continue;
+          const event: TriggerEvent = {
+            kind: "countersRemoved",
+            instanceId: id,
+            counterType,
+            amount: removing,
+            remaining: held - removing,
+          };
+          if (heard(ctx.state, ctx.deps, event)) events.push(event);
+          else removeCounters(ctx, id, counterType, removing);
+        }
       }
       if (events.length > 0) pushEvents(ctx, events);
       return;

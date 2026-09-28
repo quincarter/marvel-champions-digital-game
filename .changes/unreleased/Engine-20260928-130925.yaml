@@ -1,0 +1,3 @@
+kind: Engine
+body: Extend removeCounters to remove every counter type from a target ('discard all counters from X')
+time: 2026-09-28T13:09:25.079367-04:00

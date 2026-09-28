@@ -546,9 +546,12 @@ export type ValueSpec =
    * The excess damage the triggering `characterDefeated` event recorded (docs/phase7-wave5.md §4.1 Q68): how far the
    * defeating damage went past the character's remaining hit points (RRG 1.8 "Excess Damage", p. 19), measured as
    * overkill measures it (RRG 1.8 "Overkill", p. 31). 0 for exactly lethal damage, a non-damage defeat, or any other
-   * event. "If this minion was defeated with excess damage" is this at least 1.
+   * event. "If this minion was defeated with excess damage" is this at least 1. `consequential: true` counts it only when
+   * the defeating damage was an ally's consequential damage (RRG 1.8 "Consequential Damage", p. 13; `characterDefeated
+   * .consequential`), 0 otherwise: "if she was defeated by taking excess consequential damage" (SP//dr, `spiderham`
+   * 30021). `false` counts it only when it was not.
    */
-  | { readonly kind: "defeatExcessDamage" }
+  | { readonly kind: "defeatExcessDamage"; readonly consequential?: boolean }
   /**
    * Arithmetic on another value: "2 damage for each counter (max 10)" → `{ value, times: 2, max: 10 }`; "X is 1 more
    * than" → `plus: 1`; "half of the cards in your hand, rounded down" (Man Out of Time, `cap` pack) → `{ value:
@@ -1872,8 +1875,13 @@ export type EffectSpec =
   | {
       readonly kind: "removeCounters";
       readonly target: TargetRef;
-      readonly counterType: string;
-      readonly amount: ValueSpec;
+      /**
+       * Omitted: "discard all counters from [target]" (Green Gobbler, `spiderham` 30026) — every counter type
+       * currently on the target is removed in full, not just one named type. `amount` is meaningless in that form
+       * (each type's whole count is removed) and is omitted too.
+       */
+      readonly counterType?: string;
+      readonly amount?: ValueSpec;
     }
   /**
    * "Attach 1 card from your hand facedown here" (Bruno Carrelli): `facedown` attaches it face down, and a facedown
