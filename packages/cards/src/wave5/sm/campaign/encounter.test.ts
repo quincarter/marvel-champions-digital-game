@@ -517,20 +517,22 @@ describe("Snitches Get Stitches (181, real campaign game — mysterio, node 2)",
     expect(hasKeyword(detached, snitches, "surge", WAVE5_DEPS)).toBe(true);
   });
 
-  it("27181.snitches-get-stitches-constant-2, .forced-interrupt: a villain attack is redirected to Venom, and defeating him there sends Venom to the victory display", () => {
+  it("27181.snitches-get-stitches-forced-interrupt: a villain attack is redirected to Venom, and defeating him there sends both Venom and Snitches Get Stitches to the victory display", () => {
     const state = mysteriosGame();
     const venom = inPlayInstancesOf(state, "27190")[0]!;
-    const { state: withSnitches } = attachSnitches(state, venom);
-    expect(hasKeyword(withSnitches, venom, "victory", WAVE5_DEPS)).toBe(true);
+    const { state: withSnitches, id: snitches } = attachSnitches(state, venom);
+    // Not granted yet: the "victory" keyword is scoped to the redirected attack itself (`gainKeywordUntil(…,
+    // "endOfAttack")`), not standing while merely attached — the printed "if *that* attack defeats Venom" read
+    // literally.
+    expect(hasKeyword(withSnitches, venom, "victory", WAVE5_DEPS)).toBe(false);
     const overkilled = patchInstance(withSnitches, venom, { damage: 999 }); // any villain attack now defeats Venom.
     // The villain phase begins only once every seat's own turn ends (two seats in this real campaign game).
     const after = settle(runWave5(asHero(overkilled), endTurn(P1), endTurn(P2)), firstLegal, undefined, WAVE5_DEPS);
     expect(after.victoryDisplay).toContain(venom);
-    // Snitches Get Stitches itself does NOT join Venom in the victory display here: that half of RRG 1.8's
-    // "Victory X" routing (an attachment with the keyword follows its defeated host, `effects.ts` `defeatFromPlay`)
-    // needs 27181's own content data to carry its printed "Victory -1." as `keywords: [{ name: "victory", value:
-    // -1 }]` (validated, ready-to-use shape: `packages/content/src/schema/wave5.test.ts`'s §1.2 fixture is this
-    // exact card) — a card-data-pipeline gap, not an ability-scripting or engine one (reported to the user).
+    // Snitches Get Stitches itself joins Venom there too: its own printed "Victory -1." is now a real
+    // `keywords: [{ name: "victory", value: -1 }]` (503fbcff), so RRG 1.8 "Victory X"'s ordinary "an attachment
+    // with the keyword follows its defeated host" routing (`effects.ts` `defeatFromPlay`) does the rest.
+    expect(after.victoryDisplay).toContain(snitches);
   });
 
   it("27181.snitches-get-stitches-action: exhaust Venom and spend 2 resources of the same type to discard this card", () => {

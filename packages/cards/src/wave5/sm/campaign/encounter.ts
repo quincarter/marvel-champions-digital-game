@@ -15,6 +15,7 @@ import {
   forcedInterrupt,
   forcedResponse,
   forEachPlayer,
+  gainKeywordUntil,
   gainsKeyword,
   ifThen,
   inMode,
@@ -93,25 +94,24 @@ import {
  * **Snitches Get Stitches (181)**: "Victory -1. Attach to Venom (Eddie Brock). If you cannot this card gains
  * surge. Forced Interrupt: When a villain attacks, it attacks Venom. If that attack defeats Venom, add Venom and
  * this card to the victory display. Action: Exhaust Venom and spend 2 resources of the same type → discard this
- * card." Four ability refs:
+ * card." Three ability refs (content-data correction 503fbcff parses "Victory -1." as a real
+ * `keywords: [{ name: "victory", value: -1 }]`, so this card's own half of "add … to the victory display" is
+ * data now, RRG 1.8 "Victory X" p. 46's ordinary routing — no ability ref needed for it):
  * - `-constant` ("if you cannot [attach], gains surge"): `attachesTo` (data) already replaces the discard with a
  *   plain "stays unattached, the engine's own reveal-resolution discards it" path (`resolve/reveal.ts`'s
  *   `cannotAttach` stage) when Venom isn't in play to attach to — no scripted fallback effects are needed (unlike
  *   the Sinister Six's own `AMBUSH_FALLBACK`, which re-attaches elsewhere). The surge grant is the `gainsKeyword`
  *   + `while: not(isAttached(self))` idiom: true exactly when this reveal's attach attempt failed (checked at the
  *   "finish" stage, after the "cannotAttach" stage settles, per `resolve/reveal.ts`), false the instant it attaches.
- * - `-constant-2`: Venom is not itself a Victory X card, so "add Venom … to the victory display" needs Venom
- *   to count as one (RRG 1.8 "Victory X", p. 46's own routing is entirely `hasKeyword(id, "victory")`-driven, with
- *   no separate scriptable "send to the victory display" effect). Granted `value: 0` (Venom carries no printed
- *   Victory value of its own, so it contributes none) while this card is attached to it — which the printed "if
- *   *that* attack defeats Venom" narrows further to the redirected attack specifically. Since this card only exists
- *   attached to Venom (its own "if you cannot" branch above is the only way it exists unattached, and then it is
- *   discarded, not granting anything), and every villain attack is redirected to Venom for as long as this card is
- *   attached (this ability's own Forced Interrupt, below), the two conditions are equivalent in every reachable
- *   game state; **flagged in the report as a simplification**, not a silent guess.
- * - `-forced-interrupt`: `retargetAttack` (Crossfire, `hood` 24026's own precedent) to the ally named Venom,
- *   category-scoped (`query("ally", …)`) since the box's own villain is *also* named "Venom" (27073) and an
- *   unscoped `named("Venom")` would be ambiguous between them.
+ * - `-forced-interrupt`: two effects. `retargetAttack` (Crossfire, `hood` 24026's own precedent) to the ally named
+ *   Venom, category-scoped (`query("ally", …)`) since the box's own villain is *also* named "Venom" (27073) and an
+ *   unscoped `named("Venom")` would be ambiguous between them. Then, since Venom is not himself a Victory X card,
+ *   "if *that* attack defeats Venom, add Venom … to the victory display" grants him the keyword (`value: 0`: he
+ *   carries no printed Victory value of his own, so he contributes none) `gainKeywordUntil(…, "endOfAttack")` —
+ *   scoped to exactly the attack this same interrupt just redirected (`resolve/apply-effect.ts`'s own
+ *   `currentActivationFrameId` binding for a `grantKeywordUntil` effect created inside an `enemyAttack`'s own
+ *   interrupt window), so a *different* defeat of Venom (not this redirected attack) does not send him to the
+ *   display — the printed "if that attack" read literally, not merely approximated by "while attached".
  * - `-action`: "Exhaust Venom" is `exhaustCardsCost` (the "Exhaust Captain America's Shield" fixed-one-card
  *   precedent, `dsl/abilities.ts`), not `exhaustThis` (this ability's own card is the attachment, not Venom).
  *   "Spend 2 resources of the same type" is `spendSameType(2)` (Kree Combat Armor's own precedent).
@@ -184,13 +184,13 @@ export const SM_CAMPAIGN_ENCOUNTER = defineAbilities({
   "27181.snitches-get-stitches-constant": constant(
     gainsKeyword({ name: "surge" }, { self: true }, { while: not(isAttached(self)) }),
   ),
-  // Snitches Get Stitches (181) — Venom counts as Victory 0 while this is attached to it, so "add Venom … to the
-  // victory display" (module docblock's simplification) routes through the ordinary Victory X rule.
-  "27181.snitches-get-stitches-constant-2": constant(gainsKeyword({ name: "victory", value: 0 }, { hostOfSelf: true })),
-  // Snitches Get Stitches (181) — Forced Interrupt: when a villain attacks, it attacks Venom instead.
+  // Snitches Get Stitches (181) — Forced Interrupt: when a villain attacks, it attacks Venom instead. If that
+  // attack defeats Venom, add him to the victory display (module docblock: `gainKeywordUntil(…, "endOfAttack")`,
+  // scoped to this exact redirected attack).
   "27181.snitches-get-stitches-forced-interrupt": forcedInterrupt(
     on.villainAttacks(),
     retargetAttack(each(VENOM_ALLY)),
+    gainKeywordUntil({ name: "victory", value: 0 }, each(VENOM_ALLY), "endOfAttack"),
   ),
   // Snitches Get Stitches (181) — Action: Exhaust Venom and spend 2 resources of the same type → discard this
   // card.
