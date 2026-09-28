@@ -965,7 +965,9 @@ export type StatusName = "stunned" | "confused" | "tough";
  * vars when it finishes: `<bind>.amount` (damage taken / damage healed / threat
  * placed or removed), `<bind>.made` (1 if it happened), and for attacks
  * `<bind>.damage`, `<bind>.defeated`, `<bind>.undefended`, `<bind>.excessDealt`
- * (the excess overkill would spill: damage taken beyond remaining hit points; RRG 1.8 "Overkill", p. 31).
+ * (the excess overkill would spill: damage taken beyond remaining hit points; RRG 1.8 "Overkill", p. 31). A damage
+ * effect (`dealDamage`, `dealIndirectDamage`) also binds the slot `<bind>.damaged` to each character that took at
+ * least 1 of its damage, after prevention ("each character damaged this way").
  */
 export type EffectSpec =
   /**
@@ -1829,7 +1831,9 @@ export type EffectSpec =
    * docs/phase7-wave1.md §4.7). A character's cap is its remaining hit points, and a character that cannot take the
    * damage gets none; damage nobody can be assigned is ignored. `"group"`: the first player divides it among every
    * friendly character. Everything assigned then resolves simultaneously as one `damageGroup`. `bind`: `<bind>.amount`
-   * (damage taken, summed) and `<bind>.made`.
+   * (damage taken, summed), `<bind>.made`, and the slot `<bind>.damaged`: every character that took at least 1 of it
+   * after prevention (a share a tough status card or "prevent" stopped names nobody), for "Exhaust each character
+   * damaged this way" (Bombshell 31031's Boost; RRG 1.8 "Indirect Damage", p. 24).
    */
   | {
       readonly kind: "dealIndirectDamage";

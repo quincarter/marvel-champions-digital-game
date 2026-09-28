@@ -831,6 +831,10 @@ export function applyDamage(
     sourceInstanceId: event.sourceInstanceId,
   });
   addFrameVars(ctx, frameId, { amount: taken });
+  // The character that took it, reported as `<bind>.damaged` ("exhaust each character damaged this way", Bombshell
+  // 31031): only damage actually taken gets here, so a prevented instance names nobody (RRG 1.8 "Indirect Damage",
+  // p. 24). A `damageGroup` member sets the same slot on its response frame instead (`resolve/damage-group.ts`).
+  addFrameSlots(ctx, frameId, { damaged: [event.targetInstanceId] });
   addFrameVars(ctx, event.parentFrameId, { damage: taken, damaged: 1 });
   // Per-character damage taken (docs/phase7-wave5.md §4.1 Q65): "if your identity takes any amount of damage from that
   // attack" when an indirect attack's damage was divided among several characters, or overkill spilled onto the

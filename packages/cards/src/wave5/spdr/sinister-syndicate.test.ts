@@ -167,23 +167,64 @@ describe("Bombshell (31031)", () => {
     expect(forP2[0]!.amount).toBe(1);
   });
 
-  // KNOWN_SKIPPED, `31031.boost` in `sinister-syndicate.ts`: the printed "Exhaust each character damaged this way"
-  // clause isn't scripted — `dealIndirectDamage` has no bind for which character(s) it actually assigned damage to
-  // (unlike `discardEncounterCards`'s `forEachDiscarded`), so there is no way for a follow-on effect to read back
-  // "the character(s) damaged this way" (`sinister-syndicate.ts`'s own docblock; engine gap, `game-rules-architect`).
-  // Pinned here (RRG 1.8 "Boost", p. 11: every printed clause of a Boost card's ability resolves) so a future fix
-  // to `dealIndirectDamage`'s binding shows up as a newly-passing test, not silence.
-  it.fails("31031.boost: exhausts each identity it damaged (KNOWN_SKIPPED — dealIndirectDamage cannot bind its targets yet)", () => {
-    const state = withSyndicate(1, { extraPlayers: [{ starterDeckId: "spiderham-justice" }] });
+  /**
+   * The cards exhausted while the boost resolves: the events from its `abilityResolved` up to the next ability's.
+   * A later obligation exhausts P1's identity in this scenario anyway, so the final state can't tell the boost's
+   * exhaust from that one.
+   */
+  const exhaustedByBoost = (events: readonly GameEvent[]): readonly InstanceId[] => {
+    const from = events.findIndex((e) => e.type === "abilityResolved" && e.abilityId === "31031.boost");
+    expect(from).toBeGreaterThanOrEqual(0);
+    const rest = events.slice(from + 1);
+    const to = rest.findIndex((e) => e.type === "abilityResolved");
+    return (to < 0 ? rest : rest.slice(0, to)).flatMap((e) => (e.type === "cardExhausted" ? [e.instanceId] : []));
+  };
+  const twoPlayers = () => withSyndicate(1, { extraPlayers: [{ starterDeckId: "spiderham-justice" }] });
+
+  it("31031.boost: exhausts each identity it damaged (both players, 1 damage each)", () => {
+    const state = twoPlayers();
     const p1Identity = identityOf(state, P1);
     const p2Identity = identityOf(state, P2);
-    const readied = patchInstance(patchInstance(state, p1Identity, { exhausted: false }), p2Identity, {
-      exhausted: false,
-    });
-    const staged = withFiller(readied, "31031"); // drawn as Rhino's own boost card during his attack
-    const { state: after } = driveEvents(WAVE5_DEPS, staged, endTurn(P1), endTurn(P2));
-    expect(inst(after, p1Identity).exhausted).toBe(true);
+    const { state: after, events } = driveEvents(WAVE5_DEPS, withFiller(state, "31031"), endTurn(P1), endTurn(P2));
+    expect([...exhaustedByBoost(events)].sort()).toEqual([p1Identity, p2Identity].sort());
     expect(inst(after, p2Identity).exhausted).toBe(true);
+
+    // Control: the same turn with a 0-icon filler in the boost's place leaves P2's identity ready.
+    const { state: control } = driveEvents(WAVE5_DEPS, withFiller(state, "01186"), endTurn(P1), endTurn(P2));
+    expect(inst(control, p2Identity).exhausted).toBe(false);
+  });
+
+  it("31031.boost: a character whose damage a tough status card prevented is not exhausted", () => {
+    const state = twoPlayers();
+    const p1Identity = identityOf(state, P1);
+    const p2Identity = identityOf(state, P2);
+    const tough = patchInstance(state, p2Identity, { statuses: { ...inst(state, p2Identity).statuses, tough: 1 } });
+    const { state: after, events } = driveEvents(WAVE5_DEPS, withFiller(tough, "31031"), endTurn(P1), endTurn(P2));
+    expect(exhaustedByBoost(events)).toEqual([p1Identity]);
+    expect(inst(after, p2Identity)).toMatchObject({ exhausted: false, damage: 0, statuses: { tough: 0 } });
+  });
+
+  it("31031.boost: an ally assigned the damage is exhausted, and the identity it spared is not", () => {
+    // P1 in hero form with Daredevil (ally, 31014) in play; Bombshell (31031) is Rhino's boost card for his attack on
+    // P1, and the reveal then draws a 0-icon filler.
+    const hero = runWave5(withSyndicate(), toHero(P1));
+    const { state, id: ally } = playFromHand(topUpForAlly(hero), "31014", 2);
+    const identity = identityOf(state, P1);
+    const staged = stackEncounterDeck(state, "31031", "01186");
+    const assigned: string[][] = [];
+    const pick = (s: GameState): readonly string[] => {
+      const choice = s.pendingChoice;
+      if (choice?.prompt.kind === "assignIndirectDamage") {
+        assigned.push(choice.options.map((o) => o.optionId));
+        return [`${ally}#1`];
+      }
+      return firstLegal(s);
+    };
+    const { events } = driveEventsPicking(WAVE5_DEPS, staged, pick, endTurn(P1));
+    expect(assigned).toHaveLength(1);
+    expect(assigned[0]).toEqual(expect.arrayContaining([`${identity}#1`, `${ally}#1`]));
+    expect(exhaustedByBoost(events)).toEqual([ally]);
+    expect(exhaustedByBoost(events)).not.toContain(identity);
   });
 });
 

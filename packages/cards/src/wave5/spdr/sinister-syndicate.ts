@@ -11,6 +11,7 @@ import {
   discard,
   discardEncounterCards,
   eachPlayer,
+  exhaust,
   exists,
   forcedInterrupt,
   forcedResponse,
@@ -66,15 +67,10 @@ export const SPDR_SINISTER_SYNDICATE = defineAbilities({
   // Bombshell (31031) — [star] Boost: Deal 1 indirect damage to each player. Exhaust each character damaged this
   // way.
   //
-  // KNOWN_SKIPPED ("exhaust each character damaged this way"): `dealIndirectDamage` has no bind for *which*
-  // character(s) it actually assigned damage to (unlike `discardEncounterCards`'s `forEachDiscarded` or
-  // `chooseTarget`'s `chosen`, its own `bind` only reports numeric `<bind>.amount`/`.made` — confirmed against
-  // `damageGroupFrame`'s member event frames, which always start with an empty `slots: {}`, `resolve/damage-
-  // group.ts`), so a follow-on effect in the same ability has no way to read back "the character(s) damaged this
-  // way" the way every other multi-target "this way" effect in the corpus does. Needs a `dealIndirectDamage`
-  // primitive that binds its assigned target(s) to a slot (`game-rules-architect`). Only "Deal 1 indirect damage
-  // to each player" is scripted here.
-  "31031.boost": boost(dealIndirectDamage(eachPlayer, 1)),
+  // `dealIndirectDamage`'s `bind` slot `<bind>.damaged` holds each character that took at least 1 of the damage after
+  // prevention (RRG 1.8 "Indirect Damage", p. 24), so a share a tough status card or a prevention stopped leaves its
+  // character ready.
+  "31031.boost": boost(dealIndirectDamage(eachPlayer, 1, { bind: "shock" }), exhaust(chosen("shock.damaged"))),
 
   // Electro (31032, minion; ATK 2/SCH 1/HP 3, CRIMINAL, unique) — [star] Electro gets +1 hit point for each
   // [energy] resource attached to her. `query("resource", …)` would mean the dedicated Resource card *type* (RRG

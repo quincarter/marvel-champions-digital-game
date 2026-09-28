@@ -116,7 +116,8 @@ export function executeDamageGroupFrame(ctx: Ctx, frame: Frame<"damageGroup">): 
             stage: "responses",
             cancelled: false,
             vars: member.vars,
-            slots: {},
+            // `<bind>.damaged`: this member's character, when it took at least 1 of its damage (`applyDamage`).
+            slots: (member.vars.amount ?? 0) > 0 ? { damaged: [member.event.targetInstanceId] } : {},
             reportTo: frame.reportTo,
             endEffects: [],
           })),
