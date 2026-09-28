@@ -1,5 +1,6 @@
 import {
   CORE_STARTER_DECKS,
+  NOVA_STARTER_DECKS,
   SM_SCENARIOS,
   SM_STARTER_DECKS,
   cardId,
@@ -182,10 +183,12 @@ function buildSmMultipleVillains(
   };
 }
 
-/** A Sinister Motives or Core starter deck as a player seat (quantities expanded). */
+/** A Sinister Motives, Nova, or Core starter deck as a player seat (quantities expanded). */
 export function wave5StarterDeckSetup(starterDeckId: string): PlayerSetup {
   const starter =
-    SM_STARTER_DECKS.find((d) => d.id === starterDeckId) ?? CORE_STARTER_DECKS.find((d) => d.id === starterDeckId);
+    SM_STARTER_DECKS.find((d) => d.id === starterDeckId) ??
+    NOVA_STARTER_DECKS.find((d) => d.id === starterDeckId) ??
+    CORE_STARTER_DECKS.find((d) => d.id === starterDeckId);
   if (!starter) throw new Error(`no wave 5 or Core starter deck ${starterDeckId}`);
   return {
     identityCardId: starter.identityCardId as CardId,
