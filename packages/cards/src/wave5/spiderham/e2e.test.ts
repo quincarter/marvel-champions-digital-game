@@ -241,6 +241,28 @@ test("Rhino (standard), solo: Spider-Ham — a scripted playthrough of his own k
   assertReplays(session);
 });
 
+test("Rhino (expert), solo: Spider-Ham", () => {
+  // `spiderHamScenario` falls through to `wave5Scenario`'s own `coreScenario` fallback for a scenario with no `sm`
+  // entry (`rhino`), whose `difficulty: "expert"` option (RRG 1.8 "Expert Mode", p. 29) is `../ironheart/
+  // e2e.test.ts`'s own "(expert)" precedent, ported here — the wave definition of done's own "one expert game… to
+  // an outcome, replay deep-equal" requirement, same shape as `../nova/e2e.test.ts`'s own "Rhino (expert), solo:
+  // Nova". Spider-Ham has no scenario-specific expert wrinkle of his own, so this only needs the plain `difficulty`
+  // option, played to a real outcome by the same card-name-agnostic greedy driver as the standard game above.
+  const config = spiderHamScenario("rhino", { seed: SEED, difficulty: "expert" });
+  expect(config.difficulty).toBe("expert");
+  const created = createGame(config, WAVE5_DEPS);
+  if (!created.ok) throw new Error(`setup failed: ${created.error.message}`);
+  const result = playToOutcome(created.state, WAVE5_DEPS);
+  console.info(
+    `[wave5 e2e] Rhino (expert) — Spider-Ham: ${result.outcome ? `${result.outcome.result} (${result.outcome.reason})` : "no outcome"} in round ${result.rounds}, ${result.commands} commands`,
+  );
+  expect(result.outcome).not.toBeNull();
+  expect(result.rounds).toBeGreaterThanOrEqual(1);
+  const replayed = replay(result.session.log, WAVE5_DEPS);
+  expect(replayed.ok).toBe(true);
+  if (replayed.ok) expect(replayed.state).toEqual(result.session.state);
+}, 120_000);
+
 test("2-player, standard: Spider-Ham + Nova vs Rhino", () => {
   const config = spiderHamScenario("rhino", { seed: SEED, extraPlayers: [{ starterDeckId: "nova-aggression" }] });
   const created = createGame(config, WAVE5_DEPS);
