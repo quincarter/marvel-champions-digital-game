@@ -3,41 +3,21 @@
 For any session picking up PR #64, local or cloud. The PR body has the checklist and the "Remaining plan"; the spec
 is [phase7-wave5.md](phase7-wave5.md) (rulings table §4.1, including the Q67 survey). This page carries what used to
 live only in a local Claude memory note: how to resume, the decisions the user made during the wave, and the lessons
-from running several agents in one worktree. Updated 2026-09-27.
+from running several agents in one worktree. Updated 2026-09-28.
 
 ## Resuming
 
-- **Branch:** `feature/wave-5`. Everything finished and verified is on it.
-- **Old work in progress (consumed):** `wip/wave-5-stopped-agents` is one commit on top of `feature/wave-5` 49b9535e holding the
-  uncommitted files of three agents stopped at the weekly usage limit on 2026-09-27 11:50. It is untested; never merge
-  it as is. To continue a piece, check out its files from that branch into a `feature/wave-5` checkout, finish and test
-  them, and commit them to `feature/wave-5`:
-  - **Q67 batch 1:** older "activates against" effect scripts converted to `enemyActivates`
-    (`wave2/scw/obligation-nemesis`, `wave2/toafk/kang-encounter-set`, `wave2/trors/crossbones`,
-    `wave4/mts/tower-defense`, each with its test). Loki's The Trickster (`wave4/mts/loki.ts`) not started. The test
-    files were not yet run in full; the Kang test had a TS2379 `difficulty` error mid-edit.
-  - **The Sinister Six part 1:** `buildSmMultipleVillains` in `wave5/setup.ts`, `wave5/sm/sinister-six/`, and its line
-    in `wave5/sm/index.ts`. Tests not run.
-  - **Q70** (Induced Panic) wrote nothing; start it over.
-- **Agent branches in flight (seventh session, 2026-09-27 ~22:00 UTC):** each agent pushes its own branch after
-  every commit; the main session reviews, reruns the tests and cherry-picks onto `feature/wave-5`, then deletes the
-  branch. If a session ends first, these hold the unmerged work (untested until reviewed):
-  - `wip/wave5-manipulated-mind` (`game-rules-architect`): a `treatAsMinion` primitive (mirror of Karma's
-    `treatAsAlly`), 27171's lowest-cost-ally `attachesTo`, then Manipulated Mind in `modulars/whispers-of-paranoia.ts`.
-    Old Grudge landed (attachments without "attach to" text attach from their own When Revealed).
-  - `wip/wave5-sinister-assault` (`ability-scripting-engineer`): Sinister Assault in `cards/src/wave5/sm/modulars/`.
-  - Still blocked (engine work, not started): Advanced Glider 27136's
-    Hero Action needs a cost "discard hand cards with a combined resource cost of 3 or more" (`GOBLIN_GEAR_SKIPPED`).
-    Osborn Tech scripts three Hero Action costs as effects (Arm Cannon, Kinetic Armor, Neocarbon Scales): no cost
-    shape for a superlative discard, indirect damage or giving the villain cards.
-  - Fallen Warrior (`mts` 21153) has Old Grudge's bug: its data's `impliedAttachHost: "ally"` attaches it at reveal
-    before its own When Revealed; switch it to `"ownWhenRevealed"` and regenerate `mts` (not started).
-  - Open question to the user: Old Grudge with the nemesis minion already in play is discarded (scripted default).
-  - Already on `feature/wave-5`, safe to ignore or delete: `wip/wave5-cannot-thwart-side`,
-    `wip/wave5-venom-goblin-villain`, `wip/wave5-venom-goblin-encounter`, `wip/wave5-venom-goblin-integration`, `wip/wave5-q71-step-one`, `wip/wave5-down-to-earth`, `wip/wave5-whispers-of-paranoia`, `wip/wave5-goblin-gear`, `wip/wave5-osborn-tech`, `wip/wave5-search-primitives`, `wip/wave5-old-grudge`, `wip/wave5-guerrilla-tactics`, `wip/wave5-venom-goblin-setup`, `wip/wave-5-ambush-fallback` (the sixth
-    session's Ambush! fallback, cherry-picked 683bb5c/d3ab39a), `wip/wave-5-five-villains` (superseded by 13f9b13).
-    The cloud proxy refuses remote branch deletion, so they stay until someone deletes them on GitHub.
-- **Order of the rest:** the PR body's "Remaining plan".
+- **Branch:** `feature/wave-5`. Everything finished and verified is on it. As of 2026-09-28 (eighth session) step 3 is
+  done: every `sm`, `nova`, `ironheart`, `spiderham` and `spdr` card is scripted and tested, each hero with precon e2e
+  games and a cross-hero test; a clean clone of f0f17c9 passes lint, format, typecheck, all tests (content 585, engine
+  1834, cards 3437, client 2286) and the client build.
+- **Next:** steps 4–8 in the PR checklist (rules QA, custom-deck fixtures, client wiring + `UNLOCK_WAVES`, the MC27
+  campaign, release). The PR body's "Remaining plan" and "Defaults built this session" list the open items.
+- **Old branches:** every `wip/wave5-*` / `wip/wave-5-*` branch on GitHub is either merged or superseded
+  (`wip/wave5-manipulated-mind` and `wip/wave5-sinister-assault` were never pushed; both cards were redone). They can
+  be deleted on GitHub.
+- **Lint in a worktree:** oxlint and oxfmt skip files under `.claude/`, so `pnpm check` inside a `.claude/worktrees/*`
+  checkout passes lint vacuously. Check a clean clone (or copy the files out) before calling the branch green.
 
 ## Rules for agents (also in CLAUDE.md)
 
@@ -53,6 +33,9 @@ from running several agents in one worktree. Updated 2026-09-27.
 - The main session never stages in the shared index while agents run. A repair commit is built from a temporary index
   (`GIT_INDEX_FILE=… git read-tree HEAD`, `update-index`/`add`, `write-tree`, `commit-tree`) and moved onto the branch
   with `git update-ref <ref> <new> <expected-old>`.
+- Never `git commit … -- <path>` in a shared worktree: a pathspec commit takes each path's whole working-tree file and
+  swept other agents' unfinished import lines into HEAD three times on 2026-09-28. Stage with `git add -p`, read
+  `git diff --cached`, commit with no pathspec.
 - Commits carry no Claude co-author trailer. Each change gets a changie fragment; `sleep 1` between `changie new` calls.
 - A box on the PR is ticked only after the main session has read the tests and run them, never on an agent's report.
 
