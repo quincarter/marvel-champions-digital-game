@@ -3,6 +3,8 @@ import type { TargetQuery } from "@mc/engine";
 import {
   addCounters,
   after,
+  allOf,
+  attachCard,
   boostIconsOn,
   chooseTarget,
   chosen,
@@ -14,6 +16,7 @@ import {
   discardEncounterCards,
   draw,
   eventSource,
+  eventTarget,
   exists,
   gets,
   heal,
@@ -28,6 +31,7 @@ import {
   response,
   forcedResponse,
   self,
+  valueAtMost,
   varOf,
 } from "../../dsl/index.js";
 
@@ -45,10 +49,12 @@ const A_WEB_WARRIOR_CARD: TargetQuery = {
   trait: WEB_WARRIOR,
   controller: "you",
 };
+/** "Another Web-Warrior card" (Spider-Man Noir 31015): the same query without the card itself (Silk's own shape, 27010). */
+const ANOTHER_WEB_WARRIOR_CARD: TargetQuery = { ...A_WEB_WARRIOR_CARD, self: false };
 
 /**
  * SP//dr's own five non-signature-identity allies scripted here: VEN#m (31003), Daredevil (31014), Spider-Man Noir
- * (31015, constant only — see below), Spider-Ham (31021), Spider-Man / Otto Octavius (31022). Read directly off
+ * (31015), Spider-Ham (31021), Spider-Man / Otto Octavius (31022). Read directly off
  * `packages/content/src/data/spdr/cards.ts` (no errata on RRG 1.8 pp. 67–68). Every one of these five shares a
  * printed title with a different card elsewhere in the pool (Daredevil the hero, Spider-Man Noir's own villain-deck
  * namesakes, Spider-Ham's own identity, "Spider-Man" printed on several other allies/identities across `sm`) — none
@@ -83,20 +89,20 @@ const A_WEB_WARRIOR_CARD: TargetQuery = {
  *
  * **Spider-Man Noir (ally, 31015)** — "X is equal to the number of facedown cards attached to Spider-Man Noir.
  * \nResponse: After you resolve a treachery, if you control another Web-Warrior card, attach that treachery
- * facedown here (to a maximum of 3)." Only the first sentence (the constant "X" stat) is scripted:
+ * facedown here (to a maximum of 3)." The constant "X" stat is
  * `gets("atk"/"thw", countOf({ host: self, facedown: true }), { self: true }, { setBase: true })` (George Stacy's
  * own `{ host: self, facedown: true }` count shape, `sm/ghost-spider/support-upgrades-allies.ts` 27007; `setBase`
  * for a printed "X" stat rather than a bonus atop a numeric base, `core/scenarios/ultron.ts`'s own `FACEDOWN_DRONES`
- * precedent). **Known engine gap, not scripted:** the Response needs "after you resolve a treachery [card]" — a
- * trigger for an encounter card's own resolution finishing (as distinct from its reveal, `on.encounterCardRevealed`
- * / `encounterCardRevealing`, which fires *before* it resolves). No `TriggerEvent` for this exists yet
- * (`packages/engine/src/trigger-events.ts` has no `treacheryResolved`/`encounterCardResolved` kind — only
- * `boostCardResolved`, which is scoped to a boost card during an enemy's activation, not an encounter card revealed
- * in the normal reveal step) and no `EventPattern` wraps it, so there's nothing to attach the response window to
- * without inventing engine state this module doesn't own. The card is legal to play with this gap (data does not
- * require every printed ability to be registered); `31015.spider-man-noir-response` is left off the registry
- * (matching the card's own `abilities` array, which still names it) rather than approximated with a nearby but
- * wrong trigger (attaching on `encounterCardRevealed` would fire before the treachery's own effects, not after).
+ * precedent). The Response is `on.youResolveTreachery({ inDiscard: true })`, the engine's `encounterCardResolved`
+ * event: a treachery *you* revealed, one or more of whose abilities resolved (RRG 1.8 "Resolve", p. 37), announced
+ * after reveal step 4 has put it in the encounter discard pile and before any surge card is revealed (RRG 1.8
+ * "Surge", p. 42). A treachery whose effects were cancelled ("I Don't Think So!", `spiderham` 30005) never
+ * announces it (FAQ "Spider-Man Noir (#15)", RRG 1.8 p. 63: "If no part of the treachery card resolves, he cannot
+ * attach it"); nor, today, does one whose When Revealed alone was cancelled, since the engine's `cancelWhenRevealed`
+ * also cancels its surge and incite (the FAQ's keyword case; open question). "That treachery" is `eventTarget`, attached facedown with `attachCard(..., { facedown:
+ * true })` (Bruno Carrelli's shape), so it has no title, traits or abilities while here and counts toward X. "If
+ * you control another Web-Warrior card" is `exists(ANOTHER_WEB_WARRIOR_CARD)` and "(to a maximum of 3)" is
+ * `valueAtMost(countOf(...), 2)` (George Stacy's own "to a maximum of 3" gate), both read as the response resolves.
  *
  * **Spider-Ham (ally, 31021)** — "Play only if you control a Web-Warrior card.\n[star] Forced Response: After
  * Spider-Ham attacks or thwarts, discard the top card of the encounter deck. For each boost icon ([boost])
@@ -133,6 +139,12 @@ export const SPDR_ALLIES = defineAbilities({
   "31015.spider-man-noir-constant": constant(
     gets("atk", countOf({ host: self, facedown: true }), { self: true }, { setBase: true }),
     gets("thw", countOf({ host: self, facedown: true }), { self: true }, { setBase: true }),
+  ),
+  "31015.spider-man-noir-response": response(
+    on.youResolveTreachery({ inDiscard: true }),
+    ifThen(allOf(exists(ANOTHER_WEB_WARRIOR_CARD), valueAtMost(countOf({ host: self, facedown: true }), 2)), [
+      attachCard(eventTarget, self, { facedown: true }),
+    ]),
   ),
 
   "31021.spider-ham-constant": constant(playOnlyIf(exists(A_WEB_WARRIOR_CARD))),

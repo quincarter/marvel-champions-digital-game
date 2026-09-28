@@ -1338,6 +1338,20 @@ export const on = {
   /** "When a [treachery] card is revealed from the encounter deck". */
   encounterCardRevealed: (what?: TargetQuery): EventPattern =>
     pattern("encounterCardRevealing", what ? { targetIs: what } : {}),
+  /**
+   * "After you resolve a treachery" (Spider-Man Noir, `spdr` 31015): a treachery you revealed has resolved — one or
+   * more of its abilities, surge and incite included, resolved (RRG 1.8 "Resolve", p. 37); a cancelled one has not
+   * (FAQ "Spider-Man Noir (#15)", p. 63). Heard after reveal step 4 and before any surge card is revealed; "that
+   * treachery" is `eventTarget`. `inDiscard`: only while step 4 left it in the encounter discard pile, not where its own
+   * When Revealed moved it ("attach that treachery" takes it from there). `what` narrows the card (default: a
+   * treachery).
+   */
+  youResolveTreachery: (opts: { readonly what?: TargetQuery; readonly inDiscard?: boolean } = {}): EventPattern =>
+    pattern(
+      "encounterCardResolved",
+      { playerIs: "controller", targetIs: opts.what ?? { categories: ["treachery"] } },
+      opts.inDiscard ? { eventIs: { to: "encounterDiscard" } } : {},
+    ),
   /** "When/After X is defeated"; `byYou`: "after *you* defeat a minion". */
   /**
    * "After Abjuration prevents 2 or more damage from a single attack" (docs/phase7-wave4.md §3.20): this card prevented

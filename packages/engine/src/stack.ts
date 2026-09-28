@@ -295,6 +295,12 @@ export type StackFrame =
       /** "This card gains surge" resolved while it was being revealed. */
       readonly surgeGained: boolean;
       /**
+       * Reveal step 3 initiated at least one of the card's When Revealed abilities, incite included (RRG 1.8 "Reveal",
+       * p. 38), uncancelled. With a live surge, this is what makes a treachery "resolved" (RRG 1.8 "Resolve", p. 37;
+       * `encounterCardResolved`). Absent until then.
+       */
+      readonly abilityResolved?: true;
+      /**
        * Where the card was when its reveal began (the player's dealt encounter cards, or wherever `revealCard` found
        * it). A treachery or revealed event still there when the reveal finishes is discarded; one an effect already
        * moved ("Remove this card from the game", "shuffle it into the encounter deck") stays where it went

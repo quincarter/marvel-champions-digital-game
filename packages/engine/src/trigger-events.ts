@@ -189,6 +189,26 @@ export type TriggerEventBody =
   | { readonly kind: "cardBeingPlayed"; readonly instanceId: InstanceId; readonly playerId: PlayerId }
   | { readonly kind: "cardRevealed"; readonly instanceId: InstanceId; readonly playerId: PlayerId }
   /**
+   * A revealed treachery (or a revealed event) has **resolved**: "After you resolve a treachery, … attach that treachery
+   * facedown here" (Spider-Man Noir, `spdr` 31015). RRG 1.8 "Resolve" (p. 37): "A treachery card is resolved when it is
+   * revealed and one or more of its abilities resolve"; treacheries and events are the only card types that are
+   * resolved, so no other type announces it. Keyword abilities count (surge and incite are When Revealed abilities,
+   * RRG 1.8 "Reveal" step 3, p. 38; "Surge", p. 42), and a card whose effects were all cancelled has not resolved
+   * (RRG 1.8 "Cancel", p. 11) — FAQ "Spider-Man Noir (#15)" (RRG 1.8 p. 63): "some part of the treachery card must be
+   * resolved … If no part of the treachery card resolves, he cannot attach it."
+   *
+   * Announced with `cardRevealed`, after reveal step 4 (the discard), so `to` is where the card went — the encounter
+   * discard pile, or wherever its own When Revealed moved it — and a response can take it from there. Before any surge
+   * card is revealed ("Complete the process of resolving the original card, as well as any response abilities … before
+   * revealing the additional card", RRG 1.8 "Surge", p. 42). Response window only; pushed only when an ability listens.
+   */
+  | {
+      readonly kind: "encounterCardResolved";
+      readonly instanceId: InstanceId;
+      readonly playerId: PlayerId;
+      readonly to: ZoneId["kind"] | null;
+    }
+  /**
    * Cards were spent from a player's hand to generate resources for one payment (docs/phase7-wave2.md §12): "Hero
    * Response: After you spend this card, …" (Pym Particles 12006 and seven more), "Interrupt: When you spend this card
    * to play an ally, …". One event per payment, listing every card that payment spent, so the responses of several
@@ -881,6 +901,8 @@ export function eventSubjects(event: TriggerEvent): EventSubjects {
     case "cardBeingPlayed":
     case "cardRevealed":
     case "encounterCardRevealing":
+    // "That treachery" is `eventTarget`; "you" (the player who resolved it) the player subject.
+    case "encounterCardResolved":
       return of([event.instanceId], [event.instanceId], [event.playerId]);
     // The defeating card is the event's source, so `sourceIs` reads "after [this card] defeats …"; the defeated card
     // stays the target, and the defeating player the player subject.

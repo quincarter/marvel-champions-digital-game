@@ -387,7 +387,8 @@ export function executeRevealFrame(ctx: Ctx, frame: Frame<"reveal">): void {
     }
     case "whenRevealed": {
       const selfAttaching = card.type === "attachment" && card.attachesTo === undefined;
-      setFrame(ctx, { ...frame, stage: selfAttaching ? "settleAttach" : "finish" });
+      const next = selfAttaching ? "settleAttach" : "finish";
+      setFrame(ctx, { ...frame, stage: next });
       // Incite and surge are "When Revealed" effects too (RRG "Incite X", "Surge").
       if (frame.whenRevealedCancelled) return;
       const revealed: TriggerEvent = {
@@ -415,6 +416,7 @@ export function executeRevealFrame(ctx: Ctx, frame: Frame<"reveal">): void {
       for (let i = 0; i < times; i++) {
         frames.push(...gameAbilityFrames(ctx, frame.instanceId, ["whenRevealed"], revealed, undefined, frame.playerId));
       }
+      if (frames.length > 0) setFrame(ctx, { ...frame, stage: next, abilityResolved: true });
       pushFrames(ctx, frames);
       return;
     }
@@ -446,6 +448,21 @@ export function executeRevealFrame(ctx: Ctx, frame: Frame<"reveal">): void {
       }
       // RRG "Reveal": responses to any step wait until every step has completed.
       const events: TriggerEvent[] = [{ kind: "cardRevealed", instanceId: frame.instanceId, playerId: frame.playerId }];
+      const surgeLive = !frame.effectsCancelled && !frame.whenRevealedCancelled;
+      const surges = surgeLive && (frame.surgeGained || hasKeyword(ctx.state, frame.instanceId, "surge", ctx.deps));
+      // "After you resolve a treachery" (`encounterCardResolved`): a treachery or event one or more of whose abilities
+      // resolved, surge included (RRG 1.8 "Resolve", p. 37; FAQ "Spider-Man Noir (#15)", p. 63).
+      const resolved = !frame.effectsCancelled && (frame.abilityResolved === true || surges);
+      if (resolved && (card.type === "treachery" || card.type === "event")) {
+        const where = locateCard(ctx.state, frame.instanceId)?.kind ?? null;
+        const done: TriggerEvent = {
+          kind: "encounterCardResolved",
+          instanceId: frame.instanceId,
+          playerId: frame.playerId,
+          to: where,
+        };
+        if (heard(ctx.state, ctx.deps, done)) events.push(done);
+      }
       // RRG "Quickstrike": resolves after this minion's "When Revealed" abilities.
       const quickstrike = frame.effectsCancelled ? null : quickstrikeAttack(ctx.state, frame.instanceId);
       if (quickstrike) events.push(quickstrike);
@@ -454,8 +471,7 @@ export function executeRevealFrame(ctx: Ctx, frame: Frame<"reveal">): void {
       const frames: StackFrame[] = events.map((event) => eventFrame(ctx, event));
       // RRG "Surge": the original card is fully resolved first, then the same
       // player reveals one more — so the extra reveal is queued last.
-      const surgeLive = !frame.effectsCancelled && !frame.whenRevealedCancelled;
-      if (surgeLive && (frame.surgeGained || hasKeyword(ctx.state, frame.instanceId, "surge", ctx.deps))) {
+      if (surges) {
         const surge: TriggerEvent = { kind: "surgeResolving", instanceId: frame.instanceId, playerId: frame.playerId };
         if (heard(ctx.state, ctx.deps, surge)) {
           // "When the surge keyword … would be resolved" (Espionage): its windows first, then `resolveSurge`.

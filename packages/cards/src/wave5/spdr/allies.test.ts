@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  activeEncounterDeck,
   applyCommand,
   cardsInPlay,
   characterProfile as characterProfileOf,
@@ -15,6 +16,7 @@ import {
   inst,
   moveToHand,
   P1,
+  P2,
   patchInstance,
   payWith,
   play,
@@ -24,6 +26,7 @@ import {
   toHero,
   type Picker,
 } from "../../testing/harness.js";
+import { driveEventsPicking } from "../../testing/staging.js";
 import { playFromHand, runWave5, startWave5Game, WAVE5_DEPS } from "../testing.js";
 import { spdrScenario } from "./support.js";
 
@@ -155,8 +158,7 @@ describe("Daredevil (ally, 31014)", () => {
 
 /** Attaches `cardId` to `hostId`, facedown as a blank card — `attachCard(..., { facedown: true })`'s own resulting
  * shape (`packages/engine/src/state.ts` `CardInstance.attachedTo`/`.attachments`/`.facedownAs`), built directly
- * since Spider-Man Noir's own attaching Response is the ability with the engine gap (see `allies.ts`'s own
- * docblock) and cannot be used to set one up. */
+ * so the constant can be read without a reveal (the Response's own tests below attach through the engine). */
 function attachFacedown(state: GameState, cardId: InstanceId, hostId: InstanceId): GameState {
   const withCard = patchInstance(state, cardId, {
     attachedTo: hostId,
@@ -187,6 +189,118 @@ describe("Spider-Man Noir (ally, 31015)", () => {
     const twoFacedown = patchInstance(withFaceup, faceupCandidate, { facedownAs: { kind: "blank", traits: [] } });
     expect(characterProfile(twoFacedown, id).atk).toBe(2);
     expect(characterProfile(twoFacedown, id).thw).toBe(2);
+  });
+
+  // Rhino's own "I'm Tough!" (01105, 0 boost): "When Revealed: Give Rhino a tough status card. If Rhino already has a
+  // tough status card, this card gains surge." Rhino starts without one, so it resolves with no surge. Advance
+  // (01186, 0 boost, no Boost ability) soaks up the boost card Rhino's own activation draws first.
+  const IM_TOUGH = "01105";
+  const ADVANCE = "01186";
+  const NOIR_RESPONSE = "31015.spider-man-noir-response";
+
+  /** Noir in play under P1, with "I'm Tough!" stacked to be the card P1 reveals in the next villain phase. */
+  function noirFacing(state: GameState) {
+    const { state: withNoir, id: noir } = playFromHand(topUp(state, 2), "31015", 3, accepting());
+    const stacked = stackEncounterDeck(withNoir, ADVANCE, IM_TOUGH);
+    return { state: stacked, noir, card: activeEncounterDeck(stacked).deck[1]! };
+  }
+  const encounterDiscard = (state: GameState) => activeEncounterDeck(state).discard;
+
+  it(`${NOIR_RESPONSE}: after you resolve a treachery, attaches it facedown to him, so his ATK and THW go up by 1`, () => {
+    const { state, noir, card } = noirFacing(toHero_(spdrVsRhino(1)));
+    expect(characterProfile(state, noir).atk).toBe(0);
+    const { state: after, events } = driveEventsPicking(WAVE5_DEPS, state, accepting(NOIR_RESPONSE), endTurn(P1));
+    // The treachery resolved first (Rhino got his tough status card) and was then taken out of the discard pile.
+    expect(events).toContainEqual(
+      expect.objectContaining({
+        type: "triggerEvent",
+        event: expect.objectContaining({ kind: "encounterCardResolved", instanceId: card }),
+      }),
+    );
+    expect(inst(after, after.villains[0]!.instanceId).statuses.tough).toBeTruthy();
+    expect(inst(after, card).attachedTo).toBe(noir);
+    expect(inst(after, card).facedownAs).toEqual({ kind: "blank", traits: [] });
+    expect(encounterDiscard(after)).not.toContain(card);
+    expect(characterProfile(after, noir).atk).toBe(1);
+    expect(characterProfile(after, noir).thw).toBe(1);
+  });
+
+  it(`${NOIR_RESPONSE}: declined, the treachery stays in the encounter discard pile`, () => {
+    const { state, noir, card } = noirFacing(toHero_(spdrVsRhino(1)));
+    const after = settle(runWave5(state, endTurn(P1)), firstLegal, undefined, WAVE5_DEPS);
+    expect(encounterDiscard(after)).toContain(card);
+    expect(inst(after, noir).attachments).toEqual([]);
+    expect(characterProfile(after, noir).atk).toBe(0);
+  });
+
+  it(`${NOIR_RESPONSE}: without another Web-Warrior card (alter-ego Peni Parker), nothing is attached`, () => {
+    const { state, noir, card } = noirFacing(spdrVsRhino(1));
+    const after = settle(runWave5(state, endTurn(P1)), accepting(NOIR_RESPONSE), undefined, WAVE5_DEPS);
+    expect(encounterDiscard(after)).toContain(card);
+    expect(inst(after, noir).attachments).toEqual([]);
+  });
+
+  it(`${NOIR_RESPONSE}: to a maximum of 3 — with 3 facedown cards already attached, nothing more is attached`, () => {
+    const { state, noir, card } = noirFacing(toHero_(spdrVsRhino(1)));
+    const given = moveToHand(state, P1, "31023", "31023", "31024");
+    const full = (given.ids as InstanceId[]).reduce((s, id) => attachFacedown(s, id, noir), given.state);
+    expect(characterProfile(full, noir).atk).toBe(3);
+    const after = settle(runWave5(full, endTurn(P1)), accepting(NOIR_RESPONSE), undefined, WAVE5_DEPS);
+    expect(encounterDiscard(after)).toContain(card);
+    expect(inst(after, noir).attachments).toHaveLength(3);
+    expect(characterProfile(after, noir).atk).toBe(3);
+  });
+
+  it(`${NOIR_RESPONSE}: a treachery whose When Revealed was cancelled (Spider-Tingle, 31020) did not resolve, so it can't be attached (FAQ "Spider-Man Noir (#15)", RRG 1.8 p. 63)`, () => {
+    const { state: withNoir, noir, card } = noirFacing(toHero_(spdrVsRhino(1)));
+    const { state } = playFromHand(topUp(withNoir, 1), "31020", 1, accepting());
+    const { state: after, events } = driveEventsPicking(
+      WAVE5_DEPS,
+      state,
+      // Spider-Tingle's cost: 1 damage to a Web-Warrior character you control — SP//dr (the first option) pays it.
+      (st) =>
+        st.pendingChoice?.prompt.kind === "chooseCostCards"
+          ? [st.pendingChoice.options[0]!.optionId]
+          : accepting("31020.spider-tingle-interrupt", NOIR_RESPONSE)(st),
+      endTurn(P1),
+    );
+    expect(events).toContainEqual(expect.objectContaining({ type: "revealCancelled", instanceId: card }));
+    expect(events.some((e) => e.type === "triggerEvent" && e.event.kind === "encounterCardResolved")).toBe(false);
+    expect(inst(after, after.villains[0]!.instanceId).statuses.tough).toBeFalsy(); // its When Revealed never happened.
+    expect(encounterDiscard(after)).toContain(card);
+    expect(inst(after, noir).attachments).toEqual([]);
+  });
+
+  it(`${NOIR_RESPONSE}: a non-treachery encounter card (a minion) is not "a treachery"`, () => {
+    const { state: withNoir, id: noir } = playFromHand(topUp(toHero_(spdrVsRhino(1)), 2), "31015", 3, accepting());
+    const stacked = stackEncounterDeck(withNoir, ADVANCE, "01101"); // Hydra Mercenary, Rhino's own minion.
+    const { state: after, events } = driveEventsPicking(WAVE5_DEPS, stacked, accepting(NOIR_RESPONSE), endTurn(P1));
+    expect(events.some((e) => e.type === "triggerEvent" && e.event.kind === "encounterCardResolved")).toBe(false);
+    expect(inst(after, noir).attachments).toEqual([]);
+  });
+
+  it(`${NOIR_RESPONSE}: a treachery another player resolved does not trigger it ("after *you* resolve")`, () => {
+    const two = startWave5Game(
+      spdrScenario("rhino", { seed: 1, extraPlayers: [{ starterDeckId: "core-spider-man-justice" }] }),
+    );
+    const { state: withNoir, id: noir } = playFromHand(topUp(toHero_(two), 2), "31015", 3, accepting());
+    // Boost cards for Rhino's two activations, then P1's dealt card (a minion), then P2's ("I'm Tough!").
+    const stacked = stackEncounterDeck(withNoir, ADVANCE, ADVANCE, "01101", IM_TOUGH);
+    const card = activeEncounterDeck(stacked).deck[3]!;
+    const { state: after, events } = driveEventsPicking(
+      WAVE5_DEPS,
+      stacked,
+      accepting(NOIR_RESPONSE),
+      endTurn(P1),
+      endTurn(P2),
+    );
+    const revealedBy = events.find(
+      (e): e is Extract<typeof e, { type: "encounterCardRevealed" }> =>
+        e.type === "encounterCardRevealed" && e.instanceId === card,
+    );
+    expect(revealedBy?.playerId).toBe(P2);
+    expect(encounterDiscard(after)).toContain(card);
+    expect(inst(after, noir).attachments).toEqual([]);
   });
 });
 
