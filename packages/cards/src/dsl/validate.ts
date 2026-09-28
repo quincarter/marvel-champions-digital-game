@@ -181,13 +181,15 @@ function checkScaled(value: unknown, path: string, problems: string[]): void {
     if (divide.round !== "down" && divide.round !== "up")
       problems.push(`${path}: scaled divide.round must be "down" or "up"`);
   }
-  // An empty list is almost certainly an authoring slip: `sum` of nothing is 0, and `anyTrait`/`anyPrintedResource` of nothing matches no card.
+  // An empty list is almost certainly an authoring slip: `sum` of nothing is 0, and `anyTrait`/`anyPrintedResource`/`anyOf` of nothing matches no card.
   if (record.kind === "sum" && (!Array.isArray(record.values) || record.values.length === 0))
     problems.push(`${path}: sum needs at least one value`);
   if (Array.isArray(record.anyTrait) && record.anyTrait.length === 0)
     problems.push(`${path}: anyTrait needs at least one trait`);
   if (Array.isArray(record.anyPrintedResource) && record.anyPrintedResource.length === 0)
     problems.push(`${path}: anyPrintedResource needs at least one resource type`);
+  if (Array.isArray(record.anyOf) && record.anyOf.length === 0)
+    problems.push(`${path}: anyOf needs at least one query`);
   for (const [key, item] of Object.entries(record)) checkScaled(item, `${path}.${key}`, problems);
 }
 

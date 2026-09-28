@@ -6,6 +6,7 @@ import {
   hasGrantedPermanent,
   hasKeyword,
   printedFormTypes,
+  queryHasKeyword,
   statusActive,
   unblankedPrintedKeywordsOf,
 } from "./keywords.js";
@@ -455,6 +456,12 @@ export type QueryExclusion =
   | "notEngaged"
   | "missingTrait"
   | "hasExcludedTrait"
+  /** Lacks the query's `withKeyword` keyword (printed or granted). */
+  | "missingKeyword"
+  /** Has the query's `withoutKeyword` keyword (printed or granted). */
+  | "hasExcludedKeyword"
+  /** Matches none of the query's `anyOf` alternatives. */
+  | "matchesNoAlternative"
   | "wrongName"
   | "wrongPrintedId"
   | "wrongFacedown"
@@ -549,6 +556,15 @@ export function explainQuery(
     const traits = traitsOf(state, id, context.deps);
     if (!query.anyTrait.some((wanted) => traits.includes(wanted))) return "missingTrait";
   }
+  if (query.withKeyword !== undefined && !queryHasKeyword(state, id, query.withKeyword, context.deps ?? DEFAULT_DEPS))
+    return "missingKeyword";
+  if (
+    query.withoutKeyword !== undefined &&
+    queryHasKeyword(state, id, query.withoutKeyword, context.deps ?? DEFAULT_DEPS)
+  )
+    return "hasExcludedKeyword";
+  if (query.anyOf !== undefined && !query.anyOf.some((alternative) => matchesQuery(state, id, alternative, context)))
+    return "matchesNoAlternative";
   // The name showing now: a facedown card has none; a villain or flipped card has its current face's.
   if (query.name !== undefined && currentName(state, id) !== query.name) return "wrongName";
   if (query.printedId !== undefined && instance.cardId !== query.printedId) return "wrongPrintedId";

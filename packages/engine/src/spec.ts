@@ -1,4 +1,4 @@
-import type { AbilityId, CardId, KeywordInstance, Trait } from "@mc/content";
+import type { AbilityId, CardId, KeywordInstance, KeywordName, Trait } from "@mc/content";
 /**
  * When a lasting effect ends: "until the end of the phase" / "…of the round" / "…of this attack" / "…of this turn".
  *
@@ -85,6 +85,28 @@ export interface TargetQuery {
    * rejects it).
    */
   readonly anyTrait?: readonly Trait[];
+  /**
+   * The card has this keyword now, printed or granted (`keywords.ts` `queryHasKeyword`): the keyword sibling of
+   * `trait`. `withoutKeyword` is its negation: "a non-permanent side scheme" (Vivian, `ironheart` 29024) is
+   * `query("sideScheme", { withoutKeyword: "permanent" })`. Read as the engine reads each keyword elsewhere, so a
+   * blanked text box has no printed keywords (RRG 1.8 "Blank", p. 10) and a granted keyword counts (RRG 1.8 "Gains",
+   * p. 21) — except Permanent, which is read as `isPermanent` reads it (printed on the card even through a blank or
+   * facedown, docs/phase7-wave4.md §4 Q25; granted counts too, docs/phase7-wave5.md §4.1 Q45), so the query and the
+   * keyword's own protection never disagree about which cards are permanent. Inside a keyword grant's own `target` /
+   * lasting `affects`, only printed keywords are seen, the same cut `traitsOf` makes for trait grants.
+   */
+  readonly withKeyword?: KeywordName;
+  /** Excludes cards that have this keyword now (printed or granted), read exactly as `withKeyword` reads it. */
+  readonly withoutKeyword?: KeywordName;
+  /**
+   * Matches at least one of these queries, each read in this query's own context: "choose an attachment, non-Elite
+   * minion, or non-permanent side scheme" (Vivian, `ironheart` 29024) is `{ anyOf: [query("attachment"),
+   * query("minion", { withoutTrait: ELITE }), query("sideScheme", { withoutKeyword: "permanent" })] }` — one choice
+   * over a union whose parts carry different filters, which `categories` (an OR of card types, every other field
+   * shared) cannot say. ANDed with the query's other fields. An empty list matches nothing (`@mc/cards`' validator
+   * rejects it).
+   */
+  readonly anyOf?: readonly TargetQuery[];
   /** Exact printed card name ("the Breakin' & Takin' side scheme", "the Ultron Drones environment"). */
   readonly name?: string;
   /**

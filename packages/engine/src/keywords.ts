@@ -105,6 +105,23 @@ let readingGrantValue = false;
 
 /** Keywords granted by constant abilities in play ("X gains retaliate 1"); RRG "Gains": not printed. */
 function grantedKeywords(state: GameState, deps: EngineDeps, id: InstanceId): readonly KeywordInstance[] {
+  if (readingKeywordGrants) return scanGrantedKeywords(state, deps, id);
+  readingKeywordGrants = true;
+  try {
+    return scanGrantedKeywords(state, deps, id);
+  } finally {
+    readingKeywordGrants = false;
+  }
+}
+
+/**
+ * Set while `grantedKeywords` is scanning: a re-entrancy guard, not game state. While it is set, a `TargetQuery`
+ * `withKeyword`/`withoutKeyword` clause (`queryHasKeyword`) reads printed keywords only, so a keyword grant whose own
+ * `target`/`affects` asks about keywords cannot recurse — the same cut `traitsOf` makes for trait grants.
+ */
+let readingKeywordGrants = false;
+
+function scanGrantedKeywords(state: GameState, deps: EngineDeps, id: InstanceId): readonly KeywordInstance[] {
   const granted: KeywordInstance[] = [];
   // "She gains retaliate 1 until the end of the phase" (`grantKeywordUntil`, docs/phase7-wave4.md §3.39).
   for (const effect of state.lastingEffects) {
@@ -232,9 +249,28 @@ export const hasKeyword = (
  * mass forms stay in play (docs/phase7-wave4.md §4 Q25, user decision 2026-09-26).
  */
 export function isPermanent(state: GameState, id: InstanceId, deps: EngineDeps = DEFAULT_DEPS): boolean {
-  if (hasKeyword(state, id, "permanent", deps)) return true;
+  return hasKeyword(state, id, "permanent", deps) || printsPermanent(state, id);
+}
+
+/** The printed card carries Permanent, whatever face shows and whatever blanks it (`isPermanent`'s fallback). */
+function printsPermanent(state: GameState, id: InstanceId): boolean {
   const card = cardOf(state, id);
   return !!card && "keywords" in card && card.keywords.some((keyword) => keyword.name === "permanent");
+}
+
+/**
+ * Whether a card has this keyword for a `TargetQuery` `withKeyword`/`withoutKeyword` clause: `hasKeyword` (printed,
+ * less a blank, plus granted), except that Permanent is `isPermanent`, so "a non-permanent side scheme" excludes
+ * exactly the cards the keyword's own protection treats as permanent (docs/phase7-wave4.md §4 Q25; a granted Permanent
+ * counts, docs/phase7-wave5.md §4.1 Q45). Inside a keyword-grant scan only printed keywords are read (see
+ * `readingKeywordGrants`).
+ */
+export function queryHasKeyword(state: GameState, id: InstanceId, name: KeywordName, deps: EngineDeps): boolean {
+  if (readingKeywordGrants) {
+    if (name === "permanent" && printsPermanent(state, id)) return true;
+    return printedKeywordsOf(state, id, deps).some((keyword) => keyword.name === name);
+  }
+  return name === "permanent" ? isPermanent(state, id, deps) : hasKeyword(state, id, name, deps);
 }
 
 /** RRG "Keywords": repeated instances of a numbered keyword add their values together. */
