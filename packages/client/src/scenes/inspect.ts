@@ -459,7 +459,10 @@ export class InspectOverlay extends Phaser.Scene {
           subjectInstanceId: paymentView.subject,
           paid: paymentView.paid,
           required: paymentView.required,
-          spendableInstanceIds: new Set(paymentView.spendable.keys()),
+          // By instance, not by option (`spendable` is keyed by option id since payment-model.ts's own doc comment
+          // on it: several options can share one instance): "is this card usable at all", which every one of its
+          // options being spendable still answers the same way.
+          spendableInstanceIds: new Set([...paymentView.spendable.values()].map((source) => source.instanceId)),
         }
       : null;
     return inspectModel(state.game, this.#instanceId, state.legal?.actions ?? null, state.perspectiveId, POOL_DEPS, {

@@ -309,11 +309,13 @@ function paintHandSlot(
     }
     return { spent: picked, subject: isSubject, alpha };
   }
-  const spent = payment?.spent.has(card.instanceId) ?? false;
+  // `payment.spendable`/`.spent` are keyed by option id, not instance id (payment-model.ts's own doc comment on
+  // `spendable`: several options can come off one card) — a hand card has exactly one payment option, so its own
+  // flat `sources` list (already correct per option) is the one to search by instance id here.
+  const source = payment?.sources.find((candidate) => candidate.instanceId === card.instanceId);
+  const spent = source?.spent ?? false;
   const subject = payment?.subject === card.instanceId;
-  const available = payment
-    ? subject || spent || payment.spendable.has(card.instanceId)
-    : (ctx.marks?.playable.has(card.instanceId) ?? false);
+  const available = payment ? subject || source !== undefined : (ctx.marks?.playable.has(card.instanceId) ?? false);
   const alpha = available ? 1 : ink.illegal;
 
   const g = ctx.scene.add.graphics();

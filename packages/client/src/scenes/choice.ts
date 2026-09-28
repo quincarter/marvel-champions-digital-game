@@ -25,7 +25,7 @@ import type { Rect } from "../view/layout.js";
 import { cardRow, formFactorFor } from "../view/layout.js";
 import { decisionLabel } from "../view/villain-walkthrough.js";
 import { abilityShortLabelOf } from "../view/ability-label.js";
-import { choiceHeaderText, costCardsPromptTitleOf } from "../view/choice-source.js";
+import { choiceHeaderText, promptTitleOf } from "../view/choice-source.js";
 import { choiceSheetAction, stuckSheetShouldRecover } from "../view/choice-sheet-sync.js";
 import { choiceSourcePanelOf } from "../view/choice-source-panel.js";
 import {
@@ -320,7 +320,7 @@ export class ChoiceOverlay extends Phaser.Scene {
     const genericTitle =
       choice.prompt.kind === "lookAt"
         ? lookAtTitleOf(state.game, choice, state.perspectiveId ?? choice.playerId)
-        : promptTitle(choice.prompt);
+        : promptTitleOf(choice.prompt, POOL_DEPS);
     const titleText = choiceHeaderText(state.game, choice, POOL_DEPS, genericTitle);
     const title = this.add
       .text(titleLeft, bar.y + bar.height / 2, titleText, textStyle(typeRole.barTitle, surface.paper.hex))
@@ -1166,42 +1166,4 @@ function playerOptionLabel(game: GameState, playerId: PlayerId, perspectiveId: P
   ]
     .filter(Boolean)
     .join(" · ");
-}
-
-/**
- * The design's overlay titles for the engine's prompt kinds. `orderCards`/`chooseBottomCards`
- * (`reorderCards`'s three-step split, `packages/engine/src/resolve/effects-frame.ts`) share one kind family across
- * two different piles — give each its own title instead of reusing the top pile's for both, and for the split step
- * itself, rather than falling back to the generic "Choose".
- */
-function promptTitle(prompt: { readonly kind: string; readonly to?: string; readonly mode?: string }): string {
-  const kind = prompt.kind;
-  if (kind === "orderCards") {
-    return prompt.to === "encounterDeckBottom" ? "Put the bottom pile back in order" : "Put the top pile back in order";
-  }
-  if (kind === "chooseCostCards") return costCardsPromptTitleOf(prompt.mode);
-  const titles: Record<string, string> = {
-    declareDefender: "Declare a defender",
-    discardDownToHandSize: "Discard to hand size",
-    mulligan: "Mulligan",
-    chooseMinionToActivate: "Choose a minion to activate",
-    orderEnemies: "Order the enemies",
-    orderPlayers: "Order the players",
-    chooseBottomCards: "Choose which cards go to the bottom",
-    orderTriggers: "Order these effects",
-    chooseTriggers: "Trigger an ability?",
-    chooseTarget: "Choose a target",
-    chooseAttachmentTarget: "Choose a host",
-    chooseCards: "Choose cards",
-    lookAt: "Look at these cards",
-    chooseOption: "Choose one",
-    choosePlayer: "Choose a player",
-    orderSpecials: "Order the special abilities",
-    payForCard: "Pay for this card?",
-    payForAbility: "Pay for this ability?",
-    spendResources: "Spend resources?",
-    discardOverAllyLimit: "Discard to your ally limit",
-    discardRestricted: "Discard to two restricted cards",
-  };
-  return titles[kind] ?? "Choose";
 }

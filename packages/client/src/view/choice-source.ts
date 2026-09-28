@@ -52,7 +52,7 @@
  */
 
 import type { AbilityId } from "@mc/content";
-import type { EngineDeps, GameState, InstanceId, PendingChoice, StackFrame } from "@mc/engine";
+import type { ChoicePrompt, EngineDeps, GameState, InstanceId, PendingChoice, StackFrame } from "@mc/engine";
 import { activeAbilityRefs } from "@mc/engine";
 import { abilityLabelOf } from "./ability-label.js";
 import { cardName } from "./names.js";
@@ -129,14 +129,92 @@ export function choiceSourceOf(state: GameState, choice: PendingChoice): ChoiceS
  * The overlay title for a `chooseCostCards` prompt (docs/phase7-wave4.md §3.17: Stand Together's "exhaust an
  * [Avenger] character and a [Guardian] character" cost, `InPlayCostMode`), one verb per mode. Falls back to a
  * generic phrase for a mode this module doesn't recognize rather than the sheet's own bare "Choose".
+ *
+ * `damage` (Thwip Thwip!, `spdr` 31017: "Deal 1 damage to a [Web-Warrior] character you control →") names the
+ * amount when the caller has it (`promptTitleOf`, reading it off the ability's own `AbilityCost.damageCards`), and
+ * falls back to the bare verb when it doesn't (this function's own unit tests, which pass no amount at all).
  */
-export function costCardsPromptTitleOf(mode: string | undefined): string {
+export function costCardsPromptTitleOf(mode: string | undefined, damageAmount?: number): string {
+  if (mode === "damage") {
+    return damageAmount === undefined
+      ? "Choose a character to take damage"
+      : `Choose a character to take ${damageAmount} damage`;
+  }
   const verbs: Record<string, string> = {
     exhaust: "Choose a card to exhaust",
     return: "Choose a card to return to hand",
     discard: "Choose a card to discard",
   };
   return (mode && verbs[mode]) ?? "Choose a card for this cost";
+}
+
+/** `StatusName` as `AbilityCost.divide`'s own printed noun: "stun"/"confuse"/"tough" cards. */
+const STATUS_NOUN: Record<string, string> = { stunned: "stun", confused: "confuse", tough: "tough" };
+
+/**
+ * The overlay title for a `divide` prompt (`EffectSpec divide`, docs/phase7-wave2.md §3.7): "Divide 2 damage among
+ * these characters", or, for a status division (Thwip Thwip!, `spdr` 31017: "deal 2 stun cards, divided as you
+ * choose, among up to 2 enemies"), "Divide 2 stun cards among up to 2 enemies" — the `maxTargets` cap is worth
+ * naming up front, since it is the reason the same 2 cards can't all go on one enemy.
+ */
+function dividePromptTitleOf(
+  what: "damage" | "threat" | string,
+  amount: number,
+  maxTargets: number | undefined,
+): string {
+  if (what === "damage" || what === "threat") return `Divide ${amount} ${what}`;
+  const noun = STATUS_NOUN[what] ?? what;
+  const cards = `${noun} card${amount === 1 ? "" : "s"}`;
+  return maxTargets === undefined
+    ? `Divide ${amount} ${cards}`
+    : `Divide ${amount} ${cards} among up to ${maxTargets} enemies`;
+}
+
+/**
+ * The design's overlay titles for every `PendingChoice.prompt` kind (`scenes/choice.ts`'s own overlay header, moved
+ * here so it can be unit tested the way every other view model in this file is). `orderCards`/`chooseBottomCards`
+ * (`reorderCards`'s three-step split, `packages/engine/src/resolve/effects-frame.ts`) share one kind family across
+ * several different piles — give each its own title instead of reusing one pile's for all of them, including the
+ * player-deck top/bottom split Global Logistics (`gmw` 16034) reorders, not just the encounter deck's.
+ */
+export function promptTitleOf(prompt: ChoicePrompt, deps: EngineDeps): string {
+  const kind = prompt.kind;
+  if (kind === "orderCards") {
+    if (prompt.to === "playerDeckTop") return "Put the top of your deck back in order";
+    if (prompt.to === "playerDeckBottom") return "Put the bottom of your deck back in order";
+    return prompt.to === "encounterDeckBottom" ? "Put the bottom pile back in order" : "Put the top pile back in order";
+  }
+  if (kind === "chooseCostCards") {
+    const amount = prompt.mode === "damage" ? deps.abilities[prompt.abilityId]?.cost?.damageCards?.amount : undefined;
+    return costCardsPromptTitleOf(prompt.mode, amount);
+  }
+  if (kind === "divide") return dividePromptTitleOf(prompt.what, prompt.amount, prompt.maxTargets);
+  if (kind === "divideEvenlyRemainder") return "Place the leftover damage";
+  const titles: Record<string, string> = {
+    declareDefender: "Declare a defender",
+    discardDownToHandSize: "Discard to hand size",
+    mulligan: "Mulligan",
+    chooseMinionToActivate: "Choose a minion to activate",
+    orderEnemies: "Order the enemies",
+    orderPlayers: "Order the players",
+    chooseBottomCards: "Choose which cards go to the bottom",
+    orderTriggers: "Order these effects",
+    chooseTriggers: "Trigger an ability?",
+    chooseTarget: "Choose a target",
+    chooseAttachmentTarget: "Choose a host",
+    chooseCards: "Choose cards",
+    lookAt: "Look at these cards",
+    chooseOption: "Choose one",
+    choosePlayer: "Choose a player",
+    orderSpecials: "Order the special abilities",
+    payForCard: "Pay for this card?",
+    payForAbility: "Pay for this ability?",
+    spendResources: "Spend resources?",
+    discardOverAllyLimit: "Discard to your ally limit",
+    discardRestricted: "Discard to two restricted cards",
+    assignIndirectDamage: "Divide this damage",
+  };
+  return titles[kind] ?? "Choose";
 }
 
 /**

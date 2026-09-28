@@ -14,7 +14,7 @@ import { LocalEngineHost } from "../engine/local-host.js";
 import { SessionStore } from "../store/session-store.js";
 import type { SessionConfig } from "../engine/host.js";
 import { POOL_DEPS } from "../content/pool.js";
-import { costChoicePromptFor } from "./cost-choice-model.js";
+import { costChoicePromptFor, describeCost } from "./cost-choice-model.js";
 
 const ROCKET_VS_BADOON: SessionConfig = {
   scenarioId: "infiltrate-the-museum",
@@ -120,5 +120,56 @@ describe("cost-choice mode: an 'up to N' counter cost (We Are Groot)", () => {
     const { costBranches: _dropped, ...rest } = base;
     const fixed: LegalAction = { ...rest, costCounters: { min: 4, max: 4 } };
     expect(costChoicePromptFor(state, POOL_DEPS, fixed)).toBeNull();
+  });
+});
+
+/**
+ * `describeCost`'s own `discardFromDeck` phrasing (line ~72's own bug report): a plain number renders as a number,
+ * not `[object Object]`; a `ValueSpec` count (Shield Spell, `mts` 21061: `eventAmount`; Aunt May & Uncle Ben, `spdr`
+ * 31007: `ifElse(isAlterEgo(), 3, 2)`) resolves to the real number when there's a game to resolve it against, and
+ * otherwise falls back to a readable phrase instead of stringifying the `ValueSpec` object.
+ */
+describe("describeCost: discardFromDeck", () => {
+  beforeEach(intoTurn);
+
+  test("a plain number renders as a number", () => {
+    expect(describeCost({ discardFromDeck: 2 })).toBe("discard the top 2 cards of your deck");
+    expect(describeCost({ discardFromDeck: 1 })).toBe("discard the top 1 card of your deck");
+  });
+
+  test("a ValueSpec with no game to resolve against reads the printed alter-ego shape instead of '[object Object]'", () => {
+    const ifElseThreeInAlterEgo = describeCost({
+      discardFromDeck: {
+        kind: "conditional",
+        if: { kind: "form", player: { kind: "controller" }, form: "alterEgo" },
+        then: { kind: "const", value: 3 },
+        else: { kind: "const", value: 2 },
+      },
+    });
+    expect(ifElseThreeInAlterEgo).toBe("discard the top 2 (3 in alter-ego) cards of your deck");
+    expect(ifElseThreeInAlterEgo).not.toContain("[object Object]");
+  });
+
+  test("eventAmount (Shield Spell, mts 21061) has no event to size itself from here, and reads as a phrase, never '[object Object]'", () => {
+    const shieldSpellLike = describeCost({ discardFromDeck: { kind: "eventAmount" } });
+    expect(shieldSpellLike).not.toContain("[object Object]");
+    expect(shieldSpellLike).toBe("discard however many cards it takes of your deck");
+  });
+
+  test("a ValueSpec resolves to the real number against a real game (Aunt May & Uncle Ben's own shape)", () => {
+    const me1 = state.players.find((player) => player.playerId === me)!;
+    const cost = {
+      discardFromDeck: {
+        kind: "conditional" as const,
+        if: { kind: "form" as const, player: { kind: "controller" as const }, form: "alterEgo" as const },
+        then: { kind: "const" as const, value: 3 },
+        else: { kind: "const" as const, value: 2 },
+      },
+    };
+    const resolveContext = { state, deps: POOL_DEPS, selfInstanceId: me1.identity.instanceId, controllerId: me };
+    const label = describeCost(cost, resolveContext);
+    // `intoTurn` flips into hero form, so the "else" branch (2) is the one currently live.
+    expect(me1.identity.form).toBe("hero");
+    expect(label).toBe("discard the top 2 cards of your deck");
   });
 });

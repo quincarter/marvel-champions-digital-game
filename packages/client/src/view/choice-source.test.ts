@@ -19,7 +19,13 @@ import { POOL_DEPS } from "../content/pool.js";
 import { LocalEngineHost } from "../engine/local-host.js";
 import { SessionStore } from "../store/session-store.js";
 import { cardName } from "./names.js";
-import { choiceHeaderInstanceId, choiceHeaderText, choiceSourceOf, costCardsPromptTitleOf } from "./choice-source.js";
+import {
+  choiceHeaderInstanceId,
+  choiceHeaderText,
+  choiceSourceOf,
+  costCardsPromptTitleOf,
+  promptTitleOf,
+} from "./choice-source.js";
 
 describe("choiceSourceOf: a real Doctor Strange game", () => {
   test("names Crimson Bands of Cyttorak's own Special, not just 'choose a target' — the reported bug", async () => {
@@ -353,5 +359,100 @@ describe("costCardsPromptTitleOf", () => {
   test("falls back to a generic phrase for an unrecognized or missing mode", () => {
     expect(costCardsPromptTitleOf(undefined)).toBe("Choose a card for this cost");
     expect(costCardsPromptTitleOf("nope")).toBe("Choose a card for this cost");
+  });
+
+  test("'damage' names the amount when given one (Thwip Thwip!, `spdr` 31017), else stays generic", () => {
+    expect(costCardsPromptTitleOf("damage", 1)).toBe("Choose a character to take 1 damage");
+    expect(costCardsPromptTitleOf("damage", 2)).toBe("Choose a character to take 2 damage");
+    expect(costCardsPromptTitleOf("damage")).toBe("Choose a character to take damage");
+  });
+});
+
+describe("promptTitleOf", () => {
+  // Wave 5's SP//dr (`spdr` 31017, Thwip Thwip!) isn't wired into `POOL_DEPS`'s playable pool yet
+  // (docs/phase7-wave5.md), so this uses a fixture `AbilityDefinition` with the same `AbilityCost.damageCards` shape
+  // its own docblock names — the `ability-label.test.ts` fixture-deps pattern — rather than the real ability id.
+  const THWIP_THWIP_LIKE_DEPS = {
+    abilities: {
+      "test.deal-damage": {
+        trigger: { kind: "action" },
+        cost: { damageCards: { slot: "x", query: { kind: "character" }, min: 1, max: 1, amount: 1 } },
+        effects: [],
+      } as never,
+    },
+  };
+
+  test("chooseCostCards, mode damage, names the amount straight off the ability's own AbilityCost (Thwip Thwip!, spdr 31017)", () => {
+    expect(
+      promptTitleOf(
+        {
+          kind: "chooseCostCards",
+          instanceId: "i1" as never,
+          abilityId: "test.deal-damage" as never,
+          slot: "x",
+          mode: "damage",
+        },
+        THWIP_THWIP_LIKE_DEPS as never,
+      ),
+    ).toBe("Choose a character to take 1 damage");
+  });
+
+  test("chooseCostCards, mode damage, falls back to the bare verb when the ability id isn't in the registry", () => {
+    expect(
+      promptTitleOf(
+        {
+          kind: "chooseCostCards",
+          instanceId: "i1" as never,
+          abilityId: "nope.nope" as never,
+          slot: "x",
+          mode: "damage",
+        },
+        POOL_DEPS,
+      ),
+    ).toBe("Choose a character to take damage");
+  });
+
+  test("divide, a status division, names the amount, the noun and the maxTargets cap (Thwip Thwip!, spdr 31017)", () => {
+    expect(promptTitleOf({ kind: "divide", what: "stunned", amount: 2, maxTargets: 2 }, POOL_DEPS)).toBe(
+      "Divide 2 stun cards among up to 2 enemies",
+    );
+    expect(promptTitleOf({ kind: "divide", what: "confused", amount: 1, maxTargets: 1 }, POOL_DEPS)).toBe(
+      "Divide 1 confuse card among up to 1 enemies",
+    );
+  });
+
+  test("divide, damage or threat, names the amount without a card noun", () => {
+    expect(promptTitleOf({ kind: "divide", what: "damage", amount: 3 }, POOL_DEPS)).toBe("Divide 3 damage");
+    expect(promptTitleOf({ kind: "divide", what: "threat", amount: 2 }, POOL_DEPS)).toBe("Divide 2 threat");
+  });
+
+  test("divideEvenlyRemainder places the leftover (Bombshell, spdr 31031)", () => {
+    expect(promptTitleOf({ kind: "divideEvenlyRemainder", amount: 1, each: 2 }, POOL_DEPS)).toBe(
+      "Place the leftover damage",
+    );
+  });
+
+  test("orderCards: the encounter deck's own two piles keep their existing titles", () => {
+    expect(promptTitleOf({ kind: "orderCards", to: "encounterDeckTop" }, POOL_DEPS)).toBe(
+      "Put the top pile back in order",
+    );
+    expect(promptTitleOf({ kind: "orderCards", to: "encounterDeckBottom" }, POOL_DEPS)).toBe(
+      "Put the bottom pile back in order",
+    );
+  });
+
+  test("orderCards: a player deck's own two piles (Global Logistics, gmw 16034) get their own titles, not the encounter deck's", () => {
+    expect(promptTitleOf({ kind: "orderCards", to: "playerDeckTop", deckOwner: "p1" as never }, POOL_DEPS)).toBe(
+      "Put the top of your deck back in order",
+    );
+    expect(promptTitleOf({ kind: "orderCards", to: "playerDeckBottom", deckOwner: "p1" as never }, POOL_DEPS)).toBe(
+      "Put the bottom of your deck back in order",
+    );
+  });
+
+  test("every other kind keeps its existing generic title", () => {
+    expect(promptTitleOf({ kind: "mulligan", handSize: 5 }, POOL_DEPS)).toBe("Mulligan");
+    expect(promptTitleOf({ kind: "chooseTarget", slot: "x", abilityId: null }, POOL_DEPS)).toBe("Choose a target");
+    expect(promptTitleOf({ kind: "somethingNew" as never }, POOL_DEPS)).toBe("Choose");
   });
 });

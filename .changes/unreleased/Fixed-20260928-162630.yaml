@@ -1,0 +1,3 @@
+kind: Fixed
+body: Choice sheet titles now name the leftover-damage, status-card-divide, damage-cost and player-deck-bottom prompts instead of falling back to a bare 'Choose'
+time: 2026-09-28T16:26:30.193152-04:00
