@@ -1,7 +1,9 @@
 import type { AbilityRegistry } from "@mc/engine";
 import { mergeRegistries } from "../../dsl/index.js";
+import { SPIDERHAM_ALLIES } from "./allies.js";
 import { SPIDERHAM_EVENTS } from "./events.js";
 import { SPIDERHAM_IDENTITY } from "./identity.js";
+import { SPIDERHAM_SUPPORT_UPGRADES } from "./support-upgrades.js";
 
 /**
  * Every Spider-Ham (`spiderham` 30001a-30038) ability scripted directly (docs/phase7-wave5.md). Only his identity
@@ -23,4 +25,9 @@ import { SPIDERHAM_IDENTITY } from "./identity.js";
  * );
  * ```
  */
-export const SPIDERHAM_ABILITIES: AbilityRegistry = mergeRegistries(SPIDERHAM_IDENTITY, SPIDERHAM_EVENTS);
+export const SPIDERHAM_ABILITIES: AbilityRegistry = mergeRegistries(
+  SPIDERHAM_IDENTITY,
+  SPIDERHAM_EVENTS,
+  SPIDERHAM_ALLIES,
+  SPIDERHAM_SUPPORT_UPGRADES,
+);
