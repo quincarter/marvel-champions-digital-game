@@ -319,25 +319,44 @@ describe("Honed Technique (upgrade, 28017)", () => {
 });
 
 describe("Moon Girl (ally, 28018)", () => {
-  it("28018.moon-girl-response: draws 1 card for each [mental] resource used to pay for her", () => {
+  it("28018.moon-girl-response: draws exactly 1 card per [mental] resource paid for her (3 [mental] cards)", () => {
     const state = run(novaVsRhino(1), toHero(P1)); // Nova (hero form) has the champion trait.
-    // Precon-only resource cards produce [wild], never printed [mental] — Connection to the Worldmind (28007, max
-    // 2 in this deck) pays as [mental] when declared so at payment time (any wild resource can cover any type).
-    const given = moveToHand(state, P1, "28018", "28007", "28007", "28015");
-    const [moonGirl, w1, w2, w3] = given.ids as [InstanceId, InstanceId, InstanceId, InstanceId];
+    // Lightspeed Flight (28004, `resourceIcons: { mental: 1 }`, max 3 in this deck) is a genuine printed [mental]
+    // icon — unlike a wild-icon resource card (Connection to the Worldmind, 28007), which `printedResources`
+    // (`packages/engine/src/resources.ts`) puts in `pool.wild`, never `pool.mental`, regardless of what it's
+    // "declared as": a wild only ever fills a cost's own typed *requirement* slots (`resourceVars`,
+    // `packages/engine/src/actions.ts`), and Moon Girl's cost is a plain generic 3 with no typed requirement to
+    // fill, so a wild spent on her never counts as `paid.mental`.
+    const given = moveToHand(state, P1, "28018", "28004", "28004", "28004");
+    const [moonGirl, m1, m2, m3] = given.ids as [InstanceId, InstanceId, InstanceId, InstanceId];
     const beforeHand = playerOf(given.state, P1).hand.length;
     const after = settle(
-      runWith(WAVE5_DEPS, given.state, play(P1, moonGirl, [w1, w2, w3])),
-      firstLegal,
+      runWith(WAVE5_DEPS, given.state, play(P1, moonGirl, [m1, m2, m3])),
+      accepting("28018.moon-girl-response"), // Response is an optional trigger; `firstLegal` alone declines it.
       undefined,
       WAVE5_DEPS,
     );
-    // 3 cards spent to pay a cost of 3 (Moon Girl's printed cost): drawing 1 per [mental] resource used to pay her
-    // depends on the payment declaring those wilds as [mental] — asserted loosely (>= 0, <= 3) since the harness's
-    // `payWith`-free direct payment here does not itself declare a resource type; the exact-effect assertion is the
-    // `paid.mental` var reaching Moon Girl's own response at all, proven by the hand's net size matching "cost paid,
-    // then drew that many mental resources' worth back".
-    expect(playerOf(after, P1).hand.length).toBeGreaterThanOrEqual(beforeHand - 4); // 4 cards left hand to pay.
+    // 4 cards left hand to pay Moon Girl's own printed cost of 3, then her Response draws back exactly 3 (1 per
+    // [mental] resource paid) — not "some number >= 0", the exact printed effect.
+    expect(playerOf(after, P1).hand.length).toBe(beforeHand - 4 + 3);
+    expect(playerOf(after, P1).playArea).toContain(moonGirl);
+  });
+
+  it("28018.moon-girl-response: draws 0 cards when Moon Girl is paid with 0 [mental] resources", () => {
+    const state = run(novaVsRhino(1), toHero(P1));
+    // Pot Shot (28005, `resourceIcons: { energy: 1 }`, max 3 in this deck): the same cost of 3, paid with cards
+    // that carry no printed [mental] icon at all.
+    const given = moveToHand(state, P1, "28018", "28005", "28005", "28005");
+    const [moonGirl, e1, e2, e3] = given.ids as [InstanceId, InstanceId, InstanceId, InstanceId];
+    const beforeHand = playerOf(given.state, P1).hand.length;
+    const after = settle(
+      runWith(WAVE5_DEPS, given.state, play(P1, moonGirl, [e1, e2, e3])),
+      accepting("28018.moon-girl-response"), // accepted, not just declined — still draws 0.
+      undefined,
+      WAVE5_DEPS,
+    );
+    // 4 cards left hand to pay her cost of 3; her Response draws 0 (0 [mental] resources paid).
+    expect(playerOf(after, P1).hand.length).toBe(beforeHand - 4);
     expect(playerOf(after, P1).playArea).toContain(moonGirl);
   });
 });

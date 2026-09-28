@@ -189,7 +189,13 @@ export function coreScenario(scenarioId: string, options: CoreScenarioOptions): 
     villainStartStageIndex: stageIndex(firstStage),
     villainLastStageIndex: stageIndex(lastStage),
     mainSchemeCardId: scenario.mainSchemeCardId,
-    encounterDeck: [...encounterCardsOf(sets), ...encounterCardsOf(difficultySets, difficultyPool)],
+    // `sets` (a scenario's own printed encounter sets plus `modularSetIds`) reads `options.cardPool` too — a
+    // `modularSetIds` set from a later cycle at a Core scenario (`novaScenario`'s "a hero pack's own modular set at
+    // a Core scenario" shape) is not in `CORE_CARDS`, `encounterCardsOf`'s own default `pool`.
+    encounterDeck: [
+      ...encounterCardsOf(sets, options.cardPool ?? CORE_CARDS),
+      ...encounterCardsOf(difficultySets, difficultyPool),
+    ],
     players: options.players.map((seat) =>
       "starterDeckId" in seat
         ? starterDeckSetup(seat.starterDeckId)
