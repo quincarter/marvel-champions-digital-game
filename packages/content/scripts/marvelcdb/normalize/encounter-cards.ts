@@ -106,7 +106,11 @@ export function normalizeEncounterCard(
       const ownWhenRevealed = p.impliedAttachHost === "ownWhenRevealed";
       const attachesTo =
         parsed.attachesTo ??
-        (p.impliedAttachHost && p.impliedAttachHost !== "ownWhenRevealed" ? { kind: p.impliedAttachHost } : undefined);
+        (typeof p.impliedAttachHost === "object"
+          ? p.impliedAttachHost
+          : p.impliedAttachHost && p.impliedAttachHost !== "ownWhenRevealed"
+            ? { kind: p.impliedAttachHost }
+            : undefined);
       if (!attachesTo && !ownWhenRevealed) {
         errors.push(`${r.code}: attachment without an attach rule`);
         return;

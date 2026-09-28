@@ -37,17 +37,29 @@ export const SM_CURATION: PackCuration = {
     // docs/phase7-wave5.md §1.9: Manipulated Mind's own When Revealed reads "Attach to the ally you control with
     // the lowest cost. Attached ally engages its controller. Otherwise, this card gains surge." — the "Attach to"
     // clause sits inside the ability body (after "When Revealed: "), not as its own preamble sentence, so the
-    // parser's `sentence.startsWith("Attach to ")` scan never sees it. The specific "lowest cost" narrowing is the
-    // When Revealed ability's own job (an `ability-scripting-engineer` concern); the structural host recorded here
-    // is the generic category, the same way Focused Defense's `impliedAttachHost` is just `"mainScheme"` rather
-    // than "the stage this ability names" (wave 4 §1.13 precedent).
+    // parser's `sentence.startsWith("Attach to ")` scan never sees it. The host is the card's own words as data:
+    // the lowest printed cost among allies the revealing player controls (`controlledBy: "you"`; RRG 1.8 "Ownership
+    // and Control", p. 31), ties the first player's choice. A plain `"ally"` let the reveal attach to any player's
+    // ally. MarvelCDB also misspells "Attached minion's" as "Attach minion's" (checked against the scan, 27171.png).
     {
       code: "27171",
       reason:
         'Manipulated Mind has no preamble "Attach to X." sentence: its host is established by its own When ' +
         'Revealed ("Attach to the ally you control with the lowest cost"), inside the ability body.',
       evidence: 'raw 27171 real_text: "When Revealed: Attach to the ally you control with the lowest cost. ..."',
-      impliedAttachHost: "ally",
+      impliedAttachHost: {
+        kind: "superlative",
+        among: "ally",
+        order: "lowest",
+        measure: "printedCost",
+        controlledBy: "you",
+      },
+    },
+    {
+      code: "27171",
+      reason: 'MarvelCDB reads "Attach minion\'s SCH"; the card prints "Attached minion\'s SCH".',
+      evidence: "Card scan assets/card-art/bundles/cards/27171.png.",
+      textReplace: { find: "Attach minion's SCH", replace: "Attached minion's SCH" },
     },
     // docs/phase7-wave5.md §1.9: Old Grudge's own When Revealed reads "Search the encounter deck, discard pile,
     // and set-aside area for your nemesis minion, then reveal that minion. Attach Old Grudge to it. (Shuffle.)" —
@@ -298,7 +310,25 @@ export const SM_CURATION: PackCuration = {
     },
   ],
 
-  errata: [],
+  errata: [
+    // RRG 1.8 p. 67, "Manipulated Mind (#171)": MarvelCDB's text is already current (its own `errata` field reads
+    // 'Added "Attached ally engages its controller." (RRG 1.5)'); the print (scan 27171.png) reads "… with the lowest
+    // cost. If you cannot, this card gains surge."
+    {
+      code: "27171",
+      version: "RRG 1.5",
+      changedFields: ["text"],
+      note: 'Added "Attached ally engages its controller."',
+      evidence:
+        'RRG 1.8 p. 67, "Manipulated Mind (#171)": "Should read: \'When Revealed: Attach to the ally you control with ' +
+        "the lowest cost. Attached ally engages its controller. Otherwise, this card gains surge.'\" Printed text from " +
+        "the card scan, 27171.png.",
+      printedReplace: {
+        find: "Attached ally engages its controller. Otherwise, this card gains surge.",
+        replace: "If you cannot, this card gains surge.",
+      },
+    },
+  ],
 
   scriptingNotes: {},
 

@@ -18,10 +18,12 @@ import {
   encounterCards,
   encounterSetAside,
   each,
+  engage,
   eventTarget,
   gets,
   host,
   ifThen,
+  isAttached,
   placeThreat,
   printedCostOf,
   query,
@@ -32,7 +34,9 @@ import {
   self,
   setAside,
   shuffleEncounterDeck,
+  surge,
   threatOn,
+  treatAttachedAllyAsMinion,
   whenRevealed,
   you,
 } from "../../../dsl/index.js";
@@ -43,23 +47,20 @@ const PERSONA = trait("PERSONA");
  * Whispers of Paranoia (`sm` 27170–27173, Mysterio's own recommended modular set, MC27 p. 20): Delusion of
  * Collusion, Manipulated Mind, Old Grudge, Analysis Paralysis.
  *
- * Delusion of Collusion (27170), Old Grudge (27172) and Analysis Paralysis (27173) are scripted here. Manipulated
- * Mind needs something that doesn't exist yet one level below the ability DSL — reported rather than hacked around:
+ * All four are scripted here.
  *
- * - **Manipulated Mind (27171)**: "Treat attached ally as a minion with a blank text box (except for traits).
- *   Attached minion's SCH is equal to its printed THW and it does not take consequential damage. When Revealed:
- *   Attach to the ally you control with the lowest cost. Attached ally engages its controller. Otherwise, this
- *   card gains surge." The engine's `treatAsAlly` (`spec.ts` `EffectSpec`, Karma `rogue` 38011) is the mirror of
- *   this — a *minion* treated as an *ally*, with blank text, a THW/SCH stat swap and *extra* consequential damage
- *   after acting — but there is no `treatAsMinion` going the other way (an *ally* treated as a *minion*, with a
- *   SCH/THW swap and consequential damage *cancelled* rather than added to). A `game-rules-architect` primitive,
- *   not an ability-DSL gap. Separately, its own attach target ("the ally you control with the lowest cost") *can*
- *   already be expressed as data (`AttachmentHost` `{ kind: "superlative", among: "ally", order: "lowest", measure:
- *   "printedCost" }`, the same shape `Beguiled`/'Pool-ized' already use, `attachment-host.ts` `HostMeasure`
- *   `printedCost`) — the card's own current data (`packages/content/src/data/sm/cards.ts` 27171) carries a plain
- *   `{ kind: "ally" }` instead, which auto-attaches to an *arbitrary* ally (or opens a first-player choice among
- *   all of them) rather than specifically the cheapest one; a `card-data-pipeline` curation fix, reported alongside
- *   the primitive since the card can't work correctly until both land.
+ * - **Manipulated Mind (27171)**: "Treat attached ally as a minion with a blank text box (except for traits). Attached
+ *   minion's SCH is equal to its printed THW and it does not take consequential damage. When Revealed: Attach to the
+ *   ally you control with the lowest cost. Attached ally engages its controller. Otherwise, this card gains surge."
+ *   (errata RRG 1.8 p. 67 added "Attached ally engages its controller."; the scan, 27171.png, is the pre-errata print).
+ *   Beguiled's own shape (`wave4/mts/enchantress.ts` 21178; docs/phase7-wave4.md §3.9) with "(except for traits)"
+ *   (`keepPrintedTraits`) and no new trait. The host is data: `attachesTo` is the lowest printed cost among allies the
+ *   revealing player controls (`superlative` … `controlledBy: "you"`, RRG 1.8 "Ownership and Control", p. 31), ties
+ *   the first player's choice (RRG 1.8 "First Player", p. 19). While attached the ally is an engaged minion nobody
+ *   controls, so its controller cannot use it; it activates in the villain phase like any engaged minion and a minion
+ *   takes no consequential damage. Ruling, Dec 17, 2025 (1) #3: nothing enters or leaves play, so its damage, tokens
+ *   and exhausted state stay; when Manipulated Mind leaves it is its controller's ally again (RRG 1.8 "Ownership and
+ *   Control", p. 31: the control-changing ability "ceases to be in effect").
  *
  * - **Old Grudge (27172)**: "Attached minion gets +1 hit point. When Revealed: Search the encounter deck, discard
  *   pile, and set-aside area for your nemesis minion, then reveal that minion. Attach Old Grudge to it. (Shuffle.)
@@ -131,6 +132,13 @@ export const WHISPERS_OF_PARANOIA = defineAbilities({
       ),
     ],
   }),
+
+  // Manipulated Mind (27171, attachment; module docblock) — Treat attached ally as a minion with a blank text box
+  // (except for traits). Attached minion's SCH is equal to its printed THW and it does not take consequential damage.
+  "27171.manipulated-mind-constant": constant(treatAttachedAllyAsMinion([], { keepPrintedTraits: true })),
+  // Manipulated Mind — When Revealed: Attach to the ally you control with the lowest cost (data `attachesTo`).
+  // Attached ally engages its controller. Otherwise, this card gains surge.
+  "27171.when-revealed": whenRevealed(ifThen(isAttached(self), engage(host, controllerOf(host)), surge())),
 
   // Old Grudge (27172, attachment, no "attach to" text — module docblock). Attached minion gets +1 hit point.
   "27172.old-grudge-constant": constant(gets("hp", 1, query("minion", { hostOfSelf: true }))),

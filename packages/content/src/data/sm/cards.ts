@@ -4200,14 +4200,24 @@ export const SM_CARDS: readonly AnyCard[] = [
     quantityInSet: 1,
     unique: false,
     images: { front: imageRef("/bundles/cards/27171.png") },
-    attachesTo: { kind: "ally" },
+    errata: {
+      currentVersion: "RRG 1.5",
+      history: [
+        {
+          version: "RRG 1.5",
+          changedFields: ["text"],
+          note: "Added \"Attached ally engages its controller.\"",
+        },
+      ],
+    },
+    attachesTo: { kind: "superlative", among: "ally", order: "lowest", measure: "printedCost", controlledBy: "you" },
     encounterSetIds: [encounterSetId("whispers_of_paranoia")],
     boostIcons: 2,
     traits: [trait("ILLUSION")],
     keywords: [],
     text: {
-      printed: "Treat attached ally as a minion with a blank text box (except for traits). Attach minion's SCH is equal to its printed THW and it does not take consequential damage.\nWhen Revealed: Attach to the ally you control with the lowest cost. Attached ally engages its controller. Otherwise, this card gains surge.",
-      current: "Treat attached ally as a minion with a blank text box (except for traits). Attach minion's SCH is equal to its printed THW and it does not take consequential damage.\nWhen Revealed: Attach to the ally you control with the lowest cost. Attached ally engages its controller. Otherwise, this card gains surge.",
+      printed: "Treat attached ally as a minion with a blank text box (except for traits). Attached minion's SCH is equal to its printed THW and it does not take consequential damage.\nWhen Revealed: Attach to the ally you control with the lowest cost. If you cannot, this card gains surge.",
+      current: "Treat attached ally as a minion with a blank text box (except for traits). Attached minion's SCH is equal to its printed THW and it does not take consequential damage.\nWhen Revealed: Attach to the ally you control with the lowest cost. Attached ally engages its controller. Otherwise, this card gains surge.",
     },
     abilities: [{ id: abilityId("27171.manipulated-mind-constant") }, { id: abilityId("27171.when-revealed") }],
   },

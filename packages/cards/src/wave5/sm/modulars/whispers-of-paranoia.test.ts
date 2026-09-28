@@ -1,5 +1,19 @@
-import { encounterSetId } from "@mc/content";
-import { activeEncounterDeck, type GameState, type InstanceId, maxHitPoints, type PlayerId } from "@mc/engine";
+import { abilityId, cardId, encounterSetId } from "@mc/content";
+import {
+  activeAbilityRefs,
+  activeEncounterDeck,
+  categoriesOf,
+  characterProfile,
+  controllerOf,
+  type EngineDeps,
+  type GameState,
+  type InstanceId,
+  isMinion,
+  legalActions,
+  maxHitPoints,
+  type PlayerId,
+  traitsOf,
+} from "@mc/engine";
 import { describe, expect, it } from "vitest";
 import {
   endTurn,
@@ -9,6 +23,7 @@ import {
   instancesOf,
   moveToHand,
   P1,
+  patchInstance,
   playerOf,
   runWith,
   settle,
@@ -18,6 +33,7 @@ import {
   use,
   type Picker,
 } from "../../../testing/harness.js";
+import { action, defineAbilities, discard, each, query } from "../../../dsl/index.js";
 import { driveEventsPicking } from "../../../testing/staging.js";
 import { runWave5, startWave5Game, WAVE5_DEPS } from "../../testing.js";
 import { ghostSpiderScenario } from "../ghost-spider/support.js";
@@ -408,5 +424,166 @@ describe("Old Grudge (27172)", () => {
   });
 });
 
-// Manipulated Mind (27171) is not scripted — see the module docblock in `whispers-of-paranoia.ts` for the exact
-// engine/schema gap it is blocked on.
+describe("Manipulated Mind (27171)", () => {
+  // Ghost-Spider at Mysterio, alter-ego form: Mysterio schemes and takes one boost card (the first Advance filler),
+  // then Manipulated Mind is P1's dealt encounter card. Allies from her precon: Silk (27010, cost 2), Spider-UK (27012,
+  // cost 3, ATK 2 THW 1), Spider-Man (Hobie Brown) (27017, cost 3, ATK 1 THW 2, 2 consequential damage after it
+  // thwarts, and a constant ability), Spider-Man (Miles Morales) (27011, cost 4).
+  const MANIPULATED_MIND = "27171";
+  const SILK = "27010";
+  const SPIDER_UK = "27012";
+  const HOBIE = "27017";
+  const MILES = "27011";
+
+  const withAllies = (state: GameState, ...codes: readonly string[]) => {
+    let current = state;
+    const ids: InstanceId[] = [];
+    for (const code of codes) {
+      const placed = putCardIntoPlay(current, code, P1);
+      current = placed.state;
+      ids.push(placed.id);
+    }
+    return { state: current, ids };
+  };
+
+  const revealManipulatedMind = (state: GameState, pick: Picker = firstLegal) => {
+    const [mind] = instancesOf(state, MANIPULATED_MIND);
+    const choices: string[][] = [];
+    const recording: Picker = (s) => {
+      choices.push((s.pendingChoice?.options ?? []).map((o) => o.optionId));
+      return pick(s);
+    };
+    const { state: after, events } = driveEventsPicking(
+      WAVE5_DEPS,
+      stackEncounterDeck(state, "01186", MANIPULATED_MIND),
+      recording,
+      endTurn(P1),
+    );
+    const revealed = events.flatMap((e) => (e.type === "encounterCardRevealed" ? [e.instanceId] : []));
+    expect(revealed).toContain(mind);
+    return { state: after, mind: mind!, events, choices };
+  };
+
+  const usableBy = (state: GameState, id: InstanceId): boolean => {
+    const actions = legalActions(state, P1, WAVE5_DEPS);
+    return actions.kind === "turn" && actions.legal.some((a) => JSON.stringify(a.action).includes(`"${id}"`));
+  };
+
+  it("27171.when-revealed: attaches to the ally you control with the lowest cost, which engages you as a minion", () => {
+    const { state, ids } = withAllies(mysterioGame(), MILES, SILK, SPIDER_UK);
+    const [miles, silk, uk] = ids as [InstanceId, InstanceId, InstanceId];
+    const { state: after, mind, events } = revealManipulatedMind(state);
+    expect(inst(after, mind).attachedTo).toBe(silk);
+    expect(inst(after, silk).engagedWith).toBe(P1);
+    expect(isMinion(after, silk)).toBe(true);
+    expect(isMinion(after, miles)).toBe(false);
+    expect(isMinion(after, uk)).toBe(false);
+    expect(events.some((e) => e.type === "surgeTriggered" && e.instanceId === mind)).toBe(false);
+  });
+
+  it("27171.manipulated-mind-constant: a minion with a blank text box but its traits, SCH = printed THW, that you cannot use", () => {
+    const { state, ids } = withAllies(mysterioGame(2), MILES, HOBIE);
+    const [miles, hobie] = ids as [InstanceId, InstanceId];
+    expect(usableBy(state, hobie)).toBe(true);
+    const { state: after, mind } = revealManipulatedMind(state);
+    expect(inst(after, mind).attachedTo).toBe(hobie);
+    expect(categoriesOf(after, hobie)).toEqual(["minion", "enemy", "character"]);
+    expect(traitsOf(after, hobie, WAVE5_DEPS)).toEqual(["WEB-WARRIOR"]);
+    expect(activeAbilityRefs(after, hobie, WAVE5_DEPS)).toEqual([]);
+    expect(activeAbilityRefs(after, miles, WAVE5_DEPS)).not.toEqual([]);
+    expect(characterProfile(after, hobie, WAVE5_DEPS)).toMatchObject({ kind: "minion", sch: 2, atk: 1 });
+    expect(controllerOf(after, hobie)).toBeNull();
+    expect(usableBy(after, hobie)).toBe(false);
+    expect(usableBy(after, miles)).toBe(true);
+  });
+
+  it("a tie on the lowest cost is the first player's choice between the tied allies", () => {
+    const { state, ids } = withAllies(mysterioGame(3), MILES, HOBIE, SPIDER_UK);
+    const [miles, hobie, uk] = ids as [InstanceId, InstanceId, InstanceId];
+    const pickUk: Picker = (s) => {
+      const option = s.pendingChoice?.options.find((o) => o.optionId.includes(uk));
+      return option ? [option.optionId] : firstLegal(s);
+    };
+    const { state: after, mind, choices } = revealManipulatedMind(state, pickUk);
+    const hostChoice = choices.find((options) => options.some((o) => o.includes(uk)))!;
+    expect(hostChoice).toHaveLength(2);
+    expect(hostChoice.some((o) => o.includes(hobie))).toBe(true);
+    expect(hostChoice.some((o) => o.includes(miles))).toBe(false);
+    expect(inst(after, mind).attachedTo).toBe(uk);
+    expect(isMinion(after, uk)).toBe(true);
+    expect(isMinion(after, hobie)).toBe(false);
+  });
+
+  it("in the next villain phase it schemes for its printed THW and takes no consequential damage", () => {
+    const { state, ids } = withAllies(mysterioGame(4), HOBIE);
+    const [hobie] = ids as [InstanceId];
+    const { state: manipulated } = revealManipulatedMind(state);
+    expect(isMinion(manipulated, hobie)).toBe(true);
+    const { state: after, events } = driveEventsPicking(WAVE5_DEPS, manipulated, firstLegal, endTurn(P1));
+    const activations = events.flatMap((e) =>
+      e.type === "enemyActivated" && e.enemyInstanceId === hobie ? [e.activation] : [],
+    );
+    const threat = events.flatMap((e) => (e.type === "threatPlaced" && e.sourceInstanceId === hobie ? [e.amount] : []));
+    expect(activations).toEqual(["scheme"]);
+    expect(threat).toEqual([2]);
+    expect(inst(after, hobie).damage).toBe(0);
+  });
+
+  it("negative: with no ally you control, it attaches to nothing and gains surge", () => {
+    const { state: after, mind, events } = revealManipulatedMind(mysterioGame(5));
+    expect(inst(after, mind).attachedTo).toBeNull();
+    expect(activeEncounterDeck(after).discard).toContain(mind);
+    expect(events.some((e) => e.type === "surgeTriggered" && e.instanceId === mind)).toBe(true);
+    const revealed = events.flatMap((e) => (e.type === "encounterCardRevealed" ? [e.instanceId] : []));
+    expect(revealed.length).toBeGreaterThan(revealed.indexOf(mind) + 1);
+  });
+
+  it("when Manipulated Mind is discarded, the ally is yours again with its text, damage and exhausted state", () => {
+    const { state, ids } = withAllies(mysterioGame(6), HOBIE);
+    const [hobie] = ids as [InstanceId];
+    const { state: manipulated, mind } = revealManipulatedMind(state);
+    const tired = patchInstance(manipulated, hobie, { damage: 1, exhausted: true });
+    const { state: freed } = playDiscardEachAttachment(tired);
+    expect(inst(freed, mind).attachedTo).toBeNull();
+    expect(activeEncounterDeck(freed).discard).toContain(mind);
+    expect(categoriesOf(freed, hobie)).toEqual(["ally", "character"]);
+    expect(controllerOf(freed, hobie)).toBe(P1);
+    expect(inst(freed, hobie).engagedWith).toBeNull();
+    expect(activeAbilityRefs(freed, hobie, WAVE5_DEPS)).not.toEqual([]);
+    expect(inst(freed, hobie).damage).toBe(1);
+    expect(inst(freed, hobie).exhausted).toBe(true);
+  });
+});
+
+/**
+ * No card in the pool simply "discards an attachment" from a friendly character, so this plays a test-only 0-cost event
+ * ("Discard each attachment.") added to the card pool and ability registry: the attachment leaves through the engine's
+ * own discard path rather than by surgery.
+ */
+function playDiscardEachAttachment(state: GameState) {
+  const eventId = cardId("99999");
+  const ability = abilityId("99999.test-discard-each-attachment");
+  const template = Object.values(state.cardPool).find((c) => c.type === "event")!;
+  const deps: EngineDeps = {
+    abilities: {
+      ...WAVE5_DEPS.abilities,
+      ...defineAbilities({ [ability]: action(discard(each(query("attachment")))) }),
+    },
+  };
+
+  const [handCard] = playerOf(state, P1).hand as [InstanceId];
+  const instanceId = "test-discard-each-attachment-1" as InstanceId;
+  const staged: GameState = {
+    ...state,
+    cardPool: { ...state.cardPool, [eventId]: { ...template, id: eventId, cost: 0, abilities: [{ id: ability }] } },
+    instances: { ...state.instances, [instanceId]: { ...inst(state, handCard), instanceId, cardId: eventId } },
+    players: state.players.map((p) => (p.playerId === P1 ? { ...p, hand: [...p.hand, instanceId] } : p)),
+  };
+  return driveEventsPicking(deps, staged, firstLegal, {
+    type: "playCard",
+    playerId: P1,
+    cardInstanceId: instanceId,
+    payment: [],
+    attachToInstanceId: null,
+  });
+}

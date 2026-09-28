@@ -611,6 +611,8 @@ export const SM_PROVENANCE: readonly CardProvenance[] = [
     marvelcdbCodes: ["27171"],
     corrections: [
       "27171: Manipulated Mind has no preamble \"Attach to X.\" sentence: its host is established by its own When Revealed (\"Attach to the ally you control with the lowest cost\"), inside the ability body. [evidence: raw 27171 real_text: \"When Revealed: Attach to the ally you control with the lowest cost. ...\"]",
+      "27171: MarvelCDB reads \"Attach minion's SCH\"; the card prints \"Attached minion's SCH\". [evidence: Card scan assets/card-art/bundles/cards/27171.png.]",
+      "27171: errata RRG 1.5 — Added \"Attached ally engages its controller.\" [evidence: RRG 1.8 p. 67, \"Manipulated Mind (#171)\": \"Should read: 'When Revealed: Attach to the ally you control with the lowest cost. Attached ally engages its controller. Otherwise, this card gains surge.'\" Printed text from the card scan, 27171.png.]",
     ],
   },
   {
