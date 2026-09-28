@@ -790,6 +790,13 @@ export function explainQuery(
     );
     if (!sets.some((setId) => wanted.has(setId))) return "wrongEncounterSet";
   }
+  if (query.scenarioSpecific !== undefined) {
+    // RRG 1.8 "Scenario-Specific Card" (p. 39): a card of the set the scenario's own main scheme belongs to.
+    const mainScheme = state.cardPool[state.mainScheme.cardId];
+    const own = mainScheme && "encounterSetIds" in mainScheme ? (mainScheme.encounterSetIds as readonly string[]) : [];
+    const isScenarioSpecific = encounterSetsOf(state, id).some((setId) => own.includes(setId));
+    if (isScenarioSpecific !== query.scenarioSpecific) return "wrongEncounterSet";
+  }
   // Team-Up names (docs/phase7-wave3.md §3.34; `titles.ts`): the character showing that title, or a card of the
   // identity-specific set of the identity with that title, whoever controls either.
   if (query.titled !== undefined) {

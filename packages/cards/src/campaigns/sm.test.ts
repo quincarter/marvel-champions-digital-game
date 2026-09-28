@@ -727,3 +727,154 @@ describe('SM_CAMPAIGN_DEFINITION nodes 21 and 25\'s rewards: "Each player may se
     expect(instancesOf(state, HELICARRIER).some((copy) => copy.inPlay)).toBe(false);
   });
 });
+
+describe('SM_CAMPAIGN_DEFINITION node 17\'s penalty: "Setup: The first player must search the encounter deck and discard pile for a scenario-specific side scheme, then reveal it. Place 1[per_hero] threat on that side scheme. (Shuffle.)" (MC27 p. 22)', () => {
+  const PENALTY = "sm.rep.node17.penalty";
+  const SLOT = "node17scheme";
+  const nameOf = (state: GameState, instanceId: string) =>
+    state.cardPool[state.instances[instanceId as never]?.cardId as string]?.name;
+  const setsOf = (state: GameState, instanceId: string): readonly string[] => {
+    const card = state.cardPool[state.instances[instanceId as never]?.cardId as string];
+    return card && "encounterSetIds" in card ? (card.encounterSetIds as readonly string[]) : [];
+  };
+  /** Every side scheme in the encounter deck or discard pile right now. */
+  const searchableSideSchemes = (state: GameState): readonly string[] =>
+    state.encounterDeckOrder
+      .flatMap((deckId) => [
+        ...(state.encounterDecks[deckId]?.deck ?? []),
+        ...(state.encounterDecks[deckId]?.discard ?? []),
+      ])
+      .filter((id) => state.cardPool[state.instances[id]?.cardId as string]?.type === "side_scheme");
+
+  /** The log of scenario `index` (0-based), with node 17's penalty appended as marking node 17 leaves it. */
+  const withPenalty = (index: number): CampaignLog => {
+    const log = logAt(index);
+    return { ...log, shared: { ...log.shared, reputationSetups: { kind: "instructionList", ids: [PENALTY] } } };
+  };
+
+  /** Records node 17's search prompt and answers it with the copy of `pickName` (or the first option). */
+  const recordingPicker = (pickName?: string) => {
+    const seen: {
+      offered: readonly string[];
+      searchable: readonly string[];
+      chooser: string;
+      firstPlayer: string;
+      min: number;
+      max: number;
+      picked?: string;
+    }[] = [];
+    const pick: Picker = (state) => {
+      const choice = state.pendingChoice;
+      if (choice?.prompt.kind === "chooseCards" && choice.prompt.slot === SLOT) {
+        const offered = choice.options.map((option) => option.optionId);
+        const picked = offered.find((id) => pickName === undefined || nameOf(state, id) === pickName);
+        seen.push({
+          offered,
+          searchable: searchableSideSchemes(state),
+          chooser: choice.playerId,
+          firstPlayer: state.firstPlayerId,
+          min: choice.minSelections,
+          max: choice.maxSelections,
+          ...(picked ? { picked } : {}),
+        });
+        return picked ? [picked] : [];
+      }
+      return firstLegal(state);
+    };
+    return { seen, pick };
+  };
+
+  // Each pick has no Hinder or When Revealed threat of its own (Joy Ride's Hinder 2[per_hero] would add to the count).
+  it.each([
+    ["venom", 1, "venom", ["Guard the Bell Tower", "Lashing Out", "Tooth and Nail"], "Lashing Out"],
+    ["sinister-six", 3, "sinister_six", ["Brute Force Barricade"], "Brute Force Barricade"],
+    ["venom-goblin", 4, "venom_goblin", ["Festering Mass", "Joy Ride"], "Festering Mass"],
+  ] as const)(
+    "%s: the first player picks among the scenario's own side schemes only; the picked one is revealed with 1[per_hero] threat added",
+    (node, index, ownSet, ownNames, pickName) => {
+      const { seen, pick } = recordingPicker(pickName);
+      const state = realGame(withPenalty(index), node, pick);
+      expect(state.round).toBe(1);
+      expect(seen).toHaveLength(1);
+      const [search] = seen;
+      if (!search?.picked) throw new Error(`${node}: nothing to pick`);
+      expect(search.chooser).toBe(search.firstPlayer);
+      expect({ min: search.min, max: search.max }).toEqual({ min: 1, max: 1 });
+
+      // Exactly the scenario-specific side schemes in the deck and discard pile are offered, every copy of them.
+      const offeredNames = new Set(search.offered.map((id) => nameOf(state, id)));
+      expect([...offeredNames].sort()).toEqual([...ownNames].sort());
+      for (const id of search.offered) expect(setsOf(state, id)).toContain(ownSet);
+      // The modular and campaign side schemes in the same deck (Down to Earth's, Goblin Gear's, Guerrilla Tactics',
+      // the Community Service draw) are never offered.
+      const notOffered = search.searchable.filter((id) => !search.offered.includes(id));
+      expect(notOffered.length, `${node}: no non-scenario side scheme was in the deck to exclude`).toBeGreaterThan(0);
+      for (const id of notOffered) expect(setsOf(state, id)).not.toContain(ownSet);
+      for (const id of notOffered) expect(cardsInPlay(state)).not.toContain(id);
+
+      // "Then reveal it. Place 1[per_hero] threat on that side scheme": in play with its starting threat plus 2.
+      const revealed = state.instances[search.picked as never];
+      expect(cardsInPlay(state)).toContain(search.picked);
+      expect(state.villainArea).toContain(search.picked);
+      const card = state.cardPool[revealed?.cardId as string];
+      if (card?.type !== "side_scheme") throw new Error("not a side scheme");
+      const starting = card.startingThreat.base + card.startingThreat.perPlayer * state.players.length;
+      expect(state.players).toHaveLength(2);
+      expect(revealed?.threat).toBe(starting + 2);
+      // The other copies/schemes stay in the encounter deck or discard pile.
+      for (const id of search.offered.filter((other) => other !== search.picked)) {
+        expect(cardsInPlay(state)).not.toContain(id);
+      }
+    },
+  );
+
+  it("mysterio: the Mysterio set prints no side scheme, so nothing is offered and nothing is revealed", () => {
+    const { seen, pick } = recordingPicker();
+    const without = realGame(logAt(2), "mysterio");
+    const state = realGame(withPenalty(2), "mysterio", pick);
+    expect(state.round).toBe(1);
+    expect(seen).toEqual([]);
+    // Personal Nightmare's side schemes (and the Community Service draw) are in the deck, and stay there.
+    const searchable = searchableSideSchemes(state);
+    expect(searchable.length).toBeGreaterThan(0);
+    for (const id of searchable) expect(setsOf(state, id)).not.toContain("mysterio");
+    const sideSchemesInPlay = (game: GameState) =>
+      cardsInPlay(game)
+        .filter((id) => game.cardPool[game.instances[id]?.cardId as string]?.type === "side_scheme")
+        .map((id) => nameOf(game, id))
+        .sort();
+    expect(sideSchemesInPlay(state)).toEqual(sideSchemesInPlay(without));
+  });
+
+  it("marking node 17 appends the penalty (with the reward) to every remaining scenario's setup", () => {
+    const fresh = newLog(17);
+    const nearly = { ...fresh, shared: { ...fresh.shared, reputation: { kind: "number" as const, value: 16 } } };
+    const answers: CampaignChoiceAnswer[] = [];
+    for (let guard = 0; guard < 5; guard++) {
+      const applied = applyCampaignResult(
+        SM_CAMPAIGN_DEFINITION,
+        composed(nearly),
+        won("sandman", [oneVictoryPoint]),
+        { at: 0, gameId: "sm-sandman" },
+        DEPS,
+        answers,
+      );
+      if (applied.kind === "done") {
+        expect(applied.value.shared.reputation).toEqual({ kind: "number", value: 17 });
+        const setups = applied.value.shared.reputationSetups;
+        expect(setups?.kind === "instructionList" ? setups.ids : []).toEqual(["sm.rep.node17.reward", PENALTY]);
+        return;
+      }
+      expect(applied.choice.slot).toBe("planningAhead");
+      const [first] = applied.choice.options;
+      if (!first) throw new Error("no Planning Ahead option");
+      answers.push({
+        instructionId: applied.choice.instructionId,
+        slot: applied.choice.slot,
+        seatNumber: applied.choice.seatNumber,
+        picked: [first],
+      } as CampaignChoiceAnswer);
+    }
+    throw new Error("node 17's choices did not settle");
+  });
+});

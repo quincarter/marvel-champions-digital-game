@@ -32,7 +32,7 @@
  *
  * ---------------------------------------------------------------------------------------------------------------
  * SKIPPED (engine gaps; see the report this file's own commit/PR cites, and the module-level TODOs beside each).
- * Gaps 1 and 5 are closed and kept here, numbered as before, because comments below cite the others by number.
+ * Gaps 1, 2, 4 and 5 are closed and kept here, numbered as before, because comments below cite the others by number.
  * Nothing below is worked around with a near-miss effect — each is left unauthored, with the printed text kept as
  * a comment so it can be picked up the moment the primitive exists:
  *
@@ -50,10 +50,12 @@
  *    the named sub-ability '[X]' printed on this card" primitive (only `resolveWhenRevealedOf`/`resolveSpecialsOf`,
  *    neither of which is what "Surging Sands" is — City Streets' own custom ability, scripted by whoever writes
  *    `wave5/sm/sandman.ts`, not campaign data). Unauthored.
- * 4. **Node 17's penalty, "… search … for a scenario-specific side scheme, then reveal it. Place 1[per_hero]
- *    threat on that side scheme" (MC27 p. 22).** No query primitive names "the side scheme belonging to *this*
- *    scenario's own base encounter set" as opposed to a modular/campaign one, and the rulebook names no specific
- *    card per scenario to fall back on. Unauthored rather than guessed.
+ * 4. *(Closed.)* **Node 17's penalty, "Setup: The first player must search the encounter deck and discard pile for
+ *    a scenario-specific side scheme, then reveal it. Place 1[per_hero] threat on that side scheme. (Shuffle.)"
+ *    (MC27 p. 22)** is authored as `sm.rep.node17.penalty` with `TargetQuery.scenarioSpecific` (RRG 1.8
+ *    "Scenario-Specific Card", p. 39: the set of the scenario's own main scheme, never a modular or campaign set).
+ *    Mysterio's own set prints no side scheme, so there the search finds nothing and nothing is revealed (RRG 1.8
+ *    "Search", p. 39: only a card that is found is moved).
  * 5. *(Closed.)* **"… at random that does not have its title recorded in the 'Community Service' section"
  *    (scenarios 2-4, MC27 p. 11/13/15)** is authored in `communityServicePick` with `CampaignChoiceSource`
  *    `excludingTitles` over the `communityService` field.
@@ -99,6 +101,7 @@ import {
   printedHpOf,
   putIntoPlay,
   query,
+  revealCard,
   selectCards,
   setRemainingHitPoints,
   shuffleDeck,
@@ -631,7 +634,7 @@ const REPUTATION_VICTORY: readonly CampaignInstruction[] = [
           ],
         },
         // Node 17's reward (Planning Ahead) records each seat's chosen card immediately; the "Setup:" search-and-hand
-        // half joins every remaining setup. Its penalty is gap 4 (file header) — unauthored.
+        // half joins every remaining setup, and so does its "Setup:" penalty (file header gap 4).
         {
           kind: "if",
           when: crossed(17),
@@ -649,6 +652,7 @@ const REPUTATION_VICTORY: readonly CampaignInstruction[] = [
               ],
             },
             { kind: "appendToList", field: "reputationSetups", value: constant("sm.rep.node17.reward") },
+            { kind: "appendToList", field: "reputationSetups", value: constant("sm.rep.node17.penalty") },
           ],
         },
         // Node 21's reward ("Setup:" Helicarrier) joins every remaining setup; its penalty is another immediate
@@ -743,6 +747,28 @@ const CONDITIONAL_INSTRUCTIONS: Readonly<Record<string, CampaignInstruction>> = 
           ),
           shuffleDeck(thatPlayer),
         ]),
+      ],
+    },
+  },
+  // "Scenario-specific" is RRG 1.8 p. 39's classification (`TargetQuery.scenarioSpecific`). The first player picks
+  // among several (RRG 1.8 "Search", p. 39); with none in either zone nothing is revealed and no threat is placed.
+  // The shuffle comes last: "upon completion of that … card ability" (same entry).
+  "sm.rep.node17.penalty": {
+    id: "sm.rep.node17.penalty",
+    text: "Setup: The first player must search the encounter deck and discard pile for a scenario-specific side scheme, then reveal it. Place 1[per_hero] threat on that side scheme. (Shuffle.)",
+    citation: "MC27 p. 22",
+    step: {
+      kind: "inGame",
+      window: DEFAULT_CAMPAIGN_WINDOW,
+      effects: [
+        chooseCards(
+          "node17scheme",
+          encounterCards(["deck", "discard"], { categories: ["sideScheme"], scenarioSpecific: true }),
+          { min: 1, max: 1, chooser: firstPlayer },
+        ),
+        revealCard(chosen("node17scheme"), firstPlayer),
+        placeThreat(perHero(1), chosen("node17scheme")),
+        shuffleEncounterDeck(),
       ],
     },
   },

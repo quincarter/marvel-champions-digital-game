@@ -308,6 +308,19 @@ export interface TargetQuery {
    */
   readonly encounterSetOf?: TargetRef;
   /**
+   * The card is scenario-specific (true) or not (false): "search the encounter deck and discard pile for a
+   * **scenario-specific** side scheme" (Sinister Motives reputation node 17, MC27 p. 22). RRG 1.8 "Scenario-Specific
+   * Card" (p. 39): "cards that belong to a scenario's set of accompanying cards", which include its main scheme deck.
+   * So the scenario's own set is read off the encounter sets of the main scheme card the game was set up with
+   * (`GameState.mainScheme.cardId`), which never belongs to a modular, Standard/Expert, nemesis or campaign set.
+   * (`Scenario.encounterSetIds` would not do: it also lists a scenario's required modular sets, e.g. City in Chaos
+   * for Sandman.)
+   *
+   * Reads `encounterSetIds` off the card data, so it matches wherever the card is. A player card, or an encounter
+   * card in no set, is never scenario-specific.
+   */
+  readonly scenarioSpecific?: boolean;
+  /**
    * The card's title is recorded in this campaign-log field: "Shuffle each EXPERIMENTAL attachment **recorded in the
    * campaign log** into the encounter deck" (MC10 p. 7) as a *filter*, where the `campaignLog` `CardSelector` is the
    * same fact as a *pool*. `seat` reads a per-seat field (MC10 p. 10's rescued allies); absent reads the shared one.
