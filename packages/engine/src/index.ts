@@ -112,6 +112,7 @@ export type {
   EventPattern,
   KeywordGrantSpec,
   ResourceGeneration,
+  ResourceMultiplierSpec,
   RuleSpec,
   StatModifierSpec,
   TraitGrantSpec,

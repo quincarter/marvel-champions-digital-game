@@ -4,8 +4,10 @@ import {
   attackAnEnemy,
   cards,
   chosen,
+  constant,
   damageAnEnemy,
   defineAbilities,
+  doublesResourcesGeneratedForThisCard,
   draw,
   eachTimeUntil,
   eventTarget,
@@ -48,17 +50,14 @@ import {
  * 14015) — a freshly chosen enemy, so `damageAnEnemy(3)`.
  *
  * **Lightspeed Flight (28004)** and **Pot Shot (28005)** each print a `Double the number of [wild] resources
- * generated while paying for this card.` constant ahead of their Hero Action. This is not
- * `doublesResourcesWhilePayingFor` (The Power of Aggression, `01055`/`25022`): that rule lives on the *resource*
- * card and doubles what it generates while paying for a card matching a query (`resourceMultiplier` read in
- * `handCardResources`, `packages/engine/src/actions.ts` — the card being spent as payment carries the constant).
- * Lightspeed Flight and Pot Shot are the *opposite* direction: the constant sits on the card being paid FOR, and
- * doubles only the wild portion of whatever resource(s) fund it — `handCardResources` never looks at the target
- * card's own abilities at all, only the spending card's. No existing `AbilityDefinition.trigger` shape reaches that
- * (an engine gap, not a DSL-vocabulary gap): `.28004.lightspeed-flight-constant` and `.28005.pot-shot-constant` are
- * left unregistered rather than approximated. Each Hero Action is scripted in full: Lightspeed Flight's "(thwart):
- * Remove 3 threat from a scheme" is `thwartAScheme(3)`; Pot Shot's "(attack): Deal 4 damage to an enemy" is
- * `attackAnEnemy(4)` — reported as a gap below rather than guessed at.
+ * generated while paying for this card.` constant ahead of their Hero Action. It is the reverse direction of The Power
+ * of Aggression's `doublesResourcesWhilePayingFor` (`01055`/`25022`), which sits on the resource card being spent: here
+ * the constant sits on the card being paid FOR, so `doublesResourcesGeneratedForThisCard("wild")`
+ * (`resourceMultiplier.forThisCard`, engine `ResourceMultiplierSpec`) doubles the wild portion of every source that
+ * pays for it — a wild resource card (Connection to the Worldmind, 28007), a resource ability — and nothing typed (RRG
+ * 1.8 "Resource", p. 37; each doubled wild is declared on its own, "Wild Resource", p. 48). Paying for any other card
+ * is untouched. Lightspeed Flight's "(thwart): Remove 3 threat from a scheme" is `thwartAScheme(3)`; Pot Shot's
+ * "(attack): Deal 4 damage to an enemy" is `attackAnEnemy(4)`.
  *
  * **Unleash Nova Force (28006)**: "Max 1 per round." is data (`playRestrictions.maxPerRound`). "Hero Action: Until
  * the end of the round, each time Nova defeats an enemy or removes the last threat from a scheme, ready Nova and
@@ -118,11 +117,10 @@ export const NOVA_EVENTS = defineAbilities({
     ifThen(varAtLeast("paid.wild"), damageAnEnemy(3)),
   ),
 
-  // "28004.lightspeed-flight-constant" is a genuine engine gap (no primitive for a card doubling the *wild* portion
-  // of whatever pays for it) — left unregistered; see module docblock and the report to the caller.
+  "28004.lightspeed-flight-constant": constant(doublesResourcesGeneratedForThisCard("wild")),
   "28004.lightspeed-flight-action": heroAction({ label: "thwart" }, thwartAScheme(3)),
 
-  // "28005.pot-shot-constant" is the same gap as Lightspeed Flight's — left unregistered.
+  "28005.pot-shot-constant": constant(doublesResourcesGeneratedForThisCard("wild")),
   "28005.pot-shot-action": heroAction({ label: "attack" }, attackAnEnemy(4)),
 
   "28006.unleash-nova-force-action": heroAction(

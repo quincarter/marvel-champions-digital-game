@@ -7,6 +7,7 @@ import {
   type CostModifierSpec,
   type EngineDeps,
   type ResourceGeneration,
+  type ResourceMultiplierSpec,
 } from "./abilities.js";
 import type { ChoiceOption } from "./choices.js";
 import type { BasicPowerShare, Command, CostChoices, CostSelection, Payment } from "./commands.js";
@@ -479,7 +480,10 @@ export function basicPowerCost(
   return undefined;
 }
 
-/** A hand card's resources, including "double … while paying for an [aspect] card" (The Power of X). */
+/**
+ * A hand card's resources, including "double … while paying for an [aspect] card" (The Power of X, read from this
+ * card) and "double … generated while paying for this card" (read from the card paid for, `paidForMultiplied`).
+ */
 export function handCardResources(
   state: GameState,
   deps: EngineDeps,
@@ -505,13 +509,40 @@ export function handCardResources(
     bindings: {},
     deps,
   };
-  for (const ref of printedAbilityRefs(card)) {
-    const definition = deps.abilities[ref.id];
-    if (definition?.trigger.kind !== "constant" || !definition.trigger.resourceMultiplier) continue;
-    const { factor, whilePayingFor } = definition.trigger.resourceMultiplier;
-    if (matchesQuery(state, payingFor, whilePayingFor, context)) return scalePool(pool, factor);
-  }
-  return pool;
+  const own = printedConstants(state, deps, cardInstanceId).find((trigger) => {
+    const multiplier = trigger.resourceMultiplier;
+    return (
+      multiplier && "whilePayingFor" in multiplier && matchesQuery(state, payingFor, multiplier.whilePayingFor, context)
+    );
+  })?.resourceMultiplier;
+  return paidForMultiplied(state, deps, payingFor, own ? multiplyPool(pool, own) : pool);
+}
+
+/** A pool with a `ResourceMultiplierSpec` applied: every type, or only its `resource`. */
+function multiplyPool(pool: ResourcePool, multiplier: ResourceMultiplierSpec): ResourcePool {
+  const { factor, resource } = multiplier;
+  return resource ? { ...pool, [resource]: pool[resource] * factor } : scalePool(pool, factor);
+}
+
+/**
+ * What one source's resources count as toward the card being paid for, once that card's own "Double the number of
+ * [wild] resources generated while paying for this card" (`resourceMultiplier.forThisCard`, Lightspeed Flight `nova`
+ * 28004) applies. Every source of one payment goes through it (a hand card, a resource ability), each on its own pool,
+ * so each source's generated resources (the `resourcesGenerated` log, the payment strip's per-source pools) already
+ * count the doubling. Read from the card's printed text wherever it is, like `paymentOnly`: an event is in hand while it
+ * is paid for.
+ */
+export function paidForMultiplied(
+  state: GameState,
+  deps: EngineDeps,
+  payingFor: InstanceId | null,
+  pool: ResourcePool,
+): ResourcePool {
+  if (!payingFor) return pool;
+  return printedConstants(state, deps, payingFor).reduce((scaled, trigger) => {
+    const multiplier = trigger.resourceMultiplier;
+    return multiplier && "forThisCard" in multiplier ? multiplyPool(scaled, multiplier) : scaled;
+  }, pool);
 }
 
 /**
@@ -779,11 +810,16 @@ function priceOf(
     if (fault) return fault;
     pool = addPools(
       pool,
-      generatedResources(ctx.state, ctx.deps.abilities[abilityId]?.generates, topOf(spender), {
-        deps: ctx.deps,
-        sourceId: instanceId,
-        playerId: spender,
-      }),
+      paidForMultiplied(
+        ctx.state,
+        ctx.deps,
+        payingFor,
+        generatedResources(ctx.state, ctx.deps.abilities[abilityId]?.generates, topOf(spender), {
+          deps: ctx.deps,
+          sourceId: instanceId,
+          playerId: spender,
+        }),
+      ),
     );
   }
   // "You can only spend [physical] resources to pay for this card." A wild can be declared as that type; a cost of 0
@@ -969,11 +1005,16 @@ export function payPayment(
     const definition = ctx.deps.abilities[abilityId];
     if (!definition) continue;
     const spender = resourceSpender(ctx.state, ctx.deps, instanceId, abilityId, playerId);
-    const generated = generatedResources(ctx.state, definition.generates, discardTopBefore.get(spender) ?? null, {
-      deps: ctx.deps,
-      sourceId: instanceId,
-      playerId: spender,
-    });
+    const generated = paidForMultiplied(
+      ctx.state,
+      ctx.deps,
+      payingFor,
+      generatedResources(ctx.state, definition.generates, discardTopBefore.get(spender) ?? null, {
+        deps: ctx.deps,
+        sourceId: instanceId,
+        playerId: spender,
+      }),
+    );
     const plan = planCost(ctx.state, ctx.deps, instanceId, spender, definition.cost, {}, new Set());
     if (!isFault(plan)) payCost(ctx, instanceId, spender, definition.cost, plan);
     recordAbilityUse(ctx, instanceId, abilityId, definition, null, spender);

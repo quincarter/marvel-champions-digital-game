@@ -14,7 +14,9 @@ import type {
   KeywordGrantSpec,
   Predicate,
   ResourceGeneration,
+  ResourceMultiplierSpec,
   ResourceRequirement,
+  ResourceType,
   RuleSpec,
   SchemeValueName,
   StatModifierSpec,
@@ -291,7 +293,7 @@ export interface ConstantPart {
   readonly keywordGrants?: readonly KeywordGrantSpec[];
   readonly traitGrants?: readonly TraitGrantSpec[];
   readonly rules?: readonly RuleSpec[];
-  readonly resourceMultiplier?: { readonly factor: number; readonly whilePayingFor: TargetQuery };
+  readonly resourceMultiplier?: ResourceMultiplierSpec;
   /** Changes to the cost of playing cards (docs/phase7-wave1.md §3.10): "Reduce the cost to play Hercules by 1 for each minion engaged with you". */
   readonly costModifiers?: readonly CostModifierSpec[];
   /** "You can only spend [physical] resources to pay for this card." (Crushing Blow). */
@@ -835,6 +837,14 @@ export const attacksGainKeywords = (
 /** "Double the number of resources this card generates while paying for an [aspect] card." */
 export const doublesResourcesWhilePayingFor = (whilePayingFor: TargetQuery): ConstantPart => ({
   resourceMultiplier: { factor: 2, whilePayingFor },
+});
+/**
+ * "Double the number of [wild] resources generated while paying for this card." (Lightspeed Flight, `nova` 28004):
+ * on the card being paid for, doubling that type from every source of the payment (`ResourceMultiplierSpec`).
+ * Without a type, every resource is doubled.
+ */
+export const doublesResourcesGeneratedForThisCard = (resource?: ResourceType): ConstantPart => ({
+  resourceMultiplier: { factor: 2, forThisCard: true, ...(resource ? { resource } : {}) },
 });
 
 /**

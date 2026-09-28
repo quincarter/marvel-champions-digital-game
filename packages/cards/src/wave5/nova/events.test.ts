@@ -1,4 +1,4 @@
-import { cardsInPlay, maxHitPoints, type GameState, type InstanceId } from "@mc/engine";
+import { applyCommand, cardsInPlay, maxHitPoints, type Command, type GameState, type InstanceId } from "@mc/engine";
 import { describe, expect, it } from "vitest";
 import {
   endTurn,
@@ -94,8 +94,6 @@ describe("Nova's events (28003-28006, 28011-28014, 28026)", () => {
     expect(inst(after, villain).damage).toBe(villainDamageBefore); // no [wild] spent: no bonus damage.
   });
 
-  // 28004.lightspeed-flight-constant ("Double the number of [wild] resources generated while paying for this
-  // card") is a genuine engine gap — see the module docblock in `events.ts` — so only its Hero Action is exercised.
   it("28004.lightspeed-flight-action: removes 3 threat from a scheme", () => {
     const hero = runWave5(novaVsRhino(), toHero(P1));
     const scheme = hero.mainScheme.instanceId;
@@ -104,13 +102,57 @@ describe("Nova's events (28003-28006, 28011-28014, 28026)", () => {
     expect(mainThreat(state)).toBe(10 - 3);
   });
 
-  // 28005.pot-shot-constant is the same gap as Lightspeed Flight's — only its Hero Action is exercised.
   it("28005.pot-shot-action: deals 4 damage to an enemy", () => {
     const hero = runWave5(novaVsRhino(), toHero(P1));
     const villain = hero.villains[0]!.instanceId;
     const before = inst(hero, villain).damage;
     const { state } = playFromHand(hero, "28005", 2);
     expect(inst(state, villain).damage).toBe(before + 4);
+  });
+
+  // "Double the number of [wild] resources generated while paying for this card." Connection to the Worldmind (28007)
+  // prints one [wild]; Ms. Marvel (28002) one [physical]; Jesse Alexander (28008) is another card costing 2.
+  describe("28004.lightspeed-flight-constant / 28005.pot-shot-constant", () => {
+    const refused = (state: GameState, command: Command): string => {
+      const result = applyCommand(state, command, WAVE5_DEPS);
+      if (result.ok) throw new Error("expected the play to be refused");
+      return result.error.code;
+    };
+
+    it("28004.lightspeed-flight-constant: one [wild] resource card pays its whole cost of 2", () => {
+      const hero = runWave5(novaVsRhino(), toHero(P1));
+      const given = moveToHand(patchInstance(hero, hero.mainScheme.instanceId, { threat: 10 }), P1, "28004", "28007");
+      const [flight, wild] = given.ids as [InstanceId, InstanceId];
+      const after = settle(runWave5(given.state, play(P1, flight, [wild])), firstLegal, undefined, WAVE5_DEPS);
+      expect(mainThreat(after)).toBe(10 - 3);
+      expect(playerOf(after, P1).discard).toEqual(expect.arrayContaining([flight, wild]));
+    });
+
+    it("28005.pot-shot-constant: one [wild] resource card pays its whole cost of 2", () => {
+      const hero = runWave5(novaVsRhino(), toHero(P1));
+      const villain = hero.villains[0]!.instanceId;
+      const before = inst(hero, villain).damage;
+      const given = moveToHand(hero, P1, "28005", "28007");
+      const [potShot, wild] = given.ids as [InstanceId, InstanceId];
+      const after = settle(runWave5(given.state, play(P1, potShot, [wild])), firstLegal, undefined, WAVE5_DEPS);
+      expect(inst(after, villain).damage).toBe(before + 4);
+      expect(playerOf(after, P1).discard).toEqual(expect.arrayContaining([potShot, wild]));
+    });
+
+    it("a non-wild resource is not doubled: one [physical] card cannot pay for either", () => {
+      const hero = runWave5(novaVsRhino(), toHero(P1));
+      const given = moveToHand(hero, P1, "28004", "28005", "28002");
+      const [flight, potShot, physical] = given.ids as [InstanceId, InstanceId, InstanceId];
+      expect(refused(given.state, play(P1, flight, [physical]))).toBe("insufficient_resources");
+      expect(refused(given.state, play(P1, potShot, [physical]))).toBe("insufficient_resources");
+    });
+
+    it("other cards' costs are not affected: one [wild] card cannot pay for Jesse Alexander (cost 2)", () => {
+      const hero = runWave5(novaVsRhino(), toHero(P1));
+      const given = moveToHand(hero, P1, "28008", "28004", "28007");
+      const [jesse, , wild] = given.ids as [InstanceId, InstanceId, InstanceId];
+      expect(refused(given.state, play(P1, jesse, [wild]))).toBe("insufficient_resources");
+    });
   });
 
   describe("28006.unleash-nova-force-action", () => {

@@ -20,6 +20,7 @@ import {
   eventActionAbility,
   generatedResources,
   handCardResources,
+  paidForMultiplied,
   paymentOptions,
   paymentsFromOptionIds,
   defaultInPlayPicks,
@@ -920,11 +921,16 @@ export function paymentFor(
           kind: "resourceAbility",
           instanceId: option.ref.instanceId,
           label: option.label,
-          pool: generatedResources(state, deps.abilities[option.ref.abilityId]?.generates, discardTop, {
+          pool: paidForMultiplied(
+            state,
             deps,
-            sourceId: option.ref.instanceId,
-            playerId,
-          }),
+            payable.payingFor,
+            generatedResources(state, deps.abilities[option.ref.abilityId]?.generates, discardTop, {
+              deps,
+              sourceId: option.ref.instanceId,
+              playerId,
+            }),
+          ),
         },
       ];
     },

@@ -1,6 +1,6 @@
 import type { AbilityId, KeywordInstance, SchemeIcon, Trait } from "@mc/content";
 import type { InstanceId, PlayerId } from "./ids.js";
-import type { ResourcePool, ResourceRequirement, TypedResource } from "./resources.js";
+import type { ResourcePool, ResourceRequirement, ResourceType, TypedResource } from "./resources.js";
 import type {
   AbilityTimingWord,
   AttackKeyword,
@@ -112,6 +112,27 @@ export interface EventPattern {
  */
 export type AbilityLabel = "attack" | "thwart" | "defense";
 
+/**
+ * Multiplies resources generated toward a cost (RRG 1.8 "Resource", p. 37: resources are generated "by discarding cards
+ * from their hand … or by using card abilities that generate resources"; "Cost", p. 13). Two printed directions:
+ *
+ * - `whilePayingFor` (The Power of X: "Double the number of resources this card generates while paying for an
+ *   [aspect] card"): read from the hand card being **spent**; multiplies what that card generates when the card paid
+ *   for matches the query (the card whose cost is paid, per the RRG 1.8 FAQ entry for Make the Call).
+ * - `forThisCard` (Lightspeed Flight, `nova` 28004: "Double the number of [wild] resources generated while paying for
+ *   this card"): read from the card being **paid for**; multiplies every resource generated toward its costs from any
+ *   source, a hand card or a resource ability. Resources paid for an ability on a card are paid for that card (RRG
+ *   1.8 "Cost", p. 13), so it covers those too.
+ *
+ * `resource` narrows the multiplier to that one type ("[wild] resources"); without it every type is multiplied. A wild
+ * stays wild in the pool, so each doubled wild is declared separately at payment (RRG 1.8 "Wild Resource", p. 48:
+ * "When a card that generates a wild resource has its resources doubled, each of its wild resources can be declared a
+ * different type"). Both directions can apply to one resource; they multiply.
+ */
+export type ResourceMultiplierSpec =
+  | { readonly factor: number; readonly whilePayingFor: TargetQuery; readonly resource?: ResourceType }
+  | { readonly factor: number; readonly forThisCard: true; readonly resource?: ResourceType };
+
 export type AbilityTriggerSpec =
   /**
    * `while`: a condition printed before the cost ("Hero Action: If you are in Tiny hero form, exhaust Army of Ants →
@@ -207,12 +228,8 @@ export type AbilityTriggerSpec =
       readonly traitGrants?: readonly TraitGrantSpec[];
       /** Rule restrictions: "cannot take damage", "threat cannot be removed", ally limit, "must defend with an ally". */
       readonly rules?: readonly RuleSpec[];
-      /**
-       * "Double the resources this card generates while paying for an
-       * [aspect] card" (The Power of X): multiplies this card's printed
-       * resources when it is discarded to pay for a card matching the query.
-       */
-      readonly resourceMultiplier?: { readonly factor: number; readonly whilePayingFor: TargetQuery };
+      /** "Double the number of resources …" while paying a cost: see `ResourceMultiplierSpec`. */
+      readonly resourceMultiplier?: ResourceMultiplierSpec;
       /**
        * "This card generates [wild] for each ally you control (to a maximum of 3)" (Band Together, `mts` 21018): what
        * this card generates when it is spent from hand, instead of its printed resources ("you" is the spender).

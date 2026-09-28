@@ -1,0 +1,3 @@
+kind: Engine
+body: A card can double the [wild] resources generated while paying for it (resourceMultiplier.forThisCard); Lightspeed Flight and Pot Shot's constants now work
+time: 2026-09-28T10:19:49.142361-04:00
