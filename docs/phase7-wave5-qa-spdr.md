@@ -44,7 +44,7 @@ Three things worth calling out precisely, none of them requiring a fix:
   `identity.test.ts` stages a counter on the INACTIVE Suit support and proves it lands on the identity after
   `toHero`, with the exhausted state carried over from whichever physical card the flip lands on (Maintenance's own
   cost exhausts the support pre-flip; the post-flip identity comes out exhausted). `e2e.test.ts`'s own scripted
-  game additionally proves an *attachment* (not just a counter) makes the same trip in both directions across two
+  game additionally proves an _attachment_ (not just a counter) makes the same trip in both directions across two
   separate flips (Round 1 hero, Round 2 back to alter-ego), and that counters/attachments already handed to the
   identity in an earlier flip are not handed back on a later one (a one-time transfer, not a per-form inventory).
 - **§4.1 Q74 (cancelling a treachery's When Revealed cancels its surge and incite too — the later Aug 3, 2026
@@ -53,7 +53,7 @@ Three things worth calling out precisely, none of them requiring a fix:
   interaction** — the highest-value card-vs-card test in the pack, since it is exactly the FAQ entry's own worked
   example. `allies.test.ts`'s own test ("a treachery whose When Revealed was cancelled … did not resolve, so it
   can't be attached") stages Spider-Tingle cancelling "I'm Tough!" and confirms no `encounterCardResolved` event
-  fires and Noir's own Response never triggers — the current-ruling reading, correctly *not* the older FAQ text's
+  fires and Noir's own Response never triggers — the current-ruling reading, correctly _not_ the older FAQ text's
   literal "if the treachery has a keyword ability… he can still trigger his response" carve-out. The conflict
   between the two sources is called out explicitly in both `allies.ts`'s own docblock and the spec (§4.1 Q74),
   rather than silently picked.
@@ -77,7 +77,7 @@ Three things worth calling out precisely, none of them requiring a fix:
 "[star] Boost: Deal 1 indirect damage to each player. Exhaust each character damaged this way." — the "Exhaust each
 character damaged this way" clause was already flagged as `KNOWN_SKIPPED` in the script's own comment before this
 pass (not a new finding), but carried no test pinning the gap, so nothing would catch a regression or announce a
-fix. `dealIndirectDamage` has no bind for *which* character(s) it actually assigned damage to (unlike
+fix. `dealIndirectDamage` has no bind for _which_ character(s) it actually assigned damage to (unlike
 `discardEncounterCards`'s `forEachDiscarded` or `chooseTarget`'s `chosen`; confirmed against `damageGroupFrame`'s
 member event frames, which start with an empty `slots: {}` in `resolve/damage-group.ts`), so a follow-on effect in
 the same ability has no way to read back "the character(s) damaged this way" the way every other multi-target "this
