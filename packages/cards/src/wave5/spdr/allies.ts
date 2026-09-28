@@ -98,8 +98,12 @@ const ANOTHER_WEB_WARRIOR_CARD: TargetQuery = { ...A_WEB_WARRIOR_CARD, self: fal
  * after reveal step 4 has put it in the encounter discard pile and before any surge card is revealed (RRG 1.8
  * "Surge", p. 42). A treachery whose effects were cancelled ("I Don't Think So!", `spiderham` 30005) never
  * announces it (FAQ "Spider-Man Noir (#15)", RRG 1.8 p. 63: "If no part of the treachery card resolves, he cannot
- * attach it"); nor, today, does one whose When Revealed alone was cancelled, since the engine's `cancelWhenRevealed`
- * also cancels its surge and incite (the FAQ's keyword case; open question). "That treachery" is `eventTarget`, attached facedown with `attachCard(..., { facedown:
+ * attach it"); nor does one whose When Revealed was cancelled (Enhanced Spider-Sense, Spider-Tingle 31020), since
+ * `cancelWhenRevealed` also cancels its surge and incite: ruling Aug 3, 2026 - Ruling 3 ("Surge is treated as a When
+ * Revealed ability and can be cancelled by Enhanced Spider-Sense"; RRG 1.8 "Surge", p. 42, and "Incite X", p. 24 define
+ * both as When Revealed abilities). That conflicts with the same FAQ entry's keyword case ("If the treachery card has a
+ * keyword ... like surge or incite X, Spider-Man Noir can trigger his response"); docs/phase7-wave5.md §4.1 Q74,
+ * awaiting the user. "That treachery" is `eventTarget`, attached facedown with `attachCard(..., { facedown:
  * true })` (Bruno Carrelli's shape), so it has no title, traits or abilities while here and counts toward X. "If
  * you control another Web-Warrior card" is `exists(ANOTHER_WEB_WARRIOR_CARD)` and "(to a maximum of 3)" is
  * `valueAtMost(countOf(...), 2)` (George Stacy's own "to a maximum of 3" gate), both read as the response resolves.
