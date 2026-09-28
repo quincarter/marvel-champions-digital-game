@@ -95,3 +95,39 @@ test("Sandman, solo: a Core precon (Captain Marvel / Leadership)", () => {
   expect(replayed.ok).toBe(true);
   if (replayed.ok) expect(replayed.state).toEqual(result.session.state);
 }, 120_000);
+
+// docs/phase7-wave5-qa-sm-scenarios-1.md §2: a 2-player game (Ghost-Spider + Spider-Man (Miles Morales)) played
+// to a real outcome and replayed to a deep-equal final state.
+test("Sandman, 2 players: Ghost-Spider and Spider-Man (Miles Morales)", () => {
+  const config = ghostSpiderScenario("sandman", {
+    seed: 2028,
+    modularSetIds: [encounterSetId("bomb_scare")],
+    extraPlayers: [{ starterDeckId: "spider-man-morales" }],
+  });
+  const created = createGame(config, WAVE5_DEPS);
+  if (!created.ok) throw new Error(`setup failed: ${created.error.message}`);
+  const result = playToOutcome(created.state, WAVE5_DEPS);
+  expect(result.outcome).not.toBeNull();
+  expect(result.rounds).toBeGreaterThanOrEqual(1);
+  const replayed = replay(result.session.log, WAVE5_DEPS);
+  expect(replayed.ok).toBe(true);
+  if (replayed.ok) expect(replayed.state).toEqual(result.session.state);
+}, 180_000);
+
+// docs/phase7-wave5-qa-sm-scenarios-1.md §2: an expert-mode game (Sandman starts at stage (II)-(III)) played to a
+// real outcome and replayed to a deep-equal final state.
+test("Sandman, solo expert: Ghost-Spider", () => {
+  const config = ghostSpiderScenario("sandman", {
+    seed: 2029,
+    difficulty: "expert",
+    modularSetIds: [encounterSetId("bomb_scare")],
+  });
+  const created = createGame(config, WAVE5_DEPS);
+  if (!created.ok) throw new Error(`setup failed: ${created.error.message}`);
+  const result = playToOutcome(created.state, WAVE5_DEPS);
+  expect(result.outcome).not.toBeNull();
+  expect(result.rounds).toBeGreaterThanOrEqual(1);
+  const replayed = replay(result.session.log, WAVE5_DEPS);
+  expect(replayed.ok).toBe(true);
+  if (replayed.ok) expect(replayed.state).toEqual(result.session.state);
+}, 180_000);
