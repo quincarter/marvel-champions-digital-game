@@ -16,10 +16,12 @@ import {
   attachmentChipLabel,
   boardModel,
   characterPanel,
+  damageNote,
   deckAspect,
   faceOf,
   schemePanel,
 } from "./board-model.js";
+import { inspectModel } from "./inspect-model.js";
 import { artFor, CARD_BACKS } from "../art/art-source.js";
 import { highlights } from "./highlights.js";
 
@@ -354,16 +356,26 @@ describe("damage on an attachment", () => {
     };
 
     const [chip] = characterPanel(armored, villain, CORE_DEPS).attachments;
-    expect(chip).toMatchObject({ damage: 2, discardAt: 5 });
+    expect(chip).toMatchObject({ damage: 2, damageThreshold: 5 });
     expect(attachmentChipLabel(chip!)).toBe("Armored Rhino Suit · 2/5 damage");
     expect(attachmentChipDamage(chip!)).toBe("2/5");
+    // The card's own sheet says it too, and the villain's (an HP plate already covers a character) does not.
+    expect(inspectModel(armored, suit, null, store.state.perspectiveId!, CORE_DEPS).damageNote).toBe("2/5 damage");
+    expect(inspectModel(armored, villain, null, store.state.perspectiveId!, CORE_DEPS).damageNote).toBeNull();
+    expect(characterPanel(armored, villain, CORE_DEPS).damageNote).toBeNull();
+  });
+
+  test("damageNote reads damage against a threshold, bare damage, or nothing", () => {
+    expect(damageNote(0, 8)).toBe("0/8 damage");
+    expect(damageNote(3, null)).toBe("3 damage");
+    expect(damageNote(0, null)).toBeNull();
   });
 
   test("an attachment with no break point shows bare damage, and nothing when it has none", () => {
     const chip = { instanceId: "i1" as InstanceId, name: "Tarp", exhausted: false, counters: [], faceup: true };
-    expect(attachmentChipLabel({ ...chip, damage: 3, discardAt: null })).toBe("Tarp · 3 damage");
-    expect(attachmentChipLabel({ ...chip, damage: 0, discardAt: null })).toBe("Tarp");
-    expect(attachmentChipDamage({ ...chip, damage: 0, discardAt: null })).toBeNull();
+    expect(attachmentChipLabel({ ...chip, damage: 3, damageThreshold: null })).toBe("Tarp · 3 damage");
+    expect(attachmentChipLabel({ ...chip, damage: 0, damageThreshold: null })).toBe("Tarp");
+    expect(attachmentChipDamage({ ...chip, damage: 0, damageThreshold: null })).toBeNull();
   });
 });
 

@@ -35,7 +35,7 @@ import {
   remainingHitPoints,
   scale,
   schemesInPlay,
-  selfDiscardDamageThreshold,
+  selfDamageThreshold,
   type CardInstance,
   type EngineDeps,
   type Form,
@@ -154,6 +154,13 @@ export interface CharacterPanel {
    */
   readonly counters: readonly { readonly name: string; readonly count: number }[];
   /**
+   * Damage on a card with no hit points of its own — Ice Wall ("place that damage here instead … at least 8 damage
+   * here", `iceman` 46008), Magnetic Bubble (`magneto` 49006) — as "3/8 damage" against the point its own text acts
+   * at (`damageNote`). Null for a character (its HP plate already says it) and for a card with no damage and no
+   * threshold.
+   */
+  readonly damageNote: string | null;
+  /**
    * The seat that owns this card when someone else controls it — a Heroic
    * Intuition played under another player's control — or null. Without it a
    * lent card is indistinguishable from one of your own.
@@ -172,11 +179,11 @@ export interface AttachmentChip {
   /** Damage placed on the attachment itself (Crossbones' Armor soaks Crossbones' damage, `trors` 04065). */
   readonly damage: number;
   /**
-   * The damage at which the attachment discards itself ("If there is 5 or more damage here, discard Crossbones'
-   * Armor"), or null when its text has no such clause. The chip reads "2/5 damage" so the table can see how close
-   * it is to breaking.
+   * The damage at which the attachment's own text acts ("If there is 5 or more damage here, discard Crossbones'
+   * Armor"; `selfDamageThreshold`), or null when it has no such clause. The chip reads "2/5" so the table can see
+   * how close it is to breaking.
    */
-  readonly discardAt: number | null;
+  readonly damageThreshold: number | null;
   /**
    * Attached facedown — Spectrum's own two inactive "energy form" upgrades (`mts` 21001b's Setup: "Put all 3
    * energy form upgrades into play, facedown," docs/phase7-wave4.md §5): the chip must not name a facedown card
@@ -189,6 +196,15 @@ export interface AttachmentChip {
 export function attachmentChipLabel(chip: AttachmentChip): string {
   const damage = attachmentChipDamage(chip);
   return [attachmentChipText(chip), damage ? `${damage} damage` : null].filter(Boolean).join(" · ");
+}
+
+/**
+ * "3/5 damage" against the point a card's own text acts at, "3 damage" with no such point, or null when there is
+ * neither damage nor a threshold to show.
+ */
+export function damageNote(damage: number, threshold: number | null): string | null {
+  if (threshold !== null) return `${damage}/${threshold} damage`;
+  return damage > 0 ? `${damage} damage` : null;
 }
 
 /** The chip's label without its damage: the part that may be clipped when the chip is narrow. */
@@ -207,7 +223,7 @@ export function attachmentChipText(chip: AttachmentChip): string {
  * Drawn apart from the name so a narrow chip clips the name, never the number the table is watching.
  */
 export function attachmentChipDamage(chip: AttachmentChip): string | null {
-  if (chip.discardAt !== null) return `${chip.damage}/${chip.discardAt}`;
+  if (chip.damageThreshold !== null) return `${chip.damage}/${chip.damageThreshold}`;
   return chip.damage > 0 ? `${chip.damage}` : null;
 }
 
@@ -566,7 +582,7 @@ export function boardModel(state: GameState, perspectiveId: PlayerId, deps: Engi
     minions: minionsOf(state).map((id) => characterPanel(state, id, deps)),
     environments: state.villainArea
       .filter((id) => cardOf(state, id)?.type === "environment")
-      .map((id) => environmentPanel(state, id)),
+      .map((id) => environmentPanel(state, id, deps)),
     scenarioAreas: scenarioAreaPanels(state),
     scenarioDecks: scenarioDeckPanels(state),
     me: characterPanel(state, me.identity.instanceId, deps),
@@ -700,6 +716,7 @@ export function characterPanel(state: GameState, id: InstanceId, deps: EngineDep
       .filter((action): action is "attack" | "thwart" => action !== null),
     attachments: attachmentChipsOf(state, instance, deps),
     counters: countersOf(state, id),
+    damageNote: current === undefined ? damageNote(instance.damage, selfDamageThreshold(state, id, deps)) : null,
     ownerName:
       instance.ownerId !== null && instance.controllerId !== null && instance.ownerId !== instance.controllerId
         ? playerName(state, instance.ownerId)
@@ -1007,7 +1024,6 @@ function attachmentChipsOf(state: GameState, instance: CardInstance, deps: Engin
   return instance.attachments.map((attachmentId): AttachmentChip => {
     const attachmentInstance = getInstance(state, attachmentId);
     const faceup = attachmentInstance?.faceup ?? true;
-    const card = cardOf(state, attachmentId);
     return {
       instanceId: attachmentId,
       name: faceup
@@ -1017,7 +1033,7 @@ function attachmentChipsOf(state: GameState, instance: CardInstance, deps: Engin
       counters: countersOf(state, attachmentId),
       damage: attachmentInstance?.damage ?? 0,
       // A facedown card's text is hidden, so its threshold is too.
-      discardAt: faceup && card ? selfDiscardDamageThreshold(card, deps) : null,
+      damageThreshold: faceup ? selfDamageThreshold(state, attachmentId, deps) : null,
       faceup,
     };
   });
@@ -1070,14 +1086,16 @@ export function scenarioAreaPanels(state: GameState): readonly ScenarioAreaPanel
   }));
 }
 
-export function environmentPanel(state: GameState, id: InstanceId): EnvironmentPanel {
+export function environmentPanel(state: GameState, id: InstanceId, deps: EngineDeps): EnvironmentPanel {
   const card = cardOf(state, id);
   const damage = getInstance(state, id)?.damage ?? 0;
+  const note = damageNote(damage, selfDamageThreshold(state, id, deps));
   return {
     instanceId: id,
     // `currentName`, not `card.name`: a flipped card is a different card as far as the table is concerned.
     name: currentName(state, id) ?? card?.name ?? "Environment",
-    subtitle: damage > 0 ? `Environment · ${damage} damage` : "Environment",
+    // "Environment · 4/9 damage": Avengers Tower flips at 9[per_hero], and the table should see how close it is.
+    subtitle: note ? `Environment · ${note}` : "Environment",
     counters: countersOf(state, id),
     art: artFor(card, faceOf(state, id)),
     damage,

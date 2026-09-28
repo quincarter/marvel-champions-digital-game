@@ -172,6 +172,10 @@ export function drawCharacter(
     label(scene, left, top, counterLine(panel.counters), typeRole.label, surface.ink.hex, ink.meta * dim);
     top += 14;
   }
+  if (panel.damageNote) {
+    label(scene, left, top, panel.damageNote, typeRole.label, accent.heroRed.hex, ink.body * dim);
+    top += 14;
+  }
   const abilityLine = controller.abilityLine(panel.instanceId);
   if (abilityLine) {
     drawFootStrip(scene, { x: left, y: top, width: textWidth, height: 18 }, abilityLine, "ability", dim);
@@ -223,8 +227,10 @@ export function drawCharacter(
    * behind it. They go on *after* it.
    */
   const chipTargets: { readonly rect: Rect; readonly instanceId: InstanceId }[] = [];
+  let chipsDrawn = 0;
   for (const attachment of panel.attachments.slice(0, 4)) {
     if (top + 16 > statBlock.top - 4) break;
+    chipsDrawn += 1;
     const usable =
       controller.selection.kind === "idle" && (ctx.marks?.usableAbilities.has(attachment.instanceId) ?? false);
     const chip: Rect = { x: left, y: top, width: textWidth, height: 16 };
@@ -260,6 +266,24 @@ export function drawCharacter(
     );
     chipTargets.push({ rect: chip, instanceId: attachment.instanceId });
     top += 19;
+  }
+
+  // No room left in the text column (the villain's short panel on a phone): the attachments that did not fit ride
+  // along the foot of the card column instead, as the card-shaped panel draws them. Dropping them hid Crossbones'
+  // Armor, and its damage, from the table entirely.
+  if (artColumn && artColumn.width >= 60) {
+    const overflow = panel.attachments.slice(chipsDrawn, 2);
+    const stripHeight = 16;
+    overflow.forEach((attachment, index) => {
+      const strip: Rect = {
+        x: artColumn.x,
+        y: artColumn.y + artColumn.height - (overflow.length - index) * stripHeight,
+        width: artColumn.width,
+        height: stripHeight,
+      };
+      drawFootStrip(scene, strip, attachmentChipText(attachment), "note", dim, attachmentChipDamage(attachment));
+      chipTargets.push({ rect: strip, instanceId: attachment.instanceId });
+    });
   }
 
   drawStatBlock(ctx, statBlock, panel, dim);
@@ -324,7 +348,12 @@ function drawCardShapedPanel(
    * lifts to clear them rather than share that space.
    */
   const abilityLine = rect.height >= 40 ? controller.abilityLine(panel.instanceId) : null;
-  const strips: { readonly text: string; readonly tone: FootTone }[] = [];
+  const strips: {
+    readonly text: string;
+    readonly tone: FootTone;
+    readonly tag?: string | null;
+    readonly instanceId?: InstanceId;
+  }[] = [];
   if (panel.ownerName && rect.height >= 40) strips.push({ text: `from ${panel.ownerName}`, tone: "note" });
   // Counters the card itself holds — Quinjet's time counters (`03019`), the
   // reason it has a support-shaped slot in the play area at all: "put an
@@ -332,6 +361,21 @@ function drawCardShapedPanel(
   // Quinjet" reads as broken when nothing on the table ever says how many
   // there are (PLAN.md Phase 7, "the board has to show counters on a support").
   if (panel.counters.length > 0 && rect.height >= 40) strips.push({ text: counterLine(panel.counters), tone: "note" });
+  // Damage on a card with no hit points (Ice Wall, Magnetic Bubble): "3/8 damage" against the point it breaks at.
+  if (panel.damageNote && rect.height >= 40) strips.push({ text: panel.damageNote, tone: "damage" });
+  // Attachments: the wide panel lists them as chips, and a card-shaped one (the villain in a narrow slot) used to
+  // draw none at all, so Crossbones' Armor was invisible there with its damage. One strip each, damage at the
+  // right edge where clipping never reaches it, and a tap opens the attachment like a chip does.
+  if (rect.height >= 80) {
+    for (const attachment of panel.attachments.slice(0, 2)) {
+      strips.push({
+        text: attachmentChipText(attachment),
+        tone: "note",
+        tag: attachmentChipDamage(attachment),
+        instanceId: attachment.instanceId,
+      });
+    }
+  }
   if (abilityLine) strips.push({ text: abilityLine, tone: "ability" });
   const stripHeight = Math.min(20, Math.max(14, Math.round(inner.height * 0.1)));
   const reserved = strips.length * stripHeight;
@@ -346,9 +390,12 @@ function drawCardShapedPanel(
     );
     drawStatBlock(ctx, column, panel, dim);
   }
+  const stripTargets: { readonly rect: Rect; readonly instanceId: InstanceId }[] = [];
   strips.forEach((strip, index) => {
     const y = inner.y + inner.height - reserved + index * stripHeight;
-    drawFootStrip(scene, { x: inner.x, y, width: inner.width, height: stripHeight }, strip.text, strip.tone, dim);
+    const stripRect = { x: inner.x, y, width: inner.width, height: stripHeight };
+    drawFootStrip(scene, stripRect, strip.text, strip.tone, dim, strip.tag ?? null);
+    if (strip.instanceId) stripTargets.push({ rect: stripRect, instanceId: strip.instanceId });
   });
 
   // A brief ±4px shake on damage, wrapping everything drawn so far — the
@@ -365,6 +412,10 @@ function drawCardShapedPanel(
   drawDefeatFlash(scene, rect, ctx.motion.defeatFlash(panel.instanceId));
 
   ctx.makeTapTarget(rect, panel.instanceId, () => controller.onCharacterTap(panel.instanceId));
+  // After the panel, so an attachment's strip wins the pointer over its host, as a wide panel's chip does.
+  for (const target of stripTargets) {
+    ctx.makeTapTarget(target.rect, target.instanceId, () => controller.onCharacterTap(target.instanceId));
+  }
 }
 
 /**
@@ -727,29 +778,47 @@ function drawStatusTags(
   return row + height + 5;
 }
 
-type FootTone = "ability" | "note";
+type FootTone = "ability" | "note" | "damage";
 
 /**
  * One solid ink strip carrying a line the table needs read over card art: the
  * `▶` ability affordance (an accent bar in the "legal" green) or a note — who
  * lent this card, a lasting effect aimed at this seat (caution yellow).
  */
-export function drawFootStrip(scene: Phaser.Scene, rect: Rect, text: string, tone: FootTone, dim: number): void {
+export function drawFootStrip(
+  scene: Phaser.Scene,
+  rect: Rect,
+  text: string,
+  tone: FootTone,
+  dim: number,
+  tag: string | null = null,
+): void {
+  const toneHex = tone === "ability" ? signal.heal.hex : tone === "damage" ? accent.heroRed.hex : signal.caution.hex;
   const g = scene.add.graphics();
   g.fillStyle(surface.ink.hex, 0.92 * dim).fillRect(rect.x, rect.y, rect.width, rect.height);
-  g.fillStyle(tone === "ability" ? signal.heal.hex : signal.caution.hex, dim).fillRect(rect.x, rect.y, 4, rect.height);
+  g.fillStyle(toneHex, dim).fillRect(rect.x, rect.y, 4, rect.height);
+  // A right-edge tag (an attachment's "3/5" damage) is placed first, so the caption is clipped instead of it.
+  let tagWidth = 0;
+  if (tag) {
+    const tagText = label(scene, 0, rect.y + rect.height / 2, tag, typeRole.label, surface.paper.hex, dim).setOrigin(
+      1,
+      0.5,
+    );
+    tagText.setX(rect.x + rect.width - 6);
+    tagWidth = tagText.width + 8;
+  }
   const caption = label(
     scene,
     rect.x + 8,
     rect.y + rect.height / 2,
     text,
     typeRole.label,
-    tone === "ability" ? surface.paper.hex : signal.caution.hex,
+    tone === "note" ? signal.caution.hex : surface.paper.hex,
     dim,
   ).setOrigin(0, 0.5);
   // `fitText` shrinks to the design's floor and then ellipsizes, so a clipped
   // line at least admits it is clipped.
-  fitText(caption, rect.width - 12, typeRole.label.size);
+  fitText(caption, rect.width - 12 - tagWidth, typeRole.label.size);
 }
 
 /**

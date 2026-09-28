@@ -1,4 +1,4 @@
-import { cardOf, cardsInPlay, selfDiscardDamageThreshold, type GameState, type InstanceId } from "@mc/engine";
+import { cardsInPlay, selfDamageThreshold, type GameState, type InstanceId } from "@mc/engine";
 import {
   firstLegal,
   identityOf,
@@ -150,6 +150,6 @@ describe("Crossbones' Armor (04065): Crossbones' damage is placed here, and 5 or
 
   it("reports its break point (5) for the board to show", () => {
     const { state, armor } = withArmor();
-    expect(selfDiscardDamageThreshold(cardOf(state, armor)!, WAVE2_DEPS)).toBe(5);
+    expect(selfDamageThreshold(state, armor, WAVE2_DEPS)).toBe(5);
   });
 });
