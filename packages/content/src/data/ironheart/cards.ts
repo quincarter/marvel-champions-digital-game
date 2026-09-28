@@ -696,6 +696,16 @@ export const IRONHEART_CARDS: readonly AnyCard[] = [
     quantityInSet: 1,
     unique: false,
     images: { front: imageRef("/bundles/cards/29025.png") },
+    errata: {
+      currentVersion: "RRG 1.5",
+      history: [
+        {
+          version: "RRG 1.5",
+          changedFields: ["text"],
+          note: "Added \"Remove 'Go for Champions!' from the game →\".",
+        },
+      ],
+    },
     cost: 3,
     resourceIcons: { wild: 1 },
     aspect: "basic",
@@ -704,7 +714,7 @@ export const IRONHEART_CARDS: readonly AnyCard[] = [
     deckLimit: 1,
     playRestrictions: { requiresIdentityTrait: trait("CHAMPION") },
     text: {
-      printed: "Max 1 per deck.\nPlay only if your identity has the Champion trait.\nHero Action: Remove \"Go for Champions!\" from the game → Each champion character in play cannot take damage until the end of the round.",
+      printed: "Max 1 per deck.\nPlay only if your identity has the Champion trait.\nHero Action: Each champion character in play cannot take damage until the end of the round.",
       current: "Max 1 per deck.\nPlay only if your identity has the Champion trait.\nHero Action: Remove \"Go for Champions!\" from the game → Each champion character in play cannot take damage until the end of the round.",
     },
     abilities: [{ id: abilityId("29025.go-for-champions-action") }],
