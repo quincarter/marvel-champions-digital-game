@@ -72,7 +72,8 @@ export interface Correction {
    * "attach to" text is placed in front of the revealing player, not in play; ruling, Feb 20, 2026 (4): "If an
    * attachment lacks 'attach to' text, it attaches when its 'When Revealed' ability triggers". Old Grudge (`sm`
    * 27172) moved to it from `"minion"`, which made the reveal attach it to an arbitrary minion in play before its
-   * own search ran.
+   * own search ran; Fallen Warrior (`mts` 21153) moved to it from `"ally"` for the same reason (it attaches to the ally
+   * its own When Revealed mills out of the deck).
    *
    * A full `AttachmentHost` (wave 5) for a When Revealed "Attach to X" whose X the plain kinds cannot say: Manipulated
    * Mind (`sm` 27171) moved from `"ally"` to "the ally you control with the lowest cost" (`superlative`, `printedCost`,
