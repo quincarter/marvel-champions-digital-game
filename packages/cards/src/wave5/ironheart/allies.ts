@@ -21,9 +21,12 @@ import {
   modifyStat,
   modifyStatOf,
   on,
+  oncePerPhase,
   option,
   query,
   ready,
+  refMatches,
+  resource,
   response,
   self,
   spend,
@@ -42,13 +45,11 @@ const ELITE = trait("ELITE");
  * confirmed against each card's own scan in `assets/card-art/bundles/cards/<id>.png`.
  *
  * **Brawn (29004)** — "While Brawn is exhausted, he gains: 'Resource: Generate a [mental] resource. (Limit once per
- * phase.)'" **Not scripted — engine gap, reported rather than hacked around** (agent-rules.md's testing bar): a
- * resource ability's own `AbilityTriggerSpec` (`kind: "resource"`, `packages/engine/src/abilities.ts`) carries no
- * `while` gate the way `action`'s does (`AbilityOptions.while`, wired only for `trigger.kind === "action"` in
- * `packages/engine/src/actions.ts`'s `disabledActionReason`), and no `ConstantPart` field grants a whole new
- * triggered/resource ability conditionally the way `keywordGrants`/`traitGrants` grant a keyword or trait. Card data
- * still carries the single ref `29004.brawn-constant`; it is intentionally left unregistered here rather than always
- * offering the resource (wrong when Brawn is ready) or never offering it (wrong when he's exhausted).
+ * phase.)'" The quoted ability is Brawn's only one, so the card's single ref `29004.brawn-constant` carries it: a
+ * `resource({ mental: 1 })` with `while: refMatches(self, { exhausted: true })`, the resource trigger's own condition
+ * (`AbilityTriggerSpec` `kind: "resource"`'s `while`, `packages/engine/src/abilities.ts`). While Brawn is ready he has
+ * no such ability: it is neither offered as a payment source nor accepted in a payment (RRG 1.8 "Resource Ability",
+ * p. 37). `oncePerPhase` is the printed limit (RRG 1.8 "Limit", pp. 26–27), counted per Brawn.
  *
  * **Cloud 9 (29014)** — "Hero Action: Exhaust Cloud 9 → choose a player. Until the end of the phase, each Aerial
  * character that player controls gets +1 THW." `choosePlayer()` + `modifyStatOf("thw", 1, query("character", {
@@ -102,6 +103,11 @@ const ELITE = trait("ELITE");
  * (`select.ts` `printedTraitsOf` reads no blank).
  */
 export const IRONHEART_ALLIES = defineAbilities({
+  "29004.brawn-constant": resource(
+    { mental: 1 },
+    { while: refMatches(self, { exhausted: true }), limit: oncePerPhase },
+  ),
+
   "29014.cloud-9-action": heroAction(
     { cost: exhaustThis },
     choosePlayer(),

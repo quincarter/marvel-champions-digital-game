@@ -662,18 +662,16 @@ function resourceAbilityFault(
   if (form && getPlayer(state, spender)?.identity.form !== form) {
     return { code: "wrong_form", message: `${abilityId} requires ${form} form` };
   }
+  const context: EffectContext = { selfInstanceId: instanceId, controllerId: spender, event: null, bindings: {}, deps };
+  // "While Brawn is exhausted, he gains: 'Resource: …'" (`trigger.while`): no ability to trigger while it is false.
+  if (definition.trigger.while && !evaluate(state, definition.trigger.while, context)) {
+    return { code: "no_valid_target", message: `${abilityId}'s condition is not met` };
+  }
   if (limitReached(state, instanceId, asAbilityId(abilityId), definition, null, spender)) {
     return { code: "limit_reached", message: `${abilityId} has reached its limit` };
   }
   // "Generate a [wild] resource for an event": only while paying for a matching card.
   if (definition.generatesFor) {
-    const context: EffectContext = {
-      selfInstanceId: instanceId,
-      controllerId: spender,
-      event: null,
-      bindings: {},
-      deps,
-    };
     if (payingFor === null || !matchesQuery(state, payingFor, definition.generatesFor, context)) {
       return { code: "no_valid_target", message: `${abilityId} only generates resources for a certain kind of card` };
     }

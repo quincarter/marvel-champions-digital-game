@@ -214,6 +214,42 @@ describe("typed costs and payment", () => {
     expect(rejected(deps, after, play(c2, [ability(deskId, "scientist")] as never))).toBe("limit_reached");
   });
 
+  it("a resource ability with a `while` gate exists only while its condition holds (Brawn, `ironheart` 29004)", () => {
+    // "While Brawn is exhausted, he gains: 'Resource: Generate a [mental] resource.'" — RRG 1.8 "Resource Ability"
+    // (p. 37): no ability, so no payment source and a payment naming it is refused.
+    const brawn = stubAbility(
+      "brawn",
+      def({
+        trigger: { kind: "resource", while: { kind: "refMatches", ref: { kind: "self" }, query: { exhausted: true } } },
+        generates: { mental: 1 },
+        effects: [],
+      }),
+    );
+    const desk = stubSupport({ id: "desk", cost: 0, abilities: [brawn.ref] });
+    const { deps, state } = setup([desk], brawn);
+    const given = giveCards(state, p1, "desk", "cheap");
+    const [deskId, cheapId] = given.ids as [InstanceId, InstanceId];
+    const ready = runWith(deps, given.state, play(deskId, []));
+    const cheapAction = { kind: "playCard", instanceId: cheapId } as const;
+    const optionId = `ability:${deskId}:brawn`;
+
+    expect(mustInstance(ready, deskId).exhausted).toBe(false);
+    expect(rejected(deps, ready, play(cheapId, [ability(deskId, "brawn")] as never))).toBe("no_valid_target");
+    expect(paymentFor(ready, p1, cheapAction, {}, deps)?.sources.map((s) => s.optionId)).not.toContain(optionId);
+
+    const exhausted: GameState = {
+      ...ready,
+      instances: { ...ready.instances, [deskId]: { ...mustInstance(ready, deskId), exhausted: true } },
+    };
+    const source = paymentFor(exhausted, p1, cheapAction, {}, deps)?.sources.find((s) => s.optionId === optionId);
+    expect(source?.pool).toEqual({ physical: 0, mental: 1, energy: 0, wild: 0 });
+    const result = applyCommand(exhausted, play(cheapId, [ability(deskId, "brawn")] as never), deps);
+    expectOk(result);
+    expect(result.ok && result.events.find((e) => e.type === "resourcesGenerated")).toMatchObject({
+      pool: { mental: 1, physical: 0, energy: 0, wild: 0 },
+    });
+  });
+
   it("Pepper Potts copies the discard pile as it stood before the payment, never a card that payment spends", () => {
     // FAQ "Pepper Potts (#33)", RRG 1.8 p. 58: resources are generated simultaneously, so a card being spent is not
     // yet on top of the discard pile when Pepper generates — whatever order the payment lists them in.

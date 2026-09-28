@@ -161,10 +161,18 @@ export type AbilityTriggerSpec =
    * "Resource" abilities. A counter "spent as if it were a [wild] resource" is neither; the engine carries it as a
    * resource ability only so it can join a payment. It still pays (and counts toward `paid.*`), but adds nothing to
    * the payment's `resourcesGenerated` event, so "after … generates resources" (M.O.R.B.I.U.S.) does not see it.
+   *
+   * `while`: a resource ability that exists only under a condition — "While Brawn is exhausted, he gains: 'Resource:
+   * Generate a [mental] resource. (Limit once per phase.)'" (`ironheart` 29004). While it is false the ability cannot
+   * be triggered: it is not offered as a payment source and a payment naming it is refused (RRG 1.8 "Resource
+   * Ability", p. 37: triggered while generating resources to pay a cost; "Play Restrictions and Permissions", p. 33).
+   * Read with "this card" as the ability's card and "you" as the player spending it. Its limit (RRG 1.8 "Limit",
+   * pp. 26–27) counts uses as any resource ability's does, whether or not the condition was true in between.
    */
   | {
       readonly kind: "resource";
       readonly form?: Form;
+      readonly while?: Predicate;
       readonly forAnyPlayer?: boolean;
       readonly repeatable?: boolean;
       readonly spentAsIfResource?: boolean;

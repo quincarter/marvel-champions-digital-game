@@ -2,10 +2,12 @@ import { describe, expect, it } from "vitest";
 import { cardId, trait } from "@mc/content";
 import {
   activeAbilityRefs,
+  applyCommand,
   canAttack,
   hasKeyword,
   keywordTotal,
   maxHitPoints,
+  paymentFor,
   statBonus,
   traitsOf,
   type GameState,
@@ -101,13 +103,71 @@ const AERIAL = trait("AERIAL");
 const CHAMPION = trait("CHAMPION");
 
 describe("Brawn (ally, 29004)", () => {
-  it(
-    "29004.brawn-constant: unscripted — engine gap (module docblock): no `while` gate on a resource trigger, " +
-      "and no ConstantPart field grants a whole ability conditionally",
-    () => {
-      expect(WAVE5_DEPS.abilities["29004.brawn-constant"]).toBeUndefined();
-    },
-  );
+  const BRAWN = "29004.brawn-constant";
+  /** Ironheart in hero form with Brawn in play, `exhausted` as given, and Morale Boost (29019, cost 1) in hand. */
+  function brawnTable(exhausted: boolean, seed = 1) {
+    const hero = run(ironheartVsRhino(seed), toHero(P1));
+    const { state: withBrawn, id: brawn } = playFromHand(WAVE5_DEPS, hero, "29004", 4);
+    const given = moveToHand(topUp(patchInstance(withBrawn, brawn, { exhausted }), 2), P1, "29019", "29019");
+    const [boost, boost2] = given.ids as [InstanceId, InstanceId];
+    return { state: given.state, brawn, boost, boost2 };
+  }
+  const brawnPays = (brawn: InstanceId) => [{ ability: { instanceId: brawn, abilityId: BRAWN as never } }];
+  const optionOf = (brawn: InstanceId) => `ability:${brawn}:${BRAWN}`;
+
+  it("29004.brawn-constant: exhausted Brawn is a payment source worth exactly one [mental], and pays a 1-cost card alone", () => {
+    const { state, brawn, boost } = brawnTable(true);
+    const source = paymentFor(state, P1, { kind: "playCard", instanceId: boost }, {}, WAVE5_DEPS)?.sources.find(
+      (s) => s.optionId === optionOf(brawn),
+    );
+    expect(source).toMatchObject({ kind: "resourceAbility", instanceId: brawn });
+    expect(source?.pool).toEqual({ physical: 0, mental: 1, energy: 0, wild: 0 });
+
+    const result = applyCommand(state, play(P1, boost, [], { abilities: brawnPays(brawn) }), WAVE5_DEPS);
+    expect(result.ok).toBe(true);
+    expect(result.ok && result.events.find((e) => e.type === "resourcesGenerated")).toMatchObject({
+      pool: { mental: 1, physical: 0, energy: 0, wild: 0 },
+    });
+  });
+
+  it("29004.brawn-constant: ready Brawn has no resource ability — not offered, and a payment naming it is refused", () => {
+    const { state, brawn, boost } = brawnTable(false);
+    const query = paymentFor(state, P1, { kind: "playCard", instanceId: boost }, {}, WAVE5_DEPS);
+    expect(query?.sources.map((s) => s.optionId)).not.toContain(optionOf(brawn));
+    const result = applyCommand(state, play(P1, boost, [], { abilities: brawnPays(brawn) }), WAVE5_DEPS);
+    expect(!result.ok && result.error.code).toBe("no_valid_target");
+  });
+
+  it("29004.brawn-constant: limit once per phase — refused a second time this phase, available again next phase", () => {
+    const { state, brawn, boost, boost2 } = brawnTable(true);
+    const once = settle(
+      runWith(WAVE5_DEPS, state, play(P1, boost, [], { abilities: brawnPays(brawn) })),
+      firstLegal,
+      undefined,
+      WAVE5_DEPS,
+    );
+    expect(inst(once, brawn).exhausted).toBe(true);
+    const twice = applyCommand(once, play(P1, boost2, [], { abilities: brawnPays(brawn) }), WAVE5_DEPS);
+    expect(!twice.ok && twice.error.code).toBe("limit_reached");
+    expect(
+      paymentFor(once, P1, { kind: "playCard", instanceId: boost2 }, {}, WAVE5_DEPS)?.sources.map((s) => s.optionId),
+    ).not.toContain(optionOf(brawn));
+
+    // Through the villain phase into the next player phase (a new phase: RRG 1.8 "Limit", pp. 26–27).
+    const nextRound = settle(
+      runWith(WAVE5_DEPS, once, endTurn(P1)),
+      firstLegal,
+      (s) => s.step.phase === "player" && s.pendingChoice === null,
+      WAVE5_DEPS,
+    );
+    expect(nextRound.step.phase).toBe("player");
+    expect(nextRound.outcome ?? null).toBeNull();
+    const given = moveToHand(nextRound, P1, "29019");
+    const [boost3] = given.ids as [InstanceId];
+    const again = patchInstance(given.state, brawn, { exhausted: true });
+    const result = applyCommand(again, play(P1, boost3, [], { abilities: brawnPays(brawn) }), WAVE5_DEPS);
+    expect(result.ok).toBe(true);
+  });
 });
 
 describe("Cloud 9 (ally, 29014)", () => {

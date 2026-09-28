@@ -47,7 +47,10 @@ export interface AbilityOptions {
   readonly limit?: AbilityLimit;
   /** "(attack)", "(thwart)", "(defense)". */
   readonly label?: AbilityLabel | readonly AbilityLabel[];
-  /** Actions only: a condition printed before the cost ("If you are in Tiny hero form, exhaust … →"). */
+  /**
+   * Actions: a condition printed before the cost ("If you are in Tiny hero form, exhaust … →"). Resource abilities: the
+   * condition under which the card has the ability at all ("While Brawn is exhausted, he gains: 'Resource: …'").
+   */
   readonly while?: Predicate;
   /**
    * "First Player Action:" / "First Player Interrupt:" (docs/phase7-wave3.md §3.13, the Milano/Kree Command Ship):
@@ -188,6 +191,7 @@ export const resource = (
     {
       kind: "resource",
       ...(form ? { form } : {}),
+      ...(rest.while ? { while: rest.while } : {}),
       ...(forAnyPlayer ? { forAnyPlayer: true } : {}),
       ...(repeatable ? { repeatable: true } : {}),
       ...(spentAsIfResource ? { spentAsIfResource: true } : {}),
