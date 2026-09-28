@@ -1534,7 +1534,7 @@ export const SM_CARDS: readonly AnyCard[] = [
           },
         ],
         completionLoses: true,
-        image: imageRef("/bundles/cards/27064a.jpg"),
+        image: imageRef("/bundles/cards/27064a.png"),
         aSide: {
           text: {
             printed: "Contents: Sandman (I) and Sandman (II). (Sandman (II) and Sandman (III) instead for expert mode.) Sandman, City in Chaos, and Standard encounter sets. One modular encounter set (Down to Earth).\nSetup: Search the encounter deck for the City Streets environment and put it into play. Place 4 sand counters on it.",
@@ -2080,7 +2080,7 @@ export const SM_CARDS: readonly AnyCard[] = [
         traits: [],
         keywords: [],
         abilities: [{ id: abilityId("27087b.maze-of-mirrors-forced-interrupt") }],
-        image: imageRef("/bundles/cards/27087a.jpg"),
+        image: imageRef("/bundles/cards/27087a.png"),
         aSide: {
           text: {
             printed: "Contents: Mysterio (I) and Mysterio (II). (Mysterio (II) and Mysterio (III) instead for expert mode.) Mysterio, Personal Nightmare, and Standard encounter sets. One modular encounter set (Whispers of Paranoia.)\nSetup: Put a shifting Apparition minion into play engaged with each player. (Shuffle.)",
@@ -2105,7 +2105,7 @@ export const SM_CARDS: readonly AnyCard[] = [
         keywords: [],
         abilities: [{ id: abilityId("27088b.edge-of-reality-forced-interrupt") }],
         completionLoses: true,
-        image: imageRef("/bundles/cards/27088a.jpg"),
+        image: imageRef("/bundles/cards/27088a.png"),
         aSide: {
           text: {
             printed: "When Revealed: In player order, shuffle the top 2 cards of the encounter deck into each player's deck.",
@@ -2464,7 +2464,7 @@ export const SM_CARDS: readonly AnyCard[] = [
             id: abilityId("27100b.sinister-synchronization-forced-interrupt"),
           },
         ],
-        image: imageRef("/bundles/cards/27100a.jpg"),
+        image: imageRef("/bundles/cards/27100a.png"),
         aSide: {
           text: {
             printed: "Contents: Doctor Octopus, Electro, Hobgoblin, Kraven the Hunter, Scorpion, and Vulture. The Sinister Six, Guerrilla Tactics, and Standard encounter sets.\nSetup: Choose X villains at random, where X is 1 more than the number of players. Put those villains into play, place the active counter on the villain with the lowest activation order value, and set the other villains aside. Put the Light at the End side scheme into play, trap! side faceup.",
