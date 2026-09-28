@@ -1835,6 +1835,25 @@ export type EffectSpec =
        */
       readonly asCost?: true;
     }
+  /**
+   * "Divide damage … among each character the attacked player controls as evenly as possible" (Bombshell, `spdr`
+   * 31031; `RuleSpec attacksDividedEvenly`). Each of `to`'s characters (identity and allies they control) gets
+   * `floor(amount / n)`; the `amount mod n` points left over go 1 each to that many different characters picked by
+   * `chooser` (one `divideEvenlyRemainder` choice; none when it divides exactly). RRG 1.8 defines no "as evenly as
+   * possible"; this is its arithmetic reading. Every share then resolves simultaneously as one `damageGroup`, like
+   * indirect damage, so a tough status card or a prevention stops only its own character's share. `to` naming several
+   * players divides among all of their characters together.
+   */
+  | {
+      readonly kind: "divideDamageEvenly";
+      readonly to: PlayerRef;
+      readonly amount: ValueSpec;
+      readonly chooser: PlayerRef;
+      /** Set by the engine for an enemy's attack: the shares are that attack's damage, reported to its event frame. */
+      readonly fromAttack?: boolean;
+      /** The attacked character, when the attack has piercing (RRG 1.8 "Piercing", p. 32): only its share pierces. */
+      readonly piercingFor?: InstanceId;
+    }
   | { readonly kind: "draw"; readonly player: PlayerRef; readonly amount: ValueSpec }
   /**
    * "Discard N cards from your hand" / "Each player must choose and discard 1 resource of any type from their hand

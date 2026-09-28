@@ -26,8 +26,8 @@ import {
   toHero,
   use,
 } from "../../testing/harness.js";
-import { driveEvents, encounterCardInVillainArea } from "../../testing/staging.js";
-import { defeatWithAttack, runWave5, startWave5Game, WAVE5_DEPS } from "../testing.js";
+import { driveEvents, driveEventsPicking, encounterCardInVillainArea } from "../../testing/staging.js";
+import { defeatWithAttack, playFromHand, runWave5, startWave5Game, WAVE5_DEPS } from "../testing.js";
 import { spdrScenario } from "./support.js";
 
 /**
@@ -64,6 +64,9 @@ const engagedWithP1 = (state: GameState, code: string): { readonly state: GameSt
   };
 };
 
+/** Hand cards to pay for an ally with (spdr's own precon codes, `allies.test.ts`'s `topUp`). */
+const topUpForAlly = (state: GameState): GameState => moveToHand(state, P1, "31004", "31004", "31006").state;
+
 const resolvedAbility = (events: readonly GameEvent[], abilityId: string): boolean =>
   events.some((e) => e.type === "abilityResolved" && e.abilityId === abilityId);
 
@@ -78,8 +81,70 @@ describe("Grand Larceny (31030)", () => {
 });
 
 describe("Bombshell (31031)", () => {
-  it.skip("31031.bombshell-constant: KNOWN_SKIPPED — no engine primitive divides an enemy's own attack among a player's characters (see the module docblock)", () => {
-    /* nothing to assert: not registered */
+  /** P1 in hero form with Daredevil (ally, 31014, 3 hit points) in play and Bombshell (ATK 3) engaged with them. */
+  const bombshellTable = (withAlly: boolean) => {
+    const hero = runWave5(withSyndicate(), toHero(P1));
+    const allied = withAlly ? playFromHand(topUpForAlly(hero), "31014", 2) : { state: hero, id: null };
+    const { state: engaged, id: bombshell } = engagedWithP1(allied.state, "31031");
+    // 0-boost fillers: Rhino's own boost and the encounter reveal add nothing that deals damage.
+    return { state: stackEncounterDeck(engaged, "01186", "01186"), bombshell, ally: allied.id };
+  };
+  const extraTo =
+    (target: InstanceId | null): ((state: GameState) => readonly string[]) =>
+    (state) => {
+      const choice = state.pendingChoice;
+      if (choice?.prompt.kind === "divideEvenlyRemainder" && target) return [target];
+      return firstLegal(state);
+    };
+  const bombshellDamage = (events: readonly GameEvent[], bombshell: InstanceId) =>
+    events.flatMap((e) =>
+      e.type === "damageDealt" && e.sourceInstanceId === bombshell ? [[e.targetInstanceId, e.amount] as const] : [],
+    );
+
+  it("31031.bombshell-constant: her 3 damage splits 2/1 between the identity and the ally, the first player placing the 2", () => {
+    const { state, bombshell, ally } = bombshellTable(true);
+    const identity = identityOf(state, P1);
+    const prompts: { amount: number; each: number; authority: string }[] = [];
+    const pick = (s: GameState) => {
+      const choice = s.pendingChoice;
+      if (choice?.prompt.kind === "divideEvenlyRemainder") {
+        prompts.push({ amount: choice.prompt.amount, each: choice.prompt.each, authority: choice.authority });
+      }
+      return extraTo(ally)(s);
+    };
+    const { events } = driveEventsPicking(WAVE5_DEPS, state, pick, endTurn(P1));
+    expect(prompts).toEqual([{ amount: 1, each: 1, authority: "firstPlayerTargets" }]);
+    expect(bombshellDamage(events, bombshell).sort()).toEqual(
+      [
+        [ally, 2],
+        [identity, 1],
+      ].sort(),
+    );
+  });
+
+  it("31031.bombshell-constant: the leftover point can go to the identity instead (2 to the identity, 1 to the ally)", () => {
+    const { state, bombshell, ally } = bombshellTable(true);
+    const identity = identityOf(state, P1);
+    const { events } = driveEventsPicking(WAVE5_DEPS, state, extraTo(identity), endTurn(P1));
+    expect(bombshellDamage(events, bombshell).sort()).toEqual(
+      [
+        [ally, 1],
+        [identity, 2],
+      ].sort(),
+    );
+  });
+
+  it("31031.bombshell-constant: with no ally, all 3 go to the identity and nobody is asked", () => {
+    const { state, bombshell } = bombshellTable(false);
+    const identity = identityOf(state, P1);
+    let asked = false;
+    const pick = (s: GameState) => {
+      if (s.pendingChoice?.prompt.kind === "divideEvenlyRemainder") asked = true;
+      return firstLegal(s);
+    };
+    const { events } = driveEventsPicking(WAVE5_DEPS, state, pick, endTurn(P1));
+    expect(asked).toBe(false);
+    expect(bombshellDamage(events, bombshell)).toEqual([[identity, 3]]);
   });
 
   it("31031.boost: deals 1 indirect damage to each player, sourced from Bombshell, exactly once each", () => {

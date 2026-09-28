@@ -58,16 +58,11 @@ export const SPDR_SINISTER_SYNDICATE = defineAbilities({
   // Bombshell (31031, minion; ATK 3/SCH 2/HP 4, CRIMINAL, unique) — [star] Divide damage from Bombshell's attack
   // among each character the attacked player controls as evenly as possible.
   //
-  // KNOWN_SKIPPED ("31031.bombshell-constant", not registered): unlike `wave5/ironheart/zzzax.ts`'s own Bombshell
-  // (29033, a *player* ally), which grants itself the `divideBasicPower` rule so the controlling player's own
-  // `basicAttack` command can carry a `divide` share list (`actions.ts` `dividedShares`), a *minion's own* attack
-  // during the villain phase never goes through that command path — it resolves through `resolve/enemy-
-  // activation.ts`'s enemy-attack procedure, which always assigns the whole attack to the one declared defender
-  // and has no equivalent "split this attack's damage across the attacked player's own characters" primitive.
-  // `divideBasicPower` targeted at `{ self: true }` would be inert here (nothing in the enemy-attack path reads
-  // it), so it is left unregistered rather than registered misleadingly. Needs a new engine primitive — dividing
-  // an *enemy's* attack across several of the defending player's own characters, distinct from the player-command
-  // `divideBasicPower`/`dividedShares` mechanism (`game-rules-architect`).
+  // `RuleSpec attacksDividedEvenly`: step 4's damage (after a hero defender's DEF) is split among the target player's
+  // identity and allies, the first player placing any leftover points (RRG 1.8 "First Player", p. 19; the card names
+  // nobody). Distinct from `divideBasicPower` (`wave5/ironheart/zzzax.ts`'s Bombshell 29033), a player command's.
+  "31031.bombshell-constant": constant(rule({ kind: "attacksDividedEvenly", attacker: { self: true } })),
+
   // Bombshell (31031) — [star] Boost: Deal 1 indirect damage to each player. Exhaust each character damaged this
   // way.
   //

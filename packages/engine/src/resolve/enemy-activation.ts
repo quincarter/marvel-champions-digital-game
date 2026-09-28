@@ -32,6 +32,7 @@ import {
 } from "../query.js";
 import {
   attacksDealIndirectDamage,
+  attacksDividedEvenly,
   mustDefendWithAlly,
   pairedMainSchemeId,
   schemeThreatDestination,
@@ -586,6 +587,39 @@ export function executeEnemyAttackFrame(ctx: Ctx, frame: Frame<"enemyAttack">): 
               to: { kind: "id", playerId: frame.targetPlayerId },
               amount: { kind: "const", value: planned.damage },
               fromAttack: true,
+            },
+          ],
+          selfInstanceId: frame.enemyInstanceId,
+          controllerId: null,
+          eventFrameId: frame.eventFrameId,
+        });
+        return;
+      }
+      // "Divide damage from [this enemy]'s attack among each character the attacked player controls as evenly as
+      // possible" (`attacksDividedEvenly`, Bombshell `spdr` 31031) replaces step 5: step 4's damage, already reduced by
+      // a hero defender's DEF, is split among the target player's identity and allies — who, after another player's
+      // defense, is the defending player (RRG 1.8 "Attack (Enemy Activation)", p. 8: "that player becomes the new
+      // target"). The card names nobody to place the leftover points, so the first player does (RRG 1.8 "First
+      // Player", p. 19: a choice an encounter card requires "but does not specify which player should act").
+      if (attacksDividedEvenly(ctx.state, ctx.deps, frame.enemyInstanceId)) {
+        pushEvents(ctx, [
+          {
+            kind: "characterAttacked",
+            attackerInstanceId: frame.enemyInstanceId,
+            targetInstanceId: frame.targetInstanceId,
+            playerId: frame.attackedPlayerId,
+            ...(keywords.includes("ranged") ? { ranged: true } : {}),
+          },
+        ]);
+        pushEffects(ctx, {
+          effects: [
+            {
+              kind: "divideDamageEvenly",
+              to: { kind: "id", playerId: frame.targetPlayerId },
+              amount: { kind: "const", value: planned.damage },
+              chooser: { kind: "firstPlayer" },
+              fromAttack: true,
+              ...(keywords.includes("piercing") ? { piercingFor: frame.targetInstanceId } : {}),
             },
           ],
           selfInstanceId: frame.enemyInstanceId,

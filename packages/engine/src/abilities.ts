@@ -812,6 +812,15 @@ export type RuleSpec =
    */
   | { readonly kind: "attacksDealIndirectDamage"; readonly attacker: TargetQuery; readonly while?: Predicate }
   /**
+   * "[star] Divide damage from Bombshell's attack among each character the attacked player controls as evenly as
+   * possible." (Iron Spider's Sinister Syndicate, `spdr` 31031). Step 5 of a matching enemy's attack (RRG 1.8 "Attack
+   * (Enemy Activation)", p. 9) is replaced: step 4's damage (after a hero defender's DEF) is divided among the target
+   * player's identity and the allies they control, `EffectSpec divideDamageEvenly`. The golden rule (RRG 1.8 p. 4)
+   * puts the card over step 5's "all damage … is dealt to the ally", so an ally defender takes one share, not all.
+   * Only the defender, or the target character if undefended, is attacked, as with `attacksDealIndirectDamage`.
+   */
+  | { readonly kind: "attacksDividedEvenly"; readonly attacker: TargetQuery; readonly while?: Predicate }
+  /**
    * "Each enemy in play gains 1 acceleration icon" (Secret Lair, `hood` 24061; Coordinated Effort, `sm` 27143; Mad
    * Science, `aos` 50085; Bora, `spdr` 30031; Mojo in the Middle, `mojo` 39060), "this card gains a hazard icon" (Rule by
    * Force, `sm` 29029): each card in play matching `target` counts as printing `count` more `icon`s (RRG 1.8

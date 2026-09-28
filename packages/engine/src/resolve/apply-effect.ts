@@ -2183,6 +2183,7 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
     case "resolveSpecials":
     case "assignDamage":
     case "dealIndirectDamage":
+    case "divideDamageEvenly":
     case "reorderCards":
       throw new EngineInvariantError(`${effect.kind} is handled before applyEffect`);
     case "reduceNextCardCost": {

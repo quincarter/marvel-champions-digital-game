@@ -141,6 +141,7 @@ export function executeEffectsFrame(ctx: Ctx, frame: Frame<"effects">): void {
   if (effect.kind === "resolveSpecials") return executeResolveSpecials(ctx, frame, effect, context);
   if (effect.kind === "assignDamage") return executeAssignDamage(ctx, frame, effect, context);
   if (effect.kind === "dealIndirectDamage") return executeDealIndirectDamage(ctx, frame, effect, context);
+  if (effect.kind === "divideDamageEvenly") return executeDivideDamageEvenly(ctx, frame, effect, context);
   if (effect.kind === "spendResources") return executeSpendResources(ctx, frame, effect, context);
   if (effect.kind === "dealEncounterCard") return executeDealEncounterCards(ctx, frame, effect, context);
   if (effect.kind === "reorderCards") return executeReorderCards(ctx, frame, effect, context);
@@ -1284,20 +1285,23 @@ function executeAssignDamage(
 
 const INDIRECT = "_indirect.";
 
+/** The characters a player controls: their identity and the allies they control (none once eliminated). */
+function charactersControlledBy(ctx: Ctx, playerId: PlayerId): readonly InstanceId[] {
+  const player = getPlayer(ctx.state, playerId);
+  if (!player || player.eliminated) return [];
+  const allies = player.playArea.filter(
+    (id) => controllerOf(ctx.state, id) === playerId && categoriesOf(ctx.state, id).includes("character"),
+  );
+  return [player.identity.instanceId, ...allies];
+}
+
 /** The characters a player (or the group) may assign indirect damage to: identities and allies they control. */
 function indirectAssigners(
   ctx: Ctx,
   to: Extract<EffectSpec, { kind: "dealIndirectDamage" }>["to"],
   context: EffectContext,
 ): readonly { readonly playerId: PlayerId; readonly characters: readonly InstanceId[] }[] {
-  const controlledBy = (playerId: PlayerId): readonly InstanceId[] => {
-    const player = getPlayer(ctx.state, playerId);
-    if (!player || player.eliminated) return [];
-    const allies = player.playArea.filter(
-      (id) => controllerOf(ctx.state, id) === playerId && categoriesOf(ctx.state, id).includes("character"),
-    );
-    return [player.identity.instanceId, ...allies];
-  };
+  const controlledBy = (playerId: PlayerId): readonly InstanceId[] => charactersControlledBy(ctx, playerId);
   // "Dealt to a group of players … as the group chooses": the first player submits it (docs/phase7-wave1.md §4.7).
   if (to === "group")
     return [
@@ -1396,6 +1400,61 @@ function executeDealIndirectDamage(
         ...(effect.fromAttack === true ? { parentFrameId: frame.eventFrameId } : {}),
       })),
       effect.bind ? { frameId: frame.frameId, prefix: effect.bind } : null,
+    ),
+  ]);
+}
+
+/**
+ * `EffectSpec divideDamageEvenly`. The division is fixed when the effect starts resolving (the characters and the
+ * amount are read then), and the chooser's answer only says which characters take the leftover points; a character
+ * that leaves play before the damage group resolves simply isn't dealt its share.
+ */
+function executeDivideDamageEvenly(
+  ctx: Ctx,
+  frame: Frame<"effects">,
+  effect: Extract<EffectSpec, { kind: "divideDamageEvenly" }>,
+  context: EffectContext,
+): void {
+  const amount = Math.max(0, resolveValue(ctx.state, effect.amount, context, ctx.deps));
+  const characters = resolvePlayers(ctx.state, effect.to, context).flatMap((p) => charactersControlledBy(ctx, p));
+  const each = characters.length > 0 ? Math.floor(amount / characters.length) : 0;
+  const remainder = characters.length > 0 ? amount % characters.length : 0;
+  let extra: readonly InstanceId[] = [];
+  if (remainder > 0) {
+    const [chooser] = resolvePlayers(ctx.state, effect.chooser, context);
+    if (frame.answer === null && chooser) {
+      requestChoice(ctx, {
+        playerId: chooser,
+        authority: effectChoiceAuthority(ctx.state, frame.selfInstanceId, effect.chooser),
+        prompt: { kind: "divideEvenlyRemainder", amount: remainder, each },
+        options: cardOptions(ctx, characters),
+        minSelections: remainder,
+        maxSelections: remainder,
+        frameId: frame.frameId,
+      });
+      return;
+    }
+    // No chooser to ask (none resolves): the first characters in player order take the leftover points.
+    extra = frame.answer ? frame.answer.map((id) => asInstanceId(id)) : characters.slice(0, remainder);
+  }
+  setFrame(ctx, { ...frame, answer: null, cursor: frame.cursor + 1 });
+  const shares = characters
+    .map((id) => ({ id, points: each + (extra.includes(id) ? 1 : 0) }))
+    .filter((share) => share.points > 0);
+  if (shares.length === 0) return;
+  pushFrames(ctx, [
+    damageGroupFrame(
+      ctx,
+      shares.map(({ id, points }) => ({
+        kind: "dealDamage",
+        targetInstanceId: id,
+        amount: points,
+        sourceInstanceId: frame.selfInstanceId,
+        fromAttack: effect.fromAttack === true,
+        ...(effect.fromAttack === true ? { parentFrameId: frame.eventFrameId } : {}),
+        ...(effect.piercingFor === id ? { piercing: true } : {}),
+      })),
+      null,
     ),
   ]);
 }

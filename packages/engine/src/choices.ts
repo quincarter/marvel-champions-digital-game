@@ -119,6 +119,11 @@ export type ChoicePrompt =
    */
   | { readonly kind: "assignIndirectDamage"; readonly amount: number; readonly caps: Readonly<Record<string, number>> }
   /**
+   * `EffectSpec divideDamageEvenly`: every option's character already gets `each` damage; select exactly `amount`
+   * different characters to take 1 more (the remainder of an uneven division).
+   */
+  | { readonly kind: "divideEvenlyRemainder"; readonly amount: number; readonly each: number }
+  /**
    * `EffectSpec divide` (docs/phase7-wave2.md §3.7): split `amount` among the options' cards. Options are
    * `<instanceId>#<n>` for n = 1…amount; each selected option is 1 point to that card, and exactly `amount` are selected.
    *

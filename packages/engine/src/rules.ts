@@ -465,6 +465,12 @@ export const attacksDealIndirectDamage = (state: GameState, deps: EngineDeps, at
     matchesQuery(state, attackerId, rule.attacker, context),
   );
 
+/** Whether this enemy's attacks are divided evenly among the target player's characters (`attacksDividedEvenly`). */
+export const attacksDividedEvenly = (state: GameState, deps: EngineDeps, attackerId: InstanceId): boolean =>
+  activeRules(state, deps, "attacksDividedEvenly").some(({ rule, context }) =>
+    matchesQuery(state, attackerId, rule.attacker, context),
+  );
+
 /** The excess damage an attack by this character adds (`excessDamageBonus`; docs/phase7-wave3.md §3.18). */
 export const excessDamageBonus = (state: GameState, deps: EngineDeps, attackerId: InstanceId): number =>
   activeRules(state, deps, "excessDamageBonus")
