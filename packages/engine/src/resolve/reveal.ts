@@ -566,12 +566,22 @@ export function enterPlayOnReveal(ctx: Ctx, id: InstanceId, playerId: PlayerId):
      * own constant ability) reassigns control on the very next state-trigger sweep if that isn't the first player.
      * An ownerless ally or upgrade is the same case: MC21's campaign puts Cosmo (21180b) and Odin (21139a) "into play
      * under the first player's control" (MC21 p. 17, p. 25) from the set-aside cards, where nobody owns them.
+     *
+     * The player it enters play under also becomes its owner, as `takeIntoHand` does: RRG 1.8 "Ownership and
+     * Control" (p. 31), "When a player takes control of a campaign-specific or scenario-specific player card …, that
+     * player becomes the owner of that card until the game ends or another player takes control of that card." So it
+     * leaves play to that player's discard pile, not the encounter discard pile. MC27's Venom (190), Helicarrier and
+     * Symbiote Suit, brought in from outside the game by a campaign (`CampaignOp` `setAsideCards`), read the same way.
      */
     case "support":
     case "ally":
     case "upgrade":
       moveCard(ctx, id, { kind: "playArea", playerId });
       updateInstance(ctx, id, (i) => ({ ...i, controllerId: playerId }));
+      if (getInstance(ctx.state, id)?.ownerId === null) {
+        updateInstance(ctx, id, (i) => ({ ...i, ownerId: playerId, home: { kind: "player" } }));
+        emit(ctx, { type: "ownershipChanged", instanceId: id, playerId });
+      }
       entered = true;
       break;
     default:

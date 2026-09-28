@@ -130,6 +130,8 @@ export interface CampaignRun {
   composedVillain: string | null;
   /** `composeEncounterSets`, split by `into` (default `"deck"`). */
   composedEncounterSets: { deck: string[]; setAside: string[] };
+  /** `setAsideCards`, one id per instance, in op order (`CampaignGameInput.setAsideCards`). */
+  setAsideCards: CardId[];
   /** Choices made earlier in this same step list, by `${slot}\u0000${seat}` (`CampaignValue` `choice`). */
   slots: Map<string, readonly string[]>;
   // --- accumulators for the instruction currently resolving ---
@@ -925,6 +927,23 @@ export function runCampaignOp(run: CampaignRun, op: CampaignOp, instruction: Cam
         ...run.composedEncounterSets[bucket],
         ...op.sets.flatMap((set) => campaignStrings(run, set)),
       ];
+      return;
+    }
+    case "setAsideCards": {
+      const copies = op.copies === undefined ? 1 : campaignNumber(run, op.copies);
+      if (!Number.isInteger(copies) || copies < 0) {
+        throw new EngineInvariantError(
+          `${run.instructionId}: setAsideCards copies must be a whole number, not ${copies}`,
+        );
+      }
+      for (const value of op.cards) {
+        for (const cardId of campaignStrings(run, value)) {
+          if (!poolCards(run.deps.pool).some((card) => card.id === cardId)) {
+            throw new EngineInvariantError(`${run.instructionId}: setAsideCards names ${cardId}, not in the card pool`);
+          }
+          for (let copy = 0; copy < copies; copy++) run.setAsideCards.push(cardId as CardId);
+        }
+      }
       return;
     }
     case "forEachSeat":

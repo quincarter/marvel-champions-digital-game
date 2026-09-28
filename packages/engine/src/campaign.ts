@@ -641,6 +641,17 @@ export type CampaignOp =
       readonly sets: readonly CampaignValue[];
       readonly into?: "deck" | "setAside";
     }
+  /**
+   * MC27 p. 13/15: "Put the Venom (190) ally card into play under the first player's control"; MC27 p. 22: "Each
+   * player may search their collection for a Helicarrier support … and put it into play under their control." A
+   * card named by id that belongs to no composed set and to no seat's deck, brought into the game from outside it.
+   * Each named card gets `copies` instances (default 1; `seatCount` for "each player may"), created **set aside**
+   * (RRG 1.8 "Set Aside", p. 39) with no owner, in `CampaignGameInput.setAsideCards`; an `inGame` instruction then
+   * picks them out of `encounterSetAside` and puts them into play. Whoever they enter play under becomes their owner
+   * (RRG 1.8 "Ownership and Control", p. 31, the `putIntoPlay` effect), so a card that leaves play goes to that
+   * player's discard pile. Which player is decided in-game, where "the first player" is known.
+   */
+  | { readonly kind: "setAsideCards"; readonly cards: readonly CampaignValue[]; readonly copies?: CampaignValue }
   // --- control -------------------------------------------------------------------------------------------------
   /**
    * "Repeat this process for each player" (MC27 p. 22). Inner ops see `seat: "self"` as the scoped seat.
@@ -1027,6 +1038,11 @@ export interface CampaignGameInput {
   readonly seats: readonly CampaignSeatInput[];
   /** Seed for anything the *in-game* instructions randomise; drawn from the log's RNG so it is not a second source. */
   readonly seed: number;
+  /**
+   * Cards `CampaignOp` `setAsideCards` named, one id per instance, created set aside and ownerless at setup
+   * alongside `GameSetupConfig.setAside`. Absent when no op named any, so every earlier game input is unchanged.
+   */
+  readonly setAsideCards?: readonly CardId[];
 }
 
 /**

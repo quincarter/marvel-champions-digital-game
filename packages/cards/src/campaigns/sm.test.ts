@@ -21,19 +21,26 @@ import {
 } from "@mc/content";
 import {
   applyCampaignResult,
+  cardsInPlay,
   createCampaignLog,
+  createGame,
   resolveBetweenGames,
+  startGameFromLog,
   type CampaignChoiceAnswer,
   type CampaignDeps,
   type CampaignGameResult,
   type CampaignInstruction,
   type CampaignLog,
   type CampaignSeatSetup,
+  type GameSetupConfig,
+  type GameState,
   type LogWrite,
 } from "@mc/engine";
 import { action } from "../dsl/abilities.js";
 import { validateDefinition } from "../dsl/validate.js";
-import { WAVE5_CARDS } from "../wave5/index.js";
+import { firstLegal, settle as settleGame, type Picker } from "../testing/harness.js";
+import { WAVE5_CARDS, WAVE5_DEPS, wave5Scenario } from "../wave5/index.js";
+import { cardsOfComposedSets } from "./composed-sets.js";
 import { SM_CAMPAIGN_DEFINITION } from "./sm.js";
 
 function allInstructions(): readonly CampaignInstruction[] {
@@ -233,8 +240,9 @@ describe("SM_CAMPAIGN_DEFINITION", () => {
         defeat: [],
       },
       mysterio: {
-        composition: ["sm.s3.composition.sets"],
+        composition: ["sm.s3.composition.sets", "sm.s3.composition.venom"],
         setup: [
+          "sm.s3.setup.venom",
           "sm.s3.setup.smear-and-snitches",
           "sm.s3.setup.community-service-pick",
           "sm.s3.setup.community-service",
@@ -246,8 +254,9 @@ describe("SM_CAMPAIGN_DEFINITION", () => {
         defeat: [],
       },
       "sinister-six": {
-        composition: ["sm.s4.composition.sets"],
+        composition: ["sm.s4.composition.sets", "sm.s4.composition.venom"],
         setup: [
+          "sm.s4.setup.venom",
           "sm.s4.setup.public-outcry",
           "sm.s4.setup.smear-and-snitches",
           "sm.s4.setup.community-service-pick",
@@ -504,5 +513,217 @@ describe("SM_CAMPAIGN_DEFINITION Community Service: 'at random that does not hav
       return random?.kind === "random" ? random.from.kind : undefined;
     });
     expect(picks).toEqual(["cards", "excludingTitles", "excludingTitles", "excludingTitles"]);
+  });
+});
+
+// ---------------------------------------------------------------------------------------------------------------
+// Driven into a real game: cards brought in from outside the game (file header gap 2, closed)
+// ---------------------------------------------------------------------------------------------------------------
+
+const VENOM_ALLY = "27190";
+const HELICARRIER = "01092";
+const SYMBIOTE_SUIT = "27191";
+
+/** Composes `log`'s next node and builds its real game from `wave5Scenario`, settled to the first player phase. */
+function realGame(log: CampaignLog, targetNode: string, pick: Picker = firstLegal): GameState {
+  const ready = composed(log);
+  const start = startGameFromLog(SM_CAMPAIGN_DEFINITION, ready);
+  if (start.nodeId !== targetNode) throw new Error(`expected to compose ${targetNode}, got ${start.nodeId}`);
+  if (!start.scenarioId) throw new Error(`node ${start.nodeId} has no fixed scenario`);
+  const config: GameSetupConfig = wave5Scenario(start.scenarioId, {
+    players: start.input.seats.map((seat) => ({
+      identityCardId: seat.identityCardId,
+      deck: seat.deck,
+      aspects: seat.aspects,
+    })),
+    seed: start.input.seed,
+    modes: log.modes,
+  });
+  const created = createGame(
+    {
+      ...config,
+      encounterDeck: [...config.encounterDeck, ...cardsOfComposedSets(WAVE5_CARDS, start.encounterSets.deck)],
+      setAside: [...(config.setAside ?? []), ...cardsOfComposedSets(WAVE5_CARDS, start.encounterSets.setAside)],
+      campaign: start.input,
+    },
+    WAVE5_DEPS,
+  );
+  if (!created.ok) throw new Error(`${targetNode}: setup failed: ${created.error.message}`);
+  return settleGame(created.state, pick, (state) => state.step.phase === "player", WAVE5_DEPS);
+}
+
+/** A log that has won the scenarios before `nodeIndex` (0-based), nothing recorded, no node marked. */
+function logAt(nodeIndex: number, seed = 11): CampaignLog {
+  let log = newLog(seed);
+  for (let index = 0; index < nodeIndex; index++) {
+    const applied = applyCampaignResult(
+      SM_CAMPAIGN_DEFINITION,
+      composed(log),
+      won(NODES[index] as string, []),
+      { at: index, gameId: `sm-${seed}-${index}` },
+      DEPS,
+    );
+    if (applied.kind !== "done") throw new Error(`unexpected choice after ${NODES[index]}`);
+    log = applied.value;
+  }
+  return log;
+}
+
+/** Every instance of `id` in the game, and where it is. */
+function instancesOf(state: GameState, id: string) {
+  const ids = Object.values(state.instances).filter((instance) => (instance.cardId as string) === id);
+  const inPlay = cardsInPlay(state);
+  const inAnyPlayerDeckZone = (instanceId: string) =>
+    state.players.some(
+      (player) =>
+        player.deck.includes(instanceId as never) ||
+        player.hand.includes(instanceId as never) ||
+        player.discard.includes(instanceId as never),
+    );
+  return ids.map((instance) => ({
+    instance,
+    inPlay: inPlay.includes(instance.instanceId),
+    inPlayerDeckZone: inAnyPlayerDeckZone(instance.instanceId),
+    setAside: state.encounterSetAside.includes(instance.instanceId),
+  }));
+}
+
+describe('SM_CAMPAIGN_DEFINITION scenarios 3 and 4: "Put the Venom (190) ally card into play under the first player\'s control" (MC27 p. 13/15)', () => {
+  it.each([
+    ["mysterio", 2],
+    ["sinister-six", 3],
+  ] as const)(
+    "%s: at round 1 Venom is in play, controlled and owned by the first player, and in no deck",
+    (node, index) => {
+      const log = logAt(index);
+      const start = startGameFromLog(SM_CAMPAIGN_DEFINITION, composed(log));
+      expect(start.input.setAsideCards).toEqual([VENOM_ALLY]);
+
+      const state = realGame(log, node);
+      expect(state.round).toBe(1);
+      const venoms = instancesOf(state, VENOM_ALLY);
+      expect(venoms).toHaveLength(1);
+      const [venom] = venoms;
+      expect(venom?.inPlay).toBe(true);
+      expect(venom?.inPlayerDeckZone).toBe(false);
+      expect(venom?.instance).toMatchObject({ controllerId: state.firstPlayerId, ownerId: state.firstPlayerId });
+      const firstPlayer = state.players.find((player) => player.playerId === state.firstPlayerId);
+      expect(firstPlayer?.playArea).toContain(venom?.instance.instanceId);
+    },
+  );
+
+  it("no other scenario brings Venom (190) in", () => {
+    for (const [index, node] of [
+      [0, "sandman"],
+      [1, "venom"],
+      [4, "venom-goblin"],
+    ] as const) {
+      const start = startGameFromLog(SM_CAMPAIGN_DEFINITION, composed(logAt(index)));
+      expect(start.nodeId).toBe(node);
+      expect(start.input.setAsideCards).toBeUndefined();
+    }
+  });
+});
+
+describe('SM_CAMPAIGN_DEFINITION nodes 21 and 25\'s rewards: "Each player may search their collection for a Helicarrier / Symbiote Suit … and put it into play under their control" (MC27 p. 22)', () => {
+  /** The first scenario's log, with the reputation track's appended "Setup:" ids as nodes 21/25 would leave them. */
+  const withReputationSetups = (ids: readonly string[]): CampaignLog => {
+    const log = newLog(13);
+    return { ...log, shared: { ...log.shared, reputationSetups: { kind: "instructionList", ids } } };
+  };
+
+  /** Player 1 takes the offered card; every other player declines ("may"). */
+  const p1Takes =
+    (slot: string): Picker =>
+    (state) => {
+      const choice = state.pendingChoice;
+      if (choice?.prompt.kind === "chooseCards" && choice.prompt.slot === slot) {
+        const first = choice.options[0];
+        return choice.playerId === state.players[0]?.playerId && first ? [first.optionId] : [];
+      }
+      return firstLegal(state);
+    };
+
+  it.each([
+    [21, ["sm.rep.node21.reward.set-aside", "sm.rep.node21.reward"], HELICARRIER, "sm.rep.node21.reward.card"],
+    [25, ["sm.rep.node25.reward.set-aside", "sm.rep.node25.reward"], SYMBIOTE_SUIT, "sm.rep.node25.reward.card"],
+  ] as const)(
+    "marking node %i appends its reward to the next scenario's setup, which puts the card into play",
+    (node, ids, card, slot) => {
+      // One node short of `node`, then Sandman's 1 victory point marks exactly that node.
+      const fresh = newLog(17);
+      const nearly = {
+        ...fresh,
+        shared: { ...fresh.shared, reputation: { kind: "number" as const, value: node - 1 } },
+      };
+      const applied = applyCampaignResult(
+        SM_CAMPAIGN_DEFINITION,
+        composed(nearly),
+        won("sandman", [oneVictoryPoint]),
+        { at: 0, gameId: "sm-sandman" },
+        DEPS,
+      );
+      if (applied.kind !== "done") throw new Error(`unexpected choice ${applied.choice.slot}`);
+      expect(applied.value.shared.reputation).toEqual({ kind: "number", value: node });
+      const setups = applied.value.shared.reputationSetups;
+      expect(setups?.kind === "instructionList" ? setups.ids : []).toEqual(expect.arrayContaining([...ids]));
+
+      const state = realGame(applied.value, "venom", p1Takes(slot));
+      const taken = instancesOf(state, card).filter((copy) => copy.inPlay);
+      expect(taken).toHaveLength(1);
+      expect(taken[0]?.instance).toMatchObject({ controllerId: state.players[0]?.playerId });
+    },
+  );
+
+  it.each([
+    [
+      "Helicarrier",
+      HELICARRIER,
+      ["sm.rep.node21.reward.set-aside", "sm.rep.node21.reward"],
+      "sm.rep.node21.reward.card",
+    ],
+    [
+      "Symbiote Suit",
+      SYMBIOTE_SUIT,
+      ["sm.rep.node25.reward.set-aside", "sm.rep.node25.reward"],
+      "sm.rep.node25.reward.card",
+    ],
+  ] as const)(
+    "%s: one copy per player is set aside; the player who takes it has it in play, owned, and no deck holds it",
+    (_name, card, ids, slot) => {
+      const log = withReputationSetups(ids);
+      const start = startGameFromLog(SM_CAMPAIGN_DEFINITION, composed(log));
+      expect(start.input.setAsideCards).toEqual([card, card]);
+
+      const state = realGame(log, "sandman", p1Takes(slot));
+      expect(state.round).toBe(1);
+      const [p1, p2] = state.players;
+      if (!p1 || !p2) throw new Error("expected two players");
+      const copies = instancesOf(state, card);
+      expect(copies).toHaveLength(2);
+      for (const copy of copies) expect(copy.inPlayerDeckZone).toBe(false);
+      // Player 1 took one: in play under their control and now theirs (RRG 1.8 "Ownership and Control", p. 31).
+      const taken = copies.filter((copy) => copy.inPlay);
+      expect(taken).toHaveLength(1);
+      expect(taken[0]?.instance).toMatchObject({ controllerId: p1.playerId, ownerId: p1.playerId });
+      expect(p1.playArea).toContain(taken[0]?.instance.instanceId);
+      // Player 2 declined ("may"): their copy stays set aside, out of play and owned by nobody.
+      const declined = copies.filter((copy) => !copy.inPlay);
+      expect(declined).toHaveLength(1);
+      expect(declined[0]).toMatchObject({ setAside: true, instance: { ownerId: null, controllerId: null } });
+      expect(
+        cardsInPlay(state).some(
+          (id) => state.instances[id]?.controllerId === p2.playerId && (state.instances[id]?.cardId as string) === card,
+        ),
+      ).toBe(false);
+    },
+  );
+
+  it("without the node marked, nothing is set aside and no Helicarrier or Symbiote Suit enters play", () => {
+    const log = newLog(13);
+    expect(startGameFromLog(SM_CAMPAIGN_DEFINITION, composed(log)).input.setAsideCards).toBeUndefined();
+    const state = realGame(log, "sandman");
+    expect(instancesOf(state, SYMBIOTE_SUIT)).toEqual([]);
+    expect(instancesOf(state, HELICARRIER).some((copy) => copy.inPlay)).toBe(false);
   });
 });

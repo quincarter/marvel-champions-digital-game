@@ -39,12 +39,12 @@
  * 1. *(Closed.)* **"Deal 3 … at random to a player. That player may choose 1 …" (node 1's reward, MC27 p. 22)**
  *    is authored in `sm.reputation.mark`: a `random` (count 3) into a per-seat slot, then a `choose` from
  *    `CampaignChoiceSource` `values(choice(slot))`, so the dealt three are the only options.
- * 2. **"Put the Venom (190) ally card into play …" (scenarios 3 and 4), "… put a Helicarrier … into play …" (node
- *    21's reward) and "… put a Symbiote Suit … into play …" (node 25's reward).** All three are ordinary player
- *    cards that belong to no `EncounterSetId` (`composeEncounterSets` only gathers encounter sets) and are not
- *    granted to any seat's deck (`grantCard` only reaches a deck, not the table) — there is no primitive that
- *    instantiates a *named* card straight into play from outside both the scenario's composed card pool and a
- *    player's own deck. All three are unauthored under this one gap.
+ * 2. *(Closed.)* **"Put the Venom (190) ally card into play …" (scenarios 3 and 4, MC27 p. 13/15), "… put a
+ *    Helicarrier … into play …" (node 21's reward) and "… put a Symbiote Suit … into play …" (node 25's reward,
+ *    MC27 p. 22)** are authored with `CampaignOp` `setAsideCards` (the card, from outside the game, set aside at
+ *    setup) plus an `inGame` `putIntoPlay` from `encounterSetAside` (`bringIntoGame`, `putVenomIntoPlay`,
+ *    `eachPlayerMayPutIntoPlay`). Whoever the card enters play under becomes its owner (RRG 1.8 "Ownership and
+ *    Control", p. 31), so it leaves play to that player's discard pile.
  * 3. **Sandman's Expert-Campaign-Only "Place 2 additional sand counters on the City Streets environment. Resolve
  *    its 'Surging Sands' ability'" (MC27 p. 9).** `addCounters` reaches the counters; there is no generic "resolve
  *    the named sub-ability '[X]' printed on this card" primitive (only `resolveWhenRevealedOf`/`resolveSpecialsOf`,
@@ -84,6 +84,7 @@ import {
   encounterCards,
   encounterSetAside,
   engage,
+  firstPlayer,
   forEachPlayer,
   giveBoostCard,
   grantAdditionalMulligans,
@@ -143,6 +144,13 @@ const SHIELD_TECH: readonly { readonly id: CardId; readonly name: string }[] = [
 
 const ILLUSION = trait("Illusion");
 
+/** MC27 p. 4's prohibited Venom (Eddie Brock) ally, which scenarios 3 and 4 put into play (MC27 p. 13/15). */
+const VENOM_ALLY: CardId = cardId("27190");
+/** MC27 p. 22 node 21: "a Helicarrier support (Core Set 92)". Any printing is "their collection"; the Core one is named. */
+const HELICARRIER: CardId = cardId("01092");
+/** MC27 p. 22 node 25: "a Symbiote Suit upgrade (Sinister Motives 191)", prohibited from decks by MC27 p. 4. */
+const SYMBIOTE_SUIT: CardId = cardId("27191");
+
 // ---------------------------------------------------------------------------------------------------------------
 // Repeated shapes
 // ---------------------------------------------------------------------------------------------------------------
@@ -185,6 +193,81 @@ function putPublicOutcryIntoPlay(id: string, citation: string): CampaignInstruct
       effects: [
         selectCards("public-outcry", encounterSetAside({ name: "Public Outcry" })),
         putIntoPlay(chosen("public-outcry")),
+      ],
+    },
+  };
+}
+
+/**
+ * Not printed as its own bullet: brings a card from outside the game (no composed set holds it, no deck lists it) in
+ * set aside, so the paired in-game instruction can put it into play (`CampaignOp` `setAsideCards`). `perSeat` sets
+ * one copy aside per seat, for "each player may search their collection for …".
+ */
+function bringIntoGame(
+  id: string,
+  citation: string,
+  card: CardId,
+  name: string,
+  perSeat: boolean,
+): CampaignInstruction {
+  return {
+    id,
+    text: `(Not printed: sets ${name} aside for this scenario, to be put into play by the setup instruction that names it.)`,
+    citation,
+    step: {
+      kind: "betweenGames",
+      ops: [
+        {
+          kind: "setAsideCards",
+          cards: [constant(card)],
+          ...(perSeat ? { copies: { kind: "seatCount" as const } } : {}),
+        },
+      ],
+    },
+  };
+}
+
+/** MC27 p. 13/15: "Put the Venom (190) ally card into play under the first player's control." */
+function putVenomIntoPlay(id: string, citation: string): CampaignInstruction {
+  return {
+    id,
+    text: "Put the Venom (190) ally card into play under the first player's control.",
+    citation,
+    step: {
+      kind: "inGame",
+      window: DEFAULT_CAMPAIGN_WINDOW,
+      effects: [
+        selectCards("venom-ally", encounterSetAside({ name: "Venom", categories: ["ally"] })),
+        putIntoPlay(chosen("venom-ally"), firstPlayer),
+      ],
+    },
+  };
+}
+
+/** MC27 p. 22 (nodes 21, 25): "Each player may search their collection for a … and put it into play under their control." */
+function eachPlayerMayPutIntoPlay(
+  id: string,
+  text: string,
+  name: string,
+  category: "support" | "upgrade",
+): CampaignInstruction {
+  const slot = `${id}.card`;
+  return {
+    id,
+    text,
+    citation: "MC27 p. 22",
+    step: {
+      kind: "inGame",
+      window: DEFAULT_CAMPAIGN_WINDOW,
+      effects: [
+        forEachPlayer(eachPlayer, [
+          chooseCards(slot, encounterSetAside({ name, categories: [category] }), {
+            min: 0,
+            max: 1,
+            chooser: thatPlayer,
+          }),
+          putIntoPlay(chosen(slot), thatPlayer),
+        ]),
       ],
     },
   };
@@ -568,20 +651,27 @@ const REPUTATION_VICTORY: readonly CampaignInstruction[] = [
             { kind: "appendToList", field: "reputationSetups", value: constant("sm.rep.node17.reward") },
           ],
         },
-        // Node 21's reward is gap 2 (Helicarrier, unauthored); its penalty is another immediate random Osborn Tech.
+        // Node 21's reward ("Setup:" Helicarrier) joins every remaining setup; its penalty is another immediate
+        // random Osborn Tech.
         {
           kind: "if",
           when: crossed(21),
           then: [
+            { kind: "appendToList", field: "reputationSetups", value: constant("sm.rep.node21.reward.set-aside") },
+            { kind: "appendToList", field: "reputationSetups", value: constant("sm.rep.node21.reward") },
             { kind: "random", slot: "osborn21", from: { kind: "campaignSet", encounterSetId: OSBORN_TECH_SET } },
             { kind: "appendToList", field: "osbornTech", value: { kind: "choice", slot: "osborn21" } },
           ],
         },
-        // Node 25's reward is gap 2 (Symbiote Suit, unauthored); its penalty joins every remaining setup.
+        // Node 25's reward ("Setup:" Symbiote Suit) and its penalty both join every remaining setup.
         {
           kind: "if",
           when: crossed(25),
-          then: [{ kind: "appendToList", field: "reputationSetups", value: constant("sm.rep.node25.penalty") }],
+          then: [
+            { kind: "appendToList", field: "reputationSetups", value: constant("sm.rep.node25.reward.set-aside") },
+            { kind: "appendToList", field: "reputationSetups", value: constant("sm.rep.node25.reward") },
+            { kind: "appendToList", field: "reputationSetups", value: constant("sm.rep.node25.penalty") },
+          ],
         },
       ] satisfies readonly CampaignOp[],
     },
@@ -656,6 +746,32 @@ const CONDITIONAL_INSTRUCTIONS: Readonly<Record<string, CampaignInstruction>> = 
       ],
     },
   },
+  "sm.rep.node21.reward.set-aside": bringIntoGame(
+    "sm.rep.node21.reward.set-aside",
+    "MC27 p. 22",
+    HELICARRIER,
+    "a Helicarrier support for each player",
+    true,
+  ),
+  "sm.rep.node21.reward": eachPlayerMayPutIntoPlay(
+    "sm.rep.node21.reward",
+    "Setup: Each player may search their collection for a Helicarrier support (Core Set 92) and put it into play under their control.",
+    "Helicarrier",
+    "support",
+  ),
+  "sm.rep.node25.reward.set-aside": bringIntoGame(
+    "sm.rep.node25.reward.set-aside",
+    "MC27 p. 22",
+    SYMBIOTE_SUIT,
+    "a Symbiote Suit upgrade for each player",
+    true,
+  ),
+  "sm.rep.node25.reward": eachPlayerMayPutIntoPlay(
+    "sm.rep.node25.reward",
+    "Setup: Each player may search their collection for a Symbiote Suit upgrade (Sinister Motives 191) and put it into play under their control.",
+    "Symbiote Suit",
+    "upgrade",
+  ),
   "sm.rep.node25.penalty": {
     id: "sm.rep.node25.penalty",
     text: "Setup: Deal 1 facedown encounter card to each player.",
@@ -856,9 +972,12 @@ export const SM_CAMPAIGN_DEFINITION: CampaignDefinition = {
         id: "mysterio",
         label: "Scenario #3 - Mysterio",
         scenario: { kind: "fixed", scenarioId: scenarioId("mysterio") },
-        composition: [composeCampaignSets("sm.s3", "MC27 p. 13")],
+        composition: [
+          composeCampaignSets("sm.s3", "MC27 p. 13"),
+          bringIntoGame("sm.s3.composition.venom", "MC27 p. 13", VENOM_ALLY, "the Venom (190) ally", false),
+        ],
         setup: [
-          // "Put the Venom (190) ally card into play under the first player's control" is unauthored (gap 2).
+          putVenomIntoPlay("sm.s3.setup.venom", "MC27 p. 13"),
           shuffleSmearAndSnitches("sm.s3.setup.smear-and-snitches", "MC27 p. 13"),
           communityServicePick("sm.s3", "MC27 p. 13", true),
           communityServiceShuffleIn("sm.s3.setup.community-service", "MC27 p. 13"),
@@ -900,9 +1019,12 @@ export const SM_CAMPAIGN_DEFINITION: CampaignDefinition = {
         id: "sinister-six",
         label: "Scenario #4 - The Sinister Six",
         scenario: { kind: "fixed", scenarioId: scenarioId("sinister-six") },
-        composition: [composeCampaignSets("sm.s4", "MC27 p. 15")],
+        composition: [
+          composeCampaignSets("sm.s4", "MC27 p. 15"),
+          bringIntoGame("sm.s4.composition.venom", "MC27 p. 15", VENOM_ALLY, "the Venom (190) ally", false),
+        ],
         setup: [
-          // "Put the Venom (190) ally card into play under the first player's control" is unauthored (gap 2).
+          putVenomIntoPlay("sm.s4.setup.venom", "MC27 p. 15"),
           putPublicOutcryIntoPlay("sm.s4.setup.public-outcry", "MC27 p. 15"),
           shuffleSmearAndSnitches("sm.s4.setup.smear-and-snitches", "MC27 p. 15"),
           communityServicePick("sm.s4", "MC27 p. 15", true),

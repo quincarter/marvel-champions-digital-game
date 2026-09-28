@@ -665,7 +665,8 @@ export function createGame(requested: GameSetupConfig, deps: EngineDeps = DEFAUL
 
   // Signature side schemes are set aside, linked to their villain, until an ability puts them into play.
   const encounterSetAside: InstanceId[] = [];
-  for (const cardId of config.setAside ?? []) {
+  // A campaign's `setAsideCards` (cards brought in from outside the game, MC27 p. 13) join them, ownerless like the rest.
+  for (const cardId of [...(config.setAside ?? []), ...(config.campaign?.setAsideCards ?? [])]) {
     const card = pool[cardId];
     if (!card) return invalid(`unknown set-aside card ${cardId}`);
     if (card.type === "evidence" || card.type === "villain")
