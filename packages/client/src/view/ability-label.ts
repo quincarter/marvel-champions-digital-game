@@ -105,8 +105,23 @@ function costPhrase(cost: AbilityCost | undefined): string | null {
   if (cost.damageThisCard !== undefined) parts.push(`deal ${cost.damageThisCard} damage to it`);
   if (cost.healIdentity !== undefined) parts.push(`heal ${cost.healIdentity} damage`);
   if (cost.discardFromHand) {
-    const { min, max } = cost.discardFromHand;
-    parts.push(min === max ? `discard ${min} card${min === 1 ? "" : "s"}` : `discard up to ${max} cards`);
+    const { min, max, filter, combined } = cost.discardFromHand;
+    // "Attack cards" from `filter.trait` (Advanced Glider, `sm` 27136): traits are stored upper-cased (`trait()`,
+    // `@mc/content`), so this titles just the one word rather than shouting it back at the player. Every other
+    // filter shape falls back to the generic "cards" rather than guessing a phrase for it.
+    const noun = filter?.trait ? `${filter.trait.charAt(0)}${filter.trait.slice(1).toLowerCase()} cards` : "cards";
+    if (combined) {
+      parts.push(`discard ${noun} with a combined cost of ${combined.atLeast} or more`);
+    } else if (min === max) {
+      parts.push(`discard ${min} card${min === 1 ? "" : "s"}`);
+    } else if (max !== undefined) {
+      parts.push(`discard up to ${max} ${noun}`);
+    } else if (min > 0) {
+      parts.push(`discard at least ${min} ${noun}`);
+    } else {
+      // Shield Toss (`03006`): `discardFromHandCost(0, undefined, "x")` — no printed ceiling, X decided when paid.
+      parts.push(`discard any number of ${noun}`);
+    }
   }
   if (cost.discardSelf) parts.push("discard this card");
   if (cost.payPrintedCostOf) parts.push("pay a card's printed cost");
