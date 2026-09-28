@@ -343,9 +343,9 @@ describe("§3.15 facedown attached cards: playable events, a count, a maximum (G
 
 describe("§3.16 how a card was paid for, by source (VEN#m, Rapid Deployment)", () => {
   it("reads the resources a named resource ability generated toward this card", () => {
-    valid(whenRevealed(dealDamage(resourcesPaidBy("31001b.sync-ratio"), theVillain)));
-    expect(resourcesPaidBy("31001b.sync-ratio")).toEqual({ kind: "var", name: "paid.ability.31001b.sync-ratio" });
-    valid(whenRevealed(ifThen(paidUsingResourceFrom("31001b.sync-ratio"), draw(1))));
+    valid(whenRevealed(dealDamage(resourcesPaidBy("31001a.sync-ratio"), theVillain)));
+    expect(resourcesPaidBy("31001a.sync-ratio")).toEqual({ kind: "var", name: "paid.ability.31001a.sync-ratio" });
+    valid(whenRevealed(ifThen(paidUsingResourceFrom("31001a.sync-ratio"), draw(1))));
   });
 });
 
