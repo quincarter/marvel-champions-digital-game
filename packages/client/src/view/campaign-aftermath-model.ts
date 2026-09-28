@@ -73,13 +73,36 @@ export interface AftermathChoiceGroup {
   readonly text: string;
   readonly citation: string;
   readonly optional: boolean;
-  /** The full option list, captured once from the first real prompt this group ever saw. */
+  /** The full option list, captured once from the first real prompt this group ever saw. Meaningless (and unused
+   * for rendering) when `dealtPerSeat` is true — see `catalogBySeat`. */
   readonly catalog: readonly AftermathOption[];
+  /**
+   * `true` for a choice whose options are dealt fresh per seat (MC27 p. 22's node 1: 3 S.H.I.E.L.D. Tech cards
+   * randomly dealt to *each* player in turn, `sm.ts`'s `sm.reputation.mark` — a `random` op inside `forEachSeat`,
+   * unlike MC10's TECH choice, whose four options are one fixed, shared pool every seat draws down together).
+   * `aftermathColumns`/`decideForSeat` must never guess a seat's own catalog ahead of its real turn here: unlike
+   * the shared case, a future seat's cards are not known (or even generated) until the engine actually deals
+   * them, so a preview would show cards that will never actually be offered.
+   */
+  readonly dealtPerSeat: boolean;
+  /** Per-seat catalogs, populated only once each seat's own real prompt has been seen. Only meaningful when
+   * `dealtPerSeat` is true; empty (no entry) for a seat not yet dealt to. */
+  readonly catalogBySeat: Readonly<Record<number, readonly AftermathOption[]>>;
   readonly seatOrder: readonly number[];
   /** The seat the engine is actually blocked on right now. */
   readonly currentSeatNumber: number;
   readonly confirmedSeatNumbers: readonly number[];
   readonly decisions: Readonly<Record<number, AftermathSeatDecision>>;
+}
+
+/** Slots whose options are dealt fresh per seat rather than drawn from one shared pool — see
+ * `AftermathChoiceGroup.dealtPerSeat`'s doc comment. A slot name, the same convention `dev-fixtures.ts`'s
+ * `smAutoAnswer` already uses to recognize this choice. */
+const DEALT_PER_SEAT_SLOTS: ReadonlySet<string> = new Set(["shieldTech"]);
+
+/** Whether `slot`'s options should never be guessed ahead of a seat's own real turn (`DEALT_PER_SEAT_SLOTS`). */
+export function isDealtPerSeatSlot(slot: string): boolean {
+  return DEALT_PER_SEAT_SLOTS.has(slot);
 }
 
 /** True when `pending` is still asking about the printed choice `group` is already showing. */
@@ -99,6 +122,8 @@ export function startAftermathGroup(
   const catalog = pending.options.map((id) => optionOf(id as CardId));
   const decisions: Record<number, AftermathSeatDecision> = {};
   for (const seat of seats) decisions[seat.seatNumber] = { kind: "undecided" };
+  const dealtPerSeat = isDealtPerSeatSlot(pending.slot);
+  const currentSeatNumber = pending.seatNumber ?? seats[0]?.seatNumber ?? 0;
   return {
     instructionId: pending.instructionId,
     slot: pending.slot,
@@ -106,8 +131,10 @@ export function startAftermathGroup(
     citation: pending.citation,
     optional: pending.optional,
     catalog,
+    dealtPerSeat,
+    catalogBySeat: dealtPerSeat ? { [currentSeatNumber]: catalog } : {},
     seatOrder: seats.map((seat) => seat.seatNumber),
-    currentSeatNumber: pending.seatNumber ?? seats[0]?.seatNumber ?? 0,
+    currentSeatNumber,
     confirmedSeatNumbers: [],
     decisions,
   };
@@ -125,12 +152,19 @@ export function decideForSeat(
 ): AftermathChoiceGroup {
   if (group.confirmedSeatNumbers.includes(seatNumber)) return group;
   if (decision.kind === "picked") {
-    const takenByAnother = group.seatOrder.some((other) => {
-      if (other === seatNumber) return false;
-      const otherDecision = group.decisions[other];
-      return otherDecision?.kind === "picked" && otherDecision.cardId === decision.cardId;
-    });
-    if (takenByAnother || !group.catalog.some((option) => option.cardId === decision.cardId)) return group;
+    if (group.dealtPerSeat) {
+      // No cross-seat "taken" concept: each seat's cards are its own independent random deal, never shared with
+      // another seat's catalog — only that seat's own dealt options are ever a legal pick for it.
+      const own = group.catalogBySeat[seatNumber] ?? [];
+      if (!own.some((option) => option.cardId === decision.cardId)) return group;
+    } else {
+      const takenByAnother = group.seatOrder.some((other) => {
+        if (other === seatNumber) return false;
+        const otherDecision = group.decisions[other];
+        return otherDecision?.kind === "picked" && otherDecision.cardId === decision.cardId;
+      });
+      if (takenByAnother || !group.catalog.some((option) => option.cardId === decision.cardId)) return group;
+    }
   }
   if (decision.kind === "declined" && !group.optional) return group;
   return { ...group, decisions: { ...group.decisions, [seatNumber]: decision } };
@@ -145,12 +179,20 @@ export function advanceAftermathGroup(
   group: AftermathChoiceGroup,
   confirmedSeatNumber: number,
   nextPending: CampaignPendingChoice | null,
+  optionOf?: (cardId: CardId) => AftermathOption,
 ): AftermathChoiceGroup | null {
   const confirmedSeatNumbers = group.confirmedSeatNumbers.includes(confirmedSeatNumber)
     ? group.confirmedSeatNumbers
     : [...group.confirmedSeatNumbers, confirmedSeatNumber];
   if (nextPending && continuesGroup(group, nextPending)) {
-    return { ...group, confirmedSeatNumbers, currentSeatNumber: nextPending.seatNumber ?? group.currentSeatNumber };
+    const currentSeatNumber = nextPending.seatNumber ?? group.currentSeatNumber;
+    // A dealt-per-seat group learns the next seat's own real catalog only now — its cards did not exist (were not
+    // even randomly drawn) until this fold call actually reached them.
+    const catalogBySeat =
+      group.dealtPerSeat && optionOf && group.catalogBySeat[currentSeatNumber] === undefined
+        ? { ...group.catalogBySeat, [currentSeatNumber]: nextPending.options.map((id) => optionOf(id as CardId)) }
+        : group.catalogBySeat;
+    return { ...group, confirmedSeatNumbers, currentSeatNumber, catalogBySeat };
   }
   return null;
 }
@@ -172,12 +214,17 @@ export function aftermathColumns(
       : seatNumber === group.currentSeatNumber
         ? "current"
         : "pending";
-    const rows = group.catalog.map((option) => {
-      const takenBy = group.seatOrder.find((other) => {
-        if (other === seatNumber) return false;
-        const otherDecision = group.decisions[other];
-        return otherDecision?.kind === "picked" && otherDecision.cardId === option.cardId;
-      });
+    // A dealt-per-seat group shows only this seat's own real deal (empty until this seat's real turn has actually
+    // arrived) — never another seat's cards, and never a guess at cards this seat hasn't been dealt yet.
+    const seatCatalog = group.dealtPerSeat ? (group.catalogBySeat[seatNumber] ?? []) : group.catalog;
+    const rows = seatCatalog.map((option) => {
+      const takenBy = group.dealtPerSeat
+        ? undefined
+        : group.seatOrder.find((other) => {
+            if (other === seatNumber) return false;
+            const otherDecision = group.decisions[other];
+            return otherDecision?.kind === "picked" && otherDecision.cardId === option.cardId;
+          });
       return {
         option,
         takenByHeroName: takenBy === undefined ? null : heroNameOf(takenBy),

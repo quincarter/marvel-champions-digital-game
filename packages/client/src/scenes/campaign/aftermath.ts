@@ -27,6 +27,8 @@ import { CARDS_BY_ID } from "../../content/pool.js";
 import type { CampaignRecord } from "../../engine/campaign-storage.js";
 import type { SavedGame } from "../../engine/host.js";
 import { appSession, campaignService } from "../../session.js";
+import { artFor } from "../../art/art-source.js";
+import { cardArt, drawArt } from "../../art/card-art.js";
 import { accent, ink, signal, surface, typeRole } from "../../tokens.js";
 import {
   artNote,
@@ -53,6 +55,7 @@ import {
   aftermathLogTags,
   aftermathOptionOf,
   aftermathStamp,
+  answerFor,
   answerForPending,
   continuesGroup,
   decideForSeat,
@@ -201,7 +204,7 @@ export class CampaignAftermathScene extends Phaser.Scene {
     const pending = result.choice;
     if (this.#group && continuesGroup(this.#group, pending)) {
       const lastConfirmed = this.#answers.at(-1)?.seatNumber ?? this.#group.currentSeatNumber;
-      this.#group = advanceAftermathGroup(this.#group, lastConfirmed, pending) ?? this.#group;
+      this.#group = advanceAftermathGroup(this.#group, lastConfirmed, pending, this.#optionOf) ?? this.#group;
     } else {
       this.#group = startAftermathGroup(pending, this.#seats, this.#optionOf);
     }
@@ -268,12 +271,48 @@ export class CampaignAftermathScene extends Phaser.Scene {
         return;
       }
       this.#answers = [...this.#answers, answer];
-      group = advanceAftermathGroup(group, seatNumber, pending) ?? group;
+      group = advanceAftermathGroup(group, seatNumber, pending, this.#optionOf) ?? group;
       this.#group = group;
       if (!readyToCommit(group) || group.confirmedSeatNumbers.length === group.seatOrder.length) break;
     }
     this.#busy = false;
     await this.#advance();
+  }
+
+  /**
+   * `AftermathChoiceGroup.dealtPerSeat`'s own confirm CTA: sends exactly the current seat's already-decided answer,
+   * one real `fold` call. Never `#commit`'s peek-ahead loop — a future seat's dealt cards don't exist until the
+   * engine actually reaches that seat, so pre-answering it (even with an "empty, declined" guess) would send a
+   * real answer for a choice the player was never shown.
+   */
+  async #confirmDealtSeat(): Promise<void> {
+    const group = this.#group;
+    const record = this.#record;
+    const saved = this.#saved;
+    if (!group || !record || !saved || this.#busy) return;
+    const seatNumber = group.currentSeatNumber;
+    if (group.decisions[seatNumber]?.kind === "undecided") return;
+    const answer = answerFor(group, seatNumber);
+    this.#busy = true;
+    this.#draw();
+    const service = campaignService();
+    const answers = [...this.#answers, answer];
+    const result = await service.fold(record, saved, answers, this.#gameId);
+    if (!this.sys.isActive()) return;
+    this.#busy = false;
+    this.#answers = answers;
+    if (result.kind === "done") {
+      this.#onFolded(result.record);
+      return;
+    }
+    const pending = result.choice;
+    if (continuesGroup(group, pending)) {
+      this.#group = advanceAftermathGroup(group, seatNumber, pending, this.#optionOf) ?? group;
+    } else {
+      this.#group = startAftermathGroup(pending, this.#seats, this.#optionOf);
+      this.#phase = "group";
+    }
+    this.#draw();
   }
 
   #draw(): void {
@@ -703,7 +742,17 @@ export class CampaignAftermathScene extends Phaser.Scene {
       .setOrigin(0, 0)
       .setFontSize(11);
     let y = rect.y + header.height + 8;
-    const rowHeight = phone ? 46 : 56;
+    const rowHeight = phone ? 64 : 76;
+    if (column.rows.length === 0 && column.status !== "confirmed") {
+      // A dealt-per-seat choice (S.H.I.E.L.D. Tech, MC27 p. 22): this seat's own 3 cards are only dealt once the
+      // engine actually reaches its turn — showing nothing here (rather than a guess at another seat's cards) is
+      // the honest state until then.
+      this.add
+        .text(rect.x, y, "Waiting to be dealt…".toUpperCase(), textStyle(typeRole.label, surface.paper.hex, ink.meta))
+        .setOrigin(0, 0)
+        .setFontSize(12);
+      return y + 24;
+    }
     for (const row of column.rows) {
       y = this.#drawOptionRow(row, column, { x: rect.x, y, width: rect.width, height: rowHeight }, order, stops);
       y += 8;
@@ -754,25 +803,47 @@ export class CampaignAftermathScene extends Phaser.Scene {
     );
     g.strokeRect(rect.x, rect.y, rect.width, rect.height);
     const nameAlpha = taken ? ink.disabled : ink.body;
-    this.add
-      .text(
-        rect.x + 14,
-        rect.y + 8,
-        row.option.name.toUpperCase(),
-        textStyle({ ...typeRole.barTitle, size: 16 }, surface.paper.hex, nameAlpha),
-      )
-      .setOrigin(0, 0);
+
+    // A real card scan (or its generated frame's own fallback, per `art/card-art.ts` — a missing scan never blocks
+    // this row) so the pick reads as "here is the actual card", not just its printed name.
+    const artPad = 6;
+    const artHeight = rect.height - artPad * 2;
+    const artWidth = artHeight * (2.5 / 3.5);
+    const artRect: Rect = { x: rect.x + artPad, y: rect.y + artPad, width: artWidth, height: artHeight };
+    const card = CARDS_BY_ID.get(row.option.cardId as string);
+    const artKey = cardArt(this).request(this, artFor(card, { kind: "front" }));
+    const art = drawArt(this, artKey, artRect);
+    if (art) {
+      art.setAlpha(taken ? 0.6 : 1);
+    } else {
+      const artFrame = this.add.graphics();
+      artFrame.lineStyle(1, surface.paper.hex, 0.25).strokeRect(artRect.x, artRect.y, artRect.width, artRect.height);
+    }
+    const textX = artRect.x + artRect.width + 12;
+    const textWidth = rect.x + rect.width - textX - 14;
+    fitText(
+      this.add
+        .text(
+          textX,
+          rect.y + 8,
+          row.option.name.toUpperCase(),
+          textStyle({ ...typeRole.barTitle, size: 16 }, surface.paper.hex, nameAlpha),
+        )
+        .setOrigin(0, 0),
+      textWidth,
+      16,
+    );
     if (row.option.effect) {
       fitText(
         this.add
           .text(
-            rect.x + 14,
+            textX,
             rect.y + rect.height - 22,
             row.option.effect,
             textStyle(typeRole.body, surface.paper.hex, nameAlpha * 0.85),
           )
           .setFontSize(12),
-        rect.width - 28,
+        textWidth,
         12,
       );
     }
@@ -846,6 +917,35 @@ export class CampaignAftermathScene extends Phaser.Scene {
       return;
     }
     const group = this.#group;
+    if (group?.dealtPerSeat) {
+      // One seat, one real deal at a time — see `#confirmDealtSeat`'s own doc comment.
+      const decision = group.decisions[group.currentSeatNumber];
+      const decided = decision !== undefined && decision.kind !== "undecided";
+      const noteWidth = phone ? 0 : Math.max(0, rect.width - 425 - 48);
+      if (!phone) {
+        const note = "Dealt at random, one player at a time. A kept card is yours for the rest of the campaign.";
+        this.add
+          .text(rect.x + 16, rect.y + rect.height / 2, note, textStyle(typeRole.body, surface.paper.hex, ink.meta))
+          .setOrigin(0, 0.5)
+          .setFontSize(12)
+          .setWordWrapWidth(noteWidth);
+      }
+      const ctaRect = this.#ctaRect(rect, phone);
+      this.#buttons.push(
+        new McButton(this, {
+          kind: "primary",
+          label: "Confirm",
+          type: typeRole.barTitle,
+          rect: ctaRect,
+          onClick: () => void this.#confirmDealtSeat(),
+          enabled: decided && !this.#busy,
+          ...(decided ? {} : { reason: "pick a card, or keep none, first" }),
+        }),
+      );
+      order.push("commit");
+      stops.set("commit", { rect: ctaRect, activate: () => (decided ? void this.#confirmDealtSeat() : undefined) });
+      return;
+    }
     const ready = group !== null && readyToCommit(group);
     const noteWidth = phone ? 0 : Math.max(0, rect.width - 425 - 48);
     if (!phone && group) {

@@ -9,7 +9,7 @@ import type {
   LogFieldDef,
 } from "@mc/engine";
 import { CampaignService } from "../campaign/campaign-service.js";
-import { seedDesignRun, seedGmwRun } from "../campaign/dev-fixtures.js";
+import { seedDesignRun, seedGmwRun, seedSmWonGame } from "../campaign/dev-fixtures.js";
 import { CARDS_BY_ID, POOL_CARDS, POOL_DEPS } from "../content/pool.js";
 import { MemoryCampaignStorage } from "../engine/campaign-storage.js";
 import { MemoryGameStorage } from "../engine/game-storage.js";
@@ -244,6 +244,58 @@ describe("committing picks made up front (the Aftermath screen's own order)", ()
       group = advanceAftermathGroup(group, answer.seatNumber!, peek.choice) ?? group;
     }
     throw new Error("the commit loop never finished the fold");
+  });
+});
+
+describe("MC27 node 1's dealt-per-seat S.H.I.E.L.D. Tech choice (sm.reputation.mark's shieldTech slot)", () => {
+  test("seat 2's real deal is never guessed from seat 1's — the column stays empty until seat 2's own real turn", async () => {
+    const svc = service();
+    const { record, won } = await seedSmWonGame(svc);
+    const seats = record.seats.map((seat) => ({ seatNumber: seat.seatNumber, heroName: `Seat ${seat.seatNumber}` }));
+    const optionOf = (cardId: CardId) => aftermathOptionOf(cardId, CARDS_BY_ID);
+
+    const first = await svc.foldState(record, won, [], []);
+    if (first.kind !== "pending") throw new Error("expected the shieldTech choice");
+    expect(first.choice.slot).toBe("shieldTech");
+    const seat1 = first.choice.seatNumber!;
+    let group = startAftermathGroup(first.choice, seats, optionOf);
+    expect(group.dealtPerSeat).toBe(true);
+    expect(group.catalogBySeat[seat1]?.map((o) => o.cardId)).toEqual(first.choice.options);
+
+    // Before seat 2 has ever been asked for real, its column shows no cards at all — never seat 1's own deal.
+    const columnsBefore = aftermathColumns(group, (seatNumber) => `Seat ${seatNumber}`);
+    const seat2Column = columnsBefore.find((c) => c.seatNumber !== seat1)!;
+    expect(seat2Column.rows).toHaveLength(0);
+    expect(seat2Column.status).toBe("pending");
+
+    // Seat 1 keeps its first dealt card; the engine now deals seat 2's own 3 cards for real.
+    group = decideForSeat(group, seat1, { kind: "picked", cardId: first.choice.options[0]! as CardId });
+    const answer = answerForPending(group, first.choice);
+    const answers = [answer];
+    const second = await svc.foldState(record, won, [], answers);
+    if (second.kind !== "pending") throw new Error("expected seat 2's own shieldTech prompt");
+    expect(second.choice.seatNumber).not.toBe(seat1);
+    group = advanceAftermathGroup(group, seat1, second.choice, optionOf) ?? group;
+    expect(group.catalogBySeat[second.choice.seatNumber!]?.map((o) => o.cardId)).toEqual(second.choice.options);
+
+    const columnsAfter = aftermathColumns(group, (seatNumber) => `Seat ${seatNumber}`);
+    const seat2ColumnAfter = columnsAfter.find((c) => c.seatNumber === second.choice.seatNumber)!;
+    expect(seat2ColumnAfter.rows).toHaveLength(3);
+    // Never a "taken by" annotation across seats — each seat's own deal is independent.
+    expect(seat2ColumnAfter.rows.every((row) => row.takenByHeroName === null)).toBe(true);
+  }, 30_000);
+
+  test("decideForSeat refuses a card seat 2 was never dealt", async () => {
+    const svc = service();
+    const { record, won } = await seedSmWonGame(svc);
+    const seats = record.seats.map((seat) => ({ seatNumber: seat.seatNumber, heroName: `Seat ${seat.seatNumber}` }));
+    const optionOf = (cardId: CardId) => aftermathOptionOf(cardId, CARDS_BY_ID);
+    const first = await svc.foldState(record, won, [], []);
+    if (first.kind !== "pending") throw new Error("expected the shieldTech choice");
+    const group = startAftermathGroup(first.choice, seats, optionOf);
+    const otherSeat = seats.find((seat) => seat.seatNumber !== first.choice.seatNumber)!.seatNumber;
+    const blocked = decideForSeat(group, otherSeat, { kind: "picked", cardId: first.choice.options[0]! as CardId });
+    expect(blocked).toBe(group); // unchanged: seat 2 hasn't been dealt these cards (or any cards) yet
   });
 });
 
