@@ -228,6 +228,9 @@ export function validateAttachmentHost(host: unknown, label: string): string[] {
         errors.push(`${label} ${kind} host attackedThisTurnBy must name at least one card title`);
       }
     }
+    if (h.controlledBy !== undefined && h.controlledBy !== "you") {
+      errors.push(`${label} ${kind} host controlledBy must be 'you' when present`);
+    }
   };
   /** Every `HostQualifiers` field, for the "a qualified host needs at least one" check. */
   const anyQualifier = (): boolean =>
@@ -237,7 +240,8 @@ export function validateAttachmentHost(host: unknown, label: string): string[] {
     h.keyword !== undefined ||
     h.withoutKeyword !== undefined ||
     h.titleContains !== undefined ||
-    h.attackedThisTurnBy !== undefined;
+    h.attackedThisTurnBy !== undefined ||
+    h.controlledBy !== undefined;
   switch (kind) {
     case "namedCard":
     case "namedVillain":
