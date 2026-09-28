@@ -334,9 +334,9 @@ describe("Spider-Ham's supports, upgrades and resources (30008-30011, 30018-3001
   });
 
   describe("30019.overwatch-interrupt", () => {
-    const attachOverwatch = () => {
+    const attachOverwatch = (threat = 5) => {
       const hero = runWave5(spiderHamVsRhino(), toHero(P1));
-      const { state: withScheme, id: scheme } = encounterCardInVillainArea(hero, "01107", 5);
+      const { state: withScheme, id: scheme } = encounterCardInVillainArea(hero, "01107", threat);
       const { state, id: overwatch } = playAttachedTo(withScheme, "30019", 0, scheme);
       return { state, scheme, overwatch };
     };
@@ -348,20 +348,13 @@ describe("Spider-Ham's supports, upgrades and resources (30008-30011, 30018-3001
       // it needs its own nonzero threat to prove the redirect actually happened.
       const state = patchInstance(attached, attached.mainScheme.instanceId, { threat: 10 });
       const mainSchemeBefore = inst(state, state.mainScheme.instanceId).threat;
-      // Known engine gap, worked around below: Overwatch's own `query("scheme", { excluding: host })` should keep
-      // the attached scheme itself off the list of legal redirect targets ("a *different* scheme"), but its own
-      // `chooseTarget` step (offered once the interrupt is accepted, nested inside the basic thwart's own still-
-      // resolving effect stack) still lists the attached scheme as a legal option — `excluding`'s own `resolveRef(
-      // state, query.excluding, context)` (`packages/engine/src/select.ts`) resolves `host` to nothing there and
-      // filters out nothing (the same empty `context.selfInstanceId` thread noted on Warrior of the Great Web's
-      // Response below). A real player could mis-click the attached scheme itself here; this test picks the main
-      // scheme explicitly to exercise the ability's own intended effect rather than the validation gap.
+      // "A different scheme": the attached scheme is not offered, even though Overwatch's own cost has discarded it
+      // by the time its target is chosen.
+      let offered: readonly string[] | null = null;
       const pickMainScheme: Picker = (s) => {
         const choice = s.pendingChoice;
-        if (
-          choice?.prompt.kind === "chooseTarget" &&
-          choice.options.some((o) => o.optionId === state.mainScheme.instanceId)
-        ) {
+        if (choice?.prompt.kind === "chooseTarget") {
+          offered = choice.options.map((o) => o.optionId);
           return [state.mainScheme.instanceId];
         }
         return accepting("30019.overwatch-interrupt")(s);
@@ -377,10 +370,32 @@ describe("Spider-Ham's supports, upgrades and resources (30008-30011, 30018-3001
         undefined,
         WAVE5_DEPS,
       );
+      expect(offered).toContain(state.mainScheme.instanceId);
+      expect(offered).not.toContain(scheme);
       // Spider-Ham's own basic THW (2): the attached scheme drops from 5 to 3, and the main scheme loses the same 2.
       expect(inst(after, scheme).threat).toBe(3);
       expect(inst(after, state.mainScheme.instanceId).threat).toBe(mainSchemeBefore - 2);
       expect(playerOf(after, P1).discard).toContain(overwatch);
+    });
+
+    it("moves only the threat actually removed: THW 2 against 1 threat on the attached scheme moves 1", () => {
+      const { state: attached, scheme, overwatch } = attachOverwatch(1);
+      const identity = identityOf(attached, P1);
+      const state = patchInstance(attached, attached.mainScheme.instanceId, { threat: 10 });
+      const after = settle(
+        runWave5(state, {
+          type: "basicThwart",
+          playerId: P1,
+          thwarterInstanceId: identity,
+          schemeInstanceId: scheme,
+        }),
+        accepting("30019.overwatch-interrupt", state.mainScheme.instanceId),
+        undefined,
+        WAVE5_DEPS,
+      );
+      expect(inst(after, state.mainScheme.instanceId).threat).toBe(9);
+      expect(playerOf(after, P1).discard).toContain(overwatch);
+      expect(cardsInPlay(after)).not.toContain(scheme); // the thwart cleared it: 1 threat, THW 2.
     });
 
     it("declining leaves the thwart's own removal as the only change", () => {
@@ -518,12 +533,10 @@ describe("Spider-Ham's supports, upgrades and resources (30008-30011, 30018-3001
       expect(offered).toBe(true);
     });
 
-    // KNOWN ENGINE GAP (module docblock): the ability above visibly fires (offered via `chooseTriggers` and
-    // chosen), but its own `modifyStatUntil` effect never registers a lasting effect (`state.lastingEffects` stays
-    // empty), so "+1 ATK until the end of the phase" cannot be asserted through the engine yet. Skipped pending a
-    // `game-rules-architect` fix to how an accepted, optional `response()`'s own effect frame threads
-    // `context.selfInstanceId` through to `addLastingEffect` (`packages/engine/src/effects.ts`).
-    it.skip("asserts the actual +1 ATK, and its reversion at end of phase, once the lasting-effect gap above is fixed", () => {
+    // Rhino's attack defeats the ally in the villain phase, so "until the end of the phase" is that villain phase: the
+    // +1 ATK is added while the response resolves and ends as the phase does, before the next hero phase's first
+    // choice. One `resolveChoice` runs all of it, so the test reads its events.
+    it("30029.warrior-of-the-great-web-response: +1 ATK on the attached character until the end of that phase", () => {
       const hero = runWave5(spiderHamWithWarriorInDeck(2), toHero(P1));
       const identity = identityOf(hero, P1);
       const { state: withWarrior } = playAttachedTo(hero, "30029", 1, identity);
@@ -531,10 +544,37 @@ describe("Spider-Ham's supports, upgrades and resources (30008-30011, 30018-3001
       const before = characterProfile(withAlly, identity, WAVE5_DEPS)!.atk;
       const near = patchInstance(withAlly, ally, { damage: 2 });
       const base = toDeclaredDefender(near, ally);
-      const after = settle(base, accepting("30029.warrior-of-the-great-web-response"), undefined, WAVE5_DEPS);
-      expect(characterProfile(after, identity, WAVE5_DEPS)!.atk).toBe(before + 1);
-      const endedPhase = settle(runWave5(after, endTurn(P1)), firstLegal, undefined, WAVE5_DEPS);
-      expect(characterProfile(endedPhase, identity, WAVE5_DEPS)!.atk).toBe(before);
+      const choice = base.pendingChoice!;
+      expect(choice.prompt.kind).toBe("chooseTriggers");
+      const result = applyCommand(
+        base,
+        {
+          type: "resolveChoice",
+          playerId: choice.playerId,
+          choiceId: choice.choiceId,
+          selectedOptionIds: accepting("30029.warrior-of-the-great-web-response")(base),
+        },
+        WAVE5_DEPS,
+      );
+      if (!result.ok) throw new Error(result.error.message);
+      const events = result.events;
+      const added = events.flatMap((e) => (e.type === "lastingEffectAdded" ? [e.effect] : []));
+      expect(added).toHaveLength(1);
+      const [boost] = added;
+      expect(boost).toMatchObject({
+        kind: "statModifier",
+        stat: "atk",
+        amount: { kind: "const", value: 1 },
+        targets: [identity],
+        duration: { kind: "endOfPhase" },
+      });
+      const at = (predicate: (e: (typeof events)[number]) => boolean) => events.findIndex(predicate);
+      const ended = at((e) => e.type === "lastingEffectEnded" && e.id === boost!.id && e.reason === "expired");
+      const heroPhase = at((e) => e.type === "stepChanged" && e.to.phase === "player");
+      expect(at((e) => e.type === "lastingEffectAdded")).toBeLessThan(ended);
+      expect(ended).toBeLessThan(heroPhase);
+      expect(result.state.lastingEffects).toEqual([]);
+      expect(characterProfile(result.state, identity, WAVE5_DEPS)!.atk).toBe(before);
     });
 
     it("declining leaves the attached character's ATK unchanged", () => {

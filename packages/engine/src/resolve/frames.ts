@@ -4,7 +4,7 @@ import type { AbilityId, AbilityReference, CardId } from "@mc/content";
 import { type Ctx, nextFrameId, pushFrames, updateFrame } from "../ctx.js";
 import type { FrameId, InstanceId, PlayerId } from "../ids.js";
 import { cardOf } from "../query.js";
-import { activeAbilityRefs, controllerOf, printedAbilityRefs, textBoxBlankFor } from "../select.js";
+import { activeAbilityRefs, controllerOf, printedAbilityRefs, textBoxBlankFor, withSelfHost } from "../select.js";
 import type { EffectSpec } from "../spec.js";
 import {
   type Bindings,
@@ -207,7 +207,8 @@ export function abilityFrame(
     controllerId: candidate.controllerId,
     event,
     eventFrameId,
-    bindings,
+    // Read before the cost is paid: "discard this card →" leaves the effect's "attached scheme" readable (`SELF_HOST`).
+    bindings: withSelfHost(ctx.state, candidate.instanceId, bindings),
     // The ability's own vars win: an ability paid for with its own resource cost (`payWindowAbility`) keeps that payment.
     vars: { ...playPaymentVars(ctx.state.stack, candidate.instanceId), ...vars },
   };

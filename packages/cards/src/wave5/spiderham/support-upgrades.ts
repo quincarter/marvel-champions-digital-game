@@ -19,6 +19,7 @@ import {
   heroInterrupt,
   host,
   interrupt,
+  min,
   modifyAttack,
   modifyStat,
   on,
@@ -29,6 +30,7 @@ import {
   removeThreat,
   response,
   scaled,
+  threatOn,
   yourIdentity,
   YOUR_IDENTITY,
 } from "../../dsl/index.js";
@@ -98,11 +100,11 @@ const WEB_WARRIOR = trait("WEB-WARRIOR");
  * removed after) — same as Lady Spider's Response (`allies.ts` 30012). "A different scheme" excludes the attached
  * scheme itself via `TargetQuery.excluding: host` (Web of Life and Destiny/Lady Spider's own `excluding`
  * precedent, here excluding the host rather than an event target since host and event target are the same
- * scheme). **Known engine gap, pinned in the test file**: when this interrupt is accepted while nested inside a
- * thwart's own still-resolving effect stack, `excluding: host` doesn't actually filter the attached scheme back
- * out of the redirect's own `chooseTarget` options — see the test's own comment and Warrior of the Great Web's
- * docblock below for the same apparent root cause (an empty `context.selfInstanceId` for the newly-accepted
- * trigger's own effect frame).
+ * scheme). The cost discards Overwatch before the effect resolves, so `host` reads the scheme it was attached to
+ * when the interrupt was initiated (the engine's `SELF_HOST` binding, `packages/engine/src/select.ts`; RRG 1.8
+ * "Initiating Abilities", p. 24). "An equal amount" is capped at the threat on the attached scheme
+ * (`min(eventAmount, threatOn(host))`, read while the interrupt resolves, before the thwart removes any): only that
+ * much "is removed", so THW 2 against 1 threat moves 1 (decided by the main session, 2026-09-28).
  *
  * **Team-Building Exercise (support, 30022)** reprints `ant` 12024 verbatim (identical printed text, same scan
  * filename `12024.png`) — aliased the same way as Followed above.
@@ -122,16 +124,8 @@ const WEB_WARRIOR = trait("WEB-WARRIOR");
  * attached character gets +1 ATK until the end of the phase." reuses Web of Life and Destiny's own trigger
  * (`on.leavesPlay(query("ally", { trait: WEB_WARRIOR }))`) with `modifyStat("atk", 1, host, "endOfPhase")` — `host`
  * (`dsl/values.ts`'s bare `TargetRef`) rather than `hostOfSelf` (a query-only qualifier) since `modifyStat` takes a
- * `TargetRef`. **Known engine gap, pinned in the test file**: once accepted via its own `chooseTriggers` step, the
- * ability visibly fires (the option is offered and chosen) but its `modifyStatUntil` effect never lands —
- * `state.lastingEffects` stays empty afterward, reproduced identically with `yourIdentity` in place of `host` (so
- * it isn't a `host`-resolution bug specifically). Every other `modifyStatUntil`/`gainTraitUntil`/`gainKeywordUntil`
- * caller found in this codebase is a `heroResponse`/`forcedResponse`/`interrupt`/`heroInterrupt` (a mandatory
- * ability, or one whose accept step doesn't route through the optional-response `chooseTriggers` path the same
- * way) — a bare, optional `response()` creating a *lasting* effect appears to be an untested combination the
- * `chooseTriggers` acceptance flow doesn't correctly hand off to. A `game-rules-architect` follow-up should trace
- * why the chosen trigger's effect frame never reaches `addLastingEffect` (`packages/engine/src/effects.ts`) for
- * this path.
+ * `TargetRef`. Its usual trigger is an ally defeated by a villain attack, so the +1 ATK lasts until the end of that
+ * villain phase (RRG 1.8 "Lasting Effects", p. 26) and is gone by the next hero phase.
  */
 export const SPIDERHAM_SUPPORT_UPGRADES = defineAbilities({
   "30008.the-daily-beagle-action": alterEgoAction({ cost: exhaustThis }, addCounters("toon", 1, yourIdentity)),
@@ -165,7 +159,7 @@ export const SPIDERHAM_SUPPORT_UPGRADES = defineAbilities({
     { on: "thwart", targetIs: { hostOfSelf: true } },
     { cost: discardThis },
     chooseTarget("scheme", query("scheme", { excluding: host })),
-    removeThreat(eventAmount, chosen("scheme")),
+    removeThreat(min(eventAmount, threatOn(host)), chosen("scheme")),
   ),
 
   "30022.team-building-exercise-action": ANT_PACK_CARDS["12024.team-building-exercise-action"]!,

@@ -403,6 +403,32 @@ export function isProtectedMainScheme(state: GameState, deps: EngineDeps, id: In
 /** "(Aggression, Justice, Leadership and Protection)": the aspects `ValueSpec distinctAspects` counts (§3.12 of wave 4). */
 const FOUR_ASPECTS: readonly string[] = ["aggression", "justice", "leadership", "protection"];
 
+/**
+ * The binding slot an ability's frame records its card's host in, read when the ability is initiated (before its cost
+ * is paid; `resolve/frames.ts` `abilityFrame`). RRG 1.8 "Initiating Abilities" (p. 24, steps 5-7) and "Cost Arrow
+ * Icon" (p. 13): the cost is paid in full before the effect resolves, so a "discard this card →" ability resolves with
+ * its card already gone. Its "attached scheme"/"attached character" is read as the card it was attached to (the RRG
+ * has no explicit last-known-information rule; this is the only reading under which such text does anything), so
+ * `host` and `hostOfSelf` read this slot once the card is no longer attached (Overwatch, `spiderham` 30019).
+ */
+export const SELF_HOST = "_selfHost";
+
+/**
+ * `bindings` plus the card's current host under `SELF_HOST`, when it has one. An unattached card keeps what it was
+ * given: an action records its host before its resources are paid (`actions.ts`), which may already have moved it.
+ */
+export function withSelfHost(state: GameState, instanceId: InstanceId, bindings: Bindings): Bindings {
+  const host = getInstance(state, instanceId)?.attachedTo ?? null;
+  return host ? { ...bindings, [SELF_HOST]: [host] } : bindings;
+}
+
+/** The card this ability's card is attached to: now, or, once it has left its host, when the ability was initiated. */
+function hostOfSelfId(state: GameState, context: EffectContext): InstanceId | null {
+  if (!context.selfInstanceId) return null;
+  const live = getInstance(state, context.selfInstanceId)?.attachedTo ?? null;
+  return live ?? context.bindings[SELF_HOST]?.[0] ?? null;
+}
+
 /** The binding slot the "which main scheme?" choice fills for a player card's ability (docs/phase7-wave4.md §3.2). */
 export const MAIN_SCHEME_CHOICE = "_mainScheme";
 
@@ -594,7 +620,7 @@ export function explainQuery(
     if (printedUnique !== query.unique) return "wrongUnique";
   }
   if (query.hostOfSelf !== undefined) {
-    const host = context.selfInstanceId ? getInstance(state, context.selfInstanceId)?.attachedTo : null;
+    const host = hostOfSelfId(state, context);
     if ((host === id) !== query.hostOfSelf) return "notHostOfSelf";
   }
   // "A Weapon upgrade **on your hero**": the candidate is attached to one of the cards the ref names. The mirror of
@@ -1206,7 +1232,7 @@ export function resolveRef(state: GameState, ref: TargetRef, context: EffectCont
     case "self":
       return context.selfInstanceId ? [context.selfInstanceId] : [];
     case "host": {
-      const host = context.selfInstanceId ? getInstance(state, context.selfInstanceId)?.attachedTo : null;
+      const host = hostOfSelfId(state, context);
       return host ? [host] : [];
     }
     case "each":

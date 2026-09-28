@@ -126,6 +126,7 @@ import {
   traitsOf,
   type EffectContext,
   isProtectedMainScheme,
+  withSelfHost,
 } from "./select.js";
 import type { Bindings, ReportTarget, Vars } from "./stack.js";
 import type { GameState } from "./state.js";
@@ -2686,8 +2687,9 @@ export function useAbility(ctx: Ctx, command: Command & { type: "useAbility" }):
 
   // Read before paying: paying may exhaust or discard the source.
   const sources = paymentSourceVars(ctx, command.playerId, command.payment);
+  const bindings = withSelfHost(ctx.state, command.cardInstanceId, plan.bindings);
   const spent = payPayment(ctx, command.playerId, command.payment, plan.payingFor);
-  pushActionAbility(ctx, command.cardInstanceId, command.abilityId, command.playerId, plan.bindings, {
+  pushActionAbility(ctx, command.cardInstanceId, command.abilityId, command.playerId, bindings, {
     ...plan.vars,
     ...vars,
     ...sources,
