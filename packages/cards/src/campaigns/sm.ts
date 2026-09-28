@@ -32,14 +32,13 @@
  *
  * ---------------------------------------------------------------------------------------------------------------
  * SKIPPED (engine gaps; see the report this file's own commit/PR cites, and the module-level TODOs beside each).
+ * Gaps 1 and 5 are closed and kept here, numbered as before, because comments below cite the others by number.
  * Nothing below is worked around with a near-miss effect — each is left unauthored, with the printed text kept as
  * a comment so it can be picked up the moment the primitive exists:
  *
- * 1. **"Deal 3 … at random to a player. That player may choose 1 …" (node 1's reward, MC27 p. 22).**
- *    `CampaignChoiceSource` has no member for "choose among cards a prior `random` op already dealt" — `choose`'s
- *    `from` is only ever a static source (a literal list, a campaign set, the collection, …), never the *result*
- *    of an earlier `random`/`choose` in the same step list (`CampaignValue` `choice` resolves to one scalar, not a
- *    pool a later `choose` can draw from). Node 1's reward is entirely unauthored.
+ * 1. *(Closed.)* **"Deal 3 … at random to a player. That player may choose 1 …" (node 1's reward, MC27 p. 22)**
+ *    is authored in `sm.reputation.mark`: a `random` (count 3) into a per-seat slot, then a `choose` from
+ *    `CampaignChoiceSource` `values(choice(slot))`, so the dealt three are the only options.
  * 2. **"Put the Venom (190) ally card into play …" (scenarios 3 and 4), "… put a Helicarrier … into play …" (node
  *    21's reward) and "… put a Symbiote Suit … into play …" (node 25's reward).** All three are ordinary player
  *    cards that belong to no `EncounterSetId` (`composeEncounterSets` only gathers encounter sets) and are not
@@ -55,12 +54,9 @@
  *    threat on that side scheme" (MC27 p. 22).** No query primitive names "the side scheme belonging to *this*
  *    scenario's own base encounter set" as opposed to a modular/campaign one, and the rulebook names no specific
  *    card per scenario to fall back on. Unauthored rather than guessed.
- * 5. **The "at random that does not have its title recorded" exclusion on Community Service's draw (scenarios 2-
- *    4, MC27 p. 11/13/15).** `CampaignChoiceSource` `cards` takes a literal, static `cardIds` list; there is no
- *    way to narrow a `random` draw by a *log-recorded* list at resolve time (`excludeGranted` excludes cards
- *    already granted to a seat's deck, not titles a `cardList` field already holds). `communityServicePick`
- *    below draws from the full five every time — occasionally repeating a title instead of cycling through all
- *    five — and is commented at the point this diverges from print.
+ * 5. *(Closed.)* **"… at random that does not have its title recorded in the 'Community Service' section"
+ *    (scenarios 2-4, MC27 p. 11/13/15)** is authored in `communityServicePick` with `CampaignChoiceSource`
+ *    `excludingTitles` over the `communityService` field.
  *
  * Also not attempted here (out of this file's scope per the brief): scripting the 16 campaign cards themselves
  * (174-189, `ability-scripting-engineer`'s later pass) and the expert campaign's optional deck-customization
@@ -70,6 +66,7 @@
 import { campaignId, cardId, encounterSetId, scenarioId, trait, type CampaignId, type CardId } from "@mc/content";
 import {
   DEFAULT_CAMPAIGN_WINDOW,
+  type CampaignChoiceSource,
   type CampaignDefinition,
   type CampaignInstruction,
   type CampaignOp,
@@ -119,6 +116,8 @@ const BAD_PUBLICITY_SET = encounterSetId("bad_publicity");
 const COMMUNITY_SERVICE_SET = encounterSetId("community_service");
 const SNITCHES_SET = encounterSetId("snitches_get_stitches");
 const OSBORN_TECH_SET = encounterSetId("osborn_tech");
+/** MC27 p. 4: cards 182-189, the "Campaign - S.H.I.E.L.D. Tech" player cards node 1's reward deals from. */
+const SHIELD_TECH_SET = encounterSetId("shield_tech");
 const SINISTER_ASSAULT_SET = encounterSetId("sinister_assault");
 
 /** MC27 p. 4/p. 9: cards 176-180, "Choose 1 … at random. Shuffle that side scheme into the encounter deck." */
@@ -226,14 +225,22 @@ function shuffleSmearAndSnitches(id: string, citation: string): CampaignInstruct
 /**
  * The composition half of Community Service's random draw (MC27 p. 9/11/13/15's "Choose 1 … at random"): the pick
  * itself is between games (no `GameState` exists yet to shuffle a card into), so it is recorded to a hidden,
- * per-scenario `cardRef` field the paired `communityServiceSetup` instruction reads in-game. **Gap 5 (file header):
- * scenarios 2-4 print "that does not have its title recorded in the 'Community Service' section" — this draws from
- * the full five every time, so a title can repeat.**
+ * per-scenario `cardRef` field the paired `communityServiceShuffleIn` instruction reads in-game.
+ *
+ * Scenarios 2-4 (MC27 p. 11/13/15) add "that does not have its title recorded in the 'Community Service' section of
+ * the campaign log" (`excludeRecorded`); scenario 1 (p. 9) does not. Only a *defeated* scheme is recorded (p. 9/11/
+ * 13/15's Victory bullet), so a title drawn but not defeated may be drawn again. At most one title is recorded per
+ * scenario and the fourth draw is the last, so at least two of the five are always left: the rulebook never needs to
+ * say what an exhausted draw does, and the engine's answer (it draws nothing, so nothing is shuffled in) is unreachable
+ * in this box.
  */
-function communityServicePick(prefix: string, citation: string): CampaignInstruction {
+function communityServicePick(prefix: string, citation: string, excludeRecorded: boolean): CampaignInstruction {
+  const all: CampaignChoiceSource = { kind: "cards", cardIds: COMMUNITY_SERVICE.map((c) => c.id) };
   return {
     id: `${prefix}.setup.community-service-pick`,
-    text: 'Choose 1 "Campaign - Community Service" (176-180) side scheme at random.',
+    text: excludeRecorded
+      ? 'Choose 1 "Campaign - Community Service" (176-180) side scheme at random that does not have its title recorded in the "Community Service" section of the campaign log.'
+      : 'Choose 1 "Campaign - Community Service" (176-180) side scheme at random.',
     citation,
     step: {
       kind: "betweenGames",
@@ -241,7 +248,9 @@ function communityServicePick(prefix: string, citation: string): CampaignInstruc
         {
           kind: "random",
           slot: "communityService",
-          from: { kind: "cards", cardIds: COMMUNITY_SERVICE.map((c) => c.id) },
+          from: excludeRecorded
+            ? { kind: "excludingTitles", from: all, titlesIn: { kind: "field", field: "communityService" } }
+            : all,
         },
         {
           kind: "setField",
@@ -429,11 +438,51 @@ const REPUTATION_VICTORY: readonly CampaignInstruction[] = [
           field: "reputation",
           value: { kind: "sum", of: [{ kind: "clampAtZero", of: field("repVictoryPoints") }, field("repConditions")] },
         },
-        // Node 1's penalty: choose 1 random Osborn Tech immediately; its "Setup:" shuffle joins every remaining scenario.
+        // Node 1's reward, per seat in turn: "Deal 3 … at random to a player. That player may choose 1 to add to
+        // their deck …, record that card's title …, then return the others to the collection. … Repeat this process
+        // for each player." `excludeGranted` is what "return the others" leaves out of the next seat's deal: only
+        // the kept card is taken. Node 1's penalty: choose 1 random Osborn Tech immediately; its "Setup:" shuffle
+        // joins every remaining scenario.
         {
           kind: "if",
           when: crossed(1),
           then: [
+            {
+              kind: "forEachSeat",
+              ops: [
+                {
+                  kind: "random",
+                  slot: "shieldTechDealt",
+                  count: 3,
+                  from: { kind: "campaignSet", encounterSetId: SHIELD_TECH_SET, excludeGranted: true },
+                },
+                {
+                  kind: "choose",
+                  slot: "shieldTech",
+                  chooser: "eachSeat",
+                  optional: true,
+                  from: { kind: "values", of: { kind: "choice", slot: "shieldTechDealt" } },
+                },
+                {
+                  kind: "if",
+                  when: { kind: "choiceMade", slot: "shieldTech" },
+                  then: [
+                    {
+                      kind: "grantCard",
+                      seat: "self",
+                      card: { kind: "choice", slot: "shieldTech" },
+                      permanence: "campaign",
+                    },
+                    {
+                      kind: "setField",
+                      field: "shieldTech",
+                      seat: "self",
+                      value: { kind: "choice", slot: "shieldTech" },
+                    },
+                  ],
+                },
+              ],
+            },
             { kind: "random", slot: "osborn1", from: { kind: "campaignSet", encounterSetId: OSBORN_TECH_SET } },
             { kind: "appendToList", field: "osbornTech", value: { kind: "choice", slot: "osborn1" } },
             { kind: "appendToList", field: "reputationSetups", value: constant("sm.rep.node1.penalty") },
@@ -764,7 +813,7 @@ export const SM_CAMPAIGN_DEFINITION: CampaignDefinition = {
         setup: [
           putPublicOutcryIntoPlay("sm.s1.setup.public-outcry", "MC27 p. 9"),
           shuffleSmearCampaign("sm.s1.setup.smear-campaign", "MC27 p. 9"),
-          communityServicePick("sm.s1", "MC27 p. 9"),
+          communityServicePick("sm.s1", "MC27 p. 9", false),
           communityServiceShuffleIn("sm.s1.setup.community-service", "MC27 p. 9"),
           // Expert Campaign Only "Place 2 additional sand counters … resolve its 'Surging Sands' ability" is
           // unauthored (file header, gap 3): no primitive resolves a card's own named sub-ability from campaign data.
@@ -782,7 +831,7 @@ export const SM_CAMPAIGN_DEFINITION: CampaignDefinition = {
         setup: [
           putPublicOutcryIntoPlay("sm.s2.setup.public-outcry", "MC27 p. 11"),
           shuffleSmearCampaign("sm.s2.setup.smear-campaign", "MC27 p. 11"),
-          communityServicePick("sm.s2", "MC27 p. 11"),
+          communityServicePick("sm.s2", "MC27 p. 11", true),
           communityServiceShuffleIn("sm.s2.setup.community-service", "MC27 p. 11"),
           hpSet("sm.s2.setup.hp-set", "MC27 p. 11"),
           optionalPrintedHeal("sm.s2.setup.heal", "MC27 p. 11", 1),
@@ -811,7 +860,7 @@ export const SM_CAMPAIGN_DEFINITION: CampaignDefinition = {
         setup: [
           // "Put the Venom (190) ally card into play under the first player's control" is unauthored (gap 2).
           shuffleSmearAndSnitches("sm.s3.setup.smear-and-snitches", "MC27 p. 13"),
-          communityServicePick("sm.s3", "MC27 p. 13"),
+          communityServicePick("sm.s3", "MC27 p. 13", true),
           communityServiceShuffleIn("sm.s3.setup.community-service", "MC27 p. 13"),
           hpSet("sm.s3.setup.hp-set", "MC27 p. 13"),
           optionalPrintedHeal("sm.s3.setup.heal", "MC27 p. 13", 2),
@@ -856,7 +905,7 @@ export const SM_CAMPAIGN_DEFINITION: CampaignDefinition = {
           // "Put the Venom (190) ally card into play under the first player's control" is unauthored (gap 2).
           putPublicOutcryIntoPlay("sm.s4.setup.public-outcry", "MC27 p. 15"),
           shuffleSmearAndSnitches("sm.s4.setup.smear-and-snitches", "MC27 p. 15"),
-          communityServicePick("sm.s4", "MC27 p. 15"),
+          communityServicePick("sm.s4", "MC27 p. 15", true),
           communityServiceShuffleIn("sm.s4.setup.community-service", "MC27 p. 15"),
           {
             id: "sm.s4.setup.waking-nightmare-threat",

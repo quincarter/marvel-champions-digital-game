@@ -549,8 +549,25 @@ export function resolveChoiceSource(
         }),
       );
     }
+    case "values":
+      // MC27 p. 22: "Deal 3 … at random to a player. That player may choose 1" — the dealt cards, and only those.
+      return usable([...new Set(campaignStrings(run, source.of))]);
+    case "excludingTitles": {
+      // MC27 p. 11/13/15: "at random that does not have its title recorded in the 'Community Service' section".
+      const recorded = campaignStrings(run, source.titlesIn);
+      const recordedTitles = new Set(recorded.flatMap((id) => titleOf(run, id) ?? []));
+      return resolveChoiceSource(run, source.from, seatNumber).filter((id) => {
+        if (recorded.includes(id)) return false;
+        const title = titleOf(run, id);
+        return title === undefined || !recordedTitles.has(title);
+      });
+    }
   }
 }
+
+/** A card's printed title (its front face's name) out of the pool; undefined for an id that is not a card. */
+const titleOf = (run: CampaignRun, id: string): string | undefined =>
+  poolCards(run.deps.pool).find((card) => card.id === id)?.name;
 
 // ------------------------------------------------------------------------------------------------------------
 // §4.5 Ops

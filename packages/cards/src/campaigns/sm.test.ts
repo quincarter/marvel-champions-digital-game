@@ -4,12 +4,36 @@
  * exercised through the engine's own `sm-queries.test.ts` (the pattern this file's reputation track reuses) and
  * `packages/engine/src/campaign/runner.test.ts`-style fixtures elsewhere; this file proves the definition itself is
  * well-formed and matches the real, ingested `@mc/content` records it names.
+ *
+ * The two choice-source shapes this box needed (`CampaignChoiceSource` `values` for node 1's "Deal 3 … That player
+ * may choose 1", MC27 p. 22; `excludingTitles` for Community Service's "that does not have its title recorded",
+ * MC27 p. 11/13/15) are driven through the real runner at the end of this file, between-games results supplied as
+ * `CampaignGameResult.records` directly (`mts.qa.test.ts`'s shape).
  */
 import { describe, expect, it } from "vitest";
-import { SM_CAMPAIGN as SM_CAMPAIGN_RECORD, SM_CARDS, SM_SCENARIOS } from "@mc/content";
-import type { CampaignInstruction } from "@mc/engine";
+import {
+  SM_CAMPAIGN as SM_CAMPAIGN_RECORD,
+  SM_CARDS,
+  SM_SCENARIOS,
+  SM_STARTER_DECKS,
+  type CardId,
+  type PlayModes,
+} from "@mc/content";
+import {
+  applyCampaignResult,
+  createCampaignLog,
+  resolveBetweenGames,
+  type CampaignChoiceAnswer,
+  type CampaignDeps,
+  type CampaignGameResult,
+  type CampaignInstruction,
+  type CampaignLog,
+  type CampaignSeatSetup,
+  type LogWrite,
+} from "@mc/engine";
 import { action } from "../dsl/abilities.js";
 import { validateDefinition } from "../dsl/validate.js";
+import { WAVE5_CARDS } from "../wave5/index.js";
 import { SM_CAMPAIGN_DEFINITION } from "./sm.js";
 
 function allInstructions(): readonly CampaignInstruction[] {
@@ -253,5 +277,232 @@ describe("SM_CAMPAIGN_DEFINITION", () => {
 
   it("round-trips through JSON", () => {
     expect(JSON.parse(JSON.stringify(SM_CAMPAIGN_DEFINITION))).toEqual(SM_CAMPAIGN_DEFINITION);
+  });
+});
+
+// ---------------------------------------------------------------------------------------------------------------
+// Driven through the runner: node 1's S.H.I.E.L.D. Tech deal and Community Service's recorded-title exclusion
+// ---------------------------------------------------------------------------------------------------------------
+
+const DEPS: CampaignDeps = { pool: WAVE5_CARDS };
+const STANDARD: PlayModes = { campaign: { campaignId: SM_CAMPAIGN_DEFINITION.campaignId } };
+const SHIELD_TECH_IDS = SM_CARDS.filter(
+  (card) => "specificTo" in card && (card.specificTo?.encounterSetId as string | undefined) === "shield_tech",
+).map((card) => card.id as string);
+const COMMUNITY_SERVICE_IDS = ["27176", "27177", "27178", "27179", "27180"];
+const NODES = ["sandman", "venom", "mysterio", "sinister-six", "venom-goblin"] as const;
+
+function seatFor(starterDeckId: string, seatNumber: number): CampaignSeatSetup {
+  const starter = SM_STARTER_DECKS.find((deck) => (deck.id as string) === starterDeckId);
+  if (!starter) throw new Error(`no sm starter deck "${starterDeckId}"`);
+  return {
+    seatNumber,
+    identityCardId: starter.identityCardId,
+    deck: { identityCardId: starter.identityCardId, aspects: starter.aspects, cards: starter.cards },
+  };
+}
+
+const SEATS: readonly CampaignSeatSetup[] = [seatFor("ghost-spider", 1), seatFor("spider-man-morales", 2)];
+
+const newLog = (seed: number): CampaignLog =>
+  createCampaignLog(SM_CAMPAIGN_DEFINITION, {
+    id: `sm-${seed}`,
+    seats: SEATS,
+    modes: STANDARD,
+    poolVersion: "test",
+    seed,
+  });
+
+const won = (nodeId: string, records: CampaignGameResult["records"]): CampaignGameResult => ({
+  nodeId,
+  outcome: "won",
+  records,
+  removedFromCampaign: [],
+  logWrites: [],
+  expiringGrants: [],
+});
+
+/** "Record its title in the 'Community Service' section" (MC27 p. 9/11/13/15), as the finished game computed it. */
+const recordCommunityService = (scenario: number, ids: readonly string[]) => ({
+  instructionId: `sm.s${scenario}.victory.community-service`,
+  write: {
+    field: "communityService",
+    seatNumber: null,
+    mode: "append",
+    value: { kind: "cardList", cardIds: ids as readonly CardId[] },
+  } satisfies LogWrite,
+});
+
+/** MC27 p. 22's Conditions, reduced to "1 victory point": marks exactly node 1 from an empty track. */
+const oneVictoryPoint = {
+  instructionId: "sm.reputation.conditions",
+  write: {
+    field: "repVictoryPoints",
+    seatNumber: null,
+    mode: "set",
+    value: { kind: "number", value: 1 },
+  } satisfies LogWrite,
+};
+
+const composed = (log: CampaignLog): CampaignLog => {
+  const outcome = resolveBetweenGames(SM_CAMPAIGN_DEFINITION, log, DEPS, log.modes);
+  if (outcome.kind !== "done") throw new Error(`unexpected choice ${outcome.choice.slot} before ${log.id}'s game`);
+  return outcome.value;
+};
+
+/** The Community Service side scheme this scenario's setup drew (the hidden per-scenario `cardRef`). */
+const dealtCommunityService = (log: CampaignLog): string | undefined => {
+  const value = log.hidden.communityServiceDealt;
+  return value?.kind === "cardRef" && value.cardId !== "" ? value.cardId : undefined;
+};
+
+const recordedCommunityService = (log: CampaignLog): readonly string[] => {
+  const value = log.shared.communityService;
+  return value?.kind === "cardList" ? value.cardIds : [];
+};
+
+describe("SM_CAMPAIGN_DEFINITION node 1's reward: 'Deal 3 S.H.I.E.L.D. Tech at random to a player' (MC27 p. 22)", () => {
+  const KEY = { instructionId: "sm.reputation.mark", slot: "shieldTech" } as const;
+  const afterSandman = (answers: readonly CampaignChoiceAnswer[]) =>
+    applyCampaignResult(
+      SM_CAMPAIGN_DEFINITION,
+      composed(newLog(7)),
+      won("sandman", [oneVictoryPoint]),
+      { at: 0, gameId: "sm-sandman" },
+      DEPS,
+      answers,
+    );
+
+  it("each player is offered exactly the three cards dealt to them, and may keep one", () => {
+    const first = afterSandman([]);
+    if (first.kind !== "pending") throw new Error("expected seat 1's S.H.I.E.L.D. Tech choice");
+    expect(first.choice).toMatchObject({ ...KEY, seatNumber: 1, count: 1, optional: true, citation: "MC27 p. 22" });
+    expect(first.choice.options).toHaveLength(3);
+    for (const option of first.choice.options) expect(SHIELD_TECH_IDS).toContain(option);
+    // Only the dealt three: any of the other five is refused.
+    const undealt = SHIELD_TECH_IDS.find((id) => !first.choice.options.includes(id));
+    if (!undealt) throw new Error("all eight were dealt");
+    expect(() => afterSandman([{ ...KEY, seatNumber: 1, picked: [undealt] }])).toThrow(/not one of its options/);
+  });
+
+  it("the kept card is granted and recorded; the other two are returned, and the next player's deal excludes it", () => {
+    const first = afterSandman([]);
+    if (first.kind !== "pending") throw new Error("expected seat 1's S.H.I.E.L.D. Tech choice");
+    const [kept1, ...returned1] = first.choice.options;
+    if (!kept1) throw new Error("nothing dealt");
+    const second = afterSandman([{ ...KEY, seatNumber: 1, picked: [kept1] }]);
+    if (second.kind !== "pending") throw new Error("expected seat 2's S.H.I.E.L.D. Tech choice");
+    expect(second.choice.seatNumber).toBe(2);
+    expect(second.choice.options).toHaveLength(3);
+    expect(second.choice.options).not.toContain(kept1);
+    const [kept2] = second.choice.options;
+    if (!kept2) throw new Error("nothing dealt");
+
+    const done = afterSandman([
+      { ...KEY, seatNumber: 1, picked: [kept1] },
+      { ...KEY, seatNumber: 2, picked: [kept2] },
+    ]);
+    if (done.kind !== "done") throw new Error("unexpected further choice");
+    const [seat1, seat2] = done.value.seats;
+    expect(seat1?.grants.map((grant) => grant.cardId)).toEqual([kept1]);
+    expect(seat1?.fields.shieldTech).toEqual({ kind: "cardRef", cardId: kept1 });
+    const seat1Cards = seat1?.deck.cards.map((line) => line.cardId as string) ?? [];
+    expect(seat1Cards).toContain(kept1);
+    for (const other of returned1) expect(seat1Cards).not.toContain(other);
+    expect(seat2?.grants.map((grant) => grant.cardId)).toEqual([kept2]);
+    expect(seat2?.fields.shieldTech).toEqual({ kind: "cardRef", cardId: kept2 });
+  });
+
+  it("a player who declines is granted nothing and records nothing", () => {
+    const done = afterSandman([
+      { ...KEY, seatNumber: 1, picked: [] },
+      { ...KEY, seatNumber: 2, picked: [] },
+    ]);
+    if (done.kind !== "done") throw new Error("unexpected further choice");
+    for (const seat of done.value.seats) {
+      expect(seat.grants).toEqual([]);
+      expect(seat.fields.shieldTech).toBeUndefined();
+    }
+  });
+
+  it("a scenario that marks no node deals nothing", () => {
+    const done = applyCampaignResult(
+      SM_CAMPAIGN_DEFINITION,
+      composed(newLog(7)),
+      won("sandman", []),
+      { at: 0, gameId: "sm-sandman" },
+      DEPS,
+    );
+    expect(done.kind).toBe("done");
+  });
+});
+
+describe("SM_CAMPAIGN_DEFINITION Community Service: 'at random that does not have its title recorded' (MC27 p. 11/13/15)", () => {
+  /** Plays scenarios 1-4, recording the drawn scheme as defeated where `defeated(n)` says so. */
+  const playFour = (seed: number, defeated: (scenario: number) => boolean) => {
+    let log = newLog(seed);
+    const draws: { readonly drawn: string; readonly recordedBefore: readonly string[] }[] = [];
+    for (let scenario = 1; scenario <= 4; scenario++) {
+      const ready = composed(log);
+      const drawn = dealtCommunityService(ready);
+      if (!drawn) throw new Error(`scenario ${scenario} drew no Community Service scheme`);
+      draws.push({ drawn, recordedBefore: recordedCommunityService(log) });
+      const records = defeated(scenario) ? [recordCommunityService(scenario, [drawn])] : [];
+      const applied = applyCampaignResult(
+        SM_CAMPAIGN_DEFINITION,
+        ready,
+        won(NODES[scenario - 1] as string, records),
+        { at: scenario, gameId: `sm-${seed}-${scenario}` },
+        DEPS,
+      );
+      if (applied.kind !== "done") throw new Error(`unexpected choice after scenario ${scenario}`);
+      log = applied.value;
+    }
+    return { draws, log };
+  };
+
+  it("scenarios 2-4 never draw a recorded title, so four defeated schemes are four different titles", () => {
+    for (let seed = 1; seed <= 25; seed++) {
+      const { draws, log } = playFour(seed, () => true);
+      for (const { drawn, recordedBefore } of draws) {
+        expect(COMMUNITY_SERVICE_IDS).toContain(drawn);
+        expect(recordedBefore, `seed ${seed}`).not.toContain(drawn);
+      }
+      expect(new Set(draws.map((draw) => draw.drawn)).size, `seed ${seed}`).toBe(4);
+      expect(recordedCommunityService(log)).toEqual(draws.map((draw) => draw.drawn));
+    }
+  });
+
+  it("with three titles recorded (the most the box can reach), scenario 4 draws one of the two left", () => {
+    for (let seed = 1; seed <= 25; seed++) {
+      const { draws } = playFour(seed, () => true);
+      const last = draws[3];
+      if (!last) throw new Error("scenario 4 did not draw");
+      expect(last.recordedBefore).toHaveLength(3);
+      const left = COMMUNITY_SERVICE_IDS.filter((id) => !last.recordedBefore.includes(id));
+      expect(left).toHaveLength(2);
+      expect(left).toContain(last.drawn);
+    }
+  });
+
+  it("only a recorded (defeated) title is excluded: an undefeated draw can come up again", () => {
+    // Nothing recorded, so scenarios 2-4 draw from all five, and across seeds some title repeats.
+    const repeated = Array.from({ length: 25 }, (_, at) => playFour(at + 1, () => false)).some(
+      ({ draws }) => new Set(draws.map((draw) => draw.drawn)).size < draws.length,
+    );
+    expect(repeated).toBe(true);
+  });
+
+  it("scenario 1 prints no exclusion; scenarios 2-4 print it", () => {
+    const graph = SM_CAMPAIGN_DEFINITION.graph;
+    if (graph.kind !== "linear") throw new Error("expected a linear graph");
+    const picks = graph.nodes.slice(0, 4).map((node) => {
+      const pick = node.setup.find((instruction) => instruction.id.endsWith(".community-service-pick"));
+      const step = pick?.step;
+      if (step?.kind !== "betweenGames") throw new Error(`${node.id}: no between-games pick`);
+      const [random] = step.ops;
+      return random?.kind === "random" ? random.from.kind : undefined;
+    });
+    expect(picks).toEqual(["cards", "excludingTitles", "excludingTitles", "excludingTitles"]);
   });
 });

@@ -702,7 +702,24 @@ export type CampaignChoiceSource =
   /** MC60 p. 9 steps 2 and 4: the unresolved scenarios, or the ones the players may currently choose. */
   | { readonly kind: "nodes"; readonly filter: "unresolved" | "available" }
   /** MC27 p. 22's "Planning Ahead": "Each player chooses one card from their deck". */
-  | { readonly kind: "ownDeck"; readonly filter?: CollectionFilter };
+  | { readonly kind: "ownDeck"; readonly filter?: CollectionFilter }
+  /**
+   * Whatever a `CampaignValue` names, as options: MC27 p. 22's "Deal 3 … upgrades at random to a player. That
+   * player may choose 1" is a `random` (count 3) into a slot, then a `choose` from `values(choice(slot))` — the
+   * dealt cards and nothing else. A slot read here is scoped like every other `choice` read (inside a
+   * `forEachSeat`, that seat's own deal). Duplicates collapse to one option; order is the value's own order.
+   */
+  | { readonly kind: "values"; readonly of: CampaignValue }
+  /**
+   * Another source, minus every option whose **title** matches a card the value names: MC27 p. 11/13/15, "Choose 1
+   * 'Campaign - Community Service' … side scheme at random that does not have its title recorded in the 'Community
+   * Service' section" is `excludingTitles(cards(176-180), field("communityService"))`. By title, not id, because
+   * the rulebook says title (a card and its reprint, or a recorded id of another printing, share one). An option
+   * with no card in the pool (a node id, an option string) is excluded only by an exact id match.
+   *
+   * An exhausted source offers nothing: a `random` over it draws nothing and a `choose` over it has no options.
+   */
+  | { readonly kind: "excludingTitles"; readonly from: CampaignChoiceSource; readonly titlesIn: CampaignValue };
 
 /**
  * How a between-games choice over cards is narrowed — a collection, a seat's own deck, or one pool of a mixed

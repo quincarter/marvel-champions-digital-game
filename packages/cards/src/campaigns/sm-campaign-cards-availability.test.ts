@@ -6,11 +6,10 @@
  * with MTS content. This file is the same proof for the real SM content: the eight "Campaign - S.H.I.E.L.D. Tech"
  * upgrades (182-189), each `deckLimit: 1`.
  *
- * `sm.ts`'s own reputation node 1 (the box's only instruction that would grant one of these) is unauthored — file
- * header gap 1: "choose 1 of 3 randomly-dealt cards" does not compose from the existing `CampaignChoiceSource`
- * vocabulary. This file does not depend on that instruction: it constructs a `CampaignDeckContext` by hand, the
+ * `sm.ts`'s own reputation node 1 is the box's only instruction that grants one of these (driven through the runner
+ * in `sm.test.ts`). This file does not depend on that instruction: it constructs a `CampaignDeckContext` by hand, the
  * same way `mts-campaign-cards-availability.test.ts` does, so it proves the *deck-legality* rule works for SM's
- * real cards regardless of whether `sm.ts` currently produces the grant itself.
+ * real cards independently of how the grant is produced.
  */
 import { describe, expect, it } from "vitest";
 import { cardId, SM_STARTER_DECKS, type DeckContents } from "@mc/content";
