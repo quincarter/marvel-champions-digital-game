@@ -166,6 +166,25 @@ describe("Bombshell (31031)", () => {
     expect(forP2).toHaveLength(1);
     expect(forP2[0]!.amount).toBe(1);
   });
+
+  // KNOWN_SKIPPED, `31031.boost` in `sinister-syndicate.ts`: the printed "Exhaust each character damaged this way"
+  // clause isn't scripted — `dealIndirectDamage` has no bind for which character(s) it actually assigned damage to
+  // (unlike `discardEncounterCards`'s `forEachDiscarded`), so there is no way for a follow-on effect to read back
+  // "the character(s) damaged this way" (`sinister-syndicate.ts`'s own docblock; engine gap, `game-rules-architect`).
+  // Pinned here (RRG 1.8 "Boost", p. 11: every printed clause of a Boost card's ability resolves) so a future fix
+  // to `dealIndirectDamage`'s binding shows up as a newly-passing test, not silence.
+  it.fails("31031.boost: exhausts each identity it damaged (KNOWN_SKIPPED — dealIndirectDamage cannot bind its targets yet)", () => {
+    const state = withSyndicate(1, { extraPlayers: [{ starterDeckId: "spiderham-justice" }] });
+    const p1Identity = identityOf(state, P1);
+    const p2Identity = identityOf(state, P2);
+    const readied = patchInstance(patchInstance(state, p1Identity, { exhausted: false }), p2Identity, {
+      exhausted: false,
+    });
+    const staged = withFiller(readied, "31031"); // drawn as Rhino's own boost card during his attack
+    const { state: after } = driveEvents(WAVE5_DEPS, staged, endTurn(P1), endTurn(P2));
+    expect(inst(after, p1Identity).exhausted).toBe(true);
+    expect(inst(after, p2Identity).exhausted).toBe(true);
+  });
 });
 
 /** Test surgery: replace a player's whole hand with exactly these cards, so a "choose a card from your hand
