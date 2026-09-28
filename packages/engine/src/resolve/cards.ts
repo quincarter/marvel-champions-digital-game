@@ -89,18 +89,30 @@ export function selectCards(ctx: Ctx, selector: CardSelector, context: EffectCon
       const value = campaignFieldRead(state, selector, context);
       const cardIds = campaignLogCardIds(value);
       const pool = Object.keys(state.instances) as InstanceId[];
-      const claimed = new Set<InstanceId>();
       const found: InstanceId[] = [];
-      for (const cardId of cardIds) {
-        const match = pool.find(
-          (id) =>
-            !claimed.has(id) &&
-            state.instances[id]?.cardId === cardId &&
-            (!selector.filter || matchesQuery(state, id, selector.filter, context)),
-        );
-        if (!match) continue;
-        claimed.add(match);
-        found.push(match);
+      if (selector.byName) {
+        // "Each minion with the same name as a villain's name recorded" (MC27 p. 17): the recorded cards contribute
+        // only their printed names, and every instance printing one of them matches.
+        const names = new Set(cardIds.flatMap((cardId) => state.cardPool[cardId]?.name ?? []));
+        for (const id of pool) {
+          const name = state.cardPool[state.instances[id]?.cardId ?? ""]?.name;
+          if (name === undefined || !names.has(name)) continue;
+          if (selector.filter && !matchesQuery(state, id, selector.filter, context)) continue;
+          found.push(id);
+        }
+      } else {
+        const claimed = new Set<InstanceId>();
+        for (const cardId of cardIds) {
+          const match = pool.find(
+            (id) =>
+              !claimed.has(id) &&
+              state.instances[id]?.cardId === cardId &&
+              (!selector.filter || matchesQuery(state, id, selector.filter, context)),
+          );
+          if (!match) continue;
+          claimed.add(match);
+          found.push(match);
+        }
       }
       // The one campaign-log read a game makes that is not re-entrant, so the one that can be traced (`events.ts`).
       emit(ctx, {

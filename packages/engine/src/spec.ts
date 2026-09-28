@@ -321,6 +321,12 @@ export interface TargetQuery {
    */
   readonly scenarioSpecific?: boolean;
   /**
+   * The card belongs to this encounter set, named by its id: "Search the **'Sinister Assault' (158-163) modular set**"
+   * (MC27 p. 17), a campaign instruction with no card of that set to point `encounterSetOf` at. Reads `encounterSetIds`
+   * off the card data, so it matches wherever the card is; a player card never matches.
+   */
+  readonly inEncounterSet?: string;
+  /**
    * The card's title is recorded in this campaign-log field: "Shuffle each EXPERIMENTAL attachment **recorded in the
    * campaign log** into the encounter deck" (MC10 p. 7) as a *filter*, where the `campaignLog` `CardSelector` is the
    * same fact as a *pool*. `seat` reads a per-seat field (MC10 p. 10's rescued allies); absent reads the shared one.
@@ -2581,6 +2587,14 @@ export type CardSelector =
       readonly field: string;
       readonly seat?: PlayerRef;
       readonly filter?: TargetQuery;
+      /**
+       * Match by printed name instead of by card: "Search the 'Sinister Assault' modular set for each minion **with the
+       * same name as a villain's name recorded** in the 'Last Ones Standing' section" (MC27 p. 17), where the log
+       * records the villain cards and the cards sought are different cards sharing their names. Every instance whose
+       * printed name is the name of a recorded card matches (once, however many entries share that name), in the
+       * order the game created them; pair it with `filter` to say which of those cards the instruction means.
+       */
+      readonly byName?: boolean;
     }
   | {
       /**

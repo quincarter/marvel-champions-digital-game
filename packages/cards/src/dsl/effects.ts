@@ -1630,15 +1630,19 @@ export const moveThreat = (
 /**
  * "Shuffle each EXPERIMENTAL attachment recorded in the campaign log into the encounter deck" (MC10 p. 7): the cards
  * a campaign-log field names, wherever they are. A title recorded twice names two cards (ruling June 2, 2026 (3)).
+ *
+ * `byName` instead names every card printing the name of a recorded card: "each minion with the same name as a
+ * villain's name recorded" (MC27 p. 17). Narrow it with `filter`.
  */
 export const campaignLogCards = (
   field: string,
-  opts: { readonly seat?: PlayerRef; readonly filter?: TargetQuery } = {},
+  opts: { readonly seat?: PlayerRef; readonly filter?: TargetQuery; readonly byName?: boolean } = {},
 ): CardSelector => ({
   kind: "campaignLog",
   field,
   ...(opts.seat ? { seat: opts.seat } : {}),
   ...(opts.filter ? { filter: opts.filter } : {}),
+  ...(opts.byName ? { byName: true } : {}),
 });
 
 /**

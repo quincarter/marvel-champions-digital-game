@@ -93,6 +93,7 @@ import {
   identityOf,
   ifThen,
   inCampaignLogField,
+  inEncounterSet,
   moveCards,
   named,
   option,
@@ -1108,7 +1109,15 @@ export const SM_CAMPAIGN_DEFINITION: CampaignDefinition = {
             step: {
               kind: "inGame",
               window: DEFAULT_CAMPAIGN_WINDOW,
-              effects: [moveCards(campaignLogCards("lastOnesStanding"), "encounterDeckShuffle")],
+              effects: [
+                moveCards(
+                  campaignLogCards("lastOnesStanding", {
+                    byName: true,
+                    filter: query("minion", inEncounterSet(SINISTER_ASSAULT_SET)),
+                  }),
+                  "encounterDeckShuffle",
+                ),
+              ],
             },
           },
           hpSet("sm.s5.setup.hp-set", "MC27 p. 17"),

@@ -478,40 +478,26 @@ describe('Mysterio\'s setup: "Put the Public Outcry (174) environment into play"
   });
 });
 
-// ---------------------------------------------------------------------------------------------------------------
-// Engine gap found by this audit (reported, not worked around): Venom Goblin's own setup, "Search the 'Sinister
-// Assault' (158-163) modular set for each minion with the same NAME as a villain's name recorded in the 'Last Ones
-// Standing' section of the campaign log. Shuffle each of those minions into the encounter deck." (MC27 p. 17).
-//
-// `sm.ts`'s own `sm.s5.setup.sinister-assault` instruction reads `moveCards(campaignLogCards("lastOnesStanding"),
-// "encounterDeckShuffle")`. `campaignLogCards` (`dsl/effects.ts`) and its engine-side match
-// (`packages/engine/src/select.ts`'s `campaignLogContains(value, instance.cardId)`) select by literal `cardId`
-// equality against the ids the log field stores — the right shape for MTS's Osborn Tech (the exact same attachment
-// card is later shuffled back in, `mts.ts`'s own precedent this instruction was modeled on). But "Last Ones
-// Standing" (`sm.s4.victory.last-ones-standing`) records the *villain* cards actually in play at The Sinister Six
-// (e.g. Doctor Octopus, 27094) — completely different cards, by id, from the Sinister Assault *minions* of the same
-// printed name (Doctor Octopus, 27158, `packages/content/src/data/sm/cards.ts`). No card in Venom Goblin's own pool
-// ever carries a recorded villain's literal cardId, so the selector matches nothing and this bullet is a silent
-// no-op: the difficulty scaling MC27 p. 17 prints never actually happens.
-//
-// There is no existing `TargetQuery`/`CardSelector` shape for "cards whose printed *name* is among the names of the
-// cards a campaign-log field records" (`inCampaignLogField`/`campaignLogCards` are both id-equality only; the
-// static `{ names: [...] }` `TargetQuery` variant, `packages/engine/src/spec.ts` line 392, only takes a literal
-// list, not one read from the log) — a new primitive (or a `campaignLogCards` mode that resolves by name) is needed
-// before `sm.ts` can be fixed for real; not attempted here, per the standing rule against working around a missing
-// primitive with a near-miss effect.
+// Venom Goblin's own setup, "Search the 'Sinister Assault' (158-163) modular set for each minion with the same NAME
+// as a villain's name recorded in the 'Last Ones Standing' section of the campaign log. Shuffle each of those minions
+// into the encounter deck." (MC27 p. 17). "Last Ones Standing" records the *villain* cards (Doctor Octopus, 27094),
+// which are different cards from the Sinister Assault *minions* of the same name (27158), so the instruction selects
+// by printed name (`campaignLogCards(..., { byName: true })`) narrowed to that set's minions.
 // ---------------------------------------------------------------------------------------------------------------
 
-describe('ENGINE GAP: Venom Goblin\'s "Search the Sinister Assault modular set for each minion with the same name as a … villain … recorded" (MC27 p. 17) — no name-based campaign-log card selector exists yet', () => {
-  it.fails("a villain recorded in Last Ones Standing should shuffle in the same-named Sinister Assault minion, not nothing", () => {
-    let log = logBefore("venom-goblin", 4244);
+describe('Venom Goblin\'s "Search the Sinister Assault modular set for each minion with the same name as a … villain … recorded" (MC27 p. 17)', () => {
+  const SINISTER_ASSAULT = ["27158", "27159", "27160", "27161", "27162", "27163"];
+
+  /** Where each Sinister Assault card is once Venom Goblin's setup is over. */
+  function sinisterAssaultAfterSetup(recorded: readonly string[]): Readonly<Record<string, string>> {
+    let log = logBefore("sinister-six", 4244);
     const composed = settle((answers) => resolveBetweenGames(SM_CAMPAIGN_DEFINITION, log, DEPS, log.modes, answers));
     log = settleGreedy((answers) =>
       applyCampaignResult(
         SM_CAMPAIGN_DEFINITION,
         composed.value,
         outcome("sinister-six", true, [
-          cardListWrite("sm.s4.victory.last-ones-standing", "lastOnesStanding", [cardId("27094")]),
+          cardListWrite("sm.s4.victory.last-ones-standing", "lastOnesStanding", recorded),
         ]),
         { at: 1 },
         DEPS,
@@ -519,11 +505,31 @@ describe('ENGINE GAP: Venom Goblin\'s "Search the Sinister Assault modular set f
       ),
     );
     const { state } = realGameAt(log, "venom-goblin");
-    const sinisterAssaultDoctorOctopus = Object.values(state.instances).some(
-      (instance) => instance.cardId === cardId("27158"),
-    );
-    // What MC27 p. 17 prints: the Doctor Octopus minion (27158) should now be somewhere in Venom Goblin's own
-    // encounter deck. It is not — `campaignLogCards` never matches it (id-equality against 27094, the villain).
-    expect(sinisterAssaultDoctorOctopus).toBe(true);
+    const encounterDeck = new Set(state.encounterDeckOrder.flatMap((id) => state.encounterDecks[id]?.deck ?? []));
+    const where: Record<string, string> = {};
+    for (const instance of Object.values(state.instances)) {
+      if (!SINISTER_ASSAULT.includes(instance.cardId as string)) continue;
+      where[instance.cardId as string] = encounterDeck.has(instance.instanceId)
+        ? "encounterDeck"
+        : state.encounterSetAside.includes(instance.instanceId)
+          ? "setAside"
+          : "elsewhere";
+    }
+    return where;
+  }
+
+  it("Doctor Octopus and Vulture recorded: exactly the Doctor Octopus (27158) and Vulture (27163) minions are shuffled in", () => {
+    expect(sinisterAssaultAfterSetup([cardId("27094"), cardId("27099")])).toEqual({
+      "27158": "encounterDeck",
+      "27159": "setAside",
+      "27160": "setAside",
+      "27161": "setAside",
+      "27162": "setAside",
+      "27163": "encounterDeck",
+    });
+  });
+
+  it("nothing recorded: no Sinister Assault card is shuffled in", () => {
+    expect(Object.values(sinisterAssaultAfterSetup([]))).toEqual(Array(6).fill("setAside"));
   });
 });

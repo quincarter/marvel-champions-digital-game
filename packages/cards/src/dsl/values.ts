@@ -168,6 +168,11 @@ export const sharesTraitWith = (ref: TargetRef): Pick<TargetQuery, "sharesTraitW
  */
 export const encounterSetOf = (ref: TargetRef): Pick<TargetQuery, "encounterSetOf"> => ({ encounterSetOf: ref });
 /**
+ * "Search the 'Sinister Assault' (158-163) modular set" (MC27 p. 17): the encounter set named by id, for a campaign
+ * instruction that has no card of that set to point `encounterSetOf` at. Matches wherever the card is.
+ */
+export const inEncounterSet = (setId: string): Pick<TargetQuery, "inEncounterSet"> => ({ inEncounterSet: setId });
+/**
  * "An ally **with a weapon attachment upgrade**" (Target Practice, `stld` 17017; docs/phase7-wave3.md §3.40): a query
  * fragment matching a card that has at least one attachment matching `q` — `query("ally", hasAttachment(query(
  * "upgrade", { trait: WEAPON })))`. The other direction of `host`.

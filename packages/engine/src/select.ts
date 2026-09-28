@@ -811,6 +811,8 @@ export function explainQuery(
     if (identity?.type !== "hero_identity" || !names.some((name) => identityCardTitledAs(identity, name)))
       return "wrongIdentitySet";
   }
+  if (query.inEncounterSet !== undefined && !encounterSetsOf(state, id).includes(query.inEncounterSet))
+    return "wrongEncounterSet";
   if (query.inCampaignLogField) {
     // "Each EXPERIMENTAL attachment recorded in the campaign log" (MC10 p. 7) as a filter. Membership only: the
     // `campaignLog` selector is where a title recorded twice names two cards (ruling June 2, 2026 (3) answer 3).
