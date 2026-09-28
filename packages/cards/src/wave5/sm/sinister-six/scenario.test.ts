@@ -159,3 +159,16 @@ test("The Sinister Six, 2 players: Spider-Man (Miles Morales) and Ghost-Spider, 
     }),
   );
 }, 180_000);
+
+/** rules-qa-engineer's own addition (docs/phase7-wave5-qa-sm-scenarios-2.md §2): the testing bar's expert-mode game,
+ * missing from the earlier pass — the "All first" §4.1 Q71 ruling and expert-only incite/surge text (Frequent
+ * Flyers/High Fashion/Robotic Enhancements/Surprise!/Life-Size Decoy's own toughness) only ever run in expert mode. */
+test("The Sinister Six, solo expert: Ghost-Spider", () => {
+  playAndReplay(
+    wave5Scenario("sinister-six", {
+      seed: 2029,
+      players: [{ starterDeckId: "ghost-spider" }],
+      difficulty: "expert",
+    }),
+  );
+}, 120_000);

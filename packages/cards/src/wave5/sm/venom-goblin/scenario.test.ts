@@ -236,3 +236,17 @@ test("Venom Goblin, 2 players: Spider-Man (Miles Morales) and Ghost-Spider", () 
     }),
   );
 }, 180_000);
+
+/** rules-qa-engineer's own addition (docs/phase7-wave5-qa-sm-scenarios-2.md §2): the testing bar's expert-mode game,
+ * missing from the earlier pass — Venom Goblin (III)'s own Retaliate 1/Stalwart/Toughness and 3-card deal, plus
+ * this scenario's own Symbiotic Strength/Goblin Gear expert-only text, only ever run in expert mode. */
+test("Venom Goblin, solo expert: Ghost-Spider", () => {
+  playAndReplay(
+    wave5Scenario("venom-goblin", {
+      seed: 2032,
+      players: [{ starterDeckId: "ghost-spider" }],
+      modularSetIds: GOBLIN_GEAR_SET,
+      difficulty: "expert",
+    }),
+  );
+}, 120_000);
