@@ -13,6 +13,9 @@ import {
   seedMtsWonGame,
   seedMtsComposed,
   seedMtsRun,
+  seedSmComposed,
+  seedSmRun,
+  seedSmWonGame,
 } from "./dev-fixtures.js";
 import { frozenNonCampaignCardsOf } from "../view/campaign-deck-edit-model.js";
 import { GMW_CAMPAIGN_DEFINITION } from "@mc/cards";
@@ -177,6 +180,71 @@ describe("seedMtsComposed", () => {
   test("composes the finale (issue #5) for real", async () => {
     const record = await seedMtsComposed(service(), "beforeFinale");
     expect(record.attempt?.nodeId).toBe("loki");
+  }, 30_000);
+});
+
+describe("seedSmRun", () => {
+  test("fresh is a signed run, nothing composed", async () => {
+    const record = await seedSmRun(service(), "fresh");
+    expect(record.attempt).toBeUndefined();
+    expect(record.position.nextNodeId).toBe("sandman");
+    expect(record.history).toHaveLength(0);
+  });
+
+  test("afterIssue1 wins Sandman and crosses reputation node 1, Venom up next", async () => {
+    const record = await seedSmRun(service(), "afterIssue1");
+    expect(record.position.nextNodeId).toBe("venom");
+    expect(record.history.map((entry) => `${entry.nodeId}:${entry.outcome}`)).toEqual(["sandman:won"]);
+    const reputation = record.shared.reputation;
+    expect(reputation?.kind === "number" ? reputation.value : 0).toBeGreaterThanOrEqual(1);
+  }, 30_000);
+
+  test("afterIssue3 has crossed several reputation nodes (1, 5 and 9), Sinister Six up next", async () => {
+    const record = await seedSmRun(service(), "afterIssue3");
+    expect(record.position.nextNodeId).toBe("sinister-six");
+    const reputation = record.shared.reputation;
+    expect(reputation?.kind === "number" ? reputation.value : 0).toBeGreaterThanOrEqual(9);
+  }, 30_000);
+
+  test("afterIssue4 in Expert Campaign reaches Venom Goblin (#5) up next", async () => {
+    const record = await seedSmRun(service(), "afterIssue4", { expertCampaign: true });
+    expect(record.modes.campaign?.expertCampaign).toBe(true);
+    expect(record.position.nextNodeId).toBe("venom-goblin");
+  }, 30_000);
+
+  test("finished is a won run through all five issues (the finale)", async () => {
+    const record = await seedSmRun(service(), "finished");
+    expect(record.status).toBe("won");
+    expect(record.history.filter((entry) => entry.outcome === "won")).toHaveLength(5);
+  }, 30_000);
+});
+
+describe("seedSmWonGame", () => {
+  test("composes issue #1 (Sandman) for real and fabricates its win, without folding it", async () => {
+    const { record, won } = await seedSmWonGame(service());
+    expect(record.attempt?.nodeId).toBe("sandman");
+    expect(record.status).toBe("active");
+    expect(won.outcome).toEqual({ result: "win", reason: "villainDefeated" });
+  });
+
+  test("folding the fabricated win with no answers stops pending on node 1's S.H.I.E.L.D. Tech choice", async () => {
+    const svc = service();
+    const { record, won } = await seedSmWonGame(svc);
+    const result = await svc.foldState(record, won, []);
+    expect(result.kind).toBe("pending");
+    if (result.kind !== "pending") throw new Error("expected a pending choice");
+    expect(result.choice.slot).toBe("shieldTech");
+    expect(result.choice.instructionId).toBe("sm.reputation.mark");
+    expect(result.choice.optional).toBe(true);
+    expect(result.choice.count).toBe(1);
+    expect(result.choice.options).toHaveLength(3);
+  });
+});
+
+describe("seedSmComposed", () => {
+  test("composes issue #2 (Venom) for real", async () => {
+    const record = await seedSmComposed(service(), "afterIssue1");
+    expect(record.attempt?.nodeId).toBe("venom");
   }, 30_000);
 });
 
