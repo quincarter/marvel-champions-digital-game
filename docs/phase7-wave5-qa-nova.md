@@ -5,6 +5,7 @@
 `packages/cards/src/wave5/nova/*.ts` (identity, events, support-upgrades-allies, obligation-nemesis, armadillo).
 
 ## 0. Blocking finding (found this pass, not Nova's own bug — reported first because it currently blocks every
+
 Nova test, and every wave 5 test)
 
 **`ability <id> is defined twice` at `packages/cards/src/wave4/reprints.ts`'s auto-alias mechanism, triggered by
@@ -23,13 +24,14 @@ printed name, type, and ability shape — between `WAVE4_CARDS` (its own scan po
 `nova`, `ironheart`, `spiderham`, `spdr`) directly into `PLAYABLE_CARDS` — which `wave4/reprints.ts` now also scans,
 with no guard against it. Two confirmed false positives (there are certainly more; this pass only had reason to
 find these two):
+
 - **Ghost-Spider's "Bait and Switch" (`sm` 27013, event)** vs. **Nefarious Nefarious/S.C.W.'s own "Bait and
   Switch" (`scw` 15030, wave 2, also an event)** — same name, same type, and both compile to a single
   `<id>.bait-and-switch-action` ref, satisfying `wave4/reprints.ts`'s own "same slug and count" shape check.
 - **Nova's own "Chase Them Down" (`nova` 28011, event)** vs. **Core's own "Chase Them Down" (`01052`/reprints,
   already a reprint chain through wave 3's `gmw` and `thor`)** — confirmed directly: `mergeRegistries(WAVE4_ABILITIES,
-  NOVA_ABILITIES)` alone (no `sm` involved at all) throws `ability 28011.chase-them-down-response is defined
-  twice`, so this is not limited to the `sm`/Ghost-Spider pair — it hits Nova's own pack too.
+NOVA_ABILITIES)` alone (no `sm` involved at all) throws `ability 28011.chase-them-down-response is defined
+twice`, so this is not limited to the `sm`/Ghost-Spider pair — it hits Nova's own pack too.
 
 `wave4/reprints.ts`'s own docblock already documents exactly this class of hazard ("the pool this file actually
 loops over … carries cards it shouldn't") and its own fix for it (`PACK_OWN_ABILITIES`, "a pack whose own module
@@ -85,7 +87,7 @@ original scripting pass (`wave5/nova/*.ts` docblocks), re-verified this pass aga
   `obligation-nemesis.ts`'s docblock and used correctly: `anyPrintedResource`/`totalPrintedResources`, never
   `paidWith`. Correct.
 - **No Quarter (28013): "excess damage dealt to that enemy by this attack"** reads `strike.excessDealt` — damage
-  *dealt*, not damage *taken*. This is the exact distinction January 26, 2026 (3) draws (excess damage stays
+  _dealt_, not damage _taken_. This is the exact distinction January 26, 2026 (3) draws (excess damage stays
   defined as damage dealt beyond remaining hit points, independent of Overkill's "taken" wording) — No Quarter's
   own printed text says "dealt", removing any ambiguity Into the Fray's shorter wording could have. Correct.
 
@@ -94,7 +96,7 @@ resolved — a `game-rules-architect` call, not this pass's or the original scri
 `obligation-nemesis.ts`'s own docblock (lines 121–137) asks whether a `resource`-type card's own face icon
 (`producesIcons` — Connection to the Worldmind 28007, The Power of Aggression 28015, Everyday Hero 28019) counts as
 "printed" for "The War's Been Brought"'s own X. The January 11, 2026 (3) ruling's own example is about ability
-*text* mentioning "[wild]" (Sam Alexander's own Action), not a Resource card's own face icon — this pass agrees the
+_text_ mentioning "[wild]" (Sam Alexander's own Action), not a Resource card's own face icon — this pass agrees the
 ruling doesn't directly settle the Resource-card case, and agrees with the original scripting pass's own conclusion
 not to special-case it against the engine's one shared `printedResources` primitive (used unconditionally by every
 other `anyPrintedResource` caller in the pool since wave 1). Restating this as an open rules question rather than
@@ -111,15 +113,15 @@ not do.
 1. **`packages/cards/src/wave5/nova/e2e.test.ts`, "Rhino (expert), solo: Nova"** — the wave definition of done's
    own "one expert game… to an outcome, replay deep-equal" requirement (this pack had a 2-player standard game and
    a solo standard game, but no expert game, before this pass). `novaScenario("rhino", { seed: SEED, difficulty:
-   "expert" })`, played to a real outcome by the card-name-agnostic greedy driver (`playToOutcome`), replayed and
+"expert" })`, played to a real outcome by the card-name-agnostic greedy driver (`playToOutcome`), replayed and
    asserted `deep-equal` against the live session state — `wave4/hood/e2e.test.ts`'s own `"(expert)"` test is the
    direct precedent for the shape. Confirmed passing (diagnostic harness) before the §0 blocker made re-running it
    against real `WAVE5_DEPS` impossible mid-pass.
 2. **`packages/cards/src/wave5/nova/support-upgrades-allies.test.ts`, "her own cost still exhausts her and returns
    the event even while she cannot take damage (Jan 26, 2026 ruling 1)"** — a regression test for the
    January 26, 2026 (1) ruling (`marvel-champions-rulings-post-rrg-1-7.md` line 329–337), whose own named example
-   *is* Ms. Marvel (`nova` 28002): "Because Ms. Marvel's ability cost both deals damage **and** exhausts her,
-   damage is not the *only* effect on her. She remains a valid target for her cost even when *Go for Champions!*
+   _is_ Ms. Marvel (`nova` 28002): "Because Ms. Marvel's ability cost both deals damage **and** exhausts her,
+   damage is not the _only_ effect on her. She remains a valid target for her cost even when _Go for Champions!_
    prevents her from taking damage." Before this pass, Ms. Marvel had two tests (fires normally; does not fire for
    a non-event play) but none proving this specific, FFG-named interaction. The new test plays "Go for Champions!"
    (`ironheart` 29025, in the same wave 5 pool, `basic` aspect so legally includable in Nova's own deck, its own

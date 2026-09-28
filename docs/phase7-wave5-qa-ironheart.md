@@ -35,7 +35,7 @@ Every ability id named in a card record's own `abilities` array is exercised by 
 `support-upgrades.test.ts`, `obligation-nemesis.test.ts`, `zzzax.test.ts`, `cross-hero.test.ts`,
 `custom-deck.test.ts`, `e2e.test.ts`), asserting the exact printed effect rather than "something happened" — e.g.
 `29030.lucia-von-bardas-constant`'s own test checks both SCH and ATK are +0 without a tough status card and +1/+1
-with one, not just "gets some bonus"; `29023.snowguard-response`'s own tests check the tier is read as *exactly*
+with one, not just "gets some bonus"; `29023.snowguard-response`'s own tests check the tier is read as _exactly_
 equal to the shift-counter count (not "at least"), matching the printed "(X)" reading, via three separate
 `valueEquals` constants rather than one `counterAtLeast`.
 
@@ -48,14 +48,14 @@ Three things worth calling out precisely:
   unit tests additionally prove the dial's damage persists (RRG 1.8 p. 42) and that hit points stay the printed
   10 across all three versions even though ATK/THW/DEF differ per version.
 - **"Go for Champions!" (29025) content-data finding, not a script bug (see §4).** The script correctly implements
-  the errata'd text (RRG 1.8 p. 68, confirmed against the scan for the *current* rules text and against the
+  the errata'd text (RRG 1.8 p. 68, confirmed against the scan for the _current_ rules text and against the
   January 26, 2026 (1) ruling's own footnote: "Go for Champions! now removes itself from the game"). But
   `text.printed` in `packages/content/src/data/ironheart/cards.ts` is **identical** to `text.current` — both
   include the errata'd "Remove … from the game →" clause — while the physical card scan
   (`assets/card-art/bundles/cards/29025.png`) has **no such clause at all**, only "Hero Action: Each Champion
   character in play cannot take damage until the end of the round." Traced to source: MarvelCDB's own raw API
   record for this card (`packages/content/raw/marvelcdb/ironheart.json`, code `29025`) carries an `errata` field
-  ("Added 'Remove... from the game →'. (RRG 1.5)") but its own `text`/`real_text` fields are *already* the
+  ("Added 'Remove... from the game →'. (RRG 1.5)") but its own `text`/`real_text` fields are _already_ the
   post-errata text — MarvelCDB's API doesn't preserve pre-errata card text at all for this card, unlike several
   other packs' own erratad cards, where `printed` and `current` genuinely differ in this same file format
   (confirmed: `bkw`, `core` (M.O.D.O.K.), `mts`, `nebu`, `sm`, `spdr`, `trors`, `wsp` all have at least one card
@@ -79,7 +79,7 @@ resolved) and pass.
    a hand-scripted standard game, and a 2-player standard game, but no expert game, before this pass). Modeled
    directly on `../nova/e2e.test.ts`'s own "Rhino (expert), solo: Nova" (itself modeled on
    `wave4/hood/e2e.test.ts`'s own "(expert)" test): `ironheartScenario("rhino", { seed: SEED, difficulty:
-   "expert" })`, played to a real outcome by the card-name-agnostic greedy driver, replayed and asserted
+"expert" })`, played to a real outcome by the card-name-agnostic greedy driver, replayed and asserted
    deep-equal against the live session state. Confirmed passing directly against `WAVE5_DEPS`.
 2. **`packages/cards/src/wave5/ironheart/zzzax.test.ts`, "retypes a card's printed resource without collapsing its
    icon count — a [physical][physical] card (Strength, 01090) still counts as 2"** — a regression test for the
@@ -92,7 +92,7 @@ resolved) and pass.
    deckLimit 1 — carried in as an `ironheartScenarioWithExtras` extra code, deck legality off) to the hand under
    Haywire and asserts Zzzap!'s own reveal (29040, "take indirect damage equal to the total number of [energy]
    resources in your hand") counts it as 2, not 1 — proving the engine's own `printedResourcesOf`
-   (`packages/engine/src/select.ts`) correctly sums a card's printed icons *before* retyping them
+   (`packages/engine/src/select.ts`) correctly sums a card's printed icons _before_ retyping them
    (`total = physical+mental+energy+wild`), matching the ruling, rather than collapsing to a flat 1-per-card.
    Confirmed: the engine already implements this correctly and generically (this test is proof of that, not a fix
    for a bug); `packages/engine/src/printed-resource-as.test.ts`'s own synthetic fixtures never exercised a

@@ -55,7 +55,7 @@ highest-risk interaction points before this pass started:
 - **Cartoon Physics' (30009) "prevent all but 1" floor is already exercised at both the normal and the
   interrupt-not-taken edges** — `support-upgrades.test.ts`'s own two tests ("discards the card and prevents all but
   1 of that damage" / "declining leaves the full damage to land") prove `preventDamage(scaled(eventAmount, { plus:
-  -1 }))` reduces a real 2-damage Rhino attack to exactly 1, not to 0 and not to the full 2 — the shape a naive
+-1 }))` reduces a real 2-damage Rhino attack to exactly 1, not to 0 and not to the full 2 — the shape a naive
   "prevent 1" (rather than "prevent all-but-1") misreading would fail differently on.
 - **Huge Wooden Hammer's (30010) player-attack overkill spill is exercised through a real `basicAttack`, not
   asserted on the modifier alone** — `support-upgrades.test.ts`'s own "accepted…" test defeats a 1-HP-remaining
@@ -65,7 +65,7 @@ highest-risk interaction points before this pass started:
   just a unit check that the modifier value changed.
 - **Overwatch's (30019) "an equal amount, capped at what's on the attached scheme" is exercised at the cap** —
   `support-upgrades.test.ts`'s own "moves only the threat actually removed: THW 2 against 1 threat…moves 1" proves
-  `min(eventAmount, threatOn(host))` reads the *lower* of the two, not a bare `eventAmount` that could try to move
+  `min(eventAmount, threatOn(host))` reads the _lower_ of the two, not a bare `eventAmount` that could try to move
   more threat than the attached scheme ever had.
 
 ## 2. New test added this pass
@@ -86,22 +86,22 @@ All of the following were already covered before this pass; verified by reading 
 
 - **Lady Spider (30012) vs. a blocked thwart** (`allies.test.ts`/`cross-hero.test.ts`): a thwart that removes zero
   threat (Brute Force Barricade) never opens her "different scheme" choice — proves `valueAtLeast(eventAmount, 1)`
-  actually gates on the *resolved* removal, not just on the thwart action having been taken.
+  actually gates on the _resolved_ removal, not just on the thwart action having been taken.
 - **Lady Spider vs. her own removal not retriggering herself**: her own `removeThreat` onto the different scheme is
   not itself a thwart, so it cannot reopen her own Response — implicit in the single-firing assertions, no bug
   found.
 - **"I Really Want a Hot Dog!" (30024) with zero toon counters**: the exhaust option is unavailable and the reveal
   falls to the stun branch (`obligation-nemesis.test.ts`) — proves the `allOf(exists(ready alter-ego), hasToonCounter
-  ())` gate is a real AND, not offered when only one half holds.
+())` gate is a real AND, not offered when only one half holds.
 - **The Green Gobbler (30026) forced response in 2-player**: discards every counter type from every card the
   engaged player controls while a different player's own counters (also "toon") are untouched
   (`obligation-nemesis.test.ts`) — the highest-risk case for the new `removeAllCountersFrom` engine primitive (wrong
   scoping would either discard nothing or discard globally).
 - **Inheritors set-wide grants stacking with two minions in play** (`inheritors.test.ts`, every one of the eight
   minions): each grant (acceleration icon, patrol, stalwart, guard, overkill+piercing, +1 ATK, villainous, retaliate
-  1) is checked as present on *both* minions in play and absent from the real villain, not just present on the
-  minion that prints it — proving the set-wide constant actually queries `INHERITOR_MINIONS` rather than only
-  self-granting.
+  1. is checked as present on _both_ minions in play and absent from the real villain, not just present on the
+     minion that prints it — proving the set-wide constant actually queries `INHERITOR_MINIONS` rather than only
+     self-granting.
 - **Solus's (30037) "villainous" grant changing another Inheritor's own activation boost-card count** — an actual
   behavioral consequence of the granted keyword (an extra boost card dealt to Bora's activation only when Solus is
   also in play), not just a `hasKeyword` check.
