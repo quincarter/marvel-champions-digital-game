@@ -363,6 +363,7 @@ export * from "./ironheart/index.js";
 export * from "./spiderham/index.js";
 export * from "./spdr/index.js";
 
+import { SM_CAMPAIGN } from "./sm/campaign.js";
 import { SM_CARDS } from "./sm/cards.js";
 import { SM_ENCOUNTER_SETS } from "./sm/encounterSets.js";
 import { SM_SCENARIOS } from "./sm/scenarios.js";
@@ -458,7 +459,7 @@ export const PLAYABLE_CARDS: readonly AnyCard[] = [
  * `packages/cards/src/campaigns/mts.ts` (`ability-scripting-engineer`'s work, docs/campaign-mode-design.md §3),
  * not this record, which is only the plain-data box/scenario/set membership half.
  */
-export const CAMPAIGNS: readonly Campaign[] = [TRORS_CAMPAIGN, GMW_CAMPAIGN, MTS_CAMPAIGN];
+export const CAMPAIGNS: readonly Campaign[] = [TRORS_CAMPAIGN, GMW_CAMPAIGN, MTS_CAMPAIGN, SM_CAMPAIGN];
 
 // ---------------------------------------------------------------------------------------------------------------
 // Data-only pool (PLAN.md Phase 7, "All 62 non-Core packs become card data; only wave 1 is scripted"/"Wave 2
