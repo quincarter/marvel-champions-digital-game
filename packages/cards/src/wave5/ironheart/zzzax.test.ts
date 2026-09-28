@@ -306,6 +306,23 @@ describe("Haywire (29038)", () => {
     expect(dealtBy(events, zzzapId, identity)).toBe(0);
   });
 
+  it(
+    "retypes a card's printed resource without collapsing its icon count — a [physical][physical] card (Strength, 01090) " +
+      "still counts as 2 (April 30, 2026 - Ruling 3, #6: 'Haywire does not affect resource icons; Energy still provides " +
+      "2 icons')",
+    () => {
+      const hero = asHero(ironheartVsRhinoWithExtras(1, ["01090"]));
+      const { state: withHaywire } = reveal(hero, "29038");
+      const staged = setHandFull(withHaywire, ["01090"]); // Strength: printed [physical][physical], no [energy] of its own.
+      const identity = identityOf(staged, P1);
+      const { id: zzzapId, events } = reveal(staged, "29040");
+      // Every other hand card is filler worth 1 icon each (`setHandFull`'s own `FILLER_CODES`); Strength alone
+      // contributes 2 once Haywire retypes both of its printed [physical] icons to [energy], not 1.
+      const fillerCount = playerOf(staged, P1).hand.length - 1;
+      expect(dealtBy(events, zzzapId, identity)).toBe(fillerCount + 2);
+    },
+  );
+
   it("29038.haywire-action: taking 2 indirect damage discards Haywire", () => {
     const hero = asHero(ironheartVsRhino(1));
     const { state, id } = reveal(hero, "29038");

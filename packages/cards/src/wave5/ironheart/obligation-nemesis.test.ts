@@ -214,6 +214,23 @@ describe("Political Retribution (29032, treachery, qty 2)", () => {
     expect(events.some((e) => e.type === "surgeTriggered")).toBe(false);
   });
 
+  it("29032.when-revealed: with both Lucia von Bardas and Rule by Force in play, she schemes AND 3 threat is placed on it (independent clauses, not if/else-if), and no surge", () => {
+    const withLucia = nemesisCardInPlay(ironheartVsRhino(1), "29030", P1, { engaged: false });
+    const withBoth = nemesisCardInPlay(withLucia.state, "29029");
+    const lucia = withLucia.id;
+    const ruleByForce = withBoth.id;
+    const threatBefore = inst(withBoth.state, ruleByForce).threat;
+    const staged = stageNemesisCardForReveal(withBoth.state, "29032", P1);
+    const { events, state: revealed } = driveEvents(WAVE5_DEPS, staged, endTurn(P1));
+    const schemed = events.find(
+      (e): e is Extract<GameEvent, { type: "schemeResolved" }> =>
+        e.type === "schemeResolved" && e.enemyInstanceId === lucia,
+    );
+    expect(schemed).toBeDefined();
+    expect(inst(revealed, ruleByForce).threat).toBe(threatBefore + 3);
+    expect(events.some((e) => e.type === "surgeTriggered")).toBe(false);
+  });
+
   it("29032.when-revealed: with neither Lucia von Bardas nor Rule by Force in play, gains surge", () => {
     const staged = stageNemesisCardForReveal(ironheartVsRhino(3), "29032", P1);
     const { events } = driveEvents(WAVE5_DEPS, staged, endTurn(P1));
