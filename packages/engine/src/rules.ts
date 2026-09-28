@@ -5,12 +5,12 @@ import type { SchemeIcon } from "@mc/content";
 import {
   areaOfCard,
   cardOf,
-  countSchemeIcons,
   currentName,
   encounterFace,
   getInstance,
   mainSchemeFor,
   mainSchemeStageOf,
+  mainSchemeStates,
   minionsEngagedWith,
   sameGameArea,
   sharedMainSchemes,
@@ -29,6 +29,7 @@ import {
   matchesQuery,
   resolveRef,
   rulePlayers,
+  textBoxBlankFor,
   timingWordOf,
   type ActiveRule,
   type EffectContext,
@@ -651,6 +652,42 @@ export const mustDefendWithAlly = (state: GameState, deps: EngineDeps, attackerI
   );
 
 /**
+ * Whether a card in play shows no icons right now because its text box is blank (`textBoxBlankFor`): no printed
+ * crisis, hazard, acceleration or amplify icon, and none it gains. RRG 1.8 "Blank" (p. 10) does not say whether the
+ * icons in a card's threat box or text box go with its text; FFG's Game Rules Specialist (Alex Werner) answered it for
+ * Vivian (`ironheart` 29024): "Vivian would treat any icons on the attachment or side scheme as blank until the end of
+ * the round" (FFG email relayed on Reddit, confirmed by the user 2026-09-28; docs/phase7-wave5.md §4.1 Q73). A card
+ * that cannot be blanked, or whose Permanent keyword stops the blank, keeps its icons, as `textBoxBlankFor` already
+ * reads it.
+ */
+export const iconsBlankedOn = (state: GameState, deps: EngineDeps, id: InstanceId): boolean =>
+  textBoxBlankFor(state, id, deps);
+
+/**
+ * Icons contributed by the main scheme stage plus every side scheme in play, less any whose text box is blank
+ * (`iconsBlankedOn`). With `area` (docs/phase7-wave2.md §3.1), that area's own stage and the side schemes in it or in
+ * every area; the default counts the central stage and all.
+ */
+export function countSchemeIcons(
+  state: GameState,
+  deps: EngineDeps,
+  icon: SchemeIcon,
+  area: GameAreaState | null = null,
+): number {
+  const scheme = mainSchemeFor(state, area);
+  let total =
+    scheme && !iconsBlankedOn(state, deps, scheme.instanceId)
+      ? mainSchemeStageOf(state, scheme).icons.filter((i) => i === icon).length
+      : 0;
+  for (const id of state.villainArea) {
+    if (cardOf(state, id)?.type !== "side_scheme") continue;
+    if (area && !sameGameArea(area, areaOfCard(state, id))) continue;
+    total += printedIconsOn(state, deps, id).filter((i) => i === icon).length;
+  }
+  return total;
+}
+
+/**
  * Icons cards in play gain from constant abilities ("Each enemy in play gains 1 acceleration icon", `RuleSpec gainsIcon`,
  * docs/phase7-wave4.md §3.57): for each rule, `count` per matching card in play, in `area` when the players are split.
  */
@@ -666,6 +703,8 @@ export function grantedIcons(
     if (rule.icon !== icon) continue;
     for (const id of inPlay) {
       if (area && !sameGameArea(area, areaOfCard(state, id))) continue;
+      // A blanked card has no icons, gained ones included (`iconsBlankedOn`).
+      if (iconsBlankedOn(state, deps, id)) continue;
       if (matchesQuery(state, id, rule.target, context)) total += rule.count ?? 1;
     }
   }
@@ -676,21 +715,65 @@ export function grantedIcons(
  * Scheme icons printed on cards in play that are not schemes (`BaseCard.schemeIcons` / `CardFlipSide.schemeIcons`,
  * docs/phase7-wave5.md §1.3, §3.10): Team Leader's crisis icon, Public Outcry's, the Venom ally's hazard icon. RRG 1.8
  * "Hazard Icon" (p. 21) counts "each hazard icon on cards in play", and the crisis and acceleration entries likewise. A
- * flipped card shows its other face's icons; a facedown card shows none.
+ * flipped card shows its other face's icons; a facedown card shows none, and neither does a blanked one
+ * (`iconsBlankedOn`).
  */
-export function nonSchemeIcons(state: GameState, icon: SchemeIcon, area: GameAreaState | null = null): number {
+export function nonSchemeIcons(
+  state: GameState,
+  deps: EngineDeps,
+  icon: SchemeIcon,
+  area: GameAreaState | null = null,
+): number {
   let total = 0;
   for (const id of cardsInPlay(state)) {
-    const instance = getInstance(state, id);
     const card = cardOf(state, id);
-    if (!instance || !card || instance.facedownAs) continue;
-    if (card.type === "main_scheme" || card.type === "side_scheme" || card.type === "player_side_scheme") continue;
+    if (!card || card.type === "main_scheme" || card.type === "side_scheme" || card.type === "player_side_scheme")
+      continue;
     if (area && !sameGameArea(area, areaOfCard(state, id))) continue;
-    const face = encounterFace(state, id);
-    const icons = face ? face.schemeIcons : card.schemeIcons;
-    total += (icons ?? []).filter((i) => i === icon).length;
+    total += printedIconsOn(state, deps, id).filter((i) => i === icon).length;
   }
   return total;
+}
+
+/**
+ * The scheme icons printed on one card in play as it shows them now: a main scheme's current stage, a side scheme's
+ * threat box, any other card's `schemeIcons` (its showing face's, when flipped). None on a facedown card or a blanked
+ * one (`iconsBlankedOn`).
+ */
+function printedIconsOn(state: GameState, deps: EngineDeps, id: InstanceId): readonly SchemeIcon[] {
+  const instance = getInstance(state, id);
+  const card = cardOf(state, id);
+  if (!instance || !card || instance.facedownAs || iconsBlankedOn(state, deps, id)) return [];
+  switch (card.type) {
+    case "main_scheme": {
+      const scheme = mainSchemeStates(state).find((candidate) => candidate.instanceId === id);
+      return scheme ? mainSchemeStageOf(state, scheme).icons : [];
+    }
+    case "side_scheme":
+      return card.icons;
+    case "player_side_scheme":
+      return [];
+    default: {
+      const face = encounterFace(state, id);
+      return (face ? face.schemeIcons : card.schemeIcons) ?? [];
+    }
+  }
+}
+
+/**
+ * How many `icon`s one card in play shows right now, printed and gained: the per-card view of `iconsInPlay`, for a
+ * card's own display or a test of one card's share. A blanked card shows none (`iconsBlankedOn`); a card out of play
+ * none either.
+ */
+export function iconsOn(state: GameState, deps: EngineDeps, id: InstanceId, icon: SchemeIcon): number {
+  if (!cardsInPlay(state).includes(id)) return 0;
+  const printed = printedIconsOn(state, deps, id).filter((i) => i === icon).length;
+  if (iconsBlankedOn(state, deps, id)) return printed;
+  let granted = 0;
+  for (const { rule, context } of activeRules(state, deps, "gainsIcon")) {
+    if (rule.icon === icon && matchesQuery(state, id, rule.target, context)) granted += rule.count ?? 1;
+  }
+  return printed + granted;
 }
 
 /**
@@ -703,4 +786,6 @@ export const iconsInPlay = (
   icon: SchemeIcon,
   area: GameAreaState | null = null,
 ): number =>
-  countSchemeIcons(state, icon, area) + nonSchemeIcons(state, icon, area) + grantedIcons(state, deps, icon, area);
+  countSchemeIcons(state, deps, icon, area) +
+  nonSchemeIcons(state, deps, icon, area) +
+  grantedIcons(state, deps, icon, area);

@@ -9,7 +9,6 @@ import type {
   MainSchemeStage,
   PrintedStat,
   ScalingValue,
-  SchemeIcon,
   VillainStage,
 } from "@mc/content";
 import { DEFAULT_DEPS, type CardZoneQuery, type EngineDeps } from "./abilities.js";
@@ -663,22 +662,6 @@ export function schemesInPlay(state: GameState): readonly InstanceId[] {
     return card?.type === "side_scheme" || card?.type === "player_side_scheme";
   });
   return [...mainSchemeStates(state).map((scheme) => scheme.instanceId), ...sideSchemes];
-}
-
-/**
- * Icons contributed by the main scheme stage plus every side scheme in play. With `area` (docs/phase7-wave2.md §3.1),
- * that area's own stage and the side schemes in it or in every area; the default counts the central stage and all.
- */
-export function countSchemeIcons(state: GameState, icon: SchemeIcon, area: GameAreaState | null = null): number {
-  const scheme = mainSchemeFor(state, area);
-  let total = scheme ? mainSchemeStageOf(state, scheme).icons.filter((i) => i === icon).length : 0;
-  for (const id of state.villainArea) {
-    const card = cardOf(state, id);
-    if (card?.type !== "side_scheme") continue;
-    if (area && !sameGameArea(area, areaOfCard(state, id))) continue;
-    total += card.icons.filter((i) => i === icon).length;
-  }
-  return total;
 }
 
 /** Two cards (or a player and a card) can interact: same area, or either is in every area (`null`). */

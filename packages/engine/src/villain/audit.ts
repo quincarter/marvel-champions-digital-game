@@ -18,7 +18,7 @@ import { applyCommand, type GameLog } from "../engine.js";
 import type { GameEvent } from "../events.js";
 import type { ChoiceId, InstanceId, PlayerId } from "../ids.js";
 import { isMinion, mainSchemeValue } from "../query.js";
-import { grantedIcons, nonSchemeIcons } from "../rules.js";
+import { grantedIcons, iconsBlankedOn, nonSchemeIcons } from "../rules.js";
 import { gliderMainSchemeId, offSchemeAccelerationTokens } from "../select.js";
 import type { Form, GameState, GameStep } from "../state.js";
 
@@ -138,13 +138,17 @@ function observeShadow(shadow: Shadow, state: GameState, event: GameEvent): void
   }
 }
 
-const schemeIcons = (state: GameState, shadow: Shadow, icon: "acceleration" | "hazard"): number => {
+/** The scheme icons the shadow's stage and side schemes show; a blanked one shows none (`rules.ts` `iconsBlankedOn`). */
+const schemeIcons = (state: GameState, deps: EngineDeps, shadow: Shadow, icon: "acceleration" | "hazard"): number => {
   const main = state.cardPool[state.mainScheme.cardId];
   let total =
-    main?.type === "main_scheme" ? (main.stages[shadow.mainStage]?.icons.filter((i) => i === icon).length ?? 0) : 0;
+    main?.type === "main_scheme" && !iconsBlankedOn(state, deps, state.mainScheme.instanceId)
+      ? (main.stages[shadow.mainStage]?.icons.filter((i) => i === icon).length ?? 0)
+      : 0;
   for (const id of shadow.sideSchemes) {
     const card = state.cardPool[state.instances[id]?.cardId ?? ""];
-    if (card?.type === "side_scheme") total += card.icons.filter((i) => i === icon).length;
+    if (card?.type === "side_scheme" && !iconsBlankedOn(state, deps, id))
+      total += card.icons.filter((i) => i === icon).length;
   }
   return total;
 };
@@ -242,8 +246,8 @@ class PhaseTracker {
           this.dealAtStep = {
             players: this.order.filter((p) => !shadow.eliminated.has(p)),
             hazards:
-              schemeIcons(this.state, shadow, "hazard") +
-              nonSchemeIcons(this.state, "hazard") +
+              schemeIcons(this.state, this.deps, shadow, "hazard") +
+              nonSchemeIcons(this.state, this.deps, "hazard") +
               grantedIcons(this.state, this.deps, "hazard"),
           };
         }
@@ -286,8 +290,8 @@ class PhaseTracker {
             this.state.mainScheme.instanceId
               ? offSchemeAccelerationTokens(this.state)
               : 0) +
-            schemeIcons(this.state, shadow, "acceleration") +
-            nonSchemeIcons(this.state, "acceleration") +
+            schemeIcons(this.state, this.deps, shadow, "acceleration") +
+            nonSchemeIcons(this.state, this.deps, "acceleration") +
             grantedIcons(this.state, this.deps, "acceleration");
           this.accelerationThreat = { placed: trigger.amount, expected };
           if (trigger.amount !== expected) {

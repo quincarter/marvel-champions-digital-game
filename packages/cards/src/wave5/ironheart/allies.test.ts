@@ -5,6 +5,8 @@ import {
   applyCommand,
   canAttack,
   hasKeyword,
+  iconsInPlay,
+  iconsOn,
   keywordTotal,
   maxHitPoints,
   paymentFor,
@@ -481,5 +483,24 @@ describe("Vivian (ally, 29024)", () => {
     );
     expect(nextRound.round).toBe(after.round + 1);
     expect(blanksOf(nextRound)).toEqual([]);
+  });
+
+  // docs/phase7-wave5.md §4.1 Q73: a blanked card has no icons (FFG email relayed on Reddit, confirmed by the user
+  // 2026-09-28: "Vivian would treat any icons on the attachment or side scheme as blank until the end of the round").
+  it("29024.vivian-response on Breakin' & Takin' removes its hazard icon for the round; it is back next round", () => {
+    const { board, after } = vivianBlanks(3, (b) => b.breakin);
+    expect(iconsOn(board.state, WAVE5_DEPS, board.breakin, "hazard")).toBe(1);
+    expect(iconsOn(after, WAVE5_DEPS, board.breakin, "hazard")).toBe(0);
+    // Its share of the hazard count in play is gone, and nothing else changed.
+    expect(iconsInPlay(after, WAVE5_DEPS, "hazard")).toBe(iconsInPlay(board.state, WAVE5_DEPS, "hazard") - 1);
+    const nextRound = settle(
+      runWith(WAVE5_DEPS, after, endTurn(P1)),
+      firstLegal,
+      (s) => s.round > after.round,
+      WAVE5_DEPS,
+    );
+    expect(nextRound.round).toBe(after.round + 1);
+    expect(nextRound.villainArea).toContain(board.breakin);
+    expect(iconsOn(nextRound, WAVE5_DEPS, board.breakin, "hazard")).toBe(1);
   });
 });

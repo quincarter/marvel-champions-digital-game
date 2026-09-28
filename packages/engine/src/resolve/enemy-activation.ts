@@ -144,7 +144,9 @@ function stepBoostCard(
     // "When a boost card is turned faceup during an enemy activation, add one additional boost icon to that card for
     // each amplify icon in play" (RRG 1.8 "Amplify Icon", p. 7; docs/phase7-wave3.md §3.6).
     const icons =
-      boostIconsFor(ctx.state, ctx.deps, boostId) + amplifyIconsInPlay(ctx.state) + boostIconsEachOf(ctx, frame);
+      boostIconsFor(ctx.state, ctx.deps, boostId) +
+      amplifyIconsInPlay(ctx.state, ctx.deps) +
+      boostIconsEachOf(ctx, frame);
     emit(ctx, {
       type: "boostCardFlipped",
       enemyInstanceId: frame.enemyInstanceId,
@@ -197,7 +199,7 @@ function stepBoostCard(
   // (the Fearless Determination ruling, Jan 11, 2026 (1): its amplify icon "remains in effect" until it leaves play).
   const counted =
     boostIconsFor(ctx.state, ctx.deps, boost.countFrom ?? boost.instanceId) +
-    amplifyIconsInPlay(ctx.state) +
+    amplifyIconsInPlay(ctx.state, ctx.deps) +
     boostIconsEachOf(ctx, frame) +
     (boost.countAdjust ?? 0);
   const icons = boost.iconsCancelled ? 0 : Math.max(0, counted);
