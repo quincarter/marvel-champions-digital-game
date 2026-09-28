@@ -1,31 +1,18 @@
 /**
  * The wave 5 (cycle 4) card pool: every earlier playable card plus Sinister Motives (`sm`), Nova (`nova`),
- * Ironheart (`ironheart`) and Spider-Ham (`spiderham`).
+ * Ironheart (`ironheart`), Spider-Ham (`spiderham`) and SP//dr (`spdr`).
  *
- * `sm`/`nova`/`ironheart`/`spiderham`/`spdr` are data-only in `@mc/content` (docs/phase7-wave5.md, `data/index.ts`'s
- * own "wave 5 wiring step" comment) — `PLAYABLE_CARDS` doesn't include them yet, so this pack-local pool appends
- * them, exactly the shape `wave1/cards.ts` through `wave3/cards.ts` used before `@mc/content` wired their own
- * cycles directly. Adding a pack here is safe as soon as its own `index.ts` scaffold exists, even before every
- * card is scripted — `unscriptedCards` refuses any deck that still names an unscripted card of that pack, but is
- * an opt-in legality check, not something this file or `createGame` itself enforces.
+ * `@mc/content` now wires cycle 4's shipped-so-far packs into its own `PLAYABLE_CARDS` directly (`card-data-
+ * pipeline`, wave 5 pool-wiring pass, `data/index.ts`'s own "wave 5 wiring step" comment) — so `PLAYABLE_CARDS`
+ * alone is the full pool here. **Do not also append `SM_CARDS`/`NOVA_CARDS`/`IRONHEART_CARDS`/`SPIDERHAM_CARDS`/
+ * `SPDR_CARDS`**: that was this file's own historical shape (before `@mc/content` grew its own `WAVE5_CARDS`), and
+ * doing so now double-counts every cycle 4 card, exactly the `wave3/cards.ts`/`wave4/cards.ts` regression their own
+ * docblocks warn about (duplicate instances placed at setup, `engagedWith`/`attachedTo` reads returning the wrong
+ * duplicate, duplicate ability ids at reprint-generation time, etc.) the moment `PLAYABLE_CARDS` grew cycle 4.
+ * `silk` stays out (it is data-only in `@mc/content`'s pool until its own kit is scripted in a later wave).
  */
-import {
-  IRONHEART_CARDS,
-  NOVA_CARDS,
-  PLAYABLE_CARDS,
-  SM_CARDS,
-  SPDR_CARDS,
-  SPIDERHAM_CARDS,
-  type AnyCard,
-} from "@mc/content";
+import { PLAYABLE_CARDS, type AnyCard } from "@mc/content";
 
-/** Every playable card: Core through cycle 3 (wave 4), plus Sinister Motives, Nova, Ironheart, Spider-Ham and
- * SP//dr. */
-export const WAVE5_CARDS: readonly AnyCard[] = [
-  ...PLAYABLE_CARDS,
-  ...SM_CARDS,
-  ...NOVA_CARDS,
-  ...IRONHEART_CARDS,
-  ...SPIDERHAM_CARDS,
-  ...SPDR_CARDS,
-];
+/** Every playable card: Core through cycle 4's shipped-so-far packs (Sinister Motives, Nova, Ironheart,
+ * Spider-Ham, SP//dr), in release order. */
+export const WAVE5_CARDS: readonly AnyCard[] = PLAYABLE_CARDS;

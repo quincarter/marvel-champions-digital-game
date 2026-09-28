@@ -7,8 +7,8 @@
  * - the deck builder's start state for its identity (`requiredIdentitySet`) is exactly the precon's own signature
  *   cards, so a new deck for that hero opens with the right cards;
  * - it can be seated: nothing in it, its obligation or its nemesis set is unscripted (`unscriptedCards`).
- * Wave 5 joins this list when it is wired into the playable pool (PR #64 step 5); until then
- * `wave5-precon-legality.test.ts` covers it.
+ * Wave 5 joined this list once it was wired into the playable pool (PR #64 step 5); `wave5-precon-legality.test.ts`
+ * still covers it against wave 5's own pool alone.
  */
 import {
   CORE_STARTER_DECKS,
@@ -17,6 +17,7 @@ import {
   WAVE2_STARTER_DECKS,
   WAVE3_STARTER_DECKS,
   WAVE4_STARTER_DECKS,
+  WAVE5_STARTER_DECKS,
   type DeckContents,
   type HeroIdentityCard,
   type StarterDeck,
@@ -31,6 +32,7 @@ const PRECONS: readonly StarterDeck[] = [
   ...WAVE2_STARTER_DECKS,
   ...WAVE3_STARTER_DECKS,
   ...WAVE4_STARTER_DECKS,
+  ...WAVE5_STARTER_DECKS,
 ];
 
 const byId = new Map(PLAYABLE_CARDS.map((card) => [card.id as string, card]));
@@ -43,7 +45,12 @@ const contentsOf = (deck: StarterDeck): DeckContents => ({
 
 describe("every playable precon, against the whole playable pool", () => {
   it("every playable hero has at least one precon", () => {
-    const identities = PLAYABLE_CARDS.filter((card) => card.type === "hero_identity");
+    // A progressing identity's later versions (Ironheart, docs/phase7-wave5.md §1.4/§3.23) are reached only by
+    // in-game Level Up, never chosen at deck-build time (`@mc/engine`'s `validateDeck` "unsupported_identity" for
+    // any version but `progressingIdentity.versions[0]`) — so only the first version needs a precon of its own.
+    const identities = (PLAYABLE_CARDS.filter((card) => card.type === "hero_identity") as HeroIdentityCard[]).filter(
+      (card) => card.progressingIdentity === undefined || card.progressingIdentity.versions[0] === card.id,
+    );
     const withoutPrecon = identities.filter((card) => !PRECONS.some((deck) => deck.identityCardId === card.id));
     expect(withoutPrecon.map((card) => `${card.id} ${card.name}`)).toEqual([]);
   });
