@@ -5,6 +5,7 @@ import { SPDR_EVENTS } from "./events.js";
 import { SPDR_IDENTITY } from "./identity.js";
 import { SPDR_OBLIGATION_NEMESIS } from "./obligation-nemesis.js";
 import { SPDR_SINISTER_SYNDICATE } from "./sinister-syndicate.js";
+import { SPDR_SUPPORT_UPGRADES } from "./support-upgrades.js";
 
 /**
  * Every SP//dr (`spdr` 31001a-31038) ability scripted directly (docs/phase7-wave5.md). Only her identity
@@ -32,6 +33,7 @@ export const SPDR_ABILITIES: AbilityRegistry = mergeRegistries(
   SPDR_IDENTITY,
   SPDR_EVENTS,
   SPDR_ALLIES,
+  SPDR_SUPPORT_UPGRADES,
   SPDR_OBLIGATION_NEMESIS,
   SPDR_SINISTER_SYNDICATE,
 );
