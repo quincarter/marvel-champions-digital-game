@@ -6,6 +6,7 @@
  */
 import { describe, expect, it } from "vitest";
 import type { CampaignLog, LogFieldDef } from "@mc/engine";
+import { SM_CAMPAIGN_DEFINITION } from "@mc/cards";
 import { cardId } from "@mc/content";
 import { hiddenEvidenceCount, hiddenEvidenceEnvelope } from "./campaign-hidden-evidence-model.js";
 
@@ -79,5 +80,16 @@ describe("hiddenEvidenceEnvelope", () => {
     const hiddenRevealField: LogFieldDef = { ...REVEALED_FLAG_FIELD, hidden: true };
     const badDefinition = { logFields: [SEALED_EVIDENCE_FIELD, hiddenRevealField] };
     expect(hiddenEvidenceEnvelope(revealedLog(), badDefinition, cardName)?.revealedCards).toBeNull();
+  });
+
+  it("MC27's own hidden fields are plain bookkeeping numbers/refs, never an envelope of secret cards — no banner", () => {
+    // `reputationBefore` (MC27 p. 22) is a hidden *number*, the crossed(n) predicate's own baseline, not a sealed
+    // pile of cards a player would ever expect a "sealed · N cards" banner for.
+    const log: Pick<CampaignLog, "hidden" | "shared"> = {
+      hidden: { reputationBefore: { kind: "number", value: 0 } },
+      shared: {},
+    };
+    expect(hiddenEvidenceEnvelope(log, SM_CAMPAIGN_DEFINITION, cardName)).toBeNull();
+    expect(hiddenEvidenceCount(log, SM_CAMPAIGN_DEFINITION)).toBeNull();
   });
 });

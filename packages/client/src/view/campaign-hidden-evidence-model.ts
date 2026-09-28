@@ -34,9 +34,31 @@ type LogFieldsSource = Pick<CampaignDefinition, "logFields">;
 /** Only what this module reads off a `CampaignLog` (or `CampaignRecord`, which extends it) — never the rest of the log. */
 type HiddenLogSource = Pick<CampaignLog, "hidden" | "shared">;
 
-/** The one hidden field this build supports showing an envelope for — null when the box declares none. */
+/**
+ * The one hidden field this build supports showing an envelope for — null when the box declares no field that is
+ * actually *this* module's envelope. A `hidden` field alone is not enough: MC27 p. 22's `reputationBefore` is a
+ * plain hidden number (the reputation-crossing predicate's own working baseline), and its `communityServiceDealt`
+ * (p. 9) is a hidden `cardRef` too, but only as an internal scratch slot carrying one between-games random draw
+ * to the in-game effect that shuffles it in — overwritten every scenario, never a pile the players are meant to
+ * see "how many cards are sealed" for. Neither prints an envelope on the box the way MC50 p. 5 does.
+ *
+ * The signal this module actually needs is the **reveal pairing** its own class doc comment is built around: a
+ * genuine envelope is a hidden `cardList`/`cardRef` field with a paired `<id>Revealed` field *declared* alongside
+ * it (`sealedEvidence`/`sealedEvidenceRevealed` in the synthetic fixture — whether that reveal field is itself
+ * correctly non-hidden is `hiddenEvidenceEnvelope`'s own concern below, not this lookup's) — the whole point of an
+ * envelope is that it *stays* sealed across scenarios until some later instruction reveals it, which is exactly
+ * what that pairing exists to express. A hidden field with no such pairing declared at all is just an
+ * implementation detail of the between-games step list, not a player-facing mystery, and gets no banner at all.
+ */
 function hiddenFieldOf(definition: LogFieldsSource): LogFieldDef | null {
-  return definition.logFields.find((field) => field.hidden) ?? null;
+  return (
+    definition.logFields.find(
+      (field) =>
+        field.hidden &&
+        (field.type.kind === "cardList" || field.type.kind === "cardRef") &&
+        definition.logFields.some((candidate) => candidate.id === `${field.id}Revealed`),
+    ) ?? null
+  );
 }
 
 /** Card ids out of a `LogValue`, for the field shapes MC50's envelope could plausibly use (`cardList`/`cardRef`). Every other shape has no cards to count, so it reads as empty rather than guessed. */
