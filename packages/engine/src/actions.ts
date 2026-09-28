@@ -99,6 +99,7 @@ import {
 import { limitReached } from "./resolve/ability.js";
 import { abilityLacksValidTarget } from "./resolve/target-validity.js";
 import { moveCardsTo } from "./resolve/cards.js";
+import { addFrameSlots } from "./resolve/frames.js";
 import {
   addPools,
   combineRequirements,
@@ -2006,7 +2007,10 @@ export function payCost(
   }
   if (cost.discardFromDeck !== undefined) {
     const count = deckDiscardCount(ctx.state, ctx.deps, sourceId, playerId, cost.discardFromDeck);
-    if (count > 0) discardFromDeckAsCost(ctx, playerId, count);
+    const discarded = count > 0 ? discardFromDeckAsCost(ctx, playerId, count) : [];
+    // "… add each SP//dr card discarded this way to your hand" (`discardFromDeckSlot`): bound on the frame being paid for.
+    if (cost.discardFromDeckSlot !== undefined)
+      addFrameSlots(ctx, paidFor?.frameId, { [cost.discardFromDeckSlot]: discarded });
   }
   // After the payment and the chosen discards have left the hand, so the random pick is among what remains.
   if (cost.discardRandomFromHand) {

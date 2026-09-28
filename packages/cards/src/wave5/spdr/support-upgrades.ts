@@ -1,6 +1,8 @@
 import { trait } from "@mc/content";
 import { MSM_PACK_CARDS } from "../../wave1/msm/pack-cards.js";
 import {
+  action,
+  cards,
   changeForm,
   chooseTarget,
   chosen,
@@ -8,6 +10,7 @@ import {
   damageCardsCost,
   defineAbilities,
   discardFromHandCost,
+  discardTopOfDeckCost,
   discardThis,
   draw,
   each,
@@ -21,10 +24,13 @@ import {
   heroAction,
   heroInterrupt,
   heroResource,
+  ifElse,
+  isAlterEgo,
   interrupt,
   min,
   countersOn,
   modifyStat,
+  moveCards,
   on,
   playOnlyIf,
   preventDamage,
@@ -58,18 +64,17 @@ const WEB_WARRIOR = trait("WEB-WARRIOR");
  * form of the identity itself (`identity.ts`'s own module docblock: 31001a is the hero-form identity, printed
  * "SP//dr Suit").
  *
- * **Aunt May & Uncle Ben (support, 31007)** — **KNOWN_SKIPPED, missing cost primitive.** "Action: Exhaust Aunt May
- * & Uncle Ben and discard the top 2 cards of your deck (top 3 cards instead if you are in alter-ego form) → add
- * each SP//dr card discarded this way to your hand." The "→" puts "discard the top N cards of your deck" on the
- * *cost* side (RRG 1.8 "Cost", p. 13-14: a cost must be fully payable to initiate, `dsl/abilities.ts`'s own
- * `discardTopOfDeckCost`/Reactor Core (`gmw` 16165) docblock makes the same reading of an identical "discard the
- * top N (variant) cards of your deck →" shape). `discardTopOfDeckCost`/`AbilityCost.discardFromDeck`
- * (`packages/engine/src/abilities.ts`) exists but is a bare count with **no `bind`** — nothing records *which*
- * cards it discarded, so the granted effect has no way to read "each SP//dr card discarded this way" (the aspect
- * filter itself is easy, `query({ aspect: "hero:31001a" })`, No Quarter's own `{ aspect: "aggression" }` precedent,
- * `wave5/nova/events.ts` 28013 — the missing piece is purely the cost-side reference). Would need
- * `AbilityCost.discardFromDeck` to carry an optional `bind` the way `discardCards`/`discardFromHand` already do.
- * The amount itself (`ifElse(isAlterEgo(), 3, 2)`, `dsl/values.ts`) is not the gap.
+ * **Aunt May & Uncle Ben (support, 31007)**: "Action: Exhaust Aunt May & Uncle Ben and discard the top 2 cards of
+ * your deck (top 3 cards instead if you are in alter-ego form) → add each SP//dr card discarded this way to your
+ * hand." The "→" puts the deck discard on the *cost* side (RRG 1.8 "Cost", p. 13: paid in full before the effect),
+ * so it is `discardTopOfDeckCost(ifElse(isAlterEgo(), 3, 2), "discarded")` beside `exhaustThis`: a deck holding
+ * fewer cards than that cannot pay, and the ability is not offered (RRG 1.8 "Player Deck", p. 33: "no further cards
+ * are discarded from the newly shuffled deck"; `AbilityCost.discardFromDeck`). The slot binds the cards the cost
+ * discarded (`AbilityCost.discardFromDeckSlot`), and the effect moves those with SP//dr's hero aspect
+ * (`{ aspect: "hero:31001a" }`, No Quarter's own aspect-filter precedent, `wave5/nova/events.ts` 28013) to the hand;
+ * the rest stay in the discard pile. A plain "Action:" (no Hero/Alter-Ego label), so either form can use it. A deck
+ * the cost empties is reset at once, shuffling the discarded cards into the new deck; "discarded this way" still
+ * names those cards (docs/phase7-wave3.md §4 Q18, Teen Spirit), so a matching one is taken from the new deck.
  *
  * **Ejection Protocol (support, 31008)**: "Hero Action: Discard Ejection Protocol → exhaust each Interface upgrade
  * you control, set your hit point dial to 6, give your identity a tough status card, and flip to alter-ego form."
@@ -154,8 +159,10 @@ const WEB_WARRIOR = trait("WEB-WARRIOR");
  */
 
 export const SPDR_SUPPORT_UPGRADES = defineAbilities({
-  // 31007.aunt-may-and-uncle-ben-action — KNOWN_SKIPPED, see module docblock (missing `bind` on
-  // `AbilityCost.discardFromDeck`).
+  "31007.aunt-may-and-uncle-ben-action": action(
+    { cost: [exhaustThis, discardTopOfDeckCost(ifElse(isAlterEgo(), 3, 2), "discarded")] },
+    moveCards(cards(chosen("discarded"), { aspect: "hero:31001a" }), "hand"),
+  ),
 
   "31008.ejection-protocol-action": heroAction(
     { cost: discardThis },

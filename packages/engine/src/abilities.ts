@@ -1150,6 +1150,17 @@ export interface AbilityCost {
    */
   readonly discardFromDeck?: number | ValueSpec;
   /**
+   * "Discard the top 2 cards of your deck (top 3 cards instead if you are in alter-ego form) → add each SP//dr card
+   * discarded this way to your hand" (Aunt May & Uncle Ben, `spdr` 31007): the cards `discardFromDeck` discarded are
+   * bound to this slot of the ability's own frame, so its effects can name them (`cards(chosen(slot), filter)`). They
+   * are only known once the cost is paid (the top of the deck is hidden), so, unlike `discardFromHand`'s picks, they
+   * are added to the frame as the cost is paid rather than planned. A deck the cost empties is reset at once, so the
+   * last discarded card may already be in the new deck by the time the effects read the slot; the slot still names it
+   * (docs/phase7-wave3.md §4 Q18, the Teen Spirit precedent: "that card" names the specific card). Only with
+   * `discardFromDeck`.
+   */
+  readonly discardFromDeckSlot?: string;
+  /**
    * "Choose to either exhaust your hero or spend 2 resources of any type →" (The Grand Collection 1B, `gmw` 16073b;
    * docs/phase7-wave3.md §3.36): pay exactly **one** of these costs, the player's choice, together with every other
    * component of this cost. The command names the branch (`costSelection.branch`, 0-based); with none, the first

@@ -145,6 +145,8 @@ function checkCostShape(cost: AbilityCost, problems: string[]): void {
     problems.push("cost sameResourceType: needs `resources` as a whole number of at least 1");
   if (typeof cost.discardFromDeck === "number" && (!Number.isInteger(cost.discardFromDeck) || cost.discardFromDeck < 1))
     problems.push("cost discardFromDeck: must be a whole number of at least 1");
+  if (cost.discardFromDeckSlot !== undefined && cost.discardFromDeck === undefined)
+    problems.push("cost discardFromDeckSlot: only binds the cards a discardFromDeck cost discarded");
   if (cost.indirectDamage !== undefined && (!Number.isInteger(cost.indirectDamage) || cost.indirectDamage < 1))
     problems.push("cost indirectDamage: must be a whole number of at least 1");
   const damage = cost.damageCards?.amount;
@@ -164,6 +166,7 @@ function checkCostShape(cost: AbilityCost, problems: string[]): void {
   const slots = [
     ...(cost.discardFromHand ? ["discard"] : []),
     ...(cost.payPrintedCostOf ? [cost.payPrintedCostOf.slot] : []),
+    ...(cost.discardFromDeckSlot !== undefined ? [cost.discardFromDeckSlot] : []),
     ...inPlayPicksOf(cost).map(({ pick }) => pick.slot),
   ];
   if (new Set(slots).size !== slots.length)
@@ -475,6 +478,7 @@ function checkBindings(definition: AbilityDefinition, problems: string[]): void 
       scope.vars.add("self.damage");
     }
     if (cost.payPrintedCostOf) scope.slots.add(cost.payPrintedCostOf.slot);
+    if (cost.discardFromDeckSlot !== undefined) scope.slots.add(cost.discardFromDeckSlot);
     if (cost.resourcesX) scope.vars.add(cost.resourcesX.bind);
     // "Remove up to 4 growth counters → choose that many" (docs/phase7-wave3.md §3.32), in the cost or any branch;
     // `cost.branch`, the either/or branch paid (§3.36).

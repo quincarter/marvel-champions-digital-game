@@ -5,6 +5,7 @@ import {
   discardFromHandCost,
   discardRandomFromHandCost,
   discardThis,
+  discardTopOfDeckCost,
   exhaustCardsCost,
   forcedInterrupt,
   on,
@@ -105,6 +106,18 @@ describe("validateDefinition: wave 1 batch costs and values", () => {
     expect(validateDefinition(action({ cost: discardRandomFromHandCost(1) }, draw(1)))).toEqual([]);
     expect(validateDefinition(action({ cost: discardRandomFromHandCost(0) }, draw(1))).join("\n")).toMatch(
       /discardRandomFromHand: must be a whole number/,
+    );
+  });
+
+  it("a deck-discard cost's slot binds the discarded cards for the effects, and needs the deck discard (Aunt May & Uncle Ben)", () => {
+    const toHand = moveCards(cards(chosen("discarded")), "hand");
+    expect(discardTopOfDeckCost(2, "discarded")).toEqual({ discardFromDeck: 2, discardFromDeckSlot: "discarded" });
+    expect(validateDefinition(action({ cost: discardTopOfDeckCost(2, "discarded") }, toHand))).toEqual([]);
+    expect(validateDefinition(action({ cost: discardTopOfDeckCost(2) }, toHand)).join("\n")).toMatch(
+      /slot "discarded" is read before it is bound/,
+    );
+    expect(validateDefinition(action({ cost: { discardFromDeckSlot: "discarded" } }, toHand)).join("\n")).toMatch(
+      /discardFromDeckSlot: only binds/,
     );
   });
 

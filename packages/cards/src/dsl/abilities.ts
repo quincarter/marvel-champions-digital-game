@@ -950,8 +950,15 @@ export const removeUpToCounters = (
  * deck can supply every card; an empty deck with a discard pile is reset first, and a deck the cost empties is reset
  * at once (RRG 1.8 "Player Deck", p. 33; ruling, Apr 30, 2026 (3) answer 7).
  */
-/** "Discard the top N cards of your deck →"; a value for "discard that many cards" (Shield Spell, §3.42 of wave 4). */
-export const discardTopOfDeckCost = (n: number | ValueSpec = 1): AbilityCost => ({ discardFromDeck: n });
+/**
+ * "Discard the top N cards of your deck →"; a value for "discard that many cards" (Shield Spell, §3.42 of wave 4).
+ * `slot` binds the discarded cards for the effects: "… → add each SP//dr card discarded this way to your hand" (Aunt May
+ * & Uncle Ben, `spdr` 31007) is `moveCards(cards(chosen(slot), filter), "hand")` (`AbilityCost.discardFromDeckSlot`).
+ */
+export const discardTopOfDeckCost = (n: number | ValueSpec = 1, slot?: string): AbilityCost => ({
+  discardFromDeck: n,
+  ...(slot !== undefined ? { discardFromDeckSlot: slot } : {}),
+});
 /**
  * "Choose to either exhaust your hero or spend 2 resources of any type →" (The Grand Collection 1B, `gmw` 16073b;
  * docs/phase7-wave3.md §3.36): exactly one branch is paid, the player's choice (`costSelection.branch`, the branch's

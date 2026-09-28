@@ -22,6 +22,7 @@ import {
   play,
   playerOf,
   resourceAbility,
+  putOnTopOfDeck,
   settle,
   stackEncounterDeck,
   toHero,
@@ -138,7 +139,69 @@ function playAttachedTo(
   return { state: played, id };
 }
 
-describe("SP//dr's supports, upgrades and resources (31007-31013, 31018-31020, 31024, 31029; 31007 KNOWN_SKIPPED, see module docblock)", () => {
+describe("SP//dr's supports, upgrades and resources (31007-31013, 31018-31020, 31024, 31029)", () => {
+  describe("31007.aunt-may-and-uncle-ben-action", () => {
+    const AUNT_MAY = "31007.aunt-may-and-uncle-ben-action";
+    /** Aunt May & Uncle Ben in play; `top` on top of the deck, in order. */
+    const withAuntMay = (state: GameState, ...top: readonly string[]) => {
+      const { state: played, id } = playFromHand(state, "31007", 1);
+      const stacked = putOnTopOfDeck(played, P1, ...top);
+      return { state: stacked.state, id, top: stacked.ids };
+    };
+    /** Only `keep` cards left in p1's deck; the rest go to the discard pile (surgery). */
+    const trimDeck = (state: GameState, keep: number): GameState => ({
+      ...state,
+      players: state.players.map((p) =>
+        p.playerId === P1 ? { ...p, deck: p.deck.slice(0, keep), discard: [...p.deck.slice(keep), ...p.discard] } : p,
+      ),
+    });
+
+    it("in hero form discards exactly the top 2; the SP//dr card goes to hand, the other stays in the discard pile", () => {
+      const hero = runWave5(spdrVsRhino(), toHero(P1));
+      const { state, id, top } = withAuntMay(hero, "31023", "31010", "31011");
+      const [stamina, hostSpider, psychicLink] = top as [InstanceId, InstanceId, InstanceId];
+      const after = settle(runWave5(state, use(P1, id, AUNT_MAY)), firstLegal, undefined, WAVE5_DEPS);
+      expect(inst(after, id).exhausted).toBe(true);
+      expect(playerOf(after, P1).hand).toContain(hostSpider);
+      expect(playerOf(after, P1).hand).not.toContain(stamina);
+      expect(playerOf(after, P1).discard).toContain(stamina);
+      expect(playerOf(after, P1).discard).not.toContain(hostSpider);
+      // Only 2 were discarded: Psychic Link, the third, is still the top of the deck.
+      expect(playerOf(after, P1).deck[0]).toBe(psychicLink);
+      expect(playerOf(after, P1).hand).not.toContain(psychicLink);
+    });
+
+    it("in alter-ego form discards exactly the top 3, adding each SP//dr card among them to hand", () => {
+      const alterEgo = spdrVsRhino(); // Peni Parker, alter-ego, at setup.
+      const { state, id, top } = withAuntMay(alterEgo, "31010", "31023", "31011", "31012");
+      const [hostSpider, stamina, psychicLink, alloy] = top as [InstanceId, InstanceId, InstanceId, InstanceId];
+      const after = settle(runWave5(state, use(P1, id, AUNT_MAY)), firstLegal, undefined, WAVE5_DEPS);
+      expect(playerOf(after, P1).identity.form).toBe("alterEgo");
+      expect(playerOf(after, P1).hand).toEqual(expect.arrayContaining([hostSpider, psychicLink]));
+      expect(playerOf(after, P1).discard).toContain(stamina);
+      expect(playerOf(after, P1).hand).not.toContain(stamina);
+      expect(playerOf(after, P1).deck[0]).toBe(alloy);
+    });
+
+    it("cannot be used when the deck holds fewer cards than the cost discards (2 in hero form, 3 in alter-ego)", () => {
+      const hero = runWave5(spdrVsRhino(), toHero(P1));
+      const { state: heroState, id: heroId } = withAuntMay(hero, "31010");
+      expect(refused(trimDeck(heroState, 1), use(P1, heroId, AUNT_MAY))).toBeTruthy();
+      // Two cards pay the hero-form cost.
+      const paid = settle(
+        runWave5(trimDeck(heroState, 2), use(P1, heroId, AUNT_MAY)),
+        firstLegal,
+        undefined,
+        WAVE5_DEPS,
+      );
+      expect(inst(paid, heroId).exhausted).toBe(true);
+
+      const { state: aeState, id: aeId } = withAuntMay(spdrVsRhino(), "31010");
+      expect(refused(trimDeck(aeState, 2), use(P1, aeId, AUNT_MAY))).toBeTruthy();
+      expect(inst(trimDeck(aeState, 2), aeId).exhausted).toBe(false);
+    });
+  });
+
   describe("31008.ejection-protocol-action", () => {
     it("discards itself, exhausts each Interface upgrade, sets the HP dial to 6, gives tough, and flips to alter-ego", () => {
       const hero = runWave5(spdrVsRhino(), toHero(P1));
