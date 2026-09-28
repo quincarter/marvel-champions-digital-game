@@ -1275,10 +1275,12 @@ export const removeThreatFromAScheme = (n: Amount, slot = "scheme"): EffectSpec[
 
 /**
  * "Deal a total of N damage divided among X you choose" (Wasp Sting) / "Remove a total of N threat from among
- * schemes in play" (Inconspicuous): docs/phase7-wave2.md §3.7.
+ * schemes in play" (Inconspicuous): docs/phase7-wave2.md §3.7. A status name divides status cards: "place a total of 2
+ * stun status cards on up to 2 enemies" (Thwip Thwip!) is `divide("stunned", 2, query("enemy"), { maxTargets: 2 })`;
+ * see `EffectSpec divide.what` for the one-per-type rule it keeps.
  */
 export const divide = (
-  what: "damage" | "threat",
+  what: "damage" | "threat" | StatusName,
   n: Amount,
   among: TargetQuery,
   opts: {
@@ -1289,6 +1291,8 @@ export const divide = (
      * N points, possibly none, and is asked even with a single candidate.
      */
     readonly upTo?: boolean;
+    /** "… on **up to 2** enemies": the points go to at most this many different cards. */
+    readonly maxTargets?: number;
   } = {},
 ): EffectSpec => ({
   kind: "divide",
@@ -1298,6 +1302,7 @@ export const divide = (
   chooser: opts.chooser ?? you,
   ...withBind(opts.bind),
   ...(opts.upTo ? { upTo: true as const } : {}),
+  ...(opts.maxTargets !== undefined ? { maxTargets: opts.maxTargets } : {}),
 });
 
 /**

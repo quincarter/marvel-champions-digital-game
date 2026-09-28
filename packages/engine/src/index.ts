@@ -100,6 +100,7 @@ export type {
   AbilityCost,
   DiscardCombined,
   InPlayCostPick,
+  DamageCostPick,
   AbilityDefinition,
   AbilityLabel,
   AbilityLimit,

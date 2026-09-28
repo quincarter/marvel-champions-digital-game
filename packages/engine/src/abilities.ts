@@ -1312,12 +1312,35 @@ export interface AbilityCost {
    * A candidate must be able to leave play. See `InPlayCostPick`; docs/phase7-wave4.md §3.25.
    */
   readonly discardCards?: InPlayCostPick;
+  /**
+   * "Deal 1 damage to a [Web-Warrior] character you control →" (Thwip Thwip!, `spdr` 31017; Quick Quip, `silk` 52034):
+   * the picked character(s) each take `amount` damage from this card as the cost. See `InPlayCostPick` for the pick.
+   *
+   * - **Payable only if the pick can take it all.** RRG 1.8 "Cost" (p. 14): "If taking damage is a cost, that cost is
+   *   not considered paid unless all of that damage was taken." So a candidate is a character that could take every
+   *   point right now (`canTakeCostDamage`): not one that cannot take damage from this card, one a "prevent all damage"
+   *   constant covers, one a constant reduction would bring short, or one holding a tough status card (the Focused
+   *   Rage FAQ entry, RRG 1.8 p. 57: a cost tough would prevent "cannot be paid"). With no candidate the ability is not
+   *   offered (RRG 1.8 "Initiating Abilities", p. 24, steps 3 and 5).
+   * - **Not all taken, not paid.** The damage resolves above the ability's frame before its effects ("Cost Arrow Icon",
+   *   p. 14); prevented as it is taken (an interrupt the check could not know of), the cost is unpaid and the ability's
+   *   effects do not resolve (`settleCostDamage`), as for `indirectDamage`.
+   */
+  readonly damageCards?: DamageCostPick;
+}
+
+/** `AbilityCost.damageCards`: an `InPlayCostPick` whose picks each take `amount` damage. */
+export interface DamageCostPick extends InPlayCostPick {
+  readonly amount: number;
 }
 
 /** How an `InPlayCostPick` spends its cards. */
-export type InPlayCostMode = "exhaust" | "return" | "discard";
+export type InPlayCostMode = "exhaust" | "return" | "discard" | "damage";
 
-/** Every `InPlayCostPick` a cost makes, in the order they are checked: the exhaust picks, the return pick, the discard pick. */
+/**
+ * Every `InPlayCostPick` a cost makes, in the order they are checked: the exhaust picks, the return pick, the discard
+ * pick, the damage pick.
+ */
 export function inPlayPicksOf(
   cost: AbilityCost | undefined,
 ): readonly { readonly mode: InPlayCostMode; readonly pick: InPlayCostPick }[] {
@@ -1328,6 +1351,7 @@ export function inPlayPicksOf(
     ...exhaust.map((pick) => ({ mode: "exhaust" as const, pick })),
     ...(cost.returnToHand ? [{ mode: "return" as const, pick: cost.returnToHand }] : []),
     ...(cost.discardCards ? [{ mode: "discard" as const, pick: cost.discardCards }] : []),
+    ...(cost.damageCards ? [{ mode: "damage" as const, pick: cost.damageCards }] : []),
   ];
 }
 

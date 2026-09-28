@@ -1,5 +1,6 @@
 import { basicAttack, basicRecover, basicThwart, changeForm, endTurn, playCard, useAbility } from "./actions.js";
 import { DEFAULT_DEPS, type EngineDeps } from "./abilities.js";
+import type { ChoicePrompt } from "./choices.js";
 import type { Command } from "./commands.js";
 import { clearChoice, createCtx, emit, updateFrame, type Ctx } from "./ctx.js";
 import { discardFromHand, discardFromPlay, endGame } from "./effects.js";
@@ -104,6 +105,10 @@ function resolveChoice(ctx: Ctx, command: Command & { type: "resolveChoice" }): 
       return engineError("invalid_choice", `${optionId} is not an option`, command);
     }
   }
+  if (choice.prompt.kind === "divide") {
+    const fault = divideSelectionFault(choice.prompt, selected);
+    if (fault) return engineError("invalid_choice", fault, command);
+  }
 
   clearChoice(ctx);
   emit(ctx, {
@@ -152,6 +157,28 @@ function resolveChoice(ctx: Ctx, command: Command & { type: "resolveChoice" }): 
     default:
       throw new EngineInvariantError(`choice ${choice.prompt.kind} has no frame to resume`);
   }
+}
+
+/**
+ * A `divide` choice's own limits beyond its option count (`ChoicePrompt divide`): at most `maxTargets` different cards
+ * ("on up to 2 enemies"), and for a status division, every status card the chosen cards can hold, up to `amount`
+ * (`EffectSpec divide.what`). Options are `<instanceId>#<n>`. Null when the selection is legal.
+ */
+function divideSelectionFault(
+  prompt: Extract<ChoicePrompt, { kind: "divide" }>,
+  selected: readonly string[],
+): string | null {
+  const chosen = new Set(selected.map((optionId) => optionId.slice(0, optionId.lastIndexOf("#"))));
+  if (prompt.maxTargets !== undefined && chosen.size > prompt.maxTargets) {
+    return `divide among at most ${prompt.maxTargets} different cards, not ${chosen.size}`;
+  }
+  if (prompt.caps) {
+    const room = [...chosen].reduce((sum, id) => sum + (prompt.caps?.[id] ?? 0), 0);
+    const due = Math.min(prompt.amount, room);
+    if (selected.length !== due)
+      return `the chosen cards can hold ${due} ${prompt.what} status card(s); place all of them`;
+  }
+  return null;
 }
 
 export interface GameLog {

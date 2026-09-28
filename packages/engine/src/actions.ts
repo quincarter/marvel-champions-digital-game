@@ -44,12 +44,23 @@ import {
   patrolledBy,
   restrictedLimitFor,
 } from "./rules.js";
-import { inPlayPicksOf, type DiscardCombined, type InPlayCostMode, type InPlayCostPick } from "./abilities.js";
+import {
+  inPlayPicksOf,
+  type DamageCostPick,
+  type DiscardCombined,
+  type InPlayCostMode,
+  type InPlayCostPick,
+} from "./abilities.js";
 import type { TargetRef, ValueSpec } from "./spec.js";
 import type { TriggerEvent } from "./trigger-events.js";
 import { instanceId as asInstanceId, type InstanceId, type PlayerId } from "./ids.js";
 import { hasKeyword, statusActive, statusCapacity } from "./keywords.js";
-import { costDamageEffects, indirectDamageCapacity } from "./cost-damage.js";
+import {
+  canTakeCostDamage,
+  costDamageEffects,
+  indirectDamageCapacity,
+  pickedCostDamageEffects,
+} from "./cost-damage.js";
 import { dealBoostCard } from "./resolve/enemy-activation.js";
 import {
   activeEncounterDeckId,
@@ -778,7 +789,7 @@ function resourcePickChoices(
   let choosing = false;
   for (const { mode, pick } of picks) {
     const candidates = eligibleForInPlayPick(state, deps, instanceId, spender, pick).filter((id) =>
-      canPayInPlayPick(state, deps, instanceId, id, mode),
+      canPayInPlayPick(state, deps, instanceId, id, mode, pick),
     );
     // A forced pick (exactly `min` candidates) pays itself; fewer can't pay, which the fault check reports.
     if (candidates.length <= pick.min) continue;
@@ -1771,7 +1782,7 @@ export function inPlayCostCandidates(
   pick: InPlayCostPick,
 ): readonly InstanceId[] {
   return eligibleForInPlayPick(state, deps, sourceId, playerId, pick).filter((id) =>
-    canPayInPlayPick(state, deps, sourceId, id, mode),
+    canPayInPlayPick(state, deps, sourceId, id, mode, pick),
   );
 }
 
@@ -1827,8 +1838,8 @@ function eligibleForInPlayPick(
 }
 
 /**
- * Whether a card in play can pay an `InPlayCostPick` of this ability (`sourceId`): ready, to exhaust it; able to leave
- * play, to discard or return it. A cost is paid in full or not at all (RRG 1.8 "Cost", p. 13; "Initiating Abilities",
+ * Whether a card in play can pay an `InPlayCostPick` of this ability (`sourceId`): ready, to exhaust it; able to take
+ * all of the damage, to deal it damage (`canTakeCostDamage`); able to leave play, to discard or return it. A cost is paid in full or not at all (RRG 1.8 "Cost", p. 13; "Initiating Abilities",
  * p. 24), so a card the payment could not move is no option: one that "cannot leave play", or a permanent card that the
  * source card's ability is not of its set (`permanentStopsLeaving`, RRG 1.8 "Permanent", p. 32; `payCost` pays with the
  * same source card; docs/phase7-wave5.md §4.1 Q46).
@@ -1839,9 +1850,11 @@ function canPayInPlayPick(
   sourceId: InstanceId,
   id: InstanceId,
   mode: InPlayCostMode,
+  pick: InPlayCostPick,
 ): boolean {
   const instance = mustInstance(state, id);
   if (mode === "exhaust") return !instance.exhausted;
+  if (mode === "damage") return canTakeCostDamage(state, deps, id, sourceId, (pick as DamageCostPick).amount);
   if (cannotLeavePlay(state, deps, id)) return false;
   if (permanentStopsLeaving(state, deps, id, getInstance(state, sourceId)?.cardId)) return false;
   // Returning goes to the owner's hand (RRG 1.8 "Ownership and Control", p. 30); a card with no owning player can't go there.
@@ -1858,15 +1871,24 @@ function planInPlayPick(
   pick: InPlayCostPick,
   choices: CostChoices,
 ): readonly InstanceId[] | PriceFault {
-  const verb = mode === "exhaust" ? "exhaust" : mode === "discard" ? "discard" : "return to hand";
+  const verb =
+    mode === "exhaust"
+      ? "exhaust"
+      : mode === "discard"
+        ? "discard"
+        : mode === "damage"
+          ? "deal damage to"
+          : "return to hand";
   const eligible = eligibleForInPlayPick(state, deps, sourceId, playerId, pick);
-  const candidates = eligible.filter((id) => canPayInPlayPick(state, deps, sourceId, id, mode));
+  const candidates = eligible.filter((id) => canPayInPlayPick(state, deps, sourceId, id, mode, pick));
   const whyNot = (id: InstanceId): PriceFault =>
     !eligible.includes(id)
       ? { code: "no_valid_target", message: `${id} is not a card in play you control that can pay ${pick.slot}` }
       : mode === "exhaust"
         ? { code: "already_exhausted", message: `${id} is already exhausted` }
-        : { code: "no_valid_target", message: `${id} cannot leave play` };
+        : mode === "damage"
+          ? { code: "no_valid_target", message: `${id} cannot take all of this cost's damage` }
+          : { code: "no_valid_target", message: `${id} cannot leave play` };
   // RRG 1.8 "Initiating Abilities" (p. 24, steps 3 and 5): a cost that can't be paid in full can't be initiated.
   if (candidates.length < pick.min) {
     // Enough matching cards, but some are exhausted (or can't leave play): say that, rather than "no card".
@@ -2045,6 +2067,17 @@ export function payCost(
     const ids = plan.bindings[pick.slot] ?? [];
     if (mode === "exhaust") {
       for (const id of ids) exhaustCard(ctx, id);
+    } else if (mode === "damage") {
+      // "Deal 1 damage to a [Web-Warrior] character you control →" (`damageCards`, `cost-damage.ts`): dealt above the
+      // ability's own frame, so it resolves first; if not all of it is taken, that frame's effects don't.
+      if (ids.length > 0) {
+        pushEffects(ctx, {
+          effects: pickedCostDamageEffects(pick.slot, ids.length, (pick as DamageCostPick).amount, paidFor),
+          selfInstanceId: sourceId,
+          controllerId: playerId,
+          bindings: { [pick.slot]: ids },
+        });
+      }
     } else if (mode === "discard") {
       for (const id of ids) if (getInstance(ctx.state, id)) discardFromPlay(ctx, id, source);
     } else {

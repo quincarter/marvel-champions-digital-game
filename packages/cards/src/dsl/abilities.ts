@@ -1108,6 +1108,14 @@ export const returnToHandCost = (q: TargetQuery, opts: InPlayCostOptions = {}): 
 export const discardCardsCost = (q: TargetQuery, opts: InPlayCostOptions = {}): AbilityCost => ({
   discardCards: inPlayPick(q, opts, "discarded"),
 });
+/**
+ * "Deal 1 damage to a [Web-Warrior] character you control →" (Thwip Thwip!, `spdr` 31017; Quick Quip, `silk` 52034):
+ * the picked character takes `amount` damage from this card, and the cost is payable only while a candidate could take
+ * all of it (`AbilityCost.damageCards`). Same picking rules as `exhaustCardsCost`; the cards are bound to `"damaged"`.
+ */
+export const damageCardsCost = (q: TargetQuery, amount: number, opts: InPlayCostOptions = {}): AbilityCost => ({
+  damageCards: { ...inPlayPick(q, opts, "damaged"), amount },
+});
 /** "Pay the printed cost of [a card] →" */
 /**
  * "Pay the printed cost of an ally in any player's discard pile →" (Make the Call).

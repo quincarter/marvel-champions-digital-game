@@ -1,5 +1,6 @@
 /**
- * "Take N indirect damage →" as an ability cost (`AbilityCost.indirectDamage`; Kinetic Armor, `sm` 27149): whether a
+ * "Take N indirect damage →" as an ability cost (`AbilityCost.indirectDamage`; Kinetic Armor, `sm` 27149) and "Deal N
+ * damage to a [chosen] character you control →" (`AbilityCost.damageCards`; Thwip Thwip!, `spdr` 31017): whether a
  * player could take it all, and the step that settles it once taken.
  *
  * RRG 1.8 "Cost" (p. 14): "If taking damage is a cost, that cost is not considered paid unless all of that damage was
@@ -16,7 +17,7 @@ import { type Ctx, emit, setFrame } from "./ctx.js";
 import type { InstanceId, PlayerId } from "./ids.js";
 import { characterProfile, getInstance, getPlayer } from "./query.js";
 import { addFrameVars, type Frame } from "./resolve/frames.js";
-import { cannotTakeDamage } from "./rules.js";
+import { cannotTakeDamage, damagePreventerOf, damageTakenAfterConstants } from "./rules.js";
 import { isAlly } from "./select.js";
 import type { EffectSpec } from "./spec.js";
 import type { GameState } from "./state.js";
@@ -67,6 +68,45 @@ export function costDamageEffects(amount: number, paidFor: Frame<"ability"> | Fr
       asCost: true,
     },
     { kind: "settleCostDamage", amount, bind, paidFor: paidFor?.frameId ?? null },
+  ];
+}
+
+/**
+ * Whether `id` could take all `amount` damage from `sourceId` as a cost right now (`AbilityCost.damageCards`): RRG 1.8
+ * "Cost" (p. 14), a damage cost is paid only if all of it is taken. So not a character that cannot take damage from the
+ * source, one a "prevent all damage" constant covers, one a constant reduction would bring short of `amount`, or one
+ * holding a tough status card (the Focused Rage FAQ entry, RRG 1.8 p. 57). Damage past its remaining hit points is still
+ * taken (it is then defeated), so hit points do not limit it.
+ */
+export function canTakeCostDamage(
+  state: GameState,
+  deps: EngineDeps,
+  id: InstanceId,
+  sourceId: InstanceId | null,
+  amount: number,
+): boolean {
+  const instance = getInstance(state, id);
+  if (!instance || characterProfile(state, id, deps) === undefined) return false;
+  if (cannotTakeDamage(state, deps, id, [sourceId])) return false;
+  if (damagePreventerOf(state, deps, id) !== null) return false;
+  if (instance.statuses.tough > 0) return false;
+  return damageTakenAfterConstants(state, deps, id, amount, false) >= amount;
+}
+
+/**
+ * The effects `payCost` pushes for a "deal N damage to a [chosen] character →" cost (`AbilityCost.damageCards`): the
+ * damage to each picked card, bound in `slot` on the pushed frame, then `settleCostDamage` for all of it.
+ */
+export function pickedCostDamageEffects(
+  slot: string,
+  picks: number,
+  amount: number,
+  paidFor: Frame<"ability"> | Frame<"playCard"> | null,
+): EffectSpec[] {
+  const bind = "costDamage";
+  return [
+    { kind: "dealDamage", target: { kind: "slot", slot }, amount: { kind: "const", value: amount }, bind },
+    { kind: "settleCostDamage", amount: amount * picks, bind, paidFor: paidFor?.frameId ?? null },
   ];
 }
 

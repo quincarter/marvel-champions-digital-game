@@ -1430,7 +1430,19 @@ export type EffectSpec =
    */
   | {
       readonly kind: "divide";
-      readonly what: "damage" | "threat";
+      /**
+       * A status name: "place a total of 2 stun status cards on up to 2 enemies" (Thwip Thwip!, `spdr` 31017; Quick
+       * Quip, `silk` 52034, confused). Each point is one status card of that type. A card can hold only what its
+       * capacity leaves room for (RRG 1.8 "Status Cards", p. 41: one of each type, a second stunned or confused with
+       * steady; `statusCapacity`), so a card with no room is no candidate (RRG 1.8 "Target", p. 43) and no card is
+       * offered more points than its room. The chooser may choose fewer targets than `maxTargets` and so place fewer
+       * cards (ruling, Mar 6, 2026 (2): Quick Quip on two non-steady enemies may confuse just one), but at least one
+       * whenever a candidate exists (docs/phase7-wave3.md §4 Q16); every chosen target then gets as many as the total
+       * lets it hold (`amount`, or the chosen targets' combined room if less), so "both on one enemy" is legal only on
+       * one that can hold two. The cards are given at once, in the order chosen; `<bind>.amount` is how many were
+       * given.
+       */
+      readonly what: "damage" | "threat" | StatusName;
       readonly amount: ValueSpec;
       readonly among: TargetQuery;
       readonly chooser: PlayerRef;
@@ -1445,6 +1457,11 @@ export type EffectSpec =
        * nothing happens. The choice is asked even with a single candidate, since how many is still the chooser's.
        */
       readonly upTo?: true;
+      /**
+       * "… on **up to 2** enemies" (Thwip Thwip!, `spdr` 31017): the points go to at most this many different cards.
+       * The choice's `divide` prompt carries it and `resolveChoice` refuses an answer naming more.
+       */
+      readonly maxTargets?: number;
     }
   /** "Choose a player." Binds that player (their identity) into `slot`; use `PlayerRef` `slot` to refer to them. */
   /**

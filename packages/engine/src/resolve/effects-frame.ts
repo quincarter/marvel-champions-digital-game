@@ -17,7 +17,7 @@ import {
 } from "../actions.js";
 import type { ChoiceOption, ChoicePrompt } from "../choices.js";
 import { type Ctx, emit, moveCard, popFrame, pushFrames, requestChoice, setFrame, updateFrame } from "../ctx.js";
-import { dealEncounterCardTo, discardFromHand, setForm, settleAwaitingAttackEffects } from "../effects.js";
+import { dealEncounterCardTo, discardFromHand, giveStatus, setForm, settleAwaitingAttackEffects } from "../effects.js";
 import { cannotChangeForm } from "../rules.js";
 import type { GameState, ZoneId } from "../state.js";
 import type { TriggerEvent } from "../trigger-events.js";
@@ -51,7 +51,7 @@ import {
   resolveValue,
   selectTargets,
 } from "../select.js";
-import type { EffectSpec } from "../spec.js";
+import type { EffectSpec, StatusName } from "../spec.js";
 import type { StackFrame, TriggerCandidate } from "../stack.js";
 import { executeSettleBasicThwartCost } from "../thwart-cost.js";
 import { executeSettleCostDamage } from "../cost-damage.js";
@@ -62,7 +62,7 @@ import { controllerOfArea, joinGameArea } from "./game-areas.js";
 import { damageGroupFrame } from "./damage-group.js";
 import { selectCards } from "./cards.js";
 import { abilityFrame, addFrameVars, type Frame, pushEffects, pushEvents } from "./frames.js";
-import { hasKeyword, keywordTotal } from "../keywords.js";
+import { hasKeyword, keywordTotal, statusCapacity } from "../keywords.js";
 import { candidateOption } from "./window.js";
 import {
   canDealDamageTo,
@@ -329,11 +329,15 @@ function executeDivide(
   effect: Extract<EffectSpec, { kind: "divide" }>,
   context: EffectContext,
 ): void {
+  if (effect.what !== "damage" && effect.what !== "threat") {
+    return executeStatusDivide(ctx, frame, effect, effect.what, context);
+  }
+  const what = effect.what;
   const amount = Math.max(0, resolveValue(ctx.state, effect.amount, context, ctx.deps));
   const matched = selectTargets(ctx.state, effect.among, context);
   // "Up to" (docs/phase7-wave3.md §3.41, §4 Q16): at least 1 point whenever something can be targeted, so only
   // targets the division can affect are offered (RRG 1.8 "Target", p. 43), and with none nothing happens.
-  const candidates = effect.upTo ? matched.filter((id) => divisionCanAffect(ctx, effect.what, id, frame)) : matched;
+  const candidates = effect.upTo ? matched.filter((id) => divisionCanAffect(ctx, what, id, frame)) : matched;
   const [chooser] = resolvePlayers(ctx.state, effect.chooser, context);
   // "Up to" (docs/phase7-wave3.md §3.41): how many is the chooser's, so even a single candidate is asked.
   const asks = candidates.length > 1 || (effect.upTo === true && candidates.length === 1);
@@ -341,7 +345,12 @@ function executeDivide(
     requestChoice(ctx, {
       playerId: chooser,
       authority: effectChoiceAuthority(ctx.state, frame.selfInstanceId, effect.chooser),
-      prompt: { kind: "divide", what: effect.what, amount },
+      prompt: {
+        kind: "divide",
+        what,
+        amount,
+        ...(effect.maxTargets !== undefined ? { maxTargets: effect.maxTargets } : {}),
+      },
       options: candidates.flatMap((id) =>
         Array.from({ length: amount }, (_, n) => ({
           optionId: `${id}#${n + 1}`,
@@ -391,6 +400,71 @@ function executeDivide(
       sourceInstanceId: frame.selfInstanceId,
     })),
   );
+}
+
+/**
+ * `EffectSpec divide` of status cards ("place a total of 2 stun status cards on up to 2 enemies", Thwip Thwip!, `spdr`
+ * 31017): see `EffectSpec divide.what`. Each candidate's room is its `statusCapacity` less what it holds (RRG 1.8
+ * "Status Cards", p. 41); one without room is no candidate, and no card is offered more than its room or `amount`.
+ */
+function executeStatusDivide(
+  ctx: Ctx,
+  frame: Frame<"effects">,
+  effect: Extract<EffectSpec, { kind: "divide" }>,
+  status: StatusName,
+  context: EffectContext,
+): void {
+  const amount = Math.max(0, resolveValue(ctx.state, effect.amount, context, ctx.deps));
+  const room = (id: InstanceId): number =>
+    Math.max(0, statusCapacity(ctx.state, id, status, ctx.deps) - (getInstance(ctx.state, id)?.statuses[status] ?? 0));
+  const caps: Record<string, number> = {};
+  for (const id of selectTargets(ctx.state, effect.among, context)) {
+    const cap = Math.min(amount, room(id));
+    if (cap > 0) caps[id] = cap;
+  }
+  const candidates = Object.keys(caps).map(asInstanceId);
+  const [chooser] = resolvePlayers(ctx.state, effect.chooser, context);
+  // One candidate is a forced choice (at least one target whenever one exists, docs/phase7-wave3.md §4 Q16): it takes
+  // what it can hold. Several are the chooser's.
+  if (frame.answer === null && candidates.length > 1 && chooser) {
+    requestChoice(ctx, {
+      playerId: chooser,
+      authority: effectChoiceAuthority(ctx.state, frame.selfInstanceId, effect.chooser),
+      prompt: {
+        kind: "divide",
+        what: status,
+        amount,
+        caps,
+        ...(effect.maxTargets !== undefined ? { maxTargets: effect.maxTargets } : {}),
+      },
+      options: candidates.flatMap((id) =>
+        Array.from({ length: caps[id] ?? 0 }, (_, n) => ({
+          optionId: `${id}#${n + 1}`,
+          label: `${mustCardOf(ctx.state, id).name} (${n + 1})`,
+          ref: { kind: "card", instanceId: id } as const,
+        })),
+      ),
+      minSelections: 1,
+      maxSelections: amount,
+      frameId: frame.frameId,
+    });
+    return;
+  }
+  const shares = new Map<InstanceId, number>();
+  if (frame.answer !== null) {
+    for (const optionId of frame.answer) {
+      const id = asInstanceId(optionId.slice(0, optionId.lastIndexOf("#")));
+      if (candidates.includes(id)) shares.set(id, (shares.get(id) ?? 0) + 1);
+    }
+  } else if (candidates[0]) {
+    shares.set(candidates[0], caps[candidates[0]] ?? 0);
+  }
+  setFrame(ctx, { ...frame, answer: null, cursor: frame.cursor + 1 });
+  let given = 0;
+  for (const [id, count] of shares) {
+    for (let i = 0; i < count; i++) if (giveStatus(ctx, id, status)) given += 1;
+  }
+  if (effect.bind) addFrameVars(ctx, frame.frameId, { [`${effect.bind}.amount`]: given });
 }
 
 const HERO_FORM = "_heroForm.";

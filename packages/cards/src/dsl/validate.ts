@@ -108,7 +108,8 @@ function costVariants(cost: AbilityCost): readonly AbilityCost[] {
 
 function checkCostShape(cost: AbilityCost, problems: string[]): void {
   for (const { mode, pick } of inPlayPicksOf(cost)) {
-    const name = mode === "exhaust" ? "exhaustCards" : mode === "discard" ? "discardCards" : "returnToHand";
+    const names = { exhaust: "exhaustCards", discard: "discardCards", return: "returnToHand", damage: "damageCards" };
+    const name = names[mode];
     // RRG 1.8 "Cost" (p. 14): "A cost requiring 'any number' or 'up to' some number of game elements requires a minimum of one".
     if (!Number.isInteger(pick.min) || pick.min < 1)
       problems.push(`cost ${name}: min must be a whole number of at least 1 (RRG 1.8 "Cost", p. 14)`);
@@ -146,6 +147,9 @@ function checkCostShape(cost: AbilityCost, problems: string[]): void {
     problems.push("cost discardFromDeck: must be a whole number of at least 1");
   if (cost.indirectDamage !== undefined && (!Number.isInteger(cost.indirectDamage) || cost.indirectDamage < 1))
     problems.push("cost indirectDamage: must be a whole number of at least 1");
+  const damage = cost.damageCards?.amount;
+  if (damage !== undefined && (!Number.isInteger(damage) || damage < 1))
+    problems.push("cost damageCards: amount must be a whole number of at least 1");
   const boosts = cost.giveBoostCards?.count;
   if (boosts !== undefined && (!Number.isInteger(boosts) || boosts < 1))
     problems.push("cost giveBoostCards: count must be a whole number of at least 1");

@@ -2,6 +2,7 @@ import type { AbilityId } from "@mc/content";
 import type { InPlayCostMode } from "./abilities.js";
 import type { ChoiceId, FrameId, InstanceId, PlayerId } from "./ids.js";
 import type { ResourceRequirement } from "./resources.js";
+import type { StatusName } from "./spec.js";
 import type { WindowTiming } from "./stack.js";
 import type { TriggerEvent } from "./trigger-events.js";
 
@@ -120,8 +121,18 @@ export type ChoicePrompt =
   /**
    * `EffectSpec divide` (docs/phase7-wave2.md §3.7): split `amount` among the options' cards. Options are
    * `<instanceId>#<n>` for n = 1…amount; each selected option is 1 point to that card, and exactly `amount` are selected.
+   *
+   * `maxTargets`: the selected options name at most this many different cards. `caps` (a status division): card id to
+   * the most status cards it can take; its options stop there, and the selection must give as many as `amount` and
+   * the chosen cards' combined caps allow (`resolveChoice` checks both).
    */
-  | { readonly kind: "divide"; readonly what: "damage" | "threat"; readonly amount: number };
+  | {
+      readonly kind: "divide";
+      readonly what: "damage" | "threat" | StatusName;
+      readonly amount: number;
+      readonly maxTargets?: number;
+      readonly caps?: Readonly<Record<string, number>>;
+    };
 
 export type ChoiceRef =
   | { readonly kind: "card"; readonly instanceId: InstanceId }
