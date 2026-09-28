@@ -1,5 +1,6 @@
 import type { AbilityRegistry } from "@mc/engine";
 import { mergeRegistries } from "../../dsl/index.js";
+import { SPIDERHAM_EVENTS } from "./events.js";
 import { SPIDERHAM_IDENTITY } from "./identity.js";
 
 /**
@@ -22,4 +23,4 @@ import { SPIDERHAM_IDENTITY } from "./identity.js";
  * );
  * ```
  */
-export const SPIDERHAM_ABILITIES: AbilityRegistry = mergeRegistries(SPIDERHAM_IDENTITY);
+export const SPIDERHAM_ABILITIES: AbilityRegistry = mergeRegistries(SPIDERHAM_IDENTITY, SPIDERHAM_EVENTS);
