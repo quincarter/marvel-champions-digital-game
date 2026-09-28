@@ -7,6 +7,7 @@
  * goes wherever that screen would have: the deal & mulligan while the game is still in setup, else the Board.
  */
 import Phaser from "phaser";
+import { CAMPAIGN_ART, campaignRulebookPageFor } from "../art/campaign-art.js";
 import { introArtFor, ART_CATALOG } from "../art/scenario-art.js";
 import type { ComicBeat } from "../campaign/story.js";
 import { scenarioIntroFor, type ScenarioIntro } from "../campaign/scenario-intros.js";
@@ -206,7 +207,7 @@ export class ScenarioIntroScene extends Phaser.Scene {
     const { lit } = drawComicReaderPicture(
       this,
       readingRect,
-      introArtFor(ART_CATALOG, intro.scenarioId),
+      this.#pictureFor(intro),
       view.step,
       () => this.#draw(),
       tween,
@@ -259,6 +260,13 @@ export class ScenarioIntroScene extends Phaser.Scene {
 
     this.#route = this.#route ?? new FocusRoute(this, { onCancel: () => this.#leave() });
     this.#route.set(hasBack ? ["back", "next", "skip"] : ["next", "skip"], stops);
+  }
+
+  /** The intro's own picture: a scenario's own artboard, or the box's rulebook page (`ScenarioIntro.art`). */
+  #pictureFor(intro: ScenarioIntro): ReturnType<typeof introArtFor> {
+    return intro.art.kind === "rulebook"
+      ? campaignRulebookPageFor(CAMPAIGN_ART, intro.art.campaignId, intro.art.page)
+      : introArtFor(ART_CATALOG, intro.scenarioId);
   }
 
   #drawDots(width: number, y: number): void {
