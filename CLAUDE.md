@@ -46,6 +46,12 @@ See [PLAN.md](PLAN.md) for the build roadmap and current phase.
 
 ### How to split work across agents (decided 2026-09-26)
 
+**Default for multi-part work (the user's standing instruction, 2026-09-28): fan out to agents without being asked,
+keep every agent's task small, and push to the PR as you go.** Small tasks save tokens and mean a usage limit or a
+new session loses at most one small piece. After the main session verifies a piece (reads the tests, runs them), it
+pushes that commit to the PR's branch right away rather than batching pushes at the end, and keeps the PR's handoff
+section current so any session can resume from GitHub alone.
+
 - **One small task per agent.** One engine primitive (one spec §3 section), one ruling, or one card group — never a
   whole spec section list, hero or pack. An agent given everything reached ~680k tokens of context; one-section agents
   finish in 50k–300k. Specialist agents have no Agent tool, so the **main session does the splitting**, briefs each
