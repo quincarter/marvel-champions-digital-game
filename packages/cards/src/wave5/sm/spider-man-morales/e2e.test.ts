@@ -254,3 +254,24 @@ test("2-player, standard: Spider-Man (Miles Morales) + Ghost-Spider vs Rhino", (
   expect(replayed.ok).toBe(true);
   if (replayed.ok) expect(replayed.state).toEqual(result.session.state);
 }, 120_000);
+
+test("Rhino (expert), solo: Spider-Man (Miles Morales)", () => {
+  // `wave5Scenario` falls through to `coreScenario` for a scenario with no `sm` entry (`rhino`), whose own
+  // `difficulty: "expert"` option (RRG 1.8 "Expert Mode", p. 29) is exactly `../ghost-spider/e2e.test.ts`'s own
+  // "(expert)" precedent (itself modeled on `wave5/nova/e2e.test.ts`, `wave4/hood/e2e.test.ts`). Miles has no
+  // scenario-specific expert wrinkle of his own against Rhino, so this only needs the plain `difficulty` option,
+  // played to a real outcome by the same card-name-agnostic greedy driver as the standard game above.
+  const config = spiderManMoralesScenario("rhino", { seed: SEED, difficulty: "expert" });
+  expect(config.difficulty).toBe("expert");
+  const created = createGame(config, WAVE5_DEPS);
+  if (!created.ok) throw new Error(`setup failed: ${created.error.message}`);
+  const result = playToOutcome(created.state, WAVE5_DEPS);
+  console.info(
+    `[wave5 e2e] Rhino (expert) — Spider-Man (Miles Morales): ${result.outcome ? `${result.outcome.result} (${result.outcome.reason})` : "no outcome"} in round ${result.rounds}, ${result.commands} commands`,
+  );
+  expect(result.outcome).not.toBeNull();
+  expect(result.rounds).toBeGreaterThanOrEqual(1);
+  const replayed = replay(result.session.log, WAVE5_DEPS);
+  expect(replayed.ok).toBe(true);
+  if (replayed.ok) expect(replayed.state).toEqual(result.session.state);
+}, 120_000);

@@ -171,6 +171,40 @@ describe("Web-Bracelet (upgrade, 27009)", () => {
     expect(inst(after, bracelet).exhausted).toBe(true); // Web-Bracelet's own exhaust cost.
     expect(after.players[0]!.hand.length).toBe(beforeHand - 1 /* Backflip left the hand */ + 1); /* Web-Bracelet drew */
   });
+
+  it("27009.web-bracelet-response + 27001a.ghost-spider-constant (Dizzying Reflexes): both fire off the same shared trigger", () => {
+    // Web-Bracelet reuses Ghost-Spider's own identity trigger verbatim (`onInterruptOrResponseResolvedOnEvent`,
+    // `support-upgrades-allies.ts`'s own docblock) — one Interrupt/Response on an event resolving is a single
+    // trigger instant that both her identity's "Dizzying Reflexes" (readies Ghost-Spider) and her own Web-Bracelet
+    // (draws a card) listen for independently. Each is its own optional Response, so both should be offered and
+    // both should be able to resolve from the one underlying `abilityResolved` event (RRG 1.8 "Simultaneous
+    // Resolution", p. 40: several abilities may trigger off the same event; each still resolves in full) — not
+    // just one or the other. Never driven together before this test: the identity test exhausts/readies her alone
+    // (`identity.test.ts`), and this file's own Web-Bracelet test above never names Dizzying Reflexes' own ability
+    // id, so its offer fell to `firstLegal`'s decline path.
+    const state = startWave5Game(ghostSpiderScenarioWithExtras("rhino", { seed: 1, extraCodes: ["01003"] }));
+    const { state: withBracelet, id: bracelet } = playFromHandHelper(state, "27009", 2);
+    const stacked = stackEncounterDeck(withBracelet, "01186", "01101");
+    const given = moveToHand(stacked, P1, "01003");
+    const [backflip] = given.ids as [InstanceId];
+    const identity = identityOf(given.state, P1);
+    const exhaustedIdentity = patchInstance(run(given.state, toHero(P1)), identity, { exhausted: true });
+    const beforeHand = exhaustedIdentity.players[0]!.hand.length;
+    const option = `${backflip}:01003.backflip-interrupt`;
+    const after = settle(
+      runWith(WAVE5_DEPS, exhaustedIdentity, endTurn(P1)),
+      (s) => {
+        const prompt = s.pendingChoice?.prompt;
+        if (prompt?.kind === "payForCard" && prompt.instanceId === backflip) return []; // Backflip costs 0.
+        return accepting(option, "27009.web-bracelet-response", "27001a.ghost-spider-constant")(s);
+      },
+      undefined,
+      WAVE5_DEPS,
+    );
+    expect(inst(after, bracelet).exhausted).toBe(true); // Web-Bracelet's own exhaust cost.
+    expect(after.players[0]!.hand.length).toBe(beforeHand - 1 /* Backflip left the hand */ + 1); // Web-Bracelet drew.
+    expect(inst(after, identity).exhausted).toBe(false); // Dizzying Reflexes readied her, same window.
+  });
 });
 
 describe("Silk (ally, 27010)", () => {
