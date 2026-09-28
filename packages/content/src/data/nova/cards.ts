@@ -462,11 +462,6 @@ export const NOVA_CARDS: readonly AnyCard[] = [
       printed: "Play only if your identity has the champion or genius trait.\nResponse: After you play Moon Girl from your hand, draw 1 card for each [mental] resource used to pay for her.",
       current: "Play only if your identity has the champion or genius trait.\nResponse: After you play Moon Girl from your hand, draw 1 card for each [mental] resource used to pay for her.",
     },
-    // `playRestrictions.requiresIdentityTrait` is a single trait string (packages/content/src/schema/validation.ts);
-    // "champion or genius" needs an OR the schema field can't express, so it's an ability-level `playOnlyIf`
-    // instead (`28018.moon-girl-constant`, `packages/cards/src/wave5/nova/support-upgrades-allies.ts`) — the same
-    // "schema has no restriction field for this" shape Spider-Man/Hobie Brown's own `27017.spider-man-constant`
-    // uses (`wave5/sm/ghost-spider/support-upgrades-allies.ts`).
     abilities: [{ id: abilityId("28018.moon-girl-constant") }, { id: abilityId("28018.moon-girl-response") }],
   },
   {
@@ -489,8 +484,8 @@ export const NOVA_CARDS: readonly AnyCard[] = [
       current: "While your identity has the Civilian trait, this card can be spent for any player and gains the text: \"Response: After you spend this card for a player, heal 1 damage from that player's identity.\"",
     },
     abilities: [
-      { id: abilityId("28019.everyday-hero-constant") },
       { id: abilityId("28019.everyday-hero-response") },
+      { id: abilityId("28019.everyday-hero-constant") },
     ],
   },
   {

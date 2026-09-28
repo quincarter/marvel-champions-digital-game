@@ -774,13 +774,18 @@ function parseRestriction(sentence: string, into: MutableRestrictions): { maxPer
     into.anyPlayerControl = true;
     return {};
   }
+  // `requiresIdentityTrait` (`PlayRestrictions`, packages/content/src/schema/index.ts) is a single trait string —
+  // it cannot express "the champion or genius trait" (Moon Girl, `nova` 28018). A captured group naming two traits
+  // with " or "/" and " is left unmatched here on purpose, so the sentence falls through to the ordinary constant-
+  // ability buffer below instead of being silently misread as one bogus multi-word trait ("CHAMPION OR GENIUS");
+  // `ability-scripting-engineer` then scripts the printed restriction as its own `playOnlyIf` ability.
   m = /^Play only if your identity has the (.+) trait\.$/.exec(sentence);
-  if (m) {
+  if (m && !/ (?:or|and) /.test(m[1] as string)) {
     into.requiresIdentityTrait = m[1] as string;
     return {};
   }
   m = /^Play only if you have the (.+) trait\.$/.exec(sentence);
-  if (m) {
+  if (m && !/ (?:or|and) /.test(m[1] as string)) {
     into.requiresIdentityTrait = m[1] as string;
     return {};
   }
@@ -1022,6 +1027,32 @@ export function parseCardText(text: string, options: ParseOptions): ParsedText {
       const villainScheme = /^(.+)'s Scheme\.$/.exec(sentence);
       if (villainScheme) villainOf = villainScheme[1] as string;
       constantBuffer.push(sentence);
+      // "… gains the text: 'Response: After you spend this card for a player, heal 1 damage from that player's
+      // identity.'" (Everyday Hero, `nova` 28019): the granted ability is quoted, so the ordinary header scan
+      // (`findHeaders`, no `allowQuoted`) never sees its "Response:" — deliberately, so a quoted *name* elsewhere
+      // in the corpus ("Optic Blast") is never mistaken for a header. This sentence still goes into
+      // `constantBuffer` above unchanged (so `text.printed`/`current` show the printed card exactly as MarvelCDB
+      // has it, unsplit), but the quoted clause is also handed to `findHeaders` on its own, unquoted, so the
+      // ability it structurally describes gets a real, separate ref (`ability-scripting-engineer` can only wire a
+      // trigger to a ref that exists in the card's own `abilities` array). Scoped to the specific "gains the
+      // text: …" idiom, not every quoted string, so a quoted ability *name* is never misread as a header.
+      const grantedText = /gains the text:\s*"(.+)"\.?$/.exec(sentence);
+      if (grantedText) {
+        const embedded = grantedText[1] as string;
+        const embeddedHeaders = findHeaders(embedded);
+        embeddedHeaders.forEach((h, i) => {
+          const end = embeddedHeaders[i + 1]?.index ?? embedded.length;
+          const { kind: hkind, form } = kindOf(h.trigger);
+          if (hkind === "contents") return;
+          abilities.push({
+            kind: hkind,
+            ...(form ? { form } : {}),
+            ...(h.label ? { label: h.label as "attack" | "thwart" | "defense" } : {}),
+            ...(h.name ? { name: h.name } : {}),
+            text: embedded.slice(h.index, end).trim(),
+          });
+        });
+      }
     }
     flushConstant();
 

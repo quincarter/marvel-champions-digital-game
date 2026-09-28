@@ -123,24 +123,31 @@ const CONNECTION_TO_THE_WORLDMIND = query("resource", { name: "Connection to the
  * instance for an interrupt on `cardBeingPlayed`/`cardPlayed`, not only from the ability's own instance. Not
  * registered here; `28017.honed-technique-interrupt` is unscripted.
  *
- * **Moon Girl (28018)** — "Play only if your identity has the champion or genius trait": `requiresIdentityTrait`
- * is a single trait string (`packages/content/src/schema/validation.ts`), which can't express an OR of two traits,
- * so the card record carries no `playRestrictions` for it (removed from the curated data alongside this change) and
- * it is instead `28018.moon-girl-constant`: `constant(playOnlyIf(anyOf(youHaveTrait(CHAMPION),
- * youHaveTrait(GENIUS))))` — the "schema has no restriction field for this" shape Spider-Man/Hobie Brown's own
- * `27017.spider-man-constant` already uses (`wave5/sm/ghost-spider/support-upgrades-allies.ts`). "Response: After
- * you play Moon Girl from your hand, draw 1 card for each [mental] resource used to pay for her" is `on.youPlayThis()` (Eros' own precedent
- * for "after you play [this ally] … for each [mental] resource you used to pay for [it]",
- * `wave4/nebu/nebula-pack-cards.ts` `22011.eros-response`) with `draw(varOf("paid.mental"))` in place of Eros'
- * `confuse` — `paid.mental` is read here (unlike Honed Technique above) because this response lives in Moon Girl's
- * *own* ability frame, seeded from Moon Girl's *own* `playCard` frame (`playPaymentVars` matches by instance id).
+ * **Moon Girl (28018)** — "Play only if your identity has the champion or genius trait": `PlayRestrictions.
+ * requiresIdentityTrait` (`packages/content/src/schema/index.ts`) is a single trait string, which can't express an
+ * OR of two traits. The ingestion parser's `Play only if your identity has the (.+) trait.` regex used to capture
+ * "champion or genius" whole and emit it as one bogus literal trait (`"CHAMPION OR GENIUS"`, never held by any
+ * identity, permanently blocking the card from being playable) — fixed in `parse-text.ts` (guarding the capture
+ * against `" or "`/`" and "`) so the sentence is left unmatched and falls through to the ordinary constant-ability
+ * buffer instead, giving this card a real `28018.moon-girl-constant` ref with no `playRestrictions` at all. Scripted
+ * here as `constant(playOnlyIf(anyOf(youHaveTrait(CHAMPION), youHaveTrait(GENIUS))))` — the "schema has no
+ * restriction field for this" shape Spider-Man/Hobie Brown's own `27017.spider-man-constant` already uses
+ * (`wave5/sm/ghost-spider/support-upgrades-allies.ts`). "Response: After you play Moon Girl from your hand, draw 1
+ * card for each [mental] resource used to pay for her" is `on.youPlayThis()` (Eros' own precedent for "after you
+ * play [this ally] … for each [mental] resource you used to pay for [it]", `wave4/nebu/nebula-pack-cards.ts`
+ * `22011.eros-response`) with `draw(varOf("paid.mental"))` in place of Eros' `confuse` — `paid.mental` is read here
+ * (unlike Honed Technique above) because this response lives in Moon Girl's *own* ability frame, seeded from Moon
+ * Girl's *own* `playCard` frame (`playPaymentVars` matches by instance id).
  *
- * **Everyday Hero (28019)** — the card's single printed ability, "While your identity has the [Civilian] trait,
+ * **Everyday Hero (28019)** — the card's single printed sentence, "While your identity has the [Civilian] trait,
  * this card can be spent for any player and gains the text: 'Response: After you spend this card for a player, heal
  * 1 damage from that player's identity,'" is two distinct trigger kinds (a `constant` field and a `response`) that
- * cannot share one `AbilityDefinition`, so a second ref (`28019.everyday-hero-response`) is added to the card
- * record here to carry it — the same "one ref per distinct trigger kind" shape Supernova Helmet's own two abilities
- * already use. `constant(spendableForAnyPlayer(youHaveTrait(CIVILIAN)))` is `dsl/abilities.ts`'s own worked example
+ * cannot share one `AbilityDefinition`. The ingestion parser's header scan deliberately never reads a *quoted*
+ * bold timing word as a real header (so a quoted ability *name* elsewhere in the corpus, e.g. "Optic Blast", is
+ * never mistaken for one) — fixed narrowly in `parse-text.ts` for the specific `gains the text: "…"` idiom: the
+ * quoted clause is *also* run through the header scan on its own, giving this card a second, real
+ * `28019.everyday-hero-response` ref, while `text.printed`/`current` (and every other card's parsing) are
+ * unchanged. `constant(spendableForAnyPlayer(youHaveTrait(CIVILIAN)))` is `dsl/abilities.ts`'s own worked example
  * for this exact card (docs/phase7-wave5.md §3.17). The response is `on.youSpendThis()` ("you" = this card's owner,
  * "that player" = `eventPlayer`, per that same worked example) with `heal(1, identityOf(eventPlayer))` gated by
  * `ifThen(youHaveTrait(CIVILIAN), …)`: since the response text is itself only "gained" while the identity has the
