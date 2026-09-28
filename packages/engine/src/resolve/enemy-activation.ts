@@ -15,7 +15,7 @@ import {
 import { activationVarsOf, plannedAttackDamage } from "../defend-preview.js";
 import { drawEncounterCard, exhaustCard } from "../effects.js";
 import { type FrameId, type InstanceId, instanceId as asInstanceId, type PlayerId } from "../ids.js";
-import { attackKeywordsOf } from "../keywords.js";
+import { attackKeywordsOf, hasKeyword } from "../keywords.js";
 import { amplifyIconsInPlay, boostIconsFor } from "../modifiers.js";
 import {
   cardOf,
@@ -54,11 +54,17 @@ import {
 } from "./frames.js";
 import { heard } from "./triggers.js";
 
-const getsBoostCard = (state: GameState, enemyId: InstanceId): boolean => {
+/**
+ * RRG 1.8 "Villainous" (p. 47): a minion with the keyword is given a boost card when it activates. The keyword is read
+ * the way the rest of the engine reads keywords (`hasKeyword`): a gained Villainous counts, since a card "functions as
+ * if it possesses the gained characteristic" (RRG 1.8 "Gains", p. 21; Solus, `spiderham` 30037), and a printed one on a
+ * blanked text box does not (RRG 1.8 "Blank", p. 10).
+ */
+const getsBoostCard = (state: GameState, deps: EngineDeps, enemyId: InstanceId): boolean => {
   const card = cardOf(state, enemyId);
   if (!card) return false;
   if (card.type === "villain") return true;
-  if (card.type === "minion") return card.keywords.some((k) => k.name === "villainous");
+  if (card.type === "minion") return hasKeyword(state, enemyId, "villainous", deps);
   return false;
 };
 
@@ -109,7 +115,7 @@ export function dealBoostCard(ctx: Ctx, enemyId: InstanceId, outsideActivation =
 
 /** The activation procedure's own boost card: only a villain or a villainous minion is dealt one (p. 11). */
 export function giveBoostCard(ctx: Ctx, enemyId: InstanceId): void {
-  if (!getsBoostCard(ctx.state, enemyId)) return;
+  if (!getsBoostCard(ctx.state, ctx.deps, enemyId)) return;
   dealBoostCard(ctx, enemyId);
 }
 

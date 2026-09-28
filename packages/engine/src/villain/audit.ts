@@ -11,10 +11,10 @@
  * do that?" view for rules QA and the client's log.
  */
 
-import type { AnyCard } from "@mc/content";
 import { DEFAULT_DEPS, type EngineDeps } from "../abilities.js";
 import type { DecisionAuthority } from "../choices.js";
 import { applyCommand, type GameLog } from "../engine.js";
+import { hasKeyword } from "../keywords.js";
 import type { GameEvent } from "../events.js";
 import type { ChoiceId, InstanceId, PlayerId } from "../ids.js";
 import { isMinion, mainSchemeValue } from "../query.js";
@@ -166,8 +166,13 @@ function nextClockwise(seats: readonly PlayerId[], from: PlayerId, eliminated: R
 const isAVillain = (state: GameState, id: InstanceId): boolean =>
   state.villains.some((villain) => villain.instanceId === id);
 
-const isVillainous = (card: AnyCard | undefined): boolean =>
-  card?.type === "minion" && card.keywords.some((k) => k.name === "villainous");
+/**
+ * A minion with Villainous, printed or gained, less a blanked printed one: the engine's own keyword read (RRG 1.8
+ * "Villainous", p. 47; "Gains", p. 21). Asked of the state at the start and the end of the command that dealt the card,
+ * so a grant that arrives or leaves within that command (Solus entering play, `spiderham` 30037) still counts.
+ */
+const isVillainous = (states: readonly GameState[], deps: EngineDeps, id: InstanceId): boolean =>
+  states.some((state) => isMinion(state, id) && hasKeyword(state, id, "villainous", deps));
 
 const VILLAIN_STEPS: readonly GameStep["kind"][] = [
   "placeThreat",
@@ -201,6 +206,8 @@ class PhaseTracker {
   private readonly unflippedBoosts = new Set<InstanceId>();
   private dealAtStep: { readonly players: readonly PlayerId[]; readonly hazards: number } | null = null;
   private lastRevealIndex = 0;
+  /** The states at the start and end of the command whose events are being observed (`commandApplied`). */
+  private commandStates: readonly GameState[];
 
   constructor(
     private readonly state: GameState,
@@ -213,6 +220,12 @@ class PhaseTracker {
     this.firstPlayerId = shadow.firstPlayerId;
     this.order = this.playerOrder(shadow);
     this.engagedAtStart = new Map([...shadow.engaged].map(([p, ids]) => [p, new Set(ids)]));
+    this.commandStates = [state];
+  }
+
+  /** Called before a command's events are observed, with the states either side of it. */
+  commandApplied(before: GameState, after: GameState): void {
+    this.commandStates = [before, after];
   }
 
   private playerOrder(shadow: Shadow): readonly PlayerId[] {
@@ -319,7 +332,7 @@ class PhaseTracker {
         this.unflippedBoosts.add(event.instanceId);
         if (isAVillain(this.state, event.enemyInstanceId)) {
           this.villainBoosts++;
-        } else if (!isVillainous(this.state.cardPool[this.state.instances[event.enemyInstanceId]?.cardId ?? ""])) {
+        } else if (!isVillainous(this.commandStates, this.deps, event.enemyInstanceId)) {
           this.violate(
             "boost.recipient",
             `${event.enemyInstanceId} got a boost card but is neither the villain nor villainous`,
@@ -561,6 +574,7 @@ export function auditVillainPhases(log: GameLog, deps: EngineDeps = DEFAULT_DEPS
       if (event.type === "stepChanged" && event.to.kind === "placeThreat" && !event.to.placed) {
         open = new PhaseTracker(state, seats, shadow, violations, deps);
       }
+      open?.commandApplied(state, result.state);
       open?.observe(event, shadow);
       observeShadow(shadow, state, event);
       if (open && (event.type === "roundStarted" || event.type === "gameEnded")) {

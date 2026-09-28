@@ -6,6 +6,7 @@ import {
   statBonus,
   type GameEvent,
   type GameState,
+  type InstanceId,
 } from "@mc/engine";
 import { describe, expect, it } from "vitest";
 import { endTurn, inst, instancesOf, P1, P2, stackEncounterDeck, toHero } from "../../testing/harness.js";
@@ -266,6 +267,40 @@ describe("Solus (30037)", () => {
     expect(hasKeyword(verna.state, verna.id, "villainous", WAVE5_DEPS)).toBe(true);
     // The real villain already carries its own printed keywords; "villainous" is only meaningful on a minion.
     expect(hasKeyword(verna.state, activeVillain(verna.state).instanceId, "villainous", WAVE5_DEPS)).toBe(false);
+  });
+
+  /** Test surgery: `code` from the encounter deck, in play engaged with P1, so it activates in the villain phase. */
+  const engagedWithP1 = (state: GameState, code: string): { readonly state: GameState; readonly id: InstanceId } => {
+    const staged = encounterCardInVillainArea(state, code);
+    const id = staged.id;
+    return {
+      id,
+      state: {
+        ...staged.state,
+        villainArea: staged.state.villainArea.filter((i) => i !== id),
+        players: staged.state.players.map((p) => (p.playerId === P1 ? { ...p, playArea: [...p.playArea, id] } : p)),
+        instances: { ...staged.state.instances, [id]: { ...staged.state.instances[id]!, engagedWith: P1 } },
+      },
+    };
+  };
+  /** Boost cards the activation procedure dealt `id` (a card ability's own boost card, `outsideActivation`, excluded). */
+  const activationBoosts = (events: readonly GameEvent[], id: InstanceId): number =>
+    events.filter((e) => e.type === "boostCardDealt" && e.enemyInstanceId === id && !e.outsideActivation).length;
+
+  it("30037.solus-constant: with Solus in play, another Inheritor's activation deals it exactly one boost card", () => {
+    // Bora (30031) prints no villainous: only Solus's grant makes it one (RRG 1.8 "Villainous", p. 47; "Gains", p. 21).
+    const bora = engagedWithP1(withWebWarrior(), "30031");
+    const solus = engagedWithP1(bora.state, "30037");
+    const { events } = driveEvents(WAVE5_DEPS, solus.state, endTurn(P1));
+    expect(events.some((e) => e.type === "enemyActivated" && e.enemyInstanceId === bora.id)).toBe(true);
+    expect(activationBoosts(events, bora.id)).toBe(1);
+  });
+
+  it("30037.solus-constant: without Solus in play, the same Inheritor's activation deals it no boost card", () => {
+    const bora = engagedWithP1(withWebWarrior(), "30031");
+    const { events } = driveEvents(WAVE5_DEPS, bora.state, endTurn(P1));
+    expect(events.some((e) => e.type === "enemyActivated" && e.enemyInstanceId === bora.id)).toBe(true);
+    expect(activationBoosts(events, bora.id)).toBe(0);
   });
 
   it("30037.when-revealed: with a Web-Warrior character in play, gives Solus 1 facedown boost card", () => {
