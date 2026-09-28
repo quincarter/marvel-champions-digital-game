@@ -12,8 +12,8 @@ import { IRONHEART_ZZZAX } from "./zzzax.js";
  * (29001a-29003a/29001b-29003b), signature events (29005-29008, 29017-29019, 29025), non-signature allies (29004,
  * 29014-29016, 29022-29024, `allies.ts`), supports/upgrades/resources (29009-29013, 29020-29021, 29026-29027,
  * `support-upgrades.ts`), her obligation/nemesis set (29028-29032, `obligation-nemesis.ts`) and the Zzzax modular
- * set (29033-29040, `zzzax.ts` — 29035 Pinpoint's own interrupt is a documented engine gap, see that module) are
- * scripted so far.
+ * set (29033-29040, `zzzax.ts`) are all
+ * scripted.
  */
 export const IRONHEART_ABILITIES: AbilityRegistry = mergeRegistries(
   IRONHEART_IDENTITY,
