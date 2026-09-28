@@ -300,6 +300,8 @@ interface DefeatHint {
   readonly reportFrameId?: FrameId | null;
   /** The damage's excess over remaining hit points (`excessDamageOf`), carried onto the defeat (§4.1 Q68). */
   readonly excessDamage?: number;
+  /** The damage was an ally's consequential damage (`dealDamage.consequential`), carried onto the defeat. */
+  readonly consequential?: boolean;
 }
 
 /**
@@ -368,6 +370,7 @@ export function checkDefeats(ctx: Ctx, hints?: DefeatHint | readonly DefeatHint[
             ...(hint.fromAttack ? { fromAttack: true as const } : {}),
             ...(hint.reportFrameId ? { reportFrameId: hint.reportFrameId } : {}),
             ...(hint.excessDamage ? { excessDamage: hint.excessDamage } : {}),
+            ...(hint.consequential ? { consequential: true as const } : {}),
           }
         : {}),
       ...(together ? { protectionChecked: true as const } : {}),
@@ -411,6 +414,7 @@ export function checkDefeats(ctx: Ctx, hints?: DefeatHint | readonly DefeatHint[
             ...(hint.fromAttack ? { fromAttack: true as const } : {}),
             ...(hint.reportFrameId ? { reportFrameId: hint.reportFrameId } : {}),
             ...(hint.excessDamage ? { excessDamage: hint.excessDamage } : {}),
+            ...(hint.consequential ? { consequential: true as const } : {}),
           }
         : {};
       defeats.push({ kind: "characterDefeated", instanceId: id, ...context });
@@ -447,6 +451,7 @@ export function checkDefeats(ctx: Ctx, hints?: DefeatHint | readonly DefeatHint[
             ...(hint.fromAttack ? { fromAttack: true as const } : {}),
             ...(hint.reportFrameId ? { reportFrameId: hint.reportFrameId } : {}),
             ...(hint.excessDamage ? { excessDamage: hint.excessDamage } : {}),
+            ...(hint.consequential ? { consequential: true as const } : {}),
           }
         : {}),
     };

@@ -97,6 +97,7 @@ export function executeDamageGroupFrame(ctx: Ctx, frame: Frame<"damageGroup">): 
               sourceInstanceId: source,
               fromAttack: member.event.fromAttack,
               ...(excessDamage > 0 ? { excessDamage } : {}),
+              ...(member.event.consequential === true ? { consequential: true } : {}),
             };
           }),
       );

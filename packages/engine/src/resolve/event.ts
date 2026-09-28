@@ -861,6 +861,7 @@ export function applyDamage(
     sourceInstanceId: source,
     reportFrameId: frameId,
     ...(excessDealt > 0 ? { excessDamage: excessDealt } : {}),
+    ...(event.consequential === true ? { consequential: true } : {}),
   });
 
   // Allies and minions report their defeat when the defeat event applies; a villain stage falls now.

@@ -1397,8 +1397,12 @@ export function resolveValue(
       return context.vars?.[value.name] ?? 0;
     case "eventResult":
       return context.event?.results?.[value.key] ?? 0;
-    case "defeatExcessDamage":
-      return context.event?.kind === "characterDefeated" ? (context.event.excessDamage ?? 0) : 0;
+    case "defeatExcessDamage": {
+      const defeat = context.event?.kind === "characterDefeated" ? context.event : undefined;
+      if (!defeat) return 0;
+      if (value.consequential !== undefined && (defeat.consequential === true) !== value.consequential) return 0;
+      return defeat.excessDamage ?? 0;
+    }
     case "scaled": {
       const base = resolveValue(state, value.value, context, deps);
       // A non-positive divisor is an authoring error (`@mc/cards`' validator rejects it); read it as 0, never NaN/Infinity.

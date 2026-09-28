@@ -316,6 +316,13 @@ export type TriggerEventBody =
        */
       readonly excessDamage?: number;
       /**
+       * The defeating damage was an ally's consequential damage (`dealDamage.consequential`, RRG 1.8 "Consequential
+       * Damage", p. 13), from its attack or its thwart alike: "if she was defeated by taking excess consequential damage"
+       * (SP//dr, `spiderham` 30021) is this with `excessDamage`, through `ValueSpec defeatExcessDamage`'s
+       * `consequential` option. Absent for any other defeat.
+       */
+      readonly consequential?: true;
+      /**
        * The cards attached to the character when its defeat was initiated ("is defeated", before any interrupt), set as
        * the event goes on the stack (`eventFrame`). By its response window the character has left play and a card
        * like Death-Glow has set itself aside, so "After the enemy with Death-Glow is defeated" (Flight of the
