@@ -310,6 +310,11 @@ export const boostIconsOn = (of: TargetRef): ValueSpec => ({ kind: "boostIcons",
 export const remainingHpOf = (of: TargetRef): ValueSpec => ({ kind: "remainingHp", of });
 /** A card's own printed resource cost (0 for a card that prints none): "the highest-cost card you control". */
 export const printedCostOf = (of: TargetRef): ValueSpec => ({ kind: "printedCost", of });
+/**
+ * A character's printed hit points (RRG 1.8 "Printed", p. 35): "Play only if your identity has at least 14 printed hit
+ * points" is `playOnlyIf(valueAtLeast(printedHpOf(yourIdentity), 14))` (Limitless Stamina, `spdr` 31023).
+ */
+export const printedHpOf = (of: TargetRef): ValueSpec => ({ kind: "printedHp", of });
 export const countersOn = (of: TargetRef, counterType: string): ValueSpec => ({ kind: "counters", of, counterType });
 /** "For each different resource type discarded this way" (wild counts as its own type). */
 export const resourceTypesOf = (cardsRef: TargetRef): ValueSpec => ({ kind: "resourceTypes", cards: cardsRef });

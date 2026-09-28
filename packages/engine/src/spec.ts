@@ -677,6 +677,14 @@ export type ValueSpec =
   | { readonly kind: "distinctAspects"; readonly cards: TargetRef }
   /** A card's printed cost (RRG 1.8 "Printed", p. 35): "equal to its printed cost" (Headbutt, Thoughtcasting). A card with no printed cost is 0. */
   | { readonly kind: "printedCost"; readonly of: TargetRef }
+  /**
+   * A character's printed hit points (RRG 1.8 "Printed", p. 35; "Hit Points", p. 22): "Play only if your identity has
+   * at least 14 printed hit points" (Limitless Stamina), "equal to that ally's printed hit points" (Noble Sacrifice).
+   * `printedProfile`'s `maxHp`: an identity's is its identity card's one printed value (both faces share it in the
+   * card data), a villain's its stage's printed value scaled per player, a facedown minion's 0. Read wherever the card
+   * is and never modified by HP modifiers (`maxHitPoints` is the modified value). A card that is not a character is 0.
+   */
+  | { readonly kind: "printedHp"; readonly of: TargetRef }
   /** The sum of the printed costs of every card a ref names, wherever they are: "the total cost of all allies beneath it" (Hydra Prison). */
   | { readonly kind: "totalPrintedCost"; readonly cards: TargetRef }
   /**

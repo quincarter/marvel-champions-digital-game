@@ -38,6 +38,7 @@ import {
   maxHitPoints,
   playerOrder,
   printedHandSize,
+  printedProfile,
   textBoxBlank,
   undefeatedVillains,
   villainOf,
@@ -1532,6 +1533,10 @@ export function resolveValue(
       const [id] = resolveRef(state, value.of, context);
       const card = id ? cardOf(state, id) : undefined;
       return card && "cost" in card && typeof card.cost === "number" ? card.cost : 0;
+    }
+    case "printedHp": {
+      const [id] = resolveRef(state, value.of, context);
+      return id ? (printedProfile(state, id)?.maxHp ?? 0) : 0;
     }
     case "totalPrintedCost":
       // Read wherever the cards are (tucked cards are out of play); a card with no printed cost adds 0.

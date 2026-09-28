@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   activeEncounterDeckId,
   applyCommand,
+  createGame,
   legalActions,
   statBonus,
   type GameState,
@@ -26,8 +27,10 @@ import {
   toHero,
   type Picker,
 } from "../../testing/harness.js";
+import { buildCrossHeroDeck, playFromAnotherHerosDeck } from "../../testing/cross-hero.js";
 import { encounterCardInVillainArea } from "../../testing/staging.js";
 import { WAVE5_CARDS } from "../cards.js";
+import { wave5Scenario } from "../setup.js";
 import { playFromHand, runWave5, startWave5Game, WAVE5_DEPS } from "../testing.js";
 import { spdrScenario } from "./support.js";
 
@@ -127,6 +130,26 @@ function dividing(shares: readonly string[], seen: { options?: readonly string[]
   };
 }
 
+/** Whether playing `id` (hero form, a legal payment) is refused for its play restriction and never offered. */
+function refusedForRestriction(state: GameState, id: InstanceId, cost: number): boolean {
+  const result = applyCommand(state, play(P1, id, payWith(state, P1, cost, [id])), WAVE5_DEPS);
+  const actions = legalActions(state, P1, WAVE5_DEPS);
+  if (actions.kind !== "turn") throw new Error(`expected a turn, got ${actions.kind}`);
+  const offered = actions.legal.some((a) => a.action.kind === "playCard" && a.action.instanceId === id);
+  return !result.ok && /play restriction is not met/.test(result.error.message) && !offered;
+}
+
+/** A Core precon (`coreHeroId`) seated at Rhino in hero form, with one Limitless Stamina (31023) in hand. */
+function coreHeroWithLimitlessStamina(coreHeroId: string): { readonly state: GameState; readonly id: InstanceId } {
+  const setup = buildCrossHeroDeck(WAVE5_CARDS, coreHeroId, "31023");
+  const created = createGame(wave5Scenario("rhino", { seed: 7, players: [setup] }), WAVE5_DEPS);
+  if (!created.ok) throw new Error(`setup failed: ${created.error.message}`);
+  const opening = settle(created.state, firstLegal, (s) => s.step.phase === "player", WAVE5_DEPS);
+  const hero = settle(runWave5(opening, toHero(P1)), firstLegal, undefined, WAVE5_DEPS);
+  const { state, ids } = moveToHand(hero, P1, "31023");
+  return { state, id: ids[0]! };
+}
+
 describe("SP//dr's events (31004-31006, 31016, 31017, 31023)", () => {
   describe("31004.all-systems-go-action", () => {
     it("Ready each Interface upgrade you control: readies the exhausted SP//dr Suit upgrade (hero form)", () => {
@@ -154,6 +177,23 @@ describe("SP//dr's events (31004-31006, 31016, 31017, 31023)", () => {
       const { state } = playFromHand(hero, "31004", 1, pick);
       const inHandAfter = playerOf(state, P1).hand.filter((id) => interfaceUpgradeIds.includes(id)).length;
       expect(inHandAfter).toBe(inHandBefore + 1); // found and added to hand, on top of any already drawn.
+    });
+  });
+
+  describe("31004.all-systems-go-constant / -constant-2 (the two bullet lines, part of the one Hero Action)", () => {
+    it("adds no ability of its own: the Hero Action offers exactly the two printed bullets as its options", () => {
+      for (const ref of ["31004.all-systems-go-constant", "31004.all-systems-go-constant-2"] as const) {
+        expect(WAVE5_DEPS.abilities[ref]).toEqual({ trigger: { kind: "constant" }, effects: [] });
+      }
+      const hero = runWave5(spdrVsRhino(), toHero(P1));
+      const given = moveToHand(hero, P1, "31004");
+      const [id] = given.ids as [InstanceId];
+      const pending = runWith(WAVE5_DEPS, given.state, play(P1, id, payWith(given.state, P1, 1, [id])));
+      const choice = settleUntil(pending, "chooseOption", firstLegal, WAVE5_DEPS).pendingChoice!;
+      expect(choice.options.map((o) => o.label)).toEqual([
+        "Ready each Interface upgrade you control",
+        "Search your deck and discard pile for an Interface upgrade and add it to your hand",
+      ]);
     });
   });
 
@@ -301,6 +341,54 @@ describe("SP//dr's events (31004-31006, 31016, 31017, 31023)", () => {
       const exhausted = patchInstance(hero, identity, { exhausted: true });
       const { state } = playFromHand(exhausted, "31023", 1);
       expect(inst(state, identity).exhausted).toBe(false);
+    });
+  });
+
+  describe("31023.limitless-stamina-constant (Play only if your identity has at least 14 printed hit points)", () => {
+    it("SP//dr (14 printed hit points, exactly the threshold) can play it, even with damage on her", () => {
+      const hero = runWave5(spdrVsRhino(), toHero(P1));
+      const identity = identityOf(hero, P1);
+      const damaged = patchInstance(hero, identity, { damage: 6, exhausted: true });
+      const given = moveToHand(damaged, P1, "31023");
+      const actions = legalActions(given.state, P1, WAVE5_DEPS);
+      if (actions.kind !== "turn") throw new Error(`expected a turn, got ${actions.kind}`);
+      expect(actions.legal.some((a) => a.action.kind === "playCard" && a.action.instanceId === given.ids[0])).toBe(
+        true,
+      );
+      const { state, id } = playFromHand(damaged, "31023", 1);
+      expect(playerOf(state, P1).discard).toContain(id); // played and resolved
+      expect(inst(state, identity).exhausted).toBe(false);
+      expect(inst(state, identity).damage).toBe(6);
+    });
+
+    it("a Core hero with at least 14 printed hit points (She-Hulk, 15) can play it from her own deck", () => {
+      const { state } = playFromAnotherHerosDeck(
+        "31023",
+        {
+          deps: WAVE5_DEPS,
+          cards: WAVE5_CARDS,
+          buildScenario: (players) => wave5Scenario("rhino", { seed: 7, players }),
+        },
+        {
+          coreHero: "core-she-hulk-aggression",
+          // Her own "after you change to this form" response settles first (declined).
+          setup: (s) =>
+            patchInstance(settle(runWave5(s, toHero(P1)), firstLegal, undefined, WAVE5_DEPS), identityOf(s, P1), {
+              exhausted: true,
+            }),
+        },
+      );
+      expect(inst(state, identityOf(state, P1)).exhausted).toBe(false);
+    });
+
+    it("a Core hero below 14 printed hit points (Spider-Man, 10) is refused, and it is never offered", () => {
+      const { state, id } = coreHeroWithLimitlessStamina("core-spider-man-justice");
+      expect(refusedForRestriction(state, id, 1)).toBe(true);
+    });
+
+    it("Captain Marvel (12) is refused too: the threshold is 14, not 'more than the villain' or remaining HP", () => {
+      const { state, id } = coreHeroWithLimitlessStamina("core-captain-marvel-leadership");
+      expect(refusedForRestriction(state, id, 1)).toBe(true);
     });
   });
 });
