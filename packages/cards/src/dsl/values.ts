@@ -557,6 +557,15 @@ export const eventDamageTaken = (of: TargetRef, n = 1): Predicate => ({
 export const defeatExcessDamage: ValueSpec = { kind: "defeatExcessDamage" };
 /** "If this minion was defeated with excess damage" (Shifting Apparition, `sm` 27091). */
 export const defeatedWithExcessDamage: Predicate = valueAtLeast(defeatExcessDamage, 1);
+/**
+ * "If she was defeated by taking excess consequential damage" (SP//dr, `spiderham` 30021): excess damage (RRG 1.8
+ * "Excess Damage", p. 19) from an ally's own consequential damage (RRG 1.8 "Consequential Damage", p. 13), whether it
+ * followed an attack or a thwart. Exactly lethal consequential damage, or excess from any other damage, is not.
+ */
+export const defeatedWithExcessConsequentialDamage: Predicate = valueAtLeast(
+  { kind: "defeatExcessDamage", consequential: true },
+  1,
+);
 /** "If the villain is making an undefended attack". */
 export const undefendedAttack: Predicate = { kind: "currentAttack", key: "undefended", atLeast: 1 };
 /**

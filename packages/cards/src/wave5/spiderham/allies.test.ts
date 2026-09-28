@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { cardId } from "@mc/content";
 import { activeEncounterDeck, applyCommand, cardsInPlay, type GameState, type InstanceId } from "@mc/engine";
 import {
+  answer,
   endTurn,
   firstLegal,
   identityOf,
@@ -354,11 +355,59 @@ describe("SP//dr (ally, 30021)", () => {
     expect(cardsInPlay(after)).toContain(id);
   });
 
-  // "When Defeated: Add SP//dr to your hand if she was defeated by taking excess consequential damage." — a known
-  // engine gap (`allies.ts`'s own module docblock): `characterDefeated`/`DefeatHint`
-  // (`packages/engine/src/{trigger-events,resolve/defeat}.ts`) carry no `consequential` flag distinguishing a defeat
-  // caused by an ally's own consequential damage (`dealDamage.consequential`, `pushConsequentialDamage`,
-  // `packages/engine/src/actions.ts`) from an ordinary attack or treachery defeat, so `30021.when-defeated` is
-  // intentionally left unregistered rather than guessed at.
-  it.skip("30021.when-defeated: adds SP//dr back to hand only when the excess damage that defeated her was consequential — blocked on a DefeatHint.consequential engine primitive", () => {});
+  /** SP//dr in play (hero form, so Spider-Ham is her Web-Warrior card), with `damage` already on her. */
+  function spdrInPlay(damage: number, seed = 3): { readonly state: GameState; readonly id: InstanceId } {
+    const hero = runWave5(spiderHamVsRhino(seed), toHero(P1));
+    const { state, id } = playFromHand(hero, "30021", 2, accepting());
+    return { state: patchInstance(state, id, { damage }), id };
+  }
+  const thwartWith = (state: GameState, id: InstanceId): GameState =>
+    settle(
+      runWave5(patchInstance(state, state.mainScheme.instanceId, { threat: 5 }), {
+        type: "basicThwart",
+        playerId: P1,
+        thwarterInstanceId: id,
+        schemeInstanceId: state.mainScheme.instanceId,
+      }),
+      firstLegal,
+      undefined,
+      WAVE5_DEPS,
+    );
+  const spdrWhere = (state: GameState, id: InstanceId) => ({
+    inPlay: cardsInPlay(state).includes(id),
+    inHand: playerOf(state, P1).hand.includes(id),
+    inDiscard: playerOf(state, P1).discard.includes(id),
+  });
+
+  it("30021.when-defeated: 2 consequential damage past her 1 remaining hit point returns her to hand, not discard", () => {
+    const { state, id } = spdrInPlay(1);
+    const after = thwartWith(state, id);
+    // She thwarted for her printed 2 before the consequential damage.
+    expect(inst(after, after.mainScheme.instanceId).threat).toBe(3);
+    expect(spdrWhere(after, id)).toEqual({ inPlay: false, inHand: true, inDiscard: false });
+  });
+
+  it("30021.when-defeated: exactly lethal consequential damage (2 into her 2 hit points, no excess) discards her", () => {
+    const { state, id } = spdrInPlay(0);
+    const after = thwartWith(state, id);
+    expect(inst(after, after.mainScheme.instanceId).threat).toBe(3);
+    expect(spdrWhere(after, id)).toEqual({ inPlay: false, inHand: false, inDiscard: true });
+  });
+
+  it("30021.when-defeated: defeated with excess damage by an enemy attack (defending Rhino) discards her", () => {
+    const { state, id } = spdrInPlay(1);
+    const defending = answer(
+      settle(
+        runWave5(state, endTurn(P1)),
+        firstLegal,
+        (s) => s.pendingChoice?.prompt.kind === "declareDefender",
+        WAVE5_DEPS,
+      ),
+      [id],
+      WAVE5_DEPS,
+    );
+    const after = settle(defending, firstLegal, (s) => !cardsInPlay(s).includes(id), WAVE5_DEPS);
+    const settled = settle(after, firstLegal, (s) => s.step.phase === "player", WAVE5_DEPS);
+    expect(spdrWhere(settled, id)).toEqual({ inPlay: false, inHand: false, inDiscard: true });
+  });
 });

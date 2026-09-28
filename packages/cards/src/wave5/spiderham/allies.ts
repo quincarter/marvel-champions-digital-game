@@ -12,6 +12,7 @@ import {
   constant,
   countOf,
   dealDamage,
+  defeatedWithExcessConsequentialDamage,
   defineAbilities,
   draw,
   eventAmount,
@@ -30,6 +31,7 @@ import {
   response,
   self,
   valueAtLeast,
+  whenDefeated,
   you,
   yourIdentity,
   zone,
@@ -109,20 +111,14 @@ const A_WEB_WARRIOR_CARD: TargetQuery = {
  *
  * **SP//dr (ally, 30021)** — "Play only if you control a Web-Warrior card.\nWhen Defeated: Add SP//dr to your hand
  * if she was defeated by taking excess consequential damage." The play restriction is the same `playOnlyIf`
- * constant as Scarlet Spider above. **The When Defeated half is a known engine gap, left unscripted**: a
- * `characterDefeated` `TriggerEvent` (`packages/engine/src/trigger-events.ts`) carries `fromAttack` (was the
- * defeating damage an attack's) and `excessDamage` (read by `ValueSpec defeatExcessDamage`,
- * `packages/cards/src/dsl/values.ts`), but nothing records whether the defeating damage was specifically an ally's
- * *consequential* damage (`dealDamage.consequential`, set by `pushConsequentialDamage`,
- * `packages/engine/src/actions.ts`) — `DefeatHint` (`packages/engine/src/resolve/defeat.ts`) has no `consequential`
- * field to thread that flag from the damage event through `checkDefeats`'s sweep into the `characterDefeated` event
- * a `whenDefeated` ability reads. Building "if she was defeated by taking excess consequential damage" faithfully
- * needs that field added to `DefeatHint`/`characterDefeated` (threaded from `pushConsequentialDamage`'s own
- * `dealDamage` call, `packages/engine/src/actions.ts` ~L2796) and a `ValueSpec`/`Predicate` alongside
- * `defeatExcessDamage`/`defeatedWithExcessDamage` to read it — a `game-rules-architect` primitive, not something
- * this module can approximate without silently misreading an ordinary attack/treachery defeat as a consequential
- * one. `30021.when-defeated` is intentionally **not** registered here pending that primitive (`allies.test.ts` pins
- * the gap with a documented `it.skip`).
+ * constant as Scarlet Spider above. The When Defeated reads the defeat itself: `defeatedWithExcessConsequentialDamage`
+ * is excess damage (RRG 1.8 "Excess Damage", p. 19: beyond her *remaining* hit points, so exactly lethal consequential
+ * damage is not excess and she is discarded) from an ally's own consequential damage (RRG 1.8 "Consequential Damage",
+ * p. 13, after an attack or a thwart alike), recorded on the `characterDefeated` event. Any other defeat (an enemy
+ * attack, a treachery's damage), excess or not, leaves her to be discarded. A When Defeated resolves before the
+ * defeated card leaves play (RRG 1.8 "When Defeated Abilities", p. 48), so `moveCards(cards(self), "hand")` takes her
+ * from play to her owner's hand in place of the discard, as Zola's own "remove from the game" does (`wave2/trors`
+ * 04122).
  */
 export const SPIDERHAM_ALLIES = defineAbilities({
   "30002.captain-americat-response": response(
@@ -161,7 +157,5 @@ export const SPIDERHAM_ALLIES = defineAbilities({
   ),
 
   "30021.sp-dr-constant": constant(playOnlyIf(exists(A_WEB_WARRIOR_CARD))),
-  // "When Defeated: Add SP//dr to your hand if she was defeated by taking excess consequential damage." — known
-  // engine gap (module docblock): no `characterDefeated`/`DefeatHint` field records that the defeating damage was
-  // specifically consequential. Intentionally unregistered pending that primitive.
+  "30021.when-defeated": whenDefeated(ifThen(defeatedWithExcessConsequentialDamage, [moveCards(cards(self), "hand")])),
 });
