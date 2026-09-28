@@ -10,11 +10,16 @@
  *   Core Set's first villain. One win is all it takes to leave the Core Set; Wave 1 ships no campaign box to finish.
  * - **The Galaxy's Most Wanted**: complete The Rise of Red Skull campaign.
  * - **The Mad Titan's Shadow**: complete The Galaxy's Most Wanted campaign.
+ * - **Sinister Motives**: complete The Mad Titan's Shadow campaign.
  *
  * **Heroes come one villain at a time.** An open wave seats its box's own cast straight away (Hawkeye and
- * Spider-Woman; Groot and Rocket; Spectrum and Adam Warlock). Every other hero of the wave is a villain's reward
- * (`HeroReward`): beat that villain anywhere (in the campaign or standalone, any difficulty) and the hero joins the
- * roster. Wave 1's heroes are rewards for the Core and Wave 1 villains, in release order.
+ * Spider-Woman; Groot and Rocket; Spectrum and Adam Warlock; Ghost-Spider and Spider-Man (Miles Morales)). Every
+ * other hero of the wave is a villain's reward (`HeroReward`): beat that villain anywhere (in the campaign or
+ * standalone, any difficulty) and the hero joins the roster. Wave 1's heroes are rewards for the Core and Wave 1
+ * villains, in release order. Sinister Motives ships five scenarios for four hero-pack heroes (Nova, Ironheart,
+ * Spider-Ham, SP//dr); its finale, Venom Goblin, is the campaign's climax rather than a "beat this one along the
+ * way" villain, so it isn't spent as a reward — the box's other four scenarios are, in campaign order, matching the
+ * hero packs' own release/card-number order (Nova and Ironheart released together, then Spider-Ham and SP//dr).
  *
  * Adding a wave to the app's pool means adding its row here: `unlocks.test.ts` fails until every pool wave and
  * every pool hero has a place on the path.
@@ -133,6 +138,19 @@ export const UNLOCK_WAVES: readonly UnlockWave[] = [
       { scenarioId: "tower-defense", identityCardId: "23001a" }, // War Machine
       { scenarioId: "thanos", identityCardId: "26001a" }, // Vision
       { scenarioId: "hela", identityCardId: "25001a" }, // Valkyrie
+    ],
+  },
+  {
+    cycleId: "cycle5",
+    name: "Sinister Motives",
+    gate: { kind: "campaignWin", campaignId: "mts", hint: "Complete The Mad Titan's Shadow campaign" },
+    campaignId: "sm",
+    starterHeroIds: ["27001a", "27030a"], // Ghost-Spider, Spider-Man (Miles Morales): MC27's own cast
+    heroRewards: [
+      { scenarioId: "sandman", identityCardId: "28001a" }, // Nova
+      { scenarioId: "venom", identityCardId: "29001a" }, // Ironheart
+      { scenarioId: "mysterio", identityCardId: "30001a" }, // Spider-Ham
+      { scenarioId: "sinister-six", identityCardId: "31001a" }, // SP//dr
     ],
   },
 ];

@@ -62,7 +62,7 @@ describe("the unlock path", () => {
         expect(heroes).toContain(reward.identityCardId);
       }
     }
-    expect(UNLOCK_CAMPAIGNS.map((c) => c.campaignId)).toEqual(["trors", "gmw", "mts"]);
+    expect(UNLOCK_CAMPAIGNS.map((c) => c.campaignId)).toEqual(["trors", "gmw", "mts", "sm"]);
   });
 
   it("keeps the Core Set fully open and nothing else on a first launch", () => {
