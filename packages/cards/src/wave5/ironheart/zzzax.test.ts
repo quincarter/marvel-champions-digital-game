@@ -16,16 +16,25 @@ import {
 import { describe, expect, it } from "vitest";
 import {
   endTurn,
+  firstLegal,
   identityOf,
   inst,
   instancesOf,
   P1,
+  P2,
+  patchInstance,
   playerOf,
   stackEncounterDeck,
   toHero,
   use,
+  type Picker,
 } from "../../testing/harness.js";
-import { driveEvents, encounterCardInVillainArea } from "../../testing/staging.js";
+import {
+  driveEvents,
+  driveEventsPicking,
+  encounterCardInVillainArea,
+  playFromHand as playFromHandFor,
+} from "../../testing/staging.js";
 import { playFromHand, runWave5, startWave5Game, WAVE5_DEPS } from "../testing.js";
 import { ironheartScenario, ironheartScenarioWithExtras } from "./support.js";
 
@@ -47,8 +56,10 @@ import { ironheartScenario, ironheartScenarioWithExtras } from "./support.js";
  * Rollin'" docblock precedent: `attachesTo` present needs no scripted attach step, only the fallback a card's own
  * text adds — Haywire has none, and no `when-revealed` ability is registered for it).
  *
- * **29035 Pinpoint is not scripted** (`zzzax.ts`'s own docblock: an engine gap, not a special case) and has no
- * tests here.
+ * **Pinpoint (29035)** is exercised on each route a player card takes from play to a discard pile: an ally's defeat
+ * (Vivian 29024, defeated by her own consequential damage after attacking), and an upgrade (Propulsion Jets 29013) or a
+ * support (Tony Stark A.I. 29011) discarded by Core's Caught Off Guard (01188, Standard set: "Discard an upgrade or
+ * support you control"), revealed in the villain phase — so Pinpoint is ready again there, whatever she did on the turn.
  */
 const ironheartVsRhino = (seed = 1) =>
   startWave5Game(ironheartScenario("rhino", { seed, modularSetIds: [encounterSetId("zzzax")] }));
@@ -393,5 +404,153 @@ describe("Zzzap! (29040)", () => {
     const { id: zzzapId, events } = reveal(staged, "29040");
     expect(dealtBy(events, zzzapId, identity)).toBe(0);
     expect(events.some((e) => e.type === "surgeTriggered" && e.instanceId === zzzapId)).toBe(true);
+  });
+});
+
+describe("Pinpoint (29035)", () => {
+  const PINPOINT = "29035.pinpoint-interrupt";
+  /** Uses Pinpoint's interrupt whenever it is offered; otherwise declines like `firstLegal`. */
+  const usePinpoint: Picker = (state) => {
+    const offered = state.pendingChoice?.options.find((o) => o.optionId.includes(PINPOINT));
+    return offered ? [offered.optionId] : firstLegal(state);
+  };
+  const offeredPinpoint = (events: readonly GameEvent[]) =>
+    events.some((e) => e.type === "windowOpened" && e.candidates.some((c) => `${c.abilityId}` === PINPOINT));
+  const deckShuffled = (events: readonly GameEvent[], player: PlayerId) =>
+    events.some((e) => e.type === "deckShuffled" && e.zone.kind === "deck" && e.zone.playerId === player);
+
+  /** The cards in `player`'s deck after that were not in it before. */
+  const gainedDeckCards = (before: GameState, after: GameState, player: PlayerId) => {
+    const had = new Set(playerOf(before, player).deck);
+    return playerOf(after, player).deck.filter((id) => !had.has(id));
+  };
+
+  /** P1 in hero form with Pinpoint in play (and ready), and `extra` codes available to play. */
+  function withPinpoint(extra: readonly string[] = [], seed = 1) {
+    const hero = asHero(ironheartVsRhinoWithExtras(seed, ["29035", ...extra]));
+    const played = playFromHand(hero, "29035", 2);
+    return { state: played.state, pinpoint: played.id };
+  }
+
+  /** Vivian (29024, 2 hit points) in play with 1 damage: her attack's 1 consequential damage defeats her. */
+  function vivianAboutToFall(pinpointExhausted = false) {
+    const table = withPinpoint(["29024"]);
+    const vivian = playFromHand(table.state, "29024", 2);
+    let state = patchInstance(vivian.state, vivian.id, { damage: 1 });
+    if (pinpointExhausted) state = patchInstance(state, table.pinpoint, { exhausted: true });
+    const attack = {
+      type: "basicAttack" as const,
+      playerId: P1,
+      attackerInstanceId: vivian.id,
+      targetInstanceId: activeVillain(state).instanceId,
+    };
+    return { state, vivian: vivian.id, pinpoint: table.pinpoint, attack };
+  }
+
+  it(`${PINPOINT}: a defeated ally is shuffled into its owner's deck instead of the discard pile; Pinpoint exhausts`, () => {
+    const t = vivianAboutToFall();
+    const deckBefore = playerOf(t.state, P1).deck;
+    const { state: after, events } = driveEventsPicking(WAVE5_DEPS, t.state, usePinpoint, t.attack);
+    expect(offeredPinpoint(events)).toBe(true);
+    // Still defeated: only where it goes is replaced.
+    expect(
+      events.some(
+        (e) => e.type === "triggerEvent" && e.event.kind === "characterDefeated" && e.event.instanceId === t.vivian,
+      ),
+    ).toBe(true);
+    expect(cardsInPlay(after)).not.toContain(t.vivian);
+    expect([...playerOf(after, P1).deck].sort()).toEqual([...deckBefore, t.vivian].sort());
+    expect(playerOf(after, P1).discard).not.toContain(t.vivian);
+    expect(deckShuffled(events, P1)).toBe(true);
+    expect(inst(after, t.pinpoint).exhausted).toBe(true);
+  });
+
+  it("negative: declining sends the defeated ally to the discard pile", () => {
+    const t = vivianAboutToFall();
+    const deckBefore = playerOf(t.state, P1).deck;
+    const { state: after, events } = driveEventsPicking(WAVE5_DEPS, t.state, firstLegal, t.attack);
+    expect(offeredPinpoint(events)).toBe(true);
+    expect(playerOf(after, P1).discard).toContain(t.vivian);
+    expect(playerOf(after, P1).deck).toEqual(deckBefore);
+    expect(inst(after, t.pinpoint).exhausted).toBe(false);
+  });
+
+  it("negative: while Pinpoint is exhausted she can't pay her cost, so the defeated ally is discarded", () => {
+    const t = vivianAboutToFall(true);
+    const deckBefore = playerOf(t.state, P1).deck;
+    const { state: after, events } = driveEventsPicking(WAVE5_DEPS, t.state, usePinpoint, t.attack);
+    expect(offeredPinpoint(events)).toBe(false);
+    expect(playerOf(after, P1).discard).toContain(t.vivian);
+    expect(playerOf(after, P1).deck).toEqual(deckBefore);
+  });
+
+  // Caught Off Guard (01188) — "Discard an upgrade or support you control": the card under test is the only one.
+  for (const [kind, code, cost] of [
+    ["upgrade (Propulsion Jets)", "29013", 2],
+    ["support (Tony Stark A.I.)", "29011", 2],
+  ] as const) {
+    it(`${PINPOINT}: a discarded ${kind} is shuffled into its owner's deck instead`, () => {
+      const table = withPinpoint([code]);
+      const card = playFromHand(table.state, code, cost);
+      const stacked = stackEncounterDeck(card.state, "01186", "01188");
+      // The villain phase: the ready step readies Pinpoint anyway; the deck is read after the end-of-turn draw.
+      const { state: after, events } = driveEventsPicking(WAVE5_DEPS, stacked, usePinpoint, endTurn(P1));
+      expect(offeredPinpoint(events)).toBe(true);
+      expect(cardsInPlay(after)).not.toContain(card.id);
+      expect(playerOf(after, P1).deck).toContain(card.id);
+      expect(playerOf(after, P1).discard).not.toContain(card.id);
+      // The deck gained exactly this card (the end-of-turn draw only takes cards out), with a shuffle.
+      expect(gainedDeckCards(stacked, after, P1)).toEqual([card.id]);
+      expect(
+        events.some(
+          (e) =>
+            e.type === "deckShuffled" && e.zone.kind === "deck" && e.zone.playerId === P1 && e.order.includes(card.id),
+        ),
+      ).toBe(true);
+      expect(inst(after, table.pinpoint).exhausted).toBe(true);
+    });
+  }
+
+  it("negative: an encounter card leaving play (a defeated minion) is not offered", () => {
+    const table = withPinpoint();
+    const minion = engagedMinion(table.state, "29037");
+    const near = patchInstance(minion.state, minion.id, { damage: 99 });
+    const { state: after, events } = driveEventsPicking(WAVE5_DEPS, near, usePinpoint, {
+      type: "basicAttack",
+      playerId: P1,
+      attackerInstanceId: identityOf(near, P1),
+      targetInstanceId: minion.id,
+    });
+    expect(cardsInPlay(after)).not.toContain(minion.id);
+    expect(offeredPinpoint(events)).toBe(false);
+    expect(after.encounterDecks[activeEncounterDeckId(after)]!.discard).toContain(minion.id);
+    expect(inst(after, table.pinpoint).exhausted).toBe(false);
+  });
+
+  it(`${PINPOINT}: another player's discarded support goes to that owner's deck, not Pinpoint's controller's`, () => {
+    const hero = asHero(
+      startWave5Game(
+        ironheartScenarioWithExtras("rhino", {
+          seed: 3,
+          extraCodes: ["29035"],
+          modularSetIds: [encounterSetId("zzzax")],
+          extraPlayers: [{ starterDeckId: "core-spider-man-justice" }],
+        }),
+      ),
+    );
+    const pinpoint = playFromHand(hero, "29035", 2);
+    const p2Turn = runWave5(pinpoint.state, endTurn(P1));
+    const auntMay = playFromHandFor(WAVE5_DEPS, p2Turn, "01006", 1, firstLegal, P2);
+    // Two villain activations draw a boost each, then P1 and P2 are each dealt a card: Caught Off Guard is P2's.
+    const stacked = stackEncounterDeck(auntMay.state, "01186", "01186", "01101", "01188");
+    const { state: after, events } = driveEventsPicking(WAVE5_DEPS, stacked, usePinpoint, endTurn(P2));
+    expect(offeredPinpoint(events)).toBe(true);
+    expect(inst(after, auntMay.id).ownerId).toBe(P2);
+    expect(gainedDeckCards(stacked, after, P2)).toEqual([auntMay.id]);
+    expect(playerOf(after, P2).discard).not.toContain(auntMay.id);
+    expect(playerOf(after, P1).deck).not.toContain(auntMay.id);
+    expect(deckShuffled(events, P2)).toBe(true);
+    expect(gainedDeckCards(stacked, after, P1)).toEqual([]);
+    expect(inst(after, pinpoint.id).exhausted).toBe(true);
   });
 });

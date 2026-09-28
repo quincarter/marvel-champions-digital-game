@@ -1422,6 +1422,15 @@ export const on = {
    */
   leavesPlay: (who: Who): EventPattern => pattern("cardLeavesPlay", asTarget(who)),
   /**
+   * "When a player card would be placed into a discard pile from play" (Pinpoint, `ironheart` 29035): a card leaving
+   * play for a player's discard pile, by any route (a defeat, a discard effect or cost, a move to the discard pile, an
+   * attachment going with its host). Only player cards go there (RRG 1.8 "Discard", p. 16: a player card to its
+   * owner's discard pile, an encounter card to the encounter discard pile). Event cards never match: they resolve from
+   * out of play and are never in play (RRG 1.8 "In Play and Out of Play", p. 23). With `instead(...)` it is a
+   * replacement (RRG 1.8 "Replacement Effect", p. 37): the leaving is cancelled and the card moves where the effects say.
+   */
+  playerCardDiscardedFromPlay: (): EventPattern => pattern("cardLeavesPlay", { eventIs: { to: "discard" } }),
+  /**
    * "When the attached card is defeated" on a card that attaches to a minion or a side scheme (Wrist Navigator, `sm`
    * 27189a; docs/phase7-wave5.md §3.30): a character's defeat or a scheme's, the host still attached as it opens. A
    * permanent attachment then stays in play, unattached, in its controller's play area.

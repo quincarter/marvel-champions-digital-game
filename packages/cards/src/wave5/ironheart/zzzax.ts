@@ -12,12 +12,16 @@ import {
   eachPlayer,
   eitherCost,
   engagedPlayerOf,
+  eventTarget,
+  exhaustThis,
   forcedInterrupt,
   forEachPlayer,
   gets,
   heroAction,
+  heroInterrupt,
   ifThen,
   ignores,
+  instead,
   moveCards,
   not,
   on,
@@ -71,18 +75,15 @@ import {
  * `while` (hero-form) gate.
  *
  * **Pinpoint (29035)** — "Hero Interrupt: When a player card would be placed into a discard pile from play, exhaust
- * Pinpoint → shuffle that card into its owner's deck instead." **Not built — engine gap, not a special case:** the
- * only existing "redirect a card's discard-from-play destination" primitives are `EffectSpec setDefeatDestination`
- * (`resolve/apply-effect.ts` "setDefeatDestination": only patches a pending `characterDefeated` event — refuses any
- * other event kind — so it covers an ally's defeat but not an event resolving to discard, a support/upgrade
- * discarded by a cost, or a non-defeat ally leaving play) and the constant `RuleSpec discardFromPlayDestination`
- * (`gmw/museum.ts`'s Collector precedent: a Forced, unconditional redirect to a scenario `area` only — no `to:
- * CardDestination`, so it cannot express "shuffle into owner's deck", and it is not a costed, optional interrupt).
- * Pinpoint's own text is the broadest of the three ("a player card", not "an ally"), so implementing only the
- * `setDefeatDestination`-reachable slice (ally defeats) would be exactly the "near miss that looks right until an
- * event/support/upgrade card hits it" the project's testing bar warns against. Needs a general redirect settable
- * from an interrupt on the generic `cardLeavesPlay` "zone" `LeaveRequest` (`trigger-events.ts`), not only `defeat`
- * — `game-rules-architect` territory. `29035.pinpoint-interrupt` is left unregistered.
+ * Pinpoint → shuffle that card into its owner's deck instead." A replacement (RRG 1.8 "Replacement Effect", p. 37) on
+ * the generic `cardLeavesPlay` leaving (docs/phase7-wave5.md §4.1 Q17, Q32–Q34), not on `characterDefeated`: every
+ * route from play to a discard pile — a defeat, a discard effect or cost, a move to the discard pile, an attachment
+ * going with its host — waits for this interrupt window with the card still in play, and `instead(...)` cancels that
+ * leaving and moves the card itself. `on.playerCardDiscardedFromPlay()` is "leaving for a player's discard pile",
+ * which only player cards reach (RRG 1.8 "Discard", p. 16), so an encounter card going to the encounter discard pile
+ * is never offered; an event card resolving is never in play (RRG 1.8 "In Play and Out of Play", p. 23), so it is not
+ * either. `moveCards(…, "deckShuffle")` sends a card to its owner's deck and shuffles it, whoever controls Pinpoint.
+ * An ally that is defeated this way is still defeated; only where it goes is replaced.
  *
  * **Zzzax (29037)** — the constant "gets +X ATK and +X hit points" reads `engagedPlayerOf(self)` live (no
  * `selectCards`/`chosen` needed outside an effect list: `totalPrintedResources` takes any `TargetRef`, including
@@ -129,7 +130,13 @@ export const IRONHEART_ZZZAX = defineAbilities({
   // Wasp (29034) — Wasp ignores the guard keyword, patrol keyword, and crisis icon.
   "29034.wasp-constant": constant(ignores({ self: true }, ["guard", "patrol", "crisis"])),
 
-  // Pinpoint (29035) — engine gap, see module docblock. `29035.pinpoint-interrupt` intentionally not registered.
+  // Pinpoint (29035) — Hero Interrupt: When a player card would be placed into a discard pile from play, exhaust
+  // Pinpoint → shuffle that card into its owner's deck instead.
+  "29035.pinpoint-interrupt": heroInterrupt(
+    on.playerCardDiscardedFromPlay(),
+    { cost: exhaustThis },
+    instead(moveCards(cards(eventTarget), "deckShuffle")),
+  ),
 
   // Feedback Loop (29036) — When Revealed: Each player must place threat here equal to the total number of
   // [energy] resources in their hand and on cards they control.
