@@ -24,6 +24,7 @@ import {
   heroAction,
   heroResource,
   heroResponse,
+  interrupt,
   identityOf,
   ifThen,
   maxOnePerTriggeringInstance,
@@ -32,7 +33,9 @@ import {
   notCountedTowardHandSize,
   on,
   option,
+  paidWith,
   playOnlyIf,
+  printedCostOf,
   query,
   response,
   rule,
@@ -57,7 +60,7 @@ const CONNECTION_TO_THE_WORLDMIND = query("resource", { name: "Connection to the
 /**
  * Nova's supports, upgrades, allies and resources scripted directly (docs/phase7-wave5.md's Nova row): Ms. Marvel
  * (28002), Connection to the Worldmind (28007), Jesse Alexander (28008), Supernova Helmet (28009), The Locust
- * (28010), The Power of Aggression (28015), Fluid Motion (28016), Honed Technique (28017, gap below), Moon Girl
+ * (28010), The Power of Aggression (28015), Fluid Motion (28016), Honed Technique (28017), Moon Girl
  * (28018), Everyday Hero (28019), Champions Mobile Bunker (28020), Height Advantage (28027). Text is read directly
  * from `packages/content/src/data/nova/cards.ts` (no errata on RRG 1.8 pp. 67-68), confirmed against each card's own
  * scan in `assets/card-art/bundles/cards/<id>.png`.
@@ -106,22 +109,18 @@ const CONNECTION_TO_THE_WORLDMIND = query("resource", { name: "Connection to the
  * (`dsl/abilities.ts`), the same named export Web-Bracelet's identical parenthetical uses
  * (`wave5/sm/ghost-spider/support-upgrades-allies.ts` `27009.web-bracelet-response`).
  *
- * **Honed Technique (28017) — skipped, engine gap.** "Interrupt: When you play an Aggression Attack event, if you
- * paid for that event using a [mental] resource, increase the amount of damage that event deals by its printed
- * cost." The "if you paid … using a [mental] resource" and "its printed cost" both need to read the *played card's*
- * own payment/cost — the same `paid.*`/`printedCostOf` vocabulary Moon Girl (28018) and Embiggen! (`msm` 05010) use —
- * but from Honed Technique's own separate ability frame (Honed Technique is an upgrade already in play, not the
- * card being played). `abilityFrame`'s `vars` seed from `playPaymentVars(ctx, candidate.instanceId)`
- * (`packages/engine/src/resolve/frames.ts`), which reads `paid.*` only off a `playCard` stack frame matching *this
- * ability's own* instance id (`candidate.instanceId`, i.e. Honed Technique itself) — never off the event's target
- * (the Aggression Attack event actually being played). Honed Technique is never itself being played when its
- * interrupt fires, so `varOf("paid.mental")`/`paidWith("mental")` read empty here, and no DSL value resolves "the
- * *event's* own paid vars" from a third-party card's ability frame. No other card in the pool so far needs a
- * third-party interrupt to read a different card's own payment (confirmed by grepping `packages/content/src/data`
- * for "if you paid for that" — only this card matches), so this is reported as a precise gap rather than
- * special-cased: `abilityFrame`/`playPaymentVars` would need to seed `paid.*` from the *triggering event's* played
- * instance for an interrupt on `cardBeingPlayed`/`cardPlayed`, not only from the ability's own instance. Not
- * registered here; `28017.honed-technique-interrupt` is unscripted.
+ * **Honed Technique (28017)** — "Interrupt: When you play an Aggression Attack event, if you paid for that event using
+ * a [mental] resource, increase the amount of damage that event deals by its printed cost." `on.youPlay(query("event",
+ * { aspect: "aggression", trait: ATTACK }))` is the `cardBeingPlayed` interrupt point before the event's own abilities
+ * resolve, and `modifyCardEffect` on `eventTarget` is Embiggen!'s own "increase the amount of damage that event deals"
+ * (`wave1/msm/kit.ts` `05010.embiggen-interrupt`): every instance of damage the event deals is increased (RRG 1.8
+ * "Event", p. 19; FAQ "Embiggen (#10)", p. 59), by `printedCostOf(eventTarget)`. "If you paid for that event" is
+ * `paidWith("mental", eventTarget)`: with `of`, the predicate reads the paid vars of the event's own play in progress
+ * (`playPaymentVars`, `packages/engine/src/stack.ts`) rather than this upgrade's own ability frame, which never has a
+ * payment (Honed Technique is already in play, not the card being played). A [wild] resource counts, as for every
+ * `paidWith` (RRG 1.8 "Wild Resource", p. 48). The condition is an `ifThen` inside the effect (the `qsv`/`scw`
+ * `paidWith` precedent), so the optional interrupt is still offered, as a no-op, for an event paid without [mental].
+ * No Aggression Attack event in the pool prints an X cost, so "its printed cost" is always a number here.
  *
  * **Moon Girl (28018)** — "Play only if your identity has the champion or genius trait": `PlayRestrictions.
  * requiresIdentityTrait` (`packages/content/src/schema/index.ts`) is a single trait string, which can't express an
@@ -206,6 +205,15 @@ export const NOVA_SUPPORT_UPGRADES_ALLIES = defineAbilities({
     on.youPlayedCard(query("event", { trait: ATTACK })),
     { cost: exhaustThis, limit: maxOnePerTriggeringInstance },
     modifyStat("atk", 1, yourIdentity, "endOfPhase"),
+  ),
+
+  "28017.honed-technique-interrupt": interrupt(
+    on.youPlay(query("event", { aspect: "aggression", trait: ATTACK })),
+    ifThen(paidWith("mental", eventTarget), {
+      kind: "modifyCardEffect",
+      card: eventTarget,
+      damage: printedCostOf(eventTarget),
+    }),
   ),
 
   "28018.moon-girl-constant": constant(playOnlyIf(anyOf(youHaveTrait(CHAMPION), youHaveTrait(GENIUS)))),

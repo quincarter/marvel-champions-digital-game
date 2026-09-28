@@ -1,12 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { cardId, trait } from "@mc/content";
-import { applyCommand, handSize, statBonus, traitsOf, type InstanceId } from "@mc/engine";
+import { cardId, encounterSetId, trait, type EncounterSetId } from "@mc/content";
+import { applyCommand, cardsInPlay, handSize, statBonus, traitsOf, type GameState, type InstanceId } from "@mc/engine";
 import {
   answer,
   endTurn,
   firstLegal,
   identityOf,
   inst,
+  instancesOf,
   moveToHand,
   P1,
   P2,
@@ -23,7 +24,7 @@ import {
   use,
   type Picker,
 } from "../../testing/harness.js";
-import { moveToDiscard, playFromHand, withForm } from "../../testing/staging.js";
+import { driveEventsPicking, moveToDiscard, playFromHand, withForm } from "../../testing/staging.js";
 import { WAVE5_DEPS } from "../index.js";
 import { startWave5Game } from "../testing.js";
 import { wave5Scenario, wave5StarterDeckSetup } from "../setup.js";
@@ -226,6 +227,94 @@ describe("Fluid Motion (upgrade, 28016)", () => {
     );
     const identity = identityOf(after, P1);
     expect(statBonus(after, WAVE5_DEPS, identity, "atk")).toBe(0); // Already exhausted: nothing to offer.
+  });
+});
+
+describe("Honed Technique (upgrade, 28017)", () => {
+  const HONED = "28017.honed-technique-interrupt";
+  // Extra copies so every payment below names real icons: [mental] Lightspeed Flight 28004, Jesse Alexander 28008,
+  // Supernova Helmet 28009; [physical] Ms. Marvel 28002, Forcefield Projection 28003, Champions Mobile Bunker 28020.
+  // Uppercut (Core 01054, Aggression Attack, cost 3, "Deal 5 damage to an enemy") and Melee (`msm` 05030, Aggression
+  // Attack, cost 3, "Deal 3 damage to an enemy. Deal 3 damage to another enemy.") are off-precon.
+  const EXTRAS = ["28017", "01054", "05030", "18013", "28004", "28008", "28009", "28013", "28002", "28003", "28020"];
+  const game = (seed: number, modularSetIds?: readonly EncounterSetId[]) =>
+    run(
+      startWave5Game(
+        novaScenarioWithExtras("rhino", { seed, extraCodes: EXTRAS, ...(modularSetIds ? { modularSetIds } : {}) }),
+      ),
+      toHero(P1),
+    );
+
+  /** Honed Technique in play, paid for with three [mental] icons (its Requirement is [mental][mental]). */
+  const withHoned = (state: GameState) => {
+    const given = moveToHand(state, P1, "28017", "28004", "28008", "28009");
+    const [honed, ...payment] = given.ids as [InstanceId, ...InstanceId[]];
+    const after = settle(runWith(WAVE5_DEPS, given.state, play(P1, honed, payment)), firstLegal, undefined, WAVE5_DEPS);
+    expect(playerOf(after, P1).playArea.concat(inst(after, identityOf(after, P1)).attachments ?? [])).toContain(honed);
+    return after;
+  };
+
+  /** Plays `code` paid with `payWith` (card codes), accepting Honed Technique; reports whether it was offered. */
+  const playEvent = (state: GameState, code: string, payWith: readonly string[]) => {
+    const given = moveToHand(state, P1, code, ...payWith);
+    const [event, ...payment] = given.ids as [InstanceId, ...InstanceId[]];
+    let offered = false;
+    const picker = accepting(HONED);
+    const { state: after, events } = driveEventsPicking(
+      WAVE5_DEPS,
+      given.state,
+      (s) => {
+        if (s.pendingChoice?.options.some((o) => o.optionId.endsWith(HONED))) offered = true;
+        return picker(s);
+      },
+      play(P1, event, payment),
+    );
+    const dealt = events.flatMap((e) =>
+      e.type === "damageDealt" ? [{ target: e.targetInstanceId, amount: e.amount }] : [],
+    );
+    return { state: after, dealt, offered };
+  };
+
+  it(`${"28017.honed-technique-interrupt"}: paid with a [mental] resource, an Aggression Attack event deals its printed cost more`, () => {
+    const state = withHoned(game(1));
+    const villain = state.villains[0]!.instanceId;
+    const { dealt, offered } = playEvent(state, "01054", ["28004", "28002", "28003"]); // Uppercut, cost 3.
+    expect(offered).toBe(true);
+    expect(dealt).toEqual([{ target: villain, amount: 8 }]); // 5 + printed cost 3.
+  });
+
+  it("28017.honed-technique-interrupt: paid without a [mental] resource, the damage is unchanged", () => {
+    const state = withHoned(game(2));
+    const villain = state.villains[0]!.instanceId;
+    const { dealt } = playEvent(state, "01054", ["28002", "28003", "28020"]); // All [physical].
+    expect(dealt).toEqual([{ target: villain, amount: 5 }]);
+  });
+
+  it("28017.honed-technique-interrupt: not offered for a non-Aggression Attack event, nor an Aggression non-Attack event", () => {
+    const state = withHoned(game(3));
+    const villain = state.villains[0]!.instanceId;
+    // Pot Shot (28005): Nova's own hero-aspect Attack event, cost 2, "Deal 4 damage to an enemy".
+    const potShot = playEvent(state, "28005", ["28004", "28008"]);
+    expect(potShot.offered).toBe(false);
+    expect(potShot.dealt).toEqual([{ target: villain, amount: 4 }]);
+    // Plan of Attack (`gam` 18013): an Aggression Tactic event, cost 0.
+    expect(playEvent(state, "18013", []).offered).toBe(false);
+  });
+
+  it("28017.honed-technique-interrupt: every damage instance of a multi-target event goes up (Melee, FAQ 'Embiggen (#10)')", () => {
+    // Radioactive Man (Core 01129, Masters of Evil): 7 hit points, no Guard, revealed in the villain phase behind an
+    // Advance boost card.
+    const hero = game(4, [encounterSetId("masters_of_evil")]);
+    const stacked = stackEncounterDeck(hero, "01186", "01129");
+    const nextRound = settle(runWith(WAVE5_DEPS, stacked, endTurn(P1)), firstLegal, undefined, WAVE5_DEPS);
+    const minion = instancesOf(nextRound, "01129").find((id) => cardsInPlay(nextRound).includes(id))!;
+    expect(minion).toBeDefined();
+    const state = withHoned(nextRound);
+    const villain = state.villains[0]!.instanceId;
+    const { dealt } = playEvent(state, "05030", ["28013", "28002", "28003"]); // Melee, cost 3; No Quarter is [mental].
+    // RRG 1.8 "Event" (p. 19): each instance of damage is increased by the printed cost 3.
+    expect(dealt.map((d) => d.amount)).toEqual([6, 6]);
+    expect(new Set(dealt.map((d) => d.target))).toEqual(new Set([villain, minion]));
   });
 });
 
