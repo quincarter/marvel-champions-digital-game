@@ -36,6 +36,7 @@ import {
   type DossierHero,
   type DossierLog,
   type DossierOverview,
+  type DossierReputationTrack,
   type DossierWalletSeat,
 } from "../../view/campaign-dossier-model.js";
 import { campaignRunModel, type RunIssueRow } from "../../view/campaign-run-model.js";
@@ -363,6 +364,16 @@ export class CampaignDossierScene extends Phaser.Scene {
         width: leftWidth,
         height: 0,
       });
+    }
+
+    if (loaded.overview.reputationTrack) {
+      leftY =
+        this.#reputationTrackPanel(loaded.overview.reputationTrack, {
+          x: leftX,
+          y: leftY,
+          width: leftWidth,
+          height: 0,
+        }) + 24;
     }
 
     const worldX = frame.phone ? pad : frame.width - pad - worldWidth;
@@ -809,6 +820,73 @@ export class CampaignDossierScene extends Phaser.Scene {
     box.lineStyle(2, surface.ink.hex, 1).strokeRect(rect.x, bodyTop, rect.width, y - bodyTop);
     const caption = this.add
       .text(rect.x, y + 8, ladder.caption, { ...textStyle(typeRole.body, surface.ink.hex, 0.55), fontSize: "11px" })
+      .setWordWrapWidth(rect.width);
+    return caption.y + caption.height;
+  }
+
+  /**
+   * The reputation track (MC27 p. 5/p. 22's counterpart of the bounty ladder above): a dark header bar, then one
+   * row per node with a MARKED/UNMARKED badge — never color alone (the badge always carries its own word) — and,
+   * for a marked node, its own "Setup:" text(s) underneath, so a player can read exactly what's in force without
+   * opening the Briefing.
+   */
+  #reputationTrackPanel(track: DossierReputationTrack, rect: Rect): number {
+    let y = ruleHeading(this, rect.x, rect.y, rect.width, `The ${track.label.toLowerCase()} track`);
+    const headerHeight = 30;
+    const header = this.add.graphics();
+    header.fillStyle(surface.ink.hex, 1).fillRect(rect.x, y, rect.width, headerHeight);
+    this.add
+      .text(rect.x + 10, y + headerHeight / 2, track.label.toUpperCase(), textStyle(bangers(15), surface.paper.hex))
+      .setOrigin(0, 0.5);
+    this.add
+      .text(rect.x + rect.width - 10, y + headerHeight / 2, track.valueLabel, {
+        ...textStyle(typeRole.label, signal.cost.hex, 1),
+        fontSize: "11px",
+        fontStyle: "700",
+      })
+      .setOrigin(1, 0.5);
+    y += headerHeight;
+    const bodyTop = y;
+    const box = this.add.graphics();
+    for (const node of track.nodes) {
+      this.add
+        .text(rect.x + 18, y + 21, String(node.node), {
+          ...textStyle(bangers(18), surface.ink.hex, node.marked ? 1 : 0.4),
+        })
+        .setOrigin(0.5, 0.5);
+      const badgeWidth = 90;
+      const badgeHeight = 20;
+      const badgeRect: Rect = {
+        x: rect.x + rect.width - badgeWidth - 10,
+        y: y + 11,
+        width: badgeWidth,
+        height: badgeHeight,
+      };
+      const badge = this.add.graphics();
+      badge
+        .fillStyle(node.marked ? accent.heroRed.hex : 0xd9d2bd, 1)
+        .fillRect(badgeRect.x, badgeRect.y, badgeRect.width, badgeRect.height);
+      this.add
+        .text(badgeRect.x + badgeWidth / 2, badgeRect.y + badgeHeight / 2, node.marked ? "MARKED" : "UNMARKED", {
+          ...textStyle(typeRole.label, node.marked ? surface.paper.hex : surface.ink.hex, 1),
+          fontSize: "9px",
+          fontStyle: "700",
+        })
+        .setOrigin(0.5);
+      y += 42;
+      let bottom = y;
+      for (const text of node.inForceText) {
+        const line = this.add
+          .text(rect.x + 40, bottom, text, { ...textStyle(typeRole.body, surface.ink.hex, 0.7), fontSize: "10px" })
+          .setWordWrapWidth(rect.width - 60);
+        bottom = line.y + line.height + 6;
+      }
+      y = Math.max(y, bottom);
+      this.add.rectangle(rect.x, y, rect.width, 1, surface.ink.hex, 0.15).setOrigin(0, 0.5);
+    }
+    box.lineStyle(2, surface.ink.hex, 1).strokeRect(rect.x, bodyTop, rect.width, y - bodyTop);
+    const caption = this.add
+      .text(rect.x, y + 8, track.caption, { ...textStyle(typeRole.body, surface.ink.hex, 0.55), fontSize: "11px" })
       .setWordWrapWidth(rect.width);
     return caption.y + caption.height;
   }

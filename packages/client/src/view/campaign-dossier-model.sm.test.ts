@@ -6,7 +6,7 @@
  */
 import { describe, expect, it } from "vitest";
 import { createCampaignLog, type CampaignLog } from "@mc/engine";
-import { SM_CAMPAIGN_DEFINITION } from "@mc/cards";
+import { SM_CAMPAIGN_DEFINITION, TRORS_CAMPAIGN_DEFINITION } from "@mc/cards";
 import { cardId } from "@mc/content";
 import { campaignDossierOverview } from "./campaign-dossier-model.js";
 
@@ -55,5 +55,55 @@ describe("MC27's Overview reputation-track wiring", () => {
   it("is null on a box with no pool at all (MC27 has no campaign pool)", () => {
     const overview = campaignDossierOverview(freshRecord(), SM_CAMPAIGN_DEFINITION, heroNameOf, cardName);
     expect(overview.pool).toBeNull();
+  });
+});
+
+describe("MC27's reputation track panel", () => {
+  it("lists every crossed-node threshold in printed order, marked against the live reputation value", () => {
+    const record = { ...freshRecord(), shared: { reputation: { kind: "number" as const, value: 8 } } };
+    const overview = campaignDossierOverview(record, SM_CAMPAIGN_DEFINITION, heroNameOf, cardName);
+    const track = overview.reputationTrack;
+    expect(track).not.toBeNull();
+    expect(track!.nodes.map((node) => node.node)).toEqual([1, 5, 9, 13, 17, 21, 25]);
+    expect(track!.nodes.map((node) => node.marked)).toEqual([true, true, false, false, false, false, false]);
+    expect(track!.valueLabel).toBe("8 REPUTATION");
+  });
+
+  it("shows a marked node's own repeating 'Setup:' instruction text, never an unmarked node's", () => {
+    const record = { ...freshRecord(), shared: { reputation: { kind: "number" as const, value: 5 } } };
+    const overview = campaignDossierOverview(record, SM_CAMPAIGN_DEFINITION, heroNameOf, cardName);
+    const track = overview.reputationTrack!;
+    const node1 = track.nodes.find((node) => node.node === 1)!;
+    expect(node1.inForceText).toEqual([
+      'Setup: Shuffle each card recorded in the "Osborn Tech" section of the campaign log into the encounter deck.',
+    ]);
+    const node5 = track.nodes.find((node) => node.node === 5)!;
+    expect(node5.inForceText).toEqual(["Setup: Place 1[per_hero] threat on the main scheme."]);
+    const node9 = track.nodes.find((node) => node.node === 9)!;
+    expect(node9.marked).toBe(false);
+    expect(node9.inForceText).toEqual([]);
+  });
+
+  it("is null on a box with no crossed-node track shape at all (MC10 has no reputation track)", () => {
+    const trorsLog = createCampaignLog(TRORS_CAMPAIGN_DEFINITION, {
+      id: "trors-dossier-test",
+      poolVersion: "test",
+      modes: { campaign: { campaignId: TRORS_CAMPAIGN_DEFINITION.campaignId } },
+      seats: [
+        {
+          seatNumber: 1,
+          identityCardId: cardId("01001a"),
+          deck: { identityCardId: cardId("01001a"), aspects: [], cards: [] },
+        },
+      ],
+      seed: 1,
+    });
+    const overview = campaignDossierOverview(
+      { ...trorsLog, name: "The Rise of Red Skull" },
+      TRORS_CAMPAIGN_DEFINITION,
+      heroNameOf,
+      cardName,
+    );
+    expect(overview.reputationTrack).toBeNull();
   });
 });
