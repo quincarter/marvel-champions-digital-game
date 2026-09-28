@@ -71,6 +71,33 @@ describe("Ms. Marvel (ally, 28002)", () => {
     expect(inst(after, marvel).exhausted).toBe(false); // Never offered: The Locust is an ally, not an event.
     expect(inst(after, marvel).damage).toBe(0);
   });
+
+  // Ruling, January 26, 2026 (1): Ms. Marvel's own cost ("exhaust Ms. Marvel and deal 1 damage to her") deals
+  // damage AND exhausts her, so damage is not the *only* effect on her — she remains a valid target for her own
+  // cost even while a "cannot take damage" effect (the ruling's own named example, "Go for Champions!", `ironheart`
+  // 29025) is active on her (both Ms. Marvel and Nova carry the CHAMPION trait, `29025.go-for-champions-action`'s
+  // own grant: "Each champion character in play cannot take damage until the end of the round"). The cost still
+  // exhausts her and the ability's own effect (returning the played event to hand) still resolves; only the damage
+  // half of the cost is prevented to 0, per `planCost`'s own `damageThisCard` handling never gating initiation on
+  // `cannotTakeDamage` and `abilityLacksValidTarget` (`packages/engine/src/resolve/target-validity.ts`) never
+  // scanning ability costs, only `effects`.
+  it("28002.ms-marvel-response: her own cost still exhausts her and returns the event even while she cannot take damage (Jan 26, 2026 ruling 1)", () => {
+    const hero = run(novaVsRhino(3, ["29025"]), toHero(P1));
+    const { state: withMarvel, id: marvel } = playFromHand(WAVE5_DEPS, hero, "28002", 3);
+    const { state: withWard } = playFromHand(WAVE5_DEPS, withMarvel, "29025", 3);
+    // "Go for Champions!" removed itself from the game as its own cost.
+    expect(instancesOf(withWard, "29025").every((id) => !cardsInPlay(withWard).includes(id))).toBe(true);
+    const { state: after, id: oneByOne } = playFromHand(
+      WAVE5_DEPS,
+      withWard,
+      "28014", // One by One: a cost-1 Attack event.
+      1,
+      accepting("28002.ms-marvel-response"),
+    );
+    expect(playerOf(after, P1).hand).toContain(oneByOne); // The ability's own effect still resolves.
+    expect(inst(after, marvel).exhausted).toBe(true); // The cost's exhaust half still lands.
+    expect(inst(after, marvel).damage).toBe(0); // The cost's damage half is prevented — she took none.
+  });
 });
 
 describe("Connection to the Worldmind (resource, 28007)", () => {

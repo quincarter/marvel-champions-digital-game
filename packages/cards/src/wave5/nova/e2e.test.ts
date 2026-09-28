@@ -268,3 +268,26 @@ test("2-player, standard: Nova + Ghost-Spider vs Rhino", () => {
   expect(replayed.ok).toBe(true);
   if (replayed.ok) expect(replayed.state).toEqual(result.session.state);
 }, 120_000);
+
+test("Rhino (expert), solo: Nova", () => {
+  // `wave5Scenario` falls through to `coreScenario` for a scenario with no `sm` entry (`rhino`, module docblock
+  // above); `coreScenario`'s own `difficulty: "expert"` option (RRG 1.8 "Expert Mode", p. 29 — villain stages
+  // II-III instead of I-II, the pool's own Expert I/Expert II encounter sets) is exactly `wave4/hood/e2e.test.ts`'s
+  // own "(expert)" precedent. Nova has no scenario-specific expert wrinkle of her own (no lettered stages, no
+  // `difficultySets` choice — Rhino, unlike Venom Goblin/The Hood, needs neither), so this only needs the plain
+  // `difficulty` option, played to a real outcome by the same card-name-agnostic greedy driver as the standard game
+  // above.
+  const config = novaScenario("rhino", { seed: SEED, difficulty: "expert" });
+  expect(config.difficulty).toBe("expert");
+  const created = createGame(config, WAVE5_DEPS);
+  if (!created.ok) throw new Error(`setup failed: ${created.error.message}`);
+  const result = playToOutcome(created.state, WAVE5_DEPS);
+  console.info(
+    `[wave5 e2e] Rhino (expert) — Nova: ${result.outcome ? `${result.outcome.result} (${result.outcome.reason})` : "no outcome"} in round ${result.rounds}, ${result.commands} commands`,
+  );
+  expect(result.outcome).not.toBeNull();
+  expect(result.rounds).toBeGreaterThanOrEqual(1);
+  const replayed = replay(result.session.log, WAVE5_DEPS);
+  expect(replayed.ok).toBe(true);
+  if (replayed.ok) expect(replayed.state).toEqual(result.session.state);
+}, 120_000);
