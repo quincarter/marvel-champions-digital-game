@@ -119,6 +119,13 @@ function checkCostShape(cost: AbilityCost, problems: string[]): void {
   const discard = cost.discardFromHand;
   if (discard && discard.max !== undefined && discard.max < discard.min)
     problems.push("cost discardFromHand: max must be no smaller than min");
+  if (discard?.combined) {
+    const { atLeast } = discard.combined;
+    if (!Number.isInteger(atLeast) || atLeast < 1)
+      problems.push("cost discardFromHand combined: atLeast must be a whole number of at least 1");
+    // "Any number of … cards with a combined …" still discards at least one (RRG 1.8 "Cost", p. 14).
+    if (discard.min < 1) problems.push('cost discardFromHand combined: min must be at least 1 (RRG 1.8 "Cost", p. 14)');
+  }
   const random = cost.discardRandomFromHand;
   if (random !== undefined && (!Number.isInteger(random) || random < 1))
     problems.push("cost discardRandomFromHand: must be a whole number of at least 1");

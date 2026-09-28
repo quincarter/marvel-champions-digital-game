@@ -9,10 +9,13 @@ import {
   constant,
   dealIndirectDamage,
   defineAbilities,
+  discard,
+  discardFromHandCombinedCost,
   enemyActivates,
   exhaust,
   forcedResponse,
   gainsKeyword,
+  heroAction,
   host,
   ifThen,
   inPlay,
@@ -25,6 +28,7 @@ import {
   removeCounter,
   searchAndReveal,
   selectCards,
+  self,
   superlative,
   theVillain,
   whenRevealed,
@@ -32,14 +36,13 @@ import {
   zone,
 } from "../../../dsl/index.js";
 
+const ATTACK = trait("ATTACK");
 const TECH = trait("TECH");
 
 /**
  * Goblin Gear (`sm` 27136–27141, docs/phase7-wave5.md §2.2): the recommended modular set for the Venom Goblin
  * scenario (MC27 p. 20's own scenario card lists it alongside Osborn Tech) — Advanced Glider, Concussive Bombs,
  * Incendiary Bombs, Smoke Bombs, Limitless Supply, Remote Navigation.
- *
- * **Advanced Glider's Hero Action is not implemented — engine gap, see the docblock above its own entry below.**
  */
 export const GOBLIN_GEAR = defineAbilities({
   // Advanced Glider (27136, attachment; ATK/boost icons are data, "Attach to the villain" is the ordinary implicit
@@ -55,13 +58,15 @@ export const GOBLIN_GEAR = defineAbilities({
     enemyActivates(host, { against: you, afterCurrentActivation: true }),
   ),
   // Advanced Glider — [star] Hero Action: Discard any number of attack cards from your hand with a combined
-  // resource cost of 3 or more → discard this card. **Skipped — engine gap**: every existing cost primitive that
-  // picks cards from hand (`discardFromHandCost`, `AbilityCost.discardFromHand`) counts *cards*, min/max, never a
-  // running sum of the chosen cards' own printed resource cost; there is also no effect-side selector that sums a
-  // player's own free choice of hand cards against a target total the way `AbilityCost` would need to validate the
-  // payment. Needs a new `AbilityCost` shape (e.g. `discardFromHandCombinedCost`) that lets the player pick any
-  // number of matching hand cards and pays only if their summed printed cost meets a minimum — a
-  // `game-rules-architect` primitive, not expressible by composing what exists today.
+  // resource cost of 3 or more → discard this card. "Attack cards" are cards with the Attack trait: the scan
+  // (`assets/card-art/bundles/cards/27136.png`) prints ATTACK in the bold italics RRG 1.8 "Traits" (p. 45) gives
+  // traits. The combined measure is each card's printed resource cost (RRG 1.8 "Cost", p. 13), an X cost counting 0
+  // (RRG 1.8 "Non-Numerical Variable", p. 30); `DiscardCombined` in `packages/engine/src/abilities.ts`. The player
+  // picks the cards, and the action is offered only while their Attack cards in hand can reach 3.
+  "27136.advanced-glider-action": heroAction(
+    { cost: discardFromHandCombinedCost({ trait: ATTACK }, { measure: "printedCost", atLeast: 3 }) },
+    discard(self),
+  ),
 
   // Concussive Bombs (27137, attachment; ATK+1/boost icons are data) — Attach to the villain (implicit). Uses (2
   // bomb counters). [star] Forced Response: After the villain attacks you, remove 1 bomb counter from here →
@@ -142,5 +147,3 @@ export const GOBLIN_GEAR = defineAbilities({
   ),
   "27141.boost": boost(modifyAttack({ extraBoostCards: 2 })),
 });
-
-export const GOBLIN_GEAR_SKIPPED = ["27136.advanced-glider-action"] as const;

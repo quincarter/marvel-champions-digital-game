@@ -1032,6 +1032,24 @@ export interface CardZoneQuery {
 }
 
 /**
+ * A threshold the cards picked for a `discardFromHand` cost must reach *together*: the sum of `measure` over every
+ * pick is at least `atLeast`, and the player chooses which (and how many) matching cards make it up.
+ *
+ * `printedCost` is each card's printed resource cost (RRG 1.8 "Cost", p. 13: "A card's resource cost is the numerical
+ * value that must be paid to play the card"), never the resources it would generate, and never a cost modified by
+ * what it would cost to play right now. A card printed with an X cost counts as 0: X is only defined while that card
+ * is being played (RRG 1.8 "Non-Numerical Variable", p. 30: an undefined X "is equal to 0"), and card data already
+ * stores it as `cost: 0` with `specialCost: "X"`; a card with no printed cost at all (a resource) also adds 0.
+ *
+ * Paid in full or not at all (RRG 1.8 "Cost", p. 13): picks summing below `atLeast` are refused, so a hand whose
+ * matching cards can't reach it can't initiate the ability and `legalActions` never offers it.
+ */
+export interface DiscardCombined {
+  readonly measure: "printedCost";
+  readonly atLeast: number;
+}
+
+/**
  * What an ability costs to initiate (RRG "Cost"). Every component is paid at
  * once when the ability is initiated; if any component can't be paid in full,
  * the ability can't be initiated. Cards the player picks as part of a cost are
@@ -1184,12 +1202,17 @@ export interface AbilityCost {
    * `min` matching cards cannot pay the cost at all, so the ability is never offered (RRG 1.8 "Initiating Abilities",
    * p. 24, steps 3 and 5; "Cost", p. 13: a cost is paid in full). The effect-side sibling is
    * `EffectSpec discardFromHand.filter`. docs/phase7-wave2.md §19.
+   *
+   * `combined` adds a threshold over the picked cards together rather than a count: "Discard any number of attack
+   * cards from your hand with a combined resource cost of 3 or more →" (Advanced Glider, `sm` 27136) is `{ min: 1,
+   * filter: { trait: ATTACK }, combined: { measure: "printedCost", atLeast: 3 } }`. See `DiscardCombined`.
    */
   readonly discardFromHand?: {
     readonly min: number;
     readonly max?: number;
     readonly bind?: string;
     readonly filter?: TargetQuery;
+    readonly combined?: DiscardCombined;
   };
   /**
    * "Pay the printed cost of an ally in any player's discard pile →" (Make the

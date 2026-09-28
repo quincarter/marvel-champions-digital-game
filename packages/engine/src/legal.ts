@@ -23,6 +23,7 @@ import {
   paymentOptions,
   paymentsFromOptionIds,
   defaultInPlayPicks,
+  discardCombinedValue,
   planCost,
   playableFromAttachment,
   playableFromDiscard,
@@ -277,12 +278,29 @@ function discardPicks(
   cost: AbilityCost | undefined,
 ): readonly InstanceId[] {
   const min = cost?.discardFromHand?.min ?? 0;
-  if (min === 0) return [];
+  const combined = cost?.discardFromHand?.combined;
+  if (min === 0 && !combined) return [];
   const filter = cost?.discardFromHand?.filter;
   const context: EffectContext = { selfInstanceId: source, controllerId: playerId, event: null, bindings: {}, deps };
   const hand = (getPlayer(state, playerId)?.hand ?? [])
     .filter((id) => id !== source)
     .filter((id) => !filter || matchesQuery(state, id, filter, context));
+  if (combined) {
+    // "… with a combined resource cost of 3 or more" (`DiscardCombined`): the fewest cards that reach it, largest
+    // share first. A hand whose matching cards can't reach it yields all of them, which the engine refuses — so
+    // `legalActions` never offers the ability. The player may pick any other subset that reaches it.
+    const largest = [...hand].sort(
+      (a, b) => discardCombinedValue(state, b, combined) - discardCombinedValue(state, a, combined),
+    );
+    const picks: InstanceId[] = [];
+    let total = 0;
+    for (const id of largest) {
+      if (total >= combined.atLeast && picks.length >= min) break;
+      picks.push(id);
+      total += discardCombinedValue(state, id, combined);
+    }
+    return picks;
+  }
   const cheapest = [...hand].sort(
     (a, b) => resourceCount(state, a) - resourceCount(state, b) || isResourceCard(state, a) - isResourceCard(state, b),
   );

@@ -2,7 +2,9 @@ import { cardId, encounterSetId } from "@mc/content";
 import {
   activeEncounterDeckId,
   activeVillain,
+  applyCommand,
   hasKeyword,
+  legalActions,
   type GameEvent,
   type GameState,
   type InstanceId,
@@ -20,6 +22,7 @@ import {
   settle,
   stackEncounterDeck,
   toHero,
+  use,
   P1,
 } from "../../../testing/harness.js";
 import { driveEvents, encounterCardInVillainArea } from "../../../testing/staging.js";
@@ -118,6 +121,71 @@ describe("Advanced Glider (27136)", () => {
         e.type === "attackResolved" && e.enemyInstanceId === villain && e.targetInstanceId === identity,
     );
     expect(attacks).toHaveLength(1);
+  });
+});
+
+/**
+ * Advanced Glider attached to the villain, P1 in hero form holding exactly `codes` (Ghost-Spider's precon: Ghost
+ * Kick 27002 is a cost-2 ATTACK event, Return the Favor 27015 a cost-0 ATTACK event, Phantom Flip 27004 a cost-2
+ * THWART event).
+ */
+function gliderBoard(...codes: readonly string[]) {
+  const state = game();
+  const villain = activeVillain(state).instanceId;
+  const attached = attachToHost(asHero(state), "27136", villain);
+  const moved = moveToHand(attached.state, P1, ...codes);
+  const keep = new Set(moved.ids);
+  const board: GameState = {
+    ...moved.state,
+    players: moved.state.players.map((p) =>
+      p.playerId === P1 ? { ...p, hand: p.hand.filter((id) => keep.has(id)) } : p,
+    ),
+  };
+  return { state: board, glider: attached.id, hand: moved.ids };
+}
+
+const gliderOffered = (state: GameState, glider: InstanceId): boolean => {
+  const actions = legalActions(state, P1, WAVE5_DEPS);
+  if (actions.kind !== "turn") throw new Error("not a turn");
+  return actions.legal.some(
+    (a) =>
+      a.action.kind === "useAbility" &&
+      a.action.instanceId === glider &&
+      a.action.abilityId === "27136.advanced-glider-action",
+  );
+};
+
+describe("Advanced Glider (27136) Hero Action", () => {
+  const glide = (glider: InstanceId, discard: readonly InstanceId[]) =>
+    use(P1, glider, "27136.advanced-glider-action", [], { discard });
+
+  it("27136.advanced-glider-action: discarding attack cards costing 3 or more discards the glider, and exactly those cards", () => {
+    const { state, glider, hand } = gliderBoard("27002", "27002", "27002", "27004");
+    const [kickA, kickB, kickC, flip] = hand as [InstanceId, InstanceId, InstanceId, InstanceId];
+    expect(gliderOffered(state, glider)).toBe(true);
+    const after = settle(runWave5(state, glide(glider, [kickA, kickB])), firstLegal, undefined, WAVE5_DEPS);
+    const pile = after.encounterDecks[activeEncounterDeckId(after)]!;
+    expect(pile.discard).toContain(glider);
+    expect(inst(after, glider).attachedTo).toBeNull();
+    expect(inst(after, activeVillain(after).instanceId).attachments).not.toContain(glider);
+    expect(playerOf(after, P1).discard).toEqual(expect.arrayContaining([kickA, kickB]));
+    expect([...playerOf(after, P1).hand].sort()).toEqual([kickC, flip].sort());
+  });
+
+  it("is not offered while the attack cards in hand total less than 3 (Ghost Kick 2 + Return the Favor 0)", () => {
+    const { state, glider, hand } = gliderBoard("27002", "27015", "27004");
+    expect(gliderOffered(state, glider)).toBe(false);
+    const result = applyCommand(state, glide(glider, hand.slice(0, 2)), WAVE5_DEPS);
+    expect(result.ok).toBe(false);
+  });
+
+  it("a non-attack card can't pay it, even when its cost would reach 3 (Ghost Kick 2 + Phantom Flip 2)", () => {
+    const { state, glider, hand } = gliderBoard("27002", "27004");
+    expect(gliderOffered(state, glider)).toBe(false);
+    const result = applyCommand(state, glide(glider, hand), WAVE5_DEPS);
+    if (result.ok) throw new Error("expected a rejection");
+    expect(result.error.code).toBe("no_valid_target");
+    expect(inst(state, glider).attachedTo).toBe(activeVillain(state).instanceId);
   });
 });
 

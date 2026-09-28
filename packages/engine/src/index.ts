@@ -98,6 +98,7 @@ export { EngineInvariantError } from "./errors.js";
 
 export type {
   AbilityCost,
+  DiscardCombined,
   InPlayCostPick,
   AbilityDefinition,
   AbilityLabel,

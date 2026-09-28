@@ -1,6 +1,7 @@
 import type { KeywordInstance, SchemeIcon, Trait } from "@mc/content";
 import type {
   AbilityCost,
+  DiscardCombined,
   AbilityDefinition,
   AbilityLabel,
   AbilityLimit,
@@ -972,6 +973,20 @@ export const discardFromHandCost = (min: number, max?: number, bind?: string, fi
     ...(bind ? { bind } : {}),
     ...(filter ? { filter } : {}),
   },
+});
+/**
+ * "Discard any number of [matching] cards from your hand with a combined [measure] of N or more →": the player picks
+ * any number (at least one, RRG 1.8 "Cost", p. 14) of hand cards matching `filter`, and the cost is paid only if the
+ * picks' summed `measure` reaches `atLeast` (`DiscardCombined`, `packages/engine/src/abilities.ts`). Advanced Glider
+ * (`sm` 27136): `discardFromHandCombinedCost({ trait: ATTACK }, { measure: "printedCost", atLeast: 3 })`. The cards
+ * are bound to slot `discard` and their count to `bind`, as with `discardFromHandCost`.
+ */
+export const discardFromHandCombinedCost = (
+  filter: TargetQuery | undefined,
+  combined: DiscardCombined,
+  bind?: string,
+): AbilityCost => ({
+  discardFromHand: { min: 1, ...(bind ? { bind } : {}), ...(filter ? { filter } : {}), combined },
 });
 /**
  * "Discard N card(s) at random from your hand →" (Magic Crowbar: `[exhaustYourHero, discardRandomFromHandCost(1)]`).

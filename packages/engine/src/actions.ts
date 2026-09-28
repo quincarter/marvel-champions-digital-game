@@ -42,7 +42,7 @@ import {
   patrolledBy,
   restrictedLimitFor,
 } from "./rules.js";
-import { inPlayPicksOf, type InPlayCostMode, type InPlayCostPick } from "./abilities.js";
+import { inPlayPicksOf, type DiscardCombined, type InPlayCostMode, type InPlayCostPick } from "./abilities.js";
 import type { ValueSpec } from "./spec.js";
 import type { TriggerEvent } from "./trigger-events.js";
 import { instanceId as asInstanceId, type InstanceId, type PlayerId } from "./ids.js";
@@ -1366,6 +1366,17 @@ export function planCost(
       }
     }
     if (new Set(picks).size !== picks.length) return { code: "invalid_choice", message: "duplicate discard choice" };
+    // "… with a combined resource cost of 3 or more →" (Advanced Glider, `sm` 27136): the picks together must reach it.
+    const combined = cost.discardFromHand.combined;
+    if (combined) {
+      const total = discardCombinedTotal(state, picks, combined);
+      if (total < combined.atLeast) {
+        return {
+          code: "invalid_choice",
+          message: `the discarded cards' combined ${combined.measure} is ${total}; this cost needs ${combined.atLeast} or more`,
+        };
+      }
+    }
     bindings.discard = picks;
     if (bind) vars[bind] = picks.length;
   }
@@ -3085,3 +3096,22 @@ export function endTurn(ctx: Ctx, command: Command & { type: "endTurn" }): Engin
 
 export { isFault as isPriceFault };
 export type { PriceFault };
+
+/**
+ * The sum a `discardFromHand` cost's `combined` threshold measures over these cards (`DiscardCombined`): each card's
+ * printed resource cost, read off its card data wherever it is. An X cost is stored as 0 and a card with no printed
+ * cost (a resource) adds 0.
+ */
+export function discardCombinedTotal(state: GameState, ids: readonly InstanceId[], combined: DiscardCombined): number {
+  return ids.reduce((sum, id) => sum + discardCombinedValue(state, id, combined), 0);
+}
+
+/** One card's share of `discardCombinedTotal`. */
+export function discardCombinedValue(state: GameState, id: InstanceId, combined: DiscardCombined): number {
+  switch (combined.measure) {
+    case "printedCost": {
+      const card = cardOf(state, id);
+      return card && "cost" in card && typeof card.cost === "number" ? card.cost : 0;
+    }
+  }
+}
