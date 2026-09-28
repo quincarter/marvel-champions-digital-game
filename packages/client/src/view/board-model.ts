@@ -17,6 +17,7 @@ import {
   getInstance,
   getPlayer,
   identityFace,
+  iconsOn,
   isMinion,
   traitsOf,
   keywordsOf,
@@ -906,7 +907,7 @@ function statTiles(
   return profileStatTiles(profile, printed, rows, current, max);
 }
 
-export function schemePanel(state: GameState, id: InstanceId, _deps: EngineDeps, isMain: boolean): SchemePanel {
+export function schemePanel(state: GameState, id: InstanceId, deps: EngineDeps, isMain: boolean): SchemePanel {
   const instance = getInstance(state, id);
   if (!instance) throw new Error(`no card instance ${id}`);
   const card = cardOf(state, id);
@@ -934,8 +935,9 @@ export function schemePanel(state: GameState, id: InstanceId, _deps: EngineDeps,
       target: scale(stage.targetThreat, state.startingPlayerCount),
       meterMax: scale(stage.targetThreat, state.startingPlayerCount),
       isMain: true,
-      // Crisis is a printed icon in the threat box (RRG "Crisis Icon"), not a keyword.
-      crisis: stage.icons.includes("crisis"),
+      // Crisis is a printed (or gained) icon in the threat box (RRG "Crisis Icon"), not a keyword; `iconsOn` reads
+      // 0 while the scheme's text box is blanked.
+      crisis: iconsOn(state, deps, id, "crisis") > 0,
       accelerationTokens: accel,
       tuckedCount: instance.tucked.length,
       art: artFor(card, faceOf(state, id)),
@@ -943,8 +945,9 @@ export function schemePanel(state: GameState, id: InstanceId, _deps: EngineDeps,
     };
   }
 
-  // Crisis is a printed icon in the threat box (RRG "Crisis Icon"), not a keyword.
-  const crisis = card?.type === "side_scheme" ? card.icons.includes("crisis") : false;
+  // Crisis is a printed (or gained) icon in the threat box (RRG "Crisis Icon"), not a keyword; `iconsOn` reads 0
+  // while the scheme's text box is blanked.
+  const crisis = iconsOn(state, deps, id, "crisis") > 0;
 
   // A signature side scheme (The Wrecking Crew's Thunderstruck, Pile It On!, …) is tied to one villain (`VillainState.
   // signatureSideSchemeId`), and the table has to say whose: with four in play at once under one "side schemes"
