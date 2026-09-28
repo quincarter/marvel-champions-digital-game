@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { trait } from "@mc/content";
+import { cardId, trait } from "@mc/content";
 import {
+  activeAbilityRefs,
+  canAttack,
   hasKeyword,
   keywordTotal,
   maxHitPoints,
@@ -10,7 +12,10 @@ import {
   type InstanceId,
 } from "@mc/engine";
 import {
+  answer,
+  endTurn,
   firstLegal,
+  identityOf,
   inst,
   moveToHand,
   P1,
@@ -24,8 +29,8 @@ import {
   use,
   type Picker,
 } from "../../testing/harness.js";
-import { playFromHand } from "../../testing/staging.js";
-import { WAVE5_DEPS } from "../index.js";
+import { encounterCardInVillainArea, playFromHand } from "../../testing/staging.js";
+import { WAVE5_CARDS, WAVE5_DEPS } from "../index.js";
 import { startWave5Game } from "../testing.js";
 import { ironheartScenario } from "./support.js";
 
@@ -298,11 +303,123 @@ describe("Snowguard (ally, 29023)", () => {
 });
 
 describe("Vivian (ally, 29024)", () => {
-  it(
-    "29024.vivian-response: unscripted — engine gap (module docblock): TargetQuery has no field reading a " +
-      'candidate\'s own keywords, needed for "or non-permanent side scheme"',
-    () => {
-      expect(WAVE5_DEPS.abilities["29024.vivian-response"]).toBeUndefined();
-    },
-  );
+  /**
+   * Ironheart (hero form) vs Rhino with one of each kind of candidate in play (test surgery): Armored Rhino Suit
+   * (01098) attached to Rhino; Hydra Mercenary (01101, guard, non-Elite) and Sandman (01102, Elite) engaged with P1;
+   * Breakin' & Takin' (01107) and a permanent side scheme — Light at the End (`sm` 27102a), standing in for a Crowd
+   * Control (01108) copy — in the villain area.
+   */
+  function vivianBoard(seed: number) {
+    const hero = run(ironheartVsRhino(seed), toHero(P1));
+    const rhino = hero.villains[0]!.instanceId;
+    const suit = encounterCardInVillainArea(hero, "01098");
+    const merc = encounterCardInVillainArea(suit.state, "01101");
+    const sandman = encounterCardInVillainArea(merc.state, "01102");
+    const breakin = encounterCardInVillainArea(sandman.state, "01107", 2);
+    const light = encounterCardInVillainArea(breakin.state, "01108", 2);
+    const lightCard = WAVE5_CARDS.find((card) => card.id === cardId("27102a"))!;
+    const s = light.state;
+    const state: GameState = {
+      ...s,
+      cardPool: { ...s.cardPool, [lightCard.id]: lightCard },
+      villainArea: s.villainArea.filter((id) => id !== suit.id && id !== merc.id && id !== sandman.id),
+      players: s.players.map((p) => (p.playerId === P1 ? { ...p, playArea: [...p.playArea, merc.id, sandman.id] } : p)),
+      instances: {
+        ...s.instances,
+        [rhino]: { ...inst(s, rhino), attachments: [...inst(s, rhino).attachments, suit.id] },
+        [suit.id]: { ...inst(s, suit.id), attachedTo: rhino },
+        [merc.id]: { ...inst(s, merc.id), engagedWith: P1 },
+        [sandman.id]: { ...inst(s, sandman.id), engagedWith: P1 },
+        [light.id]: { ...inst(s, light.id), cardId: lightCard.id },
+      },
+    };
+    return { state, rhino, suit: suit.id, merc: merc.id, sandman: sandman.id, breakin: breakin.id, light: light.id };
+  }
+
+  /** Plays Vivian, accepts her Response, and stops at its chooseTarget prompt. */
+  function toVivianChoice(state: GameState) {
+    const given = moveToHand(state, P1, "29024");
+    const [vivian] = given.ids as [InstanceId];
+    const reached = settle(
+      runWith(WAVE5_DEPS, given.state, play(P1, vivian, payWith(given.state, P1, 2, [vivian]))),
+      accepting("29024.vivian-response"),
+      (s) => s.pendingChoice?.prompt.kind === "chooseTarget",
+      WAVE5_DEPS,
+    );
+    const choice = reached.pendingChoice;
+    if (choice?.prompt.kind !== "chooseTarget") throw new Error("Vivian's Response did not reach its target choice");
+    return { state: reached, vivian, options: choice.options.map((o) => o.optionId) };
+  }
+  const offers = (options: readonly string[], id: InstanceId) => options.some((o) => o === id || o.endsWith(`:${id}`));
+  const optionFor = (options: readonly string[], id: InstanceId) =>
+    options.find((o) => o === id || o.endsWith(`:${id}`))!;
+  const blanksOf = (state: GameState) => state.lastingEffects.filter((e) => e.kind === "blankTextBox");
+
+  /** Picks `target` at Vivian's choice and settles everything after it. */
+  function vivianBlanks(seed: number, pickTarget: (board: ReturnType<typeof vivianBoard>) => InstanceId) {
+    const board = vivianBoard(seed);
+    const { state, options } = toVivianChoice(board.state);
+    const target = pickTarget(board);
+    const after = settle(answer(state, [optionFor(options, target)], WAVE5_DEPS), firstLegal, undefined, WAVE5_DEPS);
+    return { board, target, after };
+  }
+
+  it("29024.vivian-response offers an attachment, a non-Elite minion and a non-permanent side scheme — never an Elite minion or a permanent side scheme", () => {
+    const board = vivianBoard(1);
+    const { options } = toVivianChoice(board.state);
+    expect(offers(options, board.suit)).toBe(true);
+    expect(offers(options, board.merc)).toBe(true);
+    expect(offers(options, board.breakin)).toBe(true);
+    expect(offers(options, board.sandman)).toBe(false); // Elite.
+    expect(offers(options, board.light)).toBe(false); // Permanent.
+    expect(offers(options, board.rhino)).toBe(false); // The villain is none of the three.
+    expect(offers(options, board.state.mainScheme.instanceId)).toBe(false);
+  });
+
+  it("29024.vivian-response on an attachment: Armored Rhino Suit's text box is blank until the end of the round, its Armor trait kept", () => {
+    const { board, after } = vivianBlanks(1, (b) => b.suit);
+    expect(activeAbilityRefs(board.state, board.suit, WAVE5_DEPS).length).toBeGreaterThan(0);
+    expect(blanksOf(after)).toEqual([
+      expect.objectContaining({
+        targets: [board.suit],
+        sourceCardId: cardId("29024"),
+        duration: { kind: "endOfRound" },
+      }),
+    ]);
+    expect(activeAbilityRefs(after, board.suit, WAVE5_DEPS)).toEqual([]);
+    expect(traitsOf(after, board.suit, WAVE5_DEPS)).toContain(trait("ARMOR"));
+    // Only the chosen card.
+    expect(hasKeyword(after, board.merc, "guard", WAVE5_DEPS)).toBe(true);
+  });
+
+  it("29024.vivian-response on a non-Elite minion: Hydra Mercenary loses guard (a printed keyword) but keeps its Hydra trait", () => {
+    const { board, after } = vivianBlanks(2, (b) => b.merc);
+    expect(hasKeyword(board.state, board.merc, "guard", WAVE5_DEPS)).toBe(true);
+    expect(blanksOf(after)).toEqual([
+      expect.objectContaining({ targets: [board.merc], duration: { kind: "endOfRound" } }),
+    ]);
+    expect(hasKeyword(after, board.merc, "guard", WAVE5_DEPS)).toBe(false);
+    expect(traitsOf(after, board.merc, WAVE5_DEPS)).toContain(trait("HYDRA"));
+    // With guard blank, Ironheart may attack Rhino again (RRG 1.8 "Guard").
+    expect(canAttack(board.state, identityOf(board.state, P1), board.rhino, WAVE5_DEPS)).toBe(false);
+    expect(canAttack(after, identityOf(after, P1), board.rhino, WAVE5_DEPS)).toBe(true);
+    expect(activeAbilityRefs(after, board.suit, WAVE5_DEPS).length).toBeGreaterThan(0);
+  });
+
+  it("29024.vivian-response on a non-permanent side scheme: Breakin' & Takin' is blank until the end of the round, and not after", () => {
+    const { board, after } = vivianBlanks(3, (b) => b.breakin);
+    expect(activeAbilityRefs(board.state, board.breakin, WAVE5_DEPS).length).toBeGreaterThan(0);
+    expect(blanksOf(after)).toEqual([
+      expect.objectContaining({ targets: [board.breakin], duration: { kind: "endOfRound" } }),
+    ]);
+    expect(activeAbilityRefs(after, board.breakin, WAVE5_DEPS)).toEqual([]);
+    const nextRound = settle(
+      runWith(WAVE5_DEPS, after, endTurn(P1)),
+      firstLegal,
+      (s) => s.round > after.round,
+      WAVE5_DEPS,
+    );
+    expect(nextRound.round).toBe(after.round + 1);
+    expect(blanksOf(nextRound)).toEqual([]);
+  });
 });

@@ -32,6 +32,7 @@ import {
 
 const CHAMPION = trait("CHAMPION");
 const AERIAL = trait("AERIAL");
+const ELITE = trait("ELITE");
 
 /**
  * Ironheart's non-signature allies (`ironheart` 29004-29024, docs/phase7-wave5.md's Ironheart row), all of them in
@@ -92,17 +93,13 @@ const AERIAL = trait("AERIAL");
  *
  * **Vivian (29024)** — "Hero Response: After Vivian enters play, choose an attachment, non-Elite minion, or
  * non-permanent side scheme. Until the end of the round, treat that card's printed text box as if it were blank
- * (except for Traits)." **Not scripted — engine gap, reported rather than hacked around**: `TargetQuery`
- * (`packages/engine/src/spec.ts`) has `withoutTrait` (so "non-Elite minion" alone is sound, the Red Skull "non-Elite
- * minion" precedent, `wave2/trors/red-skull.ts`: `query("minion", { withoutTrait: ELITE })`), but no field at all
- * reads a candidate's own keywords ("permanent" is a `KeywordInstance`, `packages/content/src/schema/keywords.ts`,
- * not a trait) — the closest existing shape, `AttachesTo`'s `{ kind: "qualified", withoutKeyword: "permanent" }`
- * (Containment Strategy, `angel` 42019; Adamantium Claws, `x23` pack), is a schema-level "attach to" legality field,
- * not a runtime `TargetQuery` a `chooseTarget` can use. Implementing the ability's attachment/minion branches while
- * silently dropping "or non-permanent side scheme" would let a permanent side scheme be chosen when the printed
- * text forbids it — the wrong-behavior-is-worse-than-unimplemented case this agent's brief calls out — so the whole
- * `29024.vivian-response` ref is left unregistered instead. `blankTextBox` itself is proven engine-side (Edison's
- * Giant Robot, `wave1/msm/nemesis.ts` `05028.edisons-giant-robot-action`), so only the target query is missing.
+ * (except for Traits)." One choice over a union whose parts carry different filters: `TargetQuery.anyOf` of
+ * `query("attachment")`, `query("minion", { withoutTrait: ELITE })` (the Red Skull "non-Elite minion" precedent,
+ * `wave2/trors/red-skull.ts`) and `query("sideScheme", { withoutKeyword: "permanent" })`, which reads Permanent as
+ * the keyword's own protection does (`keywords.ts` `queryHasKeyword`: printed even through a blank, granted counts,
+ * docs/phase7-wave5.md §4.1 Q45). The blank is `blankTextBox` until `"endOfRound"` (Edison's Giant Robot's effect,
+ * `wave1/msm/nemesis.ts`); "(except for Traits)" needs nothing more, since the engine never blanks traits
+ * (`select.ts` `printedTraitsOf` reads no blank).
  */
 export const IRONHEART_ALLIES = defineAbilities({
   "29014.cloud-9-action": heroAction(
@@ -154,5 +151,17 @@ export const IRONHEART_ALLIES = defineAbilities({
     gainsKeywordX("retaliate", 1, query("ally", { self: true }), {
       while: valueEquals(countersOn(self, "shift"), 3),
     }),
+  ),
+
+  "29024.vivian-response": heroResponse(
+    after.entersPlay("self"),
+    chooseTarget("card", {
+      anyOf: [
+        query("attachment"),
+        query("minion", { withoutTrait: ELITE }),
+        query("sideScheme", { withoutKeyword: "permanent" }),
+      ],
+    }),
+    { kind: "blankTextBox", target: chosen("card"), until: "endOfRound" },
   ),
 });
