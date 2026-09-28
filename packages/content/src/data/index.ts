@@ -336,18 +336,110 @@ export const WAVE4_STARTER_DECKS: readonly StarterDeck[] = [
   ...VALK_STARTER_DECKS,
 ];
 
+// ---------------------------------------------------------------------------------------------------------------
+// Wave 5 (PLAN.md Phase 7, docs/phase7-wave5.md): cycle 4. In release order: `sm` (Sinister Motives — Ghost-Spider,
+// Spider-Man (Miles Morales), and five scenarios — Sandman, Venom, Mysterio, The Sinister Six, Venom Goblin), then
+// the Nova, Ironheart, Spider-Ham and SP//dr hero packs. `silk` is also cycle 4 (and was scripted alongside this
+// wave's `@mc/cards` module for a single card, Quick Quip 52034) but is not part of wave 5's pool — it ships in a
+// later wave once the rest of its own kit is scripted, so it stays in the data-only pool below. All five wave 5
+// packs are fully scripted (`@mc/cards`'s `wave5` module). As with earlier waves, these `WAVE5_*` exports are
+// `@mc/content`-only aggregates, wired into the client's playable pool as a separate step. Declared here (before
+// `PLAYABLE_CARDS`, which reads `WAVE5_CARDS`) rather than in the data-only pool below, since this module's
+// top-level `const`s execute in source order.
+//
+// `sm`'s sixteen campaign-specific cards (MC27 p. 4: the eight S.H.I.E.L.D. Tech player cards 182-189, plus the
+// Bad Publicity/Community Service/Snitches Get Stitches campaign-specific encounter sets) are ordinary members of
+// `SM_CARDS`/`WAVE5_CARDS` — nothing here filters them out of the pool. They stay out of standard play the same
+// way `MTS_CARDS`' own campaign cards do: each carries `specificTo: { kind: "campaign", ... }`, which
+// `@mc/engine`'s `validateDeck` refuses outside a matching campaign context regardless of pool membership (proven
+// generically in `packages/engine/src/deck.test.ts`'s "campaign-specific cards" block, and with real content —
+// today MTS, not yet sm — in `packages/cards/src/campaigns/mts-campaign-cards-availability.test.ts`). Registering
+// `SM_CAMPAIGN` itself into `CAMPAIGNS` below, and an `sm` counterpart to that availability test, is the box's own
+// campaign step (docs/wave-definition-of-done.md §6), not this pool-wiring step.
+// ---------------------------------------------------------------------------------------------------------------
+export * from "./sm/index.js";
+export * from "./nova/index.js";
+export * from "./ironheart/index.js";
+export * from "./spiderham/index.js";
+export * from "./spdr/index.js";
+
+import { SM_CARDS } from "./sm/cards.js";
+import { SM_ENCOUNTER_SETS } from "./sm/encounterSets.js";
+import { SM_SCENARIOS } from "./sm/scenarios.js";
+import { SM_STARTER_DECKS } from "./sm/starterDecks.js";
+import { NOVA_CARDS } from "./nova/cards.js";
+import { NOVA_ENCOUNTER_SETS } from "./nova/encounterSets.js";
+import { NOVA_STARTER_DECKS } from "./nova/starterDecks.js";
+import { IRONHEART_CARDS } from "./ironheart/cards.js";
+import { IRONHEART_ENCOUNTER_SETS } from "./ironheart/encounterSets.js";
+import { IRONHEART_STARTER_DECKS } from "./ironheart/starterDecks.js";
+import { SPIDERHAM_CARDS } from "./spiderham/cards.js";
+import { SPIDERHAM_ENCOUNTER_SETS } from "./spiderham/encounterSets.js";
+import { SPIDERHAM_STARTER_DECKS } from "./spiderham/starterDecks.js";
+import { SPDR_CARDS } from "./spdr/cards.js";
+import { SPDR_ENCOUNTER_SETS } from "./spdr/encounterSets.js";
+import { SPDR_STARTER_DECKS } from "./spdr/starterDecks.js";
+
 /**
- * Every playable card: Core, the eight wave 1 packs, the six cycle 1 packs, the six cycle 2 packs, then the six
- * cycle 3 packs, each exactly once. `WAVE1_CARDS`, `WAVE2_CARDS`, `WAVE3_CARDS` and `WAVE4_CARDS` are sibling
- * pools that each start from Core independently, so concatenating them would list Core (and each wave's own
+ * Every card in the wave 5 (cycle 4, shipped-so-far) pool: Core plus `sm`, `nova`, `ironheart`, `spiderham` and
+ * `spdr`, in release order. Like `WAVE1_CARDS`/`WAVE2_CARDS`/`WAVE3_CARDS`/`WAVE4_CARDS`, this is a sibling pool
+ * that starts from Core independently — see `PLAYABLE_CARDS`'s own comment. `silk` is not included (see this
+ * section's own header comment).
+ */
+export const WAVE5_CARDS: readonly AnyCard[] = [
+  ...CORE_CARDS,
+  ...SM_CARDS,
+  ...NOVA_CARDS,
+  ...IRONHEART_CARDS,
+  ...SPIDERHAM_CARDS,
+  ...SPDR_CARDS,
+];
+
+/** Every wave 5 encounter set (Core's own villain sets are not included, matching the earlier waves' own `*_ENCOUNTER_SETS`). */
+export const WAVE5_ENCOUNTER_SETS: readonly EncounterSet[] = [
+  ...SM_ENCOUNTER_SETS,
+  ...NOVA_ENCOUNTER_SETS,
+  ...IRONHEART_ENCOUNTER_SETS,
+  ...SPIDERHAM_ENCOUNTER_SETS,
+  ...SPDR_ENCOUNTER_SETS,
+];
+
+/**
+ * Every wave 5 scenario: Sinister Motives' five (Sandman, Venom, Mysterio, The Sinister Six, Venom Goblin). The
+ * Nova, Ironheart, Spider-Ham and SP//dr hero packs define no scenario of their own — matching the earlier
+ * waves' own pattern (only the scenario-carrying pack contributes).
+ */
+export const WAVE5_SCENARIOS: readonly Scenario[] = [...SM_SCENARIOS];
+
+/**
+ * Every wave 5 starter deck: Ghost-Spider and Spider-Man (Miles Morales) (`sm`), plus one each for Nova,
+ * Ironheart, Spider-Ham and SP//dr.
+ */
+export const WAVE5_STARTER_DECKS: readonly StarterDeck[] = [
+  ...SM_STARTER_DECKS,
+  ...NOVA_STARTER_DECKS,
+  ...IRONHEART_STARTER_DECKS,
+  ...SPIDERHAM_STARTER_DECKS,
+  ...SPDR_STARTER_DECKS,
+];
+
+/**
+ * Every playable card: Core, the eight wave 1 packs, the six cycle 1 packs, the six cycle 2 packs, the six cycle
+ * 3 packs, then the five cycle 4 packs shipped so far (`sm`, `nova`, `ironheart`, `spiderham`, `spdr` — `silk`, also
+ * cycle 4, ships in a later wave), each exactly once. `WAVE1_CARDS` through `WAVE5_CARDS` are sibling pools that
+ * each start from Core independently, so concatenating them would list Core (and each wave's own
  * `CORE_CARDS.length` prefix) more than once; this is the one pool a client that runs every scripted wave at
- * once sends to the engine.
+ * once sends to the engine. `sm`'s sixteen campaign-specific cards travel inside `WAVE5_CARDS` like every other
+ * `sm` card — they stay out of standard play through `specificTo: { kind: "campaign" }` at deck-validation time
+ * (`@mc/engine`'s `validateDeck`, proven with real MTS content in
+ * `packages/cards/src/campaigns/mts-campaign-cards-availability.test.ts`), not through pool membership.
  */
 export const PLAYABLE_CARDS: readonly AnyCard[] = [
   ...WAVE1_CARDS,
   ...WAVE2_CARDS.slice(CORE_CARDS.length),
   ...WAVE3_CARDS.slice(CORE_CARDS.length),
   ...WAVE4_CARDS.slice(CORE_CARDS.length),
+  ...WAVE5_CARDS.slice(CORE_CARDS.length),
 ];
 
 /**
@@ -386,20 +478,13 @@ export * from "./ncrawler/index.js";
 export * from "./magneto/index.js";
 export * from "./winter/index.js";
 export * from "./falcon/index.js";
-export * from "./nova/index.js";
 export * from "./silk/index.js";
-export * from "./spdr/index.js";
 export * from "./rogue/index.js";
 export * from "./wolv/index.js";
-export * from "./ironheart/index.js";
 export * from "./iceman/index.js";
 export * from "./wonder_man/index.js";
 export * from "./x23/index.js";
 export * from "./deadpool/index.js";
-export * from "./spiderham/index.js";
-// Sinister Motives (MC27, cycle 4's campaign box, docs/phase7-wave5.md). Data only, like the four hero packs
-// above it, until the wave 5 wiring step adds WAVE5_* aggregates, PLAYABLE_CARDS and CAMPAIGNS registration.
-export * from "./sm/index.js";
 export * from "./mojo/index.js";
 export * from "./angel/index.js";
 export * from "./storm/index.js";
@@ -420,18 +505,12 @@ import { WINTER_CARDS } from "./winter/cards.js";
 import { WINTER_ENCOUNTER_SETS } from "./winter/encounterSets.js";
 import { FALCON_CARDS } from "./falcon/cards.js";
 import { FALCON_ENCOUNTER_SETS } from "./falcon/encounterSets.js";
-import { NOVA_CARDS } from "./nova/cards.js";
-import { NOVA_ENCOUNTER_SETS } from "./nova/encounterSets.js";
 import { SILK_CARDS } from "./silk/cards.js";
 import { SILK_ENCOUNTER_SETS } from "./silk/encounterSets.js";
-import { SPDR_CARDS } from "./spdr/cards.js";
-import { SPDR_ENCOUNTER_SETS } from "./spdr/encounterSets.js";
 import { ROGUE_CARDS } from "./rogue/cards.js";
 import { ROGUE_ENCOUNTER_SETS } from "./rogue/encounterSets.js";
 import { WOLV_CARDS } from "./wolv/cards.js";
 import { WOLV_ENCOUNTER_SETS } from "./wolv/encounterSets.js";
-import { IRONHEART_CARDS } from "./ironheart/cards.js";
-import { IRONHEART_ENCOUNTER_SETS } from "./ironheart/encounterSets.js";
 import { ICEMAN_CARDS } from "./iceman/cards.js";
 import { ICEMAN_ENCOUNTER_SETS } from "./iceman/encounterSets.js";
 import { WONDER_MAN_CARDS } from "./wonder_man/cards.js";
@@ -440,8 +519,6 @@ import { X23_CARDS } from "./x23/cards.js";
 import { X23_ENCOUNTER_SETS } from "./x23/encounterSets.js";
 import { DEADPOOL_CARDS } from "./deadpool/cards.js";
 import { DEADPOOL_ENCOUNTER_SETS } from "./deadpool/encounterSets.js";
-import { SPIDERHAM_CARDS } from "./spiderham/cards.js";
-import { SPIDERHAM_ENCOUNTER_SETS } from "./spiderham/encounterSets.js";
 import { MOJO_CARDS } from "./mojo/cards.js";
 import { MOJO_ENCOUNTER_SETS } from "./mojo/encounterSets.js";
 import { ANGEL_CARDS } from "./angel/cards.js";
@@ -454,13 +531,15 @@ import { JUBILEE_CARDS } from "./jubilee/cards.js";
 import { JUBILEE_ENCOUNTER_SETS } from "./jubilee/encounterSets.js";
 
 /**
- * Every card in the data-only pool: 21 packs across cycles 5, 6, 7, 8, 9 and 10, in pack-code alphabetical
+ * Every card in the data-only pool: 19 packs across cycles 5, 6, 7, 8, 9 and 10, in pack-code alphabetical
  * order (no release-order relationship spans this many cycles at once, unlike `WAVE1_CARDS`/`WAVE2_CARDS`/
- * `WAVE3_CARDS`/`WAVE4_CARDS`). Not included in `WAVE1_CARDS`/`WAVE2_CARDS`/`WAVE3_CARDS`/`WAVE4_CARDS`/
- * `CORE_CARDS` — a client that wants "every known card, playable or not" concatenates this with those. `gmw`,
- * `stld`, `gam`, `drax`, `vnm` and `ron` (cycle 2) moved out of this pool into `WAVE3_*` once wave 3 scripted
- * them (docs/phase7-wave3.md); `mts`, `nebu`, `warm`, `vision`, `hood` and `valk` (cycle 3) moved into `WAVE4_*`
- * once wave 4 scripted them (docs/phase7-wave4.md).
+ * `WAVE3_CARDS`/`WAVE4_CARDS`/`WAVE5_CARDS`). Not included in `WAVE1_CARDS`/`WAVE2_CARDS`/`WAVE3_CARDS`/
+ * `WAVE4_CARDS`/`WAVE5_CARDS`/`CORE_CARDS` — a client that wants "every known card, playable or not" concatenates
+ * this with those. `gmw`, `stld`, `gam`, `drax`, `vnm` and `ron` (cycle 2) moved out of this pool into `WAVE3_*`
+ * once wave 3 scripted them (docs/phase7-wave3.md); `mts`, `nebu`, `warm`, `vision`, `hood` and `valk` (cycle 3)
+ * moved into `WAVE4_*` once wave 4 scripted them (docs/phase7-wave4.md); `sm`, `nova`, `ironheart`, `spiderham`
+ * and `spdr` (cycle 4) moved into `WAVE5_*` once wave 5 scripted them (docs/phase7-wave5.md) — `silk`, also
+ * cycle 4, stays here until its own kit is scripted (this pool's own header comment).
  */
 export const DATA_ONLY_CARDS: readonly AnyCard[] = [
   ...BP_CARDS,
@@ -474,17 +553,13 @@ export const DATA_ONLY_CARDS: readonly AnyCard[] = [
   ...MAGNETO_CARDS,
   ...WINTER_CARDS,
   ...FALCON_CARDS,
-  ...NOVA_CARDS,
   ...SILK_CARDS,
-  ...SPDR_CARDS,
   ...ROGUE_CARDS,
   ...WOLV_CARDS,
-  ...IRONHEART_CARDS,
   ...ICEMAN_CARDS,
   ...WONDER_MAN_CARDS,
   ...X23_CARDS,
   ...DEADPOOL_CARDS,
-  ...SPIDERHAM_CARDS,
   ...MOJO_CARDS,
 ];
 
@@ -501,16 +576,12 @@ export const DATA_ONLY_ENCOUNTER_SETS: readonly EncounterSet[] = [
   ...MAGNETO_ENCOUNTER_SETS,
   ...WINTER_ENCOUNTER_SETS,
   ...FALCON_ENCOUNTER_SETS,
-  ...NOVA_ENCOUNTER_SETS,
   ...SILK_ENCOUNTER_SETS,
-  ...SPDR_ENCOUNTER_SETS,
   ...ROGUE_ENCOUNTER_SETS,
   ...WOLV_ENCOUNTER_SETS,
-  ...IRONHEART_ENCOUNTER_SETS,
   ...ICEMAN_ENCOUNTER_SETS,
   ...WONDER_MAN_ENCOUNTER_SETS,
   ...X23_ENCOUNTER_SETS,
   ...DEADPOOL_ENCOUNTER_SETS,
-  ...SPIDERHAM_ENCOUNTER_SETS,
   ...MOJO_ENCOUNTER_SETS,
 ];

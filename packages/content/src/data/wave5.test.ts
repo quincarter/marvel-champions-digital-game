@@ -7,10 +7,19 @@ import {
   validateScenarioEncounterSets,
   validateStarterDeck,
 } from "../schema/index.js";
-import type { AnyCard, AttachmentCard, EncounterSet, EnvironmentCard, MainSchemeCard } from "../schema/index.js";
+import type {
+  AnyCard,
+  AttachmentCard,
+  EncounterSet,
+  EnvironmentCard,
+  HeroIdentityCard,
+  MainSchemeCard,
+} from "../schema/index.js";
+import { CORE_CARDS } from "./core/index.js";
 import { CORE_ENCOUNTER_SETS } from "./core/encounterSets.js";
 import { IRONHEART_CARDS } from "./ironheart/cards.js";
 import { NOVA_CARDS } from "./nova/cards.js";
+import { poolVersionOf } from "./pool-version.js";
 import { SILK_CARDS } from "./silk/cards.js";
 import { SM_CAMPAIGN } from "./sm/campaign.js";
 import { SM_CARDS } from "./sm/cards.js";
@@ -19,14 +28,18 @@ import { SM_SCENARIOS } from "./sm/scenarios.js";
 import { SM_STARTER_DECKS } from "./sm/starterDecks.js";
 import { SPDR_CARDS } from "./spdr/cards.js";
 import { SPIDERHAM_CARDS } from "./spiderham/cards.js";
+import { PLAYABLE_CARDS, WAVE5_CARDS, WAVE5_ENCOUNTER_SETS, WAVE5_SCENARIOS, WAVE5_STARTER_DECKS } from "./index.js";
 
 /**
  * Wave 5 (cycle 4, docs/phase7-wave5.md): `sm` (Sinister Motives) is new data this wave; `nova`/`ironheart`/
- * `spiderham`/`spdr` were emitted in earlier passes and are re-checked here as part of the same cycle. This is the
- * data-integrity half only (the wave 4 `wave4.test.ts` model) — no `WAVE5_*` aggregate, `PLAYABLE_CARDS` or
- * `CAMPAIGNS` entry exists yet (that's the wave's own client-wiring step, done once, later). Engine-level deck
- * legality (`validateDeck`/`requiredIdentitySet`) is `@mc/engine`'s/`@mc/cards`' own test, not `@mc/content`'s — it
- * cannot import `@mc/engine` (client → cards → engine → content dependency direction, CLAUDE.md).
+ * `spiderham`/`spdr` were emitted in earlier passes and are re-checked here as part of the same cycle. This file
+ * covers both the data-integrity half (the wave 4 `wave4.test.ts` model) and, in its own "pool wiring" describe
+ * block below, the `WAVE5_*` aggregate / `PLAYABLE_CARDS` step (docs/wave-definition-of-done.md §2) — `silk` is
+ * cycle 4 too but is not part of this wave's pool (that block's own comment). `CAMPAIGNS` registration for
+ * `SM_CAMPAIGN` is the box's own campaign step (§6), not this pool-wiring step, and is not covered here. Engine-
+ * level deck legality (`validateDeck`/`requiredIdentitySet`) is `@mc/engine`'s/`@mc/cards`' own test, not
+ * `@mc/content`'s — it cannot import `@mc/engine` (client → cards → engine → content dependency direction,
+ * CLAUDE.md).
  */
 
 interface PackFixture {
@@ -262,8 +275,9 @@ describe("Sinister Motives — starter decks (content-level; see wave5.test.ts's
     }
   });
 
-  // Precons for nova/ironheart/spiderham/spdr belong to a separate pass (docs/phase7-wave5-sources.md §5/§7.1) —
-  // deliberately not asserted here, so this file doesn't need to change when they land.
+  // Precons for nova/ironheart/spiderham/spdr were emitted in a separate pass (docs/phase7-wave5-sources.md
+  // §5/§7.1) and are covered together with sm's own two in the "pool wiring" describe block below, once as part
+  // of WAVE5_STARTER_DECKS rather than sm-specific assertions here.
 });
 
 describe("Sinister Motives — campaign record", () => {
@@ -344,6 +358,113 @@ describe("Sinister Motives — campaign record", () => {
     for (const card of shieldTechCards) {
       const specificTo = (card as { specificTo: { encounterSetId: unknown } }).specificTo;
       expect(specificTo.encounterSetId as string, card.id as string).toBe("shield_tech");
+    }
+  });
+});
+
+describe("wave 5 pool wiring (docs/wave-definition-of-done.md §2: WAVE5_* content exports, PLAYABLE_CARDS)", () => {
+  it("every emitted card passes validateCard()", () => {
+    const failures = WAVE5_CARDS.map((c) => ({ id: c.id, errors: validateCard(c).errors })).filter(
+      (f) => f.errors.length > 0,
+    );
+    expect(failures).toEqual([]);
+  });
+
+  it("every WAVE5_CARDS entry is Core plus sm/nova/ironheart/spiderham/spdr, with no duplicate ids", () => {
+    const ids = WAVE5_CARDS.map((c) => c.id);
+    expect(new Set(ids).size).toBe(ids.length);
+    expect(WAVE5_CARDS.length).toBe(
+      CORE_CARDS.length +
+        SM_CARDS.length +
+        NOVA_CARDS.length +
+        IRONHEART_CARDS.length +
+        SPIDERHAM_CARDS.length +
+        SPDR_CARDS.length,
+    );
+  });
+
+  it("silk is not part of the wave 5 pool (its own kit ships in a later wave)", () => {
+    const silkIds = new Set(SILK_CARDS.map((c) => c.id as string));
+    for (const c of WAVE5_CARDS) expect(silkIds.has(c.id as string), c.id as string).toBe(false);
+  });
+
+  it("wave 5 registers encounter sets for every pack, with no duplicate ids", () => {
+    const ids = WAVE5_ENCOUNTER_SETS.map((s) => s.id);
+    expect(new Set(ids).size).toBe(ids.length);
+  });
+
+  it("WAVE5_SCENARIOS is exactly sm's five scenarios (nova/ironheart/spiderham/spdr define none of their own)", () => {
+    expect(WAVE5_SCENARIOS.map((s) => s.id).sort()).toEqual(SM_SCENARIOS.map((s) => s.id).sort());
+    for (const s of WAVE5_SCENARIOS) expect(s.packCode as string).toBe("sm");
+  });
+
+  it("every WAVE5_SCENARIOS entry's named encounter sets are registered (cycle 4's own plus Core's)", () => {
+    const sets: readonly EncounterSet[] = [...CORE_ENCOUNTER_SETS, ...WAVE5_ENCOUNTER_SETS];
+    for (const s of WAVE5_SCENARIOS) expect(validateScenarioEncounterSets(s, sets).errors, s.id as string).toEqual([]);
+  });
+
+  it("the wave 5 pool version is deterministic and well-formed, and differs from Core's", () => {
+    const v1 = poolVersionOf(WAVE5_CARDS);
+    const v2 = poolVersionOf(WAVE5_CARDS);
+    expect(v1).toBe(v2);
+    expect(v1).toMatch(/^v1-[0-9a-f]{8}$/);
+    expect(poolVersionOf(WAVE5_CARDS)).not.toBe(poolVersionOf(CORE_CARDS));
+  });
+
+  it("PLAYABLE_CARDS includes wave 5's own cards, with no duplicate ids", () => {
+    const ids = PLAYABLE_CARDS.map((c) => c.id);
+    expect(new Set(ids).size).toBe(ids.length);
+    for (const c of [...SM_CARDS, ...NOVA_CARDS, ...IRONHEART_CARDS, ...SPIDERHAM_CARDS, ...SPDR_CARDS]) {
+      expect(ids).toContain(c.id);
+    }
+  });
+
+  it("wave 5 has five starter decks: Ghost-Spider, Spider-Man (Miles Morales), Nova, Ironheart, Spider-Ham, SP//dr", () => {
+    // Six decks: sm's own two, plus one each for the four hero packs.
+    expect(WAVE5_STARTER_DECKS).toHaveLength(6);
+    expect(WAVE5_STARTER_DECKS.map((d) => d.id).sort()).toEqual(
+      [
+        "ghost-spider",
+        "spider-man-morales",
+        "nova-aggression",
+        "ironheart-leadership",
+        "spiderham-justice",
+        "spdr-protection",
+      ].sort(),
+    );
+  });
+
+  it("every wave 5 starter deck validates as a StarterDeck, is verified against a real source, and is 40 cards", () => {
+    for (const d of WAVE5_STARTER_DECKS) {
+      expect(validateStarterDeck(d).errors, d.id as string).toEqual([]);
+      expect(d.provenance.verified, d.id as string).toBe(true);
+      expect(d.provenance.sources.length, d.id as string).toBeGreaterThan(0);
+      expect(
+        d.cards.reduce((n, e) => n + e.quantity, 0),
+        d.id as string,
+      ).toBe(40);
+    }
+  });
+
+  it("every wave 5 precon's identity resolves in WAVE5_CARDS and lists exactly one aspect", () => {
+    for (const d of WAVE5_STARTER_DECKS) {
+      const identity = WAVE5_CARDS.find((c) => c.id === d.identityCardId) as HeroIdentityCard | undefined;
+      expect(identity, d.id as string).toBeDefined();
+      expect(d.aspects, d.id as string).toHaveLength(1);
+    }
+  });
+
+  it("every wave 5 precon includes its identity's own hero-kit cards (aspect hero:<id>, no separateDeck) at their exact printed quantity", () => {
+    for (const d of WAVE5_STARTER_DECKS) {
+      const identity = WAVE5_CARDS.find((c) => c.id === d.identityCardId) as HeroIdentityCard | undefined;
+      if (!identity) continue;
+      for (const card of WAVE5_CARDS) {
+        const isIdentitySpecific = "aspect" in card && card.aspect === `hero:${identity.id}`;
+        const inSeparateDeck = "separateDeck" in card && card.separateDeck !== undefined;
+        if (!isIdentitySpecific || inSeparateDeck) continue;
+        const listed = d.cards.find((e) => e.cardId === card.id)?.quantity ?? 0;
+        expect(listed, `${d.id as string}: ${card.id as string}`).toBe(card.quantityInSet);
+      }
     }
   });
 });
