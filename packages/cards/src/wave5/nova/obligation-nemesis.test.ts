@@ -46,14 +46,15 @@ const accepting =
   };
 
 const ADVANCE = "01186";
-// Wakanda Forever! (core 01043d): an event, cost 1, prints a [wild] resource icon (identity.test.ts's own
+// Wakanda Forever! (core 01043d): an event, cost 1, prints one [wild] resource icon (identity.test.ts's own
 // precedent) — off-precon, so it needs `extraCodes` (legality off).
 const WAKANDA_FOREVER = "01043d";
-// Hellcat (01020) / Spider-Woman (01011): core allies that also print a [wild] resource icon, so a copy of each
-// can sit "under your control" (in play) and in a discard pile respectively without depending on any not-yet-
-// scripted Nova card.
-const HELLCAT = "01020";
+// Spider-Woman (01011): a core ally that also prints one [wild] resource icon, so a copy can sit in a discard pile
+// without depending on any not-yet-scripted Nova card.
 const SPIDER_WOMAN = "01011";
+// Ticket to the Multiverse (sm 27008): an upgrade printing *two* [wild] resource icons (`resourceIcons: { wild: 2
+// }`) — the "icons, not cards" case for 28025's own X (`obligation-nemesis.ts`'s own docblock).
+const TICKET_TO_THE_MULTIVERSE = "27008";
 // Five of Nova's own real precon cards that print no [wild] resource at all (physical/mental/energy only) — safe
 // hand filler for a test that needs a known, non-[wild] hand.
 const SAFE_FILLERS = ["28002", "28003", "28004", "28005", "28006"] as const;
@@ -65,12 +66,11 @@ const novaVsRhino = (seed = 1, extraCodes: readonly string[] = []) =>
  * Replaces `player`'s hand with exactly these cards (test-only surgery: `moveToHand`'s own zone-search, but for
  * the *whole* hand rather than one addition on top of whatever a seeded mulligan happened to keep). Needed because
  * Nova's own real precon carries three "resource" cards (Connection to the Worldmind 28007, The Power of
- * Aggression 28015, Everyday Hero 28019) that themselves print a [wild] resource icon on their own face — a
- * `resource`-type card's `producesIcons` **is** its printed resource (`packages/engine/src/resources.ts`
- * `printedResources`, matching the January 11, 2026 (3) ruling's own "a wild resource icon printed … in its
- * corner": a resource card's icon is printed right on it, not ability-generated) — so a plain freshly-dealt hand
- * is not reliably [wild]-free, and this file's own `anyPrintedResource: ["wild"]` filter (correctly) matches them
- * too. Displaces whatever the hand held onto the deck.
+ * Aggression 28015, Everyday Hero 28019) whose own face icon (`producesIcons`) the engine's `printedResources`
+ * (`packages/engine/src/resources.ts`) already treats as printed, for every card that reads `anyPrintedResource`/
+ * `totalPrintedResources` across the whole pool (`obligation-nemesis.ts`'s own docblock has the fuller ruling
+ * discussion) — so a plain freshly-dealt hand is not reliably [wild]-free, and this file's own filters (correctly,
+ * by that same shared primitive) match them too. Displaces whatever the hand held onto the deck.
  */
 function setHand(state: GameState, player: PlayerId, codes: readonly string[]): GameState {
   const owner = playerOf(state, player);
@@ -396,19 +396,54 @@ describe("War Delivery (28024, treachery)", () => {
 });
 
 describe('"The War\'s Been Brought" (28025, treachery, Surge)', () => {
-  it("28025.when-revealed: discards X cards from the encounter deck, X = the total [wild]-resource cards in hand, in play, and in discard", () => {
-    const state = novaVsRhino(1, [WAKANDA_FOREVER, HELLCAT, SPIDER_WOMAN]);
-    const withHand = setHand(state, P1, [WAKANDA_FOREVER, ...SAFE_FILLERS]); // 1 in hand.
-    const withAlly = putAllyInPlay(withHand, P1, HELLCAT); // 1 under control.
-    const withDiscard = toDiscard(withAlly.state, P1, SPIDER_WOMAN); // 1 in discard pile.
+  it("28025.when-revealed: X is the total printed [wild] icons (not cards) in hand, under control, and in discard — a 2-icon card counts twice", () => {
+    // Wakanda Forever (hand): 1 icon. Ticket to the Multiverse (control, `resourceIcons: { wild: 2 }`): 2 icons.
+    // Spider-Woman (discard pile): 1 icon. X = 1 + 2 + 1 = 4 — a card-count bug would compute 3 (one per card)
+    // instead, one short.
+    const state = novaVsRhino(1, [WAKANDA_FOREVER, TICKET_TO_THE_MULTIVERSE, SPIDER_WOMAN]);
+    const withHand = setHand(state, P1, [WAKANDA_FOREVER, ...SAFE_FILLERS]);
+    const withControl = putAllyInPlay(withHand, P1, TICKET_TO_THE_MULTIVERSE);
+    const withDiscardPile = toDiscard(withControl.state, P1, SPIDER_WOMAN);
 
-    const deckId = Object.keys(withDiscard.state.encounterDecks)[0]!;
-    const discardBefore = withDiscard.state.encounterDecks[deckId]!.discard.length;
-    const { state: after } = revealFromEncounterDeck(withDiscard.state, "28025", firstLegal, 1);
-    // X = 3 [wild]-resource cards (hand + control + discard pile): Surge itself reveals at least one further
-    // card, so the encounter deck's discard pile grows by more than 3 (this card's own reveal, the X discards, and
-    // Surge's own additional reveal — `docs/card-scripting-process.md`'s Surge-growth lesson).
-    expect(after.encounterDecks[deckId]!.discard.length).toBeGreaterThanOrEqual(discardBefore + 1 + 3);
+    // The deck order after staging is deterministic (this seed's own shuffle): [the filler ADVANCE Rhino's own
+    // activation consumes as a boost card, "28025" itself, then whatever `discardEncounterCards` reaches] — so the
+    // 4 specific cards X=4 should discard are knowable up front.
+    const staged = stageNemesisCardForReveal(withDiscardPile.state, "28025", P1, 1);
+    const deckId = Object.keys(staged.encounterDecks)[0]!;
+    const rest = staged.encounterDecks[deckId]!.deck.slice(2); // past the filler and "28025" itself.
+    const expectedDiscarded = rest.slice(0, 4);
+
+    // Surge's own additional reveal (RRG 1.8 "Surge") only resolves once this card is *fully* resolved, so a mere
+    // "is it in the discard pile by the end" check can't tell "discarded by X" from "discarded later by Surge's own
+    // chase reveal" (Surge always reveals whatever is on top *next*, so with a card-count bug computing X=3 instead
+    // of 4, Surge's own reveal would land on this exact 4th card too, silently patching over the bug). Instead: an
+    // `abilityResolved` event marks the *start* of an ability's own effects (`resolve/ability.ts`
+    // `executeAbilityFrame` emits it before `pushEffects`), and "28025" itself is discarded, as the revealed card,
+    // only once its own When Revealed is fully done — so every `cardMoved`-to-discard event for one of the 4
+    // expected cards must fall strictly between this ability's own `abilityResolved` and its own card's later
+    // `cardMoved`-to-discard, to prove *this ability* (not Surge, further downstream) discarded it.
+    const { events } = driveEvents(WAVE5_DEPS, staged, endTurn(P1));
+    const resolved = events.find(
+      (e): e is Extract<typeof e, { type: "abilityResolved" }> =>
+        e.type === "abilityResolved" && e.abilityId === "28025.when-revealed",
+    );
+    expect(resolved).toBeDefined();
+    const resolvedIndex = events.indexOf(resolved!);
+    const selfDiscardedIndex = events.findIndex(
+      (e, i) =>
+        i > resolvedIndex &&
+        e.type === "cardMoved" &&
+        e.instanceId === resolved!.instanceId &&
+        e.to.kind === "encounterDiscard",
+    );
+    expect(selfDiscardedIndex).toBeGreaterThan(resolvedIndex);
+    for (const id of expectedDiscarded) {
+      const movedIndex = events.findIndex(
+        (e) => e.type === "cardMoved" && e.instanceId === id && e.to.kind === "encounterDiscard",
+      );
+      expect(movedIndex).toBeGreaterThan(resolvedIndex);
+      expect(movedIndex).toBeLessThan(selfDiscardedIndex);
+    }
   });
 
   it("28025.when-revealed: discards nothing extra when no [wild]-resource card is in hand, in play, or in discard", () => {
