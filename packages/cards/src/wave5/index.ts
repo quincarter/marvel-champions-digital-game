@@ -10,6 +10,7 @@ import { mergeRegistries } from "../dsl/index.js";
 import { WAVE4_ABILITIES } from "../wave4/index.js";
 import { IRONHEART_ABILITIES } from "./ironheart/index.js";
 import { NOVA_ABILITIES } from "./nova/index.js";
+import { SILK_QUICK_QUIP } from "./silk/quick-quip.js";
 import { SM_ABILITIES } from "./sm/index.js";
 import { SPDR_ABILITIES } from "./spdr/index.js";
 import { SPIDERHAM_ABILITIES } from "./spiderham/index.js";
@@ -23,6 +24,8 @@ export const WAVE5_ABILITIES: AbilityRegistry = mergeRegistries(
   IRONHEART_ABILITIES,
   SPIDERHAM_ABILITIES,
   SPDR_ABILITIES,
+  // Quick Quip (`silk` 52034) alone, ahead of its pack: Thwip Thwip!'s shape (`silk/quick-quip.ts`).
+  SILK_QUICK_QUIP,
 );
 
 /** Engine dependencies for games that use the wave 5 (cycle 4) pool. */

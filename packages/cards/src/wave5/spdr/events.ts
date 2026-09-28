@@ -5,8 +5,10 @@ import {
   chooseOne,
   chosen,
   damageAnEnemy,
+  damageCardsCost,
   defineAbilities,
   discardCardsCost,
+  divide,
   each,
   heroAction,
   ifThen,
@@ -27,6 +29,7 @@ import {
 
 const INTERFACE = trait("INTERFACE");
 const TECH = trait("TECH");
+const WEB_WARRIOR = trait("WEB-WARRIOR");
 const SYNC_RATIO = "31001a.sync-ratio";
 
 /**
@@ -68,23 +71,18 @@ const SYNC_RATIO = "31001a.sync-ratio";
  * (`wave2/qsv/kit.ts`'s Maximum Velocity, `14005.maximum-velocity-action`), with the amount read off the
  * discarded card's printed cost (`printedCostOf`, Headbutt/Thoughtcasting's own precedent) instead of a constant.
  *
- * **Thwip Thwip! (31017)** — **KNOWN_SKIPPED, two missing primitives, not scripted.** `protection` aspect,
- * generic. "Hero Action: Deal 1 damage to a Web-Warrior character you control → place a total of 2 stun status
- * cards on up to 2 enemies." (Silk's own reprint sibling, "Quick Quip", `silk` 52034, prints the identical cost
- * shape with confused instead of stunned — not scripted either, same gap.)
- * 1. **The cost has no DSL/engine shape.** `AbilityCost` (`packages/engine/src/abilities.ts`) only offers
- *    `damageSelf` (the controller's identity) and `damageThisCard` (the ability's own card) for a "Deal N damage
- *    to X →" cost — nothing for "deal N damage to a *chosen* character matching a query", the shape this card
- *    needs (any Web-Warrior character the player controls, not fixed to one card). Would need a new
- *    `AbilityCost.damageCards` shape mirroring `discardCards`/`exhaustCards`' own `InPlayCostPick` (pick a
- *    candidate from a query, payable only while it can take the damage), which is a `game-rules-architect`-scale
- *    engine change, not something to approximate with an effect-side `dealDamage` ahead of the granted effects (a
- *    cost that cannot be paid must refuse the whole ability at initiation — RRG 1.8 "Cost", p. 13 — which an
- *    effect-side damage step does not enforce).
- * 2. **The effect has no DSL/engine shape either.** `divide` (`dsl/effects.ts`) only distributes `"damage"` or
- *    `"threat"` among a query of targets; there is no equivalent for distributing a total number of *status
- *    cards* (here, 2 stun cards) among up to N chosen targets. `giveStatus`/`stun` place exactly one status per
- *    named target, which cannot express "the chooser may put both on the same enemy or split them across two".
+ * **Thwip Thwip! (31017)**: `protection` aspect, generic. "Hero Action: Deal 1 damage to a Web-Warrior character you
+ * control → place a total of 2 stun status cards on up to 2 enemies." The cost is `damageCardsCost(query(["identity",
+ * "ally"], { trait: WEB_WARRIOR, controller: "you" }), 1)` (`AbilityCost.damageCards`): one Web-Warrior character
+ * the player controls (SP//dr's hero form, or a Web-Warrior ally), picked as the cost is paid and dealt exactly 1
+ * damage before the effect. It is payable only while such a character could take all of it (RRG 1.8 "Cost", p. 14;
+ * the Focused Rage FAQ, p. 57: not one with a tough status card), and damage prevented as it is taken leaves the cost
+ * unpaid, so no stun is placed. The effect is `divide("stunned", 2, query("enemy"), { maxTargets: 2 })`: at least one
+ * enemy, at most two, each given only what it can hold (RRG 1.8 "Status Cards", p. 41). So a non-steady enemy takes
+ * one stun card, never both: two non-steady enemies split 1 + 1, and choosing just one of them stuns only it (ruling,
+ * Mar 6, 2026 (2), on the same text of Quick Quip). Both on one enemy happens only on a steady enemy, which can hold
+ * two, and once chosen alone it takes both. Silk's "Quick Quip" (`silk` 52034) prints the same shape with confused
+ * status cards; it is scripted in `../silk/quick-quip.ts`.
  *
  * **Limitless Stamina (31023)** — `basic` aspect, generic. "Play only if your identity has at least 14 printed hit
  * points.\nHero Action: Ready your hero." The Hero Action is `ready(yourIdentity)`
@@ -144,8 +142,10 @@ export const SPDR_EVENTS = defineAbilities({
     ),
   ),
 
-  // 31017.thwip-thwip-action — KNOWN_SKIPPED, see module docblock (missing AbilityCost.damageCards and a
-  // status-card sibling of `divide`).
+  "31017.thwip-thwip-action": heroAction(
+    { cost: damageCardsCost(query(["identity", "ally"], { trait: WEB_WARRIOR, controller: "you" }), 1) },
+    divide("stunned", 2, query("enemy"), { maxTargets: 2 }),
+  ),
 
   "31023.limitless-stamina-action": heroAction(ready(yourIdentity)),
   // 31023.limitless-stamina-constant — KNOWN_SKIPPED, see module docblock (missing ValueSpec { kind: "printedHp" }).

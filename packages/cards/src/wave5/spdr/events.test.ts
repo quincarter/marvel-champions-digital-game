@@ -1,5 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { statBonus, type GameState, type InstanceId, type Payment } from "@mc/engine";
+import {
+  activeEncounterDeckId,
+  applyCommand,
+  legalActions,
+  statBonus,
+  type GameState,
+  type InstanceId,
+  type Payment,
+} from "@mc/engine";
 import {
   firstLegal,
   identityOf,
@@ -12,10 +20,14 @@ import {
   payWith,
   play,
   playerOf,
+  runWith,
   settle,
+  settleUntil,
   toHero,
   type Picker,
 } from "../../testing/harness.js";
+import { encounterCardInVillainArea } from "../../testing/staging.js";
+import { WAVE5_CARDS } from "../cards.js";
 import { playFromHand, runWave5, startWave5Game, WAVE5_DEPS } from "../testing.js";
 import { spdrScenario } from "./support.js";
 
@@ -83,7 +95,39 @@ function playAttachedTo(
   return { state: played, id };
 }
 
-describe("SP//dr's events (31004-31006, 31016, 31023; 31017 KNOWN_SKIPPED, see module docblock)", () => {
+/** The first minion in the encounter deck, put into play engaged with P1 (surgery: no reveal, no When Revealed). */
+function engagedMinion(state: GameState): { readonly state: GameState; readonly id: InstanceId } {
+  const types = new Map(WAVE5_CARDS.map((card) => [card.id as string, card.type]));
+  const pile = state.encounterDecks[activeEncounterDeckId(state)]!;
+  const code = pile.deck
+    .map((id) => inst(state, id).cardId as string)
+    .find((cardCode) => types.get(cardCode) === "minion");
+  if (!code) throw new Error("no minion in the encounter deck");
+  const placed = encounterCardInVillainArea(state, code);
+  return { state: patchInstance(placed.state, placed.id, { engagedWith: P1, controllerId: null }), id: placed.id };
+}
+
+/** Moves the top `n` cards of P1's deck into hand (surgery), so a later play has cards to pay with. */
+function drawn(state: GameState, n: number): GameState {
+  return {
+    ...state,
+    players: state.players.map((p) =>
+      p.playerId === P1 ? { ...p, hand: [...p.hand, ...p.deck.slice(0, n)], deck: p.deck.slice(n) } : p,
+    ),
+  };
+}
+
+/** Answers Thwip Thwip!'s stun `divide` with `shares`, recording the options it offered; anything else `firstLegal`. */
+function dividing(shares: readonly string[], seen: { options?: readonly string[] }): Picker {
+  return (state) => {
+    const choice = state.pendingChoice;
+    if (choice?.prompt.kind !== "divide") return firstLegal(state);
+    seen.options = choice.options.map((o) => o.optionId);
+    return shares;
+  };
+}
+
+describe("SP//dr's events (31004-31006, 31016, 31017, 31023)", () => {
   describe("31004.all-systems-go-action", () => {
     it("Ready each Interface upgrade you control: readies the exhausted SP//dr Suit upgrade (hero form)", () => {
       const hero = runWave5(spdrVsRhino(), toHero(P1));
@@ -164,6 +208,89 @@ describe("SP//dr's events (31004-31006, 31016, 31023; 31017 KNOWN_SKIPPED, see m
       expect(statBonus(state, WAVE5_DEPS, identity, "atk")).toBe(2);
       expect(statBonus(state, WAVE5_DEPS, identity, "thw")).toBe(0);
       expect(statBonus(state, WAVE5_DEPS, identity, "def")).toBe(0);
+    });
+  });
+
+  describe("31017.thwip-thwip-action", () => {
+    it("deals exactly 1 damage to SP//dr (her only Web-Warrior character), then splits the 2 stuns 1 + 1 between two enemies", () => {
+      const hero = runWave5(spdrVsRhino(), toHero(P1));
+      const identity = identityOf(hero, P1);
+      const { state: table, id: minion } = engagedMinion(hero);
+      const villain = table.villains[0]!.instanceId;
+      const seen: { options?: readonly string[] } = {};
+      const before = inst(table, identity).damage;
+      const { state } = playFromHand(table, "31017", 2, dividing([`${villain}#1`, `${minion}#1`], seen));
+      expect(inst(state, identity).damage).toBe(before + 1);
+      expect(inst(state, villain).statuses.stunned).toBe(1);
+      expect(inst(state, minion).statuses.stunned).toBe(1);
+      // Neither enemy is steady, so neither is offered a second stun card (RRG 1.8 "Status Cards", p. 41).
+      expect(seen.options).toEqual([`${villain}#1`, `${minion}#1`]);
+    });
+
+    it("both stuns on one non-steady enemy is not allowed; choosing that one enemy alone stuns only it (ruling, Mar 6, 2026 (2))", () => {
+      const hero = runWave5(spdrVsRhino(), toHero(P1));
+      const { state: table, id: minion } = engagedMinion(hero);
+      const villain = table.villains[0]!.instanceId;
+      const given = moveToHand(table, P1, "31017");
+      const [id] = given.ids as [InstanceId];
+      const pending = runWith(WAVE5_DEPS, given.state, play(P1, id, payWith(given.state, P1, 2, [id])));
+      const settled = settleUntil(pending, "divide", firstLegal, WAVE5_DEPS);
+      const choice = settled.pendingChoice!;
+      const both = applyCommand(
+        settled,
+        {
+          type: "resolveChoice",
+          playerId: P1,
+          choiceId: choice.choiceId,
+          selectedOptionIds: [`${villain}#1`, `${villain}#2`],
+        },
+        WAVE5_DEPS,
+      );
+      expect(both.ok).toBe(false); // `${villain}#2` is no option
+      const one = applyCommand(
+        settled,
+        { type: "resolveChoice", playerId: P1, choiceId: choice.choiceId, selectedOptionIds: [`${villain}#1`] },
+        WAVE5_DEPS,
+      );
+      if (!one.ok) throw new Error(one.error.message);
+      const state = settle(one.state, firstLegal, undefined, WAVE5_DEPS);
+      expect(inst(state, villain).statuses.stunned).toBe(1);
+      expect(inst(state, minion).statuses.stunned).toBe(0);
+    });
+
+    it("with a Web-Warrior ally in play the player picks which character takes the 1 damage", () => {
+      const hero = runWave5(spdrVsRhino(), toHero(P1));
+      const identity = identityOf(hero, P1);
+      const { state: withNoir, id: noir } = playFromHand(hero, "31015", 3); // Spider-Man Noir, a Web-Warrior ally
+      const given = moveToHand(drawn(withNoir, 3), P1, "31017");
+      const [id] = given.ids as [InstanceId];
+      const before = inst(given.state, identity).damage;
+      const pay = payWith(given.state, P1, 2, [id]);
+      // Two candidates: the command must name the pick.
+      expect(applyCommand(given.state, play(P1, id, pay), WAVE5_DEPS).ok).toBe(false);
+      const state = settle(
+        runWith(WAVE5_DEPS, given.state, play(P1, id, pay, { costChoices: { damaged: [noir] } })),
+        firstLegal,
+        undefined,
+        WAVE5_DEPS,
+      );
+      expect(inst(state, noir).damage).toBe(1);
+      expect(inst(state, identity).damage).toBe(before);
+      expect(inst(state, state.villains[0]!.instanceId).statuses.stunned).toBe(1); // the only enemy
+    });
+
+    it("is not offered, and refused, when no Web-Warrior character you control can take the damage (SP//dr holds a tough status card)", () => {
+      const hero = runWave5(spdrVsRhino(), toHero(P1));
+      const identity = identityOf(hero, P1);
+      const tough = patchInstance(hero, identity, { statuses: { ...inst(hero, identity).statuses, tough: 1 } });
+      const given = moveToHand(tough, P1, "31017");
+      const [id] = given.ids as [InstanceId];
+      const result = applyCommand(given.state, play(P1, id, payWith(given.state, P1, 2, [id])), WAVE5_DEPS);
+      expect(result.ok).toBe(false);
+      if (!result.ok) expect(result.error.message).toMatch(/cannot take all of this cost's damage/); // the cost, not the payment
+      const actions = legalActions(given.state, P1, WAVE5_DEPS);
+      if (actions.kind !== "turn") throw new Error(`expected a turn, got ${actions.kind}`);
+      expect(actions.legal.some((a) => a.action.kind === "playCard" && a.action.instanceId === id)).toBe(false);
     });
   });
 
