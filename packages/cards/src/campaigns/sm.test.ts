@@ -243,6 +243,7 @@ describe("SM_CAMPAIGN_DEFINITION", () => {
         composition: ["sm.s3.composition.sets", "sm.s3.composition.venom"],
         setup: [
           "sm.s3.setup.venom",
+          "sm.s3.setup.public-outcry",
           "sm.s3.setup.smear-and-snitches",
           "sm.s3.setup.community-service-pick",
           "sm.s3.setup.community-service",

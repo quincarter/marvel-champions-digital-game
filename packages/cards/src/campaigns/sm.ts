@@ -1002,8 +1002,13 @@ export const SM_CAMPAIGN_DEFINITION: CampaignDefinition = {
           composeCampaignSets("sm.s3", "MC27 p. 13"),
           bringIntoGame("sm.s3.composition.venom", "MC27 p. 13", VENOM_ALLY, "the Venom (190) ally", false),
         ],
+        // Found by QA: "Put the Public Outcry (174) environment into play" (MC27 p. 13's own bullet, transcribed
+        // after this scenario's Victory list by the source PDF's column layout, but printed under this scenario's
+        // own Setup heading, and confirmed by docs/phase7-wave5.md §2.3's own summary row for Mysterio) was missing
+        // from this scenario's setup — every other scenario (1, 2, 4, 5) already puts it into play.
         setup: [
           putVenomIntoPlay("sm.s3.setup.venom", "MC27 p. 13"),
+          putPublicOutcryIntoPlay("sm.s3.setup.public-outcry", "MC27 p. 13"),
           shuffleSmearAndSnitches("sm.s3.setup.smear-and-snitches", "MC27 p. 13"),
           communityServicePick("sm.s3", "MC27 p. 13", true),
           communityServiceShuffleIn("sm.s3.setup.community-service", "MC27 p. 13"),
