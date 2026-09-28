@@ -3,6 +3,7 @@ import { mergeRegistries } from "../../dsl/index.js";
 import { SPIDERHAM_ALLIES } from "./allies.js";
 import { SPIDERHAM_EVENTS } from "./events.js";
 import { SPIDERHAM_IDENTITY } from "./identity.js";
+import { SPIDERHAM_INHERITORS } from "./inheritors.js";
 import { SPIDERHAM_OBLIGATION_NEMESIS } from "./obligation-nemesis.js";
 import { SPIDERHAM_SUPPORT_UPGRADES } from "./support-upgrades.js";
 
@@ -32,4 +33,5 @@ export const SPIDERHAM_ABILITIES: AbilityRegistry = mergeRegistries(
   SPIDERHAM_ALLIES,
   SPIDERHAM_SUPPORT_UPGRADES,
   SPIDERHAM_OBLIGATION_NEMESIS,
+  SPIDERHAM_INHERITORS,
 );
