@@ -144,6 +144,11 @@ function checkCostShape(cost: AbilityCost, problems: string[]): void {
     problems.push("cost sameResourceType: needs `resources` as a whole number of at least 1");
   if (typeof cost.discardFromDeck === "number" && (!Number.isInteger(cost.discardFromDeck) || cost.discardFromDeck < 1))
     problems.push("cost discardFromDeck: must be a whole number of at least 1");
+  if (cost.indirectDamage !== undefined && (!Number.isInteger(cost.indirectDamage) || cost.indirectDamage < 1))
+    problems.push("cost indirectDamage: must be a whole number of at least 1");
+  const boosts = cost.giveBoostCards?.count;
+  if (boosts !== undefined && (!Number.isInteger(boosts) || boosts < 1))
+    problems.push("cost giveBoostCards: count must be a whole number of at least 1");
   if (cost.either) {
     if (cost.either.length < 2) problems.push("cost either: needs at least two branches");
     for (const branch of cost.either) {

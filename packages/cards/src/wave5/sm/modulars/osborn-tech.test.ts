@@ -9,6 +9,7 @@ import {
   legalActions,
   legalDefenders,
   replay,
+  type GameEvent,
   type GameState,
   type InstanceId,
 } from "@mc/engine";
@@ -46,6 +47,19 @@ const withoutTough = (state: GameState, id: InstanceId) =>
  * never `playerOf(...).discard` (`wave1/twc/bulldozer.test.ts`'s own "Bulldozer's Helmet" precedent). */
 const inAnyEncounterDiscard = (state: GameState, id: InstanceId): boolean =>
   Object.values(state.encounterDecks).some((piles) => piles.discard.includes(id));
+
+/** Whether `legalActions` offers P1 this Osborn Tech ability right now (a Hero Action: P1's turn, hero form). */
+function offers(state: GameState, abilityId: string): boolean {
+  const actions = legalActions(state, P1, WAVE5_DEPS);
+  if (actions.kind !== "turn") throw new Error(`expected P1's turn, got ${actions.kind}`);
+  return actions.legal.some((a) => a.action.kind === "useAbility" && a.action.abilityId === abilityId);
+}
+
+/** The first event matching `match`, by index, or -1: "the cost resolved before the effect" reads the log order. */
+const firstIndex = (events: readonly GameEvent[], match: (event: GameEvent) => boolean): number =>
+  events.findIndex(match);
+const resolvedAt = (events: readonly GameEvent[], abilityId: string): number =>
+  firstIndex(events, (e) => e.type === "abilityResolved" && e.abilityId === abilityId);
 
 /** `toHero` toggles form; only send it when the identity isn't hero already. */
 const asHero = (state: GameState): GameState =>
@@ -104,38 +118,44 @@ describe("Arm Cannon (27147)", () => {
     expect(inst(attached.state, villain).attachments).toContain(attached.id);
   });
 
-  it("27147.arm-cannon-action: discards the highest-cost upgrade you control, then discards itself", () => {
+  it("27147.arm-cannon-action: pays by discarding the highest-cost upgrade you control, then discards itself", () => {
     const state = venomGame();
     const villain = activeVillain(state).instanceId;
     const attached = attachToHost(state, "27147", villain);
     // Web-Bracelet (27009, cost 2) and Plan B (27024, cost 1) — Ghost-Spider's own precon upgrades.
     const withPlanB = playFromHand(attached.state, "27024", 1);
     const withBoth = playFromHand(withPlanB.state, "27009", 2);
-    const resolved = settle(
-      runWave5(asHero(withBoth.state), use(P1, attached.id, "27147.arm-cannon-action")),
-      firstLegal,
-      undefined,
+    const hero = asHero(withBoth.state);
+    expect(offers(hero, "27147.arm-cannon-action")).toBe(true);
+    // Plan B is not the highest-cost upgrade, so it cannot pay the cost.
+    const wrong = applyCommand(
+      hero,
+      use(P1, attached.id, "27147.arm-cannon-action", [], { discarded: [withPlanB.id] }),
       WAVE5_DEPS,
     );
+    expect(wrong.ok).toBe(false);
+    const { state: resolved, events } = driveEvents(WAVE5_DEPS, hero, use(P1, attached.id, "27147.arm-cannon-action"));
     expect(playerOf(resolved, P1).discard).toContain(withBoth.id); // Web-Bracelet (cost 2), the highest
     expect(inst(resolved, withBoth.id).attachedTo).toBeNull(); // left play
     expect(inst(resolved, withPlanB.id).attachedTo).not.toBeNull(); // Plan B (cost 1) stays attached (to your identity)
     expect(inAnyEncounterDiscard(resolved, attached.id)).toBe(true);
+    // The cost is paid before the ability resolves; the effect (discard this card) after.
+    const paid = firstIndex(events, (e) => e.type === "cardMoved" && e.instanceId === withBoth.id);
+    const effect = firstIndex(events, (e) => e.type === "cardMoved" && e.instanceId === attached.id);
+    expect(paid).toBeGreaterThanOrEqual(0);
+    expect(paid).toBeLessThan(resolvedAt(events, "27147.arm-cannon-action"));
+    expect(resolvedAt(events, "27147.arm-cannon-action")).toBeLessThan(effect);
   });
 
-  it("27147.arm-cannon-action: not legal with no upgrade controlled — the cost has nothing to pay with", () => {
+  it("27147.arm-cannon-action: not offered with no upgrade controlled — the cost has nothing to pay with", () => {
     const state = venomGame();
     const villain = activeVillain(state).instanceId;
     const attached = attachToHost(state, "27147", villain);
     const hero = asHero(attached.state);
-    const actions = legalActions(hero, P1, WAVE5_DEPS);
-    if (actions.kind === "turn") {
-      expect(
-        actions.legal.some((a) => a.action.kind === "useAbility" && a.action.abilityId === "27147.arm-cannon-action"),
-      ).toBe(false);
-    }
+    expect(offers(hero, "27147.arm-cannon-action")).toBe(false);
     const refused = applyCommand(hero, use(P1, attached.id, "27147.arm-cannon-action"), WAVE5_DEPS);
     expect(refused.ok).toBe(false);
+    expect(inst(hero, attached.id).attachedTo).toBe(villain);
   });
 });
 
@@ -226,22 +246,42 @@ describe("Kinetic Armor (27149)", () => {
     expect(hasKeyword(state, villain, "retaliate", WAVE5_DEPS)).toBe(false);
   });
 
-  it("27149.kinetic-armor-action: takes 3 indirect damage, then discards itself", () => {
+  it("27149.kinetic-armor-action: pays by taking 3 indirect damage, then discards itself", () => {
     const state = venomGame();
     const villain = activeVillain(state).instanceId;
     const attached = attachToHost(state, "27149", villain);
     const hero = asHero(attached.state);
     const identity = identityOf(hero);
     const before = inst(hero, identity).damage;
-    const resolved = settle(
-      runWave5(hero, use(P1, attached.id, "27149.kinetic-armor-action")),
-      firstLegal,
-      undefined,
+    expect(offers(hero, "27149.kinetic-armor-action")).toBe(true);
+    const { state: resolved, events } = driveEvents(
       WAVE5_DEPS,
+      hero,
+      use(P1, attached.id, "27149.kinetic-armor-action"),
     );
     expect(inst(resolved, identity).damage).toBe(before + 3); // solo game: only the identity to assign it to
     expect(inst(resolved, attached.id).attachedTo).toBeNull();
     expect(inAnyEncounterDiscard(resolved, attached.id)).toBe(true);
+    expect(events).toContainEqual(
+      expect.objectContaining({ type: "costDamageSettled", amount: 3, taken: 3, paid: true }),
+    );
+    // The damage is the cost, dealt before the ability resolves; the discard is the effect, after it.
+    const damaged = firstIndex(events, (e) => e.type === "damageDealt" && e.targetInstanceId === identity);
+    const effect = firstIndex(events, (e) => e.type === "cardMoved" && e.instanceId === attached.id);
+    expect(damaged).toBeGreaterThanOrEqual(0);
+    expect(damaged).toBeLessThan(resolvedAt(events, "27149.kinetic-armor-action"));
+    expect(resolvedAt(events, "27149.kinetic-armor-action")).toBeLessThan(effect);
+  });
+
+  it("27149.kinetic-armor-action: not offered while your only character has a tough status card (it would prevent the cost)", () => {
+    const state = venomGame();
+    const villain = activeVillain(state).instanceId;
+    const attached = attachToHost(state, "27149", villain);
+    const hero = asHero(attached.state);
+    const identity = identityOf(hero);
+    const toughened = patchInstance(hero, identity, { statuses: { ...inst(hero, identity).statuses, tough: 1 } });
+    expect(offers(toughened, "27149.kinetic-armor-action")).toBe(false);
+    expect(applyCommand(toughened, use(P1, attached.id, "27149.kinetic-armor-action"), WAVE5_DEPS).ok).toBe(false);
   });
 });
 
@@ -260,26 +300,51 @@ describe("Neocarbon Scales (27150)", () => {
     expect(damageTakenAfterConstants(attached.state, WAVE5_DEPS, villain, 4, false)).toBe(4);
   });
 
-  it("27150.neocarbon-scales-action: gives the villain a tough status card and 1 facedown boost card, then discards itself", () => {
+  it("27150.neocarbon-scales-action: pays by giving the villain a tough status card and 1 facedown boost card, then discards itself", () => {
     const state = venomGame();
     const villain = activeVillain(state).instanceId;
-    // Venom prints its own Toughness, granting a tough status by default — stripped first so the gain below is
-    // unambiguously this card's own Hero Action, not a no-op against an already-capped tough status.
+    // Venom prints Toughness, so he starts with a tough status card and can't be given another; stripped first.
     const stripped = withoutTough(state, villain);
     const attached = attachToHost(stripped, "27150", villain);
     const hero = asHero(attached.state);
-    const beforeTough = inst(hero, villain).statuses.tough;
+    expect(inst(hero, villain).statuses.tough).toBe(0);
     const beforeBoosts = inst(hero, villain).boostCards.length;
-    const resolved = settle(
-      runWave5(hero, use(P1, attached.id, "27150.neocarbon-scales-action")),
-      firstLegal,
-      undefined,
+    expect(offers(hero, "27150.neocarbon-scales-action")).toBe(true);
+    const { state: resolved, events } = driveEvents(
       WAVE5_DEPS,
+      hero,
+      use(P1, attached.id, "27150.neocarbon-scales-action"),
     );
-    expect(inst(resolved, villain).statuses.tough).toBe(beforeTough + 1);
-    expect(inst(resolved, villain).boostCards.length).toBe(beforeBoosts + 1);
+    expect(inst(resolved, villain).statuses.tough).toBe(1);
+    const boosts = inst(resolved, villain).boostCards;
+    expect(boosts.length).toBe(beforeBoosts + 1);
+    expect(inst(resolved, boosts[boosts.length - 1]!).faceup).toBe(false); // facedown
     expect(inst(resolved, attached.id).attachedTo).toBeNull();
     expect(inAnyEncounterDiscard(resolved, attached.id)).toBe(true);
+    // Both parts of the cost come before the ability resolves; the discard (the effect) after.
+    const resolvedIndex = resolvedAt(events, "27150.neocarbon-scales-action");
+    const tough = firstIndex(
+      events,
+      (e) => e.type === "statusGiven" && e.instanceId === villain && e.status === "tough",
+    );
+    const boost = firstIndex(events, (e) => e.type === "boostCardDealt" && e.enemyInstanceId === villain);
+    const effect = firstIndex(events, (e) => e.type === "cardMoved" && e.instanceId === attached.id);
+    expect(tough).toBeGreaterThanOrEqual(0);
+    expect(boost).toBeGreaterThanOrEqual(0);
+    expect(Math.max(tough, boost)).toBeLessThan(resolvedIndex);
+    expect(resolvedIndex).toBeLessThan(effect);
+  });
+
+  it("27150.neocarbon-scales-action: not offered while the villain already has a tough status card (Venom's Toughness)", () => {
+    const state = venomGame();
+    const villain = activeVillain(state).instanceId;
+    const attached = attachToHost(state, "27150", villain);
+    const hero = asHero(attached.state);
+    expect(inst(hero, villain).statuses.tough).toBe(1);
+    const boosts = inst(hero, villain).boostCards.length;
+    expect(offers(hero, "27150.neocarbon-scales-action")).toBe(false);
+    expect(applyCommand(hero, use(P1, attached.id, "27150.neocarbon-scales-action"), WAVE5_DEPS).ok).toBe(false);
+    expect(inst(hero, villain).boostCards.length).toBe(boosts);
   });
 });
 

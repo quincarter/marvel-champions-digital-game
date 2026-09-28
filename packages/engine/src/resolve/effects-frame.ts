@@ -54,6 +54,7 @@ import {
 import type { EffectSpec } from "../spec.js";
 import type { StackFrame, TriggerCandidate } from "../stack.js";
 import { executeSettleBasicThwartCost } from "../thwart-cost.js";
+import { executeSettleCostDamage } from "../cost-damage.js";
 import { executeDefeatedTogether } from "./defeated-together.js";
 import { effectChoiceAuthority, simultaneousOrderer } from "../villain/authority.js";
 import { applyEffect } from "./apply-effect.js";
@@ -149,6 +150,7 @@ export function executeEffectsFrame(ctx: Ctx, frame: Frame<"effects">): void {
   if (effect.kind === "playFromHand") return executePlayFromHand(ctx, frame, effect, context);
   // docs/phase7-wave5.md §4.1 Q27: a basic thwart's additional cost is settled, and the thwart carried out or not.
   if (effect.kind === "settleBasicThwartCost") return executeSettleBasicThwartCost(ctx, frame, effect);
+  if (effect.kind === "settleCostDamage") return executeSettleCostDamage(ctx, frame, effect);
   // docs/phase7-wave5.md §4.1 Q49: allies and minions defeated by one effect, resolved together.
   if (effect.kind === "defeatedTogether") return executeDefeatedTogether(ctx, frame, effect);
 
@@ -1268,7 +1270,10 @@ function executeDealIndirectDamage(
     for (const id of assigner.characters) {
       const max = characterProfile(ctx.state, id, ctx.deps)?.maxHp;
       const remaining = max === undefined ? 0 : max - (getInstance(ctx.state, id)?.damage ?? 0);
-      if (remaining > 0 && !cannotTakeDamage(ctx.state, ctx.deps, id, [frame.selfInstanceId])) caps[id] = remaining;
+      if (remaining <= 0 || cannotTakeDamage(ctx.state, ctx.deps, id, [frame.selfInstanceId])) continue;
+      // A cost's damage is not offered to a character whose tough status card would prevent it (`asCost`).
+      if (effect.asCost && (getInstance(ctx.state, id)?.statuses.tough ?? 0) > 0) continue;
+      caps[id] = remaining;
     }
     const eligible = Object.keys(caps).map((id) => asInstanceId(id));
     const total = eligible.reduce((sum, id) => sum + (caps[id] ?? 0), 0);

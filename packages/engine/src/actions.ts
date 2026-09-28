@@ -21,6 +21,7 @@ import {
   discardFromPlay,
   discardRandomFromHand,
   exhaustCard,
+  giveStatus,
   healDamage,
   permanentStopsLeaving,
   removeCounters,
@@ -44,13 +45,17 @@ import {
   restrictedLimitFor,
 } from "./rules.js";
 import { inPlayPicksOf, type DiscardCombined, type InPlayCostMode, type InPlayCostPick } from "./abilities.js";
-import type { ValueSpec } from "./spec.js";
+import type { TargetRef, ValueSpec } from "./spec.js";
 import type { TriggerEvent } from "./trigger-events.js";
 import { instanceId as asInstanceId, type InstanceId, type PlayerId } from "./ids.js";
-import { hasKeyword, statusActive } from "./keywords.js";
+import { hasKeyword, statusActive, statusCapacity } from "./keywords.js";
+import { costDamageEffects, indirectDamageCapacity } from "./cost-damage.js";
+import { dealBoostCard } from "./resolve/enemy-activation.js";
 import {
+  activeEncounterDeckId,
   cardOf,
   cardZoneCandidates,
+  encounterDeckOf,
   characterProfile,
   getCard,
   getInstance,
@@ -115,6 +120,7 @@ import {
   matchesQuery,
   printedAbilityRefs,
   printedResourcesOf,
+  resolveRef,
   resolveValue,
   restrictedCardsOf,
   traitsOf,
@@ -1366,6 +1372,19 @@ export function planCost(
   if (cost.healIdentity !== undefined && identity.damage < cost.healIdentity) {
     return { code: "insufficient_resources", message: "not enough damage to heal as a cost" };
   }
+  const given = planGivenCards(state, deps, sourceId, playerId, cost);
+  if (given) return given;
+  // "Take 3 indirect damage →" (`AbilityCost.indirectDamage`): payable only if every point can be taken (RRG 1.8 "Cost",
+  // p. 14), so not onto a character whose tough status card would prevent it.
+  if (
+    cost.indirectDamage !== undefined &&
+    indirectDamageCapacity(state, deps, playerId, sourceId, { excludeTough: true }) < cost.indirectDamage
+  ) {
+    return {
+      code: "insufficient_resources",
+      message: `your characters cannot take all ${cost.indirectDamage} indirect damage this cost needs`,
+    };
+  }
   if ((cost.discardSelf || cost.damageThisCard !== undefined) && !cardsInPlay(state).includes(sourceId)) {
     return { code: "card_not_in_zone", message: "the card must be in play to pay this cost" };
   }
@@ -1502,6 +1521,58 @@ export function planCost(
   return { requirement, bindings, vars, payingFor, ...(selected ? { cost } : {}) };
 }
 
+/**
+ * The cards a "give [the villain] a tough status card and 1 facedown boost card →" cost (`AbilityCost.giveStatus`,
+ * `giveBoostCards`; Neocarbon Scales, `sm` 27150) gives to, read with the payer as `you` and the ability's card as
+ * `self`: the ones in play.
+ */
+function givenCostRecipients(
+  state: GameState,
+  deps: EngineDeps,
+  sourceId: InstanceId,
+  playerId: PlayerId,
+  to: TargetRef,
+): readonly InstanceId[] {
+  const context: EffectContext = { selfInstanceId: sourceId, controllerId: playerId, event: null, bindings: {}, deps };
+  const inPlay = cardsInPlay(state);
+  return resolveRef(state, to, context).filter((id) => inPlay.includes(id));
+}
+
+/**
+ * Whether the cost's `giveStatus` / `giveBoostCards` components can be paid in full (RRG 1.8 "Cost", p. 13): someone in
+ * play to give them to, every recipient able to hold another status card of that type (RRG 1.8 "Status Cards", p. 41),
+ * and enough encounter cards, counting the discard pile the deck is reshuffled from when it empties ("Encounter Deck",
+ * p. 17). Null when payable.
+ */
+function planGivenCards(
+  state: GameState,
+  deps: EngineDeps,
+  sourceId: InstanceId,
+  playerId: PlayerId,
+  cost: AbilityCost,
+): PriceFault | null {
+  if (cost.giveStatus) {
+    const { status, to } = cost.giveStatus;
+    const recipients = givenCostRecipients(state, deps, sourceId, playerId, to);
+    if (recipients.length === 0)
+      return { code: "no_valid_target", message: `nothing in play to give a ${status} card` };
+    const full = recipients.find(
+      (id) => mustInstance(state, id).statuses[status] >= statusCapacity(state, id, status, deps),
+    );
+    if (full) return { code: "no_valid_target", message: `${full} cannot be given another ${status} status card` };
+  }
+  if (cost.giveBoostCards) {
+    const recipients = givenCostRecipients(state, deps, sourceId, playerId, cost.giveBoostCards.to);
+    if (recipients.length === 0) return { code: "no_valid_target", message: "nothing in play to give a boost card" };
+    const piles = encounterDeckOf(state, activeEncounterDeckId(state));
+    const needed = cost.giveBoostCards.count * recipients.length;
+    if (piles.deck.length + piles.discard.length < needed) {
+      return { code: "card_not_in_zone", message: `the encounter deck cannot supply ${needed} boost card(s)` };
+    }
+  }
+  return null;
+}
+
 function bindInPlayPick(
   pick: InPlayCostPick,
   picks: readonly InstanceId[],
@@ -1567,9 +1638,17 @@ function eligibleForInPlayPick(
   // any player may help pay (RRG 1.8 "Alliance", p. 6): "exhaust an [Avenger] character and a [Guardian] character"
   // may take another player's characters (docs/phase7-wave4.md §3.17).
   const group = paidAsGroup(state, deps, sourceId);
-  return cardsInPlay(state).filter(
+  const eligible = cardsInPlay(state).filter(
     (id) => (group || controllerOf(state, id) === playerId) && matchesQuery(state, id, pick.query, context),
   );
+  // "The highest-cost upgrade you control" (`InPlayCostPick.superlative`): only the cards tied for it.
+  const superlative = pick.superlative;
+  if (!superlative || eligible.length === 0) return eligible;
+  const measure = (id: InstanceId): number =>
+    discardCombinedValue(state, id, { measure: superlative.measure, atLeast: 0 });
+  const values = eligible.map(measure);
+  const best = superlative.order === "highest" ? Math.max(...values) : Math.min(...values);
+  return eligible.filter((_, index) => values[index] === best);
 }
 
 /**
@@ -1711,6 +1790,9 @@ export function payCost(
 ): void {
   const cost = plan.cost ?? written;
   if (!cost) return;
+  // The frame this cost pays for, which callers push just before paying (read before any payment pushes its own).
+  const top = ctx.state.stack[0];
+  const paidFor = (top?.kind === "ability" || top?.kind === "playCard") && top.instanceId === sourceId ? top : null;
   const identityId = mustPlayer(ctx.state, playerId).identity.instanceId;
   if (cost.exhaustSelf) exhaustCard(ctx, sourceId);
   if (cost.spendCounters) {
@@ -1760,6 +1842,25 @@ export function payCost(
       amount: cost.damageThisCard,
       sourceInstanceId: sourceId,
       fromAttack: false,
+    });
+  }
+  // "Give the villain a tough status card and 1 facedown boost card →" (`giveStatus`, `giveBoostCards`), checked
+  // payable by `planCost`.
+  if (cost.giveStatus) {
+    for (const id of givenCostRecipients(ctx.state, ctx.deps, sourceId, playerId, cost.giveStatus.to))
+      giveStatus(ctx, id, cost.giveStatus.status);
+  }
+  if (cost.giveBoostCards) {
+    for (const id of givenCostRecipients(ctx.state, ctx.deps, sourceId, playerId, cost.giveBoostCards.to))
+      for (let i = 0; i < cost.giveBoostCards.count; i++) dealBoostCard(ctx, id, true);
+  }
+  // "Take 3 indirect damage →" (`indirectDamage`, `cost-damage.ts`): assigned and dealt above the ability's own frame,
+  // which the caller has just pushed, so it resolves first; if not all of it is taken, that frame's effects don't.
+  if (cost.indirectDamage) {
+    pushEffects(ctx, {
+      effects: costDamageEffects(cost.indirectDamage, paidFor),
+      selfInstanceId: sourceId,
+      controllerId: playerId,
     });
   }
   // A cost is part of its card's ability, so the Permanent keyword's same-set exception reads that card (§4.1 Q46).

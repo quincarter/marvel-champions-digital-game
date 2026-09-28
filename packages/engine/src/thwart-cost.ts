@@ -38,12 +38,13 @@ import { commitPrepaidBasicThwart, paymentOptions, paymentsFromOptionIds, priceO
 import type { Command, Payment } from "./commands.js";
 import { type Ctx, createCtx, emit, setFrame } from "./ctx.js";
 import type { InstanceId, PlayerId } from "./ids.js";
-import { characterProfile, getInstance, getPlayer } from "./query.js";
+import { indirectDamageCapacity } from "./cost-damage.js";
+import { getPlayer } from "./query.js";
 import type { Frame } from "./resolve/frames.js";
 import { pushEffects } from "./resolve/frames.js";
 import { combineRequirements, requirementTotal, satisfies, type ResolvedRequirement } from "./resources.js";
-import { cannotTakeDamage, thwartCostFor } from "./rules.js";
-import { activeRules, isAlly } from "./select.js";
+import { thwartCostFor } from "./rules.js";
+import { activeRules } from "./select.js";
 import type { EffectSpec } from "./spec.js";
 import type { GameState } from "./state.js";
 
@@ -115,16 +116,7 @@ function canTakeIndirect(
   sourceId: InstanceId | null,
   amount: number,
 ): boolean {
-  const player = getPlayer(state, playerId);
-  if (!player) return false;
-  const characters = [player.identity.instanceId, ...player.playArea.filter((id) => isAlly(state, id))];
-  let capacity = 0;
-  for (const id of characters) {
-    if (cannotTakeDamage(state, deps, id, [sourceId])) continue;
-    const maxHp = characterProfile(state, id, deps)?.maxHp;
-    if (maxHp !== undefined) capacity += Math.max(0, maxHp - (getInstance(state, id)?.damage ?? 0));
-  }
-  return capacity >= amount;
+  return getPlayer(state, playerId) !== undefined && indirectDamageCapacity(state, deps, playerId, sourceId) >= amount;
 }
 
 /**

@@ -215,6 +215,19 @@ export type GameEvent =
       readonly outcome: "paid" | "declined" | "damageNotTaken" | "abandoned";
       readonly reason?: string;
     }
+  /**
+   * A "take N indirect damage →" cost has been paid or failed (`AbilityCost.indirectDamage`): `taken` is the damage the
+   * payer's characters took of `amount`. Short of it, the cost was not paid (RRG 1.8 "Cost", p. 14) and the effects of
+   * `instanceId`'s ability do not resolve; the damage taken stays taken.
+   */
+  | {
+      readonly type: "costDamageSettled";
+      readonly instanceId: InstanceId | null;
+      readonly playerId: PlayerId | null;
+      readonly amount: number;
+      readonly taken: number;
+      readonly paid: boolean;
+    }
   /** A card would ready and a rule asks its readier for an additional cost first (`RuleSpec readyCost`; §3.19). */
   | { readonly type: "readyCostAsked"; readonly instanceId: InstanceId; readonly playerId: PlayerId }
   /** A set-aside modular set was chosen at random and shuffled into the encounter deck (docs/phase7-wave4.md §3.18). */

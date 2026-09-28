@@ -10,6 +10,7 @@ import type {
   Predicate,
   SchemeValueName,
   StatName,
+  StatusName,
   TargetCategory,
   TargetQuery,
   TargetRef,
@@ -1180,6 +1181,37 @@ export interface AbilityCost {
   readonly damageSelf?: number;
   /** "Deal 2 damage to him →" (War Machine): this card takes the damage. */
   readonly damageThisCard?: number;
+  /**
+   * "Take 3 indirect damage →" (Kinetic Armor, `sm` 27149): the paying player takes that much indirect damage, divided
+   * among the characters they control (RRG 1.8 "Indirect Damage", p. 24), before the ability's effects resolve.
+   *
+   * - **Payable only if it can all be taken.** RRG 1.8 "Cost" (p. 14): "If taking damage is a cost, that cost is not
+   *   considered paid unless all of that damage was taken." So the ability is offered only while the payer's
+   *   characters can absorb every point: each one's remaining hit points, none that cannot take damage from this
+   *   card, and none holding a tough status card, which would prevent what it is assigned (the Focused Rage FAQ entry,
+   *   RRG 1.8 p. 57: a cost that tough would prevent "cannot be paid", and "you cannot partially pay a cost"). For the
+   *   same reason the assignment itself leaves out a character with a tough status card (`dealIndirectDamage.asCost`).
+   * - **Not all taken, not paid.** Damage prevented as it is taken (a reduction the payability check cannot know of)
+   *   means the cost was not paid, so the ability's effects do not resolve (`settleCostDamage`); the damage already
+   *   taken stays taken, as in the thwart cost's §4.1 Q30.
+   */
+  readonly indirectDamage?: number;
+  /**
+   * "Give the villain a tough status card … →" (Neocarbon Scales, `sm` 27150): each card `to` names (read with the
+   * payer as `you` and the ability's card as `self`) is given one status card of that type. Payable only if `to` names
+   * at least one card in play and every one of them can hold another (RRG 1.8 "Status Cards", p. 41: "A character
+   * cannot have more than one status card of each type at a time"; `statusCapacity` for steady and the rest), since a
+   * cost is paid in full or not at all (RRG 1.8 "Cost", p. 13).
+   */
+  readonly giveStatus?: { readonly status: StatusName; readonly to: TargetRef };
+  /**
+   * "… and 1 facedown boost card →" (Neocarbon Scales, `sm` 27150): each card `to` names is dealt `count` facedown
+   * boost cards from the encounter deck, which wait there until it activates (RRG 1.8 "Boost, Boost Icon", p. 11: "If
+   * an enemy is dealt a boost card outside of its own activation, that boost card remains facedown on that enemy").
+   * Payable only if `to` names at least one card in play and the encounter deck, with its discard pile reshuffled in
+   * when it runs out ("Encounter Deck", p. 17), holds enough cards for all of them.
+   */
+  readonly giveBoostCards?: { readonly count: number; readonly to: TargetRef };
   /** "Heal 1 damage from Captain Marvel →": the controller's identity must have that much damage to heal. */
   readonly healIdentity?: number;
   /**
@@ -1315,6 +1347,13 @@ export interface InPlayCostPick {
   readonly min: number;
   readonly max?: number;
   readonly bind?: string;
+  /**
+   * "Discard the highest-cost upgrade you control →" (Arm Cannon, `sm` 27147): only the cards matching `query` that the
+   * payer controls and that tie for the highest (or lowest) `measure` among them can pay; a tie is the payer's pick. The
+   * superlative is taken over every matching card before asking whether it can pay, so a highest-cost card that cannot
+   * leave play leaves the cost unpayable rather than passing the cost to the next one down (the text names that card).
+   */
+  readonly superlative?: { readonly order: "highest" | "lowest"; readonly measure: DiscardCombined["measure"] };
 }
 
 export interface AbilityLimit {

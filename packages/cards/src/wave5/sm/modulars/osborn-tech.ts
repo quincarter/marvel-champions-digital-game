@@ -1,32 +1,26 @@
 import {
   after,
   attacksGainKeywords,
-  bindTargets,
-  chooseTarget,
-  chosen,
   constant,
-  dealIndirectDamage,
   defineAbilities,
   discard,
+  discardCardsCost,
   discardRandomFromHandCost,
-  each,
   enemyAttack,
   exhaustCardsCost,
-  exists,
   forcedResponse,
   gainsKeyword,
-  giveBoostCard,
-  giveTough,
+  giveBoostCardsCost,
+  giveStatusCost,
   heroAction,
   ifThen,
   not,
   placeThreat,
-  printedCostOf,
   query,
   rule,
   self,
   spend,
-  superlative,
+  takeIndirectDamageCost,
   theMainScheme,
   theVillain,
   varAtLeast,
@@ -42,22 +36,12 @@ import {
  * mean. "Attach to the villain" (`attachesTo: { kind: "villain" }`) is data, resolved by the engine's own reveal
  * step, not scripted here.
  *
- * Every card's own "Hero Action: … → discard this card" is two ordered effects rather than a formal `AbilityCost`
- * plus effect for Arm Cannon, Kinetic Armor and Neocarbon Scales: the DSL's `AbilityCost` vocabulary (`spend`,
- * `discardCardsCost`, `exhaustCardsCost`, `discardRandomFromHandCost`, …) has resource/pick-by-query/random-discard
- * costs, all used as real costs below for Ionic Boots and Tracking Display, but nothing for "discard the
- * highest-cost upgrade you control" (a dynamic superlative selection — `TargetQuery` has no "is the max among this
- * group" filter, only `maxPrintedCost` against a fixed/computed threshold), "take 3 indirect damage" (a cost
- * `AbilityCost` only knows as `damageSelf`, which is direct damage to the identity specifically, not the RRG 1.8
- * "Indirect Damage" (p. 24) assignment-among-your-characters `dealIndirectDamage` already gives it as an effect), or
- * "give the villain a tough status card and 1 facedown boost card" (an in-play effect, not a resource/card
- * payment). All three are instead scripted as ordered `effects` on the action — Arm Cannon gated by
- * `while: exists(...)` so the action isn't offered without a valid discard target, matching a real cost's "must be
- * payable to initiate" (RRG 1.8 "Initiating Abilities", p. 24) — following the same
- * `bindTargets`+`superlative`+`chooseTarget`+`discard` shape `hood/standard-expert-ii.ts`'s own Overwhelming Force
- * (24052) uses for "discard the highest-cost upgrade or support you control" as a When Revealed effect. Reported as
- * a DSL gap rather than hacked further: `superlativeDiscardCost`/`indirectDamageCost`/`giveCardsCost`-shaped
- * `AbilityCost` additions would let these read as true costs instead.
+ * Every card's "Hero Action: … → discard this card" pays the part before the arrow as a real `AbilityCost`, so the
+ * action is offered only while that cost can be paid in full and the cost is paid before (and apart from) the effect
+ * (RRG 1.8 "Cost", pp. 13–14; "Cost Arrow Icon", p. 14): Arm Cannon's "discard the highest-cost upgrade you control"
+ * is `discardCardsCost(…, { superlative: "highest" })`, Kinetic Armor's "take 3 indirect damage" is
+ * `takeIndirectDamageCost(3)`, Neocarbon Scales' "give the villain a tough status card and 1 facedown boost card" is
+ * `giveStatusCost` plus `giveBoostCardsCost`.
  */
 export const OSBORN_TECH = defineAbilities({
   // Arm Cannon (27147, attachment to the villain; Surge/TECH/WEAPON are data) — Attached villain's attacks gain
@@ -65,18 +49,12 @@ export const OSBORN_TECH = defineAbilities({
   "27147.arm-cannon-constant": constant(
     attacksGainKeywords(["overkill", "piercing"], { attacker: query("villain", { hostOfSelf: true }) }),
   ),
-  // Arm Cannon — Hero Action: Discard the highest-cost upgrade you control → discard this card. See the module
-  // docblock above for why this is ordered effects rather than a formal cost. A tie is the acting player's own
-  // choice (RRG 1.8 "Choose (Option)", p. 12: the player who owns/uses the ability breaks its own ties absent a
-  // printed rule otherwise; unlike an encounter card's own "the first player" default).
+  // Arm Cannon — Hero Action: Discard the highest-cost upgrade you control → discard this card. Only an upgrade tied
+  // for the highest printed cost among those you control can pay; a tie is the paying player's pick (costs are paid
+  // by the player using the ability, RRG 1.8 "Cost", p. 14), named in `costChoices.discarded`. With no upgrade the
+  // cost can't be paid and the action isn't offered.
   "27147.arm-cannon-action": heroAction(
-    { while: exists(query("upgrade", { controller: "you" })) },
-    bindTargets(
-      "highest",
-      superlative("highest", each(query("upgrade", { controller: "you" })), printedCostOf(chosen("candidate"))),
-    ),
-    chooseTarget("pick", { inSlot: "highest" }),
-    discard(chosen("pick")),
+    { cost: discardCardsCost(query("upgrade"), { superlative: "highest" }) },
     discard(self),
   ),
 
@@ -97,9 +75,11 @@ export const OSBORN_TECH = defineAbilities({
   "27149.kinetic-armor-constant": constant(
     gainsKeyword({ name: "retaliate", value: 1 }, query("villain", { hostOfSelf: true })),
   ),
-  // Kinetic Armor — Hero Action: Take 3 indirect damage → discard this card. See the module docblock: ordered
-  // effects (`dealIndirectDamage` then `discard`), unconditionally, since the printed text has no "if you do".
-  "27149.kinetic-armor-action": heroAction(dealIndirectDamage(you, 3), discard(self)),
+  // Kinetic Armor — Hero Action: Take 3 indirect damage → discard this card. The damage is divided among your
+  // characters before the effect; the action is offered only while they can take all 3 (a character with a tough
+  // status card can't pay it), and if any of it is prevented the cost wasn't paid and this card stays
+  // (`AbilityCost.indirectDamage`).
+  "27149.kinetic-armor-action": heroAction({ cost: takeIndirectDamageCost(3) }, discard(self)),
 
   // Neocarbon Scales (27150, attachment to the villain; Surge/ARMOR/TECH are data) — Reduce the amount of damage
   // attached villain takes from each attack by 1 (`RuleSpec reduceDamageTaken`, `dsl/abilities.ts`'s own doc comment
@@ -108,9 +88,13 @@ export const OSBORN_TECH = defineAbilities({
     rule({ kind: "reduceDamageTaken", target: query("villain", { hostOfSelf: true }), amount: 1, fromAttack: true }),
   ),
   // Neocarbon Scales — Hero Action: Give the villain a tough status card and 1 facedown boost card → discard this
-  // card. See the module docblock: ordered effects, since neither "give a tough status card" nor "give a boost
-  // card" is a resource/card payment `AbilityCost` can express.
-  "27150.neocarbon-scales-action": heroAction(giveTough(theVillain), giveBoostCard(theVillain, 1), discard(self)),
+  // card. A villain that already has a tough status card can't be given another (RRG 1.8 "Status Cards", p. 41), so
+  // the cost can't be paid in full and the action isn't offered then (with Venom, whose Toughness gives him one, only
+  // once it is gone).
+  "27150.neocarbon-scales-action": heroAction(
+    { cost: [giveStatusCost(theVillain, "tough"), giveBoostCardsCost(theVillain, 1)] },
+    discard(self),
+  ),
 
   // Spiked Gauntlet (27151, attachment to the villain; Surge/TECH/WEAPON, +1 ATK are data) — Hero Action: The
   // villain attacks you. After that attack ends, if your identity took no damage from that attack, discard this

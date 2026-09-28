@@ -21,6 +21,7 @@ import type {
   SchemeValueName,
   StatModifierSpec,
   StatName,
+  StatusName,
   TargetCategory,
   TargetQuery,
   TargetRef,
@@ -965,6 +966,23 @@ export const takeDamageCost = (n: number): AbilityCost => ({ damageSelf: n });
 export const damageThisCardCost = (n: number): AbilityCost => ({ damageThisCard: n });
 /** "Heal N damage from [your identity] →" */
 export const healYourIdentityCost = (n: number): AbilityCost => ({ healIdentity: n });
+/**
+ * "Take N indirect damage →" (Kinetic Armor, `sm` 27149): divided among the characters you control, before the
+ * effects. Offered only while your characters can take all of it (none with a tough status card counts), and if any
+ * of it is prevented the cost was not paid and the effects don't resolve (RRG 1.8 "Cost", p. 14;
+ * `AbilityCost.indirectDamage`).
+ */
+export const takeIndirectDamageCost = (n: number): AbilityCost => ({ indirectDamage: n });
+/**
+ * "Give [the villain] a tough status card →" (Neocarbon Scales, `sm` 27150): payable only if every card `to` names in
+ * play can hold another status card of that type (`AbilityCost.giveStatus`).
+ */
+export const giveStatusCost = (to: TargetRef, status: StatusName): AbilityCost => ({ giveStatus: { status, to } });
+/**
+ * "… and 1 facedown boost card →" (Neocarbon Scales): each card `to` names in play is dealt `n` facedown boost cards
+ * from the encounter deck (`AbilityCost.giveBoostCards`).
+ */
+export const giveBoostCardsCost = (to: TargetRef, n = 1): AbilityCost => ({ giveBoostCards: { count: n, to } });
 /** "Exhaust your hero →" */
 export const exhaustYourHero: AbilityCost = { exhaustIdentity: true };
 /**
@@ -1020,6 +1038,11 @@ export interface InPlayCostOptions {
   readonly slot?: string;
   /** The var that receives how many cards paid: "draw 1 card for each ally exhausted this way". */
   readonly bind?: string;
+  /**
+   * "Discard the **highest-cost** upgrade you control →" (Arm Cannon, `sm` 27147): only the matching cards tied for the
+   * highest (or lowest) printed cost can pay; a tie is the payer's pick (`InPlayCostPick.superlative`).
+   */
+  readonly superlative?: "highest" | "lowest";
 }
 
 const inPlayPick = (q: TargetQuery, opts: InPlayCostOptions, defaultSlot: string): InPlayCostPick => {
@@ -1031,6 +1054,7 @@ const inPlayPick = (q: TargetQuery, opts: InPlayCostOptions, defaultSlot: string
     min,
     ...(max !== "any" ? { max } : {}),
     ...(opts.bind ? { bind: opts.bind } : {}),
+    ...(opts.superlative ? { superlative: { order: opts.superlative, measure: "printedCost" as const } } : {}),
   };
 };
 

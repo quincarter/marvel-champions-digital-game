@@ -17,7 +17,7 @@ import type { EventPattern, RuleSpec } from "./abilities.js";
 // only in the type graph: the campaign *vocabulary* is data, and the campaign *primitives* are effects.
 import type { CampaignLogValueSpec, LogWriteMode } from "./campaign.js";
 import type { Command } from "./commands.js";
-import type { InstanceId, PlayerId } from "./ids.js";
+import type { FrameId, InstanceId, PlayerId } from "./ids.js";
 import type { ResourceRequirement, TypedResource } from "./resources.js";
 import type { FacedownRole, Form, GameStep } from "./state.js";
 // Type-only: `defeatedTogether` carries the defeats it resolves.
@@ -1778,6 +1778,12 @@ export type EffectSpec =
        * that attack's damage (`fromAttack`, reported to the frame's event, the attack), not a card effect's.
        */
       readonly fromAttack?: boolean;
+      /**
+       * Set by the engine for a "take N indirect damage →" cost (`AbilityCost.indirectDamage`): a character holding a
+       * tough status card is not offered, since the damage it took would be prevented and a cost cannot be partly
+       * paid (the Focused Rage FAQ entry, RRG 1.8 p. 57).
+       */
+      readonly asCost?: true;
     }
   | { readonly kind: "draw"; readonly player: PlayerRef; readonly amount: ValueSpec }
   /**
@@ -2283,6 +2289,18 @@ export type EffectSpec =
   | { readonly kind: "then"; readonly effects: readonly EffectSpec[] }
   /** RRG "Cancel": stops the interrupted event from resolving (its responses do not fire). */
   | { readonly kind: "cancelTriggeringEvent" }
+  /**
+   * **Engine-internal; no DSL builder.** The last step of paying a "take N indirect damage →" cost
+   * (`AbilityCost.indirectDamage`, `cost-damage.ts`): reads `<bind>.amount`, the damage the payer's characters took,
+   * and if it falls short of `amount` the cost was not paid (RRG 1.8 "Cost", p. 14), so the ability frame `paidFor`
+   * is marked and its effects do not resolve. Logged as `costDamageSettled` either way.
+   */
+  | {
+      readonly kind: "settleCostDamage";
+      readonly amount: number;
+      readonly bind: string;
+      readonly paidFor: FrameId | null;
+    }
   /**
    * **Engine-internal; no DSL builder.** The last step of a basic thwart's additional-cost question
    * (docs/phase7-wave5.md §4.1 Q27, `thwart-cost.ts`): the basic thwart command asks for the additional cost to thwart

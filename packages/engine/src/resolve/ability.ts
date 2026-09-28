@@ -2,6 +2,7 @@
 
 import type { AbilityId } from "@mc/content";
 import { type AbilityDefinition, abilityUseKey } from "../abilities.js";
+import { COST_NOT_PAID_VAR } from "../cost-damage.js";
 import { cannotDefend } from "../rules.js";
 import { type Ctx, emit, popFrame, setFrame, updateInstance } from "../ctx.js";
 import type { InstanceId, PlayerId } from "../ids.js";
@@ -78,6 +79,9 @@ export function executeAbilityFrame(ctx: Ctx, frame: Frame<"ability">): void {
   const definition = ctx.deps.abilities[frame.abilityId];
   popFrame(ctx);
   if (!definition) return;
+  // A "take damage" cost not all taken was not paid (RRG 1.8 "Cost", p. 14; `cost-damage.ts`), so the ability is not
+  // initiated: "abort this process" (RRG 1.8 "Initiating Abilities", p. 24, step 5). Logged as `costDamageSettled`.
+  if ((frame.vars[COST_NOT_PAID_VAR] ?? 0) > 0) return;
   if (limitReached(ctx.state, frame.instanceId, frame.abilityId, definition, frame.event, frame.controllerId)) return;
   recordAbilityUse(ctx, frame.instanceId, frame.abilityId, definition, frame.event, frame.controllerId);
   emit(ctx, {
