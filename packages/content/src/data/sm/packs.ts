@@ -6,12 +6,12 @@
 import { cycleId, setCode } from "../../schema/index.js";
 import type { Cycle, Pack } from "../../schema/index.js";
 
-export const SM_CYCLE: Cycle = { id: cycleId("cycle4"), name: "Cycle 4", order: 4 };
+export const SM_CYCLE: Cycle = { id: cycleId("cycle5"), name: "Cycle 5", order: 5 };
 
 /** Release date source: Hall of Heroes Sinister Motives page (https://hallofheroeslcg.com/sinister-motives/): "Release date: April 8, 2022". */
 export const SM_PACK: Pack = {
   code: setCode("sm"),
   name: "Sinister Motives",
-  cycleId: cycleId("cycle4"),
+  cycleId: cycleId("cycle5"),
   releaseDate: "2022-04-08",
 };
