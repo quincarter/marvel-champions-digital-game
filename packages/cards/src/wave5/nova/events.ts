@@ -6,6 +6,9 @@ import {
   chosen,
   damageAnEnemy,
   defineAbilities,
+  draw,
+  eachTimeUntil,
+  eventTarget,
   FRIENDLY_CHARACTER,
   heroAction,
   heroInterrupt,
@@ -14,12 +17,17 @@ import {
   moveCards,
   on,
   preventDamage,
+  query,
+  ready,
   response,
+  threatOn,
   thwartAScheme,
   topOfDeck,
+  valueEquals,
   varAtLeast,
   varOf,
   YOUR_IDENTITY,
+  yourIdentity,
 } from "../../dsl/index.js";
 
 /**
@@ -54,13 +62,20 @@ import {
  *
  * **Unleash Nova Force (28006)**: "Max 1 per round." is data (`playRestrictions.maxPerRound`). "Hero Action: Until
  * the end of the round, each time Nova defeats an enemy or removes the last threat from a scheme, ready Nova and
- * draw 1 card" asks for a *delayed, standing* trigger that survives this event card leaving play (it resolves and
- * goes to the discard pile immediately, the way every event does) and fires on future, independent attack/thwart
- * events for the rest of the round. Every triggered-ability collector in the engine (`resolve/triggers.ts`) walks
- * `cardsInPlay(state)` only (`select.ts` `activeAbilityRefs`); a discarded event's own printed response/constant
- * abilities are never consulted again. There is no "grant a temporary triggered ability" primitive in the DSL or
- * the engine to reach for instead (grep for `grantAbility`/`delayedTrigger`/`floatingTrigger` turns up nothing).
- * `.28006.unleash-nova-force-action` is left unregistered; reported as a gap below.
+ * draw 1 card" is a lasting effect (RRG 1.8 "Lasting Effects", p. 26: it "continues to affect the game for the
+ * specified duration whether or not the card that created the lasting effect is in play", so this event going to the
+ * discard pile does not end it). The engine already has that shape: `eachTimeUntil` (`LastingEffectBody eachTime`,
+ * docs/phase7-wave3.md §3.17, Schadenfreude `gmw` 16032), stored in `state.lastingEffects`, walked by
+ * `eachTimeEffectsFor` at every event's response step and expired at the round's end. Two of them, one per clause:
+ * - "defeats an enemy": `characterDefeated` of an enemy whose defeating source is Nova (`sourceInstanceId` is the
+ *   attacker for attack damage, basic or "(attack)"-labeled, `resolve/event.ts` `applyPlayerAttack`).
+ * - "removes the last threat from a scheme": `removeThreat` sourced to Nova (a thwart's removal is sourced to the
+ *   thwarter, basic or "(thwart)"-labeled) that removed at least 1 threat and left the scheme at 0. Read off the
+ *   removal rather than `schemeDefeated`, so the main scheme (never "defeated" at 0 threat) counts too, as "a
+ *   scheme" says. By this event's response step a defeated side scheme has left play; its threat still reads 0.
+ * "Nova" is the identity, not an event card Nova's player plays: a non-labeled "remove N threat"/"deal N damage"
+ * event is sourced to the event card and does not count (Small but Mighty, `wsp` 13001a, has to print "or an event
+ * you play" to include one). Flagged in the wave report as an open reading.
  *
  * **Chase Them Down (28011)**: "Response (thwart): After your hero attacks and defeats an enemy, remove 2 threat
  * from a scheme." `on.attacks(YOUR_IDENTITY, { defeats: true })` is the exact "attacks and defeats" shape (RRG 1.8
@@ -110,8 +125,19 @@ export const NOVA_EVENTS = defineAbilities({
   // "28005.pot-shot-constant" is the same gap as Lightspeed Flight's — left unregistered.
   "28005.pot-shot-action": heroAction({ label: "attack" }, attackAnEnemy(4)),
 
-  // "28006.unleash-nova-force-action" is a genuine engine gap (no primitive for a delayed trigger that survives
-  // this event leaving play, for the rest of the round) — left unregistered; see module docblock.
+  "28006.unleash-nova-force-action": heroAction(
+    eachTimeUntil(
+      "endOfRound",
+      { on: "characterDefeated", targetIs: query("enemy"), sourceIs: YOUR_IDENTITY },
+      ready(yourIdentity),
+      draw(1),
+    ),
+    eachTimeUntil(
+      "endOfRound",
+      { on: "removeThreat", sourceIs: YOUR_IDENTITY, requireResults: { amount: 1 } },
+      ifThen(valueEquals(threatOn(eventTarget), 0), [ready(yourIdentity), draw(1)]),
+    ),
+  ),
 
   "28011.chase-them-down-response": response(
     on.attacks(YOUR_IDENTITY, { defeats: true }),

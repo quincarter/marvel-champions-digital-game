@@ -1,4 +1,4 @@
-import { cardsInPlay, maxHitPoints, type InstanceId } from "@mc/engine";
+import { cardsInPlay, maxHitPoints, type GameState, type InstanceId } from "@mc/engine";
 import { describe, expect, it } from "vitest";
 import {
   endTurn,
@@ -113,9 +113,143 @@ describe("Nova's events (28003-28006, 28011-28014, 28026)", () => {
     expect(inst(state, villain).damage).toBe(before + 4);
   });
 
-  // 28006.unleash-nova-force-action ("Until the end of the round, each time Nova defeats an enemy or removes the
-  // last threat from a scheme, ready Nova and draw 1 card") is a genuine engine gap — see the module docblock in
-  // `events.ts` — so it has no test here.
+  describe("28006.unleash-nova-force-action", () => {
+    const MINION = "01101"; // Hydra Mercenary: 3 hit points, no text beyond Guard.
+    const SIDE_SCHEME = "01109"; // Bomb Scare.
+    const hand = (state: GameState) => playerOf(state, P1).hand.length;
+    const exhausted = (state: GameState) => inst(state, identityOf(state)).exhausted;
+    const attackWith = (state: GameState, attacker: InstanceId, target: InstanceId) =>
+      settle(
+        runWave5(state, { type: "basicAttack", playerId: P1, attackerInstanceId: attacker, targetInstanceId: target }),
+        firstLegal,
+        undefined,
+        WAVE5_DEPS,
+      );
+    const thwartWithNova = (state: GameState, scheme: InstanceId) =>
+      settle(
+        runWave5(state, {
+          type: "basicThwart",
+          playerId: P1,
+          thwarterInstanceId: identityOf(state),
+          schemeInstanceId: scheme,
+        }),
+        firstLegal,
+        undefined,
+        WAVE5_DEPS,
+      );
+    /**
+     * Ends the turn with `code` dealt to Nova in the villain phase (behind Advance, a 0-boost card for Rhino's attack),
+     * settling into the next round's player phase; returns the revealed card's in-play instance.
+     */
+    const revealNext = (state: GameState, code: string) => {
+      const stacked = stackEncounterDeck(state, "01186", code);
+      const next = settle(runWave5(stacked, endTurn(P1)), firstLegal, undefined, WAVE5_DEPS);
+      const id = instancesOf(next, code).find((i) => cardsInPlay(next).includes(i))!;
+      return { state: next, id };
+    };
+    /** Nova in hero form, a Hydra Mercenary engaged with her on 1 remaining hit point (round 2, after its reveal). */
+    const withMinion = () => {
+      const hero = runWave5(novaVsRhino(), toHero(P1));
+      const { state, id } = revealNext(hero, MINION);
+      const hp = maxHitPoints(state, id, WAVE5_DEPS) ?? 3;
+      return { state: patchInstance(state, id, { damage: hp - 1 }), minion: id };
+    };
+
+    it("defeating an enemy readies Nova and draws 1 card", () => {
+      const { state: staged, minion } = withMinion();
+      const { state: played } = playFromHand(staged, "28006", 1);
+      const handBefore = hand(played);
+      const after = attackWith(played, identityOf(played), minion);
+      expect(cardsInPlay(after)).not.toContain(minion); // defeated
+      expect(exhausted(after)).toBe(false); // the basic attack exhausted her; the effect readied her
+      expect(hand(after)).toBe(handBefore + 1);
+    });
+
+    it("without it, the same defeat leaves Nova exhausted and draws nothing", () => {
+      const { state: staged, minion } = withMinion();
+      const handBefore = hand(staged);
+      const after = attackWith(staged, identityOf(staged), minion);
+      expect(cardsInPlay(after)).not.toContain(minion);
+      expect(exhausted(after)).toBe(true);
+      expect(hand(after)).toBe(handBefore);
+    });
+
+    it("removing the last threat from a side scheme readies Nova and draws 1 card", () => {
+      const hero = runWave5(novaVsRhino(), toHero(P1));
+      const { state: revealed, id: scheme } = revealNext(hero, SIDE_SCHEME);
+      const { state: played } = playFromHand(patchInstance(revealed, scheme, { threat: 1 }), "28006", 1);
+      const handBefore = hand(played);
+      const after = thwartWithNova(played, scheme); // Nova's THW is 1
+      expect(cardsInPlay(after)).not.toContain(scheme); // defeated
+      expect(exhausted(after)).toBe(false);
+      expect(hand(after)).toBe(handBefore + 1);
+    });
+
+    it("removing some but not all of a scheme's threat does nothing", () => {
+      const hero = runWave5(novaVsRhino(), toHero(P1));
+      const { state: revealed, id: scheme } = revealNext(hero, SIDE_SCHEME);
+      const { state: played } = playFromHand(patchInstance(revealed, scheme, { threat: 3 }), "28006", 1);
+      const handBefore = hand(played);
+      const after = thwartWithNova(played, scheme);
+      expect(inst(after, scheme).threat).toBe(2);
+      expect(exhausted(after)).toBe(true);
+      expect(hand(after)).toBe(handBefore);
+    });
+
+    it("removing the last threat from the main scheme counts too (it is a scheme)", () => {
+      const hero = runWave5(novaVsRhino(), toHero(P1));
+      const scheme = hero.mainScheme.instanceId;
+      const { state: played } = playFromHand(patchInstance(hero, scheme, { threat: 1 }), "28006", 1);
+      const handBefore = hand(played);
+      const after = thwartWithNova(played, scheme);
+      expect(mainThreat(after)).toBe(0);
+      expect(exhausted(after)).toBe(false);
+      expect(hand(after)).toBe(handBefore + 1);
+    });
+
+    it("happens each time: a defeat and then a cleared scheme in the same round ready and draw twice", () => {
+      const { state: staged, minion } = withMinion();
+      const scheme = staged.mainScheme.instanceId;
+      const { state: played } = playFromHand(patchInstance(staged, scheme, { threat: 1 }), "28006", 1);
+      const handBefore = hand(played);
+      const first = attackWith(played, identityOf(played), minion);
+      expect(exhausted(first)).toBe(false);
+      expect(hand(first)).toBe(handBefore + 1);
+      const second = thwartWithNova(first, scheme); // only possible because the first trigger readied her
+      expect(mainThreat(second)).toBe(0);
+      expect(exhausted(second)).toBe(false);
+      expect(hand(second)).toBe(handBefore + 2);
+    });
+
+    it("ends at the end of the round: a defeat in the next round does nothing", () => {
+      const hero = runWave5(novaVsRhino(), toHero(P1));
+      const { state: played } = playFromHand(hero, "28006", 1);
+      expect(played.lastingEffects.some((e) => e.kind === "eachTime")).toBe(true);
+      // Ending the turn runs the villain phase (revealing the minion) and starts the next round.
+      const { state: nextRound, id: minion } = revealNext(played, MINION);
+      expect(nextRound.round).toBe(played.round + 1);
+      expect(nextRound.lastingEffects.some((e) => e.kind === "eachTime")).toBe(false);
+      const hp = maxHitPoints(nextRound, minion, WAVE5_DEPS) ?? 3;
+      const primed = patchInstance(nextRound, minion, { damage: hp - 1 });
+      const handBefore = hand(primed);
+      const after = attackWith(primed, identityOf(primed), minion);
+      expect(cardsInPlay(after)).not.toContain(minion);
+      expect(exhausted(after)).toBe(true);
+      expect(hand(after)).toBe(handBefore);
+    });
+
+    it("another character defeating an enemy does not trigger it", () => {
+      const { state: staged, minion } = withMinion();
+      const { state: withAlly, id: ally } = playFromHand(staged, "28002", 3); // Ms. Marvel, ATK 1
+      expect(cardsInPlay(withAlly)).toContain(ally);
+      const { state: played } = playFromHand(withAlly, "28006", 1);
+      const handBefore = hand(played);
+      const after = attackWith(played, ally, minion);
+      expect(cardsInPlay(after)).not.toContain(minion);
+      expect(exhausted(after)).toBe(false); // Nova never exhausted, and nothing else changed
+      expect(hand(after)).toBe(handBefore);
+    });
+  });
 
   it("28011.chase-them-down-response: removes 2 threat from a scheme after your hero attacks and defeats an enemy", () => {
     const given = moveToHand(runWave5(novaVsRhino(), toHero(P1)), P1, "28011");
