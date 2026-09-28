@@ -453,15 +453,27 @@ export const inPlay = (name: string): Predicate => exists({ name });
 export const not = (of: Predicate): Predicate => ({ kind: "not", of });
 export const allOf = (...of: Predicate[]): Predicate => ({ kind: "and", of });
 export const anyOf = (...of: Predicate[]): Predicate => ({ kind: "or", of });
-/** "If you paid for this card using a [X] resource". */
-export const paidWith = (resource: TypedResource): Predicate => ({ kind: "paidWith", resource });
+/**
+ * "If you paid for this card using a [X] resource". `of`: another card's play, while it resolves — "When you play an
+ * Aggression Attack event, if you paid for that event using a [mental] resource" (Honed Technique 28017) is
+ * `paidWith("mental", eventTarget)`.
+ */
+export const paidWith = (resource: TypedResource, of?: TargetRef): Predicate => ({
+  kind: "paidWith",
+  resource,
+  ...(of !== undefined ? { of } : {}),
+});
 /**
  * "If you paid for this card using only [X] resources" (Behind Enemy Lines, Grasping Tendrils, Savage Attack,
  * `vnm`; docs/phase7-wave3.md §3.26): something was paid, and every resource paid was that type or a wild
  * declared as it. FAQ "Unstoppable Force (#6)" (RRG 1.8 p. 60): at a cost of 0 it fails. The engine `Predicate`
- * already existed (`play-restrictions.test.ts`'s own SMASH_ACTION); this is its first DSL wrapper.
+ * already existed (`play-restrictions.test.ts`'s own SMASH_ACTION); this is its first DSL wrapper. `of` as for `paidWith`.
  */
-export const paidWithOnly = (resource: TypedResource): Predicate => ({ kind: "paidWithOnly", resource });
+export const paidWithOnly = (resource: TypedResource, of?: TargetRef): Predicate => ({
+  kind: "paidWithOnly",
+  resource,
+  ...(of !== undefined ? { of } : {}),
+});
 export const varAtLeast = (name: string, n = 1): Predicate => ({ kind: "varAtLeast", name, amount: n });
 /**
  * The ability's last required choice found no valid target (RRG 1.8 "Target", pp. 42–43): "If no cards were discarded

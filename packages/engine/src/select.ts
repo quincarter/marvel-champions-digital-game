@@ -52,7 +52,7 @@ import {
 } from "./campaign-state.js";
 import { boostIconsFor } from "./modifiers.js";
 import { printedResources, RESOURCE_TYPES, type ResourcePool } from "./resources.js";
-import { currentActivationFrameId, type Bindings, type Vars } from "./stack.js";
+import { currentActivationFrameId, playPaymentVars, type Bindings, type Vars } from "./stack.js";
 import type { LastingReach, LastingScope } from "./lasting.js";
 import type {
   CharacterNames,
@@ -1517,6 +1517,16 @@ export function resolveValue(
   }
 }
 
+/**
+ * The `paid.*` vars a `paidWith`/`paidWithOnly` predicate reads: the ability's own (`of` omitted), or the play in
+ * progress of the card `of` names (`playPaymentVars`) — "if you paid for that event" read by another card's interrupt.
+ */
+function paidVarsOf(state: GameState, of: TargetRef | undefined, context: EffectContext): Vars {
+  if (of === undefined) return context.vars ?? {};
+  const [id] = resolveRef(state, of, context);
+  return id === undefined ? {} : playPaymentVars(state.stack, id);
+}
+
 export function evaluate(state: GameState, predicate: Predicate, context: EffectContext): boolean {
   switch (predicate.kind) {
     case "form": {
@@ -1550,8 +1560,10 @@ export function evaluate(state: GameState, predicate: Predicate, context: Effect
     }
     case "not":
       return !evaluate(state, predicate.of, context);
-    case "paidWith":
-      return (context.vars?.[`paid.${predicate.resource}`] ?? 0) > 0 || (context.vars?.["paid.wild"] ?? 0) > 0;
+    case "paidWith": {
+      const vars = paidVarsOf(state, predicate.of, context);
+      return (vars[`paid.${predicate.resource}`] ?? 0) > 0 || (vars["paid.wild"] ?? 0) > 0;
+    }
     case "varAtLeast":
       return (context.vars?.[predicate.name] ?? 0) >= predicate.amount;
     case "and":
@@ -1627,7 +1639,7 @@ export function evaluate(state: GameState, predicate: Predicate, context: Effect
       return id ? currentName(state, id) === predicate.name : false;
     }
     case "paidWithOnly": {
-      const vars = context.vars ?? {};
+      const vars = paidVarsOf(state, predicate.of, context);
       if ((vars["paid.total"] ?? 0) <= 0) return false;
       return (["physical", "mental", "energy"] as const).every(
         (type) => type === predicate.resource || (vars[`paid.${type}`] ?? 0) === 0,

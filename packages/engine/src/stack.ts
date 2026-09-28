@@ -343,6 +343,27 @@ export type StackFrame =
 export type StackFrameKind = StackFrame["kind"];
 
 /**
+ * What was paid to play a card, while its play is still resolving (its `playCard` frame is on the stack): the
+ * `paid.*` vars, with `overpaid.*` and a chosen `x`. RRG 1.8 "Cost" (p. 13): the resources spent to play a card are
+ * "paid for that card", so "if you paid for this card using a [energy] resource" is a fact about that card's play.
+ *
+ * Scoped to the play in progress, not to the card for as long as it stays in play: every "if you paid for …" card in
+ * the pool so far reads it while the card is being played — its own abilities (Valkyrie, seeded by `abilityFrame`), or
+ * another card's interrupt to that play ("When you play an Aggression Attack event, if you paid for that event using a
+ * [mental] resource", Honed Technique 28017, via `Predicate` `paidWith.of`). A card put into play without being played
+ * has no `playCard` frame, so it reads as paid with nothing.
+ */
+export function playPaymentVars(stack: readonly StackFrame[], instanceId: InstanceId): Vars {
+  const play = stack.find((frame) => frame.kind === "playCard" && frame.instanceId === instanceId);
+  if (play?.kind !== "playCard") return {};
+  // `overpaid.*` and a chosen `x` travel the same way ("for each resource you overpaid", Ant-Man ally; docs/phase7-wave2.md
+  // §3.8).
+  return Object.fromEntries(
+    Object.entries(play.vars).filter(([key]) => key.startsWith("paid.") || key.startsWith("overpaid.") || key === "x"),
+  );
+}
+
+/**
  * The event frame of the attack or activation currently resolving ("this
  * attack", "this activation"): the topmost `attack` / `enemyAttack` /
  * `enemyScheme` event on the stack.

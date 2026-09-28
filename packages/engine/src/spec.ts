@@ -742,8 +742,14 @@ export type Predicate =
   | { readonly kind: "counterAtLeast"; readonly of: TargetRef; readonly counterType: string; readonly amount: number }
   | { readonly kind: "damagedAtLeast"; readonly of: TargetRef; readonly amount: number }
   | { readonly kind: "not"; readonly of: Predicate }
-  /** "If you paid for this card using a [X] resource" (a wild can be declared as X). */
-  | { readonly kind: "paidWith"; readonly resource: TypedResource }
+  /**
+   * "If you paid for this card using a [X] resource" (a wild can be declared as X). Read from the ability's own vars
+   * (its own card's play, `abilityFrame`), or with `of`, from the play of the card `of` names while that play is still
+   * resolving (`playPaymentVars`): "When you play an Aggression Attack event, if you paid for **that event** using a
+   * [mental] resource" (Honed Technique 28017) is an upgrade's interrupt reading the event's payment. RRG 1.8 "Cost"
+   * (p. 13): the resources spent are paid for that card. A card not being played reads as paid with nothing.
+   */
+  | { readonly kind: "paidWith"; readonly resource: TypedResource; readonly of?: TargetRef }
   /** A bound number (see `ValueSpec` `var`) is at least `amount`. */
   | { readonly kind: "varAtLeast"; readonly name: string; readonly amount: number }
   | { readonly kind: "and"; readonly of: readonly Predicate[] }
@@ -786,9 +792,10 @@ export type Predicate =
   | { readonly kind: "faceNamed"; readonly of: TargetRef; readonly name: string }
   /**
    * "If you paid for this card using only [physical] resources" (Hulk Smash): something was paid, and every resource was
-   * that type or a wild declared as it. FAQ "Unstoppable Force (#6)" (p. 60): at a cost of 0 it fails.
+   * that type or a wild declared as it. FAQ "Unstoppable Force (#6)" (p. 60): at a cost of 0 it fails. `of` as for
+   * `paidWith`.
    */
-  | { readonly kind: "paidWithOnly"; readonly resource: TypedResource }
+  | { readonly kind: "paidWithOnly"; readonly resource: TypedResource; readonly of?: TargetRef }
   /**
    * "If you have played a [Thwart] event this turn" (Decisive Blow, Forward Momentum, `gam`): at least `atLeast` (default 1)
    * of the cards `player` played this turn (`GameState.playedThisTurn`) match `cards`, read wherever those cards are now.
