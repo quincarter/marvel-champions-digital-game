@@ -244,7 +244,7 @@ The main session verifies UI boxes by clicking through them before ticking (§6)
 
 **QA**
 
-- [ ] **G12 Gaps pass (2026-09-29).** (a) keyboard/gamepad reach every guide control; (b) gate `?screen=` dev jumps to
+- [ ] **G12 Gaps pass (2026-09-29).** (b) landed `589013b5`: `devScreenJump` is DEV-only, fixture modules are dynamic imports (absent from dist), demo scenes are registered in DEV only. (a) keyboard/gamepad reach every guide control; (b) gate `?screen=` dev jumps to
       DEV builds; (c) a committed Playwright e2e for the tutorial, exits, Hold on! and tips (+ CI); (d) resume a
       half-finished tutorial (§3.12); (e) the `schemeClose` warning (§3.13).
 - [x] **G11 QA pass.** A headless click-through of the tutorial and one aspect lesson at 390×844, 1024×768 and
@@ -327,7 +327,7 @@ A fresh Claude session can pick this up from this file alone.
   pointer, and put a screenshot beside its tile.
 - **Commits:** as the repo's git user, with no Claude co-author trailer. Every change carries a changie fragment.
 
-**In flight:** G12 (a) guide keyboard/gamepad access, (b) dev-jump gating in scenes/boot.ts, (c) the committed e2e harness (packages/client/e2e + CI). Queued: (d) tutorial resume (§3.12), (e) the `schemeClose` warning (§3.13). If cut off, check `git status`/`git log` and brief a fresh agent per item.
+**In flight:** G12 (a) guide keyboard/gamepad access, (c) the committed e2e harness, (d) tutorial resume. Queued: (e) `schemeClose`. (b) landed `589013b5`. If cut off, check `git status`/`git log` and brief a fresh agent per item.
 
 ## 7. Prior art: the parked prototype
 
