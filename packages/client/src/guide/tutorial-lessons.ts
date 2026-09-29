@@ -42,8 +42,8 @@ const HOW_TO_WIN: Lesson = {
         title: "One way to win, two ways to lose",
         body:
           "Defeat Rhino through both his stages and you win. Let [[mainScheme|The Break-In!]] reach its target " +
-          "[[threat|threat]], or let Spider-Man fall, and you lose. Every round: you act, then Rhino acts, then " +
-          "you draw back up.",
+          "[[threat|threat]], or let Spider-Man fall, and you lose. Every round: you act and draw back up, then " +
+          "Rhino acts.",
       },
       mode: "acknowledge",
     },
@@ -62,7 +62,7 @@ const HERO_AND_ALTER_EGO: Lesson = {
         stepLabel: "STEP 1 OF 5",
         title: "You're Peter Parker",
         body:
-          "In [[heroAlterEgoForm|alter-ego]] form Rhino schemes instead of attacking, and you can't fight back. " +
+          "In [[heroAlterEgoForm|alter-ego]] form Rhino schemes instead of attacking, and you can't attack or thwart. " +
           "[[flip|Flip]] once per turn to become Spider-Man — your hand size changes with you.",
       },
       mode: "await",
@@ -85,8 +85,8 @@ const PAYING_FOR_CARDS: Lesson = {
         title: "Play Black Cat",
         body:
           "A card's [[cost|cost]] is the number in its corner. Pay it by discarding other cards from your hand — " +
-          "each gives the [[resource|resources]] printed on it. Play Black Cat: she'll matter next round.",
-        tip: "Some cards count double toward their own [[aspect|aspect]]'s cost — none of your hand does here.",
+          "each gives the [[resource|resources]] printed on it. Play Black Cat: she'll matter when Rhino attacks.",
+        tip: "Energy prints two [[resource|resources]], so it pays for Black Cat on its own.",
       },
       mode: "await",
       completes: cardPlayed(BLACK_CAT),
@@ -153,8 +153,8 @@ const THREAT_AND_THWARTING: Lesson = {
       copy: {
         title: "Thwart it",
         body:
-          "[[thwart|Thwart]] removes threat equal to your THW, the same way attacking uses your ATK — it's your " +
-          "action for the turn.",
+          "[[thwart|Thwart]] removes threat equal to your THW, the same way attacking uses your ATK. It " +
+          "[[exhaustCost|exhausts]] Spider-Man, so he can't also attack this round, but you can still play cards.",
       },
       mode: "await",
       completes: threatRemovedFromMainScheme(),

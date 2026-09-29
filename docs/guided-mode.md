@@ -28,7 +28,7 @@ existing board, overlays, tokens and `Mc*` widgets. Don't restyle existing scree
 
 **The designs' game content is placeholder.** They show Crossbones, Spider-Woman, Hawkeye, Venom Blast and a 12-threat
 scheme. The tutorial is Core Set Rhino with Spider-Man (owner decision, §3). Every number on a guide surface comes
-from the engine or `@mc/content`, never from the tiles. (The tiles' "Energy counts as 2 resources" is correct: Core *Energy* prints two energy icons. The conditional double is *The Power of Justice*, only for Justice cards.)
+from the engine or `@mc/content`, never from the tiles. (The tiles' "Energy counts as 2 resources" is correct: Core _Energy_ prints two energy icons. The conditional double is _The Power of Justice_, only for Justice cards.)
 
 ## 2. Ground rules
 
@@ -152,9 +152,10 @@ The main session verifies UI boxes by clicking through them before ticking (§6)
 - [x] **G5a Tutorial config.** `guide/tutorial-config.ts`: seed + Spider-Man precon + stack (§5.1). A test plays the
       scripted commands and asserts each lesson's precondition state.
       Landed: `d1b08352`. Seed 2024; hand Black Cat, Energy (pays her 2 alone), For Justice!, Aunt May, Spider-Tracer, Backflip; encounter Armored Rhino Suit (boost 0) then Advance. Black Cat blocks Rhino's 2 and is defeated; round 2 threat is 3 and Thwart is legal. `TUTORIAL_SCRIPT` (7 commands) is exported for G5b/G7 tests.
-- [ ] **G5b Lesson model.** `view/lesson-model.ts` is a pure state machine: lessons → steps, each step with an anchor,
+- [x] **G5b Lesson model.** `view/lesson-model.ts` is a pure state machine: lessons → steps, each step with an anchor,
       copy, and a completion predicate over store state/events. It's data-driven so the aspect lessons (G10) can reuse
       it. Tests drive it with recorded events.
+      Landed: `18ebe444` (plus a copy fix). `view/lesson-model.ts` pure reducers (`startLessons`, `observe`, `acknowledge`, `back`, `skipLesson`, `replay`) and selectors. Lessons are in `guide/tutorial-lessons.ts`. Call `observe` again after every button reducer. Lessons run in strict order. `{target}` must be passed via `fillCopy`'s `extra`.
 - [ ] **G5c Guide controller.** The board-side glue that feeds store events to the lesson model and shows
       G4a/G4b/G4c for the current step. No lesson content yet, just one smoke step.
 - [ ] **G6a First-run chooser.** P01/T01 "New to the fight?". Wired Boot → chooser (first launch) → Title. "Learn as you
@@ -268,7 +269,7 @@ A fresh Claude session can pick this up from this file alone.
   pointer, and put a screenshot beside its tile.
 - **Commits:** as the repo's git user, with no Claude co-author trailer. Every change carries a changie fragment.
 
-**In flight:** G4b (`McGuidePanel`) and G5b (lesson model), side by side. If cut off, check `git status` for their files (G4b: `ui/guide-panel.ts`, `view/guide-panel-model.ts`, `view/layout.ts`, `?screen=guidepanel` demo; G5b: `view/lesson-model.ts`, `guide/tutorial-lessons.ts`) and brief a fresh agent to finish them. Next: G4c, then G5c.
+**In flight:** G4b (`McGuidePanel`). If cut off, check `git status` for its files (`ui/guide-panel.ts`, `view/guide-panel-model.ts`, `view/layout.ts`, `?screen=guidepanel` demo) and brief a fresh agent to finish it. Next: G4c, then G5c.
 
 ## 7. Prior art: the parked prototype
 
