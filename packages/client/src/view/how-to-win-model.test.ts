@@ -77,6 +77,25 @@ describe("howToWinLayout", () => {
     expect(layout.win.y).toBeLessThan(layout.loseScheme.y);
     expect(layout.loseScheme.y).toBeLessThan(layout.loseHero.y);
   });
+
+  it("caps the wide content column at ~1200, centred, instead of stretching edge to edge", () => {
+    const layout = howToWinLayout(1440, 900);
+    expect(layout.title.width).toBeLessThanOrEqual(1200);
+    // Centred: equal space to the left of the title and to the right of the screen's own right edge.
+    const rightMargin = 1440 - (layout.title.x + layout.title.width);
+    expect(layout.title.x).toBeCloseTo(rightMargin, 0);
+  });
+
+  for (const [width, height] of [
+    [1024, 768],
+    [1440, 900],
+  ] as const) {
+    it(`fills most of the height between the headline and the EVERY ROUND strip with cards at ${width}x${height}`, () => {
+      const layout = howToWinLayout(width, height);
+      const available = layout.everyRound.y - (layout.title.y + layout.title.height);
+      expect(layout.win.height).toBeGreaterThanOrEqual(available * 0.6);
+    });
+  }
 });
 
 describe("HOW_TO_WIN_FOCUS_ORDER", () => {

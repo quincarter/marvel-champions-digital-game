@@ -92,7 +92,7 @@ const NARROW_PAD = 16;
 const HEADER_HEIGHT = 56;
 const GAP = 14;
 const TITLE_HEIGHT = 56;
-const EVERY_ROUND_HEIGHT = 96;
+const EVERY_ROUND_HEIGHT = 76;
 const ACTIONS_HEIGHT = 60;
 const CLOSE_WIDTH = 44;
 const PROGRESS_WIDTH = 140;
@@ -154,9 +154,17 @@ function narrowLayout(width: number, height: number, formFactor: FormFactor): Ho
   };
 }
 
+/** The content column's own cap (§ this fix's own brief): a 1440-wide desktop viewport reads better as a centred
+ * ~1200 column than as cards stretched edge to edge, the same judgement call `guide-chooser.ts`'s wide split makes. */
+const CONTENT_MAX_WIDTH = 1200;
+/** The shortest the card row is ever allowed to shrink to before falling back to pinning the strip/actions to the
+ * screen bottom (a viewport too short for the row to sit naturally under the title). */
+const MIN_ROW_HEIGHT = 160;
+
 function wideLayout(width: number, height: number, formFactor: FormFactor): HowToWinLayout {
   const pad = PAD;
-  const column = width - pad * 2;
+  const contentWidth = Math.min(CONTENT_MAX_WIDTH, width - pad * 2);
+  const contentX = (width - contentWidth) / 2;
   const header: Rect = { x: 0, y: 0, width, height: HEADER_HEIGHT };
   const close: Rect = { x: pad, y: (HEADER_HEIGHT - CLOSE_WIDTH) / 2, width: CLOSE_WIDTH, height: CLOSE_WIDTH };
   const progress: Rect = {
@@ -167,30 +175,48 @@ function wideLayout(width: number, height: number, formFactor: FormFactor): HowT
   };
 
   let y = HEADER_HEIGHT + GAP;
-  const title: Rect = { x: pad, y, width: column, height: TITLE_HEIGHT };
+  const title: Rect = { x: contentX, y, width: contentWidth, height: TITLE_HEIGHT };
   y += title.height + GAP;
 
-  const actionsY = height - pad - ACTIONS_HEIGHT;
-  const everyRoundY = actionsY - GAP - EVERY_ROUND_HEIGHT;
-  // Capped, not stretched to fill whatever's left above the EVERY ROUND strip: each card's own content (a portrait,
-  // a title, one line of body) is short, and a card sized to the leftover height on a tall desktop viewport reads
-  // as a mostly-empty box rather than a card (found in browser verification at 1440×900).
-  const rowHeight = Math.min(220, Math.max(0, everyRoundY - GAP - y));
+  // The strip and action row sit directly under the cards, not pinned to the screen bottom, so the cards take the
+  // *entire* available height instead of a small capped box floating above a dead gap (the bug this fixed: a
+  // 220px-tall card row on a 900px-tall viewport). Only fall back to pinning the strip/actions to the bottom when
+  // the viewport is too short for that natural placement to leave the row a sane minimum height.
+  const belowRow = GAP + EVERY_ROUND_HEIGHT + GAP + ACTIONS_HEIGHT;
+  const naturalRowHeight = height - pad - belowRow - y;
 
-  const leftWidth = Math.round(column * 0.46);
-  const rightWidth = column - leftWidth - GAP;
-  const win: Rect = { x: pad, y, width: leftWidth, height: rowHeight };
+  let rowHeight: number;
+  let everyRoundY: number;
+  let actionsY: number;
+  if (naturalRowHeight >= MIN_ROW_HEIGHT) {
+    rowHeight = naturalRowHeight;
+    everyRoundY = y + rowHeight + GAP;
+    actionsY = everyRoundY + EVERY_ROUND_HEIGHT + GAP;
+  } else {
+    actionsY = height - pad - ACTIONS_HEIGHT;
+    everyRoundY = actionsY - GAP - EVERY_ROUND_HEIGHT;
+    rowHeight = Math.max(MIN_ROW_HEIGHT, everyRoundY - GAP - y);
+  }
+
+  const leftWidth = Math.round(contentWidth * 0.46);
+  const rightWidth = contentWidth - leftWidth - GAP;
+  const win: Rect = { x: contentX, y, width: leftWidth, height: rowHeight };
   const loseHeight = Math.round((rowHeight - GAP) / 2);
-  const loseScheme: Rect = { x: pad + leftWidth + GAP, y, width: rightWidth, height: loseHeight };
-  const loseHero: Rect = { x: pad + leftWidth + GAP, y: y + loseHeight + GAP, width: rightWidth, height: loseHeight };
+  const loseScheme: Rect = { x: contentX + leftWidth + GAP, y, width: rightWidth, height: loseHeight };
+  const loseHero: Rect = {
+    x: contentX + leftWidth + GAP,
+    y: y + loseHeight + GAP,
+    width: rightWidth,
+    height: loseHeight,
+  };
 
-  const everyRound: Rect = { x: pad, y: everyRoundY, width: column, height: EVERY_ROUND_HEIGHT };
+  const everyRound: Rect = { x: contentX, y: everyRoundY, width: contentWidth, height: EVERY_ROUND_HEIGHT };
 
-  const tellMeMore: Rect = { x: pad, y: actionsY, width: column * 0.28, height: ACTIONS_HEIGHT };
+  const tellMeMore: Rect = { x: contentX, y: actionsY, width: contentWidth * 0.28, height: ACTIONS_HEIGHT };
   const startTheFight: Rect = {
-    x: pad + tellMeMore.width + GAP,
+    x: contentX + tellMeMore.width + GAP,
     y: actionsY,
-    width: column - tellMeMore.width - GAP,
+    width: contentWidth - tellMeMore.width - GAP,
     height: ACTIONS_HEIGHT,
   };
 

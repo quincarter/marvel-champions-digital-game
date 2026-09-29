@@ -27,6 +27,7 @@ import { McTooltip } from "../ui/tooltip.js";
 import type { TermTextTerm } from "../view/term-text-model.js";
 import { tooltipContentOf } from "../view/term-text-model.js";
 import { EVERY_ROUND_STEPS, howToWinContent, howToWinLayout, type HowToWinLayout } from "../view/how-to-win-model.js";
+import { CARD_ASPECT } from "../view/layout.js";
 import { CARDS_BY_ID } from "../content/pool.js";
 import { artFor } from "../art/art-source.js";
 import { cardArt, drawArt } from "../art/card-art.js";
@@ -175,20 +176,36 @@ export class HowToWinScene extends Phaser.Scene {
       .setFontSize(30);
   }
 
-  /** A card's ink frame, tag stamp, art thumbnail and copy — shared shape for all three (WIN, both LOSE). */
+  /** A card's ink frame, tag stamp, art thumbnail and copy — shared shape for all three (WIN, both LOSE).
+   *
+   * `"landscape"` (the default, and the only shape on phone/tablet-portrait — P02's own list-row build): art on the
+   * left at a small fixed width, title/body filling the rest. `"portrait"`: art fills the top of the card at a real
+   * card-scan aspect ratio (`CARD_ASPECT`), title/body below — the shape the wide WIN card needs to read as "a big
+   * card", not a cropped sliver of art next to a paragraph (this fix's own brief). */
   #drawCard(
     rect: { x: number; y: number; width: number; height: number },
     tag: { readonly label: string; readonly fill: number },
     title: string,
     artKey: string | null,
     body: () => void,
+    orientation: "landscape" | "portrait" = "landscape",
   ): void {
     const g = this.add.graphics();
     g.fillStyle(surface.card.hex, 1).fillRect(rect.x, rect.y, rect.width, rect.height);
     g.lineStyle(3, surface.ink.hex, 1).strokeRect(rect.x + 1.5, rect.y + 1.5, rect.width - 3, rect.height - 3);
 
-    const artWidth = Math.min(120, rect.width * 0.38);
-    const artRect = { x: rect.x + 10, y: rect.y + 10, width: artWidth, height: rect.height - 20 };
+    if (orientation === "portrait") {
+      this.#drawPortraitCard(rect, g, tag, title, artKey, body);
+      return;
+    }
+
+    // Sized to the card's own real aspect ratio against the available height, not a flat 120px sliver — a LOSE
+    // card on a wide layout is tall enough (the two now split the WIN card's own row height) that a fixed-width
+    // thumbnail reads as cramped next to all that empty height. `Math.max(120, …)` keeps the phone/tablet-portrait
+    // row (a short, wide strip) at its original size rather than shrinking it.
+    const artHeight = rect.height - 20;
+    const artWidth = Math.min(rect.width * 0.38, Math.max(120, artHeight * CARD_ASPECT));
+    const artRect = { x: rect.x + 10, y: rect.y + 10, width: artWidth, height: artHeight };
     g.fillStyle(surface.parchment.hex, 1).fillRect(artRect.x, artRect.y, artRect.width, artRect.height);
     drawArt(this, artKey, artRect, { fit: "cover" });
 
@@ -207,10 +224,52 @@ export class HowToWinScene extends Phaser.Scene {
       .text(textLeft, rect.y + 36, title.toUpperCase(), textStyle(CARD_TITLE_TYPE, surface.ink.hex))
       .setWordWrapWidth(textWidth);
 
-    const priorY = this.children.list.length;
-    void priorY;
     const bodyStartY = rect.y + 66;
     this.#bodyOrigin = { x: textLeft, y: bodyStartY, width: textWidth };
+    body();
+  }
+
+  #drawPortraitCard(
+    rect: { x: number; y: number; width: number; height: number },
+    g: Phaser.GameObjects.Graphics,
+    tag: { readonly label: string; readonly fill: number },
+    title: string,
+    artKey: string | null,
+    body: () => void,
+  ): void {
+    const pad = 12;
+    // Text area reserved below the art: tag stamp + title + a couple of body lines, same budget the landscape
+    // cards give their copy.
+    const textAreaHeight = 96;
+    const maxArtWidth = rect.width - pad * 2;
+    const maxArtHeight = rect.height - pad * 2 - textAreaHeight;
+    let artWidth = Math.min(maxArtWidth, maxArtHeight * CARD_ASPECT);
+    let artHeight = artWidth / CARD_ASPECT;
+    if (artHeight > maxArtHeight) {
+      artHeight = maxArtHeight;
+      artWidth = artHeight * CARD_ASPECT;
+    }
+    const artRect = { x: rect.x + (rect.width - artWidth) / 2, y: rect.y + pad, width: artWidth, height: artHeight };
+    g.fillStyle(surface.parchment.hex, 1).fillRect(artRect.x, artRect.y, artRect.width, artRect.height);
+    drawArt(this, artKey, artRect, { fit: "cover" });
+
+    const textLeft = rect.x + pad;
+    const textWidth = rect.width - pad * 2;
+    const tagY = artRect.y + artRect.height + 10;
+
+    const tagLabel = this.add.text(0, 0, tag.label, textStyle(TAG_TYPE, surface.ink.hex)).setVisible(false);
+    const tagWidth = tagLabel.width + 16;
+    g.fillStyle(tag.fill, 1).fillRect(textLeft, tagY, tagWidth, 20);
+    tagLabel
+      .setPosition(textLeft + tagWidth / 2, tagY + 10)
+      .setOrigin(0.5)
+      .setVisible(true);
+
+    this.add
+      .text(textLeft, tagY + 26, title.toUpperCase(), textStyle(CARD_TITLE_TYPE, surface.ink.hex))
+      .setWordWrapWidth(textWidth);
+
+    this.#bodyOrigin = { x: textLeft, y: tagY + 56, width: textWidth };
     body();
   }
 
@@ -219,17 +278,24 @@ export class HowToWinScene extends Phaser.Scene {
   #drawWinCard(layout: HowToWinLayout, content: ReturnType<typeof howToWinContent>): void {
     const villain = CARDS_BY_ID.get(content.villainCardId);
     const key = cardArt(this).request(this, artFor(villain, { kind: "villainStage", sideIndex: 0, stageIndex: 0 }));
-    this.#drawCard(layout.win, { label: "WIN", fill: signal.heal.hex }, "Knock out the villain", key, () => {
-      const { x, y, width } = this.#bodyOrigin;
-      this.add
-        .text(
-          x,
-          y,
-          `Bring ${content.villainName}'s health to 0. He has ${content.stageCount} stages — beat both.`,
-          textStyle(typeRole.body, surface.ink.hex),
-        )
-        .setWordWrapWidth(width);
-    });
+    this.#drawCard(
+      layout.win,
+      { label: "WIN", fill: signal.heal.hex },
+      "Knock out the villain",
+      key,
+      () => {
+        const { x, y, width } = this.#bodyOrigin;
+        this.add
+          .text(
+            x,
+            y,
+            `Bring ${content.villainName}'s health to 0. He has ${content.stageCount} stages — beat both.`,
+            textStyle(typeRole.body, surface.ink.hex),
+          )
+          .setWordWrapWidth(width);
+      },
+      layout.wide ? "portrait" : "landscape",
+    );
   }
 
   #drawLoseSchemeCard(layout: HowToWinLayout, content: ReturnType<typeof howToWinContent>): void {
@@ -265,10 +331,18 @@ export class HowToWinScene extends Phaser.Scene {
     const g = this.add.graphics();
     g.fillStyle(surface.parchment.hex, 1).fillRect(rect.x, rect.y, rect.width, rect.height);
     g.lineStyle(2.5, surface.ink.hex, 1).strokeRect(rect.x + 1, rect.y + 1, rect.width - 2, rect.height - 2);
-    this.add.text(rect.x + 14, rect.y + 10, "EVERY ROUND", textStyle(STEP_LABEL_TYPE, surface.ink.hex, ink.secondary));
+    const label = this.add.text(
+      rect.x + 14,
+      rect.y + 10,
+      "EVERY ROUND",
+      textStyle(STEP_LABEL_TYPE, surface.ink.hex, ink.secondary),
+    );
 
     const pillHeight = 34;
-    const pillY = rect.y + rect.height - pillHeight - 14;
+    // Centred in the space left under the label, not anchored to the strip's bottom edge with a fixed offset — a
+    // shorter strip (`EVERY_ROUND_HEIGHT`, trimmed alongside this) otherwise leaves a dead gap above the chips.
+    const labelBottom = label.y + label.height + 8;
+    const pillY = labelBottom + Math.max(0, rect.y + rect.height - 10 - labelBottom - pillHeight) / 2;
     let px = rect.x + 14;
     const maxRight = rect.x + rect.width - 14;
     EVERY_ROUND_STEPS.forEach((step, index) => {
