@@ -85,6 +85,12 @@ export class McScrollRegion {
     return this.#rect;
   }
 
+  /** The region's own root (content + scrollbar), for a caller that must parent it into its own container so it
+   * shares that container's depth. Destroyed by `destroy()`, as before. */
+  get root(): Phaser.GameObjects.Container {
+    return this.#root;
+  }
+
   get isDragSuppressingClick(): boolean {
     return this.#drag.isDragging && this.#drag.movedPastThreshold;
   }

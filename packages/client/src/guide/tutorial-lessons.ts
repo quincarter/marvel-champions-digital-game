@@ -70,14 +70,13 @@ const PAYING_FOR_CARDS: Lesson = {
         stepLabel: "STEP 1 OF 5",
         title: "Play Black Cat, as Peter Parker",
         body:
-          "A card's [[cost|cost]] is just a number — pay it with [[resource|resources]] from any source: discard a " +
-          "hand card for its printed icon, or use an ability like Peter's own Scientist, right on his identity card. " +
-          "Any resource type pays any cost — a type only matters when a card says so, the way Black Cat's own text " +
-          "cares about [[mentalResource|mental]] resources.",
+          "A card's [[cost|cost]] is just a number. Pay it with [[resource|resources]] from any source: discard a " +
+          "hand card for its printed icon, or use an ability like Peter's own Scientist on his identity card. " +
+          "A type only matters when a card says so, like Black Cat caring about [[mentalResource|mental]] ones.",
         // Plain text, not `[[id]]` markup — `McGuidePanel`'s own tip box renders it as a plain `Text`, not
         // through `McTermText` (found in browser verification, G5c: a bracketed term showed up literally on
         // screen instead of resolving). See `LessonStepCopy`'s own doc comment for the corrected contract.
-        tip: "Any resource type pays any cost — a type only matters when a card says so.",
+        tip: "Any resource type pays any cost.",
         // Overridden while the payment bar is open (`scenes/board/guide-mount.ts#syncPayingOverride`) — this is
         // only what shows before Black Cat's been tapped at all.
         doThis: "Tap Black Cat to play her",
@@ -116,9 +115,9 @@ const HERO_AND_ALTER_EGO: Lesson = {
         stepLabel: "STEP 2 OF 5",
         title: "You're Peter Parker",
         body:
-          "In [[heroAlterEgoForm|alter-ego]] form Rhino schemes instead of attacking, and you can't attack or thwart " +
-          "— that's why Scientist, like Black Cat's cost, only worked while you were still Peter. " +
-          "[[flip|Flip]] once per turn to become Spider-Man — your hand size changes with you.",
+          "Scientist is an [[heroAlterEgoForm|alter-ego]] ability, so it only works while you're Peter. In " +
+          "alter-ego form Rhino schemes instead of attacking, and you can't attack or thwart. [[flip|Flip]] once " +
+          "per turn to become Spider-Man — your hand size changes with you.",
         doThis: "Flip to Spider-Man",
       },
       mode: "await",

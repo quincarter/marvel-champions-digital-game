@@ -720,6 +720,10 @@ export class McGuidePanel {
 
     this.#objects = objects;
     this.container.add(objects);
+    // The scrolling body's own root joins the panel's container, above the panel ground, so it rises with the
+    // panel when the board lifts it over the spotlight's dim. Left outside it, a body tall enough to scroll (lesson 2's
+    // resource legend) stayed under the dim and drew nothing.
+    if (this.#scrollRegion) this.container.add(this.#scrollRegion.root);
     this.container.add(this.#focusRing);
   }
 

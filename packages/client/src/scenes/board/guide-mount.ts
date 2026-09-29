@@ -120,10 +120,11 @@ const PLAY_BLACK_CAT_STEP_ID = "play-black-cat";
  * client. Only the payment step shows it (`PLAY_BLACK_CAT_STEP_ID`); the callout surfaces (phone, tablet
  * portrait) get the step's own one-line `tip` instead — `McGuideCallout` has no `extra` rows at all. */
 const RESOURCE_LEGEND_ROWS: readonly GuidePanelExtraRow[] = [
-  { label: "E — Energy", detail: "Pays any cost", swatch: signal.cost.hex },
-  { label: "M — Mental", detail: "Pays any cost", swatch: signal.cost.hex },
-  { label: "P — Physical", detail: "Pays any cost", swatch: signal.cost.hex },
-  { label: "W — Wild", detail: "Counts as any type", swatch: signal.cost.hex },
+  // One line each: a status row has no room for a second line, and the step's own tip already says any type pays.
+  { label: "E — Energy", swatch: signal.cost.hex },
+  { label: "M — Mental", swatch: signal.cost.hex },
+  { label: "P — Physical", swatch: signal.cost.hex },
+  { label: "W — Wild: counts as any type", swatch: signal.cost.hex },
 ];
 
 function resourceLegendExtraRowsOf(
