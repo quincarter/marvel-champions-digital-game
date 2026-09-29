@@ -177,8 +177,9 @@ The main session verifies UI boxes by clicking through them before ticking (§6)
 
 **Tips and aspects**
 
-- [ ] **G10a Aspect content.** `guide/aspects.ts`: the §5.4 table as data (lesson copy, when to pick, signature card
+- [x] **G10a Aspect content.** `guide/aspects.ts`: the §5.4 table as data (lesson copy, when to pick, signature card
       codes, precon id, the tip card line). Tests check that every code exists and every precon has that aspect.
+      Landed: `0c0b7923`. `guide/aspects.ts` `ASPECT_GUIDES` / `aspectGuideOf`. Aggression uses Uppercut (01054) in place of Tackle, which isn't in Core. Adding 'Pool later is one entry.
 - [ ] **G10b Aspect tip chips.** "Aspects ▸" and the short tip card on aspect chips in Seats, Deck check and Deck
       builder.
 - [ ] **G10c Aspect lessons screen.** An "Aspects" track: pick an aspect, then a lesson page with signature scans and
@@ -240,7 +241,7 @@ G10a checks their codes.
 | Aspect     | What it's for                                                                     | Pick it when                                                                                                   | Signature Core cards                          | Try-it precon  |
 | ---------- | --------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- | --------------------------------------------- | -------------- |
 | Justice    | Thwarting. Keeps threat off schemes. The balanced, steady pick.                   | The villain schemes fast, or has side schemes that punish you. It's a good first aspect for learning the loop. | For Justice!, Great Responsibility, Daredevil | Spider-Man     |
-| Aggression | Attacking and brawling: burst damage, clearing minions, racing the villain.       | You want to end the game fast, or the scenario floods the board with minions.                                  | Relentless Assault, Tackle, Hulk              | She-Hulk       |
+| Aggression | Attacking and brawling: burst damage, clearing minions, racing the villain.       | You want to end the game fast, or the scenario floods the board with minions.                                  | Relentless Assault, Uppercut, Hulk             | She-Hulk       |
 | Leadership | Allies. It fields more of them and makes them hit harder and stay longer.         | Your hero likes a wide board. Allies soak attacks, thwart and chip damage every round.                         | Inspired, Lead from the Front, Maria Hill     | Captain Marvel |
 | Protection | Defending and healing: blocking attacks, preventing damage, staying alive.        | The villain hits hard, your hero has low HP or DEF, or you're the team's tank in multiplayer.                  | Counter-Punch, Armored Vest, Luke Cage        | Black Panther  |
 | Basic      | Neutral cards any deck can use (resources, staples).                              | Always available alongside your aspect. It gets a tip card only, no lesson.                                    | Energy/Genius/Strength, Avengers Mansion      | —              |
@@ -269,7 +270,7 @@ A fresh Claude session can pick this up from this file alone.
   pointer, and put a screenshot beside its tile.
 - **Commits:** as the repo's git user, with no Claude co-author trailer. Every change carries a changie fragment.
 
-**In flight:** G4b (`McGuidePanel`), G9a (hint heuristics, `view/guide-hints.ts`), G10a (aspect content, `guide/aspects.ts`), side by side. If cut off, check `git status` for their files and brief a fresh agent per box to finish it. Next: G4c, then G5c.
+**In flight:** G4b (`McGuidePanel`) and G9a (hint heuristics, `view/guide-hints.ts`), side by side. If cut off, check `git status` for their files and brief a fresh agent per box to finish it. Next: G4c, then G5c.
 
 ## 7. Prior art: the parked prototype
 
