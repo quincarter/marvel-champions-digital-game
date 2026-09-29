@@ -349,7 +349,7 @@ A fresh Claude session can pick this up from this file alone.
   pointer, and put a screenshot beside its tile.
 - **Commits:** as the repo's git user, with no Claude co-author trailer. Every change carries a changie fragment.
 
-**In flight:** design polish, two agents: (1) How to win's main scheme art at landscape aspect, the phone aspect page's Signature cards gap, the hub's top padding (scratchpad polish1); (2) debrief: short Up next, Bangers Round button, "Keep playing ▸" on the final debrief, plus the D02 "Hover/Tap any dotted word for its rule" hint (scratchpad polish2). If cut off, check `git status`/`git log` and brief a fresh agent.
+**In flight:** none. Design polish landed 2026-09-29: `5a815f39` (How to win landscape scheme art, phone aspect Signature cards gap, hub top padding) and `0f0fd3d7` (debrief: "Next round" subline, Bangers primary, "Keep playing ▸" on the final debrief (`?screen=debrief&final=1`); the D02 "Hover/Tap any dotted word for its rule" hint in the rail and callout, via `view/dotted-word-hint.ts`). Open: G13 ('Pool, blocked on Deadpool); the phone full-tutorial e2e; clearing the remaining `__mc*Debug` hooks on shutdown.
 
 ## 7. Prior art: the parked prototype
 
