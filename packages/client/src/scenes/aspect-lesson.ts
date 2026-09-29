@@ -44,9 +44,10 @@ import {
   aspectLessonLayout,
   type AspectLessonContent,
   type AspectLessonLayout,
+  type AspectLessonSignatureCard,
 } from "../view/aspect-lesson-model.js";
 import { aspectStampOf } from "../view/aspect-stamp.js";
-import { CARD_ASPECT, type Rect } from "../view/layout.js";
+import { CARD_ASPECT, cardRow, type Rect } from "../view/layout.js";
 import { CARDS_BY_ID } from "../content/pool.js";
 import { artFor } from "../art/art-source.js";
 import { cardArt, drawArt } from "../art/card-art.js";
@@ -60,10 +61,17 @@ import type { InspectData } from "./inspect.js";
 
 export interface AspectLessonSceneData {
   readonly aspect: CoreAspect;
-  /** Set when the "How to play" hub or a chip's own "Aspects ▸" link launched this screen — Back/×/Escape
-   * return there instead of Title. `"title"` (the default) covers every other entry point, including the
-   * `?screen=aspect` dev jump. */
-  readonly backTo?: "title" | "howToPlay";
+  /**
+   * Where Back/×/Escape/"Got it" return:
+   * - `"howToPlay"` — the "How to play" hub (`scenes/how-to-play.ts#openAspectLesson`) started this screen with
+   *   `scene.start`, so leaving does the same `goToScreen` to that key.
+   * - `"previous"` — an aspect chip's own "Aspects ▸" link (`ui/aspect-tip.ts`, in Seats/Deck check/Deck builder)
+   *   launched this screen with `scene.launch` *on top of* that still-running screen, the same overlay shape
+   *   `scenes/rules.ts`/`scenes/inspect.ts` already use — leaving is `this.scene.stop()`, never a fresh `start`,
+   *   so whatever in-progress draft that screen is holding (e.g. Seats' `SetupDraft`) survives untouched.
+   * - `"title"` (the default) covers every other entry point, including the `?screen=aspect` dev jump.
+   */
+  readonly backTo?: "title" | "howToPlay" | "previous";
 }
 
 const TITLE_TYPE: TypeSpec = typeRole.pageTitle;
@@ -71,10 +79,15 @@ const HEADING_TYPE: TypeSpec = typeRole.label;
 const CARD_TITLE_TYPE: TypeSpec = { ...typeRole.barTitle, size: 16 };
 const COLUMN_PAD = 4;
 const SECTION_GAP = 18;
+/** Signature card row (`#buildSignatureCardsRow`): the height a card scan grows to before `width` forces `cardRow`
+ * to shrink it — generous enough to read as a real card on desktop, and irrelevant on phone where three cards
+ * across a ~360px column already shrink well under this. */
+const CARD_ROW_MAX_HEIGHT = 260;
+const CARD_ROW_GAP = 14;
 
 export class AspectLessonScene extends Phaser.Scene {
   #aspect: CoreAspect = "justice";
-  #backTo: "title" | "howToPlay" = "title";
+  #backTo: "title" | "howToPlay" | "previous" = "title";
   #content: AspectLessonContent | null = null;
   #route: FocusRoute | null = null;
   #tooltip: McTooltip | null = null;
@@ -93,7 +106,7 @@ export class AspectLessonScene extends Phaser.Scene {
   create(data: AspectLessonSceneData): void {
     this.cameras.main.setBackgroundColor(cssOf(surface.paper.hex));
     this.#aspect = data.aspect;
-    this.#backTo = data.backTo === "howToPlay" ? "howToPlay" : "title";
+    this.#backTo = data.backTo === "howToPlay" || data.backTo === "previous" ? data.backTo : "title";
     this.#content = aspectLessonContent(this.#aspect);
     this.#textScroll.reset();
     this.#cardsScroll.reset();
@@ -221,7 +234,10 @@ export class AspectLessonScene extends Phaser.Scene {
       const cardsRect = layout.cards;
       const cardsX = cardsRect.x + COLUMN_PAD;
       const cardsWidth = cardsRect.width - COLUMN_PAD * 2;
-      const cards = this.#buildCardsBlock(cardsX, cardsRect.y, cardsWidth, content);
+      // Filling the column's own full height (rather than a fixed "Try it" card height, as narrow uses) is what
+      // keeps a wide layout from leaving a big dead area below the cards — the "Try it" portrait grows to use
+      // whatever's left under the signature-card row.
+      const cards = this.#buildCardsBlock(cardsX, cardsRect.y, cardsWidth, content, cardsRect.height);
 
       const textRegion = new McScrollRegion(this, {
         rect: layout.text,
@@ -247,7 +263,11 @@ export class AspectLessonScene extends Phaser.Scene {
     const rect = layout.text; // == layout.cards on narrow layouts
     const x = rect.x + COLUMN_PAD;
     const width = rect.width - COLUMN_PAD * 2;
-    const cardsStartY = text.y + text.height + SECTION_GAP;
+    // `text.y` is already the next free y after the text block's own trailing 10px item gap (`#buildTextBlock`'s
+    // bullet loop) — adding `text.height` on top double-counts the block's own height and was the cause of a
+    // few-hundred-pixel gap before "Signature cards" on narrow layouts. Top it up to `SECTION_GAP` like
+    // `#buildCardsBlock` does between its own signature-card rows and its "Try it" heading.
+    const cardsStartY = text.y + (SECTION_GAP - 10);
     const cards = this.#buildCardsBlock(x, cardsStartY, width, content);
     const contentHeight = cardsStartY + cards.height - rect.y;
 
@@ -344,12 +364,16 @@ export class AspectLessonScene extends Phaser.Scene {
   }
 
   /** The signature cards + "Try it" block, measured cumulatively from `(x, startY)` — same shape as
-   * `#buildTextBlock`, and likewise never creates its own scroll region. */
+   * `#buildTextBlock`, and likewise never creates its own scroll region. `columnHeight`, when given (the wide
+   * layout's own right column height), lets the "Try it" portrait grow to fill whatever's left under the
+   * signature-card row instead of sitting at a small fixed height with dead space below it; narrow omits it and
+   * gets a normal, screen-appropriate size since that block scrolls with the rest of the page anyway. */
   #buildCardsBlock(
     x: number,
     startY: number,
     width: number,
     content: AspectLessonContent,
+    columnHeight?: number,
   ): {
     readonly objects: Phaser.GameObjects.GameObject[];
     readonly zones: readonly { readonly rect: Rect; readonly activate: () => void }[];
@@ -364,14 +388,10 @@ export class AspectLessonScene extends Phaser.Scene {
       objects.push(heading);
       y += heading.height + 8;
 
-      const rowHeight = 76;
-      for (const card of content.signatureCards) {
-        const cardRect: Rect = { x, y, width, height: rowHeight };
-        objects.push(...this.#drawSignatureCardRow(cardRect, card.cardId, card.name, card.cost));
-        zones.push({ rect: cardRect, activate: () => this.#inspectCard(card.cardId) });
-        y += rowHeight + 10;
-      }
-      y += SECTION_GAP - 10;
+      const row = this.#buildSignatureCardsRow(x, y, width, content.signatureCards);
+      objects.push(...row.objects);
+      zones.push(...row.zones);
+      y += row.height + SECTION_GAP;
     }
 
     const heading = label(
@@ -386,53 +406,80 @@ export class AspectLessonScene extends Phaser.Scene {
     objects.push(heading);
     y += heading.height + 8;
 
-    const tryItHeight = 120;
+    const tryItHeight = columnHeight ? Math.max(160, columnHeight - (y - startY)) : 180;
     objects.push(...this.#drawTryItCard({ x, y, width, height: tryItHeight }, content));
     y += tryItHeight;
 
     return { objects, zones, height: y - startY };
   }
 
-  #drawSignatureCardRow(
-    rect: Rect,
-    cardId: string,
-    name: string,
-    cost: number | null,
-  ): Phaser.GameObjects.GameObject[] {
+  /** Signature cards as real, large card scans side by side, kept at `CARD_ASPECT` and shrunk only as far as
+   * `width` forces (`cardRow`, shared with the board's own card rows) — a horizontal row of 2–3, name and cost
+   * below each, rather than the small thumbnail-in-a-list-row this replaced. Each card's own art + label is one
+   * tap target. */
+  #buildSignatureCardsRow(
+    x: number,
+    y: number,
+    width: number,
+    cards: readonly AspectLessonSignatureCard[],
+  ): {
+    readonly objects: Phaser.GameObjects.GameObject[];
+    readonly zones: readonly { readonly rect: Rect; readonly activate: () => void }[];
+    readonly height: number;
+  } {
     const objects: Phaser.GameObjects.GameObject[] = [];
-    const g = this.add.graphics();
-    g.fillStyle(surface.card.hex, 1).fillRect(rect.x, rect.y, rect.width, rect.height);
-    g.lineStyle(2, surface.ink.hex, 1).strokeRect(rect.x + 1, rect.y + 1, rect.width - 2, rect.height - 2);
-    objects.push(g);
+    const zones: { readonly rect: Rect; readonly activate: () => void }[] = [];
+    // `cardRow`'s own bounds.height doubles as a shrink cap and its vertical-centering axis — pass the cap here
+    // and use each slot's own real (possibly recentred) `y` below, rather than assuming a slot sits flush at `y`.
+    const slots = cardRow({ x, y, width, height: CARD_ROW_MAX_HEIGHT }, cards.length, {
+      gap: CARD_ROW_GAP,
+      maxHeight: CARD_ROW_MAX_HEIGHT,
+      align: "start",
+    });
 
-    const artHeight = rect.height - 12;
-    const artWidth = Math.min(rect.width * 0.3, artHeight * CARD_ASPECT);
-    const artRect: Rect = { x: rect.x + 6, y: rect.y + 6, width: artWidth, height: artHeight };
-    const bg = this.add
-      .rectangle(artRect.x, artRect.y, artRect.width, artRect.height, surface.parchment.hex)
-      .setOrigin(0, 0);
-    objects.push(bg);
-    const card = CARDS_BY_ID.get(cardId);
-    const key = cardArt(this).request(this, artFor(card, { kind: "front" }));
-    const artImage = drawArt(this, key, artRect, { fit: "cover" });
-    if (artImage) objects.push(artImage);
+    // The block's real height, measured to the deepest content actually drawn (name + cost, which can wrap to a
+    // second line depending on the card and the column width) — a fixed budget here previously undershot on
+    // narrow layouts and let "Try it" overlap a wrapped name (bug this row replaces).
+    let maxBottom = y;
+    for (const [index, card] of cards.entries()) {
+      const slot = slots[index];
+      if (!slot) continue;
 
-    const textLeft = artRect.x + artRect.width + 12;
-    const nameText = this.add
-      .text(textLeft, rect.y + 14, name, textStyle(CARD_TITLE_TYPE, surface.ink.hex))
-      .setWordWrapWidth(rect.x + rect.width - 10 - textLeft);
-    objects.push(nameText);
+      const g = this.add.graphics();
+      g.fillStyle(surface.parchment.hex, 1).fillRect(slot.x, slot.y, slot.width, slot.height);
+      g.lineStyle(2, surface.ink.hex, 1).strokeRect(slot.x + 1, slot.y + 1, slot.width - 2, slot.height - 2);
+      objects.push(g);
 
-    if (cost !== null) {
-      const costText = this.add.text(
-        textLeft,
-        rect.y + 14 + nameText.height + 6,
-        `Cost ${cost}`,
-        textStyle(typeRole.body, surface.ink.hex, ink.secondary),
-      );
-      objects.push(costText);
+      const cardData = CARDS_BY_ID.get(card.cardId);
+      const key = cardArt(this).request(this, artFor(cardData, { kind: "front" }));
+      const artImage = drawArt(this, key, slot, { fit: "cover" });
+      if (artImage) objects.push(artImage);
+
+      const nameText = this.add
+        .text(slot.x, slot.y + slot.height + 6, card.name, textStyle(CARD_TITLE_TYPE, surface.ink.hex))
+        .setWordWrapWidth(slot.width);
+      objects.push(nameText);
+
+      let labelBottom = nameText.y + nameText.height;
+      if (card.cost !== null) {
+        const costText = this.add.text(
+          slot.x,
+          labelBottom + 2,
+          `Cost ${card.cost}`,
+          textStyle(typeRole.body, surface.ink.hex, ink.secondary),
+        );
+        objects.push(costText);
+        labelBottom = costText.y + costText.height;
+      }
+
+      maxBottom = Math.max(maxBottom, labelBottom);
+      zones.push({
+        rect: { x: slot.x, y: slot.y, width: slot.width, height: labelBottom - slot.y },
+        activate: () => this.#inspectCard(card.cardId),
+      });
     }
-    return objects;
+
+    return { objects, zones, height: maxBottom - y };
   }
 
   #drawTryItCard(rect: Rect, content: AspectLessonContent): Phaser.GameObjects.GameObject[] {
@@ -441,8 +488,9 @@ export class AspectLessonScene extends Phaser.Scene {
     g.fillStyle(surface.card.hex, 1).fillRect(rect.x, rect.y, rect.width, rect.height);
     objects.push(g);
 
-    const artWidth = Math.min(rect.width * 0.32, rect.height * CARD_ASPECT);
-    const artRect: Rect = { x: rect.x + 8, y: rect.y + 8, width: artWidth, height: rect.height - 16 };
+    const artHeight = rect.height - 16;
+    const artWidth = Math.min(rect.width * 0.55, artHeight * CARD_ASPECT);
+    const artRect: Rect = { x: rect.x + 8, y: rect.y + 8, width: artWidth, height: artHeight };
     if (content.heroCardId) {
       const bg = this.add
         .rectangle(artRect.x, artRect.y, artRect.width, artRect.height, surface.parchment.hex)
@@ -551,6 +599,12 @@ export class AspectLessonScene extends Phaser.Scene {
 
   #leave(): void {
     this.scale.off("resize", this.#rebuild, this);
+    if (this.#backTo === "previous") {
+      // Launched on top of a still-running screen (an aspect chip's own "Aspects ▸" link) — stop, never start
+      // fresh, so that screen's own in-progress state (e.g. Seats' `SetupDraft`) is untouched underneath.
+      this.scene.stop();
+      return;
+    }
     goToScreen(this, this.#backTo === "howToPlay" ? SCENES.howToPlay : SCENES.title);
   }
 }

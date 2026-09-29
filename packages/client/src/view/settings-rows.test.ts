@@ -73,13 +73,13 @@ describe("guideRowInfoOf", () => {
     expect(hintsLevel.selected).toBe("hints");
   });
 
-  test("play-tutorial opens How to win (G6b); aspect-lessons is still dashed unavailable (its target doesn't exist yet)", () => {
+  test("play-tutorial and aspect-lessons both open the How to play hub, neither dashed unavailable", () => {
     const rows = guideRowInfoOf(defaultGuidePrefs);
     const tutorial = rows.find((r) => r.id === "play-tutorial") as GuideActionRowInfo;
     const aspects = rows.find((r) => r.id === "aspect-lessons") as GuideActionRowInfo;
     expect(tutorial.kind).toBe("action");
     expect(tutorial.unavailable).toBeUndefined();
-    expect(aspects.unavailable).toBe("Coming soon");
+    expect(aspects.unavailable).toBeUndefined();
   });
 
   test("play-tutorial reads 'Replay the tutorial' once the tutorial is finished", () => {
@@ -118,7 +118,7 @@ describe("nextGuidePrefsAfterRow", () => {
     expect(nextGuidePrefsAfterRow(defaultGuidePrefs, "guide-level", "off").level).toBe("off");
   });
 
-  test("the two action rows are a no-op (dashed unavailable today)", () => {
+  test("the two action rows carry no prefs change of their own (navigation is the scene's job)", () => {
     expect(nextGuidePrefsAfterRow(defaultGuidePrefs, "play-tutorial")).toBe(defaultGuidePrefs);
     expect(nextGuidePrefsAfterRow(defaultGuidePrefs, "aspect-lessons")).toBe(defaultGuidePrefs);
   });

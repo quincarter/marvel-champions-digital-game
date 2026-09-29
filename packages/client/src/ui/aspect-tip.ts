@@ -2,8 +2,13 @@
  * The aspect-chip info affordance (guided mode G10b, `docs/guided-mode.md` §3 decision 7, §5.4): a small
  * "i" badge drawn at an aspect chip/tile's own corner — hover opens it on desktop, tap opens it on
  * touch, the same convention `ui/term-text.ts`'s glossary terms already use (see that module's header) —
- * and the tip panel it opens: the aspect's name, tagline and short tip line, plus an "Aspects ▸" link
- * drawn dashed and unavailable ("Coming soon") until G10c's Aspect lessons screen exists to receive it.
+ * and the tip panel it opens: the aspect's name, tagline and short tip line, plus an "Aspects ▸" link to
+ * that aspect's lesson page (`scenes/aspect-lesson.ts`, G10c) — live for the four playable aspects, dashed
+ * "Coming soon" for Basic, which has this tip card but no lesson (`view/aspect-tip-model.ts`'s own
+ * `linkAvailable`). The link opens the lesson `scene.launch`ed *over* whichever screen owns this panel
+ * (Seats/Deck check/Deck builder) with `backTo: "previous"`, the same overlay shape `scenes/rules.ts`
+ * already uses from here — never a fresh `scene.start`, which would drop that screen's own in-progress
+ * draft.
  *
  * **Not `McTooltip` (G3b).** That widget's content shape is a glossary term's title + one-line
  * definition + a fixed "RULES GLOSSARY ▸" link, and its own header explains why closing has to live on a
@@ -25,6 +30,8 @@ import { border, ink, signal, surface, typeRole } from "../tokens.js";
 import type { AspectTipContent } from "../view/aspect-tip-model.js";
 import type { Rect } from "../view/layout.js";
 import { textStyle } from "./theme.js";
+import { SCENES } from "../scenes/keys.js";
+import type { AspectLessonSceneData } from "../scenes/aspect-lesson.js";
 
 const BADGE_SIZE = 18;
 const PANEL_WIDTH = 220;
@@ -142,6 +149,28 @@ export function drawAspectTipPanel(scene: Phaser.Scene, anchor: Rect, content: A
   tip.setPosition(rect.x + PAD, rect.y + PAD + title.height + 6 + tagline.height + 6);
   link.setPosition(rect.x + PAD, rect.y + PAD + title.height + 6 + tagline.height + 6 + tip.height + 8);
 
-  const container = scene.add.container(0, 0, [panel, title, tagline, tip, link]).setDepth(1000);
+  const containerChildren: Phaser.GameObjects.GameObject[] = [panel, title, tagline, tip, link];
+  if (content.linkAvailable) {
+    const zone = scene.add
+      .zone(link.x, link.y, link.width, link.height)
+      .setOrigin(0, 0)
+      .setInteractive({ useHandCursor: true });
+    // The panel floats near the badge (`drawAspectTipPanel`'s own placement above), which on a narrow chip row
+    // can land over a hero/card tile's own zone underneath (`scenes/seats.ts`'s grid) — stop the event here so
+    // that tap only ever opens the lesson, never also fires whatever's drawn beneath the panel.
+    zone.on(
+      "pointerup",
+      (_pointer: Phaser.Input.Pointer, _localX: number, _localY: number, event: Phaser.Types.Input.EventData) => {
+        event.stopPropagation();
+        scene.scene.launch(SCENES.aspectLesson, {
+          aspect: content.aspect,
+          backTo: "previous",
+        } satisfies AspectLessonSceneData);
+      },
+    );
+    containerChildren.push(zone);
+  }
+
+  const container = scene.add.container(0, 0, containerChildren).setDepth(1000);
   scene.children.bringToTop(container);
 }

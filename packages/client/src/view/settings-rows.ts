@@ -96,10 +96,9 @@ export function nextSettingsAfterToggle(settings: Settings, id: SettingsRowId, d
 
 // ---------------------------------------------------------------------------
 // The Guide group (docs/guided-mode.md §4 G2b): a segmented "Guide level" row,
-// two dashed-unavailable action rows for the tutorial/aspect lessons (their
-// target screens don't exist yet — G6a/G6b, G10c), and one toggle per hint
-// warning. Drawn in the same two places as the rows above (`scenes/settings.ts`,
-// Pause's inline group), from `guideRowInfoOf`.
+// two action rows opening the "How to play" hub (`scenes/how-to-play.ts`, G6c/G10c) — "Play the tutorial"
+// at THE BASICS, "Aspect lessons" at ASPECTS — and one toggle per hint warning. Drawn in the same two
+// places as the rows above (`scenes/settings.ts`, Pause's inline group), from `guideRowInfoOf`.
 // ---------------------------------------------------------------------------
 
 export interface GuideLevelOption {
@@ -128,7 +127,7 @@ export interface GuideActionRowInfo {
   readonly id: "play-tutorial" | "aspect-lessons";
   readonly title: string;
   readonly detail: string;
-  /** Always set today — neither target screen exists yet (G6a/G6b for the tutorial, G10c for aspect lessons). */
+  /** Unset today — both actions open the "How to play" hub. Kept for a future action row without a target yet. */
   readonly unavailable?: string;
 }
 
@@ -179,7 +178,6 @@ export function guideRowInfoOf(prefs: GuidePrefs): readonly GuideRowInfo[] {
       id: "aspect-lessons",
       title: "Aspect lessons",
       detail: "What each aspect is for, when to pick it, and a couple of signature cards.",
-      unavailable: "Coming soon",
     },
     ...SILENCED_WARNING_KEYS.map((key): GuideToggleRowInfo => ({
       kind: "toggle",
@@ -193,8 +191,9 @@ export function guideRowInfoOf(prefs: GuidePrefs): readonly GuideRowInfo[] {
 
 /**
  * `prefs` with one Guide row's control applied — the one place that logic lives, mirroring
- * `nextSettingsAfterToggle` above. `level` is only read for `"guide-level"`; the two action rows are dashed and
- * unavailable today, so activating them is a no-op rather than a dead click.
+ * `nextSettingsAfterToggle` above. `level` is only read for `"guide-level"`; the two action rows carry no prefs
+ * change of their own — opening the "How to play" hub is `scenes/settings.ts#activateGuideRow`'s own job, a
+ * navigation rather than a preference.
  */
 export function nextGuidePrefsAfterRow(prefs: GuidePrefs, id: GuideSettingsRowId, level?: GuideLevel): GuidePrefs {
   if (id === "guide-level") return withLevel(prefs, level ?? prefs.level);

@@ -20,7 +20,9 @@ export interface AspectTipContent {
   /** The short inline tip, one line (`AspectGuide.tipLine`). */
   readonly tipLine: string;
   readonly linkLabel: string;
-  /** False until G10c's Aspect lessons screen exists to receive this link — draw it dashed/unavailable. */
+  /** True for the four playable aspects, each with a live `scenes/aspect-lesson.ts` page (G10c) — false for
+   * Basic, which has this tip card but no lesson of its own (§5.4's own table; `howToPlayModules` skips it from
+   * the hub's ASPECTS list the same way). */
   readonly linkAvailable: boolean;
   /** The reason shown alongside a not-yet-available link ("Coming soon"), `null` once it's available. */
   readonly linkReason: string | null;
@@ -34,13 +36,14 @@ export interface AspectTipContent {
 export function aspectTipContentOf(aspect: CoreAspect): AspectTipContent | null {
   const guide = aspectGuideOf(aspect);
   if (!guide) return null;
+  const linkAvailable = guide.aspect !== "basic";
   return {
     aspect,
     title: guide.name,
     tagline: guide.tagline,
     tipLine: guide.tipLine,
     linkLabel: "Aspects ▸",
-    linkAvailable: false,
-    linkReason: "Coming soon",
+    linkAvailable,
+    linkReason: linkAvailable ? null : "Coming soon",
   };
 }

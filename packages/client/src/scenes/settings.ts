@@ -417,8 +417,9 @@ export class SettingsOverlay extends Phaser.Scene {
 
   #activateGuideRow(row: GuideNonLevelRow): void {
     if (row.kind === "action") {
-      // "Aspect lessons" (G10c) has no target yet, still dashed unavailable; "Play the tutorial" (G6c) does.
-      if (row.id === "play-tutorial") this.#openHowToPlay();
+      // Both actions open the same "How to play" hub (`scenes/how-to-play.ts`) — "Play the tutorial" at THE
+      // BASICS, "Aspect lessons" (G10c) at ASPECTS, same screen either way.
+      if (row.id === "play-tutorial" || row.id === "aspect-lessons") this.#openHowToPlay();
       return;
     }
     setGuidePrefs(nextGuidePrefsAfterRow(guidePrefs(), row.id));

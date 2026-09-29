@@ -1,7 +1,7 @@
 /**
  * "How to play" (guided mode G6c part 1, `docs/guided-mode.md` §4): the learning hub Title's menu, Settings' "Play
- * the tutorial", the round debrief's "Replay a lesson", and (once G10c lands) the aspect chips' own "Aspects ▸"
- * all open. `view/how-to-play-model.ts`'s own header has the content/layout split this scene draws.
+ * the tutorial", the round debrief's "Replay a lesson", and the aspect chips' own "Aspects ▸" all open.
+ * `view/how-to-play-model.ts`'s own header has the content/layout split this scene draws.
  *
  * **THE BASICS**: the tutorial's real five lessons, each showing ✓ done or a yellow "NEXT" stamp on the first one
  * not done. Lesson 1 ("How to win") opens `scenes/how-to-win.ts` with `backTo: "howToPlay"` — that screen already
@@ -10,10 +10,9 @@
  * later lesson's own start point (`docs/guided-mode.md` §4 G6c's own note) — for now every lesson starts the
  * tutorial from the top, same as lesson 1.
  *
- * **ASPECTS**: the four playable aspect rows (`guide/aspects.ts`, Basic and 'Pool skipped per §5.4). Drawn dashed
- * and unavailable with "Coming soon" — their own lesson page is G10c, which doesn't exist yet. `#openAspectLesson`
- * below is the one wiring point: G10c only has to fill in that one method's body and flip each row's `unavailable`
- * the way `view/settings-rows.ts#guideRowInfoOf` already flips "Aspect lessons" once its own target exists.
+ * **ASPECTS**: the four playable aspect rows (`guide/aspects.ts`, Basic and 'Pool skipped per §5.4), each live and
+ * tappable to `scenes/aspect-lesson.ts` (G10c) with `backTo: "howToPlay"`, showing a ✓ once
+ * `prefs.aspectLessonsDone` includes it.
  *
  * **REFERENCE**: one row, "Rules & glossary", opens `SCENES.rules`.
  *
@@ -30,7 +29,7 @@
 import Phaser from "phaser";
 import { dotGrid, ink, signal, surface, typeRole, type TypeSpec } from "../tokens.js";
 import { cssOf, textStyle } from "../ui/theme.js";
-import { McButton, dashedRect, label, paintDotGrid } from "../ui/widgets.js";
+import { McButton, label, paintDotGrid } from "../ui/widgets.js";
 import { McScrollRegion } from "../ui/scroll-region.js";
 import { VariableListScroll } from "../view/variable-list-scroll.js";
 import type { Rect } from "../view/layout.js";
@@ -51,6 +50,7 @@ import { fadeScreenIn, goToScreen } from "../ui/transitions.js";
 import { FocusRoute, type FocusStop } from "./focus-route.js";
 import { SCENES } from "./keys.js";
 import type { HowToWinSceneData } from "./how-to-win.js";
+import type { AspectLessonSceneData } from "./aspect-lesson.js";
 import type { RulesSceneData } from "./rules.js";
 
 const TITLE_TYPE: TypeSpec = typeRole.barTitle;
@@ -160,11 +160,16 @@ export class HowToPlayScene extends Phaser.Scene {
     });
     modules.aspects.forEach((aspectRow, i) => {
       const rowRect = content.aspectRows[i]!;
-      this.#captureInto(container, () => this.#drawAspectRow(toScreen(rowRect), aspectRow));
-      stops.set(
-        `aspect:${aspectRow.aspect}`,
-        this.#bodyStop(rowRect, content.aspectScrollIndex[i]!, () => this.#openAspectLesson(aspectRow)),
-      );
+      const screenRect = toScreen(rowRect);
+      this.#captureInto(container, () => this.#drawAspectRow(screenRect, aspectRow));
+      const activate = (): void => this.#openAspectLesson(aspectRow);
+      const zone = this.add
+        .zone(screenRect.x, screenRect.y, screenRect.width, screenRect.height)
+        .setOrigin(0, 0)
+        .setInteractive({ useHandCursor: true });
+      zone.on("pointerup", activate);
+      container.add(zone);
+      stops.set(`aspect:${aspectRow.aspect}`, this.#bodyStop(rowRect, content.aspectScrollIndex[i]!, activate));
     });
 
     this.#captureInto(container, () => {
@@ -315,30 +320,36 @@ export class HowToPlayScene extends Phaser.Scene {
     }
   }
 
-  /** An aspect row: name, tagline, a "Coming soon" dashed unavailable state (G10c's lesson page doesn't exist yet — `#openAspectLesson` is its one wiring point). */
+  /** An aspect row: name, tagline, and a done ✓ / quiet "▸" — every aspect's lesson page is live (G10c), the same
+   * always-tappable shape `#drawLessonRow` uses. */
   #drawAspectRow(rect: Rect, aspect: AspectRowInfo): void {
     const g = this.add.graphics();
-    g.fillStyle(surface.card.hex, 0.6).fillRect(rect.x, rect.y, rect.width, rect.height);
-    dashedRect(g, rect, 1.5, surface.ink.hex);
+    g.fillStyle(surface.card.hex, 1).fillRect(rect.x, rect.y, rect.width, rect.height);
+    g.lineStyle(1.5, surface.ink.hex, 1).strokeRect(rect.x + 1, rect.y + 1, rect.width - 2, rect.height - 2);
 
     const pad = 16;
-    this.add.text(rect.x + pad, rect.y + 12, aspect.name, {
-      ...textStyle(ROW_TITLE_TYPE, surface.ink.hex, 0.55),
-    });
+    this.add.text(rect.x + pad, rect.y + 12, aspect.name, textStyle(ROW_TITLE_TYPE, surface.ink.hex));
     this.add
-      .text(rect.x + pad, rect.y + 38, aspect.tagline, textStyle(ROW_DETAIL_TYPE, surface.ink.hex, 0.45))
-      .setWordWrapWidth(rect.width - pad * 2 - 100);
+      .text(rect.x + pad, rect.y + 38, aspect.tagline, textStyle(ROW_DETAIL_TYPE, surface.ink.hex, ink.secondary))
+      .setWordWrapWidth(rect.width - pad * 2 - 90);
 
-    const tagLabel = this.add.text(0, 0, "COMING SOON", textStyle(STAMP_TYPE, surface.ink.hex, 0.55)).setVisible(false);
-    const tagWidth = tagLabel.width + 14;
-    const tagHeight = 20;
-    const tx = rect.x + rect.width - tagWidth - 12;
-    const ty = rect.y + 12;
-    dashedRect(g, { x: tx, y: ty, width: tagWidth, height: tagHeight }, 1.5, surface.ink.hex);
-    tagLabel
-      .setPosition(tx + tagWidth / 2, ty + tagHeight / 2)
-      .setOrigin(0.5)
-      .setVisible(true);
+    if (aspect.done) {
+      this.add
+        .text(
+          rect.x + rect.width - 12,
+          rect.y + rect.height / 2,
+          "✓ Done",
+          textStyle(ROW_DETAIL_TYPE, surface.ink.hex, ink.secondary),
+        )
+        .setOrigin(1, 0.5);
+    } else {
+      this.add
+        .text(rect.x + rect.width - 12, rect.y + rect.height / 2, "▸", {
+          ...textStyle(typeRole.barTitle, surface.ink.hex),
+          fontSize: "18px",
+        })
+        .setOrigin(1, 0.5);
+    }
   }
 
   #drawReferenceRow(rect: Rect): void {
@@ -400,10 +411,13 @@ export class HowToPlayScene extends Phaser.Scene {
     goToScreen(this, SCENES.board);
   }
 
-  /** G10c's own wiring point (this file's header): once the aspect lesson page exists, this opens it for
-   * `aspect.aspect`. A no-op today — every aspect row is drawn dashed/unavailable until then. */
-  #openAspectLesson(_aspect: AspectRowInfo): void {
-    // Intentionally empty: G10c fills this in.
+  /** Opens `aspect.aspect`'s lesson page (G10c), returning here on Back/×/Escape. */
+  #openAspectLesson(aspect: AspectRowInfo): void {
+    this.scale.off("resize", this.#rebuild, this);
+    goToScreen(this, SCENES.aspectLesson, {
+      aspect: aspect.aspect,
+      backTo: "howToPlay",
+    } satisfies AspectLessonSceneData);
   }
 
   #openReference(): void {
