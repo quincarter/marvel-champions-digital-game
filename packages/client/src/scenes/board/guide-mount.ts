@@ -51,15 +51,19 @@ import {
   type GuideControllerOptions,
   type GuideControllerView,
 } from "../../guide/guide-controller.js";
+import { surface, threatMeter, typeRole } from "../../tokens.js";
 import { McGuideCallout } from "../../ui/guide-callout.js";
 import { McGuidePanel, type GuidePanelExtraRow } from "../../ui/guide-panel.js";
 import { McGuideSpotlight } from "../../ui/guide-spotlight.js";
 import { McGuideTag } from "../../ui/guide-tag.js";
+import { textStyle } from "../../ui/theme.js";
+import { hatchRect } from "../../ui/widgets.js";
 import { GUIDE_PANEL_COLLAPSED_WIDTH, guideRailWidthFor } from "../../view/guide-panel-model.js";
 import { instanceOfCode, resolveAnchor, type AnchorFrame, type ResolvedAnchor } from "../../view/guide-anchor.js";
 import { calloutContentOf } from "../../view/guide-callout-content.js";
 import { formFactorFor, isTabbed, type BoardLayout, type PhoneTab, type Rect } from "../../view/layout.js";
 import { currentStep, type LessonAnchor, type LessonObservation } from "../../view/lesson-model.js";
+import { schemeMeterRect } from "./schemes.js";
 
 const RAIL_FORM_FACTORS: ReadonlySet<string> = new Set(["desktop", "tabletLandscape"]);
 const BLACK_CAT = cardId("01002");
@@ -84,6 +88,9 @@ const VILLAIN_STEP_ROW: Readonly<Record<string, number>> = {
   endOfRound: 3,
 };
 const VILLAIN_ROW_LABELS: readonly string[] = ["Plan advances", "Rhino attacks you", "Draw an encounter card"];
+/** Lesson 5's own thwart step (guided mode G7d, `docs/guided-mode.md` §5.1 tile D01) — the only step that draws
+ * `#drawThreatPreview`'s projected-removal overlay on the main scheme's own meter. */
+const THWART_STEP_ID = "thwart";
 
 /**
  * Lesson 4's own rail extra rows (guided mode G7c): the villain phase's three steps, in order, with the current
@@ -279,6 +286,9 @@ export class BoardGuideMount {
       const panel = new McGuidePanel(this.#scene, {
         side: "left",
         onBack: () => this.#act(() => this.#controller.back()),
+        // The step's own `secondaryLabel` (guided mode G7d, "How do I stop it?") advances the same way the
+        // primary button does — see `LessonStepCopy.secondaryLabel`'s own doc comment.
+        onSecondary: () => this.#act(() => this.#controller.primary()),
         onPrimary: () => this.#act(() => this.#controller.primary()),
         // Waiting/complete have no current step to skip (`view.step` is null then) — the header's Skip control
         // only draws when `onSkip` is wired, so it's simply left out rather than shown as a no-op.
@@ -314,6 +324,7 @@ export class BoardGuideMount {
     // would have to track them too, for no benefit: neither is ever the thing being spotlit).
     if (this.#lastPanel) this.#scene.children.bringToTop(this.#lastPanel.container);
     if (this.#lastCallout) this.#scene.children.bringToTop(this.#lastCallout.container);
+    this.#drawThreatPreview(view.step?.id ?? null);
   }
 
   /**
@@ -373,7 +384,14 @@ export class BoardGuideMount {
     const anchorRect = resolved && !resolved.tab ? resolved.rect : null;
     const callout = new McGuideCallout(this.#scene, {
       onPrimary: () => this.#act(() => this.#controller.primary()),
-      ...(view.panel.backLabel ? { onSecondary: () => this.#act(() => this.#controller.back()) } : {}),
+      // Back wins the callout's one secondary slot when both are set (never happens in the tutorial's own data —
+      // `McGuidePanelContent.backLabel`'s own doc comment); a step's own `secondaryLabel` (guided mode G7d) fires
+      // the same `primary()` call as the primary button, same as the rail above.
+      ...(view.panel.backLabel
+        ? { onSecondary: () => this.#act(() => this.#controller.back()) }
+        : view.panel.secondaryLabel
+          ? { onSecondary: () => this.#act(() => this.#controller.primary()) }
+          : {}),
       // Waiting/complete have no current step to skip — same reasoning as the rail's own `onSkip` above.
       ...(view.step ? { onSkip: () => this.#act(() => this.#controller.skip()) } : {}),
       onStop: () => this.stop(),
@@ -402,6 +420,58 @@ export class BoardGuideMount {
     if (resolved.tab) return;
     new McGuideSpotlight(this.#scene).show(viewport, resolved.rect);
     if (tagVariant) new McGuideTag(this.#scene, tagVariant).update(resolved.rect);
+  }
+
+  /**
+   * Lesson 5's own projected-removal preview (guided mode G7d, `docs/guided-mode.md` §5.1 tile D01: "4 → 3 /12"):
+   * while the "Thwart it" step is up, redraws the main scheme's own meter (`schemes.ts#schemeMeterRect`, the very
+   * rect `drawScheme` just painted this frame) with the portion Spider-Man's THW would remove hatched out, instead
+   * of solid — the same "this is about to be gone" texture `McHpPlate`'s own Tough hatch uses. Reads the live THW
+   * and threat off `BoardScene#guideBoardModel()` (this draw's own `BoardModel`, not re-derived from `GameState`)
+   * rather than the engine directly, so this stays in step with whatever the board itself just showed. A no-op
+   * with no board model yet, no THW this turn (an alter-ego's panel prints REC, not THW — `BoardModel.me.stats`'s
+   * own doc comment), a THW of 0, the scheme's rect not on the current phone tab, or nothing left to remove.
+   */
+  #drawThreatPreview(stepId: string | null): void {
+    if (stepId !== THWART_STEP_ID) return;
+    const model = this.#scene.guideBoardModel();
+    if (!model) return;
+    const thwTile = model.me.stats.find((tile) => tile.label === "THW");
+    const thw = thwTile ? Number.parseInt(thwTile.value, 10) : Number.NaN;
+    if (!Number.isFinite(thw) || thw <= 0) return;
+    const scheme = model.mainScheme;
+    const current = scheme.threat;
+    const projected = Math.max(0, current - thw);
+    if (projected >= current || !scheme.meterMax || scheme.meterMax <= 0) return;
+    const rect = this.#scene.guideAnchorFrame().hitRects.get(scheme.instanceId);
+    if (!rect) return;
+
+    const meter = schemeMeterRect(rect);
+    const scene = this.#scene;
+    const g = scene.add.graphics();
+    g.fillStyle(surface.parchment.hex, 1).fillRect(meter.x, meter.y, meter.width, meter.height);
+    const ratio = (value: number) => Math.min(1, Math.max(0, value) / scheme.meterMax!);
+    const solidWidth = meter.width * ratio(projected);
+    const removedWidth = meter.width * (ratio(current) - ratio(projected));
+    g.fillStyle(threatMeter.fill.hex, 1).fillRect(meter.x, meter.y, solidWidth, meter.height);
+    hatchRect(
+      g,
+      { x: meter.x + solidWidth, y: meter.y, width: removedWidth, height: meter.height },
+      threatMeter.fill.hex,
+      1,
+      6,
+      3,
+    );
+    g.lineStyle(2, surface.ink.hex, 1).strokeRect(meter.x, meter.y, meter.width, meter.height);
+    const label = scheme.target !== null ? `${current} → ${projected} /${scheme.target}` : `${current} → ${projected}`;
+    scene.add
+      .text(
+        meter.x + meter.width / 2,
+        meter.y + meter.height / 2,
+        label,
+        textStyle(typeRole.statSmall, surface.ink.hex),
+      )
+      .setOrigin(0.5, 0.5);
   }
 
   /**
@@ -494,7 +564,7 @@ export class BoardGuideMount {
     if (payment.paid > 0) {
       this.#controller.setOverride(PLAY_BLACK_CAT_STEP_ID, {
         anchor: { kind: "control", id: PAY_CONTROL_ID },
-        doThis: "Pay",
+        doThis: "Tap Pay",
       });
       return;
     }

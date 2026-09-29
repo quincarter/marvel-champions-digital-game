@@ -115,8 +115,15 @@ export interface McGuidePanelContent {
   /** Footer progress ticks: how many, and which one (0-based) is current. Omit either to hide the row. */
   readonly progressTicks?: number | null;
   readonly progressCurrent?: number | null;
-  /** The footer's Back button label. Omit/null to hide it. */
+  /** The footer's Back button label. Omit/null to hide it. Takes the footer's one left-hand secondary slot over
+   * `secondaryLabel` when both happen to be set (never happens in practice: `secondaryLabel` only ever appears on
+   * a lesson's first step, guided mode G7d, where `backLabel` is always null). */
   readonly backLabel?: string | null;
+  /** A second forward button beside the primary one — lesson 5's "How do I stop it?" (guided mode G7d,
+   * `docs/guided-mode.md` §5.1 tile P03). Fires `McGuidePanelOptions.onSecondary`, not `onBack`. Shares the
+   * footer's left-hand secondary slot with `backLabel`; see that field's own doc comment for why they never
+   * collide in the tutorial's own data. */
+  readonly secondaryLabel?: string | null;
   /** Shown instead of the "do this to continue" hint box, for a step with its own forward action. */
   readonly primaryLabel?: string | null;
   /** The dashed "do this to continue" hint box's text — mutually exclusive with `primaryLabel`. */
@@ -130,6 +137,9 @@ export interface McGuidePanelContent {
 
 export interface McGuidePanelOptions {
   readonly onBack?: () => void;
+  /** `McGuidePanelContent.secondaryLabel`'s own click (guided mode G7d) — distinct from `onBack`, even though
+   * both draw in the footer's same left-hand slot. */
+  readonly onSecondary?: () => void;
   readonly onPrimary?: () => void;
   /** Fired when the header's own collapse control is clicked (the widget also collapses itself). */
   readonly onCollapse?: () => void;
@@ -594,25 +604,31 @@ export class McGuidePanel {
       fy += nudgeText.height + 8;
     }
 
+    // The footer's one left-hand slot is Back, or (only when there's no Back to show) the step's own
+    // `secondaryLabel` — see that field's own doc comment for why the tutorial's data never asks for both at once.
     const hasBack = Boolean(content.backLabel);
+    const hasAlt = !hasBack && Boolean(content.secondaryLabel);
+    const hasLeft = hasBack || hasAlt;
     const hasSlot = Boolean(content.primaryLabel || content.continueHint);
     const gap = 12;
-    const backWidth = hasBack && hasSlot ? (innerWidth - gap) / 2 : innerWidth;
-    const slotWidth = hasBack && hasSlot ? (innerWidth - gap) / 2 : innerWidth;
+    const backWidth = hasLeft && hasSlot ? (innerWidth - gap) / 2 : innerWidth;
+    const slotWidth = hasLeft && hasSlot ? (innerWidth - gap) / 2 : innerWidth;
     let bx = rect.x + GUIDE_PANEL_PAD;
     this.#primaryLabel = content.primaryLabel ?? null;
-    if (hasBack) {
+    if (hasLeft) {
+      const leftLabel = hasBack ? content.backLabel! : content.secondaryLabel!;
+      const onLeftClick = hasBack ? () => this.#options.onBack?.() : () => this.#options.onSecondary?.();
       const backRect: Rect = { x: bx, y: fy, width: backWidth, height: hit.target };
       const back = new McButton(scene, {
         kind: "secondary",
-        label: content.backLabel!,
+        label: leftLabel,
         type: BUTTON_TYPE,
         rect: backRect,
         tint: { fill: surface.paper.hex, ink: surface.ink.hex },
-        onClick: () => this.#options.onBack?.(),
+        onClick: onLeftClick,
       });
       objects.push(back.container);
-      focusables.push({ rect: backRect, activate: () => this.#options.onBack?.() });
+      focusables.push({ rect: backRect, activate: onLeftClick });
       bx += backWidth + gap;
     }
     if (hasSlot) {

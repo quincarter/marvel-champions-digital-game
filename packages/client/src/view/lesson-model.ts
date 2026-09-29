@@ -88,6 +88,14 @@ export interface LessonStepCopy {
    * dependency (`view/layout.ts`), same as every other field in this interface.
    */
   readonly doThisTabbed?: string;
+  /**
+   * A second forward button on an `"acknowledge"` step, alongside the primary "Got it" — lesson 5's
+   * spotlight-scheme step's "How do I stop it?" (guided mode G7d, `docs/guided-mode.md` §5.1 tile P03). Both
+   * buttons advance the step the same way (`GuideController#primary`/`acknowledge`); this only changes which
+   * label the curious-vs-just-move-on player taps. Ignored on an `"await"` step, and on any step that doesn't set
+   * it — most acknowledge steps show only the primary button.
+   */
+  readonly secondaryLabel?: string;
 }
 
 export type LessonStepMode = "acknowledge" | "await";

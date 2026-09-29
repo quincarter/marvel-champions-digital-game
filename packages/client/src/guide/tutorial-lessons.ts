@@ -161,6 +161,9 @@ const THREAT_AND_THWARTING: Lesson = {
           "[[threat|Threat]] goes on [[mainScheme|the main scheme]] every villain phase. Reach its target and the " +
           "villain wins — so it's worth clearing before it gets there. A rule of thumb: thwart once it's past " +
           "halfway to target.",
+        // The curious-vs-just-move-on pair (guided mode G7d, tile P03): both buttons advance the same way
+        // (`GuideController#primary`) — this only changes which one the player taps.
+        secondaryLabel: "How do I stop it?",
       },
       mode: "acknowledge",
     },

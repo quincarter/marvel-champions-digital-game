@@ -292,6 +292,9 @@ export class GuideController {
       progressTicks: progress?.totalSteps ?? null,
       progressCurrent: progress?.stepIndex ?? null,
       backLabel: progress && progress.stepIndex > 0 ? "Back" : null,
+      // Only meaningful alongside a primary button (an `"acknowledge"` step) — see `LessonStepCopy.secondaryLabel`'s
+      // own doc comment for why both fire the same `primary()` call.
+      secondaryLabel: step.mode === "acknowledge" ? (copy.secondaryLabel ?? null) : null,
       primaryLabel: step.mode === "acknowledge" ? PRIMARY_LABEL : null,
       continueHint: step.mode === "await" ? (override?.doThis ?? copy.doThis ?? GENERIC_CONTINUE_HINT) : null,
       nudge: this.#nudge,
