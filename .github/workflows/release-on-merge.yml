@@ -122,13 +122,18 @@ jobs:
           echo "Preparing ${TAG}."
 
           # Batch the fragments into .changes/${TAG}.md, rebuild CHANGELOG.md and run the version replacements
-          # (.changie.yaml), then bump Android's versionCode.
+          # (.changie.yaml), then bump Android's versionCode and iOS's build number (CURRENT_PROJECT_VERSION).
           changie batch "${TAG}" --allow-no-changes
           changie merge
           GRADLE_FILE="packages/client/android/app/build.gradle"
           if [ -f "$GRADLE_FILE" ]; then
             CURRENT_CODE=$(grep -oE 'versionCode [0-9]+' "$GRADLE_FILE" | awk '{print $2}')
             sed -i -E "s/versionCode [0-9]+/versionCode $((CURRENT_CODE + 1))/" "$GRADLE_FILE"
+          fi
+          PBXPROJ="packages/client/ios/App/App.xcodeproj/project.pbxproj"
+          if [ -f "$PBXPROJ" ]; then
+            CURRENT_BUILD=$(grep -oE 'CURRENT_PROJECT_VERSION = [0-9]+' "$PBXPROJ" | head -n 1 | awk '{print $3}')
+            sed -i -E "s/CURRENT_PROJECT_VERSION = [0-9]+;/CURRENT_PROJECT_VERSION = $((CURRENT_BUILD + 1));/" "$PBXPROJ"
           fi
 
           # release/next is owned by this job and rebuilt from main on every run, so it is force-pushed.
@@ -141,7 +146,7 @@ jobs:
 
           BODY_FILE=$(mktemp)
           {
-            echo "Merging this PR releases **${TAG}**: the tag, the GitHub release, and the desktop and Android builds."
+            echo "Merging this PR releases **${TAG}**: the tag, the GitHub release, and the desktop, Android and iOS builds."
             echo "It is regenerated on every merge to main while it is open, so it always holds everything unreleased."
             echo
             cat ".changes/${TAG}.md"

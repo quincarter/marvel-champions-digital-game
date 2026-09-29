@@ -37,6 +37,9 @@ replacements:
   - path: packages/client/android/app/build.gradle
     find: '        versionName ".*"'
     replace: '        versionName "{{.VersionNoPrefix}}"'
+  - path: packages/client/ios/App/App.xcodeproj/project.pbxproj
+    find: "MARKETING_VERSION = .*;"
+    replace: "MARKETING_VERSION = {{.VersionNoPrefix}};"
   - path: packages/engine/src/index.ts
     find: 'export const ENGINE_VERSION = ".*";'
     replace: 'export const ENGINE_VERSION = "{{.VersionNoPrefix}}";'
