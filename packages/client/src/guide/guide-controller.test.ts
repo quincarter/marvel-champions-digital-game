@@ -345,7 +345,7 @@ describe("GuideController — waiting and complete (G5c part 2, §4 G5c item 0)"
     const core = new EngineSessionCore();
     const started = await core.start(TUTORIAL_CONFIG);
     const controller = new GuideController(
-      { lessons: TUTORIAL_LESSONS, alreadyDone: ["how-to-win", "hero-and-alter-ego"] },
+      { lessons: TUTORIAL_LESSONS, alreadyDone: ["how-to-win", "hero-and-alter-ego"], runLabel: "First game" },
       observationOf(started.snapshot),
     );
 
@@ -357,6 +357,9 @@ describe("GuideController — waiting and complete (G5c part 2, §4 G5c item 0)"
     expect(view.anchor).toBeNull();
     expect(view.gate).toBeNull();
     expect(view.tagVariant).toBeNull();
+    // `runLabel` ("First game" for the tutorial), not a hardcoded "Guide" — the `GUIDE` stamp itself is drawn
+    // separately by `ui/guide-panel.ts`, so this used to read "GUIDE GUIDE".
+    expect(view.panel?.contextLabel).toBe("First game");
     expect(view.panel?.title).toBe("Next: Paying for cards");
     expect(view.panel?.body).toBe("Flip to Spider-Man when you're ready.");
     expect(view.panel?.lessons?.map((row) => row.status)).toEqual(["done", "done", "upcoming", "upcoming", "upcoming"]);
@@ -369,11 +372,21 @@ describe("GuideController — waiting and complete (G5c part 2, §4 G5c item 0)"
     expect(controller.view().step?.id).toBe("play-black-cat");
   });
 
+  test('a caller with no runLabel falls back to "Guide"', async () => {
+    const core = new EngineSessionCore();
+    const started = await core.start(TUTORIAL_CONFIG);
+    const controller = new GuideController(
+      { lessons: TUTORIAL_LESSONS, alreadyDone: ["how-to-win", "hero-and-alter-ego"] },
+      observationOf(started.snapshot),
+    );
+    expect(controller.view().panel?.contextLabel).toBe("Guide");
+  });
+
   test("the complete state shows once every lesson is done, and Close hides the guide for the rest of this game", async () => {
     const core = new EngineSessionCore();
     const started = await core.start(TUTORIAL_CONFIG);
     const controller = new GuideController(
-      { lessons: TUTORIAL_LESSONS, alreadyDone: TUTORIAL_LESSONS.map((lesson) => lesson.id) },
+      { lessons: TUTORIAL_LESSONS, alreadyDone: TUTORIAL_LESSONS.map((lesson) => lesson.id), runLabel: "First game" },
       observationOf(started.snapshot),
     );
 
@@ -382,6 +395,7 @@ describe("GuideController — waiting and complete (G5c part 2, §4 G5c item 0)"
     expect(view.step).toBeNull();
     expect(view.anchor).toBeNull();
     expect(view.gate).toBeNull();
+    expect(view.panel?.contextLabel).toBe("First game");
     expect(view.panel?.title).toBe("Tutorial complete");
     expect(view.panel?.primaryLabel).toBe("Close");
     expect(view.panel?.lessons).toBeNull();

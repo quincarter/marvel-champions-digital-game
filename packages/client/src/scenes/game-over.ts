@@ -540,6 +540,11 @@ export class GameOverScene extends Phaser.Scene {
     if (this.#busy) return;
     this.#busy = true;
     const { store } = appSession();
+    // "Run it back"/"Same seed" starts a plain new game, never a guided run — clears a still-set flag from an
+    // earlier tutorial the player left running rather than stopping outright (`session.ts`'s own `guidedRun` doc
+    // comment: "not cleared automatically by starting a fresh non-guided game afterward" was this method's own
+    // TODO).
+    appSession().guidedRun = false;
     await store.start(config);
     if (store.state.status === "failed") {
       this.#busy = false;

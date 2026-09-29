@@ -127,6 +127,24 @@ describe("pauseLayout", () => {
       expect(layout.concedeConfirmCancel.y + layout.concedeConfirmCancel.height).toBeLessThanOrEqual(layout.concede.y);
       expect(rectsOverlap(layout.concedeConfirmCancel, layout.menu.settings)).toBe(false);
     });
+
+    test("Stop tutorial / Turn guide off are null unless guidedRunActive, and never touch Concede when they are (§3.10, G5c part 3)", () => {
+      const inactive = pauseLayout({ x: 0, y: 0, width: 1440, height: 900 }, input(8));
+      if (inactive.kind !== "wide") throw new Error("expected wide");
+      expect(inactive.guideStopTutorial).toBeNull();
+      expect(inactive.guideTurnGuideOff).toBeNull();
+
+      const active = pauseLayout({ x: 0, y: 0, width: 1440, height: 900 }, { ...input(8), guidedRunActive: true });
+      if (active.kind !== "wide") throw new Error("expected wide");
+      expect(active.guideStopTutorial).not.toBeNull();
+      expect(active.guideTurnGuideOff).not.toBeNull();
+      expect(rectsOverlap(active.guideStopTutorial!, active.menu.saveQuit)).toBe(false);
+      expect(rectsOverlap(active.guideTurnGuideOff!, active.guideStopTutorial!)).toBe(false);
+      expect(rectsOverlap(active.guideStopTutorial!, active.concede)).toBe(false);
+      expect(rectsOverlap(active.guideTurnGuideOff!, active.concede)).toBe(false);
+      expect(active.guideTurnGuideOff!.y).toBeGreaterThan(active.guideStopTutorial!.y);
+      expect(active.guideStopTutorial!.y).toBeGreaterThan(active.menu.saveQuit.y);
+    });
   });
 
   describe("phone", () => {
@@ -191,6 +209,22 @@ describe("pauseLayout", () => {
         expect(rect.y).toBeGreaterThanOrEqual(0);
         expect(rect.y + rect.height).toBeLessThanOrEqual(lowerContent.totalHeight + 0.001);
       }
+    });
+
+    test("Stop tutorial / Turn guide off sit ahead of Table only while guidedRunActive (§3.10, G5c part 3)", () => {
+      const inactive = pauseLayout({ x: 0, y: 0, width: 390, height: 844 }, input(0));
+      if (inactive.kind !== "phone") throw new Error("expected phone");
+      expect(inactive.lowerContent.guideRunRows).toHaveLength(0);
+      expect(inactive.lowerContent.tableHeading.y).toBe(0);
+
+      const active = pauseLayout({ x: 0, y: 0, width: 390, height: 844 }, { ...input(0), guidedRunActive: true });
+      if (active.kind !== "phone") throw new Error("expected phone");
+      expect(active.lowerContent.guideRunRows).toHaveLength(2);
+      const [stopRow, turnOffRow] = active.lowerContent.guideRunRows;
+      expect(stopRow!.y).toBe(0);
+      expect(turnOffRow!.y).toBeGreaterThanOrEqual(stopRow!.y + stopRow!.height);
+      // Everything below shifts down to make room, rather than overlapping the new rows.
+      expect(active.lowerContent.tableHeading.y).toBeGreaterThan(turnOffRow!.y + turnOffRow!.height);
     });
 
     test("the segmented Guide-level row stays within the lower group's own content width", () => {

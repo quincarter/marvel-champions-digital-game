@@ -227,7 +227,7 @@ export class BoardGuideMount {
         // Waiting/complete have no current step to skip (`view.step` is null then) — the header's Skip control
         // only draws when `onSkip` is wired, so it's simply left out rather than shown as a no-op.
         ...(view.step ? { onSkip: () => this.#act(() => this.#controller.skip()) } : {}),
-        onStop: () => this.#stop(),
+        onStop: () => this.stop(),
         onCollapse: () => this.#act(() => (this.#collapsed = true)),
         onExpand: () => this.#act(() => (this.#collapsed = false)),
       });
@@ -320,7 +320,7 @@ export class BoardGuideMount {
       ...(view.panel.backLabel ? { onSecondary: () => this.#act(() => this.#controller.back()) } : {}),
       // Waiting/complete have no current step to skip — same reasoning as the rail's own `onSkip` above.
       ...(view.step ? { onSkip: () => this.#act(() => this.#controller.skip()) } : {}),
-      onStop: () => this.#stop(),
+      onStop: () => this.stop(),
     });
     callout.update(calloutContentOf(view.panel, Boolean(view.panel.backLabel)), anchorRect, viewport);
     return callout;
@@ -411,8 +411,10 @@ export class BoardGuideMount {
 
   /** "Stop tutorial" (§3.10): ends guidance for this game, clears the board's own gate outright, and requests a
    * redraw so every guide surface disappears immediately — `draw()` won't recreate any of them once
-   * `#controller.stopped` is true. The game keeps going. */
-  #stop(): void {
+   * `#controller.stopped` is true. The game keeps going. Public because Pause's own "Stop tutorial" entry
+   * (`BoardScene.stopGuide`, G5c part 3) calls this from outside the board's own button wiring, not only the
+   * guide panel/callout's own `onStop`. */
+  stop(): void {
     this.#controller.stop();
     this.#scene.setGuideGate(null);
     this.#lastGateStepId = null;

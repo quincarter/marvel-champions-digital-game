@@ -48,11 +48,13 @@ export interface AppSession {
    * controller and its side panel on the Board only when this is set. A plain mutable flag rather than something
    * carried on `SessionConfig`/`GameState`: it's launch-time client intent ("show the guide for this playthrough"),
    * not anything the engine or a save file needs to know about (`docs/guided-mode.md` §2's "the guide is a view,
-   * never an authority"). Cleared by "Stop tutorial" (`guide/guide-controller.ts#stop`'s caller). It is **not**
-   * cleared automatically by starting a fresh non-guided game afterward (a plain "Run it back"/"Continue" from a
-   * still-guided Board) — that's future work for whichever of G6a/G6b/Title actually offers that path out of a
-   * guided run; the only setter today is the dev jump `?screen=board&tutorial=1` (`scenes/boot.ts`), which always
-   * starts a brand-new session anyway.
+   * never an authority"). This flag itself is **not** cleared by "Stop tutorial"/"Turn guide off" (§3.10, G5c part
+   * 3) — those end the *run* (`BoardGuideMount.stop`), not the client's own "this was a guided launch" intent,
+   * which stays true until the player actually leaves for a fresh game. Every path that starts a plain,
+   * non-guided game resets it explicitly instead — Title's own "New game" and "Continue" (`scenes/title.ts`), and
+   * Game over's own "Run it back"/"Same seed, same hands" (`scenes/game-over.ts#rematch`) — so a guided run left
+   * running (rather than stopped outright) never leaks into whatever the player starts next. The only setter is
+   * the dev jump `?screen=board&tutorial=1` (`scenes/boot.ts`), which always starts a brand-new session anyway.
    */
   guidedRun: boolean;
 }

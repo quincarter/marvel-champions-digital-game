@@ -250,6 +250,8 @@ export type PauseFocusInput =
       /** The keyword/status cards actually shown (`PauseKeywordGrid.shown`'s own count), in grid order. */
       readonly keywordIds: readonly string[];
       readonly confirmingConcede: boolean;
+      /** §3.10, G5c part 3: true while a guided run is active, adding "Stop tutorial"/"Turn guide off" to the menu. */
+      readonly guidedRunActive?: boolean;
     }
   | {
       readonly kind: "phone";
@@ -258,7 +260,12 @@ export type PauseFocusInput =
       /** The Guide group's own stop ids after "Table" (docs/guided-mode.md §4 G2b): `"guide-level:<value>"` for each segment, then each action/toggle row's own id, in draw order. */
       readonly guideRowIds?: readonly string[];
       readonly confirmingConcede: boolean;
+      /** §3.10, G5c part 3: true while a guided run is active, adding "Stop tutorial"/"Turn guide off" ahead of "Table". */
+      readonly guidedRunActive?: boolean;
     };
+
+/** "Stop tutorial" / "Turn guide off" (§3.10, G5c part 3) — both entries, only while a guided run is active. */
+const GUIDE_RUN_IDS = ["guide-stop-tutorial", "guide-turn-guide-off"];
 
 export function pauseFocusOrder(input: PauseFocusInput): readonly string[] {
   if (input.kind === "wide") {
@@ -268,6 +275,7 @@ export function pauseFocusOrder(input: PauseFocusInput): readonly string[] {
       "rules-reference",
       "settings",
       "save-quit",
+      ...(input.guidedRunActive ? GUIDE_RUN_IDS : []),
       ...(input.confirmingConcede ? ["concede-confirm-yes", "concede-confirm-cancel"] : ["concede"]),
       ...input.keywordIds.map((id) => `keyword:${id}`),
     ];
@@ -276,6 +284,7 @@ export function pauseFocusOrder(input: PauseFocusInput): readonly string[] {
     "close",
     "search",
     ...input.quickReferenceIds.map((id) => `quick:${id}`),
+    ...(input.guidedRunActive ? GUIDE_RUN_IDS : []),
     ...input.tableRowIds.map((id) => `table:${id}`),
     ...(input.guideRowIds ?? []).map((id) => `guide:${id}`),
     ...(input.confirmingConcede

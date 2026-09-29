@@ -74,6 +74,8 @@ import type { RulesTab } from "../view/rules-layout.js";
 import { SCENES } from "./keys.js";
 import { destroyChildren } from "../ui/destroy-children.js";
 import { OverlayMotion } from "../ui/transitions.js";
+import type { BoardScene } from "./board.js";
+import { withLevel } from "../guide/guide-prefs.js";
 
 /** One "Quick reference" row (phone only): a title, an optional detail line, and what opens when it's activated (or, absent that, why it can't be yet). */
 interface QuickReferenceRow {
@@ -160,6 +162,35 @@ export class PauseOverlay extends Phaser.Scene {
 
   #resume(): void {
     this.#motion.exit(this, () => this.scene.stop());
+  }
+
+  /** The live Board scene, when one is running underneath — mirrors `scenes/inspect.ts`'s own `#boardScene`. */
+  #boardScene(): BoardScene | null {
+    if (!this.scene.isActive(SCENES.board)) return null;
+    return this.scene.get(SCENES.board) as BoardScene;
+  }
+
+  /** §3.10 "Pause has 'Stop tutorial' and 'Turn guide off' whenever a guided run is active" (G5c part 3): both
+   * entries stay hidden without a live, still-running guide (`BoardScene.guidedRunActive`) — `appSession().guidedRun`
+   * alone would keep showing them even after the run already stopped itself once this game. */
+  #guidedRunActive(): boolean {
+    return this.#boardScene()?.guidedRunActive() ?? false;
+  }
+
+  /** "Stop tutorial": the same path the guide panel/callout's own Stop already takes
+   * (`BoardGuideMount.stop` → `GuideController.stop`) — ends guidance for this game, keeps playing. */
+  #stopTutorial(): void {
+    this.#boardScene()?.stopGuide();
+    this.#draw();
+  }
+
+  /** "Turn guide off": the saved guide level goes to `"off"` (so no *future* game offers guidance unprompted
+   * either), and this run stops the same way "Stop tutorial" does — the level change alone wouldn't touch a
+   * guide already running against this game's own `appSession().guidedRun`. */
+  #turnGuideOff(): void {
+    setGuidePrefs(withLevel(guidePrefs(), "off"));
+    this.#boardScene()?.stopGuide();
+    this.#draw();
   }
 
   /** Saves are continuous (every command is written as it lands), so "quitting" is just leaving — nothing to flush. */
@@ -257,6 +288,7 @@ export class PauseOverlay extends Phaser.Scene {
     const keywordEntries = game ? rulesGlossaryOf(game, POOL_DEPS) : [];
     const guideRows = guideRowInfoOf(guidePrefs());
     const guideAfterLevel = guideRows.filter(isGuideNonLevelRow);
+    const guidedRunActive = this.#guidedRunActive();
 
     const layout = pauseLayout(
       { x: 0, y: 0, width, height },
@@ -265,6 +297,7 @@ export class PauseOverlay extends Phaser.Scene {
         quickReferenceDetails: quickReferenceRows.map((row) => row.unavailable ?? row.detail),
         tableDetails: tableRows.map((row) => row.unavailable ?? row.detail),
         guideRowDetails: guideAfterLevel.map(guideRowDetailOf),
+        guidedRunActive,
       },
     );
 
@@ -292,6 +325,7 @@ export class PauseOverlay extends Phaser.Scene {
           kind: "wide",
           keywordIds: keywordEntries.slice(0, layout.keywordGrid.shown).map((entry) => entry.id),
           confirmingConcede: this.#confirmingConcede,
+          guidedRunActive,
         }),
         stops,
       );
@@ -313,6 +347,7 @@ export class PauseOverlay extends Phaser.Scene {
           tableRowIds: tableRows.map((row) => row.id),
           guideRowIds,
           confirmingConcede: this.#confirmingConcede,
+          guidedRunActive,
         }),
         stops,
       );
@@ -389,6 +424,18 @@ export class PauseOverlay extends Phaser.Scene {
       this.scene.launch(SCENES.settings),
     );
     this.#menuButton(stops, "save-quit", "onInk", "Save & quit", layout.menu.saveQuit, () => this.#saveAndQuit());
+
+    // §3.10 "Pause has 'Stop tutorial' and 'Turn guide off' whenever a guided run is active" (G5c part 3) —
+    // `layout.guideStopTutorial`/`guideTurnGuideOff` are `null` unless `guidedRunActive` was true when this layout
+    // was built, so this stays a no-op for the far more common non-guided game.
+    if (layout.guideStopTutorial && layout.guideTurnGuideOff) {
+      this.#menuButton(stops, "guide-stop-tutorial", "onInk", "Stop tutorial", layout.guideStopTutorial, () =>
+        this.#stopTutorial(),
+      );
+      this.#menuButton(stops, "guide-turn-guide-off", "onInk", "Turn guide off", layout.guideTurnGuideOff, () =>
+        this.#turnGuideOff(),
+      );
+    }
 
     if (this.#confirmingConcede) this.#drawWideConcedeConfirm(layout, stops);
     // The same full-strength outline as the rest of the menu. D13 dims it, which read as *disabled* (owner,
@@ -802,6 +849,31 @@ export class PauseOverlay extends Phaser.Scene {
     }
   }
 
+  /** "Stop tutorial" / "Turn guide off" (§3.10, G5c part 3) — one full-width button per row, inside the same
+   * scroll region "Table"/"Guide" already share (`content.guideRunRows`'s own doc comment). No detail line: the
+   * label alone says what tapping it does, the same shape the footer's own Save & quit/Concede already use. */
+  #drawGuideRunRow(
+    rect: Rect,
+    titleText: string,
+    index: number,
+    stops: Map<string, FocusStop>,
+    id: string,
+    onClick: () => void,
+  ): void {
+    this.#buttons.push(
+      new McButton(this, {
+        kind: "secondary",
+        label: titleText,
+        type: typeRole.rowTitle,
+        rect,
+        onClick,
+        clip: this.#lowerClip,
+        suppressClick: this.#lowerSuppressClick,
+      }),
+    );
+    stops.set(id, this.#lowerStop(rect, index, onClick));
+  }
+
   #drawTableRow(rect: Rect, row: SettingsRowInfo, index: number, stops: Map<string, FocusStop>): void {
     label(this, rect.x, rect.y + 2, row.title, typeRole.label, surface.paper.hex, ink.secondary).setFontSize(12);
     this.add
@@ -890,6 +962,7 @@ export class PauseOverlay extends Phaser.Scene {
     // the scroll region's own total, or its offset math drifts away from where these rows are actually drawn the
     // further down it scrolls (this file's own `view/layout.ts` doc comment).
     const heights = contentSlotHeights([
+      ...content.guideRunRows,
       content.tableHeading,
       ...content.tableRows,
       content.guideHeading,
@@ -899,6 +972,34 @@ export class PauseOverlay extends Phaser.Scene {
     this.#lowerRegion = new McScrollRegion(this, { rect: viewport, heights, scroll: this.#lowerScroll });
     const container = this.#lowerRegion.content;
     const toScreen = (contentRect: Rect): Rect => ({ ...contentRect, y: viewport.y + contentRect.y });
+
+    // §3.10, G5c part 3 — "Stop tutorial" / "Turn guide off", ahead of "Table" (`content.guideRunRows` is empty
+    // outside a guided run, this file's own `#drawPhone` call site).
+    const runOffset = content.guideRunRows.length;
+    if (content.guideRunRows[0]) {
+      this.#captureInto(container, () =>
+        this.#drawGuideRunRow(
+          toScreen(content.guideRunRows[0]!),
+          "Stop tutorial",
+          0,
+          stops,
+          "guide-stop-tutorial",
+          () => this.#stopTutorial(),
+        ),
+      );
+    }
+    if (content.guideRunRows[1]) {
+      this.#captureInto(container, () =>
+        this.#drawGuideRunRow(
+          toScreen(content.guideRunRows[1]!),
+          "Turn guide off",
+          1,
+          stops,
+          "guide-turn-guide-off",
+          () => this.#turnGuideOff(),
+        ),
+      );
+    }
 
     this.#captureInto(container, () =>
       label(
@@ -913,7 +1014,7 @@ export class PauseOverlay extends Phaser.Scene {
     );
     tableRows.forEach((row, index) => {
       this.#captureInto(container, () =>
-        this.#drawTableRow(toScreen(content.tableRows[index]!), row, index + 1, stops),
+        this.#drawTableRow(toScreen(content.tableRows[index]!), row, runOffset + index + 1, stops),
       );
     });
 
@@ -929,7 +1030,7 @@ export class PauseOverlay extends Phaser.Scene {
       ),
     );
     const stopIds: string[] = [];
-    const guideBaseIndex = 1 + tableRows.length + 1; // tableHeading + every table row + guideHeading
+    const guideBaseIndex = runOffset + 1 + tableRows.length + 1; // guide-run rows + tableHeading + every table row + guideHeading
     if (levelRow && levelRow.kind === "segmented") {
       this.#captureInto(container, () =>
         this.#drawGuideLevelRow(toScreen(content.guideLevelRow), levelRow, guideBaseIndex, stops),

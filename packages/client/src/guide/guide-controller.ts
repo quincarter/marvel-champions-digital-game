@@ -74,6 +74,9 @@ const GENERIC_CONTINUE_HINT = "Do this to continue";
 /** The waiting state's own title, when there's no next-not-done lesson to name (shouldn't happen outside a test
  * fixture with a gap in its lesson data — `waitingPanelContent`'s own fallback). */
 const WAITING_FALLBACK_TITLE = "Up next";
+/** `GuideControllerOptions.runLabel`'s own fallback — every real caller sets one (`scenes/board.ts` passes
+ * "First game" for the tutorial run), so this only shows for a test fixture that doesn't care what it says. */
+const DEFAULT_RUN_LABEL = "Guide";
 const COMPLETE_TITLE = "Tutorial complete";
 const COMPLETE_BODY =
   "Nice work — you've learned the core loop. Keep playing, or find the aspect lessons any time from " +
@@ -92,6 +95,15 @@ export interface GuideControllerOptions {
     step: LessonStep,
     observation: LessonObservation,
   ) => Readonly<Record<string, string | number>> | undefined;
+  /**
+   * This run's own name, shown beside the `GUIDE` stamp while waiting or complete (`waitingPanelContent`/
+   * `completePanelContent`, below) — "FIRST GAME" for the tutorial. A current step's own panel never uses this:
+   * it shows "Lesson N of M" instead (`view()`'s own `contextLabel`), which already names the run implicitly.
+   * Defaults to `DEFAULT_RUN_LABEL` ("Guide") for a caller that doesn't care, e.g. a test fixture — every real
+   * caller sets one, so a duplicated "GUIDE GUIDE" stamp+label (the `GUIDE` stamp is drawn separately,
+   * `ui/guide-panel.ts`) never reaches a real run.
+   */
+  readonly runLabel?: string;
 }
 
 /** Everything the Phaser adapter needs to draw one frame. `anchor` is semantic — resolving it to a screen rect is
@@ -133,9 +145,11 @@ export class GuideController {
   #nudge: string | null = null;
   #override: { readonly stepId: string; readonly override: GuideStepOverride } | null = null;
   readonly #extraFor: GuideControllerOptions["extraFor"];
+  readonly #runLabel: string;
 
   constructor(options: GuideControllerOptions, observation: LessonObservation) {
     this.#extraFor = options.extraFor;
+    this.#runLabel = options.runLabel ?? DEFAULT_RUN_LABEL;
     this.#state = startLessons(options.lessons, options.alreadyDone ?? []);
     this.#observation = observation;
     this.#runObserve();
@@ -231,7 +245,9 @@ export class GuideController {
     if (!step) {
       // Waiting or complete (this module's own header) — no anchor, no gate either way: waiting has nothing on
       // the board to spotlight yet, and the finished panel isn't teaching anything.
-      const panel = this.#isComplete() ? completePanelContent() : waitingPanelContent(this.#state);
+      const panel = this.#isComplete()
+        ? completePanelContent(this.#runLabel)
+        : waitingPanelContent(this.#state, this.#runLabel);
       return { step: null, panel, anchor: null, tagVariant: null, gate: null, active: true };
     }
     const override = this.#override?.stepId === step.id ? this.#override.override : null;
@@ -331,10 +347,10 @@ function nextNotDoneLesson(state: LessonRunnerState): Lesson | null {
  * split across the panel's own Bangers title and body text. No `tip`/progress/back/primary/continueHint: there's
  * no step here to show any of that for.
  */
-function waitingPanelContent(state: LessonRunnerState): McGuidePanelContent {
+function waitingPanelContent(state: LessonRunnerState, runLabel: string): McGuidePanelContent {
   const next = nextNotDoneLesson(state);
   return {
-    contextLabel: "Guide",
+    contextLabel: runLabel,
     lessons: lessonRowsOf(state, null),
     stepLabel: null,
     title: next ? `Next: ${next.title}` : WAITING_FALLBACK_TITLE,
@@ -352,9 +368,9 @@ function waitingPanelContent(state: LessonRunnerState): McGuidePanelContent {
 /** The complete state's own panel content (this module's own header): a short "Tutorial complete" message with a
  * `Close` primary action, routed by `primary()` to `dismiss()`. No lesson list — there's nothing left upcoming to
  * show, and the debrief/hub screens (G8/G6c) are where "what's next" (Aspects) actually lives. */
-function completePanelContent(): McGuidePanelContent {
+function completePanelContent(runLabel: string): McGuidePanelContent {
   return {
-    contextLabel: "Guide",
+    contextLabel: runLabel,
     lessons: null,
     stepLabel: null,
     title: COMPLETE_TITLE,

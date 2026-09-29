@@ -371,7 +371,11 @@ export class BoardScene extends Phaser.Scene {
     if (!appSession().guidedRun || !state.game) return;
     const observation = { game: state.game, lastEvents: state.lastEvents, perspectiveId: state.perspectiveId };
     if (!this.#guide) {
-      this.#guide = new BoardGuideMount(this, { lessons: TUTORIAL_LESSONS, alreadyDone: ["how-to-win"] }, observation);
+      this.#guide = new BoardGuideMount(
+        this,
+        { lessons: TUTORIAL_LESSONS, alreadyDone: ["how-to-win"], runLabel: "First game" },
+        observation,
+      );
     } else {
       this.#guide.onObservation(observation);
     }
@@ -776,6 +780,22 @@ export class BoardScene extends Phaser.Scene {
    * the rail collapsing) needs the whole table relaid out, not just the guide's own widgets redrawn. */
   requestGuideRedraw(): void {
     this.#draw();
+  }
+
+  /** True while a guided run is actually showing on this board (§3.10, G5c part 3) — Pause's own "Stop tutorial"
+   * and "Turn guide off" entries stay hidden without this: `appSession().guidedRun` alone isn't enough, since it
+   * stays true even after "Stop tutorial" already ran once this game (`session.ts`'s own doc comment on why that
+   * flag doesn't clear itself). `#guide` only exists at all for a guided run (`#syncGuide`), so a live one that
+   * hasn't stopped itself is exactly "active". */
+  guidedRunActive(): boolean {
+    return this.#guide !== null && !this.#guide.stopped;
+  }
+
+  /** "Stop tutorial" from Pause (§3.10, G5c part 3): the same path the guide panel/callout's own Stop already
+   * takes (`BoardGuideMount.stop`), just reachable from outside the board's own button wiring. A no-op with no
+   * guide mounted. */
+  stopGuide(): void {
+    this.#guide?.stop();
   }
 
   /** Spends `id` for the payment currently open, if it's one of its sources. See `BoardController#payWithCard`'s own comment. */
