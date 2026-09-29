@@ -139,6 +139,7 @@ export class HoldOnDemoScene extends Phaser.Scene {
     showHoldOn(this, {
       hint,
       schemeRect: this.#schemeRect(),
+      schemeName: "Crossbones' Assault",
       onSafe: () => this.#log("safe"),
       onAnyway: () => this.#log("anyway"),
       onSilence: () => this.#log("silenced"),

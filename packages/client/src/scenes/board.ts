@@ -26,7 +26,7 @@
 import Phaser from "phaser";
 import { POOL_DEPS, POOL_SCENARIOS } from "../content/pool.js";
 import type { AbilityId } from "@mc/content";
-import type { GameEvent, InstanceId } from "@mc/engine";
+import { cardOf, type GameEvent, type InstanceId } from "@mc/engine";
 import { cardArt, type CardArt } from "../art/card-art.js";
 import { appSession } from "../session.js";
 import { dotGrid, surface } from "../tokens.js";
@@ -133,6 +133,7 @@ export class BoardScene extends Phaser.Scene {
       showHoldOn(this, {
         hint,
         schemeRect: this.#mainSchemeRect(),
+        schemeName: this.#mainSchemeName(),
         onSafe: actions.onSafe,
         onAnyway: actions.onAnyway,
         onSilence: () => setGuidePrefs(silenceWarning(guidePrefs(), hint.key)),
@@ -756,12 +757,27 @@ export class BoardScene extends Phaser.Scene {
     };
   }
 
+  /** This draw's own `BoardModel`, for guided mode's thwart-step threat preview (`scenes/board/guide-mount.ts`,
+   * `docs/guided-mode.md` §5.1 tile D01) to read the live threat/THW/target numbers it draws from, rather than
+   * re-deriving them from `GameState` a second time. `null` before the first draw. */
+  guideBoardModel(): BoardModel | null {
+    return this.#model;
+  }
+
   /** The live main scheme's own on-screen rect this draw, for G9b's "Hold on!" overlay to anchor beside on a wide
    * viewport (`view/hold-on-model.ts#holdOnLayoutOf`) — null when it isn't resolvable (no game, or off the
    * active phone tab), which that layout treats as "fall back to the centred card". */
   #mainSchemeRect(): Rect | null {
     const id = appSession().store.state.game?.mainScheme.instanceId;
     return id ? (this.#frame.hitRects.get(id) ?? null) : null;
+  }
+
+  /** The live main scheme's own card name, for G9b's "Hold on!" overlay's threat-bar facts panel
+   * (`view/hold-on-model.ts#holdOnContentOf`) — null when there's no game to read one from. */
+  #mainSchemeName(): string | null {
+    const game = appSession().store.state.game;
+    if (!game) return null;
+    return cardOf(game, game.mainScheme.instanceId)?.name ?? null;
   }
 
   /** True once the round/phase band and the villain-phase walkthrough have both cleared — guided mode G5c's

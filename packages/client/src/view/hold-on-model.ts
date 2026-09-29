@@ -7,61 +7,113 @@
 import type { Hint } from "./guide-hints.js";
 import { formFactorFor, isTabbed, type Rect } from "./layout.js";
 
-/** One row of the facts panel — "Threat 10 → 12", "Result YOU LOSE". */
+/** One row of the plain facts list — "Threat 10 → 12", "Result YOU LOSE". */
 export interface HoldOnFact {
   readonly label: string;
   readonly value: string;
 }
+
+/**
+ * The facts panel's content: either the ordinary two-row list every other hint gets, or — `schemeFinish` only —
+ * the tiles' own threat bar (P06/T03): the main scheme's name, the current fill, a hatched segment previewing the
+ * add reaching the target, and a stamp naming the outcome.
+ */
+export type HoldOnFacts =
+  | { readonly kind: "rows"; readonly rows: readonly HoldOnFact[] }
+  | {
+      readonly kind: "bar";
+      readonly schemeName: string;
+      readonly threat: number;
+      readonly target: number;
+      readonly loses: boolean;
+    };
 
 export interface HoldOnContent {
   /** The heuristic's own title (`Hint.title`), shown as the overlay's subtitle under the "HOLD ON!" header. */
   readonly subtitle: string;
   /** `McTermText` markup — `Hint.body` unchanged. */
   readonly body: string;
-  readonly facts: readonly HoldOnFact[];
-  /** Null when the hint has no safe action to offer this turn (`Hint.safeAction`) — only "do it anyway" draws. */
+  readonly facts: HoldOnFacts;
+  /** The safe action's own label, stripped of its trailing amount (see `safeChip`) — null when the hint has no
+   * safe action to offer this turn (`Hint.safeAction`), in which case only "do it anyway" draws. */
   readonly safeLabel: string | null;
+  /** The safe label's trailing "−N"/"-N", split out to draw as its own paper chip (tiles' "THWART FIRST [−2]") —
+   * null when the label doesn't end in one (`Hint`s like "Flip to alter-ego", "Change payment"). */
+  readonly safeChip: string | null;
   readonly anywayLabel: string;
   readonly checkboxLabel: string;
 }
 
+/** A label's own trailing "−N" or "-N" amount, split from the rest — the tiles' "THWART FIRST [−2]" chip. */
+const TRAILING_AMOUNT = /\s+([−-]\d+)$/;
+
+function splitSafeLabel(label: string): { readonly text: string; readonly chip: string | null } {
+  const match = TRAILING_AMOUNT.exec(label);
+  if (!match) return { text: label, chip: null };
+  return { text: label.slice(0, match.index), chip: match[1] ?? null };
+}
+
 /**
- * The facts panel's rows: one hard-coded shape per hint key, since each heuristic's `facts` record carries
+ * The facts panel's content: one hard-coded shape per hint key, since each heuristic's `facts` record carries
  * different fields (`guide-hints.ts`'s own doc comment on each) — there's no generic way to turn an arbitrary
- * `Record<string, number>` into two labeled rows that read like the design tiles' scheme bar.
+ * `Record<string, number>` into rows that read like the design tiles.
  */
-function factsFor(hint: Hint): readonly HoldOnFact[] {
+function factsFor(hint: Hint, schemeName: string | null): HoldOnFacts {
   const { facts } = hint;
   switch (hint.key) {
-    case "schemeFinish":
-    case "flipDanger": {
-      // Both heuristics' bodies use the same "lose the game"/"complete this stage" wording (`guide-hints.ts`).
+    case "schemeFinish": {
+      // The body's own "lose the game"/"complete this stage" wording (`guide-hints.ts`) names the outcome.
       const loses = hint.body.includes("lose the game");
-      return [
-        { label: "Threat", value: `${facts.threat} → ${facts.target}` },
-        { label: "Result", value: loses ? "YOU LOSE" : "STAGE ADVANCES" },
-      ];
+      return {
+        kind: "bar",
+        schemeName: schemeName ?? "Main scheme",
+        threat: facts.threat ?? 0,
+        target: facts.target ?? 0,
+        loses,
+      };
+    }
+    case "flipDanger": {
+      const loses = hint.body.includes("lose the game");
+      return {
+        kind: "rows",
+        rows: [
+          { label: "Threat", value: `${facts.threat} → ${facts.target}` },
+          { label: "Result", value: loses ? "YOU LOSE" : "STAGE ADVANCES" },
+        ],
+      };
     }
     case "lethal":
-      return [
-        { label: "HP", value: `${facts.currentHp} → 0` },
-        { label: "Incoming", value: `${facts.bestCaseDamage} dmg` },
-      ];
+      return {
+        kind: "rows",
+        rows: [
+          { label: "HP", value: `${facts.currentHp} → 0` },
+          { label: "Incoming", value: `${facts.bestCaseDamage} dmg` },
+        ],
+      };
     case "wastedPay":
-      return [
-        { label: "Paid", value: `${facts.paid}` },
-        { label: "Needed", value: `${facts.required}` },
-      ];
+      return {
+        kind: "rows",
+        rows: [
+          { label: "Paid", value: `${facts.paid}` },
+          { label: "Needed", value: `${facts.required}` },
+        ],
+      };
   }
 }
 
-/** Turns a hint into the overlay's content. Pure — no Phaser measurement, no store reads. */
-export function holdOnContentOf(hint: Hint): HoldOnContent {
+/**
+ * Turns a hint into the overlay's content. Pure — no Phaser measurement, no store reads. `schemeName` is the live
+ * main scheme's own card name, when the caller has one to hand (`scenes/hold-on.ts`'s `HoldOnData.schemeName`) —
+ * null falls back to the generic "Main scheme" the bar still needs a label to say.
+ */
+export function holdOnContentOf(hint: Hint, schemeName: string | null = null): HoldOnContent {
+  const safe = hint.safeAction ? splitSafeLabel(hint.safeAction.label) : null;
   return {
     subtitle: hint.title,
     body: hint.body,
-    facts: factsFor(hint),
-    safeLabel: hint.safeAction?.label ?? null,
+    facts: factsFor(hint, schemeName),
+    safeLabel: safe?.text ?? null,
+    safeChip: safe?.chip ?? null,
     anywayLabel: hint.anywayAction.label,
     checkboxLabel: "Don't warn me about this again",
   };

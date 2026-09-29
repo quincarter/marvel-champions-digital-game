@@ -9,13 +9,13 @@
  * and both close the overlay first.
  */
 import Phaser from "phaser";
-import { border, hit, signal, surface, typeRole } from "../tokens.js";
+import { accent, border, hit, signal, surface, threatMeter, typeRole } from "../tokens.js";
 import { textStyle } from "../ui/theme.js";
-import { McButton } from "../ui/widgets.js";
+import { hatchRect, McButton } from "../ui/widgets.js";
 import { McTermText } from "../ui/term-text.js";
 import { McTooltip } from "../ui/tooltip.js";
 import { tooltipContentOf, type TermTextTerm } from "../view/term-text-model.js";
-import { holdOnContentOf, holdOnLayoutOf, type HoldOnContent } from "../view/hold-on-model.js";
+import { holdOnContentOf, holdOnLayoutOf, type HoldOnContent, type HoldOnFact } from "../view/hold-on-model.js";
 import type { Hint } from "../view/guide-hints.js";
 import type { Rect } from "../view/layout.js";
 import { FocusRoute } from "./focus-route.js";
@@ -29,12 +29,21 @@ const BUTTON_TYPE = { ...typeRole.label, size: 13 };
 const BOX_PAD = 20;
 const CHECKBOX_SIZE = 18;
 
+// --- schemeFinish's own threat-bar facts panel (tiles P06/T03) — see `#drawBarFacts`. ---
+const BAR_FACTS_PAD = 10;
+const BAR_NAME_ROW_HEIGHT = 16;
+const BAR_HEIGHT = 20;
+const BAR_FACTS_HEIGHT = BAR_FACTS_PAD * 2 + BAR_NAME_ROW_HEIGHT + 6 + BAR_HEIGHT + 10 + 26;
+
 export interface HoldOnData {
   readonly hint: Hint;
   /** The scene that asked: its pointer input is off while this is up — `end-turn-confirm.ts`'s own convention. */
   readonly from: string;
   /** The live main scheme's own on-screen rect this draw, or null — `hold-on-model.ts#holdOnLayoutOf`'s input. */
   readonly schemeRect: Rect | null;
+  /** The live main scheme's own card name, or null — `hold-on-model.ts#holdOnContentOf`'s facts-bar label falls
+   * back to "Main scheme" when this is null (no game, or off the active phone tab). */
+  readonly schemeName: string | null;
   /** The safe action, when the hint offered one (`hint.safeAction`) — never called if it's null (no button draws). */
   readonly onSafe: () => void;
   /** "Do it anyway" — the original command the safety net intercepted. */
@@ -103,7 +112,7 @@ export class HoldOnOverlay extends Phaser.Scene {
       if (!this.#pointInBox(pointer.x, pointer.y)) this.#close(null);
     });
 
-    const content = holdOnContentOf(this.#data.hint);
+    const content = holdOnContentOf(this.#data.hint, this.#data.schemeName);
     const boxWidth = Math.min(400, width - 32);
     const innerWidth = boxWidth - BOX_PAD * 2;
     this.#boxRect = this.#measureAndDraw(content, boxWidth, innerWidth, viewport);
@@ -125,13 +134,18 @@ export class HoldOnOverlay extends Phaser.Scene {
     const ground = this.add.graphics();
     const stampGraphic = this.add.graphics();
 
-    // --- Header: ink GUIDE stamp + "HOLD ON!" Bangers title. ---
+    // --- Header: ink GUIDE stamp + "HOLD ON!" Bangers title, side by side on one row. ---
     const stampLabel = this.add.text(0, 0, "GUIDE", textStyle(STAMP_TYPE, surface.paper.hex)).setOrigin(0, 0.5);
     const stampWidth = stampLabel.width + STAMP_PAD * 2;
     const stampHeight = 20;
     const title = this.add
       .text(0, 0, "HOLD ON!", textStyle(typeRole.barTitle, surface.ink.hex))
       .setWordWrapWidth(innerWidth, true);
+    // The row's own height, not `stampHeight` alone: the title sits beside the stamp, not stacked under it, so
+    // whichever is taller sets how far the next row starts (previously this measured `title.height` as if it
+    // *were* stacked below the stamp, while the draw below never advanced for it — a header-sized gap of empty
+    // card at the bottom on every hint).
+    const headerHeight = Math.max(stampHeight, title.height);
 
     // --- Subtitle (the heuristic's own title) + body (McTermText markup). ---
     const subtitle = this.add
@@ -148,9 +162,10 @@ export class HoldOnOverlay extends Phaser.Scene {
     });
     this.#body = body;
 
-    // --- Facts panel: two label/value rows on an ink-bordered strip. ---
+    // --- Facts panel: the schemeFinish threat bar, or two label/value rows on an ink-bordered strip. ---
     const factRowHeight = 22;
-    const factsHeight = content.facts.length > 0 ? content.facts.length * factRowHeight + 16 : 0;
+    const factsHeight =
+      content.facts.kind === "bar" ? BAR_FACTS_HEIGHT : content.facts.rows.length * factRowHeight + 16;
 
     // --- Buttons: safe (ink/primary) first, anyway (outline/secondary) second. ---
     const buttonHeight = hit.primary;
@@ -162,11 +177,10 @@ export class HoldOnOverlay extends Phaser.Scene {
     const buttonRows = hasSafe ? 2 : 1;
 
     let y = BOX_PAD;
-    y += stampHeight + 10; // header
-    y += title.height + 10;
+    y += headerHeight + 10; // header row: the stamp and title side by side, not stacked.
     y += subtitle.height + 6;
     y += body.height + 14;
-    if (factsHeight > 0) y += factsHeight + 14;
+    y += factsHeight + 14;
     y += buttonRows * buttonHeight + (buttonRows - 1) * 10 + 14;
     y += checkboxHeight;
     y += BOX_PAD;
@@ -184,10 +198,13 @@ export class HoldOnOverlay extends Phaser.Scene {
     }
 
     let cy = box.y + BOX_PAD;
-    stampGraphic.fillStyle(surface.ink.hex, 1).fillRect(box.x + BOX_PAD, cy, stampWidth, stampHeight);
-    stampLabel.setPosition(box.x + BOX_PAD + STAMP_PAD, cy + stampHeight / 2);
-    title.setPosition(box.x + BOX_PAD + stampWidth + 10, cy - 2);
-    cy += stampHeight + 10;
+    // The stamp and title share one row — centered on the taller of the two, not stacked (see `headerHeight`).
+    stampGraphic
+      .fillStyle(surface.ink.hex, 1)
+      .fillRect(box.x + BOX_PAD, cy + (headerHeight - stampHeight) / 2, stampWidth, stampHeight);
+    stampLabel.setPosition(box.x + BOX_PAD + STAMP_PAD, cy + headerHeight / 2);
+    title.setPosition(box.x + BOX_PAD + stampWidth + 10, cy + (headerHeight - title.height) / 2 - 2);
+    cy += headerHeight + 10;
 
     subtitle.setPosition(box.x + BOX_PAD, cy);
     cy += subtitle.height + 6;
@@ -195,34 +212,9 @@ export class HoldOnOverlay extends Phaser.Scene {
     body.container.setPosition(box.x + BOX_PAD, cy);
     cy += body.height + 14;
 
-    const factsGraphics: Phaser.GameObjects.GameObject[] = [];
-    if (factsHeight > 0) {
-      const factsBox = this.add.graphics();
-      factsBox
-        .fillStyle(surface.paper.hex, 1)
-        .fillRect(box.x + BOX_PAD, cy, innerWidth, factsHeight)
-        .lineStyle(1.5, surface.ink.hex, 0.6)
-        .strokeRect(box.x + BOX_PAD, cy, innerWidth, factsHeight);
-      factsGraphics.push(factsBox);
-      let fy = cy + 8;
-      for (const fact of content.facts) {
-        const label = this.add.text(
-          box.x + BOX_PAD + 10,
-          fy,
-          fact.label.toUpperCase(),
-          textStyle(STAMP_TYPE, surface.ink.hex, 0.7),
-        );
-        const value = this.add
-          .text(box.x + BOX_PAD + innerWidth - 10, fy, fact.value, {
-            ...textStyle(typeRole.stat, surface.ink.hex),
-            fontSize: "14px",
-          })
-          .setOrigin(1, 0);
-        factsGraphics.push(label, value);
-        fy += factRowHeight;
-      }
-      cy += factsHeight + 14;
-    }
+    if (content.facts.kind === "bar") this.#drawBarFacts(content.facts, box.x + BOX_PAD, cy, innerWidth);
+    else this.#drawRowFacts(content.facts.rows, box.x + BOX_PAD, cy, innerWidth, factRowHeight, factsHeight);
+    cy += factsHeight + 14;
 
     // --- Buttons, stacked full-width (P06/T03's own order): safe first, as ink; anyway second, as an outline. ---
     const focusOrder: string[] = [];
@@ -236,13 +228,18 @@ export class HoldOnOverlay extends Phaser.Scene {
         height: buttonHeight,
       };
       this.#buttons.push(
+        // The safe action's own hue is G4a's guide-primary tint (`ui/guide-callout.ts`): ink fill, paper text —
+        // never Hero Red, which stays reserved for the board's own End turn (`tokens.ts`'s "one red per screen").
         new McButton(this, {
           kind: "primary",
           label: content.safeLabel,
           type: BUTTON_TYPE,
           rect: safeRect,
+          ...(content.safeChip ? { value: content.safeChip } : {}),
+          tint: { fill: surface.ink.hex, ink: surface.paper.hex },
           onClick: () => this.#close(this.#data.onSafe),
         }),
+        // "Do it anyway" stays paper with an ink outline — an ordinary secondary control, never the forward action.
         new McButton(this, {
           kind: "secondary",
           label: content.anywayLabel,
@@ -251,6 +248,7 @@ export class HoldOnOverlay extends Phaser.Scene {
           onClick: () => this.#close(this.#data.onAnyway),
         }),
       );
+      if (content.safeChip) this.#drawSafeChip(content.safeChip, safeRect);
       stops.set("safe", { rect: safeRect, activate: () => this.#close(this.#data.onSafe) });
       stops.set("anyway", { rect: anywayRect, activate: () => this.#close(this.#data.onAnyway) });
       focusOrder.push("safe", "anyway");
@@ -316,6 +314,135 @@ export class HoldOnOverlay extends Phaser.Scene {
     }
 
     return box;
+  }
+
+  /** The plain two-row facts list — lethal, wastedPay, flipDanger. */
+  #drawRowFacts(
+    rows: readonly HoldOnFact[],
+    x: number,
+    y: number,
+    width: number,
+    rowHeight: number,
+    panelHeight: number,
+  ): void {
+    this.add
+      .graphics()
+      .fillStyle(surface.paper.hex, 1)
+      .fillRect(x, y, width, panelHeight)
+      .lineStyle(1.5, surface.ink.hex, 0.6)
+      .strokeRect(x, y, width, panelHeight);
+    let fy = y + 8;
+    for (const fact of rows) {
+      this.add.text(x + 10, fy, fact.label.toUpperCase(), textStyle(STAMP_TYPE, surface.ink.hex, 0.7));
+      this.add
+        .text(x + width - 10, fy, fact.value, { ...textStyle(typeRole.stat, surface.ink.hex), fontSize: "14px" })
+        .setOrigin(1, 0);
+      fy += rowHeight;
+    }
+  }
+
+  /**
+   * `schemeFinish`'s own threat bar (tiles P06/T03): the main scheme's name and "NEXT VILLAIN PHASE" on one row,
+   * the meter itself — filled red to the current threat, hatched red-on-black from there to the target (always
+   * reaches it: `schemeFinishHint` never fires unless the projected add does) — then "threat → target" in Bangers
+   * beside a red "YOU LOSE" stamp, or plain "STAGE ADVANCES" when the completion doesn't lose the game.
+   */
+  #drawBarFacts(
+    facts: Extract<HoldOnContent["facts"], { readonly kind: "bar" }>,
+    x: number,
+    y: number,
+    width: number,
+  ): void {
+    const pad = BAR_FACTS_PAD;
+    const innerX = x + pad;
+    const innerWidth = width - pad * 2;
+
+    this.add
+      .graphics()
+      .fillStyle(surface.paper.hex, 1)
+      .fillRect(x, y, width, BAR_FACTS_HEIGHT)
+      .lineStyle(1.5, surface.ink.hex, 0.6)
+      .strokeRect(x, y, width, BAR_FACTS_HEIGHT);
+
+    let ny = y + pad;
+    this.add.text(innerX, ny, facts.schemeName.toUpperCase(), textStyle(STAMP_TYPE, surface.ink.hex, 0.85));
+    this.add.text(x + width - pad, ny, "NEXT VILLAIN PHASE", textStyle(STAMP_TYPE, accent.heroRed.hex)).setOrigin(1, 0);
+    ny += BAR_NAME_ROW_HEIGHT + 6;
+
+    const target = Math.max(1, facts.target);
+    const ratio = Math.min(1, Math.max(0, facts.threat) / target);
+    const barRect: Rect = { x: innerX, y: ny, width: innerWidth, height: BAR_HEIGHT };
+    const bar = this.add.graphics();
+    bar.fillStyle(surface.parchment.hex, 1).fillRect(barRect.x, barRect.y, barRect.width, barRect.height);
+    bar.fillStyle(threatMeter.fill.hex, 1).fillRect(barRect.x, barRect.y, barRect.width * ratio, barRect.height);
+    // The hatched tail always reaches the target's own right edge: `schemeFinishHint` only fires when the
+    // projected add is enough to close the remaining gap, so "current threat" to "target" is exactly the preview.
+    hatchRect(
+      bar,
+      {
+        x: barRect.x + barRect.width * ratio,
+        y: barRect.y,
+        width: barRect.width * (1 - ratio),
+        height: barRect.height,
+      },
+      accent.heroRed.hex,
+      0.7,
+      8,
+      3,
+    );
+    bar.lineStyle(2, surface.ink.hex, 1).strokeRect(barRect.x, barRect.y, barRect.width, barRect.height);
+    ny += BAR_HEIGHT + 10;
+
+    this.add
+      .text(
+        innerX,
+        ny,
+        `${facts.threat} → ${facts.target}`,
+        textStyle({ ...typeRole.barTitle, size: 20 }, surface.ink.hex),
+      )
+      .setOrigin(0, 0.5)
+      .setY(ny + 13);
+
+    if (facts.loses) {
+      const stampLabel = this.add
+        .text(0, 0, "YOU LOSE", { ...textStyle(STAMP_TYPE, surface.paper.hex), fontStyle: "italic" })
+        .setOrigin(0.5, 0.5);
+      const stampW = stampLabel.width + STAMP_PAD * 2;
+      const stampH = 20;
+      const stampCx = x + width - pad - stampW / 2;
+      const stampCy = ny + 13;
+      this.add
+        .graphics()
+        .fillStyle(accent.heroRed.hex, 1)
+        .fillRect(stampCx - stampW / 2, stampCy - stampH / 2, stampW, stampH);
+      stampLabel.setPosition(stampCx, stampCy);
+      // The label measures its own text first (to size the stamp box around it), so it's added to the display
+      // list before that box's graphics — bring it back on top or the ink fill covers it.
+      this.children.bringToTop(stampLabel);
+    } else {
+      this.add
+        .text(x + width - pad, ny + 13, "STAGE ADVANCES", textStyle(typeRole.label, surface.ink.hex, 0.85))
+        .setOrigin(1, 0.5);
+    }
+  }
+
+  /** The safe button's own "[−N]" paper chip (tiles' "THWART FIRST [−2]") — a small paper rect and ink text laid
+   * over the button's ink fill, at the same right-edge position `McButton`'s own `value` prop centers on. */
+  #drawSafeChip(chip: string, safeRect: Rect): void {
+    const chipLabel = this.add.text(0, 0, chip, textStyle(BUTTON_TYPE, surface.ink.hex)).setOrigin(0.5, 0.5);
+    const chipPad = 8;
+    const chipWidth = chipLabel.width + chipPad * 2;
+    const chipHeight = 22;
+    const chipX = safeRect.x + safeRect.width - 16;
+    const chipY = safeRect.y + safeRect.height / 2;
+    this.add
+      .graphics()
+      .fillStyle(surface.paper.hex, 1)
+      .fillRect(chipX - chipWidth / 2, chipY - chipHeight / 2, chipWidth, chipHeight);
+    chipLabel.setPosition(chipX, chipY);
+    // Same measure-then-background ordering as the "YOU LOSE" stamp (`#drawBarFacts`) — bring the label back on
+    // top of the chip's own paper fill.
+    this.children.bringToTop(chipLabel);
   }
 
   #openTooltip(term: TermTextTerm, anchorRect: Rect, viewport: Rect): void {

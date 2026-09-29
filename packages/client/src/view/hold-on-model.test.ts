@@ -20,15 +20,30 @@ function schemeFinishHint(overrides: Partial<Hint> = {}): Hint {
 }
 
 describe("holdOnContentOf", () => {
-  test("schemeFinish: threat → target, YOU LOSE when the body says so", () => {
-    const content = holdOnContentOf(schemeFinishHint());
+  test("schemeFinish: the threat bar, YOU LOSE when the body says so", () => {
+    const content = holdOnContentOf(schemeFinishHint(), "Crossbones' Assault");
     expect(content.subtitle).toBe("The scheme could complete");
-    expect(content.facts).toEqual([
-      { label: "Threat", value: "10 → 12" },
-      { label: "Result", value: "YOU LOSE" },
-    ]);
-    expect(content.safeLabel).toBe("Thwart first −3");
+    expect(content.facts).toEqual({
+      kind: "bar",
+      schemeName: "Crossbones' Assault",
+      threat: 10,
+      target: 12,
+      loses: true,
+    });
+    expect(content.safeLabel).toBe("Thwart first");
+    expect(content.safeChip).toBe("−3");
     expect(content.anywayLabel).toBe("End turn anyway");
+  });
+
+  test("schemeFinish: no scheme name known falls back to the generic label", () => {
+    const content = holdOnContentOf(schemeFinishHint());
+    expect(content.facts).toEqual({
+      kind: "bar",
+      schemeName: "Main scheme",
+      threat: 10,
+      target: 12,
+      loses: true,
+    });
   });
 
   test("schemeFinish: STAGE ADVANCES when completion doesn't lose", () => {
@@ -37,15 +52,43 @@ describe("holdOnContentOf", () => {
         body: "The main scheme is at 10 of 12 threat. Next villain phase could complete this stage.",
       }),
     );
-    expect(content.facts).toEqual([
-      { label: "Threat", value: "10 → 12" },
-      { label: "Result", value: "STAGE ADVANCES" },
-    ]);
+    expect(content.facts).toEqual({
+      kind: "bar",
+      schemeName: "Main scheme",
+      threat: 10,
+      target: 12,
+      loses: false,
+    });
   });
 
-  test("no safe action: safeLabel is null", () => {
+  test("no safe action: safeLabel and safeChip are null", () => {
     const content = holdOnContentOf(schemeFinishHint({ safeAction: null }));
     expect(content.safeLabel).toBeNull();
+    expect(content.safeChip).toBeNull();
+  });
+
+  test("safe label without a trailing amount: no chip", () => {
+    const content = holdOnContentOf(schemeFinishHint({ safeAction: { label: "Flip to alter-ego" } }));
+    expect(content.safeLabel).toBe("Flip to alter-ego");
+    expect(content.safeChip).toBeNull();
+  });
+
+  test("flipDanger: kept as the plain two-row facts list", () => {
+    const content = holdOnContentOf({
+      key: "flipDanger",
+      title: "Flipping lets the scheme finish",
+      body: "The main scheme is at 10 of 12 threat. Flipping now could complete this stage.",
+      facts: { threat: 10, target: 12 },
+      safeAction: { label: "Stay in hero form" },
+      anywayAction: { label: "Flip anyway" },
+    });
+    expect(content.facts).toEqual({
+      kind: "rows",
+      rows: [
+        { label: "Threat", value: "10 → 12" },
+        { label: "Result", value: "STAGE ADVANCES" },
+      ],
+    });
   });
 
   test("lethal: HP → 0 and incoming damage", () => {
@@ -57,10 +100,13 @@ describe("holdOnContentOf", () => {
       safeAction: { label: "Flip to alter-ego" },
       anywayAction: { label: "End turn anyway" },
     });
-    expect(content.facts).toEqual([
-      { label: "HP", value: "3 → 0" },
-      { label: "Incoming", value: "4 dmg" },
-    ]);
+    expect(content.facts).toEqual({
+      kind: "rows",
+      rows: [
+        { label: "HP", value: "3 → 0" },
+        { label: "Incoming", value: "4 dmg" },
+      ],
+    });
   });
 
   test("wastedPay: paid vs needed", () => {
@@ -72,10 +118,13 @@ describe("holdOnContentOf", () => {
       safeAction: { label: "Change payment" },
       anywayAction: { label: "Confirm payment" },
     });
-    expect(content.facts).toEqual([
-      { label: "Paid", value: "3" },
-      { label: "Needed", value: "2" },
-    ]);
+    expect(content.facts).toEqual({
+      kind: "rows",
+      rows: [
+        { label: "Paid", value: "3" },
+        { label: "Needed", value: "2" },
+      ],
+    });
   });
 
   test("checkboxLabel is the fixed silence copy", () => {
