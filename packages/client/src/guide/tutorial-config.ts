@@ -46,6 +46,13 @@
  * (RRG "Defend"): Rhino's printed ATK 2 exactly equals her printed HP 2, so she's defeated absorbing it — Spider-Man
  * takes zero damage. That is the intended, RRG-correct outcome for "Black Cat blocks" in lesson 4; the lesson does
  * not require her to survive, only to demonstrate that an ally can take a hit meant for the hero.
+ *
+ * **The owner's "Attack Rhino" addition (2026-09-29).** Lesson 3, right after the flip, now has both Spider-Man
+ * (ATK 2) and Black Cat (ATK 1, 0 consequential damage on her own attack — the card's own `consequentialDamage`,
+ * only her *thwart* costs 1) attack Rhino once each: his stage-1 HP drops from 14 to 11. Neither attack changes
+ * lesson 4's own math — Black Cat is still exactly full HP (2) when she defends, since attacking cost her nothing —
+ * and both attackers ready again at the end of the player phase (RRG "Ready", the end-of-phase ready step), so
+ * Black Cat is exhausted from her own attack but ready again in time to defend Rhino's round-1 attack.
  */
 import type { Command, PlayerId } from "@mc/engine";
 import { choiceId, instanceId, playerId } from "@mc/engine";
@@ -91,8 +98,8 @@ export const TUTORIAL_CONFIG: SessionConfig = {
  * so a test can dispatch them in order and assert each lesson's precondition after the matching step.
  *
  * Reused by later boxes (G5b/G7) so the lesson model and controller drive the exact same path this file proves.
- * `instanceId`s are what `createGame` assigns this stacked setup, in this order, every time (replay-safe): `i3` is
- * Spider-Man's identity, `i4` is Black Cat, `i27` is Interrogation Room.
+ * `instanceId`s are what `createGame` assigns this stacked setup, in this order, every time (replay-safe): `i1` is
+ * Rhino (the villain), `i3` is Spider-Man's identity, `i4` is Black Cat, `i27` is Interrogation Room.
  */
 export const TUTORIAL_SCRIPT: readonly Command[] = [
   // Setup step 15 (mulligan): keep the stacked hand, discard nothing.
@@ -113,6 +120,21 @@ export const TUTORIAL_SCRIPT: readonly Command[] = [
   },
   // Lesson 3: flip to Spider-Man.
   { type: "changeForm", playerId: TUTORIAL_PLAYER_ID },
+  // Lesson 3's own "Attack Rhino" steps (owner addition, 2026-09-29): Spider-Man attacks first (ATK 2), then
+  // Black Cat (ATK 1, 0 consequential damage on attack) — both exhaust attacking, and both ready again at the
+  // end of the player phase, so Black Cat is still available to defend Rhino's round-1 attack (lesson 4).
+  {
+    type: "basicAttack",
+    playerId: TUTORIAL_PLAYER_ID,
+    attackerInstanceId: instanceId("i3"),
+    targetInstanceId: instanceId("i1"),
+  },
+  {
+    type: "basicAttack",
+    playerId: TUTORIAL_PLAYER_ID,
+    attackerInstanceId: instanceId("i4"),
+    targetInstanceId: instanceId("i1"),
+  },
   { type: "endTurn", playerId: TUTORIAL_PLAYER_ID },
   // End-of-player-phase discard down to hand size: nothing to discard with the stacked hand.
   { type: "resolveChoice", playerId: TUTORIAL_PLAYER_ID, choiceId: choiceId("c2"), selectedOptionIds: [] },

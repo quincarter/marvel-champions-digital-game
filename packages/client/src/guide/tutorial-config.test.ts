@@ -92,17 +92,41 @@ describe("TUTORIAL_CONFIG (docs/guided-mode.md G5a)", () => {
     expect(player.identity.form).toBe("hero");
   });
 
+  test("lesson 3 addition: Spider-Man then Black Cat can each attack Rhino for 3 damage total", async () => {
+    const core = new EngineSessionCore();
+    await core.start(TUTORIAL_CONFIG);
+    dispatch(core, 0); // keep the mulligan
+    dispatch(core, 1); // play Black Cat as Peter Parker
+    dispatch(core, 2); // flip to hero
+
+    const afterSpideyAttack = dispatch(core, 3); // Spider-Man attacks Rhino
+    expect(afterSpideyAttack.state.instances[RHINO_ID]!.damage).toBe(2);
+    expect(afterSpideyAttack.state.instances[SPIDER_MAN_ID]!.exhausted).toBe(true);
+    // Black Cat's own attack has 0 consequential damage (her card data), so she's still full HP going into it.
+    expect(afterSpideyAttack.state.instances[BLACK_CAT_ID]!.damage).toBe(0);
+
+    const afterCatAttack = dispatch(core, 4); // Black Cat attacks Rhino
+    expect(afterCatAttack.state.instances[RHINO_ID]!.damage).toBe(3);
+    expect(afterCatAttack.state.instances[BLACK_CAT_ID]!.exhausted).toBe(true);
+    expect(afterCatAttack.state.instances[BLACK_CAT_ID]!.damage).toBe(0);
+  });
+
   test("lesson 4 precondition: Rhino's round-1 attack targets Spider-Man and Black Cat is a legal defender", async () => {
     const core = new EngineSessionCore();
     await core.start(TUTORIAL_CONFIG);
     dispatch(core, 0); // keep the mulligan
     dispatch(core, 1); // play Black Cat as Peter Parker
     dispatch(core, 2); // flip to hero
-    dispatch(core, 3); // end the turn
-    const afterDiscard = dispatch(core, 4); // end-of-phase discard (nothing to discard)
+    dispatch(core, 3); // Spider-Man attacks Rhino
+    dispatch(core, 4); // Black Cat attacks Rhino
+    dispatch(core, 5); // end the turn
+    const afterDiscard = dispatch(core, 6); // end-of-phase discard (nothing to discard)
     expect(afterDiscard.legal?.actions.kind).toBe("choice");
 
-    const afterSpiderSense = dispatch(core, 5); // decline the Spider-Sense interrupt
+    // Black Cat readied at the end of the player phase, despite having attacked — she's still a legal defender.
+    expect(afterDiscard.state.instances[BLACK_CAT_ID]!.exhausted).toBe(false);
+
+    const afterSpiderSense = dispatch(core, 7); // decline the Spider-Sense interrupt
     const declareDefender = afterSpiderSense.legal;
     expect(declareDefender?.actions.kind).toBe("choice");
     if (declareDefender?.actions.kind !== "choice") throw new Error("expected the defend prompt");
@@ -120,8 +144,8 @@ describe("TUTORIAL_CONFIG (docs/guided-mode.md G5a)", () => {
   test("lesson 4 outcome and lesson 5 precondition: the first revealed card lands, and round 2 has threat to thwart", async () => {
     const core = new EngineSessionCore();
     await core.start(TUTORIAL_CONFIG);
-    for (let i = 0; i < 6; i++) dispatch(core, i); // through defending with Black Cat
-    const afterDefend = dispatch(core, 6); // declare Black Cat as defender
+    for (let i = 0; i < 8; i++) dispatch(core, i); // through defending with Black Cat
+    const afterDefend = dispatch(core, 8); // declare Black Cat as defender
 
     // Advance ("When Revealed: The villain schemes.") was the first card revealed from the encounter deck.
     const revealed = afterDefend.events.find((event) => event.type === "encounterCardRevealed") as
@@ -132,6 +156,9 @@ describe("TUTORIAL_CONFIG (docs/guided-mode.md G5a)", () => {
     // Spider-Man took no damage: Black Cat absorbed the whole attack.
     const spiderMan = afterDefend.state.instances[SPIDER_MAN_ID]!;
     expect(spiderMan.damage).toBe(0);
+
+    // Rhino carries lesson 3's own 3 damage (2 from Spider-Man, 1 from Black Cat) into round 2.
+    expect(afterDefend.state.instances[RHINO_ID]!.damage).toBe(3);
 
     // Round 2's player phase, with threat on the main scheme and Spider-Man able to thwart it.
     expect(afterDefend.state.round).toBe(2);

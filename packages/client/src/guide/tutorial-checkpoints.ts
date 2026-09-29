@@ -6,18 +6,19 @@
  *
  * **How the prefixes were picked** (cross-checked against `tutorial-config.test.ts`'s own dispatch trace; owner's
  * lesson reorder 2026-09-29 swapped lessons 2 and 3 — paying for cards, as Peter Parker, now comes before the
- * flip, not after):
+ * flip, not after; the same day's "Attack Rhino" addition inserted two more commands between the flip and end
+ * turn, shifting every checkpoint at or after `villain-phase` by 2):
  * - `paying-for-cards` (lesson 2): 0 — nothing replayed. `startTutorialGame`'s existing "if a choice is pending,
  *   resolve it empty" step answers the mulligan (`TUTORIAL_SCRIPT[0]`) on its own, same as starting from the top.
  * - `hero-and-alter-ego` (lesson 3): 2 — mulligan, then play Black Cat as Peter Parker (`TUTORIAL_SCRIPT[0..1]`).
  *   Nothing is left pending after she's played, so lesson 3 opens exactly "ready to flip".
- * - `villain-phase` (lesson 4): 4 — through ending the turn (`TUTORIAL_SCRIPT[0..3]`: mulligan, play Black Cat,
- *   flip, end turn). That leaves the end-of-player-phase discard choice pending (trivial: nothing to discard with
- *   this stacked hand) — the same "if a choice is pending, resolve it empty" step in `startTutorialGame` answers
- *   it, which is what actually flips `GameState.step.phase` to `"villain"` and rolls the villain's boost/attack
- *   setup forward to the next *real* decision (Spider-Sense), left for the player to make live rather than
- *   scripted away.
- * - `threat-and-thwarting` (lesson 5): `TUTORIAL_SCRIPT.length` (7) — the whole script, including the two real
+ * - `villain-phase` (lesson 4): 6 — through ending the turn (`TUTORIAL_SCRIPT[0..5]`: mulligan, play Black Cat,
+ *   flip, Spider-Man attacks Rhino, Black Cat attacks Rhino, end turn). That leaves the end-of-player-phase
+ *   discard choice pending (trivial: nothing to discard with this stacked hand) — the same "if a choice is
+ *   pending, resolve it empty" step in `startTutorialGame` answers it, which is what actually flips
+ *   `GameState.step.phase` to `"villain"` and rolls the villain's boost/attack setup forward to the next *real*
+ *   decision (Spider-Sense), left for the player to make live rather than scripted away.
+ * - `threat-and-thwarting` (lesson 5): `TUTORIAL_SCRIPT.length` (9) — the whole script, including the two real
  *   round-1 decisions (decline Spider-Sense, defend with Black Cat) a player replaying from lesson 2 would have
  *   already made. Declaring Black Cat as defender resolves Rhino's attack and rolls straight into round 2's
  *   player phase, with nothing left pending.
@@ -38,7 +39,7 @@ export type TutorialLessonId = Exclude<(typeof TUTORIAL_LESSONS)[number]["id"], 
 export const TUTORIAL_CHECKPOINTS: Readonly<Record<TutorialLessonId, number>> = {
   "paying-for-cards": 0,
   "hero-and-alter-ego": 2,
-  "villain-phase": 4,
+  "villain-phase": 6,
   "threat-and-thwarting": TUTORIAL_SCRIPT.length,
 };
 

@@ -339,12 +339,24 @@ describe("guide/tutorial-lessons.ts driven by TUTORIAL_SCRIPT", () => {
         expect(currentStep(state)?.id).toBe("flip");
       }
       if (i === 2) {
-        // Just flipped: lesson 3 finished. Lesson 4 waits for the villain phase (`when: stepIs("villain")`),
-        // which hasn't started yet, so nothing is current.
+        // Just flipped: lesson 3's own flip step is done, but the lesson itself isn't — the owner's "Attack Rhino"
+        // addition means lesson 3 still has two more steps.
+        expect(observed.lessonDone).toEqual([]);
+        expect(currentLesson(state)?.id).toBe("hero-and-alter-ego");
+        expect(currentStep(state)?.id).toBe("attack-with-spidey");
+      }
+      if (i === 3) {
+        // Spider-Man attacked Rhino: the walk to Black Cat's own attack step.
+        expect(observed.lessonDone).toEqual([]);
+        expect(currentStep(state)?.id).toBe("attack-with-black-cat");
+      }
+      if (i === 4) {
+        // Black Cat attacked Rhino too: lesson 3 finished. Lesson 4 waits for the villain phase
+        // (`when: stepIs("villain")`), which hasn't started yet, so nothing is current.
         expect(observed.lessonDone).toEqual(["hero-and-alter-ego"]);
         expect(currentLesson(state)).toBeNull();
       }
-      if (i === 5) {
+      if (i === 7) {
         // Declined Spider-Sense: the villain phase has started, and Rhino's attack immediately opens the defend
         // choice. `villain-phase-order` never gets (or needs) an `acknowledge()` call in this whole test — it
         // auto-advances the moment the defend choice is pending (G11 fix: `villainActivationPast`), which is what
@@ -359,7 +371,7 @@ describe("guide/tutorial-lessons.ts driven by TUTORIAL_SCRIPT", () => {
       }
     }
 
-    // i === 6 declared Black Cat as defender: lesson 4 finishes, and round 2's lesson 5 becomes current once its
+    // i === 8 declared Black Cat as defender: lesson 4 finishes, and round 2's lesson 5 becomes current once its
     // own step is re-observed against the post-defend state (already folded into the loop above via `observe`).
     expect(currentLesson(state)?.id).toBe("threat-and-thwarting");
     expect(currentStep(state)?.id).toBe("spotlight-scheme");

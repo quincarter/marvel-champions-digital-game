@@ -9,7 +9,7 @@
  * `[[id|label]]` so a lowercase mention doesn't draw the glossary's capitalized display name
  * (`view/term-text-model.ts`'s header). Glossary ids are `@mc/content`'s concept entries (G3a): `mainScheme`,
  * `threat`, `heroAlterEgoForm`, `flip`, `cost`, `resource`, `mentalResource`, `aspect`, `villainPhase`, `defend`, `exhaustCost`,
- * `thwart`.
+ * `thwart`, `attack`, `consequentialDamage`.
  *
  * `McGuideCalloutContent`'s own fields (`ui/guide-callout.ts`: `continueHint`, `primaryLabel`, `skipLabel`, …) are
  * G5c's concern, not this module's — a `LessonStep`'s `copy` only carries `title`/`body`/`tip`/`stepLabel`/`rows`
@@ -23,12 +23,16 @@ import {
   stepIs,
   threatRemovedFromMainScheme,
   villainActivationPast,
+  villainDamagedBy,
   type Lesson,
 } from "../view/lesson-model.js";
 
 const BLACK_CAT = cardId("01002");
 const INTERROGATION_ROOM = cardId("01063");
 const SCIENTIST = abilityId("01001b.scientist");
+/** Spider-Man's identity card — one physical card, so its instance's `cardId` is this on both faces
+ * (`tutorial-config.ts`'s own header: `i3` is Spider-Man's identity, whatever form he's currently in). */
+const SPIDER_MAN = cardId("01001a");
 
 /**
  * Lesson 1: "How to win" (§5.1). Shown as its own screen before the game starts (G6b's "How to win" screen), not a
@@ -67,7 +71,7 @@ const PAYING_FOR_CARDS: Lesson = {
       id: "play-black-cat",
       anchor: { kind: "card", code: BLACK_CAT },
       copy: {
-        stepLabel: "STEP 1 OF 5",
+        stepLabel: "STEP 1 OF 7",
         title: "Play Black Cat, as Peter Parker",
         body:
           "A card's [[cost|cost]] is just a number. Pay it with [[resource|resources]] from any source: discard a " +
@@ -101,9 +105,10 @@ const PAYING_FOR_CARDS: Lesson = {
 };
 
 /**
- * Lesson 3: "Hero & alter-ego" (§5.1). Round 1, right after Black Cat is played — the flip. No `when`: lessons
- * run in strict order, so this only becomes current once lesson 2 is done, the same way every gate-less lesson
- * here does.
+ * Lesson 3: "Hero & alter-ego" (§5.1). Round 1, right after Black Cat is played — the flip, then the owner's
+ * "Attack Rhino" addition (2026-09-29: "somewhere here before the villain phase, we should tell them to attack
+ * the villain and explain that they can attack with both Spidey and with Black Cat"). No `when`: lessons run in
+ * strict order, so this only becomes current once lesson 2 is done, the same way every gate-less lesson here does.
  */
 const HERO_AND_ALTER_EGO: Lesson = {
   id: "hero-and-alter-ego",
@@ -113,7 +118,7 @@ const HERO_AND_ALTER_EGO: Lesson = {
       id: "flip",
       anchor: { kind: "action", id: "flip" },
       copy: {
-        stepLabel: "STEP 2 OF 5",
+        stepLabel: "STEP 2 OF 7",
         title: "You're Peter Parker",
         body:
           "Scientist is an [[heroAlterEgoForm|alter-ego]] ability, so it only works while you're Peter. In " +
@@ -123,6 +128,35 @@ const HERO_AND_ALTER_EGO: Lesson = {
       },
       mode: "await",
       completes: formIs("hero"),
+    },
+    {
+      id: "attack-with-spidey",
+      anchor: { kind: "action", id: "attack" },
+      copy: {
+        stepLabel: "STEP 3 OF 7",
+        title: "Now you're Spider-Man",
+        body:
+          "Now you're Spider-Man, you can [[attack|attack]]. [[exhaustCost|Attacking]] exhausts him, the same " +
+          "way thwarting does. Attack Rhino.",
+        doThis: "Attack Rhino",
+      },
+      mode: "await",
+      completes: villainDamagedBy(SPIDER_MAN),
+    },
+    {
+      id: "attack-with-black-cat",
+      anchor: { kind: "action", id: "attack" },
+      copy: {
+        stepLabel: "STEP 4 OF 7",
+        title: "Allies attack too",
+        body:
+          "Allies [[attack|attack]] too. Black Cat can attack Rhino as well — her attack has no " +
+          "[[consequentialDamage|consequential damage]], and everything readies at the end of your turn, before " +
+          "the villain phase, so she'll still be ready to defend when Rhino attacks.",
+        doThis: "Attack with Black Cat",
+      },
+      mode: "await",
+      completes: villainDamagedBy(BLACK_CAT),
     },
   ],
 };
@@ -138,7 +172,7 @@ const VILLAIN_PHASE: Lesson = {
       id: "villain-phase-order",
       anchor: { kind: "zone", id: "villain" },
       copy: {
-        stepLabel: "STEP 3 OF 5",
+        stepLabel: "STEP 5 OF 7",
         title: "Now it's his turn",
         body:
           "The [[villainPhase|villain phase]] always goes the same three steps, in order — you'll see them at the " +
@@ -155,7 +189,7 @@ const VILLAIN_PHASE: Lesson = {
       id: "declare-defender",
       anchor: { kind: "choice", id: "defend" },
       copy: {
-        stepLabel: "STEP 4 OF 5",
+        stepLabel: "STEP 6 OF 7",
         title: "Who takes the hit?",
         body:
           "[[defend|Defend]] with Black Cat and she takes the damage instead of you, [[exhaustCost|exhausting]] " +
@@ -184,7 +218,7 @@ const THREAT_AND_THWARTING: Lesson = {
       id: "spotlight-scheme",
       anchor: { kind: "zone", id: "mainScheme" },
       copy: {
-        stepLabel: "STEP 5 OF 5",
+        stepLabel: "STEP 7 OF 7",
         title: "The main scheme has {threat} threat",
         body:
           "[[threat|Threat]] goes on [[mainScheme|the main scheme]] every villain phase. Reach its target and the " +

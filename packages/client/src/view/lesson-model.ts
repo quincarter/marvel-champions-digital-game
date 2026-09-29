@@ -231,6 +231,23 @@ export function stepIs<Phase extends GameStep["phase"]>(
   };
 }
 
+/**
+ * True once the most recent command dealt attack damage to a villain from an attacker whose own card is `code` —
+ * the tutorial's own "Attack Rhino" steps (guided mode, `docs/guided-mode.md` §3.10, lesson 3's owner-requested
+ * addition), each teaching one specific attacker (Spider-Man, then Black Cat). Reads the engine's `damageDealt`
+ * event, the same one a player-initiated `basicAttack` (and any other source of attack damage) always produces —
+ * `sourceInstanceId` names the character whose ATK dealt it, resolved back to a card code via `game.instances` so
+ * this stays card-code-based like `cardPlayed`, never a hardcoded instance id.
+ */
+export function villainDamagedBy(code: CardId): LessonPredicate {
+  return (observation) =>
+    observation.lastEvents.some((event) => {
+      if (event.type !== "damageDealt" || event.sourceInstanceId === null) return false;
+      if (observation.game.instances[event.sourceInstanceId]?.cardId !== code) return false;
+      return observation.game.villains.some((villain) => villain.instanceId === event.targetInstanceId);
+    });
+}
+
 /** True once the most recent command removed threat from the main scheme (a thwart landing). */
 export function threatRemovedFromMainScheme(): LessonPredicate {
   return (observation) =>

@@ -85,6 +85,32 @@ test("plays the tutorial to completion", async ({ page }) => {
   });
   expect(form1, "flipped to Spider-Man").toBe("hero");
 
+  // === Lesson 3's own "Attack Rhino" steps: Spider-Man, then Black Cat ===
+  await waitFor(
+    async () => (await guideStepId(page)) === "attack-with-spidey" || null,
+    "lesson3 attack-with-spidey step",
+  );
+  await clickFocus(page, "basic:attack");
+  await page.waitForTimeout(300);
+  // Both Spider-Man and Black Cat can attack right now, so the "Who attacks?" source bar opens — its own button
+  // reads "SPIDER-MAN" (`controller-bar.ts#drawSourceBar`), lower on screen than every other "Spider-Man" label
+  // this scene draws, so `minY` disambiguates it from the identity panel/header text above it.
+  await clickText(page, "Spider-Man", { sceneKey: "Board", minY: 630 });
+  await page.waitForTimeout(700);
+
+  await waitFor(
+    async () => (await guideStepId(page)) === "attack-with-black-cat" || null,
+    "lesson3 attack-with-black-cat step",
+  );
+  // Only Black Cat can attack now (Spider-Man is exhausted), so this dispatches straight away — no source bar.
+  await clickFocus(page, "basic:attack");
+  await page.waitForTimeout(700);
+
+  await waitFor(async () => {
+    const step = await guideStepId(page);
+    return step !== "attack-with-black-cat" ? "advanced" : null;
+  }, "lesson3 complete");
+
   // === End turn -> villain phase (lesson 4) ===
   await clickFocus(page, "basic:endTurn");
   await page.waitForTimeout(400);

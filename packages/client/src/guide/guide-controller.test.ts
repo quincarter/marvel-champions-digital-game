@@ -190,7 +190,7 @@ describe("GuideController — the tutorial script", () => {
     expect(guidePrefs().tutorial.lessonsDone).toContain("paying-for-cards");
   });
 
-  test("flipping to hero form completes lesson 3; no lesson is current again until the villain phase", async () => {
+  test("attacking with Spider-Man, then Black Cat, are lesson 3's own last two steps", async () => {
     const core = new EngineSessionCore();
     const started = await core.start(TUTORIAL_CONFIG);
     const controller = newController(observationOf(started.snapshot));
@@ -198,6 +198,19 @@ describe("GuideController — the tutorial script", () => {
     run(core, controller, 1); // play Black Cat
     run(core, controller, 2); // flip to hero form
 
+    const spideyStep = controller.view();
+    expect(spideyStep.step?.id).toBe("attack-with-spidey");
+    expect(spideyStep.anchor).toEqual({ kind: "action", id: "attack" });
+    expect(spideyStep.tagVariant).toBe("tryThis");
+    expect(spideyStep.gate?.actions.has("attack")).toBe(true);
+
+    run(core, controller, 3); // Spider-Man attacks Rhino
+    const catStep = controller.view();
+    expect(catStep.step?.id).toBe("attack-with-black-cat");
+    expect(catStep.anchor).toEqual({ kind: "action", id: "attack" });
+    expect(catStep.gate?.actions.has("attack")).toBe(true);
+
+    run(core, controller, 4); // Black Cat attacks Rhino
     expect(guidePrefs().tutorial.lessonsDone).toContain("hero-and-alter-ego");
     // Round 1's own player turn still has nothing else scripted to teach (lesson 4 waits for the villain phase) —
     // the guide surface stays up as the waiting state (G5c part 2), not gone (§4 G5c item 0).
@@ -218,8 +231,10 @@ describe("GuideController — the tutorial script", () => {
     run(core, controller, 0);
     run(core, controller, 1);
     run(core, controller, 2);
-    run(core, controller, 3); // end the turn
-    run(core, controller, 4); // end-of-phase discard (nothing to discard) — this is what actually opens the villain phase
+    run(core, controller, 3); // Spider-Man attacks Rhino
+    run(core, controller, 4); // Black Cat attacks Rhino
+    run(core, controller, 5); // end the turn
+    run(core, controller, 6); // end-of-phase discard (nothing to discard) — this is what actually opens the villain phase
 
     const orderStep = controller.view();
     expect(orderStep.step?.id).toBe("villain-phase-order");
@@ -230,7 +245,7 @@ describe("GuideController — the tutorial script", () => {
     expect(orderStep.panel?.primaryLabel).toBe("Got it");
 
     controller.primary();
-    run(core, controller, 5); // decline the Spider-Sense interrupt
+    run(core, controller, 7); // decline the Spider-Sense interrupt
 
     const defendStep = controller.view();
     expect(defendStep.step?.id).toBe("declare-defender");
@@ -244,10 +259,10 @@ describe("GuideController — the tutorial script", () => {
     const core = new EngineSessionCore();
     const started = await core.start(TUTORIAL_CONFIG);
     const controller = newController(observationOf(started.snapshot));
-    for (let i = 0; i < 5; i++) run(core, controller, i);
+    for (let i = 0; i < 7; i++) run(core, controller, i);
     controller.primary(); // acknowledge "villain-phase-order" (this module's own step 0 of lesson 4)
-    run(core, controller, 5);
-    run(core, controller, 6); // declare Black Cat as defender
+    run(core, controller, 7);
+    run(core, controller, 8); // declare Black Cat as defender
 
     expect(guidePrefs().tutorial.lessonsDone).toContain("villain-phase");
     const view = controller.view();
@@ -268,7 +283,7 @@ describe("GuideController — Back, Skip, Stop, Escape (§3.10)", () => {
     const core = new EngineSessionCore();
     const started = await core.start(TUTORIAL_CONFIG);
     const controller = newController(observationOf(started.snapshot));
-    for (let i = 0; i < 5; i++) run(core, controller, i);
+    for (let i = 0; i < 7; i++) run(core, controller, i);
     expect(controller.view().step?.id).toBe("villain-phase-order");
 
     controller.primary();
@@ -294,11 +309,16 @@ describe("GuideController — Back, Skip, Stop, Escape (§3.10)", () => {
     expect(flipStep.active).toBe(true);
     expect(flipStep.step?.id).toBe("flip");
 
-    // The tutorial keeps running: flipping still finishes lesson 3, same as if lesson 2's own step had completed
+    // The tutorial keeps running: flipping still advances lesson 3, same as if lesson 2's own step had completed
     // normally rather than being skipped. (Black Cat was never actually played — lesson 2 was skipped, not
-    // completed — but the flip command doesn't depend on her.)
+    // completed — but the flip command doesn't depend on her.) The two "Attack Rhino" steps that follow the flip
+    // are skipped too, since Black Cat isn't in play here to attack with — that still finishes lesson 3.
     run(core, controller, 0);
     run(core, controller, 2);
+    expect(controller.view().step?.id).toBe("attack-with-spidey");
+    controller.skip();
+    expect(controller.view().step?.id).toBe("attack-with-black-cat");
+    controller.skip();
     expect(guidePrefs().tutorial.lessonsDone).toContain("hero-and-alter-ego");
   });
 
@@ -329,9 +349,12 @@ describe("GuideController — Back, Skip, Stop, Escape (§3.10)", () => {
     expect(controller.view().step?.id).toBe("flip");
     expect(guidePrefs().tutorial.lessonsDone).toContain("paying-for-cards");
 
-    // Lesson 3 finishes once the player flips on their own — Escape never locked the tutorial out of it.
+    // Lesson 3 finishes once the player flips and attacks with each character in turn — Escape never locked the
+    // tutorial out of it.
     run(core, controller, 0);
     run(core, controller, 2);
+    controller.skip(); // attack-with-spidey (Black Cat was never played, so there's no ally to attack with here)
+    controller.skip(); // attack-with-black-cat
     expect(guidePrefs().tutorial.lessonsDone).toContain("hero-and-alter-ego");
   });
 
@@ -397,8 +420,10 @@ describe("GuideController — waiting and complete (G5c part 2, §4 G5c item 0)"
     run(core, controller, 0); // mulligan
     run(core, controller, 1); // play Black Cat
     run(core, controller, 2); // flip
-    run(core, controller, 3); // end turn
-    run(core, controller, 4); // end-of-phase discard — what actually opens the villain phase
+    run(core, controller, 3); // Spider-Man attacks Rhino
+    run(core, controller, 4); // Black Cat attacks Rhino
+    run(core, controller, 5); // end turn
+    run(core, controller, 6); // end-of-phase discard — what actually opens the villain phase
     expect(controller.view().step?.id).toBe("villain-phase-order");
   });
 
@@ -443,8 +468,10 @@ describe("GuideController — waiting and complete (G5c part 2, §4 G5c item 0)"
     run(core, controller, 0); // mulligan
     run(core, controller, 1); // play Black Cat
     run(core, controller, 2); // flip
-    run(core, controller, 3); // end turn
-    run(core, controller, 4); // end-of-phase discard — what actually opens the villain phase
+    run(core, controller, 3); // Spider-Man attacks Rhino
+    run(core, controller, 4); // Black Cat attacks Rhino
+    run(core, controller, 5); // end turn
+    run(core, controller, 6); // end-of-phase discard — what actually opens the villain phase
     expect(controller.view().step?.id).toBe("villain-phase-order");
     // Once a step is current there's no note to show at all — a fresh "current step" key of `null` is never
     // suppressed by the earlier dismissal, since `waitingNoteVisible` requires a real key to ever show anything.
@@ -530,6 +557,8 @@ describe("GuideController — custom onLessonDone/onComplete/complete copy (guid
     run(core, controller, 0);
     run(core, controller, 1);
     run(core, controller, 2);
+    run(core, controller, 3);
+    run(core, controller, 4);
 
     // No `onLessonDone`/`onComplete` was passed — `#apply`'s own default still writes the tutorial's own prefs,
     // exactly as it did before G10d generalized these into options (`guide-controller.ts`'s own header).
