@@ -134,10 +134,10 @@ const HERO_AND_ALTER_EGO: Lesson = {
       anchor: { kind: "action", id: "attack" },
       copy: {
         stepLabel: "STEP 3 OF 7",
-        title: "Now you're Spider-Man",
+        title: "Attack Rhino",
         body:
-          "Now you're Spider-Man, you can [[attack|attack]]. [[exhaustCost|Attacking]] exhausts him, the same " +
-          "way thwarting does. Attack Rhino.",
+          "As Spider-Man you can [[attack|attack]]: deal damage equal to your ATK. Attacking " +
+          "[[exhaustCost|exhausts]] him, the same way thwarting does.",
         doThis: "Attack Rhino",
       },
       mode: "await",
@@ -150,9 +150,8 @@ const HERO_AND_ALTER_EGO: Lesson = {
         stepLabel: "STEP 4 OF 7",
         title: "Allies attack too",
         body:
-          "Allies [[attack|attack]] too. Black Cat can attack Rhino as well — her attack has no " +
-          "[[consequentialDamage|consequential damage]], and everything readies at the end of your turn, before " +
-          "the villain phase, so she'll still be ready to defend when Rhino attacks.",
+          "Black Cat can [[attack|attack]] Rhino as well, with no [[consequentialDamage|consequential damage]]. " +
+          "Everything readies at the end of your turn, so she'll still be ready to block Rhino.",
         doThis: "Attack with Black Cat",
       },
       mode: "await",
