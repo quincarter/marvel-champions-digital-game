@@ -141,9 +141,10 @@ The main session verifies UI boxes by clicking through them before ticking (§6)
       label, Bangers title, `McTermText` body, secondary + primary actions, Skip lesson, and the arrow toward its
       anchor.
       Landed: `abad5ad1`. `ui/guide-callout.ts` (`update(content, anchorRect, viewport)`, `handleEscape`, `focusNext`, `activatePrimary`), layout in `view/guide-callout-model.ts`, demo `?screen=guidecallout`. Use `continueHint` for board-action steps. Mid-sentence terms need `[[threat|threat]]`, because a bare `[[threat]]` shows the capitalized display name.
-- [ ] **G4b `McGuidePanel`.** The collapsible yellow side rail (desktop, tablet landscape). Parts: lesson list, step
+- [x] **G4b `McGuidePanel`.** The collapsible yellow side rail (desktop, tablet landscape). Parts: lesson list, step
       body, tip box, progress ticks, Back, and the "do this to continue" slot. Board layout reserves the rail when it's
       open. Layout tests at 1440×900 and 1024×768.
+      Landed: `9add1837` (a polish fix is in flight). `ui/guide-panel.ts`, `view/guide-panel-model.ts` (`guideRailWidthFor`), and `boardLayout(…, { guideRail })` in `view/layout.ts`. Demo at `?screen=guidepanel`. G5c mounts it on the Board for desktop and tabletLandscape only, and re-runs `boardLayout` on collapse/expand.
 - [ ] **G4c Spotlight + tags.** The spotlight ring on any board anchor (zone, card, button), dimming everything else
       with input gated per §3.10, plus the `TRY THIS` and `GUIDE PICK` tags.
 
@@ -241,7 +242,7 @@ G10a checks their codes.
 | Aspect     | What it's for                                                                     | Pick it when                                                                                                   | Signature Core cards                          | Try-it precon  |
 | ---------- | --------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- | --------------------------------------------- | -------------- |
 | Justice    | Thwarting. Keeps threat off schemes. The balanced, steady pick.                   | The villain schemes fast, or has side schemes that punish you. It's a good first aspect for learning the loop. | For Justice!, Great Responsibility, Daredevil | Spider-Man     |
-| Aggression | Attacking and brawling: burst damage, clearing minions, racing the villain.       | You want to end the game fast, or the scenario floods the board with minions.                                  | Relentless Assault, Uppercut, Hulk             | She-Hulk       |
+| Aggression | Attacking and brawling: burst damage, clearing minions, racing the villain.       | You want to end the game fast, or the scenario floods the board with minions.                                  | Relentless Assault, Uppercut, Hulk            | She-Hulk       |
 | Leadership | Allies. It fields more of them and makes them hit harder and stay longer.         | Your hero likes a wide board. Allies soak attacks, thwart and chip damage every round.                         | Inspired, Lead from the Front, Maria Hill     | Captain Marvel |
 | Protection | Defending and healing: blocking attacks, preventing damage, staying alive.        | The villain hits hard, your hero has low HP or DEF, or you're the team's tank in multiplayer.                  | Counter-Punch, Armored Vest, Luke Cage        | Black Panther  |
 | Basic      | Neutral cards any deck can use (resources, staples).                              | Always available alongside your aspect. It gets a tip card only, no lesson.                                    | Energy/Genius/Strength, Avengers Mansion      | —              |
@@ -270,7 +271,7 @@ A fresh Claude session can pick this up from this file alone.
   pointer, and put a screenshot beside its tile.
 - **Commits:** as the repo's git user, with no Claude co-author trailer. Every change carries a changie fragment.
 
-**In flight:** G4b (`McGuidePanel`) and G9a (hint heuristics, `view/guide-hints.ts`), side by side. If cut off, check `git status` for their files and brief a fresh agent per box to finish it. Next: G4c, then G5c.
+**In flight:** G9a (hint heuristics, `view/guide-hints.ts`) and a G4b polish fix (`McTermText` paragraph breaks, panel padding, stamp width, legend inset, Collapse arrow), side by side. If cut off, check `git status` and brief a fresh agent to finish. Next: G4c, then G5c.
 
 ## 7. Prior art: the parked prototype
 
