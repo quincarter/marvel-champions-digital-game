@@ -189,6 +189,7 @@ The main session verifies UI boxes by clicking through them before ticking (§6)
       Modules always run at Full for that run only (the saved level is untouched), and replays don't reset saved
       progress. The chooser's "Learn as you play", Settings' "Play the tutorial" and the debrief's "Replay a lesson"
       all route here. Split it at brief time: (1) hub screen + progress model, (2) replay-to-lesson start.
+      Part 1 landed: `48787de5`. `scenes/how-to-play.ts` + `view/how-to-play-model.ts`; Title "How to play"; Settings, debrief and `?screen=howtoplay` all route here; a run-only Full override (`setGuideRunLevelOverride`, guide-store) that never writes the saved level. G10c wires `HowToPlayScene#openAspectLesson`. **Part 2 is open:** lessons 2–5 start from the top today; replay `TUTORIAL_SCRIPT` up to each lesson's start. Nit: "THE BASICS" sits tight under the header.
 - [x] **G7a Lesson 2: Hero & alter-ego.**
 - [x] **G7b Lesson 3: Paying for cards** (over the existing payment bar).
 - [x] **G7c Lesson 4: The villain phase** (villain-phase overlay steps + `GUIDE PICK` on the defend sheet).
@@ -308,7 +309,7 @@ A fresh Claude session can pick this up from this file alone.
   pointer, and put a screenshot beside its tile.
 - **Commits:** as the repo's git user, with no Claude co-author trailer. Every change carries a changie fragment.
 
-**In flight:** G6c part 1 (hub), G10c (aspect lesson page `scenes/aspect-lesson.ts`, standalone) and G8 part 2 (fire the debrief at end of round in guided runs, from `scenes/board/guide-mount.ts`), side by side. If cut off, check `git status`/`git log` and brief a fresh agent per item. Then: G6c part 2 (replay to a lesson), G10c (aspect lesson page), G10d (try-it games), G10e part 2 (tip display), G11.
+**In flight:** G10c (aspect lesson page `scenes/aspect-lesson.ts`, standalone) and G8 part 2 (fire the debrief at end of round in guided runs, from `scenes/board/guide-mount.ts`), side by side. If cut off, check `git status`/`git log` and brief a fresh agent per item. Then: G6c part 2 (replay to a lesson), G10c (aspect lesson page), G10d (try-it games), G10e part 2 (tip display), G11.
 
 ## 7. Prior art: the parked prototype
 
