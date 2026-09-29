@@ -200,8 +200,9 @@ The main session verifies UI boxes by clicking through them before ticking (§6)
 - [x] **G10a Aspect content.** `guide/aspects.ts`: the §5.4 table as data (lesson copy, when to pick, signature card
       codes, precon id, the tip card line). Tests check that every code exists and every precon has that aspect.
       Landed: `0c0b7923`. `guide/aspects.ts` `ASPECT_GUIDES` / `aspectGuideOf`. Aggression uses Uppercut (01054) in place of Tackle, which isn't in Core. Adding 'Pool later is one entry.
-- [ ] **G10b Aspect tip chips.** "Aspects ▸" and the short tip card on aspect chips in Seats, Deck check and Deck
+- [x] **G10b Aspect tip chips.** "Aspects ▸" and the short tip card on aspect chips in Seats, Deck check and Deck
       builder.
+      Landed: `33bd1aa6` (tip lines reworded as "pick it when" advice). An "i" badge on the aspect chips in Seats, Deck check and Deck builder opens `ui/aspect-tip.ts`'s panel, shown at every guide level. G10c wires `linkAvailable` / `linkReason` in `view/aspect-tip-model.ts`.
 - [ ] **G10c Aspect lesson page.** The per-aspect lesson page inside G6c's hub (signature scans, when to pick it, Try it).
       Reached from the hub, the debrief, Settings → Guide, and the chips' "Aspects ▸".
 - [ ] **G10d Aspect try-it games.** A guided Rhino game with that aspect's Core precon. Its aspect tips fire when the
@@ -290,7 +291,7 @@ A fresh Claude session can pick this up from this file alone.
   pointer, and put a screenshot beside its tile.
 - **Commits:** as the repo's git user, with no Claude co-author trailer. Every change carries a changie fragment.
 
-**In flight:** G10b (aspect tip chips), G4c (spotlight, gating, tags; also told about the §3.10 never-locked-in gating rules), and an exits follow-up ("Skip this step" + "Stop tutorial" + Escape contract + `nudge` on `McGuideCallout` / `McGuidePanel`), side by side. If cut off, check `git status` and brief a fresh agent per item. Next: G5c.
+**In flight:** G4c (spotlight, gating, tags; also told about the §3.10 never-locked-in gating rules), and an exits follow-up ("Skip this step" + "Stop tutorial" + Escape contract + `nudge` on `McGuideCallout` / `McGuidePanel`), side by side. If cut off, check `git status` and brief a fresh agent per item. Next: G5c.
 
 ## 7. Prior art: the parked prototype
 

@@ -50,7 +50,7 @@ const JUSTICE: AspectGuide = {
   ],
   signatureCardCodes: [cardId("01060"), cardId("01061"), cardId("01058")],
   preconId: starterDeckId("core-spider-man-justice"),
-  tipLine: "Justice thwarts threat off the scheme — steady and balanced.",
+  tipLine: "Pick it when the villain schemes fast. A steady first choice.",
 };
 
 const AGGRESSION: AspectGuide = {
@@ -66,7 +66,7 @@ const AGGRESSION: AspectGuide = {
   ],
   signatureCardCodes: [cardId("01053"), cardId("01054"), cardId("01050")],
   preconId: starterDeckId("core-she-hulk-aggression"),
-  tipLine: "Aggression attacks and brawls — burst damage, fast games.",
+  tipLine: "Pick it to end fights fast or clear lots of minions.",
 };
 
 const LEADERSHIP: AspectGuide = {
@@ -82,7 +82,7 @@ const LEADERSHIP: AspectGuide = {
   ],
   signatureCardCodes: [cardId("01074"), cardId("01070"), cardId("01067")],
   preconId: starterDeckId("core-captain-marvel-leadership"),
-  tipLine: "Leadership fields allies — more bodies, more staying power.",
+  tipLine: "Pick it when your hero likes a wide board of allies.",
 };
 
 const PROTECTION: AspectGuide = {
@@ -98,7 +98,7 @@ const PROTECTION: AspectGuide = {
   ],
   signatureCardCodes: [cardId("01077"), cardId("01081"), cardId("01076")],
   preconId: starterDeckId("core-black-panther-protection"),
-  tipLine: "Protection defends and heals — built to take the hit.",
+  tipLine: "Pick it when the villain hits hard or your hero is fragile.",
 };
 
 const BASIC: AspectGuide = {
@@ -111,7 +111,7 @@ const BASIC: AspectGuide = {
   pickItWhen: ["Always — Basic cards sit in every deck alongside your chosen aspect, not instead of it."],
   signatureCardCodes: [],
   preconId: null,
-  tipLine: "Basic: neutral cards every deck can use.",
+  tipLine: "Every deck runs these alongside its aspect.",
 };
 
 /**
