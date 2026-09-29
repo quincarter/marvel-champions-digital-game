@@ -24,6 +24,14 @@
  * (`ui/destroy-children.ts`) on every state change, including a chip's own hover/tap; open/closed state
  * is a plain field on the host scene (`isOpen`, passed in fresh on each call), not something this module
  * tracks itself.
+ *
+ * **On a scrolling rail, also redrawn every `McChipRail#redraw()`, not just `#rebuild()`.** Seats' narrow
+ * layout puts the aspect chips in `ui/chip-rail.ts`'s `McChipRail`, which scrolls without the host scene
+ * rebuilding — a drag, a flick's momentum, `scrollIntoView`. `AspectInfoBadgeOptions.parent` lets a caller
+ * (only `McChipRail` uses it) reparent the badge's own graphics/label/zone into the rail's own scrolling,
+ * masked content layer instead of the scene root, so the badge is part of the chip it sits on and moves
+ * and clips with it; `clip`/`suppressClick` then mirror `McButton`'s own guards for anything reparented
+ * into scrolling, masked content.
  */
 import Phaser from "phaser";
 import { border, hit, ink, signal, surface, typeRole } from "../tokens.js";
@@ -32,6 +40,7 @@ import type { Rect } from "../view/layout.js";
 import { textStyle } from "./theme.js";
 import { SCENES } from "../scenes/keys.js";
 import type { AspectLessonSceneData } from "../scenes/aspect-lesson.js";
+import { pointInRect } from "../view/drag-gesture.js";
 
 const BADGE_SIZE = 18;
 const PANEL_WIDTH = 220;
@@ -39,10 +48,36 @@ const PAD = 10;
 const GAP_FROM_ANCHOR = 8;
 const ARROW_SIZE = 7;
 
+/** Extra options for `drawAspectInfoBadge` beyond the anchor and open/close callbacks every caller passes. */
+export interface AspectInfoBadgeOptions {
+  /**
+   * Reparents the badge's graphics, label and hit zone into this container instead of leaving them on the scene's
+   * own display list — the aspect rail's own scrolling, masked content layer (`ui/chip-rail.ts`'s `#layer`), so the
+   * badge scrolls and clips with the chip it sits on rather than floating at wherever it was last drawn (reported
+   * 2026-09-29: after scrolling the rail sideways, a badge sat between two chips instead of on either one — it was
+   * drawn straight onto the scene root, redrawn only on the screen's own `#rebuild()`, never on the rail's own
+   * `#redraw()` that a scroll or a flick triggers).
+   */
+  readonly parent?: Phaser.GameObjects.Container;
+  /**
+   * A viewport the badge must be visually inside of to respond, and whether the enclosing rail's own drag gesture
+   * should swallow this tap — the same two guards `McButton` takes (`ui/widgets.ts`'s `McButtonOptions.clip` /
+   * `suppressClick`) for a control reparented into scrolling, masked content: the mask hides what's drawn outside
+   * the rail's rect, but Phaser still hit-tests the zone underneath it, and a flick's release must not also open
+   * the tip the finger happened to lift over.
+   */
+  readonly clip?: () => Rect | null;
+  readonly suppressClick?: () => boolean;
+}
+
 /**
- * Draws the small "i" badge nudged half outside `anchorRect`'s top-right corner (a notification-dot
- * position that stays clear of the chip's own label) and wires its pointer handling. Returns the badge's
- * own on-screen rect, which the caller passes to `drawAspectTipPanel` as the tip's anchor.
+ * Draws the "i" badge nudged half outside `anchorRect`'s top-right corner (a notification-dot position that
+ * stays clear of the chip's own label) and wires its pointer handling. Returns the badge's own on-screen rect —
+ * the small drawn circle, not the hit zone — which the caller passes to `drawAspectTipPanel` as the tip's anchor.
+ *
+ * The hit zone is `hit.target` (44px, the design's minimum touch target — reported 2026-09-29: the drawn 18px
+ * circle was also the tap target, too small to reliably hit on a phone) centred on the same point as the drawn
+ * circle, so the visible mark can stay small and unobtrusive while what responds to a tap is full-size.
  */
 export function drawAspectInfoBadge(
   scene: Phaser.Scene,
@@ -50,6 +85,7 @@ export function drawAspectInfoBadge(
   isOpen: boolean,
   onOpen: () => void,
   onClose: () => void,
+  options: AspectInfoBadgeOptions = {},
 ): Rect {
   const rect: Rect = {
     x: anchorRect.x + anchorRect.width - BADGE_SIZE * 0.7,
@@ -62,12 +98,13 @@ export function drawAspectInfoBadge(
   const g = scene.add.graphics();
   g.fillStyle(isOpen ? signal.caution.hex : surface.ink.hex, 1).fillCircle(cx, cy, BADGE_SIZE / 2);
   g.lineStyle(1.5, surface.paper.hex, 1).strokeCircle(cx, cy, BADGE_SIZE / 2);
-  scene.add
+  const label = scene.add
     .text(cx, cy, "i", { ...textStyle(typeRole.label, isOpen ? surface.ink.hex : surface.paper.hex), fontSize: "12px" })
     .setOrigin(0.5, 0.5);
 
+  const hitSize = hit.target;
   const zone = scene.add
-    .zone(rect.x, rect.y, rect.width, rect.height)
+    .zone(cx - hitSize / 2, cy - hitSize / 2, hitSize, hitSize)
     .setOrigin(0, 0)
     .setInteractive({ useHandCursor: true });
   zone.on("pointerover", (pointer: Phaser.Input.Pointer) => {
@@ -78,10 +115,14 @@ export function drawAspectInfoBadge(
     if (pointer.wasTouch) return;
     if (isOpen) onClose();
   });
-  zone.on("pointerup", () => {
+  zone.on("pointerup", (pointer: Phaser.Input.Pointer) => {
+    if (options.suppressClick?.()) return;
+    const clip = options.clip?.() ?? null;
+    if (clip && !pointInRect(pointer.x, pointer.y, clip)) return;
     if (isOpen) onClose();
     else onOpen();
   });
+  options.parent?.add([g, label, zone]);
   return rect;
 }
 

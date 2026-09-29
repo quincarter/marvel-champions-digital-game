@@ -350,11 +350,38 @@ const poolTotal = (pool: Readonly<Record<string, number>>): number =>
   Object.values(pool).reduce((sum, n) => sum + n, 0);
 
 /**
- * Confirming a payment that overpays (`paid > required`), or that spends a card which is itself playable — a
- * card whose type is more than a bare resource — while another still-spendable source alone would have covered
- * what's left of the cost (§5.2).
+ * Whether `instanceId` (a hand card) has a legal, affordable play *right now*, in `state` as it stood before this
+ * payment opened — `legalActions`' own `playCard` evaluation already resolves a target and a working payment for
+ * it (`evaluatePlay`, `packages/engine/src/legal.ts`), so this is never re-derived here. A card with no legal
+ * target (Spider-Tracer with no minion in play) or the wrong form for its play restriction reports `illegal`
+ * there instead, and is not "genuinely playable" for this hint's purposes.
  */
-export function wastedPayHint(state: GameState, payment: WastedPayView): Hint | null {
+function isGenuinelyPlayableNow(
+  state: GameState,
+  deps: EngineDeps,
+  playerId: PlayerId,
+  instanceId: InstanceId,
+): boolean {
+  const legal = legalActions(state, playerId, deps);
+  if (legal.kind !== "turn") return false;
+  return legal.legal.some((entry) => entry.action.kind === "playCard" && entry.action.instanceId === instanceId);
+}
+
+/**
+ * Confirming a payment that overpays (`paid > required`), or that spends a card which is itself a legal,
+ * affordable play right now — not merely "not a bare resource card", which flagged cards with no legal target or
+ * the wrong form (Spider-Tracer with no minion in play) and made the warning ping-pong between two cards that
+ * both looked "playable" by that looser test (Aunt May paid with Spider-Tracer vs. with For Justice!, each
+ * suggesting the other) — while another still-spendable source that is *not itself* such a card alone would have
+ * covered what's left of the cost (§5.2). If every covering alternative is itself a genuine play, swapping just
+ * trades one flagged card for another, so this stays quiet rather than ping-ponging.
+ */
+export function wastedPayHint(
+  state: GameState,
+  deps: EngineDeps,
+  playerId: PlayerId,
+  payment: WastedPayView,
+): Hint | null {
   const { paid, required, spent, spendable } = payment;
 
   if (paid > required) {
@@ -370,10 +397,13 @@ export function wastedPayHint(state: GameState, payment: WastedPayView): Hint | 
 
   for (const source of spent.values()) {
     if (source.kind !== "handCard") continue;
-    const card = cardOf(state, source.instanceId);
-    if (!card || card.type === "resource") continue; // a bare resource card has nothing to "keep" instead.
+    if (!isGenuinelyPlayableNow(state, deps, playerId, source.instanceId)) continue;
     const withoutThis = paid - poolTotal(source.pool);
-    const alt = [...spendable.values()].find((other) => withoutThis + poolTotal(other.pool) >= required);
+    const alt = [...spendable.values()].find(
+      (other) =>
+        withoutThis + poolTotal(other.pool) >= required &&
+        !(other.kind === "handCard" && isGenuinelyPlayableNow(state, deps, playerId, other.instanceId)),
+    );
     if (alt) return wastedCardHint(state, source, alt, paid, required);
   }
 
@@ -434,7 +464,7 @@ export function hintsFor(context: HintContext, prefs: GuidePrefs): readonly Hint
         ]
       : trigger.kind === "flip"
         ? [flipDangerHint(state, deps, playerId, "flip")]
-        : [wastedPayHint(state, trigger.payment)];
+        : [wastedPayHint(state, deps, playerId, trigger.payment)];
 
   return candidates.filter((hint): hint is Hint => hint !== null && !prefs.silencedWarnings.includes(hint.key));
 }

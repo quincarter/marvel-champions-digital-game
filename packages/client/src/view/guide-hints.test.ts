@@ -12,6 +12,7 @@ import {
   iconsInPlay,
   instanceId,
   mainSchemeValue,
+  type ActionRef,
   type GameState,
   type InstanceId,
   type PlayerId,
@@ -229,6 +230,40 @@ function threatShortOfTarget(state: GameState, margin: number): number {
   return target - margin;
 }
 
+/** Surgically moves each `codes` card (already in the deck or already drawn) into `playerId`'s hand, so a test can
+ * pose a specific hand without depending on the seed's own draw order. */
+function moveToHand(
+  state: GameState,
+  playerId: PlayerId,
+  codes: readonly string[],
+): { state: GameState; ids: readonly InstanceId[] } {
+  const player = state.players.find((p) => p.playerId === playerId)!;
+  const ids: InstanceId[] = [];
+  const takenFromDeck = new Set<InstanceId>();
+  for (const code of codes) {
+    const inHand = player.hand.find((id) => state.instances[id]?.cardId === cardId(code));
+    if (inHand) {
+      ids.push(inHand);
+      continue;
+    }
+    const inDeck = player.deck.find((id) => state.instances[id]?.cardId === cardId(code));
+    if (!inDeck) throw new Error(`${code} not found in ${playerId}'s deck or hand`);
+    takenFromDeck.add(inDeck);
+    ids.push(inDeck);
+  }
+  return {
+    ids,
+    state: {
+      ...state,
+      players: state.players.map((p) =>
+        p.playerId === playerId
+          ? { ...p, deck: p.deck.filter((id) => !takenFromDeck.has(id)), hand: [...p.hand, ...takenFromDeck] }
+          : p,
+      ),
+    },
+  };
+}
+
 describe("schemeFinishHint", () => {
   beforeEach(() => intoTurn(true));
 
@@ -437,7 +472,7 @@ describe("wastedPayHint", () => {
     if (!extra) return; // Nothing spare in hand this seed.
     const overpaid = togglePayment(picked, extra.optionId);
     const view = paymentView(base, me, overpaid, "test", CORE_DEPS);
-    const hint = wastedPayHint(base, view);
+    const hint = wastedPayHint(base, CORE_DEPS, me, view);
     expect(hint).not.toBeNull();
     expect(hint!.key).toBe("wastedPay");
     expect(hint!.facts.paid).toBeGreaterThan(hint!.facts.required as number);
@@ -450,7 +485,49 @@ describe("wastedPayHint", () => {
     if (!entry) return;
     const opened = beginPayment(base, me, entry.action, null, CORE_DEPS)!;
     const view = paymentView(base, me, { ...opened, picked: opened.query.suggested }, "test", CORE_DEPS);
-    expect(wastedPayHint(base, view)).toBeNull();
+    expect(wastedPayHint(base, CORE_DEPS, me, view)).toBeNull();
+  });
+
+  // Reported 2026-09-29: playing Aunt May (cost 1) paid with Spider-Tracer warned "For Justice! alone could cover
+  // the cost"; switching to pay with For Justice! warned the reverse, suggesting Spider-Tracer — the hint
+  // ping-ponged between the two payment choices. Spider-Tracer ("Attach to a minion") has no legal target this
+  // early (no minion in play yet), so it is not a card actually worth keeping right now; For Justice! (a "Hero
+  // Action (thwart)") always has the main scheme to thwart, so it is.
+  test("Aunt May paid with Spider-Tracer vs. For Justice! does not ping-pong", () => {
+    const staged = moveToHand(base, me, ["01006", "01007", "01060"]);
+    // Isolate the hand to exactly these three cards — otherwise another already-drawn hand card (e.g. Backflip,
+    // an Interrupt with nothing to interrupt right now) is just as "not genuinely playable" as Spider-Tracer and
+    // may be picked as the alternative first, making the assertions below depend on draw order rather than on
+    // Spider-Tracer's own lack of a target.
+    const state: GameState = {
+      ...staged.state,
+      players: staged.state.players.map((p) => (p.playerId === me ? { ...p, hand: staged.ids } : p)),
+    };
+    const [auntMayId, spiderTracerId, forJusticeId] = staged.ids;
+    const action: ActionRef = { kind: "playCard", instanceId: auntMayId! };
+
+    const openedForSpiderTracer = beginPayment(state, me, action, null, CORE_DEPS)!;
+    const spiderTracerSource = openedForSpiderTracer.query.sources.find((s) => s.instanceId === spiderTracerId)!;
+    const paidWithSpiderTracer = togglePayment(openedForSpiderTracer, spiderTracerSource.optionId);
+    const viewSpiderTracer = paymentView(state, me, paidWithSpiderTracer, "test", CORE_DEPS);
+    expect(viewSpiderTracer.paid).toBe(viewSpiderTracer.required);
+    // Spider-Tracer has no minion to attach to yet — not a card genuinely worth keeping right now, so spending it
+    // must not warn.
+    expect(wastedPayHint(state, CORE_DEPS, me, viewSpiderTracer)).toBeNull();
+
+    const openedForForJustice = beginPayment(state, me, action, null, CORE_DEPS)!;
+    const forJusticeSource = openedForForJustice.query.sources.find((s) => s.instanceId === forJusticeId)!;
+    const paidWithForJustice = togglePayment(openedForForJustice, forJusticeSource.optionId);
+    const viewForJustice = paymentView(state, me, paidWithForJustice, "test", CORE_DEPS);
+    expect(viewForJustice.paid).toBe(viewForJustice.required);
+    // For Justice! is a legal thwart right now — genuinely worth keeping — and Spider-Tracer (not itself worth
+    // keeping) alone covers the cost, so this direction still warns.
+    const hint = wastedPayHint(state, CORE_DEPS, me, viewForJustice);
+    expect(hint).not.toBeNull();
+    expect(hint!.body).toContain("Spider-Tracer");
+
+    // The suggested alternative must never itself trigger the warning when paid with alone (the ping-pong check).
+    expect(wastedPayHint(state, CORE_DEPS, me, viewSpiderTracer)).toBeNull();
   });
 });
 

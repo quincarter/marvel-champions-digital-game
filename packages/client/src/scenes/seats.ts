@@ -37,7 +37,7 @@ import { accent, dotGrid, ink, surface, typeRole } from "../tokens.js";
 import { cssOf, textStyle } from "../ui/theme.js";
 import { McButton, McTextInput, dashedRect, fitText, label, paintDotGrid } from "../ui/widgets.js";
 import { McShelfRoster } from "../ui/shelf-roster.js";
-import { McChipRail } from "../ui/chip-rail.js";
+import { McChipRail, type ChipRailChip } from "../ui/chip-rail.js";
 import { McVirtualList } from "../ui/virtual-list.js";
 import { deckOptionsOf, type DeckOption } from "../view/deck-list-model.js";
 import { heroAspectsOf, withSelectionPinned, type DeckSourceKind } from "../view/roster-filter.js";
@@ -465,8 +465,12 @@ export class SeatsScene extends Phaser.Scene {
       );
     }
     if (layout.chipsScroll) {
-      // Narrow: one row that scrolls sideways (P03 has no room for three wrapped rows of 44px chips).
-      const rail = new McChipRail(this, { rect: layout.chips, chips: chipDefs, scroll: this.#chipScroll });
+      // Narrow: one row that scrolls sideways (P03 has no room for three wrapped rows of 44px chips). Each aspect
+      // chip carries its own `badge` here so `McChipRail` draws the G10b info badge *inside* the rail's own
+      // scrolling, masked content — see `ChipRailChip.badge`'s own doc comment for why (2026-09-29 report: a badge
+      // drawn outside that content floated in place while its chip scrolled underneath it).
+      const railChips = chipDefs.map((chip) => this.#withAspectBadge(chip));
+      const rail = new McChipRail(this, { rect: layout.chips, chips: railChips, scroll: this.#chipScroll });
       this.#chipRail = rail;
       chipDefs.forEach((chip, index) => {
         this.#stops.set(`hero-chip:${chip.id}`, {
@@ -475,10 +479,11 @@ export class SeatsScene extends Phaser.Scene {
           ensureVisible: () => rail.scrollIntoView(index),
         });
       });
+      this.#drawNarrowAspectTipPanel(rail, railChips, { x: 0, y: 0, width, height });
     } else {
       drawCompactChipStrip(this, layout.chips, chipRows, "hero-chip", this.#buttons, this.#stops);
+      this.#drawAspectChipTips(chipDefs, { x: 0, y: 0, width, height });
     }
-    this.#drawAspectChipTips(chipDefs, { x: 0, y: 0, width, height });
 
     const seating = new Map(this.#seatOptionsExcludingActive(deckOptions).map((o) => [o.deckId, o]));
     const active = new Map(
@@ -1126,10 +1131,11 @@ export class SeatsScene extends Phaser.Scene {
   }
 
   /**
-   * G10b's info badge + tip panel on every aspect quick-filter chip, narrow (the scrolling `McChipRail`)
-   * and wide (`drawCompactChipStrip`) alike — both already register a `hero-chip:${chip.id}` focus stop
-   * with the chip's own current on-screen rect (a function on narrow, so it tracks the rail's scroll
-   * offset; a plain `Rect` on wide), so this reuses that instead of recomputing chip geometry itself.
+   * G10b's info badge + tip panel on every aspect quick-filter chip, wide layout only
+   * (`drawCompactChipStrip`, a plain wrapped row that never scrolls) — it registers a `hero-chip:${chip.id}`
+   * focus stop with the chip's own current on-screen rect, so this reuses that instead of recomputing chip
+   * geometry itself. Narrow's own scrolling `McChipRail` draws its badges differently
+   * (`#withAspectBadge`/`#drawNarrowAspectTipPanel`) — see `ChipRailChip.badge`'s doc comment for why.
    */
   #drawAspectChipTips(chipDefs: readonly HeroChipDef[], viewport: Rect): void {
     for (const chip of chipDefs) {
@@ -1156,6 +1162,49 @@ export class SeatsScene extends Phaser.Scene {
       );
       if (isOpen) drawAspectTipPanel(this, badgeRect, content, viewport);
     }
+  }
+
+  /**
+   * Adds `ChipRailChip.badge` to an aspect chip def for `McChipRail`'s own narrow rendering, so the info badge is
+   * part of the chip's own scrolling, masked content (`ChipRailChip.badge`'s doc comment) instead of drawn
+   * separately. Every non-aspect chip, and Basic's own no-lesson case if it ever loses its tip content, passes
+   * through unchanged.
+   */
+  #withAspectBadge(chip: HeroChipDef): ChipRailChip {
+    if (!chip.id.startsWith("aspect:")) return chip;
+    const aspect = chip.id.slice("aspect:".length) as CoreAspect;
+    if (!aspectTipContentOf(aspect)) return chip;
+    return {
+      ...chip,
+      badge: {
+        isOpen: this.#aspectTipOpen === aspect,
+        onOpen: () => {
+          this.#aspectTipOpen = aspect;
+          this.#rebuild();
+        },
+        onClose: () => {
+          this.#aspectTipOpen = null;
+          this.#rebuild();
+        },
+      },
+    };
+  }
+
+  /**
+   * The tip panel for whichever narrow aspect chip is open — the badge itself is already drawn by `McChipRail`
+   * (`#withAspectBadge`), so this only needs the panel, anchored at that badge's own current on-screen rect
+   * (`McChipRail#badgeRectFor`, which tracks the rail's scroll offset the same way `rectFor` does).
+   */
+  #drawNarrowAspectTipPanel(rail: McChipRail, railChips: readonly ChipRailChip[], viewport: Rect): void {
+    if (!this.#aspectTipOpen) return;
+    const aspect = this.#aspectTipOpen;
+    const content = aspectTipContentOf(aspect);
+    if (!content) return;
+    const index = railChips.findIndex((chip) => chip.id === `aspect:${aspect}`);
+    if (index < 0) return;
+    const badgeRect = rail.badgeRectFor(index);
+    if (!badgeRect) return; // Scrolled off-screen — the badge itself isn't drawn either.
+    drawAspectTipPanel(this, badgeRect, content, viewport);
   }
 
   #heroChipDefs(deckOptions: readonly DeckOption[]): readonly HeroChipDef[] {
