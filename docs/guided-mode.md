@@ -269,7 +269,7 @@ A fresh Claude session can pick this up from this file alone.
   pointer, and put a screenshot beside its tile.
 - **Commits:** as the repo's git user, with no Claude co-author trailer. Every change carries a changie fragment.
 
-**In flight:** G4b (`McGuidePanel`). If cut off, check `git status` for its files (`ui/guide-panel.ts`, `view/guide-panel-model.ts`, `view/layout.ts`, `?screen=guidepanel` demo) and brief a fresh agent to finish it. Next: G4c, then G5c.
+**In flight:** G4b (`McGuidePanel`), G9a (hint heuristics, `view/guide-hints.ts`), G10a (aspect content, `guide/aspects.ts`), side by side. If cut off, check `git status` for their files and brief a fresh agent per box to finish it. Next: G4c, then G5c.
 
 ## 7. Prior art: the parked prototype
 
