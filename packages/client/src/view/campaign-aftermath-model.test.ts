@@ -299,6 +299,37 @@ describe("MC27 node 1's dealt-per-seat S.H.I.E.L.D. Tech choice (sm.reputation.m
   });
 });
 
+describe("MC27 node 9's non-exclusive collection choice (aspectAdvantage): two seats may pick the same card", () => {
+  test("decideForSeat lets seat 2 pick the card seat 1 already picked — the deck-editing rule is per-copy, not per-title", () => {
+    const pending: CampaignPendingChoice = {
+      instructionId: "sm.reputation.mark",
+      slot: "aspectAdvantage",
+      seatNumber: 1,
+      text: "Choose 1 aspect card…",
+      citation: "MC27 p. 22",
+      chooser: "eachSeat",
+      options: ["04155", "04156"],
+      count: 1,
+      optional: false,
+    };
+    const seats = [
+      { seatNumber: 1, heroName: "Ghost-Spider" },
+      { seatNumber: 2, heroName: "Spider-Man" },
+    ];
+    let group = startAftermathGroup(pending, seats, (cardId) => aftermathOptionOf(cardId, CARDS_BY_ID));
+    expect(group.noExclusivity).toBe(true);
+    group = decideForSeat(group, 1, { kind: "picked", cardId: "04156" as CardId });
+    group = decideForSeat(group, 2, { kind: "picked", cardId: "04156" as CardId });
+    expect(group.decisions[2]).toEqual({ kind: "picked", cardId: "04156" });
+
+    const columns = aftermathColumns(group, (seatNumber) => seats.find((s) => s.seatNumber === seatNumber)!.heroName);
+    const [, spiderMan] = columns;
+    // Never a "taken by Ghost-Spider" annotation even though both seats picked the same title.
+    expect(spiderMan!.rows.every((row) => row.takenByHeroName === null)).toBe(true);
+    expect(spiderMan!.rows.find((row) => row.option.cardId === "04156")!.selected).toBe(true);
+  });
+});
+
 describe("aftermathLogTags", () => {
   const fields: readonly LogFieldDef[] = [
     { id: "units", label: "Unspent Units", scope: "perSeat", type: { kind: "number", min: 0 }, citation: "test" },

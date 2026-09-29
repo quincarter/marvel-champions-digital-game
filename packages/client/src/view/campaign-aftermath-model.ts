@@ -88,6 +88,13 @@ export interface AftermathChoiceGroup {
   /** Per-seat catalogs, populated only once each seat's own real prompt has been seen. Only meaningful when
    * `dealtPerSeat` is true; empty (no entry) for a seat not yet dealt to. */
   readonly catalogBySeat: Readonly<Record<number, readonly AftermathOption[]>>;
+  /**
+   * `true` for a choice every seat draws from the same shared, *non-exclusive* catalog (MC27 p. 22's node 9
+   * "Aspect Advantage": every seat may add the maximum copies of the same card from "your whole collection" — two
+   * heroes choosing the same title is legal, unlike MC10's TECH pool, where one physical copy can only go to one
+   * seat). `aftermathColumns`/`decideForSeat` must never mark a card "taken" by another seat's pick here.
+   */
+  readonly noExclusivity: boolean;
   readonly seatOrder: readonly number[];
   /** The seat the engine is actually blocked on right now. */
   readonly currentSeatNumber: number;
@@ -103,6 +110,13 @@ const DEALT_PER_SEAT_SLOTS: ReadonlySet<string> = new Set(["shieldTech"]);
 /** Whether `slot`'s options should never be guessed ahead of a seat's own real turn (`DEALT_PER_SEAT_SLOTS`). */
 export function isDealtPerSeatSlot(slot: string): boolean {
   return DEALT_PER_SEAT_SLOTS.has(slot);
+}
+
+/** Slots whose shared catalog is never exclusive — see `AftermathChoiceGroup.noExclusivity`'s doc comment. */
+const NO_EXCLUSIVITY_SLOTS: ReadonlySet<string> = new Set(["aspectAdvantage"]);
+
+export function isNoExclusivitySlot(slot: string): boolean {
+  return NO_EXCLUSIVITY_SLOTS.has(slot);
 }
 
 /** True when `pending` is still asking about the printed choice `group` is already showing. */
@@ -133,6 +147,7 @@ export function startAftermathGroup(
     catalog,
     dealtPerSeat,
     catalogBySeat: dealtPerSeat ? { [currentSeatNumber]: catalog } : {},
+    noExclusivity: isNoExclusivitySlot(pending.slot),
     seatOrder: seats.map((seat) => seat.seatNumber),
     currentSeatNumber,
     confirmedSeatNumbers: [],
@@ -158,11 +173,13 @@ export function decideForSeat(
       const own = group.catalogBySeat[seatNumber] ?? [];
       if (!own.some((option) => option.cardId === decision.cardId)) return group;
     } else {
-      const takenByAnother = group.seatOrder.some((other) => {
-        if (other === seatNumber) return false;
-        const otherDecision = group.decisions[other];
-        return otherDecision?.kind === "picked" && otherDecision.cardId === decision.cardId;
-      });
+      const takenByAnother =
+        !group.noExclusivity &&
+        group.seatOrder.some((other) => {
+          if (other === seatNumber) return false;
+          const otherDecision = group.decisions[other];
+          return otherDecision?.kind === "picked" && otherDecision.cardId === decision.cardId;
+        });
       if (takenByAnother || !group.catalog.some((option) => option.cardId === decision.cardId)) return group;
     }
   }
@@ -218,13 +235,14 @@ export function aftermathColumns(
     // arrived) — never another seat's cards, and never a guess at cards this seat hasn't been dealt yet.
     const seatCatalog = group.dealtPerSeat ? (group.catalogBySeat[seatNumber] ?? []) : group.catalog;
     const rows = seatCatalog.map((option) => {
-      const takenBy = group.dealtPerSeat
-        ? undefined
-        : group.seatOrder.find((other) => {
-            if (other === seatNumber) return false;
-            const otherDecision = group.decisions[other];
-            return otherDecision?.kind === "picked" && otherDecision.cardId === option.cardId;
-          });
+      const takenBy =
+        group.dealtPerSeat || group.noExclusivity
+          ? undefined
+          : group.seatOrder.find((other) => {
+              if (other === seatNumber) return false;
+              const otherDecision = group.decisions[other];
+              return otherDecision?.kind === "picked" && otherDecision.cardId === option.cardId;
+            });
       return {
         option,
         takenByHeroName: takenBy === undefined ? null : heroNameOf(takenBy),
