@@ -167,8 +167,8 @@ export function schemeCloseHint(state: GameState, deps: EngineDeps, playerId: Pl
     key: "schemeClose",
     title: "Close to losing",
     body:
-      `[[mainScheme|${schemeName}]] would sit at ${afterThreat} of ${panel.target} [[threat|threat]] after next ` +
-      `[[villainPhase|villain phase]]'s visible add. Encounter cards could finish it — thwart now?`,
+      `[[mainScheme|${schemeName}]] will reach at least ${afterThreat} of ${panel.target} [[threat|threat]] in the ` +
+      `next [[villainPhase|villain phase]]. An encounter card could finish it. Thwart now?`,
     facts: { threat: panel.threat, target: panel.target, projected, afterThreat, away },
     safeAction,
     anywayAction: { label: "End turn anyway" },

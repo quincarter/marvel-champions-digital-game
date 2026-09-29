@@ -69,7 +69,7 @@ describe("holdOnContentOf", () => {
       {
         key: "schemeClose",
         title: "Close to losing",
-        body: "The main scheme would sit at 6 of 7 threat after next villain phase's visible add. Encounter cards could finish it — thwart now?",
+        body: "The main scheme will reach at least 6 of 7 threat in the next villain phase. An encounter card could finish it. Thwart now?",
         facts: { threat: 5, target: 7, projected: 1, afterThreat: 6, away: 1 },
         safeAction: { label: "Thwart first −1" },
         anywayAction: { label: "End turn anyway" },
