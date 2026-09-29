@@ -302,14 +302,41 @@ const AFTERMATH_EFFECT_OVERRIDES: Readonly<Record<string, string>> = {
   "04160a": "+1 HP · hero +1 ATK",
   "04161a": "+3 HP · hero +1 DEF",
   "04162a": "+4 HP · alter-ego +1 REC",
+  // MC27 p. 4/p. 22's eight S.H.I.E.L.D. Tech upgrades (node 1's deal): `derivedEffectLine`'s generic fallback
+  // already skips both cards' leading "Setup."/"Permanent." keyword sentences, but the sentence left over still
+  // runs long on several of these (a full "Hero Response: … discard the top card … stun that enemy." clause) —
+  // this row has no room to wrap it, only shrink it to one line, so these eight get the same short, hand-written
+  // treatment MC10's own TECH cards already do above.
+  "27182a": "Attack: spend a dart, deal 1 damage.",
+  "27183a": "+2 HP · reduce 1 enemy damage (interrupt).",
+  "27184a": "-1 THW · hero +1 ATK, overkill.",
+  "27185a": "Take 2 damage to ready your hero.",
+  "27186a": "Thwart biggest scheme only · +1 THW.",
+  "27187a": "Discard top card; no boost = stun enemy.",
+  "27188a": "-1 ATK · +1 DEF, retaliate 1, steady.",
+  "27189a": "Attach to a minion/side scheme; draw on defeat.",
 };
 
-/** The card's own first sentence, boilerplate keywords stripped, for a card with no hand-written override. */
+/**
+ * A leading sentence that's only a keyword, not an effect — "Setup.", "Permanent.", in either printed order (MC10's
+ * "Permanent. Setup." vs. MC27 p. 4's "Setup. Permanent."), and however many of them a card stacks up front.
+ */
+const KEYWORD_ONLY_SENTENCES: ReadonlySet<string> = new Set(["setup", "permanent"]);
+
+/** The card's own first sentence that isn't just a keyword, for a card with no hand-written override. */
 function derivedEffectLine(text: string | undefined): string {
   if (!text) return "";
-  const withoutBoilerplate = text.replace(/^(permanent\.\s*)?setup\.\s*/i, "");
-  const [firstSentence] = withoutBoilerplate.split(/(?<=[.!?])\s+/);
-  return (firstSentence ?? withoutBoilerplate).trim();
+  const sentences = text.split(/(?<=[.!?])\s+/);
+  const effect = sentences.find(
+    (sentence) =>
+      !KEYWORD_ONLY_SENTENCES.has(
+        sentence
+          .replace(/[.!?]+$/, "")
+          .trim()
+          .toLowerCase(),
+      ),
+  );
+  return (effect ?? sentences.at(-1) ?? "").trim();
 }
 
 function cardText(card: AnyCard | undefined): string | undefined {

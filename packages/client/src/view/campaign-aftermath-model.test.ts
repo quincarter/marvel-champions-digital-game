@@ -297,6 +297,19 @@ describe("MC27 node 1's dealt-per-seat S.H.I.E.L.D. Tech choice (sm.reputation.m
     const blocked = decideForSeat(group, otherSeat, { kind: "picked", cardId: first.choice.options[0]! as CardId });
     expect(blocked).toBe(group); // unchanged: seat 2 hasn't been dealt these cards (or any cards) yet
   });
+
+  test("each dealt S.H.I.E.L.D. Tech card gets a real, short effect line, not its boilerplate 'Setup. Permanent.' opener", async () => {
+    const svc = service();
+    const { record, won } = await seedSmWonGame(svc);
+    const first = await svc.foldState(record, won, [], []);
+    if (first.kind !== "pending") throw new Error("expected the shieldTech choice");
+    for (const cardId of first.choice.options) {
+      const option = aftermathOptionOf(cardId as CardId, CARDS_BY_ID);
+      expect(option.effect.toLowerCase()).not.toBe("setup.");
+      expect(option.effect.toLowerCase()).not.toBe("permanent.");
+      expect(option.effect.length).toBeGreaterThan(0);
+    }
+  });
 });
 
 describe("MC27 node 9's non-exclusive collection choice (aspectAdvantage): two seats may pick the same card", () => {

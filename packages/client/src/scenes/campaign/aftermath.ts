@@ -151,6 +151,12 @@ export class CampaignAftermathScene extends Phaser.Scene {
     this.cameras.main.setBackgroundColor(cssOf(surface.ink.hex));
     this.scale.on("resize", this.#draw, this);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.scale.off("resize", this.#draw, this));
+    // Every card scan drawn here (`#drawCollectionPicker`, `#drawOptionRow`) is requested from a synchronous
+    // `#draw()`, so the first pass usually finds the texture not loaded yet and falls back to the empty frame —
+    // this scene never redrew once the scan actually arrived, unlike every other screen that draws card art
+    // (`scenes/setup-deal.ts`'s own `this.#art.onArrived(...)`, this module's own precedent to follow).
+    const artUnsubscribe = cardArt(this).onArrived(() => this.#draw());
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => artUnsubscribe());
     this.#spotPan = new SpotlightAutoPan(this, () => this.#draw());
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.#spotPan?.destroy());
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.#cinematic.destroy());
