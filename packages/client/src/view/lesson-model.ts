@@ -1,0 +1,376 @@
+/**
+ * The guide's lesson state machine (guided mode G5b, `docs/guided-mode.md` §4): lessons made of steps, each step
+ * anchored to something on the board (or nothing), with either a manual "acknowledge" advance or an "await" step
+ * that auto-advances once a predicate over the live store state holds. Pure data plus pure reducers, no Phaser and
+ * no engine dispatch — G5c (the guide controller) feeds it `SessionState` on every store update and shows G4a/G4b/
+ * G4c for whatever `currentStep` returns. G10d (aspect try-it games) drives the same machine with its own lesson
+ * data, which is why every shape here is generic rather than tutorial-specific — the tutorial's own five lessons
+ * live as data in `guide/tutorial-lessons.ts`.
+ *
+ * **Anchors are semantic, not pixels** (`LessonAnchor`): a zone id, a named board action, a card code, or a named
+ * choice. The controller (G5c) resolves an anchor to a screen rect from the live board layout; this module never
+ * knows about coordinates.
+ *
+ * **Predicates read only what the store already has**: `LessonObservation` is `{ game, lastEvents, perspectiveId }`,
+ * the same three fields `store/session-store.ts`'s `SessionState` carries as `game`/`lastEvents`/`perspectiveId`.
+ * A predicate is a plain function over that — no hidden lookahead, no engine query. `lastEvents` is the most recent
+ * command's events only (see `SessionState.lastEvents`'s own doc comment), which is why an `await` step's
+ * `completes` predicate has to check for a state it can also recognize as "already true" (e.g.
+ * `defenderDeclared()` reads an event, but `formIs` reads live state) — `observe` is called once per store update,
+ * so a predicate that only ever looks at `lastEvents` would miss a state that was already true before the guide
+ * started watching for it.
+ *
+ * **Two step modes.** `"acknowledge"`: the player advances it with the callout/panel's primary button
+ * (`acknowledge`). `"await"`: the step names a `completes` predicate and `observe` advances it automatically the
+ * moment that predicate holds — there is no manual advance for one (§3.10's "do this to continue" steps).
+ *
+ * **Lesson gating.** A lesson only becomes current once its own `when` predicate holds (defaults to "always"),
+ * checked by `observe` the same way a step's `completes` is. That's how lesson 4 (the villain phase) waits for the
+ * villain phase to actually start, and lesson 5 (round 2's thwart) waits for round 2, without the controller having
+ * to special-case either.
+ */
+import type { CardId } from "@mc/content";
+import type { Form, GameEvent, GameState, GameStep, PlayerId } from "@mc/engine";
+
+// ---------------------------------------------------------------------------
+// Data
+// ---------------------------------------------------------------------------
+
+/** What a step is teaching, as a semantic id the controller resolves to a board rect. */
+export type LessonAnchor =
+  | { readonly kind: "zone"; readonly id: string }
+  | { readonly kind: "action"; readonly id: "flip" | "thwart" | "attack" | "endTurn" }
+  | { readonly kind: "card"; readonly code: CardId }
+  | { readonly kind: "choice"; readonly id: string };
+
+/** A step's copy. `body` (and `tip`/`rows`, if present) use `[[id]]`/`[[id|label]]` term markup (G3b). */
+export interface LessonStepCopy {
+  readonly title: string;
+  readonly body: string;
+  readonly tip?: string;
+  /** "STEP 2 OF 5" — the callout/panel's own step label (`McGuideCalloutContent.stepLabel`). Omit to hide it. */
+  readonly stepLabel?: string;
+  /** Extra bullet-style rows under the body (the panel's tip box can show more than one line). */
+  readonly rows?: readonly string[];
+}
+
+export type LessonStepMode = "acknowledge" | "await";
+
+/** The store fields a predicate is allowed to read — see the module header. */
+export interface LessonObservation {
+  readonly game: GameState;
+  readonly lastEvents: readonly GameEvent[];
+  readonly perspectiveId: PlayerId | null;
+}
+
+export type LessonPredicate = (observation: LessonObservation) => boolean;
+
+export interface LessonStep {
+  readonly id: string;
+  readonly anchor?: LessonAnchor;
+  readonly copy: LessonStepCopy;
+  readonly mode: LessonStepMode;
+  /** Required when `mode` is `"await"`. Ignored (and not read) when `mode` is `"acknowledge"`. */
+  readonly completes?: LessonPredicate;
+  /** Action ids left live while this step is up (§3.10's soft gate). Absent = the controller gates nothing extra. */
+  readonly gate?: readonly string[];
+}
+
+export interface Lesson {
+  readonly id: string;
+  readonly title: string;
+  readonly steps: readonly LessonStep[];
+  /** Held back from becoming current until this holds. Absent = eligible as soon as it's next in line. */
+  readonly when?: LessonPredicate;
+}
+
+// ---------------------------------------------------------------------------
+// Predicate helpers
+// ---------------------------------------------------------------------------
+
+/** True while `perspectiveId`'s player is in `form`. False with no `perspectiveId` (nothing to watch yet). */
+export function formIs(form: Form): LessonPredicate {
+  return (observation) => {
+    const player = observation.game.players.find((p) => p.playerId === observation.perspectiveId);
+    return player?.identity.form === form;
+  };
+}
+
+/** True once the most recent command played the card with this code. */
+export function cardPlayed(code: CardId): LessonPredicate {
+  return (observation) => observation.lastEvents.some((event) => event.type === "cardPlayed" && event.cardId === code);
+}
+
+/** True once the most recent command produced an event of this type, whatever its other fields. */
+export function eventSeen(type: GameEvent["type"]): LessonPredicate {
+  return (observation) => observation.lastEvents.some((event) => event.type === type);
+}
+
+/** True while the live game step matches `phase` (and `kind`, when given). */
+export function stepIs<Phase extends GameStep["phase"]>(
+  phase: Phase,
+  kind?: Extract<GameStep, { readonly phase: Phase }>["kind"],
+): LessonPredicate {
+  return (observation) => {
+    const step = observation.game.step;
+    if (step.phase !== phase) return false;
+    return kind === undefined || step.kind === kind;
+  };
+}
+
+/** True once the most recent command removed threat from the main scheme (a thwart landing). */
+export function threatRemovedFromMainScheme(): LessonPredicate {
+  return (observation) =>
+    observation.lastEvents.some(
+      (event) =>
+        event.type === "threatRemoved" &&
+        event.schemeInstanceId === observation.game.mainScheme.instanceId &&
+        event.amount > 0,
+    );
+}
+
+/**
+ * True once the defend decision for the most recent attack has been made, whichever way: a defender was declared
+ * (`defenderDeclared`) or the hero took the hit (`defenseDeclined`). Named for the declare-defender prompt lesson 4
+ * teaches, which either outcome resolves.
+ */
+export function defenderDeclared(): LessonPredicate {
+  return (observation) =>
+    observation.lastEvents.some((event) => event.type === "defenderDeclared" || event.type === "defenseDeclined");
+}
+
+// ---------------------------------------------------------------------------
+// Copy interpolation
+// ---------------------------------------------------------------------------
+
+const PLACEHOLDER_PATTERN = /\{(\w+)}/g;
+
+/**
+ * Values `fillCopy` can resolve straight from `GameState` with no other input. `{threat}` is the main scheme's
+ * current threat count (`game.instances[game.mainScheme.instanceId].threat`). A scheme's *target* threshold is
+ * card data (`@mc/content`, scaled by player count — see `view/board-model.ts`'s `schemePanel`), not part of
+ * `GameState`, so `{target}` (or anything else content-derived) has to come through `fillCopy`'s `extra` argument;
+ * this module stays free of a content-pool dependency on purpose.
+ */
+function builtinValues(observation: LessonObservation): Readonly<Record<string, string | number>> {
+  const mainScheme = observation.game.instances[observation.game.mainScheme.instanceId];
+  return { threat: mainScheme?.threat ?? 0 };
+}
+
+/**
+ * Substitutes `{name}` placeholders in `copy`'s text fields (title, body, tip, each row) with values from
+ * `observation` (see `builtinValues`) and `extra` (content-derived numbers the caller already resolved — `extra`
+ * wins on a key collision). An unresolved placeholder is left as-is rather than throwing, so a content typo shows
+ * up as a literal `{oops}` in a click-through instead of crashing the guide.
+ */
+export function fillCopy(
+  copy: LessonStepCopy,
+  observation: LessonObservation,
+  extra?: Readonly<Record<string, string | number>>,
+): LessonStepCopy {
+  const values: Readonly<Record<string, string | number>> = { ...builtinValues(observation), ...extra };
+  const fill = (text: string): string =>
+    text.replace(PLACEHOLDER_PATTERN, (match, key: string) => (key in values ? String(values[key]) : match));
+  return {
+    ...copy,
+    title: fill(copy.title),
+    body: fill(copy.body),
+    ...(copy.tip !== undefined ? { tip: fill(copy.tip) } : {}),
+    ...(copy.rows ? { rows: copy.rows.map(fill) } : {}),
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Machine
+// ---------------------------------------------------------------------------
+
+/** Which lesson/step is current, if any. `null` between lessons (nothing eligible yet) or once everything is done. */
+export interface LessonPointer {
+  readonly lessonIndex: number;
+  readonly stepIndex: number;
+}
+
+export interface LessonRunnerState {
+  readonly lessons: readonly Lesson[];
+  readonly doneLessonIds: readonly string[];
+  /** Set by `skipLesson` (§3.10: "ends scripted lessons for this game"). No lesson becomes current once set. */
+  readonly skipped: boolean;
+  readonly active: LessonPointer | null;
+}
+
+/** A reducer's result: the new state, plus any lesson ids that finished on this call (for `markLessonDone`). */
+export interface LessonResult {
+  readonly state: LessonRunnerState;
+  readonly lessonDone: readonly string[];
+}
+
+const NO_LESSONS_DONE: LessonResult["lessonDone"] = [];
+
+function result(state: LessonRunnerState, lessonDone: readonly string[] = NO_LESSONS_DONE): LessonResult {
+  return { state, lessonDone };
+}
+
+/**
+ * Starts (or resumes) a run over `lessons`, with `alreadyDone` (e.g. `GuidePrefs.tutorial.lessonsDone` or
+ * `aspectLessonsDone`) marking lessons already complete. Nothing becomes current yet — `active` starts `null`;
+ * call `observe` with the live game state to let a lesson's `when` decide whether it's eligible right now.
+ */
+export function startLessons(lessons: readonly Lesson[], alreadyDone: readonly string[] = []): LessonRunnerState {
+  return { lessons, doneLessonIds: [...alreadyDone], skipped: false, active: null };
+}
+
+/**
+ * The next lesson to make current, or `null` if none is ready yet. Lessons run in strict order: this skips past
+ * ones already done, but stops (rather than skipping ahead) at the first not-done lesson whose `when` doesn't hold
+ * yet — lesson 5 shouldn't jump ahead of lesson 4 just because round 2's condition happens to be satisfiable
+ * before the villain phase runs. A caller that wants an out-of-order lesson uses `replay`, not `observe`.
+ */
+function findEligibleLesson(state: LessonRunnerState, observation: LessonObservation): number | null {
+  for (let i = 0; i < state.lessons.length; i++) {
+    const lesson = state.lessons[i]!;
+    if (state.doneLessonIds.includes(lesson.id)) continue;
+    if (lesson.when && !lesson.when(observation)) return null;
+    return i;
+  }
+  return null;
+}
+
+/**
+ * Feeds a store observation to the machine: auto-advances the current step if it's `"await"` and its `completes`
+ * predicate now holds (finishing the lesson and starting the next eligible one when it does), and — with no
+ * lesson current — looks for the next lesson whose `when` now holds. Loops until nothing more changes, bounded by
+ * the total step count so a predicate that's already true doesn't require a second `observe` call to be noticed.
+ */
+export function observe(state: LessonRunnerState, observation: LessonObservation): LessonResult {
+  if (state.skipped) return result(state);
+
+  let current = state;
+  const finished: string[] = [];
+  const totalSteps = current.lessons.reduce((n, l) => n + l.steps.length, 0);
+  let guard = totalSteps + current.lessons.length + 1;
+
+  while (guard-- > 0) {
+    if (current.active === null) {
+      const nextIndex = findEligibleLesson(current, observation);
+      if (nextIndex === null) break;
+      current = { ...current, active: { lessonIndex: nextIndex, stepIndex: 0 } };
+      continue;
+    }
+
+    const { lessonIndex, stepIndex } = current.active;
+    const lesson = current.lessons[lessonIndex]!;
+    const step = lesson.steps[stepIndex]!;
+    if (step.mode !== "await" || !step.completes || !step.completes(observation)) break;
+
+    if (stepIndex + 1 < lesson.steps.length) {
+      current = { ...current, active: { lessonIndex, stepIndex: stepIndex + 1 } };
+      continue;
+    }
+    finished.push(lesson.id);
+    current = { ...current, doneLessonIds: [...current.doneLessonIds, lesson.id], active: null };
+  }
+
+  return result(current, finished);
+}
+
+/**
+ * Advances the current step, if it's `"acknowledge"` mode (the primary button's action). A no-op — same state, no
+ * `lessonDone` — with no active lesson, or when the current step is `"await"` (those only ever advance via
+ * `observe`).
+ */
+export function acknowledge(state: LessonRunnerState): LessonResult {
+  if (state.skipped || state.active === null) return result(state);
+  const { lessonIndex, stepIndex } = state.active;
+  const lesson = state.lessons[lessonIndex]!;
+  const step = lesson.steps[stepIndex]!;
+  if (step.mode !== "acknowledge") return result(state);
+
+  if (stepIndex + 1 < lesson.steps.length) {
+    return result({ ...state, active: { lessonIndex, stepIndex: stepIndex + 1 } });
+  }
+  return result({ ...state, doneLessonIds: [...state.doneLessonIds, lesson.id], active: null }, [lesson.id]);
+}
+
+/** Steps back one step within the current lesson. A no-op at the lesson's first step, or with no active lesson. */
+export function back(state: LessonRunnerState): LessonResult {
+  if (state.active === null || state.active.stepIndex === 0) return result(state);
+  return result({ ...state, active: { ...state.active, stepIndex: state.active.stepIndex - 1 } });
+}
+
+/** Ends scripted lessons for this run (§3.10): no lesson becomes current again until a fresh `startLessons`. */
+export function skipLesson(state: LessonRunnerState): LessonResult {
+  if (state.skipped) return result(state);
+  return result({ ...state, skipped: true, active: null });
+}
+
+/**
+ * Re-enters `lessonId` at its first step (the debrief's "Replay a lesson"), even if it's already done or the run
+ * was skipped. Leaves `doneLessonIds` alone — replaying doesn't undo completion, it only makes the lesson current
+ * again so its steps show. A no-op if `lessonId` isn't in this run's lessons.
+ */
+export function replay(state: LessonRunnerState, lessonId: string): LessonResult {
+  const lessonIndex = state.lessons.findIndex((l) => l.id === lessonId);
+  if (lessonIndex < 0) return result(state);
+  return result({ ...state, skipped: false, active: { lessonIndex, stepIndex: 0 } });
+}
+
+// ---------------------------------------------------------------------------
+// Selectors
+// ---------------------------------------------------------------------------
+
+/** The step G4a/G4b/G4c should show right now, or `null` with no lesson current. */
+export function currentStep(state: LessonRunnerState): LessonStep | null {
+  if (state.active === null) return null;
+  const lesson = state.lessons[state.active.lessonIndex];
+  return lesson?.steps[state.active.stepIndex] ?? null;
+}
+
+/** The lesson `currentStep` belongs to, or `null` with no lesson current. */
+export function currentLesson(state: LessonRunnerState): Lesson | null {
+  if (state.active === null) return null;
+  return state.lessons[state.active.lessonIndex] ?? null;
+}
+
+export type LessonStatus = "done" | "current" | "upcoming";
+
+export interface LessonListEntry {
+  readonly lesson: Lesson;
+  readonly status: LessonStatus;
+}
+
+/**
+ * Every lesson in this run's order, with its status — G4b's lesson list. `"current"` wins over `"done"`: `replay`
+ * can re-enter an already-done lesson, and the list should show it as the one being walked through right now, not
+ * fold it back into "done" the instant it's reopened.
+ */
+export function lessonList(state: LessonRunnerState): readonly LessonListEntry[] {
+  const currentId = state.active !== null ? state.lessons[state.active.lessonIndex]?.id : undefined;
+  return state.lessons.map((lesson) => ({
+    lesson,
+    status: lesson.id === currentId ? "current" : state.doneLessonIds.includes(lesson.id) ? "done" : "upcoming",
+  }));
+}
+
+export interface LessonProgress {
+  readonly lessonId: string;
+  /** 0-based position of `currentStep` within its lesson. */
+  readonly stepIndex: number;
+  readonly totalSteps: number;
+  /** How many of this run's lessons are done, including ones finished before `startLessons` (`alreadyDone`). */
+  readonly doneCount: number;
+  readonly totalCount: number;
+}
+
+/** The current lesson's step position plus the run's overall progress — G4b's progress ticks. `null` if none is current. */
+export function progressOf(state: LessonRunnerState): LessonProgress | null {
+  if (state.active === null) return null;
+  const lesson = state.lessons[state.active.lessonIndex];
+  if (!lesson) return null;
+  return {
+    lessonId: lesson.id,
+    stepIndex: state.active.stepIndex,
+    totalSteps: lesson.steps.length,
+    doneCount: state.doneLessonIds.length,
+    totalCount: state.lessons.length,
+  };
+}
