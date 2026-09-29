@@ -54,6 +54,10 @@ export const SCENES = {
   guideSpotlightDemo: "GuideSpotlightDemo",
   /** The first-run "New to the fight?" chooser (guided mode G6a, `docs/guided-mode.md` §4): `BootScene` on first launch (`isFirstLaunch(guidePrefs())`), or `?screen=chooser`. */
   guideChooser: "GuideChooser",
+  /** "How to win" (guided mode G6b, `docs/guided-mode.md` §4): the tutorial's lesson 1, shown as its own screen
+   * before the game starts. Reached from the chooser's "Learn as you play", Settings' "Play the tutorial", or
+   * `?screen=howtowin`. */
+  howToWin: "HowToWin",
   // Overlays.
   choice: "ChoiceOverlay",
   inspect: "InspectOverlay",

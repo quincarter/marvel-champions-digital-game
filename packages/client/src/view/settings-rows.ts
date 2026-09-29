@@ -173,7 +173,6 @@ export function guideRowInfoOf(prefs: GuidePrefs): readonly GuideRowInfo[] {
       id: "play-tutorial",
       title: prefs.tutorial.finished ? "Replay the tutorial" : "Play the tutorial",
       detail: "A short scripted first game against Rhino with Spider-Man — five lessons long.",
-      unavailable: "Coming soon",
     },
     {
       kind: "action",

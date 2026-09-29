@@ -1157,9 +1157,28 @@ export class PauseOverlay extends Phaser.Scene {
   }
 
   #activateGuideRow(row: GuideNonLevelRow): void {
-    if (row.kind === "action") return; // dashed unavailable today (G6a/G6b, G10c) — no target to open yet.
+    if (row.kind === "action") {
+      // "Aspect lessons" (G10c) has no target yet, still dashed unavailable; "Play the tutorial" (G6b) does.
+      if (row.id === "play-tutorial") this.#openHowToWin();
+      return;
+    }
     setGuidePrefs(nextGuidePrefsAfterRow(guidePrefs(), row.id));
     this.#draw();
+  }
+
+  /**
+   * "Play the tutorial" from Pause's own inline Guide group (guided mode G6b, `docs/guided-mode.md` §4): leaves
+   * the running game the same way `#saveAndQuit` does — every overlay stopped, Board stopped — then opens How to
+   * win, so starting the tutorial from mid-game never leaves the abandoned game's scenes running underneath it.
+   */
+  #openHowToWin(): void {
+    this.#motion.exit(this, () => {
+      for (const overlay of [SCENES.rules, SCENES.settings, SCENES.choice, SCENES.inspect, SCENES.villainPhase]) {
+        if (this.scene.isActive(overlay) || this.scene.isSleeping(overlay)) this.scene.stop(overlay);
+      }
+      if (this.scene.isActive(SCENES.board)) this.scene.stop(SCENES.board);
+      this.scene.start(SCENES.howToWin);
+    });
   }
 
   #drawPhoneConcedeConfirm(layout: PausePhoneLayout, stops: Map<string, FocusStop>): void {

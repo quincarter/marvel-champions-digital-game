@@ -95,6 +95,9 @@ async function devScreenJump(): Promise<{ readonly key: string; readonly data?: 
   // `?screen=chooser`: the first-run "New to the fight?" chooser (guided mode G6a, `docs/guided-mode.md` §4),
   // reachable any time for QA without clearing `localStorage`.
   if (screen === "chooser") return { key: SCENES.guideChooser, data: {} };
+  // `?screen=howtowin`: the tutorial's "How to win" screen (guided mode G6b, `docs/guided-mode.md` §4), reachable
+  // any time for QA. No `backTo`, so its own Back/×/Escape go to Title, the same as reaching it from Settings.
+  if (screen === "howtowin") return { key: SCENES.howToWin, data: {} };
   // `?screen=termtext`: the `McTermText`/`McTooltip` dev demo (guided mode G3b, `docs/guided-mode.md` §4).
   if (screen === "termtext") return { key: SCENES.termTextDemo, data: {} };
   // `?screen=guidecallout`: the `McGuideCallout` dev demo (guided mode G4a, `docs/guided-mode.md` §4).
@@ -124,9 +127,11 @@ async function devScreenJump(): Promise<{ readonly key: string; readonly data?: 
   // `docs/guided-mode.md` §4) — `appSession().guidedRun` is what tells `BoardScene` to mount the guide controller
   // and its side panel (desktop/tablet landscape only in this part; see `scenes/board/guide-mount.ts`). Lesson 1
   // ("How to win") is G6b's own pre-game screen, not a board step, so it's marked done up front rather than run.
+  // Goes through `guide/start-tutorial.ts`'s own `startTutorialGame` — the same call `scenes/how-to-win.ts`'s
+  // "Start the fight" makes — rather than duplicating its steps here.
   if (screen === "board" && params.get("tutorial") === "1") {
-    await startDevTutorialGame();
-    appSession().guidedRun = true;
+    const { startTutorialGame } = await import("../guide/start-tutorial.js");
+    await startTutorialGame();
     return { key: SCENES.board, data: {} };
   }
 

@@ -73,12 +73,12 @@ describe("guideRowInfoOf", () => {
     expect(hintsLevel.selected).toBe("hints");
   });
 
-  test("both action rows are dashed unavailable (their target screens don't exist yet)", () => {
+  test("play-tutorial opens How to win (G6b); aspect-lessons is still dashed unavailable (its target doesn't exist yet)", () => {
     const rows = guideRowInfoOf(defaultGuidePrefs);
     const tutorial = rows.find((r) => r.id === "play-tutorial") as GuideActionRowInfo;
     const aspects = rows.find((r) => r.id === "aspect-lessons") as GuideActionRowInfo;
     expect(tutorial.kind).toBe("action");
-    expect(tutorial.unavailable).toBe("Coming soon");
+    expect(tutorial.unavailable).toBeUndefined();
     expect(aspects.unavailable).toBe("Coming soon");
   });
 

@@ -113,6 +113,22 @@ export class SettingsOverlay extends Phaser.Scene {
     this.#motion.exit(this, () => this.scene.stop());
   }
 
+  /**
+   * "Play the tutorial" (guided mode G6b, `docs/guided-mode.md` §4): leaves whatever's running — Settings can be
+   * reached standalone from Title (nothing else to stop) or launched over a live game from Pause — and opens How
+   * to win, mirroring `scenes/pause.ts#saveAndQuit`'s own "fully leave what's running" shape rather than a bare
+   * `scene.start`, which would only stop this overlay and leave Board/Pause running invisibly underneath.
+   */
+  #openHowToWin(): void {
+    this.#motion.exit(this, () => {
+      for (const overlay of [SCENES.pause, SCENES.rules, SCENES.choice, SCENES.inspect, SCENES.villainPhase]) {
+        if (this.scene.isActive(overlay) || this.scene.isSleeping(overlay)) this.scene.stop(overlay);
+      }
+      if (this.scene.isActive(SCENES.board)) this.scene.stop(SCENES.board);
+      this.scene.start(SCENES.howToWin);
+    });
+  }
+
   #toggle(row: SettingsRowInfo): void {
     const { settings } = appSession();
     const next = nextSettingsAfterToggle(settings, row.id, globalThis.devicePixelRatio || 1);
@@ -398,7 +414,11 @@ export class SettingsOverlay extends Phaser.Scene {
   }
 
   #activateGuideRow(row: GuideNonLevelRow): void {
-    if (row.kind === "action") return; // dashed unavailable today (G6a/G6b, G10c) — no target to open yet.
+    if (row.kind === "action") {
+      // "Aspect lessons" (G10c) has no target yet, still dashed unavailable; "Play the tutorial" (G6b) does.
+      if (row.id === "play-tutorial") this.#openHowToWin();
+      return;
+    }
     setGuidePrefs(nextGuidePrefsAfterRow(guidePrefs(), row.id));
     this.#draw();
   }

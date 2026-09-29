@@ -6,10 +6,11 @@
  * record yet). Every other path here is deliberate: `?screen=chooser` (dev jump), and later Settings' "Play the
  * tutorial" / Title's "How to play" hub (G6c).
  *
- * Picking "Learn as you play" and pressing Suit up starts the tutorial game the same way the dev jump
- * `?screen=board&tutorial=1` does (`scenes/boot.ts`'s own `startDevTutorialGame`) — `#startLearnAsYouPlay` is the
- * one call site that does it, left deliberately narrow so G6b's "How to win" screen can slot in between this
- * chooser and the board without this scene changing shape. Hints/No guide just record the level and go to Title.
+ * Picking "Learn as you play" and pressing Suit up goes to G6b's "How to win" screen (`scenes/how-to-win.ts`) with
+ * `backTo: "chooser"`, so its own Back/×/Escape return here rather than to Title. How to win's own "Start the
+ * fight" is what actually starts the tutorial game, the same way the dev jump `?screen=board&tutorial=1` does
+ * (`scenes/boot.ts`'s own `startDevTutorialGame`) — both go through `guide/start-tutorial.ts`'s one shared
+ * `startTutorialGame`. Hints/No guide just record the level and go to Title.
  *
  * Back or Escape counts as "No guide" for this launch (§3.10: "nobody is locked in") — it marks the chooser seen
  * so it never nags again, but leaves the saved level at its default rather than writing `"off"` outright.
@@ -29,11 +30,11 @@ import {
 } from "../view/guide-chooser-model.js";
 import { guidePrefs, setGuidePrefs } from "../guide/guide-store.js";
 import { markChooserSeen, withLevel } from "../guide/guide-prefs.js";
-import { appSession } from "../session.js";
 import { destroyChildren } from "../ui/destroy-children.js";
 import { fadeScreenIn, goToScreen } from "../ui/transitions.js";
 import { FocusRoute, type FocusStop } from "./focus-route.js";
 import { SCENES } from "./keys.js";
+import type { HowToWinSceneData } from "./how-to-win.js";
 
 const BODY_TYPE: TypeSpec = typeRole.body;
 const TITLE_TYPE: TypeSpec = typeRole.rowTitle;
@@ -47,7 +48,6 @@ export class GuideChooserScene extends Phaser.Scene {
   #art: TitleArt | null = null;
   #artPanel: { x: number; y: number; width: number; height: number } | null = null;
   #artGeneration = 0;
-  #starting = false;
 
   constructor() {
     super(SCENES.guideChooser);
@@ -58,7 +58,6 @@ export class GuideChooserScene extends Phaser.Scene {
     this.scale.on("resize", this.#rebuild, this);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.scale.off("resize", this.#rebuild, this));
     this.#selected = "full";
-    this.#starting = false;
     this.#art = pickTitleArt(TITLE_ART, null);
     this.#route = new FocusRoute(this, { onCancel: () => this.#decline() });
     this.#rebuild();
@@ -139,10 +138,9 @@ export class GuideChooserScene extends Phaser.Scene {
     this.#buttons.push(
       new McButton(this, {
         kind: "primary",
-        label: this.#starting ? "Suiting up…" : "Suit up",
+        label: "Suit up",
         type: typeRole.barTitle,
         rect: layout.suitUp,
-        enabled: !this.#starting,
         onClick: () => this.#chooseGuide(),
       }),
     );
@@ -278,35 +276,16 @@ export class GuideChooserScene extends Phaser.Scene {
     this.load.start();
   }
 
-  /** SUIT UP: writes the picked level (`withLevel` marks the chooser seen) and either starts the tutorial game or goes to Title. */
+  /** SUIT UP: writes the picked level (`withLevel` marks the chooser seen) and either goes to How to win (G6b) or to Title. */
   #chooseGuide(): void {
-    if (this.#starting) return;
     setGuidePrefs(withLevel(guidePrefs(), this.#selected));
     if (this.#selected === "full") {
-      this.#starting = true;
-      this.#rebuild();
-      void this.#startLearnAsYouPlay();
+      this.scale.off("resize", this.#rebuild, this);
+      goToScreen(this, SCENES.howToWin, { backTo: "chooser" } satisfies HowToWinSceneData);
       return;
     }
     this.scale.off("resize", this.#rebuild, this);
     goToScreen(this, SCENES.title);
-  }
-
-  /**
-   * "Learn as you play": starts the same `TUTORIAL_CONFIG` game the dev jump `?screen=board&tutorial=1` starts
-   * (`scenes/boot.ts`), sets `appSession().guidedRun`, and goes to the board. The one call site G6b's "How to
-   * win" screen will later sit in front of — that screen starts the same game, then hands off here instead of
-   * this method going straight to `SCENES.board`.
-   */
-  async #startLearnAsYouPlay(): Promise<void> {
-    const { store } = appSession();
-    const { TUTORIAL_CONFIG } = await import("../guide/tutorial-config.js");
-    await store.start(TUTORIAL_CONFIG);
-    if (store.state.game?.pendingChoice) await store.resolveChoice([]);
-    appSession().guidedRun = true;
-    if (!this.sys.isActive()) return;
-    this.scale.off("resize", this.#rebuild, this);
-    goToScreen(this, SCENES.board);
   }
 
   /** Back / Escape: "No guide" for this launch only — marks the chooser seen, leaves the saved level untouched (§3.10). */
