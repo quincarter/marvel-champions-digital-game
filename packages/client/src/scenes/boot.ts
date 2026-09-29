@@ -17,9 +17,6 @@ import { initialSetupDraft, toSessionConfig } from "../view/setup-draft.js";
 import { rollSeed } from "../view/seed.js";
 import { appSession, campaignService, registerDevCampaignDefinition } from "../session.js";
 import type { SessionStore } from "../store/session-store.js";
-import { startAllianceDevGame } from "../store/dev-alliance-game.js";
-import { startHoldOnLethalGame, startHoldOnSchemeGame } from "../store/dev-hold-on-game.js";
-import { startTipsGame } from "../store/dev-tips-game.js";
 import { SCENES } from "./keys.js";
 import { boardModel } from "../view/board-model.js";
 import type { DeckBuilderSceneData } from "./deck-builder.js";
@@ -106,6 +103,12 @@ function devRoundDebriefData(): RoundDebriefData {
 }
 
 async function devScreenJump(): Promise<{ readonly key: string; readonly data?: object } | null> {
+  // Dev builds only: `scripts/shoot-app.mjs`, this jump's one caller, only ever points at the Vite dev server
+  // (`http://localhost:5173`, its own doc comment) for visual QA against the design canvases — never at a
+  // production build or `vite preview`. Gating the whole jump (rather than per-screen) means a shipped build
+  // always boots to Title regardless of `?screen=`, and lets the dev-only fixtures below (`dev-hold-on-game.js`,
+  // `dev-tips-game.js`, `dev-alliance-game.js`) stay dynamic imports that a production build never pulls in.
+  if (!import.meta.env.DEV) return null;
   const params = new URLSearchParams(location.search);
   const screen = params.get("screen");
   if (!screen) return null;
@@ -456,12 +459,14 @@ async function startDevVillainInterruptGame(): Promise<void> {
 async function startDevAllianceGame(): Promise<void> {
   const { store } = appSession();
   if (gameRunning(store)) return;
+  const { startAllianceDevGame } = await import("../store/dev-alliance-game.js");
   await startAllianceDevGame(store);
 }
 
 async function startDevHoldOnGame(which: "scheme" | "lethal"): Promise<void> {
   const { store } = appSession();
   if (gameRunning(store)) return;
+  const { startHoldOnLethalGame, startHoldOnSchemeGame } = await import("../store/dev-hold-on-game.js");
   if (which === "scheme") await startHoldOnSchemeGame(store);
   else await startHoldOnLethalGame(store);
 }
@@ -469,6 +474,7 @@ async function startDevHoldOnGame(which: "scheme" | "lethal"): Promise<void> {
 async function startDevTipsGame(): Promise<void> {
   const { store } = appSession();
   if (gameRunning(store)) return;
+  const { startTipsGame } = await import("../store/dev-tips-game.js");
   await startTipsGame(store);
 }
 

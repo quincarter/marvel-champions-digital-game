@@ -139,11 +139,12 @@ const game = new Phaser.Game({
     CampaignFrozenDeckScene,
     ExtrasScene,
     ExtrasReaderScene,
-    TermTextDemoScene,
-    GuideCalloutDemoScene,
-    HoldOnDemoScene,
-    GuidePanelDemoScene,
-    GuideSpotlightDemoScene,
+    // Dev-only demo scenes: reachable only through `?screen=…` jumps, which are themselves gated to
+    // `import.meta.env.DEV` (`scenes/boot.ts#devScreenJump`) — registering them only in dev keeps a production
+    // build from ever loading their modules.
+    ...(import.meta.env.DEV
+      ? [TermTextDemoScene, GuideCalloutDemoScene, HoldOnDemoScene, GuidePanelDemoScene, GuideSpotlightDemoScene]
+      : []),
     GuideChooserScene,
     HowToWinScene,
     HowToPlayScene,
