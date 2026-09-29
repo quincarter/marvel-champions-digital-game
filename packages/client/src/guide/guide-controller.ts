@@ -38,7 +38,7 @@
  *    without having to know which of the two ended the run.
  */
 import type { GameState, InstanceId, PlayerId } from "@mc/engine";
-import type { McGuidePanelContent, GuidePanelLessonRow } from "../ui/guide-panel.js";
+import type { McGuidePanelContent, GuidePanelExtraRow, GuidePanelLessonRow } from "../ui/guide-panel.js";
 import type { McGuideTagVariant } from "../ui/guide-tag.js";
 import { ACTION_TO_BASIC, instanceOfCode } from "../view/guide-anchor.js";
 import type { BasicAction } from "../view/highlights.js";
@@ -96,6 +96,18 @@ export interface GuideControllerOptions {
     observation: LessonObservation,
   ) => Readonly<Record<string, string | number>> | undefined;
   /**
+   * The rail/callout's generic "extra" block for the current step (`ui/guide-panel.ts`'s own `extra`/
+   * `extraHeading` — T02's resource legend, D02's villain-phase step list), when this run has one to show
+   * beside the lesson list. Unlike `extraFor` above (copy substitution), this reads live board state the copy
+   * itself never touches — the villain phase's own three-step progress (guided mode G7c, `docs/guided-mode.md`
+   * §4 "Left for G7") is driven by the engine's `GameState.step`, not by anything a `fillCopy` placeholder could
+   * name. `null`/omitted hides the block for a step with nothing to add.
+   */
+  readonly panelExtraFor?: (
+    step: LessonStep,
+    observation: LessonObservation,
+  ) => { readonly heading: string; readonly rows: readonly GuidePanelExtraRow[] } | null;
+  /**
    * This run's own name, shown beside the `GUIDE` stamp while waiting or complete (`waitingPanelContent`/
    * `completePanelContent`, below) — "FIRST GAME" for the tutorial. A current step's own panel never uses this:
    * it shows "Lesson N of M" instead (`view()`'s own `contextLabel`), which already names the run implicitly.
@@ -117,6 +129,13 @@ export interface GuideControllerView {
    * own job — `docs/guided-mode.md` §4 G4c "For G5c": "set the gate only on a step change, never per redraw").
    * Always `null` while waiting or complete (this module's own header) — there's nothing to gate either. */
   readonly gate: GuideGate | null;
+  /**
+   * The current step's own one-line strip text (guided mode G7c) — `LessonStepCopy.short`, falling back to
+   * `tip`, for a compact surface with no room for the full panel/callout (the villain-phase walkthrough and the
+   * defend choice sheet, both of which cover the whole canvas on a tabbed form factor). `null` on a step with
+   * neither, and always `null` while waiting or complete — those have no board surface to strip over.
+   */
+  readonly stripText: string | null;
   /** False once nothing should show at all: `stop()` was called, or the finished panel was closed (`dismiss()`).
    * True for a waiting or complete `panel`, same as for a current `step` — see this module's own header. */
   readonly active: boolean;
@@ -145,10 +164,12 @@ export class GuideController {
   #nudge: string | null = null;
   #override: { readonly stepId: string; readonly override: GuideStepOverride } | null = null;
   readonly #extraFor: GuideControllerOptions["extraFor"];
+  readonly #panelExtraFor: GuideControllerOptions["panelExtraFor"];
   readonly #runLabel: string;
 
   constructor(options: GuideControllerOptions, observation: LessonObservation) {
     this.#extraFor = options.extraFor;
+    this.#panelExtraFor = options.panelExtraFor;
     this.#runLabel = options.runLabel ?? DEFAULT_RUN_LABEL;
     this.#state = startLessons(options.lessons, options.alreadyDone ?? []);
     this.#observation = observation;
@@ -239,7 +260,7 @@ export class GuideController {
   /** Everything the Phaser adapter needs to draw this frame. */
   view(): GuideControllerView {
     if (this.hidden) {
-      return { step: null, panel: null, anchor: null, tagVariant: null, gate: null, active: false };
+      return { step: null, panel: null, anchor: null, tagVariant: null, gate: null, stripText: null, active: false };
     }
     const step = currentStep(this.#state);
     if (!step) {
@@ -248,7 +269,7 @@ export class GuideController {
       const panel = this.#isComplete()
         ? completePanelContent(this.#runLabel)
         : waitingPanelContent(this.#state, this.#runLabel);
-      return { step: null, panel, anchor: null, tagVariant: null, gate: null, active: true };
+      return { step: null, panel, anchor: null, tagVariant: null, gate: null, stripText: null, active: true };
     }
     const override = this.#override?.stepId === step.id ? this.#override.override : null;
     const anchor = override?.anchor ?? step.anchor ?? null;
@@ -256,6 +277,7 @@ export class GuideController {
     const extra = this.#extraFor?.(step, this.#observation);
     const copy = fillCopy(step.copy, this.#observation, extra);
     const progress = progressOf(this.#state);
+    const panelExtra = this.#panelExtraFor?.(step, this.#observation) ?? null;
     const panel: McGuidePanelContent = {
       contextLabel: progress
         ? `Lesson ${progress.doneCount + 1} of ${progress.totalCount}`
@@ -265,6 +287,8 @@ export class GuideController {
       title: copy.title,
       body: copy.body,
       tip: copy.tip ?? null,
+      extraHeading: panelExtra?.heading ?? null,
+      extra: panelExtra?.rows ?? null,
       progressTicks: progress?.totalSteps ?? null,
       progressCurrent: progress?.stepIndex ?? null,
       backLabel: progress && progress.stepIndex > 0 ? "Back" : null,
@@ -274,7 +298,8 @@ export class GuideController {
     };
     const tagVariant = tagVariantOf(anchor);
     const gate = step.anchor ? gateFor(step, this.#observation.game, this.#observation.perspectiveId, this) : null;
-    return { step, panel, anchor, tagVariant, gate, active: true };
+    const stripText = copy.short ?? copy.tip ?? null;
+    return { step, panel, anchor, tagVariant, gate, stripText, active: true };
   }
 
   #runObserve(): void {

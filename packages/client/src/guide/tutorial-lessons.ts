@@ -114,10 +114,11 @@ const VILLAIN_PHASE: Lesson = {
       anchor: { kind: "zone", id: "villain" },
       copy: {
         stepLabel: "STEP 3 OF 5",
-        title: "The villain phase, in order",
+        title: "Now it's his turn",
         body:
-          "Every [[villainPhase|villain phase]] goes the same way: threat is placed, Rhino activates against you, " +
-          "then you're dealt an encounter card. He'll attack you now, since you're a hero.",
+          "The [[villainPhase|villain phase]] always goes the same three steps, in order — you'll see them at the " +
+          "left. He'll attack you now, since you're a hero. You'll make one choice along the way: who takes his hit.",
+        short: "Always the same order: threat, his attack, then an encounter card.",
       },
       mode: "acknowledge",
     },
@@ -130,6 +131,7 @@ const VILLAIN_PHASE: Lesson = {
         body:
           "[[defend|Defend]] with Black Cat and she takes the damage instead of you, [[exhaustCost|exhausting]] " +
           "her to do it. You could defend yourself, or just take it — but she's why you played her.",
+        short: "No wrong answer. Allies are there to soak hits — that's what you paid for.",
         doThis: "Pick who takes the hit",
       },
       mode: "await",

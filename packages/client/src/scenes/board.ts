@@ -791,6 +791,25 @@ export class BoardScene extends Phaser.Scene {
     return this.#guide !== null && !this.#guide.stopped;
   }
 
+  /** The guide rail's own width, reserved on the left, for a scene launched *above* this one to leave clear
+   * beside it (guided mode G7c: the villain-phase walkthrough and the defend choice sheet both cover the whole
+   * canvas otherwise, hiding the rail and lesson 4's copy along with it — `docs/guided-mode.md` §4 "Left for
+   * G7"). `null` off desktop/tablet landscape, or once no guided run is showing — mirrors `#guide.railOptionFor`'s
+   * own contract, read fresh against the live scale since the caller isn't the one laying the board out this
+   * frame. */
+  guideRailWidth(): number | null {
+    const { width, height } = this.scale.gameSize;
+    const rail = this.#guide?.railOptionFor({ x: 0, y: 0, width, height });
+    return rail ? rail.width : null;
+  }
+
+  /** The compact bottom guide strip's own content (guided mode G7c), for a scene launched above this one on a
+   * tabbed layout to draw inside its own overlay rather than covering the callout entirely — see
+   * `BoardGuideMount.stripContent`'s own doc comment. `null` off a guided run, same as `guideRailWidth`. */
+  guideStripContent(): { readonly text: string; readonly onSkip: () => void; readonly onStop: () => void } | null {
+    return this.#guide?.stripContent() ?? null;
+  }
+
   /** "Stop tutorial" from Pause (§3.10, G5c part 3): the same path the guide panel/callout's own Stop already
    * takes (`BoardGuideMount.stop`), just reachable from outside the board's own button wiring. A no-op with no
    * guide mounted. */

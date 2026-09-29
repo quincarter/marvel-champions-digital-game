@@ -22,7 +22,7 @@ import { cardArt, drawArt } from "../art/card-art.js";
 import { CARD_BACKS, artFor } from "../art/art-source.js";
 import { characterPanel, faceOf } from "../view/board-model.js";
 import type { Rect } from "../view/layout.js";
-import { cardRow, formFactorFor } from "../view/layout.js";
+import { cardRow, formFactorFor, isTabbed } from "../view/layout.js";
 import { decisionLabel } from "../view/villain-walkthrough.js";
 import { abilityShortLabelOf } from "../view/ability-label.js";
 import { choiceHeaderText, choiceInstructionOf, promptTitleOf } from "../view/choice-source.js";
@@ -63,11 +63,13 @@ import type { GamepadIntent } from "../view/gamepad.js";
 import { appSession } from "../session.js";
 import { backOutTargetOf } from "../view/back-out.js";
 import { bindGamepad, bindKeyboard } from "./board/input.js";
+import type { BoardScene } from "./board.js";
 import { SCENES } from "./keys.js";
 import { bindHoldTarget } from "../ui/hold-target.js";
 import { destroyChildren } from "../ui/destroy-children.js";
 import { OverlayMotion } from "../ui/transitions.js";
 import { McGuideTag } from "../ui/guide-tag.js";
+import { drawGuideStrip, GUIDE_STRIP_HEIGHT, type GuideStripContent } from "../ui/guide-strip.js";
 
 export class ChoiceOverlay extends Phaser.Scene {
   #selected: string[] = [];
@@ -202,6 +204,14 @@ export class ChoiceOverlay extends Phaser.Scene {
     }
   }
 
+  /** The live Board scene, when one is running underneath — mirrors `scenes/inspect.ts`'s own `#boardScene`
+   * (guided mode G7c: the guide rail's own reserved width and the bottom guide strip's content both come from
+   * here — `docs/guided-mode.md` §4 "Left for G7"). */
+  #boardScene(): BoardScene | null {
+    if (!this.scene.isActive(SCENES.board)) return null;
+    return this.scene.get(SCENES.board) as BoardScene;
+  }
+
   #rebuild(): void {
     const { store } = appSession();
     const state = store.state;
@@ -243,13 +253,24 @@ export class ChoiceOverlay extends Phaser.Scene {
     const formFactor = formFactorFor(width, height);
     const phone = formFactor === "phone";
 
+    // Guided mode G7c (`docs/guided-mode.md` §4 "Left for G7"): this sheet used to cover Board's own guide rail
+    // entirely on desktop/tablet landscape, hiding lesson 4's copy along with it — so it leaves the rail's own
+    // reserved width clear (`BoardScene.guideRailWidth`) the same way `scenes/villain-phase.ts` now does. On a
+    // tabbed layout there's no rail, but there's also no room for the full callout — a compact bottom strip
+    // (`ui/guide-strip.ts`) takes a fixed slice of the height instead. Read once, shared by both this generic
+    // sheet and `#drawDefendChoice` below.
+    const boardScene = this.#boardScene();
+    const guideRailWidth = boardScene?.guideRailWidth() ?? 0;
+    const guideStrip = isTabbed(formFactor) ? (boardScene?.guideStripContent() ?? null) : null;
+    const stripHeight = guideStrip ? GUIDE_STRIP_HEIGHT : 0;
+
     // W6 (docs/phase4-screen-gaps.md): a dedicated presentation for the defend prompt, over the same PendingChoice
     // and answered with the same `resolveChoice` command the bare list below sends — see `#drawDefendChoice`'s own
     // doc comment for why this branches before `asCards` rather than becoming a fifth `ChoiceRef` case there. It
     // already shows the attacker and target as real cards (`#drawScan`), so it has no need of the source-card panel
     // the rest of this method draws below.
     if (choice.prompt.kind === "declareDefender") {
-      this.#drawDefendChoice(choice, state.game, width, height);
+      this.#drawDefendChoice(choice, state.game, width, height, guideRailWidth, stripHeight, guideStrip);
       return;
     }
 
@@ -275,20 +296,24 @@ export class ChoiceOverlay extends Phaser.Scene {
     const railWidth = panelMode === "rail" ? railReserve(formFactor) : 0;
     const extraHeight = panelMode === "strip" ? stripReserve(formFactor) : 0;
 
-    // The 70%-ink scrim.
+    // The 70%-ink scrim — clear of the guide rail's own reserved width and the bottom guide strip's own height,
+    // same reasoning as `#drawDefendChoice`'s own scrim.
+    const areaX = guideRailWidth;
+    const areaWidth = width - guideRailWidth;
+    const areaHeight = height - stripHeight;
     const scrim = this.add.graphics();
-    scrim.fillStyle(surface.ink.hex, 0.7).fillRect(0, 0, width, height);
+    scrim.fillStyle(surface.ink.hex, 0.7).fillRect(areaX, 0, areaWidth, areaHeight);
     const panelsFrom = this.children.list.length;
 
-    const sheetWidth = Math.max(280, Math.min(width - (phone ? 16 : 80) - railWidth, asCards ? 1040 : 560));
-    const sheetHeight = Math.min(height - (phone ? 16 : 80), (asCards ? 620 : 560) + extraHeight);
+    const sheetWidth = Math.max(280, Math.min(areaWidth - (phone ? 16 : 80) - railWidth, asCards ? 1040 : 560));
+    const sheetHeight = Math.min(areaHeight - (phone ? 16 : 80), (asCards ? 620 : 560) + extraHeight);
     // In rail mode the rail and the sheet are centred together as one group — the same composition Inspect's D08
     // pair uses for its own card/rules panels (`view/inspect-layout.ts`) — rather than the sheet alone staying
     // centred and the rail hanging off whichever side has room.
     const groupWidth = sheetWidth + railWidth;
     const sheet: Rect = {
-      x: (width - groupWidth) / 2 + railWidth,
-      y: (height - sheetHeight) / 2,
+      x: areaX + (areaWidth - groupWidth) / 2 + railWidth,
+      y: (areaHeight - sheetHeight) / 2,
       width: sheetWidth,
       height: sheetHeight,
     };
@@ -435,6 +460,7 @@ export class ChoiceOverlay extends Phaser.Scene {
       );
       this.#drawCommit(sheet, commitTop, choice);
       this.cameras.main.setBackgroundColor(cssOf(accent.heroRed.hex, 0));
+      if (guideStrip) drawGuideStrip(this, { x: 0, y: height - stripHeight, width, height: stripHeight }, guideStrip);
       this.#motion.enter(this, { scrim: [scrim], panels: this.children.list.slice(panelsFrom) });
       return;
     }
@@ -491,6 +517,7 @@ export class ChoiceOverlay extends Phaser.Scene {
 
     this.#drawCommit(sheet, commitTop, choice);
     this.cameras.main.setBackgroundColor(cssOf(accent.heroRed.hex, 0));
+    if (guideStrip) drawGuideStrip(this, { x: 0, y: height - stripHeight, width, height: stripHeight }, guideStrip);
     this.#motion.enter(this, { scrim: [scrim], panels: this.children.list.slice(panelsFrom) });
   }
 
@@ -507,7 +534,15 @@ export class ChoiceOverlay extends Phaser.Scene {
    * toggle-back channel, and the keyboard/pad route (`#onIntent`/`#drawFocusRing`, unchanged below) — already lives
    * here, and a second scene would have to re-wire all of it rather than reuse it.
    */
-  #drawDefendChoice(choice: PendingChoice, game: GameState, width: number, height: number): void {
+  #drawDefendChoice(
+    choice: PendingChoice,
+    game: GameState,
+    width: number,
+    height: number,
+    guideRailWidth: number,
+    stripHeight: number,
+    guideStrip: GuideStripContent | null,
+  ): void {
     const view = defendChoiceViewOf(game, choice, POOL_DEPS, appSession().store.state.perspectiveId, this.#selected);
     if (!view) return;
 
@@ -518,11 +553,19 @@ export class ChoiceOverlay extends Phaser.Scene {
 
     // Ink void, board dimmed but visible underneath (this class's own doc comment) — the design's own D10/P15
     // composition is a run of cream cards and an ink rail over a dark ground, never one big white sheet behind them.
+    // Clear of the guide rail's own reserved width and the bottom guide strip's own height (guided mode G7c,
+    // `docs/guided-mode.md` §4 "Left for G7") — this is the very sheet lesson 4's own "Who takes the hit?" step
+    // opens, so it's the one place this box's screenshot check actually exercises.
     const scrim = this.add.graphics();
-    scrim.fillStyle(surface.ink.hex, 0.7).fillRect(0, 0, width, height);
+    scrim.fillStyle(surface.ink.hex, 0.7).fillRect(guideRailWidth, 0, width - guideRailWidth, height - stripHeight);
     const panelsFrom = this.children.list.length;
 
-    const layout = defendChoiceLayout({ x: 0, y: 0, width, height });
+    const layout = defendChoiceLayout({
+      x: guideRailWidth,
+      y: 0,
+      width: width - guideRailWidth,
+      height: height - stripHeight,
+    });
 
     // Header: an ink bar naming the attack, same ground as the generic sheet's own title bar.
     const headerG = this.add.graphics();
@@ -722,6 +765,7 @@ export class ChoiceOverlay extends Phaser.Scene {
     this.#drawFocusRing();
 
     this.cameras.main.setBackgroundColor(cssOf(accent.heroRed.hex, 0));
+    if (guideStrip) drawGuideStrip(this, { x: 0, y: height - stripHeight, width, height: stripHeight }, guideStrip);
     this.#motion.enter(this, { scrim: [scrim], panels: this.children.list.slice(panelsFrom) });
   }
 

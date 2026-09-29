@@ -59,6 +59,14 @@ export interface LessonStepCopy {
   readonly title: string;
   readonly body: string;
   readonly tip?: string;
+  /**
+   * One line short enough for the compact bottom strip a tabbed villain-phase walkthrough or defend choice sheet
+   * draws over itself (guided mode G7c, `docs/guided-mode.md` §4 "Left for G7") — those overlays have no room for
+   * the full callout's title/body/step-label. Plain text, like `tip` (never `[[id]]` markup). Falls back to `tip`,
+   * then `doThis`, when unset (`GuideController#view`'s own `stripText`) — a step without one still shows *some*
+   * words on the strip rather than nothing.
+   */
+  readonly short?: string;
   /** "STEP 2 OF 5" — the callout/panel's own step label (`McGuideCalloutContent.stepLabel`). Omit to hide it. */
   readonly stepLabel?: string;
   /** Extra bullet-style rows under the body (the panel's tip box can show more than one line). */
@@ -204,6 +212,7 @@ export function fillCopy(
     title: fill(copy.title),
     body: fill(copy.body),
     ...(copy.tip !== undefined ? { tip: fill(copy.tip) } : {}),
+    ...(copy.short !== undefined ? { short: fill(copy.short) } : {}),
     ...(copy.rows ? { rows: copy.rows.map(fill) } : {}),
     ...(copy.doThis !== undefined ? { doThis: fill(copy.doThis) } : {}),
   };

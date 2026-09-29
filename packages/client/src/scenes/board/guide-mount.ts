@@ -51,7 +51,7 @@ import {
   type GuideControllerView,
 } from "../../guide/guide-controller.js";
 import { McGuideCallout } from "../../ui/guide-callout.js";
-import { McGuidePanel } from "../../ui/guide-panel.js";
+import { McGuidePanel, type GuidePanelExtraRow } from "../../ui/guide-panel.js";
 import { McGuideSpotlight } from "../../ui/guide-spotlight.js";
 import { McGuideTag } from "../../ui/guide-tag.js";
 import { GUIDE_PANEL_COLLAPSED_WIDTH, guideRailWidthFor } from "../../view/guide-panel-model.js";
@@ -68,6 +68,39 @@ const ENERGY = cardId("01088");
 const PLAY_BLACK_CAT_STEP_ID = "play-black-cat";
 /** `scenes/board/payment-bar.ts`'s own `focusRects` key for its Pay button. */
 const PAY_CONTROL_ID = "payment:pay";
+/** Lesson 4's own two board steps (guided mode G7c, `docs/guided-mode.md` §4 "Left for G7") — the only steps
+ * whose rail shows the villain phase's own progress instead of the ordinary lesson list. */
+const VILLAIN_PHASE_STEP_IDS: ReadonlySet<string> = new Set(["villain-phase-order", "declare-defender"]);
+/** Where the engine's own `GameStep.kind` (villain phase only) lands among the tutorial's three rows — the same
+ * order the villain-phase walkthrough narrates (`view/villain-walkthrough.ts`'s own numbered steps). Anything
+ * past the third row (`passFirstPlayer`/`endOfRound`) reads as "all three are done" rather than a fourth row. */
+const VILLAIN_STEP_ROW: Readonly<Record<string, number>> = {
+  placeThreat: 0,
+  enemyActivations: 1,
+  dealEncounterCards: 2,
+  revealEncounterCards: 2,
+  passFirstPlayer: 3,
+  endOfRound: 3,
+};
+const VILLAIN_ROW_LABELS: readonly string[] = ["Plan advances", "Rhino attacks you", "Draw an encounter card"];
+
+/**
+ * Lesson 4's own rail extra rows (guided mode G7c): the villain phase's three steps, in order, with the current
+ * one highlighted — read straight off the engine's own `GameState.step`, never re-derived, so the rail always
+ * agrees with whatever the villain-phase walkthrough is narrating on the same frame. `null` for every step but
+ * this lesson's own two (every other step's rail keeps its ordinary lesson list instead — `ui/guide-panel.ts`'s
+ * own `lessons`/`extra` are mutually exclusive by convention, not enforced by the type).
+ */
+function villainPhaseExtraRowsOf(
+  stepId: string,
+  observation: LessonObservation,
+): { readonly heading: string; readonly rows: readonly GuidePanelExtraRow[] } | null {
+  if (!VILLAIN_PHASE_STEP_IDS.has(stepId)) return null;
+  const gameStep = observation.game.step;
+  const row = gameStep.phase === "villain" ? (VILLAIN_STEP_ROW[gameStep.kind] ?? 0) : 0;
+  const rows = VILLAIN_ROW_LABELS.map((label, index) => ({ label, done: row > index, current: row === index }));
+  return { heading: "This villain phase", rows };
+}
 
 export class BoardGuideMount {
   readonly #scene: BoardScene;
@@ -97,7 +130,10 @@ export class BoardGuideMount {
   constructor(scene: BoardScene, options: GuideControllerOptions, observation: LessonObservation) {
     this.#scene = scene;
     this.#observation = observation;
-    this.#controller = new GuideController(options, observation);
+    this.#controller = new GuideController(
+      { ...options, panelExtraFor: (step, obs) => villainPhaseExtraRowsOf(step.id, obs) },
+      observation,
+    );
   }
 
   /** Feeds a fresh store observation to the controller — call on every `BoardScene#onState`. */
@@ -186,6 +222,24 @@ export class BoardGuideMount {
     if (!RAIL_FORM_FACTORS.has(formFactor)) return null;
     const width = this.#collapsed ? GUIDE_PANEL_COLLAPSED_WIDTH : guideRailWidthFor(viewport.width, formFactor);
     return { side: "left", width };
+  }
+
+  /**
+   * The compact bottom guide strip's own content (guided mode G7c, `docs/guided-mode.md` §4 "Left for G7"), for
+   * a scene launched *above* Board that covers the whole tabbed-layout canvas itself — the villain-phase
+   * walkthrough and the defend choice sheet, both of which have no room for the full `McGuideCallout` inside
+   * their own layouts. `null` whenever there's nothing to strip (no guided run, waiting/complete, or the current
+   * step has neither a `short` nor a `tip` — `GuideController#view`'s own `stripText`). The Skip/Stop callbacks
+   * are the same reducers the rail/callout's own header buttons call (`#act` redraws the whole board after).
+   */
+  stripContent(): { readonly text: string; readonly onSkip: () => void; readonly onStop: () => void } | null {
+    const view = this.#controller.view();
+    if (!view.active || !view.step || !view.stripText) return null;
+    return {
+      text: view.stripText,
+      onSkip: () => this.#act(() => this.#controller.skip()),
+      onStop: () => this.stop(),
+    };
   }
 
   /**

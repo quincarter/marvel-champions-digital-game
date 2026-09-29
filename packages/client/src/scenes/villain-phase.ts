@@ -119,7 +119,8 @@ import { textStyle } from "../ui/theme.js";
 import { McButton, fitText, label, paintPanel } from "../ui/widgets.js";
 import { inspectModel } from "../view/inspect-model.js";
 import type { FormFactor, Rect } from "../view/layout.js";
-import { formFactorFor } from "../view/layout.js";
+import { formFactorFor, isTabbed } from "../view/layout.js";
+import { drawGuideStrip, GUIDE_STRIP_HEIGHT } from "../ui/guide-strip.js";
 import { cardName, seatName } from "../view/names.js";
 import { sourceCardPanelFor } from "../view/choice-source-panel.js";
 import { SOURCE_STRIP_HEIGHT, sourceStripPlacement } from "../view/choice-source-panel-layout.js";
@@ -146,6 +147,7 @@ import { villainPhaseFocusOrder } from "../view/screen-focus.js";
 import { appSession } from "../session.js";
 import type { SessionState } from "../store/session-store.js";
 import { FocusRoute, type FocusStop } from "./focus-route.js";
+import type { BoardScene } from "./board.js";
 import { SCENES } from "./keys.js";
 import { destroyChildren } from "../ui/destroy-children.js";
 import { OverlayMotion } from "../ui/transitions.js";
@@ -296,6 +298,14 @@ export class VillainPhaseOverlay extends Phaser.Scene {
 
   #skip(): void {
     this.#close();
+  }
+
+  /** The live Board scene, when one is running underneath — mirrors `scenes/inspect.ts`'s own `#boardScene`
+   * (guided mode G7c: this is where the guide rail's own reserved width and the bottom guide strip's content
+   * come from — `docs/guided-mode.md` §4 "Left for G7"). */
+  #boardScene(): BoardScene | null {
+    if (!this.scene.isActive(SCENES.board)) return null;
+    return this.scene.get(SCENES.board) as BoardScene;
   }
 
   #close(): void {
@@ -459,10 +469,22 @@ export class VillainPhaseOverlay extends Phaser.Scene {
     const phone = formFactor === "phone";
     const reveal = revealOf(this.#walkthrough, this.#revealed);
     const boostCount = reveal.current?.activation?.boosts.length ?? 0;
-    const layout = villainPhaseLayout({ x: 0, y: 0, width, height }, formFactor, boostCount);
+
+    // Guided mode G7c (`docs/guided-mode.md` §4 "Left for G7"): on desktop/tablet landscape this full-bleed panel
+    // used to draw straight over Board's own guide rail, hiding lesson 4's copy entirely — so it leaves the
+    // rail's own reserved width clear instead of covering it (`BoardScene.guideRailWidth`). On a tabbed layout
+    // there's no rail to leave room for, but there's also no room for the full callout — a compact bottom strip
+    // (`ui/guide-strip.ts`) takes a fixed slice of the *height* instead, inside this same panel rather than a
+    // separate overlay on top of it.
+    const boardScene = this.#boardScene();
+    const guideRailWidth = boardScene?.guideRailWidth() ?? 0;
+    const guideStrip = isTabbed(formFactor) ? (boardScene?.guideStripContent() ?? null) : null;
+    const stripHeight = guideStrip ? GUIDE_STRIP_HEIGHT : 0;
+    const bounds: Rect = { x: guideRailWidth, y: 0, width: width - guideRailWidth, height: height - stripHeight };
+    const layout = villainPhaseLayout(bounds, formFactor, boostCount);
 
     const scrim = this.add.graphics();
-    scrim.fillStyle(surface.ink.hex, 0.7).fillRect(0, 0, width, height);
+    scrim.fillStyle(surface.ink.hex, 0.7).fillRect(bounds.x, bounds.y, bounds.width, bounds.height);
     const panelsFrom = this.children.list.length;
 
     const g = this.add.graphics();
@@ -563,6 +585,9 @@ export class VillainPhaseOverlay extends Phaser.Scene {
     // Last, so the focus ring sits over the button it frames.
     if (finished) stops.set("continue", { rect: layout.footer, activate: () => this.#close() });
     this.#route?.set(villainPhaseFocusOrder(finished, inline?.map((o) => o.optionId) ?? []), stops);
+
+    // The bottom guide strip (guided mode G7c), drawn last so it sits over everything else this frame put down.
+    if (guideStrip) drawGuideStrip(this, { x: 0, y: height - stripHeight, width, height: stripHeight }, guideStrip);
 
     this.#motion.enter(this, { scrim: [scrim], panels: this.children.list.slice(panelsFrom) });
   }
