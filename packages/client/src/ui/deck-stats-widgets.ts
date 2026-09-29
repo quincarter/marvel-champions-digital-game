@@ -26,6 +26,7 @@ import type {
 import { CHIP_GAP, wrapChipsToRows } from "../view/chip-layout.js";
 import type { Rect } from "../view/layout.js";
 import { accent, border, hit, ink, signal, surface, typeRole } from "../tokens.js";
+import { bindHoldTarget } from "./hold-target.js";
 import { fitText, label, paintPanel } from "./widgets.js";
 import { textStyle } from "./theme.js";
 
@@ -276,6 +277,14 @@ export function drawGroupedCardList(
    * exactly as before.
    */
   noteOf?: (entry: DeckListEntry) => string | null,
+  /**
+   * Campaign deck edit's own tap-to-inspect (`scenes/deck-builder.ts`): non-null for a line the caller wants
+   * tappable (a campaign-granted card, whose "your deck" line is otherwise the only place in Deck Edit to look at
+   * it — the pool grid never lists it, since it isn't something a player can add). Every other caller omits this,
+   * so its lines stay plain text exactly as before. Tap is the whole gesture here (no hold/right-click distinction
+   * needed): there is no other action a "your deck" line offers to compete with it, unlike a card in the pool grid.
+   */
+  onInspectOf?: (entry: DeckListEntry) => (() => void) | null,
 ): number {
   const bodyColor = onDark ? surface.paper.hex : surface.ink.hex;
   let y = top;
@@ -294,6 +303,7 @@ export function drawGroupedCardList(
     label(scene, left, y, `${group.label} · ${group.count}`, typeRole.label, bodyColor, ink.meta);
     y += 14;
     for (const entry of visible) {
+      const rowTop = y;
       const line = scene.add.text(left, y, entry.name, textStyle(typeRole.body, bodyColor));
       fitText(line, column - 40);
       label(scene, left + column - 4, y, String(entry.quantity), typeRole.label, bodyColor, ink.secondary).setOrigin(
@@ -306,6 +316,14 @@ export function drawGroupedCardList(
         const noteLine = scene.add.text(left, y, note, textStyle(typeRole.label, bodyColor, ink.meta));
         fitText(noteLine, column);
         y += 14;
+      }
+      const onInspect = onInspectOf?.(entry) ?? null;
+      if (onInspect) {
+        const zone = scene.add
+          .zone(left, rowTop, column, y - rowTop)
+          .setOrigin(0, 0)
+          .setInteractive({ useHandCursor: true });
+        bindHoldTarget(scene, zone, { key: `deck-list:${entry.cardId as string}`, onTap: onInspect });
       }
     }
     y += 4;

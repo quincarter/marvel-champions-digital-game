@@ -622,7 +622,19 @@ export class DeckBuilderScene extends Phaser.Scene {
           return faceNote ? `${faceNote}${reason ?? ""}`.trim() : reason;
         }
       : undefined;
-    return drawGroupedCardList(this, left, top + 16, column, groups, STATS_LIST_ENTRY_CAP, onDark, noteOf);
+    // A campaign-granted line is otherwise a dead end for "what does this card actually do" — the pool grid never
+    // lists it (nothing to add), so its "your deck" line here is the only place Deck Edit shows it at all. Tapping
+    // it opens the same Inspect overlay the pool grid's own cards use, on its granted face (`#inspect`'s own
+    // `flipSide` handling) — not just the ordinary deck's cards, which stay plain text as before.
+    const onInspectOf = this.#campaign
+      ? (entry: DeckListEntry): (() => void) | null => {
+          const row = this.#campaignRowFor(entry.cardId as string);
+          if (!row?.locked) return null;
+          const card = POOL.find((candidate) => candidate.id === entry.cardId);
+          return card ? () => this.#inspect(card, row.face ?? null) : null;
+        }
+      : undefined;
+    return drawGroupedCardList(this, left, top + 16, column, groups, STATS_LIST_ENTRY_CAP, onDark, noteOf, onInspectOf);
   }
 
   #drawPreconClearSave(left: number, top: number, column: number, deck: Deck, onDark = false): number {
