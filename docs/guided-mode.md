@@ -244,7 +244,7 @@ The main session verifies UI boxes by clicking through them before ticking (§6)
 
 **QA**
 
-- [ ] **G12 Gaps pass (2026-09-29).** (b) landed `589013b5`: `devScreenJump` is DEV-only, fixture modules are dynamic imports (absent from dist), demo scenes are registered in DEV only. (c) landed `630a353c`: `pnpm e2e` (Playwright, packages/client/e2e: tutorial, never-locked-in, holdon, tips; desktop + phone projects, the full tutorial desktop-only for now) + `.github/workflows/e2e.yml` on PRs. (d) landed `58dfb368`: `SaveMeta.guided` (additive; old saves are plain), `guide/tutorial-resume.ts`, and a `TutorialResumeConfirmOverlay` on Title's Continue ("Resume the tutorial at lesson N: <title>?", Resume / Continue as a normal game; aspect Try-it saves offer a restart). Also fixed from a PR comment: the rules glossary thumbnails didn't scroll (`a1dd5814`, `McCardTile.paintArt` returns its image). (a) keyboard/gamepad reach every guide control; (b) gate `?screen=` dev jumps to
+- [ ] **G12 Gaps pass (2026-09-29).** (b) landed `589013b5`: `devScreenJump` is DEV-only, fixture modules are dynamic imports (absent from dist), demo scenes are registered in DEV only. (c) landed `630a353c`: `pnpm e2e` (Playwright, packages/client/e2e: tutorial, never-locked-in, holdon, tips; desktop + phone projects, the full tutorial desktop-only for now) + `.github/workflows/e2e.yml` on PRs. (a) landed `feb6d5e2` + `517c3408`: G / gamepad X moves focus into the showing guide surface (rail, callout, villain-phase/defend strip, tip toast) and back; Tab/Shift+Tab/D-pad move, Enter/A activates, Escape skips as before. (d) landed `58dfb368`: `SaveMeta.guided` (additive; old saves are plain), `guide/tutorial-resume.ts`, and a `TutorialResumeConfirmOverlay` on Title's Continue ("Resume the tutorial at lesson N: <title>?", Resume / Continue as a normal game; aspect Try-it saves offer a restart). Also fixed from a PR comment: the rules glossary thumbnails didn't scroll (`a1dd5814`, `McCardTile.paintArt` returns its image). (a) keyboard/gamepad reach every guide control; (b) gate `?screen=` dev jumps to
       DEV builds; (c) a committed Playwright e2e for the tutorial, exits, Hold on! and tips (+ CI); (d) resume a
       half-finished tutorial (§3.12); (e) the `schemeClose` warning (§3.13).
 - [x] **G11 QA pass.** A headless click-through of the tutorial and one aspect lesson at 390×844, 1024×768 and
@@ -327,7 +327,7 @@ A fresh Claude session can pick this up from this file alone.
   pointer, and put a screenshot beside its tile.
 - **Commits:** as the repo's git user, with no Claude co-author trailer. Every change carries a changie fragment.
 
-**In flight:** G12 (a) guide keyboard/gamepad access, (e) the `schemeClose` warning. (b), (c), (d) landed. If cut off, check `git status`/`git log` and brief a fresh agent per item.
+**In flight:** G12 (e) the `schemeClose` warning. (a), (b), (c), (d) landed. If cut off, check `git status`/`git log` and brief a fresh agent per item.
 
 ## 7. Prior art: the parked prototype
 
