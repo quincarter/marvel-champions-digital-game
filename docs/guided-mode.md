@@ -315,7 +315,7 @@ A fresh Claude session can pick this up from this file alone.
   pointer, and put a screenshot beside its tile.
 - **Commits:** as the repo's git user, with no Claude co-author trailer. Every change carries a changie fragment.
 
-**In flight:** the G11 reruns are both clean (0 console errors at 390/768/1440, motion on and off). Now running in parallel: (1) the owner's tutorial reorder (lesson 2 = pay as Peter with Scientist + a 1-icon card, a resource legend, energy/mental/physical/wild glossary; lesson 3 = flip; the Energy card leaves the opening hand); (2) the tips fixture `?screen=board&fixture=tips` + a live tips check; (3) the nits batch (the recap Continue at 89×23 needs a ≥44px hit target, `__mc*Debug` hooks cleared on shutdown and made scroll-aware, the Deck builder tip overlap). If cut off, check `git status`/`git log` and brief a fresh agent per item.
+**In flight:** the G11 reruns are both clean (0 console errors at 390/768/1440, motion on and off). Now running in parallel: (1) the owner's tutorial reorder (lesson 2 = pay as Peter with Scientist + a 1-icon card, a resource legend, energy/mental/physical/wild glossary; lesson 3 = flip; the Energy card leaves the opening hand); (2) the tips fixture `?screen=board&fixture=tips` + a live tips check: landed `ef6bd6be`; live pass at 390/768/1440 (no tip before the first action, one per turn, clear of controls, Got it/×/Escape/Turn tips off, silent at Off); (3) the nits batch (the recap Continue at 89×23 needs a ≥44px hit target, `__mc*Debug` hooks cleared on shutdown and made scroll-aware, the Deck builder tip overlap). If cut off, check `git status`/`git log` and brief a fresh agent per item.
 
 ## 7. Prior art: the parked prototype
 
