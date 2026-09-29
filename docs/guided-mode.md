@@ -307,7 +307,7 @@ A fresh Claude session can pick this up from this file alone.
   pointer, and put a screenshot beside its tile.
 - **Commits:** as the repo's git user, with no Claude co-author trailer. Every change carries a changie fragment.
 
-**In flight:** a G7c follow-up (landed `28ffbb40`: rail beside the overlays, phone guide strip). Two fixes: the villain-phase band draws over the rail's body text, and on phone the defend-sheet options overlap and clip. If cut off, check `git status`/`git log` and brief a fresh agent. Then: G6b, G6c (hub), G7a/b/d, G8, G9b, G10c–e, G11.
+**In flight:** G6b (How to win screen, `scenes/how-to-win.ts`, shared `guide/start-tutorial.ts`) and a G7c follow-up (landed `28ffbb40`: rail beside the overlays, phone guide strip). Two fixes: the villain-phase band draws over the rail's body text, and on phone the defend-sheet options overlap and clip. If cut off, check `git status`/`git log` and brief a fresh agent. Then: G6b, G6c (hub), G7a/b/d, G8, G9b, G10c–e, G11.
 
 ## 7. Prior art: the parked prototype
 
