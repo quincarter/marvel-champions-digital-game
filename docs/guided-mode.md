@@ -268,7 +268,7 @@ A fresh Claude session can pick this up from this file alone.
   pointer, and put a screenshot beside its tile.
 - **Commits:** as the repo's git user, with no Claude co-author trailer. Every change carries a changie fragment.
 
-**In flight:** none. Next: G4b (`McGuidePanel`), then G4c and G5b (these can run side by side).
+**In flight:** G4b (`McGuidePanel`) and G5b (lesson model), side by side. If cut off, check `git status` for their files (G4b: `ui/guide-panel.ts`, `view/guide-panel-model.ts`, `view/layout.ts`, `?screen=guidepanel` demo; G5b: `view/lesson-model.ts`, `guide/tutorial-lessons.ts`) and brief a fresh agent to finish them. Next: G4c, then G5c.
 
 ## 7. Prior art: the parked prototype
 
