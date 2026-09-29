@@ -315,7 +315,7 @@ A fresh Claude session can pick this up from this file alone.
   pointer, and put a screenshot beside its tile.
 - **Commits:** as the repo's git user, with no Claude co-author trailer. Every change carries a changie fragment.
 
-**In flight:** G11 fix wave 1: (A) lesson 4 robustness; (E) landed (`09fc6e25`: villain-phase drew the interrupt panel off the reveal cursor rather than `walkthrough.pausedAt`); (F+H) landed (`5850a671`, `a0107437`); (I) a deterministic live Hold on! fixture (`?screen=board&fixture=holdon-scheme|holdon-lethal`). Wave 2 (guide-mount surfaces) starts after A. If cut off, check `git status`/`git log` and brief a fresh agent per item.
+**In flight:** (I) the live Hold on! fixture; the villain-phase walkthrough stuck on "paused" after the defend resolves (scenes/villain-phase.ts); wave 2 guide surfaces (nudge redraw, the phone waiting callout clear of End Turn, × confirm, the rail expand crash). Landed: (A) `fa4dfcb4`, (E) `09fc6e25`, (F+H) `5850a671`/`a0107437`, chooser-after-New-Game `01ebc409`. Then a QA rerun of the gaps. If cut off, check `git status`/`git log` and brief a fresh agent per item.
 
 ## 7. Prior art: the parked prototype
 
