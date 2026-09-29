@@ -192,6 +192,11 @@ export class HowToWinScene extends Phaser.Scene {
     artKey: string | null,
     body: () => void,
     orientation: "landscape" | "portrait" = "landscape",
+    /** The source art's own width/height ratio — `CARD_ASPECT` (portrait) for a hero/villain scan, its
+     * reciprocal for a main scheme's landscape scan. Sizes the art slot to that shape and switches to
+     * "contain" for a landscape source, so the slot never crops a landscape card the way a `CARD_ASPECT`-shaped
+     * box covering it used to (the LOSE "His plan finishes" card, whose main scheme art lost its left side). */
+    artAspect: number = CARD_ASPECT,
   ): void {
     const g = this.add.graphics();
     g.fillStyle(surface.card.hex, 1).fillRect(rect.x, rect.y, rect.width, rect.height);
@@ -206,11 +211,12 @@ export class HowToWinScene extends Phaser.Scene {
     // card on a wide layout is tall enough (the two now split the WIN card's own row height) that a fixed-width
     // thumbnail reads as cramped next to all that empty height. `Math.max(120, …)` keeps the phone/tablet-portrait
     // row (a short, wide strip) at its original size rather than shrinking it.
+    const isLandscapeArt = artAspect > 1;
     const artHeight = rect.height - 20;
-    const artWidth = Math.min(rect.width * 0.38, Math.max(120, artHeight * CARD_ASPECT));
+    const artWidth = Math.min(rect.width * (isLandscapeArt ? 0.55 : 0.38), Math.max(120, artHeight * artAspect));
     const artRect = { x: rect.x + 10, y: rect.y + 10, width: artWidth, height: artHeight };
     g.fillStyle(surface.parchment.hex, 1).fillRect(artRect.x, artRect.y, artRect.width, artRect.height);
-    drawArt(this, artKey, artRect, { fit: "cover" });
+    drawArt(this, artKey, artRect, { fit: isLandscapeArt ? "contain" : "cover" });
 
     const textLeft = artRect.x + artRect.width + 14;
     const textWidth = rect.x + rect.width - 10 - textLeft;
@@ -304,18 +310,29 @@ export class HowToWinScene extends Phaser.Scene {
   #drawLoseSchemeCard(layout: HowToWinLayout, content: ReturnType<typeof howToWinContent>): void {
     const mainScheme = CARDS_BY_ID.get(content.mainSchemeCardId);
     const key = cardArt(this).request(this, artFor(mainScheme, { kind: "mainSchemeStage", stageIndex: 0, side: "B" }));
-    this.#drawCard(layout.loseScheme, { label: "LOSE", fill: accent.heroRed.hex }, "His plan finishes", key, () => {
-      const { x, y, width } = this.#bodyOrigin;
-      const block = new McTermText(this, {
-        x,
-        y,
-        width,
-        text: `${content.mainSchemeName} reaches ${content.threatTarget} [[threat|threat]].`,
-        onTermOpen: (term, rect) => this.#openTooltip(term, rect),
-        onTermClose: () => this.#tooltip?.hide(),
-      });
-      this.#termBlocks.push(block);
-    });
+    this.#drawCard(
+      layout.loseScheme,
+      { label: "LOSE", fill: accent.heroRed.hex },
+      "His plan finishes",
+      key,
+      () => {
+        const { x, y, width } = this.#bodyOrigin;
+        const block = new McTermText(this, {
+          x,
+          y,
+          width,
+          text: `${content.mainSchemeName} reaches ${content.threatTarget} [[threat|threat]].`,
+          onTermOpen: (term, rect) => this.#openTooltip(term, rect),
+          onTermClose: () => this.#tooltip?.hide(),
+        });
+        this.#termBlocks.push(block);
+      },
+      "landscape",
+      // A main scheme scan is a landscape card (`docs/guided-mode.md`'s art convention), unlike the hero/villain
+      // portrait scans the other two cards draw — the reciprocal of `CARD_ASPECT` sizes this card's own slot to
+      // that shape instead of the default portrait box.
+      1 / CARD_ASPECT,
+    );
   }
 
   #drawLoseHeroCard(layout: HowToWinLayout, content: ReturnType<typeof howToWinContent>): void {

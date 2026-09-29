@@ -458,11 +458,21 @@ export class AspectLessonScene extends Phaser.Scene {
   } {
     const objects: Phaser.GameObjects.GameObject[] = [];
     const zones: { readonly rect: Rect; readonly activate: () => void }[] = [];
-    // `cardRow`'s own bounds.height doubles as a shrink cap and its vertical-centering axis — pass the cap here
-    // and use each slot's own real (possibly recentred) `y` below, rather than assuming a slot sits flush at `y`.
-    const slots = cardRow({ x, y, width, height: CARD_ROW_MAX_HEIGHT }, cards.length, {
+    // `cardRow`'s own bounds.height doubles as a shrink cap *and* its vertical-centering axis: passing the full
+    // `CARD_ROW_MAX_HEIGHT` unconditionally left a narrow phone width's width-driven shrink (three cards don't
+    // fit at 260px tall under 390px wide) centred inside that taller box — a ~60px dead gap above the actually-
+    // shorter cards (found in browser verification, the phone aspect lesson page). Precompute the same width-fit
+    // shrink `cardRow` does internally and hand it the *already-shrunk* height as both `height` and `maxHeight`,
+    // so its own centering has nothing left to centre away.
+    const widthAtFullHeight = CARD_ROW_MAX_HEIGHT * CARD_ASPECT;
+    const needed = widthAtFullHeight * cards.length + CARD_ROW_GAP * (cards.length - 1);
+    const rowHeight =
+      cards.length > 0 && needed > width
+        ? Math.max(1, (width - CARD_ROW_GAP * (cards.length - 1)) / (CARD_ASPECT * cards.length))
+        : CARD_ROW_MAX_HEIGHT;
+    const slots = cardRow({ x, y, width, height: rowHeight }, cards.length, {
       gap: CARD_ROW_GAP,
-      maxHeight: CARD_ROW_MAX_HEIGHT,
+      maxHeight: rowHeight,
       align: "start",
     });
 

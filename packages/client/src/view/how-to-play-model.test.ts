@@ -149,6 +149,20 @@ describe("howToPlayContentLayout", () => {
     });
   }
 
+  for (const [width, height] of sizes) {
+    it(`gives the content body real top padding above "THE BASICS", not flush under the header, at ${width}x${height}`, () => {
+      const layout = howToPlayContentLayout(width, height, modules);
+      // Content-space y (`view/how-to-play-model.ts`'s own doc comment: `y` measured from the content's own top,
+      // `0` — the scene translates this into screen space by `viewport.y`, the header's own bottom edge). A
+      // `basicsLabel.y` of 0 is the bug this pins against: the label drawn flush under the ink header with no
+      // gap at all (found in browser verification, phone).
+      expect(layout.basicsLabel.y).toBeGreaterThan(0);
+      // Bounded, not just "some positive number" — a runaway top pad would just move the same "flush against
+      // something" bug down to flush-against-the-header's-shadow instead of fixing it.
+      expect(layout.basicsLabel.y).toBeLessThanOrEqual(40);
+    });
+  }
+
   it("is one stacked column on phone and two columns (Basics left, Aspects+Reference right) on tablet landscape/desktop", () => {
     expect(howToPlayContentLayout(390, 844, modules).wide).toBe(false);
     const wideLayout = howToPlayContentLayout(1024, 768, modules);

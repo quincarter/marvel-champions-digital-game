@@ -159,6 +159,10 @@ export interface HowToPlayContentLayout {
 }
 
 const SECTION_GAP = 28;
+/** Top padding above "THE BASICS"/"ASPECTS" — the same `SECTION_GAP` used between sections below it, so the first
+ * label doesn't sit tight under the ink header the way it used to before this content body had any top padding of
+ * its own (found in browser verification: "THE BASICS" read as glued to the header bar). */
+const CONTENT_TOP_PAD = SECTION_GAP;
 const LABEL_HEIGHT = 24;
 const LABEL_ROW_GAP = 8;
 const ROW_GAP = 10;
@@ -203,8 +207,8 @@ export function howToPlayContentLayout(
     const rightWidth = contentWidth - COLUMN_GAP - leftWidth;
     const rightX = pad + leftWidth + COLUMN_GAP;
 
-    const basics = section(pad, 0, leftWidth, LESSON_ROW_HEIGHT, modules.lessons.length);
-    const aspects = section(rightX, 0, rightWidth, ASPECT_ROW_HEIGHT, modules.aspects.length);
+    const basics = section(pad, CONTENT_TOP_PAD, leftWidth, LESSON_ROW_HEIGHT, modules.lessons.length);
+    const aspects = section(rightX, CONTENT_TOP_PAD, rightWidth, ASPECT_ROW_HEIGHT, modules.aspects.length);
     const reference = section(rightX, aspects.bottom + SECTION_GAP, rightWidth, REFERENCE_ROW_HEIGHT, 1);
 
     const bottom = Math.max(basics.bottom, reference.bottom);
@@ -215,9 +219,15 @@ export function howToPlayContentLayout(
     // own doc comment explains why two side-by-side columns can't both be exact positions in one cumulative sum).
     // The bridging slot still makes the *total* (and so `McScrollRegion`'s scroll clamp) correct either way.
     const bridge: Rect = { x: pad, y: bottom, width: contentWidth, height: 0 };
-    const rects = [basics.label, ...basics.rows, bridge, continueLearning];
+    // A zero-height slot at the content's own absolute top (`y: 0`), one gap-slot ahead of `basics.label` — without
+    // it `heights[0]` (`basics.label.y - basics.rows[0]!.y`) silently swallowed the `CONTENT_TOP_PAD` gap above the
+    // label itself, since `contentSlotHeights` only ever measures the space *between* consecutive rects, never the
+    // space before the first one (`VariableListScroll#topOf` sums from `heights[0]`, so that leading gap has to be
+    // its own entry or every row's own real scroll position drifts short by exactly `CONTENT_TOP_PAD`).
+    const top: Rect = { x: pad, y: 0, width: contentWidth, height: 0 };
+    const rects = [top, basics.label, ...basics.rows, bridge, continueLearning];
     const heights = contentSlotHeights(rects);
-    const bridgeIndex = 1 + basics.rows.length;
+    const bridgeIndex = 2 + basics.rows.length;
 
     return {
       formFactor,
@@ -231,14 +241,14 @@ export function howToPlayContentLayout(
       continueLearning,
       heights,
       totalHeight,
-      lessonScrollIndex: basics.rows.map((_, i) => i + 1),
+      lessonScrollIndex: basics.rows.map((_, i) => i + 2),
       aspectScrollIndex: aspects.rows.map(() => bridgeIndex),
       referenceScrollIndex: bridgeIndex,
       continueScrollIndex: heights.length - 1,
     };
   }
 
-  const basics = section(pad, 0, contentWidth, LESSON_ROW_HEIGHT, modules.lessons.length);
+  const basics = section(pad, CONTENT_TOP_PAD, contentWidth, LESSON_ROW_HEIGHT, modules.lessons.length);
   const aspects = section(pad, basics.bottom + SECTION_GAP, contentWidth, ASPECT_ROW_HEIGHT, modules.aspects.length);
   const reference = section(pad, aspects.bottom + SECTION_GAP, contentWidth, REFERENCE_ROW_HEIGHT, 1);
   const continueLearning: Rect = {
@@ -249,8 +259,12 @@ export function howToPlayContentLayout(
   };
   const totalHeight = continueLearning.y + continueLearning.height;
   // One single stacked column, so every row really is next in this one cumulative sequence — every index below is
-  // exact (unlike the wide branch above).
+  // exact (unlike the wide branch above). `top` is the same leading zero-height slot the wide branch adds, for the
+  // same reason: `basics.label.y` is `CONTENT_TOP_PAD`, not `0`, and that gap needs its own entry in `heights` or
+  // `VariableListScroll#topOf` undercounts every row after it by that same amount.
+  const top: Rect = { x: pad, y: 0, width: contentWidth, height: 0 };
   const rects = [
+    top,
     basics.label,
     ...basics.rows,
     aspects.label,
@@ -260,7 +274,7 @@ export function howToPlayContentLayout(
     continueLearning,
   ];
   const heights = contentSlotHeights(rects);
-  const lessonBase = 1;
+  const lessonBase = 2;
   const aspectBase = lessonBase + basics.rows.length + 1;
   const referenceIndex = aspectBase + aspects.rows.length + 1;
 
