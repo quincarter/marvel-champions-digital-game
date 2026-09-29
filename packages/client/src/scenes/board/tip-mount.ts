@@ -142,6 +142,15 @@ export class BoardTipMount {
     this.#lastBlocked = blocked;
   }
 
+  /** Escape while a tip is drawn: closes its open term tooltip first, else dismisses it like "Got it". Returns false
+   * (Escape falls through to the board's usual Pause handling) when no tip is on screen. */
+  handleEscape(): boolean {
+    if (!this.#lastToast) return false;
+    this.#lastToast.handleEscape();
+    this.#scene.requestGuideRedraw();
+    return true;
+  }
+
   /** Headless click-through hook only: this frame's toast rects, or `null` when nothing drew. */
   debugRects(): { readonly focusables: readonly Rect[]; readonly tooltipLink: Rect | null } | null {
     return this.#lastToast?.debugRects() ?? null;

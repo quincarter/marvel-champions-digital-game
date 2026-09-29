@@ -137,15 +137,19 @@ export class BoardScene extends Phaser.Scene {
     redraw: () => this.#draw(),
     inspect: (id) => this.#inspect(id),
     confirmEndTurn: (sentence, onConfirm) => askToEndTurn(this, sentence, onConfirm),
+    // A "Hold on!" warning never second-guesses an active guide step: while a lesson is telling the player what to
+    // do (e.g. an aspect Try-it lesson's stacked payment), the guide's own instruction wins and the command goes out.
     holdOn: (hint, actions) =>
-      showHoldOn(this, {
-        hint,
-        schemeRect: this.#mainSchemeRect(),
-        schemeName: this.#mainSchemeName(),
-        onSafe: actions.onSafe,
-        onAnyway: actions.onAnyway,
-        onSilence: () => setGuidePrefs(silenceWarning(guidePrefs(), hint.key)),
-      }),
+      this.#guide?.hasCurrentStep()
+        ? actions.onAnyway()
+        : showHoldOn(this, {
+            hint,
+            schemeRect: this.#mainSchemeRect(),
+            schemeName: this.#mainSchemeName(),
+            onSafe: actions.onSafe,
+            onAnyway: actions.onAnyway,
+            onSilence: () => setGuidePrefs(silenceWarning(guidePrefs(), hint.key)),
+          }),
   });
   readonly #hand = new HandScroll(() => this.#draw());
   readonly #logPanel = new LogPanel(() => this.#draw());
@@ -742,6 +746,8 @@ export class BoardScene extends Phaser.Scene {
         // A zone/choice-anchored step never sets a board gate at all (nothing to release above), but §3.10
         // still promises Escape always works there too — see `BoardGuideMount.handleEscape`'s own doc comment.
         if (this.#guide?.handleEscape()) break;
+        // A visible tip toast dismisses on Escape, like its own "Got it" (guided mode G10e).
+        if (this.#tip?.handleEscape()) break;
         // Escape/B backs out of a mode first, same as everywhere else in this
         // app; with no mode open, it's the keyboard/pad route to Pause
         // (docs/phase4-screen-gaps.md §3 "W4": "Escape when no mode/overlay is
