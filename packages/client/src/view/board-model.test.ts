@@ -4,7 +4,7 @@
  * the engine actually publishes.
  */
 
-import { activeEncounterDeck, cardOf } from "@mc/engine";
+import { activeEncounterDeck, cardOf, isMinion } from "@mc/engine";
 import { beforeAll, describe, expect, test } from "vitest";
 import { CORE_DEPS } from "@mc/cards";
 import { cardId } from "@mc/content";
@@ -303,6 +303,9 @@ describe("your own upgrades", () => {
     const model = boardModel(state, me, CORE_DEPS);
     const shown = new Set(model.myPlayArea.map((panel) => panel.instanceId));
     for (const id of player.playArea) {
+      // An engaged minion also lives in `playArea` (engine/src/query.ts `minionsEngagedWith`), but it
+      // is not one of your own cards — it belongs with the enemies, not here.
+      if (isMinion(state, id)) continue;
       const attachedTo = state.instances[id]!.attachedTo;
       // Attached to your own identity, or to nothing: either way it is a card
       // you played and must be able to find again.
@@ -332,6 +335,23 @@ describe("an upgrade played onto your identity", () => {
 
     const model = boardModel(played, me, CORE_DEPS);
     expect(model.myPlayArea.map((panel) => panel.instanceId)).toContain(upgrade);
+  });
+});
+
+describe("an engaged minion", () => {
+  test("shows once, with the enemies — never doubled into the engaged player's own play area", async () => {
+    // Seed 77 naturally engages a minion during setup, so this is real engine state, not a fixture
+    // (the engine engages a minion by putting its instance in the engaged player's `playArea`;
+    // see engine/src/query.ts `minionsEngagedWith`).
+    const store = await intoPlay(KLAW_TWO);
+    const state = store.state.game!;
+    const me = store.state.perspectiveId!;
+    const engagedMinion = state.players.flatMap((seat) => seat.playArea).find((id) => isMinion(state, id));
+    expect(engagedMinion).toBeDefined();
+
+    const model = boardModel(state, me, CORE_DEPS);
+    expect(model.minions.map((panel) => panel.instanceId)).toContain(engagedMinion);
+    expect(model.myPlayArea.map((panel) => panel.instanceId)).not.toContain(engagedMinion);
   });
 });
 

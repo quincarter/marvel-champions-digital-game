@@ -600,6 +600,9 @@ export function boardModel(state: GameState, perspectiveId: PlayerId, deps: Engi
         (id) => cardOf(state, id)?.type === "upgrade" && !me.playArea.includes(id),
       ),
       ...me.playArea.filter((id) => {
+        // An engaged minion lives in `playArea` too (engine/src/query.ts `minionsEngagedWith`), but it belongs to
+        // the enemies zone, not this player's own cards — `minionsOf` already draws it there.
+        if (isMinion(state, id)) return false;
         const attachedTo = getInstance(state, id)?.attachedTo ?? null;
         return attachedTo === null || attachedTo === me.identity.instanceId;
       }),
