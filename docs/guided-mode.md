@@ -312,7 +312,7 @@ A fresh Claude session can pick this up from this file alone.
   pointer, and put a screenshot beside its tile.
 - **Commits:** as the repo's git user, with no Claude co-author trailer. Every change carries a changie fragment.
 
-**In flight:** the G11 fix wave 1: (A) lesson 4 robustness, (E) the invisible interrupt choice, (F+H) the minion double render and the flip label. See the G11 note for the full plan. If cut off, check `git status`/`git log` and brief a fresh agent per item.
+**In flight:** G11 fix wave 1: (A) lesson 4 robustness and (E) the invisible interrupt choice; (F+H) landed (`5850a671`, `a0107437`); (I) a deterministic live Hold on! fixture (`?screen=board&fixture=holdon-scheme|holdon-lethal`). Wave 2 (guide-mount surfaces) starts after A. If cut off, check `git status`/`git log` and brief a fresh agent per item.
 
 ## 7. Prior art: the parked prototype
 
