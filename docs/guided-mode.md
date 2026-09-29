@@ -222,9 +222,9 @@ The main session verifies UI boxes by clicking through them before ticking (§6)
 - [x] **G10c Aspect lesson page.** The per-aspect lesson page inside G6c's hub (signature scans, when to pick it, Try it).
       Reached from the hub, the debrief, Settings → Guide, and the chips' "Aspects ▸".
       Landed: `3457bdd3` (its registry edits were swept into `48787de5`). `scenes/aspect-lesson.ts` + `view/aspect-lesson-model.ts`, dev jump `?screen=aspect&aspect=<id>`, `#onTryIt(aspect)` for G10d. Follow-up `19e989c7`: large signature scans; the phone gap is fixed; it's wired into the hub rows (✓ Done), the chips' Aspects ▸ (launched over Seats/Deck check, `backTo: "previous"`) and Settings' Aspect lessons → hub. Nit: a ~60px gap under the phone "SIGNATURE CARDS" label.
-- [ ] **G10d Aspect try-it games.** A guided Rhino game with that aspect's Core precon. Its aspect tips fire when the
+- [x] **G10d Aspect try-it games.** A guided Rhino game with that aspect's Core precon. Its aspect tips fire when the
       signature cards come up, on G5b's lesson model.
-      Landed: `c71192bd`. `guide/aspect-tryit-config.ts` (a stacked, turn-1-playable signature card per aspect), `guide/aspect-lessons.ts`, `guide/start-aspect-tryit.ts`, `appSession().guidedRunKind`; aspect runs have no debrief and no Log lock. Main session `ed2d3a45`: Hold on! defers to an active guide step (it fired on the lesson's own payment), and Escape dismisses a tip. A polish pass is in flight: payment TRY THIS card → payer → Pay generalized via `payWith`, the header label overlapping Collapse, the complete copy pointing to How to play, and one red button on the aspect page.
+      Landed: `c71192bd`. `guide/aspect-tryit-config.ts` (a stacked, turn-1-playable signature card per aspect), `guide/aspect-lessons.ts`, `guide/start-aspect-tryit.ts`, `appSession().guidedRunKind`; aspect runs have no debrief and no Log lock. Main session `ed2d3a45`: Hold on! defers to an active guide step (it fired on the lesson's own payment), and Escape dismisses a tip. Polish `c17f16eb`: the payment TRY THIS walk is generalized via `payWith` (`view/guide-paying-override.ts`); the header label truncates; the complete copy points to How to play; one red button on the aspect page.
 - [ ] **G10e Opportunistic tips.** `view/guide-tips.ts` is the trigger table (§5.3). Once each, Full only, shown as a
       small callout.
 
@@ -311,7 +311,7 @@ A fresh Claude session can pick this up from this file alone.
   pointer, and put a screenshot beside its tile.
 - **Commits:** as the repo's git user, with no Claude co-author trailer. Every change carries a changie fragment.
 
-**In flight:** the G10d polish pass (see the G10d note). If cut off, check `git status`/`git log` and brief a fresh agent. Then: G11 (QA; also check the engaged minion that appears in both the villain area and the play area on desktop).
+**In flight:** G11 QA, read-only, split three ways (desktop 1440×900, tablet 1024×768 + 768×1024, phone 390×844). Each reports issues and fixes nothing; the main session triages the fixes. If cut off, re-run the missing QA agent(s).
 
 ## 7. Prior art: the parked prototype
 
