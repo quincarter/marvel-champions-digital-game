@@ -227,7 +227,7 @@ The main session verifies UI boxes by clicking through them before ticking (§6)
 - [ ] **G10e Opportunistic tips.** `view/guide-tips.ts` is the trigger table (§5.3). Once each, Full only, shown as a
       small callout.
 
-      Part 1 landed: `0d264e63`. `tipsFor(observation, prefs, suppress)` in `view/guide-tips.ts`: 12 named situational triggers plus a generic glossary catch-all (`keyword:<id>`), Full only, once each. **Part 2 (display) must:** show at most one tip per player turn, and not in the opening seconds (`situation:handSizeDiffers` and `situation:acceleration` are true from the first frame); suppress tips a tutorial lesson covers; thread the session's real `EngineDeps` in place of `DEFAULT_DEPS` so ability-granted keywords count; and add a mulligan glossary concept (the tip has no term link today). Part 2 landed: `a19e5b25`. `view/tip-schedule.ts` pacing, the `McTipToast` surface, and `scenes/board/tip-mount.ts` in every Full-level game (real `POOL_DEPS`); the `mulligan` glossary concept was added. A follow-up is in flight: the toast covered End Turn and Flip (desktop) and the hand (phone); `situation:acceleration` fired every game (it counted the printed rate); Escape should dismiss.
+      Part 1 landed: `0d264e63`. `tipsFor(observation, prefs, suppress)` in `view/guide-tips.ts`: 12 named situational triggers plus a generic glossary catch-all (`keyword:<id>`), Full only, once each. **Part 2 (display) must:** show at most one tip per player turn, and not in the opening seconds (`situation:handSizeDiffers` and `situation:acceleration` are true from the first frame); suppress tips a tutorial lesson covers; thread the session's real `EngineDeps` in place of `DEFAULT_DEPS` so ability-granted keywords count; and add a mulligan glossary concept (the tip has no term link today). Part 2 landed: `a19e5b25`. `view/tip-schedule.ts` pacing, the `McTipToast` surface, and `scenes/board/tip-mount.ts` in every Full-level game (real `POOL_DEPS`); the `mulligan` glossary concept was added. Follow-up `f7f656bd`: the toast sits in the play area (desktop) or above the hand (phone), clear of every control; `situation:acceleration` fires only on tokens or icons. Open: wire Escape via `this.#tip?.handleEscape()` in board.ts's Escape routing, beside `#guide?.handleEscape()`.
 
 **QA**
 
@@ -310,7 +310,7 @@ A fresh Claude session can pick this up from this file alone.
   pointer, and put a screenshot beside its tile.
 - **Commits:** as the repo's git user, with no Claude co-author trailer. Every change carries a changie fragment.
 
-**In flight:** the G10e part 2 follow-up (tip placement, acceleration trigger, Escape) and G10d (aspect try-it games: `guide/aspect-lessons.ts`, `guide/aspect-tryit-config.ts`, a run descriptor on `appSession()`), side by side. If cut off, check `git status`/`git log` and brief a fresh agent per item. Then: G11 (QA).
+**In flight:** G10d (aspect try-it games: `guide/aspect-lessons.ts`, `guide/aspect-tryit-config.ts`, a run descriptor on `appSession()`), side by side. If cut off, check `git status`/`git log` and brief a fresh agent per item. Then: the tip Escape line in board.ts, and G11 (QA; also check the engaged minion that appears in both the villain area and the play area on desktop).
 
 ## 7. Prior art: the parked prototype
 
