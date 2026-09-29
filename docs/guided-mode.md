@@ -156,21 +156,12 @@ The main session verifies UI boxes by clicking through them before ticking (§6)
       open. Layout tests at 1440×900 and 1024×768.
       Landed: `9add1837` + polish `78bd6115` (paragraph breaks in `McTermText`, padding, stamp width, legend inset, Collapse hit area was off-label). `ui/guide-panel.ts`, `view/guide-panel-model.ts` (`guideRailWidthFor`), and `boardLayout(…, { guideRail })` in `view/layout.ts`. Demo at `?screen=guidepanel`. G5c mounts it on the Board for desktop and tabletLandscape only, and re-runs `boardLayout` on collapse/expand.
 - [x] **G4c Spotlight + tags.** The spotlight ring on any board anchor (zone, card, button), dimming everything else
-      with input gated per §3.10, plus the `TRY THIS` and `GUIDE PICK` tags.
-
-      Landed: `d80f0796`. `resolveAnchor` (view/guide-anchor.ts), `McGuideSpotlight`, `McGuideTag`, and `GuideGateHolder`
-                                      (scenes/board/guide-gate.ts) via `board.setGuideGate(gate | null)`. Escape → `onGateReleased`; 2 inert clicks →
-                                      `onGateEscaped`. Pause is never gated. Demo at `?screen=board&guidedemo=1`. **For G5c:**
-                                      - Anchor `mainScheme` to the scheme *panel* rect, not the whole zone (the ring is too big today).
-                                      - Delay the spotlight until the round/phase banner clears.
-                                      - Put `TRY THIS` only on actionable anchors (action/card), not zones.
-                                      - Set the gate only on a step change, never per redraw.
-                                      - Auto-switch phone tabs when `resolved.tab` differs.
-                                      - Pick lesson-nav keys that don't clash with Board's arrow/Space focus keys.
-                                  - Exits landed in `5b6993b2`: both widgets take `onSkip` ("Skip this step") and `onStop` ("Stop tutorial", drawn as ×),
-                                    a `nudge` line, and Escape always skips. G5c: spell out "STOP TUTORIAL" in the panel's second header row (there's
-                                    room; a bare × reads as "close this box"). Keep × on the phone callout, and add Pause "Stop tutorial" / "Turn
-                                    guide off".
+      with input gated per §3.10, plus the `TRY THIS` and `GUIDE PICK` tags. Landed: `d80f0796`. `resolveAnchor`
+      (view/guide-anchor.ts), `McGuideSpotlight`, `McGuideTag`, and `GuideGateHolder` (scenes/board/guide-gate.ts) via
+      `board.setGuideGate(gate | null)`. Escape → `onGateReleased`; 2 inert clicks → `onGateEscaped`. Pause is never
+      gated. Demo at `?screen=board&guidedemo=1`. Its notes for G5c (panel-rect anchor, banner delay, tags only on
+      actionable anchors, gate per step change, tab auto-switch, non-clashing keys) and the exits (`5b6993b2`: `onSkip`,
+      `onStop`, `nudge`, Escape skips) are all done.
 
 **Tutorial**
 
@@ -187,8 +178,9 @@ The main session verifies UI boxes by clicking through them before ticking (§6)
 - [x] **G6a First-run chooser.** P01/T01 "New to the fight?". Wired Boot → chooser (first launch) → Title. "Learn as you
       play" goes to G6b.
       Landed: `7431ecff`. `scenes/guide-chooser.ts` + `view/guide-chooser-model.ts`; Boot → chooser on `isFirstLaunch`; dev jump `?screen=chooser`. `#startLearnAsYouPlay()` is the single call site where G6b's How to win slots in.
-- [ ] **G6b How to win.** P02 "One way to win, two ways to lose" from Rhino / The Break-In! / Spider-Man data. Start the
+- [x] **G6b How to win.** P02 "One way to win, two ways to lose" from Rhino / The Break-In! / Spider-Man data. Start the
       fight launches the tutorial game (past scenario and seat selection). Tell me more opens Rules reference.
+      Landed: `4775be5c`. `scenes/how-to-win.ts` + `view/how-to-win-model.ts` (real stage count, target and HP) and a shared `guide/start-tutorial.ts`. The flow is chooser → How to win → board; Settings "Play the tutorial" opens it; dev jump `?screen=howtowin`. The wide layout is being recomposed (a big empty gap and cramped art).
 - [ ] **G6c "How to play" learning hub** (owner, 2026-09-28: "how to play could launch some tutorial screen and they
       could work their way through the learning modules"). A Title menu button opens a hub screen with every module,
       each showing done/next, and a recommended order the player can ignore: - **The basics:** the five tutorial lessons, each as a row. Lesson 1 starts the tutorial game from the top. Any
@@ -308,7 +300,7 @@ A fresh Claude session can pick this up from this file alone.
   pointer, and put a screenshot beside its tile.
 - **Commits:** as the repo's git user, with no Claude co-author trailer. Every change carries a changie fragment.
 
-**In flight:** G6b (How to win screen, `scenes/how-to-win.ts`, shared `guide/start-tutorial.ts`). If cut off, check `git status`/`git log` and brief a fresh agent. Then: G6b, G6c (hub), G7a/b/d, G8, G9b, G10c–e, G11.
+**In flight:** the How-to-win wide layout fix, and G9b (the "Hold on!" overlay, which intercepts End turn, Flip and payment confirm in `scenes/board/controller.ts`), side by side. If cut off, check `git status`/`git log` and brief a fresh agent per item. Then: G6c (hub), G7a/b/d, G8, G10c–e, G11.
 
 ## 7. Prior art: the parked prototype
 
