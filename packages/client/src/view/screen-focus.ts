@@ -324,7 +324,8 @@ export function settingsFocusOrder(rowIds: readonly string[]): readonly string[]
 /**
  * The Title menu (docs/phase4-screen-gaps.md §3 W2, D01): Continue (when
  * there's a game to pick up), New game, Decks & Collection, Campaign
- * (drawn locked) and Settings (drawn unavailable until W4 lands it) — both
+ * (drawn locked), Extras, "How to play" (guided mode G6c, `docs/guided-
+ * mode.md` §4) and Settings (drawn unavailable until W4 lands it) — both
  * still take focus so their reason reads with `I`, the same rule
  * `titleFocusOrder` already applies to a blocked hero seat.
  */
@@ -335,6 +336,7 @@ export function titleMenuFocusOrder(input: { readonly continuable: boolean }): r
     "decks",
     "campaign",
     "extras",
+    "how-to-play",
     "settings",
     "release-notes",
   ];

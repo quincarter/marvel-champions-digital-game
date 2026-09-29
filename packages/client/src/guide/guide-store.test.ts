@@ -1,6 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { defaultGuidePrefs, withLevel } from "./guide-prefs.js";
-import { guidePrefs, onGuidePrefsChange, resetGuidePrefsCacheForTests, setGuidePrefs } from "./guide-store.js";
+import { defaultGuidePrefs, markLessonDone, withLevel } from "./guide-prefs.js";
+import {
+  guidePrefs,
+  onGuidePrefsChange,
+  resetGuidePrefsCacheForTests,
+  setGuidePrefs,
+  setGuideRunLevelOverride,
+} from "./guide-store.js";
 
 /** A minimal `Storage` stand-in, matching `guide-prefs.test.ts`'s own fake. */
 function fakeStorage(): Storage {
@@ -50,5 +56,38 @@ describe("setGuidePrefs", () => {
     unsubscribe();
     setGuidePrefs(withLevel(defaultGuidePrefs, "full"));
     expect(seen).toEqual(["off"]);
+  });
+});
+
+describe("setGuideRunLevelOverride", () => {
+  it("makes guidePrefs() read the override level without persisting it", () => {
+    const storage = fakeStorage();
+    vi.stubGlobal("localStorage", storage);
+    setGuidePrefs(withLevel(defaultGuidePrefs, "off"));
+    setGuideRunLevelOverride("full");
+    expect(guidePrefs().level).toBe("full");
+    // Never written to storage: a fresh read off the same storage sees the real saved level, not the override.
+    resetGuidePrefsCacheForTests();
+    vi.stubGlobal("localStorage", storage);
+    expect(guidePrefs().level).toBe("off");
+  });
+
+  it("never leaks the override into a setGuidePrefs write made during the run", () => {
+    setGuidePrefs(withLevel(defaultGuidePrefs, "hints"));
+    setGuideRunLevelOverride("full");
+    expect(guidePrefs().level).toBe("full");
+    // A typical read-modify-write during an overridden run (`markLessonDone(guidePrefs(), …)` then `setGuidePrefs`).
+    setGuidePrefs(markLessonDone(guidePrefs(), "how-to-win"));
+    setGuideRunLevelOverride(null);
+    expect(guidePrefs().level).toBe("hints");
+    expect(guidePrefs().tutorial.lessonsDone).toEqual(["how-to-win"]);
+  });
+
+  it("clearing the override restores the real saved level", () => {
+    setGuidePrefs(withLevel(defaultGuidePrefs, "off"));
+    setGuideRunLevelOverride("full");
+    expect(guidePrefs().level).toBe("full");
+    setGuideRunLevelOverride(null);
+    expect(guidePrefs().level).toBe("off");
   });
 });

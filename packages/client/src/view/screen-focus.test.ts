@@ -469,6 +469,7 @@ describe("screen focus routes", () => {
       "decks",
       "campaign",
       "extras",
+      "how-to-play",
       "settings",
       "release-notes",
     ]);
@@ -478,6 +479,7 @@ describe("screen focus routes", () => {
       "decks",
       "campaign",
       "extras",
+      "how-to-play",
       "settings",
       "release-notes",
     ]);

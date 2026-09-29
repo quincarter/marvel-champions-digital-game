@@ -9,10 +9,10 @@
  * **Never a trap** (§3.10): Escape and "Round N+1 ▸" do exactly the same thing — close and resume. There is no
  * dead end here; "Replay a lesson" is the only other way out, and it never blocks "Round N+1" either.
  *
- * "Replay a lesson" opens How to win today (`SCENES.howToWin`, no `backTo` — its own Back/×/Escape go to Title,
- * same as reaching it from Settings) unless the caller supplies its own `onReplayLesson`; G6c's hub is what will
- * override this once it exists ("Replay a lesson" is supposed to open the hub at that lesson, not lesson 1's own
- * screen — `docs/guided-mode.md` §4 G8's own note).
+ * "Replay a lesson" opens the "How to play" hub (`SCENES.howToPlay`, guided mode G6c) by default, unless the
+ * caller supplies its own `onReplayLesson`. It lands on the hub itself rather than a specific lesson — replaying
+ * straight to a later lesson is G6c part 2 (`docs/guided-mode.md` §4's own note); today every lesson the hub
+ * opens starts the tutorial from the top.
  */
 import Phaser from "phaser";
 import { dotGrid, signal, surface, typeRole, type TypeSpec } from "../tokens.js";
@@ -34,7 +34,6 @@ import { guidePrefs, setGuidePrefs } from "../guide/guide-store.js";
 import { destroyChildren } from "../ui/destroy-children.js";
 import { FocusRoute, type FocusStop } from "./focus-route.js";
 import { SCENES } from "./keys.js";
-import type { HowToWinSceneData } from "./how-to-win.js";
 
 export interface RoundDebriefData extends RoundDebriefInput {
   /** "Round N+1 ▸" and Escape both call this, after this overlay has already stopped itself. */
@@ -333,9 +332,9 @@ export class RoundDebriefScene extends Phaser.Scene {
     // Registered as a "screen" (`main.ts`), ahead of this overlay in the render stack — `scene.launch` alone
     // would start it *underneath* this still-running overlay, invisibly. Stopping first is the same shape
     // `#nextRound` already uses, and is fine here too: nothing about this default needs the debrief to still be
-    // running once How to win takes over.
+    // running once the hub takes over.
     this.scene.stop();
-    this.scene.launch(SCENES.howToWin, {} satisfies HowToWinSceneData);
+    this.scene.launch(SCENES.howToPlay);
   }
 
   #nextRound(): void {

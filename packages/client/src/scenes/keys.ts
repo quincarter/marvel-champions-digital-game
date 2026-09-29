@@ -58,6 +58,14 @@ export const SCENES = {
    * before the game starts. Reached from the chooser's "Learn as you play", Settings' "Play the tutorial", or
    * `?screen=howtowin`. */
   howToWin: "HowToWin",
+  /** The "How to play" learning hub (guided mode G6c, `docs/guided-mode.md` §4): the five tutorial lessons, the
+   * four aspect lessons (G10c) and the rules reference, each showing done/next. Reached from Title's own menu
+   * button, Settings' "Play the tutorial", the round debrief's "Replay a lesson", or `?screen=howtoplay`. */
+  howToPlay: "HowToPlay",
+  /** The per-aspect lesson page (guided mode G10c, `docs/guided-mode.md` §4): what an aspect is for, when to pick
+   * it, its signature Core Set cards and a "Try it" hand-off (G10d). Reached from `?screen=aspect&aspect=<id>`
+   * today; the "How to play" hub (G6c) and the aspect chips' "Aspects ▸" link wire into it as a follow-up. */
+  aspectLesson: "AspectLesson",
   /** The round debrief (guided mode G8, `docs/guided-mode.md` §4): lesson checklist, "Worth remembering", "New
    * on your board", the guide-level control, Replay a lesson and Round N+1 ▸. Launched over the Board (`scenes/
    * round-debrief.ts`'s own `showRoundDebrief`); wiring it to fire at the end of a tutorial round is a separate

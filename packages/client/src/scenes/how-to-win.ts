@@ -9,14 +9,15 @@
  * intent, not pixels"): the WIN card in a left column, the two LOSE cards stacked in a right column, the EVERY
  * ROUND strip full width below both, same as `guide-chooser.ts`'s own art-left/choices-right wide split.
  *
- * Reached from the chooser's "Learn as you play" (`scenes/guide-chooser.ts`), Settings' "Play the tutorial"
- * (`view/settings-rows.ts#guideRowInfoOf`), or `?screen=howtowin` (`scenes/boot.ts`). "Start the fight" is the
- * tutorial's lesson 1 completion point: it marks `"how-to-win"` done (`guide/guide-prefs.ts#markLessonDone`) and
- * starts the tutorial game through `guide/start-tutorial.ts`'s one shared call site. "Tell me more" opens the Rules
- * reference at the glossary, launched over this screen the same way every other overlay in this app launches.
+ * Reached from the chooser's "Learn as you play" (`scenes/guide-chooser.ts`), the "How to play" hub's own lesson 1
+ * row/"Continue learning" (`scenes/how-to-play.ts`, guided mode G6c), or `?screen=howtowin` (`scenes/boot.ts`).
+ * "Start the fight" is the tutorial's lesson 1 completion point: it marks `"how-to-win"` done
+ * (`guide/guide-prefs.ts#markLessonDone`) and starts the tutorial game through `guide/start-tutorial.ts`'s one
+ * shared call site. "Tell me more" opens the Rules reference at the glossary, launched over this screen the same
+ * way every other overlay in this app launches.
  *
- * Back/×/Escape (§3.10 "every tutorial screen has Back") return to the chooser if that's where the player came
- * from (`HowToWinSceneData.backTo`), otherwise to Title — never a dead end.
+ * Back/×/Escape (§3.10 "every tutorial screen has Back") return to the chooser or the hub if that's where the
+ * player came from (`HowToWinSceneData.backTo`), otherwise to Title — never a dead end.
  */
 import Phaser from "phaser";
 import { accent, dotGrid, ink, signal, surface, typeRole, type TypeSpec } from "../tokens.js";
@@ -41,8 +42,10 @@ import { SCENES } from "./keys.js";
 import type { RulesSceneData } from "./rules.js";
 
 export interface HowToWinSceneData {
-  /** True when the chooser (`scenes/guide-chooser.ts`) launched this screen — Back/×/Escape return there instead of Title. */
-  readonly backTo?: "chooser";
+  /** Set when the chooser (`scenes/guide-chooser.ts`) or the "How to play" hub's own lesson 1 row/"Continue
+   * learning" (`scenes/how-to-play.ts`, guided mode G6c) launched this screen — Back/×/Escape return there
+   * instead of Title. */
+  readonly backTo?: "chooser" | "howToPlay";
 }
 
 const TITLE_TYPE: TypeSpec = typeRole.pageTitle;
@@ -51,7 +54,7 @@ const TAG_TYPE: TypeSpec = typeRole.label;
 const STEP_LABEL_TYPE: TypeSpec = typeRole.label;
 
 export class HowToWinScene extends Phaser.Scene {
-  #backTo: "chooser" | "title" = "title";
+  #backTo: "chooser" | "howToPlay" | "title" = "title";
   #route: FocusRoute | null = null;
   #tooltip: McTooltip | null = null;
   #termBlocks: McTermText[] = [];
@@ -64,7 +67,7 @@ export class HowToWinScene extends Phaser.Scene {
 
   create(data: HowToWinSceneData = {}): void {
     this.cameras.main.setBackgroundColor(cssOf(surface.paper.hex));
-    this.#backTo = data.backTo === "chooser" ? "chooser" : "title";
+    this.#backTo = data.backTo === "chooser" || data.backTo === "howToPlay" ? data.backTo : "title";
     this.#starting = false;
     this.scale.on("resize", this.#rebuild, this);
     const artOff = cardArt(this).onArrived(() => this.#rebuild());
@@ -434,6 +437,8 @@ export class HowToWinScene extends Phaser.Scene {
 
   #leave(): void {
     this.scale.off("resize", this.#rebuild, this);
-    goToScreen(this, this.#backTo === "chooser" ? SCENES.guideChooser : SCENES.title);
+    const target =
+      this.#backTo === "chooser" ? SCENES.guideChooser : this.#backTo === "howToPlay" ? SCENES.howToPlay : SCENES.title;
+    goToScreen(this, target);
   }
 }

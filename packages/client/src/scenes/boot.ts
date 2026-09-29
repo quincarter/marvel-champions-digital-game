@@ -38,6 +38,7 @@ import { TUTORIAL_LESSONS } from "../guide/tutorial-lessons.js";
 import type { LessonListEntry } from "../view/lesson-model.js";
 import type { RoundDebriefData } from "./round-debrief.js";
 import { instanceId, playerId, type GameEvent } from "@mc/engine";
+import type { CoreAspect } from "@mc/content";
 
 /**
  * Dev-only screenshot entry point: `?screen=…` jumps straight past Title, for
@@ -142,6 +143,20 @@ async function devScreenJump(): Promise<{ readonly key: string; readonly data?: 
   // `?screen=howtowin`: the tutorial's "How to win" screen (guided mode G6b, `docs/guided-mode.md` §4), reachable
   // any time for QA. No `backTo`, so its own Back/×/Escape go to Title, the same as reaching it from Settings.
   if (screen === "howtowin") return { key: SCENES.howToWin, data: {} };
+  // `?screen=aspect&aspect=<id>`: the per-aspect lesson page (guided mode G10c, `docs/guided-mode.md` §4),
+  // reachable any time for QA before the hub (G6c) wires into it. Falls back to Justice if `aspect` is missing or
+  // names something with no `AspectGuide` yet ('Pool, §3.7).
+  if (screen === "aspect") {
+    const aspect = params.get("aspect");
+    const valid = new Set(["justice", "aggression", "leadership", "protection", "basic"]);
+    return {
+      key: SCENES.aspectLesson,
+      data: { aspect: (aspect && valid.has(aspect) ? aspect : "justice") as CoreAspect },
+    };
+  }
+  // `?screen=howtoplay`: the "How to play" learning hub (guided mode G6c, `docs/guided-mode.md` §4), reachable
+  // any time for QA.
+  if (screen === "howtoplay") return { key: SCENES.howToPlay, data: {} };
   // `?screen=termtext`: the `McTermText`/`McTooltip` dev demo (guided mode G3b, `docs/guided-mode.md` §4).
   if (screen === "termtext") return { key: SCENES.termTextDemo, data: {} };
   // `?screen=guidecallout`: the `McGuideCallout` dev demo (guided mode G4a, `docs/guided-mode.md` §4).

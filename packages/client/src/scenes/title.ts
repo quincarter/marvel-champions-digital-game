@@ -40,6 +40,7 @@ import { titleMenuFocusOrder } from "../view/screen-focus.js";
 import { titleMenuLayout } from "../view/title-menu-layout.js";
 import type { SaveMeta } from "../engine/game-storage.js";
 import { appSession } from "../session.js";
+import { setGuideRunLevelOverride } from "../guide/guide-store.js";
 import { FocusRoute, type FocusStop } from "./focus-route.js";
 import { SCENES } from "./keys.js";
 import type { ScenarioSelectData } from "./scenario-select.js";
@@ -266,6 +267,23 @@ export class TitleScene extends Phaser.Scene {
     );
     this.#stops.set("extras", { rect: layout.extras, activate: openExtras });
 
+    // "How to play" (guided mode G6c, `docs/guided-mode.md` §4): the learning hub. Not a guided run by itself —
+    // starting a lesson from inside the hub is what sets `appSession().guidedRun` (`guide/start-tutorial.ts`).
+    const openHowToPlay = (): void => {
+      this.scale.off("resize", this.#rebuild, this);
+      goToScreen(this, SCENES.howToPlay);
+    };
+    this.#buttons.push(
+      new McButton(this, {
+        kind: menuKind,
+        label: "How to play",
+        type: typeRole.menuButton,
+        rect: layout.howToPlay,
+        onClick: openHowToPlay,
+      }),
+    );
+    this.#stops.set("how-to-play", { rect: layout.howToPlay, activate: openHowToPlay });
+
     // W4's Settings is an overlay: launched over this scene, it stops itself on Back (`scenes/settings.ts`).
     const openSettings = (): void => {
       this.scene.launch(SCENES.settings);
@@ -372,6 +390,7 @@ export class TitleScene extends Phaser.Scene {
     // running rather than stopping outright (`session.ts`'s own `guidedRun` doc comment: "not cleared
     // automatically by starting a fresh non-guided game afterward" was this method's own TODO).
     appSession().guidedRun = false;
+    setGuideRunLevelOverride(null);
     const draft = this.#freshDraft();
     this.scale.off("resize", this.#rebuild, this);
     goToScreen(this, SCENES.scenarioSelect, {
@@ -387,6 +406,7 @@ export class TitleScene extends Phaser.Scene {
     // "Continue" resumes a saved game, never a guided run (guidance isn't part of a save — `session.ts`'s own
     // `guidedRun` doc comment) — same reset as `#newGame`'s own, above.
     appSession().guidedRun = false;
+    setGuideRunLevelOverride(null);
     await store.resume(gameId);
     if (store.state.status === "failed") {
       this.#starting = false;

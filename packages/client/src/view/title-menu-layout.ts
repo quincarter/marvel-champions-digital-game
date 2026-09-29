@@ -59,6 +59,8 @@ export interface TitleMenuLayout {
   readonly decks: Rect;
   readonly campaign: Rect;
   readonly extras: Rect;
+  /** "How to play" (guided mode G6c, `docs/guided-mode.md` §4): opens the learning hub. */
+  readonly howToPlay: Rect;
   readonly settings: Rect;
   readonly footer: Rect;
 }
@@ -70,6 +72,7 @@ export function titleMenuLayoutRects(layout: TitleMenuLayout): readonly Rect[] {
     layout.decks,
     layout.campaign,
     layout.extras,
+    layout.howToPlay,
     layout.settings,
     layout.footer,
   ];
@@ -115,6 +118,8 @@ export function titleMenuLayout(input: TitleMenuLayoutInput): TitleMenuLayout {
   y += hit.target + gap;
   const extras: Rect = { x: left, y, width: column, height: hit.target };
   y += hit.target + gap;
+  const howToPlay: Rect = { x: left, y, width: column, height: hit.target };
+  y += hit.target + gap;
   const settings: Rect = { x: left, y, width: column, height: hit.target };
   y += hit.target + gap;
 
@@ -137,6 +142,7 @@ export function titleMenuLayout(input: TitleMenuLayoutInput): TitleMenuLayout {
     decks,
     campaign,
     extras,
+    howToPlay,
     settings,
     footer,
   };
