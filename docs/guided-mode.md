@@ -221,6 +221,7 @@ The main session verifies UI boxes by clicking through them before ticking (§6)
       Landed: `33bd1aa6` (tip lines reworded as "pick it when" advice). An "i" badge on the aspect chips in Seats, Deck check and Deck builder opens `ui/aspect-tip.ts`'s panel, shown at every guide level. G10c wires `linkAvailable` / `linkReason` in `view/aspect-tip-model.ts`.
 - [ ] **G10c Aspect lesson page.** The per-aspect lesson page inside G6c's hub (signature scans, when to pick it, Try it).
       Reached from the hub, the debrief, Settings → Guide, and the chips' "Aspects ▸".
+      Landed: `3457bdd3` (its registry edits were swept into `48787de5`). `scenes/aspect-lesson.ts` + `view/aspect-lesson-model.ts`, dev jump `?screen=aspect&aspect=<id>`, `#onTryIt(aspect)` for G10d. A follow-up is in flight: the phone gap before the signature cards, large card scans on wide layouts, and wiring the page into the hub rows, the chips' Aspects ▸ and Settings' Aspect lessons.
 - [ ] **G10d Aspect try-it games.** A guided Rhino game with that aspect's Core precon. Its aspect tips fire when the
       signature cards come up, on G5b's lesson model.
 - [ ] **G10e Opportunistic tips.** `view/guide-tips.ts` is the trigger table (§5.3). Once each, Full only, shown as a
@@ -309,7 +310,7 @@ A fresh Claude session can pick this up from this file alone.
   pointer, and put a screenshot beside its tile.
 - **Commits:** as the repo's git user, with no Claude co-author trailer. Every change carries a changie fragment.
 
-**In flight:** G10c (aspect lesson page `scenes/aspect-lesson.ts`, standalone) and G8 part 2 (fire the debrief at end of round in guided runs, from `scenes/board/guide-mount.ts`), side by side. If cut off, check `git status`/`git log` and brief a fresh agent per item. Then: G6c part 2 (replay to a lesson), G10c (aspect lesson page), G10d (try-it games), G10e part 2 (tip display), G11.
+**In flight:** G8 part 2 (the debrief at end of round + the Log unlock) and the G10c follow-up (layout + wiring), side by side. If cut off, check `git status`/`git log` and brief a fresh agent per item. Then: G6c part 2 (replay to a lesson), G10d (try-it games), G10e part 2 (tip display), G11.
 
 ## 7. Prior art: the parked prototype
 
