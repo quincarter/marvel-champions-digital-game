@@ -253,6 +253,32 @@ export const selectionRing = {
 } as const;
 
 /**
+ * Section 06 — guided mode's spotlight (G4c, `docs/guided-mode.md` §4): the yellow ring a "do this" step draws on
+ * the thing it's teaching, and the `TRY THIS`/`GUIDE PICK` stamp on its top edge. Caution yellow, since it's the
+ * guide's own hue everywhere else (`McGuideCallout`, `McGuidePanel`) — never Hero Red, which stays the one forward
+ * action a screen has. `ringWidth` is heavier than `selectionRing.width` on purpose: the design tiles (D01/P03)
+ * draw this ring thick enough to read as "look here" at a glance, distinct from a targeting pulse's thinner "pick
+ * one of these".
+ */
+export const guideSpotlight = {
+  ringWidth: 5,
+  /** Gap between the target's own edge and the ring. */
+  ringOffset: 6,
+  ringColor: signal.caution,
+  /** How dark the board reads outside the cut-out. */
+  dimAlpha: 0.62,
+  dimColor: surface.ink,
+} as const;
+
+/** Section 06 — the `TRY THIS` / `GUIDE PICK` stamp guided mode drops on a step's own target (G4c). Both variants
+ * are caution yellow: neither is a rules warning (that's the hint overlay, G9b) nor the forward action (Hero Red). */
+export const guideTag = {
+  fill: signal.caution,
+  height: 22,
+  pad: 9,
+} as const;
+
+/**
  * How long each kind of motion runs. Every one is "enough to make the state
  * change readable, not spectacle" (PLAN.md Phase 4): a card is never seen
  * to *arrive* so much as to have been *put down*. Under reduced motion the

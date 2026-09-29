@@ -105,6 +105,16 @@ async function devScreenJump(): Promise<{ readonly key: string; readonly data?: 
   if (screen === "extras-reader")
     return { key: SCENES.extrasReader, data: { bookId: params.get("book") ?? "book:rrg" } };
 
+  // `?screen=board&guidedemo=1`: G5a's `TUTORIAL_CONFIG` game, for G4c's spotlight/tag keyboard demo
+  // (`scenes/guide-spotlight-demo.ts`, → / Space / ← to cycle, Esc to hide) — screenshottable well ahead of G5c's
+  // real lesson controller existing. Board is started and left running underneath, the same shape as
+  // `screen=choice`/`villain-interrupt` below; the demo overlay is launched once Board itself has started (see the
+  // `BootScene.create` hand-off below, which mirrors its own `screen=pause` launch).
+  if (screen === "board" && params.get("guidedemo") === "1") {
+    await startDevTutorialGame();
+    return { key: SCENES.board, data: {} };
+  }
+
   if (screen === "board" || screen === "pause" || screen === "rules" || screen === "settings") {
     await startDevGame();
     if (screen === "settings") return { key: SCENES.settings, data: {} };
@@ -230,6 +240,20 @@ async function startDevGame(): Promise<void> {
     seed: Number.isFinite(seed) && params.get("seed") ? seed : rollSeed(),
   });
   await store.start(toSessionConfig(draft, [corePlayerForSeat(seat)]));
+}
+
+/**
+ * G5a's tutorial matchup (`guide/tutorial-config.ts`'s `TUTORIAL_CONFIG`), started exactly as a real session would
+ * (`store.start`), for `?screen=board&guidedemo=1` (G4c's spotlight/tag demo) — no `TUTORIAL_SCRIPT` commands run,
+ * since the demo's four anchors (the main scheme, Flip, Black Cat in hand, Thwart) are all on screen from the
+ * opening hand, before any lesson step would actually fire. The mulligan choice is declined (keep the stacked
+ * hand), same as `startDevChoiceGame` above.
+ */
+async function startDevTutorialGame(): Promise<void> {
+  const { store } = appSession();
+  const { TUTORIAL_CONFIG } = await import("../guide/tutorial-config.js");
+  await store.start(TUTORIAL_CONFIG);
+  if (store.state.game?.pendingChoice) await store.resolveChoice([]);
 }
 
 /**
@@ -383,6 +407,9 @@ export class BootScene extends Phaser.Scene {
         }
         const params = new URLSearchParams(location.search);
         if (params.get("screen") === "pause") this.scene.launch(SCENES.pause);
+        if (params.get("screen") === "board" && params.get("guidedemo") === "1") {
+          this.scene.launch(SCENES.guideSpotlightDemo);
+        }
       });
   }
 

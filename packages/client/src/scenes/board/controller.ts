@@ -43,6 +43,7 @@ import {
   type PaymentView,
 } from "../../view/payment-model.js";
 import { targetingPanelOf, type TargetingPanel, type TargetingSource } from "../../view/targeting-panel.js";
+import { GuideGateHolder, type GuideGate } from "./guide-gate.js";
 import { BASIC_TO_KIND, basicKindOf, retarget, type Selection } from "./selection.js";
 
 /** What the controller reads from, and asks of, the scene that owns it. */
@@ -171,6 +172,10 @@ export class BoardController {
    * reaches one of the other guards incorrectly.
    */
   #readOnly: boolean;
+  /** The active lesson step's soft gate (§3.10, `guide-gate.ts`), or nothing outside one — see that module's own
+   * doc comment, including the "two inert clicks lift it" and Escape-release behavior. Set by G5c's guide
+   * controller; every input entry point below checks it the same way it already checks `#readOnly`. */
+  readonly #guideGate = new GuideGateHolder();
 
   constructor(host: BoardControllerHost, options: { readonly readOnly?: boolean } = {}) {
     this.#host = host;
@@ -183,6 +188,20 @@ export class BoardController {
 
   get readOnly(): boolean {
     return this.#readOnly;
+  }
+
+  /** Sets (or clears, with `null`) the current lesson step's soft input gate — "Stop tutorial" calls this with
+   * `null` directly. A no-op redraw isn't needed here — the gate only changes what a *future* tap does, never what
+   * is currently drawn. */
+  setGuideGate(gate: GuideGate | null): void {
+    this.#guideGate.set(gate);
+  }
+
+  /** Escape's own release (§3.10, owner: "no one should ever feel locked into a tutorial"): lifts the active gate
+   * immediately and fires its `onGateReleased`. Returns whether a gate was actually open, so `board.ts`'s own
+   * Escape handling knows whether to fall through to its usual cancel/Pause behavior. */
+  releaseGuideGate(): boolean {
+    return this.#guideGate.release();
   }
 
   /** Flips read-only mode. A scene switching between a live board and a replayed one calls this rather than rebuilding the controller. */
@@ -266,8 +285,16 @@ export class BoardController {
       return;
     }
     if (focus.kind === "basic") {
+      if (!this.#guideGate.allowsAction(focus.action)) {
+        this.#guideGate.noteInertClick();
+        return;
+      }
       if (focus.action === "endTurn") void this.dispatchExample("endTurn");
       else this.chooseBasic(focus.action);
+      return;
+    }
+    if (focus.kind === "card" && !this.#guideGate.allowsCard(focus.instanceId)) {
+      this.#guideGate.noteInertClick();
       return;
     }
     // Enter on the card a free play is asking about is the keyboard's "Play it": the bar's buttons are not on the
@@ -292,6 +319,15 @@ export class BoardController {
    */
   tapInMode(id: InstanceId): boolean {
     if (this.#readOnly) return false;
+    // Gated the same way any other card tap is: a mode already open still only answers with an allowed card —
+    // reported as "handled" (true) rather than falling through to `onTap`, so a gated card outside the mode's own
+    // targets doesn't also try to play itself. Idle falls through to `onTap` (`tapHandCard`/`onCharacterTap`),
+    // which gate — and count the inert click — on their own, so this doesn't double-count that tap.
+    if (!this.#guideGate.allowsCard(id)) {
+      if (this.#selection.kind === "idle") return false;
+      this.#guideGate.noteInertClick();
+      return true;
+    }
     if (this.#selection.kind === "paying") {
       this.#spendByInstance(id);
       return true;
@@ -325,6 +361,10 @@ export class BoardController {
    */
   chooseBasic(action: BasicAction): void {
     if (this.#readOnly) return;
+    if (!this.#guideGate.allowsAction(action)) {
+      this.#guideGate.noteInertClick();
+      return;
+    }
     if (action === "attack" || action === "thwart") {
       // More than one character could go — the hero and an ally, say — so who goes (and so in what order their
       // effects land) is the player's pick, not whichever the engine happened to list first.
@@ -451,6 +491,10 @@ export class BoardController {
    */
   async playCard(instanceId: InstanceId, options: { readonly confirmFree?: boolean } = {}): Promise<void> {
     if (this.#readOnly) return;
+    if (!this.#guideGate.allowsCard(instanceId)) {
+      this.#guideGate.noteInertClick();
+      return;
+    }
     const entry = this.#host.marks()?.playable.has(instanceId)
       ? this.#legalEntries().find(
           (candidate) => candidate.action.kind === "playCard" && candidate.action.instanceId === instanceId,
@@ -874,6 +918,10 @@ export class BoardController {
 
   async dispatchExample(kind: BasicAction): Promise<void> {
     if (this.#readOnly) return;
+    if (!this.#guideGate.allowsAction(kind)) {
+      this.#guideGate.noteInertClick();
+      return;
+    }
     const entry = this.#legalFor(kind);
     if (!entry) return;
     if (kind === "endTurn" && appSession().settings.confirmBeforeEndTurn) {

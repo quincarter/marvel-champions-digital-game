@@ -52,6 +52,7 @@ import { drawCharacter } from "./board/character-panel.js";
 import { drawChrome, drawPhoneTabs } from "./board/chrome.js";
 import { emptyFrame, type BoardDrawContext, type BoardFrame } from "./board/context.js";
 import { BoardController } from "./board/controller.js";
+import type { GuideGate } from "./board/guide-gate.js";
 import { drawHand, HandScroll } from "./board/hand.js";
 import type { RowDrag } from "../view/hand-scroll.js";
 import { bindGamepad, bindKeyboard, type IntentBinding } from "./board/input.js";
@@ -548,6 +549,11 @@ export class BoardScene extends Phaser.Scene {
         if (this.#focus?.kind === "card") this.#inspect(this.#focus.instanceId);
         break;
       case "cancel":
+        // Escape/B always releases a guided-mode gate first (§3.10, guided mode G4c, "no one should ever feel
+        // locked into a tutorial") — checked ahead of everything below, since a gated step can be open at the same
+        // time as an ordinary selection (paying, targeting) and Escape's release must win over `cancel()`'s own
+        // "back out of the mode" behavior, not queue behind it.
+        if (this.#controller.releaseGuideGate()) break;
         // Escape/B backs out of a mode first, same as everywhere else in this
         // app; with no mode open, it's the keyboard/pad route to Pause
         // (docs/phase4-screen-gaps.md §3 "W4": "Escape when no mode/overlay is
@@ -636,6 +642,40 @@ export class BoardScene extends Phaser.Scene {
   /** The open payment, if any — read by the Inspect overlay to gate its "Use as resource" button and word "Right now" mid-payment. */
   paymentView(): PaymentView | null {
     return this.#controller.paymentView();
+  }
+
+  /**
+   * A read-only snapshot of what the last draw put on screen, for `view/guide-anchor.ts` to resolve a lesson
+   * step's anchor against (guided mode G4c) — the same two maps `BoardDrawContext.frame` hands every zone module
+   * (`scenes/board/context.ts`), reused rather than duplicated. `scenes/guide-spotlight-demo.ts` is the only
+   * caller until G5c's guide controller exists.
+   */
+  guideAnchorFrame(): {
+    readonly hitRects: ReadonlyMap<InstanceId, Rect>;
+    readonly focusRects: ReadonlyMap<string, Rect>;
+  } {
+    return { hitRects: this.#frame.hitRects, focusRects: this.#frame.focusRects };
+  }
+
+  /** Which phone tab is showing right now — off phone this is meaningless, but always some value (`view/layout.ts`'s own `boardLayout` treats `activeTab` the same way). */
+  activeTabName(): PhoneTab {
+    return this.#activeTab;
+  }
+
+  /** The perspective player id for `resolveAnchor`'s `instanceOfCode` — null with no game running. */
+  perspectivePlayerId(): SessionState["perspectiveId"] {
+    return appSession().store.state.perspectiveId;
+  }
+
+  /** Sets (or clears, with `null`) the active lesson step's soft input gate (G4c) — forwarded straight to the
+   * controller (`scenes/board/guide-gate.ts`). */
+  setGuideGate(gate: GuideGate | null): void {
+    this.#controller.setGuideGate(gate);
+  }
+
+  /** Escape's own release (G4c) — forwarded straight to the controller. Returns whether a gate was actually open. */
+  releaseGuideGate(): boolean {
+    return this.#controller.releaseGuideGate();
   }
 
   /** Spends `id` for the payment currently open, if it's one of its sources. See `BoardController#payWithCard`'s own comment. */

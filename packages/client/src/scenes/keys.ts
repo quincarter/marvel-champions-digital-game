@@ -50,6 +50,8 @@ export const SCENES = {
   guideCalloutDemo: "GuideCalloutDemo",
   /** `McGuidePanel` dev demo (guided mode G4b, `docs/guided-mode.md` §4): `?screen=guidepanel` only, never reached in-game. */
   guidePanelDemo: "GuidePanelDemo",
+  /** `McGuideSpotlight`/`McGuideTag` dev demo (guided mode G4c, `docs/guided-mode.md` §4): `?screen=board&guidedemo=1` only, never reached in-game. Launched over a live Board, not standalone — see `scenes/boot.ts`. */
+  guideSpotlightDemo: "GuideSpotlightDemo",
   // Overlays.
   choice: "ChoiceOverlay",
   inspect: "InspectOverlay",
