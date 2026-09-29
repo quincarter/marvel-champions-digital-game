@@ -405,6 +405,10 @@ function textOf(
   card: AnyCard,
   face: CardFace = { kind: "front" },
 ): { readonly printed: string; readonly current: string } {
+  // Checked before the generic `"text" in card` branch below: a flip-side face (MC27 p. 22's Enhanced S.H.I.E.L.D.
+  // Tech, Criminal Enterprise → State of Madness) still has its own top-level `text`, so that branch would
+  // otherwise always win and this face's own printed text would never be reachable.
+  if (face.kind === "flipSide" && "flipSide" in card && card.flipSide) return card.flipSide.text;
   if ("text" in card) return card.text;
   if (card.type === "hero_identity") return face.kind === "alterEgo" ? card.alterEgo.text : heroFaceOf(card, face).text;
   if (card.type === "villain") {
@@ -421,6 +425,7 @@ function textOf(
 
 /** The keywords printed on one face, without a game to ask about granted ones. */
 function printedKeywordsOf(card: AnyCard, face: CardFace): readonly KeywordInstance[] {
+  if (face.kind === "flipSide" && "flipSide" in card && card.flipSide) return card.flipSide.keywords;
   if (card.type === "hero_identity")
     return face.kind === "alterEgo" ? card.alterEgo.keywords : heroFaceOf(card, face).keywords;
   if (card.type === "villain") {
@@ -436,6 +441,7 @@ function printedKeywordsOf(card: AnyCard, face: CardFace): readonly KeywordInsta
 
 /** The traits printed on one face. A hero's two sides do not share them. */
 function printedTraitsOf(card: AnyCard, face: CardFace): readonly string[] {
+  if (face.kind === "flipSide" && "flipSide" in card && card.flipSide) return card.flipSide.traits as readonly string[];
   if (card.type === "hero_identity") {
     return (face.kind === "alterEgo" ? card.alterEgo.traits : heroFaceOf(card, face).traits) as readonly string[];
   }
@@ -543,6 +549,7 @@ function printedKeywordDefinitions(card: AnyCard, face: CardFace): readonly Keyw
 
 /** A hero identity names its two sides differently; everything else has one name. */
 function faceNameOf(card: AnyCard, face: CardFace): string {
+  if (face.kind === "flipSide" && "flipSide" in card && card.flipSide) return card.flipSide.name;
   if (card.type !== "hero_identity") return card.name;
   return face.kind === "alterEgo" ? card.alterEgo.faceName : heroFaceOf(card, face).faceName;
 }

@@ -26,7 +26,12 @@ import { destroyChildren } from "../../ui/destroy-children.js";
 import { fadeScreenIn, goToScreen } from "../../ui/transitions.js";
 import { CAMPAIGN_RECORDS } from "../../campaign/campaign-service.js";
 import { campaignService } from "../../session.js";
-import { campaignDeckContextOf, frozenNonCampaignCardsOf } from "../../view/campaign-deck-edit-model.js";
+import {
+  campaignDeckContextOf,
+  deckFreezePolicyOf,
+  frozenNonCampaignCardsOf,
+} from "../../view/campaign-deck-edit-model.js";
+import { isDeckFreezeOptedIn } from "../../campaign/deck-freeze-choice.js";
 import { POOL_CARDS } from "../../content/pool.js";
 import { SCENES } from "../keys.js";
 import type { DeckBuilderCampaignData } from "../deck-builder.js";
@@ -85,7 +90,18 @@ export class CampaignDeckEditScene extends Phaser.Scene {
     }
 
     const definition = CAMPAIGNS[current.campaignId as string];
-    const frozenNonCampaignCards = definition ? frozenNonCampaignCardsOf(definition, current, data.seatNumber) : null;
+    const policy = deckFreezePolicyOf(current.campaignId as string);
+    const optedIn = policy === "optional" && isDeckFreezeOptedIn(data.runId, data.seatNumber);
+    const frozenNonCampaignCards = definition
+      ? frozenNonCampaignCardsOf(definition, current, data.seatNumber, optedIn)
+      : null;
+    // Whether opting in *would* freeze right now (expert campaign, scenario 1 attempted) — shown as a standing
+    // offer in the ordinary builder (MC27 p. 6's freeze is optional, so nothing chooses it for the player). Only
+    // computed when the seat hasn't already opted in; `frozenNonCampaignCards` above already covers that case.
+    const optionalFreezeEligible =
+      policy === "optional" && !optedIn && definition
+        ? frozenNonCampaignCardsOf(definition, current, data.seatNumber, true) !== null
+        : false;
     const context = campaignDeckContextOf(
       content,
       current,
@@ -122,6 +138,8 @@ export class CampaignDeckEditScene extends Phaser.Scene {
       returnTo: data.returnTo,
       context,
       title,
+      grants: seat.grants,
+      ...(optionalFreezeEligible ? { optionalFreeze: { eligible: true as const } } : {}),
     };
     this.scene.start(SCENES.deckBuilder, { deck, campaign });
   }

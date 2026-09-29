@@ -41,6 +41,8 @@ export interface FrozenDeckCampaignCardRow {
   readonly boughtIssueNumber: number | null;
   readonly note: string;
   readonly citation: string;
+  /** `CampaignGrant.face` straight through — MC10 p. 12's "Improved" side, MC27 p. 22's Enhanced side. Null on the front face. */
+  readonly face: string | null;
 }
 
 export type FrozenDeckMarketStatus =
@@ -78,7 +80,15 @@ export const FROZEN_BANNER_REASON =
 export const FROZEN_DECK_CAPTION =
   "On Standard this screen is the normal deck builder, with campaign cards pinned. The freeze banner only appears in Expert.";
 
-const CAMPAIGN_CARD_CITATION = "MC16 p. 5";
+/** The printed freeze rule's own citation, by box — MC16 p. 5 (mandatory) / MC27 p. 6 (optional); see `DECK_FREEZE_POLICY` in `campaign-deck-edit-model.ts`. */
+const FREEZE_CITATION_BY_CAMPAIGN: Readonly<Record<string, string>> = {
+  gmw: "MC16 p. 5",
+  sm: "MC27 p. 6",
+};
+
+function freezeCitationOf(campaignId: string): string {
+  return FREEZE_CITATION_BY_CAMPAIGN[campaignId] ?? "campaign rulebook";
+}
 
 /** `deckStatsOf`'s per-aspect grouping, folded into the one non-basic/non-hero/non-pool aspect a frozen deck ever carries. */
 function chosenAspectCountOf(counts: DeckAspectCounts): number {
@@ -190,19 +200,25 @@ export function frozenDeckModelOf(input: FrozenDeckModelInput): FrozenDeckModel 
     },
   ];
 
+  const citation = freezeCitationOf(input.definition.campaignId as string);
   const campaignCards: FrozenDeckCampaignCardRow[] = input.grants.map((grant) => {
     const boughtIssueNumber = nodeIds.includes(grant.grantedAtNodeId)
       ? issueNumberOf(nodeIds, grant.grantedAtNodeId)
       : null;
+    // MC27 p. 22's Enhanced side (`setGrantFace`, `CampaignGrant.face`) reads as its own note line rather than
+    // folding into `name` — the face's own name is usually identical to the front's (S.H.I.E.L.D. Tech), so a
+    // reader needs the flip called out in words, not just a name that looks unchanged.
+    const faceNote = grant.face ? `Flipped to ${grant.face}. ` : "";
     return {
       cardId: grant.cardId,
       name: cardNameOf(input.pool, grant.cardId),
       boughtIssueNumber,
       note:
         boughtIssueNumber !== null
-          ? `Bought after #${boughtIssueNumber} · doesn't count toward deck size.`
-          : "Doesn't count toward deck size.",
-      citation: CAMPAIGN_CARD_CITATION,
+          ? `${faceNote}Granted after #${boughtIssueNumber} · doesn't count toward deck size.`
+          : `${faceNote}Doesn't count toward deck size.`,
+      citation,
+      face: grant.face ?? null,
     };
   });
 

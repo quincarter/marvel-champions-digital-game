@@ -17,8 +17,8 @@ import {
   seedSmRun,
   seedSmWonGame,
 } from "./dev-fixtures.js";
-import { frozenNonCampaignCardsOf } from "../view/campaign-deck-edit-model.js";
-import { GMW_CAMPAIGN_DEFINITION } from "@mc/cards";
+import { deckFreezePolicyOf, frozenNonCampaignCardsOf } from "../view/campaign-deck-edit-model.js";
+import { GMW_CAMPAIGN_DEFINITION, SM_CAMPAIGN_DEFINITION } from "@mc/cards";
 import type { GameState } from "@mc/engine";
 
 /** Every real card instance in `state`, by printed name — the "is this campaign card actually in play" check every
@@ -216,6 +216,19 @@ describe("seedSmRun", () => {
     const record = await seedSmRun(service(), "finished");
     expect(record.status).toBe("won");
     expect(record.history.filter((entry) => entry.outcome === "won")).toHaveLength(5);
+  }, 30_000);
+
+  test("MC27 p. 6's freeze is optional: an expert-campaign record with scenario 1 played never freezes on its own", async () => {
+    expect(deckFreezePolicyOf("sm")).toBe("optional");
+    const record = await seedSmRun(service(), "afterIssue1", { expertCampaign: true });
+    expect(record.modes.campaign?.expertCampaign).toBe(true);
+    // No `deckFreezeOptedIn` argument (defaults false): unlike GMW's mandatory freeze, nothing here should ever
+    // read as frozen without a seat's own opt-in choice.
+    expect(frozenNonCampaignCardsOf(SM_CAMPAIGN_DEFINITION, record, 1)).toBeNull();
+    // Opting in gives `frozenNonCampaignCardsOf` the same real snapshot GMW's mandatory freeze gets.
+    const frozen = frozenNonCampaignCardsOf(SM_CAMPAIGN_DEFINITION, record, 1, true);
+    expect(frozen).not.toBeNull();
+    expect(frozen!.length).toBeGreaterThan(0);
   }, 30_000);
 });
 

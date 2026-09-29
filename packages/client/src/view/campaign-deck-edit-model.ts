@@ -14,6 +14,7 @@ import {
   validateDeck,
   type CampaignDefinition,
   type CampaignDeckContext,
+  type CampaignGrant,
   type CampaignLog,
   type DeckValidation,
 } from "@mc/engine";
@@ -45,28 +46,39 @@ export function campaignDeckContextOf(
  * existing checks": "MC16 p. 5 (mandatory) / MC27 p. 6 (optional)" — no generic signal in `CampaignLog` says this,
  * it is each box's own printed rule, so it stays a short lookup here rather than a per-campaign `if` in a scene.
  * `"mandatory"` freezes automatically once an expert-mode run has played its first scenario; a box with no entry
- * (MC10, and every box not yet in this table) never freezes. `"optional"` (MC27) is left for that box's own client
- * work — the player must be offered a choice this module cannot invent.
+ * (MC10, and every box not yet in this table) never freezes. `"optional"` (MC27 p. 6, "(Optional) Once a player
+ * starts an expert campaign, they cannot add, remove, or change …") only freezes once the seat has opted in
+ * (`deckFreezeOptedIn`) — the printed rule is a group's own house-rule-shaped choice, not automatic, so a caller
+ * must supply that choice; see `campaign/deck-freeze-choice.ts` for where the client persists it.
  */
 const DECK_FREEZE_POLICY: Readonly<Record<string, "mandatory" | "optional">> = {
   gmw: "mandatory",
+  sm: "optional",
 };
 
+/** Whether `log.campaignId` even has a deck-freeze rule (mandatory or optional) to ask about at all. */
+export function deckFreezePolicyOf(campaignId: string): "mandatory" | "optional" | null {
+  return DECK_FREEZE_POLICY[campaignId] ?? null;
+}
+
 /**
- * MC16 p. 5: "Once a player starts an expert campaign, they cannot add, remove, or change the aspect and/or basic
- * cards in their deck … for the remainder of the campaign." — snapshotted from the stored run itself, never
- * guessed: `history`'s very first entry's `logBefore` is the log exactly as it stood before that node's own setup
- * instructions ran (`CampaignHistoryEntry.logBefore`'s own doc comment), i.e. the deck the seat started the
- * campaign with, before any between-games edit ever touched it. Null when the box doesn't freeze, the run isn't in
- * expert mode, or scenario 1 hasn't been attempted yet (nothing to freeze against).
+ * MC16 p. 5 (mandatory) / MC27 p. 6 (optional): "Once a player starts an expert campaign, they cannot add, remove,
+ * or change the aspect and/or basic cards in their deck … for the remainder of the campaign." — snapshotted from
+ * the stored run itself, never guessed: `history`'s very first entry's `logBefore` is the log exactly as it stood
+ * before that node's own setup instructions ran (`CampaignHistoryEntry.logBefore`'s own doc comment), i.e. the deck
+ * the seat started the campaign with, before any between-games edit ever touched it. Null when the box doesn't
+ * freeze, the run isn't in expert mode, scenario 1 hasn't been attempted yet (nothing to freeze against), or
+ * (`"optional"` policy only) the seat hasn't opted in.
  */
 export function frozenNonCampaignCardsOf(
   definition: CampaignDefinition,
   log: CampaignLog,
   seatNumber: number,
+  deckFreezeOptedIn = false,
 ): readonly DeckCardEntry[] | null {
   const policy = DECK_FREEZE_POLICY[log.campaignId as string];
-  if (policy !== "mandatory") return null;
+  if (policy === undefined) return null;
+  if (policy === "optional" && !deckFreezeOptedIn) return null;
   if (!log.modes.campaign?.expertCampaign) return null;
   const firstNodeId = definition.graph.kind === "linear" ? definition.graph.nodes[0]?.id : undefined;
   if (!firstNodeId) return null;
@@ -82,10 +94,16 @@ export interface CampaignDeckEditRow {
   /** True for a line the campaign granted (MC10 p. 3): not editable in the sense the player chose it. */
   readonly locked: boolean;
   readonly lockedReason: string | null;
-  /** True for a line RRG 1.8 p. 29 removed from the campaign — refused, and the deck should say why. */
+  /** True for a line RRG 1.8 p. 29 removed from the campaign, or one MC27 p. 4's `Campaign.prohibited.cardIds` names — refused, and the deck should say why. */
   readonly refused: boolean;
-  /** `validateDeck`'s own `campaign_removed_card` message for this card, or null when the line isn't refused. */
+  /** `validateDeck`'s own `campaign_removed_card`/`campaign_prohibited_card` message for this card, or null when the line isn't refused. */
   readonly refusedReason: string | null;
+  /**
+   * The printed name of the face this grant is on (MC10 p. 12's "Improved" side, MC27 p. 22's Enhanced side),
+   * or null for a grant still on its front face (every non-granted row, and most grants). `CampaignGrant.face`
+   * straight through — this module never decides *which* face a card is on, only carries the log's own mark.
+   */
+  readonly face: string | null;
 }
 
 export interface CampaignDeckEditModel {
@@ -111,23 +129,38 @@ export function removedFromCampaignCardIds(context: CampaignDeckContext): Readon
   );
 }
 
+/**
+ * `context.prohibitedCardIds` (MC27 p. 4: Venom the ally 27190, Symbiote Suit 27191), read here for the same reason
+ * `removedFromCampaignCardIds` is: so a builder screen can keep a prohibited card out of what it offers to *add*,
+ * not only flag it once it is already in the deck (a stale save from before the campaign prohibited it, or one
+ * imported from outside the campaign editor).
+ */
+export function prohibitedCampaignCardIds(context: CampaignDeckContext): ReadonlySet<CardId> {
+  return new Set((context.prohibitedCardIds ?? []) as readonly CardId[]);
+}
+
 /** `validateDeck` in campaign context, plus the row-level marks a builder screen needs but `DeckValidation` doesn't carry. */
 export function campaignDeckEditModel(
   deck: DeckContents,
   pool: readonly AnyCard[] | Readonly<Record<string, AnyCard>>,
   context: CampaignDeckContext,
+  /** This seat's own `CampaignGrant`s, for `CampaignDeckEditRow.face` — `CampaignDeckContext.grantedCardIds` is ids only (design: face is a display fact, not a legality one). Omit outside campaign mode or when no grant is ever flipped. */
+  grants: readonly CampaignGrant[] = [],
 ): CampaignDeckEditModel {
   const validation = validateDeck(deck, pool, { campaign: context });
   const granted = new Set(context.grantedCardIds);
-  const removedReasonByCardId = new Map<string, string>();
+  const faceByCardId = new Map(
+    grants.filter((grant) => grant.face !== undefined).map((grant) => [grant.cardId, grant.face!]),
+  );
+  const refusedReasonByCardId = new Map<string, string>();
   if (!validation.ok) {
     for (const problem of validation.problems) {
-      if (problem.code !== "campaign_removed_card") continue;
-      for (const cardId of problem.cardIds) removedReasonByCardId.set(cardId as string, problem.message);
+      if (problem.code !== "campaign_removed_card" && problem.code !== "campaign_prohibited_card") continue;
+      for (const cardId of problem.cardIds) refusedReasonByCardId.set(cardId as string, problem.message);
     }
   }
   const rows: readonly CampaignDeckEditRow[] = deck.cards.map((line) => {
-    const refusedReason = removedReasonByCardId.get(line.cardId as string) ?? null;
+    const refusedReason = refusedReasonByCardId.get(line.cardId as string) ?? null;
     return {
       cardId: line.cardId,
       quantity: line.quantity,
@@ -135,6 +168,7 @@ export function campaignDeckEditModel(
       lockedReason: granted.has(line.cardId) ? GRANT_REASON : null,
       refused: refusedReason !== null,
       refusedReason,
+      face: faceByCardId.get(line.cardId) ?? null,
     };
   });
   const editingDisabled = context.frozenNonCampaignCards !== undefined;

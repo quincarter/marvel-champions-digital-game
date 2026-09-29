@@ -25,6 +25,7 @@ function editModelWith(grantedCardId: string | null): CampaignDeckEditModel {
     lockedReason: null,
     refused: false,
     refusedReason: null,
+    face: null,
   }));
   if (grantedCardId) {
     rows.push({
@@ -34,6 +35,7 @@ function editModelWith(grantedCardId: string | null): CampaignDeckEditModel {
       lockedReason: "Added by the campaign — does not count toward deck size",
       refused: false,
       refusedReason: null,
+      face: null,
     });
   }
   return { validation: { ok: true }, rows, editingDisabled: true, editingDisabledReason: "frozen" };
@@ -84,7 +86,7 @@ describe("frozenDeckModelOf", () => {
     const row = model.campaignCards[0]!;
     expect(row.name).toBe("Brainstorm");
     expect(row.boughtIssueNumber).toBe(1);
-    expect(row.note).toMatch(/Bought after #1/);
+    expect(row.note).toMatch(/Granted after #1/);
     expect(row.citation).toBe("MC16 p. 5");
     expect(model.campaignCardCount).toBe(1);
     const marketRow = model.rows.find((r) => r.id === "campaignCards")!;

@@ -32,8 +32,10 @@ import { fadeScreenIn, goToScreen } from "../../ui/transitions.js";
 import {
   campaignDeckContextOf,
   campaignDeckEditModel,
+  deckFreezePolicyOf,
   frozenNonCampaignCardsOf,
 } from "../../view/campaign-deck-edit-model.js";
+import { isDeckFreezeOptedIn } from "../../campaign/deck-freeze-choice.js";
 import { frozenDeckMarketCta, frozenDeckModelOf, type FrozenDeckModel } from "../../view/campaign-frozen-deck-model.js";
 import type { Rect } from "../../view/layout.js";
 import { FocusRoute, type FocusStop } from "../focus-route.js";
@@ -104,7 +106,9 @@ export class CampaignFrozenDeckScene extends Phaser.Scene {
       this.#draw();
       return;
     }
-    const frozenNonCampaignCards = frozenNonCampaignCardsOf(definition, current, data.seatNumber);
+    const policy = deckFreezePolicyOf(current.campaignId as string);
+    const optedIn = policy === "optional" && isDeckFreezeOptedIn(data.runId, data.seatNumber);
+    const frozenNonCampaignCards = frozenNonCampaignCardsOf(definition, current, data.seatNumber, optedIn);
     if (!frozenNonCampaignCards) {
       // The deck isn't (or is no longer) frozen — a stale link, or the freeze rule changed under this record.
       // `deck-edit.ts` owns the real branch; hand it straight back so it can route to the ordinary builder.
@@ -116,7 +120,7 @@ export class CampaignFrozenDeckScene extends Phaser.Scene {
       return;
     }
     const context = campaignDeckContextOf(content, current, data.seatNumber, { frozenNonCampaignCards });
-    const editModel = campaignDeckEditModel(seat.deck, POOL_CARDS, context);
+    const editModel = campaignDeckEditModel(seat.deck, POOL_CARDS, context, seat.grants);
 
     // A one-shot, throwaway peek at the runner's very next question — see the file header. Never persisted.
     const nextNodeId = current.attempt?.nodeId ?? current.position.nextNodeId;
