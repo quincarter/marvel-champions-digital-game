@@ -120,6 +120,7 @@ export class GuidePanelDemoScene extends Phaser.Scene {
         debugRects: () => this.#panel.debugRects(),
         debugTermRects: () => this.#panel.debugTermRects(),
         isCollapsed: () => this.#panel.collapsed,
+        lastStatus: () => this.#status.text,
       };
     }
 

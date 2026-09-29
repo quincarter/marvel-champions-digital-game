@@ -79,6 +79,46 @@ describe("termTextModelOf", () => {
   });
 });
 
+describe("termTextModelOf paragraph/line breaks", () => {
+  it("splits a blank line into a paragraph break, not joined text", () => {
+    const model = termTextModelOf("4 down to 3.\n\nThwarting uses your action.", glossary, false);
+    expect(model.runs).toEqual([
+      { kind: "text", text: "4 down to 3." },
+      { kind: "break", paragraph: true },
+      { kind: "text", text: "Thwarting uses your action." },
+    ]);
+  });
+
+  it("collapses a run of three-or-more newlines into one paragraph break", () => {
+    const model = termTextModelOf("one\n\n\ntwo", glossary, false);
+    expect(model.runs).toEqual([
+      { kind: "text", text: "one" },
+      { kind: "break", paragraph: true },
+      { kind: "text", text: "two" },
+    ]);
+  });
+
+  it("treats a single newline as an ordinary line break", () => {
+    const model = termTextModelOf("one\ntwo", glossary, false);
+    expect(model.runs).toEqual([
+      { kind: "text", text: "one" },
+      { kind: "break", paragraph: false },
+      { kind: "text", text: "two" },
+    ]);
+  });
+
+  it("splits breaks around and between terms without losing the term run", () => {
+    const model = termTextModelOf("Tap [[exhausted|exhaust]] the card.\n\nThat's it.", glossary, false);
+    expect(model.runs).toEqual([
+      { kind: "text", text: "Tap " },
+      { kind: "term", id: "exhausted", label: "exhaust", entry: glossary.get("exhausted") },
+      { kind: "text", text: " the card." },
+      { kind: "break", paragraph: true },
+      { kind: "text", text: "That's it." },
+    ]);
+  });
+});
+
 describe("tooltipContentOf", () => {
   it("returns title/definition/citeLabel for a resolved term", () => {
     const entry: RulesEntry = {

@@ -44,6 +44,8 @@ const MAX_WIDTH = 400;
 const BUTTON_TYPE: TypeSpec = { ...typeRole.label, size: 13 };
 const STAMP_TYPE: TypeSpec = { ...typeRole.label, size: 10 };
 const TITLE_TYPE: TypeSpec = { ...typeRole.barTitle };
+/** Padding on each side of the `GUIDE` ink stamp's own label, sizing the box to the measured text (mirrors `ui/guide-panel.ts`'s own `STAMP_PAD`). */
+const STAMP_PAD = 8;
 
 export interface McGuideCalloutContent {
   /** "STEP 1 OF 3". Omit for a step-less surface (an opportunistic tip). */
@@ -110,10 +112,11 @@ export class McGuideCallout {
     const objects: Phaser.GameObjects.GameObject[] = [];
 
     // --- Top row: GUIDE stamp + step label (left), skip/close (right). Measured, positioned once the box height is known. ---
-    const stampWidth = STAMP_TYPE.size * 5;
     const stampHeight = 20;
     const stamp = scene.add.graphics();
+    // Sized to the measured "GUIDE" label plus `STAMP_PAD` on each side, not a fixed guess that can overflow.
     const stampLabel = scene.add.text(0, 0, "GUIDE", textStyle(STAMP_TYPE, surface.paper.hex)).setOrigin(0, 0.5);
+    const stampWidth = stampLabel.width + STAMP_PAD * 2;
     const stepLabel = content.stepLabel
       ? scene.add.text(0, 0, content.stepLabel.toUpperCase(), textStyle(STAMP_TYPE, surface.ink.hex))
       : null;
@@ -187,7 +190,7 @@ export class McGuideCallout {
     // --- Position everything at the final rect. ---
     let cy = rect.y + PAD;
     stamp.fillStyle(surface.ink.hex, 1).fillRect(rect.x + PAD, cy - stampHeight / 2, stampWidth, stampHeight);
-    stampLabel.setPosition(rect.x + PAD + 8, cy);
+    stampLabel.setPosition(rect.x + PAD + STAMP_PAD, cy);
     objects.push(stamp, stampLabel);
     if (stepLabel) {
       stepLabel.setPosition(rect.x + PAD + stampWidth + 10, cy - stepLabel.height / 2);

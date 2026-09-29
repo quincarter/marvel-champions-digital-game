@@ -47,6 +47,14 @@ const TITLE_TYPE: TypeSpec = { ...typeRole.barTitle };
 const BUTTON_TYPE: TypeSpec = { ...typeRole.label, size: 13 };
 const ROW_TYPE: TypeSpec = { ...typeRole.rowTitle, size: 12 };
 const TIP_TAG_WIDTH = 30;
+/** Padding on each side of the `GUIDE` ink stamp's own label, sizing the box to the measured text (G4b desktop overflow fix). */
+const STAMP_PAD = 8;
+/**
+ * Inset applied to a swatch-legend extra row (T02's resource-icon legend) so its swatch doesn't touch the
+ * extra block's own left border. A check/number/current row (D02's villain-phase step list) stays flush with
+ * the box edge, matching that tile's own full-bleed row highlight — only a `swatch` row gets this inset.
+ */
+const EXTRA_ROW_SWATCH_INSET = 12;
 const FOOTER_PAD_TOP = 16;
 const FOOTER_PAD_BOTTOM = 20;
 const TICK_HEIGHT = 6;
@@ -74,7 +82,7 @@ export interface GuidePanelExtraRow {
 export interface McGuidePanelContent {
   /** "FIRST GAME" / "LESSON 3 OF 5", beside the `GUIDE` stamp. */
   readonly contextLabel: string;
-  /** The header's collapse control label. Default "COLLAPSE". */
+  /** The header's collapse control label. Defaults to "COLLAPSE" (left rail) or "HIDE" (right rail, `options.side`); drawn with a `‹`/`▸` glyph pointing toward the collapsed tab's own edge. */
   readonly collapseLabel?: string | null;
   /** An optional "SKIP LESSON"-style link in the header, beside collapse. Omit/null to hide it. */
   readonly skipLabel?: string | null;
@@ -240,15 +248,16 @@ export class McGuidePanel {
     objects.push(panel);
 
     // --- Header: GUIDE stamp, context label, skip (optional), collapse. ---
-    const stampWidth = STAMP_TYPE.size * 5;
     const stampHeight = 20;
     const headerCy = rect.y + GUIDE_PANEL_HEADER_HEIGHT / 2;
+    // The stamp label is measured first, so the ink box is sized to fit it (plus `STAMP_PAD` on each side)
+    // instead of a fixed guess that can overflow a wider "GUIDE" rendering.
+    const stampLabel = scene.add.text(0, headerCy, "GUIDE", textStyle(STAMP_TYPE, surface.paper.hex)).setOrigin(0, 0.5);
+    const stampWidth = stampLabel.width + STAMP_PAD * 2;
+    stampLabel.setPosition(rect.x + GUIDE_PANEL_PAD + STAMP_PAD, headerCy);
     panel
       .fillStyle(surface.ink.hex, 1)
       .fillRect(rect.x + GUIDE_PANEL_PAD, headerCy - stampHeight / 2, stampWidth, stampHeight);
-    const stampLabel = scene.add
-      .text(rect.x + GUIDE_PANEL_PAD + 8, headerCy, "GUIDE", textStyle(STAMP_TYPE, surface.paper.hex))
-      .setOrigin(0, 0.5);
     objects.push(stampLabel);
     const contextLabel = scene.add
       .text(
@@ -260,17 +269,22 @@ export class McGuidePanel {
       .setOrigin(0, 0.5);
     objects.push(contextLabel);
 
-    const collapseLabel = (content.collapseLabel ?? "COLLAPSE").toUpperCase();
+    const side = this.#options.side ?? "left";
+    const collapseLabel = (content.collapseLabel ?? (side === "right" ? "Hide" : "Collapse")).toUpperCase();
+    const collapseGlyphText = side === "right" ? `${collapseLabel} ▸` : `‹ ${collapseLabel}`;
     const collapseText = scene.add
-      .text(0, headerCy, `• ${collapseLabel}`, textStyle(STAMP_TYPE, surface.ink.hex))
+      .text(0, headerCy, collapseGlyphText, textStyle(STAMP_TYPE, surface.ink.hex))
       .setOrigin(1, 0.5);
     collapseText.setPosition(rect.x + rect.width - GUIDE_PANEL_PAD, headerCy);
     objects.push(collapseText);
     const collapseZoneWidth = Math.max(collapseText.width, hit.target);
     const collapseZoneHeight = Math.max(collapseText.height, hit.target);
+    // `collapseText` has origin (1, 0.5) — its own `.x` is the label's *right* edge, not its center — so the
+    // zone's center has to be computed from that right edge minus half the label's width, not added to it
+    // (a plain `+ width / 2` here puts the whole hit zone off to the right of the visible label, unclickable).
     const collapseZone = scene.add
       .zone(
-        collapseText.x + collapseText.width / 2 - collapseZoneWidth / 2,
+        collapseText.x - collapseText.width / 2 - collapseZoneWidth / 2,
         headerCy - collapseZoneHeight / 2,
         collapseZoneWidth,
         collapseZoneHeight,
@@ -449,7 +463,8 @@ export class McGuidePanel {
       const extraBoxTop = cy;
       let ey = oy + cy + GUIDE_PANEL_PAD * 0.5;
       for (const [index, row] of extraRows.entries()) {
-        const rowResult = this.#drawStatusRow(ox, ey, innerWidth, {
+        const rowInset = row.swatch != null ? EXTRA_ROW_SWATCH_INSET : 0;
+        const rowResult = this.#drawStatusRow(ox + rowInset, ey, innerWidth - rowInset * 2, {
           label: row.label,
           detail: row.detail ?? null,
           trailing: null,

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   GUIDE_PANEL_COLLAPSED_WIDTH,
   GUIDE_PANEL_HEADER_HEIGHT,
+  GUIDE_PANEL_SECTION_TOP_PAD,
   guidePanelCollapsedRectOf,
   guidePanelLayoutOf,
   guideRailWidthFor,
@@ -39,7 +40,7 @@ describe("guidePanelLayoutOf", () => {
     expect(layout.lessonList!.y).toBe(GUIDE_PANEL_HEADER_HEIGHT);
     expect(layout.footer.y + layout.footer.height).toBe(RECT.y + RECT.height);
     expect(layout.footer.height).toBe(140);
-    expect(layout.body.y).toBe(layout.lessonList!.y + layout.lessonList!.height);
+    expect(layout.body.y).toBe(layout.lessonList!.y + layout.lessonList!.height + GUIDE_PANEL_SECTION_TOP_PAD);
     expect(layout.body.y + layout.body.height).toBe(layout.footer.y);
     expect(layout.scrollable).toBe(false);
   });
@@ -53,7 +54,7 @@ describe("guidePanelLayoutOf", () => {
       footerHeight: 140,
     });
     expect(layout.lessonList).toBeNull();
-    expect(layout.body.y).toBe(GUIDE_PANEL_HEADER_HEIGHT);
+    expect(layout.body.y).toBe(GUIDE_PANEL_HEADER_HEIGHT + GUIDE_PANEL_SECTION_TOP_PAD);
   });
 
   it("hides the lesson list when it has zero rows even if requested", () => {
@@ -77,7 +78,7 @@ describe("guidePanelLayoutOf", () => {
     });
     expect(layout.scrollable).toBe(true);
     // The viewport itself never grows past what's actually left for it.
-    expect(layout.body.height).toBe(RECT.height - GUIDE_PANEL_HEADER_HEIGHT - 140);
+    expect(layout.body.height).toBe(RECT.height - GUIDE_PANEL_HEADER_HEIGHT - GUIDE_PANEL_SECTION_TOP_PAD - 140);
   });
 
   it("never lets the footer rise above the body's own top on an impossibly short rect", () => {

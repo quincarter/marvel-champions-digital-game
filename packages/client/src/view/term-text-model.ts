@@ -16,6 +16,12 @@
  * fails the authoring pass loudly and is caught by a test, and quietly falls back to plain text (no
  * underline, no tooltip) in a production build, so a stray bad id degrades a sentence instead of
  * crashing the guide.
+ *
+ * **Paragraphs.** A blank line (`\n\n`, or any run of two-or-more newlines) in guide copy starts a
+ * new paragraph — `McTermText` draws a paragraph gap (~0.6 line-height) before it, wider than the
+ * ordinary line gap, rather than joining the two sentences with no space at all (the bug this
+ * exists to fix). A single `\n` is an ordinary line break, no extra gap. Only whole `[[id]]` term
+ * labels are exempt from this splitting — a label is never itself expected to contain a newline.
  */
 import { everyGlossaryEntry, type RulesEntry } from "./rules-reference.js";
 
@@ -33,7 +39,13 @@ export interface TermTextTerm {
   readonly entry: RulesEntry | null;
 }
 
-export type TermTextRun = TermTextWord | TermTextTerm;
+/** A `\n` (ordinary line break) or `\n\n`+ (paragraph break, wider gap) in the source copy — see the module header. */
+export interface TermTextBreak {
+  readonly kind: "break";
+  readonly paragraph: boolean;
+}
+
+export type TermTextRun = TermTextWord | TermTextTerm | TermTextBreak;
 
 export interface TermTextModel {
   readonly runs: readonly TermTextRun[];
@@ -61,6 +73,25 @@ export function parseTermText(
   return runs;
 }
 
+/**
+ * Splits a raw text run's own text on newlines into text/break runs — `\n\n`+ becomes one `paragraph`
+ * break, a lone `\n` becomes a `line` break, an empty line between markup (e.g. text ending right
+ * before a paragraph break) contributes no empty text run.
+ */
+function splitOnBreaks(text: string): readonly (TermTextWord | TermTextBreak)[] {
+  const runs: (TermTextWord | TermTextBreak)[] = [];
+  const paragraphs = text.split(/\n{2,}/);
+  paragraphs.forEach((paragraph, pi) => {
+    if (pi > 0) runs.push({ kind: "break", paragraph: true });
+    const lines = paragraph.split("\n");
+    lines.forEach((line, li) => {
+      if (li > 0) runs.push({ kind: "break", paragraph: false });
+      if (line.length > 0) runs.push({ kind: "text", text: line });
+    });
+  });
+  return runs;
+}
+
 let glossaryLookup: ReadonlyMap<string, RulesEntry> | null = null;
 
 /** Every glossary entry the client knows, by id — built once (the glossary is static content) and cached. */
@@ -82,12 +113,16 @@ export function termTextModelOf(
 ): TermTextModel {
   const raw = parseTermText(source);
   const unknownIds: string[] = [];
-  const runs: TermTextRun[] = raw.map((run) => {
-    if (run.kind === "text") return run;
+  const runs: TermTextRun[] = [];
+  for (const run of raw) {
+    if (run.kind === "text") {
+      runs.push(...splitOnBreaks(run.text));
+      continue;
+    }
     const entry = lookup.get(run.id) ?? null;
     if (!entry) unknownIds.push(run.id);
-    return { kind: "term", id: run.id, label: run.label ?? entry?.displayName ?? run.id, entry };
-  });
+    runs.push({ kind: "term", id: run.id, label: run.label ?? entry?.displayName ?? run.id, entry });
+  }
   if (devMode && unknownIds.length > 0) {
     throw new Error(`McTermText: unknown glossary id(s) in guide copy: ${unknownIds.join(", ")} (source: "${source}")`);
   }

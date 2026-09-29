@@ -29,6 +29,9 @@ export const GUIDE_PANEL_HEADER_HEIGHT = 56;
 /** Padding shared by every section, matching `McGuideCallout`'s own `PAD`. */
 export const GUIDE_PANEL_PAD = 20;
 
+/** The gap under a section divider (header, or the lesson list's own bottom rule) before the next section's content starts — otherwise a step's "STEP N OF M" label / title sits flush against the rule above it. */
+export const GUIDE_PANEL_SECTION_TOP_PAD = 16;
+
 /** The collapsed rail's own width — just enough for a vertical "GUIDE" label and a tap target. */
 export const GUIDE_PANEL_COLLAPSED_WIDTH = 44;
 
@@ -91,7 +94,7 @@ export function guidePanelLayoutOf(input: GuidePanelLayoutInput): GuidePanelLayo
   const lessonList: Rect | null =
     lessonListHeight > 0 ? { x: rect.x, y: rect.y + header.height, width: rect.width, height: lessonListHeight } : null;
 
-  const bodyTop = rect.y + header.height + lessonListHeight;
+  const bodyTop = rect.y + header.height + lessonListHeight + GUIDE_PANEL_SECTION_TOP_PAD;
   // The footer is computed from the bottom up first, then clamped so it never rises above the body's own
   // top — a panel too short for its own fixed-size sections (header + footer) at least keeps the footer
   // fully inside the rail rather than overlapping the lesson list above it.

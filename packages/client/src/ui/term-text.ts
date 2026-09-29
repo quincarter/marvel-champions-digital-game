@@ -29,14 +29,23 @@ import type { Rect } from "../view/layout.js";
 import { textStyle } from "./theme.js";
 
 interface Word {
+  readonly kind: "word";
   readonly text: string;
   readonly term: TermTextTerm | null;
 }
 
+/** A forced line break between words — `view/term-text-model.ts`'s `TermTextBreak`, carried through layout. */
+interface Break {
+  readonly kind: "break";
+  readonly paragraph: boolean;
+}
+
+type Token = Word | Break;
+
 /** Splits a text run on whitespace, each word keeping its own trailing space (a leading pure-whitespace run becomes its own "word", dropped if it would open a line). */
 function wordsOf(text: string): readonly Word[] {
   const words: Word[] = [];
-  for (const match of text.matchAll(/\S+\s*|\s+/g)) words.push({ text: match[0], term: null });
+  for (const match of text.matchAll(/\S+\s*|\s+/g)) words.push({ kind: "word", text: match[0], term: null });
   return words;
 }
 
@@ -95,16 +104,24 @@ export class McTermText {
     const color = options.color ?? 0x14110e;
     const alpha = options.alpha ?? ink.body;
     const model = termTextModelOf(options.text, options.lookup, options.devMode);
-    const words: Word[] = [];
+    const tokens: Token[] = [];
     for (const run of model.runs) {
-      if (run.kind === "text") words.push(...wordsOf(run.text));
-      else words.push({ text: run.label, term: run });
+      if (run.kind === "text") tokens.push(...wordsOf(run.text));
+      else if (run.kind === "term") tokens.push({ kind: "word", text: run.label, term: run });
+      else tokens.push({ kind: "break", paragraph: run.paragraph });
     }
 
     const lineHeight = Math.round(spec.size * spec.lineHeight * 1.4);
+    const paragraphGap = Math.round(lineHeight * 0.6);
     let x = 0;
     let y = 0;
-    for (const word of words) {
+    for (const token of tokens) {
+      if (token.kind === "break") {
+        x = 0;
+        y += lineHeight + (token.paragraph ? paragraphGap : 0);
+        continue;
+      }
+      const word = token;
       const isBlank = word.term === null && word.text.trim() === "";
       const label = this.#scene.add.text(0, 0, word.text, textStyle(spec, color, alpha));
       const wordWidth = label.width;
