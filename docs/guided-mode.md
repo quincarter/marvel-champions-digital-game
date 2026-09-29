@@ -202,8 +202,10 @@ The main session verifies UI boxes by clicking through them before ticking (§6)
 
 - [x] **G9a Hint heuristics.** `view/guide-hints.ts`: the four heuristics from §5.2, tests only.
       Landed: `01f2deb5` + `13f5551d` (`lethalHint` plans the best block — allies take the biggest attacks, the hero defends one by DEF, Overkill spills over, stunned attackers are skipped — since everything readies at the end of the player phase). `hintsFor({ state, deps, playerId, trigger }, prefs)` with triggers `endTurn`, `flip` and `confirmPayment`. Crisis uses `iconsInPlay(state, deps, "crisis")`.
-- [ ] **G9b "Hold on!" overlay.** P06/T03. It intercepts the triggering command like `end-turn-confirm`, offers the
+- [x] **G9b "Hold on!" overlay.** P06/T03. It intercepts the triggering command like `end-turn-confirm`, offers the
       safe action first, and has a "Don't warn me" checkbox. Active at Full and Hints.
+
+      Landed: `8ffa2e13` (its `board.ts` host wiring was swept into `caced651` by the shared worktree; the content is correct). `scenes/hold-on.ts`, `view/hold-on-model.ts`, controller interception for End turn, Flip and payment confirm (the anyway path continues into End turn's confirm); demo `?screen=holdondemo`. Visual polish in flight (ink safe button, card fits its content, threat bar in the facts panel). **G11 must trigger it on a live board** (it's verified in tests and the demo only).
 
 **Tips and aspects**
 
@@ -301,7 +303,7 @@ A fresh Claude session can pick this up from this file alone.
   pointer, and put a screenshot beside its tile.
 - **Commits:** as the repo's git user, with no Claude co-author trailer. Every change carries a changie fragment.
 
-**In flight:** G9b (the "Hold on!" overlay; intercepts End turn, Flip and payment confirm in `scenes/board/controller.ts`) and G7a+G7d (lessons 2 and 5 polish: "How do I stop it?", thwart threat preview, "Tap Pay" nit), side by side. If cut off, check `git status`/`git log` and brief a fresh agent. Then: G6c (hub), G7a/d, G8, G10c–e, G11.
+**In flight:** G7a+G7d (lessons 2 and 5 polish) and the Hold on! visual polish, side by side. If cut off, check `git status`/`git log` and brief a fresh agent per item. Then: G6c (hub), G8, G10c–e, G11.
 
 ## 7. Prior art: the parked prototype
 
