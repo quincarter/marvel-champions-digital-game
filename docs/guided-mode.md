@@ -180,7 +180,7 @@ The main session verifies UI boxes by clicking through them before ticking (§6)
       Landed: `7431ecff`. `scenes/guide-chooser.ts` + `view/guide-chooser-model.ts`; Boot → chooser on `isFirstLaunch`; dev jump `?screen=chooser`. `#startLearnAsYouPlay()` is the single call site where G6b's How to win slots in.
 - [x] **G6b How to win.** P02 "One way to win, two ways to lose" from Rhino / The Break-In! / Spider-Man data. Start the
       fight launches the tutorial game (past scenario and seat selection). Tell me more opens Rules reference.
-      Landed: `4775be5c`. `scenes/how-to-win.ts` + `view/how-to-win-model.ts` (real stage count, target and HP) and a shared `guide/start-tutorial.ts`. The flow is chooser → How to win → board; Settings "Play the tutorial" opens it; dev jump `?screen=howtowin`. The wide layout is being recomposed (a big empty gap and cramped art).
+      Landed: `4775be5c`. `scenes/how-to-win.ts` + `view/how-to-win-model.ts` (real stage count, target and HP) and a shared `guide/start-tutorial.ts`. The flow is chooser → How to win → board; Settings "Play the tutorial" opens it; dev jump `?screen=howtowin`. The wide layout was recomposed in `ab9a8563` (1200 max width, portrait WIN card, no dead gap). Polish: show the main scheme art at landscape aspect, since it's cropped today.
 - [ ] **G6c "How to play" learning hub** (owner, 2026-09-28: "how to play could launch some tutorial screen and they
       could work their way through the learning modules"). A Title menu button opens a hub screen with every module,
       each showing done/next, and a recommended order the player can ignore: - **The basics:** the five tutorial lessons, each as a row. Lesson 1 starts the tutorial game from the top. Any
@@ -300,7 +300,7 @@ A fresh Claude session can pick this up from this file alone.
   pointer, and put a screenshot beside its tile.
 - **Commits:** as the repo's git user, with no Claude co-author trailer. Every change carries a changie fragment.
 
-**In flight:** the How-to-win wide layout fix, and G9b (the "Hold on!" overlay, which intercepts End turn, Flip and payment confirm in `scenes/board/controller.ts`), side by side. If cut off, check `git status`/`git log` and brief a fresh agent per item. Then: G6c (hub), G7a/b/d, G8, G10c–e, G11.
+**In flight:** G9b (the "Hold on!" overlay, which intercepts End turn, Flip and payment confirm in `scenes/board/controller.ts`, in `scenes/board/controller.ts`). If cut off, check `git status`/`git log` and brief a fresh agent. Then: G6c (hub), G7a/b/d, G8, G10c–e, G11.
 
 ## 7. Prior art: the parked prototype
 
