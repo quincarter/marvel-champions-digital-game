@@ -79,7 +79,7 @@ The phase 4 ground rules apply unchanged ([phase4-screen-gaps.md §0](phase4-scr
    (fall back to defaults when storage throws). Other settings stay in memory. Persisting all settings is out of scope
    here.
 9. **The first-run chooser shows on first launch** (no `mc-guide` record), after Boot and before Title. It stays
-   reachable from Settings ("Guide" group → "Play the tutorial") and from Title's **How to play** button (G6c), which forces Full guidance for that one game. Choosing a level writes the record, so
+   reachable from Settings ("Guide" group → "Play the tutorial") and from Title's **How to play** hub (G6c), whose modules force Full guidance for that one run. Choosing a level writes the record, so
    it never shows again unprompted.
 10. **Lesson steps gate softly.** During a "do this" step, the taught control gets the spotlight and `TRY THIS`. Other
     controls are dimmed and inert until the step completes, but "Skip lesson" and the menu are always live. Skipping
@@ -163,11 +163,14 @@ The main session verifies UI boxes by clicking through them before ticking (§6)
       play" goes to G6b.
 - [ ] **G6b How to win.** P02 "One way to win, two ways to lose" from Rhino / The Break-In! / Spider-Man data. Start the
       fight launches the tutorial game (past scenario and seat selection). Tell me more opens Rules reference.
-- [ ] **G6c Title "How to play" button** (owner, 2026-09-28). A Title menu entry that always opens G6b's How to win
-      screen, then the tutorial. The game is forced to Full guidance for that run only (the saved level is untouched)
-      and always starts at lesson 1 as a practice run (saved progress is untouched). G6b's screen also gets "Aspect
-      lessons ▸" (dashed until G10c) and "Rules reference ▸" links, so it doubles as the learning hub. Settings'
-      "Play the tutorial" row routes here too.
+- [ ] **G6c "How to play" learning hub** (owner, 2026-09-28: "how to play could launch some tutorial screen and they
+      could work their way through the learning modules"). A Title menu button opens a hub screen with every module,
+      each showing done/next, and a recommended order the player can ignore: - **The basics:** the five tutorial lessons, each as a row. Lesson 1 starts the tutorial game from the top. Any
+      later lesson starts the same `TUTORIAL_CONFIG` game and replays `TUTORIAL_SCRIPT` up to that lesson's start
+      point before handing over. This is replay-safe, because G1 made the setup deterministic. - **Aspects:** the four aspect lessons, each with a lesson page and Try it (G10c/G10d render inside the hub). - **Reference:** Rules reference and glossary.
+      Modules always run at Full for that run only (the saved level is untouched), and replays don't reset saved
+      progress. The chooser's "Learn as you play", Settings' "Play the tutorial" and the debrief's "Replay a lesson"
+      all route here. Split it at brief time: (1) hub screen + progress model, (2) replay-to-lesson start.
 - [ ] **G7a Lesson 2: Hero & alter-ego.**
 - [ ] **G7b Lesson 3: Paying for cards** (over the existing payment bar).
 - [ ] **G7c Lesson 4: The villain phase** (villain-phase overlay steps + `GUIDE PICK` on the defend sheet).
@@ -189,8 +192,8 @@ The main session verifies UI boxes by clicking through them before ticking (§6)
       Landed: `0c0b7923`. `guide/aspects.ts` `ASPECT_GUIDES` / `aspectGuideOf`. Aggression uses Uppercut (01054) in place of Tackle, which isn't in Core. Adding 'Pool later is one entry.
 - [ ] **G10b Aspect tip chips.** "Aspects ▸" and the short tip card on aspect chips in Seats, Deck check and Deck
       builder.
-- [ ] **G10c Aspect lessons screen.** An "Aspects" track: pick an aspect, then a lesson page with signature scans and
-      Try it. Reached from the debrief, Settings → Guide, and the chips.
+- [ ] **G10c Aspect lesson page.** The per-aspect lesson page inside G6c's hub (signature scans, when to pick it, Try it).
+      Reached from the hub, the debrief, Settings → Guide, and the chips' "Aspects ▸".
 - [ ] **G10d Aspect try-it games.** A guided Rhino game with that aspect's Core precon. Its aspect tips fire when the
       signature cards come up, on G5b's lesson model.
 - [ ] **G10e Opportunistic tips.** `view/guide-tips.ts` is the trigger table (§5.3). Once each, Full only, shown as a
