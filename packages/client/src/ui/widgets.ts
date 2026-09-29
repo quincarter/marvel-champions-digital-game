@@ -571,10 +571,12 @@ export interface McCardTileOptions {
    */
   readonly onInspect?: () => void;
   /**
-   * Paints the card into the slot. Returns false when there is no scan, so the
-   * tile can say so itself — the widget layer never reaches for the art module.
+   * Paints the card into the slot and returns what it drew, or null when there is no scan, so the tile can say so
+   * itself — the widget layer never reaches for the art module. The returned object joins the tile's own `objects`:
+   * a caller that parents those into a scrolling list (the Rules reference glossary) needs the scan to scroll with
+   * the rest of the tile, not stay pinned where it was first drawn.
    */
-  readonly paintArt: (slot: Rect) => boolean;
+  readonly paintArt: (slot: Rect) => Phaser.GameObjects.GameObject | null;
 }
 
 /**
@@ -612,7 +614,9 @@ export class McCardTile {
       const ground = scene.add.graphics();
       ground.fillStyle(surface.parchment.hex, alpha).fillRect(artSlot.x, artSlot.y, artSlot.width, artSlot.height);
       this.#objects.push(ground);
-      if (!options.paintArt(artSlot)) {
+      const art = options.paintArt(artSlot);
+      if (art) this.#objects.push(art);
+      else {
         this.#objects.push(
           label(
             scene,

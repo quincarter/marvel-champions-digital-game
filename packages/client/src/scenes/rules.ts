@@ -597,7 +597,7 @@ export class RulesOverlay extends Phaser.Scene {
             onInspect: () => this.#inspectRef(ref, game),
             paintArt: (slot) => {
               const key = cardArt(this).request(this, artFor(this.#cardForRef(ref, game), this.#faceForRef(ref, game)));
-              return drawArt(this, key, slot) !== null;
+              return drawArt(this, key, slot);
             },
           });
           objects.push(...tile.objects);
