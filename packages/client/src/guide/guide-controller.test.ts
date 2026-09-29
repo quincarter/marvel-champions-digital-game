@@ -175,8 +175,16 @@ describe("GuideController — the tutorial script", () => {
     run(core, controller, 2);
 
     expect(guidePrefs().tutorial.lessonsDone).toContain("paying-for-cards");
-    // Round 1's own player turn still has nothing else scripted to teach (lesson 4 waits for the villain phase).
-    expect(controller.view().active).toBe(false);
+    // Round 1's own player turn still has nothing else scripted to teach (lesson 4 waits for the villain phase) —
+    // the guide surface stays up as the waiting state (G5c part 2), not gone (§4 G5c item 0).
+    const view = controller.view();
+    expect(view.active).toBe(true);
+    expect(view.step).toBeNull();
+    expect(view.anchor).toBeNull();
+    expect(view.gate).toBeNull();
+    expect(view.panel?.title).toBe("Next: The villain phase");
+    expect(view.panel?.body).toBe("It starts when you end your turn.");
+    expect(view.panel?.lessons?.[3]).toMatchObject({ id: "villain-phase", status: "upcoming" });
   });
 
   test("lesson 4 opens once the villain phase starts, then GUIDE PICKs Black Cat on the defend step", async () => {
@@ -255,9 +263,14 @@ describe("GuideController — Back, Skip, Stop, Escape (§3.10)", () => {
     controller.skip();
     expect(controller.stopped).toBe(false);
     // Lesson 2 ("hero-and-alter-ego") has only the flip step, so skipping it finishes the lesson — but lesson
-    // 3's own `when` (hero form) doesn't hold yet, so nothing is current in between.
+    // 3's own `when` (hero form) doesn't hold yet, so nothing is current in between. The guide shows the
+    // waiting state for it rather than going blank (G5c part 2, §4 G5c item 0).
     expect(guidePrefs().tutorial.lessonsDone).toContain("hero-and-alter-ego");
-    expect(controller.view().active).toBe(false);
+    const waiting = controller.view();
+    expect(waiting.active).toBe(true);
+    expect(waiting.step).toBeNull();
+    expect(waiting.panel?.title).toBe("Next: Paying for cards");
+    expect(waiting.panel?.body).toBe("Flip to Spider-Man when you're ready.");
 
     // The tutorial keeps running: flipping on the player's own now still opens lesson 3, same as if the flip
     // step had completed normally.
@@ -287,8 +300,10 @@ describe("GuideController — Back, Skip, Stop, Escape (§3.10)", () => {
 
     gate!.onGateReleased?.();
     expect(controller.stopped).toBe(false);
-    // No lesson is current right after (lesson 3 still waits on hero form), but the run itself is not skipped.
-    expect(controller.view().active).toBe(false);
+    // No lesson is current right after (lesson 3 still waits on hero form), but the run itself is not skipped —
+    // the waiting state shows, same as the Skip test above.
+    expect(controller.view().active).toBe(true);
+    expect(controller.view().step).toBeNull();
     expect(guidePrefs().tutorial.lessonsDone).toContain("hero-and-alter-ego");
 
     // Lesson 3 still shows up once the player flips on their own — Escape never locked the tutorial out of it.
@@ -322,5 +337,83 @@ describe("GuideController — Back, Skip, Stop, Escape (§3.10)", () => {
     const afterFlip = dispatch(core, 1);
     controller.onObservation(observationOf(afterFlip, OTHER_PLAYER));
     expect(controller.view().gate?.cards.size).toBe(0);
+  });
+});
+
+describe("GuideController — waiting and complete (G5c part 2, §4 G5c item 0)", () => {
+  test("the waiting state names the next lesson and what starts it, with no anchor/gate", async () => {
+    const core = new EngineSessionCore();
+    const started = await core.start(TUTORIAL_CONFIG);
+    const controller = new GuideController(
+      { lessons: TUTORIAL_LESSONS, alreadyDone: ["how-to-win", "hero-and-alter-ego"] },
+      observationOf(started.snapshot),
+    );
+
+    // Lesson 3 ("paying-for-cards") waits on hero form, which the tutorial's own opening (alter-ego) doesn't
+    // hold yet — nothing is current, but the guide surface stays up rather than going blank.
+    const view = controller.view();
+    expect(view.active).toBe(true);
+    expect(view.step).toBeNull();
+    expect(view.anchor).toBeNull();
+    expect(view.gate).toBeNull();
+    expect(view.tagVariant).toBeNull();
+    expect(view.panel?.title).toBe("Next: Paying for cards");
+    expect(view.panel?.body).toBe("Flip to Spider-Man when you're ready.");
+    expect(view.panel?.lessons?.map((row) => row.status)).toEqual(["done", "done", "upcoming", "upcoming", "upcoming"]);
+    expect(view.panel?.primaryLabel).toBeNull();
+    expect(view.panel?.continueHint).toBeNull();
+
+    // Flipping to hero form resolves the wait, same as if the player had reached this point mid-run.
+    run(core, controller, 0); // mulligan
+    run(core, controller, 1); // flip
+    expect(controller.view().step?.id).toBe("play-black-cat");
+  });
+
+  test("the complete state shows once every lesson is done, and Close hides the guide for the rest of this game", async () => {
+    const core = new EngineSessionCore();
+    const started = await core.start(TUTORIAL_CONFIG);
+    const controller = new GuideController(
+      { lessons: TUTORIAL_LESSONS, alreadyDone: TUTORIAL_LESSONS.map((lesson) => lesson.id) },
+      observationOf(started.snapshot),
+    );
+
+    const view = controller.view();
+    expect(view.active).toBe(true);
+    expect(view.step).toBeNull();
+    expect(view.anchor).toBeNull();
+    expect(view.gate).toBeNull();
+    expect(view.panel?.title).toBe("Tutorial complete");
+    expect(view.panel?.primaryLabel).toBe("Close");
+    expect(view.panel?.lessons).toBeNull();
+
+    // "Close" (the complete panel's own primary action, routed by `primary()`) hides the guide surface outright —
+    // unlike `stop()`, this never marks the tutorial skipped in prefs, since it finished normally. `hidden` (not
+    // the narrower `stopped`, which only reflects "Stop tutorial") is the shared "nothing should show" check.
+    controller.primary();
+    expect(controller.view().active).toBe(false);
+    expect(controller.hidden).toBe(true);
+    expect(guidePrefs().tutorial.skipped).toBe(false);
+  });
+
+  test("finishing the last lesson records markTutorialFinished in the live guide prefs, once", async () => {
+    const core = new EngineSessionCore();
+    const started = await core.start(TUTORIAL_CONFIG);
+    const controller = new GuideController(
+      { lessons: TUTORIAL_LESSONS, alreadyDone: TUTORIAL_LESSONS.slice(0, -1).map((lesson) => lesson.id) },
+      observationOf(started.snapshot),
+    );
+    expect(guidePrefs().tutorial.finished).toBe(false);
+
+    // The game starts mid-setup (a mulligan step), so lesson 5's own `when` (the player's turn) doesn't hold
+    // until the mulligan resolves — same "waiting first" shape the rest of the tutorial script follows.
+    run(core, controller, 0); // mulligan
+    expect(controller.view().step?.id).toBe("spotlight-scheme");
+
+    // Skipping the lesson's two steps finishes it, and finishing the last lesson is what finishes the run.
+    controller.skip();
+    controller.skip();
+
+    expect(guidePrefs().tutorial.finished).toBe(true);
+    expect(controller.view().panel?.title).toBe("Tutorial complete");
   });
 });

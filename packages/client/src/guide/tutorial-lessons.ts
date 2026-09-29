@@ -77,6 +77,7 @@ const PAYING_FOR_CARDS: Lesson = {
   id: "paying-for-cards",
   title: "Paying for cards",
   when: formIs("hero"),
+  waitingCopy: "Flip to Spider-Man when you're ready.",
   steps: [
     {
       id: "play-black-cat",
@@ -106,6 +107,7 @@ const VILLAIN_PHASE: Lesson = {
   id: "villain-phase",
   title: "The villain phase",
   when: stepIs("villain"),
+  waitingCopy: "It starts when you end your turn.",
   steps: [
     {
       id: "villain-phase-order",
@@ -141,6 +143,7 @@ const THREAT_AND_THWARTING: Lesson = {
   id: "threat-and-thwarting",
   title: "Threat & thwarting",
   when: stepIs("player", "turn"),
+  waitingCopy: "It starts at the top of round 2, after the villain phase.",
   steps: [
     {
       id: "spotlight-scheme",

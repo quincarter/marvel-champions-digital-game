@@ -283,7 +283,10 @@ const actionBarHeight = (formFactor: FormFactor): number =>
  * layout gave it a 84px-wide game log and a main scheme too narrow to show its
  * own card. So the tabbed layout covers both tall form factors.
  */
-const isTabbed = (formFactor: FormFactor): boolean =>
+/** Exported for the guide's phone/tablet-portrait callout path (guided mode G5c part 2, `docs/guided-mode.md` §4):
+ * which form factors show one zone at a time, and therefore get `McGuideCallout` instead of the desktop/tablet-
+ * landscape `McGuidePanel` rail (`scenes/board/guide-mount.ts`). */
+export const isTabbed = (formFactor: FormFactor): boolean =>
   formFactor === "phone" || formFactor === "phoneLandscape" || formFactor === "tabletPortrait";
 
 /** `viewport` with the guide rail's own width carved off its `side` edge, for every zone below it to lay out in. */

@@ -288,6 +288,10 @@ export class BoardScene extends Phaser.Scene {
         guideStopped: () => this.#guide?.stopped ?? false,
         guideNudge: () => this.#guide?.debugNudge() ?? null,
         guidePanelRects: () => this.#guide?.debugPanelRects() ?? null,
+        guideCalloutRects: () => this.#guide?.debugCalloutRects() ?? null,
+        guideAnchorRect: () => this.#guide?.debugAnchorRect() ?? null,
+        activeTab: () => this.#activeTab,
+        zoneRect: (name: string) => (this.#layout?.zones as Record<string, Rect | null> | undefined)?.[name] ?? null,
       };
     }
   }
@@ -738,6 +742,17 @@ export class BoardScene extends Phaser.Scene {
   /** Which phone tab is showing right now — off phone this is meaningless, but always some value (`view/layout.ts`'s own `boardLayout` treats `activeTab` the same way). */
   activeTabName(): PhoneTab {
     return this.#activeTab;
+  }
+
+  /** Switches the active phone tab programmatically — the guide's own auto-switch (guided mode G5c part 2,
+   * `docs/guided-mode.md` §4 G5c "Auto-switch the tab"), which needs the same effect `#drawTabs`' own `onSelect`
+   * already has (clear that tab's badge, then a full redraw so the newly-active tab's zones actually appear) but
+   * from outside a pointer event, where `#drawTabs` keeps its handler private. A no-op already on `tab`. */
+  switchToTab(tab: PhoneTab): void {
+    if (this.#activeTab === tab) return;
+    this.#activeTab = tab;
+    this.#tabBadges.delete(tab);
+    this.#draw();
   }
 
   /** The perspective player id for `resolveAnchor`'s `instanceOfCode` — null with no game running. */

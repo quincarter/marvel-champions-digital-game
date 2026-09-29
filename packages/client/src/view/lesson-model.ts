@@ -101,6 +101,15 @@ export interface Lesson {
   readonly steps: readonly LessonStep[];
   /** Held back from becoming current until this holds. Absent = eligible as soon as it's next in line. */
   readonly when?: LessonPredicate;
+  /**
+   * What starts this lesson, shown in the guide's "waiting" state (G5c part 2, `docs/guided-mode.md` §4 G5c item
+   * 0) whenever this is the next not-done lesson but its own `when` doesn't hold yet — e.g. "Flip to Spider-Man
+   * when you're ready." or "It starts when you end your turn." Paired with `title` by the controller
+   * (`guide/guide-controller.ts`'s own `waitingPanelContent`) into "Next: {title}. {waitingCopy}". Only meaningful
+   * on a lesson that has a `when`; a lesson with no `when` becomes current the moment it's next in line, so it's
+   * never the "next" lesson shown waiting.
+   */
+  readonly waitingCopy?: string;
 }
 
 // ---------------------------------------------------------------------------

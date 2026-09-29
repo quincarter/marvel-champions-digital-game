@@ -22,6 +22,20 @@
  *  - Escape's own release (`GuideGate.onGateReleased`) counts the step as skipped, via the same `skip()`.
  *  - Two inert clicks (`GuideGate.onGateEscaped`) never advance anything on their own — they only arm the panel's
  *    `nudge` line ("Want to do something else? Skip this step"), so the player decides.
+ *
+ * **The waiting and complete states (G5c part 2, `docs/guided-mode.md` §4 G5c item 0).** `view()` no longer goes
+ * blank whenever `currentStep` is `null` — that used to leave an empty rail with the board not reflowing, for as
+ * long as a lesson's own `when` hadn't fired yet (e.g. round 1 between "Paying for cards" and "The villain
+ * phase"). Instead:
+ *  - **Waiting** (some lesson isn't done yet, none is current): the panel keeps showing the lesson list, with no
+ *    anchor and no gate (nothing to spotlight or gate for "nothing's happening yet"), and a body naming the next
+ *    not-done lesson and what starts it (`Lesson.waitingCopy`, built by `waitingPanelContent`).
+ *  - **Complete** (every lesson is done): a short "Tutorial complete" panel with a `Close` primary action
+ *    (`dismiss()`), also with no anchor/gate. The transition into this state is also where `markTutorialFinished`
+ *    is recorded (`#apply`), once, the same moment `doneLessonIds` first reaches every lesson.
+ *  - **Hidden**: `stop()` (§3.10) or `dismiss()` closing the finished panel — `view()` reports `active: false`
+ *    either way, via the shared `hidden` getter, so the board mount's `railOptionFor` reflows to full width
+ *    without having to know which of the two ended the run.
  */
 import type { GameState, InstanceId, PlayerId } from "@mc/engine";
 import type { McGuidePanelContent, GuidePanelLessonRow } from "../ui/guide-panel.js";
@@ -49,7 +63,7 @@ import {
 } from "../view/lesson-model.js";
 import type { GuideGate } from "../scenes/board/guide-gate.js";
 import { guidePrefs, setGuidePrefs } from "./guide-store.js";
-import { markLessonDone, markTutorialSkipped } from "./guide-prefs.js";
+import { markLessonDone, markTutorialFinished, markTutorialSkipped } from "./guide-prefs.js";
 
 const PRIMARY_LABEL = "Got it";
 const NUDGE_TEXT = "Want to do something else? Skip this step";
@@ -57,6 +71,14 @@ const NUDGE_TEXT = "Want to do something else? Skip this step";
  * comment) — every scripted step in `guide/tutorial-lessons.ts` sets one, so this only ever shows for content
  * that hasn't been filled in yet. */
 const GENERIC_CONTINUE_HINT = "Do this to continue";
+/** The waiting state's own title, when there's no next-not-done lesson to name (shouldn't happen outside a test
+ * fixture with a gap in its lesson data — `waitingPanelContent`'s own fallback). */
+const WAITING_FALLBACK_TITLE = "Up next";
+const COMPLETE_TITLE = "Tutorial complete";
+const COMPLETE_BODY =
+  "Nice work — you've learned the core loop. Keep playing, or find the aspect lessons any time from " +
+  "Settings ▸ Guide.";
+const COMPLETE_PRIMARY_LABEL = "Close";
 
 export interface GuideControllerOptions {
   readonly lessons: readonly Lesson[];
@@ -80,9 +102,11 @@ export interface GuideControllerView {
   readonly anchor: LessonAnchor | null;
   readonly tagVariant: McGuideTagVariant | null;
   /** Built fresh every `view()` call, but meant to be applied to the board only on a step change (the adapter's
-   * own job — `docs/guided-mode.md` §4 G4c "For G5c": "set the gate only on a step change, never per redraw"). */
+   * own job — `docs/guided-mode.md` §4 G4c "For G5c": "set the gate only on a step change, never per redraw").
+   * Always `null` while waiting or complete (this module's own header) — there's nothing to gate either. */
   readonly gate: GuideGate | null;
-  /** False once nothing should show at all: no lesson current, or `stop()` was called. */
+  /** False once nothing should show at all: `stop()` was called, or the finished panel was closed (`dismiss()`).
+   * True for a waiting or complete `panel`, same as for a current `step` — see this module's own header. */
   readonly active: boolean;
 }
 
@@ -104,6 +128,8 @@ export class GuideController {
   #state: LessonRunnerState;
   #observation: LessonObservation;
   #stopped = false;
+  /** Set by `dismiss()` — the complete state's own "Close" (this module's own header's "Hidden"). */
+  #dismissed = false;
   #nudge: string | null = null;
   #override: { readonly stepId: string; readonly override: GuideStepOverride } | null = null;
   readonly #extraFor: GuideControllerOptions["extraFor"];
@@ -118,30 +144,39 @@ export class GuideController {
   /** Feeds a fresh store observation in — call on every session-store update (this module's own contract, above). */
   onObservation(observation: LessonObservation): void {
     this.#observation = observation;
-    if (this.#stopped) return;
+    if (this.hidden) return;
     this.#runObserve();
   }
 
-  /** The panel/callout's primary button — an "acknowledge" step's forward action. A no-op once stopped, with no
-   * lesson current, or on an "await" step (`view/lesson-model.ts#acknowledge`'s own no-op rule). */
+  /** The panel/callout's primary button. On an "acknowledge" step, `view/lesson-model.ts#acknowledge`'s own
+   * forward action; on the complete state's own "Close", `dismiss()` instead (there's no current step for
+   * `acknowledge` to advance) — the adapter always wires the same `primary()` call regardless of which panel is
+   * showing, same as every other button here. A no-op once hidden, with no lesson current and not complete
+   * (waiting has no primary button to press), or on an "await" step. */
   primary(): void {
-    if (this.#stopped) return;
+    if (this.hidden) return;
+    if (!currentStep(this.#state) && this.#isComplete()) {
+      this.dismiss();
+      return;
+    }
     this.#apply(acknowledge(this.#state));
     this.#runObserve();
   }
 
   /** The footer's Back button. */
   back(): void {
-    if (this.#stopped) return;
+    if (this.hidden) return;
     this.#nudge = null;
     this.#apply(lessonBack(this.#state));
   }
 
   /** "Skip this step" (§3.10) — advances past only the current step (`view/lesson-model.ts#skipStep`), then
    * re-runs `observe` so a lesson that finished on this call (or a next lesson whose `when` already holds) is
-   * picked up immediately, same as every other reducer here. */
+   * picked up immediately, same as every other reducer here. A no-op while waiting or complete (`skipStep`'s own
+   * no-op rule with nothing current) — the adapter only wires this button while a step is actually current
+   * (`scenes/board/guide-mount.ts`). */
   skip(): void {
-    if (this.#stopped) return;
+    if (this.hidden) return;
     this.#nudge = null;
     this.#apply(skipStep(this.#state));
     this.#runObserve();
@@ -150,15 +185,28 @@ export class GuideController {
   /** "Stop tutorial" (§3.10): ends guidance for this game outright. The caller still has to clear the board's own
    * gate (`BoardScene.setGuideGate(null)`) and tear down the panel/spotlight/tag — this module owns none of them. */
   stop(): void {
-    if (this.#stopped) return;
+    if (this.hidden) return;
     this.#stopped = true;
     this.#nudge = null;
     this.#apply(skipLesson(this.#state));
     setGuidePrefs(markTutorialSkipped(guidePrefs()));
   }
 
+  /** Closes the complete state's own panel (its "Close" primary action, routed there by `primary()`) — distinct
+   * from `stop()`: the tutorial already finished normally, so this never touches guide prefs, it only hides the
+   * guide surface for the rest of this game via the shared `hidden` getter. */
+  dismiss(): void {
+    this.#dismissed = true;
+  }
+
   get stopped(): boolean {
     return this.#stopped;
+  }
+
+  /** True once nothing should show at all — `stop()` (§3.10) or `dismiss()` (the complete state's own "Close").
+   * `view()` reports `active: false` exactly when this is true (this module's own header's "Hidden"). */
+  get hidden(): boolean {
+    return this.#stopped || this.#dismissed;
   }
 
   get state(): LessonRunnerState {
@@ -176,9 +224,15 @@ export class GuideController {
 
   /** Everything the Phaser adapter needs to draw this frame. */
   view(): GuideControllerView {
-    const step = currentStep(this.#state);
-    if (this.#stopped || !step) {
+    if (this.hidden) {
       return { step: null, panel: null, anchor: null, tagVariant: null, gate: null, active: false };
+    }
+    const step = currentStep(this.#state);
+    if (!step) {
+      // Waiting or complete (this module's own header) — no anchor, no gate either way: waiting has nothing on
+      // the board to spotlight yet, and the finished panel isn't teaching anything.
+      const panel = this.#isComplete() ? completePanelContent() : waitingPanelContent(this.#state);
+      return { step: null, panel, anchor: null, tagVariant: null, gate: null, active: true };
     }
     const override = this.#override?.stepId === step.id ? this.#override.override : null;
     const anchor = override?.anchor ?? step.anchor ?? null;
@@ -211,9 +265,31 @@ export class GuideController {
     this.#apply(observe(this.#state, this.#observation));
   }
 
+  /**
+   * Applies a reducer's result, records every lesson it finished, and — the moment `doneLessonIds` first covers
+   * every lesson in this run — records `markTutorialFinished` too (this module's own header's "Complete"). Checked
+   * before/after rather than "did `lessonDone` include the last lesson", because `skipStep`/`acknowledge` are the
+   * only reducers that ever add to `doneLessonIds` one at a time; comparing the whole set is simpler than trusting
+   * every call site to fold the last id correctly, and it's cheap (`lessons.length` is 5 in the tutorial).
+   */
   #apply(result: LessonResult): void {
+    const wasComplete = this.#isComplete();
     this.#state = result.state;
     for (const id of result.lessonDone) setGuidePrefs(markLessonDone(guidePrefs(), id));
+    if (!wasComplete && this.#isComplete()) setGuidePrefs(markTutorialFinished(guidePrefs()));
+  }
+
+  /** True once every lesson in this run is done and none is current — the "complete" state (this module's own
+   * header). `!skipped` excludes a run `stop()` ended early via `skipLesson`, which also clears `active` but
+   * leaves `doneLessonIds` short of the full set (unless the player happened to finish the last lesson on the
+   * very same call, in which case `stop()` never runs at all) — without this guard, a stopped-early run would
+   * read as "complete" the moment its own final `doneLessonIds` write landed. */
+  #isComplete(): boolean {
+    return (
+      !this.#state.skipped &&
+      this.#state.active === null &&
+      this.#state.doneLessonIds.length >= this.#state.lessons.length
+    );
   }
 
   /** Escape's own release (§3.10 "Escape always works"): the step counts as skipped. The gate itself is already
@@ -241,6 +317,56 @@ function lessonRowsOf(
     status: entry.status,
     progress: entry.status === "current" && progress ? `${progress.stepIndex + 1} / ${progress.totalSteps}` : null,
   }));
+}
+
+/** The first not-done lesson, in this run's own order — the "next" lesson the waiting state names. `null` only
+ * when every lesson is already done (`view()` shows the complete state in that case, so this is never called). */
+function nextNotDoneLesson(state: LessonRunnerState): Lesson | null {
+  return state.lessons.find((lesson) => !state.doneLessonIds.includes(lesson.id)) ?? null;
+}
+
+/**
+ * The waiting state's own panel content (this module's own header): the lesson list, unchanged, plus a body
+ * naming the next not-done lesson and what starts it (`Lesson.waitingCopy`) — "Next: {title}. {waitingCopy}",
+ * split across the panel's own Bangers title and body text. No `tip`/progress/back/primary/continueHint: there's
+ * no step here to show any of that for.
+ */
+function waitingPanelContent(state: LessonRunnerState): McGuidePanelContent {
+  const next = nextNotDoneLesson(state);
+  return {
+    contextLabel: "Guide",
+    lessons: lessonRowsOf(state, null),
+    stepLabel: null,
+    title: next ? `Next: ${next.title}` : WAITING_FALLBACK_TITLE,
+    body: next?.waitingCopy ?? "",
+    tip: null,
+    progressTicks: null,
+    progressCurrent: null,
+    backLabel: null,
+    primaryLabel: null,
+    continueHint: null,
+    nudge: null,
+  };
+}
+
+/** The complete state's own panel content (this module's own header): a short "Tutorial complete" message with a
+ * `Close` primary action, routed by `primary()` to `dismiss()`. No lesson list — there's nothing left upcoming to
+ * show, and the debrief/hub screens (G8/G6c) are where "what's next" (Aspects) actually lives. */
+function completePanelContent(): McGuidePanelContent {
+  return {
+    contextLabel: "Guide",
+    lessons: null,
+    stepLabel: null,
+    title: COMPLETE_TITLE,
+    body: COMPLETE_BODY,
+    tip: null,
+    progressTicks: null,
+    progressCurrent: null,
+    backLabel: null,
+    primaryLabel: COMPLETE_PRIMARY_LABEL,
+    continueHint: null,
+    nudge: null,
+  };
 }
 
 /** `TRY THIS` on an actionable anchor (action/card), `GUIDE PICK` on a recommended choice, nothing on a bare zone —
