@@ -293,6 +293,14 @@ export class BoardGuideMount {
     return this.#controller.hidden;
   }
 
+  /** True while a scripted lesson step's own callout/panel is actually on screen right now — not the waiting or
+   * complete states, which have no `step` (`GuideController#view`'s own header). Guided mode G10e part 2 reads
+   * this to hold back an opportunistic tip that would otherwise collide with the lesson surface on the same
+   * screen (`docs/guided-mode.md` §4 G10e: "None while a scripted lesson step is active in a tutorial run"). */
+  hasCurrentStep(): boolean {
+    return this.#controller.view().step !== null;
+  }
+
   /** Headless click-through hook only (never referenced by product code, JSON-safe): the current step's own id,
    * or `null` with nothing current (including the waiting/complete states — mirrors every other `?screen=…demo`
    * scene's own `__mc*Debug` accessor). */

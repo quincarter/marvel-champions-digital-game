@@ -109,7 +109,8 @@ export type ConceptId =
   | "heroPhase"
   | "ally"
   | "aspect"
-  | "handSize";
+  | "handSize"
+  | "mulligan";
 
 export const CONCEPT_IDS: readonly ConceptId[] = [
   "threat",
@@ -133,6 +134,7 @@ export const CONCEPT_IDS: readonly ConceptId[] = [
   "ally",
   "aspect",
   "handSize",
+  "mulligan",
 ];
 
 export type GlossaryId = KeywordName | StatusName | ConceptId;
@@ -676,6 +678,17 @@ const CONCEPT_GLOSSARY: Record<ConceptId, GlossaryEntry<ConceptId>> = {
     definition:
       "Hand size is how many cards you're meant to be holding by the end of the player phase — draw up to it, or discard down to it, before the round moves on.",
     sources: [{ kind: "rrg", page: 21 }],
+  },
+  // RRG 1.8 Appendix II: Setup, step 15 (p. 51) — not a separate main-glossary entry (there's no standalone
+  // "Mulligan" heading in the index), but a first-time player needs the word explained the same as any other
+  // basic concept (guided mode G10e part 2, `docs/guided-mode.md` §5.3's opportunistic mulligan tip).
+  mulligan: {
+    id: "mulligan",
+    kind: "concept",
+    displayName: "Mulligan",
+    definition:
+      "The mulligan is a one-time do-over for your opening hand: at the start of the game you can discard any number of the cards you were dealt, then draw that many new ones.",
+    sources: [{ kind: "rrg", page: 51 }],
   },
 };
 

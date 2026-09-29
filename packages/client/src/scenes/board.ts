@@ -57,7 +57,9 @@ import { emptyFrame, type BoardDrawContext, type BoardFrame } from "./board/cont
 import { BoardController } from "./board/controller.js";
 import type { GuideGate } from "./board/guide-gate.js";
 import { BoardGuideMount } from "./board/guide-mount.js";
+import { BoardTipMount } from "./board/tip-mount.js";
 import { TUTORIAL_LESSONS } from "../guide/tutorial-lessons.js";
+import type { LessonObservation } from "../view/lesson-model.js";
 import { drawHand, HandScroll } from "./board/hand.js";
 import type { RowDrag } from "../view/hand-scroll.js";
 import { bindGamepad, bindKeyboard, type IntentBinding } from "./board/input.js";
@@ -121,6 +123,10 @@ export class BoardScene extends Phaser.Scene {
    * initial `LessonObservation` to start from. Desktop/tablet-landscape only in this part; see
    * `scenes/board/guide-mount.ts`'s own header. */
   #guide: BoardGuideMount | null = null;
+  /** The opportunistic-tip mount (guided mode G10e part 2, `docs/guided-mode.md` §4 G10e) — unlike `#guide`, built
+   * for *every* game with a perspective player, not only a guided tutorial run: an opportunistic tip at the Full
+   * guide level is "the main use" in an ordinary game (`scenes/board/tip-mount.ts`'s own header). */
+  #tip: BoardTipMount | null = null;
 
   readonly #controller = new BoardController({
     model: () => this.#model,
@@ -175,6 +181,9 @@ export class BoardScene extends Phaser.Scene {
     // Same reasoning as the campaign beat above, for the guide's own spotlight — see `BoardGuideMount.pollBanner`'s
     // own doc comment.
     this.#guide?.pollBanner();
+    // Same reasoning again, for a tip held back while an overlay/lesson-step was covering it — see
+    // `BoardTipMount.pollBlocked`'s own doc comment.
+    this.#tip?.pollBlocked(this.#tipBlocked());
   }
 
   create(): void {
@@ -197,6 +206,9 @@ export class BoardScene extends Phaser.Scene {
     this.#pendingCampaignBeat = null;
     this.#guide?.destroy();
     this.#guide = null;
+    // Fresh scheduler state for a fresh game (guided mode G10e part 2) — "Run it back"/"Continue" reuse this same
+    // scene instance, and the opening-turn hold/one-per-turn cap must reset the same way `#guide` does above.
+    this.#tip = new BoardTipMount(this);
     this.cameras.main.setBackgroundColor(cssOf(surface.ink.hex));
     const { store } = appSession();
     this.#unsubscribe = store.subscribe((state) => this.#onState(state));
@@ -285,6 +297,7 @@ export class BoardScene extends Phaser.Scene {
       this.#choiceOpen = false;
       this.#guide?.destroy();
       this.#guide = null;
+      this.#tip = null;
     });
     fadeScreenIn(this);
 
@@ -304,6 +317,8 @@ export class BoardScene extends Phaser.Scene {
         guidePanelRects: () => this.#guide?.debugPanelRects() ?? null,
         guideCalloutRects: () => this.#guide?.debugCalloutRects() ?? null,
         guideAnchorRect: () => this.#guide?.debugAnchorRect() ?? null,
+        tipDisplayed: () => this.#tip?.displayed?.id ?? null,
+        tipRects: () => this.#tip?.debugRects() ?? null,
         activeTab: () => this.#activeTab,
         zoneRect: (name: string) => (this.#layout?.zones as Record<string, Rect | null> | undefined)?.[name] ?? null,
       };
@@ -377,7 +392,37 @@ export class BoardScene extends Phaser.Scene {
     if (fresh) this.#guide?.noteRoundEvents(state.lastEvents);
     this.#syncChoiceOverlay(state);
     this.#tryOpenCampaignBeat();
+    // Guided mode G10e part 2: fed *after* the choice/campaign-beat overlays above have had their own chance to
+    // open this frame, so `#tipBlocked()` already sees this command's own overlay, not last frame's. Gated on
+    // `fresh` the same way `#guide?.noteRoundEvents` is just above — a plain redraw must not re-run the scheduler
+    // against the same `lastEvents` a second time (it would auto-hide a tip the instant it was shown).
+    if (fresh) {
+      const observation: LessonObservation = {
+        game: state.game,
+        lastEvents: state.lastEvents,
+        perspectiveId: state.perspectiveId,
+      };
+      this.#tip?.onObservation(observation, this.#tipBlocked(), appSession().guidedRun);
+    }
     this.#draw();
+  }
+
+  /** No opportunistic tip (guided mode G10e part 2) may show while any of these own the screen: the usual overlay
+   * list `create()`'s own keyboard/pad `binding.blocked` already checks, plus a scripted lesson step's own
+   * callout/panel (`BoardGuideMount#hasCurrentStep`) — the two surfaces would otherwise collide on the same board. */
+  #tipBlocked(): boolean {
+    return (
+      this.#choiceOpen ||
+      this.scene.isActive(SCENES.inspect) ||
+      this.scene.isActive(SCENES.villainPhase) ||
+      this.scene.isActive(SCENES.pause) ||
+      this.scene.isActive(SCENES.rules) ||
+      this.scene.isActive(SCENES.settings) ||
+      this.scene.isActive(SCENES.roundDebrief) ||
+      this.scene.isActive(SCENES.campaignBeat) ||
+      this.scene.isActive(SCENES.holdOn) ||
+      (this.#guide?.hasCurrentStep() ?? false)
+    );
   }
 
   /**
@@ -392,7 +437,11 @@ export class BoardScene extends Phaser.Scene {
     if (!this.#guide) {
       this.#guide = new BoardGuideMount(
         this,
-        { lessons: TUTORIAL_LESSONS, alreadyDone: ["how-to-win"], runLabel: "First game" },
+        {
+          lessons: TUTORIAL_LESSONS,
+          alreadyDone: appSession().guidedRunAlreadyDone ?? ["how-to-win"],
+          runLabel: "First game",
+        },
         observation,
       );
     } else {
@@ -586,6 +635,10 @@ export class BoardScene extends Phaser.Scene {
     // Last of all, so the guide's spotlight/tag/panel sit above everything else this draw put on the table
     // (guided mode G5c, `scenes/board/guide-mount.ts`).
     this.#guide?.draw(layout, viewport);
+    // The opportunistic-tip toast (guided mode G10e part 2) — after the guide's own lesson surface, so a step's
+    // callout (when one happens to be up, though `#tipBlocked()` normally keeps a tip from arming at all then)
+    // never sits under it.
+    this.#tip?.draw(viewport, layout.tabbed, zones.actionBar, this.#tipBlocked());
   }
 
   #drawTabs(rect: Rect, model: BoardModel): void {

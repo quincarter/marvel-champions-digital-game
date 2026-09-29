@@ -13,6 +13,7 @@ import {
   type GameState,
   type PlayerId,
 } from "@mc/engine";
+import { POOL_DEPS } from "../content/pool.js";
 import { LocalEngineHost } from "../engine/local-host.js";
 import { SessionStore } from "../store/session-store.js";
 import type { SessionConfig } from "../engine/host.js";
@@ -160,39 +161,41 @@ describe("tipsFor: level gating", () => {
   test("off and hints levels never fire", () => {
     const state = withMinionEngaged(base, me);
     const observation = observationOf(state);
-    expect(tipsFor(observation, { ...defaultGuidePrefs, level: "off" })).toEqual([]);
-    expect(tipsFor(observation, { ...defaultGuidePrefs, level: "hints" })).toEqual([]);
+    expect(tipsFor(observation, POOL_DEPS, { ...defaultGuidePrefs, level: "off" })).toEqual([]);
+    expect(tipsFor(observation, POOL_DEPS, { ...defaultGuidePrefs, level: "hints" })).toEqual([]);
   });
 
   test("full level fires", () => {
     const state = withMinionEngaged(base, me);
-    const tips = tipsFor(observationOf(state), defaultGuidePrefs);
+    const tips = tipsFor(observationOf(state), POOL_DEPS, defaultGuidePrefs);
     expect(tips).toHaveLength(1);
   });
 
   test("no perspective player: nothing fires", () => {
     const state = withMinionEngaged(base, me);
     const observation: LessonObservation = { game: state, lastEvents: [], perspectiveId: null };
-    expect(tipsFor(observation, defaultGuidePrefs)).toEqual([]);
+    expect(tipsFor(observation, POOL_DEPS, defaultGuidePrefs)).toEqual([]);
   });
 });
 
 describe("situation:minionEngaged", () => {
   test("fires the first time a minion is engaged", () => {
     const state = withMinionEngaged(base, me);
-    const tips = tipsFor(observationOf(state), defaultGuidePrefs);
+    const tips = tipsFor(observationOf(state), POOL_DEPS, defaultGuidePrefs);
     expect(tips[0]?.id).toBe("situation:minionEngaged");
   });
 
   test("does not fire with nothing engaged", () => {
-    const tips = tipsFor(observationOf(base), defaultGuidePrefs);
+    const tips = tipsFor(observationOf(base), POOL_DEPS, defaultGuidePrefs);
     expect(tips.find((t) => t.id === "situation:minionEngaged")).toBeUndefined();
   });
 
   test("a seen tip does not fire again", () => {
     const state = withMinionEngaged(base, me);
     const prefs: GuidePrefs = { ...defaultGuidePrefs, seenTips: SEEN_THROUGH_ACCELERATION };
-    expect(tipsFor(observationOf(state), prefs).find((t) => t.id === "situation:minionEngaged")).toBeUndefined();
+    expect(
+      tipsFor(observationOf(state), POOL_DEPS, prefs).find((t) => t.id === "situation:minionEngaged"),
+    ).toBeUndefined();
   });
 });
 
@@ -200,19 +203,19 @@ describe("situation:sideScheme and situation:crisis", () => {
   test("a side scheme in play fires situation:sideScheme", () => {
     const state = withCrisisSideScheme(base);
     // Crowd Control also carries the crisis icon, so silence that higher-priority... no, sideScheme comes first.
-    const tips = tipsFor(observationOf(state), defaultGuidePrefs);
+    const tips = tipsFor(observationOf(state), POOL_DEPS, defaultGuidePrefs);
     expect(tips[0]?.id).toBe("situation:sideScheme");
   });
 
   test("crisis fires once sideScheme is already seen", () => {
     const state = withCrisisSideScheme(base);
     const prefs: GuidePrefs = { ...defaultGuidePrefs, seenTips: ["situation:sideScheme"] };
-    const tips = tipsFor(observationOf(state), prefs);
+    const tips = tipsFor(observationOf(state), POOL_DEPS, prefs);
     expect(tips[0]?.id).toBe("situation:crisis");
   });
 
   test("no side scheme, no crisis: neither fires", () => {
-    const tips = tipsFor(observationOf(base), defaultGuidePrefs);
+    const tips = tipsFor(observationOf(base), POOL_DEPS, defaultGuidePrefs);
     expect(tips.find((t) => t.id === "situation:sideScheme" || t.id === "situation:crisis")).toBeUndefined();
   });
 });
@@ -222,14 +225,14 @@ describe("situation:acceleration", () => {
     const id = base.mainScheme.instanceId;
     const state = { ...base, instances: { ...base.instances, [id]: { ...base.instances[id]!, threat: 0 } } };
     const withToken = { ...state, mainScheme: { ...state.mainScheme, accelerationTokens: 1 } };
-    const tips = tipsFor(observationOf(withToken), defaultGuidePrefs);
+    const tips = tipsFor(observationOf(withToken), POOL_DEPS, defaultGuidePrefs);
     expect(tips[0]?.id).toBe("situation:acceleration");
   });
 
   test("does not fire with no acceleration anywhere", () => {
     const withoutToken = { ...base, mainScheme: { ...base.mainScheme, accelerationTokens: 0 } };
     // This scenario/seed may still print acceleration; only assert when it truly has none to pose.
-    const tips = tipsFor(observationOf(withoutToken), defaultGuidePrefs);
+    const tips = tipsFor(observationOf(withoutToken), POOL_DEPS, defaultGuidePrefs);
     if (tips[0]?.id === "situation:acceleration") return;
     expect(tips.find((t) => t.id === "situation:acceleration")).toBeUndefined();
   });
@@ -238,7 +241,7 @@ describe("situation:acceleration", () => {
 describe("event-driven situations", () => {
   test("situation:obligation fires on drawnObligationPlaced for the perspective player", () => {
     const events: GameEvent[] = [{ type: "drawnObligationPlaced", playerId: me, instanceId: instanceId("ob-1") }];
-    const tips = tipsFor(observationOf(base, events), defaultGuidePrefs);
+    const tips = tipsFor(observationOf(base, events), POOL_DEPS, defaultGuidePrefs);
     expect(tips[0]?.id).toBe("situation:obligation");
   });
 
@@ -250,7 +253,7 @@ describe("event-driven situations", () => {
         instanceId: instanceId("ob-1"),
       },
     ];
-    const tips = tipsFor(observationOf(base, events), defaultGuidePrefs);
+    const tips = tipsFor(observationOf(base, events), POOL_DEPS, defaultGuidePrefs);
     expect(tips.find((t) => t.id === "situation:obligation")).toBeUndefined();
   });
 
@@ -307,7 +310,7 @@ describe("event-driven situations", () => {
       },
     };
     const events: GameEvent[] = [{ type: "encounterCardRevealed", instanceId: id, cardId: cid, playerId: me }];
-    const tips = tipsFor(observationOf(state, events), defaultGuidePrefs);
+    const tips = tipsFor(observationOf(state, events), POOL_DEPS, defaultGuidePrefs);
     expect(tips[0]?.id).toBe("situation:nemesisSet");
   });
 
@@ -320,7 +323,7 @@ describe("event-driven situations", () => {
         to: { phase: "setup", kind: "playerSetupAbilities" },
       },
     ];
-    const tips = tipsFor(observationOf(base, events), defaultGuidePrefs);
+    const tips = tipsFor(observationOf(base, events), POOL_DEPS, defaultGuidePrefs);
     expect(tips[0]?.id).toBe("situation:mulligan");
   });
 
@@ -332,7 +335,7 @@ describe("event-driven situations", () => {
         to: { phase: "setup", kind: "playerSetupAbilities" },
       },
     ];
-    const tips = tipsFor(observationOf(base, events), defaultGuidePrefs);
+    const tips = tipsFor(observationOf(base, events), POOL_DEPS, defaultGuidePrefs);
     expect(tips.find((t) => t.id === "situation:mulligan")).toBeUndefined();
   });
 
@@ -346,7 +349,7 @@ describe("event-driven situations", () => {
       },
     ];
     const prefs: GuidePrefs = { ...defaultGuidePrefs, seenTips: SEEN_THROUGH_ACCELERATION };
-    const tips = tipsFor(observationOf(base, events), prefs);
+    const tips = tipsFor(observationOf(base, events), POOL_DEPS, prefs);
     expect(tips[0]?.id).toBe("situation:boostFlip");
   });
 
@@ -355,7 +358,7 @@ describe("event-driven situations", () => {
       { type: "villainStageAdvanced", stageIndex: 1, instanceId: activeVillain(base).instanceId },
     ];
     const prefs: GuidePrefs = { ...defaultGuidePrefs, seenTips: SEEN_THROUGH_ACCELERATION };
-    const tips = tipsFor(observationOf(base, events), prefs);
+    const tips = tipsFor(observationOf(base, events), POOL_DEPS, prefs);
     expect(tips[0]?.id).toBe("situation:villainStageAdvanced");
   });
 
@@ -369,7 +372,7 @@ describe("event-driven situations", () => {
       },
     ];
     const prefs: GuidePrefs = { ...defaultGuidePrefs, seenTips: SEEN_THROUGH_ACCELERATION };
-    const tips = tipsFor(observationOf(base, events), prefs);
+    const tips = tipsFor(observationOf(base, events), POOL_DEPS, prefs);
     expect(tips[0]?.id).toBe("situation:recover");
   });
 
@@ -383,7 +386,9 @@ describe("event-driven situations", () => {
       },
     ];
     const prefs: GuidePrefs = { ...defaultGuidePrefs, seenTips: SEEN_THROUGH_ACCELERATION };
-    expect(tipsFor(observationOf(base, events), prefs).find((t) => t.id === "situation:recover")).toBeUndefined();
+    expect(
+      tipsFor(observationOf(base, events), POOL_DEPS, prefs).find((t) => t.id === "situation:recover"),
+    ).toBeUndefined();
   });
 
   test("situation:drawOnAttack fires when the same command both attacked the identity and drew a card", () => {
@@ -404,7 +409,7 @@ describe("event-driven situations", () => {
       ...defaultGuidePrefs,
       seenTips: [...SEEN_THROUGH_ACCELERATION, "situation:handSizeDiffers"],
     };
-    const tips = tipsFor(observationOf(base, events), prefs);
+    const tips = tipsFor(observationOf(base, events), POOL_DEPS, prefs);
     expect(tips[0]?.id).toBe("situation:drawOnAttack");
   });
 
@@ -425,14 +430,16 @@ describe("event-driven situations", () => {
       ...defaultGuidePrefs,
       seenTips: [...SEEN_THROUGH_ACCELERATION, "situation:handSizeDiffers"],
     };
-    expect(tipsFor(observationOf(base, events), prefs).find((t) => t.id === "situation:drawOnAttack")).toBeUndefined();
+    expect(
+      tipsFor(observationOf(base, events), POOL_DEPS, prefs).find((t) => t.id === "situation:drawOnAttack"),
+    ).toBeUndefined();
   });
 });
 
 describe("situation:handSizeDiffers", () => {
   test("fires when the identity's two faces print different hand sizes (the Core default)", () => {
     const prefs: GuidePrefs = { ...defaultGuidePrefs, seenTips: SEEN_THROUGH_ACCELERATION };
-    const tips = tipsFor(observationOf(base), prefs);
+    const tips = tipsFor(observationOf(base), POOL_DEPS, prefs);
     expect(tips[0]?.id).toBe("situation:handSizeDiffers");
   });
 
@@ -446,7 +453,7 @@ describe("situation:handSizeDiffers", () => {
     };
     const state = { ...base, cardPool: { ...base.cardPool, [identityCard.id]: patched } };
     const prefs: GuidePrefs = { ...defaultGuidePrefs, seenTips: SEEN_THROUGH_ACCELERATION };
-    const tips = tipsFor(observationOf(state), prefs);
+    const tips = tipsFor(observationOf(state), POOL_DEPS, prefs);
     expect(tips.find((t) => t.id === "situation:handSizeDiffers")).toBeUndefined();
   });
 });
@@ -458,7 +465,7 @@ describe("keyword and status tips (from the glossary)", () => {
       ...defaultGuidePrefs,
       seenTips: [...SEEN_THROUGH_ACCELERATION, "situation:handSizeDiffers"],
     };
-    const tips = tipsFor(observationOf(state), prefs);
+    const tips = tipsFor(observationOf(state), POOL_DEPS, prefs);
     expect(tips[0]?.id).toBe("keyword:guard");
     expect(tips[0]?.body).toContain("[[guard|Guard]]");
   });
@@ -468,7 +475,7 @@ describe("keyword and status tips (from the glossary)", () => {
       ...defaultGuidePrefs,
       seenTips: [...SEEN_THROUGH_ACCELERATION, "situation:handSizeDiffers"],
     };
-    const tips = tipsFor(observationOf(base), prefs);
+    const tips = tipsFor(observationOf(base), POOL_DEPS, prefs);
     for (const tip of tips) {
       expect(tip.id).not.toBe("keyword:exhausted");
       expect(tip.id).not.toBe("keyword:ready");
@@ -481,20 +488,20 @@ describe("priority order and suppress", () => {
   test("an earlier-priority situation wins over a later one when both are true", () => {
     const withMinion = withMinionEngaged(base, me);
     const state = withCrisisSideScheme(withMinion);
-    const tips = tipsFor(observationOf(state), defaultGuidePrefs);
+    const tips = tipsFor(observationOf(state), POOL_DEPS, defaultGuidePrefs);
     expect(tips[0]?.id).toBe("situation:minionEngaged"); // ahead of sideScheme/crisis in SITUATION_TIPS order.
   });
 
   test("suppress skips a tip id for just this call, without marking it seen", () => {
     const state = withMinionEngaged(base, me);
-    const tips = tipsFor(observationOf(state), defaultGuidePrefs, ["situation:minionEngaged"]);
+    const tips = tipsFor(observationOf(state), POOL_DEPS, defaultGuidePrefs, ["situation:minionEngaged"]);
     expect(tips.find((t) => t.id === "situation:minionEngaged")).toBeUndefined();
   });
 
   test("at most one tip per observation", () => {
     const withMinion = withMinionEngaged(base, me);
     const state = withCrisisSideScheme(withMinion);
-    const tips = tipsFor(observationOf(state), defaultGuidePrefs);
+    const tips = tipsFor(observationOf(state), POOL_DEPS, defaultGuidePrefs);
     expect(tips.length).toBeLessThanOrEqual(1);
   });
 });

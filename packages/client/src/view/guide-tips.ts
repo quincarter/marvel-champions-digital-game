@@ -17,11 +17,10 @@
  *    generically — see `drawOnAttackTip`).
  *
  * **No deps in the observation.** `LessonObservation` (deliberately) carries no `EngineDeps` — lesson predicates
- * never needed one. The two queries here that do (`iconsInPlay`, `mainSchemeValue`, and `rulesGlossaryOf` itself)
- * use `DEFAULT_DEPS`, the same "no ability registry" fallback `@mc/engine` ships for exactly this — a caller with
- * no ability-aware deps to hand. That means an ability-*granted* icon or keyword (as opposed to a printed one)
- * won't trigger its tip; the wiring follow-up (G10e's display half, or G5c) should consider threading the
- * session's real `EngineDeps` through instead once a call site exists.
+ * never needed one. `tipsFor` takes its own `deps` parameter instead (G10e part 2), threaded straight through to
+ * the three queries that need one (`iconsInPlay`, `mainSchemeValue`, `rulesGlossaryOf`) — the board's own mount
+ * passes the session's real `EngineDeps` (`content/pool.ts`'s `POOL_DEPS`), so an ability-*granted* icon or
+ * keyword counts here the same way it does everywhere else on the table, not just a printed one.
  *
  * **Never leaks hidden information** (`view/visibility.ts`'s rule, same as `view/guide-hints.ts`): nothing here
  * reads a facedown boost card's icons before it flips, or the encounter deck's order.
@@ -33,13 +32,13 @@
  */
 import type { HeroIdentityCard } from "@mc/content";
 import {
-  DEFAULT_DEPS,
   cardOf,
   getPlayer,
   heroFacesOf,
   iconsInPlay,
   mainSchemeValue,
   minionsEngagedWith,
+  type EngineDeps,
   type PlayerId,
 } from "@mc/engine";
 import type { GuidePrefs } from "../guide/guide-prefs.js";
@@ -111,11 +110,10 @@ function nemesisSetTip({ game, lastEvents, perspectiveId }: LessonObservation): 
 }
 
 /**
- * The first mulligan (RRG 1.8 "Mulligan", p. 28): detected as leaving the setup mulligan step (`stepChanged` with
- * `from.kind === "mulligan"`) after the perspective player actually discarded at least one card during it
- * (`cardDiscardedFromHand`) — keeping a whole opening hand doesn't teach anything new. There's no "mulligan"
- * glossary entry yet (`@mc/content`'s concept list, `docs/guided-mode.md` G3a), so unlike every other tip here
- * this one links no term; adding one is a content follow-up, not this box's job.
+ * The first mulligan (RRG 1.8 Appendix II "Setup" step 15, p. 51): detected as leaving the setup mulligan step
+ * (`stepChanged` with `from.kind === "mulligan"`) after the perspective player actually discarded at least one
+ * card during it (`cardDiscardedFromHand`) — keeping a whole opening hand doesn't teach anything new. G10e part 2
+ * added a `mulligan` glossary concept (`@mc/content`'s concept list, `docs/guided-mode.md` G3a) that this now links.
  */
 function mulliganTip({ lastEvents, perspectiveId }: LessonObservation): Tip | null {
   if (!perspectiveId) return null;
@@ -131,8 +129,8 @@ function mulliganTip({ lastEvents, perspectiveId }: LessonObservation): Tip | nu
     id: "situation:mulligan",
     title: "Mulligan",
     body:
-      "At the start of the game you can discard any number of cards from your opening hand and draw that many " +
-      "new ones, once, before play really begins.",
+      "At the start of the game you can take a [[mulligan|mulligan]]: discard any number of cards from your " +
+      "opening hand and draw that many new ones, once, before play really begins.",
   };
 }
 
@@ -164,8 +162,8 @@ function sideSchemeTip({ game }: LessonObservation): Tip | null {
 }
 
 /** RRG 1.8 "Crisis Icon" (p. 14): while any crisis icon is in play, player cards can't remove threat from the main scheme. */
-function crisisTip({ game }: LessonObservation): Tip | null {
-  if (iconsInPlay(game, DEFAULT_DEPS, "crisis") <= 0) return null;
+function crisisTip({ game }: LessonObservation, deps: EngineDeps): Tip | null {
+  if (iconsInPlay(game, deps, "crisis") <= 0) return null;
   return {
     id: "situation:crisis",
     title: "Crisis: the main scheme is locked",
@@ -175,11 +173,11 @@ function crisisTip({ game }: LessonObservation): Tip | null {
   };
 }
 
-function accelerationTip({ game }: LessonObservation): Tip | null {
+function accelerationTip({ game }: LessonObservation, deps: EngineDeps): Tip | null {
   const total =
-    mainSchemeValue(game, "acceleration", DEFAULT_DEPS) +
+    mainSchemeValue(game, "acceleration", deps) +
     game.mainScheme.accelerationTokens +
-    iconsInPlay(game, DEFAULT_DEPS, "acceleration");
+    iconsInPlay(game, deps, "acceleration");
   if (total <= 0) return null;
   return {
     id: "situation:acceleration",
@@ -261,7 +259,10 @@ function drawOnAttackTip({ game, lastEvents, perspectiveId }: LessonObservation)
   };
 }
 
-const SITUATION_TIPS: readonly ((observation: LessonObservation) => Tip | null)[] = [
+/** Every situation trigger takes `deps` even when it doesn't read one, so `tipsFor` can map over them uniformly. */
+type SituationTrigger = (observation: LessonObservation, deps: EngineDeps) => Tip | null;
+
+const SITUATION_TIPS: readonly SituationTrigger[] = [
   obligationTip,
   nemesisSetTip,
   mulliganTip,
@@ -280,8 +281,8 @@ const SITUATION_TIPS: readonly ((observation: LessonObservation) => Tip | null)[
 // Keyword and status tips (generic, from the glossary)
 // ---------------------------------------------------------------------------
 
-function glossaryTips(game: LessonObservation["game"]): readonly Tip[] {
-  return rulesGlossaryOf(game, DEFAULT_DEPS)
+function glossaryTips(game: LessonObservation["game"], deps: EngineDeps): readonly Tip[] {
+  return rulesGlossaryOf(game, deps)
     .filter((entry) => !EXCLUDED_TABLE_STATE_IDS.has(entry.id))
     .map((entry) => ({
       id: `keyword:${entry.id}`,
@@ -298,10 +299,12 @@ function glossaryTips(game: LessonObservation["game"]): readonly Tip[] {
  * Every tip fired for `observation`, filtered to `prefs.seenTips` and `suppress`, most-relevant first (situations,
  * in this module's own order, then the generic glossary catch-all, alphabetical by term) — but returns at most
  * one, since a guide surface shows one tip at a time (§5.3: "each is one line"). Empty at any level but "full", or
- * with no `perspectiveId` yet.
+ * with no `perspectiveId` yet. `deps` should be the session's real `EngineDeps` (the board's own `POOL_DEPS`), not
+ * `DEFAULT_DEPS`, so an ability-granted icon or keyword counts (this module's own header).
  */
 export function tipsFor(
   observation: LessonObservation,
+  deps: EngineDeps,
   prefs: GuidePrefs,
   suppress: readonly string[] = [],
 ): readonly Tip[] {
@@ -309,8 +312,8 @@ export function tipsFor(
   if (!observation.perspectiveId) return [];
 
   const candidates = [
-    ...SITUATION_TIPS.map((trigger) => trigger(observation)).filter((tip): tip is Tip => tip !== null),
-    ...glossaryTips(observation.game),
+    ...SITUATION_TIPS.map((trigger) => trigger(observation, deps)).filter((tip): tip is Tip => tip !== null),
+    ...glossaryTips(observation.game, deps),
   ];
 
   const tip = candidates.find(
