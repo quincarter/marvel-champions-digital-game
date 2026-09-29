@@ -81,9 +81,19 @@ The phase 4 ground rules apply unchanged ([phase4-screen-gaps.md §0](phase4-scr
 9. **The first-run chooser shows on first launch** (no `mc-guide` record), after Boot and before Title. It stays
    reachable from Settings ("Guide" group → "Play the tutorial") and from Title's **How to play** hub (G6c), whose modules force Full guidance for that one run. Choosing a level writes the record, so
    it never shows again unprompted.
-10. **Lesson steps gate softly.** During a "do this" step, the taught control gets the spotlight and `TRY THIS`. Other
-    controls are dimmed and inert until the step completes, but "Skip lesson" and the menu are always live. Skipping
-    ends scripted lessons for this game and drops to Hints.
+10. **Never locked in** (owner, 2026-09-28: "There needs to be a way to skip or easily escape any tutorial in full mode.
+    I don't want anyone to feel locked in."). This is a hard rule for every guided surface:
+    - **Every guide surface always shows two exits:** "Skip this step" and "Stop tutorial". Stop tutorial ends the
+      guidance for this game (the guide is off for the rest of it, and the saved level is untouched). You keep playing
+      the same game, or you can leave to Title.
+    - **Escape always works.** It dismisses the guide surface and releases the step's gate (the step counts as skipped).
+      It is never swallowed; see the §7 key-ordering gotcha.
+    - **Gating is soft.** During a "do this" step, the taught control gets the spotlight and `TRY THIS`, and other board
+      input is inert. The menu/Pause button, Escape and the guide's own controls are never gated. After 2 inert clicks
+      the gate lifts by itself, and the guide offers "Want to do something else? Skip this step".
+    - **Pause has "Stop tutorial" and "Turn guide off"** whenever a guided run is active.
+    - **Out of the game, every tutorial screen has Back** (hub, How to win, aspect pages), and the chooser has "No guide".
+    - On desktop the side panel can also be collapsed, without stopping the lesson.
 11. **Tutorial progressive unlocks** (tiles D01/D03). The Log tab and the Log chip unlock after lesson 5. They stay
     visible, dashed, with "Lesson 5" as the reason. Flip is taught in lesson 2, so it's live from the start.
 
