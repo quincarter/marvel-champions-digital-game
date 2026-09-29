@@ -115,6 +115,16 @@ async function devScreenJump(): Promise<{ readonly key: string; readonly data?: 
     return { key: SCENES.board, data: {} };
   }
 
+  // `?screen=board&tutorial=1`: the same `TUTORIAL_CONFIG` game, but as a real guided run (guided mode G5c,
+  // `docs/guided-mode.md` §4) — `appSession().guidedRun` is what tells `BoardScene` to mount the guide controller
+  // and its side panel (desktop/tablet landscape only in this part; see `scenes/board/guide-mount.ts`). Lesson 1
+  // ("How to win") is G6b's own pre-game screen, not a board step, so it's marked done up front rather than run.
+  if (screen === "board" && params.get("tutorial") === "1") {
+    await startDevTutorialGame();
+    appSession().guidedRun = true;
+    return { key: SCENES.board, data: {} };
+  }
+
   if (screen === "board" || screen === "pause" || screen === "rules" || screen === "settings") {
     await startDevGame();
     if (screen === "settings") return { key: SCENES.settings, data: {} };

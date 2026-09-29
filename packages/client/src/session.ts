@@ -43,6 +43,18 @@ export interface AppSession {
    * Phaser scene instance across games).
    */
   gameLog: LogState;
+  /**
+   * True while the current game is a guided run — `scenes/board/guide-mount.ts` (guided mode G5c) mounts the guide
+   * controller and its side panel on the Board only when this is set. A plain mutable flag rather than something
+   * carried on `SessionConfig`/`GameState`: it's launch-time client intent ("show the guide for this playthrough"),
+   * not anything the engine or a save file needs to know about (`docs/guided-mode.md` §2's "the guide is a view,
+   * never an authority"). Cleared by "Stop tutorial" (`guide/guide-controller.ts#stop`'s caller). It is **not**
+   * cleared automatically by starting a fresh non-guided game afterward (a plain "Run it back"/"Continue" from a
+   * still-guided Board) — that's future work for whichever of G6a/G6b/Title actually offers that path out of a
+   * guided run; the only setter today is the dev jump `?screen=board&tutorial=1` (`scenes/boot.ts`), which always
+   * starts a brand-new session anyway.
+   */
+  guidedRun: boolean;
 }
 
 let session: AppSession | null = null;
@@ -50,7 +62,13 @@ let session: AppSession | null = null;
 export function appSession(): AppSession {
   if (!session) {
     const host = createEngineHost();
-    session = { host, store: new SessionStore(host), settings: defaultSettings(), gameLog: emptyLog() };
+    session = {
+      host,
+      store: new SessionStore(host),
+      settings: defaultSettings(),
+      gameLog: emptyLog(),
+      guidedRun: false,
+    };
   }
   return session;
 }

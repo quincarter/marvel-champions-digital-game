@@ -111,6 +111,16 @@ export class EndTurnConfirmOverlay extends Phaser.Scene {
       ["ok", { rect: endRect, activate: () => this.#answer(true) }],
     ]);
     this.#route?.set(["cancel", "ok"], stops);
+
+    // Headless click-through hook only (never referenced by product code) — mirrors `scenes/board.ts`'s own
+    // `__mcBoardDebug`, so a script can find "End turn"'s real screen coordinate instead of re-deriving this
+    // box's own centered layout.
+    if (import.meta.env.DEV) {
+      (window as unknown as { __mcEndTurnConfirmDebug?: unknown }).__mcEndTurnConfirmDebug = {
+        endRect: () => endRect,
+        keepRect: () => keepRect,
+      };
+    }
   }
 }
 

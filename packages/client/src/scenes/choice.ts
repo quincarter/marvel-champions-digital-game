@@ -67,6 +67,7 @@ import { SCENES } from "./keys.js";
 import { bindHoldTarget } from "../ui/hold-target.js";
 import { destroyChildren } from "../ui/destroy-children.js";
 import { OverlayMotion } from "../ui/transitions.js";
+import { McGuideTag } from "../ui/guide-tag.js";
 
 export class ChoiceOverlay extends Phaser.Scene {
   #selected: string[] = [];
@@ -78,6 +79,23 @@ export class ChoiceOverlay extends Phaser.Scene {
   #focus: ChoiceFocusTarget | null = null;
   #route: readonly ChoiceFocusTarget[] = [];
   #focusRects = new Map<string, Rect>();
+  /**
+   * The declareDefender sheet's own per-option rects, keyed by that option's defender instance id (guided mode
+   * G5c, `docs/guided-mode.md` §4): the `"No defense"` row isn't included, since no lesson step anchors there.
+   * Read by `guide/guide-controller.ts` to put the `GUIDE PICK` tag on a specific defender's option rather than
+   * the whole sheet — `view/guide-anchor.ts`'s own choice-anchor contract has no opinion on a choice sheet's own
+   * keying, so this module picks the key that's actually useful to a lesson step (a card, not an opaque option id).
+   */
+  #guideOptionRects = new Map<InstanceId, Rect>();
+  /**
+   * The defender instance id the guide wants a `GUIDE PICK` stamp on (guided mode G5c), set by
+   * `BoardGuideMount#draw` via `setGuidePick` — never anything this scene decides for itself. Drawn locally with
+   * `McGuideTag` (rather than Board's own spotlight/tag) because this sheet is a separate, later-launched Phaser
+   * scene layered *above* Board: a tag added to Board's own display list would render underneath this sheet's
+   * scrim, not on top of it, which a headless click-through against the real defend prompt caught. The sheet
+   * already provides its own "look here" via its scrim and layout, so no separate spotlight ring is drawn either.
+   */
+  #guidePickInstanceId: InstanceId | null = null;
   #focusRing: McSelectionRing | null = null;
   /**
    * Not `#close`d by an X/Back here — most decisions are cancel-less. Instead
@@ -171,6 +189,17 @@ export class ChoiceOverlay extends Phaser.Scene {
       this.#unsubscribe?.();
       this.#unsubscribe = null;
     });
+
+    // Headless click-through hook only (never referenced by product code) — mirrors `scenes/board.ts`'s own
+    // `__mcBoardDebug`, so a guided run's defend-choice step (guided mode G5c) can be driven with a real pointer
+    // click on Black Cat's own option rect instead of a hardcoded pixel guess.
+    if (import.meta.env.DEV) {
+      (window as unknown as { __mcChoiceDebug?: unknown }).__mcChoiceDebug = {
+        optionRect: (optionId: string) => this.#focusRects.get(choiceFocusKey({ kind: "option", optionId })) ?? null,
+        guideOptionRect: (id: string) => this.#guideOptionRects.get(id as InstanceId) ?? null,
+        allRects: () => [...this.#focusRects.entries()],
+      };
+    }
   }
 
   #rebuild(): void {
@@ -207,6 +236,7 @@ export class ChoiceOverlay extends Phaser.Scene {
     this.#focusRing?.destroy();
     this.#focusRing = null;
     this.#focusRects.clear();
+    this.#guideOptionRects.clear();
     destroyChildren(this);
 
     const { width, height } = this.scale.gameSize;
@@ -714,9 +744,17 @@ export class ChoiceOverlay extends Phaser.Scene {
   #drawDefendOption(fullSlot: Rect, option: DefendOptionView): void {
     const slot: Rect = { ...fullSlot, height: Math.min(fullSlot.height, 190) };
     this.#focusRects.set(choiceFocusKey({ kind: "option", optionId: option.optionId }), slot);
+    if (option.defenderInstanceId !== null) this.#guideOptionRects.set(option.defenderInstanceId, slot);
 
     const g = this.add.graphics();
     paintPanel(g, slot, "card", option.selected ? "selected" : "rest");
+
+    // The guide's own `GUIDE PICK` stamp (guided mode G5c), when this option's defender is the one it named —
+    // drawn fresh every rebuild rather than kept as a persistent widget, since `#rebuild` already tears down and
+    // redraws every child of this scene each time (`#guidePickInstanceId`'s own doc comment).
+    if (option.defenderInstanceId !== null && option.defenderInstanceId === this.#guidePickInstanceId) {
+      new McGuideTag(this, "guidePick").update(slot);
+    }
 
     // The card the option is about: the defender who would exhaust, or for "No defense" the character left to take it.
     const picture = defendOptionPicture(slot);
@@ -1095,6 +1133,23 @@ export class ChoiceOverlay extends Phaser.Scene {
     if (!rect) return;
     this.#focusRing = new McSelectionRing(this);
     this.#focusRing.show(rect, "static", true);
+  }
+
+  /**
+   * The open declareDefender sheet's own option rects, keyed by defender instance id (see `#guideOptionRects`'s
+   * own doc comment) — guided mode G5c's `guide/guide-controller.ts` reads this, mirroring `BoardScene.guideAnchorFrame()`.
+   * Empty whenever the defend sheet isn't the choice currently open (a bare option-list choice, or nothing open at all).
+   */
+  guideAnchorRects(): ReadonlyMap<InstanceId, Rect> {
+    return this.#guideOptionRects;
+  }
+
+  /** Sets (or clears, with `null`) which defender's option gets the `GUIDE PICK` stamp (guided mode G5c) —
+   * see `#guidePickInstanceId`'s own doc comment. Idempotent; only rebuilds when the value actually changes. */
+  setGuidePick(instanceId: InstanceId | null): void {
+    if (this.#guidePickInstanceId === instanceId) return;
+    this.#guidePickInstanceId = instanceId;
+    if (this.#choiceId !== null) this.#rebuild();
   }
 
   #onInspectToggle(optionId: string): void {

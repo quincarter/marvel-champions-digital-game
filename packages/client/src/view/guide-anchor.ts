@@ -41,6 +41,15 @@ export interface AnchorFrame {
   /** The perspective player's instance for a card code, among their hand and play area right now — null when it
    * isn't there. See `instanceOfCode` below for the usual implementation. */
   readonly instanceOfCode: (code: CardId) => InstanceId | null;
+  /**
+   * The live main scheme's own instance id, when there's a game running — guided mode G5c's fix for the
+   * `"mainScheme"` zone anchor (`docs/guided-mode.md` §4 G4c "For G5c"): the *panel*'s own rect
+   * (`scenes/board/schemes.ts` registers it in `cardRects` the same way every other card does), not the whole
+   * `threat` zone the plain zone lookup below would otherwise return, which also holds the side schemes and reads
+   * far larger than the thing lesson 5 is actually teaching. Omitted/null falls back to the full zone rect —
+   * every other zone anchor, and a caller with no game running yet.
+   */
+  readonly mainSchemeInstanceId?: InstanceId | null;
 }
 
 export interface ResolvedAnchor {
@@ -100,8 +109,17 @@ export function resolveAnchor(
   frame: AnchorFrame,
 ): ResolvedAnchor | null {
   switch (anchor.kind) {
-    case "zone":
+    case "zone": {
+      // The mainScheme panel fix (see `AnchorFrame.mainSchemeInstanceId`'s own doc comment): prefer the live
+      // panel rect over the whole zone when this draw actually rendered it. A tab-switch case (the panel isn't
+      // rendered on the current tab) falls through to the ordinary zone resolution below, which still reports
+      // the tab to switch to.
+      if (anchor.id === "mainScheme" && frame.mainSchemeInstanceId != null) {
+        const rect = frame.cardRects.get(frame.mainSchemeInstanceId);
+        if (rect) return { rect, tab: null };
+      }
       return resolveZoneAnchor(anchor.id, viewport, layoutOptions);
+    }
     case "action": {
       const rect = frame.focusRects.get(`basic:${ACTION_TO_BASIC[anchor.id]}`);
       return rect ? { rect, tab: null } : null;

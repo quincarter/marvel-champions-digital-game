@@ -86,7 +86,10 @@ const PAYING_FOR_CARDS: Lesson = {
         body:
           "A card's [[cost|cost]] is the number in its corner. Pay it by discarding other cards from your hand — " +
           "each gives the [[resource|resources]] printed on it. Play Black Cat: she'll matter when Rhino attacks.",
-        tip: "Energy prints two [[resource|resources]], so it pays for Black Cat on its own.",
+        // Plain text, not `[[id]]` markup — `McGuidePanel`'s own tip box renders it as a plain `Text`, not
+        // through `McTermText` (found in browser verification, G5c: a bracketed term showed up literally on
+        // screen instead of resolving). See `LessonStepCopy`'s own doc comment for the corrected contract.
+        tip: "Energy prints two resources, so it pays for Black Cat on its own.",
       },
       mode: "await",
       completes: cardPlayed(BLACK_CAT),

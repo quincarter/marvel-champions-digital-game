@@ -43,7 +43,12 @@ export type LessonAnchor =
   | { readonly kind: "card"; readonly code: CardId }
   | { readonly kind: "choice"; readonly id: string };
 
-/** A step's copy. `body` (and `tip`/`rows`, if present) use `[[id]]`/`[[id|label]]` term markup (G3b). */
+/**
+ * A step's copy. `body` uses `[[id]]`/`[[id|label]]` term markup (G3b, `McTermText`). `tip`/`rows`, when
+ * present, are plain text — `McGuidePanel`'s own tip box draws them with a bare `Text`, not `McTermText`
+ * (found in browser verification, G5c: bracketed markup in a tip showed up literally on screen). Keep a
+ * mid-sentence term reference out of `tip`/`rows`, or spell it out in `body` instead.
+ */
 export interface LessonStepCopy {
   readonly title: string;
   readonly body: string;
