@@ -315,7 +315,7 @@ A fresh Claude session can pick this up from this file alone.
   pointer, and put a screenshot beside its tile.
 - **Commits:** as the repo's git user, with no Claude co-author trailer. Every change carries a changie fragment.
 
-**In flight:** (I) the live Hold on! fixture (committed `65d8747d`, report pending). Landed: (A) `fa4dfcb4`; (E) `09fc6e25`; (F+H) `5850a671`/`a0107437`; chooser-after-New-Game `01ebc409`; wave 2 `ab69d43f` (nudge redraw, phone waiting callout clear of End Turn, × confirm row, rail expand crash); villain-phase recap close `ebc52f84`, plus the main session's `1d07b920` restoring reduced motion's no-auto-close contract, which that fix had dropped out of scope. Next: a QA rerun of the gaps (aspect Try-it, chips, tips, live Hold on! via the fixture, reducedMotion ON, and the phone items the first pass missed).
+**In flight:** the G11 rerun, read-only: (a) fix regressions + the full tutorial at 390/768/1440 with motion on and off (scratchpad g11b-regress); (b) coverage gaps: all 4 aspect Try-its, chips, tips, the live Hold on! fixtures (`?screen=board&fixture=holdon-scheme|holdon-lethal`, landed `65d8747d`), phone settings, and hub start-at-lesson (scratchpad g11b-gaps). All earlier fixes have landed; the latest is the Hold on! Escape fix `b2a1bfa2`. If cut off, re-run the missing QA agent.
 
 ## 7. Prior art: the parked prototype
 
