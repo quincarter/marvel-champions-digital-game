@@ -272,7 +272,7 @@ A fresh Claude session can pick this up from this file alone.
   pointer, and put a screenshot beside its tile.
 - **Commits:** as the repo's git user, with no Claude co-author trailer. Every change carries a changie fragment.
 
-**In flight:** G10b (aspect tip chips in Seats, Deck check and Deck builder). If cut off, check `git status` and brief a fresh agent to finish. Next: G4c, then G5c.
+**In flight:** G10b (aspect tip chips in Seats, Deck check and Deck builder) and G4c (spotlight, gating, tags; `view/guide-anchor.ts`, `ui/guide-spotlight.ts`, `ui/guide-tag.ts`), side by side. If cut off, check `git status` and brief a fresh agent to finish. Next: G4c, then G5c.
 
 ## 7. Prior art: the parked prototype
 
