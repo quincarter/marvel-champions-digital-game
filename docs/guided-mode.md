@@ -305,7 +305,7 @@ A fresh Claude session can pick this up from this file alone.
   pointer, and put a screenshot beside its tile.
 - **Commits:** as the repo's git user, with no Claude co-author trailer. Every change carries a changie fragment.
 
-**In flight:** a G5c part 1 follow-up. Part 1 landed as `0e0c6d94` (controller `guide/guide-controller.ts`, `scenes/board/guide-mount.ts`, dev jump `?screen=board&tutorial=1`). The follow-up fixes: Skip/Escape ended the whole tutorial (needs a `skipStep` reducer); the dim covers the guide panel; STOP TUTORIAL is not spelled out; a per-step `doThis` continue text; TRY THIS should move Black Cat → Energy → Pay; the GUIDE PICK stamp overlaps text. If cut off, check `git status`/`git log` and brief a fresh agent. Then: G5c part 2 (phone callout + tab auto-switch), part 3 (Pause Stop tutorial / Turn guide off).
+**In flight:** G5c part 2 (phone and tablet-portrait callout + tab auto-switch), plus a waiting/complete panel state (the panel vanished while waiting for the next lesson's `when`). Part 1 is done: `0e0c6d94` + review fixes `606ba3a1` (`skipStep`, panel above dim, STOP TUTORIAL spelled out, `doThis`, TRY THIS Black Cat → Energy → Pay, GUIDE PICK placement). If cut off, check `git status`/`git log` and brief a fresh agent. Then: part 3 (Pause Stop tutorial / Turn guide off).
 
 ## 7. Prior art: the parked prototype
 
