@@ -88,11 +88,11 @@
  * ---------------------------------------------------------------------------
  * This scene watches the same store Board does. Once the walkthrough reports
  * `complete` and every beat it knows about has been revealed, the screen shows
- * a "Continue" button and also closes itself after a short pause (`#syncTiming`,
- * `AUTO_CLOSE_DELAY_MS`) — so an unattended screen doesn't sit there forever,
- * but a player who wants the last word can still act on it before the timer
- * does. This applies at both motion settings; see REDUCED MOTION below for why
- * that isn't a shorter read than normal motion gets. Because a whole phase can
+ * a "Continue" button and, at normal motion, also closes itself after a short
+ * pause (`#syncTiming`, `AUTO_CLOSE_DELAY_MS`) — so an unattended screen doesn't
+ * sit there forever, but a player who wants the last word can still act on it
+ * before the timer does. Under reduced motion there is no such timer (see REDUCED
+ * MOTION below). Because a whole phase can
  * (and often does) finish revealing between two store updates — an activation
  * pausing on a decision that itself resolves the rest of the phase, the usual
  * case — `#syncTiming` re-checks and arms the close timer from the reveal
@@ -113,13 +113,7 @@
  * reads at their own pace rather than a timer's — "no travel/animation; the
  * beats still appear and the player can step through" is satisfied because
  * nothing is gated behind a wait, only behind the player's own reading speed
- * and the Skip/Continue controls, which work identically either way. That
- * "own pace" is why the close timer still applies once the phase is
- * `complete`: it starts from the same moment normal motion's tail beat lands
- * on screen (`caughtUp` going true), so a reduced-motion player gets the same
- * `AUTO_CLOSE_DELAY_MS` to read the finished phase before it closes, not a
- * shorter window — the phase arriving in one frame instead of one beat at a
- * time changes when the clock starts, not how long it runs.
+ * and the Skip/Continue controls, which work identically either way.
  */
 
 import Phaser from "phaser";
@@ -461,12 +455,17 @@ export class VillainPhaseOverlay extends Phaser.Scene {
       });
     }
 
-    // Once every beat is shown and the engine has actually left the phase, the screen closes itself after a
-    // short pause — the player who wants the last word can still act before the timer does (Continue/Skip/Esc),
-    // but an unattended screen must not sit there forever. Reduced motion reaches this sooner (the whole phase
-    // lands in one frame instead of one beat at a time) but gets the same `AUTO_CLOSE_DELAY_MS` pause to read it
-    // before closing, not a shorter one and not none at all.
-    if (readyToAutoClose(this.#walkthrough.complete, this.#revealed, total)) {
+    /**
+     * Reduced motion never auto-closes.
+     *
+     * With no reveal timer the whole phase appears at once, so a close timer
+     * would give the player who asked for less motion the *least* time to read
+     * it — the screen would land complete and vanish a moment later. That is
+     * the opposite of this scene's stated reduced-motion contract ("the player
+     * reads at their own pace rather than a timer's"), so the only ways out
+     * here are the ones the player drives: Continue, Skip, or Esc.
+     */
+    if (!reducedMotion && readyToAutoClose(this.#walkthrough.complete, this.#revealed, total)) {
       this.#closeTimer ??= this.time.delayedCall(AUTO_CLOSE_DELAY_MS, () => this.#close());
     } else {
       this.#closeTimer?.remove();
