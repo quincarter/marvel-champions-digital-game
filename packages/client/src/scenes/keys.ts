@@ -58,6 +58,11 @@ export const SCENES = {
    * before the game starts. Reached from the chooser's "Learn as you play", Settings' "Play the tutorial", or
    * `?screen=howtowin`. */
   howToWin: "HowToWin",
+  /** The round debrief (guided mode G8, `docs/guided-mode.md` §4): lesson checklist, "Worth remembering", "New
+   * on your board", the guide-level control, Replay a lesson and Round N+1 ▸. Launched over the Board (`scenes/
+   * round-debrief.ts`'s own `showRoundDebrief`); wiring it to fire at the end of a tutorial round is a separate
+   * follow-up. `?screen=debrief` for QA. */
+  roundDebrief: "RoundDebriefOverlay",
   // Overlays.
   choice: "ChoiceOverlay",
   inspect: "InspectOverlay",

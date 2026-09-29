@@ -34,6 +34,10 @@ import { refreshUnlocks } from "../progression/progression.js";
 import type { ExtrasTab } from "../progression/extras.js";
 import { guidePrefs } from "../guide/guide-store.js";
 import { isFirstLaunch } from "../guide/guide-prefs.js";
+import { TUTORIAL_LESSONS } from "../guide/tutorial-lessons.js";
+import type { LessonListEntry } from "../view/lesson-model.js";
+import type { RoundDebriefData } from "./round-debrief.js";
+import { instanceId, playerId, type GameEvent } from "@mc/engine";
 
 /**
  * Dev-only screenshot entry point: `?screen=…` jumps straight past Title, for
@@ -60,6 +64,46 @@ import { isFirstLaunch } from "../guide/guide-prefs.js";
  * or the tablet-landscape all-seats-at-once layout — and jumps straight to
  * `TableSetupScene`'s own hand-off target, `SCENES.setupDeal`, mid-mulligan.
  */
+/**
+ * `?screen=debrief`'s own sample `RoundDebriefData`: the real five tutorial lessons (`TUTORIAL_LESSONS`), the
+ * first four marked done and the fifth left `"upcoming"` — `view/round-debrief-model.ts#lessonRowsOf` turns that
+ * into the "up next" row — plus a couple of synthetic round-1 events (Black Cat played and declared as a
+ * defender) so "Worth remembering" has something to say.
+ */
+function devRoundDebriefData(): RoundDebriefData {
+  const lessons: readonly LessonListEntry[] = TUTORIAL_LESSONS.map((lesson, index) => ({
+    lesson,
+    status: index < 4 ? "done" : "upcoming",
+  }));
+  const blackCat = instanceId("dev:black-cat");
+  const player = playerId("dev:player");
+  const events: readonly GameEvent[] = [
+    {
+      type: "cardPlayed",
+      playerId: player,
+      instanceId: blackCat,
+      cardId: "01002" as never,
+      resourcesPaid: 2,
+      paid: { physical: 0, mental: 0, energy: 2, wild: 0 },
+    },
+    {
+      type: "defenderDeclared",
+      attackInstanceId: instanceId("dev:rhino-attack"),
+      defenderInstanceId: blackCat,
+      playerId: player,
+    },
+  ];
+  return {
+    lessons,
+    round: 1,
+    events,
+    level: "full",
+    // A dev-only jump with no live game to resume; logging is the point. "Replay a lesson" gets no override here,
+    // so its own default (opening How to win) is what a click-through actually exercises.
+    onNextRound: () => console.log("[debrief demo] Round N+1 ▸"),
+  };
+}
+
 async function devScreenJump(): Promise<{ readonly key: string; readonly data?: object } | null> {
   const params = new URLSearchParams(location.search);
   const screen = params.get("screen");
@@ -106,6 +150,11 @@ async function devScreenJump(): Promise<{ readonly key: string; readonly data?: 
   if (screen === "guidepanel") return { key: SCENES.guidePanelDemo, data: {} };
   // `?screen=holdondemo`: the "Hold on!" overlay dev demo (guided mode G9b, `docs/guided-mode.md` §4).
   if (screen === "holdondemo") return { key: SCENES.holdOnDemo, data: {} };
+  // `?screen=debrief`: the round debrief dev demo (guided mode G8, `docs/guided-mode.md` §4) — sample data for
+  // round 1, lessons 1-4 done, lesson 5 up next, the same state the real end-of-round-1 debrief will show once
+  // the tutorial's own wiring (a separate follow-up) calls `showRoundDebrief`. No live game underneath: "Round
+  // N+1 ▸" and "Replay a lesson" both just log to the console here.
+  if (screen === "debrief") return { key: SCENES.roundDebrief, data: devRoundDebriefData() };
   // `?screen=extras[&tab=music]`: the Extras shelf; pair with `&unlock=all` to see every tile open.
   if (screen === "extras") {
     const tab = params.get("tab");

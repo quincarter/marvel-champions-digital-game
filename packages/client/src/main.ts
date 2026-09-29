@@ -42,6 +42,7 @@ import { UnlocksOverlay } from "./scenes/unlocks.js";
 import { UnlockConfirmOverlay } from "./scenes/unlock-confirm.js";
 import { EndTurnConfirmOverlay } from "./scenes/end-turn-confirm.js";
 import { HoldOnOverlay } from "./scenes/hold-on.js";
+import { RoundDebriefScene } from "./scenes/round-debrief.js";
 import { CampaignSagaScene } from "./scenes/campaign/saga.js";
 import { CampaignCoverScene } from "./scenes/campaign/cover.js";
 import { CampaignRosterScene } from "./scenes/campaign/roster.js";
@@ -154,6 +155,7 @@ const game = new Phaser.Game({
     UnlockConfirmOverlay,
     EndTurnConfirmOverlay,
     HoldOnOverlay,
+    RoundDebriefScene,
     CampaignBeatOverlay,
     ExtrasViewerScene,
     MusicScene,
