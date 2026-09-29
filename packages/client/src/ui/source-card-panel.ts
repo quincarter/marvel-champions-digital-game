@@ -11,8 +11,10 @@
  */
 
 import type Phaser from "phaser";
+import type { SetupInstructionSource } from "@mc/engine";
 import { cardArt, drawArt } from "../art/card-art.js";
 import type { ChoiceSourcePanel } from "../view/choice-source-panel.js";
+import { instructionHeaderName } from "../view/choice-source.js";
 import type { SourcePanelPlacement } from "../view/choice-source-panel-layout.js";
 import { RULES_TEXT_TABLE_LINES, ink, surface, typeRole } from "../tokens.js";
 import { bindHoldTarget } from "./hold-target.js";
@@ -109,6 +111,81 @@ export function drawSourceCardPanel(
   if (linesFit > 0) {
     scene.add
       .text(textX, cursorY, panel.rulesText, textStyle(typeRole.body, surface.ink.hex))
+      .setOrigin(0, 0)
+      .setWordWrapWidth(textWidth)
+      .setMaxLines(linesFit);
+  }
+}
+
+const INSTRUCTION_PAD_RAIL = 12;
+const INSTRUCTION_PAD_STRIP = 8;
+
+/**
+ * A pending choice's source panel when there is no card to show — a setup instruction instead (MC27 p. 22's
+ * reputation node 9: "Setup: In player order, each player must search…", `view/choice-source.ts`'s
+ * `choiceInstructionOf`). Same outer frame and placement as `drawSourceCardPanel`, but text-only throughout: no
+ * art slot to reserve, so the whole placement (minus its own padding) is the text column.
+ */
+export function drawInstructionSourcePanel(
+  scene: Phaser.Scene,
+  placement: SourcePanelPlacement,
+  instruction: SetupInstructionSource,
+): void {
+  const outer = placement.mode === "rail" ? placement.rail : placement.strip;
+  if (outer.width <= 0 || outer.height <= 0) return;
+
+  const g = scene.add.graphics();
+  paintPanel(g, outer, "card", "rest");
+
+  const pad = placement.mode === "rail" ? INSTRUCTION_PAD_RAIL : INSTRUCTION_PAD_STRIP;
+  const textX = outer.x + pad;
+  const textY = outer.y + pad;
+  const textWidth = Math.max(0, outer.width - pad * 2);
+  const textHeight = Math.max(0, outer.height - pad * 2);
+  if (textWidth <= 0 || textHeight <= 0) return;
+
+  label(scene, textX, textY, "SOURCE", typeRole.label, surface.ink.hex, ink.label);
+  let cursorY = textY + 13;
+
+  const headerSize = placement.mode === "rail" ? 15 : 13;
+  const headerText = scene.add
+    .text(
+      textX,
+      cursorY,
+      instructionHeaderName(instruction),
+      textStyle({ ...typeRole.rowTitle, size: headerSize }, surface.ink.hex),
+    )
+    .setOrigin(0, 0)
+    .setWordWrapWidth(textWidth)
+    .setMaxLines(2);
+  fitText(headerText, textWidth, headerSize);
+  cursorY += headerText.height + 3;
+
+  const citationText = scene.add
+    .text(textX, cursorY, instruction.citation, textStyle(typeRole.label, surface.ink.hex, ink.secondary))
+    .setOrigin(0, 0)
+    .setWordWrapWidth(textWidth)
+    .setMaxLines(1);
+  cursorY += citationText.height + 4;
+
+  const bottom = textY + textHeight;
+  if (cursorY >= bottom) return;
+
+  if (placement.mode === "strip") {
+    // The compact strip: the design's own table cap on rules text, same as `drawSourceCardPanel`'s own strip case.
+    scene.add
+      .text(textX, cursorY, instruction.text, textStyle(typeRole.body, surface.ink.hex, ink.secondary))
+      .setOrigin(0, 0)
+      .setWordWrapWidth(textWidth)
+      .setMaxLines(RULES_TEXT_TABLE_LINES);
+    return;
+  }
+
+  const lineHeight = typeRole.body.size * typeRole.body.lineHeight;
+  const linesFit = Math.max(0, Math.floor((bottom - cursorY) / lineHeight));
+  if (linesFit > 0) {
+    scene.add
+      .text(textX, cursorY, instruction.text, textStyle(typeRole.body, surface.ink.hex))
       .setOrigin(0, 0)
       .setWordWrapWidth(textWidth)
       .setMaxLines(linesFit);
