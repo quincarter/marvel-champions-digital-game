@@ -205,7 +205,7 @@ The main session verifies UI boxes by clicking through them before ticking (§6)
 - [x] **G9b "Hold on!" overlay.** P06/T03. It intercepts the triggering command like `end-turn-confirm`, offers the
       safe action first, and has a "Don't warn me" checkbox. Active at Full and Hints.
 
-      Landed: `8ffa2e13` (its `board.ts` host wiring was swept into `caced651` by the shared worktree; the content is correct). `scenes/hold-on.ts`, `view/hold-on-model.ts`, controller interception for End turn, Flip and payment confirm (the anyway path continues into End turn's confirm); demo `?screen=holdondemo`. Visual polish in flight (ink safe button, card fits its content, threat bar in the facts panel). **G11 must trigger it on a live board** (it's verified in tests and the demo only).
+      Landed: `8ffa2e13` (its `board.ts` host wiring was swept into `caced651` by the shared worktree; the content is correct). `scenes/hold-on.ts`, `view/hold-on-model.ts`, controller interception for End turn, Flip and payment confirm (the anyway path continues into End turn's confirm); demo `?screen=holdondemo`. Visual polish landed in `c2d72b62` (ink safe button with an amount chip, content-fit card, threat bar with the hatched next-phase segment and YOU LOSE). **G11 must trigger it on a live board** (it's verified in tests and the demo only).
 
 **Tips and aspects**
 
@@ -303,7 +303,7 @@ A fresh Claude session can pick this up from this file alone.
   pointer, and put a screenshot beside its tile.
 - **Commits:** as the repo's git user, with no Claude co-author trailer. Every change carries a changie fragment.
 
-**In flight:** G7a+G7d (lessons 2 and 5 polish), the Hold on! visual polish, and G8 part 1 (debrief scene + model + `?screen=debrief`; end-of-round wiring comes later). If cut off, check `git status`/`git log` and brief a fresh agent per item. Then: G6c (hub), G8, G10c–e, G11.
+**In flight:** G7a+G7d (lessons 2 and 5 polish) and G8 part 1 (debrief scene + model + `?screen=debrief`; end-of-round wiring comes later). If cut off, check `git status`/`git log` and brief a fresh agent per item. Then: G6c (hub), G8, G10c–e, G11.
 
 ## 7. Prior art: the parked prototype
 
