@@ -18,6 +18,7 @@ import { rollSeed } from "../view/seed.js";
 import { appSession, campaignService, registerDevCampaignDefinition } from "../session.js";
 import type { SessionStore } from "../store/session-store.js";
 import { startAllianceDevGame } from "../store/dev-alliance-game.js";
+import { startHoldOnLethalGame, startHoldOnSchemeGame } from "../store/dev-hold-on-game.js";
 import { SCENES } from "./keys.js";
 import { boardModel } from "../view/board-model.js";
 import type { DeckBuilderSceneData } from "./deck-builder.js";
@@ -196,6 +197,18 @@ async function devScreenJump(): Promise<{ readonly key: string; readonly data?: 
   if (screen === "board" && params.get("tutorial") === "1") {
     const { startTutorialGame } = await import("../guide/start-tutorial.js");
     await startTutorialGame();
+    return { key: SCENES.board, data: {} };
+  }
+
+  // `?screen=board&fixture=holdon-scheme` / `&fixture=holdon-lethal` (guided mode QA item I,
+  // `docs/guided-mode.md` §4): the two `store/dev-hold-on-game.ts` fixtures, stopped one End turn away from
+  // `hintsFor`'s `schemeFinish`/`lethal` hint. No explicit level write here: `defaultGuidePrefs.level` (`@mc/client`'s
+  // `guide/guide-prefs.ts`) is already `"full"`, which is what a jump with no `mc-guide` record in `localStorage`
+  // reads — and leaving it alone (rather than forcing a run override, which always wins over a saved level) is what
+  // lets QA pre-set `mc-guide` to `"off"` in `localStorage` before this jump and see Hold on! stay silent.
+  // Must come before the generic `screen === "board"` catch-all below, which would otherwise shadow it.
+  if (screen === "board" && (params.get("fixture") === "holdon-scheme" || params.get("fixture") === "holdon-lethal")) {
+    await startDevHoldOnGame(params.get("fixture") === "holdon-scheme" ? "scheme" : "lethal");
     return { key: SCENES.board, data: {} };
   }
 
@@ -432,6 +445,13 @@ async function startDevAllianceGame(): Promise<void> {
   const { store } = appSession();
   if (gameRunning(store)) return;
   await startAllianceDevGame(store);
+}
+
+async function startDevHoldOnGame(which: "scheme" | "lethal"): Promise<void> {
+  const { store } = appSession();
+  if (gameRunning(store)) return;
+  if (which === "scheme") await startHoldOnSchemeGame(store);
+  else await startHoldOnLethalGame(store);
 }
 
 /**
