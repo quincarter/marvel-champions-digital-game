@@ -173,7 +173,7 @@ The main session verifies UI boxes by clicking through them before ticking (§6)
 **Hints**
 
 - [x] **G9a Hint heuristics.** `view/guide-hints.ts`: the four heuristics from §5.2, tests only.
-      Landed: `01f2deb5` (a `lethalHint` fix is in flight: everything readies at the end of the player phase, so it must plan ally/hero blocks, not check exhaustion). `hintsFor({ state, deps, playerId, trigger }, prefs)` with triggers `endTurn`, `flip` and `confirmPayment`. Crisis uses `iconsInPlay(state, deps, "crisis")`.
+      Landed: `01f2deb5` + `13f5551d` (`lethalHint` plans the best block — allies take the biggest attacks, the hero defends one by DEF, Overkill spills over, stunned attackers are skipped — since everything readies at the end of the player phase). `hintsFor({ state, deps, playerId, trigger }, prefs)` with triggers `endTurn`, `flip` and `confirmPayment`. Crisis uses `iconsInPlay(state, deps, "crisis")`.
 - [ ] **G9b "Hold on!" overlay.** P06/T03. It intercepts the triggering command like `end-turn-confirm`, offers the
       safe action first, and has a "Don't warn me" checkbox. Active at Full and Hints.
 
@@ -272,7 +272,7 @@ A fresh Claude session can pick this up from this file alone.
   pointer, and put a screenshot beside its tile.
 - **Commits:** as the repo's git user, with no Claude co-author trailer. Every change carries a changie fragment.
 
-**In flight:** a G4b polish fix (`McTermText` paragraph breaks, panel padding, stamp, legend inset, Collapse arrow) and a G9a `lethalHint` rules fix, side by side. If cut off, check `git status` and brief a fresh agent to finish. Next: G4c, then G5c.
+**In flight:** a G4b polish fix (`McTermText` paragraph breaks, panel padding, stamp, legend inset, Collapse arrow) alone. If cut off, check `git status` and brief a fresh agent to finish. Next: G4c, then G5c.
 
 ## 7. Prior art: the parked prototype
 
