@@ -232,7 +232,8 @@ export class BoardScene extends Phaser.Scene {
         this.scene.isActive(SCENES.villainPhase) ||
         this.scene.isActive(SCENES.pause) ||
         this.scene.isActive(SCENES.rules) ||
-        this.scene.isActive(SCENES.settings),
+        this.scene.isActive(SCENES.settings) ||
+        this.scene.isActive(SCENES.roundDebrief),
       onIntent: (intent) => this.#actOnIntent(intent),
     };
     bindKeyboard(this, binding);
@@ -277,6 +278,7 @@ export class BoardScene extends Phaser.Scene {
         SCENES.rules,
         SCENES.settings,
         SCENES.campaignBeat,
+        SCENES.roundDebrief,
       ]) {
         if (this.scene.isActive(overlay) || this.scene.isSleeping(overlay)) this.scene.stop(overlay);
       }
@@ -368,6 +370,11 @@ export class BoardScene extends Phaser.Scene {
     // the same `lastEvents` and must not re-open a walkthrough the player skipped.
     if (fresh) this.#openVillainWalkthrough(state.lastEvents);
     if (fresh) this.#queueCampaignBeat(state);
+    // Guided mode G8 part 2: only a *new* command's own events ever get folded into the round debrief's
+    // accumulator — same reasoning as the villain-phase walkthrough just above (`fresh`'s own doc comment on
+    // `#version`), and `#syncGuide` above has already fed this same batch to `onObservation`, so a lesson this
+    // batch just finished is already reflected in the controller's state by the time this runs.
+    if (fresh) this.#guide?.noteRoundEvents(state.lastEvents);
     this.#syncChoiceOverlay(state);
     this.#tryOpenCampaignBeat();
     this.#draw();
@@ -531,7 +538,12 @@ export class BoardScene extends Phaser.Scene {
     if (zones.threat) drawSchemes(ctx, zones.threat, model);
     if (zones.enemies) drawEnemies(ctx, zones.enemies, model);
     if (zones.encounter) drawEncounter(ctx, zones.encounter, model);
-    if (zones.log) this.#logPanel.draw(this, zones.log, this.#log);
+    // The Log panel's own tutorial lock (guided mode G8 part 2, `docs/guided-mode.md` §3.11) — a guided run's Log
+    // tab/panel stays visible, dashed and unavailable, with "Lesson 5" as the reason, until the run's last lesson
+    // is done. `logGate` is `{ locked: false }` off a guided run, so a plain game never takes this branch.
+    const logGate = this.#guide?.logGate() ?? { locked: false, reason: null };
+    if (zones.log && logGate.locked) this.#logPanel.drawLocked(this, zones.log, logGate.reason ?? "");
+    else if (zones.log) this.#logPanel.draw(this, zones.log, this.#log);
     else this.#logPanel.hide();
     // Always the wide panel: the identity's attachments only show as chips
     // beside its card, and a tall window can give this slot a card-like shape.
@@ -580,6 +592,7 @@ export class BoardScene extends Phaser.Scene {
     this.#tabs = drawPhoneTabs(this, rect, model, {
       activeTab: this.#activeTab,
       badges: this.#tabBadges,
+      logGate: this.#guide?.logGate() ?? { locked: false, reason: null },
       onSelect: (tab) => {
         this.#activeTab = tab;
         // Looking at a tab is what clears its badge.

@@ -41,16 +41,20 @@
  * to appear this frame — cheap, and consistent with how every other Board widget already survives this scene's
  * own redraw discipline.
  */
+import type { GameEvent } from "@mc/engine";
 import { cardId } from "@mc/content";
 import type { BoardScene } from "../board.js";
 import type { ChoiceOverlay } from "../choice.js";
 import type { InspectOverlay } from "../inspect.js";
 import { SCENES } from "../keys.js";
+import { showRoundDebrief } from "../round-debrief.js";
 import {
   GuideController,
   type GuideControllerOptions,
   type GuideControllerView,
 } from "../../guide/guide-controller.js";
+import { withLevel } from "../../guide/guide-prefs.js";
+import { guidePrefs, setGuidePrefs, setGuideRunLevelOverride } from "../../guide/guide-store.js";
 import { surface, threatMeter, typeRole } from "../../tokens.js";
 import { McGuideCallout } from "../../ui/guide-callout.js";
 import { McGuidePanel, type GuidePanelExtraRow } from "../../ui/guide-panel.js";
@@ -62,7 +66,9 @@ import { GUIDE_PANEL_COLLAPSED_WIDTH, guideRailWidthFor } from "../../view/guide
 import { instanceOfCode, resolveAnchor, type AnchorFrame, type ResolvedAnchor } from "../../view/guide-anchor.js";
 import { calloutContentOf } from "../../view/guide-callout-content.js";
 import { formFactorFor, isTabbed, type BoardLayout, type PhoneTab, type Rect } from "../../view/layout.js";
-import { currentStep, type LessonAnchor, type LessonObservation } from "../../view/lesson-model.js";
+import { currentStep, lessonList, type LessonAnchor, type LessonObservation } from "../../view/lesson-model.js";
+import { logGateFor, type LogGate } from "../../view/log-gate-model.js";
+import { shouldFireRoundDebrief, splitAtRoundBoundary } from "../../view/round-debrief-trigger.js";
 import { schemeMeterRect } from "./schemes.js";
 
 const RAIL_FORM_FACTORS: ReadonlySet<string> = new Set(["desktop", "tabletLandscape"]);
@@ -124,6 +130,13 @@ export class BoardGuideMount {
   #lastCallout: McGuideCallout | null = null;
   /** `BoardScene#guideBannerClear()` as of the last `pollBanner` call — see that method's own doc comment. */
   #lastBannerClear = true;
+  /** Whether the round debrief (guided mode G8 part 2) was active as of the last `pollBanner` call — the same
+   * falling-edge redraw trick `#lastBannerClear` uses, for the same reason: `scene.stop()` (`RoundDebriefScene
+   * #nextRound`) queues the actual shutdown rather than applying it synchronously, so the one `requestGuideRedraw`
+   * call `onNextRound` makes can land on a frame where `scene.isActive(SCENES.roundDebrief)` is still stale-true —
+   * `draw()`'s own early return would then leave the rail/panel paused with nothing left to ever un-pause them
+   * (found in browser verification: lesson 5's own panel never came back after "Round 2 ▸"). */
+  #lastDebriefActive = false;
   /** This frame's resolved anchor, if any — kept only for `debugAnchorRect` (G5c part 2 verification hook). */
   #lastResolved: ResolvedAnchor | null = null;
   /**
@@ -134,6 +147,22 @@ export class BoardGuideMount {
    * so the player can switch away freely afterwards".
    */
   #tabSwitchStepId: string | null | undefined = undefined;
+  /**
+   * The round debrief (guided mode G8 part 2, `docs/guided-mode.md` §4 G8, §3.10, §3.11): every `GameEvent` seen
+   * so far in the round still in progress — reset at a `roundStarted` boundary (`noteRoundEvents`), not on every
+   * `onObservation` call, since a store update can re-deliver the same command's `lastEvents` more than once (an
+   * `inFlight` toggle notifies subscribers with an unchanged `version`) and double-counting would corrupt the
+   * debrief's own "Worth remembering" heuristics (`view/round-debrief-model.ts`, which reads event counts).
+   */
+  #roundEvents: GameEvent[] = [];
+  /** A finished round's own events, waiting for `#scene.guideBannerClear()` before the debrief actually opens
+   * (`#tryShowDebrief`) — never opened mid-band or on top of the villain-phase overlay, the same discipline
+   * `#drawSpotlight` already gives the spotlight/tag. */
+  #pendingDebrief: { readonly round: number; readonly events: readonly GameEvent[] } | null = null;
+  /** True once the run's own "all lessons done" debrief has fired — `noteRoundEvents`' own guard against firing it
+   * again on every later round for the rest of the game (`docs/guided-mode.md` §4 G8 part 2: "while the tutorial
+   * still has lessons left (or on the round where the last lesson completes)"). */
+  #firedCompleteDebrief = false;
 
   constructor(scene: BoardScene, options: GuideControllerOptions, observation: LessonObservation) {
     this.#scene = scene;
@@ -148,6 +177,75 @@ export class BoardGuideMount {
   onObservation(observation: LessonObservation): void {
     this.#observation = observation;
     this.#controller.onObservation(observation);
+  }
+
+  /**
+   * Feeds this command's own fresh events to the round debrief's own accumulator (guided mode G8 part 2) — call
+   * once per genuinely new command (`BoardScene#onState`'s own `fresh`, mirroring `#openVillainWalkthrough`'s
+   * call), **after** `onObservation` has already run for the very same events, so a lesson this batch just
+   * finished (e.g. the villain-phase walkthrough's own last "Got it") is already reflected in `#controller.state`
+   * by the time this decides whether the round that's ending is the one that completed the run.
+   *
+   * A `roundStarted` event always lands in the same batch as the `stepChanged` that crosses into the new round's
+   * player phase (`view/phase-wipe.ts`'s own header) — this splits that batch at the boundary: everything before
+   * it belongs to the round that just ended (queued as `#pendingDebrief`, shown once the round/phase band and the
+   * villain-phase overlay have cleared), everything at/after it starts the new round's own accumulator.
+   */
+  noteRoundEvents(events: readonly GameEvent[]): void {
+    if (this.#controller.hidden) {
+      this.#roundEvents = [];
+      this.#pendingDebrief = null;
+      return;
+    }
+    const split = splitAtRoundBoundary(this.#roundEvents, events);
+    this.#roundEvents = [...split.carried];
+    if (!split.finished) return;
+
+    const state = this.#controller.state;
+    if (!shouldFireRoundDebrief(state.doneLessonIds.length, state.lessons.length, this.#firedCompleteDebrief)) return;
+    if (state.doneLessonIds.length >= state.lessons.length) this.#firedCompleteDebrief = true;
+    this.#pendingDebrief = split.finished;
+  }
+
+  /**
+   * Opens the queued round debrief once the round/phase band and the villain-phase overlay have both cleared
+   * (`#scene.guideBannerClear()`, the same gate `#drawSpotlight` already waits on) — called every frame
+   * (`pollBanner`), since the band clears on its own client-side clock, not from a store update.
+   *
+   * The run's own "all lessons done" debrief (`#firedCompleteDebrief` already set by `noteRoundEvents`) also drops
+   * the tutorial's forced-Full override (`guide/start-tutorial.ts`) and sets the *real* saved level to Hints
+   * first, so the debrief's own guide-level selector shows Hints selected by default — "it drops to Hints unless
+   * the player picked Full in the debrief's selector" (`docs/guided-mode.md` §5.1). Picking Full right there
+   * persists normally, since the override is already gone by the time the selector's own `setGuidePrefs` runs.
+   */
+  #tryShowDebrief(): void {
+    if (!this.#pendingDebrief) return;
+    if (!this.#scene.guideBannerClear()) return;
+    const { round, events } = this.#pendingDebrief;
+    this.#pendingDebrief = null;
+    const state = this.#controller.state;
+    const allDone = state.doneLessonIds.length >= state.lessons.length;
+    if (allDone) {
+      setGuideRunLevelOverride(null);
+      setGuidePrefs(withLevel(guidePrefs(), "hints"));
+    }
+    showRoundDebrief(this.#scene, {
+      lessons: lessonList(state),
+      round,
+      events,
+      level: guidePrefs().level,
+      onNextRound: () => this.#scene.requestGuideRedraw(),
+    });
+  }
+
+  /**
+   * The Log tab/panel's own tutorial lock (guided mode G8 part 2, `docs/guided-mode.md` §3.11, `view/log-gate-
+   * model.ts`) — `board.ts` reads this for both the phone tab rail (`drawPhoneTabs`) and the desktop/tablet-
+   * landscape Log zone (`LogPanel.drawLocked`), so the same rule gates whichever surface is on screen.
+   */
+  logGate(): LogGate {
+    if (this.#controller.hidden) return { locked: false, reason: null };
+    return logGateFor(true, lessonList(this.#controller.state));
   }
 
   /**
@@ -181,6 +279,13 @@ export class BoardGuideMount {
     const clear = this.#scene.guideBannerClear();
     if (clear && !this.#lastBannerClear) this.#scene.requestGuideRedraw();
     this.#lastBannerClear = clear;
+    this.#tryShowDebrief();
+    // The falling edge of the debrief itself (this method's own `#lastDebriefActive` doc comment) — resumes the
+    // rail/panel/spotlight the frame Phaser actually finishes tearing the overlay down, even when that lands after
+    // the one redraw `onNextRound` already asked for.
+    const debriefActive = this.#scene.scene.isActive(SCENES.roundDebrief);
+    if (!debriefActive && this.#lastDebriefActive) this.#scene.requestGuideRedraw();
+    this.#lastDebriefActive = debriefActive;
   }
 
   /** True once nothing should show at all — "Stop tutorial", or the complete state's own "Close" (G5c part 2:
@@ -267,6 +372,17 @@ export class BoardGuideMount {
    * just returns rather than drawing a second, stale copy on top of what the nested redraw already put down.
    */
   draw(layout: BoardLayout, viewport: Rect): void {
+    // Pauses the guide's own surfaces while the round debrief (guided mode G8 part 2) covers the table: no rail/
+    // callout/spotlight/tag draws, and the board's own soft gate is released rather than left stale underneath an
+    // overlay the player can't act through. `#scene.requestGuideRedraw()` after the debrief closes (`onNextRound`,
+    // `#tryShowDebrief`) resumes them on the very next draw, once `scene.isActive` reports false again.
+    if (this.#scene.scene.isActive(SCENES.roundDebrief)) {
+      this.#lastPanel = null;
+      this.#lastCallout = null;
+      this.#lastResolved = null;
+      this.#syncGate(null, null);
+      return;
+    }
     const formFactor = formFactorFor(viewport.width, viewport.height);
     const tabbed = isTabbed(formFactor);
     this.#syncPayingOverride(this.#controller.view().step?.id ?? null, tabbed);

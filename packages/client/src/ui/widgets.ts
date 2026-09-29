@@ -478,7 +478,15 @@ export function sectionHeader(
 
 export interface McTabsOptions {
   readonly rect: Rect;
-  readonly tabs: readonly { readonly id: string; readonly label: string; readonly badge?: number }[];
+  readonly tabs: readonly {
+    readonly id: string;
+    readonly label: string;
+    readonly badge?: number;
+    /** False draws this tab dashed and unavailable, and its click is a no-op — a tutorial lock (`docs/guided-mode.md`
+     * §3.11), not "this zone doesn't exist" (that's simply omitting the tab). */
+    readonly enabled?: boolean;
+    readonly reason?: string;
+  }[];
   readonly activeId: string;
   readonly onSelect: (id: string) => void;
 }
@@ -519,6 +527,8 @@ export class McTabs {
           type: { ...typeRole.label, size: Math.max(minType.phoneLabel, typeRole.label.size) },
           rect: cell,
           selected: tab.id === activeId,
+          ...(tab.enabled === false ? { enabled: false } : {}),
+          ...(tab.reason ? { reason: tab.reason } : {}),
           onClick: () => options.onSelect(tab.id),
         }),
       );
