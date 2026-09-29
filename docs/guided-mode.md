@@ -219,9 +219,9 @@ The main session verifies UI boxes by clicking through them before ticking (§6)
 - [x] **G10b Aspect tip chips.** "Aspects ▸" and the short tip card on aspect chips in Seats, Deck check and Deck
       builder.
       Landed: `33bd1aa6` (tip lines reworded as "pick it when" advice). An "i" badge on the aspect chips in Seats, Deck check and Deck builder opens `ui/aspect-tip.ts`'s panel, shown at every guide level. G10c wires `linkAvailable` / `linkReason` in `view/aspect-tip-model.ts`.
-- [ ] **G10c Aspect lesson page.** The per-aspect lesson page inside G6c's hub (signature scans, when to pick it, Try it).
+- [x] **G10c Aspect lesson page.** The per-aspect lesson page inside G6c's hub (signature scans, when to pick it, Try it).
       Reached from the hub, the debrief, Settings → Guide, and the chips' "Aspects ▸".
-      Landed: `3457bdd3` (its registry edits were swept into `48787de5`). `scenes/aspect-lesson.ts` + `view/aspect-lesson-model.ts`, dev jump `?screen=aspect&aspect=<id>`, `#onTryIt(aspect)` for G10d. A follow-up is in flight: the phone gap before the signature cards, large card scans on wide layouts, and wiring the page into the hub rows, the chips' Aspects ▸ and Settings' Aspect lessons.
+      Landed: `3457bdd3` (its registry edits were swept into `48787de5`). `scenes/aspect-lesson.ts` + `view/aspect-lesson-model.ts`, dev jump `?screen=aspect&aspect=<id>`, `#onTryIt(aspect)` for G10d. Follow-up `19e989c7`: large signature scans; the phone gap is fixed; it's wired into the hub rows (✓ Done), the chips' Aspects ▸ (launched over Seats/Deck check, `backTo: "previous"`) and Settings' Aspect lessons → hub. Nit: a ~60px gap under the phone "SIGNATURE CARDS" label.
 - [ ] **G10d Aspect try-it games.** A guided Rhino game with that aspect's Core precon. Its aspect tips fire when the
       signature cards come up, on G5b's lesson model.
 - [ ] **G10e Opportunistic tips.** `view/guide-tips.ts` is the trigger table (§5.3). Once each, Full only, shown as a
@@ -310,7 +310,7 @@ A fresh Claude session can pick this up from this file alone.
   pointer, and put a screenshot beside its tile.
 - **Commits:** as the repo's git user, with no Claude co-author trailer. Every change carries a changie fragment.
 
-**In flight:** the G10c follow-up (layout + wiring) and G10e part 2 (tips on the board, with pacing and real deps; a `mulligan` glossary concept). If cut off, check `git status`/`git log` and brief a fresh agent per item. Then: G6c part 2 (replay to a lesson), G10d (try-it games), G10e part 2 (tip display), G11.
+**In flight:** G10e part 2 (tips on the board, with pacing and real deps; a `mulligan` glossary concept). If cut off, check `git status`/`git log` and brief a fresh agent per item. Then: G6c part 2 (replay to a lesson), G10d (try-it games), G10e part 2 (tip display), G11.
 
 ## 7. Prior art: the parked prototype
 
