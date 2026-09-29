@@ -5,13 +5,16 @@ import {
   buildScenarioDeck,
   chosen,
   constant,
+  damagedAtLeast,
   dealIndirectDamage,
   defeatingPlayer,
   defineAbilities,
+  discard,
   discardEncounterCards,
   discardFromHand,
   discardEncounterUntil,
   enemyActivates,
+  eventAmount,
   exists,
   firstPlayer,
   forcedInterrupt,
@@ -19,6 +22,8 @@ import {
   giveTough,
   heal,
   heroAction,
+  ifThen,
+  instead,
   placeDamage,
   query,
   removeCountersFrom,
@@ -119,10 +124,12 @@ export const CROSSBONES_SET = defineAbilities({
 
   // Crossbones' Armor — Attach to Crossbones. Forced Interrupt: When Crossbones would take any amount of damage,
   // place it here instead. If there is 5 or more damage here, discard Crossbones' Armor.
-  "04065.crossbones-armor-forced-interrupt": forcedInterrupt(when.damage("host"), {
-    kind: "replaceTriggeringEvent",
-    with: [placeDamage({ kind: "eventAmount" }, self)],
-  }),
+  // The threshold check is its own sentence (no "then"), read after the damage is placed, so the hit that brings
+  // the armor to 5 is still absorbed in full: nothing spills over onto Crossbones.
+  "04065.crossbones-armor-forced-interrupt": forcedInterrupt(
+    when.damage("host"),
+    instead(placeDamage(eventAmount, self), ifThen(damagedAtLeast(self, 5), discard(self))),
+  ),
 
   // Hydra Bomber (04066) is a verbatim Core reprint (01110) — aliased by `../reprints.ts`, not scripted here.
 

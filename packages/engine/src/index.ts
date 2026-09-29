@@ -1,4 +1,4 @@
-export const ENGINE_VERSION = "0.11.0";
+export const ENGINE_VERSION = "0.11.1";
 
 export type { PlayerId, InstanceId, ChoiceId, EncounterDeckId, FrameId } from "./ids.js";
 export { playerId, instanceId, choiceId, encounterDeckId, frameId } from "./ids.js";
@@ -316,6 +316,8 @@ export {
   selectTargets,
   traitsOf,
 } from "./select.js";
+
+export { selfDamageThreshold } from "./damage-threshold.js";
 
 /** "Why not the others?" — the cards an open choice left out, each with the clause that excluded it. */
 export type { ChoiceExclusion, ExclusionCode } from "./why-not.js";
