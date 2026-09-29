@@ -272,7 +272,7 @@ A fresh Claude session can pick this up from this file alone.
   pointer, and put a screenshot beside its tile.
 - **Commits:** as the repo's git user, with no Claude co-author trailer. Every change carries a changie fragment.
 
-**In flight:** a G4b polish fix (`McTermText` paragraph breaks, panel padding, stamp, legend inset, Collapse arrow) alone. If cut off, check `git status` and brief a fresh agent to finish. Next: G4c, then G5c.
+**In flight:** a G4b polish fix (`McTermText` paragraph breaks, panel padding, stamp, legend inset, Collapse arrow) and G10b (aspect tip chips in Seats, Deck check and Deck builder), side by side. If cut off, check `git status` and brief a fresh agent to finish. Next: G4c, then G5c.
 
 ## 7. Prior art: the parked prototype
 
