@@ -44,7 +44,7 @@
  */
 
 import Phaser from "phaser";
-import type { AnyCard, CardType, Deck, HeroIdentityCard } from "@mc/content";
+import type { AnyCard, CardType, CoreAspect, Deck, HeroIdentityCard } from "@mc/content";
 import type { CampaignDeckContext, CampaignGrant } from "@mc/engine";
 import { POOL_CARDS, POOL_STARTER_DECKS, POOL_VERSION } from "../content/pool.js";
 import {
@@ -86,6 +86,8 @@ import { FocusRoute, type FocusStop } from "./focus-route.js";
 import { SCENES } from "./keys.js";
 import { destroyChildren } from "../ui/destroy-children.js";
 import { fadeScreenIn, goToScreen } from "../ui/transitions.js";
+import { drawAspectInfoBadge, drawAspectTipPanel } from "../ui/aspect-tip.js";
+import { aspectTipContentOf } from "../view/aspect-tip-model.js";
 
 /**
  * Between-issue deck editing (`scenes/campaign/deck-edit.ts`), a campaign mode over this same screen rather than a
@@ -165,6 +167,8 @@ export class DeckBuilderScene extends Phaser.Scene {
   /** The list itself is recreated every rebuild (`ui/virtual-list.ts`); only its scroll position persists, in this field. */
   #list: McVirtualList | null = null;
   #listScroll = new ListScroll();
+  /** Which aspect button's inline tip (G10b) is open, if any. */
+  #aspectTipOpen: CoreAspect | null = null;
 
   constructor() {
     super(SCENES.deckBuilder);
@@ -473,6 +477,29 @@ export class DeckBuilderScene extends Phaser.Scene {
         }),
       );
       this.#stops.set(`aspect:${aspect}`, { rect, activate: toggle });
+
+      // G10b's inline tip: a small "i" badge at the button's own corner, independent of `toggle` above.
+      const content = aspectTipContentOf(aspect);
+      if (content) {
+        const isOpen = this.#aspectTipOpen === aspect;
+        const badgeRect = drawAspectInfoBadge(
+          this,
+          rect,
+          isOpen,
+          () => {
+            this.#aspectTipOpen = aspect;
+            this.#rebuild();
+          },
+          () => {
+            this.#aspectTipOpen = null;
+            this.#rebuild();
+          },
+        );
+        if (isOpen) {
+          const { width, height } = this.scale.gameSize;
+          drawAspectTipPanel(this, badgeRect, content, { x: 0, y: 0, width, height });
+        }
+      }
     });
     return y + aspectRows * (hit.target + 6) + 10;
   }

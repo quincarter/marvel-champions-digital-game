@@ -22,7 +22,7 @@ import { aspectStampOf, aspectStampsOf, titleWithoutAspects } from "../view/aspe
 import { HERO_ART, heroArtFor } from "../art/hero-art.js";
 import type { Picture } from "../art/pictures.js";
 import Phaser from "phaser";
-import type { CardId, Deck } from "@mc/content";
+import type { CardId, CoreAspect, Deck } from "@mc/content";
 import {
   CARDS_BY_ID,
   POOL_CARDS,
@@ -102,6 +102,8 @@ import { destroyChildren } from "../ui/destroy-children.js";
 import { fadeScreenIn, goToScreen } from "../ui/transitions.js";
 import { refreshUnlocks, unlocks } from "../progression/progression.js";
 import { unlockCostOf, unlockOrAsk } from "./unlock-confirm.js";
+import { drawAspectInfoBadge, drawAspectTipPanel } from "../ui/aspect-tip.js";
+import { aspectTipContentOf } from "../view/aspect-tip-model.js";
 
 export interface SeatsData {
   readonly draft: SetupDraft;
@@ -165,6 +167,8 @@ export class SeatsScene extends Phaser.Scene {
   #chipRail: McChipRail | null = null;
   #route: FocusRoute | null = null;
   #drill: ShelfDrillState = ALL_PACKS;
+  /** Which aspect chip's inline tip (G10b) is open, if any — a plain field, like every other stateful control here; `#rebuild()` redraws whichever badge/panel that implies. */
+  #aspectTipOpen: CoreAspect | null = null;
   readonly #gridScroll = new ListScroll();
   readonly #chipScroll = new RailScroll();
 
@@ -474,6 +478,7 @@ export class SeatsScene extends Phaser.Scene {
     } else {
       drawCompactChipStrip(this, layout.chips, chipRows, "hero-chip", this.#buttons, this.#stops);
     }
+    this.#drawAspectChipTips(chipDefs, { x: 0, y: 0, width, height });
 
     const seating = new Map(this.#seatOptionsExcludingActive(deckOptions).map((o) => [o.deckId, o]));
     const active = new Map(
@@ -1118,6 +1123,39 @@ export class SeatsScene extends Phaser.Scene {
     if (filter.source && option.deck.source.kind !== filter.source) return false;
     if (filter.playableOnly && blockedBy !== null) return false;
     return true;
+  }
+
+  /**
+   * G10b's info badge + tip panel on every aspect quick-filter chip, narrow (the scrolling `McChipRail`)
+   * and wide (`drawCompactChipStrip`) alike — both already register a `hero-chip:${chip.id}` focus stop
+   * with the chip's own current on-screen rect (a function on narrow, so it tracks the rail's scroll
+   * offset; a plain `Rect` on wide), so this reuses that instead of recomputing chip geometry itself.
+   */
+  #drawAspectChipTips(chipDefs: readonly HeroChipDef[], viewport: Rect): void {
+    for (const chip of chipDefs) {
+      if (!chip.id.startsWith("aspect:")) continue;
+      const aspect = chip.id.slice("aspect:".length) as CoreAspect;
+      const content = aspectTipContentOf(aspect);
+      if (!content) continue;
+      const stop = this.#stops.get(`hero-chip:${chip.id}`);
+      if (!stop) continue;
+      const anchorRect = typeof stop.rect === "function" ? stop.rect() : stop.rect;
+      const isOpen = this.#aspectTipOpen === aspect;
+      const badgeRect = drawAspectInfoBadge(
+        this,
+        anchorRect,
+        isOpen,
+        () => {
+          this.#aspectTipOpen = aspect;
+          this.#rebuild();
+        },
+        () => {
+          this.#aspectTipOpen = null;
+          this.#rebuild();
+        },
+      );
+      if (isOpen) drawAspectTipPanel(this, badgeRect, content, viewport);
+    }
   }
 
   #heroChipDefs(deckOptions: readonly DeckOption[]): readonly HeroChipDef[] {

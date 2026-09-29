@@ -1,0 +1,147 @@
+/**
+ * The aspect-chip info affordance (guided mode G10b, `docs/guided-mode.md` §3 decision 7, §5.4): a small
+ * "i" badge drawn at an aspect chip/tile's own corner — hover opens it on desktop, tap opens it on
+ * touch, the same convention `ui/term-text.ts`'s glossary terms already use (see that module's header) —
+ * and the tip panel it opens: the aspect's name, tagline and short tip line, plus an "Aspects ▸" link
+ * drawn dashed and unavailable ("Coming soon") until G10c's Aspect lessons screen exists to receive it.
+ *
+ * **Not `McTooltip` (G3b).** That widget's content shape is a glossary term's title + one-line
+ * definition + a fixed "RULES GLOSSARY ▸" link, and its own header explains why closing has to live on a
+ * viewport-wide `pointermove` watch rather than the anchoring zone's own `pointerout` (a term the open
+ * tooltip visually covers can still fire `pointerover`/`pointerout`, which would otherwise fight the
+ * pointer travelling onto the tooltip's own link). This sibling's own link is inert — dashed,
+ * "Coming soon" — so there is nothing for the pointer to travel onto, and the badge's own `pointerout`
+ * is enough to close it. It shares the same panel look (ink ground, caution bottom rule, the same arrow)
+ * on purpose (`docs/guided-mode.md`: "don't create a new visual language").
+ *
+ * **Redrawn every `#rebuild()`, not a persisting instance.** `scenes/seats.ts`, `scenes/deck-check.ts`
+ * and `scenes/deck-builder.ts` already tear down and redraw their whole screen
+ * (`ui/destroy-children.ts`) on every state change, including a chip's own hover/tap; open/closed state
+ * is a plain field on the host scene (`isOpen`, passed in fresh on each call), not something this module
+ * tracks itself.
+ */
+import Phaser from "phaser";
+import { border, ink, signal, surface, typeRole } from "../tokens.js";
+import type { AspectTipContent } from "../view/aspect-tip-model.js";
+import type { Rect } from "../view/layout.js";
+import { textStyle } from "./theme.js";
+
+const BADGE_SIZE = 18;
+const PANEL_WIDTH = 220;
+const PAD = 10;
+const GAP_FROM_ANCHOR = 8;
+const ARROW_SIZE = 7;
+
+/**
+ * Draws the small "i" badge nudged half outside `anchorRect`'s top-right corner (a notification-dot
+ * position that stays clear of the chip's own label) and wires its pointer handling. Returns the badge's
+ * own on-screen rect, which the caller passes to `drawAspectTipPanel` as the tip's anchor.
+ */
+export function drawAspectInfoBadge(
+  scene: Phaser.Scene,
+  anchorRect: Rect,
+  isOpen: boolean,
+  onOpen: () => void,
+  onClose: () => void,
+): Rect {
+  const rect: Rect = {
+    x: anchorRect.x + anchorRect.width - BADGE_SIZE * 0.7,
+    y: anchorRect.y - BADGE_SIZE * 0.3,
+    width: BADGE_SIZE,
+    height: BADGE_SIZE,
+  };
+  const cx = rect.x + BADGE_SIZE / 2;
+  const cy = rect.y + BADGE_SIZE / 2;
+  const g = scene.add.graphics();
+  g.fillStyle(isOpen ? signal.caution.hex : surface.ink.hex, 1).fillCircle(cx, cy, BADGE_SIZE / 2);
+  g.lineStyle(1.5, surface.paper.hex, 1).strokeCircle(cx, cy, BADGE_SIZE / 2);
+  scene.add
+    .text(cx, cy, "i", { ...textStyle(typeRole.label, isOpen ? surface.ink.hex : surface.paper.hex), fontSize: "12px" })
+    .setOrigin(0.5, 0.5);
+
+  const zone = scene.add
+    .zone(rect.x, rect.y, rect.width, rect.height)
+    .setOrigin(0, 0)
+    .setInteractive({ useHandCursor: true });
+  zone.on("pointerover", (pointer: Phaser.Input.Pointer) => {
+    if (pointer.wasTouch) return;
+    if (!isOpen) onOpen();
+  });
+  zone.on("pointerout", (pointer: Phaser.Input.Pointer) => {
+    if (pointer.wasTouch) return;
+    if (isOpen) onClose();
+  });
+  zone.on("pointerup", () => {
+    if (isOpen) onClose();
+    else onOpen();
+  });
+  return rect;
+}
+
+/**
+ * Draws the tip panel itself, anchored at `anchor` (the badge's own rect from `drawAspectInfoBadge`) —
+ * flipping above/below and clamping horizontally so the whole panel stays inside `viewport`, the same
+ * placement math `ui/tooltip.ts#show` uses. Pure draw: the caller decides whether to call this at all
+ * from its own `isOpen` state.
+ */
+export function drawAspectTipPanel(scene: Phaser.Scene, anchor: Rect, content: AspectTipContent, viewport: Rect): void {
+  const title = scene.add
+    .text(0, 0, content.title, textStyle(typeRole.sectionHeader, surface.paper.hex))
+    .setFontSize(16);
+  const tagline = scene.add.text(0, 0, content.tagline, {
+    ...textStyle(typeRole.body, surface.paper.hex, ink.secondary),
+    wordWrap: { width: PANEL_WIDTH - PAD * 2, useAdvancedWrap: true },
+  });
+  const tip = scene.add.text(0, 0, content.tipLine, {
+    ...textStyle(typeRole.body, surface.paper.hex),
+    wordWrap: { width: PANEL_WIDTH - PAD * 2, useAdvancedWrap: true },
+  });
+  const linkText = content.linkAvailable ? content.linkLabel : `${content.linkLabel} · ${content.linkReason}`;
+  const link = scene.add.text(
+    0,
+    0,
+    linkText,
+    textStyle(typeRole.label, content.linkAvailable ? signal.caution.hex : surface.paper.hex),
+  );
+  link.setAlpha(content.linkAvailable ? 1 : ink.disabled);
+
+  const contentHeight = PAD + title.height + 6 + tagline.height + 6 + tip.height + 8 + link.height + PAD;
+  const anchorCenterX = anchor.x + anchor.width / 2;
+  let panelX = anchorCenterX - PANEL_WIDTH / 2;
+  panelX = Math.max(viewport.x + 4, Math.min(panelX, viewport.x + viewport.width - PANEL_WIDTH - 4));
+
+  // Opens below the badge by default — every aspect chip/tile this panel anchors to sits near a screen's own
+  // top (a quick-filter row, a rail), so "below" is almost always where the room is; flip above only when the
+  // viewport genuinely doesn't have room below (e.g. the last visible row on a short viewport). Below also
+  // steers clear of `ui/widgets.ts`'s one DOM element, `McTextInput` — a search field drawn just *above* the
+  // aspect chips in `scenes/seats.ts` renders over the canvas regardless of Phaser depth, so a panel that opened
+  // upward there got its own bottom rows clipped by that field.
+  const spaceBelow = viewport.y + viewport.height - (anchor.y + anchor.height);
+  const flipAbove = spaceBelow < contentHeight + GAP_FROM_ANCHOR + ARROW_SIZE;
+  const panelY = flipAbove
+    ? anchor.y - GAP_FROM_ANCHOR - ARROW_SIZE - contentHeight
+    : anchor.y + anchor.height + GAP_FROM_ANCHOR + ARROW_SIZE;
+
+  const rect: Rect = { x: panelX, y: panelY, width: PANEL_WIDTH, height: contentHeight };
+
+  const panel = scene.add.graphics();
+  panel.fillStyle(surface.ink.hex, 1).fillRect(rect.x, rect.y, rect.width, rect.height);
+  panel.fillStyle(signal.caution.hex, 1).fillRect(rect.x, rect.y + rect.height - 3, rect.width, 3);
+  panel.lineStyle(border.detail, surface.ink.hex, 1).strokeRect(rect.x, rect.y, rect.width, rect.height);
+  const tipX = Math.max(rect.x + ARROW_SIZE, Math.min(anchorCenterX, rect.x + rect.width - ARROW_SIZE));
+  panel.fillStyle(surface.ink.hex, 1);
+  if (flipAbove) {
+    const by = rect.y + rect.height;
+    panel.fillTriangle(tipX - ARROW_SIZE, by, tipX + ARROW_SIZE, by, tipX, by + ARROW_SIZE);
+  } else {
+    panel.fillTriangle(tipX - ARROW_SIZE, rect.y, tipX + ARROW_SIZE, rect.y, tipX, rect.y - ARROW_SIZE);
+  }
+
+  title.setPosition(rect.x + PAD, rect.y + PAD);
+  tagline.setPosition(rect.x + PAD, rect.y + PAD + title.height + 6);
+  tip.setPosition(rect.x + PAD, rect.y + PAD + title.height + 6 + tagline.height + 6);
+  link.setPosition(rect.x + PAD, rect.y + PAD + title.height + 6 + tagline.height + 6 + tip.height + 8);
+
+  const container = scene.add.container(0, 0, [panel, title, tagline, tip, link]).setDepth(1000);
+  scene.children.bringToTop(container);
+}
