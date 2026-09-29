@@ -190,9 +190,10 @@ The main session verifies UI boxes by clicking through them before ticking (§6)
       progress. The chooser's "Learn as you play", Settings' "Play the tutorial" and the debrief's "Replay a lesson"
       all route here. Split it at brief time: (1) hub screen + progress model, (2) replay-to-lesson start.
 - [ ] **G7a Lesson 2: Hero & alter-ego.**
-- [ ] **G7b Lesson 3: Paying for cards** (over the existing payment bar).
+- [x] **G7b Lesson 3: Paying for cards** (over the existing payment bar).
 - [x] **G7c Lesson 4: The villain phase** (villain-phase overlay steps + `GUIDE PICK` on the defend sheet).
       Landed: `28ffbb40` + `b2fe58da`. The overlays inset by the rail; a live "This villain phase" checklist in the rail; the phone `ui/guide-strip.ts`; the phase band no longer covers the rail; the phone defend-sheet overlap is fixed (it also affected non-guided games). Polish idea: in guided runs, add a "Your HP after" line to each defend option, as in the D02/P05 tiles.
+      Landed: `caced651`. `doThisTabbed` ("Tap Black Cat, then Play"), a TRY THIS tag on Inspect's Play with a guide strip in Inspect (`setGuidePick`), and Energy → Pay tags on phone. Nit: the final hint reads "Pay"; "Tap Pay" would read better.
 - [ ] **G7d Lesson 5: Threat & thwarting** (the threat ring on the scheme, then Thwart).
 - [ ] **G8 Round debrief.** P07/D03: lesson checklist, "Worth remembering" (tested heuristic), "New on your board",
       guide-level control, Replay a lesson, Round N ▸, and "Next: Aspects ▸" after lesson 5.
@@ -300,7 +301,7 @@ A fresh Claude session can pick this up from this file alone.
   pointer, and put a screenshot beside its tile.
 - **Commits:** as the repo's git user, with no Claude co-author trailer. Every change carries a changie fragment.
 
-**In flight:** G9b (the "Hold on!" overlay; intercepts End turn, Flip and payment confirm in `scenes/board/controller.ts`) and G7b (phone paying lesson: "Tap Black Cat, then Play" and TRY THIS on Inspect's Play), side by side. If cut off, check `git status`/`git log` and brief a fresh agent per box. Then: G6c (hub), G7a/d, G8, G10c–e, G11.
+**In flight:** G9b (the "Hold on!" overlay; intercepts End turn, Flip and payment confirm in `scenes/board/controller.ts`) alone. If cut off, check `git status`/`git log` and brief a fresh agent. Then: G6c (hub), G7a/d, G8, G10c–e, G11.
 
 ## 7. Prior art: the parked prototype
 
