@@ -24,6 +24,7 @@ import {
   playCostOf,
   printedResources,
   remainingHitPoints,
+  selfDamageThreshold,
   traitsOf,
   type AbilityTriggerSpec,
   type EngineDeps,
@@ -41,7 +42,14 @@ import { cardHistoryOf, emptyCardHistoryLog, type CardHistoryLine, type CardHist
 import { cardName, faceUpName } from "./names.js";
 import { citeLabelOf, everyGlossaryEntry } from "./rules-reference.js";
 import { faceVisible } from "./visibility.js";
-import { faceOf, printedStatsOf, profileStatTiles, resourceIconList, type StatTile } from "./board-model.js";
+import {
+  damageNote,
+  faceOf,
+  printedStatsOf,
+  profileStatTiles,
+  resourceIconList,
+  type StatTile,
+} from "./board-model.js";
 
 /** One action ability this card could use right now, named and priced. */
 export interface UsableAbility {
@@ -175,6 +183,12 @@ export interface InspectModel {
    * that hasn't done anything yet this session (drawn but never played, an untouched enemy).
    */
   readonly history: readonly CardHistoryLine[];
+  /**
+   * "3/5 damage" on a card in play with no hit points of its own (Crossbones' Armor, Ice Wall, Avengers Tower),
+   * against the point its own text acts at. A character's damage is already its HP stat, so it is null there, and
+   * null for a card with no damage and no threshold, or no game behind it.
+   */
+  readonly damageNote: string | null;
   /** True when an open payment (threaded in as `InspectPayment`) could still spend this exact card. */
   readonly canPayAsResource: boolean;
 }
@@ -224,6 +238,7 @@ export function inspectModel(
       // facedown as a boost or a Drone before it's ever revealed — so this one branch keeps it, unlike every
       // other field here, which has nothing honest to say about a face nobody can see.
       history: cardHistoryOf(history, instanceId, state, perspectiveId, deps),
+      damageNote: null,
       canPayAsResource: false,
     };
   }
@@ -292,6 +307,8 @@ export function inspectModel(
     timing: timingEntriesFor(state, instanceId, deps),
     keywordDefinitions: keywordDefinitionsFor(state, instanceId, deps),
     history: cardHistoryOf(history, instanceId, state, perspectiveId, deps),
+    damageNote:
+      current === undefined ? damageNote(instance.damage, selfDamageThreshold(state, instanceId, deps)) : null,
     canPayAsResource: payment !== null && payment.spendableInstanceIds.has(instanceId),
   };
 }
@@ -462,6 +479,7 @@ export function cardInspectModel(card: AnyCard | undefined, face: CardFace): Ins
       timing: [],
       keywordDefinitions: [],
       history: [],
+      damageNote: null,
       canPayAsResource: false,
     };
   }
@@ -501,6 +519,7 @@ export function cardInspectModel(card: AnyCard | undefined, face: CardFace): Ins
     keywordDefinitions: printedKeywordDefinitions(card, face),
     // Neither does "this card, this game": there is no game.
     history: [],
+    damageNote: null,
     canPayAsResource: false,
   };
 }

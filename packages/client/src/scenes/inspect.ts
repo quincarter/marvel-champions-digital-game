@@ -141,6 +141,9 @@ export interface InspectData {
 /** D08's own 14px padding, 16px `gap` on the ink "Rules & state" panel's own flex column. */
 const RULES_PAD = 22;
 const RULES_SECTION_GAP = 16;
+/** "Damage on this card" and its one 16px line ("3/5 damage"). */
+const DAMAGE_SECTION_HEIGHT = 38;
+
 /** The "RULES & STATE" title row, Bangers 24px, plus its own leading room. */
 const RULES_TITLE_HEIGHT = 30;
 /** The card panel's own `padding:14px`/`gap:10px` text block (matches `view/inspect-layout.ts`'s own `TEXT_PAD`/`TEXT_GAP`, duplicated here since that file stays a pure-layout module with no text drawing of its own). */
@@ -752,6 +755,7 @@ export class InspectOverlay extends Phaser.Scene {
     if ((model.status.message || model.priceNote || model.resourceNote) && !this.#choice)
       heights.push(this.#rightNowHeight(inner, model));
     if (model.timing.length > 0) heights.push(this.#timingHeight(inner, model));
+    if (model.damageNote) heights.push(DAMAGE_SECTION_HEIGHT);
     if (model.keywordChips.length > 0)
       heights.push(
         16 +
@@ -915,6 +919,17 @@ export class InspectOverlay extends Phaser.Scene {
     if (model.timing.length > 0) {
       this.#drawTiming(rect.x + pad, y, inner, model);
       y += this.#timingHeight(inner, model) + RULES_SECTION_GAP;
+    }
+
+    // "3/5 damage" on Crossbones' Armor, Ice Wall, Avengers Tower: a card with no HP plate to say it.
+    if (model.damageNote) {
+      label(this, rect.x + pad, y, "damage on this card", typeRole.label, surface.paper.hex, ink.meta);
+      this.add.text(rect.x + pad, y + 16, model.damageNote, {
+        ...textStyle(typeRole.body, surface.paper.hex),
+        fontSize: "16px",
+        fontStyle: "700",
+      });
+      y += DAMAGE_SECTION_HEIGHT + RULES_SECTION_GAP;
     }
 
     // "Keywords on this card" / "Traits" — chips a tap opens the Rules overlay at.
@@ -1239,6 +1254,11 @@ export class InspectOverlay extends Phaser.Scene {
     const typeLine = label(this, textLeft, ty, model.typeLine, typeRole.label, surface.ink.hex, ink.label);
     typeLine.setWordWrapWidth(textWidth);
     ty += typeLine.height + 7;
+
+    if (model.damageNote) {
+      const note = label(this, textLeft, ty, model.damageNote, typeRole.label, accent.heroRed.hex, ink.body);
+      ty += note.height + 7;
+    }
 
     if (model.keywordChips.length > 0) {
       ty = this.#drawSheetHeaderChips(textLeft, ty, textWidth, model.keywordChips) + 7;
