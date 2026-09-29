@@ -159,18 +159,18 @@ The main session verifies UI boxes by clicking through them before ticking (§6)
       with input gated per §3.10, plus the `TRY THIS` and `GUIDE PICK` tags.
 
       Landed: `d80f0796`. `resolveAnchor` (view/guide-anchor.ts), `McGuideSpotlight`, `McGuideTag`, and `GuideGateHolder`
-              (scenes/board/guide-gate.ts) via `board.setGuideGate(gate | null)`. Escape → `onGateReleased`; 2 inert clicks →
-              `onGateEscaped`. Pause is never gated. Demo at `?screen=board&guidedemo=1`. **For G5c:**
-              - Anchor `mainScheme` to the scheme *panel* rect, not the whole zone (the ring is too big today).
-              - Delay the spotlight until the round/phase banner clears.
-              - Put `TRY THIS` only on actionable anchors (action/card), not zones.
-              - Set the gate only on a step change, never per redraw.
-              - Auto-switch phone tabs when `resolved.tab` differs.
-              - Pick lesson-nav keys that don't clash with Board's arrow/Space focus keys.
-          - Exits landed in `5b6993b2`: both widgets take `onSkip` ("Skip this step") and `onStop` ("Stop tutorial", drawn as ×),
-            a `nudge` line, and Escape always skips. G5c: spell out "STOP TUTORIAL" in the panel's second header row (there's
-            room; a bare × reads as "close this box"). Keep × on the phone callout, and add Pause "Stop tutorial" / "Turn
-            guide off".
+                  (scenes/board/guide-gate.ts) via `board.setGuideGate(gate | null)`. Escape → `onGateReleased`; 2 inert clicks →
+                  `onGateEscaped`. Pause is never gated. Demo at `?screen=board&guidedemo=1`. **For G5c:**
+                  - Anchor `mainScheme` to the scheme *panel* rect, not the whole zone (the ring is too big today).
+                  - Delay the spotlight until the round/phase banner clears.
+                  - Put `TRY THIS` only on actionable anchors (action/card), not zones.
+                  - Set the gate only on a step change, never per redraw.
+                  - Auto-switch phone tabs when `resolved.tab` differs.
+                  - Pick lesson-nav keys that don't clash with Board's arrow/Space focus keys.
+              - Exits landed in `5b6993b2`: both widgets take `onSkip` ("Skip this step") and `onStop` ("Stop tutorial", drawn as ×),
+                a `nudge` line, and Escape always skips. G5c: spell out "STOP TUTORIAL" in the panel's second header row (there's
+                room; a bare × reads as "close this box"). Keep × on the phone callout, and add Pause "Stop tutorial" / "Turn
+                guide off".
 
 **Tutorial**
 
@@ -183,6 +183,7 @@ The main session verifies UI boxes by clicking through them before ticking (§6)
       Landed: `18ebe444` (plus a copy fix). `view/lesson-model.ts` pure reducers (`startLessons`, `observe`, `acknowledge`, `back`, `skipLesson`, `replay`) and selectors. Lessons are in `guide/tutorial-lessons.ts`. Call `observe` again after every button reducer. Lessons run in strict order. `{target}` must be passed via `fillCopy`'s `extra`.
 - [ ] **G5c Guide controller.** The board-side glue that feeds store events to the lesson model and shows
       G4a/G4b/G4c for the current step. No lesson content yet, just one smoke step.
+      Parts 1–2 landed: `0e0c6d94`, `606ba3a1`, `1a14f60b`. `GuideController` (guide/guide-controller.ts) with waiting and complete states; `BoardGuideMount` (scenes/board/guide-mount.ts) draws the rail on desktop and tabletLandscape and the callout on tabbed layouts (auto-switching the tab once per step); dev jump `?screen=board&tutorial=1`. Part 3 (Pause entries) is open. **Left for G7:** - (G7c) The villain-phase overlay and the defend choice sheet cover the guide entirely, so lesson 4's copy is never visible. Inset those overlays by the rail on desktop, and show a bottom guide strip on phone as in P05. - (G7b) On tabbed layouts a hand tap opens Inspect first, so say "Tap Black Cat, then Play" and tag Inspect's Play button.
 - [ ] **G6a First-run chooser.** P01/T01 "New to the fight?". Wired Boot → chooser (first launch) → Title. "Learn as you
       play" goes to G6b.
 - [ ] **G6b How to win.** P02 "One way to win, two ways to lose" from Rhino / The Break-In! / Spider-Man data. Start the
@@ -305,7 +306,7 @@ A fresh Claude session can pick this up from this file alone.
   pointer, and put a screenshot beside its tile.
 - **Commits:** as the repo's git user, with no Claude co-author trailer. Every change carries a changie fragment.
 
-**In flight:** G5c part 2 (phone and tablet-portrait callout + tab auto-switch), plus a waiting/complete panel state (the panel vanished while waiting for the next lesson's `when`). Part 1 is done: `0e0c6d94` + review fixes `606ba3a1` (`skipStep`, panel above dim, STOP TUTORIAL spelled out, `doThis`, TRY THIS Black Cat → Energy → Pay, GUIDE PICK placement). If cut off, check `git status`/`git log` and brief a fresh agent. Then: part 3 (Pause Stop tutorial / Turn guide off).
+**In flight:** G5c part 3 (Pause "Stop tutorial" / "Turn guide off"; the panel context label in the waiting state reads "GUIDE GUIDE"). If cut off, check `git status`/`git log` and brief a fresh agent. Then: G6a/G6b/G6c, G7a–d.
 
 ## 7. Prior art: the parked prototype
 
