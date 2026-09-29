@@ -155,8 +155,18 @@ The main session verifies UI boxes by clicking through them before ticking (§6)
       body, tip box, progress ticks, Back, and the "do this to continue" slot. Board layout reserves the rail when it's
       open. Layout tests at 1440×900 and 1024×768.
       Landed: `9add1837` + polish `78bd6115` (paragraph breaks in `McTermText`, padding, stamp width, legend inset, Collapse hit area was off-label). `ui/guide-panel.ts`, `view/guide-panel-model.ts` (`guideRailWidthFor`), and `boardLayout(…, { guideRail })` in `view/layout.ts`. Demo at `?screen=guidepanel`. G5c mounts it on the Board for desktop and tabletLandscape only, and re-runs `boardLayout` on collapse/expand.
-- [ ] **G4c Spotlight + tags.** The spotlight ring on any board anchor (zone, card, button), dimming everything else
+- [x] **G4c Spotlight + tags.** The spotlight ring on any board anchor (zone, card, button), dimming everything else
       with input gated per §3.10, plus the `TRY THIS` and `GUIDE PICK` tags.
+
+      Landed: `d80f0796`. `resolveAnchor` (view/guide-anchor.ts), `McGuideSpotlight`, `McGuideTag`, and `GuideGateHolder`
+          (scenes/board/guide-gate.ts) via `board.setGuideGate(gate | null)`. Escape → `onGateReleased`; 2 inert clicks →
+          `onGateEscaped`. Pause is never gated. Demo at `?screen=board&guidedemo=1`. **For G5c:**
+          - Anchor `mainScheme` to the scheme *panel* rect, not the whole zone (the ring is too big today).
+          - Delay the spotlight until the round/phase banner clears.
+          - Put `TRY THIS` only on actionable anchors (action/card), not zones.
+          - Set the gate only on a step change, never per redraw.
+          - Auto-switch phone tabs when `resolved.tab` differs.
+          - Pick lesson-nav keys that don't clash with Board's arrow/Space focus keys.
 
 **Tutorial**
 
@@ -291,7 +301,7 @@ A fresh Claude session can pick this up from this file alone.
   pointer, and put a screenshot beside its tile.
 - **Commits:** as the repo's git user, with no Claude co-author trailer. Every change carries a changie fragment.
 
-**In flight:** G4c (spotlight, gating, tags; also told about the §3.10 never-locked-in gating rules), and an exits follow-up ("Skip this step" + "Stop tutorial" + Escape contract + `nudge` on `McGuideCallout` / `McGuidePanel`), side by side. If cut off, check `git status` and brief a fresh agent per item. Next: G5c.
+**In flight:** an exits follow-up ("Skip this step" + "Stop tutorial" + Escape contract + `nudge` on `McGuideCallout` / `McGuidePanel`), side by side. If cut off, check `git status` and brief a fresh agent per item. Next: G5c.
 
 ## 7. Prior art: the parked prototype
 
