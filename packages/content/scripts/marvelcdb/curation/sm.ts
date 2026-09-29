@@ -387,9 +387,9 @@ export const SM_CURATION: PackCuration = {
       evidence:
         'MC27 p. 11: "Villain Deck: Venom (I), Venom (II)" ("Remove Venom (I) and add Venom (III) for expert ' +
         'mode."), "Main Scheme Deck: \\"Leave Us Alone!\\" (1A/1B)", "Encounter Deck: Venom, Down to Earth, ' +
-        'Symbiotic Strength, and Standard encounter sets." Not yet fully playable standalone: the boost-cards-on-' +
-        "an-identity mechanic (docs/phase7-wave5.md §3.6 — open). Standard/Expert sets are Core's own (reused " +
-        "across the box, see Sandman's evidence above).",
+        'Symbiotic Strength, and Standard encounter sets." Playable: the boost-cards-on-an-identity mechanic ' +
+        "landed (docs/phase7-wave5.md §3.6). Standard/Expert sets are Core's own (reused across the box, see " +
+        "Sandman's evidence above).",
     },
     // Mysterio (MC27 p. 13). Two-stage main scheme deck (Maze of Mirrors → Edge of Reality).
     {
@@ -405,9 +405,9 @@ export const SM_CURATION: PackCuration = {
       evidence:
         'MC27 p. 13: "Villain Deck: Mysterio (I), Mysterio (II)" ("Remove Mysterio (I) and add Mysterio (III) ' +
         'for expert mode."), "Main Scheme Deck: Maze of Mirrors (1A/1B), Edge of Reality (2A/2B)", "Encounter ' +
-        'Deck: Mysterio, Personal Nightmare, Whispers of Paranoia, and Standard encounter sets." Not yet fully ' +
-        "playable standalone: encounter cards living in a player's deck/hand/discard pile (docs/phase7-wave5.md " +
-        "§3.5 — open). Standard/Expert sets are Core's own (reused across the box, see Sandman's evidence above).",
+        'Deck: Mysterio, Personal Nightmare, Whispers of Paranoia, and Standard encounter sets." Playable: ' +
+        "encounter cards living in a player's deck/hand/discard pile landed (docs/phase7-wave5.md §3.5). " +
+        "Standard/Expert sets are Core's own (reused across the box, see Sandman's evidence above).",
     },
     // The Sinister Six (MC27 p. 15). Six single-stage villains sharing one card_set_code, told apart by direct
     // villainCardCodes (the Kang/Tower Defense shape, docs/phase7-wave5.md §1.5), started set aside.
@@ -442,10 +442,9 @@ export const SM_CURATION: PackCuration = {
         '"Encounter Deck: The Sinister Six, Guerrilla Tactics, and Standard encounter sets." — no modular set is ' +
         "listed for this scenario. Sinister Synchronization 1A's own Setup (\"Choose X villains at random ... " +
         'Put those villains into play ... and set the other villains aside") is `atSetup: "setAside"`; the win is ' +
-        "Light at the End's own card ability, not defeating every villain (docs/phase7-wave5.md §1.5). Not yet " +
-        "playable: villains that enter/leave play and an interruptible enemy activation (docs/phase7-wave5.md " +
-        "§3.1, §3.2 — open). Standard/Expert sets are Core's own (reused across the box, see Sandman's evidence " +
-        "above).",
+        "Light at the End's own card ability, not defeating every villain (docs/phase7-wave5.md §1.5). Playable: " +
+        "villains that enter/leave play and an interruptible enemy activation landed (docs/phase7-wave5.md §3.1, " +
+        "§3.2). Standard/Expert sets are Core's own (reused across the box, see Sandman's evidence above).",
     },
     // Venom Goblin (MC27 p. 17). Four lettered main scheme stages (§1.1), one shared with the glider counter.
     {
@@ -462,9 +461,9 @@ export const SM_CURATION: PackCuration = {
         'MC27 p. 17: "Villain Deck: Venom Goblin (I), Venom Goblin (II)" ("Remove Venom Goblin (I) and add Venom ' +
         'Goblin (III) for expert mode."), "Main Scheme Deck: Skies Over New York (A), Lower Manhattan (B), ' +
         'Midtown Manhattan (C), Upper Manhattan (D)", "Encounter Deck: Venom Goblin, Symbiotic Strength, Goblin ' +
-        'Gear, and Standard encounter sets." Not yet playable: the focused/glider main scheme mechanism ' +
-        "(docs/phase7-wave5.md §3.3, §3.4, §3.9 — open). Standard/Expert sets are Core's own (reused across the " +
-        "box, see Sandman's evidence above).",
+        'Gear, and Standard encounter sets." Playable: the focused/glider main scheme mechanism landed ' +
+        "(docs/phase7-wave5.md §3.3, §3.4, §3.9). Standard/Expert sets are Core's own (reused across the box, " +
+        "see Sandman's evidence above).",
     },
   ],
 
