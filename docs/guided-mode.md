@@ -159,14 +159,18 @@ The main session verifies UI boxes by clicking through them before ticking (§6)
       with input gated per §3.10, plus the `TRY THIS` and `GUIDE PICK` tags.
 
       Landed: `d80f0796`. `resolveAnchor` (view/guide-anchor.ts), `McGuideSpotlight`, `McGuideTag`, and `GuideGateHolder`
-          (scenes/board/guide-gate.ts) via `board.setGuideGate(gate | null)`. Escape → `onGateReleased`; 2 inert clicks →
-          `onGateEscaped`. Pause is never gated. Demo at `?screen=board&guidedemo=1`. **For G5c:**
-          - Anchor `mainScheme` to the scheme *panel* rect, not the whole zone (the ring is too big today).
-          - Delay the spotlight until the round/phase banner clears.
-          - Put `TRY THIS` only on actionable anchors (action/card), not zones.
-          - Set the gate only on a step change, never per redraw.
-          - Auto-switch phone tabs when `resolved.tab` differs.
-          - Pick lesson-nav keys that don't clash with Board's arrow/Space focus keys.
+              (scenes/board/guide-gate.ts) via `board.setGuideGate(gate | null)`. Escape → `onGateReleased`; 2 inert clicks →
+              `onGateEscaped`. Pause is never gated. Demo at `?screen=board&guidedemo=1`. **For G5c:**
+              - Anchor `mainScheme` to the scheme *panel* rect, not the whole zone (the ring is too big today).
+              - Delay the spotlight until the round/phase banner clears.
+              - Put `TRY THIS` only on actionable anchors (action/card), not zones.
+              - Set the gate only on a step change, never per redraw.
+              - Auto-switch phone tabs when `resolved.tab` differs.
+              - Pick lesson-nav keys that don't clash with Board's arrow/Space focus keys.
+          - Exits landed in `5b6993b2`: both widgets take `onSkip` ("Skip this step") and `onStop` ("Stop tutorial", drawn as ×),
+            a `nudge` line, and Escape always skips. G5c: spell out "STOP TUTORIAL" in the panel's second header row (there's
+            room; a bare × reads as "close this box"). Keep × on the phone callout, and add Pause "Stop tutorial" / "Turn
+            guide off".
 
 **Tutorial**
 
@@ -301,7 +305,7 @@ A fresh Claude session can pick this up from this file alone.
   pointer, and put a screenshot beside its tile.
 - **Commits:** as the repo's git user, with no Claude co-author trailer. Every change carries a changie fragment.
 
-**In flight:** an exits follow-up ("Skip this step" + "Stop tutorial" + Escape contract + `nudge` on `McGuideCallout` / `McGuidePanel`), side by side. If cut off, check `git status` and brief a fresh agent per item. Next: G5c.
+**In flight:** none. Next: G5c (the guide controller on the board). It's big, so split it at brief time: (1) controller + desktop panel path, (2) phone callout path + tab auto-switch, (3) Pause entries + Stop tutorial.
 
 ## 7. Prior art: the parked prototype
 
