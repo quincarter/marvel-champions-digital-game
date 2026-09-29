@@ -10,6 +10,7 @@
 import type { AnyCard, CardId, CoreAspect, Deck } from "@mc/content";
 import { type CardPool, validateDeck } from "@mc/engine";
 import { preconDecks } from "./deck-list-model.js";
+import { cardDisplayName } from "./hero-names.js";
 
 export const ROSTER_SEAT_COUNT = 4;
 
@@ -43,7 +44,7 @@ function identityNameOf(deck: Deck, pool: CardPool): string | null {
   const card = Array.isArray(pool)
     ? pool.find((c) => c.id === deck.identityCardId)
     : (pool as Record<string, AnyCard>)[deck.identityCardId as string];
-  return card?.name ?? null;
+  return card ? cardDisplayName(card) : null;
 }
 
 /** The box's own cast, pre-filled: one precon per `castIdentityIds`, in order, at seats 1..N. Extra seats are empty. */

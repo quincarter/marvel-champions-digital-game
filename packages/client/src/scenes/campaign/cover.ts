@@ -8,6 +8,7 @@ import Phaser from "phaser";
 import { CAMPAIGN_RECORDS } from "../../campaign/campaign-service.js";
 import { campaignDefinitionOf } from "@mc/cards";
 import { CARDS_BY_ID } from "../../content/pool.js";
+import { cardDisplayName } from "../../view/hero-names.js";
 import { ink, surface, typeRole } from "../../tokens.js";
 import {
   bangers,
@@ -34,7 +35,10 @@ import type { CampaignCoverData } from "./routes.js";
 
 const cardOf = (id: string) => CARDS_BY_ID.get(id);
 
-const identityNameOf = (id: string): string => CARDS_BY_ID.get(id)?.name ?? id;
+const identityNameOf = (id: string): string => {
+  const card = CARDS_BY_ID.get(id);
+  return card ? cardDisplayName(card) : id;
+};
 
 export class CampaignCoverScene extends Phaser.Scene {
   #route: FocusRoute | null = null;

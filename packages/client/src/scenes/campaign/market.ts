@@ -25,6 +25,7 @@ import Phaser from "phaser";
 import type { AnyCard } from "@mc/content";
 import type { CampaignChoiceAnswer, CampaignPendingChoice, LogValue } from "@mc/engine";
 import { CARDS_BY_ID, POOL_CARDS } from "../../content/pool.js";
+import { cardDisplayName } from "../../view/hero-names.js";
 import type { CampaignRecord } from "../../engine/campaign-storage.js";
 import { campaignService } from "../../session.js";
 import { ink, signal, surface, typeRole } from "../../tokens.js";
@@ -201,7 +202,8 @@ export class CampaignMarketScene extends Phaser.Scene {
 
   #heroNameOf = (seatNumber: number): string => {
     const seat = this.#record?.seats.find((candidate) => candidate.seatNumber === seatNumber);
-    return seat ? (CARDS_BY_ID.get(seat.identityCardId as string)?.name ?? `Seat ${seatNumber}`) : `Seat ${seatNumber}`;
+    const identity = seat ? CARDS_BY_ID.get(seat.identityCardId as string) : undefined;
+    return identity ? cardDisplayName(identity) : `Seat ${seatNumber}`;
   };
 
   #draw(): void {

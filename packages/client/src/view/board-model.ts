@@ -52,6 +52,7 @@ import { faceVisible } from "./visibility.js";
 import { STATUS_DISABLES } from "../tokens.js";
 import { hpFraction } from "./hp-format.js";
 import type { StatusName } from "./log-lines.js";
+import { heroFaceDisplayName, qualifiedHeroName } from "./hero-names.js";
 import { faceUpName, playerName } from "./names.js";
 
 /** One of the 2px inner stat boxes in the design's entity card. */
@@ -826,8 +827,8 @@ function displayName(state: GameState, instance: CardInstance, card: AnyCard | u
   // can't disagree with `heroFormIndex`.
   if (card.type === "hero_identity") {
     const player = state.players.find((seat) => seat.identity.instanceId === instance.instanceId);
-    if (!player) return card.hero.faceName;
-    return identityFace(state, player).face.faceName;
+    if (!player) return heroFaceDisplayName(card);
+    return qualifiedHeroName(card, identityFace(state, player).face.faceName);
   }
   // Every other double-sided card is named for the face in play too, and only the engine knows which that is: a
   // villain's active side (Risky Business's card is titled "Norman Osborn", but once he flips the table is facing

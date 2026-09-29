@@ -45,14 +45,14 @@ describe("encounterDeckPreviewOf: a Core scenario (Rhino)", () => {
     expect(preview.obligationsShuffledIn).toEqual([
       {
         identityCardId: "01001a",
-        heroName: "Spider-Man",
+        heroName: "Spider-Man (Peter Parker)",
         obligationCardId: "01165",
         obligationName: "Eviction Notice",
       },
     ]);
     expect(preview.nemesisSetsHeldBack).toHaveLength(1);
     const nemesis = preview.nemesisSetsHeldBack[0]!;
-    expect(nemesis.heroName).toBe("Spider-Man");
+    expect(nemesis.heroName).toBe("Spider-Man (Peter Parker)");
     expect(nemesis.setId).toBe("spider_man_nemesis");
     expect(nemesis.setName).toBe("Spider-Man Nemesis");
     expect(nemesis.cardCount).toBeGreaterThan(0);
@@ -68,7 +68,7 @@ describe("encounterDeckPreviewOf: a Core scenario (Rhino)", () => {
     expect(twoPlayerPreview.nemesisSetsHeldBack).toHaveLength(2);
     expect(twoPlayerPreview.obligationsShuffledIn.map((o) => o.heroName).sort()).toEqual([
       "Black Panther",
-      "Spider-Man",
+      "Spider-Man (Peter Parker)",
     ]);
   });
 });

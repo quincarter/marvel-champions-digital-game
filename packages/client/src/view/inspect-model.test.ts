@@ -112,7 +112,7 @@ describe("inspectModel", () => {
       flipped.state.perspectiveId!,
       CORE_DEPS,
     );
-    expect(spidey.name).toBe("Spider-Man");
+    expect(spidey.name).toBe("Spider-Man (Peter Parker)");
     expect(spidey.typeLine).toMatch(/^HERO/);
     expect(spidey.rulesText).toContain("Spider-Sense");
     expect(spidey.stats.map((tile) => tile.label.toLowerCase())).toEqual(expect.arrayContaining(["thw", "atk", "def"]));

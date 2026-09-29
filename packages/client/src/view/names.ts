@@ -17,6 +17,7 @@ import {
   type PlayerId,
   type ViewerContext,
 } from "@mc/engine";
+import { cardDisplayName, heroFaceDisplayName } from "./hero-names.js";
 import { faceVisible } from "./visibility.js";
 
 /**
@@ -50,17 +51,18 @@ export function faceUpName(state: GameState, id: InstanceId): string {
   const card = cardOf(state, id);
   if (card?.type === "hero_identity") {
     const form = state.players.find((player) => player.identity.instanceId === id)?.identity.form;
-    if (form) return form === "hero" ? card.hero.faceName : card.alterEgo.faceName;
+    if (form) return form === "hero" ? heroFaceDisplayName(card) : card.alterEgo.faceName;
   }
   // `currentName` covers the other double-sided cards — a villain's active side, a flipped encounter card.
   return (faceVisible(state, id) ? currentName(state, id) : undefined) ?? cardName(state, id);
 }
 
-/** A seat's name: the identity's card name ("Captain Marvel"), not "player 2". */
+/** A seat's name: the identity's card name ("Captain Marvel", "Spider-Man (Miles Morales)"), not "player 2". */
 export function playerName(state: GameState, id: PlayerId): string {
   const player = getPlayer(state, id);
   if (!player) return id;
-  return cardOf(state, player.identity.instanceId)?.name ?? id;
+  const card = cardOf(state, player.identity.instanceId);
+  return card ? cardDisplayName(card) : id;
 }
 
 /**

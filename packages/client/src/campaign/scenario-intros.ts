@@ -36,7 +36,7 @@ export interface ScenarioIntro {
   readonly page: ComicPage;
 }
 
-const SPIDER_MAN: StorySpeaker = { kind: "hero", identityId: "01001a", name: "Spider-Man" };
+const SPIDER_MAN: StorySpeaker = { kind: "hero", identityId: "01001a", name: "Spider-Man (Peter Parker)" };
 const RHINO: StorySpeaker = { kind: "npc", name: "Rhino" };
 
 const RHINO_INTRO: ScenarioIntro = {
