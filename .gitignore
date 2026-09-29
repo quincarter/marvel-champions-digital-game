@@ -22,3 +22,8 @@ packages/content/scripts/raw/
 # Python bytecode from scripts/
 __pycache__/
 extracted_pngs/
+
+# Playwright e2e output (packages/client/e2e, docs/guided-mode.md §4 G11)
+playwright-report/
+test-results/
+blob-report/
