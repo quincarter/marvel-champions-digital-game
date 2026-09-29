@@ -1073,7 +1073,7 @@ export class CampaignAftermathScene extends Phaser.Scene {
       g.lineStyle(2, surface.paper.hex, 0.35);
       this.#dashed(g, declineRect);
       this.add
-        .text(declineRect.x + declineRect.width / 2, declineRect.y + declineRect.height / 2, "No mark for me", {
+        .text(declineRect.x + declineRect.width / 2, declineRect.y + declineRect.height / 2, column.declineLabel, {
           ...textStyle(typeRole.label, surface.paper.hex, column.decision.kind === "declined" ? ink.body : ink.meta),
           fontStyle: "italic 800",
         })

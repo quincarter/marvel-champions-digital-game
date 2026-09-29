@@ -24,6 +24,7 @@ import {
   answerFor,
   answerForPending,
   continuesGroup,
+  declineLabelOf,
   decideForSeat,
   nextIssueRaisesMarket,
   offersAnswer,
@@ -309,6 +310,25 @@ describe("MC27 node 1's dealt-per-seat S.H.I.E.L.D. Tech choice (sm.reputation.m
       expect(option.effect.toLowerCase()).not.toBe("permanent.");
       expect(option.effect.length).toBeGreaterThan(0);
     }
+  });
+
+  test("decline reads 'Keep none', not MC10's 'No mark for me' — nothing is being marked, three real cards are on offer", async () => {
+    const svc = service();
+    const { record, won } = await seedSmWonGame(svc);
+    const seats = record.seats.map((seat) => ({ seatNumber: seat.seatNumber, heroName: `Seat ${seat.seatNumber}` }));
+    const optionOf = (cardId: CardId) => aftermathOptionOf(cardId, CARDS_BY_ID);
+    const first = await svc.foldState(record, won, [], []);
+    if (first.kind !== "pending") throw new Error("expected the shieldTech choice");
+    const group = startAftermathGroup(first.choice, seats, optionOf);
+    expect(declineLabelOf(group)).toBe("Keep none");
+    const columns = aftermathColumns(group, (seatNumber) => `Seat ${seatNumber}`);
+    expect(columns.every((column) => column.declineLabel === "Keep none")).toBe(true);
+  });
+});
+
+describe("MC10's shared TECH pool keeps its own decline wording ('No mark for me')", () => {
+  test("declineLabelOf is 'No mark for me' for a non-dealt-per-seat group", () => {
+    expect(declineLabelOf({ dealtPerSeat: false })).toBe("No mark for me");
   });
 });
 

@@ -60,6 +60,8 @@ export interface AftermathColumn {
   readonly rows: readonly AftermathOptionRow[];
   readonly decision: AftermathSeatDecision;
   readonly optional: boolean;
+  /** The decline row's own label — see `declineLabelOf`. */
+  readonly declineLabel: string;
 }
 
 export interface AftermathSeat {
@@ -117,6 +119,16 @@ const NO_EXCLUSIVITY_SLOTS: ReadonlySet<string> = new Set(["aspectAdvantage"]);
 
 export function isNoExclusivitySlot(slot: string): boolean {
   return NO_EXCLUSIVITY_SLOTS.has(slot);
+}
+
+/**
+ * The decline row's own wording (MC10's TECH: "No mark for me" — the printed log sheet really does call it a
+ * "mark"; MC27 p. 22's node 1 S.H.I.E.L.D. Tech deal: "Keep none" — nothing is being marked, there are three real
+ * cards on offer and this says the seat keeps none of them). Keyed on `dealtPerSeat` rather than the slot id: any
+ * future box's own dealt-per-seat choice is "keep none" of what it was dealt, the same shape as this one.
+ */
+export function declineLabelOf(group: Pick<AftermathChoiceGroup, "dealtPerSeat">): string {
+  return group.dealtPerSeat ? "Keep none" : "No mark for me";
 }
 
 /** True when `pending` is still asking about the printed choice `group` is already showing. */
@@ -249,7 +261,15 @@ export function aftermathColumns(
         selected: decision.kind === "picked" && decision.cardId === option.cardId,
       };
     });
-    return { seatNumber, heroName: heroNameOf(seatNumber), status, rows, decision, optional: group.optional };
+    return {
+      seatNumber,
+      heroName: heroNameOf(seatNumber),
+      status,
+      rows,
+      decision,
+      optional: group.optional,
+      declineLabel: declineLabelOf(group),
+    };
   });
 }
 
