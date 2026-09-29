@@ -882,6 +882,22 @@ export class McGuidePanel {
     this.#focusables[this.#focusIndex]?.activate();
   }
 
+  /**
+   * Sets keyboard focus directly to `index` (clamped into range; no focusables clears it) rather than stepping
+   * relative to the current one. `BoardGuideMount` (`docs/guided-mode.md` §3.10 fix) owns the *persistent* index
+   * across board redraws — this module's own header explains why a fresh `McGuidePanel` instance is built every
+   * redraw and always starts unfocused (`update()` resets `#focusIndex` to -1) — so the host restores it here right
+   * after each rebuild instead of replaying `focusNext` calls.
+   */
+  focusAt(index: number): void {
+    if (this.#focusables.length === 0) {
+      this.#focusIndex = -1;
+    } else {
+      this.#focusIndex = Math.min(Math.max(index, 0), this.#focusables.length - 1);
+    }
+    this.#drawFocusRing();
+  }
+
   /** The Enter shortcut: fires the primary action directly, regardless of Tab focus. No-op with no primary. */
   activatePrimary(): void {
     if (this.#primaryLabel) this.#options.onPrimary?.();

@@ -60,6 +60,7 @@ import { BoardController } from "./board/controller.js";
 import type { GuideGate } from "./board/guide-gate.js";
 import { BoardGuideMount } from "./board/guide-mount.js";
 import { BoardTipMount } from "./board/tip-mount.js";
+import type { GuideStripContent } from "../ui/guide-strip.js";
 import { TUTORIAL_LESSONS } from "../guide/tutorial-lessons.js";
 import type { LessonObservation } from "../view/lesson-model.js";
 import { drawHand, HandScroll } from "./board/hand.js";
@@ -108,6 +109,18 @@ export class BoardScene extends Phaser.Scene {
   /** Keyboard focus: what is focused, not where — the "where" is re-derived each draw. */
   #focus: FocusTarget | null = null;
   #focusRing: McSelectionRing | null = null;
+  /**
+   * Which surface keyboard/pad focus is currently in (§3.10, §7 accessibility fix — guided mode's rail/callout
+   * and opportunistic tip toast were unreachable by keyboard/pad). "G"/the pad's X toggles between them
+   * (`#actOnIntent`'s own `"toggleGuide"` case); the board's own focus ring (`#drawFocusRing`) only draws while
+   * this is `"board"`, and `#syncGuideFocusRegion` self-heals it back to `"board"` the moment whichever guide
+   * surface owned it stops having anything focusable (the tutorial stopped, a tip was dismissed, …).
+   */
+  #focusRegion: "board" | "guide" = "board";
+  /** Which mount actually owns focus while `#focusRegion === "guide"` — `#guide` (the rail/callout) is preferred
+   * over `#tip` (an opportunistic toast) when both happen to have something focusable, though in practice the two
+   * are mutually exclusive on screen (`#tipBlocked()`). */
+  #guideFocusOwner: "guide" | "tip" | null = null;
   /** Card scans, shared with every overlay above this scene. */
   #artCache: CardArt | null = null;
   #artUnsubscribe: (() => void) | null = null;
@@ -208,6 +221,8 @@ export class BoardScene extends Phaser.Scene {
     this.#logAt.clear();
     this.#tabBadges.clear();
     this.#focus = null;
+    this.#focusRegion = "board";
+    this.#guideFocusOwner = null;
     this.#saveFailureAnnounced = false;
     this.#pendingCampaignBeat = null;
     this.#guide?.destroy();
@@ -674,6 +689,30 @@ export class BoardScene extends Phaser.Scene {
     // callout (when one happens to be up, though `#tipBlocked()` normally keeps a tip from arming at all then)
     // never sits under it.
     this.#tip?.draw(viewport, layout.tabbed, zones.actionBar, this.#tipBlocked());
+    this.#syncGuideFocusRegion();
+  }
+
+  /**
+   * Self-heals `#focusRegion` back to `"board"` the moment whichever guide surface owned keyboard/pad focus no
+   * longer has anything focusable this frame (§3.10, §7 accessibility fix) — the tutorial stopped mid-focus, a
+   * step's controls all disappeared, or a tip toast was dismissed by some other means. Without this, "G" would
+   * silently do nothing (routed to a mount with no live widget to move focus on), and the board's own focus ring
+   * would stay hidden with no way back short of a second, seemingly no-op "G" press.
+   */
+  #syncGuideFocusRegion(): void {
+    if (this.#focusRegion !== "guide") return;
+    const available =
+      this.#guideFocusOwner === "guide"
+        ? (this.#guide?.focusAvailable() ?? false)
+        : this.#guideFocusOwner === "tip"
+          ? (this.#tip?.focusAvailable() ?? false)
+          : false;
+    if (available) return;
+    this.#guide?.exitFocus();
+    this.#tip?.exitFocus();
+    this.#focusRegion = "board";
+    this.#guideFocusOwner = null;
+    this.#drawFocusRing();
   }
 
   #drawTabs(rect: Rect, model: BoardModel): void {
@@ -721,16 +760,22 @@ export class BoardScene extends Phaser.Scene {
   #actOnIntent(intent: GamepadIntent): void {
     switch (intent) {
       case "next":
-        this.#moveFocus(1);
+        if (this.#focusRegion === "guide") this.#moveGuideFocus(1);
+        else this.#moveFocus(1);
         break;
       case "previous":
-        this.#moveFocus(-1);
+        if (this.#focusRegion === "guide") this.#moveGuideFocus(-1);
+        else this.#moveFocus(-1);
         break;
       case "activate":
-        if (this.#focus) this.#controller.activate(this.#focus);
+        if (this.#focusRegion === "guide") this.#activateGuideFocus();
+        else if (this.#focus) this.#controller.activate(this.#focus);
         break;
       case "inspect":
         if (this.#focus?.kind === "card") this.#inspect(this.#focus.instanceId);
+        break;
+      case "toggleGuide":
+        this.#toggleGuideFocus();
         break;
       case "cancel":
         // Escape/B always releases a guided-mode gate first (§3.10, guided mode G4c, "no one should ever feel
@@ -768,6 +813,43 @@ export class BoardScene extends Phaser.Scene {
     this.scene.launch(SCENES.pause);
   }
 
+  /**
+   * "G"/pad-X (§3.10, §7 accessibility fix): moves keyboard/pad focus into whichever guide surface is showing
+   * (the tutorial rail/callout first, else an opportunistic tip toast) and back out to the board. Prefers the
+   * guide mount over the tip mount when both happen to have something focusable, though in practice the two never
+   * both draw at once (`#tipBlocked()`). A press with nothing to focus on either surface is simply a no-op — the
+   * board's own focus never moves, so there's nothing for the player to lose track of.
+   */
+  #toggleGuideFocus(): void {
+    if (this.#focusRegion === "guide") {
+      this.#guide?.exitFocus();
+      this.#tip?.exitFocus();
+      this.#focusRegion = "board";
+      this.#guideFocusOwner = null;
+      this.#drawFocusRing();
+      return;
+    }
+    if (this.#guide?.enterFocus()) {
+      this.#focusRegion = "guide";
+      this.#guideFocusOwner = "guide";
+      this.#drawFocusRing();
+    } else if (this.#tip?.enterFocus()) {
+      this.#focusRegion = "guide";
+      this.#guideFocusOwner = "tip";
+      this.#drawFocusRing();
+    }
+  }
+
+  #moveGuideFocus(direction: 1 | -1): void {
+    if (this.#guideFocusOwner === "guide") this.#guide?.moveFocus(direction);
+    else if (this.#guideFocusOwner === "tip") this.#tip?.moveFocus(direction);
+  }
+
+  #activateGuideFocus(): void {
+    if (this.#guideFocusOwner === "guide") this.#guide?.activateFocused();
+    else if (this.#guideFocusOwner === "tip") this.#tip?.activateFocused();
+  }
+
   #moveFocus(delta: number): void {
     const order = this.#controller.focusOrder();
     const at = order.findIndex((target) => sameTarget(target, this.#focus));
@@ -779,6 +861,10 @@ export class BoardScene extends Phaser.Scene {
   #drawFocusRing(): void {
     this.#focusRing?.destroy();
     this.#focusRing = null;
+    // While focus is in the guide region (§3.10, §7 fix), the board's own ring stays hidden — the guide/tip
+    // widget draws its own ring (`McGuidePanel`/`McGuideCallout`/`McTipToast#focusAt`) so there is never a
+    // visible ring on both surfaces at once.
+    if (this.#focusRegion !== "board") return;
     const focus = this.#focus;
     if (!focus) return;
     // Focus that has fallen off the route (the card was played) is dropped
@@ -954,7 +1040,7 @@ export class BoardScene extends Phaser.Scene {
   /** The compact bottom guide strip's own content (guided mode G7c), for a scene launched above this one on a
    * tabbed layout to draw inside its own overlay rather than covering the callout entirely — see
    * `BoardGuideMount.stripContent`'s own doc comment. `null` off a guided run, same as `guideRailWidth`. */
-  guideStripContent(): { readonly text: string; readonly onSkip: () => void; readonly onStop: () => void } | null {
+  guideStripContent(): GuideStripContent | null {
     return this.#guide?.stripContent() ?? null;
   }
 

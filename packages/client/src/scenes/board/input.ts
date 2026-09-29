@@ -50,6 +50,14 @@ export function bindKeyboard(scene: Phaser.Scene, binding: IntentBinding): void 
       case "I":
         binding.onIntent("inspect");
         break;
+      case "g":
+      case "G":
+        // Guided mode's own focus-region toggle (docs/guided-mode.md §3.10, §7): moves keyboard/pad focus into
+        // whatever guide surface is showing (the rail/callout, the villain-phase/defend guide strip, or an
+        // opportunistic tip toast) and back out to the board. A screen with nothing to focus there just ignores it
+        // (`IntentBinding.onIntent` implementations that never wire a "toggleGuide" case are a no-op).
+        binding.onIntent("toggleGuide");
+        break;
       case "PageDown":
         event.preventDefault();
         binding.onIntent("pageNext");

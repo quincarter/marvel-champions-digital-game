@@ -69,7 +69,7 @@ import { bindHoldTarget } from "../ui/hold-target.js";
 import { destroyChildren } from "../ui/destroy-children.js";
 import { OverlayMotion } from "../ui/transitions.js";
 import { McGuideTag } from "../ui/guide-tag.js";
-import { drawGuideStrip, GUIDE_STRIP_HEIGHT, type GuideStripContent } from "../ui/guide-strip.js";
+import { drawGuideStrip, GUIDE_STRIP_HEIGHT, type GuideStripContent, type GuideStripRects } from "../ui/guide-strip.js";
 
 export class ChoiceOverlay extends Phaser.Scene {
   #selected: string[] = [];
@@ -98,6 +98,10 @@ export class ChoiceOverlay extends Phaser.Scene {
    * already provides its own "look here" via its scrim and layout, so no separate spotlight ring is drawn either.
    */
   #guidePickInstanceId: InstanceId | null = null;
+  /** This draw's own bottom guide strip content, if any (§3.10, §7 accessibility fix) — kept so `#activate` can
+   * fire its Skip/Stop/primary callback from a later keyboard/pad press, not only `drawGuideStrip`'s own pointer
+   * handlers. Set once per `#rebuild`, alongside `#focusRects`. */
+  #guideStrip: GuideStripContent | null = null;
   #focusRing: McSelectionRing | null = null;
   /**
    * Not `#close`d by an X/Back here — most decisions are cancel-less. Instead
@@ -263,6 +267,7 @@ export class ChoiceOverlay extends Phaser.Scene {
     const guideRailWidth = boardScene?.guideRailWidth() ?? 0;
     const guideStrip = isTabbed(formFactor) ? (boardScene?.guideStripContent() ?? null) : null;
     const stripHeight = guideStrip ? GUIDE_STRIP_HEIGHT : 0;
+    this.#guideStrip = guideStrip;
 
     // W6 (docs/phase4-screen-gaps.md): a dedicated presentation for the defend prompt, over the same PendingChoice
     // and answered with the same `resolveChoice` command the bare list below sends — see `#drawDefendChoice`'s own
@@ -460,7 +465,10 @@ export class ChoiceOverlay extends Phaser.Scene {
       );
       this.#drawCommit(sheet, commitTop, choice);
       this.cameras.main.setBackgroundColor(cssOf(accent.heroRed.hex, 0));
-      if (guideStrip) drawGuideStrip(this, { x: 0, y: height - stripHeight, width, height: stripHeight }, guideStrip);
+      const guideStripRects = guideStrip
+        ? drawGuideStrip(this, { x: 0, y: height - stripHeight, width, height: stripHeight }, guideStrip)
+        : null;
+      this.#route = [...this.#route, ...this.#registerGuideStripFocus(guideStripRects)];
       this.#motion.enter(this, { scrim: [scrim], panels: this.children.list.slice(panelsFrom) });
       return;
     }
@@ -517,7 +525,10 @@ export class ChoiceOverlay extends Phaser.Scene {
 
     this.#drawCommit(sheet, commitTop, choice);
     this.cameras.main.setBackgroundColor(cssOf(accent.heroRed.hex, 0));
-    if (guideStrip) drawGuideStrip(this, { x: 0, y: height - stripHeight, width, height: stripHeight }, guideStrip);
+    const guideStripRects = guideStrip
+      ? drawGuideStrip(this, { x: 0, y: height - stripHeight, width, height: stripHeight }, guideStrip)
+      : null;
+    this.#route = [...this.#route, ...this.#registerGuideStripFocus(guideStripRects)];
     this.#motion.enter(this, { scrim: [scrim], panels: this.children.list.slice(panelsFrom) });
   }
 
@@ -778,7 +789,10 @@ export class ChoiceOverlay extends Phaser.Scene {
     this.#drawFocusRing();
 
     this.cameras.main.setBackgroundColor(cssOf(accent.heroRed.hex, 0));
-    if (guideStrip) drawGuideStrip(this, { x: 0, y: height - stripHeight, width, height: stripHeight }, guideStrip);
+    const guideStripRects = guideStrip
+      ? drawGuideStrip(this, { x: 0, y: height - stripHeight, width, height: stripHeight }, guideStrip)
+      : null;
+    this.#route = [...this.#route, ...this.#registerGuideStripFocus(guideStripRects)];
     this.#motion.enter(this, { scrim: [scrim], panels: this.children.list.slice(panelsFrom) });
   }
 
@@ -1163,6 +1177,20 @@ export class ChoiceOverlay extends Phaser.Scene {
       }
       return;
     }
+    // The bottom guide strip's own controls (§3.10, §7 accessibility fix) — `#guideStrip` is this same draw's
+    // content, set alongside `#focusRects` in `#rebuild`/`#drawDefendChoice`.
+    if (focus.kind === "guideSkip") {
+      this.#guideStrip?.onSkip();
+      return;
+    }
+    if (focus.kind === "guideStop") {
+      this.#guideStrip?.onStop();
+      return;
+    }
+    if (focus.kind === "guidePrimary") {
+      this.#guideStrip?.onPrimary?.();
+      return;
+    }
     if (canConfirmChoice(choice, this.#selected.length)) void this.#confirm();
   }
 
@@ -1178,6 +1206,25 @@ export class ChoiceOverlay extends Phaser.Scene {
       instanceId,
       choice: { optionId, label: this.#selected.includes(optionId) ? "Deselect" : "Select" },
     });
+  }
+
+  /**
+   * Registers the bottom guide strip's own controls (§3.10, §7 accessibility fix) as focus stops, and returns
+   * the route tail to append after the sheet's own `choiceFocusOrder` — shared by all three draw paths
+   * (`#rebuild`'s asCards/list branches, `#drawDefendChoice`). `rects` is `drawGuideStrip`'s own return, `null`
+   * when no strip drew this frame at all.
+   */
+  #registerGuideStripFocus(rects: GuideStripRects | null): readonly ChoiceFocusTarget[] {
+    if (!rects) return [];
+    this.#focusRects.set(choiceFocusKey({ kind: "guideSkip" }), rects.skip);
+    this.#focusRects.set(choiceFocusKey({ kind: "guideStop" }), rects.stop);
+    const tail: ChoiceFocusTarget[] = [];
+    if (rects.primary) {
+      this.#focusRects.set(choiceFocusKey({ kind: "guidePrimary" }), rects.primary);
+      tail.push({ kind: "guidePrimary" });
+    }
+    tail.push({ kind: "guideSkip" }, { kind: "guideStop" });
+    return tail;
   }
 
   /** Static, not pulsing: the ring says "here you are", not "act now" — the Board's convention. */

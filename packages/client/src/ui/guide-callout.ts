@@ -504,6 +504,20 @@ export class McGuideCallout {
     this.#focusables[this.#focusIndex]?.activate();
   }
 
+  /**
+   * Sets keyboard focus directly to `index` (clamped into range; no focusables clears it) — mirrors
+   * `McGuidePanel#focusAt`'s own doc comment: `BoardGuideMount` owns the persistent focus index across board
+   * redraws, since this widget is rebuilt fresh every redraw and `update()` always resets `#focusIndex` to -1.
+   */
+  focusAt(index: number): void {
+    if (this.#focusables.length === 0) {
+      this.#focusIndex = -1;
+    } else {
+      this.#focusIndex = Math.min(Math.max(index, 0), this.#focusables.length - 1);
+    }
+    this.#drawFocusRing();
+  }
+
   /** The Enter shortcut: fires the primary action directly, regardless of Tab focus. No-op with no primary. */
   activatePrimary(): void {
     if (this.#primaryLabel) this.#options.onPrimary?.();

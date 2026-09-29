@@ -56,6 +56,11 @@ export class BoardTipMount {
   /** `blocked` as of the last `pollBlocked` call — see that method's own doc comment. Starts `true` so a tip
    * that happens to arm while the board is still mid-setup never fires a spurious redraw on its very first poll. */
   #lastBlocked = true;
+  /** The keyboard/pad focus-region state (§3.10, §7 accessibility fix) — mirrors `BoardGuideMount`'s own fields
+   * and reasoning: `McTipToast` is rebuilt fresh every draw and always starts unfocused, so the persistent index
+   * lives here and is reapplied after every rebuild (`#applyRegionFocus`). */
+  #regionActive = false;
+  #regionFocusIndex = -1;
 
   constructor(scene: BoardScene, deps: EngineDeps = POOL_DEPS) {
     this.#scene = scene;
@@ -119,7 +124,14 @@ export class BoardTipMount {
     this.#lastToast = null;
     if (!this.#displayed || blocked) return;
     const layout = boardLayout(viewport, { playerCount: 1 });
-    const content: McTipToastContent = { title: this.#displayed.title, body: this.#displayed.body };
+    const content: McTipToastContent = {
+      title: this.#displayed.title,
+      body: this.#displayed.body,
+      // The guide's own focus-region key hint (§3.10, §7 fix), same "only when nothing else needs the slot and
+      // this surface isn't already focused" rule `BoardGuideMount#withFocusHint` uses — this toast has no
+      // gate-escape nudge of its own to compete with, so the only guard here is `#regionActive`.
+      hint: this.#regionActive ? null : "Press G (or the gamepad's X) to reach this toast's own buttons by keyboard.",
+    };
     const toast = new McTipToast(this.#scene, {
       onGotIt: () => this.#act(() => this.dismiss()),
       onClose: () => this.#act(() => this.dismiss()),
@@ -127,6 +139,7 @@ export class BoardTipMount {
     });
     toast.update(content, viewport, tabbed, layout.zones.hand!, layout.zones.playArea);
     this.#lastToast = toast;
+    if (this.#regionActive) this.#applyRegionFocus();
   }
 
   /**
@@ -154,6 +167,48 @@ export class BoardTipMount {
   /** Headless click-through hook only: this frame's toast rects, or `null` when nothing drew. */
   debugRects(): { readonly focusables: readonly Rect[]; readonly tooltipLink: Rect | null } | null {
     return this.#lastToast?.debugRects() ?? null;
+  }
+
+  /** True while this frame's toast has at least one keyboard-focusable control — mirrors
+   * `BoardGuideMount#focusAvailable`'s own doc comment, same reasoning. */
+  focusAvailable(): boolean {
+    return (this.#lastToast?.debugRects().focusables.length ?? 0) > 0;
+  }
+
+  /** "G"/pad-X moving focus *into* the toast (§3.10, §7 fix). Returns whether there was anything to focus. */
+  enterFocus(): boolean {
+    if (!this.focusAvailable()) return false;
+    this.#regionActive = true;
+    this.#regionFocusIndex = 0;
+    this.#applyRegionFocus();
+    return true;
+  }
+
+  /** "G"/pad-X moving focus back out to the board, or the board's own self-heal once the toast disappears. */
+  exitFocus(): void {
+    this.#regionActive = false;
+    this.#regionFocusIndex = -1;
+    this.#lastToast?.blur();
+  }
+
+  /** Tab/Shift+Tab or an arrow key, while the toast owns focus — a no-op otherwise. */
+  moveFocus(direction: 1 | -1): void {
+    if (!this.#regionActive) return;
+    const count = this.#lastToast?.debugRects().focusables.length ?? 0;
+    if (count === 0) return;
+    const from = this.#regionFocusIndex < 0 ? 0 : this.#regionFocusIndex;
+    this.#regionFocusIndex = (((from + direction) % count) + count) % count;
+    this.#applyRegionFocus();
+  }
+
+  /** Enter/A, while the toast owns focus — activates whichever control focus is currently on. */
+  activateFocused(): void {
+    if (!this.#regionActive) return;
+    this.#lastToast?.activateFocused();
+  }
+
+  #applyRegionFocus(): void {
+    this.#lastToast?.focusAt(this.#regionFocusIndex);
   }
 
   #act(fn: () => void): void {

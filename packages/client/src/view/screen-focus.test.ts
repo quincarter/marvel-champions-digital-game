@@ -324,6 +324,17 @@ describe("screen focus routes", () => {
     expect(villainPhaseFocusOrder(false, [])).toEqual(["skip"]);
   });
 
+  test("the guide strip's own controls (§3.10, §7 accessibility fix) come last, after Skip", () => {
+    expect(villainPhaseFocusOrder(false, [], { hasPrimary: false })).toEqual(["skip", "guide-skip", "guide-stop"]);
+    expect(villainPhaseFocusOrder(false, [], { hasPrimary: true })).toEqual([
+      "skip",
+      "guide-primary",
+      "guide-skip",
+      "guide-stop",
+    ]);
+    expect(villainPhaseFocusOrder(true, [])).toEqual(["continue", "skip"]);
+  });
+
   test("Pause (phone) reads close, search, quick reference rows, table rows, then the footer's three buttons", () => {
     expect(
       pauseFocusOrder({ kind: "phone", quickReferenceIds: [], tableRowIds: [], confirmingConcede: false }),

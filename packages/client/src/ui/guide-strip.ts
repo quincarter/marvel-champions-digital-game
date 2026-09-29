@@ -39,9 +39,20 @@ export interface GuideStripContent {
   readonly primaryLabel?: string;
 }
 
+/** The strip's own controls' on-screen rects (§3.10, §7 accessibility fix) — the host scene (`scenes/villain-
+ * phase.ts`, `scenes/choice.ts`) registers these as its own `FocusStop`s/route targets so Tab/arrows and Enter/A
+ * can reach Skip/Stop/the primary button, not just Escape (which already skipped the step before this fix). */
+export interface GuideStripRects {
+  readonly skip: Rect;
+  readonly stop: Rect;
+  /** Only present when `GuideStripContent.onPrimary` was set. */
+  readonly primary: Rect | null;
+}
+
 /** Draws the strip at `rect` into `scene`'s current display list — every object it creates is torn down the same
- * way the rest of that scene's own redraw already tears its children down, so nothing here outlives one frame. */
-export function drawGuideStrip(scene: Phaser.Scene, rect: Rect, content: GuideStripContent): void {
+ * way the rest of that scene's own redraw already tears its children down, so nothing here outlives one frame.
+ * Returns each control's own rect (`GuideStripRects`) for the host's own focus route. */
+export function drawGuideStrip(scene: Phaser.Scene, rect: Rect, content: GuideStripContent): GuideStripRects {
   const g = scene.add.graphics();
   g.fillStyle(signal.caution.hex, 1).fillRect(rect.x, rect.y, rect.width, rect.height);
   g.lineStyle(border.object, surface.ink.hex, 1);
@@ -98,6 +109,7 @@ export function drawGuideStrip(scene: Phaser.Scene, rect: Rect, content: GuideSt
   // #onPrimary`'s own doc comment). Drawn as a filled ink pill (unlike Skip/Stop's plain text) so it reads as the
   // strip's one affirmative action, left of Skip/Stop.
   let primaryX = skipX;
+  let primaryRect: Rect | null = null;
   if (content.onPrimary && content.primaryLabel) {
     // Measured before anything is drawn (same reasoning as the `GUIDE` stamp above), so the fill can be drawn
     // *before* the label — draw order is z-order here (`scene.add.*` stacks in call order), and the fill has to
@@ -123,6 +135,7 @@ export function drawGuideStrip(scene: Phaser.Scene, rect: Rect, content: GuideSt
       .setOrigin(0, 0)
       .setInteractive({ useHandCursor: true });
     primaryZone.on("pointerup", () => content.onPrimary?.());
+    primaryRect = { x: primaryX, y: rect.y, width: primaryWidth, height: rect.height };
   }
 
   const textX = rect.x + pad + stampWidth + 10;
@@ -132,4 +145,10 @@ export function drawGuideStrip(scene: Phaser.Scene, rect: Rect, content: GuideSt
     .setOrigin(0, 0.5)
     .setWordWrapWidth(textWidth)
     .setMaxLines(3);
+
+  return {
+    stop: { x: rect.x + rect.width - pad - stopWidth, y: rect.y, width: stopWidth, height: rect.height },
+    skip: { x: skipX, y: rect.y, width: skipWidth, height: rect.height },
+    primary: primaryRect,
+  };
 }

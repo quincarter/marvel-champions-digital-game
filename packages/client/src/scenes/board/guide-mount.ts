@@ -93,6 +93,14 @@ const VILLAIN_ROW_LABELS: readonly string[] = ["Plan advances", "Rhino attacks y
 const THWART_STEP_ID = "thwart";
 
 /**
+ * The keyboard/pad focus-region hint (§3.10, §7 accessibility fix): shown in the rail/callout's own `nudge` slot
+ * whenever nothing else is already using it and keyboard focus isn't already on this surface, so a player who
+ * hasn't discovered "G" yet is told about it without a second, competing line of small text — `#panelContentOf`/
+ * `#calloutHintOf` only ever fill this in when `view.panel.nudge` (G5c's own gate-escape line) is null.
+ */
+const FOCUS_REGION_HINT = "Press G (or the gamepad's X) to reach this panel's own buttons by keyboard.";
+
+/**
  * Lesson 4's own rail extra rows (guided mode G7c): the villain phase's three steps, in order, with the current
  * one highlighted — read straight off the engine's own `GameState.step`, never re-derived, so the rail always
  * agrees with whatever the villain-phase walkthrough is narrating on the same frame. `null` for every step but
@@ -203,6 +211,15 @@ export class BoardGuideMount {
    * again on every later round for the rest of the game (`docs/guided-mode.md` §4 G8 part 2: "while the tutorial
    * still has lessons left (or on the round where the last lesson completes)"). */
   #firedCompleteDebrief = false;
+  /**
+   * The keyboard/pad focus-region state (§3.10, §7 accessibility fix): true while `BoardScene`'s own "G"/pad-X
+   * toggle has moved focus onto this mount's own rail/callout. Plain mount-owned state, like `#collapsed` — the
+   * widget itself is rebuilt fresh every draw (this module's own header) and always starts unfocused, so the
+   * *persistent* index has to live here and be reapplied after every rebuild (`#applyRegionFocus`).
+   */
+  #regionActive = false;
+  /** The persisted focus index within whichever surface is current — see `#regionActive`'s own doc comment. */
+  #regionFocusIndex = -1;
 
   constructor(
     scene: BoardScene,
@@ -352,6 +369,62 @@ export class BoardGuideMount {
     return this.#controller.view().step !== null;
   }
 
+  /**
+   * True while this frame's rail or callout has at least one keyboard-focusable control — `BoardScene` reads this
+   * to decide whether "G" has anything to move focus onto, and to self-heal back to the board's own focus region
+   * the moment the surface disappears out from under an active region focus (a step change with no controls, the
+   * tutorial stopping mid-focus, …).
+   */
+  focusAvailable(): boolean {
+    return (
+      (this.#lastPanel?.debugRects().focusables.length ?? 0) > 0 ||
+      (this.#lastCallout?.debugRects().focusables.length ?? 0) > 0
+    );
+  }
+
+  /** "G"/pad-X moving focus *into* this surface (§3.10, §7 fix). Returns whether there was anything to focus. */
+  enterFocus(): boolean {
+    if (!this.focusAvailable()) return false;
+    this.#regionActive = true;
+    this.#regionFocusIndex = 0;
+    this.#applyRegionFocus();
+    return true;
+  }
+
+  /** "G"/pad-X moving focus *out* of this surface, back to the board — also called by `BoardScene`'s own
+   * self-heal when the surface this mount was focused on disappears. */
+  exitFocus(): void {
+    this.#regionActive = false;
+    this.#regionFocusIndex = -1;
+    this.#lastPanel?.blur();
+    this.#lastCallout?.blur();
+  }
+
+  /** Tab/Shift+Tab or an arrow key, while this surface owns focus — a no-op otherwise. */
+  moveFocus(direction: 1 | -1): void {
+    if (!this.#regionActive) return;
+    const count =
+      this.#lastPanel?.debugRects().focusables.length ?? this.#lastCallout?.debugRects().focusables.length ?? 0;
+    if (count === 0) return;
+    const from = this.#regionFocusIndex < 0 ? 0 : this.#regionFocusIndex;
+    this.#regionFocusIndex = (((from + direction) % count) + count) % count;
+    this.#applyRegionFocus();
+  }
+
+  /** Enter/A, while this surface owns focus — activates whichever control focus is currently on. */
+  activateFocused(): void {
+    if (!this.#regionActive) return;
+    this.#lastPanel?.activateFocused();
+    this.#lastCallout?.activateFocused();
+  }
+
+  /** Reapplies `#regionFocusIndex` to whichever widget instance is live this frame — called both right after a
+   * fresh rebuild (`draw()`) and from `enterFocus`/`moveFocus` themselves. */
+  #applyRegionFocus(): void {
+    this.#lastPanel?.focusAt(this.#regionFocusIndex);
+    this.#lastCallout?.focusAt(this.#regionFocusIndex);
+  }
+
   /** Headless click-through hook only (never referenced by product code, JSON-safe): the current step's own id,
    * or `null` with nothing current (including the waiting/complete states — mirrors every other `?screen=…demo`
    * scene's own `__mc*Debug` accessor). */
@@ -490,8 +563,9 @@ export class BoardGuideMount {
         width: this.railOptionFor(viewport)?.width ?? 0,
         height: viewport.height - chromeHeight,
       };
-      panel.update(view.panel, railRect);
+      panel.update(this.#withFocusHint(view.panel), railRect);
       this.#lastPanel = panel;
+      if (this.#regionActive) this.#applyRegionFocus();
     } else if (tabbed && view.active && view.panel) {
       // Assigned directly here, in `draw()`'s own scope (mirroring `#lastPanel` just above), rather than inside
       // `#drawCallout` itself — TS's own narrowing of a private field only reliably tracks assignments made in the
@@ -508,6 +582,7 @@ export class BoardGuideMount {
         ? { ...viewport, height: layout.zones.hand.y - viewport.y }
         : viewport;
       this.#lastCallout = this.#drawCallout(view, resolved, calloutViewport);
+      if (this.#regionActive) this.#applyRegionFocus();
     }
 
     this.#drawSpotlight(view.anchor, resolved, view.tagVariant, viewport);
@@ -597,11 +672,21 @@ export class BoardGuideMount {
       onStopCancel: () => this.#act(() => (this.#stopConfirming = false)),
     });
     callout.update(
-      { ...calloutContentOf(view.panel, Boolean(view.panel.backLabel)), confirmingStop: this.#stopConfirming },
+      {
+        ...this.#withFocusHint(calloutContentOf(view.panel, Boolean(view.panel.backLabel))),
+        confirmingStop: this.#stopConfirming,
+      },
       anchorRect,
       viewport,
     );
     return callout;
+  }
+
+  /** Fills a step's own `nudge` slot with the guide's focus-region key hint (`FOCUS_REGION_HINT`'s own doc
+   * comment) whenever nothing else is already using it and this surface isn't already keyboard-focused. */
+  #withFocusHint<T extends { readonly nudge?: string | null }>(content: T): T {
+    if (content.nudge || this.#regionActive) return content;
+    return { ...content, nudge: FOCUS_REGION_HINT };
   }
 
   #drawSpotlight(

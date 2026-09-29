@@ -625,10 +625,29 @@ export class VillainPhaseOverlay extends Phaser.Scene {
 
     // Last, so the focus ring sits over the button it frames.
     if (finished) stops.set("continue", { rect: layout.footer, activate: () => this.#close() });
-    this.#route?.set(villainPhaseFocusOrder(finished, inline?.map((o) => o.optionId) ?? []), stops);
 
-    // The bottom guide strip (guided mode G7c), drawn last so it sits over everything else this frame put down.
-    if (guideStrip) drawGuideStrip(this, { x: 0, y: height - stripHeight, width, height: stripHeight }, guideStrip);
+    // The bottom guide strip (guided mode G7c), drawn last so it sits over everything else this frame put down —
+    // and its own controls registered as focus stops (§3.10, §7 accessibility fix), after Skip, so Tab/arrows and
+    // Enter/A can reach Skip this step/Stop tutorial/Got it, not just Escape (which already skipped this screen's
+    // own step before this fix).
+    const guideStripRects = guideStrip
+      ? drawGuideStrip(this, { x: 0, y: height - stripHeight, width, height: stripHeight }, guideStrip)
+      : null;
+    if (guideStripRects) {
+      stops.set("guide-skip", { rect: guideStripRects.skip, activate: () => guideStrip!.onSkip() });
+      stops.set("guide-stop", { rect: guideStripRects.stop, activate: () => guideStrip!.onStop() });
+      if (guideStripRects.primary) {
+        stops.set("guide-primary", { rect: guideStripRects.primary, activate: () => guideStrip!.onPrimary?.() });
+      }
+    }
+    this.#route?.set(
+      villainPhaseFocusOrder(
+        finished,
+        inline?.map((o) => o.optionId) ?? [],
+        guideStrip ? { hasPrimary: Boolean(guideStrip.onPrimary) } : undefined,
+      ),
+      stops,
+    );
 
     // Headless click-through hook only (never referenced by product code) — mirrors `scenes/board.ts`'s own
     // `__mcBoardDebug`, so a script can find the footer "Continue" button's real screen rect instead of a

@@ -211,16 +211,24 @@ export function deckCheckFocusOrder(input: DeckCheckFocusInput): readonly string
  * resolve" come right after — the decision the player is actually there to
  * make — ahead of Skip, which never coexists with "finished" (a paused phase
  * hasn't finished).
+ *
+ * `guideStrip` (§3.10, §7 accessibility fix): the bottom guide strip's own controls (`ui/guide-strip.ts`), when
+ * one is drawn over this screen — last in the route, after Skip, since the strip is a guest of this screen (the
+ * tutorial's own step, narrated on top of the walkthrough it's currently teaching), not the walkthrough's own
+ * primary business. `"guide-primary"` only contributes a stop when the strip actually drew one (an acknowledge
+ * step with nothing else to advance it — `ui/guide-strip.ts#GuideStripContent.onPrimary`'s own doc comment).
  */
 export function villainPhaseFocusOrder(
   finished: boolean,
   interruptOptionIds: readonly string[] = [],
+  guideStrip?: { readonly hasPrimary: boolean },
 ): readonly string[] {
   return [
     ...(finished ? ["continue"] : []),
     ...interruptOptionIds.map((id) => `interrupt:${id}`),
     ...(interruptOptionIds.length > 0 ? ["resolve"] : []),
     "skip",
+    ...(guideStrip ? [...(guideStrip.hasPrimary ? ["guide-primary"] : []), "guide-skip", "guide-stop"] : []),
   ];
 }
 

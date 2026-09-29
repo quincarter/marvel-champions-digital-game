@@ -41,6 +41,10 @@ export interface McTipToastContent {
   readonly title: string;
   /** `McTermText` markup — see `view/term-text-model.ts`'s header for `[[id]]` / `[[id|label]]`. */
   readonly body: string;
+  /** A small line above "Turn tips off"/"Got it" — `BoardTipMount` fills it with the guide's own focus-region
+   * key hint (docs/guided-mode.md §3.10 fix) whenever keyboard focus isn't already on this toast. Omit/null to
+   * hide it. */
+  readonly hint?: string | null;
 }
 
 export interface McTipToastOptions {
@@ -62,12 +66,15 @@ export class McTipToast {
   #objects: Phaser.GameObjects.GameObject[] = [];
   #body: McTermText | null = null;
   #focusables: { readonly rect: Rect; readonly activate: () => void }[] = [];
+  #focusIndex = -1;
+  readonly #focusRing: Phaser.GameObjects.Graphics;
 
   constructor(scene: Phaser.Scene, options: McTipToastOptions) {
     this.#scene = scene;
     this.#options = options;
     this.container = scene.add.container(0, 0);
     this.#tooltip = new McTooltip(scene);
+    this.#focusRing = scene.add.graphics();
   }
 
   /**
@@ -113,11 +120,21 @@ export class McTipToast {
     const turnOffLabel = scene.add.text(0, 0, "TURN TIPS OFF", textStyle(STAMP_TYPE, surface.ink.hex, 0.75));
     const turnOffUnderline = scene.add.graphics();
 
+    // A small hint line above the button row (`McTipToastContent.hint`'s own doc comment) — same styling as
+    // `McGuideCallout`'s own `nudge` line, which this mirrors.
+    const hintText = content.hint
+      ? scene.add
+          .text(0, 0, content.hint, { ...textStyle({ ...typeRole.body, size: 11 }, surface.ink.hex, 0.7) })
+          .setWordWrapWidth(innerWidth, true)
+      : null;
+    const hintHeight = hintText ? hintText.height + 8 : 0;
+
     // --- Measure total height. ---
     let y = pad;
     y += stampHeight + 8;
     y += title.height + 8;
     y += body.height + 14;
+    y += hintHeight;
     y += hit.target;
     y += pad;
     const height = y;
@@ -153,6 +170,12 @@ export class McTipToast {
     objects.push(body.container);
     cy += body.height + 14;
 
+    if (hintText) {
+      hintText.setPosition(rect.x + pad, cy);
+      objects.push(hintText);
+      cy += hintText.height + 8;
+    }
+
     turnOffLabel.setPosition(rect.x + pad, cy + hit.target / 2 - turnOffLabel.height / 2);
     turnOffUnderline
       .lineStyle(1, surface.ink.hex, 0.75)
@@ -183,8 +206,11 @@ export class McTipToast {
     focusables.push({ rect: gotItRect, activate: () => this.#options.onGotIt() });
 
     this.#focusables = focusables;
+    this.#focusIndex = -1;
+    this.#focusRing.clear();
     this.#objects = objects;
     this.container.add(objects);
+    this.container.add(this.#focusRing);
     this.#scene.children.bringToTop(this.container);
   }
 
@@ -215,6 +241,45 @@ export class McTipToast {
     return true;
   }
 
+  /** Tab-cycles the toast's own controls (×, "Turn tips off", "Got it") — mirrors `McGuideCallout#focusNext`. */
+  focusNext(direction: 1 | -1 = 1): boolean {
+    if (this.#focusables.length === 0) return false;
+    this.#focusIndex = (this.#focusIndex + direction + this.#focusables.length) % this.#focusables.length;
+    this.#drawFocusRing();
+    return true;
+  }
+
+  /** Activates whichever control keyboard focus (`focusNext`/`focusAt`) is currently on, if any. */
+  activateFocused(): void {
+    this.#focusables[this.#focusIndex]?.activate();
+  }
+
+  /** Sets keyboard focus directly to `index` — mirrors `McGuidePanel#focusAt`'s own doc comment: `BoardTipMount`
+   * owns the persistent index across board redraws, since this widget is rebuilt fresh every redraw. */
+  focusAt(index: number): void {
+    if (this.#focusables.length === 0) {
+      this.#focusIndex = -1;
+    } else {
+      this.#focusIndex = Math.min(Math.max(index, 0), this.#focusables.length - 1);
+    }
+    this.#drawFocusRing();
+  }
+
+  /** Clears keyboard focus and its ring. */
+  blur(): void {
+    this.#focusIndex = -1;
+    this.#focusRing.clear();
+  }
+
+  #drawFocusRing(): void {
+    this.#focusRing.clear();
+    const target = this.#focusables[this.#focusIndex];
+    if (!target) return;
+    this.#focusRing
+      .lineStyle(border.control, surface.ink.hex, 1)
+      .strokeRect(target.rect.x - 3, target.rect.y - 3, target.rect.width + 6, target.rect.height + 6);
+  }
+
   #teardown(): void {
     for (const object of this.#objects) object.destroy();
     this.#objects = [];
@@ -225,6 +290,7 @@ export class McTipToast {
   destroy(): void {
     this.#teardown();
     this.#tooltip.destroy();
+    this.#focusRing.destroy();
     this.container.destroy(true);
   }
 }
