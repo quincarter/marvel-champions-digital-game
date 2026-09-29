@@ -171,6 +171,25 @@ describe("frozenDeckModelOf", () => {
     expect(row.label).toBe("Market cards");
     expect(row.sublabel).toBe("Buy more between issues.");
   });
+
+  it("On the Enhanced side, not 'Flipped to <front name>' — MC27's flip targets share the front's printed name", () => {
+    const model = frozenDeckModelOf(
+      baseInput({
+        editModel: editModelWith("16150"),
+        grants: [
+          {
+            cardId: cardId("16150"),
+            permanence: "campaign",
+            grantedAtNodeId: "brotherhood-of-badoon",
+            face: "Brainstorm",
+          },
+        ],
+      }),
+    );
+    const row = model.campaignCards[0]!;
+    expect(row.note).toMatch(/^On its Enhanced side\./);
+    expect(row.note).not.toMatch(/Flipped to/);
+  });
 });
 
 describe("frozenDeckModelOf — a box with no Market (SM)", () => {

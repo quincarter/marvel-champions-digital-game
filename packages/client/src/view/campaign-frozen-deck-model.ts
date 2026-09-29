@@ -133,6 +133,19 @@ function cardNameOf(pool: readonly AnyCard[], cardId: CardId): string {
   return pool.find((card) => (card.id as string) === (cardId as string))?.name ?? (cardId as string);
 }
 
+/**
+ * "On its Enhanced side" rather than "Flipped to Shock Knuckles": MC27 p. 22's flip target usually shares its
+ * front's printed name (`SHIELD_TECH` in `campaigns/sm.ts`), so naming the face by the card's own name reads as if
+ * nothing changed. Prefers the flip side's own `subtitle` when the data carries one, falling back to "Enhanced"
+ * (the only face name MC27's own flips use) rather than the stored `face` value, which is a name, not a face label.
+ */
+function faceNoteOf(pool: readonly AnyCard[], cardId: CardId, face: string | null | undefined): string {
+  if (!face) return "";
+  const card = pool.find((candidate) => (candidate.id as string) === (cardId as string));
+  const subtitle = (card as { readonly flipSide?: { readonly subtitle?: string } } | undefined)?.flipSide?.subtitle;
+  return `On its ${subtitle ?? "Enhanced"} side. `;
+}
+
 function marketStatusOf(input: FrozenDeckModelInput): FrozenDeckMarketStatus {
   if (input.nextPending) {
     return isMarketPendingChoice(input.nextPending, input.cardOf)
@@ -210,10 +223,7 @@ export function frozenDeckModelOf(input: FrozenDeckModelInput): FrozenDeckModel 
     const boughtIssueNumber = nodeIds.includes(grant.grantedAtNodeId)
       ? issueNumberOf(nodeIds, grant.grantedAtNodeId)
       : null;
-    // MC27 p. 22's Enhanced side (`setGrantFace`, `CampaignGrant.face`) reads as its own note line rather than
-    // folding into `name` — the face's own name is usually identical to the front's (S.H.I.E.L.D. Tech), so a
-    // reader needs the flip called out in words, not just a name that looks unchanged.
-    const faceNote = grant.face ? `Flipped to ${grant.face}. ` : "";
+    const faceNote = faceNoteOf(input.pool, grant.cardId, grant.face);
     return {
       cardId: grant.cardId,
       name: cardNameOf(input.pool, grant.cardId),
