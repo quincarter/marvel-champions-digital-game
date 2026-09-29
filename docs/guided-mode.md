@@ -159,18 +159,18 @@ The main session verifies UI boxes by clicking through them before ticking (§6)
       with input gated per §3.10, plus the `TRY THIS` and `GUIDE PICK` tags.
 
       Landed: `d80f0796`. `resolveAnchor` (view/guide-anchor.ts), `McGuideSpotlight`, `McGuideTag`, and `GuideGateHolder`
-                                  (scenes/board/guide-gate.ts) via `board.setGuideGate(gate | null)`. Escape → `onGateReleased`; 2 inert clicks →
-                                  `onGateEscaped`. Pause is never gated. Demo at `?screen=board&guidedemo=1`. **For G5c:**
-                                  - Anchor `mainScheme` to the scheme *panel* rect, not the whole zone (the ring is too big today).
-                                  - Delay the spotlight until the round/phase banner clears.
-                                  - Put `TRY THIS` only on actionable anchors (action/card), not zones.
-                                  - Set the gate only on a step change, never per redraw.
-                                  - Auto-switch phone tabs when `resolved.tab` differs.
-                                  - Pick lesson-nav keys that don't clash with Board's arrow/Space focus keys.
-                              - Exits landed in `5b6993b2`: both widgets take `onSkip` ("Skip this step") and `onStop` ("Stop tutorial", drawn as ×),
-                                a `nudge` line, and Escape always skips. G5c: spell out "STOP TUTORIAL" in the panel's second header row (there's
-                                room; a bare × reads as "close this box"). Keep × on the phone callout, and add Pause "Stop tutorial" / "Turn
-                                guide off".
+                                      (scenes/board/guide-gate.ts) via `board.setGuideGate(gate | null)`. Escape → `onGateReleased`; 2 inert clicks →
+                                      `onGateEscaped`. Pause is never gated. Demo at `?screen=board&guidedemo=1`. **For G5c:**
+                                      - Anchor `mainScheme` to the scheme *panel* rect, not the whole zone (the ring is too big today).
+                                      - Delay the spotlight until the round/phase banner clears.
+                                      - Put `TRY THIS` only on actionable anchors (action/card), not zones.
+                                      - Set the gate only on a step change, never per redraw.
+                                      - Auto-switch phone tabs when `resolved.tab` differs.
+                                      - Pick lesson-nav keys that don't clash with Board's arrow/Space focus keys.
+                                  - Exits landed in `5b6993b2`: both widgets take `onSkip` ("Skip this step") and `onStop` ("Stop tutorial", drawn as ×),
+                                    a `nudge` line, and Escape always skips. G5c: spell out "STOP TUTORIAL" in the panel's second header row (there's
+                                    room; a bare × reads as "close this box"). Keep × on the phone callout, and add Pause "Stop tutorial" / "Turn
+                                    guide off".
 
 **Tutorial**
 
@@ -199,7 +199,8 @@ The main session verifies UI boxes by clicking through them before ticking (§6)
       all route here. Split it at brief time: (1) hub screen + progress model, (2) replay-to-lesson start.
 - [ ] **G7a Lesson 2: Hero & alter-ego.**
 - [ ] **G7b Lesson 3: Paying for cards** (over the existing payment bar).
-- [ ] **G7c Lesson 4: The villain phase** (villain-phase overlay steps + `GUIDE PICK` on the defend sheet).
+- [x] **G7c Lesson 4: The villain phase** (villain-phase overlay steps + `GUIDE PICK` on the defend sheet).
+      Landed: `28ffbb40` + `b2fe58da`. The overlays inset by the rail; a live "This villain phase" checklist in the rail; the phone `ui/guide-strip.ts`; the phase band no longer covers the rail; the phone defend-sheet overlap is fixed (it also affected non-guided games). Polish idea: in guided runs, add a "Your HP after" line to each defend option, as in the D02/P05 tiles.
 - [ ] **G7d Lesson 5: Threat & thwarting** (the threat ring on the scheme, then Thwart).
 - [ ] **G8 Round debrief.** P07/D03: lesson checklist, "Worth remembering" (tested heuristic), "New on your board",
       guide-level control, Replay a lesson, Round N ▸, and "Next: Aspects ▸" after lesson 5.
@@ -307,7 +308,7 @@ A fresh Claude session can pick this up from this file alone.
   pointer, and put a screenshot beside its tile.
 - **Commits:** as the repo's git user, with no Claude co-author trailer. Every change carries a changie fragment.
 
-**In flight:** G6b (How to win screen, `scenes/how-to-win.ts`, shared `guide/start-tutorial.ts`) and a G7c follow-up (landed `28ffbb40`: rail beside the overlays, phone guide strip). Two fixes: the villain-phase band draws over the rail's body text, and on phone the defend-sheet options overlap and clip. If cut off, check `git status`/`git log` and brief a fresh agent. Then: G6b, G6c (hub), G7a/b/d, G8, G9b, G10c–e, G11.
+**In flight:** G6b (How to win screen, `scenes/how-to-win.ts`, shared `guide/start-tutorial.ts`). If cut off, check `git status`/`git log` and brief a fresh agent. Then: G6b, G6c (hub), G7a/b/d, G8, G9b, G10c–e, G11.
 
 ## 7. Prior art: the parked prototype
 
