@@ -32,6 +32,8 @@ import type { TableSetupData } from "./table-setup.js";
 import { goToScreen } from "../ui/transitions.js";
 import { refreshUnlocks } from "../progression/progression.js";
 import type { ExtrasTab } from "../progression/extras.js";
+import { guidePrefs } from "../guide/guide-store.js";
+import { isFirstLaunch } from "../guide/guide-prefs.js";
 
 /**
  * Dev-only screenshot entry point: `?screen=…` jumps straight past Title, for
@@ -90,6 +92,9 @@ async function devScreenJump(): Promise<{ readonly key: string; readonly data?: 
   }
 
   if (screen === "decks") return { key: SCENES.decks, data: {} satisfies DecksSceneData };
+  // `?screen=chooser`: the first-run "New to the fight?" chooser (guided mode G6a, `docs/guided-mode.md` §4),
+  // reachable any time for QA without clearing `localStorage`.
+  if (screen === "chooser") return { key: SCENES.guideChooser, data: {} };
   // `?screen=termtext`: the `McTermText`/`McTooltip` dev demo (guided mode G3b, `docs/guided-mode.md` §4).
   if (screen === "termtext") return { key: SCENES.termTextDemo, data: {} };
   // `?screen=guidecallout`: the `McGuideCallout` dev demo (guided mode G4a, `docs/guided-mode.md` §4).
@@ -402,7 +407,11 @@ export class BootScene extends Phaser.Scene {
           // screen-to-screen move. The dev jumps below stay hard cuts — they're QA/screenshot entry
           // points (`scripts/shoot-app.mjs`), where landing on the target screen instantly matters
           // more than a fade "reads as a page turning".
-          goToScreen(this, SCENES.title);
+          //
+          // First launch (no `mc-guide` record yet, guided mode G6a, `docs/guided-mode.md` §3.9) shows the
+          // "New to the fight?" chooser here, once, before Title — every later boot (`chooserSeen` true, whatever
+          // level was picked) goes straight to Title as before.
+          goToScreen(this, isFirstLaunch(guidePrefs()) ? SCENES.guideChooser : SCENES.title);
           return;
         }
         // `pause`'s own screenshot needs the Board running underneath it,

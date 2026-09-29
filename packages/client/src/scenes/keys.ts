@@ -52,6 +52,8 @@ export const SCENES = {
   guidePanelDemo: "GuidePanelDemo",
   /** `McGuideSpotlight`/`McGuideTag` dev demo (guided mode G4c, `docs/guided-mode.md` §4): `?screen=board&guidedemo=1` only, never reached in-game. Launched over a live Board, not standalone — see `scenes/boot.ts`. */
   guideSpotlightDemo: "GuideSpotlightDemo",
+  /** The first-run "New to the fight?" chooser (guided mode G6a, `docs/guided-mode.md` §4): `BootScene` on first launch (`isFirstLaunch(guidePrefs())`), or `?screen=chooser`. */
+  guideChooser: "GuideChooser",
   // Overlays.
   choice: "ChoiceOverlay",
   inspect: "InspectOverlay",

@@ -64,6 +64,7 @@ import { TermTextDemoScene } from "./scenes/term-text-demo.js";
 import { GuideCalloutDemoScene } from "./scenes/guide-callout-demo.js";
 import { GuidePanelDemoScene } from "./scenes/guide-panel-demo.js";
 import { GuideSpotlightDemoScene } from "./scenes/guide-spotlight-demo.js";
+import { GuideChooserScene } from "./scenes/guide-chooser.js";
 import { installDebugDump } from "./ui/debug-dump.js";
 import { installFrameGuard } from "./ui/frame-guard.js";
 import { installDesktopType, setDesktopType } from "./ui/desktop-type.js";
@@ -136,6 +137,7 @@ const game = new Phaser.Game({
     GuideCalloutDemoScene,
     GuidePanelDemoScene,
     GuideSpotlightDemoScene,
+    GuideChooserScene,
     ChoiceOverlay,
     InspectOverlay,
     VillainPhaseOverlay,
