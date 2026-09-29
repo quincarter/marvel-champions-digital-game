@@ -53,10 +53,11 @@ function observationOf(state: GameState, lastEvents: readonly GameEvent[] = []):
 }
 
 /**
- * The Rhino scenario prints its own acceleration from the very first turn (the same fact
- * `guide-hints.ts`'s `stepOneThreatOf` relies on), so `situation:acceleration` — and everything ahead of it in
- * `SITUATION_TIPS`' own order — is already true on `base`. Tests that isolate a later trigger mark all of those
- * seen first, the same way a real player would have already seen the earlier ones by then.
+ * Every situation ahead of `situation:villainStageAdvanced` (and later) in `SITUATION_TIPS`' own order — used to
+ * mark all of them seen first when a test wants to isolate a later trigger, the same way a real player would have
+ * already seen the earlier ones by then. `situation:acceleration` itself is no longer guaranteed true on `base`
+ * (it now needs *extra* acceleration — a token or icon, not just the main scheme's own printed rate), but marking
+ * it seen here is still harmless for tests that don't care about it either way.
  */
 const SEEN_THROUGH_ACCELERATION: readonly string[] = [
   "situation:obligation",
@@ -119,6 +120,60 @@ function withMinionEngaged(
         tucked: [],
         facedownAs: null,
         engagedWith: playerId,
+        flipped: false,
+      },
+    },
+  };
+}
+
+/** A fabricated minion carrying a printed acceleration icon, engaged with `playerId` (own `cardPool` entry). */
+function withAccelerationIcon(state: GameState, playerId: PlayerId): GameState {
+  const cid = cardId("guide-tips-test-minion-acceleration");
+  const minion: MinionCard = {
+    id: cid,
+    type: "minion",
+    name: "Test Minion (acceleration)",
+    setCode: setCode("core"),
+    cycleId: cycleId("core"),
+    collectorNumber: "test",
+    quantityInSet: 1,
+    unique: false,
+    encounterSetIds: [encounterSetId("guide-tips-test")],
+    boostIcons: 0,
+    traits: [],
+    keywords: [],
+    schemeIcons: ["acceleration"],
+    atk: 1,
+    sch: 0,
+    hp: 5,
+    text: unerrataedText(""),
+    abilities: [],
+  };
+  const id = instanceId(`minion-test-acceleration-${playerId}`);
+  return {
+    ...state,
+    cardPool: { ...state.cardPool, [cid]: minion },
+    villainArea: [...state.villainArea, id],
+    instances: {
+      ...state.instances,
+      [id]: {
+        instanceId: id,
+        cardId: cid,
+        ownerId: null,
+        controllerId: null,
+        home: { kind: "activeEncounterDeck" },
+        faceup: true,
+        exhausted: false,
+        damage: 0,
+        threat: 0,
+        statuses: { stunned: 0, confused: 0, tough: 0 },
+        counters: {},
+        attachedTo: null,
+        attachments: [],
+        boostCards: [],
+        tucked: [],
+        facedownAs: null,
+        engagedWith: null,
         flipped: false,
       },
     },
@@ -221,20 +276,21 @@ describe("situation:sideScheme and situation:crisis", () => {
 });
 
 describe("situation:acceleration", () => {
+  test("does not fire at game start (only the main scheme's own printed rate, no extra acceleration yet)", () => {
+    const tips = tipsFor(observationOf(base), POOL_DEPS, defaultGuidePrefs);
+    expect(tips.find((t) => t.id === "situation:acceleration")).toBeUndefined();
+  });
+
   test("fires once an acceleration token is on the main scheme", () => {
-    const id = base.mainScheme.instanceId;
-    const state = { ...base, instances: { ...base.instances, [id]: { ...base.instances[id]!, threat: 0 } } };
-    const withToken = { ...state, mainScheme: { ...state.mainScheme, accelerationTokens: 1 } };
+    const withToken = { ...base, mainScheme: { ...base.mainScheme, accelerationTokens: 1 } };
     const tips = tipsFor(observationOf(withToken), POOL_DEPS, defaultGuidePrefs);
     expect(tips[0]?.id).toBe("situation:acceleration");
   });
 
-  test("does not fire with no acceleration anywhere", () => {
-    const withoutToken = { ...base, mainScheme: { ...base.mainScheme, accelerationTokens: 0 } };
-    // This scenario/seed may still print acceleration; only assert when it truly has none to pose.
-    const tips = tipsFor(observationOf(withoutToken), POOL_DEPS, defaultGuidePrefs);
-    if (tips[0]?.id === "situation:acceleration") return;
-    expect(tips.find((t) => t.id === "situation:acceleration")).toBeUndefined();
+  test("fires once an acceleration icon is in play", () => {
+    const state = withAccelerationIcon(base, me);
+    const tips = tipsFor(observationOf(state), POOL_DEPS, defaultGuidePrefs);
+    expect(tips[0]?.id).toBe("situation:acceleration");
   });
 });
 

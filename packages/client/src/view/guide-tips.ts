@@ -18,7 +18,7 @@
  *
  * **No deps in the observation.** `LessonObservation` (deliberately) carries no `EngineDeps` — lesson predicates
  * never needed one. `tipsFor` takes its own `deps` parameter instead (G10e part 2), threaded straight through to
- * the three queries that need one (`iconsInPlay`, `mainSchemeValue`, `rulesGlossaryOf`) — the board's own mount
+ * the queries that need one (`iconsInPlay`, `rulesGlossaryOf`) — the board's own mount
  * passes the session's real `EngineDeps` (`content/pool.ts`'s `POOL_DEPS`), so an ability-*granted* icon or
  * keyword counts here the same way it does everywhere else on the table, not just a printed one.
  *
@@ -36,7 +36,6 @@ import {
   getPlayer,
   heroFacesOf,
   iconsInPlay,
-  mainSchemeValue,
   minionsEngagedWith,
   type EngineDeps,
   type PlayerId,
@@ -173,12 +172,15 @@ function crisisTip({ game }: LessonObservation, deps: EngineDeps): Tip | null {
   };
 }
 
+/**
+ * Fires only once *extra* acceleration exists — `mainSchemeValue(game, "acceleration", deps)` is the main scheme's
+ * own printed per-phase rate, which is nonzero on many schemes from the very first frame of the game and teaches
+ * nothing on its own; the tip's own copy is about acceleration piling up *on top of* that printed rate, so the
+ * trigger checks only `accelerationTokens` and any acceleration icon actually in play, not the printed value.
+ */
 function accelerationTip({ game }: LessonObservation, deps: EngineDeps): Tip | null {
-  const total =
-    mainSchemeValue(game, "acceleration", deps) +
-    game.mainScheme.accelerationTokens +
-    iconsInPlay(game, deps, "acceleration");
-  if (total <= 0) return null;
+  const extra = game.mainScheme.accelerationTokens + iconsInPlay(game, deps, "acceleration");
+  if (extra <= 0) return null;
   return {
     id: "situation:acceleration",
     title: "Acceleration is adding up",

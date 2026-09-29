@@ -29,7 +29,7 @@ import type { EngineDeps } from "@mc/engine";
 import { POOL_DEPS } from "../../content/pool.js";
 import { markTipSeen, withLevel } from "../../guide/guide-prefs.js";
 import { guidePrefs, setGuidePrefs } from "../../guide/guide-store.js";
-import type { Rect } from "../../view/layout.js";
+import { boardLayout, type Rect } from "../../view/layout.js";
 import type { LessonObservation } from "../../view/lesson-model.js";
 import type { Tip } from "../../view/guide-tips.js";
 import { advance, initialTipScheduleState, type TipScheduleState } from "../../view/tip-schedule.js";
@@ -104,19 +104,28 @@ export class BoardTipMount {
   /**
    * Draws this frame's toast, or nothing — `blocked` (an overlay or a lesson step owns the screen right now) hides
    * it without discarding `#displayed`, so it reappears the moment the block lifts (`pollBlocked` below), the same
-   * way `BoardGuideMount`'s own spotlight waits for `guideBannerClear()`. Call after every other zone has drawn, so
-   * `actionBarRect` reflects this frame's own layout.
+   * way `BoardGuideMount`'s own spotlight waits for `guideBannerClear()`.
+   *
+   * `_actionBarRect` is unused: `McTipToast` now places itself off the hand and play area
+   * (`view/tip-toast-model.ts`, fixed post-merge — the first placement sat over the action bar and hand on both
+   * desktop and phone), which this method derives itself via a fresh `boardLayout()` call rather than threading
+   * every zone rect the board's own draw loop already computed through this call's own parameter list. `playerCount`
+   * doesn't affect either zone's `y` in `view/layout.ts`'s own layout functions (only their `x`/`width`, which this
+   * placement never depends on for a bottom-right/above-hand anchor), so a synthetic `{ playerCount: 1 }` gets the
+   * real board's own `handRect`/`playAreaRect` for this frame's `viewport` without the board needing to hand them
+   * over — kept as a parameter anyway so the call site (`scenes/board.ts`) doesn't need to change shape.
    */
-  draw(viewport: Rect, tabbed: boolean, actionBarRect: Rect | null, blocked: boolean): void {
+  draw(viewport: Rect, tabbed: boolean, _actionBarRect: Rect | null, blocked: boolean): void {
     this.#lastToast = null;
     if (!this.#displayed || blocked) return;
+    const layout = boardLayout(viewport, { playerCount: 1 });
     const content: McTipToastContent = { title: this.#displayed.title, body: this.#displayed.body };
     const toast = new McTipToast(this.#scene, {
       onGotIt: () => this.#act(() => this.dismiss()),
       onClose: () => this.#act(() => this.dismiss()),
       onTurnOff: () => this.#act(() => this.turnOff()),
     });
-    toast.update(content, viewport, tabbed, actionBarRect);
+    toast.update(content, viewport, tabbed, layout.zones.hand!, layout.zones.playArea);
     this.#lastToast = toast;
   }
 

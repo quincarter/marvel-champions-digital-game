@@ -100,7 +100,14 @@ describe("advance: one tip per turn", () => {
     const first = intoActingTurn();
     expect(first.tip).not.toBeNull();
     const shownId = first.tip!.id;
-    const nextTurn: GameState = { ...base, round: base.round + 1 };
+    // A second, distinct candidate for the new turn to surface — an acceleration token on the main scheme
+    // (`situation:acceleration` now needs *extra* acceleration, not just the scheme's own printed rate, so `base`
+    // alone doesn't supply one).
+    const nextTurn: GameState = {
+      ...base,
+      round: base.round + 1,
+      mainScheme: { ...base.mainScheme, accelerationTokens: base.mainScheme.accelerationTokens + 1 },
+    };
     const prefs: GuidePrefs = { ...defaultGuidePrefs, seenTips: [shownId] };
     // Unlike the opening turn, a later turn's own transition call is never held back (`turnKey !== firstTurnKey`
     // once the opening turn has passed), so this fires on the very first call for it — no second "acting" call

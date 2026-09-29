@@ -28,6 +28,10 @@ import { textStyle } from "./theme.js";
 
 const PAD = 16;
 const MAX_WIDTH = 340;
+/** Tabbed (phone, tablet portrait) draws narrower and with less padding — it sits over the current tab's own
+ * content instead of the board's dead corner, so a smaller footprint per the fix brief. */
+const TABBED_PAD = 12;
+const TABBED_MAX_WIDTH = 280;
 const BUTTON_TYPE: TypeSpec = { ...typeRole.label, size: 12 };
 const STAMP_TYPE: TypeSpec = { ...typeRole.label, size: 10 };
 const TITLE_TYPE: TypeSpec = { ...typeRole.barTitle, size: 18 };
@@ -66,14 +70,20 @@ export class McTipToast {
     this.#tooltip = new McTooltip(scene);
   }
 
-  /** Redraws the toast for `content` at its fixed placement (`view/tip-toast-model.ts#tipToastRectOf`). */
-  update(content: McTipToastContent, viewport: Rect, tabbed: boolean, actionBarRect: Rect | null): void {
+  /**
+   * Redraws the toast for `content` at its fixed placement (`view/tip-toast-model.ts#tipToastRectOf`). `handRect`
+   * is the board's own hand zone this frame (always present); `playAreaRect` is the board's own play area zone,
+   * read only when `tabbed` is false. Tabbed draws narrower and with less padding (this module's own header).
+   */
+  update(content: McTipToastContent, viewport: Rect, tabbed: boolean, handRect: Rect, playAreaRect: Rect | null): void {
     this.#tooltip.hide();
     this.#teardown();
 
     const scene = this.#scene;
-    const width = Math.min(MAX_WIDTH, viewport.width - 32);
-    const innerWidth = width - PAD * 2;
+    const pad = tabbed ? TABBED_PAD : PAD;
+    const maxWidth = tabbed ? TABBED_MAX_WIDTH : MAX_WIDTH;
+    const width = Math.min(maxWidth, viewport.width - 32);
+    const innerWidth = width - pad * 2;
     const objects: Phaser.GameObjects.GameObject[] = [];
 
     const stampHeight = 18;
@@ -104,27 +114,27 @@ export class McTipToast {
     const turnOffUnderline = scene.add.graphics();
 
     // --- Measure total height. ---
-    let y = PAD;
+    let y = pad;
     y += stampHeight + 8;
     y += title.height + 8;
     y += body.height + 14;
     y += hit.target;
-    y += PAD;
+    y += pad;
     const height = y;
 
-    const rect = tipToastRectOf({ viewport, tabbed, actionBarRect, width, height });
+    const rect = tipToastRectOf({ viewport, tabbed, handRect, playAreaRect, width, height });
 
     const panel = scene.add.graphics();
     panel.fillStyle(signal.caution.hex, 1).fillRect(rect.x, rect.y, rect.width, rect.height);
     panel.lineStyle(border.object, surface.ink.hex, 1).strokeRect(rect.x, rect.y, rect.width, rect.height);
     objects.push(panel);
 
-    let cy = rect.y + PAD;
-    stamp.fillStyle(surface.ink.hex, 1).fillRect(rect.x + PAD, cy - stampHeight / 2, stampWidth, stampHeight);
-    stampLabel.setPosition(rect.x + PAD + STAMP_PAD, cy);
+    let cy = rect.y + pad;
+    stamp.fillStyle(surface.ink.hex, 1).fillRect(rect.x + pad, cy - stampHeight / 2, stampWidth, stampHeight);
+    stampLabel.setPosition(rect.x + pad + STAMP_PAD, cy);
     objects.push(stamp, stampLabel);
 
-    closeLabel.setPosition(rect.x + rect.width - PAD - 8, cy);
+    closeLabel.setPosition(rect.x + rect.width - pad - 8, cy);
     const closeZone = makeLinkZone(scene, closeLabel, () => this.#options.onClose());
     objects.push(closeLabel, closeZone);
     const focusables: { readonly rect: Rect; readonly activate: () => void }[] = [
@@ -135,15 +145,15 @@ export class McTipToast {
     ];
     cy += stampHeight + 8;
 
-    title.setPosition(rect.x + PAD, cy);
+    title.setPosition(rect.x + pad, cy);
     objects.push(title);
     cy += title.height + 8;
 
-    body.container.setPosition(rect.x + PAD, cy);
+    body.container.setPosition(rect.x + pad, cy);
     objects.push(body.container);
     cy += body.height + 14;
 
-    turnOffLabel.setPosition(rect.x + PAD, cy + hit.target / 2 - turnOffLabel.height / 2);
+    turnOffLabel.setPosition(rect.x + pad, cy + hit.target / 2 - turnOffLabel.height / 2);
     turnOffUnderline
       .lineStyle(1, surface.ink.hex, 0.75)
       .lineBetween(
@@ -160,7 +170,7 @@ export class McTipToast {
     });
 
     const gotItWidth = Math.min(innerWidth - turnOffLabel.width - 12, 120);
-    const gotItRect: Rect = { x: rect.x + rect.width - PAD - gotItWidth, y: cy, width: gotItWidth, height: hit.target };
+    const gotItRect: Rect = { x: rect.x + rect.width - pad - gotItWidth, y: cy, width: gotItWidth, height: hit.target };
     const gotIt = new McButton(this.#scene, {
       kind: "primary",
       label: "Got it",
