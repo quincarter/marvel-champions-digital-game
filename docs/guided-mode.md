@@ -225,6 +225,8 @@ The main session verifies UI boxes by clicking through them before ticking (§6)
 - [ ] **G10e Opportunistic tips.** `view/guide-tips.ts` is the trigger table (§5.3). Once each, Full only, shown as a
       small callout.
 
+      Part 1 landed: `0d264e63`. `tipsFor(observation, prefs, suppress)` in `view/guide-tips.ts`: 12 named situational triggers plus a generic glossary catch-all (`keyword:<id>`), Full only, once each. **Part 2 (display) must:** show at most one tip per player turn, and not in the opening seconds (`situation:handSizeDiffers` and `situation:acceleration` are true from the first frame); suppress tips a tutorial lesson covers; thread the session's real `EngineDeps` in place of `DEFAULT_DEPS` so ability-granted keywords count; and add a mulligan glossary concept (the tip has no term link today).
+
 **QA**
 
 - [ ] **G11 QA pass.** A headless click-through of the tutorial and one aspect lesson at 390×844, 1024×768 and
@@ -306,7 +308,7 @@ A fresh Claude session can pick this up from this file alone.
   pointer, and put a screenshot beside its tile.
 - **Commits:** as the repo's git user, with no Claude co-author trailer. Every change carries a changie fragment.
 
-**In flight:** G10e part 1 (tips model), G6c part 1 (hub) and G8 part 2 (fire the debrief at end of round in guided runs, from `scenes/board/guide-mount.ts`), side by side. If cut off, check `git status`/`git log` and brief a fresh agent per item. Then: G6c part 2 (replay to a lesson), G10c (aspect lesson page), G10d (try-it games), G10e part 2 (tip display), G11.
+**In flight:** G6c part 1 (hub) and G8 part 2 (fire the debrief at end of round in guided runs, from `scenes/board/guide-mount.ts`), side by side. If cut off, check `git status`/`git log` and brief a fresh agent per item. Then: G6c part 2 (replay to a lesson), G10c (aspect lesson page), G10d (try-it games), G10e part 2 (tip display), G11.
 
 ## 7. Prior art: the parked prototype
 
