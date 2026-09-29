@@ -198,6 +198,8 @@ The main session verifies UI boxes by clicking through them before ticking (§6)
 - [ ] **G8 Round debrief.** P07/D03: lesson checklist, "Worth remembering" (tested heuristic), "New on your board",
       guide-level control, Replay a lesson, Round N ▸, and "Next: Aspects ▸" after lesson 5.
 
+      Part 1 landed: `e8db5af6`. `scenes/round-debrief.ts` (`showRoundDebrief(scene, { lessons, round, events, level, onNextRound, onReplayLesson? })`), `view/round-debrief-model.ts` (4 named "worth remembering" heuristics), demo `?screen=debrief`. **Part 2 is open:** fire it at end of round in guided runs, from the guide mount. Nits: the Up next subline is wordy; the Round N button uses body type, not Bangers.
+
 **Hints**
 
 - [x] **G9a Hint heuristics.** `view/guide-hints.ts`: the four heuristics from §5.2, tests only.
@@ -303,7 +305,7 @@ A fresh Claude session can pick this up from this file alone.
   pointer, and put a screenshot beside its tile.
 - **Commits:** as the repo's git user, with no Claude co-author trailer. Every change carries a changie fragment.
 
-**In flight:** G7a+G7d (lessons 2 and 5 polish), G10e part 1 (tips model `view/guide-tips.ts`) and G8 part 1 (debrief scene + model + `?screen=debrief`; end-of-round wiring comes later). If cut off, check `git status`/`git log` and brief a fresh agent per item. Then: G6c (hub), G8, G10c–e, G11.
+**In flight:** G7a+G7d (lessons 2 and 5 polish), G10e part 1 (tips model `view/guide-tips.ts`). If cut off, check `git status`/`git log` and brief a fresh agent per item. Then: G6c (hub), G8, G10c–e, G11.
 
 ## 7. Prior art: the parked prototype
 
