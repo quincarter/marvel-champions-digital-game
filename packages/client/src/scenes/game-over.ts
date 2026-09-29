@@ -546,6 +546,7 @@ export class GameOverScene extends Phaser.Scene {
     // comment: "not cleared automatically by starting a fresh non-guided game afterward" was this method's own
     // TODO).
     appSession().guidedRun = false;
+    appSession().guidedRunKind = undefined;
     setGuideRunLevelOverride(null);
     await store.start(config);
     if (store.state.status === "failed") {

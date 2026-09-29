@@ -8,6 +8,7 @@
 
 import { campaignDefinitionOf } from "@mc/cards";
 import type { CampaignDefinition } from "@mc/engine";
+import type { AspectTryItId } from "./guide/aspect-tryit-config.js";
 import { CampaignService } from "./campaign/campaign-service.js";
 import { POOL_CARDS, POOL_DEPS } from "./content/pool.js";
 import { MemoryCampaignStorage } from "./engine/campaign-storage.js";
@@ -66,6 +67,20 @@ export interface AppSession {
    * non-guided game, so a later game never inherits a stale mid-tutorial "already done" list.
    */
   guidedRunAlreadyDone: readonly string[] | undefined;
+  /**
+   * Which guided run `guidedRun` is (guided mode G10d, `docs/guided-mode.md` §4 G10d): the five-lesson tutorial
+   * (`guide/tutorial-lessons.ts`), or one aspect's "Try it" game (`guide/aspect-lessons.ts`) started from
+   * `scenes/aspect-lesson.ts`'s own "Try it ▸". A parallel field rather than folding the aspect into `guidedRun`
+   * itself, so every existing tutorial call site (`guide/start-tutorial.ts`, the dev jumps in `scenes/boot.ts`)
+   * keeps working unchanged — `#syncGuide` (`scenes/board.ts`) treats `undefined` here the same as `{ kind:
+   * "tutorial" }` whenever `guidedRun` is true, for exactly that reason. Reset to `undefined` by every path that
+   * resets `guidedRun` to `false` (Title's "New game"/"Continue", Game over's "Run it back") — a stale aspect id
+   * must never leak into a later plain or tutorial game.
+   */
+  guidedRunKind:
+    | { readonly kind: "tutorial" }
+    | { readonly kind: "aspect"; readonly aspect: AspectTryItId }
+    | undefined;
 }
 
 let session: AppSession | null = null;
@@ -80,6 +95,7 @@ export function appSession(): AppSession {
       gameLog: emptyLog(),
       guidedRun: false,
       guidedRunAlreadyDone: undefined,
+      guidedRunKind: undefined,
     };
   }
   return session;

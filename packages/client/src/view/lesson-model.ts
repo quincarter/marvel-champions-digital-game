@@ -154,6 +154,21 @@ export function cardPlayed(code: CardId): LessonPredicate {
   return (observation) => observation.lastEvents.some((event) => event.type === "cardPlayed" && event.cardId === code);
 }
 
+/**
+ * True while `perspectiveId`'s hand contains a card with this code — from the moment it's drawn (or, more often
+ * here, from a stacked opening hand at game start) until it leaves the hand. Unlike `cardPlayed`, this reads live
+ * state rather than `lastEvents`, so a lesson gated on it (`Lesson.when`, guided mode G10d's aspect "Try it"
+ * lessons, `guide/aspect-lessons.ts`) becomes eligible the instant the observation shows the card already there,
+ * not only on the command that put it there.
+ */
+export function cardInHand(code: CardId): LessonPredicate {
+  return (observation) => {
+    const player = observation.game.players.find((p) => p.playerId === observation.perspectiveId);
+    if (!player) return false;
+    return player.hand.some((id) => observation.game.instances[id]?.cardId === code);
+  };
+}
+
 /** True once the most recent command produced an event of this type, whatever its other fields. */
 export function eventSeen(type: GameEvent["type"]): LessonPredicate {
   return (observation) => observation.lastEvents.some((event) => event.type === type);

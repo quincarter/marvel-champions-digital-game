@@ -115,9 +115,23 @@ function villainPhaseExtraRowsOf(
   return { heading: "This villain phase", rows };
 }
 
+/**
+ * Board-side behavior guided mode G10d's aspect "Try it" runs opt out of, alongside the tutorial's own defaults
+ * (both `true`, so every pre-existing `new BoardGuideMount(scene, options, observation)` call keeps its old
+ * behavior unchanged): a short one-lesson aspect run has no round-boundary debrief content worth showing
+ * (`docs/guided-mode.md` §4 G10d: "no debrief, no Log lock"), and never locks the Log tab — the tutorial's own
+ * "Lesson 5" unlock story doesn't apply to a run that never reaches a lesson 5.
+ */
+export interface BoardGuideMountOptions {
+  readonly lockLog?: boolean;
+  readonly roundDebrief?: boolean;
+}
+
 export class BoardGuideMount {
   readonly #scene: BoardScene;
   readonly #controller: GuideController;
+  readonly #lockLog: boolean;
+  readonly #roundDebrief: boolean;
   #observation: LessonObservation;
   #collapsed = false;
   #lastGateStepId: string | null = null;
@@ -163,9 +177,16 @@ export class BoardGuideMount {
    * still has lessons left (or on the round where the last lesson completes)"). */
   #firedCompleteDebrief = false;
 
-  constructor(scene: BoardScene, options: GuideControllerOptions, observation: LessonObservation) {
+  constructor(
+    scene: BoardScene,
+    options: GuideControllerOptions,
+    observation: LessonObservation,
+    mountOptions: BoardGuideMountOptions = {},
+  ) {
     this.#scene = scene;
     this.#observation = observation;
+    this.#lockLog = mountOptions.lockLog ?? true;
+    this.#roundDebrief = mountOptions.roundDebrief ?? true;
     this.#controller = new GuideController(
       { ...options, panelExtraFor: (step, obs) => villainPhaseExtraRowsOf(step.id, obs) },
       observation,
@@ -191,7 +212,7 @@ export class BoardGuideMount {
    * villain-phase overlay have cleared), everything at/after it starts the new round's own accumulator.
    */
   noteRoundEvents(events: readonly GameEvent[]): void {
-    if (this.#controller.hidden) {
+    if (this.#controller.hidden || !this.#roundDebrief) {
       this.#roundEvents = [];
       this.#pendingDebrief = null;
       return;
@@ -242,7 +263,7 @@ export class BoardGuideMount {
    * landscape Log zone (`LogPanel.drawLocked`), so the same rule gates whichever surface is on screen.
    */
   logGate(): LogGate {
-    if (this.#controller.hidden) return { locked: false, reason: null };
+    if (this.#controller.hidden || !this.#lockLog) return { locked: false, reason: null };
     return logGateFor(true, lessonList(this.#controller.state));
   }
 

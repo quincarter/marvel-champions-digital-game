@@ -116,6 +116,26 @@ export interface GuideControllerOptions {
    * `ui/guide-panel.ts`) never reaches a real run.
    */
   readonly runLabel?: string;
+  /**
+   * Records one finished lesson in the live guide prefs — called for every `lessonId` a reducer's own `lessonDone`
+   * returns (`#apply`, below). Defaults to the tutorial's own `markLessonDone` (`guide/guide-prefs.ts`), since the
+   * tutorial is still this module's only real caller until guided mode G10d's aspect "Try it" runs (`scenes/board.ts
+   * #syncGuide`) pass their own — an aspect run's single lesson has nothing worth recording per-step, only on
+   * completion (`onComplete`, below), so it can leave this at the default without it ever firing anything odd (a
+   * lesson id `guide/guide-prefs.ts` has never heard of is simply appended and never read back).
+   */
+  readonly onLessonDone?: (lessonId: string) => void;
+  /**
+   * Records the whole run finished — called once, the moment `doneLessonIds` first covers every lesson (`#apply`'s
+   * own "Complete" contract, this module's own header). Defaults to the tutorial's own `markTutorialFinished`. A
+   * guided mode G10d aspect run passes `() => setGuidePrefs(markAspectLessonDone(guidePrefs(), aspect))` instead.
+   */
+  readonly onComplete?: () => void;
+  /** The complete state's own title/body/primary label (this module's own header's "Complete") — default to the
+   * tutorial's own copy. An aspect run (G10d) names its own aspect instead of "Tutorial complete". */
+  readonly completeTitle?: string;
+  readonly completeBody?: string;
+  readonly completePrimaryLabel?: string;
 }
 
 /** Everything the Phaser adapter needs to draw one frame. `anchor` is semantic — resolving it to a screen rect is
@@ -166,11 +186,21 @@ export class GuideController {
   readonly #extraFor: GuideControllerOptions["extraFor"];
   readonly #panelExtraFor: GuideControllerOptions["panelExtraFor"];
   readonly #runLabel: string;
+  readonly #onLessonDone: (lessonId: string) => void;
+  readonly #onComplete: () => void;
+  readonly #completeTitle: string;
+  readonly #completeBody: string;
+  readonly #completePrimaryLabel: string;
 
   constructor(options: GuideControllerOptions, observation: LessonObservation) {
     this.#extraFor = options.extraFor;
     this.#panelExtraFor = options.panelExtraFor;
     this.#runLabel = options.runLabel ?? DEFAULT_RUN_LABEL;
+    this.#onLessonDone = options.onLessonDone ?? ((id) => setGuidePrefs(markLessonDone(guidePrefs(), id)));
+    this.#onComplete = options.onComplete ?? (() => setGuidePrefs(markTutorialFinished(guidePrefs())));
+    this.#completeTitle = options.completeTitle ?? COMPLETE_TITLE;
+    this.#completeBody = options.completeBody ?? COMPLETE_BODY;
+    this.#completePrimaryLabel = options.completePrimaryLabel ?? COMPLETE_PRIMARY_LABEL;
     this.#state = startLessons(options.lessons, options.alreadyDone ?? []);
     this.#observation = observation;
     this.#runObserve();
@@ -267,7 +297,7 @@ export class GuideController {
       // Waiting or complete (this module's own header) — no anchor, no gate either way: waiting has nothing on
       // the board to spotlight yet, and the finished panel isn't teaching anything.
       const panel = this.#isComplete()
-        ? completePanelContent(this.#runLabel)
+        ? completePanelContent(this.#runLabel, this.#completeTitle, this.#completeBody, this.#completePrimaryLabel)
         : waitingPanelContent(this.#state, this.#runLabel);
       return { step: null, panel, anchor: null, tagVariant: null, gate: null, stripText: null, active: true };
     }
@@ -319,8 +349,8 @@ export class GuideController {
   #apply(result: LessonResult): void {
     const wasComplete = this.#isComplete();
     this.#state = result.state;
-    for (const id of result.lessonDone) setGuidePrefs(markLessonDone(guidePrefs(), id));
-    if (!wasComplete && this.#isComplete()) setGuidePrefs(markTutorialFinished(guidePrefs()));
+    for (const id of result.lessonDone) this.#onLessonDone(id);
+    if (!wasComplete && this.#isComplete()) this.#onComplete();
   }
 
   /** True once every lesson in this run is done and none is current — the "complete" state (this module's own
@@ -393,21 +423,28 @@ function waitingPanelContent(state: LessonRunnerState, runLabel: string): McGuid
   };
 }
 
-/** The complete state's own panel content (this module's own header): a short "Tutorial complete" message with a
- * `Close` primary action, routed by `primary()` to `dismiss()`. No lesson list — there's nothing left upcoming to
- * show, and the debrief/hub screens (G8/G6c) are where "what's next" (Aspects) actually lives. */
-function completePanelContent(runLabel: string): McGuidePanelContent {
+/** The complete state's own panel content (this module's own header): a short "done" message with a primary action,
+ * routed by `primary()` to `dismiss()`. No lesson list — there's nothing left upcoming to show, and the debrief/hub
+ * screens (G8/G6c) are where "what's next" (Aspects) actually lives. `title`/`body`/`primaryLabel` default to the
+ * tutorial's own copy (`GuideControllerOptions.completeTitle` et al.) — an aspect "Try it" run (G10d) passes its
+ * own. */
+function completePanelContent(
+  runLabel: string,
+  title: string,
+  body: string,
+  primaryLabel: string,
+): McGuidePanelContent {
   return {
     contextLabel: runLabel,
     lessons: null,
     stepLabel: null,
-    title: COMPLETE_TITLE,
-    body: COMPLETE_BODY,
+    title,
+    body,
     tip: null,
     progressTicks: null,
     progressCurrent: null,
     backLabel: null,
-    primaryLabel: COMPLETE_PRIMARY_LABEL,
+    primaryLabel,
     continueHint: null,
     nudge: null,
   };

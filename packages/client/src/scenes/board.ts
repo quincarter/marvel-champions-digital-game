@@ -48,8 +48,10 @@ import { syncSceneClock } from "../ui/scene-clock.js";
 import { fadeScreenIn, goToScreen } from "../ui/transitions.js";
 import { askToEndTurn } from "./end-turn-confirm.js";
 import { showHoldOn } from "./hold-on.js";
-import { silenceWarning } from "../guide/guide-prefs.js";
+import { markAspectLessonDone, silenceWarning } from "../guide/guide-prefs.js";
 import { guidePrefs, setGuidePrefs } from "../guide/guide-store.js";
+import { aspectGuideOf } from "../guide/aspects.js";
+import { ASPECT_TRYIT_LESSONS } from "../guide/aspect-lessons.js";
 import { drawActionBar } from "./board/action-bar.js";
 import { drawCharacter } from "./board/character-panel.js";
 import { drawChrome, drawPhoneTabs } from "./board/chrome.js";
@@ -430,23 +432,49 @@ export class BoardScene extends Phaser.Scene {
    * on the first state a guided run sees (a `GuideController` needs an initial `LessonObservation` to start
    * from), then keeps it fed on every later state. A no-op for a plain, non-guided game
    * (`appSession().guidedRun` false) — most games never allocate a `BoardGuideMount` at all.
+   *
+   * **Which run** (guided mode G10d, `docs/guided-mode.md` §4 G10d): `appSession().guidedRunKind` tells this the
+   * five-lesson tutorial (`TUTORIAL_LESSONS`) from a one-lesson aspect "Try it" run (`ASPECT_TRYIT_LESSONS`) —
+   * `undefined` (every tutorial call site predates this field) reads as tutorial, same as `{ kind: "tutorial" }`.
+   * An aspect run has no "How to win" pre-game lesson to mark already-done, no round debrief and no Log lock
+   * (`BoardGuideMount`'s own `lockLog`/`roundDebrief` options, both `false` here), and its own completion writes
+   * `markAspectLessonDone` instead of the tutorial's `markTutorialFinished`.
    */
   #syncGuide(state: SessionState): void {
     if (!appSession().guidedRun || !state.game) return;
     const observation = { game: state.game, lastEvents: state.lastEvents, perspectiveId: state.perspectiveId };
-    if (!this.#guide) {
+    if (this.#guide) {
+      this.#guide.onObservation(observation);
+      return;
+    }
+    const kind = appSession().guidedRunKind ?? { kind: "tutorial" };
+    if (kind.kind === "aspect") {
+      const { aspect } = kind;
+      const label = aspectGuideOf(aspect)?.name ?? aspect;
       this.#guide = new BoardGuideMount(
         this,
         {
-          lessons: TUTORIAL_LESSONS,
-          alreadyDone: appSession().guidedRunAlreadyDone ?? ["how-to-win"],
-          runLabel: "First game",
+          lessons: [ASPECT_TRYIT_LESSONS[aspect]],
+          runLabel: `${label} · Try it`,
+          onComplete: () => setGuidePrefs(markAspectLessonDone(guidePrefs(), aspect)),
+          completeTitle: `${label} complete`,
+          completeBody:
+            "Nice work — you've seen what makes this aspect tick. Find the others any time from " + "Settings ▸ Guide.",
         },
         observation,
+        { lockLog: false, roundDebrief: false },
       );
-    } else {
-      this.#guide.onObservation(observation);
+      return;
     }
+    this.#guide = new BoardGuideMount(
+      this,
+      {
+        lessons: TUTORIAL_LESSONS,
+        alreadyDone: appSession().guidedRunAlreadyDone ?? ["how-to-win"],
+        runLabel: "First game",
+      },
+      observation,
+    );
   }
 
   /**

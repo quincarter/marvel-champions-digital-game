@@ -431,3 +431,49 @@ describe("GuideController — waiting and complete (G5c part 2, §4 G5c item 0)"
     expect(controller.view().panel?.title).toBe("Tutorial complete");
   });
 });
+
+describe("GuideController — custom onLessonDone/onComplete/complete copy (guided mode G10d)", () => {
+  test("a caller with no overrides gets the tutorial's own defaults (the run descriptor's tutorial path, unchanged)", async () => {
+    const core = new EngineSessionCore();
+    const started = await core.start(TUTORIAL_CONFIG);
+    const controller = newController(observationOf(started.snapshot));
+    run(core, controller, 0);
+    run(core, controller, 1);
+
+    // No `onLessonDone`/`onComplete` was passed — `#apply`'s own default still writes the tutorial's own prefs,
+    // exactly as it did before G10d generalized these into options (`guide-controller.ts`'s own header).
+    expect(guidePrefs().tutorial.lessonsDone).toContain("hero-and-alter-ego");
+  });
+
+  test("a caller with overrides never touches the tutorial's own prefs, and shows its own complete copy", async () => {
+    const core = new EngineSessionCore();
+    const started = await core.start(TUTORIAL_CONFIG);
+    const onLessonDone = vi.fn();
+    const onComplete = vi.fn();
+    const controller = new GuideController(
+      {
+        lessons: [
+          { id: "solo", title: "Solo", steps: [{ id: "s1", copy: { title: "T", body: "B" }, mode: "acknowledge" }] },
+        ],
+        onLessonDone,
+        onComplete,
+        completeTitle: "Aspect complete",
+        completeBody: "Nice work.",
+        completePrimaryLabel: "Done",
+      },
+      observationOf(started.snapshot),
+    );
+
+    controller.primary(); // finishes the lesson's one step, and the run
+
+    expect(onLessonDone).toHaveBeenCalledWith("solo");
+    expect(onComplete).toHaveBeenCalledTimes(1);
+    expect(guidePrefs().tutorial.lessonsDone).not.toContain("solo");
+    expect(guidePrefs().tutorial.finished).toBe(false);
+
+    const view = controller.view();
+    expect(view.panel?.title).toBe("Aspect complete");
+    expect(view.panel?.body).toBe("Nice work.");
+    expect(view.panel?.primaryLabel).toBe("Done");
+  });
+});

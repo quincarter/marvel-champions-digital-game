@@ -390,6 +390,7 @@ export class TitleScene extends Phaser.Scene {
     // running rather than stopping outright (`session.ts`'s own `guidedRun` doc comment: "not cleared
     // automatically by starting a fresh non-guided game afterward" was this method's own TODO).
     appSession().guidedRun = false;
+    appSession().guidedRunKind = undefined;
     setGuideRunLevelOverride(null);
     const draft = this.#freshDraft();
     this.scale.off("resize", this.#rebuild, this);
@@ -406,6 +407,7 @@ export class TitleScene extends Phaser.Scene {
     // "Continue" resumes a saved game, never a guided run (guidance isn't part of a save — `session.ts`'s own
     // `guidedRun` doc comment) — same reset as `#newGame`'s own, above.
     appSession().guidedRun = false;
+    appSession().guidedRunKind = undefined;
     setGuideRunLevelOverride(null);
     await store.resume(gameId);
     if (store.state.status === "failed") {

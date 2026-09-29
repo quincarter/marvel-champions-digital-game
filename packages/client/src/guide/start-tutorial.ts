@@ -57,6 +57,7 @@ export async function startTutorialGame(options: StartTutorialGameOptions = {}):
   if (store.state.game?.pendingChoice) await store.resolveChoice([]);
 
   appSession().guidedRun = true;
+  appSession().guidedRunKind = { kind: "tutorial" };
   appSession().guidedRunAlreadyDone = options.startAtLesson
     ? tutorialLessonsDoneBefore(options.startAtLesson)
     : undefined;

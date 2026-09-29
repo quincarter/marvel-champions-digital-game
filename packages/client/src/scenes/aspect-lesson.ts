@@ -53,6 +53,8 @@ import { artFor } from "../art/art-source.js";
 import { cardArt, drawArt } from "../art/card-art.js";
 import { guidePrefs, setGuidePrefs } from "../guide/guide-store.js";
 import { markAspectLessonDone } from "../guide/guide-prefs.js";
+import { ASPECT_TRYIT_CONFIGS, type AspectTryItId } from "../guide/aspect-tryit-config.js";
+import { startAspectTryItGame } from "../guide/start-aspect-tryit.js";
 import { destroyChildren } from "../ui/destroy-children.js";
 import { fadeScreenIn, goToScreen } from "../ui/transitions.js";
 import { FocusRoute, type FocusStop } from "./focus-route.js";
@@ -98,6 +100,9 @@ export class AspectLessonScene extends Phaser.Scene {
   readonly #textScroll = new VariableListScroll();
   readonly #cardsScroll = new VariableListScroll();
   #done = false;
+  /** Guards "Try it ▸" against a double tap while `startAspectTryItGame` is in flight (mirrors
+   * `scenes/how-to-win.ts#startTheFight`'s own `#starting`). */
+  #startingTryIt = false;
 
   constructor() {
     super(SCENES.aspectLesson);
@@ -514,14 +519,17 @@ export class AspectLessonScene extends Phaser.Scene {
       height: 44,
     };
     const aspect = content.aspect;
+    const tryIt = isAspectTryItId(aspect) ? aspect : null;
     const tryItButton = new McButton(this, {
       kind: "primary",
       label: "Try it ▸",
       type: typeRole.menuButton,
       rect: buttonRect,
-      enabled: false,
-      reason: "Coming soon",
-      onClick: () => this.#onTryIt(aspect),
+      enabled: tryIt !== null,
+      ...(tryIt === null ? { reason: "Coming soon" } : {}),
+      onClick: () => {
+        if (tryIt) this.#onTryIt(tryIt);
+      },
     });
     this.#buttons.push(tryItButton);
     // Reparented into the same scroll region as the card behind it (`#drawBody`), in the same call and after the
@@ -566,11 +574,21 @@ export class AspectLessonScene extends Phaser.Scene {
     } satisfies InspectData);
   }
 
-  /** The wiring point G10d fills in — starts a guided Rhino game with this aspect's Core precon
-   * (`AspectGuide.preconId`). No-op today: the button that calls it is always drawn disabled (brief: "don't fake a
-   * game"). */
-  #onTryIt(_aspect: CoreAspect): void {
-    // Intentionally empty — see the module header and G10d in docs/guided-mode.md §4.
+  /** "Try it ▸" (guided mode G10d, `docs/guided-mode.md` §4 G10d): starts a guided Rhino game with this aspect's
+   * Core precon (`guide/aspect-tryit-config.ts`), then hands off to Board — the same `goToScreen` shape
+   * `scenes/how-to-win.ts#startTheFight` uses for the tutorial. Only ever called with an `AspectTryItId` (the
+   * button itself is disabled for Basic/'Pool, which have none — `#drawTryItCard`'s own `isAspectTryItId` guard). */
+  #onTryIt(aspect: AspectTryItId): void {
+    if (this.#startingTryIt) return;
+    this.#startingTryIt = true;
+    void this.#startTryIt(aspect);
+  }
+
+  async #startTryIt(aspect: AspectTryItId): Promise<void> {
+    await startAspectTryItGame(aspect);
+    if (!this.sys.isActive()) return;
+    this.scale.off("resize", this.#rebuild, this);
+    goToScreen(this, SCENES.board);
   }
 
   #markDone(): void {
@@ -607,6 +625,12 @@ export class AspectLessonScene extends Phaser.Scene {
     }
     goToScreen(this, this.#backTo === "howToPlay" ? SCENES.howToPlay : SCENES.title);
   }
+}
+
+/** True for the four aspects with a "Try it" game (guided mode G10d) — Basic and 'Pool have none, so their button
+ * stays disabled ("Coming soon"). */
+function isAspectTryItId(aspect: CoreAspect): aspect is AspectTryItId {
+  return aspect in ASPECT_TRYIT_CONFIGS;
 }
 
 function dashedBox(g: Phaser.GameObjects.Graphics, rect: Rect): void {
