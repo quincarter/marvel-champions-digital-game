@@ -7,6 +7,7 @@ import { hit, signal, status, surface, typeRole } from "../../tokens.js";
 import { textStyle } from "../../ui/theme.js";
 import { McButton } from "../../ui/widgets.js";
 import type { BoardModel } from "../../view/board-model.js";
+import { changeFormLabel } from "../../view/change-form-label.js";
 import type { BasicAction } from "../../view/highlights.js";
 import type { Rect } from "../../view/layout.js";
 import type { BoardDrawContext } from "./context.js";
@@ -37,18 +38,7 @@ export function drawActionBar(ctx: BoardDrawContext, rect: Rect, model: BoardMod
     attack: "Attack",
     thwart: "Thwart",
     recover: "Recover",
-    // "Flip to alter-ego" does not fit a quarter of a phone; the short form
-    // still says which way the flip goes.
-    changeForm:
-      formSources.length > 1
-        ? "Change form"
-        : stacked
-          ? model.myForm === "hero"
-            ? "To A-E"
-            : "To hero"
-          : model.myForm === "hero"
-            ? "Flip to alter-ego"
-            : "Flip to hero",
+    changeForm: formSources.length > 1 ? "Change form" : changeFormLabel(model.myForm, stacked),
     endTurn: "End turn",
   };
 
