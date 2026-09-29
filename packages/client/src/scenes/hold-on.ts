@@ -79,6 +79,9 @@ export class HoldOnOverlay extends Phaser.Scene {
       for (const button of this.#buttons) button.destroy();
       this.#buttons = [];
       if (from) from.input.enabled = true;
+      // The headless click-through hook must not outlive this scene — otherwise a script that polls
+      // `__mcHoldOnDebug` after Escape/close would keep reading a stale rect and believe the overlay is still up.
+      if (import.meta.env.DEV) delete (window as unknown as { __mcHoldOnDebug?: unknown }).__mcHoldOnDebug;
     });
     this.#draw();
   }

@@ -303,6 +303,9 @@ export class VillainPhaseOverlay extends Phaser.Scene {
       this.#revealTimer = null;
       this.#closeTimer?.remove();
       this.#closeTimer = null;
+      // Clear the headless click-through hook with the scene — otherwise a script that polls
+      // `__mcVillainPhaseDebug` after this overlay closes would keep reading the last frame's rects.
+      if (import.meta.env.DEV) delete (window as unknown as { __mcVillainPhaseDebug?: unknown }).__mcVillainPhaseDebug;
     });
   }
 
@@ -626,6 +629,16 @@ export class VillainPhaseOverlay extends Phaser.Scene {
 
     // The bottom guide strip (guided mode G7c), drawn last so it sits over everything else this frame put down.
     if (guideStrip) drawGuideStrip(this, { x: 0, y: height - stripHeight, width, height: stripHeight }, guideStrip);
+
+    // Headless click-through hook only (never referenced by product code) — mirrors `scenes/board.ts`'s own
+    // `__mcBoardDebug`, so a script can find the footer "Continue" button's real screen rect instead of a
+    // hardcoded pixel guess or re-deriving `villainPhaseLayout`'s own math.
+    if (import.meta.env.DEV) {
+      (window as unknown as { __mcVillainPhaseDebug?: unknown }).__mcVillainPhaseDebug = {
+        continueRect: () => (finished ? layout.footer : null),
+        skipRect: () => layout.skip,
+      };
+    }
 
     this.#motion.enter(this, { scrim: [scrim], panels: this.children.list.slice(panelsFrom) });
   }

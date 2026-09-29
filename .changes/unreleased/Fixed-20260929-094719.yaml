@@ -1,0 +1,3 @@
+kind: Fixed
+body: 'Guided mode QA nits: the aspect lesson''s Try it/Got it debug rects track scroll, the Hold on!/Inspect/aspect-lesson debug hooks clear on close, and the aspect tip panel no longer overlaps its own chip'
+time: 2026-09-29T09:47:19.823911-04:00

@@ -26,7 +26,7 @@
  * tracks itself.
  */
 import Phaser from "phaser";
-import { border, ink, signal, surface, typeRole } from "../tokens.js";
+import { border, hit, ink, signal, surface, typeRole } from "../tokens.js";
 import type { AspectTipContent } from "../view/aspect-tip-model.js";
 import type { Rect } from "../view/layout.js";
 import { textStyle } from "./theme.js";
@@ -123,11 +123,20 @@ export function drawAspectTipPanel(scene: Phaser.Scene, anchor: Rect, content: A
   // steers clear of `ui/widgets.ts`'s one DOM element, `McTextInput` — a search field drawn just *above* the
   // aspect chips in `scenes/seats.ts` renders over the canvas regardless of Phaser depth, so a panel that opened
   // upward there got its own bottom rows clipped by that field.
-  const spaceBelow = viewport.y + viewport.height - (anchor.y + anchor.height);
+  // `anchor` is the badge, nudged half outside the tile's own top-right corner (`drawAspectInfoBadge`'s
+  // `y: anchorRect.y - BADGE_SIZE * 0.3`) — its own bottom edge sits only ~13px below the *tile's* top, nowhere
+  // near the tile's actual bottom. Every caller's tile is a `tokens.ts#hit.target`-tall chip (Deck builder's
+  // aspect grid, Deck check's and Seats' own aspect tiles), so gapping the panel off the badge alone opened it
+  // with its own top still inside the tile — over the lower ~16px of the tile's own label. Backing the tile's
+  // top out from the badge's own known offset and clearing the tile's full height, not just the badge, is what
+  // keeps the panel off the chip it's attached to.
+  const tileBottom = anchor.y + BADGE_SIZE * 0.3 + hit.target;
+  const clearBelow = Math.max(anchor.y + anchor.height, tileBottom);
+  const spaceBelow = viewport.y + viewport.height - clearBelow;
   const flipAbove = spaceBelow < contentHeight + GAP_FROM_ANCHOR + ARROW_SIZE;
   const panelY = flipAbove
     ? anchor.y - GAP_FROM_ANCHOR - ARROW_SIZE - contentHeight
-    : anchor.y + anchor.height + GAP_FROM_ANCHOR + ARROW_SIZE;
+    : clearBelow + GAP_FROM_ANCHOR + ARROW_SIZE;
 
   const rect: Rect = { x: panelX, y: panelY, width: PANEL_WIDTH, height: contentHeight };
 

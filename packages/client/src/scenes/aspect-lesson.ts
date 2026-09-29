@@ -128,6 +128,9 @@ export class AspectLessonScene extends Phaser.Scene {
       this.#tooltip = null;
       this.#textRegion?.destroy();
       this.#cardsRegion?.destroy();
+      // Clear the headless click-through hook with the scene — otherwise a script that polls
+      // `__mcAspectLessonDebug` after leaving this page would keep reading the last frame's rects.
+      if (import.meta.env.DEV) delete (window as unknown as { __mcAspectLessonDebug?: unknown }).__mcAspectLessonDebug;
     });
     this.#route = new FocusRoute(this, {
       onCancel: () => {
@@ -173,7 +176,22 @@ export class AspectLessonScene extends Phaser.Scene {
     if (import.meta.env.DEV) {
       (window as unknown as { __mcAspectLessonDebug?: unknown }).__mcAspectLessonDebug = {
         termRects: () => this.#termBlocks.flatMap((block) => block.debugTermRects()),
-        tryItRect: () => this.#tryItRect,
+        // `#tryItRect` is measured in the "Try it" card's own scroll region content space (`#drawTryItCard`'s
+        // `buttonRect`), which never moves — only the region's `content` container does, by `-offsetPx`
+        // (`ui/scroll-region.ts#applyOffset`). Reporting the raw content-space rect left this stale at whatever
+        // scroll position was in effect the instant the button was drawn — wrong the moment a narrow layout (a
+        // single shared region, `this.#textScroll`) or a wide layout's cards column (`this.#cardsScroll`) scrolls
+        // afterward. Subtract the *live* offset every call so a script that scrolls first and then reads this
+        // hook gets the button's real current screen position, not its position at the last rebuild.
+        tryItRect: () => {
+          const rect = this.#tryItRect;
+          if (!rect) return null;
+          const offset = (layout.wide ? this.#cardsScroll : this.#textScroll).offsetPx;
+          return { ...rect, y: rect.y - offset };
+        },
+        // The footer is drawn outside every scroll region (`#drawFooter`, called after `#drawBody` with its own
+        // `this.add` calls, never added to a region's `content`), so `layout.gotIt` is already a real screen rect
+        // regardless of scroll — no offset correction needed here.
         gotItRect: () => layout.gotIt,
       };
     }

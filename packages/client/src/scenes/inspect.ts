@@ -302,6 +302,9 @@ export class InspectOverlay extends Phaser.Scene {
       // last draw, so the region from that draw is only ever cleaned up here.
       this.#sheetRegion?.destroy();
       this.#sheetRegion = null;
+      // Clear the headless click-through hook with the scene — otherwise a script that polls `__mcInspectDebug`
+      // after the sheet closes would keep reading the last frame's rects and believe the sheet is still open.
+      if (import.meta.env.DEV) delete (window as unknown as { __mcInspectDebug?: unknown }).__mcInspectDebug;
     });
 
     // Headless click-through hook only (never referenced by product code) — mirrors `scenes/choice.ts`'s own
