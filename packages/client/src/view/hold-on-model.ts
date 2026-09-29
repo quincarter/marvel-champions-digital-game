@@ -14,9 +14,13 @@ export interface HoldOnFact {
 }
 
 /**
- * The facts panel's content: either the ordinary two-row list every other hint gets, or — `schemeFinish` only —
- * the tiles' own threat bar (P06/T03): the main scheme's name, the current fill, a hatched segment previewing the
- * add reaching the target, and a stamp naming the outcome.
+ * The facts panel's content: either the ordinary two-row list every other hint gets, or — `schemeFinish` and
+ * `schemeClose` — the tiles' own threat bar (P06/T03): the main scheme's name, the current fill, a hatched segment
+ * previewing the add up to `afterThreat`, and a stamp naming the outcome. `afterThreat` is the projected threat
+ * once next villain phase's visible step-1 add lands — for `schemeFinish` that's always `target` (the add
+ * completes it, `guide-hints.ts#schemeFinishHint`'s own doc comment), so the hatch still reaches the bar's right
+ * edge exactly as before; for `schemeClose` it lands short, leaving a plain, unfilled remainder (§3.13: the add
+ * alone doesn't complete it).
  */
 export type HoldOnFacts =
   | { readonly kind: "rows"; readonly rows: readonly HoldOnFact[] }
@@ -25,7 +29,10 @@ export type HoldOnFacts =
       readonly schemeName: string;
       readonly threat: number;
       readonly target: number;
-      readonly loses: boolean;
+      readonly afterThreat: number;
+      /** "loses"/"advances" — the red "YOU LOSE" stamp or plain "STAGE ADVANCES" (`schemeFinish`) — or "close",
+       * `schemeClose`'s own caution-toned "COULD LOSE" stamp, never the red one (it hasn't happened yet). */
+      readonly stamp: "loses" | "advances" | "close";
     };
 
 export interface HoldOnContent {
@@ -64,14 +71,25 @@ function factsFor(hint: Hint, schemeName: string | null): HoldOnFacts {
     case "schemeFinish": {
       // The body's own "lose the game"/"complete this stage" wording (`guide-hints.ts`) names the outcome.
       const loses = hint.body.includes("lose the game");
+      const target = facts.target ?? 0;
+      return {
+        kind: "bar",
+        schemeName: schemeName ?? "Main scheme",
+        threat: facts.threat ?? 0,
+        target,
+        afterThreat: target, // the projected add always completes it — see the type's own doc comment.
+        stamp: loses ? "loses" : "advances",
+      };
+    }
+    case "schemeClose":
       return {
         kind: "bar",
         schemeName: schemeName ?? "Main scheme",
         threat: facts.threat ?? 0,
         target: facts.target ?? 0,
-        loses,
+        afterThreat: facts.afterThreat ?? 0,
+        stamp: "close",
       };
-    }
     case "flipDanger": {
       const loses = hint.body.includes("lose the game");
       return {

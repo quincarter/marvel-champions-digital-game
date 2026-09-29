@@ -1043,6 +1043,7 @@ export class BoardController {
   #runHintSafe(hint: Hint, trigger: HintTrigger): void {
     switch (hint.key) {
       case "schemeFinish":
+      case "schemeClose":
         this.chooseBasic("thwart");
         return;
       case "lethal":

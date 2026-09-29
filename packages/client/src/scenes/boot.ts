@@ -204,15 +204,21 @@ async function devScreenJump(): Promise<{ readonly key: string; readonly data?: 
     return { key: SCENES.board, data: {} };
   }
 
-  // `?screen=board&fixture=holdon-scheme` / `&fixture=holdon-lethal` (guided mode QA item I,
-  // `docs/guided-mode.md` §4): the two `store/dev-hold-on-game.ts` fixtures, stopped one End turn away from
-  // `hintsFor`'s `schemeFinish`/`lethal` hint. No explicit level write here: `defaultGuidePrefs.level` (`@mc/client`'s
-  // `guide/guide-prefs.ts`) is already `"full"`, which is what a jump with no `mc-guide` record in `localStorage`
-  // reads — and leaving it alone (rather than forcing a run override, which always wins over a saved level) is what
-  // lets QA pre-set `mc-guide` to `"off"` in `localStorage` before this jump and see Hold on! stay silent.
-  // Must come before the generic `screen === "board"` catch-all below, which would otherwise shadow it.
-  if (screen === "board" && (params.get("fixture") === "holdon-scheme" || params.get("fixture") === "holdon-lethal")) {
-    await startDevHoldOnGame(params.get("fixture") === "holdon-scheme" ? "scheme" : "lethal");
+  // `?screen=board&fixture=holdon-scheme` / `&fixture=holdon-lethal` / `&fixture=holdon-close` (guided mode QA
+  // item I, `docs/guided-mode.md` §4/§3.13): the three `store/dev-hold-on-game.ts` fixtures, stopped one End turn
+  // away from `hintsFor`'s `schemeFinish`/`lethal`/`schemeClose` hint. No explicit level write here:
+  // `defaultGuidePrefs.level` (`@mc/client`'s `guide/guide-prefs.ts`) is already `"full"`, which is what a jump
+  // with no `mc-guide` record in `localStorage` reads — and leaving it alone (rather than forcing a run override,
+  // which always wins over a saved level) is what lets QA pre-set `mc-guide` to `"off"` in `localStorage` before
+  // this jump and see Hold on! stay silent. Must come before the generic `screen === "board"` catch-all below,
+  // which would otherwise shadow it.
+  if (
+    screen === "board" &&
+    (params.get("fixture") === "holdon-scheme" ||
+      params.get("fixture") === "holdon-lethal" ||
+      params.get("fixture") === "holdon-close")
+  ) {
+    await startDevHoldOnGame(params.get("fixture") as "holdon-scheme" | "holdon-lethal" | "holdon-close");
     return { key: SCENES.board, data: {} };
   }
 
@@ -463,12 +469,14 @@ async function startDevAllianceGame(): Promise<void> {
   await startAllianceDevGame(store);
 }
 
-async function startDevHoldOnGame(which: "scheme" | "lethal"): Promise<void> {
+async function startDevHoldOnGame(which: "holdon-scheme" | "holdon-lethal" | "holdon-close"): Promise<void> {
   const { store } = appSession();
   if (gameRunning(store)) return;
-  const { startHoldOnLethalGame, startHoldOnSchemeGame } = await import("../store/dev-hold-on-game.js");
-  if (which === "scheme") await startHoldOnSchemeGame(store);
-  else await startHoldOnLethalGame(store);
+  const { startHoldOnCloseGame, startHoldOnLethalGame, startHoldOnSchemeGame } =
+    await import("../store/dev-hold-on-game.js");
+  if (which === "holdon-scheme") await startHoldOnSchemeGame(store);
+  else if (which === "holdon-lethal") await startHoldOnLethalGame(store);
+  else await startHoldOnCloseGame(store);
 }
 
 async function startDevTipsGame(): Promise<void> {

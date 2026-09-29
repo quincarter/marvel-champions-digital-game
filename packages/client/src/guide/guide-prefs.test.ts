@@ -60,6 +60,34 @@ describe("parseGuidePrefs", () => {
     };
     expect(parseGuidePrefs(JSON.stringify({ version: 1, ...prefs }))).toEqual(prefs);
   });
+
+  it("round-trips schemeClose alongside the older keys", () => {
+    const prefs: GuidePrefs = {
+      level: "full",
+      chooserSeen: true,
+      tutorial: { lessonsDone: [], finished: false, skipped: false },
+      aspectLessonsDone: [],
+      silencedWarnings: ["schemeClose"],
+      seenTips: [],
+    };
+    expect(parseGuidePrefs(JSON.stringify({ version: 1, ...prefs }))).toEqual(prefs);
+  });
+
+  it("a saved record from before schemeClose existed still parses (no crash, no phantom silence)", () => {
+    const parsed = parseGuidePrefs(
+      JSON.stringify({
+        version: 1,
+        level: "hints",
+        chooserSeen: true,
+        tutorial: { lessonsDone: [], finished: false, skipped: false },
+        aspectLessonsDone: [],
+        silencedWarnings: ["schemeFinish", "lethal", "flipDanger", "wastedPay"],
+        seenTips: [],
+      }),
+    );
+    expect(parsed.silencedWarnings).toEqual(["schemeFinish", "lethal", "flipDanger", "wastedPay"]);
+    expect(parsed.silencedWarnings).not.toContain("schemeClose");
+  });
 });
 
 /** A minimal `Storage` stand-in: the test env (Vitest, `node`) has no real `localStorage`. */
@@ -188,6 +216,13 @@ describe("silenceWarning / unsilenceWarning", () => {
     const restored = unsilenceWarning(silenced, "lethal");
     expect(restored.silencedWarnings).toEqual([]);
     expect(unsilenceWarning(restored, "lethal")).toBe(restored);
+  });
+
+  it("silences and unsilences schemeClose on its own", () => {
+    const silenced = silenceWarning(defaultGuidePrefs, "schemeClose");
+    expect(silenced.silencedWarnings).toEqual(["schemeClose"]);
+    const restored = unsilenceWarning(silenced, "schemeClose");
+    expect(restored.silencedWarnings).toEqual([]);
   });
 });
 

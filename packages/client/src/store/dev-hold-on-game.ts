@@ -1,16 +1,17 @@
 /**
- * The `?screen=board&fixture=holdon-scheme` and `&fixture=holdon-lethal` dev jumps (`scenes/boot.ts`): two real,
- * replay-safe Rhino games stopped exactly on the boundary where `hintsFor`'s `endTurn` trigger (`view/guide-hints.ts`,
- * docs/guided-mode.md §5.2 items I and II) fires — QA item I's "verify Hold on! on a live board", which the villain
- * walkthrough and controller (G9a/G9b) only ever exercised in tests and the `?screen=holdondemo` demo before this.
- * Kept out of `boot.ts` so `dev-hold-on-game.test.ts` can prove each jump reaches the state it claims.
+ * The `?screen=board&fixture=holdon-scheme`, `&fixture=holdon-lethal` and `&fixture=holdon-close` dev jumps
+ * (`scenes/boot.ts`): three real, replay-safe Rhino games stopped exactly on the boundary where `hintsFor`'s
+ * `endTurn` trigger (`view/guide-hints.ts`, docs/guided-mode.md §5.2/§3.13 items I, II and III) fires — QA item
+ * I's "verify Hold on! on a live board", which the villain walkthrough and controller (G9a/G9b) only ever
+ * exercised in tests and the `?screen=holdondemo` demo before this. Kept out of `boot.ts` so
+ * `dev-hold-on-game.test.ts` can prove each jump reaches the state it claims.
  *
- * Both use `SessionConfig.stack`/a fixed seed (G1) plus a scripted play-forward through the real session core —
- * no state edits, so both replay byte for byte from `{ seed, stack, commands }` like any other saved game.
+ * All three use `SessionConfig.stack`/a fixed seed (G1) plus a scripted play-forward through the real session
+ * core — no state edits, so each replays byte for byte from `{ seed, stack, commands }` like any other saved game.
  */
 import { cardId } from "@mc/content";
 import type { GameState, PlayerId } from "@mc/engine";
-import { schemeFinishHint, lethalHint } from "../view/guide-hints.js";
+import { schemeCloseHint, schemeFinishHint, lethalHint } from "../view/guide-hints.js";
 import { POOL_DEPS } from "../content/pool.js";
 import type { SessionConfig } from "../engine/host.js";
 import type { SessionStore } from "./session-store.js";
@@ -74,6 +75,19 @@ export const HOLDON_SCHEME_CONFIG: SessionConfig = {
     ],
   },
 };
+
+/**
+ * The `schemeClose` fixture (`view/guide-hints.ts`'s `schemeCloseHint`, §3.13): the same seed/stack as
+ * `HOLDON_SCHEME_CONFIG` — the accumulation is identical round by round — stopped one round earlier, on round 3's
+ * own turn, where threat is 4 of the target 7 with `basicThwart` legal. Villain phase 2's attack is *declined*
+ * rather than defended (`playForwardDeclining`'s `defendLimit: 1` below), so Spider-Man enters round 3 ready
+ * (readying happens once, right before a villain phase — the same "readying, not just health" reasoning
+ * `HOLDON_SCHEME_CONFIG`'s own doc comment walks through), and `basicThwart` is still available to press.
+ * Ending the turn here projects `stepOneThreatOf` = 1 (round 3's own acceleration-only contribution), landing
+ * threat at 5 of 7 next villain phase — 2 away, not enough to complete the scheme, so `schemeCloseHint` fires
+ * ("Thwart first −1") and `schemeFinishHint` does not.
+ */
+export const HOLDON_CLOSE_CONFIG: SessionConfig = HOLDON_SCHEME_CONFIG;
 
 /**
  * The `lethal` fixture (`view/guide-hints.ts`'s `lethalHint`): a solo Rhino game (Spider-Man, Justice, seed 7 —
@@ -160,4 +174,15 @@ export async function startHoldOnLethalGame(store: SessionStore): Promise<void> 
   await store.start(HOLDON_LETHAL_CONFIG);
   if (store.state.game?.pendingChoice) await store.resolveChoice([]); // mulligan: keep the dealt hand.
   await playForwardDeclining(store, 0, (game, playerId) => !!lethalHint(game, POOL_DEPS, playerId));
+}
+
+/** Starts `HOLDON_CLOSE_CONFIG` and plays it forward to the round-3 boundary (see the config's own doc comment). */
+export async function startHoldOnCloseGame(store: SessionStore): Promise<void> {
+  await store.start(HOLDON_CLOSE_CONFIG);
+  if (store.state.game?.pendingChoice) await store.resolveChoice([]); // mulligan: keep the dealt hand.
+  await playForwardDeclining(store, 1, (game, playerId) => {
+    const actions = store.state.legal?.actions;
+    const canThwart = actions?.kind === "turn" && actions.legal.some((e) => e.action.kind === "basicThwart");
+    return canThwart && !!schemeCloseHint(game, POOL_DEPS, playerId);
+  });
 }

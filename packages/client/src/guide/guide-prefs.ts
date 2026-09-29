@@ -15,12 +15,13 @@ const PREFS_KEY = "mc-guide";
 /** Full: scripted lessons and hints. Hints: warnings only, no scripted lessons. Off: neither. */
 export type GuideLevel = "full" | "hints" | "off";
 
-/** One silence toggle per hint heuristic (docs/guided-mode.md §5.2). */
-export type SilencedWarningKey = "schemeFinish" | "lethal" | "flipDanger" | "wastedPay";
+/** One silence toggle per hint heuristic (docs/guided-mode.md §5.2, §3.13). */
+export type SilencedWarningKey = "schemeFinish" | "lethal" | "schemeClose" | "flipDanger" | "wastedPay";
 
 export const SILENCED_WARNING_KEYS: readonly SilencedWarningKey[] = [
   "schemeFinish",
   "lethal",
+  "schemeClose",
   "flipDanger",
   "wastedPay",
 ];

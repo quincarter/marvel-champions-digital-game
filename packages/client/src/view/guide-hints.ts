@@ -1,7 +1,8 @@
 /**
- * Guided mode's hint warnings (G9a, docs/guided-mode.md §5.2): four named heuristics that catch a costly mistake
- * before it happens — a scheme about to complete, lethal damage about to come in, flipping into a scheme that
- * completes unopposed, and a payment that spends more (or a better card) than it needs to.
+ * Guided mode's hint warnings (G9a, docs/guided-mode.md §5.2, §3.13): five named heuristics that catch a costly
+ * mistake before it happens — a scheme about to complete, lethal damage about to come in, a scheme one or two
+ * threat from completing, flipping into a scheme that completes unopposed, and a payment that spends more (or a
+ * better card) than it needs to.
  *
  * Each heuristic is a pure function over engine queries only — `characterProfile`, `mainSchemeValue`, `iconsInPlay`,
  * `legalActions`, `schemePanel` — never its own arithmetic over hidden state. In particular nothing here reads a
@@ -90,17 +91,7 @@ export function schemeFinishHint(state: GameState, deps: EngineDeps, playerId: P
   if (projected < remaining) return null;
 
   const loses = mainSchemeCompletionLoses(state, state.mainScheme.instanceId);
-  const legal = legalActions(state, playerId, deps);
-  const thwartMatches =
-    legal.kind === "turn"
-      ? legal.legal.filter((entry) => entry.action.kind === "basicThwart" && entry.targets.includes(panel.instanceId))
-      : [];
-  const bestThwart = thwartMatches.reduce((max, entry) => {
-    const action = entry.action;
-    return action.kind === "basicThwart"
-      ? Math.max(max, characterProfile(state, action.instanceId, deps)?.thw ?? 0)
-      : max;
-  }, 0);
+  const bestThwart = bestThwartOf(state, deps, playerId, panel.instanceId);
   const safeAction = !panel.crisis && bestThwart > 0 ? { label: `Thwart first −${bestThwart}` } : null;
 
   return {
@@ -110,6 +101,75 @@ export function schemeFinishHint(state: GameState, deps: EngineDeps, playerId: P
       `[[mainScheme|The main scheme]] is at ${panel.threat} of ${panel.target} [[threat|threat]]. Next ` +
       `[[villainPhase|villain phase]] could add ${projected} more — enough to ${loses ? "lose the game" : "complete this stage"}.`,
     facts: { threat: panel.threat, target: panel.target, projected, remaining },
+    safeAction,
+    anywayAction: { label: "End turn anyway" },
+  };
+}
+
+/** The best legal basic thwart's own THW against the main scheme, or 0 when none is legal — shared by
+ * `schemeFinishHint` and `schemeCloseHint`, whose safe actions both offer "Thwart first −N". */
+function bestThwartOf(
+  state: GameState,
+  deps: EngineDeps,
+  playerId: PlayerId,
+  mainSchemeInstanceId: InstanceId,
+): number {
+  const legal = legalActions(state, playerId, deps);
+  const thwartMatches =
+    legal.kind === "turn"
+      ? legal.legal.filter(
+          (entry) => entry.action.kind === "basicThwart" && entry.targets.includes(mainSchemeInstanceId),
+        )
+      : [];
+  return thwartMatches.reduce((max, entry) => {
+    const action = entry.action;
+    return action.kind === "basicThwart"
+      ? Math.max(max, characterProfile(state, action.instanceId, deps)?.thw ?? 0)
+      : max;
+  }, 0);
+}
+
+// ---------------------------------------------------------------------------
+// schemeCloseHint
+// ---------------------------------------------------------------------------
+
+/**
+ * Ending the turn with the main scheme within 2 [[threat|threat]] of its target *after* next villain phase's
+ * visible step-1 add (the same projection `schemeFinishHint` uses), but that add alone not enough to complete it
+ * — 1 or 2 away lands here; `schemeFinishHint` already covers 0 or less, and the two never both fire for the same
+ * state (`hintsFor`'s priority order stops at the first match). Encounter cards and boost stay unknown, so this
+ * only ever says the scheme "could" finish, never that it will (§5.2/§3.13).
+ */
+export function schemeCloseHint(state: GameState, deps: EngineDeps, playerId: PlayerId): Hint | null {
+  const player = getPlayer(state, playerId);
+  if (!player) return null;
+
+  const panel = schemePanel(state, state.mainScheme.instanceId, deps, true);
+  if (panel.target === null) return null;
+  const remaining = panel.target - panel.threat;
+  if (remaining <= 0) return null;
+
+  const villain = activeVillain(state);
+  const villainProfile = villain.defeated ? undefined : characterProfile(state, villain.instanceId, deps);
+  const schAgainstAlterEgo = player.identity.form === "alterEgo" ? (villainProfile?.sch ?? 0) : 0;
+  const projected = stepOneThreatOf(state, deps) + schAgainstAlterEgo;
+  if (projected >= remaining) return null; // completes (or worse) — `schemeFinishHint`'s job, not this one's.
+
+  const away = remaining - projected;
+  if (away > 2) return null; // more than 2 away after the add: not "close" yet.
+
+  const afterThreat = panel.threat + projected;
+  const schemeName = cardName(state, panel.instanceId);
+  const bestThwart = bestThwartOf(state, deps, playerId, panel.instanceId);
+  const safeAction = !panel.crisis && bestThwart > 0 ? { label: `Thwart first −${bestThwart}` } : null;
+
+  return {
+    key: "schemeClose",
+    title: "Close to losing",
+    body:
+      `[[mainScheme|${schemeName}]] would sit at ${afterThreat} of ${panel.target} [[threat|threat]] after next ` +
+      `[[villainPhase|villain phase]]'s visible add. Encounter cards could finish it — thwart now?`,
+    facts: { threat: panel.threat, target: panel.target, projected, afterThreat, away },
     safeAction,
     anywayAction: { label: "End turn anyway" },
   };
@@ -369,6 +429,7 @@ export function hintsFor(context: HintContext, prefs: GuidePrefs): readonly Hint
       ? [
           schemeFinishHint(state, deps, playerId),
           lethalHint(state, deps, playerId),
+          schemeCloseHint(state, deps, playerId),
           flipDangerHint(state, deps, playerId, "endTurn"),
         ]
       : trigger.kind === "flip"

@@ -28,7 +28,8 @@ describe("holdOnContentOf", () => {
       schemeName: "Crossbones' Assault",
       threat: 10,
       target: 12,
-      loses: true,
+      afterThreat: 12,
+      stamp: "loses",
     });
     expect(content.safeLabel).toBe("Thwart first");
     expect(content.safeChip).toBe("−3");
@@ -42,7 +43,8 @@ describe("holdOnContentOf", () => {
       schemeName: "Main scheme",
       threat: 10,
       target: 12,
-      loses: true,
+      afterThreat: 12,
+      stamp: "loses",
     });
   });
 
@@ -57,8 +59,34 @@ describe("holdOnContentOf", () => {
       schemeName: "Main scheme",
       threat: 10,
       target: 12,
-      loses: false,
+      afterThreat: 12,
+      stamp: "advances",
     });
+  });
+
+  test("schemeClose: the threat bar, COULD LOSE tone, hatch stops at afterThreat rather than target", () => {
+    const content = holdOnContentOf(
+      {
+        key: "schemeClose",
+        title: "Close to losing",
+        body: "The main scheme would sit at 6 of 7 threat after next villain phase's visible add. Encounter cards could finish it — thwart now?",
+        facts: { threat: 5, target: 7, projected: 1, afterThreat: 6, away: 1 },
+        safeAction: { label: "Thwart first −1" },
+        anywayAction: { label: "End turn anyway" },
+      },
+      "The Break-In!",
+    );
+    expect(content.subtitle).toBe("Close to losing");
+    expect(content.facts).toEqual({
+      kind: "bar",
+      schemeName: "The Break-In!",
+      threat: 5,
+      target: 7,
+      afterThreat: 6,
+      stamp: "close",
+    });
+    expect(content.safeLabel).toBe("Thwart first");
+    expect(content.safeChip).toBe("−1");
   });
 
   test("no safe action: safeLabel and safeChip are null", () => {

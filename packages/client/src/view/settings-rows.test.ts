@@ -96,7 +96,7 @@ describe("guideRowInfoOf", () => {
   test("every warning toggle is on by default (nothing silenced)", () => {
     const rows = guideRowInfoOf(defaultGuidePrefs);
     const toggles = rows.filter((r) => r.kind === "toggle") as GuideToggleRowInfo[];
-    expect(toggles).toHaveLength(4);
+    expect(toggles).toHaveLength(5);
     for (const toggle of toggles) expect(toggle.on).toBe(true);
   });
 
@@ -105,6 +105,18 @@ describe("guideRowInfoOf", () => {
     const rows = guideRowInfoOf(prefs);
     const lethal = rows.find((r) => r.id === "lethal") as GuideToggleRowInfo;
     expect(lethal.on).toBe(false);
+  });
+
+  test("the close-call warning toggle is present and reads off when silenced", () => {
+    const rows = guideRowInfoOf(defaultGuidePrefs);
+    const schemeClose = rows.find((r) => r.id === "schemeClose") as GuideToggleRowInfo;
+    expect(schemeClose).toBeDefined();
+    expect(schemeClose.title).toBe("Close-call warning");
+    expect(schemeClose.on).toBe(true);
+
+    const silencedPrefs: GuidePrefs = { ...defaultGuidePrefs, silencedWarnings: ["schemeClose"] };
+    const silencedRow = guideRowInfoOf(silencedPrefs).find((r) => r.id === "schemeClose") as GuideToggleRowInfo;
+    expect(silencedRow.on).toBe(false);
   });
 
   test("every row has a non-empty title", () => {

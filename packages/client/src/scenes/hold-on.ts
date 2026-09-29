@@ -345,10 +345,13 @@ export class HoldOnOverlay extends Phaser.Scene {
   }
 
   /**
-   * `schemeFinish`'s own threat bar (tiles P06/T03): the main scheme's name and "NEXT VILLAIN PHASE" on one row,
-   * the meter itself — filled red to the current threat, hatched red-on-black from there to the target (always
-   * reaches it: `schemeFinishHint` never fires unless the projected add does) — then "threat → target" in Bangers
-   * beside a red "YOU LOSE" stamp, or plain "STAGE ADVANCES" when the completion doesn't lose the game.
+   * `schemeFinish`/`schemeClose`'s own threat bar (tiles P06/T03, §3.13): the main scheme's name and "NEXT VILLAIN
+   * PHASE" on one row, the meter itself — filled red to the current threat, hatched red-on-black from there to
+   * `afterThreat` (for `schemeFinish` that's always the target's own right edge, since the projected add completes
+   * it; for `schemeClose` it lands short, leaving a plain unfilled remainder — the outcome past that point is
+   * still unknown) — then "threat → afterThreat" in Bangers beside a stamp: a red "YOU LOSE" (`loses`), a plain
+   * "STAGE ADVANCES" (`advances`), or `schemeClose`'s own caution-toned "COULD LOSE" (`close`) — never the red
+   * one, since nothing has actually happened yet.
    */
   #drawBarFacts(
     facts: Extract<HoldOnContent["facts"], { readonly kind: "bar" }>,
@@ -374,18 +377,19 @@ export class HoldOnOverlay extends Phaser.Scene {
 
     const target = Math.max(1, facts.target);
     const ratio = Math.min(1, Math.max(0, facts.threat) / target);
+    const afterRatio = Math.min(1, Math.max(ratio, facts.afterThreat / target));
     const barRect: Rect = { x: innerX, y: ny, width: innerWidth, height: BAR_HEIGHT };
     const bar = this.add.graphics();
     bar.fillStyle(surface.parchment.hex, 1).fillRect(barRect.x, barRect.y, barRect.width, barRect.height);
     bar.fillStyle(threatMeter.fill.hex, 1).fillRect(barRect.x, barRect.y, barRect.width * ratio, barRect.height);
-    // The hatched tail always reaches the target's own right edge: `schemeFinishHint` only fires when the
-    // projected add is enough to close the remaining gap, so "current threat" to "target" is exactly the preview.
+    // The hatched tail stops at `afterThreat`'s own ratio — the target's right edge for `schemeFinish` (the
+    // projected add completes it), short of it for `schemeClose` (the add alone doesn't).
     hatchRect(
       bar,
       {
         x: barRect.x + barRect.width * ratio,
         y: barRect.y,
-        width: barRect.width * (1 - ratio),
+        width: barRect.width * (afterRatio - ratio),
         height: barRect.height,
       },
       accent.heroRed.hex,
@@ -400,33 +404,39 @@ export class HoldOnOverlay extends Phaser.Scene {
       .text(
         innerX,
         ny,
-        `${facts.threat} → ${facts.target}`,
+        `${facts.threat} → ${facts.afterThreat}`,
         textStyle({ ...typeRole.barTitle, size: 20 }, surface.ink.hex),
       )
       .setOrigin(0, 0.5)
       .setY(ny + 13);
 
-    if (facts.loses) {
-      const stampLabel = this.add
-        .text(0, 0, "YOU LOSE", { ...textStyle(STAMP_TYPE, surface.paper.hex), fontStyle: "italic" })
-        .setOrigin(0.5, 0.5);
-      const stampW = stampLabel.width + STAMP_PAD * 2;
-      const stampH = 20;
-      const stampCx = x + width - pad - stampW / 2;
-      const stampCy = ny + 13;
-      this.add
-        .graphics()
-        .fillStyle(accent.heroRed.hex, 1)
-        .fillRect(stampCx - stampW / 2, stampCy - stampH / 2, stampW, stampH);
-      stampLabel.setPosition(stampCx, stampCy);
-      // The label measures its own text first (to size the stamp box around it), so it's added to the display
-      // list before that box's graphics — bring it back on top or the ink fill covers it.
-      this.children.bringToTop(stampLabel);
-    } else {
+    if (facts.stamp === "advances") {
       this.add
         .text(x + width - pad, ny + 13, "STAGE ADVANCES", textStyle(typeRole.label, surface.ink.hex, 0.85))
         .setOrigin(1, 0.5);
+      return;
     }
+
+    const stampFill = facts.stamp === "loses" ? accent.heroRed.hex : signal.caution.hex;
+    const stampTextColor = facts.stamp === "loses" ? surface.paper.hex : surface.ink.hex;
+    const stampLabel = this.add
+      .text(0, 0, facts.stamp === "loses" ? "YOU LOSE" : "COULD LOSE", {
+        ...textStyle(STAMP_TYPE, stampTextColor),
+        fontStyle: "italic",
+      })
+      .setOrigin(0.5, 0.5);
+    const stampW = stampLabel.width + STAMP_PAD * 2;
+    const stampH = 20;
+    const stampCx = x + width - pad - stampW / 2;
+    const stampCy = ny + 13;
+    this.add
+      .graphics()
+      .fillStyle(stampFill, 1)
+      .fillRect(stampCx - stampW / 2, stampCy - stampH / 2, stampW, stampH);
+    stampLabel.setPosition(stampCx, stampCy);
+    // The label measures its own text first (to size the stamp box around it), so it's added to the display
+    // list before that box's graphics — bring it back on top or the ink fill covers it.
+    this.children.bringToTop(stampLabel);
   }
 
   /** The safe button's own "[−N]" paper chip (tiles' "THWART FIRST [−2]") — a small paper rect and ink text laid

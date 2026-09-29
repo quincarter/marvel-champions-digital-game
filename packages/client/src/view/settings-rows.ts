@@ -153,6 +153,10 @@ const WARNING_ROW_COPY: Record<SilencedWarningKey, { readonly title: string; rea
     title: "Lethal hit warning",
     detail: "Catches ending your turn in hero form with no ready defender against a lethal-looking attack.",
   },
+  schemeClose: {
+    title: "Close-call warning",
+    detail: "Catches ending your turn with the main scheme one or two threat from finishing.",
+  },
   flipDanger: {
     title: "Flip warning",
     detail: "Catches flipping to (or staying in) alter-ego when the scheme would complete from it.",

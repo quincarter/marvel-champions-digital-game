@@ -22,7 +22,14 @@ import type { SessionConfig } from "../engine/host.js";
 import { beginPayment, paymentView, togglePayment } from "./payment-model.js";
 import { schemePanel } from "./board-model.js";
 import { defaultGuidePrefs, type GuidePrefs } from "../guide/guide-prefs.js";
-import { flipDangerHint, hintsFor, lethalHint, schemeFinishHint, wastedPayHint } from "./guide-hints.js";
+import {
+  flipDangerHint,
+  hintsFor,
+  lethalHint,
+  schemeCloseHint,
+  schemeFinishHint,
+  wastedPayHint,
+} from "./guide-hints.js";
 
 const RHINO_SOLO: SessionConfig = {
   scenarioId: "rhino",
@@ -342,6 +349,56 @@ describe("lethalHint", () => {
   });
 });
 
+describe("schemeCloseHint", () => {
+  beforeEach(() => intoTurn(true));
+
+  test("fires 1 threat away (after the visible add)", () => {
+    const step1 = stepOneThreatOf(base);
+    const state = withMainSchemeThreat(base, threatShortOfTarget(base, step1 + 1));
+    const hint = schemeCloseHint(state, CORE_DEPS, me);
+    expect(hint).not.toBeNull();
+    expect(hint!.key).toBe("schemeClose");
+    expect(hint!.facts.away).toBe(1);
+    expect(schemeFinishHint(state, CORE_DEPS, me)).toBeNull(); // the two never both fire for the same state.
+  });
+
+  test("fires 2 threat away (after the visible add)", () => {
+    const step1 = stepOneThreatOf(base);
+    const state = withMainSchemeThreat(base, threatShortOfTarget(base, step1 + 2));
+    const hint = schemeCloseHint(state, CORE_DEPS, me);
+    expect(hint).not.toBeNull();
+    expect(hint!.facts.away).toBe(2);
+  });
+
+  test("does not fire 3 threat away", () => {
+    const step1 = stepOneThreatOf(base);
+    const state = withMainSchemeThreat(base, threatShortOfTarget(base, step1 + 3));
+    expect(schemeCloseHint(state, CORE_DEPS, me)).toBeNull();
+  });
+
+  test("a completion fires schemeFinish only, never schemeClose", () => {
+    const step1 = stepOneThreatOf(base);
+    const state = withMainSchemeThreat(base, threatShortOfTarget(base, step1));
+    expect(schemeFinishHint(state, CORE_DEPS, me)).not.toBeNull();
+    expect(schemeCloseHint(state, CORE_DEPS, me)).toBeNull();
+  });
+
+  test("does not fire while there's plenty of room left", () => {
+    const state = withMainSchemeThreat(base, 0);
+    expect(schemeCloseHint(state, CORE_DEPS, me)).toBeNull();
+  });
+
+  test("crisis in play: the safe action never offers 'Thwart first' against the main scheme", () => {
+    const step1 = stepOneThreatOf(base);
+    let state = withMainSchemeThreat(base, threatShortOfTarget(base, step1 + 1));
+    state = withCrisisSideScheme(state);
+    const hint = schemeCloseHint(state, CORE_DEPS, me);
+    expect(hint).not.toBeNull();
+    expect(hint!.safeAction).toBeNull();
+    expect(hint!.anywayAction.label).toBe("End turn anyway");
+  });
+});
+
 describe("flipDangerHint", () => {
   // Hero form: the "flip" trigger fires *before* the flip that would take the player to alter-ego.
   beforeEach(() => intoTurn(true));
@@ -414,6 +471,24 @@ describe("hintsFor", () => {
   test("returns nothing at guide level 'off'", () => {
     const step1 = stepOneThreatOf(base);
     const state = withMainSchemeThreat(base, threatShortOfTarget(base, step1));
+    const off: GuidePrefs = { ...defaultGuidePrefs, level: "off" };
+    expect(hintsFor({ state, deps: CORE_DEPS, playerId: me, trigger: { kind: "endTurn" } }, off)).toEqual([]);
+  });
+
+  test("schemeClose fires and can be silenced on its own", () => {
+    const step1 = stepOneThreatOf(base);
+    const state = withMainSchemeThreat(base, threatShortOfTarget(base, step1 + 1));
+    const fired = hintsFor({ state, deps: CORE_DEPS, playerId: me, trigger: { kind: "endTurn" } }, defaultGuidePrefs);
+    expect(fired.some((h) => h.key === "schemeClose")).toBe(true);
+
+    const silenced: GuidePrefs = { ...defaultGuidePrefs, silencedWarnings: ["schemeClose"] };
+    const stillFired = hintsFor({ state, deps: CORE_DEPS, playerId: me, trigger: { kind: "endTurn" } }, silenced);
+    expect(stillFired.some((h) => h.key === "schemeClose")).toBe(false);
+  });
+
+  test("returns nothing for schemeClose at guide level 'off'", () => {
+    const step1 = stepOneThreatOf(base);
+    const state = withMainSchemeThreat(base, threatShortOfTarget(base, step1 + 1));
     const off: GuidePrefs = { ...defaultGuidePrefs, level: "off" };
     expect(hintsFor({ state, deps: CORE_DEPS, playerId: me, trigger: { kind: "endTurn" } }, off)).toEqual([]);
   });
