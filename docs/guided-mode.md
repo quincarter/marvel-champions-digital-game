@@ -315,7 +315,7 @@ A fresh Claude session can pick this up from this file alone.
   pointer, and put a screenshot beside its tile.
 - **Commits:** as the repo's git user, with no Claude co-author trailer. Every change carries a changie fragment.
 
-**In flight:** the G11 rerun (a), fix regressions + the full tutorial. Rerun (b), coverage gaps, passed with 0 console errors: all 4 aspect Try-its, chips, live Hold on! at 3 sizes, phone settings persistence, hub start-at-lesson. Nits: `__mcAspectLessonDebug.tryItRect` is scroll-unaware; `__mc*Debug` hooks aren't cleared on shutdown; the Deck builder aspect tip overlaps its chip slightly. Tips during real play are unverified and need a stacked fixture (a minion engages turn 1). **Queued after (a):** (1) the owner's tutorial reorder, where lesson 2 = Paying as Peter using his Scientist resource ability (+ one 1-icon card), plus a resource-types legend and Energy/Mental/Physical/Wild glossary entries, and lesson 3 = flip; (2) the tips fixture + a live check; (3) the nits.
+**In flight:** the G11 reruns are both clean (0 console errors at 390/768/1440, motion on and off). Now running in parallel: (1) the owner's tutorial reorder (lesson 2 = pay as Peter with Scientist + a 1-icon card, a resource legend, energy/mental/physical/wild glossary; lesson 3 = flip; the Energy card leaves the opening hand); (2) the tips fixture `?screen=board&fixture=tips` + a live tips check; (3) the nits batch (the recap Continue at 89×23 needs a ≥44px hit target, `__mc*Debug` hooks cleared on shutdown and made scroll-aware, the Deck builder tip overlap). If cut off, check `git status`/`git log` and brief a fresh agent per item.
 
 ## 7. Prior art: the parked prototype
 
