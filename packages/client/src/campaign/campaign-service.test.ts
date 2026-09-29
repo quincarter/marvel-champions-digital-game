@@ -213,4 +213,52 @@ describe("CampaignService", () => {
     const record = await service().start({ campaignId: "trors", seats: ROSTER, poolVersion: POOL_VERSION, seed: 11 });
     expect(record.modes).toEqual({ campaign: { campaignId: record.campaignId } });
   });
+
+  test("MC27 p. 6's optional deck freeze opt-in lives on the record, is idempotent, and persists across a reload", async () => {
+    const campaigns = service();
+    const started = await campaigns.start({ campaignId: "trors", seats: ROSTER, poolVersion: POOL_VERSION, seed: 11 });
+    expect(campaigns.isDeckFreezeOptedIn(started, 1)).toBe(false);
+
+    const opted = await campaigns.optIntoDeckFreeze(started, 1);
+    expect(campaigns.isDeckFreezeOptedIn(opted, 1)).toBe(true);
+    expect(campaigns.isDeckFreezeOptedIn(opted, 2)).toBe(false);
+
+    // Idempotent: opting in again doesn't duplicate the seat number or touch `updatedAt` again.
+    const optedAgain = await campaigns.optIntoDeckFreeze(opted, 1);
+    expect(optedAgain).toEqual(opted);
+
+    // Survives a fresh load — this is what "travels with the run" means, not just an in-memory return value.
+    const reloaded = await campaigns.load(opted.id);
+    expect(reloaded && campaigns.isDeckFreezeOptedIn(reloaded, 1)).toBe(true);
+  });
+
+  test("a change made through #put (e.g. compose) never drops an already-recorded deck-freeze opt-in", async () => {
+    const campaigns = service();
+    const started = await campaigns.start({ campaignId: "trors", seats: ROSTER, poolVersion: POOL_VERSION, seed: 11 });
+    const opted = await campaigns.optIntoDeckFreeze(started, 1);
+    const composed = await campaigns.compose(opted);
+    if (composed.kind !== "done") throw new Error("issue #1 asks nothing");
+    expect(campaigns.isDeckFreezeOptedIn(composed.record, 1)).toBe(true);
+  });
+
+  test("migrateLegacyDeckFreezeOptIn folds in a pre-migration seat's localStorage key once, then clears it", async () => {
+    const { writeLegacyDeckFreezeOptInForTest, legacyDeckFreezeOptIn } = await import("./deck-freeze-choice.js");
+    const campaigns = service();
+    const started = await campaigns.start({ campaignId: "trors", seats: ROSTER, poolVersion: POOL_VERSION, seed: 11 });
+    writeLegacyDeckFreezeOptInForTest(started.id, 2);
+
+    const migrated = await campaigns.migrateLegacyDeckFreezeOptIn(started);
+    expect(campaigns.isDeckFreezeOptedIn(migrated, 2)).toBe(true);
+    expect(legacyDeckFreezeOptIn(started.id, 2)).toBe(false);
+
+    // A second migration on the now-clean record is a no-op that writes nothing new.
+    const migratedAgain = await campaigns.migrateLegacyDeckFreezeOptIn(migrated);
+    expect(migratedAgain).toEqual(migrated);
+  });
+
+  test("migrateLegacyDeckFreezeOptIn is a no-op when there is nothing to migrate", async () => {
+    const campaigns = service();
+    const started = await campaigns.start({ campaignId: "trors", seats: ROSTER, poolVersion: POOL_VERSION, seed: 11 });
+    expect(await campaigns.migrateLegacyDeckFreezeOptIn(started)).toEqual(started);
+  });
 });

@@ -31,7 +31,6 @@ import {
   deckFreezePolicyOf,
   frozenNonCampaignCardsOf,
 } from "../../view/campaign-deck-edit-model.js";
-import { isDeckFreezeOptedIn } from "../../campaign/deck-freeze-choice.js";
 import { POOL_CARDS } from "../../content/pool.js";
 import { SCENES } from "../keys.js";
 import type { DeckBuilderCampaignData } from "../deck-builder.js";
@@ -76,7 +75,10 @@ export class CampaignDeckEditScene extends Phaser.Scene {
     // A composed attempt freezes the log's own snapshot; editing a deck under it would go stale the moment the
     // Briefing recomposes, so the attempt is thrown away first (campaign-service.ts's `discardAttempt`) and the
     // Briefing composes the issue again on the way back.
-    const current = record.attempt ? await campaignService().discardAttempt(record) : record;
+    const discarded = record.attempt ? await campaignService().discardAttempt(record) : record;
+    // A save from before the freeze opt-in moved off `localStorage` (`deck-freeze-choice.ts`) folds its seat's
+    // legacy key into the record the first time it loads here — see `campaign-service.ts`'s doc comment.
+    const current = await campaignService().migrateLegacyDeckFreezeOptIn(discarded);
 
     const seat = current.seats.find((candidate) => candidate.seatNumber === data.seatNumber);
     if (!seat) {
@@ -91,7 +93,7 @@ export class CampaignDeckEditScene extends Phaser.Scene {
 
     const definition = CAMPAIGNS[current.campaignId as string];
     const policy = deckFreezePolicyOf(current.campaignId as string);
-    const optedIn = policy === "optional" && isDeckFreezeOptedIn(data.runId, data.seatNumber);
+    const optedIn = policy === "optional" && campaignService().isDeckFreezeOptedIn(current, data.seatNumber);
     const frozenNonCampaignCards = definition
       ? frozenNonCampaignCardsOf(definition, current, data.seatNumber, optedIn)
       : null;

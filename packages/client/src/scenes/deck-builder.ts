@@ -73,7 +73,6 @@ import { cssOf, textStyle } from "../ui/theme.js";
 import { McButton, McTextInput, fitText, label, paintDotGrid, paintPanel } from "../ui/widgets.js";
 import { drawCostCurveBars, drawGroupedCardList } from "../ui/deck-stats-widgets.js";
 import { campaignService, deckStorage } from "../session.js";
-import { optIntoDeckFreeze } from "../campaign/deck-freeze-choice.js";
 import {
   campaignDeckEditModel,
   campaignDeckSizeSplit,
@@ -680,8 +679,12 @@ export class DeckBuilderScene extends Phaser.Scene {
     if (this.#campaign?.optionalFreeze?.eligible) {
       const freezeRect: Rect = { x: left, y, width: column, height: hit.target };
       const campaign = this.#campaign;
-      const doFreeze = (): void => {
-        optIntoDeckFreeze(campaign.runId, campaign.seatNumber);
+      // The opt-in itself is a small read-modify-write on the run record (`campaign-service.ts`'s
+      // `optIntoDeckFreeze`) rather than a synchronous `localStorage` write, so this scene's `onClick` fires the
+      // async round trip and navigates once it settles — the same shape `#save` already uses for `setSeatDeck`.
+      const doFreeze = async (): Promise<void> => {
+        const record = await campaignService().load(campaign.runId);
+        if (record) await campaignService().optIntoDeckFreeze(record, campaign.seatNumber);
         goToScreen(this, SCENES.campaignFrozenDeck, {
           runId: campaign.runId,
           seatNumber: campaign.seatNumber,
@@ -695,7 +698,7 @@ export class DeckBuilderScene extends Phaser.Scene {
           label: "Freeze deck for the rest of the campaign (optional, MC27 p. 6)",
           type: typeRole.label,
           rect: freezeRect,
-          onClick: doFreeze,
+          onClick: () => void doFreeze(),
         }),
       );
       this.#stops.set("freeze-deck", { rect: freezeRect, activate: doFreeze });

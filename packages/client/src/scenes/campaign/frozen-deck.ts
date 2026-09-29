@@ -35,7 +35,6 @@ import {
   deckFreezePolicyOf,
   frozenNonCampaignCardsOf,
 } from "../../view/campaign-deck-edit-model.js";
-import { isDeckFreezeOptedIn } from "../../campaign/deck-freeze-choice.js";
 import { frozenDeckMarketCta, frozenDeckModelOf, type FrozenDeckModel } from "../../view/campaign-frozen-deck-model.js";
 import type { Rect } from "../../view/layout.js";
 import { FocusRoute, type FocusStop } from "../focus-route.js";
@@ -91,8 +90,10 @@ export class CampaignFrozenDeckScene extends Phaser.Scene {
       return;
     }
     // Same as `deck-edit.ts`: a composed-but-unplayed attempt is thrown away before this screen reads the log, so
-    // the summary always reflects the log a fresh Briefing visit would recompose from.
-    const current = record.attempt ? await service.discardAttempt(record) : record;
+    // the summary always reflects the log a fresh Briefing visit would recompose from. Also migrates a seat's
+    // legacy `localStorage` freeze opt-in into the record, once (`campaign-service.ts`'s doc comment).
+    const discarded = record.attempt ? await service.discardAttempt(record) : record;
+    const current = await service.migrateLegacyDeckFreezeOptIn(discarded);
     const seat = current.seats.find((candidate) => candidate.seatNumber === data.seatNumber);
     if (!seat) {
       this.#status = `This campaign has no seat ${data.seatNumber}.`;
@@ -107,7 +108,7 @@ export class CampaignFrozenDeckScene extends Phaser.Scene {
       return;
     }
     const policy = deckFreezePolicyOf(current.campaignId as string);
-    const optedIn = policy === "optional" && isDeckFreezeOptedIn(data.runId, data.seatNumber);
+    const optedIn = policy === "optional" && service.isDeckFreezeOptedIn(current, data.seatNumber);
     const frozenNonCampaignCards = frozenNonCampaignCardsOf(definition, current, data.seatNumber, optedIn);
     if (!frozenNonCampaignCards) {
       // The deck isn't (or is no longer) frozen — a stale link, or the freeze rule changed under this record.
