@@ -300,7 +300,7 @@ A fresh Claude session can pick this up from this file alone.
   pointer, and put a screenshot beside its tile.
 - **Commits:** as the repo's git user, with no Claude co-author trailer. Every change carries a changie fragment.
 
-**In flight:** G9b (the "Hold on!" overlay, which intercepts End turn, Flip and payment confirm in `scenes/board/controller.ts`, in `scenes/board/controller.ts`). If cut off, check `git status`/`git log` and brief a fresh agent. Then: G6c (hub), G7a/b/d, G8, G10c–e, G11.
+**In flight:** G9b (the "Hold on!" overlay; intercepts End turn, Flip and payment confirm in `scenes/board/controller.ts`) and G7b (phone paying lesson: "Tap Black Cat, then Play" and TRY THIS on Inspect's Play), side by side. If cut off, check `git status`/`git log` and brief a fresh agent per box. Then: G6c (hub), G7a/d, G8, G10c–e, G11.
 
 ## 7. Prior art: the parked prototype
 
